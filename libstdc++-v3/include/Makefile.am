@@ -1,6 +1,6 @@
 ## Makefile for the include subdirectory of the GNU C++ Standard library.
 ##
-## Copyright (C) 2001-2023 Free Software Foundation, Inc.
+## Copyright (C) 2001-2024 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -35,6 +35,7 @@ std_freestanding = \
 	${std_srcdir}/coroutine \
 	${std_srcdir}/expected \
 	${std_srcdir}/functional \
+	${std_srcdir}/generator \
 	${std_srcdir}/iterator \
 	${std_srcdir}/limits \
 	${std_srcdir}/memory \
@@ -85,6 +86,7 @@ std_headers = \
 	${std_srcdir}/memory_resource \
 	${std_srcdir}/mutex \
 	${std_srcdir}/ostream \
+	${std_srcdir}/print \
 	${std_srcdir}/queue \
 	${std_srcdir}/random \
 	${std_srcdir}/regex \
@@ -102,6 +104,7 @@ std_headers = \
 	${std_srcdir}/streambuf \
 	${std_srcdir}/string \
 	${std_srcdir}/system_error \
+	${std_srcdir}/text_encoding \
 	${std_srcdir}/thread \
 	${std_srcdir}/unordered_map \
 	${std_srcdir}/unordered_set \
@@ -122,6 +125,7 @@ bits_freestanding = \
 	${bits_srcdir}/concept_check.h \
 	${bits_srcdir}/char_traits.h \
 	${bits_srcdir}/cpp_type_traits.h \
+	${bits_srcdir}/elements_of.h \
 	${bits_srcdir}/enable_special_members.h \
 	${bits_srcdir}/functexcept.h \
 	${bits_srcdir}/functional_hash.h \
@@ -130,6 +134,7 @@ bits_freestanding = \
 	${bits_srcdir}/max_size_type.h \
 	${bits_srcdir}/memoryfwd.h \
 	${bits_srcdir}/move.h \
+	${bits_srcdir}/out_ptr.h \
 	${bits_srcdir}/predefined_ops.h \
 	${bits_srcdir}/parse_numbers.h \
 	${bits_srcdir}/ptr_traits.h \
@@ -141,6 +146,7 @@ bits_freestanding = \
 	${bits_srcdir}/ranges_uninitialized.h \
 	${bits_srcdir}/ranges_util.h \
 	${bits_srcdir}/refwrap.h \
+	${bits_srcdir}/sat_arith.h \
 	${bits_srcdir}/stl_algo.h \
 	${bits_srcdir}/stl_algobase.h \
 	${bits_srcdir}/stl_construct.h \
@@ -154,7 +160,11 @@ bits_freestanding = \
 	${bits_srcdir}/stl_raw_storage_iter.h \
 	${bits_srcdir}/stl_relops.h \
 	${bits_srcdir}/stl_uninitialized.h \
+	${bits_srcdir}/text_encoding-data.h \
+	${bits_srcdir}/version.h \
 	${bits_srcdir}/string_view.tcc \
+	${bits_srcdir}/unicode.h \
+	${bits_srcdir}/unicode-data.h \
 	${bits_srcdir}/uniform_int_dist.h \
 	${bits_srcdir}/unique_ptr.h \
 	${bits_srcdir}/uses_allocator.h \
@@ -849,6 +859,9 @@ c_base_builddir = .
 c_base_freestanding = \
 	${c_base_srcdir}/cfloat \
 	${c_base_srcdir}/climits \
+	${c_base_srcdir}/cstdalign \
+	${c_base_srcdir}/cstdarg \
+	${c_base_srcdir}/cstdbool \
 	${c_base_srcdir}/cstddef \
 	${c_base_srcdir}/cstdint \
 	${c_base_srcdir}/cstdlib
@@ -869,9 +882,6 @@ c_base_headers = \
 	${c_base_srcdir}/cmath \
 	${c_base_srcdir}/csetjmp \
 	${c_base_srcdir}/csignal \
-	${c_base_srcdir}/cstdalign \
-	${c_base_srcdir}/cstdarg \
-	${c_base_srcdir}/cstdbool \
 	${c_base_srcdir}/cstdio \
 	${c_base_srcdir}/cstring \
 	${c_base_srcdir}/ctgmath \
@@ -1113,7 +1123,8 @@ allcreated = \
 	${host_builddir}/c++config.h \
 	${host_builddir}/largefile-config.h \
 	${thread_host_headers} \
-	${pch_build}
+	${pch_build} \
+	${bits_srcdir}/version.h
 
 # Here are the rules for building the headers
 all-local: ${allstamped} ${allcreated}
@@ -1462,6 +1473,12 @@ ${pch2_output}: ${pch2_source} ${pch1_output}
 ${pch3_output}: ${pch3_source} ${pch2_output}
 	-mkdir -p ${pch3_output_builddir}
 	$(CXX) $(PCHFLAGS) $(AM_CPPFLAGS) -O2 -g ${pch3_source} -o $@
+
+# AutoGen <bits/version.h>.
+.PHONY: update-version
+update-version:
+	cd ${bits_srcdir} && \
+	autogen version.def
 
 # The real deal.
 install-data-local: install-headers

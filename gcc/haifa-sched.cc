@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.
-   Copyright (C) 1992-2023 Free Software Foundation, Inc.
+   Copyright (C) 1992-2024 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) Enhanced by,
    and currently maintained by, Jim Wilson (wilson@cygnus.com)
 
@@ -1560,8 +1560,7 @@ contributes_to_priority_p (dep_t dep)
 }
 
 /* Compute the number of nondebug deps in list LIST for INSN.  */
-
-static int
+int
 dep_list_size (rtx_insn *insn, sd_list_types_def list)
 {
   sd_iterator_def sd_it;
@@ -1570,6 +1569,11 @@ dep_list_size (rtx_insn *insn, sd_list_types_def list)
 
   if (!MAY_HAVE_DEBUG_INSNS)
     return sd_lists_size (insn, list);
+
+  /* TODO: We should split normal and debug insns into separate SD_LIST_*
+     sub-lists, and then we'll be able to use something like
+     sd_lists_size(insn, list & SD_LIST_NON_DEBUG)
+     instead of walking dependencies below.  */
 
   FOR_EACH_DEP (insn, list, sd_it, dep)
     {
@@ -5033,18 +5037,18 @@ get_ebb_head_tail (basic_block beg, basic_block end,
   *tailp = end_tail;
 }
 
-/* Return nonzero if there are no real insns in the range [ HEAD, TAIL ].  */
+/* Return true if there are no real insns in the range [ HEAD, TAIL ].  */
 
-int
+bool
 no_real_insns_p (const rtx_insn *head, const rtx_insn *tail)
 {
   while (head != NEXT_INSN (tail))
     {
       if (!NOTE_P (head) && !LABEL_P (head))
-	return 0;
+	return false;
       head = NEXT_INSN (head);
     }
-  return 1;
+  return true;
 }
 
 /* Restore-other-notes: NOTE_LIST is the end of a chain of notes
@@ -6624,7 +6628,7 @@ schedule_block (basic_block *target_bb, state_t init_state)
   advance = 0;
 
   gcc_assert (scheduled_insns.length () == 0);
-  sort_p = TRUE;
+  sort_p = true;
   must_backtrack = false;
   modulo_insns_scheduled = 0;
 
@@ -6844,7 +6848,7 @@ schedule_block (basic_block *target_bb, state_t init_state)
               break;
 	    }
 
-	  sort_p = TRUE;
+	  sort_p = true;
 
 	  if (current_sched_info->can_schedule_ready_p
 	      && ! (*current_sched_info->can_schedule_ready_p) (insn))
@@ -9044,7 +9048,7 @@ extend_h_i_d (void)
   if (reserve > 0
       && ! h_i_d.space (reserve))
     {
-      h_i_d.safe_grow_cleared (3 * get_max_uid () / 2, true);
+      h_i_d.safe_grow_cleared (3U * get_max_uid () / 2, true);
       sched_extend_target ();
     }
 }

@@ -1,5 +1,5 @@
 /* Emit RTL for the GCC expander.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -58,6 +58,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl-iter.h"
 #include "stor-layout.h"
 #include "opts.h"
+#include "optabs.h"
 #include "predict.h"
 #include "rtx-vector-builder.h"
 #include "gimple.h"
@@ -105,6 +106,7 @@ rtx const_true_rtx;
 REAL_VALUE_TYPE dconst0;
 REAL_VALUE_TYPE dconst1;
 REAL_VALUE_TYPE dconst2;
+REAL_VALUE_TYPE dconstm0;
 REAL_VALUE_TYPE dconstm1;
 REAL_VALUE_TYPE dconsthalf;
 REAL_VALUE_TYPE dconstinf;
@@ -214,7 +216,7 @@ const_int_hasher::hash (rtx x)
   return (hashval_t) INTVAL (x);
 }
 
-/* Returns nonzero if the value represented by X (which is really a
+/* Returns true if the value represented by X (which is really a
    CONST_INT) is the same as that given by Y (which is really a
    HOST_WIDE_INT *).  */
 
@@ -240,7 +242,7 @@ const_wide_int_hasher::hash (rtx x)
   return (hashval_t) hash;
 }
 
-/* Returns nonzero if the value represented by X (which is really a
+/* Returns true if the value represented by X (which is really a
    CONST_WIDE_INT) is the same as that given by Y (which is really a
    CONST_WIDE_INT).  */
 
@@ -273,7 +275,7 @@ const_poly_int_hasher::hash (rtx x)
   return h.end ();
 }
 
-/* Returns nonzero if CONST_POLY_INT X is an rtx representation of Y.  */
+/* Returns true if CONST_POLY_INT X is an rtx representation of Y.  */
 
 bool
 const_poly_int_hasher::equal (rtx x, const compare_type &y)
@@ -304,7 +306,7 @@ const_double_hasher::hash (rtx x)
   return h;
 }
 
-/* Returns nonzero if the value represented by X (really a ...)
+/* Returns true if the value represented by X (really a ...)
    is the same as that represented by Y (really a ...) */
 bool
 const_double_hasher::equal (rtx x, rtx y)
@@ -312,7 +314,7 @@ const_double_hasher::equal (rtx x, rtx y)
   const_rtx const a = x, b = y;
 
   if (GET_MODE (a) != GET_MODE (b))
-    return 0;
+    return false;
   if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (a) == VOIDmode)
     return (CONST_DOUBLE_LOW (a) == CONST_DOUBLE_LOW (b)
 	    && CONST_DOUBLE_HIGH (a) == CONST_DOUBLE_HIGH (b));
@@ -335,7 +337,7 @@ const_fixed_hasher::hash (rtx x)
   return h;
 }
 
-/* Returns nonzero if the value represented by X is the same as that
+/* Returns true if the value represented by X is the same as that
    represented by Y.  */
 
 bool
@@ -344,7 +346,7 @@ const_fixed_hasher::equal (rtx x, rtx y)
   const_rtx const a = x, b = y;
 
   if (GET_MODE (a) != GET_MODE (b))
-    return 0;
+    return false;
   return fixed_identical (CONST_FIXED_VALUE (a), CONST_FIXED_VALUE (b));
 }
 
@@ -402,7 +404,7 @@ reg_attr_hasher::hash (reg_attrs *x)
   return h.end ();
 }
 
-/* Returns nonzero if the value represented by X  is the same as that given by
+/* Returns true if the value represented by X  is the same as that given by
    Y.  */
 
 bool
@@ -946,7 +948,7 @@ validate_subreg (machine_mode omode, machine_mode imode,
      in post-reload splitters that make arbitrarily mode changes to the
      registers themselves.  */
   else if (VECTOR_MODE_P (omode)
-	   && GET_MODE_INNER (omode) == GET_MODE_INNER (imode))
+	   && GET_MODE_UNIT_SIZE (omode) == GET_MODE_UNIT_SIZE (imode))
     ;
   /* Subregs involving floating point modes are not allowed to
      change size unless it's an insert into a complex mode.
@@ -986,6 +988,10 @@ validate_subreg (machine_mode omode, machine_mode imode,
 
       return subreg_offset_representable_p (regno, imode, offset, omode);
     }
+  /* Do not allow SUBREG with stricter alignment than the inner MEM.  */
+  else if (reg && MEM_P (reg) && STRICT_ALIGNMENT
+	   && MEM_ALIGN (reg) < GET_MODE_ALIGNMENT (omode))
+    return false;
 
   /* The outer size must be ordered wrt the register size, otherwise
      we wouldn't know at compile time how many registers the outer
@@ -1705,17 +1711,17 @@ subreg_size_highpart_offset (poly_uint64 outer_bytes, poly_uint64 inner_bytes)
 					* BITS_PER_UNIT);
 }
 
-/* Return 1 iff X, assumed to be a SUBREG,
+/* Return true iff X, assumed to be a SUBREG,
    refers to the least significant part of its containing reg.
-   If X is not a SUBREG, always return 1 (it is its own low part!).  */
+   If X is not a SUBREG, always return true (it is its own low part!).  */
 
-int
+bool
 subreg_lowpart_p (const_rtx x)
 {
   if (GET_CODE (x) != SUBREG)
-    return 1;
+    return true;
   else if (GET_MODE (SUBREG_REG (x)) == VOIDmode)
-    return 0;
+    return false;
 
   return known_eq (subreg_lowpart_offset (GET_MODE (x),
 					  GET_MODE (SUBREG_REG (x))),
@@ -1831,20 +1837,20 @@ mem_attrs::mem_attrs ()
     size_known_p (false)
 {}
 
-/* Returns 1 if both MEM_EXPR can be considered equal
-   and 0 otherwise.  */
+/* Returns true if both MEM_EXPR can be considered equal
+   and false otherwise.  */
 
-int
+bool
 mem_expr_equal_p (const_tree expr1, const_tree expr2)
 {
   if (expr1 == expr2)
-    return 1;
+    return true;
 
   if (! expr1 || ! expr2)
-    return 0;
+    return false;
 
   if (TREE_CODE (expr1) != TREE_CODE (expr2))
-    return 0;
+    return false;
 
   return operand_equal_p (expr1, expr2, 0);
 }
@@ -2123,9 +2129,15 @@ set_mem_attributes_minus_bitpos (rtx ref, tree t, int objectp,
 	      tree *orig_base = &attrs.expr;
 	      while (handled_component_p (*orig_base))
 		orig_base = &TREE_OPERAND (*orig_base, 0);
-	      tree aptrt = reference_alias_ptr_type (*orig_base);
-	      *orig_base = build2 (MEM_REF, TREE_TYPE (*orig_base), *namep,
-				   build_int_cst (aptrt, 0));
+	      if (TREE_CODE (*orig_base) == MEM_REF
+		  || TREE_CODE (*orig_base) == TARGET_MEM_REF)
+		TREE_OPERAND (*orig_base, 0) = *namep;
+	      else
+		{
+		  tree aptrt = reference_alias_ptr_type (*orig_base);
+		  *orig_base = build2 (MEM_REF, TREE_TYPE (*orig_base),
+				       *namep, build_int_cst (aptrt, 0));
+		}
 	    }
 	}
 
@@ -2565,6 +2577,140 @@ replace_equiv_address_nv (rtx memref, rtx addr, bool inplace)
   return change_address_1 (memref, VOIDmode, addr, 0, inplace);
 }
 
+
+/* Emit insns to reload VALUE into a new register.  VALUE is an
+   auto-increment or auto-decrement RTX whose operand is a register or
+   memory location; so reloading involves incrementing that location.
+
+   INC_AMOUNT is the number to increment or decrement by (always
+   positive and ignored for POST_MODIFY/PRE_MODIFY).
+
+   Return a pseudo containing the result.  */
+rtx
+address_reload_context::emit_autoinc (rtx value, poly_int64 inc_amount)
+{
+  /* Since we're going to call recog, and might be called within recog,
+     we need to ensure we save and restore recog_data.  */
+  recog_data_saver recog_save;
+
+  /* REG or MEM to be copied and incremented.  */
+  rtx incloc = XEXP (value, 0);
+
+  const rtx_code code = GET_CODE (value);
+  const bool post_p
+    = code == POST_DEC || code == POST_INC || code == POST_MODIFY;
+
+  bool plus_p = true;
+  rtx inc;
+  if (code == PRE_MODIFY || code == POST_MODIFY)
+    {
+      gcc_assert (GET_CODE (XEXP (value, 1)) == PLUS
+		  || GET_CODE (XEXP (value, 1)) == MINUS);
+      gcc_assert (rtx_equal_p (XEXP (XEXP (value, 1), 0), XEXP (value, 0)));
+      plus_p = GET_CODE (XEXP (value, 1)) == PLUS;
+      inc = XEXP (XEXP (value, 1), 1);
+    }
+  else
+    {
+      if (code == PRE_DEC || code == POST_DEC)
+	inc_amount = -inc_amount;
+
+      inc = gen_int_mode (inc_amount, GET_MODE (value));
+    }
+
+  rtx result;
+  if (!post_p && REG_P (incloc))
+    result = incloc;
+  else
+    {
+      result = get_reload_reg ();
+      /* First copy the location to the result register.  */
+      emit_insn (gen_move_insn (result, incloc));
+    }
+
+  /* See if we can directly increment INCLOC.  */
+  rtx_insn *last = get_last_insn ();
+  rtx_insn *add_insn = emit_insn (plus_p
+				  ? gen_add2_insn (incloc, inc)
+				  : gen_sub2_insn (incloc, inc));
+  const int icode = recog_memoized (add_insn);
+  if (icode >= 0)
+    {
+      if (!post_p && result != incloc)
+	emit_insn (gen_move_insn (result, incloc));
+      return result;
+    }
+  delete_insns_since (last);
+
+  /* If couldn't do the increment directly, must increment in RESULT.
+     The way we do this depends on whether this is pre- or
+     post-increment.  For pre-increment, copy INCLOC to the reload
+     register, increment it there, then save back.  */
+  if (!post_p)
+    {
+      if (incloc != result)
+	emit_insn (gen_move_insn (result, incloc));
+      if (plus_p)
+	emit_insn (gen_add2_insn (result, inc));
+      else
+	emit_insn (gen_sub2_insn (result, inc));
+      if (incloc != result)
+	emit_insn (gen_move_insn (incloc, result));
+    }
+  else
+    {
+      /* Post-increment.
+
+	 Because this might be a jump insn or a compare, and because
+	 RESULT may not be available after the insn in an input
+	 reload, we must do the incrementing before the insn being
+	 reloaded for.
+
+	 We have already copied INCLOC to RESULT.  Increment the copy in
+	 RESULT, save that back, then decrement RESULT so it has
+	 the original value.  */
+      if (plus_p)
+	emit_insn (gen_add2_insn (result, inc));
+      else
+	emit_insn (gen_sub2_insn (result, inc));
+      emit_insn (gen_move_insn (incloc, result));
+      /* Restore non-modified value for the result.  We prefer this
+	 way because it does not require an additional hard
+	 register.  */
+      if (plus_p)
+	{
+	  poly_int64 offset;
+	  if (poly_int_rtx_p (inc, &offset))
+	    emit_insn (gen_add2_insn (result,
+				      gen_int_mode (-offset,
+						    GET_MODE (result))));
+	  else
+	    emit_insn (gen_sub2_insn (result, inc));
+	}
+      else
+	emit_insn (gen_add2_insn (result, inc));
+    }
+  return result;
+}
+
+/* Return a memory reference like MEM, but with the address reloaded into a
+   pseudo register.  */
+
+rtx
+force_reload_address (rtx mem)
+{
+  rtx addr = XEXP (mem, 0);
+  if (GET_RTX_CLASS (GET_CODE (addr)) == RTX_AUTOINC)
+    {
+      const auto size = GET_MODE_SIZE (GET_MODE (mem));
+      addr = address_reload_context ().emit_autoinc (addr, size);
+    }
+  else
+    addr = force_reg (Pmode, addr);
+
+  return replace_equiv_address (mem, addr);
+}
+
 /* Return a memory reference like MEMREF, but with its mode widened to
    MODE and offset by OFFSET.  This would be used by targets that e.g.
    cannot issue QImode memory operations and have to use SImode memory
@@ -2815,7 +2961,7 @@ unshare_all_rtl_again (rtx_insn *insn)
   unshare_all_rtl_1 (insn);
 }
 
-unsigned int
+void
 unshare_all_rtl (void)
 {
   unshare_all_rtl_1 (get_insns ());
@@ -2826,8 +2972,6 @@ unshare_all_rtl (void)
 	SET_DECL_RTL (decl, copy_rtx_if_shared (DECL_RTL (decl)));
       DECL_INCOMING_RTL (decl) = copy_rtx_if_shared (DECL_INCOMING_RTL (decl));
     }
-
-  return 0;
 }
 
 
@@ -2938,7 +3082,6 @@ verify_rtx_sharing (rtx orig, rtx insn)
 	  break;
 	}
     }
-  return;
 }
 
 /* Reset used-flags for INSN.  */
@@ -3201,7 +3344,6 @@ repeat:
       orig1 = last_ptr;
       goto repeat;
     }
-  return;
 }
 
 /* Set the USED bit in X and its non-shareable subparts to FLAG.  */
@@ -3681,11 +3823,7 @@ last_call_insn (void)
   return safe_as_a <rtx_call_insn *> (insn);
 }
 
-/* Find the next insn after INSN that really does something.  This routine
-   does not look inside SEQUENCEs.  After reload this also skips over
-   standalone USE and CLOBBER insn.  */
-
-int
+bool
 active_insn_p (const rtx_insn *insn)
 {
   return (CALL_P (insn) || JUMP_P (insn)
@@ -3695,6 +3833,10 @@ active_insn_p (const rtx_insn *insn)
 		  || (GET_CODE (PATTERN (insn)) != USE
 		      && GET_CODE (PATTERN (insn)) != CLOBBER))));
 }
+
+/* Find the next insn after INSN that really does something.  This routine
+   does not look inside SEQUENCEs.  After reload this also skips over
+   standalone USE and CLOBBER insn.  */
 
 rtx_insn *
 next_active_insn (rtx_insn *insn)
@@ -5167,6 +5309,30 @@ emit_jump_insn (rtx x)
   return last;
 }
 
+/* Make an insn of code JUMP_INSN with pattern X,
+   add a REG_BR_PROB note that indicates very likely probability,
+   and add it to the end of the doubly-linked list.  */
+
+rtx_insn *
+emit_likely_jump_insn (rtx x)
+{
+  rtx_insn *jump = emit_jump_insn (x);
+  add_reg_br_prob_note (jump, profile_probability::very_likely ());
+  return jump;
+}
+
+/* Make an insn of code JUMP_INSN with pattern X,
+   add a REG_BR_PROB note that indicates very unlikely probability,
+   and add it to the end of the doubly-linked list.  */
+
+rtx_insn *
+emit_unlikely_jump_insn (rtx x)
+{
+  rtx_insn *jump = emit_jump_insn (x);
+  add_reg_br_prob_note (jump, profile_probability::very_unlikely ());
+  return jump;
+}
+
 /* Make an insn of code CALL_INSN with pattern X
    and add it to the end of the doubly-linked list.  */
 
@@ -5581,9 +5747,9 @@ end_sequence (void)
   free_sequence_stack = tem;
 }
 
-/* Return 1 if currently emitting into a sequence.  */
+/* Return true if currently emitting into a sequence.  */
 
-int
+bool
 in_sequence_p (void)
 {
   return get_current_sequence ()->next != 0;
@@ -6205,6 +6371,9 @@ init_emit_once (void)
   real_from_integer (&dconst0, double_mode, 0, SIGNED);
   real_from_integer (&dconst1, double_mode, 1, SIGNED);
   real_from_integer (&dconst2, double_mode, 2, SIGNED);
+
+  dconstm0 = dconst0;
+  dconstm0.sign = 1;
 
   dconstm1 = dconst1;
   dconstm1.sign = 1;

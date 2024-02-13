@@ -1,5 +1,5 @@
 // Multiplexer utilities
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -34,7 +34,7 @@
 // and having a separate tag bit to indicate which alternative is active.
 // However, using this class can have two advantages over a union:
 //
-// - It avoides the need to find somewhere to store the tag bit.
+// - It avoids the need to find somewhere to store the tag bit.
 //
 // - The compiler is aware that B cannot be null, which can make checks
 //   of the form:
@@ -116,6 +116,10 @@ public:
   //    if (ptr.is_second ())
   //      ...use ptr.known_second ()...
   T2 *second_or_null () const;
+
+  bool operator == (const pointer_mux &pm) const { return m_ptr == pm.m_ptr; }
+
+  bool operator != (const pointer_mux &pm) const { return m_ptr != pm.m_ptr; }
 
   // Return true if the pointer is a T.
   //

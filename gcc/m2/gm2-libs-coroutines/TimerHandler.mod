@@ -1,6 +1,6 @@
 (* TimerHandler.mod provides a simple timer handler for the Executive.
 
-Copyright (C) 2002-2023 Free Software Foundation, Inc.
+Copyright (C) 2002-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -41,8 +41,9 @@ CONST
    MaxQuantum     =     4 ;   (* Maximum ticks a process may consume    *)
                               (* before being rescheduled.              *)
    BaseTicks      = 1000000 ; (* Max resolution of clock ticks per sec  *)
-   TimerStackSize = 100000H ; (* Reasonable sized stack for a process  *)
-   Debugging      =  FALSE ;  (* Do you want lots of debugging info?   *)
+   TimerStackSize = 100000H ; (* Reasonable sized stack for a process   *)
+   Debugging      =  FALSE ;  (* Do you want lots of debugging info?    *)
+   EnableLED      =  FALSE ;  (* Should the scroll LED be pulsed?       *)
 
 TYPE
    EVENT = POINTER TO RECORD
@@ -328,21 +329,23 @@ BEGIN
       (* Now compenstate for lost ticks *)
       StartClock (TimerIntNo, CurrentCount + (BaseTicks DIV TicksPerSecond)) ;
 
-      (* your code needs to go here *)
-      INC (TotalTicks) ;                                     (* (iii) *)    (* remove for student *)
-      (* now pulse scroll LED *)                                            (* remove for student *)
-      IF (TotalTicks MOD TicksPerSecond) = 0                                (* remove for student *)
-      THEN                                                                  (* remove for student *)
-         ScrollLED := NOT ScrollLED ;                                       (* remove for student *)
-         (* r := printf("<scroll %d>", TotalTicks); *)
-         SwitchScroll(ScrollLED)                             (* (iv)  *)    (* remove for student *)
-      END ;                                                                 (* remove for student *)
-      IF (TotalTicks MOD MaxQuantum) = 0                                    (* remove for student *)
-      THEN                                                                  (* remove for student *)
-         RotateRunQueue                                      (* (ii)  *)    (* remove for student *)
-      END ;                                                                 (* remove for student *)
+      INC (TotalTicks) ;                                     (* (iii) *)
+      IF EnableLED
+      THEN
+         (* now pulse scroll LED *)
+         IF (TotalTicks MOD TicksPerSecond) = 0
+         THEN
+            ScrollLED := NOT ScrollLED ;
+            (* r := printf("<scroll %d>", TotalTicks); *)
+            SwitchScroll(ScrollLED)                          (* (iv)  *)
+         END
+      END ;
+      IF (TotalTicks MOD MaxQuantum) = 0
+      THEN
+         RotateRunQueue                                      (* (ii)  *)
+      END ;
 
-      CheckActiveQueue                                       (* (i)   *)    (* remove for student *)
+      CheckActiveQueue                                       (* (i)   *)
    END
 END Timer ;
 

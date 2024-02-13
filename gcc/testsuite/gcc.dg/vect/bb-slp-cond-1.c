@@ -35,6 +35,7 @@ int main ()
 
   foo (a, 4);
 
+#pragma GCC novector
   for (i = 1; i < N; i++)
     if (a[i] != i%4 + 1)
       abort ();
@@ -46,6 +47,6 @@ int main ()
 }
 
 /* { dg-final { scan-tree-dump {(no need for alias check [^\n]* when VF is 1|no alias between [^\n]* when [^\n]* is outside \(-16, 16\))} "vect" { target vect_element_align } } } */
-/* { dg-final { scan-tree-dump-times "loop vectorized" 1 "vect" { target { vect_element_align && { ! amdgcn-*-* } } } } } */
-/* { dg-final { scan-tree-dump-times "loop vectorized" 2 "vect" { target amdgcn-*-* } } } */
+/* { dg-final { scan-tree-dump-times "loop vectorized" 1 "vect" { target { vect_element_align && { ! { amdgcn-*-* } } } } } } */
+/* { dg-final { scan-tree-dump-times "loop vectorized" 2 "vect" { target { amdgcn-*-* } } } } */
 

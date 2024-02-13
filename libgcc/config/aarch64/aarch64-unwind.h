@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2017-2024 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
 This file is part of GCC.
@@ -40,8 +40,9 @@ aarch64_cie_signed_with_b_key (struct _Unwind_Context *context)
       const struct dwarf_cie *cie = get_cie (fde);
       if (cie != NULL)
 	{
-	  char *aug_str = cie->augmentation;
-	  return strchr (aug_str, 'B') == NULL ? 0 : 1;
+	  const unsigned char *aug_str = cie->augmentation;
+	  return __builtin_strchr ((const char *) aug_str,
+				   'B') == NULL ? 0 : 1;
 	}
     }
   return 0;
@@ -76,5 +77,21 @@ aarch64_demangle_return_addr (struct _Unwind_Context *context,
 
   return addr;
 }
+
+/* SME runtime function local to libgcc, streaming compatible
+   and preserves more registers than the base PCS requires, but
+   we don't rely on that here.  */
+__attribute__ ((visibility ("hidden")))
+void __libgcc_arm_za_disable (void);
+
+/* Disable the SME ZA state in case an unwound frame used the ZA
+   lazy saving scheme.  */
+#undef _Unwind_Frames_Extra
+#define _Unwind_Frames_Extra(x)				\
+  do							\
+    {							\
+      __libgcc_arm_za_disable ();			\
+    }							\
+  while (0)
 
 #endif /* defined AARCH64_UNWIND_H && defined __ILP32__ */

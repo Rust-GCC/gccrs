@@ -1,6 +1,6 @@
 (* M2Error.mod error reporting interface.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -868,7 +868,8 @@ BEGIN
       implementation:   desc := InitString ("In implementation module") |
       program       :   desc := InitString ("In program module") |
       module        :   desc := InitString ("In inner module") |
-      procedure     :   desc := InitString ("In procedure")
+      procedure     :   desc := InitString ("In procedure") |
+      noscope       :   desc := InitString ("Unknown scope")
 
       END
    END ;

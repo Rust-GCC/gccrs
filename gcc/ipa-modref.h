@@ -1,5 +1,5 @@
 /* Search for references that a functions loads or stores.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -66,7 +66,7 @@ struct GTY(()) modref_summary
 
   modref_summary ();
   ~modref_summary ();
-  void dump (FILE *);
+  void dump (FILE *) const;
   bool useful_p (int ecf_flags, bool check_flags = true);
   void finalize (tree);
 };

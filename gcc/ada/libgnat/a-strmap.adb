@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -545,7 +545,7 @@ is
                  Result (Char) =
                    ((for some Prev in Ranges'First .. R - 1 =>
                        Char in Ranges (Prev).Low .. Ranges (Prev).High)
-                    or else (Char in Ranges (R).Low .. C)));
+                    or else Char in Ranges (R).Low .. C));
          end loop;
 
          pragma Loop_Invariant

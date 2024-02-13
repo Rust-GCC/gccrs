@@ -1,4 +1,4 @@
-#   Copyright (C) 1997-2023 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -274,7 +274,7 @@ proc run-gcov-pytest { args } {
 
     verbose "Running $GCOV $testcase in $srcdir/$subdir" 2
     set testcase [remote_download host $testcase]
-    set result [remote_exec host $GCOV "$testcase -i"]
+    set result [remote_exec host $GCOV "$testcase -i -abc"]
 
     set pytest_script [lindex $args 1]
     if { ![check_effective_target_pytest3] } {

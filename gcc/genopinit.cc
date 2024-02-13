@@ -1,5 +1,5 @@
 /* Generate code to initialize optabs from machine description.
-   Copyright (C) 1993-2023 Free Software Foundation, Inc.
+   Copyright (C) 1993-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -182,7 +182,7 @@ main (int argc, const char **argv)
 
   progname = "genopinit";
 
-  if (NUM_OPTABS > 0xffff || MAX_MACHINE_MODE >= 0xff)
+  if (NUM_OPTABS > 0xfff || NUM_MACHINE_MODES > 0x3ff)
     fatal ("genopinit range assumptions invalid");
 
   if (!init_rtx_reader_args_cb (argc, argv, handle_arg))
@@ -367,15 +367,49 @@ main (int argc, const char **argv)
     fprintf (s_file, "  { %#08x, CODE_FOR_%s },\n", p->sort_num, p->name);
   fprintf (s_file, "};\n\n");
 
-  fprintf (s_file, "void\ninit_all_optabs (struct target_optabs *optabs)\n{\n");
-  fprintf (s_file, "  bool *ena = optabs->pat_enable;\n");
-  for (i = 0; patterns.iterate (i, &p); ++i)
-    fprintf (s_file, "  ena[%u] = HAVE_%s;\n", i, p->name);
-  fprintf (s_file, "}\n\n");
+  /* Some targets like riscv have a large number of patterns.  In order to
+     prevent pathological situations in dataflow analysis split the init
+     function into separate ones that initialize 1000 patterns each.  */
+
+  const int patterns_per_function = 1000;
+
+  if (patterns.length () > patterns_per_function)
+    {
+      unsigned num_init_functions
+	= patterns.length () / patterns_per_function + 1;
+      for (i = 0; i < num_init_functions; i++)
+	{
+	  fprintf (s_file, "static void\ninit_optabs_%02d "
+		   "(struct target_optabs *optabs)\n{\n", i);
+	  fprintf (s_file, "  bool *ena = optabs->pat_enable;\n");
+	  unsigned start = i * patterns_per_function;
+	  unsigned end = MIN (patterns.length (),
+			      (i + 1) * patterns_per_function);
+	  for (j = start; j < end; ++j)
+	    fprintf (s_file, "  ena[%u] = HAVE_%s;\n", j, patterns[j].name);
+	  fprintf (s_file, "}\n\n");
+	}
+
+      fprintf (s_file, "void\ninit_all_optabs "
+	       "(struct target_optabs *optabs)\n{\n");
+      for (i = 0; i < num_init_functions; ++i)
+	fprintf (s_file, "  init_optabs_%02d (optabs);\n", i);
+      fprintf (s_file, "}\n\n");
+    }
+  else
+    {
+      fprintf (s_file, "void\ninit_all_optabs "
+	       "(struct target_optabs *optabs)\n{\n");
+      fprintf (s_file, "  bool *ena = optabs->pat_enable;\n");
+      for (i = 0; patterns.iterate (i, &p); ++i)
+	fprintf (s_file, "  ena[%u] = HAVE_%s;\n", i, p->name);
+      fprintf (s_file, "}\n\n");
+    }
 
   fprintf (s_file,
 	   "/* Returns TRUE if the target supports any of the partial vector\n"
-	   "   optabs: while_ult_optab, len_load_optab or len_store_optab,\n"
+	   "   optabs: while_ult_optab, len_load_optab, len_store_optab,\n"
+	   "   mask_len_load_optab or mask_len_store_optab,\n"
 	   "   for any mode.  */\n"
 	   "bool\npartial_vectors_supported_p (void)\n{\n");
   bool any_match = false;
@@ -385,7 +419,8 @@ main (int argc, const char **argv)
     {
 #define CMP_NAME(N) !strncmp (p->name, (N), strlen ((N)))
       if (CMP_NAME("while_ult") || CMP_NAME ("len_load")
-	  || CMP_NAME ("len_store"))
+	  || CMP_NAME ("len_store")|| CMP_NAME ("mask_len_load")
+	  || CMP_NAME ("mask_len_store"))
 	{
 	  if (first)
 	    fprintf (s_file, " HAVE_%s", p->name);
@@ -436,7 +471,7 @@ main (int argc, const char **argv)
 	   "bool\n"
 	   "swap_optab_enable (optab op, machine_mode m, bool set)\n"
 	   "{\n"
-	   "  unsigned scode = (op << 16) | m;\n"
+	   "  unsigned scode = (op << 20) | m;\n"
 	   "  int i = lookup_handler (scode);\n"
 	   "  if (i >= 0)\n"
 	   "    {\n"

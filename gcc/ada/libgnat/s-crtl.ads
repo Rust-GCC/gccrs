@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2003-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -55,10 +55,9 @@ package System.CRTL is
 
    subtype off_t is Long_Integer;
 
-   type size_t is mod 2 ** Standard'Address_Size;
+   type size_t is mod System.Memory_Size;
 
-   type ssize_t is range -(2 ** (Standard'Address_Size - 1))
-                      .. +(2 ** (Standard'Address_Size - 1)) - 1;
+   type ssize_t is range -Memory_Size / 2 .. Memory_Size / 2 - 1;
 
    type int64 is new Long_Long_Integer;
    --  Note: we use Long_Long_Integer'First instead of -2 ** 63 to allow this
@@ -221,7 +220,8 @@ package System.CRTL is
    function ungetc (c : int; stream : FILEs) return int;
    pragma Import (C, ungetc, "ungetc");
 
-   function unlink (filename : chars) return int;
+   function unlink (filename : chars;
+     encoding : Filename_Encoding := Unspecified) return int;
    pragma Import (C, unlink, "__gnat_unlink");
 
    function open (filename : chars; oflag : int) return int;

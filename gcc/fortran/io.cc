@@ -1,5 +1,5 @@
 /* Deal with I/O statements & related stuff.
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -2010,15 +2010,6 @@ gfc_free_open (gfc_open *open)
   free (open);
 }
 
-
-static int
-compare_to_allowed_values (const char *specifier, const char *allowed[],
-			   const char *allowed_f2003[],
-			   const char *allowed_gnu[], gfc_char_t *value,
-			   const char *statement, bool warn, locus *where,
-			   int *num = NULL);
-
-
 static bool
 check_open_constraints (gfc_open *open, locus *where);
 
@@ -2062,12 +2053,12 @@ gfc_resolve_open (gfc_open *open, locus *where)
    value if it is not allowed.  */
 
 
-static int
+static bool
 compare_to_allowed_values (const char *specifier, const char *allowed[],
 			   const char *allowed_f2003[],
 			   const char *allowed_gnu[], gfc_char_t *value,
 			   const char *statement, bool warn, locus *where,
-			   int *num)
+			   int *num = NULL)
 {
   int i;
   unsigned int len;

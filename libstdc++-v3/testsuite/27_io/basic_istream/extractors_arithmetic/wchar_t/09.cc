@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2023 Free Software Foundation, Inc.
+// Copyright (C) 2004-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -35,7 +35,7 @@ void test09()
   (is >> std::ws) >> c;
   (is >> std::ws) >> f2;
   VERIFY( f1 == 2456 );
-  VERIFY( f2 == 0.00567 );
+  VERIFY( f2 == (double) 0.00567 ); // N.B. cast removes excess precision
   VERIFY( c == L'-' );
 }
 

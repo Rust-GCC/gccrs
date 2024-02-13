@@ -1,6 +1,6 @@
 /* m2decl.cc provides an interface to GCC decl trees.
 
-Copyright (C) 2012-2023 Free Software Foundation, Inc.
+Copyright (C) 2012-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -284,25 +284,6 @@ m2decl_DeclareModuleCtor (tree decl)
   return decl;
 }
 
-/* DetermineSizeOfConstant - given, str, and, base, fill in needsLong
-   and needsUnsigned appropriately.  */
-
-bool
-m2decl_DetermineSizeOfConstant (location_t location,
-				const char *str, unsigned int base,
-                                bool *needsLong, bool *needsUnsigned,
-				bool issueError)
-{
-  unsigned int ulow;
-  int high;
-  bool overflow = m2expr_interpret_m2_integer (location,
-					       str, base, &ulow, &high,
-					       needsLong, needsUnsigned);
-  if (overflow && issueError)
-    error_at (location, "constant %qs is too large", str);
-  return overflow;
-}
-
 /* BuildConstLiteralNumber - returns a GCC TREE built from the
    string, str.  It assumes that, str, represents a legal number in
    Modula-2.  It always returns a positive value.  */
@@ -311,32 +292,24 @@ tree
 m2decl_BuildConstLiteralNumber (location_t location, const char *str,
 				unsigned int base, bool issueError)
 {
-  tree value, type;
-  unsigned HOST_WIDE_INT low;
-  HOST_WIDE_INT high;
-  HOST_WIDE_INT ival[3];
-  bool overflow = m2expr_interpret_integer (location, str, base, &low, &high);
-  bool needLong, needUnsigned;
-
-  ival[0] = low;
-  ival[1] = high;
-  ival[2] = 0;
-
-  widest_int wval = widest_int::from_array (ival, 3);
-
-  bool overflow_m2 = m2decl_DetermineSizeOfConstant (location, str, base,
-						     &needLong, &needUnsigned,
-						     issueError);
-  if (needUnsigned && needLong)
-    type = m2type_GetM2LongCardType ();
+  widest_int wval;
+  tree value;
+  bool overflow = m2expr_OverflowZType (location, str, base, issueError);
+  if (overflow)
+    value = m2expr_GetIntegerZero (location);
   else
-    type = m2type_GetM2LongIntType ();
-
-  value = wide_int_to_tree (type, wval);
-
-  if (issueError && (overflow || overflow_m2 || m2expr_TreeOverflow (value)))
+    {
+      overflow = m2expr_StrToWideInt (location, str, base, wval, issueError);
+      if (overflow)
+	value = m2expr_GetIntegerZero (location);
+      else
+	{
+	  value = wide_int_to_tree (m2type_GetM2ZType (), wval);
+	  overflow = m2expr_TreeOverflow (value);
+	}
+    }
+  if (issueError && overflow)
     error_at (location, "constant %qs is too large", str);
-
   return m2block_RememberConstant (value);
 }
 

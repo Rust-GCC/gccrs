@@ -1,6 +1,6 @@
 // { dg-do compile { target c++14 } }
 
-// Copyright (C) 2014-2023 Free Software Foundation, Inc.
+// Copyright (C) 2014-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,9 +28,7 @@ using check2_t = std::experimental::fundamentals_v1::string_view;
 using check3_t = std::experimental::fundamentals_v1::u8string_view;
 #endif
 
-#ifdef _GLIBCXX_USE_C99_STDINT_TR1
 using check4_t = std::experimental::fundamentals_v1::u16string_view;
 using check5_t = std::experimental::fundamentals_v1::u32string_view;
-#endif
 
 using check6_t = std::experimental::fundamentals_v1::wstring_view;

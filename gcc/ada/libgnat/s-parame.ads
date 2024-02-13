@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -53,9 +53,7 @@ package System.Parameters is
    -- Task And Stack Allocation Control --
    ---------------------------------------
 
-   type Size_Type is range
-     -(2 ** (Integer'(Standard'Address_Size) - 1)) ..
-     +(2 ** (Integer'(Standard'Address_Size) - 1)) - 1;
+   type Size_Type is range -Memory_Size / 2 .. Memory_Size / 2 - 1;
    --  Type used to provide task stack sizes to the runtime. Sized to permit
    --  stack sizes of up to half the total addressable memory space. This may
    --  seem excessively large (even for 32-bit systems), however there are many

@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -297,16 +297,16 @@ gfc_cpp_init_options (unsigned int decoded_options_count,
   gfc_cpp_option.deferred_opt_count = 0;
 }
 
-int
+bool
 gfc_cpp_handle_option (size_t scode, const char *arg, int value ATTRIBUTE_UNUSED)
 {
-  int result = 1;
+  bool result = true;
   enum opt_code code = (enum opt_code) scode;
 
   switch (code)
   {
     default:
-      result = 0;
+      result = false;
       break;
 
     case OPT_cpp_:
@@ -749,7 +749,6 @@ gfc_cpp_add_include_path_after (char *path, bool user_supplied)
 
 static void scan_translation_unit_trad (cpp_reader *);
 static void account_for_newlines (const unsigned char *, size_t);
-static int dump_macro (cpp_reader *, cpp_hashnode *, void *);
 
 static void print_line (location_t, const char *);
 static void maybe_print_line (location_t);
@@ -1085,13 +1084,13 @@ cb_cpp_diagnostic (cpp_reader *pfile ATTRIBUTE_UNUSED,
 {
   diagnostic_info diagnostic;
   diagnostic_t dlevel;
-  bool save_warn_system_headers = global_dc->dc_warn_system_headers;
+  bool save_warn_system_headers = global_dc->m_warn_system_headers;
   bool ret;
 
   switch (level)
     {
     case CPP_DL_WARNING_SYSHDR:
-      global_dc->dc_warn_system_headers = 1;
+      global_dc->m_warn_system_headers = 1;
       /* Fall through.  */
     case CPP_DL_WARNING:
       dlevel = DK_WARNING;
@@ -1120,7 +1119,7 @@ cb_cpp_diagnostic (cpp_reader *pfile ATTRIBUTE_UNUSED,
 				    cb_cpp_diagnostic_cpp_option (reason));
   ret = diagnostic_report_diagnostic (global_dc, &diagnostic);
   if (level == CPP_DL_WARNING_SYSHDR)
-    global_dc->dc_warn_system_headers = save_warn_system_headers;
+    global_dc->m_warn_system_headers = save_warn_system_headers;
   return ret;
 }
 

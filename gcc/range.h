@@ -1,5 +1,5 @@
 /* Header file for misc range functions. -*- C++ -*-
-   Copyright (C) 2017-2023 Free Software Foundation, Inc.
+   Copyright (C) 2017-2024 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>.
 
 This file is part of GCC.
@@ -29,30 +29,30 @@ value_range range_negatives (tree type);
 // Return an irange instance that is a boolean TRUE.
 
 inline int_range<1>
-range_true (tree type)
+range_true (tree type = boolean_type_node)
 {
   unsigned prec = TYPE_PRECISION (type);
-  return int_range<2> (type, wi::one (prec), wi::one (prec));
+  return int_range<1> (type, wi::one (prec), wi::one (prec));
 }
 
 // Return an irange instance that is a boolean FALSE.
 
 inline int_range<1>
-range_false (tree type)
+range_false (tree type = boolean_type_node)
 {
   unsigned prec = TYPE_PRECISION (type);
-  return int_range<2> (type, wi::zero (prec), wi::zero (prec));
+  return int_range<1> (type, wi::zero (prec), wi::zero (prec));
 }
 
 // Return an irange that covers both true and false.
 
 inline int_range<1>
-range_true_and_false (tree type)
+range_true_and_false (tree type = boolean_type_node)
 {
   unsigned prec = TYPE_PRECISION (type);
   if (prec == 1)
-    return int_range<2> (type);
-  return int_range<2> (type, wi::zero (prec), wi::one (prec));
+    return int_range<1> (type);
+  return int_range<1> (type, wi::zero (prec), wi::one (prec));
 }
 
 #endif // GCC_RANGE_H

@@ -1,5 +1,5 @@
 /* Top level of GCC compilers (cc1, cc1plus, etc.)
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -357,13 +357,6 @@ finish_optimization_passes (void)
       dumps->dump_start (pass_profile_1->static_pass_number, NULL);
       end_branch_prob ();
       dumps->dump_finish (pass_profile_1->static_pass_number);
-    }
-
-  if (optimize > 0)
-    {
-      dumps->dump_start (pass_combine_1->static_pass_number, NULL);
-      print_combine_total_stats ();
-      dumps->dump_finish (pass_combine_1->static_pass_number);
     }
 
   /* Do whatever is necessary to finish printing the graphs.  */
@@ -2075,9 +2068,6 @@ execute_function_todo (function *fn, void *data)
   if (flags & TODO_remove_unused_locals)
     remove_unused_locals ();
 
-  if (flags & TODO_rebuild_frequencies)
-    rebuild_frequencies ();
-
   if (flags & TODO_rebuild_cgraph_edges)
     cgraph_edge::rebuild_edges ();
 
@@ -2522,6 +2512,11 @@ should_skip_pass_p (opt_pass *pass)
 
   /* We need to (re-)build cgraph edges as needed.  */
   if (strstr (pass->name, "build_cgraph_edges") != NULL)
+    return false;
+
+  /* We need to run ISEL as that lowers VEC_COND_EXPR but doesn't provide
+     a property.  */
+  if (strstr (pass->name, "isel") != NULL)
     return false;
 
   /* Don't skip df init; later RTL passes need it.  */

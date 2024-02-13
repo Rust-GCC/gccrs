@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2015-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -30,7 +30,7 @@
 
 #ifndef __AVX5124FMAPS__
 #pragma GCC push_options
-#pragma GCC target("avx5124fmaps")
+#pragma GCC target("avx5124fmaps,evex512")
 #define __DISABLE_AVX5124FMAPS__
 #endif /* __AVX5124FMAPS__ */
 

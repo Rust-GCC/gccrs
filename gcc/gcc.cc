@@ -1,5 +1,5 @@
 /* Compiler driver program that can handle many languages.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -46,7 +46,11 @@ compilation is specified by a string called a "spec".  */
 #include "spellcheck.h"
 #include "opts-jobserver.h"
 #include "common/common-target.h"
+#include "gcc-urlifier.h"
 
+#ifndef MATH_LIBRARY
+#define MATH_LIBRARY "m"
+#endif
 
 
 /* Manage the manipulation of env vars.
@@ -298,6 +302,13 @@ static size_t dumpdir_length = 0;
    driver added to dumpdir after dumpbase or linker output name.  */
 static bool dumpdir_trailing_dash_added = false;
 
+/* True if -r, -shared, -pie, or -no-pie were specified on the command
+   line.  */
+static bool any_link_options_p;
+
+/* True if -static was specified on the command line.  */
+static bool static_p;
+
 /* Basename of dump and aux outputs, computed from dumpbase (given or
    derived from output name), to override input_basename in non-%w %b
    et al.  */
@@ -443,6 +454,7 @@ static const char *greater_than_spec_func (int, const char **);
 static const char *debug_level_greater_than_spec_func (int, const char **);
 static const char *dwarf_version_greater_than_spec_func (int, const char **);
 static const char *find_fortran_preinclude_file (int, const char **);
+static const char *join_spec_func (int, const char **);
 static char *convert_white_space (char *);
 static char *quote_spec (char *);
 static char *quote_spec_arg (char *);
@@ -575,6 +587,7 @@ or with constant text in a single argument.
  %l     process LINK_SPEC as a spec.
  %L     process LIB_SPEC as a spec.
  %M     Output multilib_os_dir.
+ %P	Output a RUNPATH_OPTION for each directory in startfile_prefixes.
  %G     process LIBGCC_SPEC as a spec.
  %R     Output the concatenation of target_system_root and
         target_sysroot_suffix.
@@ -1146,12 +1159,12 @@ proper position among the other output files.  */
    "%{fuse-ld=*:-fuse-ld=%*} " LINK_COMPRESS_DEBUG_SPEC \
    "%X %{o*} %{e*} %{N} %{n} %{r}\
     %{s} %{t} %{u*} %{z} %{Z} %{!nostdlib:%{!r:%{!nostartfiles:%S}}} \
-    %{static|no-pie|static-pie:} %@{L*} %(mfwrap) %(link_libgcc) " \
+    %{static|no-pie|static-pie:} %@{L*} %(link_libgcc) " \
     VTABLE_VERIFICATION_SPEC " " SANITIZER_EARLY_SPEC " %o "" \
     %{fopenacc|fopenmp|%:gt(%{ftree-parallelize-loops=*:%*} 1):\
 	%:include(libgomp.spec)%(link_gomp)}\
     %{fgnu-tm:%:include(libitm.spec)%(link_itm)}\
-    %(mflib) " STACK_SPLIT_SPEC "\
+    " STACK_SPLIT_SPEC "\
     %{fprofile-arcs|fprofile-generate*|coverage:-lgcov} " SANITIZER_SPEC " \
     %{!nostdlib:%{!r:%{!nodefaultlibs:%(link_ssp) %(link_gcc_c_sequence)}}}\
     %{!nostdlib:%{!r:%{!nostartfiles:%E}}} %{T*}  \n%(post_link) }}}}}}"
@@ -1176,6 +1189,10 @@ proper position among the other output files.  */
 
 #ifndef SYSROOT_HEADERS_SUFFIX_SPEC
 # define SYSROOT_HEADERS_SUFFIX_SPEC ""
+#endif
+
+#ifndef RUNPATH_OPTION
+# define RUNPATH_OPTION "-rpath"
 #endif
 
 static const char *asm_debug = ASM_DEBUG_SPEC;
@@ -1231,7 +1248,9 @@ static const char *cpp_unique_options =
  %{remap} %{%:debug-level-gt(2):-dD}\
  %{!iplugindir*:%{fplugin*:%:find-plugindir()}}\
  %{H} %C %{D*&U*&A*} %{i*} %Z %i\
- %{E|M|MM:%W{o*}}";
+ %{E|M|MM:%W{o*}}\
+ %{fdeps-format=*:%{!fdeps-file=*:-fdeps-file=%:join(%{!o:%b.ddi}%{o*:%.ddi%*})}}\
+ %{fdeps-format=*:%{!fdeps-target=*:-fdeps-target=%:join(%{!o:%b.o}%{o*:%.o%*})}}";
 
 /* This contains cpp options which are common with cc1_options and are passed
    only when preprocessing only to avoid duplication.  We pass the cc1 spec
@@ -1454,13 +1473,13 @@ static const struct compiler default_compilers[] =
 		    cc1 -fpreprocessed %{save-temps*:%b.i} %{!save-temps*:%g.i} \
 			%(cc1_options)\
 			%{!fsyntax-only:%{!S:-o %g.s} \
-			    %{!fdump-ada-spec*:%{!o*:--output-pch %i.gch}\
-					       %W{o*:--output-pch %*}}%V}}\
+			    %{!fdump-ada-spec*:%{!o*:--output-pch %w%i.gch}\
+					       %W{o*:--output-pch %w%*}}%{!S:%V}}}\
 	  %{!save-temps*:%{!traditional-cpp:%{!no-integrated-cpp:\
 		cc1 %(cpp_unique_options) %(cc1_options)\
 		    %{!fsyntax-only:%{!S:-o %g.s} \
-		        %{!fdump-ada-spec*:%{!o*:--output-pch %i.gch}\
-					   %W{o*:--output-pch %*}}%V}}}}}}}", 0, 0, 0},
+		        %{!fdump-ada-spec*:%{!o*:--output-pch %w%i.gch}\
+					   %W{o*:--output-pch %w%*}}%{!S:%V}}}}}}}}", 0, 0, 0},
   {".i", "@cpp-output", 0, 0, 0},
   {"@cpp-output",
    "%{!M:%{!MM:%{!E:cc1 -fpreprocessed %i %(cc1_options) %{!fsyntax-only:%(invoke_as)}}}}", 0, 0, 0},
@@ -1768,6 +1787,7 @@ static const struct spec_function static_spec_functions[] =
   { "debug-level-gt",		debug_level_greater_than_spec_func },
   { "dwarf-version-gt",		dwarf_version_greater_than_spec_func },
   { "fortran-preinclude-file",	find_fortran_preinclude_file},
+  { "join",			join_spec_func},
 #ifdef EXTRA_SPEC_FUNCTIONS
   EXTRA_SPEC_FUNCTIONS
 #endif
@@ -2390,8 +2410,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (*p1++ != '<' || p[-2] != '>')
 		fatal_error (input_location,
 			     "specs %%include syntax malformed after "
-			     "%ld characters",
-			     (long) (p1 - buffer + 1));
+			     "%td characters", p1 - buffer + 1);
 
 	      p[-2] = '\0';
 	      new_filename = find_a_file (&startfile_prefixes, p1, R_OK, true);
@@ -2411,8 +2430,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (*p1++ != '<' || p[-2] != '>')
 		fatal_error (input_location,
 			     "specs %%include syntax malformed after "
-			     "%ld characters",
-			     (long) (p1 - buffer + 1));
+			     "%td characters", p1 - buffer + 1);
 
 	      p[-2] = '\0';
 	      new_filename = find_a_file (&startfile_prefixes, p1, R_OK, true);
@@ -2438,8 +2456,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (! ISALPHA ((unsigned char) *p1))
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p1 - buffer));
+			     "%td characters", p1 - buffer);
 
 	      p2 = p1;
 	      while (*p2 && !ISSPACE ((unsigned char) *p2))
@@ -2448,8 +2465,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (*p2 != ' ' && *p2 != '\t')
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p2 - buffer));
+			     "%td characters", p2 - buffer);
 
 	      name_len = p2 - p1;
 	      *p2++ = '\0';
@@ -2459,8 +2475,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (! ISALPHA ((unsigned char) *p2))
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p2 - buffer));
+			     "%td characters", p2 - buffer);
 
 	      /* Get new spec name.  */
 	      p3 = p2;
@@ -2470,8 +2485,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	      if (p3 != p - 1)
 		fatal_error (input_location,
 			     "specs %%rename syntax malformed after "
-			     "%ld characters",
-			     (long) (p3 - buffer));
+			     "%td characters", p3 - buffer);
 	      *p3 = '\0';
 
 	      for (sl = specs; sl; sl = sl->next)
@@ -2510,8 +2524,8 @@ read_specs (const char *filename, bool main_p, bool user_p)
 	    }
 	  else
 	    fatal_error (input_location,
-			 "specs unknown %% command after %ld characters",
-			 (long) (p1 - buffer));
+			 "specs unknown %% command after %td characters",
+			 p1 - buffer);
 	}
 
       /* Find the colon that should end the suffix.  */
@@ -2522,8 +2536,8 @@ read_specs (const char *filename, bool main_p, bool user_p)
       /* The colon shouldn't be missing.  */
       if (*p1 != ':')
 	fatal_error (input_location,
-		     "specs file malformed after %ld characters",
-		     (long) (p1 - buffer));
+		     "specs file malformed after %td characters",
+		     p1 - buffer);
 
       /* Skip back over trailing whitespace.  */
       p2 = p1;
@@ -2536,8 +2550,8 @@ read_specs (const char *filename, bool main_p, bool user_p)
       p = skip_whitespace (p1 + 1);
       if (p[1] == 0)
 	fatal_error (input_location,
-		     "specs file malformed after %ld characters",
-		     (long) (p - buffer));
+		     "specs file malformed after %td characters",
+		     p - buffer);
 
       p1 = p;
       /* Find next blank line or end of string.  */
@@ -4117,6 +4131,48 @@ next_item:
     }
 }
 
+/* Forward certain options to offloading compilation.  */
+
+static void
+forward_offload_option (size_t opt_index, const char *arg, bool validated)
+{
+  switch (opt_index)
+    {
+    case OPT_l:
+      /* Use a '_GCC_' prefix and standard name ('-l_GCC_m' irrespective of the
+	 host's 'MATH_LIBRARY', for example), so that the 'mkoffload's can tell
+	 this has been synthesized here, and translate/drop as necessary.  */
+      /* Note that certain libraries ('-lc', '-lgcc', '-lgomp', for example)
+	 are injected by default in offloading compilation, and therefore not
+	 forwarded here.  */
+      /* GCC libraries.  */
+      if (/* '-lgfortran' */ strcmp (arg, "gfortran") == 0 )
+	save_switch (concat ("-foffload-options=-l_GCC_", arg, NULL),
+		     0, NULL, validated, true);
+      /* Other libraries.  */
+      else
+	{
+	  /* The case will need special consideration where on the host
+	     '!need_math', but for offloading compilation still need
+	     '-foffload-options=-l_GCC_m'.  The problem is that we don't get
+	     here anything like '-lm', because it's not synthesized in
+	     'gcc/fortran/gfortranspec.cc:lang_specific_driver', for example.
+	     Generally synthesizing '-foffload-options=-l_GCC_m' etc. in the
+	     language specific drivers is non-trivial, needs very careful
+	     review of their options handling.  However, this issue is not
+	     actually relevant for the current set of supported host/offloading
+	     configurations.  */
+	  int need_math = (MATH_LIBRARY[0] != '\0');
+	  if (/* '-lm' */ (need_math && strcmp (arg, MATH_LIBRARY) == 0))
+	    save_switch ("-foffload-options=-l_GCC_m",
+			 0, NULL, validated, true);
+	}
+      break;
+    default:
+      gcc_unreachable ();
+    }
+}
+
 /* Handle a driver option; arguments and return value as for
    handle_option.  */
 
@@ -4295,9 +4351,14 @@ driver_handle_option (struct gcc_options *opts,
 	  const char *basename = (opts->x_dump_base_name ? opts->x_dump_base_name
 				  : opts->x_main_input_basename);
 	  diagnostic_output_format_init (dc, basename,
-					 (enum diagnostics_output_format)value);
+					 (enum diagnostics_output_format)value,
+					 opts->x_flag_diagnostics_json_formatting);
 	  break;
 	}
+
+    case OPT_fdiagnostics_text_art_charset_:
+      dc->set_text_art_charset ((enum diagnostic_text_art_charset)value);
+      break;
 
     case OPT_Wa_:
       {
@@ -4375,6 +4436,17 @@ driver_handle_option (struct gcc_options *opts,
       /* POSIX allows separation of -l and the lib arg; canonicalize
 	 by concatenating -l with its arg */
       add_infile (concat ("-l", arg, NULL), "*");
+
+      /* Forward to offloading compilation '-l[...]' flags for standard,
+	 well-known libraries.  */
+      /* Doing this processing here means that we don't get to see libraries
+	 injected via specs, such as '-lquadmath' injected via
+	 '[build]/[target]/libgfortran/libgfortran.spec'.  However, this issue
+	 is not actually relevant for the current set of host/offloading
+	 configurations.  */
+      if (ENABLE_OFFLOADING)
+	forward_offload_option (opt_index, arg, validated);
+
       do_save = false;
       break;
 
@@ -4535,10 +4607,21 @@ driver_handle_option (struct gcc_options *opts,
       save_switch ("-o", 1, &arg, validated, true);
       return true;
 
-#ifdef ENABLE_DEFAULT_PIE
     case OPT_pie:
+#ifdef ENABLE_DEFAULT_PIE
       /* -pie is turned on by default.  */
+      validated = true;
 #endif
+      /* FALLTHROUGH */
+    case OPT_r:
+    case OPT_shared:
+    case OPT_no_pie:
+      any_link_options_p = true;
+      break;
+
+    case OPT_static:
+      static_p = true;
+      break;
 
     case OPT_static_libgcc:
     case OPT_shared_libgcc:
@@ -4570,6 +4653,10 @@ driver_handle_option (struct gcc_options *opts,
 	save_switch (concat ("-foffload-options=", arg, NULL),
 		     0, NULL, validated, true);
       do_save = false;
+      break;
+
+    case OPT_gcodeview:
+      add_infile ("--pdb=", "*");
       break;
 
     default:
@@ -4908,6 +4995,35 @@ process_command (unsigned int decoded_options_count,
 #if OFFLOAD_DEFAULTED
       offload_targets_default = true;
 #endif
+    }
+
+  /* TODO: check if -static -pie works and maybe use it.  */
+  if (flag_hardened)
+    {
+      if (!any_link_options_p && !static_p)
+	{
+#if defined HAVE_LD_PIE && defined LD_PIE_SPEC
+	  save_switch (LD_PIE_SPEC, 0, NULL, /*validated=*/true, /*known=*/false);
+#endif
+	  /* These are passed straight down to collect2 so we have to break
+	     it up like this.  */
+	  if (HAVE_LD_NOW_SUPPORT)
+	    {
+	      add_infile ("-z", "*");
+	      add_infile ("now", "*");
+	    }
+	  if (HAVE_LD_RELRO_SUPPORT)
+	    {
+	      add_infile ("-z", "*");
+	      add_infile ("relro", "*");
+	    }
+	}
+      /* We can't use OPT_Whardened yet.  Sigh.  */
+      else if (warn_hardened)
+	warning_at (UNKNOWN_LOCATION, 0,
+		    "linker hardening options not enabled by %<-fhardened%> "
+		    "because other link options were specified on the command "
+		    "line");
     }
 
   /* Handle -gtoggle as it would later in toplev.cc:process_options to
@@ -5467,7 +5583,7 @@ set_collect_gcc_options (void)
   obstack_grow (&collect_obstack, "COLLECT_GCC_OPTIONS=",
 		sizeof ("COLLECT_GCC_OPTIONS=") - 1);
 
-  first_time = TRUE;
+  first_time = true;
   for (i = 0; (int) i < n_switches; i++)
     {
       const char *const *args;
@@ -5475,7 +5591,7 @@ set_collect_gcc_options (void)
       if (!first_time)
 	obstack_grow (&collect_obstack, " ", 1);
 
-      first_time = FALSE;
+      first_time = false;
 
       /* Ignore elided switches.  */
       if ((switches[i].live_cond
@@ -5513,7 +5629,7 @@ set_collect_gcc_options (void)
     {
       if (!first_time)
 	obstack_grow (&collect_obstack, " ", 1);
-      first_time = FALSE;
+      first_time = false;
 
       obstack_grow (&collect_obstack, "'-dumpdir' '", 12);
       const char *p, *q;
@@ -5859,6 +5975,7 @@ struct spec_path_info {
   size_t append_len;
   bool omit_relative;
   bool separate_options;
+  bool realpaths;
 };
 
 static void *
@@ -5867,6 +5984,16 @@ spec_path (char *path, void *data)
   struct spec_path_info *info = (struct spec_path_info *) data;
   size_t len = 0;
   char save = 0;
+
+  /* The path must exist; we want to resolve it to the realpath so that this
+     can be embedded as a runpath.  */
+  if (info->realpaths)
+     path = lrealpath (path);
+
+  /* However, if we failed to resolve it - perhaps because there was a bogus
+     -B option on the command line, then punt on this entry.  */
+  if (!path)
+    return NULL;
 
   if (info->omit_relative && !IS_ABSOLUTE_PATH (path))
     return NULL;
@@ -6099,6 +6226,22 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 	      info.omit_relative = false;
 #endif
 	      info.separate_options = false;
+	      info.realpaths = false;
+
+	      for_each_path (&startfile_prefixes, true, 0, spec_path, &info);
+	    }
+	    break;
+
+	  case 'P':
+	    {
+	      struct spec_path_info info;
+
+	      info.option = RUNPATH_OPTION;
+	      info.append_len = 0;
+	      info.omit_relative = false;
+	      info.separate_options = true;
+	      /* We want to embed the actual paths that have the libraries.  */
+	      info.realpaths = true;
 
 	      for_each_path (&startfile_prefixes, true, 0, spec_path, &info);
 	    }
@@ -6425,6 +6568,7 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 	      info.append_len = strlen (info.append);
 	      info.omit_relative = false;
 	      info.separate_options = true;
+	      info.realpaths = false;
 
 	      for_each_path (&include_prefixes, false, info.append_len,
 			     spec_path, &info);
@@ -8190,6 +8334,7 @@ driver::global_initializations ()
   diagnostic_initialize (global_dc, 0);
   diagnostic_color_init (global_dc);
   diagnostic_urls_init (global_dc);
+  global_dc->set_urlifier (make_gcc_urlifier (0));
 
 #ifdef GCC_DRIVER_HOST_INITIALIZATION
   /* Perform host dependent initialization when needed.  */
@@ -8266,7 +8411,7 @@ driver::build_multilib_strings () const
     obstack_1grow (&multilib_obstack, 0);
     multilib_reuse = XOBFINISH (&multilib_obstack, const char *);
 
-    need_space = FALSE;
+    need_space = false;
     for (size_t i = 0; i < ARRAY_SIZE (multilib_defaults_raw); i++)
       {
 	if (need_space)
@@ -8274,7 +8419,7 @@ driver::build_multilib_strings () const
 	obstack_grow (&multilib_obstack,
 		      multilib_defaults_raw[i],
 		      strlen (multilib_defaults_raw[i]));
-	need_space = TRUE;
+	need_space = true;
       }
 
     obstack_1grow (&multilib_obstack, 0);
@@ -8756,7 +8901,7 @@ driver::maybe_print_and_exit () const
     {
       printf (_("%s %s%s\n"), progname, pkgversion_string,
 	      version_string);
-      printf ("Copyright %s 2023 Free Software Foundation, Inc.\n",
+      printf ("Copyright %s 2024 Free Software Foundation, Inc.\n",
 	      _("(C)"));
       fputs (_("This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"),
@@ -10110,19 +10255,19 @@ print_multilib_info (void)
 	  /* If there are extra options, print them now.  */
 	  if (multilib_extra && *multilib_extra)
 	    {
-	      int print_at = TRUE;
+	      int print_at = true;
 	      const char *q;
 
 	      for (q = multilib_extra; *q != '\0'; q++)
 		{
 		  if (*q == ' ')
-		    print_at = TRUE;
+		    print_at = true;
 		  else
 		    {
 		      if (print_at)
 			putchar ('@');
 		      putchar (*q);
-		      print_at = FALSE;
+		      print_at = false;
 		    }
 		}
 	    }
@@ -10909,6 +11054,27 @@ find_fortran_preinclude_file (int argc, const char **argv)
   return result;
 }
 
+/* The function takes any number of arguments and joins them together.
+
+   This seems to be necessary to build "-fjoined=foo.b" from "-fseparate foo.a"
+   with a %{fseparate*:-fjoined=%.b$*} rule without adding undesired spaces:
+   when doing $* replacement we first replace $* with the rest of the switch
+   (in this case ""), and then add any arguments as arguments after the result,
+   resulting in "-fjoined= foo.b".  Using this function with e.g.
+   %{fseparate*:-fjoined=%:join(%.b$*)} gets multiple words as separate argv
+   elements instead of separated by spaces, and we paste them together.  */
+
+static const char *
+join_spec_func (int argc, const char **argv)
+{
+  if (argc == 1)
+    return argv[0];
+  for (int i = 0; i < argc; ++i)
+    obstack_grow (&obstack, argv[i], strlen (argv[i]));
+  obstack_1grow (&obstack, '\0');
+  return XOBFINISH (&obstack, const char *);
+}
+
 /* If any character in ORIG fits QUOTE_P (_, P), reallocate the string
    so as to precede every one of them with a backslash.  Return the
    original string or the reallocated one.  */
@@ -11196,6 +11362,7 @@ driver::finalize ()
   input_from_pipe = 0;
   suffix_subst = NULL;
 
+  XDELETEVEC (mdswitches);
   mdswitches = NULL;
   n_mdswitches = 0;
 

@@ -594,6 +594,10 @@ if (!is(immutable T == immutable bool))
         assert(capacity == values.length); // We check that reserve has been called before the loop.
     }
 
+    /// ditto
+    // needed when T is an array and only one argument is passed
+    this(T single) { __ctor!T(single); }
+
     /**
      * Constructor taking an $(REF_ALTTEXT input range, isInputRange, std,range,primitives)
      */
@@ -1282,6 +1286,13 @@ if (!is(immutable T == immutable bool))
     }
 }
 
+@system unittest
+{
+    import std.algorithm.comparison : equal;
+    auto a = Array!string("test");
+    assert(a[].equal(["test"]));
+}
+
 @safe unittest
 {
     // https://issues.dlang.org/show_bug.cgi?id=13621
@@ -1566,7 +1577,7 @@ if (!is(immutable T == immutable bool))
     r2[0 .. 0] += 0;
 }
 
-// Test issue 11194
+// Test https://issues.dlang.org/show_bug.cgi?id=11194
 @system unittest
 {
     static struct S {

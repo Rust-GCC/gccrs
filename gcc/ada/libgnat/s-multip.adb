@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 2010-2023, Free Software Foundation, Inc.          --
+--         Copyright (C) 2010-2024, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,6 +36,9 @@ package body System.Multiprocessors is
 
    function Number_Of_CPUs return CPU is
    begin
+      pragma Annotate (Gnatcheck, Exempt_On, "Improper_Returns",
+                       "early returns for performance");
+
       if CPU'Last = 1 then
          return 1;
       else
@@ -46,6 +49,8 @@ package body System.Multiprocessors is
             return CPU (Gnat_Number_Of_CPUs);
          end;
       end if;
+
+      pragma Annotate (Gnatcheck, Exempt_Off, "Improper_Returns");
    end Number_Of_CPUs;
 
 end System.Multiprocessors;

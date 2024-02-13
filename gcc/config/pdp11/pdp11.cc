@@ -1,5 +1,5 @@
 /* Subroutines for gcc2 for pdp11.
-   Copyright (C) 1994-2023 Free Software Foundation, Inc.
+   Copyright (C) 1994-2024 Free Software Foundation, Inc.
    Contributed by Michael K. Gschwind (mike@vlsivie.tuwien.ac.at).
 
 This file is part of GCC.
@@ -155,7 +155,8 @@ static int pdp11_addr_cost (rtx, machine_mode, addr_space_t, bool);
 static int pdp11_insn_cost (rtx_insn *insn, bool speed);
 static rtx_insn *pdp11_md_asm_adjust (vec<rtx> &, vec<rtx> &,
 				      vec<machine_mode> &, vec<const char *> &,
-				      vec<rtx> &, HARD_REG_SET &, location_t);
+				      vec<rtx> &, vec<rtx> &,
+				      HARD_REG_SET &, location_t);
 static bool pdp11_return_in_memory (const_tree, const_tree);
 static rtx pdp11_function_value (const_tree, const_tree, bool);
 static rtx pdp11_libcall_value (machine_mode, const_rtx);
@@ -393,7 +394,7 @@ pdp11_expand_epilogue (void)
   rtx x, reg, via_ac = NULL;
 
   /* Deallocate the local variables.  */
-  if (fsize)
+  if (fsize || cfun->calls_alloca)
     {
       if (frame_pointer_needed)
 	{
@@ -1615,8 +1616,8 @@ pdp11_secondary_memory_needed (machine_mode, reg_class_t c1, reg_class_t c2)
 */
 
 static bool
-pdp11_legitimate_address_p (machine_mode mode,
-			    rtx operand, bool strict)
+pdp11_legitimate_address_p (machine_mode mode, rtx operand, bool strict,
+			    code_helper = ERROR_MARK)
 {
     rtx xfoob;
 
@@ -1881,7 +1882,7 @@ pdp11_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
      in registers.  The rest go into memory.  */
   return (TYPE_MODE (type) == DImode
 	  || (FLOAT_MODE_P (TYPE_MODE (type)) && ! TARGET_AC0)
-	  || TREE_CODE (type) == VECTOR_TYPE
+	  || VECTOR_TYPE_P (type)
 	  || COMPLEX_MODE_P (TYPE_MODE (type)));
 }
 
@@ -2137,7 +2138,8 @@ pdp11_cmp_length (rtx *operands, int words)
 static rtx_insn *
 pdp11_md_asm_adjust (vec<rtx> & /*outputs*/, vec<rtx> & /*inputs*/,
 		     vec<machine_mode> & /*input_modes*/,
-		     vec<const char *> & /*constraints*/, vec<rtx> &clobbers,
+		     vec<const char *> & /*constraints*/,
+		     vec<rtx> &/*uses*/, vec<rtx> &clobbers,
 		     HARD_REG_SET &clobbered_regs, location_t /*loc*/)
 {
   clobbers.safe_push (gen_rtx_REG (CCmode, CC_REGNUM));

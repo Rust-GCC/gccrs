@@ -1,5 +1,5 @@
 /* Header file for the GIMPLE range-op interface.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
    and Aldy Hernandez <aldyh@redhat.com>.
 
@@ -32,8 +32,8 @@ public:
   gimple_range_op_handler (gimple *s);
   inline gimple *stmt () const { return m_stmt; }
   inline tree lhs () const { return gimple_get_lhs (m_stmt); }
-  tree operand1 () const { gcc_checking_assert (m_valid); return m_op1; }
-  tree operand2 () const { gcc_checking_assert (m_valid); return m_op2; }
+  tree operand1 () const { gcc_checking_assert (m_operator); return m_op1; }
+  tree operand2 () const { gcc_checking_assert (m_operator); return m_op2; }
   bool calc_op1 (vrange &r, const vrange &lhs_range);
   bool calc_op1 (vrange &r, const vrange &lhs_range, const vrange &op2_range,
 		 relation_trio = TRIO_VARYING);

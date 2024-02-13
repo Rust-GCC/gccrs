@@ -7,7 +7,7 @@
 --                                 B o d y                                  --
 --                                                                          --
 --             Copyright (C) 1991-2017, Florida State University            --
---                     Copyright (C) 1995-2023, AdaCore                     --
+--                     Copyright (C) 1995-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -307,6 +307,9 @@ is
    --  Start of processing for Time_Of
 
    begin
+      pragma Annotate (Gnatcheck, Exempt_On, "Improper_Returns",
+                       "early returns for performance");
+
       --  If SC is so far out of range that there is no possibility of the
       --  addition of TS getting it back in range, raise an exception right
       --  away. That way we don't have to worry about SC values overflowing.
@@ -356,6 +359,8 @@ is
             Out_Of_Range;
          end if;
       end if;
+
+      pragma Annotate (Gnatcheck, Exempt_Off, "Improper_Returns");
    end Time_Of;
 
    -----------------

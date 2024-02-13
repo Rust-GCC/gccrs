@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1995-2023, AdaCore                     --
+--                     Copyright (C) 1995-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -124,7 +124,7 @@ package body Ada.Containers.Stable_Sorting is
             --  Start of processing for Merge_Parts
 
             begin
-               while (P1.Length /= 0) or (P2.Length /= 0) loop
+               while P1.Length /= 0 or P2.Length /= 0 loop
                   if P1.Length = 0 then
                      Take_From_P2 := True;
                   elsif P2.Length = 0 then

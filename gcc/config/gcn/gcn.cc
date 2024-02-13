@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2024 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -96,6 +96,7 @@ static hash_map<tree, int> lds_allocs;
 
 #define MAX_NORMAL_SGPR_COUNT	62  // i.e. 64 with VCC
 #define MAX_NORMAL_VGPR_COUNT	24
+#define MAX_NORMAL_AVGPR_COUNT	24
 
 /* }}}  */
 /* {{{ Initialization and options.  */
@@ -109,7 +110,8 @@ gcn_init_machine_status (void)
 
   f = ggc_cleared_alloc<machine_function> ();
 
-  if (TARGET_GCN3)
+  // FIXME: re-enable global addressing with safety for LDS-flat addresses
+  //if (TARGET_GCN3)
     f->use_flat_addressing = true;
 
   return f;
@@ -136,6 +138,8 @@ gcn_option_override (void)
       : gcn_arch == PROCESSOR_VEGA20 ? ISA_GCN5
       : gcn_arch == PROCESSOR_GFX908 ? ISA_CDNA1
       : gcn_arch == PROCESSOR_GFX90a ? ISA_CDNA2
+      : gcn_arch == PROCESSOR_GFX1030 ? ISA_RDNA2
+      : gcn_arch == PROCESSOR_GFX1100 ? ISA_RDNA3
       : ISA_UNKNOWN);
   gcc_assert (gcn_isa != ISA_UNKNOWN);
 
@@ -157,9 +161,43 @@ gcn_option_override (void)
 	acc_lds_size = 32768;
     }
 
-  /* The xnack option is a placeholder, for now.  */
-  if (flag_xnack)
-    sorry ("XNACK support");
+  /* gfx803 "Fiji", gfx1030 and gfx1100 do not support XNACK.  */
+  if (gcn_arch == PROCESSOR_FIJI
+      || gcn_arch == PROCESSOR_GFX1030
+      || gcn_arch == PROCESSOR_GFX1100)
+    {
+      if (flag_xnack == HSACO_ATTR_ON)
+	error ("%<-mxnack=on%> is incompatible with %<-march=%s%>",
+	       (gcn_arch == PROCESSOR_FIJI ? "fiji"
+		: gcn_arch == PROCESSOR_GFX1030 ? "gfx1030"
+		: gcn_arch == PROCESSOR_GFX1100 ? "gfx1100"
+		: NULL));
+      /* Allow HSACO_ATTR_ANY silently because that's the default.  */
+      flag_xnack = HSACO_ATTR_OFF;
+    }
+
+  /* There's no need for XNACK on devices without USM, and there are register
+     allocation problems caused by the early-clobber when AVGPR spills are not
+     available.
+     FIXME: can the regalloc mean the default can be really "any"?  */
+  if (flag_xnack == HSACO_ATTR_DEFAULT)
+    switch (gcn_arch)
+      {
+      case PROCESSOR_FIJI:
+      case PROCESSOR_VEGA10:
+      case PROCESSOR_VEGA20:
+      case PROCESSOR_GFX908:
+	flag_xnack = HSACO_ATTR_OFF;
+	break;
+      case PROCESSOR_GFX90a:
+	flag_xnack = HSACO_ATTR_ANY;
+	break;
+      default:
+	gcc_unreachable ();
+      }
+
+  if (flag_sram_ecc == HSACO_ATTR_DEFAULT)
+    flag_sram_ecc = HSACO_ATTR_ANY;
 }
 
 /* }}}  */
@@ -354,14 +392,12 @@ gcn_handle_amdgpu_hsa_kernel_attribute (tree *node, tree name,
  
    Create target-specific __attribute__ types.  */
 
-static const struct attribute_spec gcn_attribute_table[] = {
+TARGET_GNU_ATTRIBUTES (gcn_attribute_table, {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
      affects_type_identity } */
   {"amdgpu_hsa_kernel", 0, GCN_KERNEL_ARG_TYPES, false, true,
-   true, true, gcn_handle_amdgpu_hsa_kernel_attribute, NULL},
-  /* End element.  */
-  {NULL, 0, 0, false, false, false, false, NULL, NULL}
-};
+   true, true, gcn_handle_amdgpu_hsa_kernel_attribute, NULL}
+});
 
 /* }}}  */
 /* {{{ Registers and modes.  */
@@ -480,14 +516,15 @@ gcn_class_max_nregs (reg_class_t rclass, machine_mode mode)
 {
   /* Scalar registers are 32bit, vector registers are in fact tuples of
      64 lanes.  */
-  if (rclass == VGPR_REGS)
+  if (rclass == VGPR_REGS || rclass == AVGPR_REGS
+      || rclass == ALL_VGPR_REGS)
     {
       if (vgpr_1reg_mode_p (mode))
 	return 1;
       if (vgpr_2reg_mode_p (mode))
 	return 2;
       /* TImode is used by DImode compare_and_swap.  */
-      if (mode == TImode)
+      if (vgpr_4reg_mode_p (mode))
 	return 4;
     }
   else if (rclass == VCC_CONDITIONAL_REG && mode == BImode)
@@ -580,7 +617,7 @@ gcn_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
     return (sgpr_1reg_mode_p (mode)
 	    || (!((regno - FIRST_SGPR_REG) & 1) && sgpr_2reg_mode_p (mode))
 	    || (((regno - FIRST_SGPR_REG) & 3) == 0 && mode == TImode));
-  if (VGPR_REGNO_P (regno))
+  if (VGPR_REGNO_P (regno) || (AVGPR_REGNO_P (regno) && TARGET_CDNA1_PLUS))
     /* Vector instructions do not care about the alignment of register
        pairs, but where there is no 64-bit instruction, many of the
        define_split do not work if the input and output registers partially
@@ -590,9 +627,9 @@ gcn_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
        Therefore, we restrict ourselved to aligned registers.  */
     return (vgpr_1reg_mode_p (mode)
 	    || (!((regno - FIRST_VGPR_REG) & 1) && vgpr_2reg_mode_p (mode))
-	    /* TImode is used by DImode compare_and_swap.  */
-	    || (mode == TImode
-		&& !((regno - FIRST_VGPR_REG) & 3)));
+	    /* TImode is used by DImode compare_and_swap,
+	       and by DIVMOD V64DImode libfuncs.  */
+	    || (!((regno - FIRST_VGPR_REG) & 3) && vgpr_4reg_mode_p (mode)));
   return false;
 }
 
@@ -620,6 +657,8 @@ gcn_regno_reg_class (int regno)
     }
   if (VGPR_REGNO_P (regno))
     return VGPR_REGS;
+  if (AVGPR_REGNO_P (regno))
+    return AVGPR_REGS;
   if (SGPR_REGNO_P (regno))
     return SGPR_REGS;
   if (regno < FIRST_VGPR_REG)
@@ -810,7 +849,7 @@ gcn_spill_class (reg_class_t c, machine_mode /*mode */ )
       || c == VCC_CONDITIONAL_REG || c == EXEC_MASK_REG)
     return SGPR_REGS;
   else
-    return NO_REGS;
+    return c == VGPR_REGS && TARGET_CDNA1_PLUS ? AVGPR_REGS : NO_REGS;
 }
 
 /* Implement TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS.
@@ -1324,6 +1363,7 @@ GEN_VN (PREFIX, si##SUFFIX, A(PARAMS), A(ARGS)) \
 GEN_VN (PREFIX, sf##SUFFIX, A(PARAMS), A(ARGS)) \
 GEN_VN (PREFIX, di##SUFFIX, A(PARAMS), A(ARGS)) \
 GEN_VN (PREFIX, df##SUFFIX, A(PARAMS), A(ARGS)) \
+USE_TI (GEN_VN (PREFIX, ti##SUFFIX, A(PARAMS), A(ARGS))) \
 static rtx \
 gen_##PREFIX##vNm##SUFFIX (PARAMS, rtx merge_src=NULL, rtx exec=NULL) \
 { \
@@ -1338,6 +1378,8 @@ gen_##PREFIX##vNm##SUFFIX (PARAMS, rtx merge_src=NULL, rtx exec=NULL) \
     case E_SFmode: return gen_##PREFIX##vNsf##SUFFIX (ARGS, merge_src, exec); \
     case E_DImode: return gen_##PREFIX##vNdi##SUFFIX (ARGS, merge_src, exec); \
     case E_DFmode: return gen_##PREFIX##vNdf##SUFFIX (ARGS, merge_src, exec); \
+    case E_TImode: \
+	USE_TI (return gen_##PREFIX##vNti##SUFFIX (ARGS, merge_src, exec);) \
     default: \
       break; \
     } \
@@ -1346,6 +1388,14 @@ gen_##PREFIX##vNm##SUFFIX (PARAMS, rtx merge_src=NULL, rtx exec=NULL) \
   return NULL_RTX; \
 }
 
+/* These have TImode support.  */
+#define USE_TI(ARGS) ARGS
+GEN_VNM (mov,, A(rtx dest, rtx src), A(dest, src))
+GEN_VNM (vec_duplicate,, A(rtx dest, rtx src), A(dest, src))
+
+/* These do not have TImode support.  */
+#undef USE_TI
+#define USE_TI(ARGS)
 GEN_VNM (add,3, A(rtx dest, rtx src1, rtx src2), A(dest, src1, src2))
 GEN_VN (add,si3_dup, A(rtx dest, rtx src1, rtx src2), A(dest, src1, src2))
 GEN_VN (add,si3_vcc_dup, A(rtx dest, rtx src1, rtx src2, rtx vcc),
@@ -1364,72 +1414,15 @@ GEN_VNM_NOEXEC (ds_bpermute,, A(rtx dest, rtx addr, rtx src, rtx exec),
 		A(dest, addr, src, exec))
 GEN_VNM (gather,_expr, A(rtx dest, rtx addr, rtx as, rtx vol),
 	 A(dest, addr, as, vol))
-GEN_VNM (mov,, A(rtx dest, rtx src), A(dest, src))
 GEN_VN (mul,si3_dup, A(rtx dest, rtx src1, rtx src2), A(dest, src1, src2))
 GEN_VN (sub,si3, A(rtx dest, rtx src1, rtx src2), A(dest, src1, src2))
-GEN_VNM (vec_duplicate,, A(rtx dest, rtx src), A(dest, src))
 GEN_VN_NOEXEC (vec_series,si, A(rtx dest, rtx x, rtx c), A(dest, x, c))
 
+#undef USE_TI
 #undef GEN_VNM
 #undef GEN_VN
 #undef GET_VN_FN
 #undef A
-
-/* Get icode for vector instructions without an optab.  */
-
-#define CODE_FOR(PREFIX, SUFFIX) \
-static int \
-get_code_for_##PREFIX##vN##SUFFIX (int nunits) \
-{ \
-  switch (nunits) \
-    { \
-    case 2: return CODE_FOR_##PREFIX##v2##SUFFIX; \
-    case 4: return CODE_FOR_##PREFIX##v4##SUFFIX; \
-    case 8: return CODE_FOR_##PREFIX##v8##SUFFIX; \
-    case 16: return CODE_FOR_##PREFIX##v16##SUFFIX; \
-    case 32: return CODE_FOR_##PREFIX##v32##SUFFIX; \
-    case 64: return CODE_FOR_##PREFIX##v64##SUFFIX; \
-    } \
-  \
-  gcc_unreachable (); \
-  return CODE_FOR_nothing; \
-}
-
-#define CODE_FOR_OP(PREFIX) \
-	  CODE_FOR (PREFIX, qi) \
-	CODE_FOR (PREFIX, hi) \
-	CODE_FOR (PREFIX, hf) \
-	CODE_FOR (PREFIX, si) \
-	CODE_FOR (PREFIX, sf) \
-	CODE_FOR (PREFIX, di) \
-	CODE_FOR (PREFIX, df) \
-static int \
-get_code_for_##PREFIX (machine_mode mode) \
-{ \
-  int vf = GET_MODE_NUNITS (mode); \
-  machine_mode smode = GET_MODE_INNER (mode); \
-  \
-  switch (smode) \
-    { \
-    case E_QImode: return get_code_for_##PREFIX##vNqi (vf); \
-    case E_HImode: return get_code_for_##PREFIX##vNhi (vf); \
-    case E_HFmode: return get_code_for_##PREFIX##vNhf (vf); \
-    case E_SImode: return get_code_for_##PREFIX##vNsi (vf); \
-    case E_SFmode: return get_code_for_##PREFIX##vNsf (vf); \
-    case E_DImode: return get_code_for_##PREFIX##vNdi (vf); \
-    case E_DFmode: return get_code_for_##PREFIX##vNdf (vf); \
-    default: break; \
-    } \
-  \
-  gcc_unreachable (); \
-  return CODE_FOR_nothing; \
-}
-
-CODE_FOR_OP (reload_in)
-CODE_FOR_OP (reload_out)
-
-#undef CODE_FOR_OP
-#undef CODE_FOR
 
 /* Return true if OP is a PARALLEL of CONST_INTs that form a linear
    series with step STEP.  */
@@ -1602,9 +1595,10 @@ gcn_global_address_p (rtx addr)
     {
       rtx base = XEXP (addr, 0);
       rtx offset = XEXP (addr, 1);
+      int offsetbits = (TARGET_RDNA2_PLUS ? 11 : 12);
       bool immediate_p = (CONST_INT_P (offset)
-			  && INTVAL (offset) >= -(1 << 12)
-			  && INTVAL (offset) < (1 << 12));
+			  && INTVAL (offset) >= -(1 << offsetbits)
+			  && INTVAL (offset) < (1 << offsetbits));
 
       if ((gcn_address_register_p (base, DImode, false)
 	   || gcn_vec_address_register_p (base, DImode, false))
@@ -1640,7 +1634,7 @@ gcn_global_address_p (rtx addr)
 
 static bool
 gcn_addr_space_legitimate_address_p (machine_mode mode, rtx x, bool strict,
-				     addr_space_t as)
+				     addr_space_t as, code_helper = ERROR_MARK)
 {
   /* All vector instructions need to work on addresses in registers.  */
   if (!TARGET_GCN5_PLUS && (vgpr_vector_mode_p (mode) && !REG_P (x)))
@@ -1734,10 +1728,11 @@ gcn_addr_space_legitimate_address_p (machine_mode mode, rtx x, bool strict,
 	  rtx base = XEXP (x, 0);
 	  rtx offset = XEXP (x, 1);
 
+	  int offsetbits = (TARGET_RDNA2_PLUS ? 11 : 12);
 	  bool immediate_p = (GET_CODE (offset) == CONST_INT
-			      /* Signed 13-bit immediate.  */
-			      && INTVAL (offset) >= -(1 << 12)
-			      && INTVAL (offset) < (1 << 12)
+			      /* Signed 12/13-bit immediate.  */
+			      && INTVAL (offset) >= -(1 << offsetbits)
+			      && INTVAL (offset) < (1 << offsetbits)
 			      /* The low bits of the offset are ignored, even
 			         when they're meant to realign the pointer.  */
 			      && !(INTVAL (offset) & 0x3));
@@ -2389,12 +2384,15 @@ gcn_sgpr_move_p (rtx op0, rtx op1)
     return true;
   if (MEM_P (op1) && AS_SCALAR_FLAT_P (MEM_ADDR_SPACE (op1)))
     return true;
-  if (!REG_P (op0) || REGNO (op0) >= FIRST_PSEUDO_REGISTER
-      || VGPR_REGNO_P (REGNO (op0)))
+  if (!REG_P (op0)
+      || REGNO (op0) >= FIRST_PSEUDO_REGISTER
+      || VGPR_REGNO_P (REGNO (op0))
+      || AVGPR_REGNO_P (REGNO (op0)))
     return false;
   if (REG_P (op1)
       && REGNO (op1) < FIRST_PSEUDO_REGISTER
-      && !VGPR_REGNO_P (REGNO (op1)))
+      && !VGPR_REGNO_P (REGNO (op1))
+      && !AVGPR_REGNO_P (REGNO (op1)))
     return true;
   return immediate_operand (op1, VOIDmode) || memory_operand (op1, VOIDmode);
 }
@@ -2455,10 +2453,7 @@ gcn_secondary_reload (bool in_p, rtx x, reg_class_t rclass,
 	  if (GET_MODE_CLASS (reload_mode) == MODE_VECTOR_INT
 	      || GET_MODE_CLASS (reload_mode) == MODE_VECTOR_FLOAT)
 	    {
-	      if (in_p)
-		sri->icode = get_code_for_reload_in (reload_mode);
-	      else
-		sri->icode = get_code_for_reload_out (reload_mode);
+	      sri->icode = code_for_mov_sgprbase (reload_mode);
 	      break;
 	    }
 	  /* Fallthrough.  */
@@ -2468,6 +2463,11 @@ gcn_secondary_reload (bool in_p, rtx x, reg_class_t rclass,
 	  result = (rclass == VGPR_REGS ? NO_REGS : VGPR_REGS);
 	  break;
 	}
+
+      /* CDNA1 doesn't have an instruction for going between the accumulator
+	 registers and memory.  Go via a VGPR in this case.  */
+      if (TARGET_CDNA1 && rclass == AVGPR_REGS && result != VGPR_REGS)
+	result = VGPR_REGS;
     }
 
   if (dump_file && (dump_flags & TDF_DETAILS))
@@ -2489,7 +2489,8 @@ gcn_conditional_register_usage (void)
 
   if (cfun->machine->normal_function)
     {
-      /* Restrict the set of SGPRs and VGPRs used by non-kernel functions.  */
+      /* Restrict the set of SGPRs, VGPRs and AVGPRs used by non-kernel
+	 functions.  */
       for (int i = SGPR_REGNO (MAX_NORMAL_SGPR_COUNT);
 	   i <= LAST_SGPR_REG; i++)
 	fixed_regs[i] = 1, call_used_regs[i] = 1;
@@ -2498,6 +2499,9 @@ gcn_conditional_register_usage (void)
 	   i <= LAST_VGPR_REG; i++)
 	fixed_regs[i] = 1, call_used_regs[i] = 1;
 
+      for (int i = AVGPR_REGNO (MAX_NORMAL_AVGPR_COUNT);
+	   i <= LAST_AVGPR_REG; i++)
+	fixed_regs[i] = 1, call_used_regs[i] = 1;
       return;
     }
 
@@ -2551,6 +2555,16 @@ gcn_conditional_register_usage (void)
     fixed_regs[cfun->machine->args.reg[WORK_ITEM_ID_Z_ARG]] = 1;
 }
 
+static bool
+gcn_vgpr_equivalent_register_operand (rtx x, machine_mode mode)
+{
+  if (gcn_vgpr_register_operand (x, mode))
+    return true;
+  if (TARGET_CDNA2_PLUS && gcn_avgpr_register_operand (x, mode))
+    return true;
+  return false;
+}
+
 /* Determine if a load or store is valid, according to the register classes
    and address space.  Used primarily by the machine description to decide
    when to split a move into two steps.  */
@@ -2559,21 +2573,36 @@ bool
 gcn_valid_move_p (machine_mode mode, rtx dest, rtx src)
 {
   if (!MEM_P (dest) && !MEM_P (src))
-    return true;
+    {
+      if (gcn_vgpr_register_operand (src, mode)
+	  && gcn_avgpr_register_operand (dest, mode))
+	return true;
+      if (gcn_avgpr_register_operand (src, mode)
+	  && gcn_vgpr_register_operand (dest, mode))
+	return true;
+      if (TARGET_CDNA2_PLUS
+	  && gcn_avgpr_register_operand (src, mode)
+	  && gcn_avgpr_register_operand (dest, mode))
+	return true;
+      if (gcn_avgpr_hard_register_operand (src, mode)
+	  || gcn_avgpr_hard_register_operand (dest, mode))
+	return false;
+      return true;
+    }
 
   if (MEM_P (dest)
       && AS_FLAT_P (MEM_ADDR_SPACE (dest))
       && (gcn_flat_address_p (XEXP (dest, 0), mode)
 	  || GET_CODE (XEXP (dest, 0)) == SYMBOL_REF
 	  || GET_CODE (XEXP (dest, 0)) == LABEL_REF)
-      && gcn_vgpr_register_operand (src, mode))
+      && gcn_vgpr_equivalent_register_operand (src, mode))
     return true;
   else if (MEM_P (src)
 	   && AS_FLAT_P (MEM_ADDR_SPACE (src))
 	   && (gcn_flat_address_p (XEXP (src, 0), mode)
 	       || GET_CODE (XEXP (src, 0)) == SYMBOL_REF
 	       || GET_CODE (XEXP (src, 0)) == LABEL_REF)
-	   && gcn_vgpr_register_operand (dest, mode))
+	   && gcn_vgpr_equivalent_register_operand (dest, mode))
     return true;
 
   if (MEM_P (dest)
@@ -2581,14 +2610,14 @@ gcn_valid_move_p (machine_mode mode, rtx dest, rtx src)
       && (gcn_global_address_p (XEXP (dest, 0))
 	  || GET_CODE (XEXP (dest, 0)) == SYMBOL_REF
 	  || GET_CODE (XEXP (dest, 0)) == LABEL_REF)
-      && gcn_vgpr_register_operand (src, mode))
+      && gcn_vgpr_equivalent_register_operand (src, mode))
     return true;
   else if (MEM_P (src)
 	   && AS_GLOBAL_P (MEM_ADDR_SPACE (src))
 	   && (gcn_global_address_p (XEXP (src, 0))
 	       || GET_CODE (XEXP (src, 0)) == SYMBOL_REF
 	       || GET_CODE (XEXP (src, 0)) == LABEL_REF)
-	   && gcn_vgpr_register_operand (dest, mode))
+	   && gcn_vgpr_equivalent_register_operand (dest, mode))
     return true;
 
   if (MEM_P (dest)
@@ -2609,12 +2638,12 @@ gcn_valid_move_p (machine_mode mode, rtx dest, rtx src)
   if (MEM_P (dest)
       && AS_ANY_DS_P (MEM_ADDR_SPACE (dest))
       && gcn_ds_address_p (XEXP (dest, 0))
-      && gcn_vgpr_register_operand (src, mode))
+      && gcn_vgpr_equivalent_register_operand (src, mode))
     return true;
   else if (MEM_P (src)
 	   && AS_ANY_DS_P (MEM_ADDR_SPACE (src))
 	   && gcn_ds_address_p (XEXP (src, 0))
-	   && gcn_vgpr_register_operand (dest, mode))
+	   && gcn_vgpr_equivalent_register_operand (dest, mode))
     return true;
 
   return false;
@@ -3015,6 +3044,10 @@ gcn_omp_device_kind_arch_isa (enum omp_device_kind_arch_isa trait,
 	return gcn_arch == PROCESSOR_GFX908;
       if (strcmp (name, "gfx90a") == 0)
 	return gcn_arch == PROCESSOR_GFX90a;
+      if (strcmp (name, "gfx1030") == 0)
+	return gcn_arch == PROCESSOR_GFX1030;
+      if (strcmp (name, "gfx1100") == 0)
+	return gcn_arch == PROCESSOR_GFX1100;
       return 0;
     default:
       gcc_unreachable ();
@@ -3048,7 +3081,8 @@ gcn_compute_frame_offsets (void)
     if ((df_regs_ever_live_p (regno) && !call_used_or_fixed_reg_p (regno))
 	|| ((regno & ~1) == HARD_FRAME_POINTER_REGNUM
 	    && frame_pointer_needed))
-      offsets->callee_saves += (VGPR_REGNO_P (regno) ? 256 : 4);
+      offsets->callee_saves += (VGPR_REGNO_P (regno)
+			       	|| AVGPR_REGNO_P (regno) ? 256 : 4);
 
   /* Round up to 64-bit boundary to maintain stack alignment.  */
   offsets->callee_saves = (offsets->callee_saves + 7) & ~7;
@@ -3586,21 +3620,23 @@ gcn_expand_epilogue (void)
       /* Assume that an exit value compatible with gcn-run is expected.
          That is, the third input parameter is an int*.
 
-         We can't allocate any new registers, but the kernarg_reg is
-         dead after this, so we'll use that.  */
+         We can't allocate any new registers, but the dispatch_ptr and
+	 kernarg_reg are dead after this, so we'll use those.  */
+      rtx dispatch_ptr_reg = gen_rtx_REG (DImode, cfun->machine->args.reg
+					  [DISPATCH_PTR_ARG]);
       rtx kernarg_reg = gen_rtx_REG (DImode, cfun->machine->args.reg
 				     [KERNARG_SEGMENT_PTR_ARG]);
       rtx retptr_mem = gen_rtx_MEM (DImode,
 				    gen_rtx_PLUS (DImode, kernarg_reg,
 						  GEN_INT (16)));
       set_mem_addr_space (retptr_mem, ADDR_SPACE_SCALAR_FLAT);
-      emit_move_insn (kernarg_reg, retptr_mem);
+      emit_move_insn (dispatch_ptr_reg, retptr_mem);
 
-      rtx retval_mem = gen_rtx_MEM (SImode, kernarg_reg);
-      rtx scalar_retval = gen_rtx_REG (SImode, FIRST_PARM_REG);
-      set_mem_addr_space (retval_mem, ADDR_SPACE_SCALAR_FLAT);
-      emit_move_insn (scalar_retval, gen_rtx_REG (SImode, RETURN_VALUE_REG));
-      emit_move_insn (retval_mem, scalar_retval);
+      rtx retval_addr = gen_rtx_REG (DImode, FIRST_VPARM_REG + 2);
+      emit_move_insn (retval_addr, dispatch_ptr_reg);
+      rtx retval_mem = gen_rtx_MEM (SImode, retval_addr);
+      set_mem_addr_space (retval_mem, ADDR_SPACE_FLAT);
+      emit_move_insn (retval_mem, gen_rtx_REG (SImode, RETURN_VALUE_REG));
     }
 
   emit_jump_insn (gen_gcn_return ());
@@ -3770,6 +3806,47 @@ gcn_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
   emit_insn (gen_clear_icache (tramp_addr,
 			       plus_constant (ptr_mode, tramp_addr,
 					      TRAMPOLINE_SIZE)));
+}
+
+/* Implement TARGET_EXPAND_DIVMOD_LIBFUNC.
+
+   There are divmod libfuncs for all modes except TImode.  They return the
+   two values packed into a larger integer/vector.  */
+
+void
+gcn_expand_divmod_libfunc (rtx libfunc, machine_mode mode, rtx op0, rtx op1,
+			   rtx *quot, rtx *rem)
+{
+  machine_mode innermode = (VECTOR_MODE_P (mode)
+			    ? GET_MODE_INNER (mode) : mode);
+  machine_mode wideinnermode = VOIDmode;
+  machine_mode widemode = VOIDmode;
+
+  switch (innermode)
+    {
+    case E_QImode:
+    case E_HImode:
+    case E_SImode:
+      wideinnermode = DImode;
+      break;
+    case E_DImode:
+      wideinnermode = TImode;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  if (VECTOR_MODE_P (mode))
+    widemode = VnMODE (GET_MODE_NUNITS (mode), wideinnermode);
+  else
+    widemode = wideinnermode;
+
+  emit_library_call_value (libfunc, gen_rtx_REG (widemode, RETURN_VALUE_REG),
+			   LCT_NORMAL, widemode, op0, mode, op1, mode);
+
+  *quot = gen_rtx_REG (mode, RETURN_VALUE_REG);
+  *rem = gen_rtx_REG (mode,
+		      RETURN_VALUE_REG + (wideinnermode == TImode ? 2 : 1));
 }
 
 /* }}}  */
@@ -3950,6 +4027,11 @@ gcn_memory_move_cost (machine_mode mode, reg_class_t regclass, bool in)
       if (in)
 	return (LOAD_COST + 2) * nregs;
       return STORE_COST * nregs;
+    case AVGPR_REGS:
+    case ALL_VGPR_REGS:
+      if (in)
+	return (LOAD_COST + (TARGET_CDNA2_PLUS ? 2 : 4)) * nregs;
+      return (STORE_COST + (TARGET_CDNA2_PLUS ? 0 : 2)) * nregs;
     case ALL_REGS:
     case ALL_GPR_REGS:
     case SRCDST_REGS:
@@ -3969,6 +4051,15 @@ gcn_memory_move_cost (machine_mode mode, reg_class_t regclass, bool in)
 static int
 gcn_register_move_cost (machine_mode, reg_class_t dst, reg_class_t src)
 {
+  if (src == AVGPR_REGS)
+    {
+      if (dst == AVGPR_REGS)
+	return TARGET_CDNA1 ? 6 : 2;
+      if (dst != VGPR_REGS)
+	return 6;
+    }
+  if (dst == AVGPR_REGS && src != VGPR_REGS)
+    return 6;
   /* Increase cost of moving from and to vector registers.  While this is
      fast in hardware (I think), it has hidden cost of setting up the exec
      flags.  */
@@ -4210,6 +4301,207 @@ gcn_init_libfuncs (void)
   set_optab_libfunc (popcount_optab, TImode, "__popcountti2");
   set_optab_libfunc (parity_optab, TImode, "__parityti2");
   set_optab_libfunc (bswap_optab, TImode, "__bswapti2");
+
+  set_optab_libfunc (sdivmod_optab, SImode, "__divmodsi4");
+  set_optab_libfunc (udivmod_optab, SImode, "__udivmodsi4");
+  set_optab_libfunc (sdivmod_optab, DImode, "__divmoddi4");
+  set_optab_libfunc (udivmod_optab, DImode, "__udivmoddi4");
+
+  set_optab_libfunc (sdiv_optab, V2QImode, "__divv2qi3");
+  set_optab_libfunc (udiv_optab, V2QImode, "__udivv2qi3");
+  set_optab_libfunc (smod_optab, V2QImode, "__modv2qi3");
+  set_optab_libfunc (umod_optab, V2QImode, "__umodv2qi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V2QImode, "__divmodv2qi4");
+  set_optab_libfunc (udivmod_optab, V2QImode, "__udivmodv2qi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V4QImode, "__divv4qi3");
+  set_optab_libfunc (udiv_optab, V4QImode, "__udivv4qi3");
+  set_optab_libfunc (smod_optab, V4QImode, "__modv4qi3");
+  set_optab_libfunc (umod_optab, V4QImode, "__umodv4qi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V4QImode, "__divmodv4qi4");
+  set_optab_libfunc (udivmod_optab, V4QImode, "__udivmodv4qi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V8QImode, "__divv8qi3");
+  set_optab_libfunc (udiv_optab, V8QImode, "__udivv8qi3");
+  set_optab_libfunc (smod_optab, V8QImode, "__modv8qi3");
+  set_optab_libfunc (umod_optab, V8QImode, "__umodv8qi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V8QImode, "__divmodv8qi4");
+  set_optab_libfunc (udivmod_optab, V8QImode, "__udivmodv8qi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V16QImode, "__divv16qi3");
+  set_optab_libfunc (udiv_optab, V16QImode, "__udivv16qi3");
+  set_optab_libfunc (smod_optab, V16QImode, "__modv16qi3");
+  set_optab_libfunc (umod_optab, V16QImode, "__umodv16qi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V16QImode, "__divmodv16qi4");
+  set_optab_libfunc (udivmod_optab, V16QImode, "__udivmodv16qi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V32QImode, "__divv32qi3");
+  set_optab_libfunc (udiv_optab, V32QImode, "__udivv32qi3");
+  set_optab_libfunc (smod_optab, V32QImode, "__modv32qi3");
+  set_optab_libfunc (umod_optab, V32QImode, "__umodv32qi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V32QImode, "__divmodv32qi4");
+  set_optab_libfunc (udivmod_optab, V32QImode, "__udivmodv32qi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V64QImode, "__divv64qi3");
+  set_optab_libfunc (udiv_optab, V64QImode, "__udivv64qi3");
+  set_optab_libfunc (smod_optab, V64QImode, "__modv64qi3");
+  set_optab_libfunc (umod_optab, V64QImode, "__umodv64qi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V64QImode, "__divmodv64qi4");
+  set_optab_libfunc (udivmod_optab, V64QImode, "__udivmodv64qi4");
+#endif
+
+  set_optab_libfunc (sdiv_optab, V2HImode, "__divv2hi3");
+  set_optab_libfunc (udiv_optab, V2HImode, "__udivv2hi3");
+  set_optab_libfunc (smod_optab, V2HImode, "__modv2hi3");
+  set_optab_libfunc (umod_optab, V2HImode, "__umodv2hi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V2HImode, "__divmodv2hi4");
+  set_optab_libfunc (udivmod_optab, V2HImode, "__udivmodv2hi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V4HImode, "__divv4hi3");
+  set_optab_libfunc (udiv_optab, V4HImode, "__udivv4hi3");
+  set_optab_libfunc (smod_optab, V4HImode, "__modv4hi3");
+  set_optab_libfunc (umod_optab, V4HImode, "__umodv4hi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V4HImode, "__divmodv4hi4");
+  set_optab_libfunc (udivmod_optab, V4HImode, "__udivmodv4hi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V8HImode, "__divv8hi3");
+  set_optab_libfunc (udiv_optab, V8HImode, "__udivv8hi3");
+  set_optab_libfunc (smod_optab, V8HImode, "__modv8hi3");
+  set_optab_libfunc (umod_optab, V8HImode, "__umodv8hi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V8HImode, "__divmodv8hi4");
+  set_optab_libfunc (udivmod_optab, V8HImode, "__udivmodv8hi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V16HImode, "__divv16hi3");
+  set_optab_libfunc (udiv_optab, V16HImode, "__udivv16hi3");
+  set_optab_libfunc (smod_optab, V16HImode, "__modv16hi3");
+  set_optab_libfunc (umod_optab, V16HImode, "__umodv16hi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V16HImode, "__divmodv16hi4");
+  set_optab_libfunc (udivmod_optab, V16HImode, "__udivmodv16hi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V32HImode, "__divv32hi3");
+  set_optab_libfunc (udiv_optab, V32HImode, "__udivv32hi3");
+  set_optab_libfunc (smod_optab, V32HImode, "__modv32hi3");
+  set_optab_libfunc (umod_optab, V32HImode, "__umodv32hi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V32HImode, "__divmodv32hi4");
+  set_optab_libfunc (udivmod_optab, V32HImode, "__udivmodv32hi4");
+#endif
+  set_optab_libfunc (sdiv_optab, V64HImode, "__divv64hi3");
+  set_optab_libfunc (udiv_optab, V64HImode, "__udivv64hi3");
+  set_optab_libfunc (smod_optab, V64HImode, "__modv64hi3");
+  set_optab_libfunc (umod_optab, V64HImode, "__umodv64hi3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V64HImode, "__divmodv64hi4");
+  set_optab_libfunc (udivmod_optab, V64HImode, "__udivmodv64hi4");
+#endif
+
+  set_optab_libfunc (sdiv_optab, V2SImode, "__divv2si3");
+  set_optab_libfunc (udiv_optab, V2SImode, "__udivv2si3");
+  set_optab_libfunc (smod_optab, V2SImode, "__modv2si3");
+  set_optab_libfunc (umod_optab, V2SImode, "__umodv2si3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V2SImode, "__divmodv2si4");
+  set_optab_libfunc (udivmod_optab, V2SImode, "__udivmodv2si4");
+#endif
+  set_optab_libfunc (sdiv_optab, V4SImode, "__divv4si3");
+  set_optab_libfunc (udiv_optab, V4SImode, "__udivv4si3");
+  set_optab_libfunc (smod_optab, V4SImode, "__modv4si3");
+  set_optab_libfunc (umod_optab, V4SImode, "__umodv4si3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V4SImode, "__divmodv4si4");
+  set_optab_libfunc (udivmod_optab, V4SImode, "__udivmodv4si4");
+#endif
+  set_optab_libfunc (sdiv_optab, V8SImode, "__divv8si3");
+  set_optab_libfunc (udiv_optab, V8SImode, "__udivv8si3");
+  set_optab_libfunc (smod_optab, V8SImode, "__modv8si3");
+  set_optab_libfunc (umod_optab, V8SImode, "__umodv8si3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V8SImode, "__divmodv8si4");
+  set_optab_libfunc (udivmod_optab, V8SImode, "__udivmodv8si4");
+#endif
+  set_optab_libfunc (sdiv_optab, V16SImode, "__divv16si3");
+  set_optab_libfunc (udiv_optab, V16SImode, "__udivv16si3");
+  set_optab_libfunc (smod_optab, V16SImode, "__modv16si3");
+  set_optab_libfunc (umod_optab, V16SImode, "__umodv16si3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V16SImode, "__divmodv16si4");
+  set_optab_libfunc (udivmod_optab, V16SImode, "__udivmodv16si4");
+#endif
+  set_optab_libfunc (sdiv_optab, V32SImode, "__divv32si3");
+  set_optab_libfunc (udiv_optab, V32SImode, "__udivv32si3");
+  set_optab_libfunc (smod_optab, V32SImode, "__modv32si3");
+  set_optab_libfunc (umod_optab, V32SImode, "__umodv32si3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V32SImode, "__divmodv32si4");
+  set_optab_libfunc (udivmod_optab, V32SImode, "__udivmodv32si4");
+#endif
+  set_optab_libfunc (sdiv_optab, V64SImode, "__divv64si3");
+  set_optab_libfunc (udiv_optab, V64SImode, "__udivv64si3");
+  set_optab_libfunc (smod_optab, V64SImode, "__modv64si3");
+  set_optab_libfunc (umod_optab, V64SImode, "__umodv64si3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V64SImode, "__divmodv64si4");
+  set_optab_libfunc (udivmod_optab, V64SImode, "__udivmodv64si4");
+#endif
+
+  set_optab_libfunc (sdiv_optab, V2DImode, "__divv2di3");
+  set_optab_libfunc (udiv_optab, V2DImode, "__udivv2di3");
+  set_optab_libfunc (smod_optab, V2DImode, "__modv2di3");
+  set_optab_libfunc (umod_optab, V2DImode, "__umodv2di3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V2DImode, "__divmodv2di4");
+  set_optab_libfunc (udivmod_optab, V2DImode, "__udivmodv2di4");
+#endif
+  set_optab_libfunc (sdiv_optab, V4DImode, "__divv4di3");
+  set_optab_libfunc (udiv_optab, V4DImode, "__udivv4di3");
+  set_optab_libfunc (smod_optab, V4DImode, "__modv4di3");
+  set_optab_libfunc (umod_optab, V4DImode, "__umodv4di3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V4DImode, "__divmodv4di4");
+  set_optab_libfunc (udivmod_optab, V4DImode, "__udivmodv4di4");
+#endif
+  set_optab_libfunc (sdiv_optab, V8DImode, "__divv8di3");
+  set_optab_libfunc (udiv_optab, V8DImode, "__udivv8di3");
+  set_optab_libfunc (smod_optab, V8DImode, "__modv8di3");
+  set_optab_libfunc (umod_optab, V8DImode, "__umodv8di3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V8DImode, "__divmodv8di4");
+  set_optab_libfunc (udivmod_optab, V8DImode, "__udivmodv8di4");
+#endif
+  set_optab_libfunc (sdiv_optab, V16DImode, "__divv16di3");
+  set_optab_libfunc (udiv_optab, V16DImode, "__udivv16di3");
+  set_optab_libfunc (smod_optab, V16DImode, "__modv16di3");
+  set_optab_libfunc (umod_optab, V16DImode, "__umodv16di3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V16DImode, "__divmodv16di4");
+  set_optab_libfunc (udivmod_optab, V16DImode, "__udivmodv16di4");
+#endif
+  set_optab_libfunc (sdiv_optab, V32DImode, "__divv32di3");
+  set_optab_libfunc (udiv_optab, V32DImode, "__udivv32di3");
+  set_optab_libfunc (smod_optab, V32DImode, "__modv32di3");
+  set_optab_libfunc (umod_optab, V32DImode, "__umodv32di3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V32DImode, "__divmodv32di4");
+  set_optab_libfunc (udivmod_optab, V32DImode, "__udivmodv32di4");
+#endif
+  set_optab_libfunc (sdiv_optab, V64DImode, "__divv64di3");
+  set_optab_libfunc (udiv_optab, V64DImode, "__udivv64di3");
+  set_optab_libfunc (smod_optab, V64DImode, "__modv64di3");
+  set_optab_libfunc (umod_optab, V64DImode, "__umodv64di3");
+#if 0
+  set_optab_libfunc (sdivmod_optab, V64DImode, "__divmodv64di4");
+  set_optab_libfunc (udivmod_optab, V64DImode, "__udivmodv64di4");
+#endif
 }
 
 /* Expand the CMP_SWAP GCN builtins.  We have our own versions that do
@@ -4625,6 +4917,19 @@ gcn_expand_builtin_1 (tree exp, rtx target, rtx /*subtarget */ ,
 	  }
 	return ptr;
       }
+    case GCN_BUILTIN_DISPATCH_PTR:
+      {
+	rtx ptr;
+	if (cfun->machine->args.reg[DISPATCH_PTR_ARG] >= 0)
+	   ptr = gen_rtx_REG (DImode,
+			      cfun->machine->args.reg[DISPATCH_PTR_ARG]);
+	else
+	  {
+	    ptr = gen_reg_rtx (DImode);
+	    emit_move_insn (ptr, const0_rtx);
+	  }
+	return ptr;
+      }
     case GCN_BUILTIN_FIRST_CALL_THIS_THREAD_P:
       {
 	/* Stash a marker in the unused upper 16 bits of s[0:1] to indicate
@@ -4794,7 +5099,9 @@ gcn_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
 			      rtx dst, rtx src0, rtx src1,
 			      const vec_perm_indices & sel)
 {
-  if (vmode != op_mode)
+  if (vmode != op_mode
+      || !VECTOR_MODE_P (vmode)
+      || GET_MODE_INNER (vmode) == TImode)
     return false;
 
   unsigned int nelt = GET_MODE_NUNITS (vmode);
@@ -4893,7 +5200,13 @@ gcn_vector_mode_supported_p (machine_mode mode)
 	  || mode == V4SFmode || mode == V4DFmode
 	  || mode == V2QImode || mode == V2HImode
 	  || mode == V2SImode || mode == V2DImode
-	  || mode == V2SFmode || mode == V2DFmode);
+	  || mode == V2SFmode || mode == V2DFmode
+	  /* TImode vectors are allowed to exist for divmod, but there
+	     are almost no instructions defined for them, and the
+	     autovectorizer does not use them.  */
+	  || mode == V64TImode || mode == V32TImode
+	  || mode == V16TImode || mode == V8TImode
+	  || mode == V4TImode || mode == V2TImode);
 }
 
 /* Implement TARGET_VECTORIZE_PREFERRED_SIMD_MODE.
@@ -5247,7 +5560,15 @@ gcn_expand_reduc_scalar (machine_mode mode, rtx src, int unspec)
 	{
 	  rtx tmp = gen_reg_rtx (mode);
 	  emit_insn (gen_dpp_move (mode, tmp, in, shift_val));
-	  emit_insn (gen_rtx_SET (out, gen_rtx_fmt_ee (code, mode, tmp, in)));
+	  rtx insn = gen_rtx_SET (out, gen_rtx_fmt_ee (code, mode, tmp, in));
+	  if (scalar_mode == DImode)
+	    {
+	      rtx clobber = gen_rtx_CLOBBER (VOIDmode,
+					     gen_rtx_REG (DImode, VCC_REG));
+	      insn = gen_rtx_PARALLEL (VOIDmode,
+				       gen_rtvec (2, insn, clobber));
+	    }
+	  emit_insn (insn);
 	}
       else
 	{
@@ -5361,8 +5682,6 @@ gcn_vectorize_builtin_vectorized_function (unsigned int fn, tree type_out,
 
   machine_mode out_mode = TYPE_MODE (TREE_TYPE (type_out));
   int out_n = TYPE_VECTOR_SUBPARTS (type_out);
-  machine_mode in_mode = TYPE_MODE (TREE_TYPE (type_in));
-  int in_n = TYPE_VECTOR_SUBPARTS (type_in);
   combined_fn cfn = combined_fn (fn);
 
   /* Keep this consistent with the list of vectorized math routines.  */
@@ -5462,6 +5781,7 @@ gcn_vmem_insn_p (attr_type type)
     case TYPE_MUBUF:
     case TYPE_MTBUF:
     case TYPE_FLAT:
+    case TYPE_VOP3P_MAI:
       return true;
     case TYPE_UNKNOWN:
     case TYPE_SOP1:
@@ -5701,7 +6021,8 @@ gcn_md_reorg (void)
 		FOR_EACH_SUBRTX (iter, array, PATTERN (insn), NONCONST)
 		  {
 		    const_rtx x = *iter;
-		    if (REG_P (x) && VGPR_REGNO_P (REGNO (x)))
+		    if (REG_P (x) && (VGPR_REGNO_P (REGNO (x))
+				      || AVGPR_REGNO_P (REGNO (x))))
 		      {
 			if (VECTOR_MODE_P (GET_MODE (x)))
 			  {
@@ -5840,6 +6161,7 @@ gcn_md_reorg (void)
       attr_type itype = get_attr_type (insn);
       attr_unit iunit = get_attr_unit (insn);
       attr_delayeduse idelayeduse = get_attr_delayeduse (insn);
+      int ivccwait = get_attr_vccwait (insn);
       HARD_REG_SET ireads, iwrites;
       CLEAR_HARD_REG_SET (ireads);
       CLEAR_HARD_REG_SET (iwrites);
@@ -5856,17 +6178,16 @@ gcn_md_reorg (void)
 	  if (!prev_insn->insn)
 	    continue;
 
+	  HARD_REG_SET depregs = prev_insn->writes & ireads;
+
 	  /* VALU writes SGPR followed by VMEM reading the same SGPR
 	     requires 5 wait states.  */
 	  if ((prev_insn->age + nops_rqd) < 5
 	      && prev_insn->unit == UNIT_VECTOR
-	      && gcn_vmem_insn_p (itype))
-	    {
-	      HARD_REG_SET regs = prev_insn->writes & ireads;
-	      if (hard_reg_set_intersect_p
-		  (regs, reg_class_contents[(int) SGPR_REGS]))
-		nops_rqd = 5 - prev_insn->age;
-	    }
+	      && gcn_vmem_insn_p (itype)
+	      && hard_reg_set_intersect_p
+		   (depregs, reg_class_contents[(int) SGPR_REGS]))
+	    nops_rqd = 5 - prev_insn->age;
 
 	  /* VALU sets VCC/EXEC followed by VALU uses VCCZ/EXECZ
 	     requires 5 wait states.  */
@@ -5888,15 +6209,12 @@ gcn_md_reorg (void)
 	     SGPR/VCC as lane select requires 4 wait states.  */
 	  if ((prev_insn->age + nops_rqd) < 4
 	      && prev_insn->unit == UNIT_VECTOR
-	      && get_attr_laneselect (insn) == LANESELECT_YES)
-	    {
-	      HARD_REG_SET regs = prev_insn->writes & ireads;
-	      if (hard_reg_set_intersect_p
-		  (regs, reg_class_contents[(int) SGPR_REGS])
+	      && get_attr_laneselect (insn) == LANESELECT_YES
+	      && (hard_reg_set_intersect_p
+		    (depregs, reg_class_contents[(int) SGPR_REGS])
 		  || hard_reg_set_intersect_p
-		     (regs, reg_class_contents[(int) VCC_CONDITIONAL_REG]))
-		nops_rqd = 4 - prev_insn->age;
-	    }
+		       (depregs, reg_class_contents[(int) VCC_CONDITIONAL_REG])))
+	    nops_rqd = 4 - prev_insn->age;
 
 	  /* VALU writes VGPR followed by VALU_DPP reading that VGPR
 	     requires 2 wait states.  */
@@ -5904,9 +6222,8 @@ gcn_md_reorg (void)
 	      && prev_insn->unit == UNIT_VECTOR
 	      && itype == TYPE_VOP_DPP)
 	    {
-	      HARD_REG_SET regs = prev_insn->writes & ireads;
 	      if (hard_reg_set_intersect_p
-		  (regs, reg_class_contents[(int) VGPR_REGS]))
+		  (depregs, reg_class_contents[(int) VGPR_REGS]))
 		nops_rqd = 2 - prev_insn->age;
 	    }
 
@@ -5917,6 +6234,43 @@ gcn_md_reorg (void)
 	      && ((hard_reg_set_intersect_p
 		   (prev_insn->reads, iwrites))))
 	    nops_rqd = 1 - prev_insn->age;
+
+	  /* Instruction that requires VCC is not written too close before
+	     using it.  */
+	  if (prev_insn->age < ivccwait
+	      && (hard_reg_set_intersect_p
+		  (prev_insn->writes,
+		   reg_class_contents[(int)VCC_CONDITIONAL_REG])))
+	    nops_rqd = ivccwait - prev_insn->age;
+
+	  /* CDNA1: write VGPR before v_accvgpr_write reads it.  */
+	  if (TARGET_CDNA1
+	      && (prev_insn->age + nops_rqd) < 2
+	      && hard_reg_set_intersect_p
+		  (depregs, reg_class_contents[(int) VGPR_REGS])
+	      && hard_reg_set_intersect_p
+		  (iwrites, reg_class_contents[(int) AVGPR_REGS]))
+	    nops_rqd = 2 - prev_insn->age;
+
+	  /* CDNA1: v_accvgpr_write writes AVGPR before v_accvgpr_read.  */
+	  if (TARGET_CDNA1
+	      && (prev_insn->age + nops_rqd) < 3
+	      && hard_reg_set_intersect_p
+		  (depregs, reg_class_contents[(int) AVGPR_REGS])
+	      && hard_reg_set_intersect_p
+		  (iwrites, reg_class_contents[(int) VGPR_REGS]))
+	    nops_rqd = 3 - prev_insn->age;
+
+	  /* CDNA1: Undocumented(?!) read-after-write when restoring values
+	     from AVGPRs to VGPRS.  Observed problem was for address register
+	     of flat_load instruction, but others may be affected?  */
+	  if (TARGET_CDNA1
+	      && (prev_insn->age + nops_rqd) < 2
+	      && hard_reg_set_intersect_p
+		   (prev_insn->reads, reg_class_contents[(int) AVGPR_REGS])
+	      && hard_reg_set_intersect_p
+		   (depregs, reg_class_contents[(int) VGPR_REGS]))
+	    nops_rqd = 2 - prev_insn->age;
 	}
 
       /* Insert the required number of NOPs.  */
@@ -6155,11 +6509,12 @@ static void
 output_file_start (void)
 {
   /* In HSACOv4 no attribute setting means the binary supports "any" hardware
-     configuration.  In GCC binaries, this is true for SRAM ECC, but not
-     XNACK.  */
-  const char *xnack = (flag_xnack ? ":xnack+" : ":xnack-");
-  const char *sram_ecc = (flag_sram_ecc == SRAM_ECC_ON ? ":sramecc+"
-			  : flag_sram_ecc == SRAM_ECC_OFF ? ":sramecc-"
+     configuration.  */
+  const char *xnack = (flag_xnack == HSACO_ATTR_ON ? ":xnack+"
+		       : flag_xnack == HSACO_ATTR_OFF ? ":xnack-"
+		       : "");
+  const char *sram_ecc = (flag_sram_ecc == HSACO_ATTR_ON ? ":sramecc+"
+			  : flag_sram_ecc == HSACO_ATTR_OFF ? ":sramecc-"
 			  : "");
 
   const char *cpu;
@@ -6184,6 +6539,16 @@ output_file_start (void)
     case PROCESSOR_GFX90a:
       cpu = "gfx90a";
       break;
+    case PROCESSOR_GFX1030:
+      cpu = "gfx1030";
+      xnack = "";
+      sram_ecc = "";
+      break;
+    case PROCESSOR_GFX1100:
+      cpu = "gfx1100";
+      xnack = "";
+      sram_ecc = "";
+      break;
     default: gcc_unreachable ();
     }
 
@@ -6200,10 +6565,11 @@ output_file_start (void)
    comments that pass information to mkoffload.  */
 
 void
-gcn_hsa_declare_function_name (FILE *file, const char *name, tree)
+gcn_hsa_declare_function_name (FILE *file, const char *name,
+			       tree decl ATTRIBUTE_UNUSED)
 {
-  int sgpr, vgpr;
-  bool xnack_enabled = false;
+  int sgpr, vgpr, avgpr;
+  bool xnack_enabled = TARGET_XNACK;
 
   fputs ("\n\n", file);
 
@@ -6219,14 +6585,22 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree)
 
   /* Determine count of sgpr/vgpr registers by looking for last
      one used.  */
-  for (sgpr = 101; sgpr >= 0; sgpr--)
+  for (sgpr = LAST_SGPR_REG - FIRST_SGPR_REG; sgpr >= 0; sgpr--)
     if (df_regs_ever_live_p (FIRST_SGPR_REG + sgpr))
       break;
   sgpr++;
-  for (vgpr = 255; vgpr >= 0; vgpr--)
+  for (vgpr = LAST_VGPR_REG - FIRST_VGPR_REG; vgpr >= 0; vgpr--)
     if (df_regs_ever_live_p (FIRST_VGPR_REG + vgpr))
       break;
   vgpr++;
+  for (avgpr = LAST_AVGPR_REG - FIRST_AVGPR_REG; avgpr >= 0; avgpr--)
+    if (df_regs_ever_live_p (FIRST_AVGPR_REG + avgpr))
+      break;
+  avgpr++;
+
+  /* The main function epilogue uses v8, but df doesn't see that.  */
+  if (vgpr < 9)
+    vgpr = 9;
 
   if (!leaf_function_p ())
     {
@@ -6235,11 +6609,22 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree)
 	vgpr = MAX_NORMAL_VGPR_COUNT;
       if (sgpr < MAX_NORMAL_SGPR_COUNT)
 	sgpr = MAX_NORMAL_SGPR_COUNT;
+      if (avgpr < MAX_NORMAL_AVGPR_COUNT)
+	avgpr = MAX_NORMAL_AVGPR_COUNT;
     }
 
-  /* The gfx90a accum_offset field can't represent 0 registers.  */
-  if (gcn_arch == PROCESSOR_GFX90a && vgpr < 4)
-    vgpr = 4;
+  /* SIMD32 devices count double in wavefront64 mode.  */
+  if (TARGET_RDNA2_PLUS)
+    vgpr *= 2;
+
+  /* Round up to the allocation block size.  */
+  int vgpr_block_size = (TARGET_RDNA3 ? 12
+			 : TARGET_RDNA2_PLUS || TARGET_CDNA2_PLUS ? 8
+			 : 4);
+  if (vgpr % vgpr_block_size)
+    vgpr += vgpr_block_size - (vgpr % vgpr_block_size);
+  if (avgpr % vgpr_block_size)
+    avgpr += vgpr_block_size - (avgpr % vgpr_block_size);
 
   fputs ("\t.rodata\n"
 	 "\t.p2align\t6\n"
@@ -6292,25 +6677,33 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree)
 	   ? 2
 	   : cfun->machine->args.requested & (1 << WORK_ITEM_ID_Y_ARG)
 	   ? 1 : 0);
+  int next_free_vgpr = vgpr;
+  if (TARGET_CDNA1 && avgpr > vgpr)
+    next_free_vgpr = avgpr;
+  if (TARGET_CDNA2_PLUS)
+    next_free_vgpr += avgpr;
   fprintf (file,
 	   "\t  .amdhsa_next_free_vgpr\t%i\n"
 	   "\t  .amdhsa_next_free_sgpr\t%i\n"
 	   "\t  .amdhsa_reserve_vcc\t1\n"
-	   "\t  .amdhsa_reserve_flat_scratch\t0\n"
 	   "\t  .amdhsa_reserve_xnack_mask\t%i\n"
 	   "\t  .amdhsa_private_segment_fixed_size\t0\n"
 	   "\t  .amdhsa_group_segment_fixed_size\t%u\n"
 	   "\t  .amdhsa_float_denorm_mode_32\t3\n"
 	   "\t  .amdhsa_float_denorm_mode_16_64\t3\n",
-	   vgpr,
+	   next_free_vgpr,
 	   sgpr,
 	   xnack_enabled,
 	   LDS_SIZE);
+  /* Not supported with 'architected flat scratch'.  */
+  if (gcn_arch != PROCESSOR_GFX1100)
+    fprintf (file,
+	   "\t  .amdhsa_reserve_flat_scratch\t0\n");
   if (gcn_arch == PROCESSOR_GFX90a)
     fprintf (file,
 	     "\t  .amdhsa_accum_offset\t%i\n"
 	     "\t  .amdhsa_tg_split\t0\n",
-	     (vgpr+3)&~3); // I think this means the AGPRs come after the VGPRs
+	     vgpr); /* The AGPRs come after the VGPRs.  */
   fputs ("\t.end_amdhsa_kernel\n", file);
 
 #if 1
@@ -6332,14 +6725,16 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree)
 	   "            .private_segment_fixed_size: 0\n"
 	   "            .wavefront_size: 64\n"
 	   "            .sgpr_count: %i\n"
-	   "            .vgpr_count: %i\n"
+	   "            .vgpr_count: %i%s\n"
 	   "            .max_flat_workgroup_size: 1024\n",
 	   cfun->machine->kernarg_segment_byte_size,
 	   cfun->machine->kernarg_segment_alignment,
 	   LDS_SIZE,
-	   sgpr, vgpr);
-  if (gcn_arch == PROCESSOR_GFX90a)
-    fprintf (file, "            .agpr_count: 0\n"); // AGPRs are not used, yet
+	   sgpr, next_free_vgpr,
+	   (TARGET_RDNA2_PLUS ? " ; wavefrontsize64 counts double on SIMD32"
+	    : ""));
+  if (gcn_arch == PROCESSOR_GFX90a || gcn_arch == PROCESSOR_GFX908)
+    fprintf (file, "            .agpr_count: %i\n", avgpr);
   fputs ("        .end_amdgpu_metadata\n", file);
 #endif
 
@@ -6348,8 +6743,7 @@ gcn_hsa_declare_function_name (FILE *file, const char *name, tree)
   fputs ("\t.type\t", file);
   assemble_name (file, name);
   fputs (",@function\n", file);
-  assemble_name (file, name);
-  fputs (":\n", file);
+  ASM_OUTPUT_FUNCTION_LABEL (file, name, decl);
 
   /* This comment is read by mkoffload.  */
   if (flag_openacc)
@@ -6435,6 +6829,9 @@ print_reg (FILE *file, rtx x)
       else if (VGPR_REGNO_P (REGNO (x)))
 	fprintf (file, "v[%i:%i]", REGNO (x) - FIRST_VGPR_REG,
 		 REGNO (x) - FIRST_VGPR_REG + 1);
+      else if (AVGPR_REGNO_P (REGNO (x)))
+	fprintf (file, "a[%i:%i]", REGNO (x) - FIRST_AVGPR_REG,
+		 REGNO (x) - FIRST_AVGPR_REG + 1);
       else if (REGNO (x) == FLAT_SCRATCH_REG)
 	fprintf (file, "flat_scratch");
       else if (REGNO (x) == EXEC_REG)
@@ -6453,6 +6850,9 @@ print_reg (FILE *file, rtx x)
       else if (VGPR_REGNO_P (REGNO (x)))
 	fprintf (file, "v[%i:%i]", REGNO (x) - FIRST_VGPR_REG,
 		 REGNO (x) - FIRST_VGPR_REG + 3);
+      else if (AVGPR_REGNO_P (REGNO (x)))
+	fprintf (file, "a[%i:%i]", REGNO (x) - FIRST_AVGPR_REG,
+		 REGNO (x) - FIRST_AVGPR_REG + 3);
       else
 	gcc_unreachable ();
     }
@@ -6516,7 +6916,7 @@ gcn_asm_output_symbol_ref (FILE *file, rtx x)
   tree decl;
   if (cfun
       && (decl = SYMBOL_REF_DECL (x)) != 0
-      && TREE_CODE (decl) == VAR_DECL
+      && VAR_P (decl)
       && AS_LDS_P (TYPE_ADDR_SPACE (TREE_TYPE (decl))))
     {
       /* LDS symbols (emitted using this hook) are only used at present
@@ -6532,7 +6932,7 @@ gcn_asm_output_symbol_ref (FILE *file, rtx x)
       /* FIXME: See above -- this condition is unreachable.  */
       if (cfun
 	  && (decl = SYMBOL_REF_DECL (x)) != 0
-	  && TREE_CODE (decl) == VAR_DECL
+	  && VAR_P (decl)
 	  && AS_LDS_P (TYPE_ADDR_SPACE (TREE_TYPE (decl))))
 	fputs ("@abs32", file);
     }
@@ -6712,12 +7112,16 @@ print_operand_address (FILE *file, rtx mem)
    O - print offset:n for data share operations.
    ^ - print "_co" suffix for GCN5 mnemonics
    g - print "glc", if appropriate for given MEM
+   L - print low-part of a multi-reg value
+   H - print second part of a multi-reg value (high-part of 2-reg value)
+   J - print third part of a multi-reg value
+   K - print fourth part of a multi-reg value
  */
 
 void
 print_operand (FILE *file, rtx x, int code)
 {
-  int xcode = x ? GET_CODE (x) : 0;
+  rtx_code xcode = x ? GET_CODE (x) : UNKNOWN;
   bool invert = false;
   switch (code)
     {
@@ -7251,6 +7655,12 @@ print_operand (FILE *file, rtx x, int code)
     case 'H':
       print_operand (file, gcn_operand_part (GET_MODE (x), x, 1), 0);
       return;
+    case 'J':
+      print_operand (file, gcn_operand_part (GET_MODE (x), x, 2), 0);
+      return;
+    case 'K':
+      print_operand (file, gcn_operand_part (GET_MODE (x), x, 3), 0);
+      return;
     case 'R':
       /* Print a scalar register number as an integer.  Temporary hack.  */
       gcc_assert (REG_P (x));
@@ -7366,6 +7776,8 @@ gcn_dwarf_register_number (unsigned int regno)
     }
   else if (VGPR_REGNO_P (regno))
     return (regno - FIRST_VGPR_REG + 2560);
+  else if (AVGPR_REGNO_P (regno))
+    return (regno - FIRST_AVGPR_REG + 3072);
 
   /* Otherwise, there's nothing sensible to do.  */
   return regno + 100000;
@@ -7457,6 +7869,8 @@ gcn_dwarf_register_span (rtx rtl)
 #define TARGET_EMUTLS_VAR_INIT gcn_emutls_var_init
 #undef  TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN gcn_expand_builtin
+#undef  TARGET_EXPAND_DIVMOD_LIBFUNC
+#define TARGET_EXPAND_DIVMOD_LIBFUNC gcn_expand_divmod_libfunc
 #undef  TARGET_FRAME_POINTER_REQUIRED
 #define TARGET_FRAME_POINTER_REQUIRED gcn_frame_pointer_rqd
 #undef  TARGET_FUNCTION_ARG

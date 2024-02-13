@@ -1,5 +1,5 @@
 /* A type-safe hash map that retains the insertion order of keys.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -74,6 +74,32 @@ public:
   Value *get (const Key &k)
   {
     return m_map.get (k);
+  }
+
+  /* Return a reference to the value for the passed in key, creating the entry
+    if it doesn't already exist.  If existed is not NULL then it is set to
+    false if the key was not previously in the map, and true otherwise.  */
+
+  Value &get_or_insert (const Key &k, bool *existed = NULL)
+  {
+    bool _existed;
+    Value &ret = m_map.get_or_insert (k, &_existed);
+
+    if (!_existed)
+      {
+	bool key_present;
+	int &slot = m_key_index.get_or_insert (k, &key_present);
+	if (!key_present)
+	  {
+	    slot = m_keys.length ();
+	    m_keys.safe_push (k);
+	  }
+      }
+
+    if (existed)
+      *existed = _existed;
+
+    return ret;
   }
 
   /* Removing a key removes it from the map, but retains the insertion

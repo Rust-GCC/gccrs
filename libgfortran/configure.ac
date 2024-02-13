@@ -21,19 +21,6 @@ AS_HELP_STRING([--enable-version-specific-runtime-libs],
 [version_specific_libs=no])
 AC_MSG_RESULT($version_specific_libs)
 
-# Build with intermodule optimisations
-AC_MSG_CHECKING([for --enable-intermodule])
-AC_ARG_ENABLE(intermodule,
-AS_HELP_STRING([--enable-intermodule],[build the library in one step]),
-[case "$enable_intermodule" in
-  yes) onestep="-onestep";;
-    *) onestep="";;
-esac],
-[onestep=""])
-AC_MSG_RESULT($enable_intermodule)
-AM_CONDITIONAL(onestep,[test x$onestep = x-onestep])
-AC_SUBST(onestep)
-
 # Gets build, host, target, *_vendor, *_cpu, *_os, etc.
 #
 # You will slowly go insane if you do not grok the following fact:  when
@@ -282,6 +269,7 @@ LT_LIB_M
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
+AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
 #AC_MSG_NOTICE([====== Finished libtool configuration]) ; sleep 10
 
 # We need gfortran to compile parts of the library
@@ -290,9 +278,10 @@ FC="$GFORTRAN"
 AC_PROG_FC(gfortran)
 
 # extra LD Flags which are required for targets
+extra_ldflags_libgfortran=
 case "${host}" in
-  *-darwin*)
-    # Darwin needs -single_module when linking libgfortran
+  *-*-darwin[[4567]]*)
+    # Earlier Darwin needs -single_module when linking libgfortran
     extra_ldflags_libgfortran=-Wl,-single_module
     ;;
 esac

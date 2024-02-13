@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -166,9 +166,9 @@ begin
       end loop;
 
       declare
-         F : constant Big_Integer := Big_10 ** (W - 2) with Ghost;
-         Q : constant Big_Integer := Big (T_Init) / F with Ghost;
-         R : constant Big_Integer := Big (T_Init) rem F with Ghost;
+         F : constant Big_Positive := Big_10 ** (W - 2) with Ghost;
+         Q : constant Big_Natural := Big (T_Init) / F with Ghost;
+         R : constant Big_Natural := Big (T_Init) rem F with Ghost;
       begin
          pragma Assert (Q < Big_10);
          pragma Assert (Big (T_Init) = Q * F + R);

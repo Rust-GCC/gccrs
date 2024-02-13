@@ -1,5 +1,5 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
+// { dg-timeout-factor 2 }
 
 #include <chrono>
 #include <testsuite_hooks.h>
@@ -68,6 +68,16 @@ test_bad_format_strings()
   // modifier not valid for conversion specifier
   VERIFY( not is_format_string_for("{:%Ea}", t) );
   VERIFY( not is_format_string_for("{:%Oa}", t) );
+
+  // more than one modifier (PR libstdc++/110708)
+  VERIFY( not is_format_string_for("{:%EEc}", t) );
+  VERIFY( not is_format_string_for("{:%EEEc}", t) );
+  VERIFY( not is_format_string_for("{:%OOd}", t) );
+  VERIFY( not is_format_string_for("{:%OOOd}", t) );
+  VERIFY( not is_format_string_for("{:%EEy}", t) );
+  VERIFY( not is_format_string_for("{:%OOy}", t) );
+  VERIFY( not is_format_string_for("{:%OEy}", t) );
+  VERIFY( not is_format_string_for("{:%EOy}", t) );
 }
 
 template<typename I>

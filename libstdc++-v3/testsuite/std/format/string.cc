@@ -1,4 +1,3 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
 
 #include <format>
@@ -10,6 +9,18 @@ is_format_string_for(const char* str, Args&&... args)
 {
   try {
     (void) std::vformat(str, std::make_format_args(args...));
+    return true;
+  } catch (const std::format_error&) {
+    return false;
+  }
+}
+
+template<typename... Args>
+bool
+is_format_string_for(const wchar_t* str, Args&&... args)
+{
+  try {
+    (void) std::vformat(str, std::make_wformat_args(args...));
     return true;
   } catch (const std::format_error&) {
     return false;
@@ -98,6 +109,9 @@ test_format_spec()
   VERIFY( ! is_format_string_for("{:#?}", "str") );
   VERIFY( ! is_format_string_for("{:#?}", 'c') );
 
+  VERIFY( ! is_format_string_for("{:0c}", 'c') );
+  VERIFY( ! is_format_string_for("{:0s}", true) );
+
   // Precision only valid for string and floating-point types.
   VERIFY( ! is_format_string_for("{:.3d}", 1) );
   VERIFY( ! is_format_string_for("{:3.3d}", 1) );
@@ -121,6 +135,47 @@ test_format_spec()
   // Invalid presentation types for strings.
   VERIFY( ! is_format_string_for("{:S}", "str") );
   VERIFY( ! is_format_string_for("{:d}", "str") );
+
+  // Maximum integer value supported for widths and precisions is USHRT_MAX.
+  VERIFY( is_format_string_for("{:65535}", 1) );
+  VERIFY( is_format_string_for(L"{:65535}", 1) );
+  VERIFY( ! is_format_string_for("{:65536}", 1) );
+  VERIFY( ! is_format_string_for(L"{:65536}", 1) );
+  VERIFY( ! is_format_string_for("{:9999999}", 1) );
+  VERIFY( ! is_format_string_for(L"{:9999999}", 1) );
+}
+
+void
+test_pr110862()
+{
+  try {
+    int i = 1;
+    // PR libstdc++/110862 out-of-bounds read on invalid format string
+    (void) std::vformat("{0:{0}", std::make_format_args(i));
+    VERIFY( false );
+  } catch (const std::format_error& e) {
+    std::string_view what = e.what();
+    VERIFY( what.find("unmatched '{'") != what.npos );
+  }
+}
+
+void
+test_pr110974()
+{
+  try {
+    double d = 1.0;
+    int i = 1;
+    // PR libstdc++/110974 out of bounds read on invalid format string "{:{}."
+    std::string_view fmt{"{:{}.0", 5}; // "0" is not part of the format string.
+    (void) std::vformat(fmt, std::make_format_args(d, i));
+    VERIFY( false );
+  } catch (const std::format_error& e) {
+    std::string_view what = e.what();
+    // GCC 13.2 throws "invalid width or precision in format-spec" after
+    // trying to parse the "0" past-the-end of the format string.
+    // There should be an exception before even trying that:
+    VERIFY( what.find("missing precision after '.'") != what.npos );
+  }
 }
 
 int main()
@@ -128,4 +183,6 @@ int main()
   test_no_args();
   test_indexing();
   test_format_spec();
+  test_pr110862();
+  test_pr110974();
 }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 2002-2023, AdaCore                     --
+--                     Copyright (C) 2002-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -56,9 +56,9 @@ package body GNAT.Dynamic_HTables is
       --  range of Bucket_Range_Type.
 
       return
-        ((Left  and Mask) * Half)
+        (Left  and Mask) * Half
             or
-         (Right and Mask);
+        (Right and Mask);
    end Hash_Two_Keys;
 
    -------------------

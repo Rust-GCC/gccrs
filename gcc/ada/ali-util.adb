@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -447,7 +447,7 @@ package body ALI.Util is
             Stringt.Release;
          end if;
 
-         if (not Read_Only) or else Source.Table (Src).Source_Found then
+         if not Read_Only or else Source.Table (Src).Source_Found then
             if not Source.Table (Src).Source_Found
               or else Sdep.Table (D).Stamp /= Source.Table (Src).Stamp
             then

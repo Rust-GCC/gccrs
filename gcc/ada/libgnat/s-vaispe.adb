@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2022-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2022-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -71,14 +71,14 @@ package body System.Value_I_Spec is
    begin
       Prove_Conversion_Is_Identity (Val, Uval);
       pragma Assert
-        (Uns_Params.Is_Raw_Unsigned_Format_Ghost (Str (Fst_Num .. Str'Last)));
+        (U_Spec.Is_Raw_Unsigned_Format_Ghost (Str (Fst_Num .. Str'Last)));
       pragma Assert
-        (Uns_Params.Scan_Split_No_Overflow_Ghost (Str, Fst_Num, Str'Last));
-      Uns_Params.Lemma_Exponent_Unsigned_Ghost_Base (Uval, 0, 10);
+        (U_Spec.Scan_Split_No_Overflow_Ghost (Str, Fst_Num, Str'Last));
+      U_Spec.Lemma_Exponent_Unsigned_Ghost_Base (Uval, 0, 10);
       pragma Assert
-        (Uns_Params.Raw_Unsigned_No_Overflow_Ghost (Str, Fst_Num, Str'Last));
+        (U_Spec.Raw_Unsigned_No_Overflow_Ghost (Str, Fst_Num, Str'Last));
       pragma Assert (Only_Space_Ghost
-        (Str, Uns_Params.Raw_Unsigned_Last_Ghost
+        (Str, U_Spec.Raw_Unsigned_Last_Ghost
                         (Str, Fst_Num, Str'Last), Str'Last));
       pragma Assert (Is_Integer_Ghost (Str));
       pragma Assert (Is_Value_Integer_Ghost (Str, Val));

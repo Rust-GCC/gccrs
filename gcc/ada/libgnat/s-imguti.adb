@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---            Copyright (C) 2020-2023, Free Software Foundation, Inc.       --
+--            Copyright (C) 2020-2024, Free Software Foundation, Inc.       --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -37,6 +37,8 @@ package body System.Img_Util is
    -- Set_Decimal_Digits --
    ------------------------
 
+   pragma Annotate (Gnatcheck, Exempt_On, "Unassigned_OUT_Parameters",
+                    "the OUT parameter is assigned by component");
    procedure Set_Decimal_Digits
      (Digs  : in out String;
       NDigs : Natural;
@@ -47,6 +49,8 @@ package body System.Img_Util is
       Aft   : Natural;
       Exp   : Natural)
    is
+      pragma Annotate (Gnatcheck, Exempt_Off, "Unassigned_OUT_Parameters");
+
       pragma Assert (NDigs >= 1);
       pragma Assert (Digs'First = 1);
       pragma Assert (Digs'First < Digs'Last);
@@ -119,6 +123,9 @@ package body System.Img_Util is
          pragma Assert (Digs'First < Digs'Last);
 
       begin
+         pragma Annotate (Gnatcheck, Exempt_On, "Improper_Returns",
+                       "early returns for performance");
+
          --  Nothing to do if rounding past the last digit we have
 
          if N >= LD then
@@ -178,6 +185,8 @@ package body System.Img_Util is
                Digits_Before_Point := Digits_Before_Point + 1;
             end if;
          end if;
+
+         pragma Annotate (Gnatcheck, Exempt_Off, "Improper_Returns");
       end Round;
 
       ---------
@@ -226,7 +235,6 @@ package body System.Img_Util is
       begin
          pragma Assert (S >= Digs'First and E <= Digs'Last);
          --  S and E should be in the Digs array range
-         --  TBC: Analysis should be completed
          for J in S .. E loop
             Set (Digs (J));
          end loop;
@@ -246,6 +254,9 @@ package body System.Img_Util is
    --  Start of processing for Set_Decimal_Digits
 
    begin
+      pragma Annotate (Gnatcheck, Exempt_On, "Improper_Returns",
+                    "early returns for performance");
+
       --  Case of exponent given
 
       if Exp > 0 then
@@ -398,12 +409,16 @@ package body System.Img_Util is
             end if;
          end if;
       end if;
+
+      pragma Annotate (Gnatcheck, Exempt_Off, "Improper_Returns");
    end Set_Decimal_Digits;
 
    --------------------------------
    -- Set_Floating_Invalid_Value --
    --------------------------------
 
+   pragma Annotate (Gnatcheck, Exempt_On, "Unassigned_OUT_Parameters",
+                    "the OUT parameter is assigned by component");
    procedure Set_Floating_Invalid_Value
      (V    : Floating_Invalid_Value;
       S    : out String;
@@ -412,6 +427,8 @@ package body System.Img_Util is
       Aft  : Natural;
       Exp  : Natural)
    is
+      pragma Annotate (Gnatcheck, Exempt_Off, "Unassigned_OUT_Parameters");
+
       procedure Set (C : Character);
       --  Sets character C in output buffer
 

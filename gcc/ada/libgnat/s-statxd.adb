@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---         Copyright (C) 1996-2023, Free Software Foundation, Inc.          --
+--         Copyright (C) 1996-2024, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GARLIC is free software;  you can redistribute it and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -295,8 +295,8 @@ package body System.Stream_Attributes.XDR is
       FP : Fat_Pointer;
 
    begin
-      FP.P1 := I_AS (Stream).P1;
-      FP.P2 := I_AS (Stream).P1;
+      FP.P1 := I_AS (Stream);
+      FP.P2 := I_AS (Stream);
 
       return FP;
    end I_AD;
@@ -321,7 +321,7 @@ package body System.Stream_Attributes.XDR is
             U := U * BB + XDR_TM (S (N));
          end loop;
 
-         return (P1 => To_XDR_SA (XDR_SA (U)));
+         return To_XDR_SA (XDR_SA (U));
       end if;
    end I_AS;
 
@@ -1181,7 +1181,7 @@ package body System.Stream_Attributes.XDR is
 
    procedure W_AS (Stream : not null access RST; Item : Thin_Pointer) is
       S : XDR_S_TM;
-      U : XDR_TM := XDR_TM (To_XDR_SA (Item.P1));
+      U : XDR_TM := XDR_TM (To_XDR_SA (Item));
 
    begin
       for N in reverse S'Range loop

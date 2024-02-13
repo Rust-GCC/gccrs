@@ -1,6 +1,7 @@
 /* Disabling epilogues until we find a better way to deal with scans.  */
 /* { dg-additional-options "--param vect-epilogues-nomask=0" } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-mlasx" { target loongarch*-*-*} } */
 
 #include "tree-vect.h"
 
@@ -38,6 +39,7 @@ int main (void)
 
   foo (COEF2);
 
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (out[i] != in[i] * COEF || out2[i] != in[i] + COEF2)
       abort ();

@@ -53,6 +53,10 @@ version (CRuntime_Microsoft)
 
 version (DigitalMars)
 {
+    immutable float __nan = float.nan;
+
+    float __builtin_nanf()(char*)  { return float.nan; }
+
     double __builtin_inf()()  { return double.infinity; }
     float  __builtin_inff()() { return float.infinity; }
     real   __builtin_infl()() { return real.infinity; }
@@ -67,8 +71,7 @@ version (DigitalMars)
 
     ushort __builtin_bswap16()(ushort value)
     {
-        import core.bitop;
-        return core.bitop.byteswap(value);
+        return cast(ushort) (((value >> 8) & 0xFF) | ((value << 8) & 0xFF00U));
     }
 
     uint __builtin_bswap32()(uint value)

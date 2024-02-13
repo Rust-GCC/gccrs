@@ -6,7 +6,7 @@
 --                                                                          --
 --                                B o d y                                   --
 --                                                                          --
---         Copyright (C) 1992-2023, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2024, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -95,12 +95,10 @@ package body Specific is
       Result := pthread_getspecific (ATCB_Key);
 
       --  If the key value is Null then it is a non-Ada task
-
-      if Result /= System.Null_Address then
-         return To_Task_Id (Result);
-      else
-         return Register_Foreign_Thread;
-      end if;
+      return
+         (if Result /= System.Null_Address then To_Task_Id (Result)
+          else Register_Foreign_Thread
+         );
    end Self;
 
 end Specific;

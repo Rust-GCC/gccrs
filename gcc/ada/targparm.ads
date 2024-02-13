@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1999-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -109,6 +109,10 @@ package Targparm is
 
    --  If a pragma Profile with a valid profile argument appears, then
    --  the appropriate restrictions and policy flags are set.
+
+   --  pragma Style_Checks is allowed with "On" or "Off" as an argument, in
+   --  order to make the conditions on pragma Restrictions documented in the
+   --  next paragraph easier to manage.
 
    --  The only other pragma allowed is a pragma Restrictions that specifies
    --  a restriction that will be imposed on all units in the partition. Note
@@ -213,22 +217,7 @@ package Targparm is
    -- Control of Exception Handling --
    -----------------------------------
 
-   --  GNAT implements three methods of implementing exceptions:
-
-   --    Front-End Longjmp/Setjmp Exceptions
-
-   --      This approach uses longjmp/setjmp to handle exceptions. It
-   --      uses less storage, and can often propagate exceptions faster,
-   --      at the expense of (sometimes considerable) overhead in setting
-   --      up an exception handler.
-
-   --      The generation of the setjmp and longjmp calls is handled by
-   --      the front end of the compiler (this includes gigi in the case
-   --      of the standard GCC back end). It does not use any back end
-   --      support (such as the GCC3 exception handling mechanism). When
-   --      this approach is used, the compiler generates special exception
-   --      handlers for handling cleanups (AT-END actions) when an exception
-   --      is raised.
+   --  GNAT provides two methods of implementing exceptions:
 
    --    Back-End Zero Cost Exceptions
 
@@ -254,10 +243,10 @@ package Targparm is
 
    --    Control of Available Methods and Defaults
 
-   --      The following switches specify whether we're using a front-end or a
-   --      back-end mechanism and whether this is a zero-cost or a sjlj scheme.
+   --      The following switch specifies whether this is a zero-cost or a sjlj
+   --      scheme.
 
-   --      The per-switch default values correspond to the default value of
+   --      The default value corresponds to the default value of
    --      Opt.Exception_Mechanism.
 
    ZCX_By_Default_On_Target : Boolean := False;
@@ -283,15 +272,7 @@ package Targparm is
    --    If Command_Line_Args_On_Target is set to False, then the
    --    generation of these variables is suppressed completely.
    --
-   --    The binder generates the gnat_exit_status variable in the binder
-   --    file instead of being imported from the run-time library. If
-   --    Exit_Status_Supported_On_Target is set to False, then the
-   --    generation of this variable is suppressed entirely.
-   --
    --    The routine __gnat_break_start is defined within the binder file
-   --    instead of being imported from the run-time library.
-   --
-   --    The variable __gnat_exit_status is generated within the binder file
    --    instead of being imported from the run-time library.
 
    Suppress_Standard_Library_On_Target : Boolean := False;
@@ -408,7 +389,7 @@ package Targparm is
    -- Control of Stack Checking --
    -------------------------------
 
-   --  GNAT provides three methods of implementing exceptions:
+   --  GNAT provides three methods of implementing stack checking:
 
    --    GCC Probing Mechanism
 
@@ -472,19 +453,17 @@ package Targparm is
    --  required on such targets (RM A.15(13)).
 
    Command_Line_Args_On_Target : Boolean := True;
-   --  Set False if no command line arguments on target. Note that if this
-   --  is False in with Configurable_Run_Time_On_Target set to True, then
-   --  this causes suppression of generation of the argv/argc variables
-   --  used to record command line arguments.
+   --  Set False if no command line arguments on target. This will suppress
+   --  generation of references to the argv/argc variables used to record
+   --  command line arguments.
 
    --  Similarly, most targets support the use of an exit status, but other
    --  targets might not, as allowed by RM A.15(18-20).
 
    Exit_Status_Supported_On_Target : Boolean := True;
    --  Set False if returning of an exit status is not supported on target.
-   --  Note that if this False in with Configurable_Run_Time_On_Target
-   --  set to True, then this causes suppression of the gnat_exit_status
-   --  variable used to record the exit status.
+   --  This will cause the binder to not generate a reference to the
+   --  gnat_exit_status run-time symbol.
 
    -----------------------
    -- Main Program Name --

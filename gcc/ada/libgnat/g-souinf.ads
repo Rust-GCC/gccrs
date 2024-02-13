@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -41,7 +41,7 @@ package GNAT.Source_Info with
    Abstract_State =>
      (Source_Code_Information with
          External => (Async_Writers, Async_Readers)),
-   Annotate => (GNATprove, Always_Return)
+   Always_Terminates
 is
    pragma Preelaborate;
    --  Note that this unit is Preelaborate, but not Pure, that's because the

@@ -1,6 +1,6 @@
 (* WholeIO.mod implement the ISO WholeIO specification.
 
-Copyright (C) 2008-2023 Free Software Foundation, Inc.
+Copyright (C) 2008-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -33,6 +33,7 @@ FROM StringConvert IMPORT IntegerToString, CardinalToString ;
 FROM WholeConv IMPORT ScanInt, ScanCard ;
 FROM StringChan IMPORT writeString ;
 FROM IOConsts IMPORT ReadResults ;
+FROM TextUtil IMPORT SkipSpaces ;
 
 
 (* Input and output of whole numbers in decimal text form
@@ -40,7 +41,6 @@ FROM IOConsts IMPORT ReadResults ;
      type IOConsts.ReadResults.
 *)
 
-IMPORT IOChan;
 
 (* The text form of a signed whole number is
      ["+" | "-"], decimal digit, {decimal digit}
@@ -63,6 +63,7 @@ VAR
    ch       : CHAR ;
    negative : BOOLEAN ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    negative := FALSE ;
    c := 0 ;
@@ -114,9 +115,9 @@ PROCEDURE WriteInt (cid: IOChan.ChanId; int: INTEGER;
 VAR
    s: String ;
 BEGIN
-   s := IntegerToString(int, width, ' ', TRUE, 10, FALSE) ;
-   writeString(cid, s) ;
-   s := KillString(s)
+   s := IntegerToString (int, width, ' ', int < 0, 10, FALSE) ;
+   writeString (cid, s) ;
+   s := KillString (s)
 END WriteInt ;
 
 
@@ -133,6 +134,7 @@ VAR
    ch       : CHAR ;
    c        : CARDINAL ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    c := 0 ;
    nextState := ScanCard ;

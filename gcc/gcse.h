@@ -1,6 +1,6 @@
 /* Global common subexpression elimination/Partial redundancy elimination
    and global constant/copy propagation for GNU compiler.
-   Copyright (C) 1997-2023 Free Software Foundation, Inc.
+   Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -41,5 +41,6 @@ extern struct target_gcse *this_target_gcse;
 
 void gcse_cc_finalize (void);
 extern bool gcse_or_cprop_is_too_expensive (const char *);
+extern rtx_insn *insert_insn_end_basic_block (rtx_insn *, basic_block);
 
 #endif

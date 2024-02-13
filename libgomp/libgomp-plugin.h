@@ -1,6 +1,6 @@
 /* The libgomp plugin API.
 
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -107,6 +107,8 @@ struct addr_pair
    must be stringified).  */
 #define GOMP_ADDITIONAL_ICVS __gomp_additional_icvs
 
+#define GOMP_INDIRECT_ADDR_MAP __gomp_indirect_addr_map
+
 /* Miscellaneous functions.  */
 extern void *GOMP_PLUGIN_malloc (size_t) __attribute__ ((malloc));
 extern void *GOMP_PLUGIN_malloc_cleared (size_t) __attribute__ ((malloc));
@@ -121,11 +123,7 @@ extern void GOMP_PLUGIN_fatal (const char *, ...)
 	__attribute__ ((noreturn, format (printf, 1, 2)));
 
 extern void GOMP_PLUGIN_target_rev (uint64_t, uint64_t, uint64_t, uint64_t,
-				    uint64_t, int,
-				    void (*) (void *, const void *, size_t,
-					      void *),
-				    void (*) (void *, const void *, size_t,
-					      void *), void *);
+				    uint64_t, int, struct goacc_asyncqueue *);
 
 /* Prototypes for functions implemented by libgomp plugins.  */
 extern const char *GOMP_OFFLOAD_get_name (void);
@@ -136,13 +134,21 @@ extern bool GOMP_OFFLOAD_init_device (int);
 extern bool GOMP_OFFLOAD_fini_device (int);
 extern unsigned GOMP_OFFLOAD_version (void);
 extern int GOMP_OFFLOAD_load_image (int, unsigned, const void *,
-				    struct addr_pair **, uint64_t **);
+				    struct addr_pair **, uint64_t **,
+				    uint64_t *);
 extern bool GOMP_OFFLOAD_unload_image (int, unsigned, const void *);
 extern void *GOMP_OFFLOAD_alloc (int, size_t);
 extern bool GOMP_OFFLOAD_free (int, void *);
 extern bool GOMP_OFFLOAD_dev2host (int, void *, const void *, size_t);
 extern bool GOMP_OFFLOAD_host2dev (int, void *, const void *, size_t);
 extern bool GOMP_OFFLOAD_dev2dev (int, void *, const void *, size_t);
+extern int GOMP_OFFLOAD_memcpy2d (int, int, size_t, size_t,
+				  void*, size_t, size_t, size_t,
+				  const void*, size_t, size_t, size_t);
+extern int GOMP_OFFLOAD_memcpy3d (int, int, size_t, size_t, size_t, void *,
+				  size_t, size_t, size_t, size_t, size_t,
+				  const void *, size_t, size_t, size_t, size_t,
+				  size_t);
 extern bool GOMP_OFFLOAD_can_run (void *);
 extern void GOMP_OFFLOAD_run (int, void *, void *, void **);
 extern void GOMP_OFFLOAD_async_run (int, void *, void *, void **, void *);

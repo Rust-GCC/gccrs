@@ -1,3 +1,4 @@
+/* { dg-skip-if "" { *-*-* } { "-DSTREAMING_COMPATIBLE" } { "" } } */
 /* { dg-final { check-function-bodies "**" "" "-DCHECK_ASM" } } */
 
 #include "test_sve_acle.h"
@@ -24,7 +25,7 @@ TEST_UNIFORM_Z (sm4e_u32_tied2, svuint32_t,
 **	mov	z0\.d, z1\.d
 **	sm4e	z0\.s, z0\.s, z2\.s
 ** |
-**	sm4e	z1\.s, z0\.s, z2\.s
+**	sm4e	z1\.s, z1\.s, z2\.s
 **	mov	z0\.d, z1\.d
 ** )
 **	ret

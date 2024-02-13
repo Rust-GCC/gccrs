@@ -1,5 +1,5 @@
 /* Gimple Represented as Polyhedra.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@inria.fr>.
 
 This file is part of GCC.
@@ -512,6 +512,8 @@ graphite_transform_loops (void)
 
   if (changed)
     {
+      /* FIXME: Graphite does not update profile meaningfully currently.  */
+      cfun->cfg->full_profile = false;
       cleanup_tree_cfg ();
       profile_status_for_fn (cfun) = PROFILE_ABSENT;
       release_recorded_exits (cfun);

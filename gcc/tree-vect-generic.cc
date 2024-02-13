@@ -1,5 +1,5 @@
 /* Lower vector operations to scalar operations.
-   Copyright (C) 2004-2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -44,6 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-fold.h"
 #include "gimple-match.h"
 #include "recog.h"		/* FIXME: for insn_data */
+#include "optabs-libfuncs.h"
 
 
 /* Build a ternary operation and gimplify it.  Emit code before GSI.
@@ -101,35 +102,6 @@ subparts_gt (tree type1, tree type2)
   poly_uint64 n1 = VECTOR_TYPE_P (type1) ? TYPE_VECTOR_SUBPARTS (type1) : 1;
   poly_uint64 n2 = VECTOR_TYPE_P (type2) ? TYPE_VECTOR_SUBPARTS (type2) : 1;
   return known_gt (n1, n2);
-}
-
-/* Build a constant of type TYPE, made of VALUE's bits replicated
-   every WIDTH bits to fit TYPE's precision.  */
-static tree
-build_replicated_const (tree type, unsigned int width, HOST_WIDE_INT value)
-{
-  int n = (TYPE_PRECISION (type) + HOST_BITS_PER_WIDE_INT - 1) 
-    / HOST_BITS_PER_WIDE_INT;
-  unsigned HOST_WIDE_INT low, mask;
-  HOST_WIDE_INT a[WIDE_INT_MAX_ELTS];
-  int i;
-
-  gcc_assert (n && n <= WIDE_INT_MAX_ELTS);
-
-  if (width == HOST_BITS_PER_WIDE_INT)
-    low = value;
-  else
-    {
-      mask = ((HOST_WIDE_INT)1 << width) - 1;
-      low = (unsigned HOST_WIDE_INT) ~0 / mask * (value & mask);
-    }
-
-  for (i = 0; i < n; i++)
-    a[i] = low;
-
-  gcc_assert (TYPE_PRECISION (type) <= MAX_BITSIZE_MODE_ANY_INT);
-  return wide_int_to_tree
-    (type, wide_int::from_array (a, n, TYPE_PRECISION (type)));
 }
 
 static GTY(()) tree vector_inner_type;
@@ -202,9 +174,9 @@ do_binop (gimple_stmt_iterator *gsi, tree inner_type, tree a, tree b,
 	  tree bitpos, tree bitsize, enum tree_code code,
 	  tree type ATTRIBUTE_UNUSED)
 {
-  if (TREE_CODE (TREE_TYPE (a)) == VECTOR_TYPE)
+  if (VECTOR_TYPE_P (TREE_TYPE (a)))
     a = tree_vec_extract (gsi, inner_type, a, bitsize, bitpos);
-  if (TREE_CODE (TREE_TYPE (b)) == VECTOR_TYPE)
+  if (VECTOR_TYPE_P (TREE_TYPE (b)))
     b = tree_vec_extract (gsi, inner_type, b, bitsize, bitpos);
   return gimplify_build2 (gsi, code, inner_type, a, b);
 }
@@ -255,8 +227,8 @@ do_plus_minus (gimple_stmt_iterator *gsi, tree word_type, tree a, tree b,
   tree low_bits, high_bits, a_low, b_low, result_low, signs;
 
   max = GET_MODE_MASK (TYPE_MODE (inner_type));
-  low_bits = build_replicated_const (word_type, width, max >> 1);
-  high_bits = build_replicated_const (word_type, width, max & ~(max >> 1));
+  low_bits = build_replicated_int_cst (word_type, width, max >> 1);
+  high_bits = build_replicated_int_cst (word_type, width, max & ~(max >> 1));
 
   a = tree_vec_extract (gsi, word_type, a, bitsize, bitpos);
   b = tree_vec_extract (gsi, word_type, b, bitsize, bitpos);
@@ -289,8 +261,8 @@ do_negate (gimple_stmt_iterator *gsi, tree word_type, tree b,
   tree low_bits, high_bits, b_low, result_low, signs;
 
   max = GET_MODE_MASK (TYPE_MODE (inner_type));
-  low_bits = build_replicated_const (word_type, width, max >> 1);
-  high_bits = build_replicated_const (word_type, width, max & ~(max >> 1));
+  low_bits = build_replicated_int_cst (word_type, width, max >> 1);
+  high_bits = build_replicated_int_cst (word_type, width, max & ~(max >> 1));
 
   b = tree_vec_extract (gsi, word_type, b, bitsize, bitpos);
 
@@ -1149,7 +1121,7 @@ expand_vector_condition (gimple_stmt_iterator *gsi, bitmap dce_ssa_names)
 				       comp_width, comp_index);
 	  tree aa2 = tree_vec_extract (gsi, comp_inner_type, a2,
 				       comp_width, comp_index);
-	  aa = gimplify_build2 (gsi, code, cond_type, aa1, aa2);
+	  aa = gimplify_build2 (gsi, code, boolean_type_node, aa1, aa2);
 	}
       else if (a_is_scalar_bitmask)
 	{
@@ -1160,7 +1132,11 @@ expand_vector_condition (gimple_stmt_iterator *gsi, bitmap dce_ssa_names)
 				build_zero_cst (TREE_TYPE (a)));
 	}
       else
-	aa = tree_vec_extract (gsi, cond_type, a, comp_width, comp_index);
+	{
+	  result = tree_vec_extract (gsi, cond_type, a, comp_width, comp_index);
+	  aa = gimplify_build2 (gsi, NE_EXPR, boolean_type_node, result,
+				build_zero_cst (cond_type));
+	}
       result = gimplify_build3 (gsi, COND_EXPR, inner_type, aa, bb, cc);
       if (!CONSTANT_CLASS_P (result))
 	constant_p = false;
@@ -1367,12 +1343,16 @@ optimize_vector_constructor (gimple_stmt_iterator *gsi)
   gsi_replace (gsi, g, false);
 }
 
-/* Return a type for the widest vector mode whose components are of type
-   TYPE, or NULL_TREE if none is found.  */
+/* Return a type for the widest vector mode with the same element type as
+   type ORIGINAL_VECTOR_TYPE, with at most the same number of elements as type
+   ORIGINAL_VECTOR_TYPE and that is supported by the target for an operation
+   with optab OP, or return NULL_TREE if none is found.  */
 
 static tree
-type_for_widest_vector_mode (tree type, optab op)
+type_for_widest_vector_mode (tree original_vector_type, optab op)
 {
+  gcc_assert (VECTOR_TYPE_P (original_vector_type));
+  tree type = TREE_TYPE (original_vector_type);
   machine_mode inner_mode = TYPE_MODE (type);
   machine_mode best_mode = VOIDmode, mode;
   poly_int64 best_nunits = 0;
@@ -1395,7 +1375,9 @@ type_for_widest_vector_mode (tree type, optab op)
   FOR_EACH_MODE_FROM (mode, mode)
     if (GET_MODE_INNER (mode) == inner_mode
 	&& maybe_gt (GET_MODE_NUNITS (mode), best_nunits)
-	&& optab_handler (op, mode) != CODE_FOR_nothing)
+	&& optab_handler (op, mode) != CODE_FOR_nothing
+	&& known_le (GET_MODE_NUNITS (mode),
+		     TYPE_VECTOR_SUBPARTS (original_vector_type)))
       best_mode = mode, best_nunits = GET_MODE_NUNITS (mode);
 
   if (best_mode == VOIDmode)
@@ -1726,9 +1708,8 @@ get_compute_type (enum tree_code code, optab op, tree type)
 	  || optab_handler (op, TYPE_MODE (type)) == CODE_FOR_nothing))
     {
       tree vector_compute_type
-	= type_for_widest_vector_mode (TREE_TYPE (type), op);
+	= type_for_widest_vector_mode (type, op);
       if (vector_compute_type != NULL_TREE
-	  && subparts_gt (compute_type, vector_compute_type)
 	  && maybe_ne (TYPE_VECTOR_SUBPARTS (vector_compute_type), 1U)
 	  && (optab_handler (op, TYPE_MODE (vector_compute_type))
 	      != CODE_FOR_nothing))
@@ -1743,7 +1724,9 @@ get_compute_type (enum tree_code code, optab op, tree type)
       machine_mode compute_mode = TYPE_MODE (compute_type);
       if (VECTOR_MODE_P (compute_mode))
 	{
-	  if (op && optab_handler (op, compute_mode) != CODE_FOR_nothing)
+	  if (op
+	      && (optab_handler (op, compute_mode) != CODE_FOR_nothing
+		  || optab_libfunc (op, compute_mode)))
 	    return compute_type;
 	  if (code == MULT_HIGHPART_EXPR
 	      && can_mult_highpart_p (compute_mode,
@@ -1762,9 +1745,9 @@ do_cond (gimple_stmt_iterator *gsi, tree inner_type, tree a, tree b,
 	 tree bitpos, tree bitsize, enum tree_code code,
 	 tree type ATTRIBUTE_UNUSED)
 {
-  if (TREE_CODE (TREE_TYPE (a)) == VECTOR_TYPE)
+  if (VECTOR_TYPE_P (TREE_TYPE (a)))
     a = tree_vec_extract (gsi, inner_type, a, bitsize, bitpos);
-  if (TREE_CODE (TREE_TYPE (b)) == VECTOR_TYPE)
+  if (VECTOR_TYPE_P (TREE_TYPE (b)))
     b = tree_vec_extract (gsi, inner_type, b, bitsize, bitpos);
   tree cond = gimple_assign_rhs1 (gsi_stmt (*gsi));
   return gimplify_build3 (gsi, code, inner_type, unshare_expr (cond), a, b);
@@ -1899,10 +1882,9 @@ expand_vector_conversion (gimple_stmt_iterator *gsi)
       /* Can't use get_compute_type here, as supportable_convert_operation
 	 doesn't necessarily use an optab and needs two arguments.  */
       tree vec_compute_type
-	= type_for_widest_vector_mode (TREE_TYPE (arg_type), mov_optab);
+	= type_for_widest_vector_mode (arg_type, mov_optab);
       if (vec_compute_type
-	  && VECTOR_MODE_P (TYPE_MODE (vec_compute_type))
-	  && subparts_gt (arg_type, vec_compute_type))
+	  && VECTOR_MODE_P (TYPE_MODE (vec_compute_type)))
 	{
 	  unsigned HOST_WIDE_INT nelts
 	    = constant_lower_bound (TYPE_VECTOR_SUBPARTS (vec_compute_type));
@@ -2227,10 +2209,6 @@ expand_vector_operations_1 (gimple_stmt_iterator *gsi,
      arguments, not the widened result.  VEC_UNPACK_FLOAT_*_EXPR is
      calculated in the same way above.  */
   if (code == WIDEN_SUM_EXPR
-      || code == VEC_WIDEN_PLUS_HI_EXPR
-      || code == VEC_WIDEN_PLUS_LO_EXPR
-      || code == VEC_WIDEN_MINUS_HI_EXPR
-      || code == VEC_WIDEN_MINUS_LO_EXPR
       || code == VEC_WIDEN_MULT_HI_EXPR
       || code == VEC_WIDEN_MULT_LO_EXPR
       || code == VEC_WIDEN_MULT_EVEN_EXPR

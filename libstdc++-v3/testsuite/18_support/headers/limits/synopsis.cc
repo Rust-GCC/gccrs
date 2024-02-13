@@ -1,7 +1,7 @@
 // { dg-do compile }
 // { dg-require-normal-namespace "" }
 
-// Copyright (C) 2007-2023 Free Software Foundation, Inc.
+// Copyright (C) 2007-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,10 +23,8 @@
 namespace std {
   template<class T> class numeric_limits;
 
-#if 0
   enum float_round_style;
   enum float_denorm_style;
-#endif
 
   template<> class numeric_limits<bool>;
 

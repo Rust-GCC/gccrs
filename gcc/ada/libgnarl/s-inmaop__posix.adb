@@ -7,7 +7,7 @@
 --                                  B o d y                                 --
 --                                                                          --
 --             Copyright (C) 1991-2017, Florida State University            --
---                     Copyright (C) 1995-2023, AdaCore                     --
+--                     Copyright (C) 1995-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -135,6 +135,7 @@ package body System.Interrupt_Management.Operations is
 
    begin
       Result := sigwait (Mask, Sig'Access);
+      pragma Assert (Result = 0);
 
       if Result /= 0 then
          return 0;

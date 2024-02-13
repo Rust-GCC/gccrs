@@ -45,7 +45,7 @@ if test "$build" != "$host"; then
       *-*-darwin*,*-*-darwin*)
 	hostos=`echo $host | sed 's/.*-darwin/darwin/'`
 	targetos=`echo $target | sed 's/.*-darwin/darwin/'`
-	if test $hostos = $targetos -o $targetos = darwin ; then
+	if test $hostos = $targetos || test $targetos = darwin ; then
 	  GLIBCXX_IS_NATIVE=true
 	fi
 	;;
@@ -108,6 +108,7 @@ AM_PROG_LIBTOOL
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
+AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
 
 if test "$enable_vtable_verify" = yes; then
   predep_objects_CXX="${predep_objects_CXX} ${glibcxx_builddir}/../libgcc/vtv_start.o"
@@ -349,6 +350,7 @@ else
     AC_DEFINE(HAVE_FLOORF)
     AC_DEFINE(HAVE_FMODF)
     AC_DEFINE(HAVE_FREXPF)
+    AC_DEFINE(HAVE_HYPOTF)
     AC_DEFINE(HAVE_LDEXPF)
     AC_DEFINE(HAVE_LOG10F)
     AC_DEFINE(HAVE_LOGF)
@@ -359,6 +361,14 @@ else
     AC_DEFINE(HAVE_SQRTF)
     AC_DEFINE(HAVE_TANF)
     AC_DEFINE(HAVE_TANHF)
+
+dnl # Support for the long version of some math libraries depends on
+dnl # architecture and newlib version.  So test for their availability
+dnl # rather than hardcoding that information.
+    GLIBCXX_CHECK_MATH_DECLS([
+      acosl asinl atan2l atanl ceill coshl cosl expl fabsl floorl fmodl
+      frexpl hypotl ldexpl log10l logl modfl powl sinhl sinl sqrtl
+      tanhl tanl])
 
     AC_DEFINE(HAVE_ICONV)
     AC_DEFINE(HAVE_MEMALIGN)
@@ -537,6 +547,18 @@ GLIBCXX_EMERGENCY_EH_ALLOC
 
 # For src/c++20/tzdb.cc defaults.
 GLIBCXX_ZONEINFO_DIR
+
+# For src/c++11/shared_ptr.cc alignment.
+GLIBCXX_CHECK_ALIGNAS_CACHELINE
+
+# For using init_priority in ios_init.cc
+GLIBCXX_CHECK_INIT_PRIORITY
+
+# For __basic_file::native_handle()
+GLIBCXX_CHECK_FILEBUF_NATIVE_HANDLES
+
+# For std::text_encoding
+GLIBCXX_CHECK_TEXT_ENCODING
 
 # Define documentation rules conditionally.
 

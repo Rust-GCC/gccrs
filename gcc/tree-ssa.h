@@ -1,5 +1,5 @@
 /* Header file for any pass which requires SSA routines.
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -54,7 +54,6 @@ extern tree find_released_ssa_name (tree *, int *, void *);
 
 extern bool ssa_defined_default_def_p (tree t);
 extern bool ssa_undefined_value_p (tree, bool = true);
-extern bool gimple_uses_undefined_value_p (gimple *);
 
 
 bool ssa_name_any_use_dominates_bb_p (tree var, basic_block bb);

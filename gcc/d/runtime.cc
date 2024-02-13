@@ -1,5 +1,5 @@
 /* runtime.cc -- D runtime functions called by generated code.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -150,11 +150,11 @@ get_libcall_type (d_libcall_type type)
       break;
 
     case LCT_CONST_TYPEINFO:
-      libcall_types[type] = Type::dtypeinfo->type->constOf ();
+      libcall_types[type] = constOf (Type::dtypeinfo->type);
       break;
 
     case LCT_CONST_CLASSINFO:
-      libcall_types[type] = Type::typeinfoclass->type->constOf ();
+      libcall_types[type] = constOf (Type::typeinfoclass->type);
       break;
 
     case LCT_ARRAY_VOID:
@@ -202,7 +202,7 @@ get_libcall_type (d_libcall_type type)
       break;
 
     case LCT_IMMUTABLE_CHARPTR:
-      libcall_types[type] = Type::tchar->pointerTo ()->immutableOf ();
+      libcall_types[type] = immutableOf (Type::tchar->pointerTo ());
       break;
 
     default:

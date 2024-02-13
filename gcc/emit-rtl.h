@@ -1,5 +1,5 @@
 /* Exported functions from emit-rtl.cc
-   Copyright (C) 2004-2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,12 +30,12 @@ struct GTY(()) incoming_args {
   /* Number of bytes of args popped by function being compiled on its return.
      Zero if no bytes are to be popped.
      May affect compilation of return insn or of function epilogue.  */
-  poly_int64_pod pops_args;
+  poly_int64 pops_args;
 
   /* If function's args have a fixed size, this is that size, in bytes.
      Otherwise, it is -1.
      May affect compilation of return insn or of function epilogue.  */
-  poly_int64_pod size;
+  poly_int64 size;
 
   /* # bytes the prologue should push and pretend that the caller pushed them.
      The prologue must do this, but only if parms can be passed in
@@ -80,7 +80,7 @@ struct GTY(()) rtl_data {
 
   /* # of bytes of outgoing arguments.  If ACCUMULATE_OUTGOING_ARGS is
      defined, the needed space is pushed by the prologue.  */
-  poly_int64_pod outgoing_args_size;
+  poly_int64 outgoing_args_size;
 
   /* If nonzero, an RTL expression for the location at which the current
      function returns its result.  If the current function returns its
@@ -139,7 +139,10 @@ struct GTY(()) rtl_data {
   /* Offset to end of allocated area of stack frame.
      If stack grows down, this is the address of the last stack slot allocated.
      If stack grows up, this is the address for the next slot.  */
-  poly_int64_pod x_frame_offset;
+  poly_int64 x_frame_offset;
+
+  /* The function's FUNCTION_BEG note.  */
+  rtx_insn *x_function_beg_insn;
 
   /* Insn after which register parms and SAVE_EXPRs are born, if nonopt.  */
   rtx_insn *x_parm_birth_insn;
@@ -323,6 +326,7 @@ struct GTY(()) rtl_data {
 #define return_label (crtl->x_return_label)
 #define naked_return_label (crtl->x_naked_return_label)
 #define stack_slot_list (crtl->x_stack_slot_list)
+#define function_beg_insn (crtl->x_function_beg_insn)
 #define parm_birth_insn (crtl->x_parm_birth_insn)
 #define frame_offset (crtl->x_frame_offset)
 #define stack_check_probe_note (crtl->x_stack_check_probe_note)
@@ -393,7 +397,7 @@ extern void set_reg_attrs_from_value (rtx, rtx);
 extern void set_reg_attrs_for_parm (rtx, rtx);
 extern void set_reg_attrs_for_decl_rtl (tree t, rtx x);
 extern void adjust_reg_mode (rtx, machine_mode);
-extern int mem_expr_equal_p (const_tree, const_tree);
+extern bool mem_expr_equal_p (const_tree, const_tree);
 extern rtx gen_int_shift_amount (machine_mode, poly_int64);
 
 extern bool need_atomic_barrier_p (enum memmodel, bool);
@@ -518,6 +522,28 @@ extern rtx adjust_address_1 (rtx, machine_mode, poly_int64, int, int,
 			     int, poly_int64);
 extern rtx adjust_automodify_address_1 (rtx, machine_mode, rtx,
 					poly_int64, int);
+
+/* Class wrapping emit_autoinc which allows derived classes to control
+   how reload pseudos are created.  */
+struct address_reload_context
+{
+  /* Can be overriden by derived classes.  */
+  virtual rtx get_reload_reg () const { return gen_reg_rtx (Pmode); }
+
+  /* Emit insns to reload VALUE into a new register.  VALUE is an
+     auto-increment or auto-decrement RTX whose operand is a register or
+     memory location; so reloading involves incrementing that location.
+
+     AMOUNT is the number to increment or decrement by (always
+     positive and ignored for POST_MODIFY/PRE_MODIFY).
+
+     Return a pseudo containing the result.  */
+  rtx emit_autoinc (rtx value, poly_int64 amount);
+};
+
+/* Return a memory reference like MEM, but with the address reloaded into a
+   pseudo register.  */
+extern rtx force_reload_address (rtx mem);
 
 /* Return a memory reference like MEMREF, but whose address is changed by
    adding OFFSET, an RTX, to it.  POW2 is the highest power of two factor

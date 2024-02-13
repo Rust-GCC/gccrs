@@ -1,5 +1,5 @@
 ;; Constraint definitions for eBPF.
-;; Copyright (C) 2019-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2019-2024 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -29,6 +29,9 @@
 (define_constraint "S"
   "A constant call address."
   (match_code "const,symbol_ref,label_ref,const_int"))
+
+(define_register_constraint "t" "R0"
+  "Register r0")
 
 ;;
 ;; Memory constraints.

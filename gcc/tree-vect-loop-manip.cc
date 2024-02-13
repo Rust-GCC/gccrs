@@ -1,5 +1,5 @@
 /* Vectorizer Specific Loop Manipulations
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
    Contributed by Dorit Naishlos <dorit@il.ibm.com>
    and Ira Rosen <irar@il.ibm.com>
 
@@ -50,6 +50,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-config.h"
 #include "rtl.h"
 #include "recog.h"
+#include "langhooks.h"
+#include "tree-vector-builder.h"
+#include "optabs-tree.h"
 
 /*************************************************************************
   Simple Loop Peeling Utilities
@@ -249,6 +252,9 @@ adjust_phi_and_debug_stmts (gimple *update_phi, edge e, tree new_def)
 {
   tree orig_def = PHI_ARG_DEF_FROM_EDGE (update_phi, e);
 
+  gcc_assert (TREE_CODE (orig_def) != SSA_NAME
+	      || orig_def != new_def);
+
   SET_PHI_ARG_DEF (update_phi, e->dest_idx, new_def);
 
   if (MAY_HAVE_DEBUG_BIND_STMTS)
@@ -385,6 +391,77 @@ vect_maybe_permute_loop_masks (gimple_seq *seq, rgroup_controls *dest_rgm,
   return false;
 }
 
+/* Populate DEST_RGM->controls, given that they should add up to STEP.
+
+     STEP = MIN_EXPR <ivtmp_34, VF>;
+
+     First length (MIN (X, VF/N)):
+       loop_len_15 = MIN_EXPR <STEP, VF/N>;
+
+     Second length:
+       tmp = STEP - loop_len_15;
+       loop_len_16 = MIN (tmp, VF/N);
+
+     Third length:
+       tmp2 = tmp - loop_len_16;
+       loop_len_17 = MIN (tmp2, VF/N);
+
+     Last length:
+       loop_len_18 = tmp2 - loop_len_17;
+*/
+
+static void
+vect_adjust_loop_lens_control (tree iv_type, gimple_seq *seq,
+			       rgroup_controls *dest_rgm, tree step)
+{
+  tree ctrl_type = dest_rgm->type;
+  poly_uint64 nitems_per_ctrl
+    = TYPE_VECTOR_SUBPARTS (ctrl_type) * dest_rgm->factor;
+  tree length_limit = build_int_cst (iv_type, nitems_per_ctrl);
+
+  for (unsigned int i = 0; i < dest_rgm->controls.length (); ++i)
+    {
+      tree ctrl = dest_rgm->controls[i];
+      if (i == 0)
+	{
+	  /* First iteration: MIN (X, VF/N) capped to the range [0, VF/N].  */
+	  gassign *assign
+	    = gimple_build_assign (ctrl, MIN_EXPR, step, length_limit);
+	  gimple_seq_add_stmt (seq, assign);
+	}
+      else if (i == dest_rgm->controls.length () - 1)
+	{
+	  /* Last iteration: Remain capped to the range [0, VF/N].  */
+	  gassign *assign = gimple_build_assign (ctrl, MINUS_EXPR, step,
+						 dest_rgm->controls[i - 1]);
+	  gimple_seq_add_stmt (seq, assign);
+	}
+      else
+	{
+	  /* (MIN (remain, VF*I/N)) capped to the range [0, VF/N].  */
+	  step = gimple_build (seq, MINUS_EXPR, iv_type, step,
+			       dest_rgm->controls[i - 1]);
+	  gassign *assign
+	    = gimple_build_assign (ctrl, MIN_EXPR, step, length_limit);
+	  gimple_seq_add_stmt (seq, assign);
+	}
+    }
+}
+
+/* Stores the standard position for induction variable increment in belonging to
+   LOOP_EXIT (just before the exit condition of the given exit to BSI.
+   INSERT_AFTER is set to true if the increment should be inserted after
+   *BSI.  */
+
+void
+vect_iv_increment_position (edge loop_exit, gimple_stmt_iterator *bsi,
+			    bool *insert_after)
+{
+  basic_block bb = loop_exit->src;
+  *bsi = gsi_last_bb (bb);
+  *insert_after = false;
+}
+
 /* Helper for vect_set_loop_condition_partial_vectors.  Generate definitions
    for all the rgroup controls in RGC and return a control that is nonzero
    when the loop needs to iterate.  Add any new preheader statements to
@@ -425,7 +502,8 @@ vect_set_loop_controls_directly (class loop *loop, loop_vec_info loop_vinfo,
 				 gimple_seq *header_seq,
 				 gimple_stmt_iterator loop_cond_gsi,
 				 rgroup_controls *rgc, tree niters,
-				 tree niters_skip, bool might_wrap_p)
+				 tree niters_skip, bool might_wrap_p,
+				 tree *iv_step, tree *compare_step)
 {
   tree compare_type = LOOP_VINFO_RGROUP_COMPARE_TYPE (loop_vinfo);
   tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
@@ -467,9 +545,59 @@ vect_set_loop_controls_directly (class loop *loop, loop_vec_info loop_vinfo,
   tree index_before_incr, index_after_incr;
   gimple_stmt_iterator incr_gsi;
   bool insert_after;
-  standard_iv_increment_position (loop, &incr_gsi, &insert_after);
-  create_iv (build_int_cst (iv_type, 0), nitems_step, NULL_TREE, loop,
-	     &incr_gsi, insert_after, &index_before_incr, &index_after_incr);
+  edge exit_e = LOOP_VINFO_IV_EXIT (loop_vinfo);
+  vect_iv_increment_position (exit_e, &incr_gsi, &insert_after);
+  if (LOOP_VINFO_USING_DECREMENTING_IV_P (loop_vinfo))
+    {
+      /* Create an IV that counts down from niters_total and whose step
+	 is the (variable) amount processed in the current iteration:
+	   ...
+	   _10 = (unsigned long) count_12(D);
+	   ...
+	   # ivtmp_9 = PHI <ivtmp_35(6), _10(5)>
+	   _36 = (MIN_EXPR | SELECT_VL) <ivtmp_9, POLY_INT_CST [4, 4]>;
+	   ...
+	   vect__4.8_28 = .LEN_LOAD (_17, 32B, _36, 0);
+	   ...
+	   ivtmp_35 = ivtmp_9 - POLY_INT_CST [4, 4];
+	   ...
+	   if (ivtmp_9 > POLY_INT_CST [4, 4])
+	     goto <bb 4>; [83.33%]
+	   else
+	     goto <bb 5>; [16.67%]
+      */
+      nitems_total = gimple_convert (preheader_seq, iv_type, nitems_total);
+      tree step = rgc->controls.length () == 1 ? rgc->controls[0]
+					       : make_ssa_name (iv_type);
+      /* Create decrement IV.  */
+      if (LOOP_VINFO_USING_SELECT_VL_P (loop_vinfo))
+	{
+	  create_iv (nitems_total, MINUS_EXPR, step, NULL_TREE, loop, &incr_gsi,
+		     insert_after, &index_before_incr, &index_after_incr);
+	  tree len = gimple_build (header_seq, IFN_SELECT_VL, iv_type,
+				   index_before_incr, nitems_step);
+	  gimple_seq_add_stmt (header_seq, gimple_build_assign (step, len));
+	}
+      else
+	{
+	  create_iv (nitems_total, MINUS_EXPR, nitems_step, NULL_TREE, loop,
+		     &incr_gsi, insert_after, &index_before_incr,
+		     &index_after_incr);
+	  gimple_seq_add_stmt (header_seq,
+			       gimple_build_assign (step, MIN_EXPR,
+						    index_before_incr,
+						    nitems_step));
+	}
+      *iv_step = step;
+      *compare_step = nitems_step;
+      return LOOP_VINFO_USING_SELECT_VL_P (loop_vinfo) ? index_after_incr
+						       : index_before_incr;
+    }
+
+  /* Create increment IV.  */
+  create_iv (build_int_cst (iv_type, 0), PLUS_EXPR, nitems_step, NULL_TREE,
+	     loop, &incr_gsi, insert_after, &index_before_incr,
+	     &index_after_incr);
 
   tree zero_index = build_int_cst (compare_type, 0);
   tree test_index, test_limit, first_limit;
@@ -693,7 +821,7 @@ vect_set_loop_controls_directly (class loop *loop, loop_vec_info loop_vinfo,
    final gcond.  */
 
 static gcond *
-vect_set_loop_condition_partial_vectors (class loop *loop,
+vect_set_loop_condition_partial_vectors (class loop *loop, edge exit_edge,
 					 loop_vec_info loop_vinfo, tree niters,
 					 tree final_iv, bool niters_maybe_zero,
 					 gimple_stmt_iterator loop_cond_gsi)
@@ -710,6 +838,8 @@ vect_set_loop_condition_partial_vectors (class loop *loop,
   tree ni_actual_type = TREE_TYPE (niters);
   unsigned int ni_actual_precision = TYPE_PRECISION (ni_actual_type);
   tree niters_skip = LOOP_VINFO_MASK_SKIP_NITERS (loop_vinfo);
+  if (niters_skip)
+    niters_skip = gimple_convert (&preheader_seq, compare_type, niters_skip);
 
   /* Convert NITERS to the same size as the compare.  */
   if (compare_precision > ni_actual_precision
@@ -732,10 +862,13 @@ vect_set_loop_condition_partial_vectors (class loop *loop,
      the first control from any rgroup for the loop condition; here we
      arbitrarily pick the last.  */
   tree test_ctrl = NULL_TREE;
+  tree iv_step = NULL_TREE;
+  tree compare_step = NULL_TREE;
   rgroup_controls *rgc;
+  rgroup_controls *iv_rgc = nullptr;
   unsigned int i;
   auto_vec<rgroup_controls> *controls = use_masks_p
-					  ? &LOOP_VINFO_MASKS (loop_vinfo)
+					  ? &LOOP_VINFO_MASKS (loop_vinfo).rgc_vec
 					  : &LOOP_VINFO_LENS (loop_vinfo);
   FOR_EACH_VEC_ELT (*controls, i, rgc)
     if (!rgc->controls.is_empty ())
@@ -752,17 +885,36 @@ vect_set_loop_condition_partial_vectors (class loop *loop,
 	      continue;
 	  }
 
-	/* See whether zero-based IV would ever generate all-false masks
-	   or zero length before wrapping around.  */
-	bool might_wrap_p = vect_rgroup_iv_might_wrap_p (loop_vinfo, rgc);
+	if (!LOOP_VINFO_USING_DECREMENTING_IV_P (loop_vinfo)
+	    || !iv_rgc
+	    || (iv_rgc->max_nscalars_per_iter * iv_rgc->factor
+		!= rgc->max_nscalars_per_iter * rgc->factor))
+	  {
+	    /* See whether zero-based IV would ever generate all-false masks
+	       or zero length before wrapping around.  */
+	    bool might_wrap_p = vect_rgroup_iv_might_wrap_p (loop_vinfo, rgc);
 
-	/* Set up all controls for this group.  */
-	test_ctrl = vect_set_loop_controls_directly (loop, loop_vinfo,
-						     &preheader_seq,
-						     &header_seq,
-						     loop_cond_gsi, rgc,
-						     niters, niters_skip,
-						     might_wrap_p);
+	    /* Set up all controls for this group.  */
+	    test_ctrl
+	      = vect_set_loop_controls_directly (loop, loop_vinfo,
+						 &preheader_seq, &header_seq,
+						 loop_cond_gsi, rgc, niters,
+						 niters_skip, might_wrap_p,
+						 &iv_step, &compare_step);
+
+	    iv_rgc = rgc;
+	  }
+
+	if (LOOP_VINFO_USING_DECREMENTING_IV_P (loop_vinfo)
+	    && rgc->controls.length () > 1)
+	  {
+	    /* vect_set_loop_controls_directly creates an IV whose step
+	       is equal to the expected sum of RGC->controls.  Use that
+	       information to populate RGC->controls.  */
+	    tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
+	    gcc_assert (iv_step);
+	    vect_adjust_loop_lens_control (iv_type, &header_seq, rgc, iv_step);
+	  }
       }
 
   /* Emit all accumulated statements.  */
@@ -770,11 +922,22 @@ vect_set_loop_condition_partial_vectors (class loop *loop,
   add_header_seq (loop, header_seq);
 
   /* Get a boolean result that tells us whether to iterate.  */
-  edge exit_edge = single_exit (loop);
-  tree_code code = (exit_edge->flags & EDGE_TRUE_VALUE) ? EQ_EXPR : NE_EXPR;
-  tree zero_ctrl = build_zero_cst (TREE_TYPE (test_ctrl));
-  gcond *cond_stmt = gimple_build_cond (code, test_ctrl, zero_ctrl,
-					NULL_TREE, NULL_TREE);
+  gcond *cond_stmt;
+  if (LOOP_VINFO_USING_DECREMENTING_IV_P (loop_vinfo)
+      && !LOOP_VINFO_USING_SELECT_VL_P (loop_vinfo))
+    {
+      gcc_assert (compare_step);
+      tree_code code = (exit_edge->flags & EDGE_TRUE_VALUE) ? LE_EXPR : GT_EXPR;
+      cond_stmt = gimple_build_cond (code, test_ctrl, compare_step, NULL_TREE,
+				     NULL_TREE);
+    }
+  else
+    {
+      tree_code code = (exit_edge->flags & EDGE_TRUE_VALUE) ? EQ_EXPR : NE_EXPR;
+      tree zero_ctrl = build_zero_cst (TREE_TYPE (test_ctrl));
+      cond_stmt
+	= gimple_build_cond (code, test_ctrl, zero_ctrl, NULL_TREE, NULL_TREE);
+    }
   gsi_insert_before (&loop_cond_gsi, cond_stmt, GSI_SAME_STMT);
 
   /* The loop iterates (NITERS - 1) / VF + 1 times.
@@ -788,18 +951,279 @@ vect_set_loop_condition_partial_vectors (class loop *loop,
 
   if (final_iv)
     {
-      gassign *assign = gimple_build_assign (final_iv, orig_niters);
-      gsi_insert_on_edge_immediate (single_exit (loop), assign);
+      gassign *assign;
+      /* If vectorizing an inverted early break loop we have to restart the
+	 scalar loop at niters - vf.  This matches what we do in
+	 vect_gen_vector_loop_niters_mult_vf for non-masked loops.  */
+      if (LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo))
+	{
+	  tree ftype = TREE_TYPE (orig_niters);
+	  tree vf = build_int_cst (ftype, LOOP_VINFO_VECT_FACTOR (loop_vinfo));
+	  assign = gimple_build_assign (final_iv, MINUS_EXPR, orig_niters, vf);
+	}
+       else
+	assign = gimple_build_assign (final_iv, orig_niters);
+      gsi_insert_on_edge_immediate (exit_edge, assign);
     }
 
   return cond_stmt;
 }
 
+/* Set up the iteration condition and rgroup controls for LOOP in AVX512
+   style, given that LOOP_VINFO_USING_PARTIAL_VECTORS_P is true for the
+   vectorized loop.  LOOP_VINFO describes the vectorization of LOOP.  NITERS is
+   the number of iterations of the original scalar loop that should be
+   handled by the vector loop.  NITERS_MAYBE_ZERO and FINAL_IV are as
+   for vect_set_loop_condition.
+
+   Insert the branch-back condition before LOOP_COND_GSI and return the
+   final gcond.  */
+
+static gcond *
+vect_set_loop_condition_partial_vectors_avx512 (class loop *loop,
+					 edge exit_edge,
+					 loop_vec_info loop_vinfo, tree niters,
+					 tree final_iv,
+					 bool niters_maybe_zero,
+					 gimple_stmt_iterator loop_cond_gsi)
+{
+  tree niters_skip = LOOP_VINFO_MASK_SKIP_NITERS (loop_vinfo);
+  tree iv_type = LOOP_VINFO_RGROUP_IV_TYPE (loop_vinfo);
+  poly_uint64 vf = LOOP_VINFO_VECT_FACTOR (loop_vinfo);
+  tree orig_niters = niters;
+  gimple_seq preheader_seq = NULL;
+
+  /* Create an IV that counts down from niters and whose step
+     is the number of iterations processed in the current iteration.
+     Produce the controls with compares like the following.
+
+       # iv_2 = PHI <niters, iv_3>
+       rem_4 = MIN <iv_2, VF>;
+       remv_6 = { rem_4, rem_4, rem_4, ... }
+       mask_5 = { 0, 0, 1, 1, 2, 2, ... } < remv6;
+       iv_3 = iv_2 - VF;
+       if (iv_2 > VF)
+	 continue;
+
+     Where the constant is built with elements at most VF - 1 and
+     repetitions according to max_nscalars_per_iter which is guarnateed
+     to be the same within a group.  */
+
+  /* Convert NITERS to the determined IV type.  */
+  if (TYPE_PRECISION (iv_type) > TYPE_PRECISION (TREE_TYPE (niters))
+      && niters_maybe_zero)
+    {
+      /* We know that there is always at least one iteration, so if the
+	 count is zero then it must have wrapped.  Cope with this by
+	 subtracting 1 before the conversion and adding 1 to the result.  */
+      gcc_assert (TYPE_UNSIGNED (TREE_TYPE (niters)));
+      niters = gimple_build (&preheader_seq, PLUS_EXPR, TREE_TYPE (niters),
+			     niters, build_minus_one_cst (TREE_TYPE (niters)));
+      niters = gimple_convert (&preheader_seq, iv_type, niters);
+      niters = gimple_build (&preheader_seq, PLUS_EXPR, iv_type,
+			     niters, build_one_cst (iv_type));
+    }
+  else
+    niters = gimple_convert (&preheader_seq, iv_type, niters);
+
+  /* Bias the initial value of the IV in case we need to skip iterations
+     at the beginning.  */
+  tree niters_adj = niters;
+  if (niters_skip)
+    {
+      tree skip = gimple_convert (&preheader_seq, iv_type, niters_skip);
+      niters_adj = gimple_build (&preheader_seq, PLUS_EXPR,
+				 iv_type, niters, skip);
+    }
+
+  /* The iteration step is the vectorization factor.  */
+  tree iv_step = build_int_cst (iv_type, vf);
+
+  /* Create the decrement IV.  */
+  tree index_before_incr, index_after_incr;
+  gimple_stmt_iterator incr_gsi;
+  bool insert_after;
+  vect_iv_increment_position (exit_edge, &incr_gsi, &insert_after);
+  create_iv (niters_adj, MINUS_EXPR, iv_step, NULL_TREE, loop,
+	     &incr_gsi, insert_after, &index_before_incr,
+	     &index_after_incr);
+
+  /* Iterate over all the rgroups and fill in their controls.  */
+  for (auto &rgc : LOOP_VINFO_MASKS (loop_vinfo).rgc_vec)
+    {
+      if (rgc.controls.is_empty ())
+	continue;
+
+      tree ctrl_type = rgc.type;
+      poly_uint64 nitems_per_ctrl = TYPE_VECTOR_SUBPARTS (ctrl_type);
+
+      tree vectype = rgc.compare_type;
+
+      /* index_after_incr is the IV specifying the remaining iterations in
+	 the next iteration.  */
+      tree rem = index_after_incr;
+      /* When the data type for the compare to produce the mask is
+	 smaller than the IV type we need to saturate.  Saturate to
+	 the smallest possible value (IV_TYPE) so we only have to
+	 saturate once (CSE will catch redundant ones we add).  */
+      if (TYPE_PRECISION (TREE_TYPE (vectype)) < TYPE_PRECISION (iv_type))
+	rem = gimple_build (&incr_gsi, false, GSI_CONTINUE_LINKING,
+			    UNKNOWN_LOCATION,
+			    MIN_EXPR, TREE_TYPE (rem), rem, iv_step);
+      rem = gimple_convert (&incr_gsi, false, GSI_CONTINUE_LINKING,
+			    UNKNOWN_LOCATION, TREE_TYPE (vectype), rem);
+
+      /* Build a data vector composed of the remaining iterations.  */
+      rem = gimple_build_vector_from_val (&incr_gsi, false, GSI_CONTINUE_LINKING,
+					  UNKNOWN_LOCATION, vectype, rem);
+
+      /* Provide a definition of each vector in the control group.  */
+      tree next_ctrl = NULL_TREE;
+      tree first_rem = NULL_TREE;
+      tree ctrl;
+      unsigned int i;
+      FOR_EACH_VEC_ELT_REVERSE (rgc.controls, i, ctrl)
+	{
+	  /* Previous controls will cover BIAS items.  This control covers the
+	     next batch.  */
+	  poly_uint64 bias = nitems_per_ctrl * i;
+
+	  /* Build the constant to compare the remaining iters against,
+	     this is sth like { 0, 0, 1, 1, 2, 2, 3, 3, ... } appropriately
+	     split into pieces.  */
+	  unsigned n = TYPE_VECTOR_SUBPARTS (ctrl_type).to_constant ();
+	  tree_vector_builder builder (vectype, n, 1);
+	  for (unsigned i = 0; i < n; ++i)
+	    {
+	      unsigned HOST_WIDE_INT val
+		= (i + bias.to_constant ()) / rgc.max_nscalars_per_iter;
+	      gcc_assert (val < vf.to_constant ());
+	      builder.quick_push (build_int_cst (TREE_TYPE (vectype), val));
+	    }
+	  tree cmp_series = builder.build ();
+
+	  /* Create the initial control.  First include all items that
+	     are within the loop limit.  */
+	  tree init_ctrl = NULL_TREE;
+	  poly_uint64 const_limit;
+	  /* See whether the first iteration of the vector loop is known
+	     to have a full control.  */
+	  if (poly_int_tree_p (niters, &const_limit)
+	      && known_ge (const_limit, (i + 1) * nitems_per_ctrl))
+	    init_ctrl = build_minus_one_cst (ctrl_type);
+	  else
+	    {
+	      /* The remaining work items initially are niters.  Saturate,
+		 splat and compare.  */
+	      if (!first_rem)
+		{
+		  first_rem = niters;
+		  if (TYPE_PRECISION (TREE_TYPE (vectype))
+		      < TYPE_PRECISION (iv_type))
+		    first_rem = gimple_build (&preheader_seq,
+					      MIN_EXPR, TREE_TYPE (first_rem),
+					      first_rem, iv_step);
+		  first_rem = gimple_convert (&preheader_seq, TREE_TYPE (vectype),
+					      first_rem);
+		  first_rem = gimple_build_vector_from_val (&preheader_seq,
+							    vectype, first_rem);
+		}
+	      init_ctrl = gimple_build (&preheader_seq, LT_EXPR, ctrl_type,
+					cmp_series, first_rem);
+	    }
+
+	  /* Now AND out the bits that are within the number of skipped
+	     items.  */
+	  poly_uint64 const_skip;
+	  if (niters_skip
+	      && !(poly_int_tree_p (niters_skip, &const_skip)
+		   && known_le (const_skip, bias)))
+	    {
+	      /* For integer mode masks it's cheaper to shift out the bits
+		 since that avoids loading a constant.  */
+	      gcc_assert (GET_MODE_CLASS (TYPE_MODE (ctrl_type)) == MODE_INT);
+	      init_ctrl = gimple_build (&preheader_seq, VIEW_CONVERT_EXPR,
+					lang_hooks.types.type_for_mode
+					  (TYPE_MODE (ctrl_type), 1),
+					init_ctrl);
+	      /* ???  But when the shift amount isn't constant this requires
+		 a round-trip to GRPs.  We could apply the bias to either
+		 side of the compare instead.  */
+	      tree shift = gimple_build (&preheader_seq, MULT_EXPR,
+					 TREE_TYPE (niters_skip), niters_skip,
+					 build_int_cst (TREE_TYPE (niters_skip),
+							rgc.max_nscalars_per_iter));
+	      init_ctrl = gimple_build (&preheader_seq, LSHIFT_EXPR,
+					TREE_TYPE (init_ctrl),
+					init_ctrl, shift);
+	      init_ctrl = gimple_build (&preheader_seq, VIEW_CONVERT_EXPR,
+					ctrl_type, init_ctrl);
+	    }
+
+	  /* Get the control value for the next iteration of the loop.  */
+	  next_ctrl = gimple_build (&incr_gsi, false, GSI_CONTINUE_LINKING,
+				    UNKNOWN_LOCATION,
+				    LT_EXPR, ctrl_type, cmp_series, rem);
+
+	  vect_set_loop_control (loop, ctrl, init_ctrl, next_ctrl);
+	}
+    }
+
+  /* Emit all accumulated statements.  */
+  add_preheader_seq (loop, preheader_seq);
+
+  /* Adjust the exit test using the decrementing IV.  */
+  tree_code code = (exit_edge->flags & EDGE_TRUE_VALUE) ? LE_EXPR : GT_EXPR;
+  /* When we peel for alignment with niter_skip != 0 this can
+     cause niter + niter_skip to wrap and since we are comparing the
+     value before the decrement here we get a false early exit.
+     We can't compare the value after decrement either because that
+     decrement could wrap as well as we're not doing a saturating
+     decrement.  To avoid this situation we force a larger
+     iv_type.  */
+  gcond *cond_stmt = gimple_build_cond (code, index_before_incr, iv_step,
+					NULL_TREE, NULL_TREE);
+  gsi_insert_before (&loop_cond_gsi, cond_stmt, GSI_SAME_STMT);
+
+  /* The loop iterates (NITERS - 1 + NITERS_SKIP) / VF + 1 times.
+     Subtract one from this to get the latch count.  */
+  tree niters_minus_one
+    = fold_build2 (PLUS_EXPR, TREE_TYPE (orig_niters), orig_niters,
+		   build_minus_one_cst (TREE_TYPE (orig_niters)));
+  tree niters_adj2 = fold_convert (iv_type, niters_minus_one);
+  if (niters_skip)
+    niters_adj2 = fold_build2 (PLUS_EXPR, iv_type, niters_minus_one,
+			       fold_convert (iv_type, niters_skip));
+  loop->nb_iterations = fold_build2 (TRUNC_DIV_EXPR, iv_type,
+				     niters_adj2, iv_step);
+
+  if (final_iv)
+    {
+      gassign *assign;
+      /* If vectorizing an inverted early break loop we have to restart the
+	 scalar loop at niters - vf.  This matches what we do in
+	 vect_gen_vector_loop_niters_mult_vf for non-masked loops.  */
+      if (LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo))
+	{
+	  tree ftype = TREE_TYPE (orig_niters);
+	  tree vf = build_int_cst (ftype, LOOP_VINFO_VECT_FACTOR (loop_vinfo));
+	  assign = gimple_build_assign (final_iv, MINUS_EXPR, orig_niters, vf);
+	}
+       else
+	assign = gimple_build_assign (final_iv, orig_niters);
+      gsi_insert_on_edge_immediate (exit_edge, assign);
+    }
+
+  return cond_stmt;
+}
+
+
 /* Like vect_set_loop_condition, but handle the case in which the vector
    loop handles exactly VF scalars per iteration.  */
 
 static gcond *
-vect_set_loop_condition_normal (class loop *loop, tree niters, tree step,
+vect_set_loop_condition_normal (loop_vec_info /* loop_vinfo */, edge exit_edge,
+				class loop *loop, tree niters, tree step,
 				tree final_iv, bool niters_maybe_zero,
 				gimple_stmt_iterator loop_cond_gsi)
 {
@@ -807,13 +1231,12 @@ vect_set_loop_condition_normal (class loop *loop, tree niters, tree step,
   gcond *cond_stmt;
   gcond *orig_cond;
   edge pe = loop_preheader_edge (loop);
-  edge exit_edge = single_exit (loop);
   gimple_stmt_iterator incr_gsi;
   bool insert_after;
   enum tree_code code;
   tree niters_type = TREE_TYPE (niters);
 
-  orig_cond = get_loop_exit_condition (loop);
+  orig_cond = get_loop_exit_condition (exit_edge);
   gcc_assert (orig_cond);
   loop_cond_gsi = gsi_for_stmt (orig_cond);
 
@@ -892,8 +1315,8 @@ vect_set_loop_condition_normal (class loop *loop, tree niters, tree step,
 	}
     }
 
-  standard_iv_increment_position (loop, &incr_gsi, &insert_after);
-  create_iv (init, step, NULL_TREE, loop,
+  vect_iv_increment_position (exit_edge, &incr_gsi, &insert_after);
+  create_iv (init, PLUS_EXPR, step, NULL_TREE, loop,
              &incr_gsi, insert_after, &indx_before_incr, &indx_after_incr);
   indx_after_incr = force_gimple_operand_gsi (&loop_cond_gsi, indx_after_incr,
 					      true, NULL_TREE, true,
@@ -921,19 +1344,18 @@ vect_set_loop_condition_normal (class loop *loop, tree niters, tree step,
   if (final_iv)
     {
       gassign *assign;
-      edge exit = single_exit (loop);
-      gcc_assert (single_pred_p (exit->dest));
+      gcc_assert (single_pred_p (exit_edge->dest));
       tree phi_dest
 	= integer_zerop (init) ? final_iv : copy_ssa_name (indx_after_incr);
       /* Make sure to maintain LC SSA form here and elide the subtraction
 	 if the value is zero.  */
-      gphi *phi = create_phi_node (phi_dest, exit->dest);
-      add_phi_arg (phi, indx_after_incr, exit, UNKNOWN_LOCATION);
+      gphi *phi = create_phi_node (phi_dest, exit_edge->dest);
+      add_phi_arg (phi, indx_after_incr, exit_edge, UNKNOWN_LOCATION);
       if (!integer_zerop (init))
 	{
 	  assign = gimple_build_assign (final_iv, MINUS_EXPR,
 					phi_dest, init);
-	  gimple_stmt_iterator gsi = gsi_after_labels (exit->dest);
+	  gimple_stmt_iterator gsi = gsi_after_labels (exit_edge->dest);
 	  gsi_insert_before (&gsi, assign, GSI_SAME_STMT);
 	}
     }
@@ -964,21 +1386,33 @@ vect_set_loop_condition_normal (class loop *loop, tree niters, tree step,
    Assumption: the exit-condition of LOOP is the last stmt in the loop.  */
 
 void
-vect_set_loop_condition (class loop *loop, loop_vec_info loop_vinfo,
+vect_set_loop_condition (class loop *loop, edge loop_e, loop_vec_info loop_vinfo,
 			 tree niters, tree step, tree final_iv,
 			 bool niters_maybe_zero)
 {
   gcond *cond_stmt;
-  gcond *orig_cond = get_loop_exit_condition (loop);
+  gcond *orig_cond = get_loop_exit_condition (loop_e);
   gimple_stmt_iterator loop_cond_gsi = gsi_for_stmt (orig_cond);
 
   if (loop_vinfo && LOOP_VINFO_USING_PARTIAL_VECTORS_P (loop_vinfo))
-    cond_stmt = vect_set_loop_condition_partial_vectors (loop, loop_vinfo,
-							 niters, final_iv,
-							 niters_maybe_zero,
-							 loop_cond_gsi);
+    {
+      if (LOOP_VINFO_PARTIAL_VECTORS_STYLE (loop_vinfo) == vect_partial_vectors_avx512)
+	cond_stmt = vect_set_loop_condition_partial_vectors_avx512 (loop, loop_e,
+								    loop_vinfo,
+								    niters, final_iv,
+								    niters_maybe_zero,
+								    loop_cond_gsi);
+      else
+	cond_stmt = vect_set_loop_condition_partial_vectors (loop, loop_e,
+							     loop_vinfo,
+							     niters, final_iv,
+							     niters_maybe_zero,
+							     loop_cond_gsi);
+    }
   else
-    cond_stmt = vect_set_loop_condition_normal (loop, niters, step, final_iv,
+    cond_stmt = vect_set_loop_condition_normal (loop_vinfo, loop_e, loop,
+						niters,
+						step, final_iv,
 						niters_maybe_zero,
 						loop_cond_gsi);
 
@@ -995,68 +1429,27 @@ vect_set_loop_condition (class loop *loop, loop_vec_info loop_vinfo,
 		     (gimple *) cond_stmt);
 }
 
-/* Helper routine of slpeel_tree_duplicate_loop_to_edge_cfg.
-   For all PHI arguments in FROM->dest and TO->dest from those
-   edges ensure that TO->dest PHI arguments have current_def
-   to that in from.  */
-
-static void
-slpeel_duplicate_current_defs_from_edges (edge from, edge to)
-{
-  gimple_stmt_iterator gsi_from, gsi_to;
-
-  for (gsi_from = gsi_start_phis (from->dest),
-       gsi_to = gsi_start_phis (to->dest);
-       !gsi_end_p (gsi_from) && !gsi_end_p (gsi_to);)
-    {
-      gimple *from_phi = gsi_stmt (gsi_from);
-      gimple *to_phi = gsi_stmt (gsi_to);
-      tree from_arg = PHI_ARG_DEF_FROM_EDGE (from_phi, from);
-      tree to_arg = PHI_ARG_DEF_FROM_EDGE (to_phi, to);
-      if (virtual_operand_p (from_arg))
-	{
-	  gsi_next (&gsi_from);
-	  continue;
-	}
-      if (virtual_operand_p (to_arg))
-	{
-	  gsi_next (&gsi_to);
-	  continue;
-	}
-      if (TREE_CODE (from_arg) != SSA_NAME)
-	gcc_assert (operand_equal_p (from_arg, to_arg, 0));
-      else if (TREE_CODE (to_arg) == SSA_NAME
-	       && from_arg != to_arg)
-	{
-	  if (get_current_def (to_arg) == NULL_TREE)
-	    {
-	      gcc_assert (types_compatible_p (TREE_TYPE (to_arg),
-					      TREE_TYPE (get_current_def
-							   (from_arg))));
-	      set_current_def (to_arg, get_current_def (from_arg));
-	    }
-	}
-      gsi_next (&gsi_from);
-      gsi_next (&gsi_to);
-    }
-
-  gphi *from_phi = get_virtual_phi (from->dest);
-  gphi *to_phi = get_virtual_phi (to->dest);
-  if (from_phi)
-    set_current_def (PHI_ARG_DEF_FROM_EDGE (to_phi, to),
-		     get_current_def (PHI_ARG_DEF_FROM_EDGE (from_phi, from)));
-}
-
-
 /* Given LOOP this function generates a new copy of it and puts it
    on E which is either the entry or exit of LOOP.  If SCALAR_LOOP is
    non-NULL, assume LOOP and SCALAR_LOOP are equivalent and copy the
    basic blocks from SCALAR_LOOP instead of LOOP, but to either the
-   entry or exit of LOOP.  */
+   entry or exit of LOOP.  If FLOW_LOOPS then connect LOOP to SCALAR_LOOP as a
+   continuation.  This is correct for cases where one loop continues from the
+   other like in the vectorizer, but not true for uses in e.g. loop distribution
+   where the contents of the loop body are split but the iteration space of both
+   copies remains the same.
+
+   If UPDATED_DOMS is not NULL it is update with the list of basic blocks whoms
+   dominators were updated during the peeling.  When doing early break vectorization
+   then LOOP_VINFO needs to be provided and is used to keep track of any newly created
+   memory references that need to be updated should we decide to vectorize.  */
 
 class loop *
-slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop,
-					class loop *scalar_loop, edge e)
+slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop, edge loop_exit,
+					class loop *scalar_loop,
+					edge scalar_exit, edge e, edge *new_e,
+					bool flow_loops,
+					vec<basic_block> *updated_doms)
 {
   class loop *new_loop;
   basic_block *new_bbs, *bbs, *pbbs;
@@ -1066,13 +1459,30 @@ slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop,
   edge exit, new_exit;
   bool duplicate_outer_loop = false;
 
-  exit = single_exit (loop);
+  exit = loop_exit;
   at_exit = (e == exit);
   if (!at_exit && e != loop_preheader_edge (loop))
     return NULL;
 
   if (scalar_loop == NULL)
-    scalar_loop = loop;
+    {
+      scalar_loop = loop;
+      scalar_exit = loop_exit;
+    }
+  else if (scalar_loop == loop)
+    scalar_exit = loop_exit;
+  else
+    {
+      /* Loop has been version, match exits up using the aux index.  */
+      for (edge exit : get_loop_exit_edges (scalar_loop))
+	if (exit->aux == loop_exit->aux)
+	  {
+	    scalar_exit	= exit;
+	    break;
+	  }
+
+      gcc_assert (scalar_exit);
+    }
 
   bbs = XNEWVEC (basic_block, scalar_loop->num_nodes + 1);
   pbbs = bbs + 1;
@@ -1098,12 +1508,18 @@ slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop,
   bbs[0] = preheader;
   new_bbs = XNEWVEC (basic_block, scalar_loop->num_nodes + 1);
 
-  exit = single_exit (scalar_loop);
   copy_bbs (bbs, scalar_loop->num_nodes + 1, new_bbs,
-	    &exit, 1, &new_exit, NULL,
+	    &scalar_exit, 1, &new_exit, NULL,
 	    at_exit ? loop->latch : e->src, true);
-  exit = single_exit (loop);
+  exit = loop_exit;
   basic_block new_preheader = new_bbs[0];
+
+  gcc_assert (new_exit);
+
+  /* Record the new loop exit information.  new_loop doesn't have SCEV data and
+     so we must initialize the exit information.  */
+  if (new_e)
+    *new_e = new_exit;
 
   /* Before installing PHI arguments make sure that the edges
      into them match that of the scalar loop we analyzed.  This
@@ -1138,41 +1554,275 @@ slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop,
   for (unsigned i = (at_exit ? 0 : 1); i < scalar_loop->num_nodes + 1; i++)
     rename_variables_in_bb (new_bbs[i], duplicate_outer_loop);
 
-  if (scalar_loop != loop)
-    {
-      /* If we copied from SCALAR_LOOP rather than LOOP, SSA_NAMEs from
-	 SCALAR_LOOP will have current_def set to SSA_NAMEs in the new_loop,
-	 but LOOP will not.  slpeel_update_phi_nodes_for_guard{1,2} expects
-	 the LOOP SSA_NAMEs (on the exit edge and edge from latch to
-	 header) to have current_def set, so copy them over.  */
-      slpeel_duplicate_current_defs_from_edges (single_exit (scalar_loop),
-						exit);
-      slpeel_duplicate_current_defs_from_edges (EDGE_SUCC (scalar_loop->latch,
-							   0),
-						EDGE_SUCC (loop->latch, 0));
-    }
+  /* Rename the exit uses.  */
+  for (edge exit : get_loop_exit_edges (new_loop))
+    for (auto gsi = gsi_start_phis (exit->dest);
+	 !gsi_end_p (gsi); gsi_next (&gsi))
+      {
+	tree orig_def = PHI_ARG_DEF_FROM_EDGE (gsi.phi (), exit);
+	rename_use_op (PHI_ARG_DEF_PTR_FROM_EDGE (gsi.phi (), exit));
+	if (MAY_HAVE_DEBUG_BIND_STMTS)
+	  adjust_debug_stmts (orig_def, PHI_RESULT (gsi.phi ()), exit->dest);
+      }
+
+  auto loop_exits = get_loop_exit_edges (loop);
+  bool multiple_exits_p = loop_exits.length () > 1;
+  auto_vec<basic_block> doms;
+  class loop *update_loop = NULL;
 
   if (at_exit) /* Add the loop copy at exit.  */
     {
-      if (scalar_loop != loop)
+      if (scalar_loop != loop && new_exit->dest != exit_dest)
 	{
-	  gphi_iterator gsi;
 	  new_exit = redirect_edge_and_branch (new_exit, exit_dest);
+	  flush_pending_stmts (new_exit);
+	}
 
-	  for (gsi = gsi_start_phis (exit_dest); !gsi_end_p (gsi);
-	       gsi_next (&gsi))
+      bool need_virtual_phi = get_virtual_phi (loop->header);
+
+      /* For the main loop exit preserve the LC PHI nodes.  For vectorization
+	 we need them to continue or finalize reductions.  Since we do not
+	 copy the loop exit blocks we have to materialize PHIs at the
+	 new destination before redirecting edges.  */
+      for (auto gsi_from = gsi_start_phis (loop_exit->dest);
+	   !gsi_end_p (gsi_from); gsi_next (&gsi_from))
+	{
+	  tree res = gimple_phi_result (*gsi_from);
+	  create_phi_node (copy_ssa_name (res), new_preheader);
+	}
+      edge e = redirect_edge_and_branch (loop_exit, new_preheader);
+      gcc_assert (e == loop_exit);
+      flush_pending_stmts (loop_exit);
+      set_immediate_dominator (CDI_DOMINATORS, new_preheader, loop_exit->src);
+
+      bool multiple_exits_p = loop_exits.length () > 1;
+      basic_block main_loop_exit_block = new_preheader;
+      basic_block alt_loop_exit_block = NULL;
+      /* Create the CFG for multiple exits.
+		   | loop_exit               | alt1   | altN
+		   v                         v   ...  v
+	    main_loop_exit_block:       alt_loop_exit_block:
+		   |                      /
+		   v                     v
+	    new_preheader:
+	 where in the new preheader we need merge PHIs for
+	 the continuation values into the epilogue header.
+	 Do not bother with exit PHIs for the early exits but
+	 their live virtual operand.  We'll fix up things below.  */
+      if (multiple_exits_p)
+	{
+	  edge loop_e = single_succ_edge (new_preheader);
+	  new_preheader = split_edge (loop_e);
+
+	  gphi *vphi = NULL;
+	  alt_loop_exit_block = new_preheader;
+	  for (auto exit : loop_exits)
+	    if (exit != loop_exit)
+	      {
+		tree vphi_def = NULL_TREE;
+		if (gphi *evphi = get_virtual_phi (exit->dest))
+		  vphi_def = gimple_phi_arg_def_from_edge (evphi, exit);
+		edge res = redirect_edge_and_branch (exit, alt_loop_exit_block);
+		gcc_assert (res == exit);
+		redirect_edge_var_map_clear (exit);
+		if (alt_loop_exit_block == new_preheader)
+		  alt_loop_exit_block = split_edge (exit);
+		if (!need_virtual_phi)
+		  continue;
+		if (vphi_def)
+		  {
+		    if (!vphi)
+		      vphi = create_phi_node (copy_ssa_name (vphi_def),
+					      alt_loop_exit_block);
+		    else
+		      /* Edge redirection might re-allocate the PHI node
+			 so we have to rediscover it.  */
+		      vphi = get_virtual_phi (alt_loop_exit_block);
+		    add_phi_arg (vphi, vphi_def, exit, UNKNOWN_LOCATION);
+		  }
+	      }
+
+	  set_immediate_dominator (CDI_DOMINATORS, new_preheader,
+				   loop->header);
+	}
+
+      /* Adjust the epilog loop PHI entry values to continue iteration.
+	 This adds remaining necessary LC PHI nodes to the main exit
+	 and creates merge PHIs when we have multiple exits with
+	 their appropriate continuation.  */
+      if (flow_loops)
+	{
+	  edge loop_entry = single_succ_edge (new_preheader);
+	  bool peeled_iters = single_pred (loop->latch) != loop_exit->src;
+
+	  /* Record the new SSA names in the cache so that we can skip
+	     materializing them again when we fill in the rest of the LC SSA
+	     variables.  */
+	  hash_map <tree, tree> new_phi_args;
+	  for (auto psi = gsi_start_phis (main_loop_exit_block);
+	       !gsi_end_p (psi); gsi_next (&psi))
 	    {
-	      gphi *phi = gsi.phi ();
-	      tree orig_arg = PHI_ARG_DEF_FROM_EDGE (phi, e);
-	      location_t orig_locus
-		= gimple_phi_arg_location_from_edge (phi, e);
+	      gphi *phi = *psi;
+	      tree new_arg = gimple_phi_arg_def_from_edge (phi, loop_exit);
+	      if (TREE_CODE (new_arg) != SSA_NAME)
+		continue;
 
-	      add_phi_arg (phi, orig_arg, new_exit, orig_locus);
+	      /* If the loop doesn't have a virtual def then only possibly keep
+		 the epilog LC PHI for it and avoid creating new defs.  */
+	      if (virtual_operand_p (new_arg) && !need_virtual_phi)
+		{
+		  auto gsi = gsi_for_stmt (phi);
+		  remove_phi_node (&gsi, true);
+		  continue;
+		}
+
+	      /* If we decided not to remove the PHI node we should also not
+		 rematerialize it later on.  */
+	      new_phi_args.put (new_arg, gimple_phi_result (phi));
+	    }
+
+	  /* Create the merge PHI nodes in new_preheader and populate the
+	     arguments for the exits.  */
+	  if (multiple_exits_p)
+	    {
+	      for (auto gsi_from = gsi_start_phis (loop->header),
+		   gsi_to = gsi_start_phis (new_loop->header);
+		   !gsi_end_p (gsi_from) && !gsi_end_p (gsi_to);
+		   gsi_next (&gsi_from), gsi_next (&gsi_to))
+		{
+		  gimple *from_phi = gsi_stmt (gsi_from);
+		  gimple *to_phi = gsi_stmt (gsi_to);
+
+		  /* When the vector loop is peeled then we need to use the
+		     value at start of the loop, otherwise the main loop exit
+		     should use the final iter value.  */
+		  tree new_arg;
+		  if (peeled_iters)
+		    new_arg = gimple_phi_result (from_phi);
+		  else
+		    new_arg = PHI_ARG_DEF_FROM_EDGE (from_phi,
+						     loop_latch_edge (loop));
+
+		  /* Check if we've already created a new phi node during edge
+		     redirection and re-use it if so.  Otherwise create a
+		     LC PHI node to feed the merge PHI.  */
+		  tree *res;
+		  if (virtual_operand_p (new_arg))
+		    {
+		      /* Use the existing virtual LC SSA from exit block.  */
+		      gphi *vphi = get_virtual_phi (main_loop_exit_block);
+		      /* ???  When the exit yields to a path without
+			 any virtual use we can miss a LC PHI for the
+			 live virtual operand.  Simply choosing the
+			 one live at the start of the loop header isn't
+			 correct, but we should get here only with
+			 early-exit vectorization which will move all
+			 defs after the main exit, so leave a temporarily
+			 wrong virtual operand in place.  This happens
+			 for gcc.dg/pr113659.c.  */
+		      if (vphi)
+			new_arg = gimple_phi_result (vphi);
+		      else
+			new_arg = gimple_phi_result (from_phi);
+		    }
+		  else if ((res = new_phi_args.get (new_arg)))
+		    new_arg = *res;
+		  else
+		    {
+		      /* Create the LC PHI node for the exit.  */
+		      tree new_def = copy_ssa_name (new_arg);
+		      gphi *lc_phi
+			  = create_phi_node (new_def, main_loop_exit_block);
+		      SET_PHI_ARG_DEF (lc_phi, 0, new_arg);
+		      new_arg = new_def;
+		    }
+
+		  /* Create the PHI node in the merge block merging the
+		     main and early exit values.  */
+		  tree new_res = copy_ssa_name (gimple_phi_result (from_phi));
+		  gphi *lcssa_phi = create_phi_node (new_res, new_preheader);
+		  edge main_e = single_succ_edge (main_loop_exit_block);
+		  SET_PHI_ARG_DEF_ON_EDGE (lcssa_phi, main_e, new_arg);
+
+		  /* And adjust the epilog entry value.  */
+		  adjust_phi_and_debug_stmts (to_phi, loop_entry, new_res);
+		}
+
+	      /* After creating the merge PHIs handle the early exits those
+		 should use the values at the start of the loop.  */
+	      for (auto gsi_from = gsi_start_phis (loop->header),
+		   gsi_to = gsi_start_phis (new_preheader);
+		   !gsi_end_p (gsi_from) && !gsi_end_p (gsi_to);
+		   gsi_next (&gsi_from), gsi_next (&gsi_to))
+		{
+		  gimple *from_phi = gsi_stmt (gsi_from);
+		  gimple *to_phi = gsi_stmt (gsi_to);
+
+		  /* Now update the virtual PHI nodes with the right value.  */
+		  tree alt_arg = gimple_phi_result (from_phi);
+		  if (virtual_operand_p (alt_arg))
+		    {
+		      gphi *vphi = get_virtual_phi (alt_loop_exit_block);
+		      /* ???  When the exit yields to a path without
+			 any virtual use we can miss a LC PHI for the
+			 live virtual operand.  Simply choosing the
+			 one live at the start of the loop header isn't
+			 correct, but we should get here only with
+			 early-exit vectorization which will move all
+			 defs after the main exit, so leave a temporarily
+			 wrong virtual operand in place.  This happens
+			 for gcc.c-torture/execute/20150611-1.c  */
+		      if (vphi)
+			alt_arg = gimple_phi_result (vphi);
+		    }
+		  /* For other live args we didn't create LC PHI nodes.
+		     Do so here.  */
+		  else
+		    {
+		      tree alt_def = copy_ssa_name (alt_arg);
+		      gphi *lc_phi
+			= create_phi_node (alt_def, alt_loop_exit_block);
+		      for (unsigned i = 0; i < gimple_phi_num_args (lc_phi);
+			   ++i)
+			SET_PHI_ARG_DEF (lc_phi, i, alt_arg);
+		      alt_arg = alt_def;
+		    }
+		  edge alt_e = single_succ_edge (alt_loop_exit_block);
+		  SET_PHI_ARG_DEF_ON_EDGE (to_phi, alt_e, alt_arg);
+		}
+	    }
+	  /* For the single exit case only create the missing LC PHI nodes
+	     for the continuation of the loop IVs that are not also already
+	     reductions and thus had LC PHI nodes on the exit already.  */
+	  else
+	    {
+	      for (auto gsi_from = gsi_start_phis (loop->header),
+		   gsi_to = gsi_start_phis (new_loop->header);
+		   !gsi_end_p (gsi_from) && !gsi_end_p (gsi_to);
+		   gsi_next (&gsi_from), gsi_next (&gsi_to))
+		{
+		  gimple *from_phi = gsi_stmt (gsi_from);
+		  gimple *to_phi = gsi_stmt (gsi_to);
+		  tree new_arg = PHI_ARG_DEF_FROM_EDGE (from_phi,
+							loop_latch_edge (loop));
+
+		  /* Check if we've already created a new phi node during edge
+		     redirection.  If we have, only propagate the value
+		     downwards.  */
+		  if (tree *res = new_phi_args.get (new_arg))
+		    {
+		      adjust_phi_and_debug_stmts (to_phi, loop_entry, *res);
+		      continue;
+		    }
+
+		  tree new_res = copy_ssa_name (gimple_phi_result (from_phi));
+		  gphi *lcssa_phi = create_phi_node (new_res, new_preheader);
+		  SET_PHI_ARG_DEF_ON_EDGE (lcssa_phi, loop_exit, new_arg);
+		  adjust_phi_and_debug_stmts (to_phi, loop_entry, new_res);
+		}
 	    }
 	}
-      redirect_edge_and_branch_force (e, new_preheader);
-      flush_pending_stmts (e);
-      set_immediate_dominator (CDI_DOMINATORS, new_preheader, e->src);
+
       if (was_imm_dom || duplicate_outer_loop)
 	set_immediate_dominator (CDI_DOMINATORS, exit_dest, new_exit->src);
 
@@ -1183,9 +1833,38 @@ slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop,
       delete_basic_block (preheader);
       set_immediate_dominator (CDI_DOMINATORS, scalar_loop->header,
 			       loop_preheader_edge (scalar_loop)->src);
+
+      /* Finally after wiring the new epilogue we need to update its main exit
+	 to the original function exit we recorded.  Other exits are already
+	 correct.  */
+      if (multiple_exits_p)
+	{
+	  update_loop = new_loop;
+	  doms = get_all_dominated_blocks (CDI_DOMINATORS, loop->header);
+	  for (unsigned i = 0; i < doms.length (); ++i)
+	    if (flow_bb_inside_loop_p (loop, doms[i]))
+	      doms.unordered_remove (i);
+	}
     }
   else /* Add the copy at entry.  */
     {
+      /* Copy the current loop LC PHI nodes between the original loop exit
+	 block and the new loop header.  This allows us to later split the
+	 preheader block and still find the right LC nodes.  */
+      if (flow_loops)
+	for (auto gsi_from = gsi_start_phis (new_loop->header),
+	     gsi_to = gsi_start_phis (loop->header);
+	     !gsi_end_p (gsi_from) && !gsi_end_p (gsi_to);
+	     gsi_next (&gsi_from), gsi_next (&gsi_to))
+	  {
+	    gimple *from_phi = gsi_stmt (gsi_from);
+	    gimple *to_phi = gsi_stmt (gsi_to);
+	    tree new_arg = PHI_ARG_DEF_FROM_EDGE (from_phi,
+						  loop_latch_edge (new_loop));
+	    adjust_phi_and_debug_stmts (to_phi, loop_preheader_edge (loop),
+					new_arg);
+	  }
+
       if (scalar_loop != loop)
 	{
 	  /* Remove the non-necessary forwarder of scalar_loop again.  */
@@ -1213,29 +1892,34 @@ slpeel_tree_duplicate_loop_to_edge_cfg (class loop *loop,
       delete_basic_block (new_preheader);
       set_immediate_dominator (CDI_DOMINATORS, new_loop->header,
 			       loop_preheader_edge (new_loop)->src);
+
+      if (multiple_exits_p)
+	update_loop = loop;
     }
 
-  if (scalar_loop != loop)
+  if (multiple_exits_p)
     {
-      /* Update new_loop->header PHIs, so that on the preheader
-	 edge they are the ones from loop rather than scalar_loop.  */
-      gphi_iterator gsi_orig, gsi_new;
-      edge orig_e = loop_preheader_edge (loop);
-      edge new_e = loop_preheader_edge (new_loop);
-
-      for (gsi_orig = gsi_start_phis (loop->header),
-	   gsi_new = gsi_start_phis (new_loop->header);
-	   !gsi_end_p (gsi_orig) && !gsi_end_p (gsi_new);
-	   gsi_next (&gsi_orig), gsi_next (&gsi_new))
+      for (edge e : get_loop_exit_edges (update_loop))
 	{
-	  gphi *orig_phi = gsi_orig.phi ();
-	  gphi *new_phi = gsi_new.phi ();
-	  tree orig_arg = PHI_ARG_DEF_FROM_EDGE (orig_phi, orig_e);
-	  location_t orig_locus
-	    = gimple_phi_arg_location_from_edge (orig_phi, orig_e);
-
-	  add_phi_arg (new_phi, orig_arg, new_e, orig_locus);
+	  edge ex;
+	  edge_iterator ei;
+	  FOR_EACH_EDGE (ex, ei, e->dest->succs)
+	    {
+	      /* Find the first non-fallthrough block as fall-throughs can't
+		 dominate other blocks.  */
+	      if (single_succ_p (ex->dest))
+		{
+		  doms.safe_push (ex->dest);
+		  ex = single_succ_edge (ex->dest);
+		}
+	      doms.safe_push (ex->dest);
+	    }
+	  doms.safe_push (e->dest);
 	}
+
+      iterate_fix_dominators (CDI_DOMINATORS, doms, false);
+      if (updated_doms)
+	updated_doms->safe_splice (doms);
     }
 
   free (new_bbs);
@@ -1304,20 +1988,18 @@ slpeel_add_loop_guard (basic_block guard_bb, tree cond,
  */
 
 bool
-slpeel_can_duplicate_loop_p (const class loop *loop, const_edge e)
+slpeel_can_duplicate_loop_p (const class loop *loop, const_edge exit_e,
+			     const_edge e)
 {
-  edge exit_e = single_exit (loop);
   edge entry_e = loop_preheader_edge (loop);
-  gcond *orig_cond = get_loop_exit_condition (loop);
+  gcond *orig_cond = get_loop_exit_condition (exit_e);
   gimple_stmt_iterator loop_exit_gsi = gsi_last_bb (exit_e->src);
-  unsigned int num_bb = loop->inner? 5 : 2;
 
   /* All loops have an outer scope; the only case loop->outer is NULL is for
      the function itself.  */
   if (!loop_outer (loop)
-      || loop->num_nodes != num_bb
       || !empty_block_p (loop->latch)
-      || !single_exit (loop)
+      || !exit_e
       /* Verify that new loop exit condition can be trivially modified.  */
       || (!orig_cond || orig_cond != gsi_stmt (loop_exit_gsi))
       || (e != exit_e && e != entry_e))
@@ -1330,7 +2012,7 @@ slpeel_can_duplicate_loop_p (const class loop *loop, const_edge e)
   return ret;
 }
 
-/* Function vect_get_loop_location.
+/* Function find_loop_location.
 
    Extract the location of the loop in the source code.
    If the loop is not well formed for vectorization, an estimated
@@ -1347,11 +2029,23 @@ find_loop_location (class loop *loop)
   if (!loop)
     return dump_user_location_t ();
 
-  stmt = get_loop_exit_condition (loop);
+  /* For the root of the loop tree return the function location.  */
+  if (!loop_outer (loop))
+    return dump_user_location_t::from_function_decl (cfun->decl);
 
-  if (stmt
-      && LOCATION_LOCUS (gimple_location (stmt)) > BUILTINS_LOCATION)
-    return stmt;
+  if (loops_state_satisfies_p (LOOPS_HAVE_RECORDED_EXITS))
+    {
+      /* We only care about the loop location, so use any exit with location
+	 information.  */
+      for (edge e : get_loop_exit_edges (loop))
+	{
+	  stmt = get_loop_exit_condition (e);
+
+	  if (stmt
+	      && LOCATION_LOCUS (gimple_location (stmt)) > BUILTINS_LOCATION)
+	    return stmt;
+	}
+    }
 
   /* If we got here the loop is probably not "well formed",
      try to estimate the loop location */
@@ -1391,8 +2085,10 @@ iv_phi_p (stmt_vec_info stmt_info)
 /* Return true if vectorizer can peel for nonlinear iv.  */
 static bool
 vect_can_peel_nonlinear_iv_p (loop_vec_info loop_vinfo,
-			      enum vect_induction_op_type induction_type)
+			      stmt_vec_info stmt_info)
 {
+  enum vect_induction_op_type induction_type
+    = STMT_VINFO_LOOP_PHI_EVOLUTION_TYPE (stmt_info);
   tree niters_skip;
   /* Init_expr will be update by vect_update_ivs_after_vectorizer,
      if niters or vf is unkown:
@@ -1413,11 +2109,31 @@ vect_can_peel_nonlinear_iv_p (loop_vec_info loop_vinfo,
       return false;
     }
 
+  /* Avoid compile time hog on vect_peel_nonlinear_iv_init.  */
+  if (induction_type == vect_step_op_mul)
+    {
+      tree step_expr = STMT_VINFO_LOOP_PHI_EVOLUTION_PART (stmt_info);
+      tree type = TREE_TYPE (step_expr);
+
+      if (wi::exact_log2 (wi::to_wide (step_expr)) == -1
+	  && LOOP_VINFO_INT_NITERS(loop_vinfo) >= TYPE_PRECISION (type))
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "Avoid compile time hog on"
+			     " vect_peel_nonlinear_iv_init"
+			     " for nonlinear induction vec_step_op_mul"
+			     " when iteration count is too big.\n");
+	  return false;
+	}
+    }
+
   /* Also doens't support peel for neg when niter is variable.
      ??? generate something like niter_expr & 1 ? init_expr : -init_expr?  */
   niters_skip = LOOP_VINFO_MASK_SKIP_NITERS (loop_vinfo);
   if ((niters_skip != NULL_TREE
-       && TREE_CODE (niters_skip) != INTEGER_CST)
+       && (TREE_CODE (niters_skip) != INTEGER_CST
+	   || (HOST_WIDE_INT) TREE_INT_CST_LOW (niters_skip) < 0))
       || (!vect_use_loop_mask_for_alignment_p (loop_vinfo)
 	  && LOOP_VINFO_PEELING_FOR_ALIGNMENT (loop_vinfo) < 0))
     {
@@ -1426,6 +2142,25 @@ vect_can_peel_nonlinear_iv_p (loop_vec_info loop_vinfo,
 			 "Peeling for alignement is not supported"
 			 " for nonlinear induction when niters_skip"
 			 " is not constant.\n");
+      return false;
+    }
+
+  /* We can't support partial vectors and early breaks with an induction
+     type other than add or neg since we require the epilog and can't
+     perform the peeling.  The below condition mirrors that of
+     vect_gen_vector_loop_niters  where niters_vector_mult_vf_var then sets
+     step_vector to VF rather than 1.  This is what creates the nonlinear
+     IV.  PR113163.  */
+  if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
+      && LOOP_VINFO_VECT_FACTOR (loop_vinfo).is_constant ()
+      && LOOP_VINFO_USING_PARTIAL_VECTORS_P (loop_vinfo)
+      && induction_type != vect_step_op_neg)
+    {
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			 "Peeling for epilogue is not supported"
+			 " for nonlinear induction except neg"
+			 " when VF is known and early breaks.\n");
       return false;
     }
 
@@ -1478,7 +2213,7 @@ vect_can_advance_ivs_p (loop_vec_info loop_vinfo)
       induction_type = STMT_VINFO_LOOP_PHI_EVOLUTION_TYPE (phi_info);
       if (induction_type != vect_step_op_add)
 	{
-	  if (!vect_can_peel_nonlinear_iv_p (loop_vinfo, induction_type))
+	  if (!vect_can_peel_nonlinear_iv_p (loop_vinfo, phi_info))
 	    return false;
 
 	  continue;
@@ -1570,11 +2305,8 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo,
   gphi_iterator gsi, gsi1;
   class loop *loop = LOOP_VINFO_LOOP (loop_vinfo);
   basic_block update_bb = update_e->dest;
-  basic_block exit_bb = single_exit (loop)->dest;
-
-  /* Make sure there exists a single-predecessor exit bb:  */
-  gcc_assert (single_pred_p (exit_bb));
-  gcc_assert (single_succ_edge (exit_bb) == update_e);
+  basic_block exit_bb = LOOP_VINFO_IV_EXIT (loop_vinfo)->dest;
+  gimple_stmt_iterator last_gsi = gsi_last_bb (exit_bb);
 
   for (gsi = gsi_start_phis (loop->header), gsi1 = gsi_start_phis (update_bb);
        !gsi_end_p (gsi) && !gsi_end_p (gsi1);
@@ -1584,7 +2316,6 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo,
       tree step_expr, off;
       tree type;
       tree var, ni, ni_name;
-      gimple_stmt_iterator last_gsi;
 
       gphi *phi = gsi.phi ();
       gphi *phi1 = gsi1.phi ();
@@ -1620,7 +2351,8 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo,
 	{
 	  tree stype = TREE_TYPE (step_expr);
 	  off = fold_build2 (MULT_EXPR, stype,
-			     fold_convert (stype, niters), step_expr);
+			       fold_convert (stype, niters), step_expr);
+
 	  if (POINTER_TYPE_P (type))
 	    ni = fold_build_pointer_plus (init_expr, off);
 	  else
@@ -1639,9 +2371,9 @@ vect_update_ivs_after_vectorizer (loop_vec_info loop_vinfo,
 
       var = create_tmp_var (type, "tmp");
 
-      last_gsi = gsi_last_bb (exit_bb);
       gimple_seq new_stmts = NULL;
       ni_name = force_gimple_operand (ni, &new_stmts, false, var);
+
       /* Exit_bb shouldn't be empty.  */
       if (!gsi_end_p (last_gsi))
 	{
@@ -1889,7 +2621,7 @@ void
 vect_prepare_for_masked_peels (loop_vec_info loop_vinfo)
 {
   tree misalign_in_elems;
-  tree type = LOOP_VINFO_RGROUP_COMPARE_TYPE (loop_vinfo);
+  tree type = TREE_TYPE (LOOP_VINFO_NITERS (loop_vinfo));
 
   gcc_assert (vect_use_loop_mask_for_alignment_p (loop_vinfo));
 
@@ -2137,14 +2869,21 @@ vect_gen_vector_loop_niters_mult_vf (loop_vec_info loop_vinfo,
 {
   /* We should be using a step_vector of VF if VF is variable.  */
   int vf = LOOP_VINFO_VECT_FACTOR (loop_vinfo).to_constant ();
-  class loop *loop = LOOP_VINFO_LOOP (loop_vinfo);
   tree type = TREE_TYPE (niters_vector);
   tree log_vf = build_int_cst (type, exact_log2 (vf));
-  basic_block exit_bb = single_exit (loop)->dest;
+  tree tree_vf = build_int_cst (type, vf);
+  basic_block exit_bb = LOOP_VINFO_IV_EXIT (loop_vinfo)->dest;
 
   gcc_assert (niters_vector_mult_vf_ptr != NULL);
   tree niters_vector_mult_vf = fold_build2 (LSHIFT_EXPR, type,
 					    niters_vector, log_vf);
+
+  /* If we've peeled a vector iteration then subtract one full vector
+     iteration.  */
+  if (LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo))
+    niters_vector_mult_vf = fold_build2 (MINUS_EXPR, type,
+					 niters_vector_mult_vf, tree_vf);
+
   if (!is_gimple_val (niters_vector_mult_vf))
     {
       tree var = create_tmp_var (type, "niters_vector_mult_vf");
@@ -2155,141 +2894,6 @@ vect_gen_vector_loop_niters_mult_vf (loop_vec_info loop_vinfo,
       gsi_insert_seq_before (&gsi, stmts, GSI_SAME_STMT);
     }
   *niters_vector_mult_vf_ptr = niters_vector_mult_vf;
-}
-
-/* LCSSA_PHI is a lcssa phi of EPILOG loop which is copied from LOOP,
-   this function searches for the corresponding lcssa phi node in exit
-   bb of LOOP.  If it is found, return the phi result; otherwise return
-   NULL.  */
-
-static tree
-find_guard_arg (class loop *loop, class loop *epilog ATTRIBUTE_UNUSED,
-		gphi *lcssa_phi)
-{
-  gphi_iterator gsi;
-  edge e = single_exit (loop);
-
-  gcc_assert (single_pred_p (e->dest));
-  for (gsi = gsi_start_phis (e->dest); !gsi_end_p (gsi); gsi_next (&gsi))
-    {
-      gphi *phi = gsi.phi ();
-      if (operand_equal_p (PHI_ARG_DEF (phi, 0),
-			   PHI_ARG_DEF (lcssa_phi, 0), 0))
-	return PHI_RESULT (phi);
-    }
-  return NULL_TREE;
-}
-
-/* Function slpeel_tree_duplicate_loop_to_edge_cfg duplciates FIRST/SECOND
-   from SECOND/FIRST and puts it at the original loop's preheader/exit
-   edge, the two loops are arranged as below:
-
-       preheader_a:
-     first_loop:
-       header_a:
-	 i_1 = PHI<i_0, i_2>;
-	 ...
-	 i_2 = i_1 + 1;
-	 if (cond_a)
-	   goto latch_a;
-	 else
-	   goto between_bb;
-       latch_a:
-	 goto header_a;
-
-       between_bb:
-	 ;; i_x = PHI<i_2>;   ;; LCSSA phi node to be created for FIRST,
-
-     second_loop:
-       header_b:
-	 i_3 = PHI<i_0, i_4>; ;; Use of i_0 to be replaced with i_x,
-				 or with i_2 if no LCSSA phi is created
-				 under condition of CREATE_LCSSA_FOR_IV_PHIS.
-	 ...
-	 i_4 = i_3 + 1;
-	 if (cond_b)
-	   goto latch_b;
-	 else
-	   goto exit_bb;
-       latch_b:
-	 goto header_b;
-
-       exit_bb:
-
-   This function creates loop closed SSA for the first loop; update the
-   second loop's PHI nodes by replacing argument on incoming edge with the
-   result of newly created lcssa PHI nodes.  IF CREATE_LCSSA_FOR_IV_PHIS
-   is false, Loop closed ssa phis will only be created for non-iv phis for
-   the first loop.
-
-   This function assumes exit bb of the first loop is preheader bb of the
-   second loop, i.e, between_bb in the example code.  With PHIs updated,
-   the second loop will execute rest iterations of the first.  */
-
-static void
-slpeel_update_phi_nodes_for_loops (loop_vec_info loop_vinfo,
-				   class loop *first, class loop *second,
-				   bool create_lcssa_for_iv_phis)
-{
-  gphi_iterator gsi_update, gsi_orig;
-  class loop *loop = LOOP_VINFO_LOOP (loop_vinfo);
-
-  edge first_latch_e = EDGE_SUCC (first->latch, 0);
-  edge second_preheader_e = loop_preheader_edge (second);
-  basic_block between_bb = single_exit (first)->dest;
-
-  gcc_assert (between_bb == second_preheader_e->src);
-  gcc_assert (single_pred_p (between_bb) && single_succ_p (between_bb));
-  /* Either the first loop or the second is the loop to be vectorized.  */
-  gcc_assert (loop == first || loop == second);
-
-  for (gsi_orig = gsi_start_phis (first->header),
-       gsi_update = gsi_start_phis (second->header);
-       !gsi_end_p (gsi_orig) && !gsi_end_p (gsi_update);
-       gsi_next (&gsi_orig), gsi_next (&gsi_update))
-    {
-      gphi *orig_phi = gsi_orig.phi ();
-      gphi *update_phi = gsi_update.phi ();
-
-      tree arg = PHI_ARG_DEF_FROM_EDGE (orig_phi, first_latch_e);
-      /* Generate lcssa PHI node for the first loop.  */
-      gphi *vect_phi = (loop == first) ? orig_phi : update_phi;
-      stmt_vec_info vect_phi_info = loop_vinfo->lookup_stmt (vect_phi);
-      if (create_lcssa_for_iv_phis || !iv_phi_p (vect_phi_info))
-	{
-	  tree new_res = copy_ssa_name (PHI_RESULT (orig_phi));
-	  gphi *lcssa_phi = create_phi_node (new_res, between_bb);
-	  add_phi_arg (lcssa_phi, arg, single_exit (first), UNKNOWN_LOCATION);
-	  arg = new_res;
-	}
-
-      /* Update PHI node in the second loop by replacing arg on the loop's
-	 incoming edge.  */
-      adjust_phi_and_debug_stmts (update_phi, second_preheader_e, arg);
-    }
-
-  /* For epilogue peeling we have to make sure to copy all LC PHIs
-     for correct vectorization of live stmts.  */
-  if (loop == first)
-    {
-      basic_block orig_exit = single_exit (second)->dest;
-      for (gsi_orig = gsi_start_phis (orig_exit);
-	   !gsi_end_p (gsi_orig); gsi_next (&gsi_orig))
-	{
-	  gphi *orig_phi = gsi_orig.phi ();
-	  tree orig_arg = PHI_ARG_DEF (orig_phi, 0);
-	  if (TREE_CODE (orig_arg) != SSA_NAME || virtual_operand_p  (orig_arg))
-	    continue;
-
-	  /* Already created in the above loop.   */
-	  if (find_guard_arg (first, second, orig_phi))
-	    continue;
-
-	  tree new_res = copy_ssa_name (orig_arg);
-	  gphi *lcphi = create_phi_node (new_res, between_bb);
-	  add_phi_arg (lcphi, orig_arg, single_exit (first), UNKNOWN_LOCATION);
-	}
-    }
 }
 
 /* Function slpeel_add_loop_guard adds guard skipping from the beginning
@@ -2372,150 +2976,6 @@ slpeel_update_phi_nodes_for_guard1 (class loop *skip_loop,
       /* Update phi in UPDATE_PHI.  */
       adjust_phi_and_debug_stmts (update_phi, update_e, new_res);
     }
-}
-
-/* LOOP and EPILOG are two consecutive loops in CFG and EPILOG is copied
-   from LOOP.  Function slpeel_add_loop_guard adds guard skipping from a
-   point between the two loops to the end of EPILOG.  Edges GUARD_EDGE
-   and MERGE_EDGE are the two pred edges of merge_bb at the end of EPILOG.
-   The CFG looks like:
-
-     loop:
-       header_a:
-	 i_1 = PHI<i_0, i_2>;
-	 ...
-	 i_2 = i_1 + 1;
-	 if (cond_a)
-	   goto latch_a;
-	 else
-	   goto exit_a;
-       latch_a:
-	 goto header_a;
-
-       exit_a:
-
-       guard_bb:
-	 if (cond)
-	   goto merge_bb;
-	 else
-	   goto epilog_loop;
-
-       ;; fall_through_bb
-
-     epilog_loop:
-       header_b:
-	 i_3 = PHI<i_2, i_4>;
-	 ...
-	 i_4 = i_3 + 1;
-	 if (cond_b)
-	   goto latch_b;
-	 else
-	   goto merge_bb;
-       latch_b:
-	 goto header_b;
-
-       merge_bb:
-	 ; PHI node (i_y = PHI<i_2, i_4>) to be created at merge point.
-
-       exit_bb:
-	 i_x = PHI<i_4>;  ;Use of i_4 to be replaced with i_y in merge_bb.
-
-   For each name used out side EPILOG (i.e - for each name that has a lcssa
-   phi in exit_bb) we create a new PHI in merge_bb.  The new PHI has two
-   args corresponding to GUARD_EDGE and MERGE_EDGE.  Arg for MERGE_EDGE is
-   the arg of the original PHI in exit_bb, arg for GUARD_EDGE is defined
-   by LOOP and is found in the exit bb of LOOP.  Arg of the original PHI
-   in exit_bb will also be updated.  */
-
-static void
-slpeel_update_phi_nodes_for_guard2 (class loop *loop, class loop *epilog,
-				    edge guard_edge, edge merge_edge)
-{
-  gphi_iterator gsi;
-  basic_block merge_bb = guard_edge->dest;
-
-  gcc_assert (single_succ_p (merge_bb));
-  edge e = single_succ_edge (merge_bb);
-  basic_block exit_bb = e->dest;
-  gcc_assert (single_pred_p (exit_bb));
-  gcc_assert (single_pred (exit_bb) == single_exit (epilog)->dest);
-
-  for (gsi = gsi_start_phis (exit_bb); !gsi_end_p (gsi); gsi_next (&gsi))
-    {
-      gphi *update_phi = gsi.phi ();
-      tree old_arg = PHI_ARG_DEF (update_phi, 0);
-
-      tree merge_arg = NULL_TREE;
-
-      /* If the old argument is a SSA_NAME use its current_def.  */
-      if (TREE_CODE (old_arg) == SSA_NAME)
-	merge_arg = get_current_def (old_arg);
-      /* If it's a constant or doesn't have a current_def, just use the old
-	 argument.  */
-      if (!merge_arg)
-	merge_arg = old_arg;
-
-      tree guard_arg = find_guard_arg (loop, epilog, update_phi);
-      /* If the var is live after loop but not a reduction, we simply
-	 use the old arg.  */
-      if (!guard_arg)
-	guard_arg = old_arg;
-
-      /* Create new phi node in MERGE_BB:  */
-      tree new_res = copy_ssa_name (PHI_RESULT (update_phi));
-      gphi *merge_phi = create_phi_node (new_res, merge_bb);
-
-      /* MERGE_BB has two incoming edges: GUARD_EDGE and MERGE_EDGE, Set
-	 the two PHI args in merge_phi for these edges.  */
-      add_phi_arg (merge_phi, merge_arg, merge_edge, UNKNOWN_LOCATION);
-      add_phi_arg (merge_phi, guard_arg, guard_edge, UNKNOWN_LOCATION);
-
-      /* Update the original phi in exit_bb.  */
-      adjust_phi_and_debug_stmts (update_phi, e, new_res);
-    }
-}
-
-/* EPILOG loop is duplicated from the original loop for vectorizing,
-   the arg of its loop closed ssa PHI needs to be updated.  */
-
-static void
-slpeel_update_phi_nodes_for_lcssa (class loop *epilog)
-{
-  gphi_iterator gsi;
-  basic_block exit_bb = single_exit (epilog)->dest;
-
-  gcc_assert (single_pred_p (exit_bb));
-  edge e = EDGE_PRED (exit_bb, 0);
-  for (gsi = gsi_start_phis (exit_bb); !gsi_end_p (gsi); gsi_next (&gsi))
-    rename_use_op (PHI_ARG_DEF_PTR_FROM_EDGE (gsi.phi (), e));
-}
-
-/* EPILOGUE_VINFO is an epilogue loop that we now know would need to
-   iterate exactly CONST_NITERS times.  Make a final decision about
-   whether the epilogue loop should be used, returning true if so.  */
-
-static bool
-vect_update_epilogue_niters (loop_vec_info epilogue_vinfo,
-			     unsigned HOST_WIDE_INT const_niters)
-{
-  /* Avoid wrap-around when computing const_niters - 1.  Also reject
-     using an epilogue loop for a single scalar iteration, even if
-     we could in principle implement that using partial vectors.  */
-  unsigned int gap_niters = LOOP_VINFO_PEELING_FOR_GAPS (epilogue_vinfo);
-  if (const_niters <= gap_niters + 1)
-    return false;
-
-  /* Install the number of iterations.  */
-  tree niters_type = TREE_TYPE (LOOP_VINFO_NITERS (epilogue_vinfo));
-  tree niters_tree = build_int_cst (niters_type, const_niters);
-  tree nitersm1_tree = build_int_cst (niters_type, const_niters - 1);
-
-  LOOP_VINFO_NITERS (epilogue_vinfo) = niters_tree;
-  LOOP_VINFO_NITERSM1 (epilogue_vinfo) = nitersm1_tree;
-
-  /* Decide what to do if the number of epilogue iterations is not
-     a multiple of the epilogue loop's vectorization factor.  */
-  return vect_determine_partial_vectors_and_peeling (epilogue_vinfo, true);
 }
 
 /* LOOP_VINFO is an epilogue loop whose corresponding main loop can be skipped.
@@ -2647,7 +3107,6 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
   int estimated_vf;
   int prolog_peeling = 0;
   bool vect_epilogues = loop_vinfo->epilogue_vinfos.length () > 0;
-  bool vect_epilogues_updated_niters = false;
   /* We currently do not support prolog peeling if the target alignment is not
      known at compile time.  'vect_gen_prolog_loop_niters' depends on the
      target alignment being constant.  */
@@ -2665,6 +3124,12 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
     bound_epilog += vf - 1;
   if (LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo))
     bound_epilog += 1;
+
+  /* For early breaks the scalar loop needs to execute at most VF times
+     to find the element that caused the break.  */
+  if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
+    bound_epilog = vf;
+
   bool epilog_peeling = maybe_ne (bound_epilog, 0U);
   poly_uint64 bound_scalar = bound_epilog;
 
@@ -2758,8 +3223,13 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
   tree niters_prolog;
   int bound_prolog = 0;
   if (prolog_peeling)
-    niters_prolog = vect_gen_prolog_loop_niters (loop_vinfo, anchor,
-						  &bound_prolog);
+    {
+      niters_prolog = vect_gen_prolog_loop_niters (loop_vinfo, anchor,
+						    &bound_prolog);
+      /* If algonment peeling is known, we will always execute prolog.  */
+      if (TREE_CODE (niters_prolog) == INTEGER_CST)
+	prob_prolog = profile_probability::always ();
+    }
   else
     niters_prolog = build_int_cst (type, 0);
 
@@ -2775,36 +3245,6 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
   tree before_loop_niters = LOOP_VINFO_NITERS (loop_vinfo);
   edge update_e = NULL, skip_e = NULL;
   unsigned int lowest_vf = constant_lower_bound (vf);
-  /* If we know the number of scalar iterations for the main loop we should
-     check whether after the main loop there are enough iterations left over
-     for the epilogue.  */
-  if (vect_epilogues
-      && LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo)
-      && prolog_peeling >= 0
-      && known_eq (vf, lowest_vf))
-    {
-      unsigned HOST_WIDE_INT eiters
-	= (LOOP_VINFO_INT_NITERS (loop_vinfo)
-	   - LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo));
-
-      eiters -= prolog_peeling;
-      eiters
-	= eiters % lowest_vf + LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo);
-
-      while (!vect_update_epilogue_niters (epilogue_vinfo, eiters))
-	{
-	  delete epilogue_vinfo;
-	  epilogue_vinfo = NULL;
-	  if (loop_vinfo->epilogue_vinfos.length () == 0)
-	    {
-	      vect_epilogues = false;
-	      break;
-	    }
-	  epilogue_vinfo = loop_vinfo->epilogue_vinfos[0];
-	  loop_vinfo->epilogue_vinfos.ordered_remove (0);
-	}
-      vect_epilogues_updated_niters = true;
-    }
   /* Prolog loop may be skipped.  */
   bool skip_prolog = (prolog_peeling != 0);
   /* Skip this loop to epilog when there are not enough iterations to enter this
@@ -2824,14 +3264,17 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 				  bound_prolog + bound_epilog)
 		      : (!LOOP_REQUIRES_VERSIONING (loop_vinfo)
 			 || vect_epilogues));
+
   /* Epilog loop must be executed if the number of iterations for epilog
      loop is known at compile time, otherwise we need to add a check at
      the end of vector loop and skip to the end of epilog loop.  */
   bool skip_epilog = (prolog_peeling < 0
 		      || !LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo)
 		      || !vf.is_constant ());
-  /* PEELING_FOR_GAPS is special because epilog loop must be executed.  */
-  if (LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo))
+  /* PEELING_FOR_GAPS and peeling for early breaks are special because epilog
+     loop must be executed.  */
+  if (LOOP_VINFO_PEELING_FOR_GAPS (loop_vinfo)
+      || LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
     skip_epilog = false;
 
   class loop *scalar_loop = LOOP_VINFO_SCALAR_LOOP (loop_vinfo);
@@ -2858,32 +3301,42 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
       if (prob_vector.initialized_p ())
 	{
 	  scale_bbs_frequencies (&bb_before_loop, 1, prob_vector);
-	  scale_loop_profile (loop, prob_vector, 0);
+	  scale_loop_profile (loop, prob_vector, -1);
 	}
     }
 
   if (vect_epilogues)
-    /* Make sure to set the epilogue's epilogue scalar loop, such that we can
-       use the original scalar loop as remaining epilogue if necessary.  */
-    LOOP_VINFO_SCALAR_LOOP (epilogue_vinfo)
-      = LOOP_VINFO_SCALAR_LOOP (loop_vinfo);
+    {
+      /* Make sure to set the epilogue's epilogue scalar loop, such that we can
+	 use the original scalar loop as remaining epilogue if necessary.  */
+      LOOP_VINFO_SCALAR_LOOP (epilogue_vinfo)
+	= LOOP_VINFO_SCALAR_LOOP (loop_vinfo);
+      LOOP_VINFO_SCALAR_IV_EXIT (epilogue_vinfo)
+	= LOOP_VINFO_SCALAR_IV_EXIT (loop_vinfo);
+    }
 
   if (prolog_peeling)
     {
       e = loop_preheader_edge (loop);
-      gcc_checking_assert (slpeel_can_duplicate_loop_p (loop, e));
+      edge exit_e = LOOP_VINFO_IV_EXIT (loop_vinfo);
+      gcc_checking_assert (slpeel_can_duplicate_loop_p (loop, exit_e, e)
+			   && !LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo));
 
       /* Peel prolog and put it on preheader edge of loop.  */
-      prolog = slpeel_tree_duplicate_loop_to_edge_cfg (loop, scalar_loop, e);
+      edge scalar_e = LOOP_VINFO_SCALAR_IV_EXIT (loop_vinfo);
+      edge prolog_e = NULL;
+      prolog = slpeel_tree_duplicate_loop_to_edge_cfg (loop, exit_e,
+						       scalar_loop, scalar_e,
+						       e, &prolog_e);
       gcc_assert (prolog);
       prolog->force_vectorize = false;
-      slpeel_update_phi_nodes_for_loops (loop_vinfo, prolog, loop, true);
+
       first_loop = prolog;
       reset_original_copy_tables ();
 
       /* Update the number of iterations for prolog loop.  */
       tree step_prolog = build_one_cst (TREE_TYPE (niters_prolog));
-      vect_set_loop_condition (prolog, NULL, niters_prolog,
+      vect_set_loop_condition (prolog, prolog_e, NULL, niters_prolog,
 			       step_prolog, NULL_TREE, false);
 
       /* Skip the prolog loop.  */
@@ -2903,7 +3356,7 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	  slpeel_update_phi_nodes_for_guard1 (prolog, loop, guard_e, e);
 
 	  scale_bbs_frequencies (&bb_after_prolog, 1, prob_prolog);
-	  scale_loop_profile (prolog, prob_prolog, bound_prolog);
+	  scale_loop_profile (prolog, prob_prolog, bound_prolog - 1);
 	}
 
       /* Update init address of DRs.  */
@@ -2933,11 +3386,12 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
       adjust_vec_debug_stmts ();
       scev_reset ();
     }
+  basic_block bb_before_epilog = NULL;
 
   if (epilog_peeling)
     {
-      e = single_exit (loop);
-      gcc_checking_assert (slpeel_can_duplicate_loop_p (loop, e));
+      e = LOOP_VINFO_IV_EXIT (loop_vinfo);
+      gcc_checking_assert (slpeel_can_duplicate_loop_p (loop, e, e));
 
       /* Peel epilog and put it on exit edge of loop.  If we are vectorizing
 	 said epilog then we should use a copy of the main loop as a starting
@@ -2946,12 +3400,20 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	 If we are not vectorizing the epilog then we should use the scalar loop
 	 as the transformations mentioned above make less or no sense when not
 	 vectorizing.  */
+      edge scalar_e = LOOP_VINFO_SCALAR_IV_EXIT (loop_vinfo);
       epilog = vect_epilogues ? get_loop_copy (loop) : scalar_loop;
-      epilog = slpeel_tree_duplicate_loop_to_edge_cfg (loop, epilog, e);
-      gcc_assert (epilog);
+      edge epilog_e = vect_epilogues ? e : scalar_e;
+      edge new_epilog_e = NULL;
+      auto_vec<basic_block> doms;
+      epilog
+	= slpeel_tree_duplicate_loop_to_edge_cfg (loop, e, epilog, epilog_e, e,
+						  &new_epilog_e, true, &doms);
 
+      LOOP_VINFO_EPILOGUE_IV_EXIT (loop_vinfo) = new_epilog_e;
+      gcc_assert (epilog);
+      gcc_assert (new_epilog_e);
       epilog->force_vectorize = false;
-      slpeel_update_phi_nodes_for_loops (loop_vinfo, loop, epilog, false);
+      bb_before_epilog = loop_preheader_edge (epilog)->src;
 
       /* Scalar version loop may be preferred.  In this case, add guard
 	 and skip to epilog.  Note this only happens when the number of
@@ -2979,6 +3441,7 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 
 	  /* Simply propagate profile info from guard_bb to guard_to which is
 	     a merge point of control flow.  */
+	  profile_count old_count = guard_to->count;
 	  guard_to->count = guard_bb->count;
 
 	  /* Restore the counts of the epilog loop if we didn't use the scalar loop. */
@@ -2994,9 +3457,16 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	      free (bbs);
 	      free (original_bbs);
 	    }
+	  else if (old_count.nonzero_p ())
+	    scale_loop_profile (epilog, guard_to->count.probability_in (old_count), -1);
+
+	  /* Only need to handle basic block before epilog loop if it's not
+	     the guard_bb, which is the case when skip_vector is true.  */
+	  if (guard_bb != bb_before_epilog && single_pred_p (bb_before_epilog))
+	    bb_before_epilog->count = single_pred_edge (bb_before_epilog)->count ();
+	  bb_before_epilog = loop_preheader_edge (epilog)->src;
 	}
 
-      basic_block bb_before_epilog = loop_preheader_edge (epilog)->src;
       /* If loop is peeled for non-zero constant times, now niters refers to
 	 orig_niters - prolog_peeling, it won't overflow even the orig_niters
 	 overflows.  */
@@ -3020,23 +3490,59 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	 niters_vector_mult_vf steps.  */
       gcc_checking_assert (vect_can_advance_ivs_p (loop_vinfo));
       update_e = skip_vector ? e : loop_preheader_edge (epilog);
-      vect_update_ivs_after_vectorizer (loop_vinfo, niters_vector_mult_vf,
-					update_e);
+      if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
+	update_e = single_succ_edge (LOOP_VINFO_IV_EXIT (loop_vinfo)->dest);
 
-      if (skip_epilog)
+      /* If we have a peeled vector iteration, all exits are the same, leave it
+	 and so the main exit needs to be treated the same as the alternative
+	 exits in that we leave their updates to vectorizable_live_operations.
+	 */
+      if (!LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo))
+	vect_update_ivs_after_vectorizer (loop_vinfo, niters_vector_mult_vf,
+					  update_e);
+
+      /* If we have a peeled vector iteration we will never skip the epilog loop
+	 and we can simplify the cfg a lot by not doing the edge split.  */
+      if (skip_epilog || LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
 	{
 	  guard_cond = fold_build2 (EQ_EXPR, boolean_type_node,
 				    niters, niters_vector_mult_vf);
-	  guard_bb = single_exit (loop)->dest;
-	  guard_to = split_edge (single_exit (epilog));
+
+	  guard_bb = LOOP_VINFO_IV_EXIT (loop_vinfo)->dest;
+	  edge epilog_e = LOOP_VINFO_EPILOGUE_IV_EXIT (loop_vinfo);
+	  guard_to = epilog_e->dest;
 	  guard_e = slpeel_add_loop_guard (guard_bb, guard_cond, guard_to,
 					   skip_vector ? anchor : guard_bb,
 					   prob_epilog.invert (),
 					   irred_flag);
+	  doms.safe_push (guard_to);
 	  if (vect_epilogues)
 	    epilogue_vinfo->skip_this_loop_edge = guard_e;
-	  slpeel_update_phi_nodes_for_guard2 (loop, epilog, guard_e,
-					      single_exit (epilog));
+	  edge main_iv = LOOP_VINFO_IV_EXIT (loop_vinfo);
+	  gphi_iterator gsi2 = gsi_start_phis (main_iv->dest);
+	  for (gphi_iterator gsi = gsi_start_phis (guard_to);
+	       !gsi_end_p (gsi); gsi_next (&gsi))
+	    {
+	      /* We are expecting all of the PHIs we have on epilog_e
+		 to be also on the main loop exit.  But sometimes
+		 a stray virtual definition can appear at epilog_e
+		 which we can then take as the same on all exits,
+		 we've removed the LC SSA PHI on the main exit before
+		 so we wouldn't need to create a loop PHI for it.  */
+	      if (virtual_operand_p (gimple_phi_result (*gsi))
+		  && (gsi_end_p (gsi2)
+		      || !virtual_operand_p (gimple_phi_result (*gsi2))))
+		add_phi_arg (*gsi,
+			     gimple_phi_arg_def_from_edge (*gsi, epilog_e),
+			     guard_e, UNKNOWN_LOCATION);
+	      else
+		{
+		  add_phi_arg (*gsi, gimple_phi_result (*gsi2), guard_e,
+			       UNKNOWN_LOCATION);
+		  gsi_next (&gsi2);
+		}
+	    }
+
 	  /* Only need to handle basic block before epilog loop if it's not
 	     the guard_bb, which is the case when skip_vector is true.  */
 	  if (guard_bb != bb_before_epilog)
@@ -3045,17 +3551,42 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 
 	      scale_bbs_frequencies (&bb_before_epilog, 1, prob_epilog);
 	    }
-	  scale_loop_profile (epilog, prob_epilog, 0);
+	  scale_loop_profile (epilog, prob_epilog, -1);
 	}
-      else
-	slpeel_update_phi_nodes_for_lcssa (epilog);
+
+      /* Recalculate the dominators after adding the guard edge.  */
+      if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
+	iterate_fix_dominators (CDI_DOMINATORS, doms, false);
+
+      /* When we do not have a loop-around edge to the epilog we know
+	 the vector loop covered at least VF scalar iterations unless
+	 we have early breaks.
+	 Update any known upper bound with this knowledge.  */
+      if (! skip_vector
+	  && ! LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
+	{
+	  if (epilog->any_upper_bound)
+	    epilog->nb_iterations_upper_bound -= lowest_vf;
+	  if (epilog->any_likely_upper_bound)
+	    epilog->nb_iterations_likely_upper_bound -= lowest_vf;
+	  if (epilog->any_estimate)
+	    epilog->nb_iterations_estimate -= lowest_vf;
+	}
 
       unsigned HOST_WIDE_INT bound;
       if (bound_scalar.is_constant (&bound))
 	{
 	  gcc_assert (bound != 0);
+	  /* Adjust the upper bound by the extra peeled vector iteration if we
+	     are an epilogue of an peeled vect loop and not VLA.  For VLA the
+	     loop bounds are unknown.  */
+	  if (LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo)
+	      && vf.is_constant ())
+	    bound += vf.to_constant ();
 	  /* -1 to convert loop iterations to latch iterations.  */
 	  record_niter_bound (epilog, bound - 1, false, true);
+	  scale_loop_profile (epilog, profile_probability::always (),
+			      bound - 1);
 	}
 
       delete_update_ssa ();
@@ -3067,6 +3598,8 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
     {
       epilog->aux = epilogue_vinfo;
       LOOP_VINFO_LOOP (epilogue_vinfo) = epilog;
+      LOOP_VINFO_IV_EXIT (epilogue_vinfo)
+	= LOOP_VINFO_EPILOGUE_IV_EXIT (loop_vinfo);
 
       loop_constraint_clear (epilog, LOOP_C_INFINITE);
 
@@ -3081,9 +3614,7 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	 skip_e edge.  */
       if (skip_vector)
 	{
-	  gcc_assert (update_e != NULL
-		      && skip_e != NULL
-		      && !vect_epilogues_updated_niters);
+	  gcc_assert (update_e != NULL && skip_e != NULL);
 	  gphi *new_phi = create_phi_node (make_ssa_name (TREE_TYPE (niters)),
 					   update_e->dest);
 	  tree new_ssa = make_ssa_name (TREE_TYPE (niters));
@@ -3114,28 +3645,24 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	 loop and its prologue.  */
       *advance = niters;
 
-      if (!vect_epilogues_updated_niters)
-	{
-	  /* Subtract the number of iterations performed by the vectorized loop
-	     from the number of total iterations.  */
-	  tree epilogue_niters = fold_build2 (MINUS_EXPR, TREE_TYPE (niters),
-					      before_loop_niters,
-					      niters);
+      /* Subtract the number of iterations performed by the vectorized loop
+	 from the number of total iterations.  */
+      tree epilogue_niters = fold_build2 (MINUS_EXPR, TREE_TYPE (niters),
+					  before_loop_niters,
+					  niters);
 
-	  LOOP_VINFO_NITERS (epilogue_vinfo) = epilogue_niters;
-	  LOOP_VINFO_NITERSM1 (epilogue_vinfo)
-	    = fold_build2 (MINUS_EXPR, TREE_TYPE (epilogue_niters),
-			   epilogue_niters,
-			   build_one_cst (TREE_TYPE (epilogue_niters)));
+      LOOP_VINFO_NITERS (epilogue_vinfo) = epilogue_niters;
+      LOOP_VINFO_NITERSM1 (epilogue_vinfo)
+	= fold_build2 (MINUS_EXPR, TREE_TYPE (epilogue_niters),
+		       epilogue_niters,
+		       build_one_cst (TREE_TYPE (epilogue_niters)));
 
-	  /* Decide what to do if the number of epilogue iterations is not
-	     a multiple of the epilogue loop's vectorization factor.
-	     We should have rejected the loop during the analysis phase
-	     if this fails.  */
-	  if (!vect_determine_partial_vectors_and_peeling (epilogue_vinfo,
-							   true))
-	    gcc_unreachable ();
-	}
+      /* Decide what to do if the number of epilogue iterations is not
+	 a multiple of the epilogue loop's vectorization factor.
+	 We should have rejected the loop during the analysis phase
+	 if this fails.  */
+      bool res = vect_determine_partial_vectors_and_peeling (epilogue_vinfo);
+      gcc_assert (res);
     }
 
   adjust_vec.release ();
@@ -3455,7 +3982,7 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
     }
 
   tree cost_name = NULL_TREE;
-  profile_probability prob2 = profile_probability::uninitialized ();
+  profile_probability prob2 = profile_probability::always ();
   if (cond_expr
       && EXPR_P (cond_expr)
       && (version_niter
@@ -3468,7 +3995,7 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
 						      is_gimple_val, NULL_TREE);
       /* Split prob () into two so that the overall probability of passing
 	 both the cost-model and versioning checks is the orig prob.  */
-      prob2 = prob.split (prob);
+      prob2 = prob = prob.sqrt ();
     }
 
   if (version_niter)
@@ -3572,7 +4099,7 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
     {
       gcc_assert (scalar_loop);
       condition_bb = gimple_bb (loop_vectorized_call);
-      cond = as_a <gcond *> (last_stmt (condition_bb));
+      cond = as_a <gcond *> (*gsi_last_bb (condition_bb));
       gimple_cond_set_condition_from_tree (cond, cond_expr);
       update_stmt (cond);
 
@@ -3590,9 +4117,24 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
       te->probability = prob;
       fe->probability = prob.invert ();
       /* We can scale loops counts immediately but have to postpone
-         scaling the scalar loop because we re-use it during peeling.  */
-      scale_loop_frequencies (loop_to_version, te->probability);
-      LOOP_VINFO_SCALAR_LOOP_SCALING (loop_vinfo) = fe->probability;
+	 scaling the scalar loop because we re-use it during peeling.
+
+	 Ifcvt duplicates loop preheader, loop body and produces an basic
+	 block after loop exit.  We need to scale all that.  */
+      basic_block preheader = loop_preheader_edge (loop_to_version)->src;
+      preheader->count = preheader->count.apply_probability (prob * prob2);
+      scale_loop_frequencies (loop_to_version, prob * prob2);
+      /* When the loop has multiple exits then we can only version itself.
+	This is denoted by loop_to_version == loop.  In this case we can
+	do the versioning by selecting the exit edge the vectorizer is
+	currently using.  */
+      edge exit_edge;
+      if (loop_to_version == loop)
+       exit_edge = LOOP_VINFO_IV_EXIT (loop_vinfo);
+      else
+       exit_edge = single_exit (loop_to_version);
+      exit_edge->dest->count = preheader->count;
+      LOOP_VINFO_SCALAR_LOOP_SCALING (loop_vinfo) = (prob * prob2).invert ();
 
       nloop = scalar_loop;
       if (dump_enabled_p ())
@@ -3612,7 +4154,15 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
 
       initialize_original_copy_tables ();
       nloop = loop_version (loop_to_version, cond_expr, &condition_bb,
-			    prob, prob.invert (), prob, prob.invert (), true);
+			    prob * prob2, (prob * prob2).invert (),
+			    prob * prob2, (prob * prob2).invert (),
+			    true);
+      /* We will later insert second conditional so overall outcome of
+	 both is prob * prob2.  */
+      edge true_e, false_e;
+      extract_true_false_edges_from_block (condition_bb, &true_e, &false_e);
+      true_e->probability = prob;
+      false_e->probability = prob.invert ();
       gcc_assert (nloop);
       nloop = get_loop_copy (loop);
 
@@ -3660,12 +4210,23 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
 	 If loop versioning wasn't done from loop, but scalar_loop instead,
 	 merge_bb will have already just a single successor.  */
 
-      merge_bb = single_exit (loop_to_version)->dest;
+      /* When the loop has multiple exits then we can only version itself.
+	 This is denoted by loop_to_version == loop.  In this case we can
+	 do the versioning by selecting the exit edge the vectorizer is
+	 currently using.  */
+      edge exit_edge;
+      if (loop_to_version == loop)
+	exit_edge = LOOP_VINFO_IV_EXIT (loop_vinfo);
+      else
+	exit_edge = single_exit (loop_to_version);
+
+      gcc_assert (exit_edge);
+      merge_bb = exit_edge->dest;
       if (EDGE_COUNT (merge_bb->preds) >= 2)
 	{
 	  gcc_assert (EDGE_COUNT (merge_bb->preds) >= 2);
-	  new_exit_bb = split_edge (single_exit (loop_to_version));
-	  new_exit_e = single_exit (loop_to_version);
+	  new_exit_bb = split_edge (exit_edge);
+	  new_exit_e = exit_edge;
 	  e = EDGE_SUCC (new_exit_bb, 0);
 
 	  for (gsi = gsi_start_phis (merge_bb); !gsi_end_p (gsi);
@@ -3708,6 +4269,7 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
       edge e2 = make_edge (e->src, false_e->dest, EDGE_FALSE_VALUE);
       e->probability = prob2;
       e2->probability = prob2.invert ();
+      e->dest->count = e->count ();
       set_immediate_dominator (CDI_DOMINATORS, false_e->dest, e->src);
       auto_vec<basic_block, 3> adj;
       for (basic_block son = first_dom_son (CDI_DOMINATORS, e->dest);
@@ -3717,6 +4279,8 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
 	  adj.safe_push (son);
       for (auto son : adj)
 	set_immediate_dominator (CDI_DOMINATORS, son, e->src);
+      //debug_bb (condition_bb);
+      //debug_bb (e->src);
     }
 
   if (version_niter)

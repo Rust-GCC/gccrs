@@ -1,4 +1,5 @@
 // { dg-do preprocess { target c++14 } }
+// { dg-add-options no_pch }
 
 #include <utility>
 #include <tuple>
@@ -8,10 +9,12 @@
 #include <chrono>
 #include <string>
 #include <complex>
+#include <algorithm>
 #include <iomanip>
 #include <shared_mutex>
 #include <map>
 #include <set>
+#include <iterator>
 
 #ifndef  __cpp_lib_integer_sequence
 #  error "__cpp_lib_integer_sequence"
@@ -107,7 +110,7 @@
 #  error "<shared_mutex>"
 #endif
 
-#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
+#if defined(_GLIBCXX_HAS_GTHREADS)
 #  ifndef  __cpp_lib_shared_timed_mutex
 #    error "__cpp_lib_shared_timed_mutex"
 #  elif  __cpp_lib_shared_timed_mutex != 201402

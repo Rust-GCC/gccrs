@@ -1,6 +1,6 @@
 (* ShortWholeIO.mod implements input/output of SHORTINT/SHORTCARD over channels.
 
-Copyright (C) 2013-2023 Free Software Foundation, Inc.
+Copyright (C) 2013-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -33,14 +33,13 @@ FROM StringConvert IMPORT IntegerToString, CardinalToString ;
 FROM WholeConv IMPORT ScanInt, ScanCard ;
 FROM StringChan IMPORT writeString ;
 FROM IOConsts IMPORT ReadResults ;
+FROM TextUtil IMPORT SkipSpaces ;
 
 
 (* Input and output of whole numbers in decimal text form
      over specified channels.  The read result is of the
      type IOConsts.ReadResults.
 *)
-
-IMPORT IOChan;
 
 (* The text form of a signed whole number is
      ["+" | "-"], decimal digit, {decimal digit}
@@ -63,6 +62,7 @@ VAR
    ch       : CHAR ;
    negative : BOOLEAN ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    negative := FALSE ;
    c := 0 ;
@@ -114,9 +114,9 @@ PROCEDURE WriteInt (cid: IOChan.ChanId; int: SHORTINT;
 VAR
    s: String ;
 BEGIN
-   s := IntegerToString(int, width, ' ', TRUE, 10, FALSE) ;
-   writeString(cid, s) ;
-   s := KillString(s)
+   s := IntegerToString (int, width, ' ', int < 0, 10, FALSE) ;
+   writeString (cid, s) ;
+   s := KillString (s)
 END WriteInt ;
 
 
@@ -133,6 +133,7 @@ VAR
    ch       : CHAR ;
    c        : SHORTCARD ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    c := 0 ;
    nextState := ScanCard ;

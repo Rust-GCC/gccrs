@@ -24,8 +24,10 @@ main1 ()
    }
 
   /* check results:  */
+#pragma GCC novector
  for (i = 0; i < N; i++)
    {
+#pragma GCC novector
     for (j = 0; j < N; j++) 
       {
         if (a[i][j] != 8)

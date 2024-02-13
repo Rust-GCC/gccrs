@@ -13,6 +13,7 @@
 module rt.lifetime;
 
 import core.attribute : weak;
+import core.internal.array.utils : __arrayStart, __arrayClearPad;
 import core.memory;
 debug(PRINTF) import core.stdc.stdio;
 static import rt.tlsgc;
@@ -226,7 +227,6 @@ size_t structTypeInfoSize(const TypeInfo ti) pure nothrow @nogc
 private class ArrayAllocLengthLock
 {}
 
-
 /**
   Set the allocated length of the array block.  This is called
   any time an array is appended to or its length is set.
@@ -387,14 +387,6 @@ private size_t __arrayAllocLength(ref BlkInfo info, const TypeInfo tinext) pure 
 }
 
 /**
-  get the start of the array for the given block
-  */
-private void *__arrayStart(return scope BlkInfo info) nothrow pure
-{
-    return info.base + ((info.size & BIGLENGTHMASK) ? LARGEPREFIX : 0);
-}
-
-/**
   get the padding required to allocate size bytes.  Note that the padding is
   NOT included in the passed in size.  Therefore, do NOT call this function
   with the size of an allocated block.
@@ -402,22 +394,6 @@ private void *__arrayStart(return scope BlkInfo info) nothrow pure
 private size_t __arrayPad(size_t size, const TypeInfo tinext) nothrow pure @trusted
 {
     return size > MAXMEDSIZE ? LARGEPAD : ((size > MAXSMALLSIZE ? MEDPAD : SMALLPAD) + structTypeInfoSize(tinext));
-}
-
-/**
-  clear padding that might not be zeroed by the GC (it assumes it is within the
-  requested size from the start, but it is actually at the end of the allocated block)
-  */
-private void __arrayClearPad(ref BlkInfo info, size_t arrsize, size_t padsize) nothrow pure
-{
-    import core.stdc.string;
-    if (padsize > MEDPAD && !(info.attr & BlkAttr.NO_SCAN) && info.base)
-    {
-        if (info.size < PAGESIZE)
-            memset(info.base + arrsize, 0, padsize);
-        else
-            memset(info.base, 0, LARGEPREFIX);
-    }
 }
 
 /**
@@ -676,7 +652,7 @@ Params:
     ti = `TypeInfo` of array type
     arr = array to shrink. Its `.length` is element length, not byte length, despite `void` type
 */
-extern(C) void _d_arrayshrinkfit(const TypeInfo ti, void[] arr) /+nothrow+/
+extern(C) void _d_arrayshrinkfit(const TypeInfo ti, void[] arr) nothrow
 {
     // note, we do not care about shared.  We are setting the length no matter
     // what, so no lock is required.
@@ -701,7 +677,17 @@ extern(C) void _d_arrayshrinkfit(const TypeInfo ti, void[] arr) /+nothrow+/
             {
                 auto oldsize = __arrayAllocLength(info, tinext);
                 if (oldsize > cursize)
-                    finalize_array(arr.ptr + cursize, oldsize - cursize, sti);
+                {
+                    try
+                    {
+                        finalize_array(arr.ptr + cursize, oldsize - cursize, sti);
+                    }
+                    catch (Exception e)
+                    {
+                        import core.exception : onFinalizeError;
+                        onFinalizeError(sti, e);
+                    }
+                }
             }
         }
         // Note: Since we "assume" the append is safe, it means it is not shared.
@@ -1055,118 +1041,9 @@ extern (C) void[] _d_newarrayiT(const TypeInfo ti, size_t length) pure nothrow @
     }
 }
 
-
-/*
- * Helper for creating multi-dimensional arrays
- */
-private void[] _d_newarrayOpT(alias op)(const TypeInfo ti, size_t[] dims)
-{
-    debug(PRINTF) printf("_d_newarrayOpT(ndims = %d)\n", dims.length);
-    if (dims.length == 0)
-        return null;
-
-    void[] foo(const TypeInfo ti, size_t[] dims)
-    {
-        auto tinext = unqualify(ti.next);
-        auto dim = dims[0];
-
-        debug(PRINTF) printf("foo(ti = %p, ti.next = %p, dim = %d, ndims = %d\n", ti, ti.next, dim, dims.length);
-        if (dims.length == 1)
-        {
-            auto r = op(ti, dim);
-            return *cast(void[]*)(&r);
-        }
-
-        auto allocsize = (void[]).sizeof * dim;
-        auto info = __arrayAlloc(allocsize, ti, tinext);
-        auto isshared = typeid(ti) is typeid(TypeInfo_Shared);
-        __setArrayAllocLength(info, allocsize, isshared, tinext);
-        auto p = __arrayStart(info)[0 .. dim];
-
-        foreach (i; 0..dim)
-        {
-            (cast(void[]*)p.ptr)[i] = foo(tinext, dims[1..$]);
-        }
-        return p;
-    }
-
-    auto result = foo(ti, dims);
-    debug(PRINTF) printf("result = %llx\n", result.ptr);
-
-    return result;
-}
-
-
 /**
-Create a new multi-dimensional array
-
-Has two variants:
-- `_d_newarraymTX` which initializes to 0
-- `_d_newarraymiTX` which initializes elements based on `TypeInfo`
-
----
-void main()
-{
-    new int[][](10, 20);
-    // _d_newarraymTX(typeid(float), [10, 20]);
-
-    new float[][][](10, 20, 30);
-    // _d_newarraymiTX(typeid(float), [10, 20, 30]);
-}
----
-
-Params:
-    ti = `TypeInfo` of the array type
-    dims = array length values for each dimension
-
-Returns:
-    newly allocated array
-*/
-extern (C) void[] _d_newarraymTX(const TypeInfo ti, size_t[] dims) @weak
-{
-    debug(PRINTF) printf("_d_newarraymT(dims.length = %d)\n", dims.length);
-
-    if (dims.length == 0)
-        return null;
-    else
-    {
-        return _d_newarrayOpT!(_d_newarrayT)(ti, dims);
-    }
-}
-
-/// ditto
-extern (C) void[] _d_newarraymiTX(const TypeInfo ti, size_t[] dims) @weak
-{
-    debug(PRINTF) printf("_d_newarraymiT(dims.length = %d)\n", dims.length);
-
-    if (dims.length == 0)
-        return null;
-    else
-    {
-        return _d_newarrayOpT!(_d_newarrayiT)(ti, dims);
-    }
-}
-
-/**
-Allocate an uninitialized non-array item.
-
-This is an optimization to avoid things needed for arrays like the __arrayPad(size).
-
-- `_d_newitemU` leaves the item uninitialized
-- `_d_newitemT` zero initializes the item
-- `_d_newitemiT` uses a non-zero initializer from `TypeInfo`
-
-Used to allocate struct instances on the heap.
----
-struct Sz {int x = 0;}
-struct Si {int x = 3;}
-
-void main()
-{
-    new Sz(); // _d_newitemT(typeid(Sz))
-    new Si(); // _d_newitemiT(typeid(Si))
-}
----
+Non-template version of $(REF _d_newitemT, core,lifetime) that does not perform
+initialization. Needed for $(REF allocEntry, rt,aaA).
 
 Params:
     _ti = `TypeInfo` of item to allocate
@@ -1193,26 +1070,6 @@ extern (C) void* _d_newitemU(scope const TypeInfo _ti) pure nothrow @weak
         *cast(TypeInfo*)(p + blkInf.size - tiSize) = cast() ti;
     }
 
-    return p;
-}
-
-/// ditto
-extern (C) void* _d_newitemT(in TypeInfo _ti) pure nothrow @weak
-{
-    import core.stdc.string;
-    auto p = _d_newitemU(_ti);
-    memset(p, 0, _ti.tsize);
-    return p;
-}
-
-/// Same as above, for item with non-zero initializer.
-extern (C) void* _d_newitemiT(in TypeInfo _ti) pure nothrow @weak
-{
-    import core.stdc.string;
-    auto p = _d_newitemU(_ti);
-    auto init = _ti.initializer();
-    assert(init.length <= _ti.tsize);
-    memcpy(p, init.ptr, init.length);
     return p;
 }
 
@@ -1286,7 +1143,7 @@ extern (C) CollectHandler rt_getCollectHandler()
 /**
  *
  */
-extern (C) int rt_hasFinalizerInSegment(void* p, size_t size, uint attr, in void[] segment) nothrow
+extern (C) int rt_hasFinalizerInSegment(void* p, size_t size, uint attr, scope const(void)[] segment) nothrow
 {
     if (attr & BlkAttr.STRUCTFINAL)
     {
@@ -1334,12 +1191,19 @@ int hasArrayFinalizerInSegment(void* p, size_t size, in void[] segment) nothrow
     return cast(size_t)(cast(void*)si.xdtor - segment.ptr) < segment.length;
 }
 
+debug (VALGRIND) import etc.valgrind.valgrind;
+
 // called by the GC
 void finalize_array2(void* p, size_t size) nothrow
 {
     debug(PRINTF) printf("rt_finalize_array2(p = %p)\n", p);
 
     TypeInfo_Struct si = void;
+    debug (VALGRIND)
+    {
+        auto block = p[0..size];
+        disableAddrReportingInRange(block);
+    }
     if (size <= 256)
     {
         si = *cast(TypeInfo_Struct*)(p + size - size_t.sizeof);
@@ -1356,6 +1220,7 @@ void finalize_array2(void* p, size_t size) nothrow
         size = *cast(size_t*)p;
         p += LARGEPREFIX;
     }
+    debug (VALGRIND) enableAddrReportingInRange(block);
 
     try
     {
@@ -2231,148 +2096,6 @@ extern (C) void[] _d_arrayappendwd(ref byte[] x, dchar c) @weak
     return x;
 }
 
-
-/**
-Concatenate two arrays into a new array
-
----
-void main()
-{
-    int[] x = [10, 20, 30];
-    int[] y = [40, 50];
-    int[] c = x ~ y; // _d_arraycatT(typeid(int[]), (cast(byte*) x)[0..x.length], (cast(byte*) y)[0..y.length]);
-}
----
-
-Params:
-    ti = type that the two arrays share
-    x = left hand side array casted to `byte[]`. Despite this cast, its `.length` is original element length, not byte length
-    y = right hand side array casted to `byte[]`. Despite this cast, its `.length` is original element length, not byte length
-Returns:
-    resulting concatenated array, with `.length` equal to new element length despite `byte` type
-*/
-extern (C) byte[] _d_arraycatT(const TypeInfo ti, byte[] x, byte[] y) @weak
-out (result)
-{
-    auto tinext = unqualify(ti.next);
-    auto sizeelem = tinext.tsize;              // array element size
-    debug(PRINTF) printf("_d_arraycatT(%d,%p ~ %d,%p sizeelem = %d => %d,%p)\n", x.length, x.ptr, y.length, y.ptr, sizeelem, result.length, result.ptr);
-    assert(result.length == x.length + y.length);
-
-    // If a postblit is involved, the contents of result might rightly differ
-    // from the bitwise concatenation of x and y.
-    if (!hasPostblit(tinext))
-    {
-        for (size_t i = 0; i < x.length * sizeelem; i++)
-            assert((cast(byte*)result)[i] == (cast(byte*)x)[i]);
-        for (size_t i = 0; i < y.length * sizeelem; i++)
-            assert((cast(byte*)result)[x.length * sizeelem + i] == (cast(byte*)y)[i]);
-    }
-
-    size_t cap = GC.sizeOf(result.ptr);
-    assert(!cap || cap > result.length * sizeelem);
-}
-do
-{
-    import core.stdc.string;
-    version (none)
-    {
-        /* Cannot use this optimization because:
-         *  char[] a, b;
-         *  char c = 'a';
-         *  b = a ~ c;
-         *  c = 'b';
-         * will change the contents of b.
-         */
-        if (!y.length)
-            return x;
-        if (!x.length)
-            return y;
-    }
-
-    auto tinext = unqualify(ti.next);
-    auto sizeelem = tinext.tsize;              // array element size
-    debug(PRINTF) printf("_d_arraycatT(%d,%p ~ %d,%p sizeelem = %d)\n", x.length, x.ptr, y.length, y.ptr, sizeelem);
-    size_t xlen = x.length * sizeelem;
-    size_t ylen = y.length * sizeelem;
-    size_t len  = xlen + ylen;
-
-    if (!len)
-        return null;
-
-    auto info = __arrayAlloc(len, ti, tinext);
-    byte* p = cast(byte*)__arrayStart(info);
-    p[len] = 0; // guessing this is to optimize for null-terminated arrays?
-    memcpy(p, x.ptr, xlen);
-    memcpy(p + xlen, y.ptr, ylen);
-    // do postblit processing
-    __doPostblit(p, xlen + ylen, tinext);
-
-    auto isshared = typeid(ti) is typeid(TypeInfo_Shared);
-    __setArrayAllocLength(info, len, isshared, tinext);
-    return p[0 .. x.length + y.length];
-}
-
-
-/**
-Concatenate multiple arrays at once
-
-This is more efficient than repeatedly concatenating pairs of arrays because the total size is known in advance.
-
-```
-void main()
-{
-    int[] a, b, c;
-    int[] res = a ~ b ~ c;
-    // _d_arraycatnTX(typeid(int[]),
-    //    [(cast(byte*)a.ptr)[0..a.length], (cast(byte*)b.ptr)[0..b.length], (cast(byte*)c.ptr)[0..c.length]]);
-}
-```
-
-Params:
-    ti = type of arrays to concatenate and resulting array
-    arrs = array of arrays to concatenate, cast to `byte[]` while keeping `.length` the same
-
-Returns:
-    newly created concatenated array, `.length` equal to the total element length despite `void` type
-*/
-extern (C) void[] _d_arraycatnTX(const TypeInfo ti, scope byte[][] arrs) @weak
-{
-    import core.stdc.string;
-
-    size_t length;
-    auto tinext = unqualify(ti.next);
-    auto size = tinext.tsize;   // array element size
-
-    foreach (b; arrs)
-        length += b.length;
-
-    if (!length)
-        return null;
-
-    auto allocsize = length * size;
-    auto info = __arrayAlloc(allocsize, ti, tinext);
-    auto isshared = typeid(ti) is typeid(TypeInfo_Shared);
-    __setArrayAllocLength(info, allocsize, isshared, tinext);
-    void *a = __arrayStart (info);
-
-    size_t j = 0;
-    foreach (b; arrs)
-    {
-        if (b.length)
-        {
-            memcpy(a + j, b.ptr, b.length * size);
-            j += b.length * size;
-        }
-    }
-
-    // do postblit processing
-    __doPostblit(a, j, tinext);
-
-    return a[0..length];
-}
-
-
 /**
 Allocate an array literal
 
@@ -2503,52 +2226,6 @@ unittest
     testPostBlit!(const(S))();
 }
 
-// cannot define structs inside unit test block, or they become nested structs.
-version (CoreUnittest)
-{
-    struct S1
-    {
-        int x = 5;
-    }
-    struct S2
-    {
-        int x;
-        this(int x) {this.x = x;}
-    }
-    struct S3
-    {
-        int[4] x;
-        this(int x)
-        {this.x[] = x;}
-    }
-    struct S4
-    {
-        int *x;
-    }
-
-}
-
-unittest
-{
-    auto s1 = new S1;
-    assert(s1.x == 5);
-    assert(GC.getAttr(s1) == BlkAttr.NO_SCAN);
-
-    auto s2 = new S2(3);
-    assert(s2.x == 3);
-    assert(GC.getAttr(s2) == BlkAttr.NO_SCAN);
-
-    auto s3 = new S3(1);
-    assert(s3.x == [1,1,1,1]);
-    assert(GC.getAttr(s3) == BlkAttr.NO_SCAN);
-    debug(SENTINEL) {} else
-        assert(GC.sizeOf(s3) == 16);
-
-    auto s4 = new S4;
-    assert(s4.x == null);
-    assert(GC.getAttr(s4) == 0);
-}
-
 unittest
 {
     // Bugzilla 3454 - Inconsistent flag setting in GC.realloc()
@@ -2570,6 +2247,7 @@ unittest
         assert(GC.getAttr(p) == BlkAttr.NO_SCAN);
     }
     test(16);
+    version (OnlyLowMemUnittests) {} else
     test(1024 * 1024);
 }
 
@@ -2588,7 +2266,7 @@ unittest
 
 unittest
 {
-    // bugzilla 13854
+    // https://issues.dlang.org/show_bug.cgi?id=13854
     auto arr = new ubyte[PAGESIZE]; // ensure page size
     auto info1 = GC.query(arr.ptr);
     assert(info1.base !is arr.ptr); // offset is required for page size or larger
@@ -2631,7 +2309,7 @@ unittest
 
 unittest
 {
-    // bugzilla 13878
+    // https://issues.dlang.org/show_bug.cgi?id=13878
     auto arr = new ubyte[1];
     auto info = GC.query(arr.ptr);
     assert(info.attr & BlkAttr.NO_SCAN); // should be NO_SCAN
@@ -2865,41 +2543,6 @@ unittest
         {
         }
         GC.free(cast(void*)c);
-        return caught;
-    }
-
-    assert( test!Exception);
-    import core.exception : InvalidMemoryOperationError;
-    assert(!test!InvalidMemoryOperationError);
-}
-
-// test struct finalizers exception handling
-debug(SENTINEL) {} else
-unittest
-{
-    bool test(E)()
-    {
-        import core.exception;
-        static struct S1
-        {
-            E exc;
-            ~this() { throw exc; }
-        }
-
-        bool caught = false;
-        S1* s = new S1(new E("test onFinalizeError"));
-        try
-        {
-            GC.runFinalizers((cast(char*)(typeid(S1).xdtor))[0..1]);
-        }
-        catch (FinalizeError err)
-        {
-            caught = true;
-        }
-        catch (E)
-        {
-        }
-        GC.free(s);
         return caught;
     }
 

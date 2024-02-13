@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,7 +39,7 @@ test01()
   VERIFY( res.ptr == s.data() + s.length() );
   // std::from_chars should ignore the current rounding mode
   // and always round to nearest.
-  VERIFY( d == 0.1 );
+  VERIFY( d == (double) 0.1 );
 #endif
 #endif
 }

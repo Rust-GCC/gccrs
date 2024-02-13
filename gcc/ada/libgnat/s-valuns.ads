@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -46,13 +46,14 @@ pragma Assertion_Policy (Pre                => Ignore,
 
 with System.Unsigned_Types;
 with System.Value_U;
+with System.Vs_Uns;
 
 package System.Val_Uns with SPARK_Mode is
    pragma Preelaborate;
 
    subtype Unsigned is Unsigned_Types.Unsigned;
 
-   package Impl is new Value_U (Unsigned);
+   package Impl is new Value_U (Unsigned, System.Vs_Uns.Spec);
 
    procedure Scan_Raw_Unsigned
      (Str : String;

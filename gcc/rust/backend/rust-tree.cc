@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -72,7 +72,6 @@ mark_exp_read (tree exp)
     case ADDR_EXPR:
     case INDIRECT_REF:
     case FLOAT_EXPR:
-    case NON_DEPENDENT_EXPR:
     case VIEW_CONVERT_EXPR:
       mark_exp_read (TREE_OPERAND (exp, 0));
       break;
@@ -128,7 +127,6 @@ mark_use (tree expr, bool rvalue_p, bool read_p,
   switch (TREE_CODE (expr))
     {
     case COMPONENT_REF:
-    case NON_DEPENDENT_EXPR:
       recurse_op[0] = true;
       break;
     case COMPOUND_EXPR:
@@ -4575,7 +4573,6 @@ lvalue_kind (const_tree ref)
 	 lvalues.  */
       return (DECL_NONSTATIC_MEMBER_FUNCTION_P (ref) ? clk_none : clk_ordinary);
 
-    case NON_DEPENDENT_EXPR:
     case PAREN_EXPR:
       return lvalue_kind (TREE_OPERAND (ref, 0));
 
@@ -5375,7 +5372,7 @@ c_common_type_for_mode (machine_mode mode, int unsignedp)
 	   && valid_vector_subparts_p (GET_MODE_NUNITS (mode)))
     {
       unsigned int elem_bits
-	= vector_element_size (GET_MODE_BITSIZE (mode), GET_MODE_NUNITS (mode));
+	= vector_element_size (GET_MODE_PRECISION (mode), GET_MODE_NUNITS (mode));
       tree bool_type = build_nonstandard_boolean_type (elem_bits);
       return build_vector_type_for_mode (bool_type, mode);
     }

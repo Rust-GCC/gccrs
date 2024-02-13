@@ -1,5 +1,5 @@
 /* { dg-do assemble { target aarch64_asm_sve_ok } } */
-/* { dg-options "-O2 -ftree-vectorize -ffast-math --save-temps --param aarch64-sve-compare-costs=0" } */
+/* { dg-options "-O2 -ftree-vectorize -ffast-math --save-temps --param aarch64-vect-compare-costs=0" } */
 
 #include <stdint.h>
 
@@ -30,8 +30,8 @@
 TEST_ALL (TEST_LOOP)
 
 /* { dg-final { scan-assembler-times {\tld1d\tz[0-9]+\.d, p[0-7]/z, \[x[0-9]+, x[0-9]+, lsl 3\]\n} 72 } } */
-/* { dg-final { scan-assembler-times {\tcmpeq\tp[0-7]\.d, p[0-7]/z, z[0-9]+\.d, z[0-9]+\.d\n} 24 } } */
-/* { dg-final { scan-assembler-times {\tfcmeq\tp[0-7]\.d, p[0-7]/z, z[0-9]+\.d, z[0-9]+\.d\n} 12 } } */
+/* { dg-final { scan-assembler-times {\tcmpeq\tp[0-9]+\.d, p[0-7]/z, z[0-9]+\.d, z[0-9]+\.d\n} 24 } } */
+/* { dg-final { scan-assembler-times {\tfcmeq\tp[0-9]+\.d, p[0-7]/z, z[0-9]+\.d, z[0-9]+\.d\n} 12 } } */
 /* { dg-final { scan-assembler-times {\tld1w\tz[0-9]+\.s, p[0-7]/z, \[x[0-9]+, x[0-9]+, lsl 2\]\n} 36 } } */
 /* { dg-final { scan-assembler-times {\tld1w\tz[0-9]+\.s, p[0-7]/z, \[x[0-9]+, z[0-9]+\.s, sxtw 2\]\n} 9 } } */
 /* { dg-final { scan-assembler-times {\tld1w\tz[0-9]+\.s, p[0-7]/z, \[x[0-9]+, z[0-9]+\.s, uxtw 2\]\n} 9 } } */

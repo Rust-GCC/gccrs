@@ -1,5 +1,5 @@
 /* Header for dependency analysis
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -32,13 +32,14 @@ enum gfc_dep_check
 bool gfc_ref_needs_temporary_p (gfc_ref *);
 bool gfc_full_array_ref_p (gfc_ref *, bool *);
 gfc_expr *gfc_get_noncopying_intrinsic_argument (gfc_expr *);
-int gfc_check_fncall_dependency (gfc_expr *, sym_intent, gfc_symbol *,
+bool gfc_check_fncall_dependency (gfc_expr *, sym_intent, gfc_symbol *,
 				 gfc_actual_arglist *, gfc_dep_check);
 int gfc_check_dependency (gfc_expr *, gfc_expr *, bool);
 int gfc_expr_is_one (gfc_expr *, int);
 
-int gfc_dep_resolver (gfc_ref *, gfc_ref *, gfc_reverse *,
+bool gfc_dep_resolver (gfc_ref *, gfc_ref *, gfc_reverse *,
 		      bool identical = false);
-int gfc_are_equivalenced_arrays (gfc_expr *, gfc_expr *);
+bool gfc_are_equivalenced_arrays (gfc_expr *, gfc_expr *);
+bool gfc_omp_expr_prefix_same (gfc_expr *, gfc_expr *);
 
 gfc_expr * gfc_discard_nops (gfc_expr *);

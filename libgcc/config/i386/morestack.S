@@ -1,5 +1,5 @@
 # x86/x86_64 support for -fsplit-stack.
-# Copyright (C) 2009-2023 Free Software Foundation, Inc.
+# Copyright (C) 2009-2024 Free Software Foundation, Inc.
 # Contributed by Ian Lance Taylor <iant@google.com>.
 
 # This file is part of GCC.
@@ -850,7 +850,7 @@ __morestack_make_guard:
 # This is ELF specific.
 
 #if HAVE_INITFINI_ARRAY_SUPPORT
-	.section	.init_array.00000,"aw",@progbits
+	.section	.init_array.00000,"aw",@init_array
 #else
 	.section	.ctors.65535,"aw",@progbits
 #endif

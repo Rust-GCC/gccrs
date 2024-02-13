@@ -1,6 +1,6 @@
 // random number generation (out of line) -*- C++ -*-
 
-// Copyright (C) 2009-2023 Free Software Foundation, Inc.
+// Copyright (C) 2009-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -541,8 +541,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     subtract_with_carry_engine<_UIntType, __w, __s, __r>::
     seed(result_type __value)
     {
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 3809. Is std::subtract_with_carry_engine<uint16_t> supposed to work?
+      // 4014. LWG 3809 changes behavior of some existing code
       std::linear_congruential_engine<uint_least32_t, 40014u, 0u, 2147483563u>
-	__lcg(__value == 0u ? default_seed : __value);
+	__lcg(__value == 0u ? default_seed : __value % 2147483563u);
 
       const size_t __n = (__w + 31) / 32;
 
@@ -1267,7 +1270,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     poisson_distribution<_IntType>::param_type::
     _M_initialize()
     {
-#if _GLIBCXX_USE_C99_MATH_TR1
+#if _GLIBCXX_USE_C99_MATH_FUNCS
       if (_M_mean >= 12)
 	{
 	  const double __m = std::floor(_M_mean);
@@ -1295,7 +1298,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    * A rejection algorithm when mean >= 12 and a simple method based
    * upon the multiplication of uniform random variates otherwise.
-   * NB: The former is available only if _GLIBCXX_USE_C99_MATH_TR1
+   * NB: The former is available only if _GLIBCXX_USE_C99_MATH_FUNCS
    * is defined.
    *
    * Reference:
@@ -1311,7 +1314,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	__detail::_Adaptor<_UniformRandomNumberGenerator, double>
 	  __aurng(__urng);
-#if _GLIBCXX_USE_C99_MATH_TR1
+#if _GLIBCXX_USE_C99_MATH_FUNCS
 	if (__param.mean() >= 12)
 	  {
 	    double __x;
@@ -1479,7 +1482,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       _M_easy = true;
 
-#if _GLIBCXX_USE_C99_MATH_TR1
+#if _GLIBCXX_USE_C99_MATH_FUNCS
       if (_M_t * __p12 >= 8)
 	{
 	  _M_easy = false;
@@ -1550,7 +1553,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /**
    * A rejection algorithm when t * p >= 8 and a simple waiting time
    * method - the second in the referenced book - otherwise.
-   * NB: The former is available only if _GLIBCXX_USE_C99_MATH_TR1
+   * NB: The former is available only if _GLIBCXX_USE_C99_MATH_FUNCS
    * is defined.
    *
    * Reference:
@@ -1571,7 +1574,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__detail::_Adaptor<_UniformRandomNumberGenerator, double>
 	  __aurng(__urng);
 
-#if _GLIBCXX_USE_C99_MATH_TR1
+#if _GLIBCXX_USE_C99_MATH_FUNCS
 	if (!__param._M_easy)
 	  {
 	    double __x;
@@ -3367,7 +3370,7 @@ namespace __detail
       __ret = __sum / __tmp;
       if (__builtin_expect(__ret >= _RealType(1), 0))
 	{
-#if _GLIBCXX_USE_C99_MATH_TR1
+#if _GLIBCXX_USE_C99_MATH_FUNCS
 	  __ret = std::nextafter(_RealType(1), _RealType(0));
 #else
 	  __ret = _RealType(1)

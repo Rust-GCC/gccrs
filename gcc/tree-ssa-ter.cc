@@ -1,5 +1,5 @@
 /* Routines for performing Temporary Expression Replacement (TER) in SSA trees.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod  <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -693,7 +693,7 @@ find_replaceable_in_bb (temp_expr_table *tab, basic_block bb)
       /* Increment counter if this statement sets a local
 	 register variable.  */
       if (gimple_assign_single_p (stmt)
-	  && (TREE_CODE (gimple_assign_lhs (stmt)) == VAR_DECL
+	  && (VAR_P (gimple_assign_lhs (stmt))
 	  && DECL_HARD_REGISTER (gimple_assign_lhs (stmt))))
 	cur_reg_vars_cnt++;
 

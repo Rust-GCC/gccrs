@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2" } */
+/* { dg-options "--param=riscv-autovec-preference=scalable -march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2" } */
 
 #include "riscv_vector.h"
 
@@ -11,4 +11,4 @@ void foo(int32_t *in1, int32_t *in2, int32_t *in3, int32_t *out, size_t n, int c
   __riscv_vse32_v_i32m1(out, c, __riscv_vsetvl_e8mf2 (vl));
 }
 
-/* { dg-final { scan-assembler-times {vsetvli} 8 { target { no-opts "-O0" no-opts "-g" no-opts "-funroll-loops" } } } } */
+/* { dg-final { scan-assembler-times {vsetvli} 7 { target { no-opts "-O0" no-opts "-g" no-opts "-funroll-loops" } } } } */

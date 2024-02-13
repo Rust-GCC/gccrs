@@ -1,6 +1,6 @@
 /* m2type.h header file for m2type.cc.
 
-Copyright (C) 2012-2023 Free Software Foundation, Inc.
+Copyright (C) 2012-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -219,6 +219,8 @@ EXTERN tree m2type_BuildProcTypeParameterDeclaration (location_t location,
                                                       bool isreference);
 EXTERN int m2type_IsAddress (tree type);
 EXTERN tree m2type_GetCardinalAddressType (void);
+EXTERN bool m2type_SameRealType (tree a, tree b);
+
 
 #undef EXTERN
 #endif /* m2type_h  */

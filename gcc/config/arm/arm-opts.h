@@ -1,5 +1,5 @@
 /* Definitions for option handling for ARM.
-   Copyright (C) 1991-2023 Free Software Foundation, Inc.
+   Copyright (C) 1991-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -61,7 +61,9 @@ enum float_abi_type
 enum arm_tp_type {
   TP_AUTO,
   TP_SOFT,
-  TP_CP15
+  TP_TPIDRURW,
+  TP_TPIDRURO,
+  TP_TPIDRPRW
 };
 
 /* Which TLS scheme to use.  */

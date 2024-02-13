@@ -1,4 +1,4 @@
-// Copyright (C) 2002-2023 Free Software Foundation, Inc.
+// Copyright (C) 2002-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -51,9 +51,9 @@ test01()
   oss << setbase(8);
   VERIFY(oss.good());
 
-  // setfil
+  // setfill
   setfill('a');
-  iss >> setfill('a');
+  iss >> setfill('a'); // { dg-warning "deprecated" }
   VERIFY(iss.good());
   oss << setfill('a');
   VERIFY(oss.good());

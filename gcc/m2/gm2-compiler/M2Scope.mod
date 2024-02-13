@@ -1,6 +1,6 @@
 (* M2Scope.mod derive the subset of quadruples for each scope.
 
-Copyright (C) 2003-2023 Free Software Foundation, Inc.
+Copyright (C) 2003-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -349,7 +349,7 @@ BEGIN
 
       END ;
       printf0 ("\n") ;
-      DisplayQuadRange (low, high) ;
+      DisplayQuadRange (scopeSym, low, high) ;
       IF next#NIL
       THEN
          DisplayScope (next)
@@ -410,10 +410,11 @@ END KillScopeBlock ;
 
 
 (*
-   ForeachScopeBlockDo -
+   ForeachScopeBlockDo2 - calls a procedure p for each block of contigeous quadruples
+                          defining an outer scope sb.
 *)
 
-PROCEDURE ForeachScopeBlockDo (sb: ScopeBlock; p: ScopeProcedure) ;
+PROCEDURE ForeachScopeBlockDo2 (sb: ScopeBlock; p: ScopeProcedure2) ;
 BEGIN
    IF DisplayQuadruples
    THEN
@@ -438,7 +439,40 @@ BEGIN
    THEN
       printf0 ("end ForeachScopeBlockDo\n\n")
    END ;
-END ForeachScopeBlockDo ;
+END ForeachScopeBlockDo2 ;
+
+
+(*
+   ForeachScopeBlockDo3 - calls a procedure p for each block of contigeous quadruples
+                          defining an outer scope sb.
+*)
+
+PROCEDURE ForeachScopeBlockDo3 (sb: ScopeBlock; p: ScopeProcedure3) ;
+BEGIN
+   IF DisplayQuadruples
+   THEN
+      printf0 ("ForeachScopeBlockDo\n")
+   END ;
+   WHILE sb#NIL DO
+      WITH sb^ DO
+         IF DisplayQuadruples
+         THEN
+            DisplayScope (sb)
+         END ;
+         enter (sb) ;
+         IF (low # 0) AND (high # 0)
+         THEN
+            p (scopeSym, low, high)
+         END ;
+         leave (sb)
+      END ;
+      sb := sb^.next
+   END ;
+   IF DisplayQuadruples
+   THEN
+      printf0 ("end ForeachScopeBlockDo\n\n")
+   END ;
+END ForeachScopeBlockDo3 ;
 
 
 (*

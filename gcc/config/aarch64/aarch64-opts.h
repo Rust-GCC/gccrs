@@ -1,4 +1,4 @@
-/* Copyright (C) 2011-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2011-2024 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -32,8 +32,6 @@ enum aarch64_processor
 #define AARCH64_CORE(NAME, INTERNAL_IDENT, SCHED, ARCH, FLAGS, COSTS, IMP, PART, VARIANT) \
   INTERNAL_IDENT,
 #include "aarch64-cores.def"
-  /* Used to indicate that no processor has been specified.  */
-  generic,
   /* Used to mark the end of the processor table.  */
   aarch64_none
 };
@@ -75,6 +73,16 @@ enum aarch64_code_model {
   AARCH64_CMODEL_LARGE
 };
 
+/* The register to use as a thread pointer for TLS accesses.
+   tpidr_el0 by default, but can be changed through the -mtp option.  */
+enum aarch64_tp_reg {
+  AARCH64_TPIDR_EL0 = 0,
+  AARCH64_TPIDR_EL1 = 1,
+  AARCH64_TPIDR_EL2 = 2,
+  AARCH64_TPIDR_EL3 = 3,
+  AARCH64_TPIDRRO_EL0 = 4
+};
+
 /* SVE vector register sizes.  */
 enum aarch64_sve_vector_bits_enum {
   SVE_SCALABLE,
@@ -96,6 +104,31 @@ enum stack_protector_guard {
 enum aarch64_key_type {
   AARCH64_KEY_A,
   AARCH64_KEY_B
+};
+
+/* An enum specifying how to handle load and store pairs using
+   a fine-grained policy:
+   - LDP_STP_POLICY_DEFAULT: Use the policy defined in the tuning structure.
+   - LDP_STP_POLICY_ALIGNED: Emit ldp/stp if the source pointer is aligned
+   to at least double the alignment of the type.
+   - LDP_STP_POLICY_ALWAYS: Emit ldp/stp regardless of alignment.
+   - LDP_STP_POLICY_NEVER: Do not emit ldp/stp.  */
+enum aarch64_ldp_stp_policy {
+  AARCH64_LDP_STP_POLICY_DEFAULT,
+  AARCH64_LDP_STP_POLICY_ALIGNED,
+  AARCH64_LDP_STP_POLICY_ALWAYS,
+  AARCH64_LDP_STP_POLICY_NEVER
+};
+
+/* An enum specifying when the early-ra pass should be run:
+   - AARCH64_EARLY_RA_ALL: for all functions
+   - AARCH64_EARLY_RA_STRIDED: for functions that have access to strided
+     multi-register instructions
+   - AARCH64_EARLY_RA_NONE: for no functions.  */
+enum aarch64_early_ra_scope {
+  AARCH64_EARLY_RA_ALL,
+  AARCH64_EARLY_RA_STRIDED,
+  AARCH64_EARLY_RA_NONE
 };
 
 #endif

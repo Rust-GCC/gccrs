@@ -1,5 +1,5 @@
 /* Subroutines used for macro/preprocessor support on the ia-32.
-   Copyright (C) 2008-2023 Free Software Foundation, Inc.
+   Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -148,6 +148,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__lujiazui");
       def_or_undef (parse_in, "__lujiazui__");
       break;
+    case PROCESSOR_YONGFENG:
+      def_or_undef (parse_in, "__yongfeng");
+      def_or_undef (parse_in, "__yongfeng__");
+      break;
     case PROCESSOR_PENTIUM4:
       def_or_undef (parse_in, "__pentium4");
       def_or_undef (parse_in, "__pentium4__");
@@ -210,6 +214,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__grandridge");
       def_or_undef (parse_in, "__grandridge__");
       break;
+    case PROCESSOR_CLEARWATERFOREST:
+      def_or_undef (parse_in, "__clearwaterforest");
+      def_or_undef (parse_in, "__clearwaterforest__");
+      break;
     case PROCESSOR_KNL:
       def_or_undef (parse_in, "__knl");
       def_or_undef (parse_in, "__knl__");
@@ -258,6 +266,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__graniterapids");
       def_or_undef (parse_in, "__graniterapids__");
       break;
+    case PROCESSOR_GRANITERAPIDS_D:
+      def_or_undef (parse_in, "__graniterapids_d");
+      def_or_undef (parse_in, "__graniterapids_d__");
+      break;
     case PROCESSOR_ALDERLAKE:
       def_or_undef (parse_in, "__alderlake");
       def_or_undef (parse_in, "__alderlake__");
@@ -266,6 +278,19 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__rocketlake");
       def_or_undef (parse_in, "__rocketlake__");
       break;
+    case PROCESSOR_ARROWLAKE:
+      def_or_undef (parse_in, "__arrowlake");
+      def_or_undef (parse_in, "__arrowlake__");
+      break;
+    case PROCESSOR_ARROWLAKE_S:
+      def_or_undef (parse_in, "__arrowlake_s");
+      def_or_undef (parse_in, "__arrowlake_s__");
+      break;
+    case PROCESSOR_PANTHERLAKE:
+      def_or_undef (parse_in, "__pantherlake");
+      def_or_undef (parse_in, "__pantherlake__");
+      break;
+
     /* use PROCESSOR_max to not set/unset the arch macro.  */
     case PROCESSOR_max:
       break;
@@ -358,6 +383,9 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     case PROCESSOR_LUJIAZUI:
       def_or_undef (parse_in, "__tune_lujiazui__");
        break;
+    case PROCESSOR_YONGFENG:
+      def_or_undef (parse_in, "__tune_yongfeng__");
+       break;
     case PROCESSOR_PENTIUM4:
       def_or_undef (parse_in, "__tune_pentium4__");
       break;
@@ -401,6 +429,9 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       break;
     case PROCESSOR_GRANDRIDGE:
       def_or_undef (parse_in, "__tune_grandridge__");
+      break;
+    case PROCESSOR_CLEARWATERFOREST:
+      def_or_undef (parse_in, "__tune_clearwaterforest__");
       break;
     case PROCESSOR_KNL:
       def_or_undef (parse_in, "__tune_knl__");
@@ -446,6 +477,18 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       break;
     case PROCESSOR_GRANITERAPIDS:
       def_or_undef (parse_in, "__tune_graniterapids__");
+      break;
+    case PROCESSOR_GRANITERAPIDS_D:
+      def_or_undef (parse_in, "__tune_graniterapids_d__");
+      break;
+    case PROCESSOR_ARROWLAKE:
+      def_or_undef (parse_in, "__tune_arrowlake__");
+      break;
+    case PROCESSOR_ARROWLAKE_S:
+      def_or_undef (parse_in, "__tune_arrowlake_s__");
+      break;
+    case PROCESSOR_PANTHERLAKE:
+      def_or_undef (parse_in, "__tune_pantherlake__");
       break;
     case PROCESSOR_INTEL:
     case PROCESSOR_GENERIC:
@@ -524,7 +567,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
   if (isa_flag & OPTION_MASK_ISA_AVX512BW)
     def_or_undef (parse_in, "__AVX512BW__");
   if (isa_flag & OPTION_MASK_ISA_AVX512VL)
-    def_or_undef (parse_in, "__AVX512VL__");
+    {
+      def_or_undef (parse_in, "__AVX512VL__");
+      def_or_undef (parse_in, "__EVEX256__");
+    }
   if (isa_flag & OPTION_MASK_ISA_AVX512VBMI)
     def_or_undef (parse_in, "__AVX512VBMI__");
   if (isa_flag & OPTION_MASK_ISA_AVX512IFMA)
@@ -677,6 +723,25 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__RAOINT__");
   if (isa_flag2 & OPTION_MASK_ISA2_AMX_COMPLEX)
     def_or_undef (parse_in, "__AMX_COMPLEX__");
+  if (isa_flag2 & OPTION_MASK_ISA2_AVXVNNIINT16)
+    def_or_undef (parse_in, "__AVXVNNIINT16__");
+  if (isa_flag2 & OPTION_MASK_ISA2_SM3)
+    def_or_undef (parse_in, "__SM3__");
+  if (isa_flag2 & OPTION_MASK_ISA2_SHA512)
+    def_or_undef (parse_in, "__SHA512__");
+  if (isa_flag2 & OPTION_MASK_ISA2_SM4)
+    def_or_undef (parse_in, "__SM4__");
+  if (isa_flag2 & OPTION_MASK_ISA2_EVEX512)
+    def_or_undef (parse_in, "__EVEX512__");
+  if (isa_flag2 & OPTION_MASK_ISA2_USER_MSR)
+    def_or_undef (parse_in, "__USER_MSR__");
+  if (isa_flag2 & OPTION_MASK_ISA2_AVX10_1_256)
+    {
+      def_or_undef (parse_in, "__AVX10_1_256__");
+      def_or_undef (parse_in, "__AVX10_1__");
+    }
+  if (isa_flag2 & OPTION_MASK_ISA2_AVX10_1_512)
+    def_or_undef (parse_in, "__AVX10_1_512__");
   if (TARGET_IAMCU)
     {
       def_or_undef (parse_in, "__iamcu");
@@ -816,6 +881,21 @@ ix86_target_macros (void)
 
   if (!TARGET_80387)
     cpp_define (parse_in, "_SOFT_FLOAT");
+
+  /* HFmode/BFmode is supported without depending any isa
+     in scalar_mode_supported_p and libgcc_floating_mode_supported_p,
+     but according to psABI, they're really supported w/ SSE2 and above.
+     Since libstdc++ uses __STDCPP_FLOAT16_T__ and __STDCPP_BFLOAT16_T__
+     for backend support of the types, undef the macros to avoid
+     build failure, see PR109504.  */
+  if (!TARGET_SSE2)
+    {
+      if (c_dialect_cxx () && cxx_dialect > cxx20)
+	{
+	  cpp_undef (parse_in, "__STDCPP_FLOAT16_T__");
+	  cpp_undef (parse_in, "__STDCPP_BFLOAT16_T__");
+	}
+    }
 
   if (TARGET_LONG_DOUBLE_64)
     cpp_define (parse_in, "__LONG_DOUBLE_64__");

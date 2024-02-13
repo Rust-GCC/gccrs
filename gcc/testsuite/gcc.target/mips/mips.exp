@@ -1,4 +1,4 @@
-# Copyright (C) 1997-2023 Free Software Foundation, Inc.
+# Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -266,6 +266,7 @@ set mips_option_groups {
     stack-protector "-fstack-protector"
     stdlib "REQUIRES_STDLIB"
     unaligned-access "-m(no-|)unaligned-access"
+    xgot "-m(no-|)xgot"
 }
 
 for { set option 0 } { $option < 32 } { incr option } {
@@ -301,6 +302,7 @@ foreach option {
     loongson-mmi
     loongson-ext
     loongson-ext2
+    mips16e2
 } {
     lappend mips_option_groups $option "-m(no-|)$option"
 }
@@ -821,6 +823,12 @@ proc mips-dg-init {} {
 	    "-mno-mips16",
 	    #endif
 
+	    #ifdef __mips_mips16e2
+	    "-mmips16e2",
+	    #else
+	    "-mno-mips16e2",
+	    #endif
+
 	    #ifdef __mips3d
 	    "-mips3d",
 	    #else
@@ -1038,6 +1046,7 @@ proc mips-dg-options { args } {
     # dependency diagram.
     mips_option_dependency options "-mips16" "-mno-micromips"
     mips_option_dependency options "-mmicromips" "-mno-mips16"
+    mips_option_dependency options "-mmicromips" "-mno-mips16e2"
     mips_option_dependency options "-mips3d" "-mpaired-single"
     mips_option_dependency options "-mips3d" "-mno-micromips"
     mips_option_dependency options "-mpaired-single" "-mfp64"
@@ -1417,6 +1426,7 @@ proc mips-dg-options { args } {
 		mips_make_test_option options "-mfp32"
 	    }
 	    mips_make_test_option options "-mno-dsp"
+	    mips_make_test_option options "-mno-mips16e2"
 	    mips_make_test_option options "-mno-synci"
 	    mips_make_test_option options "-mno-micromips"
 	    mips_make_test_option options "-mnan=legacy"
@@ -1449,6 +1459,7 @@ proc mips-dg-options { args } {
 
     # Handle dependencies between options on the right of the diagram.
     mips_option_dependency options "-mno-dsp" "-mno-dspr2"
+    mips_option_dependency options "-mno-mips16" "-mno-mips16e2"
     mips_option_dependency options "-mno-explicit-relocs" "-mgpopt"
     switch -- [mips_test_option options small-data] {
 	"" -

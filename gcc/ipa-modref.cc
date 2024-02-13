@@ -1,5 +1,5 @@
 /* Search for references that a functions loads or stores.
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
    Contributed by David Cepelik and Jan Hubicka
 
 This file is part of GCC.
@@ -474,7 +474,7 @@ dump_lto_records (modref_records_lto *tt, FILE *out)
   FOR_EACH_VEC_SAFE_ELT (tt->bases, i, n)
     {
       fprintf (out, "      Base %i:", (int)i);
-      print_generic_expr (dump_file, n->base);
+      print_generic_expr (out, n->base);
       fprintf (out, " (alias set %i)\n",
 	       n->base ? get_alias_set (n->base) : 0);
       if (n->every_ref)
@@ -487,7 +487,7 @@ dump_lto_records (modref_records_lto *tt, FILE *out)
       FOR_EACH_VEC_SAFE_ELT (n->refs, j, r)
 	{
 	  fprintf (out, "        Ref %i:", (int)j);
-	  print_generic_expr (dump_file, r->ref);
+	  print_generic_expr (out, r->ref);
 	  fprintf (out, " (alias set %i)\n",
 		   r->ref ? get_alias_set (r->ref) : 0);
 	  if (r->every_access)
@@ -567,7 +567,7 @@ remove_modref_edge_summaries (cgraph_node *node)
 /* Dump summary.  */
 
 void
-modref_summary::dump (FILE *out)
+modref_summary::dump (FILE *out) const
 {
   if (loads)
     {
@@ -1331,7 +1331,7 @@ modref_access_analysis::merge_call_side_effects
 	  if (parm_map[i].parm_offset_known)
 	    {
 	      fprintf (dump_file, " offset:");
-	      print_dec ((poly_int64_pod)parm_map[i].parm_offset,
+	      print_dec ((poly_int64)parm_map[i].parm_offset,
 			 dump_file, SIGNED);
 	    }
 	}
@@ -1347,7 +1347,7 @@ modref_access_analysis::merge_call_side_effects
 	  if (chain_map.parm_offset_known)
 	    {
 	      fprintf (dump_file, " offset:");
-	      print_dec ((poly_int64_pod)chain_map.parm_offset,
+	      print_dec ((poly_int64)chain_map.parm_offset,
 			 dump_file, SIGNED);
 	    }
 	}
@@ -3816,7 +3816,7 @@ read_section (struct lto_file_decl_data *file_data, const char *data,
   unsigned int f_count;
 
   lto_input_block ib ((const char *) data + main_offset, header->main_size,
-		      file_data->mode_table);
+		      file_data);
 
   data_in
     = lto_data_in_create (file_data, (const char *) data + string_offset,
@@ -4065,21 +4065,74 @@ remap_kills (vec <modref_access_node> &kills, const vec <int> &map)
       i++;
 }
 
+/* Return true if the V can overlap with KILL.  */
+
+static bool
+ipcp_argagg_and_kill_overlap_p (const ipa_argagg_value &v,
+				const modref_access_node &kill)
+{
+  if (kill.parm_index == v.index)
+    {
+      gcc_assert (kill.parm_offset_known);
+      gcc_assert (known_eq (kill.max_size, kill.size));
+      poly_int64 repl_size;
+      bool ok = poly_int_tree_p (TYPE_SIZE (TREE_TYPE (v.value)),
+				 &repl_size);
+      gcc_assert (ok);
+      poly_int64 repl_offset (v.unit_offset);
+      repl_offset <<= LOG2_BITS_PER_UNIT;
+      poly_int64 combined_offset
+	= (kill.parm_offset << LOG2_BITS_PER_UNIT) + kill.offset;
+      if (ranges_maybe_overlap_p (repl_offset, repl_size,
+				  combined_offset, kill.size))
+	return true;
+    }
+  return false;
+}
+
 /* If signature changed, update the summary.  */
 
 static void
 update_signature (struct cgraph_node *node)
 {
-  clone_info *info = clone_info::get (node);
-  if (!info || !info->param_adjustments)
-    return;
-
   modref_summary *r = optimization_summaries
 		      ? optimization_summaries->get (node) : NULL;
   modref_summary_lto *r_lto = summaries_lto
 			      ? summaries_lto->get (node) : NULL;
   if (!r && !r_lto)
     return;
+
+  /* Propagating constants in killed memory can lead to eliminated stores in
+     both callees (because they are considered redundant) and callers, leading
+     to missing them altogether.  */
+  ipcp_transformation *ipcp_ts = ipcp_get_transformation_summary (node);
+  if (ipcp_ts)
+    {
+    for (auto &v : ipcp_ts->m_agg_values)
+      {
+	if (!v.by_ref)
+	  continue;
+	if (r)
+	  for (const modref_access_node &kill : r->kills)
+	    if (ipcp_argagg_and_kill_overlap_p (v, kill))
+	      {
+		v.killed = true;
+		break;
+	      }
+	if (!v.killed && r_lto)
+	  for (const modref_access_node &kill : r_lto->kills)
+	    if (ipcp_argagg_and_kill_overlap_p (v, kill))
+	      {
+		v.killed = true;
+		break;
+	      }
+      }
+    }
+
+  clone_info *info = clone_info::get (node);
+  if (!info || !info->param_adjustments)
+    return;
+
   if (dump_file)
     {
       fprintf (dump_file, "Updating summary for %s from:\n",

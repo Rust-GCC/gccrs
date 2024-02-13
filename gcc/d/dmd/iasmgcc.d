@@ -1,7 +1,7 @@
 /**
  * Inline assembler for the GCC D compiler.
  *
- *              Copyright (C) 2018-2023 by The D Language Foundation, All Rights Reserved
+ *              Copyright (C) 2018-2024 by The D Language Foundation, All Rights Reserved
  * Authors:     Iain Buclaw
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/iasmgcc.d, _iasmgcc.d)
@@ -302,7 +302,8 @@ Ldone:
 extern (C++) public Statement gccAsmSemantic(GccAsmStatement s, Scope *sc)
 {
     //printf("GccAsmStatement.semantic()\n");
-    scope p = new Parser!ASTCodegen(sc._module, ";", false, global.errorSink);
+    const bool doUnittests = global.params.parsingUnittestsRequired();
+    scope p = new Parser!ASTCodegen(sc._module, ";", false, global.errorSink, &global.compileEnv, doUnittests);
 
     // Make a safe copy of the token list before parsing.
     Token *toklist = null;
@@ -329,7 +330,7 @@ extern (C++) public Statement gccAsmSemantic(GccAsmStatement s, Scope *sc)
     s.insn = semanticString(sc, s.insn, "asm instruction template");
 
     if (s.labels && s.outputargs)
-        s.error("extended asm statements with labels cannot have output constraints");
+        error(s.loc, "extended asm statements with labels cannot have output constraints");
 
     // Analyse all input and output operands.
     if (s.args)
@@ -340,7 +341,7 @@ extern (C++) public Statement gccAsmSemantic(GccAsmStatement s, Scope *sc)
             e = e.expressionSemantic(sc);
             // Check argument is a valid lvalue/rvalue.
             if (i < s.outputargs)
-                e = e.modifiableLvalue(sc, null);
+                e = e.modifiableLvalue(sc);
             else if (e.checkValue())
                 e = ErrorExp.get();
             (*s.args)[i] = e;
@@ -410,7 +411,8 @@ unittest
     {
         const errors = global.errors;
         scope gas = new GccAsmStatement(Loc.initial, tokens);
-        scope p = new Parser!ASTCodegen(null, ";", false, global.errorSink);
+        const bool doUnittests = false;
+        scope p = new Parser!ASTCodegen(null, ";", false, global.errorSink, &global.compileEnv, doUnittests);
         p.token = *tokens;
         p.parseGccAsm(gas);
         return global.errors - errors;
@@ -420,7 +422,8 @@ unittest
     static void parseAsm(string input, bool expectError)
     {
         // Generate tokens from input test.
-        scope p = new Parser!ASTCodegen(null, input, false, global.errorSink);
+        const bool doUnittests = false;
+        scope p = new Parser!ASTCodegen(null, input, false, global.errorSink, &global.compileEnv, doUnittests);
         p.nextToken();
 
         Token* toklist = null;

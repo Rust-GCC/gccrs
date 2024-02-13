@@ -1,15 +1,15 @@
 # Set this as a minimum (unless overriden by arch t-files) since it's a
 # reasonable lowest common denominator that works for all our archs.
-HOST_LIBGCC2_CFLAGS += -mmacosx-version-min=10.4
+HOST_LIBGCC2_CFLAGS += $(DARWIN_MIN_LIB_VERSION)
 
 crt3.o: $(srcdir)/config/darwin-crt3.c
-	$(crt_compile) -mmacosx-version-min=10.4 -c $<
+	$(crt_compile) $(DARWIN_MIN_CRT_VERSION) -c $<
 
 crttms.o: $(srcdir)/config/darwin-crt-tm.c
-	$(crt_compile) -mmacosx-version-min=10.4 -DSTART -c $<
+	$(crt_compile) $(DARWIN_MIN_CRT_VERSION) -DSTART -c $<
 
 crttme.o: $(srcdir)/config/darwin-crt-tm.c
-	$(crt_compile) -mmacosx-version-min=10.4 -DEND -c $<
+	$(crt_compile) $(DARWIN_MIN_CRT_VERSION) -DEND -c $<
 
 # Make emutls weak so that we can deal with -static-libgcc, override the
 # hidden visibility when this is present in libgcc_eh.
@@ -25,6 +25,8 @@ libemutls_w.a: emutls_s.o
 	$(RANLIB_FOR_TARGET) $@
 
 # Patch to __Unwind_Find_Enclosing_Function for Darwin10.
+# This needs to be built for darwin10, regardless of the current platform
+# version.
 d10-uwfef.o: $(srcdir)/config/darwin10-unwind-find-enc-func.c libgcc_tm.h
 	$(crt_compile) -mmacosx-version-min=10.6 -c $<
 
@@ -48,6 +50,19 @@ LIB2ADDEH = $(srcdir)/unwind-dw2.c \
 
 # Do not build a shared unwind lib by default.
 LIBEHSOBJS=
+
+# Make heap trampoline helpers weak definitions so that we can merge them from
+# multiple DSOs.
+heap-trampoline.o: HOST_LIBGCC2_CFLAGS += \
+  -DHEAP_T_ATTR='__attribute__((__weak__,__visibility__("default")))'
+heap-trampoline_s.o: HOST_LIBGCC2_CFLAGS += \
+  -DHEAP_T_ATTR='__attribute__((__weak__,__visibility__("default")))'
+
+# Make a heap trampoline support CRT so that it can be linked optionally, use
+# the shared version so that we can link with DSOs.
+libheapt_w.a: heap-trampoline_s.o
+	$(AR_CREATE_FOR_TARGET) $@ $<
+	$(RANLIB_FOR_TARGET) $@
 
 # Symbols for all the sub-ports.
 SHLIB_MAPFILES = libgcc-std.ver $(srcdir)/config/libgcc-libsystem.ver

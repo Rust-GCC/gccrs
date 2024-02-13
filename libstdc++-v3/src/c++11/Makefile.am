@@ -1,6 +1,6 @@
 ## Makefile for the C++11 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2023 Free Software Foundation, Inc.
+## Copyright (C) 1997-2024 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -39,6 +39,14 @@ ctype_configure_char.cc: ${glibcxx_srcdir}/$(OS_INC_SRCDIR)/ctype_configure_char
 ctype_members.cc: ${glibcxx_srcdir}/$(CCTYPE_CC)
 	$(LN_S) ${glibcxx_srcdir}/$(CCTYPE_CC) . || true
 
+# Source files linked in via configuration/make substitution for a
+# particular host, but with ad hoc naming rules.
+host_sources_extra = \
+	basic_file.cc
+
+basic_file.cc: ${glibcxx_srcdir}/$(BASIC_FILE_CC)
+	$(LN_S) ${glibcxx_srcdir}/$(BASIC_FILE_CC) ./$@ || true
+
 if ENABLE_DUAL_ABI
 cxx11_abi_sources = \
 	cow-locale_init.cc \
@@ -56,6 +64,7 @@ sources_freestanding = \
 	placeholders.cc
 
 sources = \
+	assert_fail.cc \
 	chrono.cc \
 	codecvt.cc \
 	condition_variable.cc \
@@ -70,6 +79,8 @@ sources = \
 	hashtable_c++0x.cc \
 	ios.cc \
 	ios_errcat.cc \
+	locale_init.cc \
+	localename.cc \
 	mutex.cc \
 	random.cc \
 	regex.cc  \
@@ -78,7 +89,8 @@ sources = \
 	system_error.cc \
 	thread.cc \
 	${cxx11_abi_sources} \
-	${host_sources}
+	${host_sources} \
+	${host_sources_extra}
 
 if ENABLE_DUAL_ABI
 extra_string_inst_sources = \
@@ -145,6 +157,14 @@ codecvt.o: codecvt.cc
 limits.lo: limits.cc
 	$(LTCXXCOMPILE) -fchar8_t -c $<
 limits.o: limits.cc
+	$(CXXCOMPILE) -fchar8_t -c $<
+locale_init.lo: locale_init.cc
+	$(LTCXXCOMPILE) -fchar8_t -c $<
+locale_init.o: locale_init.cc
+	$(CXXCOMPILE) -fchar8_t -c $<
+localename.lo: localename.cc
+	$(LTCXXCOMPILE) -fchar8_t -c $<
+localename.o: localename.cc
 	$(CXXCOMPILE) -fchar8_t -c $<
 
 if ENABLE_DUAL_ABI

@@ -1,6 +1,6 @@
 // <experimental/io_service> -*- C++ -*-
 
-// Copyright (C) 2015-2023 Free Software Foundation, Inc.
+// Copyright (C) 2015-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -562,7 +562,11 @@ inline namespace v1
 	}
       };
 
+#ifdef _GLIBCXX_HAS_GTHREADS
     atomic<count_type>		_M_work_count;
+#else
+    count_type			_M_work_count;
+#endif
     mutable execution_context::mutex_type		_M_mtx;
     queue<function<void()>>	_M_op;
     bool			_M_stopped = false;

@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2023 Free Software Foundation, Inc.
+# Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 # This file is part of GCC.
 
@@ -29,4 +29,4 @@ softfp_int_modes := si di
 softfp_extensions := sfdf
 softfp_truncations := dfsf
 softfp_exclude_libgcc2 := n
-softfp_extras := unordsf2
+softfp_extras += unordsf2

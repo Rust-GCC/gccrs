@@ -1,5 +1,5 @@
 /* Functions for Linux Android as target machine for GNU C compiler.
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,6 +23,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "linux-protos.h"
+#include "target.h"
+#include "targhooks.h"
 
 bool
 linux_libc_has_function (enum function_class fn_class,
@@ -37,4 +39,22 @@ linux_libc_has_function (enum function_class fn_class,
 	return true;
 
   return false;
+}
+
+unsigned
+linux_libm_function_max_error (unsigned cfn, machine_mode mode,
+			       bool boundary_p)
+{
+  if (OPTION_GLIBC)
+    return glibc_linux_libm_function_max_error (cfn, mode, boundary_p);
+  return default_libm_function_max_error (cfn, mode, boundary_p);
+}
+
+unsigned
+linux_fortify_source_default_level ()
+{
+  if (OPTION_GLIBC && TARGET_GLIBC_MAJOR == 2 && TARGET_GLIBC_MINOR >= 35)
+    return 3;
+
+  return 2;
 }

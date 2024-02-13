@@ -1,4 +1,4 @@
-;; Copyright (C) 2016-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2024 Free Software Foundation, Inc.
 
 ;; This file is free software; you can redistribute it and/or modify it under
 ;; the terms of the GNU General Public License as published by the Free
@@ -23,9 +23,7 @@
 
 ; Named registers
 (define_constants
-  [(FIRST_SGPR_REG		 0)
-   (CC_SAVE_REG			 22)
-   (LAST_SGPR_REG		 101)
+  [(CC_SAVE_REG			 22)
    (FLAT_SCRATCH_REG		 102)
    (FLAT_SCRATCH_LO_REG		 102)
    (FLAT_SCRATCH_HI_REG		 103)
@@ -49,15 +47,13 @@
    (EXEC_LO_REG			 126)
    (EXEC_HI_REG			 127)
    (EXECZ_REG			 128)
-   (SCC_REG			 129)
-   (FIRST_VGPR_REG		 160)
-   (LAST_VGPR_REG		 415)])
+   (SCC_REG			 129)])
 
 (define_constants
   [(SP_REGNUM 16)
    (LR_REGNUM 18)
-   (AP_REGNUM 416)
-   (FP_REGNUM 418)])
+   (AP_REGNUM 672)
+   (FP_REGNUM 674)])
 
 (define_c_enum "unspecv" [
   UNSPECV_PROLOGUE_USE
@@ -90,7 +86,8 @@
   UNSPEC_RCP
   UNSPEC_FLBIT_INT
   UNSPEC_FLOOR UNSPEC_CEIL UNSPEC_SIN UNSPEC_COS UNSPEC_EXP2 UNSPEC_LOG2
-  UNSPEC_LDEXP UNSPEC_FREXP_EXP UNSPEC_FREXP_MANT])
+  UNSPEC_LDEXP UNSPEC_FREXP_EXP UNSPEC_FREXP_MANT
+  UNSPEC_DIV_SCALE UNSPEC_DIV_FMAS UNSPEC_DIV_FIXUP])
 
 ;; }}}
 ;; {{{ Attributes
@@ -170,6 +167,11 @@
 ;	 vdst: vgpr0-255
 ;	 sdst: sgpr0-103/vcc/tba/tma/ttmp0-11
 ;
+; vop3p_mai - vector, three inputs, one vector output
+;        vsrc0,vsrc1,vsrc2: inline constant -16 to -64, fp inline immediate,
+;        (acc or arch) vgpr0-255
+;        vdst: (acc or arch) vgpr0-255
+;
 ; vop_sdwa - second dword for vop1/vop2/vopc for specifying sub-dword address
 ;	 src0: vgpr0-255
 ;	 dst_sel: BYTE_0-3, WORD_0-1, DWORD
@@ -228,7 +230,8 @@
 
 (define_attr "type"
 	     "unknown,sop1,sop2,sopk,sopc,sopp,smem,ds,vop2,vop1,vopc,
-	      vop3a,vop3b,vop_sdwa,vop_dpp,mubuf,mtbuf,flat,mult,vmult"
+	      vop3a,vop3b,vop3p_mai,vop_sdwa,vop_dpp,mubuf,mtbuf,flat,mult,
+	      vmult"
 	     (const_string "unknown"))
 
 ; Set if instruction is executed in scalar or vector unit
@@ -236,7 +239,7 @@
 (define_attr "unit" "unknown,scalar,vector"
   (cond [(eq_attr "type" "sop1,sop2,sopk,sopc,sopp,smem,mult")
 	    (const_string "scalar")
-	 (eq_attr "type" "vop2,vop1,vopc,vop3a,vop3b,ds,
+	 (eq_attr "type" "vop2,vop1,vopc,vop3a,vop3b,ds,vop3p_mai,
 			  vop_sdwa,vop_dpp,flat,vmult")
 	    (const_string "vector")]
 	 (const_string "unknown")))
@@ -283,14 +286,31 @@
 
 ; Disable alternatives that only apply to specific ISA variants.
 
-(define_attr "gcn_version" "gcn3,gcn5" (const_string "gcn3"))
+(define_attr "gcn_version" "gcn3,gcn5,cdna2" (const_string "gcn3"))
+(define_attr "rdna" "any,no,yes" (const_string "any"))
+
+(define_attr "xnack" "na,off,on" (const_string "na"))
 
 (define_attr "enabled" ""
-  (cond [(eq_attr "gcn_version" "gcn3") (const_int 1)
+  (cond [(and (eq_attr "rdna" "no")
+	      (ne (symbol_ref "TARGET_RDNA2_PLUS") (const_int 0)))
+	   (const_int 0)
+	 (and (eq_attr "rdna" "yes")
+	      (eq (symbol_ref "TARGET_RDNA2_PLUS") (const_int 0)))
+	   (const_int 0)
 	 (and (eq_attr "gcn_version" "gcn5")
-	      (ne (symbol_ref "TARGET_GCN5_PLUS") (const_int 0)))
-	   (const_int 1)]
-	(const_int 0)))
+	      (eq (symbol_ref "TARGET_GCN5_PLUS") (const_int 0)))
+	   (const_int 0)
+	 (and (eq_attr "gcn_version" "cdna2")
+	      (eq (symbol_ref "TARGET_CDNA2_PLUS") (const_int 0)))
+	   (const_int 0)
+	 (and (eq_attr "xnack" "off")
+	      (ne (symbol_ref "TARGET_XNACK") (const_int 0)))
+	   (const_int 0)
+	 (and (eq_attr "xnack" "on")
+	      (eq (symbol_ref "TARGET_XNACK") (const_int 0)))
+	   (const_int 0)]
+	(const_int 1)))
 
 ; We need to be able to identify v_readlane and v_writelane with
 ; SGPR lane selection in order to handle "Manually Inserted Wait States".
@@ -301,6 +321,11 @@
 ; their inputs are overwritten by subsequent instructions.
 
 (define_attr "delayeduse" "yes,no" (const_string "no"))
+
+; Identify instructions that require "Manually Inserted Wait State" if
+; a previous instruction writes to VCC.  The number gives the number of NOPs.
+
+(define_attr "vccwait" "" (const_int 0))
 
 ;; }}}
 ;; {{{ Iterators useful across the wole machine description
@@ -484,9 +509,9 @@
 
 (define_insn "*movbi"
   [(set (match_operand:BI 0 "nonimmediate_operand"
-				    "=Sg,   v,Sg,cs,cV,cV,Sm,RS, v,RF, v,RM")
+			  "=Sg,   v,Sg,cs,cV,cV,Sm,&Sm,RS, v,&v,RF, v,&v,RM")
 	(match_operand:BI 1 "gcn_load_operand"
-				    "SSA,vSvA, v,SS, v,SS,RS,Sm,RF, v,RM, v"))]
+			  "SSA,vSvA, v,SS, v,SS,RS, RS,Sm,RF,RF, v,RM,RM, v"))]
   ""
   {
     /* SCC as an operand is currently not accepted by the LLVM assembler, so
@@ -513,110 +538,139 @@
       return "s_mov_b32\tvcc_lo, %1\;"
 	     "s_mov_b32\tvcc_hi, 0";
     case 6:
-      return "s_load_dword\t%0, %A1\;s_waitcnt\tlgkmcnt(0)";
     case 7:
-      return "s_store_dword\t%1, %A0";
+      return "s_load_dword\t%0, %A1\;s_waitcnt\tlgkmcnt(0)";
     case 8:
-      return "flat_load_dword\t%0, %A1%O1%g1\;s_waitcnt\t0";
+      return "s_store_dword\t%1, %A0";
     case 9:
-      return "flat_store_dword\t%A0, %1%O0%g0";
     case 10:
-      return "global_load_dword\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)";
+      return "flat_load_dword\t%0, %A1%O1%g1\;s_waitcnt\t0";
     case 11:
+      return "flat_store_dword\t%A0, %1%O0%g0";
+    case 12:
+    case 13:
+      return "global_load_dword\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)";
+    case 14:
       return "global_store_dword\t%A0, %1%O0%g0";
     default:
       gcc_unreachable ();
     }
   }
-  [(set_attr "type" "sop1,vop1,vop3a,sopk,vopc,mult,smem,smem,flat,flat,
-		     flat,flat")
-   (set_attr "exec" "*,*,none,*,*,*,*,*,*,*,*,*")
-   (set_attr "length" "4,4,4,4,4,8,12,12,12,12,12,12")])
+  [(set_attr "type" "sop1,vop1,vop3a,sopk,vopc,mult,smem,smem,smem,flat,flat,
+		     flat,flat,flat,flat")
+   (set_attr "exec" "*,*,none,*,*,*,*,*,*,*,*,*,*,*,*")
+   (set_attr "length" "4,4,4,4,4,8,12,12,12,12,12,12,12,12,12")
+   (set_attr "xnack" "*,*,*,*,*,*,off,on,*,off,on,*,off,on,*")])
 
 ; 32bit move pattern
 
 (define_insn "*mov<mode>_insn"
-  [(set (match_operand:SISF 0 "nonimmediate_operand"
-		  "=SD,SD,SD,SD,RB,Sm,RS,v,Sg, v, v,RF,v,RLRG,   v,SD, v,RM")
-	(match_operand:SISF 1 "gcn_load_operand"
-		  "SSA, J, B,RB,Sm,RS,Sm,v, v,Sv,RF, v,B,   v,RLRG, Y,RM, v"))]
+  [(set (match_operand:SISF 0 "nonimmediate_operand")
+	(match_operand:SISF 1 "gcn_load_operand"))]
   ""
-  "@
-  s_mov_b32\t%0, %1
-  s_movk_i32\t%0, %1
-  s_mov_b32\t%0, %1
-  s_buffer_load%s0\t%0, s[0:3], %1\;s_waitcnt\tlgkmcnt(0)
-  s_buffer_store%s1\t%1, s[0:3], %0
-  s_load_dword\t%0, %A1\;s_waitcnt\tlgkmcnt(0)
-  s_store_dword\t%1, %A0
-  v_mov_b32\t%0, %1
-  v_readlane_b32\t%0, %1, 0
-  v_writelane_b32\t%0, %1, 0
-  flat_load_dword\t%0, %A1%O1%g1\;s_waitcnt\t0
-  flat_store_dword\t%A0, %1%O0%g0
-  v_mov_b32\t%0, %1
-  ds_write_b32\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
-  ds_read_b32\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
-  s_mov_b32\t%0, %1
-  global_load_dword\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
-  global_store_dword\t%A0, %1%O0%g0"
-  [(set_attr "type" "sop1,sopk,sop1,smem,smem,smem,smem,vop1,vop3a,vop3a,flat,
-		     flat,vop1,ds,ds,sop1,flat,flat")
-   (set_attr "exec" "*,*,*,*,*,*,*,*,none,none,*,*,*,*,*,*,*,*")
-   (set_attr "length" "4,4,8,12,12,12,12,4,8,8,12,12,8,12,12,8,12,12")])
+  {@ [cons: =0, 1; attrs: type, exec, length, gcn_version, xnack]
+   [SD  ,SSA ;sop1 ,*   ,4 ,*    ,*  ] s_mov_b32\t%0, %1
+   [SD  ,J   ;sopk ,*   ,4 ,*    ,*  ] s_movk_i32\t%0, %1
+   [SD  ,B   ;sop1 ,*   ,8 ,*    ,*  ] s_mov_b32\t%0, %1
+   [SD  ,RB  ;smem ,*   ,12,*    ,off] s_buffer_load%s0\t%0, s[0:3], %1\;s_waitcnt\tlgkmcnt(0)
+   [&SD ,RB  ;smem ,*   ,12,*    ,on ] ^
+   [RB  ,Sm  ;smem ,*   ,12,*    ,*  ] s_buffer_store%s1\t%1, s[0:3], %0
+   [Sm  ,RS  ;smem ,*   ,12,*    ,off] s_load_dword\t%0, %A1\;s_waitcnt\tlgkmcnt(0)
+   [&Sm ,RS  ;smem ,*   ,12,*    ,on ] ^
+   [RS  ,Sm  ;smem ,*   ,12,*    ,*  ] s_store_dword\t%1, %A0
+   [v   ,v   ;vop1 ,*   ,4 ,*    ,*  ] v_mov_b32\t%0, %1
+   [Sg  ,v   ;vop3a,none,8 ,*    ,*  ] v_readlane_b32\t%0, %1, 0
+   [v   ,Sv  ;vop3a,none,8 ,*    ,*  ] v_writelane_b32\t%0, %1, 0
+   [v   ,^a  ;vop3p_mai,*,8,*    ,*  ] v_accvgpr_read_b32\t%0, %1
+   [a   ,v   ;vop3p_mai,*,8,*    ,*  ] v_accvgpr_write_b32\t%0, %1
+   [a   ,a   ;vop1 ,*    ,4,cdna2,*  ] v_accvgpr_mov_b32\t%0, %1
+   [v   ,RF  ;flat ,*   ,12,*    ,off] flat_load_dword\t%0, %A1%O1%g1\;s_waitcnt\t0
+   [&v  ,RF  ;flat ,*   ,12,*    ,on ] ^
+   [^a  ,RF  ;flat ,*   ,12,cdna2,off] ^
+   [&^a ,RF  ;flat ,*   ,12,cdna2,on ] ^
+   [RF  ,v   ;flat ,*   ,12,*    ,*  ] flat_store_dword\t%A0, %1%O0%g0
+   [RF  ,a   ;flat ,*   ,12,cdna2,*  ] ^
+   [v   ,B   ;vop1 ,*   ,8 ,*    ,*  ] v_mov_b32\t%0, %1
+   [RLRG,v   ;ds   ,*   ,12,*    ,*  ] ds_write_b32\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
+   [v   ,RLRG;ds   ,*   ,12,*    ,*  ] ds_read_b32\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
+   [SD  ,Y   ;sop1 ,*   ,8 ,*    ,*  ] s_mov_b32\t%0, %1
+   [v   ,RM  ;flat ,*   ,12,*    ,off] global_load_dword\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
+   [&v  ,RM  ;flat ,*   ,12,*    ,on ] ^
+   [^a  ,RM  ;flat ,*   ,12,cdna2,off] ^
+   [&^a ,RM  ;flat ,*   ,12,cdna2,on ] ^
+   [RM  ,v   ;flat ,*   ,12,*    ,*  ] global_store_dword\t%A0, %1%O0%g0
+   [RM  ,a   ;flat ,*   ,12,cdna2,*  ] ^
+  })
 
 ; 8/16bit move pattern
 ; TODO: implement combined load and zero_extend, but *only* for -msram-ecc=on
 
 (define_insn "*mov<mode>_insn"
-  [(set (match_operand:QIHI 0 "nonimmediate_operand"
-				 "=SD,SD,SD,v,Sg, v, v,RF,v,RLRG,   v, v,RM")
-	(match_operand:QIHI 1 "gcn_load_operand"
-				 "SSA, J, B,v, v,Sv,RF, v,B,   v,RLRG,RM, v"))]
+  [(set (match_operand:QIHI 0 "nonimmediate_operand")
+	(match_operand:QIHI 1 "gcn_load_operand"))]
   "gcn_valid_move_p (<MODE>mode, operands[0], operands[1])"
-  "@
-  s_mov_b32\t%0, %1
-  s_movk_i32\t%0, %1
-  s_mov_b32\t%0, %1
-  v_mov_b32\t%0, %1
-  v_readlane_b32\t%0, %1, 0
-  v_writelane_b32\t%0, %1, 0
-  flat_load%o1\t%0, %A1%O1%g1\;s_waitcnt\t0
-  flat_store%s0\t%A0, %1%O0%g0
-  v_mov_b32\t%0, %1
-  ds_write%b0\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
-  ds_read%u1\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
-  global_load%o1\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
-  global_store%s0\t%A0, %1%O0%g0"
-  [(set_attr "type"
-	     "sop1,sopk,sop1,vop1,vop3a,vop3a,flat,flat,vop1,ds,ds,flat,flat")
-   (set_attr "exec" "*,*,*,*,none,none,*,*,*,*,*,*,*")
-   (set_attr "length" "4,4,8,4,4,4,12,12,8,12,12,12,12")])
+  {@ [cons: =0, 1; attrs: type, exec, length, gcn_version, xnack]
+  [SD  ,SSA ;sop1 ,*   ,4 ,*    ,*  ] s_mov_b32\t%0, %1
+  [SD  ,J   ;sopk ,*   ,4 ,*    ,*  ] s_movk_i32\t%0, %1
+  [SD  ,B   ;sop1 ,*   ,8 ,*    ,*  ] s_mov_b32\t%0, %1
+  [v   ,v   ;vop1 ,*   ,4 ,*    ,*  ] v_mov_b32\t%0, %1
+  [Sg  ,v   ;vop3a,none,4 ,*    ,*  ] v_readlane_b32\t%0, %1, 0
+  [v   ,Sv  ;vop3a,none,4 ,*    ,*  ] v_writelane_b32\t%0, %1, 0
+  [v   ,^a  ;vop3p_mai,*,8,*    ,*  ] v_accvgpr_read_b32\t%0, %1
+  [a   ,v   ;vop3p_mai,*,8,*    ,*  ] v_accvgpr_write_b32\t%0, %1
+  [a   ,a   ;vop1 ,*    ,8,cdna2,*  ] v_accvgpr_mov_b32\t%0, %1
+  [v   ,RF  ;flat ,*   ,12,*    ,off] flat_load%o1\t%0, %A1%O1%g1\;s_waitcnt\t0
+  [&v  ,RF  ;flat ,*   ,12,*    ,on ] ^
+  [^a  ,RF  ;flat ,*   ,12,cdna2,off] ^
+  [&^a ,RF  ;flat ,*   ,12,cdna2,on ] ^
+  [RF  ,v   ;flat ,*   ,12,*    ,*  ] flat_store%s0\t%A0, %1%O0%g0
+  [RF  ,a   ;flat ,*   ,12,cdna2,*  ] ^
+  [v   ,B   ;vop1 ,*   ,8 ,*    ,*  ] v_mov_b32\t%0, %1
+  [RLRG,v   ;ds   ,*   ,12,*    ,*  ] ds_write%b0\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
+  [v   ,RLRG;ds   ,*   ,12,*    ,*  ] ds_read%u1\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
+  [v   ,RM  ;flat ,*   ,12,*    ,off] global_load%o1\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
+  [&v  ,RM  ;flat ,*   ,12,*    ,on ] ^
+  [^a  ,RM  ;flat ,*   ,12,cdna2,off] ^
+  [&^a ,RM  ;flat ,*   ,12,cdna2,on ] ^
+  [RM  ,v   ;flat ,*   ,12,*    ,*  ] global_store%s0\t%A0, %1%O0%g0
+  [RM  ,a   ;flat ,*   ,12,cdna2,*  ] ^
+  })
 
 ; 64bit move pattern
 
 (define_insn_and_split "*mov<mode>_insn"
-  [(set (match_operand:DIDF 0 "nonimmediate_operand"
-			  "=SD,SD,SD,RS,Sm,v, v,Sg, v, v,RF,RLRG,   v, v,RM")
-	(match_operand:DIDF 1 "general_operand"
-			  "SSA, C,DB,Sm,RS,v,DB, v,Sv,RF, v,   v,RLRG,RM, v"))]
+  [(set (match_operand:DIDF 0 "nonimmediate_operand")
+	(match_operand:DIDF 1 "general_operand"))]
   "GET_CODE(operands[1]) != SYMBOL_REF"
-  "@
-  s_mov_b64\t%0, %1
-  s_mov_b64\t%0, %1
-  #
-  s_store_dwordx2\t%1, %A0
-  s_load_dwordx2\t%0, %A1\;s_waitcnt\tlgkmcnt(0)
-  #
-  #
-  #
-  #
-  flat_load_dwordx2\t%0, %A1%O1%g1\;s_waitcnt\t0
-  flat_store_dwordx2\t%A0, %1%O0%g0
-  ds_write_b64\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
-  ds_read_b64\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
-  global_load_dwordx2\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
-  global_store_dwordx2\t%A0, %1%O0%g0"
+  {@ [cons: =0, 1; attrs: type, length, gcn_version, xnack]
+  [SD  ,SSA ;sop1 ,4 ,*    ,*  ] s_mov_b64\t%0, %1
+  [SD  ,C   ;sop1 ,8 ,*    ,*  ] ^
+  [SD  ,DB  ;mult ,* ,*    ,*  ] #
+  [RS  ,Sm  ;smem ,12,*    ,*  ] s_store_dwordx2\t%1, %A0
+  [Sm  ,RS  ;smem ,12,*    ,off] s_load_dwordx2\t%0, %A1\;s_waitcnt\tlgkmcnt(0)
+  [&Sm ,RS  ;smem ,12,*    ,on ] ^
+  [v   ,v   ;vmult,* ,*    ,*  ] #
+  [v   ,DB  ;vmult,* ,*    ,*  ] #
+  [Sg  ,v   ;vmult,* ,*    ,*  ] #
+  [v   ,Sv  ;vmult,* ,*    ,*  ] #
+  [v   ,^a  ;vmult,* ,*    ,*  ] #
+  [a   ,v   ;vmult,* ,*    ,*  ] #
+  [a   ,a   ;vmult,* ,cdna2,*  ] #
+  [v   ,RF  ;flat ,12,*    ,off] flat_load_dwordx2\t%0, %A1%O1%g1\;s_waitcnt\t0
+  [&v  ,RF  ;flat ,12,*    ,on ] ^
+  [^a  ,RF  ;flat ,12,cdna2,off] ^
+  [&^a ,RF  ;flat ,12,cdna2,on ] ^
+  [RF  ,v   ;flat ,12,*    ,*  ] flat_store_dwordx2\t%A0, %1%O0%g0
+  [RF  ,a   ;flat ,12,cdna2,*  ] ^
+  [RLRG,v   ;ds   ,12,*    ,*  ] ds_write_b64\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
+  [v   ,RLRG;ds   ,12,*    ,*  ] ds_read_b64\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
+  [v   ,RM  ;flat ,12,*    ,off] global_load_dwordx2\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
+  [&v  ,RM  ;flat ,12,*    ,on ] ^
+  [^a  ,RM  ;flat ,12,cdna2,off] ^
+  [&^a ,RM  ;flat ,12,cdna2,on ] ^
+  [RM  ,v   ;flat ,12,*    ,*  ] global_store_dwordx2\t%A0, %1%O0%g0
+  [RM  ,a   ;flat ,12,cdna2,*  ] ^
+  }
   "reload_completed
    && ((!MEM_P (operands[0]) && !MEM_P (operands[1])
         && !gcn_sgpr_move_p (operands[0], operands[1]))
@@ -645,32 +699,40 @@
 	operands[2] = outhi;
 	operands[3] = inhi;
       }
-  }
-  [(set_attr "type" "sop1,sop1,mult,smem,smem,vmult,vmult,vmult,vmult,flat,
-		     flat,ds,ds,flat,flat")
-   (set_attr "length" "4,8,*,12,12,*,*,*,*,12,12,12,12,12,12")])
+  })
 
 ; 128-bit move.
 
 (define_insn_and_split "*movti_insn"
-  [(set (match_operand:TI 0 "nonimmediate_operand"
-				      "=SD,RS,Sm,RF, v,v, v,SD,RM, v,RL, v")
-	(match_operand:TI 1 "general_operand"  
-				      "SSB,Sm,RS, v,RF,v,Sv, v, v,RM, v,RL"))]
+  [(set (match_operand:TI 0 "nonimmediate_operand")
+	(match_operand:TI 1 "general_operand"  ))]
   ""
-  "@
-  #
-  s_store_dwordx4\t%1, %A0
-  s_load_dwordx4\t%0, %A1\;s_waitcnt\tlgkmcnt(0)
-  flat_store_dwordx4\t%A0, %1%O0%g0
-  flat_load_dwordx4\t%0, %A1%O1%g1\;s_waitcnt\t0
-  #
-  #
-  #
-  global_store_dwordx4\t%A0, %1%O0%g0
-  global_load_dwordx4\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
-  ds_write_b128\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
-  ds_read_b128\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)"
+  {@ [cons: =0, 1; attrs: type, delayeduse, length, gcn_version, xnack]
+  [SD ,SSB;mult ,*  ,* ,*    ,*  ] #
+  [RS ,Sm ;smem ,*  ,12,*    ,*  ] s_store_dwordx4\t%1, %A0
+  [Sm ,RS ;smem ,yes,12,*    ,off] s_load_dwordx4\t%0, %A1\;s_waitcnt\tlgkmcnt(0)
+  [&Sm,RS ;smem ,yes,12,*    ,on ] ^
+  [RF ,v  ;flat ,*  ,12,*    ,*  ] flat_store_dwordx4\t%A0, %1%O0%g0
+  [RF ,a  ;flat ,*  ,12,cdna2,*  ] ^
+  [v  ,RF ;flat ,*  ,12,*    ,off] flat_load_dwordx4\t%0, %A1%O1%g1\;s_waitcnt\t0
+  [&v ,RF ;flat ,*  ,12,*    ,on ] ^
+  [^a ,RF ;flat ,*  ,12,cdna2,off] ^
+  [&^a,RF ;flat ,*  ,12,cdna2,on ] ^
+  [v  ,v  ;vmult,*  ,* ,*    ,*  ] #
+  [v  ,Sv ;vmult,*  ,* ,*    ,*  ] #
+  [SD ,v  ;vmult,*  ,* ,*    ,*  ] #
+  [RM ,v  ;flat ,yes,12,*    ,*  ] global_store_dwordx4\t%A0, %1%O0%g0
+  [RM ,a  ;flat ,yes,12,cdna2,*  ] ^
+  [v  ,RM ;flat ,*  ,12,*    ,off] global_load_dwordx4\t%0, %A1%O1%g1\;s_waitcnt\tvmcnt(0)
+  [&v ,RM ;flat ,*  ,12,*    ,on ] ^
+  [^a ,RM ;flat ,*  ,12,cdna2,off] ^
+  [&^a,RM ;flat ,*  ,12,cdna2,on ] ^
+  [RL ,v  ;ds   ,*  ,12,*    ,*  ] ds_write_b128\t%A0, %1%O0\;s_waitcnt\tlgkmcnt(0)
+  [v  ,RL ;ds   ,*  ,12,*    ,*  ] ds_read_b128\t%0, %A1%O1\;s_waitcnt\tlgkmcnt(0)
+  [v  ,^a ;vmult,*  ,* ,*    ,*  ] #
+  [a  ,v  ;vmult,*  ,* ,*    ,*  ] #
+  [a  ,a  ;vmult,*  ,* ,cdna2,*  ] #
+  }
   "reload_completed
    && REG_P (operands[0])
    && (REG_P (operands[1]) || GET_CODE (operands[1]) == CONST_INT)"
@@ -689,18 +751,14 @@
     operands[3] = gcn_operand_part (TImode, operands[1], 1);
     operands[0] = gcn_operand_part (TImode, operands[0], 0);
     operands[1] = gcn_operand_part (TImode, operands[1], 0);
-  }
-  [(set_attr "type" "mult,smem,smem,flat,flat,vmult,vmult,vmult,flat,flat,\
-		     ds,ds")
-   (set_attr "delayeduse" "*,*,yes,*,*,*,*,*,yes,*,*,*")
-   (set_attr "length" "*,12,12,12,12,*,*,*,12,12,12,12")])
+  })
 
 ;; }}}
 ;; {{{ Prologue/Epilogue
 
 (define_insn "prologue_use"
   [(unspec_volatile [(match_operand 0 "register_operand")] UNSPECV_PROLOGUE_USE)]
-  ""
+  "1 /* This comment silences a warning for operands[2]. */"
   ""
   [(set_attr "length" "0")])
 
@@ -825,7 +883,7 @@
     if (cfun && cfun->machine && cfun->machine->normal_function)
       return "s_setpc_b64\ts[18:19]";
     else
-      return "s_waitcnt\tlgkmcnt(0)\;s_dcache_wb\;s_endpgm";
+      return "s_waitcnt\tlgkmcnt(0)\;s_endpgm";
   }
   [(set_attr "type" "sop1")
    (set_attr "length" "12")])
@@ -856,6 +914,8 @@
   (clobber (reg:BI SCC_REG))]
  "GET_CODE (operands[1]) == SYMBOL_REF || GET_CODE (operands[1]) == LABEL_REF"
   {
+    /* This s_load may not be XNACK-safe on devices where the GOT may fault.
+       DGPUs are most likely fine.  */
     if (SYMBOL_REF_P (operands[1])
 	&& SYMBOL_REF_WEAK (operands[1]))
 	return "s_getpc_b64\t%0\;"
@@ -880,6 +940,8 @@
   {
     /* !!! These sequences clobber CC_SAVE_REG.  */
 
+    /* This s_load may not be XNACK-safe on devices where the GOT may fault.
+       DGPUs are most likely fine.  */
     if (SYMBOL_REF_P (operands[1])
 	&& SYMBOL_REF_WEAK (operands[1]))
 	return "s_mov_b32\ts22, scc\;"
@@ -1192,7 +1254,7 @@
   ""
   "@
    s_addc_u32\t%0, %1, %2
-   v_addc%^_u32\t%0, vcc, %2, %1, vcc"
+   {v_addc%^_u32|v_add_co_ci_u32}\t%0, vcc, %2, %1, vcc"
   [(set_attr "type" "sop2,vop2")
    (set_attr "length" "8,4")])
 
@@ -1208,7 +1270,7 @@
   ""
   "@
    s_addc_u32\t%0, %1, 0
-   v_addc%^_u32\t%0, vcc, 0, %1, vcc"
+   {v_addc%^_u32|v_add_co_ci_u32}\t%0, vcc, 0, %1, vcc"
   [(set_attr "type" "sop2,vop2")
    (set_attr "length" "4")])
 
@@ -1238,7 +1300,8 @@
 				gen_rtx_REG (DImode, CC_SAVE_REG) };
 
 	output_asm_insn ("v_add%^_u32\t%L0, %3, %L2, %L1", new_operands);
-	output_asm_insn ("v_addc%^_u32\t%H0, %3, %H2, %H1, %3", new_operands);
+	output_asm_insn ("{v_addc%^_u32|v_add_co_ci_u32}\t%H0, %3, %H2, %H1, %3",
+			 new_operands);
       }
     else
       {
@@ -1376,7 +1439,7 @@
    s_mul_i32\t%0, %1, %2
    s_mulk_i32\t%0, %2
    s_mul_i32\t%0, %1, %2
-   v_mul_lo_i32\t%0, %1, %2"
+   v_mul_lo_u32\t%0, %1, %2"
   [(set_attr "type" "sop2,sopk,sop2,vop3a")
    (set_attr "length" "4,4,8,4")])
 
@@ -1549,7 +1612,7 @@
 	(mult:SI
 	  (any_extend:SI (match_operand:HI 1 "register_operand" "%v"))
 	  (any_extend:SI (match_operand:HI 2 "register_operand" " v"))))]
-  ""
+  "!TARGET_RDNA3"
   "v_mul_<iu>32_<iu>24_sdwa\t%0, %<e>1, %<e>2 src0_sel:WORD_0 src1_sel:WORD_0"
   [(set_attr "type" "vop_sdwa")
    (set_attr "length" "8")])
@@ -1559,7 +1622,7 @@
 	(mult:HI
 	  (any_extend:HI (match_operand:QI 1 "register_operand" "%v"))
 	  (any_extend:HI (match_operand:QI 2 "register_operand" " v"))))]
-  ""
+  "!TARGET_RDNA3"
   "v_mul_<iu>32_<iu>24_sdwa\t%0, %<e>1, %<e>2 src0_sel:BYTE_0 src1_sel:BYTE_0"
   [(set_attr "type" "vop_sdwa")
    (set_attr "length" "8")])
@@ -1898,7 +1961,7 @@
   [(set (match_operand:BLK 0)
 	(unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
   ""
-  "buffer_wbinvl1_vol"
+  "{buffer_wbinvl1_vol|buffer_gl0_inv}"
   [(set_attr "type" "mubuf")
    (set_attr "length" "4")])
 
@@ -2005,7 +2068,12 @@
 	   (match_operand:SIDI 3 "register_operand" "  v")]
 	  UNSPECV_ATOMIC))]
   ""
-  "ds_cmpst_rtn_b<bitsize> %0, %1, %2, %3\;s_waitcnt\tlgkmcnt(0)"
+  {
+    if (TARGET_RDNA3)
+      return "ds_cmpstore_rtn_b<bitsize> %0, %1, %3, %2\;s_waitcnt\tlgkmcnt(0)";
+    else
+      return "ds_cmpst_rtn_b<bitsize> %0, %1, %2, %3\;s_waitcnt\tlgkmcnt(0)";
+  }
   [(set_attr "type" "ds")
    (set_attr "length" "12")])
 
@@ -2017,6 +2085,7 @@
    (use (match_operand:SIDI 2 "immediate_operand" "  i, i, i"))]
   ""
   {
+    /* FIXME: RDNA cache instructions may be too conservative?  */
     switch (INTVAL (operands[2]))
       {
       case MEMMODEL_RELAXED:
@@ -2039,11 +2108,17 @@
 	    return "s_load%o0\t%0, %A1 glc\;s_waitcnt\tlgkmcnt(0)\;"
 		   "s_dcache_wb_vol";
 	  case 1:
-	    return "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
-		   "buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
+		      "buffer_gl0_inv"
+		    : "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
+		      "buffer_wbinvl1_vol");
 	  case 2:
-	    return "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
-		   "buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
+		      "buffer_gl0_inv"
+		    : "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
+		      "buffer_wbinvl1_vol");
 	  }
 	break;
       case MEMMODEL_ACQ_REL:
@@ -2055,11 +2130,17 @@
 	    return "s_dcache_wb_vol\;s_load%o0\t%0, %A1 glc\;"
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
-	    return "buffer_wbinvl1_vol\;flat_load%o0\t%0, %A1%O1 glc\;"
-		   "s_waitcnt\t0\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 glc\;"
+		      "s_waitcnt\t0\;buffer_gl0_inv"
+		    : "buffer_wbinvl1_vol\;flat_load%o0\t%0, %A1%O1 glc\;"
+		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
-	    return "buffer_wbinvl1_vol\;global_load%o0\t%0, %A1%O1 glc\;"
-		   "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		    : "buffer_wbinvl1_vol\;global_load%o0\t%0, %A1%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
 	break;
       }
@@ -2067,7 +2148,8 @@
   }
   [(set_attr "type" "smem,flat,flat")
    (set_attr "length" "20")
-   (set_attr "gcn_version" "gcn5,*,gcn5")])
+   (set_attr "gcn_version" "gcn5,*,gcn5")
+   (set_attr "rdna" "no,*,*")])
 
 (define_insn "atomic_store<mode>"
   [(set (match_operand:SIDI 0 "memory_operand"      "=RS,RF,RM")
@@ -2097,9 +2179,13 @@
 	  case 0:
 	    return "s_dcache_wb_vol\;s_store%o1\t%1, %A0 glc";
 	  case 1:
-	    return "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc"
+		    : "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc");
 	  case 2:
-	    return "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc"
+		    : "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc");
 	  }
 	break;
       case MEMMODEL_ACQ_REL:
@@ -2111,11 +2197,17 @@
 	    return "s_dcache_wb_vol\;s_store%o1\t%1, %A0 glc\;"
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
-	    return "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc\;"
-		   "s_waitcnt\t0\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc\;"
+		      "s_waitcnt\t0\;buffer_gl0_inv"
+		    : "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc\;"
+		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
-	    return "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc\;"
-		   "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		    : "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
 	break;
       }
@@ -2123,7 +2215,8 @@
   }
   [(set_attr "type" "smem,flat,flat")
    (set_attr "length" "20")
-   (set_attr "gcn_version" "gcn5,*,gcn5")])
+   (set_attr "gcn_version" "gcn5,*,gcn5")
+   (set_attr "rdna" "no,*,*")])
 
 (define_insn "atomic_exchange<mode>"
   [(set (match_operand:SIDI 0 "register_operand"    "=Sm, v, v")
@@ -2158,11 +2251,17 @@
 	    return "s_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\tlgkmcnt(0)\;"
 		   "s_dcache_wb_vol\;s_dcache_inv_vol";
 	  case 1:
-	    return "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
-		   "buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
+		      "buffer_gl0_inv"
+		    : "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
+		      "buffer_wbinvl1_vol");
 	  case 2:
-	    return "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
-		   "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		    : "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
 	break;
       case MEMMODEL_RELEASE:
@@ -2173,12 +2272,19 @@
 	    return "s_dcache_wb_vol\;s_atomic_swap<X>\t%0, %1, %2 glc\;"
 		   "s_waitcnt\tlgkmcnt(0)";
 	  case 1:
-	    return "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
-		   "s_waitcnt\t0";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		      "s_waitcnt\t0"
+		    : "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		      "s_waitcnt\t0");
 	  case 2:
-	    return "buffer_wbinvl1_vol\;"
-		   "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
-		   "s_waitcnt\tvmcnt(0)";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)"
+		    : "buffer_wbinvl1_vol\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)");
 	  }
 	break;
       case MEMMODEL_ACQ_REL:
@@ -2190,12 +2296,19 @@
 	    return "s_dcache_wb_vol\;s_atomic_swap<X>\t%0, %1, %2 glc\;"
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
-	    return "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
-		   "s_waitcnt\t0\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		      "s_waitcnt\t0\;buffer_gl0_inv"
+		    : "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
-	    return "buffer_wbinvl1_vol\;"
-		   "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
-		   "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol";
+	    return (TARGET_RDNA2_PLUS
+		    ? "buffer_gl0_inv\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_gl0_inv"
+		    : "buffer_wbinvl1_vol\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
 	break;
       }
@@ -2203,7 +2316,8 @@
   }
   [(set_attr "type" "smem,flat,flat")
    (set_attr "length" "20")
-   (set_attr "gcn_version" "gcn5,*,gcn5")])
+   (set_attr "gcn_version" "gcn5,*,gcn5")
+   (set_attr "rdna" "no,*,*")])
 
 ;; }}}
 ;; {{{ OpenACC / OpenMP

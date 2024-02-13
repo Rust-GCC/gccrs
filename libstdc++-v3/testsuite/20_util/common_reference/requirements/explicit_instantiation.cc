@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023 Free Software Foundation, Inc.
+// Copyright (C) 2019-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -17,8 +17,7 @@
 
 // NB: This file is for testing type_traits with NO OTHER INCLUDES.
 
-// { dg-options "-std=gnu++2a" }
-// { dg-do compile { target c++2a } }
+// { dg-do compile { target c++20 } }
 
 #include <type_traits>
 

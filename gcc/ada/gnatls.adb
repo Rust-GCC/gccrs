@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1414,7 +1414,7 @@ procedure Gnatls is
          First := 3;
          loop
             while First <= Name_Len
-              and then (Name_Buffer (First) = Path_Separator)
+              and then Name_Buffer (First) = Path_Separator
             loop
                First := First + 1;
             end loop;
@@ -2170,7 +2170,7 @@ begin
             First := Prj_Path'First;
             loop
                while First <= Prj_Path'Last
-                 and then (Prj_Path (First) = Path_Separator)
+                 and then Prj_Path (First) = Path_Separator
                loop
                   First := First + 1;
                end loop;

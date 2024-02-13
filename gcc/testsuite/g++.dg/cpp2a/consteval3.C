@@ -16,10 +16,9 @@ consteval auto [ b, c ] = S ();		// { dg-error "structured binding declaration c
 int f5 (consteval int x) { return x; }	// { dg-error "a parameter cannot be declared 'consteval'" }
 consteval int f6 (int x) { return x; }
 int d = 6;		// { dg-message "'int d' is not const" }
-int e = f6 (d);		// { dg-error "the value of 'd' is not usable in a constant expression" }
-constexpr int f7 (int x) { return f6 (x); }	// { dg-error "'x' is not a constant expression" }
-constexpr int f = f7 (5);	// { dg-error "" }
-				// { dg-message "in 'constexpr' expansion of" "" { target *-*-* } .-1 }
+int e = f6 (d);		// { dg-error "the value of 'd' is not usable in a constant expression|call to consteval function" }
+constexpr int f7 (int x) { return f6 (x); }	// { dg-error "'x' is not a constant expression|call to consteval function" }
+constexpr int f = f7 (5);
 using fnptr = int (int);
 fnptr *g = f6;		// { dg-error "taking address of an immediate function 'consteval int f6\\(int\\)'" }
 int f8 (fnptr *);

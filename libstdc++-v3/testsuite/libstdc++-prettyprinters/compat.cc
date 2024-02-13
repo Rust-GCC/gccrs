@@ -1,7 +1,7 @@
 // { dg-options "-g -O0" }
 // { dg-do run { target c++11 } }
 
-// Copyright (C) 2014-2023 Free Software Foundation, Inc.
+// Copyright (C) 2014-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -102,13 +102,13 @@ main()
   using std::optional;
 
   optional<int> o;
-// { dg-final { note-test o {std::optional<int> [no contained value]} } }
+// { dg-final { note-test o {std::optional [no contained value]} } }
   optional<bool> ob{false};
-// { dg-final { note-test ob {std::optional<bool> = {[contained value] = false}} } }
+// { dg-final { note-test ob {std::optional = {[contained value] = false}} } }
   optional<int> oi{5};
-// { dg-final { note-test oi {std::optional<int> = {[contained value] = 5}} } }
+// { dg-final { note-test oi {std::optional = {[contained value] = 5}} } }
   optional<void*> op{nullptr};
-// { dg-final { note-test op {std::optional<void *> = {[contained value] = 0x0}} } }
+// { dg-final { note-test op {std::optional = {[contained value] = 0x0}} } }
 
   __builtin_puts("");
   return 0;			// Mark SPOT

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2 -fno-tree-vectorize -frename-registers" } */
+/* { dg-options "--param=riscv-autovec-preference=scalable -march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2 -fno-tree-vectorize -frename-registers" } */
 
 #include "riscv_vector.h"
 
@@ -11,11 +11,11 @@ float f (int8_t * restrict in, int8_t * restrict out, int n, int m, unsigned con
     {
       vfloat32mf2_t v = __riscv_vle32_v_f32mf2 ((float *)(in + i + 200), __riscv_vsetvlmax_e32mf2 ());
       __riscv_vse32_v_f32mf2 ((float *)(out + i + 200), v, __riscv_vsetvlmax_e32mf2 ());
-      
+
       vfloat32mf2_t v2 = __riscv_vle32_v_f32mf2_tumu (mask, v, (float *)(in + i + 300), __riscv_vsetvlmax_e32mf2 ());
       __riscv_vse32_v_f32mf2_m (mask, (float *)(out + i + 300), v2, __riscv_vsetvlmax_e32mf2 ());
     }
-  
+
   vfloat32m1_t v = *(vfloat32m1_t*)(in + 300000);
   for (size_t i = 0; i < n; i++)
     {

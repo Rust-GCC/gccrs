@@ -1,5 +1,5 @@
 ;; AltiVec patterns.
-;; Copyright (C) 2002-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2002-2024 Free Software Foundation, Inc.
 ;; Contributed by Aldy Hernandez (aldy@quesejoda.com)
 
 ;; This file is part of GCC.
@@ -385,14 +385,22 @@
 
 (define_insn_and_split "sldoi_to_mov<mode>"
   [(set (match_operand:VM 0 "altivec_register_operand")
-	(unspec:VM [(match_operand:VM 1 "easy_vector_constant")
+	(unspec:VM [(match_operand:VM 1 "const_vector_each_byte_same")
 	            (match_dup 1)
 		    (match_operand:QI 2 "u5bit_cint_operand")]
 		    UNSPEC_VSLDOI))]
-  "VECTOR_UNIT_ALTIVEC_OR_VSX_P (<MODE>mode) && can_create_pseudo_p ()"
+  "VECTOR_MEM_ALTIVEC_OR_VSX_P (<MODE>mode) && can_create_pseudo_p ()"
   "#"
   "&& 1"
-  [(set (match_dup 0) (match_dup 1))])
+  [(set (match_dup 0) (match_dup 1))]
+  "{
+     if (!easy_vector_constant (operands[1], <MODE>mode))
+       {
+	 rtx dest = gen_reg_rtx (<MODE>mode);
+	 emit_move_insn (dest, operands[1]);
+	 operands[1] = dest;
+       }
+  }")
 
 (define_insn "get_vrsave_internal"
   [(set (match_operand:SI 0 "register_operand" "=r")
@@ -2542,7 +2550,7 @@
 }
   [(set_attr "type" "vecperm")])
 
-(define_insn "*altivec_vupkhs<VU_char>_direct"
+(define_insn "altivec_vupkhs<VU_char>_direct"
   [(set (match_operand:VP 0 "register_operand" "=v")
 	(unspec:VP [(match_operand:<VP_small> 1 "register_operand" "v")]
 		     UNSPEC_VUNPACK_HI_SIGN_DIRECT))]
@@ -2597,6 +2605,48 @@
 }
   [(set_attr "type" "vecperm")])
 
+/* The cbranch_optab doesn't allow FAIL, so old cpus which are
+   inefficient on unaligned vsx are disabled as the cost is high
+   for unaligned load/store.  */
+(define_expand "cbranchv16qi4"
+  [(use (match_operator 0 "equality_operator"
+	[(match_operand:V16QI 1 "reg_or_mem_operand")
+	 (match_operand:V16QI 2 "reg_or_mem_operand")]))
+   (use (match_operand 3))]
+  "VECTOR_MEM_VSX_P (V16QImode)
+   && TARGET_EFFICIENT_UNALIGNED_VSX"
+{
+  /* Use direct move for P8 LE to skip doubleword swap, as the byte
+     order doesn't matter for equality compare.  If any operands are
+     altivec indexed or indirect operands, the load can be implemented
+     directly by altivec aligned load instruction and swap is no
+     need.  */
+  if (!TARGET_P9_VECTOR
+      && !BYTES_BIG_ENDIAN
+      && MEM_P (operands[1])
+      && !altivec_indexed_or_indirect_operand (operands[1], V16QImode)
+      && MEM_P (operands[2])
+      && !altivec_indexed_or_indirect_operand (operands[2], V16QImode))
+    {
+      rtx reg_op1 = gen_reg_rtx (V16QImode);
+      rtx reg_op2 = gen_reg_rtx (V16QImode);
+      rs6000_emit_le_vsx_permute (reg_op1, operands[1], V16QImode);
+      rs6000_emit_le_vsx_permute (reg_op2, operands[2], V16QImode);
+      operands[1] = reg_op1;
+      operands[2] = reg_op2;
+    }
+  else
+    {
+      operands[1] = force_reg (V16QImode, operands[1]);
+      operands[2] = force_reg (V16QImode, operands[2]);
+    }
+
+  rtx_code code = GET_CODE (operands[0]);
+  operands[0] = gen_rtx_fmt_ee (code, V16QImode, operands[1], operands[2]);
+  rs6000_emit_cbranch (V16QImode, operands);
+  DONE;
+})
+
 ;; Compare vectors producing a vector result and a predicate, setting CR6 to
 ;; indicate a combined status
 (define_insn "altivec_vcmpequ<VI_char>_p"
@@ -2622,6 +2672,18 @@
   "TARGET_POWER10"
   "vcmpequq. %0,%1,%2"
   [(set_attr "type" "veccmpfx")])
+
+;; Expand for builtin vcmpne{b,h,w}
+(define_expand "altivec_vcmpne_<mode>"
+  [(set (match_operand:VSX_EXTRACT_I 3 "altivec_register_operand" "=v")
+	(eq:VSX_EXTRACT_I (match_operand:VSX_EXTRACT_I 1 "altivec_register_operand" "v")
+			  (match_operand:VSX_EXTRACT_I 2 "altivec_register_operand" "v")))
+   (set (match_operand:VSX_EXTRACT_I 0 "altivec_register_operand" "=v")
+        (not:VSX_EXTRACT_I (match_dup 3)))]
+  "TARGET_ALTIVEC"
+  {
+    operands[3] = gen_reg_rtx (GET_MODE (operands[0]));
+  })
 
 (define_insn "*altivec_vcmpgts<VI_char>_p"
   [(set (reg:CC CR6_REGNO)

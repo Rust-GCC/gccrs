@@ -1,6 +1,6 @@
 (* LongWholeIO.mod provides a WholeIO interface for gm2 LONGINT/LONGCARD.
 
-Copyright (C) 2008-2023 Free Software Foundation, Inc.
+Copyright (C) 2008-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -33,14 +33,13 @@ FROM StringConvert IMPORT LongIntegerToString, LongCardinalToString ;
 FROM WholeConv IMPORT ScanInt, ScanCard ;
 FROM StringChan IMPORT writeString ;
 FROM IOConsts IMPORT ReadResults ;
+FROM TextUtil IMPORT SkipSpaces ;
 
 
 (* Input and output of whole numbers in decimal text form
      over specified channels.  The read result is of the
      type IOConsts.ReadResults.
 *)
-
-IMPORT IOChan;
 
 (* The text form of a signed whole number is
      ["+" | "-"], decimal digit, {decimal digit}
@@ -63,6 +62,7 @@ VAR
    ch       : CHAR ;
    negative : BOOLEAN ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    negative := FALSE ;
    c := 0 ;
@@ -114,9 +114,9 @@ PROCEDURE WriteInt (cid: IOChan.ChanId; int: LONGINT;
 VAR
    s: String ;
 BEGIN
-   s := LongIntegerToString(int, width, ' ', TRUE, 10, FALSE) ;
-   writeString(cid, s) ;
-   s := KillString(s)
+   s := LongIntegerToString (int, width, ' ', int < 0, 10, FALSE) ;
+   writeString (cid, s) ;
+   s := KillString (s)
 END WriteInt ;
 
 
@@ -133,6 +133,7 @@ VAR
    ch       : CHAR ;
    c        : LONGCARD ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    c := 0 ;
    nextState := ScanCard ;

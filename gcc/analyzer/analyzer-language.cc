@@ -1,5 +1,5 @@
 /* Interface between analyzer and frontends.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -35,6 +35,26 @@ static GTY (()) hash_map <tree, tree> *analyzer_stashed_constants;
 #if ENABLE_ANALYZER
 
 namespace ana {
+static vec<finish_translation_unit_callback>
+    *finish_translation_unit_callbacks;
+
+void
+register_finish_translation_unit_callback (
+    finish_translation_unit_callback callback)
+{
+  if (!finish_translation_unit_callbacks)
+    vec_alloc (finish_translation_unit_callbacks, 1);
+  finish_translation_unit_callbacks->safe_push (callback);
+}
+
+static void
+run_callbacks (logger *logger, const translation_unit &tu)
+{
+  for (auto const &cb : finish_translation_unit_callbacks)
+    {
+      cb (logger, tu);
+    }
+}
 
 /* Call into TU to try to find a value for NAME.
    If found, stash its value within analyzer_stashed_constants.  */
@@ -102,6 +122,8 @@ on_finish_translation_unit (const translation_unit &tu)
     the_logger.set_logger (new logger (logfile, 0, 0,
 				       *global_dc->printer));
   stash_named_constants (the_logger.get_logger (), tu);
+
+  run_callbacks (the_logger.get_logger (), tu);
 }
 
 /* Lookup NAME in the named constants stashed when the frontend TU finished.

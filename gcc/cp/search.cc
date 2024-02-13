@@ -1,6 +1,6 @@
 /* Breadth-first and depth-first routines for
    searching multiple-inheritance lattice for GNU C++.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -56,6 +56,7 @@ static tree dfs_get_pure_virtuals (tree, void *);
 
 struct lookup_base_data_s
 {
+  HOST_WIDE_INT offset; /* Offset we want, or -1 if any.  */
   tree t;		/* type being searched.  */
   tree base;		/* The base type we're looking for.  */
   tree binfo;		/* Found binfo.  */
@@ -73,6 +74,22 @@ static tree
 dfs_lookup_base (tree binfo, void *data_)
 {
   struct lookup_base_data_s *data = (struct lookup_base_data_s *) data_;
+
+  if (data->offset != -1)
+    {
+      /* We're looking for the type at a particular offset.  */
+      int comp = compare_tree_int (BINFO_OFFSET (binfo), data->offset);
+      if (comp > 0)
+	/* Don't bother looking into bases laid out later; even if they
+	   do virtually inherit from the base we want, we can get there
+	   by another path.  */
+	return dfs_skip_bases;
+      else if (comp != 0
+	       && SAME_BINFO_TYPE_P (BINFO_TYPE (binfo), data->base))
+	/* Right type, wrong offset.  */
+	return dfs_skip_bases;
+      /* Fall through.  */
+    }
 
   if (SAME_BINFO_TYPE_P (BINFO_TYPE (binfo), data->base))
     {
@@ -190,7 +207,7 @@ accessible_base_p (tree t, tree base, bool consider_local_p)
 /* Lookup BASE in the hierarchy dominated by T.  Do access checking as
    ACCESS specifies.  Return the binfo we discover.  If KIND_PTR is
    non-NULL, fill with information about what kind of base we
-   discovered.
+   discovered.  If OFFSET is other than -1, only match at that offset.
 
    If the base is inaccessible, or ambiguous, then error_mark_node is
    returned.  If the tf_error bit of COMPLAIN is not set, no error
@@ -198,7 +215,8 @@ accessible_base_p (tree t, tree base, bool consider_local_p)
 
 tree
 lookup_base (tree t, tree base, base_access access,
-	     base_kind *kind_ptr, tsubst_flags_t complain)
+	     base_kind *kind_ptr, tsubst_flags_t complain,
+	     HOST_WIDE_INT offset /* = -1 */)
 {
   tree binfo;
   tree t_binfo;
@@ -246,8 +264,9 @@ lookup_base (tree t, tree base, base_access access,
       data.base = base;
       data.binfo = NULL_TREE;
       data.ambiguous = data.via_virtual = false;
-      data.repeated_base = CLASSTYPE_REPEATED_BASE_P (t);
+      data.repeated_base = (offset == -1) && CLASSTYPE_REPEATED_BASE_P (t);
       data.want_any = access == ba_any;
+      data.offset = offset;
 
       dfs_walk_once (t_binfo, dfs_lookup_base, NULL, &data);
       binfo = data.binfo;
@@ -989,7 +1008,7 @@ shared_member_p (tree t)
 	    /* Conservatively assume a dependent using-declaration
 	       might resolve to a non-static member.  */
 	    return false;
-	  if (DECL_NONSTATIC_MEMBER_FUNCTION_P (decl))
+	  if (DECL_OBJECT_MEMBER_FUNCTION_P (decl))
 	    return false;
 	}
       return true;
@@ -1072,13 +1091,24 @@ lookup_field_r (tree binfo, void *data)
 	    }
 
 	  /* Add the new value.  */
-	  lfi->ambiguous = tree_cons (NULL_TREE, nval, lfi->ambiguous);
-	  TREE_TYPE (lfi->ambiguous) = error_mark_node;
+	  if (TREE_CODE (nval) == TREE_LIST)
+	    lfi->ambiguous = chainon (nval, lfi->ambiguous);
+	  else
+	    {
+	      lfi->ambiguous = tree_cons (NULL_TREE, nval, lfi->ambiguous);
+	      TREE_TYPE (lfi->ambiguous) = error_mark_node;
+	    }
 	}
     }
   else
     {
-      lfi->rval = nval;
+      if (TREE_CODE (nval) == TREE_LIST)
+	{
+	  lfi->ambiguous = chainon (nval, lfi->ambiguous);
+	  lfi->rval = TREE_VALUE (nval);
+	}
+      else
+	lfi->rval = nval;
       lfi->rval_binfo = binfo;
     }
 
@@ -1234,7 +1264,7 @@ lookup_member (tree xbasetype, tree name, int protect, bool want_type,
       decl = strip_using_decl (decl);
       /* A dependent USING_DECL will be checked after tsubsting.  */
       if (TREE_CODE (decl) != USING_DECL
-	  && !DECL_NONSTATIC_MEMBER_FUNCTION_P (decl)
+	  && !DECL_IOBJ_MEMBER_FUNCTION_P (decl)
 	  && !perform_or_defer_access_check (basetype_path, decl, decl,
 					     complain, afi))
 	return error_mark_node;
@@ -1707,7 +1737,7 @@ field_access_p (tree component_ref, tree field_decl, tree field_type)
     return false;
 
   tree ptr = STRIP_NOPS (TREE_OPERAND (indirect_ref, 0));
-  if (!is_this_parameter (ptr))
+  if (!is_object_parameter (ptr))
     return false;
 
   /* Must access the correct field.  */
@@ -1787,6 +1817,17 @@ reference_accessor_p (tree init_expr, tree field_decl, tree field_type,
   return true;
 }
 
+/* Return the class of the `this' or explicit object parameter of FN.  */
+
+static tree
+class_of_object_parm (const_tree fn)
+{
+  tree fntype = TREE_TYPE (fn);
+  if (DECL_XOBJ_MEMBER_FUNCTION_P (fn))
+    return non_reference (TREE_VALUE (TYPE_ARG_TYPES (fntype)));
+  return class_of_this_parm (fntype);
+}
+
 /* Return true if FN is an accessor method for FIELD_DECL.
    i.e. a method of the form { return FIELD; }, with no
    conversions.
@@ -1804,15 +1845,14 @@ field_accessor_p (tree fn, tree field_decl, bool const_p)
   if (TREE_CODE (field_decl) != FIELD_DECL)
     return false;
 
-  tree fntype = TREE_TYPE (fn);
-  if (TREE_CODE (fntype) != METHOD_TYPE)
+  if (!DECL_OBJECT_MEMBER_FUNCTION_P (fn))
     return false;
 
   /* If the field is accessed via a const "this" argument, verify
      that the "this" parameter is const.  */
   if (const_p)
     {
-      tree this_class = class_of_this_parm (fntype);
+      tree this_class = class_of_object_parm (fn);
       if (!TYPE_READONLY (this_class))
 	return false;
     }
@@ -2193,10 +2233,13 @@ look_for_overrides_here (tree type, tree fndecl)
 	/* Not a virtual.  */;
       else if (DECL_CONTEXT (fn) != type)
 	/* Introduced with a using declaration.  */;
-      else if (DECL_STATIC_FUNCTION_P (fndecl))
+      else if (DECL_STATIC_FUNCTION_P (fndecl)
+	       || DECL_XOBJ_MEMBER_FUNCTION_P (fndecl))
 	{
 	  tree btypes = TYPE_ARG_TYPES (TREE_TYPE (fn));
 	  tree dtypes = TYPE_ARG_TYPES (TREE_TYPE (fndecl));
+	  dtypes = DECL_XOBJ_MEMBER_FUNCTION_P (fndecl) ? TREE_CHAIN (dtypes)
+							: dtypes;
 	  if (compparms (TREE_CHAIN (btypes), dtypes))
 	    return fn;
 	}
@@ -2223,6 +2266,15 @@ look_for_overrides_r (tree type, tree fndecl)
 	  auto_diagnostic_group d;
 	  error ("%q+#D cannot be declared", fndecl);
 	  error ("  since %q+#D declared in base class", fn);
+	}
+      else if (DECL_XOBJ_MEMBER_FUNCTION_P (fndecl))
+	{
+	  auto_diagnostic_group d;
+	  error_at (DECL_SOURCE_LOCATION (fndecl),
+		    "explicit object member function "
+		    "overrides virtual function");
+	  inform (DECL_SOURCE_LOCATION (fn),
+		  "virtual function declared here");
 	}
       else
 	{

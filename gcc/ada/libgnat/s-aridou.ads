@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -77,18 +77,24 @@ is
 
    function Big (Arg : Double_Int) return Big_Integer is
      (Signed_Conversion.To_Big_Integer (Arg))
-   with Ghost;
+   with
+     Ghost,
+     Annotate => (GNATprove, Inline_For_Proof);
 
    package Unsigned_Conversion is
      new BI_Ghost.Unsigned_Conversions (Int => Double_Uns);
 
    function Big (Arg : Double_Uns) return Big_Integer is
      (Unsigned_Conversion.To_Big_Integer (Arg))
-   with Ghost;
+   with
+     Ghost,
+     Annotate => (GNATprove, Inline_For_Proof);
 
    function In_Double_Int_Range (Arg : Big_Integer) return Boolean is
      (BI_Ghost.In_Range (Arg, Big (Double_Int'First), Big (Double_Int'Last)))
-   with Ghost;
+   with
+     Ghost,
+     Annotate => (GNATprove, Inline_For_Proof);
 
    function Add_With_Ovflo_Check (X, Y : Double_Int) return Double_Int
    with

@@ -1,6 +1,6 @@
 /* m2options.h header file for M2Options.mod.
 
-Copyright (C) 2012-2023 Free Software Foundation, Inc.
+Copyright (C) 2012-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -124,18 +124,34 @@ EXTERN void M2Options_SetGenModuleList (bool value, const char *filename);
 EXTERN void M2Options_SetShared (bool value);
 EXTERN void M2Options_SetB (const char *arg);
 EXTERN char *M2Options_GetB (void);
-EXTERN void M2Options_SetMD (const char *arg);
-EXTERN char *M2Options_GetMD (void);
-EXTERN void M2Options_SetMMD (const char *arg);
-EXTERN char *M2Options_GetMMD (void);
+EXTERN void M2Options_SetM (bool value);
+EXTERN bool M2Options_GetM (void);
+EXTERN void M2Options_SetMM (bool value);
+EXTERN bool M2Options_GetMM (void);
+EXTERN void M2Options_SetMD (bool value);
+EXTERN bool M2Options_GetMD (void);
+EXTERN void M2Options_SetMMD (bool value);
+EXTERN bool M2Options_GetMMD (void);
 EXTERN void M2Options_SetMQ (const char *arg);
-EXTERN char *M2Options_GetMQ (void);
+EXTERN void M2Options_SetMF (const char *arg);
+EXTERN char *M2Options_GetMF (void);
+EXTERN void M2Options_SetMT (const char *arg);
+EXTERN void M2Options_SetMP (bool value);
+EXTERN bool M2Options_GetMP (void);
+EXTERN char *M2Options_GetDepTarget (void);
 EXTERN void M2Options_SetObj (const char *arg);
 EXTERN char *M2Options_GetObj (void);
 EXTERN void M2Options_SetM2Prefix (const char *arg);
 EXTERN char *M2Options_GetM2Prefix (void);
 EXTERN void M2Options_SetM2PathName (const char *arg);
 EXTERN char *M2Options_GetM2PathName (void);
+EXTERN int M2Options_SetUninitVariableChecking (bool value, const char *arg);
+EXTERN void M2Options_SetCaseEnumChecking (bool value);
+EXTERN void M2Options_SetDebugBuiltins (bool value);
+EXTERN void M2Options_SetIBMLongDouble (bool value);
+EXTERN bool M2Options_GetIBMLongDouble (void);
+EXTERN void M2Options_SetIEEELongDouble (bool value);
+EXTERN bool M2Options_GetIEEELongDouble (void);
 
 #undef EXTERN
 #endif /* m2options_h.  */

@@ -1,5 +1,5 @@
 /* Symbolic values.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -251,6 +251,7 @@ svalue::can_merge_p (const svalue *other,
 	   a descending chain of constraints.  */
 	if (other == widen_arg0)
 	  {
+	    merger->on_widening_reuse (widen_arg0);
 	    return widen_arg0;
 	  }
 
@@ -606,6 +607,12 @@ public:
       m_found = true;
   }
 
+  void visit_widening_svalue (const widening_svalue *candidate) final override
+  {
+    if (candidate == m_needle)
+      m_found = true;
+  }
+
   bool found_p () const { return m_found; }
 
 private:
@@ -620,7 +627,8 @@ svalue::involves_p (const svalue *other) const
 {
   /* Currently only implemented for these kinds.  */
   gcc_assert (other->get_kind () == SK_INITIAL
-	      || other->get_kind () == SK_CONJURED);
+	      || other->get_kind () == SK_CONJURED
+	      || other->get_kind () == SK_WIDENING);
 
   involvement_visitor v (other);
   accept (&v);
@@ -714,8 +722,11 @@ region_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
   else
     {
       pp_string (pp, "region_svalue(");
-      print_quoted_type (pp, get_type ());
-      pp_string (pp, ", ");
+      if (get_type ())
+	{
+	  print_quoted_type (pp, get_type ());
+	  pp_string (pp, ", ");
+	}
       m_reg->dump_to_pp (pp, simple);
       pp_string (pp, ")");
     }
@@ -811,8 +822,11 @@ constant_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
   else
     {
       pp_string (pp, "constant_svalue(");
-      print_quoted_type (pp, get_type ());
-      pp_string (pp, ", ");
+      if (get_type ())
+	{
+	  print_quoted_type (pp, get_type ());
+	  pp_string (pp, ", ");
+	}
       dump_tree (pp, m_cst_expr);
       pp_string (pp, ")");
     }
@@ -964,6 +978,8 @@ poison_kind_to_str (enum poison_kind kind)
       return "uninit";
     case POISON_KIND_FREED:
       return "freed";
+    case POISON_KIND_DELETED:
+      return "deleted";
     case POISON_KIND_POPPED_STACK:
       return "popped stack";
     }
@@ -1029,8 +1045,11 @@ initial_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
   else
     {
       pp_string (pp, "initial_svalue(");
-      print_quoted_type (pp, get_type ());
-      pp_string (pp, ", ");
+      if (get_type ())
+	{
+	  print_quoted_type (pp, get_type ());
+	  pp_string (pp, ", ");
+	}
       m_reg->dump_to_pp (pp, simple);
       pp_string (pp, ")");
     }
@@ -1254,10 +1273,12 @@ binop_svalue::implicitly_live_p (const svalue_set *live_svalues,
 
 /* sub_svalue'c ctor.  */
 
-sub_svalue::sub_svalue (tree type, const svalue *parent_svalue,
+sub_svalue::sub_svalue (symbol::id_t id,
+			tree type, const svalue *parent_svalue,
 			const region *subregion)
 : svalue (complexity::from_pair (parent_svalue->get_complexity (),
 				 subregion->get_complexity ()),
+	  id,
 	  type),
   m_parent_svalue (parent_svalue), m_subregion (subregion)
 {
@@ -1311,10 +1332,11 @@ sub_svalue::implicitly_live_p (const svalue_set *live_svalues,
 
 /* repeated_svalue'c ctor.  */
 
-repeated_svalue::repeated_svalue (tree type,
+repeated_svalue::repeated_svalue (symbol::id_t id,
+				  tree type,
 				  const svalue *outer_size,
 				  const svalue *inner_svalue)
-: svalue (complexity::from_pair (outer_size, inner_svalue), type),
+: svalue (complexity::from_pair (outer_size, inner_svalue), id, type),
   m_outer_size (outer_size),
   m_inner_svalue (inner_svalue)
 {
@@ -1438,10 +1460,11 @@ repeated_svalue::maybe_fold_bits_within (tree type,
 
 /* bits_within_svalue'c ctor.  */
 
-bits_within_svalue::bits_within_svalue (tree type,
+bits_within_svalue::bits_within_svalue (symbol::id_t id,
+					tree type,
 					const bit_range &bits,
 					const svalue *inner_svalue)
-: svalue (complexity (inner_svalue), type),
+: svalue (complexity (inner_svalue), id, type),
   m_bits (bits),
   m_inner_svalue (inner_svalue)
 {
@@ -1736,8 +1759,10 @@ unmergeable_svalue::implicitly_live_p (const svalue_set *live_svalues,
 
 /* class compound_svalue : public svalue.  */
 
-compound_svalue::compound_svalue (tree type, const binding_map &map)
-: svalue (calc_complexity (map), type), m_map (map)
+compound_svalue::compound_svalue (symbol::id_t id,
+				  tree type,
+				  const binding_map &map)
+: svalue (calc_complexity (map), id, type), m_map (map)
 {
 #if CHECKING_P
   for (iterator_t iter = begin (); iter != end (); ++iter)
@@ -1904,7 +1929,11 @@ conjured_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
   else
     {
       pp_string (pp, "conjured_svalue (");
-      pp_string (pp, ", ");
+      if (get_type ())
+	{
+	  print_quoted_type (pp, get_type ());
+	  pp_string (pp, ", ");
+	}
       pp_gimple_stmt_1 (pp, m_stmt, 0, (dump_flags_t)0);
       pp_string (pp, ", ");
       m_id_reg->dump_to_pp (pp, simple);
@@ -1919,6 +1948,17 @@ conjured_svalue::accept (visitor *v) const
 {
   m_id_reg->accept (v);
   v->visit_conjured_svalue (this);
+}
+
+/* Return true iff this conjured_svalue is for the LHS of the
+   stmt that conjured it.  */
+
+bool
+conjured_svalue::lhs_value_p () const
+{
+  if (tree decl = m_id_reg->maybe_get_decl ())
+    return decl == gimple_get_lhs (m_stmt);
+  return false;
 }
 
 /* class asm_output_svalue : public svalue.  */

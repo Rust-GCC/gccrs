@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -165,7 +165,7 @@ package body Util is
         and then Start_Column <= Scopes (Scope.Last).Ecol
       then
          Error_Msg_BC -- CODEFIX
-           ("(style) incorrect layout");
+           ("(style) incorrect layout?l?");
       end if;
    end Check_Bad_Layout;
 
@@ -713,7 +713,7 @@ package body Util is
         and then Scope.Last = Style_Max_Nesting_Level + 1
       then
          Error_Msg
-           ("(style) maximum nesting level exceeded",
+           ("(style) maximum nesting level exceeded?L?",
             First_Non_Blank_Location);
       end if;
 

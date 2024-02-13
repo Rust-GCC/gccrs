@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,8 +18,9 @@
 // Example from C++ Standard Working Draft N4842, November 2019 Mailing
 // Adapted for testing.
 
-// { dg-options "-std=gnu++2a -include string -include stdexcept" }
-// { dg-do run { target c++2a } }
+// { dg-options "-include string -include stdexcept" }
+// { dg-do run { target c++20 } }
+// { dg-add-options no_pch }
 
 #include <source_location>
 
@@ -125,7 +126,7 @@ int main ()
     member_defaulted_sl.member.file_name());
   std::string_view member_defaulted_sl_fn_name(
     member_defaulted_sl.member.function_name());
-  VERIFY(member_defaulted_sl.member.line() == 46);
+  VERIFY(member_defaulted_sl.member.line() == 47);
   // closing paren of constructor declaration
   VERIFY(member_defaulted_sl.member.column() == 25);
   VERIFY(member_defaulted_sl_fn_name.starts_with("s::s(int)"sv));

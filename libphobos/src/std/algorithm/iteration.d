@@ -2026,7 +2026,7 @@ private struct ChunkByGroup(alias eq, Range, bool eqEquivalenceAssured)
         }
     }
 
-    // Cannot be a copy constructor due to issue 22239
+    // Cannot be a copy constructor due to https://issues.dlang.org/show_bug.cgi?id=22239
     this(this) @trusted
     {
         import core.lifetime : emplace;
@@ -2128,7 +2128,7 @@ if (isForwardRange!Range)
         }();
     }
 
-    // Cannot be a copy constructor due to issue 22239
+    // Cannot be a copy constructor due to https://issues.dlang.org/show_bug.cgi?id=22239
     this(this) @trusted
     {
         import core.lifetime : emplace;
@@ -2975,9 +2975,9 @@ auto joiner(RoR, Separator)(RoR r, Separator sep)
     static assert(isInputRange!(ElementType!RoR), "The ElementyType of RoR '"
             , ElementType!(RoR).stringof, "' must be an InputRange "
             , "(isInputRange!(ElementType!(", RoR.stringof , "))).");
-    static assert(isForwardRange!Separator, "The type of the Seperator '"
-            , Seperator.stringof, "' must be a ForwardRange (isForwardRange!("
-            , Seperator.stringof, ")).");
+    static assert(isForwardRange!Separator, "The type of the Separator '"
+            , Separator.stringof, "' must be a ForwardRange (isForwardRange!("
+            , Separator.stringof, ")).");
     static assert(is(ElementType!Separator : ElementType!(ElementType!RoR))
             , "The type of the elements of the separator range does not match "
             , "the type of the elements that are joined. Separator type '"
@@ -3632,18 +3632,18 @@ auto joiner(RoR, Separator)(RoR r, Separator sep)
 
 /// Ditto
 auto joiner(RoR)(RoR r)
-if (isInputRange!RoR && isInputRange!(ElementType!RoR))
+if (isInputRange!RoR && isInputRange!(Unqual!(ElementType!RoR)))
 {
     static struct Result
     {
     private:
         RoR _items;
-        ElementType!RoR _current;
+        Unqual!(ElementType!RoR) _current;
         enum isBidirectional = isForwardRange!RoR && isForwardRange!(ElementType!RoR) &&
                                isBidirectionalRange!RoR && isBidirectionalRange!(ElementType!RoR);
         static if (isBidirectional)
         {
-            ElementType!RoR _currentBack;
+            Unqual!(ElementType!RoR) _currentBack;
             bool reachedFinalElement;
         }
 
@@ -4293,6 +4293,28 @@ if (isInputRange!RoR && isInputRange!(ElementType!RoR))
     assert([only(S(null))].joiner.front == S(null));
 }
 
+// https://issues.dlang.org/show_bug.cgi?id=22785
+@safe unittest
+{
+
+    import std.algorithm.iteration : joiner, map;
+    import std.array : array;
+
+    static immutable struct S
+    {
+        int value;
+    }
+
+    static immutable struct T
+    {
+        S[] arr;
+    }
+
+    auto range = [T([S(3)]), T([S(4), S(5)])];
+
+    assert(range.map!"a.arr".joiner.array == [S(3), S(4), S(5)]);
+}
+
 /++
 Implements the homonym function (also known as `accumulate`, $(D
 compress), `inject`, or `foldl`) present in various programming
@@ -4787,26 +4809,41 @@ private template ReduceSeedType(E)
 /++
 Implements the homonym function (also known as `accumulate`, $(D
 compress), `inject`, or `foldl`) present in various programming
-languages of functional flavor. The call `fold!(fun)(range, seed)`
-first assigns `seed` to an internal variable `result`,
-also called the accumulator. Then, for each element `x` in $(D
-range), `result = fun(result, x)` gets evaluated. Finally, $(D
-result) is returned. The one-argument version `fold!(fun)(range)`
+languages of functional flavor, iteratively calling one or more predicates.
+
+$(P Each predicate in `fun` must take two arguments:)
+* An accumulator value
+* An element of the range `r`
+$(P Each predicate must return a value which implicitly converts to the
+type of the accumulator.)
+
+$(P For a single predicate,
+the call `fold!(fun)(range, seed)` will:)
+
+* Use `seed` to initialize an internal variable `result` (also called
+  the accumulator).
+* For each element `e` in $(D range), evaluate `result = fun(result, e)`.
+* Return $(D result).
+
+$(P The one-argument version `fold!(fun)(range)`
 works similarly, but it uses the first element of the range as the
-seed (the range must be non-empty).
+seed (the range must be non-empty) and iterates over the remaining
+elements.)
+
+Multiple results are produced when using multiple predicates.
 
 Params:
     fun = the predicate function(s) to apply to the elements
 
 See_Also:
-    $(HTTP en.wikipedia.org/wiki/Fold_(higher-order_function), Fold (higher-order function))
+    * $(HTTP en.wikipedia.org/wiki/Fold_(higher-order_function), Fold (higher-order function))
 
-    $(LREF sum) is similar to `fold!((a, b) => a + b)` that offers
-    precise summing of floating point numbers.
+    * $(LREF sum) is similar to `fold!((a, b) => a + b)` that offers
+      precise summing of floating point numbers.
 
-    This is functionally equivalent to $(LREF reduce) with the argument order
-    reversed, and without the need to use $(REF_ALTTEXT `tuple`,tuple,std,typecons)
-    for multiple seeds.
+    * `fold` is functionally equivalent to $(LREF reduce) with the argument order
+      reversed, and without the need to use $(REF_ALTTEXT `tuple`,tuple,std,typecons)
+      for multiple seeds.
 +/
 template fold(fun...)
 if (fun.length >= 1)
@@ -4814,20 +4851,21 @@ if (fun.length >= 1)
     /**
     Params:
         r = the $(REF_ALTTEXT input range, isInputRange, std,range,primitives) to fold
-        seed = the initial value of the accumulator
+        seeds = the initial values of each accumulator (optional), one for each predicate
     Returns:
-        the accumulated `result`
+        Either the accumulated result for a single predicate, or a
+        $(REF_ALTTEXT `Tuple`,Tuple,std,typecons) of results.
      */
-    auto fold(R, S...)(R r, S seed)
+    auto fold(R, S...)(R r, S seeds)
     {
         static if (S.length < 2)
         {
-            return reduce!fun(seed, r);
+            return reduce!fun(seeds, r);
         }
         else
         {
             import std.typecons : tuple;
-            return reduce!fun(tuple(seed), r);
+            return reduce!fun(tuple(seeds), r);
         }
     }
 }
@@ -4838,10 +4876,10 @@ if (fun.length >= 1)
     immutable arr = [1, 2, 3, 4, 5];
 
     // Sum all elements
-    assert(arr.fold!((a, b) => a + b) == 15);
+    assert(arr.fold!((a, e) => a + e) == 15);
 
     // Sum all elements with explicit seed
-    assert(arr.fold!((a, b) => a + b)(6) == 21);
+    assert(arr.fold!((a, e) => a + e)(6) == 21);
 
     import std.algorithm.comparison : min, max;
     import std.typecons : tuple;
@@ -4853,10 +4891,10 @@ if (fun.length >= 1)
     assert(arr.fold!(min, max)(0, 7) == tuple(0, 7));
 
     // Can be used in a UFCS chain
-    assert(arr.map!(a => a + 1).fold!((a, b) => a + b) == 20);
+    assert(arr.map!(a => a + 1).fold!((a, e) => a + e) == 20);
 
     // Return the last element of any range
-    assert(arr.fold!((a, b) => b) == 5);
+    assert(arr.fold!((a, e) => e) == 5);
 }
 
 @safe @nogc pure nothrow unittest
@@ -7917,15 +7955,23 @@ See_Also:
 $(REF nextPermutation, std,algorithm,sorting).
 */
 Permutations!Range permutations(Range)(Range r)
-if (isRandomAccessRange!Range && hasLength!Range)
 {
+    static assert(isRandomAccessRange!Range, Range.stringof,
+            " must be a RandomAccessRange");
+    static assert(hasLength!Range, Range.stringof
+            , " must have a length");
+
     return typeof(return)(r);
 }
 
 /// ditto
 struct Permutations(Range)
-if (isRandomAccessRange!Range && hasLength!Range)
 {
+    static assert(isRandomAccessRange!Range, Range.stringof,
+            " must be a RandomAccessRange");
+    static assert(hasLength!Range, Range.stringof
+            , " must have a length");
+
     private size_t[] _indices, _state;
     private Range _r;
     private bool _empty;

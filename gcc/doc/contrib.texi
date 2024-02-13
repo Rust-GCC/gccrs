@@ -1,4 +1,4 @@
-@c Copyright (C) 1988-2023 Free Software Foundation, Inc.
+@c Copyright (C) 1988-2024 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -782,6 +782,9 @@ clean-ups and porting work, and maintaining the IRIX, Solaris 2, and
 Tru64 UNIX ports.
 
 @item
+Patrick Palka for contributions to the C++ library and front end.
+
+@item
 Steven Pemberton for his contribution of @file{enquire} which allowed GCC to
 determine various properties of the floating point unit and generate
 @file{float.h} in older versions of GCC.
@@ -809,7 +812,8 @@ Marek Polacek for his work on the C front end, the sanitizers and general
 bug fixing.
 
 @item
-Andrew Pinski for processing bug reports by the dozen.
+Andrew Pinski for processing bug reports by the dozen, maintenance of the
+Objective-C runtime libraries, and many scalar optimizations.
 
 @item
 Ovidiu Predescu for his work on the Objective-C front end and runtime
@@ -1095,8 +1099,7 @@ Todd Vierling for contributions for NetBSD ports.
 Andrew Waterman for contributing the RISC-V port, as well as maintaining it.
 
 @item
-Jonathan Wakely for contributing libstdc++ Doxygen notes and XHTML
-guidance and maintaining libstdc++.
+Jonathan Wakely for contributing to and maintaining libstdc++.
 
 @item
 Dean Wakerley for converting the install documentation from HTML to texinfo
@@ -1515,7 +1518,7 @@ Gael Thomas for @code{VMClassLoader} boot packages support suggestions.
 
 @item
 Andreas Tobler for Darwin and Solaris testing and fixing, @code{Qt4}
-support for Darwin/OS X, @code{Graphics2D} support, @code{gtk+}
+support for Darwin / macOS, @code{Graphics2D} support, @code{gtk+}
 updates.
 
 @item

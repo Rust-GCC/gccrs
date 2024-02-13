@@ -1,5 +1,5 @@
 /* Definitions for GCC.  Part of the machine description for CRIS.
-   Copyright (C) 1998-2023 Free Software Foundation, Inc.
+   Copyright (C) 1998-2024 Free Software Foundation, Inc.
    Contributed by Axis Communications.
 
 This file is part of GCC.
@@ -28,6 +28,7 @@ extern bool cris_reload_address_legitimized (rtx, machine_mode, int, int, int);
 extern int cris_side_effect_mode_ok (enum rtx_code, rtx *, int, int,
                                      int, int, int);
 extern rtx cris_return_addr_rtx (int, rtx);
+extern rtx cris_eh_return_handler_rtx ();
 extern rtx cris_split_movdx (rtx *);
 extern bool cris_base_p (const_rtx, bool);
 extern bool cris_base_or_autoincr_p (const_rtx, bool);
@@ -44,6 +45,12 @@ extern rtx cris_emit_movem_store (rtx, rtx, int, bool);
 extern rtx_insn *cris_emit_insn (rtx x);
 extern void cris_order_for_addsi3 (rtx *, int);
 extern void cris_emit_trap_for_misalignment (rtx);
+extern int cris_split_constant (HOST_WIDE_INT, enum rtx_code,
+				machine_mode, bool,
+				bool generate = false,
+				rtx dest = NULL_RTX,
+				rtx op = NULL_RTX);
+#define cris_splittable_constant_p cris_split_constant
 #endif /* RTX_CODE */
 extern void cris_asm_output_label_ref (FILE *, char *);
 extern void cris_asm_output_ident (const char *);

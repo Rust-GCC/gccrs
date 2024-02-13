@@ -1,5 +1,5 @@
 /* Definitions for simple data type for real numbers.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -51,6 +51,7 @@ public:
 
   void dump (FILE *) const;
   int64_t to_int () const;
+  int64_t to_nearest_int () const;
   double to_double () const;
   void stream_out (struct output_block *);
   static sreal stream_in (class lto_input_block *);

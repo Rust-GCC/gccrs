@@ -12,10 +12,17 @@ int array[N];
 
 #pragma omp declare simd simdlen(4) notinbranch
 #pragma omp declare simd simdlen(4) notinbranch uniform(b) linear(c:3)
+#ifdef __aarch64__
+#pragma omp declare simd simdlen(2) notinbranch
+#pragma omp declare simd simdlen(2) notinbranch uniform(b) linear(c:3)
+#else
 #pragma omp declare simd simdlen(8) notinbranch
 #pragma omp declare simd simdlen(8) notinbranch uniform(b) linear(c:3)
+#endif
 __attribute__((noinline)) int
 foo (int a, int b, int c)
+/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } .-1 } */
+/* { dg-warning {unsupported simdlen 4 \(amdgcn\)} "" { target amdgcn*-*-* } .-2 } */
 {
   if (a < 30)
     return 5;
@@ -46,15 +53,14 @@ main ()
   int i;
   check_vect ();
   bar ();
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (array[i] != (i < 30 ? 5 : i * 4 + 123))
       abort ();
   baz ();
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (array[i] != (i < 30 ? 5 : i * 8 + 123))
       abort ();
   return 0;
 }
-
-/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } 18 } */
-/* { dg-warning {unsupported simdlen 4 \(amdgcn\)} "" { target amdgcn*-*-* } 18 } */

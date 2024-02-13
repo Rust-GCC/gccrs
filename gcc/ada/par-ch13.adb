@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -945,7 +945,6 @@ package body Ch13 is
          --  Here aspects are allowed, and we store them
 
          else
-            Set_Parent (Aspects, Decl);
             Set_Aspect_Specifications (Decl, Aspects);
          end if;
       end if;

@@ -1,5 +1,5 @@
 /* Classes for purging state at function_points.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -327,6 +327,15 @@ state_purge_per_ssa_name::state_purge_per_ssa_name (const state_purge_map &map,
 	      pretty_printer pp;
 	      pp_gimple_stmt_1 (&pp, use_stmt, 0, (dump_flags_t)0);
 	      map.log ("used by stmt: %s", pp_formatted_text (&pp));
+	    }
+
+	  if (is_gimple_debug (use_stmt))
+	    {
+	      /* We skipped debug stmts when building the supergraph,
+		 so ignore them now.  */
+	      if (map.get_logger ())
+		map.log ("skipping debug stmt");
+	      continue;
 	    }
 
 	  const supernode *snode

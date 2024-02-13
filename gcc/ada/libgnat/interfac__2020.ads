@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2002-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -35,10 +35,11 @@
 
 --  This is the runtime version of this unit (not used during GNAT build)
 
-package Interfaces is
+package Interfaces with
+  Always_Terminates
+is
    pragma No_Elaboration_Code_All;
    pragma Pure;
-   pragma Annotate (GNATprove, Always_Return, Interfaces);
 
    --  All identifiers in this unit are implementation defined
 

@@ -2,6 +2,7 @@
 /* { dg-additional-options "--param vect-epilogues-nomask=0" } */
 /* { dg-require-effective-target vect_int } */
 /* { dg-additional-options "-fno-ipa-icf" } */
+/* { dg-additional-options "-mlasx" { target loongarch*-*-*} } */
 
 #include "tree-vect.h"
 
@@ -17,6 +18,7 @@ foo (int *__restrict a,
   for (i = 0; i < n; i++)
     a[i] = b[i] * 2333;
 
+#pragma GCC novector
   for (i = 0; i < n; i++)
     if (a[i] != b[i] * 2333)
       abort ();
@@ -32,6 +34,7 @@ bar (int *__restrict a,
   for (i = 0; i < n; i++)
     a[i] = b[i] * (short) 2333;
 
+#pragma GCC novector
   for (i = 0; i < n; i++)
     if (a[i] != b[i] * (short) 2333)
       abort ();

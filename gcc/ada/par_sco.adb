@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2009-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -398,7 +398,8 @@ package body Par_SCO is
       function Check_Node (N : Node_Id) return Traverse_Result;
       --  Determine if Nkind (N) indicates the presence of a decision (i.e. N
       --  is a logical operator, which is a decision in itself, or an
-      --  IF-expression whose Condition attribute is a decision).
+      --  IF-expression whose Condition attribute is a decision, or a
+      --  quantified expression, whose predicate is a decision).
 
       ----------------
       -- Check_Node --
@@ -409,10 +410,11 @@ package body Par_SCO is
          --  If we are not sure this is a logical operator (AND and OR may be
          --  turned into logical operators with the Short_Circuit_And_Or
          --  pragma), assume it is. Putative decisions will be discarded if
-         --  needed in the secord pass.
+         --  needed in the second pass.
 
          if Is_Logical_Operator (N) /= False
            or else Nkind (N) = N_If_Expression
+           or else Nkind (N) = N_Quantified_Expression
          then
             return Abandon;
          else
@@ -749,6 +751,13 @@ package body Par_SCO is
       begin
          case Nkind (N) is
 
+            --  Aspect specifications have dedicated processings (see
+            --  Traverse_Aspects) so ignore them here, so that they are
+            --  processed only once.
+
+            when N_Aspect_Specification =>
+               return Skip;
+
             --  Logical operators, output table entries and then process
             --  operands recursively to deal with nested conditions.
 
@@ -827,8 +836,15 @@ package body Par_SCO is
 
             when N_Quantified_Expression =>
                declare
-                  Cond : constant Node_Id := Condition (N);
+                  Cond   : constant Node_Id := Condition (N);
+                  I_Spec : Node_Id := Empty;
                begin
+                  if Present (Iterator_Specification (N)) then
+                     I_Spec := Iterator_Specification (N);
+                  else
+                     I_Spec := Loop_Parameter_Specification (N);
+                  end if;
+                  Process_Decisions (I_Spec, 'X', Pragma_Sloc);
                   Process_Decisions (Cond, 'W', Pragma_Sloc);
                   return Skip;
                end;
@@ -1680,6 +1696,10 @@ package body Par_SCO is
          C1 : Character;
 
       begin
+         if not Has_Aspects (N) then
+            return;
+         end if;
+
          AN := First (Aspect_Specifications (N));
          while Present (AN) loop
             AE := Expression (AN);
@@ -2398,8 +2418,6 @@ package body Par_SCO is
                   Process_Decisions_Defer (N, 'X');
                end if;
          end case;
-
-         --  Process aspects if present
 
          Traverse_Aspects (N);
       end Traverse_One;

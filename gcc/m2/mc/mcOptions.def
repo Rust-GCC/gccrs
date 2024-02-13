@@ -1,6 +1,6 @@
 (* mcOptions.def handles the options for mc.
 
-Copyright (C) 2015-2023 Free Software Foundation, Inc.
+Copyright (C) 2015-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -153,6 +153,30 @@ PROCEDURE getSuppressNoReturn () : BOOLEAN ;
 *)
 
 PROCEDURE useBool () : BOOLEAN ;
+
+
+(*
+   getCRealType - returns the string representing the REAL type
+                  used by C.  By default this is "double".
+*)
+
+PROCEDURE getCRealType () : String ;
+
+
+(*
+   getCLongRealType - returns the string representing the REAL type
+                      used by C.  By default this is "long double".
+*)
+
+PROCEDURE getCLongRealType () : String ;
+
+
+(*
+   getCShortRealType - returns the string representing the REAL type
+                       used by C.  By default this is "float".
+*)
+
+PROCEDURE getCShortRealType () : String ;
 
 
 END mcOptions.

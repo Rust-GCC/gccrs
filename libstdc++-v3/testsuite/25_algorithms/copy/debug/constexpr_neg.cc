@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,8 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++2a" }
-// { dg-do compile { target c++2a } }
+// { dg-do compile { target c++20 } }
 // { dg-require-debug-mode ""  }
 
 #include <algorithm>
@@ -34,6 +33,7 @@ test1()
 }
 
 static_assert(test1()); // { dg-error "non-constant condition" }
+// { dg-error "_Error_formatter::_M_error()" "" { target *-*-* } 0 }
 
 constexpr bool
 test2()
@@ -46,8 +46,5 @@ test2()
   return out6 == ma0.begin() + 18;
 }
 
-static_assert(test2()); // { dg-error "is outside the bounds" }
-
-// { dg-prune-output "in 'constexpr' expansion" }
-// { dg-prune-output "builtin_unreachable" }
-// { dg-prune-output "non-constant condition" }
+static_assert(test2()); // { dg-error "non-constant condition" }
+// { dg-error "is outside the bounds" "" { target *-*-* } 0 }

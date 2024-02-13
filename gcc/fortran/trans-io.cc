@@ -1,5 +1,5 @@
 /* IO Code translation/library interface
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -791,7 +791,7 @@ gfc_convert_array_to_string (gfc_se * se, gfc_expr * e)
 	}
       else
 	{
-	  gcc_assert (TREE_CODE (se->expr) == INDIRECT_REF);
+	  gcc_assert (INDIRECT_REF_P (se->expr));
 	  tree ptr = TREE_OPERAND (se->expr, 0);
 
 	  gcc_assert (TREE_CODE (ptr) == POINTER_PLUS_EXPR);
@@ -2620,9 +2620,13 @@ gfc_trans_transfer (gfc_code * code)
 	  gcc_assert (ref && ref->type == REF_ARRAY);
 	}
 
+      /* These expressions don't always have the dtype element length set
+	 correctly, rendering them useless for array transfer.  */
       if (expr->ts.type != BT_CLASS
 	 && expr->expr_type == EXPR_VARIABLE
 	 && ((expr->symtree->n.sym->ts.type == BT_DERIVED && expr->ts.deferred)
+	     || (expr->symtree->n.sym->assoc
+		 && expr->symtree->n.sym->assoc->variable)
 	     || gfc_expr_attr (expr).pointer))
 	goto scalarize;
 

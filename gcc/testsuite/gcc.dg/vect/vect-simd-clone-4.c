@@ -12,9 +12,14 @@ float d[N];
 int e[N];
 unsigned short f[N];
 
+#ifdef __aarch64__
+#pragma omp declare simd simdlen(4) notinbranch uniform(b)
+#else
 #pragma omp declare simd simdlen(8) notinbranch uniform(b)
+#endif
 __attribute__((noinline)) float
 foo (float a, float b, float c)
+/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } .-1 } */
 {
   if (a < 30)
     return 5.0f;
@@ -40,10 +45,9 @@ main ()
   int i;
   check_vect ();
   bar ();
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (d[i] != (i < 30 ? 5.0f : i * 4 + 123.0f) || e[i] || f[i] != 1)
       abort ();
   return 0;
 }
-
-/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } 17 } */

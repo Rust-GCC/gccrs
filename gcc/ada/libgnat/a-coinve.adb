@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -2679,22 +2679,19 @@ is
    is
       First_Time : Boolean := True;
       use System.Put_Images;
+   begin
+      Array_Before (S);
 
-      procedure Put_Elem (Position : Cursor);
-      procedure Put_Elem (Position : Cursor) is
-      begin
+      for X of V loop
          if First_Time then
             First_Time := False;
          else
             Simple_Array_Between (S);
          end if;
 
-         Element_Type'Put_Image (S, Element (Position));
-      end Put_Elem;
+         Element_Type'Put_Image (S, X);
+      end loop;
 
-   begin
-      Array_Before (S);
-      Iterate (V, Put_Elem'Access);
       Array_After (S);
    end Put_Image;
 

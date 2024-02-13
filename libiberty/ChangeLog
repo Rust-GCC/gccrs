@@ -1,3 +1,139 @@
+2024-02-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* vprintf-support.c (libiberty_vprintf_buffer_size): Handle
+	properly l, ll, z, t or on _WIN32 I64 modifiers for diouxX
+	and L modifier for fFgGeE.
+
+2024-01-13  Jakub Jelinek  <jakub@redhat.com>
+
+	* cp-demangle.c (FNQUAL_COMPONENT_CASE): Add case for
+	DEMANGLE_COMPONENT_XOBJ_MEMBER_FUNCTION.
+	(d_dump): Handle DEMANGLE_COMPONENT_XOBJ_MEMBER_FUNCTION.
+	(d_nested_name): Parse H after N in nested name.
+	(d_count_templates_scopes): Handle
+	DEMANGLE_COMPONENT_XOBJ_MEMBER_FUNCTION.
+	(d_print_mod): Likewise.
+	(d_print_function_type): Likewise.
+	* testsuite/demangle-expected: Add tests for explicit object
+	member functions.
+
+2023-12-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.ac (HAVE_X86_SHA1_HW_SUPPORT): Verify __get_cpuid and
+	__get_cpuid_count are not implicitly declared.
+	* configure: Regenerated.
+
+2023-12-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* pex-unix.c (pex_unix_wait): Change return type to pid_t.
+
+2023-12-01  Jason Merrill  <jason@redhat.com>
+
+	* cp-demangle.c (d_make_comp): Handle
+	DEMANGLE_COMPONENT_CONSTRAINTS.
+	(d_count_templates_scopes): Likewise.
+	(d_print_comp_inner): Likewise.
+	(d_maybe_constraints): New.
+	(d_encoding, d_template_args_1): Call it.
+	(d_parmlist): Handle 'Q'.
+	* testsuite/demangle-expected: Add some constraint tests.
+
+2023-11-30  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (GCC_CHECK_ASSEMBLER_HWCAP): Invoke.
+	* configure, aclocal.m4: Regenerate.
+	* Makefile.in (COMPILE.c): Add HWCAP_CFLAGS.
+
+2023-11-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.ac (HAVE_X86_SHA1_HW_SUPPORT): New check.
+	* sha1.c: If HAVE_X86_SHA1_HW_SUPPORT is defined, include x86intrin.h
+	and cpuid.h.
+	(sha1_hw_process_bytes, sha1_hw_process_block,
+	sha1_choose_process_bytes): New functions.
+	* config.in: Regenerated.
+	* configure: Regenerated.
+
+2023-11-15  Mark Wielaard  <mjw@redhat.com>
+
+	* aclocal.m4: Rebuild.
+
+2023-11-10  Brendan Shanks  <bshanks@codeweavers.com>
+
+	* configure.ac (AC_CHECK_HEADERS): Add spawn.h.
+	(checkfuncs): Add posix_spawn, posix_spawnp.
+	(AC_CHECK_FUNCS): Add posix_spawn, posix_spawnp.
+	* aclocal.m4, configure, config.in: Rebuild.
+	* pex-unix.c [HAVE_POSIX_SPAWN] (pex_unix_exec_child): New function.
+
+2023-08-22  Jason Merrill  <jason@redhat.com>
+
+	PR c++/109751
+	* cp-demangle.c (d_make_comp): Handle DEMANGLE_COMPONENT_FRIEND.
+	(d_count_templates_scopes): Likewise.
+	(d_print_comp_inner): Likewise.
+	(d_unqualified_name): Handle member-like friend mangling.
+	* testsuite/demangle-expected: Add test.
+
+2023-08-07  John Ericson  <git@JohnEricson.me>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* Makefile.in (AR): Add @AR_PLUGIN_OPTION@
+	(RANLIB): Add @RANLIB_PLUGIN_OPTION@.
+	(configure_deps): Depend on ../config/gcc-plugin.m4.
+	* configure.ac: AC_SUBST AR_PLUGIN_OPTION and
+	RANLIB_PLUGIN_OPTION.
+	* aclocal.m4: Regenerated.
+	* configure: Likewise.
+
+2023-06-15  Marek Polacek  <polacek@redhat.com>
+
+	* configure.ac: Also set shared when enable_host_pie.
+	* configure: Regenerate.
+
+2023-06-13  Nathan Sidwell  <nathan@acm.org>
+
+	* cp-demangle.c (d_print_conversion): Remove incorrect
+	template instantiation handling.
+	* testsuite/demangle-expected: Add testcases.
+
+2023-06-07  Costas Argyris  <costas.argyris@gmail.com>
+
+	* argv.c (writeargv): Constant propagate "0" for "status",
+	simplifying the code slightly.
+
+2023-06-06  Costas Argyris  <costas.argyris@gmail.com>
+
+	* argv.c (writeargv): Simplify & remove gotos.
+
+2023-06-05  Costas Argyris  <costas.argyris@gmail.com>
+
+	* pex-win32.c: fix typos.
+
+2023-06-05  Costas Argyris  <costas.argyris@gmail.com>
+
+	* pex-win32.c (win32_spawn): Check command line length
+	and generate a response file if necessary.
+	(spawn_script): Adjust parameters.
+	(pex_win32_exec_child): Ditto.
+
+2023-06-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/70790
+	* cp-demangle.c (cplus_demangle_operators): Add the noexcept
+	operator.
+	(d_print_comp_inner) <case DEMANGLE_COMPONENT_UNARY>: Always
+	print parens around the operand of noexcept too.
+	* testsuite/demangle-expected: Test noexcept operator
+	demangling.
+
 2023-04-02  Jakub Jelinek  <jakub@redhat.com>
 
 	PR other/109306

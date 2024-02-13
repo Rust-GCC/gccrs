@@ -1,5 +1,5 @@
 /* Implement classes and message passing for Objective C.
-   Copyright (C) 1992-2023 Free Software Foundation, Inc.
+   Copyright (C) 1992-2024 Free Software Foundation, Inc.
    Contributed by Steve Naroff.
 
 This file is part of GCC.
@@ -345,6 +345,11 @@ bool
 objc_init (void)
 {
   bool ok;
+
+  /* Set up stuff used by the preprocessor as well as FE parser.  */
+  interface_hash_init ();
+  hash_init ();
+
 #ifdef OBJCPLUS
   if (cxx_init () == false)
 #else
@@ -374,8 +379,6 @@ objc_init (void)
 
   /* Set up stuff used by FE parser and all runtimes.  */
   errbuf = XNEWVEC (char, 1024 * 10);
-  interface_hash_init ();
-  hash_init ();
   objc_encoding_init ();
   /* ... and then check flags and set-up for the selected runtime ... */
   if (flag_next_runtime && flag_objc_abi >= 2)
@@ -2338,7 +2341,7 @@ objc_volatilize_decl (tree decl)
   /* Do not mess with variables that are 'static' or (already)
      'volatile'.  */
   if (!TREE_THIS_VOLATILE (decl) && !TREE_STATIC (decl)
-      && (TREE_CODE (decl) == VAR_DECL
+      && (VAR_P (decl)
 	  || TREE_CODE (decl) == PARM_DECL))
     {
       if (local_variables_to_volatilize == NULL)
@@ -3314,7 +3317,7 @@ objc_build_string_object (tree string)
   length = TREE_STRING_LENGTH (string) - 1;
 
   /* The target may have different ideas on how to construct an ObjC string
-     literal.  On Darwin (Mac OS X), for example, we may wish to obtain a
+     literal.  On Darwin / macOS, for example, we may wish to obtain a
      constant CFString reference instead.
      At present, this is only supported for the NeXT runtime.  */
   if (flag_next_runtime
@@ -3793,7 +3796,7 @@ objc_is_ivar_reference_p (tree expr)
 static int
 objc_is_global_reference_p (tree expr)
 {
-  return (TREE_CODE (expr) == INDIRECT_REF || TREE_CODE (expr) == PLUS_EXPR
+  return (INDIRECT_REF_P (expr) || TREE_CODE (expr) == PLUS_EXPR
 	  ? objc_is_global_reference_p (TREE_OPERAND (expr, 0))
 	  : DECL_P (expr)
 	  ? (DECL_FILE_SCOPE_P (expr) || TREE_STATIC (expr))
@@ -3812,7 +3815,7 @@ objc_generate_write_barrier (tree lhs, enum tree_code modifycode, tree rhs)
 
   /* See if we have any lhs casts, and strip them out.  NB: The lvalue casts
      will have been transformed to the form '*(type *)&expr'.  */
-  if (TREE_CODE (lhs) == INDIRECT_REF)
+  if (INDIRECT_REF_P (lhs))
     {
       outer = TREE_OPERAND (lhs, 0);
 
@@ -3864,7 +3867,7 @@ objc_generate_write_barrier (tree lhs, enum tree_code modifycode, tree rhs)
 	     || TREE_CODE (outer) == ARRAY_REF))
     outer = TREE_OPERAND (outer, 0);
 
-  if (TREE_CODE (outer) == INDIRECT_REF)
+  if (INDIRECT_REF_P (outer))
     {
       outer = TREE_OPERAND (outer, 0);
       indirect_p = 1;
@@ -9694,7 +9697,7 @@ objc_gimplify_property_ref (tree *expr_p)
   if (TREE_CODE (getter) == TARGET_EXPR)
     {
       gcc_assert (MAYBE_CLASS_TYPE_P (TREE_TYPE (getter)));
-      gcc_assert (TREE_CODE (TREE_OPERAND (getter, 0)) == VAR_DECL);
+      gcc_assert (VAR_P (TREE_OPERAND (getter, 0)));
       call_exp = TREE_OPERAND (getter, 1);
     }
 #endif
@@ -10340,24 +10343,51 @@ objc_common_init_ts (void)
   MARK_TS_TYPED (PROPERTY_REF);
 }
 
-size_t
-objc_common_tree_size (enum tree_code code)
+/* Information for Objective-C-specific features known to __has_feature.  */
+
+struct objc_feature_info
 {
-  switch (code)
+  typedef bool (*predicate_t) ();
+
+  const char *ident;
+  predicate_t predicate;
+
+  constexpr objc_feature_info (const char *name)
+    : ident (name), predicate (nullptr) {}
+  constexpr objc_feature_info (const char *name, predicate_t p)
+    : ident (name), predicate (p) {}
+
+  bool has_feature () const
     {
-    case CLASS_METHOD_DECL:
-    case INSTANCE_METHOD_DECL:
-    case KEYWORD_DECL:
-    case PROPERTY_DECL:			return sizeof (tree_decl_non_common);
-    case CLASS_INTERFACE_TYPE:
-    case CLASS_IMPLEMENTATION_TYPE:
-    case CATEGORY_INTERFACE_TYPE:
-    case CATEGORY_IMPLEMENTATION_TYPE:
-    case PROTOCOL_INTERFACE_TYPE:	return sizeof (tree_type_non_common);
-    default:
-      gcc_unreachable ();
+      return predicate ? predicate () : true;
     }
+};
+
+static bool objc_nonfragile_abi_p ()
+{
+  return flag_next_runtime && flag_objc_abi >= 2;
 }
 
+static constexpr objc_feature_info objc_features[] =
+{
+  { "objc_default_synthesize_properties" },
+  { "objc_instancetype" },
+  { "objc_nonfragile_abi", objc_nonfragile_abi_p }
+};
+
+/* Register Objective-C-specific features for __has_feature.  */
+
+void
+objc_common_register_features ()
+{
+  for (unsigned i = 0; i < ARRAY_SIZE (objc_features); i++)
+    {
+      const objc_feature_info *info = objc_features + i;
+      if (!info->has_feature ())
+	continue;
+
+      c_common_register_feature (info->ident, true);
+    }
+}
 
 #include "gt-objc-objc-act.h"

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1664,7 +1664,7 @@ package body Checks is
                end if;
 
                --  If the expressions for the discriminants are identical
-               --  and it is side-effect free (for now just an entity),
+               --  and it is side-effect-free (for now just an entity),
                --  this may be a shared constraint, e.g. from a subtype
                --  without a constraint introduced as a generic actual.
                --  Examine other discriminants if any.
@@ -1810,9 +1810,9 @@ package body Checks is
                Determine_Range (Left, LOK, Llo, Lhi, Assume_Valid => True);
                LLB := Expr_Value (Type_Low_Bound (Base_Type (Typ)));
 
-               if ((not ROK) or else (Rlo <= (-1) and then (-1) <= Rhi))
+               if (not ROK or else (Rlo <= (-1) and then (-1) <= Rhi))
                      and then
-                  ((not LOK) or else (Llo = LLB))
+                  (not LOK or else Llo = LLB)
                then
                   --  Ensure that expressions are not evaluated twice (once
                   --  for their runtime checks and once for their regular
@@ -1872,7 +1872,7 @@ package body Checks is
       then
          Set_Do_Division_Check (N, False);
 
-         if (not ROK) or else (Rlo <= 0 and then 0 <= Rhi) then
+         if not ROK or else (Rlo <= 0 and then 0 <= Rhi) then
             if Is_Floating_Point_Type (Etype (N)) then
                Opnd := Make_Real_Literal (Loc, Ureal_0);
             else
@@ -2720,15 +2720,20 @@ package body Checks is
    ---------------------------
 
    procedure Apply_Predicate_Check
-     (N   : Node_Id;
-      Typ : Entity_Id;
-      Fun : Entity_Id := Empty)
+     (N     : Node_Id;
+      Typ   : Entity_Id;
+      Deref : Boolean := False;
+      Fun   : Entity_Id := Empty)
    is
-      Par : Node_Id;
-      S   : Entity_Id;
+      Loc            : constant Source_Ptr := Sloc (N);
+      Check_Disabled : constant Boolean :=
+        not Predicate_Enabled (Typ)
+          or else not Predicate_Check_In_Scope (N);
 
-      Check_Disabled : constant Boolean := (not Predicate_Enabled (Typ))
-        or else not Predicate_Check_In_Scope (N);
+      Expr : Node_Id;
+      Par  : Node_Id;
+      S    : Entity_Id;
+
    begin
       S := Current_Scope;
       while Present (S) and then not Is_Subprogram (S) loop
@@ -2757,7 +2762,7 @@ package body Checks is
 
          if not Check_Disabled then
             Insert_Action (N,
-              Make_Raise_Storage_Error (Sloc (N),
+              Make_Raise_Storage_Error (Loc,
                 Reason => SE_Infinite_Recursion));
             return;
          end if;
@@ -2824,19 +2829,9 @@ package body Checks is
          Par := Parent (Par);
       end if;
 
-      --  For an entity of the type, generate a call to the predicate
-      --  function, unless its type is an actual subtype, which is not
-      --  visible outside of the enclosing subprogram.
+      --  Try to avoid creating a temporary if the expression is an aggregate
 
-      if Is_Entity_Name (N)
-        and then not Is_Actual_Subtype (Typ)
-      then
-         Insert_Action (N,
-           Make_Predicate_Check
-             (Typ, New_Occurrence_Of (Entity (N), Sloc (N))));
-         return;
-
-      elsif Nkind (N) in N_Aggregate | N_Extension_Aggregate then
+      if Nkind (N) in N_Aggregate | N_Extension_Aggregate then
 
          --  If the expression is an aggregate in an assignment, apply the
          --  check to the LHS after the assignment, rather than create a
@@ -2871,21 +2866,36 @@ package body Checks is
             then
                Insert_Action_After (Par,
                   Make_Predicate_Check (Typ,
-                    New_Occurrence_Of (Defining_Identifier (Par), Sloc (N))));
+                    New_Occurrence_Of (Defining_Identifier (Par), Loc)));
                return;
             end if;
 
          end if;
       end if;
 
-      --  If the expression is not an entity it may have side effects,
-      --  and the following call will create an object declaration for
-      --  it. We disable checks during its analysis, to prevent an
-      --  infinite recursion.
+      --  For an entity of the type, generate a call to the predicate
+      --  function, unless its type is an actual subtype, which is not
+      --  visible outside of the enclosing subprogram.
 
-      Insert_Action (N,
-        Make_Predicate_Check
-          (Typ, Duplicate_Subexpr (N)), Suppress => All_Checks);
+      if Is_Entity_Name (N) and then not Is_Actual_Subtype (Typ) then
+         Expr := New_Occurrence_Of (Entity (N), Loc);
+
+      --  If the expression is not an entity, it may have side effects
+
+      else
+         Expr := Duplicate_Subexpr (N);
+      end if;
+
+      --  Make the dereference if requested
+
+      if Deref then
+         Expr := Make_Explicit_Dereference (Loc, Prefix => Expr);
+      end if;
+
+      --  Disable checks to prevent an infinite recursion
+
+      Insert_Action
+        (N, Make_Predicate_Check (Typ, Expr), Suppress => All_Checks);
    end Apply_Predicate_Check;
 
    -----------------------
@@ -3501,7 +3511,7 @@ package body Checks is
          --  for the subscript, and that convert will do the necessary validity
          --  check.
 
-         if (No_Check_Needed = Empty_Dimension_Set)
+         if No_Check_Needed = Empty_Dimension_Set
            or else not No_Check_Needed.Elements (Dimension)
          then
             Ensure_Valid (Sub, Holes_OK => True);
@@ -8437,7 +8447,18 @@ package body Checks is
               Right_Opnd => Make_Null (Loc)),
           Reason => CE_Access_Check_Failed));
 
-      Mark_Non_Null;
+      --  Mark the entity of N "non-null" except when assertions are enabled -
+      --  since expansion becomes much more complicated (especially when it
+      --  comes to contracts) due to the generation of wrappers and wholesale
+      --  moving of declarations and statements which may happen.
+
+      --  Additionally, it is assumed that extra checks will exist with
+      --  assertions enabled so some potentially redundant checks are
+      --  acceptable.
+
+      if not Assertions_Enabled then
+         Mark_Non_Null;
+      end if;
    end Install_Null_Excluding_Check;
 
    -----------------------------------------
@@ -10815,6 +10836,8 @@ package body Checks is
 
                if not Check_Added
                  and then Is_Fixed_Lower_Bound_Index_Subtype (T_Typ)
+                 and then Known_LB
+                 and then Known_T_LB
                  and then Expr_Value (LB) /= Expr_Value (T_LB)
                then
                   Add_Check

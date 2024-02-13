@@ -1,5 +1,5 @@
 /* IRA conflict builder.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -115,10 +115,10 @@ build_conflict_bit_table (void)
 	    > (uint64_t) param_ira_max_conflict_table_size * 1024 * 1024)
 	  {
 	    if (internal_flag_ira_verbose > 0 && ira_dump_file != NULL)
-	      fprintf
-		(ira_dump_file,
-		 "+++Conflict table will be too big(>%dMB) -- don't use it\n",
-		 param_ira_max_conflict_table_size);
+	      fprintf (ira_dump_file,
+		       "+++Conflict table will be too big(>%dMB) "
+		       "-- don't use it\n",
+		       param_ira_max_conflict_table_size);
 	    return false;
 	  }
       }
@@ -148,11 +148,13 @@ build_conflict_bit_table (void)
 
   object_set_words = (ira_objects_num + IRA_INT_BITS - 1) / IRA_INT_BITS;
   if (internal_flag_ira_verbose > 0 && ira_dump_file != NULL)
-    fprintf
-      (ira_dump_file,
-       "+++Allocating %ld bytes for conflict table (uncompressed size %ld)\n",
-       (long) allocated_words_num * sizeof (IRA_INT_TYPE),
-       (long) object_set_words * ira_objects_num * sizeof (IRA_INT_TYPE));
+    fprintf (ira_dump_file,
+	     "+++Allocating " HOST_SIZE_T_PRINT_UNSIGNED
+	     " bytes for conflict table (uncompressed size "
+	     HOST_SIZE_T_PRINT_UNSIGNED ")\n",
+	     (fmt_size_t) (sizeof (IRA_INT_TYPE) * allocated_words_num),
+	     (fmt_size_t) (sizeof (IRA_INT_TYPE) * object_set_words
+			   * ira_objects_num));
 
   objects_live = sparseset_alloc (ira_objects_num);
   for (i = 0; i < ira_max_point; i++)
@@ -397,6 +399,9 @@ can_use_same_reg_p (rtx_insn *insn, int output, int input)
 	= &recog_op_alt[nalt * recog_data.n_operands];
       if (op_alt[input].matches == output)
 	return true;
+
+      if (op_alt[output].earlyclobber)
+	continue;
 
       if (ira_reg_class_intersect[op_alt[input].cl][op_alt[output].cl]
 	  != NO_REGS)

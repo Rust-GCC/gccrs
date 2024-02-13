@@ -1,6 +1,6 @@
 (* M2Code.mod coordinate the activity of the front end.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -42,8 +42,10 @@ FROM NameKey IMPORT Name ;
 FROM M2Batch IMPORT ForeachSourceModuleDo ;
 
 FROM M2Quads IMPORT CountQuads, GetFirstQuad, DisplayQuadList, DisplayQuadRange,
-                    BackPatchSubrangesAndOptParam, VariableAnalysis,
+                    BackPatchSubrangesAndOptParam,
                     LoopAnalysis, ForLoopAnalysis, GetQuad, QuadOperator ;
+
+FROM M2SymInit IMPORT ScopeBlockVariableAnalysis ;
 
 FROM M2Pass IMPORT SetPassToNoPass, SetPassToCodeGeneration ;
 
@@ -59,7 +61,9 @@ FROM M2GCCDeclare IMPORT FoldConstants, StartDeclareScope,
                          DeclareProcedure, InitDeclarations,
                          DeclareModuleVariables, MarkExported ;
 
-FROM M2Scope IMPORT ScopeBlock, InitScopeBlock, KillScopeBlock, ForeachScopeBlockDo ;
+FROM M2Scope IMPORT ScopeBlock, InitScopeBlock, KillScopeBlock,
+                    ForeachScopeBlockDo2, ForeachScopeBlockDo3 ;
+
 FROM m2top IMPORT StartGlobalContext, EndGlobalContext, SetFlagUnitAtATime ;
 FROM M2Error IMPORT FlushErrors, FlushWarnings ;
 FROM M2Swig IMPORT GenerateSwigFile ;
@@ -291,16 +295,16 @@ END Code ;
    InitialDeclareAndCodeBlock - declares all objects within scope,
 *)
 
-PROCEDURE InitialDeclareAndOptimize (start, end: CARDINAL) ;
+PROCEDURE InitialDeclareAndOptimize (scope: CARDINAL; start, end: CARDINAL) ;
 BEGIN
-   Count := CountQuads() ;
-   FreeBasicBlocks(InitBasicBlocksFromRange(start, end)) ;
-   BasicB := Count - CountQuads() ;
-   Count := CountQuads() ;
+   Count := CountQuads () ;
+   FreeBasicBlocks (InitBasicBlocksFromRange (scope, start, end)) ;
+   BasicB := Count - CountQuads () ;
+   Count := CountQuads () ;
 
-   FoldBranches(start, end) ;
-   Jump := Count - CountQuads() ;
-   Count := CountQuads()
+   FoldBranches (start, end) ;
+   Jump := Count - CountQuads () ;
+   Count := CountQuads ()
 END InitialDeclareAndOptimize ;
 
 
@@ -308,24 +312,25 @@ END InitialDeclareAndOptimize ;
    DeclareAndCodeBlock - declares all objects within scope,
 *)
 
-PROCEDURE SecondDeclareAndOptimize (start, end: CARDINAL) ;
+PROCEDURE SecondDeclareAndOptimize (scope: CARDINAL;
+                                    start, end: CARDINAL) ;
 BEGIN
    REPEAT
       FoldConstants(start, end) ;
       DeltaConst := Count - CountQuads () ;
       Count := CountQuads () ;
 
-      FreeBasicBlocks(InitBasicBlocksFromRange (start, end)) ;
+      FreeBasicBlocks(InitBasicBlocksFromRange (scope, start, end)) ;
 
       DeltaBasicB := Count - CountQuads () ;
       Count := CountQuads () ;
 
-      FreeBasicBlocks (InitBasicBlocksFromRange (start, end)) ;
+      FreeBasicBlocks (InitBasicBlocksFromRange (scope, start, end)) ;
       FoldBranches(start, end) ;
       DeltaJump := Count - CountQuads () ;
       Count := CountQuads () ;
 
-      FreeBasicBlocks(InitBasicBlocksFromRange (start, end)) ;
+      FreeBasicBlocks(InitBasicBlocksFromRange (scope, start, end)) ;
       INC (DeltaBasicB, Count - CountQuads ()) ;
       Count := CountQuads () ;
 
@@ -373,20 +378,6 @@ END Init ;
 
 
 (*
-   BasicBlockVariableAnalysis -
-*)
-
-PROCEDURE BasicBlockVariableAnalysis (start, end: CARDINAL) ;
-VAR
-   bb: BasicBlock ;
-BEGIN
-   bb := InitBasicBlocksFromRange(start, end) ;
-   ForeachBasicBlockDo (bb, VariableAnalysis) ;
-   KillBasicBlocks (bb)
-END BasicBlockVariableAnalysis ;
-
-
-(*
    DisplayQuadsInScope -
 *)
 
@@ -413,15 +404,15 @@ BEGIN
    InitOptimizeVariables ;
    OptimTimes := 1 ;
    Current := CountQuads () ;
-   ForeachScopeBlockDo (sb, InitialDeclareAndOptimize) ;
-   ForeachScopeBlockDo (sb, BasicBlockVariableAnalysis) ;
+   ForeachScopeBlockDo3 (sb, InitialDeclareAndOptimize) ;
+   ForeachScopeBlockDo3 (sb, ScopeBlockVariableAnalysis) ;
    REPEAT
-      ForeachScopeBlockDo (sb, SecondDeclareAndOptimize) ;
+      ForeachScopeBlockDo3 (sb, SecondDeclareAndOptimize) ;
       Previous := Current ;
       Current := CountQuads () ;
       INC (OptimTimes)
    UNTIL (OptimTimes=MaxOptimTimes) OR (Current=Previous) ;
-   ForeachScopeBlockDo (sb, LoopAnalysis)
+   ForeachScopeBlockDo3 (sb, LoopAnalysis)
 END OptimizeScopeBlock ;
 
 
@@ -487,30 +478,30 @@ BEGIN
       THEN
          n := GetSymName(scope) ;
          printf1('before coding procedure %a\n', n) ;
-         ForeachScopeBlockDo(sb, DisplayQuadRange) ;
+         ForeachScopeBlockDo3 (sb, DisplayQuadRange) ;
          printf0('===============\n')
       END ;
-      ForeachScopeBlockDo(sb, ConvertQuadsToTree)
+      ForeachScopeBlockDo2 (sb, ConvertQuadsToTree)
    ELSIF IsModuleWithinProcedure(scope)
    THEN
       IF DisplayQuadruples
       THEN
          n := GetSymName(scope) ;
          printf1('before coding module %a within procedure\n', n) ;
-         ForeachScopeBlockDo(sb, DisplayQuadRange) ;
+         ForeachScopeBlockDo3 (sb, DisplayQuadRange) ;
          printf0('===============\n')
       END ;
-      ForeachScopeBlockDo(sb, ConvertQuadsToTree) ;
+      ForeachScopeBlockDo2 (sb, ConvertQuadsToTree) ;
       ForeachProcedureDo(scope, CodeBlock)
    ELSE
       IF DisplayQuadruples
       THEN
          n := GetSymName(scope) ;
          printf1('before coding module %a\n', n) ;
-         ForeachScopeBlockDo(sb, DisplayQuadRange) ;
+         ForeachScopeBlockDo3 (sb, DisplayQuadRange) ;
          printf0('===============\n')
       END ;
-      ForeachScopeBlockDo(sb, ConvertQuadsToTree) ;
+      ForeachScopeBlockDo2 (sb, ConvertQuadsToTree) ;
       IF WholeProgram
       THEN
          ForeachSourceModuleDo(CodeProcedures)

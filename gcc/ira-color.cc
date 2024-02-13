@@ -1,5 +1,5 @@
 /* IRA allocation based on graph coloring.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -2163,6 +2163,9 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
       if (! check_hard_reg_p (a, hard_regno,
 			      conflicting_regs, profitable_hard_regs))
 	continue;
+      if (NUM_REGISTER_FILTERS
+	  && !test_register_filters (ALLOCNO_REGISTER_FILTERS (a), hard_regno))
+	continue;
       cost = costs[i];
       full_cost = full_costs[i];
       if (!HONOR_REG_ALLOC_ORDER)
@@ -3150,13 +3153,15 @@ improve_allocation (void)
   int j, k, n, hregno, conflict_hregno, base_cost, class_size, word, nwords;
   int check, spill_cost, min_cost, nregs, conflict_nregs, r, best;
   bool try_p;
-  enum reg_class aclass;
+  enum reg_class aclass, rclass;
   machine_mode mode;
   int *allocno_costs;
   int costs[FIRST_PSEUDO_REGISTER];
   HARD_REG_SET conflicting_regs[2], profitable_hard_regs;
   ira_allocno_t a;
   bitmap_iterator bi;
+  int saved_nregs;
+  int add_cost;
 
   /* Don't bother to optimize the code with static chain pointer and
      non-local goto in order not to spill the chain pointer
@@ -3194,6 +3199,7 @@ improve_allocation (void)
 					      conflicting_regs,
 					      &profitable_hard_regs);
       class_size = ira_class_hard_regs_num[aclass];
+      mode = ALLOCNO_MODE (a);
       /* Set up cost improvement for usage of each profitable hard
 	 register for allocno A.  */
       for (j = 0; j < class_size; j++)
@@ -3202,11 +3208,30 @@ improve_allocation (void)
 	  if (! check_hard_reg_p (a, hregno,
 				  conflicting_regs, profitable_hard_regs))
 	    continue;
+	  if (NUM_REGISTER_FILTERS
+	      && !test_register_filters (ALLOCNO_REGISTER_FILTERS (a), hregno))
+	    continue;
 	  ira_assert (ira_class_hard_reg_index[aclass][hregno] == j);
 	  k = allocno_costs == NULL ? 0 : j;
 	  costs[hregno] = (allocno_costs == NULL
 			   ? ALLOCNO_UPDATED_CLASS_COST (a) : allocno_costs[k]);
 	  costs[hregno] -= allocno_copy_cost_saving (a, hregno);
+
+	  if ((saved_nregs = calculate_saved_nregs (hregno, mode)) != 0)
+	  {
+	    /* We need to save/restore the hard register in
+	       epilogue/prologue.  Therefore we increase the cost.
+	       Since the prolog is placed in the entry BB, the frequency
+	       of the entry BB is considered while computing the cost.  */
+	    rclass = REGNO_REG_CLASS (hregno);
+	    add_cost = ((ira_memory_move_cost[mode][rclass][0]
+			 + ira_memory_move_cost[mode][rclass][1])
+			* saved_nregs / hard_regno_nregs (hregno,
+							  mode) - 1)
+		       * REG_FREQ_FROM_BB (ENTRY_BLOCK_PTR_FOR_FN (cfun));
+	    costs[hregno] += add_cost;
+	  }
+
 	  costs[hregno] -= base_cost;
 	  if (costs[hregno] < 0)
 	    try_p = true;
@@ -3340,6 +3365,10 @@ improve_allocation (void)
 	}
       /* Assign the best chosen hard register to A.  */
       ALLOCNO_HARD_REGNO (a) = best;
+
+      for (j = nregs - 1; j >= 0; j--)
+	allocated_hardreg_p[best + j] = true;
+
       if (internal_flag_ira_verbose > 2 && ira_dump_file != NULL)
 	fprintf (ira_dump_file, "Assigning %d to a%dr%d\n",
 		 best, ALLOCNO_NUM (a), ALLOCNO_REGNO (a));
@@ -5251,6 +5280,10 @@ fast_allocation (void)
 	  if (ira_hard_reg_set_intersection_p (hard_regno, mode, conflict_hard_regs)
 	      || (TEST_HARD_REG_BIT
 		  (ira_prohibited_class_mode_regs[aclass][mode], hard_regno)))
+	    continue;
+	  if (NUM_REGISTER_FILTERS
+	      && !test_register_filters (ALLOCNO_REGISTER_FILTERS (a),
+					 hard_regno))
 	    continue;
 	  if (costs == NULL)
 	    {

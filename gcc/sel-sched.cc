@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.  Selective scheduler and pipeliner.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1614,7 +1614,15 @@ try_replace_dest_reg (ilist_t orig_insns, rtx best_reg, expr_t expr)
   /* Make sure that EXPR has the right destination
      register.  */
   if (expr_dest_regno (expr) != REGNO (best_reg))
-    replace_dest_with_reg_in_expr (expr, best_reg);
+    {
+      rtx_insn *vinsn = EXPR_INSN_RTX (expr);
+      validate_change (vinsn, &SET_DEST (PATTERN (vinsn)), best_reg, 1);
+      bool res = verify_changes (0);
+      cancel_changes (0);
+      if (!res)
+	return false;
+      replace_dest_with_reg_in_expr (expr, best_reg);
+    }
   else
     EXPR_TARGET_AVAILABLE (expr) = 1;
 
@@ -2023,7 +2031,7 @@ moving_insn_creates_bookkeeping_block_p (insn_t insn,
     {
       if (sched_verbose >= 9)
 	sel_print ("no bookkeeping required: ");
-      return FALSE;
+      return false;
     }
 
   bbi = BLOCK_FOR_INSN (insn);
@@ -2032,7 +2040,7 @@ moving_insn_creates_bookkeeping_block_p (insn_t insn,
     {
       if (sched_verbose >= 9)
 	sel_print ("only one pred edge: ");
-      return TRUE;
+      return true;
     }
 
   bbt = BLOCK_FOR_INSN (through_insn);
@@ -2041,11 +2049,11 @@ moving_insn_creates_bookkeeping_block_p (insn_t insn,
     {
       FOR_EACH_EDGE (e2, ei2, bbi->preds)
 	{
-	  if (find_block_for_bookkeeping (e1, e2, TRUE))
+	  if (find_block_for_bookkeeping (e1, e2, true))
 	    {
 	      if (sched_verbose >= 9)
 		sel_print ("found existing block: ");
-	      return FALSE;
+	      return false;
 	    }
 	}
     }
@@ -2053,7 +2061,7 @@ moving_insn_creates_bookkeeping_block_p (insn_t insn,
   if (sched_verbose >= 9)
     sel_print ("would create bookkeeping block: ");
 
-  return TRUE;
+  return true;
 }
 
 /* Return true when the conflict with newly created implicit clobbers
@@ -4658,7 +4666,7 @@ find_place_for_bookkeeping (edge e1, edge e2, fence_t *fence_to_rewind)
   insn_t place_to_insert;
   /* Find a basic block that can hold bookkeeping.  If it can be found, do not
      create new basic block, but insert bookkeeping there.  */
-  basic_block book_block = find_block_for_bookkeeping (e1, e2, FALSE);
+  basic_block book_block = find_block_for_bookkeeping (e1, e2, false);
 
   if (book_block)
     {

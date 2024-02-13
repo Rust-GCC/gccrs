@@ -1,6 +1,6 @@
 // { dg-options "-fno-implicit-templates" }
 
-// Copyright (C) 2004-2023 Free Software Foundation, Inc.
+// Copyright (C) 2004-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -40,7 +40,7 @@ test01()
   sin >> resetiosflags(ios_base::dec)
       >> setiosflags(ios_base::dec)
       >> setbase(ios_base::dec)
-      >> setfill(L'c')
+      >> setfill(L'c') // { dg-warning "deprecated" }
       >> setprecision(5)
       >> setw(20)
       >> ws;

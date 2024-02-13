@@ -1,5 +1,5 @@
 /* Driver of optimization process
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -384,7 +384,7 @@ symbol_table::process_new_functions (void)
    functions or variables.  */
 
 void
-symtab_node::reset (void)
+symtab_node::reset (bool preserve_comdat_group)
 {
   /* Reset our data structures so we can analyze the function again.  */
   analyzed = false;
@@ -395,7 +395,8 @@ symtab_node::reset (void)
   cpp_implicit_alias = false;
 
   remove_all_references ();
-  remove_from_same_comdat_group ();
+  if (!preserve_comdat_group)
+    remove_from_same_comdat_group ();
 
   if (cgraph_node *cn = dyn_cast <cgraph_node *> (this))
     {
@@ -917,7 +918,8 @@ process_function_and_variable_attributes (cgraph_node *first,
 	  /* redefining extern inline function makes it DECL_UNINLINABLE.  */
 	  && !DECL_UNINLINABLE (decl))
 	warning_at (DECL_SOURCE_LOCATION (decl), OPT_Wattributes,
-		    "%<always_inline%> function might not be inlinable");
+		    "%<always_inline%> function might not be inlinable"
+		    " unless also declared %<inline%>");
 
       process_common_attributes (node, decl);
     }

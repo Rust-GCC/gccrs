@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -177,10 +177,8 @@ package body Comperr is
 
          --  Output target name, deleting junk final reverse slash
 
-         if Target_Name.all (Target_Name.all'Last) = '\'
-           or else Target_Name.all (Target_Name.all'Last) = '/'
-         then
-            Write_Str (Target_Name.all (1 .. Target_Name.all'Last - 1));
+         if Target_Name (Target_Name'Last) in '/' | '\' then
+            Write_Str (Target_Name (1 .. Target_Name'Last - 1));
          else
             Write_Str (Target_Name.all);
          end if;

@@ -1,5 +1,5 @@
 /* Definitions for loongarch native cpu property detection routines.
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,9 +21,10 @@ along with GCC; see the file COPYING3.  If not see
 #define LOONGARCH_CPU_H
 
 #include "system.h"
+#include "loongarch-def.h"
 
 void cache_cpucfg (void);
-unsigned int fill_native_cpu_config (int p_arch_native, int p_tune_native);
+void fill_native_cpu_config (struct loongarch_target *tgt);
 uint32_t get_native_prid (void);
 const char* get_native_prid_str (void);
 

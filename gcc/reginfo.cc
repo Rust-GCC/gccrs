@@ -1,5 +1,5 @@
 /* Compute different info about registers.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -140,6 +140,9 @@ reginfo_cc_finalize (void)
   CLEAR_HARD_REG_SET (global_reg_set);
 }
 
+/* In insn-preds.cc.  */
+extern void init_reg_class_start_regs ();
+
 /* Given a register bitmap, turn on the bits in a HARD_REG_SET that
    correspond to the hard registers, if any, set in that map.  This
    could be done far more efficiently by having all sorts of special-cases
@@ -198,6 +201,8 @@ init_reg_sets (void)
 
   SET_HARD_REG_SET (accessible_reg_set);
   SET_HARD_REG_SET (operand_reg_set);
+
+  init_reg_class_start_regs ();
 }
 
 /* We need to save copies of some of the register information which
@@ -1134,9 +1139,9 @@ reg_scan_mark_refs (rtx x, rtx_insn *insn)
 }
 
 
-/* Return nonzero if C1 is a subset of C2, i.e., if every register in C1
+/* Return true if C1 is a subset of C2, i.e., if every register in C1
    is also in C2.  */
-int
+bool
 reg_class_subset_p (reg_class_t c1, reg_class_t c2)
 {
   return (c1 == c2
@@ -1145,8 +1150,8 @@ reg_class_subset_p (reg_class_t c1, reg_class_t c2)
 				   reg_class_contents[(int) c2]));
 }
 
-/* Return nonzero if there is a register that is in both C1 and C2.  */
-int
+/* Return true if there is a register that is in both C1 and C2.  */
+bool
 reg_classes_intersect_p (reg_class_t c1, reg_class_t c2)
 {
   return (c1 == c2

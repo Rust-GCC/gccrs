@@ -1,5 +1,5 @@
 /* RISC-V 'V' Extension intrinsics include file.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -34,57 +34,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-enum RVV_CSR {
-  RVV_VSTART = 0,
-  RVV_VXSAT,
-  RVV_VXRM,
-  RVV_VCSR,
-};
-
-__extension__ extern __inline unsigned long
-__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
-vread_csr(enum RVV_CSR csr)
-{
-  unsigned long rv = 0;
-  switch (csr)
-    {
-    case RVV_VSTART:
-      __asm__ __volatile__ ("csrr\t%0,vstart" : "=r"(rv) : : "memory");
-      break;
-    case RVV_VXSAT:
-      __asm__ __volatile__ ("csrr\t%0,vxsat" : "=r"(rv) : : "memory");
-      break;
-    case RVV_VXRM:
-      __asm__ __volatile__ ("csrr\t%0,vxrm" : "=r"(rv) : : "memory");
-      break;
-    case RVV_VCSR:
-      __asm__ __volatile__ ("csrr\t%0,vcsr" : "=r"(rv) : : "memory");
-      break;
-    }
-  return rv;
-}
-
-__extension__ extern __inline void
-__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
-vwrite_csr(enum RVV_CSR csr, unsigned long value)
-{
-  switch (csr)
-    {
-    case RVV_VSTART:
-      __asm__ __volatile__ ("csrw\tvstart,%z0" : : "rJ"(value) : "memory");
-      break;
-    case RVV_VXSAT:
-      __asm__ __volatile__ ("csrw\tvxsat,%z0" : : "rJ"(value) : "memory");
-      break;
-    case RVV_VXRM:
-      __asm__ __volatile__ ("csrw\tvxrm,%z0" : : "rJ"(value) : "memory");
-      break;
-    case RVV_VCSR:
-      __asm__ __volatile__ ("csrw\tvcsr,%z0" : : "rJ"(value) : "memory");
-      break;
-    }
-}
 
 /* NOTE: This implementation of riscv_vector.h is intentionally short.  It does
    not define the RVV types and intrinsic functions directly in C and C++

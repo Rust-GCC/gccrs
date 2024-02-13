@@ -1,6 +1,6 @@
 /* Manipulation of formal and actual parameters of functions and function
    calls.
-   Copyright (C) 2017-2023 Free Software Foundation, Inc.
+   Copyright (C) 2017-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -224,7 +224,8 @@ public:
 
   /* Modify a call statement arguments (and possibly remove the return value)
      as described in the data fields of this class.  */
-  gcall *modify_call (cgraph_edge *cs, bool update_references);
+  gcall *modify_call (cgraph_edge *cs, bool update_references,
+		      hash_set <tree> *killed_ssas);
   /* Return if the first parameter is left intact.  */
   bool first_param_intact_p ();
   /* Build a function type corresponding to the modified call.  */
@@ -373,12 +374,14 @@ private:
 						    unsigned unit_offset);
   ipa_param_body_replacement *lookup_first_base_replacement (tree base);
   tree replace_removed_params_ssa_names (tree old_name, gimple *stmt);
-  bool modify_expression (tree *expr_p, bool convert);
+  bool modify_expression (tree *expr_p, bool convert, gimple_seq * = nullptr);
   bool modify_assignment (gimple *stmt, gimple_seq *extra_stmts);
   bool modify_call_stmt (gcall **stmt_p, gimple *orig_stmt);
   bool modify_cfun_body ();
   void reset_debug_stmts ();
+  tree get_ddef_if_exists_and_is_used (tree decl);
   void mark_dead_statements (tree dead_param, vec<tree> *debugstack);
+  void mark_clobbers_dead (tree dead_param);
   bool prepare_debug_expressions (tree dead_ssa);
 
   /* Declaration of the function that is being transformed.  */
@@ -440,6 +443,6 @@ void push_function_arg_decls (vec<tree> *args, tree fndecl);
 void push_function_arg_types (vec<tree> *types, tree fntype);
 void ipa_verify_edge_has_no_modifications (cgraph_edge *cs);
 void ipa_edge_modifications_finalize ();
-
+void ipa_release_ssas_in_hash (hash_set <tree> *killed_ssas);
 
 #endif	/* IPA_PARAM_MANIPULATION_H */

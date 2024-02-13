@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,6 +28,8 @@
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
+
+with System.Val_Util; use System.Val_Util;
 
 package body System.Value_I is
 
@@ -98,7 +100,7 @@ package body System.Value_I is
 
       Scan_Raw_Unsigned (Str, Ptr, Max, Uval);
       pragma Assert
-        (Uval = Uns_Params.Scan_Raw_Unsigned_Ghost (Str, Fst_Num, Max));
+        (Uval = U_Spec.Scan_Raw_Unsigned_Ghost (Str, Fst_Num, Max));
 
       --  Deal with overflow cases, and also with largest negative number
 
@@ -175,7 +177,7 @@ package body System.Value_I is
             end;
 
             pragma Assert
-              (P = Uns_Params.Raw_Unsigned_Last_Ghost
+              (P = U_Spec.Raw_Unsigned_Last_Ghost
                  (Str, Fst_Num, Str'Last));
 
             Scan_Trailing_Blanks (Str, P);

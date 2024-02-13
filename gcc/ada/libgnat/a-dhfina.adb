@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -307,7 +307,7 @@ package body Ada.Directories.Hierarchical_File_Names is
       --  Check that directory is valid
 
       if Separated_Dir /= ""
-        and then (not Is_Valid_Path_Name (Separated_Dir & Relative_Name))
+        and then not Is_Valid_Path_Name (Separated_Dir & Relative_Name)
       then
          raise Name_Error with
            "invalid path composition """ & Separated_Dir & Relative_Name & '"';

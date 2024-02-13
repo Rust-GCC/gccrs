@@ -1,6 +1,6 @@
 /* Call-backs for C++ error reporting.
    This code is non-reentrant.
-   Copyright (C) 1993-2023 Free Software Foundation, Inc.
+   Copyright (C) 1993-2024 Free Software Foundation, Inc.
    This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
@@ -101,8 +101,10 @@ static void print_instantiation_partial_context (diagnostic_context *,
 						 struct tinst_level *,
 						 location_t);
 static void maybe_print_constraint_context (diagnostic_context *);
-static void cp_diagnostic_starter (diagnostic_context *, diagnostic_info *);
-static void cp_print_error_function (diagnostic_context *, diagnostic_info *);
+static void cp_diagnostic_starter (diagnostic_context *,
+				   const diagnostic_info *);
+static void cp_print_error_function (diagnostic_context *,
+				     const diagnostic_info *);
 
 static bool cp_printer (pretty_printer *, text_info *, const char *,
 			int, bool, bool, bool, bool *, const char **);
@@ -478,7 +480,7 @@ dump_template_bindings (cxx_pretty_printer *pp, tree parms, tree args,
 
   /* Don't try to do this once cgraph starts throwing away front-end
      information.  */
-  if (at_eof >= 2)
+  if (at_eof >= 3)
     return;
 
   FOR_EACH_VEC_SAFE_ELT (typenames, i, t)
@@ -639,8 +641,8 @@ dump_type (cxx_pretty_printer *pp, tree t, int flags)
       pp_cxx_cv_qualifier_seq (pp, t);
       if (template_placeholder_p (t))
 	{
-	  t = TREE_TYPE (CLASS_PLACEHOLDER_TEMPLATE (t));
-	  pp_cxx_tree_identifier (pp, TYPE_IDENTIFIER (t));
+	  tree tmpl = TREE_TYPE (CLASS_PLACEHOLDER_TEMPLATE (t));
+	  pp_cxx_tree_identifier (pp, TYPE_IDENTIFIER (tmpl));
 	  pp_string (pp, "<...auto...>");
 	}
       else if (TYPE_IDENTIFIER (t))
@@ -838,10 +840,14 @@ dump_aggr_type (cxx_pretty_printer *pp, tree t, int flags)
     {
       /* A lambda's "type" is essentially its signature.  */
       pp_string (pp, M_("<lambda"));
-      if (lambda_function (t))
-	dump_parameters (pp,
-                         FUNCTION_FIRST_USER_PARMTYPE (lambda_function (t)),
-			 flags);
+      tree const fn = lambda_function (t);
+      if (fn)
+	{
+	  int const parm_flags
+	    = DECL_XOBJ_MEMBER_FUNCTION_P (fn) ? TFF_XOBJ_FUNC | flags
+					       : flags;
+	  dump_parameters (pp, FUNCTION_FIRST_USER_PARMTYPE (fn), parm_flags);
+	}
       pp_greater (pp);
     }
   else if (!decl || IDENTIFIER_ANON_P (DECL_NAME (decl)))
@@ -1140,7 +1146,7 @@ dump_global_iord (cxx_pretty_printer *pp, tree t)
 static void
 dump_simple_decl (cxx_pretty_printer *pp, tree t, tree type, int flags)
 {
-  if (TREE_CODE (t) == VAR_DECL && DECL_NTTP_OBJECT_P (t))
+  if (VAR_P (t) && DECL_NTTP_OBJECT_P (t))
     return dump_expr (pp, DECL_INITIAL (t), flags);
 
   if (flags & TFF_DECL_SPECIFIERS)
@@ -1177,6 +1183,8 @@ dump_simple_decl (cxx_pretty_printer *pp, tree t, tree type, int flags)
     }
   else if (DECL_DECOMPOSITION_P (t))
     pp_string (pp, M_("<structured bindings>"));
+  else if (TREE_CODE (t) == FIELD_DECL && DECL_FIELD_IS_BASE (t))
+    dump_type (pp, TREE_TYPE (t), flags);
   else
     pp_string (pp, M_("<anonymous>"));
 
@@ -1508,10 +1516,6 @@ dump_decl (cxx_pretty_printer *pp, tree t, int flags)
       dump_decl (pp, BASELINK_FUNCTIONS (t), flags);
       break;
 
-    case NON_DEPENDENT_EXPR:
-      dump_expr (pp, t, flags);
-      break;
-
     case TEMPLATE_TYPE_PARM:
       if (flags & TFF_DECL_SPECIFIERS)
 	pp->declaration (t);
@@ -1712,7 +1716,9 @@ dump_lambda_function (cxx_pretty_printer *pp,
 {
   /* A lambda's signature is essentially its "type".  */
   dump_type (pp, DECL_CONTEXT (fn), flags);
-  if (TREE_CODE (TREE_TYPE (fn)) == FUNCTION_TYPE)
+  if (DECL_XOBJ_MEMBER_FUNCTION_P (fn))
+    /* Early escape.  */;
+  else if (TREE_CODE (TREE_TYPE (fn)) == FUNCTION_TYPE)
     {
       pp->padding = pp_before;
       pp_c_ws_string (pp, "static");
@@ -1833,7 +1839,9 @@ dump_function_decl (cxx_pretty_printer *pp, tree t, int flags)
 
   if (!(flags & TFF_NO_FUNCTION_ARGUMENTS))
     {
-      dump_parameters (pp, parmtypes, flags);
+      int const parm_flags
+	= DECL_XOBJ_MEMBER_FUNCTION_P (t) ? TFF_XOBJ_FUNC | flags : flags;
+      dump_parameters (pp, parmtypes, parm_flags);
 
       if (TREE_CODE (fntype) == METHOD_TYPE)
 	{
@@ -1912,6 +1920,8 @@ dump_parameters (cxx_pretty_printer *pp, tree parmtypes, int flags)
   for (first = 1; parmtypes != void_list_node;
        parmtypes = TREE_CHAIN (parmtypes))
     {
+      if (first && flags & TFF_XOBJ_FUNC)
+	pp_string (pp, "this ");
       if (!first)
 	pp_separate_with_comma (pp);
       first = 0;
@@ -2497,6 +2507,15 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
       pp_cxx_right_bracket (pp);
       break;
 
+    case OMP_ARRAY_SECTION:
+      dump_expr (pp, TREE_OPERAND (t, 0), flags);
+      pp_cxx_left_bracket (pp);
+      dump_expr (pp, TREE_OPERAND (t, 1), flags);
+      pp_colon (pp);
+      dump_expr (pp, TREE_OPERAND (t, 2), flags);
+      pp_cxx_right_bracket (pp);
+      break;
+
     case UNARY_PLUS_EXPR:
       dump_unary_op (pp, "+", t, flags);
       break;
@@ -2654,6 +2673,8 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
 
 	tree ttype = TREE_TYPE (t);
 	tree optype = TREE_TYPE (op);
+	if (!optype)
+	  optype = unknown_type_node;
 
 	if (TREE_CODE (ttype) != TREE_CODE (optype)
 	    && INDIRECT_TYPE_P (ttype)
@@ -2672,7 +2693,7 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
 	    else
 	      dump_unary_op (pp, "&", t, flags);
 	  }
-	else if (!same_type_p (TREE_TYPE (op), TREE_TYPE (t)))
+	else if (!same_type_p (optype, ttype))
 	  {
 	    /* It is a cast, but we cannot tell whether it is a
 	       reinterpret or static cast. Use the C style notation.  */
@@ -2840,11 +2861,10 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
     case ALIGNOF_EXPR:
       if (TREE_CODE (t) == SIZEOF_EXPR)
 	pp_cxx_ws_string (pp, "sizeof");
+      else if (ALIGNOF_EXPR_STD_P (t))
+	pp_cxx_ws_string (pp, "alignof");
       else
-	{
-	  gcc_assert (TREE_CODE (t) == ALIGNOF_EXPR);
-	  pp_cxx_ws_string (pp, "__alignof__");
-	}
+	pp_cxx_ws_string (pp, "__alignof__");
       op = TREE_OPERAND (t, 0);
       if (PACK_EXPANSION_P (op))
 	{
@@ -2939,10 +2959,6 @@ dump_expr (cxx_pretty_printer *pp, tree t, int flags)
       dump_type (pp, TREE_TYPE (t), flags);
       pp_cxx_left_paren (pp);
       pp_cxx_right_paren (pp);
-      break;
-
-    case NON_DEPENDENT_EXPR:
-      dump_expr (pp, TREE_OPERAND (t, 0), flags);
       break;
 
     case ARGUMENT_PACK_SELECT:
@@ -3537,7 +3553,7 @@ eh_spec_to_string (tree p, int /*v*/)
 /* Langhook for print_error_function.  */
 void
 cxx_print_error_function (diagnostic_context *context, const char *file,
-			  diagnostic_info *diagnostic)
+			  const diagnostic_info *diagnostic)
 {
   char *prefix;
   if (file)
@@ -3551,7 +3567,7 @@ cxx_print_error_function (diagnostic_context *context, const char *file,
 
 static void
 cp_diagnostic_starter (diagnostic_context *context,
-		       diagnostic_info *diagnostic)
+		       const diagnostic_info *diagnostic)
 {
   diagnostic_report_current_module (context, diagnostic_location (diagnostic));
   cp_print_error_function (context, diagnostic);
@@ -3566,7 +3582,7 @@ cp_diagnostic_starter (diagnostic_context *context,
    a diagnostic message.  Called from cp_diagnostic_starter.  */
 static void
 cp_print_error_function (diagnostic_context *context,
-			 diagnostic_info *diagnostic)
+			 const diagnostic_info *diagnostic)
 {
   /* If we are in an instantiation context, current_function_decl is likely
      to be wrong, so just rely on print_instantiation_full_context.  */
@@ -3643,7 +3659,7 @@ cp_print_error_function (diagnostic_context *context,
 		  pp_newline (context->printer);
 		  if (s.file != NULL)
 		    {
-		      if (context->show_column && s.column != 0)
+		      if (context->m_show_column && s.column != 0)
 			pp_printf (context->printer,
 				   _("    inlined from %qD at %r%s:%d:%d%R"),
 				   fndecl,
@@ -3692,6 +3708,8 @@ function_category (tree fn)
 	return _("In destructor %qD");
       else if (LAMBDA_FUNCTION_P (fn))
 	return _("In lambda function");
+      else if (DECL_XOBJ_MEMBER_FUNCTION_P (fn))
+	return _("In explicit object member function %qD");
       else
 	return _("In member function %qD");
     }
@@ -3744,7 +3762,7 @@ print_instantiation_partial_context_line (diagnostic_context *context,
 
   expanded_location xloc = expand_location (loc);
 
-  if (context->show_column)
+  if (context->m_show_column)
     pp_verbatim (context->printer, _("%r%s:%d:%d:%R   "),
 		 "locus", xloc.file, xloc.line, xloc.column);
   else
@@ -3773,6 +3791,8 @@ print_instantiation_partial_context_line (diagnostic_context *context,
 		   ? _("recursively required from here\n")
 		   : _("required from here\n"));
     }
+  gcc_rich_location rich_loc (loc);
+  diagnostic_show_locus (context, &rich_loc, DK_NOTE);
 }
 
 /* Same as print_instantiation_full_context but less verbose.  */
@@ -3821,7 +3841,7 @@ print_instantiation_partial_context (diagnostic_context *context,
 	{
 	  expanded_location xloc;
 	  xloc = expand_location (loc);
-	  if (context->show_column)
+	  if (context->m_show_column)
 	    pp_verbatim (context->printer,
 			 _("%r%s:%d:%d:%R   [ skipping %d instantiation "
 			   "contexts, use -ftemplate-backtrace-limit=0 to "
@@ -3881,7 +3901,7 @@ maybe_print_constexpr_context (diagnostic_context *context)
     {
       expanded_location xloc = expand_location (EXPR_LOCATION (t));
       const char *s = expr_as_string (t, 0);
-      if (context->show_column)
+      if (context->m_show_column)
 	pp_verbatim (context->printer,
 		     _("%r%s:%d:%d:%R   in %<constexpr%> expansion of %qs"),
 		     "locus", xloc.file, xloc.line, xloc.column, s);
@@ -3898,7 +3918,7 @@ static void
 print_location (diagnostic_context *context, location_t loc)
 {
   expanded_location xloc = expand_location (loc);
-  if (context->show_column)
+  if (context->m_show_column)
     pp_verbatim (context->printer, _("%r%s:%d:%d:%R   "),
                  "locus", xloc.file, xloc.line, xloc.column);
   else
@@ -4453,10 +4473,10 @@ cp_printer (pretty_printer *pp, text_info *text, const char *spec,
 
   const char *result;
   tree t = NULL;
-#define next_tree    (t = va_arg (*text->args_ptr, tree))
-#define next_tcode   ((enum tree_code) va_arg (*text->args_ptr, int))
-#define next_lang    ((enum languages) va_arg (*text->args_ptr, int))
-#define next_int     va_arg (*text->args_ptr, int)
+#define next_tree    (t = va_arg (*text->m_args_ptr, tree))
+#define next_tcode   ((enum tree_code) va_arg (*text->m_args_ptr, int))
+#define next_lang    ((enum languages) va_arg (*text->m_args_ptr, int))
+#define next_int     va_arg (*text->m_args_ptr, int)
 
   if (precision != 0 || wide)
     return false;

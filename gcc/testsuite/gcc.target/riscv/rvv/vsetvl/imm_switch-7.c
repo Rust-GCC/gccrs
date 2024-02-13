@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2" } */
+/* { dg-options "--param=riscv-autovec-preference=scalable -march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2" } */
 
 #include "riscv_vector.h"
 
@@ -25,5 +25,5 @@ void f (void * restrict in, void * restrict out, int n)
 }
 
 /* { dg-final { scan-assembler-times {vsetivli\s+zero,\s*5,\s*e8,\s*mf8,\s*t[au],\s*m[au]} 1 { target { no-opts "-O0" no-opts "-Os" no-opts "-Oz" no-opts "-g" no-opts "-funroll-loops" } } } } */
-/* { dg-final { scan-assembler-times {\.L[0-9]+\:\s+vsetivli\s+zero,\s*5,\s*e16,\s*mf4,\s*t[au],\s*m[au]\s+\.L[0-9]+} 1 { target { no-opts "-O0" no-opts "-Os" no-opts "-Oz" no-opts "-g" no-opts "-funroll-loops" } } } } */
+/* { dg-final { scan-assembler-times {\.L[0-9]+\:\s+vsetivli\s+zero,\s*5,\s*e16,\s*mf4,\s*t[au],\s*m[au]} 1 { target { no-opts "-O0" no-opts "-Os" no-opts "-Oz" no-opts "-g" no-opts "-funroll-loops" } } } } */
 /* { dg-final { scan-assembler-times {vsetivli\s+zero,\s*8,\s*e16,\s*mf2,\s*t[au],\s*m[au]} 1 { target { no-opts "-O0" no-opts "-Os" no-opts "-Oz" no-opts "-g" no-opts "-funroll-loops" } } } } */

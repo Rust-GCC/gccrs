@@ -1,5 +1,5 @@
 /* d-convert.cc -- Data type conversion routines.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -132,13 +132,13 @@ d_truthvalue_conversion (tree expr)
       return expr;
 
     case INTEGER_CST:
-      return integer_zerop (expr) ? boolean_false_node
-				  : boolean_true_node;
+      return integer_zerop (expr) ? d_bool_false_node
+				  : d_bool_true_node;
 
     case REAL_CST:
       return real_compare (NE_EXPR, &TREE_REAL_CST (expr), &dconst0)
-	     ? boolean_true_node
-	     : boolean_false_node;
+	     ? d_bool_true_node
+	     : d_bool_false_node;
 
     case ADDR_EXPR:
       /* If we are taking the address of a decl that can never be null,
@@ -148,7 +148,7 @@ d_truthvalue_conversion (tree expr)
 	  warning (OPT_Waddress,
 		   "the address of %qD will always evaluate as %<true%>",
 		   TREE_OPERAND (expr, 0));
-	  return boolean_true_node;
+	  return d_bool_true_node;
 	}
       break;
 
@@ -257,7 +257,7 @@ convert (tree type, tree expr)
     return fold_convert (type, expr);
   if (TREE_CODE (TREE_TYPE (expr)) == ERROR_MARK)
     return error_mark_node;
-  if (TREE_CODE (TREE_TYPE (expr)) == VOID_TYPE)
+  if (VOID_TYPE_P (TREE_TYPE (expr)))
     {
       error ("void value not ignored as it ought to be");
       return error_mark_node;
@@ -270,8 +270,7 @@ convert (tree type, tree expr)
 
     case INTEGER_TYPE:
     case ENUMERAL_TYPE:
-      if (TREE_CODE (etype) == POINTER_TYPE
-	  || TREE_CODE (etype) == REFERENCE_TYPE)
+      if (POINTER_TYPE_P (etype))
 	{
 	  if (integer_zerop (e))
 	    return build_int_cst (type, 0);
@@ -300,7 +299,7 @@ convert (tree type, tree expr)
       return fold (convert_to_real (type, e));
 
     case COMPLEX_TYPE:
-      if (TREE_CODE (etype) == REAL_TYPE && TYPE_IMAGINARY_FLOAT (etype))
+      if (SCALAR_FLOAT_TYPE_P (etype) && TYPE_IMAGINARY_FLOAT (etype))
 	return fold_build2 (COMPLEX_EXPR, type,
 			    build_zero_cst (TREE_TYPE (type)),
 			    convert (TREE_TYPE (type), expr));
@@ -620,7 +619,7 @@ convert_expr (tree exp, Type *etype, Type *totype)
   return result ? result : convert (build_ctype (totype), exp);
 }
 
-/* Return a TREE represenwation of EXPR, whose type has been converted from
+/* Return a TREE representation of EXPR, whose type has been converted from
  * ETYPE to TOTYPE, and is being used in an rvalue context.  */
 
 tree
@@ -635,19 +634,26 @@ convert_for_rvalue (tree expr, Type *etype, Type *totype)
     {
       /* If casting from bool, the result is either 0 or 1, any other value
 	 violates @safe code, so enforce that it is never invalid.  */
-      if (CONSTANT_CLASS_P (expr))
-	result = d_truthvalue_conversion (expr);
-      else
+      for (tree ref = expr; TREE_CODE (ref) == COMPONENT_REF;
+	   ref = TREE_OPERAND (ref, 0))
 	{
-	  /* Reinterpret the boolean as an integer and test the first bit.
-	     The generated code should end up being equivalent to:
+	  /* If the expression is a field that's part of a union, reinterpret
+	     the boolean as an integer and test the first bit.  The generated
+	     code should end up being equivalent to:
 		*cast(ubyte *)&expr & 1;  */
-	  machine_mode bool_mode = TYPE_MODE (TREE_TYPE (expr));
-	  tree mtype = lang_hooks.types.type_for_mode (bool_mode, 1);
-	  result = fold_build2 (BIT_AND_EXPR, mtype,
-				build_vconvert (mtype, expr),
-				build_one_cst (mtype));
+	  if (TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0))) == UNION_TYPE)
+	    {
+	      machine_mode bool_mode = TYPE_MODE (TREE_TYPE (expr));
+	      tree mtype = lang_hooks.types.type_for_mode (bool_mode, 1);
+	      result = fold_build2 (BIT_AND_EXPR, mtype,
+				    build_vconvert (mtype, expr),
+				    build_one_cst (mtype));
+	      break;
+	    }
 	}
+
+      if (result == NULL_TREE)
+	result = d_truthvalue_conversion (expr);
 
       result = convert (build_ctype (tbtype), result);
     }
@@ -656,7 +662,7 @@ convert_for_rvalue (tree expr, Type *etype, Type *totype)
       && ebtype->ty == TY::Tsarray
       && tbtype->nextOf ()->ty == ebtype->nextOf ()->ty
       && INDIRECT_REF_P (expr)
-      && CONVERT_EXPR_CODE_P (TREE_CODE (TREE_OPERAND (expr, 0)))
+      && CONVERT_EXPR_P (TREE_OPERAND (expr, 0))
       && TREE_CODE (TREE_OPERAND (TREE_OPERAND (expr, 0), 0)) == ADDR_EXPR)
     {
       /* If expression is a vector that was casted to an array either by
@@ -688,16 +694,86 @@ convert_for_rvalue (tree expr, Type *etype, Type *totype)
   return result ? result : convert_expr (expr, etype, totype);
 }
 
+/* Helper for convert_for_assigment and convert_for_argument.
+   Returns true if EXPR is a va_list static array parameter.  */
+
+static bool
+is_valist_parameter_type (Expression *expr)
+{
+  Declaration *decl = NULL;
+
+  if (VarExp *ve = expr->isVarExp ())
+    decl = ve->var;
+  else if (SymOffExp *se = expr->isSymOffExp ())
+    decl = se->var;
+
+  if (decl != NULL && decl->isParameter () && valist_array_p (decl->type))
+    return true;
+
+  return false;
+}
+
+/* Helper for convert_for_assigment and convert_for_argument.
+   Report erroneous uses of assigning or passing a va_list parameter.  */
+
+static void
+check_valist_conversion (Expression *expr, Type *totype, bool in_assignment)
+{
+  /* Parameter symbol and its converted type.  */
+  Declaration *decl = NULL;
+  /* Type of parameter when evaluated in the expression.  */
+  Type *type = NULL;
+
+  if (VarExp *ve = expr->isVarExp ())
+    {
+      decl = ve->var;
+      type = ve->var->type->nextOf ()->pointerTo ();
+    }
+  else if (SymOffExp *se = expr->isSymOffExp ())
+    {
+      decl = se->var;
+      type = se->var->type->nextOf ()->pointerTo ()->pointerTo ();
+    }
+
+  /* Should not be called unless is_valist_parameter_type also matched.  */
+  gcc_assert (decl != NULL && decl->isParameter ()
+	      && valist_array_p (decl->type));
+
+  /* OK if conversion between types is allowed.  */
+  if (type->implicitConvTo (totype) != MATCH::nomatch)
+    return;
+
+  if (in_assignment)
+    {
+      error_at (make_location_t (expr->loc), "cannot convert parameter %qs "
+		"from type %qs to type %qs in assignment",
+		expr->toChars(), type->toChars (), totype->toChars ());
+    }
+  else
+    {
+      error_at (make_location_t (expr->loc), "cannot convert parameter %qs "
+		"from type %qs to type %qs in argument passing",
+		expr->toChars(), type->toChars (), totype->toChars ());
+    }
+
+  inform (make_location_t (decl->loc), "parameters of type %<va_list%> "
+	  "{aka %qs} are decayed to pointer types, and require %<va_copy%> "
+	  "to be converted back into a static array type",
+	  decl->type->toChars ());
+}
+
 /* Apply semantics of assignment to a value of type TOTYPE to EXPR
-   (e.g., pointer = array -> pointer = &array[0])
+   For example: `pointer = array' gets lowered to `pointer = &array[0]'.
+   If LITERALP is true, then EXPR is a value used in the initialization
+   of another literal.
 
    Return a TREE representation of EXPR implicitly converted to TOTYPE
    for use in assignment expressions MODIFY_EXPR, INIT_EXPR.  */
 
 tree
-convert_for_assignment (tree expr, Type *etype, Type *totype)
+convert_for_assignment (Expression *expr, Type *totype, bool literalp)
 {
-  Type *ebtype = etype->toBasetype ();
+  Type *ebtype = expr->type->toBasetype ();
   Type *tbtype = totype->toBasetype ();
 
   /* Assuming this only has to handle converting a non Tsarray type to
@@ -717,8 +793,8 @@ convert_for_assignment (tree expr, Type *etype, Type *totype)
 	      vec <constructor_elt, va_gc> *ce = NULL;
 	      tree index = build2 (RANGE_EXPR, build_ctype (Type::tsize_t),
 				   size_zero_node, size_int (count - 1));
-	      tree value = convert_for_assignment (expr, etype, sa_type->next);
-
+	      tree value = convert_for_assignment (expr, sa_type->next,
+						   literalp);
 	      /* Can't use VAR_DECLs in CONSTRUCTORS.  */
 	      if (VAR_P (value))
 		{
@@ -739,38 +815,53 @@ convert_for_assignment (tree expr, Type *etype, Type *totype)
   if ((tbtype->ty == TY::Tsarray || tbtype->ty == TY::Tstruct)
       && ebtype->isintegral ())
     {
-      if (!integer_zerop (expr))
-	gcc_unreachable ();
-
-      return expr;
+      tree ret = build_expr (expr, false, literalp);
+      gcc_assert (integer_zerop (ret));
+      return ret;
     }
 
-  return convert_for_rvalue (expr, etype, totype);
+  /* Assigning a va_list by value or reference, check whether RHS is a parameter
+     that has has been lowered by declaration_type or parameter_type.  */
+  if (is_valist_parameter_type (expr))
+    check_valist_conversion (expr, totype, true);
+
+  return convert_for_rvalue (build_expr (expr, false, literalp),
+			     expr->type, totype);
 }
 
 /* Return a TREE representation of EXPR converted to represent
    the parameter type ARG.  */
 
 tree
-convert_for_argument (tree expr, Parameter *arg)
+convert_for_argument (Expression *expr, Parameter *arg)
 {
+  tree targ = build_expr (expr);
+
   /* Lazy arguments: expr should already be a delegate.  */
   if (arg->storageClass & STClazy)
-    return expr;
+    return targ;
 
+  /* Passing a va_list by value, check whether the target requires it to
+     be decayed to a pointer type.  */
   if (valist_array_p (arg->type))
     {
-      /* Do nothing if the va_list has already been decayed to a pointer.  */
-      if (!POINTER_TYPE_P (TREE_TYPE (expr)))
-	return build_address (expr);
-    }
-  else if (parameter_reference_p (arg))
-    {
-      /* Front-end shouldn't automatically take the address.  */
-      return convert (parameter_type (arg), build_address (expr));
+      if (!POINTER_TYPE_P (TREE_TYPE (targ)))
+	return build_address (targ);
+
+      /* Do nothing if the va_list has already been converted.  */
+      return targ;
     }
 
-  return expr;
+  /* Passing a va_list by reference, check if types are really compatible
+     after conversion from static array to pointer type.  */
+  if (is_valist_parameter_type (expr))
+    check_valist_conversion (expr, arg->type, false);
+
+  /* Front-end shouldn't automatically take the address of `ref' parameters.  */
+  if (parameter_reference_p (arg))
+    return convert (parameter_type (arg), build_address (targ));
+
+  return targ;
 }
 
 /* Perform default promotions for data used in expressions.
@@ -845,7 +936,7 @@ convert_for_condition (tree expr, Type *type)
       break;
 
     default:
-      result = expr;
+      result = convert_for_rvalue (expr, type, type);
       break;
     }
 

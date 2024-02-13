@@ -1,4 +1,5 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-mlasx" { target loongarch*-*-* } } */
 
 #include <stdarg.h>
 #include "tree-vect.h"
@@ -37,6 +38,7 @@ int main (void)
 
   foo ();
 
+#pragma GCC novector
   for (i = 0; i < N; i++)
     {
       __asm__ volatile ("");

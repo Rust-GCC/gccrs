@@ -1,5 +1,5 @@
 /* Support for plugin-supplied behaviors of known functions.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -54,6 +54,8 @@ private:
   DISABLE_COPY_AND_ASSIGN (known_function_manager);
 
   const known_function *get_normal_builtin (enum built_in_function name) const;
+  const known_function *
+  get_normal_builtin (const builtin_known_function *builtin_kf) const;
   const known_function *get_by_identifier (tree identifier) const;
 
   /* Map from identifier to known_function instance.
@@ -63,6 +65,8 @@ private:
   /* Array of known builtins.  */
   known_function *m_combined_fns_arr[CFN_LAST];
 };
+
+extern std::unique_ptr<known_function> make_kf_strlen ();
 
 } // namespace ana
 

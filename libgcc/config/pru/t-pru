@@ -1,5 +1,5 @@
 # Makefile fragment for building LIBGCC for the TI PRU processor.
-# Copyright (C) 2014-2023 Free Software Foundation, Inc.
+# Copyright (C) 2014-2024 Free Software Foundation, Inc.
 # Contributed by Dimitar Dimitrov <dimitar@dinux.eu>
 #
 # This file is part of GCC.
@@ -41,6 +41,9 @@ LIB2ADD += \
 	$(srcdir)/config/pru/asri.c
 
 HOST_LIBGCC2_CFLAGS += -Os -ffunction-sections -fdata-sections
+
+# Use an appropriate implementation when implementing DImode division.
+HOST_LIBGCC2_CFLAGS += -DTARGET_HAS_NO_HW_DIVIDE
 
 LIB2FUNCS_EXCLUDE = _muldi3
 

@@ -1,14 +1,15 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
+// { dg-add-options no_pch }
 
 #include <experimental/scope>
-#include <testsuite_hooks.h>
 
 #ifndef __cpp_lib_experimental_scope
 # error Feature-test macro is not defined.
 #elif __cpp_lib_experimental_scope < 201902
 # error Feature-test macro has bad value.
 #endif
+
+#include <testsuite_hooks.h>
 
 using std::experimental::unique_resource;
 

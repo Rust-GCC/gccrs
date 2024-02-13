@@ -1,6 +1,6 @@
 // unordered_set implementation -*- C++ -*-
 
-// Copyright (C) 2010-2023 Free Software Foundation, Inc.
+// Copyright (C) 2010-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -80,6 +80,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  the elements themselves.
    *
    *  @ingroup unordered_associative_containers
+   *  @headerfile unordered_set
+   *  @since C++11
    *
    *  @tparam  _Value  Type of key objects.
    *  @tparam  _Hash  Hashing function object type, defaults to hash<_Value>.
@@ -948,6 +950,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  elements' keys are the elements themselves.
    *
    *  @ingroup unordered_associative_containers
+   *  @headerfile unordered_set
+   *  @since C++11
    *
    *  @tparam  _Value  Type of key objects.
    *  @tparam  _Hash  Hashing function object type, defaults to hash<_Value>.

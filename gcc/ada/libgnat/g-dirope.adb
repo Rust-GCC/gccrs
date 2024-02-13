@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1998-2023, AdaCore                     --
+--                     Copyright (C) 1998-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -636,7 +636,6 @@ package body GNAT.Directory_Operations is
 
       if not Is_Open (Dir) then
          Free (Dir);
-         Dir := Null_Dir;
          raise Directory_Error;
       end if;
    end Open;

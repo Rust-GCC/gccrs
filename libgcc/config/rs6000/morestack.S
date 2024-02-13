@@ -1,6 +1,6 @@
 #ifdef __powerpc64__
 # PowerPC64 support for -fsplit-stack.
-# Copyright (C) 2009-2023 Free Software Foundation, Inc.
+# Copyright (C) 2009-2024 Free Software Foundation, Inc.
 # Contributed by Alan Modra <amodra@gmail.com>.
 
 # This file is part of GCC.
@@ -399,7 +399,7 @@ ENTRY0(__morestack_make_guard)
 
 # Make __stack_split_initialize a high priority constructor.
 #if HAVE_INITFINI_ARRAY_SUPPORT
-	.section .init_array.00000,"aw",@progbits
+	.section .init_array.00000,"aw",@init_array
 #else
 	.section .ctors.65535,"aw",@progbits
 #endif

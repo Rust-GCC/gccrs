@@ -1,5 +1,5 @@
 /* Encoding of types for Objective C.
-   Copyright (C) 1993-2023 Free Software Foundation, Inc.
+   Copyright (C) 1993-2024 Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup
    Bitfield support by Ovidiu Predescu
 
@@ -67,6 +67,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define UNION_TYPE      _C_UNION_B
 #define QUAL_UNION_TYPE _C_UNION_B
 #define ARRAY_TYPE      _C_ARY_B
+#define RECORD_OR_UNION_TYPE_P(TYPE)			\
+	((TREE_CODE (TYPE) == RECORD_TYPE)		\
+	 || (TREE_CODE (TYPE) == UNION_TYPE)		\
+	 || (TREE_CODE (TYPE) == QUAL_UNION_TYPE))
+#define VECTOR_TYPE_P(TYPE) (TREE_CODE (TYPE) == VECTOR_TYPE)
 
 #define REAL_TYPE       _C_DBL
 

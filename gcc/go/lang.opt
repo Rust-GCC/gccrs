@@ -1,6 +1,6 @@
 ; lang.opt -- Options for the gcc Go front end.
 
-; Copyright (C) 2009-2023 Free Software Foundation, Inc.
+; Copyright (C) 2009-2024 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -60,6 +60,10 @@ Go Joined RejectNegative
 fgo-embedcfg=
 Go Joined RejectNegative
 -fgo-embedcfg=<file>	List embedded files via go:embed.
+
+fgo-importcfg=
+Go Joined RejectNegative
+-fgo-importcfg=<file>	Provide file that tells where to find imports.
 
 fgo-optimize-
 Go Joined

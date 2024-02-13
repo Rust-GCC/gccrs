@@ -1,13 +1,14 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do run { target c++23 } }
+// { dg-add-options no_pch }
 
 #include <algorithm>
+
+#if __cpp_lib_ranges_fold != 202207L
+# error "Feature-test macro __cpp_lib_ranges_fold has wrong value in <algorithm>"
+#endif
+
 #include <ranges>
 #include <testsuite_iterators.h>
-
-#if __cpp_lib_fold != 202207L
-# error "Feature-test macro __cpp_lib_fold has wrong value in <algorithm>"
-#endif
 
 namespace ranges = std::ranges;
 namespace views = std::views;

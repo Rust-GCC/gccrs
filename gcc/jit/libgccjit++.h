@@ -1,5 +1,5 @@
 /* A C++ API for libgccjit, purely as inline wrapper functions.
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -360,6 +360,7 @@ namespace gccjit
     type get_volatile ();
     type get_aligned (size_t alignment_in_bytes);
     type get_vector (size_t num_units);
+    type get_restrict ();
 
     // Shortcuts for getting values of numeric types:
     rvalue zero ();
@@ -1408,6 +1409,12 @@ inline type
 type::get_const ()
 {
   return type (gcc_jit_type_get_const (get_inner_type ()));
+}
+
+inline type
+type::get_restrict ()
+{
+  return type (gcc_jit_type_get_restrict (get_inner_type ()));
 }
 
 inline type

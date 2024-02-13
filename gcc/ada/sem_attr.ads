@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -46,8 +46,8 @@ package Sem_Attr is
    --  in GNAT, as well as constructing an array of flags indicating which
    --  attributes these are.
 
-   Attribute_Impl_Def : constant Attribute_Class_Array :=
-     Attribute_Class_Array'(
+   Attribute_Impl_Def : constant Attribute_Set :=
+     (
 
       ------------------
       -- Abort_Signal --

@@ -378,7 +378,6 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
-PERL = @PERL@
 RANLIB = @RANLIB@
 SECTION_LDFLAGS = @SECTION_LDFLAGS@
 SED = @SED@
@@ -481,7 +480,12 @@ libitm_version_info = -version-info $(libtool_VERSION)
 # want or need libstdc++.
 libitm_la_DEPENDENCIES = $(libitm_version_dep)
 libitm_la_LINK = $(LINK) $(libitm_la_LDFLAGS)
-libitm_la_LDFLAGS = $(libitm_version_info) $(libitm_version_script)
+@ENABLE_DARWIN_AT_RPATH_TRUE@libitm_darwin_rpath =  \
+@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
+@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+libitm_la_LDFLAGS = $(libitm_version_info) $(libitm_version_script) \
+  $(libitm_darwin_rpath)
+
 libitm_la_SOURCES = aatree.cc alloc.cc alloc_c.cc alloc_cpp.cc \
 	barrier.cc beginend.cc clone.cc eh_cpp.cc local.cc query.cc \
 	retry.cc rwlock.cc useraction.cc util.cc sjlj.S tls.cc \

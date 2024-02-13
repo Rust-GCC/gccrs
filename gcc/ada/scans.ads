@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -481,6 +481,9 @@ package Scans is
    --  True while parsing the argument of a Depends or Refined_Depends pragma
    --  or aspect. Used to allow/require nonstandard style rules for =>+ with
    --  -gnatyt.
+
+   Inside_Interpolated_String_Expression : Boolean := False;
+   --  True while parsing an interpolated string expression
 
    Inside_Interpolated_String_Literal : Boolean := False;
    --  True while parsing an interpolated string literal

@@ -1,6 +1,6 @@
 ;; DFA scheduling description of the Synopsys DesignWare ARC HS4x cpu
 ;; for GNU C compiler
-;; Copyright (C) 2017-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2017-2024 Free Software Foundation, Inc.
 
 ;; This file is part of GCC.
 
@@ -77,7 +77,7 @@ branch, sfunc"))
 (define_insn_reservation "hs4x_basic_alue_op" 1
   (and (match_test "TARGET_HS")
        (eq_attr "tune" "archs4x, archs4xd")
-       (eq_attr "type" "move, cmove, unary, binary, compare, misc"))
+       (eq_attr "type" "move, cmove, unary, binary, compare, misc, add, sub, bxor"))
   "(hs4x_issue0 | hs4x_issue1) + hs4x_y1")
 
 (define_insn_reservation "hs4x_basic_alul_op" 4

@@ -7,7 +7,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1545,6 +1545,11 @@ CND(SO_KEEPALIVE, "Enable keep-alive msgs")
 #endif
 CND(SO_LINGER, "Defer close to flush data")
 
+#ifndef SO_BINDTODEVICE
+# define SO_BINDTODEVICE -1
+#endif
+CND(SO_BINDTODEVICE, "Bind to a NIC - Network Interface Controller")
+
 #ifndef SO_BROADCAST
 # define SO_BROADCAST -1
 #endif
@@ -1796,11 +1801,6 @@ CND(SIZEOF_struct_hostent, "struct hostent")
 #define SIZEOF_struct_servent (sizeof (struct servent))
 CND(SIZEOF_struct_servent, "struct servent")
 
-#if defined (__linux__) || defined (__ANDROID__) || defined (__QNX__)
-#define SIZEOF_sigset (sizeof (sigset_t))
-CND(SIZEOF_sigset, "sigset")
-#endif
-
 #if defined(_WIN32) || defined(__vxworks)
 #define SIZEOF_nfds_t sizeof (int) * 8
 #define SIZEOF_socklen_t sizeof (size_t)
@@ -1938,6 +1938,11 @@ CST(Poll_Linkname, "")
 
 #endif /* HAVE_SOCKETS */
 
+#if defined (__linux__) || defined (__ANDROID__) || defined (__QNX__)
+#define SIZEOF_sigset (sizeof (sigset_t))
+CND(SIZEOF_sigset, "sigset")
+#endif
+
 /*
 
    ---------------------
@@ -1970,7 +1975,8 @@ CND(CLOCK_THREAD_CPUTIME_ID, "Thread CPU clock")
 
 #if defined(__linux__) || defined(__FreeBSD__) \
  || (defined(_AIX) && defined(_AIXVERSION_530)) \
- || defined(__DragonFly__) || defined(__QNX__)
+ || defined(__DragonFly__) || defined(__QNX__) \
+ || defined (__vxworks)
 /** On these platforms use system provided monotonic clock instead of
  ** the default CLOCK_REALTIME. We then need to set up cond var attributes
  ** appropriately (see thread.c).

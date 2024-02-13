@@ -7,7 +7,7 @@
 --                                 S p e c                                  --
 --                        (VxWorks 6.x SMP PPC RTP)                         --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -120,11 +120,14 @@ package System is
 
 private
 
+   pragma Linker_Options ("-msmp");
    pragma Linker_Options ("--specs=vxworks-smp-ppc-link.spec");
    pragma Linker_Options ("--specs=vxworks-ppc-link.spec");
    --  Setup proper set of -L's for this configuration
 
    type Address is mod Memory_Size;
+   for Address'Size use Standard'Address_Size;
+
    Null_Address : constant Address := 0;
 
    --------------------------------------

@@ -1,5 +1,5 @@
 /* Process source files and output type information.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -69,6 +69,7 @@ advance (void)
 /* Diagnostics.  */
 
 /* This array is indexed by the token code minus CHAR_TOKEN_OFFSET.  */
+/* Keep in sync with 'gengtype.h:enum gty_token'.  */
 static const char *const token_names[] = {
   "GTY",
   "typedef",
@@ -80,7 +81,7 @@ static const char *const token_names[] = {
   "...",
   "ptr_alias",
   "nested_ptr",
-  "a param<N>_is option",
+  "user",
   "a number",
   "a scalar type",
   "an identifier",
@@ -91,8 +92,8 @@ static const char *const token_names[] = {
 };
 
 /* This array is indexed by token code minus FIRST_TOKEN_WITH_VALUE.  */
+/* Keep in sync with 'gengtype.h:enum gty_token'.  */
 static const char *const token_value_format[] = {
-  "%s",
   "'%s'",
   "'%s'",
   "'%s'",
@@ -449,6 +450,12 @@ consume_until_comma_or_eos ()
       case EOF_TOKEN:
 	parse_error ("unexpected end of file while scanning for ',' or ';'");
 	return false;
+
+      case '=':
+	advance ();
+	if (token () == '{')
+	  consume_balanced ('{', '}');
+	break;
 
       default:
 	advance ();

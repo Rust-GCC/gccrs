@@ -1,6 +1,6 @@
 // <max_size_type.h> -*- C++ -*-
 
-// Copyright (C) 2019-2023 Free Software Foundation, Inc.
+// Copyright (C) 2019-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -560,7 +560,8 @@ namespace ranges
 	// Arithmetic right shift.
 	const auto __msb = _M_rep._M_msb;
 	_M_rep >>= __r._M_rep;
-	_M_rep._M_msb |= __msb;
+	if (__msb)
+	  _M_rep |= ~(__max_size_type(-1) >> __r._M_rep);
 	return *this;
       }
 

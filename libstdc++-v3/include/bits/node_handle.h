@@ -1,6 +1,6 @@
 // Node handles for containers -*- C++ -*-
 
-// Copyright (C) 2016-2023 Free Software Foundation, Inc.
+// Copyright (C) 2016-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,8 +33,9 @@
 
 #pragma GCC system_header
 
-#if __cplusplus >= 201703L
-# define __cpp_lib_node_extract 201606L
+#include <bits/version.h>
+
+#ifdef __glibcxx_node_extract // C++ >= 17 && HOSTED
 
 #include <new>
 #include <bits/alloc_traits.h>
@@ -390,5 +391,5 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
-#endif // C++17
+#endif // __glibcxx_node_extract
 #endif

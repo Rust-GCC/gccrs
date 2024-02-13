@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -66,8 +66,8 @@ begin
         (Traceback   => Excep.Tracebacks,
          Max_Len     => Max_Tracebacks,
          Len         => Excep.Num_Tracebacks,
-         Exclude_Min => Code_Address_For_AAA,
-         Exclude_Max => Code_Address_For_ZZZ,
+         Exclude_Min => AAA'Code_Address,
+         Exclude_Max => ZZZ'Code_Address,
          Skip_Frames => 3);
    end if;
 

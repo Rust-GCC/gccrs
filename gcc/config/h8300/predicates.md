@@ -1,5 +1,5 @@
 ;; Predicate definitions for Renesas H8/300.
-;; Copyright (C) 2005-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -378,8 +378,7 @@
   return !(op == stack_pointer_rtx
 	   || op == arg_pointer_rtx
 	   || op == frame_pointer_rtx
-	   || IN_RANGE (REGNO (op),
-			FIRST_PSEUDO_REGISTER, LAST_VIRTUAL_REGISTER));
+	   || VIRTUAL_REGISTER_P (op));
 })
 
 ;; Return nonzero if X is a constant whose absolute value is greater

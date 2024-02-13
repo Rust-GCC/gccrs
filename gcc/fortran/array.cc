@@ -1,5 +1,5 @@
 /* Array things
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -994,7 +994,7 @@ compare_bounds (gfc_expr *bound1, gfc_expr *bound2)
 /* Compares two array specifications.  They must be constant or deferred
    shape.  */
 
-int
+bool
 gfc_compare_array_spec (gfc_array_spec *as1, gfc_array_spec *as2)
 {
   int i;
@@ -1039,7 +1039,7 @@ gfc_compare_array_spec (gfc_array_spec *as1, gfc_array_spec *as2)
    use the symbol as an implied-DO iterator.  Returns nonzero if a
    duplicate was found.  */
 
-static int
+static bool
 check_duplicate_iterator (gfc_constructor_base base, gfc_symbol *master)
 {
   gfc_constructor *c;
@@ -1982,7 +1982,7 @@ is_constant_element (gfc_expr *e)
    i=1,100000000) /) will take a while as* opposed to a more clever
    function that traverses the expression tree. FIXME.  */
 
-int
+bool
 gfc_constant_ac (gfc_expr *e)
 {
   expand_info expand_save;
@@ -2005,7 +2005,7 @@ gfc_constant_ac (gfc_expr *e)
 /* Returns nonzero if an array constructor has been completely
    expanded (no iterators) and zero if iterators are present.  */
 
-int
+bool
 gfc_expanded_ac (gfc_expr *e)
 {
   gfc_constructor *c;
@@ -2212,9 +2212,9 @@ got_charlen:
 	    found_length = current_length;
 	  else if (found_length != current_length)
 	    {
-	      gfc_error ("Different CHARACTER lengths (%ld/%ld) in array"
-			 " constructor at %L", (long) found_length,
-			 (long) current_length, &p->expr->where);
+	      gfc_error ("Different CHARACTER lengths (%wd/%wd) in array"
+			 " constructor at %L", found_length,
+			 current_length, &p->expr->where);
 	      return false;
 	    }
 
@@ -2308,10 +2308,7 @@ gfc_copy_iterator (gfc_iterator *src)
   dest->start = gfc_copy_expr (src->start);
   dest->end = gfc_copy_expr (src->end);
   dest->step = gfc_copy_expr (src->step);
-  dest->unroll = src->unroll;
-  dest->ivdep = src->ivdep;
-  dest->vector = src->vector;
-  dest->novector = src->novector;
+  dest->annot = src->annot;
 
   return dest;
 }

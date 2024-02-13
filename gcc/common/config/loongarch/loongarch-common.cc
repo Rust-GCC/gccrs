@@ -1,5 +1,5 @@
 /* Common hooks for LoongArch.
-   Copyright (C) 2021-2023 Free Software Foundation, Inc.
+   Copyright (C) 2021-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,6 +35,8 @@ static const struct default_options loongarch_option_optimization_table[] =
 {
   { OPT_LEVELS_ALL, OPT_fasynchronous_unwind_tables, NULL, 1 },
   { OPT_LEVELS_1_PLUS, OPT_fsection_anchors, NULL, 1 },
+  { OPT_LEVELS_2_PLUS, OPT_free, NULL, 1 },
+  { OPT_LEVELS_1_PLUS, OPT_fsched_pressure, NULL, 1 },
   { OPT_LEVELS_NONE, 0, NULL, 0 }
 };
 

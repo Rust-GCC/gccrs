@@ -1,5 +1,5 @@
 /* Xtensa configuration settings loader.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -178,6 +178,24 @@ const struct xtensa_config_v3 *xtensa_get_config_v3 (void)
   if (!config)
     config = (const struct xtensa_config_v3 *) xtensa_load_config ("xtensa_config_v3",
 								   &xtensa_config_v3,
+								   &def);
+  return config;
+}
+
+const struct xtensa_config_v4 *xtensa_get_config_v4 (void)
+{
+  static const struct xtensa_config_v4 *config;
+  static const struct xtensa_config_v4 def = {
+      16, /* xchal_data_width */
+      1,  /* xchal_unaligned_load_exception */
+      1,  /* xchal_unaligned_store_exception */
+      0,  /* xchal_unaligned_load_hw */
+      0,  /* xchal_unaligned_store_hw */
+  };
+
+  if (!config)
+    config = (const struct xtensa_config_v4 *) xtensa_load_config ("xtensa_config_v4",
+								   &xtensa_config_v4,
 								   &def);
   return config;
 }

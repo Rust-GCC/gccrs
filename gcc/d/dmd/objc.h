@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 2015-2023 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 2015-2024 by The D Language Foundation, All Rights Reserved
  * written by Michel Fortin
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -30,15 +30,13 @@ struct ObjcSelector
 
     static void _init();
 
-    ObjcSelector(const char *sv, size_t len, size_t pcount);
-
     static ObjcSelector *create(FuncDeclaration *fdecl);
 };
 
 struct ObjcClassDeclaration
 {
-    bool isMeta;
-    bool isExtern;
+    d_bool isMeta;
+    d_bool isExtern;
 
     Identifier* identifier;
     ClassDeclaration* classDeclaration;
@@ -52,7 +50,7 @@ struct ObjcFuncDeclaration
 {
     ObjcSelector* selector;
     VarDeclaration* selectorParameter;
-    bool isOptional;
+    d_bool isOptional;
 };
 
 class Objc

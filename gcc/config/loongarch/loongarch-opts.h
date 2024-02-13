@@ -1,5 +1,5 @@
 /* Definitions for loongarch-specific option handling.
-   Copyright (C) 2021-2023 Free Software Foundation, Inc.
+   Copyright (C) 2021-2024 Free Software Foundation, Inc.
    Contributed by Loongson Ltd.
 
 This file is part of GCC.
@@ -21,26 +21,44 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef LOONGARCH_OPTS_H
 #define LOONGARCH_OPTS_H
 
+/* The loongarch-def.h file is a C++ header and it shouldn't be used by
+   target libraries.  Exclude it and everything using the C++ structs
+   (struct loongarch_target and gcc_options) from target libraries.  */
+#if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)
+#include "loongarch-def.h"
 
 /* Target configuration */
 extern struct loongarch_target la_target;
 
-/* Switch masks */
-extern const int loongarch_switch_mask[];
+/* Initialize loongarch_target from separate option variables.  */
+void
+loongarch_init_target (struct loongarch_target *target,
+		       int cpu_arch, int cpu_tune, int fpu, int simd,
+		       int abi_base, int abi_ext, int cmodel,
+		       HOST_WIDE_INT isa_evolutions,
+		       HOST_WIDE_INT isa_evolutions_set);
 
-#include "loongarch-def.h"
 
-#if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)
 /* Handler for "-m" option combinations,
    shared by the driver and the compiler proper.  */
 void
 loongarch_config_target (struct loongarch_target *target,
-			 HOST_WIDE_INT opt_switches,
-			 int opt_arch, int opt_tune, int opt_fpu,
-			 int opt_abi_base, int opt_abi_ext,
-			 int opt_cmodel, int follow_multilib_list);
+			 struct loongarch_flags *flags,
+			 int follow_multilib_list_p);
+
+/* option status feedback for "gcc --help=target -Q" */
+void
+loongarch_update_gcc_opt_status (struct loongarch_target *target,
+				 struct gcc_options *opts,
+				 struct gcc_options *opts_set);
 #endif
 
+/* Flag status */
+struct loongarch_flags {
+    int flt; const char* flt_str;
+#define SX_FLAG_TYPE(x) ((x) < 0 ? -(x) : (x))
+    int sx[2];
+};
 
 /* Macros for common conditional expressions used in loongarch.{c,h,md} */
 #define TARGET_CMODEL_NORMAL	    (la_target.cmodel == CMODEL_NORMAL)
@@ -50,39 +68,43 @@ loongarch_config_target (struct loongarch_target *target,
 #define TARGET_CMODEL_LARGE	    (la_target.cmodel == CMODEL_LARGE)
 #define TARGET_CMODEL_EXTREME	    (la_target.cmodel == CMODEL_EXTREME)
 
-#define TARGET_HARD_FLOAT	    (la_target.isa.fpu != ISA_EXT_NOFPU)
+#define TARGET_HARD_FLOAT	    (la_target.isa.fpu != ISA_EXT_NONE)
 #define TARGET_HARD_FLOAT_ABI	    (la_target.abi.base == ABI_BASE_LP64D \
 				     || la_target.abi.base == ABI_BASE_LP64F)
 
-#define TARGET_SOFT_FLOAT	  (la_target.isa.fpu == ISA_EXT_NOFPU)
+#define TARGET_SOFT_FLOAT	  (la_target.isa.fpu == ISA_EXT_NONE)
 #define TARGET_SOFT_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64S)
 #define TARGET_SINGLE_FLOAT	  (la_target.isa.fpu == ISA_EXT_FPU32)
 #define TARGET_SINGLE_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64F)
 #define TARGET_DOUBLE_FLOAT	  (la_target.isa.fpu == ISA_EXT_FPU64)
 #define TARGET_DOUBLE_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64D)
 
-#define TARGET_64BIT		  (la_target.isa.base == ISA_BASE_LA64V100)
+#define TARGET_64BIT		  (la_target.isa.base == ISA_BASE_LA64)
 #define TARGET_ABI_LP64		  (la_target.abi.base == ABI_BASE_LP64D	\
 				   || la_target.abi.base == ABI_BASE_LP64F \
 				   || la_target.abi.base == ABI_BASE_LP64S)
 
-#define TARGET_ARCH_NATIVE	  (la_target.cpu_arch == CPU_NATIVE)
-#define LARCH_ACTUAL_ARCH	  (TARGET_ARCH_NATIVE \
-				   ? (la_target.cpu_native < N_ARCH_TYPES \
-				      ? (la_target.cpu_native) : (CPU_NATIVE)) \
-				      : (la_target.cpu_arch))
+#define ISA_HAS_LSX \
+  (la_target.isa.simd == ISA_EXT_SIMD_LSX \
+   || la_target.isa.simd == ISA_EXT_SIMD_LASX)
 
-#define TARGET_TUNE_NATIVE	(la_target.cpu_tune == CPU_NATIVE)
-#define LARCH_ACTUAL_TUNE		(TARGET_TUNE_NATIVE \
-				 ? (la_target.cpu_native < N_TUNE_TYPES \
-				    ? (la_target.cpu_native) : (CPU_NATIVE)) \
-				    : (la_target.cpu_tune))
+#define ISA_HAS_LASX \
+  (la_target.isa.simd == ISA_EXT_SIMD_LASX)
 
-#define TARGET_ARCH_LOONGARCH64	  (LARCH_ACTUAL_ARCH == CPU_LOONGARCH64)
-#define TARGET_ARCH_LA464	  (LARCH_ACTUAL_ARCH == CPU_LA464)
+#define ISA_HAS_FRECIPE \
+  (la_target.isa.evolution & OPTION_MASK_ISA_FRECIPE)
+#define ISA_HAS_DIV32 \
+  (la_target.isa.evolution & OPTION_MASK_ISA_DIV32)
+#define ISA_HAS_LAM_BH \
+  (la_target.isa.evolution & OPTION_MASK_ISA_LAM_BH)
+#define ISA_HAS_LAMCAS \
+  (la_target.isa.evolution & OPTION_MASK_ISA_LAMCAS)
+#define ISA_HAS_LD_SEQ_SA \
+  (la_target.isa.evolution & OPTION_MASK_ISA_LD_SEQ_SA)
 
-#define TARGET_TUNE_LOONGARCH64	  (LARCH_ACTUAL_TUNE == CPU_LOONGARCH64)
-#define TARGET_TUNE_LA464	  (LARCH_ACTUAL_TUNE == CPU_LA464)
+/* TARGET_ macros for use in *.md template conditionals */
+#define TARGET_uARCH_LA464	  (la_target.cpu_tune == CPU_LA464)
+#define TARGET_uARCH_LA664	  (la_target.cpu_tune == CPU_LA664)
 
 /* Note: optimize_size may vary across functions,
    while -m[no]-memcpy imposes a global constraint.  */
@@ -90,6 +112,26 @@ loongarch_config_target (struct loongarch_target *target,
 
 #ifndef HAVE_AS_EXPLICIT_RELOCS
 #define HAVE_AS_EXPLICIT_RELOCS 0
+#endif
+
+#ifndef HAVE_AS_SUPPORT_CALL36
+#define HAVE_AS_SUPPORT_CALL36 0
+#endif
+
+#ifndef HAVE_AS_MRELAX_OPTION
+#define HAVE_AS_MRELAX_OPTION 0
+#endif
+
+#ifndef HAVE_AS_COND_BRANCH_RELAXATION
+#define HAVE_AS_COND_BRANCH_RELAXATION 0
+#endif
+
+#ifndef HAVE_AS_TLS
+#define HAVE_AS_TLS 0
+#endif
+
+#ifndef HAVE_AS_TLS_LE_RELAXATION
+#define HAVE_AS_TLS_LE_RELAXATION 0
 #endif
 
 #endif /* LOONGARCH_OPTS_H */

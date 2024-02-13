@@ -1,6 +1,6 @@
 // Range access functions for containers -*- C++ -*-
 
-// Copyright (C) 2010-2023 Free Software Foundation, Inc.
+// Copyright (C) 2010-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -251,9 +251,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #endif // C++14
 
-#if __cplusplus >= 201703L
-#define __cpp_lib_nonmember_container_access 201411L
-
+#ifdef __glibcxx_nonmember_container_access // C++ >= 17
   /**
    *  @brief  Return the size of a container.
    *  @param  __cont  Container.
@@ -345,9 +343,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     constexpr const _Tp*
     data(initializer_list<_Tp> __il) noexcept
     { return __il.begin(); }
+#endif // __glibcxx_nonmember_container_access
 
-#if __cplusplus > 201703L
-#define __cpp_lib_ssize 201902L
+#ifdef __glibcxx_ssize // C++ >= 20
   template<typename _Container>
     [[nodiscard, __gnu__::__always_inline__]]
     constexpr auto
@@ -364,9 +362,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     constexpr ptrdiff_t
     ssize(const _Tp (&)[_Num]) noexcept
     { return _Num; }
-#endif // C++20
-
-#endif // C++17
+#endif // __glibcxx_ssize
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 

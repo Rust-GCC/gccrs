@@ -1,5 +1,5 @@
 ;; Constraint definitions for Xtensa.
-;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -108,7 +108,7 @@
 (define_constraint "O"
  "An integer constant that can be used in ADDI.N instructions."
  (and (match_code "const_int")
-      (match_test "ival == -1 || IN_RANGE (ival, 1, 15)")))
+      (match_test "xtensa_m1_or_1_thru_15 (ival)")))
 
 (define_constraint "P"
  "An integer constant that can be used as a mask value in an EXTUI
@@ -123,29 +123,19 @@
       (and (match_code "const_int")
 	   (match_test "! xtensa_split1_finished_p ()"))))
 
-;; Memory constraints.  Do not use define_memory_constraint here.  Doing so
-;; causes reload to force some constants into the constant pool, but since
-;; the Xtensa constant pool can only be accessed with L32R instructions, it
-;; is always better to just copy a constant into a register.  Instead, use
-;; regular constraints but add a check to allow pseudos during reload.
+;; Memory constraints.
 
-(define_constraint "R"
+(define_memory_constraint "R"
  "Memory that can be accessed with a 4-bit unsigned offset from a register."
- (ior (and (match_code "mem")
-	   (match_test "smalloffset_mem_p (op)"))
-      (and (match_code "reg")
-	   (match_test "reload_in_progress
-			&& REGNO (op) >= FIRST_PSEUDO_REGISTER"))))
+ (and (match_code "mem")
+      (match_test "smalloffset_mem_p (op)")))
 
-(define_constraint "T"
+(define_memory_constraint "T"
  "Memory in a literal pool (addressable with an L32R instruction)."
  (and (match_code "mem")
       (match_test "!TARGET_CONST16 && constantpool_mem_p (op)")))
 
-(define_constraint "U"
+(define_memory_constraint "U"
  "Memory that is not in a literal pool."
- (ior (and (match_code "mem")
-	   (match_test "! constantpool_mem_p (op)"))
-      (and (match_code "reg")
-	   (match_test "reload_in_progress
-			&& REGNO (op) >= FIRST_PSEUDO_REGISTER"))))
+ (and (match_code "mem")
+      (match_test "! constantpool_mem_p (op)")))

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,6 +31,8 @@
 
 with Ada.Numerics.Big_Numbers.Big_Integers_Ghost;
 use Ada.Numerics.Big_Numbers.Big_Integers_Ghost;
+
+with System.Val_Spec;
 
 package body System.Image_I is
 
@@ -149,7 +151,7 @@ package body System.Image_I is
           and then UP.Only_Decimal_Ghost (S, From => 2, To => P)
           and then UP.Scan_Based_Number_Ghost (S, From => 2, To => P)
             = UP.Wrap_Option (IP.Abs_Uns_Of_Int (V)),
-        Post => not System.Val_Util.Only_Space_Ghost (S, 1, P)
+        Post => not System.Val_Spec.Only_Space_Ghost (S, 1, P)
           and then IP.Is_Integer_Ghost (S (1 .. P))
           and then IP.Is_Value_Integer_Ghost (S (1 .. P), V);
       --  Ghost lemma to prove the value of Value_Integer from the value of

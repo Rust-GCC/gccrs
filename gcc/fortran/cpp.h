@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -39,7 +39,7 @@ void gfc_cpp_init (void);
 void gfc_cpp_init_options (unsigned int decoded_options_count,
 			   struct cl_decoded_option *decoded_options);
 
-int gfc_cpp_handle_option(size_t scode, const char *arg, int value);
+bool gfc_cpp_handle_option(size_t scode, const char *arg, int value);
 
 void gfc_cpp_post_options (bool);
 

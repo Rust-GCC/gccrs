@@ -1,5 +1,5 @@
 /* Command line option handling.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -467,6 +467,28 @@ static const struct option_map option_map[] =
     { "--", NULL, "-f", true, false },
     { "--no-", NULL, "-f", false, true }
   };
+
+/* Given buffer P of size SZ, look for a prefix within OPTION_MAP;
+   if found, return the prefix and write the new prefix to *OUT_NEW_PREFIX.
+   Otherwise return nullptr.  */
+
+const char *
+get_option_prefix_remapping (const char *p, size_t sz,
+			     const char **out_new_prefix)
+{
+  for (unsigned i = 0; i < ARRAY_SIZE (option_map); i++)
+    {
+      const char * const old_prefix = option_map[i].opt0;
+      const size_t old_prefix_len = strlen (old_prefix);
+      if (old_prefix_len <= sz
+	  && !memcmp (p, old_prefix, old_prefix_len))
+	{
+	  *out_new_prefix = option_map[i].new_prefix;
+	  return old_prefix;
+	}
+    }
+  return nullptr;
+}
 
 /* Helper function for gcc.cc's driver::suggest_option, for populating the
    vec of suggestions for misspelled options.
@@ -1068,6 +1090,7 @@ decode_cmdline_options_to_array (unsigned int argc, const char **argv,
 	    "-fdiagnostics-color=never",
 	    "-fdiagnostics-urls=never",
 	    "-fdiagnostics-path-format=separate-events",
+	    "-fdiagnostics-text-art-charset=none"
 	  };
 	  const int num_expanded = ARRAY_SIZE (expanded_args);
 	  opt_array_len += num_expanded - 1;
@@ -1906,14 +1929,14 @@ control_warning_option (unsigned int opt_index, int kind, const char *arg,
     diagnostic_classify_diagnostic (dc, opt_index, (diagnostic_t) kind, loc);
   if (imply)
     {
-      const struct cl_option *option = &cl_options[opt_index];
-
       /* -Werror=foo implies -Wfoo.  */
+      const struct cl_option *option = &cl_options[opt_index];
+      HOST_WIDE_INT value = 1;
+
       if (option->var_type == CLVC_INTEGER
 	  || option->var_type == CLVC_ENUM
 	  || option->var_type == CLVC_SIZE)
 	{
-	  HOST_WIDE_INT value = 1;
 
 	  if (arg && *arg == '\0' && !option->cl_missing_ok)
 	    arg = NULL;
@@ -1960,11 +1983,11 @@ control_warning_option (unsigned int opt_index, int kind, const char *arg,
 		  return;
 		}
 	    }
-
-	  handle_generated_option (opts, opts_set,
-				   opt_index, arg, value, lang_mask,
-				   kind, loc, handlers, false, dc);
 	}
+
+      handle_generated_option (opts, opts_set,
+			       opt_index, arg, value, lang_mask,
+			       kind, loc, handlers, false, dc);
     }
 }
 

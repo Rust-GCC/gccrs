@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---             Copyright (C) 2022-2023, Free Software Foundation, Inc.      --
+--             Copyright (C) 2022-2024, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,7 +45,7 @@
 package System.SPARK.Cut_Operations with
   SPARK_Mode,
   Pure,
-  Annotate => (GNATprove, Always_Return)
+  Always_Terminates
 is
 
    function By (Consequence, Premise : Boolean) return Boolean with

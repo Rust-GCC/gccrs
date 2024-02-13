@@ -1,6 +1,6 @@
 // Methods for Exception Support for -*- C++ -*-
 
-// Copyright (C) 2014-2023 Free Software Foundation, Inc.
+// Copyright (C) 2014-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -198,7 +198,7 @@ _GLIBCXX_END_NAMESPACE_VERSION
 // declared transaction-safe, so we just don't provide transactional clones
 // in this case.
 #if _GLIBCXX_USE_WEAK_REF
-#ifdef _GLIBCXX_USE_C99_STDINT_TR1
+#ifdef _GLIBCXX_USE_C99_STDINT
 
 #include <stdint.h>
 
@@ -461,5 +461,5 @@ CTORDTOR(15underflow_error, std::underflow_error, runtime_error)
 
 }
 
-#endif  // _GLIBCXX_USE_C99_STDINT_TR1
+#endif  // _GLIBCXX_USE_C99_STDINT
 #endif  // _GLIBCXX_USE_WEAK_REF

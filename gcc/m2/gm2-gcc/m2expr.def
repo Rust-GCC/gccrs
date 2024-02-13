@@ -1,6 +1,6 @@
 (* m2expr.def definition module for m2expr.cc.
 
-Copyright (C) 2011-2023 Free Software Foundation, Inc.
+Copyright (C) 2011-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -38,11 +38,28 @@ TYPE
 
 
 (*
-    init - initialise this module.
+   init - initialize this module.
 *)
 
 PROCEDURE init (location: location_t) ;
 
+
+(*
+   CSTIntToString - return an integer string using base 10 and no padding.
+                    The string returned will have been malloc'd.
+*)
+
+PROCEDURE CSTIntToString (t: Tree) : ADDRESS ;
+
+(*
+   CSTIntToChar - return the CHAR representation of tree t.
+*)
+
+PROCEDURE CSTIntToChar (t: Tree) : CHAR ;
+
+
+PROCEDURE CheckConstStrZtypeRange (location: location_t;
+				   str: ADDRESS; base: CARDINAL) : BOOLEAN ;
 
 (*
    CompareTrees - returns -1 if e1 < e2, 0 if e1 == e2, and 1 if e1 > e2.
@@ -702,6 +719,23 @@ PROCEDURE ConstantExpressionWarning (value: Tree) ;
 *)
 
 PROCEDURE BuildAddAddress (location: location_t; op1, op2: Tree) : Tree ;
+
+
+(*
+   calcNbits - return the smallest number of bits required to
+               represent: min..max.
+*)
+
+PROCEDURE calcNbits (location: location_t; min, max: Tree) : Tree ;
+
+
+(*
+   OverflowZType - return TRUE if str exceeds the ZTYPE range.
+*)
+
+PROCEDURE OverflowZType (location: location_t;
+                         str: ADDRESS; base: CARDINAL;
+                         issueError: BOOLEAN) : BOOLEAN ;
 
 
 END m2expr.

@@ -1,5 +1,5 @@
 /* Define control flow data structures for the CFG.
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -26,7 +26,7 @@ extern void delete_insn_chain (rtx, rtx_insn *, bool);
 extern basic_block create_basic_block_structure (rtx_insn *, rtx_insn *,
 						 rtx_note *, basic_block);
 extern void compute_bb_for_insn (void);
-extern unsigned int free_bb_for_insn (void);
+extern void free_bb_for_insn (void);
 extern rtx_insn *entry_of_function (void);
 extern void update_bb_for_insn (basic_block);
 extern bool contains_no_active_insn_p (const_basic_block);

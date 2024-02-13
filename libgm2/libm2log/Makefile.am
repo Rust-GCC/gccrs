@@ -17,7 +17,7 @@
 
 SUFFIXES = .c .mod .def .o .obj .lo .a .la
 
-ACLOCAL_AMFLAGS = -I . -I .. -I ../config
+ACLOCAL_AMFLAGS = -I .. -I ../config
 
 VPATH = . @srcdir@ @srcdir@/../../gcc/m2/gm2-libs-log
 
@@ -136,11 +136,16 @@ libm2log_la_M2FLAGS = \
  -fm2-pathname=m2log -I$(GM2_SRC)/gm2-libs-log \
  -fm2-pathname=m2pim -I$(GM2_SRC)/gm2-libs \
  -fm2-pathname=m2iso -I$(GM2_SRC)/gm2-libs-iso \
- -Wreturn-type -fcase -fm2-prefix=m2log
+ -Wcase-enum -Wreturn-type \
+ -fcase -fm2-prefix=m2log
+
 if TARGET_DARWIN
 libm2log_la_link_flags = -Wl,-undefined,dynamic_lookup
 else
 libm2log_la_link_flags =
+endif
+if ENABLE_DARWIN_AT_RPATH
+libm2log_la_link_flags += -nodefaultrpaths -Wl,-rpath,@loader_path/
 endif
 libm2log_la_LINK = $(LINK) -version-info $(libtool_VERSION) $(libm2log_la_link_flags)
 BUILT_SOURCES = ../libm2pim/SYSTEM.def
@@ -151,7 +156,9 @@ M2LIBDIR = /m2/m2log/
 	cd ../libm2pim ; $(MAKE) $(AM_MAKEFLAGS) SYSTEM.def
 
 .mod.lo:
-	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(GM2_FOR_TARGET) -c $(CFLAGS_FOR_TARGET) $(LIBCFLAGS) $(libm2log_la_M2FLAGS) $< -o $@
+	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile \
+                   $(GM2_FOR_TARGET) -c \
+                   $(CFLAGS_FOR_TARGET) $(LIBCFLAGS) $(libm2log_la_M2FLAGS) $< -o $@
 
 install-data-local: force
 	mkdir -p $(DESTDIR)$(inst_libdir)/$(M2LIBDIR)

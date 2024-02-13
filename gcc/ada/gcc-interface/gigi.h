@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2023, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2024, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -158,14 +158,14 @@ enum alias_set_op
   ALIAS_SET_SUPERSET
 };
 
-/* Relate the alias sets of GNU_NEW_TYPE and GNU_OLD_TYPE according to OP.
+/* Relate the alias sets of NEW_TYPE and OLD_TYPE according to OP.
    If this is a multi-dimensional array type, do this recursively.
 
    OP may be
    - ALIAS_SET_COPY:     the new set is made a copy of the old one.
    - ALIAS_SET_SUPERSET: the new set is made a superset of the old one.
    - ALIAS_SET_SUBSET:   the new set is made a subset of the old one.  */
-extern void relate_alias_sets (tree gnu_new_type, tree gnu_old_type,
+extern void relate_alias_sets (tree new_type, tree old_type,
 			       enum alias_set_op op);
 
 /* Given GNAT_ENTITY, an object (constant, variable, parameter, exception)
@@ -245,11 +245,12 @@ extern void gigi (Node_Id gnat_root,
 		  struct List_Header *list_headers_ptr,
 		  Nat number_file,
 		  struct File_Info_Type *file_info_ptr,
+		  Entity_Id standard_address,
 		  Entity_Id standard_boolean,
-		  Entity_Id standard_integer,
 		  Entity_Id standard_character,
-		  Entity_Id standard_long_long_float,
 		  Entity_Id standard_exception_type,
+		  Entity_Id standard_integer,
+		  Entity_Id standard_long_long_float,
 		  Int gigi_operating_mode);
 
 #ifdef __cplusplus
@@ -349,7 +350,7 @@ struct attrib
 };
 
 /* Table of machine-independent internal attributes.  */
-extern const struct attribute_spec gnat_internal_attribute_table[];
+extern const struct scoped_attribute_specs gnat_internal_attribute_table;
 
 /* Define the entries in the standard data array.  */
 enum standard_datatypes
@@ -761,6 +762,12 @@ extern void update_pointer_to (tree old_type, tree new_type);
    discriminant references, replace them with the maximum (if MAX_P) or
    minimum (if !MAX_P) possible value of the discriminant.  */
 extern tree max_size (tree exp, bool max_p);
+
+/* Try to compute the maximum (if MAX_P) or minimum (if !MAX_P) value for the
+   expression EXP, for very simple expressions.  Substitute variable references
+   with their respective type's min/max values.  Return the computed value if
+   any, or EXP if no value can be computed. */
+extern tree max_value (tree exp, bool max_p);
 
 /* Remove all conversions that are done in EXP.  This includes converting
    from a padded type or to a left-justified modular type.  If TRUE_ADDRESS
@@ -1229,6 +1236,14 @@ static inline tree
 operand_type (tree expr)
 {
   return TREE_TYPE (TREE_OPERAND (expr, 0));
+}
+
+/* Return the second value of a list.  */
+
+static inline tree
+list_second (tree list)
+{
+  return TREE_VALUE (TREE_CHAIN (list));
 }
 
 /* Return the third value of a list.  */

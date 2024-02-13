@@ -6,7 +6,7 @@
  *                                                                          *
  *                           C Implementation File                          *
  *                                                                          *
- *          Copyright (C) 1992-2023, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2024, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -267,12 +267,9 @@ gnat_post_options (const char **pfilename ATTRIBUTE_UNUSED)
   /* No return type warnings for Ada.  */
   warn_return_type = 0;
 
-  /* No string overflow warnings for Ada.  */
-  warn_stringop_overflow = 0;
-
   /* No caret by default for Ada.  */
   if (!OPTION_SET_P (flag_diagnostics_show_caret))
-    global_dc->show_caret = false;
+    global_dc->m_source_printing.enabled = false;
 
   /* Copy global settings to local versions.  */
   gnat_encodings = global_options.x_gnat_encodings;
@@ -296,7 +293,6 @@ static void
 internal_error_function (diagnostic_context *context, const char *msgid,
 			 va_list *ap)
 {
-  text_info tinfo;
   char *buffer, *p, *loc;
   String_Template temp, temp_loc;
   String_Pointer sp, sp_loc;
@@ -312,9 +308,7 @@ internal_error_function (diagnostic_context *context, const char *msgid,
   pp_clear_output_area (context->printer);
 
   /* Format the message into the pretty-printer.  */
-  tinfo.format_spec = msgid;
-  tinfo.args_ptr = ap;
-  tinfo.err_no = errno;
+  text_info tinfo (msgid, ap, errno);
   pp_format_verbatim (context->printer, &tinfo);
 
   /* Extract a (writable) pointer to the formatted text.  */
@@ -333,13 +327,23 @@ internal_error_function (diagnostic_context *context, const char *msgid,
   sp.Bounds = &temp;
   sp.Array = buffer;
 
-  xloc = expand_location (input_location);
-  if (context->show_column && xloc.column != 0)
-    loc = xasprintf ("%s:%d:%d", xloc.file, xloc.line, xloc.column);
+  if (input_location == UNKNOWN_LOCATION)
+    {
+      loc = NULL;
+      temp_loc.Low_Bound = 1;
+      temp_loc.High_Bound = 0;
+    }
   else
-    loc = xasprintf ("%s:%d", xloc.file, xloc.line);
-  temp_loc.Low_Bound = 1;
-  temp_loc.High_Bound = strlen (loc);
+    {
+      xloc = expand_location (input_location);
+      if (context->m_show_column && xloc.column != 0)
+	loc = xasprintf ("%s:%d:%d", xloc.file, xloc.line, xloc.column);
+      else
+	loc = xasprintf ("%s:%d", xloc.file, xloc.line);
+      temp_loc.Low_Bound = 1;
+      temp_loc.High_Bound = strlen (loc);
+    }
+
   sp_loc.Bounds = &temp_loc;
   sp_loc.Array = loc;
 
@@ -371,7 +375,7 @@ gnat_init (void)
   line_table->default_range_bits = 0;
 
   /* Register our internal error function.  */
-  global_dc->internal_error = &internal_error_function;
+  global_dc->m_internal_error = &internal_error_function;
 
   return true;
 }
@@ -767,7 +771,7 @@ gnat_get_array_descr_info (const_tree const_type,
 {
   tree type = const_cast<tree> (const_type);
   tree first_dimen, dimen;
-  bool is_packed_array, is_array;
+  bool is_bit_packed_array, is_array;
   int i;
 
   /* Temporaries created in the first pass and used in the second one for thin
@@ -777,15 +781,15 @@ gnat_get_array_descr_info (const_tree const_type,
   tree thinptr_template_expr = NULL_TREE;
   tree thinptr_bound_field = NULL_TREE;
 
-  /* If we have an implementation type for a packed array, get the orignial
+  /* If we have an implementation type for a packed array, get the original
      array type.  */
   if (TYPE_IMPL_PACKED_ARRAY_P (type) && TYPE_ORIGINAL_PACKED_ARRAY (type))
     {
+      is_bit_packed_array = BIT_PACKED_ARRAY_TYPE_P (type);
       type = TYPE_ORIGINAL_PACKED_ARRAY (type);
-      is_packed_array = true;
     }
   else
-    is_packed_array = false;
+    is_bit_packed_array = false;
 
   /* First pass: gather all information about this array except everything
      related to dimensions.  */
@@ -843,8 +847,8 @@ gnat_get_array_descr_info (const_tree const_type,
      order, so our view here has reversed dimensions.  */
   const bool convention_fortran_p = TYPE_CONVENTION_FORTRAN_P (first_dimen);
 
-  if (TYPE_PACKED (first_dimen))
-    is_packed_array = true;
+  if (BIT_PACKED_ARRAY_TYPE_P (first_dimen))
+    is_bit_packed_array = true;
 
   /* ??? For row major ordering, we probably want to emit nothing and
      instead specify it as the default in Dw_TAG_compile_unit.  */
@@ -968,7 +972,7 @@ gnat_get_array_descr_info (const_tree const_type,
       /* We need to specify a bit stride when it does not correspond to the
 	 natural size of the contained elements.  ??? Note that we do not
 	 support packed records and nested packed arrays.  */
-      else if (is_packed_array)
+      else if (is_bit_packed_array)
 	{
 	  info->stride = get_array_bit_stride (info->element_type);
 	  info->stride_in_bits = true;
@@ -1348,6 +1352,11 @@ get_lang_specific (tree node)
   return TYPE_LANG_SPECIFIC (node);
 }
 
+const struct scoped_attribute_specs *const gnat_attribute_table[] =
+{
+  &gnat_internal_attribute_table
+};
+
 /* Definitions for our language-specific hooks.  */
 
 #undef  LANG_HOOKS_NAME
@@ -1413,7 +1422,7 @@ get_lang_specific (tree node)
 #undef  LANG_HOOKS_GET_FIXED_POINT_TYPE_INFO
 #define LANG_HOOKS_GET_FIXED_POINT_TYPE_INFO gnat_get_fixed_point_type_info
 #undef  LANG_HOOKS_ATTRIBUTE_TABLE
-#define LANG_HOOKS_ATTRIBUTE_TABLE	gnat_internal_attribute_table
+#define LANG_HOOKS_ATTRIBUTE_TABLE	gnat_attribute_table
 #undef  LANG_HOOKS_BUILTIN_FUNCTION
 #define LANG_HOOKS_BUILTIN_FUNCTION	gnat_builtin_function
 #undef  LANG_HOOKS_INIT_TS

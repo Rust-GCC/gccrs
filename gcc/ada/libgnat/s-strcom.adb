@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2002-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,7 +70,7 @@ package body System.String_Compare is
    begin
       --  If operands are non-aligned, or length is too short, go by bytes
 
-      if (((Left or Right) and 2#11#) /= 0) or else Compare_Len < 4 then
+      if ((Left or Right) and 2#11#) /= 0 or else Compare_Len < 4 then
          return Str_Compare_Bytes (Left, Right, Left_Len, Right_Len);
       end if;
 

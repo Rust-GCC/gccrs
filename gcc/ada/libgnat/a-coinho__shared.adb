@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2013-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2013-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -148,8 +148,6 @@ package body Ada.Containers.Indefinite_Holders is
       if Container.Reference = null then
          raise Constraint_Error with "container is empty";
       end if;
-
-      Detach (Container);
 
       declare
          Ref : constant Constant_Reference_Type :=
@@ -304,8 +302,6 @@ package body Ada.Containers.Indefinite_Holders is
       if Container.Reference = null then
          raise Constraint_Error with "container is empty";
       end if;
-
-      Detach (Container);
 
       B := B + 1;
 

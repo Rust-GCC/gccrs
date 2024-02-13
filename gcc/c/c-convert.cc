@@ -1,5 +1,5 @@
 /* Language-level data type conversion for GNU C.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -99,11 +99,25 @@ c_convert (tree type, tree expr, bool init_const)
     return fold_convert_loc (loc, type, expr);
   if (TREE_CODE (TREE_TYPE (expr)) == ERROR_MARK)
     return error_mark_node;
-  if (TREE_CODE (TREE_TYPE (expr)) == VOID_TYPE)
+  if (VOID_TYPE_P (TREE_TYPE (expr)))
     {
       error ("void value not ignored as it ought to be");
       return error_mark_node;
     }
+
+  {
+    tree false_value, true_value;
+    if (c_hardbool_type_attr (type, &false_value, &true_value))
+      {
+	bool save = in_late_binary_op;
+	in_late_binary_op = true;
+	expr = c_objc_common_truthvalue_conversion (input_location, expr);
+	in_late_binary_op = save;
+
+	return fold_build3_loc (loc, COND_EXPR, type,
+				expr, true_value, false_value);
+      }
+  }
 
   switch (code)
     {
@@ -117,9 +131,10 @@ c_convert (tree type, tree expr, bool init_const)
       gcc_fallthrough ();
 
     case INTEGER_TYPE:
+    case BITINT_TYPE:
       if (sanitize_flags_p (SANITIZE_FLOAT_CAST)
 	  && current_function_decl != NULL_TREE
-	  && TREE_CODE (TREE_TYPE (expr)) == REAL_TYPE
+	  && SCALAR_FLOAT_TYPE_P (TREE_TYPE (expr))
 	  && COMPLETE_TYPE_P (type))
 	{
 	  expr = save_expr (expr);
@@ -135,8 +150,7 @@ c_convert (tree type, tree expr, bool init_const)
 
     case BOOLEAN_TYPE:
     convert_to_boolean:
-      return fold_convert_loc
-	(loc, type, c_objc_common_truthvalue_conversion (input_location, expr));
+      return c_objc_common_truthvalue_conversion (input_location, expr, type);
 
     case POINTER_TYPE:
       /* The type nullptr_t may be converted to a pointer type.  The result is

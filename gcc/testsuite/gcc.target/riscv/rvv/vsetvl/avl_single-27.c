@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2 -fno-tree-vectorize" } */
+/* { dg-options "--param=riscv-autovec-preference=scalable -march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2 -fno-tree-vectorize" } */
 
 #include "riscv_vector.h"
 
@@ -7,7 +7,7 @@ void f2 (int8_t * restrict in, int8_t * restrict out, int n, int m, unsigned con
 {
   vbool64_t mask = *(vbool64_t*) (in + 1000000);
 
-  vl = 101;
+  vl = vl + 10000;
   if (cond > 0) {
     for (size_t i = 0; i < n; i++)
       {

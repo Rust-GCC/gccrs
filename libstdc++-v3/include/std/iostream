@@ -1,6 +1,6 @@
 // Standard iostream objects -*- C++ -*-
 
-// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+// Copyright (C) 1997-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -75,8 +75,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // For construction of filebuffers for cout, cin, cerr, clog et. al.
   // When the init_priority attribute is usable, we do this initialization
   // in the compiled library instead (src/c++98/globals_io.cc).
-#if !__has_attribute(__init_priority__)
+#if !(_GLIBCXX_USE_INIT_PRIORITY_ATTRIBUTE \
+      && __has_attribute(__init_priority__))
   static ios_base::Init __ioinit;
+#elif defined(_GLIBCXX_SYMVER_GNU)
+  __extension__ __asm (".globl _ZSt21ios_base_library_initv");
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION

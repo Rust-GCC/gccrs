@@ -1,5 +1,5 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do run { target c++23 } }
+// { dg-add-options no_pch }
 
 #include <spanstream>
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -64,6 +64,15 @@ package body Bindgen is
    Num_Sec_Stacks : Int := 0;
    --  Number of default-sized primary stacks the binder needs to allocate for
    --  task objects declared in the program.
+
+   Command_Line_Used : Boolean := False;
+   --  Flag indicating whether the unit Ada.Command_Line is in the closure of
+   --  the partition. This is set by Resolve_Binder_Options, and is used to
+   --  determine whether or not to import and use symbols defined in
+   --  Ada.Command_Line's support packages (gnat_argc, gnat_argv, gnat_envp
+   --  and gnat_exit_status). Conservatively, it is always set to True for
+   --  non-configurable run-times as parts of the compiler and run-time assume
+   --  these symbols are available and can be imported directly.
 
    System_Restrictions_Used : Boolean := False;
    --  Flag indicating whether the unit System.Restrictions is in the closure
@@ -690,6 +699,8 @@ package body Bindgen is
          then
             WBI ("      null;");
          end if;
+
+         Gen_Restrictions;
 
          --  Generate the default-sized secondary stack pool if the secondary
          --  stack is used by the program.
@@ -2090,13 +2101,13 @@ package body Bindgen is
 
       WBI ("   begin");
 
-      --  Acquire command-line arguments if present on target
+      --  Acquire command-line arguments if supported on the target and used
+      --  by the program.
 
       if CodePeer_Mode then
          null;
 
-      elsif Command_Line_Args_On_Target then
-
+      elsif Command_Line_Args_On_Target and then Command_Line_Used then
          --  Initialize gnat_argc/gnat_argv only if not already initialized,
          --  to avoid losing the result of any command-line processing done by
          --  earlier GNAT run-time initialization.
@@ -2107,20 +2118,6 @@ package body Bindgen is
          WBI ("      end if;");
          WBI ("      gnat_envp := envp;");
          WBI ("");
-
-      --  If configurable run-time and no command-line args, then nothing needs
-      --  to be done since the gnat_argc/argv/envp variables are suppressed in
-      --  this case.
-
-      elsif Configurable_Run_Time_On_Target then
-         null;
-
-      --  Otherwise set dummy values (to be filled in by some other unit?)
-
-      else
-         WBI ("      gnat_argc := 0;");
-         WBI ("      gnat_argv := System.Null_Address;");
-         WBI ("      gnat_envp := System.Null_Address;");
       end if;
 
       if Opt.Default_Exit_Status /= 0
@@ -2197,7 +2194,14 @@ package body Bindgen is
          if No_Main_Subprogram
            or else ALIs.Table (ALIs.First).Main_Program = Proc
          then
-            WBI ("      return (gnat_exit_status);");
+            --  Return gnat_exit_status if Ada.Command_Line is used otherwise
+            --  return 0.
+
+            if Command_Line_Used then
+               WBI ("      return (gnat_exit_status);");
+            else
+               WBI ("      return (0);");
+            end if;
          else
             WBI ("      return (Result);");
          end if;
@@ -2593,38 +2597,35 @@ package body Bindgen is
       if Bind_Main_Program then
          --  Generate argc/argv stuff unless suppressed
 
-         if Command_Line_Args_On_Target
-           or not Configurable_Run_Time_On_Target
-         then
+         --  A run-time configured to support command line arguments defines
+         --  a number of internal symbols that need to be set by the binder.
+         --  We do not do this in cases where the program does not use
+         --  Ada.Command_Line, as the package and it's support files may not be
+         --  present.
+
+         if Command_Line_Args_On_Target and then Command_Line_Used then
             WBI ("");
             WBI ("   gnat_argc : Integer;");
             WBI ("   gnat_argv : System.Address;");
             WBI ("   gnat_envp : System.Address;");
 
-            --  If the standard library is not suppressed, these variables
-            --  are in the run-time data area for easy run time access.
-
-            if not Suppress_Standard_Library_On_Target then
-               WBI ("");
-               WBI ("   pragma Import (C, gnat_argc);");
-               WBI ("   pragma Import (C, gnat_argv);");
-               WBI ("   pragma Import (C, gnat_envp);");
-            end if;
+            WBI ("");
+            WBI ("   pragma Import (C, gnat_argc);");
+            WBI ("   pragma Import (C, gnat_argv);");
+            WBI ("   pragma Import (C, gnat_envp);");
          end if;
 
-         --  Define exit status. Again in normal mode, this is in the run-time
-         --  library, and is initialized there, but in the configurable
-         --  run-time case, the variable is declared and initialized in this
-         --  file.
+         --  Define exit status if supported by the target. The exit status is
+         --  stored in the run-time library to allow applications set the state
+         --  through Ada.Command_Line and is initialized in the run-time. Like
+         --  command line arguments, skip if Ada.Command_Line is not used in
+         --  the enclosure of the partition because this package may not be
+         --  available in the runtime.
 
          WBI ("");
 
-         if Configurable_Run_Time_Mode then
-            if Exit_Status_Supported_On_Target then
-               WBI ("   gnat_exit_status : Integer := 0;");
-            end if;
-
-         else
+         if Exit_Status_Supported_On_Target and then Command_Line_Used
+         then
             WBI ("   gnat_exit_status : Integer;");
             WBI ("   pragma Import (C, gnat_exit_status);");
          end if;
@@ -2804,9 +2805,7 @@ package body Bindgen is
       --  Generate with of System.Restrictions to initialize
       --  Run_Time_Restrictions.
 
-      if System_Restrictions_Used
-        and not Suppress_Standard_Library_On_Target
-      then
+      if System_Restrictions_Used then
          WBI ("");
          WBI ("with System.Restrictions;");
       end if;
@@ -2946,9 +2945,7 @@ package body Bindgen is
       Count : Integer;
 
    begin
-      if Suppress_Standard_Library_On_Target
-        or not System_Restrictions_Used
-      then
+      if not System_Restrictions_Used then
          return;
       end if;
 
@@ -3391,6 +3388,18 @@ package body Bindgen is
 
          Check_Package (System_Version_Control_Used,
                         "system.version_control%s");
+
+         --  Ditto for the use of Ada.Command_Line, except we always set
+         --  Command_Line_Used to True if on a non-configurable run-time
+         --  as parts of the compiler and run-time assume the GNAT command
+         --  line symbols are available and can be imported directly (as
+         --  long as No_Run_Time mode is not set).
+
+         if Configurable_Run_Time_On_Target then
+            Check_Package (Command_Line_Used, "ada.command_line%s");
+         elsif not No_Run_Time_Mode then
+            Command_Line_Used := True;
+         end if;
       end loop;
    end Resolve_Binder_Options;
 

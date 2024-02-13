@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -2027,7 +2027,7 @@ package body Uintp is
       begin
          Init_Operand (Left, L_Vec);
          Init_Operand (Right, R_Vec);
-         Neg := (L_Vec (1) < Int_0) xor (R_Vec (1) < Int_0);
+         Neg := L_Vec (1) < Int_0 xor R_Vec (1) < Int_0;
          L_Vec (1) := abs (L_Vec (1));
          R_Vec (1) := abs (R_Vec (1));
 

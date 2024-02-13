@@ -1,5 +1,5 @@
 /* Output routines for GCC for ARM.
-   Copyright (C) 1991-2023 Free Software Foundation, Inc.
+   Copyright (C) 1991-2024 Free Software Foundation, Inc.
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
    and Martin Simmons (@harleqn.co.uk).
    More major hacks by Richard Earnshaw (rearnsha@arm.com).
@@ -69,6 +69,7 @@
 #include "optabs-libfuncs.h"
 #include "gimplify.h"
 #include "gimple.h"
+#include "gimple-iterator.h"
 #include "selftest.h"
 #include "tree-vectorizer.h"
 #include "opts.h"
@@ -327,11 +328,11 @@ static HOST_WIDE_INT arm_constant_alignment (const_tree, HOST_WIDE_INT);
 static rtx_insn *thumb1_md_asm_adjust (vec<rtx> &, vec<rtx> &,
 				       vec<machine_mode> &,
 				       vec<const char *> &, vec<rtx> &,
-				       HARD_REG_SET &, location_t);
+				       vec<rtx> &, HARD_REG_SET &, location_t);
 static const char *arm_identify_fpu_from_isa (sbitmap);
 
 /* Table of machine attributes.  */
-static const struct attribute_spec arm_attribute_table[] =
+static const attribute_spec arm_gnu_attributes[] =
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        affects_type_identity, handler, exclude } */
@@ -379,8 +380,17 @@ static const struct attribute_spec arm_attribute_table[] =
     arm_handle_cmse_nonsecure_entry, NULL },
   { "cmse_nonsecure_call", 0, 0, false, false, false, true,
     arm_handle_cmse_nonsecure_call, NULL },
-  { "Advanced SIMD type", 1, 1, false, true, false, true, NULL, NULL },
-  { NULL, 0, 0, false, false, false, false, NULL, NULL }
+  { "Advanced SIMD type", 1, 1, false, true, false, true, NULL, NULL }
+};
+
+static const scoped_attribute_specs arm_gnu_attribute_table =
+{
+  "gnu", { arm_gnu_attributes }
+};
+
+static const scoped_attribute_specs *const arm_attribute_table[] =
+{
+  &arm_gnu_attribute_table
 };
 
 /* Initialize the GCC target structure.  */
@@ -505,6 +515,9 @@ static const struct attribute_spec arm_attribute_table[] =
 
 #undef TARGET_FUNCTION_VALUE_REGNO_P
 #define TARGET_FUNCTION_VALUE_REGNO_P arm_function_value_regno_p
+
+#undef TARGET_GIMPLE_FOLD_BUILTIN
+#define TARGET_GIMPLE_FOLD_BUILTIN arm_gimple_fold_builtin
 
 #undef  TARGET_ASM_OUTPUT_MI_THUNK
 #define TARGET_ASM_OUTPUT_MI_THUNK arm_output_mi_thunk
@@ -2420,8 +2433,6 @@ const struct tune_params arm_fa726te_tune =
   tune_params::SCHED_AUTOPREF_OFF
 };
 
-char *accepted_branch_protection_string = NULL;
-
 /* Auto-generated CPU, FPU and architecture tables.  */
 #include "arm-cpu-data.h"
 
@@ -2842,6 +2853,29 @@ arm_init_libfuncs (void)
     synchronize_libfunc = init_one_libfunc ("__sync_synchronize");
 
   speculation_barrier_libfunc = init_one_libfunc ("__speculation_barrier");
+}
+
+/* Implement TARGET_GIMPLE_FOLD_BUILTIN.  */
+static bool
+arm_gimple_fold_builtin (gimple_stmt_iterator *gsi)
+{
+  gcall *stmt = as_a <gcall *> (gsi_stmt (*gsi));
+  tree fndecl = gimple_call_fndecl (stmt);
+  unsigned int code = DECL_MD_FUNCTION_CODE (fndecl);
+  unsigned int subcode = code >> ARM_BUILTIN_SHIFT;
+  gimple *new_stmt = NULL;
+  switch (code & ARM_BUILTIN_CLASS)
+    {
+    case ARM_BUILTIN_GENERAL:
+      break;
+    case ARM_BUILTIN_MVE:
+      new_stmt = arm_mve::gimple_fold_builtin (subcode, stmt);
+    }
+  if (!new_stmt)
+    return false;
+
+  gsi_replace (gsi, new_stmt, true);
+  return true;
 }
 
 /* On AAPCS systems, this is the "struct __va_list".  */
@@ -3272,7 +3306,8 @@ arm_configure_build_target (struct arm_build_target *target,
 
   if (opts->x_arm_branch_protection_string)
     {
-      aarch_validate_mbranch_protection (opts->x_arm_branch_protection_string);
+      aarch_validate_mbranch_protection (opts->x_arm_branch_protection_string,
+					 "-mbranch-protection=");
 
       if (aarch_ra_sign_key != AARCH_KEY_A)
 	{
@@ -3900,7 +3935,7 @@ arm_option_reconfigure_globals (void)
   if (target_thread_pointer == TP_AUTO)
     {
       if (arm_arch6k && !TARGET_THUMB1)
-	target_thread_pointer = TP_CP15;
+	target_thread_pointer = TP_TPIDRURO;
       else
 	target_thread_pointer = TP_SOFT;
     }
@@ -7436,8 +7471,7 @@ arm_handle_isr_attribute (tree *node, tree name, tree args, int flags,
     }
   else
     {
-      if (TREE_CODE (*node) == FUNCTION_TYPE
-	  || TREE_CODE (*node) == METHOD_TYPE)
+      if (FUNC_OR_METHOD_TYPE_P (*node))
 	{
 	  if (arm_isr_value (args) == ARM_FT_UNKNOWN)
 	    {
@@ -7447,8 +7481,7 @@ arm_handle_isr_attribute (tree *node, tree name, tree args, int flags,
 	    }
 	}
       else if (TREE_CODE (*node) == POINTER_TYPE
-	       && (TREE_CODE (TREE_TYPE (*node)) == FUNCTION_TYPE
-		   || TREE_CODE (TREE_TYPE (*node)) == METHOD_TYPE)
+	       && FUNC_OR_METHOD_TYPE_P (TREE_TYPE (*node))
 	       && arm_isr_value (args) != ARM_FT_UNKNOWN)
 	{
 	  *node = build_variant_type_copy (*node);
@@ -7656,7 +7689,7 @@ arm_handle_cmse_nonsecure_call (tree *node, tree name,
     {
       fntype = TREE_TYPE (*node);
 
-      if (TREE_CODE (*node) == VAR_DECL || TREE_CODE (*node) == TYPE_DECL)
+      if (VAR_P (*node) || TREE_CODE (*node) == TYPE_DECL)
 	decl = *node;
     }
   else
@@ -7777,7 +7810,7 @@ arm_set_default_type_attributes (tree type)
   /* Add __attribute__ ((long_call)) to all functions, when
      inside #pragma long_calls or __attribute__ ((short_call)),
      when inside #pragma no_long_calls.  */
-  if (TREE_CODE (type) == FUNCTION_TYPE || TREE_CODE (type) == METHOD_TYPE)
+  if (FUNC_OR_METHOD_TYPE_P (type))
     {
       tree type_attr_list, attr_name;
       type_attr_list = TYPE_ATTRIBUTES (type);
@@ -8425,7 +8458,7 @@ arm_is_segment_info_known (rtx orig, bool *is_readonly)
 	      || !DECL_COMMON (SYMBOL_REF_DECL (orig))))
 	{
 	  tree decl = SYMBOL_REF_DECL (orig);
-	  tree init = (TREE_CODE (decl) == VAR_DECL)
+	  tree init = VAR_P (decl)
 	    ? DECL_INITIAL (decl) : (TREE_CODE (decl) == CONSTRUCTOR)
 	    ? decl : 0;
 	  int reloc = 0;
@@ -8434,7 +8467,7 @@ arm_is_segment_info_known (rtx orig, bool *is_readonly)
 	  if (init && init != error_mark_node)
 	    reloc = compute_reloc_for_constant (init);
 
-	  named_section = TREE_CODE (decl) == VAR_DECL
+	  named_section = VAR_P (decl)
 	    && lookup_attribute ("section", DECL_ATTRIBUTES (decl));
 	  readonly = decl_readonly_section (decl, reloc);
 
@@ -9105,9 +9138,7 @@ thumb1_legitimate_address_p (machine_mode mode, rtx x, int strict_p)
       else if (REG_P (XEXP (x, 0))
 	       && (REGNO (XEXP (x, 0)) == FRAME_POINTER_REGNUM
 		   || REGNO (XEXP (x, 0)) == ARG_POINTER_REGNUM
-		   || (REGNO (XEXP (x, 0)) >= FIRST_VIRTUAL_REGISTER
-		       && REGNO (XEXP (x, 0))
-			  <= LAST_VIRTUAL_POINTER_REGISTER))
+		   || VIRTUAL_REGISTER_P (XEXP (x, 0)))
 	       && GET_MODE_SIZE (mode) >= 4
 	       && CONST_INT_P (XEXP (x, 1))
 	       && (INTVAL (XEXP (x, 1)) & 3) == 0)
@@ -9148,7 +9179,7 @@ thumb_legitimate_offset_p (machine_mode mode, HOST_WIDE_INT val)
 }
 
 bool
-arm_legitimate_address_p (machine_mode mode, rtx x, bool strict_p)
+arm_legitimate_address_p (machine_mode mode, rtx x, bool strict_p, code_helper)
 {
   if (TARGET_ARM)
     return arm_legitimate_address_outer_p (mode, x, SET, strict_p);
@@ -13672,8 +13703,11 @@ mve_vector_mem_operand (machine_mode mode, rtx op, bool strict)
     }
   code = GET_CODE (op);
 
-  if (code == POST_INC || code == PRE_DEC
-      || code == PRE_INC || code == POST_DEC)
+  if ((code == POST_INC
+       || code == PRE_DEC
+       || code == PRE_INC
+       || code == POST_DEC)
+      && REG_P (XEXP (op, 0)))
     {
       reg_no = arm_effective_regno (XEXP (op, 0), strict);
       return (((mode == E_V8QImode || mode == E_V4QImode || mode == E_V4HImode)
@@ -13905,8 +13939,7 @@ arm_eliminable_register (rtx x)
 {
   return REG_P (x) && (REGNO (x) == FRAME_POINTER_REGNUM
 		       || REGNO (x) == ARG_POINTER_REGNUM
-		       || (REGNO (x) >= FIRST_VIRTUAL_REGISTER
-			   && REGNO (x) <= LAST_VIRTUAL_REGISTER));
+		       || VIRTUAL_REGISTER_P (x));
 }
 
 /* Return GENERAL_REGS if a scratch register required to reload x to/from
@@ -21767,7 +21800,7 @@ arm_asm_declare_function_name (FILE *file, const char *name, tree decl)
   ARM_DECLARE_FUNCTION_NAME (file, name, decl);
   ASM_OUTPUT_TYPE_DIRECTIVE (file, name, "function");
   ASM_DECLARE_RESULT (file, DECL_RESULT (decl));
-  ASM_OUTPUT_LABEL (file, name);
+  ASM_OUTPUT_FUNCTION_LABEL (file, name, decl);
 
   if (cmse_name)
     ASM_OUTPUT_LABEL (file, cmse_name);
@@ -29224,6 +29257,8 @@ arm_output_mi_thunk (FILE *file, tree thunk, HOST_WIDE_INT delta,
   const char *fnname = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (thunk));
 
   assemble_start_function (thunk, fnname);
+  if (aarch_bti_enabled ())
+    emit_insn (aarch_gen_bti_c ());
   if (TARGET_32BIT)
     arm32_output_mi_thunk (file, thunk, delta, vcall_offset, function);
   else
@@ -30442,6 +30477,62 @@ arm_output_iwmmxt_tinsr (rtx *operands)
   return "";
 }
 
+/* Output an arm casesi dispatch sequence.  Used by arm_casesi_internal insn.
+   Responsible for the handling of switch statements in arm.  */
+const char *
+arm_output_casesi (rtx *operands)
+{
+  char label[100];
+  rtx diff_vec = PATTERN (NEXT_INSN (as_a <rtx_insn *> (operands[2])));
+  gcc_assert (GET_CODE (diff_vec) == ADDR_DIFF_VEC);
+  output_asm_insn ("cmp\t%0, %1", operands);
+  output_asm_insn ("bhi\t%l3", operands);
+  ASM_GENERATE_INTERNAL_LABEL (label, "Lrtx", CODE_LABEL_NUMBER (operands[2]));
+  switch (GET_MODE (diff_vec))
+    {
+    case E_QImode:
+      if (ADDR_DIFF_VEC_FLAGS (diff_vec).offset_unsigned)
+	output_asm_insn ("ldrb\t%4, [%5, %0]", operands);
+      else
+	output_asm_insn ("ldrsb\t%4, [%5, %0]", operands);
+      output_asm_insn ("add\t%|pc, %|pc, %4, lsl #2", operands);
+      break;
+    case E_HImode:
+      if (REGNO (operands[4]) != REGNO (operands[5]))
+	{
+	  output_asm_insn ("add\t%4, %0, %0", operands);
+	  if (ADDR_DIFF_VEC_FLAGS (diff_vec).offset_unsigned)
+	    output_asm_insn ("ldrh\t%4, [%5, %4]", operands);
+	  else
+	    output_asm_insn ("ldrsh\t%4, [%5, %4]", operands);
+	}
+      else
+	{
+	  output_asm_insn ("add\t%4, %5, %0", operands);
+	  if (ADDR_DIFF_VEC_FLAGS (diff_vec).offset_unsigned)
+	    output_asm_insn ("ldrh\t%4, [%4, %0]", operands);
+	  else
+	    output_asm_insn ("ldrsh\t%4, [%4, %0]", operands);
+	}
+      output_asm_insn ("add\t%|pc, %|pc, %4, lsl #2", operands);
+      break;
+    case E_SImode:
+      if (flag_pic)
+	{
+	  output_asm_insn ("ldr\t%4, [%5, %0, lsl #2]", operands);
+	  output_asm_insn ("add\t%|pc, %|pc, %4", operands);
+	}
+      else
+	output_asm_insn ("ldr\t%|pc, [%5, %0, lsl #2]", operands);
+      break;
+    default:
+      gcc_unreachable ();
+    }
+    assemble_label (asm_out_file, label);
+    output_asm_insn ("nop", operands);
+  return "";
+}
+
 /* Output a Thumb-1 casesi dispatch sequence.  */
 const char *
 thumb1_output_casesi (rtx *operands)
@@ -30551,7 +30642,7 @@ arm_mangle_type (const_tree type)
     return "St9__va_list";
 
   /* Half-precision floating point types.  */
-  if (TREE_CODE (type) == REAL_TYPE && TYPE_PRECISION (type) == 16)
+  if (SCALAR_FLOAT_TYPE_P (type) && TYPE_PRECISION (type) == 16)
     {
       if (TYPE_MAIN_VARIANT (type) == float16_type_node)
 	return NULL;
@@ -31609,13 +31700,13 @@ arm_expand_vcond (rtx *operands, machine_mode cmp_result_mode)
       switch (GET_MODE_CLASS (cmp_mode))
 	{
 	case MODE_VECTOR_INT:
-	  emit_insn (gen_mve_vpselq (VPSELQ_S, cmp_mode, operands[0],
-				     operands[1], operands[2], mask));
+	  emit_insn (gen_mve_q (VPSELQ_S, VPSELQ_S, cmp_mode, operands[0],
+				operands[1], operands[2], mask));
 	  break;
 	case MODE_VECTOR_FLOAT:
 	  if (TARGET_HAVE_MVE_FLOAT)
-	    emit_insn (gen_mve_vpselq_f (cmp_mode, operands[0],
-					 operands[1], operands[2], mask));
+	    emit_insn (gen_mve_q_f (VPSELQ_F, cmp_mode, operands[0],
+				    operands[1], operands[2], mask));
 	  else
 	    gcc_unreachable ();
 	  break;
@@ -34556,7 +34647,8 @@ arm_stack_protect_guard (void)
 rtx_insn *
 thumb1_md_asm_adjust (vec<rtx> &outputs, vec<rtx> & /*inputs*/,
 		      vec<machine_mode> & /*input_modes*/,
-		      vec<const char *> &constraints, vec<rtx> & /*clobbers*/,
+		      vec<const char *> &constraints,
+		      vec<rtx> &, vec<rtx> & /*clobbers*/,
 		      HARD_REG_SET & /*clobbered_regs*/, location_t /*loc*/)
 {
   for (unsigned i = 0, n = outputs.length (); i < n; ++i)
@@ -34624,6 +34716,36 @@ arm_get_mask_mode (machine_mode mode)
     return arm_mode_to_pred_mode (mode);
 
   return default_get_mask_mode (mode);
+}
+
+/* Output assembly to read the thread pointer from the appropriate TPIDR
+   register into DEST.  If PRED_P also emit the %? that can be used to
+   output the predication code.  */
+
+const char *
+arm_output_load_tpidr (rtx dst, bool pred_p)
+{
+  char buf[64];
+  int tpidr_coproc_num = -1;
+  switch (target_thread_pointer)
+    {
+    case TP_TPIDRURW:
+      tpidr_coproc_num = 2;
+      break;
+    case TP_TPIDRURO:
+      tpidr_coproc_num = 3;
+      break;
+    case TP_TPIDRPRW:
+      tpidr_coproc_num = 4;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  snprintf (buf, sizeof (buf),
+	    "mrc%s\tp15, 0, %%0, c13, c0, %d\t@ load_tp_hard",
+	    pred_p ? "%?" : "", tpidr_coproc_num);
+  output_asm_insn (buf, &dst);
+  return "";
 }
 
 #include "gt-arm.h"

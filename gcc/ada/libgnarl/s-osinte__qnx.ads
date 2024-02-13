@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1995-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -562,8 +562,10 @@ package System.OS_Interface is
 
 private
 
-   type sigset_t is array (1 .. 2) of Interfaces.Unsigned_32;
+   type sigset_t is
+     array (0 .. OS_Constants.SIZEOF_sigset - 1) of unsigned_char;
    pragma Convention (C, sigset_t);
+   for sigset_t'Alignment use Interfaces.C.unsigned_long'Alignment;
 
    type pid_t is new int;
 
@@ -595,7 +597,7 @@ private
 
    type pthread_mutexattr_t is record
       Data : char_array (1 .. OS_Constants.PTHREAD_MUTEXATTR_SIZE);
-   end  record;
+   end record;
    pragma Convention (C, pthread_mutexattr_t);
    for pthread_mutexattr_t'Alignment use Interfaces.C.int'Alignment;
 

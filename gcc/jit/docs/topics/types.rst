@@ -1,4 +1,4 @@
-.. Copyright (C) 2014-2023 Free Software Foundation, Inc.
+.. Copyright (C) 2014-2024 Free Software Foundation, Inc.
    Originally contributed by David Malcolm <dmalcolm@redhat.com>
 
    This is free software: you can redistribute it and/or modify it
@@ -541,3 +541,15 @@ Reflection API
    .. code-block:: c
 
       #ifdef LIBGCCJIT_HAVE_SIZED_INTEGERS
+
+.. function::  gcc_jit_type *\
+               gcc_jit_type_get_restrict (gcc_jit_type *type)
+
+     Given type "T", get type "restrict T".
+
+   This entrypoint was added in :ref:`LIBGCCJIT_ABI_25`; you can test for
+   its presence using
+
+   .. code-block:: c
+
+      #ifdef LIBGCCJIT_HAVE_gcc_jit_type_get_restrict

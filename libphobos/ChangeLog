@@ -1,3 +1,218 @@
+2024-02-12  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/113667
+	* configure: Regenerate.
+	* configure.ac (libtool_VERSION): Update to 5:0:0.
+
+2024-02-12  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/113772
+	* libdruntime/MERGE: Merge upstream druntime 11240a9663.
+
+2024-02-04  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* src/MERGE: Merge upstream phobos 37796e783.
+
+2024-02-04  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime a6f1083699.
+	* src/MERGE: Merge upstream phobos 31dedd7da.
+
+2024-02-03  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime e770945277.
+	* libdruntime/Makefile.am (DRUNTIME_SOURCES): Add
+	core/interpolation.d.
+	* libdruntime/Makefile.in: Regenerate.
+	* src/MERGE: Merge upstream phobos 6d6e0b9b9.
+
+2024-02-03  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* src/MERGE: Merge upstream phobos c6e1f98fa.
+
+2024-02-02  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime bce5c1f7b5.
+	* src/MERGE: Merge upstream phobos e4d0dd513.
+
+2024-02-02  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime d8e3976a58.
+	* src/MERGE: Merge upstream phobos 7a6e95688.
+
+2024-02-02  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime f1a045928e.
+	* libdruntime/Makefile.am (DRUNTIME_DSOURCES): Add
+	core/stdc/stdatomic.d.
+	* libdruntime/Makefile.in: Regenerate.
+
+2024-02-02  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR target/112864
+	* testsuite/lib/libphobos.exp: Use ${shlib_ext} instead of
+	hard-wiring '.so'.
+	* testsuite/testsuite_flags.in: Remove duplicate -B option
+	for spec file path.
+
+2023-12-22  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* Makefile.am: Allow overriding EXEPCT.
+	* Makefile.in: Regenerate.
+
+2023-12-18  Yang Yujie  <yangyujie@loongson.cn>
+
+	* m4/druntime/cpu.m4: Support loongarch* targets.
+	* libdruntime/Makefile.am: Same.
+	* libdruntime/Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2023-12-18  Yang Yujie  <yangyujie@loongson.cn>
+
+	* libdruntime/config/loongarch/switchcontext.S: New file.
+
+2023-12-18  liushuyu  <liushuyu011@gmail.com>
+
+	* configure.tgt: Enable libphobos for LoongArch architecture.
+	* libdruntime/gcc/sections/elf.d: Add TLS_DTV_OFFSET constant for
+	LoongArch64.
+	* libdruntime/gcc/unwind/generic.d: Add __aligned__ constant for
+	LoongArch64.
+
+2023-12-11  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 2bbf64907c.
+	* src/MERGE: Merge upstream phobos b64bfbf91.
+
+2023-11-21  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime ff57fec515.
+	* src/MERGE: Merge upstream phobos 17bafda79.
+
+2023-11-21  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* src/MERGE: Merge upstream phobos fc06c514a.
+
+2023-11-02  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 643b1261bb.
+	* libdruntime/Makefile.am (DRUNTIME_DSOURCES_FREEBSD): Add
+	core/sys/freebsd/ifaddrs.d, core/sys/freebsd/net/if_dl.d,
+	core/sys/freebsd/sys/socket.d, core/sys/freebsd/sys/types.d.
+	(DRUNTIME_DSOURCES_LINUX): Add core/sys/linux/linux/if_arp.d,
+	core/sys/linux/linux/if_packet.d.
+	* libdruntime/Makefile.in: Regenerate.
+	* src/MERGE: Merge upstream phobos 1c98326e7.
+
+2023-10-29  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime e48bc0987d.
+	* src/MERGE: Merge upstream phobos 2458e8f82.
+
+2023-10-22  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* configure: Regenerate.
+	* configure.ac: Handle Darwin rpaths.
+	* libdruntime/Makefile.am: Handle Darwin rpaths.
+	* libdruntime/Makefile.in: Regenerate.
+	* src/Makefile.am: Handle Darwin rpaths.
+	* src/Makefile.in: Regenerate.
+
+2023-10-16  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 4c18eed967.
+	* src/MERGE: Merge upstream phobos d945686a4.
+
+2023-10-15  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime f9efc98fd7.
+	* libdruntime/Makefile.am (DRUNTIME_DSOURCES): Add
+	core/internal/newaa.d.
+	* libdruntime/Makefile.in: Regenerate.
+	* src/MERGE: Merge upstream phobos a3f22129d.
+	* testsuite/libphobos.hash/test_hash.d: Update test.
+	* testsuite/libphobos.phobos/phobos.exp: Add compiler flags
+	-Wno-deprecated.
+	* testsuite/libphobos.phobos_shared/phobos_shared.exp: Likewise.
+
+2023-09-23  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 4574d1728d.
+	* src/MERGE: Merge upstream phobos d7e79f024.
+
+2023-08-20  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 26f049fb26.
+	* src/MERGE: Merge upstream phobos 330d6a4fd.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Alexander von Gluck IV  <kallisti5@unixzen.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-07-10  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime a88e1335f7.
+	* src/MERGE: Merge upstream phobos 1921d29df.
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac (libphobos-checking): Add valgrind flag.
+	(DRUNTIME_LIBRARIES_VALGRIND): Call.
+	* libdruntime/Makefile.am (DRUNTIME_CSOURCES): Add
+	etc/valgrind/valgrind_.c.
+	(DRUNTIME_DSOURCES): Add etc/valgrind/valgrind.d.
+	(DRUNTIME_DSOURCES_LINUX): Add core/sys/linux/input.d,
+	core/sys/linux/input_event_codes.d, core/sys/linux/uinput.d.
+	* libdruntime/Makefile.in: Regenerate.
+	* m4/druntime/libraries.m4 (DRUNTIME_LIBRARIES_VALGRIND): Define.
+
+2023-07-10  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 17ccd12af3.
+	* src/MERGE: Merge upstream phobos 8d3800bee.
+
+2023-07-09  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime 28a3b24c2e.
+	* src/MERGE: Merge upstream phobos 8ab95ded5.
+
+2023-07-02  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* libdruntime/config/aarch64/switchcontext.S: Exclude ELF-
+	specific constructs for Darwin.
+	* libdruntime/config/arm/switchcontext.S: Likewise.
+	* libdruntime/core/thread/fiber.d: Disable switching fibres
+	between threads.
+
+2023-07-01  Iain Sandoe  <iainsandoe@Apollo-3-VM-Lion-0-187.local>
+
+	PR d/103944
+	* testsuite/libphobos.gc/forkgc2.d: Skip for Darwin.
+
+2023-06-25  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* libdruntime/MERGE: Merge upstream druntime a45f4e9f43.
+	* src/MERGE: Merge upstream phobos 106038f2e.
+
 2023-03-17  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	* libdruntime/MERGE: Merge upstream druntime 5f7552bb28.
@@ -1688,7 +1903,7 @@
 	* testsuite/testsuite_flags.in: New file.
 
 
-Copyright (C) 2018-2023 Free Software Foundation, Inc.
+Copyright (C) 2018-2024 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

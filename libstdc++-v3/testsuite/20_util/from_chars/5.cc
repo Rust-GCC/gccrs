@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,7 +44,7 @@ test01()
       r = std::from_chars(s.data(), s.data() + s.length(), d, fmt);
       VERIFY( r.ec == std::errc::invalid_argument );
       VERIFY( r.ptr == s.data() );
-      VERIFY( d == 3.2 );
+      VERIFY( d == (double) 3.2 );
     }
   }
 
@@ -57,7 +57,7 @@ test01()
       r = std::from_chars(s.data(), s.data() + s.length(), d, fmt);
       VERIFY( r.ec == std::errc::invalid_argument );
       VERIFY( r.ptr == s.data() );
-      VERIFY( d == 3.2 );
+      VERIFY( d == (double) 3.2 );
     }
   }
 
@@ -69,7 +69,7 @@ test01()
 			std::chars_format::scientific);
     VERIFY( r.ec == std::errc::invalid_argument );
     VERIFY( r.ptr == s.data() );
-    VERIFY( d == 3.2 );
+    VERIFY( d == (double) 3.2 );
   }
 
   // patterns that are invalid without the final character
@@ -83,7 +83,7 @@ test01()
       r = std::from_chars(s.data(), s.data() + s.length() - 1, d, fmt);
       VERIFY( r.ec == std::errc::invalid_argument );
       VERIFY( r.ptr == s.data() );
-      VERIFY( d == 3.2 );
+      VERIFY( d == (double) 3.2 );
     }
   }
 }

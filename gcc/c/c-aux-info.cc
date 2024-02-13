@@ -1,7 +1,7 @@
 /* Generate information regarding function declarations and definitions based
    on information stored in GCC's tree structure.  This code implements the
    -aux-info option.
-   Copyright (C) 1989-2023 Free Software Foundation, Inc.
+   Copyright (C) 1989-2024 Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@segfault.us.com).
 
 This file is part of GCC.
@@ -408,6 +408,17 @@ gen_type (const char *ret_val, tree t, formals_style style)
 	  if (TYPE_UNSIGNED (t) && TYPE_QUALS (t))
 	    data_type = concat ("unsigned ", data_type, NULL);
 	  break;
+
+	case BITINT_TYPE:
+	  {
+	    char buf[sizeof ("2147483647")];
+	    sprintf (buf, "%d", TYPE_PRECISION (t));
+	    if (TYPE_UNSIGNED (t))
+	      data_type = concat ("unsigned _BitInt(", buf, ")", NULL);
+	    else
+	      data_type = concat ("_BitInt(", buf, ")", NULL);
+	    break;
+	  }
 
 	case OPAQUE_TYPE:
 	case REAL_TYPE:

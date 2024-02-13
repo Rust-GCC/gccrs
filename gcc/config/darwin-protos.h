@@ -1,5 +1,5 @@
 /* Prototypes.
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -128,5 +128,16 @@ extern void darwin_override_options (void);
 extern void darwin_patch_builtins (void);
 extern void darwin_rename_builtins (void);
 extern bool darwin_libc_has_function (enum function_class fn_class, tree);
+
+/* For this port, there are several possible sources for external toolchain
+   components (e.g. as, ld, dsymutil) and we have to alter the allowable
+   output in response to which version and source is in use.  */
+enum darwin_external_toolchain {
+  DET_UNKNOWN=0,
+  CCTOOLS,
+  DWARFUTILS,
+  LLVM,
+  CLANG
+};
 
 #endif /* CONFIG_DARWIN_PROTOS_H */

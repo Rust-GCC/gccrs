@@ -1,6 +1,6 @@
 // The template and inlines for the -*- C++ -*- slice_array class.
 
-// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+// Copyright (C) 1997-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -245,6 +245,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     slice_array<_Tp>::operator=(const _Expr<_Dom,_Tp>& __e) const
     { std::__valarray_copy(__e, _M_sz, _M_array, _M_stride); }
 
+  /// @cond undocumented
 #undef _DEFINE_VALARRAY_OPERATOR
 #define _DEFINE_VALARRAY_OPERATOR(_Op,_Name)				\
   template<typename _Tp>						\
@@ -275,6 +276,7 @@ _DEFINE_VALARRAY_OPERATOR(<<, __shift_left)
 _DEFINE_VALARRAY_OPERATOR(>>, __shift_right)
 
 #undef _DEFINE_VALARRAY_OPERATOR
+  /// @endcond
 
   /// @} group numeric_arrays
 

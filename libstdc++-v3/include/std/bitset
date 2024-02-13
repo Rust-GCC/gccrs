@@ -1,6 +1,6 @@
 // <bitset> -*- C++ -*-
 
-// Copyright (C) 2001-2023 Free Software Foundation, Inc.
+// Copyright (C) 2001-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -58,6 +58,9 @@
 # include <bits/functional_hash.h>
 #endif
 
+#define __glibcxx_want_constexpr_bitset
+#include <bits/version.h>
+
 #define _GLIBCXX_BITSET_BITS_PER_WORD  (__CHAR_BIT__ * __SIZEOF_LONG__)
 #define _GLIBCXX_BITSET_WORDS(__n) \
   ((__n) / _GLIBCXX_BITSET_BITS_PER_WORD + \
@@ -68,10 +71,6 @@
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
-
-#if __cplusplus > 202002L && _GLIBCXX_HOSTED
-# define __cpp_lib_constexpr_bitset 202202L
-#endif
 
   /**
    *  Base class, general case.  It is a class invariant that _Nw will be
@@ -321,17 +320,18 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     _GLIBCXX14_CONSTEXPR unsigned long long
     _Base_bitset<_Nw>::_M_do_to_ullong() const
     {
-      const bool __dw = sizeof(unsigned long long) > sizeof(unsigned long);
-      for (size_t __i = 1 + __dw; __i < _Nw; ++__i)
+#if __SIZEOF_LONG_LONG__ == __SIZEOF_LONG__
+      return _M_do_to_ulong();
+#else
+      for (size_t __i = 2; __i < _Nw; ++__i)
 	if (_M_w[__i])
 	  __throw_overflow_error(__N("_Base_bitset::_M_do_to_ullong"));
 
-      if (__dw)
-	return _M_w[0] + (static_cast<unsigned long long>(_M_w[1])
+      return _M_w[0] + (static_cast<unsigned long long>(_M_w[1])
 			  << _GLIBCXX_BITSET_BITS_PER_WORD);
-      return _M_w[0];
-    }
 #endif
+    }
+#endif // C++11
 
   template<size_t _Nw>
     _GLIBCXX14_CONSTEXPR size_t

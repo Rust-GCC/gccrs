@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2022-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2022-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -201,7 +201,8 @@ package Accessibility is
      (Func_Id : Entity_Id) return Boolean;
    --  Ada 2012 (AI05-0234): Return True if the function needs an implicit
    --  parameter to identify the accessibility level of the function result
-   --  "determined by the point of call".
+   --  "determined by the point of call". Return False if the type of the
+   --  function result is a private type and its completion is unavailable.
 
    function Subprogram_Access_Level (Subp : Entity_Id) return Uint;
    --  Return the accessibility level of the view denoted by Subp

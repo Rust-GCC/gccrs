@@ -1,6 +1,6 @@
 /* OpenACC Runtime Library: acc_device_host.
 
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -82,7 +82,8 @@ host_load_image (int n __attribute__ ((unused)),
 		 unsigned v __attribute__ ((unused)),
 		 const void *t __attribute__ ((unused)),
 		 struct addr_pair **r __attribute__ ((unused)),
-		 uint64_t **f __attribute__ ((unused)))
+		 uint64_t **f __attribute__ ((unused)),
+		 uint64_t *i __attribute__ ((unused)))
 {
   return 0;
 }
@@ -281,6 +282,8 @@ static struct gomp_device_descr host_dispatch =
     .free_func = host_free,
     .dev2host_func = host_dev2host,
     .host2dev_func = host_host2dev,
+    .memcpy2d_func = NULL,
+    .memcpy3d_func = NULL,
     .run_func = host_run,
 
     .mem_map = { NULL },

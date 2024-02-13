@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 1998-2023, AdaCore                     --
+--                     Copyright (C) 1998-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -210,8 +210,7 @@ package GNAT.Directory_Operations is
    procedure Open (Dir : out Dir_Type; Dir_Name : Dir_Name_Str);
    --  Opens the directory named by Dir_Name and returns a Dir_Type value
    --  that refers to this directory, and is positioned at the first entry.
-   --  Raises Directory_Error if Dir_Name cannot be accessed. In that case
-   --  Dir will be set to Null_Dir.
+   --  Raises Directory_Error if Dir_Name cannot be accessed.
 
    procedure Close (Dir : in out Dir_Type);
    --  Closes the directory stream referred to by Dir. After calling Close

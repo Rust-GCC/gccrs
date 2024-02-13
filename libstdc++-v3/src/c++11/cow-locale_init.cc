@@ -1,4 +1,4 @@
-// Copyright (C) 2014-2023 Free Software Foundation, Inc.
+// Copyright (C) 2014-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -137,8 +137,9 @@ namespace
   }
 
   void
-  locale::_Impl::_M_init_extra(void* cloc, void* clocm,
-                               const char* __s, const char* __smon)
+  locale::_Impl::_M_init_extra(void* cloc, [[maybe_unused]] void* clocm,
+			       const char* __s,
+			       [[maybe_unused]] const char* __smon)
   {
     auto& __cloc = *static_cast<__c_locale*>(cloc);
 

@@ -1,6 +1,6 @@
 /* m2statement.h header file for m2statement.cc.
 
-Copyright (C) 2012-2023 Free Software Foundation, Inc.
+Copyright (C) 2012-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -103,6 +103,8 @@ EXTERN tree m2statement_GetCurrentFunction (void);
 EXTERN void m2statement_SetBeginLocation (location_t location);
 EXTERN void m2statement_SetEndLocation (location_t location);
 EXTERN tree m2statement_GetParamTree (tree call, unsigned int i);
+EXTERN tree m2statement_BuildBuiltinCallTree (location_t location, tree func);
+
 EXTERN tree m2statement_BuildTryFinally (location_t location, tree call,
                                          tree cleanups);
 EXTERN tree m2statement_BuildCleanUp (tree param);

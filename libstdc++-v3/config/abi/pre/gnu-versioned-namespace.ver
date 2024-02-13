@@ -1,6 +1,6 @@
 ## Linker script for GNU namespace versioning.
 ##
-## Copyright (C) 2002-2023 Free Software Foundation, Inc.
+## Copyright (C) 2002-2024 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ##
@@ -78,6 +78,10 @@ GLIBCXX_8.0 {
 
     # thread/mutex/condition_variable/future
     __once_proxy;
+
+    # targets using emutls
+    __emutls_v._ZSt3__811__once_call;
+    __emutls_v._ZSt3__815__once_callable;
 
     # std::__convert_to_v
     _ZNSt3__814__convert_to_v*;
@@ -164,6 +168,7 @@ CXXABI_2.0 {
     __cxa_begin_catch;
     __cxa_begin_cleanup;
     __cxa_call_unexpected;
+    __cxa_call_terminate;
     __cxa_current_exception_type;
     __cxa_deleted_virtual;
     __cxa_demangle;
@@ -316,6 +321,15 @@ CXXABI_2.0 {
     _ZTID[fde];
     _ZTIPD[fde];
     _ZTIPKD[fde];
+
+    # typeinfo for _Float{16,32,64,128,32x,64x,128x} and
+    # __bf16
+    _ZTIDF[0-9]*[_bx];
+    _ZTIPDF[0-9]*[_bx];
+    _ZTIPKDF[0-9]*[_bx];
+    _ZTIu6__bf16;
+    _ZTIPu6__bf16;
+    _ZTIPKu6__bf16;
 
     # typeinfo for decltype(nullptr)
     _ZTIDn;

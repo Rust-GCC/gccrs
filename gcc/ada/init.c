@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2023, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2024, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -248,7 +248,7 @@ __gnat_error_handler (int sig,
   switch (sig)
     {
     case SIGSEGV:
-      /* FIXME: we need to detect the case of a *real* SIGSEGV.  */
+      /* ??? we need to detect the case of a *real* SIGSEGV.  */
       exception = &storage_error;
       msg = "stack overflow or erroneous memory access";
       break;
@@ -340,7 +340,7 @@ __gnat_error_handler (int sig, siginfo_t *si ATTRIBUTE_UNUSED, void *ucontext)
   switch (sig)
     {
     case SIGSEGV:
-      /* FIXME: we need to detect the case of a *real* SIGSEGV.  */
+      /* ??? we need to detect the case of a *real* SIGSEGV.  */
       exception = &storage_error;
       msg = "stack overflow or erroneous memory access";
       break;

@@ -1,5 +1,5 @@
 ;; Predicate definitions for TI PRU.
-;; Copyright (C) 2014-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2014-2024 Free Software Foundation, Inc.
 ;; Contributed by Dimitar Dimitrov <dimitar@dinux.eu>
 ;;
 ;; This file is part of GCC.
@@ -21,6 +21,10 @@
 (define_predicate "const_1_operand"
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 1")))
+
+(define_predicate "const_0_operand"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == 0")))
 
 ; Note: Always pass a valid mode!
 (define_predicate "const_ubyte_operand"
@@ -48,6 +52,10 @@
 ;; FP Comparisons handled by pru_expand_pru_compare.
 (define_predicate "pru_fp_comparison_operator"
   (match_code "eq,ne,lt,gt,le,ge"))
+
+;; TRUE for comparisons supported by PRU's cstore.
+(define_predicate "pru_cstore_comparison_operator"
+  (match_code "eq,ne,gtu"))
 
 ;; Return true if OP is a constant that contains only one 1 in its
 ;; binary representation.

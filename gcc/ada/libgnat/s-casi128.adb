@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2002-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -30,6 +30,7 @@
 ------------------------------------------------------------------------------
 
 with System.Address_Operations; use System.Address_Operations;
+with System.Storage_Elements;   use System.Storage_Elements;
 
 with Ada.Unchecked_Conversion;
 
@@ -80,8 +81,8 @@ package body System.Compare_Array_Signed_128 is
             end if;
 
             Clen := Clen - 1;
-            L := AddA (L, 16);
-            R := AddA (R, 16);
+            L := L + Storage_Offset (16);
+            R := R + Storage_Offset (16);
          end loop;
 
       --  Case of going by unaligned quadruple words
@@ -97,8 +98,8 @@ package body System.Compare_Array_Signed_128 is
             end if;
 
             Clen := Clen - 1;
-            L := AddA (L, 16);
-            R := AddA (R, 16);
+            L := L + Storage_Offset (16);
+            R := R + Storage_Offset (16);
          end loop;
       end if;
 

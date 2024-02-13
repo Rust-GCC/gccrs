@@ -1,8 +1,8 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
 // { dg-require-effective-target gthreads }
 // { dg-additional-options "-pthread" { target pthread } }
 // { dg-add-options libatomic }
+// { dg-add-options no_pch }
 
 #include <memory>
 

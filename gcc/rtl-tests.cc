@@ -1,5 +1,5 @@
 /* Unit tests for RTL-handling.
-   Copyright (C) 2015-2023 Free Software Foundation, Inc.
+   Copyright (C) 2015-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -246,6 +246,7 @@ template<unsigned int N>
 void
 const_poly_int_tests<N>::run ()
 {
+  using poly_int64 = poly_int<N, HOST_WIDE_INT>;
   rtx x1 = gen_int_mode (poly_int64 (1, 1), QImode);
   rtx x255 = gen_int_mode (poly_int64 (1, 255), QImode);
 

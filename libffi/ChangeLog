@@ -1,3 +1,67 @@
+2023-10-26  Thomas Schwinge  <thomas@codesourcery.com>
+
+	PR testsuite/109951
+	* configure.ac: 'AC_SUBST(SYSROOT_CFLAGS_FOR_TARGET)'.
+	<local.exp>: Don't set 'CC_FOR_TARGET', 'CXX_FOR_TARGET', instead
+	set 'SYSROOT_CFLAGS_FOR_TARGET'.
+	* Makefile.in: Regenerate.
+	* configure: Likewise.
+	* include/Makefile.in: Likewise.
+	* man/Makefile.in: Likewise.
+	* testsuite/Makefile.in: Likewise.
+	* testsuite/lib/libffi.exp (libffi_target_compile): If
+	'--with-build-sysroot=[...]' was specified, use it for build-tree
+	testing.
+
+2023-10-22  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* testsuite/lib/libffi.exp: Likewise.
+
+2023-10-22  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* Makefile.am: Handle Darwin rpaths.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2023-08-23  Lulu Cheng  <chenglulu@loongson.cn>
+
+	PR libffi/108682
+	* configure.host: Add LoongArch support.
+	* Makefile.am: Likewise.
+	* Makefile.in: Regenerate.
+	* src/loongarch64/ffi.c: New file.
+	* src/loongarch64/ffitarget.h: New file.
+	* src/loongarch64/sysv.S: New file.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Alexander von Gluck IV  <kallisti5@unixzen.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-05-06  Dan Horák  <dan@danny.cz>
+
+	PR libffi/109447
+	* src/powerpc/ffi_linux64.c (ffi_prep_args64): Update arg.f128 pointer.
+
 2023-01-22  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* testsuite/lib/libffi.exp: Search for both shared and archive

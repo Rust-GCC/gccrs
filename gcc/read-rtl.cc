@@ -1,5 +1,5 @@
 /* RTL reader for GCC.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -80,6 +80,12 @@ struct iterator_group {
 
   /* Return the C token for the given standard mode, code, etc.  */
   const char *(*get_c_token) (int);
+
+  /* True if each iterator name should be treated as an attribute that
+     maps to the C token produced by get_c_token.  This means that for
+     an iterator ITER, <ITER> can be used in strings to refer to the
+     current value of ITER, as a C token.  */
+  bool has_self_attr;
 };
 
 /* Records one use of an iterator.  */
@@ -471,6 +477,25 @@ map_attr_string (file_location loc, const char *p, mapping **iterator_out = 0)
 	  && (strncmp (p, iterator->name, iterator_name_len) != 0
 	      || iterator->name[iterator_name_len] != 0))
 	continue;
+
+      if (iterator->group->has_self_attr
+	  && strcmp (attr, iterator->name) == 0)
+	{
+	  if (iterator_out)
+	    *iterator_out = iterator;
+	  int number = iterator->current_value->number;
+	  const char *string = iterator->group->get_c_token (number);
+	  if (res && strcmp (string, res->string) != 0)
+	    {
+	      error_at (loc, "ambiguous attribute '%s'; could be"
+			" '%s' (via '%s:%s') or '%s' (via '%s:%s')",
+			attr, res->string, prev->name, attr,
+			string, iterator->name, attr);
+	      return res;
+	    }
+	  prev = iterator;
+	  res = new map_value { nullptr, number, string };
+	}
 
       /* Find the attribute specification.  */
       m = (struct mapping *) htab_find (iterator->group->attrs, &attr);
@@ -1035,6 +1060,7 @@ initialize_iterators (void)
   ints.find_builtin = find_int;
   ints.apply_iterator = apply_int_iterator;
   ints.get_c_token = get_int_token;
+  ints.has_self_attr = true;
 
   substs.attrs = htab_create (13, leading_string_hash, leading_string_eq_p, 0);
   substs.iterators = htab_create (13, leading_string_hash,
@@ -1267,8 +1293,25 @@ md_reader::read_mapping (struct iterator_group *group, htab_t table)
 	  string = read_string (false);
 	  require_char_ws (')');
 	}
-      number = group->find_builtin (name.string);
-      end_ptr = add_map_value (end_ptr, number, string);
+      auto *subm = (struct mapping *) htab_find (group->iterators,
+						 &name.string);
+      if (subm)
+	{
+	  if (m == subm)
+	    fatal_with_file_and_line ("recursive definition of `%s'",
+				      name.string);
+	  for (map_value *v = subm->values; v; v = v->next)
+	    {
+	      auto *joined = rtx_reader_ptr->join_c_conditions (v->string,
+								string);
+	      end_ptr = add_map_value (end_ptr, v->number, joined);
+	    }
+	}
+      else
+	{
+	  number = group->find_builtin (name.string);
+	  end_ptr = add_map_value (end_ptr, number, string);
+	}
       c = read_skip_spaces ();
     }
   while (c != ']');
@@ -1870,8 +1913,10 @@ rtx_reader::read_rtx_operand (rtx return_rtx, int idx)
 		repeat_count--;
 		value = saved_rtx;
 	      }
-	    else
+	    else if (c == '(')
 	      value = read_nested_rtx ();
+	    else
+	      fatal_with_file_and_line ("unexpected character in vector");
 
 	    for (; repeat_count > 0; repeat_count--)
 	      {

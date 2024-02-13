@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-# Copyright (C) 2006-2023 Free Software Foundation, Inc.
+# Copyright (C) 2006-2024 Free Software Foundation, Inc.
 #
 # GCC is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -93,6 +93,7 @@ AM_PROG_LIBTOOL
 WITH_LOCAL_DRUNTIME([LT_LANG([D])], [])
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
+AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
 
 # libtool variables for Phobos shared and position-independent compiles.
 #
@@ -221,24 +222,28 @@ AC_ARG_ENABLE(libphobos-checking,
 		[enable expensive run-time checks.  With LIST,
 		 enable only specific categories of checks.
 		 Categories are: yes,no,all,none,release.
-		 Flags are: assert or other strings])],
+		 Flags are: assert,valgrind or other strings])],
 [ac_checking_flags="${enableval}"],[ac_checking_flags=release])
 IFS="${IFS= 	}"; ac_save_IFS="$IFS"; IFS="$IFS,"
 for check in release $ac_checking_flags
 do
 	case $check in
 	# These set all the flags to specific states
-	yes|all) RELEASE_FLAG="-fno-release" ; ASSERT_FLAG= ;;
-	no|none|release) RELEASE_FLAG="-frelease" ; ASSERT_FLAG= ;;
+	yes|all)		RELEASE_FLAG="-fno-release" ; ASSERT_FLAG= ;
+				VALGRIND_FLAG= ;;
+	no|none|release)	RELEASE_FLAG="-frelease" ; ASSERT_FLAG= ;
+				VALGRIND_FLAG= ;;
 	# These enable particular checks
-	assert) ASSERT_FLAG="-fassert" ;;
+	assert)			ASSERT_FLAG="-fassert" ;;
+	valgrind)		VALGRIND_FLAG="-fdebug=VALGRIND" ;;
 	# Accept
 	*) ;;
 	esac
 done
 IFS="$ac_save_IFS"
-CHECKING_DFLAGS="$RELEASE_FLAG $ASSERT_FLAG"
+CHECKING_DFLAGS="$RELEASE_FLAG $ASSERT_FLAG $VALGRIND_FLAG"
 AC_SUBST(CHECKING_DFLAGS)
+
 
 # Add drtbegin.o/drtend.o to startfile/endfile specs in libgphobos.spec
 if test "$DCFG_MINFO_BRACKETING" = "false"; then
@@ -253,7 +258,7 @@ SPEC_PHOBOS_DEPS="$LIBS"
 AC_SUBST(SPEC_PHOBOS_DEPS)
 
 # Libdruntime / phobos soname version
-libtool_VERSION=4:0:0
+libtool_VERSION=5:0:0
 AC_SUBST(libtool_VERSION)
 
 # Set default flags (after DRUNTIME_WERROR!)
@@ -268,6 +273,8 @@ AC_SUBST(WARN_DFLAGS)
 # Sanity check for the cross-compilation case:
 AC_CHECK_HEADER(stdio.h,:,
   [AC_MSG_ERROR([cannot find stdio.h.])])
+
+DRUNTIME_LIBRARIES_VALGRIND
 
 AC_CONFIG_FILES(Makefile)
 

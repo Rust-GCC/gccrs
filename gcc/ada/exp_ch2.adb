@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -464,9 +464,9 @@ package body Exp_Ch2 is
             --  disable if either variable or its type have sync disabled.
 
             else
-               Set := (not Atomic_Synchronization_Disabled (E))
+               Set := not Atomic_Synchronization_Disabled (E)
                         and then
-                      (not Atomic_Synchronization_Disabled (Etype (E)));
+                      not Atomic_Synchronization_Disabled (Etype (E));
             end if;
 
             --  Set flag if required

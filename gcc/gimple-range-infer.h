@@ -1,5 +1,5 @@
 /* Header file for gimple range inference.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>.
 
 This file is part of GCC.
@@ -80,7 +80,7 @@ private:
   bitmap m_seen;
   bitmap_obstack m_bitmaps;
   struct obstack m_list_obstack;
-  class obstack_vrange_allocator *m_range_allocator;
+  class vrange_allocator *m_range_allocator;
 };
 
 #endif // GCC_GIMPLE_RANGE_SIDE_H

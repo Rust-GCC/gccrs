@@ -1,10 +1,10 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do preprocess { target c++23 } }
+// { dg-add-options no_pch }
 
 #include <version>
 
 #if __STDC_HOSTED__
-# if __cpp_lib_ranges != 202110L
+# if __cpp_lib_ranges != 202211L
 #  error "Feature-test macro __cpp_lib_ranges has wrong value in <version>"
 # endif
 #endif
@@ -45,10 +45,26 @@
 # error "Feature-test macro __cpp_lib_ranges_as_rvalue has wrong value in <version>"
 #endif
 
-#if __cpp_lib_ranges_as_const != 202207L
+#if __cpp_lib_ranges_as_const != 202311L
 # error "Feature-test macro __cpp_lib_ranges_as_const has wrong value in <version>"
 #endif
 
 #if __cpp_lib_ranges_enumerate != 202302L
 # error "Feature-test macro __cpp_lib_ranges_enumerate has wrong value in <version>"
+#endif
+
+#if __cpp_lib_ranges_contains != 202207L
+# error "Feature-test macro __cpp_lib_ranges_contains has wrong value in <version>"
+#endif
+
+#if __cpp_lib_ranges_iota != 202202L
+# error "Feature-test macro __cpp_lib_ranges_iota has wrong value in <version>"
+#endif
+
+#if __cpp_lib_ranges_find_last != 202207L
+# error "Feature-test macro __cpp_lib_ranges_find_last has wrong value in <version>"
+#endif
+
+#if __cpp_lib_ranges_fold != 202207L
+# error "Feature-test macro __cpp_lib_ranges_fold has wrong value in <version>"
 #endif

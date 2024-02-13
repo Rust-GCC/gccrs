@@ -3,7 +3,7 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/abi.html#name_mangling, Name Mangling)
  *
- * Copyright: Copyright (C) 1999-2023 by The D Language Foundation, All Rights Reserved
+ * Copyright: Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
  * Authors: Walter Bright, https://www.digitalmars.com
  * License:   $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:    $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/dmangle.d, _dmangle.d)
@@ -25,14 +25,14 @@ extern (C++) const(char)* mangleExact(FuncDeclaration fd)
     {
         OutBuffer buf;
         auto backref = Backref(null);
-        scope Mangler v = new Mangler(&buf, &backref);
+        scope Mangler v = new Mangler(buf, &backref);
         v.mangleExact(fd);
         fd.mangleString = buf.extractChars();
     }
     return fd.mangleString;
 }
 
-extern (C++) void mangleToBuffer(Type t, OutBuffer* buf)
+extern (C++) void mangleToBuffer(Type t, ref OutBuffer buf)
 {
     //printf("mangleToBuffer t()\n");
     if (t.deco)
@@ -45,7 +45,7 @@ extern (C++) void mangleToBuffer(Type t, OutBuffer* buf)
     }
 }
 
-extern (C++) void mangleToBuffer(Expression e, OutBuffer* buf)
+extern (C++) void mangleToBuffer(Expression e, ref OutBuffer buf)
 {
     //printf("mangleToBuffer e()\n");
     auto backref = Backref(null);
@@ -53,7 +53,7 @@ extern (C++) void mangleToBuffer(Expression e, OutBuffer* buf)
     e.accept(v);
 }
 
-extern (C++) void mangleToBuffer(Dsymbol s, OutBuffer* buf)
+extern (C++) void mangleToBuffer(Dsymbol s, ref OutBuffer buf)
 {
     //printf("mangleToBuffer s(%s)\n", s.toChars());
     auto backref = Backref(null);
@@ -61,7 +61,7 @@ extern (C++) void mangleToBuffer(Dsymbol s, OutBuffer* buf)
     s.accept(v);
 }
 
-extern (C++) void mangleToBuffer(TemplateInstance ti, OutBuffer* buf)
+extern (C++) void mangleToBuffer(TemplateInstance ti, ref OutBuffer buf)
 {
     //printf("mangleToBuffer ti()\n");
     auto backref = Backref(null);
@@ -137,11 +137,14 @@ import core.stdc.string;
 import dmd.aggregate;
 import dmd.arraytypes;
 import dmd.astenums;
+import dmd.basicmangle;
 import dmd.dclass;
 import dmd.declaration;
+import dmd.dinterpret;
 import dmd.dmodule;
 import dmd.dsymbol;
 import dmd.dtemplate;
+import dmd.errors;
 import dmd.expression;
 import dmd.func;
 import dmd.globals;
@@ -150,6 +153,7 @@ import dmd.identifier;
 import dmd.mtype;
 import dmd.root.ctfloat;
 import dmd.common.outbuffer;
+import dmd.optimize;
 import dmd.root.aav;
 import dmd.root.string;
 import dmd.root.stringtable;
@@ -157,89 +161,6 @@ import dmd.root.utf;
 import dmd.target;
 import dmd.tokens;
 import dmd.visitor;
-
-private immutable char[TMAX] mangleChar =
-[
-    Tchar        : 'a',
-    Tbool        : 'b',
-    Tcomplex80   : 'c',
-    Tfloat64     : 'd',
-    Tfloat80     : 'e',
-    Tfloat32     : 'f',
-    Tint8        : 'g',
-    Tuns8        : 'h',
-    Tint32       : 'i',
-    Timaginary80 : 'j',
-    Tuns32       : 'k',
-    Tint64       : 'l',
-    Tuns64       : 'm',
-    Tnull        : 'n',
-    Timaginary32 : 'o',
-    Timaginary64 : 'p',
-    Tcomplex32   : 'q',
-    Tcomplex64   : 'r',
-    Tint16       : 's',
-    Tuns16       : 't',
-    Twchar       : 'u',
-    Tvoid        : 'v',
-    Tdchar       : 'w',
-    //              x   // const
-    //              y   // immutable
-    Tint128      : 'z', // zi
-    Tuns128      : 'z', // zk
-
-    Tarray       : 'A',
-    Ttuple       : 'B',
-    Tclass       : 'C',
-    Tdelegate    : 'D',
-    Tenum        : 'E',
-    Tfunction    : 'F', // D function
-    Tsarray      : 'G',
-    Taarray      : 'H',
-    //              I   // in
-    //              J   // out
-    //              K   // ref
-    //              L   // lazy
-    //              M   // has this, or scope
-    //              N   // Nh:vector Ng:wild Nn:noreturn
-    //              O   // shared
-    Tpointer     : 'P',
-    //              Q   // Type/symbol/identifier backward reference
-    Treference   : 'R',
-    Tstruct      : 'S',
-    //              T   // Ttypedef
-    //              U   // C function
-    //              W   // Windows function
-    //              X   // variadic T t...)
-    //              Y   // variadic T t,...)
-    //              Z   // not variadic, end of parameters
-
-    // '@' shouldn't appear anywhere in the deco'd names
-    Tnone        : '@',
-    Tident       : '@',
-    Tinstance    : '@',
-    Terror       : '@',
-    Ttypeof      : '@',
-    Tslice       : '@',
-    Treturn      : '@',
-    Tvector      : '@',
-    Ttraits      : '@',
-    Tmixin       : '@',
-    Ttag         : '@',
-    Tnoreturn    : '@',         // becomes 'Nn'
-];
-
-unittest
-{
-    foreach (i, mangle; mangleChar)
-    {
-        if (mangle == char.init)
-        {
-            fprintf(stderr, "ty = %u\n", cast(uint)i);
-            assert(0);
-        }
-    }
-}
 
 /************************************************
  * Append the mangling of type `t` to `buf`.
@@ -249,7 +170,7 @@ unittest
  *      buf = buffer to append mangling to
  *      backref = state of back references (updated)
  */
-void mangleType(Type t, ubyte modMask, OutBuffer* buf, ref Backref backref)
+void mangleType(Type t, ubyte modMask, ref OutBuffer buf, ref Backref backref)
 {
     void visitWithMask(Type t, ubyte modMask)
     {
@@ -395,7 +316,7 @@ void mangleType(Type t, ubyte modMask, OutBuffer* buf, ref Backref backref)
 
 /*************************************************************
  */
-void mangleFuncType(TypeFunction t, TypeFunction ta, ubyte modMask, Type tret, OutBuffer* buf, ref Backref backref)
+void mangleFuncType(TypeFunction t, TypeFunction ta, ubyte modMask, Type tret, ref OutBuffer buf, ref Backref backref)
 {
     //printf("mangleFuncType() %s\n", t.toChars());
     if (t.inuse && tret)
@@ -485,7 +406,7 @@ void mangleFuncType(TypeFunction t, TypeFunction ta, ubyte modMask, Type tret, O
 
 /*************************************************************
  */
-void mangleParameter(Parameter p, OutBuffer* buf, ref Backref backref)
+void mangleParameter(Parameter p, ref OutBuffer buf, ref Backref backref)
 {
     // https://dlang.org/spec/abi.html#Parameter
 
@@ -525,7 +446,7 @@ void mangleParameter(Parameter p, OutBuffer* buf, ref Backref backref)
     if (stc & STC.return_)
         buf.writestring("Nk"); // return
 
-    switch (stc & (STC.IOR | STC.lazy_))
+    switch (stc & ((STC.IOR | STC.lazy_) & ~STC.constscoperef))
     {
     case 0:
         break;
@@ -564,9 +485,9 @@ public:
     OutBuffer* buf;
     Backref* backref;
 
-    extern (D) this(OutBuffer* buf, Backref* backref)
+    extern (D) this(ref OutBuffer buf, Backref* backref) @trusted
     {
-        this.buf = buf;
+        this.buf = &buf;
         this.backref = backref;
     }
 
@@ -577,8 +498,22 @@ public:
 
     void mangleIdentifier(Identifier id, Dsymbol s)
     {
-        if (!backref.addRefToIdentifier(buf, id))
-            toBuffer(buf, id.toString(), s);
+        if (!backref.addRefToIdentifier(*buf, id))
+            toBuffer(*buf, id.toString(), s);
+    }
+
+    void mangleInteger(dinteger_t v)
+    {
+        if (cast(sinteger_t) v < 0)
+        {
+            buf.writeByte('N');
+            buf.print(-v);
+        }
+        else
+        {
+            buf.writeByte('i');
+            buf.print(v);
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -593,7 +528,7 @@ public:
         }
         else if (sthis.type)
         {
-            mangleType(sthis.type, 0, buf, *backref);
+            mangleType(sthis.type, 0, *buf, *backref);
         }
         else
             assert(0);
@@ -627,7 +562,7 @@ public:
                 buf.writeByte('0');
 
             if (localNum)
-                writeLocalParent(buf, localNum);
+                writeLocalParent(*buf, localNum);
         }
     }
 
@@ -651,11 +586,11 @@ public:
         {
             TypeFunction tf = fd.type.isTypeFunction();
             TypeFunction tfo = fd.originalType.isTypeFunction();
-            mangleFuncType(tf, tfo, 0, null, buf, *backref);
+            mangleFuncType(tf, tfo, 0, null, *buf, *backref);
         }
         else
         {
-            mangleType(fd.type, 0, buf, *backref);
+            mangleType(fd.type, 0, *buf, *backref);
         }
     }
 
@@ -821,7 +756,7 @@ public:
             printf("\n");
         }
         if (!ti.tempdecl)
-            ti.error("is not defined");
+            error(ti.loc, "%s `%s` is not defined", ti.kind, ti.toPrettyChars);
         else
             mangleParent(ti);
 
@@ -856,7 +791,7 @@ public:
             if (ta)
             {
                 buf.writeByte('T');
-                mangleType(ta, 0, buf, *backref);
+                mangleType(ta, 0, *buf, *backref);
             }
             else if (ea)
             {
@@ -888,7 +823,7 @@ public:
                 buf.writeByte('V');
                 if (ea.op == EXP.tuple)
                 {
-                    ea.error("tuple is not a valid template value argument");
+                    error(ea.loc, "sequence is not a valid template value argument");
                     continue;
                 }
                 // Now that we know it is not an alias, we MUST obtain a value
@@ -899,7 +834,7 @@ public:
 
                 /* Use type mangling that matches what it would be for a function parameter
                 */
-                mangleType(ea.type, 0, buf, *backref);
+                mangleType(ea.type, 0, *buf, *backref);
                 ea.accept(this);
             }
             else if (sa)
@@ -915,18 +850,18 @@ public:
                     if (d.mangleOverride)
                     {
                         buf.writeByte('X');
-                        toBuffer(buf, d.mangleOverride, d);
+                        toBuffer(*buf, d.mangleOverride, d);
                         continue;
                     }
                     if (const id = externallyMangledIdentifier(d))
                     {
                         buf.writeByte('X');
-                        toBuffer(buf, id, d);
+                        toBuffer(*buf, id, d);
                         continue;
                     }
                     if (!d.type || !d.type.deco)
                     {
-                        ti.error("forward reference of %s `%s`", d.kind(), d.toChars());
+                        error(ti.loc, "%s `%s` forward reference of %s `%s`", ti.kind, ti.toPrettyChars, d.kind(), d.toChars());
                         continue;
                     }
                 }
@@ -975,43 +910,34 @@ public:
         if (s.ident)
             mangleIdentifier(s.ident, s);
         else
-            toBuffer(buf, s.toString(), s);
+            toBuffer(*buf, s.toString(), s);
         //printf("Dsymbol.mangle() %s = %s\n", s.toChars(), id);
     }
 
     ////////////////////////////////////////////////////////////////////////////
     override void visit(Expression e)
     {
-        e.error("expression `%s` is not a valid template value argument", e.toChars());
+        if (!e.type.isTypeError())
+            error(e.loc, "expression `%s` is not a valid template value argument", e.toChars());
     }
 
     override void visit(IntegerExp e)
     {
-        const v = e.toInteger();
-        if (cast(sinteger_t)v < 0)
-        {
-            buf.writeByte('N');
-            buf.print(-v);
-        }
-        else
-        {
-            buf.writeByte('i');
-            buf.print(v);
-        }
+        mangleInteger(e.toInteger());
     }
 
     override void visit(RealExp e)
     {
         buf.writeByte('e');
-        realToMangleBuffer(buf, e.value);
+        realToMangleBuffer(*buf, e.value);
     }
 
     override void visit(ComplexExp e)
     {
         buf.writeByte('c');
-        realToMangleBuffer(buf, e.toReal());
+        realToMangleBuffer(*buf, e.toReal());
         buf.writeByte('c'); // separate the two
-        realToMangleBuffer(buf, e.toImaginary());
+        realToMangleBuffer(*buf, e.toImaginary());
     }
 
     override void visit(NullExp e)
@@ -1024,6 +950,15 @@ public:
         char m;
         OutBuffer tmp;
         const(char)[] q;
+
+        void mangleAsArray()
+        {
+            buf.writeByte('A');
+            buf.print(e.len);
+            foreach (i; 0 .. e.len)
+                mangleInteger(e.getIndex(i));
+        }
+
         /* Write string in UTF-8 format
          */
         switch (e.sz)
@@ -1040,7 +975,7 @@ public:
             {
                 dchar c;
                 if (const s = utf_decodeWchar(slice, u, c))
-                    e.error("%.*s", cast(int)s.length, s.ptr);
+                    return mangleAsArray();
                 else
                     tmp.writeUTF8(c);
             }
@@ -1054,14 +989,16 @@ public:
             foreach (c; slice)
             {
                 if (!utf_isValidDchar(c))
-                    e.error("invalid UCS-32 char \\U%08x", c);
+                    return mangleAsArray();
                 else
                     tmp.writeUTF8(c);
             }
             q = tmp[];
             break;
         }
-
+        case 8:
+            // String of size 8 has to be hexstring cast to long[], mangle as array literal
+            return mangleAsArray();
         default:
             assert(0);
         }
@@ -1069,14 +1006,7 @@ public:
         buf.writeByte(m);
         buf.print(q.length);
         buf.writeByte('_');    // nbytes <= 11
-        auto slice = buf.allocate(2 * q.length);
-        foreach (i, c; q)
-        {
-            char hi = (c >> 4) & 0xF;
-            slice[i * 2] = cast(char)(hi < 10 ? hi + '0' : hi - 10 + 'a');
-            char lo = c & 0xF;
-            slice[i * 2 + 1] = cast(char)(lo < 10 ? lo + '0' : lo - 10 + 'a');
-        }
+        buf.writeHexString(cast(const(ubyte)[]) q, false);
     }
 
     override void visit(ArrayLiteralExp e)
@@ -1145,7 +1075,7 @@ private struct Backref
     *  true if the type was found. A back reference has been encoded.
     *  false if the type was not found. The current position is saved for later back references.
     */
-    bool addRefToType(OutBuffer* buf, Type t)
+    bool addRefToType(ref OutBuffer buf, Type t)
     {
         if (t.isTypeBasic())
             return false;
@@ -1164,6 +1094,7 @@ private struct Backref
         {
             if (t.isFunction_Delegate_PtrToFunction())
             {
+                import dmd.typesem : merge2;
                 t = t.merge2();
             }
         }
@@ -1184,14 +1115,14 @@ private struct Backref
     *  true if the identifier was found. A back reference has been encoded.
     *  false if the identifier was not found. The current position is saved for later back references.
     */
-    bool addRefToIdentifier(OutBuffer* buf, Identifier id)
+    bool addRefToIdentifier(ref OutBuffer buf, Identifier id)
     {
         return backrefImpl(buf, idents, id);
     }
 
   private:
 
-    extern(D) bool backrefImpl(T)(OutBuffer* buf, ref AssocArray!(T, size_t) aa, T key)
+    extern(D) bool backrefImpl(T)(ref OutBuffer buf, ref AssocArray!(T, size_t) aa, T key)
     {
         auto p = aa.getLvalue(key);
         if (*p)
@@ -1209,23 +1140,10 @@ private struct Backref
     AssocArray!(Identifier, size_t) idents; /// Identifier => (offset+1) in buf
 }
 
-
-/***********************
- * Mangle basic type ty to buf.
- */
-
-private void tyToDecoBuffer(OutBuffer* buf, int ty)
-{
-    const c = mangleChar[ty];
-    buf.writeByte(c);
-    if (c == 'z')
-        buf.writeByte(ty == Tint128 ? 'i' : 'k');
-}
-
 /*********************************
  * Mangling for mod.
  */
-private void MODtoDecoBuffer(OutBuffer* buf, MOD mod)
+private void MODtoDecoBuffer(ref OutBuffer buf, MOD mod) @safe
 {
     switch (mod)
     {
@@ -1274,7 +1192,7 @@ private void MODtoDecoBuffer(OutBuffer* buf, MOD mod)
  *  pos           = relative position to encode
  */
 private
-void writeBackRef(OutBuffer* buf, size_t pos)
+void writeBackRef(ref OutBuffer buf, size_t pos) @safe
 {
     buf.writeByte('Q');
     enum base = 26;
@@ -1296,11 +1214,11 @@ void writeBackRef(OutBuffer* buf, size_t pos)
  * Write length prefixed string to buf.
  */
 private
-extern (D) void toBuffer(OutBuffer* buf, const(char)[] id, Dsymbol s)
+extern (D) void toBuffer(ref OutBuffer buf, const(char)[] id, Dsymbol s)
 {
     const len = id.length;
     if (buf.length + len >= 8 * 1024 * 1024) // 8 megs ought be enough for anyone
-        s.error("excessive length %llu for symbol, possible recursive expansion?", cast(ulong)(buf.length + len));
+        error(s.loc, "%s `%s` excessive length %llu for symbol, possible recursive expansion?", s.kind, s.toPrettyChars, cast(ulong)(buf.length + len));
     else
     {
         buf.print(len);
@@ -1321,7 +1239,7 @@ extern (D) void toBuffer(OutBuffer* buf, const(char)[] id, Dsymbol s)
  *      localNum = local symbol number
  */
 private
-void writeLocalParent(OutBuffer* buf, uint localNum)
+void writeLocalParent(ref OutBuffer buf, uint localNum)
 {
     uint ndigits = 1;
     auto n = localNum;
@@ -1340,7 +1258,7 @@ void writeLocalParent(OutBuffer* buf, uint localNum)
  *      value = real to write
  */
 private
-void realToMangleBuffer(OutBuffer* buf, real_t value)
+void realToMangleBuffer(ref OutBuffer buf, real_t value)
 {
     /* Rely on %A to get portable mangling.
      * Must munge result to get only identifier characters.
@@ -1422,7 +1340,7 @@ extern (D) const(char)[] externallyMangledIdentifier(Declaration d)
           (d.isVarDeclaration() && d.isDataseg() && d.storage_class & STC.extern_))))
     {
         if (linkage != LINK.d && d.localNum)
-            d.error("the same declaration cannot be in multiple scopes with non-D linkage");
+            error(d.loc, "%s `%s` the same declaration cannot be in multiple scopes with non-D linkage", d.kind, d.toPrettyChars);
 
         final switch (linkage)
         {
@@ -1438,7 +1356,7 @@ extern (D) const(char)[] externallyMangledIdentifier(Declaration d)
                 return p.toDString();
             }
             case LINK.default_:
-                d.error("forward declaration");
+                error(d.loc, "%s `%s` forward declaration", d.kind, d.toPrettyChars);
                 return d.ident.toString();
             case LINK.system:
                 assert(0);

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -21,6 +21,7 @@
 #ifndef RUST_LOCATION_H
 #define RUST_LOCATION_H
 
+#include "rich-location.h"
 #include "rust-system.h"
 
 // A location in an input source file.

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -222,10 +222,9 @@ package Sem_Type is
      (T1            : Entity_Id;
       T2            : Entity_Id;
       Use_Full_View : Boolean := False) return Boolean;
-   --  T1 is a tagged type (not class-wide). Verify that it is one of the
-   --  ancestors of type T2 (which may or not be class-wide). If Use_Full_View
-   --  is True then the full-view of private parents is used when climbing
-   --  through the parents of T2.
+   --  T1 is a type (not class-wide). Verify that it is one of the ancestors of
+   --  type T2 (which may or not be class-wide). If Use_Full_View is True, then
+   --  the full view of private parents is used when climbing T2's parents.
    --
    --  Note: For analysis purposes the flag Use_Full_View must be set to False
    --  (otherwise we break the privacy contract since this routine returns true

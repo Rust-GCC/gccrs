@@ -1,6 +1,6 @@
 // Class experimental::filesystem::path -*- C++ -*-
 
-// Copyright (C) 2014-2023 Free Software Foundation, Inc.
+// Copyright (C) 2014-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -498,7 +498,7 @@ path::_M_trim()
 
 path::string_type
 path::_S_convert_loc(const char* __first, const char* __last,
-		     const std::locale& __loc)
+		     [[maybe_unused]] const std::locale& __loc)
 {
 #if _GLIBCXX_USE_WCHAR_T
   auto& __cvt = std::use_facet<codecvt<wchar_t, char, mbstate_t>>(__loc);

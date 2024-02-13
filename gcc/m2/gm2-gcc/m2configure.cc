@@ -1,6 +1,6 @@
 /* m2configure.cc provides an interface to some configuration values.
 
-Copyright (C) 2022-2023 Free Software Foundation, Inc.
+Copyright (C) 2022-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -18,10 +18,6 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Modula-2; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
-
-#include "config.h"
-#include "system.h"
-#include "libiberty.h"
 
 #include "config.h"
 #include "system.h"
@@ -98,4 +94,19 @@ m2configure_FullPathCPP (void)
       return full;
     }
   return NULL;
+}
+
+/* Return the value of TARGET_IEEEQUAD_DEFAULT.  If it is undefined
+   -1 is returned.  A value of 0 indicates the default target long
+   double uses the IBM 128 representation.  A value of 1 indicates
+   the default target long double (LONGREAL) is __float128.  */
+
+int
+m2configure_TargetIEEEQuadDefault (void)
+{
+#ifdef TARGET_IEEEQUAD_DEFAULT
+  return TARGET_IEEEQUAD_DEFAULT;
+#else
+  return -1;
+#endif
 }

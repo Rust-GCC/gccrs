@@ -1,5 +1,5 @@
 /* Classes for modeling the state of memory.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_ALGORITHM
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -39,7 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "fold-const.h"
 #include "tree-pretty-print.h"
 #include "diagnostic-color.h"
-#include "diagnostic-metadata.h"
 #include "bitmap.h"
 #include "selftest.h"
 #include "analyzer/analyzer.h"
@@ -77,10 +77,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/checker-event.h"
 #include "analyzer/checker-path.h"
 #include "analyzer/feasible-graph.h"
+#include "analyzer/record-layout.h"
+#include "diagnostic-format-sarif.h"
 
 #if ENABLE_ANALYZER
 
 namespace ana {
+
+auto_vec<pop_frame_callback> region_model::pop_frame_callbacks;
 
 /* Dump T to PP in language-independent form, for debugging/logging/dumping
    purposes.  */
@@ -207,6 +211,31 @@ region_to_value_map::dump (bool simple) const
   pp_flush (&pp);
 }
 
+/* Generate a JSON value for this region_to_value_map.
+   This is intended for debugging the analyzer rather than
+   serialization.  */
+
+json::object *
+region_to_value_map::to_json () const
+{
+  json::object *map_obj = new json::object ();
+
+  auto_vec<const region *> regs;
+  for (iterator iter = begin (); iter != end (); ++iter)
+    regs.safe_push ((*iter).first);
+  regs.qsort (region::cmp_ptr_ptr);
+
+  unsigned i;
+  const region *reg;
+  FOR_EACH_VEC_ELT (regs, i, reg)
+    {
+      label_text reg_desc = reg->get_desc ();
+      const svalue *sval = *get (reg);
+      map_obj->set (reg_desc.get (), sval->to_json ());
+    }
+
+  return map_obj;
+}
 
 /* Attempt to merge THIS with OTHER, writing the result
    to OUT.
@@ -425,6 +454,22 @@ region_model::debug () const
   dump (true);
 }
 
+/* Generate a JSON value for this region_model.
+   This is intended for debugging the analyzer rather than
+   serialization.  */
+
+json::object *
+region_model::to_json () const
+{
+  json::object *model_obj = new json::object ();
+  model_obj->set ("store", m_store.to_json ());
+  model_obj->set ("constraints", m_constraints->to_json ());
+  if (m_current_frame)
+    model_obj->set ("current_frame", m_current_frame->to_json ());
+  model_obj->set ("dynamic_extents", m_dynamic_extents.to_json ());
+  return model_obj;
+}
+
 /* Assert that this object is valid.  */
 
 void
@@ -499,6 +544,7 @@ public:
       case POISON_KIND_UNINIT:
 	return OPT_Wanalyzer_use_of_uninitialized_value;
       case POISON_KIND_FREED:
+      case POISON_KIND_DELETED:
 	return OPT_Wanalyzer_use_after_free;
       case POISON_KIND_POPPED_STACK:
 	return OPT_Wanalyzer_use_of_pointer_in_stale_stack_frame;
@@ -507,7 +553,7 @@ public:
 
   bool terminate_path_p () const final override { return true; }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
     switch (m_pkind)
       {
@@ -515,28 +561,30 @@ public:
 	gcc_unreachable ();
       case POISON_KIND_UNINIT:
 	{
-	  diagnostic_metadata m;
-	  m.add_cwe (457); /* "CWE-457: Use of Uninitialized Variable".  */
-	  return warning_meta (rich_loc, m, get_controlling_option (),
-			       "use of uninitialized value %qE",
-			       m_expr);
+	  ctxt.add_cwe (457); /* "CWE-457: Use of Uninitialized Variable".  */
+	  return ctxt.warn ("use of uninitialized value %qE",
+			    m_expr);
 	}
 	break;
       case POISON_KIND_FREED:
 	{
-	  diagnostic_metadata m;
-	  m.add_cwe (416); /* "CWE-416: Use After Free".  */
-	  return warning_meta (rich_loc, m, get_controlling_option (),
-			       "use after %<free%> of %qE",
-			       m_expr);
+	  ctxt.add_cwe (416); /* "CWE-416: Use After Free".  */
+	  return ctxt.warn ("use after %<free%> of %qE",
+			    m_expr);
+	}
+	break;
+      case POISON_KIND_DELETED:
+	{
+	  ctxt.add_cwe (416); /* "CWE-416: Use After Free".  */
+	  return ctxt.warn ("use after %<delete%> of %qE",
+			    m_expr);
 	}
 	break;
       case POISON_KIND_POPPED_STACK:
 	{
 	  /* TODO: which CWE?  */
-	  return warning_at
-	    (rich_loc, get_controlling_option (),
-	     "dereferencing pointer %qE to within stale stack frame",
+	  return ctxt.warn
+	    ("dereferencing pointer %qE to within stale stack frame",
 	     m_expr);
 	}
 	break;
@@ -554,6 +602,9 @@ public:
 				   m_expr);
       case POISON_KIND_FREED:
 	return ev.formatted_print ("use after %<free%> of %qE here",
+				   m_expr);
+      case POISON_KIND_DELETED:
+	return ev.formatted_print ("use after %<delete%> of %qE here",
 				   m_expr);
       case POISON_KIND_POPPED_STACK:
 	return ev.formatted_print
@@ -638,10 +689,9 @@ public:
     return OPT_Wanalyzer_shift_count_negative;
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
-    return warning_at (rich_loc, get_controlling_option (),
-		       "shift by negative count (%qE)", m_count_cst);
+    return ctxt.warn ("shift by negative count (%qE)", m_count_cst);
   }
 
   label_text describe_final_event (const evdesc::final_event &ev) final override
@@ -685,11 +735,10 @@ public:
     return OPT_Wanalyzer_shift_count_overflow;
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
-    return warning_at (rich_loc, get_controlling_option (),
-		       "shift by count (%qE) >= precision of type (%qi)",
-		       m_count_cst, m_operand_precision);
+    return ctxt.warn ("shift by count (%qE) >= precision of type (%qi)",
+		      m_count_cst, m_operand_precision);
   }
 
   label_text describe_final_event (const evdesc::final_event &ev) final override
@@ -713,6 +762,17 @@ region_model::get_gassign_result (const gassign *assign,
 				   region_model_context *ctxt)
 {
   tree lhs = gimple_assign_lhs (assign);
+
+  if (gimple_has_volatile_ops (assign)
+      && !gimple_clobber_p (assign))
+    {
+      conjured_purge p (this, ctxt);
+      return m_mgr->get_or_create_conjured_svalue (TREE_TYPE (lhs),
+						   assign,
+						   get_lvalue (lhs, ctxt),
+						   p);
+    }
+
   tree rhs1 = gimple_assign_rhs1 (assign);
   enum tree_code op = gimple_assign_rhs_code (assign);
   switch (op)
@@ -860,7 +920,8 @@ region_model::get_gassign_result (const gassign *assign,
 	       or by greater than or equal to the number of bits that exist in
 	       the operand."  */
 	    if (const tree rhs2_cst = rhs2_sval->maybe_get_constant ())
-	      if (TREE_CODE (rhs2_cst) == INTEGER_CST)
+	      if (TREE_CODE (rhs2_cst) == INTEGER_CST
+		  && INTEGRAL_TYPE_P (TREE_TYPE (rhs1)))
 		{
 		  if (tree_int_cst_sgn (rhs2_cst) < 0)
 		    ctxt->warn
@@ -1150,6 +1211,15 @@ region_model::on_assignment (const gassign *assign, region_model_context *ctxt)
 
   const region *lhs_reg = get_lvalue (lhs, ctxt);
 
+  /* Any writes other than to the stack are treated
+     as externally visible.  */
+  if (ctxt)
+    {
+      enum memory_space memspace = lhs_reg->get_memory_space ();
+      if (memspace != MEMSPACE_STACK)
+	ctxt->maybe_did_work ();
+    }
+
   /* Most assignments are handled by:
        set_value (lhs_reg, SVALUE, CTXT)
      for some SVALUE.  */
@@ -1187,7 +1257,7 @@ region_model::on_assignment (const gassign *assign, region_model_context *ctxt)
 	    /* Any CONSTRUCTOR that survives to this point is either
 	       just a zero-init of everything, or a vector.  */
 	    if (!CONSTRUCTOR_NO_CLEARING (rhs1))
-	      zero_fill_region (lhs_reg);
+	      zero_fill_region (lhs_reg, ctxt);
 	    unsigned ix;
 	    tree index;
 	    tree val;
@@ -1237,6 +1307,11 @@ region_model::on_stmt_pre (const gimple *stmt,
       /* No-op for now.  */
       break;
 
+    case GIMPLE_DEBUG:
+      /* We should have stripped these out when building the supergraph.  */
+      gcc_unreachable ();
+      break;
+
     case GIMPLE_ASSIGN:
       {
 	const gassign *assign = as_a <const gassign *> (stmt);
@@ -1248,6 +1323,8 @@ region_model::on_stmt_pre (const gimple *stmt,
       {
 	const gasm *asm_stmt = as_a <const gasm *> (stmt);
 	on_asm_stmt (asm_stmt, ctxt);
+	if (ctxt)
+	  ctxt->maybe_did_work ();
       }
       break;
 
@@ -1270,59 +1347,108 @@ region_model::on_stmt_pre (const gimple *stmt,
     }
 }
 
+/* Given a call CD with function attribute FORMAT_ATTR, check that the
+   format arg to the call is a valid null-terminated string.  */
+
+void
+region_model::check_call_format_attr (const call_details &cd,
+				      tree format_attr) const
+{
+  /* We assume that FORMAT_ATTR has already been validated.  */
+
+  /* arg0 of the attribute should be kind of format strings
+     that this function expects (e.g. "printf").  */
+  const tree arg0_tree_list = TREE_VALUE (format_attr);
+  if (!arg0_tree_list)
+    return;
+
+  /* arg1 of the attribute should be the 1-based parameter index
+     to treat as the format string.  */
+  const tree arg1_tree_list = TREE_CHAIN (arg0_tree_list);
+  if (!arg1_tree_list)
+    return;
+  const tree arg1_value = TREE_VALUE (arg1_tree_list);
+  if (!arg1_value)
+    return;
+
+  unsigned format_arg_idx = TREE_INT_CST_LOW (arg1_value) - 1;
+  if (cd.num_args () <= format_arg_idx)
+    return;
+
+  /* Subclass of annotating_context that
+     adds a note about the format attr to any saved diagnostics.  */
+  class annotating_ctxt : public annotating_context
+  {
+  public:
+    annotating_ctxt (const call_details &cd,
+		     unsigned fmt_param_idx)
+    : annotating_context (cd.get_ctxt ()),
+      m_cd (cd),
+      m_fmt_param_idx (fmt_param_idx)
+    {
+    }
+    void add_annotations () final override
+    {
+      class reason_format_attr
+	: public pending_note_subclass<reason_format_attr>
+      {
+      public:
+	reason_format_attr (const call_arg_details &arg_details)
+	  : m_arg_details (arg_details)
+	{
+	}
+
+	const char *get_kind () const final override
+	{
+	  return "reason_format_attr";
+	}
+
+	void emit () const final override
+	{
+	  inform (DECL_SOURCE_LOCATION (m_arg_details.m_called_fndecl),
+		  "parameter %i of %qD marked as a format string"
+		  " via %qs attribute",
+		  m_arg_details.m_arg_idx + 1, m_arg_details.m_called_fndecl,
+		  "format");
+	}
+
+	bool operator== (const reason_format_attr &other) const
+	{
+	  return m_arg_details == other.m_arg_details;
+	}
+
+      private:
+	call_arg_details m_arg_details;
+      };
+
+      call_arg_details arg_details (m_cd, m_fmt_param_idx);
+      add_note (make_unique<reason_format_attr> (arg_details));
+    }
+  private:
+    const call_details &m_cd;
+    unsigned m_fmt_param_idx;
+  };
+
+  annotating_ctxt my_ctxt (cd, format_arg_idx);
+  call_details my_cd (cd, &my_ctxt);
+  my_cd.check_for_null_terminated_string_arg (format_arg_idx);
+}
+
 /* Ensure that all arguments at the call described by CD are checked
-   for poisoned values, by calling get_rvalue on each argument.  */
+   for poisoned values, by calling get_rvalue on each argument.
+
+   Check that calls to functions with "format" attribute have valid
+   null-terminated strings for their format argument.  */
 
 void
 region_model::check_call_args (const call_details &cd) const
 {
   for (unsigned arg_idx = 0; arg_idx < cd.num_args (); arg_idx++)
     cd.get_arg_svalue (arg_idx);
-}
 
-/* Return true if CD is known to be a call to a function with
-   __attribute__((const)).  */
-
-static bool
-const_fn_p (const call_details &cd)
-{
-  tree fndecl = cd.get_fndecl_for_call ();
-  if (!fndecl)
-    return false;
-  gcc_assert (DECL_P (fndecl));
-  return TREE_READONLY (fndecl);
-}
-
-/* If this CD is known to be a call to a function with
-   __attribute__((const)), attempt to get a const_fn_result_svalue
-   based on the arguments, or return NULL otherwise.  */
-
-static const svalue *
-maybe_get_const_fn_result (const call_details &cd)
-{
-  if (!const_fn_p (cd))
-    return NULL;
-
-  unsigned num_args = cd.num_args ();
-  if (num_args > const_fn_result_svalue::MAX_INPUTS)
-    /* Too many arguments.  */
-    return NULL;
-
-  auto_vec<const svalue *> inputs (num_args);
-  for (unsigned arg_idx = 0; arg_idx < num_args; arg_idx++)
-    {
-      const svalue *arg_sval = cd.get_arg_svalue (arg_idx);
-      if (!arg_sval->can_have_associated_state_p ())
-	return NULL;
-      inputs.quick_push (arg_sval);
-    }
-
-  region_model_manager *mgr = cd.get_manager ();
-  const svalue *sval
-    = mgr->get_or_create_const_fn_result_svalue (cd.get_lhs_type (),
-						 cd.get_fndecl_for_call (),
-						 inputs);
-  return sval;
+  /* Handle attribute "format".  */
+  if (tree format_attr = cd.lookup_function_attribute ("format"))
+    check_call_format_attr (cd, format_attr);
 }
 
 /* Update this model for an outcome of a call that returns a specific
@@ -1357,7 +1483,9 @@ region_model::update_for_zero_return (const call_details &cd,
   update_for_int_cst_return (cd, 0, unmergeable);
 }
 
-/* Update this model for an outcome of a call that returns non-zero.  */
+/* Update this model for an outcome of a call that returns non-zero.
+   Specifically, assign an svalue to the LHS, and add a constraint that
+   that svalue is non-zero.  */
 
 void
 region_model::update_for_nonzero_return (const call_details &cd)
@@ -1366,6 +1494,7 @@ region_model::update_for_nonzero_return (const call_details &cd)
     return;
   if (TREE_CODE (cd.get_lhs_type ()) != INTEGER_TYPE)
     return;
+  cd.set_any_lhs_with_defaults ();
   const svalue *zero
     = m_mgr->get_or_create_int_cst (cd.get_lhs_type (), 0);
   const svalue *result
@@ -1461,6 +1590,62 @@ region_model::get_known_function (enum internal_fn ifn) const
   return known_fn_mgr->get_internal_fn (ifn);
 }
 
+/* Get any builtin_known_function for CALL and emit any warning to CTXT
+   if not NULL.
+
+   The call must match all assumptions made by the known_function (such as
+   e.g. "argument 1's type must be a pointer type").
+
+   Return NULL if no builtin_known_function is found, or it does
+   not match the assumption(s).
+
+   Internally calls get_known_function to find a known_function and cast it
+   to a builtin_known_function.
+
+   For instance, calloc is a C builtin, defined in gcc/builtins.def
+   by the DEF_LIB_BUILTIN macro. Such builtins are recognized by the
+   analyzer by their name, so that even in C++ or if the user redeclares
+   them but mismatch their signature, they are still recognized as builtins.
+
+   Cases when a supposed builtin is not flagged as one by the FE:
+
+    The C++ FE does not recognize calloc as a builtin if it has not been
+    included from a standard header, but the C FE does. Hence in C++ if
+    CALL comes from a calloc and stdlib is not included,
+    gcc/tree.h:fndecl_built_in_p (CALL) would be false.
+
+    In C code, a __SIZE_TYPE__ calloc (__SIZE_TYPE__, __SIZE_TYPE__) user
+    declaration has obviously a mismatching signature from the standard, and
+    its function_decl tree won't be unified by
+    gcc/c-decl.cc:match_builtin_function_types.
+
+   Yet in both cases the analyzer should treat the calls as a builtin calloc
+   so that extra attributes unspecified by the standard but added by GCC
+   (e.g. sprintf attributes in gcc/builtins.def), useful for the detection of
+   dangerous behavior, are indeed processed.
+
+   Therefore for those cases when a "builtin flag" is not added by the FE,
+   builtins' kf are derived from builtin_known_function, whose method
+   builtin_known_function::builtin_decl returns the builtin's
+   function_decl tree as defined in gcc/builtins.def, with all the extra
+   attributes.  */
+
+const builtin_known_function *
+region_model::get_builtin_kf (const gcall *call,
+			       region_model_context *ctxt /* = NULL */) const
+{
+  region_model *mut_this = const_cast <region_model *> (this);
+  tree callee_fndecl = mut_this->get_fndecl_for_call (call, ctxt);
+  if (! callee_fndecl)
+    return NULL;
+
+  call_details cd (call, mut_this, ctxt);
+  if (const known_function *kf = get_known_function (callee_fndecl, cd))
+    return kf->dyn_cast_builtin_kf ();
+
+  return NULL;
+}
+
 /* Update this model for the CALL stmt, using CTXT to report any
    diagnostics - the first half.
 
@@ -1496,35 +1681,6 @@ region_model::on_call_pre (const gcall *call, region_model_context *ctxt)
 
   tree callee_fndecl = get_fndecl_for_call (call, ctxt);
 
-  /* Some of the cases below update the lhs of the call based on the
-     return value, but not all.  Provide a default value, which may
-     get overwritten below.  */
-  if (tree lhs = gimple_call_lhs (call))
-    {
-      const region *lhs_region = get_lvalue (lhs, ctxt);
-      const svalue *sval = maybe_get_const_fn_result (cd);
-      if (!sval)
-	{
-	  if (callee_fndecl
-	      && lookup_attribute ("malloc", DECL_ATTRIBUTES (callee_fndecl)))
-	    {
-	      const region *new_reg
-		= get_or_create_region_for_heap_alloc (NULL, ctxt);
-	      mark_region_as_unknown (new_reg, NULL);
-	      sval = m_mgr->get_ptr_svalue (cd.get_lhs_type (), new_reg);
-	    }
-	  else
-	    /* For the common case of functions without __attribute__((const)),
-	       use a conjured value, and purge any prior state involving that
-	       value (in case this is in a loop).  */
-	    sval = m_mgr->get_or_create_conjured_svalue (TREE_TYPE (lhs), call,
-							 lhs_region,
-							 conjured_purge (this,
-									 ctxt));
-	}
-      set_value (lhs_region, sval, ctxt);
-    }
-
   if (gimple_call_internal_p (call))
     if (const known_function *kf
 	  = get_known_function (gimple_call_internal_fn (call)))
@@ -1534,13 +1690,18 @@ region_model::on_call_pre (const gcall *call, region_model_context *ctxt)
       }
 
   if (!callee_fndecl)
-    return true; /* Unknown side effects.  */
+    {
+      cd.set_any_lhs_with_defaults ();
+      return true; /* Unknown side effects.  */
+    }
 
   if (const known_function *kf = get_known_function (callee_fndecl, cd))
     {
       kf->impl_call_pre (cd);
       return false; /* No further side effects.  */
     }
+
+  cd.set_any_lhs_with_defaults ();
 
   const int callee_fndecl_flags = flags_from_decl_or_type (callee_fndecl);
   if (callee_fndecl_flags & (ECF_CONST | ECF_PURE))
@@ -1588,7 +1749,11 @@ region_model::on_call_post (const gcall *call,
     }
 
   if (unknown_side_effects)
-    handle_unrecognized_call (call, ctxt);
+    {
+      handle_unrecognized_call (call, ctxt);
+      if (ctxt)
+	ctxt->maybe_did_work ();
+    }
 }
 
 /* Purge state involving SVAL from this region_model, using CTXT
@@ -1669,26 +1834,17 @@ private:
    attribute.  */
 
 void
-region_model::
-check_external_function_for_access_attr (const gcall *call,
-					 tree callee_fndecl,
-					 region_model_context *ctxt) const
+region_model::check_function_attr_access (const gcall *call,
+					  tree callee_fndecl,
+					  region_model_context *ctxt,
+					  rdwr_map &rdwr_idx) const
 {
   gcc_assert (call);
   gcc_assert (callee_fndecl);
   gcc_assert (ctxt);
 
   tree fntype = TREE_TYPE (callee_fndecl);
-  if (!fntype)
-    return;
-
-  if (!TYPE_ATTRIBUTES (fntype))
-    return;
-
-  /* Initialize a map of attribute access specifications for arguments
-     to the function call.  */
-  rdwr_map rdwr_idx;
-  init_attr_rdwr_indices (&rdwr_idx, TYPE_ATTRIBUTES (fntype));
+  gcc_assert (fntype);
 
   unsigned argno = 0;
 
@@ -1706,23 +1862,23 @@ check_external_function_for_access_attr (const gcall *call,
       if (access->mode == access_write_only
 	  || access->mode == access_read_write)
 	{
-	  /* Subclass of decorated_region_model_context that
+	  /* Subclass of annotating_context that
 	     adds a note about the attr access to any saved diagnostics.  */
-	  class annotating_ctxt : public note_adding_context
+	  class annotating_ctxt : public annotating_context
 	  {
 	  public:
 	    annotating_ctxt (tree callee_fndecl,
 			     const attr_access &access,
 			     region_model_context *ctxt)
-	    : note_adding_context (ctxt),
+	    : annotating_context (ctxt),
 	      m_callee_fndecl (callee_fndecl),
 	      m_access (access)
 	    {
 	    }
-	    std::unique_ptr<pending_note> make_note () final override
+	    void add_annotations () final override
 	    {
-	      return make_unique<reason_attr_access>
-		(m_callee_fndecl, m_access);
+	      add_note (make_unique<reason_attr_access>
+			(m_callee_fndecl, m_access));
 	    }
 	  private:
 	    tree m_callee_fndecl;
@@ -1736,10 +1892,144 @@ check_external_function_for_access_attr (const gcall *call,
 	  tree ptr_tree = gimple_call_arg (call, access->ptrarg);
 	  const svalue *ptr_sval = get_rvalue (ptr_tree, &my_ctxt);
 	  const region *reg = deref_rvalue (ptr_sval, ptr_tree, &my_ctxt);
-	  check_region_for_write (reg, &my_ctxt);
+	  check_region_for_write (reg, nullptr, &my_ctxt);
 	  /* We don't use the size arg for now.  */
 	}
     }
+}
+
+/* Subroutine of region_model::check_function_attr_null_terminated_string_arg,
+   checking one instance of __attribute__((null_terminated_string_arg)).  */
+
+void
+region_model::
+check_one_function_attr_null_terminated_string_arg (const gcall *call,
+						    tree callee_fndecl,
+						    region_model_context *ctxt,
+						    rdwr_map &rdwr_idx,
+						    tree attr)
+{
+  gcc_assert (call);
+  gcc_assert (callee_fndecl);
+  gcc_assert (ctxt);
+  gcc_assert (attr);
+
+  tree arg = TREE_VALUE (attr);
+  if (!arg)
+    return;
+
+  /* Convert from 1-based to 0-based index.  */
+  unsigned int arg_idx = TREE_INT_CST_LOW (TREE_VALUE (arg)) - 1;
+
+  /* If there's also an "access" attribute on the ptr param
+     for reading with a size param specified, then that size
+     limits the size of the possible read from the pointer.  */
+  if (const attr_access* access = rdwr_idx.get (arg_idx))
+    if ((access->mode == access_read_only
+	 || access->mode == access_read_write)
+	&& access->sizarg != UINT_MAX)
+      {
+	call_details cd_checked (call, this, ctxt);
+	const svalue *limit_sval
+	  = cd_checked.get_arg_svalue (access->sizarg);
+	const svalue *ptr_sval
+	  = cd_checked.get_arg_svalue (arg_idx);
+	/* Try reading all of the bytes expressed by the size param,
+	   but without emitting warnings (via a null context).  */
+	const svalue *limited_sval
+	  = read_bytes (deref_rvalue (ptr_sval, NULL_TREE, nullptr),
+			NULL_TREE,
+			limit_sval,
+			nullptr);
+	if (limited_sval->get_kind () == SK_POISONED)
+	  {
+	    /* Reading up to the truncation limit caused issues.
+	       Assume that the string is meant to be terminated
+	       before then, so perform a *checked* check for the
+	       terminator.  */
+	    check_for_null_terminated_string_arg (cd_checked,
+						  arg_idx);
+	  }
+	else
+	  {
+	    /* Reading up to the truncation limit seems OK; repeat
+	       the read, but with checking enabled.  */
+	    read_bytes (deref_rvalue (ptr_sval, NULL_TREE, ctxt),
+			NULL_TREE,
+			limit_sval,
+			ctxt);
+	  }
+	return;
+      }
+
+  /* Otherwise, we don't have an access-attribute limiting the read.
+     Simulate a read up to the null terminator (if any).  */
+
+  call_details cd (call, this, ctxt);
+  check_for_null_terminated_string_arg (cd, arg_idx);
+}
+
+/* Check CALL a call to external function CALLEE_FNDECL for any uses
+   of __attribute__ ((null_terminated_string_arg)), compaining
+   to CTXT about any issues.
+
+   Use RDWR_IDX for tracking uses of __attribute__ ((access, ....).  */
+
+void
+region_model::
+check_function_attr_null_terminated_string_arg (const gcall *call,
+						tree callee_fndecl,
+						region_model_context *ctxt,
+						rdwr_map &rdwr_idx)
+{
+  gcc_assert (call);
+  gcc_assert (callee_fndecl);
+  gcc_assert (ctxt);
+
+  tree fntype = TREE_TYPE (callee_fndecl);
+  gcc_assert (fntype);
+
+  /* A function declaration can specify multiple attribute
+     null_terminated_string_arg, each with one argument.  */
+  for (tree attr = TYPE_ATTRIBUTES (fntype); attr; attr = TREE_CHAIN (attr))
+    {
+      attr = lookup_attribute ("null_terminated_string_arg", attr);
+      if (!attr)
+	return;
+
+      check_one_function_attr_null_terminated_string_arg (call, callee_fndecl,
+							  ctxt, rdwr_idx,
+							  attr);
+    }
+}
+
+/* Check CALL a call to external function CALLEE_FNDECL for any
+   function attributes, complaining to CTXT about any issues.  */
+
+void
+region_model::check_function_attrs (const gcall *call,
+				    tree callee_fndecl,
+				    region_model_context *ctxt)
+{
+  gcc_assert (call);
+  gcc_assert (callee_fndecl);
+  gcc_assert (ctxt);
+
+  tree fntype = TREE_TYPE (callee_fndecl);
+  if (!fntype)
+    return;
+
+  if (!TYPE_ATTRIBUTES (fntype))
+    return;
+
+  /* Initialize a map of attribute access specifications for arguments
+     to the function call.  */
+  rdwr_map rdwr_idx;
+  init_attr_rdwr_indices (&rdwr_idx, TYPE_ATTRIBUTES (fntype));
+
+  check_function_attr_access (call, callee_fndecl, ctxt, rdwr_idx);
+  check_function_attr_null_terminated_string_arg (call, callee_fndecl,
+						  ctxt, rdwr_idx);
 }
 
 /* Handle a call CALL to a function with unknown behavior.
@@ -1758,7 +2048,7 @@ region_model::handle_unrecognized_call (const gcall *call,
   tree fndecl = get_fndecl_for_call (call, ctxt);
 
   if (fndecl && ctxt)
-    check_external_function_for_access_attr (call, fndecl, ctxt);
+    check_function_attrs (call, fndecl, ctxt);
 
   reachable_regions reachable_regs (this);
 
@@ -1998,6 +2288,7 @@ void
 region_model::handle_phi (const gphi *phi,
 			  tree lhs, tree rhs,
 			  const region_model &old_state,
+			  hash_set<const svalue *> &svals_changing_meaning,
 			  region_model_context *ctxt)
 {
   /* For now, don't bother tracking the .MEM SSA names.  */
@@ -2008,6 +2299,10 @@ region_model::handle_phi (const gphi *phi,
 
   const svalue *src_sval = old_state.get_rvalue (rhs, ctxt);
   const region *dst_reg = old_state.get_lvalue (lhs, ctxt);
+
+  const svalue *sval = old_state.get_rvalue (lhs, nullptr);
+  if (sval->get_kind () == SK_WIDENING)
+    svals_changing_meaning.add (sval);
 
   set_value (dst_reg, src_sval, ctxt);
 
@@ -2092,7 +2387,7 @@ region_model::get_lvalue_1 (path_var pv, region_model_context *ctxt) const
       {
 	gcc_assert (TREE_CODE (expr) == SSA_NAME
 		    || TREE_CODE (expr) == PARM_DECL
-		    || TREE_CODE (expr) == VAR_DECL
+		    || VAR_P (expr)
 		    || TREE_CODE (expr) == RESULT_DECL);
 
 	int stack_index = pv.m_stack_depth;
@@ -2355,30 +2650,7 @@ region_model::get_initial_value_for_global (const region *reg) const
      the initial value of REG can be taken from the initialization value
      of the decl.  */
   if (called_from_main_p () || TREE_READONLY (decl))
-    {
-      /* Attempt to get the initializer value for base_reg.  */
-      if (const svalue *base_reg_init
-	    = base_reg->get_svalue_for_initializer (m_mgr))
-	{
-	  if (reg == base_reg)
-	    return base_reg_init;
-	  else
-	    {
-	      /* Get the value for REG within base_reg_init.  */
-	      binding_cluster c (base_reg);
-	      c.bind (m_mgr->get_store_manager (), base_reg, base_reg_init);
-	      const svalue *sval
-		= c.get_any_binding (m_mgr->get_store_manager (), reg);
-	      if (sval)
-		{
-		  if (reg->get_type ())
-		    sval = m_mgr->get_or_create_cast (reg->get_type (),
-						      sval);
-		  return sval;
-		}
-	    }
-	}
-    }
+    return reg->get_initial_value_at_main (m_mgr);
 
   /* Otherwise, return INIT_VAL(REG).  */
   return m_mgr->get_or_create_initial_value (reg);
@@ -2396,7 +2668,9 @@ region_model::get_store_value (const region *reg,
   if (reg->empty_p ())
     return m_mgr->get_or_create_unknown_svalue (reg->get_type ());
 
-  check_region_for_read (reg, ctxt);
+  bool check_poisoned = true;
+  if (check_region_for_read (reg, ctxt))
+    check_poisoned = false;
 
   /* Special-case: handle var_decls in the constant pool.  */
   if (const decl_region *decl_reg = reg->dyn_cast_decl_region ())
@@ -2449,7 +2723,7 @@ region_model::get_store_value (const region *reg,
       == RK_GLOBALS)
     return get_initial_value_for_global (reg);
 
-  return m_mgr->get_or_create_initial_value (reg);
+  return m_mgr->get_or_create_initial_value (reg, check_poisoned);
 }
 
 /* Return false if REG does not exist, true if it may do.
@@ -2481,7 +2755,8 @@ region_model::region_exists_p (const region *reg) const
 
 const region *
 region_model::deref_rvalue (const svalue *ptr_sval, tree ptr_tree,
-			    region_model_context *ctxt) const
+			    region_model_context *ctxt,
+			    bool add_nonnull_constraint) const
 {
   gcc_assert (ptr_sval);
   gcc_assert (POINTER_TYPE_P (ptr_sval->get_type ()));
@@ -2491,9 +2766,13 @@ region_model::deref_rvalue (const svalue *ptr_sval, tree ptr_tree,
      -Wanalyzer-null-dereference for the case where we later have an
      if (PTR_SVAL) that would occur if we considered the false branch
      and transitioned the malloc state machine from start->null.  */
-  tree null_ptr_cst = build_int_cst (ptr_sval->get_type (), 0);
-  const svalue *null_ptr = m_mgr->get_or_create_constant_svalue (null_ptr_cst);
-  m_constraints->add_constraint (ptr_sval, NE_EXPR, null_ptr);
+  if (add_nonnull_constraint)
+    {
+      tree null_ptr_cst = build_int_cst (ptr_sval->get_type (), 0);
+      const svalue *null_ptr
+	= m_mgr->get_or_create_constant_svalue (null_ptr_cst);
+      m_constraints->add_constraint (ptr_sval, NE_EXPR, null_ptr);
+    }
 
   switch (ptr_sval->get_kind ())
     {
@@ -2544,8 +2823,8 @@ region_model::deref_rvalue (const svalue *ptr_sval, tree ptr_tree,
 		const poisoned_svalue *poisoned_sval
 		  = as_a <const poisoned_svalue *> (ptr_sval);
 		enum poison_kind pkind = poisoned_sval->get_poison_kind ();
-		ctxt->warn (make_unique<poisoned_value_diagnostic>
-			      (ptr, pkind, NULL, NULL));
+		ctxt->warn (::make_unique<poisoned_value_diagnostic>
+			      (ptr, pkind, nullptr, nullptr));
 	      }
 	  }
       }
@@ -2598,23 +2877,20 @@ public:
     return OPT_Wanalyzer_write_to_const;
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
     auto_diagnostic_group d;
     bool warned;
     switch (m_reg->get_kind ())
       {
       default:
-	warned = warning_at (rich_loc, get_controlling_option (),
-			     "write to %<const%> object %qE", m_decl);
+	warned = ctxt.warn ("write to %<const%> object %qE", m_decl);
 	break;
       case RK_FUNCTION:
-	warned = warning_at (rich_loc, get_controlling_option (),
-			     "write to function %qE", m_decl);
+	warned = ctxt.warn ("write to function %qE", m_decl);
 	break;
       case RK_LABEL:
-	warned = warning_at (rich_loc, get_controlling_option (),
-			     "write to label %qE", m_decl);
+	warned = ctxt.warn ("write to label %qE", m_decl);
 	break;
       }
     if (warned)
@@ -2666,10 +2942,9 @@ public:
     return OPT_Wanalyzer_write_to_string_literal;
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
-    return warning_at (rich_loc, get_controlling_option (),
-		       "write to string literal");
+    return ctxt.warn ("write to string literal");
     /* Ideally we would show the location of the STRING_CST as well,
        but it is not available at this point.  */
   }
@@ -2764,6 +3039,15 @@ region_model::get_capacity (const region *reg) const
       /* Look through sized regions to get at the capacity
 	 of the underlying regions.  */
       return get_capacity (reg->get_parent_region ());
+    case RK_STRING:
+      {
+	/* "Capacity" here means "size".  */
+	const string_region *string_reg = as_a <const string_region *> (reg);
+	tree string_cst = string_reg->get_string_cst ();
+	return m_mgr->get_or_create_int_cst (size_type_node,
+					     TREE_STRING_LENGTH (string_cst));
+      }
+      break;
     }
 
   if (const svalue *recorded = get_dynamic_extents (reg))
@@ -2772,49 +3056,26 @@ region_model::get_capacity (const region *reg) const
   return m_mgr->get_or_create_unknown_svalue (sizetype);
 }
 
-/* Return the string size, including the 0-terminator, if SVAL is a
-   constant_svalue holding a string.  Otherwise, return an unknown_svalue.  */
-
-const svalue *
-region_model::get_string_size (const svalue *sval) const
-{
-  tree cst = sval->maybe_get_constant ();
-  if (!cst || TREE_CODE (cst) != STRING_CST)
-    return m_mgr->get_or_create_unknown_svalue (size_type_node);
-
-  tree out = build_int_cst (size_type_node, TREE_STRING_LENGTH (cst));
-  return m_mgr->get_or_create_constant_svalue (out);
-}
-
-/* Return the string size, including the 0-terminator, if REG is a
-   string_region.  Otherwise, return an unknown_svalue.  */
-
-const svalue *
-region_model::get_string_size (const region *reg) const
-{
-  const string_region *str_reg = dyn_cast <const string_region *> (reg);
-  if (!str_reg)
-    return m_mgr->get_or_create_unknown_svalue (size_type_node);
-
-  tree cst = str_reg->get_string_cst ();
-  tree out = build_int_cst (size_type_node, TREE_STRING_LENGTH (cst));
-  return m_mgr->get_or_create_constant_svalue (out);
-}
-
 /* If CTXT is non-NULL, use it to warn about any problems accessing REG,
-   using DIR to determine if this access is a read or write.  */
+   using DIR to determine if this access is a read or write.
+   Return TRUE if an OOB access was detected.
+   If SVAL_HINT is non-NULL, use it as a hint in diagnostics
+   about the value that would be written to REG.  */
 
-void
+bool
 region_model::check_region_access (const region *reg,
 				   enum access_direction dir,
+				   const svalue *sval_hint,
 				   region_model_context *ctxt) const
 {
   /* Fail gracefully if CTXT is NULL.  */
   if (!ctxt)
-    return;
+    return false;
 
+  bool oob_access_detected = false;
   check_region_for_taint (reg, dir, ctxt);
-  check_region_bounds (reg, dir, ctxt);
+  if (!check_region_bounds (reg, dir, sval_hint, ctxt))
+    oob_access_detected = true;
 
   switch (dir)
     {
@@ -2827,24 +3088,27 @@ region_model::check_region_access (const region *reg,
       check_for_writable_region (reg, ctxt);
       break;
     }
+  return oob_access_detected;
 }
 
 /* If CTXT is non-NULL, use it to warn about any problems writing to REG.  */
 
 void
 region_model::check_region_for_write (const region *dest_reg,
+				      const svalue *sval_hint,
 				      region_model_context *ctxt) const
 {
-  check_region_access (dest_reg, DIR_WRITE, ctxt);
+  check_region_access (dest_reg, DIR_WRITE, sval_hint, ctxt);
 }
 
-/* If CTXT is non-NULL, use it to warn about any problems reading from REG.  */
+/* If CTXT is non-NULL, use it to warn about any problems reading from REG.
+  Returns TRUE if an OOB read was detected.  */
 
-void
+bool
 region_model::check_region_for_read (const region *src_reg,
 				     region_model_context *ctxt) const
 {
-  check_region_access (src_reg, DIR_READ, ctxt);
+  return check_region_access (src_reg, DIR_READ, NULL, ctxt);
 }
 
 /* Concrete subclass for casts of pointers that lead to trailing bytes.  */
@@ -2853,16 +3117,16 @@ class dubious_allocation_size
 : public pending_diagnostic_subclass<dubious_allocation_size>
 {
 public:
-  dubious_allocation_size (const region *lhs, const region *rhs)
-  : m_lhs (lhs), m_rhs (rhs), m_expr (NULL_TREE),
-    m_has_allocation_event (false)
-  {}
-
   dubious_allocation_size (const region *lhs, const region *rhs,
-			   tree expr)
-  : m_lhs (lhs), m_rhs (rhs), m_expr (expr),
+			   const svalue *capacity_sval, tree expr,
+			   const gimple *stmt)
+  : m_lhs (lhs), m_rhs (rhs),
+    m_capacity_sval (capacity_sval), m_expr (expr),
+    m_stmt (stmt),
     m_has_allocation_event (false)
-  {}
+  {
+    gcc_assert (m_capacity_sval);
+  }
 
   const char *get_kind () const final override
   {
@@ -2871,8 +3135,8 @@ public:
 
   bool operator== (const dubious_allocation_size &other) const
   {
-    return m_lhs == other.m_lhs && m_rhs == other.m_rhs
-	   && pending_diagnostic::same_tree_p (m_expr, other.m_expr);
+    return (m_stmt == other.m_stmt
+	    && pending_diagnostic::same_tree_p (m_expr, other.m_expr));
   }
 
   int get_controlling_option () const final override
@@ -2880,14 +3144,12 @@ public:
     return OPT_Wanalyzer_allocation_size;
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
-    diagnostic_metadata m;
-    m.add_cwe (131);
+    ctxt.add_cwe (131);
 
-    return warning_meta (rich_loc, m, get_controlling_option (),
-			 "allocated buffer size is not a multiple"
-			 " of the pointee's size");
+    return ctxt.warn ("allocated buffer size is not a multiple"
+		      " of the pointee's size");
   }
 
   label_text describe_final_event (const evdesc::final_event &ev) final
@@ -2938,10 +3200,23 @@ public:
     interest->add_region_creation (m_rhs);
   }
 
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/dubious_allocation_size/"
+    props.set (PROPERTY_PREFIX "lhs", m_lhs->to_json ());
+    props.set (PROPERTY_PREFIX "rhs", m_rhs->to_json ());
+    props.set (PROPERTY_PREFIX "capacity_sval", m_capacity_sval->to_json ());
+#undef PROPERTY_PREFIX
+  }
+
 private:
   const region *m_lhs;
   const region *m_rhs;
+  const svalue *m_capacity_sval;
   const tree m_expr;
+  const gimple *m_stmt;
   bool m_has_allocation_event;
 };
 
@@ -2972,7 +3247,7 @@ capacity_compatible_with_type (tree cst, tree pointee_size_tree)
 
    It works by visiting all svalues inside SVAL until it reaches
    atomic nodes.  From those, it goes back up again and adds each
-   node that might be a multiple of SIZE_CST to the RESULT_SET.  */
+   node that is not a multiple of SIZE_CST to the RESULT_SET.  */
 
 class size_visitor : public visitor
 {
@@ -2983,7 +3258,7 @@ public:
     m_root_sval->accept (this);
   }
 
-  bool get_result ()
+  bool is_dubious_capacity ()
   {
     return result_set.contains (m_root_sval);
   }
@@ -2993,22 +3268,10 @@ public:
     check_constant (sval->get_constant (), sval);
   }
 
-  void visit_unknown_svalue (const unknown_svalue *sval ATTRIBUTE_UNUSED)
-    final override
-  {
-    result_set.add (sval);
-  }
-
-  void visit_poisoned_svalue (const poisoned_svalue *sval ATTRIBUTE_UNUSED)
-    final override
-  {
-    result_set.add (sval);
-  }
-
   void visit_unaryop_svalue (const unaryop_svalue *sval) final override
   {
-    const svalue *arg = sval->get_arg ();
-    if (result_set.contains (arg))
+    if (CONVERT_EXPR_CODE_P (sval->get_op ())
+	  && result_set.contains (sval->get_arg ()))
       result_set.add (sval);
   }
 
@@ -3017,28 +3280,24 @@ public:
     const svalue *arg0 = sval->get_arg0 ();
     const svalue *arg1 = sval->get_arg1 ();
 
-    if (sval->get_op () == MULT_EXPR)
+    switch (sval->get_op ())
       {
-	if (result_set.contains (arg0) || result_set.contains (arg1))
-	  result_set.add (sval);
+	case MULT_EXPR:
+	  if (result_set.contains (arg0) && result_set.contains (arg1))
+	    result_set.add (sval);
+	  break;
+	case PLUS_EXPR:
+	case MINUS_EXPR:
+	  if (result_set.contains (arg0) || result_set.contains (arg1))
+	    result_set.add (sval);
+	  break;
+	default:
+	  break;
       }
-    else
-      {
-	if (result_set.contains (arg0) && result_set.contains (arg1))
-	  result_set.add (sval);
-      }
-  }
-
-  void visit_repeated_svalue (const repeated_svalue *sval) final override
-  {
-    sval->get_inner_svalue ()->accept (this);
-    if (result_set.contains (sval->get_inner_svalue ()))
-      result_set.add (sval);
   }
 
   void visit_unmergeable_svalue (const unmergeable_svalue *sval) final override
   {
-    sval->get_arg ()->accept (this);
     if (result_set.contains (sval->get_arg ()))
       result_set.add (sval);
   }
@@ -3048,33 +3307,30 @@ public:
     const svalue *base = sval->get_base_svalue ();
     const svalue *iter = sval->get_iter_svalue ();
 
-    if (result_set.contains (base) && result_set.contains (iter))
+    if (result_set.contains (base) || result_set.contains (iter))
       result_set.add (sval);
   }
 
-  void visit_conjured_svalue (const conjured_svalue *sval ATTRIBUTE_UNUSED)
-    final override
+  void visit_initial_svalue (const initial_svalue *sval) final override
   {
-    equiv_class_id id (-1);
+    equiv_class_id id = equiv_class_id::null ();
     if (m_cm->get_equiv_class_by_svalue (sval, &id))
       {
 	if (tree cst = id.get_obj (*m_cm).get_any_constant ())
 	  check_constant (cst, sval);
-	else
-	  result_set.add (sval);
+      }
+    else if (!m_cm->sval_constrained_p (sval))
+      {
+	result_set.add (sval);
       }
   }
 
-  void visit_asm_output_svalue (const asm_output_svalue *sval ATTRIBUTE_UNUSED)
-    final override
+  void visit_conjured_svalue (const conjured_svalue *sval) final override
   {
-    result_set.add (sval);
-  }
-
-  void visit_const_fn_result_svalue (const const_fn_result_svalue
-				      *sval ATTRIBUTE_UNUSED) final override
-  {
-    result_set.add (sval);
+    equiv_class_id id = equiv_class_id::null ();
+    if (m_cm->get_equiv_class_by_svalue (sval, &id))
+      if (tree cst = id.get_obj (*m_cm).get_any_constant ())
+	check_constant (cst, sval);
   }
 
 private:
@@ -3084,10 +3340,9 @@ private:
       {
       default:
 	/* Assume all unhandled operands are compatible.  */
-	result_set.add (sval);
 	break;
       case INTEGER_CST:
-	if (capacity_compatible_with_type (cst, m_size_cst))
+	if (!capacity_compatible_with_type (cst, m_size_cst))
 	  result_set.add (sval);
 	break;
       }
@@ -3098,6 +3353,76 @@ private:
   constraint_manager *m_cm;
   svalue_set result_set; /* Used as a mapping of svalue*->bool.  */
 };
+
+/* Return true if SIZE_CST is a power of 2, and we have
+   CAPACITY_SVAL == ((X | (Y - 1) ) + 1), since it is then a multiple
+   of SIZE_CST, as used by Linux kernel's round_up macro.  */
+
+static bool
+is_round_up (tree size_cst,
+	     const svalue *capacity_sval)
+{
+  if (!integer_pow2p (size_cst))
+    return false;
+  const binop_svalue *binop_sval = capacity_sval->dyn_cast_binop_svalue ();
+  if (!binop_sval)
+    return false;
+  if (binop_sval->get_op () != PLUS_EXPR)
+    return false;
+  tree rhs_cst = binop_sval->get_arg1 ()->maybe_get_constant ();
+  if (!rhs_cst)
+    return false;
+  if (!integer_onep (rhs_cst))
+    return false;
+
+  /* We have CAPACITY_SVAL == (LHS + 1) for some LHS expression.  */
+
+  const binop_svalue *lhs_binop_sval
+    = binop_sval->get_arg0 ()->dyn_cast_binop_svalue ();
+  if (!lhs_binop_sval)
+    return false;
+  if (lhs_binop_sval->get_op () != BIT_IOR_EXPR)
+    return false;
+
+  tree inner_rhs_cst = lhs_binop_sval->get_arg1 ()->maybe_get_constant ();
+  if (!inner_rhs_cst)
+    return false;
+
+  if (wi::to_widest (inner_rhs_cst) + 1 != wi::to_widest (size_cst))
+    return false;
+  return true;
+}
+
+/* Return true if CAPACITY_SVAL is known to be a multiple of SIZE_CST.  */
+
+static bool
+is_multiple_p (tree size_cst,
+	       const svalue *capacity_sval)
+{
+  if (const svalue *sval = capacity_sval->maybe_undo_cast ())
+    return is_multiple_p (size_cst, sval);
+
+  if (is_round_up (size_cst, capacity_sval))
+    return true;
+
+  return false;
+}
+
+/* Return true if we should emit a dubious_allocation_size warning
+   on assigning a region of capacity CAPACITY_SVAL bytes to a pointer
+   of type with size SIZE_CST, where CM expresses known constraints.  */
+
+static bool
+is_dubious_capacity (tree size_cst,
+		     const svalue *capacity_sval,
+		     constraint_manager *cm)
+{
+  if (is_multiple_p (size_cst, capacity_sval))
+    return false;
+  size_visitor v (size_cst, capacity_sval, cm);
+  return v.is_dubious_capacity ();
+}
+
 
 /* Return true if a struct or union either uses the inheritance pattern,
    where the first field is a base struct, or the flexible array member
@@ -3161,10 +3486,6 @@ region_model::check_region_size (const region *lhs_reg, const svalue *rhs_sval,
   if (!is_any_cast_p (ctxt->get_stmt ()))
     return;
 
-  const region_svalue *reg_sval = dyn_cast <const region_svalue *> (rhs_sval);
-  if (!reg_sval)
-    return;
-
   tree pointer_type = lhs_reg->get_type ();
   if (pointer_type == NULL_TREE || !POINTER_TYPE_P (pointer_type))
     return;
@@ -3189,7 +3510,7 @@ region_model::check_region_size (const region *lhs_reg, const svalue *rhs_sval,
       || integer_onep (pointee_size_tree))
     return;
 
-  const region *rhs_reg = reg_sval->get_pointee ();
+  const region *rhs_reg = deref_rvalue (rhs_sval, NULL_TREE, ctxt, false);
   const svalue *capacity = get_capacity (rhs_reg);
   switch (capacity->get_kind ())
     {
@@ -3202,20 +3523,23 @@ region_model::check_region_size (const region *lhs_reg, const svalue *rhs_sval,
 	    && !capacity_compatible_with_type (cst_cap, pointee_size_tree,
 					       is_struct))
 	  ctxt->warn (make_unique <dubious_allocation_size> (lhs_reg, rhs_reg,
-							     cst_cap));
+							     capacity, cst_cap,
+							     ctxt->get_stmt ()));
       }
       break;
     default:
       {
 	if (!is_struct)
 	  {
-	    size_visitor v (pointee_size_tree, capacity, m_constraints);
-	    if (!v.get_result ())
+	    if (is_dubious_capacity (pointee_size_tree,
+				     capacity,
+				     m_constraints))
 	      {
 		tree expr = get_representative_tree (capacity);
 		ctxt->warn (make_unique <dubious_allocation_size> (lhs_reg,
 								   rhs_reg,
-								   expr));
+								   capacity, expr,
+								   ctxt->get_stmt ()));
 	      }
 	  }
       break;
@@ -3240,7 +3564,7 @@ region_model::set_value (const region *lhs_reg, const svalue *rhs_sval,
 
   check_region_size (lhs_reg, rhs_sval, ctxt);
 
-  check_region_for_write (lhs_reg, ctxt);
+  check_region_for_write (lhs_reg, rhs_sval, ctxt);
 
   m_store.set_value (m_mgr->get_store_manager(), lhs_reg, rhs_sval,
 		     ctxt ? ctxt->get_uncertainty () : NULL);
@@ -3256,6 +3580,779 @@ region_model::set_value (tree lhs, tree rhs, region_model_context *ctxt)
   gcc_assert (lhs_reg);
   gcc_assert (rhs_sval);
   set_value (lhs_reg, rhs_sval, ctxt);
+}
+
+/* Issue a note specifying that a particular function parameter is expected
+   to be a valid null-terminated string.  */
+
+static void
+inform_about_expected_null_terminated_string_arg (const call_arg_details &ad)
+{
+  // TODO: ideally we'd underline the param here
+  inform (DECL_SOURCE_LOCATION (ad.m_called_fndecl),
+	  "argument %d of %qD must be a pointer to a null-terminated string",
+	  ad.m_arg_idx + 1, ad.m_called_fndecl);
+}
+
+/* A binding of a specific svalue at a concrete byte range.  */
+
+struct fragment
+{
+  fragment ()
+  : m_byte_range (0, 0), m_sval (nullptr)
+  {
+  }
+
+  fragment (const byte_range &bytes, const svalue *sval)
+    : m_byte_range (bytes), m_sval (sval)
+  {
+  }
+
+  static int cmp_ptrs (const void *p1, const void *p2)
+  {
+    const fragment *f1 = (const fragment *)p1;
+    const fragment *f2 = (const fragment *)p2;
+    return byte_range::cmp (f1->m_byte_range, f2->m_byte_range);
+  }
+
+  void
+  dump_to_pp (pretty_printer *pp) const
+  {
+    pp_string (pp, "fragment(");
+    m_byte_range.dump_to_pp (pp);
+    pp_string (pp, ", sval: ");
+    if (m_sval)
+      m_sval->dump_to_pp (pp, true);
+    else
+      pp_string (pp, "nullptr");
+    pp_string (pp, ")");
+  }
+
+  byte_range m_byte_range;
+  const svalue *m_sval;
+};
+
+/* Determine if there is a zero terminator somewhere in the
+   part of STRING_CST covered by BYTES (where BYTES is relative to the
+   start of the constant).
+
+   Return a tristate:
+   - true if there definitely is a zero byte, writing to *OUT_BYTES_READ
+   the number of bytes from that would be read, including the zero byte.
+   - false if there definitely isn't a zero byte
+   - unknown if we don't know.  */
+
+static tristate
+string_cst_has_null_terminator (tree string_cst,
+				const byte_range &bytes,
+				byte_offset_t *out_bytes_read)
+{
+  gcc_assert (bytes.m_start_byte_offset >= 0);
+  gcc_assert (bytes.m_start_byte_offset < TREE_STRING_LENGTH (string_cst));
+
+  /* Look for the first 0 byte within STRING_CST
+     from START_READ_OFFSET onwards.  */
+  const byte_offset_t num_bytes_to_search
+    = std::min<byte_offset_t> ((TREE_STRING_LENGTH (string_cst)
+				- bytes.m_start_byte_offset),
+			       bytes.m_size_in_bytes);
+  const char *start = (TREE_STRING_POINTER (string_cst)
+		       + bytes.m_start_byte_offset.slow ());
+  if (num_bytes_to_search >= 0)
+    if (const void *p = memchr (start, 0, bytes.m_size_in_bytes.slow ()))
+      {
+	*out_bytes_read = (const char *)p - start + 1;
+	return tristate (true);
+      }
+
+  *out_bytes_read = bytes.m_size_in_bytes;
+  return tristate (false);
+}
+
+static tristate
+svalue_byte_range_has_null_terminator (const svalue *sval,
+				       const byte_range &bytes,
+				       byte_offset_t *out_bytes_read,
+				       logger *logger);
+
+/* Determine if there is a zero terminator somewhere in the
+   part of SVAL covered by BYTES (where BYTES is relative to the svalue).
+
+   Return a tristate:
+   - true if there definitely is a zero byte, writing to *OUT_BYTES_READ
+   the number of bytes from that would be read, including the zero byte.
+   - false if there definitely isn't a zero byte
+   - unknown if we don't know.
+
+   Use LOGGER (if non-null) for any logging.  */
+
+static tristate
+svalue_byte_range_has_null_terminator_1 (const svalue *sval,
+					 const byte_range &bytes,
+					 byte_offset_t *out_bytes_read,
+					 logger *logger)
+{
+  if (bytes.m_start_byte_offset == 0
+      && sval->all_zeroes_p ())
+    {
+      /* The initial byte of an all-zeroes SVAL is a zero byte.  */
+      *out_bytes_read = 1;
+      return tristate (true);
+    }
+
+  switch (sval->get_kind ())
+    {
+    case SK_CONSTANT:
+      {
+	tree cst
+	  = as_a <const constant_svalue *> (sval)->get_constant ();
+	switch (TREE_CODE (cst))
+	  {
+	  case STRING_CST:
+	    return string_cst_has_null_terminator (cst, bytes, out_bytes_read);
+	  case INTEGER_CST:
+	    if (bytes.m_start_byte_offset == 0
+		&& integer_onep (TYPE_SIZE_UNIT (TREE_TYPE (cst))))
+	      {
+		/* Model accesses to the initial byte of a 1-byte
+		   INTEGER_CST.  */
+		*out_bytes_read = 1;
+		if (zerop (cst))
+		  return tristate (true);
+		else
+		  return tristate (false);
+	      }
+	    /* Treat any other access to an INTEGER_CST as unknown.  */
+	    return tristate::TS_UNKNOWN;
+
+	  default:
+	    break;
+	  }
+      }
+      break;
+
+    case SK_INITIAL:
+      {
+	const initial_svalue *initial_sval = (const initial_svalue *)sval;
+	const region *reg = initial_sval->get_region ();
+	if (const string_region *string_reg = reg->dyn_cast_string_region ())
+	  {
+	    tree string_cst = string_reg->get_string_cst ();
+	    return string_cst_has_null_terminator (string_cst,
+						   bytes,
+						   out_bytes_read);
+	  }
+	return tristate::TS_UNKNOWN;
+      }
+      break;
+
+    case SK_BITS_WITHIN:
+      {
+	const bits_within_svalue *bits_within_sval
+	  = (const bits_within_svalue *)sval;
+	byte_range bytes_within_inner (0, 0);
+	if (bits_within_sval->get_bits ().as_byte_range (&bytes_within_inner))
+	  {
+	    /* Consider e.g. looking for null terminator of
+	       bytes 2-4 of BITS_WITHIN(bytes 10-15 of inner_sval)
+
+	       This is equivalent to looking within bytes 12-14 of
+	       inner_sval. */
+	    const byte_offset_t start_byte_relative_to_inner
+	      = (bytes.m_start_byte_offset
+		 + bytes_within_inner.m_start_byte_offset);
+	    const byte_offset_t next_byte_relative_to_inner
+	      = (bytes.get_next_byte_offset ()
+		 + bytes_within_inner.m_start_byte_offset);
+	    if (next_byte_relative_to_inner > start_byte_relative_to_inner)
+	      {
+		const byte_range relative_to_inner
+		  (start_byte_relative_to_inner,
+		   next_byte_relative_to_inner - start_byte_relative_to_inner);
+		const svalue *inner_sval
+		  = bits_within_sval->get_inner_svalue ();
+		return svalue_byte_range_has_null_terminator (inner_sval,
+							      relative_to_inner,
+							      out_bytes_read,
+							      logger);
+	      }
+	  }
+      }
+      break;
+
+    default:
+      // TODO: it may be possible to handle other cases here.
+      break;
+    }
+  return tristate::TS_UNKNOWN;
+}
+
+/* Like svalue_byte_range_has_null_terminator_1, but add logging.  */
+
+static tristate
+svalue_byte_range_has_null_terminator (const svalue *sval,
+				       const byte_range &bytes,
+				       byte_offset_t *out_bytes_read,
+				       logger *logger)
+{
+  LOG_SCOPE (logger);
+  if (logger)
+    {
+      pretty_printer *pp = logger->get_printer ();
+      logger->start_log_line ();
+      bytes.dump_to_pp (pp);
+      logger->log_partial (" of sval: ");
+      sval->dump_to_pp (pp, true);
+      logger->end_log_line ();
+    }
+  tristate ts
+    = svalue_byte_range_has_null_terminator_1 (sval, bytes,
+					       out_bytes_read, logger);
+  if (logger)
+    {
+      pretty_printer *pp = logger->get_printer ();
+      logger->start_log_line ();
+      pp_printf (pp, "has null terminator: %s", ts.as_string ());
+      if (ts.is_true ())
+	{
+	  pp_string (pp, "; bytes read: ");
+	  pp_wide_int (pp, *out_bytes_read, SIGNED);
+	}
+      logger->end_log_line ();
+    }
+  return ts;
+}
+
+/* A frozen copy of a single base region's binding_cluster within a store,
+   optimized for traversal of the concrete parts in byte order.
+   This only captures concrete bindings, and is an implementation detail
+   of region_model::scan_for_null_terminator.  */
+
+class iterable_cluster
+{
+public:
+  iterable_cluster (const binding_cluster *cluster)
+  {
+    if (!cluster)
+      return;
+    for (auto iter : *cluster)
+      {
+	const binding_key *key = iter.first;
+	const svalue *sval = iter.second;
+
+	if (const concrete_binding *concrete_key
+	    = key->dyn_cast_concrete_binding ())
+	  {
+	    byte_range fragment_bytes (0, 0);
+	    if (concrete_key->get_byte_range (&fragment_bytes))
+	      m_fragments.safe_push (fragment (fragment_bytes, sval));
+	  }
+	else
+	  m_symbolic_bindings.safe_push (key);
+      }
+    m_fragments.qsort (fragment::cmp_ptrs);
+  }
+
+  bool
+  get_fragment_for_byte (byte_offset_t byte, fragment *out_frag) const
+  {
+    /* TODO: binary search rather than linear.  */
+    unsigned iter_idx;
+    for (iter_idx = 0; iter_idx < m_fragments.length (); iter_idx++)
+      {
+	if (m_fragments[iter_idx].m_byte_range.contains_p (byte))
+	{
+	  *out_frag = m_fragments[iter_idx];
+	  return true;
+	}
+      }
+    return false;
+  }
+
+  bool has_symbolic_bindings_p () const
+  {
+    return !m_symbolic_bindings.is_empty ();
+  }
+
+  void dump_to_pp (pretty_printer *pp) const
+  {
+    pp_string (pp, "iterable_cluster (fragments: [");
+    for (auto const &iter : &m_fragments)
+      {
+	if (&iter != m_fragments.begin ())
+	  pp_string (pp, ", ");
+	iter.dump_to_pp (pp);
+      }
+    pp_printf (pp, "], symbolic bindings: [");
+    for (auto const &iter : m_symbolic_bindings)
+      {
+	if (&iter != m_symbolic_bindings.begin ())
+	  pp_string (pp, ", ");
+	(*iter).dump_to_pp (pp, true);
+      }
+    pp_string (pp, "])");
+  }
+
+private:
+  auto_vec<fragment> m_fragments;
+  auto_vec<const binding_key *> m_symbolic_bindings;
+};
+
+/* Simulate reading the bytes at BYTES from BASE_REG.
+   Complain to CTXT about any issues with the read e.g. out-of-bounds.  */
+
+const svalue *
+region_model::get_store_bytes (const region *base_reg,
+			       const byte_range &bytes,
+			       region_model_context *ctxt) const
+{
+  /* Shortcut reading all of a string_region.  */
+  if (bytes.get_start_byte_offset () == 0)
+    if (const string_region *string_reg = base_reg->dyn_cast_string_region ())
+      if (bytes.m_size_in_bytes
+	  == TREE_STRING_LENGTH (string_reg->get_string_cst ()))
+	return m_mgr->get_or_create_initial_value (base_reg);
+
+  const svalue *index_sval
+    = m_mgr->get_or_create_int_cst (size_type_node,
+				    bytes.get_start_byte_offset ());
+  const region *offset_reg = m_mgr->get_offset_region (base_reg,
+						       NULL_TREE,
+						       index_sval);
+  const svalue *byte_size_sval
+    = m_mgr->get_or_create_int_cst (size_type_node, bytes.m_size_in_bytes);
+  const region *read_reg = m_mgr->get_sized_region (offset_reg,
+						    NULL_TREE,
+						    byte_size_sval);
+
+  /* Simulate reading those bytes from the store.  */
+  const svalue *sval = get_store_value (read_reg, ctxt);
+  return sval;
+}
+
+static tree
+get_tree_for_byte_offset (tree ptr_expr, byte_offset_t byte_offset)
+{
+  gcc_assert (ptr_expr);
+  return fold_build2 (MEM_REF,
+		      char_type_node,
+		      ptr_expr, wide_int_to_tree (size_type_node, byte_offset));
+}
+
+/* Simulate a series of reads of REG until we find a 0 byte
+   (equivalent to calling strlen).
+
+   Complain to CTXT and return NULL if:
+   - the buffer pointed to isn't null-terminated
+   - the buffer pointed to has any uninitialized bytes before any 0-terminator
+   - any of the reads aren't within the bounds of the underlying base region
+
+   Otherwise, return a svalue for the number of bytes read (strlen + 1),
+   and, if OUT_SVAL is non-NULL, write to *OUT_SVAL with an svalue
+   representing the content of REG up to and including the terminator.
+
+   Algorithm
+   =========
+
+   Get offset for first byte to read.
+   Find the binding (if any) that contains it.
+   Find the size in bits of that binding.
+   Round to the nearest byte (which way???)
+     Or maybe give up if we have a partial binding there.
+   Get the svalue from the binding.
+   Determine the strlen (if any) of that svalue.
+     Does it have a 0-terminator within it?
+      If so, we have a partial read up to and including that terminator
+       Read those bytes from the store; add to the result in the correct place.
+       Finish
+      If not, we have a full read of that svalue
+       Read those bytes from the store; add to the result in the correct place.
+       Update read/write offsets
+       Continue
+      If unknown:
+       Result is unknown
+       Finish
+*/
+
+const svalue *
+region_model::scan_for_null_terminator_1 (const region *reg,
+					  tree expr,
+					  const svalue **out_sval,
+					  region_model_context *ctxt) const
+{
+  logger *logger = ctxt ? ctxt->get_logger () : nullptr;
+  store_manager *store_mgr = m_mgr->get_store_manager ();
+
+  region_offset offset = reg->get_offset (m_mgr);
+  if (offset.symbolic_p ())
+    {
+      if (out_sval)
+	*out_sval = get_store_value (reg, nullptr);
+      if (logger)
+	logger->log ("offset is symbolic");
+      return m_mgr->get_or_create_unknown_svalue (size_type_node);
+    }
+  byte_offset_t src_byte_offset;
+  if (!offset.get_concrete_byte_offset (&src_byte_offset))
+    {
+      if (out_sval)
+	*out_sval = get_store_value (reg, nullptr);
+      if (logger)
+	logger->log ("can't get concrete byte offset");
+      return m_mgr->get_or_create_unknown_svalue (size_type_node);
+    }
+  const byte_offset_t initial_src_byte_offset = src_byte_offset;
+  byte_offset_t dst_byte_offset = 0;
+
+  const region *base_reg = reg->get_base_region ();
+
+  if (const string_region *str_reg = base_reg->dyn_cast_string_region ())
+    {
+      tree string_cst = str_reg->get_string_cst ();
+      if (const void *p = memchr (TREE_STRING_POINTER (string_cst),
+				  0,
+				  TREE_STRING_LENGTH (string_cst)))
+	{
+	  size_t num_bytes_read
+	    = (const char *)p - TREE_STRING_POINTER (string_cst) + 1;
+	  /* Simulate the read.  */
+	  byte_range bytes_to_read (0, num_bytes_read);
+	  const svalue *sval = get_store_bytes (reg, bytes_to_read, ctxt);
+	  if (out_sval)
+	    *out_sval = sval;
+	  if (logger)
+	    logger->log ("using string_cst");
+	  return m_mgr->get_or_create_int_cst (size_type_node,
+					       num_bytes_read);
+	}
+    }
+
+  const binding_cluster *cluster = m_store.get_cluster (base_reg);
+  iterable_cluster c (cluster);
+  if (logger)
+    {
+      pretty_printer *pp = logger->get_printer ();
+      logger->start_log_line ();
+      c.dump_to_pp (pp);
+      logger->end_log_line ();
+    }
+
+  binding_map result;
+
+  while (1)
+    {
+      fragment f;
+      if (c.get_fragment_for_byte (src_byte_offset, &f))
+	{
+	  if (logger)
+	    {
+	      logger->start_log_line ();
+	      pretty_printer *pp = logger->get_printer ();
+	      pp_printf (pp, "src_byte_offset: ");
+	      pp_wide_int (pp, src_byte_offset, SIGNED);
+	      pp_string (pp, ": ");
+	      f.dump_to_pp (pp);
+	      logger->end_log_line ();
+	    }
+	  gcc_assert (f.m_byte_range.contains_p (src_byte_offset));
+	  /* src_byte_offset and f.m_byte_range are both expressed relative to
+	     the base region.
+	     Convert to a byte_range relative to the svalue.  */
+	  const byte_range bytes_relative_to_svalue
+	    (src_byte_offset - f.m_byte_range.get_start_byte_offset (),
+	     f.m_byte_range.get_next_byte_offset () - src_byte_offset);
+	  byte_offset_t fragment_bytes_read;
+	  tristate is_terminated
+	    = svalue_byte_range_has_null_terminator (f.m_sval,
+						     bytes_relative_to_svalue,
+						     &fragment_bytes_read,
+						     logger);
+	  if (is_terminated.is_unknown ())
+	    {
+	      if (out_sval)
+		*out_sval = get_store_value (reg, nullptr);
+	      return m_mgr->get_or_create_unknown_svalue (size_type_node);
+	    }
+
+	  /* Simulate reading those bytes from the store.  */
+	  byte_range bytes_to_read (src_byte_offset, fragment_bytes_read);
+	  const svalue *sval = get_store_bytes (base_reg, bytes_to_read, ctxt);
+	  check_for_poison (sval, expr, nullptr, ctxt);
+
+	  if (out_sval)
+	    {
+	      byte_range bytes_to_write (dst_byte_offset, fragment_bytes_read);
+	      const binding_key *key
+		= store_mgr->get_concrete_binding (bytes_to_write);
+	      result.put (key, sval);
+	    }
+
+	  src_byte_offset += fragment_bytes_read;
+	  dst_byte_offset += fragment_bytes_read;
+
+	  if (is_terminated.is_true ())
+	    {
+	      if (out_sval)
+		*out_sval = m_mgr->get_or_create_compound_svalue (NULL_TREE,
+								  result);
+	      if (logger)
+		logger->log ("got terminator");
+	      return m_mgr->get_or_create_int_cst (size_type_node,
+						   dst_byte_offset);
+	    }
+	}
+      else
+	break;
+    }
+
+  /* No binding for this base_region, or no binding at src_byte_offset
+     (or a symbolic binding).  */
+
+  if (c.has_symbolic_bindings_p ())
+    {
+      if (out_sval)
+	*out_sval = get_store_value (reg, nullptr);
+      if (logger)
+	logger->log ("got symbolic binding");
+      return m_mgr->get_or_create_unknown_svalue (size_type_node);
+    }
+
+  /* TODO: the various special-cases seen in
+     region_model::get_store_value.  */
+
+  /* Simulate reading from this byte, then give up.  */
+  byte_range bytes_to_read (src_byte_offset, 1);
+  const svalue *sval = get_store_bytes (base_reg, bytes_to_read, ctxt);
+  tree byte_expr
+    = (expr
+       ? get_tree_for_byte_offset (expr,
+				   src_byte_offset - initial_src_byte_offset)
+       : NULL_TREE);
+  check_for_poison (sval, byte_expr, nullptr, ctxt);
+  if (base_reg->can_have_initial_svalue_p ())
+    {
+      if (out_sval)
+	*out_sval = get_store_value (reg, nullptr);
+      return m_mgr->get_or_create_unknown_svalue (size_type_node);
+    }
+  else
+    return nullptr;
+}
+
+/* Like region_model::scan_for_null_terminator_1, but add logging.  */
+
+const svalue *
+region_model::scan_for_null_terminator (const region *reg,
+					tree expr,
+					const svalue **out_sval,
+					region_model_context *ctxt) const
+{
+  logger *logger = ctxt ? ctxt->get_logger () : nullptr;
+  LOG_SCOPE (logger);
+  if (logger)
+    {
+      pretty_printer *pp = logger->get_printer ();
+      logger->start_log_line ();
+      logger->log_partial ("region: ");
+      reg->dump_to_pp (pp, true);
+      logger->end_log_line ();
+    }
+  const svalue *sval = scan_for_null_terminator_1 (reg, expr, out_sval, ctxt);
+  if (logger)
+    {
+      pretty_printer *pp = logger->get_printer ();
+      logger->start_log_line ();
+      logger->log_partial ("length result: ");
+      if (sval)
+	sval->dump_to_pp (pp, true);
+      else
+	pp_printf (pp, "NULL");
+      logger->end_log_line ();
+      if (out_sval)
+	{
+	  logger->start_log_line ();
+	  logger->log_partial ("content result: ");
+	  if (*out_sval)
+	    (*out_sval)->dump_to_pp (pp, true);
+	  else
+	    pp_printf (pp, "NULL");
+	  logger->end_log_line ();
+	}
+    }
+  return sval;
+}
+
+/* Check that argument ARG_IDX (0-based) to the call described by CD
+   is a pointer to a valid null-terminated string.
+
+   Simulate scanning through the buffer, reading until we find a 0 byte
+   (equivalent to calling strlen).
+
+   Complain and return NULL if:
+   - the buffer pointed to isn't null-terminated
+   - the buffer pointed to has any uninitalized bytes before any 0-terminator
+   - any of the reads aren't within the bounds of the underlying base region
+
+   Otherwise, return a svalue for strlen of the buffer (*not* including
+   the null terminator).
+
+   TODO: we should also complain if:
+   - the pointer is NULL (or could be).  */
+
+const svalue *
+region_model::check_for_null_terminated_string_arg (const call_details &cd,
+						    unsigned arg_idx) const
+{
+  return check_for_null_terminated_string_arg (cd,
+					       arg_idx,
+					       false, /* include_terminator */
+					       nullptr); // out_sval
+}
+
+
+/* Check that argument ARG_IDX (0-based) to the call described by CD
+   is a pointer to a valid null-terminated string.
+
+   Simulate scanning through the buffer, reading until we find a 0 byte
+   (equivalent to calling strlen).
+
+   Complain and return NULL if:
+   - the buffer pointed to isn't null-terminated
+   - the buffer pointed to has any uninitalized bytes before any 0-terminator
+   - any of the reads aren't within the bounds of the underlying base region
+
+   Otherwise, return a svalue.  This will be the number of bytes read
+   (including the null terminator) if INCLUDE_TERMINATOR is true, or strlen
+   of the buffer (not including the null terminator) if it is false.
+
+   Also, when returning an svalue, if OUT_SVAL is non-NULL, write to
+   *OUT_SVAL with an svalue representing the content of the buffer up to
+   and including the terminator.
+
+   TODO: we should also complain if:
+   - the pointer is NULL (or could be).  */
+
+const svalue *
+region_model::check_for_null_terminated_string_arg (const call_details &cd,
+						    unsigned arg_idx,
+						    bool include_terminator,
+						    const svalue **out_sval) const
+{
+  class null_terminator_check_event : public custom_event
+  {
+  public:
+    null_terminator_check_event (const event_loc_info &loc_info,
+				 const call_arg_details &arg_details)
+    : custom_event (loc_info),
+      m_arg_details (arg_details)
+    {
+    }
+
+    label_text get_desc (bool can_colorize) const final override
+    {
+      if (m_arg_details.m_arg_expr)
+	return make_label_text (can_colorize,
+				"while looking for null terminator"
+				" for argument %i (%qE) of %qD...",
+				m_arg_details.m_arg_idx + 1,
+				m_arg_details.m_arg_expr,
+				m_arg_details.m_called_fndecl);
+      else
+	return make_label_text (can_colorize,
+				"while looking for null terminator"
+				" for argument %i of %qD...",
+				m_arg_details.m_arg_idx + 1,
+				m_arg_details.m_called_fndecl);
+    }
+
+  private:
+    const call_arg_details m_arg_details;
+  };
+
+  class null_terminator_check_decl_note
+    : public pending_note_subclass<null_terminator_check_decl_note>
+  {
+  public:
+    null_terminator_check_decl_note (const call_arg_details &arg_details)
+    : m_arg_details (arg_details)
+    {
+    }
+
+    const char *get_kind () const final override
+    {
+      return "null_terminator_check_decl_note";
+    }
+
+    void emit () const final override
+    {
+      inform_about_expected_null_terminated_string_arg (m_arg_details);
+    }
+
+    bool operator== (const null_terminator_check_decl_note &other) const
+    {
+      return m_arg_details == other.m_arg_details;
+    }
+
+  private:
+    const call_arg_details m_arg_details;
+  };
+
+  /* Subclass of decorated_region_model_context that
+     adds the above event and note to any saved diagnostics.  */
+  class annotating_ctxt : public annotating_context
+  {
+  public:
+    annotating_ctxt (const call_details &cd,
+		     unsigned arg_idx)
+    : annotating_context (cd.get_ctxt ()),
+      m_cd (cd),
+      m_arg_idx (arg_idx)
+    {
+    }
+    void add_annotations () final override
+    {
+      call_arg_details arg_details (m_cd, m_arg_idx);
+      event_loc_info loc_info (m_cd.get_location (),
+			       m_cd.get_model ()->get_current_function ()->decl,
+			       m_cd.get_model ()->get_stack_depth ());
+
+      add_event (make_unique<null_terminator_check_event> (loc_info,
+							   arg_details));
+      add_note (make_unique <null_terminator_check_decl_note> (arg_details));
+    }
+  private:
+    const call_details &m_cd;
+    unsigned m_arg_idx;
+  };
+
+  /* Use this ctxt below so that any diagnostics that get added
+     get annotated.  */
+  annotating_ctxt my_ctxt (cd, arg_idx);
+
+  const svalue *arg_sval = cd.get_arg_svalue (arg_idx);
+  const region *buf_reg
+    = deref_rvalue (arg_sval, cd.get_arg_tree (arg_idx), &my_ctxt);
+
+  if (const svalue *num_bytes_read_sval
+      = scan_for_null_terminator (buf_reg,
+				  cd.get_arg_tree (arg_idx),
+				  out_sval,
+				  &my_ctxt))
+    {
+      if (include_terminator)
+	return num_bytes_read_sval;
+      else
+	{
+	  /* strlen is (bytes_read - 1).  */
+	  const svalue *one = m_mgr->get_or_create_int_cst (size_type_node, 1);
+	  return m_mgr->get_or_create_binop (size_type_node,
+					     MINUS_EXPR,
+					     num_bytes_read_sval,
+					     one);
+	}
+    }
+  else
+    return nullptr;
 }
 
 /* Remove all bindings overlapping REG within the store.  */
@@ -3274,20 +4371,81 @@ region_model::purge_region (const region *reg)
   m_store.purge_region (m_mgr->get_store_manager(), reg);
 }
 
-/* Fill REG with SVAL.  */
+/* Fill REG with SVAL.
+   Use CTXT to report any warnings associated with the write
+   (e.g. out-of-bounds).  */
 
 void
-region_model::fill_region (const region *reg, const svalue *sval)
+region_model::fill_region (const region *reg,
+			   const svalue *sval,
+			   region_model_context *ctxt)
 {
+  check_region_for_write (reg, nullptr, ctxt);
   m_store.fill_region (m_mgr->get_store_manager(), reg, sval);
 }
 
-/* Zero-fill REG.  */
+/* Zero-fill REG.
+   Use CTXT to report any warnings associated with the write
+   (e.g. out-of-bounds).  */
 
 void
-region_model::zero_fill_region (const region *reg)
+region_model::zero_fill_region (const region *reg,
+				region_model_context *ctxt)
 {
+  check_region_for_write (reg, nullptr, ctxt);
   m_store.zero_fill_region (m_mgr->get_store_manager(), reg);
+}
+
+/* Copy NUM_BYTES_SVAL of SVAL to DEST_REG.
+   Use CTXT to report any warnings associated with the copy
+   (e.g. out-of-bounds writes).  */
+
+void
+region_model::write_bytes (const region *dest_reg,
+			   const svalue *num_bytes_sval,
+			   const svalue *sval,
+			   region_model_context *ctxt)
+{
+  const region *sized_dest_reg
+    = m_mgr->get_sized_region (dest_reg, NULL_TREE, num_bytes_sval);
+  set_value (sized_dest_reg, sval, ctxt);
+}
+
+/* Read NUM_BYTES_SVAL from SRC_REG.
+   Use CTXT to report any warnings associated with the copy
+   (e.g. out-of-bounds reads, copying of uninitialized values, etc).  */
+
+const svalue *
+region_model::read_bytes (const region *src_reg,
+			  tree src_ptr_expr,
+			  const svalue *num_bytes_sval,
+			  region_model_context *ctxt) const
+{
+  if (num_bytes_sval->get_kind () == SK_UNKNOWN)
+    return m_mgr->get_or_create_unknown_svalue (NULL_TREE);
+  const region *sized_src_reg
+    = m_mgr->get_sized_region (src_reg, NULL_TREE, num_bytes_sval);
+  const svalue *src_contents_sval = get_store_value (sized_src_reg, ctxt);
+  check_for_poison (src_contents_sval, src_ptr_expr,
+		    sized_src_reg, ctxt);
+  return src_contents_sval;
+}
+
+/* Copy NUM_BYTES_SVAL bytes from SRC_REG to DEST_REG.
+   Use CTXT to report any warnings associated with the copy
+   (e.g. out-of-bounds reads/writes, copying of uninitialized values,
+   etc).  */
+
+void
+region_model::copy_bytes (const region *dest_reg,
+			  const region *src_reg,
+			  tree src_ptr_expr,
+			  const svalue *num_bytes_sval,
+			  region_model_context *ctxt)
+{
+  const svalue *data_sval
+    = read_bytes (src_reg, src_ptr_expr, num_bytes_sval, ctxt);
+  write_bytes (dest_reg, num_bytes_sval, data_sval, ctxt);
 }
 
 /* Mark REG as having unknown content.  */
@@ -3501,6 +4659,29 @@ region_model::eval_condition (const svalue *lhs,
 	  break;
 	}
     }
+
+  /* Attempt to unwrap cast if there is one, and the types match.  */
+  tree lhs_type = lhs->get_type ();
+  tree rhs_type = rhs->get_type ();
+  if (lhs_type && rhs_type)
+  {
+    const unaryop_svalue *lhs_un_op = dyn_cast <const unaryop_svalue *> (lhs);
+    const unaryop_svalue *rhs_un_op = dyn_cast <const unaryop_svalue *> (rhs);
+    if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
+	&& rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
+	&& lhs_type == rhs_type)
+      return eval_condition (lhs_un_op->get_arg (),
+			     op,
+			     rhs_un_op->get_arg ());
+
+    else if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
+	     && lhs_type == rhs_type)
+      return eval_condition (lhs_un_op->get_arg (), op, rhs);
+
+    else if (rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
+	     && lhs_type == rhs_type)
+      return eval_condition (lhs, op, rhs_un_op->get_arg ());
+  }
 
   /* Otherwise, try constraints.
      Cast to const to ensure we don't change the constraint_manager as we
@@ -3719,6 +4900,10 @@ region_model::add_constraints_from_binop (const svalue *outer_lhs,
 
     case EQ_EXPR:
     case NE_EXPR:
+    case GE_EXPR:
+    case GT_EXPR:
+    case LE_EXPR:
+    case LT_EXPR:
       {
 	/* ...and "(inner_lhs OP inner_rhs) == 0"
 	   then (inner_lhs OP inner_rhs) must have the same
@@ -3781,6 +4966,14 @@ region_model::add_constraint (tree lhs, enum tree_code op, tree rhs,
   return add_constraint (lhs_sval, op, rhs_sval, ctxt);
 }
 
+static bool
+unusable_in_infinite_loop_constraint_p (const svalue *sval)
+{
+  if (sval->get_kind () == SK_WIDENING)
+    return true;
+  return false;
+}
+
 /* Attempt to add the constraint "LHS OP RHS" to this region_model.
    If it is consistent with existing constraints, add it, and return true.
    Return false if it contradicts existing constraints.
@@ -3792,6 +4985,20 @@ region_model::add_constraint (const svalue *lhs,
 			      const svalue *rhs,
 			      region_model_context *ctxt)
 {
+  const bool checking_for_infinite_loop
+    = ctxt ? ctxt->checking_for_infinite_loop_p () : false;
+
+  if (checking_for_infinite_loop)
+    {
+      if (unusable_in_infinite_loop_constraint_p (lhs)
+	  || unusable_in_infinite_loop_constraint_p (rhs))
+	{
+	  gcc_assert (ctxt);
+	  ctxt->on_unusable_in_infinite_loop ();
+	  return false;
+	}
+    }
+
   tristate t_cond = eval_condition (lhs, op, rhs);
 
   /* If we already have the condition, do nothing.  */
@@ -3802,6 +5009,15 @@ region_model::add_constraint (const svalue *lhs,
      unsatisfiable.  */
   if (t_cond.is_false ())
     return false;
+
+  if (checking_for_infinite_loop)
+    {
+      /* Here, we don't have a definite true/false value, so bail out
+	 when checking for infinite loops.  */
+      gcc_assert (ctxt);
+      ctxt->on_unusable_in_infinite_loop ();
+      return false;
+    }
 
   bool out;
   if (add_constraints_from_binop (lhs, op, rhs, &out, ctxt))
@@ -3834,11 +5050,11 @@ region_model::add_constraint (const svalue *lhs,
 bool
 region_model::add_constraint (tree lhs, enum tree_code op, tree rhs,
 			      region_model_context *ctxt,
-			      rejected_constraint **out)
+			      std::unique_ptr<rejected_constraint> *out)
 {
   bool sat = add_constraint (lhs, op, rhs, ctxt);
   if (!sat && out)
-    *out = new rejected_op_constraint (*this, lhs, op, rhs);
+    *out = make_unique <rejected_op_constraint> (*this, lhs, op, rhs);
   return sat;
 }
 
@@ -3873,7 +5089,12 @@ region_model::get_representative_path_var_1 (const svalue *sval,
 
   /* Prevent infinite recursion.  */
   if (visited->contains (sval))
-    return path_var (NULL_TREE, 0);
+    {
+      if (sval->get_kind () == SK_CONSTANT)
+	return path_var (sval->maybe_get_constant (), 0);
+      else
+	return path_var (NULL_TREE, 0);
+    }
   visited->add (sval);
 
   /* Handle casts by recursion into get_representative_path_var.  */
@@ -4141,6 +5362,7 @@ region_model::get_representative_path_var_1 (const region *reg,
     case RK_VAR_ARG:
     case RK_ERRNO:
     case RK_UNKNOWN:
+    case RK_PRIVATE:
       return path_var (NULL_TREE, 0);
     }
 }
@@ -4183,6 +5405,8 @@ region_model::update_for_phis (const supernode *snode,
      are effectively handled simultaneously.  */
   const region_model old_state (*this);
 
+  hash_set<const svalue *> svals_changing_meaning;
+
   for (gphi_iterator gpi = const_cast<supernode *>(snode)->start_phis ();
        !gsi_end_p (gpi); gsi_next (&gpi))
     {
@@ -4192,8 +5416,11 @@ region_model::update_for_phis (const supernode *snode,
       tree lhs = gimple_phi_result (phi);
 
       /* Update next_state based on phi and old_state.  */
-      handle_phi (phi, lhs, src, old_state, ctxt);
+      handle_phi (phi, lhs, src, old_state, svals_changing_meaning, ctxt);
     }
+
+  for (auto iter : svals_changing_meaning)
+    m_constraints->purge_state_involving (iter);
 }
 
 /* Attempt to update this model for taking EDGE (where the last statement
@@ -4221,7 +5448,7 @@ bool
 region_model::maybe_update_for_edge (const superedge &edge,
 				     const gimple *last_stmt,
 				     region_model_context *ctxt,
-				     rejected_constraint **out)
+				     std::unique_ptr<rejected_constraint> *out)
 {
   /* Handle frame updates for interprocedural edges.  */
   switch (edge.m_kind)
@@ -4253,7 +5480,7 @@ region_model::maybe_update_for_edge (const superedge &edge,
   if (last_stmt == NULL)
     return true;
 
-  /* Apply any constraints for conditionals/switch statements.  */
+  /* Apply any constraints for conditionals/switch/computed-goto statements.  */
 
   if (const gcond *cond_stmt = dyn_cast <const gcond *> (last_stmt))
     {
@@ -4267,6 +5494,12 @@ region_model::maybe_update_for_edge (const superedge &edge,
 	= as_a <const switch_cfg_superedge *> (&edge);
       return apply_constraints_for_gswitch (*switch_sedge, switch_stmt,
 					    ctxt, out);
+    }
+
+  if (const ggoto *goto_stmt = dyn_cast <const ggoto *> (last_stmt))
+    {
+      const cfg_superedge *cfg_sedge = as_a <const cfg_superedge *> (&edge);
+      return apply_constraints_for_ggoto (*cfg_sedge, goto_stmt, ctxt);
     }
 
   /* Apply any constraints due to an exception being thrown.  */
@@ -4355,6 +5588,9 @@ region_model::replay_call_summary (call_summary_replay &r,
 
   m_store.replay_call_summary (r, summary.m_store);
 
+  if (r.get_ctxt ())
+    r.get_ctxt ()->maybe_did_work ();
+
   if (!m_constraints->replay_call_summary (r, *summary.m_constraints))
     return false;
 
@@ -4385,10 +5621,11 @@ region_model::replay_call_summary (call_summary_replay &r,
    to it.  */
 
 bool
-region_model::apply_constraints_for_gcond (const cfg_superedge &sedge,
-					   const gcond *cond_stmt,
-					   region_model_context *ctxt,
-					   rejected_constraint **out)
+region_model::
+apply_constraints_for_gcond (const cfg_superedge &sedge,
+			     const gcond *cond_stmt,
+			     region_model_context *ctxt,
+			     std::unique_ptr<rejected_constraint> *out)
 {
   ::edge cfg_edge = sedge.get_cfg_edge ();
   gcc_assert (cfg_edge != NULL);
@@ -4448,10 +5685,10 @@ has_nondefault_case_for_value_p (const gswitch *switch_stmt, tree int_cst)
    has nondefault cases handling all values in the enum.  */
 
 static bool
-has_nondefault_cases_for_all_enum_values_p (const gswitch *switch_stmt)
+has_nondefault_cases_for_all_enum_values_p (const gswitch *switch_stmt,
+					    tree type)
 {
   gcc_assert (switch_stmt);
-  tree type = TREE_TYPE (gimple_switch_index (switch_stmt));
   gcc_assert (TREE_CODE (type) == ENUMERAL_TYPE);
 
   for (tree enum_val_iter = TYPE_VALUES (type);
@@ -4479,13 +5716,31 @@ has_nondefault_cases_for_all_enum_values_p (const gswitch *switch_stmt)
    to it.  */
 
 bool
-region_model::apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
-					     const gswitch *switch_stmt,
-					     region_model_context *ctxt,
-					     rejected_constraint **out)
+region_model::
+apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
+			       const gswitch *switch_stmt,
+			       region_model_context *ctxt,
+			       std::unique_ptr<rejected_constraint> *out)
 {
   tree index  = gimple_switch_index (switch_stmt);
   const svalue *index_sval = get_rvalue (index, ctxt);
+  bool check_index_type = true;
+
+  /* With -fshort-enum, there may be a type cast.  */
+  if (ctxt && index_sval->get_kind () == SK_UNARYOP
+      && TREE_CODE (index_sval->get_type ()) == INTEGER_TYPE)
+    {
+      const unaryop_svalue *unaryop = as_a <const unaryop_svalue *> (index_sval);
+      if (unaryop->get_op () == NOP_EXPR
+	  && is_a <const initial_svalue *> (unaryop->get_arg ()))
+	if (const initial_svalue *initvalop = (as_a <const initial_svalue *>
+					       (unaryop->get_arg ())))
+	  if (TREE_CODE (initvalop->get_type ()) == ENUMERAL_TYPE)
+	    {
+	      index_sval = initvalop;
+	      check_index_type = false;
+	    }
+    }
 
   /* If we're switching based on an enum type, assume that the user is only
      working with values from the enum.  Hence if this is an
@@ -4497,18 +5752,20 @@ region_model::apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
       ctxt
       /* Must be an enum value.  */
       && index_sval->get_type ()
-      && TREE_CODE (TREE_TYPE (index)) == ENUMERAL_TYPE
+      && (!check_index_type
+	  || TREE_CODE (TREE_TYPE (index)) == ENUMERAL_TYPE)
       && TREE_CODE (index_sval->get_type ()) == ENUMERAL_TYPE
       /* If we have a constant, then we can check it directly.  */
       && index_sval->get_kind () != SK_CONSTANT
       && edge.implicitly_created_default_p ()
-      && has_nondefault_cases_for_all_enum_values_p (switch_stmt)
+      && has_nondefault_cases_for_all_enum_values_p (switch_stmt,
+						     index_sval->get_type ())
       /* Don't do this if there's a chance that the index is
 	 attacker-controlled.  */
       && !ctxt->possibly_tainted_p (index_sval))
     {
       if (out)
-	*out = new rejected_default_case (*this);
+	*out = make_unique <rejected_default_case> (*this);
       return false;
     }
 
@@ -4517,10 +5774,41 @@ region_model::apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
     = ranges_mgr->get_or_create_ranges_for_switch (&edge, switch_stmt);
   bool sat = m_constraints->add_bounded_ranges (index_sval, all_cases_ranges);
   if (!sat && out)
-    *out = new rejected_ranges_constraint (*this, index, all_cases_ranges);
+    *out = make_unique <rejected_ranges_constraint> (*this, index, all_cases_ranges);
   if (sat && ctxt && !all_cases_ranges->empty_p ())
     ctxt->on_bounded_ranges (*index_sval, *all_cases_ranges);
   return sat;
+}
+
+/* Given an edge reached by GOTO_STMT, determine appropriate constraints
+   for the edge to be taken.
+
+   If they are feasible, add the constraints and return true.
+
+   Return false if the constraints contradict existing knowledge
+   (and so the edge should not be taken).  */
+
+bool
+region_model::apply_constraints_for_ggoto (const cfg_superedge &edge,
+					   const ggoto *goto_stmt,
+					   region_model_context *ctxt)
+{
+  tree dest = gimple_goto_dest (goto_stmt);
+  const svalue *dest_sval = get_rvalue (dest, ctxt);
+
+  /* If we know we were jumping to a specific label.  */
+  if (tree dst_label = edge.m_dest->get_label ())
+    {
+      const label_region *dst_label_reg
+	= m_mgr->get_region_for_label (dst_label);
+      const svalue *dst_label_ptr
+	= m_mgr->get_ptr_svalue (ptr_type_node, dst_label_reg);
+
+      if (!add_constraint (dest_sval, EQ_EXPR, dst_label_ptr, ctxt))
+	return false;
+    }
+
+  return true;
 }
 
 /* Apply any constraints due to an exception being thrown at LAST_STMT.
@@ -4533,9 +5821,10 @@ region_model::apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
    to it.  */
 
 bool
-region_model::apply_constraints_for_exception (const gimple *last_stmt,
-					       region_model_context *ctxt,
-					       rejected_constraint **out)
+region_model::
+apply_constraints_for_exception (const gimple *last_stmt,
+				 region_model_context *ctxt,
+				 std::unique_ptr<rejected_constraint> *out)
 {
   gcc_assert (last_stmt);
   if (const gcall *call = dyn_cast <const gcall *> (last_stmt))
@@ -4695,6 +5984,7 @@ region_model::pop_frame (tree result_lvalue,
 {
   gcc_assert (m_current_frame);
 
+  const region_model pre_popped_model = *this;
   const frame_region *frame_reg = m_current_frame;
 
   /* Notify state machines.  */
@@ -4728,6 +6018,7 @@ region_model::pop_frame (tree result_lvalue,
     }
 
   unbind_region_and_descendents (frame_reg,POISON_KIND_POPPED_STACK);
+  notify_on_pop_frame (this, &pre_popped_model, retval, ctxt);
 }
 
 /* Get the number of frames in this region_model's stack.  */
@@ -4880,6 +6171,9 @@ region_model::can_merge_with_p (const region_model &other_model,
 			      *other_model.m_constraints,
 			      out_model->m_constraints);
 
+  for (auto iter : m.m_svals_changing_meaning)
+    out_model->m_constraints->purge_state_involving (iter);
+
   return true;
 }
 
@@ -4978,15 +6272,14 @@ public:
     return same_tree_p (m_arg, ((const float_as_size_arg &) other).m_arg);
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
-    diagnostic_metadata m;
-    bool warned = warning_meta (rich_loc, m, get_controlling_option (),
-				"use of floating-point arithmetic here might"
-				" yield unexpected results");
+    bool warned = ctxt.warn ("use of floating-point arithmetic here might"
+			     " yield unexpected results");
     if (warned)
-      inform (rich_loc->get_loc (), "only use operands of an integer type"
-				    " inside the size argument");
+      inform (ctxt.get_location (),
+	      "only use operands of an integer type"
+	      " inside the size argument");
     return warned;
   }
 
@@ -5069,11 +6362,16 @@ region_model::check_dynamic_size_for_floats (const svalue *size_in_bytes,
    Use CTXT to complain about tainted sizes.
 
    Reuse an existing heap_allocated_region if it's not being referenced by
-   this region_model; otherwise create a new one.  */
+   this region_model; otherwise create a new one.
+
+   Optionally (update_state_machine) transitions the pointer pointing to the
+   heap_allocated_region from start to assumed non-null.  */
 
 const region *
 region_model::get_or_create_region_for_heap_alloc (const svalue *size_in_bytes,
-						   region_model_context *ctxt)
+       region_model_context *ctxt,
+       bool update_state_machine,
+       const call_details *cd)
 {
   /* Determine which regions are referenced in this region_model, so that
      we can reuse an existing heap_allocated_region if it's not in use on
@@ -5095,6 +6393,14 @@ region_model::get_or_create_region_for_heap_alloc (const svalue *size_in_bytes,
   if (size_in_bytes)
     if (compat_types_p (size_in_bytes->get_type (), size_type_node))
       set_dynamic_extents (reg, size_in_bytes, ctxt);
+
+	if (update_state_machine && cd)
+		{
+			const svalue *ptr_sval
+			= m_mgr->get_ptr_svalue (cd->get_lhs_type (), reg);
+      transition_ptr_sval_non_null (ctxt, ptr_sval);
+		}
+
   return reg;
 }
 
@@ -5173,137 +6479,6 @@ region_model::unset_dynamic_extents (const region *reg)
   m_dynamic_extents.remove (reg);
 }
 
-/* Information of the layout of a RECORD_TYPE, capturing it as a vector
-   of items, where each item is either a field or padding.  */
-
-class record_layout
-{
-public:
-  /* An item within a record; either a field, or padding after a field.  */
-  struct item
-  {
-  public:
-    item (const bit_range &br,
-	  tree field,
-	  bool is_padding)
-    : m_bit_range (br),
-      m_field (field),
-      m_is_padding (is_padding)
-    {
-    }
-
-    bit_offset_t get_start_bit_offset () const
-    {
-      return m_bit_range.get_start_bit_offset ();
-    }
-    bit_offset_t get_next_bit_offset () const
-    {
-      return m_bit_range.get_next_bit_offset ();
-    }
-
-    bool contains_p (bit_offset_t offset) const
-    {
-      return m_bit_range.contains_p (offset);
-    }
-
-    void dump_to_pp (pretty_printer *pp) const
-    {
-      if (m_is_padding)
-	pp_printf (pp, "padding after %qD", m_field);
-      else
-	pp_printf (pp, "%qD", m_field);
-      pp_string (pp, ", ");
-      m_bit_range.dump_to_pp (pp);
-    }
-
-    bit_range m_bit_range;
-    tree m_field;
-    bool m_is_padding;
-  };
-
-  record_layout (tree record_type)
-  {
-    gcc_assert (TREE_CODE (record_type) == RECORD_TYPE);
-
-    for (tree iter = TYPE_FIELDS (record_type); iter != NULL_TREE;
-	 iter = DECL_CHAIN (iter))
-      {
-	if (TREE_CODE (iter) == FIELD_DECL)
-	  {
-	    int iter_field_offset = int_bit_position (iter);
-	    bit_size_t size_in_bits;
-	    if (!int_size_in_bits (TREE_TYPE (iter), &size_in_bits))
-	      size_in_bits = 0;
-
-	    maybe_pad_to (iter_field_offset);
-
-	    /* Add field.  */
-	    m_items.safe_push (item (bit_range (iter_field_offset,
-						size_in_bits),
-				     iter, false));
-	  }
-      }
-
-    /* Add any trailing padding.  */
-    bit_size_t size_in_bits;
-    if (int_size_in_bits (record_type, &size_in_bits))
-      maybe_pad_to (size_in_bits);
-  }
-
-  void dump_to_pp (pretty_printer *pp) const
-  {
-    unsigned i;
-    item *it;
-    FOR_EACH_VEC_ELT (m_items, i, it)
-      {
-	it->dump_to_pp (pp);
-	pp_newline (pp);
-      }
-  }
-
-  DEBUG_FUNCTION void dump () const
-  {
-    pretty_printer pp;
-    pp_format_decoder (&pp) = default_tree_printer;
-    pp.buffer->stream = stderr;
-    dump_to_pp (&pp);
-    pp_flush (&pp);
-  }
-
-  const record_layout::item *get_item_at (bit_offset_t offset) const
-  {
-    unsigned i;
-    item *it;
-    FOR_EACH_VEC_ELT (m_items, i, it)
-      if (it->contains_p (offset))
-	return it;
-    return NULL;
-  }
-
-private:
-  /* Subroutine of ctor.  Add padding item to NEXT_OFFSET if necessary.  */
-
-  void maybe_pad_to (bit_offset_t next_offset)
-  {
-    if (m_items.length () > 0)
-      {
-	const item &last_item = m_items[m_items.length () - 1];
-	bit_offset_t offset_after_last_item
-	  = last_item.get_next_bit_offset ();
-	if (next_offset > offset_after_last_item)
-	  {
-	    bit_size_t padding_size
-	      = next_offset - offset_after_last_item;
-	    m_items.safe_push (item (bit_range (offset_after_last_item,
-						padding_size),
-				     last_item.m_field, true));
-	  }
-      }
-  }
-
-  auto_vec<item> m_items;
-};
-
 /* A subclass of pending_diagnostic for complaining about uninitialized data
    being copied across a trust boundary to an untrusted output
    (e.g. copy_to_user infoleaks in the Linux kernel).  */
@@ -5340,37 +6515,33 @@ public:
     return OPT_Wanalyzer_exposure_through_uninit_copy;
   }
 
-  bool emit (rich_location *rich_loc) final override
+  bool emit (diagnostic_emission_context &ctxt) final override
   {
-    diagnostic_metadata m;
     /* CWE-200: Exposure of Sensitive Information to an Unauthorized Actor.  */
-    m.add_cwe (200);
+    ctxt.add_cwe (200);
     enum memory_space mem_space = get_src_memory_space ();
     bool warned;
     switch (mem_space)
       {
       default:
-	warned = warning_meta
-	  (rich_loc, m, get_controlling_option (),
-	   "potential exposure of sensitive information"
-	   " by copying uninitialized data across trust boundary");
+	warned = ctxt.warn ("potential exposure of sensitive information"
+			    " by copying uninitialized data"
+			    " across trust boundary");
 	break;
       case MEMSPACE_STACK:
-	warned = warning_meta
-	  (rich_loc, m, get_controlling_option (),
-	   "potential exposure of sensitive information"
-	   " by copying uninitialized data from stack across trust boundary");
+	warned = ctxt.warn ("potential exposure of sensitive information"
+			    " by copying uninitialized data from stack"
+			    " across trust boundary");
 	break;
       case MEMSPACE_HEAP:
-	warned = warning_meta
-	  (rich_loc, m, get_controlling_option (),
-	   "potential exposure of sensitive information"
-	   " by copying uninitialized data from heap across trust boundary");
+	warned = ctxt.warn ("potential exposure of sensitive information"
+			    " by copying uninitialized data from heap"
+			    " across trust boundary");
 	break;
       }
     if (warned)
       {
-	location_t loc = rich_loc->get_loc ();
+	const location_t loc = ctxt.get_location ();
 	inform_number_of_uninit_bits (loc);
 	complain_about_uninit_ranges (loc);
 
@@ -5400,6 +6571,17 @@ public:
   {
     if (m_src_region)
       interest->add_region_creation (m_src_region);
+  }
+
+  void
+  maybe_add_sarif_properties (sarif_object &result_obj) const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/-Wanalyzer-exposure-through-uninit-copy/"
+    props.set (PROPERTY_PREFIX "src_region", m_src_region->to_json ());
+    props.set (PROPERTY_PREFIX "dest_region", m_dest_region->to_json ());
+    props.set (PROPERTY_PREFIX "copied_sval", m_copied_sval->to_json ());
+#undef PROPERTY_PREFIX
   }
 
 private:
@@ -5692,22 +6874,33 @@ private:
 static bool
 contains_uninit_p (const svalue *sval)
 {
-  struct uninit_finder : public visitor
-  {
-  public:
-    uninit_finder () : m_found_uninit (false) {}
-    void visit_poisoned_svalue (const poisoned_svalue *sval)
+  switch (sval->get_kind ())
     {
-      if (sval->get_poison_kind () == POISON_KIND_UNINIT)
-	m_found_uninit = true;
+    default:
+      return false;
+    case SK_POISONED:
+      {
+	const poisoned_svalue *psval
+	  = as_a <const poisoned_svalue *> (sval);
+	return psval->get_poison_kind () == POISON_KIND_UNINIT;
+      }
+    case SK_COMPOUND:
+      {
+	const compound_svalue *compound_sval
+	  = as_a <const compound_svalue *> (sval);
+
+	for (auto iter : *compound_sval)
+	  {
+	    const svalue *sval = iter.second;
+	    if (const poisoned_svalue *psval
+		= sval->dyn_cast_poisoned_svalue ())
+	      if (psval->get_poison_kind () == POISON_KIND_UNINIT)
+		return true;
+	  }
+
+	return false;
+      }
     }
-    bool m_found_uninit;
-  };
-
-  uninit_finder v;
-  sval->accept (&v);
-
-  return v.m_found_uninit;
 }
 
 /* Function for use by plugins when simulating writing data through a
@@ -5758,6 +6951,11 @@ noop_region_model_context::add_note (std::unique_ptr<pending_note>)
 }
 
 void
+noop_region_model_context::add_event (std::unique_ptr<checker_event>)
+{
+}
+
+void
 noop_region_model_context::bifurcate (std::unique_ptr<custom_edge_info>)
 {
 }
@@ -5765,6 +6963,15 @@ noop_region_model_context::bifurcate (std::unique_ptr<custom_edge_info>)
 void
 noop_region_model_context::terminate_path ()
 {
+}
+
+/* class region_model_context_decorator : public region_model_context.  */
+
+void
+region_model_context_decorator::add_event (std::unique_ptr<checker_event> event)
+{
+  if (m_inner)
+    m_inner->add_event (std::move (event));
 }
 
 /* struct model_merger.  */
@@ -5833,6 +7040,14 @@ model_merger::mergeable_svalue_p (const svalue *sval) const
 	  return false;
     }
   return true;
+}
+
+/* Mark WIDENING_SVAL as changing meaning during the merge.  */
+
+void
+model_merger::on_widening_reuse (const widening_svalue *widening_sval)
+{
+  m_svals_changing_meaning.add (widening_sval);
 }
 
 } // namespace ana
@@ -6178,7 +7393,8 @@ test_get_representative_tree ()
     tree tlen = size_int (10);
     tree arr_type = build_array_type (char_type_node, build_index_type (tlen));
     tree a = build_global_decl ("a", arr_type);
-    placeholder_svalue test_sval (char_type_node, "test value");
+    placeholder_svalue test_sval (mgr.alloc_symbol_id (),
+				  char_type_node, "test value");
 
     /* Value of a[3].  */
     {
@@ -6223,7 +7439,8 @@ test_get_representative_tree ()
     {
       region_model m (&mgr);
       const region *c_x_reg = m.get_lvalue (c_x, &ctxt);
-      placeholder_svalue test_sval_x (integer_type_node, "test x val");
+      placeholder_svalue test_sval_x (mgr.alloc_symbol_id (),
+				      integer_type_node, "test x val");
       m.set_value (c_x_reg, &test_sval_x, &ctxt);
       tree rep = m.get_representative_tree (&test_sval_x);
       ASSERT_DUMP_TREE_EQ (rep, "c.x");
@@ -6233,7 +7450,8 @@ test_get_representative_tree ()
     {
       region_model m (&mgr);
       const region *c_y_reg = m.get_lvalue (c_y, &ctxt);
-      placeholder_svalue test_sval_y (integer_type_node, "test y val");
+      placeholder_svalue test_sval_y (mgr.alloc_symbol_id (),
+				      integer_type_node, "test y val");
       m.set_value (c_y_reg, &test_sval_y, &ctxt);
       tree rep = m.get_representative_tree (&test_sval_y);
       ASSERT_DUMP_TREE_EQ (rep, "c.y");
@@ -6477,7 +7695,8 @@ test_binop_svalue_folding ()
     const svalue *sval_false = mgr.get_or_create_int_cst (boolean_type_node, 0);
     const svalue *sval_unknown
       = mgr.get_or_create_unknown_svalue (boolean_type_node);
-    const placeholder_svalue sval_placeholder (boolean_type_node, "v");
+    const placeholder_svalue sval_placeholder (mgr.alloc_symbol_id (),
+					       boolean_type_node, "v");
     for (auto op : {BIT_IOR_EXPR, TRUTH_OR_EXPR})
       {
 	ASSERT_EQ (mgr.get_or_create_binop (boolean_type_node, op,
@@ -7089,7 +8308,8 @@ test_state_merging ()
     ASSERT_EQ (model0.get_stack_depth (), 1);
     model1.push_frame (DECL_STRUCT_FUNCTION (test_fndecl), NULL, &ctxt);
 
-    placeholder_svalue test_sval (integer_type_node, "test sval");
+    placeholder_svalue test_sval (mgr.alloc_symbol_id (),
+				  integer_type_node, "test sval");
     model0.set_value (model0.get_lvalue (a, &ctxt), &test_sval, &ctxt);
     model1.set_value (model1.get_lvalue (a, &ctxt), &test_sval, &ctxt);
     ASSERT_EQ (model0, model1);
@@ -7108,7 +8328,8 @@ test_state_merging ()
     region_model model0 (&mgr);
     region_model model1 (&mgr);
 
-    placeholder_svalue test_sval (integer_type_node, "test sval");
+    placeholder_svalue test_sval (mgr.alloc_symbol_id (),
+				  integer_type_node, "test sval");
     model0.set_value (model0.get_lvalue (x, &ctxt), &test_sval, &ctxt);
     model1.set_value (model1.get_lvalue (x, &ctxt), &test_sval, &ctxt);
     ASSERT_EQ (model0, model1);
@@ -7248,7 +8469,8 @@ test_state_merging ()
   {
     test_region_model_context ctxt;
     region_model model0 (&mgr);
-    placeholder_svalue placeholder_sval (integer_type_node, "test");
+    placeholder_svalue placeholder_sval (mgr.alloc_symbol_id (),
+					 integer_type_node, "test");
     model0.set_value (model0.get_lvalue (x, &ctxt),
 		      &placeholder_sval, &ctxt);
     model0.set_value (model0.get_lvalue (y, &ctxt), &placeholder_sval, &ctxt);
@@ -7534,7 +8756,6 @@ test_iteration_1 ()
   tree int_0 = build_int_cst (integer_type_node, 0);
   tree int_1 = build_int_cst (integer_type_node, 1);
   tree int_256 = build_int_cst (integer_type_node, 256);
-  tree int_257 = build_int_cst (integer_type_node, 257);
   tree i = build_global_decl ("i", integer_type_node);
 
   test_region_model_context ctxt;
@@ -7596,8 +8817,6 @@ test_iteration_1 ()
   ASSERT_TRUE (model5.can_merge_with_p (model2, point, &model6));
   const svalue *merged_widening = model6.get_rvalue (i, &ctxt);
   ASSERT_EQ (merged_widening->get_kind (), SK_WIDENING);
-
-  ASSERT_CONDITION_TRUE (model6, i, LT_EXPR, int_257);
 }
 
 /* Verify that if we mark a pointer to a malloc-ed region as non-NULL,

@@ -1,5 +1,5 @@
 /* Header for code translation functions
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -56,6 +56,10 @@ typedef struct gfc_se
   /* When expr is a reference to a class object, store its vptr access
      here.  */
   tree class_vptr;
+
+  /* When expr is a reference to a direct subobject of a class, store
+     the reference to the class object here.  */
+  tree class_container;
 
   /* Whether expr is a reference to an unlimited polymorphic object.  */
   unsigned unlimited_polymorphic:1;
@@ -263,6 +267,7 @@ typedef struct gfc_ss_info
   gfc_ss_type type;
   gfc_expr *expr;
   tree string_length;
+  tree class_container;
 
   union
   {
@@ -446,13 +451,13 @@ tree gfc_vptr_def_init_get (tree);
 tree gfc_vptr_copy_get (tree);
 tree gfc_vptr_final_get (tree);
 tree gfc_vptr_deallocate_get (tree);
-void gfc_reset_vptr (stmtblock_t *, gfc_expr *);
+void gfc_reset_vptr (stmtblock_t *, gfc_expr *, tree = NULL_TREE);
 void gfc_reset_len (stmtblock_t *, gfc_expr *);
 tree gfc_get_class_from_gfc_expr (gfc_expr *);
 tree gfc_get_class_from_expr (tree);
 tree gfc_get_vptr_from_expr (tree);
 tree gfc_copy_class_to_class (tree, tree, tree, bool);
-bool gfc_add_finalizer_call (stmtblock_t *, gfc_expr *);
+bool gfc_add_finalizer_call (stmtblock_t *, gfc_expr *, tree = NULL_TREE);
 bool gfc_add_comp_finalizer_call (stmtblock_t *, tree, gfc_component *, bool);
 void gfc_finalize_tree_expr (gfc_se *, gfc_symbol *, symbol_attribute, int);
 bool gfc_assignment_finalizer_call (gfc_se *, gfc_expr *, bool);
@@ -525,6 +530,7 @@ void gfc_conv_label_variable (gfc_se * se, gfc_expr * expr);
 /* If the value is not constant, Create a temporary and copy the value.  */
 tree gfc_evaluate_now_loc (location_t, tree, stmtblock_t *);
 tree gfc_evaluate_now (tree, stmtblock_t *);
+tree gfc_evaluate_data_ref_now (tree, stmtblock_t *);
 tree gfc_evaluate_now_function_scope (tree, stmtblock_t *);
 
 /* Find the appropriate variant of a math intrinsic.  */
@@ -670,7 +676,7 @@ void gfc_restore_sym (gfc_symbol *, gfc_saved_var *);
 void gfc_set_decl_assembler_name (tree, tree);
 
 /* Returns true if a variable of specified size should go on the stack.  */
-int gfc_can_put_var_on_stack (tree);
+bool gfc_can_put_var_on_stack (tree);
 
 /* Set GFC_DECL_SCALAR_* on decl from sym if needed.  */
 void gfc_finish_decl_attrs (tree, symbol_attribute *);
@@ -758,17 +764,22 @@ void gfc_allocate_using_caf_lib (stmtblock_t *, tree, tree, tree, tree, tree,
 
 /* Allocate memory for allocatable variables, with optional status variable.  */
 void gfc_allocate_allocatable (stmtblock_t*, tree, tree, tree, tree,
-			       tree, tree, tree, gfc_expr*, int);
+			       tree, tree, tree, gfc_expr*, int,
+			       tree = NULL_TREE, tree = NULL_TREE,
+			       tree = NULL_TREE);
 
 /* Allocate memory, with optional status variable.  */
-void gfc_allocate_using_malloc (stmtblock_t *, tree, tree, tree);
+void gfc_allocate_using_malloc (stmtblock_t *, tree, tree, tree,
+				tree = NULL_TREE, tree = NULL_TREE,
+				tree = NULL_TREE);
 
 /* Generate code to deallocate an array.  */
 tree gfc_deallocate_with_status (tree, tree, tree, tree, tree, bool,
-				 gfc_expr *, int, tree a = NULL_TREE,
-				 tree c = NULL_TREE);
+				 gfc_expr *, int, tree = NULL_TREE,
+				 tree a = NULL_TREE, tree c = NULL_TREE);
 tree gfc_deallocate_scalar_with_status (tree, tree, tree, bool, gfc_expr*,
-					gfc_typespec, bool c = false);
+					gfc_typespec, tree = NULL_TREE,
+					bool c = false);
 
 /* Generate code to call realloc().  */
 tree gfc_call_realloc (stmtblock_t *, tree, tree);
@@ -810,6 +821,8 @@ struct array_descr_info;
 bool gfc_get_array_descr_info (const_tree, struct array_descr_info *);
 
 /* In trans-openmp.cc */
+tree gfc_omp_call_add_alloc (tree);
+tree gfc_omp_call_is_alloc (tree);
 bool gfc_omp_is_allocatable_or_ptr (const_tree);
 tree gfc_omp_check_optional_argument (tree, bool);
 tree gfc_omp_array_data (tree, bool);
