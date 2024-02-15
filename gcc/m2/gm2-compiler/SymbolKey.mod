@@ -1,6 +1,6 @@
 (* SymbolKey.mod binary tree operations for storing symbols.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -312,7 +312,7 @@ END SearchForAny ;
 
 PROCEDURE ForeachNodeDo (t: SymbolTree; P: PerformOperation) ;
 BEGIN
-   SearchAndDo(t^.Left, P)
+   SearchAndDo (t^.Left, P)
 END ForeachNodeDo ;
 
 
@@ -327,9 +327,9 @@ BEGIN
    IF t#NIL
    THEN
       WITH t^ DO
-         SearchAndDo(Right, P) ;
-         P(KeySym) ;
-         SearchAndDo(Left, P)
+         SearchAndDo (Right, P) ;
+         P (KeySym) ;
+         SearchAndDo (Left, P)
       END
    END
 END SearchAndDo ;

@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2023 Free Software Foundation, Inc.
+// Copyright (C) 2004-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,6 +21,7 @@
 #include <deque>
 #include <testsuite_api.h>
 
+// { dg-options "-std=gnu++98" }
 // { dg-do compile { target c++98_only } }
 
 // N.B. Since C++11 we cannot instantiate with T == NonDefaultConstructible

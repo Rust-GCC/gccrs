@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 1997-2023, AdaCore                     --
+--                     Copyright (C) 1997-2024, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -58,7 +58,7 @@
 --       stored in a binary compatible manner.
 
 --     GNAT.Spitbol.Patterns (files g-spipat.ads/g-spipat.adb)
---       This is a completely general patterm matching package based on the
+--       This is a completely general pattern matching package based on the
 --       pattern language of SNOBOL4, as implemented in SPITBOL. The pattern
 --       language is modeled on context free grammars, with context sensitive
 --       extensions that provide full (type 0) computational capabilities.

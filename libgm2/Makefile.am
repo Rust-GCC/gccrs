@@ -25,7 +25,7 @@ AUTOMAKE_OPTIONS = 1.8 foreign
 
 SUFFIXES = .c .mod .def .o .obj .lo .a
 
-ACLOCAL_AMFLAGS = -I . -I .. -I ../config
+ACLOCAL_AMFLAGS = -I .. -I ../config
 
 # Multilib support.
 MAKEOVERRIDES=
@@ -46,6 +46,12 @@ SUBDIRS = libm2min libm2log libm2cor libm2iso libm2pim
 GM2_BUILDDIR := $(shell pwd)
 gm2_cdir = $(libdir)/gcc/$(target_alias)/$(gcc_version)/include
 
+if ENABLE_DARWIN_AT_RPATH
+DARWIN_AT_RPATH=yes
+else
+DARWIN_AT_RPATH=yes
+endif
+
 # Work around what appears to be a GNU make bug handling MAKEFLAGS
 # values defined in terms of make variables, as is the case for CC and
 # friends when we are called from the top level Makefile.
@@ -60,6 +66,8 @@ AM_MAKEFLAGS = \
 	"CXXFLAGS=$(CXXFLAGS)" \
 	"CFLAGS_FOR_BUILD=$(CFLAGS_FOR_BUILD)" \
 	"CFLAGS_FOR_TARGET=$(CFLAGS_FOR_TARGET)" \
+        "CFLAGS_LONGDOUBLE=$(CFLAGS_LONGDOUBLE)" \
+	"EXPECT=$(EXPECT)" \
 	"INSTALL=$(INSTALL)" \
 	"INSTALL_DATA=$(INSTALL_DATA)" \
 	"INSTALL_PROGRAM=$(INSTALL_PROGRAM)" \
@@ -91,7 +99,8 @@ AM_MAKEFLAGS = \
 	"WERROR=$(WERROR)" \
         "TARGET_LIB_PATH=$(TARGET_LIB_PATH)" \
         "TARGET_LIB_PATH_libgm2=$(TARGET_LIB_PATH_libgm2)" \
-	"LIBTOOL=$(GM2_BUILDDIR)/libtool"
+	"LIBTOOL=$(GM2_BUILDDIR)/libtool" \
+	"DARWIN_AT_RPATH=$(DARWIN_AT_RPATH)"
 
 # Subdir rules rely on $(FLAGS_TO_PASS)
 FLAGS_TO_PASS = $(AM_MAKEFLAGS)

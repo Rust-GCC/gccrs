@@ -1,5 +1,5 @@
 /* Get CPU type and Features for x86 processors.
-   Copyright (C) 2012-2023 Free Software Foundation, Inc.
+   Copyright (C) 2012-2024 Free Software Foundation, Inc.
    Contributed by Sriraman Tallam (tmsriram@google.com)
 
 This file is part of GCC.
@@ -62,6 +62,7 @@ enum processor_types
   ZHAOXIN_FAM7H,
   INTEL_SIERRAFOREST,
   INTEL_GRANDRIDGE,
+  INTEL_CLEARWATERFOREST,
   CPU_TYPE_MAX,
   BUILTIN_CPU_TYPE_MAX = CPU_TYPE_MAX
 };
@@ -98,6 +99,11 @@ enum processor_subtypes
   ZHAOXIN_FAM7H_LUJIAZUI,
   AMDFAM19H_ZNVER4,
   INTEL_COREI7_GRANITERAPIDS,
+  INTEL_COREI7_GRANITERAPIDS_D,
+  INTEL_COREI7_ARROWLAKE,
+  INTEL_COREI7_ARROWLAKE_S,
+  INTEL_COREI7_PANTHERLAKE,
+  ZHAOXIN_FAM7H_YONGFENG,
   CPU_SUBTYPE_MAX
 };
 
@@ -254,6 +260,14 @@ enum processor_features
   FEATURE_PREFETCHI,
   FEATURE_RAOINT,
   FEATURE_AMX_COMPLEX,
+  FEATURE_AVXVNNIINT16,
+  FEATURE_SM3,
+  FEATURE_SHA512,
+  FEATURE_SM4,
+  FEATURE_APX_F,
+  FEATURE_USER_MSR,
+  FEATURE_AVX10_1_256,
+  FEATURE_AVX10_1_512,
   CPU_FEATURE_MAX
 };
 

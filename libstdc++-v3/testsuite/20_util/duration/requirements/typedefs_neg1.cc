@@ -1,7 +1,7 @@
 // { dg-do compile { target c++11 } }
 // 2008-07-31 Chris Fairles <chris.fairles@gmail.com>
 
-// Copyright (C) 2008-2023 Free Software Foundation, Inc.
+// Copyright (C) 2008-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,4 +29,4 @@ void test01()
   test_type d; // { dg-error "required from here" }
 }
 
-// { dg-error "rep cannot be a duration" "" { target *-*-* } 0 }
+// { dg-error "rep cannot be a std::chrono::duration" "" { target *-*-* } 0 }

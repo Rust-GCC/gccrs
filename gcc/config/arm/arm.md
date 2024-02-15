@@ -1,5 +1,5 @@
 ;;- Machine description for ARM for GNU compiler
-;;  Copyright (C) 1991-2023 Free Software Foundation, Inc.
+;;  Copyright (C) 1991-2024 Free Software Foundation, Inc.
 ;;  Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
 ;;  and Martin Simmons (@harleqn.co.uk).
 ;;  More major hacks by Richard Earnshaw (rearnsha@arm.com).
@@ -7555,7 +7555,7 @@
       && !arm_const_double_rtx (operands[1])
       && !(TARGET_VFP_DOUBLE && vfp3_const_double_rtx (operands[1])))
     {
-      rtx clobreg = gen_reg_rtx (DFmode);
+      rtx clobreg = gen_reg_rtx (DImode);
       emit_insn (gen_no_literal_pool_df_immediate (operands[0], operands[1],
 						   clobreg));
       DONE;
@@ -9514,7 +9514,9 @@
    (match_operand:SI 2 "const_int_operand")	; total range
    (match_operand:SI 3 "" "")			; table label
    (match_operand:SI 4 "" "")]			; Out of range label
-  "(TARGET_32BIT || optimize_size || flag_pic) && !target_pure_code"
+   "(TARGET_ARM
+     || (!target_pure_code
+         && (TARGET_THUMB2 || optimize_size || flag_pic)))"
   "
   {
     enum insn_code code;
@@ -9556,13 +9558,15 @@
 		(match_dup 4)
 		(label_ref:SI (match_operand 3 ""))))
 	      (clobber (reg:CC CC_REGNUM))
+	      (clobber (match_scratch:SI 5))
 	      (use (label_ref:SI (match_operand 2 "")))])]
   "TARGET_ARM"
 {
-  operands[4] = gen_rtx_MULT (SImode, operands[0], GEN_INT (4));
-  operands[4] = gen_rtx_PLUS (SImode, operands[4],
-			      gen_rtx_LABEL_REF (SImode, operands[2]));
-  operands[4] = gen_rtx_MEM (SImode, operands[4]);
+  rtx vec_table_ref = force_reg (SImode, gen_rtx_LABEL_REF (SImode, operands[2]));
+  rtx tmp = gen_rtx_MULT (SImode, operands[0], GEN_INT (4));
+  tmp = gen_rtx_PLUS (SImode, tmp,
+			      vec_table_ref);
+  operands[4] = gen_rtx_MEM (SImode, tmp);
   MEM_READONLY_P (operands[4]) = 1;
   MEM_NOTRAP_P (operands[4]) = 1;
 })
@@ -9573,18 +9577,17 @@
 		(leu (match_operand:SI 0 "s_register_operand" "r")
 		     (match_operand:SI 1 "arm_rhs_operand" "rI"))
 		(mem:SI (plus:SI (mult:SI (match_dup 0) (const_int 4))
-				 (label_ref:SI (match_operand 2 "" ""))))
+				 (match_operand:SI 5 "s_register_operand" "r")))
 		(label_ref:SI (match_operand 3 "" ""))))
 	      (clobber (reg:CC CC_REGNUM))
-	      (use (label_ref:SI (match_dup 2)))])]
+	      (clobber (match_scratch:SI 4 "=r"))
+	      (use (label_ref:SI (match_operand 2 "")))])]
   "TARGET_ARM"
-  "*
-    if (flag_pic)
-      return \"cmp\\t%0, %1\;addls\\t%|pc, %|pc, %0, asl #2\;b\\t%l3\";
-    return   \"cmp\\t%0, %1\;ldrls\\t%|pc, [%|pc, %0, asl #2]\;b\\t%l3\";
-  "
+  {
+    return arm_output_casesi (operands);
+  }
   [(set_attr "conds" "clob")
-   (set_attr "length" "12")
+   (set_attr "length" "24")
    (set_attr "type" "multiple")]
 )
 
@@ -12180,7 +12183,7 @@
   [(set_attr "predicable" "yes")
    (set_attr "type" "clz")])
 
-(define_insn "rbitsi2"
+(define_insn "arm_rbit"
   [(set (match_operand:SI 0 "s_register_operand" "=r")
 	(unspec:SI [(match_operand:SI 1 "s_register_operand" "r")] UNSPEC_RBIT))]
   "TARGET_32BIT && arm_arch_thumb2"
@@ -12200,7 +12203,7 @@
   "&& reload_completed"
   [(const_int 0)]
   "
-  emit_insn (gen_rbitsi2 (operands[0], operands[1]));
+  emit_insn (gen_arm_rbit (operands[0], operands[1]));
   emit_insn (gen_clzsi2 (operands[0], operands[0]));
   DONE;
 ")
@@ -12275,7 +12278,7 @@
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec:SI [(const_int 0)] UNSPEC_TLS))]
   "TARGET_HARD_TP"
-  "mrc%?\\tp15, 0, %0, c13, c0, 3\\t@ load_tp_hard"
+  "* return arm_output_load_tpidr (operands[0], true);"
   [(set_attr "predicable" "yes")
    (set_attr "type" "mrs")]
 )
@@ -12285,7 +12288,7 @@
   [(set (match_operand:SI 0 "register_operand" "=r")
 	(unspec_volatile:SI [(const_int 0)] VUNSPEC_MRC))]
   "TARGET_HARD_TP"
-  "mrc\\tp15, 0, %0, c13, c0, 3\\t@ reload_tp_hard"
+  "* return arm_output_load_tpidr (operands[0], false);"
   [(set_attr "type" "mrs")]
 )
 
@@ -12564,7 +12567,7 @@
 ;; operations within an IOR/AND RTX, therefore we have two patterns matching
 ;; each valid permutation.
 
-(define_insn "arm_rev16si2"
+(define_insn "arm_rev16si2_alt1"
   [(set (match_operand:SI 0 "register_operand" "=l,l,r")
         (ior:SI (and:SI (ashift:SI (match_operand:SI 1 "register_operand" "l,l,r")
                                    (const_int 8))
@@ -12575,13 +12578,16 @@
   "arm_arch6
    && aarch_rev16_shleft_mask_imm_p (operands[3], SImode)
    && aarch_rev16_shright_mask_imm_p (operands[2], SImode)"
-  "rev16\\t%0, %1"
+  "@
+   rev16\t%0, %1
+   rev16%?\t%0, %1
+   rev16%?\t%0, %1"
   [(set_attr "arch" "t1,t2,32")
    (set_attr "length" "2,2,4")
    (set_attr "type" "rev")]
 )
 
-(define_insn "arm_rev16si2_alt"
+(define_insn "*arm_rev16si2_alt2"
   [(set (match_operand:SI 0 "register_operand" "=l,l,r")
         (ior:SI (and:SI (lshiftrt:SI (match_operand:SI 1 "register_operand" "l,l,r")
                                      (const_int 8))
@@ -12592,7 +12598,25 @@
   "arm_arch6
    && aarch_rev16_shleft_mask_imm_p (operands[3], SImode)
    && aarch_rev16_shright_mask_imm_p (operands[2], SImode)"
-  "rev16\\t%0, %1"
+  "@
+   rev16\t%0, %1
+   rev16%?\t%0, %1
+   rev16%?\t%0, %1"
+  [(set_attr "arch" "t1,t2,32")
+   (set_attr "length" "2,2,4")
+   (set_attr "type" "rev")]
+)
+
+;; Similar pattern to match (rotate (bswap) 16)
+(define_insn "arm_rev16si2"
+  [(set (match_operand:SI 0 "register_operand" "=l,l,r")
+        (rotate:SI (bswap:SI (match_operand:SI 1 "register_operand" "l,l,r"))
+                   (const_int 16)))]
+  "arm_arch6"
+  "@
+   rev16\t%0, %1
+   rev16%?\t%0, %1
+   rev16%?\t%0, %1"
   [(set_attr "arch" "t1,t2,32")
    (set_attr "length" "2,2,4")
    (set_attr "type" "rev")]

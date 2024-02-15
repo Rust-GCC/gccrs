@@ -1,5 +1,5 @@
 /* LTO symbol table merging.
-   Copyright (C) 2009-2023 Free Software Foundation, Inc.
+   Copyright (C) 2009-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -46,7 +46,7 @@ lto_symtab_prevailing_decl (tree decl)
     return DECL_CHAIN (decl);
   else
     {
-      if ((TREE_CODE (decl) == VAR_DECL || TREE_CODE (decl) == FUNCTION_DECL)
+      if ((VAR_P (decl) || TREE_CODE (decl) == FUNCTION_DECL)
 	  && DECL_VIRTUAL_P (decl)
 	  && (TREE_PUBLIC (decl) || DECL_EXTERNAL (decl))
 	  && !symtab_node::get (decl))

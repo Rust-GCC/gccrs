@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Free Software Foundation, Inc.
+// Copyright (C) 2018-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,8 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-do run }
-// { dg-require-effective-target c++17 }
+// { dg-do run { target c++17 } }
 // { dg-require-gthreads "" }
 
 // This runs the same tests as allocate.cc but without -pthread

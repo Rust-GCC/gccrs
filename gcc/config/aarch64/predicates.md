@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -19,6 +19,10 @@
 ;; <http://www.gnu.org/licenses/>.
 
 (include "../arm/common.md")
+
+(define_predicate "aarch64_sysreg_string"
+  (and (match_code "const_string")
+       (match_test "aarch64_valid_sysreg_name_p (XSTR (op, 0))")))
 
 (define_special_predicate "cc_register"
   (and (match_code "reg")
@@ -41,6 +45,30 @@
 (define_predicate "const0_operand"
   (and (match_code "const_int")
        (match_test "op == CONST0_RTX (mode)")))
+
+(define_predicate "const_0_to_7_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
+
+(define_predicate "const_0_to_4_step_4_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 4)")
+       (match_test "(INTVAL (op) & 3) == 0")))
+
+(define_predicate "const_0_to_6_step_2_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 6)")
+       (match_test "(INTVAL (op) & 1) == 0")))
+
+(define_predicate "const_0_to_12_step_4_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 12)")
+       (match_test "(INTVAL (op) & 3) == 0")))
+
+(define_predicate "const_0_to_14_step_2_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 14)")
+       (match_test "(INTVAL (op) & 1) == 0")))
 
 (define_predicate "const_1_to_3_operand"
   (match_code "const_int,const_vector")
@@ -184,11 +212,17 @@
   (and (match_code "const_poly_int")
        (match_test "aarch64_add_offset_temporaries (op) == 1")))
 
+(define_predicate "aarch64_addsvl_addspl_immediate"
+  (and (match_code "const")
+       (match_test "aarch64_addsvl_addspl_immediate_p (op)")))
+
 (define_predicate "aarch64_pluslong_operand"
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "aarch64_pluslong_immediate")
        (and (match_test "TARGET_SVE")
-	    (match_operand 0 "aarch64_sve_plus_immediate"))))
+	    (match_operand 0 "aarch64_sve_plus_immediate"))
+       (and (match_test "TARGET_SME")
+	    (match_operand 0 "aarch64_addsvl_addspl_immediate"))))
 
 (define_predicate "aarch64_pluslong_or_poly_operand"
   (ior (match_operand 0 "aarch64_pluslong_operand")
@@ -257,10 +291,51 @@
   (and (match_code "const_int")
        (match_test "aarch64_offset_7bit_signed_scaled_p (mode, INTVAL (op))")))
 
-(define_predicate "aarch64_mem_pair_operand"
-  (and (match_code "mem")
-       (match_test "aarch64_legitimate_address_p (mode, XEXP (op, 0), false,
-						  ADDR_QUERY_LDP_STP)")))
+(define_special_predicate "aarch64_mem_pair_operator"
+  (and
+    (match_code "mem")
+    (match_test "aarch64_ldpstp_operand_mode_p (GET_MODE (op))")
+    (ior
+      (match_test "mode == VOIDmode")
+      (match_test "known_eq (GET_MODE_SIZE (mode),
+			     GET_MODE_SIZE (GET_MODE (op)))"))))
+
+;; Like aarch64_mem_pair_operator, but additionally check the
+;; address is suitable.
+(define_special_predicate "aarch64_mem_pair_operand"
+  (and (match_operand 0 "aarch64_mem_pair_operator")
+       (match_test "aarch64_legitimate_address_p (GET_MODE (op), XEXP (op, 0),
+						  false, ADDR_QUERY_LDP_STP)")))
+
+(define_predicate "pmode_plus_operator"
+  (and (match_code "plus")
+       (match_test "GET_MODE (op) == Pmode")))
+
+(define_special_predicate "aarch64_ldp_reg_operand"
+  (and
+    (ior
+      (match_code "reg")
+      (and
+       (match_code "subreg")
+       (match_test "REG_P (SUBREG_REG (op))")))
+    (match_test "aarch64_ldpstp_operand_mode_p (GET_MODE (op))")
+    (ior
+      (match_test "mode == VOIDmode")
+      (match_test "known_eq (GET_MODE_SIZE (mode),
+			     GET_MODE_SIZE (GET_MODE (op)))"))))
+
+(define_special_predicate "aarch64_stp_reg_operand"
+  (ior (match_operand 0 "aarch64_ldp_reg_operand")
+       (and (match_code "const_int,const,const_vector,const_double")
+	    (match_test "aarch64_const_zero_rtx_p (op)")
+	    (ior
+	      (match_test "GET_MODE (op) == VOIDmode")
+	      (and
+		(match_test "aarch64_ldpstp_operand_mode_p (GET_MODE (op))")
+		(ior
+		  (match_test "mode == VOIDmode")
+		  (match_test "known_eq (GET_MODE_SIZE (mode),
+					 GET_MODE_SIZE (GET_MODE (op)))")))))))
 
 ;; Used for storing two 64-bit values in an AdvSIMD register using an STP
 ;; as a 128-bit vec_concat.
@@ -460,6 +535,30 @@
   return aarch64_simd_check_vect_par_cnst_half (op, mode, false);
 })
 
+;; PARALLEL for a vec_select that selects all the even or all the odd
+;; elements of a vector of MODE.
+(define_special_predicate "vect_par_cnst_even_or_odd_half"
+  (match_code "parallel")
+{
+  int nunits = XVECLEN (op, 0);
+  if (!known_eq (GET_MODE_NUNITS (mode), nunits * 2))
+    return false;
+  rtx first = XVECEXP (op, 0, 0);
+  if (!CONST_INT_P (first))
+    return false;
+  return (INTVAL (first) == 0 || INTVAL (first) == 1)
+	 && aarch64_stepped_int_parallel_p (op, 2);
+})
+
+;; PARALLEL for a vec_select that selects half the elements in a vector of
+;; MODE.  Allows any combination of elements, as long as there's no
+;; duplicate entries.
+(define_special_predicate "vect_par_cnst_select_half"
+  (match_code "parallel")
+{
+  return aarch64_parallel_select_half_p (mode, op);
+})
+
 (define_predicate "descending_int_parallel"
   (match_code "parallel")
 {
@@ -534,8 +633,7 @@
 ;;   Shifts with a range 1-bit_size (aarch64_simd_shift_imm_offset)
 ;;   Shifts with a range 0-bit_size (aarch64_simd_shift_imm_bitsize)
 (define_predicate "aarch64_simd_shift_imm_qi"
-  (and (match_code "const_int")
-       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
+  (match_operand 0 "const_0_to_7_operand"))
 
 (define_predicate "aarch64_simd_shift_imm_hi"
   (and (match_code "const_int")
@@ -571,6 +669,21 @@
 			GET_MODE_UNIT_BITSIZE (GET_MODE (op)) / 2,
 			GET_MODE_UNIT_BITSIZE (GET_MODE (op)) / 2)")))
 
+(define_predicate "aarch64_simd_umax_half_mode"
+  (and (match_code "const_vector")
+       (match_test "aarch64_const_vec_all_same_in_range_p (op,
+				(HOST_WIDE_INT_1U
+				<< (GET_MODE_UNIT_BITSIZE (mode) / 2)) - 1,
+				(HOST_WIDE_INT_1U
+				<< (GET_MODE_UNIT_BITSIZE (mode) / 2)) - 1)")))
+
+(define_predicate "aarch64_simd_umax_quarter_mode"
+  (and (match_code "const_vector")
+       (match_test "aarch64_const_vec_all_same_in_range_p (op,
+				(HOST_WIDE_INT_1U
+				<< (GET_MODE_UNIT_BITSIZE (mode) / 4)) - 1,
+				(HOST_WIDE_INT_1U
+				<< (GET_MODE_UNIT_BITSIZE (mode) / 4)) - 1)")))
 (define_predicate "aarch64_simd_shift_imm_vec_qi"
   (and (match_code "const_vector")
        (match_test "aarch64_const_vec_all_same_in_range_p (op, 1, 8)")))
@@ -586,6 +699,23 @@
 (define_predicate "aarch64_simd_shift_imm_vec_di"
   (and (match_code "const_vector")
        (match_test "aarch64_const_vec_all_same_in_range_p (op, 1, 64)")))
+
+;; A constant or vector of constants that represents an integer rounding
+;; constant added during fixed-point arithmetic calculations
+(define_predicate "aarch64_int_rnd_operand"
+  (and (match_code "const_vector,const_int,const_wide_int")
+       (match_test "aarch64_rnd_imm_p (op)")))
+
+(define_predicate "aarch64_simd_raddsubhn_imm_vec"
+  (and (match_code "const_vector")
+       (match_test "aarch64_const_vec_all_same_in_range_p (op, 1,
+				HOST_WIDE_INT_1U
+				<< (GET_MODE_UNIT_BITSIZE  (mode) / 2 - 1))")))
+
+(define_predicate "aarch64_simd_shll_imm_vec"
+  (and (match_code "const_vector")
+       (match_test "aarch64_const_vec_all_same_in_range_p (op, 0,
+				GET_MODE_UNIT_BITSIZE (mode) / 2)")))
 
 (define_predicate "aarch64_simd_shift_imm_bitsize_qi"
   (and (match_code "const_int")
@@ -675,10 +805,6 @@
 (define_predicate "aarch64_sve_dup_operand"
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "aarch64_sve_ld1r_operand")))
-
-(define_predicate "aarch64_sve_dup_ld1rq_operand"
-  (ior (match_operand 0 "register_operand")
-       (match_operand 0 "aarch64_sve_ld1rq_operand")))
 
 (define_predicate "aarch64_sve_ptrue_svpattern_immediate"
   (and (match_code "const")
@@ -818,6 +944,11 @@
 (define_predicate "aarch64_sve_logical_operand"
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "aarch64_sve_logical_immediate")))
+
+(define_predicate "aarch64_orr_imm_sve_advsimd"
+  (ior (match_operand 0 "aarch64_reg_or_orr_imm")
+       (and (match_test "TARGET_SVE")
+	    (match_operand 0 "aarch64_sve_logical_operand"))))
 
 (define_predicate "aarch64_sve_gather_offset_b"
   (ior (match_operand 0 "register_operand")

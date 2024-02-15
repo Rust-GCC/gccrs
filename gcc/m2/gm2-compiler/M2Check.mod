@@ -1,6 +1,6 @@
 (* M2Check.mod perform rigerous type checking for fully declared symbols.
 
-Copyright (C) 2020-2023 Free Software Foundation, Inc.
+Copyright (C) 2020-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -33,13 +33,13 @@ IMPLEMENTATION MODULE M2Check ;
 *)
 
 FROM M2System IMPORT IsSystemType, IsGenericSystemType, IsSameSize, IsComplexN ;
-FROM M2Base IMPORT IsParameterCompatible, IsAssignmentCompatible, IsExpressionCompatible, IsComparisonCompatible, IsBaseType, IsMathType, ZType, CType, RType, IsComplexType ;
-FROM Indexing IMPORT Index, InitIndex, GetIndice, PutIndice, KillIndex, HighIndice, LowIndice, IncludeIndiceIntoIndex ;
+FROM M2Base IMPORT IsParameterCompatible, IsAssignmentCompatible, IsExpressionCompatible, IsComparisonCompatible, IsBaseType, IsMathType, ZType, CType, RType, IsComplexType, Char ;
+FROM Indexing IMPORT Index, InitIndex, GetIndice, PutIndice, KillIndex, HighIndice, LowIndice, IncludeIndiceIntoIndex, ForeachIndiceInIndexDo ;
 FROM M2Error IMPORT Error, InternalError, NewError, ErrorString, ChainError ;
 FROM M2MetaError IMPORT MetaErrorStringT2, MetaErrorStringT3, MetaErrorStringT4, MetaString2, MetaString3, MetaString4 ;
 FROM StrLib IMPORT StrEqual ;
 FROM M2Debug IMPORT Assert ;
-FROM SymbolTable IMPORT NulSym, IsRecord, IsSet, GetDType, GetSType, IsType, SkipType, IsProcedure, NoOfParam, IsVarParam, GetNth, GetNthParam, IsProcType, IsVar, IsEnumeration, IsArray, GetDeclaredMod, IsSubrange, GetArraySubscript, IsConst, IsReallyPointer, IsPointer, IsParameter, ModeOfAddr, GetMode, GetType, IsUnbounded, IsComposite, IsConstructor, IsParameter ;
+FROM SymbolTable IMPORT NulSym, IsRecord, IsSet, GetDType, GetSType, IsType, SkipType, IsProcedure, NoOfParam, IsVarParam, GetNth, GetNthParam, IsProcType, IsVar, IsEnumeration, IsArray, GetDeclaredMod, IsSubrange, GetArraySubscript, IsConst, IsReallyPointer, IsPointer, IsParameter, ModeOfAddr, GetMode, GetType, IsUnbounded, IsComposite, IsConstructor, IsParameter, IsConstString ;
 FROM M2GCCDeclare IMPORT GetTypeMin, GetTypeMax ;
 FROM M2System IMPORT Address ;
 FROM M2ALU IMPORT Equ, PushIntegerTree ;
@@ -48,6 +48,7 @@ FROM SymbolConversion IMPORT Mod2Gcc ;
 FROM DynamicStrings IMPORT String, InitString, KillString ;
 FROM M2LexBuf IMPORT GetTokenNo ;
 FROM Storage IMPORT ALLOCATE ;
+FROM SYSTEM IMPORT ADR ;
 FROM libc IMPORT printf ;
 
 
@@ -99,6 +100,52 @@ VAR
    pairFreeList : pair ;
    tinfoFreeList: tInfo ;
    errors       : Index ;
+
+
+(*
+   dumpIndice -
+*)
+
+PROCEDURE dumpIndice (ptr: pair) ;
+BEGIN
+   printf (" left (%d), right (%d), status ",
+           ptr^.left, ptr^.right);
+   CASE ptr^.pairStatus OF
+
+   true   :  printf ("true") |
+   false  :  printf ("false") |
+   unknown:  printf ("unknown") |
+   visited:  printf ("visited") |
+   unused :  printf ("unused")
+
+   END ;
+   printf ("\n")
+END dumpIndice ;
+
+
+(*
+   dumpIndex -
+*)
+
+PROCEDURE dumpIndex (name: ARRAY OF CHAR; index: Index) ;
+BEGIN
+   printf ("status: %s\n", ADR (name)) ;
+   ForeachIndiceInIndexDo (index, dumpIndice)
+END dumpIndex ;
+
+
+(*
+   dumptInfo -
+*)
+
+PROCEDURE dumptInfo (t: tInfo) ;
+BEGIN
+   printf ("actual (%d), formal (%d), left (%d), right (%d), procedure (%d)\n",
+           t^.actual, t^.formal, t^.left, t^.right, t^.procedure) ;
+   dumpIndex ('visited', t^.visited) ;
+   dumpIndex ('resolved', t^.resolved) ;
+   dumpIndex ('unresolved', t^.unresolved)
+END dumptInfo ;
 
 
 (*
@@ -221,11 +268,11 @@ BEGIN
       result := checkPair (result, tinfo, GetType (left), GetType (right)) ;
       IF (lSub # NulSym) AND (rSub # NulSym)
       THEN
-         result := checkSubrange (result, tinfo, GetSType (lSub), GetSType (rSub))
+         result := checkSubrange (result, tinfo, getSType (lSub), getSType (rSub))
       END
    ELSIF IsUnbounded (left) AND (IsArray (right) OR IsUnbounded (right))
    THEN
-      IF IsGenericSystemType (GetSType (left)) OR IsGenericSystemType (GetSType (right))
+      IF IsGenericSystemType (getSType (left)) OR IsGenericSystemType (getSType (right))
       THEN
          RETURN true
       ELSE
@@ -283,7 +330,8 @@ END firstTime ;
 
 
 (*
-   buildError4 -
+   buildError4 - generate a MetaString4 error.  This is only used when checking
+                 parameter compatibility.
 *)
 
 PROCEDURE buildError4 (tinfo: tInfo; left, right: CARDINAL) ;
@@ -296,16 +344,20 @@ BEGIN
       THEN
          (* need to create top level error message first.  *)
          tinfo^.error := NewError (tinfo^.token) ;
+         (* The parameters to MetaString4 in buildError4 must match the order
+            of paramters passed to ParameterTypeCompatible.  *)
          s := MetaString4 (tinfo^.format,
-                           tinfo^.left, tinfo^.right,
-                           tinfo^.procedure, tinfo^.nth) ;
+                           tinfo^.procedure,
+                           tinfo^.formal, tinfo^.actual,
+                           tinfo^.nth) ;
          ErrorString (tinfo^.error, s)
       END ;
       (* and also generate a sub error containing detail.  *)
       IF (left # tinfo^.left) OR (right # tinfo^.right)
       THEN
          tinfo^.error := ChainError (tinfo^.token, tinfo^.error) ;
-         s := MetaString2 (InitString ("{%1Ead} and {%2ad} are incompatible in this context"), left, right) ;
+         s := MetaString2 (InitString ("{%1Ead} and {%2ad} are incompatible as formal and actual procedure parameters"),
+                           left, right) ;
          ErrorString (tinfo^.error, s)
       END
    END
@@ -313,7 +365,7 @@ END buildError4 ;
 
 
 (*
-   buildError2 -
+   buildError2 - generate a MetaString2 error.  This is called by all three kinds of errors.
 *)
 
 PROCEDURE buildError2 (tinfo: tInfo; left, right: CARDINAL) ;
@@ -324,17 +376,26 @@ BEGIN
    THEN
       IF tinfo^.error = NIL
       THEN
-         (* need to create top level error message first.  *)
+         (* Need to create top level error message first.  *)
          tinfo^.error := NewError (tinfo^.token) ;
          s := MetaString2 (tinfo^.format,
                            tinfo^.left, tinfo^.right) ;
          ErrorString (tinfo^.error, s)
       END ;
-      (* and also generate a sub error containing detail.  *)
+      (* Also generate a sub error containing detail.  *)
       IF (left # tinfo^.left) OR (right # tinfo^.right)
       THEN
          tinfo^.error := ChainError (tinfo^.token, tinfo^.error) ;
-         s := MetaString2 (InitString ("{%1Ead} and {%2ad} are incompatible in this context"), left, right) ;
+         CASE tinfo^.kind OF
+
+         parameter:  s := MetaString2 (InitString ("{%1Ead} and {%2ad} are incompatible as formal and actual procedure parameters"),
+                                       left, right) |
+         assignment: s := MetaString2 (InitString ("{%1Ead} and {%2ad} are assignment incompatible"),
+                                       left, right) |
+         expression: s := MetaString2 (InitString ("{%1Ead} and {%2ad} are expression incompatible"),
+                                       left, right)
+
+         END ;
          ErrorString (tinfo^.error, s)
       END
    END
@@ -396,7 +457,7 @@ BEGIN
                    THEN
                       IF IsVar (right) OR IsConst (right)
                       THEN
-                         right := GetSType (right)
+                         right := getSType (right)
                       END
                    END ;
                    IF tinfo^.strict
@@ -500,7 +561,7 @@ END isLValue ;
 
 
 (*
-   checkVarEquivalence - this test must be done first as it checks the symbol mode.
+   checkVarEquivalence - this test must be done early as it checks the symbol mode.
                          An LValue is treated as a pointer during assignment and the
                          LValue is attached to a variable.  This function skips the variable
                          and checks the types - after it has considered a possible LValue.
@@ -542,6 +603,68 @@ BEGIN
       RETURN result
    END
 END checkVarEquivalence ;
+
+
+(*
+   checkConstMeta - performs a very course grained check against
+                    obviously incompatible type kinds.
+                    If left is a const string then it checks right against char.
+*)
+
+PROCEDURE checkConstMeta (result: status; tinfo: tInfo;
+                          left, right: CARDINAL) : status ;
+VAR
+   typeRight: CARDINAL ;
+BEGIN
+   Assert (IsConst (left)) ;
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSIF IsConstString (left)
+   THEN
+      typeRight := GetDType (right) ;
+      IF typeRight = NulSym
+      THEN
+         RETURN result
+      ELSIF IsSet (typeRight) OR IsEnumeration (typeRight) OR IsProcedure (typeRight) OR
+            IsRecord (typeRight)
+      THEN
+         RETURN false
+      ELSE
+         RETURN doCheckPair (result, tinfo, Char, typeRight)
+      END
+   END ;
+   RETURN result
+END checkConstMeta ;
+
+
+(*
+   checkConstEquivalence - this check can be done first as it checks symbols which
+                           may have no type.  Ie constant strings.  These constants
+                           will likely have their type set during quadruple folding.
+                           But we can check the meta type for obvious mismatches
+                           early on.  For example adding a string to an enum or set.
+*)
+
+PROCEDURE checkConstEquivalence (result: status; tinfo: tInfo;
+                                 left, right: CARDINAL) : status ;
+BEGIN
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSIF (left = NulSym) OR (right = NulSym)
+   THEN
+      (* No option but to return true.  *)
+      RETURN true
+   ELSIF IsConst (left)
+   THEN
+      RETURN checkConstMeta (result, tinfo, left, right)
+   ELSIF IsConst (right)
+   THEN
+      RETURN checkConstMeta (result, tinfo, right, left)
+   END ;
+   RETURN result
+END checkConstEquivalence ;
 
 
 (*
@@ -655,28 +778,32 @@ BEGIN
    THEN
       RETURN return (true, tinfo, left, right)
    ELSE
-      result := checkVarEquivalence (unknown, tinfo, left, right) ;
+      result := checkConstEquivalence (unknown, tinfo, left, right) ;
       IF NOT isKnown (result)
       THEN
-         result := checkSystemEquivalence (unknown, left, right) ;
+         result := checkVarEquivalence (unknown, tinfo, left, right) ;
          IF NOT isKnown (result)
          THEN
-            result := checkSubrangeTypeEquivalence (unknown, tinfo, left, right) ;
+            result := checkSystemEquivalence (unknown, left, right) ;
             IF NOT isKnown (result)
             THEN
-               result := checkBaseTypeEquivalence (unknown, tinfo, left, right) ;
+               result := checkSubrangeTypeEquivalence (unknown, tinfo, left, right) ;
                IF NOT isKnown (result)
                THEN
-                  result := checkTypeEquivalence (unknown, left, right) ;
+                  result := checkBaseTypeEquivalence (unknown, tinfo, left, right) ;
                   IF NOT isKnown (result)
                   THEN
-                     result := checkArrayTypeEquivalence (result, tinfo, left, right) ;
+                     result := checkTypeEquivalence (unknown, left, right) ;
                      IF NOT isKnown (result)
                      THEN
-                        result := checkGenericTypeEquivalence (result, left, right) ;
+                        result := checkArrayTypeEquivalence (result, tinfo, left, right) ;
                         IF NOT isKnown (result)
                         THEN
-                           result := checkTypeKindEquivalence (result, tinfo, left, right)
+                           result := checkGenericTypeEquivalence (result, left, right) ;
+                           IF NOT isKnown (result)
+                           THEN
+                              result := checkTypeKindEquivalence (result, tinfo, left, right)
+                           END
                         END
                      END
                   END
@@ -902,6 +1029,37 @@ END checkPointerType ;
 
 
 (*
+   checkProcTypeEquivalence - allow proctype to be compared against another
+                              proctype or procedure.  It is legal to be compared
+                              against an address.
+*)
+
+PROCEDURE checkProcTypeEquivalence (result: status; tinfo: tInfo;
+                                    left, right: CARDINAL) : status ;
+BEGIN
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSIF IsProcedure (left) AND IsProcType (right)
+   THEN
+      RETURN checkProcedure (result, tinfo, right, left)
+   ELSIF IsProcType (left) AND IsProcedure (right)
+   THEN
+      RETURN checkProcedure (result, tinfo, left, right)
+   ELSIF IsProcType (left) AND IsProcType (right)
+   THEN
+      RETURN checkProcType (result, tinfo, left, right)
+   ELSIF (left = Address) OR (right = Address)
+   THEN
+      RETURN true
+   ELSE
+      RETURN false
+   END
+END checkProcTypeEquivalence ;
+
+
+
+(*
    checkTypeKindEquivalence -
 *)
 
@@ -915,7 +1073,7 @@ BEGIN
    THEN
       RETURN true
    ELSE
-      (* long cascade of all type kinds.  *)
+      (* Long cascade of all type kinds.  *)
       IF IsSet (left) AND IsSet (right)
       THEN
          RETURN checkSetEquivalent (result, tinfo, left, right)
@@ -928,15 +1086,9 @@ BEGIN
       ELSIF IsEnumeration (left) AND IsEnumeration (right)
       THEN
          RETURN checkEnumerationEquivalence (result, left, right)
-      ELSIF IsProcedure (left) AND IsProcType (right)
-      THEN
-         RETURN checkProcedure (result, tinfo, right, left)
-      ELSIF IsProcType (left) AND IsProcedure (right)
-      THEN
-         RETURN checkProcedure (result, tinfo, left, right)
       ELSIF IsProcType (left) OR IsProcType (right)
       THEN
-         RETURN checkProcType (result, tinfo, left, right)
+         RETURN checkProcTypeEquivalence (result, tinfo, right, left)
       ELSIF IsReallyPointer (left) AND IsReallyPointer (right)
       THEN
          RETURN checkPointerType (result, left, right)
@@ -1154,13 +1306,31 @@ END checkRecordEquivalence ;
 
 PROCEDURE getType (sym: CARDINAL) : CARDINAL ;
 BEGIN
-   IF IsTyped (sym)
+   IF (sym # NulSym) AND IsProcedure (sym)
+   THEN
+      RETURN Address
+   ELSIF IsTyped (sym)
    THEN
       RETURN GetDType (sym)
    ELSE
       RETURN sym
    END
 END getType ;
+
+
+(*
+   getSType -
+*)
+
+PROCEDURE getSType (sym: CARDINAL) : CARDINAL ;
+BEGIN
+   IF IsProcedure (sym)
+   THEN
+      RETURN Address
+   ELSE
+      RETURN GetSType (sym)
+   END
+END getSType ;
 
 
 (*
@@ -1213,10 +1383,15 @@ VAR
    result     : status ;
    left, right: CARDINAL ;
 BEGIN
+   IF debugging
+   THEN
+      dumptInfo (tinfo)
+   END ;
    WHILE get (tinfo^.unresolved, left, right, unknown) DO
       IF debugging
       THEN
-         printf ("doCheck (%d, %d)\n", left, right)
+         printf ("doCheck (%d, %d)\n", left, right) ;
+         dumptInfo (tinfo)
       END ;
       (*
       IF in (tinfo^.visited, left, right)
@@ -1434,8 +1609,8 @@ VAR
    tinfo           : tInfo ;
 BEGIN
    tinfo := newtInfo () ;
-   formalT := GetSType (formal) ;
-   actualT := GetSType (actual) ;
+   formalT := getSType (formal) ;
+   actualT := getSType (actual) ;
    tinfo^.format := collapseString (format) ;
    tinfo^.token := token ;
    tinfo^.kind := parameter ;
@@ -1454,6 +1629,10 @@ BEGIN
    tinfo^.strict := FALSE ;
    tinfo^.isin := FALSE ;
    include (tinfo^.unresolved, actual, formal, unknown) ;
+   IF debugging
+   THEN
+      dumptInfo (tinfo)
+   END ;
    IF doCheck (tinfo)
    THEN
       deconstruct (tinfo) ;
@@ -1520,11 +1699,11 @@ BEGIN
       THEN
          IF IsConst (right) OR IsVar (right)
          THEN
-            right := GetSType (right)
+            right := getSType (right)
          END ;
          IF IsSet (right)
          THEN
-            right := GetSType (right)
+            right := getSType (right)
          END
       END
    END ;

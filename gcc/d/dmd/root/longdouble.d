@@ -1,6 +1,6 @@
 /**
  * 80-bit floating point value implementation if the C/D compiler does not support them natively.
- * Copyright (C) 2021-2023 Free Software Foundation, Inc.
+ * Copyright (C) 2021-2024 Free Software Foundation, Inc.
  *
  * GCC is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,12 +25,15 @@ import core.stdc.stdint;
 extern(C++):
 nothrow:
 @nogc:
+pure:
+@trusted:
 
 // Type used by the front-end for compile-time reals
 struct longdouble
 {
 nothrow:
 @nogc:
+pure:
     extern (D) this(T)(T r)
     {
         this.set(cast(SetType!T)r);

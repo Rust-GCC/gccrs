@@ -10,5 +10,6 @@ struct A
   template <class T> A(T); 	// { dg-message "A::A" "" { target c++14_down } }
 };
 
-A a = 0; // { dg-error "" "" { target c++14_down } }
+// { dg-error "reference" "" { target c++14_down } .+1 }
+A a = 0; // { dg-error "no match" "" { target c++14_down } }
 

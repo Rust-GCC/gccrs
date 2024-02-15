@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2023 Free Software Foundation, Inc.
+# Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@ load_lib gcc-dg.exp
 
 # Initialize `dg'.
 dg-init
+torture-init
 
 set saved-dg-do-what-default ${dg-do-what-default}
 set dg-do-what-default "assemble"
@@ -48,5 +49,7 @@ gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cCS\]]] \
 # Restore globals
 set dg-do-what-default ${saved-dg-do-what-default}
 set LTO_TORTURE_OPTIONS ${saved-lto_torture_options}
+
 # All done.
+torture-finish
 dg-finish

@@ -1,7 +1,7 @@
 // { dg-do run { target c++11 } }
 // { dg-options "-g -O0" }
 
-// Copyright (C) 2011-2023 Free Software Foundation, Inc.
+// Copyright (C) 2011-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -206,6 +206,13 @@ main()
   struct Value { int i, j; };
   std::atomic<Value> av{{8, 9}};
   // { dg-final { note-test av {std::atomic<Value> = { {i = 8, j = 9} }} } }
+
+  std::integral_constant<int, 1> one;
+  // { dg-final { note-test one {std::integral_constant<int, 1>} } }
+  std::integral_constant<bool, true> truth;
+  // { dg-final { note-test truth {std::true_type} } }
+  std::integral_constant<bool, 0> lies;
+  // { dg-final { note-test lies {std::false_type} } }
 
   placeholder(""); // Mark SPOT
   use(efl);

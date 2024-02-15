@@ -1,5 +1,5 @@
 /* Dynamic testing for abstract is-a relationships.
-   Copyright (C) 2012-2023 Free Software Foundation, Inc.
+   Copyright (C) 2012-2024 Free Software Foundation, Inc.
    Contributed by Lawrence Crowl.
 
 This file is part of GCC.
@@ -230,6 +230,19 @@ inline bool
 is_a (U *p)
 {
   return is_a_helper<T>::test (p);
+}
+
+/* Similar to is_a<>, but where the pointer can be NULL, even if
+   is_a_helper<T> doesn't check for NULL.  */
+
+template <typename T, typename U>
+inline bool
+safe_is_a (U *p)
+{
+  if (p)
+    return is_a_helper <T>::test (p);
+  else
+    return false;
 }
 
 /* A generic conversion from a base type U to a derived type T.  See the

@@ -2,7 +2,7 @@
    by the C-based front ends.  The structure of gimplified, or
    language-independent, trees is dictated by the grammar described in this
    file.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Lowering of expressions contributed by Sebastian Pop <s.pop@laposte.net>
    Re-written to support lowering of whole function trees, documentation
    and miscellaneous cleanups by Diego Novillo <dnovillo@redhat.com>
@@ -41,6 +41,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-ubsan.h"
 #include "tree-nested.h"
 #include "context.h"
+#include "tree-pass.h"
+#include "internal-fn.h"
 
 /*  The gimplification pass converts the language-dependent trees
     (ld-trees) emitted by the parser into language-independent trees
@@ -305,6 +307,27 @@ genericize_c_loop (tree *stmt_p, location_t start_locus, tree cond, tree body,
     }
 
   append_to_statement_list (body, &stmt_list);
+  if (c_dialect_cxx ()
+      && stmt_list
+      && TREE_CODE (stmt_list) == STATEMENT_LIST)
+    {
+      tree_stmt_iterator tsi = tsi_last (stmt_list);
+      if (!tsi_end_p (tsi))
+	{
+	  tree t = *tsi;
+	  while (TREE_CODE (t) == CLEANUP_POINT_EXPR
+		 || TREE_CODE (t) == EXPR_STMT
+		 || CONVERT_EXPR_CODE_P (TREE_CODE (t)))
+	    t = TREE_OPERAND (t, 0);
+	  /* For C++, if iteration statement body ends with fallthrough
+	     statement, mark it such that we diagnose it even if next
+	     statement would be labeled statement with case/default label.  */
+	  if (TREE_CODE (t) == CALL_EXPR
+	      && !CALL_EXPR_FN (t)
+	      && CALL_EXPR_IFN (t) == IFN_FALLTHROUGH)
+	    TREE_NOTHROW (t) = 1;
+	}
+    }
   finish_bc_block (&stmt_list, bc_continue, clab);
   if (incr)
     {
@@ -686,6 +709,14 @@ c_build_bind_expr (location_t loc, tree block, tree body)
   return bind;
 }
 
+/* Helper for c_gimplify_expr: test if target supports fma-like FN.  */
+
+static bool
+fma_supported_p (enum internal_fn fn, tree type)
+{
+  return direct_internal_fn_supported_p (fn, type, OPTIMIZE_FOR_BOTH);
+}
+
 /* Gimplification of expression trees.  */
 
 /* Do C-specific gimplification on *EXPR_P.  PRE_P and POST_P are as in
@@ -735,6 +766,97 @@ c_gimplify_expr (tree *expr_p, gimple_seq *pre_p ATTRIBUTE_UNUSED,
 	    if (!TYPE_OVERFLOW_WRAPS (type))
 	      type = unsigned_type_for (type);
 	    return gimplify_self_mod_expr (expr_p, pre_p, post_p, 1, type);
+	  }
+	break;
+      }
+
+    case PLUS_EXPR:
+    case MINUS_EXPR:
+      {
+	tree type = TREE_TYPE (*expr_p);
+	/* For -ffp-contract=on we need to attempt FMA contraction only
+	   during initial gimplification.  Late contraction across statement
+	   boundaries would violate language semantics.  */
+	if (SCALAR_FLOAT_TYPE_P (type)
+	    && flag_fp_contract_mode == FP_CONTRACT_ON
+	    && cfun && !(cfun->curr_properties & PROP_gimple_any)
+	    && fma_supported_p (IFN_FMA, type))
+	  {
+	    bool neg_mul = false, neg_add = code == MINUS_EXPR;
+
+	    tree *op0_p = &TREE_OPERAND (*expr_p, 0);
+	    tree *op1_p = &TREE_OPERAND (*expr_p, 1);
+
+	    /* Look for ±(x * y) ± z, swapping operands if necessary.  */
+	    if (TREE_CODE (*op0_p) == NEGATE_EXPR
+		&& TREE_CODE (TREE_OPERAND (*op0_p, 0)) == MULT_EXPR)
+	      /* '*EXPR_P' is '-(x * y) ± z'.  This is fine.  */;
+	    else if (TREE_CODE (*op0_p) != MULT_EXPR)
+	      {
+		std::swap (op0_p, op1_p);
+		std::swap (neg_mul, neg_add);
+	      }
+	    if (TREE_CODE (*op0_p) == NEGATE_EXPR)
+	      {
+		op0_p = &TREE_OPERAND (*op0_p, 0);
+		neg_mul = !neg_mul;
+	      }
+	    if (TREE_CODE (*op0_p) != MULT_EXPR)
+	      break;
+	    auto_vec<tree, 3> ops (3);
+	    ops.quick_push (TREE_OPERAND (*op0_p, 0));
+	    ops.quick_push (TREE_OPERAND (*op0_p, 1));
+	    ops.quick_push (*op1_p);
+
+	    enum internal_fn ifn = IFN_FMA;
+	    if (neg_mul)
+	      {
+		if (fma_supported_p (IFN_FNMA, type))
+		  ifn = IFN_FNMA;
+		else
+		  ops[0] = build1 (NEGATE_EXPR, type, ops[0]);
+	      }
+	    if (neg_add)
+	      {
+		enum internal_fn ifn2 = ifn == IFN_FMA ? IFN_FMS : IFN_FNMS;
+		if (fma_supported_p (ifn2, type))
+		  ifn = ifn2;
+		else
+		  ops[2] = build1 (NEGATE_EXPR, type, ops[2]);
+	      }
+	    /* Avoid gimplify_arg: it emits all side effects into *PRE_P.  */
+	    for (auto &&op : ops)
+	      if (gimplify_expr (&op, pre_p, post_p, is_gimple_val, fb_rvalue)
+		  == GS_ERROR)
+		return GS_ERROR;
+
+	    gcall *call = gimple_build_call_internal_vec (ifn, ops);
+	    gimple_seq_add_stmt_without_update (pre_p, call);
+	    *expr_p = create_tmp_var (type);
+	    gimple_call_set_lhs (call, *expr_p);
+	    return GS_ALL_DONE;
+	  }
+	break;
+      }
+
+    case CALL_EXPR:
+      {
+	tree fndecl = get_callee_fndecl (*expr_p);
+	if (fndecl
+	    && fndecl_built_in_p (fndecl, BUILT_IN_CLZG, BUILT_IN_CTZG)
+	    && call_expr_nargs (*expr_p) == 2
+	    && TREE_CODE (CALL_EXPR_ARG (*expr_p, 1)) != INTEGER_CST)
+	  {
+	    tree a = save_expr (CALL_EXPR_ARG (*expr_p, 0));
+	    tree c = build_call_expr_loc (EXPR_LOCATION (*expr_p),
+					  fndecl, 1, a);
+	    *expr_p = build3_loc (EXPR_LOCATION (*expr_p), COND_EXPR,
+				  integer_type_node,
+				  build2_loc (EXPR_LOCATION (*expr_p),
+					      NE_EXPR, boolean_type_node, a,
+					      build_zero_cst (TREE_TYPE (a))),
+				  c, CALL_EXPR_ARG (*expr_p, 1));
+	    return GS_OK;
 	  }
 	break;
       }

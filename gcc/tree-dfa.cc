@@ -1,5 +1,5 @@
 /* Data flow functions for trees.
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -230,9 +230,10 @@ dump_dfa_stats (FILE *file)
   fprintf (file, "\n");
 
   if (dfa_stats.num_phis)
-    fprintf (file, "Average number of arguments per PHI node: %.1f (max: %ld)\n",
+    fprintf (file, "Average number of arguments per PHI node: %.1f (max: "
+	     HOST_SIZE_T_PRINT_DEC ")\n",
 	     (float) dfa_stats.num_phi_args / (float) dfa_stats.num_phis,
-	     (long) dfa_stats.max_num_phi_args);
+	     (fmt_size_t) dfa_stats.max_num_phi_args);
 
   fprintf (file, "\n");
 }
@@ -372,9 +373,9 @@ get_or_create_ssa_default_def (struct function *fn, tree var)
    true, the storage order of the reference is reversed.  */
 
 tree
-get_ref_base_and_extent (tree exp, poly_int64_pod *poffset,
-			 poly_int64_pod *psize,
-			 poly_int64_pod *pmax_size,
+get_ref_base_and_extent (tree exp, poly_int64 *poffset,
+			 poly_int64 *psize,
+			 poly_int64 *pmax_size,
 			 bool *preverse)
 {
   poly_offset_int bitsize = -1;
@@ -531,10 +532,7 @@ get_ref_base_and_extent (tree exp, poly_int64_pod *poffset,
 
 		value_range vr;
 		range_query *query;
-		if (cfun)
-		  query = get_range_query (cfun);
-		else
-		  query = get_global_range_query ();
+		query = get_range_query (cfun);
 
 		if (TREE_CODE (index) == SSA_NAME
 		    && (low_bound = array_ref_low_bound (exp),
@@ -542,7 +540,8 @@ get_ref_base_and_extent (tree exp, poly_int64_pod *poffset,
 		    && (unit_size = array_ref_element_size (exp),
 			TREE_CODE (unit_size) == INTEGER_CST)
 		    && query->range_of_expr (vr, index)
-		    && vr.kind () == VR_RANGE)
+		    && !vr.varying_p ()
+		    && !vr.undefined_p ())
 		  {
 		    wide_int min = vr.lower_bound ();
 		    wide_int max = vr.upper_bound ();
@@ -764,7 +763,7 @@ get_ref_base_and_extent_hwi (tree exp, HOST_WIDE_INT *poffset,
    its argument or a constant if the argument is known to be constant.  */
 
 tree
-get_addr_base_and_unit_offset_1 (tree exp, poly_int64_pod *poffset,
+get_addr_base_and_unit_offset_1 (tree exp, poly_int64 *poffset,
 				 tree (*valueize) (tree))
 {
   poly_int64 byte_offset = 0;
@@ -906,7 +905,7 @@ done:
    is not BITS_PER_UNIT-aligned.  */
 
 tree
-get_addr_base_and_unit_offset (tree exp, poly_int64_pod *poffset)
+get_addr_base_and_unit_offset (tree exp, poly_int64 *poffset)
 {
   return get_addr_base_and_unit_offset_1 (exp, poffset, NULL);
 }

@@ -148,7 +148,8 @@ LTLIBRARIES = $(toolexeclib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libhwasan_la_DEPENDENCIES =  \
 	$(top_builddir)/sanitizer_common/libsanitizer_common.la \
-	$(am__append_1) $(am__append_2) $(am__DEPENDENCIES_1)
+	$(top_builddir)/lsan/libsanitizer_lsan.la $(am__append_1) \
+	$(am__append_2) $(am__DEPENDENCIES_1)
 am__objects_1 = hwasan_allocation_functions.lo hwasan_allocator.lo \
 	hwasan.lo hwasan_dynamic_shadow.lo hwasan_exceptions.lo \
 	hwasan_fuchsia.lo hwasan_globals.lo hwasan_interceptors.lo \
@@ -259,6 +260,7 @@ ALLOC_FILE = @ALLOC_FILE@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
+AS_SYM_ASSIGN_DEFS = @AS_SYM_ASSIGN_DEFS@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
@@ -444,8 +446,12 @@ hwasan_files = \
 libhwasan_la_SOURCES = $(hwasan_files)
 libhwasan_la_LIBADD =  \
 	$(top_builddir)/sanitizer_common/libsanitizer_common.la \
-	$(am__append_1) $(am__append_2) $(LIBSTDCXX_RAW_CXX_LDFLAGS)
-libhwasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(link_libhwasan)
+	$(top_builddir)/lsan/libsanitizer_lsan.la $(am__append_1) \
+	$(am__append_2) $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+@ENABLE_DARWIN_AT_RPATH_TRUE@libhwasan_darwin_rpath = -nodefaultrpaths -Wl,-rpath,@loader_path/
+libhwasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+	$(link_libhwasan) $(libhwasan_darwin_rpath)
+
 
 # Work around what appears to be a GNU make bug handling MAKEFLAGS
 # values defined in terms of make variables, as is the case for CC and

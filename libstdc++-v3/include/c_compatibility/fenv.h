@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2007-2023 Free Software Foundation, Inc.
+// Copyright (C) 2007-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -38,7 +38,7 @@
 
 #if __cplusplus >= 201103L
 
-#if _GLIBCXX_USE_C99_FENV_TR1
+#if _GLIBCXX_USE_C99_FENV
 
 #undef feclearexcept
 #undef fegetexceptflag
@@ -74,7 +74,7 @@ namespace std
   using ::feupdateenv;
 } // namespace
 
-#endif // _GLIBCXX_USE_C99_FENV_TR1
+#endif // _GLIBCXX_USE_C99_FENV
 
 #endif // C++11
 

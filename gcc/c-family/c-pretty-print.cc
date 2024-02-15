@@ -1,5 +1,5 @@
 /* Subroutines common to both C and C++ pretty-printers.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -33,6 +33,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "options.h"
 #include "internal-fn.h"
+#include "function.h"
+#include "basic-block.h"
+#include "gimple.h"
 
 /* The pretty-printer code is primarily designed to closely follow
    (GNU) C and C++ grammars.  That is to be contrasted with spaghetti
@@ -399,6 +402,23 @@ c_pretty_printer::simple_type_specifier (tree t)
 	}
       break;
 
+    case BITINT_TYPE:
+      if (TYPE_NAME (t))
+	{
+	  t = TYPE_NAME (t);
+	  simple_type_specifier (t);
+	}
+      else
+	{
+	  int prec = TYPE_PRECISION (t);
+	  if (TYPE_UNSIGNED (t))
+	    pp_c_ws_string (this, "unsigned");
+	  pp_c_ws_string (this, "_BitInt(");;
+	  pp_decimal_int (this, prec);
+	  pp_right_paren (this);
+	}
+      break;
+
     case TYPE_DECL:
       if (DECL_NAME (t))
 	id_expression (t);
@@ -688,6 +708,7 @@ c_pretty_printer::direct_abstract_declarator (tree t)
     case REAL_TYPE:
     case FIXED_POINT_TYPE:
     case ENUMERAL_TYPE:
+    case BITINT_TYPE:
     case RECORD_TYPE:
     case UNION_TYPE:
     case VECTOR_TYPE:
@@ -808,6 +829,7 @@ c_pretty_printer::direct_declarator (tree t)
     case REAL_TYPE:
     case FIXED_POINT_TYPE:
     case ENUMERAL_TYPE:
+    case BITINT_TYPE:
     case UNION_TYPE:
     case RECORD_TYPE:
       break;
@@ -831,6 +853,7 @@ c_pretty_printer::declarator (tree t)
     case REAL_TYPE:
     case FIXED_POINT_TYPE:
     case ENUMERAL_TYPE:
+    case BITINT_TYPE:
     case UNION_TYPE:
     case RECORD_TYPE:
       break;
@@ -1019,8 +1042,18 @@ pp_c_integer_constant (c_pretty_printer *pp, tree i)
 	  pp_minus (pp);
 	  wi = -wi;
 	}
-      print_hex (wi, pp_buffer (pp)->digit_buffer);
-      pp_string (pp, pp_buffer (pp)->digit_buffer);
+      unsigned int prec = wi.get_precision ();
+      if ((prec + 3) / 4 > sizeof (pp_buffer (pp)->digit_buffer) - 3)
+	{
+	  char *buf = XALLOCAVEC (char, (prec + 3) / 4 + 3);
+	  print_hex (wi, buf);
+	  pp_string (pp, buf);
+	}
+      else
+	{
+	  print_hex (wi, pp_buffer (pp)->digit_buffer);
+	  pp_string (pp, pp_buffer (pp)->digit_buffer);
+	}
     }
 }
 
@@ -1380,12 +1413,14 @@ c_pretty_printer::primary_expression (tree e)
 	  else
 	    primary_expression (var);
 	}
-      else
+      else if (gimple_assign_single_p (SSA_NAME_DEF_STMT (e)))
 	{
 	  /* Print only the right side of the GIMPLE assignment.  */
 	  gimple *def_stmt = SSA_NAME_DEF_STMT (e);
 	  pp_gimple_stmt_1 (this, def_stmt, 0, TDF_RHS_ONLY);
 	}
+      else
+	expression (e);
       break;
 
     default:
@@ -1612,6 +1647,17 @@ c_pretty_printer::postfix_expression (tree e)
       postfix_expression (TREE_OPERAND (e, 0));
       pp_c_left_bracket (this);
       expression (TREE_OPERAND (e, 1));
+      pp_c_right_bracket (this);
+      break;
+
+    case OMP_ARRAY_SECTION:
+      postfix_expression (TREE_OPERAND (e, 0));
+      pp_c_left_bracket (this);
+      if (TREE_OPERAND (e, 1))
+	expression (TREE_OPERAND (e, 1));
+      pp_colon (this);
+      if (TREE_OPERAND (e, 2))
+	expression (TREE_OPERAND (e, 2));
       pp_c_right_bracket (this);
       break;
 
@@ -2664,6 +2710,7 @@ c_pretty_printer::expression (tree e)
     case POSTINCREMENT_EXPR:
     case POSTDECREMENT_EXPR:
     case ARRAY_REF:
+    case OMP_ARRAY_SECTION:
     case CALL_EXPR:
     case COMPONENT_REF:
     case BIT_FIELD_REF:

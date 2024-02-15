@@ -1,6 +1,6 @@
 // Streambuf iterators
 
-// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+// Copyright (C) 1997-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -223,7 +223,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if __cplusplus > 201703L && __cpp_lib_concepts
       [[nodiscard]]
       friend bool
-      operator==(const istreambuf_iterator& __i, default_sentinel_t __s)
+      operator==(const istreambuf_iterator& __i, default_sentinel_t)
       { return __i._M_at_eof(); }
 #endif
     };

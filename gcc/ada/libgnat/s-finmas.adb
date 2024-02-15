@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2015-2023, Free Software Foundation, Inc.      --
+--             Copyright (C) 2015-2024, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -69,20 +69,6 @@ package body System.Finalization_Masters is
    begin
       return System.Storage_Elements."+" (Addr, Offset);
    end Add_Offset_To_Address;
-
-   ------------
-   -- Attach --
-   ------------
-
-   procedure Attach (N : not null FM_Node_Ptr; L : not null FM_Node_Ptr) is
-   begin
-      Lock_Task.all;
-      Attach_Unprotected (N, L);
-      Unlock_Task.all;
-
-      --  Note: No need to unlock in case of an exception because the above
-      --  code can never raise one.
-   end Attach;
 
    ------------------------
    -- Attach_Unprotected --

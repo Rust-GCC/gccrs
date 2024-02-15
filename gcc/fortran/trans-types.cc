@@ -1,5 +1,5 @@
 /* Backend support for Fortran 95 basic types and derived types.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
    and Steven Bosscher <s.bosscher@student.tudelft.nl>
 
@@ -1374,7 +1374,7 @@ gfc_get_element_type (tree type)
 
 /* Returns true if the array sym does not require a descriptor.  */
 
-int
+bool
 gfc_is_nodesc_array (gfc_symbol * sym)
 {
   symbol_attribute *array_attr;
@@ -1601,6 +1601,10 @@ gfc_get_dtype_rank_type (int rank, tree etype)
 			     GFC_DTYPE_ELEM_LEN);
   CONSTRUCTOR_APPEND_ELT (v, field,
 			  fold_convert (TREE_TYPE (field), size));
+  field = gfc_advance_chain (TYPE_FIELDS (dtype_type_node),
+			     GFC_DTYPE_VERSION);
+  CONSTRUCTOR_APPEND_ELT (v, field,
+			  build_zero_cst (TREE_TYPE (field)));
 
   field = gfc_advance_chain (TYPE_FIELDS (dtype_type_node),
 			     GFC_DTYPE_RANK);
@@ -1791,7 +1795,7 @@ gfc_get_nodesc_array_type (tree etype, gfc_array_spec * as, gfc_packed packed,
 	  TYPE_LANG_SPECIFIC (type) = TYPE_LANG_SPECIFIC (TREE_TYPE (type));
 	}
 
-      return type;
+      goto array_type_done;
     }
 
   if (known_stride)
@@ -1809,10 +1813,6 @@ gfc_get_nodesc_array_type (tree etype, gfc_array_spec * as, gfc_packed packed,
   TREE_TYPE (type) = etype;
 
   layout_type (type);
-
-  mpz_clear (offset);
-  mpz_clear (stride);
-  mpz_clear (delta);
 
   /* Represent packed arrays as multi-dimensional if they have rank >
      1 and with proper bounds, instead of flat arrays.  This makes for
@@ -1844,6 +1844,12 @@ gfc_get_nodesc_array_type (tree etype, gfc_array_spec * as, gfc_packed packed,
       GFC_ARRAY_TYPE_P (type) = 1;
       TYPE_LANG_SPECIFIC (type) = TYPE_LANG_SPECIFIC (TREE_TYPE (type));
     }
+
+array_type_done:
+  mpz_clear (offset);
+  mpz_clear (stride);
+  mpz_clear (delta);
+
   return type;
 }
 
@@ -2313,7 +2319,10 @@ gfc_sym_type (gfc_symbol * sym, bool is_bind_c)
 	      && sym->ns->proc_name
 	      && sym->ns->proc_name->attr.is_bind_c)
 	  || (sym->ts.deferred && (!sym->ts.u.cl
-				   || !sym->ts.u.cl->backend_decl))))
+				   || !sym->ts.u.cl->backend_decl))
+	  || (sym->attr.dummy
+	      && sym->attr.value
+	      && gfc_length_one_character_type_p (&sym->ts))))
     type = gfc_get_char_type (sym->ts.kind);
   else
     type = gfc_typenode_for_spec (&sym->ts, sym->attr.codimension);
@@ -2324,8 +2333,8 @@ gfc_sym_type (gfc_symbol * sym, bool is_bind_c)
   else
     byref = 0;
 
-  restricted = !sym->attr.target && !sym->attr.pointer
-               && !sym->attr.proc_pointer && !sym->attr.cray_pointee;
+  restricted = (!sym->attr.target && !IS_POINTER (sym)
+		&& !IS_PROC_POINTER (sym) && !sym->attr.cray_pointee);
   if (!restricted)
     type = gfc_nonrestricted_type (type);
 
@@ -2381,11 +2390,10 @@ gfc_sym_type (gfc_symbol * sym, bool is_bind_c)
 	  || (sym->ns->proc_name && sym->ns->proc_name->attr.entry_master))
 	type = build_pointer_type (type);
       else
-	{
-	  type = build_reference_type (type);
-	  if (restricted)
-	    type = build_qualified_type (type, TYPE_QUAL_RESTRICT);
-	}
+	type = build_reference_type (type);
+
+      if (restricted)
+	type = build_qualified_type (type, TYPE_QUAL_RESTRICT);
     }
 
   return (type);
@@ -2451,7 +2459,7 @@ gfc_add_field_to_struct (tree context, tree name, tree type, tree **chain)
    the two derived type symbols are "equal", as described
    in 4.4.2 and resolved by gfc_compare_derived_types.  */
 
-int
+bool
 gfc_copy_dt_decls_ifequal (gfc_symbol *from, gfc_symbol *to,
 			   bool from_gsym)
 {
@@ -2940,7 +2948,7 @@ copy_derived_types:
 }
 
 
-int
+bool
 gfc_return_by_reference (gfc_symbol * sym)
 {
   if (!sym->attr.function)
@@ -3403,7 +3411,7 @@ gfc_type_for_mode (machine_mode mode, int unsignedp)
   else if (GET_MODE_CLASS (mode) == MODE_VECTOR_BOOL
 	   && valid_vector_subparts_p (GET_MODE_NUNITS (mode)))
     {
-      unsigned int elem_bits = vector_element_size (GET_MODE_BITSIZE (mode),
+      unsigned int elem_bits = vector_element_size (GET_MODE_PRECISION (mode),
 						    GET_MODE_NUNITS (mode));
       tree bool_type = build_nonstandard_boolean_type (elem_bits);
       return build_vector_type_for_mode (bool_type, mode);

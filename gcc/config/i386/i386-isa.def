@@ -1,5 +1,5 @@
 /* Definition for processor table alias flags.
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -117,3 +117,12 @@ DEF_PTA(AMX_FP16)
 DEF_PTA(PREFETCHI)
 DEF_PTA(RAOINT)
 DEF_PTA(AMX_COMPLEX)
+DEF_PTA(AVXVNNIINT16)
+DEF_PTA(SM3)
+DEF_PTA(SHA512)
+DEF_PTA(SM4)
+DEF_PTA(APX_F)
+DEF_PTA(USER_MSR)
+DEF_PTA(EVEX512)
+DEF_PTA(AVX10_1_256)
+DEF_PTA(AVX10_1_512)

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -319,8 +319,9 @@ package body Sem_Ch7 is
             function Set_Referencer_Of_Non_Subprograms return Boolean is
             begin
                --  An inlined subprogram body acts as a referencer
-               --  unless we generate C code since inlining is then
-               --  handled by the C compiler.
+               --  unless we generate C code without -gnatn where we want
+               --  to favor generating static inline functions as much as
+               --  possible.
 
                --  Note that we test Has_Pragma_Inline here in addition
                --  to Is_Inlined. We are doing this for a client, since
@@ -329,7 +330,9 @@ package body Sem_Ch7 is
                --  should occur, so we need to catch all cases where the
                --  subprogram may be inlined by the client.
 
-               if (not CCG_Mode or else Has_Pragma_Inline_Always (Decl_Id))
+               if (not CCG_Mode
+                     or else Has_Pragma_Inline_Always (Decl_Id)
+                     or else Inline_Active)
                  and then (Is_Inlined (Decl_Id)
                             or else Has_Pragma_Inline (Decl_Id))
                then
@@ -446,7 +449,11 @@ package body Sem_Ch7 is
                   else
                      Decl_Id := Defining_Entity (Decl);
 
+                     --  See the N_Subprogram_Declaration case below
+
                      if not Set_Referencer_Of_Non_Subprograms
+                       and then (not In_Nested_Instance
+                                  or else not Subprogram_Table.Get_First)
                        and then not Subprogram_Table.Get (Decl_Id)
                      then
                         --  We can reset Is_Public right away
@@ -870,11 +877,6 @@ package body Sem_Ch7 is
          New_N := Copy_Generic_Node (N, Empty, Instantiating => False);
          Rewrite (N, New_N);
 
-         --  Once the contents of the generic copy and the template are
-         --  swapped, do the same for their respective aspect specifications.
-
-         Exchange_Aspects (N, New_N);
-
          --  Collect all contract-related source pragmas found within the
          --  template and attach them to the contract of the package body.
          --  This contract is used in the capture of global references within
@@ -893,6 +895,9 @@ package body Sem_Ch7 is
       --  current node otherwise. Note that N was rewritten above, so we must
       --  be sure to get the latest Body_Id value.
 
+      if Ekind (Body_Id) = E_Package then
+         Reinit_Field_To_Zero (Body_Id, F_Body_Needed_For_Inlining);
+      end if;
       Mutate_Ekind (Body_Id, E_Package_Body);
       Set_Body_Entity (Spec_Id, Body_Id);
       Set_Spec_Entity (Body_Id, Spec_Id);
@@ -919,9 +924,7 @@ package body Sem_Ch7 is
       Set_Has_Completion (Spec_Id);
       Last_Spec_Entity := Last_Entity (Spec_Id);
 
-      if Has_Aspects (N) then
-         Analyze_Aspect_Specifications (N, Body_Id);
-      end if;
+      Analyze_Aspect_Specifications (N, Body_Id);
 
       Push_Scope (Spec_Id);
 
@@ -1180,6 +1183,8 @@ package body Sem_Ch7 is
       Generate_Definition (Id);
       Enter_Name (Id);
       Mutate_Ekind  (Id, E_Package);
+      Set_Is_Not_Self_Hidden (Id);
+      --  Needed early because of Set_Categorization_From_Pragmas below
       Set_Etype  (Id, Standard_Void_Type);
 
       --  Set SPARK_Mode from context
@@ -1201,9 +1206,7 @@ package body Sem_Ch7 is
       --  Analyze aspect specifications immediately, since we need to recognize
       --  things like Pure early enough to diagnose violations during analysis.
 
-      if Has_Aspects (N) then
-         Analyze_Aspect_Specifications (N, Id);
-      end if;
+      Analyze_Aspect_Specifications (N, Id);
 
       --  Ada 2005 (AI-217): Check if the package has been illegally named in
       --  a limited-with clause of its own context. In this case the error has
@@ -1255,12 +1258,17 @@ package body Sem_Ch7 is
                Is_Main_Unit => Parent (N) = Cunit (Main_Unit));
          end if;
 
-         --  Warn about references to unset objects, which is straightforward
-         --  for packages with no bodies. For packages with bodies this is more
-         --  complicated, because some of the objects might be set between spec
-         --  and body elaboration, in nested or child packages, etc.
+         --  For package declarations at the library level, warn about
+         --  references to unset objects, which is straightforward for packages
+         --  with no bodies. For packages with bodies this is more complicated,
+         --  because some of the objects might be set between spec and body
+         --  elaboration, in nested or child packages, etc. Note that the
+         --  recursive calls in Check_References will handle nested package
+         --  specifications.
 
-         Check_References (Id);
+         if Is_Library_Level_Entity (Id) then
+            Check_References (Id);
+         end if;
       end if;
 
       --  Set Body_Required indication on the compilation unit node
@@ -1927,6 +1935,20 @@ package body Sem_Ch7 is
             end;
          end if;
 
+         --  Preanalyze class-wide conditions of dispatching primitives defined
+         --  in nested packages. For library packages, class-wide pre- and
+         --  postconditions are preanalyzed when the primitives are frozen
+         --  (see Merge_Class_Conditions); for nested packages, the end of the
+         --  package does not cause freezing (and hence they must be analyzed
+         --  now to ensure the correct visibility of referenced entities).
+
+         if not Is_Compilation_Unit (Id)
+           and then Is_Dispatching_Operation (E)
+           and then Present (Contract (E))
+         then
+            Preanalyze_Class_Conditions (E);
+         end if;
+
          Next_Entity (E);
       end loop;
 
@@ -2063,9 +2085,7 @@ package body Sem_Ch7 is
       Set_SPARK_Pragma           (Id, SPARK_Mode_Pragma);
       Set_SPARK_Pragma_Inherited (Id);
 
-      if Has_Aspects (N) then
-         Analyze_Aspect_Specifications (N, Id);
-      end if;
+      Analyze_Aspect_Specifications (N, Id);
    end Analyze_Private_Type_Declaration;
 
    ----------------------------------
@@ -2720,10 +2740,11 @@ package body Sem_Ch7 is
          Mutate_Ekind (Id, E_Private_Type);
       end if;
 
-      Set_Etype              (Id, Id);
+      Set_Is_Not_Self_Hidden (Id);
+      Set_Etype (Id, Id);
       Set_Has_Delayed_Freeze (Id);
-      Set_Is_First_Subtype   (Id);
-      Reinit_Size_Align      (Id);
+      Set_Is_First_Subtype (Id);
+      Reinit_Size_Align (Id);
 
       Set_Is_Constrained (Id,
         No (Discriminant_Specifications (N))
@@ -3187,10 +3208,6 @@ package body Sem_Ch7 is
             --  is simply that the initializing expression is missing.
 
             if not Has_Private_Declaration (Etype (Id)) then
-
-               --  We assume that the user did not intend a deferred constant
-               --  declaration, and the expression is just missing.
-
                Error_Msg_N
                  ("constant declaration requires initialization expression",
                    Parent (Id));

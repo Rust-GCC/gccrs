@@ -1,11 +1,11 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2" } */
+/* { dg-options "--param=riscv-autovec-preference=scalable -march=rv32gcv -mabi=ilp32 -fno-schedule-insns -fno-schedule-insns2" } */
 
 #include "riscv_vector.h"
 
 void f (int8_t * restrict in, int8_t * restrict out, int n, int cond)
 {
-  size_t vl = 101;
+  size_t vl = cond + 101;
   
   for (size_t i = 0; i < n; i++)
     {

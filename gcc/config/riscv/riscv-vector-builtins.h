@@ -1,5 +1,5 @@
 /* Builtins definitions for RISC-V 'V' Extension for GNU compiler.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
    Contributed by Ju-Zhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
 
    This file is part of GCC.
@@ -108,6 +108,23 @@ static const unsigned int CP_WRITE_CSR = 1U << 5;
 #define RVV_REQUIRE_ELEN_FP_64 (1 << 3) /* Require FP ELEN >= 64.  */
 #define RVV_REQUIRE_FULL_V (1 << 4) /* Require Full 'V' extension.  */
 #define RVV_REQUIRE_MIN_VLEN_64 (1 << 5)	/* Require TARGET_MIN_VLEN >= 64.  */
+#define RVV_REQUIRE_ELEN_FP_16 (1 << 6) /* Require FP ELEN >= 32.  */
+
+/* Enumerates the required extensions.  */
+enum required_ext
+{
+  VECTOR_EXT,   /* Vector extension */
+  ZVBB_EXT,    /* Cryto vector Zvbb sub-ext */
+  ZVBB_OR_ZVKB_EXT, /* Cryto vector Zvbb or zvkb sub-ext */
+  ZVBC_EXT,    /* Crypto vector Zvbc sub-ext */
+  ZVKG_EXT,    /* Crypto vector Zvkg sub-ext */
+  ZVKNED_EXT,  /* Crypto vector Zvkned sub-ext */
+  ZVKNHA_OR_ZVKNHB_EXT, /* Crypto vector Zvknh[ab] sub-ext */
+  ZVKNHB_EXT,  /* Crypto vector Zvknhb sub-ext */
+  ZVKSED_EXT,  /* Crypto vector Zvksed sub-ext */
+  ZVKSH_EXT,   /* Crypto vector Zvksh sub-ext */
+  XTHEADVECTOR_EXT,   /* XTheadVector extension */
+};
 
 /* Enumerates the RVV operand types.  */
 enum operand_type_index
@@ -123,6 +140,7 @@ enum operand_type_index
 enum vector_type_index
 {
 #define DEF_RVV_TYPE(NAME, ABI_NAME, NCHARS, ARGS...) VECTOR_TYPE_##NAME,
+#define DEF_RVV_TUPLE_TYPE(NAME, ABI_NAME, NCHARS, ARGS...) VECTOR_TYPE_##NAME,
 #include "riscv-vector-builtins.def"
   NUM_VECTOR_TYPES,
   VECTOR_TYPE_INVALID = NUM_VECTOR_TYPES
@@ -184,6 +202,7 @@ struct rvv_arg_type_info
   tree get_scalar_type (vector_type_index) const;
   tree get_vector_type (vector_type_index) const;
   tree get_tree_type (vector_type_index) const;
+  tree get_tuple_subpart_type (vector_type_index) const;
 };
 
 /* Static information for each operand.  */
@@ -209,6 +228,37 @@ class function_shape;
 /* Static information about a set of functions.  */
 struct function_group_info
 {
+  /* Return true if required extension is enabled */
+  bool match (required_ext ext_value) const
+  {
+    switch (ext_value)
+    {
+      case VECTOR_EXT:
+        return TARGET_VECTOR;
+      case ZVBB_EXT:
+        return TARGET_ZVBB;
+      case ZVBB_OR_ZVKB_EXT:
+        return (TARGET_ZVBB || TARGET_ZVKB);
+      case ZVBC_EXT:
+        return TARGET_ZVBC;
+      case ZVKG_EXT:
+        return TARGET_ZVKG;
+      case ZVKNED_EXT:
+        return TARGET_ZVKNED;
+      case ZVKNHA_OR_ZVKNHB_EXT:
+        return (TARGET_ZVKNHA || TARGET_ZVKNHB);
+      case ZVKNHB_EXT:
+        return TARGET_ZVKNHB;
+      case ZVKSED_EXT:
+        return TARGET_ZVKSED;
+      case ZVKSH_EXT:
+        return TARGET_ZVKSH;
+      case XTHEADVECTOR_EXT:
+	return TARGET_XTHEADVECTOR;
+      default:
+        gcc_unreachable ();
+    }
+  }
   /* The base name, as a string.  */
   const char *base_name;
 
@@ -229,6 +279,8 @@ struct function_group_info
      on the index value.  */
   const predication_type_index *preds;
   const rvv_op_info ops_infos;
+  /* The required extension value, using it to get the enabled flag.  */
+  required_ext required_extensions;
 };
 
 class GTY ((user)) function_instance
@@ -274,17 +326,21 @@ public:
   void apply_predication (const function_instance &, tree, vec<tree> &) const;
   void add_unique_function (const function_instance &, const function_shape *,
 			    tree, vec<tree> &);
+  void add_overloaded_function (const function_instance &,
+				const function_shape *);
   void register_function_group (const function_group_info &);
   void append_name (const char *);
   void append_base_name (const char *);
   void append_sew (int);
+  void append_nf (int);
   char *finish_name ();
 
 private:
   tree get_attributes (const function_instance &);
 
   registered_function &add_function (const function_instance &, const char *,
-				     tree, tree, bool);
+				     tree, tree, bool, const char *,
+				     const vec<tree> &, bool);
 
   /* True if we should create a separate decl for each instance of an
      overloaded function, instead of using function_builder.  */
@@ -410,6 +466,15 @@ public:
   /* Return true if intrinsics has merge operand.  */
   virtual bool has_merge_operand_p () const;
 
+  /* Return true if intrinsics has rounding mode operand.  */
+  virtual bool has_rounding_mode_operand_p () const;
+
+  /* Return true if intrinsics maybe require vxrm operand.  */
+  virtual bool may_require_vxrm_p () const;
+
+  /* Return true if intrinsics maybe require frm operand.  */
+  virtual bool may_require_frm_p () const;
+
   /* Try to fold the given gimple call.  Return the new gimple statement
      on success, otherwise return null.  */
   virtual gimple *fold (gimple_folder &) const { return NULL; }
@@ -431,9 +496,12 @@ public:
 
   machine_mode arg_mode (unsigned int) const;
   machine_mode ret_mode (void) const;
+  unsigned int arg_num (void) const;
   bool check (void);
 
   bool require_immediate (unsigned int, HOST_WIDE_INT, HOST_WIDE_INT) const;
+  bool require_immediate_range_or (unsigned int, HOST_WIDE_INT,
+				   HOST_WIDE_INT, HOST_WIDE_INT) const;
 
 private:
   bool require_immediate_range (unsigned int, HOST_WIDE_INT,
@@ -441,6 +509,8 @@ private:
   void report_non_ice (unsigned int) const;
   void report_out_of_range (unsigned int, HOST_WIDE_INT, HOST_WIDE_INT,
 			    HOST_WIDE_INT) const;
+  void report_out_of_range_and_not (unsigned int, HOST_WIDE_INT, HOST_WIDE_INT,
+				    HOST_WIDE_INT, HOST_WIDE_INT) const;
 
   /* The type of the resolved function.  */
   tree m_fntype;
@@ -597,6 +667,12 @@ function_checker::ret_mode () const
   return TYPE_MODE (TREE_TYPE (TREE_TYPE (fndecl)));
 }
 
+inline unsigned int
+function_checker::arg_num () const
+{
+  return m_nargs;
+}
+
 /* Default implementation of function_base::call_properties, with conservatively
    correct behavior for floating-point instructions.  */
 inline unsigned int
@@ -648,11 +724,45 @@ function_base::has_merge_operand_p () const
   return true;
 }
 
+/* We choose to return false by default since most of the intrinsics does
+   not have rounding mode operand.  */
+inline bool
+function_base::has_rounding_mode_operand_p () const
+{
+  return false;
+}
+
+/* We choose to return false by default since most of the intrinsics does
+   not need frm operand.  */
+inline bool
+function_base::may_require_frm_p () const
+{
+  return false;
+}
+
+/* We choose to return false by default since most of the intrinsics does
+   not need vxrm operand.  */
+inline bool
+function_base::may_require_vxrm_p () const
+{
+  return false;
+}
+
 /* Since most of intrinsics can be overloaded, we set it true by default.  */
 inline bool
 function_base::can_be_overloaded_p (enum predication_type_index) const
 {
   return true;
+}
+
+/* Return the single field in tuple type TYPE.  */
+inline tree
+tuple_type_field (tree type)
+{
+  for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
+    if (TREE_CODE (field) == FIELD_DECL)
+      return field;
+  gcc_unreachable ();
 }
 
 } // end namespace riscv_vector

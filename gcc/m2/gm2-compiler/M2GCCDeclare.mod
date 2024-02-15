@@ -1,6 +1,6 @@
 (* M2GCCDeclare.mod declares Modula-2 types to GCC.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -50,7 +50,7 @@ FROM M2FileName IMPORT CalculateFileName ;
 FROM DynamicStrings IMPORT String, string, InitString, KillString, InitStringCharStar, InitStringChar, Mark ;
 FROM FormatStrings IMPORT Sprintf1 ;
 FROM M2LexBuf IMPORT TokenToLineNo, FindFileNameFromToken, TokenToLocation, UnknownTokenNo, BuiltinTokenNo ;
-FROM M2MetaError IMPORT MetaError1, MetaError3 ;
+FROM M2MetaError IMPORT MetaError1, MetaError2, MetaError3 ;
 FROM M2Error IMPORT FlushErrors, InternalError ;
 FROM M2Printf IMPORT printf0, printf1, printf2, printf3 ;
 
@@ -65,7 +65,8 @@ FROM Lists IMPORT List, InitList, IncludeItemIntoList,
 
 FROM Sets IMPORT Set, InitSet, KillSet,
                  IncludeElementIntoSet, ExcludeElementFromSet,
-                 NoOfElementsInSet, IsElementInSet, ForeachElementInSetDo ;
+                 NoOfElementsInSet, IsElementInSet, ForeachElementInSetDo,
+                 DuplicateSet, EqualSet ;
 
 FROM SymbolTable IMPORT NulSym,
                         ModeOfAddr,
@@ -95,8 +96,9 @@ FROM SymbolTable IMPORT NulSym,
                         IsProcedureReachable, IsParameter, IsConstLit,
                         IsDummy, IsVarAParam, IsProcedureVariable,
                         IsGnuAsm, IsGnuAsmVolatile, IsObject, IsTuple,
-                        IsError, IsHiddenType,
+                        IsError, IsHiddenType, IsVarHeap,
                         IsComponent, IsPublic, IsExtern, IsCtor,
+                        IsImport, IsImportStatement,
       	       	     	GetMainModule, GetBaseModule, GetModule, GetLocalSym,
                         PutModuleFinallyFunction,
                         GetProcedureScope, GetProcedureQuads,
@@ -114,13 +116,16 @@ FROM SymbolTable IMPORT NulSym,
                         GetParameterShadowVar,
                         GetUnboundedRecordType,
                         GetModuleCtors,
+                        MakeSubrange, MakeConstVar, MakeConstLit,
+                        PutConst,
 			ForeachOAFamily, GetOAFamily,
                         IsModuleWithinProcedure, IsVariableSSA,
                         IsVariableAtAddress, IsConstructorConstant,
-                        ForeachLocalSymDo, ForeachFieldEnumerationDo,
+                        ForeachLocalSymDo,
       	       	     	ForeachProcedureDo, ForeachModuleDo,
                         ForeachInnerModuleDo, ForeachImportedDo,
-                        ForeachExportedDo ;
+                        ForeachExportedDo, PrintInitialized,
+                        FinalSymbol ;
 
 FROM M2Base IMPORT IsPseudoBaseProcedure, IsPseudoBaseFunction,
                    GetBaseTypeMinMax, MixTypes,
@@ -139,11 +144,12 @@ FROM M2System IMPORT IsPseudoSystemFunction, IsSystemType,
 FROM M2Bitset IMPORT Bitset, Bitnum ;
 FROM SymbolConversion IMPORT AddModGcc, Mod2Gcc, GccKnowsAbout, Poison, RemoveMod2Gcc ;
 FROM M2GenGCC IMPORT ResolveConstantExpressions ;
-FROM M2Scope IMPORT ScopeBlock, InitScopeBlock, KillScopeBlock, ForeachScopeBlockDo ;
+FROM M2Scope IMPORT ScopeBlock, InitScopeBlock, KillScopeBlock, ForeachScopeBlockDo3 ;
 
 FROM M2ALU IMPORT Addn, Sub, Equ, GreEqu, Gre, Less, PushInt, PushCard, ConvertToType,
                   PushIntegerTree, PopIntegerTree, PopRealTree, ConvertToInt, PopSetTree,
                   PopChar,
+                  DivTrunc,
                   IsConstructorDependants, WalkConstructorDependants,
                   PopConstructorTree, PopComplexTree, PutConstructorSolved,
                   ChangeToConstructor, EvaluateValue, TryEvaluateValue ;
@@ -156,8 +162,6 @@ FROM m2decl IMPORT BuildIntegerConstant, BuildStringConstant, BuildCStringConsta
                    BuildStartFunctionDeclaration,
                    BuildParameterDeclaration, BuildEndFunctionDeclaration,
                    DeclareKnownVariable, GetBitsPerBitset, BuildPtrToTypeString ;
-(*                   DeclareM2linkStaticInitialization,
-                   DeclareM2linkForcedModuleInitOrder ; *)
 
 FROM m2type IMPORT MarkFunctionReferenced, BuildStartRecord, BuildStartVarient, BuildStartFunctionType,
                    BuildStartFieldVarient, BuildStartVarient, BuildStartType, BuildStartArrayType,
@@ -181,55 +185,70 @@ FROM m2type IMPORT MarkFunctionReferenced, BuildStartRecord, BuildStartVarient, 
                    BuildEndFieldVarient, BuildArrayIndexType, BuildEndFunctionType,
                    BuildSetType, BuildEndVarient, BuildEndArrayType, InitFunctionTypeParameters,
                    BuildProcTypeParameterDeclaration, DeclareKnownType,
-                   ValueOutOfTypeRange, ExceedsTypeRange ;
+                   ValueOutOfTypeRange, ExceedsTypeRange,
+                   GetMaxFrom, GetMinFrom ;
 
 FROM m2convert IMPORT BuildConvert ;
 
 FROM m2expr IMPORT BuildSub, BuildLSL, BuildTBitSize, BuildAdd, BuildDivTrunc, BuildModTrunc,
-                   BuildSize, TreeOverflow,
+                   BuildSize, TreeOverflow, AreConstantsEqual, CompareTrees,
                    GetPointerZero, GetIntegerZero, GetIntegerOne ;
 
-FROM m2block IMPORT RememberType, pushGlobalScope, popGlobalScope, pushFunctionScope, popFunctionScope,
+FROM m2block IMPORT RememberType, pushGlobalScope, popGlobalScope,
+                    pushFunctionScope, popFunctionScope,
                     finishFunctionDecl, RememberConstant, GetGlobalContext ;
 
 
 TYPE
    StartProcedure = PROCEDURE (location_t, ADDRESS) : Tree ;
    ListType       = (fullydeclared, partiallydeclared, niltypedarrays,
-                     heldbyalignment, finishedalignment, todolist, tobesolvedbyquads) ;
+                     heldbyalignment, finishedalignment, todolist,
+                     tobesolvedbyquads, finishedsetarray) ;
    doDeclareProcedure = PROCEDURE (CARDINAL, CARDINAL) ;
 
 
 
 CONST
-   Debugging = FALSE ;
-   Progress  = FALSE ;
-   EnableSSA = FALSE ;
+   Debugging   = FALSE ;
+   Progress    = FALSE ;
+   EnableSSA   = FALSE ;
+   EnableWatch = FALSE ;
+
+
+TYPE
+   Group = POINTER TO RECORD
+                         ToBeSolvedByQuads,               (* Constants which must be solved *)
+                                                          (* by processing the quadruples.  *)
+                         FinishedSetArray,                (* Sets which have had their set  *)
+                                                          (* array created.                 *)
+                         NilTypedArrays,                  (* Arrays which have NIL as their *)
+                                                          (* type.                          *)
+                         FullyDeclared,                   (* Those symbols which have been  *)
+                                                          (* fully declared.                *)
+                         PartiallyDeclared,               (* Those types which have need to *)
+                                                          (* be finished (but already       *)
+                                                          (* started: records, function     *)
+                                                          (* and array type).               *)
+                         HeldByAlignment,                 (* Types which have a user        *)
+                                                          (* specified alignment constant.  *)
+                         FinishedAlignment,               (* Records for which we know      *)
+                                                          (* their alignment value.         *)
+                         ToDoList            : Set ;      (* Contains a set of all          *)
+                                                          (* outstanding types that need to *)
+                                                          (* be declared to GCC once        *)
+                                                          (* its dependants have            *)
+                                                          (* been written.                  *)
+                         Next                : Group ;
+                      END ;
+
 
 VAR
-   ToBeSolvedByQuads,               (* constants which must be solved *)
-                                    (* by processing the quadruples.  *)
-   NilTypedArrays,                  (* arrays which have NIL as their *)
-                                    (* type.                          *)
-   FullyDeclared,                   (* those symbols which have been  *)
-                                    (* fully declared.                *)
-   PartiallyDeclared,               (* those types which have need to *)
-                                    (* be finished (but already       *)
-                                    (* started: records, function,    *)
-                                    (* and array type).               *)
-   HeldByAlignment,                 (* types which have a user        *)
-                                    (* specified alignment constant.  *)
-   FinishedAlignment,               (* records for which we know      *)
-                                    (* their alignment value.         *)
+   FreeGroup,
+   GlobalGroup         : Group ;    (* The global group of all sets.  *)
    VisitedList,
-   ChainedList,
-   ToDoList            : Set ;      (* Contains a set of all          *)
-                                    (* outstanding types that need to *)
-                                    (* be declared to GCC once        *)
-                                    (* its dependants have            *)
-                                    (* been written.                  *)
-   HaveInitDefaultTypes: BOOLEAN ;  (* have we initialized them yet?  *)
-   WatchList           : Set ;      (* Set of symbols being watched   *)
+   ChainedList         : Set ;
+   HaveInitDefaultTypes: BOOLEAN ;  (* Have we initialized them yet?  *)
+   WatchList           : Set ;      (* Set of symbols being watched.  *)
    EnumerationIndex    : Index ;
    action              : IsAction ;
    enumDeps            : BOOLEAN ;
@@ -237,7 +256,7 @@ VAR
 
 PROCEDURE mystop ; BEGIN END mystop ;
 
-(* ***************************************************
+(* *************************************************** *)
 (*
    PrintNum -
 *)
@@ -254,10 +273,10 @@ END PrintNum ;
 
 PROCEDURE DebugSet (a: ARRAY OF CHAR; l: Set) ;
 BEGIN
-   printf0(a) ;
-   printf0(' {') ;
+   printf0 (a) ;
+   printf0 (' {') ;
    ForeachElementInSetDo (l, PrintNum) ;
-   printf0('}\n')
+   printf0 ('}\n')
 END DebugSet ;
 
 
@@ -267,15 +286,16 @@ END DebugSet ;
 
 PROCEDURE DebugSets ;
 BEGIN
-   DebugSet('ToDoList', ToDoList) ;
-   DebugSet('HeldByAlignment', HeldByAlignment) ;
-   DebugSet('FinishedAlignment', FinishedAlignment) ;
-   DebugSet('PartiallyDeclared', PartiallyDeclared) ;
-   DebugSet('FullyDeclared', FullyDeclared) ;
-   DebugSet('NilTypedArrays', NilTypedArrays) ;
-   DebugSet('ToBeSolvedByQuads', ToBeSolvedByQuads)
+   DebugSet ('ToDoList', GlobalGroup^.ToDoList) ;
+   DebugSet ('HeldByAlignment', GlobalGroup^.HeldByAlignment) ;
+   DebugSet ('FinishedAlignment', GlobalGroup^.FinishedAlignment) ;
+   DebugSet ('PartiallyDeclared', GlobalGroup^.PartiallyDeclared) ;
+   DebugSet ('FullyDeclared', GlobalGroup^.FullyDeclared) ;
+   DebugSet ('NilTypedArrays', GlobalGroup^.NilTypedArrays) ;
+   DebugSet ('ToBeSolvedByQuads', GlobalGroup^.ToBeSolvedByQuads) ;
+   DebugSet ('FinishedSetArray', GlobalGroup^.FinishedSetArray)
 END DebugSets ;
-   ************************************************ *)
+(* ************************************************ *)
 
 
 (*
@@ -286,36 +306,10 @@ PROCEDURE DebugNumber (a: ARRAY OF CHAR; s: Set) ;
 VAR
    n: CARDINAL ;
 BEGIN
-   n := NoOfElementsInSet(s) ;
-   printf1(a, n) ;
-   FIO.FlushBuffer(FIO.StdOut)
+   n := NoOfElementsInSet (s) ;
+   printf1 (a, n) ;
+   FIO.FlushBuffer (FIO.StdOut)
 END DebugNumber ;
-
-
-(*
-   FindSetNumbers -
-*)
-
-PROCEDURE FindSetNumbers (VAR t, a, p, f, n, b: CARDINAL) : BOOLEAN ;
-VAR
-   t1, p1, f1, n1, b1, a1: CARDINAL ;
-   same                  : BOOLEAN ;
-BEGIN
-   t1 := NoOfElementsInSet(ToDoList) ;
-   a1 := NoOfElementsInSet(HeldByAlignment) ;
-   p1 := NoOfElementsInSet(PartiallyDeclared) ;
-   f1 := NoOfElementsInSet(FullyDeclared) ;
-   n1 := NoOfElementsInSet(NilTypedArrays) ;
-   b1 := NoOfElementsInSet(ToBeSolvedByQuads) ;
-   same := ((t=t1) AND (a=a1) AND (p=p1) AND (f=f1) AND (n=n1) AND (b=b1)) ;
-   t := t1 ;
-   a := a1 ;
-   p := p1 ;
-   f := f1 ;
-   n := n1 ;
-   b := b1 ;
-   RETURN( same )
-END FindSetNumbers ;
 
 
 (*
@@ -324,12 +318,13 @@ END FindSetNumbers ;
 
 PROCEDURE DebugSetNumbers ;
 BEGIN
-   DebugNumber('ToDoList : %d\n', ToDoList) ;
-   DebugNumber('HeldByAlignment : %d\n', HeldByAlignment) ;
-   DebugNumber('PartiallyDeclared : %d\n', PartiallyDeclared) ;
-   DebugNumber('FullyDeclared : %d\n', FullyDeclared) ;
-   DebugNumber('NilTypedArrays : %d\n', NilTypedArrays) ;
-   DebugNumber('ToBeSolvedByQuads : %d\n', ToBeSolvedByQuads)
+   DebugNumber ('ToDoList : %d\n', GlobalGroup^.ToDoList) ;
+   DebugNumber ('HeldByAlignment : %d\n', GlobalGroup^.HeldByAlignment) ;
+   DebugNumber ('PartiallyDeclared : %d\n', GlobalGroup^.PartiallyDeclared) ;
+   DebugNumber ('FullyDeclared : %d\n', GlobalGroup^.FullyDeclared) ;
+   DebugNumber ('NilTypedArrays : %d\n', GlobalGroup^.NilTypedArrays) ;
+   DebugNumber ('ToBeSolvedByQuads : %d\n', GlobalGroup^.ToBeSolvedByQuads) ;
+   DebugNumber ('FinishedSetArray : %d\n', GlobalGroup^.FinishedSetArray)
 END DebugSetNumbers ;
 
 
@@ -339,18 +334,16 @@ END DebugSetNumbers ;
                    lists.
 *)
 
-(*
 PROCEDURE AddSymToWatch (sym: WORD) ;
 BEGIN
-   IF (sym#NulSym) AND (NOT IsElementInSet(WatchList, sym))
+   IF (sym # NulSym) AND (NOT IsElementInSet (WatchList, sym))
    THEN
-      IncludeElementIntoSet(WatchList, sym) ;
-      WalkDependants(sym, AddSymToWatch) ;
-      printf1("watching symbol %d\n", sym) ;
-      FIO.FlushBuffer(FIO.StdOut)
+      IncludeElementIntoSet (WatchList, sym) ;
+      WalkDependants (sym, AddSymToWatch) ;
+      printf1 ("watching symbol %d\n", sym) ;
+      FIO.FlushBuffer (FIO.StdOut)
    END
 END AddSymToWatch ;
-*)
 
 
 (*
@@ -403,21 +396,18 @@ END doInclude ;
 
 PROCEDURE WatchIncludeList (sym: CARDINAL; lt: ListType) ;
 BEGIN
-   IF IsElementInSet(WatchList, sym)
+   IF IsElementInSet (WatchList, sym)
    THEN
       CASE lt OF
 
-      tobesolvedbyquads :  doInclude(ToBeSolvedByQuads, "symbol %d -> ToBeSolvedByQuads\n", sym) |
-      fullydeclared     :  doInclude(FullyDeclared, "symbol %d -> FullyDeclared\n", sym) ;
-                           IF sym=1265
-                           THEN
-                              mystop
-                           END |
-      partiallydeclared :  doInclude(PartiallyDeclared, "symbol %d -> PartiallyDeclared\n", sym) |
-      heldbyalignment   :  doInclude(HeldByAlignment, "symbol %d -> HeldByAlignment\n", sym) |
-      finishedalignment :  doInclude(FinishedAlignment, "symbol %d -> FinishedAlignment\n", sym) |
-      todolist          :  doInclude(ToDoList, "symbol %d -> ToDoList\n", sym) |
-      niltypedarrays    :  doInclude(NilTypedArrays, "symbol %d -> NilTypedArrays\n", sym)
+      tobesolvedbyquads :  doInclude (GlobalGroup^.ToBeSolvedByQuads, "symbol %d -> ToBeSolvedByQuads\n", sym) |
+      fullydeclared     :  doInclude (GlobalGroup^.FullyDeclared, "symbol %d -> FullyDeclared\n", sym) |
+      partiallydeclared :  doInclude (GlobalGroup^.PartiallyDeclared, "symbol %d -> PartiallyDeclared\n", sym) |
+      heldbyalignment   :  doInclude (GlobalGroup^.HeldByAlignment, "symbol %d -> HeldByAlignment\n", sym) |
+      finishedalignment :  doInclude (GlobalGroup^.FinishedAlignment, "symbol %d -> FinishedAlignment\n", sym) |
+      todolist          :  doInclude (GlobalGroup^.ToDoList, "symbol %d -> ToDoList\n", sym) |
+      niltypedarrays    :  doInclude (GlobalGroup^.NilTypedArrays, "symbol %d -> NilTypedArrays\n", sym) |
+      finishedsetarray  :  doInclude (GlobalGroup^.FinishedSetArray, "symbol %d -> FinishedSetArray\n", sym)
 
       ELSE
          InternalError ('unknown list')
@@ -425,13 +415,18 @@ BEGIN
    ELSE
       CASE lt OF
 
-      tobesolvedbyquads :  IncludeElementIntoSet(ToBeSolvedByQuads, sym) |
-      fullydeclared     :  IncludeElementIntoSet(FullyDeclared, sym) |
-      partiallydeclared :  IncludeElementIntoSet(PartiallyDeclared, sym) |
-      heldbyalignment   :  IncludeElementIntoSet(HeldByAlignment, sym) |
-      finishedalignment :  IncludeElementIntoSet(FinishedAlignment, sym) |
-      todolist          :  IncludeElementIntoSet(ToDoList, sym) |
-      niltypedarrays    :  IncludeElementIntoSet(NilTypedArrays, sym)
+      tobesolvedbyquads :  IncludeElementIntoSet (GlobalGroup^.ToBeSolvedByQuads, sym) |
+      fullydeclared     :  IncludeElementIntoSet (GlobalGroup^.FullyDeclared, sym) |
+      partiallydeclared :  IncludeElementIntoSet (GlobalGroup^.PartiallyDeclared, sym) |
+      heldbyalignment   :  IncludeElementIntoSet (GlobalGroup^.HeldByAlignment, sym) |
+      finishedalignment :  IncludeElementIntoSet (GlobalGroup^.FinishedAlignment, sym) |
+      todolist          :  IncludeElementIntoSet (GlobalGroup^.ToDoList, sym) ;
+                           IF EnableWatch AND (sym = 919)
+                           THEN
+                              IncludeElementIntoSet (WatchList, 919)
+                           END |
+      niltypedarrays    :  IncludeElementIntoSet (GlobalGroup^.NilTypedArrays, sym) |
+      finishedsetarray  :  IncludeElementIntoSet (GlobalGroup^.FinishedSetArray, sym)
 
       ELSE
          InternalError ('unknown list')
@@ -446,14 +441,14 @@ END WatchIncludeList ;
 
 PROCEDURE doExclude (l: Set; a: ARRAY OF CHAR; sym: CARDINAL) ;
 BEGIN
-   IF IsElementInSet(l, sym)
+   IF IsElementInSet (l, sym)
    THEN
-      printf0('rule: ') ;
+      printf0 ('rule: ') ;
       WriteRule ;
-      printf0('  ') ;
-      printf1(a, sym) ;
-      FIO.FlushBuffer(FIO.StdOut) ;
-      ExcludeElementFromSet(l, sym)
+      printf0 ('  ') ;
+      printf1 (a, sym) ;
+      FIO.FlushBuffer (FIO.StdOut) ;
+      ExcludeElementFromSet (l, sym)
    END
 END doExclude ;
 
@@ -467,17 +462,18 @@ END doExclude ;
 
 PROCEDURE WatchRemoveList (sym: CARDINAL; lt: ListType) ;
 BEGIN
-   IF IsElementInSet(WatchList, sym)
+   IF IsElementInSet (WatchList, sym)
    THEN
       CASE lt OF
 
-      tobesolvedbyquads :  doExclude(ToBeSolvedByQuads, "symbol %d off ToBeSolvedByQuads\n", sym) |
-      fullydeclared     :  doExclude(FullyDeclared, "symbol %d off FullyDeclared\n", sym) |
-      partiallydeclared :  doExclude(PartiallyDeclared, "symbol %d off PartiallyDeclared\n", sym) |
-      heldbyalignment   :  doExclude(HeldByAlignment, "symbol %d -> HeldByAlignment\n", sym) |
-      finishedalignment :  doExclude(FinishedAlignment, "symbol %d -> FinishedAlignment\n", sym) |
-      todolist          :  doExclude(ToDoList, "symbol %d off ToDoList\n", sym) |
-      niltypedarrays    :  doExclude(NilTypedArrays, "symbol %d off NilTypedArrays\n", sym)
+      tobesolvedbyquads :  doExclude (GlobalGroup^.ToBeSolvedByQuads, "symbol %d off ToBeSolvedByQuads\n", sym) |
+      fullydeclared     :  doExclude (GlobalGroup^.FullyDeclared, "symbol %d off FullyDeclared\n", sym) |
+      partiallydeclared :  doExclude (GlobalGroup^.PartiallyDeclared, "symbol %d off PartiallyDeclared\n", sym) |
+      heldbyalignment   :  doExclude (GlobalGroup^.HeldByAlignment, "symbol %d -> HeldByAlignment\n", sym) |
+      finishedalignment :  doExclude (GlobalGroup^.FinishedAlignment, "symbol %d -> FinishedAlignment\n", sym) |
+      todolist          :  doExclude (GlobalGroup^.ToDoList, "symbol %d off ToDoList\n", sym) |
+      niltypedarrays    :  doExclude (GlobalGroup^.NilTypedArrays, "symbol %d off NilTypedArrays\n", sym) |
+      finishedsetarray  :  doExclude (GlobalGroup^.FinishedSetArray, "symbol %d off FinishedSetArray\n", sym) |
 
       ELSE
          InternalError ('unknown list')
@@ -485,19 +481,169 @@ BEGIN
    ELSE
       CASE lt OF
 
-      tobesolvedbyquads :  ExcludeElementFromSet(ToBeSolvedByQuads, sym) |
-      fullydeclared     :  ExcludeElementFromSet(FullyDeclared, sym) |
-      partiallydeclared :  ExcludeElementFromSet(PartiallyDeclared, sym) |
-      heldbyalignment   :  ExcludeElementFromSet(HeldByAlignment, sym) |
-      finishedalignment :  ExcludeElementFromSet(FinishedAlignment, sym) |
-      todolist          :  ExcludeElementFromSet(ToDoList, sym) |
-      niltypedarrays    :  ExcludeElementFromSet(NilTypedArrays, sym)
+      tobesolvedbyquads :  ExcludeElementFromSet (GlobalGroup^.ToBeSolvedByQuads, sym) |
+      fullydeclared     :  ExcludeElementFromSet (GlobalGroup^.FullyDeclared, sym) |
+      partiallydeclared :  ExcludeElementFromSet (GlobalGroup^.PartiallyDeclared, sym) |
+      heldbyalignment   :  ExcludeElementFromSet (GlobalGroup^.HeldByAlignment, sym) |
+      finishedalignment :  ExcludeElementFromSet (GlobalGroup^.FinishedAlignment, sym) |
+      todolist          :  ExcludeElementFromSet (GlobalGroup^.ToDoList, sym) |
+      niltypedarrays    :  ExcludeElementFromSet (GlobalGroup^.NilTypedArrays, sym) |
+      finishedsetarray  :  ExcludeElementFromSet (GlobalGroup^.FinishedSetArray, sym) |
 
       ELSE
          InternalError ('unknown list')
       END
    END
 END WatchRemoveList ;
+
+
+(*
+   NewGroup -
+*)
+
+PROCEDURE NewGroup (VAR g: Group) ;
+BEGIN
+   IF FreeGroup = NIL
+   THEN
+      NEW (g)
+   ELSE
+      g := FreeGroup ;
+      FreeGroup := FreeGroup^.Next
+   END
+END NewGroup ;
+
+
+(*
+   DisposeGroup -
+*)
+
+PROCEDURE DisposeGroup (VAR g: Group) ;
+BEGIN
+   g^.Next := FreeGroup ;
+   FreeGroup := g ;
+   g := NIL
+END DisposeGroup ;
+
+
+(*
+   InitGroup - initialize all sets in group and return the group.
+*)
+
+PROCEDURE InitGroup () : Group ;
+VAR
+   g: Group ;
+BEGIN
+   NewGroup (g) ;
+   (* Initialize all sets in group.  *)
+   WITH g^ DO
+      FinishedSetArray := InitSet (1) ;
+      ToDoList := InitSet (1) ;
+      FullyDeclared := InitSet (1) ;
+      PartiallyDeclared := InitSet (1) ;
+      NilTypedArrays := InitSet (1) ;
+      HeldByAlignment := InitSet (1) ;
+      FinishedAlignment := InitSet (1) ;
+      ToBeSolvedByQuads := InitSet (1) ;
+      Next := NIL
+   END ;
+   RETURN g
+END InitGroup ;
+
+
+(*
+   KillGroup - delete all sets in group and deallocate g.
+*)
+
+PROCEDURE KillGroup (VAR g: Group) ;
+BEGIN
+   (* Delete all sets in group.  *)
+   IF g # NIL
+   THEN
+      WITH g^ DO
+         FinishedSetArray := KillSet (FinishedSetArray) ;
+         ToDoList := KillSet (ToDoList) ;
+         FullyDeclared := KillSet (FullyDeclared) ;
+         PartiallyDeclared := KillSet (PartiallyDeclared) ;
+         NilTypedArrays := KillSet (NilTypedArrays) ;
+         HeldByAlignment := KillSet (HeldByAlignment) ;
+         FinishedAlignment := KillSet (FinishedAlignment) ;
+         ToBeSolvedByQuads := KillSet (ToBeSolvedByQuads) ;
+         Next := NIL
+      END ;
+      DisposeGroup (g)
+   END
+END KillGroup ;
+
+
+(*
+   DupGroup - If g is not NIL then destroy g.
+              Return a duplicate of GlobalGroup.
+*)
+
+PROCEDURE DupGroup (g: Group) : Group ;
+BEGIN
+   IF g # NIL
+   THEN
+      (* Kill old group.  *)
+      KillGroup (g)
+   END ;
+   NewGroup (g) ;
+   WITH g^ DO
+      (* Copy all sets.  *)
+      FinishedSetArray := DuplicateSet (GlobalGroup^.FinishedSetArray) ;
+      ToDoList := DuplicateSet (GlobalGroup^.ToDoList) ;
+      FullyDeclared := DuplicateSet (GlobalGroup^.FullyDeclared) ;
+      PartiallyDeclared := DuplicateSet (GlobalGroup^.PartiallyDeclared) ;
+      NilTypedArrays := DuplicateSet (GlobalGroup^.NilTypedArrays) ;
+      HeldByAlignment := DuplicateSet (GlobalGroup^.HeldByAlignment) ;
+      FinishedAlignment := DuplicateSet (GlobalGroup^.FinishedAlignment) ;
+      ToBeSolvedByQuads := DuplicateSet (GlobalGroup^.ToBeSolvedByQuads) ;
+      Next := NIL
+   END ;
+   RETURN g
+END DupGroup ;
+
+
+(*
+   EqualGroup - return TRUE if group left = right.
+*)
+
+PROCEDURE EqualGroup (left, right: Group) : BOOLEAN ;
+BEGIN
+   RETURN ((left = right) OR
+           (EqualSet (left^.FullyDeclared, right^.FullyDeclared) AND
+            EqualSet (left^.PartiallyDeclared, right^.PartiallyDeclared) AND
+            EqualSet (left^.NilTypedArrays, right^.NilTypedArrays) AND
+            EqualSet (left^.HeldByAlignment, right^.HeldByAlignment) AND
+            EqualSet (left^.FinishedAlignment, right^.FinishedAlignment) AND
+            EqualSet (left^.ToDoList, right^.ToDoList) AND
+            EqualSet (left^.ToBeSolvedByQuads, right^.ToBeSolvedByQuads) AND
+            EqualSet (left^.FinishedSetArray, right^.FinishedSetArray)))
+END EqualGroup ;
+
+
+(*
+   LookupSet -
+*)
+
+PROCEDURE LookupSet (listtype: ListType) : Set ;
+BEGIN
+   CASE listtype OF
+
+   fullydeclared     : RETURN GlobalGroup^.FullyDeclared |
+   partiallydeclared : RETURN GlobalGroup^.PartiallyDeclared |
+   niltypedarrays    : RETURN GlobalGroup^.NilTypedArrays |
+   heldbyalignment   : RETURN GlobalGroup^.HeldByAlignment |
+   finishedalignment : RETURN GlobalGroup^.FinishedAlignment |
+   todolist          : RETURN GlobalGroup^.ToDoList |
+   tobesolvedbyquads : RETURN GlobalGroup^.ToBeSolvedByQuads |
+   finishedsetarray  : RETURN GlobalGroup^.FinishedSetArray
+
+   ELSE
+      InternalError ('unknown ListType')
+   END ;
+   RETURN NIL
+END LookupSet ;
 
 
 (*
@@ -687,7 +833,7 @@ PROCEDURE CanDeclareTypePartially (sym: CARDINAL) : BOOLEAN ;
 VAR
    type: CARDINAL ;
 BEGIN
-   IF IsElementInSet(PartiallyDeclared, sym)
+   IF IsElementInSet(GlobalGroup^.PartiallyDeclared, sym)
    THEN
       RETURN( FALSE )
    ELSIF IsProcType(sym) OR IsRecord(sym) OR IsVarient(sym) OR IsFieldVarient(sym)
@@ -714,21 +860,21 @@ VAR
    location: location_t ;
 BEGIN
    (* check to see if we have already partially declared the symbol *)
-   IF NOT IsElementInSet(PartiallyDeclared, sym)
+   IF NOT IsElementInSet(GlobalGroup^.PartiallyDeclared, sym)
    THEN
       IF IsRecord(sym)
       THEN
-         Assert (NOT IsElementInSet (HeldByAlignment, sym)) ;
+         Assert (NOT IsElementInSet (GlobalGroup^.HeldByAlignment, sym)) ;
          Assert (DoStartDeclaration (sym, BuildStartRecord) # NIL) ;
          WatchIncludeList (sym, heldbyalignment)
       ELSIF IsVarient (sym)
       THEN
-         Assert(NOT IsElementInSet(HeldByAlignment, sym)) ;
+         Assert(NOT IsElementInSet(GlobalGroup^.HeldByAlignment, sym)) ;
          Assert (DoStartDeclaration(sym, BuildStartVarient) # NIL) ;
          WatchIncludeList(sym, heldbyalignment)
       ELSIF IsFieldVarient(sym)
       THEN
-         Assert(NOT IsElementInSet(HeldByAlignment, sym)) ;
+         Assert(NOT IsElementInSet(GlobalGroup^.HeldByAlignment, sym)) ;
          Assert (DoStartDeclaration(sym, BuildStartFieldVarient) # NIL) ;
          WatchIncludeList(sym, heldbyalignment)
       ELSIF IsProcType(sym)
@@ -854,7 +1000,7 @@ END PromotePointerFully ;
 
 PROCEDURE CompletelyResolved (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN( IsElementInSet(FullyDeclared, sym) )
+   RETURN( IsElementInSet(GlobalGroup^.FullyDeclared, sym) )
 END CompletelyResolved ;
 
 
@@ -934,7 +1080,7 @@ END IsTypeQ ;
 
 PROCEDURE IsNilTypedArrays (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN( IsElementInSet(NilTypedArrays, sym) )
+   RETURN( IsElementInSet(GlobalGroup^.NilTypedArrays, sym) )
 END IsNilTypedArrays ;
 
 
@@ -944,7 +1090,7 @@ END IsNilTypedArrays ;
 
 PROCEDURE IsFullyDeclared (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN( IsElementInSet(FullyDeclared, sym) )
+   RETURN( IsElementInSet(GlobalGroup^.FullyDeclared, sym) )
 END IsFullyDeclared ;
 
 
@@ -976,7 +1122,7 @@ END NotAllDependantsFullyDeclared ;
 
 PROCEDURE IsPartiallyDeclared (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN( IsElementInSet(PartiallyDeclared, sym) )
+   RETURN( IsElementInSet(GlobalGroup^.PartiallyDeclared, sym) )
 END IsPartiallyDeclared ;
 
 
@@ -1008,8 +1154,8 @@ END NotAllDependantsPartiallyDeclared ;
 
 PROCEDURE IsPartiallyOrFullyDeclared (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN( IsElementInSet(PartiallyDeclared, sym) OR
-           IsElementInSet(FullyDeclared, sym) )
+   RETURN( IsElementInSet(GlobalGroup^.PartiallyDeclared, sym) OR
+           IsElementInSet(GlobalGroup^.FullyDeclared, sym) )
 END IsPartiallyOrFullyDeclared ;
 
 
@@ -1104,7 +1250,7 @@ PROCEDURE DeclareTypeConstFully (sym: CARDINAL) ;
 VAR
    t: Tree ;
 BEGIN
-   IF NOT IsElementInSet(ToBeSolvedByQuads, sym)
+   IF NOT IsElementInSet(GlobalGroup^.ToBeSolvedByQuads, sym)
    THEN
       IF IsModule(sym) OR IsDefImp(sym)
       THEN
@@ -1212,7 +1358,6 @@ VAR
    bodyp          : WalkAction ;
    bodyq          : IsAction ;
    bodyt          : ListType ;
-   bodyl          : Set ;
    bodyr          : Rule ;
    recursionCaught,
    oneResolved,
@@ -1259,12 +1404,12 @@ END WriteRule ;
 
 PROCEDURE Body (sym: CARDINAL) ;
 BEGIN
-   IF bodyq(sym)
+   IF bodyq (sym)
    THEN
-      WatchRemoveList(sym, bodyt) ;
-      bodyp(sym) ;
-      (* bodyp(sym) might have replaced sym into the set *)
-      IF NOT IsElementInSet(bodyl, sym)
+      WatchRemoveList (sym, bodyt) ;
+      bodyp (sym) ;
+      (* The bodyp (sym) procedure function might have replaced sym into the set.  *)
+      IF NOT IsElementInSet (LookupSet (bodyt), sym)
       THEN
          noMoreWritten := FALSE ;
          oneResolved := TRUE
@@ -1274,16 +1419,17 @@ END Body ;
 
 
 (*
-   ForeachTryDeclare - while q(of one sym in l) is true
-                          for each symbol in, l,
-                          if q(sym)
-                          then
-                             p(sym)
+   ForeachTryDeclare - while q (of one sym in set t) is true
+                          for each symbol in set t,
+                             if q (sym)
+                             then
+                                p (sym)
+                             end
                           end
                        end
 *)
 
-PROCEDURE ForeachTryDeclare (t: ListType; l: Set; r: Rule;
+PROCEDURE ForeachTryDeclare (t: ListType; r: Rule;
                              q: IsAction; p: WalkAction) : BOOLEAN ;
 BEGIN
    IF recursionCaught
@@ -1293,13 +1439,12 @@ BEGIN
    bodyt := t ;
    bodyq := q ;
    bodyp := p ;
-   bodyl := l ;
    bodyr := r ;
    recursionCaught := TRUE ;
    oneResolved := FALSE ;
    REPEAT
       noMoreWritten := TRUE ;
-      ForeachElementInSetDo(l, Body)
+      ForeachElementInSetDo (LookupSet (t), Body)
    UNTIL noMoreWritten ;
    bodyr := norule ;
    recursionCaught := FALSE ;
@@ -1315,113 +1460,129 @@ END ForeachTryDeclare ;
 
 PROCEDURE DeclaredOutstandingTypes (ForceComplete: BOOLEAN) : BOOLEAN ;
 VAR
-   finished        : BOOLEAN ;
-   d, a, p, f, n, b: CARDINAL ;
+   finished: BOOLEAN ;
+   copy    : Group ;
 BEGIN
-   d := 0 ;
-   a := 0 ;
-   p := 0 ;
-   f := 0 ;
-   n := 0 ;
-   b := 0 ;
+   copy := NIL ;
    finished := FALSE ;
    REPEAT
-      IF FindSetNumbers (d, a, p, f, n, b) OR Progress
+      IF Progress AND (copy # NIL)
       THEN
-         DebugSetNumbers
+         IF NOT EqualGroup (copy, GlobalGroup)
+         THEN
+            DebugSetNumbers ;
+            DebugSets
+         END
       END ;
-      IF ForeachTryDeclare (todolist, ToDoList,
+      copy := DupGroup (copy) ;
+      IF ForeachTryDeclare (todolist,
                             partialtype,
                             CanDeclareTypePartially,
                             DeclareTypePartially)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (todolist, ToDoList,
+(*
+      ELSIF ForeachTryDeclare (todolist,
+                               setarraynul,
+                               CanCreateSetArray,
+                               CreateSetArray)
+      THEN
+         (* Populates the finishedsetarray list with each set seen.  *)
+         (* Continue looping.  *)
+      ELSIF ForeachTryDeclare (finishedsetarray,
+                               setfully,
+                               CanCreateSet,
+                               CreateSet)
+      THEN
+         (* Populates the fullydeclared list with each set.  *)
+         (* Continue looping.  *)
+*)
+      ELSIF ForeachTryDeclare (todolist,
                                arraynil,
                                CanDeclareArrayAsNil,
                                DeclareArrayAsNil)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (todolist, ToDoList,
+      ELSIF ForeachTryDeclare (todolist,
                                pointernilarray,
                                CanDeclarePointerToNilArray,
                                DeclarePointerToNilArray)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (niltypedarrays, NilTypedArrays,
+      ELSIF ForeachTryDeclare (niltypedarrays,
                                arraypartial,
                                CanDeclareArrayPartially,
                                DeclareArrayPartially)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (niltypedarrays, NilTypedArrays,
+      ELSIF ForeachTryDeclare (niltypedarrays,
                                pointerfully,
                                CanPromotePointerFully,
                                PromotePointerFully)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (heldbyalignment, HeldByAlignment,
+      ELSIF ForeachTryDeclare (heldbyalignment,
                                recordkind,
                                CanDeclareRecordKind,
                                DeclareRecordKind)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (finishedalignment, FinishedAlignment,
+      ELSIF ForeachTryDeclare (finishedalignment,
                                recordfully,
                                CanDeclareRecord,
                                FinishDeclareRecord)
       THEN
          (* continue looping *)
-      ELSIF ForeachTryDeclare (todolist, ToDoList,
+      ELSIF ForeachTryDeclare (todolist,
                                typeconstfully,
                                TypeConstDependantsFullyDeclared,
                                DeclareTypeConstFully)
       THEN
-         (* continue looping *)
-      ELSIF ForeachTryDeclare (todolist, ToDoList,
-                               (* partiallydeclared, PartiallyDeclared, *)
+         (* Continue looping.  *)
+      ELSIF ForeachTryDeclare (todolist,
                                typefrompartial,
                                CanBeDeclaredViaPartialDependants,
                                DeclareTypeFromPartial)
       THEN
-         (* continue looping *)
-      ELSIF ForeachTryDeclare (partiallydeclared, PartiallyDeclared,
+         (* Continue looping.  *)
+      ELSIF ForeachTryDeclare (partiallydeclared,
                                partialfrompartial,
                                CanBeDeclaredPartiallyViaPartialDependants,
                                DeclareTypePartially)
       THEN
-         (* continue looping *)
-      ELSIF ForeachTryDeclare (partiallydeclared, PartiallyDeclared,
+         (* Continue looping.  *)
+      ELSIF ForeachTryDeclare (partiallydeclared,
                                partialtofully,
                                TypeConstDependantsFullyDeclared,
                                DeclareTypeConstFully)
       THEN
-         (* continue looping *)
+         (* Continue looping.  *)
       ELSE
-         (* nothing left to do (and constants are resolved elsewhere) *)
+         (* Nothing left to do (and constants are resolved elsewhere).  *)
          finished := TRUE
       END
    UNTIL finished ;
+   KillGroup (copy) ;
    IF ForceComplete
    THEN
-      IF ForeachTryDeclare (todolist, ToDoList,
+      IF ForeachTryDeclare (todolist,
                             circulartodo,
                             NotAllDependantsFullyDeclared,
                             EmitCircularDependancyError)
       THEN
-      ELSIF ForeachTryDeclare (partiallydeclared, PartiallyDeclared,
+      ELSIF ForeachTryDeclare (partiallydeclared,
                                circularpartial,
                                NotAllDependantsPartiallyDeclared,
                                EmitCircularDependancyError)
       THEN
-      ELSIF ForeachTryDeclare (niltypedarrays, NilTypedArrays,
+      ELSIF ForeachTryDeclare (niltypedarrays,
                                circularniltyped,
                                NotAllDependantsPartiallyDeclared,
                                EmitCircularDependancyError)
       THEN
       END
    END ;
-   RETURN NoOfElementsInSet (ToDoList) = 0
+   RETURN NoOfElementsInSet (GlobalGroup^.ToDoList) = 0
 END DeclaredOutstandingTypes ;
 
 
@@ -1586,6 +1747,33 @@ END PromoteToString ;
 
 
 (*
+   PromoteToCString - declare, sym, and then promote it to a string.
+                      Note that if sym is a single character we do
+                          *not* record it as a string
+                          but as a char however we always
+                          return a string constant.
+*)
+
+PROCEDURE PromoteToCString (tokenno: CARDINAL; sym: CARDINAL) : Tree ;
+VAR
+   size: CARDINAL ;
+   ch  : CHAR ;
+BEGIN
+   DeclareConstant (tokenno, sym) ;
+   IF IsConst (sym) AND (GetSType (sym) = Char)
+   THEN
+      PushValue (sym) ;
+      ch := PopChar (tokenno) ;
+      RETURN BuildCStringConstant (string (InitStringChar (ch)), 1)
+   ELSE
+      size := GetStringLength (sym) ;
+      RETURN BuildCStringConstant (KeyToCharStar (GetString (sym)),
+                                   size)
+   END
+END PromoteToCString ;
+
+
+(*
    WalkConstructor - walks all dependants of, sym.
 *)
 
@@ -1612,13 +1800,13 @@ BEGIN
    THEN
       InternalError ('trying to declare the NulSym')
    END ;
-   IF IsConstructor(sym) AND (NOT GccKnowsAbout(sym))
+   IF IsConstructor (sym) AND (NOT GccKnowsAbout (sym))
    THEN
-      WalkConstructor(sym, TraverseDependants) ;
-      DeclareTypesConstantsProceduresInRange(quad, quad) ;
-      Assert(IsConstructorDependants(sym, IsFullyDeclared)) ;
-      PushValue(sym) ;
-      DeclareConstantFromTree(sym, PopConstructorTree(tokenno))
+      WalkConstructor (sym, TraverseDependants) ;
+      DeclareTypesConstantsProceduresInRange (GetScope (sym), quad, quad) ;
+      Assert (IsConstructorDependants (sym, IsFullyDeclared)) ;
+      PushValue (sym) ;
+      DeclareConstantFromTree (sym, PopConstructorTree (tokenno))
    END
 END DeclareConstructor ;
 
@@ -1636,7 +1824,7 @@ BEGIN
       IF IsConstructor(sym) AND (NOT GccKnowsAbout(sym))
       THEN
          WalkConstructor(sym, TraverseDependants) ;
-         IF NOT IsElementInSet(ToBeSolvedByQuads, sym)
+         IF NOT IsElementInSet(GlobalGroup^.ToBeSolvedByQuads, sym)
          THEN
             TryEvaluateValue(sym) ;
             IF IsConstructorDependants(sym, IsFullyDeclared)
@@ -1737,7 +1925,7 @@ BEGIN
          TraverseDependants(sym) ;
          RETURN
       END ;
-      IF IsElementInSet(ToBeSolvedByQuads, sym)
+      IF IsElementInSet(GlobalGroup^.ToBeSolvedByQuads, sym)
       THEN
          (* we allow the above rules to be executed even if it is fully declared
             so to ensure that types of compiler builtin constants (BitsetSize
@@ -2059,8 +2247,8 @@ END WalkDependants ;
 
 PROCEDURE TraverseDependantsInner (sym: WORD) ;
 BEGIN
-   IF (NOT IsElementInSet(FullyDeclared, sym)) AND
-      (NOT IsElementInSet(ToDoList, sym))
+   IF (NOT IsElementInSet(GlobalGroup^.FullyDeclared, sym)) AND
+      (NOT IsElementInSet(GlobalGroup^.ToDoList, sym))
    THEN
       WatchIncludeList(sym, todolist)
    END ;
@@ -2120,7 +2308,8 @@ END WalkTypeInfo ;
 
 PROCEDURE DeclareUnboundedProcedureParameters (sym: WORD) ;
 VAR
-   son, type,
+   param,
+   type,
    p, i     : CARDINAL ;
    location : location_t ;
 BEGIN
@@ -2131,8 +2320,8 @@ BEGIN
       WHILE i>0 DO
          IF IsUnboundedParam(sym, i)
          THEN
-            son := GetNthParam(sym, i) ;
-            type := GetSType(son) ;
+            param := GetNthParam(sym, i) ;
+            type := GetSType(param) ;
             TraverseDependants(type) ;
             IF GccKnowsAbout(type)
             THEN
@@ -2140,8 +2329,8 @@ BEGIN
                BuildTypeDeclaration(location, Mod2Gcc(type))
             END
          ELSE
-            son := GetNth(sym, i) ;
-            type := GetSType(son) ;
+            param := GetNth(sym, i) ;
+            type := GetSType(param) ;
             TraverseDependants(type)
          END ;
          DEC(i)
@@ -2156,31 +2345,24 @@ END DeclareUnboundedProcedureParameters ;
 
 PROCEDURE WalkUnboundedProcedureParameters (sym: WORD) ;
 VAR
-   son,
+   param,
    type,
    p, i: CARDINAL ;
 BEGIN
-   IF IsProcedure(sym)
+   IF IsProcedure (sym)
    THEN
-      p := NoOfParam(sym) ;
+      p := NoOfParam (sym) ;
       i := p ;
       WHILE i>0 DO
-         IF IsUnboundedParam(sym, i)
+         IF IsUnboundedParam (sym, i)
          THEN
-            son := GetNthParam(sym, i) ;
-            type := GetSType(son) ;
-            WalkTypeInfo(type) ;
-(*
-            type := GetUnboundedRecordType(type) ;
-            Assert(IsRecord(type)) ;
-            RecordNotPacked(type)      (* which is never packed.                   *)
-*)
+            param := GetNthParam (sym, i)
          ELSE
-            son := GetNth(sym, i) ;
-            type := GetSType(son) ;
-            WalkTypeInfo(type)
+            param := GetNth (sym, i)
          END ;
-         DEC(i)
+         type := GetSType (param) ;
+         WalkTypeInfo (type) ;
+         DEC (i)
       END
    END
 END WalkUnboundedProcedureParameters ;
@@ -2439,7 +2621,7 @@ BEGIN
       p := NoOfParam(Sym) ;
       i := p ;
       WHILE i>0 DO
-         (* note we dont use GetNthParam as we want the parameter that is seen by
+         (* Note we dont use GetNthParam as we want the parameter that is seen by
             the procedure block remember that this is treated exactly the same as
             a variable, just its position on the activation record is special (ie
             a parameter).  *)
@@ -2538,28 +2720,80 @@ END FoldConstants ;
 
 
 (*
+   ActivateWatch - activate a watch for any symbol (lista xor listb).
+*)
+
+PROCEDURE ActivateWatch (lista, listb: Set) ;
+VAR
+   smallest,
+   largest  : Set ;
+   n, sym   : CARDINAL ;
+BEGIN
+   IF NoOfElementsInSet (lista) # NoOfElementsInSet (listb)
+   THEN
+      IF NoOfElementsInSet (lista) > NoOfElementsInSet (listb)
+      THEN
+         largest := lista ;
+         smallest := listb
+      ELSE
+         largest := listb ;
+         smallest := lista
+      END ;
+      printf0 ("adding the following symbols to the watch list as the declarator has detected an internal bug: ") ;
+      sym := 1 ;
+      n := FinalSymbol () ;
+      WHILE sym <= n DO
+         IF (IsElementInSet (largest, sym) AND (NOT IsElementInSet (smallest, sym))) OR
+            ((NOT IsElementInSet (largest, sym)) AND IsElementInSet (smallest, sym))
+         THEN
+            AddSymToWatch (sym) ;
+            printf1 ("%d ", sym)
+         END ;
+         INC (sym)
+      END ;
+      printf0 ("\n")
+   END
+END ActivateWatch ;
+
+
+(*
    DeclareTypesConstantsProceduresInRange -
 *)
 
-PROCEDURE DeclareTypesConstantsProceduresInRange (start, end: CARDINAL) ;
+PROCEDURE DeclareTypesConstantsProceduresInRange (scope, start, end: CARDINAL) ;
+CONST
+   DebugLoop = 1000 ;
 VAR
-   n, m: CARDINAL ;
+   copy: Group ;
+   loop: CARDINAL ;
 BEGIN
    IF DisplayQuadruples
    THEN
-      DisplayQuadRange(start, end)
+      DisplayQuadRange (scope, start, end)
    END ;
+   loop := 0 ;
+   copy := NIL ;
    REPEAT
-      n := NoOfElementsInSet(ToDoList) ;
-      WHILE ResolveConstantExpressions(DeclareConstFully, start, end) DO
+      copy := DupGroup (copy) ;
+      WHILE ResolveConstantExpressions (DeclareConstFully, start, end) DO
       END ;
       (* we need to evaluate some constant expressions to resolve these types *)
       IF DeclaredOutstandingTypes (FALSE)
       THEN
       END ;
-      m := NoOfElementsInSet(ToDoList)
-   UNTIL (NOT ResolveConstantExpressions(DeclareConstFully, start, end)) AND
-         (n=m)
+      IF loop = DebugLoop
+      THEN
+         IF DisplayQuadruples
+         THEN
+            DisplayQuadRange (scope, start, end)
+         END ;
+         ActivateWatch (copy^.ToDoList, GlobalGroup^.ToDoList) ;
+         loop := 0
+      END ;
+      INC (loop)
+   UNTIL (NOT ResolveConstantExpressions (DeclareConstFully, start, end)) AND
+         EqualGroup (copy, GlobalGroup) ;
+   KillGroup (copy)
 END DeclareTypesConstantsProceduresInRange ;
 
 
@@ -2619,19 +2853,23 @@ END PopBinding ;
 
 PROCEDURE DeclareTypesConstantsProcedures (scope: CARDINAL) ;
 VAR
-   s, t: CARDINAL ;
+   copy: Group ;
    sb  : ScopeBlock ;
 BEGIN
-   sb := InitScopeBlock(scope) ;
-   PushBinding(scope) ;
+   IF Debugging
+   THEN
+      printf0 ("declaring types constants in: ") ; PrintTerse (scope)
+   END ;
+   copy := NIL ;
+   sb := InitScopeBlock (scope) ;
+   PushBinding (scope) ;
    REPEAT
-      s := NoOfElementsInSet(ToDoList) ;
-      (* ForeachLocalSymDo(scope, DeclareTypeInfo) ; *)
-      ForeachScopeBlockDo(sb, DeclareTypesConstantsProceduresInRange) ;
-      t := NoOfElementsInSet(ToDoList) ;
-   UNTIL s=t ;
-   PopBinding(scope) ;
-   KillScopeBlock(sb)
+      copy := DupGroup (copy) ;
+      ForeachScopeBlockDo3 (sb, DeclareTypesConstantsProceduresInRange)
+   UNTIL EqualGroup (copy, GlobalGroup) ;
+   KillGroup (copy) ;
+   PopBinding (scope) ;
+   KillScopeBlock (sb)
 END DeclareTypesConstantsProcedures ;
 
 
@@ -2693,7 +2931,7 @@ BEGIN
    WalkTypesInProcedure(scope) ;
    DeclareProcedure(scope) ;
    ForeachInnerModuleDo(scope, WalkTypesInModule) ;
-   DeclareTypesConstantsProcedures(scope) ;
+   DeclareTypesConstantsProcedures (scope) ;
    ForeachInnerModuleDo(scope, DeclareTypesConstantsProcedures) ;
    DeclareLocalVariables(scope) ;
    ForeachInnerModuleDo(scope, DeclareModuleVariables) ;
@@ -2797,7 +3035,7 @@ PROCEDURE StartDeclareScope (scope: CARDINAL) ;
 VAR
    n: Name ;
 BEGIN
-   (* AddSymToWatch (1265) ;  *)
+   (* AddSymToWatch (8821) ;  *)
    (* AddSymToWatch (1157) ;  *)  (* watch goes here *)
    (* AddSymToWatch(TryFindSymbol('IOLink', 'DeviceId')) ; *)
    (* AddSymToWatch(819) ; *)
@@ -2889,7 +3127,7 @@ BEGIN
    location := BuiltinsLocation () ;
    t := GetDefaultType(location, KeyToCharStar(MakeKey(name)), gcctype) ;
    AddModGcc(sym, t) ;
-   IncludeElementIntoSet(FullyDeclared, sym) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, sym) ;
    WalkAssociatedUnbounded(sym, TraverseDependants) ;
    (*
       this is very simplistic and assumes that the caller only uses Subranges, Sets and GCC types.
@@ -2933,9 +3171,9 @@ BEGIN
    AddModGcc(Boolean, GetBooleanType()) ;
    AddModGcc(True, GetBooleanTrue()) ;
    AddModGcc(False, GetBooleanFalse()) ;
-   IncludeElementIntoSet(FullyDeclared, Boolean) ;
-   IncludeElementIntoSet(FullyDeclared, True) ;
-   IncludeElementIntoSet(FullyDeclared, False) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, Boolean) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, True) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, False) ;
    WalkAssociatedUnbounded(Boolean, TraverseDependants)
 END DeclareBoolean ;
 
@@ -2964,7 +3202,7 @@ BEGIN
                                                   KeyToCharStar(GetFullSymName(typetype)),
                                                   Mod2Gcc(GetSType(typetype)),
                                                   Mod2Gcc(low), Mod2Gcc(high))) ;
-         IncludeElementIntoSet(FullyDeclared, typetype) ;
+         IncludeElementIntoSet(GlobalGroup^.FullyDeclared, typetype) ;
          WalkAssociatedUnbounded(typetype, TraverseDependants)
       END ;
       (* gcc back end supports, type *)
@@ -2982,9 +3220,9 @@ BEGIN
    AddModGcc(ZType, GetM2ZType()) ;
    AddModGcc(RType, GetM2RType()) ;
    AddModGcc(CType, GetM2CType()) ;
-   IncludeElementIntoSet(FullyDeclared, ZType) ;
-   IncludeElementIntoSet(FullyDeclared, RType) ;
-   IncludeElementIntoSet(FullyDeclared, CType) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, ZType) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, RType) ;
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, CType) ;
 
    DeclareDefaultType(Cardinal    , "CARDINAL"    , GetM2CardinalType()) ;
    DeclareDefaultType(Integer     , "INTEGER"     , GetM2IntegerType()) ;
@@ -3054,7 +3292,7 @@ VAR
 BEGIN
    e := GetPackedEquivalent(Boolean) ;
    AddModGcc(e, GetPackedBooleanType()) ;
-   IncludeElementIntoSet(FullyDeclared, e)
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, e)
 END DeclarePackedBoolean ;
 
 
@@ -3092,7 +3330,7 @@ END DeclareDefaultTypes ;
 PROCEDURE DeclareDefaultConstants ;
 BEGIN
    AddModGcc(Nil, GetPointerZero(BuiltinsLocation ())) ;
-   IncludeElementIntoSet(FullyDeclared, Nil)
+   IncludeElementIntoSet(GlobalGroup^.FullyDeclared, Nil)
 END DeclareDefaultConstants ;
 
 
@@ -3175,7 +3413,7 @@ VAR
    varType : CARDINAL ;
    location: location_t ;
 BEGIN
-   IF IsComponent (var)
+   IF IsComponent (var) OR IsVarHeap (var)
    THEN
       RETURN
    END ;
@@ -3492,6 +3730,44 @@ END DeclareEnumeration ;
 
 
 (*
+   DeclareSubrangeNarrow - will return cardinal, integer, or type depending on whether
+                           low..high fits in the C data type.
+*)
+
+PROCEDURE DeclareSubrangeNarrow (location: location_t;
+                                 high, low: CARDINAL; type: Tree) : Tree ;
+VAR
+   m2low, m2high,
+   lowtree,
+   hightree     : Tree ;
+BEGIN
+   (* No zero alignment, therefore the front end will prioritize subranges to match
+      unsigned int, int, or ZTYPE assuming the low..high range fits.  *)
+   lowtree := Mod2Gcc (low) ;
+   hightree := Mod2Gcc (high) ;
+   IF CompareTrees (lowtree, GetIntegerZero (location)) >= 0
+   THEN
+      (* low..high is always positive, can we use unsigned int?  *)
+      m2high := GetMaxFrom (location, GetM2CardinalType ()) ;
+      IF CompareTrees (hightree, m2high) <= 0
+      THEN
+         RETURN GetM2CardinalType ()
+      END
+   ELSE
+      (* Must be a signed subrange base, can we use int?  *)
+      m2high := GetMaxFrom (location, GetM2IntegerType ()) ;
+      m2low := GetMinFrom (location, GetM2IntegerType ()) ;
+      IF (CompareTrees (lowtree, m2low) >= 0) AND (CompareTrees (hightree, m2high) <= 0)
+      THEN
+         RETURN GetM2IntegerType ()
+      END
+   END ;
+   (* Fall back to the ZType.  *)
+   RETURN type
+END DeclareSubrangeNarrow ;
+
+
+(*
    DeclareSubrange - declare a subrange type.
 *)
 
@@ -3499,15 +3775,30 @@ PROCEDURE DeclareSubrange (sym: CARDINAL) : Tree ;
 VAR
    type,
    gccsym   : Tree ;
+   align,
    high, low: CARDINAL ;
    location: location_t ;
 BEGIN
    location := TokenToLocation (GetDeclaredMod (sym)) ;
    GetSubrange (sym, high, low) ;
-   (* type := BuildSmallestTypeRange (location, Mod2Gcc(low), Mod2Gcc(high)) ; *)
+   align := GetAlignment (sym) ;
    type := Mod2Gcc (GetSType (sym)) ;
+   IF align # NulSym
+   THEN
+      IF AreConstantsEqual (GetIntegerZero (location), Mod2Gcc (align))
+      THEN
+         type := BuildSmallestTypeRange (location, Mod2Gcc (low), Mod2Gcc (high))
+      ELSE
+         MetaError1 ('a non-zero alignment in a subrange type {%1Wa} is currently not implemented and will be ignored',
+                     sym)
+      END
+   ELSIF GetSType (sym) = ZType
+   THEN
+      (* Can we narrow the ZType subrange to CARDINAL or INTEGER?  *)
+      type := DeclareSubrangeNarrow (location, high, low, type)
+   END ;
    gccsym := BuildSubrangeType (location,
-                                KeyToCharStar (GetFullSymName(sym)),
+                                KeyToCharStar (GetFullSymName (sym)),
                                 type, Mod2Gcc (low), Mod2Gcc (high)) ;
    RETURN gccsym
 END DeclareSubrange ;
@@ -3521,18 +3812,18 @@ PROCEDURE IncludeGetNth (l: List; sym: CARDINAL) ;
 VAR
    i: CARDINAL ;
 BEGIN
-   printf0(' ListOfSons [') ;
+   printf0 (' ListOfSons [') ;
    i := 1 ;
-   WHILE GetNth(sym, i)#NulSym DO
+   WHILE GetNth (sym, i) # NulSym DO
       IF i>1
       THEN
-         printf0(', ') ;
+         printf0 (', ')
       END ;
-      IncludeItemIntoList(l, GetNth(sym, i)) ;
-      PrintTerse(GetNth(sym, i)) ;
-      INC(i)
+      IncludeItemIntoList (l, GetNth(sym, i)) ;
+      PrintTerse (GetNth (sym, i)) ;
+      INC (i)
    END ;
-   printf0(']')
+   printf0 (']')
 END IncludeGetNth ;
 
 
@@ -3769,6 +4060,7 @@ END PrintProcedure ;
 
 PROCEDURE PrintVerboseFromList (l: List; i: CARDINAL) ;
 VAR
+   len,
    type,
    low,
    high,
@@ -3911,6 +4203,12 @@ BEGIN
       THEN
          printf0('component ')
       END ;
+      IF IsVarHeap (sym)
+      THEN
+         printf0('heap ')
+      END ;
+      printf0 ('\n') ;
+      PrintInitialized (sym) ;
       IncludeType(l, sym)
    ELSIF IsConst(sym)
    THEN
@@ -3930,7 +4228,9 @@ BEGIN
          ELSIF IsConstStringCnul (sym)
          THEN
             printf0(' a nul terminated C string')
-         END
+         END ;
+         len := GetStringLength (sym) ;
+         printf1(' length %d', len)
       ELSIF IsConstructor(sym)
       THEN
          printf0(' constant constructor ') ;
@@ -4191,9 +4491,15 @@ BEGIN
    ELSIF IsAModula2Type(sym)
    THEN
       printf2('sym %d IsAModula2Type (%a)', sym, n)
-   ELSIF IsGnuAsmVolatile(sym)
+   ELSIF IsGnuAsm(sym)
    THEN
-      printf2('sym %d IsGnuAsmVolatile (%a)', sym, n)
+      printf2('sym %d IsGnuAsm (%a)', sym, n)
+   ELSIF IsImport (sym)
+   THEN
+      printf1('sym %d IsImport', sym)
+   ELSIF IsImportStatement (sym)
+   THEN
+      printf1('sym %d IsImportStatement', sym)
    END ;
 
    IF IsHiddenType(sym)
@@ -4452,7 +4758,7 @@ BEGIN
    IF NOT GccKnowsAbout(equiv)
    THEN
       p(equiv, sym) ;
-      IncludeElementIntoSet(FullyDeclared, equiv)
+      IncludeElementIntoSet(GlobalGroup^.FullyDeclared, equiv)
    END ;
    RETURN( Mod2Gcc(equiv) )
 END doDeclareEquivalent ;
@@ -4910,7 +5216,7 @@ BEGIN
    THEN
       MinEnumerationField := NulSym ;
       MaxEnumerationField := NulSym ;
-      ForeachFieldEnumerationDo(type, FindMinMaxEnum) ;
+      ForeachLocalSymDo (type, FindMinMaxEnum) ;
       RETURN( MinEnumerationField )
    ELSIF IsBaseType(type)
    THEN
@@ -4949,7 +5255,7 @@ BEGIN
    THEN
       MinEnumerationField := NulSym ;
       MaxEnumerationField := NulSym ;
-      ForeachFieldEnumerationDo(type, FindMinMaxEnum) ;
+      ForeachLocalSymDo (type, FindMinMaxEnum) ;
       RETURN( MaxEnumerationField )
    ELSIF IsBaseType(type)
    THEN
@@ -5161,7 +5467,6 @@ END CheckResolveSubrange ;
 PROCEDURE TypeConstFullyDeclared (sym: CARDINAL) : Tree ;
 VAR
    t: Tree ;
-   n: Name ;
 BEGIN
    IF IsEnumeration(sym)
    THEN
@@ -5229,16 +5534,7 @@ BEGIN
          t := CheckAlignment(t, sym)
       END
    END ;
-   IF GetSymName(sym)#NulName
-   THEN
-      IF Debugging
-      THEN
-         n := GetSymName(sym) ;
-         printf1('declaring type %a\n', n)
-      END ;
-      t := RememberType(t)
-   END ;
-   RETURN( t )
+   RETURN RememberType (t)
 END TypeConstFullyDeclared ;
 
 
@@ -5278,7 +5574,7 @@ PROCEDURE IsEnumerationDependants (sym: CARDINAL; q: IsAction) : BOOLEAN ;
 BEGIN
    action := q ;
    enumDeps := TRUE ;
-   ForeachFieldEnumerationDo(sym, IsFieldEnumerationDependants) ;
+   ForeachLocalSymDo (sym, IsFieldEnumerationDependants) ;
    RETURN( enumDeps )
 END IsEnumerationDependants ;
 
@@ -5289,7 +5585,7 @@ END IsEnumerationDependants ;
 
 PROCEDURE WalkEnumerationDependants (sym: CARDINAL; p: WalkAction) ;
 BEGIN
-   ForeachFieldEnumerationDo(sym, p)
+   ForeachLocalSymDo (sym, p)
 END WalkEnumerationDependants ;
 
 
@@ -5299,11 +5595,11 @@ END WalkEnumerationDependants ;
 
 PROCEDURE WalkSubrangeDependants (sym: CARDINAL; p: WalkAction) ;
 VAR
-   type,
-   high, low: CARDINAL ;
+   type, align,
+   high, low  : CARDINAL ;
 BEGIN
    GetSubrange(sym, high, low) ;
-   CheckResolveSubrange(sym) ;
+   CheckResolveSubrange (sym) ;
    type := GetSType(sym) ;
    IF type#NulSym
    THEN
@@ -5311,7 +5607,12 @@ BEGIN
    END ;
    (* low and high are not types but constants and they are resolved by M2GenGCC *)
    p(low) ;
-   p(high)
+   p(high) ;
+   align := GetAlignment (sym) ;
+   IF align # NulSym
+   THEN
+      p(align)
+   END
 END WalkSubrangeDependants ;
 
 
@@ -5323,6 +5624,7 @@ END WalkSubrangeDependants ;
 PROCEDURE IsSubrangeDependants (sym: CARDINAL; q: IsAction) : BOOLEAN ;
 VAR
    result   : BOOLEAN ;
+   align,
    type,
    high, low: CARDINAL ;
 BEGIN
@@ -5340,6 +5642,11 @@ BEGIN
       result := FALSE
    END ;
    IF NOT q(high)
+   THEN
+      result := FALSE
+   END ;
+   align := GetAlignment(sym) ;
+   IF (align#NulSym) AND (NOT q(align))
    THEN
       result := FALSE
    END ;
@@ -6208,18 +6515,12 @@ END InitDeclarations ;
 
 
 BEGIN
-   ToDoList := InitSet(1) ;
-   FullyDeclared := InitSet(1) ;
-   PartiallyDeclared := InitSet(1) ;
-   NilTypedArrays := InitSet(1) ;
-   HeldByAlignment := InitSet(1) ;
-   FinishedAlignment := InitSet(1) ;
-   ToBeSolvedByQuads := InitSet(1) ;
+   FreeGroup := NIL ;
+   GlobalGroup := InitGroup () ;
    ChainedList := InitSet(1) ;
    WatchList := InitSet(1) ;
    VisitedList := NIL ;
    EnumerationIndex := InitIndex(1) ;
-   IncludeElementIntoSet(WatchList, 8) ;
    HaveInitDefaultTypes := FALSE ;
    recursionCaught := FALSE
 END M2GCCDeclare.

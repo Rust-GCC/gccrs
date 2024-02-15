@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2024 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -134,6 +134,17 @@ vgpr_2reg_mode_p (machine_mode mode)
     mode = GET_MODE_INNER (mode);
 
   return (mode == DImode || mode == DFmode);
+}
+
+/* Return true if MODE is valid for four VGPR registers.  */
+
+inline bool
+vgpr_4reg_mode_p (machine_mode mode)
+{
+  if (VECTOR_MODE_P (mode))
+    mode = GET_MODE_INNER (mode);
+
+  return (mode == TImode);
 }
 
 /* Return true if MODE can be handled directly by VGPR operations.  */

@@ -1,5 +1,5 @@
 /* i386 ISA table.
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -186,4 +186,14 @@ ISA_NAMES_TABLE_START
   ISA_NAMES_TABLE_ENTRY("raoint", FEATURE_RAOINT, P_NONE, "-mraoint")
   ISA_NAMES_TABLE_ENTRY("amx-complex", FEATURE_AMX_COMPLEX,
 			P_NONE, "-mamx-complex")
+  ISA_NAMES_TABLE_ENTRY("avxvnniint16", FEATURE_AVXVNNIINT16,
+			P_NONE, "-mavxvnniint16")
+  ISA_NAMES_TABLE_ENTRY("sm3", FEATURE_SM3, P_NONE, "-msm3")
+  ISA_NAMES_TABLE_ENTRY("sha512", FEATURE_SHA512, P_NONE, "-msha512")
+  ISA_NAMES_TABLE_ENTRY("sm4", FEATURE_SM4, P_NONE, "-msm4")
+  ISA_NAMES_TABLE_ENTRY("apxf", FEATURE_APX_F, P_NONE, "-mapxf")
+  ISA_NAMES_TABLE_ENTRY("usermsr", FEATURE_USER_MSR, P_NONE, "-musermsr")
+  ISA_NAMES_TABLE_ENTRY("avx10.1", FEATURE_AVX10_1_256, P_NONE, "-mavx10.1")
+  ISA_NAMES_TABLE_ENTRY("avx10.1-256", FEATURE_AVX10_1_256, P_NONE, "-mavx10.1-256")
+  ISA_NAMES_TABLE_ENTRY("avx10.1-512", FEATURE_AVX10_1_512, P_NONE, "-mavx10.1-512")
 ISA_NAMES_TABLE_END

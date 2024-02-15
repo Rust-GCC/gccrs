@@ -1,5 +1,5 @@
 /* A state machine for detecting misuses of POSIX file descriptor APIs.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by Immad Mir <mir@sourceware.org>.
 
 This file is part of GCC.
@@ -29,7 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "options.h"
 #include "diagnostic-path.h"
-#include "diagnostic-metadata.h"
 #include "analyzer/analyzer.h"
 #include "diagnostic-event-id.h"
 #include "analyzer/analyzer-logging.h"
@@ -465,19 +464,16 @@ public:
   }
 
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
     /*CWE-775: Missing Release of File Descriptor or Handle after Effective
       Lifetime
      */
-    diagnostic_metadata m;
-    m.add_cwe (775);
+    ctxt.add_cwe (775);
     if (m_arg)
-      return warning_meta (rich_loc, m, get_controlling_option (),
-			   "leak of file descriptor %qE", m_arg);
+      return ctxt.warn ("leak of file descriptor %qE", m_arg);
     else
-      return warning_meta (rich_loc, m, get_controlling_option (),
-			   "leak of file descriptor");
+      return ctxt.warn ("leak of file descriptor");
   }
 
   label_text
@@ -550,20 +546,18 @@ public:
   }
 
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
     bool warned;
     switch (m_fd_dir)
       {
       case DIRS_READ:
-	warned =  warning_at (rich_loc, get_controlling_option (),
-			   "%qE on read-only file descriptor %qE",
-			   m_callee_fndecl, m_arg);
+	warned =  ctxt.warn ("%qE on read-only file descriptor %qE",
+			     m_callee_fndecl, m_arg);
 	break;
       case DIRS_WRITE:
-	warned = warning_at (rich_loc, get_controlling_option (),
-			   "%qE on write-only file descriptor %qE",
-			   m_callee_fndecl, m_arg);
+	warned = ctxt.warn ("%qE on write-only file descriptor %qE",
+			    m_callee_fndecl, m_arg);
 	break;
       default:
 	gcc_unreachable ();
@@ -612,13 +606,11 @@ public:
     return OPT_Wanalyzer_fd_double_close;
   }
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
-    diagnostic_metadata m;
     // CWE-1341: Multiple Releases of Same Resource or Handle
-    m.add_cwe (1341);
-    return warning_meta (rich_loc, m, get_controlling_option (),
-			 "double %<close%> of file descriptor %qE", m_arg);
+    ctxt.add_cwe (1341);
+    return ctxt.warn ("double %<close%> of file descriptor %qE", m_arg);
   }
 
   label_text
@@ -677,12 +669,10 @@ public:
   }
 
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
-    bool warned;
-    warned = warning_at (rich_loc, get_controlling_option (),
-		       "%qE on closed file descriptor %qE", m_callee_fndecl,
-		       m_arg);
+    bool warned = ctxt.warn ("%qE on closed file descriptor %qE",
+			     m_callee_fndecl, m_arg);
     if (warned)
       inform_filedescriptor_attribute (DIRS_READ_WRITE);
     return warned;
@@ -748,12 +738,10 @@ public:
   }
 
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
-    bool warned;
-    warned = warning_at (rich_loc, get_controlling_option (),
-			"%qE on possibly invalid file descriptor %qE",
-			m_callee_fndecl, m_arg);
+    bool warned = ctxt.warn ("%qE on possibly invalid file descriptor %qE",
+			     m_callee_fndecl, m_arg);
     if (warned)
      inform_filedescriptor_attribute (DIRS_READ_WRITE);
     return warned;
@@ -859,14 +847,12 @@ public:
   }
 
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
     /* CWE-666: Operation on Resource in Wrong Phase of Lifetime.  */
-    diagnostic_metadata m;
-    m.add_cwe (666);
-    return warning_at (rich_loc, get_controlling_option (),
-		       "%qE on file descriptor %qE in wrong phase",
-		       m_callee_fndecl, m_arg);
+    ctxt.add_cwe (666);
+    return ctxt.warn ("%qE on file descriptor %qE in wrong phase",
+		      m_callee_fndecl, m_arg);
   }
 
   label_text
@@ -1019,25 +1005,22 @@ public:
   }
 
   bool
-  emit (rich_location *rich_loc) final override
+  emit (diagnostic_emission_context &ctxt) final override
   {
     switch (m_expected_type)
       {
       default:
 	gcc_unreachable ();
       case EXPECTED_TYPE_SOCKET:
-	return warning_at (rich_loc, get_controlling_option (),
-			   "%qE on non-socket file descriptor %qE",
-			   m_callee_fndecl, m_arg);
+	return ctxt.warn ("%qE on non-socket file descriptor %qE",
+			  m_callee_fndecl, m_arg);
       case EXPECTED_TYPE_STREAM_SOCKET:
 	if (m_sm.is_datagram_socket_fd_p (m_actual_state))
-	  return warning_at (rich_loc, get_controlling_option (),
-			     "%qE on datagram socket file descriptor %qE",
-			     m_callee_fndecl, m_arg);
+	  return ctxt.warn ("%qE on datagram socket file descriptor %qE",
+			    m_callee_fndecl, m_arg);
 	else
-	  return warning_at (rich_loc, get_controlling_option (),
-			     "%qE on non-stream-socket file descriptor %qE",
-			     m_callee_fndecl, m_arg);
+	  return ctxt.warn ("%qE on non-stream-socket file descriptor %qE",
+			    m_callee_fndecl, m_arg);
       }
   }
 
@@ -1294,8 +1277,19 @@ fd_state_machine::check_for_fd_attrs (
     const gcall *call, const tree callee_fndecl, const char *attr_name,
     access_directions fd_attr_access_dir) const
 {
+  /* Handle interesting fd attributes of the callee_fndecl,
+     or prioritize those of the builtin that callee_fndecl is
+     expected to be.
+     Might want this to be controlled by a flag.  */
+  tree fndecl = callee_fndecl;
+  /* If call is recognized as a builtin known_function,
+     use that builtin's function_decl.  */
+  if (const region_model *old_model = sm_ctxt->get_old_region_model ())
+    if (const builtin_known_function *builtin_kf
+	 = old_model->get_builtin_kf (call))
+      fndecl = builtin_kf->builtin_decl ();
 
-  tree attrs = TYPE_ATTRIBUTES (TREE_TYPE (callee_fndecl));
+  tree attrs = TYPE_ATTRIBUTES (TREE_TYPE (fndecl));
   attrs = lookup_attribute (attr_name, attrs);
   if (!attrs)
     return;
@@ -1325,13 +1319,15 @@ fd_state_machine::check_for_fd_attrs (
 		   // attributes
 	{
 
+	  /* Do use the fndecl that caused the warning so that the
+	     misused attributes are printed and the user not confused.  */
 	  if (is_closed_fd_p (state))
 	    {
 
 	      sm_ctxt->warn (node, stmt, arg,
 			     make_unique<fd_use_after_close>
 			       (*this, diag_arg,
-				callee_fndecl, attr_name,
+				fndecl, attr_name,
 				arg_idx));
 	      continue;
 	    }
@@ -1343,7 +1339,7 @@ fd_state_machine::check_for_fd_attrs (
 		  sm_ctxt->warn (node, stmt, arg,
 				 make_unique<fd_use_without_check>
 				 (*this, diag_arg,
-				  callee_fndecl, attr_name,
+				  fndecl, attr_name,
 				  arg_idx));
 		  continue;
 		}
@@ -1361,7 +1357,7 @@ fd_state_machine::check_for_fd_attrs (
 		      node, stmt, arg,
 		      make_unique<fd_access_mode_mismatch> (*this, diag_arg,
 							    DIRS_WRITE,
-							    callee_fndecl,
+							    fndecl,
 							    attr_name,
 							    arg_idx));
 		}
@@ -1375,7 +1371,7 @@ fd_state_machine::check_for_fd_attrs (
 		      node, stmt, arg,
 		      make_unique<fd_access_mode_mismatch> (*this, diag_arg,
 							    DIRS_READ,
-							    callee_fndecl,
+							    fndecl,
 							    attr_name,
 							    arg_idx));
 		}
@@ -2282,10 +2278,16 @@ public:
       const fd_state_machine *fd_sm;
       std::unique_ptr<sm_context> sm_ctxt;
       if (!get_fd_state (ctxt, &smap, &fd_sm, NULL, &sm_ctxt))
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
       const extrinsic_state *ext_state = ctxt->get_ext_state ();
       if (!ext_state)
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
 
       return fd_sm->on_socket (cd, m_success, sm_ctxt.get (), *ext_state);
     }
@@ -2329,10 +2331,16 @@ public:
       const fd_state_machine *fd_sm;
       std::unique_ptr<sm_context> sm_ctxt;
       if (!get_fd_state (ctxt, &smap, &fd_sm, NULL, &sm_ctxt))
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
       const extrinsic_state *ext_state = ctxt->get_ext_state ();
       if (!ext_state)
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
       return fd_sm->on_bind (cd, m_success, sm_ctxt.get (), *ext_state);
     }
   };
@@ -2374,10 +2382,16 @@ class kf_listen : public known_function
       const fd_state_machine *fd_sm;
       std::unique_ptr<sm_context> sm_ctxt;
       if (!get_fd_state (ctxt, &smap, &fd_sm, NULL, &sm_ctxt))
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
       const extrinsic_state *ext_state = ctxt->get_ext_state ();
       if (!ext_state)
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
 
       return fd_sm->on_listen (cd, m_success, sm_ctxt.get (), *ext_state);
     }
@@ -2420,10 +2434,16 @@ class kf_accept : public known_function
       const fd_state_machine *fd_sm;
       std::unique_ptr<sm_context> sm_ctxt;
       if (!get_fd_state (ctxt, &smap, &fd_sm, NULL, &sm_ctxt))
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
       const extrinsic_state *ext_state = ctxt->get_ext_state ();
       if (!ext_state)
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
 
       return fd_sm->on_accept (cd, m_success, sm_ctxt.get (), *ext_state);
     }
@@ -2469,10 +2489,16 @@ public:
       const fd_state_machine *fd_sm;
       std::unique_ptr<sm_context> sm_ctxt;
       if (!get_fd_state (ctxt, &smap, &fd_sm, NULL, &sm_ctxt))
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
       const extrinsic_state *ext_state = ctxt->get_ext_state ();
       if (!ext_state)
-	return true;
+	{
+	  cd.set_any_lhs_with_defaults ();
+	  return true;
+	}
 
       return fd_sm->on_connect (cd, m_success, sm_ctxt.get (), *ext_state);
     }
@@ -2687,6 +2713,7 @@ public:
 	const svalue *new_sval = cd.get_or_create_conjured_svalue (base_reg);
 	model->set_value (base_reg, new_sval, cd.get_ctxt ());
       }
+    cd.set_any_lhs_with_defaults ();
   }
 };
 

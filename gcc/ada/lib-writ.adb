@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -50,6 +50,7 @@ with Rident;         use Rident;
 with Stand;          use Stand;
 with Scn;            use Scn;
 with Sem_Eval;       use Sem_Eval;
+with Sem_Util;       use Sem_Util;
 with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
@@ -524,10 +525,20 @@ package body Lib.Writ is
          Write_Info_Str (" O");
          Write_Info_Char (OA_Setting (Unit_Num));
 
-         if Ekind (Uent) in E_Package | E_Package_Body
-           and then Present (Finalizer (Uent))
-         then
-            Write_Info_Str (" PF");
+         --  For a package instance with a body that is a library unit, the two
+         --  compilation units share Cunit_Entity so we cannot rely on Uent.
+
+         if Ukind in N_Package_Declaration | N_Package_Body then
+            declare
+               E : constant Entity_Id := Defining_Entity (Unit (Unode));
+
+            begin
+               if Ekind (E) in E_Package | E_Package_Body
+                 and then Present (Finalizer (E))
+               then
+                  Write_Info_Str (" PF");
+               end if;
+            end;
          end if;
 
          if Is_Preelaborated (Uent) then

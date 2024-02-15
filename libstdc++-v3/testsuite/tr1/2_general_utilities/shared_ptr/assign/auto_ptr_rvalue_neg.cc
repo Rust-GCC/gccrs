@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2005-2023 Free Software Foundation, Inc.
+// Copyright (C) 2005-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,7 +19,8 @@
 
 // TR1 2.2.2 Template class shared_ptr [tr.util.smartptr.shared]
 
-// { dg-options "-std=c++98" }
+// { dg-add-options using-deprecated }
+// { dg-warning "auto_ptr. is deprecated" "" { target c++11 } 0 }
 
 #include <tr1/memory>
 #include <testsuite_hooks.h>

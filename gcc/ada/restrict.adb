@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -508,6 +508,18 @@ package body Restrict is
       then
          Update_Restrictions (Main_Restrictions);
       end if;
+
+      declare
+         use Local_Restrictions;
+      begin
+         if Local_Restriction_Checking_Hook /= null then
+            --  A given global restriction (which may or may not be in
+            --  effect) has been violated. Even if the global restriction
+            --  is not in effect, a corresponding local restriction may be
+            --  in effect (in which case the violation needs to be flagged).
+            Local_Restriction_Checking_Hook.all (R, N);
+         end if;
+      end;
 
       --  Nothing to do if restriction message suppressed
 

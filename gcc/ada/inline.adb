@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -312,9 +312,11 @@ package body Inline is
    --  Remove all aspects and/or pragmas that have no meaning in inlined body
    --  Body_Decl. The analysis of these items is performed on the non-inlined
    --  body. The items currently removed are:
+   --    Always_Terminates
    --    Contract_Cases
    --    Global
    --    Depends
+   --    Exceptional_Cases
    --    Postcondition
    --    Precondition
    --    Refined_Global
@@ -333,17 +335,17 @@ package body Inline is
    -- Deferred Cleanup Actions --
    ------------------------------
 
-   --  The cleanup actions for scopes that contain instantiations is delayed
-   --  until after expansion of those instantiations, because they may contain
-   --  finalizable objects or tasks that affect the cleanup code. A scope
-   --  that contains instantiations only needs to be finalized once, even
-   --  if it contains more than one instance. We keep a list of scopes
-   --  that must still be finalized, and call cleanup_actions after all
-   --  the instantiations have been completed.
+   --  The cleanup actions for scopes that contain package instantiations with
+   --  a body are delayed until after the package body is instantiated. because
+   --  the body may contain finalizable objects or other constructs that affect
+   --  the cleanup code. A scope that contains such instantiations only needs
+   --  to be finalized once, even though it may contain more than one instance.
+   --  We keep a list of scopes that must still be finalized and Cleanup_Scopes
+   --  will be invoked after all the body instantiations have been completed.
 
    To_Clean : Elist_Id;
 
-   procedure Add_Scope_To_Clean (Inst : Entity_Id);
+   procedure Add_Scope_To_Clean (Scop : Entity_Id);
    --  Build set of scopes on which cleanup actions must be performed
 
    procedure Cleanup_Scopes;
@@ -782,7 +784,11 @@ package body Inline is
    --  Add_Pending_Instantiation --
    --------------------------------
 
-   procedure Add_Pending_Instantiation (Inst : Node_Id; Act_Decl : Node_Id) is
+   procedure Add_Pending_Instantiation
+     (Inst     : Node_Id;
+      Act_Decl : Node_Id;
+      Fin_Scop : Node_Id := Empty)
+   is
       Act_Decl_Id : Entity_Id;
       Index       : Int;
 
@@ -801,11 +807,12 @@ package body Inline is
       --  for later processing by Instantiate_Bodies.
 
       Pending_Instantiations.Append
-        ((Act_Decl                 => Act_Decl,
+        ((Inst_Node                => Inst,
+          Act_Decl                 => Act_Decl,
+          Fin_Scop                 => Fin_Scop,
           Config_Switches          => Save_Config_Switches,
           Current_Sem_Unit         => Current_Sem_Unit,
           Expander_Status          => Expander_Active,
-          Inst_Node                => Inst,
           Local_Suppress_Stack_Top => Local_Suppress_Stack_Top,
           Scope_Suppress           => Scope_Suppress,
           Warnings                 => Save_Warnings));
@@ -837,37 +844,10 @@ package body Inline is
    -- Add_Scope_To_Clean --
    ------------------------
 
-   procedure Add_Scope_To_Clean (Inst : Entity_Id) is
-      Scop : constant Entity_Id := Enclosing_Dynamic_Scope (Inst);
+   procedure Add_Scope_To_Clean (Scop : Entity_Id) is
       Elmt : Elmt_Id;
 
    begin
-      --  If the instance appears in a library-level package declaration,
-      --  all finalization is global, and nothing needs doing here.
-
-      if Scop = Standard_Standard then
-         return;
-      end if;
-
-      --  If the instance is within a generic unit, no finalization code
-      --  can be generated. Note that at this point all bodies have been
-      --  analyzed, and the scope stack itself is not present, and the flag
-      --  Inside_A_Generic is not set.
-
-      declare
-         S : Entity_Id;
-
-      begin
-         S := Scope (Inst);
-         while Present (S) and then S /= Standard_Standard loop
-            if Is_Generic_Unit (S) then
-               return;
-            end if;
-
-            S := Scope (S);
-         end loop;
-      end;
-
       Elmt := First_Elmt (To_Clean);
       while Present (Elmt) loop
          if Node (Elmt) = Scop then
@@ -1523,6 +1503,10 @@ package body Inline is
       --  an unconstrained record type with per-object constraints on component
       --  types.
 
+      function Has_Skip_Proof_Annotation (Id : Entity_Id) return Boolean;
+      --  Returns True if subprogram Id has an annotation Skip_Proof or
+      --  Skip_Flow_And_Proof.
+
       function Has_Some_Contract (Id : Entity_Id) return Boolean;
       --  Return True if subprogram Id has any contract. The presence of
       --  Extensions_Visible or Volatile_Function is also considered as a
@@ -1720,6 +1704,45 @@ package body Inline is
 
          return False;
       end Has_Formal_With_Discriminant_Dependent_Fields;
+
+      -------------------------------
+      -- Has_Skip_Proof_Annotation --
+      -------------------------------
+
+      function Has_Skip_Proof_Annotation (Id : Entity_Id) return Boolean is
+         Decl : Node_Id := Unit_Declaration_Node (Id);
+
+      begin
+         Next (Decl);
+
+         while Present (Decl)
+           and then Nkind (Decl) = N_Pragma
+         loop
+            if Get_Pragma_Id (Decl) = Pragma_Annotate
+              and then List_Length (Pragma_Argument_Associations (Decl)) = 3
+            then
+               declare
+                  Arg1      : constant Node_Id :=
+                    First (Pragma_Argument_Associations (Decl));
+                  Arg2      : constant Node_Id := Next (Arg1);
+                  Arg1_Name : constant String :=
+                    Get_Name_String (Chars (Get_Pragma_Arg (Arg1)));
+                  Arg2_Name : constant String :=
+                    Get_Name_String (Chars (Get_Pragma_Arg (Arg2)));
+               begin
+                  if Arg1_Name = "gnatprove"
+                    and then Arg2_Name in "skip_proof" | "skip_flow_and_proof"
+                  then
+                     return True;
+                  end if;
+               end;
+            end if;
+
+            Next (Decl);
+         end loop;
+
+         return False;
+      end Has_Skip_Proof_Annotation;
 
       -----------------------
       -- Has_Some_Contract --
@@ -1923,6 +1946,12 @@ package body Inline is
       elsif Maybe_Traversal_Function (Id) then
          return False;
 
+      --  Do not inline subprograms with the Skip_Proof or Skip_Flow_And_Proof
+      --  annotation, which should be handled separately.
+
+      elsif Has_Skip_Proof_Annotation (Id) then
+         return False;
+
       --  Otherwise, this is a subprogram declared inside the private part of a
       --  package, or inside a package body, or locally in a subprogram, and it
       --  does not have any contract. Inline it.
@@ -1954,9 +1983,9 @@ package body Inline is
       then
          declare
             Len1 : constant Positive :=
-              String (String'("cannot inline"))'Length;
+              String'("cannot inline")'Length;
             Len2 : constant Positive :=
-              String (String'("info: no contextual analysis of"))'Length;
+              String'("info: no contextual analysis of")'Length;
 
             New_Msg : String (1 .. Msg'Length + Len2 - Len1);
 
@@ -2014,17 +2043,6 @@ package body Inline is
          --  Remove last character (question mark) to make this into an error.
 
          Error_Msg_NE (Msg (Msg'First .. Msg'Last - 1), N, Subp);
-
-      --  In GNATprove mode, issue an info message when -gnatd_f is set and
-      --  Suppress_Info is False, and indicate that the subprogram is not
-      --  always inlined by setting flag Is_Inlined_Always to False.
-
-      elsif GNATprove_Mode then
-         Set_Is_Inlined_Always (Subp, False);
-
-         if Debug_Flag_Underscore_F and not Suppress_Info then
-            Error_Msg_NE (Msg, N, Subp);
-         end if;
 
       else
 
@@ -2815,37 +2833,19 @@ package body Inline is
    --------------------
 
    procedure Cleanup_Scopes is
-      Elmt : Elmt_Id;
       Decl : Node_Id;
+      Elmt : Elmt_Id;
+      Fin  : Entity_Id;
+      Kind : Entity_Kind;
       Scop : Entity_Id;
 
    begin
       Elmt := First_Elmt (To_Clean);
       while Present (Elmt) loop
          Scop := Node (Elmt);
+         Kind := Ekind (Scop);
 
-         if Ekind (Scop) = E_Entry then
-            Scop := Protected_Body_Subprogram (Scop);
-
-         elsif Is_Subprogram (Scop)
-           and then Is_Protected_Type (Underlying_Type (Scope (Scop)))
-           and then Present (Protected_Body_Subprogram (Scop))
-         then
-            --  If a protected operation contains an instance, its cleanup
-            --  operations have been delayed, and the subprogram has been
-            --  rewritten in the expansion of the enclosing protected body. It
-            --  is the corresponding subprogram that may require the cleanup
-            --  operations, so propagate the information that triggers cleanup
-            --  activity.
-
-            Set_Uses_Sec_Stack
-              (Protected_Body_Subprogram (Scop),
-                Uses_Sec_Stack (Scop));
-
-            Scop := Protected_Body_Subprogram (Scop);
-         end if;
-
-         if Ekind (Scop) = E_Block then
+         if Kind = E_Block then
             Decl := Parent (Block_Node (Scop));
 
          else
@@ -2859,13 +2859,54 @@ package body Inline is
             end if;
          end if;
 
-         Push_Scope (Scop);
-         Expand_Cleanup_Actions (Decl);
-         End_Scope;
+         --  Finalizers are built only for package specs and bodies that are
+         --  compilation units, so check that we do not have anything else.
+         --  Moreover, they must be built at most once for each entity during
+         --  the compilation of the main unit. However, if other units are
+         --  later compiled for inlining purposes, they may also contain body
+         --  instances and, therefore, appear again here, so we need to make
+         --  sure that we do not build two finalizers for them (note that the
+         --  contents of the finalizer for these units is irrelevant since it
+         --  is not output in the generated code).
+
+         if Kind in E_Package | E_Package_Body then
+            declare
+               Unit_Entity : constant Entity_Id :=
+                 (if Kind = E_Package then Scop else Spec_Entity (Scop));
+
+            begin
+               pragma Assert (Is_Compilation_Unit (Unit_Entity)
+                 and then (No (Finalizer (Scop))
+                            or else Unit_Entity /= Main_Unit_Entity));
+
+               if No (Finalizer (Scop)) then
+                  Build_Finalizer
+                    (N           => Decl,
+                     Clean_Stmts => No_List,
+                     Mark_Id     => Empty,
+                     Top_Decls   => No_List,
+                     Defer_Abort => False,
+                     Fin_Id      => Fin);
+
+                  if Present (Fin) then
+                     Set_Finalizer (Scop, Fin);
+                  end if;
+               end if;
+            end;
+
+         else
+            Push_Scope (Scop);
+            Expand_Cleanup_Actions (Decl);
+            Pop_Scope;
+         end if;
 
          Next_Elmt (Elmt);
       end loop;
    end Cleanup_Scopes;
+
+   -----------------------------------------------
+   -- Establish_Actual_Mapping_For_Inlined_Call --
+   -----------------------------------------------
 
    procedure Establish_Actual_Mapping_For_Inlined_Call
      (N                     : Node_Id;
@@ -2947,25 +2988,6 @@ package body Inline is
       F := First_Formal (Subp);
       A := First_Actual (N);
       while Present (F) loop
-         if Present (Renamed_Object (F)) then
-
-            --  If expander is active, it is an error to try to inline a
-            --  recursive subprogram. In GNATprove mode, just indicate that the
-            --  inlining will not happen, and mark the subprogram as not always
-            --  inlined.
-
-            if GNATprove_Mode then
-               Cannot_Inline
-                 ("cannot inline call to recursive subprogram?", N, Subp);
-               Set_Is_Inlined_Always (Subp, False);
-            else
-               Error_Msg_N
-                 ("cannot inline call to recursive subprogram", N);
-            end if;
-
-            return;
-         end if;
-
          --  Reset Last_Assignment for any parameters of mode out or in out, to
          --  prevent spurious warnings about overwriting for assignments to the
          --  formal in the inlined code.
@@ -3577,16 +3599,9 @@ package body Inline is
       function Process_Formals_In_Aspects
         (N : Node_Id) return Traverse_Result
       is
-         A : Node_Id;
-
       begin
-         if Has_Aspects (N) then
-            A := First (Aspect_Specifications (N));
-            while Present (A) loop
-               Replace_Formals (Expression (A));
-
-               Next (A);
-            end loop;
+         if Nkind (N) = N_Aspect_Specification then
+            Replace_Formals (Expression (N));
          end if;
          return OK;
       end Process_Formals_In_Aspects;
@@ -3681,7 +3696,7 @@ package body Inline is
             Insert_After (Parent (Entity (N)), Blk);
 
          --  If the context is an assignment, and the left-hand side is free of
-         --  side-effects, the replacement is also safe.
+         --  side effects, the replacement is also safe.
 
          elsif Nkind (Parent (N)) = N_Assignment_Statement
            and then
@@ -4105,6 +4120,7 @@ package body Inline is
               Object_Definition   =>
                 New_Copy_Tree (Object_Definition (Parent (Targ1))));
          Replace_Formals (Decl);
+         Set_No_Initialization (Decl);
          Rewrite (Parent (N), Decl);
          Analyze (Parent (N));
 
@@ -4851,6 +4867,8 @@ package body Inline is
       ------------------------
 
       procedure Instantiate_Body (Info : Pending_Body_Info) is
+         Scop : Entity_Id;
+
       begin
          --  If the instantiation node is absent, it has been removed as part
          --  of unreachable code.
@@ -4865,9 +4883,47 @@ package body Inline is
          elsif Nkind (Info.Inst_Node) = N_Package_Body then
             null;
 
-         elsif Nkind (Info.Act_Decl) = N_Package_Declaration then
+         --  For other package instances, instantiate the body and register the
+         --  finalization scope, if any, for subsequent generation of cleanups.
+
+         elsif Nkind (Info.Inst_Node) = N_Package_Instantiation then
+
+            --  If the enclosing finalization scope is a package body, set the
+            --  In_Package_Body flag on its spec. This is required, in the case
+            --  where the body contains other package instantiations that have
+            --  a body, for Analyze_Package_Instantiation to compute a correct
+            --  finalization scope.
+
+            if Present (Info.Fin_Scop)
+              and then Ekind (Info.Fin_Scop) = E_Package_Body
+            then
+               Set_In_Package_Body (Spec_Entity (Info.Fin_Scop), True);
+            end if;
+
             Instantiate_Package_Body (Info);
-            Add_Scope_To_Clean (Defining_Entity (Info.Act_Decl));
+
+            if Present (Info.Fin_Scop) then
+               Scop := Info.Fin_Scop;
+
+               --  If the enclosing finalization scope is dynamic, the instance
+               --  may have been relocated, for example if it was declared in a
+               --  protected entry, protected subprogram, or task body.
+
+               if Is_Dynamic_Scope (Scop) then
+                  Scop :=
+                    Enclosing_Dynamic_Scope (Defining_Entity (Info.Act_Decl));
+               end if;
+
+               Add_Scope_To_Clean (Scop);
+
+               --  Reset the In_Package_Body flag if it was set above
+
+               if Ekind (Info.Fin_Scop) = E_Package_Body then
+                  Set_In_Package_Body (Spec_Entity (Info.Fin_Scop), False);
+               end if;
+            end if;
+
+         --  For subprogram instances, always instantiate the body
 
          else
             Instantiate_Subprogram_Body (Info);
@@ -5183,9 +5239,11 @@ package body Inline is
             end if;
 
             if Present (Item_Id)
-              and then Chars (Item_Id) in Name_Contract_Cases
+              and then Chars (Item_Id) in Name_Always_Terminates
+                                        | Name_Contract_Cases
                                         | Name_Global
                                         | Name_Depends
+                                        | Name_Exceptional_Cases
                                         | Name_Postcondition
                                         | Name_Precondition
                                         | Name_Refined_Global

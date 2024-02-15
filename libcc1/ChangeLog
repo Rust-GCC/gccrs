@@ -1,3 +1,64 @@
+2024-02-09  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/98388
+	* libcp1plugin.cc (plugin_build_unary_expr): Pass tf_error to
+	build_throw.
+
+2024-01-09  waffl3x  <waffl3x@protonmail.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/102609
+	* libcp1plugin.cc (plugin_pragma_push_user_expression): Don't use
+	DECL_NONSTATIC_MEMBER_FUNCTION_P.
+
+2023-12-06  David Malcolm  <dmalcolm@redhat.com>
+
+	* context.cc (plugin_print_error_function): Make diagnostic_info
+	param const.
+
+2023-11-16  Tom Tromey  <tom@tromey.com>
+
+	* libcc1plugin.cc (plugin_build_enum_type): Set
+	ENUM_UNDERLYING_TYPE.
+
+2023-10-22  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* configure: Regenerate.
+
+2023-08-11  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Alexander von Gluck IV  <kallisti5@unixzen.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-05-18  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* libcc1plugin.cc (plugin_float_type): Ditto.
+	* libcp1plugin.cc (plugin_reactivate_decl): Ditto.
+	(plugin_get_float_type): Ditto.
+
 2022-11-01  Nathan Sidwell  <nathan@acm.org>
 
 	* libcp1plugin.cc (plugin_start_lambda_closure_class_type):

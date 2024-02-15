@@ -1,7 +1,7 @@
 /**
  * Defines enums common to dmd and dmd as parse library.
  *
- * Copyright:   Copyright (C) 1999-2023 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
  * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/astenums.d, _astenums.d)
  * Documentation:  https://dlang.org/phobos/dmd_astenums.html
@@ -63,7 +63,7 @@ enum STC : ulong  // transfer changes to declaration.h
     foreach_            = 0x4000,   /// variable for foreach loop
     variadic            = 0x8000,   /// the `variadic` parameter in: T foo(T a, U b, V variadic...)
 
-    //                  = 0x1_0000,
+    constscoperef       = 0x1_0000,   /// when `in` means const|scope|ref
     templateparameter   = 0x2_0000,   /// template parameter
     ref_                = 0x4_0000,   /// `ref`
     scope_              = 0x8_0000,   /// `scope`
@@ -112,7 +112,7 @@ enum STC : ulong  // transfer changes to declaration.h
     volatile_           = 0x40_0000_0000_0000,   /// destined for volatile in the back end
 
     safeGroup = STC.safe | STC.trusted | STC.system,
-    IOR  = STC.in_ | STC.ref_ | STC.out_,
+    IOR  = STC.constscoperef | STC.in_ | STC.ref_ | STC.out_,
     TYPECTOR = (STC.const_ | STC.immutable_ | STC.shared_ | STC.wild),
     FUNCATTR = (STC.ref_ | STC.nothrow_ | STC.nogc | STC.pure_ | STC.property | STC.live |
                 safeGroup),
@@ -152,7 +152,7 @@ bool isRefReturnScope(const ulong stc)
 
 /* This is different from the one in declaration.d, make that fix a separate PR */
 static if (0)
-extern (C++) __gshared const(StorageClass) STCStorageClass =
+__gshared const(StorageClass) STCStorageClass =
     (STC.auto_ | STC.scope_ | STC.static_ | STC.extern_ | STC.const_ | STC.final_ |
      STC.abstract_ | STC.synchronized_ | STC.deprecated_ | STC.override_ | STC.lazy_ |
      STC.alias_ | STC.out_ | STC.in_ | STC.manifest | STC.immutable_ | STC.shared_ |
@@ -214,8 +214,8 @@ enum TY : ubyte
     Tmixin,
     Tnoreturn,
     Ttag,
-    TMAX
 }
+enum TMAX = TY.max + 1;
 
 alias Tarray = TY.Tarray;
 alias Tsarray = TY.Tsarray;
@@ -265,7 +265,6 @@ alias Ttraits = TY.Ttraits;
 alias Tmixin = TY.Tmixin;
 alias Tnoreturn = TY.Tnoreturn;
 alias Ttag = TY.Ttag;
-alias TMAX = TY.TMAX;
 
 enum TFlags
 {
@@ -328,6 +327,7 @@ enum VarArg : ubyte
     variadic = 1,  /// (T t, ...)  can be C-style (core.stdc.stdarg) or D-style (core.vararg)
     typesafe = 2,  /// (T t ...) typesafe https://dlang.org/spec/function.html#typesafe_variadic_functions
                    ///   or https://dlang.org/spec/function.html#typesafe_variadic_functions
+    KRvariadic = 3, /// K+R C style variadics (no function prototype)
 }
 
 /*************************
@@ -339,7 +339,7 @@ enum STMT : ubyte
     Error,
     Peel,
     Exp, DtorExp,
-    Compile,
+    Mixin,
     Compound, CompoundDeclaration, CompoundAsm,
     UnrolledLoop,
     Scope,
@@ -383,6 +383,7 @@ enum STMT : ubyte
 enum InitKind : ubyte
 {
     void_,
+    default_,
     error,
     struct_,
     array,
@@ -438,4 +439,29 @@ enum FileType : ubyte
     dhdr, /// D header file (.di)
     ddoc, /// Ddoc documentation file (.dd)
     c,    /// C source file
+}
+
+extern (C++) struct structalign_t
+{
+  private:
+    ushort value = 0;  // unknown
+    enum STRUCTALIGN_DEFAULT = 1234;   // default = match whatever the corresponding C compiler does
+    bool pack;         // use #pragma pack semantics
+
+  public:
+  pure @safe @nogc nothrow:
+    bool isDefault() const { return value == STRUCTALIGN_DEFAULT; }
+    void setDefault()      { value = STRUCTALIGN_DEFAULT; }
+    bool isUnknown() const { return value == 0; }  // value is not set
+    void setUnknown()      { value = 0; }
+    void set(uint value)   { this.value = cast(ushort)value; }
+    uint get() const       { return value; }
+    bool isPack() const    { return pack; }
+    void setPack(bool pack) { this.pack = pack; }
+}
+
+/// Use to return D arrays from C++ functions
+extern (C++) struct DArray(T)
+{
+    T[] data;
 }

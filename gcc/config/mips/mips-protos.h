@@ -1,5 +1,5 @@
 /* Prototypes of target machine for GNU compiler.  MIPS version.
-   Copyright (C) 1989-2023 Free Software Foundation, Inc.
+   Copyright (C) 1989-2024 Free Software Foundation, Inc.
    Contributed by A. Lichnewsky (lich@inria.inria.fr).
    Changed by Michael Meissner	(meissner@osf.org).
    64-bit r4000 support by Ian Lance Taylor (ian@cygnus.com) and
@@ -387,5 +387,11 @@ extern mulsidi3_gen_fn mips_mulsidi3_gen_fn (enum rtx_code);
 extern void mips_register_frame_header_opt (void);
 extern void mips_expand_vec_cond_expr (machine_mode, machine_mode, rtx *);
 extern void mips_expand_vec_cmp_expr (rtx *);
+
+extern void mips_emit_speculation_barrier_function (void);
+
+extern bool mips_bit_clear_p (enum machine_mode, unsigned HOST_WIDE_INT);
+extern void mips_bit_clear_info (enum machine_mode, unsigned HOST_WIDE_INT,
+				  int *, int *);
 
 #endif /* ! GCC_MIPS_PROTOS_H */

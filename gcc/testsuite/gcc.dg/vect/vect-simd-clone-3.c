@@ -13,6 +13,7 @@ int d[N], e[N];
 #pragma omp declare simd simdlen(4) notinbranch uniform(b) linear(c:3)
 __attribute__((noinline)) int
 foo (int a, int b, int c)
+/* { dg-warning {unsupported simdlen 4 \(amdgcn\)} "" { target amdgcn*-*-* } .-1 } */
 {
   if (a < 30)
     return 5;
@@ -37,10 +38,9 @@ main ()
   int i;
   check_vect ();
   bar ();
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (d[i] != (i < 30 ? 5 : i * 4 + 123) || e[i] != i)
       abort ();
   return 0;
 }
-
-/* { dg-warning {unsupported simdlen 4 \(amdgcn\)} "" { target amdgcn*-*-* } 15 } */

@@ -1,6 +1,6 @@
 // Pointer Traits -*- C++ -*-
 
-// Copyright (C) 2011-2023 Free Software Foundation, Inc.
+// Copyright (C) 2011-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,13 +33,6 @@
 #if __cplusplus >= 201103L
 
 #include <bits/move.h>
-
-/* Duplicate definition with unique_ptr.h.  */
-#if __cplusplus > 202002L && defined(__cpp_constexpr_dynamic_alloc)
-# define __cpp_lib_constexpr_memory 202202L
-#elif __cplusplus > 201703L
-# define __cpp_lib_constexpr_memory 201811L
-#endif
 
 #if __cplusplus > 201703L
 #include <concepts>
@@ -215,7 +208,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return __ptr;
     }
 
-#if __cplusplus <= 201703L
+#ifndef __glibcxx_to_address // C++ < 20
   template<typename _Ptr>
     constexpr typename std::pointer_traits<_Ptr>::element_type*
     __to_address(const _Ptr& __ptr)
@@ -236,8 +229,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       else
 	return std::__to_address(__ptr.operator->());
     }
-
-#define __cpp_lib_to_address 201711L
 
   /**
    * @brief Obtain address referenced by a pointer to an object
@@ -261,7 +252,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     constexpr auto
     to_address(const _Ptr& __ptr) noexcept
     { return std::__to_address(__ptr); }
-#endif // C++2a
+#endif // __glibcxx_to_address
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std

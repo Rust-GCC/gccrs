@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
 // { dg-require-namedlocale "fr_FR.ISO8859-15" }
+// { dg-timeout-factor 2 }
 
 #include <chrono>
 #include <sstream>
@@ -97,8 +97,8 @@ test_format()
     char fmt[] = { '{', ':', '%', c, '}' };
     try
     {
-      (void) std::vformat(std::string_view(fmt, 5),
-			  std::make_format_args(2022y/December/19));
+      year_month_day ymd = 2022y/December/19;
+      (void) std::vformat(std::string_view(fmt, 5), std::make_format_args(ymd));
       // The call above should throw for any conversion-spec not in my_specs:
       VERIFY(my_specs.find(c) != my_specs.npos);
     }
@@ -113,9 +113,72 @@ test_format()
   }
 }
 
+void
+test_parse()
+{
+  using namespace std::chrono;
+  const year_month_day expected = 2023y/August/10;
+  year_month_day ymd;
+
+  minutes offset;
+  std::string abbrev;
+  std::istringstream is("23 2220 21:44:3 +1 'BST'");
+  VERIFY( is >> parse("%y %j0 %4H:%5M:%6S %Oz '%Z'", ymd, abbrev, offset) );
+  VERIFY( ! is.eof() );
+  VERIFY( ymd == expected );
+  VERIFY( abbrev == "BST" );
+  VERIFY( offset == 60min );
+
+  is.clear();
+  is.str("2023 365");
+  VERIFY( is >> parse("%Y %j", ymd) );
+  VERIFY( ymd == 2023y/December/31 );
+
+  ymd = 1970y/January/1;
+  is.clear();
+  is.str("2023 366");
+  VERIFY( ! (is >> parse("%Y %j", ymd)) ); // Not a leap year, no 366th day.
+  VERIFY( ymd == 1970y/January/1 );
+
+  is.clear();
+  is.str("2020 366");
+  VERIFY( is >> parse("%Y %j", ymd) );
+  VERIFY( ! is.eof() );
+  VERIFY( ymd == 2020y/December/31 );
+
+  ymd = 1970y/January/1;
+  is.clear();
+  is.str("2020 0");
+  VERIFY( ! (is >> parse("%Y %j", ymd)) ); // zero is invalid for day-of-year
+  VERIFY( is.eof() );
+  VERIFY( ymd == 1970y/January/1 );
+
+  is.clear();
+  is.str("2023-01-01 00:30 0100");
+  VERIFY( is >> parse("%F %R %z", ymd) );
+  VERIFY( ! is.eof() );
+  VERIFY( ymd == 2023y/January/1 ); // Date not adjusted by TZ offset.
+
+  ymd = {};
+  is.clear();
+  is.str("2022-W52-6");
+  VERIFY( is >> parse("%G-W%V-%u", ymd) );
+  VERIFY( ymd == 2022y/December/31 );
+
+  is.clear();
+  is.str("2022-W52-8");
+  VERIFY( ! (is >> parse("%G-W%V-%u", ymd)) ); // 8 is not a valid weekday
+  is.clear();
+  is.str("2022-W52-0");
+  VERIFY( ! (is >> parse("%G-W%V-%u", ymd)) ); // 0 is not a valid weekday
+  is.clear();
+  is.str("2022-W53-1");
+  VERIFY( ! (is >> parse("%G-W%V-%u", ymd)) ); // W53 is not valid for 2022
+}
+
 int main()
 {
   test_ostream();
   test_format();
-  // TODO: test_parse();
+  test_parse();
 }

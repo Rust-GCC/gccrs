@@ -213,6 +213,9 @@ static void DoResetImpl(uptr epoch) {
 #else
   auto resetFailed =
       !MmapFixedSuperNoReserve(shadow_begin, shadow_end-shadow_begin, "shadow");
+#  if !SANITIZER_GO
+  DontDumpShadow(shadow_begin, shadow_end - shadow_begin);
+#  endif
 #endif
   if (resetFailed) {
     Printf("failed to reset shadow memory\n");
@@ -443,7 +446,7 @@ static bool InitializeMemoryProfiler() {
     ctx->memprof_fd = 2;
   } else {
     InternalScopedString filename;
-    filename.append("%s.%d", fname, (int)internal_getpid());
+    filename.AppendF("%s.%d", fname, (int)internal_getpid());
     ctx->memprof_fd = OpenFile(filename.data(), WrOnly);
     if (ctx->memprof_fd == kInvalidFd) {
       Printf("ThreadSanitizer: failed to open memory profile file '%s'\n",

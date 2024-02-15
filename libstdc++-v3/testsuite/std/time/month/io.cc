@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
 // { dg-require-namedlocale "fr_FR.ISO8859-15" }
+// { dg-timeout-factor 2 }
 
 #include <chrono>
 #include <sstream>
@@ -74,8 +74,8 @@ test_format()
     char fmt[] = { '{', ':', '%', c, '}' };
     try
     {
-      (void) std::vformat(std::string_view(fmt, 5),
-			  std::make_format_args(month(1)));
+      month m(1);
+      (void) std::vformat(std::string_view(fmt, 5), std::make_format_args(m));
       // The call above should throw for any conversion-spec not in my_specs:
       VERIFY(my_specs.find(c) != my_specs.npos);
     }
@@ -90,9 +90,129 @@ test_format()
   }
 }
 
+void
+test_parse()
+{
+  using namespace std::chrono;
+  std::istringstream is;
+  month m{};
+
+  is.str("JUL");
+  VERIFY( is >> parse("%B", m) );
+  VERIFY( is.eof() );
+  VERIFY( m == July );
+
+  is.clear();
+  is.str("junE bug");
+  VERIFY( is >> parse("  %b  bug ", m) );
+  VERIFY( is.eof() );
+  VERIFY( m == June );
+
+  is.clear();
+  is.str("012");
+  VERIFY( is >> parse("%m", m) );
+  VERIFY( ! is.eof() );
+  VERIFY( is.peek() == '2' );
+  VERIFY( m == January );
+
+  is.clear();
+  is.str("012");
+  VERIFY( is >> parse("%4m", m) );
+  VERIFY( is.eof() );
+  VERIFY( m == December );
+
+  m = month(15);
+  is.clear();
+  is.str("Janvember");
+  VERIFY( is >> parse("%B", m) ); // Stops parsing after "Jan"
+  VERIFY( ! is.eof() );
+  VERIFY( is.peek() == 'v' );
+  VERIFY( m == January );
+
+  m = month(15);
+  is.clear();
+  is.str("Junuary");
+  VERIFY( is >> parse("%B", m) ); // Stops parsing after "Jun"
+  VERIFY( ! is.eof() );
+  VERIFY( is.peek() == 'u' );
+  VERIFY( m == June );
+
+  m = month(15);
+  is.clear();
+  is.str("Jebruary");
+  VERIFY( ! (is >> parse("%B", m)) );
+  VERIFY( is.fail() );
+  VERIFY( ! is.eof() );
+  is.clear();
+  VERIFY( is.peek() == 'e' );
+  VERIFY( m == month(15) );
+
+  m = month(13);
+  is.clear();
+  is.str("2023-6-31");
+  VERIFY( ! (is >> parse("%F", m)) ); // June only has 30 days.
+  VERIFY( ! is.eof() );
+  VERIFY( m == month(13) );
+
+  m = month(14);
+  is.clear();
+  is.str("2023-2-29");
+  VERIFY( ! (is >> parse("%Y-%m-%e", m)) ); // Feb only has 28 days in 2023.
+  VERIFY( ! is.eof() );
+  VERIFY( m == month(14) );
+
+  is.clear();
+  is.str("2-29");
+  VERIFY( is >> parse("%m-%d", m) ); // But Feb has 29 days in some years.
+  VERIFY( ! is.eof() );
+  VERIFY( m == February );
+
+  m = month(14);
+  is.clear();
+  is.str("6-31");
+  VERIFY( ! (is >> parse("%m-%d", m)) ); // June only has 30 days in all years.
+  VERIFY( ! is.eof() );
+  VERIFY( m == month(14) );
+
+  m = month(15);
+  is.clear();
+  is.str("2023-13-1");
+  VERIFY( ! (is >> parse("%F", m)) );
+  VERIFY( is.eof() );
+  VERIFY( m == month(15) );
+
+  m = month(16);
+  is.clear();
+  is.str("13/1/23");
+  VERIFY( ! (is >> parse("%D", m)) );
+  VERIFY( m == month(16) );
+
+  m = month(17);
+  is.clear();
+  is.str("13");
+  VERIFY( ! (is >> parse("%m", m)) );
+  VERIFY( ! is.eof() );
+  VERIFY( m == month(17) );
+
+  m = month(18);
+  is.clear();
+  is.str("1234");
+  VERIFY( ! (is >> parse("%3m", m)) );
+  VERIFY( ! is.eof() );
+  is.clear();
+  VERIFY( is.peek() == '4' );
+  VERIFY( m == month(18) );
+
+  is.clear();
+  is.str("2023-W32-5");
+  VERIFY( is >> parse("%G-W%V-%u", m) );
+  VERIFY( ! is.eof() );
+  VERIFY( m == August );
+}
+
 int main()
 {
   test_ostream();
   test_format();
-  // TODO: test_parse();
+  test_parse();
 }

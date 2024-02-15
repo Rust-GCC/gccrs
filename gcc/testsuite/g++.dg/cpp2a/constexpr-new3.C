@@ -34,7 +34,7 @@ constexpr auto v3 = f3 ();	// { dg-message "in 'constexpr' expansion of" }
 constexpr bool
 f4 (int *p)
 {
-  delete p;			// { dg-error "deallocation of storage that was not previously allocated" }
+  delete p;			// { dg-error "destroying 'q' from outside current evaluation" }
   return false;
 }
 
@@ -45,11 +45,10 @@ constexpr bool
 f5 ()
 {
   int *p = new int;		// { dg-message "allocated here" }
-  return *p == 1;
+  return *p == 1;		// { dg-error "the content of uninitialized storage is not usable in a constant expression" }
 }
 
-constexpr auto v5 = f5 ();	// { dg-error "the content of uninitialized storage is not usable in a constant expression" }
-				// { dg-message "in 'constexpr' expansion of" "" { target *-*-* } .-1 }
+constexpr auto v5 = f5 (); 	// { dg-message "in 'constexpr' expansion of" }
 
 constexpr bool
 f6 ()
@@ -57,11 +56,10 @@ f6 ()
   int *p = new int (2);		// { dg-message "allocated here" }
   int *q = p;
   delete p;
-  return *q == 2;
+  return *q == 2;		// { dg-error "use of allocated storage after deallocation in a constant expression" }
 }
 
-constexpr auto v6 = f6 ();	// { dg-error "use of allocated storage after deallocation in a constant expression" }
-				// { dg-message "in 'constexpr' expansion of" "" { target *-*-* } .-1  }
+constexpr auto v6 = f6 (); 	// { dg-message "in 'constexpr' expansion of" }
 
 constexpr int *
 f7 ()
@@ -72,3 +70,18 @@ f7 ()
 }
 
 constexpr auto v7 = f7 ();
+
+constexpr bool
+f8_impl (int *p)
+{
+  delete p;			// { dg-error "deallocation of storage that was not previously allocated" }
+  return false;
+}
+
+constexpr bool
+f8 ()
+{
+  int q = 0;
+  return f8_impl (&q);
+}
+constexpr auto v8 = f8 ();	// { dg-message "in 'constexpr' expansion of" }

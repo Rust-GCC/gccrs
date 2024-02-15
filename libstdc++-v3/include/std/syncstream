@@ -1,6 +1,6 @@
 // <syncstream> -*- C++ -*-
 
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,17 +29,16 @@
 #ifndef _GLIBCXX_SYNCSTREAM
 #define _GLIBCXX_SYNCSTREAM 1
 
-#if __cplusplus > 201703L
-
-#include <bits/c++config.h>
-#if _GLIBCXX_USE_CXX11_ABI
-
-#define __cpp_lib_syncbuf 201803L
-
 #pragma GCC system_header
 
 #include <bits/requires_hosted.h> // iostreams
 
+#include <bits/c++config.h>
+
+#define __glibcxx_want_syncbuf
+#include <bits/version.h>
+
+#ifdef __cpp_lib_syncbuf // C++ >= 20 && HOSTED && CXX11ABI
 #include <sstream>
 
 #include <bits/alloc_traits.h>
@@ -286,7 +285,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       ~basic_osyncstream() = default;
 
-      basic_osyncstream& operator=(basic_osyncstream&&) noexcept = default;
+      basic_osyncstream& operator=(basic_osyncstream&&) = default;
 
       syncbuf_type* rdbuf() const noexcept
       { return const_cast<syncbuf_type*>(&_M_syncbuf); }
@@ -314,6 +313,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   using wosyncstream = basic_osyncstream<wchar_t>;
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
-#endif // _GLIBCXX_USE_CXX11_ABI
-#endif // C++2a
+#endif // __cpp_lib_syncbuf
+
 #endif	/* _GLIBCXX_SYNCSTREAM */

@@ -1,7 +1,11 @@
 
-TM_H += $(srcdir)/config/bpf/coreout.h
+TM_H += $(srcdir)/config/bpf/coreout.h $(srcdir)/config/bpf/core-builtins.h
 
 coreout.o: $(srcdir)/config/bpf/coreout.cc
+	$(COMPILE) $<
+	$(POSTCOMPILE)
+
+core-builtins.o: $(srcdir)/config/bpf/core-builtins.cc
 	$(COMPILE) $<
 	$(POSTCOMPILE)
 

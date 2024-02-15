@@ -1,13 +1,15 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do run { target c++23 } }
+// { dg-add-options no_pch }
 
 #include <ranges>
-#include <algorithm>
-#include <testsuite_hooks.h>
 
 #if __cpp_lib_ranges_repeat != 202207L
 # error "Feature-test macro __cpp_lib_ranges_repeat has wrong value in <ranges>"
 #endif
+
+#include <algorithm>
+#include <memory>
+#include <testsuite_hooks.h>
 
 namespace ranges = std::ranges;
 namespace views = std::views;
@@ -127,6 +129,28 @@ test05()
   ranges::repeat_view<int> r;
 }
 
+void
+test06()
+{
+  struct move_only {
+    move_only() { }
+    move_only(move_only&&) { }
+  };
+  // P2494R2 Relaxing range adaptors to allow for move only types
+  static_assert( requires { views::repeat(move_only{}, 2); } );
+}
+
+void
+test07()
+{
+  // PR libstdc++/112453
+  auto t1 = std::views::repeat(std::make_unique<int>(5)) | std::views::take(2);
+  auto d1 = std::views::repeat(std::make_unique<int>(5)) | std::views::drop(2);
+
+  auto t2 = std::views::repeat(std::make_unique<int>(5), 4) | std::views::take(2);
+  auto d2 = std::views::repeat(std::make_unique<int>(5), 4) | std::views::drop(2);
+}
+
 int
 main()
 {
@@ -135,4 +159,6 @@ main()
   static_assert(test03());
   static_assert(test04());
   test05();
+  test06();
+  test07();
 }

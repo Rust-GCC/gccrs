@@ -1,5 +1,5 @@
 /* Process source files and output type information.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -1294,8 +1294,9 @@ adjust_field_rtx_def (type_p t, options_p ARG_UNUSED (opt))
 		{
 		  error_at_line 
 		    (&lexer_line,
-		     "rtx type `%s' has `0' in position %lu, can't handle",
-		     rtx_name[i], (unsigned long) aindex);
+		     "rtx type `%s' has `0' in position "
+		     HOST_SIZE_T_PRINT_UNSIGNED ", can't handle",
+		     rtx_name[i], (fmt_size_t) aindex);
 		  t = &string_type;
 		  subname = "rt_int";
 		}
@@ -1333,17 +1334,20 @@ adjust_field_rtx_def (type_p t, options_p ARG_UNUSED (opt))
 	    default:
 	      error_at_line
 		(&lexer_line,
-		 "rtx type `%s' has `%c' in position %lu, can't handle",
+		 "rtx type `%s' has `%c' in position "
+		 HOST_SIZE_T_PRINT_UNSIGNED ", can't handle",
 		 rtx_name[i], rtx_format[i][aindex],
-		 (unsigned long) aindex);
+		 (fmt_size_t) aindex);
 	      t = &string_type;
 	      subname = "rt_int";
 	      break;
 	    }
 
 	  subfields = create_field (subfields, t,
-				    xasprintf (".fld[%lu].%s",
-					       (unsigned long) aindex,
+				    xasprintf (".fld["
+					       HOST_SIZE_T_PRINT_UNSIGNED
+					       "].%s",
+					       (fmt_size_t) aindex,
 					       subname));
 	  subfields->opt = nodot;
 	  if (t == note_union_tp)
@@ -1388,8 +1392,6 @@ adjust_field_rtx_def (type_p t, options_p ARG_UNUSED (opt))
    At present:
    - Converts pointer-to-char, with no length parameter, to TYPE_STRING;
    - Similarly for arrays of pointer-to-char;
-   - Converts structures for which a parameter is provided to
-     TYPE_PARAM_STRUCT;
    - Handles "special" options.
 */
 
@@ -1598,7 +1600,7 @@ static outf_p
 create_file (const char *name, const char *oname)
 {
   static const char *const hdr[] = {
-    "   Copyright (C) 2004-2023 Free Software Foundation, Inc.\n",
+    "   Copyright (C) 2004-2024 Free Software Foundation, Inc.\n",
     "\n",
     "This file is part of GCC.\n",
     "\n",
@@ -2447,7 +2449,6 @@ struct walk_type_data
   int used_length;
   type_p orig_s;
   const char *reorder_fn;
-  bool needs_cast_p;
   bool fn_wants_lvalue;
   bool in_record_p;
   int loopcounter;
@@ -2663,7 +2664,6 @@ walk_type (type_p t, struct walk_type_data *d)
   options_p oo;
   const struct nested_ptr_data *nested_ptr_d = NULL;
 
-  d->needs_cast_p = false;
   for (oo = d->opt; oo; oo = oo->next)
     if (strcmp (oo->name, "length") == 0 && oo->kind == OPTION_STRING)
       length = oo->info.string;
@@ -3186,7 +3186,6 @@ static void
 write_types_process_field (type_p f, const struct walk_type_data *d)
 {
   const struct write_types_data *wtd;
-  const char *cast = d->needs_cast_p ? "(void *)" : "";
   wtd = (const struct write_types_data *) d->cookie;
 
   switch (f->kind)
@@ -3195,8 +3194,8 @@ write_types_process_field (type_p f, const struct walk_type_data *d)
     case TYPE_UNDEFINED:
       gcc_unreachable ();
     case TYPE_POINTER:
-      oprintf (d->of, "%*s%s (%s%s", d->indent, "",
-	       wtd->subfield_marker_routine, cast, d->val);
+      oprintf (d->of, "%*s%s (%s", d->indent, "",
+	       wtd->subfield_marker_routine, d->val);
       if (wtd->param_prefix)
 	{
 	  if (f->u.p->kind == TYPE_SCALAR)
@@ -3229,8 +3228,8 @@ write_types_process_field (type_p f, const struct walk_type_data *d)
 	}
       oprintf (d->of, ");\n");
       if (d->reorder_fn && wtd->reorder_note_routine)
-	oprintf (d->of, "%*s%s (%s%s, %s, %s);\n", d->indent, "",
-		 wtd->reorder_note_routine, cast, d->val,
+	oprintf (d->of, "%*s%s (%s, %s, %s);\n", d->indent, "",
+		 wtd->reorder_note_routine, d->val,
 		 d->prev_val[3], d->reorder_fn);
       break;
 
@@ -3262,16 +3261,16 @@ write_types_process_field (type_p f, const struct walk_type_data *d)
 	       : nullptr);
 	  if (length_override)
 	    {
-	      oprintf (d->of, "2 (%s%s, ", cast, d->val);
+	      oprintf (d->of, "2 (%s, ", d->val);
 	      output_escaped_param (d, length_override, "string_length");
 	    }
 	  else
-	    oprintf (d->of, " (%s%s", cast, d->val);
+	    oprintf (d->of, " (%s", d->val);
 
 	  oprintf (d->of, ");\n");
 	  if (d->reorder_fn && wtd->reorder_note_routine)
-	    oprintf (d->of, "%*s%s (%s%s, %s%s, %s);\n", d->indent, "",
-		     wtd->reorder_note_routine, cast, d->val, cast, d->val,
+	    oprintf (d->of, "%*s%s (%s, %s, %s);\n", d->indent, "",
+		     wtd->reorder_note_routine, d->val, d->val,
 		     d->reorder_fn);
 	}
       break;
@@ -3657,7 +3656,7 @@ write_func_for_structure (type_p orig_s, type_p s,
 }
 
 
-/* Write out marker routines for STRUCTURES and PARAM_STRUCTS.  */
+/* Write out marker routines for STRUCTURES.  */
 
 static void
 write_types (outf_p output_header, type_p structures,
@@ -4005,7 +4004,7 @@ write_local_func_for_structure (const_type_p orig_s, type_p s)
       }
 }
 
-/* Write out local marker routines for STRUCTURES and PARAM_STRUCTS.  */
+/* Write out local marker routines for STRUCTURES.  */
 
 static void
 write_local (outf_p output_header, type_p structures)
@@ -4337,6 +4336,11 @@ write_root (outf_p f, pair_p v, type_p type, const char *name, int has_length,
 	      else if (strcmp (o->name, "desc") == 0
 		       && o->kind == OPTION_STRING)
 		desc = o->info.string;
+	      else if (strcmp (o->name, "string_length") == 0)
+		/* See 'doc/gty.texi'.  */
+		error_at_line (line,
+			       "option `%s' not supported for field `%s' of global `%s'",
+			       o->name, fld->name, name);
 	      else
 		error_at_line (line,
 			       "field `%s' of global `%s' has unknown option `%s'",
@@ -4535,6 +4539,11 @@ write_roots (pair_p variables, bool emit_pch)
 	  deletable_p = 1;
 	else if (strcmp (o->name, "cache") == 0)
 	  ;
+	else if (strcmp (o->name, "string_length") == 0)
+	  /* See 'doc/gty.texi'.  */
+	  error_at_line (&v->line,
+			 "option `%s' not supported for global `%s'",
+			 o->name, v->name);
 	else
 	  error_at_line (&v->line,
 			 "global `%s' has unknown option `%s'",
@@ -4713,8 +4722,8 @@ write_roots (pair_p variables, bool emit_pch)
 }
 
 /* Prints not-as-ugly version of a typename of T to OF.  Trades the uniquness
-   guaranteee for somewhat increased readability.  If name conflicts do happen,
-   this funcion will have to be adjusted to be more like
+   guarantee for somewhat increased readability.  If name conflicts do happen,
+   this function will have to be adjusted to be more like
    output_mangled_typename.  */
 
 #define INDENT 2
@@ -5195,8 +5204,8 @@ main (int argc, char **argv)
   this_file = input_file_by_name (__FILE__);
   system_h_file = input_file_by_name ("system.h");
   /* Set the scalar_is_char union number for predefined scalar types.  */
-  scalar_nonchar.u.scalar_is_char = FALSE;
-  scalar_char.u.scalar_is_char = TRUE;
+  scalar_nonchar.u.scalar_is_char = false;
+  scalar_char.u.scalar_is_char = true;
 
   parse_program_options (argc, argv);
 
@@ -5229,9 +5238,7 @@ main (int argc, char **argv)
       POS_HERE (do_scalar_typedef ("REAL_VALUE_TYPE", &pos));
       POS_HERE (do_scalar_typedef ("FIXED_VALUE_TYPE", &pos));
       POS_HERE (do_scalar_typedef ("double_int", &pos));
-      POS_HERE (do_scalar_typedef ("poly_int64_pod", &pos));
       POS_HERE (do_scalar_typedef ("offset_int", &pos));
-      POS_HERE (do_scalar_typedef ("widest_int", &pos));
       POS_HERE (do_scalar_typedef ("int64_t", &pos));
       POS_HERE (do_scalar_typedef ("poly_int64", &pos));
       POS_HERE (do_scalar_typedef ("poly_uint64", &pos));

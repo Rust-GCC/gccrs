@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
 // { dg-require-namedlocale "fr_FR.ISO8859-15" }
+// { dg-timeout-factor 2 }
 
 #include <chrono>
 #include <sstream>
@@ -51,8 +51,8 @@ test_format()
     char fmt[] = { '{', ':', '%', c, '}' };
     try
     {
-      (void) std::vformat(std::string_view(fmt, 5),
-			  std::make_format_args(day(1)));
+      day d(1);
+      (void) std::vformat(std::string_view(fmt, 5), std::make_format_args(d));
       // The call above should throw for any conversion-spec not in my_specs:
       VERIFY(my_specs.find(c) != my_specs.npos);
     }
@@ -67,9 +67,67 @@ test_format()
   }
 }
 
+void
+test_parse()
+{
+  using namespace std::chrono;
+  day d(0);
+  minutes offset;
+  std::string abbrev;
+  std::istringstream is("2023-08-10 12:46 +01 BST<");
+  VERIFY( is >> parse("%F %R %z %Z", d, abbrev, offset) );
+  VERIFY( ! is.eof() );
+  VERIFY( d == 10d );
+  VERIFY( abbrev == "BST" );
+  VERIFY( offset == 60min );
+
+  abbrev = "nope";
+  offset = 999min;
+  is.clear();
+  is.str("30");
+  VERIFY( is >> parse("%d", d, abbrev, offset) );
+  VERIFY( ! is.eof() );
+  VERIFY( d == 30d );
+  VERIFY( abbrev == "nope" );
+  VERIFY( offset == 999min );
+
+  d = day(255);
+  is.clear();
+  is.str("2023-02-30");
+  is >> parse("%F", d); // Feb 30 is not a valid day
+  VERIFY( is.fail() );
+  VERIFY( d == day(255) );
+
+  is.clear();
+  is.str("February 30");
+  is >> parse("%B %d", d); // Feb 30 is not a valid day
+  VERIFY( is.fail() );
+  VERIFY( d == day(255) );
+
+  is.clear();
+  is.str("February 29");
+  is >> parse("%B %d", d); // But Feb 29 could be valid.
+  VERIFY( is.good() );
+  VERIFY( d == 29d );
+
+  d = day(255);
+  is.clear();
+  is.str("2023 Feb 29");
+  is >> parse("%Y %B %d", d); // But 2023 is not a leap year.
+  VERIFY( is.fail() );
+  VERIFY( d == day(255) );
+
+  d = day(255);
+  is.clear();
+  is.str("20 Feb 29");
+  is >> parse("%y %B %d", d); // But 2020 is a leap year.
+  VERIFY( is.good() );
+  VERIFY( d == 29d );
+}
+
 int main()
 {
   test_ostream();
   test_format();
-  // TODO: test_parse();
+  test_parse();
 }

@@ -1,6 +1,6 @@
 // Iostreams base classes -*- C++ -*-
 
-// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+// Copyright (C) 1997-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -198,6 +198,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
     return __ret;
   }
+
+#ifdef _GLIBCXX_SYMVER_GNU
+#pragma GCC diagnostic ignored "-Wattribute-alias"
+
+  void ios_base_library_init (void)
+  __attribute__((alias ("_ZNSt8ios_base4InitC1Ev")));
+#endif
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

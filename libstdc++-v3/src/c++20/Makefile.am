@@ -1,6 +1,6 @@
 ## Makefile for the C++20 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2023 Free Software Foundation, Inc.
+## Copyright (C) 1997-2024 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -22,7 +22,7 @@
 
 include $(top_srcdir)/fragment.am
 
-# Convenience library for C++17 runtime.
+# Convenience library for C++20 runtime.
 noinst_LTLIBRARIES = libc++20convenience.la
 
 headers =

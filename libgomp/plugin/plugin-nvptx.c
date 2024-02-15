@@ -1,6 +1,6 @@
 /* Plugin for NVPTX execution.
 
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -56,6 +56,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdlib.h>
 
 /* An arbitrary fixed limit (128MB) for the size of the OpenMP soft stacks
    block to cache between kernel invocations.  For soft-stacks blocks bigger
@@ -265,6 +266,8 @@ typedef struct nvptx_tdata
 
   const struct targ_fn_launch *fn_descs;
   unsigned fn_num;
+
+  unsigned ind_fn_num;
 } nvptx_tdata_t;
 
 /* Descriptor of a loaded function.  */
@@ -337,6 +340,11 @@ struct ptx_device
 };
 
 static struct ptx_device **ptx_devices;
+
+/* OpenMP kernels reserve a small amount of ".shared" space for use by
+   omp_alloc.  The size is configured using GOMP_NVPTX_LOWLAT_POOL, but the
+   default is set here.  */
+static unsigned lowlat_pool_size = 8 * 1024;
 
 static inline struct nvptx_thread *
 nvptx_thread (void)
@@ -1216,6 +1224,22 @@ GOMP_OFFLOAD_init_device (int n)
       instantiated_devices++;
     }
 
+  const char *var_name = "GOMP_NVPTX_LOWLAT_POOL";
+  const char *env_var = secure_getenv (var_name);
+  notify_var (var_name, env_var);
+
+  if (env_var != NULL)
+    {
+      char *endptr;
+      unsigned long val = strtoul (env_var, &endptr, 10);
+      if (endptr == NULL || *endptr != '\0'
+	  || errno == ERANGE || errno == EINVAL
+	  || val > UINT_MAX)
+	GOMP_PLUGIN_error ("Error parsing %s", var_name);
+      else
+	lowlat_pool_size = val;
+    }
+
   pthread_mutex_unlock (&ptx_dev_lock);
 
   return dev != NULL;
@@ -1284,12 +1308,13 @@ nvptx_set_clocktick (CUmodule module, struct ptx_device *dev)
 int
 GOMP_OFFLOAD_load_image (int ord, unsigned version, const void *target_data,
 			 struct addr_pair **target_table,
-			 uint64_t **rev_fn_table)
+			 uint64_t **rev_fn_table,
+			 uint64_t *host_ind_fn_table)
 {
   CUmodule module;
   const char *const *var_names;
   const struct targ_fn_launch *fn_descs;
-  unsigned int fn_entries, var_entries, other_entries, i, j;
+  unsigned int fn_entries, var_entries, ind_fn_entries, other_entries, i, j;
   struct targ_fn_descriptor *targ_fns;
   struct addr_pair *targ_tbl;
   const nvptx_tdata_t *img_header = (const nvptx_tdata_t *) target_data;
@@ -1318,6 +1343,8 @@ GOMP_OFFLOAD_load_image (int ord, unsigned version, const void *target_data,
   var_names = img_header->var_names;
   fn_entries = img_header->fn_num;
   fn_descs = img_header->fn_descs;
+  ind_fn_entries = GOMP_VERSION_SUPPORTS_INDIRECT_FUNCS (version)
+		     ? img_header->ind_fn_num : 0;
 
   /* Currently, other_entries contains only the struct of ICVs.  */
   other_entries = 1;
@@ -1370,6 +1397,60 @@ GOMP_OFFLOAD_load_image (int ord, unsigned version, const void *target_data,
 
       targ_tbl->start = (uintptr_t) var;
       targ_tbl->end = targ_tbl->start + bytes;
+    }
+
+  if (ind_fn_entries > 0)
+    {
+      CUdeviceptr var;
+      size_t bytes;
+
+      /* Read indirect function table from image.  */
+      CUresult r = CUDA_CALL_NOCHECK (cuModuleGetGlobal, &var, &bytes, module,
+				      "$offload_ind_func_table");
+      if (r != CUDA_SUCCESS)
+	GOMP_PLUGIN_fatal ("cuModuleGetGlobal error: %s", cuda_error (r));
+      assert (bytes == sizeof (uint64_t) * ind_fn_entries);
+
+      uint64_t ind_fn_table[ind_fn_entries];
+      r = CUDA_CALL_NOCHECK (cuMemcpyDtoH, ind_fn_table, var, bytes);
+      if (r != CUDA_SUCCESS)
+	GOMP_PLUGIN_fatal ("cuMemcpyDtoH error: %s", cuda_error (r));
+
+      /* Build host->target address map for indirect functions.  */
+      uint64_t ind_fn_map[ind_fn_entries * 2 + 1];
+      for (unsigned k = 0; k < ind_fn_entries; k++)
+	{
+	  ind_fn_map[k * 2] = host_ind_fn_table[k];
+	  ind_fn_map[k * 2 + 1] = ind_fn_table[k];
+	  GOMP_PLUGIN_debug (0, "Indirect function %d: %lx->%lx\n",
+			     k, host_ind_fn_table[k], ind_fn_table[k]);
+	}
+      ind_fn_map[ind_fn_entries * 2] = 0;
+
+      /* Write the map onto the target.  */
+      void *map_target_addr
+	= GOMP_OFFLOAD_alloc (ord, sizeof (ind_fn_map));
+      GOMP_PLUGIN_debug (0, "Allocated indirect map at %p\n", map_target_addr);
+
+      GOMP_OFFLOAD_host2dev (ord, map_target_addr,
+			     (void*) ind_fn_map,
+			     sizeof (ind_fn_map));
+
+      /* Write address of the map onto the target.  */
+      CUdeviceptr varptr;
+      size_t varsize;
+      r = CUDA_CALL_NOCHECK (cuModuleGetGlobal, &varptr, &varsize,
+			     module, XSTRING (GOMP_INDIRECT_ADDR_MAP));
+      if (r != CUDA_SUCCESS)
+	GOMP_PLUGIN_fatal ("Indirect map variable not found in image: %s",
+			   cuda_error (r));
+
+      GOMP_PLUGIN_debug (0,
+			 "Indirect map variable found at %llx with size %ld\n",
+			 varptr, varsize);
+
+      GOMP_OFFLOAD_host2dev (ord, (void *) varptr, &map_target_addr,
+			     sizeof (map_target_addr));
     }
 
   CUdeviceptr varptr;
@@ -1625,11 +1706,11 @@ GOMP_OFFLOAD_openacc_cuda_set_stream (struct goacc_asyncqueue *aq, void *stream)
   return 1;
 }
 
-struct goacc_asyncqueue *
-GOMP_OFFLOAD_openacc_async_construct (int device __attribute__((unused)))
+static struct goacc_asyncqueue *
+nvptx_goacc_asyncqueue_construct (unsigned int flags)
 {
   CUstream stream = NULL;
-  CUDA_CALL_ERET (NULL, cuStreamCreate, &stream, CU_STREAM_DEFAULT);
+  CUDA_CALL_ERET (NULL, cuStreamCreate, &stream, flags);
 
   struct goacc_asyncqueue *aq
     = GOMP_PLUGIN_malloc (sizeof (struct goacc_asyncqueue));
@@ -1637,12 +1718,24 @@ GOMP_OFFLOAD_openacc_async_construct (int device __attribute__((unused)))
   return aq;
 }
 
-bool
-GOMP_OFFLOAD_openacc_async_destruct (struct goacc_asyncqueue *aq)
+struct goacc_asyncqueue *
+GOMP_OFFLOAD_openacc_async_construct (int device __attribute__((unused)))
+{
+  return nvptx_goacc_asyncqueue_construct (CU_STREAM_DEFAULT);
+}
+
+static bool
+nvptx_goacc_asyncqueue_destruct (struct goacc_asyncqueue *aq)
 {
   CUDA_CALL_ERET (false, cuStreamDestroy, aq->cuda_stream);
   free (aq);
   return true;
+}
+
+bool
+GOMP_OFFLOAD_openacc_async_destruct (struct goacc_asyncqueue *aq)
+{
+  return nvptx_goacc_asyncqueue_destruct (aq);
 }
 
 int
@@ -1658,11 +1751,17 @@ GOMP_OFFLOAD_openacc_async_test (struct goacc_asyncqueue *aq)
   return -1;
 }
 
-bool
-GOMP_OFFLOAD_openacc_async_synchronize (struct goacc_asyncqueue *aq)
+static bool
+nvptx_goacc_asyncqueue_synchronize (struct goacc_asyncqueue *aq)
 {
   CUDA_CALL_ERET (false, cuStreamSynchronize, aq->cuda_stream);
   return true;
+}
+
+bool
+GOMP_OFFLOAD_openacc_async_synchronize (struct goacc_asyncqueue *aq)
+{
+  return nvptx_goacc_asyncqueue_synchronize (aq);
 }
 
 bool
@@ -1759,6 +1858,191 @@ bool
 GOMP_OFFLOAD_dev2dev (int ord, void *dst, const void *src, size_t n)
 {
   CUDA_CALL (cuMemcpyDtoDAsync, (CUdeviceptr) dst, (CUdeviceptr) src, n, NULL);
+  return true;
+}
+
+int
+GOMP_OFFLOAD_memcpy2d (int dst_ord, int src_ord, size_t dim1_size,
+		       size_t dim0_len, void *dst, size_t dst_offset1_size,
+		       size_t dst_offset0_len, size_t dst_dim1_size,
+		       const void *src, size_t src_offset1_size,
+		       size_t src_offset0_len, size_t src_dim1_size)
+{
+  if (!nvptx_attach_host_thread_to_device (src_ord != -1 ? src_ord : dst_ord))
+    return false;
+
+  /* TODO: Consider using CU_MEMORYTYPE_UNIFIED if supported.  */
+
+  CUDA_MEMCPY2D data;
+
+  memset (&data, 0, sizeof (data));
+  data.WidthInBytes = dim1_size;
+  data.Height = dim0_len;
+
+  if (dst_ord == -1)
+    {
+      data.dstMemoryType = CU_MEMORYTYPE_HOST;
+      data.dstHost = dst;
+    }
+  else
+    {
+      data.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+      data.dstDevice = (CUdeviceptr) dst;
+    }
+  data.dstPitch = dst_dim1_size;
+  data.dstXInBytes = dst_offset1_size;
+  data.dstY = dst_offset0_len;
+
+  if (src_ord == -1)
+    {
+      data.srcMemoryType = CU_MEMORYTYPE_HOST;
+      data.srcHost = src;
+    }
+  else
+    {
+      data.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+      data.srcDevice = (CUdeviceptr) src;
+    }
+  data.srcPitch = src_dim1_size;
+  data.srcXInBytes = src_offset1_size;
+  data.srcY = src_offset0_len;
+
+  if (data.srcXInBytes != 0 || data.srcY != 0)
+    {
+      /* Adjust origin to the actual array data, else the CUDA 2D memory
+	 copy API calls below may fail to validate source/dest pointers
+	 correctly (especially for Fortran where the "virtual origin" of an
+	 array is often outside the stored data).  */
+      if (src_ord == -1)
+	data.srcHost = (const void *) ((const char *) data.srcHost
+				      + data.srcY * data.srcPitch
+				      + data.srcXInBytes);
+      else
+	data.srcDevice += data.srcY * data.srcPitch + data.srcXInBytes;
+      data.srcXInBytes = 0;
+      data.srcY = 0;
+    }
+
+  if (data.dstXInBytes != 0 || data.dstY != 0)
+    {
+      /* As above.  */
+      if (dst_ord == -1)
+	data.dstHost = (void *) ((char *) data.dstHost
+				 + data.dstY * data.dstPitch
+				 + data.dstXInBytes);
+      else
+	data.dstDevice += data.dstY * data.dstPitch + data.dstXInBytes;
+      data.dstXInBytes = 0;
+      data.dstY = 0;
+    }
+
+  CUresult res = CUDA_CALL_NOCHECK (cuMemcpy2D, &data);
+  if (res == CUDA_ERROR_INVALID_VALUE)
+    /* If pitch > CU_DEVICE_ATTRIBUTE_MAX_PITCH or for device-to-device
+       for (some) memory not allocated by cuMemAllocPitch, cuMemcpy2D fails
+       with an error; try the slower cuMemcpy2DUnaligned now.  */
+    CUDA_CALL (cuMemcpy2DUnaligned, &data);
+  else if (res != CUDA_SUCCESS)
+    {
+      GOMP_PLUGIN_error ("cuMemcpy2D error: %s", cuda_error (res));
+      return false;
+    }
+  return true;
+}
+
+int
+GOMP_OFFLOAD_memcpy3d (int dst_ord, int src_ord, size_t dim2_size,
+		       size_t dim1_len, size_t dim0_len, void *dst,
+		       size_t dst_offset2_size, size_t dst_offset1_len,
+		       size_t dst_offset0_len, size_t dst_dim2_size,
+		       size_t dst_dim1_len, const void *src,
+		       size_t src_offset2_size, size_t src_offset1_len,
+		       size_t src_offset0_len, size_t src_dim2_size,
+		       size_t src_dim1_len)
+{
+  if (!nvptx_attach_host_thread_to_device (src_ord != -1 ? src_ord : dst_ord))
+    return false;
+
+  /* TODO: Consider using CU_MEMORYTYPE_UNIFIED if supported.  */
+
+  CUDA_MEMCPY3D data;
+
+  memset (&data, 0, sizeof (data));
+  data.WidthInBytes = dim2_size;
+  data.Height = dim1_len;
+  data.Depth = dim0_len;
+
+  if (dst_ord == -1)
+    {
+      data.dstMemoryType = CU_MEMORYTYPE_HOST;
+      data.dstHost = dst;
+    }
+  else
+    {
+      data.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+      data.dstDevice = (CUdeviceptr) dst;
+    }
+  data.dstPitch = dst_dim2_size;
+  data.dstHeight = dst_dim1_len;
+  data.dstXInBytes = dst_offset2_size;
+  data.dstY = dst_offset1_len;
+  data.dstZ = dst_offset0_len;
+
+  if (src_ord == -1)
+    {
+      data.srcMemoryType = CU_MEMORYTYPE_HOST;
+      data.srcHost = src;
+    }
+  else
+    {
+      data.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+      data.srcDevice = (CUdeviceptr) src;
+    }
+  data.srcPitch = src_dim2_size;
+  data.srcHeight = src_dim1_len;
+  data.srcXInBytes = src_offset2_size;
+  data.srcY = src_offset1_len;
+  data.srcZ = src_offset0_len;
+
+  if (data.srcXInBytes != 0 || data.srcY != 0 || data.srcZ != 0)
+    {
+      /* Adjust origin to the actual array data, else the CUDA 3D memory
+	 copy API call below may fail to validate source/dest pointers
+	 correctly (especially for Fortran where the "virtual origin" of an
+	 array is often outside the stored data).  */
+      if (src_ord == -1)
+	data.srcHost
+	  = (const void *) ((const char *) data.srcHost
+			    + (data.srcZ * data.srcHeight + data.srcY)
+			      * data.srcPitch
+			    + data.srcXInBytes);
+      else
+	data.srcDevice
+	  += (data.srcZ * data.srcHeight + data.srcY) * data.srcPitch
+	     + data.srcXInBytes;
+      data.srcXInBytes = 0;
+      data.srcY = 0;
+      data.srcZ = 0;
+    }
+
+  if (data.dstXInBytes != 0 || data.dstY != 0 || data.dstZ != 0)
+    {
+      /* As above.  */
+      if (dst_ord == -1)
+	data.dstHost = (void *) ((char *) data.dstHost
+				 + (data.dstZ * data.dstHeight + data.dstY)
+				   * data.dstPitch
+				 + data.dstXInBytes);
+      else
+	data.dstDevice
+	  += (data.dstZ * data.dstHeight + data.dstY) * data.dstPitch
+	     + data.dstXInBytes;
+      data.dstXInBytes = 0;
+      data.dstY = 0;
+      data.dstZ = 0;
+    }
+
+  CUDA_CALL (cuMemcpy3D, &data);
   return true;
 }
 
@@ -1925,22 +2209,6 @@ nvptx_stacks_acquire (struct ptx_device *ptx_dev, size_t size, int num)
 
 
 void
-rev_off_dev_to_host_cpy (void *dest, const void *src, size_t size,
-			 CUstream stream)
-{
-  CUDA_CALL_ASSERT (cuMemcpyDtoHAsync, dest, (CUdeviceptr) src, size, stream);
-  CUDA_CALL_ASSERT (cuStreamSynchronize, stream);
-}
-
-void
-rev_off_host_to_dev_cpy (void *dest, const void *src, size_t size,
-			 CUstream stream)
-{
-  CUDA_CALL_ASSERT (cuMemcpyHtoDAsync, (CUdeviceptr) dest, src, size, stream);
-  CUDA_CALL_ASSERT (cuStreamSynchronize, stream);
-}
-
-void
 GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
 {
   struct targ_fn_descriptor *tgt_fn_desc
@@ -1973,9 +2241,17 @@ GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
     }
   nvptx_adjust_launch_bounds (tgt_fn, ptx_dev, &teams, &threads);
 
-  size_t stack_size = nvptx_stacks_size ();
   bool reverse_offload = ptx_dev->rev_data != NULL;
-  CUstream copy_stream = NULL;
+  struct goacc_asyncqueue *reverse_offload_aq = NULL;
+  if (reverse_offload)
+    {
+      reverse_offload_aq
+	= nvptx_goacc_asyncqueue_construct (CU_STREAM_NON_BLOCKING);
+      if (!reverse_offload_aq)
+	exit (EXIT_FAILURE);
+    }
+
+  size_t stack_size = nvptx_stacks_size ();
 
   pthread_mutex_lock (&ptx_dev->omp_stacks.lock);
   void *stacks = nvptx_stacks_acquire (ptx_dev, stack_size, teams * threads);
@@ -1989,10 +2265,8 @@ GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
   GOMP_PLUGIN_debug (0, "  %s: kernel %s: launch"
 		     " [(teams: %u), 1, 1] [(lanes: 32), (threads: %u), 1]\n",
 		     __FUNCTION__, fn_name, teams, threads);
-  if (reverse_offload)
-    CUDA_CALL_ASSERT (cuStreamCreate, &copy_stream, CU_STREAM_NON_BLOCKING);
   r = CUDA_CALL_NOCHECK (cuLaunchKernel, function, teams, 1, 1,
-			 32, threads, 1, 0, NULL, NULL, config);
+			 32, threads, 1, lowlat_pool_size, NULL, NULL, config);
   if (r != CUDA_SUCCESS)
     GOMP_PLUGIN_fatal ("cuLaunchKernel error: %s", cuda_error (r));
   if (reverse_offload)
@@ -2013,17 +2287,15 @@ GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
 	    GOMP_PLUGIN_target_rev (rev_data->fn, rev_data->mapnum,
 				    rev_data->addrs, rev_data->sizes,
 				    rev_data->kinds, rev_data->dev_num,
-				    rev_off_dev_to_host_cpy,
-				    rev_off_host_to_dev_cpy, copy_stream);
-	    CUDA_CALL_ASSERT (cuStreamSynchronize, copy_stream);
+				    reverse_offload_aq);
+	    if (!nvptx_goacc_asyncqueue_synchronize (reverse_offload_aq))
+	      exit (EXIT_FAILURE);
 	    __atomic_store_n (&rev_data->fn, 0, __ATOMIC_RELEASE);
 	  }
 	usleep (1);
       }
   else
     r = CUDA_CALL_NOCHECK (cuCtxSynchronize, );
-  if (reverse_offload)
-    CUDA_CALL_ASSERT (cuStreamDestroy, copy_stream);
   if (r == CUDA_ERROR_LAUNCH_FAILED)
     GOMP_PLUGIN_fatal ("cuCtxSynchronize error: %s %s\n", cuda_error (r),
 		       maybe_abort_msg);
@@ -2031,6 +2303,12 @@ GOMP_OFFLOAD_run (int ord, void *tgt_fn, void *tgt_vars, void **args)
     GOMP_PLUGIN_fatal ("cuCtxSynchronize error: %s", cuda_error (r));
 
   pthread_mutex_unlock (&ptx_dev->omp_stacks.lock);
+
+  if (reverse_offload)
+    {
+      if (!nvptx_goacc_asyncqueue_destruct (reverse_offload_aq))
+	exit (EXIT_FAILURE);
+    }
 }
 
 /* TODO: Implement GOMP_OFFLOAD_async_run. */

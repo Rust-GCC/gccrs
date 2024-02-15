@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -67,9 +67,7 @@ package System.Stream_Attributes is
    --  (double address) form. The following types are used to hold access
    --  values using unchecked conversions.
 
-   type Thin_Pointer is record
-      P1 : System.Address;
-   end record;
+   subtype Thin_Pointer is System.Address;
 
    type Fat_Pointer is record
       P1 : System.Address;

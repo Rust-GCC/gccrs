@@ -1,5 +1,5 @@
 # Makefile for the D runtime library.
-# Copyright (C) 2012-2023 Free Software Foundation, Inc.
+# Copyright (C) 2012-2024 Free Software Foundation, Inc.
 #
 # GCC is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -83,6 +83,9 @@ endif
 if DRUNTIME_CPU_ARM
     DRUNTIME_SOURCES_CONFIGURED += config/arm/switchcontext.S
 endif
+if DRUNTIME_CPU_LOONGARCH
+    DRUNTIME_SOURCES_CONFIGURED += config/loongarch/switchcontext.S
+endif
 if DRUNTIME_CPU_MIPS
     DRUNTIME_SOURCES_CONFIGURED += config/mips/switchcontext.S
 endif
@@ -128,8 +131,11 @@ ALL_DRUNTIME_SOURCES = $(DRUNTIME_DSOURCES) $(DRUNTIME_CSOURCES) \
 toolexeclib_LTLIBRARIES = libgdruntime.la
 libgdruntime_la_SOURCES = $(ALL_DRUNTIME_SOURCES)
 libgdruntime_la_LIBTOOLFLAGS =
+if ENABLE_DARWIN_AT_RPATH
+libgdruntime_darwin_rpath = -Wl,-rpath,@loader_path
+endif
 libgdruntime_la_LDFLAGS = -Wc,-nophoboslib,-dstartfiles,-B../src,-Bgcc \
-    -version-info $(libtool_VERSION)
+    -version-info $(libtool_VERSION) $(libgdruntime_darwin_rpath)
 libgdruntime_la_LIBADD = $(LIBATOMIC) $(LIBBACKTRACE)
 libgdruntime_la_DEPENDENCIES = $(DRTSTUFF)
 # Also override library link commands: This is not strictly
@@ -165,7 +171,7 @@ install-data-local:
 # Can't use wildcards here:
 # https://www.gnu.org/software/automake/manual/html_node/Wildcards.html
 
-DRUNTIME_CSOURCES = core/stdc/errno_.c
+DRUNTIME_CSOURCES = core/stdc/errno_.c etc/valgrind/valgrind_.c
 
 DRUNTIME_DSOURCES = core/atomic.d core/attribute.d core/bitop.d \
 	core/builtins.d core/checkedint.d core/cpuid.d core/demangle.d \
@@ -186,30 +192,31 @@ DRUNTIME_DSOURCES = core/atomic.d core/attribute.d core/bitop.d \
 	core/internal/gc/impl/manual/gc.d core/internal/gc/impl/proto/gc.d \
 	core/internal/gc/os.d core/internal/gc/pooltable.d \
 	core/internal/gc/proxy.d core/internal/hash.d core/internal/lifetime.d \
-	core/internal/moving.d core/internal/parseoptions.d \
-	core/internal/postblit.d core/internal/qsort.d \
-	core/internal/spinlock.d core/internal/string.d \
+	core/internal/moving.d core/internal/newaa.d \
+	core/internal/parseoptions.d core/internal/postblit.d \
+	core/internal/qsort.d core/internal/spinlock.d core/internal/string.d \
 	core/internal/switch_.d core/internal/traits.d core/internal/utf.d \
-	core/internal/util/array.d core/internal/util/math.d core/lifetime.d \
-	core/math.d core/memory.d core/runtime.d core/simd.d \
-	core/stdc/assert_.d core/stdc/complex.d core/stdc/config.d \
-	core/stdc/ctype.d core/stdc/errno.d core/stdc/fenv.d \
-	core/stdc/float_.d core/stdc/inttypes.d core/stdc/limits.d \
-	core/stdc/locale.d core/stdc/math.d core/stdc/signal.d \
-	core/stdc/stdarg.d core/stdc/stddef.d core/stdc/stdint.d \
-	core/stdc/stdio.d core/stdc/stdlib.d core/stdc/string.d \
-	core/stdc/tgmath.d core/stdc/time.d core/stdc/wchar_.d \
-	core/stdc/wctype.d core/sync/barrier.d core/sync/condition.d \
-	core/sync/config.d core/sync/event.d core/sync/exception.d \
-	core/sync/mutex.d core/sync/package.d core/sync/rwmutex.d \
-	core/sync/semaphore.d core/thread/context.d core/thread/fiber.d \
-	core/thread/osthread.d core/thread/package.d core/thread/threadbase.d \
+	core/internal/util/array.d core/internal/util/math.d \
+	core/interpolation.d core/lifetime.d core/math.d core/memory.d \
+	core/runtime.d core/simd.d core/stdc/assert_.d core/stdc/complex.d \
+	core/stdc/config.d core/stdc/ctype.d core/stdc/errno.d \
+	core/stdc/fenv.d core/stdc/float_.d core/stdc/inttypes.d \
+	core/stdc/limits.d core/stdc/locale.d core/stdc/math.d \
+	core/stdc/signal.d core/stdc/stdarg.d core/stdc/stdatomic.d \
+	core/stdc/stddef.d core/stdc/stdint.d core/stdc/stdio.d \
+	core/stdc/stdlib.d core/stdc/string.d core/stdc/tgmath.d \
+	core/stdc/time.d core/stdc/wchar_.d core/stdc/wctype.d \
+	core/sync/barrier.d core/sync/condition.d core/sync/config.d \
+	core/sync/event.d core/sync/exception.d core/sync/mutex.d \
+	core/sync/package.d core/sync/rwmutex.d core/sync/semaphore.d \
+	core/thread/context.d core/thread/fiber.d core/thread/osthread.d \
+	core/thread/package.d core/thread/threadbase.d \
 	core/thread/threadgroup.d core/thread/types.d core/time.d \
-	core/vararg.d core/volatile.d gcc/attribute.d gcc/attributes.d \
-	gcc/backtrace.d gcc/builtins.d gcc/deh.d gcc/emutls.d gcc/gthread.d \
-	gcc/sections/common.d gcc/sections/elf.d gcc/sections/macho.d \
-	gcc/sections/package.d gcc/sections/pecoff.d gcc/simd.d \
-	gcc/unwind/arm.d gcc/unwind/arm_common.d gcc/unwind/c6x.d \
+	core/vararg.d core/volatile.d etc/valgrind/valgrind.d gcc/attribute.d \
+	gcc/attributes.d gcc/backtrace.d gcc/builtins.d gcc/deh.d gcc/emutls.d \
+	gcc/gthread.d gcc/sections/common.d gcc/sections/elf.d \
+	gcc/sections/macho.d gcc/sections/package.d gcc/sections/pecoff.d \
+	gcc/simd.d gcc/unwind/arm.d gcc/unwind/arm_common.d gcc/unwind/c6x.d \
 	gcc/unwind/generic.d gcc/unwind/package.d gcc/unwind/pe.d object.d \
 	rt/aApply.d rt/aApplyR.d rt/aaA.d rt/adi.d rt/arraycat.d rt/cast_.d \
 	rt/config.d rt/critical_.d rt/deh.d rt/dmain2.d rt/ehalloc.d \
@@ -258,7 +265,8 @@ DRUNTIME_DSOURCES_ELF = core/sys/elf/package.d
 
 DRUNTIME_DSOURCES_FREEBSD = core/sys/freebsd/config.d \
 	core/sys/freebsd/dlfcn.d core/sys/freebsd/err.d \
-	core/sys/freebsd/execinfo.d core/sys/freebsd/netinet/in_.d \
+	core/sys/freebsd/execinfo.d core/sys/freebsd/ifaddrs.d \
+	core/sys/freebsd/net/if_dl.d core/sys/freebsd/netinet/in_.d \
 	core/sys/freebsd/pthread_np.d core/sys/freebsd/stdlib.d \
 	core/sys/freebsd/string.d core/sys/freebsd/sys/_bitset.d \
 	core/sys/freebsd/sys/_cpuset.d core/sys/freebsd/sys/cdefs.d \
@@ -266,14 +274,17 @@ DRUNTIME_DSOURCES_FREEBSD = core/sys/freebsd/config.d \
 	core/sys/freebsd/sys/elf64.d core/sys/freebsd/sys/elf_common.d \
 	core/sys/freebsd/sys/event.d core/sys/freebsd/sys/link_elf.d \
 	core/sys/freebsd/sys/mman.d core/sys/freebsd/sys/mount.d \
-	core/sys/freebsd/sys/sysctl.d core/sys/freebsd/time.d \
+	core/sys/freebsd/sys/socket.d core/sys/freebsd/sys/sysctl.d \
+	core/sys/freebsd/sys/types.d core/sys/freebsd/time.d \
 	core/sys/freebsd/unistd.d
 
 DRUNTIME_DSOURCES_LINUX = core/sys/linux/config.d \
 	core/sys/linux/dlfcn.d core/sys/linux/elf.d core/sys/linux/epoll.d \
 	core/sys/linux/err.d core/sys/linux/errno.d core/sys/linux/execinfo.d \
 	core/sys/linux/fcntl.d core/sys/linux/fs.d core/sys/linux/ifaddrs.d \
+	core/sys/linux/input.d core/sys/linux/input_event_codes.d \
 	core/sys/linux/io_uring.d core/sys/linux/link.d \
+	core/sys/linux/linux/if_arp.d core/sys/linux/linux/if_packet.d \
 	core/sys/linux/netinet/in_.d core/sys/linux/netinet/tcp.d \
 	core/sys/linux/perf_event.d core/sys/linux/sched.d \
 	core/sys/linux/stdio.d core/sys/linux/string.d \
@@ -284,7 +295,8 @@ DRUNTIME_DSOURCES_LINUX = core/sys/linux/config.d \
 	core/sys/linux/sys/socket.d core/sys/linux/sys/sysinfo.d \
 	core/sys/linux/sys/time.d core/sys/linux/sys/xattr.d \
 	core/sys/linux/termios.d core/sys/linux/time.d \
-	core/sys/linux/timerfd.d core/sys/linux/tipc.d core/sys/linux/unistd.d
+	core/sys/linux/timerfd.d core/sys/linux/tipc.d core/sys/linux/uinput.d \
+	core/sys/linux/unistd.d
 
 DRUNTIME_DSOURCES_NETBSD = core/sys/netbsd/dlfcn.d \
 	core/sys/netbsd/err.d core/sys/netbsd/execinfo.d \

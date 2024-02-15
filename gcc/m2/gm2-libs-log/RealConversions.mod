@@ -1,6 +1,6 @@
 (* RealConversions.mod provides a Logitech-3.0 compatible module.
 
-Copyright (C) 2005-2023 Free Software Foundation, Inc.
+Copyright (C) 2005-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -33,7 +33,7 @@ FROM DynamicStrings IMPORT String, InitString, KillString, CopyOut, Length,
                            InitStringCharDB, MultDB, DupDB, SliceDB ;
 
 FROM StringConvert IMPORT LongrealToString, StringToLongreal,
-                          StringToLongreal, StringToInteger, itos ;
+                          StringToInteger, itos ;
 
 FROM ASCII IMPORT nul ;
 FROM Builtins IMPORT logl, log10l ;
@@ -57,12 +57,29 @@ VAR
 #define Slice(X,Y,Z) SliceDB(X, Y, Z, __FILE__, __LINE__)
 *)
 
+
 (*
-   logl10 -
+   IsNan - return TRUE if x is a nan (which never are equal to themselves).
+*)
+
+PROCEDURE IsNan (x: LONGREAL) : BOOLEAN ;
+BEGIN
+   RETURN x # x
+END IsNan ;
+
+
+(*
+   logl10 - this is a local implementation of log10l, currently the ppe64le
+            builtin log10l is broken.
 *)
 
 PROCEDURE logl10 (r: LONGREAL) : LONGREAL ;
 BEGIN
+   IF Debugging
+   THEN
+      printf ("logl10 (%lf) = %lf,  logl/logl(10.0) = %lf\n",
+              r, log10l (r), logl(r)/logl(10.0))
+   END ;
    RETURN logl(r)/logl(10.0)
 END logl10 ;
 
@@ -138,18 +155,9 @@ BEGIN
       END ;
       IF c>=1.0
       THEN
-         RETURN( VAL(INTEGER, log10l(c)) )
+         RETURN VAL (INTEGER, log10l (c))
       ELSE
-         i := 0 ;
-         LOOP
-            d := c*powl(10.0, VAL(LONGREAL, i)) ;
-            IF d>=1.0
-            THEN
-               RETURN( -i )
-            ELSE
-               INC(i)
-            END
-         END
+         RETURN VAL (INTEGER, log10l (c)) -1
       END
    END
 END doPowerOfTen ;
@@ -245,7 +253,7 @@ BEGIN
       ELSE
          ...
       END
-   *)
+    *)
    l := VAL(LONGREAL, r) ;
    LongRealToString(l, digits, width, str, ok)
 END RealToString ;
@@ -397,14 +405,12 @@ VAR
    s         : String ;
    powerOfTen: INTEGER ;
 BEGIN
-   (* --fixme-- *)
-   (* IF IsNan(r)
-      THEN
-         ok := FALSE ;
-         MakeNanString(str, width) ;
-         RETURN
-      END
-   *)
+   IF IsNan (r)
+   THEN
+      ok := FALSE ;
+      MakeNanString (str, width) ;
+      RETURN
+   END ;
    powerOfTen := doPowerOfTen(r) ;
    IF (powerOfTen=MAX(INTEGER)) OR (powerOfTen=MIN(INTEGER))
    THEN

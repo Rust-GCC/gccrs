@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023 Free Software Foundation, Inc.
+// Copyright (C) 2019-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,9 +15,8 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++2a" }
-// { dg-do run { xfail *-*-* } }
-// { dg-require-effective-target c++2a }
+// { dg-do run { target c++20 xfail *-*-* } }
+// { dg-add-options no_pch }
 
 #undef _GLIBCXX_ASSERTIONS
 #define _GLIBCXX_ASSERTIONS
@@ -27,5 +26,5 @@ int main()
 {
   int a[4];
   std::span<int, std::dynamic_extent> s(a);
-  s.subspan(2, 3);
+  (void) s.subspan(2, 3);
 }

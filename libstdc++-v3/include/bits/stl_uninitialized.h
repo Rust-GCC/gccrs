@@ -1,6 +1,6 @@
 // Raw memory manipulators -*- C++ -*-
 
-// Copyright (C) 2001-2023 Free Software Foundation, Inc.
+// Copyright (C) 2001-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -695,6 +695,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline _ForwardIterator
     __uninitialized_default_n(_ForwardIterator __first, _Size __n)
     {
+#ifdef __cpp_lib_is_constant_evaluated
+      if (std::is_constant_evaluated())
+	return __uninitialized_default_n_1<false>::
+		 __uninit_default_n(__first, __n);
+#endif
+
       typedef typename iterator_traits<_ForwardIterator>::value_type
 	_ValueType;
       // See uninitialized_fill_n for the conditions for using std::fill_n.
@@ -800,8 +806,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       template<typename _ForwardIterator>
         static void
-        __uninit_default_novalue(_ForwardIterator __first,
-				 _ForwardIterator __last)
+        __uninit_default_novalue(_ForwardIterator, _ForwardIterator)
 	{
 	}
     };
@@ -958,9 +963,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   /// @endcond
 #endif
 
-#if __cplusplus >= 201703L
-# define __cpp_lib_raw_memory_algorithms 201606L
-
+#ifdef __glibcxx_raw_memory_algorithms // C++ >= 17
   /**
    *  @brief Default-initializes objects in the range [first,last).
    *  @param  __first  A forward iterator.
@@ -1053,7 +1056,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	 __count, __result);
       return {__res.first.base(), __res.second};
     }
-#endif // C++17
+#endif // __glibcxx_raw_memory_algorithms
 
 #if __cplusplus >= 201103L
   /// @cond undocumented
@@ -1116,14 +1119,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #ifdef __cpp_lib_is_constant_evaluated
 	  if (std::is_constant_evaluated())
 	    {
-	      // Can't use memmove. Wrap the pointer so that __relocate_a_1
+	      // Can't use memcpy. Wrap the pointer so that __relocate_a_1
 	      // resolves to the non-trivial overload above.
 	      __gnu_cxx::__normal_iterator<_Tp*, void> __out(__result);
 	      __out = std::__relocate_a_1(__first, __last, __out, __alloc);
 	      return __out.base();
 	    }
 #endif
-	  __builtin_memmove(__result, __first, __count * sizeof(_Tp));
+	  __builtin_memcpy(__result, __first, __count * sizeof(_Tp));
 	}
       return __result + __count;
     }

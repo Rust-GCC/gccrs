@@ -23,7 +23,7 @@ SMTP) )
 )
 
 Note:
-You may need to link to the $(B curl) library, e.g. by adding $(D "libs": ["curl"])
+You may need to link with the $(B curl) library, e.g. by adding $(D "libs": ["curl"])
 to your $(B dub.json) file if you are using $(LINK2 http://code.dlang.org, DUB).
 
 Windows x86 note:
@@ -32,20 +32,19 @@ $(LINK2 https://downloads.dlang.org/other/index.html, download archive page).
 
 This module is not available for iOS, tvOS or watchOS.
 
-Compared to using libcurl directly this module allows simpler client code for
+Compared to using libcurl directly, this module allows simpler client code for
 common uses, requires no unsafe operations, and integrates better with the rest
-of the language. Futhermore it provides $(MREF_ALTTEXT range, std,range)
+of the language. Furthermore it provides $(MREF_ALTTEXT range, std,range)
 access to protocols supported by libcurl both synchronously and asynchronously.
 
 A high level and a low level API are available. The high level API is built
 entirely on top of the low level one.
 
 The high level API is for commonly used functionality such as HTTP/FTP get. The
-$(LREF byLineAsync) and $(LREF byChunkAsync) provides asynchronous
-$(MREF_ALTTEXT range, std,range) that performs the request in another
-thread while handling a line/chunk in the current thread.
+$(LREF byLineAsync) and $(LREF byChunkAsync) functions asynchronously
+perform the request given, outputting the fetched content into a $(MREF_ALTTEXT range, std,range).
 
-The low level API allows for streaming and other advanced features.
+The low level API allows for streaming, setting request headers and cookies, and other advanced features.
 
 $(BOOKTABLE Cheat Sheet,
 $(TR $(TH Function Name) $(TH Description)
@@ -79,18 +78,18 @@ byChunk("dlang.org", 10)) returns a range of ubyte[10] containing the
 dlang.org web page.)
 )
 $(TR $(TDNW $(LREF byLineAsync)) $(TD $(D
-byLineAsync("dlang.org")) returns a range of char[] containing the dlang.org web
- page asynchronously.)
+byLineAsync("dlang.org")) asynchronously returns a range of char[] containing the dlang.org web
+ page.)
 )
 $(TR $(TDNW $(LREF byChunkAsync)) $(TD $(D
-byChunkAsync("dlang.org", 10)) returns a range of ubyte[10] containing the
-dlang.org web page asynchronously.)
+byChunkAsync("dlang.org", 10)) asynchronously returns a range of ubyte[10] containing the
+dlang.org web page.)
 )
 $(LEADINGROW Low level
 )
-$(TR $(TDNW $(LREF HTTP)) $(TD `HTTP` struct for advanced usage))
-$(TR $(TDNW $(LREF FTP)) $(TD `FTP` struct for advanced usage))
-$(TR $(TDNW $(LREF SMTP)) $(TD `SMTP` struct for advanced usage))
+$(TR $(TDNW $(LREF HTTP)) $(TD Struct for advanced HTTP usage))
+$(TR $(TDNW $(LREF FTP)) $(TD Struct for advanced FTP usage))
+$(TR $(TDNW $(LREF SMTP)) $(TD Struct for advanced SMTP usage))
 )
 
 
@@ -135,10 +134,10 @@ http.perform();
 First, an instance of the reference-counted HTTP struct is created. Then the
 custom delegates are set. These will be called whenever the HTTP instance
 receives a header and a data buffer, respectively. In this simple example, the
-headers are written to stdout and the data is ignored. If the request should be
+headers are written to stdout and the data is ignored. If the request is
 stopped before it has finished then return something less than data.length from
 the onReceive callback. See $(LREF onReceiveHeader)/$(LREF onReceive) for more
-information. Finally the HTTP request is effected by calling perform(), which is
+information. Finally, the HTTP request is performed by calling perform(), which is
 synchronous.
 
 Source: $(PHOBOSSRC std/net/curl.d)
@@ -147,8 +146,8 @@ Copyright: Copyright Jonas Drewsen 2011-2012
 License: $(HTTP www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
 Authors: Jonas Drewsen. Some of the SMTP code contributed by Jimmy Cao.
 
-Credits: The functionally is based on $(HTTP curl.haxx.se/libcurl, libcurl).
-         LibCurl is licensed under an MIT/X derivative license.
+Credits: The functionality is based on $(HTTP curl.haxx.se/libcurl, libcurl).
+         libcurl is licensed under an MIT/X derivative license.
 */
 /*
          Copyright Jonas Drewsen 2011 - 2012.
@@ -2420,8 +2419,8 @@ struct HTTP
         @system @property void onReceiveHeader(void delegate(in char[] key,
                                                      in char[] value) callback)
         {
-            import std.algorithm.searching : startsWith;
-            import std.regex : regex, match;
+            import std.algorithm.searching : findSplit, startsWith;
+            import std.string : indexOf, chomp;
             import std.uni : toLower;
 
             // Wrap incoming callback in order to separate http status line from
@@ -2448,21 +2447,18 @@ struct HTTP
                         return;
                     }
 
-                    // Normal http header
-                    auto m = match(cast(char[]) header, regex("(.*?): (.*)$"));
-
-                    auto fieldName = m.captures[1].toLower().idup;
+                    auto m = header.findSplit(": ");
+                    auto fieldName = m[0].toLower();
+                    auto fieldContent = m[2].chomp;
                     if (fieldName == "content-type")
                     {
-                        auto mct = match(cast(char[]) m.captures[2],
-                                         regex("charset=([^;]*)", "i"));
-                        if (!mct.empty && mct.captures.length > 1)
-                            charset = mct.captures[1].idup;
+                        auto io = indexOf(fieldContent, "charset=", No.caseSensitive);
+                        if (io != -1)
+                            charset = fieldContent[io + "charset=".length .. $].findSplit(";")[0].idup;
                     }
-
-                    if (!m.empty && callback !is null)
-                        callback(fieldName, m.captures[2]);
-                    headersIn[fieldName] = m.captures[2].idup;
+                    if (!m[1].empty && callback !is null)
+                        callback(fieldName, fieldContent);
+                    headersIn[fieldName] = fieldContent.idup;
                 }
                 catch (UTFException e)
                 {
@@ -2480,19 +2476,26 @@ struct HTTP
     /// Parse status line, as received from / generated by cURL.
     private static bool parseStatusLine(const char[] header, out StatusLine status) @safe
     {
-        import std.conv : to;
-        import std.regex : regex, match;
+        import std.algorithm.searching : findSplit, startsWith;
+        import std.conv : to, ConvException;
 
-        const m = match(header, regex(r"^HTTP/(\d+)(?:\.(\d+))? (\d+)(?: (.*))?$"));
-        if (m.empty)
-            return false; // Invalid status line
-        else
+        if (!header.startsWith("HTTP/"))
+            return false;
+
+        try
         {
-            status.majorVersion = to!ushort(m.captures[1]);
-            status.minorVersion = m.captures[2].length ? to!ushort(m.captures[2]) : 0;
-            status.code = to!ushort(m.captures[3]);
-            status.reason = m.captures[4].idup;
+            const m = header["HTTP/".length .. $].findSplit(" ");
+            const v = m[0].findSplit(".");
+            status.majorVersion = to!ushort(v[0]);
+            status.minorVersion = v[1].length ? to!ushort(v[2]) : 0;
+            const s2 = m[2].findSplit(" ");
+            status.code = to!ushort(s2[0]);
+            status.reason = s2[2].idup;
             return true;
+        }
+        catch (ConvException e)
+        {
+            return false;
         }
     }
 
@@ -2506,6 +2509,12 @@ struct HTTP
         // The HTTP2 protocol is binary; cURL generates this fake text header.
         assert(parseStatusLine("HTTP/2 200", status)
             && status == StatusLine(2, 0, 200, null));
+
+        assert(!parseStatusLine("HTTP/2", status));
+        assert(!parseStatusLine("HTTP/2 -1", status));
+        assert(!parseStatusLine("HTTP/2  200", status));
+        assert(!parseStatusLine("HTTP/2.X 200", status));
+        assert(!parseStatusLine("HTTP|2 200", status));
     }
 
     /** Time condition enumeration as an alias of $(REF CurlTimeCond, etc,c,curl)

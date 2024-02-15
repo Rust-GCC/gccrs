@@ -1,5 +1,5 @@
 /* Declarations for printing trees in human readable form
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -45,6 +45,7 @@ extern void indent_to (FILE *, int);
 #define PRINT_DECL_ORIGIN       0x1
 #define PRINT_DECL_NAME         0x2
 #define PRINT_DECL_UNIQUE_NAME  0x4
+#define PRINT_DECL_REMAP_DEBUG  0x8
 extern void print_decl_identifier (FILE *, tree, int flags);
 
 #endif  // GCC_PRINT_TREE_H

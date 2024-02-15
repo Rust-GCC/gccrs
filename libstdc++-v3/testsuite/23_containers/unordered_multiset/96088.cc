@@ -2,7 +2,7 @@
 // { dg-require-effective-target std_allocator_new }
 // { dg-xfail-run-if "AIX operator new" { powerpc-ibm-aix* } }
 
-// Copyright (C) 2021-2023 Free Software Foundation, Inc.
+// Copyright (C) 2021-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -61,6 +61,7 @@ test02()
 int
 main()
 {
+  __gnu_test::counter::scope s;
   test01();
   test02();
   return 0;

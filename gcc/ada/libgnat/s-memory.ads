@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,7 +43,7 @@
 package System.Memory is
    pragma Elaborate_Body;
 
-   type size_t is mod 2 ** Standard'Address_Size;
+   type size_t is mod Memory_Size;
    --  Note: the reason we redefine this here instead of using the
    --  definition in Interfaces.C is that we do not want to drag in
    --  all of Interfaces.C just because System.Memory is used.

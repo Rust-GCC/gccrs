@@ -1,5 +1,5 @@
 /* Local Register Allocator (LRA) intercommunication header file.
-   Copyright (C) 2010-2023 Free Software Foundation, Inc.
+   Copyright (C) 2010-2024 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -209,6 +209,9 @@ public:
      debug insn.  LRA_NON_CLOBBERED_ALT means ignoring any earlier
      clobbers for the insn.  */
   int used_insn_alternative;
+  /* Defined for asm insn and it is how many times we already generated reloads
+     for the asm insn.  */
+  int asm_reloads_num;
   /* SP offset before the insn relative to one at the func start.  */
   poly_int64 sp_offset;
   /* The insn itself.  */
@@ -275,6 +278,7 @@ typedef class lra_insn_recog_data *lra_insn_recog_data_t;
 /* lra.cc: */
 
 extern FILE *lra_dump_file;
+extern int lra_verbose;
 
 extern bool lra_hard_reg_split_p;
 extern bool lra_asm_error_p;
@@ -307,6 +311,10 @@ extern void lra_delete_dead_insn (rtx_insn *);
 extern void lra_emit_add (rtx, rtx, rtx);
 extern void lra_emit_move (rtx, rtx);
 extern void lra_update_dups (lra_insn_recog_data_t, signed char *);
+extern void lra_asm_insn_error (rtx_insn *insn);
+
+extern void lra_dump_insns (FILE *f);
+extern void lra_dump_insns_if_possible (const char *title);
 
 extern void lra_process_new_insns (rtx_insn *, rtx_insn *, rtx_insn *,
 				   const char *);
@@ -410,8 +418,10 @@ extern int lra_get_elimination_hard_regno (int);
 extern rtx lra_eliminate_regs_1 (rtx_insn *, rtx, machine_mode,
 				 bool, bool, poly_int64, bool);
 extern void eliminate_regs_in_insn (rtx_insn *insn, bool, bool, poly_int64);
+extern int lra_update_fp2sp_elimination (int *spilled_pseudos);
 extern void lra_eliminate (bool, bool);
 
+extern poly_int64 lra_update_sp_offset (rtx, poly_int64);
 extern void lra_eliminate_reg_if_possible (rtx *);
 
 
@@ -523,6 +533,21 @@ lra_assign_reg_val (int from, int to)
 {
   lra_reg_info[to].val = lra_reg_info[from].val;
   lra_reg_info[to].offset = lra_reg_info[from].offset;
+}
+
+/* Update REGNO's biggest recorded mode so that it includes a reference
+   in mode MODE.  */
+inline void
+lra_update_biggest_mode (int regno, machine_mode mode)
+{
+  if (!ordered_p (GET_MODE_SIZE (lra_reg_info[regno].biggest_mode),
+		  GET_MODE_SIZE (mode)))
+    {
+      gcc_checking_assert (HARD_REGISTER_NUM_P (regno));
+      lra_reg_info[regno].biggest_mode = reg_raw_mode[regno];
+    }
+  else if (partial_subreg_p (lra_reg_info[regno].biggest_mode, mode))
+    lra_reg_info[regno].biggest_mode = mode;
 }
 
 #endif /* GCC_LRA_INT_H */

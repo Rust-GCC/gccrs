@@ -1,5 +1,5 @@
 /* Support for plugin-supplied behaviors of known functions.
-   Copyright (C) 2022-2023 Free Software Foundation, Inc.
+   Copyright (C) 2022-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -135,6 +135,13 @@ known_function_manager::get_normal_builtin (enum built_in_function name) const
      for the built_in_function enum.  */
   gcc_assert (name < END_BUILTINS);
   return m_combined_fns_arr[name];
+}
+
+const known_function *
+known_function_manager::
+get_normal_builtin (const builtin_known_function *builtin_kf) const
+{
+  return get_normal_builtin (builtin_kf->builtin_code ());
 }
 
 /* Get any known_function matching IDENTIFIER, without type-checking.

@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++20" }
 // { dg-do run { target c++20 } }
 // { dg-require-namedlocale "fr_FR.ISO8859-15" }
+// { dg-timeout-factor 2 }
 
 #include <chrono>
 #include <sstream>
@@ -77,8 +77,8 @@ test_format()
     char fmt[] = { '{', ':', '%', c, '}' };
     try
     {
-      (void) std::vformat(std::string_view(fmt, 5),
-			  std::make_format_args(weekday(1)));
+      weekday wd(1);
+      (void) std::vformat(std::string_view(fmt, 5), std::make_format_args(wd));
       // The call above should throw for any conversion-spec not in my_specs:
       VERIFY(my_specs.find(c) != my_specs.npos);
     }
@@ -93,9 +93,85 @@ test_format()
   }
 }
 
+void
+test_parse()
+{
+  using namespace std::chrono;
+  std::istringstream is;
+  weekday wd{};
+
+  is.str("fRi funday");
+  VERIFY( is >> std::chrono::parse(" %A   funday", wd) );
+  VERIFY( wd == Friday );
+
+  is.str("MONDAY xxx");
+  VERIFY( is >> std::chrono::parse(" %a   xxx ", wd) );
+  VERIFY( wd == Monday );
+
+  is.clear();
+  is.str("1");
+  VERIFY( is >> std::chrono::parse("%u", wd) );
+  VERIFY( wd == Monday );
+  is.clear();
+  is.str("7");
+  VERIFY( is >> std::chrono::parse("%u", wd) );
+  VERIFY( wd == Sunday );
+  wd = weekday(99);
+  is.clear();
+  is.str("0");
+  VERIFY( ! (is >> std::chrono::parse("%u", wd)) );
+  VERIFY( wd == weekday(99) );
+  is.clear();
+  is.str("8");
+  VERIFY( ! (is >> std::chrono::parse("%u", wd)) );
+  VERIFY( wd == weekday(99) );
+
+  is.clear();
+  is.str("003");
+  VERIFY( is >> std::chrono::parse("%3u", wd) );
+  VERIFY( wd == Wednesday );
+  wd = weekday(99);
+  is.clear();
+  is.str("004");
+  VERIFY( ! (is >> std::chrono::parse("%2u", wd)) );
+  VERIFY( wd == weekday(99) );
+
+  is.clear();
+  is.str("1");
+  VERIFY( is >> std::chrono::parse("%w", wd) );
+  VERIFY( wd == Monday );
+  is.clear();
+  is.str("0");
+  VERIFY( is >> std::chrono::parse("%w", wd) );
+  VERIFY( wd == Sunday );
+  wd = weekday(99);
+  is.clear();
+  is.str("7");
+  VERIFY( ! (is >> std::chrono::parse("%w", wd)) );
+  VERIFY( wd == weekday(99) );
+  is.clear();
+  is.str("8");
+  VERIFY( ! (is >> std::chrono::parse("%w", wd)) );
+  VERIFY( wd == weekday(99) );
+
+  is.clear();
+  is.str("003");
+  VERIFY( is >> std::chrono::parse("%3w", wd) );
+  VERIFY( wd == Wednesday );
+  is.clear();
+  is.str("004");
+  VERIFY( is >> std::chrono::parse("%2w", wd) );
+  VERIFY( wd == Sunday );
+
+  is.clear();
+  is.str("2023-8-11");
+  VERIFY( is >> std::chrono::parse("%F", wd) );
+  VERIFY( wd == Friday );
+}
+
 int main()
 {
   test_ostream();
   test_format();
-  // TODO: test_parse();
+  test_parse();
 }

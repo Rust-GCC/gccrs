@@ -1,6 +1,6 @@
 // Explicit instantantiations for numeric facets -*- C++ -*-
 
-// Copyright (C) 2018-2023 Free Software Foundation, Inc.
+// Copyright (C) 2018-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,7 +23,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #ifndef C
-#define "This file should not be compiled directly, only included"
+# error "This file should not be compiled directly, only included"
 #endif
 
 #include "facet_inst_macros.h"

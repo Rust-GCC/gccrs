@@ -1,6 +1,6 @@
 /* gm2spec.cc specific flags and argument handling within GNU Modula-2.
 
-Copyright (C) 2007-2023 Free Software Foundation, Inc.
+Copyright (C) 2007-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -469,12 +469,8 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
   /* The number of libraries added in.  */
   int added_libraries;
 
-#ifdef ENABLE_PLUGIN
   /* True if we should add -fplugin=m2rte to the command-line.  */
-  bool need_plugin = true;
-#else
   bool need_plugin = false;
-#endif
 
   /* True if we should set up include paths and library paths.  */
   bool allow_libraries = true;

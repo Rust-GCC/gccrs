@@ -14,7 +14,7 @@
    */
 
 /* { dg-do compile } */
-/* { dg-options "-O0 -gbtf -dA" } */
+/* { dg-options "-O0 -gbtf -gno-strict-dwarf -dA" } */
 
 /* Enum with 4 members.  */
 /* { dg-final { scan-assembler-times "\[\t \]0x6000004\[\t \]+\[^\n\]*btt_info" 1 } } */
@@ -22,7 +22,7 @@
 /* { dg-final { scan-assembler-times "\[\t \]0x84000001\[\t \]+\[^\n\]*btt_info" 1 } } */
 
 /* Bitfield "f" points to type ID 1.  */
-/* { dg-final { scan-assembler-times "\[\t \]0x1\[\t \]+\[^\n\]*btm_type" 1 } } */
+/* { dg-final { scan-assembler-times " btm_type: \\(BTF_KIND_ENUM 'foo'" 1 } } */
 
 enum foo
 {

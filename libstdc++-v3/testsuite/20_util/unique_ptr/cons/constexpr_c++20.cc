@@ -1,5 +1,5 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do compile { target c++23 } }
+// { dg-add-options no_pch }
 
 #include <memory>
 

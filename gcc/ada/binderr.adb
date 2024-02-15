@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -50,7 +50,7 @@ package body Binderr is
          Errors_Detected := Errors_Detected + 1;
       end if;
 
-      if Brief_Output or else (not Verbose_Mode) then
+      if Brief_Output or else not Verbose_Mode then
          Set_Standard_Error;
          Error_Msg_Output (Msg, Info => False);
          Set_Standard_Output;
@@ -90,7 +90,7 @@ package body Binderr is
 
    procedure Error_Msg_Info (Msg : String) is
    begin
-      if Brief_Output or else (not Verbose_Mode) then
+      if Brief_Output or else not Verbose_Mode then
          Set_Standard_Error;
          Error_Msg_Output (Msg, Info => True);
          Set_Standard_Output;

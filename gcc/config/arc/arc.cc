@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on the Synopsys DesignWare ARC cpu.
-   Copyright (C) 1994-2023 Free Software Foundation, Inc.
+   Copyright (C) 1994-2024 Free Software Foundation, Inc.
 
    Sources derived from work done by Sankhya Technologies (www.sankhya.com) on
    behalf of Synopsys Inc.
@@ -68,6 +68,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "alias.h"
 #include "opts.h"
 #include "hw-doloop.h"
+#include "targhooks.h"
+#include "case-cfn-macros.h"
 
 /* Which cpu we're compiling for (ARC600, ARC601, ARC700).  */
 static char arc_cpu_name[10] = "";
@@ -98,16 +100,6 @@ HARD_REG_SET overrideregs;
 
 /* Array of valid operand punctuation characters.  */
 char arc_punct_chars[256];
-
-/* State used by arc_ccfsm_advance to implement conditional execution.  */
-struct GTY (()) arc_ccfsm
-{
-  int state;
-  int cc;
-  rtx cond;
-  rtx_insn *target_insn;
-  int target_label;
-};
 
 /* Status of the IRQ_CTRL_AUX register.  */
 typedef struct irq_ctrl_saved_t
@@ -140,36 +132,6 @@ static irq_ctrl_saved_t irq_ctrl_saved;
 
 /* Number of registers in second bank for FIRQ support.  */
 static int rgf_banked_register_count;
-
-#define arc_ccfsm_current cfun->machine->ccfsm_current
-
-#define ARC_CCFSM_BRANCH_DELETED_P(STATE) \
-  ((STATE)->state == 1 || (STATE)->state == 2)
-
-/* Indicate we're conditionalizing insns now.  */
-#define ARC_CCFSM_RECORD_BRANCH_DELETED(STATE) \
-  ((STATE)->state += 2)
-
-#define ARC_CCFSM_COND_EXEC_P(STATE) \
-  ((STATE)->state == 3 || (STATE)->state == 4 || (STATE)->state == 5 \
-   || current_insn_predicate)
-
-/* Check if INSN has a 16 bit opcode considering struct arc_ccfsm *STATE.  */
-#define CCFSM_ISCOMPACT(INSN,STATE) \
-  (ARC_CCFSM_COND_EXEC_P (STATE) \
-   ? (get_attr_iscompact (INSN) == ISCOMPACT_TRUE \
-      || get_attr_iscompact (INSN) == ISCOMPACT_TRUE_LIMM) \
-   : get_attr_iscompact (INSN) != ISCOMPACT_FALSE)
-
-/* Likewise, but also consider that INSN might be in a delay slot of JUMP.  */
-#define CCFSM_DBR_ISCOMPACT(INSN,JUMP,STATE) \
-  ((ARC_CCFSM_COND_EXEC_P (STATE) \
-    || (JUMP_P (JUMP) \
-	&& INSN_ANNULLED_BRANCH_P (JUMP) \
-	&& (TARGET_AT_DBR_CONDEXEC || INSN_FROM_TARGET_P (INSN)))) \
-   ? (get_attr_iscompact (INSN) == ISCOMPACT_TRUE \
-      || get_attr_iscompact (INSN) == ISCOMPACT_TRUE_LIMM) \
-   : get_attr_iscompact (INSN) != ISCOMPACT_FALSE)
 
 /* Start enter/leave register range.  */
 #define ENTER_LEAVE_START_REG 13
@@ -216,11 +178,6 @@ static int rgf_banked_register_count;
 /* ARC600 MULHI register.  */
 #define AUX_MULHI 0x12
 
-/* A nop is needed between a 4 byte insn that sets the condition codes and
-   a branch that uses them (the same isn't true for an 8 byte insn that sets
-   the condition codes).  Set by arc_ccfsm_advance.  Used by
-   arc_print_operand.  */
-
 static int get_arc_condition_code (rtx);
 
 static tree arc_handle_interrupt_attribute (tree *, tree, tree, int, bool *);
@@ -230,44 +187,6 @@ static tree arc_handle_secure_attribute (tree *, tree, tree, int, bool *);
 static tree arc_handle_uncached_attribute (tree *, tree, tree, int, bool *);
 static tree arc_handle_aux_attribute (tree *, tree, tree, int, bool *);
 
-/* Initialized arc_attribute_table to NULL since arc doesnot have any
-   machine specific supported attributes.  */
-const struct attribute_spec arc_attribute_table[] =
-{
- /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
-      affects_type_identity, handler, exclude } */
-  { "interrupt", 1, 1, true, false, false, true,
-    arc_handle_interrupt_attribute, NULL },
-  /* Function calls made to this symbol must be done indirectly, because
-     it may lie outside of the 21/25 bit addressing range of a normal function
-     call.  */
-  { "long_call",    0, 0, false, true,  true,  false, NULL, NULL },
-  /* Whereas these functions are always known to reside within the 25 bit
-     addressing range of unconditionalized bl.  */
-  { "medium_call",   0, 0, false, true,  true, false, NULL, NULL },
-  /* And these functions are always known to reside within the 21 bit
-     addressing range of blcc.  */
-  { "short_call",   0, 0, false, true,  true,  false, NULL, NULL },
-  /* Function which are not having the prologue and epilogue generated
-     by the compiler.  */
-  { "naked", 0, 0, true, false, false,  false, arc_handle_fndecl_attribute,
-    NULL },
-  /* Functions calls made using jli instruction.  The pointer in JLI
-     table is found latter.  */
-  { "jli_always",    0, 0, false, true,  true, false,  NULL, NULL },
-  /* Functions calls made using jli instruction.  The pointer in JLI
-     table is given as input parameter.  */
-  { "jli_fixed",    1, 1, false, true,  true, false, arc_handle_jli_attribute,
-    NULL },
-  /* Call a function using secure-mode.  */
-  { "secure_call",  1, 1, false, true, true, false, arc_handle_secure_attribute,
-    NULL },
-   /* Bypass caches using .di flag.  */
-  { "uncached", 0, 0, false, true, false, false, arc_handle_uncached_attribute,
-    NULL },
-  { "aux", 0, 1, true, false, false, false, arc_handle_aux_attribute, NULL },
-  { NULL, 0, 0, false, false, false, false, NULL, NULL }
-};
 static int arc_comp_type_attributes (const_tree, const_tree);
 static void arc_file_start (void);
 static void arc_internal_label (FILE *, const char *, unsigned long);
@@ -284,7 +203,6 @@ static int branch_dest (rtx);
 static void  arc_output_pic_addr_const (FILE *,  rtx, int);
 static bool arc_function_ok_for_sibcall (tree, tree);
 static rtx arc_function_value (const_tree, const_tree, bool);
-const char * output_shift (rtx *);
 static void arc_reorg (void);
 static bool arc_in_small_data_p (const_tree);
 
@@ -421,11 +339,6 @@ typedef struct GTY (()) machine_function
 {
   unsigned int fn_type;
   struct arc_frame_info frame_info;
-  /* To keep track of unalignment caused by short insns.  */
-  int unalign;
-  struct arc_ccfsm ccfsm_current;
-  /* Map from uid to ccfsm state during branch shortening.  */
-  rtx ccfsm_current_insn;
   char arc_reorg_started;
   char prescan_initialized;
 } machine_function;
@@ -692,6 +605,9 @@ static rtx arc_legitimize_address_0 (rtx, rtx, machine_mode mode);
 #undef  TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN arc_expand_builtin
 
+#undef  TARGET_FOLD_BUILTIN
+#define TARGET_FOLD_BUILTIN arc_fold_builtin
+
 #undef  TARGET_BUILTIN_DECL
 #define TARGET_BUILTIN_DECL arc_builtin_decl
 
@@ -818,6 +734,42 @@ static rtx arc_legitimize_address_0 (rtx, rtx, machine_mode mode);
 #define TARGET_WARN_FUNC_RETURN arc_warn_func_return
 
 #include "target-def.h"
+
+TARGET_GNU_ATTRIBUTES (arc_attribute_table,
+{
+ /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
+      affects_type_identity, handler, exclude } */
+  { "interrupt", 1, 1, true, false, false, true,
+    arc_handle_interrupt_attribute, NULL },
+  /* Function calls made to this symbol must be done indirectly, because
+     it may lie outside of the 21/25 bit addressing range of a normal function
+     call.  */
+  { "long_call",    0, 0, false, true,  true,  false, NULL, NULL },
+  /* Whereas these functions are always known to reside within the 25 bit
+     addressing range of unconditionalized bl.  */
+  { "medium_call",   0, 0, false, true,  true, false, NULL, NULL },
+  /* And these functions are always known to reside within the 21 bit
+     addressing range of blcc.  */
+  { "short_call",   0, 0, false, true,  true,  false, NULL, NULL },
+  /* Function which are not having the prologue and epilogue generated
+     by the compiler.  */
+  { "naked", 0, 0, true, false, false,  false, arc_handle_fndecl_attribute,
+    NULL },
+  /* Functions calls made using jli instruction.  The pointer in JLI
+     table is found latter.  */
+  { "jli_always",    0, 0, false, true,  true, false,  NULL, NULL },
+  /* Functions calls made using jli instruction.  The pointer in JLI
+     table is given as input parameter.  */
+  { "jli_fixed",    1, 1, false, true,  true, false, arc_handle_jli_attribute,
+    NULL },
+  /* Call a function using secure-mode.  */
+  { "secure_call",  1, 1, false, true, true, false, arc_handle_secure_attribute,
+    NULL },
+   /* Bypass caches using .di flag.  */
+  { "uncached", 0, 0, false, true, false, false, arc_handle_uncached_attribute,
+    NULL },
+  { "aux", 0, 1, true, false, false, false, arc_handle_aux_attribute, NULL }
+});
 
 #undef TARGET_ASM_ALIGNED_HI_OP
 #define TARGET_ASM_ALIGNED_HI_OP "\t.hword\t"
@@ -962,53 +914,6 @@ arc_secondary_reload_conv (rtx reg, rtx mem, rtx scratch, bool store_p)
   return;
 }
 
-static unsigned arc_ifcvt (void);
-
-namespace {
-
-const pass_data pass_data_arc_ifcvt =
-{
-  RTL_PASS,
-  "arc_ifcvt",				/* name */
-  OPTGROUP_NONE,			/* optinfo_flags */
-  TV_IFCVT2,				/* tv_id */
-  0,					/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_df_finish			/* todo_flags_finish */
-};
-
-class pass_arc_ifcvt : public rtl_opt_pass
-{
- public:
- pass_arc_ifcvt (gcc::context *ctxt)
-   : rtl_opt_pass (pass_data_arc_ifcvt, ctxt)
-    {}
-
-  /* opt_pass methods: */
-  opt_pass * clone ()
-    {
-      return new pass_arc_ifcvt (m_ctxt);
-    }
-  virtual unsigned int execute (function *)
-  {
-    return arc_ifcvt ();
-  }
-  virtual bool gate (function *)
-  {
-    return (optimize > 1 && !TARGET_NO_COND_EXEC);
-  }
-};
-
-} // anon namespace
-
-rtl_opt_pass *
-make_pass_arc_ifcvt (gcc::context *ctxt)
-{
-  return new pass_arc_ifcvt (ctxt);
-}
-
 static unsigned arc_predicate_delay_insns (void);
 
 namespace {
@@ -1126,12 +1031,9 @@ arc_init (void)
 
   /* Initialize array for PRINT_OPERAND_PUNCT_VALID_P.  */
   memset (arc_punct_chars, 0, sizeof (arc_punct_chars));
-  arc_punct_chars['#'] = 1;
   arc_punct_chars['*'] = 1;
   arc_punct_chars['?'] = 1;
   arc_punct_chars['!'] = 1;
-  arc_punct_chars['^'] = 1;
-  arc_punct_chars['&'] = 1;
   arc_punct_chars['+'] = 1;
   arc_punct_chars['_'] = 1;
 }
@@ -1660,7 +1562,7 @@ arc_select_cc_mode (enum rtx_code op, rtx x, rtx y)
 
   /* add.f for if (a+b) */
   if (mode == SImode
-      && GET_CODE (y) == NEG
+      && GET_CODE (x) == NEG
       && (op == EQ || op == NE))
     return CC_ZNmode;
 
@@ -4237,157 +4139,607 @@ arc_unspec_offset (rtx loc, int unspec)
 					       unspec));
 }
 
-/* !TARGET_BARREL_SHIFTER support.  */
-/* Emit a shift insn to set OP0 to OP1 shifted by OP2; CODE specifies what
-   kind of shift.  */
+/* Predicate for pre-reload splitters with associated instructions,
+   which can match any time before the split1 pass (usually combine),
+   then are unconditionally split in that pass and should not be
+   matched again afterwards.  */
 
-void
-emit_shift (enum rtx_code code, rtx op0, rtx op1, rtx op2)
+bool
+arc_pre_reload_split (void)
 {
-  rtx shift = gen_rtx_fmt_ee (code, SImode, op1, op2);
-  rtx pat
-    = ((shift4_operator (shift, SImode) ?  gen_shift_si3 : gen_shift_si3_loop)
-	(op0, op1, op2, shift));
-  emit_insn (pat);
+  return (can_create_pseudo_p ()
+	  && !(cfun->curr_properties & PROP_rtl_split_insns));
 }
 
-/* Output the assembler code for doing a shift.
-   We go to a bit of trouble to generate efficient code as the ARC601 only has
-   single bit shifts.  This is taken from the h8300 port.  We only have one
-   mode of shifting and can't access individual bytes like the h8300 can, so
-   this is greatly simplified (at the expense of not generating hyper-
-   efficient code).
-
-   This function is not used if the variable shift insns are present.  */
-
-/* FIXME:  This probably can be done using a define_split in arc.md.
-   Alternately, generate rtx rather than output instructions.  */
+/* Output the assembler code for a zero-overhead loop doing a shift
+   or rotate.  We know OPERANDS[0] == OPERANDS[1], and the bit count
+   is OPERANDS[2].  */
 
 const char *
-output_shift (rtx *operands)
+output_shift_loop (enum rtx_code code, rtx *operands)
 {
-  /*  static int loopend_lab;*/
-  rtx shift = operands[3];
-  machine_mode mode = GET_MODE (shift);
-  enum rtx_code code = GET_CODE (shift);
-  const char *shift_one;
-
-  gcc_assert (mode == SImode);
-
-  switch (code)
-    {
-    case ASHIFT:   shift_one = "add %0,%1,%1"; break;
-    case ASHIFTRT: shift_one = "asr %0,%1"; break;
-    case LSHIFTRT: shift_one = "lsr %0,%1"; break;
-    default:       gcc_unreachable ();
-    }
+  bool twice_p = false;
+  gcc_assert (GET_MODE (operands[0]) == SImode);
 
   if (GET_CODE (operands[2]) != CONST_INT)
     {
-      output_asm_insn ("and.f lp_count,%2, 0x1f", operands);
-      goto shiftloop;
+      output_asm_insn ("and.f\tlp_count,%2,0x1f", operands);
+      output_asm_insn ("lpnz\t2f", operands);
     }
   else
     {
-      int n;
-
-      n = INTVAL (operands[2]);
-
-      /* Only consider the lower 5 bits of the shift count.  */
-      n = n & 0x1f;
-
-      /* First see if we can do them inline.  */
-      /* ??? We could get better scheduling & shorter code (using short insns)
-	 by using splitters.  Alas, that'd be even more verbose.  */
-      if (code == ASHIFT && n <= 9 && n > 2
-	  && dest_reg_operand (operands[4], SImode))
+      int n = INTVAL (operands[2]) & 31;
+      if (!n)
 	{
-	  output_asm_insn ("mov %4,0\n\tadd3 %0,%4,%1", operands);
-	  for (n -=3 ; n >= 3; n -= 3)
-	    output_asm_insn ("add3 %0,%4,%0", operands);
-	  if (n == 2)
-	    output_asm_insn ("add2 %0,%4,%0", operands);
-	  else if (n)
-	    output_asm_insn ("add %0,%0,%0", operands);
+	  output_asm_insn ("mov\t%0,%1",operands);
+	  return "";
 	}
-      else if (n <= 4)
-	{
-	  while (--n >= 0)
-	    {
-	      output_asm_insn (shift_one, operands);
-	      operands[1] = operands[0];
-	    }
-	}
-      /* See if we can use a rotate/and.  */
-      else if (n == BITS_PER_WORD - 1)
-	{
-	  switch (code)
-	    {
-	    case ASHIFT :
-	      output_asm_insn ("and %0,%1,1\n\tror %0,%0", operands);
-	      break;
-	    case ASHIFTRT :
-	      /* The ARC doesn't have a rol insn.  Use something else.  */
-	      output_asm_insn ("add.f 0,%1,%1\n\tsbc %0,%0,%0", operands);
-	      break;
-	    case LSHIFTRT :
-	      /* The ARC doesn't have a rol insn.  Use something else.  */
-	      output_asm_insn ("add.f 0,%1,%1\n\trlc %0,0", operands);
-	      break;
-	    default:
-	      break;
-	    }
-	}
-      else if (n == BITS_PER_WORD - 2 && dest_reg_operand (operands[4], SImode))
-	{
-	  switch (code)
-	    {
-	    case ASHIFT :
-	      output_asm_insn ("and %0,%1,3\n\tror %0,%0\n\tror %0,%0", operands);
-	      break;
-	    case ASHIFTRT :
-#if 1 /* Need some scheduling comparisons.  */
-	      output_asm_insn ("add.f %4,%1,%1\n\tsbc %0,%0,%0\n\t"
-			       "add.f 0,%4,%4\n\trlc %0,%0", operands);
-#else
-	      output_asm_insn ("add.f %4,%1,%1\n\tbxor %0,%4,31\n\t"
-			       "sbc.f %0,%0,%4\n\trlc %0,%0", operands);
-#endif
-	      break;
-	    case LSHIFTRT :
-#if 1
-	      output_asm_insn ("add.f %4,%1,%1\n\trlc %0,0\n\t"
-			       "add.f 0,%4,%4\n\trlc %0,%0", operands);
-#else
-	      output_asm_insn ("add.f %0,%1,%1\n\trlc.f %0,0\n\t"
-			       "and %0,%0,1\n\trlc %0,%0", operands);
-#endif
-	      break;
-	    default:
-	      break;
-	    }
-	}
-      else if (n == BITS_PER_WORD - 3 && code == ASHIFT)
-	output_asm_insn ("and %0,%1,7\n\tror %0,%0\n\tror %0,%0\n\tror %0,%0",
-			 operands);
-      /* Must loop.  */
-      else
-	{
-	  operands[2] = GEN_INT (n);
-	  output_asm_insn ("mov.f lp_count, %2", operands);
 
-	shiftloop:
+      if ((n & 1) == 0 && code != ROTATE)
+	{
+	  twice_p = true;
+	  n >>= 1;
+	}
+      operands[2] = GEN_INT (n);
+      output_asm_insn ("mov\tlp_count,%2", operands);
+      output_asm_insn ("lp\t2f", operands);
+    }
+
+  switch (code)
+    {
+    case ASHIFT:
+      output_asm_insn ("add\t%0,%1,%1", operands);
+      if (twice_p)
+	output_asm_insn ("add\t%0,%1,%1", operands);
+      break;
+    case ASHIFTRT:
+      output_asm_insn ("asr\t%0,%1", operands);
+      if (twice_p)
+	output_asm_insn ("asr\t%0,%1", operands);
+      break;
+    case LSHIFTRT:
+      output_asm_insn ("lsr\t%0,%1", operands);
+      if (twice_p)
+	output_asm_insn ("lsr\t%0,%1", operands);
+      break;
+    case ROTATERT:
+      output_asm_insn ("ror\t%0,%1", operands);
+      if (twice_p)
+	output_asm_insn ("ror\t%0,%1", operands);
+      break;
+    case ROTATE:
+      output_asm_insn ("add.f\t%0,%1,%1", operands);
+      output_asm_insn ("adc\t%0,%0,0", operands);
+      twice_p = true;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  if (!twice_p)
+    output_asm_insn ("nop", operands);
+  fprintf (asm_out_file, "2:\t%s end single insn loop\n", ASM_COMMENT_START);
+  return "";
+}
+
+/* See below where shifts are handled for explanation of this enum.  */
+enum arc_shift_alg
+{
+  SHIFT_MOVE,		/* Register-to-register move.  */
+  SHIFT_LOOP,		/* Zero-overhead loop implementation.  */
+  SHIFT_INLINE,		/* Mmultiple LSHIFTs and LSHIFT-PLUSs.  */ 
+  SHIFT_AND_ROT,        /* Bitwise AND, then ROTATERTs.  */
+  SHIFT_SWAP,		/* SWAP then multiple LSHIFTs/LSHIFT-PLUSs.  */
+  SHIFT_AND_SWAP_ROT	/* Bitwise AND, then SWAP, then ROTATERTs.  */
+};
+
+struct arc_shift_info {
+  enum arc_shift_alg alg;
+  unsigned int cost;
+};
+
+/* Return shift algorithm context, an index into the following tables.
+ * 0 for -Os (optimize for size)	3 for -O2 (optimized for speed)
+ * 1 for -Os -mswap TARGET_V2		4 for -O2 -mswap TARGET_V2
+ * 2 for -Os -mswap !TARGET_V2		5 for -O2 -mswap !TARGET_V2  */
+static unsigned int
+arc_shift_context_idx ()
+{
+  if (optimize_function_for_size_p (cfun))
+    {
+      if (!TARGET_SWAP)
+	return 0;
+      if (TARGET_V2)
+	return 1;
+      return 2;
+    }
+  else
+    {
+      if (!TARGET_SWAP)
+	return 3;
+      if (TARGET_V2)
+	return 4;
+      return 5;
+    }
+}
+
+static const arc_shift_info arc_ashl_alg[6][32] = {
+  {  /* 0: -Os.  */
+    { SHIFT_MOVE,         COSTS_N_INSNS (1) },  /*  0 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (1) },  /*  1 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  2 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  3 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  4 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  5 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  6 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  7 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  8 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  9 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 10 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 11 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 12 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 13 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 14 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 15 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 16 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 17 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 18 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 19 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 20 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 21 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 22 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 23 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 24 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 25 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 26 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 27 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 28 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (4) },  /* 29 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (3) },  /* 30 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (2) }   /* 31 */
+  },
+  {  /* 1: -Os -mswap TARGET_V2.  */
+    { SHIFT_MOVE,         COSTS_N_INSNS (1) },  /*  0 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (1) },  /*  1 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  2 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  3 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  4 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  5 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  6 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  7 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  8 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  9 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 10 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 11 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 12 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 13 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (4) },  /* 14 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (3) },  /* 15 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (1) },  /* 16 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (2) },  /* 17 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (3) },  /* 18 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (3) },  /* 19 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 20 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 21 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 22 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 23 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 24 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 25 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 26 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 27 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 28 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (4) },  /* 29 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (3) },  /* 30 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (2) }   /* 31 */
+  },
+  {  /* 2: -Os -mswap !TARGET_V2.  */
+    { SHIFT_MOVE,         COSTS_N_INSNS (1) },  /*  0 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (1) },  /*  1 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  2 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  3 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  4 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  5 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  6 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  7 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  8 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  9 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 10 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 11 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 12 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 13 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (4) },  /* 14 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (3) },  /* 15 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (2) },  /* 16 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (3) },  /* 17 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 18 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 19 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 20 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 21 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 22 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 23 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 24 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 25 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 26 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 27 */
+    { SHIFT_LOOP,         COSTS_N_INSNS (4) },  /* 28 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (4) },  /* 29 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (3) },  /* 30 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (2) }   /* 31 */
+  },
+  {  /* 3: -O2.  */
+    { SHIFT_MOVE,         COSTS_N_INSNS (1) },  /*  0 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (1) },  /*  1 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  2 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  3 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  4 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  5 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  6 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  7 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  8 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  9 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 10 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 11 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 12 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (6) },  /* 13 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (6) },  /* 14 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (6) },  /* 15 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (7) },  /* 16 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (7) },  /* 17 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (7) },  /* 18 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (8) },  /* 19 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (8) },  /* 20 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (8) },  /* 21 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (9) },  /* 22 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (9) },  /* 23 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (9) },  /* 24 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (8) },  /* 25 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (7) },  /* 26 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (6) },  /* 27 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (5) },  /* 28 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (4) },  /* 29 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (3) },  /* 30 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (2) }   /* 31 */
+  },
+  {  /* 4: -O2 -mswap TARGET_V2.  */
+    { SHIFT_MOVE,         COSTS_N_INSNS (1) },  /*  0 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (1) },  /*  1 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  2 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  3 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  4 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  5 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  6 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  7 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  8 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  9 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 10 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 11 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 12 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (5) },  /* 13 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (4) },  /* 14 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (3) },  /* 15 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (1) },  /* 16 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (2) },  /* 17 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (3) },  /* 18 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (3) },  /* 19 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 20 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 21 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 22 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (5) },  /* 23 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (5) },  /* 24 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (5) },  /* 25 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (6) },  /* 26 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (6) },  /* 27 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (5) },  /* 28 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (4) },  /* 29 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (3) },  /* 30 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (2) }   /* 31 */
+  },
+  {  /* 5: -O2 -mswap !TARGET_V2.  */
+    { SHIFT_MOVE,         COSTS_N_INSNS (1) },  /*  0 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (1) },  /*  1 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  2 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (2) },  /*  3 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  4 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  5 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (3) },  /*  6 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  7 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  8 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (4) },  /*  9 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 10 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 11 */
+    { SHIFT_INLINE,       COSTS_N_INSNS (5) },  /* 12 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (5) },  /* 13 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (4) },  /* 14 */
+    { SHIFT_AND_SWAP_ROT, COSTS_N_INSNS (3) },  /* 15 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (2) },  /* 16 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (3) },  /* 17 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 18 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (4) },  /* 19 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (5) },  /* 20 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (5) },  /* 21 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (5) },  /* 22 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (6) },  /* 23 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (6) },  /* 24 */
+    { SHIFT_SWAP,         COSTS_N_INSNS (6) },  /* 25 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (7) },  /* 26 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (6) },  /* 27 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (5) },  /* 28 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (4) },  /* 29 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (3) },  /* 30 */
+    { SHIFT_AND_ROT,      COSTS_N_INSNS (2) }   /* 31 */
+  }
+};
+
+/* Split SImode left shift instruction.  */
+void
+arc_split_ashl (rtx *operands)
+{
+  if (CONST_INT_P (operands[2]))
+    {
+      int n = INTVAL (operands[2]) & 0x1f;
+      switch (arc_ashl_alg [arc_shift_context_idx ()][n].alg)
+	{
+	case SHIFT_MOVE:
+	  emit_move_insn (operands[0], operands[1]);
+	  return;
+
+	case SHIFT_SWAP:
+	  if (!TARGET_V2)
 	    {
-	      output_asm_insn ("lpnz\t2f", operands);
-	      output_asm_insn (shift_one, operands);
-	      output_asm_insn ("nop", operands);
-	      fprintf (asm_out_file, "2:\t%s end single insn loop\n",
-		       ASM_COMMENT_START);
+	      emit_insn (gen_andsi3_i (operands[0], operands[1],
+				       GEN_INT (0xffff)));
+	      emit_insn (gen_rotrsi2_cnt16 (operands[0], operands[0]));
 	    }
+	  else
+	    emit_insn (gen_ashlsi2_cnt16 (operands[0], operands[1]));
+	  n -= 16;
+	  if (n == 0)
+	    return;
+	  operands[1] = operands[0];
+	  /* FALL THRU */
+
+	case SHIFT_INLINE:
+	  if (n <= 2)
+	    {
+	      emit_insn (gen_ashlsi3_cnt1 (operands[0], operands[1]));
+	      if (n == 2)
+		emit_insn (gen_ashlsi3_cnt1 (operands[0], operands[0]));
+	    }
+	  else
+	    {
+	      rtx zero = gen_reg_rtx (SImode);
+	      emit_move_insn (zero, const0_rtx);
+	      emit_insn (gen_add_shift (operands[0], operands[1],
+					GEN_INT (3), zero));
+	      for (n -= 3; n >= 3; n -= 3)
+		emit_insn (gen_add_shift (operands[0], operands[0],
+					  GEN_INT (3), zero));
+	      if (n == 2)
+		emit_insn (gen_add_shift (operands[0], operands[0],
+					  const2_rtx, zero));
+	      else if (n)
+		emit_insn (gen_ashlsi3_cnt1 (operands[0], operands[0]));
+	    }
+	  return;
+
+	case SHIFT_AND_ROT:
+	  emit_insn (gen_andsi3_i (operands[0], operands[1],
+				   GEN_INT ((1 << (32 - n)) - 1)));
+	  for (; n < 32; n++)
+	    emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+
+	case SHIFT_AND_SWAP_ROT:
+	  emit_insn (gen_andsi3_i (operands[0], operands[1],
+				   GEN_INT ((1 << (32 - n)) - 1)));
+	  emit_insn (gen_rotrsi2_cnt16 (operands[0], operands[0]));
+	  for (; n < 16; n++)
+	    emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+
+	case SHIFT_LOOP:
+	  break;
+
+	default:
+	  gcc_unreachable ();
 	}
     }
 
-  return "";
+  emit_insn (gen_ashlsi3_loop (operands[0], operands[1], operands[2]));
+}
+
+/* Split SImode arithmetic right shift instruction.  */
+void
+arc_split_ashr (rtx *operands)
+{
+  if (CONST_INT_P (operands[2]))
+    {
+      int n = INTVAL (operands[2]) & 0x1f;
+      if (n <= 4)
+	{
+	  if (n != 0)
+	    {
+	      emit_insn (gen_ashrsi3_cnt1 (operands[0], operands[1]));
+	      while (--n > 0)
+		emit_insn (gen_ashrsi3_cnt1 (operands[0], operands[0]));
+	    }
+	  else
+	    emit_move_insn (operands[0], operands[1]);
+	  return;
+	}
+      else if (n >= 16 && n <= 18 && TARGET_SWAP)
+	{
+	  emit_insn (gen_rotrsi2_cnt16 (operands[0], operands[1]));
+	  emit_insn (gen_extendhisi2 (operands[0],
+				      gen_lowpart (HImode, operands[0])));
+	  while (--n >= 16)
+	    emit_insn (gen_ashrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n == 30)
+	{
+	  rtx tmp = gen_reg_rtx (SImode);
+	  emit_insn (gen_add_f (tmp, operands[1], operands[1]));
+	  emit_insn (gen_sbc (operands[0], operands[0], operands[0]));
+	  emit_insn (gen_addsi_compare_2 (tmp, tmp));
+	  emit_insn (gen_adc (operands[0], operands[0], operands[0]));
+	  return;
+	}
+      else if (n == 31)
+	{
+	  emit_insn (gen_addsi_compare_2 (operands[1], operands[1]));
+	  emit_insn (gen_sbc (operands[0], operands[0], operands[0]));
+	  return;
+	}
+    }
+
+  emit_insn (gen_ashrsi3_loop (operands[0], operands[1], operands[2]));
+}
+
+/* Split SImode logical right shift instruction.  */
+void
+arc_split_lshr (rtx *operands)
+{
+  if (CONST_INT_P (operands[2]))
+    {
+      int n = INTVAL (operands[2]) & 0x1f;
+      if (n <= 4)
+	{
+	  if (n != 0)
+	    {
+	      emit_insn (gen_lshrsi3_cnt1 (operands[0], operands[1]));
+	      while (--n > 0)
+		emit_insn (gen_lshrsi3_cnt1 (operands[0], operands[0]));
+	    }
+	  else
+	    emit_move_insn (operands[0], operands[1]);
+	  return;
+	}
+      else if (n >= 16 && n <= 19 && TARGET_SWAP && TARGET_V2)
+	{
+	  emit_insn (gen_lshrsi2_cnt16 (operands[0], operands[1]));
+	  while (--n >= 16)
+	    emit_insn (gen_lshrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n == 30)
+	{
+	  rtx tmp = gen_reg_rtx (SImode);
+	  emit_insn (gen_add_f (tmp, operands[1], operands[1]));
+	  emit_insn (gen_scc_ltu_cc_c (operands[0]));
+	  emit_insn (gen_addsi_compare_2 (tmp, tmp));
+	  emit_insn (gen_adc (operands[0], operands[0], operands[0]));
+	  return;
+	}
+      else if (n == 31)
+	{
+	  emit_insn (gen_addsi_compare_2 (operands[1], operands[1]));
+	  emit_insn (gen_scc_ltu_cc_c (operands[0]));
+	  return;
+	}
+    }
+
+  emit_insn (gen_lshrsi3_loop (operands[0], operands[1], operands[2]));
+}
+
+/* Split SImode rotate left instruction.  */
+void
+arc_split_rotl (rtx *operands)
+{
+  if (CONST_INT_P (operands[2]))
+    {
+      int n = INTVAL (operands[2]) & 0x1f;
+      if (n <= 2)
+	{
+	  if (n != 0)
+	    {
+	      emit_insn (gen_rotlsi3_cnt1 (operands[0], operands[1]));
+	      if (n == 2)
+		emit_insn (gen_rotlsi3_cnt1 (operands[0], operands[0]));
+	    }
+	  else
+	    emit_move_insn (operands[0], operands[1]);
+	  return;
+	}
+      else if (n >= 28)
+	{
+	  emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[1]));
+	  while (++n < 32)
+	    emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n >= 13 && n <= 16 && TARGET_SWAP)
+	{
+	  emit_insn (gen_rotlsi2_cnt16 (operands[0], operands[1]));
+	  while (++n <= 16)
+	    emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n == 17 && TARGET_SWAP)
+	{
+	  emit_insn (gen_rotlsi2_cnt16 (operands[0], operands[1]));
+	  emit_insn (gen_rotlsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n >= 16 || n == 12 || n == 14)
+	{
+	  emit_insn (gen_rotrsi3_loop (operands[0], operands[1],
+				       GEN_INT (32 - n)));
+	  return;
+	}
+    }
+
+  emit_insn (gen_rotlsi3_loop (operands[0], operands[1], operands[2]));
+}
+
+/* Split SImode rotate right instruction.  */
+void
+arc_split_rotr (rtx *operands)
+{
+  if (CONST_INT_P (operands[2]))
+    {
+      int n = INTVAL (operands[2]) & 0x1f;
+      if (n <= 4)
+	{
+	  if (n != 0)
+	    {
+	      emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[1]));
+	      while (--n > 0)
+		emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[0]));
+	    }
+	  else
+	    emit_move_insn (operands[0], operands[1]);
+	  return;
+	}
+      else if (n == 15 && TARGET_SWAP)
+	{
+	  emit_insn (gen_rotrsi2_cnt16 (operands[0], operands[1]));
+	  emit_insn (gen_rotlsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n >= 16 && n <= 19 && TARGET_SWAP)
+	{
+	  emit_insn (gen_rotrsi2_cnt16 (operands[0], operands[1]));
+	  while (--n >= 16)
+	    emit_insn (gen_rotrsi3_cnt1 (operands[0], operands[0]));
+	  return;
+	}
+      else if (n >= 30)
+	{
+	  emit_insn (gen_rotlsi3_cnt1 (operands[0], operands[1]));
+	  if (n == 31)
+	    emit_insn (gen_rotlsi3_cnt1 (operands[1], operands[1]));
+	  return;
+	}
+      else if (n >= 21 || n == 17 || n == 19)
+	{
+	  emit_insn (gen_rotrsi3_loop (operands[0], operands[1],
+				       GEN_INT (32 - n)));
+	  return;
+	}
+    }
+
+  emit_insn (gen_rotrsi3_loop (operands[0], operands[1], operands[2]));
 }
 
 /* Nested function support.  */
@@ -4499,8 +4851,8 @@ static int output_sdata = 0;
 
 /* Print operand X (an rtx) in assembler syntax to file FILE.
    CODE is a letter or dot (`z' in `%z0') or 0 if no letter was specified.
-   For `%' followed by punctuation, CODE is the punctuation and X is null.  */
-/* In final.cc:output_asm_insn:
+   For `%' followed by punctuation, CODE is the punctuation and X is null.
+   In final.cc:output_asm_insn:
     'l' : label
     'a' : address
     'c' : constant address if CONSTANT_ADDRESS_P
@@ -4510,16 +4862,16 @@ static int output_sdata = 0;
     'z': log2
     'M': log2(~x)
     'p': bit Position of lsb
-    's': size of bit field
-    '#': condbranch delay slot suffix
+    's': scalled immediate
+    'S': Scalled immediate, to be used in pair with 's'.
+    'N': Negative immediate, to be used in pair with 's'.
+    'x': size of bit field
     '*': jump delay slot suffix
     '?' : nonjump-insn suffix for conditional execution or short instruction
-    '!' : jump / call suffix for conditional execution or short instruction
-    '`': fold constant inside unary o-perator, re-recognize, and emit.
     'd'
     'D'
     'R': Second word
-    'S': JLI instruction
+    'J': JLI instruction
     'j': used by mov instruction to properly emit jli related labels.
     'B': Branch comparison operand - suppress sda reference
     'H': Most significant word
@@ -4529,13 +4881,16 @@ static int output_sdata = 0;
     'V': cache bypass indicator for volatile
     'P'
     'F'
-    '^'
     'O': Operator
     'o': original symbol - no @ prepending.  */
 
 void
 arc_print_operand (FILE *file, rtx x, int code)
 {
+  HOST_WIDE_INT ival;
+  unsigned scalled = 0;
+  int sign = 1;
+
   switch (code)
     {
     case 'Z':
@@ -4556,9 +4911,9 @@ arc_print_operand (FILE *file, rtx x, int code)
 
     case 'c':
       if (GET_CODE (x) == CONST_INT)
-        fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (x) );
+	fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (x) );
       else
-        output_operand_lossage ("invalid operands to %%c code");
+	output_operand_lossage ("invalid operands to %%c code");
 
       return;
 
@@ -4578,6 +4933,56 @@ arc_print_operand (FILE *file, rtx x, int code)
       return;
 
     case 's':
+      if (REG_P (x))
+	return;
+      if (!CONST_INT_P (x))
+	{
+	  output_operand_lossage ("invalid operand for %%s code");
+	  return;
+	}
+      ival = INTVAL (x);
+      if ((ival & 0x07) == 0)
+	  scalled = 3;
+      else if ((ival & 0x03) == 0)
+	  scalled = 2;
+      else if ((ival & 0x01) == 0)
+	  scalled = 1;
+
+      if (scalled)
+	asm_fprintf (file, "%d", scalled);
+      return;
+
+    case 'N':
+      if (REG_P (x))
+	{
+	  output_operand_lossage ("invalid operand for %%N code");
+	  return;
+	}
+      sign = -1;
+      /* fall through */
+    case 'S':
+      if (REG_P (x))
+	{
+	  asm_fprintf (file, "%s", reg_names [REGNO (x)]);
+	  return;
+	}
+      if (!CONST_INT_P (x))
+	{
+	  output_operand_lossage ("invalid operand for %%N or %%S code");
+	  return;
+	}
+      ival = sign * INTVAL (x);
+      if ((ival & 0x07) == 0)
+	  scalled = 3;
+      else if ((ival & 0x03) == 0)
+	  scalled = 2;
+      else if ((ival & 0x01) == 0)
+	  scalled = 1;
+
+      asm_fprintf (file, "%wd", (ival >> scalled));
+      return;
+
+    case 'x':
       if (GET_CODE (x) == CONST_INT)
 	{
 	  HOST_WIDE_INT i = INTVAL (x);
@@ -4588,48 +4993,26 @@ arc_print_operand (FILE *file, rtx x, int code)
 	output_operand_lossage ("invalid operand to %%s code");
       return;
 
-    case '#' :
-      /* Conditional branches depending on condition codes.
-	 Note that this is only for branches that were known to depend on
-	 condition codes before delay slot scheduling;
-	 out-of-range brcc / bbit expansions should use '*'.
-	 This distinction is important because of the different
-	 allowable delay slot insns and the output of the delay suffix
-	 for TARGET_AT_DBR_COND_EXEC.  */
     case '*' :
       /* Unconditional branches / branches not depending on condition codes.
 	 This could also be a CALL_INSN.
 	 Output the appropriate delay slot suffix.  */
       if (final_sequence && final_sequence->len () != 1)
 	{
-	  rtx_insn *jump = final_sequence->insn (0);
 	  rtx_insn *delay = final_sequence->insn (1);
 
 	  /* For TARGET_PAD_RETURN we might have grabbed the delay insn.  */
 	  if (delay->deleted ())
 	    return;
-	  if (JUMP_P (jump) && INSN_ANNULLED_BRANCH_P (jump))
-	    fputs (INSN_FROM_TARGET_P (delay) ? ".d"
-		   : TARGET_AT_DBR_CONDEXEC && code == '#' ? ".d"
-		   : get_attr_type (jump) == TYPE_RETURN && code == '#' ? ""
-		   : ".nd",
-		   file);
-	  else
-	    fputs (".d", file);
+	  fputs (".d", file);
 	}
       return;
+
     case '?' : /* with leading "." */
     case '!' : /* without leading "." */
-      /* This insn can be conditionally executed.  See if the ccfsm machinery
-	 says it should be conditionalized.
-	 If it shouldn't, we'll check the compact attribute if this insn
-	 has a short variant, which may be used depending on code size and
-	 alignment considerations.  */
       if (current_insn_predicate)
-	arc_ccfsm_current.cc
-	  = get_arc_condition_code (current_insn_predicate);
-      if (ARC_CCFSM_COND_EXEC_P (&arc_ccfsm_current))
 	{
+	  int cc = get_arc_condition_code (current_insn_predicate);
 	  /* Is this insn in a delay slot sequence?  */
 	  if (!final_sequence || XVECLEN (final_sequence, 0) < 2
 	      || current_insn_predicate
@@ -4639,19 +5022,16 @@ arc_print_operand (FILE *file, rtx x, int code)
 	      /* This insn isn't in a delay slot sequence, or conditionalized
 		 independently of its position in a delay slot.  */
 	      fprintf (file, "%s%s",
-		       code == '?' ? "." : "",
-		       arc_condition_codes[arc_ccfsm_current.cc]);
+		       code == '?' ? "." : "", arc_condition_codes[cc]);
 	      /* If this is a jump, there are still short variants.  However,
 		 only beq_s / bne_s have the same offset range as b_s,
 		 and the only short conditional returns are jeq_s and jne_s.  */
 	      if (code == '!'
-		  && (arc_ccfsm_current.cc == ARC_CC_EQ
-		      || arc_ccfsm_current.cc == ARC_CC_NE
-		      || 0 /* FIXME: check if branch in 7 bit range.  */))
+		  && (cc == ARC_CC_EQ || cc == ARC_CC_NE))
 		output_short_suffix (file);
 	    }
 	  else if (code == '!') /* Jump with delay slot.  */
-	    fputs (arc_condition_codes[arc_ccfsm_current.cc], file);
+	    fputs (arc_condition_codes[cc], file);
 	  else /* An Instruction in a delay slot of a jump or call.  */
 	    {
 	      rtx jump = XVECEXP (final_sequence, 0, 0);
@@ -4664,27 +5044,24 @@ arc_print_operand (FILE *file, rtx x, int code)
 		  if (INSN_FROM_TARGET_P (insn))
 		    fprintf (file, "%s%s",
 			     code == '?' ? "." : "",
-			     arc_condition_codes[ARC_INVERSE_CONDITION_CODE (arc_ccfsm_current.cc)]);
+			     arc_condition_codes[ARC_INVERSE_CONDITION_CODE (cc)]);
 		  else
 		    fprintf (file, "%s%s",
 			     code == '?' ? "." : "",
-			     arc_condition_codes[arc_ccfsm_current.cc]);
-		  if (arc_ccfsm_current.state == 5)
-		    arc_ccfsm_current.state = 0;
+			     arc_condition_codes[cc]);
 		}
 	      else
-		/* This insn is executed for either path, so don't
-		   conditionalize it at all.  */
-		output_short_suffix (file);
-
+		{
+		  /* This insn is executed for either path, so don't
+		     conditionalize it at all.  */
+		  output_short_suffix (file);
+		}
 	    }
 	}
       else
 	output_short_suffix (file);
       return;
-    case'`':
-      /* FIXME: fold constant inside unary operator, re-recognize, and emit.  */
-      gcc_unreachable ();
+
     case 'd' :
       fputs (arc_condition_codes[get_arc_condition_code (x)], file);
       return;
@@ -4736,7 +5113,7 @@ arc_print_operand (FILE *file, rtx x, int code)
 	output_operand_lossage ("invalid operand to %%R code");
       return;
     case 'j':
-    case 'S' :
+    case 'J' :
       if (GET_CODE (x) == SYMBOL_REF
 	  && arc_is_jli_call_p (x))
 	{
@@ -4899,14 +5276,7 @@ arc_print_operand (FILE *file, rtx x, int code)
     case 'F':
       fputs (reg_names[REGNO (x)]+1, file);
       return;
-    case '^':
-	/* This punctuation character is needed because label references are
-	printed in the output template using %l. This is a front end
-	character, and when we want to emit a '@' before it, we have to use
-	this '^'.  */
 
-	fputc('@',file);
-	return;
     case 'O':
       /* Output an operator.  */
       switch (GET_CODE (x))
@@ -4954,10 +5324,7 @@ arc_print_operand (FILE *file, rtx x, int code)
 	  return;
 	}
       break;
-    case '&':
-      if (TARGET_ANNOTATE_ALIGN)
-	fprintf (file, "; unalign: %d", cfun->machine->unalign);
-      return;
+
     case '+':
       if (TARGET_V2)
 	fputs ("m", file);
@@ -5128,504 +5495,12 @@ arc_print_operand_address (FILE *file , rtx addr)
     }
 }
 
-/* Conditional execution support.
-
-   This is based on the ARM port but for now is much simpler.
-
-   A finite state machine takes care of noticing whether or not instructions
-   can be conditionally executed, and thus decrease execution time and code
-   size by deleting branch instructions.  The fsm is controlled by
-   arc_ccfsm_advance (called by arc_final_prescan_insn), and controls the
-   actions of PRINT_OPERAND.  The patterns in the .md file for the branch
-   insns also have a hand in this.  */
-/* The way we leave dealing with non-anulled or annull-false delay slot
-   insns to the consumer is awkward.  */
-
-/* The state of the fsm controlling condition codes are:
-   0: normal, do nothing special
-   1: don't output this insn
-   2: don't output this insn
-   3: make insns conditional
-   4: make insns conditional
-   5: make insn conditional (only for outputting anulled delay slot insns)
-
-   special value for cfun->machine->uid_ccfsm_state:
-   6: return with but one insn before it since function start / call
-
-   State transitions (state->state by whom, under what condition):
-   0 -> 1 arc_ccfsm_advance, if insn is a conditional branch skipping over
-          some instructions.
-   0 -> 2 arc_ccfsm_advance, if insn is a conditional branch followed
-          by zero or more non-jump insns and an unconditional branch with
-	  the same target label as the condbranch.
-   1 -> 3 branch patterns, after having not output the conditional branch
-   2 -> 4 branch patterns, after having not output the conditional branch
-   0 -> 5 branch patterns, for anulled delay slot insn.
-   3 -> 0 ASM_OUTPUT_INTERNAL_LABEL, if the `target' label is reached
-          (the target label has CODE_LABEL_NUMBER equal to
-	  arc_ccfsm_target_label).
-   4 -> 0 arc_ccfsm_advance, if `target' unconditional branch is reached
-   3 -> 1 arc_ccfsm_advance, finding an 'else' jump skipping over some insns.
-   5 -> 0 when outputting the delay slot insn
-
-   If the jump clobbers the conditions then we use states 2 and 4.
-
-   A similar thing can be done with conditional return insns.
-
-   We also handle separating branches from sets of the condition code.
-   This is done here because knowledge of the ccfsm state is required,
-   we may not be outputting the branch.  */
-
-/* arc_final_prescan_insn calls arc_ccfsm_advance to adjust arc_ccfsm_current,
-   before letting final output INSN.  */
-
-static void
-arc_ccfsm_advance (rtx_insn *insn, struct arc_ccfsm *state)
-{
-  /* BODY will hold the body of INSN.  */
-  rtx body;
-
-  /* This will be 1 if trying to repeat the trick (ie: do the `else' part of
-     an if/then/else), and things need to be reversed.  */
-  int reverse = 0;
-
-  /* If we start with a return insn, we only succeed if we find another one.  */
-  int seeking_return = 0;
-
-  /* START_INSN will hold the insn from where we start looking.  This is the
-     first insn after the following code_label if REVERSE is true.  */
-  rtx_insn *start_insn = insn;
-
-  /* Type of the jump_insn. Brcc insns don't affect ccfsm changes,
-     since they don't rely on a cmp preceding the.  */
-  enum attr_type jump_insn_type;
-
-  /* Allow -mdebug-ccfsm to turn this off so we can see how well it does.
-     We can't do this in macro FINAL_PRESCAN_INSN because its called from
-     final_scan_insn which has `optimize' as a local.  */
-  if (optimize < 2 || TARGET_NO_COND_EXEC)
-    return;
-
-  /* Ignore notes and labels.  */
-  if (!INSN_P (insn))
-    return;
-  body = PATTERN (insn);
-  /* If in state 4, check if the target branch is reached, in order to
-     change back to state 0.  */
-  if (state->state == 4)
-    {
-      if (insn == state->target_insn)
-	{
-	  state->target_insn = NULL;
-	  state->state = 0;
-	}
-      return;
-    }
-
-  /* If in state 3, it is possible to repeat the trick, if this insn is an
-     unconditional branch to a label, and immediately following this branch
-     is the previous target label which is only used once, and the label this
-     branch jumps to is not too far off.  Or in other words "we've done the
-     `then' part, see if we can do the `else' part."  */
-  if (state->state == 3)
-    {
-      if (simplejump_p (insn))
-	{
-	  start_insn = next_nonnote_insn (start_insn);
-	  if (GET_CODE (start_insn) == BARRIER)
-	    {
-	      /* ??? Isn't this always a barrier?  */
-	      start_insn = next_nonnote_insn (start_insn);
-	    }
-	  if (GET_CODE (start_insn) == CODE_LABEL
-	      && CODE_LABEL_NUMBER (start_insn) == state->target_label
-	      && LABEL_NUSES (start_insn) == 1)
-	    reverse = TRUE;
-	  else
-	    return;
-	}
-      else if (GET_CODE (body) == SIMPLE_RETURN)
-	{
-	  start_insn = next_nonnote_insn (start_insn);
-	  if (GET_CODE (start_insn) == BARRIER)
-	    start_insn = next_nonnote_insn (start_insn);
-	  if (GET_CODE (start_insn) == CODE_LABEL
-	      && CODE_LABEL_NUMBER (start_insn) == state->target_label
-	      && LABEL_NUSES (start_insn) == 1)
-	    {
-	      reverse = TRUE;
-	      seeking_return = 1;
-	    }
-	  else
-	    return;
-	}
-      else
-	return;
-    }
-
-  if (GET_CODE (insn) != JUMP_INSN
-      || GET_CODE (PATTERN (insn)) == ADDR_VEC
-      || GET_CODE (PATTERN (insn)) == ADDR_DIFF_VEC)
-    return;
-
- /* We can't predicate BRCC or loop ends.
-    Also, when generating PIC code, and considering a medium range call,
-    we can't predicate the call.  */
-  jump_insn_type = get_attr_type (insn);
-  if (jump_insn_type == TYPE_BRCC
-      || jump_insn_type == TYPE_BRCC_NO_DELAY_SLOT
-      || jump_insn_type == TYPE_LOOP_END
-      || (jump_insn_type == TYPE_CALL && !get_attr_predicable (insn)))
-    return;
-
-  /* This jump might be paralleled with a clobber of the condition codes,
-     the jump should always come first.  */
-  if (GET_CODE (body) == PARALLEL && XVECLEN (body, 0) > 0)
-    body = XVECEXP (body, 0, 0);
-
-  if (reverse
-      || (GET_CODE (body) == SET && GET_CODE (SET_DEST (body)) == PC
-	  && GET_CODE (SET_SRC (body)) == IF_THEN_ELSE))
-    {
-      int insns_skipped = 0, fail = FALSE, succeed = FALSE;
-      /* Flag which part of the IF_THEN_ELSE is the LABEL_REF.  */
-      int then_not_else = TRUE;
-      /* Nonzero if next insn must be the target label.  */
-      int next_must_be_target_label_p;
-      rtx_insn *this_insn = start_insn;
-      rtx label = 0;
-
-      /* Register the insn jumped to.  */
-      if (reverse)
-	{
-	  if (!seeking_return)
-	    label = XEXP (SET_SRC (body), 0);
-	}
-      else if (GET_CODE (XEXP (SET_SRC (body), 1)) == LABEL_REF)
-	label = XEXP (XEXP (SET_SRC (body), 1), 0);
-      else if (GET_CODE (XEXP (SET_SRC (body), 2)) == LABEL_REF)
-	{
-	  label = XEXP (XEXP (SET_SRC (body), 2), 0);
-	  then_not_else = FALSE;
-	}
-      else if (GET_CODE (XEXP (SET_SRC (body), 1)) == SIMPLE_RETURN)
-	seeking_return = 1;
-      else if (GET_CODE (XEXP (SET_SRC (body), 2)) == SIMPLE_RETURN)
-	{
-	  seeking_return = 1;
-	  then_not_else = FALSE;
-	}
-      else
-	gcc_unreachable ();
-
-      /* If this is a non-annulled branch with a delay slot, there is
-	 no need to conditionalize the delay slot.  */
-      if ((GET_CODE (PATTERN (NEXT_INSN (PREV_INSN (insn)))) == SEQUENCE)
-	  && state->state == 0 && !INSN_ANNULLED_BRANCH_P (insn))
-	{
-	  this_insn = NEXT_INSN (this_insn);
-	}
-      /* See how many insns this branch skips, and what kind of insns.  If all
-	 insns are okay, and the label or unconditional branch to the same
-	 label is not too far away, succeed.  */
-      for (insns_skipped = 0, next_must_be_target_label_p = FALSE;
-	   !fail && !succeed && insns_skipped < MAX_INSNS_SKIPPED;
-	   insns_skipped++)
-	{
-	  rtx scanbody;
-
-	  this_insn = next_nonnote_insn (this_insn);
-	  if (!this_insn)
-	    break;
-
-	  if (next_must_be_target_label_p)
-	    {
-	      if (GET_CODE (this_insn) == BARRIER)
-		continue;
-	      if (GET_CODE (this_insn) == CODE_LABEL
-		  && this_insn == label)
-		{
-		  state->state = 1;
-		  succeed = TRUE;
-		}
-	      else
-		fail = TRUE;
-	      break;
-	    }
-
-	  switch (GET_CODE (this_insn))
-	    {
-	    case CODE_LABEL:
-	      /* Succeed if it is the target label, otherwise fail since
-		 control falls in from somewhere else.  */
-	      if (this_insn == label)
-		{
-		  state->state = 1;
-		  succeed = TRUE;
-		}
-	      else
-		fail = TRUE;
-	      break;
-
-	    case BARRIER:
-	      /* Succeed if the following insn is the target label.
-		 Otherwise fail.
-		 If return insns are used then the last insn in a function
-		 will be a barrier.  */
-	      next_must_be_target_label_p = TRUE;
-	      break;
-
-	    case CALL_INSN:
-	      /* Can handle a call insn if there are no insns after it.
-		 IE: The next "insn" is the target label.  We don't have to
-		 worry about delay slots as such insns are SEQUENCE's inside
-		 INSN's.  ??? It is possible to handle such insns though.  */
-	      if (get_attr_cond (this_insn) == COND_CANUSE)
-		next_must_be_target_label_p = TRUE;
-	      else
-		fail = TRUE;
-	      break;
-
-	    case JUMP_INSN:
-	      scanbody = PATTERN (this_insn);
-
-	      /* If this is an unconditional branch to the same label, succeed.
-		 If it is to another label, do nothing.  If it is conditional,
-		 fail.  */
-	      /* ??? Probably, the test for the SET and the PC are
-		 unnecessary.  */
-
-	      if (GET_CODE (scanbody) == SET
-		  && GET_CODE (SET_DEST (scanbody)) == PC)
-		{
-		  if (GET_CODE (SET_SRC (scanbody)) == LABEL_REF
-		      && XEXP (SET_SRC (scanbody), 0) == label && !reverse)
-		    {
-		      state->state = 2;
-		      succeed = TRUE;
-		    }
-		  else if (GET_CODE (SET_SRC (scanbody)) == IF_THEN_ELSE)
-		    fail = TRUE;
-		  else if (get_attr_cond (this_insn) != COND_CANUSE)
-		    fail = TRUE;
-		}
-	      else if (GET_CODE (scanbody) == SIMPLE_RETURN
-		       && seeking_return)
-		{
-		  state->state = 2;
-		  succeed = TRUE;
-		}
-	      else if (GET_CODE (scanbody) == PARALLEL)
-		{
-		  if (get_attr_cond (this_insn) != COND_CANUSE)
-		    fail = TRUE;
-		}
-	      break;
-
-	    case INSN:
-	      scanbody = PATTERN (this_insn);
-
-	      /* We can only do this with insns that can use the condition
-		 codes (and don't set them).  */
-	      if (GET_CODE (scanbody) == SET
-		  || GET_CODE (scanbody) == PARALLEL)
-		{
-		  if (get_attr_cond (this_insn) != COND_CANUSE)
-		    fail = TRUE;
-		}
-	      /* We can't handle other insns like sequences.  */
-	      else
-		fail = TRUE;
-	      break;
-
-	    default:
-	      break;
-	    }
-	}
-
-      if (succeed)
-	{
-	  if ((!seeking_return) && (state->state == 1 || reverse))
-	    state->target_label = CODE_LABEL_NUMBER (label);
-	  else if (seeking_return || state->state == 2)
-	    {
-	      while (this_insn && GET_CODE (PATTERN (this_insn)) == USE)
-		{
-		  this_insn = next_nonnote_insn (this_insn);
-
-		  gcc_assert (!this_insn ||
-			      (GET_CODE (this_insn) != BARRIER
-			       && GET_CODE (this_insn) != CODE_LABEL));
-		}
-	      if (!this_insn)
-		{
-		  /* Oh dear! we ran off the end, give up.  */
-		  extract_insn_cached (insn);
-		  state->state = 0;
-		  state->target_insn = NULL;
-		  return;
-		}
-	      state->target_insn = this_insn;
-	    }
-	  else
-	    gcc_unreachable ();
-
-	  /* If REVERSE is true, ARM_CURRENT_CC needs to be inverted from
-	     what it was.  */
-	  if (!reverse)
-	    {
-	      state->cond = XEXP (SET_SRC (body), 0);
-	      state->cc = get_arc_condition_code (XEXP (SET_SRC (body), 0));
-	    }
-
-	  if (reverse || then_not_else)
-	    state->cc = ARC_INVERSE_CONDITION_CODE (state->cc);
-	}
-
-      /* Restore recog_operand.  Getting the attributes of other insns can
-	 destroy this array, but final.cc assumes that it remains intact
-	 across this call; since the insn has been recognized already we
-	 call insn_extract direct.  */
-      extract_insn_cached (insn);
-    }
-}
-
-/* Record that we are currently outputting label NUM with prefix PREFIX.
-   It it's the label we're looking for, reset the ccfsm machinery.
-
-   Called from ASM_OUTPUT_INTERNAL_LABEL.  */
-
-static void
-arc_ccfsm_at_label (const char *prefix, int num, struct arc_ccfsm *state)
-{
-  if (state->state == 3 && state->target_label == num
-      && !strcmp (prefix, "L"))
-    {
-      state->state = 0;
-      state->target_insn = NULL;
-    }
-}
-
-/* We are considering a conditional branch with the condition COND.
-   Check if we want to conditionalize a delay slot insn, and if so modify
-   the ccfsm state accordingly.
-   REVERSE says branch will branch when the condition is false.  */
-void
-arc_ccfsm_record_condition (rtx cond, bool reverse, rtx_insn *jump,
-			    struct arc_ccfsm *state)
-{
-  rtx_insn *seq_insn = NEXT_INSN (PREV_INSN (jump));
-  if (!state)
-    state = &arc_ccfsm_current;
-
-  gcc_assert (state->state == 0);
-  if (seq_insn != jump)
-    {
-      rtx insn = XVECEXP (PATTERN (seq_insn), 0, 1);
-
-      if (!as_a<rtx_insn *> (insn)->deleted ()
-	  && INSN_ANNULLED_BRANCH_P (jump)
-	  && (TARGET_AT_DBR_CONDEXEC || INSN_FROM_TARGET_P (insn)))
-	{
-	  state->cond = cond;
-	  state->cc = get_arc_condition_code (cond);
-	  if (!reverse)
-	    arc_ccfsm_current.cc
-	      = ARC_INVERSE_CONDITION_CODE (state->cc);
-	  rtx pat = PATTERN (insn);
-	  if (GET_CODE (pat) == COND_EXEC)
-	    gcc_assert ((INSN_FROM_TARGET_P (insn)
-			 ? ARC_INVERSE_CONDITION_CODE (state->cc) : state->cc)
-			== get_arc_condition_code (XEXP (pat, 0)));
-	  else
-	    state->state = 5;
-	}
-    }
-}
-
-/* Update *STATE as we would when we emit INSN.  */
-
-static void
-arc_ccfsm_post_advance (rtx_insn *insn, struct arc_ccfsm *state)
-{
-  enum attr_type type;
-
-  if (LABEL_P (insn))
-    arc_ccfsm_at_label ("L", CODE_LABEL_NUMBER (insn), state);
-  else if (JUMP_P (insn)
-	   && GET_CODE (PATTERN (insn)) != ADDR_VEC
-	   && GET_CODE (PATTERN (insn)) != ADDR_DIFF_VEC
-	   && ((type = get_attr_type (insn)) == TYPE_BRANCH
-	       || ((type == TYPE_UNCOND_BRANCH
-		    || type == TYPE_RETURN)
-		   && ARC_CCFSM_BRANCH_DELETED_P (state))))
-    {
-      if (ARC_CCFSM_BRANCH_DELETED_P (state))
-	ARC_CCFSM_RECORD_BRANCH_DELETED (state);
-      else
-	{
-	  rtx src = SET_SRC (PATTERN (insn));
-	  arc_ccfsm_record_condition (XEXP (src, 0), XEXP (src, 1) == pc_rtx,
-				      insn, state);
-	}
-    }
-  else if (arc_ccfsm_current.state == 5)
-    arc_ccfsm_current.state = 0;
-}
-
-/* Return true if the current insn, which is a conditional branch, is to be
-   deleted.  */
-
-bool
-arc_ccfsm_branch_deleted_p (void)
-{
-  return ARC_CCFSM_BRANCH_DELETED_P (&arc_ccfsm_current);
-}
-
-/* Record a branch isn't output because subsequent insns can be
-   conditionalized.  */
-
-void
-arc_ccfsm_record_branch_deleted (void)
-{
-  ARC_CCFSM_RECORD_BRANCH_DELETED (&arc_ccfsm_current);
-}
-
-/* During insn output, indicate if the current insn is predicated.  */
-
-bool
-arc_ccfsm_cond_exec_p (void)
-{
-  return (cfun->machine->prescan_initialized
-	  && ARC_CCFSM_COND_EXEC_P (&arc_ccfsm_current));
-}
-
-/* When deciding if an insn should be output short, we want to know something
-   about the following insns:
-   - if another insn follows which we know we can output as a short insn
-     before an alignment-sensitive point, we can output this insn short:
-     the decision about the eventual alignment can be postponed.
-   - if a to-be-aligned label comes next, we should output this insn such
-     as to get / preserve 4-byte alignment.
-   - if a likely branch without delay slot insn, or a call with an immediately
-     following short insn comes next, we should out output this insn such as to
-     get / preserve 2 mod 4 unalignment.
-   - do the same for a not completely unlikely branch with a short insn
-     following before any other branch / label.
-   - in order to decide if we are actually looking at a branch, we need to
-     call arc_ccfsm_advance.
-   - in order to decide if we are looking at a short insn, we should know
-     if it is conditionalized.  To a first order of approximation this is
-     the case if the state from arc_ccfsm_advance from before this insn
-     indicates the insn is conditionalized.  However, a further refinement
-     could be to not conditionalize an insn if the destination register(s)
-     is/are dead in the non-executed case.  */
 /* Return non-zero if INSN should be output as a short insn.  UNALIGN is
    zero if the current insn is aligned to a 4-byte-boundary, two otherwise.
    If CHECK_ATTR is greater than 0, check the iscompact attribute first.  */
 
 static int
-arc_verify_short (rtx_insn *insn, int, int check_attr)
+arc_verify_short (rtx_insn *insn, int check_attr)
 {
   enum attr_iscompact iscompact;
 
@@ -5640,8 +5515,7 @@ arc_verify_short (rtx_insn *insn, int, int check_attr)
 }
 
 /* When outputting an instruction (alternative) that can potentially be short,
-   output the short suffix if the insn is in fact short, and update
-   cfun->machine->unalign accordingly.  */
+   output the short suffix if the insn is in fact short.  */
 
 static void
 output_short_suffix (FILE *file)
@@ -5650,10 +5524,9 @@ output_short_suffix (FILE *file)
   if (!insn)
     return;
 
-  if (arc_verify_short (insn, cfun->machine->unalign, 1))
+  if (arc_verify_short (insn, 1))
     {
       fprintf (file, "_s");
-      cfun->machine->unalign ^= 2;
     }
   /* Restore recog_operand.  */
   extract_insn_cached (insn);
@@ -5667,14 +5540,6 @@ arc_final_prescan_insn (rtx_insn *insn, rtx *opvec ATTRIBUTE_UNUSED,
 {
   if (TARGET_DUMPISIZE)
     fprintf (asm_out_file, "\n; at %04x\n", INSN_ADDRESSES (INSN_UID (insn)));
-
-  if (!cfun->machine->prescan_initialized)
-    {
-      /* Clear lingering state from branch shortening.  */
-      memset (&arc_ccfsm_current, 0, sizeof arc_ccfsm_current);
-      cfun->machine->prescan_initialized = 1;
-    }
-  arc_ccfsm_advance (insn, &arc_ccfsm_current);
 }
 
 /* Given FROM and TO register numbers, say whether this elimination is allowed.
@@ -5782,7 +5647,7 @@ arc_encode_section_info (tree decl, rtx rtl, int first)
 
       SYMBOL_REF_FLAGS (symbol) = flags;
     }
-  else if (TREE_CODE (decl) == VAR_DECL)
+  else if (VAR_P (decl))
     {
       rtx symbol = XEXP (rtl, 0);
 
@@ -5807,8 +5672,6 @@ arc_encode_section_info (tree decl, rtx rtl, int first)
 
 static void arc_internal_label (FILE *stream, const char *prefix, unsigned long labelno)
 {
-  if (cfun)
-    arc_ccfsm_at_label (prefix, labelno, &arc_ccfsm_current);
   default_internal_label (stream, prefix, labelno);
 }
 
@@ -5938,7 +5801,7 @@ arc_rtx_costs (rtx x, machine_mode mode, int outer_code,
     case CONST:
     case LABEL_REF:
     case SYMBOL_REF:
-      *total = speed ? COSTS_N_INSNS (1) : COSTS_N_INSNS (4);
+      *total = speed ? COSTS_N_INSNS (1) : COSTS_N_BYTES (4);
       return true;
 
     case CONST_DOUBLE:
@@ -5960,28 +5823,65 @@ arc_rtx_costs (rtx x, machine_mode mode, int outer_code,
        If we need more than 12 insns to do a multiply, then go out-of-line,
        since the call overhead will be < 10% of the cost of the multiply.  */
     case ASHIFT:
-    case ASHIFTRT:
-    case LSHIFTRT:
+      if (mode == DImode)
+	{
+	  if (XEXP (x, 1) == const1_rtx)
+	    {
+	      *total += rtx_cost (XEXP (x, 0), mode, ASHIFT, 0, speed)
+			+ COSTS_N_INSNS (2);
+	      return true;
+	    }
+	  return false;
+	}
       if (TARGET_BARREL_SHIFTER)
 	{
-	  if (CONSTANT_P (XEXP (x, 0)))
+	  *total = COSTS_N_INSNS (1);
+	  if (CONST_INT_P (XEXP (x, 1)))
 	    {
-	      *total += rtx_cost (XEXP (x, 1), mode, (enum rtx_code) code,
+	      *total += rtx_cost (XEXP (x, 0), mode, ASHIFT, 0, speed);
+	      return true;
+	    }
+	}
+      else if (CONST_INT_P (XEXP (x, 1)))
+	{
+	  unsigned int n = INTVAL (XEXP (x, 1)) & 0x1f;
+	  *total = arc_ashl_alg[arc_shift_context_idx ()][n].cost
+		   + rtx_cost (XEXP (x, 0), mode, ASHIFT, 0, speed);
+	  return true;
+	}
+      else
+	/* Variable shift loop takes 2 * n + 2 cycles.  */
+	*total = speed ? COSTS_N_INSNS (64) : COSTS_N_INSNS (4);
+      return false;
+
+    case ASHIFTRT:
+    case LSHIFTRT:
+    case ROTATE:
+    case ROTATERT:
+      if (mode == DImode)
+	return false;
+      if (TARGET_BARREL_SHIFTER)
+	{
+	  *total = COSTS_N_INSNS (1);
+	  if (CONSTANT_P (XEXP (x, 1)))
+	    {
+	      *total += rtx_cost (XEXP (x, 0), mode, (enum rtx_code) code,
 				  0, speed);
 	      return true;
 	    }
-	  *total = COSTS_N_INSNS (1);
 	}
       else if (GET_CODE (XEXP (x, 1)) != CONST_INT)
-	*total = COSTS_N_INSNS (16);
+	*total = speed ? COSTS_N_INSNS (16) : COSTS_N_INSNS (4);
       else
 	{
-	  *total = COSTS_N_INSNS (INTVAL (XEXP ((x), 1)));
-	  /* ??? want_to_gcse_p can throw negative shift counts at us,
-	     and then panics when it gets a negative cost as result.
-	     Seen for gcc.c-torture/compile/20020710-1.c -Os .  */
-	  if (*total < 0)
-	    *total = 0;
+	  int n = INTVAL (XEXP (x, 1)) & 31;
+	  if (n < 4)
+	    *total = COSTS_N_INSNS (n);
+	  else
+	    *total = speed ? COSTS_N_INSNS (n + 2) : COSTS_N_INSNS (4);
+	  *total += rtx_cost (XEXP (x, 0), mode, (enum rtx_code) code,
+			      0, speed);
+	  return true;
 	}
       return false;
 
@@ -6013,6 +5913,8 @@ arc_rtx_costs (rtx x, machine_mode mode, int outer_code,
       return false;
 
     case PLUS:
+      if (mode == DImode)
+	return false;
       if (outer_code == MEM && CONST_INT_P (XEXP (x, 1))
 	  && RTX_OK_FOR_OFFSET_P (mode, XEXP (x, 1)))
 	{
@@ -6022,8 +5924,8 @@ arc_rtx_costs (rtx x, machine_mode mode, int outer_code,
 
       if ((GET_CODE (XEXP (x, 0)) == ASHIFT
 	   && _1_2_3_operand (XEXP (XEXP (x, 0), 1), VOIDmode))
-          || (GET_CODE (XEXP (x, 0)) == MULT
-              && _2_4_8_operand (XEXP (XEXP (x, 0), 1), VOIDmode)))
+	  || (GET_CODE (XEXP (x, 0)) == MULT
+	      && _2_4_8_operand (XEXP (XEXP (x, 0), 1), VOIDmode)))
 	{
 	  if (CONSTANT_P (XEXP (x, 1)) && !speed)
 	    *total += COSTS_N_INSNS (4);
@@ -6034,8 +5936,8 @@ arc_rtx_costs (rtx x, machine_mode mode, int outer_code,
     case MINUS:
       if ((GET_CODE (XEXP (x, 1)) == ASHIFT
 	   && _1_2_3_operand (XEXP (XEXP (x, 1), 1), VOIDmode))
-          || (GET_CODE (XEXP (x, 1)) == MULT
-              && _2_4_8_operand (XEXP (XEXP (x, 1), 1), VOIDmode)))
+	  || (GET_CODE (XEXP (x, 1)) == MULT
+	      && _2_4_8_operand (XEXP (XEXP (x, 1), 1), VOIDmode)))
 	{
 	  if (CONSTANT_P (XEXP (x, 0)) && !speed)
 	    *total += COSTS_N_INSNS (4);
@@ -6255,8 +6157,6 @@ arc_call_tls_get_addr (rtx ti)
   return ret;
 }
 
-#define DTPOFF_ZERO_SYM ".tdata"
-
 /* Return a legitimized address for ADDR,
    which is a SYMBOL_REF with tls_model MODEL.  */
 
@@ -6265,36 +6165,16 @@ arc_legitimize_tls_address (rtx addr, enum tls_model model)
 {
   rtx tmp;
 
-  if (!flag_pic && model == TLS_MODEL_LOCAL_DYNAMIC)
-    model = TLS_MODEL_LOCAL_EXEC;
-
-
   /* The TP pointer needs to be set.  */
   gcc_assert (arc_tp_regno != -1);
 
   switch (model)
     {
     case TLS_MODEL_GLOBAL_DYNAMIC:
+    case TLS_MODEL_LOCAL_DYNAMIC:
       tmp = gen_reg_rtx (Pmode);
       emit_move_insn (tmp, arc_unspec_offset (addr, UNSPEC_TLS_GD));
       return arc_call_tls_get_addr (tmp);
-
-    case TLS_MODEL_LOCAL_DYNAMIC:
-      rtx base;
-      tree decl;
-      const char *base_name;
-
-      decl = SYMBOL_REF_DECL (addr);
-      base_name = DTPOFF_ZERO_SYM;
-      if (decl && bss_initializer_p (decl))
-	base_name = ".tbss";
-
-      base = gen_rtx_SYMBOL_REF (Pmode, base_name);
-      tmp = gen_reg_rtx (Pmode);
-      emit_move_insn (tmp, arc_unspec_offset (base, UNSPEC_TLS_GD));
-      base = arc_call_tls_get_addr (tmp);
-      return gen_rtx_PLUS (Pmode, force_reg (Pmode, base),
-			   arc_unspec_offset (addr, UNSPEC_TLS_OFF));
 
     case TLS_MODEL_INITIAL_EXEC:
       addr = arc_unspec_offset (addr, UNSPEC_TLS_IE);
@@ -6735,7 +6615,8 @@ arc_legitimate_constant_p (machine_mode mode, rtx x)
 }
 
 static bool
-arc_legitimate_address_p (machine_mode mode, rtx x, bool strict)
+arc_legitimate_address_p (machine_mode mode, rtx x, bool strict,
+			  code_helper = ERROR_MARK)
 {
   if (RTX_OK_FOR_BASE_P (x, strict))
      return true;
@@ -7454,6 +7335,46 @@ arc_expand_builtin (tree exp,
     return const0_rtx;
 }
 
+/* Implement TARGET_FOLD_BUILTIN.  */
+
+static tree
+arc_fold_builtin (tree fndecl, int n_args ATTRIBUTE_UNUSED, tree *arg,
+                  bool ignore ATTRIBUTE_UNUSED)
+{
+  unsigned int fcode = DECL_MD_FUNCTION_CODE (fndecl);
+
+  switch (fcode)
+    {
+    default:
+      break;
+
+    case ARC_BUILTIN_SWAP:
+      return fold_build2 (LROTATE_EXPR, integer_type_node, arg[0],
+                          build_int_cst (integer_type_node, 16));
+
+    case ARC_BUILTIN_NORM:
+      if (TREE_CODE (arg[0]) == INTEGER_CST
+	  && !TREE_OVERFLOW (arg[0]))
+	{
+	  wide_int arg0 = wi::to_wide (arg[0], 32);
+	  wide_int result = wi::shwi (wi::clrsb (arg0), 32);
+	  return wide_int_to_tree (integer_type_node, result);
+	}
+      break;
+
+    case ARC_BUILTIN_NORMW:
+      if (TREE_CODE (arg[0]) == INTEGER_CST
+	  && !TREE_OVERFLOW (arg[0]))
+	{
+	  wide_int arg0 = wi::to_wide (arg[0], 16);
+	  wide_int result = wi::shwi (wi::clrsb (arg0), 32);
+	  return wide_int_to_tree (integer_type_node, result);
+	}
+      break;
+    }
+  return NULL_TREE;
+}
+
 /* Returns true if the operands[opno] is a valid compile-time constant to be
    used as register number in the code for builtins.  Else it flags an error
    and returns false.  */
@@ -8156,9 +8077,9 @@ hwloop_optimize (hwloop_info loop)
   if (REG_P (loop->iter_reg) && (REGNO (loop->iter_reg)) != LP_COUNT)
     {
       if (dump_file)
-        fprintf (dump_file, ";; loop %d doesn't use lp_count as loop"
+	fprintf (dump_file, ";; loop %d doesn't use lp_count as loop"
 		 " iterator\n",
-                 loop->loop_no);
+		 loop->loop_no);
       /* This loop doesn't use the lp_count, check though if we can
 	 fix it.  */
       if (TEST_HARD_REG_BIT (loop->regs_set_in_loop, LP_COUNT)
@@ -8331,7 +8252,7 @@ hwloop_optimize (hwloop_info loop)
 		 /* Make sure we don't split a call and its corresponding
 		    CALL_ARG_LOCATION note.  */
 		 && NOTE_KIND (entry_after) != NOTE_INSN_CALL_ARG_LOCATION))
-        entry_after = NEXT_INSN (entry_after);
+	entry_after = NEXT_INSN (entry_after);
 #endif
       entry_after = next_nonnote_insn_bb (entry_after);
 
@@ -8508,17 +8429,7 @@ arc_reorg (void)
   jli_call_scan ();
   pad_return ();
 
-/* FIXME: should anticipate ccfsm action, generate special patterns for
-   to-be-deleted branches that have no delay slot and have at least the
-   length of the size increase forced on other insns that are conditionalized.
-   This can also have an insn_list inside that enumerates insns which are
-   not actually conditionalized because the destinations are dead in the
-   not-execute case.
-   Could also tag branches that we want to be unaligned if they get no delay
-   slot, or even ones that we don't want to do delay slot sheduling for
-   because we can unalign them.
-
-   However, there are cases when conditional execution is only possible after
+/* There are cases when conditional execution is only possible after
    delay slot scheduling:
 
    - If a delay slot is filled with a nocond/set insn from above, the previous
@@ -8547,22 +8458,8 @@ arc_reorg (void)
       init_insn_lengths();
       changed = 0;
 
-      if (optimize > 1 && !TARGET_NO_COND_EXEC)
-	{
-	  arc_ifcvt ();
-	  unsigned int flags = pass_data_arc_ifcvt.todo_flags_finish;
-	  df_finish_pass ((flags & TODO_df_verify) != 0);
-
-	  if (dump_file)
-	    {
-	      fprintf (dump_file, ";; After if conversion:\n\n");
-	      print_rtl (dump_file, get_insns ());
-	    }
-	}
-
       /* Call shorten_branches to calculate the insn lengths.  */
       shorten_branches (get_insns());
-      cfun->machine->ccfsm_current_insn = NULL_RTX;
 
       if (!INSN_ADDRESSES_SET_P())
 	  fatal_error (input_location,
@@ -8933,7 +8830,7 @@ arc_is_aux_reg_p (rtx pat)
     return false;
 
   /* Get the attributes.  */
-  if (TREE_CODE (addr) == VAR_DECL)
+  if (VAR_P (addr))
     attrs = DECL_ATTRIBUTES (addr);
   else if (TREE_CODE (addr) == MEM_REF)
     attrs = TYPE_ATTRIBUTES (TREE_TYPE (TREE_OPERAND (addr, 0)));
@@ -9008,7 +8905,7 @@ arc_register_move_cost (machine_mode,
    Return the length of the instruction.
    If OUTPUT_P is false, don't actually output the instruction, just return
    its length.  */
-int
+static int
 arc_output_addsi (rtx *operands, bool cond_p, bool output_p)
 {
   char format[35];
@@ -9431,8 +9328,7 @@ arc_output_libcall (const char *fname)
   static char buf[64];
 
   gcc_assert (len < sizeof buf - 35);
-  if (TARGET_LONG_CALLS_SET
-     || (TARGET_MEDIUM_CALLS && arc_ccfsm_cond_exec_p ()))
+  if (TARGET_LONG_CALLS_SET)
     {
       if (flag_pic)
 	sprintf (buf, "add r12,pcl,@%s@pcl\n\tjl%%!%%* [r12]", fname);
@@ -9532,31 +9428,6 @@ arc_adjust_insn_length (rtx_insn *insn, int len, bool)
   return len;
 }
 
-/* Return a copy of COND from *STATEP, inverted if that is indicated by the
-   CC field of *STATEP.  */
-
-static rtx
-arc_get_ccfsm_cond (struct arc_ccfsm *statep, bool reverse)
-{
-  rtx cond = statep->cond;
-  int raw_cc = get_arc_condition_code (cond);
-  if (reverse)
-    raw_cc = ARC_INVERSE_CONDITION_CODE (raw_cc);
-
-  if (statep->cc == raw_cc)
-    return copy_rtx (cond);
-
-  gcc_assert (ARC_INVERSE_CONDITION_CODE (raw_cc) == statep->cc);
-
-  machine_mode ccm = GET_MODE (XEXP (cond, 0));
-  enum rtx_code code = reverse_condition (GET_CODE (cond));
-  if (code == UNKNOWN || ccm == CC_FP_GTmode || ccm == CC_FP_GEmode)
-    code = reverse_condition_maybe_unordered (GET_CODE (cond));
-
-  return gen_rtx_fmt_ee (code, GET_MODE (cond),
-			 copy_rtx (XEXP (cond, 0)), copy_rtx (XEXP (cond, 1)));
-}
-
 /* Return version of PAT conditionalized with COND, which is part of INSN.
    ANNULLED indicates if INSN is an annulled delay-slot insn.
    Register further changes if necessary.  */
@@ -9601,125 +9472,6 @@ conditionalize_nonjump (rtx pat, rtx cond, rtx insn, bool annulled)
   return pat;
 }
 
-/* Use the ccfsm machinery to do if conversion.  */
-
-static unsigned
-arc_ifcvt (void)
-{
-  struct arc_ccfsm *statep = &cfun->machine->ccfsm_current;
-
-  memset (statep, 0, sizeof *statep);
-  for (rtx_insn *insn = get_insns (); insn; insn = next_insn (insn))
-    {
-      arc_ccfsm_advance (insn, statep);
-
-      switch (statep->state)
-	{
-	case 0:
-	  break;
-	case 1: case 2:
-	  {
-	    /* Deleted branch.  */
-	    arc_ccfsm_post_advance (insn, statep);
-	    gcc_assert (!IN_RANGE (statep->state, 1, 2));
-	    rtx_insn *seq = NEXT_INSN (PREV_INSN (insn));
-	    if (GET_CODE (PATTERN (seq)) == SEQUENCE)
-	      {
-		rtx slot = XVECEXP (PATTERN (seq), 0, 1);
-		rtx pat = PATTERN (slot);
-		if (INSN_ANNULLED_BRANCH_P (insn))
-		  {
-		    rtx cond
-		      = arc_get_ccfsm_cond (statep, INSN_FROM_TARGET_P (slot));
-		    pat = gen_rtx_COND_EXEC (VOIDmode, cond, pat);
-		  }
-		if (!validate_change (seq, &PATTERN (seq), pat, 0))
-		  gcc_unreachable ();
-		PUT_CODE (slot, NOTE);
-		NOTE_KIND (slot) = NOTE_INSN_DELETED;
-	      }
-	    else
-	      {
-		set_insn_deleted (insn);
-	      }
-	    continue;
-	  }
-	case 3:
-	  if (LABEL_P (insn)
-	      && statep->target_label == CODE_LABEL_NUMBER (insn))
-	    {
-	      arc_ccfsm_post_advance (insn, statep);
-	      if (--LABEL_NUSES (insn) == 0)
-		delete_insn (insn);
-	      continue;
-	    }
-	  /* Fall through.  */
-	case 4: case 5:
-	  if (!NONDEBUG_INSN_P (insn))
-	    break;
-
-	  /* Conditionalized insn.  */
-
-	  rtx_insn *prev, *pprev;
-	  rtx *patp, pat, cond;
-	  bool annulled; annulled = false;
-
-	  /* If this is a delay slot insn in a non-annulled branch,
-	     don't conditionalize it.  N.B., this should be fine for
-	     conditional return too.  However, don't do this for
-	     unconditional branches, as these would be encountered when
-	     processing an 'else' part.  */
-	  prev = PREV_INSN (insn);
-	  pprev = PREV_INSN (prev);
-	  if (pprev && NEXT_INSN (NEXT_INSN (pprev)) == NEXT_INSN (insn)
-	      && JUMP_P (prev) && get_attr_cond (prev) == COND_USE)
-	    {
-	      if (!INSN_ANNULLED_BRANCH_P (prev))
-		break;
-	      annulled = true;
-	    }
-
-	  patp = &PATTERN (insn);
-	  pat = *patp;
-	  cond = arc_get_ccfsm_cond (statep, INSN_FROM_TARGET_P (insn));
-	  if (NONJUMP_INSN_P (insn) || CALL_P (insn))
-	    {
-	      /* ??? don't conditionalize if all side effects are dead
-		 in the not-execute case.  */
-
-	      pat = conditionalize_nonjump (pat, cond, insn, annulled);
-	    }
-	  else if (simplejump_p (insn))
-	    {
-	      patp = &SET_SRC (pat);
-	      pat = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, *patp, pc_rtx);
-	    }
-	  else if (JUMP_P (insn) && ANY_RETURN_P (PATTERN (insn)))
-	    {
-	      pat = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, pat, pc_rtx);
-	      pat = gen_rtx_SET (pc_rtx, pat);
-	    }
-	  else
-	    gcc_unreachable ();
-	  validate_change (insn, patp, pat, 1);
-	  if (!apply_change_group ())
-	    gcc_unreachable ();
-	  if (JUMP_P (insn))
-	    {
-	      rtx_insn *next = next_nonnote_insn (insn);
-	      if (GET_CODE (next) == BARRIER)
-		delete_insn (next);
-	      if (statep->state == 3)
-		continue;
-	    }
-	  break;
-	default:
-	  gcc_unreachable ();
-	}
-      arc_ccfsm_post_advance (insn, statep);
-    }
-  return 0;
-}
 
 /* Find annulled delay insns and convert them to use the appropriate predicate.
    This allows branch shortening to size up these insns properly.  */
@@ -10020,46 +9772,6 @@ arc_check_millicode (rtx op, int offset, int load_p)
   return 1;
 }
 
-/* Accessor functions for cfun->machine->unalign.  */
-
-void
-arc_clear_unalign (void)
-{
-  if (cfun)
-    cfun->machine->unalign = 0;
-}
-
-void
-arc_toggle_unalign (void)
-{
-  cfun->machine->unalign ^= 2;
-}
-
-/* Operands 0..2 are the operands of a addsi which uses a 12 bit
-   constant in operand 2, but which would require a LIMM because of
-   operand mismatch.
-   operands 3 and 4 are new SET_SRCs for operands 0.  */
-
-void
-split_addsi (rtx *operands)
-{
-  int val = INTVAL (operands[2]);
-
-  /* Try for two short insns first.  Lengths being equal, we prefer
-     expansions with shorter register lifetimes.  */
-  if (val > 127 && val <= 255
-      && arc_check_short_reg_p (operands[0]))
-    {
-      operands[3] = operands[2];
-      operands[4] = gen_rtx_PLUS (SImode, operands[0], operands[1]);
-    }
-  else
-    {
-      operands[3] = operands[1];
-      operands[4] = gen_rtx_PLUS (SImode, operands[0], operands[2]);
-    }
-}
-
 /* Operands 0..2 are the operands of a subsi which uses a 12 bit
    constant in operand 1, but which would require a LIMM because of
    operand mismatch.
@@ -10298,7 +10010,7 @@ arc_split_move (rtx *operands)
 const char *
 arc_short_long (rtx_insn *insn, const char *s_tmpl, const char *l_tmpl)
 {
-  int is_short = arc_verify_short (insn, cfun->machine->unalign, -1);
+  int is_short = arc_verify_short (insn, -1);
 
   extract_constrain_insn_cached (insn);
   return is_short ? s_tmpl : l_tmpl;
@@ -11245,7 +10957,7 @@ arc_is_uncached_mem_p (rtx pat)
 
   /* Get the attributes.  */
   if (TREE_CODE (addr) == MEM_REF
-      || TREE_CODE (addr) == VAR_DECL)
+      || VAR_P (addr))
     {
       attrs = TYPE_ATTRIBUTES (TREE_TYPE (addr));
       if (lookup_attribute ("uncached", attrs))
@@ -11313,7 +11025,7 @@ arc_handle_aux_attribute (tree *node,
 	  /* FIXME! add range check.  TREE_INT_CST_LOW (arg) */
 	}
 
-      if (TREE_CODE (*node) == VAR_DECL)
+      if (VAR_P (*node))
 	{
 	  tree fntype = TREE_TYPE (*node);
 	  if (fntype && TREE_CODE (fntype) == POINTER_TYPE)
@@ -11666,7 +11378,7 @@ arc_split_mov_const (rtx *operands)
     }
 
   /* 3. Check if we can just shift by 16 to fit into the u6 of LSL16.  */
-  if (TARGET_BARREL_SHIFTER && TARGET_V2
+  if (TARGET_SWAP && TARGET_V2
       && ((ival & ~0x3f0000) == 0))
     {
       shimm = (ival >> 16) & 0x3f;
@@ -11777,35 +11489,68 @@ static int
 arc_insn_cost (rtx_insn *insn, bool speed)
 {
   int cost;
-  if (recog_memoized (insn) < 0)
-    return 0;
-
-  /* If optimizing for size, we want the insn size.  */
-  if (!speed)
-    return get_attr_length (insn);
-
-  /* Use cost if provided.  */
-  cost = get_attr_cost (insn);
-  if (cost > 0)
-    return cost;
-
-  /* For speed make a simple cost model: memory access is more
-     expensive than any other instruction.  */
-  enum attr_type type = get_attr_type (insn);
-
-  switch (type)
+  enum attr_type type;
+  if (recog_memoized (insn) >= 0)
     {
-    case TYPE_LOAD:
-    case TYPE_STORE:
-      cost = COSTS_N_INSNS (2);
-      break;
-
-    default:
-      cost = COSTS_N_INSNS (1);
-      break;
+      if (speed)
+	{
+	  /* Use cost if provided.  */
+	  cost = get_attr_cost (insn);
+	  if (cost > 0)
+	    return cost;
+	  /* For speed make a simple cost model: memory access is more
+	     expensive than any other instruction.  */
+	  type = get_attr_type (insn);
+	  if (type == TYPE_LOAD || type == TYPE_STORE)
+	    return COSTS_N_INSNS (2);
+	}
+      else
+	{
+	  /* If optimizing for size, we want the insn size.  */
+	  type = get_attr_type (insn);
+	  if (type != TYPE_MULTI)
+	    return get_attr_length (insn);
+	}
     }
 
-  return cost;
+  if (rtx set = single_set (insn))
+    cost = set_rtx_cost (set, speed);
+  else
+    cost = pattern_cost (PATTERN (insn), speed);
+  /* If the cost is zero, then it's likely a complex insn.  We don't
+     want the cost of these to be less than something we know about.  */
+  return cost ? cost : COSTS_N_INSNS (2);
+}
+
+static unsigned
+arc_libm_function_max_error (unsigned cfn, machine_mode mode,
+			     bool boundary_p)
+{
+#ifdef OPTION_GLIBC
+  bool glibc_p = OPTION_GLIBC;
+#else
+  bool glibc_p = false;
+#endif
+  if (glibc_p)
+    {
+      int rnd = flag_rounding_math ? 4 : 0;
+      switch (cfn)
+	{
+	CASE_CFN_SIN:
+	CASE_CFN_SIN_FN:
+	  if (!boundary_p && mode == DFmode)
+	    return 7 + rnd;
+	  break;
+	CASE_CFN_COS:
+	CASE_CFN_COS_FN:
+	  if (!boundary_p && mode == DFmode)
+	    return 4 + rnd;
+	default:
+	  break;
+	}
+      return glibc_linux_libm_function_max_error (cfn, mode, boundary_p);
+    }
+  return default_libm_function_max_error (cfn, mode, boundary_p);
 }
 
 #undef TARGET_USE_ANCHORS_FOR_SYMBOL_P
@@ -11831,6 +11576,9 @@ arc_insn_cost (rtx_insn *insn, bool speed)
 
 #undef  TARGET_INSN_COST
 #define TARGET_INSN_COST arc_insn_cost
+
+#undef  TARGET_LIBM_FUNCTION_MAX_ERROR
+#define TARGET_LIBM_FUNCTION_MAX_ERROR arc_libm_function_max_error
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

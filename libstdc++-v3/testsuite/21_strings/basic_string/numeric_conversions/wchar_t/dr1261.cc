@@ -3,7 +3,7 @@
 
 // 2009-11-11  Paolo Carlini  <paolo.carlini@oracle.com>
 
-// Copyright (C) 2009-2023 Free Software Foundation, Inc.
+// Copyright (C) 2009-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,14 +46,19 @@ void test01()
   const wstring six(to_wstring(400ull));
   VERIFY( six == L"400" );
 
+  wstring tail;
+#if __cpp_lib_to_string < 202306L
+  tail = L".000000";
+#endif
+
   const wstring seven(to_wstring(-1.0F));
-  VERIFY( seven == L"-1.000000" );
+  VERIFY( seven == L"-1" + tail );
 
   const wstring eight(to_wstring(2.0));
-  VERIFY( eight == L"2.000000" );
+  VERIFY( eight == L"2" + tail );
 
   const wstring nine(to_wstring(-4.0L));
-  VERIFY( nine == L"-4.000000" );
+  VERIFY( nine == L"-4" + tail );
 }
 
 int main()

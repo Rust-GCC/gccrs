@@ -1,6 +1,6 @@
 /* Operating system specific defines to be used when targeting GCC for any
    Solaris 2 system.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -255,7 +255,7 @@ along with GCC; see the file COPYING3.  If not see
   " %{!shared:libasan_preinit%O%s} \
     %{static-libasan:%{!shared: -Bstatic "\
     LD_WHOLE_ARCHIVE_OPTION " -lasan " LD_NO_WHOLE_ARCHIVE_OPTION \
-    "-Bdynamic}}%{!static-libasan:-lasan}"
+    " -Bdynamic}}%{!static-libasan:-z now -lasan}"
 
 /* Error out on -fsanitize=thread|leak.  */
 #define LIBTSAN_EARLY_SPEC "\

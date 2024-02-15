@@ -1,6 +1,6 @@
 /* Communication between GCC and libgomp.
 
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -42,6 +42,7 @@
 #define GOMP_MAP_FLAG_SPECIAL_2		(1 << 4)
 #define GOMP_MAP_FLAG_SPECIAL_3		(1 << 5)
 #define GOMP_MAP_FLAG_SPECIAL_4		(1 << 6)
+#define GOMP_MAP_FLAG_SPECIAL_5		(1 << 7)
 #define GOMP_MAP_FLAG_SPECIAL		(GOMP_MAP_FLAG_SPECIAL_1 \
 					 | GOMP_MAP_FLAG_SPECIAL_0)
 #define GOMP_MAP_DEEP_COPY		(GOMP_MAP_FLAG_SPECIAL_4 \
@@ -55,9 +56,14 @@
 					 | GOMP_MAP_FLAG_SPECIAL_1 \
 					 | GOMP_MAP_FLAG_SPECIAL_2 \
 					 | GOMP_MAP_FLAG_SPECIAL_3 \
-					 | GOMP_MAP_FLAG_SPECIAL_4)
+					 | GOMP_MAP_FLAG_SPECIAL_4 \
+					 | GOMP_MAP_FLAG_SPECIAL_5)
 /* Flag to force a specific behavior (or else, trigger a run-time error).  */
-#define GOMP_MAP_FLAG_FORCE		(1 << 7)
+#define GOMP_MAP_FLAG_FORCE		(GOMP_MAP_FLAG_SPECIAL_5)
+#define GOMP_MAP_FLAG_PRESENT		(GOMP_MAP_FLAG_SPECIAL_5 \
+					 | GOMP_MAP_FLAG_SPECIAL_0)
+#define GOMP_MAP_FLAG_ALWAYS_PRESENT	(GOMP_MAP_FLAG_SPECIAL_2 \
+					 | GOMP_MAP_FLAG_PRESENT)
 
 enum gomp_map_kind
   {
@@ -130,6 +136,15 @@ enum gomp_map_kind
        device.  */
     GOMP_MAP_ALWAYS_TOFROM =		(GOMP_MAP_FLAG_SPECIAL_2
 					 | GOMP_MAP_TOFROM),
+    /* Must already be present, unconditionally copy to device.  */
+    GOMP_MAP_ALWAYS_PRESENT_TO =	(GOMP_MAP_FLAG_ALWAYS_PRESENT
+					 | GOMP_MAP_TO),
+    /* Must already be present, unconditionally copy from device.  */
+    GOMP_MAP_ALWAYS_PRESENT_FROM =	(GOMP_MAP_FLAG_ALWAYS_PRESENT
+					 | GOMP_MAP_FROM),
+    /* Must already be present, unconditionally copy to and from device.  */
+    GOMP_MAP_ALWAYS_PRESENT_TOFROM =	(GOMP_MAP_FLAG_ALWAYS_PRESENT
+					 | GOMP_MAP_TOFROM),
     /* Map a sparse struct; the address is the base of the structure, alignment
        it's required alignment, and size is the number of adjacent entries
        that belong to the struct.  The adjacent entries should be sorted by
@@ -137,6 +152,12 @@ enum gomp_map_kind
        (address of the first adjacent entry) and highest needed address
        (address of the last adjacent entry plus its size).  */
     GOMP_MAP_STRUCT =			(GOMP_MAP_FLAG_SPECIAL_2
+					 | GOMP_MAP_FLAG_SPECIAL | 0),
+    /* As above, but followed by an unordered list of adjacent entries.
+       At present, this is used only to diagnose incorrect usage of variable
+       indices into arrays of structs.  */
+    GOMP_MAP_STRUCT_UNORD =		(GOMP_MAP_FLAG_SPECIAL_4
+					 | GOMP_MAP_FLAG_SPECIAL_2
 					 | GOMP_MAP_FLAG_SPECIAL | 0),
     /* On a location of a pointer/reference that is assumed to be already mapped
        earlier, store the translated address of the preceeding mapping.
@@ -182,15 +203,21 @@ enum gomp_map_kind
     /* An attach or detach operation.  Rewritten to the appropriate type during
        gimplification, depending on directive (i.e. "enter data" or
        parallel/kernels region vs. "exit data").  */
-    GOMP_MAP_ATTACH_DETACH =		(GOMP_MAP_LAST | 3)
+    GOMP_MAP_ATTACH_DETACH =		(GOMP_MAP_LAST | 3),
+    /* Must already be present - all of following map to GOMP_MAP_FORCE_PRESENT
+       as no data transfer is needed.  */
+    GOMP_MAP_PRESENT_ALLOC =		(GOMP_MAP_LAST | 4),
+    GOMP_MAP_PRESENT_TO =		(GOMP_MAP_LAST | 5),
+    GOMP_MAP_PRESENT_FROM =		(GOMP_MAP_LAST | 6),
+    GOMP_MAP_PRESENT_TOFROM =		(GOMP_MAP_LAST | 7)
   };
 
 #define GOMP_MAP_COPY_TO_P(X) \
-  (!((X) & GOMP_MAP_FLAG_SPECIAL) \
+  ((!((X) & GOMP_MAP_FLAG_SPECIAL) || GOMP_MAP_PRESENT_P (X)) \
    && ((X) & GOMP_MAP_FLAG_TO))
 
 #define GOMP_MAP_COPY_FROM_P(X) \
-  (!((X) & GOMP_MAP_FLAG_SPECIAL) \
+  ((!((X) & GOMP_MAP_FLAG_SPECIAL) || GOMP_MAP_PRESENT_P (X)) \
    && ((X) & GOMP_MAP_FLAG_FROM))
 
 #define GOMP_MAP_ALWAYS_POINTER_P(X) \
@@ -201,16 +228,27 @@ enum gomp_map_kind
    || (X) == GOMP_MAP_POINTER_TO_ZERO_LENGTH_ARRAY_SECTION)
 
 #define GOMP_MAP_ALWAYS_TO_P(X) \
-  (((X) == GOMP_MAP_ALWAYS_TO) || ((X) == GOMP_MAP_ALWAYS_TOFROM))
+  (((X) == GOMP_MAP_ALWAYS_TO) || ((X) == GOMP_MAP_ALWAYS_TOFROM) \
+   || ((X) == GOMP_MAP_ALWAYS_PRESENT_TO) \
+   || ((X) == GOMP_MAP_ALWAYS_PRESENT_TOFROM))
 
 #define GOMP_MAP_ALWAYS_FROM_P(X) \
-  (((X) == GOMP_MAP_ALWAYS_FROM) || ((X) == GOMP_MAP_ALWAYS_TOFROM))
+  (((X) == GOMP_MAP_ALWAYS_FROM) || ((X) == GOMP_MAP_ALWAYS_TOFROM) \
+   || ((X) == GOMP_MAP_ALWAYS_PRESENT_FROM) \
+   || ((X) == GOMP_MAP_ALWAYS_PRESENT_TOFROM))
 
 #define GOMP_MAP_ALWAYS_P(X) \
-  (GOMP_MAP_ALWAYS_TO_P (X) || ((X) == GOMP_MAP_ALWAYS_FROM))
+  (GOMP_MAP_ALWAYS_TO_P (X) || GOMP_MAP_ALWAYS_FROM_P (X))
 
 #define GOMP_MAP_IMPLICIT_P(X) \
   (((X) & GOMP_MAP_FLAG_SPECIAL_BITS) == GOMP_MAP_IMPLICIT)
+
+#define GOMP_MAP_FORCE_P(X) \
+  (((X) & GOMP_MAP_FLAG_SPECIAL_BITS) == GOMP_MAP_FLAG_FORCE)
+
+#define GOMP_MAP_PRESENT_P(X) \
+  (((X) & GOMP_MAP_FLAG_PRESENT) == GOMP_MAP_FLAG_PRESENT \
+   || (X) == GOMP_MAP_FORCE_PRESENT)
 
 
 /* Asynchronous behavior.  Keep in sync with
@@ -272,6 +310,8 @@ enum gomp_map_kind
 
 /* Force host fallback execution.  */
 #define GOACC_FLAG_HOST_FALLBACK	(1 << 0)
+/* Execute on local device (i.e. host multicore CPU).  */
+#define GOACC_FLAG_LOCAL_DEVICE 	(1 << 1)
 
 /* For legacy reasons, in the ABI, the GOACC_FLAGs are encoded as an inverted
    bitmask.  */
@@ -282,13 +322,15 @@ enum gomp_map_kind
 /* Versions of libgomp and device-specific plugins.  GOMP_VERSION
    should be incremented whenever an ABI-incompatible change is introduced
    to the plugin interface defined in libgomp/libgomp.h.  */
-#define GOMP_VERSION	2
+#define GOMP_VERSION	3
 #define GOMP_VERSION_NVIDIA_PTX 1
 #define GOMP_VERSION_GCN 3
 
 #define GOMP_VERSION_PACK(LIB, DEV) (((LIB) << 16) | (DEV))
 #define GOMP_VERSION_LIB(PACK) (((PACK) >> 16) & 0xffff)
 #define GOMP_VERSION_DEV(PACK) ((PACK) & 0xffff)
+
+#define GOMP_VERSION_SUPPORTS_INDIRECT_FUNCS(VER) (GOMP_VERSION_LIB(VER) >= 3)
 
 #define GOMP_DIM_GANG	0
 #define GOMP_DIM_WORKER	1

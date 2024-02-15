@@ -1,4 +1,4 @@
-# Copyright (C) 1992-2023 Free Software Foundation, Inc.
+# Copyright (C) 1992-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -284,10 +284,6 @@ proc g++_init { args } {
 
     set gcc_warning_prefix "warning:"
     set gcc_error_prefix "(fatal )?error:"
-
-    if { [istarget *-*-darwin*] } {
-	lappend ALWAYS_CXXFLAGS "ldflags=-multiply_defined suppress"
-       }
 
     verbose -log "ALWAYS_CXXFLAGS set to $ALWAYS_CXXFLAGS"
 

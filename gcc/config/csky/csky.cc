@@ -1,5 +1,5 @@
 /* GCC backend functions for C-SKY targets.
-   Copyright (C) 2018-2023 Free Software Foundation, Inc.
+   Copyright (C) 2018-2024 Free Software Foundation, Inc.
    Contributed by C-SKY Microsystems and Mentor Graphics.
 
    This file is part of GCC.
@@ -211,16 +211,15 @@ const int csky_debugger_regno[FIRST_PSEUDO_REGISTER] =
 /* Table of machine attributes.  */
 static tree csky_handle_fndecl_attribute (tree *, tree, tree, int, bool *);
 static tree csky_handle_isr_attribute (tree *, tree, tree, int, bool *);
-static const struct attribute_spec csky_attribute_table[] =
+TARGET_GNU_ATTRIBUTES (csky_attribute_table,
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        affects_type_identity, handler, exclude } */
   { "naked",	 0, 0, true,  false, false, false, csky_handle_fndecl_attribute, NULL },
   /* Interrupt Service Routines have special prologue and epilogue requirements.  */
   { "interrupt", 0, 1, false, false, false, false, csky_handle_isr_attribute,	 NULL },
-  { "isr",	 0, 1, false, false, false, false, csky_handle_isr_attribute,	 NULL },
-  { NULL,	 0, 0, false, false, false, false, NULL,			 NULL }
-};
+  { "isr",	 0, 1, false, false, false, false, csky_handle_isr_attribute,	 NULL }
+});
 
 /* A C structure for machine-specific, per-function data.
    This is added to the cfun structure.  */
@@ -3186,7 +3185,8 @@ csky_legitimate_index_p (machine_mode mode, rtx index, int strict_p)
    be recognized.  */
 
 static bool
-csky_legitimate_address_p (machine_mode mode, rtx addr, bool strict_p)
+csky_legitimate_address_p (machine_mode mode, rtx addr, bool strict_p,
+			   code_helper = ERROR_MARK)
 {
   enum rtx_code code = GET_CODE (addr);
 
@@ -6490,8 +6490,7 @@ csky_handle_isr_attribute (tree *node, tree name, tree args, int flags,
     }
   else
     {
-      if (TREE_CODE (*node) == FUNCTION_TYPE
-	  || TREE_CODE (*node) == METHOD_TYPE)
+      if (FUNC_OR_METHOD_TYPE_P (*node))
 	{
 	  if (csky_isr_value (args) == CSKY_FT_UNKNOWN)
 	    {
@@ -6500,8 +6499,7 @@ csky_handle_isr_attribute (tree *node, tree name, tree args, int flags,
 	    }
 	}
       else if (TREE_CODE (*node) == POINTER_TYPE
-	       && (TREE_CODE (TREE_TYPE (*node)) == FUNCTION_TYPE
-		   || TREE_CODE (TREE_TYPE (*node)) == METHOD_TYPE)
+	       && FUNC_OR_METHOD_TYPE_P (TREE_TYPE (*node))
 	       && csky_isr_value (args) != CSKY_FT_UNKNOWN)
 	{
 	  *node = build_variant_type_copy (*node);
@@ -7319,7 +7317,7 @@ csky_init_builtins (void)
 static const char *
 csky_mangle_type (const_tree type)
 {
-  if (TREE_CODE (type) == REAL_TYPE
+  if (SCALAR_FLOAT_TYPE_P (type)
       && TYPE_PRECISION (type) == 16
       && TYPE_MAIN_VARIANT (type) != float16_type_node)
     return "Dh";

@@ -1,5 +1,5 @@
 /* Hierarchical log messages for the analyzer.
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -144,10 +144,7 @@ logger::log_partial (const char *fmt, ...)
 void
 logger::log_va_partial (const char *fmt, va_list *ap)
 {
-  text_info text;
-  text.format_spec = fmt;
-  text.args_ptr = ap;
-  text.err_no = 0;
+  text_info text (fmt, ap, 0);
   pp_format (m_pp, &text);
   pp_output_formatted_text (m_pp);
 }

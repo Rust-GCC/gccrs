@@ -6,7 +6,7 @@ in
 #
 # Makefile for directory with subdirs to build.
 #   Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-#   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011
+#   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2023
 #   Free Software Foundation
 #
 # This file is free software; you can redistribute it and/or modify
@@ -146,7 +146,8 @@ BASE_EXPORTS = \
 	M4="$(M4)"; export M4; \
 	SED="$(SED)"; export SED; \
 	AWK="$(AWK)"; export AWK; \
-	MAKEINFO="$(MAKEINFO)"; export MAKEINFO;
+	MAKEINFO="$(MAKEINFO)"; export MAKEINFO; \
+	GUILE="$(GUILE)"; export GUILE;
 
 # This is the list of variables to export in the environment when
 # configuring subdirectories for the build system.
@@ -224,6 +225,7 @@ HOST_EXPORTS = \
 	OBJCOPY="$(OBJCOPY)"; export OBJCOPY; \
 	OBJDUMP="$(OBJDUMP)"; export OBJDUMP; \
 	OTOOL="$(OTOOL)"; export OTOOL; \
+	PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)"; export PKG_CONFIG_PATH; \
 	READELF="$(READELF)"; export READELF; \
 	AR_FOR_TARGET="$(AR_FOR_TARGET)"; export AR_FOR_TARGET; \
 	AS_FOR_TARGET="$(AS_FOR_TARGET)"; export AS_FOR_TARGET; \
@@ -323,6 +325,7 @@ BASE_TARGET_EXPORTS = \
 	RANLIB="$(RANLIB_FOR_TARGET)"; export RANLIB; \
 	READELF="$(READELF_FOR_TARGET)"; export READELF; \
 	STRIP="$(STRIP_FOR_TARGET)"; export STRIP; \
+	SYSROOT_CFLAGS_FOR_TARGET="$(SYSROOT_CFLAGS_FOR_TARGET)"; export SYSROOT_CFLAGS_FOR_TARGET; \
 	WINDRES="$(WINDRES_FOR_TARGET)"; export WINDRES; \
 	WINDMC="$(WINDMC_FOR_TARGET)"; export WINDMC; \
 @if gcc-bootstrap
@@ -407,7 +410,7 @@ MAKEINFO = @MAKEINFO@
 EXPECT = @EXPECT@
 RUNTEST = @RUNTEST@
 
-AUTO_PROFILE = gcc-auto-profile -c 10000000
+AUTO_PROFILE = gcc-auto-profile --all -c 10000000
 
 # This just becomes part of the MAKEINFO definition passed down to
 # sub-makes.  It lets flags be given on the command line while still
@@ -420,7 +423,7 @@ MAKEINFOFLAGS = --split-size=5000000
 # ---------------------------------------------
 
 AS = @AS@
-AR = @AR@
+AR = @AR@ @AR_PLUGIN_OPTION@
 AR_FLAGS = rc
 CC = @CC@
 CXX = @CXX@
@@ -431,7 +434,7 @@ LIPO = @LIPO@
 NM = @NM@
 OBJDUMP = @OBJDUMP@
 OTOOL = @OTOOL@
-RANLIB = @RANLIB@
+RANLIB = @RANLIB@ @RANLIB_PLUGIN_OPTION@
 READELF = @READELF@
 STRIP = @STRIP@
 WINDRES = @WINDRES@
@@ -447,8 +450,12 @@ LIBCFLAGS = $(CFLAGS)
 CXXFLAGS = @CXXFLAGS@
 LIBCXXFLAGS = $(CXXFLAGS) -fno-implicit-templates
 GOCFLAGS = $(CFLAGS)
-GDCFLAGS = $(CFLAGS)
+GDCFLAGS = @GDCFLAGS@
 GM2FLAGS = $(CFLAGS)
+
+PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
+
+GUILE = guile
 
 # Pass additional PGO and LTO compiler options to the PGO build.
 BUILD_CFLAGS = $(PGO_BUILD_CFLAGS) $(PGO_BUILD_LTO_CFLAGS)
@@ -494,6 +501,7 @@ PGO-TRAINING-TARGETS = binutils gas gdb ld sim
 PGO_BUILD_TRAINING = $(addprefix maybe-check-,$(PGO-TRAINING-TARGETS))
 
 CREATE_GCOV = create_gcov
+PROFILE_MERGER = profile_merger
 
 TFLAGS =
 
@@ -556,12 +564,19 @@ STAGEtrain_TFLAGS = $(filter-out -fchecking=1,$(STAGE3_TFLAGS))
 
 STAGEfeedback_CFLAGS = $(STAGE4_CFLAGS) -fprofile-use -fprofile-reproducible=parallel-runs
 STAGEfeedback_TFLAGS = $(STAGE4_TFLAGS)
+# Disable warnings as errors for a few reasons:
+# - sources for gen* binaries do not have .gcda files available
+# - inlining decisions generate extra warnings
+STAGEfeedback_CONFIGURE_FLAGS = $(filter-out --enable-werror-always,$(STAGE_CONFIGURE_FLAGS))
 
-STAGEautoprofile_CFLAGS = $(STAGE2_CFLAGS) -g
+STAGEautoprofile_CFLAGS = $(filter-out -gtoggle,$(STAGE2_CFLAGS)) -g
 STAGEautoprofile_TFLAGS = $(STAGE2_TFLAGS)
 
 STAGEautofeedback_CFLAGS = $(STAGE3_CFLAGS)
 STAGEautofeedback_TFLAGS = $(STAGE3_TFLAGS)
+# Disable warnings as errors since inlining decisions with -fauto-profile
+# may result in additional warnings.
+STAGEautofeedback_CONFIGURE_FLAGS = $(filter-out --enable-werror-always,$(STAGE_CONFIGURE_FLAGS))
 
 do-compare = @do_compare@
 do-compare3 = $(do-compare)
@@ -728,7 +743,8 @@ EXTRA_HOST_FLAGS = \
 	'STRIP=$(STRIP)' \
 	'WINDRES=$(WINDRES)' \
 	'WINDMC=$(WINDMC)' \
-	'CREATE_GCOV=$(CREATE_GCOV)'
+	'CREATE_GCOV=$(CREATE_GCOV)' \
+	'PROFILE_MERGER=$(PROFILE_MERGER)'
 
 FLAGS_TO_PASS = $(BASE_FLAGS_TO_PASS) $(EXTRA_HOST_FLAGS)
 
@@ -1626,9 +1642,17 @@ cross: all-build all-gas all-ld
 @endif gcc-no-bootstrap
 
 @if gcc
+
+.PHONY: gcc-site.exp
+gcc-site.exp:
+	r=`${PWD_COMMAND}`; export r; \
+	s=`cd $(srcdir); ${PWD_COMMAND}`; export s; \
+	$(HOST_EXPORTS) \
+	(cd gcc && $(MAKE) $(GCC_FLAGS_TO_PASS) site.exp);
+
 [+ FOR languages +]
 .PHONY: check-gcc-[+language+] check-[+language+]
-check-gcc-[+language+]:
+check-gcc-[+language+]: gcc-site.exp
 	r=`${PWD_COMMAND}`; export r; \
 	s=`cd $(srcdir); ${PWD_COMMAND}`; export s; \
 	$(HOST_EXPORTS) \
@@ -2101,6 +2125,7 @@ AUTOCONF = autoconf
 $(srcdir)/configure: @MAINT@ $(srcdir)/configure.ac $(srcdir)/config/acx.m4 \
 	$(srcdir)/config/override.m4 $(srcdir)/config/proginstall.m4 \
 	$(srcdir)/config/elf.m4 $(srcdir)/config/isl.m4 \
+	$(srcdir)/config/gcc-plugin.m4 \
 	$(srcdir)/libtool.m4 $(srcdir)/ltoptions.m4 $(srcdir)/ltsugar.m4 \
 	$(srcdir)/ltversion.m4 $(srcdir)/lt~obsolete.m4
 	cd $(srcdir) && $(AUTOCONF)

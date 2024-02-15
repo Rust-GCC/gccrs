@@ -1,5 +1,5 @@
 /* Dwarf2 assembler output helper routines.
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -52,7 +52,7 @@ dw2_assemble_integer (int size, rtx x)
 	 relocations usually result in assembler errors.  Assume
 	 all such values are positive and emit the relocation only
 	 in the least significant half.  */
-      const char *op = integer_asm_op (DWARF2_ADDR_SIZE, FALSE);
+      const char *op = integer_asm_op (DWARF2_ADDR_SIZE, false);
       if (BYTES_BIG_ENDIAN)
 	{
 	  if (op)
@@ -92,7 +92,7 @@ dw2_assemble_integer (int size, rtx x)
       return;
     }
 
-  const char *op = integer_asm_op (size, FALSE);
+  const char *op = integer_asm_op (size, false);
 
   if (op)
     {
@@ -142,7 +142,7 @@ dw2_asm_output_data (int size, unsigned HOST_WIDE_INT value,
 		     const char *comment, ...)
 {
   va_list ap;
-  const char *op = integer_asm_op (size, FALSE);
+  const char *op = integer_asm_op (size, false);
 
   va_start (ap, comment);
 

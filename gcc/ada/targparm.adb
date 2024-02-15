@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1999-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -658,6 +658,14 @@ package body Targparm is
          elsif Looking_At_Skip ("pragma Task_Dispatching_Policy (") then
             Opt.Task_Dispatching_Policy := System_Text (P);
             Opt.Task_Dispatching_Policy_Sloc := System_Location;
+            goto Line_Loop_Continue;
+
+         --  Allow "pragma Style_Checks (On);" and "pragma Style_Checks (Off);"
+         --  to make it possible to have long "pragma Restrictions" line.
+
+         elsif Looking_At_Skip ("pragma Style_Checks (On);") or else
+           Looking_At_Skip ("pragma Style_Checks (Off);")
+         then
             goto Line_Loop_Continue;
 
          --  No other configuration pragmas are permitted

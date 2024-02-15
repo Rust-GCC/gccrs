@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2013-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2013-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -943,7 +943,7 @@ begin
             Long_Long_Size             := Get_Long_Long_Size;
             Long_Size                  := Get_Long_Size;
             Maximum_Alignment          := Get_Maximum_Alignment;
-            Max_Unaligned_Field        := Get_Max_Unaligned_Field;
+            Max_Unaligned_Field        := 1;
             Pointer_Size               := Get_Pointer_Size;
             Short_Enums                := Get_Short_Enums;
             Short_Size                 := Get_Short_Size;

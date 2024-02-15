@@ -1,6 +1,6 @@
 /* Gimple IR support functions.
 
-   Copyright (C) 2007-2023 Free Software Foundation, Inc.
+   Copyright (C) 2007-2024 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -399,6 +399,10 @@ gimple_build_call_from_tree (tree t, tree fnptrtype)
     gimple_call_set_from_thunk (call, CALL_FROM_THUNK_P (t));
   gimple_call_set_va_arg_pack (call, CALL_EXPR_VA_ARG_PACK (t));
   gimple_call_set_nothrow (call, TREE_NOTHROW (t));
+  if (fndecl)
+    gimple_call_set_expected_throw (call,
+				    flags_from_decl_or_type (fndecl)
+				    & ECF_XTHROW);
   gimple_call_set_by_descriptor (call, CALL_EXPR_BY_DESCRIPTOR (t));
   copy_warning (call, t);
 
@@ -415,7 +419,7 @@ gimple_build_call_from_tree (tree t, tree fnptrtype)
 	  tree fntype = TREE_TYPE (fnptrtype);
 
 	  if (lookup_attribute ("nocf_check", TYPE_ATTRIBUTES (fntype)))
-	    gimple_call_set_nocf_check (call, TRUE);
+	    gimple_call_set_nocf_check (call, true);
 	}
     }
 
@@ -1038,6 +1042,21 @@ gimple_build_omp_section (gimple_seq body)
 }
 
 
+/* Build a GIMPLE_OMP_STRUCTURED_BLOCK statement.
+
+   BODY is the structured block sequence.  */
+
+gimple *
+gimple_build_omp_structured_block (gimple_seq body)
+{
+  gimple *p = gimple_alloc (GIMPLE_OMP_STRUCTURED_BLOCK, 0);
+  if (body)
+    gimple_omp_set_body (p, body);
+
+  return p;
+}
+
+
 /* Build a GIMPLE_OMP_MASTER statement.
 
    BODY is the sequence of statements to be executed by just the master.  */
@@ -1535,6 +1554,8 @@ gimple_call_flags (const gimple *stmt)
 
   if (stmt->subcode & GF_CALL_NOTHROW)
     flags |= ECF_NOTHROW;
+  if (stmt->subcode & GF_CALL_XTHROW)
+    flags |= ECF_XTHROW;
 
   if (stmt->subcode & GF_CALL_BY_DESCRIPTOR)
     flags |= ECF_BY_DESCRIPTOR;
@@ -1787,6 +1808,26 @@ gimple_assign_unary_nop_p (gimple *gs)
           && (TYPE_MODE (TREE_TYPE (gimple_assign_lhs (gs)))
               == TYPE_MODE (TREE_TYPE (gimple_assign_rhs1 (gs)))));
 }
+
+/* Return true if GS is an assignment that loads from its rhs1.  */
+
+bool
+gimple_assign_load_p (const gimple *gs)
+{
+  tree rhs;
+  if (!gimple_assign_single_p (gs))
+    return false;
+  rhs = gimple_assign_rhs1 (gs);
+  if (TREE_CODE (rhs) == WITH_SIZE_EXPR)
+    return true;
+  if (handled_component_p (rhs))
+    rhs = TREE_OPERAND (rhs, 0);
+  return (handled_component_p (rhs)
+	  || DECL_P (rhs)
+	  || TREE_CODE (rhs) == MEM_REF
+	  || TREE_CODE (rhs) == TARGET_MEM_REF);
+}
+
 
 /* Set BB to be the basic block holding G.  */
 
@@ -2128,6 +2169,7 @@ gimple_copy (gimple *stmt)
 
 	case GIMPLE_OMP_SECTION:
 	case GIMPLE_OMP_MASTER:
+	case GIMPLE_OMP_STRUCTURED_BLOCK:
 	copy_omp_body:
 	  new_seq = gimple_seq_copy (gimple_omp_body (stmt));
 	  gimple_omp_set_body (copy, new_seq);
@@ -2946,6 +2988,8 @@ nonfreeing_call_p (gimple *call)
 	case BUILT_IN_TM_FREE:
 	case BUILT_IN_REALLOC:
 	case BUILT_IN_STACK_RESTORE:
+	case BUILT_IN_GOMP_FREE:
+	case BUILT_IN_GOMP_REALLOC:
 	  return false;
 	default:
 	  return true;
@@ -3167,7 +3211,7 @@ preprocess_case_label_vec_for_gimple (vec<tree> &labels,
       tree elt = labels[i];
       tree low = CASE_LOW (elt);
       tree high = CASE_HIGH (elt);
-      bool remove_element = FALSE;
+      bool remove_element = false;
 
       if (low)
 	{
@@ -3191,7 +3235,7 @@ preprocess_case_label_vec_for_gimple (vec<tree> &labels,
 		 into a simple (one-value) case.  */
 	      int cmp = tree_int_cst_compare (high, low);
 	      if (cmp < 0)
-		remove_element = TRUE;
+		remove_element = true;
 	      else if (cmp == 0)
 		high = NULL_TREE;
 	    }
@@ -3203,7 +3247,7 @@ preprocess_case_label_vec_for_gimple (vec<tree> &labels,
 		   && tree_int_cst_compare (low, min_value) < 0)
 		  || (TREE_CODE (max_value) == INTEGER_CST
 		      && tree_int_cst_compare (low, max_value) > 0))
-		remove_element = TRUE;
+		remove_element = true;
 	      else
 		low = fold_convert (index_type, low);
 	    }
@@ -3214,7 +3258,7 @@ preprocess_case_label_vec_for_gimple (vec<tree> &labels,
 		   && tree_int_cst_compare (high, min_value) < 0)
 		  || (TREE_CODE (max_value) == INTEGER_CST
 		      && tree_int_cst_compare (low, max_value) > 0))
-		remove_element = TRUE;
+		remove_element = true;
 	      else
 		{
 		  /* If the lower bound is less than the index type's
@@ -3249,7 +3293,7 @@ preprocess_case_label_vec_for_gimple (vec<tree> &labels,
 	     is NULL, we do not remove the default case (it would
 	     be completely lost).  */
 	  if (default_casep)
-	    remove_element = TRUE;
+	    remove_element = true;
 	}
 
       if (remove_element)

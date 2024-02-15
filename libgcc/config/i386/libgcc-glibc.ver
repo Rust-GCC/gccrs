@@ -1,4 +1,4 @@
-# Copyright (C) 2008-2023 Free Software Foundation, Inc.
+# Copyright (C) 2008-2024 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -226,3 +226,17 @@ GCC_13.0.0 {
   __truncxfbf2
   __trunchfbf2
 }
+
+%inherit GCC_14.0.0 GCC_13.0.0
+GCC_14.0.0 {
+  __fixxfbitint
+  __fixtfbitint
+  __floatbitintbf
+  __floatbitinthf
+  __floatbitintxf
+  __floatbitinttf
+}
+
+# Please notify the maintainers of libgcc-{bsd,darwin,sol2}.ver of any
+# additions.  Those version scripts usually need to be kept in sync with
+# libgcc-glibc.ver.

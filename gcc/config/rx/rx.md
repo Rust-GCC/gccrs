@@ -1,5 +1,5 @@
 ;;  Machine Description for Renesas RX processors
-;;  Copyright (C) 2008-2023 Free Software Foundation, Inc.
+;;  Copyright (C) 2008-2024 Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -1722,7 +1722,7 @@
 	  (minus:SI
 	    (match_operand:SI      4 "register_operand"   "  1, 1")
 	    (match_operand:SI      5 "rx_compare_operand" " rQ,rQ"))
-	  (geu:SI (match_dup 2) (match_dup 3))))
+	  (gtu:SI (match_dup 3) (match_dup 2))))
    (clobber (reg:CC CC_REG))]
   ""
   "#"

@@ -1,3 +1,333 @@
+2024-02-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* test_installed: Fill in HOSTCC, HOSTCXX, HOSTCFLAGS and
+	HOSTCXXFLAGS.
+
+2024-02-04  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/gen_libstdcxx_unicode_data.py: Add copyright and
+	license text to the output.
+
+2024-01-11  Paul Iannetta  <piannetta@kalrayinc.com>
+
+	* dg-extract-results.py: Make the test_run regex case
+	insensitive.
+
+2024-01-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/gen_libstdcxx_unicode_data.py: Print out Gcb_property
+	enumerators in the order they're seen, not alphabetical order.
+
+2024-01-08  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/README: Add notes about generating libstdc++ tables.
+	* unicode/GraphemeBreakProperty.txt: New file.
+	* unicode/emoji-data.txt: New file.
+	* unicode/gen_libstdcxx_unicode_data.py: New file.
+
+2024-01-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	* analyze_brprob.py: Remove stray text at end of comment.
+	* analyze_brprob_spec.py: Likewise.
+	* check-params-in-docs.py: Likewise.
+	* check_GNU_style.py: Likewise.
+	* check_GNU_style_lib.py: Likewise.
+	* filter-clang-warnings.py: Likewise.
+	* gcc-changelog/git_check_commit.py: Likewise.
+	* gcc-changelog/git_commit.py: Likewise.
+	* gcc-changelog/git_email.py: Likewise.
+	* gcc-changelog/git_repository.py: Likewise.
+	* gcc-changelog/git_update_version.py: Likewise.
+	* gcc-changelog/test_email.py: Likewise.
+	* gen_autofdo_event.py: Likewise.
+	* mark_spam.py: Likewise.
+	* unicode/gen-box-drawing-chars.py: Likewise.
+	* unicode/gen-combining-chars.py: Likewise.
+	* unicode/gen-printable-chars.py: Likewise.
+	* unicode/gen_wcwidth.py: Likewise.
+
+2024-01-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/gen_wcwidth.py: Add sys.argv[0] to usage error.
+
+2024-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* update-copyright.py (GenericFilter): Skip gpl_v3_without_node.texi.
+	(GCCFilter): Skip GmcOptions.cc.
+
+2023-12-21  Alexandre Oliva  <oliva@adacore.com>
+
+	* compare_tests: Add tool to test lines.  Match tabs besides
+	blanks to insert tool and target.  Don't print undefined fname.
+
+2023-12-20  Jason Merrill  <jason@redhat.com>
+
+	* gcc-git-customization.sh: Add git gcc-style alias.
+
+2023-12-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+	    Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* gcc_update: Add libgrust file dependencies.
+
+2023-12-14  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+	    Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* gcc-changelog/git_commit.py: Add libgrust.
+
+2023-12-13  Arsen Arsenović  <arsen@aarsen.me>
+
+	* download_prerequisites
+	<arg parse>: Parse --only-gettext.
+	(echo_archives): Check only_gettext and stop early if true.
+	(helptext): Document --only-gettext.
+
+2023-12-02  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* config-list.mk (OPT_IN_LANGUAGES): New variable.
+	($(LIST)): Replace --enable-languages=all with a specifc list.
+	Disable fortran on bpf and mmix.  Enable the languages in
+	OPT_IN_LANGUAGES.
+
+2023-11-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* unicode/README: Adjust glibc git commit hash, number of Unicode
+	data files to be updated and latest Unicode version.
+	* unicode/from_glibc/utf8_gen.py: Update from glibc.
+	* unicode/UnicodeData.txt: Update from Unicode 15.1.
+	* unicode/EastAsianWidth.txt: Likewise.
+	* unicode/DerivedNormalizationProps.txt: Likewise.
+	* unicode/NameAliases.txt: Likewise.
+	* unicode/DerivedCoreProperties.txt: Likewise.
+	* unicode/PropList.txt: Likewise.
+
+2023-11-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	040e5b0edbca861196d9e2ea2af5e805769c8d5d to ignored commits.
+
+2023-11-13  Arsen Arsenović  <arsen@aarsen.me>
+
+	* prerequisites.sha512: Add gettext.
+	* prerequisites.md5: Add gettext.
+	* download_prerequisites: Add gettext.
+
+2023-10-05  Andrea Corallo  <andrea.corallo@arm.com>
+
+	* mdcompact/mdcompact-testsuite.el: New file.
+	* mdcompact/mdcompact.el: Likewise.
+	* mdcompact/tests/1.md: Likewise.
+	* mdcompact/tests/1.md.out: Likewise.
+	* mdcompact/tests/2.md: Likewise.
+	* mdcompact/tests/2.md.out: Likewise.
+	* mdcompact/tests/3.md: Likewise.
+	* mdcompact/tests/3.md.out: Likewise.
+	* mdcompact/tests/4.md: Likewise.
+	* mdcompact/tests/4.md.out: Likewise.
+	* mdcompact/tests/5.md: Likewise.
+	* mdcompact/tests/5.md.out: Likewise.
+	* mdcompact/tests/6.md: Likewise.
+	* mdcompact/tests/6.md.out: Likewise.
+	* mdcompact/tests/7.md: Likewise.
+	* mdcompact/tests/7.md.out: Likewise.
+
+2023-10-03  Martin Jambor  <mjambor@suse.cz>
+
+	* mklog.py (skip_line_in_changelog): Compare to None using is instead
+	of ==, add an extra newline after the function.
+
+2023-10-02  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config-list.mk: Add newer Darwin versions, trim one older.
+	Remove cases with no OS version, which is not supported for cross-
+	compilers.
+
+2023-09-29  Patrick O'Neill  <patrick@rivosinc.com>
+
+	* check_GNU_style_lib.py: Skip machine description file bracket linting.
+
+2023-09-29  Paul Iannetta  <piannetta@kalrayinc.com>
+
+	* dg-extract-results.py: Print the "Test run" line.
+	* dg-extract-results.sh: Print the "Host" line.
+
+2023-09-12  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR other/111360
+	* gcc_update: Quote variable.
+
+2023-09-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR other/111359
+	* gcc-git-customization.sh: Check for getent before using it.
+	Use id on macOS.
+
+2023-09-07  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gcc-changelog/git_commit.py (GitCommit.__init__,
+	to_changelog_entries): Fix lost wording fix.
+
+2023-09-07  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gcc-changelog/git_commit.py (GitCommit.__init__):
+	Handle commit_to_info_hook = None; otherwise, if None,
+	regard it as error.
+	(to_changelog_entries): Handle commit_to_info_hook = None;
+	if info is None, create a warning for it.
+	* gcc-changelog/git_email.py (GitEmail.__init__):
+	call super() with commit_to_info_hook=None instead
+	of a lambda function.
+
+2023-09-07  Tobias Burnus  <tobias@codesourcery.com>
+
+	Revert:
+	2023-09-07  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gcc-changelog/git_commit.py (GitCommit.__init__):
+	Handle commit_to_info_hook = None; otherwise, if None,
+	regard it as error.
+	(to_changelog_entries): Handle commit_to_info_hook = None;
+	if info is None, create a warning for it.
+	* gcc-changelog/git_email.py (GitEmail.__init__):
+	call super() with commit_to_info_hook=None instead
+	of a lamda function.
+
+2023-09-07  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gcc-changelog/git_commit.py (GitCommit.__init__):
+	Handle commit_to_info_hook = None; otherwise, if None,
+	regard it as error.
+	(to_changelog_entries): Handle commit_to_info_hook = None;
+	if info is None, create a warning for it.
+	* gcc-changelog/git_email.py (GitEmail.__init__):
+	call super() with commit_to_info_hook=None instead
+	of a lamda function.
+
+2023-09-04  Marc Poulhiès  <dkm@kataplop.net>
+
+	* mklog.py: Leave SOB lines after changelog.
+	* prepare-commit-msg: Apply most shellcheck suggestions.
+
+2023-08-29  Lehua Ding  <lehua.ding@rivai.ai>
+
+	* mklog.py: Fix bugs.
+
+2023-08-16  Andrew Pinski  <apinski@marvell.com>
+
+	* gcc_update: Add libstdc++-v3/include/bits/version.h.
+
+2023-07-13  Lehua Ding  <lehua.ding@rivai.ai>
+
+	* mklog.py: Add --append option.
+
+2023-07-07  Richard Biener  <rguenther@suse.de>
+
+	* gcc-changelog/git_update_version.py: Remove GCC 10 from
+	active_refs.
+
+2023-06-22  David Malcolm  <dmalcolm@redhat.com>
+
+	* unicode/gen-box-drawing-chars.py: New file.
+	* unicode/gen-combining-chars.py: New file.
+	* unicode/gen-printable-chars.py: New file.
+
+2023-06-17  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	* testsuite-management/validate_failures.py (IsInterestingResult):
+	Add result_set argument and use it.  Adjust callers.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (TestResult,)
+	(ParseManifestWorker, ParseSummary, Main): Handle new option
+	"--srcpath <regex>".
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (TestResult): Update.
+	(Main): Handle new option "--expiry_date YYYYMMDD".
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (ResultSet.update,)
+	(ResultSet.HasTestsuite): New methods.
+	(GetResults): Update.
+	(ParseSummary, CompareResults, PerformComparison, Main): Handle new
+	option --invert_match.
+
+2023-06-14  Thiago Bauermann  <thiago.bauermann@linaro.org>
+
+	* testsuite-management/validate_failures.py (TestResult): Improve error
+	output.
+
+2023-06-14  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* testsuite-management/validate_failures.py (_EXP_LINE_FORMAT,)
+	(_EXP_LINE_REX, ResultSet): Support "$tool:" prefix in exp names.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (Main): Use exit code "2"
+	to indicate regression.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (_VALID_TEST_RESULTS_REX):
+	Update.
+	(TestResult): Use _VALID_TEST_RESULTS_REX.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py: Add more verbosity levels.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py: Simplify GetManifestPath().
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (GetResults): Update.
+	(CompareBuilds): Read in manifest.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py (ParseManifestWorker):
+	Support expiry attributes in manifests.
+	(ParseSummary): Add a comment.
+
+2023-06-14  Maxim Kuvyrkov  <maxim.kuvyrkov@linaro.org>
+
+	* testsuite-management/validate_failures.py: Avoid testsuite
+	aliasing.
+
+2023-06-13  Andi Kleen  <ak@linux.intel.com>
+
+	* gen_autofdo_event.py: Update for download server changes
+
+2023-06-03  Lehua Ding  <lehua.ding@rivai.ai>
+
+	* clang-format (ForEachMacros): Add missing cases
+	for EXECUTE_IF_... macros.
+
+2023-05-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR bootstrap/105831
+	* bench-stringop: Use = operator instead of ==.
+	* repro_fail: Likewise.
+
+2023-04-28  Martin Liska  <mliska@suse.cz>
+
+	* filter_gcc_for_doxygen: Use python3 and not python2.
+	* filter_params.py: Likewise.
+
+2023-04-26  Jakub Jelinek  <jakub@redhat.com>
+
+	* gennews (files): Add files for GCC 13.
+
+2023-04-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py (active_refs): Add
+	releases/gcc-13.
+
 2023-03-16  Jakub Jelinek  <jakub@redhat.com>
 
 	* unicode/README: Update to mention also makeuname2c.

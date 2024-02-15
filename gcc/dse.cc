@@ -1,5 +1,5 @@
 /* RTL dead store elimination.
-   Copyright (C) 2005-2023 Free Software Foundation, Inc.
+   Copyright (C) 2005-2024 Free Software Foundation, Inc.
 
    Contributed by Richard Sandiford <rsandifor@codesourcery.com>
    and Kenneth Zadeck <zadeck@naturalbridge.com>
@@ -250,6 +250,9 @@ public:
   /* The number of bytes covered by the operation.  This is always exact
      and known (rather than -1).  */
   poly_int64 width;
+
+  /* The address space that the memory reference uses.  */
+  unsigned char addrspace;
 
   union
     {
@@ -679,7 +682,8 @@ get_group_info (rtx base)
       gi->group_kill = BITMAP_ALLOC (&dse_bitmap_obstack);
       gi->process_globally = false;
       gi->frame_related =
-	(base == frame_pointer_rtx) || (base == hard_frame_pointer_rtx);
+	(base == frame_pointer_rtx) || (base == hard_frame_pointer_rtx)
+	|| (base == arg_pointer_rtx && fixed_regs[ARG_POINTER_REGNUM]);
       gi->offset_map_size_n = 0;
       gi->offset_map_size_p = 0;
       gi->offset_map_n = NULL;
@@ -1524,6 +1528,7 @@ record_store (rtx body, bb_info_t bb_info)
   ptr = active_local_stores;
   last = NULL;
   redundant_reason = NULL;
+  unsigned char addrspace = MEM_ADDR_SPACE (mem);
   mem = canon_rtx (mem);
 
   if (group_id < 0)
@@ -1548,7 +1553,9 @@ record_store (rtx body, bb_info_t bb_info)
       while (!s_info->is_set)
 	s_info = s_info->next;
 
-      if (s_info->group_id == group_id && s_info->cse_base == base)
+      if (s_info->group_id == group_id
+	  && s_info->cse_base == base
+	  && s_info->addrspace == addrspace)
 	{
 	  HOST_WIDE_INT i;
 	  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -1688,6 +1695,7 @@ record_store (rtx body, bb_info_t bb_info)
   store_info->rhs = rhs;
   store_info->const_rhs = const_rhs;
   store_info->redundant_reason = redundant_reason;
+  store_info->addrspace = addrspace;
 
   /* If this is a clobber, we return 0.  We will only be able to
      delete this insn if there is only one store USED store, but we
@@ -1726,7 +1734,8 @@ find_shift_sequence (poly_int64 access_size,
   /* If a constant was stored into memory, try to simplify it here,
      otherwise the cost of the shift might preclude this optimization
      e.g. at -Os, even when no actual shift will be needed.  */
-  if (store_info->const_rhs)
+  if (store_info->const_rhs
+      && known_le (access_size, GET_MODE_SIZE (MAX_MODE_INT)))
     {
       auto new_mode = smallest_int_mode_for_size (access_size * BITS_PER_UNIT);
       auto byte = subreg_lowpart_offset (new_mode, store_mode);
@@ -1892,8 +1901,11 @@ get_stored_val (store_info *store_info, machine_mode read_mode,
   else
     gap = read_offset - store_info->offset;
 
-  if (gap.is_constant () && maybe_ne (gap, 0))
+  if (maybe_ne (gap, 0))
     {
+      if (!gap.is_constant ())
+	return NULL_RTX;
+
       poly_int64 shift = gap * BITS_PER_UNIT;
       poly_int64 access_size = GET_MODE_SIZE (read_mode) + gap;
       read_reg = find_shift_sequence (access_size, store_info, read_mode,
@@ -1932,6 +1944,10 @@ get_stored_val (store_info *store_info, machine_mode read_mode,
 	       || GET_MODE_CLASS (read_mode) != GET_MODE_CLASS (store_mode)))
     read_reg = extract_low_bits (read_mode, store_mode,
 				 copy_rtx (store_info->const_rhs));
+  else if (VECTOR_MODE_P (read_mode) && VECTOR_MODE_P (store_mode)
+    && known_le (GET_MODE_BITSIZE (read_mode), GET_MODE_BITSIZE (store_mode))
+    && targetm.modes_tieable_p (read_mode, store_mode))
+    read_reg = gen_lowpart (read_mode, copy_rtx (store_info->rhs));
   else
     read_reg = extract_low_bits (read_mode, store_mode,
 				 copy_rtx (store_info->rhs));
@@ -2012,7 +2028,19 @@ replace_read (store_info *store_info, insn_info_t store_insn,
     }
   /* Force the value into a new register so that it won't be clobbered
      between the store and the load.  */
-  read_reg = copy_to_mode_reg (read_mode, read_reg);
+  if (WORD_REGISTER_OPERATIONS
+      && GET_CODE (read_reg) == SUBREG
+      && REG_P (SUBREG_REG (read_reg))
+      && GET_MODE (SUBREG_REG (read_reg)) == word_mode)
+    {
+      /* For WORD_REGISTER_OPERATIONS with subreg of word_mode register
+	 force SUBREG_REG into a new register rather than the SUBREG.  */
+      rtx r = copy_to_mode_reg (word_mode, SUBREG_REG (read_reg));
+      read_reg = shallow_copy_rtx (read_reg);
+      SUBREG_REG (read_reg) = r;
+    }
+  else
+    read_reg = copy_to_mode_reg (read_mode, read_reg);
   insns = get_insns ();
   end_sequence ();
 
@@ -2137,7 +2165,7 @@ replace_read (store_info *store_info, insn_info_t store_insn,
    be active.  */
 
 static void
-check_mem_read_rtx (rtx *loc, bb_info_t bb_info)
+check_mem_read_rtx (rtx *loc, bb_info_t bb_info, bool used_in_call = false)
 {
   rtx mem = *loc, mem_addr;
   insn_info_t insn_info;
@@ -2282,7 +2310,8 @@ check_mem_read_rtx (rtx *loc, bb_info_t bb_info)
 		 stored, rewrite the read.  */
 	      else
 		{
-		  if (store_info->rhs
+		  if (!used_in_call
+		      && store_info->rhs
 		      && known_subrange_p (offset, width, store_info->offset,
 					   store_info->width)
 		      && all_positions_needed_p (store_info,
@@ -2348,7 +2377,8 @@ check_mem_read_rtx (rtx *loc, bb_info_t bb_info)
 
 	  /* If this read is just reading back something that we just
 	     stored, rewrite the read.  */
-	  if (store_info->rhs
+	  if (!used_in_call
+	      && store_info->rhs
 	      && store_info->group_id == -1
 	      && store_info->cse_base == base
 	      && known_subrange_p (offset, width, store_info->offset,
@@ -2629,6 +2659,12 @@ scan_insn (bb_info_t bb_info, rtx_insn *insn, int max_active_local_stores)
 	/* Every other call, including pure functions, may read any memory
            that is not relative to the frame.  */
         add_non_frame_wild_read (bb_info);
+
+      for (rtx link = CALL_INSN_FUNCTION_USAGE (insn);
+	   link != NULL_RTX;
+	   link = XEXP (link, 1))
+	if (GET_CODE (XEXP (link, 0)) == USE && MEM_P (XEXP (XEXP (link, 0),0)))
+	  check_mem_read_rtx (&XEXP (XEXP (link, 0),0), bb_info, true);
 
       return;
     }

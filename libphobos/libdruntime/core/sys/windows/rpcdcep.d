@@ -15,7 +15,7 @@ import core.sys.windows.basetyps;
 import core.sys.windows.w32api;
 import core.sys.windows.windef;
 
-mixin DECLARE_HANDLE!("I_RPC_HANDLE");
+alias I_RPC_HANDLE = HANDLE;
 alias long RPC_STATUS;
 
 enum RPC_NCA_FLAGS_DEFAULT=0;
@@ -97,7 +97,7 @@ const(void)*          InterpreterInfo;
 }
 alias RPC_CLIENT_INTERFACE* PRPC_CLIENT_INTERFACE;
 
-alias TypeDef!(void*) I_RPC_MUTEX;
+alias void* I_RPC_MUTEX;
 
 struct RPC_TRANSFER_SYNTAX {
     GUID   Uuid;

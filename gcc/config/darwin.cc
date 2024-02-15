@@ -1,5 +1,5 @@
 /* Functions for generic Darwin as target machine for GNU C compiler.
-   Copyright (C) 1989-2023 Free Software Foundation, Inc.
+   Copyright (C) 1989-2024 Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
 This file is part of GCC.
@@ -113,6 +113,19 @@ static bool ld_needs_eh_markers = false;
 
 /* Emit a section-start symbol for mod init and term sections.  */
 static bool ld_init_term_start_labels = false;
+
+/* The source and version of dsymutil in use.  */
+#ifndef DSYMUTIL_VERSION
+# warning Darwin toolchain without a defined dsymutil.
+# define DSYMUTIL_VERSION DET_UNKNOWN,0,0,0
+#endif
+
+struct {
+  darwin_external_toolchain kind; /* cctools, llvm, clang etc.  */
+  int major; /* version number.  */
+  int minor;
+  int tiny;
+} dsymutil_version = {DSYMUTIL_VERSION};
 
 /* Section names.  */
 section * darwin_sections[NUM_DARWIN_SECTIONS];
@@ -256,6 +269,45 @@ name_needs_quotes (const char *name)
 	  && c != '.' && c != '$' && c != '_' )
       return 1;
   return 0;
+}
+
+DEBUG_FUNCTION void
+dump_machopic_symref_flags (FILE *dump, rtx sym_ref)
+{
+  unsigned long flags = SYMBOL_REF_FLAGS (sym_ref);
+
+  fprintf (dump, "flags: %08lx %c%c%c%c%c%c%c",
+	   flags,
+	   (MACHO_SYMBOL_STATIC_P (sym_ref) ? 's' : '-'),
+	   (MACHO_SYMBOL_INDIRECTION_P (sym_ref) ? 'I' : '-'),
+	   (MACHO_SYMBOL_LINKER_VIS_P (sym_ref) ? 'l' : '-'),
+	   (MACHO_SYMBOL_HIDDEN_VIS_P (sym_ref) ? 'h' : '-'),
+	   (MACHO_SYMBOL_DEFINED_P (sym_ref) ? 'd' : '-'),
+	   (MACHO_SYMBOL_MUST_INDIRECT_P (sym_ref) ? 'i' : '-'),
+	   (MACHO_SYMBOL_VARIABLE_P (sym_ref) ? 'v' : '-'));
+
+#if (DARWIN_X86)
+  fprintf (dump, "%c%c%c%c",
+	 (SYMBOL_REF_STUBVAR_P (sym_ref) ? 'S' : '-'),
+	 (SYMBOL_REF_DLLEXPORT_P (sym_ref) ? 'X' : '-'),
+	 (SYMBOL_REF_DLLIMPORT_P (sym_ref) ? 'I' : '-'),
+	 (SYMBOL_REF_FAR_ADDR_P (sym_ref) ? 'F' : '-'));
+#endif
+
+  fprintf (dump, "%c%c%c%03u%c%c%c\n",
+	   (SYMBOL_REF_ANCHOR_P (sym_ref) ? 'a' : '-'),
+	   (SYMBOL_REF_HAS_BLOCK_INFO_P (sym_ref) ? 'b' : '-'),
+	   (SYMBOL_REF_EXTERNAL_P (sym_ref) ? 'e' : '-'),
+	   (unsigned)SYMBOL_REF_TLS_MODEL (sym_ref),
+	   (SYMBOL_REF_SMALL_P (sym_ref) ? 'm' : '-'),
+	   (SYMBOL_REF_LOCAL_P (sym_ref) ? 'l' : '-'),
+	   (SYMBOL_REF_FUNCTION_P (sym_ref) ? 'f' : '-'));
+}
+
+DEBUG_FUNCTION void
+debug_machopic_symref_flags (rtx sym_ref)
+{
+  dump_machopic_symref_flags (stderr, sym_ref);
 }
 
 /* Return true if SYM_REF can be used without an indirection.  */
@@ -1415,7 +1467,7 @@ static tree
 is_objc_metadata (tree decl)
 {
   if (DECL_P (decl)
-      && (TREE_CODE (decl) == VAR_DECL || TREE_CODE (decl) == CONST_DECL)
+      && (VAR_P (decl) || TREE_CODE (decl) == CONST_DECL)
       && DECL_ATTRIBUTES (decl))
     {
       tree meta = lookup_attribute ("OBJC2META", DECL_ATTRIBUTES (decl));
@@ -1586,7 +1638,7 @@ darwin_objc1_section (tree decl ATTRIBUTE_UNUSED, tree meta, section * base)
   else if (startswith (p, "V1_CEXT"))
     return darwin_sections[objc1_class_ext_section];
 
-  else if (startswith (p, "V2_CSTR"))
+  else if (startswith (p, "V1_CSTR"))
     return darwin_sections[objc_constant_string_object_section];
 
   return base;
@@ -1679,7 +1731,16 @@ machopic_select_section (tree decl,
 	    base_section = darwin_sections[zobj_data_section];
 	}
       else if (ro)
-	base_section = darwin_sections[const_data_section];
+	{
+	  if (VAR_P (decl) && TREE_TYPE (decl)
+	      && TREE_CODE (TREE_TYPE (decl)) == RECORD_TYPE
+	      && DECL_NAME (decl)
+	      && strncmp (IDENTIFIER_POINTER (DECL_NAME (decl)),
+			  "__anon_cfstring", 15) == 0)
+	   base_section = darwin_sections[cfstring_constant_object_section];
+	  else
+	    base_section = darwin_sections[const_data_section];
+	}
       else
 	base_section = data_section;
       break;
@@ -1721,7 +1782,7 @@ machopic_select_section (tree decl,
 	return base_section; /* GNU runtime is happy with it all in one pot.  */
     }
 
-  /* b) Constant string objects.  */
+  /* b) Constructors for constant NSstring [but not CFString] objects.  */
   if (TREE_CODE (decl) == CONSTRUCTOR
       && TREE_TYPE (decl)
       && TREE_CODE (TREE_TYPE (decl)) == RECORD_TYPE
@@ -1744,7 +1805,11 @@ machopic_select_section (tree decl,
 	    return darwin_sections[objc_string_object_section];
 	}
       else if (!strcmp (IDENTIFIER_POINTER (name), "__builtin_CFString"))
-	return darwin_sections[cfstring_constant_object_section];
+	{
+	  /* We should have handled __anon_cfstrings above.  */
+	  gcc_checking_assert (0);
+	  return darwin_sections[cfstring_constant_object_section];
+	}
       else
 	return base_section;
     }
@@ -2232,6 +2297,7 @@ darwin_emit_except_table_label (FILE *file)
 {
   char section_start_label[30];
 
+  fputs ("\t.p2align\t2\n", file);
   ASM_GENERATE_INTERNAL_LABEL (section_start_label, "GCC_except_table",
 			       except_table_label_num++);
   ASM_OUTPUT_LABEL (file, section_start_label);
@@ -3020,7 +3086,35 @@ darwin_asm_output_dwarf_offset (FILE *file, int size, const char * lab,
 void
 darwin_file_start (void)
 {
-  /* Nothing to do.  */
+#ifdef HAVE_AS_MMACOSX_VERSION_MIN_OPTION
+  /* This should not happen with a well-formed command line, but the user could
+     invoke cc1* directly without it.  */
+  if (!darwin_macosx_version_min)
+    return;
+  /* This assumes that the version passed has been validated in the driver.  */
+  unsigned maj, min, tiny;
+  int count = sscanf (darwin_macosx_version_min, "%u.%u.%u", &maj, &min, &tiny);
+  if (count < 0)
+    return;
+  if (count < 3)
+    tiny = 0;
+  if (count < 2)
+    min = 0;
+  const char *directive;
+#ifdef HAVE_AS_MACOS_BUILD_VERSION
+  /* We only handle macos, so far.  */
+  if (generating_for_darwin_version >= 18)
+    directive = "build_version macos, ";
+  else
+#endif
+    directive = "macosx_version_min ";
+  if (count > 2 && tiny != 0)
+    fprintf (asm_out_file, "\t.%s %u, %u, %u\n", directive, maj, min, tiny);
+  else if (count > 1)
+    fprintf (asm_out_file, "\t.%s %u, %u\n", directive, maj, min);
+  else
+     fprintf (asm_out_file, "\t.%s %u, 0\n", directive, maj);
+#endif
 }
 
 /* Called for the TARGET_ASM_FILE_END hook.
@@ -3242,7 +3336,11 @@ darwin_override_options (void)
   /* Keep track of which (major) version we're generating code for.  */
   if (darwin_macosx_version_min)
     {
-      if (strverscmp (darwin_macosx_version_min, "10.7") >= 0)
+      if (strverscmp (darwin_macosx_version_min, "10.14") >= 0)
+	generating_for_darwin_version = 18;
+      else if (strverscmp (darwin_macosx_version_min, "10.8") >= 0)
+	generating_for_darwin_version = 12;
+      else if (strverscmp (darwin_macosx_version_min, "10.7") >= 0)
 	generating_for_darwin_version = 11;
       else if (strverscmp (darwin_macosx_version_min, "10.6") >= 0)
 	generating_for_darwin_version = 10;
@@ -3317,14 +3415,26 @@ darwin_override_options (void)
 		  global_options.x_flag_objc_abi);
     }
 
-  /* Don't emit DWARF3/4 unless specifically selected.  This is a
-     workaround for tool bugs.  */
+  /* Limit DWARF to the chosen version, the linker and debug linker might not
+     be able to consume newer structures.  */
   if (!OPTION_SET_P (dwarf_strict))
     dwarf_strict = 1;
-  if (!OPTION_SET_P (dwarf_version))
-    dwarf_version = 2;
 
-  if (OPTION_SET_P (dwarf_split_debug_info))
+  if (!OPTION_SET_P (dwarf_version))
+    {
+      /* External toolchains based on LLVM or clang 7+ have support for
+	 dwarf-4.  */
+      if ((dsymutil_version.kind == LLVM && dsymutil_version.major >= 7)
+	  || (dsymutil_version.kind == CLANG && dsymutil_version.major >= 7))
+	dwarf_version = 4;
+      else if (dsymutil_version.kind == DWARFUTILS
+	       && dsymutil_version.major >= 121)
+	dwarf_version = 3;  /* From XC 6.4.  */
+      else
+	dwarf_version = 2;  /* Older cannot safely exceed dwarf-2.  */
+    }
+
+  if (OPTION_SET_P (dwarf_split_debug_info) && dwarf_split_debug_info)
     {
       inform (input_location,
 	      "%<-gsplit-dwarf%> is not supported on this platform, ignored");
@@ -3400,8 +3510,17 @@ darwin_override_options (void)
       && dwarf_debuginfo_p ())
     flag_var_tracking_uninit = flag_var_tracking;
 
-  /* Final check on PCI options; for Darwin these are not dependent on the PIE
-     ones, although PIE does require PIC to support it.  */
+  if (OPTION_SET_P (flag_pie) && flag_pie)
+    {
+      /* This is a little complicated, to match Xcode tools.
+	 For Darwin, PIE requires PIC codegen, but otherwise is only a link-
+	 time change.  For almost all Darwin, we do not report __PIE__; the
+	 exception is Darwin12-17 and for 32b only.  */
+      flag_pie = generating_for_darwin_version >= 12 && !TARGET_64BIT ? 2 : 0;
+      flag_pic = 2; /* We always set this.  */
+    }
+
+  /* Final check on PIC options.  */
   if (MACHO_DYNAMIC_NO_PIC_P)
     {
       if (flag_pic)
@@ -3506,6 +3625,29 @@ darwin_patch_builtins (void)
 }
 #endif
 
+void
+darwin_rename_builtins (void)
+{
+}
+
+/* Implementation for the TARGET_LIBC_HAS_FUNCTION hook.  */
+
+bool
+darwin_libc_has_function (enum function_class fn_class,
+			  tree type ATTRIBUTE_UNUSED)
+{
+  if (fn_class == function_sincos && darwin_macosx_version_min)
+    return (strverscmp (darwin_macosx_version_min, "10.9") >= 0);
+#if DARWIN_PPC && SUPPORT_DARWIN_LEGACY
+  if (fn_class == function_c99_math_complex
+      || fn_class == function_c99_misc)
+    return (TARGET_64BIT
+	    || (darwin_macosx_version_min &&
+		strverscmp (darwin_macosx_version_min, "10.3") >= 0));
+#endif
+  return default_libc_has_function (fn_class, type);
+}
+
 /*  CFStrings implementation.  */
 static GTY(()) tree cfstring_class_reference = NULL_TREE;
 static GTY(()) tree cfstring_type_node = NULL_TREE;
@@ -3523,7 +3665,7 @@ typedef struct GTY ((for_user)) cfstring_descriptor {
   /* The string literal.  */
   tree literal;
   /* The resulting constant CFString.  */
-  tree constructor;
+  tree ccf_str;
 } cfstring_descriptor;
 
 struct cfstring_hasher : ggc_ptr_hash<cfstring_descriptor>
@@ -3598,7 +3740,7 @@ darwin_init_cfstring_builtins (unsigned builtin_cfstring)
   /* Make a lang-specific section - dup_lang_specific_decl makes a new node
      in place of the existing, which may be NULL.  */
   DECL_LANG_SPECIFIC (cfsfun) = NULL;
-  (*lang_hooks.dup_lang_specific_decl) (cfsfun);
+  lang_hooks.dup_lang_specific_decl (cfsfun);
   set_decl_built_in_function (cfsfun, BUILT_IN_MD, darwin_builtin_cfstring);
   lang_hooks.builtin_function (cfsfun);
 
@@ -3609,7 +3751,7 @@ darwin_init_cfstring_builtins (unsigned builtin_cfstring)
 
   TREE_PUBLIC (cfstring_class_reference) = 1;
   DECL_ARTIFICIAL (cfstring_class_reference) = 1;
-  (*lang_hooks.decls.pushdecl) (cfstring_class_reference);
+  lang_hooks.decls.pushdecl (cfstring_class_reference);
   DECL_EXTERNAL (cfstring_class_reference) = 1;
   rest_of_decl_compilation (cfstring_class_reference, 0, 0);
 
@@ -3644,29 +3786,6 @@ darwin_fold_builtin (tree fndecl, int n_args, tree *argp,
     }
 
   return NULL_TREE;
-}
-
-void
-darwin_rename_builtins (void)
-{
-}
-
-/* Implementation for the TARGET_LIBC_HAS_FUNCTION hook.  */
-
-bool
-darwin_libc_has_function (enum function_class fn_class,
-			  tree type ATTRIBUTE_UNUSED)
-{
-  if (fn_class == function_sincos && darwin_macosx_version_min)
-    return (strverscmp (darwin_macosx_version_min, "10.9") >= 0);
-#if DARWIN_PPC && SUPPORT_DARWIN_LEGACY
-  if (fn_class == function_c99_math_complex
-      || fn_class == function_c99_misc)
-    return (TARGET_64BIT
-	    || (darwin_macosx_version_min &&
-		strverscmp (darwin_macosx_version_min, "10.3") >= 0));
-#endif
-  return default_libc_has_function (fn_class, type);
 }
 
 hashval_t
@@ -3766,29 +3885,37 @@ darwin_build_constant_cfstring (tree str)
 			     build_int_cst (TREE_TYPE (field), length));
 
       constructor = build_constructor (ccfstring_type_node, v);
-      TREE_READONLY (constructor) = 1;
-      TREE_CONSTANT (constructor) = 1;
-      TREE_STATIC (constructor) = 1;
+      TREE_READONLY (constructor) = true;
+      TREE_CONSTANT (constructor) = true;
+      TREE_STATIC (constructor) = true;
 
-      /* Fromage: The C++ flavor of 'build_unary_op' expects constructor nodes
-	 to have the TREE_HAS_CONSTRUCTOR (...) bit set.  However, this file is
-	 being built without any knowledge of C++ tree accessors; hence, we shall
-	 use the generic accessor that TREE_HAS_CONSTRUCTOR actually maps to!  */
+      /* This file is being built without any knowledge of C++ tree accessors;
+	 hence, we shall use the generic accessor to set TREE_HAS_CONSTRUCTOR.
+	 ??? Is this actually used any more? */
       if (darwin_running_cxx)
 	TREE_LANG_FLAG_4 (constructor) = 1;  /* TREE_HAS_CONSTRUCTOR  */
 
       /* Create an anonymous global variable for this CFString.  */
-      var = build_decl (input_location, CONST_DECL,
+      var = build_decl (input_location, VAR_DECL,
 			NULL, TREE_TYPE (constructor));
-      DECL_ARTIFICIAL (var) = 1;
-      TREE_STATIC (var) = 1;
+      char *name = xasprintf ("__anon_cfstring.%u", DECL_UID (var));
+      DECL_NAME (var) = get_identifier (name);
+      free (name);
+      DECL_ARTIFICIAL (var) = true;
+      TREE_STATIC (var) = true;
+      TREE_READONLY (var) = true;
+      TREE_CONSTANT (var) = true;
       DECL_INITIAL (var) = constructor;
-      /* FIXME: This should use a translation_unit_decl to indicate file scope.  */
+      /* global namespace.  */
       DECL_CONTEXT (var) = NULL_TREE;
-      desc->constructor = var;
+      DECL_INITIAL (var) = constructor;
+      DECL_USER_ALIGN (var) = 1;
+      lang_hooks.decls.pushdecl (var);
+      rest_of_decl_compilation (var, 1, 0);
+      desc->ccf_str = var;
     }
 
-  addr = build1 (ADDR_EXPR, pccfstring_type_node, desc->constructor);
+  addr = build1 (ADDR_EXPR, pccfstring_type_node, desc->ccf_str);
   TREE_CONSTANT (addr) = 1;
 
   return addr;
@@ -3853,10 +3980,21 @@ darwin_function_section (tree decl, enum node_frequency freq,
   if (decl && DECL_SECTION_NAME (decl) != NULL)
     return get_named_section (decl, NULL, 0);
 
-  /* We always put unlikely executed stuff in the cold section.  */
+  /* We always put unlikely executed stuff in the cold section; we have to put
+     this ahead of the global init section, since partitioning within a section
+     breaks some assumptions made in the DWARF handling.  */
   if (freq == NODE_FREQUENCY_UNLIKELY_EXECUTED)
     return (use_coal) ? darwin_sections[text_cold_coal_section]
 		      : darwin_sections[text_cold_section];
+
+  /* Intercept functions in global init; these are placed in separate sections.
+     FIXME: there should be some neater way to do this, FIXME we should be able
+     to partition within a section.  */
+  if (DECL_NAME (decl)
+      && (startswith (IDENTIFIER_POINTER (DECL_NAME (decl)), "_GLOBAL__sub_I")
+	  || startswith (IDENTIFIER_POINTER (DECL_NAME (decl)),
+			 "__static_initialization_and_destruction")))
+    return  darwin_sections[static_init_section];
 
   /* If we have LTO *and* feedback information, then let LTO handle
      the function ordering, it makes a better job (for normal, hot,

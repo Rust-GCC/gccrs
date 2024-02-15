@@ -1,6 +1,6 @@
 // { dg-do compile { target c++11 } }
 
-// Copyright (C) 2007-2023 Free Software Foundation, Inc.
+// Copyright (C) 2007-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,7 +21,7 @@
 
 void test01()
 {
-#if _GLIBCXX_USE_C99_MATH_TR1
+#if _GLIBCXX_USE_C99_MATH_FUNCS
 
   typedef std::double_t  my_double_t;
   typedef std::float_t   my_float_t;

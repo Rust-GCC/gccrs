@@ -3,7 +3,7 @@
 //
 // 2012-10-12  Edward M. Smith-Rowland <3dw4rd@verizon.net>
 //
-// Copyright (C) 2012-2023 Free Software Foundation, Inc.
+// Copyright (C) 2012-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -27,7 +27,7 @@ void
 test01()
 {
   __gnu_cxx::hoyt_distribution<> u(0.05, 3.0);
-  VERIFY( u.q() == 0.05 );
+  VERIFY( u.q() == (double) 0.05 );
   VERIFY( u.omega() == 3.0 );
   VERIFY( u.min() == 0.0 );
   typedef __gnu_cxx::hoyt_distribution<>::result_type result_type;

@@ -1,5 +1,5 @@
 /* Data structure for the modref pass.
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
    Contributed by David Cepelik and Jan Hubicka
 
 This file is part of GCC.
@@ -653,17 +653,17 @@ modref_access_node::dump (FILE *out)
       if (parm_offset_known)
 	{
 	  fprintf (out, " param offset:");
-	  print_dec ((poly_int64_pod)parm_offset, out, SIGNED);
+	  print_dec ((poly_int64)parm_offset, out, SIGNED);
 	}
     }
   if (range_info_useful_p ())
     {
       fprintf (out, " offset:");
-      print_dec ((poly_int64_pod)offset, out, SIGNED);
+      print_dec ((poly_int64)offset, out, SIGNED);
       fprintf (out, " size:");
-      print_dec ((poly_int64_pod)size, out, SIGNED);
+      print_dec ((poly_int64)size, out, SIGNED);
       fprintf (out, " max_size:");
-      print_dec ((poly_int64_pod)max_size, out, SIGNED);
+      print_dec ((poly_int64)max_size, out, SIGNED);
       if (adjustments)
 	fprintf (out, " adjusted %i times", adjustments);
     }

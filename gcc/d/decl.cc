@@ -1,5 +1,5 @@
 /* decl.cc -- Lower D frontend declarations to GCC trees.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ d_mangle_decl (Dsymbol *decl)
   else
     {
       OutBuffer buf;
-      mangleToBuffer (decl, &buf);
+      mangleToBuffer (decl, buf);
       return buf.extractChars ();
     }
 }
@@ -539,7 +539,7 @@ public:
 	  continue;
 
 	/* Ensure function has a return value.  */
-	if (!fd->functionSemantic ())
+	if (!functionSemantic (fd))
 	  has_errors = true;
 
 	/* No name hiding to check for.  */
@@ -563,20 +563,23 @@ public:
 	    if (fd2->isFuture ())
 	      continue;
 
-	    if (fd->leastAsSpecialized (fd2, NULL) != MATCH::nomatch
-		|| fd2->leastAsSpecialized (fd, NULL) != MATCH::nomatch)
-	      {
-		error_at (make_location_t (fd->loc), "use of %qs",
-			  fd->toPrettyChars ());
-		inform (make_location_t (fd2->loc), "is hidden by %qs",
-			fd2->toPrettyChars ());
-		inform (make_location_t (d->loc),
-			"use %<alias %s = %s.%s;%> to introduce base class "
-			"overload set", fd->toChars (),
-			fd->parent->toChars (), fd->toChars ());
-		has_errors = true;
-		break;
-	      }
+	    if (FuncDeclaration::leastAsSpecialized (fd, fd2, NULL)
+		    == MATCH::nomatch
+		&& FuncDeclaration::leastAsSpecialized (fd2, fd, NULL)
+		    == MATCH::nomatch)
+	      continue;
+
+	    /* Hiding detected; same name, overlapping specializations.  */
+	    error_at (make_location_t (fd->loc), "use of %qs",
+		      fd->toPrettyChars ());
+	    inform (make_location_t (fd2->loc), "is hidden by %qs",
+		    fd2->toPrettyChars ());
+	    inform (make_location_t (d->loc),
+		    "use %<alias %s = %s.%s;%> to introduce base class "
+		    "overload set", fd->toChars (),
+		    fd->parent->toChars (), fd->toChars ());
+	    has_errors = true;
+	    break;
 	  }
       }
 
@@ -782,7 +785,7 @@ public:
       {
 	/* Do not store variables we cannot take the address of,
 	   but keep the values for purposes of debugging.  */
-	if (!d->type->isscalar ())
+	if (d->type->isscalar () && !hasPointers (d->type))
 	  {
 	    tree decl = get_symbol_decl (d);
 	    d_pushdecl (decl);
@@ -860,10 +863,28 @@ public:
 	    /* Maybe put variable on list of things needing destruction.  */
 	    if (d->needsScopeDtor ())
 	      {
+		/* Rewrite: `decl = exp' => TARGET_EXPR(decl, exp, dtor).  */
 		vec_safe_push (d_function_chain->vars_in_scope, decl);
+
 		/* Force a TARGET_EXPR to add the corresponding cleanup.  */
-		exp = force_target_expr (compound_expr (exp, decl));
-		TARGET_EXPR_CLEANUP (exp) = build_expr (d->edtor);
+		if (TREE_CODE (exp) != TARGET_EXPR)
+		  {
+		    if (VOID_TYPE_P (TREE_TYPE (exp)))
+		      exp = compound_expr (exp, decl);
+
+		    exp = force_target_expr (exp);
+		  }
+
+		TARGET_EXPR_CLEANUP (exp)
+		  = compound_expr (TARGET_EXPR_CLEANUP (exp),
+				   build_expr (d->edtor));
+
+		/* The decl is really an alias for the TARGET_EXPR slot.  */
+		SET_DECL_VALUE_EXPR (decl, TARGET_EXPR_SLOT (exp));
+		DECL_HAS_VALUE_EXPR_P (decl) = 1;
+		/* This tells the gimplifier not to emit a clobber for the decl
+		   as its lifetime ends when the slot gets cleaned up.  */
+		TREE_ADDRESSABLE (decl) = 0;
 	      }
 
 	    add_stmt (exp);
@@ -943,7 +964,7 @@ public:
 	gcc_assert (!doing_semantic_analysis_p);
 
 	doing_semantic_analysis_p = true;
-	d->functionSemantic3 ();
+	functionSemantic3 (d);
 	Module::runDeferredSemantic3 ();
 	doing_semantic_analysis_p = false;
       }
@@ -968,7 +989,7 @@ public:
 	return;
       }
 
-    if (global.params.verbose)
+    if (global.params.v.verbose)
       message ("function  %s", d->toPrettyChars ());
 
     tree old_context = start_function (d);
@@ -1083,7 +1104,7 @@ build_decl_tree (Dsymbol *d)
   location_t saved_location = input_location;
 
   /* Set input location, empty DECL_SOURCE_FILE can crash debug generator.  */
-  if (d->loc.filename)
+  if (d->loc.filename ())
     input_location = make_location_t (d->loc);
   else
     input_location = make_location_t (Loc ("<no_file>", 1, 0));
@@ -1212,12 +1233,26 @@ get_symbol_decl (Declaration *decl)
       return decl->csym;
     }
 
+  if (VarDeclaration *vd = decl->isVarDeclaration ())
+    {
+      /* CONST_DECL was initially intended for enumerals and may be used for
+	 scalars in general, but not for aggregates.  Here a non-constant
+	 value is generated anyway so as its value can be used.  */
+      if (!vd->canTakeAddressOf () && !vd->type->isscalar ())
+	{
+	  gcc_assert (vd->_init && !vd->_init->isVoidInitializer ());
+	  Expression *ie = initializerToExpression (vd->_init);
+	  decl->csym = build_expr (ie, false);
+	  return decl->csym;
+	}
+    }
+
   /* Build the tree for the symbol.  */
   FuncDeclaration *fd = decl->isFuncDeclaration ();
   if (fd)
     {
       /* Run full semantic on functions we need to know about.  */
-      if (!fd->functionSemantic ())
+      if (!functionSemantic (fd))
 	{
 	  decl->csym = error_mark_node;
 	  return decl->csym;
@@ -1259,24 +1294,30 @@ get_symbol_decl (Declaration *decl)
       if (vd->storage_class & STCextern)
 	DECL_EXTERNAL (decl->csym) = 1;
 
-      /* CONST_DECL was initially intended for enumerals and may be used for
-	 scalars in general, but not for aggregates.  Here a non-constant
-	 value is generated anyway so as the CONST_DECL only serves as a
-	 placeholder for the value, however the DECL itself should never be
-	 referenced in any generated code, or passed to the back-end.  */
-      if (vd->storage_class & STCmanifest)
+      if (!vd->canTakeAddressOf ())
 	{
 	  /* Cannot make an expression out of a void initializer.  */
-	  if (vd->_init && !vd->_init->isVoidInitializer ())
-	    {
-	      Expression *ie = initializerToExpression (vd->_init);
+	  gcc_assert (vd->_init && !vd->_init->isVoidInitializer ());
+	  /* Non-scalar manifest constants have already been dealt with.  */
+	  gcc_assert (vd->type->isscalar ());
 
-	      if (!vd->type->isscalar ())
-		DECL_INITIAL (decl->csym) = build_expr (ie, false);
-	      else
-		DECL_INITIAL (decl->csym) = build_expr (ie, true);
-	    }
+	  Expression *ie = initializerToExpression (vd->_init);
+	  DECL_INITIAL (decl->csym) = build_expr (ie, true);
 	}
+
+      /* [type-qualifiers/const-and-immutable]
+
+	 `immutable` applies to data that cannot change. Immutable data values,
+	 once constructed, remain the same for the duration of the program's
+	 execution.  */
+      if (vd->isImmutable () && !vd->setInCtorOnly ())
+	TREE_READONLY (decl->csym) = 1;
+
+      /* `const` applies to data that cannot be changed by the const reference
+	 to that data. It may, however, be changed by another reference to that
+	 same data.  */
+      if (vd->isConst () && !vd->isDataseg ())
+	TREE_READONLY (decl->csym) = 1;
     }
 
   /* Set the declaration mangled identifier if static.  */
@@ -1534,7 +1575,7 @@ get_symbol_decl (Declaration *decl)
   /* Symbol is going in thread local storage.  */
   if (decl->isThreadlocal () && !DECL_ARTIFICIAL (decl->csym))
     {
-      if (global.params.vtls)
+      if (global.params.v.tls)
 	message (decl->loc, "`%s` is thread local", decl->toChars ());
 
       set_decl_tls_model (decl->csym, decl_default_tls_model (decl->csym));
@@ -2044,7 +2085,7 @@ start_function (FuncDeclaration *fd)
   allocate_struct_function (fndecl, false);
 
   /* Store the end of the function.  */
-  if (fd->endloc.filename)
+  if (fd->endloc.filename ())
     cfun->function_end_locus = make_location_t (fd->endloc);
   else
     cfun->function_end_locus = DECL_SOURCE_LOCATION (fndecl);
@@ -2357,7 +2398,7 @@ layout_class_initializer (ClassDeclaration *cd)
   NewExp *ne = NewExp::create (cd->loc, NULL, cd->type, NULL);
   ne->type = cd->type;
 
-  Expression *e = ne->ctfeInterpret ();
+  Expression *e = ctfeInterpret (ne);
   gcc_assert (e->op == EXP::classReference);
 
   return build_class_instance (e->isClassReferenceExp ());

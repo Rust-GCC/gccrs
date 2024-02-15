@@ -1,6 +1,6 @@
 // Compatibility aliases for long double support in locales -*- C++ -*-
 
-// Copyright (C) 1999-2023 Free Software Foundation, Inc.
+// Copyright (C) 1999-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -23,11 +23,11 @@
 // <http://www.gnu.org/licenses/>.
 
 #ifndef C
-#define "This file should not be compiled directly, only included"
+# error "This file should not be compiled directly, only included"
 #endif
 
 #ifndef _GLIBCXX_LONG_DOUBLE_COMPAT
-#define "This file should only be used for _GLIBCXX_LONG_DOUBLE_COMPAT builds"
+# error "This file should only be used for _GLIBCXX_LONG_DOUBLE_COMPAT builds"
 #endif
 
 // XXX GLIBCXX_ABI Deprecated

@@ -1,4 +1,4 @@
-/* Copyright (C) 2018-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2018-2024 Free Software Foundation, Inc.
    Contributed by Nicolas Koenig
 
    This file is part of the GNU Fortran runtime library (libgfortran).
@@ -42,6 +42,10 @@ DEBUG_LINE (__thread const char *aio_prefix = MPREFIX);
 
 DEBUG_LINE (__gthread_mutex_t debug_queue_lock = __GTHREAD_MUTEX_INIT;)
 DEBUG_LINE (aio_lock_debug *aio_debug_head = NULL;)
+#ifdef __GTHREAD_RWLOCK_INIT
+DEBUG_LINE (aio_rwlock_debug *aio_rwlock_debug_head = NULL;)
+DEBUG_LINE (__gthread_rwlock_t debug_queue_rwlock = __GTHREAD_RWLOCK_INIT;)
+#endif
 
 /* Current unit for asynchronous I/O.  Needed for error reporting.  */
 
@@ -71,8 +75,7 @@ update_pdt (st_parameter_dt **old, st_parameter_dt *new) {
   NOTE ("Changing pdts, current_unit = %p", (void *) (new->u.p.current_unit));
   temp = *old;
   *old = new;
-  if (temp)
-    free (temp);
+  free (temp);
 }
 
 /* Destroy an adv_cond structure.  */
@@ -106,8 +109,7 @@ async_io (void *arg)
       /* Loop over the queue entries until they are finished.  */
       while (ctq)
 	{
-	  if (prev)
-	    free (prev);
+	  free (prev);
 	  prev = ctq;
 	  if (!au->error.has_error)
 	    {
@@ -264,7 +266,7 @@ init_async_unit (gfc_unit *u)
 void
 enqueue_transfer (async_unit *au, transfer_args *arg, enum aio_do type)
 {
-  transfer_queue *tq = calloc (sizeof (transfer_queue), 1);
+  transfer_queue *tq = calloc (1, sizeof (transfer_queue));
   tq->arg = *arg;
   tq->type = type;
   tq->has_id = 0;
@@ -286,7 +288,7 @@ int
 enqueue_done_id (async_unit *au, enum aio_do type)
 {
   int ret;
-  transfer_queue *tq = calloc (sizeof (transfer_queue), 1);
+  transfer_queue *tq = calloc (1, sizeof (transfer_queue));
 
   tq->type = type;
   tq->has_id = 1;
@@ -310,7 +312,7 @@ enqueue_done_id (async_unit *au, enum aio_do type)
 void
 enqueue_done (async_unit *au, enum aio_do type)
 {
-  transfer_queue *tq = calloc (sizeof (transfer_queue), 1);
+  transfer_queue *tq = calloc (1, sizeof (transfer_queue));
   tq->type = type;
   tq->has_id = 0;
   LOCK (&au->lock);
@@ -330,7 +332,7 @@ enqueue_done (async_unit *au, enum aio_do type)
 void
 enqueue_close (async_unit *au)
 {
-  transfer_queue *tq = calloc (sizeof (transfer_queue), 1);
+  transfer_queue *tq = calloc (1, sizeof (transfer_queue));
 
   tq->type = AIO_CLOSE;
   LOCK (&au->lock);

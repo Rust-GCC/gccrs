@@ -6,7 +6,7 @@
 # The resulting file can be used with test result comparison scripts for
 # results from tests that were run in parallel.  See usage() below.
 
-# Copyright (C) 2008-2023 Free Software Foundation, Inc.
+# Copyright (C) 2008-2024 Free Software Foundation, Inc.
 # Contributed by Janis Johnson <janis187@us.ibm.com>
 #
 # This file is part of GCC.
@@ -271,7 +271,7 @@ cat $SUM_FILES \
 
 # Write the begining of the combined summary file.
 
-head -n 2 $FIRST_SUM
+head -n 3 $FIRST_SUM
 echo
 echo "		=== $TOOL tests ==="
 echo

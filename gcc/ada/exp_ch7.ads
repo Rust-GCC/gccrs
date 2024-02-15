@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -118,6 +118,29 @@ package Exp_Ch7 is
    --  finalization master must be analyzed. Insertion_Node is the insertion
    --  point before which the master is to be inserted.
 
+   procedure Build_Finalizer
+     (N           : Node_Id;
+      Clean_Stmts : List_Id;
+      Mark_Id     : Entity_Id;
+      Top_Decls   : List_Id;
+      Defer_Abort : Boolean;
+      Fin_Id      : out Entity_Id);
+   --  N may denote an accept statement, block, entry body, package body,
+   --  package spec, protected body, subprogram body, or a task body. Create
+   --  a procedure which contains finalization calls for all controlled objects
+   --  declared in the declarative or statement region of N. The calls are
+   --  built in reverse order relative to the original declarations. In the
+   --  case of a task body, the routine delays the creation of the finalizer
+   --  until all statements have been moved to the task body procedure.
+   --  Clean_Stmts may contain additional context-dependent code used to abort
+   --  asynchronous calls or complete tasks (see Build_Cleanup_Statements).
+   --  Mark_Id is the secondary stack used in the current context or Empty if
+   --  missing. Top_Decls is the list on which the declaration of the finalizer
+   --  is attached in the non-package case. Defer_Abort indicates that the
+   --  statements passed in perform actions that require abort to be deferred,
+   --  such as for task termination. Fin_Id is the finalizer declaration
+   --  entity.
+
    procedure Build_Late_Proc (Typ : Entity_Id; Nam : Name_Id);
    --  Build one controlling procedure when a late body overrides one of the
    --  controlling operations.
@@ -152,6 +175,12 @@ package Exp_Ch7 is
    --  Abort_Id is a local boolean flag which is set when the finalization was
    --  triggered by an abort, E_Id denotes the defining identifier of a local
    --  exception occurrence, Raised_Id is the entity of a local boolean flag.
+
+   procedure Expand_Cleanup_Actions (N : Node_Id);
+   --  Expand the necessary stuff into a scope to enable finalization of local
+   --  objects and deallocation of transient data when exiting the scope. N is
+   --  one of N_Block_Statement, N_Subprogram_Body, N_Task_Body, N_Entry_Body,
+   --  or N_Extended_Return_Statement.
 
    function Make_Adjust_Call
      (Obj_Ref   : Node_Id;
@@ -251,12 +280,6 @@ package Exp_Ch7 is
    --------------------------------
    -- Transient Scope Management --
    --------------------------------
-
-   procedure Expand_Cleanup_Actions (N : Node_Id);
-   --  Expand the necessary stuff into a scope to enable finalization of local
-   --  objects and deallocation of transient data when exiting the scope. N is
-   --  one of N_Block_Statement, N_Subprogram_Body, N_Task_Body, N_Entry_Body,
-   --  or N_Extended_Return_Statement.
 
    procedure Establish_Transient_Scope
      (N                : Node_Id;

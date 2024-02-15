@@ -1,6 +1,4 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do compile { target c++23 } }
-// { dg-xfail-if "not supported" { debug_mode } }
 
 #include <vector>
 #include <testsuite_hooks.h>

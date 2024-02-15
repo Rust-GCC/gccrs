@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Free Software Foundation, Inc.
+// Copyright (C) 2018-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -51,7 +51,7 @@ struct seed_seq
   // T is convertible to the engine's result_type:
   operator T() const noexcept { return T(); }
 
-  bool called = false;
+  mutable bool called = false;
 };
 
 using engine_type

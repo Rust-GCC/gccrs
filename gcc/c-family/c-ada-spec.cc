@@ -1,6 +1,6 @@
 /* Print GENERIC declaration (functions, variables, types) trees coming from
    the C and C++ front-ends as well as macros in Ada syntax.
-   Copyright (C) 2010-2023 Free Software Foundation, Inc.
+   Copyright (C) 2010-2024 Free Software Foundation, Inc.
    Adapted from tree-pretty-print.cc by Arnaud Charlet  <charlet@adacore.com>
 
 This file is part of GCC.
@@ -1051,7 +1051,7 @@ has_static_fields (const_tree type)
     return false;
 
   for (tree fld = TYPE_FIELDS (type); fld; fld = TREE_CHAIN (fld))
-    if (TREE_CODE (fld) == VAR_DECL && DECL_NAME (fld))
+    if (VAR_P (fld) && DECL_NAME (fld))
       return true;
 
   return false;
@@ -1566,6 +1566,8 @@ check_type_name_conflict (pretty_printer *buffer, tree t)
 	s = "";
       else if (TREE_CODE (TYPE_NAME (tmp)) == IDENTIFIER_NODE)
 	s = IDENTIFIER_POINTER (TYPE_NAME (tmp));
+      else if (!DECL_NAME (TYPE_NAME (tmp)))
+	s = "";
       else
 	s = IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (tmp)));
 
@@ -1850,7 +1852,8 @@ dump_template_types (pretty_printer *buffer, tree types, int spc)
       if (!dump_ada_node (buffer, elem, NULL_TREE, spc, false, true))
 	{
 	  pp_string (buffer, "unknown");
-	  pp_scalar (buffer, "%lu", (unsigned long) TREE_HASH (elem));
+	  pp_scalar (buffer, HOST_SIZE_T_PRINT_UNSIGNED,
+		     (fmt_size_t) TREE_HASH (elem));
 	}
     }
 }
@@ -3244,7 +3247,7 @@ dump_ada_declaration (pretty_printer *buffer, tree t, tree type, int spc)
       if (need_indent)
 	INDENT (spc);
 
-      if ((TREE_CODE (t) == FIELD_DECL || TREE_CODE (t) == VAR_DECL)
+      if ((TREE_CODE (t) == FIELD_DECL || VAR_P (t))
 	  && DECL_NAME (t))
 	check_type_name_conflict (buffer, t);
 
@@ -3462,7 +3465,7 @@ dump_ada_structure (pretty_printer *buffer, tree node, tree type, bool nested,
   /* Print the static fields of the structure, if any.  */
   for (tree tmp = TYPE_FIELDS (node); tmp; tmp = TREE_CHAIN (tmp))
     {
-      if (TREE_CODE (tmp) == VAR_DECL && DECL_NAME (tmp))
+      if (VAR_P (tmp) && DECL_NAME (tmp))
 	{
 	  if (need_semicolon)
 	    {

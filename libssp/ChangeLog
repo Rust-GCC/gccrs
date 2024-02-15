@@ -1,3 +1,45 @@
+2024-02-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (AC_CHECK_DECLS): Check for gets.
+	* configure, config.h.in: Regenerate.
+	* gets-chk.c (gets): Guard declaration with !HAVE_DECL_GETS.
+
+2023-12-22  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* Makefile.am: Allow overriding EXEPCT.
+	* Makefile.in: Regenerate.
+
+2023-10-22  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* Makefile.am: Handle Darwin rpaths.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Handle Darwin rpaths.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Alexander von Gluck IV  <kallisti5@unixzen.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  Nick Alcock  <nick.alcock@oracle.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
+2023-08-07  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerate.
+
 2023-01-07  LIU Hao  <lh_mouse@126.com>
 
 	PR middle-end/108300

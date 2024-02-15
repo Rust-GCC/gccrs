@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2023 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -30,6 +30,9 @@ class StructDeclaration;
 struct IntRange;
 struct AttributeViolation;
 
+bool functionSemantic(FuncDeclaration* fd);
+bool functionSemantic3(FuncDeclaration* fd);
+
 //enum STC : ulong from astenums.d:
 
     #define STCundefined          0ULL
@@ -54,7 +57,7 @@ struct AttributeViolation;
     #define STCforeach            0x4000ULL    /// variable for foreach loop
     #define STCvariadic           0x8000ULL    /// the `variadic` parameter in: T foo(T a, U b, V variadic...)
 
-    //                            0x10000ULL
+    #define STCconstscoperef      0x10000ULL    /// when `in` means const|scope|ref
     #define STCtemplateparameter  0x20000ULL    /// template parameter
     #define STCref                0x40000ULL    /// `ref`
     #define STCscope              0x80000ULL    /// `scope`
@@ -104,8 +107,6 @@ struct AttributeViolation;
 #define STC_TYPECTOR    (STCconst | STCimmutable | STCshared | STCwild)
 #define STC_FUNCATTR    (STCref | STCnothrow | STCnogc | STCpure | STCproperty | STCsafe | STCtrusted | STCsystem)
 
-void ObjectNotFound(Identifier *id);
-
 /**************************************************************/
 
 class Declaration : public Dsymbol
@@ -118,13 +119,11 @@ public:
     LINK _linkage;              // may be `LINK::system`; use `resolvedLinkage()` to resolve it
     short inuse;                // used to detect cycles
     uint8_t adFlags;
-    Symbol* isym;               // import version of csym
     DString mangleOverride;     // overridden symbol with pragma(mangle, "...")
 
     const char *kind() const override;
     uinteger_t size(const Loc &loc) override final;
 
-    Dsymbol *search(const Loc &loc, Identifier *ident, int flags = SearchLocalsOnly) override final;
 
     bool isStatic() const { return (storage_class & STCstatic) != 0; }
     LINK resolvedLinkage() const; // returns the linkage, resolving the target-specific `System` one
@@ -167,8 +166,8 @@ class TupleDeclaration final : public Declaration
 public:
     Objects *objects;
     TypeTuple *tupletype;       // !=NULL if this is a type tuple
-    bool isexp;                 // true: expression tuple
-    bool building;              // it's growing in AliasAssign semantic
+    d_bool isexp;                 // true: expression tuple
+    d_bool building;              // it's growing in AliasAssign semantic
 
     TupleDeclaration *syntaxCopy(Dsymbol *) override;
     const char *kind() const override;
@@ -244,7 +243,7 @@ public:
     // The index of this variable on the CTFE stack, ~0u if not allocated
     unsigned ctfeAdrOnStack;
 private:
-    uint16_t bitFields;
+    uint32_t bitFields;
 public:
     int8_t canassign; // // it can be assigned to
     uint8_t isdataseg; // private data for isDataseg
@@ -278,9 +277,10 @@ public:
     bool inAlignSection() const; // is inserted into aligned section on stack
     bool inAlignSection(bool v);
 #endif
+    bool systemInferred() const;
+    bool systemInferred(bool v);
     static VarDeclaration *create(const Loc &loc, Type *t, Identifier *id, Initializer *init, StorageClass storage_class = STCundefined);
     VarDeclaration *syntaxCopy(Dsymbol *) override;
-    void setFieldOffset(AggregateDeclaration *ad, FieldState& fieldState, bool isunion) override final;
     const char *kind() const override;
     AggregateDeclaration *isThis() override final;
     bool needThis() override final;
@@ -534,22 +534,19 @@ enum class BUILTIN : unsigned char
 Expression *eval_builtin(const Loc &loc, FuncDeclaration *fd, Expressions *arguments);
 BUILTIN isBuiltin(FuncDeclaration *fd);
 
+struct ContractInfo;
+
 class FuncDeclaration : public Declaration
 {
 public:
-    Statements *frequires;              // in contracts
-    Ensures *fensures;                  // out contracts
-    Statement *frequire;                // lowered in contract
-    Statement *fensure;                 // lowered out contract
     Statement *fbody;
 
     FuncDeclarations foverrides;        // functions this function overrides
-    FuncDeclaration *fdrequire;         // function that does the in contract
-    FuncDeclaration *fdensure;          // function that does the out contract
 
-    Expressions *fdrequireParams;       // argument list for __require
-    Expressions *fdensureParams;        // argument list for __ensure
+private:
+    ContractInfo *contracts;            // contract information
 
+public:
     const char *mangleString;           // mangled symbol created from mangleExact()
 
     VarDeclaration *vresult;            // result variable for out contracts
@@ -607,7 +604,7 @@ public:
 
     // set if someone took the address of this function
     int tookAddressOf;
-    bool requiresClosure;               // this function needs a closure
+    d_bool requiresClosure;               // this function needs a closure
 
     // local variables in this function which are referenced by nested functions
     VarDeclarations closureVars;
@@ -623,6 +620,9 @@ public:
     FuncDeclarations *inlinedNestedCallees;
 
     AttributeViolation* safetyViolation;
+    AttributeViolation* nogcViolation;
+    AttributeViolation* pureViolation;
+    AttributeViolation* nothrowViolation;
 
     // Formerly FUNCFLAGS
     uint32_t flags;
@@ -672,6 +672,10 @@ public:
     bool isCrtCtor(bool v);
     bool isCrtDtor() const;
     bool isCrtDtor(bool v);
+    bool dllImport() const;
+    bool dllImport(bool v);
+    bool dllExport() const;
+    bool dllExport(bool v);
 
     // Data for a function declaration that is needed for the Objective-C
     // integration.
@@ -679,19 +683,28 @@ public:
 
     static FuncDeclaration *create(const Loc &loc, const Loc &endloc, Identifier *id, StorageClass storage_class, Type *type, bool noreturn = false);
     FuncDeclaration *syntaxCopy(Dsymbol *) override;
-    bool functionSemantic();
-    bool functionSemantic3();
+    Statements *frequires();
+    Ensures *fensures();
+    Statement *frequire();
+    Statement *fensure();
+    FuncDeclaration *fdrequire();
+    FuncDeclaration *fdensure();
+    Expressions *fdrequireParams();
+    Expressions *fdensureParams();
+    Statements *frequires(Statements *frs);
+    Ensures *fensures(Statements *fes);
+    Statement *frequire(Statement *fr);
+    Statement *fensure(Statement *fe);
+    FuncDeclaration *fdrequire(FuncDeclaration *fdr);
+    FuncDeclaration *fdensure(FuncDeclaration *fde);
+    Expressions *fdrequireParams(Expressions *fdrp);
+    Expressions *fdensureParams(Expressions *fdep);
     bool equals(const RootObject * const o) const override final;
 
-    int overrides(FuncDeclaration *fd);
-    int findVtblIndex(Dsymbols *vtbl, int dim);
-    BaseClass *overrideInterface();
     bool overloadInsert(Dsymbol *s) override;
     bool inUnittest();
-    MATCH leastAsSpecialized(FuncDeclaration *g, Identifiers *names);
+    static MATCH leastAsSpecialized(FuncDeclaration *f, FuncDeclaration *g, Identifiers *names);
     LabelDsymbol *searchLabel(Identifier *ident, const Loc &loc);
-    int getLevel(FuncDeclaration *fd, int intypeof); // lexical nesting level difference
-    int getLevelAndCheck(const Loc &loc, Scope *sc, FuncDeclaration *fd);
     const char *toPrettyChars(bool QualifyTypes = false) override;
     const char *toFullSignature();  // for diagnostics, e.g. 'int foo(int x, int y) pure'
     bool isMain() const;
@@ -704,13 +717,9 @@ public:
     bool isOverloadable() const override final;
     bool isAbstract() override final;
     PURE isPure();
-    PURE isPureBypassingInference();
     bool isSafe();
-    bool isSafeBypassingInference();
     bool isTrusted();
-
     bool isNogc();
-    bool isNogcBypassingInference();
 
     virtual bool isNested() const;
     AggregateDeclaration *isThis() override;
@@ -730,8 +739,6 @@ public:
     static FuncDeclaration *genCfunc(Parameters *args, Type *treturn, const char *name, StorageClass stc=0);
     static FuncDeclaration *genCfunc(Parameters *args, Type *treturn, Identifier *id, StorageClass stc=0);
 
-    bool checkNRVO();
-
     FuncDeclaration *isFuncDeclaration() override final { return this; }
 
     virtual FuncDeclaration *toAliasFunc() { return this; }
@@ -742,7 +749,7 @@ class FuncAliasDeclaration final : public FuncDeclaration
 {
 public:
     FuncDeclaration *funcalias;
-    bool hasOverloads;
+    d_bool hasOverloads;
 
     FuncAliasDeclaration *isFuncAliasDeclaration() override { return this; }
     const char *kind() const override;
@@ -758,7 +765,7 @@ public:
     Type *treq;                         // target of return type inference
 
     // backend
-    bool deferToObj;
+    d_bool deferToObj;
 
     FuncLiteralDeclaration *syntaxCopy(Dsymbol *) override;
     bool isNested() const override;
@@ -766,8 +773,6 @@ public:
     bool isVirtual() const override;
     bool addPreInvariant() override;
     bool addPostInvariant() override;
-
-    void modifyReturns(Scope *sc, Type *tret);
 
     FuncLiteralDeclaration *isFuncLiteralDeclaration() override { return this; }
     const char *kind() const override;
@@ -778,7 +783,7 @@ public:
 class CtorDeclaration final : public FuncDeclaration
 {
 public:
-    bool isCpCtor;
+    d_bool isCpCtor;
     CtorDeclaration *syntaxCopy(Dsymbol *) override;
     const char *kind() const override;
     const char *toChars() const override;
@@ -835,6 +840,7 @@ public:
 class SharedStaticCtorDeclaration final : public StaticCtorDeclaration
 {
 public:
+    bool standalone;
     SharedStaticCtorDeclaration *syntaxCopy(Dsymbol *) override;
 
     SharedStaticCtorDeclaration *isSharedStaticCtorDeclaration() override { return this; }

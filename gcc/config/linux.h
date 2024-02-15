@@ -2,7 +2,7 @@
    MMU, using ELF at the compiler level but possibly FLT for final
    linked executables and shared libraries in some no-MMU cases, and
    possibly with a choice of libc implementations.
-   Copyright (C) 1995-2023 Free Software Foundation, Inc.
+   Copyright (C) 1995-2024 Free Software Foundation, Inc.
    Contributed by Eric Youngdale.
    Modified for stabs-in-ELF by H.J. Lu (hjl@lucon.org).
 
@@ -211,5 +211,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    this includes full c99 runtime and sincos.  */
 # undef TARGET_LIBC_HAS_FUNCTION
 # define TARGET_LIBC_HAS_FUNCTION linux_libc_has_function
+
+# undef TARGET_LIBM_FUNCTION_MAX_ERROR
+# define TARGET_LIBM_FUNCTION_MAX_ERROR linux_libm_function_max_error
+
+#undef TARGET_FORTIFY_SOURCE_DEFAULT_LEVEL
+#define TARGET_FORTIFY_SOURCE_DEFAULT_LEVEL linux_fortify_source_default_level
 
 #endif

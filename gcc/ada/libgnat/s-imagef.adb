@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---            Copyright (C) 2020-2023, Free Software Foundation, Inc.       --
+--            Copyright (C) 2020-2024, Free Software Foundation, Inc.       --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,16 +70,14 @@ package body System.Image_F is
    --  if the small is larger than 1, and smaller than 2**(Int'Size - 1) / 10
    --  if the small is smaller than 1.
 
-   Unsigned_Width_Ghost : constant Natural := Int'Width;
-
    package Uns_Spec is new System.Value_U_Spec (Uns);
-   package Int_Spec is new System.Value_I_Spec (Int, Uns, Uns_Spec.Uns_Params);
+   package Int_Spec is new System.Value_I_Spec (Int, Uns, Uns_Spec);
 
    package Image_I is new System.Image_I
-     (Int                  => Int,
-      Uns                  => Uns,
-      Unsigned_Width_Ghost => Unsigned_Width_Ghost,
-      Int_Params           => Int_Spec.Int_Params);
+     (Int    => Int,
+      Uns    => Uns,
+      U_Spec => Uns_Spec,
+      I_Spec => Int_Spec);
 
    procedure Set_Image_Integer
      (V : Int;
@@ -309,6 +307,9 @@ package body System.Image_F is
       YY : Int := Y;
       --  First two operands of the scaled divide
 
+      J : Natural;
+      --  Loop index
+
    begin
       --  Set the first character like Image
 
@@ -319,59 +320,61 @@ package body System.Image_F is
          Ndigs := 0;
       end if;
 
-      for J in 1 .. N loop
-         exit when XX = 0;
+      --  First round of scaled divide
 
+      if XX /= 0 then
+         Scaled_Divide (XX, YY, Z, Q, R => XX, Round => False);
+         if Q /= 0 then
+            Set_Image_Integer (Q, Digs, Ndigs);
+         end if;
+
+         Scale := Scale + D;
+
+         --  Prepare for next round, if any
+
+         YY := 10**Maxdigs;
+      end if;
+
+      J := 2;
+      while J <= N and then XX /= 0 loop
          Scaled_Divide (XX, YY, Z, Q, R => XX, Round => False);
 
-         if J = 1 then
+         pragma Assert (-10**Maxdigs < Q and then Q < 10**Maxdigs);
+
+         Len := 0;
+         Set_Image_Integer (abs Q, Buf, Len);
+
+         pragma Assert (1 <= Len and then Len <= Maxdigs);
+
+         --  If no character but the space has been written, write the
+         --  minus if need be, since Set_Image_Integer did not do it.
+
+         if Ndigs <= 1 then
             if Q /= 0 then
-               Set_Image_Integer (Q, Digs, Ndigs);
-            end if;
-
-            Scale := Scale + D;
-
-            --  Prepare for next round, if any
-
-            YY := 10**Maxdigs;
-
-         else
-            pragma Assert (-10**Maxdigs < Q and then Q < 10**Maxdigs);
-
-            Len := 0;
-            Set_Image_Integer (abs Q, Buf, Len);
-
-            pragma Assert (1 <= Len and then Len <= Maxdigs);
-
-            --  If no character but the space has been written, write the
-            --  minus if need be, since Set_Image_Integer did not do it.
-
-            if Ndigs <= 1 then
-               if Q /= 0 then
-                  if Ndigs = 0 then
-                     Digs (1) := '-';
-                  end if;
-
-                  Digs (2 .. Len + 1) := Buf (1 .. Len);
-                  Ndigs := Len + 1;
+               if Ndigs = 0 then
+                  Digs (1) := '-';
                end if;
 
-            --  Or else pad the output with zeroes up to Maxdigs
-
-            else
-               for K in 1 .. Maxdigs - Len loop
-                  Digs (Ndigs + K) := '0';
-               end loop;
-
-               for K in 1 .. Len loop
-                  Digs (Ndigs + Maxdigs - Len + K) := Buf (K);
-               end loop;
-
-               Ndigs := Ndigs + Maxdigs;
+               Digs (2 .. Len + 1) := Buf (1 .. Len);
+               Ndigs := Len + 1;
             end if;
 
-            Scale := Scale + Maxdigs;
+         --  Or else pad the output with zeroes up to Maxdigs
+
+         else
+            for K in 1 .. Maxdigs - Len loop
+               Digs (Ndigs + K) := '0';
+            end loop;
+
+            for K in 1 .. Len loop
+               Digs (Ndigs + Maxdigs - Len + K) := Buf (K);
+            end loop;
+
+            Ndigs := Ndigs + Maxdigs;
          end if;
+
+         Scale := Scale + Maxdigs;
+         J := J + 1;
       end loop;
 
       --  If no digit was output, this is zero

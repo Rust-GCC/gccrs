@@ -1,5 +1,5 @@
 /* Loop autoparallelization.
-   Copyright (C) 2006-2023 Free Software Foundation, Inc.
+   Copyright (C) 2006-2024 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <pop@cri.ensmp.fr> 
    Zdenek Dvorak <dvorakz@suse.cz> and Razya Ladelsky <razya@il.ibm.com>.
 
@@ -2203,6 +2203,11 @@ create_loop_fn (location_t loc)
   DECL_CONTEXT (t) = decl;
   TREE_USED (t) = 1;
   DECL_ARGUMENTS (decl) = t;
+  DECL_FUNCTION_SPECIFIC_TARGET (decl)
+    = DECL_FUNCTION_SPECIFIC_TARGET (act_cfun->decl);
+  DECL_FUNCTION_SPECIFIC_OPTIMIZATION (decl)
+    = DECL_FUNCTION_SPECIFIC_OPTIMIZATION (act_cfun->decl);
+
 
   allocate_struct_function (decl, false);
 
@@ -2354,7 +2359,7 @@ transform_to_exit_first_loop_alt (class loop *loop,
   basic_block latch = loop->latch;
   edge exit = single_dom_exit (loop);
   basic_block exit_block = exit->dest;
-  gcond *cond_stmt = as_a <gcond *> (last_stmt (exit->src));
+  gcond *cond_stmt = as_a <gcond *> (*gsi_last_bb (exit->src));
   tree control = gimple_cond_lhs (cond_stmt);
   edge e;
 
@@ -2510,7 +2515,7 @@ try_transform_to_exit_first_loop_alt (class loop *loop,
   /* Check whether the latch contains the loop iv increment.  */
   edge back = single_succ_edge (loop->latch);
   edge exit = single_dom_exit (loop);
-  gcond *cond_stmt = as_a <gcond *> (last_stmt (exit->src));
+  gcond *cond_stmt = as_a <gcond *> (*gsi_last_bb (exit->src));
   tree control = gimple_cond_lhs (cond_stmt);
   gphi *phi = as_a <gphi *> (SSA_NAME_DEF_STMT (control));
   tree inc_res = gimple_phi_arg_def (phi, back->dest_idx);
@@ -2526,14 +2531,15 @@ try_transform_to_exit_first_loop_alt (class loop *loop,
   tree nit_type = TREE_TYPE (nit);
 
   /* Figure out whether nit + 1 overflows.  */
-  if (TREE_CODE (nit) == INTEGER_CST)
+  if (poly_int_tree_p (nit))
     {
       if (!tree_int_cst_equal (nit, TYPE_MAX_VALUE (nit_type)))
 	{
 	  alt_bound = fold_build2_loc (UNKNOWN_LOCATION, PLUS_EXPR, nit_type,
 				       nit, build_one_cst (nit_type));
 
-	  gcc_assert (TREE_CODE (alt_bound) == INTEGER_CST);
+	  gcc_assert (TREE_CODE (alt_bound) == INTEGER_CST
+		      || TREE_CODE (alt_bound) == POLY_INT_CST);
 	  transform_to_exit_first_loop_alt (loop, reduction_list, alt_bound);
 	  return true;
 	}
@@ -2632,7 +2638,7 @@ transform_to_exit_first_loop (class loop *loop,
   orig_header = single_succ (loop->header);
   hpred = single_succ_edge (loop->header);
 
-  cond_stmt = as_a <gcond *> (last_stmt (exit->src));
+  cond_stmt = as_a <gcond *> (*gsi_last_bb (exit->src));
   control = gimple_cond_lhs (cond_stmt);
   gcc_assert (gimple_cond_rhs (cond_stmt) == nit);
 
@@ -2712,7 +2718,7 @@ transform_to_exit_first_loop (class loop *loop,
   /* Initialize the control variable to number of iterations
      according to the rhs of the exit condition.  */
   gimple_stmt_iterator gsi = gsi_after_labels (ex_bb);
-  cond_nit = as_a <gcond *> (last_stmt (exit->src));
+  cond_nit = as_a <gcond *> (*gsi_last_bb (exit->src));
   nit_1 =  gimple_cond_rhs (cond_nit);
   nit_1 = force_gimple_operand_gsi (&gsi,
 				  fold_convert (TREE_TYPE (control_name), nit_1),
@@ -2797,7 +2803,7 @@ create_parallel_loop (class loop *loop, tree loop_fn, tree data,
 
   /* Extract data for GIMPLE_OMP_FOR.  */
   gcc_assert (loop->header == single_dom_exit (loop)->src);
-  cond_stmt = as_a <gcond *> (last_stmt (loop->header));
+  cond_stmt = as_a <gcond *> (*gsi_last_bb (loop->header));
 
   cvar = gimple_cond_lhs (cond_stmt);
   cvar_base = SSA_NAME_VAR (cvar);
@@ -3168,7 +3174,7 @@ gen_parallel_loop (class loop *loop,
 
   /* Create the parallel constructs.  */
   loc = UNKNOWN_LOCATION;
-  cond_stmt = last_stmt (loop->header);
+  cond_stmt = last_nondebug_stmt (loop->header);
   if (cond_stmt)
     loc = gimple_location (cond_stmt);
   create_parallel_loop (loop, create_loop_fn (loc), arg_struct, new_arg_struct,
@@ -3195,7 +3201,7 @@ loop_has_vector_phi_nodes (class loop *loop ATTRIBUTE_UNUSED)
 
   for (i = 0; i < loop->num_nodes; i++)
     for (gsi = gsi_start_phis (bbs[i]); !gsi_end_p (gsi); gsi_next (&gsi))
-      if (TREE_CODE (TREE_TYPE (PHI_RESULT (gsi.phi ()))) == VECTOR_TYPE)
+      if (VECTOR_TYPE_P (TREE_TYPE (PHI_RESULT (gsi.phi ()))))
 	goto end;
 
   res = false;
@@ -4141,7 +4147,10 @@ parallelize_loops (bool oacc_kernels_p)
      which local variables will escape.  Reset the points-to solution
      for ESCAPED.  */
   if (changed)
-    pt_solution_reset (&cfun->gimple_df->escaped);
+    {
+      pt_solution_reset (&cfun->gimple_df->escaped);
+      pt_solution_reset (&cfun->gimple_df->escaped_return);
+    }
 
   return changed;
 }

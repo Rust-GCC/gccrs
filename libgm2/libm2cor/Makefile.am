@@ -17,7 +17,7 @@
 
 SUFFIXES = .c .cc .mod .def .o .obj .lo .a .la
 
-ACLOCAL_AMFLAGS = -I . -I .. -I ../config
+ACLOCAL_AMFLAGS = -I .. -I ../config
 
 VPATH = . @srcdir@ @srcdir@/../../gcc/m2/gm2-libs-coroutines
 
@@ -57,6 +57,7 @@ AM_MAKEFLAGS = \
 	"CXXFLAGS=$(CXXFLAGS)" \
 	"CFLAGS_FOR_BUILD=$(CFLAGS_FOR_BUILD)" \
 	"CFLAGS_FOR_TARGET=$(CFLAGS_FOR_TARGET)" \
+        "CFLAGS_LONGDOUBLE=$(CFLAGS_LONGDOUBLE)" \
 	"INSTALL=$(INSTALL)" \
 	"INSTALL_DATA=$(INSTALL_DATA)" \
 	"INSTALL_PROGRAM=$(INSTALL_PROGRAM)" \
@@ -112,17 +113,25 @@ nodist_EXTRA_libm2cor_la_SOURCES = dummy.c  ## forces automake to generate the L
 
 libm2cordir = libm2cor
 libm2cor_la_DEPENDENCIES = SYSTEM.def $(addsuffix .lo, $(basename $(libm2cor_la_SOURCES)))
-libm2cor_la_CFLAGS = -I. -I.. -I$(GM2_SRC)/gm2-libs -I$(GM2_SRC)/gm2-libs-iso -DBUILD_GM2_LIBS -I@srcdir@/../  -I@srcdir@/../libm2iso
+libm2cor_la_CFLAGS = \
+    -I. -I.. -I$(GM2_SRC)/gm2-libs -I$(GM2_SRC)/gm2-libs-iso \
+    -DBUILD_GM2_LIBS -I@srcdir@/../  -I@srcdir@/../libm2iso
+
 libm2cor_la_M2FLAGS = \
     -fm2-pathname=m2cor -I. -I$(GM2_SRC)/gm2-libs-coroutines \
     -fm2-pathname=m2pim -I$(GM2_SRC)/gm2-libs \
     -fm2-pathname=m2iso -I$(GM2_SRC)/gm2-libs-iso \
-    -fm2-g -g -Wreturn-type -fcase -fm2-prefix=m2cor
+    -fm2-g -g -Wcase-enum -Wreturn-type -fcase -fm2-prefix=m2cor
+
 if TARGET_DARWIN
 libm2cor_la_link_flags = -Wl,-undefined,dynamic_lookup
 else
 libm2cor_la_link_flags =
 endif
+if ENABLE_DARWIN_AT_RPATH
+libm2cor_la_link_flags += -nodefaultrpaths -Wl,-rpath,@loader_path/
+endif
+
 libm2cor_la_LINK = $(LINK) -version-info $(libtool_VERSION) $(libm2cor_la_link_flags)
 BUILT_SOURCES = SYSTEM.def
 CLEANFILES = SYSTEM.def
@@ -137,10 +146,13 @@ SYSTEM.def: Makefile
              "$(GM2_FOR_TARGET)" $@
 
 .mod.lo:
-	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(GM2_FOR_TARGET) -c $(CFLAGS_FOR_TARGET) $(LIBCFLAGS) $(libm2cor_la_M2FLAGS) $< -o $@
+	$(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
+                   --mode=compile $(GM2_FOR_TARGET) \
+                   -c $(CFLAGS_FOR_TARGET) $(LIBCFLAGS) $(libm2cor_la_M2FLAGS) $< -o $@
 
 .cc.lo:
-	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) -c -I$(srcdir) $(CXXFLAGS) $(LIBCFLAGS) $(libm2cor_la_CFLAGS) $< -o $@
+	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) \
+                   -c -I$(srcdir) $(CXXFLAGS) $(LIBCFLAGS) $(libm2cor_la_CFLAGS) $< -o $@
 
 install-data-local: force
 	mkdir -p $(DESTDIR)$(inst_libdir)/$(M2LIBDIR)

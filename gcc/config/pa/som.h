@@ -1,5 +1,5 @@
 /* Definitions for SOM assembler support.
-   Copyright (C) 1999-2023 Free Software Foundation, Inc.
+   Copyright (C) 1999-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -287,7 +287,7 @@ do {						\
    initialized variables and functions.  */
 #define MAKE_DECL_ONE_ONLY(DECL) \
   do {									\
-    if (TREE_CODE (DECL) == VAR_DECL					\
+    if (VAR_P (DECL)					\
         && (DECL_INITIAL (DECL) == 0					\
             || DECL_INITIAL (DECL) == error_mark_node))			\
       DECL_COMMON (DECL) = 1;						\

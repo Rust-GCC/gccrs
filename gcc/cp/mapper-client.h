@@ -1,5 +1,5 @@
 /* C++ modules.  Experimental!	-*- c++ -*-
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
    Written by Nathan Sidwell <nathan@acm.org> while at FaceBook
 
    This file is part of GCC.
@@ -55,6 +55,7 @@ public:
 
 public:
   static module_client *open_module_client (location_t loc, const char *option,
+					    class mkdeps *,
 					    void (*set_repo) (const char *),
 					    char const *);
   static void close_module_client (location_t loc, module_client *);

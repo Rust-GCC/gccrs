@@ -1,5 +1,5 @@
 /* Process source files and output type information.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -458,6 +458,8 @@ extern void parse_file (const char *name);
 extern bool hit_error;
 
 /* Token codes.  */
+/* Keep 'gengtype-parse.cc:token_names', 'gengtype-parse.cc:token_value_format'
+   in sync.  */
 enum gty_token
 {
   EOF_TOKEN = 0,
@@ -486,7 +488,7 @@ enum gty_token
 
   /* print_token assumes that any token >= FIRST_TOKEN_WITH_VALUE may have
      a meaningful value to be printed.  */
-  FIRST_TOKEN_WITH_VALUE = USER_GTY
+  FIRST_TOKEN_WITH_VALUE = NUM
 };
 
 

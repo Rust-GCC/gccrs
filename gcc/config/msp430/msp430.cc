@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on TI MSP430 processors.
-   Copyright (C) 2012-2023 Free Software Foundation, Inc.
+   Copyright (C) 2012-2024 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -927,7 +927,8 @@ reg_ok_for_addr (rtx r, bool strict)
 bool
 msp430_legitimate_address_p (machine_mode mode ATTRIBUTE_UNUSED,
 			     rtx x ATTRIBUTE_UNUSED,
-			     bool strict ATTRIBUTE_UNUSED)
+			     bool strict ATTRIBUTE_UNUSED,
+			     code_helper = ERROR_MARK)
 {
   switch (GET_CODE (x))
     {
@@ -980,9 +981,10 @@ bool
 msp430_addr_space_legitimate_address_p (machine_mode mode,
 					rtx x,
 					bool strict,
-					addr_space_t as ATTRIBUTE_UNUSED)
+					addr_space_t as ATTRIBUTE_UNUSED,
+					code_helper ch = ERROR_MARK)
 {
-  return msp430_legitimate_address_p (mode, x, strict);
+  return msp430_legitimate_address_p (mode, x, strict, ch);
 }
 
 #undef  TARGET_ASM_INTEGER
@@ -2055,7 +2057,7 @@ static const struct attribute_spec::exclusions attr_either_exclusions[] =
 #define TARGET_ATTRIBUTE_TABLE		msp430_attribute_table
 
 /* Table of MSP430-specific attributes.  */
-const struct attribute_spec msp430_attribute_table[] =
+TARGET_GNU_ATTRIBUTES (msp430_attribute_table,
   {
     /* { name, min_num_args, max_num_args, decl_req, type_req, fn_type_req,
 	 affects_type_identity, handler, exclude } */
@@ -2073,10 +2075,8 @@ const struct attribute_spec msp430_attribute_table[] =
     { ATTR_UPPER,       0, 0, true,  false, false, false, msp430_section_attr,
       attr_upper_exclusions },
     { ATTR_EITHER,      0, 0, true,  false, false, false, msp430_section_attr,
-      attr_either_exclusions },
-
-    { NULL,		0, 0, false, false, false, false, NULL,  NULL }
-  };
+      attr_either_exclusions }
+  });
 
 #undef TARGET_HANDLE_GENERIC_ATTRIBUTE
 #define TARGET_HANDLE_GENERIC_ATTRIBUTE msp430_handle_generic_attribute

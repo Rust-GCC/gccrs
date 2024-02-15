@@ -1,5 +1,5 @@
 /* Classes for analyzer diagnostics.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -96,15 +96,10 @@ evdesc::event_desc::formatted_print (const char *fmt, ...) const
 
   pp_show_color (pp) = m_colorize;
 
-  text_info ti;
   rich_location rich_loc (line_table, UNKNOWN_LOCATION);
   va_list ap;
   va_start (ap, fmt);
-  ti.format_spec = _(fmt);
-  ti.args_ptr = &ap;
-  ti.err_no = 0;
-  ti.x_data = NULL;
-  ti.m_richloc = &rich_loc;
+  text_info ti (_(fmt), &ap, 0, nullptr, &rich_loc);
   pp_format (pp, &ti);
   pp_output_formatted_text (pp);
   va_end (ap);
@@ -112,6 +107,51 @@ evdesc::event_desc::formatted_print (const char *fmt, ...) const
   label_text result = label_text::take (xstrdup (pp_formatted_text (pp)));
   delete pp;
   return result;
+}
+
+/* class diagnostic_emission_context.  */
+
+/* Get the pending_diagnostic being emitted.  */
+
+const pending_diagnostic &
+diagnostic_emission_context::get_pending_diagnostic () const
+{
+  return *m_sd.m_d.get ();
+}
+
+/* Emit a warning, using the rich_location, metadata, and the
+   pending_diagnostic's option.  */
+
+bool
+diagnostic_emission_context::warn (const char *gmsgid, ...)
+{
+  const pending_diagnostic &pd = get_pending_diagnostic ();
+  auto_diagnostic_group d;
+  va_list ap;
+  va_start (ap, gmsgid);
+  const bool result = emit_diagnostic_valist_meta (DK_WARNING,
+						   &m_rich_loc, &m_metadata,
+						   pd.get_controlling_option (),
+						   gmsgid, &ap);
+  va_end (ap);
+  return result;
+}
+
+/* Emit a note, using the rich_location and metadata (and the
+   pending_diagnostic's option).  */
+
+void
+diagnostic_emission_context::inform (const char *gmsgid, ...)
+{
+  const pending_diagnostic &pd = get_pending_diagnostic ();
+  auto_diagnostic_group d;
+  va_list ap;
+  va_start (ap, gmsgid);
+  emit_diagnostic_valist_meta (DK_NOTE,
+			       &m_rich_loc, &m_metadata,
+			       pd.get_controlling_option (),
+			       gmsgid, &ap);
+  va_end (ap);
 }
 
 /* Return true if T1 and T2 are "the same" for the purposes of

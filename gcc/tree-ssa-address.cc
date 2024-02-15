@@ -1,5 +1,5 @@
 /* Memory address lowering and addressing mode selection.
-   Copyright (C) 2004-2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -344,7 +344,7 @@ tree_mem_ref_addr (tree type, tree mem_ref)
 
 bool
 valid_mem_ref_p (machine_mode mode, addr_space_t as,
-		 struct mem_address *addr)
+		 struct mem_address *addr, code_helper ch)
 {
   rtx address;
 
@@ -352,7 +352,7 @@ valid_mem_ref_p (machine_mode mode, addr_space_t as,
   if (!address)
     return false;
 
-  return memory_address_addr_space_p (mode, address, as);
+  return memory_address_addr_space_p (mode, address, as, ch);
 }
 
 /* Checks whether a TARGET_MEM_REF with type TYPE and parameters given by ADDR
@@ -368,9 +368,6 @@ create_mem_ref_raw (tree type, tree alias_ptr_type, struct mem_address *addr,
   if (verify
       && !valid_mem_ref_p (TYPE_MODE (type), TYPE_ADDR_SPACE (type), addr))
     return NULL_TREE;
-
-  if (addr->step && integer_onep (addr->step))
-    addr->step = NULL_TREE;
 
   if (addr->offset)
     addr->offset = fold_convert (alias_ptr_type, addr->offset);

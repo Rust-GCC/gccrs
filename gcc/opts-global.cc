@@ -1,6 +1,6 @@
 /* Command line option handling.  Code involving global state that
    should not be shared with the driver.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -401,7 +401,7 @@ handle_common_deferred_options (void)
 	  break;
 
 	case OPT_fdump_:
-	  g->get_dumps ()->dump_switch_p (opt->arg);
+	  /* Deferred until plugins initialized.  */
 	  break;
 
         case OPT_fopt_info_:
@@ -493,4 +493,22 @@ handle_common_deferred_options (void)
 	  gcc_unreachable ();
 	}
     }
+}
+
+/* Handle deferred dump options.  */
+
+void
+handle_deferred_dump_options (void)
+{
+  unsigned int i;
+  cl_deferred_option *opt;
+  vec<cl_deferred_option> v;
+
+  if (common_deferred_options)
+    v = *((vec<cl_deferred_option> *) common_deferred_options);
+  else
+    v = vNULL;
+  FOR_EACH_VEC_ELT (v, i, opt)
+    if (opt->opt_index == OPT_fdump_)
+      g->get_dumps ()->dump_switch_p (opt->arg);
 }

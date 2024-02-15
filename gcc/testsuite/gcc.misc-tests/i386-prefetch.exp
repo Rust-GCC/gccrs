@@ -1,4 +1,4 @@
-#   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+#   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,6 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
+
+if { [board_info target exists multilib_flags]
+     && [string match "* -march=*" " [board_info target multilib_flags] "] } {
+    # Multilib flags come after the -march flags we pass and override
+    # them, so skip these tests when such flags are passed.
+    return
+}
 
 # Test that the correct data prefetch instructions (SSE or 3DNow! variant,
 # or none) are used for various i386 cpu-type and instruction set
@@ -89,13 +96,6 @@ load_lib torture-options.exp
 # Initialize harness.
 dg-init
 torture-init
-
-if { [board_info target exists multilib_flags]
-     && [string match "* -march=*" " [board_info target multilib_flags] "] } {
-    # Multilib flags come after the -march flags we pass and override
-    # them, so skip these tests when such flags are passed.
-    return
-}
 
 set-torture-options $PREFETCH_NONE
 gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/i386-pf-none-*.c]] "" ""

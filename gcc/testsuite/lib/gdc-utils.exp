@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2023 Free Software Foundation, Inc.
+# Copyright (C) 2012-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -162,6 +162,9 @@ proc gdc-convert-args { args } {
 	} elseif [string match "-o-" $arg] {
 	    upvar 2 compilable_do_what compilable_do_what
 	    set compilable_do_what "compile"
+
+	} elseif [string match "-nothrow" $arg] {
+	    lappend out "-fno-exceptions"
 
 	} elseif [string match "-vgc" $arg] {
 	    lappend out "-ftransition=nogc"

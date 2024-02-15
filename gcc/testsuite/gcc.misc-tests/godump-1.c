@@ -234,7 +234,6 @@ const char cc_v1;
 cc_t cc_v2;
 /* { dg-final { scan-file godump-1.out "(?n)^var _cc_v2 _cc_t$" } } */
 
-
 /*** pointer and array types ***/
 typedef void *vp_t;
 /* { dg-final { scan-file godump-1.out "(?n)^type _vp_t \\*byte$" } } */

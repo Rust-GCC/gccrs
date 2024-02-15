@@ -1,5 +1,5 @@
 /* A class for referring to events within a diagnostic_path.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>
 
 This file is part of GCC.
@@ -57,5 +57,10 @@ class diagnostic_event_id_t
    colorization, e.g. "(1)".
    The %@ format code requires that known_p be true for the event ID. */
 typedef diagnostic_event_id_t *diagnostic_event_id_ptr;
+
+/* A type for compactly referring to a particular thread within a
+   diagnostic_path.  Typically there is just one thread per path,
+   with id 0.  */
+typedef unsigned diagnostic_thread_id_t;
 
 #endif /* ! GCC_DIAGNOSTIC_EVENT_ID_H */

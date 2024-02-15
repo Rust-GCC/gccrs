@@ -1,5 +1,5 @@
 /* Declarations for -*- C++ -*- name lookup routines.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -213,7 +213,8 @@ enum scope_kind {
 			explicit specialization is introduced by
 			"template <>", this scope is always empty.  */
   sk_transaction,    /* A synchronized or atomic statement.  */
-  sk_omp	     /* An OpenMP structured block.  */
+  sk_omp,	     /* An OpenMP structured block.  */
+  sk_count	     /* Number of scope_kind enumerations.  */
 };
 
 struct GTY(()) cp_class_binding {
@@ -292,11 +293,11 @@ struct GTY(()) cp_binding_level {
       only valid if KIND == SK_TEMPLATE_PARMS.  */
   BOOL_BITFIELD explicit_spec_p : 1;
 
-  /* true means make a BLOCK for this level regardless of all else.  */
+  /* True means make a BLOCK for this level regardless of all else.  */
   unsigned keep : 1;
 
   /* Nonzero if this level can safely have additional
-      cleanup-needing variables added to it.  */
+     cleanup-needing variables added to it.  */
   unsigned more_cleanups_ok : 1;
   unsigned have_cleanups : 1;
 
@@ -308,9 +309,13 @@ struct GTY(()) cp_binding_level {
   unsigned defining_class_p : 1;
 
   /* True for SK_FUNCTION_PARMS of a requires-expression.  */
-  unsigned requires_expression: 1;
+  unsigned requires_expression : 1;
 
-  /* 22 bits left to fill a 32-bit word.  */
+  /* True for artificial blocks which should be ignored when finding
+     parent scope.  */
+  unsigned artificial : 1;
+
+  /* 21 bits left to fill a 32-bit word.  */
 };
 
 /* The binding level currently in effect.  */
@@ -449,6 +454,7 @@ extern void resort_type_member_vec (void *, void *,
 extern vec<tree, va_gc> *set_class_bindings (tree, int extra = 0);
 extern void insert_late_enum_def_bindings (tree, tree);
 extern tree innermost_non_namespace_value (tree);
+extern bool decl_in_scope_p (tree);
 extern cxx_binding *outer_binding (tree, cxx_binding *, bool);
 extern void cp_emit_debug_info_for_using (tree, tree);
 
@@ -466,6 +472,8 @@ extern void push_nested_namespace (tree);
 extern void pop_nested_namespace (tree);
 extern void push_to_top_level (void);
 extern void pop_from_top_level (void);
+extern bool maybe_push_to_top_level (tree);
+extern void maybe_pop_from_top_level (bool);
 extern void push_using_decl_bindings (tree, tree);
 
 /* Lower level interface for modules. */

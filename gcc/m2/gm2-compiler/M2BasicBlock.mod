@@ -1,6 +1,6 @@
 (* M2BasicBlock.mod converts a scope block into a list of basic blocks.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -35,11 +35,13 @@ FROM M2Quads IMPORT IsReferenced, IsConditional, IsUnConditional, IsCall,
                     IsInitialisingConst,
                     IsPseudoQuad, IsDefOrModFile,
                     GetNextQuad, GetQuad, QuadOperator,
-                    SubQuad ;
+                    SubQuad, DisplayQuadRange ;
 
-FROM M2Scope IMPORT ScopeBlock, ForeachScopeBlockDo ;
-FROM M2GenGCC IMPORT ConvertQuadsToTree ;
+FROM M2Scope IMPORT ScopeBlock, ForeachScopeBlockDo3 ;
 
+
+CONST
+   Debugging = FALSE ;
 
 TYPE
    BasicBlock = POINTER TO RECORD
@@ -65,7 +67,7 @@ VAR
 PROCEDURE InitBasicBlocks (sb: ScopeBlock) : BasicBlock ;
 BEGIN
    HeadOfBasicBlock := NIL ;
-   ForeachScopeBlockDo (sb, ConvertQuads2BasicBlock) ;
+   ForeachScopeBlockDo3 (sb, ConvertQuads2BasicBlock) ;
    RETURN HeadOfBasicBlock
 END InitBasicBlocks ;
 
@@ -77,10 +79,15 @@ END InitBasicBlocks ;
                               reachable are removed.
 *)
 
-PROCEDURE InitBasicBlocksFromRange (start, end: CARDINAL) : BasicBlock ;
+PROCEDURE InitBasicBlocksFromRange (ScopeSym: CARDINAL;
+                                    start, end: CARDINAL) : BasicBlock ;
 BEGIN
    HeadOfBasicBlock := NIL ;
-   ConvertQuads2BasicBlock(start, end) ;
+   ConvertQuads2BasicBlock (ScopeSym, start, end) ;
+   IF Debugging
+   THEN
+      DisplayBasicBlocks (HeadOfBasicBlock)
+   END ;
    RETURN( HeadOfBasicBlock )
 END InitBasicBlocksFromRange ;
 
@@ -144,7 +151,7 @@ END New ;
                              which has only has one entry and exit point.
 *)
 
-PROCEDURE ConvertQuads2BasicBlock (Start, End: CARDINAL) ;
+PROCEDURE ConvertQuads2BasicBlock (ScopeSym: CARDINAL; Start, End: CARDINAL) ;
 VAR
    LastQuadDefMod,
    LastQuadConditional,
@@ -154,6 +161,10 @@ VAR
    CurrentBB          : BasicBlock ;
    LastBB             : BasicBlock ;
 BEGIN
+   IF Debugging
+   THEN
+      DisplayQuadRange (ScopeSym, Start, End)
+   END ;
    (*
       Algorithm to perform Basic Block:
 
@@ -242,7 +253,7 @@ BEGIN
       b := bb ;
       REPEAT
          WITH b^ DO
-            p(StartQuad, EndQuad)
+            p (StartQuad, EndQuad)
          END ;
          b := b^.Right
       UNTIL b=bb
@@ -323,7 +334,6 @@ END Sub ;
    DisplayBasicBlocks - displays the basic block data structure.
 *)
 
-(*
 PROCEDURE DisplayBasicBlocks (bb: BasicBlock) ;
 VAR
    b: BasicBlock ;
@@ -347,7 +357,6 @@ BEGIN
       WriteString(' end   ') ; WriteCard(EndQuad, 6) ;
    END
 END DisplayBlock ;
-*)
 
 
 BEGIN

@@ -3,7 +3,7 @@
 //
 // 2008-12-03  Edward M. Smith-Rowland <3dw4rd@verizon.net>
 //
-// Copyright (C) 2008-2023 Free Software Foundation, Inc.
+// Copyright (C) 2008-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,7 +39,7 @@ test01()
   VERIFY( interval[5] == 5.0 );
   VERIFY( density.size() == 6 );
   VERIFY( density[0] == 0.0 );
-  VERIFY( density[4] == 3.5 / 8.5 );
+  VERIFY( density[4] == double(3.5 / 8.5) );
 }
 
 int main()

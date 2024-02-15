@@ -1,131 +1,125 @@
-2023-03-17  Iain Buclaw  <ibuclaw@gdcproject.org>
+2024-02-12  Iain Buclaw  <ibuclaw@gdcproject.org>
 
-	* dmd/MERGE: Merge upstream dmd 5f7552bb28.
-	* dmd/VERSION: Bump version to v2.103.0-rc.1.
+	PR d/113125
+	* types.cc (TypeVisitor::visit (TypeStruct *)): Generate TYPE_DECL and
+	apply UDAs to opaque struct declarations.
 
-2023-03-16  Iain Buclaw  <ibuclaw@gdcproject.org>
+2024-02-12  Iain Buclaw  <ibuclaw@gdcproject.org>
 
-	* dmd/MERGE: Merge upstream dmd 4ca4140e58.
-	* dmd/VERSION: Bump version to v2.103.0-beta.1.
-	* Make-lang.in (D_FRONTEND_OBJS): Add d/errorsink.o.
-	* d-ctfloat.cc (CTFloat::sprint): Update signature for new front-end
+	PR d/113772
+	* dmd/MERGE: Merge upstream dmd 11240a9663.
+	* d-builtins.cc (build_frontend_type): Update for new front-end
 	interface.
-	* d-frontend.cc (getTypeInfoType): Likewise.
-	* d-lang.cc (d_handle_option): Remove handling of -fpreview=dip25 and
-	-frevert=dip25.
-	(d_post_options): Remove enabling of sealed references language
-	feature when scoped pointers is enabled.
-	* d-tree.h (create_typeinfo): Update signature.
-	* decl.cc (DeclVisitor::finish_vtable): Update for new front-end
+	* types.cc (same_type_p): Likewise.
+
+2024-02-12  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	PR d/113758
+	* d-codegen.cc (d_build_call): Force a TARGET_EXPR when callee
+	destorys its arguments.
+	* decl.cc (DeclVisitor::visit (VarDeclaration *)): Set
+	SET_DECL_VALUE_EXPR on the temporary variable to make it a placeholder
+	for the TARGET_EXPR_SLOT.
+
+2024-02-04  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* dmd/MERGE: Merge upstream dmd a6f1083699.
+	* dmd/VERSION: Bump version to v2.107.0
+	* Make-lang.in (D_FRONTEND_OBJS): Add d/pragmasem.o.
+	* d-builtins.cc (strip_type_modifiers): Update for new front-end
 	interface.
-	(DeclVisitor::visit (VarDeclaration *)): Likewise.
-	(DeclVisitor::visit (FuncDeclaration *)): Check skipCodegen to see if
-	front-end explicitly requested not to generate code.
-	* expr.cc (ExprVisitor::visit (NewExp *)): Update for new front-end
+	* d-codegen.cc (declaration_type): Likewise.
+	(parameter_type): Likewise.
+	* d-target.cc (TargetCPP::parameterType): Likewise.
+	* expr.cc (ExprVisitor::visit (IndexExp *)): Likewise.
+	(ExprVisitor::visit (VarExp *)): Likewise.
+	(ExprVisitor::visit (AssocArrayLiteralExp *)): Likewise.
+	* runtime.cc (get_libcall_type): Likewise.
+	* typeinfo.cc (TypeInfoVisitor::visit (TypeInfoConstDeclaration *)):
+	Likewise.
+	(TypeInfoVisitor::visit (TypeInfoInvariantDeclaration *)): Likewise.
+	(TypeInfoVisitor::visit (TypeInfoSharedDeclaration *)): Likewise.
+	(TypeInfoVisitor::visit (TypeInfoWildDeclaration *)): Likewise.
+	* types.cc (build_ctype): Likewise.
+
+2024-02-03  Iain Buclaw  <ibuclaw@gdcproject.org>
+
+	* dmd/MERGE: Merge upstream dmd e770945277.
+	* Make-lang.in (D_FRONTEND_OBJS): Add d/basicmangle.o, d/enumsem.o,
+	d/funcsem.o, d/templatesem.o.
+	* d-builtins.cc (build_frontend_type): Update for new front-end
 	interface.
-	* lang.opt (fpreview=dip25): Remove.
-	(frevert=dip25): Remove.
-	* modules.cc (layout_moduleinfo_fields): Update for new front-end
-	interface.
-	(layout_moduleinfo): Likewise.
-	* runtime.def (NEWCLASS): Remove.
-	* toir.cc (IRVisitor::visit (IfStatement *)): Don't generate IR for if
-	statement list when condition is `__ctfe'.
-	* typeinfo.cc (create_typeinfo): Add generate parameter.
-	* types.cc (layout_aggregate_members): Update for new front-end
-	interface.
+	* d-codegen.cc (declaration_type): Likewise.
+	(parameter_type): Likewise.
+	* d-incpath.cc (add_globalpaths): Likewise.
+	(add_filepaths): Likewise.
+	(add_import_paths): Likewise.
+	* d-lang.cc (d_init_options): Likewise.
+	(d_handle_option): Likewise.
+	(d_parse_file): Likewise.
+	* decl.cc (DeclVisitor::finish_vtable): Likewise.
+	(DeclVisitor::visit (FuncDeclaration *)): Likewise.
+	(get_symbol_decl): Likewise.
+	* expr.cc (ExprVisitor::visit (StringExp *)): Likewise.
+	Implement support for 8-byte hexadecimal strings.
+	* typeinfo.cc (create_tinfo_types): Update internal TypeInfo
+	representation.
+	(TypeInfoVisitor::visit (TypeInfoConstDeclaration *)): Update for new
+	front-end interface.
+	(TypeInfoVisitor::visit (TypeInfoInvariantDeclaration *)): Likewise.
+	(TypeInfoVisitor::visit (TypeInfoSharedDeclaration *)): Likewise.
+	(TypeInfoVisitor::visit (TypeInfoWildDeclaration *)): Likewise.
+	(TypeInfoVisitor::visit (TypeInfoClassDeclaration *)): Move data for
+	TypeInfo_Class.nameSig to the end of the object.
+	(create_typeinfo): Update for new front-end interface.
 
-2023-03-16  Iain Buclaw  <ibuclaw@gdcproject.org>
+2024-02-02  Iain Buclaw  <ibuclaw@gdcproject.org>
 
-	PR d/109144
-	* d-codegen.cc (build_frame_type): Set frame field and type alignment.
+	* dmd/MERGE: Merge upstream dmd bce5c1f7b5.
+	* d-attribs.cc (build_attributes): Update for new front-end interface.
+	* d-lang.cc (d_parse_file): Likewise.
+	* decl.cc (DeclVisitor::visit (VarDeclaration *)): Likewise.
+	* expr.cc (build_lambda_tree): New function.
+	(ExprVisitor::visit (FuncExp *)): Use build_lambda_tree.
+	(ExprVisitor::visit (SymOffExp *)): Likewise.
+	(ExprVisitor::visit (VarExp *)): Likewise.
+	* typeinfo.cc (create_tinfo_types): Add two ulong fields to internal
+	TypeInfo representation.
+	(TypeInfoVisitor::visit (TypeInfoClassDeclaration *)): Emit stub data
+	for TypeInfo_Class.nameSig.
+	(TypeInfoVisitor::visit (TypeInfoStructDeclaration *)): Update for new
+	front-end interface.
 
-2023-03-14  Iain Buclaw  <ibuclaw@gdcproject.org>
+2024-02-02  Iain Buclaw  <ibuclaw@gdcproject.org>
 
-	PR d/109108
-	* decl.cc (function_defined_in_root_p): Remove.
-	(get_symbol_decl): Set DECL_LAMBDA_FUNCTION_P on function literals.
-	(start_function): Unconditionally unset DECL_EXTERNAL
-	(set_linkage_for_decl): Give lambda functions one-only linkage.
+	* dmd/MERGE: Merge upstream dmd d8e3976a58.
+	* dmd/VERSION: Bump version to v2.107.0-beta.1.
+	* d-lang.cc (d_parse_file): Update for new front-end interface.
+	* modules.cc (struct module_info): Add standalonectors.
+	(build_module_tree): Implement @standalone.
+	(register_module_decl): Likewise.
 
-2023-03-13  Iain Buclaw  <ibuclaw@gdcproject.org>
+2024-02-02  Iain Buclaw  <ibuclaw@gdcproject.org>
 
-	* decl.cc (finish_thunk): Unset DECL_EXTERNAL on thunk.
-	(make_thunk): Set DECL_EXTERNAL on thunk, don't call build_decl_tree.
-	(finish_function): Call finish_thunk on forward referenced thunks.
+	* dmd/MERGE: Merge upstream dmd f1a045928e.
+	* dmd/VERSION: Bump version to v2.106.1-rc.1.
+	* gdc.texi (fignore-unknown-pragmas): Update documentation.
+	* d-builtins.cc (covariant_with_builtin_type_p): Update for new
+	front-end interface.
+	* d-lang.cc (d_parse_file): Likewise.
+	* typeinfo.cc (make_frontend_typeinfo): Likewise.
 
-2023-03-13  Iain Buclaw  <ibuclaw@gdcproject.org>
+2024-01-04  David Malcolm  <dmalcolm@redhat.com>
 
-	* decl.cc (get_fndecl_result): New function.
-	(get_fndecl_arguments): New function.
-	(DeclVisitor::visit (FuncDeclaration *)): Adjust to call
-	get_fndecl_arguments.
-	(make_thunk): Adjust to call get_fndecl_arguments and
-	get_fndecl_result.
-	(start_function): Adjust to call get_fndecl_result.
+	* lang.opt.urls: New file, autogenerated by
+	regenerate-opt-urls.py.
 
-2023-03-03  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	PR d/108763
-	* implement-d.texi (Missing Features): Document that TypeInfo-based
-	va_arg is not implemented.
-
-2023-03-03  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	PR d/108946
-	* d-target.cc (Target::isVectorOpSupported): Allow identity ops.
-	* expr.cc (ExprVisitor::visit (IdentityExp *)): Handle vector identity
-	comparisons.
-
-2023-03-03  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	PR d/108877
-	* imports.cc (ImportVisitor::visit (EnumDeclaration *)): Call
-	make_import on TYPE_MAIN_VARIANT.
-	(ImportVisitor::visit (AggregateDeclaration *)): Likewise.
-	(ImportVisitor::visit (ClassDeclaration *)): Likewise.
-
-2023-03-03  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	PR d/108945
-	* d-codegen.cc (build_boolop): Evaluate vector comparison as
-	the truth_type_for vector type.
-
-2023-02-23  Arsen Arsenović  <arsen@aarsen.me>
-
-	* implement-d.texi: Reorder index entries around @items.
-
-2023-02-23  Arsen Arsenović  <arsen@aarsen.me>
-
-	* gdc.texi: Reorder @opindex commands to precede @items they
-	relate to.
-
-2023-02-21  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	* Make-lang.in (D_FRONTEND_OBJS): Add d/location.o.
-	* d-lang.cc (d_init_options): Update for new front-end interface.
-	(d_post_options): Call Loc::set after handling options.
-	* dmd/MERGE: Merge upstream dmd 09faa4eacd.
-	* dmd/VERSION: Bump version to v2.102.0-beta.1.
-
-2023-02-21  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	* d-codegen.cc (d_build_call): Remove front-end expansion of
-	side-effects in a call expression.
-	* d-gimplify.cc (d_gimplify_call_expr): Gimplify the callee before its
-	arguments.
-
-2023-02-21  Iain Buclaw  <ibuclaw@gdcproject.org>
-
-	* decl.cc (DeclVisitor::visit (FuncDeclaration *)): Set
-	doing_semantic_analysis_p before calling functionSemantic3.
-
-2023-01-02  Jakub Jelinek  <jakub@redhat.com>
+2024-01-03  Jakub Jelinek  <jakub@redhat.com>
 
 	* gdc.texi: Bump @copyrights-d year.
 
 
-Copyright (C) 2023 Free Software Foundation, Inc.
+Copyright (C) 2024 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

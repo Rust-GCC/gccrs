@@ -1,5 +1,5 @@
 /* Definitions for LoongArch CPU properties.
-   Copyright (C) 2021-2023 Free Software Foundation, Inc.
+   Copyright (C) 2021-2024 Free Software Foundation, Inc.
    Contributed by Loongson Ltd.
 
 This file is part of GCC.
@@ -23,17 +23,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "diagnostic-core.h"
 
+#include "loongarch-def.h"
 #include "loongarch-opts.h"
 #include "loongarch-cpu.h"
+#include "loongarch-cpucfg-map.h"
 #include "loongarch-str.h"
 
+
 /* Native CPU detection with "cpucfg" */
-#define N_CPUCFG_WORDS 0x15
 static uint32_t cpucfg_cache[N_CPUCFG_WORDS] = { 0 };
-static const int cpucfg_useful_idx[] = {0, 1, 2, 16, 17, 18, 19};
 
 static uint32_t
 read_cpucfg_word (int wordno)
@@ -55,11 +55,8 @@ read_cpucfg_word (int wordno)
 void
 cache_cpucfg (void)
 {
-  for (unsigned int i = 0; i < sizeof (cpucfg_useful_idx) / sizeof (int); i++)
-    {
-      cpucfg_cache[cpucfg_useful_idx[i]]
-	= read_cpucfg_word (cpucfg_useful_idx[i]);
-    }
+  for (int idx: cpucfg_useful_idx)
+    cpucfg_cache[idx] = read_cpucfg_word (idx);
 }
 
 uint32_t
@@ -80,127 +77,215 @@ get_native_prid_str (void)
 }
 
 /* Fill property tables for CPU_NATIVE.  */
-unsigned int
-fill_native_cpu_config (int p_arch_native, int p_tune_native)
+void
+fill_native_cpu_config (struct loongarch_target *tgt)
 {
-  int ret_cpu_type;
+  int arch_native_p = tgt->cpu_arch == CPU_NATIVE;
+  int tune_native_p = tgt->cpu_tune == CPU_NATIVE;
+  int native_cpu_type = CPU_NATIVE;
 
   /* Nothing needs to be done unless "-march/tune=native"
      is given or implied.  */
-  if (!(p_arch_native || p_tune_native))
-    return CPU_NATIVE;
+  if (!arch_native_p && !tune_native_p)
+    return;
 
   /* Fill cpucfg_cache with the "cpucfg" instruction.  */
   cache_cpucfg ();
 
-
-  /* Fill: loongarch_cpu_default_isa[CPU_NATIVE].base
-     With: base architecture (ARCH)
-     At:   cpucfg_words[1][1:0] */
-
-  #define NATIVE_BASE_ISA (loongarch_cpu_default_isa[CPU_NATIVE].base)
-  switch (cpucfg_cache[1] & 0x3)
-    {
-      case 0x02:
-	NATIVE_BASE_ISA = ISA_BASE_LA64V100;
-	break;
-
-      default:
-	if (p_arch_native)
-	  fatal_error (UNKNOWN_LOCATION,
-		       "unknown base architecture %<0x%x%>, %qs failed",
-		       (unsigned int) (cpucfg_cache[1] & 0x3),
-		       "-m" OPTSTR_ARCH "=" STR_CPU_NATIVE);
-    }
-
-  /* Fill: loongarch_cpu_default_isa[CPU_NATIVE].fpu
-     With: FPU type (FP, FP_SP, FP_DP)
-     At:   cpucfg_words[2][2:0] */
-
-  #define NATIVE_FPU (loongarch_cpu_default_isa[CPU_NATIVE].fpu)
-  switch (cpucfg_cache[2] & 0x7)
-    {
-      case 0x07:
-	NATIVE_FPU = ISA_EXT_FPU64;
-	break;
-
-      case 0x03:
-	NATIVE_FPU = ISA_EXT_FPU32;
-	break;
-
-      case 0x00:
-	NATIVE_FPU = ISA_EXT_NOFPU;
-	break;
-
-      default:
-	if (p_arch_native)
-	  fatal_error (UNKNOWN_LOCATION,
-		       "unknown FPU type %<0x%x%>, %qs failed",
-		       (unsigned int) (cpucfg_cache[2] & 0x7),
-		       "-m" OPTSTR_ARCH "=" STR_CPU_NATIVE);
-    }
-
-  /* Fill: loongarch_cpu_cache[CPU_NATIVE]
-     With: cache size info
-     At:   cpucfg_words[16:20][31:0] */
-
-  int l1d_present = 0, l1u_present = 0;
-  int l2d_present = 0;
-  uint32_t l1_szword, l2_szword;
-
-  l1u_present |= cpucfg_cache[16] & 3;	      /* bit[1:0]: unified l1 cache */
-  l1d_present |= cpucfg_cache[16] & 4;	      /* bit[2:2]: l1 dcache */
-  l1_szword = l1d_present ? 18 : (l1u_present ? 17 : 0);
-  l1_szword = l1_szword ? cpucfg_cache[l1_szword]: 0;
-
-  l2d_present |= cpucfg_cache[16] & 24;	      /* bit[4:3]: unified l2 cache */
-  l2d_present |= cpucfg_cache[16] & 128;      /* bit[7:7]: l2 dcache */
-  l2_szword = l2d_present ? cpucfg_cache[19]: 0;
-
-  loongarch_cpu_cache[CPU_NATIVE].l1d_line_size
-    = 1 << ((l1_szword & 0x7f000000) >> 24);  /* bit[30:24]: log2(linesize) */
-
-  loongarch_cpu_cache[CPU_NATIVE].l1d_size
-    = (1 << ((l1_szword & 0x00ff0000) >> 16)) /* bit[23:16]: log2(idx) */
-    * ((l1_szword & 0x0000ffff) + 1)	      /* bit[15:0]:  sets - 1 */
-    * (1 << ((l1_szword & 0x7f000000) >> 24)) /* bit[30:24]: log2(linesize) */
-    >> 10;				      /* in kilobytes */
-
-  loongarch_cpu_cache[CPU_NATIVE].l2d_size
-    = (1 << ((l2_szword & 0x00ff0000) >> 16)) /* bit[23:16]: log2(idx) */
-    * ((l2_szword & 0x0000ffff) + 1)	      /* bit[15:0]:  sets - 1 */
-    * (1 << ((l2_szword & 0x7f000000) >> 24)) /* bit[30:24]: log2(linesize) */
-    >> 10;				      /* in kilobytes */
-
-  /* Fill: ret_cpu_type
+  /* Fill: tgt->cpu_arch | tgt->cpu_tune
      With: processor ID (PRID)
      At:   cpucfg_words[0][31:0] */
 
   switch (cpucfg_cache[0] & 0x00ffff00)
   {
     case 0x0014c000:   /* LA464 */
-      ret_cpu_type = CPU_LA464;
+      native_cpu_type = CPU_LA464;
+      break;
+
+    case 0x0014d000:   /* LA664 */
+      native_cpu_type = CPU_LA664;
       break;
 
     default:
-      /* Unknown PRID.  This is generally harmless as long as
-	 the properties above can be obtained via "cpucfg".  */
-      if (p_tune_native)
+      /* Unknown PRID.  */
+      if (tune_native_p)
 	inform (UNKNOWN_LOCATION, "unknown processor ID %<0x%x%>, "
 		"some tuning parameters will fall back to default",
 		cpucfg_cache[0]);
       break;
   }
 
-  /* Properties that cannot be looked up directly using cpucfg.  */
-  loongarch_cpu_issue_rate[CPU_NATIVE]
-    = loongarch_cpu_issue_rate[ret_cpu_type];
+  /* if -march=native */
+  if (arch_native_p)
+    {
+      int tmp;
+      tgt->cpu_arch = native_cpu_type;
 
-  loongarch_cpu_multipass_dfa_lookahead[CPU_NATIVE]
-    = loongarch_cpu_multipass_dfa_lookahead[ret_cpu_type];
+      auto &preset = loongarch_cpu_default_isa[tgt->cpu_arch];
 
-  loongarch_cpu_rtx_cost_data[CPU_NATIVE]
-    = loongarch_cpu_rtx_cost_data[ret_cpu_type];
+      /* Fill: loongarch_cpu_default_isa[tgt->cpu_arch].base
+	 With: base architecture (ARCH)
+	 At:   cpucfg_words[1][1:0] */
 
-  return ret_cpu_type;
+      if (native_cpu_type != CPU_NATIVE)
+	tmp = loongarch_cpu_default_isa[native_cpu_type].base;
+      else
+	switch (cpucfg_cache[1] & 0x3)
+	  {
+	    case 0x02:
+	      tmp = ISA_BASE_LA64;
+	      break;
+
+	    default:
+	      fatal_error (UNKNOWN_LOCATION,
+			   "unknown native base architecture %<0x%x%>, "
+			   "%qs failed",
+			   (unsigned int) (cpucfg_cache[1] & 0x3),
+			   "-m" OPTSTR_ARCH "=" STR_CPU_NATIVE);
+	  }
+
+      /* Use the native value anyways.  */
+      preset.base = tmp;
+
+      /* Fill: loongarch_cpu_default_isa[tgt->cpu_arch].fpu
+	 With: FPU type (FP, FP_SP, FP_DP)
+	 At:   cpucfg_words[2][2:0] */
+
+      switch (cpucfg_cache[2] & 0x7)
+	{
+	  case 0x07:
+	    tmp = ISA_EXT_FPU64;
+	    break;
+
+	  case 0x03:
+	    tmp = ISA_EXT_FPU32;
+	    break;
+
+	  case 0x00:
+	    tmp = ISA_EXT_NONE;
+	    break;
+
+	  default:
+	    fatal_error (UNKNOWN_LOCATION,
+			 "unknown native FPU type %<0x%x%>, %qs failed",
+			 (unsigned int) (cpucfg_cache[2] & 0x7),
+			 "-m" OPTSTR_ARCH "=" STR_CPU_NATIVE);
+	}
+
+      /* Check consistency with PRID presets.  */
+      if (native_cpu_type != CPU_NATIVE && tmp != preset.fpu)
+	warning (0, "floating-point unit %qs differs from PRID preset %qs",
+		 loongarch_isa_ext_strings[tmp],
+		 loongarch_isa_ext_strings[preset.fpu]);
+
+      /* Use the native value anyways.  */
+      preset.fpu = tmp;
+
+
+      /* Fill: loongarch_cpu_default_isa[CPU_NATIVE].simd
+	 With: SIMD extension type (LSX, LASX)
+	 At:   cpucfg_words[2][7:6] */
+
+      switch (cpucfg_cache[2] & 0xc0)
+	{
+	  case 0xc0:
+	    tmp = ISA_EXT_SIMD_LASX;
+	    break;
+
+	  case 0x40:
+	    tmp = ISA_EXT_SIMD_LSX;
+	    break;
+
+	  case 0x80:
+	    tmp = 0;
+	    warning (0, "unknown SIMD extension "
+			"(%qs disabled while %qs is enabled), disabling SIMD",
+			loongarch_isa_ext_strings[ISA_EXT_SIMD_LSX],
+			loongarch_isa_ext_strings[ISA_EXT_SIMD_LASX]);
+	    break;
+
+	  case 0x00:
+	    tmp = 0;
+	    break;
+	}
+
+      /* Check consistency with PRID presets.  */
+
+      /*
+      if (native_cpu_type != CPU_NATIVE && tmp != preset.simd)
+	warning (0, "SIMD extension %qs differs from PRID preset %qs",
+		 loongarch_isa_ext_strings[tmp],
+		 loongarch_isa_ext_strings[preset.simd]);
+      */
+
+      /* Use the native value anyways.  */
+      preset.simd = tmp;
+
+
+      int64_t hw_isa_evolution = 0;
+
+      /* Features added during ISA evolution.  */
+      for (const auto &entry: cpucfg_map)
+	if (cpucfg_cache[entry.cpucfg_word] & entry.cpucfg_bit)
+	  hw_isa_evolution |= entry.isa_evolution_bit;
+
+      if (native_cpu_type != CPU_NATIVE)
+	{
+	  /* Check if the local CPU really supports the features of the base
+	     ISA of probed native_cpu_type.  If any feature is not detected,
+	     either GCC or the hardware is buggy.  */
+	  if ((preset.evolution & hw_isa_evolution) != hw_isa_evolution)
+	    warning (0,
+		     "detected base architecture %qs, but some of its "
+		     "features are not detected; the detected base "
+		     "architecture may be unreliable, only detected "
+		     "features will be enabled",
+		     loongarch_isa_base_strings[preset.base]);
+	}
+      preset.evolution = hw_isa_evolution;
+    }
+
+  if (tune_native_p)
+    {
+      tgt->cpu_tune = native_cpu_type;
+
+      /* Fill: loongarch_cpu_cache[tgt->cpu_tune]
+	 With: cache size info
+	 At:   cpucfg_words[16:20][31:0] */
+
+      auto &preset_cache = loongarch_cpu_cache[tgt->cpu_tune];
+      struct loongarch_cache native_cache;
+      int l1d_present = 0, l1u_present = 0;
+      int l2d_present = 0;
+      uint32_t l1_szword, l2_szword;
+
+      l1u_present |= cpucfg_cache[16] & 3;	  /* bit[1:0]: unified l1 */
+      l1d_present |= cpucfg_cache[16] & 4;	  /* bit[2:2]: l1d */
+      l1_szword = l1d_present ? 18 : (l1u_present ? 17 : 0);
+      l1_szword = l1_szword ? cpucfg_cache[l1_szword]: 0;
+
+      l2d_present |= cpucfg_cache[16] & 24;	  /* bit[4:3]: unified l2 */
+      l2d_present |= cpucfg_cache[16] & 128;	  /* bit[7:7]: l2d */
+      l2_szword = l2d_present ? cpucfg_cache[19]: 0;
+
+      native_cache.l1d_line_size
+	= 1 << ((l1_szword & 0x7f000000) >> 24);  /* bit[30:24]: log2(line) */
+
+      native_cache.l1d_size
+	= (1 << ((l1_szword & 0x00ff0000) >> 16)) /* bit[23:16]: log2(idx) */
+	* ((l1_szword & 0x0000ffff) + 1)	  /* bit[15:0]:  sets - 1 */
+	* (1 << ((l1_szword & 0x7f000000) >> 24)) /* bit[30:24]: log2(line) */
+	>> 10;					  /* in kibibytes */
+
+      native_cache.l2d_size
+	= (1 << ((l2_szword & 0x00ff0000) >> 16)) /* bit[23:16]: log2(idx) */
+	* ((l2_szword & 0x0000ffff) + 1)	  /* bit[15:0]:  sets - 1 */
+	* (1 << ((l2_szword & 0x7f000000) >> 24)) /* bit[30:24]: log2(linesz) */
+	>> 10;					  /* in kibibytes */
+
+      /* Use the native value anyways.  */
+      preset_cache.l1d_line_size = native_cache.l1d_line_size;
+      preset_cache.l1d_size = native_cache.l1d_size;
+      preset_cache.l2d_size = native_cache.l2d_size;
+    }
 }

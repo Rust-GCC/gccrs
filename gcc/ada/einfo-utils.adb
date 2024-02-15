@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2020-2023, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2024, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -200,6 +200,11 @@ package body Einfo.Utils is
       return Is_Access_Type (Id)
         and then Ekind (Directly_Designated_Type (Id)) = E_Subprogram_Type;
    end Is_Access_Subprogram_Type;
+
+   function Is_Address_Compatible_Type          (Id : E) return B is
+   begin
+      return Is_Descendant_Of_Address (Id) or else Id = Standard_Address;
+   end Is_Address_Compatible_Type;
 
    function Is_Aggregate_Type                   (Id : E) return B is
    begin
@@ -1012,12 +1017,15 @@ package body Einfo.Utils is
                  Id = Pragma_Refined_Depends            or else
                  Id = Pragma_Refined_Global             or else
                  Id = Pragma_Refined_State              or else
+                 Id = Pragma_Side_Effects               or else
                  Id = Pragma_Volatile_Function;
 
       --  Contract / subprogram variant / test case pragmas
 
       Is_CTC : constant Boolean :=
+                  Id = Pragma_Always_Terminates         or else
                   Id = Pragma_Contract_Cases            or else
+                  Id = Pragma_Exceptional_Cases         or else
                   Id = Pragma_Subprogram_Variant        or else
                   Id = Pragma_Test_Case;
 
@@ -1505,11 +1513,10 @@ package body Einfo.Utils is
       Kind : constant Node_Kind := Nkind (N);
 
    begin
-      --  Identifiers, operator symbols, expanded names are entity names
+      --  Identifiers, operator symbols, expanded names are entity names.
+      --  (But not N_Character_Literal.)
 
-      return Kind = N_Identifier
-        or else Kind = N_Operator_Symbol
-        or else Kind = N_Expanded_Name
+      return Kind in N_Identifier | N_Operator_Symbol | N_Expanded_Name
 
       --  Attribute references are entity names if they refer to an entity.
       --  Note that we don't do this by testing for the presence of the
@@ -1976,7 +1983,7 @@ package body Einfo.Utils is
          end if;
 
          exit when Ekind (D) = E_Discriminant
-           and then (Is_Completely_Hidden (D) = Is_Completely_Hidden (Id));
+           and then Is_Completely_Hidden (D) = Is_Completely_Hidden (Id);
       end loop;
 
       return D;
@@ -2104,8 +2111,8 @@ package body Einfo.Utils is
    -- Number_Formals --
    --------------------
 
-   function Number_Formals (Id : E) return Pos is
-      N      : Int;
+   function Number_Formals (Id : E) return Nat is
+      N      : Nat;
       Formal : Entity_Id;
 
    begin
@@ -2588,7 +2595,7 @@ package body Einfo.Utils is
    -- Scope_Depth --
    -----------------
 
-   function Scope_Depth (Id : E) return Uint is
+   function Scope_Depth (Id : Scope_Kind_Id) return Uint is
       Scop : Entity_Id;
 
    begin
@@ -2600,7 +2607,7 @@ package body Einfo.Utils is
       return Scope_Depth_Value (Scop);
    end Scope_Depth;
 
-   function Scope_Depth_Default_0 (Id : E) return U is
+   function Scope_Depth_Default_0 (Id : Scope_Kind_Id) return U is
    begin
       if Scope_Depth_Set (Id) then
          return Scope_Depth (Id);
@@ -2614,7 +2621,7 @@ package body Einfo.Utils is
    -- Scope_Depth_Set --
    ---------------------
 
-   function Scope_Depth_Set (Id : E) return B is
+   function Scope_Depth_Set (Id : Scope_Kind_Id) return B is
    begin
       return not Is_Record_Type (Id)
         and then not Field_Is_Initial_Zero (Id, F_Scope_Depth_Value);
@@ -3018,7 +3025,7 @@ package body Einfo.Utils is
          --  Otherwise check for the case where we have a derived type or
          --  subtype, and if so get the Underlying_Type of the parent type.
 
-         elsif Etype (Id) /= Id then
+         elsif Present (Etype (Id)) and then Etype (Id) /= Id then
             return Underlying_Type (Etype (Id));
 
          --  Otherwise we have an incomplete or private type that has no full
@@ -3171,7 +3178,7 @@ package body Einfo.Utils is
                Index := First_Index (Id);
                while Present (Index) loop
                   Write_Attribute (" ", Etype (Index));
-                  Index := Next_Index (Index);
+                  Next_Index (Index);
                end loop;
 
                Write_Eol;
@@ -3212,53 +3219,49 @@ package body Einfo.Utils is
    -- Iterator Procedures --
    -------------------------
 
-   procedure Proc_Next_Component                 (N : in out Node_Id) is
+   procedure Next_Component                 (N : in out Node_Id) is
    begin
       N := Next_Component (N);
-   end Proc_Next_Component;
+   end Next_Component;
 
-   procedure Proc_Next_Component_Or_Discriminant (N : in out Node_Id) is
+   procedure Next_Component_Or_Discriminant (N : in out Node_Id) is
    begin
-      N := Next_Entity (N);
-      while Present (N) loop
-         exit when Ekind (N) in E_Component | E_Discriminant;
-         N := Next_Entity (N);
-      end loop;
-   end Proc_Next_Component_Or_Discriminant;
+      N := Next_Component_Or_Discriminant (N);
+   end Next_Component_Or_Discriminant;
 
-   procedure Proc_Next_Discriminant              (N : in out Node_Id) is
+   procedure Next_Discriminant              (N : in out Node_Id) is
    begin
       N := Next_Discriminant (N);
-   end Proc_Next_Discriminant;
+   end Next_Discriminant;
 
-   procedure Proc_Next_Formal                    (N : in out Node_Id) is
+   procedure Next_Formal                    (N : in out Node_Id) is
    begin
       N := Next_Formal (N);
-   end Proc_Next_Formal;
+   end Next_Formal;
 
-   procedure Proc_Next_Formal_With_Extras        (N : in out Node_Id) is
+   procedure Next_Formal_With_Extras        (N : in out Node_Id) is
    begin
       N := Next_Formal_With_Extras (N);
-   end Proc_Next_Formal_With_Extras;
+   end Next_Formal_With_Extras;
 
-   procedure Proc_Next_Index                     (N : in out Node_Id) is
+   procedure Next_Index                     (N : in out Node_Id) is
    begin
       N := Next_Index (N);
-   end Proc_Next_Index;
+   end Next_Index;
 
-   procedure Proc_Next_Inlined_Subprogram        (N : in out Node_Id) is
+   procedure Next_Inlined_Subprogram        (N : in out Node_Id) is
    begin
       N := Next_Inlined_Subprogram (N);
-   end Proc_Next_Inlined_Subprogram;
+   end Next_Inlined_Subprogram;
 
-   procedure Proc_Next_Literal                   (N : in out Node_Id) is
+   procedure Next_Literal                   (N : in out Node_Id) is
    begin
       N := Next_Literal (N);
-   end Proc_Next_Literal;
+   end Next_Literal;
 
-   procedure Proc_Next_Stored_Discriminant       (N : in out Node_Id) is
+   procedure Next_Stored_Discriminant       (N : in out Node_Id) is
    begin
       N := Next_Stored_Discriminant (N);
-   end Proc_Next_Stored_Discriminant;
+   end Next_Stored_Discriminant;
 
 end Einfo.Utils;

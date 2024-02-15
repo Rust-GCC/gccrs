@@ -1,5 +1,5 @@
 /* d-target.cc -- Target interface for the D front end.
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -381,11 +381,11 @@ TargetCPP::parameterType (Type *type)
   Type *tvalist = target.va_listType (Loc (), NULL);
   if (type->ty == TY::Tsarray && tvalist->ty == TY::Tsarray)
     {
-      Type *tb = type->toBasetype ()->mutableOf ();
+      Type *tb = mutableOf (type->toBasetype ());
       if (tb == tvalist)
 	{
 	  tb = type->nextOf ()->pointerTo ();
-	  type = tb->castMod (type->mod);
+	  type = castMod (tb, type->mod);
 	}
     }
 

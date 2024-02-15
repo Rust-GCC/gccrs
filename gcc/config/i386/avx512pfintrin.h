@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2013-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -30,7 +30,7 @@
 
 #ifndef __AVX512PF__
 #pragma GCC push_options
-#pragma GCC target("avx512pf")
+#pragma GCC target("avx512pf,evex512")
 #define __DISABLE_AVX512PF__
 #endif /* __AVX512PF__ */
 

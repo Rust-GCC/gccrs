@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -140,9 +140,7 @@ package body Ch9 is
 
             --  Move the aspect specifications to the body node
 
-            if Has_Aspects (Dummy_Node) then
-               Move_Aspects (From => Dummy_Node, To => Task_Node);
-            end if;
+            Move_Aspects (From => Dummy_Node, To => Task_Node);
 
             Parse_Decls_Begin_End (Task_Node);
 

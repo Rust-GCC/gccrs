@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2023 Free Software Foundation, Inc.
+# Copyright (C) 2017-2024 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 # { dg-module-do [link|run] [xfail] [options] } # link [and run]
 
 load_lib g++-dg.exp
+load_lib modules.exp
 
 # If a testcase doesn't have special options, use these.
 global DEFAULT_CXXFLAGS

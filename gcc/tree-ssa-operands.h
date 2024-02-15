@@ -1,5 +1,5 @@
 /* SSA operand management for trees.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -82,10 +82,13 @@ struct GTY(()) ssa_operands {
 #define PHI_ARG_DEF(PHI, I)	gimple_phi_arg_def ((PHI), (I))
 #define SET_PHI_ARG_DEF(PHI, I, V)					\
 				SET_USE (PHI_ARG_DEF_PTR ((PHI), (I)), (V))
+#define SET_PHI_ARG_DEF_ON_EDGE(PHI, E, V)				      \
+				SET_USE (gimple_phi_arg_imm_use_ptr_from_edge \
+					   ((PHI), (E)), (V))
 #define PHI_ARG_DEF_FROM_EDGE(PHI, E)					\
-				PHI_ARG_DEF ((PHI), (E)->dest_idx)
+				gimple_phi_arg_def_from_edge ((PHI), (E))
 #define PHI_ARG_DEF_PTR_FROM_EDGE(PHI, E)				\
-				PHI_ARG_DEF_PTR ((PHI), (E)->dest_idx)
+				gimple_phi_arg_imm_use_ptr_from_edge ((PHI), (E))
 #define PHI_ARG_INDEX_FROM_USE(USE)   phi_arg_index_from_use (USE)
 
 

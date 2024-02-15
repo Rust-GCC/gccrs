@@ -12,16 +12,26 @@ int a[N], b[N];
 long int c[N];
 unsigned char d[N];
 
+#ifdef __aarch64__
+#pragma omp declare simd simdlen(2) notinbranch
+#else
 #pragma omp declare simd simdlen(8) notinbranch
+#endif
 __attribute__((noinline)) int
 foo (long int a, int b, int c)
+/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } .-1 } */
 {
   return a + b + c;
 }
 
+#ifdef __aarch64__
+#pragma omp declare simd simdlen(2) notinbranch
+#else
 #pragma omp declare simd simdlen(8) notinbranch
+#endif
 __attribute__((noinline)) long int
 bar (int a, int b, long int c)
+/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } .-1 } */
 {
   return a + b + c;
 }
@@ -76,6 +86,7 @@ main ()
   check_vect ();
   fn3 ();
   fn1 ();
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (a[i] != i * 2 + 23 + (i % 37) + (i & 63)
 	|| b[i] != 17 + (i % 37)
@@ -83,6 +94,7 @@ main ()
       abort ();
   fn3 ();
   fn2 ();
+#pragma GCC novector
   for (i = 0; i < N; i++)
     if (a[i] != i * 2 + 23 + (i % 37) + (i & 63)
 	|| b[i] != 17 + (i % 37)
@@ -91,6 +103,3 @@ main ()
       abort ();
   return 0;
 }
-
-/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } 17 } */
-/* { dg-warning {unsupported simdlen 8 \(amdgcn\)} "" { target amdgcn*-*-* } 24 } */

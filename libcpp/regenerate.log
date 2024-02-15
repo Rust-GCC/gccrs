@@ -1,0 +1,2 @@
+configure.ac:91: warning: macro 'AM_LANGINFO_CODESET' not found in library
+autoreconf: configure.ac: AM_GNU_GETTEXT is used, but not AM_GNU_GETTEXT_VERSION

@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2024 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Offloading and Multi Processing Library
@@ -253,8 +253,7 @@ gomp_free_pool_helper (void *thread_pool)
 #elif defined(__nvptx__)
   asm ("exit;");
 #elif defined(__AMDGCN__)
-  asm ("s_dcache_wb\n\t"
-       "s_endpgm");
+  asm ("s_endpgm");
 #else
 #error gomp_free_pool_helper must terminate the thread
 #endif
@@ -756,6 +755,8 @@ gomp_team_start (void (*fn) (void *), void *data, unsigned nthreads,
       attr = &thread_attr;
     }
 
+  if (i >= nthreads)
+    __builtin_unreachable ();
   start_data = gomp_alloca (sizeof (struct gomp_thread_start_data)
 			    * (nthreads - i));
 

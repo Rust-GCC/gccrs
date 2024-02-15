@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2007-2023 Free Software Foundation, Inc.
+// Copyright (C) 2007-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,6 +30,7 @@ typedef std::basic_string<char_t, traits_t, allocator_t> string_t;
 
 int main()
 {
+  __gnu_test::counter::scope s;
   {
     string_t s;
     s += "bayou bend";

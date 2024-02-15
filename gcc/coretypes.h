@@ -1,5 +1,5 @@
 /* GCC core type declarations.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -99,6 +99,11 @@ typedef const union tree_node *const_tree;
 struct gimple;
 typedef gimple *gimple_seq;
 struct gimple_stmt_iterator;
+class code_helper;
+
+/* Forward declare rtx_code, so that we can use it in target hooks without
+   needing to pull in rtl.h.  */
+enum rtx_code : unsigned;
 
 /* Forward decls for leaf gimple subclasses (for individual gimple codes).
    Keep this in the same order as the corresponding codes in gimple.def.  */
@@ -151,7 +156,8 @@ struct cl_optimization;
 struct cl_option;
 struct cl_decoded_option;
 struct cl_option_handlers;
-struct diagnostic_context;
+class rich_location;
+class diagnostic_context;
 class pretty_printer;
 class diagnostic_event_id_t;
 typedef const char * (*diagnostic_input_charset_callback)(const char *);
@@ -197,6 +203,12 @@ enum tls_model {
   TLS_MODEL_LOCAL_DYNAMIC,
   TLS_MODEL_INITIAL_EXEC,
   TLS_MODEL_LOCAL_EXEC
+};
+
+/* Types of trampoline implementation.  */
+enum trampoline_impl {
+  TRAMPOLINE_IMPL_STACK,
+  TRAMPOLINE_IMPL_HEAP
 };
 
 /* Types of ABI for an offload compiler.  */
@@ -399,7 +411,7 @@ enum function_class {
   function_c99_math_complex,
   function_sincos,
   function_c11_misc,
-  function_c2x_misc
+  function_c23_misc
 };
 
 /* Enumerate visibility settings.  This is deliberately ordered from most

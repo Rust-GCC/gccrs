@@ -1,5 +1,5 @@
 /* Language-level data type conversion for GNU C++.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -810,7 +810,7 @@ ocp_convert (tree type, tree expr, int convtype, int flags,
 	  /* enum = enum, enum = int, enum = float, (enum)pointer are all
 	     errors.  */
 	  if (((INTEGRAL_OR_ENUMERATION_TYPE_P (intype)
-		|| TREE_CODE (intype) == REAL_TYPE)
+		|| SCALAR_FLOAT_TYPE_P (intype))
 	       && ! (convtype & CONV_STATIC))
 	      || TYPE_PTR_P (intype))
 	    {
@@ -1048,7 +1048,7 @@ maybe_warn_nodiscard (tree expr, impl_conv_void implicit)
     call = TARGET_EXPR_INITIAL (expr);
   location_t loc = cp_expr_loc_or_input_loc (call);
   tree callee = cp_get_callee (call);
-  if (!callee)
+  if (!callee || !TREE_TYPE (callee))
     return;
 
   tree type = TREE_TYPE (callee);
@@ -1056,6 +1056,8 @@ maybe_warn_nodiscard (tree expr, impl_conv_void implicit)
     type = TYPE_PTRMEMFUNC_FN_TYPE (type);
   if (INDIRECT_TYPE_P (type))
     type = TREE_TYPE (type);
+  if (!FUNC_OR_METHOD_TYPE_P (type))
+    return;
 
   tree rettype = TREE_TYPE (type);
   tree fn = cp_get_fndecl_from_callee (callee);
@@ -1252,7 +1254,9 @@ convert_to_void (tree expr, impl_conv_void implicit, tsubst_flags_t complain)
 	tree type = TREE_TYPE (expr);
 	int is_reference = TYPE_REF_P (TREE_TYPE (TREE_OPERAND (expr, 0)));
 	int is_volatile = TYPE_VOLATILE (type);
-	int is_complete = COMPLETE_TYPE_P (complete_type (type));
+	if (is_volatile)
+	  complete_type (type);
+	int is_complete = COMPLETE_TYPE_P (type);
 
 	/* Can't load the value if we don't know the type.  */
 	if (is_volatile && !is_complete)
@@ -1412,9 +1416,10 @@ convert_to_void (tree expr, impl_conv_void implicit, tsubst_flags_t complain)
       {
 	/* External variables might be incomplete.  */
 	tree type = TREE_TYPE (expr);
-	int is_complete = COMPLETE_TYPE_P (complete_type (type));
 
-	if (TYPE_VOLATILE (type) && !is_complete && (complain & tf_warning))
+	if (TYPE_VOLATILE (type)
+	    && !COMPLETE_TYPE_P (complete_type (type))
+	    && (complain & tf_warning))
 	  switch (implicit)
 	    {
 	      case ICV_CAST:

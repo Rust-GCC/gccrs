@@ -1,5 +1,5 @@
 ;; Predicate definitions for Vitesse IQ2000.
-;; Copyright (C) 2005-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -16,6 +16,15 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with GCC; see the file COPYING3.  If not see
 ;; <http://www.gnu.org/licenses/>.
+
+;; Return 1 if OP can be used as an operand where a 16-bit
+;; unsigned integer is needed.
+
+(define_predicate "uns_arith_constant"
+  (match_code "const_int")
+{
+  return SMALL_INT_UNSIGNED (op);
+})
 
 ;; Return 1 if OP can be used as an operand where a register or 16-bit
 ;; unsigned integer is needed.
@@ -206,8 +215,7 @@
 {
   return (CONSTANT_ADDRESS_P (op)
 	  || (GET_CODE (op) == REG && op != arg_pointer_rtx
-	      && ! (REGNO (op) >= FIRST_PSEUDO_REGISTER
-		    && REGNO (op) <= LAST_VIRTUAL_REGISTER)));
+	      && ! VIRTUAL_REGISTER_P (op)));
 })
 
 ;; Return nonzero if OP is valid as a source operand for a move

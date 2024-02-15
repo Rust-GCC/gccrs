@@ -1,5 +1,5 @@
 /* Callgraph handling code.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -158,7 +158,7 @@ symtab_node::address_can_be_compared_p ()
      flag_merge_constants permits us to assume the same on readonly vars.  */
   if (is_a <varpool_node *> (this)
       && (DECL_IN_CONSTANT_POOL (decl)
-	  || (flag_merge_constants >= 2
+	  || ((flag_merge_constants >= 2 || DECL_MERGEABLE (decl))
 	      && TREE_READONLY (decl) && !TREE_THIS_VOLATILE (decl))))
     return false;
   return true;
@@ -1403,11 +1403,17 @@ cgraph_edge::redirect_callee (cgraph_node *n)
    speculative indirect call, remove "speculative" of the indirect call and
    also redirect stmt to it's final direct target.
 
+   When called from within tree-inline, KILLED_SSAs has to contain the pointer
+   to killed_new_ssa_names within the copy_body_data structure and SSAs
+   discovered to be useless (if LHS is removed) will be added to it, otherwise
+   it needs to be NULL.
+
    It is up to caller to iteratively transform each "speculative"
    direct call as appropriate.  */
 
 gimple *
-cgraph_edge::redirect_call_stmt_to_callee (cgraph_edge *e)
+cgraph_edge::redirect_call_stmt_to_callee (cgraph_edge *e,
+					   hash_set <tree> *killed_ssas)
 {
   tree decl = gimple_call_fndecl (e->call_stmt);
   gcall *new_stmt;
@@ -1527,7 +1533,7 @@ cgraph_edge::redirect_call_stmt_to_callee (cgraph_edge *e)
 	remove_stmt_from_eh_lp (e->call_stmt);
 
       tree old_fntype = gimple_call_fntype (e->call_stmt);
-      new_stmt = padjs->modify_call (e, false);
+      new_stmt = padjs->modify_call (e, false, killed_ssas);
       cgraph_node *origin = e->callee;
       while (origin->clone_of)
 	origin = origin->clone_of;
@@ -1548,8 +1554,8 @@ cgraph_edge::redirect_call_stmt_to_callee (cgraph_edge *e)
   else
     {
       if (flag_checking
-	  && !fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE)
-	  && !fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE_TRAP))
+	  && !fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE,
+						  BUILT_IN_UNREACHABLE_TRAP))
 	ipa_verify_edge_has_no_modifications (e);
       new_stmt = e->call_stmt;
       gimple_call_set_fndecl (new_stmt, e->callee->decl);
@@ -1635,9 +1641,8 @@ cgraph_update_edges_for_call_stmt_node (cgraph_node *node,
 	{
 	  /* Keep calls marked as dead dead.  */
 	  if (new_stmt && is_gimple_call (new_stmt) && e->callee
-	      && (fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE)
-		  || fndecl_built_in_p (e->callee->decl,
-					BUILT_IN_UNREACHABLE_TRAP)))
+	      && fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE,
+				    BUILT_IN_UNREACHABLE_TRAP))
 	    {
 	      cgraph_edge::set_call_stmt (node->get_edge (old_stmt),
 					  as_a <gcall *> (new_stmt));
@@ -2630,6 +2635,54 @@ cgraph_node::set_malloc_flag (bool malloc_p)
   return changed;
 }
 
+/* Worker to set malloc flag.  */
+static void
+add_detected_attribute_1 (cgraph_node *node, const char *attr, bool *changed)
+{
+  if (!lookup_attribute (attr, DECL_ATTRIBUTES (node->decl)))
+    {
+      DECL_ATTRIBUTES (node->decl) = tree_cons (get_identifier (attr),
+					 NULL_TREE, DECL_ATTRIBUTES (node->decl));
+      *changed = true;
+    }
+
+  ipa_ref *ref;
+  FOR_EACH_ALIAS (node, ref)
+    {
+      cgraph_node *alias = dyn_cast<cgraph_node *> (ref->referring);
+      if (alias->get_availability () > AVAIL_INTERPOSABLE)
+	add_detected_attribute_1 (alias, attr, changed);
+    }
+
+  for (cgraph_edge *e = node->callers; e; e = e->next_caller)
+    if (e->caller->thunk
+	&& (e->caller->get_availability () > AVAIL_INTERPOSABLE))
+      add_detected_attribute_1 (e->caller, attr, changed);
+}
+
+/* Add attribyte ATTR to function and its aliases.  */
+
+bool
+cgraph_node::add_detected_attribute (const char *attr)
+{
+  bool changed = false;
+
+  if (get_availability () > AVAIL_INTERPOSABLE)
+    add_detected_attribute_1 (this, attr, &changed);
+  else
+    {
+      ipa_ref *ref;
+
+      FOR_EACH_ALIAS (this, ref)
+	{
+	  cgraph_node *alias = dyn_cast<cgraph_node *> (ref->referring);
+	  if (alias->get_availability () > AVAIL_INTERPOSABLE)
+	    add_detected_attribute_1 (alias, attr, &changed);
+	}
+    }
+  return changed;
+}
+
 /* Worker to set noreturng flag.  */
 static void
 set_noreturn_flag_1 (cgraph_node *node, bool noreturn_p, bool *changed)
@@ -3259,9 +3312,8 @@ cgraph_edge::verify_corresponds_to_fndecl (tree decl)
   /* Optimizers can redirect unreachable calls or calls triggering undefined
      behavior to __builtin_unreachable or __builtin_unreachable trap.  */
 
-  if (fndecl_built_in_p (callee->decl, BUILT_IN_NORMAL)
-      && (DECL_FUNCTION_CODE (callee->decl) == BUILT_IN_UNREACHABLE
-	  || DECL_FUNCTION_CODE (callee->decl) == BUILT_IN_UNREACHABLE_TRAP))
+  if (fndecl_built_in_p (callee->decl, BUILT_IN_UNREACHABLE,
+				       BUILT_IN_UNREACHABLE_TRAP))
     return false;
 
   if (callee->former_clone_of != node->decl
@@ -3601,9 +3653,8 @@ cgraph_node::verify_node (void)
 	  /* Optimized out calls are redirected to __builtin_unreachable.  */
 	  && (e->count.nonzero_p ()
 	      || ! e->callee->decl
-	      || !(fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE)
-		   || fndecl_built_in_p (e->callee->decl,
-					 BUILT_IN_UNREACHABLE_TRAP)))
+	      || !fndecl_built_in_p (e->callee->decl, BUILT_IN_UNREACHABLE,
+				     BUILT_IN_UNREACHABLE_TRAP))
 	  && count
 	      == ENTRY_BLOCK_PTR_FOR_FN (DECL_STRUCT_FUNCTION (decl))->count
 	  && (!e->count.ipa_p ()

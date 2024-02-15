@@ -1,5 +1,5 @@
 /* Compilation switch flag type definitions for GCC.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -155,6 +155,16 @@ enum stack_reuse_level
   SR_NONE,
   SR_NAMED_VARS,
   SR_ALL
+};
+
+/* Control Flow Redundancy hardening options for noreturn calls.  */
+enum hardcfr_noret
+{
+  HCFRNR_NEVER,
+  HCFRNR_NOTHROW,
+  HCFRNR_NO_XTHROW,
+  HCFRNR_UNSPECIFIED,
+  HCFRNR_ALWAYS,
 };
 
 /* The live patching level.  */
@@ -338,6 +348,7 @@ namespace zero_regs_flags {
   const unsigned int ONLY_GPR = 1UL << 2;
   const unsigned int ONLY_ARG = 1UL << 3;
   const unsigned int ENABLED = 1UL << 4;
+  const unsigned int LEAFY_MODE = 1UL << 5;
   const unsigned int USED_GPR_ARG = ENABLED | ONLY_USED | ONLY_GPR | ONLY_ARG;
   const unsigned int USED_GPR = ENABLED | ONLY_USED | ONLY_GPR;
   const unsigned int USED_ARG = ENABLED | ONLY_USED | ONLY_ARG;
@@ -346,6 +357,10 @@ namespace zero_regs_flags {
   const unsigned int ALL_GPR = ENABLED | ONLY_GPR;
   const unsigned int ALL_ARG = ENABLED | ONLY_ARG;
   const unsigned int ALL = ENABLED;
+  const unsigned int LEAFY_GPR_ARG = ENABLED | LEAFY_MODE | ONLY_GPR | ONLY_ARG;
+  const unsigned int LEAFY_GPR = ENABLED | LEAFY_MODE | ONLY_GPR;
+  const unsigned int LEAFY_ARG = ENABLED | LEAFY_MODE | ONLY_ARG;
+  const unsigned int LEAFY = ENABLED | LEAFY_MODE;
 }
 
 /* Settings of flag_incremental_link.  */
@@ -432,6 +447,17 @@ enum gfc_convert
 };
 
 
+/* Inline String Operations functions.  */
+enum ilsop_fn
+{
+  ILSOP_NONE = 0,
+  ILSOP_MEMSET = 1 << 0,
+  ILSOP_MEMCPY = 1 << 1,
+  ILSOP_MEMMOVE = 1 << 2,
+  ILSOP_MEMCMP = 1 << 3,
+  ILSOP_ALL = -1
+};
+
 /* Control-Flow Protection values.  */
 enum cf_protection_level
 {
@@ -471,13 +497,6 @@ enum threader_debug
 {
   THREADER_DEBUG_NONE = 0,
   THREADER_DEBUG_ALL = 1
-};
-
-/* VRP modes.  */
-enum vrp_mode
-{
-  VRP_MODE_VRP,
-  VRP_MODE_RANGER
 };
 
 /* Modes of OpenACC 'kernels' constructs handling.  */

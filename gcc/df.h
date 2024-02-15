@@ -1,6 +1,6 @@
 /* Form lists of pseudo register references for autoinc optimization
    for GNU compiler.  This is part of flow optimization.
-   Copyright (C) 1999-2023 Free Software Foundation, Inc.
+   Copyright (C) 1999-2024 Free Software Foundation, Inc.
    Originally contributed by Michael P. Hayes
              (m.hayes@elec.canterbury.ac.nz, mhayes@redhat.com)
    Major rewrite contributed by Danny Berlin (dberlin@dberlin.org)
@@ -581,10 +581,10 @@ public:
   bitmap_head insns_to_delete;
   bitmap_head insns_to_rescan;
   bitmap_head insns_to_notes_rescan;
-  int *postorder;                /* The current set of basic blocks
-                                    in reverse postorder.  */
-  vec<int> postorder_inverted;       /* The current set of basic blocks
-                                    in reverse postorder of inverted CFG.  */
+  int *postorder;                /* The current set of basic blocks in reverse
+				    postorder for DF_BACKWARD problems.  */
+  int *postorder_inverted;       /* The current set of basic blocks in reverse
+				    postorder for DF_FORWARD problems. */
   int n_blocks;                  /* The number of blocks in reverse postorder.  */
 
   /* An array [FIRST_PSEUDO_REGISTER], indexed by regno, of the number

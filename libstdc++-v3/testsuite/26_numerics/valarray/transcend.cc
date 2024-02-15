@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Free Software Foundation, Inc.
+// Copyright (C) 2018-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,7 +22,7 @@
 
 bool eq(double d, double e)
 {
-  return (int)(d * 100) == (int)(e * 100);
+  return std::abs(d - e) < 0.01;
 }
 
 void

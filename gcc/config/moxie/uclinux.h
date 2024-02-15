@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,11 +32,3 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #undef TARGET_LIBC_HAS_FUNCTION
 #define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
-
-/* Like the definition in gcc.cc, but for purposes of uClinux, every link is
-   static.  */
-#define MFWRAP_SPEC " %{fmudflap|fmudflapth: \
- --wrap=malloc --wrap=free --wrap=calloc --wrap=realloc\
- --wrap=mmap --wrap=munmap --wrap=alloca\
- %{fmudflapth: --wrap=pthread_create\
-}} %{fmudflap|fmudflapth: --wrap=main}"

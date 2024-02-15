@@ -28,6 +28,15 @@ if (is(T == float) || is(T == double)
     return w.data;
 }
 
+/// Returns: whether `c` is a supported format specifier for floats
+package(std.format) bool isFloatSpec(char c) nothrow @nogc pure @safe
+{
+    return c == 'a' || c == 'A'
+           || c == 'e' || c == 'E'
+           || c == 'f' || c == 'F'
+           || c == 'g' || c == 'G';
+}
+
 package(std.format) void printFloat(Writer, T, Char)(auto ref Writer w, const(T) val, FormatSpec!Char f)
 if (is(T == float) || is(T == double)
     || (is(T == real) && (T.mant_dig == double.mant_dig || T.mant_dig == 64)))
@@ -43,10 +52,7 @@ if (is(T == float) || is(T == double)
     if (sgn == "" && f.flPlus) sgn = "+";
     if (sgn == "" && f.flSpace) sgn = " ";
 
-    assert(f.spec == 'a' || f.spec == 'A'
-           || f.spec == 'e' || f.spec == 'E'
-           || f.spec == 'f' || f.spec == 'F'
-           || f.spec == 'g' || f.spec == 'G', "unsupported format specifier");
+    assert(isFloatSpec(f.spec), "unsupported format specifier");
     bool is_upper = f.spec == 'A' || f.spec == 'E' || f.spec=='F' || f.spec=='G';
 
     // special treatment for nan and inf
@@ -1449,7 +1455,7 @@ if (is(T == float) || is(T == double)
         assert(printFloat(-0.1L, f) == "-1.000000e-01");
         assert(printFloat(10.0L, f) == "1.000000e+01");
         assert(printFloat(-10.0L, f) == "-1.000000e+01");
-        version (Windows) {} // issue 20972
+        version (Windows) {} // https://issues.dlang.org/show_bug.cgi?id=20972
         else
         {
             assert(printFloat(1e4000L, f) == "1.000000e+4000");
@@ -1472,7 +1478,7 @@ if (is(T == float) || is(T == double)
     {
         // log2 is broken for x87-reals on some computers in CTFE
         // the following tests excludes these computers from the tests
-        // (issue 21757)
+        // (https://issues.dlang.org/show_bug.cgi?id=21757)
         enum test = cast(int) log2(3.05e2312L);
         static if (real.mant_dig == 64 && test == 7681)
         {
@@ -2120,7 +2126,7 @@ if (is(T == float) || is(T == double)
         assert(printFloat(-0.1L, f) == "-0.100000");
         assert(printFloat(10.0L, f) == "10.000000");
         assert(printFloat(-10.0L, f) == "-10.000000");
-        version (Windows) {} // issue 20972
+        version (Windows) {} // https://issues.dlang.org/show_bug.cgi?id=20972
         else
         {
             auto result1 = printFloat(1e4000L, f);
@@ -2145,7 +2151,7 @@ if (is(T == float) || is(T == double)
     {
         // log2 is broken for x87-reals on some computers in CTFE
         // the following tests excludes these computers from the tests
-        // (issue 21757)
+        // (https://issues.dlang.org/show_bug.cgi?id=21757)
         enum test = cast(int) log2(3.05e2312L);
         static if (real.mant_dig == 64 && test == 7681)
         {
@@ -2803,7 +2809,7 @@ if (is(T == float) || is(T == double)
         assert(printFloat(-0.1L, f) == "-0.1");
         assert(printFloat(10.0L, f) == "10");
         assert(printFloat(-10.0L, f) == "-10");
-        version (Windows) {} // issue 20972
+        version (Windows) {} // https://issues.dlang.org/show_bug.cgi?id=20972
         else
         {
             assert(printFloat(1e4000L, f) == "1e+4000");
@@ -2826,7 +2832,7 @@ if (is(T == float) || is(T == double)
     {
         // log2 is broken for x87-reals on some computers in CTFE
         // the following tests excludes these computers from the tests
-        // (issue 21757)
+        // (https://issues.dlang.org/show_bug.cgi?id=21757)
         enum test = cast(int) log2(3.05e2312L);
         static if (real.mant_dig == 64 && test == 7681)
         {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX.
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -228,9 +228,7 @@
 /* AIX increases natural record alignment to doubleword if the first
    field is an FP double while the FP fields remain word aligned.  */
 #define ROUND_TYPE_ALIGN(STRUCT, COMPUTED, SPECIFIED)			\
-  ((TREE_CODE (STRUCT) == RECORD_TYPE					\
-    || TREE_CODE (STRUCT) == UNION_TYPE					\
-    || TREE_CODE (STRUCT) == QUAL_UNION_TYPE)				\
+  (RECORD_OR_UNION_TYPE_P (STRUCT)				\
    && TARGET_ALIGN_NATURAL == 0						\
    ? rs6000_special_round_type_align (STRUCT, COMPUTED, SPECIFIED)	\
    : MAX ((COMPUTED), (SPECIFIED)))

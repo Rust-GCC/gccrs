@@ -1,5 +1,5 @@
 /* Primary expression subroutines
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -109,10 +109,10 @@ get_kind (int *is_iso_c)
 /* Given a character and a radix, see if the character is a valid
    digit in that radix.  */
 
-int
+bool
 gfc_check_digit (char c, int radix)
 {
-  int r;
+  bool r;
 
   switch (radix)
     {
@@ -530,13 +530,13 @@ match_real_constant (gfc_expr **result, int signflag)
   seen_dp = 0;
   seen_digits = 0;
   exp_char = ' ';
-  negate = FALSE;
+  negate = false;
 
   c = gfc_next_ascii_char ();
   if (signflag && (c == '+' || c == '-'))
     {
       if (c == '-')
-	negate = TRUE;
+	negate = true;
 
       gfc_gobble_whitespace ();
       c = gfc_next_ascii_char ();
@@ -756,8 +756,8 @@ done:
     }
 
   /* Warn about trailing digits which suggest the user added too many
-     trailing digits, which may cause the appearance of higher pecision
-     than the kind kan support.
+     trailing digits, which may cause the appearance of higher precision
+     than the kind can support.
 
      This is done by replacing the rightmost non-zero digit with zero
      and comparing with the original value.  If these are equal, we
@@ -1190,14 +1190,14 @@ got_delim:
 	{
 	  if (istart < 1)
 	    {
-	      gfc_error ("Substring start index (%ld) at %L below 1",
-			 (long) istart, &e->ref->u.ss.start->where);
+	      gfc_error ("Substring start index (%td) at %L below 1",
+			 istart, &e->ref->u.ss.start->where);
 	      return MATCH_ERROR;
 	    }
 	  if (iend > (ssize_t) length)
 	    {
-	      gfc_error ("Substring end index (%ld) at %L exceeds string "
-			 "length", (long) iend, &e->ref->u.ss.end->where);
+	      gfc_error ("Substring end index (%td) at %L exceeds string "
+			 "length", iend, &e->ref->u.ss.end->where);
 	      return MATCH_ERROR;
 	    }
 	  length = iend - istart + 1;
@@ -2627,7 +2627,9 @@ gfc_variable_attr (gfc_expr *expr, gfc_typespec *ts)
   gfc_component *comp;
   bool has_inquiry_part;
 
-  if (expr->expr_type != EXPR_VARIABLE && expr->expr_type != EXPR_FUNCTION)
+  if (expr->expr_type != EXPR_VARIABLE
+      && expr->expr_type != EXPR_FUNCTION
+      && !(expr->expr_type == EXPR_NULL && expr->ts.type != BT_UNKNOWN))
     gfc_internal_error ("gfc_variable_attr(): Expression isn't a variable");
 
   sym = expr->symtree->n.sym;
@@ -2652,6 +2654,22 @@ gfc_variable_attr (gfc_expr *expr, gfc_typespec *ts)
   target = attr.target;
   if (pointer || attr.proc_pointer)
     target = 1;
+
+  /* F2018:11.1.3.3: Other attributes of associate names
+     "The associating entity does not have the ALLOCATABLE or POINTER
+     attributes; it has the TARGET attribute if and only if the selector is
+     a variable and has either the TARGET or POINTER attribute."  */
+  if (sym->attr.associate_var && sym->assoc && sym->assoc->target)
+    {
+      if (sym->assoc->target->expr_type == EXPR_VARIABLE)
+	{
+	  symbol_attribute tgt_attr;
+	  tgt_attr = gfc_expr_attr (sym->assoc->target);
+	  target = (tgt_attr.pointer || tgt_attr.target);
+	}
+      else
+	target = 0;
+    }
 
   if (ts != NULL && expr->ts.type == BT_UNKNOWN)
     *ts = sym->ts;
@@ -3060,7 +3078,7 @@ build_actual_constructor (gfc_structure_ctor_component **comp_head,
 		return false;
 	      value = gfc_get_null_expr (&gfc_current_locus);
 	    }
-	  /* ....(Preceeding sentence) If a component with default
+	  /* ....(Preceding sentence) If a component with default
 	     initialization has no corresponding component-data-source, then
 	     the default initialization is applied to that component.  */
 	  else if (comp->initializer)
@@ -3188,10 +3206,11 @@ gfc_convert_to_structure_constructor (gfc_expr *e, gfc_symbol *sym, gfc_expr **c
 	goto cleanup;
 
       /* For a constant string constructor, make sure the length is
-	 correct; truncate of fill with blanks if needed.  */
+	 correct; truncate or fill with blanks if needed.  */
       if (this_comp->ts.type == BT_CHARACTER && !this_comp->attr.allocatable
 	  && this_comp->ts.u.cl && this_comp->ts.u.cl->length
 	  && this_comp->ts.u.cl->length->expr_type == EXPR_CONSTANT
+	  && this_comp->ts.u.cl->length->ts.type == BT_INTEGER
 	  && actual->expr->ts.type == BT_CHARACTER
 	  && actual->expr->expr_type == EXPR_CONSTANT)
 	{
@@ -3221,8 +3240,8 @@ gfc_convert_to_structure_constructor (gfc_expr *e, gfc_symbol *sym, gfc_expr **c
 	      if (warn_line_truncation && c < e1)
 		gfc_warning_now (OPT_Wcharacter_truncation,
 				 "CHARACTER expression will be truncated "
-				 "in constructor (%ld/%ld) at %L", (long int) c,
-				 (long int) e1, &actual->expr->where);
+				 "in constructor (%td/%td) at %L", c,
+				 e1, &actual->expr->where);
 	    }
 	}
 

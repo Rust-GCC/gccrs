@@ -1,6 +1,7 @@
-// { dg-options "-std=gnu++23" }
 // { dg-do compile { target c++23 } }
 // { dg-require-effective-target stacktrace }
+// { dg-require-normal-namespace "" }
+// { dg-add-options no_pch }
 
 #include <stacktrace>
 
@@ -34,6 +35,9 @@ namespace std
   template<class Allocator>
     ostream&
     operator<<(ostream& os, const basic_stacktrace<Allocator>& st);
+
+  template<> struct formatter<stacktrace_entry>;
+  template<class Allocator> struct formatter<basic_stacktrace<Allocator>>;
 
   namespace pmr {
     using stacktrace = basic_stacktrace<polymorphic_allocator<stacktrace_entry>>;

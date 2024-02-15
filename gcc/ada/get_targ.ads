@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -109,10 +109,6 @@ package Get_Targ is
    --  foreign convention enumeration types are given the same size as c int.
 
    --  Other subprograms
-
-   function Get_Max_Unaligned_Field return Pos;
-   --  Returns the maximum supported size in bits for a field that is
-   --  not aligned on a storage unit boundary.
 
    type C_String is array (0 .. 255) of aliased Character;
    pragma Convention (C, C_String);

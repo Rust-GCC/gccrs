@@ -1,5 +1,5 @@
 /* Subroutines for insn-output.cc for SPARC.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
    at Cygnus Support.
@@ -607,7 +607,8 @@ static void sparc_emit_set_const64 (rtx, rtx);
 static void sparc_output_addr_vec (rtx);
 static void sparc_output_addr_diff_vec (rtx);
 static void sparc_output_deferred_case_vectors (void);
-static bool sparc_legitimate_address_p (machine_mode, rtx, bool);
+static bool sparc_legitimate_address_p (machine_mode, rtx, bool,
+					code_helper = ERROR_MARK);
 static bool sparc_legitimate_constant_p (machine_mode, rtx);
 static rtx sparc_builtin_saveregs (void);
 static int epilogue_renumber (rtx *, int);
@@ -720,13 +721,12 @@ static HARD_REG_SET sparc_zero_call_used_regs (HARD_REG_SET);
 
 #ifdef SUBTARGET_ATTRIBUTE_TABLE
 /* Table of valid machine attributes.  */
-static const struct attribute_spec sparc_attribute_table[] =
+TARGET_GNU_ATTRIBUTES (sparc_attribute_table,
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        do_diagnostic, handler, exclude } */
-  SUBTARGET_ATTRIBUTE_TABLE,
-  { NULL,        0, 0, false, false, false, false, NULL, NULL }
-};
+  SUBTARGET_ATTRIBUTE_TABLE
+});
 #endif
 
 char sparc_hard_reg_printed[8];
@@ -971,17 +971,6 @@ char sparc_hard_reg_printed[8];
 #undef TARGET_ZERO_CALL_USED_REGS
 #define TARGET_ZERO_CALL_USED_REGS sparc_zero_call_used_regs
 
-#ifdef SPARC_GCOV_TYPE_SIZE
-static HOST_WIDE_INT
-sparc_gcov_type_size (void)
-{
-  return SPARC_GCOV_TYPE_SIZE;
-}
-
-#undef TARGET_GCOV_TYPE_SIZE
-#define TARGET_GCOV_TYPE_SIZE sparc_gcov_type_size
-#endif
-
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 /* Return the memory reference contained in X if any, zero otherwise.  */
@@ -1063,6 +1052,7 @@ atomic_insn_for_leon3_p (rtx_insn *insn)
 {
   switch (INSN_CODE (insn))
     {
+    case CODE_FOR_membar_storeload:
     case CODE_FOR_swapsi:
     case CODE_FOR_ldstub:
     case CODE_FOR_atomic_compare_and_swap_leon3_1:
@@ -1129,6 +1119,7 @@ next_active_non_empty_insn (rtx_insn *insn)
   while (insn
 	 && (GET_CODE (PATTERN (insn)) == UNSPEC_VOLATILE
 	     || GET_CODE (PATTERN (insn)) == ASM_INPUT
+	     || get_attr_length (insn) == 0
 	     || (USEFUL_INSN_P (insn)
 		 && (asm_noperands (PATTERN (insn)) >= 0)
 		 && !strcmp (decode_asm_operands (PATTERN (insn),
@@ -4529,7 +4520,8 @@ sparc_pic_register_p (rtx x)
    ordinarily.  This changes a bit when generating PIC.  */
 
 static bool
-sparc_legitimate_address_p (machine_mode mode, rtx addr, bool strict)
+sparc_legitimate_address_p (machine_mode mode, rtx addr, bool strict,
+			    code_helper)
 {
   rtx rs1 = NULL, rs2 = NULL, imm1 = NULL;
 
@@ -6904,7 +6896,7 @@ function_arg_slotno (const struct sparc_args *cum, machine_mode mode,
      their mode, depending upon whether VIS instructions are enabled.  */
   if (type && VECTOR_TYPE_P (type))
     {
-      if (TREE_CODE (TREE_TYPE (type)) == REAL_TYPE)
+      if (SCALAR_FLOAT_TYPE_P (TREE_TYPE (type)))
 	{
 	  /* The SPARC port defines no floating-point vector modes.  */
 	  gcc_assert (mode == BLKmode);

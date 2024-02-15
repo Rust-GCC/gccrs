@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2024 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Offloading and Multi Processing Library
@@ -114,9 +114,6 @@ extern void gomp_aligned_free (void *);
 #ifdef __AMDGCN__
 #include "libgomp-gcn.h"
 /* The arena is initialized in config/gcn/team.c.  */
-#define TEAM_ARENA_START 16  /* LDS offset of free pointer.  */
-#define TEAM_ARENA_FREE  24  /* LDS offset of free pointer.  */
-#define TEAM_ARENA_END   32  /* LDS offset of end pointer.  */
 
 static inline void * __attribute__((malloc))
 team_malloc (size_t size)
@@ -1130,10 +1127,7 @@ extern void gomp_init_targets_once (void);
 extern int gomp_get_num_devices (void);
 extern bool gomp_target_task_fn (void *);
 extern void gomp_target_rev (uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-			     int,
-			     void (*) (void *, const void *, size_t, void *),
-			     void (*) (void *, const void *, size_t, void *),
-			     void *);
+			     int, struct goacc_asyncqueue *);
 
 /* Splay tree definitions.  */
 typedef struct splay_tree_node_s *splay_tree_node;
@@ -1275,6 +1269,30 @@ reverse_splay_compare (reverse_splay_tree_key x, reverse_splay_tree_key y)
 }
 
 #define splay_tree_prefix reverse
+#define splay_tree_static
+#include "splay-tree.h"
+
+/* Indirect target function splay-tree handling.  */
+
+struct indirect_splay_tree_key_s {
+  uint64_t host_addr, target_addr;
+};
+
+typedef struct indirect_splay_tree_node_s *indirect_splay_tree_node;
+typedef struct indirect_splay_tree_s *indirect_splay_tree;
+typedef struct indirect_splay_tree_key_s *indirect_splay_tree_key;
+
+static inline int
+indirect_splay_compare (indirect_splay_tree_key x, indirect_splay_tree_key y)
+{
+  if (x->host_addr < y->host_addr)
+    return -1;
+  if (x->host_addr > y->host_addr)
+    return 1;
+  return 0;
+}
+
+#define splay_tree_prefix indirect
 #include "splay-tree.h"
 
 struct target_mem_desc {
@@ -1391,6 +1409,8 @@ struct gomp_device_descr
   __typeof (GOMP_OFFLOAD_free) *free_func;
   __typeof (GOMP_OFFLOAD_dev2host) *dev2host_func;
   __typeof (GOMP_OFFLOAD_host2dev) *host2dev_func;
+  __typeof (GOMP_OFFLOAD_memcpy2d) *memcpy2d_func;
+  __typeof (GOMP_OFFLOAD_memcpy3d) *memcpy3d_func;
   __typeof (GOMP_OFFLOAD_dev2dev) *dev2dev_func;
   __typeof (GOMP_OFFLOAD_can_run) *can_run_func;
   __typeof (GOMP_OFFLOAD_run) *run_func;

@@ -1,5 +1,5 @@
 /* UndefinedBehaviorSanitizer, undefined behavior detector.
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
    Contributed by Marek Polacek <polacek@redhat.com>
 
 This file is part of GCC.
@@ -39,7 +39,8 @@ enum ubsan_null_ckind {
 enum ubsan_print_style {
   UBSAN_PRINT_NORMAL,
   UBSAN_PRINT_POINTER,
-  UBSAN_PRINT_ARRAY
+  UBSAN_PRINT_ARRAY,
+  UBSAN_PRINT_FORCE_INT
 };
 
 /* This controls ubsan_encode_value behavior.  */

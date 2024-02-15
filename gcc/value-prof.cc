@@ -1,5 +1,5 @@
 /* Transformations based on profile information for values.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1186,7 +1186,11 @@ gimple_mod_subtract_transform (gimple_stmt_iterator *si)
   if (all > 0)
     {
       prob1 = profile_probability::probability_in_gcov_type (count1, all);
-      prob2 = profile_probability::probability_in_gcov_type (count2, all);
+      if (all == count1)
+	prob2 = profile_probability::even ();
+      else
+	prob2 = profile_probability::probability_in_gcov_type (count2, all
+							       - count1);
     }
   else
     {

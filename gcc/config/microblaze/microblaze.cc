@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on Xilinx MicroBlaze.
-   Copyright (C) 2009-2023 Free Software Foundation, Inc.
+   Copyright (C) 2009-2024 Free Software Foundation, Inc.
 
    Contributed by Michael Eager <eager@eagercon.com>.
 
@@ -56,7 +56,7 @@
 /* This file should be included last.  */
 #include "target-def.h"
 
-#define MICROBLAZE_VERSION_COMPARE(VA,VB) strcasecmp (VA, VB)
+#define MICROBLAZE_VERSION_COMPARE(VA,VB) strverscmp (VA, VB)
 
 /* Classifies an address.
 
@@ -218,15 +218,14 @@ int break_handler;
 int fast_interrupt;
 int save_volatiles;
 
-const struct attribute_spec microblaze_attribute_table[] = {
+TARGET_GNU_ATTRIBUTES (microblaze_attribute_table, {
   /* name         min_len, max_len, decl_req, type_req, fn_type_req,
      affects_type_identity, handler, exclude */
   {"interrupt_handler",	0,       0,    true, false, false, false, NULL, NULL },
   {"break_handler",	0,       0,    true, false, false, false, NULL, NULL },
   {"fast_interrupt",	0,       0,    true, false, false, false, NULL, NULL },
-  {"save_volatiles",	0,       0,    true, false, false, false, NULL, NULL },
-  { NULL,        	0,       0,   false, false, false, false, NULL, NULL }
-};
+  {"save_volatiles",	0,       0,    true, false, false, false, NULL, NULL }
+});
 
 static int microblaze_interrupt_function_p (tree);
 
@@ -919,7 +918,8 @@ microblaze_classify_address (struct microblaze_address_info *info, rtx x,
    is called during reload.  */
 
 bool
-microblaze_legitimate_address_p (machine_mode mode, rtx x, bool strict)
+microblaze_legitimate_address_p (machine_mode mode, rtx x, bool strict,
+				 code_helper)
 {
   struct microblaze_address_info addr;
 
@@ -2792,8 +2792,7 @@ microblaze_function_prologue (FILE * file)
 	ASM_OUTPUT_TYPE_DIRECTIVE (file, fnname, "function");
     }
 
-  assemble_name (file, fnname);
-  fputs (":\n", file);
+  ASM_OUTPUT_FUNCTION_LABEL (file, fnname, current_function_decl);
 
   if (interrupt_handler && strcmp (INTERRUPT_HANDLER_NAME, fnname))
     fputs ("_interrupt_handler:\n", file);
@@ -3232,7 +3231,7 @@ microblaze_elf_in_small_data_p (const_tree decl)
   if (TREE_CODE (decl) == FUNCTION_DECL)
     return false;
 
-  if (TREE_CODE (decl) == VAR_DECL && DECL_SECTION_NAME (decl))
+  if (VAR_P (decl) && DECL_SECTION_NAME (decl))
     {
       const char *section = DECL_SECTION_NAME (decl);
       if (strcmp (section, ".sdata") == 0
@@ -4016,9 +4015,6 @@ microblaze_starting_frame_offset (void)
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P 	microblaze_legitimate_address_p 
-
-#undef TARGET_LRA_P
-#define TARGET_LRA_P hook_bool_void_false
 
 #undef TARGET_FRAME_POINTER_REQUIRED
 #define TARGET_FRAME_POINTER_REQUIRED	microblaze_frame_pointer_required

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2000-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -344,7 +344,7 @@ package body Live is
                end if;
 
             when N_Entity'Range =>
-               if (Ekind (N) = E_Component) and then not Marked (Marks, N) then
+               if Ekind (N) = E_Component and then not Marked (Marks, N) then
                   if Present (Discriminant_Checking_Func (N)) then
                      Process (Discriminant_Checking_Func (N));
                   end if;

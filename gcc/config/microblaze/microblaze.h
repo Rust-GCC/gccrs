@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler for Xilinx MicroBlaze.
-   Copyright (C) 2009-2023 Free Software Foundation, Inc.
+   Copyright (C) 2009-2024 Free Software Foundation, Inc.
 
    Contributed by Michael Eager <eager@eagercon.com>.
 
@@ -372,9 +372,8 @@ extern enum reg_class microblaze_regno_to_class[];
    since they may change into reg + const, which the patterns
    can't handle yet.  */
 #define CALL_INSN_OP(X) (CONSTANT_ADDRESS_P (X) \
-                         || (GET_CODE (X) == REG && X != arg_pointer_rtx\
-                             && ! (REGNO (X) >= FIRST_PSEUDO_REGISTER	\
-                             && REGNO (X) <= LAST_VIRTUAL_REGISTER)))
+			 || (GET_CODE (X) == REG && X != arg_pointer_rtx \
+			     && ! VIRTUAL_REGISTER_P (X)))
 
 /* True if VALUE is a signed 16-bit number.  */
 #define SMALL_OPERAND(VALUE) 						\

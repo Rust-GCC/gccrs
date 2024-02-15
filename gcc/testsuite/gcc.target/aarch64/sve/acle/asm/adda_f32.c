@@ -1,3 +1,4 @@
+/* { dg-skip-if "" { *-*-* } { "-DSTREAMING_COMPATIBLE" } { "" } } */
 /* { dg-final { check-function-bodies "**" "" "-DCHECK_ASM" } } */
 
 #include "test_sve_acle.h"
@@ -13,8 +14,13 @@ TEST_FOLD_LEFT_D (adda_d0_f32, float32_t, svfloat32_t,
 
 /*
 ** adda_d1_f32:
+** (
 **	fmov	s0, s1
 **	fadda	s0, p0, s0, z2\.s
+** |
+**	fadda	s1, p0, s1, z2\.s
+**	fmov	s0, s1
+** )
 **	ret
 */
 TEST_FOLD_LEFT_D (adda_d1_f32, float32_t, svfloat32_t,

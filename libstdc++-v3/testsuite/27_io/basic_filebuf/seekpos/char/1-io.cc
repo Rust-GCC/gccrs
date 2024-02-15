@@ -1,6 +1,6 @@
 // 2001-05-21 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001-2023 Free Software Foundation, Inc.
+// Copyright (C) 2001-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,13 +20,11 @@
 // 27.8.1.4 Overridden virtual functions
 
 // { dg-require-fileio "" }
+// { dg-additional-files "seekpos-1io.tst" }
 
 #include <fstream>
 #include <testsuite_hooks.h>
 #include <testsuite_io.h>
-
-// @require@ %-*.tst %-*.txt
-// @diff@ %-*.tst %*.txt
 
 const char name_01[] = "seekpos-1io.tst"; // file with data in it
 

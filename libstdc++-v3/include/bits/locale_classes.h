@@ -1,6 +1,6 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+// Copyright (C) 1997-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,6 +39,10 @@
 #include <bits/localefwd.h>
 #include <string>
 #include <ext/atomicity.h>
+
+#ifdef __glibcxx_text_encoding
+#include <text_encoding>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -247,6 +251,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _GLIBCXX_DEFAULT_ABI_TAG
     string
     name() const;
+
+#ifdef __glibcxx_text_encoding
+# if __CHAR_BIT__ == 8
+    text_encoding
+    encoding() const;
+# else
+    text_encoding
+    encoding() const = delete;
+# endif
+#endif
 
     /**
      *  @brief  Locale equality.

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1997-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1997-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -63,6 +63,8 @@ package body System.Parameters is
    begin
       if Default_Stack_Size = -1 then
          return 32 * 1024;
+      elsif Size_Type (Default_Stack_Size) < Minimum_Stack_Size then
+         return Minimum_Stack_Size;
       else
          return Size_Type (Default_Stack_Size);
       end if;

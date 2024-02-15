@@ -1,6 +1,6 @@
 (* cbuiltin.def provides non-builtin equivalent routines.
 
-Copyright (C) 2003-2023 Free Software Foundation, Inc.
+Copyright (C) 2003-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -118,8 +118,8 @@ PROCEDURE nextafter (x, y: REAL) : REAL ;
 PROCEDURE nextafterf (x, y: SHORTREAL) : SHORTREAL ;
 PROCEDURE nextafterl (x, y: LONGREAL) : LONGREAL ;
 
-PROCEDURE nexttoward (x, y: REAL) : REAL ;
-PROCEDURE nexttowardf (x, y: SHORTREAL) : SHORTREAL ;
+PROCEDURE nexttoward (x: REAL; y: LONGREAL) : REAL ;
+PROCEDURE nexttowardf (x: SHORTREAL; y: LONGREAL) : SHORTREAL ;
 PROCEDURE nexttowardl (x, y: LONGREAL) : LONGREAL ;
 
 PROCEDURE scalb (x, n: REAL) : REAL ;

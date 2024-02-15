@@ -1,5 +1,5 @@
 /* "Supergraph" classes that combine CFGs and callgraph into one digraph.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -182,6 +182,10 @@ supergraph::supergraph (logger *logger)
 	  for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	    {
 	      gimple *stmt = gsi_stmt (gsi);
+	      /* Discard debug stmts here, so we don't have to check for
+		 them anywhere within the analyzer.  */
+	      if (is_gimple_debug (stmt))
+		continue;
 	      node_for_stmts->m_stmts.safe_push (stmt);
 	      m_stmt_to_node_t.put (stmt, node_for_stmts);
 	      m_stmt_uids.make_uid_unique (stmt);
@@ -790,6 +794,13 @@ supernode::get_start_location () const
   if (return_p ())
     return m_fun->function_end_locus;
 
+  /* We have no locations for stmts.  If we have a single out-edge that's
+     a CFG edge, the goto_locus of that edge is a better location for this
+     than UNKNOWN_LOCATION.  */
+  if (m_succs.length () == 1)
+    if (const cfg_superedge *cfg_sedge = m_succs[0]->dyn_cast_cfg_superedge ())
+      return cfg_sedge->get_goto_locus ();
+
   return UNKNOWN_LOCATION;
 }
 
@@ -813,6 +824,12 @@ supernode::get_end_location () const
   if (return_p ())
     return m_fun->function_end_locus;
 
+  /* If we have a single out-edge that's a CFG edge, use the goto_locus of
+     that edge.  */
+  if (m_succs.length () == 1)
+    if (const cfg_superedge *cfg_sedge = m_succs[0]->dyn_cast_cfg_superedge ())
+      return cfg_sedge->get_goto_locus ();
+
   return UNKNOWN_LOCATION;
 }
 
@@ -827,6 +844,19 @@ supernode::get_stmt_index (const gimple *stmt) const
     if (iter_stmt == stmt)
       return i;
   gcc_unreachable ();
+}
+
+/* Get any label_decl for this supernode, or NULL_TREE if there isn't one.  */
+
+tree
+supernode::get_label () const
+{
+  if (m_stmts.length () == 0)
+    return NULL_TREE;
+  const glabel *label_stmt = dyn_cast<const glabel *> (m_stmts[0]);
+  if (!label_stmt)
+    return NULL_TREE;
+  return gimple_label_label (label_stmt);
 }
 
 /* Get a string for PK.  */
@@ -1049,6 +1079,9 @@ cfg_superedge::dump_label_to_pp (pretty_printer *pp,
 #undef DEF_EDGE_FLAG
       pp_string (pp, ")");
     }
+
+  if (m_cfg_edge->goto_locus > BUILTINS_LOCATION)
+    pp_string (pp, " (has goto_locus)");
 
   /* Otherwise, no label.  */
 }

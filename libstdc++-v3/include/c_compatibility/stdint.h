@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2007-2023 Free Software Foundation, Inc.
+// Copyright (C) 2007-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -56,7 +56,7 @@
 #  endif
 # endif
 
-#ifdef _GLIBCXX_USE_C99_STDINT_TR1
+#ifdef _GLIBCXX_USE_C99_STDINT
 
 namespace std
 {
@@ -97,7 +97,7 @@ namespace std
   using ::uintptr_t;
 } // namespace
 
-#endif // _GLIBCXX_USE_C99_STDINT_TR1
+#endif // _GLIBCXX_USE_C99_STDINT
 
 #else
 

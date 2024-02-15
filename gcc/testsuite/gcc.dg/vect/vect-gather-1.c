@@ -50,6 +50,7 @@ main (void)
   check_vect ();
 
   f (y, x, indices);
+#pragma GCC novector
   for (int i = 0; i < 32; ++i)
     if (y[i] != expected[i])
       __builtin_abort ();
@@ -57,4 +58,4 @@ main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump "Loop contains only SLP stmts" vect { target vect_gather_load_ifn } } } */
+/* { dg-final { scan-tree-dump "Loop contains only SLP stmts" vect } } */

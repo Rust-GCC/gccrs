@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -294,10 +294,10 @@ package body Exp_Ch8 is
       begin
          Set_Alias (Id, Empty);
          Set_Has_Completion (Id, False);
+         Set_Has_Delayed_Freeze (Id);
          Rewrite (N,
            Make_Subprogram_Declaration (Loc,
              Specification => Specification (N)));
-         Set_Has_Delayed_Freeze (Id);
 
          Body_Id := Make_Defining_Identifier (Loc, Chars (Id));
          Set_Debug_Info_Needed (Body_Id);
@@ -306,6 +306,7 @@ package body Exp_Ch8 is
             Decl :=
               Build_Variant_Record_Equality
                 (Typ         => Typ,
+                 Spec_Id     => Id,
                  Body_Id     => Body_Id,
                  Param_Specs => Copy_Parameter_List (Id));
 

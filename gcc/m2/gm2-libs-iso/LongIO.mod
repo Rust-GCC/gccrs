@@ -17,7 +17,7 @@ IMPLEMENTATION MODULE LongIO;
   *)
 
 FROM TextIO IMPORT WriteChar, ReadChar ;
-FROM StringChan IMPORT writeString ;
+FROM StringChan IMPORT writeString, writeFieldWidth ;
 FROM IOChan IMPORT SetReadResult ;
 FROM IOConsts IMPORT ReadResults ;
 
@@ -25,11 +25,10 @@ FROM ConvStringLong IMPORT RealToFixedString, RealToFloatString,
                            RealToEngString ;
 
 FROM ConvTypes IMPORT ScanClass, ScanState ;
-FROM TextIO IMPORT WriteChar, ReadChar ;
 FROM DynamicStrings IMPORT String, char, KillString, Length, InitString, ConCatChar, string ;
 FROM LongConv IMPORT ScanReal ;
-FROM StringChan IMPORT writeString, writeFieldWidth ;
 FROM ldtoa IMPORT strtold ;
+FROM TextUtil IMPORT SkipSpaces ;
 
 
   (* The text form of a signed fixed-point real number is
@@ -55,6 +54,7 @@ VAR
    s        : String ;
    error    : BOOLEAN ;
 BEGIN
+   SkipSpaces (cid) ;
    ReadChar(cid, ch) ;
    nextState := ScanReal ;
    REPEAT

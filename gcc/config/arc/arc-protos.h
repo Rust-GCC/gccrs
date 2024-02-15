@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Synopsys DesignWare ARC cpu.
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -25,18 +25,22 @@ extern machine_mode arc_select_cc_mode (enum rtx_code, rtx, rtx);
 extern struct rtx_def *gen_compare_reg (rtx, machine_mode);
 
 /* Declarations for various fns used in the .md file.  */
-extern const char *output_shift (rtx *);
+extern const char *output_shift_loop (enum rtx_code, rtx *);
+extern void arc_split_ashl (rtx *);
+extern void arc_split_ashr (rtx *);
+extern void arc_split_lshr (rtx *);
+extern void arc_split_rotl (rtx *);
+extern void arc_split_rotr (rtx *);
 extern bool compact_sda_memory_operand (rtx, machine_mode, bool);
 extern bool arc_double_limm_p (rtx);
 extern void arc_print_operand (FILE *, rtx, int);
 extern void arc_print_operand_address (FILE *, rtx);
 extern void arc_final_prescan_insn (rtx_insn *, rtx *, int);
 extern const char *arc_output_libcall (const char *);
-extern int arc_output_addsi (rtx *operands, bool, bool);
 extern int arc_output_commutative_cond_exec (rtx *operands, bool);
 extern bool arc_expand_cpymem (rtx *operands);
 extern bool prepare_move_operands (rtx *operands, machine_mode mode);
-extern void emit_shift (enum rtx_code, rtx, rtx, rtx);
+extern bool arc_pre_reload_split (void);
 extern void arc_expand_atomic_op (enum rtx_code, rtx, rtx, rtx, rtx, rtx);
 extern void arc_split_compare_and_swap (rtx *);
 extern void arc_expand_compare_and_swap (rtx *);
@@ -53,8 +57,6 @@ extern bool arc_can_use_return_insn (void);
 extern bool arc_split_move_p (rtx *);
 #endif /* RTX_CODE */
 
-extern bool arc_ccfsm_branch_deleted_p (void);
-extern void arc_ccfsm_record_branch_deleted (void);
 
 void arc_asm_output_aligned_decl_local (FILE *, tree, const char *,
 					unsigned HOST_WIDE_INT,
@@ -68,7 +70,6 @@ extern bool arc_raw_symbolic_reference_mentioned_p (rtx, bool);
 extern bool arc_is_longcall_p (rtx);
 extern bool arc_is_shortcall_p (rtx);
 extern bool valid_brcc_with_delay_p (rtx *);
-extern bool arc_ccfsm_cond_exec_p (void);
 extern rtx disi_highpart (rtx);
 extern int arc_adjust_insn_length (rtx_insn *, int, bool);
 extern int arc_corereg_hazard (rtx, rtx);
@@ -77,16 +78,10 @@ extern int arc_write_ext_corereg (rtx);
 extern rtx gen_acc1 (void);
 extern rtx gen_acc2 (void);
 extern bool arc_branch_size_unknown_p (void);
-struct arc_ccfsm;
-extern void arc_ccfsm_record_condition (rtx, bool, rtx_insn *,
-					struct arc_ccfsm *);
 extern void arc_expand_prologue (void);
 extern void arc_expand_epilogue (int);
 extern void arc_init_expanders (void);
 extern int arc_check_millicode (rtx op, int offset, int load_p);
-extern void arc_clear_unalign (void);
-extern void arc_toggle_unalign (void);
-extern void split_addsi (rtx *);
 extern void split_subsi (rtx *);
 extern void arc_split_move (rtx *);
 extern const char *arc_short_long (rtx_insn *insn, const char *, const char *);
@@ -108,5 +103,4 @@ extern bool arc_is_jli_call_p (rtx);
 extern void arc_file_end (void);
 extern bool arc_is_secure_call_p (rtx);
 
-rtl_opt_pass * make_pass_arc_ifcvt (gcc::context *ctxt);
 rtl_opt_pass * make_pass_arc_predicate_delay_insns (gcc::context *ctxt);

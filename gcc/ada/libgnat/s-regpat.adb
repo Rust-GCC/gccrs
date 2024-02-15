@@ -7,7 +7,7 @@
 --                                 B o d y                                  --
 --                                                                          --
 --               Copyright (C) 1986 by University of Toronto.               --
---                      Copyright (C) 1999-2023, AdaCore                    --
+--                      Copyright (C) 1999-2024, AdaCore                    --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -895,7 +895,7 @@ package body System.Regpat is
          Flags.SP_Start := Flags.SP_Start or else New_Flags.SP_Start;
 
          while Parse_Pos <= Parse_End
-           and then (E (Parse_Pos) = '|')
+           and then E (Parse_Pos) = '|'
          loop
             Parse_Pos := Parse_Pos + 1;
             Parse_Branch (New_Flags, False, Br);
@@ -979,7 +979,7 @@ package body System.Regpat is
          C := Expression (Parse_Pos);
          Parse_Pos := Parse_Pos + 1;
 
-         case (C) is
+         case C is
             when '^' =>
                IP :=
                  Emit_Node

@@ -1,5 +1,5 @@
 /* Target Code for TI C6X
-   Copyright (C) 2010-2023 Free Software Foundation, Inc.
+   Copyright (C) 2010-2024 Free Software Foundation, Inc.
    Contributed by Andrew Jenner <andrew@codesourcery.com>
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
@@ -855,10 +855,10 @@ c6x_in_small_data_p (const_tree exp)
   if (TREE_CODE (exp) == FUNCTION_DECL)
     return false;
 
-  if (TREE_CODE (exp) == VAR_DECL && DECL_WEAK (exp))
+  if (VAR_P (exp) && DECL_WEAK (exp))
     return false;
 
-  if (TREE_CODE (exp) == VAR_DECL && DECL_SECTION_NAME (exp))
+  if (VAR_P (exp) && DECL_SECTION_NAME (exp))
     {
       const char *section = DECL_SECTION_NAME (exp);
 
@@ -2444,7 +2444,8 @@ c6x_legitimate_address_p_1 (machine_mode mode, rtx x, bool strict,
 }
 
 static bool
-c6x_legitimate_address_p (machine_mode mode, rtx x, bool strict)
+c6x_legitimate_address_p (machine_mode mode, rtx x, bool strict,
+			  code_helper = ERROR_MARK)
 {
   return c6x_legitimate_address_p_1 (mode, x, strict, false);
 }

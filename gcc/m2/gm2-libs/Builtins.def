@@ -1,6 +1,6 @@
 (* Builtins.def provides access to all built-in functions.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -29,6 +29,10 @@ DEFINITION MODULE Builtins ;
 FROM SYSTEM IMPORT ADDRESS ;
 
 (* floating point intrinsic procedure functions *)
+
+PROCEDURE __BUILTIN__ isnanf (x: SHORTREAL) : INTEGER ;
+PROCEDURE __BUILTIN__ isnan (x: REAL) : INTEGER ;
+PROCEDURE __BUILTIN__ isnanl (x: LONGREAL) : INTEGER ;
 
 PROCEDURE __BUILTIN__ isfinitef (x: SHORTREAL) : INTEGER ;
 PROCEDURE __BUILTIN__ isfinite (x: REAL) : INTEGER ;
@@ -91,8 +95,8 @@ PROCEDURE __BUILTIN__ nextafter (x, y: REAL) : REAL ;
 PROCEDURE __BUILTIN__ nextafterf (x, y: SHORTREAL) : SHORTREAL ;
 PROCEDURE __BUILTIN__ nextafterl (x, y: LONGREAL) : LONGREAL ;
 
-PROCEDURE __BUILTIN__ nexttoward (x, y: REAL) : LONGREAL ;
-PROCEDURE __BUILTIN__ nexttowardf (x, y: SHORTREAL) : LONGREAL ;
+PROCEDURE __BUILTIN__ nexttoward (x: REAL; y: LONGREAL) : REAL ;
+PROCEDURE __BUILTIN__ nexttowardf (x: SHORTREAL; y: LONGREAL) : SHORTREAL ;
 PROCEDURE __BUILTIN__ nexttowardl (x, y: LONGREAL) : LONGREAL ;
 
 PROCEDURE __BUILTIN__ scalbln (x: REAL; n: LONGINT) : REAL ;

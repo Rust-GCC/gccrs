@@ -2,7 +2,7 @@
 
 // 2010-01-08  Paolo Carlini  <paolo.carlini@oracle.com>
 
-// Copyright (C) 2010-2023 Free Software Foundation, Inc.
+// Copyright (C) 2010-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,11 @@ void test01()
   v.push_back(1);
   VERIFY( v.size() < v.capacity() );
   v.shrink_to_fit();
+#if __cpp_exceptions
   VERIFY( v.size() == v.capacity() );
+#else
+  VERIFY( v.size() < v.capacity() );
+#endif
 }
 
 int main()

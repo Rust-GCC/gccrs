@@ -1,6 +1,6 @@
 (* m2type.def definition module for m2type.cc.
 
-Copyright (C) 2011-2023 Free Software Foundation, Inc.
+Copyright (C) 2011-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -981,6 +981,13 @@ PROCEDURE BuildStartArrayType (index_type: Tree; elt_type: Tree; type: INTEGER) 
 *)
 
 PROCEDURE IsAddress (type: Tree) : BOOLEAN ;
+
+
+(*
+   SameRealType - return true if real types a and b are the same.
+*)
+
+PROCEDURE SameRealType (a, b: Tree) : BOOLEAN ;
 
 
 END m2type.

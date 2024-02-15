@@ -1,4 +1,5 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-additional-options "-fdump-tree-optimized" } */
 
 #include "tree-vect.h"
 
@@ -43,6 +44,7 @@ main (void)
       asm volatile ("" ::: "memory");
     }
   f (a, b, c);
+#pragma GCC novector
   for (int i = 0; i < N; ++i)
     if (a[i] != (((((BASE1 + i * 5) ^ 0x55)
 		   + (BASE2 + i * 4)
@@ -53,5 +55,5 @@ main (void)
 
 /* { dg-final { scan-tree-dump "vect_recog_average_pattern: detected" "vect" } } */
 /* { dg-final { scan-tree-dump {\.AVG_FLOOR} "vect" { target vect_avg_qi } } } */
-/* { dg-final { scan-tree-dump-not {vector\([^\n]*short} "vect" { target vect_avg_qi } } } */
+/* { dg-final { scan-tree-dump-not {vector\([^\n]*short} "optimized" { target vect_avg_qi } } } */
 /* { dg-final { scan-tree-dump-times "vectorized 1 loop" 1 "vect" { target vect_avg_qi } } } */

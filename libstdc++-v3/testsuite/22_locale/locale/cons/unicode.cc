@@ -1,7 +1,7 @@
 // { dg-do run { target c++11 } }
 // { dg-require-iconv "ISO-8859-1" }
 
-// Copyright (C) 2006-2023 Free Software Foundation, Inc.
+// Copyright (C) 2006-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,13 +33,11 @@ typedef std::codecvt<char, char, std::mbstate_t> 	      c_codecvt;
 typedef std::codecvt<wchar_t, char, std::mbstate_t>	      w_codecvt;
 #endif
 
-#ifdef _GLIBCXX_USE_C99_STDINT_TR1
 typedef std::codecvt<char16_t, char, std::mbstate_t>	      u16_codecvt;
 typedef std::codecvt<char32_t, char, std::mbstate_t>	      u32_codecvt;
 #ifdef _GLIBCXX_USE_CHAR8_T
 typedef std::codecvt<char16_t, char8_t, std::mbstate_t>	      u16u8_codecvt;
 typedef std::codecvt<char32_t, char8_t, std::mbstate_t>	      u32u8_codecvt;
-#endif
 #endif
 
 class gnu_facet: public std::locale::facet
@@ -69,13 +67,11 @@ void test01()
 #ifdef _GLIBCXX_USE_WCHAR_T
       VERIFY( has_facet<w_codecvt>(loc13) );
 #endif
-#ifdef _GLIBCXX_USE_C99_STDINT_TR1
       VERIFY( has_facet<u16_codecvt>(loc13) );
       VERIFY( has_facet<u32_codecvt>(loc13) );
 #ifdef _GLIBCXX_USE_CHAR8_T
       VERIFY( has_facet<u16u8_codecvt>(loc13) );
       VERIFY( has_facet<u32u8_codecvt>(loc13) );
-#endif
 #endif
       VERIFY( has_facet<unicode_codecvt>(loc13) );
     }

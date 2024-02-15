@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1995-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -622,7 +622,7 @@ private
 
    type pthread_mutexattr_t is record
       Data : char_array (1 .. OS_Constants.PTHREAD_MUTEXATTR_SIZE);
-   end  record;
+   end record;
    pragma Convention (C, pthread_mutexattr_t);
    for pthread_mutexattr_t'Alignment use Interfaces.C.int'Alignment;
 

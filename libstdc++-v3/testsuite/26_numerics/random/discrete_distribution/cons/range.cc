@@ -3,7 +3,7 @@
 //
 // 2008-12-03  Edward M. Smith-Rowland <3dw4rd@verizon.net>
 //
-// Copyright (C) 2008-2023 Free Software Foundation, Inc.
+// Copyright (C) 2008-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,8 +33,8 @@ test01()
   std::discrete_distribution<> u(wt.begin(), wt.end());
   std::vector<double> probablility = u.probabilities();
   VERIFY( probablility.size() == 5 );
-  VERIFY( probablility[0] == 0.5 / 6.0 );
-  VERIFY( probablility[2] == 2.5 / 6.0 );
+  VERIFY( probablility[0] == double(0.5 / 6.0) );
+  VERIFY( probablility[2] == double(2.5 / 6.0) );
 }
 
 int main()

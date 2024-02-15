@@ -1,5 +1,5 @@
 /* Output routines for Visium.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
    Contributed by C.Nettleton, J.P.Parkes and P.Garbett.
 
    This file is part of GCC.
@@ -145,14 +145,13 @@ static inline bool current_function_has_lr_slot (void);
 
 /* Supported attributes:
    interrupt -- specifies this function is an interrupt handler.   */
-static const struct attribute_spec visium_attribute_table[] =
+TARGET_GNU_ATTRIBUTES (visium_attribute_table,
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        affects_type_identity, handler, exclude } */
   { "interrupt", 0, 0, true, false, false, false, visium_handle_interrupt_attr,
-    NULL},
-  { NULL, 0, 0, false, false, false, false, NULL, NULL },
-};
+    NULL}
+});
 
 static struct machine_function *visium_init_machine_status (void);
 
@@ -190,11 +189,12 @@ static tree visium_build_builtin_va_list (void);
 static rtx_insn *visium_md_asm_adjust (vec<rtx> &, vec<rtx> &,
 				       vec<machine_mode> &,
 				       vec<const char *> &, vec<rtx> &,
-				       HARD_REG_SET &, location_t);
+				       vec<rtx> &, HARD_REG_SET &, location_t);
 
 static bool visium_legitimate_constant_p (machine_mode, rtx);
 
-static bool visium_legitimate_address_p (machine_mode, rtx, bool);
+static bool visium_legitimate_address_p (machine_mode, rtx, bool,
+					 code_helper = ERROR_MARK);
 
 static bool visium_print_operand_punct_valid_p (unsigned char);
 static void visium_print_operand (FILE *, rtx, int);
@@ -794,7 +794,8 @@ visium_conditional_register_usage (void)
 static rtx_insn *
 visium_md_asm_adjust (vec<rtx> & /*outputs*/, vec<rtx> & /*inputs*/,
 		      vec<machine_mode> & /*input_modes*/,
-		      vec<const char *> & /*constraints*/, vec<rtx> &clobbers,
+		      vec<const char *> & /*constraints*/,
+		      vec<rtx> &/*uses*/, vec<rtx> &clobbers,
 		      HARD_REG_SET &clobbered_regs, location_t /*loc*/)
 {
   clobbers.safe_push (gen_rtx_REG (CCmode, FLAGS_REGNUM));
@@ -1313,7 +1314,7 @@ static bool
 visium_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 {
   tree type = arg.type;
-  return type && (AGGREGATE_TYPE_P (type) || TREE_CODE (type) == VECTOR_TYPE);
+  return type && (AGGREGATE_TYPE_P (type) || VECTOR_TYPE_P (type));
 }
 
 /* Define how arguments are passed.
@@ -1409,7 +1410,7 @@ visium_function_arg_advance (cumulative_args_t pcum_v,
 static bool
 visium_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 {
-  return (AGGREGATE_TYPE_P (type) || TREE_CODE (type) == VECTOR_TYPE);
+  return (AGGREGATE_TYPE_P (type) || VECTOR_TYPE_P (type));
 }
 
 /* Define how scalar values are returned.  */
@@ -1818,7 +1819,7 @@ rtx_ok_for_offset_p (machine_mode mode, rtx op)
    kind of register is required.  */
 
 static bool
-visium_legitimate_address_p (machine_mode mode, rtx x, bool strict)
+visium_legitimate_address_p (machine_mode mode, rtx x, bool strict, code_helper)
 {
   rtx base;
   unsigned int regno;

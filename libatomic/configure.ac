@@ -1,5 +1,5 @@
 # Process this file with autoreconf to produce a configure script.
-#  Copyright (C) 2012-2023 Free Software Foundation, Inc.
+#  Copyright (C) 2012-2024 Free Software Foundation, Inc.
 #
 #  This file is part of the GNU Atomic Library (libatomic).
 #
@@ -146,7 +146,6 @@ save_CFLAGS="$CFLAGS"
 AC_CHECK_TOOL(AR, ar)
 AC_CHECK_TOOL(NM, nm)
 AC_CHECK_TOOL(RANLIB, ranlib, ranlib-not-found-in-path-error)
-AC_PATH_PROG(PERL, perl, perl-not-found-in-path-error)
 AC_PROG_INSTALL
 
 # Configure libtool
@@ -155,6 +154,8 @@ ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 AM_MAINTAINER_MODE
+
+AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
 libtool_VERSION=3:0:2
@@ -170,6 +171,8 @@ case "$target" in
     ACX_PROG_CC_WARNING_OPTS([-march=armv8-a+lse],[enable_aarch64_lse])
     ;;
 esac
+
+AC_SUBST(SYSROOT_CFLAGS_FOR_TARGET)
 
 # Get target configury.
 . ${srcdir}/configure.tgt
@@ -202,6 +205,9 @@ LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_EXCHANGE])
 LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_CAS])
 LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_FETCH_ADD])
 LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_FETCH_OP])
+
+# Check for target-specific assembly-level support for atomic operations.
+LIBAT_TEST_FEAT_AARCH64_LSE128()
 
 AC_C_BIGENDIAN
 # I don't like the default behaviour of WORDS_BIGENDIAN undefined for LE.

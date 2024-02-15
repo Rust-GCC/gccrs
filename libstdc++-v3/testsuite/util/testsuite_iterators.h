@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // Iterator Wrappers for the C++ library testsuite.
 //
-// Copyright (C) 2004-2023 Free Software Foundation, Inc.
+// Copyright (C) 2004-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -916,7 +916,7 @@ namespace __gnu_test
   // Test for basic properties of C++20 16.3.3.6 [customization.point.object].
   template<typename T>
     constexpr bool
-    is_customization_point_object(T& obj) noexcept
+    is_customization_point_object(T&) noexcept
     {
       // A [CPO] is a function object with a literal class type.
       static_assert( std::is_class_v<T> || std::is_union_v<T> );

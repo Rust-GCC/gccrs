@@ -1,5 +1,5 @@
 /* gfortran backend interface
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
    Contributed by Paul Brook.
 
 This file is part of GCC.
@@ -39,6 +39,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cpp.h"
 #include "trans-types.h"
 #include "trans-const.h"
+#include "attribs.h"
 
 /* Language-dependent contents of an identifier.  */
 
@@ -87,7 +88,7 @@ gfc_handle_omp_declare_target_attribute (tree *, tree, tree, int, bool *)
 }
 
 /* Table of valid Fortran attributes.  */
-static const struct attribute_spec gfc_attribute_table[] =
+static const attribute_spec gfc_gnu_attributes[] =
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
        affects_type_identity, handler, exclude } */
@@ -97,7 +98,16 @@ static const struct attribute_spec gfc_attribute_table[] =
     gfc_handle_omp_declare_target_attribute, NULL },
   { "oacc function", 0, -1, true,  false, false, false,
     gfc_handle_omp_declare_target_attribute, NULL },
-  { NULL,		  0, 0, false, false, false, false, NULL, NULL }
+};
+
+static const scoped_attribute_specs gfc_gnu_attribute_table =
+{
+  "gnu", { gfc_gnu_attributes }
+};
+
+static const scoped_attribute_specs *const gfc_attribute_table[] =
+{
+  &gfc_gnu_attribute_table
 };
 
 /* Get a value for the SARIF v2.1.0 "artifact.sourceLanguage" property,
@@ -556,7 +566,9 @@ gfc_builtin_function (tree decl)
 #define ATTR_NOTHROW_LIST		(ECF_NOTHROW)
 #define ATTR_CONST_NOTHROW_LIST		(ECF_NOTHROW | ECF_CONST)
 #define ATTR_ALLOC_WARN_UNUSED_RESULT_SIZE_2_NOTHROW_LIST \
-					(ECF_NOTHROW)
+					(ECF_NOTHROW | ECF_LEAF | ECF_MALLOC)
+#define ATTR_ALLOC_WARN_UNUSED_RESULT_SIZE_2_NOTHROW_LEAF_LIST \
+					(ECF_NOTHROW | ECF_LEAF)
 #define ATTR_COLD_NORETURN_NOTHROW_LEAF_LIST \
 					(ECF_COLD | ECF_NORETURN | \
 					 ECF_NOTHROW | ECF_LEAF)
@@ -836,6 +848,20 @@ gfc_init_builtin_functions (void)
   gfc_define_builtin ("__builtin_scalbnf", mfunc_float[2],
 		      BUILT_IN_SCALBNF, "scalbnf", ATTR_CONST_NOTHROW_LEAF_LIST);
  
+  gfc_define_builtin ("__builtin_fmaxl", mfunc_longdouble[1],
+		      BUILT_IN_FMAXL, "fmaxl", ATTR_CONST_NOTHROW_LEAF_LIST);
+  gfc_define_builtin ("__builtin_fmax", mfunc_double[1],
+		      BUILT_IN_FMAX, "fmax", ATTR_CONST_NOTHROW_LEAF_LIST);
+  gfc_define_builtin ("__builtin_fmaxf", mfunc_float[1],
+		      BUILT_IN_FMAXF, "fmaxf", ATTR_CONST_NOTHROW_LEAF_LIST);
+
+  gfc_define_builtin ("__builtin_fminl", mfunc_longdouble[1],
+		      BUILT_IN_FMINL, "fminl", ATTR_CONST_NOTHROW_LEAF_LIST);
+  gfc_define_builtin ("__builtin_fmin", mfunc_double[1],
+		      BUILT_IN_FMIN, "fmin", ATTR_CONST_NOTHROW_LEAF_LIST);
+  gfc_define_builtin ("__builtin_fminf", mfunc_float[1],
+		      BUILT_IN_FMINF, "fminf", ATTR_CONST_NOTHROW_LEAF_LIST);
+
   gfc_define_builtin ("__builtin_fmodl", mfunc_longdouble[1], 
 		      BUILT_IN_FMODL, "fmodl", ATTR_CONST_NOTHROW_LEAF_LIST);
   gfc_define_builtin ("__builtin_fmod", mfunc_double[1], 
@@ -1033,6 +1059,8 @@ gfc_init_builtin_functions (void)
 		      ATTR_CONST_NOTHROW_LEAF_LIST);
   gfc_define_builtin ("__builtin_isunordered", ftype, BUILT_IN_ISUNORDERED,
 		      "__builtin_isunordered", ATTR_CONST_NOTHROW_LEAF_LIST);
+  gfc_define_builtin ("__builtin_iseqsig", ftype, BUILT_IN_ISEQSIG,
+		      "__builtin_iseqsig", ATTR_CONST_NOTHROW_LEAF_LIST);
 
 
 #define DEF_PRIMITIVE_TYPE(ENUM, VALUE) \

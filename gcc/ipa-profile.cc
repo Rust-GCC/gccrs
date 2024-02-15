@@ -1,5 +1,5 @@
 /* Basic IPA optimizations based on profile.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1064,4 +1064,14 @@ ipa_opt_pass_d *
 make_pass_ipa_profile (gcc::context *ctxt)
 {
   return new pass_ipa_profile (ctxt);
+}
+
+/* Reset all state within ipa-profile.cc so that we can rerun the compiler
+   within the same process.  For use by toplev::finalize.  */
+
+void
+ipa_profile_cc_finalize (void)
+{
+  delete call_sums;
+  call_sums = NULL;
 }

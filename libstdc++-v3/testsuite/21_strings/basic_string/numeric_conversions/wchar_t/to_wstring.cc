@@ -2,7 +2,7 @@
 // { dg-require-string-conversions "" }
 // 2008-06-15  Paolo Carlini  <paolo.carlini@oracle.com>
 
-// Copyright (C) 2008-2023 Free Software Foundation, Inc.
+// Copyright (C) 2008-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -47,13 +47,18 @@ test01()
   wstring four(to_wstring(ull2));
   VERIFY( four == L"3000" );
 
+  wstring tail;
+#if __cpp_lib_to_string < 202306L
+  tail = L".000000";
+#endif
+
   long double ld1 = 2.0L;
   wstring five(to_wstring(ld1));
-  VERIFY( five == L"2.000000" );
+  VERIFY( five == L"2" + tail );
 
   long double ld2 = -4.0L;
   wstring six(to_wstring(ld2));
-  VERIFY( six == L"-4.000000" );
+  VERIFY( six == L"-4" + tail );
 
 #endif
 }

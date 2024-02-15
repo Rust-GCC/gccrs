@@ -1,5 +1,5 @@
 /* Define builtin-in macros for the C family front ends.
-   Copyright (C) 2002-2023 Free Software Foundation, Inc.
+   Copyright (C) 2002-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -279,7 +279,7 @@ builtin_define_float_constants (const char *name_prefix,
   /* The difference between 1 and the least value greater than 1 that is
      representable in the given floating point type, b**(1-p).  */
   sprintf (name, "__%s_EPSILON__", name_prefix);
-  if (fmt->pnan < fmt->p && (c_dialect_cxx () || !flag_isoc2x))
+  if (fmt->pnan < fmt->p && (c_dialect_cxx () || !flag_isoc23))
     /* This is an IBM extended double format, so 1.0 + any double is
        representable precisely.  */
       sprintf (buf, "0x1p%d", fmt->emin - fmt->p);
@@ -318,7 +318,7 @@ builtin_define_float_constants (const char *name_prefix,
       builtin_define_with_int_value (name, 1);
     }
 
-  /* For C2x *_IS_IEC_60559.  0 means the type does not match an IEC
+  /* For C23 *_IS_IEC_60559.  0 means the type does not match an IEC
      60559 format, 1 that it matches a format but not necessarily
      operations.  */
   sprintf (name, "__%s_IS_IEC_60559__", name_prefix);
@@ -1023,7 +1023,8 @@ c_cpp_builtins (cpp_reader *pfile)
 	{
 	  /* Set feature test macros for C++17.  */
 	  cpp_define (pfile, "__cpp_unicode_characters=201411L");
-	  cpp_define (pfile, "__cpp_static_assert=201411L");
+	  if (cxx_dialect <= cxx23)
+	    cpp_define (pfile, "__cpp_static_assert=201411L");
 	  cpp_define (pfile, "__cpp_namespace_attributes=201411L");
 	  cpp_define (pfile, "__cpp_enumerator_attributes=201411L");
 	  cpp_define (pfile, "__cpp_nested_namespace_definitions=201411L");
@@ -1058,7 +1059,7 @@ c_cpp_builtins (cpp_reader *pfile)
 	    cpp_define (pfile, "__cpp_constexpr=202002L");
 	  cpp_define (pfile, "__cpp_constexpr_in_decltype=201711L");
 	  cpp_define (pfile, "__cpp_conditional_explicit=201806L");
-	  cpp_define (pfile, "__cpp_consteval=201811L");
+	  cpp_define (pfile, "__cpp_consteval=202211L");
 	  cpp_define (pfile, "__cpp_constinit=201907L");
 	  cpp_define (pfile, "__cpp_deduction_guides=201907L");
 	  cpp_define (pfile, "__cpp_nontype_template_args=201911L");
@@ -1074,15 +1075,25 @@ c_cpp_builtins (cpp_reader *pfile)
 	  /* Set feature test macros for C++23.  */
 	  cpp_define (pfile, "__cpp_size_t_suffix=202011L");
 	  cpp_define (pfile, "__cpp_if_consteval=202106L");
-	  cpp_define (pfile, "__cpp_constexpr=202211L");
+	  cpp_define (pfile, "__cpp_auto_cast=202110L");
+	  if (cxx_dialect <= cxx23)
+	    cpp_define (pfile, "__cpp_constexpr=202211L");
 	  cpp_define (pfile, "__cpp_multidimensional_subscript=202211L");
 	  cpp_define (pfile, "__cpp_named_character_escapes=202207L");
 	  cpp_define (pfile, "__cpp_static_call_operator=202207L");
 	  cpp_define (pfile, "__cpp_implicit_move=202207L");
+	  cpp_define (pfile, "__cpp_explicit_this_parameter=202110L");
+	}
+      if (cxx_dialect > cxx23)
+	{
+	  /* Set feature test macros for C++26.  */
+	  cpp_define (pfile, "__cpp_constexpr=202306L");
+	  cpp_define (pfile, "__cpp_static_assert=202306L");
+	  cpp_define (pfile, "__cpp_placeholder_variables=202306L");
 	}
       if (flag_concepts)
         {
-	  if (cxx_dialect >= cxx20)
+	  if (cxx_dialect >= cxx20 || !flag_concepts_ts)
 	    cpp_define (pfile, "__cpp_concepts=202002L");
           else
             cpp_define (pfile, "__cpp_concepts=201507L");
@@ -1182,6 +1193,29 @@ c_cpp_builtins (cpp_reader *pfile)
   builtin_define_type_width ("__WINT_WIDTH__", wint_type_node, NULL_TREE);
   builtin_define_type_width ("__PTRDIFF_WIDTH__", ptrdiff_type_node, NULL_TREE);
   builtin_define_type_width ("__SIZE_WIDTH__", size_type_node, NULL_TREE);
+
+  if (!c_dialect_cxx ())
+    {
+      struct bitint_info info;
+      /* For now, restrict __BITINT_MAXWIDTH__ to what can be represented in
+	 wide_int and widest_int.  */
+      if (targetm.c.bitint_type_info (WIDE_INT_MAX_PRECISION - 1, &info))
+	{
+	  cpp_define_formatted (pfile, "__BITINT_MAXWIDTH__=%d",
+				(int) WIDE_INT_MAX_PRECISION - 1);
+	  if (flag_building_libgcc)
+	    {
+	      scalar_int_mode limb_mode
+		= as_a <scalar_int_mode> (info.limb_mode);
+	      cpp_define_formatted (pfile, "__LIBGCC_BITINT_LIMB_WIDTH__=%d",
+				    (int) GET_MODE_PRECISION (limb_mode));
+	      cpp_define_formatted (pfile, "__LIBGCC_BITINT_ORDER__=%s",
+				    info.big_endian
+				    ? "__ORDER_BIG_ENDIAN__"
+				    : "__ORDER_LITTLE_ENDIAN__");
+	    }
+	}
+    }
 
   if (c_dialect_cxx ())
     for (i = 0; i < NUM_INT_N_ENTS; i ++)
@@ -1537,8 +1571,8 @@ c_cpp_builtins (cpp_reader *pfile)
       /* For libgcov.  */
       builtin_define_with_int_value ("__LIBGCC_VTABLE_USES_DESCRIPTORS__",
 				     TARGET_VTABLE_USES_DESCRIPTORS);
-      builtin_define_with_int_value ("__LIBGCC_GCOV_TYPE_SIZE",
-				     targetm.gcov_type_size());
+      builtin_define_with_int_value ("__LIBGCC_HAVE_LIBATOMIC",
+				     targetm.have_libatomic);
     }
 
   /* For use in assembly language.  */

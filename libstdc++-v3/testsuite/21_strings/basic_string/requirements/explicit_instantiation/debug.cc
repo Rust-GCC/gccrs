@@ -1,4 +1,4 @@
-// Copyright (C) 2005-2023 Free Software Foundation, Inc.
+// Copyright (C) 2005-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,7 +19,7 @@
 
 #include <debug/string>
 
-// { dg-do compile }
+// { dg-do compile { target c++17_down } }
 
 // libstdc++/21770
 namespace debug = __gnu_debug;

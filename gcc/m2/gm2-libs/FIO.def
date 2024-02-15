@@ -1,6 +1,6 @@
 (* FIO.def provides a simple buffered file input/output library.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -159,7 +159,7 @@ PROCEDURE ReadNBytes (f: File; nBytes: CARDINAL;
 
 
 (*
-   ReadAny - reads HIGH(a) bytes into, a. All input
+   ReadAny - reads HIGH (a) + 1 bytes into, a.  All input
              is fully buffered, unlike ReadNBytes and thus is more
              suited to small reads.
 *)
@@ -180,7 +180,7 @@ PROCEDURE WriteNBytes (f: File; nBytes: CARDINAL;
 
 
 (*
-   WriteAny - writes HIGH(a) bytes onto, file, f. All output
+   WriteAny - writes HIGH (a) + 1 bytes onto, file, f.  All output
               is fully buffered, unlike WriteNBytes and thus is more
               suited to small writes.
 *)

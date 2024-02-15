@@ -1,6 +1,6 @@
 // nonstandard construct and destroy functions -*- C++ -*-
 
-// Copyright (C) 2001-2023 Free Software Foundation, Inc.
+// Copyright (C) 2001-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -190,7 +190,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 #if __cplusplus >= 202002L
       if (std::__is_constant_evaluated())
-	return _Destroy_aux<false>::__destroy(__first, __last);
+	return std::_Destroy_aux<false>::__destroy(__first, __last);
 #endif
       std::_Destroy_aux<__has_trivial_destructor(_Value_type)>::
 	__destroy(__first, __last);
@@ -239,7 +239,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 #if __cplusplus >= 202002L
       if (std::__is_constant_evaluated())
-	return _Destroy_n_aux<false>::__destroy_n(__first, __count);
+	return std::_Destroy_n_aux<false>::__destroy_n(__first, __count);
 #endif
       return std::_Destroy_n_aux<__has_trivial_destructor(_Value_type)>::
 	__destroy_n(__first, __count);

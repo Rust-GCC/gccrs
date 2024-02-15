@@ -1,4 +1,4 @@
-@c Copyright (C) 2019-2023 Free Software Foundation, Inc.
+@c Copyright (C) 2019-2024 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 @c Contributed by David Malcolm <dmalcolm@redhat.com>.
@@ -651,6 +651,14 @@ truthfulness of the argument.  This is useful for writing DejaGnu tests.
 __analyzer_get_unknown_ptr ();
 @end smallexample
 will obtain an unknown @code{void *}.
+
+@item __analyzer_get_strlen
+@smallexample
+__analyzer_get_strlen (buf);
+@end smallexample
+will emit a warning if PTR doesn't point to a null-terminated string.
+TODO: eventually get the strlen of the buffer (without the
+optimizer touching it).
 
 @end table
 

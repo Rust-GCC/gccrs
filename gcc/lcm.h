@@ -1,5 +1,5 @@
 /* Generic partial redundancy elimination with lazy code motion header file.
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -31,4 +31,7 @@ extern struct edge_list *pre_edge_rev_lcm (int, sbitmap *,
 					   sbitmap *, sbitmap *,
 					   sbitmap *, sbitmap **,
 					   sbitmap **);
+extern void compute_antinout_edge (sbitmap *, sbitmap *, sbitmap *, sbitmap *);
+extern void compute_earliest (struct edge_list *, int, sbitmap *, sbitmap *,
+			      sbitmap *, sbitmap *, sbitmap *);
 #endif /* GCC_LCM_H */

@@ -1,5 +1,5 @@
 /* Implementation of subroutines for the GNU C++ pretty-printer.
-   Copyright (C) 2003-2023 Free Software Foundation, Inc.
+   Copyright (C) 2003-2024 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -553,7 +553,7 @@ cxx_pretty_printer::postfix_expression (tree t)
 	   instantiation time.  */
 	if (TREE_CODE (fun) != FUNCTION_DECL)
 	  ;
-	else if (DECL_NONSTATIC_MEMBER_FUNCTION_P (fun))
+	else if (DECL_OBJECT_MEMBER_FUNCTION_P (fun))
 	  {
 	    tree object = (code == AGGR_INIT_EXPR
 			   ? (AGGR_INIT_VIA_CTOR_P (t)
@@ -844,7 +844,12 @@ cxx_pretty_printer::unary_expression (tree t)
       /* Fall through  */
 
     case ALIGNOF_EXPR:
-      pp_cxx_ws_string (this, code == SIZEOF_EXPR ? "sizeof" : "__alignof__");
+      if (code == SIZEOF_EXPR)
+	pp_cxx_ws_string (this, "sizeof");
+      else if (ALIGNOF_EXPR_STD_P (t))
+	pp_cxx_ws_string (this, "alignof");
+      else
+	pp_cxx_ws_string (this, "__alignof__");
       pp_cxx_whitespace (this);
       if (TREE_CODE (t) == SIZEOF_EXPR && SIZEOF_EXPR_TYPE_P (t))
 	{
@@ -1116,6 +1121,15 @@ cxx_pretty_printer::expression (tree t)
       t = OVL_FIRST (t);
       /* FALLTHRU */
     case VAR_DECL:
+      if (DECL_NTTP_OBJECT_P (t))
+	{
+	  /* Print the type followed by the CONSTRUCTOR value of the
+	     NTTP object.  */
+	  simple_type_specifier (cv_unqualified (TREE_TYPE (t)));
+	  expression (DECL_INITIAL (t));
+	  break;
+	}
+      /* FALLTHRU */
     case PARM_DECL:
     case FIELD_DECL:
     case CONST_DECL:
@@ -1193,7 +1207,6 @@ cxx_pretty_printer::expression (tree t)
       assignment_expression (t);
       break;
 
-    case NON_DEPENDENT_EXPR:
     case MUST_NOT_THROW_EXPR:
       expression (TREE_OPERAND (t, 0));
       break;
@@ -1256,6 +1269,14 @@ cxx_pretty_printer::expression (tree t)
       pp_cxx_right_paren (this);
       break;
 
+    case VIEW_CONVERT_EXPR:
+      if (TREE_CODE (TREE_OPERAND (t, 0)) == TEMPLATE_PARM_INDEX)
+	{
+	  /* Strip const VIEW_CONVERT_EXPR wrappers for class NTTPs.  */
+	  expression (TREE_OPERAND (t, 0));
+	  break;
+	}
+      /* FALLTHRU */
     default:
       c_pretty_printer::expression (t);
       break;
@@ -1321,7 +1342,7 @@ cxx_pretty_printer::declaration_specifiers (tree t)
 	 do not have a type-specifier in their return types.  */
       if (DECL_CONSTRUCTOR_P (t) || DECL_CONV_FN_P (t))
 	function_specifier (t);
-      else if (DECL_NONSTATIC_MEMBER_FUNCTION_P (t))
+      else if (DECL_IOBJ_MEMBER_FUNCTION_P (t))
 	declaration_specifiers (TREE_TYPE (TREE_TYPE (t)));
       else
         c_pretty_printer::declaration_specifiers (t);
@@ -1364,8 +1385,9 @@ cxx_pretty_printer::simple_type_specifier (tree t)
     case TEMPLATE_PARM_INDEX:
     case BOUND_TEMPLATE_TEMPLATE_PARM:
       pp_cxx_unqualified_id (this, t);
-      if (tree c = PLACEHOLDER_TYPE_CONSTRAINTS (t))
-        pp_cxx_constrained_type_spec (this, c);
+      if (TREE_CODE (t) == TEMPLATE_TYPE_PARM)
+	if (tree c = PLACEHOLDER_TYPE_CONSTRAINTS (t))
+	  pp_cxx_constrained_type_spec (this, c);
       break;
 
     case TYPENAME_TYPE:
@@ -1678,7 +1700,7 @@ cxx_pretty_printer::direct_declarator (tree t)
       expression (t);
       pp_cxx_parameter_declaration_clause (this, t);
 
-      if (DECL_NONSTATIC_MEMBER_FUNCTION_P (t))
+      if (DECL_IOBJ_MEMBER_FUNCTION_P (t))
 	{
 	  padding = pp_before;
 	  pp_cxx_cv_qualifier_seq (this, pp_cxx_implicit_parameter_type (t));
@@ -1960,8 +1982,6 @@ pp_cxx_template_argument_list (cxx_pretty_printer *pp, tree t)
 	  if (TYPE_P (arg) || (TREE_CODE (arg) == TEMPLATE_DECL
 			       && TYPE_P (DECL_TEMPLATE_RESULT (arg))))
 	    pp->type_id (arg);
-	  else if (TREE_CODE (arg) == VAR_DECL && DECL_NTTP_OBJECT_P (arg))
-	    pp->expression (DECL_INITIAL (arg));
 	  else
 	    pp->expression (arg);
 	}
@@ -2625,26 +2645,37 @@ pp_cxx_trait (cxx_pretty_printer *pp, tree t)
 #undef DEFTRAIT
     }
 
-  pp_cxx_left_paren (pp);
-  if (TYPE_P (type1))
-    pp->type_id (type1);
+  if (kind == CPTK_TYPE_PACK_ELEMENT)
+    {
+      pp_cxx_begin_template_argument_list (pp);
+      pp->expression (type1);
+    }
   else
-    pp->expression (type1);
+    {
+      pp_cxx_left_paren (pp);
+      if (TYPE_P (type1))
+	pp->type_id (type1);
+      else
+	pp->expression (type1);
+    }
   if (type2)
     {
-      if (TREE_CODE (type2) != TREE_LIST)
+      if (TREE_CODE (type2) != TREE_VEC)
 	{
 	  pp_cxx_separate_with (pp, ',');
 	  pp->type_id (type2);
 	}
       else
-	for (tree arg = type2; arg; arg = TREE_CHAIN (arg))
+	for (tree arg : tree_vec_range (type2))
 	  {
 	    pp_cxx_separate_with (pp, ',');
-	    pp->type_id (TREE_VALUE (arg));
+	    pp->type_id (arg);
 	  }
     }
-  pp_cxx_right_paren (pp);
+  if (kind == CPTK_TYPE_PACK_ELEMENT)
+    pp_cxx_end_template_argument_list (pp);
+  else
+    pp_cxx_right_paren (pp);
 }
 
 // requires-clause:

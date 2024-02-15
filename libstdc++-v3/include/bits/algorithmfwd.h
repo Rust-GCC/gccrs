@@ -1,6 +1,6 @@
 // <algorithm> Forward declarations  -*- C++ -*-
 
-// Copyright (C) 2007-2023 Free Software Foundation, Inc.
+// Copyright (C) 2007-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -190,10 +190,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    */
 
   // adjacent_find
-
-#if __cplusplus > 201703L
-#  define __cpp_lib_constexpr_algorithms 201806L
-#endif
 
 #if __cplusplus >= 201103L
   template<typename _IIter, typename _Predicate>
@@ -622,7 +618,7 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
   // set_symmetric_difference
   // set_union
 
-#if (__cplusplus >= 201103L) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
+#if __cplusplus >= 201103L
   template<typename _RAIter, typename _UGenerator>
     void
     shuffle(_RAIter, _RAIter, _UGenerator&&);
@@ -832,10 +828,12 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
 
 #if _GLIBCXX_HOSTED
   template<typename _RAIter>
+    _GLIBCXX14_DEPRECATED_SUGGEST("std::shuffle")
     void
     random_shuffle(_RAIter, _RAIter);
 
   template<typename _RAIter, typename _Generator>
+    _GLIBCXX14_DEPRECATED_SUGGEST("std::shuffle")
     void
     random_shuffle(_RAIter, _RAIter,
 #if __cplusplus >= 201103L

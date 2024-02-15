@@ -1,5 +1,5 @@
 /* Utility routines for data type conversion for GCC.
-   Copyright (C) 1987-2023 Free Software Foundation, Inc.
+   Copyright (C) 1987-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -77,6 +77,7 @@ convert_to_pointer_1 (tree type, tree expr, bool fold_p)
     case INTEGER_TYPE:
     case ENUMERAL_TYPE:
     case BOOLEAN_TYPE:
+    case BITINT_TYPE:
       {
 	/* If the input precision differs from the target pointer type
 	   precision, first convert the input expression to an integer type of
@@ -95,7 +96,7 @@ convert_to_pointer_1 (tree type, tree expr, bool fold_p)
 
     default:
       error ("cannot convert to a pointer type");
-      return convert_to_pointer_1 (type, integer_zero_node, fold_p);
+      return error_mark_node;
     }
 }
 
@@ -291,7 +292,7 @@ convert_to_real_1 (tree type, tree expr, bool fold_p)
 	case NEGATE_EXPR:
 	  if (!flag_rounding_math
 	      && FLOAT_TYPE_P (itype)
-	      && TYPE_PRECISION (type) < TYPE_PRECISION (itype))
+	      && element_precision (type) < element_precision (itype))
 	    {
 	      tree arg = convert_to_real_1 (type, TREE_OPERAND (expr, 0),
 					    fold_p);
@@ -316,6 +317,7 @@ convert_to_real_1 (tree type, tree expr, bool fold_p)
     case INTEGER_TYPE:
     case ENUMERAL_TYPE:
     case BOOLEAN_TYPE:
+    case BITINT_TYPE:
       return build1 (FLOAT_EXPR, type, expr);
 
     case FIXED_POINT_TYPE:
@@ -330,11 +332,15 @@ convert_to_real_1 (tree type, tree expr, bool fold_p)
     case POINTER_TYPE:
     case REFERENCE_TYPE:
       error ("pointer value used where a floating-point was expected");
-      return convert_to_real_1 (type, integer_zero_node, fold_p);
+      return error_mark_node;
+
+    case VECTOR_TYPE:
+      error ("vector value used where a floating-point was expected");
+      return error_mark_node;
 
     default:
       error ("aggregate value used where a floating-point was expected");
-      return convert_to_real_1 (type, integer_zero_node, fold_p);
+      return error_mark_node;
     }
 }
 
@@ -585,7 +591,8 @@ convert_to_integer_1 (tree type, tree expr, bool dofold)
 	CASE_FLT_FN (BUILT_IN_TRUNC):
 	CASE_FLT_FN_FLOATN_NX (BUILT_IN_TRUNC):
 	  if (call_expr_nargs (s_expr) != 1
-	      || !SCALAR_FLOAT_TYPE_P (TREE_TYPE (CALL_EXPR_ARG (s_expr, 0))))
+	      || !SCALAR_FLOAT_TYPE_P (TREE_TYPE (CALL_EXPR_ARG (s_expr, 0)))
+	      || (!flag_fp_int_builtin_inexact && flag_trapping_math))
 	    break;
 	  return convert_to_integer_1 (type, CALL_EXPR_ARG (s_expr, 0),
 				       dofold);
@@ -660,6 +667,7 @@ convert_to_integer_1 (tree type, tree expr, bool dofold)
     case ENUMERAL_TYPE:
     case BOOLEAN_TYPE:
     case OFFSET_TYPE:
+    case BITINT_TYPE:
       /* If this is a logical operation, which just returns 0 or 1, we can
 	 change the type of the expression.  */
 
@@ -701,7 +709,9 @@ convert_to_integer_1 (tree type, tree expr, bool dofold)
 	 type corresponding to its mode, then do a nop conversion
 	 to TYPE.  */
       else if (TREE_CODE (type) == ENUMERAL_TYPE
-	       || maybe_ne (outprec, GET_MODE_PRECISION (TYPE_MODE (type))))
+	       || (TREE_CODE (type) != BITINT_TYPE
+		   && maybe_ne (outprec,
+				GET_MODE_PRECISION (TYPE_MODE (type)))))
 	{
 	  expr
 	    = convert_to_integer_1 (lang_hooks.types.type_for_mode
@@ -752,7 +762,8 @@ convert_to_integer_1 (tree type, tree expr, bool dofold)
 	      {
 		/* If shift count is less than the width of the truncated type,
 		   really shift.  */
-		if (tree_int_cst_lt (TREE_OPERAND (expr, 1), TYPE_SIZE (type)))
+		if (wi::to_widest (TREE_OPERAND (expr, 1))
+		    < TYPE_PRECISION (type))
 		  /* In this case, shifting is like multiplication.  */
 		  goto trunc1;
 		else
@@ -954,7 +965,7 @@ convert_to_integer_1 (tree type, tree expr, bool dofold)
 
     default:
       error ("aggregate value used where an integer was expected");
-      return convert (type, integer_zero_node);
+      return error_mark_node;
     }
 }
 
@@ -1000,8 +1011,14 @@ convert_to_complex_1 (tree type, tree expr, bool fold_p)
     case INTEGER_TYPE:
     case ENUMERAL_TYPE:
     case BOOLEAN_TYPE:
-      return build2 (COMPLEX_EXPR, type, convert (subtype, expr),
-		     convert (subtype, integer_zero_node));
+    case BITINT_TYPE:
+      {
+	tree real = convert (subtype, expr);
+	tree imag = convert (subtype, integer_zero_node);
+	if (error_operand_p (real) || error_operand_p (imag))
+	  return error_mark_node;
+	return build2 (COMPLEX_EXPR, type, real, imag);
+      }
 
     case COMPLEX_TYPE:
       {
@@ -1042,11 +1059,11 @@ convert_to_complex_1 (tree type, tree expr, bool fold_p)
     case POINTER_TYPE:
     case REFERENCE_TYPE:
       error ("pointer value used where a complex was expected");
-      return convert_to_complex_1 (type, integer_zero_node, fold_p);
+      return error_mark_node;
 
     default:
       error ("aggregate value used where a complex was expected");
-      return convert_to_complex_1 (type, integer_zero_node, fold_p);
+      return error_mark_node;
     }
 }
 

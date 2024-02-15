@@ -1,5 +1,5 @@
 // -*- C++ -*- The GNU C++ exception personality routine.
-// Copyright (C) 2001-2023 Free Software Foundation, Inc.
+// Copyright (C) 2001-2024 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -592,6 +592,10 @@ PERSONALITY_FUNCTION (int version,
 	      // Zero filter values are cleanups.
 	      saw_cleanup = true;
 	    }
+	  else if (actions == _UA_CLEANUP_PHASE)
+	    // We checked the handlers in the search phase; if one of them
+	    // matched, actions would also have _UA_HANDLER_FRAME set.
+	    ;
 	  else if (ar_filter > 0)
 	    {
 	      // Positive filter values are handlers.

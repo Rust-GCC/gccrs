@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv32gcv -mabi=ilp32 -fno-tree-vectorize" } */
+/* { dg-options "--param=riscv-autovec-preference=scalable -march=rv32gcv -mabi=ilp32 -fno-tree-vectorize" } */
 
 #include "riscv_vector.h"
 
@@ -30,7 +30,7 @@ void f (int32_t * restrict in, int32_t * restrict out, int n, int cond)
   *(vint32mf2_t*)(out + 7000) = v;
  
   for (int i = 0; i < n; i++) {
-    vbool64_t v;
+    vbool64_t v = *(vbool64_t*)(in + i + 9000);
     *(vbool64_t*)(out + i + 700) = v;
   }
 }

@@ -1,6 +1,7 @@
 // PERMUTE_ARGS:
 // EXTRA_SOURCES: imports/mangle10077.d
 // EXTRA_FILES: imports/testmangle.d
+// UNICODE_NAMES:
 /*
 TEST_OUTPUT:
 ---
@@ -568,12 +569,6 @@ void test12231()
     func12231c();
     func12231c!string();
 }
-
-/***************************************************/
-
-int test2a(scope int a) { return a; }
-
-static assert(test2a.mangleof == "_D6mangle6test2aFiZi");
 
 /***************************************************/
 

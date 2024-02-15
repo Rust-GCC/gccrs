@@ -1,5 +1,5 @@
 /* LoongArch definitions.
-   Copyright (C) 2021-2023 Free Software Foundation, Inc.
+   Copyright (C) 2021-2024 Free Software Foundation, Inc.
    Contributed by Loongson Ltd.
 
 This file is part of GCC.
@@ -23,12 +23,10 @@ along with GCC; see the file COPYING3.  If not see
     - ISA extensions		(isa_ext),
     - base ABI types		(abi_base),
     - ABI extension types	(abi_ext).
-
-    - code models		      (cmodel)
-    - other command-line switches     (switch)
+    - code models		(cmodel)
 
    These values are primarily used for implementing option handling
-   logic in "loongarch.opt", "loongarch-driver.c" and "loongarch-opt.c".
+   logic in "loongarch.opt", "loongarch-driver.cc" and "loongarch-opt.cc".
 
    As for the result of this option handling process, the following
    scheme is adopted to represent the final configuration:
@@ -46,107 +44,167 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef LOONGARCH_DEF_H
 #define LOONGARCH_DEF_H
 
-#include "loongarch-tune.h"
-
-#ifdef __cplusplus
-extern "C" {
+#if !defined(IN_LIBGCC2) && !defined(IN_TARGET_LIBS) && !defined(IN_RTS)
+#include <stdint.h>
 #endif
 
-/* enum isa_base */
-extern const char* loongarch_isa_base_strings[];
-#define ISA_BASE_LA64V100     0
-#define N_ISA_BASE_TYPES      1
+#include "loongarch-def-array.h"
+#include "loongarch-tune.h"
 
-/* enum isa_ext_* */
-extern const char* loongarch_isa_ext_strings[];
-#define ISA_EXT_NOFPU	      0
-#define ISA_EXT_FPU32	      1
-#define ISA_EXT_FPU64	      2
-#define N_ISA_EXT_FPU_TYPES   3
-#define N_ISA_EXT_TYPES	      3
 
-/* enum abi_base */
-extern const char* loongarch_abi_base_strings[];
-#define ABI_BASE_LP64D	      0
-#define ABI_BASE_LP64F	      1
-#define ABI_BASE_LP64S	      2
-#define N_ABI_BASE_TYPES      3
+/* ISA base */
+enum {
+  ISA_BASE_LA64		= 0,  /* LoongArch64 */
+  N_ISA_BASE_TYPES	= 1
+};
 
-/* enum abi_ext */
-extern const char* loongarch_abi_ext_strings[];
-#define ABI_EXT_BASE	      0
-#define N_ABI_EXT_TYPES	      1
+extern loongarch_def_array<const char *, N_ISA_BASE_TYPES>
+  loongarch_isa_base_strings;
 
-/* enum cmodel */
-extern const char* loongarch_cmodel_strings[];
-#define CMODEL_NORMAL	      0
-#define CMODEL_TINY	      1
-#define CMODEL_TINY_STATIC    2
-#define CMODEL_MEDIUM	      3
-#define CMODEL_LARGE	      4
-#define CMODEL_EXTREME	      5
-#define N_CMODEL_TYPES	      6
 
-/* enum switches */
-/* The "SW_" codes represent command-line switches (options that
-   accept no parameters). Definition for other switches that affects
-   the target ISA / ABI configuration will also be appended here
-   in the future.  */
+/* ISA extensions */
+enum {
+  ISA_EXT_NONE		= 0,
+  ISA_EXT_FPU32		= 1,
+  ISA_EXT_FPU64		= 2,
+  N_ISA_EXT_FPU_TYPES   = 3,
+  ISA_EXT_SIMD_LSX      = 3,
+  ISA_EXT_SIMD_LASX     = 4,
+  N_ISA_EXT_TYPES	= 5
+};
 
-extern const char* loongarch_switch_strings[];
-#define SW_SOFT_FLOAT	      0
-#define SW_SINGLE_FLOAT	      1
-#define SW_DOUBLE_FLOAT	      2
-#define N_SWITCH_TYPES	      3
+extern loongarch_def_array<const char *, N_ISA_EXT_TYPES>
+  loongarch_isa_ext_strings;
+
+
+/* Base ABI */
+enum {
+  ABI_BASE_LP64D	= 0,
+  ABI_BASE_LP64F	= 1,
+  ABI_BASE_LP64S	= 2,
+  N_ABI_BASE_TYPES	= 3
+};
+
+extern loongarch_def_array<const char *, N_ABI_BASE_TYPES>
+  loongarch_abi_base_strings;
+
+#define TO_LP64_ABI_BASE(C) (C)
+
+#define ABI_FPU_64(abi_base) \
+  (abi_base == ABI_BASE_LP64D)
+#define ABI_FPU_32(abi_base) \
+  (abi_base == ABI_BASE_LP64F)
+#define ABI_FPU_NONE(abi_base) \
+  (abi_base == ABI_BASE_LP64S)
+
+
+/* ABI Extension */
+enum {
+  ABI_EXT_BASE		= 0,
+  N_ABI_EXT_TYPES	= 1
+};
+
+extern loongarch_def_array<const char *, N_ABI_EXT_TYPES>
+  loongarch_abi_ext_strings;
+
+
+/* Code Model */
+enum {
+  CMODEL_NORMAL		= 0,
+  CMODEL_TINY		= 1,
+  CMODEL_TINY_STATIC	= 2,
+  CMODEL_MEDIUM		= 3,
+  CMODEL_LARGE		= 4,
+  CMODEL_EXTREME	= 5,
+  N_CMODEL_TYPES	= 6
+};
+
+extern loongarch_def_array<const char *, N_CMODEL_TYPES>
+  loongarch_cmodel_strings;
+
+
+/* Explicit Reloc Type */
+enum {
+  EXPLICIT_RELOCS_AUTO	    = 0,
+  EXPLICIT_RELOCS_NONE	    = 1,
+  EXPLICIT_RELOCS_ALWAYS    = 2,
+  N_EXPLICIT_RELOCS_TYPES   = 3
+};
 
 /* The common default value for variables whose assignments
    are triggered by command-line options.  */
 
-#define M_OPTION_NOT_SEEN -1
-#define M_OPT_ABSENT(opt_enum)  ((opt_enum) == M_OPTION_NOT_SEEN)
+#define M_OPT_UNSET -1
+#define M_OPT_ABSENT(opt_enum)  ((opt_enum) == M_OPT_UNSET)
 
 
 /* Internal representation of the target.  */
 struct loongarch_isa
 {
-  unsigned char base;	    /* ISA_BASE_ */
-  unsigned char fpu;	    /* ISA_EXT_FPU_ */
+  int base;	    /* ISA_BASE_ */
+  int fpu;	    /* ISA_EXT_FPU_ */
+  int simd;	    /* ISA_EXT_SIMD_ */
+
+  /* ISA evolution features implied by -march=, for -march=native probed
+     via CPUCFG.  The features implied by base may be not included here.
+
+     Using int64_t instead of HOST_WIDE_INT for C compatibility.  */
+  int64_t evolution;
+  int64_t evolution_set;
+
+  loongarch_isa () :
+    base (0), fpu (0), simd (0), evolution (0), evolution_set (0)
+  {}
+  loongarch_isa base_ (int _base) { base = _base; return *this; }
+  loongarch_isa fpu_ (int _fpu) { fpu = _fpu; return *this; }
+  loongarch_isa simd_ (int _simd) { simd = _simd; return *this; }
+  loongarch_isa evolution_ (int64_t _evolution)
+    { evolution = _evolution; return *this; }
 };
 
 struct loongarch_abi
 {
-  unsigned char base;	    /* ABI_BASE_ */
-  unsigned char ext;	    /* ABI_EXT_ */
+  int base;	    /* ABI_BASE_ */
+  int ext;	    /* ABI_EXT_ */
 };
 
 struct loongarch_target
 {
   struct loongarch_isa isa;
   struct loongarch_abi abi;
-  unsigned char cpu_arch;   /* CPU_ */
-  unsigned char cpu_tune;   /* same */
-  unsigned char cpu_native; /* same */
-  unsigned char cmodel;	    /* CMODEL_ */
+  int cpu_arch;	    /* CPU_ */
+  int cpu_tune;	    /* same */
+  int cmodel;	    /* CMODEL_ */
 };
 
-/* CPU properties.  */
-/* index */
-#define CPU_NATIVE	  0
-#define CPU_LOONGARCH64	  1
-#define CPU_LA464	  2
-#define N_ARCH_TYPES	  3
-#define N_TUNE_TYPES	  3
+/* CPU model */
+enum {
+  CPU_NATIVE	    = 0,
+  CPU_ABI_DEFAULT   = 1,
+  CPU_LOONGARCH64   = 2,
+  CPU_LA464	    = 3,
+  CPU_LA664	    = 4,
+  N_ARCH_TYPES	    = 5,
+  N_TUNE_TYPES	    = 5
+};
 
-/* parallel tables.  */
-extern const char* loongarch_cpu_strings[];
-extern struct loongarch_isa loongarch_cpu_default_isa[];
-extern int loongarch_cpu_issue_rate[];
-extern int loongarch_cpu_multipass_dfa_lookahead[];
+/* CPU model properties */
+extern loongarch_def_array<const char *, N_ARCH_TYPES>
+  loongarch_cpu_strings;
+extern loongarch_def_array<loongarch_isa, N_ARCH_TYPES>
+  loongarch_cpu_default_isa;
+extern loongarch_def_array<int, N_TUNE_TYPES>
+  loongarch_cpu_issue_rate;
+extern loongarch_def_array<int, N_TUNE_TYPES>
+  loongarch_cpu_multipass_dfa_lookahead;
+extern loongarch_def_array<loongarch_cache, N_TUNE_TYPES>
+  loongarch_cpu_cache;
+extern loongarch_def_array<loongarch_align, N_TUNE_TYPES>
+  loongarch_cpu_align;
+extern loongarch_def_array<loongarch_rtx_cost_data, N_TUNE_TYPES>
+  loongarch_cpu_rtx_cost_data;
+extern loongarch_def_array<
+  loongarch_def_array<loongarch_isa, N_ABI_EXT_TYPES>,
+  N_ABI_BASE_TYPES> abi_minimal_isa;
 
-extern struct loongarch_cache loongarch_cpu_cache[];
-extern struct loongarch_rtx_cost_data loongarch_cpu_rtx_cost_data[];
-
-#ifdef __cplusplus
-}
-#endif
 #endif /* LOONGARCH_DEF_H */

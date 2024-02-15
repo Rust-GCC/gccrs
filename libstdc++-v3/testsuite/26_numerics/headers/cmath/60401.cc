@@ -1,4 +1,4 @@
-// Copyright (C) 2016-2023 Free Software Foundation, Inc.
+// Copyright (C) 2016-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,7 +28,7 @@ namespace test
 
   F<float(float)>abs = ::abs;
 
-#ifdef _GLIBCXX_USE_C99_MATH_TR1
+#ifdef _GLIBCXX_USE_C99_MATH_FUNCS
   F<float(float)>		acosh		= ::acosh;
   F<float(float)>		asinh		= ::asinh;
   F<float(float)>		atanh		= ::atanh;

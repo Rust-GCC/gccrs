@@ -3645,6 +3645,7 @@ $as_echo "#define HAVE_OPENDIR 1" >>confdefs.h
 
 fi
 
+
 ac_config_headers="$ac_config_headers gm2config.aci"
 
 cat >confcache <<\_ACEOF

@@ -1,5 +1,5 @@
 /* imports.cc -- Build imported modules/declarations.
-   Copyright (C) 2014-2023 Free Software Foundation, Inc.
+   Copyright (C) 2014-2024 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -125,6 +125,15 @@ public:
     tree type = TREE_TYPE (build_ctype (d->type));
     type = TYPE_MAIN_VARIANT (type);
     this->result_ = this->make_import (TYPE_STUB_DECL (type));
+  }
+
+  void visit (VarDeclaration *d) final override
+  {
+    /* Not all kinds of manifest constants create a CONST_DECL.  */
+    if (!d->canTakeAddressOf () && !d->type->isscalar ())
+      return;
+
+    visit ((Declaration *) d);
   }
 
   /* For now, ignore importing other kinds of dsymbols.  */

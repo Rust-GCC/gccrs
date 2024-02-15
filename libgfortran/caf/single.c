@@ -1,5 +1,5 @@
 /* Single-image implementation of GNU Fortran Coarray Library
-   Copyright (C) 2011-2023 Free Software Foundation, Inc.
+   Copyright (C) 2011-2024 Free Software Foundation, Inc.
    Contributed by Tobias Burnus <burnus@net-b.de>
 
 This file is part of the GNU Fortran Coarray Runtime Library (libcaf).
@@ -163,10 +163,8 @@ _gfortran_caf_register (size_t size, caf_register_t type, caf_token_t *token,
       /* Freeing the memory conditionally seems pointless, but
 	 caf_internal_error () may return, when a stat is given and then the
 	 memory may be lost.  */
-      if (local)
-	free (local);
-      if (*token)
-	free (*token);
+      free (local);
+      free (*token);
       caf_internal_error (alloc_fail_msg, stat, errmsg, errmsg_len);
       return;
     }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2023 Free Software Foundation, Inc.
+/* Copyright (C) 2017-2024 Free Software Foundation, Inc.
 
    This file is part of GCC.
    
@@ -104,7 +104,7 @@ gcn_lockless_update (location_t loc, gimple_stmt_iterator *gsi,
   tree var_type = TREE_TYPE (var);
 
   if (TREE_CODE (var_type) == COMPLEX_TYPE
-      || TREE_CODE (var_type) == REAL_TYPE)
+      || SCALAR_FLOAT_TYPE_P (var_type))
     code = VIEW_CONVERT_EXPR;
 
   if (TYPE_SIZE (var_type) == TYPE_SIZE (long_long_unsigned_type_node))

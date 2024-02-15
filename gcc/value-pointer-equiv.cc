@@ -1,5 +1,5 @@
 /* Context-aware pointer equivalence tracker.
-   Copyright (C) 2020-2023 Free Software Foundation, Inc.
+   Copyright (C) 2020-2024 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -302,12 +302,11 @@ pointer_equiv_analyzer::visit_stmt (gimple *stmt)
 void
 pointer_equiv_analyzer::visit_edge (edge e)
 {
-  gimple *stmt = last_stmt (e->src);
+  gcond *stmt = safe_dyn_cast <gcond *> (*gsi_last_bb (e->src));
   tree lhs;
   // Recognize: x_13 [==,!=] &foo.
   if (stmt
-      && gimple_code (stmt) == GIMPLE_COND
-      && (lhs = gimple_cond_lhs (stmt))
+      && ((lhs = gimple_cond_lhs (stmt)), true)
       && TREE_CODE (lhs) == SSA_NAME
       && POINTER_TYPE_P (TREE_TYPE (lhs))
       && TREE_CODE (gimple_cond_rhs (stmt)) == ADDR_EXPR)

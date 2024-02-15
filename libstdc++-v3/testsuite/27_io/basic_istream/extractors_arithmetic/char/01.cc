@@ -1,6 +1,6 @@
 // 1999-04-12 bkoz
 
-// Copyright (C) 1999-2023 Free Software Foundation, Inc.
+// Copyright (C) 1999-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -92,7 +92,7 @@ void test01() {
   is_03 >> ld1;
   VERIFY( ld1 == 66300.25 );
   is_03 >> d1;
-  VERIFY( d1 == .315 );
+  VERIFY( d1 == (double) .315 ); // N.B. cast removes excess precision
   is_03 >> f1;
   VERIFY( f1 == 1.5 );
 

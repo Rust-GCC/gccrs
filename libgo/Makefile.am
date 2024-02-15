@@ -417,6 +417,7 @@ toolexeclibgounicode_DATA = \
 # Some internal packages are needed to bootstrap the gc toolchain.
 toolexeclibgointernaldir = $(toolexeclibgodir)/internal
 toolexeclibgointernal_DATA = \
+	internal/lazyregexp.gox \
 	internal/reflectlite.gox \
 	internal/unsafeheader.gox
 
@@ -462,6 +463,7 @@ runtime_files = \
 	runtime/go-memclr.c \
 	runtime/go-memmove.c \
 	runtime/go-memequal.c \
+	runtime/go-mmap.c \
 	runtime/go-nanotime.c \
 	runtime/go-now.c \
 	runtime/go-nosys.c \
@@ -495,6 +497,10 @@ s-version: Makefile
 zgoarch.go: s-zgoarch; @true
 s-zgoarch: Makefile goarch.sh
 	rm -f zgoarch.go.tmp
+	if ! $(SHELL) $(srcdir)/goarch.sh $(GOARCH) family >/dev/null 2>/dev/null;  then \
+	  $(SHELL) $(srcdir)/goarch.sh $(GOARCH) family; \
+	  exit 1; \
+	fi
 	echo "package goarch" > zgoarch.go.tmp
 	echo >> zgoarch.go.tmp
 	echo 'const GOARCH = "'$(GOARCH)'"' >> zgoarch.go.tmp

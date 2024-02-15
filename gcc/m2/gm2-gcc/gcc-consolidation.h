@@ -1,6 +1,6 @@
 /* gcc-consolidation.h provides a single header for required gcc headers.
 
-Copyright (C) 2012-2023 Free Software Foundation, Inc.
+Copyright (C) 2012-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -25,10 +25,8 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 #include "realmpfr.h"
 #include "backend.h"
 #include "stringpool.h"
-#include "rtl.h"
 #include "tree.h"
 #include "predict.h"
-#include "df.h"
 #include "tm.h"
 #include "hash-set.h"
 #include "machmode.h"
@@ -69,7 +67,6 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 #include "cfganal.h"
 #include "predict.h"
 #include "basic-block.h"
-#include "df.h"
 #include "tree-ssa-alias.h"
 #include "internal-fn.h"
 #include "gimple-expr.h"
@@ -80,7 +77,6 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 #include "stringpool.h"
 #include "tree-nested.h"
 #include "print-tree.h"
-#include "except.h"
 #include "toplev.h"
 #include "convert.h"
 #include "tree-dump.h"

@@ -73,12 +73,7 @@ final:
     override @property ref size_t refCount() { return _refCount; }
     override @property ref const(RegEx) pattern(){ return re; }
 
-    static if (__traits(hasMember,Stream, "search"))
-    {
-        enum kicked = true;
-    }
-    else
-        enum kicked = false;
+    enum kicked = __traits(hasMember, Stream, "search");
 
     static size_t initialMemory(const ref RegEx re)
     {
@@ -687,7 +682,7 @@ final:
                     while (prevStack()) {}
                     return re.ir[pc].data;
                 default:
-                    debug printBytecode(re.ir[0..$]);
+                    debug(std_regex_debug) printBytecode(re.ir[0..$]);
                     assert(0);
                 L_backtrack:
                     if (!popState())

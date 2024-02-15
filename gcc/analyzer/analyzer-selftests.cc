@@ -1,5 +1,5 @@
 /* Selftest support for the analyzer.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -55,6 +55,7 @@ run_analyzer_selftests ()
   analyzer_function_set_cc_tests ();
   analyzer_program_point_cc_tests ();
   analyzer_program_state_cc_tests ();
+  analyzer_ranges_cc_tests ();
   analyzer_region_model_cc_tests ();
   analyzer_sm_file_cc_tests ();
   analyzer_sm_signal_cc_tests ();

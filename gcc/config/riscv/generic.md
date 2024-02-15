@@ -1,5 +1,5 @@
 ;; Generic DFA-based pipeline description for RISC-V targets.
-;; Copyright (C) 2011-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
 ;; Contributed by Andrew Waterman (andrew@sifive.com).
 ;; Based on MIPS target for GNU compiler.
 
@@ -27,7 +27,7 @@
 
 (define_insn_reservation "generic_alu" 1
   (and (eq_attr "tune" "generic")
-       (eq_attr "type" "unknown,const,arith,shift,slt,multi,auipc,nop,logical,move"))
+       (eq_attr "type" "unknown,const,arith,shift,slt,multi,auipc,nop,logical,move,bitmanip,min,max,minu,maxu,clz,ctz,cpop"))
   "alu")
 
 (define_insn_reservation "generic_load" 3
@@ -42,17 +42,17 @@
 
 (define_insn_reservation "generic_xfer" 3
   (and (eq_attr "tune" "generic")
-       (eq_attr "type" "mfc,mtc,fcvt,fmove,fcmp"))
+       (eq_attr "type" "mfc,mtc,fcvt,fcvt_i2f,fcvt_f2i,fmove,fcmp"))
   "alu")
 
 (define_insn_reservation "generic_branch" 1
   (and (eq_attr "tune" "generic")
-       (eq_attr "type" "branch,jump,call"))
+       (eq_attr "type" "branch,jump,call,jalr"))
   "alu")
 
 (define_insn_reservation "generic_imul" 10
   (and (eq_attr "tune" "generic")
-       (eq_attr "type" "imul"))
+       (eq_attr "type" "imul,clmul"))
   "imuldiv*10")
 
 (define_insn_reservation "generic_idivsi" 34

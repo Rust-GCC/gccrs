@@ -1,5 +1,5 @@
 /* Declarations for rtx-reader support for gen* routines.
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_GENSUPPORT_H
 #define GCC_GENSUPPORT_H
 
+#include "hash-set.h"
 #include "read-md.h"
 
 struct obstack;
@@ -107,6 +108,9 @@ struct optab_def
 extern optab_def optabs[];
 extern unsigned int num_optabs;
 
+extern vec<const char *> register_filters;
+extern unsigned int get_register_filter_id (const char *);
+
 /* Information about an instruction name that matches an optab pattern.  */
 struct optab_pattern
 {
@@ -129,6 +133,7 @@ extern rtx add_implicit_parallel (rtvec);
 extern rtx_reader *init_rtx_reader_args_cb (int, const char **,
 					    bool (*)(const char *));
 extern rtx_reader *init_rtx_reader_args (int, const char **);
+extern int count_patterns ();
 extern bool read_md_rtx (md_rtx_info *);
 extern unsigned int get_num_insn_codes ();
 
@@ -217,6 +222,8 @@ struct pattern_stats
   /* The number of operand variables that are needed.  */
   int num_operand_vars;
 };
+
+extern hash_set<rtx> compact_syntax;
 
 extern void get_pattern_stats (struct pattern_stats *ranges, rtvec vec);
 extern void compute_test_codes (rtx, file_location, char *);

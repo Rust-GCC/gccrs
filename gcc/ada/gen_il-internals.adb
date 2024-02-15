@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2020-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 2020-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -289,8 +289,6 @@ package body Gen_IL.Internals is
             return "Has_SP_Choice";
          when Ignore_SPARK_Mode_Pragmas =>
             return "Ignore_SPARK_Mode_Pragmas";
-         when Is_Constr_Subt_For_UN_Aliased =>
-            return "Is_Constr_Subt_For_UN_Aliased";
          when Is_CPP_Class =>
             return "Is_CPP_Class";
          when Is_CUDA_Kernel =>

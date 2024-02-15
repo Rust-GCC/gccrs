@@ -1,5 +1,5 @@
 /* Subclass of diagnostic_path for analyzer diagnostics.
-   Copyright (C) 2019-2023 Free Software Foundation, Inc.
+   Copyright (C) 2019-2024 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -30,7 +30,11 @@ namespace ana {
 class checker_path : public diagnostic_path
 {
 public:
-  checker_path (logger *logger) : diagnostic_path (), m_logger (logger) {}
+  checker_path (logger *logger)
+  : diagnostic_path (),
+    m_thread ("main"),
+    m_logger (logger)
+  {}
 
   /* Implementation of diagnostic_path vfuncs.  */
 
@@ -43,6 +47,15 @@ public:
   {
     return *m_events[idx];
   }
+  unsigned num_threads () const final override
+  {
+    return 1;
+  }
+  const diagnostic_thread &
+  get_thread (diagnostic_thread_id_t) const final override
+  {
+    return m_thread;
+  }
 
   checker_event *get_checker_event (int idx)
   {
@@ -52,6 +65,7 @@ public:
   void dump (pretty_printer *pp) const;
   void debug () const;
 
+  logger *get_logger () const { return m_logger; }
   void maybe_log (logger *logger, const char *desc) const;
 
   void add_event (std::unique_ptr<checker_event> event);
@@ -119,6 +133,8 @@ public:
 
 private:
   DISABLE_COPY_AND_ASSIGN(checker_path);
+
+  simple_diagnostic_thread m_thread;
 
   /* The events that have occurred along this path.  */
   auto_delete_vec<checker_event> m_events;

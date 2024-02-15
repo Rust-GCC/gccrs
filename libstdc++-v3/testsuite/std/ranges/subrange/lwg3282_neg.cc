@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2023 Free Software Foundation, Inc.
+// Copyright (C) 2020-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,8 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-std=gnu++2a" }
-// { dg-do compile { target c++2a } }
+// { dg-do compile { target c++20 } }
 
 #include <ranges>
 
@@ -36,9 +35,9 @@ test_lwg3404()
   // LWG 3404. Finish removing subrange's conversions from pair-like
   std::pair<char*, char*> p;
   subrange sb1(p);			// { dg-error "no matching function" }
-  // { dg-error "class template argument deduction" "" { target *-*-* } 38 }
+  // { dg-error "class template argument deduction" "" { target *-*-* } 37 }
   subrange sb2(p, p.second - p.first);	// { dg-error "no matching function" }
-  // { dg-error "class template argument deduction" "" { target *-*-* } 40 }
+  // { dg-error "class template argument deduction" "" { target *-*-* } 39 }
 
   // { dg-prune-output "in requirements with" }
 }

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for IBM S/390.
-   Copyright (C) 2000-2023 Free Software Foundation, Inc.
+   Copyright (C) 2000-2024 Free Software Foundation, Inc.
 
    Contributed by Hartmut Penner (hpenner@de.ibm.com)
 
@@ -107,8 +107,9 @@ extern void s390_reload_symref_address (rtx , rtx , rtx , bool);
 extern void s390_expand_plus_operand (rtx, rtx, rtx);
 extern void emit_symbolic_move (rtx *);
 extern void s390_load_address (rtx, rtx);
-extern bool s390_expand_cpymem (rtx, rtx, rtx);
-extern void s390_expand_setmem (rtx, rtx, rtx);
+extern bool s390_expand_cpymem (rtx, rtx, rtx, rtx, rtx);
+extern bool s390_expand_movmem (rtx, rtx, rtx, rtx, rtx);
+extern void s390_expand_setmem (rtx, rtx, rtx, rtx, rtx);
 extern bool s390_expand_cmpmem (rtx, rtx, rtx, rtx);
 extern void s390_expand_vec_strlen (rtx, rtx, rtx);
 extern void s390_expand_vec_movstr (rtx, rtx, rtx);

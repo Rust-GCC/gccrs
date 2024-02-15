@@ -1,5 +1,5 @@
 ;; Constraint definitions for MIPS.
-;; Copyright (C) 2006-2023 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2024 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -263,6 +263,10 @@
    A vector zero."
   (and (match_code "const_vector")
        (match_test "op == CONST0_RTX (mode)")))
+
+(define_constraint "Yz"
+  "@internal"
+  (match_operand 0 "bit_clear_operand"))
 
 (define_constraint "YA"
   "@internal

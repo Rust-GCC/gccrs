@@ -1,6 +1,6 @@
 ; Options for the HP PA-RISC port of the compiler.
 
-; Copyright (C) 2005-2023 Free Software Foundation, Inc.
+; Copyright (C) 2005-2024 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -50,7 +50,7 @@ Target Mask(CALLER_COPIES)
 Caller copies function arguments passed by hidden reference.
 
 mcoherent-ldcw
-Target Var(TARGET_COHERENT_LDCW) Init(1)
+Target Var(TARGET_COHERENT_LDCW) Init(0)
 Use ldcw/ldcd coherent cache-control hint.
 
 mdisable-fpregs

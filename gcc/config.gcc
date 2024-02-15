@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # GCC target-specific configuration file.
-# Copyright (C) 1997-2023 Free Software Foundation, Inc.
+# Copyright (C) 1997-2024 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -345,12 +345,12 @@ m32c*-*-*)
         ;;
 aarch64*-*-*)
 	cpu_type=aarch64
-	extra_headers="arm_fp16.h arm_neon.h arm_bf16.h arm_acle.h arm_sve.h"
+	extra_headers="arm_fp16.h arm_neon.h arm_bf16.h arm_acle.h arm_sve.h arm_sme.h arm_neon_sve_bridge.h"
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
-	extra_objs="aarch64-builtins.o aarch-common.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o cortex-a57-fma-steering.o aarch64-speculation.o falkor-tag-collision-avoidance.o aarch-bti-insert.o aarch64-cc-fusion.o"
-	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-builtins.cc \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
+	extra_objs="aarch64-builtins.o aarch-common.o aarch64-sve-builtins.o aarch64-sve-builtins-shapes.o aarch64-sve-builtins-base.o aarch64-sve-builtins-sve2.o aarch64-sve-builtins-sme.o cortex-a57-fma-steering.o aarch64-speculation.o falkor-tag-collision-avoidance.o aarch-bti-insert.o aarch64-cc-fusion.o aarch64-early-ra.o aarch64-ldp-fusion.o"
+	target_gtfiles="\$(srcdir)/config/aarch64/aarch64-builtins.h \$(srcdir)/config/aarch64/aarch64-builtins.cc \$(srcdir)/config/aarch64/aarch64-sve-builtins.h \$(srcdir)/config/aarch64/aarch64-sve-builtins.cc"
 	target_has_targetm_common=yes
 	;;
 alpha*-*-*)
@@ -373,7 +373,7 @@ arc*-*-*)
 	;;
 arm*-*-*)
 	cpu_type=arm
-	extra_objs="arm-builtins.o arm-mve-builtins.o aarch-common.o aarch-bti-insert.o"
+	extra_objs="arm-builtins.o arm-mve-builtins.o arm-mve-builtins-shapes.o arm-mve-builtins-base.o aarch-common.o aarch-bti-insert.o"
 	extra_headers="mmintrin.h arm_neon.h arm_acle.h arm_fp16.h arm_cmse.h arm_bf16.h arm_mve_types.h arm_mve.h arm_cde.h"
 	target_type_format_char='%'
 	c_target_objs="arm-c.o"
@@ -436,17 +436,20 @@ i[34567]86-*-* | x86_64-*-*)
 		       avx512vbmi2vlintrin.h avx512vnniintrin.h
 		       avx512vnnivlintrin.h vaesintrin.h vpclmulqdqintrin.h
 		       avx512vpopcntdqvlintrin.h avx512bitalgintrin.h
-		       pconfigintrin.h wbnoinvdintrin.h movdirintrin.h
-		       waitpkgintrin.h cldemoteintrin.h avx512bf16vlintrin.h
-		       avx512bf16intrin.h enqcmdintrin.h serializeintrin.h
-		       avx512vp2intersectintrin.h avx512vp2intersectvlintrin.h
-		       tsxldtrkintrin.h amxtileintrin.h amxint8intrin.h
-		       amxbf16intrin.h x86gprintrin.h uintrintrin.h
-		       hresetintrin.h keylockerintrin.h avxvnniintrin.h
-		       mwaitintrin.h avx512fp16intrin.h avx512fp16vlintrin.h
-		       avxifmaintrin.h avxvnniint8intrin.h avxneconvertintrin.h
+		       avx512bitalgvlintrin.h pconfigintrin.h wbnoinvdintrin.h
+		       movdirintrin.h waitpkgintrin.h cldemoteintrin.h
+		       avx512bf16vlintrin.h avx512bf16intrin.h enqcmdintrin.h
+		       serializeintrin.h avx512vp2intersectintrin.h
+		       avx512vp2intersectvlintrin.h tsxldtrkintrin.h
+		       amxtileintrin.h amxint8intrin.h amxbf16intrin.h
+		       x86gprintrin.h uintrintrin.h hresetintrin.h
+		       keylockerintrin.h avxvnniintrin.h mwaitintrin.h
+		       avx512fp16intrin.h avx512fp16vlintrin.h avxifmaintrin.h
+		       avxvnniint8intrin.h avxneconvertintrin.h
 		       cmpccxaddintrin.h amxfp16intrin.h prfchiintrin.h
-		       raointintrin.h amxcomplexintrin.h"
+		       raointintrin.h amxcomplexintrin.h avxvnniint16intrin.h
+		       sm3intrin.h sha512intrin.h sm4intrin.h
+		       usermsrintrin.h"
 	;;
 ia64-*-*)
 	extra_headers=ia64intrin.h
@@ -479,7 +482,8 @@ mips*-*-*)
 	;;
 loongarch*-*-*)
 	cpu_type=loongarch
-	extra_headers="larchintrin.h"
+	d_target_objs="loongarch-d.o"
+	extra_headers="larchintrin.h lsxintrin.h lasxintrin.h"
 	extra_objs="loongarch-c.o loongarch-builtins.o loongarch-cpu.o loongarch-opts.o loongarch-def.o"
 	extra_gcc_objs="loongarch-driver.o loongarch-cpu.o loongarch-opts.o loongarch-def.o"
 	extra_options="${extra_options} g.opt fused-madd.opt"
@@ -540,11 +544,12 @@ pru-*-*)
 	;;
 riscv*)
 	cpu_type=riscv
-	extra_objs="riscv-builtins.o riscv-c.o riscv-sr.o riscv-shorten-memrefs.o riscv-selftests.o riscv-v.o riscv-vsetvl.o"
+	extra_objs="riscv-builtins.o riscv-c.o riscv-sr.o riscv-shorten-memrefs.o riscv-selftests.o riscv-string.o"
+	extra_objs="${extra_objs} riscv-v.o riscv-vsetvl.o riscv-vector-costs.o riscv-avlprop.o"
 	extra_objs="${extra_objs} riscv-vector-builtins.o riscv-vector-builtins-shapes.o riscv-vector-builtins-bases.o"
-	extra_objs="${extra_objs} thead.o"
+	extra_objs="${extra_objs} thead.o riscv-target-attr.o"
 	d_target_objs="riscv-d.o"
-	extra_headers="riscv_vector.h"
+	extra_headers="riscv_vector.h riscv_crypto.h riscv_bitmanip.h riscv_th_vector.h"
 	target_gtfiles="$target_gtfiles \$(srcdir)/config/riscv/riscv-vector-builtins.cc"
 	target_gtfiles="$target_gtfiles \$(srcdir)/config/riscv/riscv-vector-builtins.h"
 	;;
@@ -567,6 +572,7 @@ s390*-*-*)
 	d_target_objs="s390-d.o"
 	extra_options="${extra_options} fused-madd.opt"
 	extra_headers="s390intrin.h htmintrin.h htmxlintrin.h vecintrin.h"
+	target_gtfiles="./s390-gen-builtins.h"
 	;;
 # Note the 'l'; we need to be able to match e.g. "shle" or "shl".
 sh[123456789lbe]*-*-* | sh-*-*)
@@ -702,8 +708,9 @@ slm nehalem westmere sandybridge ivybridge haswell broadwell bonnell \
 silvermont knl knm skylake-avx512 cannonlake icelake-client icelake-server \
 skylake goldmont goldmont-plus tremont cascadelake tigerlake cooperlake \
 sapphirerapids alderlake rocketlake eden-x2 nano nano-1000 nano-2000 nano-3000 \
-nano-x2 eden-x4 nano-x4 lujiazui x86-64 x86-64-v2 x86-64-v3 x86-64-v4 \
-sierraforest graniterapids grandridge native"
+nano-x2 eden-x4 nano-x4 lujiazui yongfeng x86-64 x86-64-v2 x86-64-v3 x86-64-v4 \
+sierraforest graniterapids graniterapids-d grandridge arrowlake arrowlake-s \
+clearwaterforest pantherlake native"
 
 # Additional x86 processors supported by --with-cpu=.  Each processor
 # MUST be separated by exactly one space.
@@ -1163,6 +1170,17 @@ case ${target} in
   no-no) use_gcc_stdint=provide ;;
   *) ;;
   esac
+  ;;
+esac
+
+# Figure out if we need to enable heap trampolines by default
+case ${target} in
+*-*-darwin2*)
+  # Currently, we do this for macOS 11 and above.
+  tm_defines="$tm_defines HEAP_TRAMPOLINES_INIT=1"
+  ;;
+*)
+  tm_defines="$tm_defines HEAP_TRAMPOLINES_INIT=0"
   ;;
 esac
 
@@ -1634,10 +1652,9 @@ bpf-*-*)
         tm_file="elfos.h ${tm_file}"
         tmake_file="${tmake_file} bpf/t-bpf"
         use_collect2=no
-        extra_headers="bpf-helpers.h"
         use_gcc_stdint=provide
-        extra_objs="coreout.o"
-        target_gtfiles="$target_gtfiles \$(srcdir)/config/bpf/coreout.cc"
+        extra_objs="coreout.o core-builtins.o"
+        target_gtfiles="$target_gtfiles \$(srcdir)/config/bpf/coreout.cc \$(srcdir)/config/bpf/core-builtins.cc"
         ;;
 cris-*-elf | cris-*-none)
 	tm_file="elfos.h newlib-stdint.h ${tm_file}"
@@ -1754,7 +1771,6 @@ amdgcn-*-amdhsa)
 	native_system_header_dir=/include
 	extra_modes=gcn/gcn-modes.def
 	extra_objs="${extra_objs} gcn-tree.o"
-	extra_gcc_objs="driver-gcn.o"
 	case "$host" in
 	x86_64*-*-linux-gnu )
 		if test "$ac_cv_search_dlopen" != no; then
@@ -2330,7 +2346,7 @@ lm32-*-rtems*)
 	tmake_file="${tmake_file} lm32/t-rtems"
          ;;
 lm32-*-uclinux*)
-        tm_file="elfos.h ${tm_file} gnu-user.h linux.h lm32/uclinux-elf.h"
+        tm_file="elfos.h ${tm_file} gnu-user.h linux.h glibc-stdint.h lm32/uclinux-elf.h"
 	tmake_file="${tmake_file} lm32/t-lm32"
         ;;
 m32r-*-elf*)
@@ -2484,7 +2500,7 @@ riscv*-*-elf* | riscv*-*-rtems*)
 	  tmake_file="${tmake_file} riscv/t-rtems"
 	  ;;
 	*)
-	  if test "x${with_multilib_generator}" == xdefault; then
+	  if test "x${with_multilib_generator}" = xdefault; then
 		  case "x${enable_multilib}" in
 		  xno) ;;
 		  xyes) tmake_file="${tmake_file} riscv/t-elf-multilib" ;;
@@ -2521,13 +2537,25 @@ riscv*-*-freebsd*)
 
 loongarch*-*-linux*)
 	tm_file="elfos.h gnu-user.h linux.h linux-android.h glibc-stdint.h ${tm_file}"
-	tm_file="${tm_file} loongarch/gnu-user.h loongarch/linux.h"
+	tm_file="${tm_file} loongarch/gnu-user.h loongarch/linux.h loongarch/loongarch-driver.h"
 	extra_options="${extra_options} linux-android.opt"
-	tmake_file="${tmake_file} loongarch/t-linux"
+	tmake_file="${tmake_file} loongarch/t-multilib loongarch/t-linux"
 	gnu_ld=yes
 	gas=yes
 
 	# Force .init_array support.  The configure script cannot always
+	# automatically detect that GAS supports it, yet we require it.
+	gcc_cv_initfini_array=yes
+	;;
+
+loongarch*-*-elf*)
+	tm_file="elfos.h newlib-stdint.h ${tm_file}"
+	tm_file="${tm_file} loongarch/elf.h loongarch/linux.h loongarch/loongarch-driver.h"
+	tmake_file="${tmake_file} loongarch/t-multilib loongarch/t-linux"
+	gnu_ld=yes
+	gas=yes
+
+	# For .init_array support.  The configure script cannot always
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
 	;;
@@ -2653,22 +2681,22 @@ mips*-sde-elf*)
 	esac
 	case ${target} in
 	  mipsisa32r6*)
-	    tm_defines="MIPS_ISA_DEFAULT=MIPS_ISA_MIPS32R6 MIPS_ABI_DEFAULT=ABI_32"
+	    tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS32R6 MIPS_ABI_DEFAULT=ABI_32"
 	    ;;
 	  mipsisa32r2*)
-	    tm_defines="MIPS_ISA_DEFAULT=MIPS_ISA_MIPS32R2 MIPS_ABI_DEFAULT=ABI_32"
+	    tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS32R2 MIPS_ABI_DEFAULT=ABI_32"
 	    ;;
 	  mipsisa32*)
-	    tm_defines="MIPS_ISA_DEFAULT=MIPS_ISA_MIPS32 MIPS_ABI_DEFAULT=ABI_32"
+	    tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS32 MIPS_ABI_DEFAULT=ABI_32"
 	    ;;
 	  mipsisa64r6*)
-	    tm_defines="MIPS_ISA_DEFAULT=MIPS_ISA_MIPS64R6 MIPS_ABI_DEFAULT=ABI_N32"
+	    tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS64R6 MIPS_ABI_DEFAULT=ABI_N32"
 	    ;;
 	  mipsisa64r2*)
-	    tm_defines="MIPS_ISA_DEFAULT=MIPS_ISA_MIPS64R2 MIPS_ABI_DEFAULT=ABI_N32"
+	    tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS64R2 MIPS_ABI_DEFAULT=ABI_N32"
 	    ;;
 	  mipsisa64*)
-	    tm_defines="MIPS_ISA_DEFAULT=MIPS_ISA_MIPS64 MIPS_ABI_DEFAULT=ABI_N32"
+	    tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS64 MIPS_ABI_DEFAULT=ABI_N32"
 	    ;;
 	esac
 	;;
@@ -3087,7 +3115,7 @@ powerpc*-wrs-vxworks7r*)
 powerpc-wrs-vxworks*)
 	tm_file="${tm_file} elfos.h gnu-user.h freebsd-spec.h rs6000/sysv4.h"
 	tmake_file="${tmake_file} rs6000/t-fprules rs6000/t-ppccomm rs6000/t-vxworks"
-	extra_options="${extra_options} rs6000/sysv4.opt"
+	extra_options="${extra_options} rs6000/sysv4.opt vxworks-smp.opt"
 	extra_headers="${extra_headers} ppc-asm.h"
 	case ${target} in
           *-vxworksmils*)
@@ -3531,7 +3559,7 @@ v850*-*-*)
 	use_gcc_stdint=wrap
 	;;
 vax-*-linux*)
-	tm_file="${tm_file} elfos.h gnu-user.h linux.h vax/elf.h vax/linux.h"
+	tm_file="${tm_file} elfos.h gnu-user.h linux.h glibc-stdint.h vax/elf.h vax/linux.h"
 	extra_options="${extra_options} vax/elf.opt"
 	;;
 vax-*-netbsdelf*)
@@ -3783,6 +3811,10 @@ case ${target} in
 	arch=lujiazui
 	cpu=lujiazui
 	;;
+      yongfeng-*)
+	arch=yongfeng
+	cpu=yongfeng
+	;;
       pentium2-*)
 	arch=pentium2
 	cpu=pentium2
@@ -3896,9 +3928,13 @@ case ${target} in
 	arch=k8
 	cpu=k8
 	;;
-    lujiazui-*)
+      lujiazui-*)
 	arch=lujiazui
 	cpu=lujiazui
+	;;
+      yongfeng-*)
+	arch=yongfeng
+	cpu=yongfeng
 	;;
       nocona-*)
 	arch=nocona
@@ -4171,8 +4207,8 @@ case "${target}" in
 		fi
 		for which in cpu arch tune; do
 			eval "val=\$with_$which"
-			base_val=`echo $val | sed -e 's/\+.*//'`
-			ext_val=`echo $val | sed -e 's/[a-z0-9.-]\+//'`
+			base_val=`echo $val | sed -E -e 's/\+.*//'`
+			ext_val=`echo $val | sed -E -e 's/[a-z0-9.-]+//'`
 
 			if [ $which = arch ]; then
 			  def=aarch64-arches.def
@@ -4204,9 +4240,9 @@ case "${target}" in
 
 			  while [ x"$ext_val" != x ]
 			  do
-				ext_val=`echo $ext_val | sed -e 's/\+//'`
-				ext=`echo $ext_val | sed -e 's/\+.*//'`
-				base_ext=`echo $ext | sed -e 's/^no//'`
+				ext_val=`echo $ext_val | sed -E -e 's/\+//'`
+				ext=`echo $ext_val | sed -E -e 's/\+.*//'`
+				base_ext=`echo $ext | sed -E -e 's/^no//'`
 				opt_line=`echo -e "$options_parsed" | \
 					grep "^\"$base_ext\""`
 
@@ -4217,7 +4253,7 @@ case "${target}" in
 				  echo "Unknown extension used in --with-$which=$val" 1>&2
 				  exit 1
 				fi
-				ext_val=`echo $ext_val | sed -e 's/[a-z0-9]\+//'`
+				ext_val=`echo $ext_val | sed -E -e 's/[a-z0-9]+//'`
 			  done
 
 			  true
@@ -4512,7 +4548,7 @@ case "${target}" in
 		for which in arch tune; do
 			eval "val=\$with_$which"
 			case ${val} in
-			"" | fiji | gfx900 | gfx906 | gfx908 | gfx90a)
+			"" | fiji | gfx900 | gfx906 | gfx908 | gfx90a | gfx1030 | gfx1100)
 				# OK
 				;;
 			*)
@@ -4521,7 +4557,19 @@ case "${target}" in
 				;;
 			esac
 		done
-		[ "x$with_arch" = x ] && with_arch=fiji
+		[ "x$with_arch" = x ] && with_arch=gfx900
+
+		case "x${with_multilib_list}" in
+		x | xno)
+			TM_MULTILIB_CONFIG=
+			;;
+		xdefault | xyes)
+			TM_MULTILIB_CONFIG=`echo "gfx900,gfx906,gfx908,gfx90a,gfx1030,gfx1100" | sed "s/${with_arch},\?//;s/,$//"`
+			;;
+		*)
+			TM_MULTILIB_CONFIG="${with_multilib_list}"
+			;;
+		esac
 		;;
 
 	hppa*-*-*)
@@ -4655,7 +4703,7 @@ case "${target}" in
 
 		# Infer arch from --with-arch, --target, and --with-abi.
 		case "${with_arch}" in
-		rv32e* | rv32i* | rv32g* | rv64i* | rv64g*)
+		rv32e* | rv32i* | rv32g* | rv64e* | rv64i* | rv64g*)
 			# OK.
 			;;
 		"")
@@ -4664,11 +4712,12 @@ case "${target}" in
 			ilp32e) with_arch="rv32e" ;;
 			ilp32 | ilp32f | ilp32d) with_arch="rv32gc" ;;
 			lp64 | lp64f | lp64d) with_arch="rv64gc" ;;
+			lp64e) with_arch="rv64e" ;;
 			*) with_arch="rv${xlen}gc" ;;
 			esac
 			;;
 		*)
-			echo "--with-arch=${with_arch} is not supported.  The argument must begin with rv32e, rv32i, rv32g, rv64i, or rv64g." 1>&2
+			echo "--with-arch=${with_arch} is not supported.  The argument must begin with rv32e, rv32i, rv32g, rv64e, rv64i, or rv64g." 1>&2
 			exit 1
 			;;
 		esac
@@ -4682,7 +4731,7 @@ case "${target}" in
 		# pick a default based on the ISA, preferring soft-float
 		# unless the D extension is present.
 		case "${with_abi}" in
-		ilp32 | ilp32e | ilp32f | ilp32d | lp64 | lp64f | lp64d)
+		ilp32 | ilp32e | ilp32f | ilp32d | lp64 | lp64e | lp64f | lp64d)
 			;;
 		"")
 			case "${with_arch}" in
@@ -4690,6 +4739,7 @@ case "${target}" in
 			rv32e*) with_abi=ilp32e ;;
 			rv32*) with_abi=ilp32 ;;
 			rv64*d* | rv64g*) with_abi=lp64d ;;
+			rv64e*) with_abi=lp64e ;;
 			rv64*) with_abi=lp64 ;;
 			esac
 			;;
@@ -4705,7 +4755,7 @@ case "${target}" in
 		ilp32,rv32* | ilp32e,rv32e* \
 		| ilp32f,rv32*f* | ilp32f,rv32g* \
 		| ilp32d,rv32*d* | ilp32d,rv32g* \
-		| lp64,rv64* \
+		| lp64,rv64* | lp64e,rv64e* \
 		| lp64f,rv64*f* | lp64f,rv64g* \
 		| lp64d,rv64*d* | lp64d,rv64g*)
 			;;
@@ -4936,65 +4986,66 @@ case "${target}" in
 		esac
 		;;
 
-	loongarch*-*-*)
-		supported_defaults="abi arch tune fpu"
+	loongarch*-*)
+		supported_defaults="abi arch tune fpu simd multilib-default strict-align-lib"
 
 		# Local variables
 		unset \
-			abi_pattern      abi_default    \
-			abiext_pattern   abiext_default \
-			arch_pattern     arch_default   \
-			fpu_pattern      fpu_default    \
-			tune_pattern     tune_default   \
-			triplet_os       triplet_abi
+			abi_base	abi_ext \
+			arch_pattern	arch_default \
+			fpu_pattern	fpu_default \
+			triplet_os	triplet_abi \
+			strict_align_opt
+
+		# --with-abi is now obsolete, emit a warning if given.
+		case ${with_abi} in
+		"") ;;
+		*)
+			echo "warning: --with-abi= is now obsolete," \
+			"the default ABI is derived from your target" \
+			"triplet ${target}" 1>&2
+			;;
+		esac
 
 		# Infer ABI from the triplet.
 		case ${target} in
-		loongarch64-*-*-*f64)
-			abi_pattern="lp64d"
-			;;
-		loongarch64-*-*-*f32)
-			abi_pattern="lp64f"
-			;;
-		loongarch64-*-*-*sf)
-			abi_pattern="lp64s"
-			;;
-		loongarch64-*-*-*)
-			abi_pattern="lp64[dfs]"
-			abi_default="lp64d"
-			;;
+		loongarch64-*f64) abi_base="lp64d"; abi_ext="base" ;;
+		loongarch64-*f32) abi_base="lp64f"; abi_ext="base" ;;
+		loongarch64-*sf)  abi_base="lp64s"; abi_ext="base" ;;
+		loongarch64-*)    abi_base="lp64d"; abi_ext="base" ;;
 		*)
 			echo "Unsupported target ${target}." 1>&2
 			exit 1
 			;;
 		esac
 
-		abiext_pattern="*"
-		abiext_default="base"
-
 		# Get the canonical triplet (multiarch specifier).
+		case ${abi_base},${abi_ext} in
+		lp64d,base) triplet_abi="";;
+		lp64f,base) triplet_abi="f32";;
+		lp64s,base) triplet_abi="sf";;
+		esac
+
 		case ${target} in
-		  *-linux-gnu*)  triplet_os="linux-gnu";;
+		  *-linux-gnu*) triplet_os="linux-gnu";;
 		  *-linux-musl*) triplet_os="linux-musl";;
+		  *-elf*) triplet_os="elf";;
 		  *)
 			  echo "Unsupported target ${target}." 1>&2
 			  exit 1
 			  ;;
 		esac
+		la_canonical_triplet="loongarch64-${triplet_os}${triplet_abi}"
+
 
 		# Perform initial sanity checks on --with-* options.
 		case ${with_arch} in
-		"" | loongarch64 | la464) ;; # OK, append here.
+		"" | abi-default | loongarch64 | la[46]64) ;; # OK, append here.
 		native)
 			if test x${host} != x${target}; then
 				echo "--with-arch=native is illegal for cross-compiler." 1>&2
 				exit 1
 			fi
-			;;
-		"")
-			echo "Please set a default value for \${with_arch}" \
-			     "according to your target triplet \"${target}\"." 1>&2
-			exit 1
 			;;
 		*)
 			echo "Unknown arch in --with-arch=$with_arch" 1>&2
@@ -5002,21 +5053,6 @@ case "${target}" in
 			;;
 		esac
 
-		case ${with_abi} in
-		"" | lp64d | lp64f | lp64s) ;; # OK, append here.
-		*)
-			echo "Unsupported ABI given in --with-abi=$with_abi" 1>&2
-			exit 1
-			;;
-		esac
-
-		case ${with_abiext} in
-		"" | base) ;; # OK, append here.
-		*)
-			echo "Unsupported ABI extention type $with_abiext" 1>&2
-			exit 1
-			;;
-		esac
 
 		case ${with_fpu} in
 		"" | none | 32 | 64) ;; # OK, append here.
@@ -5030,73 +5066,41 @@ case "${target}" in
 			;;
 		esac
 
-
-		# Set default value for with_abi.
-		case ${with_abi} in
-		"")
-			if test x${abi_default} != x; then
-				with_abi=${abi_default}
-			else
-				with_abi=${abi_pattern}
-			fi
+		case ${with_simd} in
+		"" | none) ;;
+		lsx | lasx)  # OK, append here.
+			case ${with_fpu} in
+			64) ;;
+			"") with_fpu=64 ;;
+			*)
+				echo "--with-simd=${with_simd} conflicts with --with-fpu=${with_fpu}" 1>&2
+				exit 1
+				;;
+			esac
 			;;
 
 		*)
-			if echo "${with_abi}" | grep -E "^${abi_pattern}$" > /dev/null; then
-				: # OK
-			else
-				echo "Incompatible options:" \
-				"--with-abi=${with_abi} and --target=${target}." 1>&2
-				exit 1
-			fi
-			;;
-		esac
-
-		case ${with_abi} in
-		  "lp64d") triplet_abi="";;
-		  "lp64f") triplet_abi="f32";;
-		  "lp64s") triplet_abi="sf";;
-		esac
-		la_canonical_triplet="loongarch64-${triplet_os}${triplet_abi}"
-
-		# Set default value for with_abiext (internal)
-		case ${with_abiext} in
-		"")
-			if test x${abiext_default} != x; then
-				with_abiext=${abiext_default}
-			else
-				with_abiext=${abiext_pattern}
-			fi
-			;;
-
-		*)
-			if echo "${with_abiext}" | grep -E "^${abiext_pattern}$" > /dev/null; then
-				: # OK
-			else
-				echo "The ABI extension type \"${with_abiext}\"" \
-				"is incompatible with --target=${target}." 1>&2
-				exit 1
-			fi
-
+			echo "Unknown SIMD extension in --with-simd=$with_simd" 1>&2
+			exit 1
 			;;
 		esac
 
 		# Infer ISA-related default options from the ABI: pass 1
-		case ${with_abi}/${with_abiext} in
+		case ${abi_base}/${abi_ext} in
 		lp64*/base)
 			# architectures that support lp64* ABI
-			arch_pattern="native|loongarch64|la464"
+			arch_pattern="native|abi-default|loongarch64|la[46]64"
 			# default architecture for lp64* ABI
-			arch_default="loongarch64"
+			arch_default="abi-default"
 			;;
 		*)
-			echo "Unsupported ABI type ${with_abi}/${with_abiext}." 1>&2
+			echo "Unsupported ABI type ${abi_base}/${abi_ext}." 1>&2
 			exit 1
 			;;
 		esac
 
 		# Infer ISA-related default options from the ABI: pass 2
-		case ${with_abi}/${with_abiext} in
+		case ${abi_base}/${abi_ext} in
 		lp64d/base)
 			fpu_pattern="64"
 			;;
@@ -5109,7 +5113,7 @@ case "${target}" in
 			fpu_default="none"
 			;;
 		*)
-			echo "Unsupported ABI type ${with_abi}/${with_abiext}." 1>&2
+			echo "Unsupported ABI type ${abi_base}/${abi_ext}." 1>&2
 			exit 1
 			;;
 		esac
@@ -5128,7 +5132,7 @@ case "${target}" in
 			if echo "${with_arch}" | grep -E "^${arch_pattern}$" > /dev/null; then
 				: # OK
 			else
-				echo "${with_abi}/${with_abiext} ABI cannot be implemented with" \
+				echo "${abi_base}/${abi_ext} ABI cannot be implemented with" \
 				"--with-arch=${with_arch}." 1>&2
 				exit 1
 			fi
@@ -5149,7 +5153,7 @@ case "${target}" in
 			if echo "${with_fpu}" | grep -E "^${fpu_pattern}$" > /dev/null; then
 				: # OK
 			else
-				echo "${with_abi}/${with_abiext} ABI cannot be implemented with" \
+				echo "${abi_base}/${abi_ext} ABI cannot be implemented with" \
 				"--with-fpu=${with_fpu}." 1>&2
 				exit 1
 			fi
@@ -5157,32 +5161,19 @@ case "${target}" in
 		esac
 
 
-		# Infer default with_tune from with_arch: pass 1
+		# Check default with_tune configuration using with_arch.
 		case ${with_arch} in
-		native)
-			tune_pattern="*"
-			tune_default="native"
-			;;
 		loongarch64)
-			tune_pattern="loongarch64|la464"
-			tune_default="la464"
+			tune_pattern="native|abi-default|loongarch64|la[46]64"
 			;;
 		*)
 			# By default, $with_tune == $with_arch
-			tune_pattern="$with_arch"
+			tune_pattern="*"
 			;;
 		esac
 
-		## Set default value for with_tune.
 		case ${with_tune} in
-		"")
-			if test x${tune_default} != x; then
-				with_tune=${tune_default}
-			else
-				with_tune=${tune_pattern}
-			fi
-			;;
-
+		"") ;; # OK
 		*)
 			if echo "${with_tune}" | grep -E "^${tune_pattern}$" > /dev/null; then
 				: # OK
@@ -5194,13 +5185,64 @@ case "${target}" in
 			;;
 		esac
 
+		# Build libraries with -mstrict-align if --with-strict-align-lib is given.
+		case ${with_strict_align_lib} in
+		yes) strict_align_opt="/mstrict-align" ;;
+		""|no)  ;;
+		*)
+			echo "Unknown option: --with-strict-align-lib=${with_strict_align_lib}" 1>&2
+			exit 1
+			;;
+		esac
+
+
+		# Handle --with-multilib-default
+		if echo "${with_multilib_default}" \
+		| grep -E -e '[[:space:]]' -e '//' -e '/$' -e '^/' > /dev/null 2>&1; then
+			echo "Invalid argument to --with-multilib-default." 1>&2
+			exit 1
+		fi
+
+		if test x${with_multilib_default} = x; then
+			# Use -march=abi-default by default when building libraries.
+			with_multilib_default="/march=abi-default"
+		else
+			unset parse_state component
+			parse_state=arch
+			for component in $(echo "${with_multilib_default}" | tr '/' ' '); do
+				case ${parse_state},${component} in
+				arch,|arch,abi-default)
+					# ABI-default: use the ABI's default ARCH configuration for
+					# multilib library builds, unless otherwise specified
+					# in --with-multilib-list.
+					with_multilib_default="/march=abi-default" ;;
+				arch,fixed)
+					# Fixed: use the default gcc configuration for all multilib
+					# builds by default.
+					with_multilib_default="" ;;
+				arch,native|arch,loongarch64|arch,la[46]64) # OK, append here.
+					with_multilib_default="/march=${component}" ;;
+				arch,*)
+					with_multilib_default="/march=abi-default"
+					with_multilib_default="${with_multilib_default}/${component}" ;;
+				opts,*)
+					with_multilib_default="${with_multilib_default}/${component}" ;;
+				esac
+
+				if test x${parse_state} = xarch; then
+					parse_state=opt;
+				fi
+			done
+			unset parse_state component
+		fi
+
 		# Handle --with-multilib-list.
 		if test x"${with_multilib_list}" = x \
 		   || test x"${with_multilib_list}" = xno \
 		   || test x"${with_multilib_list}" = xdefault \
 		   || test x"${enable_multilib}" != xyes; then
 
-			with_multilib_list="${with_abi}/${with_abiext}"
+			with_multilib_list="${abi_base}/${abi_ext}"
 		fi
 
 		# Check if the configured default ABI combination is included in
@@ -5208,7 +5250,7 @@ case "${target}" in
 		loongarch_multilib_list_sane=no
 
 		# This one goes to TM_MULTILIB_CONFIG, for use in t-linux.
-		loongarch_multilib_list_make=""
+		loongarch_multilib_list_make="${abi_base},"
 
 		# This one goes to tm_defines, for use in loongarch-driver.c.
 		loongarch_multilib_list_c=""
@@ -5216,25 +5258,21 @@ case "${target}" in
 		# ${with_multilib_list} should not contain whitespaces,
 		# consecutive commas or slashes.
 		if echo "${with_multilib_list}" \
-		| grep -E -e "[[:space:]]" -e '[,/][,/]' -e '[,/]$' -e '^[,/]' > /dev/null; then
+		| grep -E -e "[[:space:]]" -e '[,/][,/]' -e '[,/]$' -e '^[,/]' > /dev/null 2>&1; then
 			echo "Invalid argument to --with-multilib-list." 1>&2
 			exit 1
 		fi
 
-		unset component idx elem_abi_base elem_abi_ext elem_tmp
+		unset component elem_abi_base elem_abi_ext elem_tmp parse_state all_abis
 		for elem in $(echo "${with_multilib_list}" | tr ',' ' '); do
-			idx=0
-			while true; do
-				idx=$((idx + 1))
-				component=$(echo "${elem}" | awk -F'/' '{print $'"${idx}"'}')
+			unset elem_abi_base elem_abi_ext
+			parse_state="abi-base"
 
-				case ${idx} in
-				1)
-					# Component 1: Base ABI type
+			for component in $(echo "${elem}" | tr '/' ' '); do
+				if test x${parse_state} = x"abi-base"; then
+					# Base ABI type
 					case ${component} in
-					lp64d) elem_tmp="ABI_BASE_LP64D,";;
-					lp64f) elem_tmp="ABI_BASE_LP64F,";;
-					lp64s) elem_tmp="ABI_BASE_LP64S,";;
+					lp64d | lp64f | lp64s) elem_tmp="ABI_BASE_$(echo ${component} | tr a-z A-Z),";;
 					*)
 						echo "Unknown base ABI \"${component}\" in --with-multilib-list." 1>&2
 						exit 1
@@ -5243,57 +5281,114 @@ case "${target}" in
 					loongarch_multilib_list_c="${loongarch_multilib_list_c}${elem_tmp}"
 					loongarch_multilib_list_make="${loongarch_multilib_list_make}mabi=${component}"
 					elem_abi_base="${component}"
-					;;
 
-				2)
-					# Component 2: ABI extension type
+					parse_state="abi-ext"
+					continue
+				fi
+
+				if test x${parse_state} = x"abi-ext"; then
+					# ABI extension type
 					case ${component} in
-					"" | base)
-						component="base"
-						elem_tmp="ABI_EXT_BASE,"
-						;;
-					*)
-						echo "Unknown ABI extension \"${component}\" in --with-multilib-list." 1>&2
-						exit 1
+					base)
+						elem_abi_ext="base"
+						loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+						loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+						parse_state="arch"
+						continue;
 						;;
 					esac
-					loongarch_multilib_list_c="${loongarch_multilib_list_c}${elem_tmp}"
+
+					# The default ABI extension is "base" if unspecified.
+					elem_abi_ext="base"
+					loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
 					loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
-					elem_abi_ext="${component}"
-					;;
+					parse_state="arch"
+				fi
 
-				*)
-					# Component 3 and on: optional stuff
+				if test x${parse_state} = x"arch"; then
+					# -march option
 					case ${component} in
-					"")
-						# End of component list.
-						break
+					native | abi-default | loongarch64 | la[46]64) # OK, append here.
+						# Append -march spec for each multilib variant.
+						loongarch_multilib_list_make="${loongarch_multilib_list_make}/march=${component}"
+						parse_state="opts"
+						continue
 						;;
-					*)
-						echo "Unknown ABI \"${elem}\" in --with-multilib-list." 1>&2
-						exit 1
+
+					default)
+						# "/default" is equivalent to --with-multilib-default=fixed
+						parse_state="opts"
+						continue
 						;;
 					esac
-					;;
-				esac
+
+					# If ARCH is unspecified for this multilib variant, use ${with_multllib_default}.
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}${with_multilib_default}"
+					parse_state="opts"
+				fi
+
+				if test x${parse_state} = x"opts"; then
+					# Other compiler options for building libraries.
+					# (no static sanity check performed)
+					case ${component} in
+					*)
+						# Append other components as additional build options
+						# (without the prepending dash).
+						# Their validity should be examined by the compiler.
+						loongarch_multilib_list_make="${loongarch_multilib_list_make}/${component}"
+						;;
+					esac
+				fi
 			done
 
-			if test x${elem_abi_base} = x${with_abi} \
-			&& test x${elem_abi_ext} = x${with_abiext}; then
+			case ${parse_state} in
+			    "abi-ext")
+					elem_abi_ext="base"
+					loongarch_multilib_list_c="${loongarch_multilib_list_c}ABI_EXT_BASE,"
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}" # Add nothing for now.
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}${with_multilib_default}"
+					;;
+			    "arch")
+					# If ARCH is unspecified for this multilib variant, use ${with_multllib_default}.
+					loongarch_multilib_list_make="${loongarch_multilib_list_make}${with_multilib_default}"
+					;;
+			    "opts")
+					:
+					;;
+			esac
+
+			# Use mstrict-align for building libraries if --with-strict-align-lib is given.
+			loongarch_multilib_list_make="${loongarch_multilib_list_make}${strict_align_opt}"
+
+			# Check for repeated configuration of the same multilib variant.
+			if echo "${elem_abi_base}/${elem_abi_ext}" \
+			 | grep -E "^(${all_abis%|})$" >/dev/null 2>&1; then
+				echo "Repeated multilib config of \"${elem_abi_base}/${elem_abi_ext}\" in --with-multilib-list."
+				exit 1
+			fi
+			all_abis="${all_abis}${elem_abi_base}/${elem_abi_ext}|"
+
+
+			# Check if the default ABI configuration of the GCC binary
+			# is included in the enabled multilib variants.
+			if test x${elem_abi_base} = x${abi_base} \
+			&& test x${elem_abi_ext} = x${abi_ext}; then
 				loongarch_multilib_list_sane=yes
 			fi
 			loongarch_multilib_list_make="${loongarch_multilib_list_make},"
 		done
+		unset component elem_abi_base elem_abi_ext elem_tmp parse_state all_abis
+
 
 		# Check if the default ABI combination is in the default list.
 		if test x${loongarch_multilib_list_sane} = xno; then
-			if test x${with_abiext} = xbase; then
-				with_abiext=""
+			if test x${abi_ext} = xbase; then
+				abi_ext=""
 			else
-				with_abiext="/${with_abiext}"
+				abi_ext="/${abi_ext}"
 			fi
 
-			echo "Default ABI combination (${with_abi}${with_abiext})" \
+			echo "Default ABI combination (${abi_base}${abi_ext})" \
 			"not found in --with-multilib-list." 1>&2
 			exit 1
 		fi
@@ -5784,32 +5879,35 @@ case ${target} in
 
 		# Let --with- flags initialize the enum variables from loongarch.opt.
 		# See macro definitions from loongarch-opts.h and loongarch-cpu.h.
-		case ${with_arch} in
-		native)		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_NATIVE" ;;
-		la464)		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_LA464" ;;
-		loongarch64)	tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_LOONGARCH64" ;;
-		esac
 
-		case ${with_tune} in
-		native)		tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_NATIVE" ;;
-		la464)		tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_LA464" ;;
-		loongarch64)	tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_LOONGARCH64" ;;
-		esac
+		# Architecture
+		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_$(echo ${with_arch} | tr a-z- A-Z_)"
 
-		case ${with_abi} in
-		lp64d)     tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_LP64D" ;;
-		lp64f)     tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_LP64F" ;;
-		lp64s)     tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_LP64S" ;;
-		esac
+		# Base ABI type
+		tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_$(echo ${abi_base} | tr a-z- A-Z_)"
 
-		case ${with_abiext} in
+		# ABI Extension
+		case ${abi_ext} in
 		base)      tm_defines="${tm_defines} DEFAULT_ABI_EXT=ABI_EXT_BASE" ;;
 		esac
 
+		# Microarchitecture
+		if test x${with_tune} != x; then
+		  tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_$(echo ${with_tune} | tr a-z- A-Z_)"
+		fi
+
+		# FPU adjustment
 		case ${with_fpu} in
-		none)    tm_defines="$tm_defines DEFAULT_ISA_EXT_FPU=ISA_EXT_NOFPU" ;;
+		none)    tm_defines="$tm_defines DEFAULT_ISA_EXT_FPU=ISA_EXT_NONE" ;;
 		32)      tm_defines="$tm_defines DEFAULT_ISA_EXT_FPU=ISA_EXT_FPU32" ;;
 		64)      tm_defines="$tm_defines DEFAULT_ISA_EXT_FPU=ISA_EXT_FPU64" ;;
+		esac
+
+		# SIMD extensions
+		case ${with_simd} in
+		none)    tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_NONE" ;;
+		lsx)     tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_SIMD_LSX" ;;
+		lasx)    tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_SIMD_LASX" ;;
 		esac
 
 		tmake_file="loongarch/t-loongarch $tmake_file"
@@ -5874,6 +5972,9 @@ case ${target} in
 		;;
 	visium-*-*)
 		target_cpu_default2="TARGET_CPU_$with_cpu"
+		;;
+	x86_64-*-gnu*)
+		tmake_file="$tmake_file i386/t-gnu64"
 		;;
 esac
 

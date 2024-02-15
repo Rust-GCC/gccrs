@@ -1,5 +1,5 @@
 /* A pass for lowering trees to RTL.
-   Copyright (C) 2004-2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -571,6 +571,26 @@ visit_conflict (gimple *, tree op, tree, void *data)
   return false;
 }
 
+/* Helper function for add_scope_conflicts_1.  For USE on
+   a stmt, if it is a SSA_NAME and in its SSA_NAME_DEF_STMT is known to be
+   based on some ADDR_EXPR, invoke VISIT on that ADDR_EXPR.  */
+
+static inline void
+add_scope_conflicts_2 (tree use, bitmap work,
+		       walk_stmt_load_store_addr_fn visit)
+{
+  if (TREE_CODE (use) == SSA_NAME
+      && (POINTER_TYPE_P (TREE_TYPE (use))
+	  || INTEGRAL_TYPE_P (TREE_TYPE (use))))
+    {
+      gimple *g = SSA_NAME_DEF_STMT (use);
+      if (is_gimple_assign (g))
+	if (tree op = gimple_assign_rhs1 (g))
+	  if (TREE_CODE (op) == ADDR_EXPR)
+	    visit (g, TREE_OPERAND (op, 0), op, work);
+    }
+}
+
 /* Helper routine for add_scope_conflicts, calculating the active partitions
    at the end of BB, leaving the result in WORK.  We're called to generate
    conflicts when FOR_CONFLICT is true, otherwise we're just tracking
@@ -583,6 +603,8 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
   edge_iterator ei;
   gimple_stmt_iterator gsi;
   walk_stmt_load_store_addr_fn visit;
+  use_operand_p use_p;
+  ssa_op_iter iter;
 
   bitmap_clear (work);
   FOR_EACH_EDGE (e, ei, bb->preds)
@@ -593,7 +615,10 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
   for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple *stmt = gsi_stmt (gsi);
+      gphi *phi = as_a <gphi *> (stmt);
       walk_stmt_load_store_addr_ops (stmt, work, NULL, NULL, visit);
+      FOR_EACH_PHI_ARG (use_p, phi, iter, SSA_OP_USE)
+	add_scope_conflicts_2 (USE_FROM_PTR (use_p), work, visit);
     }
   for (gsi = gsi_after_labels (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
@@ -613,8 +638,7 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
 	}
       else if (!is_gimple_debug (stmt))
 	{
-	  if (for_conflict
-	      && visit == visit_op)
+	  if (for_conflict && visit == visit_op)
 	    {
 	      /* If this is the first real instruction in this BB we need
 	         to add conflicts for everything live at this point now.
@@ -634,6 +658,8 @@ add_scope_conflicts_1 (basic_block bb, bitmap work, bool for_conflict)
 	      visit = visit_conflict;
 	    }
 	  walk_stmt_load_store_addr_ops (stmt, work, visit, visit, visit);
+	  FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_USE)
+	    add_scope_conflicts_2 (USE_FROM_PTR (use_p), work, visit);
 	}
     }
 }
@@ -786,7 +812,13 @@ add_partitioned_vars_to_ptset (struct pt_solution *pt,
 /* Update points-to sets based on partition info, so we can use them on RTL.
    The bitmaps representing stack partitions will be saved until expand,
    where partitioned decls used as bases in memory expressions will be
-   rewritten.  */
+   rewritten.
+
+   It is not necessary to update TBAA info on accesses to the coalesced
+   storage since our memory model doesn't allow TBAA to be used for
+   WAW or WAR dependences.  For RAW when the write is to an old object
+   the new object would not have been initialized at the point of the
+   read, invoking undefined behavior.  */
 
 static void
 update_alias_info_with_stack_vars (void)
@@ -859,7 +891,8 @@ update_alias_info_with_stack_vars (void)
 
       add_partitioned_vars_to_ptset (&cfun->gimple_df->escaped,
 				     decls_to_partitions, &visited, temp);
-
+      add_partitioned_vars_to_ptset (&cfun->gimple_df->escaped_return,
+				     decls_to_partitions, &visited, temp);
       delete decls_to_partitions;
       BITMAP_FREE (temp);
     }
@@ -991,7 +1024,8 @@ dump_stack_var_partition (void)
       if (stack_vars[i].representative != i)
 	continue;
 
-      fprintf (dump_file, "Partition %lu: size ", (unsigned long) i);
+      fprintf (dump_file, "Partition " HOST_SIZE_T_PRINT_UNSIGNED ": size ",
+	       (fmt_size_t) i);
       print_dec (stack_vars[i].size, dump_file);
       fprintf (dump_file, " align %u\n", stack_vars[i].alignb);
 
@@ -2873,6 +2907,7 @@ expand_asm_loc (tree string, int vol, location_t locus)
       auto_vec<rtx> input_rvec, output_rvec;
       auto_vec<machine_mode> input_mode;
       auto_vec<const char *> constraints;
+      auto_vec<rtx> use_rvec;
       auto_vec<rtx> clobber_rvec;
       HARD_REG_SET clobbered_regs;
       CLEAR_HARD_REG_SET (clobbered_regs);
@@ -2882,16 +2917,20 @@ expand_asm_loc (tree string, int vol, location_t locus)
 
       if (targetm.md_asm_adjust)
 	targetm.md_asm_adjust (output_rvec, input_rvec, input_mode,
-			       constraints, clobber_rvec, clobbered_regs,
-			       locus);
+			       constraints, use_rvec, clobber_rvec,
+			       clobbered_regs, locus);
 
       asm_op = body;
       nclobbers = clobber_rvec.length ();
-      body = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (1 + nclobbers));
+      auto nuses = use_rvec.length ();
+      body = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (1 + nuses + nclobbers));
 
-      XVECEXP (body, 0, 0) = asm_op;
-      for (i = 0; i < nclobbers; i++)
-	XVECEXP (body, 0, i + 1) = gen_rtx_CLOBBER (VOIDmode, clobber_rvec[i]);
+      i = 0;
+      XVECEXP (body, 0, i++) = asm_op;
+      for (rtx use : use_rvec)
+	XVECEXP (body, 0, i++) = gen_rtx_USE (VOIDmode, use);
+      for (rtx clobber : clobber_rvec)
+	XVECEXP (body, 0, i++) = gen_rtx_CLOBBER (VOIDmode, clobber);
     }
 
   emit_insn (body);
@@ -3443,11 +3482,12 @@ expand_asm_stmt (gasm *stmt)
      maintaining source-level compatibility means automatically clobbering
      the flags register.  */
   rtx_insn *after_md_seq = NULL;
+  auto_vec<rtx> use_rvec;
   if (targetm.md_asm_adjust)
     after_md_seq
 	= targetm.md_asm_adjust (output_rvec, input_rvec, input_mode,
-				 constraints, clobber_rvec, clobbered_regs,
-				 locus);
+				 constraints, use_rvec, clobber_rvec,
+				 clobbered_regs, locus);
 
   /* Do not allow the hook to change the output and input count,
      lest it mess up the operand numbering.  */
@@ -3455,7 +3495,8 @@ expand_asm_stmt (gasm *stmt)
   gcc_assert (input_rvec.length() == ninputs);
   gcc_assert (constraints.length() == noutputs + ninputs);
 
-  /* But it certainly can adjust the clobbers.  */
+  /* But it certainly can adjust the uses and clobbers.  */
+  unsigned nuses = use_rvec.length ();
   unsigned nclobbers = clobber_rvec.length ();
 
   /* Third pass checks for easy conflicts.  */
@@ -3527,7 +3568,7 @@ expand_asm_stmt (gasm *stmt)
 			       ARGVEC CONSTRAINTS OPNAMES))
      If there is more than one, put them inside a PARALLEL.  */
 
-  if (noutputs == 0 && nclobbers == 0)
+  if (noutputs == 0 && nuses == 0 && nclobbers == 0)
     {
       /* No output operands: put in a raw ASM_OPERANDS rtx.  */
       if (nlabels > 0)
@@ -3535,7 +3576,7 @@ expand_asm_stmt (gasm *stmt)
       else
 	emit_insn (body);
     }
-  else if (noutputs == 1 && nclobbers == 0)
+  else if (noutputs == 1 && nuses == 0 && nclobbers == 0)
     {
       ASM_OPERANDS_OUTPUT_CONSTRAINT (body) = constraints[0];
       if (nlabels > 0)
@@ -3551,7 +3592,8 @@ expand_asm_stmt (gasm *stmt)
       if (num == 0)
 	num = 1;
 
-      body = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (num + nclobbers));
+      body = gen_rtx_PARALLEL (VOIDmode,
+			       rtvec_alloc (num + nuses + nclobbers));
 
       /* For each output operand, store a SET.  */
       for (i = 0; i < noutputs; ++i)
@@ -3577,6 +3619,11 @@ expand_asm_stmt (gasm *stmt)
 	 store the bare ASM_OPERANDS into the PARALLEL.  */
       if (i == 0)
 	XVECEXP (body, 0, i++) = obody;
+
+      /* Add the uses specified by the target hook.  No checking should
+	 be needed since this doesn't come directly from user code.  */
+      for (rtx use : use_rvec)
+	XVECEXP (body, 0, i++) = gen_rtx_USE (VOIDmode, use);
 
       /* Store (clobber REG) for each clobbered register specified.  */
       for (unsigned j = 0; j < nclobbers; ++j)
@@ -3625,16 +3672,21 @@ expand_asm_stmt (gasm *stmt)
 	{
 	  edge e;
 	  edge_iterator ei;
-	  
+	  unsigned int cnt = EDGE_COUNT (gimple_bb (stmt)->succs);
+
 	  FOR_EACH_EDGE (e, ei, gimple_bb (stmt)->succs)
 	    {
-	      start_sequence ();
-	      for (rtx_insn *curr = after_rtl_seq;
-		   curr != NULL_RTX;
-		   curr = NEXT_INSN (curr))
-		emit_insn (copy_insn (PATTERN (curr)));
-	      rtx_insn *copy = get_insns ();
-	      end_sequence ();
+	      rtx_insn *copy;
+	      if (--cnt == 0)
+		copy = after_rtl_seq;
+	      else
+		{
+		  start_sequence ();
+		  duplicate_insn_chain (after_rtl_seq, after_rtl_end,
+					NULL, NULL);
+		  copy = get_insns ();
+		  end_sequence ();
+		}
 	      insert_insn_on_edge (copy, e);
 	    }
 	}
@@ -3753,7 +3805,7 @@ expand_return (tree retval)
   tree retval_rhs;
 
   /* If function wants no value, give it none.  */
-  if (TREE_CODE (TREE_TYPE (TREE_TYPE (current_function_decl))) == VOID_TYPE)
+  if (VOID_TYPE_P (TREE_TYPE (TREE_TYPE (current_function_decl))))
     {
       expand_normal (retval);
       expand_null_return ();
@@ -3951,37 +4003,18 @@ expand_gimple_stmt_1 (gimple *stmt)
 	  {
 	    rtx target, temp;
 	    bool nontemporal = gimple_assign_nontemporal_move_p (assign_stmt);
-	    struct separate_ops ops;
 	    bool promoted = false;
 
 	    target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
 	    if (GET_CODE (target) == SUBREG && SUBREG_PROMOTED_VAR_P (target))
 	      promoted = true;
 
-	    ops.code = gimple_assign_rhs_code (assign_stmt);
-	    ops.type = TREE_TYPE (lhs);
-	    switch (get_gimple_rhs_class (ops.code))
-	      {
-		case GIMPLE_TERNARY_RHS:
-		  ops.op2 = gimple_assign_rhs3 (assign_stmt);
-		  /* Fallthru */
-		case GIMPLE_BINARY_RHS:
-		  ops.op1 = gimple_assign_rhs2 (assign_stmt);
-		  /* Fallthru */
-		case GIMPLE_UNARY_RHS:
-		  ops.op0 = gimple_assign_rhs1 (assign_stmt);
-		  break;
-		default:
-		  gcc_unreachable ();
-	      }
-	    ops.location = gimple_location (stmt);
-
-	    /* If we want to use a nontemporal store, force the value to
-	       register first.  If we store into a promoted register,
-	       don't directly expand to target.  */
+	   /* If we want to use a nontemporal store, force the value to
+	      register first.  If we store into a promoted register,
+	      don't directly expand to target.  */
 	    temp = nontemporal || promoted ? NULL_RTX : target;
-	    temp = expand_expr_real_2 (&ops, temp, GET_MODE (target),
-				       EXPAND_NORMAL);
+	    temp = expand_expr_real_gassign (assign_stmt, temp,
+					     GET_MODE (target), EXPAND_NORMAL);
 
 	    if (temp == target)
 	      ;
@@ -3993,7 +4026,7 @@ expand_gimple_stmt_1 (gimple *stmt)
 		if (CONSTANT_P (temp) && GET_MODE (temp) == VOIDmode)
 		  {
 		    temp = convert_modes (GET_MODE (target),
-					  TYPE_MODE (ops.type),
+					  TYPE_MODE (TREE_TYPE (lhs)),
 					  temp, unsignedp);
 		    temp = convert_modes (GET_MODE (SUBREG_REG (target)),
 					  GET_MODE (target), temp, unsignedp);
@@ -4524,6 +4557,10 @@ expand_debug_expr (tree exp)
       /* Fall through.  */
 
     case INTEGER_CST:
+      if (TREE_CODE (TREE_TYPE (exp)) == BITINT_TYPE
+	  && TYPE_MODE (TREE_TYPE (exp)) == BLKmode)
+	return NULL;
+      /* FALLTHRU */
     case REAL_CST:
     case FIXED_CST:
       op0 = expand_expr (exp, NULL_RTX, mode, EXPAND_INITIALIZER);
@@ -5365,10 +5402,6 @@ expand_debug_expr (tree exp)
     case VEC_WIDEN_MULT_ODD_EXPR:
     case VEC_WIDEN_LSHIFT_HI_EXPR:
     case VEC_WIDEN_LSHIFT_LO_EXPR:
-    case VEC_WIDEN_PLUS_HI_EXPR:
-    case VEC_WIDEN_PLUS_LO_EXPR:
-    case VEC_WIDEN_MINUS_HI_EXPR:
-    case VEC_WIDEN_MINUS_LO_EXPR:
     case VEC_PERM_EXPR:
     case VEC_DUPLICATE_EXPR:
     case VEC_SERIES_EXPR:
@@ -5405,8 +5438,6 @@ expand_debug_expr (tree exp)
     case WIDEN_MULT_EXPR:
     case WIDEN_MULT_PLUS_EXPR:
     case WIDEN_MULT_MINUS_EXPR:
-    case WIDEN_PLUS_EXPR:
-    case WIDEN_MINUS_EXPR:
       if (SCALAR_INT_MODE_P (GET_MODE (op0))
 	  && SCALAR_INT_MODE_P (mode))
 	{
@@ -5419,10 +5450,6 @@ expand_debug_expr (tree exp)
 	    op1 = simplify_gen_unary (ZERO_EXTEND, mode, op1, inner_mode);
 	  else
 	    op1 = simplify_gen_unary (SIGN_EXTEND, mode, op1, inner_mode);
-	  if (TREE_CODE (exp) == WIDEN_PLUS_EXPR)
-	    return simplify_gen_binary (PLUS, mode, op0, op1);
-	  else if (TREE_CODE (exp) == WIDEN_MINUS_EXPR)
-	    return simplify_gen_binary (MINUS, mode, op0, op1);
 	  op0 = simplify_gen_binary (MULT, mode, op0, op1);
 	  if (TREE_CODE (exp) == WIDEN_MULT_EXPR)
 	    return op0;
@@ -6340,11 +6367,15 @@ discover_nonconstant_array_refs_r (tree * tp, int *walk_subtrees,
   /* References of size POLY_INT_CST to a fixed-size object must go
      through memory.  It's more efficient to force that here than
      to create temporary slots on the fly.
-     RTL expansion expectes TARGET_MEM_REF to always address actual memory.  */
+     RTL expansion expectes TARGET_MEM_REF to always address actual memory.
+     Also, force to stack non-BLKmode vars accessed through VIEW_CONVERT_EXPR
+     to BLKmode type.  */
   else if (TREE_CODE (t) == TARGET_MEM_REF
 	   || (TREE_CODE (t) == MEM_REF
 	       && TYPE_SIZE (TREE_TYPE (t))
-	       && POLY_INT_CST_P (TYPE_SIZE (TREE_TYPE (t)))))
+	       && POLY_INT_CST_P (TYPE_SIZE (TREE_TYPE (t))))
+	   || (TREE_CODE (t) == VIEW_CONVERT_EXPR
+	       && TYPE_MODE (TREE_TYPE (t)) == BLKmode))
     {
       tree base = get_base_address (t);
       if (base

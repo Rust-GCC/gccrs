@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -87,5 +87,8 @@ package Sem_Ch4  is
    --  entity. If Allow_Extensions is True, then a prefixed call of a primitive
    --  of a non-tagged type is allowed as if Extensions_Allowed returned True.
    --  This is used to issue better error messages.
+
+   procedure Unresolved_Operator (N : Node_Id);
+   --  Give an error for an unresolved operator
 
 end Sem_Ch4;

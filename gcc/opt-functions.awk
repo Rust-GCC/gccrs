@@ -1,4 +1,4 @@
-#  Copyright (C) 2003-2023 Free Software Foundation, Inc.
+#  Copyright (C) 2003-2024 Free Software Foundation, Inc.
 #  Contributed by Kelley Cook, June 2004.
 #  Original code from Neil Booth, May 2003.
 #
@@ -191,6 +191,21 @@ function switch_bit_fields (flags)
 function var_name(flags)
 {
 	return nth_arg(0, opt_args("Var", flags))
+}
+
+# If FLAGS includes a UrlSuffix flag, return the value it specifies.
+# Return the empty string otherwise.
+function url_suffix(flags)
+{
+	return nth_arg(0, opt_args("UrlSuffix", flags))
+}
+
+# If FLAGS includes a LangUrlSuffix_LANG flag, return the
+# value it specifies.
+# Return the empty string otherwise.
+function lang_url_suffix(flags, lang)
+{
+	return nth_arg(0, opt_args("LangUrlSuffix_" lang, flags))
 }
 
 # Return the name of the variable if FLAGS has a HOST_WIDE_INT variable. 
@@ -386,4 +401,17 @@ function integer_range_info(range_option, init, option, uinteger_used)
     }
     else
         return "-1, -1"
+}
+
+# Find the index of VAR in VAR_ARRY which as length N_VAR_ARRY.  If
+# VAR is not found, return N_VAR_ARRY. That means the var is a new
+# defination.
+function find_index(var, var_arry, n_var_arry)
+{
+    for (var_index = 0; var_index < n_var_arry; var_index++)
+    {
+        if (var_arry[var_index] == var)
+            break
+    }
+    return var_index
 }

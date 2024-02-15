@@ -38,7 +38,7 @@ hwasan_files = \
 	hwasan_type_test.cpp
 
 libhwasan_la_SOURCES = $(hwasan_files)
-libhwasan_la_LIBADD = $(top_builddir)/sanitizer_common/libsanitizer_common.la
+libhwasan_la_LIBADD = $(top_builddir)/sanitizer_common/libsanitizer_common.la $(top_builddir)/lsan/libsanitizer_lsan.la
 if !USING_MAC_INTERPOSE
 libhwasan_la_LIBADD += $(top_builddir)/interception/libinterception.la
 endif
@@ -47,7 +47,11 @@ libhwasan_la_LIBADD += $(top_builddir)/libbacktrace/libsanitizer_libbacktrace.la
 endif
 libhwasan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
 
-libhwasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(link_libhwasan)
+if ENABLE_DARWIN_AT_RPATH
+libhwasan_darwin_rpath = -nodefaultrpaths -Wl,-rpath,@loader_path/
+endif
+libhwasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+	$(link_libhwasan) $(libhwasan_darwin_rpath)
 
 libhwasan_preinit.o: hwasan_preinit.o
 	cp $< $@

@@ -1,5 +1,5 @@
 /* UndefinedBehaviorSanitizer, undefined behavior detector.
-   Copyright (C) 2013-2023 Free Software Foundation, Inc.
+   Copyright (C) 2013-2024 Free Software Foundation, Inc.
    Contributed by Marek Polacek <polacek@redhat.com>
 
 This file is part of GCC.
@@ -57,7 +57,7 @@ ubsan_instrument_division (location_t loc, tree op0, tree op1)
       && sanitize_flags_p (SANITIZE_DIVIDE))
     t = fold_build2 (EQ_EXPR, boolean_type_node,
 		     op1, build_int_cst (type, 0));
-  else if (TREE_CODE (type) == REAL_TYPE
+  else if (SCALAR_FLOAT_TYPE_P (type)
 	   && sanitize_flags_p (SANITIZE_FLOAT_DIVIDE))
     {
       t = fold_build2 (EQ_EXPR, boolean_type_node,
@@ -256,8 +256,34 @@ ubsan_instrument_shift (location_t loc, enum tree_code code,
     tt = build_call_expr_loc (loc, builtin_decl_explicit (BUILT_IN_TRAP), 0);
   else
     {
-      tree data = ubsan_create_data ("__ubsan_shift_data", 1, &loc,
-				     ubsan_type_descriptor (type0),
+      if (TREE_CODE (type1) == BITINT_TYPE
+	  && TYPE_PRECISION (type1) > MAX_FIXED_MODE_SIZE)
+	{
+	  /* Workaround for missing _BitInt support in libsanitizer.
+	     Instead of crashing in the library, pretend values above
+	     maximum value of normal integral type or below minimum value
+	     of that type are those extremes.  */
+	  tree type2 = build_nonstandard_integer_type (MAX_FIXED_MODE_SIZE,
+						       TYPE_UNSIGNED (type1));
+	  tree op2 = op1;
+	  if (!TYPE_UNSIGNED (type1))
+	    {
+	      op2 = fold_build2 (LT_EXPR, boolean_type_node, unshare_expr (op1),
+				 fold_convert (type1, TYPE_MIN_VALUE (type2)));
+	      op2 = fold_build3 (COND_EXPR, type2, op2, TYPE_MIN_VALUE (type2),
+				 fold_convert (type2, unshare_expr (op1)));
+	    }
+	  else
+	    op2 = fold_convert (type2, op1);
+	  tree op3
+	    = fold_build2 (GT_EXPR, boolean_type_node, unshare_expr (op1),
+			   fold_convert (type1, TYPE_MAX_VALUE (type2)));
+	  op1 = fold_build3 (COND_EXPR, type2, op3, TYPE_MAX_VALUE (type2),
+			     op2);
+	  type1 = type2;
+	}
+      tree utd0 = ubsan_type_descriptor (type0, UBSAN_PRINT_FORCE_INT);
+      tree data = ubsan_create_data ("__ubsan_shift_data", 1, &loc, utd0,
 				     ubsan_type_descriptor (type1), NULL_TREE,
 				     NULL_TREE);
       data = build_fold_addr_expr_loc (loc, data);
@@ -505,12 +531,8 @@ ubsan_maybe_instrument_array_ref (tree *expr_p, bool ignore_off_by_one)
       tree e = ubsan_instrument_bounds (EXPR_LOCATION (*expr_p), op0, &op1,
 					ignore_off_by_one);
       if (e != NULL_TREE)
-	{
-	  tree t = copy_node (*expr_p);
-	  TREE_OPERAND (t, 1) = build2 (COMPOUND_EXPR, TREE_TYPE (op1),
-					e, op1);
-	  *expr_p = t;
-	}
+	TREE_OPERAND (*expr_p, 1) = build2 (COMPOUND_EXPR, TREE_TYPE (op1),
+					    e, op1);
     }
 }
 

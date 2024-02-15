@@ -1,6 +1,6 @@
 // Character Traits for use by standard string and iostream -*- C++ -*-
 
-// Copyright (C) 1997-2023 Free Software Foundation, Inc.
+// Copyright (C) 1997-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -227,19 +227,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #if __cplusplus >= 202002L
       if (std::__is_constant_evaluated())
 	{
-	  if (__s1 == __s2) // unlikely, but saves a lot of work
-	    return __s1;
-	  const auto __end = __s2 + __n - 1;
-	  bool __overlap = false;
-	  for (std::size_t __i = 0; __i < __n - 1; ++__i)
-	    {
-	      if (__s1 + __i == __end)
-		{
-		  __overlap = true;
-		  break;
-		}
-	    }
-	  if (__overlap)
+	  // Use __builtin_constant_p to avoid comparing unrelated pointers.
+	  if (__builtin_constant_p(__s2 < __s1)
+		&& __s1 > __s2 && __s1 < (__s2 + __n))
 	    {
 	      do
 		{
@@ -315,14 +305,6 @@ _GLIBCXX_END_NAMESPACE_VERSION
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
-
-#ifdef __cpp_lib_is_constant_evaluated
-// Unofficial macro indicating P1032R1 support in C++20
-# define __cpp_lib_constexpr_char_traits 201811L
-#elif __cplusplus >= 201703L && _GLIBCXX_HAVE_IS_CONSTANT_EVALUATED
-// Unofficial macro indicating P0426R1 support in C++17
-# define __cpp_lib_constexpr_char_traits 201611L
-#endif
 
   // 21.1
   /**
@@ -762,10 +744,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef char16_t          char_type;
 #ifdef __UINT_LEAST16_TYPE__
       typedef __UINT_LEAST16_TYPE__	    int_type;
-#elif defined _GLIBCXX_USE_C99_STDINT_TR1
-      typedef uint_least16_t    int_type;
 #else
-      typedef make_unsigned<char16_t>::type int_type;
+      typedef uint_least16_t    int_type;
 #endif
 #if _GLIBCXX_HOSTED
       typedef streamoff         off_type;
@@ -891,10 +871,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef char32_t          char_type;
 #ifdef __UINT_LEAST32_TYPE__
       typedef __UINT_LEAST32_TYPE__	    int_type;
-#elif defined _GLIBCXX_USE_C99_STDINT_TR1
-      typedef uint_least32_t    int_type;
 #else
-      typedef make_unsigned<char32_t>::type int_type;
+      typedef uint_least32_t    int_type;
 #endif
 #if _GLIBCXX_HOSTED
       typedef streamoff         off_type;

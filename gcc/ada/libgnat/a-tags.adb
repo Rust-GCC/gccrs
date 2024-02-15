@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -93,7 +93,10 @@ package body Ada.Tags is
    --  Disable warnings on possible aliasing problem
 
    function To_Tag is
-     new Unchecked_Conversion (Integer_Address, Tag);
+     new Unchecked_Conversion (System.Address, Tag);
+
+   function To_Tag (S : Integer_Address) return Tag is
+     (To_Tag (To_Address (S)));
 
    function To_Dispatch_Table_Ptr is
       new Ada.Unchecked_Conversion (Tag, Dispatch_Table_Ptr);

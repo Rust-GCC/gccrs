@@ -1,5 +1,5 @@
 /* Expand builtin functions.
-   Copyright (C) 1988-2023 Free Software Foundation, Inc.
+   Copyright (C) 1988-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -71,6 +71,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-fold.h"
 #include "intl.h"
 #include "file-prefix-map.h" /* remap_macro_filename()  */
+#include "ipa-strub.h" /* strub_watermark_parm()  */
 #include "gomp-constants.h"
 #include "omp-general.h"
 #include "tree-dfa.h"
@@ -113,7 +114,6 @@ static rtx expand_builtin_apply_args (void);
 static rtx expand_builtin_apply_args_1 (void);
 static rtx expand_builtin_apply (rtx, rtx, rtx);
 static void expand_builtin_return (rtx);
-static enum type_class type_to_class (tree);
 static rtx expand_builtin_classify_type (tree);
 static rtx expand_builtin_mathfn_3 (tree, rtx, rtx);
 static rtx expand_builtin_mathfn_ternary (tree, rtx, rtx);
@@ -152,6 +152,7 @@ static rtx expand_builtin_strnlen (tree, rtx, machine_mode);
 static rtx expand_builtin_alloca (tree);
 static rtx expand_builtin_unop (machine_mode, tree, rtx, rtx, optab);
 static rtx expand_builtin_frame_address (tree, tree);
+static rtx expand_builtin_stack_address ();
 static tree stabilize_va_list_loc (location_t, tree, int);
 static rtx expand_builtin_expect (tree, rtx);
 static rtx expand_builtin_expect_with_probability (tree, rtx);
@@ -171,6 +172,7 @@ static tree fold_builtin_fabs (location_t, tree, tree);
 static tree fold_builtin_abs (location_t, tree, tree);
 static tree fold_builtin_unordered_cmp (location_t, tree, tree, tree, enum tree_code,
 					enum tree_code);
+static tree fold_builtin_iseqsig (location_t, tree, tree);
 static tree fold_builtin_varargs (location_t, tree, tree*, int);
 
 static tree fold_builtin_strpbrk (location_t, tree, tree, tree, tree);
@@ -743,39 +745,22 @@ c_strlen (tree arg, int only_value, c_strlen_data *data, unsigned eltsize)
    as needed.  */
 
 rtx
-c_readstr (const char *str, scalar_int_mode mode,
+c_readstr (const char *str, fixed_size_mode mode,
 	   bool null_terminated_p/*=true*/)
 {
-  HOST_WIDE_INT ch;
-  unsigned int i, j;
-  HOST_WIDE_INT tmp[MAX_BITSIZE_MODE_ANY_INT / HOST_BITS_PER_WIDE_INT];
+  auto_vec<target_unit, MAX_BITSIZE_MODE_ANY_INT / BITS_PER_UNIT> bytes;
 
-  gcc_assert (GET_MODE_CLASS (mode) == MODE_INT);
-  unsigned int len = (GET_MODE_PRECISION (mode) + HOST_BITS_PER_WIDE_INT - 1)
-    / HOST_BITS_PER_WIDE_INT;
+  bytes.reserve (GET_MODE_SIZE (mode));
 
-  gcc_assert (len <= MAX_BITSIZE_MODE_ANY_INT / HOST_BITS_PER_WIDE_INT);
-  for (i = 0; i < len; i++)
-    tmp[i] = 0;
-
-  ch = 1;
-  for (i = 0; i < GET_MODE_SIZE (mode); i++)
+  target_unit ch = 1;
+  for (unsigned int i = 0; i < GET_MODE_SIZE (mode); ++i)
     {
-      j = i;
-      if (WORDS_BIG_ENDIAN)
-	j = GET_MODE_SIZE (mode) - i - 1;
-      if (BYTES_BIG_ENDIAN != WORDS_BIG_ENDIAN
-	  && GET_MODE_SIZE (mode) >= UNITS_PER_WORD)
-	j = j + UNITS_PER_WORD - 2 * (j % UNITS_PER_WORD) - 1;
-      j *= BITS_PER_UNIT;
-
       if (ch || !null_terminated_p)
 	ch = (unsigned char) str[i];
-      tmp[j / HOST_BITS_PER_WIDE_INT] |= ch << (j % HOST_BITS_PER_WIDE_INT);
+      bytes.quick_push (ch);
     }
 
-  wide_int c = wide_int::from_array (tmp, len, GET_MODE_PRECISION (mode));
-  return immed_wide_int_const (c, mode);
+  return native_decode_rtx (mode, bytes, 0);
 }
 
 /* Cast a target constant CST to target CHAR and if that value fits into
@@ -1364,6 +1349,9 @@ get_memory_rtx (tree exp, tree len)
   tree orig_exp = exp, base;
   rtx addr, mem;
 
+  gcc_checking_assert
+    (ADDR_SPACE_GENERIC_P (TYPE_ADDR_SPACE (TREE_TYPE (TREE_TYPE (exp)))));
+
   /* When EXP is not resolved SAVE_EXPR, MEM_ATTRS can be still derived
      from its expression, for expr->a.b only <variable>.a.b is recorded.  */
   if (TREE_CODE (exp) == SAVE_EXPR && !SAVE_EXPR_RESOLVED_P (exp))
@@ -1415,8 +1403,24 @@ get_memory_rtx (tree exp, tree len)
 
 /* Built-in functions to perform an untyped call and return.  */
 
+/* Wrapper that implicitly applies a delta when getting or setting the
+   enclosed value.  */
+template <typename T>
+class delta_type
+{
+  T &value; T const delta;
+public:
+  delta_type (T &val, T dlt) : value (val), delta (dlt) {}
+  operator T () const { return value + delta; }
+  T operator = (T val) const { value = val - delta; return val; }
+};
+
+#define saved_apply_args_size \
+  (delta_type<int> (this_target_builtins->x_apply_args_size_plus_one, -1))
 #define apply_args_mode \
   (this_target_builtins->x_apply_args_mode)
+#define saved_apply_result_size \
+  (delta_type<int> (this_target_builtins->x_apply_result_size_plus_one, -1))
 #define apply_result_mode \
   (this_target_builtins->x_apply_result_mode)
 
@@ -1426,7 +1430,7 @@ get_memory_rtx (tree exp, tree len)
 static int
 apply_args_size (void)
 {
-  static int size = -1;
+  int size = saved_apply_args_size;
   int align;
   unsigned int regno;
 
@@ -1459,6 +1463,8 @@ apply_args_size (void)
 	  }
 	else
 	  apply_args_mode[regno] = as_a <fixed_size_mode> (VOIDmode);
+
+      saved_apply_args_size = size;
     }
   return size;
 }
@@ -1469,7 +1475,7 @@ apply_args_size (void)
 static int
 apply_result_size (void)
 {
-  static int size = -1;
+  int size = saved_apply_result_size;
   int align, regno;
 
   /* The values computed by this function never change.  */
@@ -1501,6 +1507,8 @@ apply_result_size (void)
 #ifdef APPLY_RESULT_SIZE
       size = APPLY_RESULT_SIZE;
 #endif
+
+      saved_apply_result_size = size;
     }
   return size;
 }
@@ -1852,7 +1860,7 @@ expand_builtin_return (rtx result)
 
 /* Used by expand_builtin_classify_type and fold_builtin_classify_type.  */
 
-static enum type_class
+int
 type_to_class (tree type)
 {
   switch (TREE_CODE (type))
@@ -1875,6 +1883,8 @@ type_to_class (tree type)
 				   ? string_type_class : array_type_class);
     case LANG_TYPE:	   return lang_type_class;
     case OPAQUE_TYPE:      return opaque_type_class;
+    case BITINT_TYPE:	   return bitint_type_class;
+    case VECTOR_TYPE:	   return vector_type_class;
     default:		   return no_type_class;
     }
 }
@@ -3494,7 +3504,7 @@ expand_builtin_strnlen (tree exp, rtx target, machine_mode target_mode)
   wide_int min, max;
   value_range r;
   get_global_range_query ()->range_of_expr (r, bound);
-  if (r.kind () != VR_RANGE)
+  if (r.varying_p () || r.undefined_p ())
     return NULL_RTX;
   min = r.lower_bound ();
   max = r.upper_bound ();
@@ -3529,10 +3539,7 @@ builtin_memcpy_read_str (void *data, void *, HOST_WIDE_INT offset,
      string but the caller guarantees it's large enough for MODE.  */
   const char *rep = (const char *) data;
 
-  /* The by-pieces infrastructure does not try to pick a vector mode
-     for memcpy expansion.  */
-  return c_readstr (rep + offset, as_a <scalar_int_mode> (mode),
-		    /*nul_terminated=*/false);
+  return c_readstr (rep + offset, mode, /*nul_terminated=*/false);
 }
 
 /* LEN specify length of the block of memcpy/memset operation.
@@ -3570,12 +3577,13 @@ determine_block_size (tree len, rtx len_rtx,
       if (TREE_CODE (len) == SSA_NAME)
 	{
 	  value_range r;
+	  tree tmin, tmax;
 	  get_global_range_query ()->range_of_expr (r, len);
-	  range_type = r.kind ();
+	  range_type = get_legacy_range (r, tmin, tmax);
 	  if (range_type != VR_UNDEFINED)
 	    {
-	      min = wi::to_wide (r.min ());
-	      max = wi::to_wide (r.max ());
+	      min = wi::to_wide (tmin);
+	      max = wi::to_wide (tmax);
 	    }
 	}
       if (range_type == VR_RANGE)
@@ -3768,7 +3776,7 @@ expand_builtin_memory_copy_args (tree dest, tree src, tree len,
 				     expected_align, expected_size,
 				     min_size, max_size, probable_max_size,
 				     use_mempcpy_call, &is_move_done,
-				     might_overlap);
+				     might_overlap, tree_ctz (len));
 
   /* Bail out when a mempcpy call would be expanded as libcall and when
      we have a target that provides a fast implementation
@@ -3992,9 +4000,7 @@ builtin_strncpy_read_str (void *data, void *, HOST_WIDE_INT offset,
   if ((unsigned HOST_WIDE_INT) offset > strlen (str))
     return const0_rtx;
 
-  /* The by-pieces infrastructure does not try to pick a vector mode
-     for strncpy expansion.  */
-  return c_readstr (str + offset, as_a <scalar_int_mode> (mode));
+  return c_readstr (str + offset, mode);
 }
 
 /* Helper to check the sizes of sequences and the destination of calls
@@ -4225,8 +4231,7 @@ builtin_memset_read_str (void *data, void *prev,
 
   memset (p, *c, size);
 
-  /* Vector modes should be handled above.  */
-  return c_readstr (p, as_a <scalar_int_mode> (mode));
+  return c_readstr (p, mode);
 }
 
 /* Callback routine for store_by_pieces.  Return the RTL of a register
@@ -4273,8 +4278,7 @@ builtin_memset_gen_str (void *data, void *prev,
 
   p = XALLOCAVEC (char, size);
   memset (p, 1, size);
-  /* Vector modes should be handled above.  */
-  coeff = c_readstr (p, as_a <scalar_int_mode> (mode));
+  coeff = c_readstr (p, mode);
 
   target = convert_to_mode (mode, (rtx) data, 1);
   target = expand_mult (mode, target, coeff, NULL_RTX, 1);
@@ -4298,6 +4302,40 @@ expand_builtin_memset (tree exp, rtx target, machine_mode mode)
   tree len = CALL_EXPR_ARG (exp, 2);
 
   return expand_builtin_memset_args (dest, val, len, target, mode, exp);
+}
+
+/* Check that store_by_pieces allows BITS + LEN (so that we don't
+   expand something too unreasonably long), and every power of 2 in
+   BITS.  It is assumed that LEN has already been tested by
+   itself.  */
+static bool
+can_store_by_multiple_pieces (unsigned HOST_WIDE_INT bits,
+			      by_pieces_constfn constfun,
+			      void *constfundata, unsigned int align,
+			      bool memsetp,
+			      unsigned HOST_WIDE_INT len)
+{
+  if (bits
+      && !can_store_by_pieces (bits + len, constfun, constfundata,
+			       align, memsetp))
+    return false;
+
+  /* BITS set are expected to be generally in the low range and
+     contiguous.  We do NOT want to repeat the test above in case BITS
+     has a single bit set, so we terminate the loop when BITS == BIT.
+     In the unlikely case that BITS has the MSB set, also terminate in
+     case BIT gets shifted out.  */
+  for (unsigned HOST_WIDE_INT bit = 1; bit < bits && bit; bit <<= 1)
+    {
+      if ((bits & bit) == 0)
+	continue;
+
+      if (!can_store_by_pieces (bit, constfun, constfundata,
+				align, memsetp))
+	return false;
+    }
+
+  return true;
 }
 
 /* Try to store VAL (or, if NULL_RTX, VALC) in LEN bytes starting at TO.
@@ -4334,6 +4372,10 @@ try_store_by_multiple_pieces (rtx to, rtx len, unsigned int ctz_len,
   int tst_bits = (max_bits != min_bits ? max_bits
 		  : floor_log2 (max_len ^ min_len));
 
+  /* Save the pre-blksize values.  */
+  int orig_max_bits = max_bits;
+  int orig_tst_bits = tst_bits;
+
   /* Check whether it's profitable to start by storing a fixed BLKSIZE
      bytes, to lower max_bits.  In the unlikely case of a constant LEN
      (implied by identical MAX_LEN and MIN_LEN), we want to issue a
@@ -4353,7 +4395,11 @@ try_store_by_multiple_pieces (rtx to, rtx len, unsigned int ctz_len,
   else
     /* Huh, max_len < min_len?  Punt.  See pr100843.c.  */
     return false;
-  if (min_len >= blksize)
+  if (min_len >= blksize
+      /* ??? Maybe try smaller fixed-prefix blksizes before
+	 punting?  */
+      && can_store_by_pieces (blksize, builtin_memset_read_str,
+			      &valc, align, true))
     {
       min_len -= blksize;
       min_bits = floor_log2 (min_len);
@@ -4373,9 +4419,78 @@ try_store_by_multiple_pieces (rtx to, rtx len, unsigned int ctz_len,
   if (max_bits >= 0)
     xlenest += ((HOST_WIDE_INT_1U << max_bits) * 2
 		- (HOST_WIDE_INT_1U << ctz_len));
-  if (!can_store_by_pieces (xlenest, builtin_memset_read_str,
-			    &valc, align, true))
-    return false;
+  bool max_loop = false;
+  bool use_store_by_pieces = true;
+  /* Skip the test in case of overflow in xlenest.  It shouldn't
+     happen because of the way max_bits and blksize are related, but
+     it doesn't hurt to test.  */
+  if (blksize > xlenest
+      || !can_store_by_multiple_pieces (xlenest - blksize,
+					builtin_memset_read_str,
+					&valc, align, true, blksize))
+    {
+      if (!(flag_inline_stringops & ILSOP_MEMSET))
+	return false;
+
+      for (max_bits = orig_max_bits;
+	   max_bits >= sctz_len;
+	   --max_bits)
+	{
+	  xlenest = ((HOST_WIDE_INT_1U << max_bits) * 2
+		     - (HOST_WIDE_INT_1U << ctz_len));
+	  /* Check that blksize plus the bits to be stored as blocks
+	     sized at powers of two can be stored by pieces.  This is
+	     like the test above, but with smaller max_bits.  Skip
+	     orig_max_bits (it would be redundant).  Also skip in case
+	     of overflow.  */
+	  if (max_bits < orig_max_bits
+	      && xlenest + blksize >= xlenest
+	      && can_store_by_multiple_pieces (xlenest,
+					       builtin_memset_read_str,
+					       &valc, align, true, blksize))
+	    {
+	      max_loop = true;
+	      break;
+	    }
+	  if (blksize
+	      && can_store_by_multiple_pieces (xlenest,
+					       builtin_memset_read_str,
+					       &valc, align, true, 0))
+	    {
+	      max_len += blksize;
+	      min_len += blksize;
+	      tst_bits = orig_tst_bits;
+	      blksize = 0;
+	      max_loop = true;
+	      break;
+	    }
+	  if (max_bits == sctz_len)
+	    {
+	      /* We'll get here if can_store_by_pieces refuses to
+		 store even a single QImode.  We'll fall back to
+		 QImode stores then.  */
+	      if (!sctz_len)
+		{
+		  blksize = 0;
+		  max_loop = true;
+		  use_store_by_pieces = false;
+		  break;
+		}
+	      --sctz_len;
+	      --ctz_len;
+	    }
+	}
+      if (!max_loop)
+	return false;
+      /* If the boundaries are such that min and max may run a
+	 different number of trips in the initial loop, the remainder
+	 needs not be between the moduli, so set tst_bits to cover all
+	 bits.  Otherwise, if the trip counts are the same, max_len
+	 has the common prefix, and the previously-computed tst_bits
+	 is usable.  */
+      if (max_len >> max_bits > min_len >> max_bits)
+	tst_bits = max_bits;
+    }
 
   by_pieces_constfn constfun;
   void *constfundata;
@@ -4417,7 +4532,9 @@ try_store_by_multiple_pieces (rtx to, rtx len, unsigned int ctz_len,
      the least significant bit possibly set in the length.  */
   for (int i = max_bits; i >= sctz_len; i--)
     {
+      rtx_code_label *loop_label = NULL;
       rtx_code_label *label = NULL;
+
       blksize = HOST_WIDE_INT_1U << i;
 
       /* If we're past the bits shared between min_ and max_len, expand
@@ -4431,24 +4548,56 @@ try_store_by_multiple_pieces (rtx to, rtx len, unsigned int ctz_len,
 				   profile_probability::even ());
 	}
       /* If we are at a bit that is in the prefix shared by min_ and
-	 max_len, skip this BLKSIZE if the bit is clear.  */
-      else if ((max_len & blksize) == 0)
+	 max_len, skip the current BLKSIZE if the bit is clear, but do
+	 not skip the loop, even if it doesn't require
+	 prechecking.  */
+      else if ((max_len & blksize) == 0
+	       && !(max_loop && i == max_bits))
 	continue;
 
-      /* Issue a store of BLKSIZE bytes.  */
-      to = store_by_pieces (to, blksize,
-			    constfun, constfundata,
-			    align, true,
-			    i != sctz_len ? RETURN_END : RETURN_BEGIN);
-
-      /* Adjust REM and PTR, unless this is the last iteration.  */
-      if (i != sctz_len)
+      if (max_loop && i == max_bits)
 	{
-	  emit_move_insn (ptr, force_operand (XEXP (to, 0), NULL_RTX));
+	  loop_label = gen_label_rtx ();
+	  emit_label (loop_label);
+	  /* Since we may run this multiple times, don't assume we
+	     know anything about the offset.  */
+	  clear_mem_offset (to);
+	}
+
+      bool update_needed = i != sctz_len || loop_label;
+      rtx next_ptr = NULL_RTX;
+      if (!use_store_by_pieces)
+	{
+	  gcc_checking_assert (blksize == 1);
+	  if (!val)
+	    val = gen_int_mode (valc, QImode);
+	  to = change_address (to, QImode, 0);
+	  emit_move_insn (to, val);
+	  if (update_needed)
+	    next_ptr = plus_constant (GET_MODE (ptr), ptr, blksize);
+	}
+      else
+	{
+	  /* Issue a store of BLKSIZE bytes.  */
+	  to = store_by_pieces (to, blksize,
+				constfun, constfundata,
+				align, true,
+				update_needed ? RETURN_END : RETURN_BEGIN);
+	  next_ptr = XEXP (to, 0);
+	}
+      /* Adjust REM and PTR, unless this is the last iteration.  */
+      if (update_needed)
+	{
+	  emit_move_insn (ptr, force_operand (next_ptr, NULL_RTX));
 	  to = replace_equiv_address (to, ptr);
 	  rtx rem_minus_blksize = plus_constant (ptr_mode, rem, -blksize);
 	  emit_move_insn (rem, force_operand (rem_minus_blksize, NULL_RTX));
 	}
+
+      if (loop_label)
+	emit_cmp_and_jump_insns (rem, GEN_INT (blksize), GE, NULL,
+				 ptr_mode, 1, loop_label,
+				 profile_probability::likely ());
 
       if (label)
 	{
@@ -4736,7 +4885,8 @@ expand_builtin_memcmp (tree exp, rtx target, bool result_eq)
   result = emit_block_cmp_hints (arg1_rtx, arg2_rtx, len_rtx,
 				 TREE_TYPE (len), target,
 				 result_eq, constfn,
-				 CONST_CAST (char *, rep));
+				 CONST_CAST (char *, rep),
+				 tree_ctz (len));
 
   if (result)
     {
@@ -5278,6 +5428,284 @@ expand_builtin_frame_address (tree fndecl, tree exp)
 	tem = copy_addr_to_reg (tem);
       return tem;
     }
+}
+
+#if ! STACK_GROWS_DOWNWARD
+# define STACK_TOPS GT
+#else
+# define STACK_TOPS LT
+#endif
+
+#ifdef POINTERS_EXTEND_UNSIGNED
+# define STACK_UNSIGNED POINTERS_EXTEND_UNSIGNED
+#else
+# define STACK_UNSIGNED true
+#endif
+
+/* Expand a call to builtin function __builtin_stack_address.  */
+
+static rtx
+expand_builtin_stack_address ()
+{
+  rtx ret = convert_to_mode (ptr_mode, copy_to_reg (stack_pointer_rtx),
+			     STACK_UNSIGNED);
+
+#ifdef STACK_ADDRESS_OFFSET
+  /* Unbias the stack pointer, bringing it to the boundary between the
+     stack area claimed by the active function calling this builtin,
+     and stack ranges that could get clobbered if it called another
+     function.  It should NOT encompass any stack red zone, that is
+     used in leaf functions.
+
+     On SPARC, the register save area is *not* considered active or
+     used by the active function, but rather as akin to the area in
+     which call-preserved registers are saved by callees.  This
+     enables __strub_leave to clear what would otherwise overlap with
+     its own register save area.
+
+     If the address is computed too high or too low, parts of a stack
+     range that should be scrubbed may be left unscrubbed, scrubbing
+     may corrupt active portions of the stack frame, and stack ranges
+     may be doubly-scrubbed by caller and callee.
+
+     In order for it to be just right, the area delimited by
+     @code{__builtin_stack_address} and @code{__builtin_frame_address
+     (0)} should encompass caller's registers saved by the function,
+     local on-stack variables and @code{alloca} stack areas.
+     Accumulated outgoing on-stack arguments, preallocated as part of
+     a function's own prologue, are to be regarded as part of the
+     (caller) function's active area as well, whereas those pushed or
+     allocated temporarily for a call are regarded as part of the
+     callee's stack range, rather than the caller's.  */
+  ret = plus_constant (ptr_mode, ret, STACK_ADDRESS_OFFSET);
+#endif
+
+  return force_reg (ptr_mode, ret);
+}
+
+/* Expand a call to builtin function __builtin_strub_enter.  */
+
+static rtx
+expand_builtin_strub_enter (tree exp)
+{
+  if (!validate_arglist (exp, POINTER_TYPE, VOID_TYPE))
+    return NULL_RTX;
+
+  if (optimize < 1 || flag_no_inline)
+    return NULL_RTX;
+
+  rtx stktop = expand_builtin_stack_address ();
+
+  tree wmptr = CALL_EXPR_ARG (exp, 0);
+  tree wmtype = TREE_TYPE (TREE_TYPE (wmptr));
+  tree wmtree = fold_build2 (MEM_REF, wmtype, wmptr,
+			     build_int_cst (TREE_TYPE (wmptr), 0));
+  rtx wmark = expand_expr (wmtree, NULL_RTX, ptr_mode, EXPAND_MEMORY);
+
+  emit_move_insn (wmark, stktop);
+
+  return const0_rtx;
+}
+
+/* Expand a call to builtin function __builtin_strub_update.  */
+
+static rtx
+expand_builtin_strub_update (tree exp)
+{
+  if (!validate_arglist (exp, POINTER_TYPE, VOID_TYPE))
+    return NULL_RTX;
+
+  if (optimize < 2 || flag_no_inline)
+    return NULL_RTX;
+
+  rtx stktop = expand_builtin_stack_address ();
+
+#ifdef RED_ZONE_SIZE
+  /* Here's how the strub enter, update and leave functions deal with red zones.
+
+     If it weren't for red zones, update, called from within a strub context,
+     would bump the watermark to the top of the stack.  Enter and leave, running
+     in the caller, would use the caller's top of stack address both to
+     initialize the watermark passed to the callee, and to start strubbing the
+     stack afterwards.
+
+     Ideally, we'd update the watermark so as to cover the used amount of red
+     zone, and strub starting at the caller's other end of the (presumably
+     unused) red zone.  Normally, only leaf functions use the red zone, but at
+     this point we can't tell whether a function is a leaf, nor can we tell how
+     much of the red zone it uses.  Furthermore, some strub contexts may have
+     been inlined so that update and leave are called from the same stack frame,
+     and the strub builtins may all have been inlined, turning a strub function
+     into a leaf.
+
+     So cleaning the range from the caller's stack pointer (one end of the red
+     zone) to the (potentially inlined) callee's (other end of the) red zone
+     could scribble over the caller's own red zone.
+
+     We avoid this possibility by arranging for callers that are strub contexts
+     to use their own watermark as the strub starting point.  So, if A calls B,
+     and B calls C, B will tell A to strub up to the end of B's red zone, and
+     will strub itself only the part of C's stack frame and red zone that
+     doesn't overlap with B's.  With that, we don't need to know who's leaf and
+     who isn't: inlined calls will shrink their strub window to zero, each
+     remaining call will strub some portion of the stack, and eventually the
+     strub context will return to a caller that isn't a strub context itself,
+     that will therefore use its own stack pointer as the strub starting point.
+     It's not a leaf, because strub contexts can't be inlined into non-strub
+     contexts, so it doesn't use the red zone, and it will therefore correctly
+     strub up the callee's stack frame up to the end of the callee's red zone.
+     Neat!  */
+  if (true /* (flags_from_decl_or_type (current_function_decl) & ECF_LEAF) */)
+    {
+      poly_int64 red_zone_size = RED_ZONE_SIZE;
+#if STACK_GROWS_DOWNWARD
+      red_zone_size = -red_zone_size;
+#endif
+      stktop = plus_constant (ptr_mode, stktop, red_zone_size);
+      stktop = force_reg (ptr_mode, stktop);
+    }
+#endif
+
+  tree wmptr = CALL_EXPR_ARG (exp, 0);
+  tree wmtype = TREE_TYPE (TREE_TYPE (wmptr));
+  tree wmtree = fold_build2 (MEM_REF, wmtype, wmptr,
+			     build_int_cst (TREE_TYPE (wmptr), 0));
+  rtx wmark = expand_expr (wmtree, NULL_RTX, ptr_mode, EXPAND_MEMORY);
+
+  rtx wmarkr = force_reg (ptr_mode, wmark);
+
+  rtx_code_label *lab = gen_label_rtx ();
+  do_compare_rtx_and_jump (stktop, wmarkr, STACK_TOPS, STACK_UNSIGNED,
+			   ptr_mode, NULL_RTX, lab, NULL,
+			   profile_probability::very_likely ());
+  emit_move_insn (wmark, stktop);
+
+  /* If this is an inlined strub function, also bump the watermark for the
+     enclosing function.  This avoids a problem with the following scenario: A
+     calls B and B calls C, and both B and C get inlined into A.  B allocates
+     temporary stack space before calling C.  If we don't update A's watermark,
+     we may use an outdated baseline for the post-C strub_leave, erasing B's
+     temporary stack allocation.  We only need this if we're fully expanding
+     strub_leave inline.  */
+  tree xwmptr = (optimize > 2
+		 ? strub_watermark_parm (current_function_decl)
+		 : wmptr);
+  if (wmptr != xwmptr)
+    {
+      wmptr = xwmptr;
+      wmtype = TREE_TYPE (TREE_TYPE (wmptr));
+      wmtree = fold_build2 (MEM_REF, wmtype, wmptr,
+			    build_int_cst (TREE_TYPE (wmptr), 0));
+      wmark = expand_expr (wmtree, NULL_RTX, ptr_mode, EXPAND_MEMORY);
+      wmarkr = force_reg (ptr_mode, wmark);
+
+      do_compare_rtx_and_jump (stktop, wmarkr, STACK_TOPS, STACK_UNSIGNED,
+			       ptr_mode, NULL_RTX, lab, NULL,
+			       profile_probability::very_likely ());
+      emit_move_insn (wmark, stktop);
+    }
+
+  emit_label (lab);
+
+  return const0_rtx;
+}
+
+
+/* Expand a call to builtin function __builtin_strub_leave.  */
+
+static rtx
+expand_builtin_strub_leave (tree exp)
+{
+  if (!validate_arglist (exp, POINTER_TYPE, VOID_TYPE))
+    return NULL_RTX;
+
+  if (optimize < 2 || optimize_size || flag_no_inline)
+    return NULL_RTX;
+
+  rtx stktop = NULL_RTX;
+
+  if (tree wmptr = (optimize
+		    ? strub_watermark_parm (current_function_decl)
+		    : NULL_TREE))
+    {
+      tree wmtype = TREE_TYPE (TREE_TYPE (wmptr));
+      tree wmtree = fold_build2 (MEM_REF, wmtype, wmptr,
+				 build_int_cst (TREE_TYPE (wmptr), 0));
+      rtx wmark = expand_expr (wmtree, NULL_RTX, ptr_mode, EXPAND_MEMORY);
+      stktop = force_reg (ptr_mode, wmark);
+    }
+
+  if (!stktop)
+    stktop = expand_builtin_stack_address ();
+
+  tree wmptr = CALL_EXPR_ARG (exp, 0);
+  tree wmtype = TREE_TYPE (TREE_TYPE (wmptr));
+  tree wmtree = fold_build2 (MEM_REF, wmtype, wmptr,
+			     build_int_cst (TREE_TYPE (wmptr), 0));
+  rtx wmark = expand_expr (wmtree, NULL_RTX, ptr_mode, EXPAND_MEMORY);
+
+  rtx wmarkr = force_reg (ptr_mode, wmark);
+
+#if ! STACK_GROWS_DOWNWARD
+  rtx base = stktop;
+  rtx end = wmarkr;
+#else
+  rtx base = wmarkr;
+  rtx end = stktop;
+#endif
+
+  /* We're going to modify it, so make sure it's not e.g. the stack pointer.  */
+  base = copy_to_reg (base);
+
+  rtx_code_label *done = gen_label_rtx ();
+  do_compare_rtx_and_jump (base, end, LT, STACK_UNSIGNED,
+			   ptr_mode, NULL_RTX, done, NULL,
+			   profile_probability::very_likely ());
+
+  if (optimize < 3)
+    expand_call (exp, NULL_RTX, true);
+  else
+    {
+      /* Ok, now we've determined we want to copy the block, so convert the
+	 addresses to Pmode, as needed to dereference them to access ptr_mode
+	 memory locations, so that we don't have to convert anything within the
+	 loop.  */
+      base = memory_address (ptr_mode, base);
+      end = memory_address (ptr_mode, end);
+
+      rtx zero = force_operand (const0_rtx, NULL_RTX);
+      int ulen = GET_MODE_SIZE (ptr_mode);
+
+      /* ??? It would be nice to use setmem or similar patterns here,
+	 but they do not necessarily obey the stack growth direction,
+	 which has security implications.  We also have to avoid calls
+	 (memset, bzero or any machine-specific ones), which are
+	 likely unsafe here (see TARGET_STRUB_MAY_USE_MEMSET).  */
+#if ! STACK_GROWS_DOWNWARD
+      rtx incr = plus_constant (Pmode, base, ulen);
+      rtx dstm = gen_rtx_MEM (ptr_mode, base);
+
+      rtx_code_label *loop = gen_label_rtx ();
+      emit_label (loop);
+      emit_move_insn (dstm, zero);
+      emit_move_insn (base, force_operand (incr, NULL_RTX));
+#else
+      rtx decr = plus_constant (Pmode, end, -ulen);
+      rtx dstm = gen_rtx_MEM (ptr_mode, end);
+
+      rtx_code_label *loop = gen_label_rtx ();
+      emit_label (loop);
+      emit_move_insn (end, force_operand (decr, NULL_RTX));
+      emit_move_insn (dstm, zero);
+#endif
+      do_compare_rtx_and_jump (base, end, LT, STACK_UNSIGNED,
+			       Pmode, NULL_RTX, NULL, loop,
+			       profile_probability::very_likely ());
+    }
+
+  emit_label (done);
+
+  return const0_rtx;
 }
 
 /* Expand EXP, a call to the alloca builtin.  Return NULL_RTX if we
@@ -7363,7 +7791,8 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
       default:
 	break;
       }
-  if (sanitize_flags_p (SANITIZE_ADDRESS) && asan_intercepted_p (fcode))
+  if (sanitize_flags_p (SANITIZE_ADDRESS | SANITIZE_HWADDRESS)
+		  && asan_intercepted_p (fcode))
     return expand_call (exp, target, ignore);
 
   /* When not optimizing, generate calls to library functions for a certain
@@ -7379,7 +7808,15 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
       && fcode != BUILT_IN_EXECVE
       && fcode != BUILT_IN_CLEAR_CACHE
       && !ALLOCA_FUNCTION_CODE_P (fcode)
-      && fcode != BUILT_IN_FREE)
+      && fcode != BUILT_IN_FREE
+      && (fcode != BUILT_IN_MEMSET
+	  || !(flag_inline_stringops & ILSOP_MEMSET))
+      && (fcode != BUILT_IN_MEMCPY
+	  || !(flag_inline_stringops & ILSOP_MEMCPY))
+      && (fcode != BUILT_IN_MEMMOVE
+	  || !(flag_inline_stringops & ILSOP_MEMMOVE))
+      && (fcode != BUILT_IN_MEMCMP
+	  || !(flag_inline_stringops & ILSOP_MEMCMP)))
     return expand_call (exp, target, ignore);
 
   /* The built-in function expanders test for target == const0_rtx
@@ -7606,6 +8043,27 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
     case BUILT_IN_FRAME_ADDRESS:
     case BUILT_IN_RETURN_ADDRESS:
       return expand_builtin_frame_address (fndecl, exp);
+
+    case BUILT_IN_STACK_ADDRESS:
+      return expand_builtin_stack_address ();
+
+    case BUILT_IN___STRUB_ENTER:
+      target = expand_builtin_strub_enter (exp);
+      if (target)
+	return target;
+      break;
+
+    case BUILT_IN___STRUB_UPDATE:
+      target = expand_builtin_strub_update (exp);
+      if (target)
+	return target;
+      break;
+
+    case BUILT_IN___STRUB_LEAVE:
+      target = expand_builtin_strub_leave (exp);
+      if (target)
+	return target;
+      break;
 
     /* Returns the address of the area where the structure is returned.
        0 otherwise.  */
@@ -7957,6 +8415,10 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
       return expand_builtin_init_descriptor (exp);
     case BUILT_IN_ADJUST_DESCRIPTOR:
       return expand_builtin_adjust_descriptor (exp);
+
+    case BUILT_IN_GCC_NESTED_PTR_CREATED:
+    case BUILT_IN_GCC_NESTED_PTR_DELETED:
+      break; /* At present, no expansion, just call the function.  */
 
     case BUILT_IN_FORK:
     case BUILT_IN_EXECL:
@@ -8385,7 +8847,10 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
       break;
 
     case BUILT_IN_ATOMIC_TEST_AND_SET:
-      return expand_builtin_atomic_test_and_set (exp, target);
+      target = expand_builtin_atomic_test_and_set (exp, target);
+      if (target)
+	return target;
+      break;
 
     case BUILT_IN_ATOMIC_CLEAR:
       return expand_builtin_atomic_clear (exp);
@@ -8645,8 +9110,8 @@ fold_builtin_expect (location_t loc, tree arg0, tree arg1, tree arg2,
 
   if (TREE_CODE (inner) == CALL_EXPR
       && (fndecl = get_callee_fndecl (inner))
-      && (fndecl_built_in_p (fndecl, BUILT_IN_EXPECT)
-	  || fndecl_built_in_p (fndecl, BUILT_IN_EXPECT_WITH_PROBABILITY)))
+      && fndecl_built_in_p (fndecl, BUILT_IN_EXPECT,
+			    BUILT_IN_EXPECT_WITH_PROBABILITY))
     return arg0;
 
   inner = inner_arg0;
@@ -8936,7 +9401,7 @@ static tree
 fold_builtin_carg (location_t loc, tree arg, tree type)
 {
   if (validate_arg (arg, COMPLEX_TYPE)
-      && TREE_CODE (TREE_TYPE (TREE_TYPE (arg))) == REAL_TYPE)
+      && SCALAR_FLOAT_TYPE_P (TREE_TYPE (TREE_TYPE (arg))))
     {
       tree atan2_fn = mathfn_built_in (type, BUILT_IN_ATAN2);
 
@@ -9421,9 +9886,11 @@ fold_builtin_unordered_cmp (location_t loc, tree fndecl, tree arg0, tree arg1,
     /* Choose the wider of two real types.  */
     cmp_type = TYPE_PRECISION (type0) >= TYPE_PRECISION (type1)
       ? type0 : type1;
-  else if (code0 == REAL_TYPE && code1 == INTEGER_TYPE)
+  else if (code0 == REAL_TYPE
+	   && (code1 == INTEGER_TYPE || code1 == BITINT_TYPE))
     cmp_type = type0;
-  else if (code0 == INTEGER_TYPE && code1 == REAL_TYPE)
+  else if ((code0 == INTEGER_TYPE || code0 == BITINT_TYPE)
+	   && code1 == REAL_TYPE)
     cmp_type = type1;
 
   arg0 = fold_convert_loc (loc, cmp_type, arg0);
@@ -9442,6 +9909,42 @@ fold_builtin_unordered_cmp (location_t loc, tree fndecl, tree arg0, tree arg1,
 	 ? unordered_code : ordered_code;
   return fold_build1_loc (loc, TRUTH_NOT_EXPR, type,
 		      fold_build2_loc (loc, code, type, arg0, arg1));
+}
+
+/* Fold a call to __builtin_iseqsig().  ARG0 and ARG1 are the arguments.
+   After choosing the wider floating-point type for the comparison,
+   the code is folded to:
+     SAVE_EXPR<ARG0> >= SAVE_EXPR<ARG1> && SAVE_EXPR<ARG0> <= SAVE_EXPR<ARG1>  */
+
+static tree
+fold_builtin_iseqsig (location_t loc, tree arg0, tree arg1)
+{
+  tree type0, type1;
+  enum tree_code code0, code1;
+  tree cmp1, cmp2, cmp_type = NULL_TREE;
+
+  type0 = TREE_TYPE (arg0);
+  type1 = TREE_TYPE (arg1);
+
+  code0 = TREE_CODE (type0);
+  code1 = TREE_CODE (type1);
+
+  if (code0 == REAL_TYPE && code1 == REAL_TYPE)
+    /* Choose the wider of two real types.  */
+    cmp_type = TYPE_PRECISION (type0) >= TYPE_PRECISION (type1)
+      ? type0 : type1;
+  else if (code0 == REAL_TYPE && code1 == INTEGER_TYPE)
+    cmp_type = type0;
+  else if (code0 == INTEGER_TYPE && code1 == REAL_TYPE)
+    cmp_type = type1;
+
+  arg0 = builtin_save_expr (fold_convert_loc (loc, cmp_type, arg0));
+  arg1 = builtin_save_expr (fold_convert_loc (loc, cmp_type, arg1));
+
+  cmp1 = fold_build2_loc (loc, GE_EXPR, integer_type_node, arg0, arg1);
+  cmp2 = fold_build2_loc (loc, LE_EXPR, integer_type_node, arg0, arg1);
+
+  return fold_build2_loc (loc, TRUTH_AND_EXPR, integer_type_node, cmp1, cmp2);
 }
 
 /* Fold __builtin_{,s,u}{add,sub,mul}{,l,ll}_overflow, either into normal
@@ -9552,6 +10055,318 @@ fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
   tree store
     = fold_build2_loc (loc, MODIFY_EXPR, void_type_node, mem_arg2, intres);
   return build2_loc (loc, COMPOUND_EXPR, boolean_type_node, store, ovfres);
+}
+
+/* Fold __builtin_{clz,ctz,clrsb,ffs,parity,popcount}g into corresponding
+   internal function.  */
+
+static tree
+fold_builtin_bit_query (location_t loc, enum built_in_function fcode,
+			tree arg0, tree arg1)
+{
+  enum internal_fn ifn;
+  enum built_in_function fcodei, fcodel, fcodell;
+  tree arg0_type = TREE_TYPE (arg0);
+  tree cast_type = NULL_TREE;
+  int addend = 0;
+
+  switch (fcode)
+    {
+    case BUILT_IN_CLZG:
+      if (arg1 && TREE_CODE (arg1) != INTEGER_CST)
+	return NULL_TREE;
+      ifn = IFN_CLZ;
+      fcodei = BUILT_IN_CLZ;
+      fcodel = BUILT_IN_CLZL;
+      fcodell = BUILT_IN_CLZLL;
+      break;
+    case BUILT_IN_CTZG:
+      if (arg1 && TREE_CODE (arg1) != INTEGER_CST)
+	return NULL_TREE;
+      ifn = IFN_CTZ;
+      fcodei = BUILT_IN_CTZ;
+      fcodel = BUILT_IN_CTZL;
+      fcodell = BUILT_IN_CTZLL;
+      break;
+    case BUILT_IN_CLRSBG:
+      ifn = IFN_CLRSB;
+      fcodei = BUILT_IN_CLRSB;
+      fcodel = BUILT_IN_CLRSBL;
+      fcodell = BUILT_IN_CLRSBLL;
+      break;
+    case BUILT_IN_FFSG:
+      ifn = IFN_FFS;
+      fcodei = BUILT_IN_FFS;
+      fcodel = BUILT_IN_FFSL;
+      fcodell = BUILT_IN_FFSLL;
+      break;
+    case BUILT_IN_PARITYG:
+      ifn = IFN_PARITY;
+      fcodei = BUILT_IN_PARITY;
+      fcodel = BUILT_IN_PARITYL;
+      fcodell = BUILT_IN_PARITYLL;
+      break;
+    case BUILT_IN_POPCOUNTG:
+      ifn = IFN_POPCOUNT;
+      fcodei = BUILT_IN_POPCOUNT;
+      fcodel = BUILT_IN_POPCOUNTL;
+      fcodell = BUILT_IN_POPCOUNTLL;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  if (TYPE_PRECISION (arg0_type)
+      <= TYPE_PRECISION (long_long_unsigned_type_node))
+    {
+      if (TYPE_PRECISION (arg0_type) <= TYPE_PRECISION (unsigned_type_node))
+
+	cast_type = (TYPE_UNSIGNED (arg0_type)
+		     ? unsigned_type_node : integer_type_node);
+      else if (TYPE_PRECISION (arg0_type)
+	       <= TYPE_PRECISION (long_unsigned_type_node))
+	{
+	  cast_type = (TYPE_UNSIGNED (arg0_type)
+		       ? long_unsigned_type_node : long_integer_type_node);
+	  fcodei = fcodel;
+	}
+      else
+	{
+	  cast_type = (TYPE_UNSIGNED (arg0_type)
+		       ? long_long_unsigned_type_node
+		       : long_long_integer_type_node);
+	  fcodei = fcodell;
+	}
+    }
+  else if (TYPE_PRECISION (arg0_type) <= MAX_FIXED_MODE_SIZE)
+    {
+      cast_type
+	= build_nonstandard_integer_type (MAX_FIXED_MODE_SIZE,
+					  TYPE_UNSIGNED (arg0_type));
+      gcc_assert (TYPE_PRECISION (cast_type)
+		  == 2 * TYPE_PRECISION (long_long_unsigned_type_node));
+      fcodei = END_BUILTINS;
+    }
+  else
+    fcodei = END_BUILTINS;
+  if (cast_type)
+    {
+      switch (fcode)
+	{
+	case BUILT_IN_CLZG:
+	case BUILT_IN_CLRSBG:
+	  addend = TYPE_PRECISION (arg0_type) - TYPE_PRECISION (cast_type);
+	  break;
+	default:
+	  break;
+	}
+      arg0 = fold_convert (cast_type, arg0);
+      arg0_type = cast_type;
+    }
+
+  if (arg1)
+    arg1 = fold_convert (integer_type_node, arg1);
+
+  tree arg2 = arg1;
+  if (fcode == BUILT_IN_CLZG && addend)
+    {
+      if (arg1)
+	arg0 = save_expr (arg0);
+      arg2 = NULL_TREE;
+    }
+  tree call = NULL_TREE, tem;
+  if (TYPE_PRECISION (arg0_type) == MAX_FIXED_MODE_SIZE
+      && (TYPE_PRECISION (arg0_type)
+	  == 2 * TYPE_PRECISION (long_long_unsigned_type_node)))
+    {
+      /* __int128 expansions using up to 2 long long builtins.  */
+      arg0 = save_expr (arg0);
+      tree type = (TYPE_UNSIGNED (arg0_type)
+		   ? long_long_unsigned_type_node
+		   : long_long_integer_type_node);
+      tree hi = fold_build2 (RSHIFT_EXPR, arg0_type, arg0,
+			     build_int_cst (integer_type_node,
+					    MAX_FIXED_MODE_SIZE / 2));
+      hi = fold_convert (type, hi);
+      tree lo = fold_convert (type, arg0);
+      switch (fcode)
+	{
+	case BUILT_IN_CLZG:
+	  call = fold_builtin_bit_query (loc, fcode, lo, NULL_TREE);
+	  call = fold_build2 (PLUS_EXPR, integer_type_node, call,
+			      build_int_cst (integer_type_node,
+					     MAX_FIXED_MODE_SIZE / 2));
+	  if (arg2)
+	    call = fold_build3 (COND_EXPR, integer_type_node,
+				fold_build2 (NE_EXPR, boolean_type_node,
+					     lo, build_zero_cst (type)),
+				call, arg2);
+	  call = fold_build3 (COND_EXPR, integer_type_node,
+			      fold_build2 (NE_EXPR, boolean_type_node,
+					   hi, build_zero_cst (type)),
+			      fold_builtin_bit_query (loc, fcode, hi,
+						      NULL_TREE),
+			      call);
+	  break;
+	case BUILT_IN_CTZG:
+	  call = fold_builtin_bit_query (loc, fcode, hi, NULL_TREE);
+	  call = fold_build2 (PLUS_EXPR, integer_type_node, call,
+			      build_int_cst (integer_type_node,
+					     MAX_FIXED_MODE_SIZE / 2));
+	  if (arg2)
+	    call = fold_build3 (COND_EXPR, integer_type_node,
+				fold_build2 (NE_EXPR, boolean_type_node,
+					     hi, build_zero_cst (type)),
+				call, arg2);
+	  call = fold_build3 (COND_EXPR, integer_type_node,
+			      fold_build2 (NE_EXPR, boolean_type_node,
+					   lo, build_zero_cst (type)),
+			      fold_builtin_bit_query (loc, fcode, lo,
+						      NULL_TREE),
+			      call);
+	  break;
+	case BUILT_IN_CLRSBG:
+	  tem = fold_builtin_bit_query (loc, fcode, lo, NULL_TREE);
+	  tem = fold_build2 (PLUS_EXPR, integer_type_node, tem,
+			     build_int_cst (integer_type_node,
+					    MAX_FIXED_MODE_SIZE / 2));
+	  tem = fold_build3 (COND_EXPR, integer_type_node,
+			     fold_build2 (LT_EXPR, boolean_type_node,
+					  fold_build2 (BIT_XOR_EXPR, type,
+						       lo, hi),
+					  build_zero_cst (type)),
+			     build_int_cst (integer_type_node,
+					    MAX_FIXED_MODE_SIZE / 2 - 1),
+			     tem);
+	  call = fold_builtin_bit_query (loc, fcode, hi, NULL_TREE);
+	  call = save_expr (call);
+	  call = fold_build3 (COND_EXPR, integer_type_node,
+			      fold_build2 (NE_EXPR, boolean_type_node,
+					   call,
+					   build_int_cst (integer_type_node,
+							  MAX_FIXED_MODE_SIZE
+							  / 2 - 1)),
+			      call, tem);
+	  break;
+	case BUILT_IN_FFSG:
+	  call = fold_builtin_bit_query (loc, fcode, hi, NULL_TREE);
+	  call = fold_build2 (PLUS_EXPR, integer_type_node, call,
+			      build_int_cst (integer_type_node,
+					     MAX_FIXED_MODE_SIZE / 2));
+	  call = fold_build3 (COND_EXPR, integer_type_node,
+			      fold_build2 (NE_EXPR, boolean_type_node,
+					   hi, build_zero_cst (type)),
+			      call, integer_zero_node);
+	  call = fold_build3 (COND_EXPR, integer_type_node,
+			      fold_build2 (NE_EXPR, boolean_type_node,
+					   lo, build_zero_cst (type)),
+			      fold_builtin_bit_query (loc, fcode, lo,
+						      NULL_TREE),
+			      call);
+	  break;
+	case BUILT_IN_PARITYG:
+	  call = fold_builtin_bit_query (loc, fcode,
+					 fold_build2 (BIT_XOR_EXPR, type,
+						      lo, hi), NULL_TREE);
+	  break;
+	case BUILT_IN_POPCOUNTG:
+	  call = fold_build2 (PLUS_EXPR, integer_type_node,
+			      fold_builtin_bit_query (loc, fcode, hi,
+						      NULL_TREE),
+			      fold_builtin_bit_query (loc, fcode, lo,
+						      NULL_TREE));
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+    }
+  else
+    {
+      /* Only keep second argument to IFN_CLZ/IFN_CTZ if it is the
+	 value defined at zero during GIMPLE, or for large/huge _BitInt
+	 (which are then lowered during bitint lowering).  */
+      if (arg2 && TREE_CODE (TREE_TYPE (arg0)) != BITINT_TYPE)
+	{
+	  int val;
+	  if (fcode == BUILT_IN_CLZG)
+	    {
+	      if (CLZ_DEFINED_VALUE_AT_ZERO (SCALAR_TYPE_MODE (arg0_type),
+					     val) != 2
+		  || wi::to_widest (arg2) != val)
+		arg2 = NULL_TREE;
+	    }
+	  else if (CTZ_DEFINED_VALUE_AT_ZERO (SCALAR_TYPE_MODE (arg0_type),
+					      val) != 2
+		   || wi::to_widest (arg2) != val)
+	    arg2 = NULL_TREE;
+	  if (!direct_internal_fn_supported_p (ifn, arg0_type,
+					       OPTIMIZE_FOR_BOTH))
+	    arg2 = NULL_TREE;
+	  if (arg2 == NULL_TREE)
+	    arg0 = save_expr (arg0);
+	}
+      if (fcodei == END_BUILTINS || arg2)
+	call = build_call_expr_internal_loc (loc, ifn, integer_type_node,
+					     arg2 ? 2 : 1, arg0, arg2);
+      else
+	call = build_call_expr_loc (loc, builtin_decl_explicit (fcodei), 1,
+				    arg0);
+    }
+  if (addend)
+    call = fold_build2 (PLUS_EXPR, integer_type_node, call,
+			build_int_cst (integer_type_node, addend));
+  if (arg1 && arg2 == NULL_TREE)
+    call = fold_build3 (COND_EXPR, integer_type_node,
+			fold_build2 (NE_EXPR, boolean_type_node,
+				     arg0, build_zero_cst (arg0_type)),
+			call, arg1);
+
+  return call;
+}
+
+/* Fold __builtin_{add,sub}c{,l,ll} into pair of internal functions
+   that return both result of arithmetics and overflowed boolean
+   flag in a complex integer result.  */
+
+static tree
+fold_builtin_addc_subc (location_t loc, enum built_in_function fcode,
+			tree *args)
+{
+  enum internal_fn ifn;
+
+  switch (fcode)
+    {
+    case BUILT_IN_ADDC:
+    case BUILT_IN_ADDCL:
+    case BUILT_IN_ADDCLL:
+      ifn = IFN_ADD_OVERFLOW;
+      break;
+    case BUILT_IN_SUBC:
+    case BUILT_IN_SUBCL:
+    case BUILT_IN_SUBCLL:
+      ifn = IFN_SUB_OVERFLOW;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  tree type = TREE_TYPE (args[0]);
+  tree ctype = build_complex_type (type);
+  tree call = build_call_expr_internal_loc (loc, ifn, ctype, 2,
+					    args[0], args[1]);
+  tree tgt = save_expr (call);
+  tree intres = build1_loc (loc, REALPART_EXPR, type, tgt);
+  tree ovfres = build1_loc (loc, IMAGPART_EXPR, type, tgt);
+  call = build_call_expr_internal_loc (loc, ifn, ctype, 2,
+				       intres, args[2]);
+  tgt = save_expr (call);
+  intres = build1_loc (loc, REALPART_EXPR, type, tgt);
+  tree ovfres2 = build1_loc (loc, IMAGPART_EXPR, type, tgt);
+  ovfres = build2_loc (loc, BIT_IOR_EXPR, type, ovfres, ovfres2);
+  tree mem_arg3 = build_fold_indirect_ref_loc (loc, args[3]);
+  tree store
+    = fold_build2_loc (loc, MODIFY_EXPR, void_type_node, mem_arg3, ovfres);
+  return build2_loc (loc, COMPOUND_EXPR, type, store, intres);
 }
 
 /* Fold a call to __builtin_FILE to a constant string.  */
@@ -9760,6 +10575,14 @@ fold_builtin_1 (location_t loc, tree expr, tree fndecl, tree arg0)
 	return build_empty_stmt (loc);
       break;
 
+    case BUILT_IN_CLZG:
+    case BUILT_IN_CTZG:
+    case BUILT_IN_CLRSBG:
+    case BUILT_IN_FFSG:
+    case BUILT_IN_PARITYG:
+    case BUILT_IN_POPCOUNTG:
+      return fold_builtin_bit_query (loc, fcode, arg0, NULL_TREE);
+
     default:
       break;
     }
@@ -9832,6 +10655,9 @@ fold_builtin_2 (location_t loc, tree expr, tree fndecl, tree arg0, tree arg1)
 					 arg0, arg1, UNORDERED_EXPR,
 					 NOP_EXPR);
 
+    case BUILT_IN_ISEQSIG:
+      return fold_builtin_iseqsig (loc, arg0, arg1);
+
       /* We do the folding for va_start in the expander.  */
     case BUILT_IN_VA_START:
       break;
@@ -9845,6 +10671,10 @@ fold_builtin_2 (location_t loc, tree expr, tree fndecl, tree arg0, tree arg1)
 
     case BUILT_IN_ATOMIC_IS_LOCK_FREE:
       return fold_builtin_atomic_is_lock_free (arg0, arg1);
+
+    case BUILT_IN_CLZG:
+    case BUILT_IN_CTZG:
+      return fold_builtin_bit_query (loc, fcode, arg0, arg1);
 
     default:
       break;
@@ -10444,7 +11274,7 @@ fold_builtin_next_arg (tree exp, bool va_start_p)
 	 We must also strip off INDIRECT_EXPR for C++ reference
 	 parameters.  */
       while (CONVERT_EXPR_P (arg)
-	     || TREE_CODE (arg) == INDIRECT_REF)
+	     || INDIRECT_REF_P (arg))
 	arg = TREE_OPERAND (arg, 0);
       if (arg != last_parm)
 	{
@@ -10842,6 +11672,14 @@ fold_builtin_varargs (location_t loc, tree fndecl, tree *args, int nargs)
       ret = fold_builtin_fpclassify (loc, args, nargs);
       break;
 
+    case BUILT_IN_ADDC:
+    case BUILT_IN_ADDCL:
+    case BUILT_IN_ADDCLL:
+    case BUILT_IN_SUBC:
+    case BUILT_IN_SUBCL:
+    case BUILT_IN_SUBCLL:
+      return fold_builtin_addc_subc (loc, fcode, args);
+
     default:
       break;
     }
@@ -10910,7 +11748,7 @@ do_mpfr_ckconv (mpfr_srcptr m, tree type, int inexact)
       real_from_mpfr (&rr, m, type, MPFR_RNDN);
       /* Proceed iff GCC's REAL_VALUE_TYPE can hold the MPFR value,
 	 check for overflow/underflow.  If the REAL_VALUE_TYPE is zero
-	 but the mpft_t is not, then we underflowed in the
+	 but the mpfr_t is not, then we underflowed in the
 	 conversion.  */
       if (real_isfinite (&rr)
 	  && (rr.cl == rvc_zero) == (mpfr_zero_p (m) != 0))
@@ -10951,7 +11789,7 @@ do_mpc_ckconv (mpc_srcptr m, tree type, int inexact, int force_convert)
       real_from_mpfr (&im, mpc_imagref (m), TREE_TYPE (type), MPFR_RNDN);
       /* Proceed iff GCC's REAL_VALUE_TYPE can hold the MPFR values,
 	 check for overflow/underflow.  If the REAL_VALUE_TYPE is zero
-	 but the mpft_t is not, then we underflowed in the
+	 but the mpfr_t is not, then we underflowed in the
 	 conversion.  */
       if (force_convert
 	  || (real_isfinite (&re) && real_isfinite (&im)
@@ -11084,15 +11922,13 @@ do_mpfr_lgamma_r (tree arg, tree arg_sg, tree type)
 	  const int prec = fmt->p;
 	  const mpfr_rnd_t rnd = fmt->round_towards_zero? MPFR_RNDZ : MPFR_RNDN;
 	  int inexact, sg;
-	  mpfr_t m;
 	  tree result_lg;
 
-	  mpfr_init2 (m, prec);
+	  auto_mpfr m (prec);
 	  mpfr_from_real (m, ra, MPFR_RNDN);
 	  mpfr_clear_flags ();
 	  inexact = mpfr_lgamma (m, &sg, m, rnd);
 	  result_lg = do_mpfr_ckconv (m, type, inexact);
-	  mpfr_clear (m);
 	  if (result_lg)
 	    {
 	      tree result_sg;
@@ -11134,9 +11970,9 @@ do_mpc_arg2 (tree arg0, tree arg1, tree type, int do_nonfinite,
   /* To proceed, MPFR must exactly represent the target floating point
      format, which only happens when the target base equals two.  */
   if (TREE_CODE (arg0) == COMPLEX_CST && !TREE_OVERFLOW (arg0)
-      && TREE_CODE (TREE_TYPE (TREE_TYPE (arg0))) == REAL_TYPE
+      && SCALAR_FLOAT_TYPE_P (TREE_TYPE (TREE_TYPE (arg0)))
       && TREE_CODE (arg1) == COMPLEX_CST && !TREE_OVERFLOW (arg1)
-      && TREE_CODE (TREE_TYPE (TREE_TYPE (arg1))) == REAL_TYPE
+      && SCALAR_FLOAT_TYPE_P (TREE_TYPE (TREE_TYPE (arg1)))
       && REAL_MODE_FORMAT (TYPE_MODE (TREE_TYPE (TREE_TYPE (arg0))))->b == 2)
     {
       const REAL_VALUE_TYPE *const re0 = TREE_REAL_CST_PTR (TREE_REALPART (arg0));
@@ -11344,6 +12180,7 @@ is_inexpensive_builtin (tree decl)
       case BUILT_IN_ISLESSEQUAL:
       case BUILT_IN_ISLESSGREATER:
       case BUILT_IN_ISUNORDERED:
+      case BUILT_IN_ISEQSIG:
       case BUILT_IN_VA_ARG_PACK:
       case BUILT_IN_VA_ARG_PACK_LEN:
       case BUILT_IN_VA_COPY:
@@ -11665,6 +12502,7 @@ builtin_fnspec (tree callee)
 	return ".cO ";
       /* Realloc serves both as allocation point and deallocation point.  */
       case BUILT_IN_REALLOC:
+      case BUILT_IN_GOMP_REALLOC:
 	return ".Cw ";
       case BUILT_IN_GAMMA_R:
       case BUILT_IN_GAMMAF_R:
@@ -11719,6 +12557,8 @@ builtin_fnspec (tree callee)
       case BUILT_IN_RETURN_ADDRESS:
 	return ".c";
       case BUILT_IN_ASSUME_ALIGNED:
+      case BUILT_IN_EXPECT:
+      case BUILT_IN_EXPECT_WITH_PROBABILITY:
 	return "1cX ";
       /* But posix_memalign stores a pointer into the memory pointed to
 	 by its first argument.  */

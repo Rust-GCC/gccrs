@@ -1,5 +1,5 @@
 /* Definitions for the shared dumpfile.
-   Copyright (C) 2004-2023 Free Software Foundation, Inc.
+   Copyright (C) 2004-2024 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -647,14 +647,11 @@ class auto_dump_scope
   auto_dump_scope scope (NAME, USER_LOC)
 
 extern void dump_function (int phase, tree fn);
-extern void print_combine_total_stats (void);
 extern bool enable_rtl_dump_file (void);
 
 /* In tree-dump.cc  */
 extern void dump_node (const_tree, dump_flags_t, FILE *);
 
-/* In combine.cc  */
-extern void dump_combine_total_stats (FILE *);
 /* In cfghooks.cc  */
 extern void dump_bb (FILE *, basic_block, int, dump_flags_t);
 

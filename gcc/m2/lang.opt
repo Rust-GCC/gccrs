@@ -1,6 +1,6 @@
 ; Options for the Modula-2 front end.
 ;
-; Copyright (C) 2016-2023 Free Software Foundation, Inc.
+; Copyright (C) 2016-2024 Free Software Foundation, Inc.
 ; Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 ;
 ; This file is part of GNU Modula-2.
@@ -30,6 +30,10 @@
 Language
 Modula-2
 
+Wcase-enum
+Modula-2
+turns on case statement label compile time checking when using an expression of an enum type.
+
 Wpedantic-param-names
 Modula-2
 compiler checks to force definition module procedure parameter names with their implementation module counterpart
@@ -45,6 +49,14 @@ inform user which parameters will be passed by reference
 Wstyle
 Modula-2
 extra compile time semantic checking, typically tries to catch poor programming style
+
+Wuninit-variable-checking
+Modula-2
+turns on compile time analysis in the first basic block of a procedure detecting access to uninitialized data.
+
+Wuninit-variable-checking=
+Modula-2 Joined
+turns on compile time analysis to detect access to uninitialized variables, the checking can be specified by: known,cond,all.
 
 fauto-init
 Modula-2
@@ -390,6 +402,10 @@ Modula-2
 ; Documented in c.opt
 
 iquote
+Modula-2
+; Documented in c.opt
+
+isysroot
 Modula-2
 ; Documented in c.opt
 

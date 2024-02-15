@@ -1,7 +1,7 @@
 --
 -- m2-2.bnf grammar and associated actions for pass 2.
 --
--- Copyright (C) 2001-2023 Free Software Foundation, Inc.
+-- Copyright (C) 2001-2024 Free Software Foundation, Inc.
 -- Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 --
 -- This file is part of GNU Modula-2.
@@ -23,7 +23,7 @@
 (* output from m2-2.bnf, automatically generated do not edit if these
    are the top two lines in the file.
 
-Copyright (C) 2001-2023 Free Software Foundation, Inc.
+Copyright (C) 2001-2024 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -60,7 +60,6 @@ FROM M2Quads IMPORT PushT, PopT, PushTF, PopTF, PopNothing, OperandT, PushTFA, T
                     BuildProcedureStart,
                     BuildProcedureEnd,
                     BuildAssignment,
-                    BuildInline,
                     AddRecordToList, AddVarientToList,
                     IsAutoPushOn, PushAutoOff, PushAutoOn, PopAuto, DisplayStack ;
 
@@ -1227,14 +1226,14 @@ NamedOperand := '[' Ident ']' =:
 
 AsmOperandName := [ NamedOperand ] =:
 
-AsmOperands  := string [ ':' AsmList [ ':' AsmList [ ':' TrashList ] ] ]
-             =:
+AsmOperands  := ConstExpression ':' AsmList [ ':' AsmList [ ':' TrashList ] ]
+              =:
 
 AsmList      := [ AsmElement ] { ',' AsmElement } =:
 
-AsmElement   := AsmOperandName string '(' Expression ')'
-             =:
+AsmElement   := AsmOperandName ConstExpression '(' Expression ')'
+              =:
 
-TrashList    := [ string ] { ',' string } =:
+TrashList    := [ ConstExpression ] { ',' ConstExpression } =:
 
 FNB

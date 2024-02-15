@@ -1,6 +1,6 @@
 /* Support for simple predicate analysis.
 
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
    Contributed by Xinliang David Li <davidxl@google.com>
    Generalized by Martin Sebor <msebor@redhat.com>
 
@@ -50,8 +50,8 @@
 
 /* In our predicate normal form we have MAX_NUM_CHAINS or predicates
    and in those MAX_CHAIN_LEN (inverted) and predicates.  */
-#define MAX_NUM_CHAINS 8
-#define MAX_CHAIN_LEN 5
+#define MAX_NUM_CHAINS (unsigned)param_uninit_max_num_chains
+#define MAX_CHAIN_LEN (unsigned)param_uninit_max_chain_len
 
 /* Return true if X1 is the negation of X2.  */
 
@@ -244,21 +244,18 @@ find_matching_predicate_in_rest_chains (const pred_info &pred,
    of that's the form "FLAG_VAR CMP FLAG_VAR" with value range info.
    PHI is the phi node whose incoming (interesting) paths need to be
    examined.  On success, return the comparison code, set defintion
-   gimple of FLAG_DEF and BOUNDARY_CST.  Otherwise return ERROR_MARK.  */
+   gimple of FLAG_DEF and BOUNDARY_CST.  Otherwise return ERROR_MARK.
+   I is the running iterator so the function can be called repeatedly
+   to gather all candidates.  */
 
 static tree_code
 find_var_cmp_const (pred_chain_union preds, gphi *phi, gimple **flag_def,
-		    tree *boundary_cst)
+		    tree *boundary_cst, unsigned &i)
 {
-  tree_code vrinfo_code = ERROR_MARK;
-  gimple *vrinfo_def = NULL;
-  tree vrinfo_cst = NULL;
-
   gcc_assert (preds.length () > 0);
   pred_chain chain = preds[0];
-  for (unsigned i = 0; i < chain.length (); i++)
+  for (; i < chain.length (); i++)
     {
-      bool use_vrinfo_p = false;
       const pred_info &pred = chain[i];
       tree cond_lhs = pred.pred_lhs;
       tree cond_rhs = pred.pred_rhs;
@@ -282,8 +279,7 @@ find_var_cmp_const (pred_chain_union preds, gphi *phi, gimple **flag_def,
 	}
       /* Check if we can take advantage of FLAG_VAR COMP FLAG_VAR predicate
 	 with value range info.  Note only first of such case is handled.  */
-      else if (vrinfo_code == ERROR_MARK
-	       && TREE_CODE (cond_lhs) == SSA_NAME
+      else if (TREE_CODE (cond_lhs) == SSA_NAME
 	       && TREE_CODE (cond_rhs) == SSA_NAME)
 	{
 	  gimple* lhs_def = SSA_NAME_DEF_STMT (cond_lhs);
@@ -307,7 +303,8 @@ find_var_cmp_const (pred_chain_union preds, gphi *phi, gimple **flag_def,
 	  value_range r;
 	  if (!INTEGRAL_TYPE_P (type)
 	      || !get_range_query (cfun)->range_of_expr (r, cond_rhs)
-	      || r.kind () != VR_RANGE)
+	      || r.undefined_p ()
+	      || r.varying_p ())
 	    continue;
 
 	  wide_int min = r.lower_bound ();
@@ -330,8 +327,6 @@ find_var_cmp_const (pred_chain_union preds, gphi *phi, gimple **flag_def,
 	    cond_rhs = wide_int_to_tree (type, min);
 	  else
 	    continue;
-
-	  use_vrinfo_p = true;
 	}
       else
 	continue;
@@ -344,27 +339,13 @@ find_var_cmp_const (pred_chain_union preds, gphi *phi, gimple **flag_def,
 	  || !find_matching_predicate_in_rest_chains (pred, preds))
 	continue;
 
-      /* Return if any "flag_var comp const" predicate is found.  */
-      if (!use_vrinfo_p)
-	{
-	  *boundary_cst = cond_rhs;
-	  return code;
-	}
-      /* Record if any "flag_var comp flag_var[vinfo]" predicate is found.  */
-      else if (vrinfo_code == ERROR_MARK)
-	{
-	  vrinfo_code = code;
-	  vrinfo_def = *flag_def;
-	  vrinfo_cst = cond_rhs;
-	}
+      /* Return predicate found.  */
+      *boundary_cst = cond_rhs;
+      ++i;
+      return code;
     }
-  /* Return the "flag_var cmp flag_var[vinfo]" predicate we found.  */
-  if (vrinfo_code != ERROR_MARK)
-    {
-      *flag_def = vrinfo_def;
-      *boundary_cst = vrinfo_cst;
-    }
-  return vrinfo_code;
+
+  return ERROR_MARK;
 }
 
 /* Return true if all interesting opnds are pruned, false otherwise.
@@ -640,27 +621,29 @@ uninit_analysis::overlap (gphi *phi, unsigned opnds, hash_set<gphi *> *visited,
 {
   gimple *flag_def = NULL;
   tree boundary_cst = NULL_TREE;
-  bitmap visited_flag_phis = NULL;
 
   /* Find within the common prefix of multiple predicate chains
      a predicate that is a comparison of a flag variable against
      a constant.  */
-  tree_code cmp_code = find_var_cmp_const (use_preds.chain (), phi, &flag_def,
-					   &boundary_cst);
-  if (cmp_code == ERROR_MARK)
-    return true;
+  unsigned i = 0;
+  tree_code cmp_code;
+  while ((cmp_code = find_var_cmp_const (use_preds.chain (), phi, &flag_def,
+					 &boundary_cst, i)) != ERROR_MARK)
+    {
+      /* Now check all the uninit incoming edges have a constant flag
+	 value that is in conflict with the use guard/predicate.  */
+      bitmap visited_flag_phis = NULL;
+      gphi *phi_def = as_a<gphi *> (flag_def);
+      bool all_pruned = prune_phi_opnds (phi, opnds, phi_def, boundary_cst,
+					 cmp_code, visited,
+					 &visited_flag_phis);
+      if (visited_flag_phis)
+	BITMAP_FREE (visited_flag_phis);
+      if (all_pruned)
+	return false;
+    }
 
-  /* Now check all the uninit incoming edges have a constant flag
-     value that is in conflict with the use guard/predicate.  */
-  gphi *phi_def = as_a<gphi *> (flag_def);
-  bool all_pruned = prune_phi_opnds (phi, opnds, phi_def, boundary_cst,
-				     cmp_code, visited,
-				     &visited_flag_phis);
-
-  if (visited_flag_phis)
-    BITMAP_FREE (visited_flag_phis);
-
-  return !all_pruned;
+  return true;
 }
 
 /* Return true if two predicates PRED1 and X2 are equivalent.  Assume
@@ -1162,11 +1145,12 @@ compute_control_dep_chain (basic_block dom_bb, const_basic_block dep_bb,
 			   vec<edge> cd_chains[], unsigned *num_chains,
 			   unsigned in_region = 0)
 {
-  auto_vec<edge, MAX_CHAIN_LEN + 1> cur_cd_chain;
+  auto_vec<edge, 10> cur_cd_chain;
   unsigned num_calls = 0;
   unsigned depth = 0;
   bool complete_p = true;
   /* Walk the post-dominator chain.  */
+  cur_cd_chain.reserve (MAX_CHAIN_LEN + 1);
   compute_control_dep_chain_pdom (dom_bb, dep_bb, NULL, cd_chains,
 				  num_chains, cur_cd_chain, &num_calls,
 				  in_region, depth, &complete_p);
@@ -1830,7 +1814,7 @@ predicate::init_from_control_deps (const vec<edge> *dep_chains,
 		}
 	    }
 	  /* Get the conditional controlling the bb exit edge.  */
-	  gimple *cond_stmt = last_stmt (guard_bb);
+	  gimple *cond_stmt = *gsi_last_bb (guard_bb);
 	  if (gimple_code (cond_stmt) == GIMPLE_COND)
 	    {
 	      /* The true edge corresponds to the uninteresting condition.
@@ -2034,7 +2018,7 @@ uninit_analysis::init_use_preds (predicate &use_preds, basic_block def_bb,
      are logical conjunctions.  Together, the DEP_CHAINS vector is
      used below to initialize an OR expression of the conjunctions.  */
   unsigned num_chains = 0;
-  auto_vec<edge> dep_chains[MAX_NUM_CHAINS];
+  auto_vec<edge> *dep_chains = new auto_vec<edge>[MAX_NUM_CHAINS];
 
   if (!dfs_mark_dominating_region (use_bb, cd_root, in_region, region)
       || !compute_control_dep_chain (cd_root, use_bb, dep_chains, &num_chains,
@@ -2059,6 +2043,7 @@ uninit_analysis::init_use_preds (predicate &use_preds, basic_block def_bb,
      Each OR subexpression is represented by one element of DEP_CHAINS,
      where each element consists of a series of AND subexpressions.  */
   use_preds.init_from_control_deps (dep_chains, num_chains, true);
+  delete[] dep_chains;
   return !use_preds.is_empty ();
 }
 
@@ -2143,7 +2128,7 @@ uninit_analysis::init_from_phi_def (gphi *phi)
       break;
 
   unsigned num_chains = 0;
-  auto_vec<edge> dep_chains[MAX_NUM_CHAINS];
+  auto_vec<edge> *dep_chains = new auto_vec<edge>[MAX_NUM_CHAINS];
   for (unsigned i = 0; i < nedges; i++)
     {
       edge e = def_edges[i];
@@ -2174,6 +2159,7 @@ uninit_analysis::init_from_phi_def (gphi *phi)
      which the PHI operands are defined to values for which M_EVAL is
      false.  */
   m_phi_def_preds.init_from_control_deps (dep_chains, num_chains, false);
+  delete[] dep_chains;
   return !m_phi_def_preds.is_empty ();
 }
 
@@ -2215,11 +2201,11 @@ uninit_analysis::is_use_guarded (gimple *use_stmt, basic_block use_bb,
     return false;
 
   use_preds.simplify (use_stmt, /*is_use=*/true);
+  use_preds.normalize (use_stmt, /*is_use=*/true);
   if (use_preds.is_false ())
     return true;
   if (use_preds.is_true ())
     return false;
-  use_preds.normalize (use_stmt, /*is_use=*/true);
 
   /* Try to prune the dead incoming phi edges.  */
   if (!overlap (phi, opnds, visited, use_preds))
@@ -2237,11 +2223,11 @@ uninit_analysis::is_use_guarded (gimple *use_stmt, basic_block use_bb,
 	return false;
 
       m_phi_def_preds.simplify (phi);
+      m_phi_def_preds.normalize (phi);
       if (m_phi_def_preds.is_false ())
 	return false;
       if (m_phi_def_preds.is_true ())
 	return true;
-      m_phi_def_preds.normalize (phi);
     }
 
   /* Return true if the predicate guarding the valid definition (i.e.,

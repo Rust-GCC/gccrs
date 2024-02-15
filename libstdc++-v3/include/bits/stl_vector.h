@@ -1,6 +1,6 @@
 // Vector implementation -*- C++ -*-
 
-// Copyright (C) 2001-2023 Free Software Foundation, Inc.
+// Copyright (C) 2001-2024 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -64,7 +64,6 @@
 #endif
 #if __cplusplus >= 202002L
 # include <compare>
-#define __cpp_lib_constexpr_vector 201907L
 #endif
 
 #include <debug/assertions.h>
@@ -388,6 +387,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 
     protected:
+
       _GLIBCXX20_CONSTEXPR
       void
       _M_create_storage(size_t __n)
@@ -403,6 +403,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  individual elements in any order.
    *
    *  @ingroup sequences
+   *  @headerfile vector
+   *  @since C++98
    *
    *  @tparam _Tp  Type of element.
    *  @tparam _Alloc  Allocator type, defaults to allocator<_Tp>.
@@ -1071,8 +1073,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       size_type
       capacity() const _GLIBCXX_NOEXCEPT
-      { return size_type(this->_M_impl._M_end_of_storage
-			 - this->_M_impl._M_start); }
+      {
+	return size_type(this->_M_impl._M_end_of_storage
+			   - this->_M_impl._M_start);
+      }
 
       /**
        *  Returns true if the %vector is empty.  (Thus begin() would
@@ -1284,7 +1288,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    _GLIBCXX_ASAN_ANNOTATE_GREW(1);
 	  }
 	else
-	  _M_realloc_insert(end(), __x);
+	  _M_realloc_append(__x);
       }
 
 #if __cplusplus >= 201103L
@@ -1818,6 +1822,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       void
       _M_realloc_insert(iterator __position, const value_type& __x);
+
+      void
+      _M_realloc_append(const value_type& __x);
 #else
       // A value_type object constructed with _Alloc_traits::construct()
       // and destroyed with _Alloc_traits::destroy().
@@ -1866,6 +1873,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_GLIBCXX20_CONSTEXPR
 	void
 	_M_realloc_insert(iterator __position, _Args&&... __args);
+
+      template<typename... _Args>
+	_GLIBCXX20_CONSTEXPR
+	void
+	_M_realloc_append(_Args&&... __args);
 
       // Either move-construct at the end, or forward to _M_insert_aux.
       _GLIBCXX20_CONSTEXPR

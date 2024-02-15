@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -278,6 +278,11 @@ package Stylesw is
    --  This can be set True by using the -gnatyx switch. If true, then it is
    --  not allowed to enclose entire expressions in tests in parentheses
    --  (C style), e.g. if (x = y) then ... is not allowed.
+
+   Style_Check_Xtra_Parens_Precedence : Boolean := False;
+   --  This can be set True by using the -gnatyz switch. If true, then it is
+   --  not allowed to enclose subexpressions in parentheses when not required
+   --  by operator precedence rules, e.g. (X > 1) and (Y < 1).
 
    Style_Max_Line_Length : Nat := 0;
    --  Value used to check maximum line length. Gets reset as a result of

@@ -1,5 +1,5 @@
 /* Rewrite a program in Normal form into SSA.
-   Copyright (C) 2001-2023 Free Software Foundation, Inc.
+   Copyright (C) 2001-2024 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -1707,9 +1707,10 @@ debug_tree_ssa (void)
 static void
 htab_statistics (FILE *file, const hash_table<var_info_hasher> &htab)
 {
-  fprintf (file, "size %ld, %ld elements, %f collision/search ratio\n",
-	   (long) htab.size (),
-	   (long) htab.elements (),
+  fprintf (file, "size " HOST_SIZE_T_PRINT_DEC ", " HOST_SIZE_T_PRINT_DEC
+	   " elements, %f collision/search ratio\n",
+	   (fmt_size_t) htab.size (),
+	   (fmt_size_t) htab.elements (),
 	   htab.collisions ());
 }
 
@@ -2348,8 +2349,7 @@ rewrite_blocks (basic_block entry, enum rewrite_mode what)
 	}
       while (!bitmap_empty_p (worklist))
 	{
-	  int idx = bitmap_first_set_bit (worklist);
-	  bitmap_clear_bit (worklist, idx);
+	  int idx = bitmap_clear_first_set_bit (worklist);
 	  basic_block bb = BASIC_BLOCK_FOR_FN (cfun, idx);
 	  bb->flags |= in_region;
 	  extra_rgn.safe_push (bb);
@@ -2500,7 +2500,7 @@ public:
   /* opt_pass methods: */
   bool gate (function *fun) final override
     {
-      /* Do nothing for funcions that was produced already in SSA form.  */
+      /* Do nothing for functions that were produced already in SSA form.  */
       return !(fun->curr_properties & PROP_ssa);
     }
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2023, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -109,10 +109,12 @@ package Exp_Ch3 is
 
    function Build_Variant_Record_Equality
      (Typ         : Entity_Id;
+      Spec_Id     : Entity_Id;
       Body_Id     : Entity_Id;
       Param_Specs : List_Id) return Node_Id;
    --  Build the body of the equality function Body_Id for the untagged variant
-   --  record Typ with the given parameters specification list.
+   --  record Typ with the given parameters specification list. If Spec_Id is
+   --  present, the body is built for a renaming of the equality function.
 
    function Freeze_Type (N : Node_Id) return Boolean;
    --  This function executes the freezing actions associated with the given
