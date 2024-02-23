@@ -928,7 +928,7 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       if (saw_errors ())
 	break;
 
-      if (flag_name_resolution_2_0)
+      if (true /*flag_name_resolution_2_0*/)
 	{
 	  Resolver2_0::Early early (ctx);
 	  early.go (crate);
