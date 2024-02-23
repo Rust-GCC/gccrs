@@ -907,7 +907,7 @@ Session::expansion (AST::Crate &crate)
 
       auto ctx = Resolver2_0::NameResolutionContext ();
 
-      if (flag_name_resolution_2_0)
+      if (true /*flag_name_resolution_2_0*/)
 	{
 	  Resolver2_0::Early early (ctx);
 	  early.go (crate);
