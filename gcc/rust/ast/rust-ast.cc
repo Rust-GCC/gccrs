@@ -1062,7 +1062,7 @@ Union::as_string () const
 Function::Function (Function const &other)
   : VisItem (other), qualifiers (other.qualifiers),
     function_name (other.function_name), where_clause (other.where_clause),
-    locus (other.locus), is_default (other.is_default)
+    locus (other.locus)
 {
   // guard to prevent null dereference (always required)
   if (other.return_type != nullptr)
@@ -1093,7 +1093,6 @@ Function::operator= (Function const &other)
   // visibility = other.visibility->clone_visibility();
   // outer_attrs = other.outer_attrs;
   locus = other.locus;
-  is_default = other.is_default;
 
   // guard to prevent null dereference (always required)
   if (other.return_type != nullptr)
