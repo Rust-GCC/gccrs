@@ -547,6 +547,7 @@ public:
 // Qualifiers for function, i.e. const, unsafe, extern etc.
 class FunctionQualifiers
 {
+  Default default_status;
   Async async_status;
   Const const_status;
   Unsafety unsafe_status;
@@ -555,12 +556,14 @@ class FunctionQualifiers
   location_t locus;
 
 public:
-  FunctionQualifiers (location_t locus, Async async_status, Const const_status,
+  FunctionQualifiers (location_t locus, Default default_status,
+		      Async async_status, Const const_status,
 		      Unsafety unsafe_status, bool has_extern = false,
 		      std::string extern_abi = std::string ())
-    : async_status (async_status), const_status (const_status),
-      unsafe_status (unsafe_status), has_extern (has_extern),
-      extern_abi (std::move (extern_abi)), locus (locus)
+    : default_status (default_status), async_status (async_status),
+      const_status (const_status), unsafe_status (unsafe_status),
+      has_extern (has_extern), extern_abi (std::move (extern_abi)),
+      locus (locus)
   {
     if (!this->extern_abi.empty ())
       {
@@ -571,6 +574,7 @@ public:
 
   std::string as_string () const;
 
+  bool is_default () const { return default_status == Default::Yes; }
   bool is_unsafe () const { return unsafe_status == Unsafety::Unsafe; }
   bool is_extern () const { return has_extern; }
   bool is_const () const { return const_status == Const::Yes; }
@@ -1343,7 +1347,6 @@ class Function : public VisItem, public AssociatedItem, public ExternalItem
   WhereClause where_clause;
   tl::optional<std::unique_ptr<BlockExpr>> function_body;
   location_t locus;
-  bool has_default;
   bool is_external_function;
 
 public:
@@ -1368,7 +1371,7 @@ public:
 
   bool has_body () const { return function_body.has_value (); }
 
-  bool is_default () const { return has_default; }
+  bool is_default () const { return qualifiers.is_default (); }
 
   // Mega-constructor with all possible fields
   Function (Identifier function_name, FunctionQualifiers qualifiers,
@@ -1377,8 +1380,7 @@ public:
 	    std::unique_ptr<Type> return_type, WhereClause where_clause,
 	    tl::optional<std::unique_ptr<BlockExpr>> function_body,
 	    Visibility vis, std::vector<Attribute> outer_attrs,
-	    location_t locus, bool has_default = false,
-	    bool is_external_function = false)
+	    location_t locus, bool is_external_function = false)
     : VisItem (std::move (vis), std::move (outer_attrs)),
       ExternalItem (Stmt::node_id), qualifiers (std::move (qualifiers)),
       function_name (std::move (function_name)),
@@ -1387,7 +1389,7 @@ public:
       return_type (std::move (return_type)),
       where_clause (std::move (where_clause)),
       function_body (std::move (function_body)), locus (locus),
-      has_default (has_default), is_external_function (is_external_function)
+      is_external_function (is_external_function)
   {}
 
   // TODO: add constructor with less fields
