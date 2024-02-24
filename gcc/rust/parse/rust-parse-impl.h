@@ -1161,10 +1161,9 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
       else if (t->get_str () == Values::WeakKeywords::DEFAULT
 	       && lexer.peek_token (1)->get_id () != EXCLAM)
 	{
-	  add_error (Error (t->get_locus (),
-			    "%qs is only allowed on items within %qs blocks",
-			    "default", "impl"));
-	  return nullptr;
+	  // parse normal functions with `default` qualifier
+	  // they will be rejected in ASTValidation pass
+	  return parse_vis_item (std::move (outer_attrs));
 	}
       else if (is_macro_rules_def (t))
 	{
@@ -1369,10 +1368,14 @@ Parser<ManagedTokenSource>::parse_vis_item (AST::AttrVec outer_attrs)
 	  return parse_union (std::move (vis), std::move (outer_attrs));
 	  // or should item switch go straight to parsing union?
 	}
-      else
+      else if (t->get_id () == IDENTIFIER
+	       && t->get_str () == Values::WeakKeywords::DEFAULT)
 	{
-	  break;
+	  // parse normal functions with `default` qualifier they will be
+	  // rejected in ASTValidation pass
+	  return parse_function (std::move (vis), std::move (outer_attrs));
 	}
+      break;
     case CONST:
       // lookahead to resolve syntactical production
       t = lexer.peek_token (1);
