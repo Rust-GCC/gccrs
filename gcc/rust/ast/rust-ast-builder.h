@@ -188,8 +188,8 @@ public:
 	    std::unique_ptr<Type> return_type, std::unique_ptr<BlockExpr> block,
 	    std::vector<std::unique_ptr<GenericParam>> generic_params = {},
 	    FunctionQualifiers qualifiers
-	    = FunctionQualifiers (UNKNOWN_LOCATION, Async::No, Const::No,
-				  Unsafety::Normal),
+	    = FunctionQualifiers (UNKNOWN_LOCATION, Default::No, Async::No,
+				  Const::No, Unsafety::Normal),
 	    WhereClause where_clause = WhereClause::create_empty (),
 	    Visibility visibility = Visibility::create_private ()) const;
 
