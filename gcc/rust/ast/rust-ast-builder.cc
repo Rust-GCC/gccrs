@@ -149,7 +149,8 @@ Builder::function_param (std::unique_ptr<Pattern> &&pattern,
 FunctionQualifiers
 Builder::fn_qualifiers () const
 {
-  return FunctionQualifiers (loc, Async::No, Const::No, Unsafety::Normal);
+  return FunctionQualifiers (loc, Default::No, Async::No, Const::No,
+			     Unsafety::Normal);
 }
 
 std::unique_ptr<Function>
