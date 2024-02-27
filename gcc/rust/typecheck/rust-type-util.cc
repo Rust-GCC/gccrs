@@ -109,7 +109,7 @@ query_type (HirId reference, TyTy::BaseType **result)
 	= mappings->lookup_hir_extern_block (parent_extern_block_id);
       rust_assert (block != nullptr);
 
-      *result = TypeCheckTopLevelExternItem::Resolve (extern_item, *block);
+      *result = TypeCheckTopLevelExternItem::Resolve (*extern_item, *block);
       context->query_completed (reference);
       return true;
     }

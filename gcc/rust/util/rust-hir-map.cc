@@ -472,7 +472,7 @@ Mappings::insert_hir_impl_block (HIR::ImplBlock *item)
   auto id = item->get_mappings ().get_hirid ();
   rust_assert (lookup_hir_impl_block (id) == nullptr);
 
-  HirId impl_type_id = item->get_type ()->get_mappings ().get_hirid ();
+  HirId impl_type_id = item->get_type ().get_mappings ().get_hirid ();
   hirImplBlockMappings[id] = item;
   hirImplBlockTypeMappings[impl_type_id] = item;
   insert_node_to_hir (item->get_mappings ().get_nodeid (), id);

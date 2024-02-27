@@ -27,6 +27,7 @@
 #include "rust-tyty-util.h"
 #include "rust-tyty-subst.h"
 #include "rust-tyty-region.h"
+#include "rust-hir.h"
 
 #include <limits>
 
@@ -568,15 +569,11 @@ public:
   static std::string variant_type_string (VariantType type);
 
   VariantDef (HirId id, DefId defid, std::string identifier, RustIdent ident,
-	      HIR::Expr *discriminant);
+	      std::unique_ptr<HIR::Expr> &&discriminant);
 
   VariantDef (HirId id, DefId defid, std::string identifier, RustIdent ident,
-	      VariantType type, HIR::Expr *discriminant,
+	      VariantType type, std::unique_ptr<HIR::Expr> &&discriminant,
 	      std::vector<StructFieldType *> fields);
-
-  VariantDef (const VariantDef &other);
-
-  VariantDef &operator= (const VariantDef &other);
 
   static VariantDef &get_error_node ();
   bool is_error () const;
@@ -598,7 +595,7 @@ public:
   bool lookup_field (const std::string &lookup, StructFieldType **field_lookup,
 		     size_t *index) const;
 
-  HIR::Expr *get_discriminant () const;
+  HIR::Expr &get_discriminant ();
 
   std::string as_string () const;
 
@@ -617,7 +614,7 @@ private:
   RustIdent ident;
   VariantType type;
   // can either be a structure or a discriminant value
-  HIR::Expr *discriminant;
+  std::unique_ptr<HIR::Expr> discriminant;
   std::vector<StructFieldType *> fields;
 };
 
@@ -788,8 +785,8 @@ public:
     : CallableTypeInterface (ref, ref, TypeKind::FNDEF, ident, refs),
       SubstitutionRef (std::move (subst_refs), substitution_argument_mappings,
 		       region_constraints),
-      params (std::move (params)), type (type), flags (flags),
-      identifier (identifier), id (id), abi (abi)
+      params (params), type (type), flags (flags), identifier (identifier),
+      id (id), abi (abi)
   {
     LocalDefId local_def_id = id.localDefId;
     rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);
@@ -805,8 +802,8 @@ public:
     : CallableTypeInterface (ref, ty_ref, TypeKind::FNDEF, ident, refs),
       SubstitutionRef (std::move (subst_refs), substitution_argument_mappings,
 		       region_constraints),
-      params (params), type (type), flags (flags), identifier (identifier),
-      id (id), abi (abi)
+      params (std::move (params)), type (type), flags (flags),
+      identifier (identifier), id (id), abi (abi)
   {
     LocalDefId local_def_id = id.localDefId;
     rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);

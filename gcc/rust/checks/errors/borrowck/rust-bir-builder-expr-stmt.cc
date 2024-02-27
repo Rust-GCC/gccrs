@@ -110,14 +110,14 @@ ExprStmtBuilder::visit (HIR::LiteralExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::BorrowExpr &expr)
 {
-  auto operand = visit_expr (*expr.get_expr ());
+  auto operand = visit_expr (expr.get_expr ());
   return_expr (new BorrowExpr (operand), lookup_type (expr));
 }
 
 void
 ExprStmtBuilder::visit (HIR::DereferenceExpr &expr)
 {
-  auto operand = visit_expr (*expr.get_expr ());
+  auto operand = visit_expr (expr.get_expr ());
   return_place (ctx.place_db.lookup_or_add_path (Place::DEREF,
 						 lookup_type (expr), operand));
 }
@@ -132,15 +132,15 @@ ExprStmtBuilder::visit (HIR::ErrorPropagationExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::NegationExpr &expr)
 {
-  PlaceId operand = visit_expr (*expr.get_expr ());
+  PlaceId operand = visit_expr (expr.get_expr ());
   return_expr (new Operator<1> ({make_arg (operand)}), lookup_type (expr));
 }
 
 void
 ExprStmtBuilder::visit (HIR::ArithmeticOrLogicalExpr &expr)
 {
-  PlaceId lhs = visit_expr (*expr.get_lhs ());
-  PlaceId rhs = visit_expr (*expr.get_rhs ());
+  PlaceId lhs = visit_expr (expr.get_lhs ());
+  PlaceId rhs = visit_expr (expr.get_rhs ());
   return_expr (new Operator<2> ({make_arg (lhs), make_arg (rhs)}),
 	       lookup_type (expr));
 }
@@ -148,8 +148,8 @@ ExprStmtBuilder::visit (HIR::ArithmeticOrLogicalExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::ComparisonExpr &expr)
 {
-  PlaceId lhs = visit_expr (*expr.get_lhs ());
-  PlaceId rhs = visit_expr (*expr.get_rhs ());
+  PlaceId lhs = visit_expr (expr.get_lhs ());
+  PlaceId rhs = visit_expr (expr.get_rhs ());
   return_expr (new Operator<2> ({make_arg (lhs), make_arg (rhs)}),
 	       lookup_type (expr));
 }
@@ -165,40 +165,40 @@ ExprStmtBuilder::visit (HIR::LazyBooleanExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::TypeCastExpr &expr)
 {
-  auto operand = visit_expr (*expr.get_expr ());
+  auto operand = visit_expr (expr.get_expr ());
   return_expr (new Operator<1> ({operand}), lookup_type (expr));
 }
 
 void
 ExprStmtBuilder::visit (HIR::AssignmentExpr &expr)
 {
-  auto lhs = visit_expr (*expr.get_lhs ());
-  auto rhs = visit_expr (*expr.get_rhs ());
+  auto lhs = visit_expr (expr.get_lhs ());
+  auto rhs = visit_expr (expr.get_rhs ());
   push_assignment (lhs, rhs);
 }
 
 void
 ExprStmtBuilder::visit (HIR::CompoundAssignmentExpr &expr)
 {
-  auto lhs = visit_expr (*expr.get_lhs ());
-  auto rhs = visit_expr (*expr.get_rhs ());
+  auto lhs = visit_expr (expr.get_lhs ());
+  auto rhs = visit_expr (expr.get_rhs ());
   push_assignment (lhs, new Operator<2> ({lhs, rhs}));
 }
 
 void
 ExprStmtBuilder::visit (HIR::GroupedExpr &expr)
 {
-  return_place (visit_expr (*expr.get_expr_in_parens ()));
+  return_place (visit_expr (expr.get_expr_in_parens ()));
 }
 
 void
 ExprStmtBuilder::visit (HIR::ArrayExpr &expr)
 {
   auto &elems = expr.get_internal_elements ();
-  switch (elems->get_array_expr_type ())
+  switch (elems.get_array_expr_type ())
     {
       case HIR::ArrayElems::VALUES: {
-	auto &elem_vals = (static_cast<HIR::ArrayElemsValues &> (*elems));
+	auto &elem_vals = (static_cast<HIR::ArrayElemsValues &> (elems));
 	auto init_values = visit_list (elem_vals.get_values ());
 	make_args (init_values);
 	return_expr (new InitializerExpr (std::move (init_values)),
@@ -206,8 +206,8 @@ ExprStmtBuilder::visit (HIR::ArrayExpr &expr)
 	break;
       }
       case HIR::ArrayElems::COPIED: {
-	auto &elem_copied = (static_cast<HIR::ArrayElemsCopied &> (*elems));
-	auto init = visit_expr (*elem_copied.get_elem_to_copy ());
+	auto &elem_copied = (static_cast<HIR::ArrayElemsCopied &> (elems));
+	auto init = visit_expr (elem_copied.get_elem_to_copy ());
 	return_expr (new InitializerExpr ({init}), lookup_type (expr));
 	break;
       }
@@ -217,8 +217,8 @@ ExprStmtBuilder::visit (HIR::ArrayExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::ArrayIndexExpr &expr)
 {
-  auto lhs = visit_expr (*expr.get_array_expr ());
-  auto rhs = visit_expr (*expr.get_index_expr ());
+  auto lhs = visit_expr (expr.get_array_expr ());
+  auto rhs = visit_expr (expr.get_index_expr ());
   // The index is not tracked in BIR.
   (void) rhs;
   return_place (
@@ -236,7 +236,7 @@ ExprStmtBuilder::visit (HIR::TupleExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::TupleIndexExpr &expr)
 {
-  auto tuple = visit_expr (*expr.get_tuple_expr ());
+  auto tuple = visit_expr (expr.get_tuple_expr ());
   return_place (ctx.place_db.lookup_or_add_path (Place::FIELD,
 						 lookup_type (expr), tuple,
 						 expr.get_tuple_index ()));
@@ -245,7 +245,7 @@ ExprStmtBuilder::visit (HIR::TupleIndexExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::CallExpr &expr)
 {
-  PlaceId fn = visit_expr (*expr.get_fnexpr ());
+  PlaceId fn = visit_expr (expr.get_fnexpr ());
   std::vector<PlaceId> arguments = visit_list (expr.get_arguments ());
 
   auto *call_type = ctx.place_db[fn].tyty;
@@ -280,7 +280,7 @@ ExprStmtBuilder::visit (HIR::MethodCallExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::FieldAccessExpr &expr)
 {
-  auto receiver = visit_expr (*expr.get_receiver_expr ());
+  auto receiver = visit_expr (expr.get_receiver_expr ());
   auto type = autoderef (receiver);
   rust_assert (type->get_kind () == TyTy::ADT);
   auto adt = type->as<TyTy::ADTType> ();
@@ -329,7 +329,7 @@ ExprStmtBuilder::visit (HIR::BlockExpr &block)
       if (block.has_expr () && !unreachable)
 	{
 	  push_assignment (block_ctx.label_var,
-			   visit_expr (*block.get_final_expr ()));
+			   visit_expr (block.get_final_expr ()));
 	}
       if (!ctx.get_current_bb ().is_terminated ())
 	{
@@ -342,9 +342,9 @@ ExprStmtBuilder::visit (HIR::BlockExpr &block)
     }
   else if (block.has_expr () && !unreachable)
     {
-      return_place (visit_expr (*block.get_final_expr (),
+      return_place (visit_expr (block.get_final_expr (),
 				take_or_create_return_place (
-				  lookup_type (*block.get_final_expr ()))));
+				  lookup_type (block.get_final_expr ()))));
     }
 }
 
@@ -363,7 +363,7 @@ ExprStmtBuilder::visit (HIR::BreakExpr &brk)
   LoopAndLabelCtx info = brk.has_label () ? get_label_ctx (brk.get_label ())
 					  : get_unnamed_loop_ctx ();
   if (brk.has_break_expr ())
-    push_assignment (info.label_var, visit_expr (*brk.get_expr ()));
+    push_assignment (info.label_var, visit_expr (brk.get_expr ()));
 
   push_goto (info.break_bb);
   // No code allowed after continue. Handled in BlockExpr.
@@ -372,22 +372,22 @@ ExprStmtBuilder::visit (HIR::BreakExpr &brk)
 void
 ExprStmtBuilder::visit (HIR::RangeFromToExpr &range)
 {
-  auto from = visit_expr (*range.get_from_expr ());
-  auto to = visit_expr (*range.get_to_expr ());
+  auto from = visit_expr (range.get_from_expr ());
+  auto to = visit_expr (range.get_to_expr ());
   return_expr (new InitializerExpr ({from, to}), lookup_type (range));
 }
 
 void
 ExprStmtBuilder::visit (HIR::RangeFromExpr &expr)
 {
-  auto from = visit_expr (*expr.get_from_expr ());
+  auto from = visit_expr (expr.get_from_expr ());
   return_expr (new InitializerExpr ({from}), lookup_type (expr));
 }
 
 void
 ExprStmtBuilder::visit (HIR::RangeToExpr &expr)
 {
-  auto to = visit_expr (*expr.get_to_expr ());
+  auto to = visit_expr (expr.get_to_expr ());
   return_expr (new InitializerExpr ({to}), lookup_type (expr));
 }
 
@@ -400,15 +400,15 @@ ExprStmtBuilder::visit (HIR::RangeFullExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::RangeFromToInclExpr &expr)
 {
-  auto from = visit_expr (*expr.get_from_expr ());
-  auto to = visit_expr (*expr.get_to_expr ());
+  auto from = visit_expr (expr.get_from_expr ());
+  auto to = visit_expr (expr.get_to_expr ());
   return_expr (new InitializerExpr ({from, to}), lookup_type (expr));
 }
 
 void
 ExprStmtBuilder::visit (HIR::RangeToInclExpr &expr)
 {
-  auto to = visit_expr (*expr.get_to_expr ());
+  auto to = visit_expr (expr.get_to_expr ());
   return_expr (new InitializerExpr ({to}), lookup_type (expr));
 }
 
@@ -417,7 +417,7 @@ ExprStmtBuilder::visit (HIR::ReturnExpr &ret)
 {
   if (ret.has_return_expr ())
     {
-      push_assignment (RETURN_VALUE_PLACE, visit_expr (*ret.get_expr ()));
+      push_assignment (RETURN_VALUE_PLACE, visit_expr (ret.get_expr ()));
     }
   ctx.get_current_bb ().statements.emplace_back (Node::Kind::RETURN);
 }
@@ -436,7 +436,7 @@ ExprStmtBuilder::visit (HIR::LoopExpr &expr)
   push_goto (loop.continue_bb);
 
   ctx.current_bb = loop.continue_bb;
-  (void) visit_expr (*expr.get_loop_block ());
+  (void) visit_expr (expr.get_loop_block ());
   if (!ctx.get_current_bb ().is_terminated ())
     push_goto (loop.continue_bb);
 
@@ -451,12 +451,12 @@ ExprStmtBuilder::visit (HIR::WhileLoopExpr &expr)
   push_goto (loop.continue_bb);
 
   ctx.current_bb = loop.continue_bb;
-  auto cond_val = visit_expr (*expr.get_predicate_expr ());
+  auto cond_val = visit_expr (expr.get_predicate_expr ());
   auto body_bb = new_bb ();
   push_switch (cond_val, {body_bb, loop.break_bb});
 
   ctx.current_bb = body_bb;
-  (void) visit_expr (*expr.get_loop_block ());
+  (void) visit_expr (expr.get_loop_block ());
   push_goto (loop.continue_bb);
 
   ctx.current_bb = loop.break_bb;
@@ -474,15 +474,15 @@ ExprStmtBuilder::visit (HIR::IfExpr &expr)
 {
   // If without else cannot return a non-unit value (see [E0317]).
 
-  if (expr.get_if_block ()->statements.empty ())
+  if (expr.get_if_block ().statements.empty ())
     return;
 
-  push_switch (visit_expr (*expr.get_if_condition ()));
+  push_switch (visit_expr (expr.get_if_condition ()));
   BasicBlockId if_block = ctx.current_bb;
 
   ctx.current_bb = new_bb ();
   BasicBlockId then_start_block = ctx.current_bb;
-  (void) visit_expr (*expr.get_if_block ());
+  (void) visit_expr (expr.get_if_block ());
   if (!ctx.get_current_bb ().is_terminated ())
     push_goto (INVALID_BB); // Resolved later.
   BasicBlockId then_end_block = ctx.current_bb;
@@ -503,21 +503,21 @@ ExprStmtBuilder::visit (HIR::IfExpr &expr)
 void
 ExprStmtBuilder::visit (HIR::IfExprConseqElse &expr)
 {
-  push_switch (make_arg (visit_expr (*expr.get_if_condition ())));
+  push_switch (make_arg (visit_expr (expr.get_if_condition ())));
   BasicBlockId if_end_bb = ctx.current_bb;
 
   PlaceId result = take_or_create_return_place (lookup_type (expr));
 
   ctx.current_bb = new_bb ();
   BasicBlockId then_start_bb = ctx.current_bb;
-  (void) visit_expr (*expr.get_if_block (), result);
+  (void) visit_expr (expr.get_if_block (), result);
   if (!ctx.get_current_bb ().is_terminated ())
     push_goto (INVALID_BB); // Resolved later.
   BasicBlockId then_end_bb = ctx.current_bb;
 
   ctx.current_bb = new_bb ();
   BasicBlockId else_start_bb = ctx.current_bb;
-  (void) visit_expr (*expr.get_else_block (), result);
+  (void) visit_expr (expr.get_else_block (), result);
   if (!ctx.get_current_bb ().is_terminated ())
     push_goto (INVALID_BB); // Resolved later.
   BasicBlockId else_end_bb = ctx.current_bb;
@@ -625,29 +625,29 @@ ExprStmtBuilder::visit (HIR::PathInExpression &expr)
 void
 ExprStmtBuilder::visit (HIR::LetStmt &stmt)
 {
-  if (stmt.get_pattern ()->get_pattern_type () == HIR::Pattern::IDENTIFIER)
+  if (stmt.get_pattern ().get_pattern_type () == HIR::Pattern::IDENTIFIER)
     {
       // Only if a pattern is just an identifier, no destructuring is needed.
       // Hoverer PatternBindingBuilder cannot change existing temporary
       // (init expr is evaluated before pattern binding) into a
       // variable, so it would emit extra assignment.
-      auto var = declare_variable (stmt.get_pattern ()->get_mappings ());
+      auto var = declare_variable (stmt.get_pattern ().get_mappings ());
       auto &var_place = ctx.place_db[var];
       if (var_place.tyty->get_kind () == TyTy::REF)
 	{
 	  var_place.lifetime = ctx.lookup_lifetime (
 	    optional_from_ptr (
-	      static_cast<HIR::ReferenceType *> (stmt.get_type ().get ()))
+	      static_cast<HIR::ReferenceType *> (&stmt.get_type ()))
 	      .map (&HIR::ReferenceType::get_lifetime));
 	}
       if (stmt.has_init_expr ())
-	(void) visit_expr (*stmt.get_init_expr (), var);
+	(void) visit_expr (stmt.get_init_expr (), var);
     }
   else if (stmt.has_init_expr ())
     {
-      auto init = visit_expr (*stmt.get_init_expr ());
-      PatternBindingBuilder (ctx, init, stmt.get_type ().get ())
-	.go (*stmt.get_pattern ());
+      auto init = visit_expr (stmt.get_init_expr ());
+      PatternBindingBuilder (ctx, init, &stmt.get_type ())
+	.go (stmt.get_pattern ());
     }
   else
     {
@@ -659,7 +659,7 @@ ExprStmtBuilder::visit (HIR::LetStmt &stmt)
 void
 ExprStmtBuilder::visit (HIR::ExprStmt &stmt)
 {
-  (void) visit_expr (*stmt.get_expr ());
+  (void) visit_expr (stmt.get_expr ());
 }
 
 } // namespace BIR

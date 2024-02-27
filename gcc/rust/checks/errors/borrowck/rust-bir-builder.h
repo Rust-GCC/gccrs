@@ -37,7 +37,7 @@ public:
   Function build (HIR::Function &function)
   {
     PlaceId return_place
-      = ctx.place_db.add_temporary (lookup_type (*function.get_definition ()));
+      = ctx.place_db.add_temporary (lookup_type (function.get_definition ()));
     rust_assert (return_place == RETURN_VALUE_PLACE);
 
     for (auto &param : function.get_function_params ())
@@ -45,7 +45,7 @@ public:
 	handle_param (param);
       }
 
-    handle_body (*function.get_definition ());
+    handle_body (function.get_definition ());
 
     return Function{std::move (ctx.place_db), std::move (ctx.arguments),
 		    std::move (ctx.basic_blocks)};
@@ -55,19 +55,19 @@ private:
   void handle_param (HIR::FunctionParam &param)
   {
     auto &pattern = param.get_param_name ();
-    if (pattern->get_pattern_type () == HIR::Pattern::IDENTIFIER
-	&& !static_cast<HIR::IdentifierPattern &> (*pattern).get_is_ref ())
+    if (pattern.get_pattern_type () == HIR::Pattern::IDENTIFIER
+	&& !static_cast<HIR::IdentifierPattern &> (pattern).get_is_ref ())
       {
 	// Avoid useless temporary variable for parameter.
-	translated = declare_variable (pattern->get_mappings ());
+	translated = declare_variable (pattern.get_mappings ());
 	ctx.arguments.push_back (translated);
       }
     else
       {
-	translated = ctx.place_db.add_temporary (lookup_type (*pattern));
+	translated = ctx.place_db.add_temporary (lookup_type (pattern));
 	ctx.arguments.push_back (translated);
-	PatternBindingBuilder (ctx, translated, param.get_type ().get ())
-	  .go (*param.get_param_name ());
+	PatternBindingBuilder (ctx, translated, &param.get_type ())
+	  .go (param.get_param_name ());
       }
   }
 
