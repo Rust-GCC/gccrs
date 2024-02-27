@@ -254,6 +254,7 @@ struct CompileOptions
     NameResolution,
     Lowering,
     TypeCheck,
+    SizedCheck,
     Privacy,
     Unsafety,
     Const,
