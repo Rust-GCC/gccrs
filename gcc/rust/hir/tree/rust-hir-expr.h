@@ -200,7 +200,7 @@ protected:
 public:
   location_t get_locus () const override final { return locus; }
 
-  std::unique_ptr<Expr> &get_expr () { return main_or_left_expr; }
+  Expr &get_expr () { return *main_or_left_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -414,8 +414,8 @@ public:
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -486,8 +486,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   ExprType get_kind () { return expr_type; }
 
@@ -560,8 +560,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -622,12 +622,9 @@ public:
   void accept_vis (HIRExpressionVisitor &vis) override;
 
   // FIXME: isn't it the same as get_expr() from parent?
-  std::unique_ptr<Expr> &get_casted_expr () { return main_or_left_expr; }
+  Expr &get_casted_expr () { return *main_or_left_expr; }
 
-  std::unique_ptr<Type> &get_type_to_convert_to ()
-  {
-    return type_to_convert_to;
-  }
+  Type &get_type_to_convert_to () { return *type_to_convert_to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -689,8 +686,8 @@ public:
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -759,9 +756,9 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
 
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
@@ -821,7 +818,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_expr_in_parens () { return expr_in_parens; }
+  Expr &get_expr_in_parens () { return *expr_in_parens; }
 
   ExprType get_expression_type () const override final
   {
@@ -973,9 +970,9 @@ public:
 
   void accept_vis (HIRFullVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_elem_to_copy () { return elem_to_copy; }
+  Expr &get_elem_to_copy () { return *elem_to_copy; }
 
-  std::unique_ptr<Expr> &get_num_copies_expr () { return num_copies; }
+  Expr &get_num_copies_expr () { return *num_copies; }
 
   ArrayElems::ArrayExprType get_array_expr_type () const override final
   {
@@ -1043,10 +1040,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<ArrayElems> &get_internal_elements ()
-  {
-    return internal_elements;
-  };
+  ArrayElems &get_internal_elements () { return *internal_elements; };
 
   ExprType get_expression_type () const override final
   {
@@ -1112,8 +1106,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_array_expr () { return array_expr; }
-  std::unique_ptr<Expr> &get_index_expr () { return index_expr; }
+  Expr &get_array_expr () { return *array_expr; }
+  Expr &get_index_expr () { return *index_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -1266,7 +1260,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_tuple_expr () { return tuple_expr; }
+  Expr &get_tuple_expr () { return *tuple_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -1511,7 +1505,7 @@ protected:
 public:
   std::string as_string () const override;
 
-  std::unique_ptr<Expr> &get_value () { return value; }
+  Expr &get_value () { return *value; }
 };
 
 // Identifier and value variant of StructExprField HIR node
@@ -1784,7 +1778,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_fnexpr () { return function; }
+  bool has_fnexpr () const { return function != nullptr; }
+  Expr &get_fnexpr () { return *function; }
 
   size_t num_params () const { return params.size (); }
 
@@ -1871,7 +1866,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_receiver () { return receiver; }
+  Expr &get_receiver () { return *receiver; }
 
   PathExprSegment &get_method_name () { return method_name; };
   const PathExprSegment &get_method_name () const { return method_name; };
@@ -1955,7 +1950,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_receiver_expr () { return receiver; }
+  Expr &get_receiver_expr () { return *receiver; }
 
   Identifier get_field_name () const { return field; }
 
@@ -2045,9 +2040,9 @@ public:
   }
   std::vector<AST::Attribute> &get_outer_attrs () { return outer_attrs; }
 
-  std::unique_ptr<Pattern> &get_pattern () { return pattern; }
+  Pattern &get_pattern () { return *pattern; }
 
-  std::unique_ptr<Type> &get_type () { return type; }
+  Type &get_type () { return *type; }
 
   location_t get_locus () const { return locus; }
 };
@@ -2115,8 +2110,8 @@ public:
 
   bool has_return_type () const { return return_type != nullptr; }
 
-  std::unique_ptr<Type> &get_return_type () { return return_type; };
-  std::unique_ptr<Expr> &get_expr () { return expr; }
+  Type &get_return_type () { return *return_type; };
+  Expr &get_expr () { return *expr; }
 
   bool has_params () const { return !params.empty (); }
   std::vector<ClosureParam> &get_params () { return params; }
@@ -2230,7 +2225,7 @@ public:
 
   bool is_final_stmt (Stmt *stmt) { return statements.back ().get () == stmt; }
 
-  std::unique_ptr<Expr> &get_final_expr () { return expr; }
+  Expr &get_final_expr () { return *expr; }
 
   std::vector<std::unique_ptr<Stmt> > &get_statements () { return statements; }
 
@@ -2375,7 +2370,7 @@ public:
 
   Lifetime &get_label () { return label; }
 
-  std::unique_ptr<Expr> &get_expr () { return break_expr; }
+  Expr &get_expr () { return *break_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2455,8 +2450,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_from_expr () { return *from; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2509,7 +2504,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
+  Expr &get_from_expr () { return *from; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2563,7 +2558,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2653,8 +2648,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_from_expr () { return *from; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2708,7 +2703,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_to_expr () { return to; };
+  Expr &get_to_expr () { return *to; };
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2777,7 +2772,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_expr () { return return_expr; }
+  Expr &get_expr () { return *return_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2843,7 +2838,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<BlockExpr> &get_block_expr () { return expr; }
+  BlockExpr &get_block_expr () { return *expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2919,7 +2914,7 @@ public:
 
   location_t get_locus () const override final { return locus; }
 
-  std::unique_ptr<HIR::BlockExpr> &get_loop_block () { return loop_block; };
+  HIR::BlockExpr &get_loop_block () { return *loop_block; };
 
   LoopLabel &get_loop_label () { return loop_label; }
 };
@@ -2997,7 +2992,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_predicate_expr () { return condition; }
+  Expr &get_predicate_expr () { return *condition; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3073,7 +3068,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_cond () { return condition; }
+  Expr &get_cond () { return *condition; }
   std::vector<std::unique_ptr<Pattern> > &get_patterns ()
   {
     return match_arm_patterns;
@@ -3156,8 +3151,8 @@ public:
   void vis_if_condition (HIRFullVisitor &vis) { condition->accept_vis (vis); }
   void vis_if_block (HIRFullVisitor &vis) { if_block->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_if_condition () { return condition; }
-  std::unique_ptr<BlockExpr> &get_if_block () { return if_block; }
+  Expr &get_if_condition () { return *condition; }
+  BlockExpr &get_if_block () { return *if_block; }
 
   ExprType get_expression_type () const final override { return ExprType::If; }
 
@@ -3220,7 +3215,7 @@ public:
 
   void vis_else_block (HIRFullVisitor &vis) { else_block->accept_vis (vis); }
 
-  std::unique_ptr<ExprWithBlock> &get_else_block () { return else_block; }
+  ExprWithBlock &get_else_block () { return *else_block; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3311,14 +3306,14 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_scrutinee_expr () { return value; }
+  Expr &get_scrutinee_expr () { return *value; }
 
   std::vector<std::unique_ptr<Pattern> > &get_patterns ()
   {
     return match_arm_patterns;
   }
 
-  std::unique_ptr<BlockExpr> &get_if_block () { return if_block; }
+  BlockExpr &get_if_block () { return *if_block; }
 
   ExprType get_expression_type () const final override
   {
@@ -3391,7 +3386,7 @@ public:
 
   void vis_else_block (HIRFullVisitor &vis) { else_block->accept_vis (vis); }
 
-  std::unique_ptr<ExprWithBlock> &get_else_block () { return else_block; }
+  ExprWithBlock &get_else_block () { return *else_block; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3491,7 +3486,7 @@ public:
     return match_arm_patterns;
   }
 
-  std::unique_ptr<Expr> &get_guard_expr () { return guard_expr; }
+  Expr &get_guard_expr () { return *guard_expr; }
 
   location_t get_locus () const { return locus; }
 };
@@ -3535,7 +3530,7 @@ public:
   Analysis::NodeMapping get_mappings () const { return mappings; }
 
   MatchArm &get_arm () { return arm; }
-  std::unique_ptr<Expr> &get_expr () { return expr; }
+  Expr &get_expr () { return *expr; }
 };
 
 // Match expression HIR node
@@ -3596,7 +3591,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_scrutinee_expr () { return branch_value; }
+  Expr &get_scrutinee_expr () { return *branch_value; }
   AST::AttrVec get_inner_attrs () const { return inner_attrs; }
   const std::vector<MatchCase> &get_match_cases () const { return match_arms; }
   std::vector<MatchCase> &get_match_cases () { return match_arms; }
@@ -3660,7 +3655,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_awaited_expr () { return awaited_expr; }
+  Expr &get_awaited_expr () { return *awaited_expr; }
 
   ExprType get_expression_type () const final override
   {
@@ -3717,7 +3712,7 @@ public:
   location_t get_locus () const override final { return locus; }
 
   bool get_has_move () const { return has_move; }
-  std::unique_ptr<BlockExpr> &get_block_expr () { return block_expr; }
+  BlockExpr &get_block_expr () { return *block_expr; }
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -3742,31 +3737,31 @@ class OperatorExprMeta
 public:
   OperatorExprMeta (HIR::CompoundAssignmentExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::ArithmeticOrLogicalExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::NegationExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::DereferenceExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::ArrayIndexExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_array_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_array_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 

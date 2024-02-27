@@ -28,28 +28,28 @@ TypeCheckPattern::TypeCheckPattern (TyTy::BaseType *parent)
 {}
 
 TyTy::BaseType *
-TypeCheckPattern::Resolve (HIR::Pattern *pattern, TyTy::BaseType *parent)
+TypeCheckPattern::Resolve (HIR::Pattern &pattern, TyTy::BaseType *parent)
 {
   TypeCheckPattern resolver (parent);
-  pattern->accept_vis (resolver);
+  pattern.accept_vis (resolver);
 
   if (resolver.infered == nullptr)
-    return new TyTy::ErrorType (pattern->get_mappings ().get_hirid ());
+    return new TyTy::ErrorType (pattern.get_mappings ().get_hirid ());
 
-  resolver.context->insert_type (pattern->get_mappings (), resolver.infered);
+  resolver.context->insert_type (pattern.get_mappings (), resolver.infered);
   return resolver.infered;
 }
 
 void
 TypeCheckPattern::visit (HIR::PathInExpression &pattern)
 {
-  infered = TypeCheckExpr::Resolve (&pattern);
+  infered = TypeCheckExpr::Resolve (pattern);
 }
 
 void
 TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
 {
-  TyTy::BaseType *pattern_ty = TypeCheckExpr::Resolve (&pattern.get_path ());
+  TyTy::BaseType *pattern_ty = TypeCheckExpr::Resolve (pattern.get_path ());
   if (pattern_ty->get_kind () != TyTy::TypeKind::ADT)
     {
       rust_error_at (
@@ -98,8 +98,8 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
   // error[E0023]: this pattern has 0 fields, but the corresponding tuple
   // variant has 1 field
 
-  std::unique_ptr<HIR::TupleStructItems> &items = pattern.get_items ();
-  switch (items->get_item_type ())
+  auto &items = pattern.get_items ();
+  switch (items.get_item_type ())
     {
       case HIR::TupleStructItems::RANGED: {
 	// TODO
@@ -109,7 +109,7 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
 
       case HIR::TupleStructItems::MULTIPLE: {
 	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (*items.get ());
+	  = static_cast<HIR::TupleStructItemsNoRange &> (items);
 
 	if (items_no_range.get_patterns ().size () != variant->num_fields ())
 	  {
@@ -153,7 +153,7 @@ emit_invalid_field_error (location_t loc, Rust::TyTy::VariantDef *variant,
 void
 TypeCheckPattern::visit (HIR::StructPattern &pattern)
 {
-  TyTy::BaseType *pattern_ty = TypeCheckExpr::Resolve (&pattern.get_path ());
+  TyTy::BaseType *pattern_ty = TypeCheckExpr::Resolve (pattern.get_path ());
   if (pattern_ty->get_kind () != TyTy::TypeKind::ADT)
     {
       rust_error_at (pattern.get_locus (),
@@ -215,7 +215,7 @@ TypeCheckPattern::visit (HIR::StructPattern &pattern)
 
 	  case HIR::StructPatternField::ItemType::IDENT_PAT: {
 	    HIR::StructPatternFieldIdentPat &ident
-	      = static_cast<HIR::StructPatternFieldIdentPat &> (*field.get ());
+	      = static_cast<HIR::StructPatternFieldIdentPat &> (*field);
 
 	    TyTy::StructFieldType *field = nullptr;
 	    if (!variant->lookup_field (ident.get_identifier ().as_string (),
@@ -228,13 +228,13 @@ TypeCheckPattern::visit (HIR::StructPattern &pattern)
 	    named_fields.push_back (ident.get_identifier ().as_string ());
 
 	    TyTy::BaseType *fty = field->get_field_type ();
-	    TypeCheckPattern::Resolve (ident.get_pattern ().get (), fty);
+	    TypeCheckPattern::Resolve (ident.get_pattern (), fty);
 	  }
 	  break;
 
 	  case HIR::StructPatternField::ItemType::IDENT: {
 	    HIR::StructPatternFieldIdent &ident
-	      = static_cast<HIR::StructPatternFieldIdent &> (*field.get ());
+	      = static_cast<HIR::StructPatternFieldIdent &> (*field);
 
 	    TyTy::StructFieldType *field = nullptr;
 	    if (!variant->lookup_field (ident.get_identifier ().as_string (),
@@ -295,12 +295,11 @@ void
 TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 {
   std::unique_ptr<HIR::TuplePatternItems> items;
-  switch (pattern.get_items ()->get_item_type ())
+  switch (pattern.get_items ().get_item_type ())
     {
       case HIR::TuplePatternItems::ItemType::MULTIPLE: {
-	HIR::TuplePatternItemsMultiple &ref
-	  = *static_cast<HIR::TuplePatternItemsMultiple *> (
-	    pattern.get_items ().get ());
+	auto &ref = static_cast<HIR::TuplePatternItemsMultiple &> (
+	  pattern.get_items ());
 
 	auto resolved_parent = parent->destructure ();
 	if (resolved_parent->get_kind () != TyTy::TUPLE)
@@ -329,8 +328,7 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	    auto &p = patterns[i];
 	    TyTy::BaseType *par_type = par.get_field (i);
 
-	    TyTy::BaseType *elem
-	      = TypeCheckPattern::Resolve (p.get (), par_type);
+	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
 	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
 	  }
 	infered = new TyTy::TupleType (pattern.get_mappings ().get_hirid (),
@@ -398,10 +396,10 @@ TypeCheckPattern::visit (HIR::ReferencePattern &pattern)
       return;
     }
 
-  TyTy::ReferenceType *ref_ty_ty = static_cast<TyTy::ReferenceType *> (parent);
+  auto &ref_ty_ty = static_cast<TyTy::ReferenceType &> (*parent);
   TyTy::BaseType *infered_base
-    = TypeCheckPattern::Resolve (pattern.get_referenced_pattern ().get (),
-				 ref_ty_ty->get_base ());
+    = TypeCheckPattern::Resolve (pattern.get_referenced_pattern (),
+				 ref_ty_ty.get_base ());
   infered = new TyTy::ReferenceType (pattern.get_mappings ().get_hirid (),
 				     TyTy::TyVar (infered_base->get_ref ()),
 				     pattern.is_mut () ? Mutability::Mut
@@ -433,15 +431,14 @@ TypeCheckPattern::emit_pattern_size_error (const HIR::Pattern &pattern,
 
 TyTy::BaseType *
 TypeCheckPattern::typecheck_range_pattern_bound (
-  std::unique_ptr<Rust::HIR::RangePatternBound> &bound,
-  Analysis::NodeMapping mappings, location_t locus)
+  Rust::HIR::RangePatternBound &bound, Analysis::NodeMapping mappings,
+  location_t locus)
 {
   TyTy::BaseType *resolved_bound = nullptr;
-  switch (bound->get_bound_type ())
+  switch (bound.get_bound_type ())
     {
       case HIR::RangePatternBound::RangePatternBoundType::LITERAL: {
-	HIR::RangePatternBoundLiteral &ref
-	  = *static_cast<HIR::RangePatternBoundLiteral *> (bound.get ());
+	auto &ref = static_cast<HIR::RangePatternBoundLiteral &> (bound);
 
 	HIR::Literal lit = ref.get_literal ();
 
@@ -450,18 +447,16 @@ TypeCheckPattern::typecheck_range_pattern_bound (
       break;
 
       case HIR::RangePatternBound::RangePatternBoundType::PATH: {
-	HIR::RangePatternBoundPath &ref
-	  = *static_cast<HIR::RangePatternBoundPath *> (bound.get ());
+	auto &ref = static_cast<HIR::RangePatternBoundPath &> (bound);
 
-	resolved_bound = TypeCheckExpr::Resolve (&ref.get_path ());
+	resolved_bound = TypeCheckExpr::Resolve (ref.get_path ());
       }
       break;
 
       case HIR::RangePatternBound::RangePatternBoundType::QUALPATH: {
-	HIR::RangePatternBoundQualPath &ref
-	  = *static_cast<HIR::RangePatternBoundQualPath *> (bound.get ());
+	auto &ref = static_cast<HIR::RangePatternBoundQualPath &> (bound);
 
-	resolved_bound = TypeCheckExpr::Resolve (&ref.get_qualified_path ());
+	resolved_bound = TypeCheckExpr::Resolve (ref.get_qualified_path ());
       }
       break;
     }
@@ -478,7 +473,7 @@ TypeCheckPattern::visit (HIR::AltPattern &pattern)
   std::vector<TyTy::BaseType *> types;
   for (auto &alt_pattern : alts)
     {
-      types.push_back (TypeCheckPattern::Resolve (alt_pattern.get (), parent));
+      types.push_back (TypeCheckPattern::Resolve (*alt_pattern, parent));
     }
 
   TyTy::BaseType *alt_pattern_type
@@ -497,16 +492,16 @@ TypeCheckPattern::visit (HIR::AltPattern &pattern)
 }
 
 TyTy::BaseType *
-ClosureParamInfer::Resolve (HIR::Pattern *pattern)
+ClosureParamInfer::Resolve (HIR::Pattern &pattern)
 {
   ClosureParamInfer resolver;
-  pattern->accept_vis (resolver);
+  pattern.accept_vis (resolver);
 
   if (resolver.infered->get_kind () != TyTy::TypeKind::ERROR)
     {
       resolver.context->insert_implicit_type (resolver.infered);
       resolver.mappings.insert_location (resolver.infered->get_ref (),
-					 pattern->get_locus ());
+					 pattern.get_locus ());
     }
   return resolver.infered;
 }
@@ -537,7 +532,7 @@ void
 ClosureParamInfer::visit (HIR::ReferencePattern &pattern)
 {
   TyTy::BaseType *element
-    = ClosureParamInfer::Resolve (pattern.get_referenced_pattern ().get ());
+    = ClosureParamInfer::Resolve (pattern.get_referenced_pattern ());
 
   HirId id = pattern.get_mappings ().get_hirid ();
   infered = new TyTy::ReferenceType (id, TyTy::TyVar (element->get_ref ()),

@@ -19,10 +19,12 @@
 #include "rust-hir-type-check.h"
 #include "rust-hir-full.h"
 #include "rust-hir-inherent-impl-overlap.h"
+#include "rust-hir-pattern.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-item.h"
 #include "rust-hir-type-check-pattern.h"
 #include "rust-hir-type-check-struct-field.h"
+#include "rust-make-unique.h"
 
 extern bool
 saw_errors (void);
@@ -136,11 +138,10 @@ TyTy::BaseType *
 TraitItemReference::get_type_from_constant (
   /*const*/ HIR::TraitItemConst &constant) const
 {
-  TyTy::BaseType *type = TypeCheckType::Resolve (constant.get_type ().get ());
+  TyTy::BaseType *type = TypeCheckType::Resolve (constant.get_type ());
   if (constant.has_expr ())
     {
-      TyTy::BaseType *expr
-	= TypeCheckExpr::Resolve (constant.get_expr ().get ());
+      TyTy::BaseType *expr = TypeCheckExpr::Resolve (constant.get_expr ());
 
       return unify_site (constant.get_mappings ().get_hirid (),
 			 TyTy::TyWithLocation (type),
@@ -181,7 +182,7 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 
 	      case HIR::GenericParam::GenericKind::TYPE: {
 		auto param_type
-		  = TypeResolveGenericParam::Resolve (generic_param.get ());
+		  = TypeResolveGenericParam::Resolve (*generic_param);
 		context->insert_type (generic_param->get_mappings (),
 				      param_type);
 
@@ -205,8 +206,7 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
     ret_type = TyTy::TupleType::get_unit_type (fn.get_mappings ().get_hirid ());
   else
     {
-      auto resolved
-	= TypeCheckType::Resolve (function.get_return_type ().get ());
+      auto resolved = TypeCheckType::Resolve (function.get_return_type ());
       if (resolved->get_kind () == TyTy::TypeKind::ERROR)
 	{
 	  rust_error_at (fn.get_locus (), "failed to resolve return type");
@@ -215,10 +215,12 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 
       ret_type = resolved->clone ();
       ret_type->set_ref (
-	function.get_return_type ()->get_mappings ().get_hirid ());
+	function.get_return_type ().get_mappings ().get_hirid ());
     }
 
   std::vector<std::pair<HIR::Pattern *, TyTy::BaseType *> > params;
+
+  std::unique_ptr<HIR::IdentifierPattern> self_pattern = nullptr;
   if (function.is_method ())
     {
       // these are implicit mappings and not used
@@ -232,16 +234,17 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
       // for compilation to know parameter names. The types are ignored
       // but we reuse the HIR identifier pattern which requires it
       HIR::SelfParam &self_param = function.get_self ();
-      HIR::IdentifierPattern *self_pattern = new HIR::IdentifierPattern (
-	mapping, {"self"}, self_param.get_locus (), self_param.is_ref (),
-	self_param.is_mut () ? Mutability::Mut : Mutability::Imm,
-	std::unique_ptr<HIR::Pattern> (nullptr));
+      self_pattern
+	= Rust::make_unique<HIR::IdentifierPattern> (HIR::IdentifierPattern (
+	  mapping, {"self"}, self_param.get_locus (), self_param.is_ref (),
+	  self_param.is_mut () ? Mutability::Mut : Mutability::Imm,
+	  std::unique_ptr<HIR::Pattern> (nullptr)));
       // might have a specified type
       TyTy::BaseType *self_type = nullptr;
       if (self_param.has_type ())
 	{
-	  std::unique_ptr<HIR::Type> &specified_type = self_param.get_type ();
-	  self_type = TypeCheckType::Resolve (specified_type.get ());
+	  HIR::Type &specified_type = self_param.get_type ();
+	  self_type = TypeCheckType::Resolve (specified_type);
 	}
       else
 	{
@@ -284,18 +287,20 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 
       context->insert_type (self_param.get_mappings (), self_type);
       params.push_back (
-	std::pair<HIR::Pattern *, TyTy::BaseType *> (self_pattern, self_type));
+	std::pair<HIR::Pattern *, TyTy::BaseType *> (self_pattern.get (),
+						     self_type));
     }
 
   for (auto &param : function.get_function_params ())
     {
       // get the name as well required for later on
-      auto param_tyty = TypeCheckType::Resolve (param.get_type ().get ());
-      params.push_back (std::pair<HIR::Pattern *, TyTy::BaseType *> (
-	param.get_param_name ().get (), param_tyty));
+      auto param_tyty = TypeCheckType::Resolve (param.get_type ());
+      params.push_back (
+	std::pair<HIR::Pattern *, TyTy::BaseType *> (&param.get_param_name (),
+						     param_tyty));
 
       context->insert_type (param.get_mappings (), param_tyty);
-      TypeCheckPattern::Resolve (param.get_param_name ().get (), param_tyty);
+      TypeCheckPattern::Resolve (param.get_param_name (), param_tyty);
     }
 
   auto &mappings = Analysis::Mappings::get ();
@@ -308,7 +313,7 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
     function.get_function_name ().as_string (), ident,
     function.is_method () ? TyTy::FnType::FNTYPE_IS_METHOD_FLAG
 			  : TyTy::FnType::FNTYPE_DEFAULT_FLAGS,
-    ABI::RUST, std::move (params), ret_type, substitutions,
+    ABI::RUST, params, ret_type, substitutions,
     TyTy::SubstitutionArgumentMappings::empty (
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);

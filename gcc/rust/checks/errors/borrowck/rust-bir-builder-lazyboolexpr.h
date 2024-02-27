@@ -61,15 +61,15 @@ public:
 protected:
   void visit (HIR::LazyBooleanExpr &expr) override
   {
-    auto lhs = visit_expr (*expr.get_lhs ());
+    auto lhs = visit_expr (expr.get_lhs ());
     push_switch (move_place (lhs), {short_circuit_bb});
 
     start_new_consecutive_bb ();
-    return_place (visit_expr (*expr.get_rhs ()));
+    return_place (visit_expr (expr.get_rhs ()));
   }
   void visit (HIR::GroupedExpr &expr) override
   {
-    expr.get_expr_in_parens ()->accept_vis (*this);
+    expr.get_expr_in_parens ().accept_vis (*this);
   }
 
 protected:
