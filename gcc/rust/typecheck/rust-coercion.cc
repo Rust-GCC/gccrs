@@ -18,6 +18,7 @@
 
 #include "rust-coercion.h"
 #include "rust-type-util.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Resolver {
@@ -136,6 +137,13 @@ TypeCoercionRules::do_coercion (TyTy::BaseType *receiver)
 	  = static_cast<TyTy::ReferenceType *> (expected);
 	try_result
 	  = coerce_borrowed_pointer (receiver, ptr, ptr->mutability ());
+	return !try_result.is_error ();
+      }
+      case TyTy::TypeKind::FNPTR: {
+	TyTy::CallableTypeInterface *ptr
+	  = static_cast<TyTy::CallableTypeInterface *> (expected);
+	try_result = coerce_function_pointer (receiver, ptr);
+
 	return !try_result.is_error ();
       }
       break;
@@ -303,6 +311,53 @@ TypeCoercionRules::coerce_borrowed_pointer (TyTy::BaseType *receiver,
   rust_debug ("coerce_borrowed_pointer -- autoderef cycle");
   AutoderefCycle::cycle (receiver);
   rust_debug ("coerce_borrowed_pointer -- result: [%s] with adjustments: [%zu]",
+	      try_result.is_error () ? "failed" : "matched",
+	      try_result.adjustments.size ());
+
+  return try_result;
+}
+
+// FIXME(Arthur): Add documentation
+TypeCoercionRules::CoercionResult
+TypeCoercionRules::coerce_function_pointer (
+  TyTy::BaseType *receiver, TyTy::CallableTypeInterface *expected)
+
+{
+  rust_debug ("coerce_function_pointer(a={%s}, b={%s})",
+	      receiver->debug_str ().c_str (), expected->debug_str ().c_str ());
+
+  switch (receiver->get_kind ())
+    {
+      case TyTy::TypeKind::REF: {
+	TyTy::ReferenceType *from
+	  = static_cast<TyTy::ReferenceType *> (receiver);
+      }
+      break;
+
+      default: {
+	// FIXME
+	// we might be able to replace this with a can_eq because we default
+	// back to a final unity anyway
+	rust_debug ("coerce_function_pointer -- unify");
+	TyTy::BaseType *result
+	  = unify_site_and (receiver->get_ref (),
+			    TyTy::TyWithLocation (receiver),
+			    TyTy::TyWithLocation (expected), locus,
+			    false /*emit_errors*/, !try_flag /*commit_if_ok*/,
+			    try_flag /* infer */,
+			    try_flag /*cleanup_on_failure*/);
+	bool default_coerceion_ok
+	  = result->get_kind () != TyTy::TypeKind::ERROR;
+	if (default_coerceion_ok)
+	  return CoercionResult{{}, result};
+
+	return TypeCoercionRules::CoercionResult::get_error ();
+      }
+    }
+
+  rust_debug ("coerce_function_pointer -- autoderef cycle");
+  AutoderefCycle::cycle (receiver);
+  rust_debug ("coerce_function_pointer -- result: [%s] with adjustments: [%zu]",
 	      try_result.is_error () ? "failed" : "matched",
 	      try_result.adjustments.size ());
 

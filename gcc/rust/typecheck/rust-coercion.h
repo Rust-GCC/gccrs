@@ -59,6 +59,10 @@ public:
 					  TyTy::ReferenceType *expected,
 					  Mutability mutability);
 
+  CoercionResult
+  coerce_function_pointer (TyTy::BaseType *receiver,
+			   TyTy::CallableTypeInterface *expected);
+
   CoercionResult coerce_unsized (TyTy::BaseType *receiver,
 				 TyTy::BaseType *expected, bool &unsafe_error);
 
