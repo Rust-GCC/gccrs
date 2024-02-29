@@ -69,6 +69,7 @@ public:
   void visit (AST::ReturnExpr &);
   void visit (AST::CallExpr &);
   void visit (AST::MethodCallExpr &);
+  void visit (AST::UnsafeBlockExpr &);
   void visit (AST::LoopExpr &);
   void visit (AST::WhileLoopExpr &);
   void visit (AST::WhileLetLoopExpr &);

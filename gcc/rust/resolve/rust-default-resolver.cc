@@ -290,6 +290,10 @@ DefaultResolver::visit (AST::MethodCallExpr &expr)
 }
 
 void
+DefaultResolver::visit (AST::UnsafeBlockExpr &expr)
+{}
+
+void
 DefaultResolver::visit (AST::LoopExpr &expr)
 {}
 
