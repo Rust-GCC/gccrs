@@ -149,6 +149,19 @@ DefaultResolver::visit (AST::StructStruct &type)
 }
 
 void
+DefaultResolver::visit (AST::TupleStruct &type)
+{
+  // do we need to scope anything here? no, right?
+
+  // we also can't visit `StructField`s by default, so there's nothing to do -
+  // correct? or should we do something like
+
+  AST::DefaultASTVisitor::visit (type);
+
+  // FIXME: ???
+}
+
+void
 DefaultResolver::visit (AST::Enum &type)
 {
   // FIXME: Do we need to scope anything by default?
