@@ -49,14 +49,15 @@ TopLevel::insert_or_error_out (const Identifier &identifier,
 
   if (!result)
     {
-      // can we do something like check if the node id is the same? if it is the
-      // same, it's not an error, just the resolver running multiple times?
+      if (result.error ().existing != node_id)
+	{
+	  rich_location rich_loc (line_table, locus);
+	  rich_loc.add_range (node_locations[result.error ().existing]);
 
-      rich_location rich_loc (line_table, locus);
-      rich_loc.add_range (node_locations[result.error ().existing]);
-
-      rust_error_at (rich_loc, ErrorCode::E0428, "%qs defined multiple times",
-		     identifier.as_string ().c_str ());
+	  rust_error_at (rich_loc, ErrorCode::E0428,
+			 "%qs defined multiple times",
+			 identifier.as_string ().c_str ());
+	}
     }
   // HACK: ignore macro namespace for change detection
   // we get infinite loops otherwise, since macros can shadow each other
@@ -174,7 +175,7 @@ TopLevel::visit (AST::MacroRulesDefinition &macro)
     {
       auto res = ctx.macros.insert_at_root (macro.get_rule_name (),
 					    macro.get_node_id ());
-      if (!res)
+      if (!res && res.error ().existing != macro.get_node_id ())
 	{
 	  // TODO: Factor this
 	  rich_location rich_loc (line_table, macro.get_locus ());
