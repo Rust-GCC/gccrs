@@ -91,7 +91,7 @@ private:
   // Call this on all the paths of a UseDec - so each flattened path in a
   // UseTreeList for example
   // FIXME: Should that return `found`?
-  bool handle_use_dec (AST::SimplePath path);
+  bool handle_use_dec (Import &import);
 
   std::vector<Error> error_queue;
   void collect_error (Error err) { error_queue.push_back (std::move (err)); }
