@@ -330,5 +330,12 @@ Early::visit (AST::StructStruct &s)
   DefaultResolver::visit (s);
 }
 
+void
+Early::visit (AST::TupleStruct &s)
+{
+  visit_attributes (s.get_outer_attrs ());
+  DefaultResolver::visit (s);
+}
+
 } // namespace Resolver2_0
 } // namespace Rust

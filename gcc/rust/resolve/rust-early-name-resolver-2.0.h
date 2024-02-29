@@ -53,6 +53,7 @@ public:
 
   void visit (AST::Function &) override;
   void visit (AST::StructStruct &) override;
+  void visit (AST::TupleStruct &) override;
 
   bool has_changed () const { return f_has_changed; }
   void mark_changed () { f_has_changed = true; }
