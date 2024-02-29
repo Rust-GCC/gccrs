@@ -44,6 +44,15 @@ DefaultResolver::visit (AST::BlockExpr &expr)
 void
 DefaultResolver::visit (AST::Module &module)
 {
+  // Parse the module's items if they haven't been expanded and the file
+  // should be parsed (i.e isn't hidden behind an untrue or impossible cfg
+  // directive
+  // TODO: make sure this is right
+  // This was copied from the old early resolver method
+  // 'accumulate_escaped_macros'
+  if (module.get_kind () == AST::Module::UNLOADED)
+    module.load_items ();
+
   auto item_fn = [this, &module] () {
     for (auto &item : module.get_items ())
       item->accept_vis (*this);
