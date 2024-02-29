@@ -24,7 +24,9 @@
 namespace Rust {
 namespace Resolver2_0 {
 
-Early::Early (NameResolutionContext &ctx) : DefaultResolver (ctx) {}
+Early::Early (NameResolutionContext &ctx)
+  : DefaultResolver (ctx), f_has_changed (false)
+{}
 
 void
 Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
@@ -39,7 +41,10 @@ Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
   auto exists = ctx.mappings.lookup_macro_invocation (invocation, &existing);
 
   if (!exists)
-    ctx.mappings.insert_macro_invocation (invocation, definition);
+    {
+      ctx.mappings.insert_macro_invocation (invocation, definition);
+      mark_changed ();
+    }
 }
 
 void
@@ -50,7 +55,10 @@ Early::insert_once (AST::MacroRulesDefinition &def)
   auto exists = ctx.mappings.lookup_macro_def (def.get_node_id (), &definition);
 
   if (!exists)
-    ctx.mappings.insert_macro_def (&def);
+    {
+      ctx.mappings.insert_macro_def (&def);
+      mark_changed ();
+    }
 }
 
 void

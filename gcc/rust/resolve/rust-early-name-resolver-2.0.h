@@ -54,6 +54,9 @@ public:
   void visit (AST::Function &) override;
   void visit (AST::StructStruct &) override;
 
+  bool has_changed () const { return f_has_changed; }
+  void mark_changed () { f_has_changed = true; }
+
 private:
   void visit_attributes (std::vector<AST::Attribute> &attrs);
 
@@ -93,6 +96,7 @@ private:
 
   TextualScope textual_scope;
   std::vector<Error> macro_resolve_errors;
+  bool f_has_changed;
 
   void collect_error (Error e) { macro_resolve_errors.push_back (e); }
 };
