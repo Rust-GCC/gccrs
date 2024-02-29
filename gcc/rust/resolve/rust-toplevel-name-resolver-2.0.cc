@@ -295,15 +295,6 @@ TopLevel::visit (AST::Union &union_item)
 		       Namespace::Types);
 }
 
-void
-TopLevel::visit (AST::ConstantItem &const_item)
-{
-  auto expr_vis
-    = [this, &const_item] () { const_item.get_expr ().accept_vis (*this); };
-
-  ctx.scoped (Rib::Kind::ConstantItem, const_item.get_node_id (), expr_vis);
-}
-
 bool
 TopLevel::handle_use_dec (AST::SimplePath path)
 {
