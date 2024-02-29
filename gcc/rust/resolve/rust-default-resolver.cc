@@ -550,8 +550,18 @@ DefaultResolver::visit (AST::ExternalStaticItem &)
 {}
 
 void
-DefaultResolver::visit (AST::ExternalFunctionItem &)
-{}
+DefaultResolver::visit (AST::ExternalFunctionItem &function)
+{
+  auto def_fn = [this, &function] () {
+    for (auto &p : function.get_function_params ())
+      if (p.has_type ())
+	p.get_type ()->accept_vis (*this);
+    if (function.has_return_type ())
+      function.get_return_type ()->accept_vis (*this);
+  };
+
+  ctx.scoped (Rib::Kind::Function, function.get_node_id (), def_fn);
+}
 
 void
 DefaultResolver::visit (AST::MacroMatchRepetition &)
