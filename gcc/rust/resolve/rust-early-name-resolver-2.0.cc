@@ -240,6 +240,20 @@ Early::visit_attributes (std::vector<AST::Attribute> &attrs)
 	  auto traits = attr.get_traits_to_derive ();
 	  for (auto &trait : traits)
 	    {
+	      // HACK: skip resolution of derive macros which look like
+	      // builtins
+	      //
+	      // This does not properly handle code such as
+	      //     use Clone as Foo;
+	      //     #[derive(Foo)]
+	      //     struct S;
+	      //
+	      // Builtin derive macros should probably be handled
+	      // in a fashion more similar to custom derive macros
+	      if (MacroBuiltin::builtins.is_iter_ok (
+		    MacroBuiltin::builtins.lookup (trait.get ().as_string ())))
+		continue;
+
 	      auto definition
 		= ctx.macros.resolve_path (trait.get ().get_segments ());
 	      if (!definition.has_value ())
