@@ -67,6 +67,10 @@ public:
 
   void go (AST::Crate &crate);
 
+  bool has_changed () { return f_has_changed; }
+
+  std::vector<Error> &get_errors () { return error_queue; }
+
 private:
   /**
    * Insert a new definition or error out if a definition with the same name was
@@ -90,6 +94,9 @@ private:
   // Store node forwarding for use declaration, the link between a
   // "new" local name and its definition.
   std::unordered_map<NodeId, NodeId> node_forwarding;
+
+  void mark_changed () { f_has_changed = true; }
+  bool f_has_changed;
 
   void visit (AST::Module &module) override;
   void visit (AST::Trait &trait) override;
@@ -115,6 +122,9 @@ private:
   bool handle_use_dec (AST::SimplePath &path);
   bool handle_use_glob (AST::SimplePath &glob);
   bool handle_rebind (std::pair<AST::SimplePath, AST::UseTreeRebind> &pair);
+
+  std::vector<Error> error_queue;
+  void collect_error (Error err) { error_queue.push_back (std::move (err)); }
 
   void visit (AST::UseDeclaration &use) override;
 };

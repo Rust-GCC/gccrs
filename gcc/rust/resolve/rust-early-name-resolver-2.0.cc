@@ -56,8 +56,20 @@ void
 Early::go (AST::Crate &crate)
 {
   // First we go through TopLevel resolution to get all our declared items
-  auto toplevel = TopLevel (ctx);
-  toplevel.go (crate);
+  // This is fixed point, in order to ensure full processing of declared items
+  // not currently hidden behind macros
+  while (1)
+    {
+      auto toplevel = TopLevel (ctx);
+      toplevel.go (crate);
+      if (!toplevel.has_changed ())
+	{
+	  std::move (toplevel.get_errors ().begin (),
+		     toplevel.get_errors ().end (),
+		     std::back_inserter (macro_resolve_errors));
+	  break;
+	}
+    }
 
   textual_scope.push ();
 
