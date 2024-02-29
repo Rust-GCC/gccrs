@@ -80,7 +80,7 @@ TopLevel::go (AST::Crate &crate)
 void
 TopLevel::visit (AST::Module &module)
 {
-  // FIXME: Do we need to insert the module in the type namespace?
+  insert_or_error_out (module.get_name (), module, Namespace::Types);
 
   auto sub_visitor = [this, &module] () {
     for (auto &item : module.get_items ())
@@ -298,6 +298,14 @@ TopLevel::visit (AST::Union &union_item)
 {
   insert_or_error_out (union_item.get_identifier (), union_item,
 		       Namespace::Types);
+}
+
+void
+TopLevel::visit (AST::Trait &trait_item)
+{
+  insert_or_error_out (trait_item.get_identifier (), trait_item,
+		       Namespace::Types);
+  DefaultResolver::visit (trait_item);
 }
 
 void
