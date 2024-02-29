@@ -43,6 +43,10 @@ public:
 
   void go (AST::Crate &crate);
 
+  bool has_changed () { return f_has_changed; }
+
+  std::vector<Error> &get_errors () { return error_queue; }
+
 private:
   /**
    * Insert a new definition or error out if a definition with the same name was
@@ -62,6 +66,9 @@ private:
 
   // FIXME: Do we move these to our mappings?
   std::unordered_map<NodeId, location_t> node_locations;
+
+  void mark_changed () { f_has_changed = true; }
+  bool f_has_changed;
 
   void visit (AST::Module &module) override;
   void visit (AST::MacroRulesDefinition &macro) override;
@@ -84,6 +91,9 @@ private:
   // UseTreeList for example
   // FIXME: Should that return `found`?
   bool handle_use_dec (AST::SimplePath path);
+
+  std::vector<Error> error_queue;
+  void collect_error (Error err) { error_queue.push_back (std::move (err)); }
 
   void visit (AST::UseDeclaration &use) override;
 };
