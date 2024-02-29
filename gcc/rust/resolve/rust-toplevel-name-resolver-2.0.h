@@ -112,6 +112,7 @@ private:
   void visit (AST::EnumItemDiscriminant &variant) override;
   void visit (AST::Enum &enum_item) override;
   void visit (AST::Union &union_item) override;
+  void visit (AST::Trait &trait_item) override;
   void visit (AST::ConstantItem &const_item) override;
   void visit (AST::ExternCrate &crate) override;
 

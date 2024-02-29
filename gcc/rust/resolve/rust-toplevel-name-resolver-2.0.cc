@@ -423,6 +423,14 @@ TopLevel::visit (AST::Union &union_item)
 }
 
 void
+TopLevel::visit (AST::Trait &trait_item)
+{
+  insert_or_error_out (trait_item.get_identifier (), trait_item,
+		       Namespace::Types);
+  DefaultResolver::visit (trait_item);
+}
+
+void
 TopLevel::visit (AST::ConstantItem &const_item)
 {
   insert_or_error_out (const_item.get_identifier (), const_item,
