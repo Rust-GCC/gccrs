@@ -57,7 +57,6 @@ derive_macro3.rs
 derive_macro4.rs
 derive_macro6.rs
 diagnostic_underline.rs
-expand_macro_qual_path_in_type.rs
 expected_type_args2.rs
 expected_type_args3.rs
 feature_rust_attri0.rs
@@ -105,7 +104,6 @@ issue-1289.rs
 issue-1383.rs
 issue-1447.rs
 issue-1483.rs
-issue-1524.rs
 issue-1589.rs
 issue-1725-1.rs
 issue-1725-2.rs
@@ -152,7 +150,6 @@ issue-2772-2.rs
 issue-2775.rs
 issue-2747.rs
 issue-2782.rs
-issue-2788.rs
 issue-2812.rs
 issue-2847-b.rs
 issue-850.rs
