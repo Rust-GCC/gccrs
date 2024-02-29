@@ -89,6 +89,9 @@ DefaultResolver::visit (AST::Function &function)
 	  }
       }
 
+    if (function.has_return_type ())
+      function.get_return_type ()->accept_vis (*this);
+
     if (function.has_body ())
       function.get_definition ().value ()->accept_vis (*this);
   };
