@@ -20,6 +20,7 @@
 #include "rust-ast-full.h"
 #include "rust-toplevel-name-resolver-2.0.h"
 #include "rust-attributes.h"
+#include "rust-attribute-values.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -33,6 +34,24 @@ Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
 {
   // TODO: Should we use `ctx.mark_resolved()`?
   auto definition = ctx.mappings.lookup_macro_def (resolved);
+
+  // TODO: make sure this is proper
+  // was copied from old early name resolver
+  auto &outer_attrs = definition->get_outer_attrs ();
+  bool is_builtin
+    = std::any_of (outer_attrs.begin (), outer_attrs.end (),
+		   [] (AST::Attribute attr) {
+		     return attr.get_path ()
+			    == Values::Attributes::RUSTC_BUILTIN_MACRO;
+		   });
+
+  if (is_builtin)
+    {
+      auto builtin_kind
+	= builtin_macro_from_string (definition->get_rule_name ().as_string ());
+      rust_assert (builtin_kind);
+      invocation.map_to_builtin (*builtin_kind);
+    }
 
   if (!ctx.mappings.lookup_macro_invocation (invocation))
     {
