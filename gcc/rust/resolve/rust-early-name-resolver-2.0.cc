@@ -123,11 +123,23 @@ Early::visit (AST::BlockExpr &block)
 void
 Early::visit (AST::Module &module)
 {
-  textual_scope.push ();
+  bool has_macro_use = false;
+  for (auto &attr : module.get_outer_attrs ())
+    {
+      if (attr.get_path ().as_string () == Values::Attributes::MACRO_USE)
+	{
+	  has_macro_use = true;
+	  break;
+	}
+    }
+
+  if (!has_macro_use)
+    textual_scope.push ();
 
   DefaultResolver::visit (module);
 
-  textual_scope.pop ();
+  if (!has_macro_use)
+    textual_scope.pop ();
 }
 
 void
