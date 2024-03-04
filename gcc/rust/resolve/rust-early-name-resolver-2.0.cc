@@ -20,11 +20,14 @@
 #include "rust-ast-full.h"
 #include "rust-toplevel-name-resolver-2.0.h"
 #include "rust-attributes.h"
+#include "rust-attribute-values.h"
 
 namespace Rust {
 namespace Resolver2_0 {
 
-Early::Early (NameResolutionContext &ctx) : DefaultResolver (ctx) {}
+Early::Early (NameResolutionContext &ctx)
+  : DefaultResolver (ctx), f_has_changed (false)
+{}
 
 void
 Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
@@ -35,11 +38,32 @@ Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
 
   rust_assert (ok);
 
+  // TODO: make sure this is proper
+  // was copied from old early name resolver
+  auto &outer_attrs = definition->get_outer_attrs ();
+  bool is_builtin
+    = std::any_of (outer_attrs.begin (), outer_attrs.end (),
+		   [] (AST::Attribute attr) {
+		     return attr.get_path ()
+			    == Values::Attributes::RUSTC_BUILTIN_MACRO;
+		   });
+
+  if (is_builtin)
+    {
+      auto builtin_kind
+	= builtin_macro_from_string (definition->get_rule_name ().as_string ());
+      rust_assert (builtin_kind);
+      invocation.map_to_builtin (*builtin_kind);
+    }
+
   AST::MacroRulesDefinition *existing;
   auto exists = ctx.mappings.lookup_macro_invocation (invocation, &existing);
 
   if (!exists)
-    ctx.mappings.insert_macro_invocation (invocation, definition);
+    {
+      ctx.mappings.insert_macro_invocation (invocation, definition);
+      mark_changed ();
+    }
 }
 
 void
@@ -50,15 +74,30 @@ Early::insert_once (AST::MacroRulesDefinition &def)
   auto exists = ctx.mappings.lookup_macro_def (def.get_node_id (), &definition);
 
   if (!exists)
-    ctx.mappings.insert_macro_def (&def);
+    {
+      ctx.mappings.insert_macro_def (&def);
+      mark_changed ();
+    }
 }
 
 void
 Early::go (AST::Crate &crate)
 {
   // First we go through TopLevel resolution to get all our declared items
-  auto toplevel = TopLevel (ctx);
-  toplevel.go (crate);
+  // This is fixed point, in order to ensure full processing of declared items
+  // not currently hidden behind macros
+  while (1)
+    {
+      auto toplevel = TopLevel (ctx);
+      toplevel.go (crate);
+      if (!toplevel.has_changed ())
+	{
+	  std::move (toplevel.get_errors ().begin (),
+		     toplevel.get_errors ().end (),
+		     std::back_inserter (macro_resolve_errors));
+	  break;
+	}
+    }
 
   textual_scope.push ();
 
@@ -132,17 +171,35 @@ Early::visit (AST::BlockExpr &block)
 void
 Early::visit (AST::Module &module)
 {
-  textual_scope.push ();
+  bool has_macro_use = false;
+  for (auto &attr : module.get_outer_attrs ())
+    {
+      if (attr.get_path ().as_string () == Values::Attributes::MACRO_USE)
+	{
+	  has_macro_use = true;
+	  break;
+	}
+    }
+
+  if (!has_macro_use)
+    textual_scope.push ();
 
   DefaultResolver::visit (module);
 
-  textual_scope.pop ();
+  if (!has_macro_use)
+    textual_scope.pop ();
 }
 
 void
 Early::visit (AST::MacroInvocation &invoc)
 {
   auto path = invoc.get_invoc_data ().get_path ();
+
+  // TODO: verify this is correct
+  // copied from old early resolver
+  if (invoc.get_kind () == AST::MacroInvocation::InvocKind::Builtin)
+    for (auto &pending_invoc : invoc.get_pending_eager_invocations ())
+      pending_invoc->accept_vis (*this);
 
   // When a macro is invoked by an unqualified identifier (not part of a
   // multi-part path), it is first looked up in textual scoping. If this does
@@ -202,6 +259,20 @@ Early::visit_attributes (std::vector<AST::Attribute> &attrs)
 	  auto traits = attr.get_traits_to_derive ();
 	  for (auto &trait : traits)
 	    {
+	      // HACK: skip resolution of derive macros which look like
+	      // builtins
+	      //
+	      // This does not properly handle code such as
+	      //     use Clone as Foo;
+	      //     #[derive(Foo)]
+	      //     struct S;
+	      //
+	      // Builtin derive macros should probably be handled
+	      // in a fashion more similar to custom derive macros
+	      if (MacroBuiltin::builtins.is_iter_ok (
+		    MacroBuiltin::builtins.lookup (trait.get ().as_string ())))
+		continue;
+
 	      auto definition
 		= ctx.macros.resolve_path (trait.get ().get_segments ());
 	      if (!definition.has_value ())
@@ -254,6 +325,13 @@ Early::visit (AST::Function &fn)
 
 void
 Early::visit (AST::StructStruct &s)
+{
+  visit_attributes (s.get_outer_attrs ());
+  DefaultResolver::visit (s);
+}
+
+void
+Early::visit (AST::TupleStruct &s)
 {
   visit_attributes (s.get_outer_attrs ());
   DefaultResolver::visit (s);

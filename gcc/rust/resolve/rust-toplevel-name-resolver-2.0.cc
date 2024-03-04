@@ -26,7 +26,7 @@ namespace Rust {
 namespace Resolver2_0 {
 
 TopLevel::TopLevel (NameResolutionContext &resolver)
-  : DefaultResolver (resolver)
+  : DefaultResolver (resolver), f_has_changed (false)
 {}
 
 template <typename T>
@@ -49,15 +49,20 @@ TopLevel::insert_or_error_out (const Identifier &identifier,
 
   if (!result)
     {
-      // can we do something like check if the node id is the same? if it is the
-      // same, it's not an error, just the resolver running multiple times?
+      if (result.error ().existing != node_id)
+	{
+	  rich_location rich_loc (line_table, locus);
+	  rich_loc.add_range (node_locations[result.error ().existing]);
 
-      rich_location rich_loc (line_table, locus);
-      rich_loc.add_range (node_locations[result.error ().existing]);
-
-      rust_error_at (rich_loc, ErrorCode::E0428, "%qs defined multiple times",
-		     identifier.as_string ().c_str ());
+	  rust_error_at (rich_loc, ErrorCode::E0428,
+			 "%qs defined multiple times",
+			 identifier.as_string ().c_str ());
+	}
     }
+  // HACK: ignore macro namespace for change detection
+  // we get infinite loops otherwise, since macros can shadow each other
+  else if (ns != Namespace::Macros)
+    mark_changed ();
 }
 
 void
@@ -75,7 +80,7 @@ TopLevel::go (AST::Crate &crate)
 void
 TopLevel::visit (AST::Module &module)
 {
-  // FIXME: Do we need to insert the module in the type namespace?
+  insert_or_error_out (module.get_name (), module, Namespace::Types);
 
   auto sub_visitor = [this, &module] () {
     for (auto &item : module.get_items ())
@@ -170,7 +175,7 @@ TopLevel::visit (AST::MacroRulesDefinition &macro)
     {
       auto res = ctx.macros.insert_at_root (macro.get_rule_name (),
 					    macro.get_node_id ());
-      if (!res)
+      if (!res && res.error ().existing != macro.get_node_id ())
 	{
 	  // TODO: Factor this
 	  rich_location rich_loc (line_table, macro.get_locus ());
@@ -296,24 +301,34 @@ TopLevel::visit (AST::Union &union_item)
 }
 
 void
+TopLevel::visit (AST::Trait &trait_item)
+{
+  insert_or_error_out (trait_item.get_identifier (), trait_item,
+		       Namespace::Types);
+  DefaultResolver::visit (trait_item);
+}
+
+void
 TopLevel::visit (AST::ConstantItem &const_item)
 {
   auto expr_vis
     = [this, &const_item] () { const_item.get_expr ()->accept_vis (*this); };
 
-  ctx.scoped (Rib::Kind::ConstantItem, const_item.get_node_id (), expr_vis);
+  if (const_item.has_expr ())
+    ctx.scoped (Rib::Kind::ConstantItem, const_item.get_node_id (), expr_vis);
 }
 
 bool
-TopLevel::handle_use_dec (AST::SimplePath path)
+TopLevel::handle_use_dec (Import &import)
 {
   // TODO: Glob imports can get shadowed by regular imports and regular items.
   // So we need to store them in a specific way in the ForeverStack - which can
   // also probably be used by labels and macros etc. Like store it as a
   // `Shadowable(NodeId)` instead of just a `NodeId`
 
-  auto locus = path.get_final_segment ().get_locus ();
-  auto declared_name = path.get_final_segment ().as_string ();
+  auto locus = import.get_path ().get_final_segment ().get_locus ();
+  auto declared_name = import.get_name ();
+  bool is_glob = import.is_glob ();
 
   // in what namespace do we perform path resolution? All of them? see which one
   // matches? Error out on ambiguities?
@@ -322,81 +337,91 @@ TopLevel::handle_use_dec (AST::SimplePath path)
 
   auto found = false;
 
-  auto resolve_and_insert = [this, &found, &declared_name,
-			     locus] (Namespace ns,
-				     const AST::SimplePath &path) {
-    tl::optional<NodeId> resolved = tl::nullopt;
+  auto resolve_and_insert
+    = [this, &found, &declared_name, locus,
+       is_glob] (Namespace ns, const AST::SimplePath &path) {
+	tl::optional<NodeId> resolved = tl::nullopt;
 
-    // FIXME: resolve_path needs to return an `expected<NodeId, Error>` so
-    // that we can improve it with hints or location or w/ever. and maybe
-    // only emit it the first time.
-    switch (ns)
-      {
-      case Namespace::Values:
-	resolved = ctx.values.resolve_path (path.get_segments ());
-	break;
-      case Namespace::Types:
-	resolved = ctx.types.resolve_path (path.get_segments ());
-	break;
-      case Namespace::Macros:
-	resolved = ctx.macros.resolve_path (path.get_segments ());
-	break;
-      case Namespace::Labels:
-	// TODO: Is that okay?
-	rust_unreachable ();
-      }
+	// FIXME: resolve_path needs to return an `expected<NodeId, Error>` so
+	// that we can improve it with hints or location or w/ever. and maybe
+	// only emit it the first time.
+	switch (ns)
+	  {
+	  case Namespace::Values:
+	    resolved = ctx.values.resolve_path (path.get_segments ());
+	    break;
+	  case Namespace::Types:
+	    resolved = ctx.types.resolve_path (path.get_segments ());
+	    break;
+	  case Namespace::Macros:
+	    resolved = ctx.macros.resolve_path (path.get_segments ());
+	    break;
+	  case Namespace::Labels:
+	    // TODO: Is that okay?
+	    rust_unreachable ();
+	  }
 
-    // FIXME: Ugly
-    (void) resolved.map ([this, &found, &declared_name, locus, ns] (NodeId id) {
-      found = true;
+	// FIXME: Ugly
+	(void) resolved.map (
+	  [this, &found, &declared_name, locus, is_glob, ns] (NodeId id) {
+	    found = true;
 
-      // what do we do with the id?
-      insert_or_error_out (declared_name, locus, id, ns);
+	    if (is_glob)
+	      // produce error now, not earlier
+	      rust_sorry_at (locus, "cannot resolve glob imports yet");
+	    else
+	      // what do we do with the id?
+	      insert_or_error_out (declared_name, locus, id, ns);
 
-      return id;
-    });
-  };
+	    return id;
+	  });
+      };
 
   // do this for all namespaces (even Labels?)
 
-  resolve_and_insert (Namespace::Values, path);
-  resolve_and_insert (Namespace::Types, path);
-  resolve_and_insert (Namespace::Macros, path);
+  resolve_and_insert (Namespace::Values, import.get_path ());
+  resolve_and_insert (Namespace::Types, import.get_path ());
+  resolve_and_insert (Namespace::Macros, import.get_path ());
 
   // TODO: No labels? No, right?
 
   return found;
 }
 
-static void
-flatten_rebind (const AST::UseTreeRebind &glob,
-		std::vector<AST::SimplePath> &paths);
-static void
-flatten_list (const AST::UseTreeList &glob,
-	      std::vector<AST::SimplePath> &paths);
-static void
-flatten_glob (const AST::UseTreeGlob &glob,
-	      std::vector<AST::SimplePath> &paths);
+void
+Import::add_prefix (AST::SimplePath prefix)
+{
+  AST::SimplePath old_path (std::move (path));
+  path = std::move (prefix);
+  std::move (old_path.get_segments ().begin (), old_path.get_segments ().end (),
+	     std::back_inserter (path.get_segments ()));
+}
 
 static void
-flatten (const AST::UseTree *tree, std::vector<AST::SimplePath> &paths)
+flatten_rebind (const AST::UseTreeRebind &glob, std::vector<Import> &imports);
+static void
+flatten_list (const AST::UseTreeList &glob, std::vector<Import> &imports);
+static void
+flatten_glob (const AST::UseTreeGlob &glob, std::vector<Import> &imports);
+
+static void
+flatten (const AST::UseTree *tree, std::vector<Import> &imports)
 {
   switch (tree->get_kind ())
     {
       case AST::UseTree::Rebind: {
 	auto rebind = static_cast<const AST::UseTreeRebind *> (tree);
-	flatten_rebind (*rebind, paths);
+	flatten_rebind (*rebind, imports);
 	break;
       }
       case AST::UseTree::List: {
 	auto list = static_cast<const AST::UseTreeList *> (tree);
-	flatten_list (*list, paths);
+	flatten_list (*list, imports);
 	break;
       }
       case AST::UseTree::Glob: {
-	rust_sorry_at (tree->get_locus (), "cannot resolve glob imports yet");
 	auto glob = static_cast<const AST::UseTreeGlob *> (tree);
-	flatten_glob (*glob, paths);
+	flatten_glob (*glob, imports);
 	break;
       }
       break;
@@ -404,31 +429,31 @@ flatten (const AST::UseTree *tree, std::vector<AST::SimplePath> &paths)
 }
 
 static void
-flatten_rebind (const AST::UseTreeRebind &rebind,
-		std::vector<AST::SimplePath> &paths)
+flatten_rebind (const AST::UseTreeRebind &rebind, std::vector<Import> &imports)
 {
   auto path = rebind.get_path ();
 
+  // HACK: replace ['self'] -> []
+  // HACK: set label to '<self>'
+  if (path.get_segments ().size () == 1
+      && path.get_final_segment ().get_segment_name () == "self")
+    {
+      imports.emplace_back (AST::SimplePath::create_empty (), false, "<self>");
+      return;
+    }
+
+  std::string label;
   // FIXME: Do we want to emplace the rebind here as well?
   if (rebind.has_identifier ())
-    {
-      auto rebind_path = path;
-      auto new_seg = rebind.get_identifier ();
-
-      // Add the identifier as a new path
-      rebind_path.get_segments ().back ()
-	= AST::SimplePathSegment (new_seg.as_string (), UNDEF_LOCATION);
-
-      paths.emplace_back (rebind_path);
-    }
+    label = rebind.get_identifier ().as_string ();
   else
-    {
-      paths.emplace_back (path);
-    }
+    label = path.get_final_segment ().as_string ();
+
+  imports.emplace_back (path, false, label);
 }
 
 static void
-flatten_list (const AST::UseTreeList &list, std::vector<AST::SimplePath> &paths)
+flatten_list (const AST::UseTreeList &list, std::vector<Import> &imports)
 {
   auto prefix = AST::SimplePath::create_empty ();
   if (list.has_path ())
@@ -436,45 +461,49 @@ flatten_list (const AST::UseTreeList &list, std::vector<AST::SimplePath> &paths)
 
   for (const auto &tree : list.get_trees ())
     {
-      auto sub_paths = std::vector<AST::SimplePath> ();
-      flatten (tree.get (), sub_paths);
+      // append imports to the main list, then modify them in-place
+      auto start_idx = imports.size ();
+      flatten (tree.get (), imports);
 
-      for (auto &sub_path : sub_paths)
+      for (auto import = imports.begin () + start_idx; import != imports.end ();
+	   import++)
 	{
-	  auto new_path = prefix;
-	  std::copy (sub_path.get_segments ().begin (),
-		     sub_path.get_segments ().end (),
-		     std::back_inserter (new_path.get_segments ()));
-
-	  paths.emplace_back (new_path);
+	  import->add_prefix (prefix);
+	  // HACK: handle '<self>' binding
+	  if (import->get_name () == "<self>")
+	    {
+	      rust_assert (!prefix.is_empty ());
+	      import->get_name () = prefix.get_final_segment ().as_string ();
+	    }
 	}
     }
 }
 
 static void
-flatten_glob (const AST::UseTreeGlob &glob, std::vector<AST::SimplePath> &paths)
+flatten_glob (const AST::UseTreeGlob &glob, std::vector<Import> &imports)
 {
   if (glob.has_path ())
-    paths.emplace_back (glob.get_path ());
+    imports.emplace_back (glob.get_path (), true, std::string ());
 }
 
 void
 TopLevel::visit (AST::UseDeclaration &use)
 {
-  auto paths = std::vector<AST::SimplePath> ();
+  auto imports = std::vector<Import> ();
 
   // FIXME: How do we handle `use foo::{self}` imports? Some beforehand cleanup?
   // How do we handle module imports in general? Should they get added to all
   // namespaces?
 
   const auto &tree = use.get_tree ();
-  flatten (tree.get (), paths);
+  flatten (tree.get (), imports);
 
-  for (auto &path : paths)
-    if (!handle_use_dec (path))
-      rust_error_at (path.get_final_segment ().get_locus (), ErrorCode::E0433,
-		     "could not resolve import %qs",
-		     path.as_string ().c_str ());
+  for (auto &import : imports)
+    if (!handle_use_dec (import))
+      collect_error (
+	Error (import.get_path ().get_final_segment ().get_locus (),
+	       ErrorCode::E0433, "could not resolve import %qs",
+	       import.get_path ().as_string ().c_str ()));
 }
 
 } // namespace Resolver2_0

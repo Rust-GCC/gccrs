@@ -1,7 +1,7 @@
 mod frob {}
 
-use foo::bar::baz; // { dg-error "cannot find simple path segment .foo." }
-use frob::ulator; // { dg-error "cannot find simple path segment .ulator." }
+use foo::bar::baz; // { dg-error "could not resolve import .foo::bar::baz." }
+use frob::ulator; // { dg-error "could not resolve import .frob::ulator." }
 
 mod sain {
     mod doux {}
@@ -9,8 +9,8 @@ mod sain {
     mod dron {}
 }
 
-use not_sain::*; // { dg-error "cannot find simple path segment .not_sain." }
+use not_sain::*; // { dg-error "could not resolve import .not_sain." }
 
-use sain::*;
+use sain::*; // { dg-message "sorry" }
 use sain::{doux, dron};
-use sain::{doux, dron, graal}; // { dg-error "cannot find simple path segment .graal." }
+use sain::{doux, dron, graal}; // { dg-error "could not resolve import .sain::graal." }

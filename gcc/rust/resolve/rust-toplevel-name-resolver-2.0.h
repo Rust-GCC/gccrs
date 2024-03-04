@@ -26,6 +26,9 @@
 namespace Rust {
 namespace Resolver2_0 {
 
+// required for TopLevel
+class Import;
+
 /**
  * The `TopLevel` visitor takes care of collecting all the definitions in a
  * crate, and inserting them into the proper namespaces. These definitions can
@@ -39,6 +42,10 @@ public:
   TopLevel (NameResolutionContext &resolver);
 
   void go (AST::Crate &crate);
+
+  bool has_changed () { return f_has_changed; }
+
+  std::vector<Error> &get_errors () { return error_queue; }
 
 private:
   /**
@@ -60,6 +67,9 @@ private:
   // FIXME: Do we move these to our mappings?
   std::unordered_map<NodeId, location_t> node_locations;
 
+  void mark_changed () { f_has_changed = true; }
+  bool f_has_changed;
+
   void visit (AST::Module &module) override;
   void visit (AST::MacroRulesDefinition &macro) override;
   void visit (AST::Function &function) override;
@@ -73,6 +83,7 @@ private:
   void visit (AST::EnumItemDiscriminant &variant) override;
   void visit (AST::Enum &enum_item) override;
   void visit (AST::Union &union_item) override;
+  void visit (AST::Trait &trait_item) override;
   void visit (AST::ConstantItem &const_item) override;
   void visit (AST::ExternCrate &crate) override;
 
@@ -80,9 +91,41 @@ private:
   // Call this on all the paths of a UseDec - so each flattened path in a
   // UseTreeList for example
   // FIXME: Should that return `found`?
-  bool handle_use_dec (AST::SimplePath path);
+  bool handle_use_dec (Import &import);
+
+  std::vector<Error> error_queue;
+  void collect_error (Error err) { error_queue.push_back (std::move (err)); }
 
   void visit (AST::UseDeclaration &use) override;
+};
+
+/**
+ * Used to store individual imports
+ * Required for handling rebindings, glob imports
+ */
+class Import
+{
+public:
+  Import (AST::SimplePath path, bool is_glob, std::string name)
+    : path (path), is_glob_f (is_glob), name (name)
+  {}
+
+  AST::SimplePath &get_path () { return path; }
+
+  const AST::SimplePath &get_path () const { return path; }
+
+  bool is_glob () const { return is_glob_f; }
+
+  const std::string &get_name () const { return name; }
+
+  std::string &get_name () { return name; }
+
+  void add_prefix (AST::SimplePath prefix);
+
+private:
+  AST::SimplePath path;
+  bool is_glob_f;
+  std::string name;
 };
 
 } // namespace Resolver2_0

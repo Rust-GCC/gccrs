@@ -44,6 +44,15 @@ DefaultResolver::visit (AST::BlockExpr &expr)
 void
 DefaultResolver::visit (AST::Module &module)
 {
+  // Parse the module's items if they haven't been expanded and the file
+  // should be parsed (i.e isn't hidden behind an untrue or impossible cfg
+  // directive
+  // TODO: make sure this is right
+  // This was copied from the old early resolver method
+  // 'accumulate_escaped_macros'
+  if (module.get_kind () == AST::Module::UNLOADED)
+    module.load_items ();
+
   auto item_fn = [this, &module] () {
     for (auto &item : module.get_items ())
       item->accept_vis (*this);
@@ -62,12 +71,14 @@ DefaultResolver::visit (AST::Function &function)
 	if (p->is_variadic ())
 	  {
 	    auto param = static_cast<AST::VariadicParam *> (p.get ());
-	    param->get_pattern ()->accept_vis (*this);
+	    if (param->has_pattern ())
+	      param->get_pattern ()->accept_vis (*this);
 	  }
 	else if (p->is_self ())
 	  {
 	    auto param = static_cast<AST::SelfParam *> (p.get ());
-	    param->get_type ()->accept_vis (*this);
+	    if (param->has_type ())
+	      param->get_type ()->accept_vis (*this);
 	    param->get_lifetime ().accept_vis (*this);
 	  }
 	else
@@ -77,6 +88,9 @@ DefaultResolver::visit (AST::Function &function)
 	    param->get_type ()->accept_vis (*this);
 	  }
       }
+
+    if (function.has_return_type ())
+      function.get_return_type ()->accept_vis (*this);
 
     if (function.has_body ())
       function.get_definition ().value ()->accept_vis (*this);
@@ -143,6 +157,19 @@ DefaultResolver::visit (AST::ExternBlock &block)
 
 void
 DefaultResolver::visit (AST::StructStruct &type)
+{
+  // do we need to scope anything here? no, right?
+
+  // we also can't visit `StructField`s by default, so there's nothing to do -
+  // correct? or should we do something like
+
+  AST::DefaultASTVisitor::visit (type);
+
+  // FIXME: ???
+}
+
+void
+DefaultResolver::visit (AST::TupleStruct &type)
 {
   // do we need to scope anything here? no, right?
 
@@ -242,6 +269,36 @@ DefaultResolver::visit (AST::RangeToInclExpr &expr)
 void
 DefaultResolver::visit (AST::ReturnExpr &expr)
 {}
+
+void
+DefaultResolver::visit (AST::CallExpr &expr)
+{
+  expr.get_function_expr ()->accept_vis (*this);
+
+  for (auto &param : expr.get_params ())
+    param->accept_vis (*this);
+}
+
+void
+DefaultResolver::visit (AST::MethodCallExpr &expr)
+{
+  expr.get_receiver_expr ()->accept_vis (*this);
+
+  if (expr.get_method_name ().has_generic_args ())
+    {
+      auto &args = expr.get_method_name ().get_generic_args ();
+      for (auto &arg : args.get_generic_args ())
+	arg.accept_vis (*this);
+      for (auto &arg : args.get_binding_args ())
+	if (!arg.is_error ())
+	  arg.get_type ()->accept_vis (*this);
+      for (auto &arg : args.get_lifetime_args ())
+	arg.accept_vis (*this);
+    }
+
+  for (auto &param : expr.get_params ())
+    param->accept_vis (*this);
+}
 
 void
 DefaultResolver::visit (AST::UnsafeBlockExpr &expr)
@@ -463,7 +520,8 @@ DefaultResolver::visit (AST::ConstantItem &item)
   auto expr_vis = [this, &item] () { item.get_expr ()->accept_vis (*this); };
 
   // FIXME: Why do we need a Rib here?
-  ctx.scoped (Rib::Kind::Item, item.get_node_id (), expr_vis);
+  if (item.has_expr ())
+    ctx.scoped (Rib::Kind::Item, item.get_node_id (), expr_vis);
 }
 
 void
@@ -492,8 +550,18 @@ DefaultResolver::visit (AST::ExternalStaticItem &)
 {}
 
 void
-DefaultResolver::visit (AST::ExternalFunctionItem &)
-{}
+DefaultResolver::visit (AST::ExternalFunctionItem &function)
+{
+  auto def_fn = [this, &function] () {
+    for (auto &p : function.get_function_params ())
+      if (p.has_type ())
+	p.get_type ()->accept_vis (*this);
+    if (function.has_return_type ())
+      function.get_return_type ()->accept_vis (*this);
+  };
+
+  ctx.scoped (Rib::Kind::Function, function.get_node_id (), def_fn);
+}
 
 void
 DefaultResolver::visit (AST::MacroMatchRepetition &)

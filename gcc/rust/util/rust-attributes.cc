@@ -59,7 +59,10 @@ static const BuiltinAttrDefinition __definitions[]
      // From now on, these are reserved by the compiler and gated through
      // #![feature(rustc_attrs)]
      {Attrs::RUSTC_INHERIT_OVERFLOW_CHECKS, CODE_GENERATION},
-     {Attrs::STABLE, STATIC_ANALYSIS}};
+     {Attrs::STABLE, STATIC_ANALYSIS},
+     // assuming we keep these for static analysis
+     {Attrs::RUSTC_CONST_STABLE, STATIC_ANALYSIS},
+     {Attrs::RUSTC_CONST_UNSTABLE, STATIC_ANALYSIS}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
