@@ -1139,6 +1139,26 @@ protected:
 class Item : public Stmt
 {
 public:
+  enum class Kind
+  {
+    Static = 0,
+    Constant,
+    TypeAlias,
+    Function,
+    UseDeclaration,
+    ExternBlock,
+    ExternCrate,
+    Struct,
+    Union,
+    Enum,
+    EnumItem,
+    Trait,
+    Impl,
+    Module,
+    MacroRules,
+    MacroInvocation,
+  };
+
   // Unique pointer custom clone function
   std::unique_ptr<Item> clone_item () const
   {
@@ -1150,6 +1170,8 @@ public:
   virtual void
   add_crate_name (std::vector<std::string> &names ATTRIBUTE_UNUSED) const
   {}
+
+  virtual Kind get_item_kind () const = 0;
 
   Stmt::Kind get_stmt_kind () final { return Stmt::Kind::Item; }
 
