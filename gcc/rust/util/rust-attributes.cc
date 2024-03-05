@@ -24,7 +24,6 @@
 #include "rust-ast-full.h"
 #include "rust-diagnostics.h"
 #include "rust-unicode.h"
-#include "rust-attribute-values.h"
 
 namespace Rust {
 namespace Analysis {
@@ -99,16 +98,7 @@ AttributeChecker::go (AST::Crate &crate)
   visit (crate);
 }
 
-void
-AttributeChecker::visit (AST::Crate &crate)
-{
-  check_attributes (crate.get_inner_attrs ());
-
-  for (auto &item : crate.items)
-    item->accept_vis (*this);
-}
-
-static bool
+bool
 is_builtin (const AST::Attribute &attribute, BuiltinAttrDefinition &builtin)
 {
   auto &segments = attribute.get_path ().get_segments ();
@@ -165,7 +155,7 @@ check_doc_alias (const std::string &alias_input, const location_t locus)
 		   "%<#[doc(alias)]%> input cannot start or end with a space");
 }
 
-static void
+void
 check_doc_attribute (const AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
@@ -207,6 +197,12 @@ check_doc_attribute (const AST::Attribute &attribute)
 	break;
       }
     }
+}
+
+void
+AttributeChecker::visit (AST::Crate &crate)
+{
+  check_attributes (crate, crate.get_inner_attrs ());
 }
 
 static bool
@@ -255,13 +251,31 @@ check_proc_macro_non_root (AST::AttrVec attributes, location_t loc)
 }
 
 void
-AttributeChecker::check_attribute (const AST::Attribute &attribute)
+check_derive (const AST::Item &item, const AST::Attribute &attr)
+{
+  if (attr.is_derive ())
+    {
+      // It will generate an error if the item cannot derive.
+      if (!AST::check_if_can_derive(item, attr))
+        {
+	  rust_error_at (
+	    attr.get_locus (),
+	    "the %<#[derive]%> attribute can only be used on struct, union and "
+	    "enum declaration");
+        }
+    }
+}
+
+void
+AttributeChecker::check_attribute (const AST::Item &item, const AST::Attribute &attribute)
 {
   BuiltinAttrDefinition result;
 
   // This checker does not check non-builtin attributes
   if (!is_builtin (attribute, result))
     return;
+
+  check_derive (item, attribute);
 
   // TODO: Add checks here for each builtin attribute
   // TODO: Have an enum of builtins as well, switching on strings is annoying
@@ -271,10 +285,10 @@ AttributeChecker::check_attribute (const AST::Attribute &attribute)
 }
 
 void
-AttributeChecker::check_attributes (const AST::AttrVec &attributes)
+AttributeChecker::check_attributes (const AST::Item &item, const AST::AttrVec &attributes)
 {
   for (auto &attr : attributes)
-    check_attribute (attr);
+    check_attribute (item, attr);
 }
 
 void
@@ -590,6 +604,7 @@ AttributeChecker::visit (AST::Module &module)
 void
 AttributeChecker::visit (AST::ExternCrate &crate)
 {
+  check_attributes (crate, crate.get_outer_attrs ());
   check_proc_macro_non_function (crate.get_outer_attrs ());
 }
 
@@ -608,6 +623,7 @@ AttributeChecker::visit (AST::UseTreeRebind &)
 void
 AttributeChecker::visit (AST::UseDeclaration &declaration)
 {
+  check_attributes (declaration, declaration.get_outer_attrs ());
   check_proc_macro_non_function (declaration.get_outer_attrs ());
 }
 
@@ -639,12 +655,15 @@ AttributeChecker::visit (AST::Function &fun)
   };
 
   BuiltinAttrDefinition result;
+
   for (auto &attribute : fun.get_outer_attrs ())
     {
       if (!is_builtin (attribute, result))
 	return;
 
       auto name = result.name.c_str ();
+
+      check_attribute (fun, attribute);
 
       if (result.name == Attrs::PROC_MACRO_DERIVE)
 	{
@@ -674,79 +693,99 @@ AttributeChecker::visit (AST::Function &fun)
 void
 AttributeChecker::visit (AST::TypeAlias &alias)
 {
+  check_attributes (alias, alias.get_outer_attrs ());
   check_proc_macro_non_function (alias.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::StructStruct &struct_item)
 {
-  check_attributes (struct_item.get_outer_attrs ());
+  check_attributes (struct_item, struct_item.get_outer_attrs ());
   check_proc_macro_non_function (struct_item.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::TupleStruct &tuplestruct)
 {
+  check_attributes (tuplestruct, tuplestruct.get_outer_attrs ());
   check_proc_macro_non_function (tuplestruct.get_outer_attrs ());
 }
 
 void
-AttributeChecker::visit (AST::EnumItem &)
-{}
+AttributeChecker::visit (AST::EnumItem &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
-AttributeChecker::visit (AST::EnumItemTuple &)
-{}
+AttributeChecker::visit (AST::EnumItemTuple &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
-AttributeChecker::visit (AST::EnumItemStruct &)
-{}
+AttributeChecker::visit (AST::EnumItemStruct &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
-AttributeChecker::visit (AST::EnumItemDiscriminant &)
-{}
+AttributeChecker::visit (AST::EnumItemDiscriminant &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
 AttributeChecker::visit (AST::Enum &enumeration)
 {
+  check_attributes (enumeration, enumeration.get_outer_attrs ());
   check_proc_macro_non_function (enumeration.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::Union &u)
 {
+  check_attributes (u, u.get_outer_attrs ());
   check_proc_macro_non_function (u.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::ConstantItem &item)
 {
+  check_attributes (item, item.get_outer_attrs ());
   check_proc_macro_non_function (item.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::StaticItem &item)
 {
+  check_attributes (item, item.get_outer_attrs ());
   check_proc_macro_non_function (item.get_outer_attrs ());
 }
 
 void
-AttributeChecker::visit (AST::TraitItemConst &)
-{}
+AttributeChecker::visit (AST::TraitItemConst &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
-AttributeChecker::visit (AST::TraitItemType &)
-{}
+AttributeChecker::visit (AST::TraitItemType &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
 AttributeChecker::visit (AST::Trait &trait)
 {
+  check_attributes (trait, trait.get_outer_attrs ());
   check_proc_macro_non_function (trait.get_outer_attrs ());
 }
 
 void
 AttributeChecker::visit (AST::InherentImpl &impl)
 {
+  check_attributes (impl, impl.get_outer_attrs ());
   check_proc_macro_non_function (impl.get_outer_attrs ());
   AST::DefaultASTVisitor::visit (impl);
 }
@@ -754,25 +793,33 @@ AttributeChecker::visit (AST::InherentImpl &impl)
 void
 AttributeChecker::visit (AST::TraitImpl &impl)
 {
+  check_attributes (impl, impl.get_outer_attrs ());
   check_proc_macro_non_function (impl.get_outer_attrs ());
   AST::DefaultASTVisitor::visit (impl);
 }
 
 void
-AttributeChecker::visit (AST::ExternalTypeItem &)
-{}
+AttributeChecker::visit (AST::ExternalTypeItem &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
-AttributeChecker::visit (AST::ExternalStaticItem &)
-{}
+AttributeChecker::visit (AST::ExternalStaticItem &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
-AttributeChecker::visit (AST::ExternalFunctionItem &)
-{}
+AttributeChecker::visit (AST::ExternalFunctionItem &item)
+{
+  check_attributes (item, item.get_outer_attrs ());
+}
 
 void
 AttributeChecker::visit (AST::ExternBlock &block)
 {
+  check_attributes (block, block.get_outer_attrs ());
   check_proc_macro_non_function (block.get_outer_attrs ());
 }
 
@@ -863,7 +910,7 @@ AttributeChecker::visit (AST::ReferencePattern &)
 // void AttributeChecker::visit(StructPatternField& ){}
 
 void
-AttributeChecker::visit (AST::StructPatternFieldTuplePat &)
+AttributeChecker::visit (AST::StructPatternFieldTuplePat &item)
 {}
 
 void

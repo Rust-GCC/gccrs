@@ -46,7 +46,7 @@ static std::unique_ptr<AST::Item>
 builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
 		     BuiltinMacro to_derive)
 {
-  return AST::DeriveVisitor::derive (item, derive, to_derive);
+  return AST::derive (item, derive, to_derive);
 }
 
 static std::vector<std::unique_ptr<AST::Item>>
@@ -191,9 +191,12 @@ ExpandVisitor::expand_inner_items (
 			  auto new_item
 			    = builtin_derive_item (*item, current,
 						   maybe_builtin.value ());
-			  // this inserts the derive *before* the item - is it a
-			  // problem?
-			  it = items.insert (it, std::move (new_item));
+			  if (new_item != nullptr)
+			    {
+			      // this inserts the derive *before* the item - is
+			      // it a problem?
+			      it = items.insert (it, std::move (new_item));
+			    }
 			}
 		      else
 			{
@@ -368,7 +371,9 @@ void
 ExpandVisitor::expand_tuple_fields (std::vector<AST::TupleField> &fields)
 {
   for (auto &field : fields)
-    maybe_expand_type (field.get_field_type ());
+    {
+      maybe_expand_type (field.get_field_type ());
+    }
 }
 
 // FIXME: This can definitely be refactored with the method above

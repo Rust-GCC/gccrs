@@ -27,10 +27,30 @@ DeriveVisitor::DeriveVisitor (location_t loc)
   : loc (loc), builder (AstBuilder (loc))
 {}
 
-std::unique_ptr<Item>
-DeriveVisitor::derive (Item &item, const Attribute &attr,
-		       BuiltinMacro to_derive)
+bool
+check_if_can_derive (const Item &item, const Attribute &attr)
 {
+  switch (item.get_item_kind ())
+    {
+    case Item::Kind::Struct:
+    case Item::Kind::Union:
+    case Item::Kind::Enum:
+      return true;
+    default:
+      rust_error_at (
+	attr.get_locus (),
+	"the %<#[derive]%> attribute can only be used on struct, union and "
+	"enum declaration");
+      return false;
+    }
+}
+
+std::unique_ptr<Item>
+derive (Item &item, const Attribute &attr, BuiltinMacro to_derive)
+{
+  if (!check_if_can_derive (item, attr))
+    return nullptr;
+
   switch (to_derive)
     {
     case BuiltinMacro::Clone:

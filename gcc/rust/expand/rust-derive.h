@@ -27,16 +27,28 @@
 namespace Rust {
 namespace AST {
 
+
+std::unique_ptr<Item> derive (Item &item, const Attribute &derive,
+			      BuiltinMacro to_derive);
+bool check_if_can_derive (const Item &item, const Attribute &attr);
+
+template <typename T>
+bool
+check_if_can_derive (const T &_item, const Attribute &attr)
+{
+  rust_error_at (
+    attr.get_locus (),
+    "the %<#[derive]%> attribute can only be used on struct, union and "
+    "enum declaration");
+  return false;
+}
+
 /**
  * The goal of this class is to accumulate and create the required items from a
  * builtin `#[derive]` macro applied on a struct, enum or union.
  */
 class DeriveVisitor : public AST::ASTVisitor
 {
-public:
-  static std::unique_ptr<Item> derive (Item &item, const Attribute &derive,
-				       BuiltinMacro to_derive);
-
 protected:
   DeriveVisitor (location_t loc);
 

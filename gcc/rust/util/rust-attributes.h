@@ -21,6 +21,8 @@
 #include "rust-ast.h"
 #include "rust-system.h"
 #include "rust-ast-visitor.h"
+#include "rust-derive.h"
+#include "rust-attribute-values.h"
 
 namespace Rust {
 namespace Analysis {
@@ -70,6 +72,27 @@ private:
   std::map<std::string, const BuiltinAttrDefinition> mappings;
 };
 
+bool is_builtin (const AST::Attribute &attribute, BuiltinAttrDefinition &builtin);
+
+void check_doc_attribute (const AST::Attribute &attribute);
+
+template <typename T>
+void
+check_derive (const T &item, const AST::Attribute &attr)
+{
+  if (attr.is_derive ())
+    {
+      // It will generate an error if the item cannot derive.
+      if (!AST::check_if_can_derive(item, attr))
+	{
+	  rust_error_at (
+	    attr.get_locus (),
+	    "the %<#[derive]%> attribute can only be used on struct, union and "
+	    "enum declaration");
+	}
+    }
+}
+
 /**
  * Checks the validity of various attributes. The goal of this visitor is to
  * make sure that attributes are applied in allowed contexts, for example to
@@ -90,10 +113,34 @@ public:
 private:
   using AST::DefaultASTVisitor::visit;
   /* Check the validity of a given attribute */
-  void check_attribute (const AST::Attribute &attribute);
+  void check_attribute (const AST::Item &item, const AST::Attribute &attribute);
+  template <typename T>
+  void check_attribute (const T &item, const AST::Attribute &attribute)
+  {
+    BuiltinAttrDefinition result;
+
+
+    // This checker does not check non-builtin attributes
+    if (!is_builtin (attribute, result))
+      return;
+
+    check_derive (item, attribute);
+
+    // TODO: Add checks here for each builtin attribute
+    // TODO: Have an enum of builtins as well, switching on strings is annoying
+    // and costly
+    if (result.name == Values::Attributes::DOC)
+      check_doc_attribute (attribute);
+  }
 
   /* Check the validity of all given attributes */
-  void check_attributes (const AST::AttrVec &attributes);
+  void check_attributes (const AST::Item &item, const AST::AttrVec &attributes);
+  template <typename T>
+  void check_attributes (const T &item, const AST::AttrVec &attributes)
+  {
+    for (auto &attr : attributes)
+      check_attribute (item, attr);
+  }
 
   // rust-ast.h
   void visit (AST::Crate &crate) override;
