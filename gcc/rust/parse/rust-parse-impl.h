@@ -1161,10 +1161,9 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
       else if (t->get_str () == Values::WeakKeywords::DEFAULT
 	       && lexer.peek_token (1)->get_id () != EXCLAM)
 	{
-	  add_error (Error (t->get_locus (),
-			    "%qs is only allowed on items within %qs blocks",
-			    "default", "impl"));
-	  return nullptr;
+	  // parse normal functions with `default` qualifier
+	  // they will be rejected in ASTValidation pass
+	  return parse_vis_item (std::move (outer_attrs));
 	}
       else if (is_macro_rules_def (t))
 	{
@@ -1369,10 +1368,14 @@ Parser<ManagedTokenSource>::parse_vis_item (AST::AttrVec outer_attrs)
 	  return parse_union (std::move (vis), std::move (outer_attrs));
 	  // or should item switch go straight to parsing union?
 	}
-      else
+      else if (t->get_id () == IDENTIFIER
+	       && t->get_str () == Values::WeakKeywords::DEFAULT)
 	{
-	  break;
+	  // parse normal functions with `default` qualifier they will be
+	  // rejected in ASTValidation pass
+	  return parse_function (std::move (vis), std::move (outer_attrs));
 	}
+      break;
     case CONST:
       // lookahead to resolve syntactical production
       t = lexer.peek_token (1);
@@ -3000,6 +3003,7 @@ template <typename ManagedTokenSource>
 AST::FunctionQualifiers
 Parser<ManagedTokenSource>::parse_function_qualifiers ()
 {
+  Default default_status = Default::No;
   Async async_status = Async::No;
   Const const_status = Const::No;
   Unsafety unsafe_status = Unsafety::Normal;
@@ -3007,35 +3011,29 @@ Parser<ManagedTokenSource>::parse_function_qualifiers ()
   std::string abi;
 
   const_TokenPtr t;
-  location_t locus;
-  // Check in order of const, unsafe, then extern
-  for (int i = 0; i < 2; i++)
+  location_t locus = lexer.peek_token ()->get_locus ();
+  // Check in order of default, const, async, unsafe, extern
+  if (lexer.peek_token ()->get_id () == IDENTIFIER
+      && lexer.peek_token ()->get_str () == Values::WeakKeywords::DEFAULT)
     {
-      t = lexer.peek_token ();
-      locus = t->get_locus ();
-
-      switch (t->get_id ())
-	{
-	case CONST:
-	  lexer.skip_token ();
-	  const_status = Const::Yes;
-	  break;
-	case ASYNC:
-	  lexer.skip_token ();
-	  async_status = Async::Yes;
-	  break;
-	default:
-	  // const status is still none
-	  break;
-	}
+      default_status = Default::Yes;
+      lexer.skip_token ();
     }
-
+  if (lexer.peek_token ()->get_id () == CONST)
+    {
+      lexer.skip_token ();
+      const_status = Const::Yes;
+    }
+  if (lexer.peek_token ()->get_id () == ASYNC)
+    {
+      lexer.skip_token ();
+      async_status = Async::Yes;
+    }
   if (lexer.peek_token ()->get_id () == UNSAFE)
     {
       lexer.skip_token ();
       unsafe_status = Unsafety::Unsafe;
     }
-
   if (lexer.peek_token ()->get_id () == EXTERN_KW)
     {
       lexer.skip_token ();
@@ -3050,8 +3048,9 @@ Parser<ManagedTokenSource>::parse_function_qualifiers ()
 	}
     }
 
-  return AST::FunctionQualifiers (locus, async_status, const_status,
-				  unsafe_status, has_extern, std::move (abi));
+  return AST::FunctionQualifiers (locus, default_status, async_status,
+				  const_status, unsafe_status, has_extern,
+				  std::move (abi));
 }
 
 // Parses generic (lifetime or type) params inside angle brackets (optional).
@@ -5723,15 +5722,6 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
   // - template?
   location_t locus = lexer.peek_token ()->get_locus ();
 
-  auto is_default = false;
-  auto t = lexer.peek_token ();
-  if (t->get_id () == IDENTIFIER
-      && t->get_str () == Values::WeakKeywords::DEFAULT)
-    {
-      is_default = true;
-      lexer.skip_token ();
-    }
-
   // parse function or method qualifiers
   AST::FunctionQualifiers qualifiers = parse_function_qualifiers ();
 
@@ -5867,7 +5857,7 @@ Parser<ManagedTokenSource>::parse_trait_impl_function_or_method (
 		       std::move (generic_params), std::move (function_params),
 		       std::move (return_type), std::move (where_clause),
 		       std::move (body), std::move (vis),
-		       std::move (outer_attrs), locus, is_default));
+		       std::move (outer_attrs), locus));
 }
 
 // Parses an extern block of declarations.

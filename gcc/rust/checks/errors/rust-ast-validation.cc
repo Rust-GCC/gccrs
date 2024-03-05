@@ -96,6 +96,11 @@ void
 ASTValidation::visit (AST::Function &function)
 {
   const auto &qualifiers = function.get_qualifiers ();
+  if (qualifiers.is_default () && context.back () != Context::INHERENT_IMPL
+      && context.back () != Context::TRAIT_IMPL)
+    rust_error_at (
+      function.get_locus (),
+      "%<default%> is only allowed on items within %<impl%> blocks");
   if (qualifiers.is_async () && qualifiers.is_const ())
     rust_error_at (function.get_locus (),
 		   "functions cannot be both %<const%> and %<async%>");
