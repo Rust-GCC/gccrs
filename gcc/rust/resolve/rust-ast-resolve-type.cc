@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-resolve-type.h"
+#include "rust-ast-dump.h"
 #include "rust-ast-resolve-expr.h"
 
 namespace Rust {
@@ -496,10 +497,12 @@ ResolveTypeToCanonicalPath::visit (AST::TraitObjectTypeOneBound &type)
 }
 
 void
-ResolveTypeToCanonicalPath::visit (AST::TraitObjectType &)
+ResolveTypeToCanonicalPath::visit (AST::TraitObjectType &ty)
 {
   // FIXME is this actually allowed? dyn A+B
-  rust_unreachable ();
+  // FIXME: This is also reached when we have something like a lifetime bound on
+  // a generic, e.g. Iter<'a, T: 'a> What do we do in that case?
+  // rust_unreachable ();
 }
 
 ResolveTypeToCanonicalPath::ResolveTypeToCanonicalPath ()

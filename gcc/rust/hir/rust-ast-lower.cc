@@ -534,11 +534,11 @@ ASTLoweringExprWithBlock::visit (AST::ForLoopExpr &expr)
 			       *Analysis::Mappings::get ()};
 
   auto head = std::unique_ptr<Expr> (
-    ASTLoweringExpr::translate (expr.get_iterator_expr ().get ()));
+    ASTLoweringExpr::translate (expr.get_iterator_expr ()));
   auto pat = std::unique_ptr<Pattern> (
-    ASTLoweringPattern::translate (expr.get_pattern ().get ()));
+    ASTLoweringPattern::translate (expr.get_pattern ()));
   auto body = std::unique_ptr<Expr> (
-    ASTLoweringExpr::translate (expr.get_loop_block ().get ()));
+    ASTLoweringExpr::translate (expr.get_loop_block ()));
 
   rust_assert (head);
   rust_assert (pat);
