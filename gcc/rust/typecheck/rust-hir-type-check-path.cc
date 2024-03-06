@@ -214,7 +214,8 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 	    }
 
 	  rust_error_at (seg.get_locus (),
-			 "failed to type resolve root segment");
+			 "failed to type resolve root segment: %s",
+			 expr.as_string ().c_str ());
 	  return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
 	}
 

@@ -459,6 +459,8 @@ public:
     DeclMacro,
   };
 
+  MacroRulesDefinition (const MacroRulesDefinition &other) = default;
+
 private:
   std::vector<Attribute> outer_attrs;
   Identifier rule_name;
@@ -602,6 +604,18 @@ class MacroInvocation : public TypeNoBounds,
 			public ExprWithoutBlock
 {
 public:
+  MacroInvocation (const MacroInvocation &other)
+    : TraitItem (other.locus), outer_attrs (other.outer_attrs),
+      locus (other.locus), node_id (other.node_id),
+      invoc_data (other.invoc_data), is_semi_coloned (other.is_semi_coloned),
+      kind (other.kind), builtin_kind (other.builtin_kind)
+  {
+    if (other.kind == InvocKind::Builtin)
+      for (auto &pending : other.pending_eager_invocs)
+	pending_eager_invocs.emplace_back (
+	  pending->clone_macro_invocation_impl ());
+  }
+
   enum class InvocKind
   {
     Regular,
@@ -720,18 +734,6 @@ private:
       kind (kind), builtin_kind (builtin_kind),
       pending_eager_invocs (std::move (pending_eager_invocs))
   {}
-
-  MacroInvocation (const MacroInvocation &other)
-    : TraitItem (other.locus), outer_attrs (other.outer_attrs),
-      locus (other.locus), node_id (other.node_id),
-      invoc_data (other.invoc_data), is_semi_coloned (other.is_semi_coloned),
-      kind (other.kind), builtin_kind (other.builtin_kind)
-  {
-    if (other.kind == InvocKind::Builtin)
-      for (auto &pending : other.pending_eager_invocs)
-	pending_eager_invocs.emplace_back (
-	  pending->clone_macro_invocation_impl ());
-  }
 
   std::vector<Attribute> outer_attrs;
   location_t locus;

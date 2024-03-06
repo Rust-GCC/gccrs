@@ -625,6 +625,7 @@ ASTLoweringBase::lower_generic_args (AST::GenericArgs &args)
 
   for (auto &arg : args.get_generic_args ())
     {
+      rust_debug ("[ARTHUR ] %s", arg.as_string ().c_str ());
       switch (arg.get_kind ())
 	{
 	  case AST::GenericArg::Kind::Type: {

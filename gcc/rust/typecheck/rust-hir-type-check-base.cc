@@ -38,6 +38,9 @@ TypeCheckBase::check_for_unconstrained (
   const TyTy::SubstitutionArgumentMappings &constraint_b,
   const TyTy::BaseType *reference)
 {
+  rust_debug ("[ARTHUR] %s ", constraint_a.as_string ().c_str ());
+  rust_debug ("[ARTHUR] %s ", constraint_b.as_string ().c_str ());
+
   bool check_result = false;
   bool check_completed
     = context->have_checked_for_unconstrained (reference->get_ref (),
