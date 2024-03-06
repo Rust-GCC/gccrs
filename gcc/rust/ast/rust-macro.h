@@ -459,6 +459,8 @@ public:
     DeclMacro,
   };
 
+  Item::Kind get_item_kind () const { return Item::Kind::MacroRules; }
+
 private:
   std::vector<Attribute> outer_attrs;
   Identifier rule_name;
@@ -607,6 +609,8 @@ public:
     Regular,
     Builtin,
   };
+
+  Item::Kind get_item_kind () const { return Item::Kind::MacroInvocation; }
 
   std::string as_string () const override;
 

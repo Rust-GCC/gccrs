@@ -732,6 +732,8 @@ public:
     UNLOADED,
   };
 
+  Item::Kind get_item_kind () const { return Item::Kind::Module; }
+
   Identifier get_name () const { return module_name; }
 
   AST::Kind get_ast_kind () const override { return AST::Kind::MODULE; }
@@ -898,6 +900,8 @@ class ExternCrate : public VisItem
       "extern crate foo"
       "extern crate std as cool_std"  */
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::ExternCrate; }
+
   std::string as_string () const override;
 
   // Returns whether extern crate declaration has an as clause.
@@ -1227,6 +1231,8 @@ class UseDeclaration : public VisItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::UseDeclaration; }
+
   std::string as_string () const override;
 
   UseDeclaration (std::unique_ptr<UseTree> use_tree, Visibility visibility,
@@ -1303,6 +1309,8 @@ class Function : public VisItem, public AssociatedItem, public ExternalItem
   bool is_external_function;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Function; }
+
   std::string as_string () const override;
 
   // Returns whether function has generic parameters.
@@ -1466,6 +1474,8 @@ class TypeAlias : public VisItem, public AssociatedItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::TypeAlias; }
+
   std::string as_string () const override;
 
   // Returns whether type alias has generic parameters.
@@ -1591,6 +1601,8 @@ private:
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Struct; }
+
   // Returns whether struct has generic parameters.
   bool has_generics () const { return !generic_params.empty (); }
 
@@ -1960,6 +1972,8 @@ public:
       variant_name (std::move (variant_name)), locus (locus)
   {}
 
+  Item::Kind get_item_kind () const { return Item::Kind::EnumItem; }
+
   // Unique pointer custom clone function
   std::unique_ptr<EnumItem> clone_enum_item () const
   {
@@ -2129,6 +2143,8 @@ class Enum : public VisItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Enum; }
+
   std::string as_string () const override;
 
   // Returns whether "enum" has generic parameters.
@@ -2244,6 +2260,8 @@ class Union : public VisItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Union; }
+
   std::string as_string () const override;
 
   // Returns whether union has generic params.
@@ -2341,6 +2359,8 @@ class ConstantItem : public VisItem, public AssociatedItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Constant; }
+
   std::string as_string () const override;
 
   ConstantItem (std::string ident, Visibility vis, std::unique_ptr<Type> type,
@@ -2456,6 +2476,8 @@ class StaticItem : public VisItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Static; }
+
   std::string as_string () const override;
 
   StaticItem (Identifier name, bool is_mut, std::unique_ptr<Type> type,
@@ -2754,6 +2776,8 @@ class Trait : public VisItem
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Trait; }
+
   std::string as_string () const override;
 
   // Returns whether trait has generic parameters.
@@ -2926,6 +2950,8 @@ private:
   location_t locus;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::Impl; }
+
   // Returns whether impl has generic parameters.
   bool has_generics () const { return !generic_params.empty (); }
 
@@ -3735,6 +3761,8 @@ class ExternBlock : public VisItem
   bool marked_for_strip = false;
 
 public:
+  Item::Kind get_item_kind () const { return Item::Kind::ExternBlock; }
+
   std::string as_string () const override;
 
   // Returns whether extern block has inner attributes.

@@ -31,6 +31,19 @@ std::unique_ptr<Item>
 DeriveVisitor::derive (Item &item, const Attribute &attr,
 		       BuiltinMacro to_derive)
 {
+  switch (item.get_item_kind ())
+    {
+    case Item::Kind::Struct:
+    case Item::Kind::Union:
+    case Item::Kind::Enum:
+      break;
+    default:
+      rust_error_at (
+	attr.get_locus (),
+	"the %<#[derive]%> attribute can only be used on struct, union and "
+	"enum declaration");
+      return nullptr;
+    }
   switch (to_derive)
     {
     case BuiltinMacro::Clone:
@@ -45,7 +58,7 @@ DeriveVisitor::derive (Item &item, const Attribute &attr,
     case BuiltinMacro::PartialOrd:
     case BuiltinMacro::Hash:
     default:
-      rust_sorry_at (attr.get_locus (), "uninmplemented builtin derive macro");
+      rust_sorry_at (attr.get_locus (), "unimplemented builtin derive macro");
       return nullptr;
     };
 }

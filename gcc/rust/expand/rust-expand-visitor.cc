@@ -191,9 +191,12 @@ ExpandVisitor::expand_inner_items (
 			  auto new_item
 			    = builtin_derive_item (*item, current,
 						   maybe_builtin.value ());
-			  // this inserts the derive *before* the item - is it a
-			  // problem?
-			  it = items.insert (it, std::move (new_item));
+			  if (new_item != nullptr)
+			    {
+			      // this inserts the derive *before* the item - is
+			      // it a problem?
+			      it = items.insert (it, std::move (new_item));
+			    }
 			}
 		      else
 			{
@@ -353,6 +356,23 @@ ExpandVisitor::maybe_expand_type (std::unique_ptr<AST::Type> &type)
   expander.pop_context ();
 }
 
+void
+ExpandVisitor::check_derive (std::vector<AST::Attribute> &attrs)
+{
+  for (auto attr_it = attrs.begin (); attr_it != attrs.end (); ++attr_it)
+    {
+      auto current = *attr_it;
+
+      if (current.is_derive ())
+        {
+          rust_error_at (
+	    current.get_locus (),
+	    "the %<#[derive]%> attribute can only be used on struct, union and "
+	    "enum declaration");
+        }
+    }
+}
+
 // FIXME: Can this be refactored into a `scoped` method? Which takes a
 // ContextType as parameter and a lambda? And maybe just an std::vector<T>&?
 void
@@ -361,6 +381,7 @@ ExpandVisitor::expand_struct_fields (std::vector<AST::StructField> &fields)
   for (auto &field : fields)
     {
       maybe_expand_type (field.get_field_type ());
+      check_derive (field.get_outer_attrs ());
     }
 }
 
@@ -368,7 +389,10 @@ void
 ExpandVisitor::expand_tuple_fields (std::vector<AST::TupleField> &fields)
 {
   for (auto &field : fields)
-    maybe_expand_type (field.get_field_type ());
+    {
+      maybe_expand_type (field.get_field_type ());
+      check_derive (field.get_outer_attrs ());
+    }
 }
 
 // FIXME: This can definitely be refactored with the method above

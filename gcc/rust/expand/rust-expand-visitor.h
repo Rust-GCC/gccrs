@@ -88,6 +88,11 @@ public:
   void expand_where_clause (AST::WhereClause &where_clause);
 
   /**
+   * Checks if there is a `#[derive]` attribute and emit an error if so.
+   */
+  void check_derive (std::vector<AST::Attribute> &attrs);
+
+  /**
    * Expand a set of values, erasing them if they are marked for strip, and
    * replacing them with expanded macro nodes if necessary.
    * This function is slightly different from `expand_pointer_allow_strip` as
