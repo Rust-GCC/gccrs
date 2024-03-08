@@ -1856,7 +1856,7 @@ TypeCheckExpr::resolve_operator_overload (LangItem::Kind lang_item_type,
 
   // typecheck the self
   unify_site (expr.get_mappings ().get_hirid (),
-	      TyTy::TyWithLocation (fnparam.second),
+	      TyTy::TyWithLocation (fnparam.get_type ()),
 	      TyTy::TyWithLocation (adjusted_self), expr.get_locus ());
   if (rhs == nullptr)
     {
@@ -1867,7 +1867,7 @@ TypeCheckExpr::resolve_operator_overload (LangItem::Kind lang_item_type,
       rust_assert (type->num_params () == 2);
       auto &fnparam = type->param_at (1);
       unify_site (expr.get_mappings ().get_hirid (),
-		  TyTy::TyWithLocation (fnparam.second),
+		  TyTy::TyWithLocation (fnparam.get_type ()),
 		  TyTy::TyWithLocation (rhs), expr.get_locus ());
     }
 
