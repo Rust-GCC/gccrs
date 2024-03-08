@@ -253,7 +253,7 @@ ExprStmtBuilder::visit (HIR::CallExpr &expr)
     {
       for (size_t i = 0; i < fn_type->get_params ().size (); ++i)
 	{
-	  coercion_site (arguments[i], fn_type->get_params ()[i].second);
+	  coercion_site (arguments[i], fn_type->get_params ()[i].get_type ());
 	}
     }
   else if (auto fn_ptr_type = call_type->try_as<TyTy::FnPtr> ())

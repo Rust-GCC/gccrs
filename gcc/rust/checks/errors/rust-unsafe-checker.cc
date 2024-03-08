@@ -445,7 +445,7 @@ UnsafeChecker::visit (MethodCallExpr &expr)
   context.lookup_type (expr.get_method_name ().get_mappings ().get_hirid (),
 		       &method_type);
 
-  auto fn = *static_cast<TyTy::FnType *> (method_type);
+  auto &fn = static_cast<TyTy::FnType &> (*method_type);
   auto method = mappings.lookup_hir_implitem (fn.get_ref (), nullptr);
 
   if (!unsafe_context.is_in_context () && method)
