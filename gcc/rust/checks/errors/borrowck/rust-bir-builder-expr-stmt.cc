@@ -281,7 +281,46 @@ ExprStmtBuilder::visit (HIR::CallExpr &expr)
 
 void
 ExprStmtBuilder::visit (HIR::MethodCallExpr &expr)
-{}
+{
+  // TODO : need ExprStmtBuilder::visit_expr (HIR::PathExprSegment)
+  PlaceId fn = visit_expr (expr.get_method_name ());
+
+  std::vector<PlaceId> arguments = visit_list (expr.get_arguments ());
+
+  const auto fn_type = ctx.place_db[fn].tyty->as<const TyTy::FnType> ();
+
+  // compile `self` and handle autoref
+  PlaceId self = visit_expr (*expr.get_receiver ());
+  auto ty = ctx.place_db[self].tyty;
+  if (ty->get_kind () == TyTy::REF)
+    {
+      if (ty->as<TyTy::ReferenceType> ()->is_mutable ())
+	self
+	  = borrow_place (self,
+			  new TyTy::ReferenceType (ty->get_ref (),
+						   TyTy::TyVar (ty->get_ref ()),
+						   Mutability::Mut));
+      else
+	self
+	  = borrow_place (self,
+			  new TyTy::ReferenceType (ty->get_ref (),
+						   TyTy::TyVar (ty->get_ref ()),
+						   Mutability::Imm));
+    }
+
+  arguments.insert (arguments.begin (), self);
+
+  // skip the first parameter i.e `self`
+  for (size_t i = 1; i < fn_type->get_num_params (); ++i)
+    {
+      coercion_site (arguments[i], fn_type->get_param_type_at (i));
+    }
+
+  move_all (arguments);
+
+  return_expr (new CallExpr (fn, std::move (arguments)), lookup_type (expr),
+	       true);
+}
 
 void
 ExprStmtBuilder::visit (HIR::FieldAccessExpr &expr)
