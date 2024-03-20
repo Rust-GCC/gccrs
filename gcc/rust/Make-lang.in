@@ -147,6 +147,7 @@ GRS_OBJS = \
     rust/rust-tyty-util.o \
     rust/rust-tyty-call.o \
     rust/rust-tyty-subst.o \
+    rust/rust-tyty-variance-analysis.o \
     rust/rust-typecheck-context.o \
     rust/rust-tyty-bounds.o \
     rust/rust-hir-trait-resolve.o \
@@ -215,13 +216,15 @@ RUST_ALL_OBJS = $(GRS_OBJS) $(RUST_TARGET_OBJS)
 rust_OBJS = $(RUST_ALL_OBJS) rust/rustspec.o
 
 RUST_LDFLAGS = $(LDFLAGS) -L./../libgrust/libproc_macro_internal -L./../libgrust/librustc_format_parser/
-RUST_LIBDEPS = $(LIBDEPS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libformat_parser.a
+RUST_LIBDEPS = $(LIBDEPS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libffi_polonius.a ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libformat_parser.a
 
 # The compiler itself is called crab1
 crab1$(exeext): $(RUST_ALL_OBJS) attribs.o $(BACKEND) $(RUST_LIBDEPS) $(rust.prev)
 	@$(call LINK_PROGRESS,$(INDEX.rust),start)
 	+$(LLINKER) $(ALL_LINKERFLAGS) $(RUST_LDFLAGS) -o $@ \
-	      $(RUST_ALL_OBJS) attribs.o $(BACKEND) $(LIBS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libformat_parser.a $(BACKENDLIBS)
+	      $(RUST_ALL_OBJS) attribs.o $(BACKEND) \
+	      $(LIBS) ../libgrust/libproc_macro_internal/libproc_macro_internal.a rust/libformat_parser.a $(BACKENDLIBS) rust/libffi_polonius.a \
+ 		  $(BACKENDLIBS)
 	@$(call LINK_PROGRESS,$(INDEX.rust),end)
 
 # Build hooks.
@@ -255,6 +258,7 @@ rust.srcman:
 # Clean hooks.
 
 rust.mostlyclean:
+	rm -rf rust/ffi-polonius/release libffi_polonius.a
 #	cd $(srcdir)/rust; rm -f *.o y.tab.h y.tab.c lex.yy.c
 
 rust.clean: rust.mostlyclean
@@ -407,7 +411,7 @@ rust/%.o: rust/lex/%.cc
 	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)
 
-%.toml: 
+%.toml:
 	echo $@
 
 rust/libformat_parser.a: $(srcdir)/../libgrust/libformat_parser/Cargo.toml $(wildcard $(srcdir)/../libgrust/libformat_parser/src/*.rs)
@@ -483,3 +487,9 @@ rust/%.o: rust/checks/errors/borrowck/%.cc
 rust/%.o: rust/metadata/%.cc
 	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)
+
+rust/libffi_polonius.a: \
+	rust/checks/errors/borrowck/ffi-polonius/Cargo.toml \
+	$(wildcard $(srcdir)/rust/checks/errors/borrowck/ffi-polonius/src/*)
+	cargo build --manifest-path $(srcdir)/rust/checks/errors/borrowck/ffi-polonius/Cargo.toml --release --target-dir rust/ffi-polonius
+	cp rust/ffi-polonius/release/libffi_polonius.a rust/libffi_polonius.a
