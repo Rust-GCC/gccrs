@@ -30,7 +30,7 @@ ResolverBase::resolve_visibility (const AST::Visibility &vis)
   if (vis.has_path ())
     {
       auto path = vis.get_path ();
-      ResolvePath::go (&path);
+      ResolvePath::go (path);
 
       // Do we need to lookup something here?
       // Is it just about resolving the names correctly so we can look them up
@@ -431,10 +431,6 @@ ResolverBase::visit (AST::ExternalStaticItem &)
 {}
 
 void
-ResolverBase::visit (AST::ExternalFunctionItem &)
-{}
-
-void
 ResolverBase::visit (AST::ExternBlock &)
 {}
 
@@ -649,6 +645,13 @@ ResolverBase::visit (AST::VariadicParam &)
 void
 ResolverBase::visit (AST::FunctionParam &)
 {}
+
+void
+ResolverBase::visit (AST::FormatArgs &fmt)
+{
+  rust_sorry_at (fmt.get_locus (), "%s:%u: unimplemented FormatArgs visitor",
+		 __FILE__, __LINE__);
+}
 
 } // namespace Resolver
 } // namespace Rust

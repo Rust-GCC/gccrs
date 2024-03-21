@@ -16,6 +16,11 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "expected.h"
+#include "libproc_macro_internal/tokenstream.h"
+#include "rust-ast-full-decls.h"
+#include "rust-builtin-ast-nodes.h"
+#include "rust-token-converter.h"
 #include "rust-system.h"
 #include "rust-macro-builtins.h"
 #include "rust-ast-fragment.h"
@@ -30,6 +35,8 @@
 #include "rust-parse.h"
 #include "rust-session-manager.h"
 #include "rust-attribute-values.h"
+#include "rust-fmt.h"
+#include "rust-token.h"
 
 namespace Rust {
 
@@ -75,6 +82,14 @@ const BiMap<std::string, BuiltinMacro> MacroBuiltin::builtins = {{
 
 }};
 
+AST::MacroTranscriberFunc
+format_args_maker (AST::FormatArgs::Newline nl)
+{
+  return [nl] (location_t loc, AST::MacroInvocData &invoc) {
+    return MacroBuiltin::format_args_handler (loc, invoc, nl);
+  };
+}
+
 std::unordered_map<std::string, AST::MacroTranscriberFunc>
   MacroBuiltin::builtin_transcribers = {
     {"assert", MacroBuiltin::assert_handler},
@@ -89,10 +104,10 @@ std::unordered_map<std::string, AST::MacroTranscriberFunc>
     {"env", MacroBuiltin::env_handler},
     {"cfg", MacroBuiltin::cfg_handler},
     {"include", MacroBuiltin::include_handler},
+    {"format_args", format_args_maker (AST::FormatArgs::Newline::No)},
+    {"format_args_nl", format_args_maker (AST::FormatArgs::Newline::Yes)},
     /* Unimplemented macro builtins */
-    {"format_args", MacroBuiltin::sorry},
     {"option_env", MacroBuiltin::sorry},
-    {"format_args_nl", MacroBuiltin::sorry},
     {"concat_idents", MacroBuiltin::sorry},
     {"module_path", MacroBuiltin::sorry},
     {"asm", MacroBuiltin::sorry},
@@ -123,14 +138,13 @@ std::unordered_map<std::string, AST::MacroTranscriberFunc>
     {"Hash", MacroBuiltin::proc_macro_builtin},
 };
 
-// FIXME: This should return an tl::optional
-BuiltinMacro
+tl::optional<BuiltinMacro>
 builtin_macro_from_string (const std::string &identifier)
 {
   auto macro = MacroBuiltin::builtins.lookup (identifier);
-  rust_assert (MacroBuiltin::builtins.is_iter_ok (macro));
+  rust_assert (macro.has_value ());
 
-  return macro->second;
+  return macro;
 }
 
 namespace {
@@ -138,9 +152,9 @@ std::string
 make_macro_path_str (BuiltinMacro kind)
 {
   auto str = MacroBuiltin::builtins.lookup (kind);
-  rust_assert (MacroBuiltin::builtins.is_iter_ok (str));
+  rust_assert (str.has_value ());
 
-  return str->second;
+  return str.value ();
 }
 
 static std::vector<std::unique_ptr<AST::MacroInvocation>>
@@ -284,6 +298,8 @@ try_expand_many_expr (Parser<MacroInvocLexer> &parser,
    and return the LiteralExpr for it. Allow for an optional trailing comma,
    but otherwise enforce that these are the only tokens.  */
 
+// FIXME(Arthur): This function needs a rework - it should not emit errors, it
+// should probably be smaller
 std::unique_ptr<AST::Expr>
 parse_single_string_literal (BuiltinMacro kind,
 			     AST::DelimTokenTree &invoc_token_tree,
@@ -940,6 +956,159 @@ MacroBuiltin::stringify_handler (location_t invoc_locus,
   auto token
     = make_token (Token::make_string (invoc_locus, std::move (content)));
   return AST::Fragment ({node}, std::move (token));
+}
+
+struct FormatArgsInput
+{
+  std::unique_ptr<AST::Expr> format_str;
+  AST::FormatArguments args;
+  // bool is_literal?
+};
+
+struct FormatArgsParseError
+{
+  enum class Kind
+  {
+    MissingArguments
+  } kind;
+};
+
+static tl::expected<FormatArgsInput, FormatArgsParseError>
+format_args_parse_arguments (AST::MacroInvocData &invoc)
+{
+  MacroInvocLexer lex (invoc.get_delim_tok_tree ().to_token_stream ());
+  Parser<MacroInvocLexer> parser (lex);
+
+  // TODO: check if EOF - return that format_args!() requires at least one
+  // argument
+
+  auto args = AST::FormatArguments ();
+  auto last_token_id = macro_end_token (invoc.get_delim_tok_tree (), parser);
+  std::unique_ptr<AST::Expr> format_str = nullptr;
+
+  // TODO: Handle the case where we're not parsing a string literal (macro
+  // invocation for e.g.)
+  if (parser.peek_current_token ()->get_id () == STRING_LITERAL)
+    format_str = parser.parse_literal_expr ();
+
+  // TODO: Allow implicit captures ONLY if the the first arg is a string literal
+  // and not a macro invocation
+
+  // TODO: How to consume all of the arguments until the delimiter?
+
+  // TODO: What we then want to do is as follows:
+  // for each token, check if it is an identifier
+  //     yes? is the next token an equal sign (=)
+  //          yes?
+  //              -> if that identifier is already present in our map, error
+  //              out
+  //              -> parse an expression, return a FormatArgument::Named
+  //     no?
+  //         -> if there have been named arguments before, error out
+  //         (positional after named error)
+  //         -> parse an expression, return a FormatArgument::Normal
+  while (parser.peek_current_token ()->get_id () != last_token_id)
+    {
+      parser.skip_token (COMMA);
+
+      if (parser.peek_current_token ()->get_id () == IDENTIFIER
+	  && parser.peek (1)->get_id () == EQUAL)
+	{
+	  // FIXME: This is ugly - just add a parser.parse_identifier()?
+	  auto ident_tok = parser.peek_current_token ();
+	  auto ident = Identifier (ident_tok);
+
+	  parser.skip_token (IDENTIFIER);
+	  parser.skip_token (EQUAL);
+
+	  auto expr = parser.parse_expr ();
+
+	  // TODO: Handle graciously
+	  if (!expr)
+	    rust_unreachable ();
+
+	  args.push (AST::FormatArgument::named (ident, std::move (expr)));
+	}
+      else
+	{
+	  auto expr = parser.parse_expr ();
+
+	  // TODO: Handle graciously
+	  if (!expr)
+	    rust_unreachable ();
+
+	  args.push (AST::FormatArgument::normal (std::move (expr)));
+	}
+      // we need to skip commas, don't we?
+    }
+
+  return FormatArgsInput{std::move (format_str), std::move (args)};
+}
+
+tl::optional<AST::Fragment>
+MacroBuiltin::format_args_handler (location_t invoc_locus,
+				   AST::MacroInvocData &invoc,
+				   AST::FormatArgs::Newline nl)
+{
+  auto input = format_args_parse_arguments (invoc);
+
+  // TODO(Arthur): We need to handle this
+  // // if it is not a literal, it's an eager macro invocation - return it
+  // if (!fmt_expr->is_literal ())
+  //   {
+  //     auto token_tree = invoc.get_delim_tok_tree ();
+  //     return AST::Fragment ({AST::SingleASTNode (std::move (fmt_expr))},
+  // 	    token_tree.to_token_stream ());
+  //   }
+
+  // TODO(Arthur): Handle this as well - raw strings are special for the
+  // format_args parser auto fmt_str = static_cast<AST::LiteralExpr &>
+  // (*fmt_arg.get ()); Switch on the format string to know if the string is raw
+  // or cooked switch (fmt_str.get_lit_type ())
+  //   {
+  //   // case AST::Literal::RAW_STRING:
+  //   case AST::Literal::STRING:
+  //     break;
+  //   case AST::Literal::CHAR:
+  //   case AST::Literal::BYTE:
+  //   case AST::Literal::BYTE_STRING:
+  //   case AST::Literal::INT:
+  //   case AST::Literal::FLOAT:
+  //   case AST::Literal::BOOL:
+  //   case AST::Literal::ERROR:
+  //     rust_unreachable ();
+  //   }
+
+  // Remove the delimiters from the macro invocation:
+  // the invoc data for `format_args!(fmt, arg1, arg2)` is `(fmt, arg1, arg2)`,
+  // so we pop the front and back to remove the parentheses (or curly brackets,
+  // or brackets)
+  auto tokens = invoc.get_delim_tok_tree ().to_token_stream ();
+  tokens.erase (tokens.begin ());
+  tokens.pop_back ();
+
+  std::stringstream stream;
+  for (const auto &tok : tokens)
+    stream << tok->as_string () << ' ';
+
+  auto append_newline = nl == AST::FormatArgs::Newline::Yes ? true : false;
+  auto pieces = Fmt::Pieces::collect (stream.str (), append_newline);
+
+  // TODO:
+  // do the transformation into an AST::FormatArgs node
+  // return that
+  // expand it during lowering
+
+  // TODO: we now need to take care of creating `unfinished_literal`? this is
+  // for creating the `template`
+
+  auto fmt_args_node = new AST::FormatArgs (invoc_locus, std::move (pieces),
+					    std::move (input->args));
+  auto node = std::unique_ptr<AST::Expr> (fmt_args_node);
+  auto single_node = AST::SingleASTNode (std::move (node));
+
+  return AST::Fragment ({std::move (single_node)},
+			invoc.get_delim_tok_tree ().to_token_stream ());
 }
 
 tl::optional<AST::Fragment>

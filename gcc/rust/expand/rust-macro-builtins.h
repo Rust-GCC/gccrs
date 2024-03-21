@@ -20,6 +20,7 @@
 #define RUST_MACRO_BUILTINS_H
 
 #include "rust-ast.h"
+#include "rust-builtin-ast-nodes.h"
 #include "rust-ast-fragment.h"
 #include "rust-location.h"
 #include "bi-map.h"
@@ -75,7 +76,7 @@ enum class BuiltinMacro
   Hash,
 };
 
-BuiltinMacro
+tl::optional<BuiltinMacro>
 builtin_macro_from_string (const std::string &identifier);
 
 /**
@@ -156,6 +157,10 @@ public:
 
   static tl::optional<AST::Fragment> line_handler (location_t invoc_locus,
 						   AST::MacroInvocData &invoc);
+
+  static tl::optional<AST::Fragment>
+  format_args_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		       AST::FormatArgs::Newline nl);
 
   static tl::optional<AST::Fragment> sorry (location_t invoc_locus,
 					    AST::MacroInvocData &invoc);
