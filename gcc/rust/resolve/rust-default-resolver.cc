@@ -464,7 +464,8 @@ DefaultResolver::visit (AST::ConstantItem &item)
   auto expr_vis = [this, &item] () { item.get_expr ().accept_vis (*this); };
 
   // FIXME: Why do we need a Rib here?
-  ctx.scoped (Rib::Kind::Item, item.get_node_id (), expr_vis);
+  if (item.has_expr ())
+    ctx.scoped (Rib::Kind::ConstantItem, item.get_node_id (), expr_vis);
 }
 
 void
