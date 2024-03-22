@@ -581,8 +581,9 @@ HIRCompileBase::compile_function_body (tree fndecl,
 
   if (function_body.has_expr ())
     {
-      location_t locus = function_body.get_final_expr ()->get_locus ();
-      tree return_value = CompileExpr::Compile (function_body.expr.get (), ctx);
+      location_t locus = function_body.get_final_expr ().get_locus ();
+      tree return_value
+	= CompileExpr::Compile (function_body.get_final_expr (), ctx);
 
       // we can only return this if non unit value return type
       if (!fn_return_ty->is_unit ())
@@ -708,18 +709,18 @@ HIRCompileBase::compile_function (
   size_t i = is_method ? 1 : 0;
   for (auto &referenced_param : function_params)
     {
-      auto tyty_param = fntype->param_at (i++);
-      auto param_tyty = tyty_param.second;
+      auto &tyty_param = fntype->param_at (i++);
+      auto param_tyty = tyty_param.get_type ();
       auto compiled_param_type = TyTyResolveCompile::compile (ctx, param_tyty);
 
       location_t param_locus = referenced_param.get_locus ();
       Bvariable *compiled_param_var
-	= CompileFnParam::compile (ctx, fndecl, &referenced_param,
+	= CompileFnParam::compile (ctx, fndecl, referenced_param,
 				   compiled_param_type, param_locus);
 
       param_vars.push_back (compiled_param_var);
 
-      const HIR::Pattern &param_pattern = *referenced_param.get_param_name ();
+      const HIR::Pattern &param_pattern = referenced_param.get_param_name ();
       ctx->insert_var_decl (param_pattern.get_mappings ().get_hirid (),
 			    compiled_param_var);
     }
@@ -767,14 +768,14 @@ HIRCompileBase::compile_function (
 tree
 HIRCompileBase::compile_constant_item (
   TyTy::BaseType *resolved_type, const Resolver::CanonicalPath *canonical_path,
-  HIR::Expr *const_value_expr, location_t locus)
+  HIR::Expr &const_value_expr, location_t locus)
 {
   const std::string &ident = canonical_path->get ();
 
   tree type = TyTyResolveCompile::compile (ctx, resolved_type);
   tree const_type = build_qualified_type (type, TYPE_QUAL_CONST);
   bool is_block_expr
-    = const_value_expr->get_expression_type () == HIR::Expr::ExprType::Block;
+    = const_value_expr.get_expression_type () == HIR::Expr::ExprType::Block;
 
   // in order to compile a block expr we want to reuse as much existing
   // machineary that we already have. This means the best approach is to
@@ -788,14 +789,14 @@ HIRCompileBase::compile_constant_item (
   TREE_READONLY (fndecl) = 1;
 
   tree enclosing_scope = NULL_TREE;
-  location_t start_location = const_value_expr->get_locus ();
-  location_t end_location = const_value_expr->get_locus ();
+  location_t start_location = const_value_expr.get_locus ();
+  location_t end_location = const_value_expr.get_locus ();
   if (is_block_expr)
     {
-      HIR::BlockExpr *function_body
-	= static_cast<HIR::BlockExpr *> (const_value_expr);
-      start_location = function_body->get_locus ();
-      end_location = function_body->get_end_locus ();
+      HIR::BlockExpr &function_body
+	= static_cast<HIR::BlockExpr &> (const_value_expr);
+      start_location = function_body.get_locus ();
+      end_location = function_body.get_end_locus ();
     }
 
   tree code_block = Backend::block (fndecl, enclosing_scope, {} /*locals*/,
@@ -813,9 +814,9 @@ HIRCompileBase::compile_constant_item (
 
   if (is_block_expr)
     {
-      HIR::BlockExpr *function_body
-	= static_cast<HIR::BlockExpr *> (const_value_expr);
-      compile_function_body (fndecl, *function_body, resolved_type);
+      HIR::BlockExpr &function_body
+	= static_cast<HIR::BlockExpr &> (const_value_expr);
+      compile_function_body (fndecl, function_body, resolved_type);
     }
   else
     {
@@ -823,7 +824,7 @@ HIRCompileBase::compile_constant_item (
 
       tree return_expr
 	= Backend::return_statement (fndecl, value,
-				     const_value_expr->get_locus ());
+				     const_value_expr.get_locus ());
       ctx->add_statement (return_expr);
     }
 

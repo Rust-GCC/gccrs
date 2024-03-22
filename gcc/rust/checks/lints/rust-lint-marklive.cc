@@ -141,7 +141,7 @@ MarkLive::visit (HIR::PathInExpression &expr)
 void
 MarkLive::visit (HIR::MethodCallExpr &expr)
 {
-  expr.get_receiver ()->accept_vis (*this);
+  expr.get_receiver ().accept_vis (*this);
   visit_path_segment (expr.get_method_name ());
   for (auto &argument : expr.get_arguments ())
     argument->accept_vis (*this);
@@ -188,14 +188,14 @@ void
 MarkLive::visit (HIR::FieldAccessExpr &expr)
 {
   // visit receiver at first
-  expr.get_receiver_expr ()->accept_vis (*this);
+  expr.get_receiver_expr ().accept_vis (*this);
 
   // resolve the receiver back to ADT type
   TyTy::BaseType *receiver = nullptr;
   if (!tyctx->lookup_type (
-	expr.get_receiver_expr ()->get_mappings ().get_hirid (), &receiver))
+	expr.get_receiver_expr ().get_mappings ().get_hirid (), &receiver))
     {
-      rust_error_at (expr.get_receiver_expr ()->get_locus (),
+      rust_error_at (expr.get_receiver_expr ().get_locus (),
 		     "unresolved type for receiver");
     }
 
@@ -227,7 +227,7 @@ MarkLive::visit (HIR::FieldAccessExpr &expr)
   rust_assert (ok);
   if (index >= variant->num_fields ())
     {
-      rust_error_at (expr.get_receiver_expr ()->get_locus (),
+      rust_error_at (expr.get_receiver_expr ().get_locus (),
 		     "cannot access struct %s by index: %lu",
 		     adt->get_name ().c_str (), (unsigned long) index);
       return;
@@ -242,7 +242,7 @@ void
 MarkLive::visit (HIR::TupleIndexExpr &expr)
 {
   // TODO: unused tuple field detection
-  expr.get_tuple_expr ()->accept_vis (*this);
+  expr.get_tuple_expr ().accept_vis (*this);
 }
 
 void
@@ -250,7 +250,7 @@ MarkLive::visit (HIR::TypeAlias &alias)
 {
   NodeId ast_node_id;
   resolver->lookup_resolved_type (
-    alias.get_type_aliased ()->get_mappings ().get_nodeid (), &ast_node_id);
+    alias.get_type_aliased ().get_mappings ().get_nodeid (), &ast_node_id);
   HirId hir_id;
   bool ok = mappings->lookup_node_to_hir (ast_node_id, &hir_id);
   rust_assert (ok);

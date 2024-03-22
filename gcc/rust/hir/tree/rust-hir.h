@@ -463,7 +463,10 @@ public:
 
   virtual void accept_vis (HIRTypeVisitor &vis) = 0;
 
-  virtual Analysis::NodeMapping get_mappings () const { return mappings; }
+  virtual const Analysis::NodeMapping &get_mappings () const
+  {
+    return mappings;
+  }
   virtual location_t get_locus () const { return locus; }
 
 protected:
@@ -756,11 +759,8 @@ public:
   bool has_default_expression () { return default_expression != nullptr; }
 
   std::string get_name () { return name; }
-  std::unique_ptr<Type> &get_type () { return type; }
-  std::unique_ptr<Expr> &get_default_expression ()
-  {
-    return default_expression;
-  }
+  Type &get_type () { return *type; }
+  Expr &get_default_expression () { return *default_expression; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather

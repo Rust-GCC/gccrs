@@ -108,12 +108,12 @@ public:
       [] (HIR::Type *t) { return static_cast<HIR::ReferenceType *> (t); });
 
     type = ref_type.map (
-      [] (HIR::ReferenceType *r) { return r->get_base_type ().get (); });
+      [] (HIR::ReferenceType *r) { return &r->get_base_type (); });
     init = ctx.place_db.lookup_or_add_path (Place::DEREF, lookup_type (pattern),
 					    saved.init);
     ctx.place_db[init].lifetime
       = ctx.lookup_lifetime (ref_type.map (&HIR::ReferenceType::get_lifetime));
-    pattern.get_referenced_pattern ()->accept_vis (*this);
+    pattern.get_referenced_pattern ().accept_vis (*this);
   }
 
   void visit (HIR::SlicePattern &pattern) override
@@ -121,7 +121,7 @@ public:
     SavedState saved (this);
 
     type = type.map ([] (HIR::Type *t) {
-      return static_cast<HIR::SliceType *> (t)->get_element_type ().get ();
+      return &static_cast<HIR::SliceType *> (t)->get_element_type ();
     });
     // All indexes are supposed to point to the same place for borrow-checking.
     init = ctx.place_db.lookup_or_add_path (Place::INDEX, lookup_type (pattern),
@@ -160,9 +160,9 @@ public:
 	      auto tuple
 		= static_cast<HIR::StructPatternFieldTuplePat *> (field.get ());
 	      init = ctx.place_db.lookup_or_add_path (
-		Place::FIELD, lookup_type (*tuple->get_tuple_pattern ()),
+		Place::FIELD, lookup_type (tuple->get_tuple_pattern ()),
 		saved.init, tuple->get_index ());
-	      tuple->get_tuple_pattern ()->accept_vis (*this);
+	      tuple->get_tuple_pattern ().accept_vis (*this);
 	      break;
 	    }
 	    case HIR::StructPatternField::IDENT_PAT: {
@@ -178,7 +178,7 @@ public:
 		= ctx.place_db.lookup_or_add_path (Place::FIELD,
 						   field_ty->get_field_type (),
 						   saved.init, field_index);
-	      ident_field->get_pattern ()->accept_vis (*this);
+	      ident_field->get_pattern ().accept_vis (*this);
 	      break;
 	    }
 	    case HIR::StructPatternField::IDENT: {
@@ -226,17 +226,17 @@ public:
     SavedState saved (this);
 
     size_t index = 0;
-    switch (pattern.get_items ()->get_item_type ())
+    switch (pattern.get_items ().get_item_type ())
       {
 	case HIR::TuplePatternItems::MULTIPLE: {
 	  auto &items = static_cast<HIR::TuplePatternItemsMultiple &> (
-	    *pattern.get_items ());
+	    pattern.get_items ());
 	  visit_tuple_fields (items.get_patterns (), saved, index);
 	  break;
 	}
 	case HIR::TuplePatternItems::RANGED: {
 	  auto &items = static_cast<HIR::TuplePatternItemsRanged &> (
-	    *pattern.get_items ());
+	    pattern.get_items ());
 
 	  auto tyty = ctx.place_db[init].tyty;
 	  rust_assert (tyty->get_kind () == TyTy::TUPLE);
@@ -258,11 +258,11 @@ public:
     SavedState saved (this);
 
     size_t index = 0;
-    switch (pattern.get_items ()->get_item_type ())
+    switch (pattern.get_items ().get_item_type ())
       {
 	case HIR::TupleStructItems::RANGED: {
 	  auto &items
-	    = static_cast<HIR::TupleStructItemsRange &> (*pattern.get_items ());
+	    = static_cast<HIR::TupleStructItemsRange &> (pattern.get_items ());
 
 	  auto tyty = ctx.place_db[init].tyty;
 	  rust_assert (tyty->get_kind () == TyTy::ADT);
@@ -280,7 +280,7 @@ public:
 	}
 	case HIR::TupleStructItems::MULTIPLE: {
 	  auto &items = static_cast<HIR::TupleStructItemsNoRange &> (
-	    *pattern.get_items ());
+	    pattern.get_items ());
 	  visit_tuple_fields (items.get_patterns (), saved, index);
 	  break;
 	}
