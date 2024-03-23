@@ -38,6 +38,7 @@
 #include <vector>
 #include <sstream>
 #include <string>
+#include <stack>
 #include <deque>
 #include <functional>
 #include <memory>

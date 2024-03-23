@@ -26,7 +26,6 @@
 #include "rust-tyty-region.h"
 #include "rust-tyty-variance-analysis.h"
 
-#include <stack>
 
 namespace Rust {
 namespace Resolver {
