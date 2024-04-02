@@ -933,7 +933,7 @@ read_original_directory (cpp_reader *pfile)
    Maybe it should also reset state, such that you could call
    cpp_start_read with a new filename to restart processing.  */
 void
-cpp_finish (struct cpp_reader *pfile, FILE *deps_stream, FILE *fdeps_stream)
+cpp_finish (cpp_reader *pfile, FILE *deps_stream, FILE *fdeps_stream)
 {
   /* Warn about unused macros before popping the final buffer.  */
   if (CPP_OPTION (pfile, warn_unused_macros))
