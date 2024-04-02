@@ -309,11 +309,12 @@ fdeps_add_target (struct mkdeps *d, const char *o, bool is_primary)
 {
   o = apply_vpath (d, o);
   if (is_primary)
-  {
-    if (d->primary_output)
-      d->fdeps_targets.push (d->primary_output);
-    d->primary_output = xstrdup (o);
-  } else
+    {
+      if (d->primary_output)
+	d->fdeps_targets.push (d->primary_output);
+      d->primary_output = xstrdup (o);
+    }
+  else
     d->fdeps_targets.push (xstrdup (o));
 }
 
