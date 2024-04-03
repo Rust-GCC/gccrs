@@ -48,6 +48,8 @@ AC_PROG_CXX
 AM_PROG_AS
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
+AC_CHECK_PROG(CARGO, [cargo], [yes], [no])
+AS_IF(test x$CARGO = xno,AC_MSG_ERROR([cargo is required to build some parts of the compiler.]))
 
 # Enable libtool
 LT_INIT
