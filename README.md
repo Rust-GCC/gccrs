@@ -74,6 +74,12 @@ $ make
 
 ```
 
+Alternatively, a docker environment is available for ARM-based Mac contributors.
+
+Please visit [gccrs-workspace](https://github.com/badumbatish/gccrs-workspace). 
+ 
+The image is based on Ubuntu ARM and comes with dependencies all fetched.
+
 #### Running GCC Rust
 
 Running the compiler itself without make install we can simply invoke the compiler proper:
