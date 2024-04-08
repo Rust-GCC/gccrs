@@ -207,6 +207,8 @@ jobs:
 
     - name: Configure
       run: |
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            mkdir -p gccrs-build;
            cd gccrs-build;
            ../configure \
