@@ -463,21 +463,18 @@ TypeCheckContext::lookup_predicate (HirId id, TyTy::TypeBoundPredicate *result)
 void
 TypeCheckContext::insert_query (HirId id)
 {
-  rust_debug ("[ARTHUR] INSERTING QUERY: %u", id);
   querys_in_progress.insert (id);
 }
 
 void
 TypeCheckContext::query_completed (HirId id)
 {
-  rust_debug ("[ARTHUR] COMPLETING QUERY: %u", id);
   querys_in_progress.erase (id);
 }
 
 bool
 TypeCheckContext::query_in_progress (HirId id) const
 {
-  rust_debug ("[ARTHUR] CHECKING IF QUERY IN PROGRESS: %u", id);
   return querys_in_progress.find (id) != querys_in_progress.end ();
 }
 

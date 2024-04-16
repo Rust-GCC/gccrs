@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-lower.h"
+#include "optional.h"
 #include "rust-ast-lower-item.h"
 #include "rust-ast-lower-stmt.h"
 #include "rust-ast-lower-expr.h"
@@ -25,6 +26,7 @@
 #include "rust-ast-lower-pattern.h"
 #include "rust-ast-lower-struct-field-expr.h"
 #include "rust-common.h"
+#include "rust-diagnostics.h"
 #include "rust-hir-expr.h"
 #include "rust-hir-full-decls.h"
 #include "rust-hir-map.h"
@@ -436,6 +438,20 @@ struct ForLoopDesugarCtx
 						    std::move (args), {}, loc));
   }
 
+  std::unique_ptr<MethodCallExpr>
+  make_method_call (std::unique_ptr<Expr> &&receiver,
+		    PathExprSegment &&method_path,
+		    tl::optional<std::unique_ptr<Expr>> &&arg)
+  {
+    auto args = std::vector<std::unique_ptr<Expr>> ();
+    if (arg)
+      args.emplace_back (std::move (*arg));
+
+    return std::unique_ptr<MethodCallExpr> (
+      new MethodCallExpr (next_mapping (), std::move (receiver),
+			  std::move (method_path), std::move (args), {}, loc));
+  }
+
   std::unique_ptr<Pattern> make_identifier_pattern (std::string &&name,
 						    Mutability mutability,
 						    bool is_ref = false)
@@ -545,15 +561,28 @@ ASTLoweringExprWithBlock::visit (AST::ForLoopExpr &expr)
   rust_assert (body);
 
   // core::iter::IntoIterator::into_iter(<head>)
+  // auto into_iter_call
+  //   = ctx.make_function_call (ctx.path_in_expr (
+  // 		{"core", "iter", "IntoIterator", "into_iter"}),
+  // 	      std::move (head));
+
+  // <head>.into_iter()
   auto into_iter_call
-    = ctx.make_function_call (ctx.path_in_expr (
-				{"core", "iter", "IntoIterator", "into_iter"}),
-			      std::move (head));
+    = ctx.make_method_call (std::move (head), ctx.path_segment ("into_iter"),
+			    tl::nullopt);
+
+  auto iter = ctx.path_in_expr ({"iter"});
 
   // core::iter::Iterator::next(&mut iter)
-  auto next_call = ctx.make_function_call (
-    ctx.path_in_expr ({"core", "iter", "Iterator", "next"}),
-    ctx.make_mutable_borrow (ctx.path_in_expr ({"iter"})));
+  // auto next_call
+  //   = ctx.make_function_call (ctx.path_in_expr (
+  // 		{"core", "iter", "Iterator", "next"}),
+  // 	      ctx.make_mutable_borrow (iter->clone_expr ()));
+
+  // iter.next()
+  auto next_call
+    = ctx.make_method_call (iter->clone_expr (), ctx.path_segment ("next"),
+			    tl::nullopt);
 
   // core::option::Option::None => break,
   auto break_arm = ctx.make_break_arm ();
@@ -612,6 +641,8 @@ ASTLoweringExprWithBlock::visit (AST::ForLoopExpr &expr)
   //     <result>
   // }
   auto block = ctx.make_block (std::move (let_result), std::move (result));
+
+  rust_debug ("[ARTHUR] \n%s", block->as_string ().c_str ());
 
   translated = block.release ();
 }
