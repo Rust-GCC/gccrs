@@ -212,4 +212,8 @@ frust-borrowcheck
 Rust Var(flag_borrowcheck)
 Use the WIP borrow checker.
 
+frust-mini-std
+Rust Var(flag_mini_std)
+Include the experimental miniature standard library implementation shipped within the Rust frontend
+
 ; This comment is to ensure we retain the blank line above.
