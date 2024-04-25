@@ -558,6 +558,17 @@ EarlyNameResolver::visit (AST::StructPattern &)
 void
 EarlyNameResolver::visit (AST::TupleStructPattern &pattern)
 {
+  auto &segments = pattern.get_path ().get_segments ();
+  if (segments.size () > 1 && !pattern.has_items ())
+    {
+      rich_location rich_locus (line_table, pattern.get_locus ());
+      rich_locus.add_fixit_replace (
+	"function calls are not allowed in patterns");
+      rust_error_at (
+	rich_locus, ErrorCode::E0164,
+	"expected tuple struct or tuple variant, found associated function");
+      return;
+    }
   pattern.get_items ().accept_vis (*this);
 }
 
