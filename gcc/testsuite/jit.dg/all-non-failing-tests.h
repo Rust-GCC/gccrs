@@ -138,6 +138,13 @@
 #undef create_code
 #undef verify_code
 
+/* test-comparison.c */
+#define create_code create_code_comparison
+#define verify_code verify_code_comparison
+#include "test-comparison.c"
+#undef create_code
+#undef verify_code
+
 /* test-compound-assignment.c */
 #define create_code create_code_compound_assignment
 #define verify_code verify_code_compound_assignment
@@ -558,6 +565,9 @@ const struct testcase testcases[] = {
   {"cast",
    create_code_cast,
    verify_code_cast},
+  {"comparison",
+   create_code_comparison,
+   verify_code_comparison},
   {"compound_assignment",
    create_code_compound_assignment,
    verify_code_compound_assignment},

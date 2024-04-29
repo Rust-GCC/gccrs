@@ -653,8 +653,7 @@ public:
 
   virtual bool is_same_type_as (type *other)
   {
-    if (is_int ()
-		 && other->is_int ()
+    if (((is_int () && other->is_int ()) || (is_float () && other->is_float ()))
 		 && get_size () == other->get_size ()
 		 && is_signed () == other->is_signed ())
     {

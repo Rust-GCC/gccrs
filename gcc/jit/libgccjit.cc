@@ -2306,7 +2306,8 @@ gcc_jit_context_new_comparison (gcc_jit_context *ctxt,
   RETURN_NULL_IF_FAIL (a, ctxt, loc, "NULL a");
   RETURN_NULL_IF_FAIL (b, ctxt, loc, "NULL b");
   RETURN_NULL_IF_FAIL_PRINTF4 (
-    a->get_type ()->unqualified () == b->get_type ()->unqualified (),
+    compatible_types (a->get_type ()->unqualified (),
+		      b->get_type ()->unqualified ()),
     ctxt, loc,
     "mismatching types for comparison:"
     " a: %s (type: %s) b: %s (type: %s)",
