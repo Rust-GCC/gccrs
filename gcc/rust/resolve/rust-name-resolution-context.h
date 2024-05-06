@@ -22,6 +22,7 @@
 #include "optional.h"
 #include "rust-forever-stack.h"
 #include "rust-hir-map.h"
+#include "rust-rib.h"
 
 namespace Rust {
 namespace Resolver2_0 {

@@ -26,105 +26,6 @@
 namespace Rust {
 namespace Resolver2_0 {
 
-void
-GlobbingVisitor::go (AST::Module *module)
-{
-  for (auto &i : module->get_items ())
-    visit (i);
-}
-
-void
-GlobbingVisitor::visit (AST::Module &module)
-{
-  if (module.get_visibility ().is_public ())
-    ctx.insert_shadowable (module.get_name (), module.get_node_id (),
-			   Namespace::Types);
-}
-
-void
-GlobbingVisitor::visit (AST::MacroRulesDefinition &macro)
-{
-  if (macro.get_visibility ().is_public ())
-    ctx.insert_shadowable (macro.get_rule_name (), macro.get_node_id (),
-			   Namespace::Macros);
-}
-
-void
-GlobbingVisitor::visit (AST::Function &function)
-{
-  if (function.get_visibility ().is_public ())
-    ctx.insert_shadowable (function.get_function_name (),
-			   function.get_node_id (), Namespace::Values);
-}
-
-void
-GlobbingVisitor::visit (AST::StaticItem &static_item)
-{
-  if (static_item.get_visibility ().is_public ())
-    ctx.insert_shadowable (static_item.get_identifier (),
-			   static_item.get_node_id (), Namespace::Values);
-}
-
-void
-GlobbingVisitor::visit (AST::StructStruct &struct_item)
-{
-  if (struct_item.get_visibility ().is_public ())
-    {
-      ctx.insert_shadowable (struct_item.get_identifier (),
-			     struct_item.get_node_id (), Namespace::Types);
-      if (struct_item.is_unit_struct ())
-	ctx.insert_shadowable (struct_item.get_identifier (),
-			       struct_item.get_node_id (), Namespace::Values);
-    }
-}
-
-void
-GlobbingVisitor::visit (AST::TupleStruct &tuple_struct)
-{
-  if (tuple_struct.get_visibility ().is_public ())
-    {
-      ctx.insert_shadowable (tuple_struct.get_identifier (),
-			     tuple_struct.get_node_id (), Namespace::Types);
-
-      ctx.insert_shadowable (tuple_struct.get_identifier (),
-			     tuple_struct.get_node_id (), Namespace::Values);
-    }
-}
-
-void
-GlobbingVisitor::visit (AST::Enum &enum_item)
-{
-  if (enum_item.get_visibility ().is_public ())
-    ctx.insert_shadowable (enum_item.get_identifier (),
-			   enum_item.get_node_id (), Namespace::Types);
-}
-
-void
-GlobbingVisitor::visit (AST::Union &union_item)
-{
-  if (union_item.get_visibility ().is_public ())
-    ctx.insert_shadowable (union_item.get_identifier (),
-			   union_item.get_node_id (), Namespace::Values);
-}
-
-void
-GlobbingVisitor::visit (AST::ConstantItem &const_item)
-{
-  if (const_item.get_visibility ().is_public ())
-    ctx.insert_shadowable (const_item.get_identifier (),
-			   const_item.get_node_id (), Namespace::Values);
-}
-
-void
-GlobbingVisitor::visit (AST::ExternCrate &crate)
-{}
-
-void
-GlobbingVisitor::visit (AST::UseDeclaration &use)
-{
-  // Handle cycles ?
-}
-
 TopLevel::TopLevel (NameResolutionContext &resolver)
   : DefaultResolver (resolver)
 {}
@@ -434,183 +335,6 @@ TopLevel::visit (AST::ConstantItem &const_item)
   ctx.scoped (Rib::Kind::ConstantItem, const_item.get_node_id (), expr_vis);
 }
 
-bool
-TopLevel::handle_use_glob (AST::SimplePath &glob)
-{
-  auto resolved = ctx.types.resolve_path (glob.get_segments ());
-  if (!resolved.has_value ())
-    return false;
-
-  auto result
-    = Analysis::Mappings::get ()->lookup_ast_module (resolved->get_node_id ());
-
-  if (!result.has_value ())
-    return false;
-
-  GlobbingVisitor gvisitor (ctx);
-  gvisitor.go (result.value ());
-
-  return true;
-}
-
-bool
-TopLevel::handle_use_dec (AST::SimplePath &path)
-{
-  auto locus = path.get_final_segment ().get_locus ();
-  auto declared_name = path.get_final_segment ().as_string ();
-
-  // in what namespace do we perform path resolution? All of them? see which one
-  // matches? Error out on ambiguities?
-  // so, apparently, for each one that matches, add it to the proper namespace
-  // :(
-
-  auto found = false;
-
-  auto resolve_and_insert
-    = [this, &found, &declared_name, locus] (Namespace ns,
-					     const AST::SimplePath &path) {
-	tl::optional<Rib::Definition> resolved = tl::nullopt;
-
-	// FIXME: resolve_path needs to return an `expected<NodeId, Error>` so
-	// that we can improve it with hints or location or w/ever. and maybe
-	// only emit it the first time.
-	switch (ns)
-	  {
-	  case Namespace::Values:
-	    resolved = ctx.values.resolve_path (path.get_segments ());
-	    break;
-	  case Namespace::Types:
-	    resolved = ctx.types.resolve_path (path.get_segments ());
-	    break;
-	  case Namespace::Macros:
-	    resolved = ctx.macros.resolve_path (path.get_segments ());
-	    break;
-	  case Namespace::Labels:
-	    // TODO: Is that okay?
-	    rust_unreachable ();
-	  }
-
-	// FIXME: Ugly
-	(void) resolved.map ([this, &found, &declared_name, locus, ns,
-			      path] (Rib::Definition def) {
-	  found = true;
-
-	  // what do we do with the id?
-	  insert_or_error_out (declared_name, locus, def.get_node_id (), ns);
-	  auto result = node_forwarding.find (def.get_node_id ());
-	  if (result != node_forwarding.cend ()
-	      && result->second != path.get_node_id ())
-	    rust_error_at (path.get_locus (), "%qs defined multiple times",
-			   declared_name.c_str ());
-	  else // No previous thing has inserted this into our scope
-	    node_forwarding.insert ({def.get_node_id (), path.get_node_id ()});
-
-	  return def.get_node_id ();
-	});
-      };
-
-  resolve_and_insert (Namespace::Values, path);
-  resolve_and_insert (Namespace::Types, path);
-  resolve_and_insert (Namespace::Macros, path);
-
-  return found;
-}
-
-bool
-TopLevel::handle_rebind (std::pair<AST::SimplePath, AST::UseTreeRebind> &rebind)
-{
-  auto &path = rebind.first;
-
-  location_t locus = UNKNOWN_LOCATION;
-  std::string declared_name;
-
-  switch (rebind.second.get_new_bind_type ())
-    {
-    case AST::UseTreeRebind::NewBindType::IDENTIFIER:
-      declared_name = rebind.second.get_identifier ().as_string ();
-      locus = rebind.second.get_identifier ().get_locus ();
-      break;
-    case AST::UseTreeRebind::NewBindType::NONE:
-      declared_name = path.get_final_segment ().as_string ();
-      locus = path.get_final_segment ().get_locus ();
-      break;
-    case AST::UseTreeRebind::NewBindType::WILDCARD:
-      rust_unreachable ();
-      break;
-    }
-
-  // in what namespace do we perform path resolution? All
-  // of them? see which one matches? Error out on
-  // ambiguities? so, apparently, for each one that
-  // matches, add it to the proper namespace
-  // :(
-  auto found = false;
-
-  auto resolve_and_insert = [this, &found, &declared_name,
-			     locus] (Namespace ns,
-				     const AST::SimplePath &path) {
-    tl::optional<Rib::Definition> resolved = tl::nullopt;
-    tl::optional<Rib::Definition> resolved_bind = tl::nullopt;
-
-    std::vector<AST::SimplePathSegment> declaration_v
-      = {AST::SimplePathSegment (declared_name, locus)};
-    // FIXME: resolve_path needs to return an `expected<NodeId, Error>` so
-    // that we can improve it with hints or location or w/ever. and maybe
-    // only emit it the first time.
-    switch (ns)
-      {
-      case Namespace::Values:
-	resolved = ctx.values.resolve_path (path.get_segments ());
-	resolved_bind = ctx.values.resolve_path (declaration_v);
-	break;
-      case Namespace::Types:
-	resolved = ctx.types.resolve_path (path.get_segments ());
-	resolved_bind = ctx.types.resolve_path (declaration_v);
-	break;
-      case Namespace::Macros:
-	resolved = ctx.macros.resolve_path (path.get_segments ());
-	resolved_bind = ctx.macros.resolve_path (declaration_v);
-	break;
-      case Namespace::Labels:
-	// TODO: Is that okay?
-	rust_unreachable ();
-      }
-
-    resolved.map ([this, &found, &declared_name, locus, ns, path,
-		   &resolved_bind] (Rib::Definition def) {
-      found = true;
-
-      insert_or_error_out (declared_name, locus, def.get_node_id (), ns);
-      if (resolved_bind.has_value ())
-	{
-	  auto bind_def = resolved_bind.value ();
-	  // what do we do with the id?
-	  auto result = node_forwarding.find (bind_def.get_node_id ());
-	  if (result != node_forwarding.cend ()
-	      && result->second != path.get_node_id ())
-	    rust_error_at (path.get_locus (), "%qs defined multiple times",
-			   declared_name.c_str ());
-	}
-      else
-	{
-	  // No previous thing has inserted this into our scope
-	  node_forwarding.insert ({def.get_node_id (), path.get_node_id ()});
-	}
-      return def.get_node_id ();
-    });
-  };
-
-  // do this for all namespaces (even Labels?)
-
-  resolve_and_insert (Namespace::Values, path);
-  resolve_and_insert (Namespace::Types, path);
-  resolve_and_insert (Namespace::Macros, path);
-
-  // TODO: No labels? No, right?
-
-  return found;
-}
-
 static void
 flatten_rebind (
   const AST::UseTreeRebind &glob,
@@ -738,6 +462,10 @@ TopLevel::visit (AST::UseDeclaration &use)
   auto rebind_path
     = std::vector<std::pair<AST::SimplePath, AST::UseTreeRebind>> ();
 
+  auto &values_rib = ctx.values.peek ();
+  auto &types_rib = ctx.types.peek ();
+  auto &macros_rib = ctx.macros.peek ();
+
   // FIXME: How do we handle `use foo::{self}` imports? Some beforehand cleanup?
   // How do we handle module imports in general? Should they get added to all
   // namespaces?
@@ -745,21 +473,22 @@ TopLevel::visit (AST::UseDeclaration &use)
   const auto &tree = use.get_tree ();
   flatten (tree.get (), paths, glob_path, rebind_path, this->ctx);
 
-  for (auto &path : paths)
-    if (!handle_use_dec (path))
-      rust_error_at (path.get_final_segment ().get_locus (), ErrorCode::E0433,
-		     "unresolved import %qs", path.as_string ().c_str ());
+  auto imports = std::vector<ImportKind> ();
 
-  for (auto &glob : glob_path)
-    if (!handle_use_glob (glob))
-      rust_error_at (glob.get_final_segment ().get_locus (), ErrorCode::E0433,
-		     "unresolved import %qs", glob.as_string ().c_str ());
+  for (auto &&path : paths)
+    imports.emplace_back (
+      ImportKind::Simple (std::move (path), values_rib, types_rib, macros_rib));
 
-  for (auto &rebind : rebind_path)
-    if (!handle_rebind (rebind))
-      rust_error_at (rebind.first.get_final_segment ().get_locus (),
-		     ErrorCode::E0433, "unresolved import %qs",
-		     rebind.first.as_string ().c_str ());
+  for (auto &&glob : glob_path)
+    imports.emplace_back (
+      ImportKind::Glob (std::move (glob), values_rib, types_rib, macros_rib));
+
+  for (auto &&rebind : rebind_path)
+    imports.emplace_back (
+      ImportKind::Rebind (std::move (rebind.first), std::move (rebind.second),
+			  values_rib, types_rib, macros_rib));
+
+  imports_to_resolve.insert ({use.get_node_id (), std::move (imports)});
 }
 
 } // namespace Resolver2_0

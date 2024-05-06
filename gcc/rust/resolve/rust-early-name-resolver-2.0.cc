@@ -18,8 +18,10 @@
 
 #include "rust-early-name-resolver-2.0.h"
 #include "rust-ast-full.h"
+#include "rust-diagnostics.h"
 #include "rust-toplevel-name-resolver-2.0.h"
 #include "rust-attributes.h"
+#include "rust-finalize-imports-2.0.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -60,14 +62,113 @@ Early::go (AST::Crate &crate)
   auto toplevel = TopLevel (ctx);
   toplevel.go (crate);
 
-  textual_scope.push ();
+  // We start with resolving the list of imports that `TopLevel` has built for
+  // us
+  for (auto &&import : toplevel.get_imports_to_resolve ())
+    build_import_mapping (std::move (import));
 
-  // Then we proceed to the proper "early" name resolution: Import and macro
-  // name resolution
+  // Once this is done, we finalize their resolution
+  FinalizeImports (std::move (import_mappings), toplevel, ctx).go (crate);
+
+  // We now proceed with resolving macros, which can be nested in almost any
+  // items
+  textual_scope.push ();
   for (auto &item : crate.items)
     item->accept_vis (*this);
-
   textual_scope.pop ();
+}
+
+bool
+Early::resolve_glob_import (NodeId use_dec_id, TopLevel::ImportKind &&glob)
+{
+  auto resolved = ctx.types.resolve_path (glob.to_resolve.get_segments ());
+  if (!resolved.has_value ())
+    return false;
+
+  auto result
+    = Analysis::Mappings::get ()->lookup_ast_module (resolved->get_node_id ());
+  if (!result)
+    return false;
+
+  // here, we insert the module's NodeId into the import_mappings and will look
+  // up the module proper in `FinalizeImports`
+  // The namespace does not matter here since we are dealing with a glob
+  // TODO: Ugly
+  import_mappings.insert (use_dec_id,
+			  ImportPair (std::move (glob),
+				      ImportData::Glob (*resolved)));
+
+  return true;
+}
+
+bool
+Early::resolve_simple_import (NodeId use_dec_id, TopLevel::ImportKind &&import)
+{
+  auto definitions = resolve_path_in_all_ns (import.to_resolve);
+
+  // if we've found at least one definition, then we're good
+  if (definitions.empty ())
+    return false;
+
+  auto &imports = import_mappings.new_or_access (use_dec_id);
+
+  imports.emplace_back (
+    ImportPair (std::move (import),
+		ImportData::Simple (std::move (definitions))));
+
+  return true;
+}
+
+bool
+Early::resolve_rebind_import (NodeId use_dec_id,
+			      TopLevel::ImportKind &&rebind_import)
+{
+  auto definitions = resolve_path_in_all_ns (rebind_import.to_resolve);
+
+  // if we've found at least one definition, then we're good
+  if (definitions.empty ())
+    return false;
+
+  auto &imports = import_mappings.new_or_access (use_dec_id);
+
+  imports.emplace_back (
+    ImportPair (std::move (rebind_import),
+		ImportData::Rebind (std::move (definitions))));
+
+  return true;
+}
+
+void
+Early::build_import_mapping (
+  std::pair<NodeId, std::vector<TopLevel::ImportKind>> &&use_import)
+{
+  auto found = false;
+  auto use_dec_id = use_import.first;
+
+  for (auto &&import : use_import.second)
+    {
+      // We create a copy of the path in case of errors, since the `import` will
+      // be moved into the newly created import mappings
+      auto path = import.to_resolve;
+
+      switch (import.kind)
+	{
+	case TopLevel::ImportKind::Kind::Glob:
+	  found = resolve_glob_import (use_dec_id, std::move (import));
+	  break;
+	case TopLevel::ImportKind::Kind::Simple:
+	  found = resolve_simple_import (use_dec_id, std::move (import));
+	  break;
+	case TopLevel::ImportKind::Kind::Rebind:
+	  found = resolve_rebind_import (use_dec_id, std::move (import));
+	  break;
+	}
+
+      if (!found)
+	collect_error (Error (path.get_final_segment ().get_locus (),
+			      ErrorCode::E0433, "unresolved import %qs",
+			      path.as_string ().c_str ()));
+    }
 }
 
 void
@@ -209,8 +310,9 @@ Early::visit_attributes (std::vector<AST::Attribute> &attrs)
 	      if (!definition.has_value ())
 		{
 		  // FIXME: Change to proper error message
-		  rust_error_at (trait.get ().get_locus (),
-				 "could not resolve trait");
+		  collect_error (Error (trait.get ().get_locus (),
+					"could not resolve trait %qs",
+					trait.get ().as_string ().c_str ()));
 		  continue;
 		}
 
@@ -232,8 +334,9 @@ Early::visit_attributes (std::vector<AST::Attribute> &attrs)
 	  if (!definition.has_value ())
 	    {
 	      // FIXME: Change to proper error message
-	      rust_error_at (attr.get_locus (),
-			     "could not resolve attribute macro invocation");
+	      collect_error (
+		Error (attr.get_locus (),
+		       "could not resolve attribute macro invocation"));
 	      return;
 	    }
 	  auto pm_def = mappings->lookup_attribute_proc_macro_def (
