@@ -466,7 +466,7 @@ EarlyNameResolver::visit (AST::MacroInvocation &invoc)
   NodeId resolved_node = UNKNOWN_NODEID;
   NodeId source_node = UNKNOWN_NODEID;
   if (has_semicolon)
-    source_node = invoc.get_macro_node_id ();
+    source_node = invoc.get_node_id ();
   else
     source_node = invoc.get_node_id ();
   auto seg

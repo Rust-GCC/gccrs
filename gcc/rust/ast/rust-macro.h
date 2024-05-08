@@ -672,17 +672,12 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  NodeId get_node_id () const override final
-  {
-    return ExprWithoutBlock::get_node_id ();
-  }
+  NodeId get_node_id () const override final { return node_id; }
 
   AST::Kind get_ast_kind () const override
   {
     return AST::Kind::MACRO_INVOCATION;
   }
-
-  NodeId get_macro_node_id () const { return node_id; }
 
   MacroInvocData &get_invoc_data () { return invoc_data; }
 
@@ -719,8 +714,10 @@ private:
     MacroInvocData invoc_data, std::vector<Attribute> outer_attrs,
     location_t locus, bool is_semi_coloned,
     std::vector<std::unique_ptr<MacroInvocation>> &&pending_eager_invocs)
-    : TraitItem (locus), outer_attrs (std::move (outer_attrs)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ()),
+    : TraitItem (locus),
+      ExternalItem (Analysis::Mappings::get ().get_next_node_id ()),
+      outer_attrs (std::move (outer_attrs)), locus (locus),
+      node_id (ExternalItem::get_node_id ()),
       invoc_data (std::move (invoc_data)), is_semi_coloned (is_semi_coloned),
       kind (kind), builtin_kind (builtin_kind),
       pending_eager_invocs (std::move (pending_eager_invocs))
