@@ -23,7 +23,7 @@ fn main() -> i32 {
     print_int(bytes[0] as i32);
     print_int(bytes[14] as i32);
 
-    let the_bytes = b"hello, include!\n";
+    let the_bytes = b"hello, include!\r\n";
 
     let x = bytes[0] == the_bytes[0]
         && bytes[1] == the_bytes[1]
@@ -40,7 +40,8 @@ fn main() -> i32 {
         && bytes[12] == the_bytes[12]
         && bytes[13] == the_bytes[13]
         && bytes[14] == the_bytes[14]
-        && bytes[15] == the_bytes[15];
+        && bytes[15] == the_bytes[15]
+        && bytes[16] == the_bytes[16];
 
     print_int(x as i32);
 
