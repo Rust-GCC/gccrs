@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-lower.h"
+#include "optional.h"
 #include "rust-ast-lower-item.h"
 #include "rust-ast-lower-stmt.h"
 #include "rust-ast-lower-expr.h"
@@ -24,6 +25,15 @@
 #include "rust-ast-lower-type.h"
 #include "rust-ast-lower-pattern.h"
 #include "rust-ast-lower-struct-field-expr.h"
+#include "rust-common.h"
+#include "rust-diagnostics.h"
+#include "rust-hir-expr.h"
+#include "rust-hir-full-decls.h"
+#include "rust-hir-map.h"
+#include "rust-hir-path.h"
+#include "rust-hir-stmt.h"
+#include "rust-hir.h"
+#include "rust-mapping-common.h"
 
 namespace Rust {
 namespace HIR {
@@ -327,27 +337,314 @@ ASTLoweringExprWithBlock::visit (AST::WhileLoopExpr &expr)
 			      expr.get_outer_attrs ());
 }
 
+struct ForLoopDesugarCtx
+{
+  NodeId id;
+  location_t loc;
+  Analysis::Mappings &mappings;
+
+  Analysis::NodeMapping next_mapping ()
+  {
+    auto crate_num = mappings.get_current_crate ();
+    return Analysis::NodeMapping (crate_num, id,
+				  mappings.get_next_hir_id (crate_num),
+				  UNKNOWN_LOCAL_DEFID);
+  }
+
+  PathExprSegment path_segment (std::string &&segment_name)
+  {
+    return PathExprSegment (next_mapping (), std::move (segment_name), loc,
+			    GenericArgs::create_empty ());
+  }
+
+  std::unique_ptr<PathInExpression>
+  path_in_expr (std::vector<std::string> &&segment_names)
+  {
+    auto segments = std::vector<PathExprSegment> ();
+
+    for (const auto &seg : segment_names)
+      segments.emplace_back (PathExprSegment (next_mapping (), seg, loc,
+					      GenericArgs::create_empty ()));
+
+    return std::unique_ptr<PathInExpression> (
+      new PathInExpression (next_mapping (), std::move (segments)));
+  }
+
+  std::unique_ptr<Expr> make_break_expr ()
+  {
+    // FIXME(Arthur): This shouldn't call Lifetime::error, it does not make
+    // sense
+    return std::unique_ptr<Expr> (
+      new BreakExpr (next_mapping (), loc, Lifetime::error ()));
+  }
+
+  MatchArm make_match_arm (std::unique_ptr<Pattern> pattern)
+  {
+    auto patterns = std::vector<std::unique_ptr<Pattern>> ();
+    patterns.emplace_back (std::move (pattern));
+
+    return MatchArm (std::move (patterns), loc);
+  }
+
+  MatchCase make_break_arm ()
+  {
+    auto path = path_in_expr ({"core", "option", "Option", "None"});
+    auto arm = make_match_arm (std::move (path));
+
+    auto break_expr = make_break_expr ();
+
+    return MatchCase (next_mapping (), arm, std::move (break_expr));
+  }
+
+  std::unique_ptr<Expr> make_assign_expr ()
+  {
+    auto next = path_in_expr ({"__next"});
+    auto val = path_in_expr ({"val"});
+
+    return std::unique_ptr<Expr> (new AssignmentExpr (next_mapping (),
+						      std::move (next),
+						      std::move (val), loc));
+  }
+
+  MatchCase make_continue_arm ()
+  {
+    // FIXME(Arthur): This is missing the `val` binding. Should be a
+    // TupleStructPattern?
+    auto path = path_in_expr ({"core", "option", "Option", "Some"});
+    auto arm = make_match_arm (std::move (path));
+
+    auto assign_expr = make_assign_expr ();
+
+    return MatchCase (next_mapping (), arm, std::move (assign_expr));
+  }
+
+  std::unique_ptr<Stmt> make_let (std::unique_ptr<Pattern> &&pattern,
+				  std::unique_ptr<Expr> &&init_expr = nullptr)
+  {
+    return std::unique_ptr<Stmt> (
+      new LetStmt (next_mapping (), std::move (pattern), std::move (init_expr),
+		   nullptr, {}, loc));
+  }
+
+  std::unique_ptr<CallExpr>
+  make_function_call (std::unique_ptr<Expr> &&function,
+		      std::unique_ptr<Expr> &&arg)
+  {
+    auto args = std::vector<std::unique_ptr<Expr>> ();
+    args.emplace_back (std::move (arg));
+
+    return std::unique_ptr<CallExpr> (new CallExpr (next_mapping (),
+						    std::move (function),
+						    std::move (args), {}, loc));
+  }
+
+  std::unique_ptr<MethodCallExpr>
+  make_method_call (std::unique_ptr<Expr> &&receiver,
+		    PathExprSegment &&method_path,
+		    tl::optional<std::unique_ptr<Expr>> &&arg)
+  {
+    auto args = std::vector<std::unique_ptr<Expr>> ();
+    if (arg)
+      args.emplace_back (std::move (*arg));
+
+    return std::unique_ptr<MethodCallExpr> (
+      new MethodCallExpr (next_mapping (), std::move (receiver),
+			  std::move (method_path), std::move (args), {}, loc));
+  }
+
+  std::unique_ptr<Pattern> make_identifier_pattern (std::string &&name,
+						    Mutability mutability,
+						    bool is_ref = false)
+  {
+    return std::unique_ptr<Pattern> (
+      new IdentifierPattern (next_mapping (), Identifier (name), loc, is_ref,
+			     mutability));
+  }
+
+  MatchArm make_identifier_pattern_arm (std::string &&name,
+					Mutability mutability,
+					bool is_ref = false)
+  {
+    auto pat = make_identifier_pattern (std::move (name), mutability, is_ref);
+
+    return make_match_arm (std::move (pat));
+  }
+
+  std::unique_ptr<Expr> make_mutable_borrow (std::unique_ptr<Expr> &&to_borrow)
+  {
+    return std::unique_ptr<Expr> (new BorrowExpr (next_mapping (),
+						  std::move (to_borrow),
+						  Mutability::Mut, {}, loc));
+  }
+  LoopLabel no_label ()
+  {
+    return LoopLabel (next_mapping (), Lifetime::error (), loc);
+  }
+
+  std::unique_ptr<Expr> make_loop (std::vector<std::unique_ptr<Stmt>> &&stmts)
+  {
+    auto block = std::unique_ptr<BlockExpr> (
+      new BlockExpr (next_mapping (), std::move (stmts), nullptr, false, {}, {},
+		     no_label (), loc, loc));
+
+    return std::unique_ptr<Expr> (
+      new LoopExpr (next_mapping (), std::move (block), loc, no_label ()));
+  }
+
+  std::unique_ptr<Expr> make_match (std::unique_ptr<Expr> scrutinee,
+				    std::vector<MatchCase> &&cases)
+  {
+    return std::unique_ptr<Expr> (
+      new MatchExpr (next_mapping (), std::move (scrutinee), std::move (cases),
+		     {}, {}, loc));
+  }
+
+  // Transform an expression into an expression-statement
+  std::unique_ptr<Stmt> statementify (std::unique_ptr<Expr> &&expr)
+  {
+    return std::unique_ptr<Stmt> (
+      new ExprStmt (next_mapping (), std::move (expr), loc));
+  }
+
+  std::unique_ptr<BlockExpr> make_block (std::unique_ptr<Stmt> stmt,
+					 std::unique_ptr<Expr> tail_expr)
+  {
+    auto stmts = std::vector<std::unique_ptr<Stmt>> ();
+    stmts.emplace_back (std::move (stmt));
+
+    return std::unique_ptr<BlockExpr> (
+      new BlockExpr (next_mapping (), std::move (stmts), std::move (tail_expr),
+		     true, {}, {}, no_label (), loc, loc));
+  }
+};
+
+// TODO(Arthur): Here, rustc 1.49 uses a match arm for the original call to
+// IntoIterator::into_iter(). Can we avoid that? Why is that done? Lifetime
+// reasons?
+
+// for <pat> in <head> <body>
+//
+// becomes:
+//
+// {
+//     let result = match ::std::iter::IntoIterator::into_iter(<head>) {
+//         mut iter => {
+//             loop {
+//                 let mut __next;
+//                 match ::std::iter::Iterator::next(&mut iter) {
+//                     ::std::option::Option::Some(val) => __next = val,
+//                     ::std::option::Option::None => break
+//                 };
+//                 let <pat> = __next;
+//
+//                 <body>;
+//             }
+//         }
+//     };
+//     result
+// }
 void
 ASTLoweringExprWithBlock::visit (AST::ForLoopExpr &expr)
 {
-  // TODO FIXME
+  auto ctx = ForLoopDesugarCtx{expr.get_node_id (), expr.get_locus (),
+			       *Analysis::Mappings::get ()};
 
-  // HIR::BlockExpr *loop_block
-  //   = ASTLoweringBlock::translate (expr.get_loop_block ().get (),
-  //   &terminated);
-  // HIR::LoopLabel loop_label = lower_loop_label (expr.get_loop_label ());
-  // HIR::Expr *iterator_expr
-  //   = ASTLoweringExpr::translate (expr.get_iterator_expr ().get (),
-  //       			  &terminated);
-  // HIR::Pattern *loop_pattern
-  //   = ASTLoweringPattern::translate (expr.get_pattern ().get ());
+  auto head = std::unique_ptr<Expr> (
+    ASTLoweringExpr::translate (expr.get_iterator_expr ()));
+  auto pat = std::unique_ptr<Pattern> (
+    ASTLoweringPattern::translate (expr.get_pattern ()));
+  auto body = std::unique_ptr<Expr> (
+    ASTLoweringExpr::translate (expr.get_loop_block ()));
 
-  // auto crate_num = mappings->get_current_crate ();
-  // Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-  //       			 mappings->get_next_hir_id (crate_num),
-  //       			 UNKNOWN_LOCAL_DEFID);
+  rust_assert (head);
+  rust_assert (pat);
+  rust_assert (body);
 
-  gcc_unreachable ();
+  // core::iter::IntoIterator::into_iter(<head>)
+  // auto into_iter_call
+  //   = ctx.make_function_call (ctx.path_in_expr (
+  // 		{"core", "iter", "IntoIterator", "into_iter"}),
+  // 	      std::move (head));
+
+  // <head>.into_iter()
+  auto into_iter_call
+    = ctx.make_method_call (std::move (head), ctx.path_segment ("into_iter"),
+			    tl::nullopt);
+
+  auto iter = ctx.path_in_expr ({"iter"});
+
+  // core::iter::Iterator::next(&mut iter)
+  // auto next_call
+  //   = ctx.make_function_call (ctx.path_in_expr (
+  // 		{"core", "iter", "Iterator", "next"}),
+  // 	      ctx.make_mutable_borrow (iter->clone_expr ()));
+
+  // iter.next()
+  auto next_call
+    = ctx.make_method_call (iter->clone_expr (), ctx.path_segment ("next"),
+			    tl::nullopt);
+
+  // core::option::Option::None => break,
+  auto break_arm = ctx.make_break_arm ();
+  // core::option::Option::Some(val) => __next = val,
+  auto continue_arm = ctx.make_continue_arm ();
+
+  // match <next_call> {
+  //     <continue_arm>
+  //     <break_arm>
+  // }
+  auto match_next
+    = ctx.make_match (std::move (next_call), {continue_arm, break_arm});
+
+  // let mut __next;
+  auto let_next = ctx.make_let (ctx.path_in_expr ({"__next"}));
+  // let <pat> = __next;
+  auto let_pat = ctx.make_let (std::move (pat), ctx.path_in_expr ({"__next"}));
+
+  auto loop_stmts = std::vector<std::unique_ptr<Stmt>> ();
+  loop_stmts.emplace_back (std::move (let_next));
+  loop_stmts.emplace_back (ctx.statementify (std::move (match_next)));
+  loop_stmts.emplace_back (std::move (let_pat));
+  loop_stmts.emplace_back (ctx.statementify (std::move (body)));
+
+  // loop {
+  //     <let_next>;
+  //     <match_next>;
+  //     <let_pat>;
+  //
+  //     <body>;
+  // }
+  auto loop = ctx.make_loop (std::move (loop_stmts));
+
+  // mut iter => ...
+  auto mut_iter_pat = ctx.make_identifier_pattern_arm ("iter", Mutability::Mut);
+
+  // TODO(Arthur): Put in ctx as a method?
+  // <mut iter> => <loop_expr>
+  auto match_iter_case = MatchCase (ctx.next_mapping (),
+				    std::move (mut_iter_pat), std::move (loop));
+
+  // match <into_iter_call> { <match_iter_case> }
+  auto outer_match
+    = ctx.make_match (std::move (into_iter_call), {match_iter_case});
+
+  // let result = <outer_match>;
+  auto let_result
+    = ctx.make_let (ctx.make_identifier_pattern ("result", Mutability::Imm),
+		    std::move (outer_match));
+
+  // result /* as a return value */
+  auto result = ctx.path_in_expr ({"result"});
+
+  // {
+  //     <let_result>;
+  //     <result>
+  // }
+  auto block = ctx.make_block (std::move (let_result), std::move (result));
+
+  rust_debug ("[ARTHUR] \n%s", block->as_string ().c_str ());
+
+  translated = block.release ();
 }
 
 void

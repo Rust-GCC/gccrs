@@ -331,6 +331,8 @@ TyTy::BaseType *
 TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 				  NodeId *root_resolved_node_id)
 {
+  rust_debug ("[ARTHURl ] %s", path.as_string ().c_str ());
+
   TyTy::BaseType *root_tyty = nullptr;
   *offset = 0;
   for (size_t i = 0; i < path.get_num_segments (); i++)
@@ -417,7 +419,8 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  if (is_root)
 	    {
 	      rust_error_at (seg->get_locus (),
-			     "failed to resolve root segment");
+			     "failed to resolve root segment: %s",
+			     seg->as_string ().c_str ());
 	      return new TyTy::ErrorType (path.get_mappings ().get_hirid ());
 	    }
 	  return root_tyty;

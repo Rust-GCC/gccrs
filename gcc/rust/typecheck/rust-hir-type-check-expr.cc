@@ -1117,8 +1117,10 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
       richloc.add_fixit_replace ("method not found");
       rust_error_at (
 	richloc, ErrorCode::E0599,
-	"no method named %qs found in the current scope",
-	expr.get_method_name ().get_segment ().as_string ().c_str ());
+	"no method named %qs found in the current scope for type %qs (%qs)",
+	expr.get_method_name ().get_segment ().as_string ().c_str (),
+	receiver_tyty->as_string ().c_str (),
+	receiver_tyty->debug_str ().c_str ());
       return;
     }
 
