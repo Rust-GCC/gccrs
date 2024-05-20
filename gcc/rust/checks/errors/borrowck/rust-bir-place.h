@@ -78,12 +78,13 @@ struct Place
   TyTy::BaseType *tyty;
   FreeRegions regions{{}};
   std::vector<LoanId> borrowed_by{};
+  location_t location;
 
 public:
   Place (Kind kind, uint32_t variable_or_field_index, const Path &path,
-	 bool is_copy, TyTy::BaseType *tyty)
+	 bool is_copy, TyTy::BaseType *tyty, location_t location)
     : kind (kind), variable_or_field_index (variable_or_field_index),
-      path (path), is_copy (is_copy), tyty (tyty)
+      path (path), is_copy (is_copy), tyty (tyty), location (location)
   {}
 
   // Place can only be stored in PlaceDB and used via reference. Turn all
@@ -182,7 +183,8 @@ public:
   PlaceDB ()
   {
     // Reserved index for invalid place.
-    places.push_back ({Place::INVALID, 0, {}, false, nullptr});
+    places.push_back (
+      {Place::INVALID, 0, {}, false, nullptr, UNKNOWN_LOCATION});
 
     scopes.emplace_back (); // Root scope.
   }
@@ -255,7 +257,10 @@ public:
 
   PlaceId add_variable (NodeId id, TyTy::BaseType *tyty)
   {
-    return add_place ({Place::VARIABLE, id, {}, is_type_copy (tyty), tyty}, 0);
+    auto location
+      = Analysis::Mappings::get ().lookup_location (tyty->get_ref ());
+    return add_place (
+      {Place::VARIABLE, id, {}, is_type_copy (tyty), tyty, location}, 0);
   }
 
   WARN_UNUSED_RESULT PlaceId lookup_or_add_path (Place::Kind kind,
@@ -277,14 +282,19 @@ public:
 	    current = places[current].path.next_sibling;
 	  }
       }
+    auto location
+      = Analysis::Mappings::get ().lookup_location (tyty->get_ref ());
     return add_place ({kind, (uint32_t) id, Place::Path{parent, 0, 0},
-		       is_type_copy (tyty), tyty},
+		       is_type_copy (tyty), tyty, location},
 		      current);
   }
 
   PlaceId add_temporary (TyTy::BaseType *tyty)
   {
-    return add_place ({Place::TEMPORARY, 0, {}, is_type_copy (tyty), tyty}, 0);
+    auto location
+      = Analysis::Mappings::get ().lookup_location (tyty->get_ref ());
+    return add_place (
+      {Place::TEMPORARY, 0, {}, is_type_copy (tyty), tyty, location}, 0);
   }
 
   PlaceId get_constant (TyTy::BaseType *tyty)
@@ -292,7 +302,10 @@ public:
     auto lookup = constants_lookup.find (tyty);
     if (lookup != constants_lookup.end ())
       return lookup->second;
-    return add_place ({Place::CONSTANT, 0, {}, is_type_copy (tyty), tyty});
+    auto location
+      = Analysis::Mappings::get ().lookup_location (tyty->get_ref ());
+    return add_place (
+      {Place::CONSTANT, 0, {}, is_type_copy (tyty), tyty, location});
   }
 
   PlaceId lookup_variable (NodeId id)
@@ -346,7 +359,9 @@ public:
     if (lookup != INVALID_PLACE)
       return lookup;
 
-    add_place ({Place::VARIABLE, id, {}, is_type_copy (tyty), tyty});
+    auto location
+      = Analysis::Mappings::get ().lookup_location (tyty->get_ref ());
+    add_place ({Place::VARIABLE, id, {}, is_type_copy (tyty), tyty, location});
     return places.size () - 1;
   };
 
