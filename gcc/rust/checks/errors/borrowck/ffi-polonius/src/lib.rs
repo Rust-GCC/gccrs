@@ -19,9 +19,17 @@
 mod gccrs_ffi;
 mod gccrs_ffi_generated;
 
+use gccrs_ffi::FFIVector;
 use polonius_engine::{AllFacts, Atom, FactTypes, Output};
 use std::fmt::Debug;
 use std::hash::Hash;
+
+extern "C" {
+    #[allow(dead_code)]
+    fn FFIVector__new(capacity: usize) -> FFIVector<usize>;
+    #[allow(dead_code)]
+    fn FFIVector__push(vector: *mut FFIVector<usize>, element: usize);
+}
 
 /// A single fact value.
 /// For simplicity we use one type for all facts.

@@ -102,6 +102,60 @@ struct FactsView
   Slice<Pair<Origin, Loan>> placeholder;
 };
 
+// Intermediate representation similar to vector for passing Polonius output to
+// C++ code
+template <typename T> struct FFIVector
+{
+  T *data;
+  size_t size;
+  size_t capacity;
+
+public:
+  void allocate (size_t increase_by)
+  {
+    if (increase_by == 0)
+      {
+	++increase_by;
+      }
+    auto new_capacity = increase_by + size;
+    auto new_data = new T[new_capacity];
+    std::memcpy (new_data, data, size * sizeof (T));
+    delete[] data;
+    data = new_data;
+    capacity = new_capacity;
+  };
+  void push (T new_element)
+  {
+    if (size == capacity)
+      {
+	allocate (capacity);
+      }
+    data[size] = new_element;
+    ++size;
+  };
+
+  static FFIVector make_new (size_t capacity)
+  {
+    auto data = capacity ? new T[capacity] : nullptr;
+    return FFIVector{data, 0, capacity};
+  }
+  std::vector<T> make_vector () const
+  {
+    std::vector<T> return_val (size);
+    for (size_t i = 0; i < size; ++i)
+      {
+	return_val[i] = data[i];
+      }
+    return return_val;
+  };
+  void drop ()
+  {
+    delete[] data;
+    size = 0;
+    capacity = 0;
+  }
+};
+
 struct Output
 {
   bool loan_errors;
