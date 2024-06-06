@@ -227,11 +227,26 @@ polonius_run (FFI::FactsView input, bool dump_enabled);
 
 // Helper functions for FFIVector to be used on Rust side
 extern "C" {
-FFI::FFIVector<size_t>
+
+FFI::FFIVectorSizet
 FFIVector__new (size_t capacity = 0);
 
+FFI::FFIVectorPair
+FFIVector__new_vec_pair (size_t capacity = 0);
+
+FFI::FFIVectorTriple
+FFIVector__new_vec_triple (size_t capacity = 0);
+
 void
-FFIVector__push (FFI::FFIVector<size_t> *vector, size_t element);
+FFIVector__push (FFI::FFIVectorSizet *vector, size_t element);
+
+void
+FFIVector__push_vec_pair (FFI::FFIVectorPair *vector,
+			  FFI::Pair<size_t, FFI::FFIVector<size_t> *> element);
+
+void
+FFIVector__push_vec_triple (FFI::FFIVectorTriple *vector,
+			    FFI::Triple<size_t, size_t, size_t> element);
 }
 
 } // namespace Polonius

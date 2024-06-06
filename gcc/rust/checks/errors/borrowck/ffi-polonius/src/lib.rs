@@ -28,7 +28,25 @@ extern "C" {
     #[allow(dead_code)]
     fn FFIVector__new(capacity: usize) -> FFIVector<usize>;
     #[allow(dead_code)]
+    fn FFIVector__new_vec_pair(
+        capacity: usize,
+    ) -> FFIVector<gccrs_ffi::Pair<usize, *mut FFIVector<usize>>>;
+    #[allow(dead_code)]
+    fn FFIVector__new_vec_triple(
+        capacity: usize,
+    ) -> FFIVector<gccrs_ffi::Triple<usize, usize, usize>>;
+    #[allow(dead_code)]
     fn FFIVector__push(vector: *mut FFIVector<usize>, element: usize);
+    #[allow(dead_code)]
+    fn FFIVector__push_vec_pair(
+        vector: *mut FFIVector<gccrs_ffi::Pair<usize, *mut FFIVector<usize>>>,
+        element: gccrs_ffi::Pair<usize, *mut FFIVector<usize>>,
+    );
+    #[allow(dead_code)]
+    fn FFIVector__push_vec_triple(
+        vector: *mut FFIVector<gccrs_ffi::Triple<usize, usize, usize>>,
+        element: gccrs_ffi::Triple<usize, usize, usize>,
+    );
 }
 
 /// A single fact value.
@@ -179,7 +197,6 @@ pub unsafe extern "C" fn polonius_run(
             }
         }
     }
-
     return gccrs_ffi::Output {
         loan_errors: output.errors.len() > 0,
         subset_errors: output.subset_errors.len() > 0,

@@ -22,14 +22,41 @@ namespace Rust {
 namespace Polonius {
 
 extern "C" {
+
 FFI::FFIVector<size_t>
 FFIVector__new (size_t capacity)
 {
   return FFI::FFIVector<size_t>::make_new (capacity);
 }
 
+FFI::FFIVectorPair
+FFIVector__new_vec_pair (size_t capacity)
+{
+  return FFI::FFIVectorPair::make_new (capacity);
+}
+
+FFI::FFIVectorTriple
+FFIVector__new_triple (size_t capacity)
+{
+  return FFI::FFIVectorTriple::make_new (capacity);
+}
+
 void
-FFIVector__push (FFI::FFIVector<size_t> *vector, size_t element)
+FFIVector__push (FFI::FFIVectorSizet *vector, size_t element)
+{
+  vector->push (element);
+}
+
+void
+FFIVector__push_vec_pair (FFI::FFIVectorPair *vector,
+			  FFI::Pair<size_t, FFI::FFIVector<size_t> *> element)
+{
+  vector->push (element);
+}
+
+void
+FFIVector__push_vec_triple (FFI::FFIVectorTriple *vector,
+			    FFI::Triple<size_t, size_t, size_t> element)
 {
   vector->push (element);
 }

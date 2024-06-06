@@ -54,6 +54,7 @@ template <typename T1, typename T2> struct Pair
   T1 first;
   T2 second;
 
+  Pair () = default;
   Pair (T1 first, T2 second) : first (first), second (second) {}
 };
 
@@ -63,6 +64,7 @@ template <typename T1, typename T2, typename T3> struct Triple
   T2 second;
   T3 third;
 
+  Triple () = default;
   Triple (T1 first, T2 second, T3 third)
     : first (first), second (second), third (third)
   {}
@@ -124,6 +126,7 @@ public:
     data = new_data;
     capacity = new_capacity;
   };
+
   void push (T new_element)
   {
     if (size == capacity)
@@ -139,15 +142,7 @@ public:
     auto data = capacity ? new T[capacity] : nullptr;
     return FFIVector{data, 0, capacity};
   }
-  std::vector<T> make_vector () const
-  {
-    std::vector<T> return_val (size);
-    for (size_t i = 0; i < size; ++i)
-      {
-	return_val[i] = data[i];
-      }
-    return return_val;
-  };
+
   void drop ()
   {
     delete[] data;
@@ -155,6 +150,66 @@ public:
     capacity = 0;
   }
 };
+
+// Some useful type aliases
+using FFIVectorSizet = FFIVector<size_t>;
+using FFIVectorPair = FFIVector<Pair<size_t, FFIVector<size_t> *>>;
+using FFIVectorTriple = FFIVector<Triple<size_t, size_t, size_t>>;
+
+inline std::vector<size_t>
+make_vector (const FFIVectorSizet *vec_pair)
+{
+  std::vector<size_t> return_val (vec_pair->size);
+  for (size_t i = 0; i < vec_pair->size; ++i)
+    {
+      return_val.push_back (vec_pair->data[i]);
+    }
+  return return_val;
+}
+
+inline std::vector<std::pair<size_t, std::vector<size_t>>>
+make_vector (const FFIVectorPair *vec_pair)
+{
+  std::vector<std::pair<size_t, std::vector<size_t>>> return_val (
+    vec_pair->size);
+  for (size_t i = 0; i < vec_pair->size; ++i)
+    {
+      std::pair<size_t, std::vector<size_t>> current_pair
+	= {vec_pair->data[i].first, make_vector (vec_pair->data[i].second)};
+      return_val.push_back (current_pair);
+    }
+  return return_val;
+}
+
+inline std::vector<std::pair<size_t, std::pair<size_t, size_t>>>
+make_vector (const FFIVectorTriple *vec_pair)
+{
+  std::vector<std::pair<size_t, std::pair<size_t, size_t>>> return_val (
+    vec_pair->size);
+  for (size_t i = 0; i < vec_pair->size; ++i)
+    {
+      auto current_element = std::pair<size_t, std::pair<size_t, size_t>>{
+	vec_pair->data[i].first,
+	{vec_pair->data[i].second, vec_pair->data[i].third}};
+      return_val.push_back (current_element);
+    }
+  return return_val;
+}
+
+// Speciallized implementation is needed for FFIVectorPair and the second
+// element of Pair i.e FFIVectorSizet needs to be dropped explicitly
+template <>
+inline void
+FFIVectorPair::drop ()
+{
+  for (size_t i = 0; i < size; ++i)
+    {
+      data[i].second->drop ();
+    }
+  delete[] data;
+  size = 0;
+  capacity = 0;
+}
 
 struct Output
 {
