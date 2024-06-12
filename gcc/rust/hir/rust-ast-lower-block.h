@@ -149,9 +149,7 @@ public:
     ASTLoweringExprWithBlock resolver;
     expr.accept_vis (resolver);
     if (resolver.translated != nullptr)
-      {
-	resolver.mappings.insert_hir_expr (resolver.translated);
-      }
+      resolver.mappings.insert_hir_expr (resolver.translated);
 
     *terminated = resolver.terminated;
     return resolver.translated;
