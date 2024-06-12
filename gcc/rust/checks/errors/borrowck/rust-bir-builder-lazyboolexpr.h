@@ -190,14 +190,6 @@ public:
   {
     return_place (ExprStmtBuilder (ctx).build (expr));
   }
-  void visit (HIR::IfLetExpr &expr) override
-  {
-    return_place (ExprStmtBuilder (ctx).build (expr));
-  }
-  void visit (HIR::IfLetExprConseqElse &expr) override
-  {
-    return_place (ExprStmtBuilder (ctx).build (expr));
-  }
   void visit (HIR::MatchExpr &expr) override
   {
     return_place (ExprStmtBuilder (ctx).build (expr));
