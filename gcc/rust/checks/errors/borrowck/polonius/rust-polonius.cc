@@ -23,20 +23,20 @@ namespace Polonius {
 
 extern "C" {
 
-FFI::FFIVector<size_t>
+FFI::FFIVector<size_t> *
 FFIVector__new (size_t capacity)
 {
   return FFI::FFIVector<size_t>::make_new (capacity);
 }
 
-FFI::FFIVectorPair
+FFI::FFIVectorPair *
 FFIVector__new_vec_pair (size_t capacity)
 {
   return FFI::FFIVectorPair::make_new (capacity);
 }
 
-FFI::FFIVectorTriple
-FFIVector__new_triple (size_t capacity)
+FFI::FFIVectorTriple *
+FFIVector__new_vec_triple (size_t capacity)
 {
   return FFI::FFIVectorTriple::make_new (capacity);
 }

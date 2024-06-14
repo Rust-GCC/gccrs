@@ -155,6 +155,16 @@ BorrowChecker::go (HIR::Crate &crate)
       auto result
 	= Polonius::polonius_run (facts.freeze (), rust_be_debug_p ());
 
+      // convert to std::vector variation for easier navigation
+      auto loan_errors_vector = make_vector (result.loan_errors_vector);
+      auto move_errors_vector = make_vector (result.move_errors_vector);
+      auto subset_errors = make_vector (result.subset_errors_vector);
+
+      // free the memory in C++ side as it was allocated in C++ side
+      result.loan_errors_vector->drop ();
+      result.move_errors_vector->drop ();
+      result.subset_errors_vector->drop ();
+
       if (result.loan_errors)
 	{
 	  rust_error_at (func->get_locus (), "Found loan errors in function %s",

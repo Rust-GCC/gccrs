@@ -228,13 +228,13 @@ polonius_run (FFI::FactsView input, bool dump_enabled);
 // Helper functions for FFIVector to be used on Rust side
 extern "C" {
 
-FFI::FFIVectorSizet
+FFI::FFIVectorSizet *
 FFIVector__new (size_t capacity = 0);
 
-FFI::FFIVectorPair
+FFI::FFIVectorPair *
 FFIVector__new_vec_pair (size_t capacity = 0);
 
-FFI::FFIVectorTriple
+FFI::FFIVectorTriple *
 FFIVector__new_vec_triple (size_t capacity = 0);
 
 void

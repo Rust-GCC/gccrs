@@ -25,24 +25,18 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 extern "C" {
-    #[allow(dead_code)]
-    fn FFIVector__new(capacity: usize) -> FFIVector<usize>;
-    #[allow(dead_code)]
+    fn FFIVector__new(capacity: usize) -> *mut FFIVector<usize>;
     fn FFIVector__new_vec_pair(
         capacity: usize,
-    ) -> FFIVector<gccrs_ffi::Pair<usize, *mut FFIVector<usize>>>;
-    #[allow(dead_code)]
+    ) -> *mut FFIVector<gccrs_ffi::Pair<usize, *mut FFIVector<usize>>>;
     fn FFIVector__new_vec_triple(
         capacity: usize,
-    ) -> FFIVector<gccrs_ffi::Triple<usize, usize, usize>>;
-    #[allow(dead_code)]
+    ) -> *mut FFIVector<gccrs_ffi::Triple<usize, usize, usize>>;
     fn FFIVector__push(vector: *mut FFIVector<usize>, element: usize);
-    #[allow(dead_code)]
     fn FFIVector__push_vec_pair(
         vector: *mut FFIVector<gccrs_ffi::Pair<usize, *mut FFIVector<usize>>>,
         element: gccrs_ffi::Pair<usize, *mut FFIVector<usize>>,
     );
-    #[allow(dead_code)]
     fn FFIVector__push_vec_triple(
         vector: *mut FFIVector<gccrs_ffi::Triple<usize, usize, usize>>,
         element: gccrs_ffi::Triple<usize, usize, usize>,
@@ -68,6 +62,13 @@ impl From<usize> for GccrsAtom {
 
 impl From<GccrsAtom> for usize {
     fn from(atom: GccrsAtom) -> Self {
+        atom.index()
+    }
+}
+
+
+impl From<&GccrsAtom> for usize {
+    fn from(atom: &GccrsAtom) -> Self {
         atom.index()
     }
 }
@@ -197,9 +198,58 @@ pub unsafe extern "C" fn polonius_run(
             }
         }
     }
+
+    let loan_errors_vector = FFIVector__new_vec_pair(output.errors.len());
+    for (keys, values) in output.errors.iter() {
+        let loans_vec = FFIVector__new(values.len());
+        for loan in values.iter() {
+            let loan: usize = loan.into();
+            FFIVector__push(loans_vec, loan);
+        }
+        let point: usize = keys.into();
+        let pair = gccrs_ffi::Pair {
+            first: point,
+            second: loans_vec,
+        };
+        FFIVector__push_vec_pair(loan_errors_vector, pair);
+    }
+
+    let move_errors_vector = FFIVector__new_vec_pair(output.move_errors.len());
+    for (keys, values) in output.move_errors.iter() {
+        let paths_vec = FFIVector__new(values.len());
+        for path in values.iter() {
+            let path: usize = path.into();
+            FFIVector__push(paths_vec, path);
+        }
+        let point: usize = keys.into();
+        let pair = gccrs_ffi::Pair {
+            first: point,
+            second: paths_vec,
+        };
+        FFIVector__push_vec_pair(move_errors_vector, pair);
+    }
+
+    let subset_errors_vector = FFIVector__new_vec_triple(output.subset_errors.len());
+    for (key, value) in output.subset_errors.iter() {
+        let point: usize = key.into();
+        for origin_pair in value.iter() {
+            let origin_1: usize = origin_pair.0.into();
+            let origin_2: usize = origin_pair.1.into();
+            let triple = gccrs_ffi::Triple {
+                first: point,
+                second: origin_1,
+                third: origin_2,
+            };
+            FFIVector__push_vec_triple(subset_errors_vector, triple);
+        }
+    }
+
     return gccrs_ffi::Output {
         loan_errors: output.errors.len() > 0,
         subset_errors: output.subset_errors.len() > 0,
         move_errors: output.move_errors.len() > 0,
+        loan_errors_vector,
+        move_errors_vector,
+        subset_errors_vector,
     };
 }

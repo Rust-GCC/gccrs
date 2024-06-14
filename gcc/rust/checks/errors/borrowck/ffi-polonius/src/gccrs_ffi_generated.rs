@@ -54,7 +54,7 @@ pub struct FactsView {
 pub struct FFIVector<T> {
     pub data: *mut T,
     pub size: usize,
-    capacity: usize,
+    pub capacity: usize,
 }
 
 #[repr(C)]
@@ -63,4 +63,7 @@ pub struct Output {
     pub loan_errors: bool,
     pub subset_errors: bool,
     pub move_errors: bool,
+    pub loan_errors_vector: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
+    pub move_errors_vector: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
+    pub subset_errors_vector: *mut FFIVector<Triple<usize, usize, usize>>,
 }

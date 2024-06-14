@@ -137,10 +137,10 @@ public:
     ++size;
   };
 
-  static FFIVector make_new (size_t capacity)
+  static FFIVector *make_new (size_t capacity)
   {
     auto data = capacity ? new T[capacity] : nullptr;
-    return FFIVector{data, 0, capacity};
+    return new FFIVector{data, 0, capacity};
   }
 
   void drop ()
@@ -148,6 +148,7 @@ public:
     delete[] data;
     size = 0;
     capacity = 0;
+    delete this;
   }
 };
 
@@ -157,12 +158,12 @@ using FFIVectorPair = FFIVector<Pair<size_t, FFIVector<size_t> *>>;
 using FFIVectorTriple = FFIVector<Triple<size_t, size_t, size_t>>;
 
 inline std::vector<size_t>
-make_vector (const FFIVectorSizet *vec_pair)
+make_vector (const FFIVectorSizet *vec_sizet)
 {
-  std::vector<size_t> return_val (vec_pair->size);
-  for (size_t i = 0; i < vec_pair->size; ++i)
+  std::vector<size_t> return_val (vec_sizet->size);
+  for (size_t i = 0; i < vec_sizet->size; ++i)
     {
-      return_val.push_back (vec_pair->data[i]);
+      return_val[i] = vec_sizet->data[i];
     }
   return return_val;
 }
@@ -174,24 +175,26 @@ make_vector (const FFIVectorPair *vec_pair)
     vec_pair->size);
   for (size_t i = 0; i < vec_pair->size; ++i)
     {
+      rust_assert (vec_pair->data);
+      rust_assert (vec_pair->data[i].second);
       std::pair<size_t, std::vector<size_t>> current_pair
 	= {vec_pair->data[i].first, make_vector (vec_pair->data[i].second)};
-      return_val.push_back (current_pair);
+      return_val[i] = current_pair;
     }
   return return_val;
 }
 
 inline std::vector<std::pair<size_t, std::pair<size_t, size_t>>>
-make_vector (const FFIVectorTriple *vec_pair)
+make_vector (const FFIVectorTriple *vec_triple)
 {
   std::vector<std::pair<size_t, std::pair<size_t, size_t>>> return_val (
-    vec_pair->size);
-  for (size_t i = 0; i < vec_pair->size; ++i)
+    vec_triple->size);
+  for (size_t i = 0; i < vec_triple->size; ++i)
     {
       auto current_element = std::pair<size_t, std::pair<size_t, size_t>>{
-	vec_pair->data[i].first,
-	{vec_pair->data[i].second, vec_pair->data[i].third}};
-      return_val.push_back (current_element);
+	vec_triple->data[i].first,
+	{vec_triple->data[i].second, vec_triple->data[i].third}};
+      return_val[i] = current_element;
     }
   return return_val;
 }
@@ -209,6 +212,7 @@ FFIVectorPair::drop ()
   delete[] data;
   size = 0;
   capacity = 0;
+  delete this;
 }
 
 struct Output
@@ -216,6 +220,9 @@ struct Output
   bool loan_errors;
   bool subset_errors;
   bool move_errors;
+  FFIVectorPair *loan_errors_vector;
+  FFIVectorPair *move_errors_vector;
+  FFIVectorTriple *subset_errors_vector;
 };
 
 } // namespace FFI
