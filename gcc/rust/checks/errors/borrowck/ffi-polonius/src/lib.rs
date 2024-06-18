@@ -199,7 +199,7 @@ pub unsafe extern "C" fn polonius_run(
         }
     }
 
-    let loan_errors_vector = FFIVector__new_vec_pair(output.errors.len());
+    let loan_errors = FFIVector__new_vec_pair(output.errors.len());
     for (keys, values) in output.errors.iter() {
         let loans_vec = FFIVector__new(values.len());
         for loan in values.iter() {
@@ -211,10 +211,10 @@ pub unsafe extern "C" fn polonius_run(
             first: point,
             second: loans_vec,
         };
-        FFIVector__push_vec_pair(loan_errors_vector, pair);
+        FFIVector__push_vec_pair(loan_errors, pair);
     }
 
-    let move_errors_vector = FFIVector__new_vec_pair(output.move_errors.len());
+    let move_errors = FFIVector__new_vec_pair(output.move_errors.len());
     for (keys, values) in output.move_errors.iter() {
         let paths_vec = FFIVector__new(values.len());
         for path in values.iter() {
@@ -226,10 +226,10 @@ pub unsafe extern "C" fn polonius_run(
             first: point,
             second: paths_vec,
         };
-        FFIVector__push_vec_pair(move_errors_vector, pair);
+        FFIVector__push_vec_pair(move_errors, pair);
     }
 
-    let subset_errors_vector = FFIVector__new_vec_triple(output.subset_errors.len());
+    let subset_errors = FFIVector__new_vec_triple(output.subset_errors.len());
     for (key, value) in output.subset_errors.iter() {
         let point: usize = key.into();
         for origin_pair in value.iter() {
@@ -240,16 +240,13 @@ pub unsafe extern "C" fn polonius_run(
                 second: origin_1,
                 third: origin_2,
             };
-            FFIVector__push_vec_triple(subset_errors_vector, triple);
+            FFIVector__push_vec_triple(subset_errors, triple);
         }
     }
 
     return gccrs_ffi::Output {
-        loan_errors: output.errors.len() > 0,
-        subset_errors: output.subset_errors.len() > 0,
-        move_errors: output.move_errors.len() > 0,
-        loan_errors_vector,
-        move_errors_vector,
-        subset_errors_vector,
+        loan_errors,
+        move_errors,
+        subset_errors,
     };
 }

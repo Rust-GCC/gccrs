@@ -217,12 +217,9 @@ FFIVectorPair::drop ()
 
 struct Output
 {
-  bool loan_errors;
-  bool subset_errors;
-  bool move_errors;
-  FFIVectorPair *loan_errors_vector;
-  FFIVectorPair *move_errors_vector;
-  FFIVectorTriple *subset_errors_vector;
+  FFIVectorPair *loan_errors;
+  FFIVectorPair *move_errors;
+  FFIVectorTriple *subset_errors;
 };
 
 } // namespace FFI

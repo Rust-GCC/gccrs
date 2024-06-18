@@ -60,10 +60,7 @@ pub struct FFIVector<T> {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Output {
-    pub loan_errors: bool,
-    pub subset_errors: bool,
-    pub move_errors: bool,
-    pub loan_errors_vector: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
-    pub move_errors_vector: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
-    pub subset_errors_vector: *mut FFIVector<Triple<usize, usize, usize>>,
+    pub loan_errors: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
+    pub move_errors: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
+    pub subset_errors: *mut FFIVector<Triple<usize, usize, usize>>,
 }
