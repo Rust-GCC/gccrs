@@ -9,6 +9,8 @@
 
 #include "harness.h"
 
+typedef int v4si __attribute__ ((__vector_size__ (16)));
+
 struct zoo
 {
   void *m_void_ptr;
@@ -56,6 +58,8 @@ struct zoo
 
   size_t m_size_t;
 
+  v4si m_vector;
+
   FILE *m_FILE_ptr;
 };
 
@@ -78,6 +82,8 @@ create_code (gcc_jit_context *ctxt, void *user_data)
   */
   gcc_jit_type *void_type =
     gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_VOID);
+  gcc_jit_type *int_type =
+    gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_INT);
 
 #define CREATE_FIELD(TYPE, NAME) \
   gcc_jit_context_new_field ( \
@@ -163,6 +169,10 @@ create_code (gcc_jit_context *ctxt, void *user_data)
   gcc_jit_field *field_m_size_t =
     CREATE_FIELD (GCC_JIT_TYPE_SIZE_T, "m_size_t");
 
+  gcc_jit_type *vector_type = gcc_jit_type_get_vector (int_type, 4);
+  gcc_jit_field *field_m_vector =
+    gcc_jit_context_new_field ( ctxt, NULL, vector_type, "m_vector");
+
   gcc_jit_field *field_m_FILE_ptr =
     CREATE_FIELD (GCC_JIT_TYPE_FILE_PTR, "m_FILE_ptr");
 
@@ -213,6 +223,8 @@ create_code (gcc_jit_context *ctxt, void *user_data)
     field_m_const_char_ptr,
 
     field_m_size_t,
+
+    field_m_vector,
 
     field_m_FILE_ptr
   };
@@ -410,6 +422,22 @@ create_code (gcc_jit_context *ctxt, void *user_data)
       ctxt,
       gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_SIZE_T),
       sizeof (struct zoo)))
+
+  gcc_jit_type *aligned_int = gcc_jit_type_get_aligned (int_type, 4);
+  gcc_jit_type *aligned_vector_type = gcc_jit_type_get_vector (aligned_int, 4);
+  gcc_jit_rvalue *value = gcc_jit_context_new_rvalue_from_int (
+      ctxt,
+      aligned_int, 40);
+  gcc_jit_rvalue* array[4] = {
+      value, value, value, value,
+  };
+  ASSIGN(field_m_vector,
+    gcc_jit_context_new_rvalue_from_vector (
+      ctxt,
+      NULL,
+      aligned_vector_type,
+      4,
+      array))
 
   ASSIGN(field_m_FILE_ptr,
     gcc_jit_context_new_rvalue_from_ptr (

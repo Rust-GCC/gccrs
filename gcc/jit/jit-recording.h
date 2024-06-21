@@ -1026,7 +1026,8 @@ public:
     if (other_vec_type == NULL)
       return false;
     return get_num_units () == other_vec_type->get_num_units ()
-      && get_element_type () == other_vec_type->get_element_type ();
+      && get_element_type ()->is_same_type_as (
+	other_vec_type->get_element_type ());
   }
 
   vector_type *is_vector () final override { return this; }
