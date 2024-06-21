@@ -8621,7 +8621,7 @@ package body Freeze is
 
       Allocator_Typ : Entity_Id := Empty;
 
-      Freeze_Outside_Subp  : Entity_Id := Empty;
+      Freeze_Outside_Subp : Entity_Id := Empty;
       --  This entity is set if we are inside a subprogram body and the frozen
       --  entity is defined in the enclosing scope of this subprogram. In such
       --  case we must skip the subprogram body when climbing the parents chain
