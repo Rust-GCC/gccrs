@@ -26,6 +26,13 @@ fn test2(v: LOption) -> Res {
     return Res::BAD;
 }
 
+fn test3(.: LOption) -> Res {
+    if let LOption::Some(v) = v {
+        return Res::BAD;
+    } else {
+        return Res::OK;
+    }
+}
 
 fn main() -> i32 {
 
@@ -40,8 +47,14 @@ fn main() -> i32 {
     }
 
     match test2(LOption::Some(100)) {
-        Res::OK => return 0,
+        Res::OK => (),
         Res::BAD => return 1,
     }
 
+    match test3(LOption::None) {
+        Res::OK => (),
+        Res::BAD => return 1,
+    }
+
+    0
 }
