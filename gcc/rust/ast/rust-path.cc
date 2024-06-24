@@ -135,11 +135,14 @@ PathExprSegment::as_string () const
 }
 
 std::string
-PathPattern::as_string () const
+Path::as_string () const
 {
+  // FIXME: Handle #[lang] paths
+  rust_unreachable ();
+
   std::string str;
 
-  for (const auto &segment : segments)
+  for (const auto &segment : data.path.data)
     str += segment.as_string () + "::";
 
   // basically a hack - remove last two characters of string (remove final ::)
@@ -149,16 +152,16 @@ PathPattern::as_string () const
 }
 
 SimplePath
-PathPattern::convert_to_simple_path (bool with_opening_scope_resolution) const
+Path::convert_to_simple_path (bool with_opening_scope_resolution) const
 {
   if (!has_segments ())
     return SimplePath::create_empty ();
 
   // create vector of reserved size (to minimise reallocations)
   std::vector<SimplePathSegment> simple_segments;
-  simple_segments.reserve (segments.size ());
+  simple_segments.reserve (data.path.data.size ());
 
-  for (const auto &segment : segments)
+  for (const auto &segment : data.path.data)
     {
       // return empty path if doesn't meet simple path segment requirements
       if (segment.is_error () || segment.has_generic_args ()
@@ -197,7 +200,7 @@ PathInExpression::as_string () const
   if (has_opening_scope_resolution)
     str = "::";
 
-  return str + PathPattern::as_string ();
+  return str + Path::as_string ();
 }
 
 std::string
@@ -297,7 +300,7 @@ TypePathFunction::as_string () const
 std::string
 QualifiedPathInExpression::as_string () const
 {
-  return path_type.as_string () + "::" + PathPattern::as_string ();
+  return path_type.as_string () + "::" + Path::as_string ();
 }
 
 std::string
