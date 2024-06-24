@@ -16976,16 +16976,15 @@ package body Sem_Ch13 is
       --  but avoid chaining if we have an overloadable entity, and the pragma
       --  is one that can apply to multiple overloaded entities.
 
-      if Is_Overloadable (T) and then Nkind (N) = N_Pragma then
-         declare
-            Pname : constant Name_Id := Pragma_Name (N);
-         begin
-            if Pname in Name_Convention | Name_Import | Name_Export
-                      | Name_External   | Name_Interface
-            then
-               return False;
-            end if;
-         end;
+      if Is_Overloadable (T)
+        and then Nkind (N) = N_Pragma
+        and then Pragma_Name (N) in Name_Convention
+                                  | Name_Import
+                                  | Name_Export
+                                  | Name_External
+                                  | Name_Interface
+      then
+         return False;
       end if;
 
       Record_Rep_Item (T, N);
