@@ -237,22 +237,24 @@ protected:
   }
 
 protected: // Helpers to add BIR statements
-  void push_assignment (PlaceId lhs, AbstractExpr *rhs)
+  void push_assignment (PlaceId lhs, AbstractExpr *rhs, location_t location)
   {
-    ctx.get_current_bb ().statements.emplace_back (lhs, rhs);
+    ctx.get_current_bb ().statements.emplace_back (lhs, rhs, location);
     translated = lhs;
   }
 
-  void push_assignment (PlaceId lhs, PlaceId rhs)
+  void push_assignment (PlaceId lhs, PlaceId rhs, location_t location)
   {
-    push_assignment (lhs, new Assignment (rhs));
+    push_assignment (lhs, new Assignment (rhs), location);
   }
 
   void push_tmp_assignment (AbstractExpr *rhs, TyTy::BaseType *tyty)
   {
     PlaceId tmp = ctx.place_db.add_temporary (tyty);
     push_storage_live (tmp);
-    push_assignment (tmp, rhs);
+    auto location
+      = Analysis::Mappings::get ().lookup_location (tyty->get_ref ());
+    push_assignment (tmp, rhs, location);
   }
 
   void push_tmp_assignment (PlaceId rhs)
@@ -531,12 +533,12 @@ protected:
    * @param can_panic mark that expression can panic to insert jump to
    * cleanup.
    */
-  void return_expr (AbstractExpr *expr, TyTy::BaseType *ty,
+  void return_expr (AbstractExpr *expr, TyTy::BaseType *ty, location_t location,
 		    bool can_panic = false)
   {
     if (expr_return_place != INVALID_PLACE)
       {
-	push_assignment (expr_return_place, expr);
+	push_assignment (expr_return_place, expr, location);
       }
     else
       {
@@ -556,12 +558,12 @@ protected:
   }
 
   /** Mark place to be a result of processed subexpression. */
-  void return_place (PlaceId place, bool can_panic = false)
+  void return_place (PlaceId place, location_t location, bool can_panic = false)
   {
     if (expr_return_place != INVALID_PLACE)
       {
 	// Return place is already allocated, no need to defer assignment.
-	push_assignment (expr_return_place, place);
+	push_assignment (expr_return_place, place, location);
       }
     else
       {
@@ -585,14 +587,15 @@ protected:
     translated = ctx.place_db.get_constant (lookup_type (expr));
   }
 
-  PlaceId return_borrowed (PlaceId place_id, TyTy::BaseType *ty)
+  PlaceId return_borrowed (PlaceId place_id, TyTy::BaseType *ty,
+			   location_t location)
   {
     // TODO: deduplicate with borrow_place
     auto loan = ctx.place_db.add_loan (
       {ty->as<const TyTy::ReferenceType> ()->mutability (), place_id});
     return_expr (new BorrowExpr (place_id, loan,
 				 ctx.place_db.get_next_free_region ()),
-		 ty);
+		 ty, location);
     return translated;
   }
 
