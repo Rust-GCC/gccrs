@@ -589,23 +589,51 @@ class Path : public Pattern
 
     explicit Data (NodeId lang_item) : lang_item{Kind::LangItem, lang_item} {}
 
-    explicit Data (std::vector<PathExprSegment> segments)
+    explicit Data (std::vector<PathExprSegment> &&segments)
       : path{Kind::Path, std::move (segments)}
     {}
 
-    Data (const Data &other) { *this = other; }
-
-    Data operator= (const Data &other)
+    Data (const Data &&other)
     {
       switch (other.kind ())
 	{
 	case Kind::LangItem:
-	  return Data{other.lang_item.data};
+	  lang_item = {Kind::LangItem, other.lang_item.data};
 	  break;
 	case Kind::Path:
-	  return Data{other.path.data};
+	  path = {Kind::Path, std::move (other.path.data)};
 	  break;
 	}
+    }
+
+    Data (const Data &other)
+    {
+      switch (other.kind ())
+	{
+	case Kind::LangItem:
+	  lang_item = {Kind::LangItem, other.lang_item.data};
+	  break;
+	case Kind::Path:
+	  path = {Kind::Path, other.path.data};
+	  break;
+	}
+    }
+
+    Data &operator= (const Data &other)
+    {
+      switch (other.kind ())
+	{
+	case Kind::LangItem:
+	  lang_item.tag = Kind::LangItem;
+	  lang_item.data = other.lang_item.data;
+	  break;
+	case Kind::Path:
+	  lang_item.tag = Kind::Path;
+	  path.data = other.path.data;
+	  break;
+	}
+
+      return *this;
     }
 
     ~Data ()
