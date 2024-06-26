@@ -1,0 +1,69 @@
+# Copyright (C) 2021-2024 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+
+# Compile tests, no torture testing, for name resolution 2.0
+#
+# These tests raise errors in the front end; torture testing doesn't apply.
+
+# Load support procs.
+load_lib rust-dg.exp
+
+# Initialize `dg'.
+dg-init
+
+# Exclude tests which aren't passing yet
+# These should be removed from the exclude file over time
+
+set rust-nr2-exclude-fh [open $srcdir/$subdir/exclude r]
+set rust-nr2-exclude-raw [lsort [split [read ${rust-nr2-exclude-fh}] "\n"]]
+close ${rust-nr2-exclude-fh}
+
+set rust-nr2-exclude ""
+foreach exclude ${rust-nr2-exclude-raw} {
+    if [regexp {^[^#].*} $exclude] {
+        lappend rust-nr2-exclude $exclude
+    }
+}
+
+set rust-nr2-tests ""
+set rust-nr2-tests-efail ""
+foreach test [lsort [glob -nocomplain -tails -directory $srcdir/$subdir/.. *.rs]] {
+    set idx [lsearch -exact -sorted ${rust-nr2-exclude} $test]
+    if {$idx == -1} {
+        lappend rust-nr2-tests $srcdir/$subdir/../$test
+    } else {
+        lappend rust-nr2-tests-efail $srcdir/$subdir/../$test
+	set rust-nr2-exclude [lreplace ${rust-nr2-exclude} $idx $idx]
+    }
+}
+
+# Check for unused entries in the exclusion list
+foreach still-exclude ${rust-nr2-exclude} {
+    fail "${still-exclude}: could not exclude test"
+}
+
+# Main loop.
+set saved-dg-do-what-default ${dg-do-what-default}
+
+set dg-do-what-default "compile"
+dg-runtest ${rust-nr2-tests} "-frust-name-resolution-2.0" ""
+
+# TODO: verify that rust-nr2-tests-efail would all fail
+
+set dg-do-what-default ${saved-dg-do-what-default}
+
+# All done.
+dg-finish
