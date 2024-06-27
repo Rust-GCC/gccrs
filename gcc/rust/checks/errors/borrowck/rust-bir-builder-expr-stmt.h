@@ -54,6 +54,9 @@ private:
     return result;
   }
 
+  // helper functions for method resolution
+  PlaceId visit_and_adjust (HIR::Expr &expr);
+
   /** Common infrastructure for loops. */
   BuilderContext::LoopAndLabelCtx &setup_loop (HIR::BaseLoopExpr &expr);
 

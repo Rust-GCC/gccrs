@@ -21,6 +21,8 @@
 #include "rust-bir-builder-lazyboolexpr.h"
 #include "rust-bir-builder-pattern.h"
 #include "rust-bir-builder-struct.h"
+#include "rust-hir-path-probe.h"
+#include "rust-type-util.h"
 
 namespace Rust {
 namespace BIR {
@@ -281,7 +283,23 @@ ExprStmtBuilder::visit (HIR::CallExpr &expr)
 
 void
 ExprStmtBuilder::visit (HIR::MethodCallExpr &expr)
-{}
+{
+  PlaceId self = visit_and_adjust (*expr.get_receiver ());
+  auto *method_ty = lookup_type (expr.get_method_name ())->as<TyTy::FnType> ();
+
+  std::vector<PlaceId> arguments = visit_list (expr.get_arguments ());
+  arguments.insert (arguments.begin (), self);
+
+  // skip the first parameter (self)
+  for (size_t i = 1; i < method_ty->get_num_params (); ++i)
+    coercion_site (arguments[i], method_ty->get_param_type_at (i));
+
+  move_all (arguments);
+
+  return_expr (new CallExpr (ctx.place_db.get_constant (method_ty),
+			     std::move (arguments)),
+	       lookup_type (expr), true);
+}
 
 void
 ExprStmtBuilder::visit (HIR::FieldAccessExpr &expr)
@@ -679,5 +697,46 @@ ExprStmtBuilder::visit (HIR::ExprStmt &stmt)
   if (result != INVALID_PLACE)
     push_tmp_assignment (result);
 }
+
+PlaceId
+ExprStmtBuilder::visit_and_adjust (HIR::Expr &expr)
+{
+  PlaceId adjusted = visit_expr (expr);
+
+  std::vector<Resolver::Adjustment> *adjustments = nullptr;
+  bool ok
+    = ctx.tyctx.lookup_autoderef_mappings (expr.get_mappings ().get_hirid (),
+					   &adjustments);
+  rust_assert (ok);
+
+  for (const auto &adjustment : *adjustments)
+    {
+      auto ty = ctx.place_db[adjusted].tyty;
+
+      adjusted = [&] () {
+	using AdjustmentType = Resolver::Adjustment::AdjustmentType;
+
+	switch (adjustment.get_type ())
+	  {
+	  case AdjustmentType::IMM_REF:
+	    return borrow_place (adjusted, Mutability::Imm);
+	  case AdjustmentType::MUT_REF:
+	    return borrow_place (adjusted, Mutability::Mut);
+	  case AdjustmentType::DEREF:
+	  case AdjustmentType::DEREF_MUT:
+	    return ctx.place_db.lookup_or_add_path (Place::DEREF, ty, adjusted);
+	  case AdjustmentType::ERROR:
+	  case AdjustmentType::INDIRECTION:
+	  case AdjustmentType::UNSIZE:
+	    // FIXME: Are these adjustments needed for borrowchecker
+	    return adjusted;
+	  default:
+	    rust_unreachable ();
+	  }
+      }();
+    }
+  return adjusted;
+}
+
 } // namespace BIR
 } // namespace Rust

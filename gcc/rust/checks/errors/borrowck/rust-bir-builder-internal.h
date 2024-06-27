@@ -311,6 +311,15 @@ protected: // Helpers to add BIR statements
     return translated;
   }
 
+  PlaceId borrow_place (PlaceId place_id, Mutability mutability)
+  {
+    auto ty = ctx.place_db[place_id].tyty;
+    return borrow_place (place_id,
+			 new TyTy::ReferenceType (ty->get_ref (),
+						  TyTy::TyVar (ty->get_ref ()),
+						  mutability));
+  }
+
   PlaceId move_place (PlaceId arg)
   {
     auto &place = ctx.place_db[arg];
@@ -383,6 +392,9 @@ protected: // HIR resolution helpers
     TyTy::BaseType *type = nullptr;
     bool ok = ctx.tyctx.lookup_type (hirid, &type);
     rust_assert (ok);
+    rust_assert (type != nullptr);
+    if (auto param_ty = type->try_as<TyTy::ParamType> ())
+      type = param_ty->resolve ();
     rust_assert (type != nullptr);
     return type;
   }
