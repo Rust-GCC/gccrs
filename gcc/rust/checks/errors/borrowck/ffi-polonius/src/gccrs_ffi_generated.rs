@@ -51,8 +51,16 @@ pub struct FactsView {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
+pub struct FFIVector<T> {
+    pub data: *mut T,
+    pub size: usize,
+    pub capacity: usize,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct Output {
-    pub loan_errors: bool,
-    pub subset_errors: bool,
-    pub move_errors: bool,
+    pub loan_errors: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
+    pub move_errors: *mut FFIVector<Pair<usize, *mut FFIVector<usize>>>,
+    pub subset_errors: *mut FFIVector<Triple<usize, usize, usize>>,
 }

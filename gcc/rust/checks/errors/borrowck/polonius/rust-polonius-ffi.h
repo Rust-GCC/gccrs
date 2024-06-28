@@ -54,6 +54,7 @@ template <typename T1, typename T2> struct Pair
   T1 first;
   T2 second;
 
+  Pair () = default;
   Pair (T1 first, T2 second) : first (first), second (second) {}
 };
 
@@ -63,6 +64,7 @@ template <typename T1, typename T2, typename T3> struct Triple
   T2 second;
   T3 third;
 
+  Triple () = default;
   Triple (T1 first, T2 second, T3 third)
     : first (first), second (second), third (third)
   {}
@@ -102,11 +104,122 @@ struct FactsView
   Slice<Pair<Origin, Loan>> placeholder;
 };
 
+// Intermediate representation similar to vector for passing Polonius output to
+// C++ code
+template <typename T> struct FFIVector
+{
+  T *data;
+  size_t size;
+  size_t capacity;
+
+public:
+  void allocate (size_t increase_by)
+  {
+    if (increase_by == 0)
+      {
+	++increase_by;
+      }
+    auto new_capacity = increase_by + size;
+    auto new_data = new T[new_capacity];
+    std::memcpy (new_data, data, size * sizeof (T));
+    delete[] data;
+    data = new_data;
+    capacity = new_capacity;
+  };
+
+  void push (T new_element)
+  {
+    if (size == capacity)
+      {
+	allocate (capacity);
+      }
+    data[size] = new_element;
+    ++size;
+  };
+
+  static FFIVector *make_new (size_t capacity)
+  {
+    auto data = capacity ? new T[capacity] : nullptr;
+    return new FFIVector{data, 0, capacity};
+  }
+
+  void drop ()
+  {
+    delete[] data;
+    size = 0;
+    capacity = 0;
+    delete this;
+  }
+};
+
+// Some useful type aliases
+using FFIVectorSizet = FFIVector<size_t>;
+using FFIVectorPair = FFIVector<Pair<size_t, FFIVector<size_t> *>>;
+using FFIVectorTriple = FFIVector<Triple<size_t, size_t, size_t>>;
+
+inline std::vector<size_t>
+make_vector (const FFIVectorSizet *vec_sizet)
+{
+  std::vector<size_t> return_val (vec_sizet->size);
+  for (size_t i = 0; i < vec_sizet->size; ++i)
+    {
+      return_val[i] = vec_sizet->data[i];
+    }
+  return return_val;
+}
+
+inline std::vector<std::pair<size_t, std::vector<size_t>>>
+make_vector (const FFIVectorPair *vec_pair)
+{
+  std::vector<std::pair<size_t, std::vector<size_t>>> return_val (
+    vec_pair->size);
+  for (size_t i = 0; i < vec_pair->size; ++i)
+    {
+      rust_assert (vec_pair->data);
+      rust_assert (vec_pair->data[i].second);
+      std::pair<size_t, std::vector<size_t>> current_pair
+	= {vec_pair->data[i].first, make_vector (vec_pair->data[i].second)};
+      return_val[i] = current_pair;
+    }
+  return return_val;
+}
+
+inline std::vector<std::pair<size_t, std::pair<size_t, size_t>>>
+make_vector (const FFIVectorTriple *vec_triple)
+{
+  std::vector<std::pair<size_t, std::pair<size_t, size_t>>> return_val (
+    vec_triple->size);
+  for (size_t i = 0; i < vec_triple->size; ++i)
+    {
+      auto current_element = std::pair<size_t, std::pair<size_t, size_t>>{
+	vec_triple->data[i].first,
+	{vec_triple->data[i].second, vec_triple->data[i].third}};
+      return_val[i] = current_element;
+    }
+  return return_val;
+}
+
+// Speciallized implementation is needed for FFIVectorPair and the second
+// element of Pair i.e FFIVectorSizet needs to be dropped explicitly
+template <>
+inline void
+FFIVectorPair::drop ()
+{
+  for (size_t i = 0; i < size; ++i)
+    {
+      data[i].second->drop ();
+    }
+  delete[] data;
+  size = 0;
+  capacity = 0;
+  delete this;
+}
+
 struct Output
 {
-  bool loan_errors;
-  bool subset_errors;
-  bool move_errors;
+  FFIVectorPair *loan_errors;
+  FFIVectorPair *move_errors;
+  FFIVectorTriple *subset_errors;
 };
 
 } // namespace FFI
