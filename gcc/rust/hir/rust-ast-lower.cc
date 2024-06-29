@@ -24,6 +24,7 @@
 #include "rust-ast-lower-type.h"
 #include "rust-ast-lower-pattern.h"
 #include "rust-ast-lower-struct-field-expr.h"
+#include "rust-expr.h"
 
 namespace Rust {
 namespace HIR {
@@ -199,25 +200,40 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqElse &expr)
 }
 
 void
+do_if_let_desugaring (AST::IfLetExpr &expr)
+{
+  HIR::Expr *branch_value
+    = ASTLoweringExpr::translate (expr.get_value_expr ());
+  
+
+}
+
+void
 ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
 {
+  // Desugar:
+  //   if let Some(y) = some_value {
+  //     bar();
+  //   }
+  //
+  //   into:
+  //
+  //   match some_value {
+  //     Some(y) => {bar();},
+  //     _ => ()
+  //   }
+
   HIR::Expr *branch_value
     = ASTLoweringExpr::translate (expr.get_value_expr ());
 
   std::vector<HIR::MatchCase> match_arms;
-  // for (auto &match_case : expr.get_match_cases ())
-  //   {
   HIR::Expr *kase_expr
     = ASTLoweringExpr::translate (expr.get_if_block ());
 
-  HIR::Expr *kase_guard_expr = nullptr;
-  // if (match_case.get_arm ().has_match_arm_guard ())
-  // 	{
-  // 	  kase_guard_expr = ASTLoweringExpr::translate (
-  // 	    match_case.get_arm ().get_guard_expr ());
-  // 	}
-
   std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns;
+
+  // FIXME: if let only accepts a single pattern. Why do we have a vector of
+  // patterns in the IfLet?
   for (auto &pattern : expr.get_patterns ())
   {
     HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
@@ -225,7 +241,7 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
   }
 
   HIR::MatchArm arm (std::move (match_arm_patterns), expr.get_locus (),
-		     std::unique_ptr<HIR::Expr> (kase_guard_expr),
+		     nullptr,
 		     {});
 
   auto crate_num = mappings.get_current_crate ();
@@ -233,41 +249,14 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
 				 mappings.get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-
-
   HIR::MatchCase kase (std::move (mapping), std::move (arm),
 		       std::unique_ptr<HIR::Expr> (kase_expr));
   match_arms.push_back (std::move (kase));
-  // }
-
 
   translated
     = new HIR::MatchExpr (mapping, std::unique_ptr<HIR::Expr> (branch_value),
 			  std::move (match_arms), {},
 			  {}, expr.get_locus ());
-
-// OLD
-  // std::vector<std::unique_ptr<HIR::Pattern>> patterns;
-  // for (auto &pattern : expr.get_patterns ())
-  //   {
-  //     HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
-  //     patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
-  //   }
-  // HIR::Expr *value_ptr = ASTLoweringExpr::translate (expr.get_value_expr ());
-
-  // bool ignored_terminated = false;
-  // HIR::BlockExpr *block
-  //   = ASTLoweringBlock::translate (expr.get_if_block (), &ignored_terminated);
-
-  // auto crate_num = mappings.get_current_crate ();
-  // Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-  // 				 mappings.get_next_hir_id (crate_num),
-  // 				 UNKNOWN_LOCAL_DEFID);
-
-  // translated = new HIR::IfLetExpr (mapping, std::move (patterns),
-  // 				   std::unique_ptr<HIR::Expr> (value_ptr),
-  // 				   std::unique_ptr<HIR::BlockExpr> (block),
-  // 				   expr.get_locus ());
 }
 
 void
@@ -277,52 +266,37 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExprConseqElse &expr)
   // desugar:
   //   if let Some(y) = some_value {
   //     bar();
-  //   } else some_guard() {
+  //   } else {
   //     baz();
   //   }
   //
   //   into
   //   match some_value {
-  //     Some(y) => {bar()},
-  //     _ if some_guard() => {baz()},
-  //     _ => {}
+  //     Some(y) => {bar();},
+  //     _ => {baz();}
   //   }
   //
-  //   if let Some(y) = some_value {
-  //     bar();
-  //   }
-  //
-  //   into:
-  //   match some_value {
-  //     Some(y) => {bar()},
-  //     _ => {}
-  //   }
-
+  
   HIR::Expr *branch_value
     = ASTLoweringExpr::translate (expr.get_value_expr ());
 
   std::vector<HIR::MatchCase> match_arms;
-  // for (auto &match_case : expr.get_match_cases ())
-  //   {
   HIR::Expr *kase_expr
     = ASTLoweringExpr::translate (expr.get_if_block ());
 
-  HIR::Expr *kase_guard_expr = nullptr;
-  // if (match_case.get_arm ().has_match_arm_guard ())
-  // 	{
-  // 	  kase_guard_expr = ASTLoweringExpr::translate (
-  // 	    match_case.get_arm ().get_guard_expr ());
-  // 	}
-
   std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns;
+
+  // FIXME: same, why do we have a vector of patterns?
   for (auto &pattern : expr.get_patterns ())
     {
       HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
       match_arm_patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
     }
 
+  // FIXME: 2 previous q? on having many patterns probably have the same answers
+  // as to why a single MatchArm has a vector of patterns.
   HIR::MatchArm arm (std::move (match_arm_patterns), expr.get_locus (),
-		     std::unique_ptr<HIR::Expr> (kase_guard_expr),
+		     nullptr,
 		     {});
 
   auto crate_num = mappings.get_current_crate ();
@@ -330,48 +304,31 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExprConseqElse &expr)
 				 mappings.get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-
-
   HIR::MatchCase kase (std::move (mapping), std::move (arm),
 		       std::unique_ptr<HIR::Expr> (kase_expr));
   match_arms.push_back (std::move (kase));
-  // }
 
+  // build the default arm, for the else.
+  // FIXME: use WildcardPattern here.
+  std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns_empty;
+  HIR::MatchArm arm_default (std::move (match_arm_patterns_empty), expr.get_locus (),
+		     nullptr,
+		     {});
+
+  Analysis::NodeMapping mapping_default (crate_num, expr.get_node_id (),
+				 mappings.get_next_hir_id (crate_num),
+				 UNKNOWN_LOCAL_DEFID);
+  HIR::Expr *kase_else_expr
+    = ASTLoweringExpr::translate (expr.get_else_block ());
+
+  HIR::MatchCase kase_else (std::move (mapping_default), std::move (arm_default),
+		       std::unique_ptr<HIR::Expr> (kase_else_expr));
+  match_arms.push_back (std::move (kase_else));
 
   translated
     = new HIR::MatchExpr (mapping, std::unique_ptr<HIR::Expr> (branch_value),
 			  std::move (match_arms), {},
 			  {}, expr.get_locus ());
-
-  // OLD
-
-  // std::vector<std::unique_ptr<HIR::Pattern>> patterns;
-  // for (auto &pattern : expr.get_patterns ())
-  //   {
-  //     HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
-  //     patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
-  //   }
-  // HIR::Expr *value_ptr = ASTLoweringExpr::translate (expr.get_value_expr ());
-
-  // bool ignored_terminated = false;
-  // HIR::BlockExpr *block
-  //   = ASTLoweringBlock::translate (expr.get_if_block (), &ignored_terminated);
-
-  // HIR::ExprWithBlock *else_block
-  //   = ASTLoweringExprWithBlock::translate (expr.get_else_block (),
-  // 					   &ignored_terminated);
-
-  // rust_assert (else_block);
-
-  // auto crate_num = mappings.get_current_crate ();
-  // Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-  // 				 mappings.get_next_hir_id (crate_num),
-  // 				 UNKNOWN_LOCAL_DEFID);
-
-  // translated = new HIR::IfLetExprConseqElse (
-  //   mapping, std::move (patterns), std::unique_ptr<HIR::Expr> (value_ptr),
-  //   std::unique_ptr<HIR::BlockExpr> (block),
-  //   std::unique_ptr<HIR::ExprWithBlock> (else_block), expr.get_locus ());
 }
 
 // rust-ast-lower-struct-field-expr.h
