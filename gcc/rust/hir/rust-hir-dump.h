@@ -80,7 +80,6 @@ private:
   void do_type (Type &);
   void do_expr (Expr &);
   void do_ifexpr (IfExpr &);
-  void do_ifletexpr (IfLetExpr &);
   void do_pathexpr (PathExpr &);
   void do_pathpattern (PathPattern &);
   void do_genericargs (GenericArgs &);
@@ -100,6 +99,8 @@ private:
   void do_structfield (StructField &);
   void do_maybenamedparam (MaybeNamedParam &);
   void do_struct (Struct &);
+  void do_matcharm (MatchArm &);
+  void do_match_case (MatchCase &);
 
   void visit (AST::Attribute &attribute);
   virtual void visit (Lifetime &) override;
@@ -160,8 +161,6 @@ private:
   virtual void visit (WhileLetLoopExpr &) override;
   virtual void visit (IfExpr &) override;
   virtual void visit (IfExprConseqElse &) override;
-  virtual void visit (IfLetExpr &) override;
-  virtual void visit (IfLetExprConseqElse &) override;
 
   virtual void visit (MatchExpr &) override;
   virtual void visit (AwaitExpr &) override;
