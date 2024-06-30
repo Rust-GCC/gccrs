@@ -310,8 +310,18 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExprConseqElse &expr)
 
   // build the default arm, for the else.
   // FIXME: use WildcardPattern here.
-  std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns_empty;
-  HIR::MatchArm arm_default (std::move (match_arm_patterns_empty), expr.get_locus (),
+  std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns_wildcard;
+  Analysis::NodeMapping mapping_default_2 (crate_num, expr.get_node_id (),
+					 mappings.get_next_hir_id (crate_num),
+					 UNKNOWN_LOCAL_DEFID);
+
+  std::unique_ptr<HIR::WildcardPattern> wc
+    = std::unique_ptr<HIR::WildcardPattern> (
+      new HIR::WildcardPattern(mapping_default_2, expr.get_locus ()));
+
+  match_arm_patterns_wildcard.push_back(std::move(wc));
+
+  HIR::MatchArm arm_default (std::move (match_arm_patterns_wildcard), expr.get_locus (),
 		     nullptr,
 		     {});
 
