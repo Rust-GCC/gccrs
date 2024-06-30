@@ -1404,6 +1404,19 @@ Dump::visit (IfExprConseqElse &e)
 }
 
 void
+Dump::do_matcharm (MatchArm &e)
+{
+
+
+}
+
+void
+Dump::do_match_case (MatchCase &e)
+{
+  // do_expr (e.get_expr());
+}
+
+void
 Dump::visit (MatchExpr &e)
 {
   begin ("MatchExpr");
@@ -1415,8 +1428,14 @@ Dump::visit (MatchExpr &e)
   if (e.get_match_cases ().empty ())
     str = "none";
   else
-    for (const auto &arm : e.get_match_cases ())
-      str += "\n " + arm.as_string ();
+    for (auto &arm : e.get_match_cases ())
+      {
+	begin ("MatchCase");
+	do_match_case (arm);
+	end ("MatchCase");
+      }
+
+      //str += "\n " + arm.as_string ();
   put_field ("match_arms", str);
 
   end ("MatchExpr");
