@@ -567,131 +567,56 @@ public:
 // class
 class Path : public Pattern
 {
+public:
   enum class Kind
   {
     LangItem,
-    Path,
+    Regular,
   };
 
-  union Data
+  virtual Kind get_path_kind () const;
+
+  Pattern::Kind get_pattern_kind () override final
   {
-    struct
-    {
-      Kind tag;
-      NodeId data;
-    } lang_item;
+    return Pattern::Kind::Path;
+  }
+};
 
-    struct
-    {
-      Kind tag;
-      std::vector<PathExprSegment> data;
-    } path;
+class RegularPath : public Path
+{
+  std::vector<PathExprSegment> segments;
 
-    explicit Data (NodeId lang_item) : lang_item{Kind::LangItem, lang_item} {}
-
-    explicit Data (std::vector<PathExprSegment> &&segments)
-      : path{Kind::Path, std::move (segments)}
-    {}
-
-    Data (const Data &&other)
-    {
-      switch (other.kind ())
-	{
-	case Kind::LangItem:
-	  lang_item = {Kind::LangItem, other.lang_item.data};
-	  break;
-	case Kind::Path:
-	  path = {Kind::Path, std::move (other.path.data)};
-	  break;
-	}
-    }
-
-    Data (const Data &other)
-    {
-      switch (other.kind ())
-	{
-	case Kind::LangItem:
-	  lang_item = {Kind::LangItem, other.lang_item.data};
-	  break;
-	case Kind::Path:
-	  path = {Kind::Path, other.path.data};
-	  break;
-	}
-    }
-
-    Data &operator= (const Data &other)
-    {
-      switch (other.kind ())
-	{
-	case Kind::LangItem:
-	  lang_item.tag = Kind::LangItem;
-	  lang_item.data = other.lang_item.data;
-	  break;
-	case Kind::Path:
-	  lang_item.tag = Kind::Path;
-	  path.data = other.path.data;
-	  break;
-	}
-
-      return *this;
-    }
-
-    ~Data ()
-    {
-      // no other variants have complex destructors, but we'd need to add them
-      // here
-      if (kind () == Kind::Path)
-	path.data.~vector<PathExprSegment> ();
-    }
-
-    Kind kind () const
-    {
-      // This is safe since the layout of all the union's variants is the same -
-      // the first few bytes are for the `tag` member, and then the `data`.
-      return lang_item.tag;
-    }
-  } data;
-
-protected:
-  explicit Path (NodeId lang_item) : data (Data (lang_item)) {}
-
-  explicit Path (std::vector<PathExprSegment> segments)
-    : data (Data (std::move (segments)))
+public:
+  explicit RegularPath (std::vector<PathExprSegment> &&segments)
+    : segments (std::move (segments))
   {}
 
+  std::string as_string () const override;
+
   // Returns whether path has segments.
-  bool has_segments () const
-  {
-    return data.kind () == Kind::Path && !get_segments ().empty ();
-  }
+  bool has_segments () const { return segments.empty (); }
+
+  std::vector<PathExprSegment> &get_segments () { return segments; }
+
+  const std::vector<PathExprSegment> &get_segments () const { return segments; }
+
+  /* Returns whether the path is a single segment (excluding qualified path
+   * initial as segment). */
+  bool is_single_segment () const { return segments.size () == 1; }
 
   /* Converts path segments to their equivalent SimplePath segments if
    * possible, and creates a SimplePath from them. */
   SimplePath convert_to_simple_path (bool with_opening_scope_resolution) const;
 
-public:
-  std::vector<PathExprSegment> &get_segments ()
-  {
-    rust_assert (data.kind () == Kind::Path);
-    return data.path.data;
-  }
+  Path::Kind get_path_kind () const override { return Path::Kind::Regular; }
+};
 
-  const std::vector<PathExprSegment> &get_segments () const
-  {
-    rust_assert (data.kind () == Kind::Path);
-    return data.path.data;
-  }
+class LangItemPath : public Path
+{
+  NodeId lang_item;
+  // TODO: Add LangItemKind or w/ever here as well
 
-  /* Returns whether the path is a single segment (excluding qualified path
-   * initial as segment). */
-  bool is_single_segment () const
-  {
-    return data.kind () == Kind::Path && get_segments ().size () == 1;
-  }
-
-  std::string as_string () const override;
-
-  Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
+  Path::Kind get_path_kind () const override { return Path::Kind::LangItem; }
 };
 
 /* AST node representing a path-in-expression pattern (path that allows
@@ -702,6 +627,7 @@ class PathInExpression : public Path, public ExprWithoutBlock
   bool has_opening_scope_resolution;
   location_t locus;
   NodeId _node_id;
+  std::unique_ptr<Path> path;
 
   bool marked_for_strip;
 
@@ -712,10 +638,10 @@ public:
   PathInExpression (std::vector<PathExprSegment> path_segments,
 		    std::vector<Attribute> outer_attrs, location_t locus,
 		    bool has_opening_scope_resolution = false)
-    : Path (std::move (path_segments)), outer_attrs (std::move (outer_attrs)),
+    : outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (has_opening_scope_resolution),
       locus (locus), _node_id (Analysis::Mappings::get ().get_next_node_id ()),
-      marked_for_strip (false)
+      path (RegularPath (std::move (path_segments))), marked_for_strip (false)
   {}
 
   // Creates an error state path in expression.
