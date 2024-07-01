@@ -565,51 +565,71 @@ public:
 
 // AST node representing a pattern that involves a "path" - abstract base
 // class
-class PathPattern : public Pattern
+class Path : public Pattern
+{
+public:
+  enum class Kind
+  {
+    LangItem,
+    Regular,
+  };
+
+  virtual Kind get_path_kind () const;
+
+  Pattern::Kind get_pattern_kind () override final
+  {
+    return Pattern::Kind::Path;
+  }
+};
+
+class RegularPath : public Path
 {
   std::vector<PathExprSegment> segments;
 
-protected:
-  PathPattern (std::vector<PathExprSegment> segments)
+public:
+  explicit RegularPath (std::vector<PathExprSegment> &&segments)
     : segments (std::move (segments))
   {}
 
+  std::string as_string () const override;
+
   // Returns whether path has segments.
-  bool has_segments () const { return !segments.empty (); }
+  bool has_segments () const { return segments.empty (); }
+
+  std::vector<PathExprSegment> &get_segments () { return segments; }
+
+  const std::vector<PathExprSegment> &get_segments () const { return segments; }
+
+  /* Returns whether the path is a single segment (excluding qualified path
+   * initial as segment). */
+  bool is_single_segment () const { return segments.size () == 1; }
 
   /* Converts path segments to their equivalent SimplePath segments if
    * possible, and creates a SimplePath from them. */
   SimplePath convert_to_simple_path (bool with_opening_scope_resolution) const;
 
-  // Removes all segments of the path.
-  void remove_all_segments ()
-  {
-    segments.clear ();
-    segments.shrink_to_fit ();
-  }
+  Path::Kind get_path_kind () const override { return Path::Kind::Regular; }
+};
 
-public:
-  /* Returns whether the path is a single segment (excluding qualified path
-   * initial as segment). */
-  bool is_single_segment () const { return segments.size () == 1; }
+class LangItemPath : public Path
+{
+  NodeId lang_item;
+  // TODO: Add LangItemKind or w/ever here as well
 
-  std::string as_string () const override;
-
-  // TODO: this seems kinda dodgy
-  std::vector<PathExprSegment> &get_segments () { return segments; }
-  const std::vector<PathExprSegment> &get_segments () const { return segments; }
-
-  Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
+  Path::Kind get_path_kind () const override { return Path::Kind::LangItem; }
 };
 
 /* AST node representing a path-in-expression pattern (path that allows
  * generic arguments) */
-class PathInExpression : public PathPattern, public PathExpr
+class PathInExpression : public Path, public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   bool has_opening_scope_resolution;
   location_t locus;
   NodeId _node_id;
+  std::unique_ptr<Path> path;
+
+  bool marked_for_strip;
 
 public:
   std::string as_string () const override;
@@ -618,10 +638,10 @@ public:
   PathInExpression (std::vector<PathExprSegment> path_segments,
 		    std::vector<Attribute> outer_attrs, location_t locus,
 		    bool has_opening_scope_resolution = false)
-    : PathPattern (std::move (path_segments)),
-      outer_attrs (std::move (outer_attrs)),
+    : outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (has_opening_scope_resolution),
-      locus (locus), _node_id (Analysis::Mappings::get ().get_next_node_id ())
+      locus (locus), _node_id (Analysis::Mappings::get ().get_next_node_id ()),
+      path (RegularPath (std::move (path_segments))), marked_for_strip (false)
   {}
 
   // Creates an error state path in expression.
@@ -650,9 +670,8 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
-  // Invalid if path is empty (error state), so base stripping on that.
-  void mark_for_strip () override { remove_all_segments (); }
-  bool is_marked_for_strip () const override { return is_error (); }
+  void mark_for_strip () override { marked_for_strip = true; }
+  bool is_marked_for_strip () const override { return marked_for_strip; }
 
   bool opening_scope_resolution () const
   {
@@ -1226,7 +1245,7 @@ public:
 
 /* AST node representing a qualified path-in-expression pattern (path that
  * allows specifying trait functions) */
-class QualifiedPathInExpression : public PathPattern, public PathExpr
+class QualifiedPathInExpression : public Path, public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   QualifiedPathType path_type;
@@ -1240,8 +1259,7 @@ public:
 			     std::vector<PathExprSegment> path_segments,
 			     std::vector<Attribute> outer_attrs,
 			     location_t locus)
-    : PathPattern (std::move (path_segments)),
-      outer_attrs (std::move (outer_attrs)),
+    : Path (std::move (path_segments)), outer_attrs (std::move (outer_attrs)),
       path_type (std::move (qual_path_type)), locus (locus),
       _node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
