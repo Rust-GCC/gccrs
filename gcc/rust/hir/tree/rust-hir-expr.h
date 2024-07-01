@@ -25,6 +25,7 @@
 #include "rust-hir-path.h"
 #include "rust-operators.h"
 #include "rust-expr.h"
+#include "tree.h"
 namespace Rust {
 namespace HIR {
 

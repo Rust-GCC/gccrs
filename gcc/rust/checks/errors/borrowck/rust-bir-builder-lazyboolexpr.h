@@ -211,6 +211,8 @@ public:
     return_place (ExprStmtBuilder (ctx).build (expr));
   }
 
+  void visit (HIR::InlineAsm &expr) override {}
+
 protected: // Illegal at this position.
   void visit (HIR::StructExprFieldIdentifier &field) override
   {
