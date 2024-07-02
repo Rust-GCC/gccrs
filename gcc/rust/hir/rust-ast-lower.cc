@@ -25,6 +25,7 @@
 #include "rust-ast-lower-pattern.h"
 #include "rust-ast-lower-struct-field-expr.h"
 #include "rust-expr.h"
+#include "rust-hir-expr.h"
 
 namespace Rust {
 namespace HIR {
@@ -199,13 +200,35 @@ ASTLoweringIfBlock::visit (AST::IfExprConseqElse &expr)
     std::unique_ptr<HIR::ExprWithBlock> (else_block), expr.get_locus ());
 }
 
+// Common desugaring for IfLetExpr and IfExprConseqElse
 void
-do_if_let_desugaring (AST::IfLetExpr &expr)
+ASTLoweringIfLetBlock::desugar_iflet (
+  AST::IfLetExpr &expr, HIR::Expr **branch_value, HIR::Expr **kase_expr,
+  std::vector<HIR::MatchCase> &match_arms,
+  std::vector<std::unique_ptr<HIR::Pattern>> &match_arm_patterns)
 {
-  HIR::Expr *branch_value
-    = ASTLoweringExpr::translate (expr.get_value_expr ());
-  
+  *branch_value = ASTLoweringExpr::translate (expr.get_value_expr ());
+  *kase_expr = ASTLoweringExpr::translate (expr.get_if_block ());
 
+  // FIXME: if let only accepts a single pattern. Why do we have a vector of
+  // patterns in the IfLet?
+  for (auto &pattern : expr.get_patterns ())
+    {
+      HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
+      match_arm_patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
+    }
+
+  HIR::MatchArm arm (std::move (match_arm_patterns), expr.get_locus (), nullptr,
+		     {});
+
+  auto crate_num = mappings.get_current_crate ();
+  Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
+				 mappings.get_next_hir_id (crate_num),
+				 UNKNOWN_LOCAL_DEFID);
+
+  HIR::MatchCase kase (std::move (mapping), std::move (arm),
+		       std::unique_ptr<HIR::Expr> (*kase_expr));
+  match_arms.push_back (std::move (kase));
 }
 
 void
@@ -223,46 +246,29 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExpr &expr)
   //     _ => ()
   //   }
 
-  HIR::Expr *branch_value
-    = ASTLoweringExpr::translate (expr.get_value_expr ());
+  HIR::Expr *branch_value;
 
   std::vector<HIR::MatchCase> match_arms;
-  HIR::Expr *kase_expr
-    = ASTLoweringExpr::translate (expr.get_if_block ());
+  HIR::Expr *kase_expr;
 
   std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns;
 
-  // FIXME: if let only accepts a single pattern. Why do we have a vector of
-  // patterns in the IfLet?
-  for (auto &pattern : expr.get_patterns ())
-  {
-    HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
-    match_arm_patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
-  }
-
-  HIR::MatchArm arm (std::move (match_arm_patterns), expr.get_locus (),
-		     nullptr,
-		     {});
+  desugar_iflet (expr, &branch_value, &kase_expr, match_arms,
+		 match_arm_patterns);
 
   auto crate_num = mappings.get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
 				 mappings.get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-  HIR::MatchCase kase (std::move (mapping), std::move (arm),
-		       std::unique_ptr<HIR::Expr> (kase_expr));
-  match_arms.push_back (std::move (kase));
-
   translated
     = new HIR::MatchExpr (mapping, std::unique_ptr<HIR::Expr> (branch_value),
-			  std::move (match_arms), {},
-			  {}, expr.get_locus ());
+			  std::move (match_arms), {}, {}, expr.get_locus ());
 }
 
 void
 ASTLoweringIfLetBlock::visit (AST::IfLetExprConseqElse &expr)
 {
-
   // desugar:
   //   if let Some(y) = some_value {
   //     bar();
@@ -276,67 +282,45 @@ ASTLoweringIfLetBlock::visit (AST::IfLetExprConseqElse &expr)
   //     _ => {baz();}
   //   }
   //
-  
-  HIR::Expr *branch_value
-    = ASTLoweringExpr::translate (expr.get_value_expr ());
 
+  HIR::Expr *branch_value;
   std::vector<HIR::MatchCase> match_arms;
-  HIR::Expr *kase_expr
-    = ASTLoweringExpr::translate (expr.get_if_block ());
-
+  HIR::Expr *kase_expr;
   std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns;
 
-  // FIXME: same, why do we have a vector of patterns?
-  for (auto &pattern : expr.get_patterns ())
-    {
-      HIR::Pattern *ptrn = ASTLoweringPattern::translate (*pattern);
-      match_arm_patterns.push_back (std::unique_ptr<HIR::Pattern> (ptrn));
-    }
-
-  // FIXME: 2 previous q? on having many patterns probably have the same answers
-  // as to why a single MatchArm has a vector of patterns.
-  HIR::MatchArm arm (std::move (match_arm_patterns), expr.get_locus (),
-		     nullptr,
-		     {});
+  desugar_iflet (expr, &branch_value, &kase_expr, match_arms,
+		 match_arm_patterns);
 
   auto crate_num = mappings.get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
 				 mappings.get_next_hir_id (crate_num),
 				 UNKNOWN_LOCAL_DEFID);
 
-  HIR::MatchCase kase (std::move (mapping), std::move (arm),
-		       std::unique_ptr<HIR::Expr> (kase_expr));
-  match_arms.push_back (std::move (kase));
-
   std::vector<std::unique_ptr<HIR::Pattern>> match_arm_patterns_wildcard;
-  Analysis::NodeMapping mapping_default_2 (crate_num, expr.get_node_id (),
+  Analysis::NodeMapping mapping_default (crate_num, expr.get_node_id (),
 					 mappings.get_next_hir_id (crate_num),
 					 UNKNOWN_LOCAL_DEFID);
 
   std::unique_ptr<HIR::WildcardPattern> wc
     = std::unique_ptr<HIR::WildcardPattern> (
-      new HIR::WildcardPattern(mapping_default_2, expr.get_locus ()));
+      new HIR::WildcardPattern (mapping_default, expr.get_locus ()));
 
-  match_arm_patterns_wildcard.push_back(std::move(wc));
+  match_arm_patterns_wildcard.push_back (std::move (wc));
 
-  HIR::MatchArm arm_default (std::move (match_arm_patterns_wildcard), expr.get_locus (),
-		     nullptr,
-		     {});
+  HIR::MatchArm arm_default (std::move (match_arm_patterns_wildcard),
+			     expr.get_locus (), nullptr, {});
 
-  Analysis::NodeMapping mapping_default (crate_num, expr.get_node_id (),
-				 mappings.get_next_hir_id (crate_num),
-				 UNKNOWN_LOCAL_DEFID);
   HIR::Expr *kase_else_expr
     = ASTLoweringExpr::translate (expr.get_else_block ());
 
-  HIR::MatchCase kase_else (std::move (mapping_default), std::move (arm_default),
-		       std::unique_ptr<HIR::Expr> (kase_else_expr));
+  HIR::MatchCase kase_else (std::move (mapping_default),
+			    std::move (arm_default),
+			    std::unique_ptr<HIR::Expr> (kase_else_expr));
   match_arms.push_back (std::move (kase_else));
 
   translated
     = new HIR::MatchExpr (mapping, std::unique_ptr<HIR::Expr> (branch_value),
-			  std::move (match_arms), {},
-			  {}, expr.get_locus ());
+			  std::move (match_arms), {}, {}, expr.get_locus ());
 }
 
 // rust-ast-lower-struct-field-expr.h

@@ -135,6 +135,10 @@ public:
 private:
   ASTLoweringIfLetBlock () : ASTLoweringBase (), translated (nullptr) {}
 
+  void desugar_iflet (AST::IfLetExpr &, HIR::Expr **, HIR::Expr **,
+		      std::vector<HIR::MatchCase> &,
+		      std::vector<std::unique_ptr<HIR::Pattern>> &);
+
   HIR::MatchExpr *translated;
 };
 
