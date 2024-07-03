@@ -22,6 +22,7 @@
  * for virtually all AST-related functionality. */
 
 #include "rust-ast.h"
+#include "rust-mapping-common.h"
 #include "system.h"
 
 namespace Rust {
@@ -580,6 +581,15 @@ public:
   {
     return Pattern::Kind::Path;
   }
+
+  location_t get_locus () const override final { return locus; }
+  NodeId get_node_id () const override final { return node_id; }
+
+protected:
+  location_t locus;
+  NodeId node_id;
+
+  Path (location_t locus, NodeId node_id) : locus (locus), node_id (node_id) {}
 };
 
 class RegularPath : public Path
@@ -587,8 +597,9 @@ class RegularPath : public Path
   std::vector<PathExprSegment> segments;
 
 public:
-  explicit RegularPath (std::vector<PathExprSegment> &&segments)
-    : segments (std::move (segments))
+  explicit RegularPath (std::vector<PathExprSegment> &&segments,
+			location_t locus, NodeId node_id)
+    : Path (locus, node_id), segments (std::move (segments))
   {}
 
   std::string as_string () const override;
@@ -609,6 +620,15 @@ public:
   SimplePath convert_to_simple_path (bool with_opening_scope_resolution) const;
 
   Path::Kind get_path_kind () const override { return Path::Kind::Regular; }
+
+  void accept_vis (ASTVisitor &vis) override;
+
+  Pattern *clone_pattern_impl () const override
+  {
+    auto new_segments = segments;
+
+    return new RegularPath (std::move (new_segments), locus, node_id);
+  }
 };
 
 class LangItemPath : public Path
@@ -617,11 +637,13 @@ class LangItemPath : public Path
   // TODO: Add LangItemKind or w/ever here as well
 
   Path::Kind get_path_kind () const override { return Path::Kind::LangItem; }
+
+  void accept_vis (ASTVisitor &vis) override;
 };
 
 /* AST node representing a path-in-expression pattern (path that allows
  * generic arguments) */
-class PathInExpression : public Path, public ExprWithoutBlock
+class PathInExpression : public Pattern, public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   bool has_opening_scope_resolution;
@@ -641,7 +663,9 @@ public:
     : outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (has_opening_scope_resolution),
       locus (locus), _node_id (Analysis::Mappings::get ().get_next_node_id ()),
-      path (RegularPath (std::move (path_segments))), marked_for_strip (false)
+      path (Rust::make_unique<RegularPath> (std::move (path_segments), locus,
+					    _node_id)),
+      marked_for_strip (false)
   {}
 
   // Creates an error state path in expression.
@@ -690,11 +714,19 @@ public:
 
   NodeId get_pattern_node_id () const { return get_node_id (); }
 
-  PathExprSegment &get_final_segment () { return get_segments ().back (); }
+  PathExprSegment &get_final_segment ()
+  {
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ().back ();
+  }
+
   const PathExprSegment &get_final_segment () const
   {
-    return get_segments ().back ();
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ().back ();
   }
+
+  Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
 
 protected:
   /* Use covariance to implement clone function as returning this object
@@ -1245,12 +1277,16 @@ public:
 
 /* AST node representing a qualified path-in-expression pattern (path that
  * allows specifying trait functions) */
-class QualifiedPathInExpression : public Path, public ExprWithoutBlock
+class QualifiedPathInExpression : public Pattern, public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
   QualifiedPathType path_type;
   location_t locus;
   NodeId _node_id;
+
+  // FIXME: The locus and nodeid are duplicated here with the path. Do not merge
+  // like this
+  std::unique_ptr<Path> path;
 
 public:
   std::string as_string () const override;
@@ -1259,9 +1295,11 @@ public:
 			     std::vector<PathExprSegment> path_segments,
 			     std::vector<Attribute> outer_attrs,
 			     location_t locus)
-    : Path (std::move (path_segments)), outer_attrs (std::move (outer_attrs)),
+    : outer_attrs (std::move (outer_attrs)),
       path_type (std::move (qual_path_type)), locus (locus),
-      _node_id (Analysis::Mappings::get ().get_next_node_id ())
+      _node_id (Analysis::Mappings::get ().get_next_node_id ()),
+      path (Rust::make_unique<RegularPath> (std::move (path_segments), locus,
+					    _node_id))
   {}
 
   /* TODO: maybe make a shortcut constructor that has QualifiedPathType
@@ -1276,6 +1314,8 @@ public:
     return QualifiedPathInExpression (QualifiedPathType::create_error (), {},
 				      {}, UNDEF_LOCATION);
   }
+
+  Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
 
   location_t get_locus () const override final { return locus; }
 

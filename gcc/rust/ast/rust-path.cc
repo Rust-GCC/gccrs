@@ -135,14 +135,14 @@ PathExprSegment::as_string () const
 }
 
 std::string
-Path::as_string () const
+RegularPath::as_string () const
 {
   // FIXME: Handle #[lang] paths
   rust_unreachable ();
 
   std::string str;
 
-  for (const auto &segment : data.path.data)
+  for (const auto &segment : segments)
     str += segment.as_string () + "::";
 
   // basically a hack - remove last two characters of string (remove final ::)
@@ -152,16 +152,16 @@ Path::as_string () const
 }
 
 SimplePath
-Path::convert_to_simple_path (bool with_opening_scope_resolution) const
+RegularPath::convert_to_simple_path (bool with_opening_scope_resolution) const
 {
   if (!has_segments ())
     return SimplePath::create_empty ();
 
   // create vector of reserved size (to minimise reallocations)
   std::vector<SimplePathSegment> simple_segments;
-  simple_segments.reserve (data.path.data.size ());
+  simple_segments.reserve (segments.size ());
 
-  for (const auto &segment : data.path.data)
+  for (const auto &segment : segments)
     {
       // return empty path if doesn't meet simple path segment requirements
       if (segment.is_error () || segment.has_generic_args ()
@@ -184,6 +184,18 @@ Path::convert_to_simple_path (bool with_opening_scope_resolution) const
 
   return SimplePath (std::move (simple_segments), with_opening_scope_resolution,
 		     locus);
+}
+
+void
+RegularPath::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
+LangItemPath::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
 }
 
 void
