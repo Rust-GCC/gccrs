@@ -286,11 +286,10 @@ HIRCompileBase::compute_address_for_trait_item (
   rust_assert (associated_impl_block != nullptr);
 
   // lookup self for the associated impl
-  std::unique_ptr<HIR::Type> &self_type_path
-    = associated_impl_block->get_type ();
+  auto &self_type_path = associated_impl_block->get_type ();
   TyTy::BaseType *self = nullptr;
   bool ok = ctx->get_tyctx ()->lookup_type (
-    self_type_path->get_mappings ().get_hirid (), &self);
+    self_type_path.get_mappings ().get_hirid (), &self);
   rust_assert (ok);
 
   // lookup the predicate item from the self
