@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#include "rust-path.h"
 #include "rust-system.h"
 #include "rust-ast-full.h"
 #include "rust-diagnostics.h"
@@ -137,9 +138,6 @@ PathExprSegment::as_string () const
 std::string
 RegularPath::as_string () const
 {
-  // FIXME: Handle #[lang] paths
-  rust_unreachable ();
-
   std::string str;
 
   for (const auto &segment : segments)
@@ -149,6 +147,13 @@ RegularPath::as_string () const
   str.erase (str.length () - 2);
 
   return str;
+}
+
+std::string
+LangItemPath::as_string () const
+{
+  // FIXME: Handle #[lang] paths
+  rust_unreachable ();
 }
 
 SimplePath
