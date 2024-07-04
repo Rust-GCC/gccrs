@@ -58,6 +58,8 @@ public:
   // virtual void visit(TraitImplItem& trait_impl_item) = 0;
 
   // rust-path.h
+  virtual void visit (RegularPath &path) = 0;
+  virtual void visit (LangItemPath &path) = 0;
   virtual void visit (PathInExpression &path) = 0;
   virtual void visit (TypePathSegment &segment) = 0;
   virtual void visit (TypePathSegmentGeneric &segment) = 0;

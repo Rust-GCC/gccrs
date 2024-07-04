@@ -217,7 +217,7 @@ PathInExpression::as_string () const
   if (has_opening_scope_resolution)
     str = "::";
 
-  return str + Path::as_string ();
+  return str + path->as_string ();
 }
 
 std::string
@@ -317,7 +317,7 @@ TypePathFunction::as_string () const
 std::string
 QualifiedPathInExpression::as_string () const
 {
-  return path_type.as_string () + "::" + Path::as_string ();
+  return path_type.as_string () + "::" + path->as_string ();
 }
 
 std::string

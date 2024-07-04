@@ -699,6 +699,24 @@ public:
       marked_for_strip (false)
   {}
 
+  PathInExpression (const PathInExpression &other)
+    : outer_attrs (other.outer_attrs),
+      has_opening_scope_resolution (other.has_opening_scope_resolution),
+      locus (other.locus), _node_id (other._node_id),
+      path (other.path->clone_path ())
+  {}
+
+  PathInExpression &operator= (const PathInExpression &other)
+  {
+    outer_attrs = other.outer_attrs;
+    has_opening_scope_resolution = other.has_opening_scope_resolution;
+    locus = other.locus;
+    _node_id = other._node_id;
+    path = other.path->clone_path ();
+
+    return *this;
+  }
+
   // Creates an error state path in expression.
   static PathInExpression create_error ()
   {
@@ -778,16 +796,31 @@ public:
     rust_unreachable ();
   }
 
-  Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
-
-  PathInExpression (const PathInExpression &other)
+  const std::vector<PathExprSegment> &get_segments () const
   {
-    outer_attrs = other.outer_attrs;
-    has_opening_scope_resolution = other.has_opening_scope_resolution;
-    locus = other.locus;
-    node_id = other.node_id;
-    path = other.path->clone_path ();
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ();
+
+    rust_unreachable ();
   }
+
+  std::vector<PathExprSegment> &get_segments ()
+  {
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ();
+
+    rust_unreachable ();
+  }
+
+  bool is_single_segment () const
+  {
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ().size () == 1;
+
+    return false;
+  }
+
+  Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
 
 protected:
   PathInExpression (std::vector<Attribute> &&outer_attrs,
@@ -1421,6 +1454,30 @@ public:
   }
 
   NodeId get_node_id () const override { return _node_id; }
+
+  const std::vector<PathExprSegment> &get_segments () const
+  {
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ();
+
+    rust_unreachable ();
+  }
+
+  std::vector<PathExprSegment> &get_segments ()
+  {
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ();
+
+    rust_unreachable ();
+  }
+
+  bool is_single_segment () const
+  {
+    if (path->get_path_kind () == Path::Kind::Regular)
+      return static_cast<RegularPath &> (*path).get_segments ().size () == 1;
+
+    return false;
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object
