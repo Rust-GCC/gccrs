@@ -24,6 +24,7 @@
 #include "rust-ast-full-decls.h"
 #include "rust-ast.h"
 #include "rust-item.h"
+#include "rust-path.h"
 #include "rust-system.h"
 
 namespace Rust {
@@ -251,6 +252,8 @@ protected:
   virtual void visit (AST::Lifetime &lifetime) override;
   virtual void visit (AST::LifetimeParam &lifetime_param) override;
   virtual void visit (AST::ConstGenericParam &const_param) override;
+  virtual void visit (AST::RegularPath &path) override;
+  virtual void visit (AST::LangItemPath &path) override;
   virtual void visit (AST::PathInExpression &path) override;
   virtual void visit (AST::TypePathSegment &segment) override;
   virtual void visit (AST::TypePathSegmentGeneric &segment) override;

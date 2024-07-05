@@ -576,7 +576,7 @@ public:
     Regular,
   };
 
-  virtual Kind get_path_kind () const;
+  virtual Kind get_path_kind () const = 0;
 
   Pattern::Kind get_pattern_kind () override final
   {
@@ -589,6 +589,11 @@ public:
   std::unique_ptr<Path> clone_path ()
   {
     return std::unique_ptr<Path> (clone_path_impl ());
+  }
+
+  Pattern *clone_pattern_impl () const override final
+  {
+    return clone_path_impl ();
   }
 
 protected:
@@ -631,13 +636,6 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
-  Pattern *clone_pattern_impl () const override
-  {
-    auto new_segments = segments;
-
-    return new RegularPath (std::move (new_segments), locus, node_id);
-  }
-
   Path *clone_path_impl () const override
   {
     return new RegularPath (std::vector<PathExprSegment> (segments), locus,
@@ -658,11 +656,6 @@ class LangItemPath : public Path
   Path::Kind get_path_kind () const override { return Path::Kind::LangItem; }
 
   void accept_vis (ASTVisitor &vis) override;
-
-  Pattern *clone_pattern_impl () const override
-  {
-    return new LangItemPath (lang_item, locus);
-  }
 
   Path *clone_path_impl () const override
   {
