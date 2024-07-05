@@ -674,7 +674,6 @@ class PathInExpression : public Pattern, public ExprWithoutBlock
   location_t locus;
   NodeId _node_id;
   std::unique_ptr<Path> path;
-
   bool marked_for_strip;
 
 public:
@@ -696,7 +695,8 @@ public:
     : outer_attrs (other.outer_attrs),
       has_opening_scope_resolution (other.has_opening_scope_resolution),
       locus (other.locus), _node_id (other._node_id),
-      path (other.path->clone_path ())
+      path (other.path->clone_path ()),
+      marked_for_strip (other.marked_for_strip)
   {}
 
   PathInExpression &operator= (const PathInExpression &other)
@@ -706,6 +706,7 @@ public:
     locus = other.locus;
     _node_id = other._node_id;
     path = other.path->clone_path ();
+    marked_for_strip = other.marked_for_strip;
 
     return *this;
   }
