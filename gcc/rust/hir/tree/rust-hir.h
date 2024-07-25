@@ -298,7 +298,6 @@ public:
     UnsafeBlock,
     BaseLoop,
     If,
-    IfLet,
     Match,
     Await,
     AsyncBlock,
