@@ -36,7 +36,7 @@
 #include <map>
 #include <set>
 #include <vector>
-#include <stack>
+#include "rust-system.h" 
 #include <sstream>
 #include <string>
 #include <deque>
