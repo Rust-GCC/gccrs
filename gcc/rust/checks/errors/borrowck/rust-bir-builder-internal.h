@@ -77,7 +77,7 @@ struct BuilderContext
 
   // BIR output
   std::vector<BasicBlock> basic_blocks;
-  size_t current_bb = 0;
+  BasicBlockId current_bb = ENTRY_BASIC_BLOCK;
 
   /**
    * Allocation and lookup of places (variables, temporaries, paths, and
@@ -107,7 +107,7 @@ public:
     basic_blocks.emplace_back (); // StartBB
   }
 
-  BasicBlock &get_current_bb () { return basic_blocks[current_bb]; }
+  BasicBlock &get_current_bb () { return basic_blocks[current_bb.value]; }
 
   const LoopAndLabelCtx &lookup_label (NodeId label)
   {
@@ -273,7 +273,9 @@ protected: // Helpers to add BIR statements
   void push_goto (BasicBlockId bb)
   {
     ctx.get_current_bb ().statements.push_back (Statement::make_goto ());
-    if (bb != INVALID_BB) // INVALID_BB means the goto will be resolved later.
+    if (bb.value
+	!= INVALID_BB
+	     .value) // INVALID_BB means the goto will be resolved later.
       ctx.get_current_bb ().successors.push_back (bb);
   }
 
@@ -358,7 +360,7 @@ protected: // CFG helpers
   BasicBlockId new_bb ()
   {
     ctx.basic_blocks.emplace_back ();
-    return ctx.basic_blocks.size () - 1;
+    return {ctx.basic_blocks.size () - 1};
   }
 
   BasicBlockId start_new_consecutive_bb ()
@@ -378,7 +380,7 @@ protected: // CFG helpers
 
   void add_jump (BasicBlockId from, BasicBlockId to)
   {
-    ctx.basic_blocks[from].successors.emplace_back (to);
+    ctx.basic_blocks[from.value].successors.emplace_back (to);
   }
 
   void add_jump_to (BasicBlockId bb) { add_jump (ctx.current_bb, bb); }
