@@ -156,7 +156,7 @@ protected:
 
     auto place_id = ctx.place_db.add_variable (nodeid, ty);
 
-    if (ctx.place_db.get_current_scope_id () != 0)
+    if (ctx.place_db.get_current_scope_id ().value != INVALID_SCOPE.value)
       push_storage_live (place_id);
 
     if (user_type_annotation)
@@ -170,7 +170,7 @@ protected:
   void pop_scope ()
   {
     auto &scope = ctx.place_db.get_current_scope ();
-    if (ctx.place_db.get_current_scope_id () != 0)
+    if (ctx.place_db.get_current_scope_id ().value != INVALID_SCOPE.value)
       {
 	std::for_each (scope.locals.rbegin (), scope.locals.rend (),
 		       [&] (PlaceId place) { push_storage_dead (place); });
@@ -191,7 +191,7 @@ protected:
   void unwind_until (ScopeId final_scope)
   {
     auto current_scope_id = ctx.place_db.get_current_scope_id ();
-    while (current_scope_id != final_scope)
+    while (current_scope_id.value != final_scope.value)
       {
 	auto &scope = ctx.place_db.get_scope (current_scope_id);
 
