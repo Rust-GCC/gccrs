@@ -77,7 +77,7 @@ struct BuilderContext
 
   // BIR output
   std::vector<BasicBlock> basic_blocks;
-  size_t current_bb = 0;
+  BasicBlockId current_bb = ENTRY_BASIC_BLOCK;
 
   /**
    * Allocation and lookup of places (variables, temporaries, paths, and
@@ -107,7 +107,7 @@ public:
     basic_blocks.emplace_back (); // StartBB
   }
 
-  BasicBlock &get_current_bb () { return basic_blocks[current_bb]; }
+  BasicBlock &get_current_bb () { return basic_blocks[current_bb.value]; }
 
   const LoopAndLabelCtx &lookup_label (NodeId label)
   {
@@ -156,7 +156,7 @@ protected:
 
     auto place_id = ctx.place_db.add_variable (nodeid, ty);
 
-    if (ctx.place_db.get_current_scope_id () != 0)
+    if (ctx.place_db.get_current_scope_id ().value != INVALID_SCOPE.value)
       push_storage_live (place_id);
 
     if (user_type_annotation)
@@ -170,7 +170,7 @@ protected:
   void pop_scope ()
   {
     auto &scope = ctx.place_db.get_current_scope ();
-    if (ctx.place_db.get_current_scope_id () != 0)
+    if (ctx.place_db.get_current_scope_id ().value != INVALID_SCOPE.value)
       {
 	std::for_each (scope.locals.rbegin (), scope.locals.rend (),
 		       [&] (PlaceId place) { push_storage_dead (place); });
@@ -191,7 +191,7 @@ protected:
   void unwind_until (ScopeId final_scope)
   {
     auto current_scope_id = ctx.place_db.get_current_scope_id ();
-    while (current_scope_id != final_scope)
+    while (current_scope_id.value != final_scope.value)
       {
 	auto &scope = ctx.place_db.get_scope (current_scope_id);
 
@@ -206,7 +206,7 @@ protected:
   FreeRegions bind_regions (std::vector<TyTy::Region> regions,
 			    FreeRegions parent_free_regions)
   {
-    std::vector<FreeRegion> free_regions;
+    FreeRegions free_regions;
     for (auto &region : regions)
       {
 	if (region.is_early_bound ())
@@ -215,7 +215,7 @@ protected:
 	  }
 	else if (region.is_static ())
 	  {
-	    free_regions.push_back (0);
+	    free_regions.push_back (STATIC_FREE_REGION);
 	  }
 	else if (region.is_anonymous ())
 	  {
@@ -231,9 +231,7 @@ protected:
 	    rust_unreachable ();
 	  }
       }
-    // This is necesarry because of clash of current gcc and gcc4.8.
-    FreeRegions free_regions_final{std::move (free_regions)};
-    return free_regions_final;
+    return free_regions;
   }
 
 protected: // Helpers to add BIR statements
@@ -275,7 +273,9 @@ protected: // Helpers to add BIR statements
   void push_goto (BasicBlockId bb)
   {
     ctx.get_current_bb ().statements.push_back (Statement::make_goto ());
-    if (bb != INVALID_BB) // INVALID_BB means the goto will be resolved later.
+    if (bb.value
+	!= INVALID_BB
+	     .value) // INVALID_BB means the goto will be resolved later.
       ctx.get_current_bb ().successors.push_back (bb);
   }
 
@@ -314,9 +314,10 @@ protected: // Helpers to add BIR statements
   {
     auto mutability = ty->as<const TyTy::ReferenceType> ()->mutability ();
     auto loan = ctx.place_db.add_loan ({mutability, place_id, location});
-    push_tmp_assignment (new BorrowExpr (place_id, loan,
-					 ctx.place_db.get_next_free_region ()),
-			 ty, location);
+    push_tmp_assignment (
+      new BorrowExpr (place_id, loan,
+		      ctx.place_db.get_next_free_region ().value),
+      ty, location);
     return translated;
   }
 
@@ -359,7 +360,7 @@ protected: // CFG helpers
   BasicBlockId new_bb ()
   {
     ctx.basic_blocks.emplace_back ();
-    return ctx.basic_blocks.size () - 1;
+    return {ctx.basic_blocks.size () - 1};
   }
 
   BasicBlockId start_new_consecutive_bb ()
@@ -379,7 +380,7 @@ protected: // CFG helpers
 
   void add_jump (BasicBlockId from, BasicBlockId to)
   {
-    ctx.basic_blocks[from].successors.emplace_back (to);
+    ctx.basic_blocks[from.value].successors.emplace_back (to);
   }
 
   void add_jump_to (BasicBlockId bb) { add_jump (ctx.current_bb, bb); }
@@ -609,7 +610,7 @@ protected:
       {ty->as<const TyTy::ReferenceType> ()->mutability (), place_id,
        location});
     return_expr (new BorrowExpr (place_id, loan,
-				 ctx.place_db.get_next_free_region ()),
+				 ctx.place_db.get_next_free_region ().value),
 		 ty, location);
     return translated;
   }

@@ -44,7 +44,7 @@ ExprStmtBuilder::setup_loop (HIR::BaseLoopExpr &expr)
 
   BasicBlockId break_bb = new_bb ();
   // We are still outside the loop block;
-  ScopeId continue_scope = ctx.place_db.get_current_scope_id () + 1;
+  ScopeId continue_scope = {ctx.place_db.get_current_scope_id ().value + 1};
   ctx.loop_and_label_stack.emplace_back (true, label, label_var, break_bb,
 					 continue_bb, continue_scope);
 
@@ -409,7 +409,7 @@ ExprStmtBuilder::visit (HIR::ContinueExpr &cont)
   LoopAndLabelCtx info = cont.has_label () ? get_label_ctx (cont.get_label ())
 					   : get_unnamed_loop_ctx ();
   start_new_consecutive_bb ();
-  unwind_until (info.continue_bb);
+  unwind_until (info.continue_scope);
   push_goto (info.continue_bb);
   // No code allowed after continue. Handled in BlockExpr.
 }
@@ -559,7 +559,7 @@ ExprStmtBuilder::visit (HIR::IfExpr &expr)
   add_jump (if_block, then_start_block);
   add_jump (if_block, final_block);
 
-  auto &then_end_bb = ctx.basic_blocks[then_end_block];
+  auto &then_end_bb = ctx.basic_blocks[then_end_block.value];
   if (then_end_bb.is_goto_terminated () && then_end_bb.successors.empty ())
     add_jump (then_end_block, final_block);
 }
@@ -596,11 +596,11 @@ ExprStmtBuilder::visit (HIR::IfExprConseqElse &expr)
   add_jump (if_end_bb, then_start_bb);
   add_jump (if_end_bb, else_start_bb);
 
-  auto &then_bb = ctx.basic_blocks[then_end_bb];
+  auto &then_bb = ctx.basic_blocks[then_end_bb.value];
   if (then_bb.is_goto_terminated () && then_bb.successors.empty ())
     add_jump (then_end_bb, final_start_bb);
 
-  auto &else_bb = ctx.basic_blocks[else_end_bb];
+  auto &else_bb = ctx.basic_blocks[else_end_bb.value];
   if (else_bb.is_goto_terminated () && else_bb.successors.empty ())
     add_jump (else_end_bb, final_start_bb);
 }
