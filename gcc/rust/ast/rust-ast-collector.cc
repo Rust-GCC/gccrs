@@ -21,6 +21,7 @@
 #include "rust-expr.h"
 #include "rust-item.h"
 #include "rust-keyword-values.h"
+#include "rust-system.h"
 #include "rust-token.h"
 
 namespace Rust {
@@ -558,6 +559,18 @@ TokenCollector::visit (PathInExpression &path)
     }
 
   visit_items_joined_by_separator (path.get_segments (), SCOPE_RESOLUTION);
+}
+
+void
+TokenCollector::visit (RegularPath &path)
+{
+  rust_unreachable ();
+}
+
+void
+TokenCollector::visit (LangItemPath &path)
+{
+  rust_unreachable ();
 }
 
 void
