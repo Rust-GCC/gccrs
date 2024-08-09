@@ -622,8 +622,8 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
 		  != TyTy::InferType::GENERAL));
 
       infered = loop_context_type_infered ? loop_context_type
-					  : TyTy::TupleType::get_unit_type (
-					    expr.get_mappings ().get_hirid ());
+                                         : TyTy::TupleType::get_unit_type (
+                                           expr.get_mappings ().get_hirid ());
     }
   else
     {
@@ -771,6 +771,69 @@ TypeCheckExpr::visit (HIR::RangeToExpr &expr)
     subst_mappings, {}, adt->get_substitution_arguments ().get_regions (),
     expr.get_locus ());
   infered = SubstMapperInternal::Resolve (adt, subst);
+}
+
+void
+typecheck_inline_asm_operand (HIR::InlineAsm &expr)
+{
+  const auto &operands = expr.get_operands ();
+  using RegisterType = AST::InlineAsmOperand::RegisterType;
+  for (auto &operand : operands)
+    {
+      switch (operand.get_register_type ())
+	{
+	  case RegisterType::In: {
+	    auto in = operand.get_in ();
+	    TypeCheckExpr::Resolve (in.expr.get ());
+	    break;
+	  }
+	  case RegisterType::Out: {
+	    auto out = operand.get_out ();
+	    TypeCheckExpr::Resolve (out.expr.get ());
+	    break;
+	  }
+	  case RegisterType::InOut: {
+	    auto in_out = operand.get_in_out ();
+	    TypeCheckExpr::Resolve (in_out.expr.get ());
+	    break;
+	  }
+	  case RegisterType::SplitInOut: {
+	    auto split_in_out = operand.get_split_in_out ();
+	    TypeCheckExpr::Resolve (split_in_out.in_expr.get ());
+	    TypeCheckExpr::Resolve (split_in_out.out_expr.get ());
+	    break;
+	  }
+	  case RegisterType::Const: {
+	    auto anon_const = operand.get_const ().anon_const;
+	    TypeCheckExpr::Resolve (anon_const.expr.get ());
+	    break;
+	  }
+	  case RegisterType::Sym: {
+	    auto sym = operand.get_sym ();
+	    TypeCheckExpr::Resolve (sym.expr.get ());
+	    break;
+	  }
+	  case RegisterType::Label: {
+	    auto label = operand.get_label ();
+	    TypeCheckExpr::Resolve (label.expr.get ());
+	    break;
+	  }
+	}
+    }
+}
+void
+TypeCheckExpr::visit (HIR::InlineAsm &expr)
+{
+  typecheck_inline_asm_operand (expr);
+
+  // NOTE: Hoise out if we have noreturn as an option
+  // to return a never type
+  // TODO : new keyword for memory seems sooooo shaky
+  if (expr.options.count (AST::InlineAsmOption::NORETURN) == 1)
+    infered = new TyTy::NeverType (expr.get_mappings ().get_hirid ());
+  else
+    infered
+      = TyTy::TupleType::get_unit_type (expr.get_mappings ().get_hirid ());
 }
 
 void

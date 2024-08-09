@@ -25,7 +25,7 @@
 #include "rust-constexpr.h"
 #include "rust-compile-type.h"
 #include "rust-gcc.h"
-
+#include "rust-compile-asm.h"
 #include "fold-const.h"
 #include "realmpfr.h"
 #include "convert.h"
@@ -316,6 +316,16 @@ CompileExpr::visit (HIR::IfExpr &expr)
 {
   auto stmt = CompileConditionalBlocks::compile (&expr, ctx, nullptr);
   ctx->add_statement (stmt);
+}
+
+void
+CompileExpr::visit (HIR::InlineAsm &expr)
+{
+  CompileAsm a (ctx);
+  a.visit (expr);
+  // translated = build_asm_expr (0, NULL_TREE, NULL_TREE, NULL_TREE, NULL_TREE,
+  //		       NULL_TREE, true, true);
+  // CompileAsm::asm_build_expr (expr);
 }
 
 void

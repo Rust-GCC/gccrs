@@ -21,6 +21,7 @@
 #include "rust-macro-builtins-asm.h"
 #include "rust-ast-fragment.h"
 #include "rust-ast.h"
+#include "rust-fmt.h"
 #include "rust-stmt.h"
 
 namespace Rust {
@@ -226,10 +227,12 @@ parse_reg_operand (InlineAsmContext inline_asm_ctx)
   // Loop over and execute the parsing functions, if the parser successfullly
   // parses or if the parser fails to parse while it has committed to a token,
   // we propogate the result.
+  int count = 0;
   tl::expected<InlineAsmContext, InlineAsmParseError> parsing_operand (
     inline_asm_ctx);
   for (auto &parse_func : parse_funcs)
     {
+      count++;
       auto result = parsing_operand.and_then (parse_func);
 
       // Per rust's asm.rs's structure
@@ -238,7 +241,6 @@ parse_reg_operand (InlineAsmContext inline_asm_ctx)
 
       if (result.has_value ())
 	{
-	  //
 	  inline_asm_ctx = *result;
 	  break;
 	}
@@ -687,7 +689,9 @@ parse_asm_arg (InlineAsmContext inline_asm_ctx)
 	{
 	  auto expected = parse_clobber_abi (inline_asm_ctx);
 	  if (expected.has_value ())
-	    continue;
+	    {
+	      continue;
+	    }
 	  else if (expected.error () == COMMITTED)
 	    return expected;
 
@@ -699,7 +703,9 @@ parse_asm_arg (InlineAsmContext inline_asm_ctx)
 	{
 	  auto expected = parse_options (inline_asm_ctx);
 	  if (expected.has_value ())
-	    continue;
+	    {
+	      continue;
+	    }
 	  else if (expected.error () == COMMITTED)
 	    return expected;
 
@@ -712,9 +718,13 @@ parse_asm_arg (InlineAsmContext inline_asm_ctx)
 
       auto expected = parse_reg_operand (inline_asm_ctx);
       if (expected.has_value ())
-	continue;
+	{
+	  continue;
+	}
       else if (expected.error () == COMMITTED)
-	return expected;
+	{
+	  return expected;
+	}
 
       // Since parse_reg_operand is the last thing we've considered,
       // The non-committed parse error type means that we have exhausted our
@@ -732,6 +742,47 @@ parse_asm_arg (InlineAsmContext inline_asm_ctx)
   return tl::expected<InlineAsmContext, InlineAsmParseError> (inline_asm_ctx);
 }
 
+std::string
+strip_double_quotes (const std::string &str)
+{
+  // Helper function strips the beginning and ending double quotes from a
+  // string.
+  std::string result = str;
+
+  rust_assert (result.size () >= 3);
+  result.erase (0, 1);
+  result.erase (result.size () - 1, 1);
+  return result;
+}
+
+tl::expected<InlineAsmContext, InlineAsmParseError>
+expand_inline_asm_strings (InlineAsmContext &inline_asm_ctx)
+{
+  auto &inline_asm = inline_asm_ctx.inline_asm;
+
+  auto str_vec = inline_asm.get_template_strs ();
+  for (auto &template_str : str_vec)
+    {
+      /*std::cout << template_str.symbol << std::endl;*/
+
+      auto pieces = Fmt::Pieces::collect (template_str.symbol, false,
+					  Fmt::ffi::ParseMode::InlineAsm);
+      auto pieces_vec = pieces.get_pieces ();
+
+      for (size_t i = 0; i < pieces_vec.size (); i++)
+	{
+	  auto piece = pieces_vec[i];
+	  if (piece.tag == Fmt::ffi::Piece::Tag::String)
+	    {
+	    }
+	  /*std::cout << "       " << i << ": " << piece.string._0.to_string
+	   * ()*/
+	  /*   << std::endl;*/
+	}
+    }
+
+  return inline_asm_ctx;
+}
 tl::optional<AST::Fragment>
 parse_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
 	   AST::InvocKind semicolon, AST::AsmKind is_global_asm)
@@ -761,7 +812,10 @@ parse_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
   // here Per Arthur's advice we would actually do the validation in a different
   // stage. and visit on the InlineAsm AST instead of it's context.
   auto is_valid = (bool) resulting_context;
-
+  if (is_valid)
+    {
+      expand_inline_asm_strings (*resulting_context);
+    }
   if (is_valid)
     {
       auto node = inline_asm_ctx.inline_asm.clone_expr_without_block ();
@@ -808,7 +862,8 @@ parse_format_strings (InlineAsmContext inline_asm_ctx)
   else
     {
       auto template_str
-	= AST::TupleTemplateStr (token->get_locus (), fm_string.value ());
+	= AST::TupleTemplateStr (token->get_locus (),
+				 strip_double_quotes (fm_string.value ()));
       inline_asm.template_strs.push_back (template_str);
     }
 
@@ -834,7 +889,8 @@ parse_format_strings (InlineAsmContext inline_asm_ctx)
       else
 	{
 	  auto template_str
-	    = AST::TupleTemplateStr (token->get_locus (), fm_string.value ());
+	    = AST::TupleTemplateStr (token->get_locus (),
+				     strip_double_quotes (fm_string.value ()));
 	  inline_asm.template_strs.push_back (template_str);
 	}
     }
