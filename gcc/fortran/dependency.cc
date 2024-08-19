@@ -440,6 +440,38 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
 	return mpz_sgn (e2->value.op.op2->value.integer);
     }
 
+
+  if (e1->expr_type == EXPR_COMPCALL)
+    {
+      /* This will have emerged from interface.cc(gfc_check_typebound_override)
+	 via gfc_check_result_characteristics. It is possible that other
+	 variants exist that are 'equal' but play it safe for now by setting
+	 the relationship as 'indeterminate'.  */
+      if (e2->expr_type == EXPR_FUNCTION && e2->ref)
+	{
+	  gfc_ref *ref = e2->ref;
+	  gfc_symbol *s = NULL;
+
+	  if (e1->value.compcall.tbp->u.specific)
+	    s = e1->value.compcall.tbp->u.specific->n.sym;
+
+	  /* Check if the proc ptr points to an interface declaration and the
+	     names are the same; ie. the overriden proc. of an abstract type.
+	     The checking of the arguments will already have been done.  */
+	  for (; ref && s; ref = ref->next)
+	    if (!ref->next && ref->type == REF_COMPONENT
+		&& ref->u.c.component->attr.proc_pointer
+		&& ref->u.c.component->ts.interface
+		&& ref->u.c.component->ts.interface->attr.if_source
+							== IFSRC_IFBODY
+		&& !strcmp (s->name, ref->u.c.component->name))
+	      return 0;
+	}
+
+      /* Assume as default that TKR checking is sufficient.  */
+     return -2;
+  }
+
   if (e1->expr_type != e2->expr_type)
     return -3;
 
@@ -2465,3 +2497,85 @@ gfc_omp_expr_prefix_same (gfc_expr *lexpr, gfc_expr *rexpr)
 
   return true;
 }
+
+
+/* gfc_function_dependency returns true for non-dummy symbols with dependencies
+   on an old-fashioned function result (ie. proc_name = proc_name->result).
+   This is used to ensure that initialization code appears after the function
+   result is treated and that any mutual dependencies between these symbols are
+   respected.  */
+
+static bool
+dependency_fcn (gfc_expr *e, gfc_symbol *sym,
+		 int *f ATTRIBUTE_UNUSED)
+{
+  if (e == NULL)
+    return false;
+
+  if (e && e->expr_type == EXPR_VARIABLE)
+    {
+      if (e->symtree && e->symtree->n.sym == sym)
+	return true;
+      /* Recurse to see if this symbol is dependent on the function result. If
+	 so an indirect dependence exists, which should be handled in the same
+	 way as a direct dependence. The recursion is prevented from being
+	 infinite by statement order.  */
+      else if (e->symtree && e->symtree->n.sym)
+	return gfc_function_dependency (e->symtree->n.sym, sym);
+    }
+
+  return false;
+}
+
+
+bool
+gfc_function_dependency (gfc_symbol *sym, gfc_symbol *proc_name)
+{
+  bool dep = false;
+
+  if (proc_name && proc_name->attr.function
+      && proc_name == proc_name->result
+      && !(sym->attr.dummy || sym->attr.result))
+    {
+      if (sym->fn_result_dep)
+	return true;
+
+      if (sym->as && sym->as->type == AS_EXPLICIT)
+	{
+	  for (int dim = 0; dim < sym->as->rank; dim++)
+	    {
+	      if (sym->as->lower[dim]
+		  && sym->as->lower[dim]->expr_type != EXPR_CONSTANT)
+		dep = gfc_traverse_expr (sym->as->lower[dim], proc_name,
+					 dependency_fcn, 0);
+	      if (dep)
+		{
+		  sym->fn_result_dep = 1;
+		  return true;
+		}
+	      if (sym->as->upper[dim]
+		  && sym->as->upper[dim]->expr_type != EXPR_CONSTANT)
+		dep = gfc_traverse_expr (sym->as->upper[dim], proc_name,
+					 dependency_fcn, 0);
+	      if (dep)
+		{
+		  sym->fn_result_dep = 1;
+		  return true;
+		}
+	    }
+	}
+
+      if (sym->ts.type == BT_CHARACTER
+	  && sym->ts.u.cl && sym->ts.u.cl->length
+	  && sym->ts.u.cl->length->expr_type != EXPR_CONSTANT)
+	dep = gfc_traverse_expr (sym->ts.u.cl->length, proc_name,
+				 dependency_fcn, 0);
+      if (dep)
+	{
+	  sym->fn_result_dep = 1;
+	  return true;
+	}
+    }
+
+  return false;
+ }

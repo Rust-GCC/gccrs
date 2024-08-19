@@ -30,7 +30,7 @@
 (define_mode_iterator GPI [SI DI])
 
 ;; Iterator for HI, SI, DI, some instructions can only work on these modes.
-(define_mode_iterator GPI_I16 [(HI "AARCH64_ISA_F16") SI DI])
+(define_mode_iterator GPI_I16 [(HI "TARGET_FP_F16INST") SI DI])
 
 ;; "Iterator" for just TI -- features like @pattern only work with iterators.
 (define_mode_iterator JUST_TI [TI])
@@ -55,7 +55,7 @@
 (define_mode_iterator GPF [SF DF])
 
 ;; Iterator for all scalar floating point modes (HF, SF, DF)
-(define_mode_iterator GPF_F16 [(HF "AARCH64_ISA_F16") SF DF])
+(define_mode_iterator GPF_F16 [(HF "TARGET_FP_F16INST") SF DF])
 
 ;; Iterator for all scalar floating point modes (HF, SF, DF)
 (define_mode_iterator GPF_HF [HF SF DF])
@@ -559,6 +559,9 @@
 ;; element modes
 (define_mode_iterator SVE_I_SIMD_DI [SVE_I V2DI])
 
+;; All SVE and Advanced SIMD integer vector modes.
+(define_mode_iterator SVE_VDQ_I [SVE_I VDQ_I])
+
 ;; SVE integer vector modes whose elements are 16 bits or wider.
 (define_mode_iterator SVE_HSDI [VNx8HI VNx4HI VNx2HI
 				VNx4SI VNx2SI
@@ -686,6 +689,7 @@
     UNSPEC_FMINNMV	; Used in aarch64-simd.md.
     UNSPEC_FMINV	; Used in aarch64-simd.md.
     UNSPEC_FADDV	; Used in aarch64-simd.md.
+    UNSPEC_FNEG		; Used in aarch64-simd.md.
     UNSPEC_ADDV		; Used in aarch64-simd.md.
     UNSPEC_SMAXV	; Used in aarch64-simd.md.
     UNSPEC_SMINV	; Used in aarch64-simd.md.
@@ -2278,6 +2282,8 @@
 			 (VNx32BF "VNx8BI")
 			 (VNx16SI "VNx4BI") (VNx16SF "VNx4BI")
 			 (VNx8DI "VNx2BI") (VNx8DF "VNx2BI")
+			 (V8QI "VNx8BI") (V16QI "VNx16BI")
+			 (V4HI "VNx4BI") (V8HI "VNx8BI") (V2SI "VNx2BI")
 			 (V4SI "VNx4BI") (V2DI "VNx2BI")])
 
 ;; ...and again in lower case.
@@ -2525,6 +2531,7 @@
 
 ;; SVE integer unary operations.
 (define_code_iterator SVE_INT_UNARY [abs neg not clrsb clz popcount
+				     bitreverse
 				     (ss_abs "TARGET_SVE2")
 				     (ss_neg "TARGET_SVE2")])
 
@@ -2573,6 +2580,7 @@
 			 (clrsb "clrsb")
 			 (clz "clz")
 			 (popcount "popcount")
+			 (bitreverse "rbit")
 			 (and "and")
 			 (ior "ior")
 			 (xor "xor")
@@ -2785,6 +2793,7 @@
 			      (clrsb "cls")
 			      (clz "clz")
 			      (popcount "cnt")
+			      (bitreverse "rbit")
 			      (ss_plus "sqadd")
 			      (us_plus "uqadd")
 			      (ss_minus "sqsub")
@@ -2990,7 +2999,7 @@
 
 (define_int_iterator LAST [UNSPEC_LASTA UNSPEC_LASTB])
 
-(define_int_iterator SVE_INT_UNARY [UNSPEC_RBIT UNSPEC_REVB
+(define_int_iterator SVE_INT_UNARY [UNSPEC_REVB
 				    UNSPEC_REVH UNSPEC_REVW])
 
 (define_int_iterator SVE_FP_UNARY [UNSPEC_FRECPE UNSPEC_RSQRTE])
@@ -3568,7 +3577,6 @@
 			(UNSPEC_FRECPS "frecps")
 			(UNSPEC_RSQRTE "frsqrte")
 			(UNSPEC_RSQRTS "frsqrts")
-			(UNSPEC_RBIT "rbit")
 			(UNSPEC_REVB "revb")
 			(UNSPEC_REVD "revd")
 			(UNSPEC_REVH "revh")
@@ -4039,7 +4047,6 @@
 			     (UNSPEC_PMULLT_PAIR "pmullt")
 			     (UNSPEC_RADDHNB "raddhnb")
 			     (UNSPEC_RADDHNT "raddhnt")
-			     (UNSPEC_RBIT "rbit")
 			     (UNSPEC_REVB "revb")
 			     (UNSPEC_REVH "revh")
 			     (UNSPEC_REVW "revw")
@@ -4416,8 +4423,7 @@
 				(UNSPEC_PFIRST "8") (UNSPEC_PNEXT "64")])
 
 ;; The minimum number of element bits that an instruction can handle.
-(define_int_attr min_elem_bits [(UNSPEC_RBIT "8")
-				(UNSPEC_REVB "16")
+(define_int_attr min_elem_bits [(UNSPEC_REVB "16")
 				(UNSPEC_REVH "32")
 				(UNSPEC_REVW "64")])
 

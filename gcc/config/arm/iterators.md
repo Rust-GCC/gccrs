@@ -50,6 +50,9 @@
 ;; A list of the 32bit and 64bit integer modes
 (define_mode_iterator SIDI [SI DI])
 
+;; A list of the 64bit modes for thumb1.
+(define_mode_iterator DIDF [DI DF])
+
 ;; A list of atomic compare and swap success return modes
 (define_mode_iterator CCSI [(CC_Z "TARGET_32BIT") (SI "TARGET_THUMB1")])
 
@@ -2686,6 +2689,17 @@
 (define_int_attr mrrc [(VUNSPEC_MRRC "mrrc") (VUNSPEC_MRRC2 "mrrc2")])
 (define_int_attr MRRC [(VUNSPEC_MRRC "MRRC") (VUNSPEC_MRRC2 "MRRC2")])
 
+(define_int_attr dlstp_elemsize [(DLSTP8 "8") (DLSTP16 "16") (DLSTP32 "32")
+				 (DLSTP64 "64")])
+
+(define_int_attr letp_num_lanes [(LETP8 "16") (LETP16 "8") (LETP32 "4")
+				 (LETP64 "2")])
+(define_int_attr letp_num_lanes_neg [(LETP8 "-16") (LETP16 "-8") (LETP32 "-4")
+				     (LETP64 "-2")])
+
+(define_int_attr letp_num_lanes_minus_1 [(LETP8 "15") (LETP16 "7") (LETP32 "3")
+					 (LETP64 "1")])
+
 (define_int_attr opsuffix [(UNSPEC_DOT_S "s8")
 			   (UNSPEC_DOT_U "u8")
 			   (UNSPEC_DOT_US "s8")
@@ -2926,6 +2940,10 @@
 (define_int_iterator VSHLCQ_M [VSHLCQ_M_S VSHLCQ_M_U])
 (define_int_iterator VQSHLUQ_M_N [VQSHLUQ_M_N_S])
 (define_int_iterator VQSHLUQ_N [VQSHLUQ_N_S])
+(define_int_iterator DLSTP [DLSTP8 DLSTP16 DLSTP32
+				   DLSTP64])
+(define_int_iterator LETP [LETP8 LETP16 LETP32
+			   LETP64])
 
 ;; Define iterators for VCMLA operations
 (define_int_iterator VCMLA_OP [UNSPEC_VCMLA

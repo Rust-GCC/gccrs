@@ -376,7 +376,15 @@ dnl # rather than hardcoding that information.
       frexpl hypotl ldexpl log10l logl modfl powl sinhl sinl sqrtl
       tanhl tanl])
 
-    AC_DEFINE(HAVE_ICONV)
+    # Support for iconv in newlib is configurable.
+    AC_TRY_COMPILE([#include <newlib.h>], [
+      #ifndef _ICONV_ENABLED
+      #error
+      #endif], [ac_newlib_iconv_enabled=yes], [ac_newlib_iconv_enabled=no])
+    if test "$ac_newlib_iconv_enabled" = yes; then
+      AC_DEFINE(HAVE_ICONV)
+    fi
+
     AC_DEFINE(HAVE_MEMALIGN)
 
     case "${target}" in
@@ -400,6 +408,13 @@ dnl # rather than hardcoding that information.
         AC_DEFINE(HAVE_SYMLINK)
         AC_DEFINE(HAVE_TRUNCATE)
         AC_DEFINE(HAVE_USLEEP)
+
+        # These functions are defined in librtemscpu.  We don't use
+        # -qrtems during configure, so we don't link that in, and fail
+        # to find them.
+        glibcxx_cv_chdir=yes
+        glibcxx_cv_chmod=yes
+        glibcxx_cv_mkdir=yes
         ;;
     esac
   elif test "x$with_headers" != "xno"; then

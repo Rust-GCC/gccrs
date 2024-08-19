@@ -24,9 +24,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "intl.h"
 #include "pretty-print.h"
+#include "pretty-print-markup.h"
 #include "pretty-print-urlifier.h"
 #include "diagnostic-color.h"
 #include "diagnostic-event-id.h"
+#include "diagnostic-highlight-colors.h"
 #include "selftest.h"
 
 #if HAVE_ICONV
@@ -674,8 +676,9 @@ mingw_ansi_fputs (const char *str, FILE *fp)
   /* Don't mess up stdio functions with Windows APIs.  */
   fflush (fp);
 
-  if (GetConsoleMode (h, &mode))
-    /* If it is a console, translate ANSI escape codes as needed.  */
+  if (GetConsoleMode (h, &mode) && !(mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+    /* If it is a console, and doesn't support ANSI escape codes, translate
+       them as needed.  */
     for (;;)
       {
 	if ((esc_code = find_esc_head (&prefix_len, &esc_head, read)) == 0)
@@ -814,34 +817,35 @@ output_buffer::~output_buffer ()
 
 /* Subroutine of pp_set_maximum_length.  Set up PRETTY-PRINTER's
    internal maximum characters per line.  */
-static void
-pp_set_real_maximum_length (pretty_printer *pp)
+
+void
+pretty_printer::set_real_maximum_length ()
 {
   /* If we're told not to wrap lines then do the obvious thing.  In case
      we'll emit prefix only once per message, it is appropriate
      not to increase unnecessarily the line-length cut-off.  */
-  if (!pp_is_wrapping_line (pp)
-      || pp_prefixing_rule (pp) == DIAGNOSTICS_SHOW_PREFIX_ONCE
-      || pp_prefixing_rule (pp) == DIAGNOSTICS_SHOW_PREFIX_NEVER)
-    pp->maximum_length = pp_line_cutoff (pp);
+  if (!pp_is_wrapping_line (this)
+      || pp_prefixing_rule (this) == DIAGNOSTICS_SHOW_PREFIX_ONCE
+      || pp_prefixing_rule (this) == DIAGNOSTICS_SHOW_PREFIX_NEVER)
+    m_maximum_length = pp_line_cutoff (this);
   else
     {
-      int prefix_length = pp->prefix ? strlen (pp->prefix) : 0;
+      int prefix_length = m_prefix ? strlen (m_prefix) : 0;
       /* If the prefix is ridiculously too long, output at least
          32 characters.  */
-      if (pp_line_cutoff (pp) - prefix_length < 32)
-	pp->maximum_length = pp_line_cutoff (pp) + 32;
+      if (pp_line_cutoff (this) - prefix_length < 32)
+	m_maximum_length = pp_line_cutoff (this) + 32;
       else
-	pp->maximum_length = pp_line_cutoff (pp);
+	m_maximum_length = pp_line_cutoff (this);
     }
 }
 
-/* Clear PRETTY-PRINTER's output state.  */
-static inline void
-pp_clear_state (pretty_printer *pp)
+/* Clear this pretty_printer's output state.  */
+inline void
+pretty_printer::clear_state ()
 {
-  pp->emitted_prefix = false;
-  pp_indentation (pp) = 0;
+  m_emitted_prefix = false;
+  pp_indentation (this) = 0;
 }
 
 /* Print X to PP in decimal.  */
@@ -1006,7 +1010,7 @@ pp_wrap_text (pretty_printer *pp, const char *start, const char *end)
 	while (p != end && !ISBLANK (*p) && *p != '\n')
 	  ++p;
 	if (wrapping_line
-            && p - start >= pp_remaining_character_count_for_line (pp))
+	    && p - start >= pp->remaining_character_count_for_line ())
 	  pp_newline (pp);
 	pp_append_text (pp, start, p);
 	start = p;
@@ -1101,7 +1105,7 @@ urlify_quoted_string (pretty_printer *pp,
 		      size_t quoted_text_start_idx,
 		      size_t quoted_text_end_idx)
 {
-  if (pp->url_format == URL_FORMAT_NONE)
+  if (!pp->supports_urls_p ())
     return quoted_text_end_idx;
   if (!urlifier)
     return quoted_text_end_idx;
@@ -1125,7 +1129,7 @@ urlify_quoted_string (pretty_printer *pp,
 
   /*  ...with URLified version of the text.  */
   /* Begin URL.  */
-  switch (pp->url_format)
+  switch (pp->get_url_format ())
     {
     default:
     case URL_FORMAT_NONE:
@@ -1238,29 +1242,53 @@ private:
   std::vector<run> m_phase_3_quotes;
 };
 
-static void
-on_begin_quote (const output_buffer &buf,
-		unsigned chunk_idx,
-		const urlifier *urlifier)
+/* Adds a chunk to the end of formatted output, so that it
+   will be printed by pp_output_formatted_text.  */
+
+void
+chunk_info::append_formatted_chunk (const char *content)
 {
-  if (!urlifier)
-    return;
-  if (!buf.cur_chunk_array->m_quotes)
-    buf.cur_chunk_array->m_quotes = new quoting_info ();
-  buf.cur_chunk_array->m_quotes->on_begin_quote (buf, chunk_idx);
+  unsigned int chunk_idx;
+  for (chunk_idx = 0; m_args[chunk_idx]; chunk_idx++)
+    ;
+  m_args[chunk_idx++] = content;
+  m_args[chunk_idx] = nullptr;
 }
 
-static void
-on_end_quote (pretty_printer *pp,
-	      output_buffer &buf,
-	      unsigned chunk_idx,
-	      const urlifier *urlifier)
+/* Deallocate the current chunk structure and everything after it (i.e. the
+   associated series of formatted strings).  */
+
+void
+chunk_info::pop_from_output_buffer (output_buffer &buf)
+{
+  delete m_quotes;
+  buf.cur_chunk_array = m_prev;
+  obstack_free (&buf.chunk_obstack, this);
+}
+
+void
+chunk_info::on_begin_quote (const output_buffer &buf,
+			    unsigned chunk_idx,
+			    const urlifier *urlifier)
 {
   if (!urlifier)
     return;
-  if (!buf.cur_chunk_array->m_quotes)
-    buf.cur_chunk_array->m_quotes = new quoting_info ();
-  buf.cur_chunk_array->m_quotes->on_end_quote (pp, buf, chunk_idx, *urlifier);
+  if (!m_quotes)
+    m_quotes = new quoting_info ();
+  m_quotes->on_begin_quote (buf, chunk_idx);
+}
+
+void
+chunk_info::on_end_quote (pretty_printer *pp,
+			  output_buffer &buf,
+			  unsigned chunk_idx,
+			  const urlifier *urlifier)
+{
+  if (!urlifier)
+    return;
+  if (!m_quotes)
+    m_quotes = new quoting_info ();
+  m_quotes->on_end_quote (pp, buf, chunk_idx, *urlifier);
 }
 
 /* The following format specifiers are recognized as being client independent:
@@ -1295,6 +1323,8 @@ on_end_quote (pretty_printer *pp,
    %Z: Requires two arguments - array of int, and len. Prints elements
    of the array.
 
+   %e: Consumes a pp_element * argument.
+
    Arguments can be used sequentially, or through %N$ resp. *N$
    notation Nth argument after the format string.  If %N$ / *N$
    notation is used, it must be used for all arguments, except %m, %%,
@@ -1305,7 +1335,8 @@ on_end_quote (pretty_printer *pp,
    1 up to highest argument; each argument may only be used once.
    A format string can have at most 30 arguments.  */
 
-/* Formatting phases 1 and 2: render TEXT->format_spec plus
+/* Implementation of pp_format.
+   Formatting phases 1 and 2: render TEXT->format_spec plus
    text->m_args_ptr into a series of chunks in pp_buffer (PP)->args[].
    Phase 3 is in pp_output_formatted_text.
 
@@ -1322,27 +1353,21 @@ on_end_quote (pretty_printer *pp,
    are stashed into the output_buffer's m_quotes for use in phase 3.  */
 
 void
-pp_format (pretty_printer *pp,
-	   text_info *text,
-	   const urlifier *urlifier)
+pretty_printer::format (text_info *text,
+			const urlifier *urlifier)
 {
-  output_buffer * const buffer = pp_buffer (pp);
-  const char *p;
-  const char **args;
-  struct chunk_info *new_chunk_array;
+  output_buffer * const buffer = m_buffer;
 
-  unsigned int curarg = 0, chunk = 0, argno;
-  pp_wrapping_mode_t old_wrapping_mode;
-  bool any_unnumbered = false, any_numbered = false;
+  unsigned int chunk = 0, argno;
   const char **formatters[PP_NL_ARGMAX];
 
   /* Allocate a new chunk structure.  */
-  new_chunk_array = XOBNEW (&buffer->chunk_obstack, struct chunk_info);
+  chunk_info *new_chunk_array = XOBNEW (&buffer->chunk_obstack, chunk_info);
 
-  new_chunk_array->prev = buffer->cur_chunk_array;
+  new_chunk_array->m_prev = buffer->cur_chunk_array;
   new_chunk_array->m_quotes = nullptr;
   buffer->cur_chunk_array = new_chunk_array;
-  args = new_chunk_array->args;
+  const char **args = new_chunk_array->m_args;
 
   /* Formatting phase 1: split up TEXT->format_spec into chunks in
      pp_buffer (PP)->args[].  Even-numbered chunks are to be output
@@ -1352,7 +1377,9 @@ pp_format (pretty_printer *pp,
 
   memset (formatters, 0, sizeof formatters);
 
-  for (p = text->m_format_spec; *p; )
+  unsigned int curarg = 0;
+  bool any_unnumbered = false, any_numbered = false;
+  for (const char *p = text->m_format_spec; *p; )
     {
       while (*p != '\0' && *p != '%')
 	{
@@ -1377,20 +1404,19 @@ pp_format (pretty_printer *pp,
 	  {
 	    obstack_grow (&buffer->chunk_obstack,
 			  open_quote, strlen (open_quote));
-	    const char *colorstr
-	      = colorize_start (pp_show_color (pp), "quote");
+	    const char *colorstr = colorize_start (m_show_color, "quote");
 	    obstack_grow (&buffer->chunk_obstack, colorstr, strlen (colorstr));
 	    p++;
 
-	    on_begin_quote (*buffer, chunk, urlifier);
+	    buffer->cur_chunk_array->on_begin_quote (*buffer, chunk, urlifier);
 	    continue;
 	  }
 
 	case '>':
 	  {
-	    on_end_quote (pp, *buffer, chunk, urlifier);
+	    buffer->cur_chunk_array->on_end_quote (this, *buffer, chunk, urlifier);
 
-	    const char *colorstr = colorize_stop (pp_show_color (pp));
+	    const char *colorstr = colorize_stop (m_show_color);
 	    obstack_grow (&buffer->chunk_obstack, colorstr, strlen (colorstr));
 	  }
 	  /* FALLTHRU */
@@ -1402,7 +1428,7 @@ pp_format (pretty_printer *pp,
 
 	case '}':
 	  {
-	    const char *endurlstr = get_end_url_string (pp);
+	    const char *endurlstr = get_end_url_string (this);
 	    obstack_grow (&buffer->chunk_obstack, endurlstr,
 			  strlen (endurlstr));
 	  }
@@ -1411,7 +1437,7 @@ pp_format (pretty_printer *pp,
 
 	case 'R':
 	  {
-	    const char *colorstr = colorize_stop (pp_show_color (pp));
+	    const char *colorstr = colorize_stop (m_show_color);
 	    obstack_grow (&buffer->chunk_obstack, colorstr,
 			  strlen (colorstr));
 	    p++;
@@ -1520,7 +1546,7 @@ pp_format (pretty_printer *pp,
      prefixing off.  */
   buffer->obstack = &buffer->chunk_obstack;
   const int old_line_length = buffer->line_length;
-  old_wrapping_mode = pp_set_verbatim_wrapping (pp);
+  const pp_wrapping_mode_t old_wrapping_mode = pp_set_verbatim_wrapping (this);
 
   /* Second phase.  Replace each formatter with the formatted text it
      corresponds to.  */
@@ -1532,6 +1558,8 @@ pp_format (pretty_printer *pp,
       bool plus = false;
       bool hash = false;
       bool quote = false;
+
+      const char *p;
 
       /* We do not attempt to enforce any ordering on the modifier
 	 characters.  */
@@ -1583,14 +1611,14 @@ pp_format (pretty_printer *pp,
 
       if (quote)
 	{
-	  pp_begin_quote (pp, pp_show_color (pp));
-	  on_begin_quote (*buffer, chunk, urlifier);
+	  pp_begin_quote (this, m_show_color);
+	  buffer->cur_chunk_array->on_begin_quote (*buffer, chunk, urlifier);
 	}
 
       switch (*p)
 	{
 	case 'r':
-	  pp_string (pp, colorize_start (pp_show_color (pp),
+	  pp_string (this, colorize_start (m_show_color,
 					 va_arg (*text->m_args_ptr,
 						 const char *)));
 	  break;
@@ -1602,11 +1630,11 @@ pp_format (pretty_printer *pp,
 	       "\x" prefix.  Otherwise print them all unchanged.  */
 	    int chr = va_arg (*text->m_args_ptr, int);
 	    if (ISPRINT (chr) || !quote)
-	      pp_character (pp, chr);
+	      pp_character (this, chr);
 	    else
 	      {
 		const char str [2] = { chr, '\0' };
-		pp_quoted_string (pp, str, 1);
+		pp_quoted_string (this, str, 1);
 	      }
 	    break;
 	  }
@@ -1614,43 +1642,43 @@ pp_format (pretty_printer *pp,
 	case 'd':
 	case 'i':
 	  if (wide)
-	    pp_wide_integer (pp, va_arg (*text->m_args_ptr, HOST_WIDE_INT));
+	    pp_wide_integer (this, va_arg (*text->m_args_ptr, HOST_WIDE_INT));
 	  else
-	    pp_integer_with_precision (pp, *text->m_args_ptr, precision,
+	    pp_integer_with_precision (this, *text->m_args_ptr, precision,
 				       int, "d");
 	  break;
 
 	case 'o':
 	  if (wide)
-	    pp_scalar (pp, "%" HOST_WIDE_INT_PRINT "o",
+	    pp_scalar (this, "%" HOST_WIDE_INT_PRINT "o",
 		       va_arg (*text->m_args_ptr, unsigned HOST_WIDE_INT));
 	  else
-	    pp_integer_with_precision (pp, *text->m_args_ptr, precision,
+	    pp_integer_with_precision (this, *text->m_args_ptr, precision,
 				       unsigned, "o");
 	  break;
 
 	case 's':
 	  if (quote)
-	    pp_quoted_string (pp, va_arg (*text->m_args_ptr, const char *));
+	    pp_quoted_string (this, va_arg (*text->m_args_ptr, const char *));
 	  else
-	    pp_string (pp, va_arg (*text->m_args_ptr, const char *));
+	    pp_string (this, va_arg (*text->m_args_ptr, const char *));
 	  break;
 
 	case 'p':
-	  pp_pointer (pp, va_arg (*text->m_args_ptr, void *));
+	  pp_pointer (this, va_arg (*text->m_args_ptr, void *));
 	  break;
 
 	case 'u':
 	  if (wide)
-	    pp_scalar (pp, HOST_WIDE_INT_PRINT_UNSIGNED,
+	    pp_scalar (this, HOST_WIDE_INT_PRINT_UNSIGNED,
 		       va_arg (*text->m_args_ptr, unsigned HOST_WIDE_INT));
 	  else
-	    pp_integer_with_precision (pp, *text->m_args_ptr, precision,
+	    pp_integer_with_precision (this, *text->m_args_ptr, precision,
 				       unsigned, "u");
 	  break;
 
 	case 'f':
-	  pp_double (pp, va_arg (*text->m_args_ptr, double));
+	  pp_double (this, va_arg (*text->m_args_ptr, double));
 	  break;
 
 	case 'Z':
@@ -1660,11 +1688,11 @@ pp_format (pretty_printer *pp,
 
 	    for (unsigned i = 0; i < len; ++i)
 	      {
-		pp_scalar (pp, "%i", v[i]);
+		pp_scalar (this, "%i", v[i]);
 		if (i < len - 1)
 		  {
-		    pp_comma (pp);
-		    pp_space (pp);
+		    pp_comma (this);
+		    pp_space (this);
 		  }
 	      }
 	    break;
@@ -1672,10 +1700,10 @@ pp_format (pretty_printer *pp,
 
 	case 'x':
 	  if (wide)
-	    pp_scalar (pp, HOST_WIDE_INT_PRINT_HEX,
+	    pp_scalar (this, HOST_WIDE_INT_PRINT_HEX,
 		       va_arg (*text->m_args_ptr, unsigned HOST_WIDE_INT));
 	  else
-	    pp_integer_with_precision (pp, *text->m_args_ptr, precision,
+	    pp_integer_with_precision (this, *text->m_args_ptr, precision,
 				       unsigned, "x");
 	  break;
 
@@ -1714,7 +1742,7 @@ pp_format (pretty_printer *pp,
 	       Negative precision is treated as if it were omitted.  */
 	    size_t len = n < 0 ? strlen (s) : strnlen (s, n);
 
-	    pp_append_text (pp, s, s + len);
+	    pp_append_text (this, s, s + len);
 	  }
 	  break;
 
@@ -1725,16 +1753,27 @@ pp_format (pretty_printer *pp,
 	      = va_arg (*text->m_args_ptr, diagnostic_event_id_ptr);
 	    gcc_assert (event_id->known_p ());
 
-	    pp_string (pp, colorize_start (pp_show_color (pp), "path"));
-	    pp_character (pp, '(');
-	    pp_decimal_int (pp, event_id->one_based ());
-	    pp_character (pp, ')');
-	    pp_string (pp, colorize_stop (pp_show_color (pp)));
+	    pp_string (this, colorize_start (m_show_color, "path"));
+	    pp_character (this, '(');
+	    pp_decimal_int (this, event_id->one_based ());
+	    pp_character (this, ')');
+	    pp_string (this, colorize_stop (m_show_color));
 	  }
 	  break;
 
 	case '{':
-	  pp_begin_url (pp, va_arg (*text->m_args_ptr, const char *));
+	  begin_url (va_arg (*text->m_args_ptr, const char *));
+	  break;
+
+	case 'e':
+	  {
+	    pp_element *element
+	      = va_arg (*text->m_args_ptr, pp_element *);
+	    pp_markup::context ctxt (*this, *buffer, chunk,
+				     quote, /* by reference */
+				     urlifier);
+	    element->add_to_phase_2 (ctxt);
+	  }
 	  break;
 
 	default:
@@ -1746,18 +1785,19 @@ pp_format (pretty_printer *pp,
 	       potentially disable printing of the closing quote
 	       (e.g. when printing "'TYPEDEF' aka 'TYPE'" in the C family
 	       of frontends).  */
-	    gcc_assert (pp_format_decoder (pp));
-	    ok = pp_format_decoder (pp) (pp, text, p,
-					 precision, wide, plus, hash, &quote,
-					 formatters[argno]);
+	    gcc_assert (pp_format_decoder (this));
+	    ok = m_format_decoder (this, text, p,
+				   precision, wide, plus, hash, &quote,
+				   formatters[argno]);
 	    gcc_assert (ok);
 	  }
 	}
 
       if (quote)
 	{
-	  on_end_quote (pp, *buffer, chunk, urlifier);
-	  pp_end_quote (pp, pp_show_color (pp));
+	  buffer->cur_chunk_array->on_end_quote (this, *buffer,
+						 chunk, urlifier);
+	  pp_end_quote (this, m_show_color);
 	}
 
       obstack_1grow (&buffer->chunk_obstack, '\0');
@@ -1770,14 +1810,14 @@ pp_format (pretty_printer *pp,
 
   /* If the client supplied a postprocessing object, call its "handle"
      hook here.  */
-  if (pp->m_format_postprocessor)
-    pp->m_format_postprocessor->handle (pp);
+  if (m_format_postprocessor)
+    m_format_postprocessor->handle (this);
 
   /* Revert to normal obstack and wrapping mode.  */
   buffer->obstack = &buffer->formatted_obstack;
   buffer->line_length = old_line_length;
-  pp_wrapping_mode (pp) = old_wrapping_mode;
-  pp_clear_state (pp);
+  pp_wrapping_mode (this) = old_wrapping_mode;
+  clear_state ();
 }
 
 struct auto_obstack
@@ -1840,8 +1880,9 @@ quoting_info::handle_phase_3 (pretty_printer *pp,
 {
   unsigned int chunk;
   output_buffer * const buffer = pp_buffer (pp);
-  struct chunk_info *chunk_array = buffer->cur_chunk_array;
-  const char **args = chunk_array->args;
+  chunk_info *chunk_array = buffer->cur_chunk_array;
+  const char * const *args = chunk_array->get_args ();
+  quoting_info *quoting = chunk_array->get_quoting_info ();
 
   /* We need to construct the string into an intermediate buffer
      for this case, since using pp_string can introduce prefixes
@@ -1856,9 +1897,9 @@ quoting_info::handle_phase_3 (pretty_printer *pp,
      correspond to.  */
   size_t start_of_run_byte_offset = 0;
   std::vector<quoting_info::run>::const_iterator iter_run
-    = buffer->cur_chunk_array->m_quotes->m_phase_3_quotes.begin ();
+    = quoting->m_phase_3_quotes.begin ();
   std::vector<quoting_info::run>::const_iterator end_runs
-    = buffer->cur_chunk_array->m_quotes->m_phase_3_quotes.end ();
+    = quoting->m_phase_3_quotes.end ();
   for (chunk = 0; args[chunk]; chunk++)
     {
       size_t start_of_chunk_idx = combined_buf.object_size ();
@@ -1913,8 +1954,9 @@ pp_output_formatted_text (pretty_printer *pp,
 {
   unsigned int chunk;
   output_buffer * const buffer = pp_buffer (pp);
-  struct chunk_info *chunk_array = buffer->cur_chunk_array;
-  const char **args = chunk_array->args;
+  chunk_info *chunk_array = buffer->cur_chunk_array;
+  const char * const *args = chunk_array->get_args ();
+  quoting_info *quoting = chunk_array->get_quoting_info ();
 
   gcc_assert (buffer->obstack == &buffer->formatted_obstack);
 
@@ -1923,19 +1965,15 @@ pp_output_formatted_text (pretty_printer *pp,
 
   /* If we have any deferred urlification, handle it now.  */
   if (urlifier
-      && pp->url_format != URL_FORMAT_NONE
-      && buffer->cur_chunk_array->m_quotes
-      && buffer->cur_chunk_array->m_quotes->has_phase_3_quotes_p ())
-    buffer->cur_chunk_array->m_quotes->handle_phase_3 (pp, *urlifier);
+      && pp->supports_urls_p ()
+      && quoting
+      && quoting->has_phase_3_quotes_p ())
+    quoting->handle_phase_3 (pp, *urlifier);
   else
     for (chunk = 0; args[chunk]; chunk++)
       pp_string (pp, args[chunk]);
 
-  /* Deallocate the chunk structure and everything after it (i.e. the
-     associated series of formatted strings).  */
-  delete buffer->cur_chunk_array->m_quotes;
-  buffer->cur_chunk_array = chunk_array->prev;
-  obstack_free (&buffer->chunk_obstack, chunk_array);
+  chunk_array->pop_from_output_buffer (*buffer);
 }
 
 /* Helper subroutine of output_verbatim and verbatim. Do the appropriate
@@ -1959,8 +1997,8 @@ pp_format_verbatim (pretty_printer *pp, text_info *text)
 void
 pp_flush (pretty_printer *pp)
 {
-  pp_clear_state (pp);
-  if (!pp->buffer->flush_p)
+  pp->clear_state ();
+  if (!pp_buffer (pp)->flush_p)
     return;
   pp_write_text_to_stream (pp);
   fflush (pp_buffer (pp)->stream);
@@ -1971,7 +2009,7 @@ pp_flush (pretty_printer *pp)
 void
 pp_really_flush (pretty_printer *pp)
 {
-  pp_clear_state (pp);
+  pp->clear_state ();
   pp_write_text_to_stream (pp);
   fflush (pp_buffer (pp)->stream);
 }
@@ -1983,7 +2021,7 @@ void
 pp_set_line_maximum_length (pretty_printer *pp, int length)
 {
   pp_line_cutoff (pp) = length;
-  pp_set_real_maximum_length (pp);
+  pp->set_real_maximum_length ();
 }
 
 /* Clear PRETTY-PRINTER output area text info.  */
@@ -1999,13 +2037,13 @@ pp_clear_output_area (pretty_printer *pp)
    will eventually be free-ed.  */
 
 void
-pp_set_prefix (pretty_printer *pp, char *prefix)
+pretty_printer::set_prefix (char *prefix)
 {
-  free (pp->prefix);
-  pp->prefix = prefix;
-  pp_set_real_maximum_length (pp);
-  pp->emitted_prefix = false;
-  pp_indentation (pp) = 0;
+  free (m_prefix);
+  m_prefix = prefix;
+  set_real_maximum_length ();
+  m_emitted_prefix = false;
+  pp_indentation (this) = 0;
 }
 
 /* Take ownership of PP's prefix, setting it to NULL.
@@ -2015,8 +2053,8 @@ pp_set_prefix (pretty_printer *pp, char *prefix)
 char *
 pp_take_prefix (pretty_printer *pp)
 {
-  char *result = pp->prefix;
-  pp->prefix = NULL;
+  char *result = pp->m_prefix;
+  pp->m_prefix = nullptr;
   return result;
 }
 
@@ -2024,39 +2062,39 @@ pp_take_prefix (pretty_printer *pp)
 void
 pp_destroy_prefix (pretty_printer *pp)
 {
-  if (pp->prefix != NULL)
+  if (pp->m_prefix)
     {
-      free (pp->prefix);
-      pp->prefix = NULL;
+      free (pp->m_prefix);
+      pp->m_prefix = nullptr;
     }
 }
 
-/* Write out PRETTY-PRINTER's prefix.  */
+/* Write out this pretty_printer's prefix.  */
 void
-pp_emit_prefix (pretty_printer *pp)
+pretty_printer::emit_prefix ()
 {
-  if (pp->prefix != NULL)
+  if (m_prefix)
     {
-      switch (pp_prefixing_rule (pp))
+      switch (pp_prefixing_rule (this))
 	{
 	default:
 	case DIAGNOSTICS_SHOW_PREFIX_NEVER:
 	  break;
 
 	case DIAGNOSTICS_SHOW_PREFIX_ONCE:
-	  if (pp->emitted_prefix)
+	  if (m_emitted_prefix)
 	    {
-	      pp_indent (pp);
+	      pp_indent (this);
 	      break;
 	    }
-	  pp_indentation (pp) += 3;
+	  pp_indentation (this) += 3;
 	  /* Fall through.  */
 
 	case DIAGNOSTICS_SHOW_PREFIX_EVERY_LINE:
 	  {
-	    int prefix_length = strlen (pp->prefix);
-	    pp_append_r (pp, pp->prefix, prefix_length);
-	    pp->emitted_prefix = true;
+	    int prefix_length = strlen (m_prefix);
+	    pp_append_r (this, m_prefix, prefix_length);
+	    m_emitted_prefix = true;
 	  }
 	  break;
 	}
@@ -2066,19 +2104,20 @@ pp_emit_prefix (pretty_printer *pp)
 /* Construct a PRETTY-PRINTER of MAXIMUM_LENGTH characters per line.  */
 
 pretty_printer::pretty_printer (int maximum_length)
-  : buffer (new (XCNEW (output_buffer)) output_buffer ()),
-    prefix (),
-    padding (pp_none),
-    maximum_length (),
-    indent_skip (),
-    wrapping (),
-    format_decoder (),
+  : m_buffer (new (XCNEW (output_buffer)) output_buffer ()),
+    m_prefix (nullptr),
+    m_padding (pp_none),
+    m_maximum_length (0),
+    m_indent_skip (0),
+    m_wrapping (),
+    m_format_decoder (nullptr),
     m_format_postprocessor (NULL),
-    emitted_prefix (),
-    need_newline (),
-    translate_identifiers (true),
-    show_color (),
-    url_format (URL_FORMAT_NONE),
+    m_emitted_prefix (false),
+    m_need_newline (false),
+    m_translate_identifiers (true),
+    m_show_color (false),
+    m_show_highlight_colors (false),
+    m_url_format (URL_FORMAT_NONE),
     m_skipping_null_url (false)
 {
   pp_line_cutoff (this) = maximum_length;
@@ -2090,22 +2129,23 @@ pretty_printer::pretty_printer (int maximum_length)
 /* Copy constructor for pretty_printer.  */
 
 pretty_printer::pretty_printer (const pretty_printer &other)
-: buffer (new (XCNEW (output_buffer)) output_buffer ()),
-  prefix (),
-  padding (other.padding),
-  maximum_length (other.maximum_length),
-  indent_skip (other.indent_skip),
-  wrapping (other.wrapping),
-  format_decoder (other.format_decoder),
+: m_buffer (new (XCNEW (output_buffer)) output_buffer ()),
+  m_prefix (nullptr),
+  m_padding (other.m_padding),
+  m_maximum_length (other.m_maximum_length),
+  m_indent_skip (other.m_indent_skip),
+  m_wrapping (other.m_wrapping),
+  m_format_decoder (other.m_format_decoder),
   m_format_postprocessor (NULL),
-  emitted_prefix (other.emitted_prefix),
-  need_newline (other.need_newline),
-  translate_identifiers (other.translate_identifiers),
-  show_color (other.show_color),
-  url_format (other.url_format),
+  m_emitted_prefix (other.m_emitted_prefix),
+  m_need_newline (other.m_need_newline),
+  m_translate_identifiers (other.m_translate_identifiers),
+  m_show_color (other.m_show_color),
+  m_show_highlight_colors (other.m_show_highlight_colors),
+  m_url_format (other.m_url_format),
   m_skipping_null_url (false)
 {
-  pp_line_cutoff (this) = maximum_length;
+  pp_line_cutoff (this) = m_maximum_length;
   /* By default, we emit prefixes once per message.  */
   pp_prefixing_rule (this) = pp_prefixing_rule (&other);
   pp_set_prefix (this, NULL);
@@ -2118,9 +2158,9 @@ pretty_printer::~pretty_printer ()
 {
   if (m_format_postprocessor)
     delete m_format_postprocessor;
-  buffer->~output_buffer ();
-  XDELETE (buffer);
-  free (prefix);
+  m_buffer->~output_buffer ();
+  XDELETE (m_buffer);
+  free (m_prefix);
 }
 
 /* Base class implementation of pretty_printer::clone vfunc.  */
@@ -2142,7 +2182,7 @@ pp_append_text (pretty_printer *pp, const char *start, const char *end)
   /* Emit prefix and skip whitespace if we're starting a new line.  */
   if (pp_buffer (pp)->line_length == 0)
     {
-      pp_emit_prefix (pp);
+      pp->emit_prefix ();
       if (pp_is_wrapping_line (pp))
 	while (start != end && *start == ' ')
 	  ++start;
@@ -2169,11 +2209,10 @@ pp_last_position_in_text (const pretty_printer *pp)
 /* Return the amount of characters PRETTY-PRINTER can accept to
    make a full line.  Meaningful only in line-wrapping mode.  */
 int
-pp_remaining_character_count_for_line (pretty_printer *pp)
+pretty_printer::remaining_character_count_for_line ()
 {
-  return pp->maximum_length - pp_buffer (pp)->line_length;
+  return m_maximum_length - pp_buffer (this)->line_length;
 }
-
 
 /* Format a message into BUFFER a la printf.  */
 void
@@ -2219,7 +2258,7 @@ pp_character (pretty_printer *pp, int c)
   if (pp_is_wrapping_line (pp)
       /* If printing UTF-8, don't wrap in the middle of a sequence.  */
       && (((unsigned int) c) & 0xC0) != 0x80
-      && pp_remaining_character_count_for_line (pp) <= 0)
+      && pp->remaining_character_count_for_line () <= 0)
     {
       pp_newline (pp);
       if (ISSPACE (c))
@@ -2236,6 +2275,15 @@ pp_string (pretty_printer *pp, const char *str)
 {
   gcc_checking_assert (str);
   pp_maybe_wrap_text (pp, str, str + strlen (str));
+}
+
+/* As per pp_string, but only append the first LEN of STR.  */
+
+void
+pp_string_n (pretty_printer *pp, const char *str, size_t len)
+{
+  gcc_checking_assert (str);
+  pp_maybe_wrap_text (pp, str, str + len);
 }
 
 /* Append code point C to the output area of PRETTY-PRINTER, encoding it
@@ -2319,12 +2367,12 @@ pp_quoted_string (pretty_printer *pp, const char *str, size_t n /* = -1 */)
 /* Maybe print out a whitespace if needed.  */
 
 void
-pp_maybe_space (pretty_printer *pp)
+pretty_printer::maybe_space ()
 {
-  if (pp->padding != pp_none)
+  if (m_padding != pp_none)
     {
-      pp_space (pp);
-      pp->padding = pp_none;
+      pp_space (this);
+      m_padding = pp_none;
     }
 }
 
@@ -2625,28 +2673,28 @@ identifier_to_locale (const char *ident)
    for the given URL.  */
 
 void
-pp_begin_url (pretty_printer *pp, const char *url)
+pretty_printer::begin_url (const char *url)
 {
   if (!url)
     {
       /* Handle null URL by skipping all output here,
 	 and in the next pp_end_url.  */
-      pp->m_skipping_null_url = true;
+      m_skipping_null_url = true;
       return;
     }
-  switch (pp->url_format)
+  switch (m_url_format)
     {
     case URL_FORMAT_NONE:
       break;
     case URL_FORMAT_ST:
-      pp_string (pp, "\33]8;;");
-      pp_string (pp, url);
-      pp_string (pp, "\33\\");
+      pp_string (this, "\33]8;;");
+      pp_string (this, url);
+      pp_string (this, "\33\\");
       break;
     case URL_FORMAT_BEL:
-      pp_string (pp, "\33]8;;");
-      pp_string (pp, url);
-      pp_string (pp, "\a");
+      pp_string (this, "\33]8;;");
+      pp_string (this, url);
+      pp_string (this, "\a");
       break;
     default:
       gcc_unreachable ();
@@ -2659,7 +2707,7 @@ pp_begin_url (pretty_printer *pp, const char *url)
 static const char *
 get_end_url_string (pretty_printer *pp)
 {
-  switch (pp->url_format)
+  switch (pp->get_url_format ())
     {
     case URL_FORMAT_NONE:
       return "";
@@ -2675,18 +2723,67 @@ get_end_url_string (pretty_printer *pp)
 /* If URL-printing is enabled, write a "close URL" escape sequence to PP.  */
 
 void
-pp_end_url (pretty_printer *pp)
+pretty_printer::end_url ()
 {
-  if (pp->m_skipping_null_url)
+  if (m_skipping_null_url)
     {
       /* We gracefully handle pp_begin_url (NULL) by omitting output for
 	 both begin and end.  Here we handle the latter.  */
-      pp->m_skipping_null_url = false;
+      m_skipping_null_url = false;
       return;
     }
-  if (pp->url_format != URL_FORMAT_NONE)
-    pp_string (pp, get_end_url_string (pp));
+  if (m_url_format != URL_FORMAT_NONE)
+    pp_string (this, get_end_url_string (this));
 }
+
+/* class pp_markup::context.  */
+
+void
+pp_markup::context::begin_quote ()
+{
+  gcc_assert (!m_quoted);
+  pp_begin_quote (&m_pp, pp_show_color (&m_pp));
+  m_buf.cur_chunk_array->on_begin_quote (m_buf, m_chunk_idx, m_urlifier);
+  m_quoted = true;
+}
+
+void
+pp_markup::context::end_quote ()
+{
+  /* Bail out if the quotes have already been ended, such as by
+     printing a type emitting "TYPEDEF' {aka `TYPE'}".  */
+  if (!m_quoted)
+    return;
+  m_buf.cur_chunk_array->on_end_quote (&m_pp, m_buf, m_chunk_idx, m_urlifier);
+  pp_end_quote (&m_pp, pp_show_color (&m_pp));
+  m_quoted = false;
+}
+
+void
+pp_markup::context::begin_highlight_color (const char *color_name)
+{
+  if (!pp_show_highlight_colors (&m_pp))
+    return;
+  pp_string (&m_pp, colorize_start (pp_show_color (&m_pp), color_name));
+}
+
+void
+pp_markup::context::end_highlight_color ()
+{
+  if (!pp_show_highlight_colors (&m_pp))
+    return;
+  const char *colorstr = colorize_stop (pp_show_color (&m_pp));
+  obstack_grow (&m_buf.chunk_obstack, colorstr, strlen (colorstr));
+}
+
+
+/* Color names for expressing "expected" vs "actual" values.  */
+const char *const highlight_colors::expected = "highlight-a";
+const char *const highlight_colors::actual   = "highlight-b";
+
+/* Color names for expressing "LHS" vs "RHS" values in a binary operation.  */
+const char *const highlight_colors::lhs = "highlight-a";
+const char *const highlight_colors::rhs = "highlight-b";
 
 #if CHECKING_P
 
@@ -2779,6 +2876,22 @@ assert_pp_format_colored (const location &loc, const char *expected,
     assert_pp_format ((SELFTEST_LOCATION), (EXPECTED), (FMT), \
                       (ARG1), (ARG2), (ARG3));		      \
   SELFTEST_END_STMT
+
+class test_element : public pp_element
+{
+public:
+  test_element (const char *text) : m_text (text) {}
+
+  void add_to_phase_2 (pp_markup::context &ctxt) final override
+  {
+    ctxt.begin_quote ();
+    pp_string (&ctxt.m_pp, m_text);
+    ctxt.end_quote ();
+  }
+
+private:
+  const char *m_text;
+};
 
 /* Verify that pp_format works, for various format codes.  */
 
@@ -2892,6 +3005,15 @@ test_pp_format ()
   int v2[] = { 0 }; 
   ASSERT_PP_FORMAT_3 ("0 12345678", "%Z %x", v2, 1, 0x12345678);
 
+  /* Verify %e.  */
+  {
+    test_element foo ("foo");
+    test_element bar ("bar");
+    ASSERT_PP_FORMAT_2 ("before `foo' `bar' after",
+			"before %e %e after",
+			&foo, &bar);
+  }
+
   /* Verify that combinations work, along with unformatted text.  */
   assert_pp_format (SELFTEST_LOCATION,
 		    "the quick brown fox jumps over the lazy dog",
@@ -2925,7 +3047,7 @@ class test_pretty_printer : public pretty_printer
 		       int max_line_length)
   {
     pp_set_prefix (this, xstrdup ("PREFIX: "));
-    wrapping.rule = rule;
+    pp_prefixing_rule (this) = rule;
     pp_set_line_maximum_length (this, max_line_length);
   }
 };
@@ -3018,7 +3140,7 @@ test_urls ()
 {
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_NONE;
+    pp.set_url_format (URL_FORMAT_NONE);
     pp_begin_url (&pp, "http://example.com");
     pp_string (&pp, "This is a link");
     pp_end_url (&pp);
@@ -3028,7 +3150,7 @@ test_urls ()
 
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_begin_url (&pp, "http://example.com");
     pp_string (&pp, "This is a link");
     pp_end_url (&pp);
@@ -3038,7 +3160,7 @@ test_urls ()
 
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_BEL;
+    pp.set_url_format (URL_FORMAT_BEL);
     pp_begin_url (&pp, "http://example.com");
     pp_string (&pp, "This is a link");
     pp_end_url (&pp);
@@ -3054,7 +3176,7 @@ test_null_urls ()
 {
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_NONE;
+    pp.set_url_format (URL_FORMAT_NONE);
     pp_begin_url (&pp, nullptr);
     pp_string (&pp, "This isn't a link");
     pp_end_url (&pp);
@@ -3064,7 +3186,7 @@ test_null_urls ()
 
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_begin_url (&pp, nullptr);
     pp_string (&pp, "This isn't a link");
     pp_end_url (&pp);
@@ -3074,7 +3196,7 @@ test_null_urls ()
 
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_BEL;
+    pp.set_url_format (URL_FORMAT_BEL);
     pp_begin_url (&pp, nullptr);
     pp_string (&pp, "This isn't a link");
     pp_end_url (&pp);
@@ -3122,7 +3244,7 @@ test_urlification ()
   {
     {
       pretty_printer pp;
-      pp.url_format = URL_FORMAT_NONE;
+      pp.set_url_format (URL_FORMAT_NONE);
       pp_printf_with_urlifier (&pp, &urlifier,
 			       "foo %<-foption%> %<unrecognized%> bar");
       ASSERT_STREQ ("foo `-foption' `unrecognized' bar",
@@ -3130,7 +3252,7 @@ test_urlification ()
     }
     {
       pretty_printer pp;
-      pp.url_format = URL_FORMAT_ST;
+      pp.set_url_format (URL_FORMAT_ST);
       pp_printf_with_urlifier (&pp, &urlifier,
 			       "foo %<-foption%> %<unrecognized%> bar");
       ASSERT_STREQ
@@ -3140,7 +3262,7 @@ test_urlification ()
     }
     {
       pretty_printer pp;
-      pp.url_format = URL_FORMAT_BEL;
+      pp.set_url_format (URL_FORMAT_BEL);
       pp_printf_with_urlifier (&pp, &urlifier,
 			       "foo %<-foption%> %<unrecognized%> bar");
       ASSERT_STREQ
@@ -3153,7 +3275,7 @@ test_urlification ()
   /* Use of "%qs".  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %qs %qs bar",
 			     "-foption", "unrecognized");
@@ -3167,7 +3289,7 @@ test_urlification ()
      a mixture of phase 1 and phase 2.  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %<-f%s%> bar",
 			     "option");
@@ -3180,7 +3302,7 @@ test_urlification ()
      quoted region.  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %<-f%sion%> bar %<-f%sion%> baz",
 			     "opt", "opt");
@@ -3192,7 +3314,7 @@ test_urlification ()
   /* Likewise.  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %<%sption%> bar %<-f%sion%> baz",
 			     "-fo", "opt");
@@ -3205,7 +3327,7 @@ test_urlification ()
      between a mixture of phase 1 and multiple phase 2.  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %<-f%s%s%> bar",
 			     "opt", "ion");
@@ -3217,7 +3339,7 @@ test_urlification ()
   /* Mixed usage of %< and %s with a prefix.  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_set_prefix (&pp, xstrdup ("PREFIX"));
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %<-f%s%> bar",
@@ -3230,10 +3352,23 @@ test_urlification ()
   /* Example of mixed %< and %s with numbered args.  */
   {
     pretty_printer pp;
-    pp.url_format = URL_FORMAT_ST;
+    pp.set_url_format (URL_FORMAT_ST);
     pp_printf_with_urlifier (&pp, &urlifier,
 			     "foo %<-f%2$st%1$sn%> bar",
 			     "io", "op");
+    ASSERT_STREQ
+      ("foo `\33]8;;http://example.com\33\\-foption\33]8;;\33\\' bar",
+       pp_formatted_text (&pp));
+  }
+
+  /* Example of %e.  */
+  {
+    pretty_printer pp;
+    pp.set_url_format (URL_FORMAT_ST);
+    test_element elem ("-foption");
+    pp_printf_with_urlifier (&pp, &urlifier,
+			     "foo %e bar",
+			     &elem);
     ASSERT_STREQ
       ("foo `\33]8;;http://example.com\33\\-foption\33]8;;\33\\' bar",
        pp_formatted_text (&pp));

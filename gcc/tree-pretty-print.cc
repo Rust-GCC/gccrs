@@ -913,6 +913,8 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
 
     case OMP_CLAUSE_MAP:
       pp_string (pp, "map(");
+      if (OMP_CLAUSE_MAP_READONLY (clause))
+	pp_string (pp, "readonly,");
       switch (OMP_CLAUSE_MAP_KIND (clause))
 	{
 	case GOMP_MAP_ALLOC:
@@ -1095,6 +1097,8 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
 
     case OMP_CLAUSE__CACHE_:
       pp_string (pp, "(");
+      if (OMP_CLAUSE__CACHE__READONLY (clause))
+	pp_string (pp, "readonly:");
       dump_generic_node (pp, OMP_CLAUSE_DECL (clause),
 			 spc, flags, false);
       goto print_clause_size;
@@ -1454,6 +1458,25 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
     case OMP_CLAUSE_TILE:
       pp_string (pp, "tile(");
       dump_generic_node (pp, OMP_CLAUSE_TILE_LIST (clause),
+			 spc, flags, false);
+      pp_right_paren (pp);
+      break;
+    case OMP_CLAUSE_PARTIAL:
+      pp_string (pp, "partial");
+      if (OMP_CLAUSE_PARTIAL_EXPR (clause))
+	{
+	  pp_left_paren (pp);
+	  dump_generic_node (pp, OMP_CLAUSE_PARTIAL_EXPR (clause),
+			     spc, flags, false);
+	  pp_right_paren (pp);
+	}
+      break;
+    case OMP_CLAUSE_FULL:
+      pp_string (pp, "full");
+      break;
+    case OMP_CLAUSE_SIZES:
+      pp_string (pp, "sizes(");
+      dump_generic_node (pp, OMP_CLAUSE_SIZES_LIST (clause),
 			 spc, flags, false);
       pp_right_paren (pp);
       break;
@@ -2852,31 +2875,21 @@ dump_generic_node (pretty_printer *pp, tree node, int spc, dump_flags_t flags,
 	  }
 
 	dump_generic_node (pp, TREE_OPERAND (node, 0),
-			   spc, flags, !(flags & TDF_SLIM));
-	if (flags & TDF_SLIM)
-	  newline_and_indent (pp, spc);
-	else
-	  {
-	    pp_comma (pp);
-	    pp_space (pp);
-	  }
+			   spc, flags, false);
+	pp_comma (pp);
+	pp_space (pp);
 
 	for (tp = &TREE_OPERAND (node, 1);
 	     TREE_CODE (*tp) == COMPOUND_EXPR;
 	     tp = &TREE_OPERAND (*tp, 1))
 	  {
 	    dump_generic_node (pp, TREE_OPERAND (*tp, 0),
-			       spc, flags, !(flags & TDF_SLIM));
-	    if (flags & TDF_SLIM)
-	      newline_and_indent (pp, spc);
-	    else
-	      {
-	        pp_comma (pp);
-	        pp_space (pp);
-	      }
+			       spc, flags, false);
+	    pp_comma (pp);
+	    pp_space (pp);
 	  }
 
-	dump_generic_node (pp, *tp, spc, flags, !(flags & TDF_SLIM));
+	dump_generic_node (pp, *tp, spc, flags, false);
       }
       break;
 
@@ -3475,6 +3488,9 @@ dump_generic_node (pretty_printer *pp, tree node, int spc, dump_flags_t flags,
 	case annot_expr_parallel_kind:
 	  pp_string (pp, ", parallel");
 	  break;
+	case annot_expr_maybe_infinite_kind:
+	  pp_string (pp, ", maybe-infinite");
+	  break;
 	default:
 	  gcc_unreachable ();
 	}
@@ -3799,6 +3815,14 @@ dump_generic_node (pretty_printer *pp, tree node, int spc, dump_flags_t flags,
       pp_string (pp, "#pragma omp loop");
       goto dump_omp_loop;
 
+    case OMP_TILE:
+      pp_string (pp, "#pragma omp tile");
+      goto dump_omp_loop;
+
+    case OMP_UNROLL:
+      pp_string (pp, "#pragma omp unroll");
+      goto dump_omp_loop;
+
     case OACC_LOOP:
       pp_string (pp, "#pragma acc loop");
       goto dump_omp_loop;
@@ -3856,6 +3880,8 @@ dump_generic_node (pretty_printer *pp, tree node, int spc, dump_flags_t flags,
 	      spc -= 2;
 	      for (i = 0; i < TREE_VEC_LENGTH (OMP_FOR_INIT (node)); i++)
 		{
+		  if (TREE_VEC_ELT (OMP_FOR_INIT (node), i) == NULL_TREE)
+		    continue;
 		  spc += 2;
 		  newline_and_indent (pp, spc);
 		  pp_string (pp, "for (");
@@ -4788,7 +4814,7 @@ maybe_init_pretty_print (FILE *file)
       pp_translate_identifiers (tree_pp) = false;
     }
 
-  tree_pp->buffer->stream = file;
+  tree_pp->set_output_stream (file);
 }
 
 static void

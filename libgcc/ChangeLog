@@ -1,3 +1,220 @@
+2024-06-10  Jan Beulich  <jbeulich@suse.com>
+
+	* config/aarch64/cpuinfo.c: Provide AT_HWCAP2.
+
+2024-06-06  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	PR target/115360
+	* config/arm/cmse_nonsecure_call.S: Add .type and .size directives.
+
+2024-06-06  Thomas Schwinge  <tschwinge@baylibre.com>
+	    Andrew Stubbs  <ams@gcc.gnu.org>
+
+	* config/nvptx/t-nvptx: Add unwind-nvptx.c.
+	* config/nvptx/unwind-nvptx.c: New file.
+
+2024-06-06  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/nvptx/gbl-ctors.c ["mgomp"]
+	(__do_global_ctors__entry__mgomp)
+	(__do_global_dtors__entry__mgomp): New.
+	[!"mgomp"] (__do_global_ctors__entry, __do_global_dtors__entry):
+	New.
+
+2024-06-05  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	PR target/115342
+	* config/aarch64/cpuinfo.c (__init_cpu_features_constructor):
+	Use HWCAP where possible.  Use atomic write for initialization.
+	Fix FEAT_PREDRES comparison.
+	(__init_cpu_features_resolver): Use atomic load for correct
+	initialization.
+	(__init_cpu_features): Likewise.
+
+2024-05-31  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/nvptx/crt0.c (__gbl_ctors): New weak function.
+	(__main): Invoke it.
+	* config/nvptx/gbl-ctors.c: New.
+	* config/nvptx/t-nvptx: Configure global constructor, destructor
+	support.
+
+2024-05-21  Kewen Lin  <linkw@linux.ibm.com>
+
+	* config.host: Remove powerpc-*-eabispe* support.
+	* config/rs6000/linux-unwind.h (ppc_fallback_frame_state): Remove
+	__SPE__ code.
+	* config/rs6000/t-savresfgpr (LIB2ADD_ST): Remove e500crtres32gpr.S,
+	e500crtres32gpr.S, e500crtsav64gpr.S, e500crtsav64gprctr.S,
+	e500crtres64gpr.S, e500crtsav32gpr.S, e500crtsavg32gpr.S,
+	e500crtres64gprctr.S, e500crtsavg64gprctr.S, e500crtresx32gpr.S,
+	e500crtrest32gpr.S, e500crtrest64gpr.S and e500crtresx64gpr.S.
+	* config/rs6000/e500crtres32gpr.S: Remove.
+	* config/rs6000/e500crtres64gpr.S: Remove.
+	* config/rs6000/e500crtres64gprctr.S: Remove.
+	* config/rs6000/e500crtrest32gpr.S: Remove.
+	* config/rs6000/e500crtrest64gpr.S: Remove.
+	* config/rs6000/e500crtresx32gpr.S: Remove.
+	* config/rs6000/e500crtresx64gpr.S: Remove.
+	* config/rs6000/e500crtsav32gpr.S: Remove.
+	* config/rs6000/e500crtsav64gpr.S: Remove.
+	* config/rs6000/e500crtsav64gprctr.S: Remove.
+	* config/rs6000/e500crtsavg32gpr.S: Remove.
+	* config/rs6000/e500crtsavg64gpr.S: Remove.
+	* config/rs6000/e500crtsavg64gprctr.S: Remove.
+
+2024-05-18  Wolfgang Hospital  <Wolfgang.Hospital@arcor.de>
+
+	PR target/115065
+	* config/avr/lib1funcs.S (__clzhi2): Tweak.
+
+2024-05-10  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/114981
+	* config/avr/t-avr (LIB2FUNCS_EXCLUDE): Add _powisf2.
+	(LIB1ASMFUNCS) [!avrtiny]: Add _powif.
+	* config/avr/lib1funcs.S (mov4): New .macro.
+	(L_powif, __powisf2) [!avrtiny]: New module and function.
+
+2024-05-07  Zac Walker  <zacwalker@microsoft.com>
+
+	* config.host: Add aarch64-w64-mingw32 target. Adjust targets
+	after moving MinGW files.
+	* config/i386/t-gthr-win32: Move to...
+	* config/mingw/t-gthr-win32: ...here.
+	* config/i386/t-mingw-pthread: Move to...
+	* config/mingw/t-mingw-pthread: ...here.
+	* config/aarch64/t-no-eh: New file. EH is not yet implemented for
+	the target, and the default definition should be disabled.
+
+2024-05-07  Wolfgang Hospital  <Wolfgang.Hospital@arcor.de>
+
+	PR target/114835
+	* config/avr/lib1funcs.S (__popcountqi2): Use code that
+	is one instruction shorter / faster.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac <*-*-solaris2*> (libgcc_cv_solaris_crts): Remove.
+	* config.host <*-*-solaris2*>: Remove !libgcc_cv_solaris_crts
+	support.
+	* configure, config.in: Regenerate.
+	* config/sol2/gmon.c (internal_mcount) [!HAVE_SOLARIS_CRTS]: Remove.
+	* config/i386/sol2-c1.S, config/sparc/sol2-c1.S: Remove.
+	* config/sol2/t-sol2 (crt1.o, gcrt1.o): Remove.
+
+2024-05-06  Xiao Zeng  <zengxiao@eswincomputing.com>
+	    Jin Ma  <jinma@linux.alibaba.com>
+
+	* config/riscv/sfp-machine.h (_FP_NANFRAC_B): New.
+	(_FP_NANSIGN_B): Ditto.
+	* config/riscv/t-softfp32: Add support for BF16 libfuncs.
+	* config/riscv/t-softfp64: Ditto.
+	* soft-fp/floatsibf.c: For si -> bf16.
+	* soft-fp/floatunsibf.c: For unsi -> bf16.
+
+2024-05-03  Peter Damianov  <peter0x44@disroot.org>
+
+	* libgcov-util.c (tag_counters): Swap order of arguments to xcalloc.
+	(topen_to_memory_representation): Likewise.
+
+2024-04-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* gthr.h (GTHREAD_USE_WEAK): Don't redefine to 0 for glibc 2.34+
+	on GNU Hurd.
+
+2024-04-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* gthr.h (GTHREAD_USE_WEAK): Redefine to 0 for GLIBC 2.34 or later.
+
+2024-04-21  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/114794
+	* config/avr/lib1funcs.S (__udivmodqi4): Tweak.
+
+2024-04-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114762
+	* libgcc2.c (__divmodbitint4): Perform the decrement on negative
+	v with most significant limb all ones and the second least
+	significant limb with most significant bit clear always, regardless of
+	un < vn.
+
+2024-04-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114755
+	* libgcc2.c (__divmodbitint4): Perform the decrement on negative
+	v with most significant limb all ones and the second least
+	significant limb with most significant bit clear always, regardless of
+	un < vn.
+
+2024-04-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114689
+	* config/m68k/fpgnulib.c (__truncdfsf2): Add parentheses around
+	!!sticky bitwise or operand to quiet up cppcheck.  Add parentheses
+	around mant >> 1 bitwise or operand.
+
+2024-04-10  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* config/aarch64/t-softfp (softfp_extras): Add floatbitinthf,
+	floatbitintbf, floatbitinttf and fixtfbitint.
+	* config/aarch64/libgcc-softfp.ver (GCC_14.0.0): Add __floatbitinthf,
+	__floatbitintbf, __floatbitinttf and __fixtfbitint.
+
+2024-04-09  Sergey Bugaev  <bugaevc@gmail.com>
+
+	* config.host: Recognize aarch64*-*-gnu* hosts.
+	* config/aarch64/gnu-unwind.h: New file.
+	* config/aarch64/heap-trampoline.c
+	(allocate_trampoline_page): Support GNU/Hurd.
+
+2024-04-04  Jørgen Kvalsvik  <j@lambda.is>
+
+	* libgcov-merge.c (__gcov_merge_ior): New.
+
+2024-04-03  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/aarch64/cpuinfo.c: Add HWCAP_EVTSTRM, HWCAP_CRC32, HWCAP_CPUID,
+	HWCAP_PACA and HWCAP_PACG.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* unwind-dw2-fde.c (struct fde_accumulator): Fix duplicated
+	words in comment; is is -> is.
+
+2024-03-25  Max Filippov  <jcmvbkbc@gmail.com>
+
+	* unwind-arm-common.inc (__gnu_personality_sigframe_fdpic): Cast
+	last argument of _Unwind_VRS_Set to void *.
+
+2024-03-22  Thomas Neumann  <tneumann@users.sourceforge.net>
+
+	PR libgcc/111731
+	* unwind-dw2-fde.c: Split unwind ranges if they contain the
+	unwind table.
+
+2024-03-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114397
+	* libgcc2.c (__divmodbitint4): Don't assume un < vn always means
+	abs(v) > abs(u), check for a special case of un + 1 == vn where
+	u is non-negative and v negative and after v's negation vn could
+	be reduced by 1.
+
+2024-03-20  Flavio Cruz  <flaviocruz@gmail.com>
+
+	* config/i386/gnu-unwind.h: Support unwinding x86_64 signal frames.
+
+2024-03-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114327
+	* libgcc2.c (bitint_negate): Return UWtype bitwise or of all the limbs
+	before negation rather than void.
+	(__divmodbitint4): Determine whether to fill in the upper limbs after
+	negation based on whether bitint_negate returned 0 or non-zero, rather
+	then always filling with -1.
+
 2024-02-22  Kewen Lin  <linkw@linux.ibm.com>
 
 	PR target/109987

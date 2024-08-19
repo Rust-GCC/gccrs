@@ -901,9 +901,9 @@ write_tparms_constraints (tree constraints)
 static void
 write_type_constraint (tree cnst)
 {
-  if (!cnst) return;
+  if (!cnst)
+    return;
 
-  cnst = unpack_concept_check (cnst);
   gcc_checking_assert (TREE_CODE (cnst) == TEMPLATE_ID_EXPR);
 
   tree concept_decl = get_concept_check_template (cnst);
@@ -1300,7 +1300,8 @@ write_prefix (const tree node)
 
   MANGLE_TRACE_TREE ("prefix", node);
 
-  if (TREE_CODE (node) == DECLTYPE_TYPE)
+  if (TREE_CODE (node) == DECLTYPE_TYPE
+      || TREE_CODE (node) == TRAIT_TYPE)
     {
       write_type (node);
       return;

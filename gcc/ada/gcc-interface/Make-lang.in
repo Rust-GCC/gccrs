@@ -376,6 +376,7 @@ GNAT_ADA_OBJS =	\
  ada/namet.o	\
  ada/nlists.o	\
  ada/nmake.o	\
+ ada/mutably_tagged.o	\
  ada/opt.o	\
  ada/osint-c.o	\
  ada/osint.o	\
@@ -528,6 +529,8 @@ GNAT_ADA_OBJS+= \
  ada/libgnat/s-excmac.o	\
  ada/libgnat/s-exctab.o	\
  ada/libgnat/s-htable.o	\
+ ada/libgnat/s-imad32.o	\
+ ada/libgnat/s-imad64.o	\
  ada/libgnat/s-imgint.o	\
  ada/libgnat/s-mastop.o	\
  ada/libgnat/s-memory.o	\
@@ -572,7 +575,6 @@ GNATBIND_OBJS = \
  ada/ali-util.o   \
  ada/ali.o        \
  ada/alloc.o      \
- ada/aspects.o    \
  ada/atree.o      \
  ada/bcheck.o     \
  ada/binde.o      \
@@ -602,12 +604,10 @@ GNATBIND_OBJS = \
  ada/exit.o       \
  ada/final.o      \
  ada/fmap.o       \
- ada/fname-uf.o   \
  ada/fname.o      \
  ada/gnatbind.o   \
  ada/gnatvsn.o    \
  ada/hostparm.o   \
- ada/krunch.o     \
  ada/lib.o        \
  ada/link.o       \
  ada/namet.o      \
@@ -618,7 +618,6 @@ GNATBIND_OBJS = \
  ada/output.o     \
  ada/rident.o     \
  ada/scans.o      \
- ada/scil_ll.o    \
  ada/scng.o       \
  ada/sdefault.o   \
  ada/seinfo.o	  \
@@ -631,7 +630,6 @@ GNATBIND_OBJS = \
  ada/snames.o     \
  ada/stand.o      \
  ada/stringt.o    \
- ada/style.o      \
  ada/styleg.o     \
  ada/stylesw.o    \
  ada/switch-b.o   \
@@ -782,6 +780,7 @@ regnattools:
 cross-gnattools: force
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools1-re
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools2
+	$(GNATTOOLS_CROSS_MV)
 
 canadian-gnattools: force
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools1-re
@@ -797,19 +796,23 @@ gnatlib gnatlib-sjlj gnatlib-zcx gnatlib-shared: force
 	   FORCE_DEBUG_ADAFLAGS="$(FORCE_DEBUG_ADAFLAGS)" \
 	   $@
 
+gnattools-cross-mv:
+	$(GNATTOOLS_CROSS_MV)
+
+GNATTOOLS_CROSS_MV=\
+  for tool in $(ADA_TOOLS) ; do \
+    if [ -f $$tool$(exeext) ] ; \
+    then \
+      $(MV) $$tool$(exeext) $$tool-cross$(exeext); \
+    fi; \
+  done
+
 # use only for native compiler
 gnatlib_and_tools: gnatlib gnattools
 
 # Build hooks:
 
 ada.all.cross:
-	for tool in $(ADA_TOOLS) ; do \
-	  if [ -f $$tool$(exeext) ] ; \
-	  then \
-	    $(MV) $$tool$(exeext) $$tool-cross$(exeext); \
-	  fi; \
-	done
-
 ada.start.encap:
 ada.rest.encap:
 ada.man:

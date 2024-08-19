@@ -20,6 +20,11 @@
 
        { dg-final { scan-sarif-file "\"contents\": " } }
          { dg-final { scan-sarif-file "\"text\": " } }
+	 
+       Verify that this file's "role" is "analysisTarget", as per
+       "NOTE 3" in SARIF v2.1.0 section 3.24.6.
+       { dg-final { scan-sarif-file "\"roles\": \\\[\"analysisTarget\"\\\]" } }
+
      { dg-final { scan-sarif-file "\"tool\": " } }
        { dg-final { scan-sarif-file "\"driver\": " } }
          { dg-final { scan-sarif-file "\"name\": \"GNU C" } }
@@ -27,6 +32,17 @@
          { dg-final { scan-sarif-file "\"informationUri\": \"" } }
 
      { dg-final { scan-sarif-file "\"invocations\": \\\[" } }
+       3.20: "invocation" object:
+
+       3.20.2 invocation "arguments" property:
+       { dg-final { scan-sarif-file {"arguments": \[} } }
+
+       Expect "startTimeUtc" and "endTimeUtc" properties of the form
+       "nnnn-nn-nnTnn:nn:nnZ" (3.20.7 and 3.20.8):
+       { dg-final { scan-sarif-file {"startTimeUtc": "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"} } }
+       { dg-final { scan-sarif-file {"endTimeUtc": "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"} } }
+
+       { dg-final { scan-sarif-file {"workingDirectory": } } }
        { dg-final { scan-sarif-file "\"toolExecutionNotifications\": \\\[\\\]" } }
        { dg-final { scan-sarif-file "\"executionSuccessful\": true" } }
 

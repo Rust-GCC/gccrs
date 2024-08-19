@@ -191,7 +191,6 @@ package body GNAT_CUDA is
 
    procedure Expand_CUDA_Package (N : Node_Id) is
    begin
-
       --  If not compiling for the host, do not do anything.
 
       if not Debug_Flag_Underscore_C then
@@ -270,7 +269,7 @@ package body GNAT_CUDA is
                  and then Present (Corresponding_Stub (Parent (Bod)))
                then
                   Error_Msg_N
-                    ("Cuda_Device not suported on separate subprograms",
+                    ("CUDA_Device not supported on separate subprograms",
                      Corresponding_Stub (Parent (Bod)));
                else
                   Remove (Bod);

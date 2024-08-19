@@ -46,7 +46,9 @@ FROM SymbolTable IMPORT NulSym, IsRecord, IsSet, GetDType, GetSType, IsType,
                         GetDeclaredMod, IsSubrange, GetArraySubscript, IsConst,
                         IsReallyPointer, IsPointer, IsParameter, ModeOfAddr,
                         GetMode, GetType, IsUnbounded, IsComposite, IsConstructor,
-                        IsParameter, IsConstString, IsConstLitInternal, IsConstLit ;
+                        IsParameter, IsConstString, IsConstLitInternal, IsConstLit,
+                        GetStringLength, GetProcedureProcType, IsHiddenType,
+                        IsHiddenReallyPointer ;
 
 FROM M2GCCDeclare IMPORT GetTypeMin, GetTypeMax ;
 FROM M2System IMPORT Address ;
@@ -258,7 +260,32 @@ END checkSubrange ;
 
 
 (*
-   checkArrayTypeEquivalence -
+   checkUnbounded - check to see if the unbounded is type compatible with right.
+                    This is only allowed during parameter passing.
+*)
+
+PROCEDURE checkUnbounded (result: status; tinfo: tInfo; unbounded, right: CARDINAL) : status ;
+BEGIN
+   (* Firstly check to see if we have resolved this as false.  *)
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSE
+      Assert (IsUnbounded (unbounded)) ;
+      IF tinfo^.kind = parameter
+      THEN
+         (* --fixme-- we should check the unbounded data type against the type of right.  *)
+         RETURN true
+      ELSE
+         (* Not allowed to use an unbounded symbol (type) in an expression or assignment.  *)
+         RETURN false
+      END
+   END
+END checkUnbounded ;
+
+
+(*
+   checkArrayTypeEquivalence - check array and unbounded array type equivalence.
 *)
 
 PROCEDURE checkArrayTypeEquivalence (result: status; tinfo: tInfo;
@@ -273,7 +300,7 @@ BEGIN
    THEN
       lSub := GetArraySubscript (left) ;
       rSub := GetArraySubscript (right) ;
-      result := checkPair (result, tinfo, GetType (left), GetType (right)) ;
+      result := checkPair (result, tinfo, GetSType (left), GetSType (right)) ;
       IF (lSub # NulSym) AND (rSub # NulSym)
       THEN
          result := checkSubrange (result, tinfo, getSType (lSub), getSType (rSub))
@@ -284,8 +311,22 @@ BEGIN
       THEN
          RETURN true
       ELSE
-         result := checkPair (result, tinfo, GetType (left), GetType (right))
+         result := checkUnbounded (result, tinfo, left, right)
       END
+   ELSIF IsUnbounded (right) AND (IsArray (left) OR IsUnbounded (left))
+   THEN
+      IF IsGenericSystemType (getSType (right)) OR IsGenericSystemType (getSType (left))
+      THEN
+         RETURN true
+      ELSE
+         result := checkUnbounded (result, tinfo, right, left)
+      END
+   ELSIF IsArray (left) AND IsConst (right)
+   THEN
+      result := checkPair (result, tinfo, GetType (left), GetType (right))
+   ELSIF IsArray (right) AND IsConst (left)
+   THEN
+      result := checkPair (result, tinfo, GetType (left), GetType (right))
    END ;
    RETURN result
 END checkArrayTypeEquivalence ;
@@ -547,12 +588,12 @@ END checkBaseTypeEquivalence ;
 
 
 (*
-   IsTyped -
+   IsTyped - returns TRUE if sym will have a type.
 *)
 
 PROCEDURE IsTyped (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN IsVar (sym) OR IsVar (sym) OR IsParameter (sym) OR
+   RETURN IsVar (sym) OR IsParameter (sym) OR IsConstructor (sym) OR
           (IsConst (sym) AND IsConstructor (sym)) OR IsParameter (sym) OR
           (IsConst (sym) AND (GetType (sym) # NulSym))
 END IsTyped ;
@@ -630,16 +671,27 @@ BEGIN
       RETURN result
    ELSIF IsConstString (left)
    THEN
-      typeRight := GetDType (right) ;
-      IF typeRight = NulSym
+      IF IsConstString (right)
       THEN
-         RETURN result
-      ELSIF IsSet (typeRight) OR IsEnumeration (typeRight) OR IsProcedure (typeRight) OR
-            IsRecord (typeRight)
+         RETURN true
+      ELSIF IsTyped (right)
       THEN
-         RETURN false
-      ELSE
-         RETURN doCheckPair (result, tinfo, Char, typeRight)
+         typeRight := GetDType (right) ;
+         IF typeRight = NulSym
+         THEN
+            RETURN result
+         ELSIF IsSet (typeRight) OR IsEnumeration (typeRight) OR
+               IsProcedure (typeRight) OR IsRecord (typeRight) OR
+               IsReallyPointer (typeRight)
+         THEN
+            RETURN false
+         ELSIF IsArray (typeRight)
+         THEN
+            RETURN doCheckPair (result, tinfo, Char, GetType (typeRight))
+         ELSIF GetStringLength (tinfo^.token, left) = 1
+         THEN
+            RETURN doCheckPair (result, tinfo, Char, typeRight)
+         END
       END
    END ;
    RETURN result
@@ -773,6 +825,30 @@ END checkSystemEquivalence ;
 
 
 (*
+   checkTypeKindViolation - returns false if one operand left or right is
+                            a set, record or array.
+*)
+
+PROCEDURE checkTypeKindViolation (result: status; tinfo: tInfo;
+                                  left, right: CARDINAL) : status ;
+BEGIN
+   IF isFalse (result) OR (result = visited)
+   THEN
+      RETURN result
+   ELSE
+      (* We have checked IsSet (left) and IsSet (right) etc in doCheckPair.  *)
+      IF (IsSet (left) OR IsSet (right)) OR
+         (IsRecord (left) OR IsRecord (right)) OR
+         (IsArray (left) OR IsArray (right))
+      THEN
+         RETURN false
+      END
+   END ;
+   RETURN result
+END checkTypeKindViolation ;
+
+
+(*
    doCheckPair -
 *)
 
@@ -810,7 +886,11 @@ BEGIN
                            result := checkGenericTypeEquivalence (result, left, right) ;
                            IF NOT isKnown (result)
                            THEN
-                              result := checkTypeKindEquivalence (result, tinfo, left, right)
+                              result := checkTypeKindEquivalence (result, tinfo, left, right) ;
+                              IF NOT isKnown (result)
+                              THEN
+                                 result := checkTypeKindViolation (result, tinfo, left, right)
+                              END
                            END
                         END
                      END
@@ -1316,7 +1396,7 @@ PROCEDURE getType (sym: CARDINAL) : CARDINAL ;
 BEGIN
    IF (sym # NulSym) AND IsProcedure (sym)
    THEN
-      RETURN Address
+      RETURN GetProcedureProcType (sym)
    ELSIF IsTyped (sym)
    THEN
       RETURN GetDType (sym)

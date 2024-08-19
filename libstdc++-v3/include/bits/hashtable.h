@@ -34,6 +34,7 @@
 
 #include <bits/hashtable_policy.h>
 #include <bits/enable_special_members.h>
+#include <bits/stl_algobase.h> // fill_n
 #include <bits/stl_function.h> // __has_is_transparent_t
 #if __cplusplus > 201402L
 # include <bits/node_handle.h>
@@ -209,6 +210,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static_assert(is_same<typename _Alloc::value_type, _Value>{},
 	  "unordered container must have the same value_type as its allocator");
 #endif
+      static_assert(is_copy_constructible<_Hash>::value,
+	  "hash function must be copy constructible");
 
       using __traits_type = _Traits;
       using __hash_cached = typename __traits_type::__hash_cached;
@@ -1036,7 +1039,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // DR 1189.
       // reserve, if present, comes from _Rehash_base.
 
-#if __cplusplus > 201402L
+#if __glibcxx_node_extract // >= C++17
       /// Re-insert an extracted node into a container with unique keys.
       insert_return_type
       _M_reinsert_node(node_type&& __nh)
@@ -1078,7 +1081,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	      {
 		__ret.position
 		  = _M_insert_unique_node(__bkt, __code, __nh._M_ptr);
-		__nh._M_ptr = nullptr;
+		__nh.release();
 		__ret.inserted = true;
 	      }
 	  }
@@ -1098,7 +1101,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	auto __code = this->_M_hash_code(__k);
 	auto __ret
 	  = _M_insert_multi_node(__hint._M_cur, __code, __nh._M_ptr);
-	__nh._M_ptr = nullptr;
+	__nh.release();
 	return __ret;
       }
 
@@ -1200,7 +1203,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		{
 		  auto __nh = __src.extract(__pos);
 		  _M_insert_unique_node(__bkt, __code, __nh._M_ptr, __n_elt);
-		  __nh._M_ptr = nullptr;
+		  __nh.release();
 		  __n_elt = 1;
 		}
 	      else if (__n_elt != 1)
@@ -1227,10 +1230,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		= _M_src_hash_code(__src.hash_function(), __k, *__pos._M_cur);
 	      auto __nh = __src.extract(__pos);
 	      __hint = _M_insert_multi_node(__hint, __code, __nh._M_ptr)._M_cur;
-	      __nh._M_ptr = nullptr;
+	      __nh.release();
 	    }
 	}
-#endif // C++17
+#endif // C++17 __glibcxx_node_extract
 
     private:
       // Helper rehash method used when keys are unique.
@@ -1376,8 +1379,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    _M_bucket_count = __ht._M_bucket_count;
 	  }
 	else
-	  __builtin_memset(_M_buckets, 0,
-			   _M_bucket_count * sizeof(__node_base_ptr));
+	  std::fill_n(_M_buckets, _M_bucket_count, nullptr);
 
 	__try
 	  {
@@ -1400,8 +1402,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		_M_buckets = __former_buckets;
 		_M_bucket_count = __former_bucket_count;
 	      }
-	    __builtin_memset(_M_buckets, 0,
-			     _M_bucket_count * sizeof(__node_base_ptr));
+	    std::fill_n(_M_buckets, _M_bucket_count, nullptr);
 	    __throw_exception_again;
 	  }
       }
@@ -1664,7 +1665,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		    "Cache the hash code or qualify your functors involved"
 		    " in hash code and bucket index computation with noexcept");
 
-      clear();
+      this->_M_deallocate_nodes(_M_begin());
       _M_deallocate_buckets();
     }
 
@@ -2582,8 +2583,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     clear() noexcept
     {
       this->_M_deallocate_nodes(_M_begin());
-      __builtin_memset(_M_buckets, 0,
-		       _M_bucket_count * sizeof(__node_base_ptr));
+      std::fill_n(_M_buckets, _M_bucket_count, nullptr);
       _M_element_count = 0;
       _M_before_begin._M_nxt = nullptr;
     }

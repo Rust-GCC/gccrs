@@ -47,6 +47,7 @@ with Itypes;         use Itypes;
 with Lib;            use Lib;
 with Lib.Xref;       use Lib.Xref;
 with Local_Restrict;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Nmake;          use Nmake;
 with Nlists;         use Nlists;
@@ -161,6 +162,10 @@ package body Sem_Res is
    --  builtin has convention Intrinsic, but is expected to be rewritten into
    --  a call, so such an operator is not treated as predefined by this
    --  predicate.
+
+   function Original_Implementation_Base_Type
+     (Id : Entity_Id) return Entity_Id;
+   --  Like Implementation_Base_Type, but looks at Original_Node.
 
    procedure Preanalyze_And_Resolve
      (N             : Node_Id;
@@ -462,7 +467,7 @@ package body Sem_Res is
       Literal_Aspect_Map :
         constant array (N_Numeric_Or_String_Literal) of Aspect_Id :=
           (N_Integer_Literal             => Aspect_Integer_Literal,
-           N_Interpolated_String_Literal => No_Aspect,
+           N_Interpolated_String_Literal => Aspect_String_Literal,
            N_Real_Literal                => Aspect_Real_Literal,
            N_String_Literal              => Aspect_String_Literal);
 
@@ -482,6 +487,7 @@ package body Sem_Res is
 
    begin
       if (Nkind (N) in N_Numeric_Or_String_Literal
+                     | N_Interpolated_String_Literal
            and then Present
             (Find_Aspect (Typ, Literal_Aspect_Map (Nkind (N)))))
         or else
@@ -556,6 +562,10 @@ package body Sem_Res is
 
          elsif Nkind (N) = N_String_Literal then
             Param1 := Make_String_Literal (Loc, Strval (N));
+            Params := New_List (Param1);
+
+         elsif Nkind (N) = N_Interpolated_String_Literal then
+            Param1 := New_Copy_Tree (N);
             Params := New_List (Param1);
 
          else
@@ -2013,6 +2023,38 @@ package body Sem_Res is
       return Kind;
    end Operator_Kind;
 
+   ---------------------------------------
+   -- Original_Implementation_Base_Type --
+   ---------------------------------------
+
+   function Original_Implementation_Base_Type
+     (Id : Entity_Id) return Entity_Id
+   is
+      IBT       : constant Entity_Id := Implementation_Base_Type (Id);
+      IBT_Decl  : constant Node_Id := Parent (IBT);
+      Parent_Id : Node_Id;
+   begin
+      if Nkind (IBT_Decl) = N_Full_Type_Declaration
+        and then Original_Node (IBT_Decl) /= IBT_Decl
+        and then Nkind (Original_Node (IBT_Decl)) =
+                 N_Full_Type_Declaration
+        and then Nkind (Type_Definition (Original_Node (IBT_Decl)))
+                 = N_Derived_Type_Definition
+      then
+         Parent_Id := Subtype_Indication (Type_Definition
+                        (Original_Node (IBT_Decl)));
+
+         if Nkind (Parent_Id) = N_Subtype_Indication then
+            Parent_Id := Subtype_Mark (Parent_Id);
+         end if;
+
+         return Original_Implementation_Base_Type
+                  (Etype (Parent_Id));
+      else
+         return IBT;
+      end if;
+   end Original_Implementation_Base_Type;
+
    ----------------------------
    -- Preanalyze_And_Resolve --
    ----------------------------
@@ -2501,9 +2543,16 @@ package body Sem_Res is
          if Nkind (N) in N_Op and then No (Entity (N)) then
             pragma Assert (Ada_Version >= Ada_2022);
             Found := False;
+         elsif not Comes_From_Source (N) and then
+            Original_Implementation_Base_Type (Typ) =
+              Original_Implementation_Base_Type (Etype (N))
+         then
+            --  Ignore privacy for streaming or Put_Image routines
+            Found := True;
          else
             Found := Covers (Typ, Etype (N));
          end if;
+
          Expr_Type := Etype (N);
 
       --  In the overloaded case, we must select the interpretation that
@@ -4388,6 +4437,17 @@ package body Sem_Res is
                   Resolve (Expression (A));
                end if;
 
+               --  In GNATprove mode, add a range check flag on scalar
+               --  conversions for IN OUT parameters. The check may be
+               --  needed on entry from the call.
+
+               if GNATprove_Mode
+                 and then Ekind (F) = E_In_Out_Parameter
+                 and then Is_Scalar_Type (Etype (F))
+               then
+                  Set_Do_Range_Check (Expression (A));
+               end if;
+
             --  If the actual is a function call that returns a limited
             --  unconstrained object that needs finalization, create a
             --  transient scope for it, so that it can receive the proper
@@ -4980,12 +5040,21 @@ package body Sem_Res is
             --  Skip this check on helpers and indirect-call wrappers built to
             --  support class-wide preconditions.
 
+            --  We make special exception here for mutably tagged types and
+            --  related calls to their initialization procedures.
+
             if (Is_Class_Wide_Type (A_Typ) or else Is_Dynamically_Tagged (A))
               and then not Is_Class_Wide_Type (F_Typ)
               and then not Is_Controlling_Formal (F)
               and then not In_Instance
               and then (not Is_Subprogram (Nam)
                          or else No (Class_Preconditions_Subprogram (Nam)))
+
+              --  Ignore mutably tagged types and their use in calls to init
+              --  procs.
+
+              and then not Is_Mutably_Tagged_CW_Equivalent_Type (A_Typ)
+              and then not Is_Init_Proc (Nam)
             then
                Error_Msg_N ("class-wide argument not allowed here!", A);
 
@@ -7329,11 +7398,12 @@ package body Sem_Res is
                     ("cannot inline & (in while loop condition)?", N, Nam_UA);
 
                --  Do not inline calls which would possibly lead to missing a
-               --  type conversion check on an input parameter.
+               --  type conversion check on an input parameter or a memory leak
+               --  on an output parameter.
 
                elsif not Call_Can_Be_Inlined_In_GNATprove_Mode (N, Nam) then
                   Cannot_Inline
-                    ("cannot inline & (possible check on input parameters)?",
+                    ("cannot inline & (possible check on parameters)?",
                      N, Nam_UA);
 
                --  Otherwise, inline the call, issuing an info message when
@@ -7383,6 +7453,9 @@ package body Sem_Res is
          if Is_Scalar_Type (Alt_Typ) and then Alt_Typ /= Typ then
             Rewrite (Alt_Expr, Convert_To (Typ, Alt_Expr));
             Analyze_And_Resolve (Alt_Expr, Typ);
+
+         elsif Is_Array_Type (Typ) then
+            Apply_Length_Check (Alt_Expr, Typ);
          end if;
 
          Next (Alt);
@@ -7614,7 +7687,6 @@ package body Sem_Res is
    --  Start of processing for Resolve_Declare_Expression
 
    begin
-
       Decl := First (Actions (N));
 
       while Present (Decl) loop
@@ -9630,8 +9702,19 @@ package body Sem_Res is
          --  image function because under Ada 2022 all the types have such
          --  function available.
 
-         if Etype (Str_Elem) = Any_String then
+         if Nkind (Str_Elem) = N_String_Literal
+           and then Is_Interpolated_String_Literal (Str_Elem)
+         then
             Resolve (Str_Elem, Typ);
+
+         --  Must have been rejected during analysis
+
+         elsif Nkind (Str_Elem) in N_Character_Literal
+                                 | N_Integer_Literal
+                                 | N_Real_Literal
+                                 | N_String_Literal
+         then
+            pragma Assert (Error_Posted (Str_Elem));
          end if;
 
          Next (Str_Elem);
@@ -11406,10 +11489,10 @@ package body Sem_Res is
       --  Ensure all actions associated with the left operand (e.g.
       --  finalization of transient objects) are fully evaluated locally within
       --  an expression with actions. This is particularly helpful for coverage
-      --  analysis. However this should not happen in generics or if option
-      --  Minimize_Expression_With_Actions is set.
+      --  analysis at the object level. However this should not happen in
+      --  generics.
 
-      if Expander_Active and not Minimize_Expression_With_Actions then
+      if Expander_Active then
          declare
             Reloc_L : constant Node_Id := Relocate_Node (L);
          begin
@@ -12440,23 +12523,6 @@ package body Sem_Res is
         and then not Range_Checks_Suppressed (Operand_Typ)
       then
          Set_Do_Range_Check (Operand);
-      end if;
-
-      --  Generating C code a type conversion of an access to constrained
-      --  array type to access to unconstrained array type involves building
-      --  a fat pointer which in general cannot be generated on the fly. We
-      --  remove side effects in order to store the result of the conversion
-      --  into a temporary.
-
-      if Modify_Tree_For_C
-        and then Nkind (N) = N_Type_Conversion
-        and then Nkind (Parent (N)) /= N_Object_Declaration
-        and then Is_Access_Type (Etype (N))
-        and then Is_Array_Type (Designated_Type (Etype (N)))
-        and then not Is_Constrained (Designated_Type (Etype (N)))
-        and then Is_Constrained (Designated_Type (Etype (Expression (N))))
-      then
-         Remove_Side_Effects (N);
       end if;
    end Resolve_Type_Conversion;
 
@@ -13776,6 +13842,13 @@ package body Sem_Res is
          elsif Covers (Opnd_Type, Target_Type)
            or else Is_Ancestor (Opnd_Type, Target_Type)
          then
+            --  Deal with non-extension derivation involving an
+            --  untagged view of a tagged type.
+
+            if not Is_Tagged_Type (Target_Type) then
+               return True;
+            end if;
+
             return
               Conversion_Check (False,
                 "downward conversion of tagged objects not allowed");
@@ -14004,6 +14077,13 @@ package body Sem_Res is
          end;
       end if;
 
+      --  When we encounter a class-wide equivalent type used to represent
+      --  a fully sized mutably tagged type, pretend we are actually looking
+      --  at the class-wide mutably tagged type instead.
+
+      Opnd_Type :=
+        Get_Corresponding_Mutably_Tagged_Type_If_Present (Opnd_Type);
+
       --  Deal with conversion of integer type to address if the pragma
       --  Allow_Integer_Address is in effect. We convert the conversion to
       --  an unchecked conversion in this case and we are all done.
@@ -14063,6 +14143,13 @@ package body Sem_Res is
            or else Opnd_Type = Any_Composite
            or else Opnd_Type = Any_String
          then
+            if not Comes_From_Source (N)
+              and then Implementation_Base_Type (Target_Type) =
+                       Implementation_Base_Type (Opnd_Type)
+            then
+               return True;
+            end if;
+
             Conversion_Error_N
               ("illegal operand for array conversion", Operand);
             return False;
@@ -14621,14 +14708,25 @@ package body Sem_Res is
 
       --  If it was legal in the generic, it's legal in the instance
 
-      elsif In_Instance_Body then
+      elsif In_Instance then
+         return True;
+
+      --  Ignore privacy for streaming or Put_Image routines
+
+      elsif not Comes_From_Source (N)
+        and then Original_Implementation_Base_Type (Target_Type) =
+                 Original_Implementation_Base_Type (Opnd_Type)
+      then
          return True;
 
       --  If both are tagged types, check legality of view conversions
 
-      elsif Is_Tagged_Type (Target_Type)
-              and then
-            Is_Tagged_Type (Opnd_Type)
+      elsif (Is_Tagged_Type (Target_Type) and then Is_Tagged_Type (Opnd_Type))
+         or else (not Comes_From_Source (N)
+                  and then
+                    Is_Tagged_Type (Implementation_Base_Type (Target_Type))
+                  and then
+                    Is_Tagged_Type (Implementation_Base_Type (Opnd_Type)))
       then
          return Valid_Tagged_Conversion (Target_Type, Opnd_Type);
 
@@ -14638,9 +14736,10 @@ package body Sem_Res is
          return True;
 
       --  In an instance or an inlined body, there may be inconsistent views of
-      --  the same type, or of types derived from a common root.
+      --  the same type, or of types derived from a common root. Similarly
+      --  for compiler-generated streaming or Put_Image subprograms.
 
-      elsif (In_Instance or In_Inlined_Body)
+      elsif (In_Instance or In_Inlined_Body or not Comes_From_Source (N))
         and then
           Root_Type (Underlying_Type (Target_Type)) =
           Root_Type (Underlying_Type (Opnd_Type))

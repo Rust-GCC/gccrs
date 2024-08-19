@@ -3377,7 +3377,7 @@ optimize_range_tests_to_bit_test (enum tree_code opcode, int first, int length,
 	 case, if we would need otherwise 2 or more comparisons, then use
 	 the bit test; in the other cases, the threshold is 3 comparisons.  */
       bool entry_test_needed;
-      value_range r;
+      int_range_max r;
       if (TREE_CODE (exp) == SSA_NAME
 	  && get_range_query (cfun)->range_of_expr (r, exp)
 	  && !r.undefined_p ()
@@ -3418,7 +3418,8 @@ optimize_range_tests_to_bit_test (enum tree_code opcode, int first, int length,
 	     We can avoid then subtraction of the minimum value, but the
 	     mask constant could be perhaps more expensive.  */
 	  if (compare_tree_int (lowi, 0) > 0
-	      && compare_tree_int (high, prec) < 0)
+	      && compare_tree_int (high, prec) < 0
+	      && (entry_test_needed || wi::ltu_p (r.upper_bound (), prec)))
 	    {
 	      int cost_diff;
 	      HOST_WIDE_INT m = tree_to_uhwi (lowi);
@@ -5508,16 +5509,15 @@ get_reassociation_width (vec<operand_entry *> *ops, int mult_num, tree lhs,
      , it is latency(MULT)*2 + latency(ADD)*2.  Assuming latency(MULT) >=
      latency(ADD), the first variant is preferred.
 
-     Find out if we can get a smaller width considering FMA.  */
-  if (width > 1 && mult_num && param_fully_pipelined_fma)
-    {
-      /* When param_fully_pipelined_fma is set, assume FMUL and FMA use the
-	 same units that can also do FADD.  For other scenarios, such as when
-	 FMUL and FADD are using separated units, the following code may not
-	 appy.  */
-      int width_mult = targetm.sched.reassociation_width (MULT_EXPR, mode);
-      gcc_checking_assert (width_mult <= width);
+     Find out if we can get a smaller width considering FMA.
+     Assume FMUL and FMA use the same units that can also do FADD.
+     For other scenarios, such as when FMUL and FADD are using separated units,
+     the following code may not apply.  */
 
+  int width_mult = targetm.sched.reassociation_width (MULT_EXPR, mode);
+  if (width > 1 && mult_num && param_fully_pipelined_fma
+      && width_mult <= width)
+    {
       /* Latency of MULT_EXPRs.  */
       int lat_mul
 	= get_mult_latency_consider_fma (ops_num, mult_num, width_mult);
@@ -6413,10 +6413,17 @@ compare_repeat_factors (const void *x1, const void *x2)
   const repeat_factor *rf1 = (const repeat_factor *) x1;
   const repeat_factor *rf2 = (const repeat_factor *) x2;
 
-  if (rf1->count != rf2->count)
-    return rf1->count - rf2->count;
+  if (rf1->count < rf2->count)
+    return -1;
+  else if (rf1->count > rf2->count)
+    return 1;
 
-  return rf2->rank - rf1->rank;
+  if (rf1->rank < rf2->rank)
+    return 1;
+  else if (rf1->rank > rf2->rank)
+    return -1;
+
+  return 0;
 }
 
 /* Look for repeated operands in OPS in the multiply tree rooted at

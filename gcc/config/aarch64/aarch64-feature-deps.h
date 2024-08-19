@@ -71,9 +71,9 @@ template<aarch64_feature> struct info;
     static constexpr auto enable = flag | get_enable REQUIRES;		\
     static constexpr auto explicit_on = enable | get_enable EXPLICIT_ON; \
   };									\
-  const aarch64_feature_flags info<aarch64_feature::IDENT>::flag;	\
-  const aarch64_feature_flags info<aarch64_feature::IDENT>::enable;	\
-  const aarch64_feature_flags info<aarch64_feature::IDENT>::explicit_on; \
+  constexpr aarch64_feature_flags info<aarch64_feature::IDENT>::flag;	\
+  constexpr aarch64_feature_flags info<aarch64_feature::IDENT>::enable;	\
+  constexpr aarch64_feature_flags info<aarch64_feature::IDENT>::explicit_on; \
   constexpr info<aarch64_feature::IDENT> IDENT ()			\
   {									\
     return info<aarch64_feature::IDENT> ();				\
@@ -97,9 +97,10 @@ template<aarch64_feature> struct info;
 constexpr aarch64_feature_flags
 get_flags_off (aarch64_feature_flags mask)
 {
-  return (0
+  return (aarch64_feature_flags (0)
 #define AARCH64_OPT_EXTENSION(A, IDENT, C, D, E, F) \
-	  | (feature_deps::IDENT ().enable & mask ? AARCH64_FL_##IDENT : 0)
+	  | (feature_deps::IDENT ().enable & mask ? AARCH64_FL_##IDENT \
+						  : aarch64_feature_flags (0))
 #include "config/aarch64/aarch64-option-extensions.def"
 	  );
 }

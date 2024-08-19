@@ -27,12 +27,6 @@
   (ior (match_operand 0 "const_arith_operand")
        (match_operand 0 "register_operand")))
 
-(define_predicate "arith_operand_or_mode_mask"
-  (ior (match_operand 0 "arith_operand")
-       (and (match_code "const_int")
-            (match_test "UINTVAL (op) == GET_MODE_MASK (HImode)
-			 || UINTVAL (op) == GET_MODE_MASK (SImode)"))))
-
 (define_predicate "lui_operand"
   (and (match_code "const_int")
        (match_test "LUI_OPERAND (INTVAL (op))")))
@@ -386,9 +380,25 @@
   (and (match_code "const_int")
        (match_test "SINGLE_BIT_MASK_OPERAND (UINTVAL (op))")))
 
+;; Register, small constant or single bit constant for use in
+;; bseti/binvi.
+(define_predicate "arith_or_zbs_operand"
+  (ior (match_operand 0 "const_arith_operand")
+       (match_operand 0 "register_operand")
+       (and (match_test "TARGET_ZBS")
+	    (match_operand 0 "single_bit_mask_operand"))))
+
 (define_predicate "not_single_bit_mask_operand"
   (and (match_code "const_int")
        (match_test "SINGLE_BIT_MASK_OPERAND (~UINTVAL (op))")))
+
+(define_predicate "arith_or_mode_mask_or_zbs_operand"
+  (ior (match_operand 0 "arith_operand")
+       (and (match_test "TARGET_ZBS")
+	    (match_operand 0 "not_single_bit_mask_operand"))
+       (and (match_code "const_int")
+	    (match_test "UINTVAL (op) == GET_MODE_MASK (HImode)
+			 || UINTVAL (op) == GET_MODE_MASK (SImode)"))))
 
 (define_predicate "const_si_mask_operand"
   (and (match_code "const_int")
@@ -420,6 +430,12 @@
 	return true;
 })
 
+(define_predicate "const_two_s12"
+  (match_code "const_int")
+{
+  return SUM_OF_TWO_S12 (INTVAL (op));
+})
+
 ;; CORE-V Predicates:
 (define_predicate "immediate_register_operand"
   (ior (match_operand 0 "register_operand")
@@ -444,6 +460,10 @@
 (define_predicate "int6_operand"
   (ior (match_operand 0 "const_int6_operand")
        (match_operand 0 "register_operand")))
+
+(define_predicate "const_int5s_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), -16, 15)")))
 
 ;; Predicates for the V extension.
 (define_special_predicate "vector_length_operand"
@@ -548,8 +568,8 @@
 (define_predicate "comparison_except_ltge_operator"
   (match_code "eq,ne,le,leu,gt,gtu"))
 
-(define_predicate "comparison_except_eqge_operator"
-  (match_code "le,leu,gt,gtu,lt,ltu"))
+(define_predicate "comparison_except_ge_operator"
+  (match_code "eq,ne,le,leu,gt,gtu,lt,ltu"))
 
 (define_predicate "ge_operator"
   (match_code "ge,geu"))

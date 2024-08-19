@@ -275,7 +275,10 @@ lvalue_kind (const_tree ref)
       /* We expect to see unlowered MODOP_EXPRs only during
 	 template processing.  */
       gcc_assert (processing_template_decl);
-      return clk_ordinary;
+      if (CLASS_TYPE_P (TREE_TYPE (TREE_OPERAND (ref, 0))))
+	goto default_;
+      else
+	return clk_ordinary;
 
     case MODIFY_EXPR:
     case TYPEID_EXPR:
@@ -1604,11 +1607,33 @@ strip_typedefs (tree t, bool *remove_attributes /* = NULL */,
   if (t == TYPE_CANONICAL (t))
     return t;
 
-  if (!(flags & STF_STRIP_DEPENDENT)
-      && dependent_alias_template_spec_p (t, nt_opaque))
-    /* DR 1558: However, if the template-id is dependent, subsequent
-       template argument substitution still applies to the template-id.  */
-    return t;
+  if (typedef_variant_p (t))
+    {
+      if ((flags & STF_USER_VISIBLE)
+	  && !user_facing_original_type_p (t))
+	return t;
+
+      if (dependent_opaque_alias_p (t))
+	return t;
+
+      if (alias_template_specialization_p (t, nt_opaque))
+	{
+	  if (dependent_alias_template_spec_p (t, nt_opaque)
+	      && !(flags & STF_STRIP_DEPENDENT))
+	    /* DR 1558: However, if the template-id is dependent, subsequent
+	       template argument substitution still applies to the template-id.  */
+	    return t;
+	}
+      else
+	/* If T is a non-template alias or typedef, we can assume that
+	   instantiating its definition will hit any substitution failure,
+	   so we don't need to retain it here as well.  */
+	flags |= STF_STRIP_DEPENDENT;
+
+      result = strip_typedefs (DECL_ORIGINAL_TYPE (TYPE_NAME (t)),
+			       remove_attributes, flags);
+      goto stripped;
+    }
 
   switch (TREE_CODE (t))
     {
@@ -1802,23 +1827,9 @@ strip_typedefs (tree t, bool *remove_attributes /* = NULL */,
     }
 
   if (!result)
-    {
-      if (typedef_variant_p (t))
-	{
-	  if ((flags & STF_USER_VISIBLE)
-	      && !user_facing_original_type_p (t))
-	    return t;
-	  /* If T is a non-template alias or typedef, we can assume that
-	     instantiating its definition will hit any substitution failure,
-	     so we don't need to retain it here as well.  */
-	  if (!alias_template_specialization_p (t, nt_opaque))
-	    flags |= STF_STRIP_DEPENDENT;
-	  result = strip_typedefs (DECL_ORIGINAL_TYPE (TYPE_NAME (t)),
-				   remove_attributes, flags);
-	}
-      else
-	result = TYPE_MAIN_VARIANT (t);
-    }
+    result = TYPE_MAIN_VARIANT (t);
+
+stripped:
   /*gcc_assert (!typedef_variant_p (result)
 	      || dependent_alias_template_spec_p (result, nt_opaque)
 	      || ((flags & STF_USER_VISIBLE)
@@ -2350,11 +2361,11 @@ ovl_make (tree fn, tree next)
   return result;
 }
 
-/* Add FN to the (potentially NULL) overload set OVL.  USING_OR_HIDDEN is >
-   zero if this is a using-decl.  It is > 1 if we're exporting the
-   using decl.  USING_OR_HIDDEN is < 0, if FN is hidden.  (A decl
-   cannot be both using and hidden.)  We keep the hidden decls first,
-   but remaining ones are unordered.  */
+/* Add FN to the (potentially NULL) overload set OVL.  USING_OR_HIDDEN is > 0
+   if this is a using-decl.  It is > 1 if we're revealing the using decl.
+   It is > 2 if we're also exporting it.  USING_OR_HIDDEN is < 0, if FN is
+   hidden.  (A decl cannot be both using and hidden.)  We keep the hidden
+   decls first, but remaining ones are unordered.  */
 
 tree
 ovl_insert (tree fn, tree maybe_ovl, int using_or_hidden)
@@ -2381,6 +2392,8 @@ ovl_insert (tree fn, tree maybe_ovl, int using_or_hidden)
 	{
 	  OVL_DEDUP_P (maybe_ovl) = OVL_USING_P (maybe_ovl) = true;
 	  if (using_or_hidden > 1)
+	    OVL_PURVIEW_P (maybe_ovl) = true;
+	  if (using_or_hidden > 2)
 	    OVL_EXPORT_P (maybe_ovl) = true;
 	}
     }
@@ -2521,11 +2534,15 @@ lookup_maybe_add (tree fns, tree lookup, bool deduping)
 	       predecessors onto the lookup.  */
 	    for (; fns != probe; fns = OVL_CHAIN (fns))
 	      {
-		lookup = lookup_add (OVL_FUNCTION (fns), lookup);
 		/* Propagate OVL_USING, but OVL_HIDDEN &
 		   OVL_DEDUP_P don't matter.  */
 		if (OVL_USING_P (fns))
-		  OVL_USING_P (lookup) = true;
+		  {
+		    lookup = ovl_make (OVL_FUNCTION (fns), lookup);
+		    OVL_USING_P (lookup) = true;
+		  }
+		else
+		  lookup = lookup_add (OVL_FUNCTION (fns), lookup);
 	      }
 
 	    /* And now skip this function.  */
@@ -2790,9 +2807,17 @@ build_cp_fntype_variant (tree type, cp_ref_qualifier rqual,
 
   /* Canonicalize the exception specification.  */
   tree cr = flag_noexcept_type ? canonical_eh_spec (raises) : NULL_TREE;
+  bool complex_eh_spec_p = (cr && cr != noexcept_true_spec
+			    && !UNPARSED_NOEXCEPT_SPEC_P (cr));
 
-  if (TYPE_STRUCTURAL_EQUALITY_P (type))
-    /* Propagate structural equality. */
+  if (!complex_eh_spec_p && TYPE_RAISES_EXCEPTIONS (type))
+    /* We want to consider structural equality of the exception-less
+       variant since we'll be replacing the exception specification.  */
+    type = build_cp_fntype_variant (type, rqual, /*raises=*/NULL_TREE, late);
+  if (TYPE_STRUCTURAL_EQUALITY_P (type) || complex_eh_spec_p)
+    /* Propagate structural equality.  And always use structural equality
+       for function types with a complex noexcept-spec since their identity
+       may depend on e.g. whether comparing_specializations is set.  */
     SET_TYPE_STRUCTURAL_EQUALITY (v);
   else if (TYPE_CANONICAL (type) != type || cr != raises || late)
     /* Build the underlying canonical type, since it is different
@@ -2809,55 +2834,23 @@ build_cp_fntype_variant (tree type, cp_ref_qualifier rqual,
 /* TYPE is a function or method type with a deferred exception
    specification that has been parsed to RAISES.  Fixup all the type
    variants that are affected in place.  Via decltype &| noexcept
-   tricks, the unparsed spec could have escaped into the type system.
-   The general case is hard to fixup canonical types for.  */
+   tricks, the unparsed spec could have escaped into the type system.  */
 
 void
 fixup_deferred_exception_variants (tree type, tree raises)
 {
   tree original = TYPE_RAISES_EXCEPTIONS (type);
-  tree cr = flag_noexcept_type ? canonical_eh_spec (raises) : NULL_TREE;
 
   gcc_checking_assert (UNPARSED_NOEXCEPT_SPEC_P (original));
 
-  /* Though sucky, this walk will process the canonical variants
-     first.  */
-  tree prev = NULL_TREE;
   for (tree variant = TYPE_MAIN_VARIANT (type);
-       variant; prev = variant, variant = TYPE_NEXT_VARIANT (variant))
+       variant; variant = TYPE_NEXT_VARIANT (variant))
     if (TYPE_RAISES_EXCEPTIONS (variant) == original)
       {
 	gcc_checking_assert (variant != TYPE_MAIN_VARIANT (type));
 
-	if (!TYPE_STRUCTURAL_EQUALITY_P (variant))
-	  {
-	    cp_cv_quals var_quals = TYPE_QUALS (variant);
-	    cp_ref_qualifier rqual = type_memfn_rqual (variant);
-
-	    /* If VARIANT would become a dup (cp_check_qualified_type-wise)
-	       of an existing variant in the variant list of TYPE after its
-	       exception specification has been parsed, elide it.  Otherwise,
-	       build_cp_fntype_variant could use it, leading to "canonical
-	       types differ for identical types."  */
-	    tree v = TYPE_MAIN_VARIANT (type);
-	    for (; v; v = TYPE_NEXT_VARIANT (v))
-	      if (cp_check_qualified_type (v, variant, var_quals,
-					   rqual, cr, false))
-		{
-		  /* The main variant will not match V, so PREV will never
-		     be null.  */
-		  TYPE_NEXT_VARIANT (prev) = TYPE_NEXT_VARIANT (variant);
-		  break;
-		}
-	    TYPE_RAISES_EXCEPTIONS (variant) = raises;
-
-	    if (!v)
-	      v = build_cp_fntype_variant (TYPE_CANONICAL (variant),
-					   rqual, cr, false);
-	    TYPE_CANONICAL (variant) = TYPE_CANONICAL (v);
-	  }
-	else
-	  TYPE_RAISES_EXCEPTIONS (variant) = raises;
+	SET_TYPE_STRUCTURAL_EQUALITY (variant);
+	TYPE_RAISES_EXCEPTIONS (variant) = raises;
 
 	if (!TYPE_DEPENDENT_P (variant))
 	  /* We no longer know that it's not type-dependent.  */
@@ -2971,7 +2964,8 @@ verify_stmt_tree (tree t)
 
 /* Check if the type T depends on a type with no linkage and if so,
    return it.  If RELAXED_P then do not consider a class type declared
-   within a vague-linkage function to have no linkage.  Remember:
+   within a vague-linkage function or in a module CMI to have no linkage,
+   since it can still be accessed within a different TU.  Remember:
    no-linkage is not the same as internal-linkage.  */
 
 tree
@@ -3023,10 +3017,12 @@ no_linkage_check (tree t, bool relaxed_p)
 	    return no_linkage_check (TYPE_CONTEXT (t), relaxed_p);
 	  else if (TREE_CODE (r) == FUNCTION_DECL)
 	    {
-	      if (!relaxed_p || !vague_linkage_p (r))
-		return t;
-	      else
+	      if (relaxed_p
+		  && (vague_linkage_p (r)
+		      || (TREE_PUBLIC (r) && module_maybe_has_cmi_p ())))
 		r = CP_DECL_CONTEXT (r);
+	      else
+		return t;
 	    }
 	  else
 	    break;
@@ -4128,11 +4124,6 @@ cp_tree_equal (tree t1, tree t2)
       return cp_tree_equal (CI_ASSOCIATED_CONSTRAINTS (t1),
                             CI_ASSOCIATED_CONSTRAINTS (t2));
 
-    case CHECK_CONSTR:
-      return (CHECK_CONSTR_CONCEPT (t1) == CHECK_CONSTR_CONCEPT (t2)
-              && comp_template_args (CHECK_CONSTR_ARGS (t1),
-				     CHECK_CONSTR_ARGS (t2)));
-
     case TREE_VEC:
       /* These are template args.  Really we should be getting the
 	 caller to do this as it knows it to be true.  */
@@ -4649,7 +4640,9 @@ trivial_type_p (const_tree t)
   t = strip_array_types (CONST_CAST_TREE (t));
 
   if (CLASS_TYPE_P (t))
-    return (TYPE_HAS_TRIVIAL_DFLT (t)
+    /* A trivial class is a class that is trivially copyable and has one or
+       more eligible default constructors, all of which are trivial.  */
+    return (type_has_non_deleted_trivial_default_ctor (CONST_CAST_TREE (t))
 	    && trivially_copyable_p (t));
   else
     return scalarish_type_p (t);
@@ -5938,7 +5931,11 @@ decl_storage_duration (tree decl)
    *INITP) an expression that will perform the pre-evaluation.  The
    value returned by this function is a side-effect free expression
    equivalent to the pre-evaluated expression.  Callers must ensure
-   that *INITP is evaluated before EXP.  */
+   that *INITP is evaluated before EXP.
+
+   Note that if EXPR is a glvalue, the return value is a glvalue denoting the
+   same address; this function does not guard against modification of the
+   stored value like save_expr or get_target_expr do.  */
 
 tree
 stabilize_expr (tree exp, tree* initp)
@@ -5977,7 +5974,7 @@ stabilize_expr (tree exp, tree* initp)
     }
   *initp = init_expr;
 
-  gcc_assert (!TREE_SIDE_EFFECTS (exp));
+  gcc_assert (!TREE_SIDE_EFFECTS (exp) || TREE_THIS_VOLATILE (exp));
   return exp;
 }
 

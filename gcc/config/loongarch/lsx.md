@@ -186,9 +186,6 @@
 ;; All vector modes with 128 bits.
 (define_mode_iterator LSX      [V2DF V4SF V2DI V4SI V8HI V16QI])
 
-;; Same as LSX.  Used by vcond to iterate two modes.
-(define_mode_iterator LSX_2    [V2DF V4SF V2DI V4SI V8HI V16QI])
-
 ;; Only used for vilvh and splitting insert_d and copy_{u,s}.d.
 (define_mode_iterator LSX_D    [V2DI V2DF])
 
@@ -518,8 +515,7 @@
 	   (match_operand:LSX 3 "register_operand")]))]
   "ISA_HAS_LSX"
 {
-  bool ok = loongarch_expand_vec_cmp (operands);
-  gcc_assert (ok);
+  loongarch_expand_vec_cmp (operands);
   DONE;
 })
 
@@ -530,36 +526,7 @@
 	   (match_operand:ILSX 3 "register_operand")]))]
   "ISA_HAS_LSX"
 {
-  bool ok = loongarch_expand_vec_cmp (operands);
-  gcc_assert (ok);
-  DONE;
-})
-
-(define_expand "vcondu<LSX:mode><ILSX:mode>"
-  [(match_operand:LSX 0 "register_operand")
-   (match_operand:LSX 1 "reg_or_m1_operand")
-   (match_operand:LSX 2 "reg_or_0_operand")
-   (match_operator 3 ""
-     [(match_operand:ILSX 4 "register_operand")
-      (match_operand:ILSX 5 "register_operand")])]
-  "ISA_HAS_LSX
-   && (GET_MODE_NUNITS (<LSX:MODE>mode) == GET_MODE_NUNITS (<ILSX:MODE>mode))"
-{
-  loongarch_expand_vec_cond_expr (<LSX:MODE>mode, <LSX:VIMODE>mode, operands);
-  DONE;
-})
-
-(define_expand "vcond<LSX:mode><LSX_2:mode>"
-  [(match_operand:LSX 0 "register_operand")
-   (match_operand:LSX 1 "reg_or_m1_operand")
-   (match_operand:LSX 2 "reg_or_0_operand")
-   (match_operator 3 ""
-     [(match_operand:LSX_2 4 "register_operand")
-      (match_operand:LSX_2 5 "register_operand")])]
-  "ISA_HAS_LSX
-   && (GET_MODE_NUNITS (<LSX:MODE>mode) == GET_MODE_NUNITS (<LSX_2:MODE>mode))"
-{
-  loongarch_expand_vec_cond_expr (<LSX:MODE>mode, <LSX:VIMODE>mode, operands);
+  loongarch_expand_vec_cmp (operands);
   DONE;
 })
 
@@ -584,27 +551,10 @@
 	  (match_operand 3 "const_<bitmask>_operand" "")))]
   "ISA_HAS_LSX"
 {
-  if (!TARGET_64BIT && (<MODE>mode == V2DImode || <MODE>mode == V2DFmode))
-    return "#";
-  else
-    return "vinsgr2vr.<lsxfmt>\t%w0,%z1,%y3";
+  return "vinsgr2vr.<lsxfmt>\t%w0,%z1,%y3";
 }
   [(set_attr "type" "simd_insert")
    (set_attr "mode" "<MODE>")])
-
-(define_split
-  [(set (match_operand:LSX_D 0 "register_operand")
-	(vec_merge:LSX_D
-	  (vec_duplicate:LSX_D
-	    (match_operand:<UNITMODE> 1 "<LSX_D:lsx_d>_operand"))
-	  (match_operand:LSX_D 2 "register_operand")
-	  (match_operand 3 "const_<bitmask>_operand")))]
-  "reload_completed && ISA_HAS_LSX && !TARGET_64BIT"
-  [(const_int 0)]
-{
-  loongarch_split_lsx_insert_d (operands[0], operands[2], operands[3], operands[1]);
-  DONE;
-})
 
 (define_insn "lsx_vextrins_<lsxfmt_f>_internal"
   [(set (match_operand:LSX 0 "register_operand" "=f")
@@ -655,69 +605,25 @@
   [(set_attr "type" "simd_copy")
    (set_attr "mode" "<MODE>")])
 
-(define_insn_and_split "lsx_vpickve2gr_du"
+(define_insn "lsx_vpickve2gr_du"
   [(set (match_operand:DI 0 "register_operand" "=r")
 	(vec_select:DI
 	  (match_operand:V2DI 1 "register_operand" "f")
 	  (parallel [(match_operand 2 "const_0_or_1_operand" "")])))]
   "ISA_HAS_LSX"
-{
-  if (TARGET_64BIT)
-    return "vpickve2gr.du\t%0,%w1,%2";
-  else
-    return "#";
-}
-  "reload_completed && ISA_HAS_LSX && !TARGET_64BIT"
-  [(const_int 0)]
-{
-  loongarch_split_lsx_copy_d (operands[0], operands[1], operands[2],
-			      gen_lsx_vpickve2gr_wu);
-  DONE;
-}
+  "vpickve2gr.du\t%0,%w1,%2"
   [(set_attr "type" "simd_copy")
    (set_attr "mode" "V2DI")])
 
-(define_insn_and_split "lsx_vpickve2gr_<lsxfmt_f>"
+(define_insn "lsx_vpickve2gr_<lsxfmt_f>"
   [(set (match_operand:<UNITMODE> 0 "register_operand" "=r")
 	(vec_select:<UNITMODE>
 	  (match_operand:LSX_D 1 "register_operand" "f")
 	  (parallel [(match_operand 2 "const_<indeximm>_operand" "")])))]
   "ISA_HAS_LSX"
-{
-  if (TARGET_64BIT)
-    return "vpickve2gr.<lsxfmt>\t%0,%w1,%2";
-  else
-    return "#";
-}
-  "reload_completed && ISA_HAS_LSX && !TARGET_64BIT"
-  [(const_int 0)]
-{
-  loongarch_split_lsx_copy_d (operands[0], operands[1], operands[2],
-			      gen_lsx_vpickve2gr_w);
-  DONE;
-}
+  "vpickve2gr.<lsxfmt>\t%0,%w1,%2"
   [(set_attr "type" "simd_copy")
    (set_attr "mode" "<MODE>")])
-
-
-(define_expand "abs<mode>2"
-  [(match_operand:ILSX 0 "register_operand" "=f")
-   (abs:ILSX (match_operand:ILSX 1 "register_operand" "f"))]
-  "ISA_HAS_LSX"
-{
-  if (ISA_HAS_LSX)
-  {
-    emit_insn (gen_vabs<mode>2 (operands[0], operands[1]));
-    DONE;
-  }
-  else
-  {
-    rtx reg = gen_reg_rtx (<MODE>mode);
-    emit_move_insn (reg, CONST0_RTX (<MODE>mode));
-    emit_insn (gen_lsx_vadda_<lsxfmt> (operands[0], operands[1], reg));
-    DONE;
-  }
-})
 
 (define_expand "neg<mode>2"
   [(set (match_operand:ILSX 0 "register_operand")
@@ -1371,24 +1277,10 @@
   if (which_alternative == 1)
     return "vldi.<lsxfmt>\t%w0,0";
 
-  if (!TARGET_64BIT && (<MODE>mode == V2DImode || <MODE>mode == V2DFmode))
-    return "#";
-  else
-    return "vreplgr2vr.<lsxfmt>\t%w0,%z1";
+  return "vreplgr2vr.<lsxfmt>\t%w0,%z1";
 }
   [(set_attr "type" "simd_fill")
    (set_attr "mode" "<MODE>")])
-
-(define_split
-  [(set (match_operand:LSX_D 0 "register_operand")
-	(vec_duplicate:LSX_D
-	  (match_operand:<UNITMODE> 1 "register_operand")))]
-  "reload_completed && ISA_HAS_LSX && !TARGET_64BIT"
-  [(const_int 0)]
-{
-  loongarch_split_lsx_fill_d (operands[0], operands[1]);
-  DONE;
-})
 
 (define_insn "logb<mode>2"
   [(set (match_operand:FLSX 0 "register_operand" "=f")
@@ -2421,16 +2313,16 @@
 }
   [(set_attr "mode" "V4SF")])
 
-(define_insn "vandn<mode>3"
+(define_insn "andn<mode>3"
   [(set (match_operand:LSX 0 "register_operand" "=f")
-	(and:LSX (not:LSX (match_operand:LSX 1 "register_operand" "f"))
-		 (match_operand:LSX 2 "register_operand" "f")))]
+	(and:LSX (not:LSX (match_operand:LSX 2 "register_operand" "f"))
+		 (match_operand:LSX 1 "register_operand" "f")))]
   "ISA_HAS_LSX"
-  "vandn.v\t%w0,%w1,%w2"
+  "vandn.v\t%w0,%w2,%w1"
   [(set_attr "type" "simd_logic")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "vabs<mode>2"
+(define_insn "abs<mode>2"
   [(set (match_operand:ILSX 0 "register_operand" "=f")
 	(abs:ILSX (match_operand:ILSX 1 "register_operand" "f")))]
   "ISA_HAS_LSX"
@@ -3105,7 +2997,7 @@
   [(set_attr "type" "simd_int_arith")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "vorn<mode>3"
+(define_insn "iorn<mode>3"
   [(set (match_operand:ILSX 0 "register_operand" "=f")
 	(ior:ILSX (not:ILSX (match_operand:ILSX 2 "register_operand" "f"))
 		  (match_operand:ILSX 1 "register_operand" "f")))]

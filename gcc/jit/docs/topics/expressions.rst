@@ -140,6 +140,20 @@ Simple expressions
 
      sizeof (type)
 
+.. function:: gcc_jit_rvalue *\
+              gcc_jit_context_new_alignof (gcc_jit_context *ctxt, \
+                                           gcc_jit_type *type)
+
+   Generate an rvalue that is equal to the alignment of ``type``.
+
+   The parameter ``type`` must be non-NULL.
+
+   This is equivalent to this C code:
+
+   .. code-block:: c
+
+     _Alignof (type)
+
 Constructor expressions
 ***********************
 
@@ -238,7 +252,7 @@ Constructor expressions
    The fields in ``fields`` need to be the same objects that were used
    to create the struct.
 
-   Each value has to have have the same unqualified type as the field
+   Each value has to have the same unqualified type as the field
    it is applied to.
 
    A NULL value element  in ``values`` is a shorthand for zero initialization

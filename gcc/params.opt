@@ -263,7 +263,7 @@ Maximum size of a list of values associated with each parameter for interprocedu
 
 -param=ipa-cp-profile-count-base=
 Common Joined UInteger Var(param_ipa_cp_profile_count_base) Init(10) IntegerRange(0, 100) Param Optimization
-When using profile feedback, use the edge at this percentage position in frequncy histogram as the bases for IPA-CP heuristics.
+When using profile feedback, use the edge at this percentage position in frequency histogram as the bases for IPA-CP heuristics.
 
 -param=ipa-jump-function-lookups=
 Common Joined UInteger Var(param_ipa_jump_function_lookups) Init(8) Param Optimization
@@ -1197,6 +1197,10 @@ The maximum factor which the loop vectorizer applies to the cost of statements i
 -param=vect-induction-float=
 Common Joined UInteger Var(param_vect_induction_float) Init(1) IntegerRange(0, 1) Param Optimization
 Enable loop vectorization of floating point inductions.
+
+-param=vrp-block-limit=
+Common Joined UInteger Var(param_vrp_block_limit) Init(150000) Optimization Param
+Maximum number of basic blocks before VRP switches to a fast model with less memory requirements.
 
 -param=vrp-sparse-threshold=
 Common Joined UInteger Var(param_vrp_sparse_threshold) Init(3000) Optimization Param

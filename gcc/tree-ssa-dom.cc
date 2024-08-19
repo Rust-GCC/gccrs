@@ -1430,15 +1430,14 @@ dom_opt_dom_walker::set_global_ranges_from_unreachable_edges (basic_block bb)
     return;
 
   tree name;
-  gori_compute &gori = m_ranger->gori ();
-  FOR_EACH_GORI_EXPORT_NAME (gori, pred_e->src, name)
+  FOR_EACH_GORI_EXPORT_NAME (m_ranger->gori_ssa (), pred_e->src, name)
     if (all_uses_feed_or_dominated_by_stmt (name, stmt)
 	// The condition must post-dominate the definition point.
 	&& (SSA_NAME_IS_DEFAULT_DEF (name)
 	    || (gimple_bb (SSA_NAME_DEF_STMT (name))
 		== pred_e->src)))
       {
-	Value_Range r (TREE_TYPE (name));
+	value_range r (TREE_TYPE (name));
 
 	if (m_ranger->range_on_edge (r, pred_e, name)
 	    && !r.varying_p ()
@@ -2033,7 +2032,7 @@ cprop_operand (gimple *stmt, use_operand_p op_p, range_query *query)
   val = SSA_NAME_VALUE (op);
   if (!val)
     {
-      Value_Range r (TREE_TYPE (op));
+      value_range r (TREE_TYPE (op));
       tree single;
       if (query->range_of_expr (r, op, stmt) && r.singleton_p (&single))
 	val = single;

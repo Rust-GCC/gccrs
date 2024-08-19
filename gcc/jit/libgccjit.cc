@@ -560,8 +560,8 @@ gcc_jit_type_get_size (gcc_jit_type *type)
 {
   RETURN_VAL_IF_FAIL (type, -1, NULL, NULL, "NULL type");
   RETURN_VAL_IF_FAIL
-    (type->is_int () || type->is_float (), -1, NULL, NULL,
-     "only getting the size of integer or floating-point types is supported for now");
+    (type->is_int () || type->is_float () || type->is_pointer (), -1, NULL, NULL,
+     "only getting the size of integer or floating-point or pointer types is supported for now");
   return type->get_size ();
 }
 
@@ -2089,6 +2089,24 @@ gcc_jit_context_new_sizeof (gcc_jit_context *ctxt,
 
   return ((gcc_jit_rvalue *)ctxt
 	  ->new_sizeof (type));
+}
+
+/* Public entrypoint.  See description in libgccjit.h.
+
+   After error-checking, the real work is done by the
+   gcc::jit::recording::context::new_alignof method in
+   jit-recording.cc.  */
+
+gcc_jit_rvalue *
+gcc_jit_context_new_alignof (gcc_jit_context *ctxt,
+			     gcc_jit_type *type)
+{
+  RETURN_NULL_IF_FAIL (ctxt, NULL, NULL, "NULL context");
+  RETURN_NULL_IF_FAIL (type, ctxt, NULL, "NULL type");
+  JIT_LOG_FUNC (ctxt->get_logger ());
+
+  return ((gcc_jit_rvalue *)ctxt
+	  ->new_alignof (type));
 }
 
 /* Public entrypoint.  See description in libgccjit.h.

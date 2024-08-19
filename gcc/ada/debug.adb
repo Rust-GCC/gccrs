@@ -67,7 +67,7 @@ package body Debug is
    --  dG   Generate all warnings including those normally suppressed
    --  dH   Hold (kill) call to gigi
    --  dI   Inhibit internal name numbering in gnatG listing
-   --  dJ   Prepend subprogram name in messages
+   --  dJ
    --  dK   Kill all error messages
    --  dL   Ignore external calls from instances for elaboration
    --  dM   Assume all variables are modified (no current values)
@@ -105,7 +105,7 @@ package body Debug is
    --  d.r  Disable reordering of components in record types
    --  d.s  Strict secondary stack management
    --  d.t  Disable static allocation of library level dispatch tables
-   --  d.u  Enable Modify_Tree_For_C (update tree for c)
+   --  d.u
    --  d.v  Enforce SPARK elaboration rules in SPARK code
    --  d.w  Do not check for infinite loops
    --  d.x  No exception handlers
@@ -148,8 +148,8 @@ package body Debug is
    --  d_h  Disable the use of (perfect) hash functions for enumeration Value
    --  d_i  Ignore activations and calls to instances for elaboration
    --  d_j  Read JSON files and populate Repinfo tables (opposite of -gnatRjs)
-   --  d_k
-   --  d_l
+   --  d_k  In CodePeer mode disable expansion of assertion checks
+   --  d_l  Disable strict alignment of array types with aliased component
    --  d_m
    --  d_n
    --  d_o
@@ -160,7 +160,7 @@ package body Debug is
    --  d_t  In LLVM-based CCG, dump LLVM IR after transformations are done
    --  d_u  In LLVM-based CCG, dump flows
    --  d_v  Enable additional checks and debug printouts in Atree
-   --  d_w
+   --  d_w  In LLVM-based CCG, don't send front end data to CCG
    --  d_x  Disable inline expansion of Image attribute for enumeration types
    --  d_y
    --  d_z
@@ -173,7 +173,7 @@ package body Debug is
    --  d_F  Encode full invocation paths in ALI files
    --  d_G
    --  d_H
-   --  d_I
+   --  d_I  Note generic formal type inference
    --  d_J
    --  d_K  (Reserved) Enable reporting a warning on known-problem issues
    --  d_L  Output trace information on elaboration checking
@@ -207,7 +207,7 @@ package body Debug is
    --  d.3  Output debugging information from Exp_Unst
    --  d.4  Do not delete generated C file in case of errors
    --  d.5  Do not generate imported subprogram definitions in C code
-   --  d.6  Do not avoid declaring unreferenced types in C code
+   --  d.6
    --  d.7  Disable unsound heuristics in gnat2scil (for CP as SPARK prover)
    --  d.8  Disable unconditional inlining of expression functions
    --  d.9
@@ -615,11 +615,6 @@ package body Debug is
    --       is used in the fixed bugs run to minimize system and version
    --       dependency in filed -gnatD or -gnatG output.
 
-   --  dJ   Prepend the name of the enclosing subprogram in compiler messages
-   --       (errors, warnings, style checks). This is useful in particular to
-   --       integrate compiler warnings in static analysis tools such as
-   --       CodePeer.
-
    --  dK   Kill all error messages. This debug flag suppresses the output
    --       of all error messages. It is used in regression tests where the
    --       error messages are target dependent and irrelevant.
@@ -802,8 +797,7 @@ package body Debug is
    --       previous dynamic construction of tables. It is there as a possible
    --       work around if we run into trouble with the new implementation.
 
-   --  d.u  Sets Modify_Tree_For_C mode in which tree is modified to make it
-   --       easier to generate code using a C compiler.
+   --  d.u
 
    --  d.v  This flag enforces the elaboration rules defined in the SPARK
    --       Reference Manual, chapter 7.7, to all SPARK code within a unit. As
@@ -990,6 +984,14 @@ package body Debug is
    --       compilation session if -gnatRjs was passed, in order to populate
    --       the internal tables of the Repinfo unit from them.
 
+   --  d_k  In CodePeer mode assertion expressions are expanded by default
+   --       (regardless of the -gnata compiler switch); when this switch is
+   --       enabled, expansion of assertion expressions is controlled by
+   --       pragma Assertion_Policy.
+
+   --  d_l  The compiler does not enforce the strict alignment of array types
+   --       that are declared with an aliased component.
+
    --  d_p  The compiler ignores calls to subprograms which verify the run-time
    --       semantics of invariants and postconditions in both the static and
    --       dynamic elaboration models.
@@ -1012,6 +1014,8 @@ package body Debug is
 
    --  d_v  Enable additional checks and debug printouts in Atree
 
+   --  d_w  In LLVM-based CCG, don't send front end data to CCG
+
    --  d_x  The compiler does not expand in line the Image attribute for user-
    --       defined enumeration types and the standard boolean type.
 
@@ -1024,6 +1028,9 @@ package body Debug is
    --  d_F  The compiler encodes the full path from an invocation construct to
    --       an external target, offering additional information to GNATBIND for
    --       purposes of error diagnostics.
+
+   --  d_I  Generic formal type inference: print a "note:" message for each
+   --       actual type that is inferred, or could be inferred.
 
    --  d_K  (Reserved) Enable reporting a warning on known-problem issues of
    --       previous releases. No action performed in the wavefront.
@@ -1112,10 +1119,6 @@ package body Debug is
    --  d.5  By default a subprogram imported generates a subprogram profile.
    --       This debug flag disables this generation when generating C code,
    --       assuming a proper #include will be used instead.
-
-   --  d.6  By default the C back-end avoids declaring types that are not
-   --       referenced by the generated C code. This debug flag restores the
-   --       output of all the types.
 
    --  d.7  Indicates (to gnat2scil) that CodePeer is being invoked as a
    --       prover by the SPARK tools and that therefore gnat2scil should

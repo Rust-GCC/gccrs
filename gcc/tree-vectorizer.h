@@ -499,6 +499,16 @@ public:
      made any decisions about which vector modes to use.  */
   machine_mode vector_mode;
 
+  /* The basic blocks in the vectorization region.  For _loop_vec_info,
+     the memory is internally managed, while for _bb_vec_info, it points
+     to element space of an external auto_vec<>.  This inconsistency is
+     not a good class design pattern.  TODO: improve it with an unified
+     auto_vec<> whose lifetime is confined to vec_info object.  */
+  basic_block *bbs;
+
+  /* The count of the basic blocks in the vectorization region.  */
+  unsigned int nbbs;
+
 private:
   stmt_vec_info new_stmt_vec_info (gimple *stmt);
   void set_vinfo_for_stmt (gimple *, stmt_vec_info, bool = true);
@@ -678,9 +688,6 @@ public:
 
   /* The loop to which this info struct refers to.  */
   class loop *loop;
-
-  /* The loop basic blocks.  */
-  basic_block *bbs;
 
   /* Number of latch executions.  */
   tree num_itersm1;
@@ -969,6 +976,7 @@ public:
 #define LOOP_VINFO_EPILOGUE_IV_EXIT(L)     (L)->vec_epilogue_loop_iv_exit
 #define LOOP_VINFO_SCALAR_IV_EXIT(L)       (L)->scalar_loop_iv_exit
 #define LOOP_VINFO_BBS(L)                  (L)->bbs
+#define LOOP_VINFO_NBBS(L)                 (L)->nbbs
 #define LOOP_VINFO_NITERSM1(L)             (L)->num_itersm1
 #define LOOP_VINFO_NITERS(L)               (L)->num_iters
 /* Since LOOP_VINFO_NITERS and LOOP_VINFO_NITERSM1 can change after
@@ -1094,16 +1102,11 @@ public:
   _bb_vec_info (vec<basic_block> bbs, vec_info_shared *);
   ~_bb_vec_info ();
 
-  /* The region we are operating on.  bbs[0] is the entry, excluding
-     its PHI nodes.  In the future we might want to track an explicit
-     entry edge to cover bbs[0] PHI nodes and have a region entry
-     insert location.  */
-  vec<basic_block> bbs;
-
   vec<slp_root> roots;
 } *bb_vec_info;
 
-#define BB_VINFO_BB(B)               (B)->bb
+#define BB_VINFO_BBS(B)              (B)->bbs
+#define BB_VINFO_NBBS(B)             (B)->nbbs
 #define BB_VINFO_GROUPED_STORES(B)   (B)->grouped_stores
 #define BB_VINFO_SLP_INSTANCES(B)    (B)->slp_instances
 #define BB_VINFO_DATAREFS(B)         (B)->shared->datarefs
@@ -1398,6 +1401,12 @@ public:
 
   /* The vector type for performing the actual reduction.  */
   tree reduc_vectype;
+
+  /* For loop reduction with multiple vectorized results (ncopies > 1), a
+     lane-reducing operation participating in it may not use all of those
+     results, this field specifies result index starting from which any
+     following land-reducing operation would be assigned to.  */
+  unsigned int reduc_result_pos;
 
   /* If IS_REDUC_INFO is true and if the vector code is performing
      N scalar reductions in parallel, this variable gives the initial
@@ -2077,6 +2086,32 @@ vect_get_num_vectors (poly_uint64 nunits, tree vectype)
   return exact_div (nunits, TYPE_VECTOR_SUBPARTS (vectype)).to_constant ();
 }
 
+/* Return the number of vectors in the context of vectorization region VINFO,
+   needed for a group of statements, whose size is specified by lanes of NODE,
+   if NULL, it is 1.  The statements are supposed to be interleaved together
+   with no gap, and all operate on vectors of type VECTYPE, if NULL, the
+   vectype of NODE is used.  */
+
+inline unsigned int
+vect_get_num_copies (vec_info *vinfo, slp_tree node, tree vectype = NULL)
+{
+  poly_uint64 vf;
+
+  if (loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (vinfo))
+    vf = LOOP_VINFO_VECT_FACTOR (loop_vinfo);
+  else
+    vf = 1;
+
+  if (node)
+    {
+      vf *= SLP_TREE_LANES (node);
+      if (!vectype)
+	vectype = SLP_TREE_VECTYPE (node);
+    }
+
+  return vect_get_num_vectors (vf, vectype);
+}
+
 /* Return the number of copies needed for loop vectorization when
    a statement operates on vectors of type VECTYPE.  This is the
    vectorization factor divided by the number of elements in
@@ -2085,7 +2120,7 @@ vect_get_num_vectors (poly_uint64 nunits, tree vectype)
 inline unsigned int
 vect_get_num_copies (loop_vec_info loop_vinfo, tree vectype)
 {
-  return vect_get_num_vectors (LOOP_VINFO_VECT_FACTOR (loop_vinfo), vectype);
+  return vect_get_num_copies (loop_vinfo, NULL, vectype);
 }
 
 /* Update maximum unit count *MAX_NUNITS so that it accounts for
@@ -2164,6 +2199,24 @@ vect_apply_runtime_profitability_check_p (loop_vec_info loop_vinfo)
   unsigned int th = LOOP_VINFO_COST_MODEL_THRESHOLD (loop_vinfo);
   return (!LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo)
 	  && th >= vect_vf_for_cost (loop_vinfo));
+}
+
+/* Return true if CODE is a lane-reducing opcode.  */
+
+inline bool
+lane_reducing_op_p (code_helper code)
+{
+  return code == DOT_PROD_EXPR || code == WIDEN_SUM_EXPR || code == SAD_EXPR;
+}
+
+/* Return true if STMT is a lane-reducing statement.  */
+
+inline bool
+lane_reducing_stmt_p (gimple *stmt)
+{
+  if (auto *assign = dyn_cast <gassign *> (stmt))
+    return lane_reducing_op_p (gimple_assign_rhs_code (assign));
+  return false;
 }
 
 /* Source location + hotness information. */
@@ -2256,6 +2309,10 @@ extern bool supportable_widening_operation (vec_info*, code_helper,
 extern bool supportable_narrowing_operation (code_helper, tree, tree,
 					     code_helper *, int *,
 					     vec<tree> *);
+extern bool supportable_indirect_convert_operation (code_helper,
+						    tree, tree,
+						    vec<std::pair<tree, tree_code> > *,
+						    tree = NULL_TREE);
 
 extern unsigned record_stmt_cost (stmt_vector_for_cost *, int,
 				  enum vect_cost_for_stmt, stmt_vec_info,
@@ -2408,6 +2465,10 @@ extern void vect_record_loop_len (loop_vec_info, vec_loop_lens *, unsigned int,
 extern tree vect_get_loop_len (loop_vec_info, gimple_stmt_iterator *,
 			       vec_loop_lens *, unsigned int, tree,
 			       unsigned int, unsigned int);
+extern tree vect_gen_loop_len_mask (loop_vec_info, gimple_stmt_iterator *,
+				    gimple_stmt_iterator *, vec_loop_lens *,
+				    unsigned int, tree, tree, unsigned int,
+				    unsigned int);
 extern gimple_seq vect_gen_len (tree, tree, tree, tree);
 extern stmt_vec_info info_for_reduction (vec_info *, stmt_vec_info);
 extern bool reduction_fn_for_scalar_code (code_helper, internal_fn *);
@@ -2430,6 +2491,8 @@ extern loop_vec_info vect_create_loop_vinfo (class loop *, vec_info_shared *,
 extern bool vectorizable_live_operation (vec_info *, stmt_vec_info,
 					 slp_tree, slp_instance, int,
 					 bool, stmt_vector_for_cost *);
+extern bool vectorizable_lane_reducing (loop_vec_info, stmt_vec_info,
+					slp_tree, stmt_vector_for_cost *);
 extern bool vectorizable_reduction (loop_vec_info, stmt_vec_info,
 				    slp_tree, slp_instance,
 				    stmt_vector_for_cost *);
@@ -2494,6 +2557,9 @@ extern slp_tree vect_create_new_slp_node (unsigned, tree_code);
 extern void vect_free_slp_tree (slp_tree);
 extern bool compatible_calls_p (gcall *, gcall *);
 extern int vect_slp_child_index_for_operand (const gimple *, int op, bool);
+
+extern tree prepare_vec_mask (loop_vec_info, tree, tree, tree,
+			      gimple_stmt_iterator *);
 
 /* In tree-vect-patterns.cc.  */
 extern void

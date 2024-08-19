@@ -2780,7 +2780,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       /** Remove the tzdb object _after_ the one the iterator refers to.
        *
-       * Calling this function concurently with any of `front()`, `begin()`,
+       * Calling this function concurrently with any of `front()`, `begin()`,
        * or `end()` does not cause a data race, but in general this function
        * is not thread-safe. The behaviour may be undefined if erasing an
        * element from the list while another thread is calling the same
@@ -2925,6 +2925,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		   const leap_second& __y) noexcept
 	{ return !(__x < __y.date()); }
 
+      // This is a simplified form of the constraint specified in the standard,
+      // three_way_comparable_with<sys_seconds, sys_time<_Duration>>.
       template<three_way_comparable_with<seconds> _Duration>
 	[[nodiscard]] friend constexpr auto
 	operator<=>(const leap_second& __x,

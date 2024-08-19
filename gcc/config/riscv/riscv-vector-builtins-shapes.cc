@@ -72,9 +72,34 @@ build_one (function_builder &b, const function_group_info &group,
   if (TARGET_XTHEADVECTOR && !check_type (return_type, argument_types))
     return;
 
-  b.add_overloaded_function (function_instance, *group.shape);
+  b.add_overloaded_function (function_instance, *group.shape,
+			     group.required_extensions);
   b.add_unique_function (function_instance, (*group.shape), return_type,
-			 argument_types);
+			 argument_types, group.required_extensions);
+}
+
+/* Determine whether the intrinsic supports the currently
+   processed vector type */
+static bool
+supports_vectype_p (const function_group_info &group, unsigned int vec_type_idx)
+{
+  int index = group.ops_infos.types[vec_type_idx].index;
+  if (index < VECTOR_TYPE_vbfloat16mf4_t || index > VECTOR_TYPE_vbfloat16m8_t)
+    return true;
+  /* Only judge for bf16 vector type  */
+  if (*group.shape == shapes::loadstore
+      || *group.shape == shapes::indexed_loadstore
+      || *group.shape == shapes::vundefined
+      || *group.shape == shapes::misc
+      || *group.shape == shapes::vset
+      || *group.shape == shapes::vget
+      || *group.shape == shapes::vcreate
+      || *group.shape == shapes::fault_load
+      || *group.shape == shapes::seg_loadstore
+      || *group.shape == shapes::seg_indexed_loadstore
+      || *group.shape == shapes::seg_fault_load)
+    return true;
+  return false;
 }
 
 /* Add a function instance for every operand && predicate && args
@@ -90,7 +115,10 @@ build_all (function_builder &b, const function_group_info &group)
     for (unsigned int vec_type_idx = 0;
 	 group.ops_infos.types[vec_type_idx].index != NUM_VECTOR_TYPES;
 	 ++vec_type_idx)
-      build_one (b, group, pred_idx, vec_type_idx);
+      {
+	if (supports_vectype_p (group, vec_type_idx))
+	  build_one (b, group, pred_idx, vec_type_idx);
+      }
 }
 
 /* Declare the function shape NAME, pointing it to an instance
@@ -99,9 +127,9 @@ build_all (function_builder &b, const function_group_info &group)
   static CONSTEXPR const DEF##_def VAR##_obj; \
   namespace shapes { const function_shape *const VAR = &VAR##_obj; }
 
-#define BASE_NAME_MAX_LEN 16
+#define BASE_NAME_MAX_LEN 17
 
-/* Base class for for build.  */
+/* Base class for build.  */
 struct build_base : public function_shape
 {
   void build (function_builder &b,
@@ -249,9 +277,10 @@ build_th_loadstore (function_builder &b, const function_group_info &group,
   if (strstr (group.base_name, "w") && (sew == 8 || sew ==16))
     return;
 
-  b.add_overloaded_function (function_instance, *group.shape);
+  b.add_overloaded_function (function_instance, *group.shape,
+			     group.required_extensions);
   b.add_unique_function (function_instance, (*group.shape), return_type,
-			 argument_types);
+			 argument_types, group.required_extensions);
 }
 
 /* th_loadstore_width_def class.  */
@@ -931,7 +960,7 @@ struct vcreate_def : public build_base
 	    argument_types.quick_push (arg_type);
 
 	  b.add_unique_function (function_instance, (*group.shape), return_type,
-	    argument_types);
+	    argument_types, group.required_extensions);
      }
   }
 
@@ -966,7 +995,8 @@ struct read_vl_def : public function_shape
   {
     auto_vec<tree> argument_types;
     b.add_unique_function (get_read_vl_instance (), (*group.shape),
-			   size_type_node, argument_types);
+			   size_type_node, argument_types,
+			   group.required_extensions);
   }
 
   char *get_name (function_builder &b, const function_instance &instance,
@@ -1024,7 +1054,8 @@ struct vlenb_def : public function_shape
 					 *group.shape, group.ops_infos.types[0],
 					 group.preds[0], &group.ops_infos);
     b.add_unique_function (function_instance, (*group.shape),
-			   long_unsigned_type_node, argument_types);
+			   long_unsigned_type_node, argument_types,
+			   group.required_extensions);
   }
 
   char *get_name (function_builder &b, const function_instance &instance,

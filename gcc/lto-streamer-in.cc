@@ -1325,6 +1325,7 @@ input_struct_function_base (struct function *fn, class data_in *data_in,
   fn->calls_eh_return = bp_unpack_value (&bp, 1);
   fn->has_force_vectorize_loops = bp_unpack_value (&bp, 1);
   fn->has_simduid_loops = bp_unpack_value (&bp, 1);
+  fn->has_musttail = bp_unpack_value (&bp, 1);
   fn->assume_function = bp_unpack_value (&bp, 1);
   fn->va_list_fpr_size = bp_unpack_value (&bp, 8);
   fn->va_list_gpr_size = bp_unpack_value (&bp, 8);
@@ -2011,6 +2012,11 @@ lto_input_mode_table (struct lto_file_decl_data *file_data)
   data_in = lto_data_in_create (file_data, data + string_offset,
 				header->string_size, vNULL);
   bitpack_d bp = streamer_read_bitpack (&ib);
+
+#ifdef ACCEL_COMPILER
+  host_num_poly_int_coeffs
+    = bp_unpack_value (&bp, MAX_NUM_POLY_INT_COEFFS_BITS);
+#endif
 
   unsigned mode_bits = bp_unpack_value (&bp, 5);
   unsigned char *table = ggc_cleared_vec_alloc<unsigned char> (1 << mode_bits);

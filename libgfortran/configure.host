@@ -1,7 +1,7 @@
 # configure.host
 #
 # This shell script handles all host based configuration for libgfortran.
-# It sets various shell variables based on the the host triplet.
+# It sets various shell variables based on the host triplet.
 # You can modify this shell script without rerunning autoconf/aclocal/etc.
 # This file is "sourced", not executed.
 #
@@ -58,6 +58,15 @@ case "${host_cpu}" in
     case "${host_os}" in
       darwin*)
         fpu_host='fpu-aarch64'
+        ieee_support='yes'
+        ;;
+    esac
+    ;;
+
+  powerpc*)
+    case "${host_os}" in
+      darwin*)
+        fpu_host='fpu-macppc'
         ieee_support='yes'
         ;;
     esac

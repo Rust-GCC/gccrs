@@ -1845,8 +1845,7 @@ rx_expand_prologue (void)
 	gen_safe_add (stack_pointer_rtx, stack_pointer_rtx,
 		      GEN_INT (- (HOST_WIDE_INT) frame_size), true);
       else
-	gen_safe_add (stack_pointer_rtx, frame_pointer_rtx, NULL_RTX,
-		      false /* False because the epilogue will use the FP not the SP.  */);
+	gen_safe_add (stack_pointer_rtx, frame_pointer_rtx, NULL_RTX, true);
     }
 }
 
@@ -2119,7 +2118,7 @@ rx_expand_epilogue (bool is_sibcall)
       /* Cannot use the special instructions - deconstruct by hand.  */
       if (total_size)
 	gen_safe_add (stack_pointer_rtx, stack_pointer_rtx,
-		      GEN_INT (total_size), false);
+		      GEN_INT (total_size), true);
 
       if (MUST_SAVE_ACC_REGISTER)
 	{
@@ -3648,6 +3647,18 @@ rx_modes_tieable_p (machine_mode mode1, machine_mode mode2)
 	  == (GET_MODE_CLASS (mode2) == MODE_FLOAT
 	      || GET_MODE_CLASS (mode2) == MODE_COMPLEX_FLOAT));
 }
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return SFmode or DFmode
+   for TI_{LONG_,}DOUBLE_TYPE which is for {long,} double type, go with
+   the default one for the others.  */
+
+static machine_mode
+rx_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_DOUBLE_TYPE || ti == TI_LONG_DOUBLE_TYPE)
+    return TARGET_64BIT_DOUBLES ? DFmode : SFmode;
+  return default_mode_for_floating_type (ti);
+}
 
 #undef  TARGET_NARROW_VOLATILE_BITFIELD
 #define TARGET_NARROW_VOLATILE_BITFIELD		rx_narrow_volatile_bitfield
@@ -3806,6 +3817,9 @@ rx_modes_tieable_p (machine_mode mode1, machine_mode mode2)
 
 #undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
 #define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE rx_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

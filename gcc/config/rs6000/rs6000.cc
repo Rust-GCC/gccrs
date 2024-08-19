@@ -1067,7 +1067,7 @@ struct processor_costs power9_cost = {
   COSTS_N_INSNS (3),	/* SF->DF convert */
 };
 
-/* Instruction costs on POWER10 processors.  */
+/* Instruction costs on Power10/Power11 processors.  */
 static const
 struct processor_costs power10_cost = {
   COSTS_N_INSNS (2),	/* mulsi */
@@ -1707,6 +1707,9 @@ static const scoped_attribute_specs *const rs6000_attribute_table[] =
 #undef TARGET_C_MODE_FOR_SUFFIX
 #define TARGET_C_MODE_FOR_SUFFIX rs6000_c_mode_for_suffix
 
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE rs6000_c_mode_for_floating_type
+
 #undef TARGET_INVALID_BINARY_OP
 #define TARGET_INVALID_BINARY_OP rs6000_invalid_binary_op
 
@@ -1775,6 +1778,9 @@ static const scoped_attribute_specs *const rs6000_attribute_table[] =
 
 #undef TARGET_CONST_ANCHOR
 #define TARGET_CONST_ANCHOR 0x8000
+
+#undef TARGET_OVERLAP_OP_BY_PIECES_P
+#define TARGET_OVERLAP_OP_BY_PIECES_P hook_bool_void_true
 
 
 
@@ -3425,9 +3431,13 @@ rs6000_override_options_after_change (void)
   else if (!OPTION_SET_P (flag_cunroll_grow_size))
     flag_cunroll_grow_size = flag_peel_loops || optimize >= 3;
 
-  /* If we are inserting ROP-protect instructions, disable shrink wrap.  */
-  if (rs6000_rop_protect)
-    flag_shrink_wrap = 0;
+  /* One of the late-combine passes runs after register allocation
+     and can match define_insn_and_splits that were previously used
+     only before register allocation.  Some of those define_insn_and_splits
+     use gen_reg_rtx unconditionally.  Disable late-combine by default
+     until the define_insn_and_splits are fixed.  */
+  if (!OPTION_SET_P (flag_late_combine_instructions))
+    flag_late_combine_instructions = 0;
 }
 
 #ifdef TARGET_USES_LINUX64_OPT
@@ -3807,42 +3817,46 @@ rs6000_option_override_internal (bool global_init_p)
 		 "-mmultiple");
     }
 
-  /* If little-endian, default to -mstrict-align on older processors.
-     Testing for direct_move matches power8 and later.  */
+  /* If little-endian, default to -mstrict-align on older processors.  */
   if (!BYTES_BIG_ENDIAN
       && !(processor_target_table[tune_index].target_enable
-	   & OPTION_MASK_DIRECT_MOVE))
+	   & OPTION_MASK_POWER8))
     rs6000_isa_flags |= ~rs6000_isa_flags_explicit & OPTION_MASK_STRICT_ALIGN;
 
   /* Add some warnings for VSX.  */
   if (TARGET_VSX)
     {
-      const char *msg = NULL;
+      bool explicit_vsx_p = rs6000_isa_flags_explicit & OPTION_MASK_VSX;
       if (!TARGET_HARD_FLOAT)
 	{
-	  if (rs6000_isa_flags_explicit & OPTION_MASK_VSX)
-	    msg = N_("%<-mvsx%> requires hardware floating point");
-	  else
+	  if (explicit_vsx_p)
 	    {
-	      rs6000_isa_flags &= ~ OPTION_MASK_VSX;
-	      rs6000_isa_flags_explicit |= OPTION_MASK_VSX;
+	      if (rs6000_isa_flags_explicit & OPTION_MASK_SOFT_FLOAT)
+		error ("%<-mvsx%> and %<-msoft-float%> are incompatible");
+	      else
+		warning (0, N_("%<-mvsx%> requires hardware floating-point"));
 	    }
+	  rs6000_isa_flags &= ~OPTION_MASK_VSX;
+	  rs6000_isa_flags_explicit |= OPTION_MASK_VSX;
 	}
       else if (TARGET_AVOID_XFORM > 0)
-	msg = N_("%<-mvsx%> needs indexed addressing");
-      else if (!TARGET_ALTIVEC && (rs6000_isa_flags_explicit
-				   & OPTION_MASK_ALTIVEC))
-        {
-	  if (rs6000_isa_flags_explicit & OPTION_MASK_VSX)
-	    msg = N_("%<-mvsx%> and %<-mno-altivec%> are incompatible");
-	  else
-	    msg = N_("%<-mno-altivec%> disables vsx");
-        }
-
-      if (msg)
 	{
-	  warning (0, msg);
-	  rs6000_isa_flags &= ~ OPTION_MASK_VSX;
+	  if (explicit_vsx_p && OPTION_SET_P (TARGET_AVOID_XFORM))
+	    error ("%<-mvsx%> and %<-mavoid-indexed-addresses%>"
+		   " are incompatible");
+	  else
+	    warning (0, N_("%<-mvsx%> needs indexed addressing"));
+	  rs6000_isa_flags &= ~OPTION_MASK_VSX;
+	  rs6000_isa_flags_explicit |= OPTION_MASK_VSX;
+	}
+      else if (!TARGET_ALTIVEC
+	       && (rs6000_isa_flags_explicit & OPTION_MASK_ALTIVEC))
+	{
+	  if (explicit_vsx_p)
+	    error ("%<-mvsx%> and %<-mno-altivec%> are incompatible");
+	  else
+	    warning (0, N_("%<-mno-altivec%> disables vsx"));
+	  rs6000_isa_flags &= ~OPTION_MASK_VSX;
 	  rs6000_isa_flags_explicit |= OPTION_MASK_VSX;
 	}
     }
@@ -3853,8 +3867,7 @@ rs6000_option_override_internal (bool global_init_p)
       && (rs6000_isa_flags_explicit & (OPTION_MASK_SOFT_FLOAT
 				       | OPTION_MASK_ALTIVEC
 				       | OPTION_MASK_VSX)) != 0)
-    rs6000_isa_flags &= ~((OPTION_MASK_P8_VECTOR | OPTION_MASK_CRYPTO
-			   | OPTION_MASK_DIRECT_MOVE)
+    rs6000_isa_flags &= ~((OPTION_MASK_P8_VECTOR | OPTION_MASK_CRYPTO)
 		         & ~rs6000_isa_flags_explicit);
 
   if (TARGET_DEBUG_REG || TARGET_DEBUG_TARGET)
@@ -3898,7 +3911,7 @@ rs6000_option_override_internal (bool global_init_p)
       else
 	rs6000_isa_flags |= ISA_3_0_MASKS_SERVER;
     }
-  else if (TARGET_P8_VECTOR || TARGET_DIRECT_MOVE || TARGET_CRYPTO)
+  else if (TARGET_P8_VECTOR || TARGET_POWER8 || TARGET_CRYPTO)
     rs6000_isa_flags |= (ISA_2_7_MASKS_SERVER & ~ignore_masks);
   else if (TARGET_VSX)
     rs6000_isa_flags |= (ISA_2_6_MASKS_SERVER & ~ignore_masks);
@@ -3921,8 +3934,12 @@ rs6000_option_override_internal (bool global_init_p)
      not for 32-bit.  Don't move this before the above code using ignore_masks,
      since it can reset the cleared VSX/ALTIVEC flag again.  */
   if (main_target_opt && !main_target_opt->x_rs6000_altivec_abi)
-    rs6000_isa_flags &= ~((OPTION_MASK_VSX | OPTION_MASK_ALTIVEC)
-			  & ~rs6000_isa_flags_explicit);
+    {
+      rs6000_isa_flags &= ~(OPTION_MASK_VSX & ~rs6000_isa_flags_explicit);
+      /* Don't mask off ALTIVEC if it is enabled by an explicit VSX.  */
+      if (!TARGET_VSX)
+	rs6000_isa_flags &= ~(OPTION_MASK_ALTIVEC & ~rs6000_isa_flags_explicit);
+    }
 
   if (TARGET_CRYPTO && !TARGET_ALTIVEC)
     {
@@ -3939,15 +3956,9 @@ rs6000_option_override_internal (bool global_init_p)
       rs6000_isa_flags &= ~OPTION_MASK_FPRND;
     }
 
-  if (TARGET_DIRECT_MOVE && !TARGET_VSX)
-    {
-      if (rs6000_isa_flags_explicit & OPTION_MASK_DIRECT_MOVE)
-	error ("%qs requires %qs", "-mdirect-move", "-mvsx");
-      rs6000_isa_flags &= ~OPTION_MASK_DIRECT_MOVE;
-    }
-
-  if (TARGET_P8_VECTOR && !TARGET_ALTIVEC)
-    rs6000_isa_flags &= ~OPTION_MASK_P8_VECTOR;
+  /* Assert !TARGET_VSX if !TARGET_ALTIVEC and make some adjustments
+     based on either !TARGET_VSX or !TARGET_ALTIVEC concise.  */
+  gcc_assert (TARGET_ALTIVEC || !TARGET_VSX);
 
   if (TARGET_P8_VECTOR && !TARGET_VSX)
     rs6000_isa_flags &= ~OPTION_MASK_P8_VECTOR;
@@ -4093,7 +4104,7 @@ rs6000_option_override_internal (bool global_init_p)
      128 into the precision used for TFmode.  */
   int default_long_double_size = (RS6000_DEFAULT_LONG_DOUBLE_SIZE == 64
 				  ? 64
-				  : FLOAT_PRECISION_TFmode);
+				  : 128);
 
   /* Set long double size before the IEEE 128-bit tests.  */
   if (!OPTION_SET_P (rs6000_long_double_type_size))
@@ -4105,10 +4116,6 @@ rs6000_option_override_internal (bool global_init_p)
       else
 	rs6000_long_double_type_size = default_long_double_size;
     }
-  else if (rs6000_long_double_type_size == FLOAT_PRECISION_TFmode)
-    ; /* The option value can be seen when cl_target_option_restore is called.  */
-  else if (rs6000_long_double_type_size == 128)
-    rs6000_long_double_type_size = FLOAT_PRECISION_TFmode;
 
   /* Set -mabi=ieeelongdouble on some old targets.  In the future, power server
      systems will also set long double to be IEEE 128-bit.  AIX and Darwin
@@ -4379,7 +4386,8 @@ rs6000_option_override_internal (bool global_init_p)
      generating power10 instructions.  */
   if (!(rs6000_isa_flags_explicit & OPTION_MASK_P10_FUSION))
     {
-      if (rs6000_tune == PROCESSOR_POWER10)
+      if (rs6000_tune == PROCESSOR_POWER10
+	  || rs6000_tune == PROCESSOR_POWER11)
 	rs6000_isa_flags |= OPTION_MASK_P10_FUSION;
       else
 	rs6000_isa_flags &= ~OPTION_MASK_P10_FUSION;
@@ -4408,6 +4416,7 @@ rs6000_option_override_internal (bool global_init_p)
 			&& rs6000_tune != PROCESSOR_POWER8
 			&& rs6000_tune != PROCESSOR_POWER9
 			&& rs6000_tune != PROCESSOR_POWER10
+			&& rs6000_tune != PROCESSOR_POWER11
 			&& rs6000_tune != PROCESSOR_PPCA2
 			&& rs6000_tune != PROCESSOR_CELL
 			&& rs6000_tune != PROCESSOR_PPC476);
@@ -4422,6 +4431,7 @@ rs6000_option_override_internal (bool global_init_p)
 				 || rs6000_tune == PROCESSOR_POWER8
 				 || rs6000_tune == PROCESSOR_POWER9
 				 || rs6000_tune == PROCESSOR_POWER10
+				 || rs6000_tune == PROCESSOR_POWER11
 				 || rs6000_tune == PROCESSOR_PPCE500MC
 				 || rs6000_tune == PROCESSOR_PPCE500MC64
 				 || rs6000_tune == PROCESSOR_PPCE5500
@@ -4721,6 +4731,7 @@ rs6000_option_override_internal (bool global_init_p)
 	break;
 
       case PROCESSOR_POWER10:
+      case PROCESSOR_POWER11:
 	rs6000_cost = &power10_cost;
 	break;
 
@@ -4832,6 +4843,18 @@ rs6000_option_override_internal (bool global_init_p)
 	  else
 	    rs6000_recip_control |= mask;
 	}
+    }
+
+  /* We only support ROP protection on certain targets.  */
+  if (rs6000_rop_protect)
+    {
+      /* Disallow CPU targets we don't support.  */
+      if (!TARGET_POWER8)
+	error ("%<-mrop-protect%> requires %<-mcpu=power8%> or later");
+
+      /* Disallow ABI targets we don't support.  */
+      if (DEFAULT_ABI != ABI_ELFv2)
+	error ("%<-mrop-protect%> requires the ELFv2 ABI");
     }
 
   /* Initialize all of the registers.  */
@@ -5878,8 +5901,11 @@ rs6000_machine_from_flags (void)
   HOST_WIDE_INT flags = rs6000_isa_flags;
 
   /* Disable the flags that should never influence the .machine selection.  */
-  flags &= ~(OPTION_MASK_PPC_GFXOPT | OPTION_MASK_PPC_GPOPT | OPTION_MASK_ISEL);
+  flags &= ~(OPTION_MASK_PPC_GFXOPT | OPTION_MASK_PPC_GPOPT | OPTION_MASK_ISEL
+	     | OPTION_MASK_ALTIVEC);
 
+  if ((flags & (POWER11_MASKS_SERVER & ~ISA_3_1_MASKS_SERVER)) != 0)
+    return "power11";
   if ((flags & (ISA_3_1_MASKS_SERVER & ~ISA_3_0_MASKS_SERVER)) != 0)
     return "power10";
   if ((flags & (ISA_3_0_MASKS_SERVER & ~ISA_2_7_MASKS_SERVER)) != 0)
@@ -5903,6 +5929,8 @@ void
 emit_asm_machine (void)
 {
   fprintf (asm_out_file, "\t.machine %s\n", rs6000_machine);
+  if (TARGET_ALTIVEC)
+    fprintf (asm_out_file, "\t.machine altivec\n");
 }
 #endif
 
@@ -10126,6 +10154,7 @@ rs6000_reassociation_width (unsigned int opc ATTRIBUTE_UNUSED,
     case PROCESSOR_POWER8:
     case PROCESSOR_POWER9:
     case PROCESSOR_POWER10:
+    case PROCESSOR_POWER11:
       if (DECIMAL_FLOAT_MODE_P (mode))
 	return 1;
       if (VECTOR_MODE_P (mode))
@@ -11458,13 +11487,13 @@ init_float128_ieee (machine_mode mode)
       set_conv_libfunc (trunc_optab, SFmode, mode, "__trunckfsf2");
       set_conv_libfunc (trunc_optab, DFmode, mode, "__trunckfdf2");
 
-      set_conv_libfunc (sext_optab, mode, IFmode, "__trunctfkf2");
+      set_conv_libfunc (trunc_optab, mode, IFmode, "__trunctfkf2");
       if (mode != TFmode && FLOAT128_IBM_P (TFmode))
-	set_conv_libfunc (sext_optab, mode, TFmode, "__trunctfkf2");
+	set_conv_libfunc (trunc_optab, mode, TFmode, "__trunctfkf2");
 
-      set_conv_libfunc (trunc_optab, IFmode, mode, "__extendkftf2");
+      set_conv_libfunc (sext_optab, IFmode, mode, "__extendkftf2");
       if (mode != TFmode && FLOAT128_IBM_P (TFmode))
-	set_conv_libfunc (trunc_optab, TFmode, mode, "__extendkftf2");
+	set_conv_libfunc (sext_optab, TFmode, mode, "__extendkftf2");
 
       set_conv_libfunc (sext_optab, mode, SDmode, "__dpd_extendsdkf");
       set_conv_libfunc (sext_optab, mode, DDmode, "__dpd_extendddkf");
@@ -14673,7 +14702,12 @@ print_operand_address (FILE *file, rtx x)
 	fprintf (file, "@%s(%s)", SMALL_DATA_RELOC,
 		 reg_names[SMALL_DATA_REG]);
       else
-	gcc_assert (!TARGET_TOC);
+	{
+	  /* Do not support getting address directly from TOC, emit error.
+	     No more work is needed for !TARGET_TOC. */
+	  if (TARGET_TOC)
+	    output_operand_lossage ("%%a requires an address of memory");
+	}
     }
   else if (GET_CODE (x) == PLUS && REG_P (XEXP (x, 0))
 	   && REG_P (XEXP (x, 1)))
@@ -15289,7 +15323,7 @@ rs6000_generate_compare (rtx cmp, machine_mode mode)
   rtx op0 = XEXP (cmp, 0);
   rtx op1 = XEXP (cmp, 1);
 
-  if (!TARGET_FLOAT128_HW && FLOAT128_VECTOR_P (mode))
+  if (!TARGET_FLOAT128_HW && FLOAT128_IEEE_P (mode))
     comp_mode = CCmode;
   else if (FLOAT_MODE_P (mode))
     comp_mode = CCFPmode;
@@ -15321,7 +15355,7 @@ rs6000_generate_compare (rtx cmp, machine_mode mode)
 
   /* IEEE 128-bit support in VSX registers when we do not have hardware
      support.  */
-  if (!TARGET_FLOAT128_HW && FLOAT128_VECTOR_P (mode))
+  if (!TARGET_FLOAT128_HW && FLOAT128_IEEE_P (mode))
     {
       rtx libfunc = NULL_RTX;
       bool check_nan = false;
@@ -15622,7 +15656,7 @@ rs6000_expand_float128_convert (rtx dest, rtx src, bool unsigned_p)
 	case E_IFmode:
 	case E_TFmode:
 	  if (FLOAT128_IBM_P (src_mode))
-	    cvt = sext_optab;
+	    cvt = trunc_optab;
 	  else
 	    do_move = true;
 	  break;
@@ -15684,7 +15718,7 @@ rs6000_expand_float128_convert (rtx dest, rtx src, bool unsigned_p)
 	case E_IFmode:
 	case E_TFmode:
 	  if (FLOAT128_IBM_P (dest_mode))
-	    cvt = trunc_optab;
+	    cvt = sext_optab;
 	  else
 	    do_move = true;
 	  break;
@@ -16139,7 +16173,7 @@ rs6000_emit_vector_compare (enum rtx_code rcode,
    OP_FALSE are two VEC_COND_EXPR operands.  CC_OP0 and CC_OP1 are the two
    operands for the relation operation COND.  */
 
-int
+static int
 rs6000_emit_vector_cond_expr (rtx dest, rtx op_true, rtx op_false,
 			      rtx cond, rtx cc_op0, rtx cc_op1)
 {
@@ -18207,7 +18241,8 @@ rs6000_adjust_cost (rtx_insn *insn, int dep_type, rtx_insn *dep_insn, int cost,
 
 	/* Separate a load from a narrower, dependent store.  */
 	if ((rs6000_sched_groups || rs6000_tune == PROCESSOR_POWER9
-	     || rs6000_tune == PROCESSOR_POWER10)
+	     || rs6000_tune == PROCESSOR_POWER10
+	     || rs6000_tune == PROCESSOR_POWER11)
 	    && GET_CODE (PATTERN (insn)) == SET
 	    && GET_CODE (PATTERN (dep_insn)) == SET
 	    && MEM_P (XEXP (PATTERN (insn), 1))
@@ -18246,6 +18281,7 @@ rs6000_adjust_cost (rtx_insn *insn, int dep_type, rtx_insn *dep_insn, int cost,
 		 || rs6000_tune == PROCESSOR_POWER8
 		 || rs6000_tune == PROCESSOR_POWER9
 		 || rs6000_tune == PROCESSOR_POWER10
+		 || rs6000_tune == PROCESSOR_POWER11
                  || rs6000_tune == PROCESSOR_CELL)
                 && recog_memoized (dep_insn)
                 && (INSN_CODE (dep_insn) >= 0))
@@ -18820,6 +18856,7 @@ rs6000_issue_rate (void)
   case PROCESSOR_POWER9:
     return 6;
   case PROCESSOR_POWER10:
+  case PROCESSOR_POWER11:
     return 8;
   default:
     return 1;
@@ -19535,8 +19572,10 @@ rs6000_sched_reorder (FILE *dump ATTRIBUTE_UNUSED, int sched_verbose,
   if (rs6000_tune == PROCESSOR_POWER6)
     load_store_pendulum = 0;
 
-  /* Do Power10 dependent reordering.  */
-  if (rs6000_tune == PROCESSOR_POWER10 && last_scheduled_insn)
+  /* Do Power10/Power11 dependent reordering.  */
+  if (last_scheduled_insn
+      && (rs6000_tune == PROCESSOR_POWER10
+	  || rs6000_tune == PROCESSOR_POWER11))
     power10_sched_reorder (ready, n_ready - 1);
 
   return rs6000_issue_rate ();
@@ -19560,8 +19599,10 @@ rs6000_sched_reorder2 (FILE *dump, int sched_verbose, rtx_insn **ready,
       && recog_memoized (last_scheduled_insn) >= 0)
     return power9_sched_reorder2 (ready, *pn_ready - 1);
 
-  /* Do Power10 dependent reordering.  */
-  if (rs6000_tune == PROCESSOR_POWER10 && last_scheduled_insn)
+  /* Do Power10/Power11 dependent reordering.  */
+  if (last_scheduled_insn
+      && (rs6000_tune == PROCESSOR_POWER10
+	  || rs6000_tune == PROCESSOR_POWER11))
     return power10_sched_reorder (ready, *pn_ready - 1);
 
   return cached_can_issue_more;
@@ -22778,7 +22819,8 @@ rs6000_register_move_cost (machine_mode mode,
 		 allocation a move within the same class might turn
 		 out to be a nop.  */
 	      if (rs6000_tune == PROCESSOR_POWER9
-		  || rs6000_tune == PROCESSOR_POWER10)
+		  || rs6000_tune == PROCESSOR_POWER10
+		  || rs6000_tune == PROCESSOR_POWER11)
 		ret = 3 * hard_regno_nregs (FIRST_GPR_REGNO, mode);
 	      else
 		ret = 4 * hard_regno_nregs (FIRST_GPR_REGNO, mode);
@@ -23447,28 +23489,28 @@ altivec_expand_vec_perm_const (rtx target, rtx op0, rtx op1,
      CODE_FOR_altivec_vpkuwum_direct,
      {2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22, 23, 26, 27, 30, 31}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghb_direct
-		      : CODE_FOR_altivec_vmrglb_direct,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghb_direct_be
+		      : CODE_FOR_altivec_vmrglb_direct_le,
      {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghh_direct
-		      : CODE_FOR_altivec_vmrglh_direct,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghh_direct_be
+		      : CODE_FOR_altivec_vmrglh_direct_le,
      {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghw_direct_v4si
-		      : CODE_FOR_altivec_vmrglw_direct_v4si,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghw_direct_v4si_be
+		      : CODE_FOR_altivec_vmrglw_direct_v4si_le,
      {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglb_direct
-		      : CODE_FOR_altivec_vmrghb_direct,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglb_direct_be
+		      : CODE_FOR_altivec_vmrghb_direct_le,
      {8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglh_direct
-		      : CODE_FOR_altivec_vmrghh_direct,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglh_direct_be
+		      : CODE_FOR_altivec_vmrghh_direct_le,
      {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglw_direct_v4si
-		      : CODE_FOR_altivec_vmrghw_direct_v4si,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglw_direct_v4si_be
+		      : CODE_FOR_altivec_vmrghw_direct_v4si_le,
      {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31}},
     {OPTION_MASK_P8_VECTOR,
      BYTES_BIG_ENDIAN ? CODE_FOR_p8_vmrgew_v4sf_direct
@@ -24370,6 +24412,18 @@ rs6000_c_mode_for_suffix (char suffix)
   return VOIDmode;
 }
 
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode for
+   TI_LONG_DOUBLE_TYPE which is for long double type, go with the default
+   one for the others.  */
+
+static machine_mode
+rs6000_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return rs6000_long_double_type_size == 128 ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
+}
+
 /* Target hook for invalid_arg_for_unprototyped_fn. */
 static const char *
 invalid_arg_for_unprototyped_fn (const_tree typelist, const_tree funcdecl, const_tree val)
@@ -24429,7 +24483,7 @@ static struct rs6000_opt_mask const rs6000_opt_masks[] =
 								false, true  },
   { "cmpb",			OPTION_MASK_CMPB,		false, true  },
   { "crypto",			OPTION_MASK_CRYPTO,		false, true  },
-  { "direct-move",		OPTION_MASK_DIRECT_MOVE,	false, true  },
+  { "direct-move",		0,				false, true  },
   { "dlmzb",			OPTION_MASK_DLMZB,		false, true  },
   { "efficient-unaligned-vsx",	OPTION_MASK_EFFICIENT_UNALIGNED_VSX,
 								false, true  },
@@ -24437,6 +24491,7 @@ static struct rs6000_opt_mask const rs6000_opt_masks[] =
   { "float128-hardware",	OPTION_MASK_FLOAT128_HW,	false, true  },
   { "fprnd",			OPTION_MASK_FPRND,		false, true  },
   { "power10",			OPTION_MASK_POWER10,		false, true  },
+  { "power11",			OPTION_MASK_POWER11,		false, false },
   { "hard-dfp",			OPTION_MASK_DFP,		false, true  },
   { "htm",			OPTION_MASK_HTM,		false, true  },
   { "isel",			OPTION_MASK_ISEL,		false, true  },
@@ -24615,8 +24670,11 @@ rs6000_inner_target_options (tree args, bool attr_p)
 			  {
 			    if (mask == OPTION_MASK_VSX)
 			      {
-				mask |= OPTION_MASK_ALTIVEC;
-				TARGET_AVOID_XFORM = 0;
+				if (!(rs6000_isa_flags_explicit
+				      & OPTION_MASK_ALTIVEC))
+				  mask |= OPTION_MASK_ALTIVEC;
+				if (!OPTION_SET_P (TARGET_AVOID_XFORM))
+				  TARGET_AVOID_XFORM = 0;
 			      }
 			  }
 
@@ -24637,7 +24695,8 @@ rs6000_inner_target_options (tree args, bool attr_p)
 		    if (strcmp (r, rs6000_opt_vars[i].name) == 0)
 		      {
 			size_t j = rs6000_opt_vars[i].global_offset;
-			*((int *) ((char *)&global_options + j)) = !invert;
+			*((int *) ((char *) &global_options + j)) = !invert;
+			*((int *) ((char *) &global_options_set + j)) = 1;
 			error_p = false;
 			not_valid_p = false;
 			break;

@@ -84,8 +84,10 @@ EXTERN bool M2Options_SetVerboseUnbounded (bool value);
 EXTERN void M2Options_SetXCode (bool value);
 EXTERN void M2Options_SetCompilerDebugging (bool value);
 EXTERN void M2Options_SetQuadDebugging (bool value);
-EXTERN void M2Options_SetDebugTraceQuad (bool value);
-EXTERN void M2Options_SetDebugTraceAPI (bool value);
+EXTERN bool M2Options_GetDebugTraceToken (void);
+EXTERN bool M2Options_GetDebugTraceLine (void);
+EXTERN void M2Options_SetDebugFunctionLineNumbers (bool value);
+EXTERN bool M2Options_GetDebugFunctionLineNumbers (void);
 EXTERN void M2Options_SetSources (bool value);
 EXTERN bool M2Options_SetUnboundedByReference (bool value);
 EXTERN void M2Options_SetDumpSystemExports (bool value);
@@ -104,6 +106,7 @@ EXTERN void M2Options_FinaliseOptions (void);
 EXTERN void M2Options_SetDebugFunctionLineNumbers (bool value);
 EXTERN void M2Options_SetGenerateStatementNote (bool value);
 EXTERN bool M2Options_GetCpp (void);
+EXTERN bool M2Options_GetLineDirectives (void);
 EXTERN bool M2Options_GetM2g (void);
 EXTERN bool M2Options_SetM2g (bool value);
 EXTERN bool M2Options_SetLowerCaseKeywords (bool value);
@@ -152,6 +155,17 @@ EXTERN void M2Options_SetIBMLongDouble (bool value);
 EXTERN bool M2Options_GetIBMLongDouble (void);
 EXTERN void M2Options_SetIEEELongDouble (bool value);
 EXTERN bool M2Options_GetIEEELongDouble (void);
+EXTERN bool M2Options_GetDumpDeclFilename (void);
+EXTERN void M2Options_SetDumpDeclFilename (bool value, const char *arg);
+EXTERN bool M2Options_GetDumpQuadFilename (void);
+EXTERN void M2Options_SetDumpQuadFilename (bool value, const char *arg);
+EXTERN bool M2Options_GetDumpGimpleFilename (void);
+EXTERN void M2Options_SetDumpGimpleFilename (bool value, const char *arg);
+EXTERN void M2Options_SetM2DumpFilter (bool value, const char *args);
+EXTERN char *M2Options_GetM2DumpFilter (void);
+EXTERN void M2Options_SetM2DebugTraceFilter (bool value, const char *arg);
+EXTERN bool M2Options_SetM2Dump (bool value, const char *arg);
+EXTERN bool M2Options_GetDumpGimple (void);
 
 #undef EXTERN
 #endif /* m2options_h.  */

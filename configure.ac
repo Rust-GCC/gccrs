@@ -1411,6 +1411,7 @@ fi
 
 ACX_PROG_GNAT
 ACX_PROG_GDC
+ACX_PROG_CARGO
 ACX_PROG_CMP_IGNORE_INITIAL
 
 AC_ARG_ENABLE([bootstrap],
@@ -2038,22 +2039,21 @@ AC_SUBST(PICFLAG)
 
 # Rust requires -ldl and -lpthread if you are using an old glibc that does not include them by
 # default, so we check for them here
-# We are doing the test here and not in the gcc/configure to be able to nicely disable the
-# build of the Rust frontend in case a dep is missing.
+
 missing_rust_dynlibs=none
 
-save_LIBS="$LIBS"
-LIBS=
 AC_SEARCH_LIBS([dlopen], [dl])
 AC_SEARCH_LIBS([pthread_create], [pthread])
-CRAB1_LIBS="$LIBS"
-LIBS="$save_LIBS"
 
-if test "$ac_cv_search_dlopen" = no; then
+if test "$ac_cv_search_dlopen" = -ldl; then
+    CRAB1_LIBS="$CRAB1_LIBS -ldl"
+elif test "$ac_cv_search_dlopen" = no; then
     missing_rust_dynlibs="libdl"
 fi
 
-if test "$ac_cv_search_pthread_create" = no; then
+if test "$ac_cv_search_pthread_create" = -lpthread; then
+    CRAB1_LIBS="$CRAB1_LIBS -lpthread"
+elif test "$ac_cv_search_pthread_create" = no; then
     missing_rust_dynlibs="$missing_rust_dynlibs, libpthread"
 fi
 
@@ -2346,6 +2346,35 @@ directories, to avoid imposing the performance cost of
 	        esac
           ;;
         esac
+
+        # Pre-conditions to consider whether cargo being supported.
+        if test x"$have_cargo" = xyes \
+          && test x"$build" != x"$host"; then
+          # Until <https://github.com/Rust-GCC/gccrs/issues/2898>
+          # "'cargo' should build for the host system" is resolved:
+          AC_MSG_WARN([use of cargo not yet supported here in Canadian cross configurations])
+          have_cargo=no
+        else
+          # Assume that cargo-produced object files are compatible with what
+          # we're going to build here.
+          :
+        fi
+        # Disable Rust if cargo is unavailable.
+        case ${add_this_lang}:${language}:${have_cargo} in
+          yes:rust:no)
+            # Specifically requested language; tell them.
+            AC_MSG_ERROR([cargo is required to build $language])
+            ;;
+          all:rust:no)
+            AC_MSG_WARN([cargo is required to build $language])
+            add_this_lang=unsupported
+            ;;
+          *:rust:no)
+            # Silently disable.
+            add_this_lang=unsupported
+            ;;
+        esac
+
 
         # Disable a language that is unsupported by the target.
 	case "${add_this_lang}: $unsupported_languages " in

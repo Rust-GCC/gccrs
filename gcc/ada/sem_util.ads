@@ -110,10 +110,9 @@ package Sem_Util is
    --  because those are the only dynamic cases.
 
    procedure Append_Entity_Name (Buf : in out Bounded_String; E : Entity_Id);
-   --  Recursive procedure to construct string for qualified name of enclosing
-   --  program unit. The qualification stops at an enclosing scope has no
-   --  source name (block or loop). If entity is a subprogram instance, skip
-   --  enclosing wrapper package. The name is appended to Buf.
+   --  Construct a user-readable expanded name for E, for printing in messages,
+   --  such as run-time errors for unhandled exceptions. Names created for
+   --  internal use are not included. The name is appended to Buf.
 
    procedure Append_Inherited_Subprogram (S : Entity_Id);
    --  If the parent of the operation is declared in the visible part of
@@ -374,7 +373,7 @@ package Sem_Util is
    --  call C2 (not including the construct N itself), there is no other name
    --  anywhere within a direct constituent of the construct C other than
    --  the one containing C2, that is known to refer to the same object (RM
-   --  6.4.1(6.17/3)).
+   --  6.4.1(6.18-6.19)).
 
    procedure Check_Implicit_Dereference (N : Node_Id; Typ : Entity_Id);
    --  AI05-139-2: Accessors and iterators for containers. This procedure
@@ -1516,9 +1515,9 @@ package Sem_Util is
 
    function Has_Relaxed_Initialization (E : Entity_Id) return Boolean;
    --  Returns True iff entity E is subject to the Relaxed_Initialization
-   --  aspect. Entity E can be either type, variable, constant, subprogram,
-   --  entry or an abstract state. For private types and deferred constants
-   --  E should be the private view, because aspect can only be attached there.
+   --  aspect. Entity E can be either type, variable, constant, subprogram or
+   --  entry. For private types and deferred constants E should be the private
+   --  view, because aspect can only be attached there.
 
    function Has_Signed_Zeros (E : Entity_Id) return Boolean;
    --  Determines if the floating-point type E supports signed zeros.
@@ -1531,6 +1530,9 @@ package Sem_Util is
 
    function Has_Static_Array_Bounds (Typ : Node_Id) return Boolean;
    --  Return whether an array type has static bounds
+
+   function Has_Static_Empty_Array_Bounds (Typ : Node_Id) return Boolean;
+   --  Return whether array type Typ has static empty bounds
 
    function Has_Static_Non_Empty_Array_Bounds (Typ : Node_Id) return Boolean;
    --  Determine whether array type Typ has static non-empty bounds
@@ -1559,6 +1561,12 @@ package Sem_Util is
      (Typ : Entity_Id) return Boolean;
    --  Given arbitrary type Typ, determine whether it contains at least one
    --  effectively volatile component.
+
+   function Has_Enabled_Aspect (Id : Entity_Id; A : Aspect_Id) return Boolean
+     with Pre => A in Boolean_Aspects;
+   --  Returns True if a Boolean-valued aspect is enabled on entity Id; i.e. it
+   --  is present and either has no aspect definition or its aspect definition
+   --  statically evaluates to True.
 
    function Has_Volatile_Component (Typ : Entity_Id) return Boolean;
    --  Given arbitrary type Typ, determine whether it contains at least one
@@ -2214,7 +2222,7 @@ package Sem_Util is
    --  type be partially initialized.
 
    function Is_Potentially_Unevaluated (N : Node_Id) return Boolean;
-   --  Predicate to implement definition given in RM 6.1.1 (20/3)
+   --  Predicate to implement definition given in RM 2012 6.1.1 (20/3)
 
    function Is_Potentially_Persistent_Type (T : Entity_Id) return Boolean;
    --  Determines if type T is a potentially persistent type. A potentially
@@ -2391,6 +2399,11 @@ package Sem_Util is
    function Is_Universal_Numeric_Type (T : Entity_Id) return Boolean;
    pragma Inline (Is_Universal_Numeric_Type);
    --  True if T is Universal_Integer or Universal_Real
+
+   function Is_Unconstrained_Or_Tagged_Item (Item : Entity_Id) return Boolean;
+   --  Subsidiary to Collect_Subprogram_Inputs_Outputs and the analysis of
+   --  pragma Depends. Determine whether the type of dependency item Item is
+   --  tagged, unconstrained array or unconstrained record.
 
    function Is_User_Defined_Equality (Id : Entity_Id) return Boolean;
    --  Determine whether an entity denotes a user-defined equality
@@ -2785,7 +2798,7 @@ package Sem_Util is
    --   2) N is a comparison operator, one of the operands is null, and the
    --      type of the other operand is a descendant of System.Address.
 
-   function Number_Of_Elements_In_Array (T : Entity_Id) return Int;
+   function Number_Of_Elements_In_Array (T : Entity_Id) return Nat;
    --  Returns the number of elements in the array T if the index bounds of T
    --  is known at compile time. If the bounds are not known at compile time,
    --  the function returns the value zero.
@@ -2903,6 +2916,18 @@ package Sem_Util is
    --  are set (recursively) on any composite type that has a component marked
    --  by one of these flags. This procedure can only set flags for Typ, and
    --  never clear them. Comp_Typ is the type of a component or a parent.
+
+   procedure Propagate_Controlled_Flags
+     (Typ      : Entity_Id;
+      From_Typ : Entity_Id;
+      Comp     : Boolean := False;
+      Deriv    : Boolean := False);
+   --  Set Disable_Controlled, Finalize_Storage_Only, Has_Controlled_Component,
+   --  Has_Relaxed_Finalization, and Is_Controlled_Active on Typ when the flags
+   --  are set on From_Typ. If Comp is True, From_Typ is assumed to be the type
+   --  of a component of Typ while, if Deriv is True, From_Typ is assumed to be
+   --  the parent type of Typ. This procedure can only set flags for Typ, and
+   --  never clear them.
 
    procedure Propagate_DIC_Attributes
      (Typ      : Entity_Id;
@@ -3377,6 +3402,9 @@ package Sem_Util is
 
    function Yields_Universal_Type (N : Node_Id) return Boolean;
    --  Determine whether unanalyzed node N yields a universal type
+
+   procedure Preanalyze_And_Resolve_Without_Errors (N : Node_Id);
+   --  Preanalyze and resolve N without reporting errors
 
    procedure Preanalyze_Without_Errors (N : Node_Id);
    --  Preanalyze N without reporting errors

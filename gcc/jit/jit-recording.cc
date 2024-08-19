@@ -19,9 +19,10 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
+#define INCLUDE_SSTREAM
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
+#include "target.h"
 #include "pretty-print.h"
 #include "toplev.h"
 
@@ -29,7 +30,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "jit-builtins.h"
 #include "jit-recording.h"
 #include "jit-playback.h"
-#include <sstream>
 
 namespace gcc {
 namespace jit {
@@ -1077,7 +1077,7 @@ recording::context::new_global_init_rvalue (lvalue *variable,
   gbl->set_rvalue_init (init); /* Needed by the global for write dump.  */
 }
 
-/* Create a recording::memento_of_sizeof instance and add it
+/* Create a recording::memento_of_typeinfo instance and add it
    to this context's list of mementos.
 
    Implements the post-error-checking part of
@@ -1087,7 +1087,22 @@ recording::rvalue *
 recording::context::new_sizeof (recording::type *type)
 {
   recording::rvalue *result =
-    new memento_of_sizeof (this, NULL, type);
+    new memento_of_typeinfo (this, NULL, type, TYPE_INFO_SIZE_OF);
+  record (result);
+  return result;
+}
+
+/* Create a recording::memento_of_typeinfo instance and add it
+   to this context's list of mementos.
+
+   Implements the post-error-checking part of
+   gcc_jit_context_new_alignof.  */
+
+recording::rvalue *
+recording::context::new_alignof (recording::type *type)
+{
+  recording::rvalue *result =
+    new memento_of_typeinfo (this, NULL, type, TYPE_INFO_ALIGN_OF);
   record (result);
   return result;
 }
@@ -2353,6 +2368,7 @@ size_t
 recording::memento_of_get_type::get_size ()
 {
   int size;
+  machine_mode m;
   switch (m_kind)
     {
     case GCC_JIT_TYPE_VOID:
@@ -2399,13 +2415,20 @@ recording::memento_of_get_type::get_size ()
       size = 128;
       break;
     case GCC_JIT_TYPE_FLOAT:
-      size = FLOAT_TYPE_SIZE;
+      m = targetm.c.mode_for_floating_type (TI_FLOAT_TYPE);
+      size = GET_MODE_PRECISION (m).to_constant ();
       break;
+#ifdef HAVE_BFmode
+    case GCC_JIT_TYPE_BFLOAT16:
+      return GET_MODE_UNIT_SIZE (BFmode);
+#endif
     case GCC_JIT_TYPE_DOUBLE:
-      size = DOUBLE_TYPE_SIZE;
+      m = targetm.c.mode_for_floating_type (TI_DOUBLE_TYPE);
+      size = GET_MODE_PRECISION (m).to_constant ();
       break;
     case GCC_JIT_TYPE_LONG_DOUBLE:
-      size = LONG_DOUBLE_TYPE_SIZE;
+      m = targetm.c.mode_for_floating_type (TI_LONG_DOUBLE_TYPE);
+      size = GET_MODE_PRECISION (m).to_constant ();
       break;
     case GCC_JIT_TYPE_SIZE_T:
       size = MAX_BITS_PER_WORD;
@@ -2460,6 +2483,7 @@ recording::memento_of_get_type::dereference ()
     case GCC_JIT_TYPE_INT64_T:
     case GCC_JIT_TYPE_INT128_T:
     case GCC_JIT_TYPE_FLOAT:
+    case GCC_JIT_TYPE_BFLOAT16:
     case GCC_JIT_TYPE_DOUBLE:
     case GCC_JIT_TYPE_LONG_DOUBLE:
     case GCC_JIT_TYPE_COMPLEX_FLOAT:
@@ -2524,6 +2548,7 @@ recording::memento_of_get_type::is_int () const
       return true;
 
     case GCC_JIT_TYPE_FLOAT:
+    case GCC_JIT_TYPE_BFLOAT16:
     case GCC_JIT_TYPE_DOUBLE:
     case GCC_JIT_TYPE_LONG_DOUBLE:
       return false;
@@ -2582,6 +2607,7 @@ recording::memento_of_get_type::is_signed () const
     case GCC_JIT_TYPE_UINT128_T:
 
     case GCC_JIT_TYPE_FLOAT:
+    case GCC_JIT_TYPE_BFLOAT16:
     case GCC_JIT_TYPE_DOUBLE:
     case GCC_JIT_TYPE_LONG_DOUBLE:
 
@@ -2641,6 +2667,7 @@ recording::memento_of_get_type::is_float () const
       return false;
 
     case GCC_JIT_TYPE_FLOAT:
+    case GCC_JIT_TYPE_BFLOAT16:
     case GCC_JIT_TYPE_DOUBLE:
     case GCC_JIT_TYPE_LONG_DOUBLE:
       return true;
@@ -2704,6 +2731,7 @@ recording::memento_of_get_type::is_bool () const
       return false;
 
     case GCC_JIT_TYPE_FLOAT:
+    case GCC_JIT_TYPE_BFLOAT16:
     case GCC_JIT_TYPE_DOUBLE:
     case GCC_JIT_TYPE_LONG_DOUBLE:
       return false;
@@ -2784,6 +2812,7 @@ static const char * const get_type_strings[] = {
   "__int64_t",    /* GCC_JIT_TYPE_INT64_T */
   "__int128_t",   /* GCC_JIT_TYPE_INT128_T */
 
+  "bfloat16", /* GCC_JIT_TYPE_BFLOAT16 */
 };
 
 /* Implementation of recording::memento::make_debug_string for
@@ -2829,6 +2858,7 @@ static const char * const get_type_enum_strings[] = {
   "GCC_JIT_TYPE_INT32_T",
   "GCC_JIT_TYPE_INT64_T",
   "GCC_JIT_TYPE_INT128_T",
+  "GCC_JIT_TYPE_BFLOAT16",
 };
 
 void
@@ -4410,7 +4440,7 @@ recording::function::dump_to_dot (const char *path)
     return;
 
   pretty_printer the_pp;
-  the_pp.buffer->stream = fp;
+  the_pp.set_output_stream (fp);
 
   pretty_printer *pp = &the_pp;
 
@@ -5472,25 +5502,44 @@ memento_of_new_rvalue_from_const <void *>::write_reproducer (reproducer &r)
 
 } // namespace recording
 
-/* The implementation of class gcc::jit::recording::memento_of_sizeof.  */
+/* The implementation of class gcc::jit::recording::memento_of_typeinfo.  */
 
 /* Implementation of pure virtual hook recording::memento::replay_into
-   for recording::memento_of_sizeof.  */
+   for recording::memento_of_typeinfo.  */
 
 void
-recording::memento_of_sizeof::replay_into (replayer *r)
+recording::memento_of_typeinfo::replay_into (replayer *r)
 {
-  set_playback_obj (r->new_sizeof (m_type->playback_type ()));
+  switch (m_info_type)
+  {
+  case TYPE_INFO_ALIGN_OF:
+    set_playback_obj (r->new_alignof (m_type->playback_type ()));
+    break;
+  case TYPE_INFO_SIZE_OF:
+    set_playback_obj (r->new_sizeof (m_type->playback_type ()));
+    break;
+  }
 }
 
 /* Implementation of recording::memento::make_debug_string for
    sizeof expressions.  */
 
 recording::string *
-recording::memento_of_sizeof::make_debug_string ()
+recording::memento_of_typeinfo::make_debug_string ()
 {
+  const char* ident = "";
+  switch (m_info_type)
+  {
+    case TYPE_INFO_ALIGN_OF:
+      ident = "_Alignof";
+      break;
+    case TYPE_INFO_SIZE_OF:
+      ident = "sizeof";
+      break;
+  }
   return string::from_printf (m_ctxt,
-			      "sizeof (%s)",
+			      "%s (%s)",
+			      ident,
 			      m_type->get_debug_string ());
 }
 
@@ -5498,13 +5547,24 @@ recording::memento_of_sizeof::make_debug_string ()
    expressions.  */
 
 void
-recording::memento_of_sizeof::write_reproducer (reproducer &r)
+recording::memento_of_typeinfo::write_reproducer (reproducer &r)
 {
+  const char* type = "";
+  switch (m_info_type)
+  {
+    case TYPE_INFO_ALIGN_OF:
+      type = "align";
+      break;
+    case TYPE_INFO_SIZE_OF:
+      type = "size";
+      break;
+  }
   const char *id = r.make_identifier (this, "rvalue");
   r.write ("  gcc_jit_rvalue *%s =\n"
-    "    gcc_jit_context_new_sizeof (%s, /* gcc_jit_context *ctxt */\n"
-    "                                %s); /* gcc_jit_type *type */\n",
+    "    gcc_jit_context_new_%sof (%s, /* gcc_jit_context *ctxt */\n"
+    "                                (gcc_jit_type *) %s); /* gcc_jit_type *type */\n",
     id,
+    type,
     r.get_identifier (get_context ()),
     r.get_identifier (m_type));
 }

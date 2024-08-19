@@ -1320,6 +1320,7 @@ simplify_intrinsic_op (gfc_expr *p, int type)
     }
 
   result->rank = p->rank;
+  result->corank = p->corank;
   result->where = p->where;
   gfc_replace_expr (p, result);
 
@@ -1844,6 +1845,11 @@ find_inquiry_ref (gfc_expr *p, gfc_expr **newp)
 
   gfc_resolve_expr (tmp);
 
+  /* Leave these to the backend since the type and kind is not confirmed until
+     resolution.  */
+  if (IS_INFERRED_TYPE (tmp))
+    goto cleanup;
+
   /* In principle there can be more than one inquiry reference.  */
   for (; inquiry; inquiry = inquiry->next)
     {
@@ -2156,6 +2162,7 @@ simplify_parameter_variable (gfc_expr *p, int type)
       e->expr_type = EXPR_ARRAY;
       e->ts = p->ts;
       e->rank = p->rank;
+      e->corank = p->corank;
       e->value.constructor = NULL;
       e->shape = gfc_copy_shape (p->shape, p->rank);
       e->where = p->where;
@@ -2176,6 +2183,7 @@ simplify_parameter_variable (gfc_expr *p, int type)
       gfc_free_shape (&e->shape, e->rank);
       e->shape = gfc_copy_shape (p->shape, p->rank);
       e->rank = p->rank;
+      e->corank = p->corank;
 
       if (e->ts.type == BT_CHARACTER && p->ts.u.cl)
 	e->ts = p->ts;
@@ -2880,6 +2888,13 @@ check_transformational (gfc_expr *e)
     "trim", "unpack", "findloc", NULL
   };
 
+  static const char * const trans_func_f2023[] =  {
+    "all", "any", "count", "dot_product", "matmul", "null", "pack",
+    "product", "repeat", "reshape", "selected_char_kind", "selected_int_kind",
+    "selected_logical_kind", "selected_real_kind", "spread", "sum", "transfer",
+    "transpose", "trim", "unpack", "findloc", NULL
+  };
+
   int i;
   const char *name;
   const char *const *functions;
@@ -2890,7 +2905,9 @@ check_transformational (gfc_expr *e)
 
   name = e->symtree->n.sym->name;
 
-  if (gfc_option.allow_std & GFC_STD_F2008)
+  if (gfc_option.allow_std & GFC_STD_F2023)
+    functions = trans_func_f2023;
+  else if (gfc_option.allow_std & GFC_STD_F2008)
     functions = trans_func_f2008;
   else if (gfc_option.allow_std & GFC_STD_F2003)
     functions = trans_func_f2003;
@@ -3195,6 +3212,11 @@ bool
 gfc_reduce_init_expr (gfc_expr *expr)
 {
   bool t;
+
+  /* It is far too early to resolve a class compcall. Punt to resolution.  */
+  if (expr && expr->expr_type == EXPR_COMPCALL
+      && expr->symtree->n.sym->ts.type == BT_CLASS)
+    return false;
 
   gfc_init_expr_flag = true;
   t = gfc_resolve_expr (expr);
@@ -3509,19 +3531,14 @@ check_restricted (gfc_expr *e)
       if (!check_references (e->ref, &check_restricted))
 	break;
 
-      /* gfc_is_formal_arg broadcasts that a formal argument list is being
-	 processed in resolve.cc(resolve_formal_arglist).  This is done so
-	 that host associated dummy array indices are accepted (PR23446).
-	 This mechanism also does the same for the specification expressions
-	 of array-valued functions.  */
       if (e->error
 	    || sym->attr.in_common
 	    || sym->attr.use_assoc
+	    || sym->attr.used_in_submodule
 	    || sym->attr.dummy
 	    || sym->attr.implied_index
 	    || sym->attr.flavor == FL_PARAMETER
-	    || is_parent_of_current_ns (sym->ns)
-	    || (gfc_is_formal_arg () && (sym->ns == gfc_current_ns)))
+	    || is_parent_of_current_ns (gfc_get_spec_ns (sym)))
 	{
 	  t = true;
 	  break;
@@ -4582,7 +4599,10 @@ gfc_check_assign_symbol (gfc_symbol *sym, gfc_component *comp, gfc_expr *rvalue)
   lvalue.expr_type = EXPR_VARIABLE;
   lvalue.ts = sym->ts;
   if (sym->as)
-    lvalue.rank = sym->as->rank;
+    {
+      lvalue.rank = sym->as->rank;
+      lvalue.corank = sym->as->corank;
+    }
   lvalue.symtree = XCNEW (gfc_symtree);
   lvalue.symtree->n.sym = sym;
   lvalue.where = sym->declared_at;
@@ -4595,6 +4615,7 @@ gfc_check_assign_symbol (gfc_symbol *sym, gfc_component *comp, gfc_expr *rvalue)
       lvalue.ref->u.c.sym = sym;
       lvalue.ts = comp->ts;
       lvalue.rank = comp->as ? comp->as->rank : 0;
+      lvalue.corank = comp->as ? comp->as->corank : 0;
       lvalue.where = comp->loc;
       pointer = comp->ts.type == BT_CLASS &&  CLASS_DATA (comp)
 		? CLASS_DATA (comp)->attr.class_pointer : comp->attr.pointer;
@@ -5247,14 +5268,15 @@ gfc_get_variable_expr (gfc_symtree *var)
 	       && CLASS_DATA (var->n.sym)
 	       && CLASS_DATA (var->n.sym)->as)))
     {
-      e->rank = var->n.sym->ts.type == BT_CLASS
-		? CLASS_DATA (var->n.sym)->as->rank : var->n.sym->as->rank;
+      gfc_array_spec *as = var->n.sym->ts.type == BT_CLASS
+			     ? CLASS_DATA (var->n.sym)->as
+			     : var->n.sym->as;
+      e->rank = as->rank;
+      e->corank = as->corank;
       e->ref = gfc_get_ref ();
       e->ref->type = REF_ARRAY;
       e->ref->u.ar.type = AR_FULL;
-      e->ref->u.ar.as = gfc_copy_array_spec (var->n.sym->ts.type == BT_CLASS
-					     ? CLASS_DATA (var->n.sym)->as
-					     : var->n.sym->as);
+      e->ref->u.ar.as = gfc_copy_array_spec (as);
     }
 
   return e;
@@ -5283,6 +5305,8 @@ gfc_add_full_array_ref (gfc_expr *e, gfc_array_spec *as)
   ref->type = REF_ARRAY;
   ref->u.ar.type = AR_FULL;
   ref->u.ar.dimen = e->rank;
+  /* Do not set the corank here, or resolve will not be able to set correct
+     dimen-types for the coarray.  */
   ref->u.ar.where = e->where;
   ref->u.ar.as = as;
 }
@@ -5302,7 +5326,8 @@ gfc_lval_expr_from_sym (gfc_symbol *sym)
   /* It will always be a full array.  */
   as = IS_CLASS_ARRAY (sym) ? CLASS_DATA (sym)->as : sym->as;
   lval->rank = as ? as->rank : 0;
-  if (lval->rank)
+  lval->corank = as ? as->corank : 0;
+  if (lval->rank || lval->corank)
     gfc_add_full_array_ref (lval, as);
   return lval;
 }
@@ -5491,7 +5516,7 @@ gfc_traverse_expr (gfc_expr *expr, gfc_symbol *sym,
 	  break;
 
 	case REF_INQUIRY:
-	  return true;
+	  return false;
 
 	default:
 	  gcc_unreachable ();
@@ -5559,11 +5584,14 @@ bool
 gfc_is_alloc_class_scalar_function (gfc_expr *expr)
 {
   if (expr->expr_type == EXPR_FUNCTION
-      && expr->value.function.esym
-      && expr->value.function.esym->result
-      && expr->value.function.esym->result->ts.type == BT_CLASS
-      && !CLASS_DATA (expr->value.function.esym->result)->attr.dimension
-      && CLASS_DATA (expr->value.function.esym->result)->attr.allocatable)
+      && ((expr->value.function.esym
+	   && expr->value.function.esym->result
+	   && expr->value.function.esym->result->ts.type == BT_CLASS
+	   && !CLASS_DATA (expr->value.function.esym->result)->attr.dimension
+	   && CLASS_DATA (expr->value.function.esym->result)->attr.allocatable)
+	  || (expr->ts.type == BT_CLASS
+	      && CLASS_DATA (expr)->attr.allocatable
+	      && !CLASS_DATA (expr)->attr.dimension)))
     return true;
 
   return false;
@@ -5775,6 +5803,10 @@ gfc_is_coindexed (gfc_expr *e)
 {
   gfc_ref *ref;
 
+  if (e->expr_type == EXPR_FUNCTION && e->value.function.isym
+      && e->value.function.isym->id == GFC_ISYM_CAF_GET)
+    e = e->value.function.actual->expr;
+
   for (ref = e->ref; ref; ref = ref->next)
     if (ref->type == REF_ARRAY && ref->u.ar.codimen > 0)
       return !gfc_ref_this_image (ref);
@@ -5852,32 +5884,6 @@ gfc_is_coarray (gfc_expr *e)
     }
 
   return coarray && !coindexed;
-}
-
-
-int
-gfc_get_corank (gfc_expr *e)
-{
-  int corank;
-  gfc_ref *ref;
-
-  if (!gfc_is_coarray (e))
-    return 0;
-
-  if (e->ts.type == BT_CLASS && CLASS_DATA (e))
-    corank = CLASS_DATA (e)->as
-	     ? CLASS_DATA (e)->as->corank : 0;
-  else
-    corank = e->symtree->n.sym->as ? e->symtree->n.sym->as->corank : 0;
-
-  for (ref = e->ref; ref; ref = ref->next)
-    {
-      if (ref->type == REF_ARRAY)
-	corank = ref->u.ar.as->corank;
-      gcc_assert (ref->type != REF_SUBSTRING);
-    }
-
-  return corank;
 }
 
 
@@ -6025,15 +6031,16 @@ gfc_is_simply_contiguous (gfc_expr *expr, bool strict, bool permit_element)
     }
 
   sym = expr->symtree->n.sym;
-  if (expr->ts.type != BT_CLASS
-      && ((part_ref
-	   && !part_ref->u.c.component->attr.contiguous
-	   && part_ref->u.c.component->attr.pointer)
-	  || (!part_ref
-	      && !sym->attr.contiguous
-	      && (sym->attr.pointer
-		  || (sym->as && sym->as->type == AS_ASSUMED_RANK)
-		  || (sym->as && sym->as->type == AS_ASSUMED_SHAPE)))))
+  if ((part_ref
+       && part_ref->u.c.component
+       && !part_ref->u.c.component->attr.contiguous
+       && IS_POINTER (part_ref->u.c.component))
+      || (!part_ref
+	  && expr->ts.type != BT_CLASS
+	  && !sym->attr.contiguous
+	  && (sym->attr.pointer
+	      || (sym->as && sym->as->type == AS_ASSUMED_RANK)
+	      || (sym->as && sym->as->type == AS_ASSUMED_SHAPE))))
     return false;
 
   if (!ar || ar->type == AR_FULL)

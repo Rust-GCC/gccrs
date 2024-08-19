@@ -70,7 +70,7 @@ struct libc_tm_r {
                    int tm_yday;
                    int tm_isdst;
                    long int tm_gmtoff;
-                   void *tm_zone;
+                   void * tm_zone;
                  };
 
 struct libc_timeb_r {
@@ -178,7 +178,7 @@ EXTERN int libc_close (int d);
    open - open the file, filename with flag and mode.
 */
 
-EXTERN int libc_open (void * filename, int oflag, ...);
+EXTERN int libc_open (void * filename, int oflag, int mode);
 
 /*
    creat - creates a new file

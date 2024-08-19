@@ -53,6 +53,8 @@ typedef struct separate_ops
   tree type;
   tree op0, op1, op2;
 } *sepops;
+
+typedef const struct separate_ops *const_sepops;
 
 /* This is run during target initialization to set up which modes can be
    used directly in memory and to initialize the block move optab.  */
@@ -245,6 +247,11 @@ extern bool can_store_by_pieces (unsigned HOST_WIDE_INT,
 extern rtx store_by_pieces (rtx, unsigned HOST_WIDE_INT, by_pieces_constfn,
 			    void *, unsigned int, bool, memop_ret);
 
+/* Generate several move instructions to clear LEN bytes of block TO.  (A MEM
+   rtx with BLKmode).  ALIGN is maximum alignment we can assume.  */
+
+extern void clear_by_pieces (rtx, unsigned HOST_WIDE_INT, unsigned int);
+
 /* If can_store_by_pieces passes for worst-case values near MAX_LEN, call
    store_by_pieces within conditionals so as to handle variable LEN efficiently,
    storing VAL, if non-NULL_RTX, or valc instead.  */
@@ -300,7 +307,7 @@ extern rtx expand_expr_real (tree, rtx, machine_mode,
 			     enum expand_modifier, rtx *, bool);
 extern rtx expand_expr_real_1 (tree, rtx, machine_mode,
 			       enum expand_modifier, rtx *, bool);
-extern rtx expand_expr_real_2 (sepops, rtx, machine_mode,
+extern rtx expand_expr_real_2 (const_sepops, rtx, machine_mode,
 			       enum expand_modifier);
 extern rtx expand_expr_real_gassign (gassign *, rtx, machine_mode,
 				     enum expand_modifier modifier,

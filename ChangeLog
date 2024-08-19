@@ -1,3 +1,170 @@
+2024-08-07  navidr  <navidr@gcc.gnu.org>
+
+	* MAINTAINERS: Changing my email to gnu email.
+
+2024-08-05  Jennifer Schmitz  <jschmitz@nvidia.com>
+
+	* MAINTAINERS: Add myself.
+
+2024-07-31  Arsen Arsenović  <arsen@aarsen.me>
+
+	* .dir-locals.el: Change c-mode to a list of C, C++ and ObjC
+	modes that Emacs currently provides.
+
+2024-07-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	* .b4-config: New file.
+
+2024-07-26  Sam James  <sam@gentoo.org>
+
+	* MAINTAINERS: Add myself.
+
+2024-07-24  Matthew Malcomson  <mmalcomson@nvidia.com>
+
+	* MAINTAINERS: Update my email address.
+
+2024-07-13  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* MAINTAINERS: Replace tabs with spaces.  Add a bugzilla account
+	name column to the Write After Approval section.  Line up the
+	email column and fix an entry that was missing the trailing ">".
+
+2024-07-11  Kugan Vivekanandarajah  <kvivekananda@nvidia.com>
+
+	* MAINTAINERS: Update my email address.
+
+2024-07-05  Filip Kastl  <fkastl@suse.cz>
+
+	* MAINTAINERS: Fix order in Contributing under the DCO.
+
+2024-07-03  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+
+	* MAINTAINERS: Update my email address and add myself to DCO.
+
+2024-07-01  Claudiu Zissulescu  <claziss@gmail.com>
+
+	* MAINTAINERS: Update claziss email address.
+
+2024-06-20  Collin Funk  <collin.funk1@gmail.com>
+
+	PR bootstrap/115453
+	* configure.ac: Quote variable result of AC_SEARCH_LIBS.  Fix
+	typo ac_cv_search_pthread_crate.
+	* configure: Regenerate.
+
+2024-06-19  YunQiang Su  <syq@gcc.gnu.org>
+
+	Revert:
+	2024-06-19  Collin Funk  <collin.funk1@gmail.com>
+
+	* configure.ac: Quote variable result of AC_SEARCH_LIBS.
+	* configure: Regenerate.
+
+2024-06-19  YunQiang Su  <syq@gcc.gnu.org>
+
+	Revert:
+	2024-06-19  YunQiang Su  <syq@gcc.gnu.org>
+
+	PR bootstrap/115453
+	* configure.ac: Fix typo ac_cv_search_pthread_crate.
+	* configure: Regnerate.
+
+2024-06-19  YunQiang Su  <syq@gcc.gnu.org>
+
+	PR bootstrap/115453
+	* configure.ac: Fix typo ac_cv_search_pthread_crate.
+	* configure: Regnerate.
+
+2024-06-19  Collin Funk  <collin.funk1@gmail.com>
+
+	* configure.ac: Quote variable result of AC_SEARCH_LIBS.
+	* configure: Regenerate.
+
+2024-06-19  Ramana Radhakrishnan  <ramanara@nvidia.com>
+
+	* MAINTAINERS: Update my email address.
+
+2024-06-18  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* MAINTAINERS (aarch64 port): Update my email address.
+	(DCO section): Likewise.
+
+2024-06-11  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* Makefile.tpl: Add CRAB1_LIBS variable.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Check if -ldl and -lpthread are needed, and if so, add
+	them to CRAB1_LIBS.
+
+2024-05-31  Pengxuan Zheng  <quic_pzheng@quicinc.com>
+
+	* MAINTAINERS: Add myself to Write After Approval and DCO.
+
+2024-05-20  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* MAINTAINERS: Move Joern Rennecke from arc and epiphany maintainer
+	to Write After Approval.
+
+2024-05-17  Levy Hsu  <admin@levyhsu.com>
+
+	* MAINTAINERS: Add myself.
+
+2024-05-14  Filip Kastl  <fkastl@suse.cz>
+
+	* MAINTAINERS: Use tabs between name and email.
+
+2024-05-13  Xiao Zeng  <zengxiao@eswincomputing.com>
+
+	* MAINTAINERS: Add myself.
+
+2024-05-09  H.J. Lu  <hjl.tools@gmail.com>
+
+	* MAINTAINERS: Add myself to DCO.
+
+2024-05-06  YunQiang Su  <syq@gcc.gnu.org>
+
+	* config-ml.in: Insert an -B option with multi-os-dir into
+	compiler commands used to build libraries.
+
+2024-04-16  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* configure.ac (have_cargo): Force to "no" in Canadian cross
+	configurations
+	* configure: Regenerate.
+
+2024-04-16  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* configure: Regenerate.
+
+2024-04-15  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* configure: Regenerate.
+	* configure.ac: Emit an error message when cargo
+	is missing.
+
+2024-04-04  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* MAINTAINERS: Update my email address.
+
+2024-04-04  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	* MAINTAINERS: Update my email details, remove myself as arm
+	maintainer.  Add myself to DCO section.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/106472
+	* Makefile.tpl (make-postboot-target-dep): New lambda.
+	Use it to add --enable-bootstrap dependencies of target modules
+	on other target modules if the latter aren't bootstrapped.
+	* Makefile.in: Regenerate.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* Makefile.tpl: Fix duplicated words; returns returns ->
+	returns.
+
 2024-03-08  Filip Kastl  <fkastl@suse.cz>
 
 	* MAINTAINERS: Fix order of names in Write After Aproval

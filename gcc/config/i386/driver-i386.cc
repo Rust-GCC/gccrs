@@ -23,6 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "diagnostic.h"
 
 const char *host_detect_local_cpu (int argc, const char **argv);
 
@@ -492,6 +493,8 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	processor = PROCESSOR_GEODE;
       else if (has_feature (FEATURE_MOVBE) && family == 22)
 	processor = PROCESSOR_BTVER2;
+      else if (has_feature (FEATURE_AVX512VP2INTERSECT))
+	processor = PROCESSOR_ZNVER5;
       else if (has_feature (FEATURE_AVX512F))
 	processor = PROCESSOR_ZNVER4;
       else if (has_feature (FEATURE_VAES))
@@ -555,10 +558,12 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       switch (family)
 	{
 	case 7:
-	  if (model == 0x3b)
-	    processor = PROCESSOR_LUJIAZUI;
-	  else if (model >= 0x5b)
+	  if (model >= 0x6b)
+	    processor = PROCESSOR_SHIJIDADAO;
+	  else if (model == 0x5b)
 	    processor = PROCESSOR_YONGFENG;
+	  else if (model == 0x3b)
+	    processor = PROCESSOR_LUJIAZUI;
 	  break;
 	default:
 	  break;
@@ -644,12 +649,13 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 		  /* Assume Cannon Lake.  */
 		  else if (has_feature (FEATURE_AVX512VBMI))
 		    cpu = "cannonlake";
-		  /* Assume Knights Mill.  */
-		  else if (has_feature (FEATURE_AVX5124VNNIW))
-		    cpu = "knm";
-		  /* Assume Knights Landing.  */
-		  else if (has_feature (FEATURE_AVX512ER))
-		    cpu = "knl";
+		  /* Assume Xeon Phi Processors.  Support has been removed
+		     since GCC 15.  */
+		  else if (!has_feature (FEATURE_AVX512VL))
+		    error ("Xeon Phi ISA support has been removed since "
+			   "GCC 15, use GCC 14 for the Xeon Phi ISAs or "
+			   "%<-march=broadwell%> for all the other ISAs "
+			   "supported on this machine.");
 		  /* Assume Skylake with AVX-512.  */
 		  else
 		    cpu = "skylake-avx512";
@@ -834,6 +840,9 @@ const char *host_detect_local_cpu (int argc, const char **argv)
     case PROCESSOR_ZNVER4:
       cpu = "znver4";
       break;
+    case PROCESSOR_ZNVER5:
+      cpu = "znver5";
+      break;
     case PROCESSOR_BTVER1:
       cpu = "btver1";
       break;
@@ -845,6 +854,9 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       break;
     case PROCESSOR_YONGFENG:
       cpu = "yongfeng";
+      break;
+    case PROCESSOR_SHIJIDADAO:
+      cpu = "shijidadao";
       break;
 
     default:
@@ -888,7 +900,8 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	    if (has_feature (isa_names_table[i].feature))
 	      {
 		if (codegen_x86_64
-		    || isa_names_table[i].feature != FEATURE_UINTR)
+		    || (isa_names_table[i].feature != FEATURE_UINTR
+			&& isa_names_table[i].feature != FEATURE_APX_F))
 		  options = concat (options, " ",
 				    isa_names_table[i].option, NULL);
 	      }
@@ -896,11 +909,6 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	       avoid unnecessary warnings when building librarys.  */
 	    else if (isa_names_table[i].feature != FEATURE_AVX10_1_256
 		     && isa_names_table[i].feature != FEATURE_AVX10_1_512
-		     && isa_names_table[i].feature != FEATURE_AVX512PF
-		     && isa_names_table[i].feature != FEATURE_AVX512ER
-		     && isa_names_table[i].feature != FEATURE_AVX5124FMAPS
-		     && isa_names_table[i].feature != FEATURE_AVX5124VNNIW
-		     && isa_names_table[i].feature != FEATURE_PREFETCHWT1
 		     && check_avx512_features (cpu_model, cpu_features2,
 					       isa_names_table[i].feature))
 	      options = concat (options, neg_option,

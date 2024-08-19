@@ -180,6 +180,10 @@ public:
   format_args_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 		       AST::InvocKind semicolon, AST::FormatArgs::Newline nl);
 
+  static tl::optional<AST::Fragment>
+  format_args_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		       AST::FormatArgs::Newline nl);
+
   static tl::optional<AST::Fragment> sorry (location_t invoc_locus,
 					    AST::MacroInvocData &invoc,
 					    AST::InvocKind semicolon);

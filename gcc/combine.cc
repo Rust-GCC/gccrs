@@ -3222,8 +3222,7 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 #endif
 	      /* Cases for modifying the CC-using comparison.  */
 	      if (compare_code != orig_compare_code
-		  /* ??? Do we need to verify the zero rtx?  */
-		  && XEXP (*cc_use_loc, 1) == const0_rtx)
+		  && COMPARISON_P (*cc_use_loc))
 		{
 		  /* Replace cc_use_loc with entire new RTX.  */
 		  SUBST (*cc_use_loc,
@@ -3233,8 +3232,19 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 		}
 	      else if (compare_mode != orig_compare_mode)
 		{
+		  subrtx_ptr_iterator::array_type array;
+
 		  /* Just replace the CC reg with a new mode.  */
-		  SUBST (XEXP (*cc_use_loc, 0), newpat_dest);
+		  FOR_EACH_SUBRTX_PTR (iter, array, cc_use_loc, NONCONST)
+		    {
+		      rtx *loc = *iter;
+		      if (REG_P (*loc)
+			  && REGNO (*loc) == REGNO (newpat_dest))
+			{
+			  SUBST (*loc, newpat_dest);
+			  iter.skip_subrtxes ();
+			}
+		    }
 		  undobuf.other_insn = cc_use_insn;
 		}
 	    }
@@ -4184,6 +4194,17 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
     {
       PATTERN (i3) = newpat;
       adjust_for_new_dest (i3);
+    }
+
+  /* If I2 didn't change, this is not a combination (but a simplification or
+     canonicalisation with context), which should not be done here.  Doing
+     it here explodes the algorithm.  Don't.  */
+  if (rtx_equal_p (newi2pat, PATTERN (i2)))
+    {
+      if (dump_file)
+	fprintf (dump_file, "i2 didn't change, not doing this\n");
+      undo_all ();
+      return 0;
     }
 
   /* We now know that we can do this combination.  Merge the insns and
@@ -11831,8 +11852,10 @@ simplify_compare_const (enum rtx_code code, machine_mode mode,
      `and'ed with that bit), we can replace this with a comparison
      with zero.  */
   if (const_op
-      && (code == EQ || code == NE || code == GE || code == GEU
-	  || code == LT || code == LTU)
+      && (code == EQ || code == NE || code == GEU || code == LTU
+	  /* This optimization is incorrect for signed >= INT_MIN or
+	     < INT_MIN, those are always true or always false.  */
+	  || ((code == GE || code == LT) && const_op > 0))
       && is_a <scalar_int_mode> (mode, &int_mode)
       && GET_MODE_PRECISION (int_mode) - 1 < HOST_BITS_PER_WIDE_INT
       && pow2p_hwi (const_op & GET_MODE_MASK (int_mode))

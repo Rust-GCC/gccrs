@@ -34,7 +34,6 @@
 
 #include <bits/c++config.h>
 #include <new> // For placement new
-#include <stdint.h>
 #include <bits/atomic_lockfree_defines.h>
 #include <bits/move.h>
 
@@ -78,7 +77,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   inline constexpr memory_order memory_order_acq_rel = memory_order::acq_rel;
   inline constexpr memory_order memory_order_seq_cst = memory_order::seq_cst;
 #else
-  typedef enum memory_order
+  enum memory_order : int
     {
       memory_order_relaxed,
       memory_order_consume,
@@ -86,7 +85,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       memory_order_release,
       memory_order_acq_rel,
       memory_order_seq_cst
-    } memory_order;
+    };
 #endif
 
   /// @cond undocumented
@@ -968,7 +967,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 
     template<typename _Tp>
-      _GLIBCXX_ALWAYS_INLINE _Tp*
+      _GLIBCXX_ALWAYS_INLINE _GLIBCXX14_CONSTEXPR _Tp*
       __clear_padding(_Tp& __val) noexcept
       {
 	auto* __ptr = std::__addressof(__val);
@@ -1118,8 +1117,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _GLIBCXX_ALWAYS_INLINE bool
       compare_exchange_weak(_Tp* __ptr, _Val<_Tp>& __expected,
 			    _Val<_Tp> __desired, memory_order __success,
-			    memory_order __failure,
-			    bool __check_padding = false) noexcept
+			    memory_order __failure) noexcept
       {
 	return __atomic_impl::__compare_exchange<_AtomicRef>(
 		   *__ptr, __expected, __desired, true, __success, __failure);
@@ -1129,8 +1127,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _GLIBCXX_ALWAYS_INLINE bool
       compare_exchange_strong(_Tp* __ptr, _Val<_Tp>& __expected,
 			      _Val<_Tp> __desired, memory_order __success,
-			      memory_order __failure,
-			      bool __ignore_padding = false) noexcept
+			      memory_order __failure) noexcept
       {
 	return __atomic_impl::__compare_exchange<_AtomicRef>(
 		   *__ptr, __expected, __desired, false, __success, __failure);
@@ -1283,7 +1280,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       constexpr
       __atomic_float(_Fp __t) : _M_fp(__t)
-      { }
+      { __atomic_impl::__clear_padding(_M_fp); }
 
       __atomic_float(const __atomic_float&) = delete;
       __atomic_float& operator=(const __atomic_float&) = delete;
@@ -1478,7 +1475,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #undef _GLIBCXX20_INIT
 
   template<typename _Tp,
-	   bool = is_integral_v<_Tp>, bool = is_floating_point_v<_Tp>>
+           bool = is_integral_v<_Tp> && !is_same_v<_Tp, bool>,
+           bool = is_floating_point_v<_Tp>>
     struct __atomic_ref;
 
   // base class for non-integral, non-floating-point, non-pointer types
@@ -1505,7 +1503,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Tp& __t) : _M_ptr(std::__addressof(__t))
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 
@@ -1616,7 +1616,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Tp& __t) : _M_ptr(&__t)
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 
@@ -1789,7 +1791,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Fp& __t) : _M_ptr(&__t)
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 
@@ -1916,7 +1920,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Tp*& __t) : _M_ptr(std::__addressof(__t))
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 

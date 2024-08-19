@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -68,6 +69,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-dfa.h"
 #include "analyzer/known-function-manager.h"
 #include "analyzer/call-summary.h"
+#include "text-art/dump.h"
 
 /* For an overview, see gcc/doc/analyzer.texi.  */
 
@@ -261,6 +263,26 @@ setjmp_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
     pp_printf (pp, "SETJMP(EN: %i)", get_enode_index ());
   else
     pp_printf (pp, "setjmp_svalue(EN%i)", get_enode_index ());
+}
+
+/* Implementation of svalue::print_dump_widget_label vfunc for
+   setjmp_svalue.  */
+
+void
+setjmp_svalue::print_dump_widget_label (pretty_printer *pp) const
+{
+  pp_printf (pp, "setjmp_svalue(EN: %i)", get_enode_index ());
+}
+
+/* Implementation of svalue::add_dump_widget_children vfunc for
+   setjmp_svalue.  */
+
+void
+setjmp_svalue::
+add_dump_widget_children (text_art::tree_widget &,
+			  const text_art::dump_widget_info &) const
+{
+  /* No children.  */
 }
 
 /* Get the index of the stored exploded_node.  */
@@ -659,6 +681,11 @@ public:
     return NULL;
   }
 
+  void update_event_loc_info (event_loc_info &) final override
+  {
+    /* No-op.  */
+  }
+
 private:
   const exploded_graph &m_eg;
   tree m_var;
@@ -876,7 +903,8 @@ impl_region_model_context::on_state_leak (const state_machine &sm,
   svalue_set visited;
   path_var leaked_pv
     = m_old_state->m_region_model->get_representative_path_var (sval,
-								&visited);
+								&visited,
+								nullptr);
 
   /* Strip off top-level casts  */
   if (leaked_pv.m_tree && TREE_CODE (leaked_pv.m_tree) == NOP_EXPR)
@@ -941,7 +969,7 @@ impl_region_model_context::on_condition (const svalue *lhs,
 			       m_old_state->m_checker_states[sm_idx],
 			       m_new_state->m_checker_states[sm_idx],
 			       m_path_ctxt);
-      sm.on_condition (&sm_ctxt,
+      sm.on_condition (sm_ctxt,
 		       (m_enode_for_diag
 			? m_enode_for_diag->get_supernode ()
 			: NULL),
@@ -968,7 +996,7 @@ impl_region_model_context::on_bounded_ranges (const svalue &sval,
 			       m_old_state->m_checker_states[sm_idx],
 			       m_new_state->m_checker_states[sm_idx],
 			       m_path_ctxt);
-      sm.on_bounded_ranges (&sm_ctxt,
+      sm.on_bounded_ranges (sm_ctxt,
 			    (m_enode_for_diag
 			     ? m_enode_for_diag->get_supernode ()
 			     : NULL),
@@ -1009,7 +1037,7 @@ impl_region_model_context::on_phi (const gphi *phi, tree rhs)
 			       m_old_state->m_checker_states[sm_idx],
 			       m_new_state->m_checker_states[sm_idx],
 			       m_path_ctxt);
-      sm.on_phi (&sm_ctxt, m_enode_for_diag->get_supernode (), phi, rhs);
+      sm.on_phi (sm_ctxt, m_enode_for_diag->get_supernode (), phi, rhs);
     }
 }
 
@@ -1394,7 +1422,7 @@ exploded_node::dump (FILE *fp,
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_to_pp (&pp, ext_state);
   pp_flush (&pp);
 }
@@ -1421,10 +1449,9 @@ exploded_node::to_json (const extrinsic_state &ext_state) const
 
   enode_obj->set ("point", get_point ().to_json ());
   enode_obj->set ("state", get_state ().to_json (ext_state));
-  enode_obj->set ("status", new json::string (status_to_str (m_status)));
-  enode_obj->set ("idx", new json::integer_number (m_index));
-  enode_obj->set ("processed_stmts",
-		  new json::integer_number (m_num_processed_stmts));
+  enode_obj->set_string ("status", status_to_str (m_status));
+  enode_obj->set_integer ("idx", m_index);
+  enode_obj->set_integer ("processed_stmts", m_num_processed_stmts);
 
   return enode_obj;
 }
@@ -1531,7 +1558,7 @@ exploded_node::on_stmt (exploded_graph &eg,
 			       unknown_side_effects);
 
       /* Allow the state_machine to handle the stmt.  */
-      if (sm.on_stmt (&sm_ctxt, snode, stmt))
+      if (sm.on_stmt (sm_ctxt, snode, stmt))
 	unknown_side_effects = false;
     }
 
@@ -2034,7 +2061,7 @@ exploded_node::detect_leaks (exploded_graph &eg)
 				  &old_state, &new_state, &uncertainty, NULL,
 				  get_stmt ());
   const svalue *result = NULL;
-  new_state.m_region_model->pop_frame (NULL, &result, &ctxt);
+  new_state.m_region_model->pop_frame (NULL, &result, &ctxt, nullptr);
   program_state::detect_leaks (old_state, new_state, result,
 			       eg.get_ext_state (), &ctxt);
 }
@@ -2270,8 +2297,8 @@ json::object *
 exploded_edge::to_json () const
 {
   json::object *eedge_obj = new json::object ();
-  eedge_obj->set ("src_idx", new json::integer_number (m_src->m_index));
-  eedge_obj->set ("dst_idx", new json::integer_number (m_dest->m_index));
+  eedge_obj->set_integer ("src_idx", m_src->m_index);
+  eedge_obj->set_integer ("dst_idx", m_dest->m_index);
   if (m_sedge)
     eedge_obj->set ("sedge", m_sedge->to_json ());
   if (m_custom_info)
@@ -2279,7 +2306,7 @@ exploded_edge::to_json () const
       pretty_printer pp;
       pp_format_decoder (&pp) = default_tree_printer;
       m_custom_info->print (&pp);
-      eedge_obj->set ("custom", new json::string (pp_formatted_text (&pp)));
+      eedge_obj->set_string ("custom", pp_formatted_text (&pp));
     }
   return eedge_obj;
 }
@@ -3768,7 +3795,7 @@ stmt_requires_new_enode_p (const gimple *stmt,
 	 regular next state, which defeats the "detect state change" logic
 	 in process_node.  Work around this via special-casing, to ensure
 	 we split the enode immediately before any "signal" call.  */
-      if (is_special_named_call_p (call, "signal", 2))
+      if (is_special_named_call_p (call, "signal", 2, true))
 	return true;
     }
 
@@ -4804,7 +4831,7 @@ exploded_path::dump (FILE *fp, const extrinsic_state *ext_state) const
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_to_pp (&pp, ext_state);
   pp_flush (&pp);
 }
@@ -4828,7 +4855,7 @@ exploded_path::dump_to_file (const char *filename,
     return;
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_to_pp (&pp, &ext_state);
   pp_flush (&pp);
   fclose (fp);
@@ -5420,7 +5447,7 @@ exploded_graph::dump_exploded_nodes () const
 	  pretty_printer pp;
 	  enode->get_point ().print (&pp, format (true));
 	  fprintf (outf, "%s\n", pp_formatted_text (&pp));
-	  enode->get_state ().dump_to_file (m_ext_state, false, true, outf);
+	  text_art::dump_to_file (enode->get_state (), outf);
 	}
 
       fclose (outf);
@@ -5439,7 +5466,8 @@ exploded_graph::dump_exploded_nodes () const
 	    = xasprintf ("%s.en-%i.txt", dump_base_name, i);
 	  FILE *outf = fopen (filename, "w");
 	  if (!outf)
-	    error_at (UNKNOWN_LOCATION, "unable to open %qs for writing", filename);
+	    error_at (UNKNOWN_LOCATION, "unable to open %qs for writing",
+		      filename);
 	  free (filename);
 
 	  fprintf (outf, "EN %i:\n", enode->m_index);
@@ -5447,7 +5475,7 @@ exploded_graph::dump_exploded_nodes () const
 	  pretty_printer pp;
 	  enode->get_point ().print (&pp, format (true));
 	  fprintf (outf, "%s\n", pp_formatted_text (&pp));
-	  enode->get_state ().dump_to_file (m_ext_state, false, true, outf);
+	  text_art::dump_to_file (enode->get_state (), outf);
 
 	  fclose (outf);
 	}
@@ -6251,6 +6279,13 @@ impl_run_checkers (logger *logger)
     eng.get_model_manager ()->dump_untracked_regions ();
 
   delete purge_map;
+
+  /* Free up any dominance info that we may have created.  */
+  FOR_EACH_FUNCTION_WITH_GIMPLE_BODY (node)
+    {
+      function *fun = node->get_fun ();
+      free_dominance_info (fun, CDI_DOMINATORS);
+    }
 }
 
 /* Handle -fdump-analyzer and -fdump-analyzer-stderr.  */

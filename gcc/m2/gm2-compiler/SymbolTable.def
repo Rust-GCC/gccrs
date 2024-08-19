@@ -393,6 +393,21 @@ PROCEDURE MakeVar (tok: CARDINAL; VarName: Name) : CARDINAL ;
 
 
 (*
+   PutVarConditional - assign IsConditional to value.
+*)
+
+PROCEDURE PutVarConditional (sym: CARDINAL; value: BOOLEAN) ;
+
+
+(*
+   IsVarConditional - return TRUE if the symbol is a var symbol
+                      containing the result of a boolean conditional.
+*)
+
+PROCEDURE IsVarConditional (sym: CARDINAL) : BOOLEAN ;
+
+
+(*
    MakeRecord - makes a Record symbol with name RecordName.
 *)
 
@@ -1392,6 +1407,13 @@ PROCEDURE PutProcedureNoReturn (Sym: CARDINAL; value: BOOLEAN) ;
 *)
 
 PROCEDURE IsProcedureNoReturn (Sym: CARDINAL) : BOOLEAN ;
+
+
+(*
+   GetProcedureProcType - returns the proctype matching procedure sym.
+*)
+
+PROCEDURE GetProcedureProcType (sym: CARDINAL) : CARDINAL ;
 
 
 (*
@@ -3027,6 +3049,14 @@ PROCEDURE PutHiddenTypeDeclared ;
 *)
 
 PROCEDURE IsHiddenTypeDeclared (Sym: CARDINAL) : BOOLEAN ;
+
+
+(*
+   IsHiddenReallyPointer - returns TRUE is sym is a pointer, address or a
+                           type declared as a pointer or address.
+*)
+
+PROCEDURE IsHiddenReallyPointer (Sym: CARDINAL) : BOOLEAN ;
 
 
 (*

@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -155,7 +156,7 @@ state_machine::to_json () const
 {
   json::object *sm_obj = new json::object ();
 
-  sm_obj->set ("name", new json::string (m_name));
+  sm_obj->set_string ("name", m_name);
   {
     json::array *states_arr = new json::array ();
     unsigned i;

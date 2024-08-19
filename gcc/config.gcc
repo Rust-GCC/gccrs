@@ -271,12 +271,12 @@ case ${target}:`uname -v` in
 esac
 
 # Obsolete configurations.
-case ${target}${target_min} in
-    *-*-solaris2.11.[0-3]*		\
-   | ia64*-*-*				\
+case ${target} in
+     ia64*-*-*				\
+   | nios2*-*-*				\
  )
     if test "x$enable_obsolete" != xyes; then
-      echo "*** Configuration ${target}${target_min} is obsolete." >&2
+      echo "*** Configuration ${target} is obsolete." >&2
       echo "*** Specify --enable-obsolete to build it anyway." >&2
       echo "*** Support will be REMOVED in the next major release of GCC," >&2
       echo "*** unless a maintainer comes forward." >&2
@@ -287,7 +287,7 @@ esac
 # Unsupported targets list.  Do not put an entry in this list unless
 # it would otherwise be caught by a more permissive pattern.  The list
 # should be in alphabetical order.
-case ${target} in
+case ${target}${target_min} in
  # Avoid special cases that are not obsolete
    arm*-*-*eabi*			\
  )
@@ -324,10 +324,11 @@ case ${target} in
  | *-*-solaris2.[0-9]			\
  | *-*-solaris2.[0-9].*			\
  | *-*-solaris2.10*			\
+ | *-*-solaris2.11.[0-3]*		\
  | *-*-sysv*				\
  | vax-*-vms*				\
  )
-	echo "*** Configuration ${target} not supported" 1>&2
+	echo "*** Configuration ${target}${target_min} not supported" 1>&2
 	exit 1
 	;;
 esac
@@ -346,7 +347,7 @@ m32c*-*-*)
         ;;
 aarch64*-*-*)
 	cpu_type=aarch64
-	extra_headers="arm_fp16.h arm_neon.h arm_bf16.h arm_acle.h arm_sve.h arm_sme.h arm_neon_sve_bridge.h"
+	extra_headers="arm_fp16.h arm_neon.h arm_bf16.h arm_acle.h arm_sve.h arm_sme.h arm_neon_sve_bridge.h arm_private_fp8.h"
 	c_target_objs="aarch64-c.o"
 	cxx_target_objs="aarch64-c.o"
 	d_target_objs="aarch64-d.o"
@@ -393,6 +394,8 @@ bfin*-*)
 	;;
 bpf-*-*)
 	cpu_type=bpf
+	c_target_objs="bpf-c.o"
+	cxx_target_objs="bpf-c.o"
 	;;
 frv*)	cpu_type=frv
 	extra_options="${extra_options} g.opt"
@@ -425,12 +428,11 @@ i[34567]86-*-* | x86_64-*-*)
 		       avx2intrin.h avx512fintrin.h fmaintrin.h f16cintrin.h
 		       rtmintrin.h xtestintrin.h rdseedintrin.h prfchwintrin.h
 		       adxintrin.h fxsrintrin.h xsaveintrin.h xsaveoptintrin.h
-		       avx512cdintrin.h avx512erintrin.h avx512pfintrin.h
-		       shaintrin.h clflushoptintrin.h xsavecintrin.h
-		       xsavesintrin.h avx512dqintrin.h avx512bwintrin.h
-		       avx512vlintrin.h avx512vlbwintrin.h avx512vldqintrin.h
-		       avx512ifmaintrin.h avx512ifmavlintrin.h avx512vbmiintrin.h
-		       avx512vbmivlintrin.h avx5124fmapsintrin.h avx5124vnniwintrin.h
+		       avx512cdintrin.h shaintrin.h clflushoptintrin.h
+		       xsavecintrin.h xsavesintrin.h avx512dqintrin.h
+		       avx512bwintrin.h avx512vlintrin.h avx512vlbwintrin.h
+		       avx512vldqintrin.h avx512ifmaintrin.h avx512ifmavlintrin.h
+		       avx512vbmiintrin.h avx512vbmivlintrin.h
 		       avx512vpopcntdqintrin.h clwbintrin.h mwaitxintrin.h
 		       clzerointrin.h pkuintrin.h sgxintrin.h cetintrin.h
 		       gfniintrin.h cet.h avx512vbmi2intrin.h
@@ -450,7 +452,7 @@ i[34567]86-*-* | x86_64-*-*)
 		       cmpccxaddintrin.h amxfp16intrin.h prfchiintrin.h
 		       raointintrin.h amxcomplexintrin.h avxvnniint16intrin.h
 		       sm3intrin.h sha512intrin.h sm4intrin.h
-		       usermsrintrin.h"
+		       usermsrintrin.h avx10_2roundingintrin.h"
 	;;
 ia64-*-*)
 	extra_headers=ia64intrin.h
@@ -485,7 +487,7 @@ loongarch*-*-*)
 	cpu_type=loongarch
 	d_target_objs="loongarch-d.o"
 	extra_headers="larchintrin.h lsxintrin.h lasxintrin.h"
-	extra_objs="loongarch-c.o loongarch-builtins.o loongarch-cpu.o loongarch-opts.o loongarch-def.o"
+	extra_objs="loongarch-c.o loongarch-builtins.o loongarch-cpu.o loongarch-opts.o loongarch-def.o loongarch-evolution.o"
 	extra_gcc_objs="loongarch-driver.o loongarch-cpu.o loongarch-opts.o loongarch-def.o"
 	extra_options="${extra_options} g.opt fused-madd.opt"
 	;;
@@ -531,7 +533,7 @@ powerpc*-*-*)
 	extra_headers="${extra_headers} ppu_intrinsics.h spu2vmx.h vec_types.h si2vmx.h"
 	extra_headers="${extra_headers} amo.h"
 	case x$with_cpu in
-	    xpowerpc64|xdefault64|x6[23]0|x970|xG5|xpower[3456789]|xpower10|xpower6x|xrs64a|xcell|xa2|xe500mc64|xe5500|xe6500)
+	    xpowerpc64|xdefault64|x6[23]0|x970|xG5|xpower[3456789]|xpower1[01]|xpower6x|xrs64a|xcell|xa2|xe500mc64|xe5500|xe6500)
 		cpu_is_64bit=yes
 		;;
 	esac
@@ -703,15 +705,15 @@ c7 esther"
 # 64-bit x86 processors supported by --with-arch=.  Each processor
 # MUST be separated by exactly one space.
 x86_64_archs="amdfam10 athlon64 athlon64-sse3 barcelona bdver1 bdver2 \
-bdver3 bdver4 znver1 znver2 znver3 znver4 btver1 btver2 k8 k8-sse3 opteron \
-opteron-sse3 nocona core2 corei7 corei7-avx core-avx-i core-avx2 atom \
-slm nehalem westmere sandybridge ivybridge haswell broadwell bonnell \
-silvermont knl knm skylake-avx512 cannonlake icelake-client icelake-server \
+bdver3 bdver4 znver1 znver2 znver3 znver4 znver5 btver1 btver2 k8 k8-sse3 \
+opteron opteron-sse3 nocona core2 corei7 corei7-avx core-avx-i core-avx2 \
+atom slm nehalem westmere sandybridge ivybridge haswell broadwell bonnell \
+silvermont skylake-avx512 cannonlake icelake-client icelake-server \
 skylake goldmont goldmont-plus tremont cascadelake tigerlake cooperlake \
 sapphirerapids alderlake rocketlake eden-x2 nano nano-1000 nano-2000 nano-3000 \
-nano-x2 eden-x4 nano-x4 lujiazui yongfeng x86-64 x86-64-v2 x86-64-v3 x86-64-v4 \
-sierraforest graniterapids graniterapids-d grandridge arrowlake arrowlake-s \
-clearwaterforest pantherlake native"
+nano-x2 eden-x4 nano-x4 lujiazui yongfeng shijidadao x86-64 x86-64-v2 \
+x86-64-v3 x86-64-v4 sierraforest graniterapids graniterapids-d grandridge \
+arrowlake arrowlake-s clearwaterforest pantherlake native"
 
 # Additional x86 processors supported by --with-cpu=.  Each processor
 # MUST be separated by exactly one space.
@@ -1043,12 +1045,8 @@ case ${target} in
   sol2_tm_file_head="elfos.h ${cpu_type}/sysv4.h"
   sol2_tm_file_tail="${cpu_type}/sol2.h sol2.h"
   sol2_tm_file="${sol2_tm_file_head} ${sol2_tm_file_tail}"
-  case ${target} in
-    *-*-solaris2.1[1-9]*)
-      # __cxa_atexit was introduced in Solaris 11.4.
-      default_use_cxa_atexit=yes
-      ;;
-  esac
+  # __cxa_atexit was introduced in Solaris 11.4.
+  default_use_cxa_atexit=yes
   use_gcc_stdint=wrap
   if test x$gnu_ld = xyes; then
     tm_file="usegld.h ${tm_file}"
@@ -1199,6 +1197,7 @@ aarch64*-*-elf | aarch64*-*-fuchsia* | aarch64*-*-rtems*)
                 ;;
 	aarch64-*-rtems*)
 		tm_file="${tm_file} aarch64/rtems.h rtems.h"
+		tmake_file="${tmake_file} aarch64/t-aarch64-rtems"
 		;;
 	esac
 	case $target in
@@ -1263,6 +1262,40 @@ aarch64*-*-linux*)
 		esac
 	done
 	TM_MULTILIB_CONFIG=`echo $TM_MULTILIB_CONFIG | sed 's/^,//'`
+	;;
+aarch64*-*-gnu*)
+        tm_file="${tm_file} elfos.h gnu-user.h gnu.h glibc-stdint.h"
+        tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-errata.h aarch64/aarch64-gnu.h"
+        tmake_file="${tmake_file} aarch64/t-aarch64"
+        tm_defines="${tm_defines}  TARGET_DEFAULT_ASYNC_UNWIND_TABLES=1"
+	;;
+aarch64-*-mingw*)
+	tm_file="${tm_file} aarch64/aarch64-abi-ms.h"
+	tm_file="${tm_file} aarch64/aarch64-coff.h"
+	tm_file="${tm_file} aarch64/cygming.h"
+	tm_file="${tm_file} mingw/mingw32.h"
+	tm_file="${tm_file} mingw/mingw-stdint.h"
+	tm_file="${tm_file} mingw/winnt.h"
+	tm_file="${tm_file} mingw/winnt-dll.h"
+	tmake_file="${tmake_file} aarch64/t-aarch64"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt.cc"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt-dll.cc"
+	extra_options="${extra_options} mingw/cygming.opt mingw/mingw.opt"
+	extra_objs="${extra_objs} winnt.o winnt-dll.o"
+	c_target_objs="${c_target_objs} msformat-c.o"
+	d_target_objs="${d_target_objs} winnt-d.o"
+	tmake_file="${tmake_file} mingw/t-cygming"
+	case ${enable_threads} in
+	  "" | yes | win32)
+	    thread_file='win32'
+	    ;;
+	  posix)
+	    thread_file='posix'
+	    ;;
+	esac
+	default_use_cxa_atexit=yes
+	user_headers_inc_next_post="${user_headers_inc_next_post} float.h"
+	tm_defines="${tm_defines} TARGET_AARCH64_MS_ABI=1"
 	;;
 aarch64*-wrs-vxworks*)
         tm_file="${tm_file} elfos.h aarch64/aarch64-elf.h"
@@ -2145,11 +2178,14 @@ i[4567]86-wrs-vxworks*|x86_64-wrs-vxworks7*)
 	;;
 i[34567]86-*-cygwin*)
 	tm_file="${tm_file} i386/unix.h i386/bsd.h i386/gas.h i386/cygming.h i386/cygwin.h i386/cygwin-stdint.h"
+	tm_file="${tm_file} mingw/winnt.h"
+	tm_file="${tm_file} mingw/winnt-dll.h"
 	xm_file=i386/xm-cygwin.h
-	tmake_file="${tmake_file} i386/t-cygming t-slibgcc"
-	target_gtfiles="$target_gtfiles \$(srcdir)/config/i386/winnt.cc"
-	extra_options="${extra_options} i386/cygming.opt i386/cygwin.opt"
-	extra_objs="${extra_objs} winnt.o winnt-stubs.o"
+	tmake_file="${tmake_file} mingw/t-cygming t-slibgcc"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt.cc"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt-dll.cc"
+	extra_options="${extra_options} mingw/cygming.opt i386/cygwin.opt"
+	extra_objs="${extra_objs} winnt.o winnt-stubs.o winnt-dll.o"
 	c_target_objs="${c_target_objs} msformat-c.o"
 	cxx_target_objs="${cxx_target_objs} winnt-cxx.o msformat-c.o"
 	d_target_objs="${d_target_objs} cygwin-d.o"
@@ -2163,11 +2199,14 @@ i[34567]86-*-cygwin*)
 x86_64-*-cygwin*)
 	need_64bit_isa=yes
 	tm_file="${tm_file} i386/unix.h i386/bsd.h i386/gas.h i386/cygming.h i386/cygwin.h i386/cygwin-w64.h i386/cygwin-stdint.h"
+	tm_file="${tm_file} mingw/winnt.h"
+	tm_file="${tm_file} mingw/winnt-dll.h"
 	xm_file=i386/xm-cygwin.h
-	tmake_file="${tmake_file} i386/t-cygming t-slibgcc"
-	target_gtfiles="$target_gtfiles \$(srcdir)/config/i386/winnt.cc"
-	extra_options="${extra_options} i386/cygming.opt i386/cygwin.opt"
-	extra_objs="${extra_objs} winnt.o winnt-stubs.o"
+	tmake_file="${tmake_file} mingw/t-cygming t-slibgcc"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt.cc"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt-dll.cc"
+	extra_options="${extra_options} mingw/cygming.opt i386/cygwin.opt"
+	extra_objs="${extra_objs} winnt.o winnt-stubs.o winnt-dll.o"
 	c_target_objs="${c_target_objs} msformat-c.o"
 	cxx_target_objs="${cxx_target_objs} winnt-cxx.o msformat-c.o"
 	d_target_objs="${d_target_objs} cygwin-d.o"
@@ -2202,7 +2241,7 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
 	if test x$enable_threads = xmcf ; then
 		tm_file="${tm_file} i386/mingw-mcfgthread.h"
 	fi
-	tm_file="${tm_file} i386/mingw32.h"
+	tm_file="${tm_file} mingw/mingw32.h"
 	# This makes the logic if mingw's or the w64 feature set has to be used
 	case ${target} in
 		*-w64-*)
@@ -2231,8 +2270,10 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
 		*)
 			;;
 	esac
-	tm_file="${tm_file} i386/mingw-stdint.h"
-	tmake_file="${tmake_file} t-winnt i386/t-cygming t-slibgcc"
+	tm_file="${tm_file} mingw/mingw-stdint.h"
+	tm_file="${tm_file} mingw/winnt.h"
+	tm_file="${tm_file} mingw/winnt-dll.h"
+	tmake_file="${tmake_file} t-winnt mingw/t-cygming t-slibgcc"
         case ${target} in
                x86_64-w64-*)
                		tmake_file="${tmake_file} i386/t-mingw-w64"
@@ -2242,8 +2283,9 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
 			;;
 	esac
         native_system_header_dir=/mingw/include
-	target_gtfiles="$target_gtfiles \$(srcdir)/config/i386/winnt.cc"
-	extra_options="${extra_options} i386/cygming.opt i386/mingw.opt"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt.cc"
+	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt-dll.cc"
+	extra_options="${extra_options} mingw/cygming.opt mingw/mingw.opt"
 	case ${target} in
 		*-w64-*)
 			extra_options="${extra_options} i386/mingw-w64.opt"
@@ -2251,7 +2293,7 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
 		*)
 			;;
 	esac
-	extra_objs="${extra_objs} winnt.o winnt-stubs.o"
+	extra_objs="${extra_objs} winnt.o winnt-stubs.o winnt-dll.o"
 	c_target_objs="${c_target_objs} msformat-c.o"
 	cxx_target_objs="${cxx_target_objs} winnt-cxx.o msformat-c.o"
 	gas=yes
@@ -2492,6 +2534,7 @@ riscv*-*-linux*)
 	# Force .init_array support.  The configure script cannot always
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
+	with_tls=${with_tls:-trad}
 	;;
 riscv*-*-elf* | riscv*-*-rtems*)
 	tm_file="elfos.h newlib-stdint.h ${tm_file} riscv/elf.h"
@@ -2534,6 +2577,7 @@ riscv*-*-freebsd*)
 	# Force .init_array support.  The configure script cannot always
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
+	with_tls=${with_tls:-trad}
 	;;
 
 loongarch*-*-linux*)
@@ -3759,6 +3803,10 @@ case ${target} in
 	arch=znver4
 	cpu=znver4
 	;;
+      znver5-*)
+	arch=znver5
+	cpu=znver5
+	;;
       bdver4-*)
         arch=bdver4
         cpu=bdver4
@@ -3818,6 +3866,10 @@ case ${target} in
       yongfeng-*)
 	arch=yongfeng
 	cpu=yongfeng
+	;;
+      shijidadao-*)
+	arch=shijidadao
+	cpu=shijidadao
 	;;
       pentium2-*)
 	arch=pentium2
@@ -3896,6 +3948,10 @@ case ${target} in
 	arch=znver4
 	cpu=znver4
 	;;
+      znver5-*)
+	arch=znver5
+	cpu=znver5
+	;;
       bdver4-*)
         arch=bdver4
         cpu=bdver4
@@ -3939,6 +3995,10 @@ case ${target} in
       yongfeng-*)
 	arch=yongfeng
 	cpu=yongfeng
+	;;
+      shijidadao-*)
+	arch=shijidadao
+	cpu=shijidadao
 	;;
       nocona-*)
 	arch=nocona
@@ -4552,7 +4612,7 @@ case "${target}" in
 		for which in arch tune; do
 			eval "val=\$with_$which"
 			case ${val} in
-			"" | fiji | gfx900 | gfx906 | gfx908 | gfx90a | gfx1030 | gfx1100)
+			"" | fiji | gfx900 | gfx906 | gfx908 | gfx90a | gfx90c | gfx1030 | gfx1036 | gfx1100 | gfx1103)
 				# OK
 				;;
 			*)
@@ -4568,7 +4628,7 @@ case "${target}" in
 			TM_MULTILIB_CONFIG=
 			;;
 		xdefault | xyes)
-			TM_MULTILIB_CONFIG=`echo "gfx900,gfx906,gfx908,gfx90a,gfx1030,gfx1100" | sed "s/${with_arch},\?//;s/,$//"`
+			TM_MULTILIB_CONFIG=`echo "gfx900,gfx906,gfx908,gfx90a,gfx90c,gfx1030,gfx1036,gfx1100,gfx1103" | sed "s/${with_arch},\?//;s/,$//"`
 			;;
 		*)
 			TM_MULTILIB_CONFIG="${with_multilib_list}"
@@ -4663,7 +4723,7 @@ case "${target}" in
 		;;
 
 	riscv*-*-*)
-		supported_defaults="abi arch tune riscv_attribute isa_spec"
+		supported_defaults="abi arch tune riscv_attribute isa_spec tls"
 
 		case "${target}" in
 		riscv-* | riscv32*) xlen=32 ;;
@@ -4793,6 +4853,17 @@ case "${target}" in
 				;;
 			esac
 		fi
+		# Handle --with-tls.
+		case "$with_tls" in
+		"" \
+		| trad | desc)
+			# OK
+			;;
+		*)
+			echo "Unknown TLS method used in --with-tls=$with_tls" 1>&2
+			exit 1
+			;;
+		esac
 
 		# Handle --with-multilib-list.
 		if test "x${with_multilib_list}" != xdefault; then
@@ -4991,7 +5062,7 @@ case "${target}" in
 		;;
 
 	loongarch*-*)
-		supported_defaults="abi arch tune fpu simd multilib-default strict-align-lib"
+		supported_defaults="abi arch tune fpu simd multilib-default strict-align-lib tls"
 
 		# Local variables
 		unset \
@@ -5044,7 +5115,7 @@ case "${target}" in
 
 		# Perform initial sanity checks on --with-* options.
 		case ${with_arch} in
-		"" | abi-default | loongarch64 | la[46]64) ;; # OK, append here.
+		"" | la64v1.[01] | abi-default | loongarch64 | la[46]64) ;; # OK, append here.
 		native)
 			if test x${host} != x${target}; then
 				echo "--with-arch=native is illegal for cross-compiler." 1>&2
@@ -5091,10 +5162,18 @@ case "${target}" in
 
 		# Infer ISA-related default options from the ABI: pass 1
 		case ${abi_base}/${abi_ext} in
-		lp64*/base)
+		lp64d/base)
 			# architectures that support lp64* ABI
-			arch_pattern="native|abi-default|loongarch64|la[46]64"
-			# default architecture for lp64* ABI
+			arch_pattern="native|abi-default|la64v1.[01]|loongarch64|la[46]64"
+
+			# default architecture for lp64d ABI
+			arch_default="la64v1.0"
+			;;
+		lp64[fs]/base)
+			# architectures that support lp64* ABI
+			arch_pattern="native|abi-default|la64v1.[01]|loongarch64|la[46]64"
+
+			# default architecture for lp64[fs] ABI
 			arch_default="abi-default"
 			;;
 		*)
@@ -5166,15 +5245,7 @@ case "${target}" in
 
 
 		# Check default with_tune configuration using with_arch.
-		case ${with_arch} in
-		loongarch64)
-			tune_pattern="native|abi-default|loongarch64|la[46]64"
-			;;
-		*)
-			# By default, $with_tune == $with_arch
-			tune_pattern="*"
-			;;
-		esac
+		tune_pattern="native|generic|loongarch64|la[46]64"
 
 		case ${with_tune} in
 		"") ;; # OK
@@ -5224,7 +5295,7 @@ case "${target}" in
 					# Fixed: use the default gcc configuration for all multilib
 					# builds by default.
 					with_multilib_default="" ;;
-				arch,native|arch,loongarch64|arch,la[46]64) # OK, append here.
+				arch,native|arch,la64v1.[01]|arch,loongarch64|arch,la[46]64) # OK, append here.
 					with_multilib_default="/march=${component}" ;;
 				arch,*)
 					with_multilib_default="/march=abi-default"
@@ -5248,6 +5319,18 @@ case "${target}" in
 
 			with_multilib_list="${abi_base}/${abi_ext}"
 		fi
+
+		# Handle --with-tls.
+		case "$with_tls" in
+		"" \
+		| trad | desc)
+		    # OK
+		    ;;
+		*)
+		    echo "Unknown TLS method used in --with-tls=$with_tls" 1>&2
+		    exit 1
+		    ;;
+		esac
 
 		# Check if the configured default ABI combination is included in
 		# ${with_multilib_list}.
@@ -5312,7 +5395,7 @@ case "${target}" in
 				if test x${parse_state} = x"arch"; then
 					# -march option
 					case ${component} in
-					native | abi-default | loongarch64 | la[46]64) # OK, append here.
+					native | abi-default | la64v1.[01] | loongarch64 | la[46]64) # OK, append here.
 						# Append -march spec for each multilib variant.
 						loongarch_multilib_list_make="${loongarch_multilib_list_make}/march=${component}"
 						parse_state="opts"
@@ -5558,7 +5641,7 @@ case "${target}" in
 				eval "with_$which=405"
 				;;
 			"" | common | native \
-			| power[3456789] | power10 | power5+ | power6x \
+			| power[3456789] | power1[01] | power5+ | power6x \
 			| powerpc | powerpc64 | powerpc64le \
 			| rs64 \
 			| 401 | 403 | 405 | 405fp | 440 | 440fp | 464 | 464fp \
@@ -5885,7 +5968,7 @@ case ${target} in
 		# See macro definitions from loongarch-opts.h and loongarch-cpu.h.
 
 		# Architecture
-		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=CPU_$(echo ${with_arch} | tr a-z- A-Z_)"
+		tm_defines="${tm_defines} DEFAULT_CPU_ARCH=ARCH_$(echo ${with_arch} | tr a-z.- A-Z__)"
 
 		# Base ABI type
 		tm_defines="${tm_defines} DEFAULT_ABI_BASE=ABI_BASE_$(echo ${abi_base} | tr a-z- A-Z_)"
@@ -5897,7 +5980,7 @@ case ${target} in
 
 		# Microarchitecture
 		if test x${with_tune} != x; then
-		  tm_defines="${tm_defines} DEFAULT_CPU_TUNE=CPU_$(echo ${with_tune} | tr a-z- A-Z_)"
+		  tm_defines="${tm_defines} DEFAULT_CPU_TUNE=TUNE_$(echo ${with_tune} | tr a-z.- A-Z__)"
 		fi
 
 		# FPU adjustment
@@ -5912,6 +5995,11 @@ case ${target} in
 		none)    tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_NONE" ;;
 		lsx)     tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_SIMD_LSX" ;;
 		lasx)    tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_SIMD_LASX" ;;
+		esac
+
+		case ${with_tls} in
+		"" | trad)	tm_defines="$tm_defines DEFAULT_TLS_TYPE=TLS_TRADITIONAL" ;;
+		desc)		tm_defines="$tm_defines DEFAULT_TLS_TYPE=TLS_DESCRIPTORS" ;;
 		esac
 
 		tmake_file="loongarch/t-loongarch $tmake_file"

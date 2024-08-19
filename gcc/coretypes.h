@@ -100,6 +100,7 @@ struct gimple;
 typedef gimple *gimple_seq;
 struct gimple_stmt_iterator;
 class code_helper;
+enum tree_index : unsigned;
 
 /* Forward declare rtx_code, so that we can use it in target hooks without
    needing to pull in rtl.h.  */
@@ -161,6 +162,8 @@ class diagnostic_context;
 class pretty_printer;
 class diagnostic_event_id_t;
 typedef const char * (*diagnostic_input_charset_callback)(const char *);
+namespace pp_markup { class element; }
+typedef pp_markup::element pp_element;
 
 template<typename T> struct array_traits;
 

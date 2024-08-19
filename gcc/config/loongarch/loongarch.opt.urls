@@ -51,16 +51,39 @@ UrlSuffix(gcc/LoongArch-Options.html#index-mexplicit-relocs-1)
 mexplicit-relocs
 UrlSuffix(gcc/LoongArch-Options.html#index-mexplicit-relocs-1)
 
-mrecip
-UrlSuffix(gcc/LoongArch-Options.html#index-mrecip)
-
 mrecip=
 UrlSuffix(gcc/LoongArch-Options.html#index-mrecip)
 
-; skipping UrlSuffix for 'mcmodel=' due to finding no URLs
+mrecip
+UrlSuffix(gcc/LoongArch-Options.html#index-mrecip)
+
+mcmodel=
+UrlSuffix(gcc/LoongArch-Options.html#index-mcmodel_003d-1)
 
 mdirect-extern-access
 UrlSuffix(gcc/LoongArch-Options.html#index-mdirect-extern-access)
 
-; skipping UrlSuffix for 'mrelax' due to finding no URLs
+mrelax
+UrlSuffix(gcc/LoongArch-Options.html#index-mrelax-2)
+
+mpass-mrelax-to-as
+UrlSuffix(gcc/LoongArch-Options.html#index-mpass-mrelax-to-as)
+
+mtls-dialect=
+UrlSuffix(gcc/LoongArch-Options.html#index-mtls-dialect-1)
+
+mfrecipe
+UrlSuffix(gcc/LoongArch-Options.html#index-mfrecipe)
+
+mdiv32
+UrlSuffix(gcc/LoongArch-Options.html#index-mdiv32)
+
+mlam-bh
+UrlSuffix(gcc/LoongArch-Options.html#index-mlam-bh)
+
+mlamcas
+UrlSuffix(gcc/LoongArch-Options.html#index-mlamcas)
+
+mld-seq-sa
+UrlSuffix(gcc/LoongArch-Options.html#index-mld-seq-sa)
 

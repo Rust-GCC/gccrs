@@ -253,7 +253,7 @@ widen_operand (rtx op, machine_mode mode, machine_mode oldmode,
    type-promotion (vec-unpack)  1       oprnd0  -       -  */
 
 rtx
-expand_widen_pattern_expr (sepops ops, rtx op0, rtx op1, rtx wide_op,
+expand_widen_pattern_expr (const_sepops ops, rtx op0, rtx op1, rtx wide_op,
 			   rtx target, int unsignedp)
 {
   class expand_operand eops[4];
@@ -566,8 +566,8 @@ expand_subword_shift (scalar_int_mode op1_mode, optab binoptab,
       if (tmp == 0)
 	return false;
 
-      /* Now OR in the bits carried over from OUTOF_INPUT.  */
-      if (!force_expand_binop (word_mode, ior_optab, tmp, carries,
+      /* Now OR/PLUS in the bits carried over from OUTOF_INPUT.  */
+      if (!force_expand_binop (word_mode, add_optab, tmp, carries,
 			       into_target, unsignedp, methods))
 	return false;
     }
@@ -1085,7 +1085,7 @@ expand_doubleword_mod (machine_mode mode, rtx op0, rtx op1, bool unsignedp)
 					 NULL_RTX, 1, OPTAB_DIRECT);
 	      if (v == NULL_RTX)
 		return NULL_RTX;
-	      v = lowpart_subreg (word_mode, v, mode);
+	      v = force_lowpart_subreg (word_mode, v, mode);
 	      if (v == NULL_RTX)
 		return NULL_RTX;
 	      if (i != count - 1)
@@ -1937,7 +1937,7 @@ expand_binop (machine_mode mode, optab binoptab, rtx op0, rtx op1,
 				     NULL_RTX, unsignedp, next_methods);
 
 	  if (into_temp1 != 0 && into_temp2 != 0)
-	    inter = expand_binop (word_mode, ior_optab, into_temp1, into_temp2,
+	    inter = expand_binop (word_mode, add_optab, into_temp1, into_temp2,
 				  into_target, unsignedp, next_methods);
 	  else
 	    inter = 0;
@@ -1953,7 +1953,7 @@ expand_binop (machine_mode mode, optab binoptab, rtx op0, rtx op1,
 				      NULL_RTX, unsignedp, next_methods);
 
 	  if (inter != 0 && outof_temp1 != 0 && outof_temp2 != 0)
-	    inter = expand_binop (word_mode, ior_optab,
+	    inter = expand_binop (word_mode, add_optab,
 				  outof_temp1, outof_temp2,
 				  outof_target, unsignedp, next_methods);
 
@@ -3096,26 +3096,6 @@ expand_ffs (scalar_int_mode mode, rtx op0, rtx target)
   return 0;
 }
 
-/* Extract the OMODE lowpart from VAL, which has IMODE.  Under certain
-   conditions, VAL may already be a SUBREG against which we cannot generate
-   a further SUBREG.  In this case, we expect forcing the value into a
-   register will work around the situation.  */
-
-static rtx
-lowpart_subreg_maybe_copy (machine_mode omode, rtx val,
-			   machine_mode imode)
-{
-  rtx ret;
-  ret = lowpart_subreg (omode, val, imode);
-  if (ret == NULL)
-    {
-      val = force_reg (imode, val);
-      ret = lowpart_subreg (omode, val, imode);
-      gcc_assert (ret != NULL);
-    }
-  return ret;
-}
-
 /* Expand a floating point absolute value or negation operation via a
    logical operation on the sign bit.  */
 
@@ -3204,7 +3184,7 @@ expand_absneg_bit (enum rtx_code code, scalar_float_mode mode,
 			   gen_lowpart (imode, op0),
 			   immed_wide_int_const (mask, imode),
 		           gen_lowpart (imode, target), 1, OPTAB_LIB_WIDEN);
-      target = lowpart_subreg_maybe_copy (mode, temp, imode);
+      target = force_lowpart_subreg (mode, temp, imode);
 
       set_dst_reg_note (get_last_insn (), REG_EQUAL,
 			gen_rtx_fmt_e (code, mode, copy_rtx (op0)),
@@ -4043,7 +4023,7 @@ expand_copysign_bit (scalar_float_mode mode, rtx op0, rtx op1, rtx target,
 
       temp = expand_binop (imode, ior_optab, op0, op1,
 			   gen_lowpart (imode, target), 1, OPTAB_LIB_WIDEN);
-      target = lowpart_subreg_maybe_copy (mode, temp, imode);
+      target = force_lowpart_subreg (mode, temp, imode);
     }
 
   return target;
@@ -6751,10 +6731,13 @@ expand_mult_highpart (machine_mode mode, rtx op0, rtx op1,
       return expand_binop (mode, tab1, op0, op1, target, uns_p,
 			   OPTAB_LIB_WIDEN);
     case 2:
+      return expmed_mult_highpart_optab (as_a <scalar_int_mode> (mode),
+					 op0, op1, target, uns_p, INT_MAX);
+    case 3:
       tab1 = uns_p ? vec_widen_umult_even_optab : vec_widen_smult_even_optab;
       tab2 = uns_p ? vec_widen_umult_odd_optab : vec_widen_smult_odd_optab;
       break;
-    case 3:
+    case 4:
       tab1 = uns_p ? vec_widen_umult_lo_optab : vec_widen_smult_lo_optab;
       tab2 = uns_p ? vec_widen_umult_hi_optab : vec_widen_smult_hi_optab;
       if (BYTES_BIG_ENDIAN)
@@ -6783,7 +6766,7 @@ expand_mult_highpart (machine_mode mode, rtx op0, rtx op1,
   m2 = gen_lowpart (mode, eops[0].value);
 
   vec_perm_builder sel;
-  if (method == 2)
+  if (method == 3)
     {
       /* The encoding has 2 interleaved stepped patterns.  */
       sel.new_vector (GET_MODE_NUNITS (mode), 2, 3);

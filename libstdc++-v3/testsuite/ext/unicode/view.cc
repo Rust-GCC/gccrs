@@ -10,7 +10,7 @@ using namespace std::string_view_literals;
 constexpr void
 test_utf8_to_utf8()
 {
-  const std::u8string_view s8 = u8"£🇬🇧 €🇪🇺 æбçδé ♠♥♦♣ 🤡";
+  const auto s8 = u8"£🇬🇧 €🇪🇺 æбçδé ♠♥♦♣ 🤡"sv;
   uc::_Utf8_view v(s8);
   VERIFY( std::ranges::distance(v) == s8.size() );
   VERIFY( std::ranges::equal(v,  s8) );
@@ -19,7 +19,7 @@ test_utf8_to_utf8()
 constexpr void
 test_utf8_to_utf16()
 {
-  const std::u8string_view s8  = u8"£🇬🇧 €🇪🇺 æбçδé ♠♥♦♣ 🤡";
+  const auto s8  = u8"£🇬🇧 €🇪🇺 æбçδé ♠♥♦♣ 🤡"sv;
   const std::u16string_view s16 = u"£🇬🇧 €🇪🇺 æбçδé ♠♥♦♣ 🤡";
   uc::_Utf16_view v(s8);
   VERIFY( std::ranges::distance(v) == s16.size() );
@@ -55,6 +55,13 @@ test_illformed_utf8()
   VERIFY( std::ranges::equal(v5, u8"\uFFFD\uFFFD\uFFFD\uFFFD\uFFFD\x41\uFFFD\uFFFD\x42"sv) );
   uc::_Utf8_view v6("\xe1\x80\xe2\xf0\x91\x92\xf1\xbf\x41"sv); // Table 3-11
   VERIFY( std::ranges::equal(v6, u8"\uFFFD\uFFFD\uFFFD\uFFFD\x41"sv) );
+
+  uc::_Utf32_view v7("\xe1\x80"sv);
+  VERIFY( std::ranges::equal(v7, U"\uFFFD"sv) );
+  uc::_Utf32_view v8("\xf1\x80"sv);
+  VERIFY( std::ranges::equal(v8, U"\uFFFD"sv) );
+  uc::_Utf32_view v9("\xf1\x80\x80"sv);
+  VERIFY( std::ranges::equal(v9, U"\uFFFD"sv) );
 }
 
 constexpr void

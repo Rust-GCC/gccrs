@@ -1360,6 +1360,31 @@ package body Ch5 is
       else
          if Style_Check then
             Style.Check_Xtra_Parens (Cond);
+
+            --  When the condition is an operator then examine parentheses
+            --  surrounding the condition's operands - taking care to avoid
+            --  flagging operands which themselves are operators since they
+            --  may be required for resolution or precedence.
+
+            if Nkind (Cond) in N_Op
+                             | N_Membership_Test
+                             | N_Short_Circuit
+              and then Nkind (Right_Opnd (Cond)) not in N_Op
+                                                      | N_Membership_Test
+                                                      | N_Short_Circuit
+            then
+               Style.Check_Xtra_Parens (Right_Opnd (Cond));
+            end if;
+
+            if Nkind (Cond) in N_Binary_Op
+                             | N_Membership_Test
+                             | N_Short_Circuit
+              and then Nkind (Left_Opnd (Cond)) not in N_Op
+                                                     | N_Membership_Test
+                                                     | N_Short_Circuit
+            then
+               Style.Check_Xtra_Parens (Left_Opnd (Cond));
+            end if;
          end if;
 
          --  And return the result
@@ -1720,7 +1745,6 @@ package body Ch5 is
       Scan_State : Saved_Scan_State;
 
    begin
-
       Save_Scan_State (Scan_State);
       ID_Node := P_Defining_Identifier (C_In);
 
@@ -1811,18 +1835,6 @@ package body Ch5 is
 
       elsif Token = Tok_In then
          Scan;  --  past IN
-
-      elsif Prev_Token = Tok_In
-        and then Present (Subtype_Indication (Node1))
-      then
-         --  Simplest recovery is to transform it into an element iterator.
-         --  Error message on 'in" has already been emitted when parsing the
-         --  optional constraint.
-
-         Set_Of_Present (Node1);
-         Error_Msg_N
-           ("subtype indication is only legal on an element iterator",
-            Subtype_Indication (Node1));
 
       else
          return Error;

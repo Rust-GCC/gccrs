@@ -29,37 +29,23 @@ along with GCC; see the file COPYING3.  If not see
 #include "ssa.h"
 #include "range.h"
 
-value_range
-range_zero (tree type)
-{
-  wide_int zero = wi::zero (TYPE_PRECISION (type));
-  return value_range (type, zero, zero);
-}
-
-value_range
-range_nonzero (tree type)
-{
-  wide_int zero = wi::zero (TYPE_PRECISION (type));
-  return value_range (type, zero, zero, VR_ANTI_RANGE);
-}
-
-value_range
+int_range<2>
 range_positives (tree type)
 {
   unsigned prec = TYPE_PRECISION (type);
   signop sign = TYPE_SIGN (type);
-  return value_range (type, wi::zero (prec), wi::max_value (prec, sign));
+  return int_range<2> (type, wi::zero (prec), wi::max_value (prec, sign));
 }
 
-value_range
+int_range<2>
 range_negatives (tree type)
 {
   unsigned prec = TYPE_PRECISION (type);
   signop sign = TYPE_SIGN (type);
-  value_range r;
+  int_range<2> r;
   if (sign == UNSIGNED)
     r.set_undefined ();
   else
-    r = value_range (type, wi::min_value (prec, sign), wi::minus_one (prec));
+    r.set (type, wi::min_value (prec, sign), wi::minus_one (prec));
   return r;
 }

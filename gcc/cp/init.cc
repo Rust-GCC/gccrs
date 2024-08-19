@@ -173,6 +173,9 @@ build_zero_init_1 (tree type, tree nelts, bool static_storage_p,
 
   gcc_assert (nelts == NULL_TREE || TREE_CODE (nelts) == INTEGER_CST);
 
+  /* An initializer is unqualified.  */
+  type = cv_unqualified (type);
+
   if (type == error_mark_node)
     ;
   else if (static_storage_p && zero_init_p (type))
@@ -934,6 +937,37 @@ find_uninit_fields (tree *t, hash_set<tree> *uninitialized, tree member)
     }
 }
 
+/* Return true if it's OK to initialize an array TYPE from INIT.  Mere mortals
+   can't copy arrays, but the compiler can do so with a VEC_INIT_EXPR in
+   certain cases.  */
+
+static bool
+can_init_array_with_p (tree type, tree init)
+{
+  if (!init)
+    /* Value-init, OK.  */
+    return true;
+  if (!same_type_ignoring_top_level_qualifiers_p (type, TREE_TYPE (init)))
+    return false;
+  /* We're called from synthesize_method, and we're processing the
+     mem-initializers of a constructor.  */
+  if (DECL_DEFAULTED_FN (current_function_decl))
+    return true;
+  if (TREE_CODE (init) == TARGET_EXPR)
+    {
+      init = TARGET_EXPR_INITIAL (init);
+      /* As an extension, we allow copying from a compound literal.  */
+      if (TREE_CODE (init) == CONSTRUCTOR)
+	return CONSTRUCTOR_C99_COMPOUND_LITERAL (init);
+      /* VEC_INIT_EXPR is used for non-constant initialization of trailing
+	 elements with no explicit initializers.  */
+      else if (TREE_CODE (init) == VEC_INIT_EXPR)
+	return true;
+    }
+
+  return false;
+}
+
 /* Initialize MEMBER, a FIELD_DECL, with INIT, a TREE_LIST of
    arguments.  If TREE_LIST is void_type_node, an empty initializer
    list was given; if NULL_TREE no initializer was given.  UNINITIALIZED
@@ -968,7 +1002,7 @@ perform_member_init (tree member, tree init, hash_set<tree> &uninitialized)
   if (decl == error_mark_node)
     return;
 
-  if ((warn_init_self || warn_uninitialized)
+  if ((warn_init_self || warn_uninitialized || warn_self_move)
       && init
       && TREE_CODE (init) == TREE_LIST
       && TREE_CHAIN (init) == NULL_TREE)
@@ -982,7 +1016,8 @@ perform_member_init (tree member, tree init, hash_set<tree> &uninitialized)
 	warning_at (DECL_SOURCE_LOCATION (current_function_decl),
 		    OPT_Winit_self, "%qD is initialized with itself",
 		    member);
-      else
+      else if (!maybe_warn_self_move (input_location, member,
+				      TREE_VALUE (init)))
 	find_uninit_fields (&val, &uninitialized, decl);
     }
 
@@ -1087,9 +1122,7 @@ perform_member_init (tree member, tree init, hash_set<tree> &uninitialized)
     {
       if (TREE_CODE (type) == ARRAY_TYPE)
 	{
-	  if (init == NULL_TREE
-	      || same_type_ignoring_top_level_qualifiers_p (type,
-							    TREE_TYPE (init)))
+	  if (can_init_array_with_p (type, init))
 	    {
 	      if (TYPE_DOMAIN (type) && TYPE_MAX_VALUE (TYPE_DOMAIN (type)))
 		{
@@ -1979,7 +2012,7 @@ build_aggr_init (tree exp, tree init, int flags, tsubst_flags_t complain)
       tree itype = init ? TREE_TYPE (init) : NULL_TREE;
       int from_array = 0;
 
-      if (VAR_P (exp) && DECL_DECOMPOSITION_P (exp))
+      if (DECL_DECOMPOSITION_P (exp))
 	{
 	  from_array = 1;
 	  init = mark_rvalue_use (init);
@@ -3975,10 +4008,14 @@ build_new (location_t loc, vec<tree, va_gc> **placement, tree type,
   /* P1009: Array size deduction in new-expressions.  */
   const bool array_p = TREE_CODE (type) == ARRAY_TYPE;
   if (*init
-      /* If ARRAY_P, we have to deduce the array bound.  For C++20 paren-init,
-	 we have to process the parenthesized-list.  But don't do it for (),
-	 which is value-initialization, and INIT should stay empty.  */
-      && (array_p || (cxx_dialect >= cxx20 && nelts && !(*init)->is_empty ())))
+      /* If the array didn't specify its bound, we have to deduce it.  */
+      && ((array_p && !TYPE_DOMAIN (type))
+	  /* For C++20 array with parenthesized-init, we have to process
+	     the parenthesized-list.  But don't do it for (), which is
+	     value-initialization, and INIT should stay empty.  */
+	  || (cxx_dialect >= cxx20
+	      && (array_p || nelts)
+	      && !(*init)->is_empty ())))
     {
       /* This means we have 'new T[]()'.  */
       if ((*init)->is_empty ())
@@ -4084,7 +4121,24 @@ build_vec_delete_1 (location_t loc, tree base, tree maxindex, tree type,
 
   if (!COMPLETE_TYPE_P (type))
     {
-      if (complain & tf_warning)
+      if (cxx_dialect > cxx23)
+	{
+	  if (complain & tf_error)
+	    {
+	      int saved_errorcount = errorcount;
+	      if (permerror_opt (loc, OPT_Wdelete_incomplete,
+				 "operator %<delete []%> used on "
+				 "incomplete type"))
+		{
+		  cxx_incomplete_type_inform (type);
+		  if (errorcount != saved_errorcount)
+		    return error_mark_node;
+		}
+	    }
+	  else
+	    return error_mark_node;
+	}
+      else if (complain & tf_warning)
 	{
 	  auto_diagnostic_group d;
 	  if (warning_at (loc, OPT_Wdelete_incomplete,
@@ -4258,7 +4312,7 @@ create_temporary_var (tree type)
   TREE_USED (decl) = 1;
   DECL_ARTIFICIAL (decl) = 1;
   DECL_IGNORED_P (decl) = 1;
-  DECL_CONTEXT (decl) = current_scope ();
+  DECL_CONTEXT (decl) = current_function_decl;
 
   return decl;
 }
@@ -4656,8 +4710,14 @@ build_vec_init (tree base, tree maxindex, tree init,
 	 for any temporaries in the initialization are naturally within our
 	 cleanup region, so we don't want wrap_temporary_cleanups to do
 	 anything for arrays.  But if the array is a subobject, we need to
-	 tell split_nonconstant_init how to turn off this cleanup in favor of
-	 the cleanup for the complete object.  */
+	 tell split_nonconstant_init or cp_genericize_target_expr how to turn
+	 off this cleanup in favor of the cleanup for the complete object.
+
+	 ??? For an array temporary such as an initializer_list backing array,
+	 it would avoid redundancy to leave this cleanup active, clear
+	 CLEANUP_EH_ONLY, and not build another cleanup for the temporary
+	 itself.  But that breaks when gimplify_target_expr adds a clobber
+	 cleanup that runs before the build_vec_init cleanup.  */
       if (cleanup_flags)
 	vec_safe_push (*cleanup_flags, build_tree_list (iterator, maxindex));
     }
@@ -4667,7 +4727,10 @@ build_vec_init (tree base, tree maxindex, tree init,
 		    && TREE_CONSTANT (maxindex)
 		    && (init ? TREE_CODE (init) == CONSTRUCTOR
 			: (type_has_constexpr_default_constructor
-			   (inner_elt_type)))
+			   (inner_elt_type)
+			   /* Value-initialization of scalars is constexpr.  */
+			   || (explicit_value_init_p
+			       && SCALAR_TYPE_P (inner_elt_type))))
 		    && (literal_type_p (inner_elt_type)
 			|| TYPE_HAS_CONSTEXPR_CTOR (inner_elt_type)));
   vec<constructor_elt, va_gc> *const_vec = NULL;
@@ -5142,7 +5205,24 @@ build_delete (location_t loc, tree otype, tree addr,
 
 	  if (!COMPLETE_TYPE_P (type))
 	    {
-	      if (complain & tf_warning)
+	      if (cxx_dialect > cxx23)
+		{
+		  if (complain & tf_error)
+		    {
+		      int saved_errorcount = errorcount;
+		      if (permerror_opt (loc, OPT_Wdelete_incomplete,
+					 "operator %<delete%> used on "
+					 "incomplete type"))
+			{
+			  cxx_incomplete_type_inform (type);
+			  if (errorcount != saved_errorcount)
+			    return error_mark_node;
+			}
+		    }
+		  else
+		    return error_mark_node;
+		}
+	      else if (complain & tf_warning)
 		{
 		  auto_diagnostic_group d;
 		  if (warning_at (loc, OPT_Wdelete_incomplete,
@@ -5193,9 +5273,13 @@ build_delete (location_t loc, tree otype, tree addr,
       addr = convert_force (build_pointer_type (type), addr, 0, complain);
     }
 
+  tree addr_expr = NULL_TREE;
   if (deleting)
     /* We will use ADDR multiple times so we must save it.  */
-    addr = save_expr (addr);
+    {
+      addr_expr = get_target_expr (addr);
+      addr = TARGET_EXPR_SLOT (addr_expr);
+    }
 
   bool virtual_p = false;
   if (type_build_dtor_call (type))
@@ -5313,6 +5397,9 @@ build_delete (location_t loc, tree otype, tree addr,
 
   if (!integer_nonzerop (ifexp))
     expr = build3 (COND_EXPR, void_type_node, ifexp, expr, void_node);
+
+  if (addr_expr)
+    expr = cp_build_compound_expr (addr_expr, expr, tf_none);
 
   protected_set_expr_location (expr, loc);
   return expr;

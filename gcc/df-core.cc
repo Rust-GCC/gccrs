@@ -806,7 +806,8 @@ rest_of_handle_df_finish (void)
   for (i = 0; i < df->num_problems_defined; i++)
     {
       struct dataflow *dflow = df->problems_in_order[i];
-      dflow->problem->free_fun ();
+      if (dflow->problem->free_fun)
+	dflow->problem->free_fun ();
     }
 
   free (df->postorder);
@@ -1962,6 +1963,21 @@ df_bb_regno_last_def_find (basic_block bb, unsigned int regno)
     }
 
   return NULL;
+}
+
+/* Return the one and only def of REGNO within BB.  If there is no def or
+   there are multiple defs, return NULL.  */
+
+df_ref
+df_bb_regno_only_def_find (basic_block bb, unsigned int regno)
+{
+  df_ref temp = df_bb_regno_first_def_find (bb, regno);
+  if (!temp)
+    return NULL;
+  else if (temp == df_bb_regno_last_def_find (bb, regno))
+    return temp;
+  else
+    return NULL;
 }
 
 /* Finds the reference corresponding to the definition of REG in INSN.

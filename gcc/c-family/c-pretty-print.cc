@@ -47,7 +47,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #define pp_c_maybe_whitespace(PP)            \
    do {                                      \
-     if ((PP)->padding == pp_before) \
+     if ((PP)->get_padding () == pp_before)  \
        pp_c_whitespace (PP);                 \
    } while (0)
 
@@ -76,98 +76,98 @@ void
 pp_c_whitespace (c_pretty_printer *pp)
 {
   pp_space (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_left_paren (c_pretty_printer *pp)
 {
   pp_left_paren (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_right_paren (c_pretty_printer *pp)
 {
   pp_right_paren (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_left_brace (c_pretty_printer *pp)
 {
   pp_left_brace (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_right_brace (c_pretty_printer *pp)
 {
   pp_right_brace (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_left_bracket (c_pretty_printer *pp)
 {
   pp_left_bracket (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_right_bracket (c_pretty_printer *pp)
 {
   pp_right_bracket (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_dot (c_pretty_printer *pp)
 {
   pp_dot (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_ampersand (c_pretty_printer *pp)
 {
   pp_ampersand (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_star (c_pretty_printer *pp)
 {
   pp_star (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_arrow (c_pretty_printer *pp)
 {
   pp_arrow (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_semicolon (c_pretty_printer *pp)
 {
   pp_semicolon (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_complement (c_pretty_printer *pp)
 {
   pp_complement (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 void
 pp_c_exclamation (c_pretty_printer *pp)
 {
   pp_exclamation (pp);
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 }
 
 /* Print out the external representation of QUALIFIERS.  */
@@ -1307,7 +1307,7 @@ pp_c_ws_string (c_pretty_printer *pp, const char *str)
 {
   pp_c_maybe_whitespace (pp);
   pp_string (pp, str);
-  pp->padding = pp_before;
+  pp->set_padding (pp_before);
 }
 
 void
@@ -1328,7 +1328,7 @@ pp_c_identifier (c_pretty_printer *pp, const char *id)
 {
   pp_c_maybe_whitespace (pp);
   pp_identifier (pp, id);
-  pp->padding = pp_before;
+  pp->set_padding (pp_before);
 }
 
 /* Pretty-print a C primary-expression.
@@ -2327,6 +2327,7 @@ pp_c_cast_expression (c_pretty_printer *pp, tree e)
     case FIX_TRUNC_EXPR:
     CASE_CONVERT:
     case VIEW_CONVERT_EXPR:
+    case EXCESS_PRECISION_EXPR:
       if (!location_wrapper_p (e))
 	pp_c_type_cast (pp, TREE_TYPE (e));
       pp_c_cast_expression (pp, TREE_OPERAND (e, 0));
@@ -2753,6 +2754,7 @@ c_pretty_printer::expression (tree e)
     case FIX_TRUNC_EXPR:
     CASE_CONVERT:
     case VIEW_CONVERT_EXPR:
+    case EXCESS_PRECISION_EXPR:
       pp_c_cast_expression (this, e);
       break;
 
@@ -2983,7 +2985,7 @@ print_c_tree (FILE *file, tree t)
   c_pretty_printer pp;
 
   pp_needs_newline (&pp) = true;
-  pp.buffer->stream = file;
+  pp.set_output_stream (file);
   pp.statement (t);
   pp_newline_and_flush (&pp);
 }

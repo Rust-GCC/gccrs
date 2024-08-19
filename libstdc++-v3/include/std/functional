@@ -83,6 +83,7 @@
 #define __glibcxx_want_move_only_function
 #define __glibcxx_want_not_fn
 #define __glibcxx_want_ranges
+#define __glibcxx_want_reference_wrapper
 #define __glibcxx_want_transparent_operators
 #include <bits/version.h>
 
@@ -556,7 +557,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<typename _Fn, typename _CallArgs, typename... _BArgs>
 	using _Res_type_impl
-	  = typename result_of< _Fn&(_Mu_type<_BArgs, _CallArgs>&&...) >::type;
+	  = __invoke_result_t<_Fn&, _Mu_type<_BArgs, _CallArgs>&&...>;
 
       template<typename _CallArgs>
 	using _Res_type = _Res_type_impl<_Functor, _CallArgs, _Bound_args...>;
@@ -943,7 +944,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	noexcept(is_nothrow_invocable_v<__like_t<_Self, _Fd>,
 					__like_t<_Self, _BoundArgs>..., _CallArgs...>)
 	{
-	  return _S_call(std::forward<_Self>(__self), _BoundIndices(),
+	  return _S_call(__like_t<_Self, _Bind_front>(__self), _BoundIndices(),
 			 std::forward<_CallArgs>(__call_args)...);
 	}
 #else
@@ -1071,7 +1072,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	noexcept(is_nothrow_invocable_v<__like_t<_Self, _Fd>,
 					_CallArgs..., __like_t<_Self, _BoundArgs>...>)
 	{
-	  return _S_call(std::forward<_Self>(__self), _BoundIndices(),
+	  return _S_call(__like_t<_Self, _Bind_back>(__self), _BoundIndices(),
 			 std::forward<_CallArgs>(__call_args)...);
 	}
 

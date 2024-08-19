@@ -63,6 +63,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/checker-path.h"
 #include "analyzer/feasible-graph.h"
 #include "make-unique.h"
+#include "diagnostic-format-sarif.h"
 
 /* A bundle of data characterizing a particular infinite loop
    identified within the exploded graph.  */
@@ -103,6 +104,18 @@ struct infinite_loop
        elsewhere.  */
     return (m_enode.get_supernode () == other.m_enode.get_supernode ()
 	    && m_loc == other.m_loc);
+  }
+
+  json::object *
+  to_json () const
+  {
+    json::object *loop_obj = new json::object ();
+    loop_obj->set_integer ("enode", m_enode.m_index);
+    json::array *edge_arr = new json::array ();
+    for (auto eedge : m_eedge_vec)
+      edge_arr->append (eedge->to_json ());
+    loop_obj->set ("eedges", edge_arr);
+    return loop_obj;
   }
 
   const exploded_node &m_enode;
@@ -146,6 +159,21 @@ public:
 	  }
       }
     return start_cfg_edge_event::get_desc (can_colorize);
+  }
+};
+
+class looping_back_event : public start_cfg_edge_event
+{
+public:
+  looping_back_event (const exploded_edge &eedge,
+		      const event_loc_info &loc_info)
+  : start_cfg_edge_event (eedge, loc_info)
+  {
+  }
+
+  label_text get_desc (bool) const final override
+  {
+    return label_text::borrow ("looping back...");
   }
 };
 
@@ -201,7 +229,7 @@ public:
   /* Customize the location where the warning_event appears.  */
   void add_final_event (const state_machine *,
 			const exploded_node *enode,
-			const gimple *,
+			const event_loc_info &,
 			tree,
 			state_machine::state_t,
 			checker_path *emission_path) final override
@@ -212,7 +240,7 @@ public:
 			enode->get_function ()->decl,
 			enode->get_stack_depth ()),
 	enode,
-	NULL, NULL, NULL));
+	nullptr, nullptr, nullptr));
 
     logger *logger = emission_path->get_logger ();
 
@@ -287,14 +315,22 @@ public:
 	else if (cfg_sedge->back_edge_p ())
 	  {
 	    emission_path->add_event
-	      (make_unique<precanned_custom_event>
-	       (loc_info_from, "looping back..."));
+	      (make_unique<looping_back_event> (*eedge, loc_info_from));
 	    emission_path->add_event
 	      (make_unique<end_cfg_edge_event>
 	       (*eedge,
 		loc_info_to));
 	  }
       }
+  }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/infinite_loop_diagnostic/"
+    props.set (PROPERTY_PREFIX "inf_loop", m_inf_loop->to_json ());
+#undef PROPERTY_PREFIX
   }
 
 private:

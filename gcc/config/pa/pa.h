@@ -828,19 +828,8 @@ extern int may_call_alloca;
 
 /* Nonzero if 14-bit offsets can be used for all loads and stores.
    This is not possible when generating PA 1.x code as floating point
-   accesses only support 5-bit offsets.  Note that we do not forbid
-   the use of 14-bit offsets prior to reload.  Instead, we use secondary
-   reloads to fix REG+D memory addresses for floating-point accesses.
-
-   FIXME: the GNU ELF linker clobbers the LSB of the FP register number
-   in PA 2.0 floating-point insns with long displacements.  This is
-   because R_PARISC_DPREL14WR and other relocations like it are not
-   yet supported by GNU ld.  For now, we reject long displacements
-   on this target.  */
-
-#define INT14_OK_STRICT \
-  (TARGET_SOFT_FLOAT                                                   \
-   || (TARGET_PA_20 && !TARGET_ELF32 && !TARGET_ELF64))
+   accesses only support 5-bit offsets.  */
+#define INT14_OK_STRICT (TARGET_SOFT_FLOAT || TARGET_PA_20)
 
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
@@ -1258,12 +1247,15 @@ do {									     \
 	       reg_names [REGNO (XEXP (addr, 0))]);			\
       break;								\
     case LO_SUM:							\
-      if (!symbolic_operand (XEXP (addr, 1), VOIDmode))			\
+      if (GET_CODE (XEXP (addr, 1)) == UNSPEC				\
+	  && XINT (XEXP (addr, 1), 1) == UNSPEC_DLTIND14R)		\
+	fputs ("RT'", FILE);						\
+      else if (!symbolic_operand (XEXP (addr, 1), VOIDmode))		\
 	fputs ("R'", FILE);						\
       else if (flag_pic == 0)						\
 	fputs ("RR'", FILE);						\
       else								\
-	fputs ("RT'", FILE);						\
+	gcc_unreachable ();						\
       pa_output_global_address (FILE, XEXP (addr, 1), 0);		\
       fputs ("(", FILE);						\
       output_operand (XEXP (addr, 0), 0);				\
@@ -1314,3 +1306,9 @@ do {									     \
 /* An integer expression for the size in bits of the largest integer machine
    mode that should actually be used.  We allow pairs of registers.  */
 #define MAX_FIXED_MODE_SIZE GET_MODE_BITSIZE (TARGET_64BIT ? TImode : DImode)
+
+/* Define these macros as default for all subtargets, add PA_ prefix
+   as {FLOAT,{,LONG_}DOUBLE}_TYPE_SIZE get poisoned.  */
+#define PA_FLOAT_TYPE_SIZE BITS_PER_WORD
+#define PA_DOUBLE_TYPE_SIZE (BITS_PER_WORD * 2)
+#define PA_LONG_DOUBLE_TYPE_SIZE (BITS_PER_WORD * 2)

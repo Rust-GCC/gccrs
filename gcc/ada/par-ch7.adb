@@ -233,11 +233,11 @@ package body Ch7 is
                if Aspect_Sloc /= No_Location
                  and then not Aspect_Specifications_Present
                then
-                  Error_Msg_SC ("info: aspect specifications belong here??");
+                  Error_Msg_SC ("info: aspect specifications belong here");
                   Move_Aspects (From => Dummy_Node, To => Package_Node);
                end if;
 
-               P_Aspect_Specifications (Package_Node);
+               P_Aspect_Specifications (Package_Node, Semicolon => True);
                Pop_Scope_Stack;
 
             --  Case of package declaration or package specification

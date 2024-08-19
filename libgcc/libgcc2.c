@@ -1642,19 +1642,22 @@ __mulbitint3 (UBILtype *ret, SItype retprec,
 #ifdef L_divmodbitint4
 /* D = -S.  */
 
-static void
+static UWtype
 bitint_negate (UBILtype *d, const UBILtype *s, SItype n)
 {
   UWtype c = 1;
+  UWtype r = 0;
   do
     {
       UWtype sv = *s, lo;
+      r |= sv;
       s += BITINT_INC;
       c = __builtin_add_overflow (~sv, c, &lo);
       *d = lo;
       d += BITINT_INC;
     }
   while (--n);
+  return r;
 }
 
 /* D -= S * L.  */
@@ -1702,9 +1705,32 @@ __divmodbitint4 (UBILtype *q, SItype qprec,
   USItype rn = ((USItype) rprec + W_TYPE_SIZE - 1) / W_TYPE_SIZE;
   USItype up = auprec % W_TYPE_SIZE;
   USItype vp = avprec % W_TYPE_SIZE;
+  /* If vprec < 0 and the top limb of v is all ones and the second most
+     significant limb has most significant bit clear, then just decrease
+     vn/avprec/vp, because after negation otherwise v2 would have most
+     significant limb clear.  */
+  if (vprec < 0
+      && ((v[BITINT_END (0, vn - 1)] | (vp ? ((UWtype) -1 << vp) : 0))
+	  == (UWtype) -1)
+      && vn > 1
+      && (Wtype) v[BITINT_END (1, vn - 2)] >= 0)
+    {
+      /* Unless all bits below the most significant limb are zero.  */
+      SItype vn2;
+      for (vn2 = vn - 2; vn2 >= 0; --vn2)
+	if (v[BITINT_END (vn - 1 - vn2, vn2)])
+	  {
+	    vp = 0;
+	    --vn;
+#if __LIBGCC_BITINT_ORDER__ == __ORDER_BIG_ENDIAN__
+	    ++v;
+#endif
+	    break;
+	  }
+    }
   if (__builtin_expect (un < vn, 0))
     {
-      /* If abs(v) > abs(u), then q is 0 and r is u.  */
+      /* q is 0 and r is u.  */
       if (q)
 	__builtin_memset (q, 0, qn * sizeof (UWtype));
       if (r == NULL)
@@ -1977,10 +2003,10 @@ __divmodbitint4 (UBILtype *q, SItype qprec,
 	    n = qn;
 	  else
 	    n = un - vn + 1;
-	  bitint_negate (q + BITINT_END (qn - 1, 0),
-			 q2 + BITINT_END (un - vn, 0), n);
+	  SItype c = bitint_negate (q + BITINT_END (qn - 1, 0),
+				    q2 + BITINT_END (un - vn, 0), n) ? -1 : 0;
 	  if (qn > n)
-	    __builtin_memset (q + BITINT_END (0, n), -1,
+	    __builtin_memset (q + BITINT_END (0, n), c,
 			      (qn - n) * sizeof (UWtype));
 	}
       else
@@ -1999,11 +2025,11 @@ __divmodbitint4 (UBILtype *q, SItype qprec,
       if (uprec < 0)
 	{
 	  /* Negative remainder.  */
-	  bitint_negate (r + BITINT_END (rn - 1, 0),
-			 r + BITINT_END (rn - 1, 0),
-			 rn > vn ? vn : rn);
+	  SItype c = bitint_negate (r + BITINT_END (rn - 1, 0),
+				    r + BITINT_END (rn - 1, 0),
+				    rn > vn ? vn : rn) ? -1 : 0;
 	  if (rn > vn)
-	    __builtin_memset (r + BITINT_END (0, vn), -1,
+	    __builtin_memset (r + BITINT_END (0, vn), c,
 			      (rn - vn) * sizeof (UWtype));
 	}
       else

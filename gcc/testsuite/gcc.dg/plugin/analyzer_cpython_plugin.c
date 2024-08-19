@@ -2,6 +2,7 @@
 /* { dg-options "-g" } */
 
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "gcc-plugin.h"
 #include "config.h"
 #include "system.h"
@@ -273,6 +274,11 @@ public:
     return NULL;
   }
 
+  void update_event_loc_info (event_loc_info &) final override
+  {
+    /* No-op.  */
+  }
+
 private:
   const exploded_graph &m_eg;
   tree m_var;
@@ -524,7 +530,7 @@ dump_refcnt_info (const hash_map<const region *, int> &region_to_refcnt,
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  pp.set_output_stream (stderr);
 
   for (const auto &region_refcnt : region_to_refcnt)
     {

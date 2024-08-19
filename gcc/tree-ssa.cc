@@ -1506,7 +1506,10 @@ maybe_rewrite_mem_ref_base (tree *tp, bitmap suitable_for_renaming)
 	}
       else if (TREE_CODE (TREE_TYPE (sym)) == COMPLEX_TYPE
 	       && useless_type_conversion_p (TREE_TYPE (*tp),
-					     TREE_TYPE (TREE_TYPE (sym))))
+					     TREE_TYPE (TREE_TYPE (sym)))
+	       && (integer_zerop (TREE_OPERAND (*tp, 1))
+		   || tree_int_cst_equal (TREE_OPERAND (*tp, 1),
+					  TYPE_SIZE_UNIT (TREE_TYPE (*tp)))))
 	{
 	  *tp = build1 (integer_zerop (TREE_OPERAND (*tp, 1))
 			? REALPART_EXPR : IMAGPART_EXPR,
@@ -1781,6 +1784,20 @@ maybe_optimize_var (tree var, bitmap addresses_taken, bitmap not_reg_needs,
 	  if (dump_file)
 	    {
 	      fprintf (dump_file, "Has partial defs: ");
+	      print_generic_expr (dump_file, var);
+	      fprintf (dump_file, "\n");
+	    }
+	}
+      else if (TREE_CODE (TREE_TYPE (var)) == BITINT_TYPE
+	       && (cfun->curr_properties & PROP_gimple_lbitint) != 0
+	       && TYPE_PRECISION (TREE_TYPE (var)) > MAX_FIXED_MODE_SIZE)
+	{
+	  /* Don't rewrite large/huge _BitInt vars after _BitInt lowering
+	     into SSA form.  */
+	  DECL_NOT_GIMPLE_REG_P (var) = 1;
+	  if (dump_file)
+	    {
+	      fprintf (dump_file, "_BitInt var after its lowering: ");
 	      print_generic_expr (dump_file, var);
 	      fprintf (dump_file, "\n");
 	    }

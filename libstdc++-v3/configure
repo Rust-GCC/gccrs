@@ -28571,7 +28571,31 @@ _ACEOF
 
 
 
-    $as_echo "#define HAVE_ICONV 1" >>confdefs.h
+    # Support for iconv in newlib is configurable.
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <newlib.h>
+int
+main ()
+{
+
+      #ifndef _ICONV_ENABLED
+      #error
+      #endif
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ac_newlib_iconv_enabled=yes
+else
+  ac_newlib_iconv_enabled=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+    if test "$ac_newlib_iconv_enabled" = yes; then
+      $as_echo "#define HAVE_ICONV 1" >>confdefs.h
+
+    fi
 
     $as_echo "#define HAVE_MEMALIGN 1" >>confdefs.h
 
@@ -28610,6 +28634,13 @@ _ACEOF
 
         $as_echo "#define HAVE_USLEEP 1" >>confdefs.h
 
+
+        # These functions are defined in librtemscpu.  We don't use
+        # -qrtems during configure, so we don't link that in, and fail
+        # to find them.
+        glibcxx_cv_chdir=yes
+        glibcxx_cv_chmod=yes
+        glibcxx_cv_mkdir=yes
         ;;
     esac
   elif test "x$with_headers" != "xno"; then
@@ -51033,7 +51064,7 @@ $as_echo "$as_me: WARNING: === Symbol versioning will be disabled." >&2;}
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:33:0
+libtool_VERSION=6:34:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in
@@ -53861,6 +53892,22 @@ do :
 if test "x$ac_cv_header_windows_h" = xyes; then :
   cat >>confdefs.h <<_ACEOF
 #define HAVE_WINDOWS_H 1
+_ACEOF
+
+fi
+
+done
+
+  for ac_header in tlhelp32.h
+do :
+  ac_fn_c_check_header_compile "$LINENO" "tlhelp32.h" "ac_cv_header_tlhelp32_h" "#ifdef HAVE_WINDOWS_H
+  #  include <windows.h>
+  #endif
+
+"
+if test "x$ac_cv_header_tlhelp32_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_TLHELP32_H 1
 _ACEOF
 
 fi

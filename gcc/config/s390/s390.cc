@@ -78,6 +78,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "context.h"
 #include "builtins.h"
+#include "ifcvt.h"
 #include "rtl-iter.h"
 #include "intl.h"
 #include "tm-constrs.h"
@@ -2662,67 +2663,205 @@ s390_contiguous_bitmask_p (unsigned HOST_WIDE_INT in, bool wrap_p,
   return b;
 }
 
-/* Return true if OP contains the same contiguous bitfield in *all*
-   its elements.  START and END can be used to obtain the start and
-   end position of the bitfield.
+/* Return true if OP is a constant which fits into a vector register and if it
+   is a 16-byte constant, then the high and low half must equal.  Otherwise
+   return false.  The out parameter *VEC2 equals the high/low half for 16-byte
+   constants and for smaller constants it equals the concatination of constant
+   OP until an 8-byte constant is constructed.  */
 
-   START/STOP give the position of the first/last bit of the bitfield
-   counting from the lowest order bit starting with zero.  In order to
-   use these values for S/390 instructions this has to be converted to
-   "bits big endian" style.  */
-
-bool
-s390_contiguous_bitmask_vector_p (rtx op, int *start, int *end)
+static bool
+s390_constant_via_vgm_vrepi_1 (rtx op, unsigned HOST_WIDE_INT *vec2)
 {
-  unsigned HOST_WIDE_INT mask;
-  int size;
-  rtx elt;
-  bool b;
+  unsigned HOST_WIDE_INT vec;
 
-  /* Handle floats by bitcasting them to ints.  */
-  op = gen_lowpart (related_int_vector_mode (GET_MODE (op)).require (), op);
-
-  gcc_assert (!!start == !!end);
-  if (!const_vec_duplicate_p (op, &elt)
-      || !CONST_INT_P (elt))
-    return false;
-
-  size = GET_MODE_UNIT_BITSIZE (GET_MODE (op));
-
-  /* We cannot deal with V1TI/V1TF. This would require a vgmq.  */
-  if (size > 64)
-    return false;
-
-  mask = UINTVAL (elt);
-
-  b = s390_contiguous_bitmask_p (mask, true, size, start, end);
-  if (b)
-    {
-      if (start)
+  if (GET_CODE (op) == CONST_VECTOR)
+    switch (GET_MODE_SIZE (GET_MODE (op)))
+      {
+      case 1:
 	{
-	  *start -= (HOST_BITS_PER_WIDE_INT - size);
-	  *end -= (HOST_BITS_PER_WIDE_INT - size);
+	  rtx op_v1qi = gen_lowpart (V1QImode, op);
+	  vec = UINTVAL (XVECEXP (op_v1qi, 0, 0));
+	  vec &= GET_MODE_MASK (QImode);
+	  vec |= vec <<  8;
+	  vec |= vec << 16;
+	  vec |= vec << 32;
+	  *vec2 = vec;
+	  return true;
 	}
+      case 2:
+	{
+	  rtx op_v1hi = gen_lowpart (V1HImode, op);
+	  vec = UINTVAL (XVECEXP (op_v1hi, 0, 0));
+	  vec &= GET_MODE_MASK (HImode);
+	  vec |= vec << 16;
+	  vec |= vec << 32;
+	  *vec2 = vec;
+	  return true;
+	}
+      case 4:
+	{
+	  rtx op_v1si = gen_lowpart (V1SImode, op);
+	  vec = UINTVAL (XVECEXP (op_v1si, 0, 0));
+	  vec &= GET_MODE_MASK (SImode);
+	  vec |= vec << 32;
+	  *vec2 = vec;
+	  return true;
+	}
+      case 8:
+	{
+	  rtx op_v1di = gen_lowpart (V1DImode, op);
+	  vec = UINTVAL (XVECEXP (op_v1di, 0, 0));
+	  *vec2 = vec;
+	  return true;
+	}
+      case 16:
+	{
+	  rtx op_v2di = gen_lowpart (V2DImode, op);
+	  vec = UINTVAL (XVECEXP (op_v2di, 0, 0));
+	  unsigned HOST_WIDE_INT tmp = UINTVAL (XVECEXP (op_v2di, 0, 1));
+	  if (vec != tmp)
+	    return false;
+	  *vec2 = vec;
+	  return true;
+	}
+      default:
+	return false;
+      }
+  else if (CONST_WIDE_INT_P (op) && CONST_WIDE_INT_NUNITS (op) == 2)
+    {
+      vec = CONST_WIDE_INT_ELT (op, 0);
+      unsigned HOST_WIDE_INT tmp = CONST_WIDE_INT_ELT (op, 1);
+      if (vec != tmp)
+	return false;
+      *vec2 = vec;
+      return true;
+    }
+  else if (CONST_DOUBLE_P (op) && GET_MODE (op) == TFmode)
+    {
+      long l[4];
+      const REAL_VALUE_TYPE *rv = CONST_DOUBLE_REAL_VALUE (op);
+      REAL_VALUE_TO_TARGET_LONG_DOUBLE (*rv, l);
+      vec = ((unsigned HOST_WIDE_INT) l[0] << 32)
+	    | ((unsigned HOST_WIDE_INT) l[1] & 0xffffffffUL);
+      unsigned HOST_WIDE_INT tmp
+       = ((unsigned HOST_WIDE_INT) l[2] << 32)
+	 | ((unsigned HOST_WIDE_INT) l[3] & 0xffffffffUL);
+      if (vec != tmp)
+	return false;
+      *vec2 = vec;
       return true;
     }
   else
     return false;
 }
 
-/* Return true if C consists only of byte chunks being either 0 or
+/* Return true if constant OP can be loaded via VGM.  Otherwise return false.
+   If MODE, START, and END are not null, then out parameter *MODE is the
+   element size of VGM, and *START and *END are the starting and ending bit
+   positions, respectively.  */
+
+bool
+s390_constant_via_vgm_p (rtx op, machine_mode *mode, int *start, int *end)
+{
+  unsigned HOST_WIDE_INT vec;
+
+  if (!s390_constant_via_vgm_vrepi_1 (op, &vec))
+    return false;
+
+  machine_mode iter;
+  FOR_EACH_MODE_UNTIL (iter, TImode)
+    {
+      unsigned HOST_WIDE_INT bits = vec & GET_MODE_MASK (iter);
+      bool b = s390_contiguous_bitmask_p (bits, true, GET_MODE_BITSIZE (iter),
+					  start, end);
+      if (!b)
+	continue;
+      unsigned HOST_WIDE_INT vec2 = bits;
+      for (int i = 1; i < 8 / GET_MODE_SIZE (iter); ++i)
+	vec2 |= bits << (GET_MODE_BITSIZE (iter) * i);
+      if (vec == vec2)
+	{
+	  if (mode && start && end)
+	    {
+	      *mode = iter;
+	      *start -= (HOST_BITS_PER_WIDE_INT - GET_MODE_BITSIZE (iter));
+	      *end -= (HOST_BITS_PER_WIDE_INT - GET_MODE_BITSIZE (iter));
+	    }
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+/* Return true if constant OP can be loaded via VREPI.  Otherwise return false.
+   If MODE and IMM are not null, then out parameter *MODE is the element size
+   of VREPI, and *IMM is the signed integer immediate.  */
+
+bool
+s390_constant_via_vrepi_p (rtx op, machine_mode *mode, short *imm)
+{
+  unsigned HOST_WIDE_INT vec;
+
+  if (!s390_constant_via_vgm_vrepi_1 (op, &vec))
+    return false;
+
+  unsigned HOST_WIDE_INT bits = (short) (vec & 0xffff);
+
+  machine_mode iter;
+  FOR_EACH_MODE_UNTIL (iter, TImode)
+    {
+      unsigned HOST_WIDE_INT tmp = bits & GET_MODE_MASK (iter);
+      unsigned HOST_WIDE_INT vec2 = tmp;
+      for (int i = 1; i < 8 / GET_MODE_SIZE (iter); ++i)
+	vec2 |= tmp << (GET_MODE_BITSIZE (iter) * i);
+      if (vec == vec2)
+	{
+	  if (mode && imm)
+	    {
+	      *mode = iter;
+	      /* Although, vrepib ignores the high half of the 16-bit mask,
+		 canonicalize to an 8-bit sign-extended mask.  */
+	      *imm = iter == QImode ? (signed char) (bits & 0xff)
+				    : (short) (bits & 0xffff);
+	    }
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+/* Return true if OP consists only of byte chunks being either 0 or
    0xff.  If MASK is !=NULL a byte mask is generated which is
    appropriate for the vector generate byte mask instruction.  */
 
 bool
-s390_bytemask_vector_p (rtx op, unsigned *mask)
+s390_constant_via_vgbm_p (rtx op, unsigned *mask)
 {
   int i;
   unsigned tmp_mask = 0;
   int nunit, unit_size;
 
-  if (!VECTOR_MODE_P (GET_MODE (op))
-      || GET_CODE (op) != CONST_VECTOR
-      || !CONST_INT_P (XVECEXP (op, 0, 0)))
+  if (GET_CODE (op) == CONST_VECTOR)
+    {
+      if (GET_MODE_INNER (GET_MODE (op)) == TImode
+	  || GET_MODE_INNER (GET_MODE (op)) == TFmode)
+	/* For the sake of simplicity, bitcast 16-byte one-element vector
+	   into two-element vector so we don't have to special case them in
+	   the following.  */
+	op = gen_lowpart (V2DImode, op);
+      else
+	/* Handle floats by bitcasting them to ints.  */
+	op = gen_lowpart (related_int_vector_mode (GET_MODE (op)).require (),
+			  op);
+    }
+  else if ((CONST_WIDE_INT_P (op) && CONST_WIDE_INT_NUNITS (op) == 2)
+	   || (CONST_DOUBLE_P (op) && GET_MODE (op) == TFmode))
+    /* For the sake of simplicity, bitcast the 16-byte constants into a vector
+       so we don't have to special case them in the following.  */
+    op = gen_lowpart (V2DImode, op);
+  else
     return false;
 
   nunit = GET_MODE_NUNITS (GET_MODE (op));
@@ -2732,9 +2871,6 @@ s390_bytemask_vector_p (rtx op, unsigned *mask)
     {
       unsigned HOST_WIDE_INT c;
       int j;
-
-      if (!CONST_INT_P (XVECEXP (op, 0, i)))
-	return false;
 
       c = UINTVAL (XVECEXP (op, 0, i));
       for (j = 0; j < unit_size; j++)
@@ -2747,7 +2883,7 @@ s390_bytemask_vector_p (rtx op, unsigned *mask)
     }
 
   if (mask != NULL)
-    *mask = tmp_mask;
+    *mask = tmp_mask << (16 - GET_MODE_SIZE (GET_MODE (op)));
 
   return true;
 }
@@ -3346,7 +3482,9 @@ s390_decompose_addrstyle_without_index (rtx op, rtx *base,
   while (op && GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
 
-  if (op && GET_CODE (op) != REG)
+  if (op && (!REG_P (op)
+	     || (reload_completed
+		 && !REGNO_OK_FOR_BASE_P (REGNO (op)))))
     return false;
 
   if (offset)
@@ -4314,14 +4452,11 @@ legitimate_pic_operand_p (rtx op)
 static bool
 s390_legitimate_constant_p (machine_mode mode, rtx op)
 {
-  if (TARGET_VX && VECTOR_MODE_P (mode) && GET_CODE (op) == CONST_VECTOR)
+  if (TARGET_VX && GET_CODE (op) == CONST_VECTOR)
     {
-      if (GET_MODE_SIZE (mode) != 16)
-	return 0;
-
       if (!satisfies_constraint_j00 (op)
 	  && !satisfies_constraint_jm1 (op)
-	  && !satisfies_constraint_jKK (op)
+	  && !satisfies_constraint_jzz (op)
 	  && !satisfies_constraint_jxx (op)
 	  && !satisfies_constraint_jyy (op))
 	return 0;
@@ -4454,7 +4589,7 @@ legitimate_reload_constant_p (rtx op)
       && GET_CODE (op) == CONST_INT
       && trunc_int_for_mode (INTVAL (op), word_mode) == INTVAL (op)
       && s390_single_part (op, word_mode, HImode, 0) >= 0)
-  return true;
+    return true;
 
   if (TARGET_EXTIMM
       && GET_CODE (op) == CONST_INT
@@ -4515,15 +4650,11 @@ legitimate_reload_fp_constant_p (rtx op)
 static bool
 legitimate_reload_vector_constant_p (rtx op)
 {
-  if (TARGET_VX && GET_MODE_SIZE (GET_MODE (op)) == 16
-      && (satisfies_constraint_j00 (op)
-	  || satisfies_constraint_jm1 (op)
-	  || satisfies_constraint_jKK (op)
-	  || satisfies_constraint_jxx (op)
-	  || satisfies_constraint_jyy (op)))
-    return true;
-
-  return false;
+  return TARGET_VX && (satisfies_constraint_j00 (op)
+		       || satisfies_constraint_jm1 (op)
+		       || satisfies_constraint_jzz (op)
+		       || satisfies_constraint_jxx (op)
+		       || satisfies_constraint_jyy (op));
 }
 
 /* Given an rtx OP being reloaded into a reg required to be in class RCLASS,
@@ -4779,7 +4910,7 @@ s390_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
       if (in_p
 	  && s390_loadrelative_operand_p (x, &symref, &offset)
 	  && mode == Pmode
-	  && !SYMBOL_FLAG_NOTALIGN2_P (symref)
+	  && (!SYMBOL_REF_P (symref) || !SYMBOL_FLAG_NOTALIGN2_P (symref))
 	  && (offset & 1) == 1)
 	sri->icode = ((mode == DImode) ? CODE_FOR_reloaddi_larl_odd_addend_z10
 		      : CODE_FOR_reloadsi_larl_odd_addend_z10);
@@ -7392,13 +7523,15 @@ s390_expand_vec_init (rtx target, rtx vals)
 	all_regs = false;
     }
 
-  /* Use vector gen mask or vector gen byte mask if possible.  */
+  /* Use vector gen mask or vector gen byte mask or vector replicate immediate
+     if possible.  */
   if (all_same && all_const_int)
     {
       rtx vec = gen_rtx_CONST_VECTOR (mode, XVEC (vals, 0));
       if (XVECEXP (vals, 0, 0) == const0_rtx
-	  || s390_contiguous_bitmask_vector_p (vec, NULL, NULL)
-	  || s390_bytemask_vector_p (vec, NULL))
+	  || s390_constant_via_vgm_p (vec, NULL, NULL, NULL)
+	  || s390_constant_via_vrepi_p (vec, NULL, NULL)
+	  || s390_constant_via_vgbm_p (vec, NULL))
 	{
 	  emit_insn (gen_rtx_SET (target, vec));
 	  return;
@@ -8452,6 +8585,9 @@ print_operand_address (FILE *file, rtx addr)
     'M': print the second word of a TImode operand.
     'N': print the second word of a DImode operand.
     'O': print only the displacement of a memory reference or address.
+    'p': print immediate and element size mask for instruction vrepi
+    'q': print start/end bit positions and element size mask for instruction vgm
+    'r': print immediate for instruction vgbm
     'R': print only the base register of a memory reference or address.
     'S': print S-type memory reference (base+displacement).
     'Y': print address style operand without index (e.g. shift count or setmem
@@ -8469,7 +8605,6 @@ print_operand_address (FILE *file, rtx addr)
     'o': print integer X as if it's an unsigned 32bit word.
     's': "start" of contiguous bitmask X in either DImode or vector inner mode.
     't': CONST_INT: "start" of contiguous bitmask X in SImode.
-	 CONST_VECTOR: Generate a bitmask for vgbm instruction.
     'x': print integer X as if it's an unsigned halfword.
     'v': print register number as vector register (v1 instead of f1).
     'V': print the second word of a TFmode operand as vector register.
@@ -8554,6 +8689,67 @@ print_operand (FILE *file, rtx x, int code)
 	  output_addr_const (file, ad.disp);
 	else
 	  fprintf (file, "0");
+      }
+      return;
+
+    case 'p':
+      {
+	machine_mode mode;
+	short imm;
+	bool b = s390_constant_via_vrepi_p (x, &mode, &imm);
+	gcc_checking_assert (b);
+	switch (mode)
+	  {
+	  case QImode:
+	    fprintf (file, "%i,0", imm);
+	    break;
+	  case HImode:
+	    fprintf (file, "%i,1", imm);
+	    break;
+	  case SImode:
+	    fprintf (file, "%i,2", imm);
+	    break;
+	  case DImode:
+	    fprintf (file, "%i,3", imm);
+	    break;
+	  default:
+	    gcc_unreachable ();
+	  }
+      }
+      return;
+
+    case 'q':
+      {
+	machine_mode mode;
+	int start, end;
+	bool b = s390_constant_via_vgm_p (x, &mode, &start, &end);
+	gcc_checking_assert (b);
+	switch (mode)
+	  {
+	  case QImode:
+	    fprintf (file, "%u,%u,0", start, end);
+	    break;
+	  case HImode:
+	    fprintf (file, "%u,%u,1", start, end);
+	    break;
+	  case SImode:
+	    fprintf (file, "%u,%u,2", start, end);
+	    break;
+	  case DImode:
+	    fprintf (file, "%u,%u,3", start, end);
+	    break;
+	  default:
+	    gcc_unreachable ();
+	  }
+      }
+      return;
+
+    case 'r':
+      {
+	unsigned mask;
+	bool b = s390_constant_via_vgbm_p (x, &mask);
+	gcc_checking_assert (b);
+	fprintf (file, "%u", mask);
       }
       return;
 
@@ -8769,26 +8965,6 @@ print_operand (FILE *file, rtx x, int code)
 	  gcc_assert (const_vec_duplicate_p (x));
 	  fprintf (file, HOST_WIDE_INT_PRINT_DEC,
 		   ((INTVAL (XVECEXP (x, 0, 0)) & 0xffff) ^ 0x8000) - 0x8000);
-	  break;
-	case 'e':
-	case 's':
-	  {
-	    int start, end;
-	    bool ok;
-
-	    ok = s390_contiguous_bitmask_vector_p (x, &start, &end);
-	    gcc_assert (ok);
-	    ival = (code == 's') ? start : end;
-	    fprintf (file, HOST_WIDE_INT_PRINT_DEC, ival);
-	  }
-	  break;
-	case 't':
-	  {
-	    unsigned mask;
-	    bool ok = s390_bytemask_vector_p (x, &mask);
-	    gcc_assert (ok);
-	    fprintf (file, "%u", mask);
-	  }
 	  break;
 
 	default:
@@ -9984,7 +10160,7 @@ s390_const_int_pool_entry_p (rtx mem, HOST_WIDE_INT *val)
      - (mem (unspec [(symbol_ref) (reg)] UNSPEC_LTREF)).
      - (mem (symbol_ref)).  */
 
-  if (!MEM_P (mem))
+  if (!MEM_P (mem) || GET_MODE_CLASS (GET_MODE (mem)) != MODE_INT)
     return false;
 
   rtx addr = XEXP (mem, 0);
@@ -9998,8 +10174,18 @@ s390_const_int_pool_entry_p (rtx mem, HOST_WIDE_INT *val)
     return false;
 
   rtx val_rtx = get_pool_constant (sym);
-  if (!CONST_INT_P (val_rtx))
+  machine_mode mode = get_pool_mode (sym);
+  if (!CONST_INT_P (val_rtx)
+      || GET_MODE_CLASS (mode) != MODE_INT
+      || GET_MODE_SIZE (mode) < GET_MODE_SIZE (GET_MODE (mem)))
     return false;
+
+  if (mode != GET_MODE (mem))
+    {
+      val_rtx = simplify_subreg (GET_MODE (mem), val_rtx, mode, 0);
+      if (val_rtx == NULL_RTX || !CONST_INT_P (val_rtx))
+	return false;
+    }
 
   if (val != nullptr)
     *val = INTVAL (val_rtx);
@@ -13802,10 +13988,19 @@ s390_encode_section_info (tree decl, rtx rtl, int first)
 	 that can go wrong (i.e. no FUNC_DECLs).
 	 All symbols without an explicit alignment are assumed to be 2
 	 byte aligned as mandated by our ABI.  This behavior can be
-	 overridden for external symbols with the -munaligned-symbols
-	 switch.  */
+	 overridden for external and weak symbols with the
+	 -munaligned-symbols switch.
+	 For all external symbols without explicit alignment
+	 DECL_ALIGN is already trimmed down to 8, however for weak
+	 symbols this does not happen.  These cases are catched by the
+	 type size check.  */
+      const_tree size = TYPE_SIZE (TREE_TYPE (decl));
+      unsigned HOST_WIDE_INT size_num = (tree_fits_uhwi_p (size)
+					 ? tree_to_uhwi (size) : 0);
       if ((DECL_USER_ALIGN (decl) && DECL_ALIGN (decl) % 16)
-	  || (s390_unaligned_symbols_p && !decl_binds_to_current_def_p (decl)))
+	  || (s390_unaligned_symbols_p
+	      && !decl_binds_to_current_def_p (decl)
+	      && (DECL_USER_ALIGN (decl) ? DECL_ALIGN (decl) % 16 : size_num < 16)))
 	SYMBOL_FLAG_SET_NOTALIGN2 (XEXP (rtl, 0));
       else if (DECL_ALIGN (decl) % 32)
 	SYMBOL_FLAG_SET_NOTALIGN4 (XEXP (rtl, 0));
@@ -16085,7 +16280,7 @@ s390_option_override_internal (struct gcc_options *opts,
     }
   else
     {
-      if (TARGET_CPU_VX_P (opts))
+      if (TARGET_CPU_VX_P (opts) && TARGET_ZARCH_P (opts->x_target_flags))
 	/* Enable vector support if available and not explicitly disabled
 	   by user.  E.g. with -m31 -march=z13 -mzarch */
 	opts->x_target_flags |= MASK_OPT_VX;
@@ -17914,6 +18109,49 @@ expand_perm_as_a_vlbr_vstbr_candidate (const struct expand_vec_perm_d &d)
   return false;
 }
 
+static bool
+expand_perm_as_replicate (const struct expand_vec_perm_d &d)
+{
+  unsigned char i;
+  unsigned char elem;
+  rtx base = d.op0;
+  rtx insn = NULL_RTX;
+
+  /* Needed to silence maybe-uninitialized warning.  */
+  gcc_assert (d.nelt > 0);
+  elem = d.perm[0];
+  for (i = 1; i < d.nelt; ++i)
+    if (d.perm[i] != elem)
+      return false;
+  if (!d.testing_p)
+    {
+      if (elem >= d.nelt)
+	{
+	  base = d.op1;
+	  elem -= d.nelt;
+	}
+      if (memory_operand (base, d.vmode))
+	{
+	  /* Try to use vector load and replicate.  */
+	  rtx new_base = adjust_address (base, GET_MODE_INNER (d.vmode),
+					 elem * GET_MODE_UNIT_SIZE (d.vmode));
+	  insn = maybe_gen_vec_splats (d.vmode, d.target, new_base);
+	}
+      if (insn == NULL_RTX)
+	{
+	  base = force_reg (d.vmode, base);
+	  insn = maybe_gen_vec_splat (d.vmode, d.target, base, GEN_INT (elem));
+	}
+
+      if (insn == NULL_RTX)
+	return false;
+      emit_insn (insn);
+      return true;
+    }
+  else
+    return maybe_code_for_vec_splat (d.vmode) != CODE_FOR_nothing;
+}
+
 /* Try to find the best sequence for the vector permute operation
    described by D.  Return true if the operation could be
    expanded.  */
@@ -17930,6 +18168,9 @@ vectorize_vec_perm_const_1 (const struct expand_vec_perm_d &d)
     return true;
 
   if (expand_perm_as_a_vlbr_vstbr_candidate (d))
+    return true;
+
+  if (expand_perm_as_replicate (d))
     return true;
 
   return false;
@@ -17983,6 +18224,46 @@ s390_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
     d.only_op1 = true;
 
   return vectorize_vec_perm_const_1 (d);
+}
+
+/* Consider a NOCE conversion as profitable if there is at least one
+   conditional move.  */
+
+static bool
+s390_noce_conversion_profitable_p (rtx_insn *seq, struct noce_if_info *if_info)
+{
+  if (if_info->speed_p)
+    {
+      for (rtx_insn *insn = seq; insn; insn = NEXT_INSN (insn))
+	{
+	  rtx set = single_set (insn);
+	  if (set == NULL)
+	    continue;
+	  if (GET_CODE (SET_SRC (set)) != IF_THEN_ELSE)
+	    continue;
+	  rtx src = SET_SRC (set);
+	  machine_mode mode = GET_MODE (src);
+	  if (GET_MODE_CLASS (mode) != MODE_INT
+	      && GET_MODE_CLASS (mode) != MODE_FLOAT)
+	    continue;
+	  if (GET_MODE_SIZE (mode) > UNITS_PER_WORD)
+	    continue;
+	  return true;
+	}
+    }
+  return default_noce_conversion_profitable_p (seq, if_info);
+}
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+s390_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return TARGET_LONG_DOUBLE_128 ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
 }
 
 /* Initialize GCC target structure.  */
@@ -18297,6 +18578,12 @@ s390_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
 
 #undef TARGET_VECTORIZE_VEC_PERM_CONST
 #define TARGET_VECTORIZE_VEC_PERM_CONST s390_vectorize_vec_perm_const
+
+#undef TARGET_NOCE_CONVERSION_PROFITABLE_P
+#define TARGET_NOCE_CONVERSION_PROFITABLE_P s390_noce_conversion_profitable_p
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE s390_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

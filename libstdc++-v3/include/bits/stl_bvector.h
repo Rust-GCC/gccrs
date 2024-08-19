@@ -185,7 +185,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     void
     _M_assume_normalized() const
     {
-#if __has_attribute(__assume__) && !defined(__clang__)
+#if __has_attribute(__assume__) && !defined(_GLIBCXX_CLANG)
       unsigned int __ofst = _M_offset;
       __attribute__ ((__assume__ (__ofst < unsigned(_S_word_bit))));
 #endif
@@ -593,6 +593,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_GLIBCXX20_CONSTEXPR
 	_Bvector_impl() _GLIBCXX_NOEXCEPT_IF(
 	  is_nothrow_default_constructible<_Bit_alloc_type>::value)
+#if __cpp_concepts && __glibcxx_type_trait_variable_templates
+	requires is_default_constructible_v<_Bit_alloc_type>
+#endif
 	: _Bit_alloc_type()
 	{ }
 
@@ -651,7 +654,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
       _GLIBCXX20_CONSTEXPR
       _Bvector_base(const allocator_type& __a)
-      : _M_impl(__a) { }
+      : _M_impl(_Bit_alloc_type(__a)) { }
 
 #if __cplusplus >= 201103L
       _Bvector_base(_Bvector_base&&) = default;
@@ -674,13 +677,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _M_allocate(size_t __n)
       {
 	_Bit_pointer __p = _Bit_alloc_traits::allocate(_M_impl, _S_nword(__n));
-#if __cpp_lib_is_constant_evaluated
+#if __cpp_lib_is_constant_evaluated && __cpp_constexpr_dynamic_alloc
 	if (std::is_constant_evaluated())
-	{
-	  __n = _S_nword(__n);
-	  for (size_t __i = 0; __i < __n; ++__i)
-	    __p[__i] = 0ul;
-	}
+	  {
+	    __n = _S_nword(__n);
+	    for (size_t __i = 0; __i < __n; ++__i)
+	      std::construct_at(std::to_address(__p) + __i);
+	  }
 #endif
 	return __p;
       }
@@ -1081,12 +1084,18 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       reference
       operator[](size_type __n)
-      { return begin()[__n]; }
+      {
+	__glibcxx_requires_subscript(__n);
+	return begin()[__n];
+      }
 
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       const_reference
       operator[](size_type __n) const
-      { return begin()[__n]; }
+      {
+	__glibcxx_requires_subscript(__n);
+	return begin()[__n];
+      }
 
     protected:
       _GLIBCXX20_CONSTEXPR
@@ -1130,22 +1139,34 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       reference
       front()
-      { return *begin(); }
+      {
+	__glibcxx_requires_nonempty();
+	return *begin();
+      }
 
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       const_reference
       front() const
-      { return *begin(); }
+      {
+	__glibcxx_requires_nonempty();
+	return *begin();
+      }
 
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       reference
       back()
-      { return *(end() - 1); }
+      {
+	__glibcxx_requires_nonempty();
+	return *(end() - 1);
+      }
 
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       const_reference
       back() const
-      { return *(end() - 1); }
+      {
+	__glibcxx_requires_nonempty();
+	return *(end() - 1);
+      }
 
       _GLIBCXX20_CONSTEXPR
       void
