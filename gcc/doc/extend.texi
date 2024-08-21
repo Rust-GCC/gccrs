@@ -42,6 +42,8 @@ extensions, accepted by GCC in C90 mode and in C++.
 * Named Address Spaces::Named address spaces.
 * Zero Length::         Zero-length arrays.
 * Empty Structures::    Structures with no members.
+* Flexible Array Members in Unions::  Unions with Flexible Array Members.
+* Flexible Array Members alone in Structures::  Structures with only Flexible Array Members.
 * Variable Length::     Arrays whose length is computed at run time.
 * Variadic Macros::     Macros with a variable number of arguments.
 * Escaped Newlines::    Slightly looser rules for escaped newlines.
@@ -1872,6 +1874,38 @@ struct empty @{
 The structure has size zero.  In C++, empty structures are part
 of the language.  G++ treats empty structures as if they had a single
 member of type @code{char}.
+
+@node Flexible Array Members in Unions
+@section Unions with Flexible Array Members
+@cindex unions with flexible array members
+@cindex unions with FAMs
+
+GCC permits a C99 flexible array member (FAM) to be in a union:
+
+@smallexample
+union with_fam @{
+  int a;
+  int b[];
+@};
+@end smallexample
+
+If every member of a union is a flexible array member, the size of
+such a union is zero.
+
+@node Flexible Array Members alone in Structures
+@section Structures with only Flexible Array Members
+@cindex structures with only flexible array members
+@cindex structures with only FAMs
+
+GCC permits a C99 flexible array member (FAM) to be alone in a structure:
+
+@smallexample
+struct only_fam @{
+  int b[];
+@};
+@end smallexample
+
+The size of such a structure is zero.
 
 @node Variable Length
 @section Arrays of Variable Length
@@ -4593,14 +4627,14 @@ the same behavior as that of the command-line option
 Indicates that the workaround for the Cortex-A53 erratum 835769 should be
 applied to this function.  To explicitly disable the workaround for this
 function specify the negated form: @code{no-fix-cortex-a53-835769}.
-This corresponds to the behavior of the command line options
+This corresponds to the behavior of the command-line options
 @option{-mfix-cortex-a53-835769} and @option{-mno-fix-cortex-a53-835769}.
 
 @cindex @code{cmodel=} function attribute, AArch64
 @item cmodel=
 Indicates that code should be generated for a particular code model for
 this function.  The behavior and permissible arguments are the same as
-for the command line option @option{-mcmodel=}.
+for the command-line option @option{-mcmodel=}.
 
 @cindex @code{strict-align} function attribute, AArch64
 @item strict-align
@@ -4660,7 +4694,7 @@ behavior and permissible arguments are the same as for the command-line option
 @cindex @code{outline-atomics} function attribute, AArch64
 @item outline-atomics
 Enable or disable calls to out-of-line helpers to implement atomic operations.
-This corresponds to the behavior of the command line options
+This corresponds to the behavior of the command-line options
 @option{-moutline-atomics} and @option{-mno-outline-atomics}.
 
 @end table
@@ -5101,6 +5135,60 @@ ISR (ADC_vect, ISR_NOBLOCK) // Uses the "interrupt" attribute.
 
 When both @code{signal} and @code{interrupt} are specified for the same
 function, then @code{signal} is silently ignored.
+
+@cindex @code{signal(@var{num})} function attribute, AVR
+@cindex @code{interrupt(@var{num})} function attribute, AVR
+@item signal(@var{num})
+@itemx interrupt(@var{num})
+
+Similar to the @code{signal} resp. @code{interrupt} attribute without
+argument, but the IRQ number is supplied as an argument @var{num} to
+the attribute, rather than providing the ISR name itself as the function name:
+
+@example
+__attribute__((signal(1)))
+static void my_handler (void)
+@{
+   // Code for __vector_1
+@}
+@end example
+
+Notice that the handler function needs not to be externally visible.
+The recommended way to use these attributes is by means of the
+@code{ISR_N} macro provided by @code{avr/interrupt.h} from
+@w{@uref{https://www.nongnu.org/avr-libc/user-manual/group__avr__interrupts.html,,AVR-LibC}}:
+
+@example
+#include <avr/interrupt.h>
+
+ISR_N (PCINT0_vect_num)
+static void my_pcint0_handler (void)
+@{
+   // Code
+@}
+
+ISR_N (ADC_vect_num, ISR_NOBLOCK)
+static void my_adc_handler (void)
+@{
+    // Code
+@}
+@end example
+
+@code{ISR_N} can be specified more than once, in which case several
+interrupt vectors are pointing to the same handler function.  This
+is similar to the @code{ISR_ALIASOF} macro provided by AVR-LibC, but
+without the overhead introduced by @code{ISR_ALIASOF}.
+
+
+@cindex @code{noblock} function attribute, AVR
+@item noblock
+
+This attribute can be used together with the @code{signal} attribute
+to indicate that an interrupt service routine should start with a @code{SEI}
+instruction to globally re-enable interrupts. Using attributes @code{signal}
+and @code{noblock} together has the same effect like using the @code{interrupt}
+attribute.  Using the @code{noblock} attribute without @code{signal} has no
+effect.
 
 @cindex @code{naked} function attribute, AVR
 @item naked
@@ -6911,16 +6999,6 @@ Enable/disable the generation of the AVX instructions.
 @itemx no-avx2
 Enable/disable the generation of the AVX2 instructions.
 
-@cindex @code{target("avx5124fmaps")} function attribute, x86
-@item avx5124fmaps
-@itemx no-avx5124fmaps
-Enable/disable the generation of the AVX5124FMAPS instructions.
-
-@cindex @code{target("avx5124vnniw")} function attribute, x86
-@item avx5124vnniw
-@itemx no-avx5124vnniw
-Enable/disable the generation of the AVX5124VNNIW instructions.
-
 @cindex @code{target("avx512bitalg")} function attribute, x86
 @item avx512bitalg
 @itemx no-avx512bitalg
@@ -6955,11 +7033,6 @@ Enable/disable the generation of the AVX512F instructions.
 @item avx512ifma
 @itemx no-avx512ifma
 Enable/disable the generation of the AVX512IFMA instructions.
-
-@cindex @code{target("avx512pf")} function attribute, x86
-@item avx512pf
-@itemx no-avx512pf
-Enable/disable the generation of the AVX512PF instructions.
 
 @cindex @code{target("avx512vbmi")} function attribute, x86
 @item avx512vbmi
@@ -7125,11 +7198,6 @@ Enable/disable the generation of the PKU instructions.
 @item popcnt
 @itemx no-popcnt
 Enable/disable the generation of the POPCNT instruction.
-
-@cindex @code{target("prefetchwt1")} function attribute, x86
-@item prefetchwt1
-@itemx no-prefetchwt1
-Enable/disable the generation of the PREFETCHWT1 instructions.
 
 @cindex @code{target("prfchw")} function attribute, x86
 @item prfchw
@@ -7397,6 +7465,21 @@ Enable/disable the generation of the AVX10.1 instructions.
 @item avx10.1-512
 @itemx no-avx10.1-512
 Enable/disable the generation of the AVX10.1 512 bit instructions.
+
+@cindex @code{target("avx10.2")} function attribute, x86
+@item avx10.2
+@itemx no-avx10.2
+Enable/disable the generation of the AVX10.2 instructions.
+
+@cindex @code{target("avx10.2-256")} function attribute, x86
+@item avx10.2-256
+@itemx no-avx10.2-256
+Enable/disbale the generation of the AVX10.2 instructions.
+
+@cindex @code{target("avx10.2-512")} function attribute, x86
+@item avx10.2-512
+@itemx no-avx10.2-512
+Enable/disable the generation of the AVX10.2 512 bit instructions.
 
 @cindex @code{target("cld")} function attribute, x86
 @item cld
@@ -7773,6 +7856,74 @@ align them on any target.
 
 The @code{aligned} attribute can also be used for functions
 (@pxref{Common Function Attributes}.)
+
+@cindex @code{counted_by} variable attribute
+@item counted_by (@var{count})
+The @code{counted_by} attribute may be attached to the C99 flexible array
+member of a structure.  It indicates that the number of the elements of the
+array is given by the field "@var{count}" in the same structure as the
+flexible array member.
+GCC may use this information to improve detection of object size information
+for such structures and provide better results in compile-time diagnostics
+and runtime features like the array bound sanitizer and
+the @code{__builtin_dynamic_object_size}.
+
+For instance, the following code:
+
+@smallexample
+struct P @{
+  size_t count;
+  char other;
+  char array[] __attribute__ ((counted_by (count)));
+@} *p;
+@end smallexample
+
+@noindent
+specifies that the @code{array} is a flexible array member whose number of
+elements is given by the field @code{count} in the same structure.
+
+The field that represents the number of the elements should have an
+integer type.  Otherwise, the compiler reports an error and ignores
+the attribute.
+
+When the field that represents the number of the elements is assigned a
+negative integer value, the compiler treats the value as zero.
+
+An explicit @code{counted_by} annotation defines a relationship between
+two objects, @code{p->array} and @code{p->count}, and there are the
+following requirementthat on the relationship between this pair:
+
+@itemize @bullet
+@item
+@code{p->count} must be initialized before the first reference to
+@code{p->array};
+
+@item
+@code{p->array} has @emph{at least} @code{p->count} number of elements
+available all the time.  This relationship must hold even after any of
+these related objects are updated during the program.
+@end itemize
+
+It's the user's responsibility to make sure the above requirements to
+be kept all the time.  Otherwise the compiler reports warnings,
+at the same time, the results of the array bound sanitizer and the
+@code{__builtin_dynamic_object_size} is undefined.
+
+One important feature of the attribute is, a reference to the flexible
+array member field uses the latest value assigned to the field that
+represents the number of the elements before that reference.  For example,
+
+@smallexample
+  p->count = val1;
+  p->array[20] = 0;  // ref1 to p->array
+  p->count = val2;
+  p->array[30] = 0;  // ref2 to p->array
+@end smallexample
+
+@noindent
+in the above, @code{ref1} uses @code{val1} as the number of the elements in
+@code{p->array}, and @code{ref2} uses @code{val2} as the number of elements
+in @code{p->array}.
 
 @cindex @code{alloc_size} variable attribute
 @item alloc_size (@var{position})
@@ -8374,7 +8525,7 @@ volatile int porta __attribute__((address (0x600)));
 
 This attribute can also be used to define symbols in C/C++
 code which otherwise would require assembly, a linker description file
-or command line options like @code{-Wl,--defsym,a_symbol=@var{value}}.
+or command-line options like @code{-Wl,--defsym,a_symbol=@var{value}}.
 For example,
 @smallexample
 int a_symbol __attribute__((weak, address (1234)));
@@ -9391,7 +9542,7 @@ bat (void)
 @end example
 
 @cindex strub eligibility and viability
-Some @option{-fstrub=*} command line options enable @code{strub} modes
+Some @option{-fstrub=*} command-line options enable @code{strub} modes
 implicitly where viable.  A @code{strub} mode is only viable for a
 function if the function is eligible for that mode, and if other
 conditions, detailed below, are satisfied.  If it's not eligible for a
@@ -9839,7 +9990,7 @@ same manner as the @code{deprecated} attribute.
 @section Statement Attributes
 @cindex Statement Attributes
 
-GCC allows attributes to be set on null statements.  @xref{Attribute Syntax},
+GCC allows attributes to be set on statements.  @xref{Attribute Syntax},
 for details of the exact syntax for using attributes.  Other attributes are
 available for functions (@pxref{Function Attributes}), variables
 (@pxref{Variable Attributes}), labels (@pxref{Label Attributes}), enumerators
@@ -9896,6 +10047,25 @@ foo (int x, int y)
 @code{y} is not actually incremented and the compiler can but does not
 have to optimize it to just @code{return 42 + 42;}.
 
+@cindex @code{musttail} statement attribute
+@item musttail
+
+The @code{gnu::musttail} or @code{clang::musttail} attribute
+can be applied to a @code{return} statement with a return-value expression
+that is a function call.  It asserts that the call must be a tail call that
+does not allocate extra stack space, so it is safe to use tail recursion
+to implement long running loops.
+
+@smallexample
+[[gnu::musttail]] return foo();
+@end smallexample
+
+If the compiler cannot generate a @code{musttail} tail call it will report
+an error. On some targets tail calls may never be supported.
+Tail calls cannot reference locals in memory, which may affect
+builds without optimization when passing small structures, or passing
+or returning large structures.  Enabling @option{-O1} or @option{-O2} can
+improve the success of tail calls.
 @end table
 
 @node Attribute Syntax
@@ -10012,14 +10182,16 @@ labelled in C90 or C99, so the ambiguity does not arise there.
 @subsubheading Enumerator Attributes
 
 In GNU C, an attribute specifier list may appear as part of an enumerator.
-The attribute goes after the enumeration constant, before @code{=}, if
+The attribute goes after the enumeration constant, before @samp{=}, if
 present.  The optional attribute in the enumerator appertains to the
 enumeration constant.  It is not possible to place the attribute after
 the constant expression, if present.
 
 @subsubheading Statement Attributes
 In GNU C, an attribute specifier list may appear as part of a null
-statement.  The attribute goes before the semicolon.
+statement. The attribute goes before the semicolon.
+Some attributes in new style syntax are also supported
+on non-null statements.
 
 @subsubheading Type Attributes
 
@@ -10094,7 +10266,7 @@ the @code{noreturn} attribute applies to all the functions
 declared; the @code{format} attribute only applies to @code{d1}.
 
 An attribute specifier list may appear immediately before the comma,
-@code{=} or semicolon terminating the declaration of an identifier other
+@samp{=}, or semicolon terminating the declaration of an identifier other
 than a function definition.  Such attribute specifiers apply
 to the declared object or function.  Where an
 assembler name for an object or function is specified (@pxref{Asm
@@ -10618,13 +10790,30 @@ contain any instructions recognized by the assembler, including directives.
 GCC does not parse the assembler instructions themselves and 
 does not know what they mean or even whether they are valid assembler input. 
 
-You may place multiple assembler instructions together in a single @code{asm} 
-string, separated by the characters normally used in assembly code for the 
-system. A combination that works in most places is a newline to break the 
+You may place multiple assembler instructions together in a single @code{asm}
+string, separated by the characters normally used in assembly code for the
+system. A combination that works in most places is a newline to break the
 line, plus a tab character (written as @samp{\n\t}).
-Some assemblers allow semicolons as a line separator. However, 
-note that some assembler dialects use semicolons to start a comment. 
+Some assemblers allow semicolons as a line separator. However,
+note that some assembler dialects use semicolons to start a comment.
 @end table
+
+@node asm constexprs
+With gnu++11 or later the string can also be a compile time constant expression
+inside parens.  The constant expression can return a string or a container
+with data and size members, following similar rules as C++26 @code{static_assert}
+message. Any string is converted to the character set of the source code.
+When this feature is available the @code{__GXX_CONSTEXPR_ASM__} cpp symbol is defined.
+
+@example
+#include <string>
+constexpr std::string_view genfoo() @{ return "foo"; @}
+
+void function()
+@{
+  asm((genfoo()));
+@}
+@end example
 
 @subsubheading Remarks
 Using extended @code{asm} (@pxref{Extended Asm}) typically produces
@@ -10768,20 +10957,27 @@ perform a jump to one of the labels listed in the @var{GotoLabels}.
 @item AssemblerTemplate
 This is a literal string that is the template for the assembler code. It is a 
 combination of fixed text and tokens that refer to the input, output, 
-and goto parameters. @xref{AssemblerTemplate}.
+and goto parameters. @xref{AssemblerTemplate}. With gnu++11 or later it can
+also be a constant expression inside parens (see @ref{asm constexprs}).
 
 @item OutputOperands
 A comma-separated list of the C variables modified by the instructions in the 
 @var{AssemblerTemplate}.  An empty list is permitted.  @xref{OutputOperands}.
+With gnu++11 or later the strings can also be constant expressions inside parens
+(see @ref{asm constexprs})
 
 @item InputOperands
 A comma-separated list of C expressions read by the instructions in the 
 @var{AssemblerTemplate}.  An empty list is permitted.  @xref{InputOperands}.
+With gnu++11 or later the strings can also be constant expressions inside parens
+(see @ref{asm constexprs})
 
 @item Clobbers
 A comma-separated list of registers or other values changed by the 
 @var{AssemblerTemplate}, beyond those listed as outputs.
 An empty list is permitted.  @xref{Clobbers and Scratch Registers}.
+With gnu++11 or later the strings can also be constant expressions inside parens
+(see @ref{asm constexprs})
 
 @item GotoLabels
 When you are using the @code{goto} form of @code{asm}, this section contains 
@@ -11790,7 +11986,7 @@ stop:
 
 The following artificial example shows an @code{asm goto} that sets
 up an output only on one path inside the @code{asm goto}.  Usage of
-constraint modifier @code{=} instead of @code{+} would be wrong as
+constraint modifier @samp{=} instead of @samp{+} would be wrong as
 @code{factor} is used on all paths from the @code{asm goto}.
 
 @example
@@ -12901,12 +13097,13 @@ typedef int v4si __attribute__ ((vector_size (16)));
 @end smallexample
 
 @noindent
-The @code{int} type specifies the @dfn{base type}, while the attribute specifies
-the vector size for the variable, measured in bytes.  For example, the
-declaration above causes the compiler to set the mode for the @code{v4si}
-type to be 16 bytes wide and divided into @code{int} sized units.  For
-a 32-bit @code{int} this means a vector of 4 units of 4 bytes, and the
-corresponding mode of @code{foo} is @acronym{V4SI}.
+The @code{int} type specifies the @dfn{base type} (which can be a
+@code{typedef}), while the attribute specifies the vector size for the
+variable, measured in bytes. For example, the declaration above causes
+the compiler to set the mode for the @code{v4si} type to be 16 bytes wide
+and divided into @code{int} sized units.  For a 32-bit @code{int} this
+means a vector of 4 units of 4 bytes, and the corresponding mode of
+@code{foo} is @acronym{V4SI}.
 
 The @code{vector_size} attribute is only applicable to integral and
 floating scalars, although arrays, pointers, and function return values
@@ -16865,6 +17062,23 @@ __builtin_avr_insert_bits (0xffff3210, bits, val);
 // reverse the bit order of bits
 __builtin_avr_insert_bits (0x01234567, bits, 0);
 @end smallexample
+@enddefbuiltin
+
+@defbuiltin{uint8_t __builtin_avr_mask1 (uint8_t @var{mask}, uint8_t @var{offs})}
+Rotate the 8-bit constant value @var{mask} by an offset of @var{offs},
+where @var{mask} is in @{ 0x01, 0xfe, 0x7f, 0x80 @}.
+This built-in can be used as an alternative to 8-bit expressions like
+@code{1 << offs} when their computation consumes too much
+time, and @var{offs} is known to be in the range 0@dots{}7.
+@example
+__builtin_avr_mask1 (1, offs)      // same like  1 << offs
+__builtin_avr_mask1 (~1, offs)     // same like  ~(1 << offs)
+__builtin_avr_mask1 (0x80, offs)   // same like  0x80 >> offs
+__builtin_avr_mask1 (~0x80, offs)  // same like  ~(0x80 >> offs)
+@end example
+The open coded C versions take at least @code{5 + 4 * @var{offs}} cycles
+(and 5 instructions), whereas the built-in takes 7 cycles and instructions
+(8 cycles and instructions in the case of @code{@var{mask} = 0x7f}).
 @enddefbuiltin
 
 @defbuiltin{void __builtin_avr_nops (uint16_t @var{count})}
@@ -21337,6 +21551,26 @@ Additional built-in functions are available for the 64-bit PowerPC
 family of processors, for efficient use of 128-bit floating point
 (@code{__float128}) values.
 
+Vector select
+
+@smallexample
+vector signed __int128 vec_sel (vector signed __int128,
+               vector signed __int128, vector bool __int128);
+vector signed __int128 vec_sel (vector signed __int128,
+               vector signed __int128, vector unsigned __int128);
+vector unsigned __int128 vec_sel (vector unsigned __int128,
+               vector unsigned __int128, vector bool __int128);
+vector unsigned __int128 vec_sel (vector unsigned __int128,
+               vector unsigned __int128, vector unsigned __int128);
+vector bool __int128 vec_sel (vector bool __int128,
+               vector bool __int128, vector bool __int128);
+vector bool __int128 vec_sel (vector bool __int128,
+               vector bool __int128, vector unsigned __int128);
+@end smallexample
+
+The instance is an extension of the exiting overloaded built-in @code{vec_sel}
+that is documented in the PVIPR.
+
 @node Basic PowerPC Built-in Functions Available on ISA 2.06
 @subsubsection Basic PowerPC Built-in Functions Available on ISA 2.06
 
@@ -22507,6 +22741,10 @@ void vec_vsx_st (vector bool char, int, signed char *);
 
 vector double vec_xxpermdi (vector double, vector double, const int);
 vector float vec_xxpermdi (vector float, vector float, const int);
+vector __int128 vec_xxpermdi (vector __int128,
+                              vector __int128, const int);
+vector __uint128 vec_xxpermdi (vector __uint128,
+                               vector __uint128, const int);
 vector long long vec_xxpermdi (vector long long, vector long long, const int);
 vector unsigned long long vec_xxpermdi (vector unsigned long long,
                                         vector unsigned long long, const int);
@@ -22541,6 +22779,16 @@ generate the AltiVec @samp{LVX} and @samp{STVX} instructions even
 if the VSX instruction set is available.  The @samp{vec_vsx_ld} and
 @samp{vec_vsx_st} built-in functions always generate the VSX @samp{LXVD2X},
 @samp{LXVW4X}, @samp{STXVD2X}, and @samp{STXVW4X} instructions.
+
+@smallexample
+vector signed long long vec_signedo (vector float);
+vector signed long long vec_signede (vector float);
+vector unsigned long long vec_unsignedo (vector float);
+vector unsigned long long vec_unsignede (vector float);
+@end smallexample
+
+The overloaded built-ins @code{vec_signedo} and @code{vec_signede} are
+additional extensions to the built-ins as documented in the PVIPR.
 
 @node PowerPC AltiVec Built-in Functions Available on ISA 2.07
 @subsubsection PowerPC AltiVec Built-in Functions Available on ISA 2.07
@@ -23363,6 +23611,10 @@ const unsigned int);
 vector signed long long, const unsigned int);
 @exdent vector unsigned long long vec_sldb (vector unsigned long long,
 vector unsigned long long, const unsigned int);
+@exdent vector signed __int128 vec_sldb (vector signed __int128,
+vector signed __int128, const unsigned int);
+@exdent vector unsigned __int128 vec_sldb (vector unsigned __int128,
+vector unsigned __int128, const unsigned int);
 @end smallexample
 
 Shift the combined input vectors left by the amount specified by the low-order
@@ -23390,6 +23642,10 @@ const unsigned int);
 vector signed long long, const unsigned int);
 @exdent vector unsigned long long vec_srdb (vector unsigned long long,
 vector unsigned long long, const unsigned int);
+@exdent vector signed __int128 vec_srdb (vector signed __int128,
+vector signed __int128, const unsigned int);
+@exdent vector unsigned __int128 vec_srdb (vector unsigned __int128,
+vector unsigned __int128, const unsigned int);
 @end smallexample
 
 Shift the combined input vectors right by the amount specified by the low-order
@@ -23884,6 +24140,41 @@ int vec_any_le (vector signed __int128, vector signed __int128);
 int vec_any_le (vector unsigned __int128, vector unsigned __int128);
 @end smallexample
 
+
+The following instances are extension of the existing overloaded built-ins
+@code{vec_sld}, @code{vec_sldw}, @code{vec_slo}, @code{vec_sro}, @code{vec_srl}
+that are documented in the PVIPR.
+
+@smallexample
+@exdent vector signed __int128 vec_sld (vector signed __int128,
+vector signed __int128, const unsigned int);
+@exdent vector unsigned __int128 vec_sld (vector unsigned __int128,
+vector unsigned __int128, const unsigned int);
+@exdent vector signed __int128 vec_sldw (vector signed __int128,
+vector signed __int128, const unsigned int);
+@exdent vector unsigned __int128 vec_sldw (vector unsigned __int,
+vector unsigned __int128, const unsigned int);
+@exdent vector signed __int128 vec_slo (vector signed __int128,
+vector signed char);
+@exdent vector signed __int128 vec_slo (vector signed __int128,
+vector unsigned char);
+@exdent vector unsigned __int128 vec_slo (vector unsigned __int128,
+vector signed char);
+@exdent vector unsigned __int128 vec_slo (vector unsigned __int128,
+vector unsigned char);
+@exdent vector signed __int128 vec_sro (vector signed __int128,
+vector signed char);
+@exdent vector signed __int128 vec_sro (vector signed __int128,
+vector unsigned char);
+@exdent vector unsigned __int128 vec_sro (vector unsigned __int128,
+vector signed char);
+@exdent vector unsigned __int128 vec_sro (vector unsigned __int128,
+vector unsigned char);
+@exdent vector signed __int128 vec_srl (vector signed __int128,
+vector unsigned char);
+@exdent vector unsigned __int128 vec_srl (vector unsigned __int128,
+vector unsigned char);
+@end smallexample
 
 @node PowerPC Hardware Transactional Memory Built-in Functions
 @subsection PowerPC Hardware Transactional Memory Built-in Functions
@@ -26132,17 +26423,14 @@ Intel Atom Grand Ridge CPU.
 @item clearwaterforest
 Intel Atom Clearwater Forest CPU.
 
-@item knl
-Intel Knights Landing CPU.
-
-@item knm
-Intel Knights Mill CPU.
-
 @item lujiazui
 ZHAOXIN lujiazui CPU.
 
 @item yongfeng
 ZHAOXIN yongfeng CPU.
+
+@item shijidadao
+ZHAOXIN shijidadao CPU.
 
 @item amdfam10h
 AMD Family 10h CPU.
@@ -26194,6 +26482,9 @@ AMD Family 19h Zen version 3.
 
 @item znver4
 AMD Family 19h Zen version 4.
+
+@item znver5
+AMD Family 1ah Zen version 5.
 @end table
 
 Here is an example:
@@ -26263,18 +26554,10 @@ AVX512BW instructions.
 AVX512DQ instructions.
 @item avx512cd
 AVX512CD instructions.
-@item avx512er
-AVX512ER instructions.
-@item avx512pf
-AVX512PF instructions.
 @item avx512vbmi
 AVX512VBMI instructions.
 @item avx512ifma
 AVX512IFMA instructions.
-@item avx5124vnniw
-AVX5124VNNIW instructions.
-@item avx5124fmaps
-AVX5124FMAPS instructions.
 @item avx512vpopcntdq
 AVX512VPOPCNTDQ instructions.
 @item avx512vbmi2

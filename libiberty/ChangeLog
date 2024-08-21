@@ -1,3 +1,37 @@
+2024-08-05  Andrew Burgess  <aburgess@redhat.com>
+
+	* argv.c (only_whitespace): Delete.
+
+2024-07-16  Andrew Burgess  <aburgess@redhat.com>
+
+	* argv.c (buildargv): Treat input of only whitespace as an empty
+	argument list.
+	(expandargv): Remove work around for intput that is only
+	whitespace.
+	* testsuite/test-expandargv.c: Add new tests 10, 11, and 12.
+	Extend testing to call buildargv in more cases.
+
+2024-07-16  Andrew Burgess  <aburgess@redhat.com>
+
+	* argv.c (buildargv): Backslashes within single quotes are
+	literal, backslashes only escape POSIX defined special characters
+	within double quotes, and backslashed newlines should act as line
+	continuations.
+	* testsuite/test-expandargv.c: Add new tests 7, 8, and 9.
+
+2024-04-02  Tom Tromey  <tom@tromey.com>
+
+	* cplus-dem.c (cplus_demangle): Try the D demangler with
+	"auto" format.
+	* testsuite/d-demangle-expected: Add --format=auto test.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* regex.c (byte_re_match_2_internal): Fix duplicated words in comment;
+	next next -> next.
+	* dyn-string.c (dyn_string_init): Fix duplicated words in comment;
+	of of -> of.
+
 2024-02-19  Iain Sandoe  <iain@sandoe.co.uk>
 
 	PR other/113957

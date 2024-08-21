@@ -1932,6 +1932,7 @@ gfc_match_associate (void)
 	  gfc_matching_procptr_assignment = 1;
 	  if (gfc_match (" %e", &newAssoc->target) != MATCH_YES)
 	    {
+	      gfc_matching_procptr_assignment = 0;
 	      gfc_error ("Invalid association target at %C");
 	      goto assocListError;
 	    }
@@ -6322,11 +6323,12 @@ gfc_match_select (void)
 /* Transfer the selector typespec to the associate name.  */
 
 static void
-copy_ts_from_selector_to_associate (gfc_expr *associate, gfc_expr *selector)
+copy_ts_from_selector_to_associate (gfc_expr *associate, gfc_expr *selector,
+				    bool select_type = false)
 {
   gfc_ref *ref;
   gfc_symbol *assoc_sym;
-  int rank = 0;
+  int rank = 0, corank = 0;
 
   assoc_sym = associate->symtree->n.sym;
 
@@ -6344,6 +6346,7 @@ copy_ts_from_selector_to_associate (gfc_expr *associate, gfc_expr *selector)
     {
       assoc_sym->attr.dimension = 1;
       assoc_sym->as = gfc_copy_array_spec (CLASS_DATA (selector)->as);
+      corank = assoc_sym->as->corank;
       goto build_class_sym;
     }
   else if (selector->ts.type == BT_CLASS
@@ -6370,13 +6373,20 @@ copy_ts_from_selector_to_associate (gfc_expr *associate, gfc_expr *selector)
 	}
 
       if (!ref || ref->u.ar.type == AR_FULL)
-	selector->rank = CLASS_DATA (selector)->as->rank;
+	{
+	  selector->rank = CLASS_DATA (selector)->as->rank;
+	  selector->corank = CLASS_DATA (selector)->as->corank;
+	}
       else if (ref->u.ar.type == AR_SECTION)
-	selector->rank = ref->u.ar.dimen;
+	{
+	  selector->rank = ref->u.ar.dimen;
+	  selector->corank = ref->u.ar.codimen;
+	}
       else
 	selector->rank = 0;
 
       rank = selector->rank;
+      corank = selector->corank;
     }
 
   if (rank)
@@ -6398,19 +6408,45 @@ copy_ts_from_selector_to_associate (gfc_expr *associate, gfc_expr *selector)
 	  assoc_sym->as->rank = rank;
 	  assoc_sym->as->type = AS_DEFERRED;
 	}
-      else
-	assoc_sym->as = NULL;
     }
-  else
-    assoc_sym->as = NULL;
 
+  if (corank != 0 && rank == 0)
+    {
+      if (!assoc_sym->as)
+	assoc_sym->as = gfc_get_array_spec ();
+      assoc_sym->as->corank = corank;
+      assoc_sym->attr.codimension = 1;
+    }
+  else if (corank == 0 && rank == 0 && assoc_sym->as)
+    {
+      free (assoc_sym->as);
+      assoc_sym->as = NULL;
+    }
 build_class_sym:
-  if (selector->ts.type == BT_CLASS)
+  /* Deal with the very specific case of a SELECT_TYPE selector being an
+     associate_name whose type has been identified by component references.
+     It must be assumed that it will be identified as a CLASS expression,
+     so convert it now.  */
+  if (select_type
+      && IS_INFERRED_TYPE (selector)
+      && selector->ts.type == BT_DERIVED)
+    {
+      gfc_find_derived_vtab (selector->ts.u.derived);
+      /* The correct class container has to be available.  */
+      assoc_sym->ts.u.derived = selector->ts.u.derived;
+      assoc_sym->ts.type = BT_CLASS;
+      assoc_sym->attr.pointer = 1;
+      if (!selector->ts.u.derived->attr.is_class)
+	gfc_build_class_symbol (&assoc_sym->ts, &assoc_sym->attr, &assoc_sym->as);
+      associate->ts = assoc_sym->ts;
+    }
+  else if (selector->ts.type == BT_CLASS)
     {
       /* The correct class container has to be available.  */
       assoc_sym->ts.type = BT_CLASS;
       assoc_sym->ts.u.derived = CLASS_DATA (selector)
-	? CLASS_DATA (selector)->ts.u.derived : selector->ts.u.derived;
+				? CLASS_DATA (selector)->ts.u.derived
+				: selector->ts.u.derived;
       assoc_sym->attr.pointer = 1;
       gfc_build_class_symbol (&assoc_sym->ts, &assoc_sym->attr, &assoc_sym->as);
     }
@@ -6438,7 +6474,7 @@ build_associate_name (const char *name, gfc_expr **e1, gfc_expr **e2)
   if (expr2->ts.type == BT_UNKNOWN)
     sym->attr.untyped = 1;
   else
-    copy_ts_from_selector_to_associate (expr1, expr2);
+    copy_ts_from_selector_to_associate (expr1, expr2, true);
 
   sym->attr.flavor = FL_VARIABLE;
   sym->attr.referenced = 1;
@@ -6700,6 +6736,27 @@ gfc_match_select_type (void)
     {
       m = MATCH_ERROR;
       goto cleanup;
+    }
+
+  /* Select type namespaces are not filled until resolution. Therefore, the
+     namespace must be marked as having an inferred type associate name if
+     either expr1 is an inferred type variable or expr2 is. In the latter
+     case, as well as the symbol being marked as inferred type, it might be
+     that it has not been detected to be so. In this case the target has
+     unknown type. Once the namespace is marked, the fixups in resolution can
+     be triggered.  */
+  if (!expr2
+      && expr1->symtree->n.sym->assoc
+      && expr1->symtree->n.sym->assoc->inferred_type)
+    gfc_current_ns->assoc_name_inferred = 1;
+  else if (expr2 && expr2->expr_type == EXPR_VARIABLE
+	   && expr2->symtree->n.sym->assoc)
+    {
+      if (expr2->symtree->n.sym->assoc->inferred_type)
+	gfc_current_ns->assoc_name_inferred = 1;
+      else if (expr2->symtree->n.sym->assoc->target
+	       && expr2->symtree->n.sym->assoc->target->ts.type == BT_UNKNOWN)
+	gfc_current_ns->assoc_name_inferred = 1;
     }
 
   new_st.op = EXEC_SELECT_TYPE;

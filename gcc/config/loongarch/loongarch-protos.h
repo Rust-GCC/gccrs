@@ -85,18 +85,11 @@ extern bool loongarch_split_move_p (rtx, rtx);
 extern void loongarch_split_move (rtx, rtx);
 extern bool loongarch_addu16i_imm12_operand_p (HOST_WIDE_INT, machine_mode);
 extern void loongarch_split_plus_constant (rtx *, machine_mode);
-extern void loongarch_split_128bit_move (rtx, rtx);
-extern bool loongarch_split_128bit_move_p (rtx, rtx);
-extern void loongarch_split_256bit_move (rtx, rtx);
-extern bool loongarch_split_256bit_move_p (rtx, rtx);
-extern void loongarch_split_lsx_copy_d (rtx, rtx, rtx, rtx (*)(rtx, rtx, rtx));
-extern void loongarch_split_lsx_insert_d (rtx, rtx, rtx, rtx);
-extern void loongarch_split_lsx_fill_d (rtx, rtx);
+extern void loongarch_split_vector_move (rtx, rtx);
 extern const char *loongarch_output_move (rtx, rtx);
-extern bool loongarch_cfun_has_cprestore_slot_p (void);
 #ifdef RTX_CODE
 extern void loongarch_expand_scc (rtx *);
-extern bool loongarch_expand_vec_cmp (rtx *);
+extern void loongarch_expand_vec_cmp (rtx *);
 extern void loongarch_expand_conditional_branch (rtx *);
 extern void loongarch_expand_conditional_move (rtx *);
 extern void loongarch_expand_conditional_trap (rtx);
@@ -135,7 +128,6 @@ extern int loongarch_class_max_nregs (enum reg_class, machine_mode);
 extern machine_mode loongarch_hard_regno_caller_save_mode (unsigned int,
 							   unsigned int,
 							   machine_mode);
-extern int loongarch_adjust_insn_length (rtx_insn *, int);
 extern const char *loongarch_output_conditional_branch (rtx_insn *, rtx *,
 							const char *,
 							const char *);
@@ -157,7 +149,6 @@ extern bool loongarch_global_symbol_noweak_p (const_rtx);
 extern bool loongarch_weak_symbol_p (const_rtx);
 extern bool loongarch_symbol_binds_local_p (const_rtx);
 
-extern const char *current_section_name (void);
 extern unsigned int current_section_flags (void);
 extern bool loongarch_use_ins_ext_p (rtx, HOST_WIDE_INT, HOST_WIDE_INT);
 extern bool loongarch_check_zero_div_p (void);
@@ -197,8 +188,6 @@ extern bool loongarch_eh_uses (unsigned int);
 extern bool loongarch_epilogue_uses (unsigned int);
 extern bool loongarch_load_store_bonding_p (rtx *, machine_mode, bool);
 extern bool loongarch_split_symbol_type (enum loongarch_symbol_type);
-
-typedef rtx (*mulsidi3_gen_fn) (rtx, rtx, rtx);
 
 extern void loongarch_register_frame_header_opt (void);
 extern void loongarch_expand_vec_cond_expr (machine_mode, machine_mode, rtx *);

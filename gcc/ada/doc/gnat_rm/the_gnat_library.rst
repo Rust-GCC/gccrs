@@ -1329,7 +1329,9 @@ convenient for use with realtime applications.
 .. index:: Random number generation
 
 Provides random number capabilities which extend those available in the
-standard Ada library and are more convenient to use.
+standard Ada library and are more convenient to use. This package is
+however NOT suitable for situations requiring cryptographically secure
+randomness.
 
 .. _`GNAT.Regexp_(g-regexp.ads)`:
 
@@ -1915,23 +1917,6 @@ mainframes.
 .. index:: VxWorks, interfacing
 
 This package provides a limited binding to the VxWorks API.
-In particular, it interfaces with the
-VxWorks hardware interrupt facilities.
-
-.. _`Interfaces.VxWorks.Int_Connection_(i-vxinco.ads)`:
-
-``Interfaces.VxWorks.Int_Connection`` (:file:`i-vxinco.ads`)
-============================================================
-
-.. index:: Interfaces.VxWorks.Int_Connection (i-vxinco.ads)
-
-.. index:: Interfacing to VxWorks
-
-.. index:: VxWorks, interfacing
-
-This package provides a way for users to replace the use of
-intConnect() with a custom routine for installing interrupt
-handlers.
 
 .. _`Interfaces.VxWorks.IO_(i-vxwoio.ads)`:
 

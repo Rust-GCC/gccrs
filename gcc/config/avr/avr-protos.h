@@ -35,6 +35,7 @@ extern void avr_init_expanders (void);
 #ifdef TREE_CODE
 extern void avr_asm_output_aligned_decl_common (FILE*, tree, const char*, unsigned HOST_WIDE_INT, unsigned int, bool);
 extern void avr_asm_asm_output_aligned_bss (FILE *, tree, const char *, unsigned HOST_WIDE_INT, int, void (*) (FILE *, tree, const char *, unsigned HOST_WIDE_INT, int));
+extern void avr_declare_function_name (FILE *, const char *, tree);
 extern void asm_output_external (FILE *file, tree decl, char *name);
 extern int avr_progmem_p (tree decl, tree attributes);
 extern bool avr_addr_space_supported_p (addr_space_t, location_t loc = UNKNOWN_LOCATION);
@@ -88,6 +89,7 @@ extern rtx avr_to_int_mode (rtx);
 extern void avr_expand_prologue (void);
 extern void avr_expand_epilogue (bool);
 extern bool avr_emit_cpymemhi (rtx*);
+extern void avr_emit_xior_with_shift (rtx_insn*, rtx*, int);
 extern int avr_epilogue_uses (int regno);
 extern bool avr_split_tiny_move (rtx_insn *insn, rtx *operands);
 
@@ -95,12 +97,14 @@ extern void avr_output_addr_vec (rtx_insn*, rtx);
 extern const char *avr_out_sbxx_branch (rtx_insn *insn, rtx operands[]);
 extern const char* avr_out_bitop (rtx, rtx*, int*);
 extern const char* avr_out_plus (rtx, rtx*, int* =NULL, bool =true);
+extern const char* avr_out_plus_ext (rtx_insn*, rtx*, int*);
 extern const char* avr_out_round (rtx_insn *, rtx*, int* =NULL);
 extern const char* avr_out_addto_sp (rtx*, int*);
 extern const char* avr_out_xload (rtx_insn *, rtx*, int*);
 extern const char* avr_out_cpymem (rtx_insn *, rtx*, int*);
 extern const char* avr_out_insert_bits (rtx*, int*);
 extern bool avr_popcount_each_byte (rtx, int, int);
+extern bool avr_xor_noclobber_dconst (rtx, int);
 extern bool avr_has_nibble_0xf (rtx);
 
 extern int extra_constraint_Q (rtx x);
@@ -111,7 +115,7 @@ extern const char* avr_out_reload_inpsi (rtx*, rtx, int*);
 extern const char* avr_out_lpm (rtx_insn *, rtx*, int*);
 extern void avr_notice_update_cc (rtx body, rtx_insn *insn);
 extern int reg_unused_after (rtx_insn *insn, rtx reg);
-extern int avr_jump_mode (rtx x, rtx_insn *insn);
+extern int avr_jump_mode (rtx x, rtx_insn *insn, int = 0);
 extern int test_hard_reg_class (enum reg_class rclass, rtx x);
 extern int jump_over_one_insn_p (rtx_insn *insn, rtx dest);
 

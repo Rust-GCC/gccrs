@@ -316,6 +316,9 @@ unsigned const char omp_clause_num_ops[] =
   0, /* OMP_CLAUSE_BIND  */
   1, /* OMP_CLAUSE_FILTER  */
   1, /* OMP_CLAUSE_INDIRECT  */
+  1, /* OMP_CLAUSE_PARTIAL  */
+  0, /* OMP_CLAUSE_FULL  */
+  1, /* OMP_CLAUSE_SIZES  */
   1, /* OMP_CLAUSE__SIMDUID_  */
   0, /* OMP_CLAUSE__SIMT_  */
   0, /* OMP_CLAUSE_INDEPENDENT  */
@@ -409,6 +412,9 @@ const char * const omp_clause_code_name[] =
   "bind",
   "filter",
   "indirect",
+  "partial",
+  "full",
+  "sizes",
   "_simduid_",
   "_simt_",
   "independent",
@@ -3689,7 +3695,7 @@ int_byte_position (const_tree field)
 }
 
 /* Return, as a tree node, the number of elements for TYPE (which is an
-   ARRAY_TYPE) minus one. This counts only elements of the top array.  */
+   ARRAY_TYPE) minus one.  This counts only elements of the top array.  */
 
 tree
 array_type_nelts (const_tree type)
@@ -5689,7 +5695,8 @@ build_qualified_type (tree type, int type_quals MEM_STAT_DECL)
   return t;
 }
 
-/* Create a variant of type T with alignment ALIGN.  */
+/* Create a variant of type T with alignment ALIGN which
+   is measured in bits.  */
 
 tree
 build_aligned_type (tree type, unsigned int align)
@@ -5756,7 +5763,7 @@ build_variant_type_copy (tree type MEM_STAT_DECL)
   t = build_distinct_type_copy (type PASS_MEM_STAT);
 
   /* Since we're building a variant, assume that it is a non-semantic
-     variant. This also propagates TYPE_STRUCTURAL_EQUALITY_P. */
+     variant.  This also propagates TYPE_STRUCTURAL_EQUALITY_P. */
   TYPE_CANONICAL (t) = TYPE_CANONICAL (type);
   /* Type variants have no alias set defined.  */
   TYPE_ALIAS_SET (t) = -1;
@@ -6011,6 +6018,8 @@ type_hash_canon_hash (tree type)
 
   hstate.add_int (TREE_CODE (type));
 
+  hstate.add_flag (TYPE_STRUCTURAL_EQUALITY_P (type));
+
   if (TREE_TYPE (type))
     hstate.add_object (TYPE_HASH (TREE_TYPE (type)));
 
@@ -6106,6 +6115,10 @@ type_cache_hasher::equal (type_hash *a, type_hash *b)
   if (COMPLETE_TYPE_P (a->type) && COMPLETE_TYPE_P (b->type)
       && (TYPE_ALIGN (a->type) != TYPE_ALIGN (b->type)
 	  || TYPE_MODE (a->type) != TYPE_MODE (b->type)))
+    return false;
+
+  if (TYPE_STRUCTURAL_EQUALITY_P (a->type)
+      != TYPE_STRUCTURAL_EQUALITY_P (b->type))
     return false;
 
   switch (TREE_CODE (a->type))
@@ -7346,12 +7359,23 @@ build_array_type_1 (tree elt_type, tree index_type, bool typeless_storage,
   TYPE_DOMAIN (t) = index_type;
   TYPE_ADDR_SPACE (t) = TYPE_ADDR_SPACE (elt_type);
   TYPE_TYPELESS_STORAGE (t) = typeless_storage;
+
+  /* Set TYPE_STRUCTURAL_EQUALITY_P.  */
+  if (set_canonical
+      && (TYPE_STRUCTURAL_EQUALITY_P (elt_type)
+	  || (index_type && TYPE_STRUCTURAL_EQUALITY_P (index_type))
+	  || in_lto_p))
+    SET_TYPE_STRUCTURAL_EQUALITY (t);
+
   layout_type (t);
 
   if (shared)
     {
       hashval_t hash = type_hash_canon_hash (t);
+      tree probe_type = t;
       t = type_hash_canon (hash, t);
+      if (t != probe_type)
+	return t;
     }
 
   if (TYPE_CANONICAL (t) == t && set_canonical)
@@ -7359,7 +7383,7 @@ build_array_type_1 (tree elt_type, tree index_type, bool typeless_storage,
       if (TYPE_STRUCTURAL_EQUALITY_P (elt_type)
 	  || (index_type && TYPE_STRUCTURAL_EQUALITY_P (index_type))
 	  || in_lto_p)
-	SET_TYPE_STRUCTURAL_EQUALITY (t);
+	gcc_unreachable ();
       else if (TYPE_CANONICAL (elt_type) != elt_type
 	       || (index_type && TYPE_CANONICAL (index_type) != index_type))
 	TYPE_CANONICAL (t)
@@ -7506,18 +7530,25 @@ build_function_type (tree value_type, tree arg_types,
       TYPE_NO_NAMED_ARGS_STDARG_P (t) = 1;
     }
 
-  /* If we already have such a type, use the old one.  */
-  hashval_t hash = type_hash_canon_hash (t);
-  t = type_hash_canon (hash, t);
-
   /* Set up the canonical type. */
   any_structural_p   = TYPE_STRUCTURAL_EQUALITY_P (value_type);
   any_noncanonical_p = TYPE_CANONICAL (value_type) != value_type;
   canon_argtypes = maybe_canonicalize_argtypes (arg_types,
 						&any_structural_p,
 						&any_noncanonical_p);
+  /* Set TYPE_STRUCTURAL_EQUALITY_P early.  */
   if (any_structural_p)
     SET_TYPE_STRUCTURAL_EQUALITY (t);
+
+  /* If we already have such a type, use the old one.  */
+  hashval_t hash = type_hash_canon_hash (t);
+  tree probe_type = t;
+  t = type_hash_canon (hash, t);
+  if (t != probe_type)
+    return t;
+
+  if (any_structural_p)
+    gcc_assert (TYPE_STRUCTURAL_EQUALITY_P (t));
   else if (any_noncanonical_p)
     TYPE_CANONICAL (t) = build_function_type (TYPE_CANONICAL (value_type),
 					      canon_argtypes);
@@ -7660,10 +7691,6 @@ build_method_type_directly (tree basetype,
   argtypes = tree_cons (NULL_TREE, ptype, argtypes);
   TYPE_ARG_TYPES (t) = argtypes;
 
-  /* If we already have such a type, use the old one.  */
-  hashval_t hash = type_hash_canon_hash (t);
-  t = type_hash_canon (hash, t);
-
   /* Set up the canonical type. */
   any_structural_p
     = (TYPE_STRUCTURAL_EQUALITY_P (basetype)
@@ -7674,8 +7701,20 @@ build_method_type_directly (tree basetype,
   canon_argtypes = maybe_canonicalize_argtypes (TREE_CHAIN (argtypes),
 						&any_structural_p,
 						&any_noncanonical_p);
+
+  /* Set TYPE_STRUCTURAL_EQUALITY_P early.  */
   if (any_structural_p)
     SET_TYPE_STRUCTURAL_EQUALITY (t);
+
+  /* If we already have such a type, use the old one.  */
+  hashval_t hash = type_hash_canon_hash (t);
+  tree probe_type = t;
+  t = type_hash_canon (hash, t);
+  if (t != probe_type)
+    return t;
+
+  if (any_structural_p)
+    gcc_assert (TYPE_STRUCTURAL_EQUALITY_P (t));
   else if (any_noncanonical_p)
     TYPE_CANONICAL (t)
       = build_method_type_directly (TYPE_CANONICAL (basetype),
@@ -7716,10 +7755,16 @@ build_offset_type (tree basetype, tree type)
 
   TYPE_OFFSET_BASETYPE (t) = TYPE_MAIN_VARIANT (basetype);
   TREE_TYPE (t) = type;
+  if (TYPE_STRUCTURAL_EQUALITY_P (basetype)
+      || TYPE_STRUCTURAL_EQUALITY_P (type))
+    SET_TYPE_STRUCTURAL_EQUALITY (t);
 
   /* If we already have such a type, use the old one.  */
   hashval_t hash = type_hash_canon_hash (t);
+  tree probe_type = t;
   t = type_hash_canon (hash, t);
+  if (t != probe_type)
+    return t;
 
   if (!COMPLETE_TYPE_P (t))
     layout_type (t);
@@ -7728,7 +7773,7 @@ build_offset_type (tree basetype, tree type)
     {
       if (TYPE_STRUCTURAL_EQUALITY_P (basetype)
 	  || TYPE_STRUCTURAL_EQUALITY_P (type))
-	SET_TYPE_STRUCTURAL_EQUALITY (t);
+	gcc_unreachable ();
       else if (TYPE_CANONICAL (TYPE_MAIN_VARIANT (basetype)) != basetype
 	       || TYPE_CANONICAL (type) != type)
 	TYPE_CANONICAL (t)
@@ -7757,6 +7802,8 @@ build_complex_type (tree component_type, bool named)
   tree probe = make_node (COMPLEX_TYPE);
 
   TREE_TYPE (probe) = TYPE_MAIN_VARIANT (component_type);
+  if (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (probe)))
+    SET_TYPE_STRUCTURAL_EQUALITY (probe);
 
   /* If we already have such a type, use the old one.  */
   hashval_t hash = type_hash_canon_hash (probe);
@@ -7768,11 +7815,10 @@ build_complex_type (tree component_type, bool named)
 	 out the type.  We need to check the canonicalization and
 	 maybe set the name.  */
       gcc_checking_assert (COMPLETE_TYPE_P (t)
-			   && !TYPE_NAME (t)
-			   && TYPE_CANONICAL (t) == t);
+			   && !TYPE_NAME (t));
 
       if (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (t)))
-	SET_TYPE_STRUCTURAL_EQUALITY (t);
+	;
       else if (TYPE_CANONICAL (TREE_TYPE (t)) != TREE_TYPE (t))
 	TYPE_CANONICAL (t)
 	  = build_complex_type (TYPE_CANONICAL (TREE_TYPE (t)), named);
@@ -8862,9 +8908,11 @@ get_file_function_name (const char *type)
      will be local to this file and the name is only necessary for
      debugging purposes. 
      We also assign sub_I and sub_D sufixes to constructors called from
-     the global static constructors.  These are always local.  */
+     the global static constructors.  These are always local.
+     OpenMP "declare target" offloaded constructors/destructors use "off_I" and
+     "off_D" for the same purpose.  */
   else if (((type[0] == 'I' || type[0] == 'D') && targetm.have_ctors_dtors)
-	   || (startswith (type, "sub_")
+	   || ((startswith (type, "sub_") || startswith (type, "off_"))
 	       && (type[4] == 'I' || type[4] == 'D')))
     {
       const char *file = main_input_filename;
@@ -8914,7 +8962,7 @@ get_file_function_name (const char *type)
 #if defined ENABLE_TREE_CHECKING && (GCC_VERSION >= 2007)
 
 /* Complain that the tree code of NODE does not match the expected 0
-   terminated list of trailing codes. The trailing code list can be
+   terminated list of trailing codes.  The trailing code list can be
    empty, for a more vague error message.  FILE, LINE, and FUNCTION
    are of the caller.  */
 
@@ -9331,7 +9379,7 @@ make_or_reuse_accum_type (unsigned size, int unsignedp, int satp)
 
 /* Create an atomic variant node for TYPE.  This routine is called
    during initialization of data types to create the 5 basic atomic
-   types. The generic build_variant_type function requires these to
+   types.  The generic build_variant_type function requires these to
    already be set up in order to function properly, so cannot be
    called from there.  If ALIGN is non-zero, then ensure alignment is
    overridden to this value.  */
@@ -9556,15 +9604,27 @@ build_common_tree_nodes (bool signed_char)
   pointer_sized_int_node = build_nonstandard_integer_type (POINTER_SIZE, 1);
 
   float_type_node = make_node (REAL_TYPE);
-  TYPE_PRECISION (float_type_node) = FLOAT_TYPE_SIZE;
+  machine_mode float_type_mode
+    = targetm.c.mode_for_floating_type (TI_FLOAT_TYPE);
+  SET_TYPE_MODE (float_type_node, float_type_mode);
+  TYPE_PRECISION (float_type_node)
+    = GET_MODE_PRECISION (float_type_mode).to_constant ();
   layout_type (float_type_node);
 
   double_type_node = make_node (REAL_TYPE);
-  TYPE_PRECISION (double_type_node) = DOUBLE_TYPE_SIZE;
+  machine_mode double_type_mode
+    = targetm.c.mode_for_floating_type (TI_DOUBLE_TYPE);
+  SET_TYPE_MODE (double_type_node, double_type_mode);
+  TYPE_PRECISION (double_type_node)
+    = GET_MODE_PRECISION (double_type_mode).to_constant ();
   layout_type (double_type_node);
 
   long_double_type_node = make_node (REAL_TYPE);
-  TYPE_PRECISION (long_double_type_node) = LONG_DOUBLE_TYPE_SIZE;
+  machine_mode long_double_type_mode
+    = targetm.c.mode_for_floating_type (TI_LONG_DOUBLE_TYPE);
+  SET_TYPE_MODE (long_double_type_node, long_double_type_mode);
+  TYPE_PRECISION (long_double_type_node)
+    = GET_MODE_PRECISION (long_double_type_mode).to_constant ();
   layout_type (long_double_type_node);
 
   for (i = 0; i < NUM_FLOATN_NX_TYPES; i++)
@@ -9575,15 +9635,6 @@ build_common_tree_nodes (bool signed_char)
       if (!targetm.floatn_mode (n, extended).exists (&mode))
 	continue;
       int precision = GET_MODE_PRECISION (mode);
-      /* Work around the rs6000 KFmode having precision 113 not
-	 128.  */
-      const struct real_format *fmt = REAL_MODE_FORMAT (mode);
-      gcc_assert (fmt->b == 2 && fmt->emin + fmt->emax == 3);
-      int min_precision = fmt->p + ceil_log2 (fmt->emax - fmt->emin);
-      if (!extended)
-	gcc_assert (min_precision == n);
-      if (precision < min_precision)
-	precision = min_precision;
       FLOATN_NX_TYPE_NODE (i) = make_node (REAL_TYPE);
       TYPE_PRECISION (FLOATN_NX_TYPE_NODE (i)) = precision;
       layout_type (FLOATN_NX_TYPE_NODE (i));
@@ -13365,6 +13416,28 @@ component_ref_size (tree ref, special_array_member *sam /* = NULL */)
 	  ? NULL_TREE : size_zero_node);
 }
 
+/* Return true if the given node CALL is a call to a .ACCESS_WITH_SIZE
+   function.  */
+bool
+is_access_with_size_p (const_tree call)
+{
+  if (TREE_CODE (call) != CALL_EXPR)
+    return false;
+  if (CALL_EXPR_IFN (call) == IFN_ACCESS_WITH_SIZE)
+    return true;
+  return false;
+}
+
+/* Get the corresponding reference from the call to a .ACCESS_WITH_SIZE.
+ * i.e the first argument of this call.  Return NULL_TREE otherwise.  */
+tree
+get_ref_from_access_with_size (tree call)
+{
+  if (is_access_with_size_p (call))
+    return  CALL_EXPR_ARG (call, 0);
+  return NULL_TREE;
+}
+
 /* Return the machine mode of T.  For vectors, returns the mode of the
    inner type.  The main use case is to feed the result to HONOR_NANS,
    avoiding the BLKmode that a direct TYPE_MODE (T) might return.  */
@@ -14433,7 +14506,7 @@ get_range_pos_neg (tree arg)
 
   if (TREE_CODE (arg) != SSA_NAME)
     return 3;
-  value_range r;
+  int_range_max r;
   while (!get_global_range_query ()->range_of_expr (r, arg)
 	 || r.undefined_p () || r.varying_p ())
     {

@@ -531,7 +531,7 @@ extern GTY(()) tree c_global_trees[CTI_MAX];
 
 enum c_language_kind
 {
-  clk_c		= 0,		/* C90, C94, C99, C11 or C23 */
+  clk_c		= 0,		/* C without ObjC features.  */
   clk_objc	= 1,		/* clk_c with ObjC features.  */
   clk_cxx	= 2,		/* ANSI/ISO C++ */
   clk_objcxx	= 3		/* clk_cxx with ObjC features.  */
@@ -676,9 +676,13 @@ extern int flag_isoc99;
 
 extern int flag_isoc11;
 
-/* Nonzero means use the ISO C23 dialect of C.  */
+/* Nonzero means use the ISO C23 (or later) dialect of C.  */
 
 extern int flag_isoc23;
+
+/* Nonzero means use the ISO C2Y (or later) dialect of C.  */
+
+extern int flag_isoc2y;
 
 /* Nonzero means that we have builtin functions, and main is an int.  */
 
@@ -844,7 +848,8 @@ extern tree fname_decl (location_t, unsigned, tree);
 
 extern int check_user_alignment (const_tree, bool, bool);
 extern bool check_function_arguments (location_t loc, const_tree, const_tree,
-				      int, tree *, vec<location_t> *);
+				      int, tree *, vec<location_t> *,
+				      bool (*comp_types) (tree, tree));
 extern void check_function_arguments_recurse (void (*)
 					      (void *, tree,
 					       unsigned HOST_WIDE_INT),
@@ -854,7 +859,8 @@ extern void check_function_arguments_recurse (void (*)
 extern bool check_builtin_function_arguments (location_t, vec<location_t>,
 					      tree, tree, int, tree *);
 extern void check_function_format (const_tree, tree, int, tree *,
-				   vec<location_t> *);
+				   vec<location_t> *,
+				   bool (*comp_types) (tree, tree));
 extern bool attribute_fallthrough_p (tree);
 extern tree handle_format_attribute (tree *, tree, tree, int, bool *);
 extern tree handle_format_arg_attribute (tree *, tree, tree, int, bool *);
@@ -904,6 +910,7 @@ extern tree fold_for_warn (tree);
 extern tree c_common_get_narrower (tree, int *);
 extern bool get_attribute_operand (tree, unsigned HOST_WIDE_INT *);
 extern void c_common_finalize_early_debug (void);
+extern bool c_flexible_array_member_type_p (const_tree);
 extern unsigned int c_strict_flex_array_level_of (tree);
 extern bool c_option_is_from_cpp_diagnostics (int);
 extern tree c_hardbool_type_attr_1 (tree, tree *, tree *);
@@ -1303,6 +1310,7 @@ extern void c_finish_omp_taskwait (location_t);
 extern void c_finish_omp_taskyield (location_t);
 extern tree c_finish_omp_for (location_t, enum tree_code, tree, tree, tree,
 			      tree, tree, tree, tree, bool);
+extern int c_omp_find_generated_loop (tree &, int, walk_tree_lh);
 extern bool c_omp_check_loop_iv (tree, tree, walk_tree_lh);
 extern bool c_omp_check_loop_iv_exprs (location_t, enum tree_code, tree, int,
 				       tree, tree, tree, walk_tree_lh);
@@ -1637,8 +1645,10 @@ extern tree find_tm_attribute (tree);
 extern const struct attribute_spec::exclusions attr_cold_hot_exclusions[];
 extern const struct attribute_spec::exclusions attr_noreturn_exclusions[];
 extern tree handle_noreturn_attribute (tree *, tree, tree, int, bool *);
+extern tree handle_musttail_attribute (tree *, tree, tree, int, bool *);
 extern bool has_attribute (location_t, tree, tree, tree (*)(tree));
 extern tree build_attr_access_from_parms (tree, bool);
+extern void set_musttail_on_return (tree, location_t, bool);
 
 /* In c-format.cc.  */
 extern bool valid_format_string_type_p (tree);

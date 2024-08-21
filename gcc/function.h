@@ -270,6 +270,10 @@ struct GTY(()) function {
   /* Value histograms attached to particular statements.  */
   htab_t GTY((skip)) value_histograms;
 
+  /* Annotated gconds so that basic conditions in the same expression map to
+     the same uid.  This is used for condition coverage.  */
+  hash_map <gcond*, unsigned> *GTY((skip)) cond_uids;
+
   /* For function.cc.  */
 
   /* Points to the FUNCTION_DECL of this function.  */
@@ -425,6 +429,9 @@ struct GTY(()) function {
 
   /* Nonzero when the tail call has been identified.  */
   unsigned int tail_call_marked : 1;
+
+  /* Has musttail marked calls.  */
+  unsigned int has_musttail : 1;
 
   /* Nonzero if the current function contains a #pragma GCC unroll.  */
   unsigned int has_unroll : 1;

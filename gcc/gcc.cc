@@ -1165,7 +1165,7 @@ proper position among the other output files.  */
 	%:include(libgomp.spec)%(link_gomp)}\
     %{fgnu-tm:%:include(libitm.spec)%(link_itm)}\
     " STACK_SPLIT_SPEC "\
-    %{fprofile-arcs|fprofile-generate*|coverage:-lgcov} " SANITIZER_SPEC " \
+    %{fprofile-arcs|fcondition-coverage|fprofile-generate*|coverage:-lgcov} " SANITIZER_SPEC " \
     %{!nostdlib:%{!r:%{!nodefaultlibs:%(link_ssp) %(link_gcc_c_sequence)}}}\
     %{!nostdlib:%{!r:%{!nostartfiles:%E}}} %{T*}  \n%(post_link) }}}}}}"
 #endif
@@ -1288,7 +1288,7 @@ static const char *cc1_options =
  %{!fsyntax-only:%{S:%W{o*}%{!o*:-o %w%b.s}}}\
  %{fsyntax-only:-o %j} %{-param*}\
  %{coverage:-fprofile-arcs -ftest-coverage}\
- %{fprofile-arcs|fprofile-generate*|coverage:\
+ %{fprofile-arcs|fcondition-coverage|fprofile-generate*|coverage:\
    %{!fprofile-update=single:\
      %{pthread:-fprofile-update=prefer-atomic}}}";
 
@@ -2137,6 +2137,10 @@ static int have_E = 0;
 
 /* Pointer to output file name passed in with -o. */
 static const char *output_file = 0;
+
+/* Pointer to input file name passed in with -truncate.
+   This file should be truncated after linking. */
+static const char *totruncate_file = 0;
 
 /* This is the list of suffixes and codes (%g/%u/%U/%j) and the associated
    temp file.  If the HOST_BIT_BUCKET is used for %j, no entry is made for
@@ -4346,11 +4350,17 @@ driver_handle_option (struct gcc_options *opts,
       diagnostic_urls_init (dc, value);
       break;
 
+    case OPT_fdiagnostics_show_highlight_colors:
+      dc->set_show_highlight_colors (value);
+      break;
+
     case OPT_fdiagnostics_format_:
 	{
 	  const char *basename = (opts->x_dump_base_name ? opts->x_dump_base_name
 				  : opts->x_main_input_basename);
-	  diagnostic_output_format_init (dc, basename,
+	  gcc_assert (dc);
+	  diagnostic_output_format_init (*dc,
+					 opts->x_main_input_filename, basename,
 					 (enum diagnostics_output_format)value,
 					 opts->x_flag_diagnostics_json_formatting);
 	  break;
@@ -4535,6 +4545,11 @@ driver_handle_option (struct gcc_options *opts,
       if (report_times_to_file)
 	fclose (report_times_to_file);
       report_times_to_file = fopen (arg, "a");
+      do_save = false;
+      break;
+
+    case OPT_truncate:
+      totruncate_file = arg;
       do_save = false;
       break;
 
@@ -9285,6 +9300,11 @@ driver::final_actions () const
   if (seen_error ())
     delete_failure_queue ();
   delete_temp_files ();
+
+  if (totruncate_file != NULL && !seen_error ())
+    /* Truncate file specified by -truncate.
+       Used by lto-wrapper to reduce temporary disk-space usage. */
+    truncate(totruncate_file, 0);
 
   if (print_help_list)
     {

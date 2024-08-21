@@ -1015,6 +1015,7 @@ FIXME: discuss non-C testsuites here.
 * Selectors:: Selecting targets to which a test applies.
 * Effective-Target Keywords:: Keywords describing target attributes.
 * Add Options:: Features for @code{dg-add-options}
+* Remove Options:: Features for @code{dg-remove-options}
 * Require Support:: Variants of @code{dg-require-@var{support}}
 * Final Actions:: Commands for use in @code{dg-final}
 @end menu
@@ -1084,6 +1085,13 @@ This directive does nothing on targets that enable the features by
 default, or that don't provide them at all.  It must come after
 all @code{dg-options} directives.
 For supported values of @var{feature} see @ref{Add Options, ,}.
+
+@item @{ dg-remove-options @var{feature} @dots{} @}
+Remove any compiler options that are needed to access certain features.
+This directive does nothing on targets that disable the features by
+default, or that don't provide them at all.  It must come after
+all @code{dg-options} and @code{dg-add-options} directives.
+For supported values of @var{feature} see @ref{Remove Options, ,}.
 
 @item @{ dg-additional-options @var{options} [@{ target @var{selector} @}] @}
 This directive provides a list of compiler options, to be used
@@ -1320,9 +1328,15 @@ to @var{var_value} before execution of the program created by the test.
 Specify additional files, other than source files, that must be copied
 to the system where the compiler runs.
 
-@item @{ dg-additional-sources "@var{filelist}" @}
+@item @{ dg-additional-sources "@var{filelist}" [@{ target @var{selector} @}] @}
 Specify additional source files to appear in the compile line
 following the main test file.
+If the directive includes the optional @samp{@{ @var{selector} @}}
+then the additional sources are only added if the target system
+matches the @var{selector}.
+Additional sources are generally used only in @samp{link} and @samp{run}
+tests; they are reported as unsupported and discarded in other kinds of
+tests that direct the compiler to output to a single file.
 @end table
 
 @subsubsection Add checks at the end of a test
@@ -2507,6 +2521,24 @@ Test system has an integer register width of 32 bits.
 @item rv64
 Test system has an integer register width of 64 bits.
 
+@item riscv_a
+Test target architecture has support for the A extension.
+
+@item riscv_zaamo
+Test target architecture has support for the zaamo extension.
+
+@item riscv_zabha
+Test target architecture has support for the zabha extension.
+
+@item riscv_zacas
+Test target architecture has support for the zacas extension.
+
+@item riscv_zalrsc
+Test target architecture has support for the zalrsc extension.
+
+@item riscv_ztso
+Test target architecture has support for the ztso extension.
+
 @end table
 
 @subsubsection CORE-V specific attributes
@@ -2524,6 +2556,9 @@ Test system has support for the CORE-V ELW extension.
 
 @item cv_simd
 Test system has support for the CORE-V SIMD extension.
+
+@item cv_bi
+Test system has support for the CORE-V BI extension.
 
 @end table
 
@@ -2548,6 +2583,15 @@ Target supports the execution of @code{avx10.1} instructions.
 
 @item avx10.1-512
 Target supports the execution of @code{avx10.1-512} instructions.
+
+@item avx10.2
+Target supports the execution of @code{avx10.2} instructions.
+
+@item avx10.2-256
+Target supports the execution of @code{avx10.2} instructions.
+
+@item avx10.2-512
+Target supports the execution of @code{avx10.2-512} instructions.
 
 @item avx2
 Target supports compiling @code{avx2} instructions.
@@ -2834,6 +2878,9 @@ can be included without error when @option{-mbig-endian} is passed.
 @item stpcpy
 Target provides @code{stpcpy} function.
 
+@item strndup
+Target provides @code{strndup} function.
+
 @item sysconf
 Target supports @code{sysconf}.
 
@@ -2867,6 +2914,9 @@ Target supports weak undefined symbols
 @table @code
 @item R_flag_in_section
 Target supports the 'R' flag in .section directive in assembly inputs.
+
+@item asm_goto_with_outputs
+Target supports 'asm goto' with outputs.
 
 @item automatic_stack_alignment
 Target supports automatic stack alignment.
@@ -2942,6 +2992,9 @@ Target is using an LLVM assembler and/or linker, instead of GNU Binutils.
 
 @item lra
 Target supports local register allocator (LRA).
+This must not be called (results in @code{ERROR}) for targets that
+don't do register allocation, and therefore neither use nor don't use
+LRA.
 
 @item lto
 Compiler has been configured to support link-time optimization (LTO).
@@ -3248,6 +3301,24 @@ compliance mode.
 @code{mips16} function attributes.
 Only MIPS targets support this feature, and only then in certain modes.
 
+@item riscv_a
+Add the 'A' extension to the -march string on RISC-V targets.
+
+@item riscv_zaamo
+Add the zaamo extension to the -march string on RISC-V targets.
+
+@item riscv_zabha
+Add the zabha extension to the -march string on RISC-V targets.
+
+@item riscv_zacas
+Add the zacas extension to the -march string on RISC-V targets.
+
+@item riscv_zalrsc
+Add the zalrsc extension to the -march string on RISC-V targets.
+
+@item riscv_ztso
+Add the ztso extension to the -march string on RISC-V targets.
+
 @item stack_size
 @anchor{stack_size_ao}
 Add the flags needed to define macro STACK_SIZE and set it to the stack size
@@ -3268,6 +3339,37 @@ a target, if any.  This requires the target to have an implementation of the
 
 @item weak_undefined
 Add the flags needed to enable support for weak undefined symbols.
+@end table
+
+@node Remove Options
+@subsection Features for @code{dg-remove-options}
+
+The supported values of @var{feature} for directive @code{dg-remove-options}
+are:
+
+@table @code
+@item riscv_a
+Remove the 'A' extension and all implied extensions from the -march string on
+RISC-V targets.
+
+@item riscv_zaamo
+Remove the zaamo extension from the -march string on RISC-V. If the 'A'
+extension is present downgrade it to zalrsc.
+
+@item riscv_zabha
+Remove the zabha extension and implied zaamo extension from the -march string
+on RISC-V.
+
+@item riscv_zacas
+Remove the zacas extension and implied zaamo extension from the -march string
+on RISC-V.
+
+@item riscv_zalrsc
+Remove the zalrsc extension from the -march string on RISC-V. If the 'A'
+extension is present downgrade it to zaamo.
+
+@item riscv_ztso
+Remove the ztso extension from the -march string on RISC-V targets.
 @end table
 
 @node Require Support

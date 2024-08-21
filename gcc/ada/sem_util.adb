@@ -30,7 +30,6 @@ with Debug;          use Debug;
 with Einfo.Utils;    use Einfo.Utils;
 with Elists;         use Elists;
 with Errout;         use Errout;
-with Erroutc;        use Erroutc;
 with Exp_Ch6;        use Exp_Ch6;
 with Exp_Ch11;       use Exp_Ch11;
 with Exp_Util;       use Exp_Util;
@@ -39,6 +38,7 @@ with Freeze;         use Freeze;
 with Itypes;         use Itypes;
 with Lib;            use Lib;
 with Lib.Xref;       use Lib.Xref;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet.Sp;       use Namet.Sp;
 with Nlists;         use Nlists;
 with Nmake;          use Nmake;
@@ -53,6 +53,7 @@ with Sem_Cat;        use Sem_Cat;
 with Sem_Ch6;        use Sem_Ch6;
 with Sem_Ch8;        use Sem_Ch8;
 with Sem_Ch13;       use Sem_Ch13;
+with Sem_Dim;        use Sem_Dim;
 with Sem_Disp;       use Sem_Disp;
 with Sem_Elab;       use Sem_Elab;
 with Sem_Eval;       use Sem_Eval;
@@ -169,12 +170,6 @@ package body Sem_Util is
    --  a non-null value, or the value cannot be determined at compile time. The
    --  routine does not take simple flow diagnostics into account, it relies on
    --  static facts such as the presence of null exclusions.
-
-   function Subprogram_Name (N : Node_Id) return String;
-   --  Return the fully qualified name of the enclosing subprogram for the
-   --  given node N, with file:line:col information appended, e.g.
-   --  "subp:file:line:col", corresponding to the source location of the
-   --  body of the subprogram.
 
    -----------------------------
    -- Abstract_Interface_List --
@@ -645,96 +640,70 @@ package body Sem_Util is
    -- Append_Entity_Name --
    ------------------------
 
-   procedure Append_Entity_Name (Buf : in out Bounded_String; E : Entity_Id) is
-      Temp : Bounded_String;
-
-      procedure Inner (E : Entity_Id);
-      --  Inner recursive routine, keep outer routine nonrecursive to ease
-      --  debugging when we get strange results from this routine.
-
-      -----------
-      -- Inner --
-      -----------
-
-      procedure Inner (E : Entity_Id) is
-         Scop : Node_Id;
-
-      begin
-         --  If entity has an internal name, skip by it, and print its scope.
-         --  Note that we strip a final R from the name before the test; this
-         --  is needed for some cases of instantiations.
-
-         declare
-            E_Name : Bounded_String;
-
-         begin
-            Append (E_Name, Chars (E));
-
-            if E_Name.Chars (E_Name.Length) = 'R' then
-               E_Name.Length := E_Name.Length - 1;
-            end if;
-
-            if Is_Internal_Name (E_Name) then
-               Inner (Scope (E));
-               return;
-            end if;
-         end;
-
-         Scop := Scope (E);
-
-         --  Just print entity name if its scope is at the outer level
-
-         if Scop = Standard_Standard then
-            null;
-
-         --  If scope comes from source, write scope and entity
-
-         elsif Comes_From_Source (Scop) then
-            Append_Entity_Name (Temp, Scop);
-            Append (Temp, '.');
-
-         --  If in wrapper package skip past it
-
-         elsif Present (Scop) and then Is_Wrapper_Package (Scop) then
-            Append_Entity_Name (Temp, Scope (Scop));
-            Append (Temp, '.');
-
-         --  Otherwise nothing to output (happens in unnamed block statements)
-
-         else
-            null;
-         end if;
-
-         --  Output the name
-
-         declare
-            E_Name : Bounded_String;
-
-         begin
-            Append_Unqualified_Decoded (E_Name, Chars (E));
-
-            --  Remove trailing upper-case letters from the name (useful for
-            --  dealing with some cases of internal names generated in the case
-            --  of references from within a generic).
-
-            while E_Name.Length > 1
-              and then E_Name.Chars (E_Name.Length) in 'A' .. 'Z'
-            loop
-               E_Name.Length := E_Name.Length - 1;
-            end loop;
-
-            --  Adjust casing appropriately (gets name from source if possible)
-
-            Adjust_Name_Case (E_Name, Sloc (E));
-            Append (Temp, E_Name);
-         end;
-      end Inner;
-
-   --  Start of processing for Append_Entity_Name
-
+   procedure Append_Entity_Name
+     (Buf : in out Bounded_String; E : Entity_Id)
+   is
+      Scop : constant Node_Id := Scope (E);
+      --  We recursively print the scope to Buf, and then print the simple
+      --  name, along with some special cases (see below). So for A.B.C.D,
+      --  recursively print A.B.C, then print D.
    begin
-      Inner (E);
-      Append (Buf, Temp);
+      --  If E is not a source entity, then skip the simple name and just
+      --  recursively print its scope. However, subprogram instances have
+      --  Comes_From_Source = False, but we do want to print the simple name
+      --  of the instance.
+
+      if not Comes_From_Source (E) then
+         if Is_Generic_Instance (E)
+           and then Ekind (E) in E_Function | E_Procedure
+         then
+            null;
+         else
+            Append_Entity_Name (Buf, Scope (E));
+            return;
+         end if;
+      end if;
+
+      --  Just print entity name if its scope is at the outer level
+
+      if No (Scop) or Scop = Standard_Standard then
+         null;
+
+      --  If scope comes from source, write scope and entity
+
+      elsif Comes_From_Source (Scop) then
+         Append_Entity_Name (Buf, Scop);
+         Append (Buf, '.');
+
+      --  Otherwise (non-source scope) skip one level
+
+      else
+         Append_Entity_Name (Buf, Scope (Scop));
+         Append (Buf, '.');
+      end if;
+
+      --  Print the simple name
+
+      declare
+         E_Name : Bounded_String;
+      begin
+         Append_Unqualified_Decoded (E_Name, Chars (E));
+
+         --  Remove trailing upper-case letters from the name (useful for
+         --  dealing with some cases of internal names generated in the case
+         --  of references from within a generic).
+
+         while E_Name.Length > 1
+           and then E_Name.Chars (E_Name.Length) in 'A' .. 'Z'
+         loop
+            E_Name.Length := E_Name.Length - 1;
+         end loop;
+
+         --  Adjust casing appropriately (gets name from source if possible)
+
+         Adjust_Name_Case (E_Name, Sloc (E));
+         Append (Buf, E_Name);
+      end;
    end Append_Entity_Name;
 
    ---------------------------------
@@ -1780,7 +1749,8 @@ package body Sem_Util is
       begin
          while Present (Disc) loop
             Append_To (Constraints,
-              New_Copy_Tree (Discriminant_Default_Value (Disc)));
+                       New_Copy_Tree
+                         (Discriminant_Default_Value (Disc), New_Sloc => Loc));
             Next_Discriminant (Disc);
          end loop;
 
@@ -1814,7 +1784,6 @@ package body Sem_Util is
 
    function Build_Default_Subtype_OK (T : Entity_Id) return Boolean is
    begin
-
       if Is_Constrained (T) then
 
          --  We won't build a new subtype if T is constrained
@@ -2411,7 +2380,7 @@ package body Sem_Util is
       Actual : Node_Id;
 
    begin
-      if All_Extensions_Allowed then
+      if Ada_Version >= Ada_2022 then
          Actual := First_Actual (Call);
          while Present (Actual) loop
             if Nkind (Actual) = N_Aggregate then
@@ -4156,16 +4125,7 @@ package body Sem_Util is
             begin
                --  Expr is the conjunct of an enclosing "and" expression
 
-               return Nkind (Parent (Expr)) in N_Subexpr
-
-                 --  or Expr is a conjunct of an enclosing "and then"
-                 --  expression in a postcondition aspect that was split into
-                 --  multiple pragmas. The first conjunct has the "and then"
-                 --  expression as Original_Node, and other conjuncts have
-                 --  Split_PCC set to True.
-
-                 or else Nkind (Original_Node (Expr)) = N_And_Then
-                 or else Split_PPC (Prag);
+               return Nkind (Parent (Expr)) in N_Subexpr;
             end Applied_On_Conjunct;
 
             -----------------------
@@ -4228,7 +4188,7 @@ package body Sem_Util is
             -------------------
 
             function Has_No_Output (Subp : Entity_Id) return Boolean is
-               Param : Node_Id;
+               Param : Entity_Id;
 
             begin
                --  A function has its result as output
@@ -7819,7 +7779,7 @@ package body Sem_Util is
             Set_Is_Immediately_Visible (E, False);
 
          --  Case of renaming declaration constructed for package instances.
-         --  if there is an explicit declaration with the same identifier,
+         --  If there is an explicit declaration with the same identifier,
          --  the renaming is not immediately visible any longer, but remains
          --  visible through selected component notation.
 
@@ -7828,7 +7788,7 @@ package body Sem_Util is
          then
             Set_Is_Immediately_Visible (E, False);
 
-         --  The new entity may be the package renaming, which has the same
+         --  The new entity may be the package renaming, which has the
          --  same name as a generic formal which has been seen already.
 
          elsif Nkind (Parent (Def_Id)) = N_Package_Renaming_Declaration
@@ -8196,13 +8156,15 @@ package body Sem_Util is
       if not Is_Constrained (Typ) then
          All_Static := False;
          Has_Empty  := False;
+         return;
 
       --  A string literal has static bounds, and is not empty as long as it
       --  contains at least one character.
 
       elsif Ekind (Typ) = E_String_Literal_Subtype then
          All_Static := True;
-         Has_Empty  := String_Literal_Length (Typ) > 0;
+         Has_Empty  := String_Literal_Length (Typ) = 0;
+         return;
       end if;
 
       --  Assume that all bounds are static and not empty
@@ -9100,6 +9062,14 @@ package body Sem_Util is
 
             elsif Inside_Private_Part (Context) then
                Placement := Private_State_Space;
+               return;
+
+            --  The item or its enclosing package appear in the visible state
+            --  space of a generic package.
+
+            elsif Ekind (Pack_Id) = E_Generic_Package then
+               Placement := Not_In_Package;
+               Pack_Id := Empty;
                return;
 
             --  When the item appears in the visible state space of a package,
@@ -10533,7 +10503,10 @@ package body Sem_Util is
             H := High_Bound (Range_Expression (Constraint (N)));
          end if;
 
-      elsif Is_Entity_Name (N) and then Is_Type (Entity (N)) then
+      elsif Is_Entity_Name (N)
+        and then Present (Entity (N))
+        and then Is_Type (Entity (N))
+      then
          Rng := Scalar_Range_Of_Type (Entity (N));
 
          if Error_Posted (Rng) then
@@ -10736,26 +10709,33 @@ package body Sem_Util is
 
    function Get_Max_Queue_Length (Id : Entity_Id) return Uint is
       pragma Assert (Is_Entry (Id));
-      Prag : constant Entity_Id := Get_Pragma (Id, Pragma_Max_Queue_Length);
-      Max  : Uint;
+      PMQL  : constant Entity_Id := Get_Pragma (Id, Pragma_Max_Queue_Length);
+      PMEQL : constant Entity_Id :=
+         Get_Pragma (Id, Pragma_Max_Entry_Queue_Length);
+      Max   : Uint;
 
    begin
       --  A value of 0 or -1 represents no maximum specified, and entries and
       --  entry families with no Max_Queue_Length aspect or pragma default to
       --  it.
 
-      if No (Prag) then
-         return Uint_0;
-      end if;
+      --  We have already checked that there is at most one of these pragmas
 
-      Max := Expr_Value
-        (Expression (First (Pragma_Argument_Associations (Prag))));
+      if Present (PMQL) then
+         Max := Expr_Value
+            (Expression (First (Pragma_Argument_Associations (PMQL))));
+      elsif Present (PMEQL) then
+         Max := Expr_Value
+            (Expression (First (Pragma_Argument_Associations (PMEQL))));
+      else
+         Max := Uint_0;
+      end if;
 
       --  Since -1 and 0 are equivalent, return 0 for instances of -1 for
       --  uniformity.
 
       if Max = -1 then
-         return Uint_0;
+         Max := Uint_0;
       end if;
 
       return Max;
@@ -12140,11 +12120,14 @@ package body Sem_Util is
            and then Is_Constrained (Etype (Subtype_Mark (N)));
 
       --  For all other names, it is sufficient to have a constrained
-      --  Unchecked_Union nominal subtype.
+      --  Unchecked_Union nominal subtype, unless it is incomplete or
+      --  private because it cannot have a known discriminant part in
+      --  this case (RM B.3.3 (11/2)).
 
       else
          return Is_Unchecked_Union (Etype (N))
-           and then Is_Constrained (Etype (N));
+           and then Is_Constrained (Etype (N))
+           and then not Is_Incomplete_Or_Private_Type (Etype (N));
       end if;
    end Has_Inferable_Discriminants;
 
@@ -12239,7 +12222,10 @@ package body Sem_Util is
    begin
       return
         Ekind (Id) = E_Entry
-          and then Present (Get_Pragma (Id, Pragma_Max_Queue_Length));
+          and then
+            (Present (Get_Pragma (Id, Pragma_Max_Queue_Length))
+              or else
+             Present (Get_Pragma (Id, Pragma_Max_Entry_Queue_Length)));
    end Has_Max_Queue_Length;
 
    ---------------------------------
@@ -13106,11 +13092,6 @@ package body Sem_Util is
       --  but now without any syntactic checks.
 
       case Ekind (E) is
-         --  Abstract states have option Relaxed_Initialization
-
-         when E_Abstract_State =>
-            return Is_Relaxed_Initialization_State (E);
-
          --  Constants have this aspect attached directly; for deferred
          --  constants, the aspect is attached to the partial view.
 
@@ -13267,6 +13248,20 @@ package body Sem_Util is
 
       return All_Static;
    end Has_Static_Array_Bounds;
+
+   -----------------------------------
+   -- Has_Static_Empty_Array_Bounds --
+   -----------------------------------
+
+   function Has_Static_Empty_Array_Bounds (Typ : Node_Id) return Boolean is
+      All_Static : Boolean;
+      Has_Empty  : Boolean;
+
+   begin
+      Examine_Array_Bounds (Typ, All_Static, Has_Empty);
+
+      return Has_Empty;
+   end Has_Static_Empty_Array_Bounds;
 
    ---------------------------------------
    -- Has_Static_Non_Empty_Array_Bounds --
@@ -13502,6 +13497,28 @@ package body Sem_Util is
 
       return False;
    end Has_Effectively_Volatile_Component;
+
+   ------------------------
+   -- Has_Enabled_Aspect --
+   ------------------------
+
+   function Has_Enabled_Aspect
+     (Id : Entity_Id;
+      A  : Aspect_Id)
+      return Boolean
+   is
+      Asp : constant Node_Id := Find_Aspect (Id, A);
+   begin
+      if Present (Asp) then
+         if Present (Expression (Asp)) then
+            return Is_True (Static_Boolean (Expression (Asp)));
+         else
+            return True;
+         end if;
+      else
+         return False;
+      end if;
+   end Has_Enabled_Aspect;
 
    ----------------------------
    -- Has_Volatile_Component --
@@ -15188,6 +15205,13 @@ package body Sem_Util is
                and then Has_Aliased_Components
                           (Designated_Type (Etype (Prefix (Obj)))));
 
+      --  Handle a 'Super view conversion
+
+      elsif Nkind (Obj) = N_Attribute_Reference
+        and then Attribute_Name (Obj) = Name_Super
+      then
+         return Is_Aliased_View (Prefix (Obj));
+
       elsif Nkind (Obj) in N_Unchecked_Type_Conversion | N_Type_Conversion then
          return Is_Tagged_Type (Etype (Obj))
            and then Is_Aliased_View (Expression (Obj));
@@ -16056,6 +16080,29 @@ package body Sem_Util is
       P   : Node_Id;
 
    begin
+      --  Since Ada 2005, the "current instance" rule does not apply
+      --  to a type_mark in an access_definition (RM 8.6),
+      --  although it does apply in an access_to_object definition.
+      --  So the rule does not apply in the definition of an anonymous
+      --  access type, but it does apply in the definition of a named
+      --  access-to-object type.
+      --  The rule also does not apply in a designated subprogram profile.
+
+      if Ada_Version >= Ada_2005 then
+         case Nkind (Parent (N)) is
+            when N_Access_Definition | N_Access_Function_Definition =>
+               return False;
+            when N_Parameter_Specification =>
+               if Nkind (Parent (Parent (N))) in
+                 N_Access_To_Subprogram_Definition
+               then
+                  return False;
+               end if;
+            when others =>
+               null;
+         end case;
+      end if;
+
       --  Simplest case: entity is a concurrent type and we are currently
       --  inside the body. This will eventually be expanded into a call to
       --  Self (for tasks) or _object (for protected objects).
@@ -16105,6 +16152,12 @@ package body Sem_Util is
             elsif Nkind (P) = N_Pragma
               and then Get_Pragma_Id (P) in Pragma_Predicate
                                           | Pragma_Predicate_Failure
+
+              --  For "pragma Predicate (T, Is_OK (T))", return False for the
+              --  first use of T and True for the second.
+
+              and then
+                N /= Expression (First (Pragma_Argument_Associations (P)))
             then
                declare
                   Arg : constant Entity_Id :=
@@ -16120,7 +16173,7 @@ package body Sem_Util is
          end loop;
       end if;
 
-      --  In any other context this is not a current occurrence
+      --  In any other context this is not a current instance reference.
 
       return False;
    end Is_Current_Instance;
@@ -17156,6 +17209,13 @@ package body Sem_Util is
       --  Record types
 
       elsif Is_Record_Type (Typ) then
+         --  Mutably tagged types get default initialized to their parent
+         --  subtype's default values.
+
+         if Is_Mutably_Tagged_CW_Equivalent_Type (Typ) then
+            return True;
+         end if;
+
          if Has_Defaulted_Discriminants (Typ)
            and then Is_Fully_Initialized_Variant (Typ)
          then
@@ -17183,8 +17243,7 @@ package body Sem_Util is
                if Present (Utyp) then
                   declare
                      Init : constant Entity_Id :=
-                              (Find_Optional_Prim_Op
-                                 (Utyp, Name_Initialize));
+                              Find_Controlled_Prim_Op (Utyp, Name_Initialize);
 
                   begin
                      if Present (Init)
@@ -17193,10 +17252,11 @@ package body Sem_Util is
                      then
                         return True;
 
-                     elsif Has_Null_Extension (Typ)
-                        and then
-                          Is_Fully_Initialized_Type
-                            (Etype (Base_Type (Typ)))
+                     elsif Is_Tagged_Type (Typ)
+                       and then Is_Derived_Type (Typ)
+                       and then Has_Null_Extension (Typ)
+                       and then
+                         Is_Fully_Initialized_Type (Etype (Base_Type (Typ)))
                      then
                         return True;
                      end if;
@@ -19468,10 +19528,10 @@ package body Sem_Util is
          elsif Nkind (Par) = N_Case_Expression then
             return Expr /= Expression (Par);
 
-         elsif Nkind (Par) in N_And_Then | N_Or_Else then
+         elsif Nkind (Par) in N_Short_Circuit then
             return Expr = Right_Opnd (Par);
 
-         elsif Nkind (Par) in N_In | N_Not_In then
+         elsif Nkind (Par) in N_Membership_Test then
 
             --  If the membership includes several alternatives, only the first
             --  is definitely evaluated.
@@ -19588,39 +19648,14 @@ package body Sem_Util is
 
       --  Local variables
 
-      Par  : Node_Id;
       Expr : Node_Id;
+      Par  : Node_Id;
 
    --  Start of processing for Is_Potentially_Unevaluated
 
    begin
       Expr := N;
-      Par  := N;
-
-      --  A postcondition whose expression is a short-circuit is broken down
-      --  into individual aspects for better exception reporting. The original
-      --  short-circuit expression is rewritten as the second operand, and an
-      --  occurrence of 'Old in that operand is potentially unevaluated.
-      --  See sem_ch13.adb for details of this transformation. The reference
-      --  to 'Old may appear within an expression, so we must look for the
-      --  enclosing pragma argument in the tree that contains the reference.
-
-      while Present (Par)
-        and then Nkind (Par) /= N_Pragma_Argument_Association
-      loop
-         if Is_Rewrite_Substitution (Par)
-           and then Nkind (Original_Node (Par)) = N_And_Then
-         then
-            return True;
-         end if;
-
-         Par := Parent (Par);
-      end loop;
-
-      --  Other cases; 'Old appears within other expression (not the top-level
-      --  conjunct in a postcondition) with a potentially unevaluated operand.
-
-      Par := Parent (Expr);
+      Par  := Parent (Expr);
 
       while Present (Par)
         and then Nkind (Par) /= N_Pragma_Argument_Association
@@ -20375,11 +20410,7 @@ package body Sem_Util is
       --  for efficiency.
 
       return Ada_Version >= Ada_2022
-        and then Has_Aspect (Subp, Aspect_Static)
-        and then
-          (No (Find_Value_Of_Aspect (Subp, Aspect_Static))
-            or else Is_True (Static_Boolean
-                               (Find_Value_Of_Aspect (Subp, Aspect_Static))));
+        and then Has_Enabled_Aspect (Subp, Aspect_Static);
    end Is_Static_Function;
 
    -----------------------------
@@ -20736,6 +20767,29 @@ package body Sem_Util is
       return T = Universal_Integer or else T = Universal_Real;
    end Is_Universal_Numeric_Type;
 
+   -------------------------------------
+   -- Is_Unconstrained_Or_Tagged_Item --
+   -------------------------------------
+
+   function Is_Unconstrained_Or_Tagged_Item
+     (Item : Entity_Id) return Boolean
+   is
+      Typ : constant Entity_Id := Etype (Item);
+   begin
+      if Is_Tagged_Type (Typ) then
+         return True;
+
+      elsif Is_Array_Type (Typ)
+        or else Is_Record_Type (Typ)
+        or else Is_Private_Type (Typ)
+      then
+         return not Is_Constrained (Typ);
+
+      else
+         return False;
+      end if;
+   end Is_Unconstrained_Or_Tagged_Item;
+
    ------------------------------
    -- Is_User_Defined_Equality --
    ------------------------------
@@ -20998,6 +21052,16 @@ package body Sem_Util is
       if Nkind (N) in N_Subexpr and then Assignment_OK (N) then
          return True;
 
+      --  It is possible that N is a selected component of a view conversion,
+      --  and in that case get the expression of the conversion and test
+      --  whether it is indeed a variable.
+
+      elsif Nkind (N) = N_Selected_Component
+        and then Is_View_Conversion (Ultimate_Prefix (N))
+        and then Is_Variable (Expression (Ultimate_Prefix (N)))
+      then
+         return True;
+
       --  Normally we go to the original node, but there is one exception where
       --  we use the rewritten node, namely when it is an explicit dereference.
       --  The generated code may rewrite a prefix which is an access type with
@@ -21100,6 +21164,16 @@ package body Sem_Util is
                     and then Ekind (Typ) /= E_Access_Subprogram_Type;
                end;
 
+            --  Handle the case where 'Super is present - representing a view
+            --  conversion.
+
+            when N_Attribute_Reference =>
+               if Attribute_Name (Orig_Node) = Name_Super then
+                  return Is_Variable (Prefix (Orig_Node));
+               end if;
+
+               return False;
+
             --  The type conversion is the case where we do not deal with the
             --  context dependent special case of an actual parameter. Thus
             --  the type conversion is only considered a variable for the
@@ -21141,7 +21215,9 @@ package body Sem_Util is
         and then Nkind (Unqual_Conv (N)) in N_Has_Etype
       then
          if Is_Tagged_Type (Etype (N))
-           and then Is_Tagged_Type (Etype (Unqual_Conv (N)))
+           and then (Is_Tagged_Type (Etype (Unqual_Conv (N)))
+                      or else Is_Class_Wide_Equivalent_Type
+                                (Etype (Unqual_Conv (N))))
          then
             return True;
 
@@ -21228,6 +21304,11 @@ package body Sem_Util is
       elsif Is_Unchecked_Conversion_Instance (Func_Id)
         and then Has_Effectively_Volatile_Profile (Func_Id)
       then
+         return True;
+
+      --  A function with side-effects is volatile
+
+      elsif Is_Function_With_Side_Effects (Func_Id) then
          return True;
 
       --  Otherwise the function is treated as volatile if it is subject to
@@ -22232,7 +22313,11 @@ package body Sem_Util is
             elsif Is_Record_Type (Input_Typ) then
                Comp := First_Component (Input_Typ);
                while Present (Comp) loop
-                  if Needs_Finalization (Etype (Comp)) then
+                  --  Skip _Parent component like Record_Type_Definition
+
+                  if Chars (Comp) /= Name_uParent
+                    and then Needs_Finalization (Etype (Comp))
+                  then
                      return True;
                   end if;
 
@@ -22379,12 +22464,24 @@ package body Sem_Util is
             return False;
          end Depends_On_Discriminant;
 
+      --  Start of processing for Caller_Known_Size_Record
+
       begin
          --  This is a protected type without Corresponding_Record_Type set,
          --  typically because expansion is disabled. The safe thing to do is
          --  to return True, so Needs_Secondary_Stack returns False.
 
          if No (Typ) then
+            return True;
+         end if;
+
+         --  If either size is specified for the type, then it's known in the
+         --  caller in particular. Note that, even if the clause is confirming,
+         --  this does not change the outcome since the size was already known.
+
+         if Has_Size_Clause (First_Subtype (Typ))
+           or else Has_Object_Size_Clause (First_Subtype (Typ))
+         then
             return True;
          end if;
 
@@ -22647,6 +22744,11 @@ package body Sem_Util is
       elsif Is_Access_Type (Typ)
         or else (Consider_IS_NS and then Is_Scalar_Type (Typ))
       then
+         return True;
+
+      --  Mutably tagged types require default initialization
+
+      elsif Is_Mutably_Tagged_CW_Equivalent_Type (Typ) then
          return True;
 
       --  If Initialize/Normalize_Scalars is in effect, string objects also
@@ -23477,6 +23579,8 @@ package body Sem_Util is
                   Set_Chars (Result, Chars (Entity (Result)));
                end if;
             end if;
+
+            Copy_Dimensions (From => N, To => Result);
          end if;
 
          return Result;
@@ -23861,27 +23965,6 @@ package body Sem_Util is
          --  within an N_Expression_With_Actions node.
 
          elsif EWA_Inner_Scope_Level > 0 then
-            return;
-
-         --  Nothing to do when the entity does not denote a construct that
-         --  may appear within an N_Expression_With_Actions node. Relaxing
-         --  this restriction leads to a performance penalty.
-
-         --  ??? this list is flaky, and may hide dormant bugs
-         --  Should functions be included???
-
-         --  Quantified expressions contain an entity declaration that must
-         --  always be replaced when the expander is active, even if it has
-         --  not been analyzed yet like e.g. in predicates.
-
-         elsif Ekind (Id) not in E_Block
-                               | E_Constant
-                               | E_Label
-                               | E_Procedure
-                               | E_Variable
-           and then not Is_Entity_Of_Quantified_Expression (Id)
-           and then not Is_Type (Id)
-         then
             return;
 
          --  Nothing to do when the entity was already visited
@@ -25363,12 +25446,12 @@ package body Sem_Util is
    -- Number_Of_Elements_In_Array --
    ---------------------------------
 
-   function Number_Of_Elements_In_Array (T : Entity_Id) return Int is
+   function Number_Of_Elements_In_Array (T : Entity_Id) return Nat is
       Indx : Node_Id;
       Typ  : Entity_Id;
       Low  : Node_Id;
       High : Node_Id;
-      Num  : Int := 1;
+      Num  : Nat := 1;
 
    begin
       pragma Assert (Is_Array_Type (T));
@@ -25395,7 +25478,8 @@ package body Sem_Util is
             return 0;
          else
             Num :=
-              Num * UI_To_Int ((Expr_Value (High) - Expr_Value (Low) + 1));
+              Num * Int'Max
+                (0, UI_To_Int (Expr_Value (High) - Expr_Value (Low) + Uint_1));
          end if;
 
          Next_Index (Indx);
@@ -25744,6 +25828,18 @@ package body Sem_Util is
 
       return Kind;
    end Policy_In_Effect;
+
+   -------------------------------------------
+   -- Preanalyze_And_Resolve_Without_Errors --
+   -------------------------------------------
+
+   procedure Preanalyze_And_Resolve_Without_Errors (N : Node_Id) is
+      Status : constant Boolean := Get_Ignore_Errors;
+   begin
+      Set_Ignore_Errors (True);
+      Preanalyze_And_Resolve (N);
+      Set_Ignore_Errors (Status);
+   end Preanalyze_And_Resolve_Without_Errors;
 
    -------------------------------
    -- Preanalyze_Without_Errors --
@@ -26200,6 +26296,58 @@ package body Sem_Util is
          Set_Has_Timing_Event (Typ);
       end if;
    end Propagate_Concurrent_Flags;
+
+   --------------------------------
+   -- Propagate_Controlled_Flags --
+   --------------------------------
+
+   procedure Propagate_Controlled_Flags
+     (Typ      : Entity_Id;
+      From_Typ : Entity_Id;
+      Comp     : Boolean := False;
+      Deriv    : Boolean := False)
+   is
+   begin
+      --  It does not make sense to have both Comp and Deriv set True
+
+      pragma Assert (not Comp or else not Deriv);
+
+      --  This implementation only supports array types for the component case.
+      --  Disregard Is_Controlled_Active and Disable_Controlled in this case.
+
+      if Comp then
+         pragma Assert (Is_Array_Type (Typ));
+
+      else
+         if Is_Controlled_Active (From_Typ) then
+            Set_Is_Controlled_Active (Typ);
+         end if;
+
+         if Disable_Controlled (From_Typ) then
+            Set_Disable_Controlled (Typ);
+         end if;
+      end if;
+
+      --  Direct controlled types do not inherit Finalize_Storage_Only
+
+      if not (Deriv and then Is_Controlled (From_Typ)) then
+         if Finalize_Storage_Only (From_Typ) then
+            Set_Finalize_Storage_Only (Typ);
+         end if;
+      end if;
+
+      --  Is_Controlled yields Has_Controlled_Component for component
+
+      if Has_Controlled_Component (From_Typ)
+        or else (Comp and then Is_Controlled (From_Typ))
+      then
+         Set_Has_Controlled_Component (Typ);
+      end if;
+
+      if Has_Relaxed_Finalization (From_Typ) then
+         Set_Has_Relaxed_Finalization (Typ);
+      end if;
+   end Propagate_Controlled_Flags;
 
    ------------------------------
    -- Propagate_DIC_Attributes --
@@ -27651,10 +27799,15 @@ package body Sem_Util is
       Pref : Node_Id;
 
    begin
-      --  Deal with indexed or selected component where prefix is modified
+      --  Deal with indexed components, selected components, or slices where
+      --  the prefix is modified.
 
-      if Nkind (N) in N_Indexed_Component | N_Selected_Component then
-         Pref := Prefix (N);
+      if Nkind (N) in N_Indexed_Component | N_Selected_Component | N_Slice then
+
+         --  Grab the original node to avoid looking at internally generated
+         --  objects.
+
+         Pref := Original_Node (Prefix (N));
 
          --  If prefix is access type, then it is the designated object that is
          --  being modified, which means we have no entity to set the flag on.
@@ -28034,113 +28187,6 @@ package body Sem_Util is
           and then Has_Loop_Entry_Attributes (Entity (Identifier (Stmt)));
    end Subject_To_Loop_Entry_Attributes;
 
-   ---------------------
-   -- Subprogram_Name --
-   ---------------------
-
-   function Subprogram_Name (N : Node_Id) return String is
-      Buf : Bounded_String;
-      Ent : Node_Id := N;
-      Nod : Node_Id;
-
-   begin
-      while Present (Ent) loop
-         case Nkind (Ent) is
-            when N_Subprogram_Body =>
-               Ent := Defining_Unit_Name (Specification (Ent));
-               exit;
-
-            when N_Subprogram_Declaration =>
-               Nod := Corresponding_Body (Ent);
-
-               if Present (Nod) then
-                  Ent := Nod;
-               else
-                  Ent := Defining_Unit_Name (Specification (Ent));
-               end if;
-
-               exit;
-
-            when N_Subprogram_Instantiation
-               | N_Package_Body
-               | N_Package_Specification
-            =>
-               Ent := Defining_Unit_Name (Ent);
-               exit;
-
-            when N_Protected_Type_Declaration =>
-               Ent := Corresponding_Body (Ent);
-               exit;
-
-            when N_Protected_Body
-               | N_Task_Body
-            =>
-               Ent := Defining_Identifier (Ent);
-               exit;
-
-            when N_Entity =>
-               exit;
-
-            when others =>
-               null;
-         end case;
-
-         Ent := Parent (Ent);
-      end loop;
-
-      if No (Ent) then
-         return "unknown subprogram:unknown file:0:0";
-      end if;
-
-      --  If the subprogram is a child unit, use its simple name to start the
-      --  construction of the fully qualified name.
-
-      if Nkind (Ent) = N_Defining_Program_Unit_Name then
-         Ent := Defining_Identifier (Ent);
-      end if;
-
-      Append_Entity_Name (Buf, Ent);
-
-      --  Append homonym number if needed
-
-      if Nkind (N) in N_Entity and then Has_Homonym (N) then
-         declare
-            H  : Entity_Id := Homonym (N);
-            Nr : Nat := 1;
-
-         begin
-            while Present (H) loop
-               if Scope (H) = Scope (N) then
-                  Nr := Nr + 1;
-               end if;
-
-               H := Homonym (H);
-            end loop;
-
-            if Nr > 1 then
-               Append (Buf, '#');
-               Append (Buf, Nr);
-            end if;
-         end;
-      end if;
-
-      --  Append source location of Ent to Buf so that the string will
-      --  look like "subp:file:line:col".
-
-      declare
-         Loc : constant Source_Ptr := Sloc (Ent);
-      begin
-         Append (Buf, ':');
-         Append (Buf, Reference_Name (Get_Source_File_Index (Loc)));
-         Append (Buf, ':');
-         Append (Buf, Nat (Get_Logical_Line_Number (Loc)));
-         Append (Buf, ':');
-         Append (Buf, Nat (Get_Column_Number (Loc)));
-      end;
-
-      return +Buf;
-   end Subprogram_Name;
-
    -------------------------------
    -- Support_Atomic_Primitives --
    -------------------------------
@@ -28508,10 +28554,6 @@ package body Sem_Util is
       Op_Missing : Boolean;
 
    begin
-      if not Restriction_Active (No_Default_Stream_Attributes) then
-         return Empty;
-      end if;
-
       if Is_Elementary_Type (T) then
          if Op = TSS_Null then
             Op_Missing :=
@@ -30509,55 +30551,18 @@ package body Sem_Util is
                      end if;
 
                   when N_Pragma =>
-                     declare
-                        Previous : constant Node_Id := Prev (Par);
-                        Prev_Expr : Node_Id;
-                     begin
-                        if Nkind (Previous) = N_Pragma and then
-                          Split_PPC (Previous)
-                        then
-                           --  A source-level postcondition of
-                           --    A and then B and then C
-                           --  results in
-                           --    pragma Postcondition (A);
-                           --    pragma Postcondition (B);
-                           --    pragma Postcondition (C);
-                           --  with Split_PPC set to True on all but the
-                           --  last pragma. We account for that here.
+                     pragma Assert
+                       (Get_Pragma_Id (Pragma_Name (Par)) in
+                          Pragma_Check
+                        | Pragma_Contract_Cases
+                        | Pragma_Exceptional_Cases
+                        | Pragma_Post
+                        | Pragma_Postcondition
+                        | Pragma_Post_Class
+                        | Pragma_Refined_Post
+                        | Pragma_Test_Case);
 
-                           Prev_Expr :=
-                             Expression (First
-                               (Pragma_Argument_Associations (Previous)));
-
-                           --  This Analyze call is needed in the case when
-                           --  Sem_Attr.Analyze_Attribute calls
-                           --  Eligible_For_Conditional_Evaluation. Without
-                           --  it, we end up passing an unanalyzed expression
-                           --  to Is_Known_On_Entry and that doesn't work.
-
-                           Analyze (Prev_Expr);
-
-                           Next_Element :=
-                             (Expr        => Prev_Expr,
-                              Context     => Short_Circuit_Op,
-                              Is_And_Then => True);
-
-                           return Determining_Expressions (Prev_Expr)
-                             & Next_Element;
-                        else
-                           pragma Assert
-                             (Get_Pragma_Id (Pragma_Name (Par)) in
-                                Pragma_Check
-                              | Pragma_Contract_Cases
-                              | Pragma_Exceptional_Cases
-                              | Pragma_Post
-                              | Pragma_Postcondition
-                              | Pragma_Post_Class
-                              | Pragma_Refined_Post);
-
-                           return (1 .. 0 => <>); -- recursion terminates here
-                        end if;
-                     end;
+                     return (1 .. 0 => <>); -- recursion terminates here
 
                   when N_Empty =>
                      --  This case should be impossible, but if it does
@@ -30610,7 +30615,8 @@ package body Sem_Util is
                   Determiners : constant Determining_Expression_List :=
                     Determining_Expressions (Expr);
                begin
-                  pragma Assert (Determiners'Length > 0);
+                  pragma Assert (if Serious_Errors_Detected = 0 then
+                                   Determiners'Length > 0);
 
                   for Idx in Determiners'Range loop
                      if not Is_Known_On_Entry (Determiners (Idx).Expr) then
@@ -30805,6 +30811,14 @@ package body Sem_Util is
                               return False;
                            end if;
 
+                           --  Handle constants introduced by side-effect
+                           --  removal, e.g. by validity checks.
+
+                           if not Comes_From_Source (Obj) then
+                              return
+                                Is_Known_On_Entry (Expression (Parent (Obj)));
+                           end if;
+
                            --  return False if not "all views are constant".
                            if Is_Immutably_Limited_Type (Obj_Typ)
                              or Needs_Finalization (Obj_Typ)
@@ -30842,9 +30856,7 @@ package body Sem_Util is
                   return Is_Known_On_Entry (Expression (Expr));
 
                when N_If_Expression =>
-                  if not All_Exps_Known_On_Entry (Expressions (Expr)) then
-                     return False;
-                  end if;
+                  return All_Exps_Known_On_Entry (Expressions (Expr));
 
                when N_Case_Expression =>
                   if not Is_Known_On_Entry (Expression (Expr)) then
@@ -30865,10 +30877,8 @@ package body Sem_Util is
                   return True;
 
                when others =>
-                  null;
+                  return False;
             end case;
-
-            return False;
          end Is_Known_On_Entry;
 
       end Conditional_Evaluation;
@@ -31032,8 +31042,8 @@ package body Sem_Util is
                --  When a type associated with an indirect temporary gets
                --  created for a 'Old attribute reference we need to mark
                --  the type as such. This allows, for example, finalization
-               --  masters associated with them to be finalized in the correct
-               --  order after postcondition checks.
+               --  collections associated with them to be finalized in the
+               --  correct order after postcondition checks.
 
                if Attribute_Name (Parent (Attr_Prefix)) = Name_Old then
                   Set_Stores_Attribute_Old_Prefix (Access_Type_Id);
@@ -31141,8 +31151,7 @@ package body Sem_Util is
          begin
             if Is_Anonymous_Access_Type (Typ) then
                --  No indirection in this case; just evaluate the temp.
-               Result := New_Occurrence_Of (Temp, Loc);
-               Set_Etype (Result, Etype (Temp));
+               return New_Occurrence_Of (Temp, Loc);
 
             else
                Result := Make_Explicit_Dereference (Loc,
@@ -31161,10 +31170,14 @@ package body Sem_Util is
 
                   Set_Etype (Result, Typ);
                end if;
-            end if;
 
-            return Result;
+               return Result;
+            end if;
          end Indirect_Temp_Value;
+
+         --------------------------------------
+         -- Is_Access_Type_For_Indirect_Temp --
+         --------------------------------------
 
          function Is_Access_Type_For_Indirect_Temp
            (T : Entity_Id) return Boolean is
@@ -31388,6 +31401,4 @@ package body Sem_Util is
 
    end Storage_Model_Support;
 
-begin
-   Erroutc.Subprogram_Name_Ptr := Subprogram_Name'Access;
 end Sem_Util;

@@ -53,6 +53,10 @@ static GTY(()) hash_set<tree> *deferred_escalating_exprs;
 static void
 remember_escalating_expr (tree t)
 {
+  if (uses_template_parms (t))
+    /* Templates don't escalate, and cp_fold_immediate can get confused by
+       other template trees in the function body (c++/115986).  */
+    return;
   if (!deferred_escalating_exprs)
     deferred_escalating_exprs = hash_set<tree>::create_ggc (37);
   deferred_escalating_exprs->add (t);
@@ -759,6 +763,8 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
     case OMP_DISTRIBUTE:
     case OMP_LOOP:
     case OMP_TASKLOOP:
+    case OMP_TILE:
+    case OMP_UNROLL:
       ret = cp_gimplify_omp_for (expr_p, pre_p);
       break;
 
@@ -1063,11 +1069,11 @@ any_non_eliding_target_exprs (tree ctor)
    the result.  */
 
 static void
-cp_genericize_init (tree *replace, tree from, tree to)
+cp_genericize_init (tree *replace, tree from, tree to, vec<tree,va_gc>** flags)
 {
   tree init = NULL_TREE;
   if (TREE_CODE (from) == VEC_INIT_EXPR)
-    init = expand_vec_init_expr (to, from, tf_warning_or_error);
+    init = expand_vec_init_expr (to, from, tf_warning_or_error, flags);
   else if (TREE_CODE (from) == CONSTRUCTOR
 	   && TREE_SIDE_EFFECTS (from)
 	   && ((flag_exceptions
@@ -1101,7 +1107,7 @@ cp_genericize_init_expr (tree *stmt_p)
       /* Return gets confused if we clobber its INIT_EXPR this soon.  */
       && TREE_CODE (to) != RESULT_DECL)
     from = TARGET_EXPR_INITIAL (from);
-  cp_genericize_init (stmt_p, from, to);
+  cp_genericize_init (stmt_p, from, to, nullptr);
 }
 
 /* For a TARGET_EXPR, change the TARGET_EXPR_INITIAL.  We will need to use
@@ -1112,9 +1118,19 @@ cp_genericize_target_expr (tree *stmt_p)
 {
   iloc_sentinel ils = EXPR_LOCATION (*stmt_p);
   tree slot = TARGET_EXPR_SLOT (*stmt_p);
+  vec<tree, va_gc> *flags = make_tree_vector ();
   cp_genericize_init (&TARGET_EXPR_INITIAL (*stmt_p),
-		      TARGET_EXPR_INITIAL (*stmt_p), slot);
+		      TARGET_EXPR_INITIAL (*stmt_p), slot, &flags);
   gcc_assert (!DECL_INITIAL (slot));
+  for (tree f : flags)
+    {
+      /* Once initialization is complete TARGET_EXPR_CLEANUP becomes active, so
+	 disable any subobject cleanups.  */
+      tree d = build_disable_temp_cleanup (f);
+      auto &r = TARGET_EXPR_INITIAL (*stmt_p);
+      r = add_stmt_to_compound (r, d);
+    }
+  release_tree_vector (flags);
 }
 
 /* Similar to if (target_expr_needs_replace) replace_decl, but TP is the
@@ -1386,6 +1402,8 @@ cp_fold_r (tree *stmt_p, int *walk_subtrees, void *data_)
     case OMP_DISTRIBUTE:
     case OMP_LOOP:
     case OMP_TASKLOOP:
+    case OMP_TILE:
+    case OMP_UNROLL:
     case OACC_LOOP:
       cp_walk_tree (&OMP_FOR_BODY (stmt), cp_fold_r, data, NULL);
       cp_walk_tree (&OMP_FOR_CLAUSES (stmt), cp_fold_r, data, NULL);
@@ -2074,15 +2092,6 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
       break;
 
     case CALL_EXPR:
-      /* Evaluate function concept checks instead of treating them as
-	 normal functions.  */
-      if (concept_check_p (stmt))
-	{
-	  *stmt_p = evaluate_concept_check (stmt);
-	  * walk_subtrees = 0;
-	  break;
-	}
-
       if (!wtd->no_sanitize_p
 	  && sanitize_flags_p ((SANITIZE_NULL
 				| SANITIZE_ALIGNMENT | SANITIZE_VPTR)))
@@ -2159,7 +2168,8 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
 	      && TREE_CODE (inner) == OMP_FOR)
 	    {
 	      for (int i = 0; i < TREE_VEC_LENGTH (OMP_FOR_INIT (inner)); i++)
-		if (OMP_FOR_ORIG_DECLS (inner)
+		if (TREE_VEC_ELT (OMP_FOR_INIT (inner), i)
+		    && OMP_FOR_ORIG_DECLS (inner)
 		    && TREE_CODE (TREE_VEC_ELT (OMP_FOR_ORIG_DECLS (inner),
 				  i)) == TREE_LIST
 		    && TREE_PURPOSE (TREE_VEC_ELT (OMP_FOR_ORIG_DECLS (inner),
@@ -2219,6 +2229,8 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
     case OMP_FOR:
     case OMP_SIMD:
     case OMP_LOOP:
+    case OMP_TILE:
+    case OMP_UNROLL:
     case OACC_LOOP:
     case STATEMENT_LIST:
       /* These cases are handled by shared code.  */
@@ -2480,6 +2492,8 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
 					   TREE_PURPOSE (parm), fn,
 					   i - is_method, tf_warning_or_error);
       t = build_call_a (fn, i, argarray);
+      if (MAYBE_CLASS_TYPE_P (TREE_TYPE (t)))
+	t = build_cplus_new (TREE_TYPE (t), t, tf_warning_or_error);
       t = fold_convert (void_type_node, t);
       t = fold_build_cleanup_point_expr (TREE_TYPE (t), t);
       append_to_statement_list (t, &ret);
@@ -2513,6 +2527,8 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
 					   TREE_PURPOSE (parm), fn,
 					   i - is_method, tf_warning_or_error);
       t = build_call_a (fn, i, argarray);
+      if (MAYBE_CLASS_TYPE_P (TREE_TYPE (t)))
+	t = build_cplus_new (TREE_TYPE (t), t, tf_warning_or_error);
       t = fold_convert (void_type_node, t);
       return fold_build_cleanup_point_expr (TREE_TYPE (t), t);
     }
@@ -3288,6 +3304,7 @@ cp_fold (tree x, fold_flags_t flags)
 	    && DECL_NAME (callee) != NULL_TREE
 	    && (id_equal (DECL_NAME (callee), "move")
 		|| id_equal (DECL_NAME (callee), "forward")
+		|| id_equal (DECL_NAME (callee), "forward_like")
 		|| id_equal (DECL_NAME (callee), "addressof")
 		/* This addressof equivalent is used heavily in libstdc++.  */
 		|| id_equal (DECL_NAME (callee), "__addressof")
@@ -3908,7 +3925,14 @@ fold_builtin_source_location (const_tree t)
 	      const char *name = "";
 
 	      if (current_function_decl)
-		name = cxx_printable_name (current_function_decl, 2);
+		{
+		  /* If this is a coroutine, we should get the name of the user
+		     function rather than the actor we generate.  */
+		  if (tree ramp = DECL_RAMP_FN (current_function_decl))
+		    name = cxx_printable_name (ramp, 2);
+		  else
+		    name = cxx_printable_name (current_function_decl, 2);
+		}
 
 	      val = build_string_literal (name);
 	    }

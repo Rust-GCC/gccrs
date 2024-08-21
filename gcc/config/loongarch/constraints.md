@@ -94,6 +94,7 @@
 ;;       "A constant @code{move_operand} that can be safely loaded using
 ;;	  @code{la}."
 ;;    "Yx"
+;;    "Yy"
 ;; "Z" -
 ;;    "ZC"
 ;;      "A memory operand whose address is formed by a base register and offset

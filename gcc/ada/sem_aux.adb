@@ -882,7 +882,8 @@ package body Sem_Aux is
          return True;
 
       elsif Is_Record_Type (Btype) then
-         if Is_Limited_Record (Btype)
+         if Is_Controlled (Btype)
+           or else Is_Limited_Record (Btype)
            or else Is_Tagged_Type (Btype)
            or else Is_Volatile (Btype)
          then
@@ -1116,6 +1117,17 @@ package body Sem_Aux is
          return not In_Package_Body (Scope ((Btype)));
 
       elsif Is_Private_Type (Btype) then
+
+      --  If Ent occurs in the completion of a limited private type, then
+      --  look for the word "limited" in the full view.
+
+         if Nkind (Parent (Ent)) = N_Full_Type_Declaration
+           and then Nkind (Type_Definition (Parent (Ent))) =
+                      N_Record_Definition
+           and then Limited_Present (Type_Definition (Parent (Ent)))
+         then
+            return True;
+         end if;
 
          --  AI05-0063: A type derived from a limited private formal type is
          --  not immutably limited in a generic body.

@@ -53,6 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "debug.h"
 #include "tree-vector-builder.h"
 #include "vec-perm-indices.h"
+#include "tree-pretty-print-markup.h"
 
 cpp_reader *parse_in;		/* Declared in c-pragma.h.  */
 
@@ -216,17 +217,21 @@ int flag_cond_mismatch;
 
 int flag_isoc94;
 
-/* Nonzero means use the ISO C99 (or C11) dialect of C.  */
+/* Nonzero means use the ISO C99 (or later) dialect of C.  */
 
 int flag_isoc99;
 
-/* Nonzero means use the ISO C11 dialect of C.  */
+/* Nonzero means use the ISO C11 (or later) dialect of C.  */
 
 int flag_isoc11;
 
-/* Nonzero means use the ISO C23 dialect of C.  */
+/* Nonzero means use the ISO C23 (or later) dialect of C.  */
 
 int flag_isoc23;
+
+/* Nonzero means use the ISO C2Y (or later) dialect of C.  */
+
+int flag_isoc2y;
 
 /* Nonzero means that we have builtin functions, and main is an int.  */
 
@@ -2957,9 +2962,11 @@ binary_op_error (rich_location *richloc, enum tree_code code,
     default:
       gcc_unreachable ();
     }
+  pp_markup::element_quoted_type element_0 (type0, highlight_colors::lhs);
+  pp_markup::element_quoted_type element_1 (type1, highlight_colors::rhs);
   error_at (richloc,
-	    "invalid operands to binary %s (have %qT and %qT)",
-	    opname, type0, type1);
+	    "invalid operands to binary %s (have %e and %e)",
+	    opname, &element_0, &element_1);
 }
 
 /* Given an expression as a tree, return its original type.  Do this
@@ -3968,7 +3975,9 @@ c_sizeof_or_alignof_type (location_t loc,
       value = size_one_node;
     }
   else if (!COMPLETE_TYPE_P (type)
-	   && (!c_dialect_cxx () || is_sizeof || type_code != ARRAY_TYPE))
+	   && ((!c_dialect_cxx () && !flag_isoc2y)
+	       || is_sizeof
+	       || type_code != ARRAY_TYPE))
     {
       if (complain)
 	error_at (loc, "invalid application of %qs to incomplete type %qT",
@@ -5783,6 +5792,7 @@ check_function_sentinel (const_tree fntype, int nargs, tree *argarray)
       sentinel = fold_for_warn (argarray[nargs - 1 - pos]);
       if ((!POINTER_TYPE_P (TREE_TYPE (sentinel))
 	   || !integer_zerop (sentinel))
+	  && TREE_CODE (TREE_TYPE (sentinel)) != NULLPTR_TYPE
 	  /* Although __null (in C++) is only an integer we allow it
 	     nevertheless, as we are guaranteed that it's exactly
 	     as wide as a pointer, and we don't want to force
@@ -6151,11 +6161,15 @@ attribute_fallthrough_p (tree attr)
 
    The arguments in ARGARRAY may not have been folded yet (e.g. for C++,
    to preserve location wrappers); checks that require folded arguments
-   should call fold_for_warn on them.  */
+   should call fold_for_warn on them.
+
+   Use the frontend-supplied COMP_TYPES when determining if
+   one type is a subclass of another.  */
 
 bool
 check_function_arguments (location_t loc, const_tree fndecl, const_tree fntype,
-			  int nargs, tree *argarray, vec<location_t> *arglocs)
+			  int nargs, tree *argarray, vec<location_t> *arglocs,
+			  bool (*comp_types) (tree, tree))
 {
   bool warned_p = false;
 
@@ -6172,7 +6186,7 @@ check_function_arguments (location_t loc, const_tree fndecl, const_tree fntype,
 
   if (warn_format || warn_suggest_attribute_format)
     check_function_format (fndecl ? fndecl : fntype, TYPE_ATTRIBUTES (fntype), nargs,
-			   argarray, arglocs);
+			   argarray, arglocs, comp_types);
 
   if (warn_format)
     check_function_sentinel (fntype, nargs, argarray);
@@ -7114,6 +7128,13 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
   TYPE_TYPELESS_STORAGE (main_type) = TYPE_TYPELESS_STORAGE (type);
   layout_type (main_type);
 
+  /* Set TYPE_STRUCTURAL_EQUALITY_P early.  */
+  if (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (main_type))
+      || TYPE_STRUCTURAL_EQUALITY_P (TYPE_DOMAIN (main_type)))
+    SET_TYPE_STRUCTURAL_EQUALITY (main_type);
+  else
+    TYPE_CANONICAL (main_type) = main_type;
+
   /* Make sure we have the canonical MAIN_TYPE. */
   hashval_t hashcode = type_hash_canon_hash (main_type);
   main_type = type_hash_canon (hashcode, main_type);
@@ -7121,7 +7142,7 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
   /* Fix the canonical type.  */
   if (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (main_type))
       || TYPE_STRUCTURAL_EQUALITY_P (TYPE_DOMAIN (main_type)))
-    SET_TYPE_STRUCTURAL_EQUALITY (main_type);
+    gcc_assert (TYPE_STRUCTURAL_EQUALITY_P (main_type));
   else if (TYPE_CANONICAL (TREE_TYPE (main_type)) != TREE_TYPE (main_type)
 	   || (TYPE_CANONICAL (TYPE_DOMAIN (main_type))
 	       != TYPE_DOMAIN (main_type)))
@@ -7129,8 +7150,6 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
       = build_array_type (TYPE_CANONICAL (TREE_TYPE (main_type)),
 			  TYPE_CANONICAL (TYPE_DOMAIN (main_type)),
 			  TYPE_TYPELESS_STORAGE (main_type));
-  else
-    TYPE_CANONICAL (main_type) = main_type;
 
   if (quals == 0)
     type = main_type;
@@ -8461,7 +8480,19 @@ resolve_overloaded_builtin (location_t loc, tree function,
 	if (new_return)
 	  {
 	    /* Cast function result from I{1,2,4,8,16} to the required type.  */
-	    result = build1 (VIEW_CONVERT_EXPR, TREE_TYPE (new_return), result);
+	    if (TREE_CODE (TREE_TYPE (new_return)) == BITINT_TYPE)
+	      {
+		struct bitint_info info;
+		unsigned prec = TYPE_PRECISION (TREE_TYPE (new_return));
+		targetm.c.bitint_type_info (prec, &info);
+		if (!info.extended)
+		  /* For _BitInt which has the padding bits undefined
+		     convert to the _BitInt type rather than VCE to force
+		     zero or sign extension.  */
+		  result = build1 (NOP_EXPR, TREE_TYPE (new_return), result);
+	      }
+	    result
+	      = build1 (VIEW_CONVERT_EXPR, TREE_TYPE (new_return), result);
 	    result = build2 (MODIFY_EXPR, TREE_TYPE (new_return), new_return,
 			     result);
 	    TREE_SIDE_EFFECTS (result) = 1;
@@ -8946,6 +8977,7 @@ convert_vector_to_array_for_subscript (location_t loc,
   if (gnu_vector_type_p (TREE_TYPE (*vecp)))
     {
       tree type = TREE_TYPE (*vecp);
+      tree newitype;
 
       ret = !lvalue_p (*vecp);
 
@@ -8960,8 +8992,12 @@ convert_vector_to_array_for_subscript (location_t loc,
 	 for function parameters.  */
       c_common_mark_addressable_vec (*vecp);
 
+      /* Make sure qualifiers are copied from the vector type to the new element
+	 of the array type.  */
+      newitype = build_qualified_type (TREE_TYPE (type), TYPE_QUALS (type));
+
       *vecp = build1 (VIEW_CONVERT_EXPR,
-		      build_array_type_nelts (TREE_TYPE (type),
+		      build_array_type_nelts (newitype,
 					      TYPE_VECTOR_SUBPARTS (type)),
 		      *vecp);
     }
@@ -9917,6 +9953,19 @@ c_common_finalize_early_debug (void)
 	&& (cnode->has_gimple_body_p ()
 	    || !DECL_IS_UNDECLARED_BUILTIN (cnode->decl)))
       (*debug_hooks->early_global_decl) (cnode->decl);
+}
+
+/* Determine whether TYPE is an ISO C99 flexible array member type "[]".  */
+bool
+c_flexible_array_member_type_p (const_tree type)
+{
+  if (TREE_CODE (type) == ARRAY_TYPE
+      && TYPE_SIZE (type) == NULL_TREE
+      && TYPE_DOMAIN (type) != NULL_TREE
+      && TYPE_MAX_VALUE (TYPE_DOMAIN (type)) == NULL_TREE)
+    return true;
+
+  return false;
 }
 
 /* Get the LEVEL of the strict_flex_array for the ARRAY_FIELD based on the

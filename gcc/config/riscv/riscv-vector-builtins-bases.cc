@@ -718,9 +718,6 @@ public:
 	  if (CODE == GE || CODE == GEU)
 	    return e.use_compare_insn (CODE, code_for_pred_ge_scalar (
 					       e.vector_mode ()));
-	  else if (CODE == EQ || CODE == NE)
-	    return e.use_compare_insn (CODE, code_for_pred_eqne_scalar (
-					       e.vector_mode ()));
 	  else
 	    return e.use_compare_insn (CODE, code_for_pred_cmp_scalar (
 					       e.vector_mode ()));
@@ -1420,12 +1417,8 @@ public:
     switch (e.op_info->op)
       {
 	case OP_TYPE_vf: {
-	  if (CODE == EQ || CODE == NE)
-	    return e.use_compare_insn (CODE, code_for_pred_eqne_scalar (
-					       e.vector_mode ()));
-	  else
-	    return e.use_compare_insn (CODE, code_for_pred_cmp_scalar (
-					       e.vector_mode ()));
+	  return e.use_compare_insn (CODE, code_for_pred_cmp_scalar (
+					     e.vector_mode ()));
 	}
 	case OP_TYPE_vv: {
 	  return e.use_compare_insn (CODE,
@@ -2424,6 +2417,60 @@ public:
   }
 };
 
+/* Implements vfncvtbf16_f. */
+template <enum frm_op_type FRM_OP = NO_FRM>
+class vfncvtbf16_f : public function_base
+{
+public:
+  bool has_rounding_mode_operand_p () const override
+  {
+    return FRM_OP == HAS_FRM;
+  }
+
+  bool may_require_frm_p () const override { return true; }
+
+  rtx expand (function_expander &e) const override
+  {
+    return e.use_exact_insn (code_for_pred_trunc_to_bf16 (e.vector_mode ()));
+  }
+};
+
+/* Implements vfwcvtbf16_f. */
+class vfwcvtbf16_f : public function_base
+{
+public:
+  rtx expand (function_expander &e) const override
+  {
+    return e.use_exact_insn (code_for_pred_extend_bf16_to (e.vector_mode ()));
+  }
+};
+
+/* Implements vfwmaccbf16. */
+template <enum frm_op_type FRM_OP = NO_FRM>
+class vfwmaccbf16 : public function_base
+{
+public:
+  bool has_rounding_mode_operand_p () const override
+  {
+    return FRM_OP == HAS_FRM;
+  }
+
+  bool may_require_frm_p () const override { return true; }
+
+  bool has_merge_operand_p () const override { return false; }
+
+  rtx expand (function_expander &e) const override
+  {
+    if (e.op_info->op == OP_TYPE_vf)
+      return e.use_widen_ternop_insn (
+	code_for_pred_widen_bf16_mul_scalar (e.vector_mode ()));
+    if (e.op_info->op == OP_TYPE_vv)
+      return e.use_widen_ternop_insn (
+	code_for_pred_widen_bf16_mul (e.vector_mode ()));
+    gcc_unreachable ();
+  }
+};
+
 static CONSTEXPR const vsetvl<false> vsetvl_obj;
 static CONSTEXPR const vsetvl<true> vsetvlmax_obj;
 static CONSTEXPR const loadstore<false, LST_UNIT_STRIDE, false> vle_obj;
@@ -2740,6 +2787,14 @@ static CONSTEXPR const crypto_vi<UNSPEC_VSM4K>   vsm4k_obj;
 static CONSTEXPR const crypto_vv<UNSPEC_VSM4R>   vsm4r_obj;
 static CONSTEXPR const vsm3me vsm3me_obj;
 static CONSTEXPR const vaeskf2_vsm3c<UNSPEC_VSM3C>   vsm3c_obj;
+
+/* Zvfbfmin */
+static CONSTEXPR const vfncvtbf16_f<NO_FRM> vfncvtbf16_f_obj;
+static CONSTEXPR const vfncvtbf16_f<HAS_FRM> vfncvtbf16_f_frm_obj;
+static CONSTEXPR const vfwcvtbf16_f vfwcvtbf16_f_obj;
+/* Zvfbfwma; */
+static CONSTEXPR const vfwmaccbf16<NO_FRM> vfwmaccbf16_obj;
+static CONSTEXPR const vfwmaccbf16<HAS_FRM> vfwmaccbf16_frm_obj;
 
 /* Declare the function base NAME, pointing it to an instance
    of class <NAME>_obj.  */
@@ -3061,4 +3116,11 @@ BASE (vsm4k)
 BASE (vsm4r)
 BASE (vsm3me)
 BASE (vsm3c)
+/* Zvfbfmin */
+BASE (vfncvtbf16_f)
+BASE (vfncvtbf16_f_frm)
+BASE (vfwcvtbf16_f)
+/* Zvfbfwma */
+BASE (vfwmaccbf16)
+BASE (vfwmaccbf16_frm)
 } // end namespace riscv_vector

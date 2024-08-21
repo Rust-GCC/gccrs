@@ -85,7 +85,6 @@ static void emit_block_move_via_sized_loop (rtx, rtx, rtx, unsigned, unsigned);
 static void emit_block_move_via_oriented_loop (rtx, rtx, rtx, unsigned, unsigned);
 static rtx emit_block_cmp_via_loop (rtx, rtx, rtx, tree, rtx, bool,
 				    unsigned, unsigned);
-static void clear_by_pieces (rtx, unsigned HOST_WIDE_INT, unsigned int);
 static rtx_insn *compress_float_constant (rtx, rtx);
 static rtx get_subtarget (rtx);
 static rtx store_field (rtx, poly_int64, poly_int64, poly_uint64, poly_uint64,
@@ -95,7 +94,7 @@ static unsigned HOST_WIDE_INT highest_pow2_factor_for_target (const_tree, const_
 
 static bool is_aligning_offset (const_tree, const_tree);
 static rtx reduce_to_bit_field_precision (rtx, rtx, tree);
-static rtx do_store_flag (sepops, rtx, machine_mode);
+static rtx do_store_flag (const_sepops, rtx, machine_mode);
 #ifdef PUSH_ROUNDING
 static void emit_single_push_insn (machine_mode, rtx, tree);
 #endif
@@ -302,7 +301,7 @@ convert_move (rtx to, rtx from, int unsignedp)
 			    GET_MODE_BITSIZE (to_mode)));
 
       if (VECTOR_MODE_P (to_mode))
-	from = simplify_gen_subreg (to_mode, from, GET_MODE (from), 0);
+	from = force_subreg (to_mode, from, GET_MODE (from), 0);
       else
 	to = simplify_gen_subreg (from_mode, to, GET_MODE (to), 0);
 
@@ -339,6 +338,29 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
   enum rtx_code equiv_code = (unsignedp < 0 ? UNKNOWN
 			      : (unsignedp ? ZERO_EXTEND : SIGN_EXTEND));
 
+  auto acceptable_same_precision_modes
+    = [] (scalar_mode from_mode, scalar_mode to_mode) -> bool
+    {
+      if (DECIMAL_FLOAT_MODE_P (from_mode) != DECIMAL_FLOAT_MODE_P (to_mode))
+	return true;
+
+      /* arm_bfloat_half_format <-> ieee_half_format */
+      if ((REAL_MODE_FORMAT (from_mode) == &arm_bfloat_half_format
+	   && REAL_MODE_FORMAT (to_mode) == &ieee_half_format)
+	  || (REAL_MODE_FORMAT (to_mode) == &arm_bfloat_half_format
+	      && REAL_MODE_FORMAT (from_mode) == &ieee_half_format))
+	return true;
+
+      /* ibm_extended_format <-> ieee_quad_format */
+      if ((REAL_MODE_FORMAT (from_mode) == &ibm_extended_format
+	   && REAL_MODE_FORMAT (to_mode) == &ieee_quad_format)
+	  || (REAL_MODE_FORMAT (from_mode) == &ieee_quad_format
+	      && REAL_MODE_FORMAT (to_mode) == &ibm_extended_format))
+	return true;
+
+      return false;
+    };
+
   if (to_real)
     {
       rtx value;
@@ -347,16 +369,22 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 
       gcc_assert ((GET_MODE_PRECISION (from_mode)
 		   != GET_MODE_PRECISION (to_mode))
-		  || (DECIMAL_FLOAT_MODE_P (from_mode)
-		      != DECIMAL_FLOAT_MODE_P (to_mode))
-		  || (REAL_MODE_FORMAT (from_mode) == &arm_bfloat_half_format
-		      && REAL_MODE_FORMAT (to_mode) == &ieee_half_format)
-		  || (REAL_MODE_FORMAT (to_mode) == &arm_bfloat_half_format
-		      && REAL_MODE_FORMAT (from_mode) == &ieee_half_format));
+		  || acceptable_same_precision_modes (from_mode, to_mode));
 
       if (GET_MODE_PRECISION (from_mode) == GET_MODE_PRECISION (to_mode))
-	/* Conversion between decimal float and binary float, same size.  */
-	tab = DECIMAL_FLOAT_MODE_P (from_mode) ? trunc_optab : sext_optab;
+	{
+	  if ((REAL_MODE_FORMAT (to_mode) == &arm_bfloat_half_format
+	       && REAL_MODE_FORMAT (from_mode) == &ieee_half_format)
+	      || (REAL_MODE_FORMAT (to_mode) == &ieee_quad_format
+		  && REAL_MODE_FORMAT (from_mode) == &ibm_extended_format))
+	    /* libgcc implements just __trunchfbf2, not __extendhfbf2;
+	       and __trunctfkf2, not __extendtfkf2.  */
+	    tab = trunc_optab;
+	  else
+	    /* Conversion between decimal float and binary float, same
+	       size.  */
+	    tab = DECIMAL_FLOAT_MODE_P (from_mode) ? trunc_optab : sext_optab;
+	}
       else if (GET_MODE_PRECISION (from_mode) < GET_MODE_PRECISION (to_mode))
 	tab = sext_optab;
       else
@@ -392,7 +420,7 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 		 BFmode -> SFmode -> HFmode conversion where SFmode
 		 has superset of BFmode values.  We don't need
 		 to handle sNaNs by raising exception and turning
-		 into into qNaN though, as that can be done in the
+		 it into qNaN though, as that can be done in the
 		 SFmode -> HFmode conversion too.  */
 	      rtx temp = gen_reg_rtx (SFmode);
 	      int save_flag_finite_math_only = flag_finite_math_only;
@@ -416,7 +444,8 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 					0).exists (&toi_mode))
 		{
 		  start_sequence ();
-		  rtx fromi = lowpart_subreg (fromi_mode, from, from_mode);
+		  rtx fromi = force_lowpart_subreg (fromi_mode, from,
+						    from_mode);
 		  rtx tof = NULL_RTX;
 		  if (fromi)
 		    {
@@ -436,7 +465,7 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 					      NULL_RTX, 1);
 		      if (toi)
 			{
-			  tof = lowpart_subreg (to_mode, toi, toi_mode);
+			  tof = force_lowpart_subreg (to_mode, toi, toi_mode);
 			  if (tof)
 			    emit_move_insn (to, tof);
 			}
@@ -468,7 +497,7 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 				    0).exists (&toi_mode))
 	    {
 	      start_sequence ();
-	      rtx fromi = lowpart_subreg (fromi_mode, from, from_mode);
+	      rtx fromi = force_lowpart_subreg (fromi_mode, from, from_mode);
 	      rtx tof = NULL_RTX;
 	      do
 		{
@@ -503,11 +532,11 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 						  temp4, shift, NULL_RTX, 1);
 		  if (!temp5)
 		    break;
-		  rtx temp6 = lowpart_subreg (toi_mode, temp5, fromi_mode);
+		  rtx temp6 = force_lowpart_subreg (toi_mode, temp5,
+						    fromi_mode);
 		  if (!temp6)
 		    break;
-		  tof = lowpart_subreg (to_mode, force_reg (toi_mode, temp6),
-					toi_mode);
+		  tof = force_lowpart_subreg (to_mode, temp6, toi_mode);
 		  if (tof)
 		    emit_move_insn (to, tof);
 		}
@@ -928,7 +957,7 @@ convert_modes (machine_mode mode, machine_mode oldmode, rtx x, int unsignedp)
     {
       gcc_assert (known_eq (GET_MODE_BITSIZE (mode),
 			    GET_MODE_BITSIZE (oldmode)));
-      return simplify_gen_subreg (mode, x, oldmode, 0);
+      return force_subreg (mode, x, oldmode, 0);
     }
 
   temp = gen_reg_rtx (mode);
@@ -1832,10 +1861,7 @@ store_by_pieces (rtx to, unsigned HOST_WIDE_INT len,
     return to;
 }
 
-/* Generate several move instructions to clear LEN bytes of block TO.  (A MEM
-   rtx with BLKmode).  ALIGN is maximum alignment we can assume.  */
-
-static void
+void
 clear_by_pieces (rtx to, unsigned HOST_WIDE_INT len, unsigned int align)
 {
   if (len == 0)
@@ -3068,8 +3094,8 @@ emit_group_load_1 (rtx *tmps, rtx dst, rtx orig_src, tree type,
 	    }
 	}
       else if (CONSTANT_P (src) && GET_MODE (dst) != BLKmode
-               && XVECLEN (dst, 0) > 1)
-        tmps[i] = simplify_gen_subreg (mode, src, GET_MODE (dst), bytepos);
+	       && XVECLEN (dst, 0) > 1)
+	tmps[i] = force_subreg (mode, src, GET_MODE (dst), bytepos);
       else if (CONSTANT_P (src))
 	{
 	  if (known_eq (bytelen, ssize))
@@ -3293,7 +3319,7 @@ emit_group_store (rtx orig_dst, rtx src, tree type ATTRIBUTE_UNUSED,
 	  if (known_eq (rtx_to_poly_int64 (XEXP (XVECEXP (src, 0, start), 1)),
 			bytepos))
 	    {
-	      temp = simplify_gen_subreg (outer, tmps[start], inner, 0);
+	      temp = force_subreg (outer, tmps[start], inner, 0);
 	      if (temp)
 		{
 		  emit_move_insn (dst, temp);
@@ -3313,7 +3339,7 @@ emit_group_store (rtx orig_dst, rtx src, tree type ATTRIBUTE_UNUSED,
 							  finish - 1), 1)),
 			bytepos))
 	    {
-	      temp = simplify_gen_subreg (outer, tmps[finish - 1], inner, 0);
+	      temp = force_subreg (outer, tmps[finish - 1], inner, 0);
 	      if (temp)
 		{
 		  emit_move_insn (dst, temp);
@@ -5466,6 +5492,7 @@ emit_push_insn (rtx x, machine_mode mode, tree type, rtx size,
 	  /* If source is a constant VAR_DECL with a simple constructor,
              store the constructor to the stack instead of moving it.  */
 	  const_tree decl;
+	  HOST_WIDE_INT sz;
 	  if (partial == 0
 	      && MEM_P (xinner)
 	      && SYMBOL_REF_P (XEXP (xinner, 0))
@@ -5473,9 +5500,11 @@ emit_push_insn (rtx x, machine_mode mode, tree type, rtx size,
 	      && VAR_P (decl)
 	      && TREE_READONLY (decl)
 	      && !TREE_SIDE_EFFECTS (decl)
-	      && immediate_const_ctor_p (DECL_INITIAL (decl), 2))
-	    store_constructor (DECL_INITIAL (decl), target, 0,
-			       int_expr_size (DECL_INITIAL (decl)), false);
+	      && immediate_const_ctor_p (DECL_INITIAL (decl), 2)
+	      && (sz = int_expr_size (DECL_INITIAL (decl))) > 0
+	      && CONST_INT_P (size)
+	      && INTVAL (size) == sz)
+	    store_constructor (DECL_INITIAL (decl), target, 0, sz, false);
 	  else
 	    emit_block_move (target, xinner, size, BLOCK_OP_CALL_PARM);
 	}
@@ -6184,11 +6213,9 @@ expand_assignment (tree to, tree from, bool nontemporal)
 		  to_mode = GET_MODE_INNER (to_mode);
 		  machine_mode from_mode = GET_MODE_INNER (GET_MODE (result));
 		  rtx from_real
-		    = simplify_gen_subreg (to_mode, XEXP (result, 0),
-					   from_mode, 0);
+		    = force_subreg (to_mode, XEXP (result, 0), from_mode, 0);
 		  rtx from_imag
-		    = simplify_gen_subreg (to_mode, XEXP (result, 1),
-					   from_mode, 0);
+		    = force_subreg (to_mode, XEXP (result, 1), from_mode, 0);
 		  if (!from_real || !from_imag)
 		    goto concat_store_slow;
 		  emit_move_insn (XEXP (to_rtx, 0), from_real);
@@ -6204,8 +6231,7 @@ expand_assignment (tree to, tree from, bool nontemporal)
 		  if (MEM_P (result))
 		    from_rtx = change_address (result, to_mode, NULL_RTX);
 		  else
-		    from_rtx
-		      = simplify_gen_subreg (to_mode, result, from_mode, 0);
+		    from_rtx = force_subreg (to_mode, result, from_mode, 0);
 		  if (from_rtx)
 		    {
 		      emit_move_insn (XEXP (to_rtx, 0),
@@ -6217,10 +6243,10 @@ expand_assignment (tree to, tree from, bool nontemporal)
 		    {
 		      to_mode = GET_MODE_INNER (to_mode);
 		      rtx from_real
-			= simplify_gen_subreg (to_mode, result, from_mode, 0);
+			= force_subreg (to_mode, result, from_mode, 0);
 		      rtx from_imag
-			= simplify_gen_subreg (to_mode, result, from_mode,
-					       GET_MODE_SIZE (to_mode));
+			= force_subreg (to_mode, result, from_mode,
+					GET_MODE_SIZE (to_mode));
 		      if (!from_real || !from_imag)
 			goto concat_store_slow;
 		      emit_move_insn (XEXP (to_rtx, 0), from_real);
@@ -9636,7 +9662,7 @@ expand_expr_divmod (tree_code code, machine_mode mode, tree treeop0,
 }
 
 rtx
-expand_expr_real_2 (sepops ops, rtx target, machine_mode tmode,
+expand_expr_real_2 (const_sepops ops, rtx target, machine_mode tmode,
 		    enum expand_modifier modifier)
 {
   rtx op0, op1, op2, temp;
@@ -9780,9 +9806,9 @@ expand_expr_real_2 (sepops ops, rtx target, machine_mode tmode,
 	    inner_mode = TYPE_MODE (inner_type);
 
 	  if (modifier == EXPAND_INITIALIZER)
-	    op0 = lowpart_subreg (mode, op0, inner_mode);
+	    op0 = force_lowpart_subreg (mode, op0, inner_mode);
 	  else
-	    op0=  convert_modes (mode, inner_mode, op0,
+	    op0 = convert_modes (mode, inner_mode, op0,
 				 TYPE_UNSIGNED (inner_type));
 	}
 
@@ -11082,7 +11108,7 @@ expand_expr_real_gassign (gassign *g, rtx target, machine_mode tmode,
       ops.op1 = gimple_assign_rhs2 (g);
 
       /* Try to expand conditonal compare.  */
-      if (targetm.gen_ccmp_first)
+      if (targetm.have_ccmp ())
 	{
 	  gcc_checking_assert (targetm.gen_ccmp_next != NULL);
 	  r = expand_ccmp_expr (g, TYPE_MODE (ops.type));
@@ -12350,7 +12376,8 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	    return expand_builtin (exp, target, subtarget, tmode, ignore);
 	  }
       }
-      return expand_call (exp, target, ignore);
+      temp = expand_call (exp, target, ignore);
+      return EXTEND_BITINT (temp);
 
     case VIEW_CONVERT_EXPR:
       op0 = NULL_RTX;
@@ -13496,7 +13523,7 @@ expand_single_bit_test (location_t loc, enum tree_code code,
    set/jump/set sequence.  */
 
 static rtx
-do_store_flag (sepops ops, rtx target, machine_mode mode)
+do_store_flag (const_sepops ops, rtx target, machine_mode mode)
 {
   enum rtx_code code;
   tree arg0, arg1, type;
@@ -13558,7 +13585,7 @@ do_store_flag (sepops ops, rtx target, machine_mode mode)
       if (new_code != ops->code)
 	{
 	  struct separate_ops nops = *ops;
-	  nops.code = ops->code = new_code;
+	  nops.code = new_code;
 	  nops.op0 = arg0;
 	  nops.op1 = arg1;
 	  nops.type = TREE_TYPE (arg0);

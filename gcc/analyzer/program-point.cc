@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -301,7 +302,7 @@ program_point::dump () const
 {
   pretty_printer pp;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  pp.set_output_stream (stderr);
   print (&pp, format (true));
   pp_flush (&pp);
 }
@@ -318,23 +319,20 @@ program_point::to_json () const
 {
   json::object *point_obj = new json::object ();
 
-  point_obj->set ("kind",
-		  new json::string (point_kind_to_string (get_kind ())));
+  point_obj->set_string ("kind", point_kind_to_string (get_kind ()));
 
   if (get_supernode ())
-    point_obj->set ("snode_idx",
-		    new json::integer_number (get_supernode ()->m_index));
+    point_obj->set_integer ("snode_idx", get_supernode ()->m_index);
 
   switch (get_kind ())
     {
     default: break;
     case PK_BEFORE_SUPERNODE:
       if (const superedge *sedge = get_from_edge ())
-	point_obj->set ("from_edge_snode_idx",
-			new json::integer_number (sedge->m_src->m_index));
+	point_obj->set_integer ("from_edge_snode_idx", sedge->m_src->m_index);
       break;
     case PK_BEFORE_STMT:
-      point_obj->set ("stmt_idx", new json::integer_number (get_stmt_idx ()));
+      point_obj->set_integer ("stmt_idx", get_stmt_idx ());
       break;
     }
 

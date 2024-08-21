@@ -825,6 +825,11 @@
   (and (match_code "const_int")
        (match_test "op == constm1_rtx")))
 
+;; Match 0 or -1.
+(define_predicate "const0_or_m1_operand"
+  (ior (match_operand 0 "const0_operand")
+       (match_operand 0 "constm1_operand")))
+
 ;; Match exactly eight.
 (define_predicate "const8_operand"
   (and (match_code "const_int")
@@ -1056,6 +1061,11 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 28, 31)")))
 
+(define_predicate "cmpps_imm_operand"
+  (ior (match_operand 0 "const_0_to_7_operand")
+       (and (match_test "TARGET_AVX")
+	    (match_operand 0 "const_0_to_31_operand"))))
+
 ;; True if this is a constant appropriate for an increment or decrement.
 (define_predicate "incdec_operand"
   (match_code "const_int")
@@ -1097,6 +1107,11 @@
   (ior (match_operand 0 "nonimmediate_operand")
        (and (match_code "not")
 	    (match_test "nonimmediate_operand (XEXP (op, 0), mode)"))))
+
+;; True for expressions valid for 3-operand ternlog instructions.
+(define_predicate "ternlog_operand"
+  (and (match_code "not,and,ior,xor")
+       (match_test "ix86_ternlog_operand_p (op)")))
 
 ;; True if OP is acceptable as operand of DImode shift expander.
 (define_predicate "shiftdi_operand"
@@ -2250,10 +2265,10 @@
 })
 
 ;; Return true if OP is a memory operand that can be also used in APX
-;; NDD patterns with immediate operand.  With non-default address space,
-;; segment register or address size prefix, APX NDD instruction length
-;; can exceed the 15 byte size limit.
-(define_predicate "apx_ndd_memory_operand"
+;; EVEX-encoded patterns (i.e. APX NDD/NF) with immediate operand.  With
+;; non-default address space, segment register or address size prefix,
+;; APX EVEX-encoded instruction length can exceed the 15 byte size limit.
+(define_predicate "apx_evex_memory_operand"
   (match_operand 0 "memory_operand")
 {
   /* OK if immediate operand size < 4 bytes.  */
@@ -2297,19 +2312,21 @@
   return true;
 })
 
-;; Return true if OP is a memory operand which can be used in APX NDD
-;; ADD with register source operand.  UNSPEC_GOTNTPOFF memory operand
-;; is allowed with APX NDD ADD only if R_X86_64_CODE_6_GOTTPOFF works.
-(define_predicate "apx_ndd_add_memory_operand"
+;; Return true if OP is a memory operand which can be used in APX EVEX-encoded
+;; ADD patterns (i.e. APX NDD/NF) for with register source operand.
+;; UNSPEC_GOTNTPOFF memory operand is allowed with APX EVEX-encoded ADD only if
+;; R_X86_64_CODE_6_GOTTPOFF works.
+(define_predicate "apx_evex_add_memory_operand"
   (match_operand 0 "memory_operand")
 {
-  /* OK if "add %reg1, name@gottpoff(%rip), %reg2" is supported.  */
+  /* OK if "add %reg1, name@gottpoff(%rip), %reg2" or
+   "{nf} add name@gottpoff(%rip), %reg1" are supported.  */
   if (HAVE_AS_R_X86_64_CODE_6_GOTTPOFF)
     return true;
 
   op = XEXP (op, 0);
 
-  /* Disallow APX NDD ADD with UNSPEC_GOTNTPOFF.  */
+  /* Disallow APX EVEX-encoded ADD with UNSPEC_GOTNTPOFF.  */
   if (GET_CODE (op) == CONST
       && GET_CODE (XEXP (op, 0)) == UNSPEC
       && XINT (XEXP (op, 0), 1) == UNSPEC_GOTNTPOFF)

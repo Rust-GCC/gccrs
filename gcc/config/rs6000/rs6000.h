@@ -30,11 +30,6 @@
 #include "config/rs6000/rs6000-opts.h"
 #endif
 
-/* 128-bit floating point precision values.  */
-#ifndef RS6000_MODES_H
-#include "config/rs6000/rs6000-modes.h"
-#endif
-
 /* Definitions for the object file format.  These are set at
    compile-time.  */
 
@@ -106,6 +101,7 @@
    you make changes here, make them also there.  */
 #define ASM_CPU_SPEC \
 "%{mcpu=native: %(asm_cpu_native); \
+  mcpu=power11: -mpower11; \
   mcpu=power10: -mpower10; \
   mcpu=power9: -mpower9; \
   mcpu=power8|mcpu=powerpc64le: -mpower8; \
@@ -471,6 +467,8 @@ extern int rs6000_vector_align[];
 #define TARGET_EXTSWSLI	(TARGET_MODULO && TARGET_POWERPC64)
 #define TARGET_MADDLD	TARGET_MODULO
 
+/* TARGET_DIRECT_MOVE is redundant to TARGET_P8_VECTOR, so alias it to that.  */
+#define TARGET_DIRECT_MOVE	TARGET_P8_VECTOR
 #define TARGET_XSCVDPSPN	(TARGET_DIRECT_MOVE || TARGET_P8_VECTOR)
 #define TARGET_XSCVSPDPN	(TARGET_DIRECT_MOVE || TARGET_P8_VECTOR)
 #define TARGET_VADDUQM		(TARGET_P8_VECTOR && TARGET_POWERPC64)
@@ -488,7 +486,7 @@ extern int rs6000_vector_align[];
    memory support.  */
 #define TARGET_SYNC_HI_QI	(TARGET_QUAD_MEMORY			\
 				 || TARGET_QUAD_MEMORY_ATOMIC		\
-				 || TARGET_DIRECT_MOVE)
+				 || TARGET_POWER8)
 
 #define TARGET_SYNC_TI		TARGET_QUAD_MEMORY_ATOMIC
 
@@ -690,20 +688,6 @@ extern unsigned char rs6000_recip_bits[];
    target machine.  If you don't define this, the default is two
    words.  */
 #define LONG_LONG_TYPE_SIZE 64
-
-/* A C expression for the size in bits of the type `float' on the
-   target machine.  If you don't define this, the default is one
-   word.  */
-#define FLOAT_TYPE_SIZE 32
-
-/* A C expression for the size in bits of the type `double' on the
-   target machine.  If you don't define this, the default is two
-   words.  */
-#define DOUBLE_TYPE_SIZE 64
-
-/* A C expression for the size in bits of the type `long double' on the target
-   machine.  If you don't define this, the default is two words.  */
-#define LONG_DOUBLE_TYPE_SIZE rs6000_long_double_type_size
 
 /* Work around rs6000_long_double_type_size dependency in ada/targtyps.cc.  */
 #define WIDEST_HARDWARE_FP_SIZE 64

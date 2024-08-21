@@ -173,12 +173,11 @@ package Errout is
    --      obtained from the Sloc field of the given node or nodes. If no Sloc
    --      is available (happens e.g. for nodes in package Standard), then the
    --      default case (see Scans spec) is used. The nodes to be used are
-   --      stored in Error_Msg_Node_1, Error_Msg_Node_2. No insertion occurs
-   --      for the Empty node, and the Error node results in the insertion of
-   --      the characters <error>. In addition, if the special global variable
-   --      Error_Msg_Qual_Level is non-zero, then the reference will include
-   --      up to the given number of levels of qualification, using the scope
-   --      chain.
+   --      stored in Error_Msg_Node_1, Error_Msg_Node_2, which must not be
+   --      Empty. The Error node results in the insertion of "<error>". In
+   --      addition, if the special global variable Error_Msg_Qual_Level is
+   --      non-zero, then the reference will include up to the given number of
+   --      levels of qualification, using the scope chain.
    --
    --      Note: the special names _xxx (xxx = Pre/Post/Invariant) are changed
    --      to insert the string xxx'Class into the message.
@@ -738,10 +737,11 @@ package Errout is
    procedure Error_Msg
      (Msg                    : String;
       Flag_Location          : Source_Ptr;
+      N                      : Node_Id;
       Is_Compile_Time_Pragma : Boolean);
-   --  Same as Error_Msg (String, Source_Ptr) except Is_Compile_Time_Pragma
-   --  lets the caller specify whether this is a Compile_Time_Warning or
-   --  Compile_Time_Error pragma.
+   --  Same as Error_Msg (String, Source_Ptr, Node_Id) except
+   --  Is_Compile_Time_Pragma lets the caller specify whether this is a
+   --  Compile_Time_Warning or Compile_Time_Error pragma.
 
    procedure Error_Msg_S (Msg : String);
    --  Output a message at current scan pointer location. This routine can be
@@ -896,7 +896,7 @@ package Errout is
    --  location from which warnings are to be turned back on.
 
    procedure Set_Specific_Warning_Off
-     (Loc    : Source_Ptr;
+     (Node   : Node_Id;
       Msg    : String;
       Reason : String_Id;
       Config : Boolean;

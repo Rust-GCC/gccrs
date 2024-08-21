@@ -444,6 +444,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
    Cc (N_String_Literal, N_Numeric_Or_String_Literal,
        (Sy (Strval, String_Id),
         Sy (Is_Folded_In_Parser, Flag),
+        Sy (Is_Interpolated_String_Literal, Flag),
         Sm (Has_Wide_Character, Flag),
         Sm (Has_Wide_Wide_Character, Flag)));
 
@@ -464,6 +465,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
        (Sy (Expressions, List_Id, Default_No_List),
         Sy (Is_Elsif, Flag),
         Sm (Do_Overflow_Check, Flag),
+        Sm (Expansion_Delayed, Flag),
         Sm (Else_Actions, List_Id),
         Sm (Then_Actions, List_Id)));
 
@@ -492,7 +494,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Null_Record_Present, Flag),
         Sy (Is_Parenthesis_Aggregate, Flag),
         Sy (Is_Homogeneous_Aggregate, Flag),
-        Sy (Is_Enum_Array_Aggregate, Flag),
         Sm (Aggregate_Bounds_Or_Ancestor_Type, Node_Id),
         Sm (Entity_Or_Associated_Node, Node_Id), -- just Associated_Node
         Sm (Compile_Time_Known_Aggregate, Flag),
@@ -514,7 +515,8 @@ begin -- Gen_IL.Gen.Gen_Nodes
    Cc (N_Case_Expression, N_Subexpr,
        (Sy (Expression, Node_Id, Default_Empty),
         Sy (Alternatives, List_Id, Default_No_List),
-        Sm (Do_Overflow_Check, Flag)));
+        Sm (Do_Overflow_Check, Flag),
+        Sm (Expansion_Delayed, Flag)));
 
    Cc (N_Delta_Aggregate, N_Subexpr,
        (Sy (Expression, Node_Id, Default_Empty),
@@ -737,7 +739,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Null_Present, Flag),
         Sy (Must_Override, Flag),
         Sy (Must_Not_Override, Flag),
-        Sy (Aspect_Specifications, List_Id, Default_No_List),
         Sm (Null_Statement, Node_Id)));
 
    Ab (N_Access_To_Subprogram_Definition, Node_Kind);
@@ -915,8 +916,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
    Cc (N_Generic_Package_Declaration, N_Generic_Declaration,
        (Sy (Specification, Node_Id),
         Sy (Generic_Formal_Declarations, List_Id),
-        Sy (Aspect_Specifications, List_Id, Default_No_List),
-        Sm (Activation_Chain_Entity, Node_Id)));
+        Sy (Aspect_Specifications, List_Id, Default_No_List)));
 
    Cc (N_Generic_Subprogram_Declaration, N_Generic_Declaration,
        (Sy (Specification, Node_Id),
@@ -1252,7 +1252,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
        (Sy (Identifier, Node_Id, Default_Empty),
         Sy (Expression, Node_Id, Default_Empty),
         Sy (Class_Present, Flag),
-        Sy (Split_PPC, Flag),
         Sm (Aspect_On_Partial_View, Flag),
         Sm (Aspect_Rep_Item, Node_Id),
         Sm (Entity_Or_Associated_Node, Node_Id), -- just Entity
@@ -1331,7 +1330,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
    Cc (N_Contract, Node_Kind,
        (Sm (Classifications, Node_Id),
         Sm (Contract_Test_Cases, Node_Id),
-        Sm (Is_Expanded_Contract, Flag),
         Sm (Pre_Post_Conditions, Node_Id)));
 
    Cc (N_Derived_Type_Definition, Node_Kind,
@@ -1376,6 +1374,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Null_Exclusion_Present, Flag, Default_False),
         Sy (Discriminant_Type, Node_Id),
         Sy (Expression, Node_Id, Default_Empty),
+        Sy (Aspect_Specifications, List_Id, Default_No_List),
         Sm (More_Ids, Flag),
         Sm (Prev_Ids, Flag)));
 
@@ -1490,6 +1489,7 @@ begin -- Gen_IL.Gen.Gen_Nodes
         Sy (Iterator_Specification, Node_Id, Default_Empty),
         Sy (Expression, Node_Id, Default_Empty),
         Sy (Discrete_Choices, List_Id),
+        Sy (Reverse_Present, Flag),
         Sy (Box_Present, Flag),
         Sm (Loop_Actions, List_Id)));
 
@@ -1557,7 +1557,6 @@ begin -- Gen_IL.Gen.Gen_Nodes
        (Sy (Pragma_Argument_Associations, List_Id, Default_No_List),
         Sy (Pragma_Identifier, Node_Id),
         Sy (Class_Present, Flag),
-        Sy (Split_PPC, Flag),
         Sm (Corresponding_Aspect, Node_Id),
         Sm (From_Aspect_Specification, Flag),
         Sm (Import_Interface_Present, Flag),

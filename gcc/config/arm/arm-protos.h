@@ -65,8 +65,8 @@ extern void arm_emit_speculation_barrier_function (void);
 extern void arm_decompose_di_binop (rtx, rtx, rtx *, rtx *, rtx *, rtx *);
 extern bool arm_q_bit_access (void);
 extern bool arm_ge_bits_access (void);
-extern bool arm_target_insn_ok_for_lob (rtx);
-
+extern bool arm_target_bb_ok_for_lob (basic_block);
+extern int arm_attempt_dlstp_transform (rtx);
 #ifdef RTX_CODE
 enum reg_class
 arm_mode_base_reg_class (machine_mode);
@@ -266,19 +266,7 @@ extern const char *thumb1_output_casesi (rtx *);
 extern const char *thumb2_output_casesi (rtx *);
 #endif
 
-/* Defined in pe.c.  */
-extern int arm_dllexport_name_p (const char *);
-extern int arm_dllimport_name_p (const char *);
-
-#ifdef TREE_CODE
-extern void arm_pe_unique_section (tree, int);
-extern void arm_pe_encode_section_info (tree, rtx, int);
-extern int arm_dllexport_p (tree);
-extern int arm_dllimport_p (tree);
-extern void arm_mark_dllexport (tree);
-extern void arm_mark_dllimport (tree);
 extern bool arm_change_mode_p (tree);
-#endif
 
 extern tree arm_valid_target_attribute_tree (tree, struct gcc_options *,
 					     struct gcc_options *);

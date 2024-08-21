@@ -56,7 +56,7 @@ FROM M2Debug IMPORT Assert ;
 FROM Indexing IMPORT Index, InitIndex, InBounds, PutIndice, GetIndice ;
 FROM Storage IMPORT ALLOCATE ;
 FROM M2ALU IMPORT PushIntegerTree, PushInt, ConvertToInt, Equ, Gre, Less, GreEqu ;
-FROM M2Options IMPORT VariantValueChecking, CaseEnumChecking ;
+FROM M2Options IMPORT VariantValueChecking, CaseEnumChecking, GetPIM ;
 
 FROM M2Error IMPORT Error, InternalError, ErrorFormat0, ErrorFormat1, ErrorFormat2, FlushErrors,
                     GetAnnounceScope ;
@@ -601,16 +601,22 @@ END PutRangeArraySubscript ;
 (*
    InitAssignmentRangeCheck - returns a range check node which
                               remembers the information necessary
-                              so that a range check for d := e
+                              so that a range check for des := expr
                               can be generated later on.
 *)
 
-PROCEDURE InitAssignmentRangeCheck (tokno: CARDINAL; d, e: CARDINAL) : CARDINAL ;
+PROCEDURE InitAssignmentRangeCheck (tokno: CARDINAL;
+                                    des, expr: CARDINAL;
+                                    destok, exprtok: CARDINAL) : CARDINAL ;
 VAR
    r: CARDINAL ;
+   p: Range ;
 BEGIN
    r := InitRange () ;
-   Assert (PutRange (tokno, GetIndice (RangeIndex, r), assignment, d, e) # NIL) ;
+   p := GetIndice (RangeIndex, r) ;
+   Assert (PutRange (tokno, p, assignment, des, expr) # NIL) ;
+   p^.destok := destok ;
+   p^.exprtok := exprtok ;
    RETURN r
 END InitAssignmentRangeCheck ;
 
@@ -1207,7 +1213,7 @@ VAR
 BEGIN
    p := GetIndice (RangeIndex, r) ;
    WITH p^ DO
-      TryDeclareConstant (tokenNo, expr) ;
+      TryDeclareConstant (exprtok, expr) ;
       IF desLowestType # NulSym
       THEN
          IF AssignmentTypeCompatible (tokenno, "", des, expr)
@@ -1687,14 +1693,33 @@ END FoldTypeAssign ;
 
 
 (*
-   FoldTypeParam -
+   FoldTypeParam - performs a parameter check between actual and formal.
+                   The quad is removed if the check succeeds.
 *)
 
 PROCEDURE FoldTypeParam (q: CARDINAL; tokenNo: CARDINAL; formal, actual, procedure: CARDINAL; paramNo: CARDINAL) ;
+VAR
+   compatible: BOOLEAN ;
 BEGIN
-   IF ParameterTypeCompatible (tokenNo,
-                               '{%4EN} parameter type failure between actual parameter type {%3ad} and the formal type {%2ad}',
-                               procedure, formal, actual, paramNo, IsVarParam (procedure, paramNo))
+   compatible := FALSE ;
+   IF IsVarParam (procedure, paramNo)
+   THEN
+      (* Expression type compatibility rules for pass by reference parameters.  *)
+      compatible := ParameterTypeCompatible (tokenNo,
+                                             '{%4EN} parameter failure due to expression incompatibility between actual parameter {%3ad} and the {%4N} formal {%2ad} parameter in procedure {%1ad}',
+                                             procedure, formal, actual, paramNo, TRUE)
+   ELSIF GetPIM ()
+   THEN
+      (* Assignment type compatibility rules for pass by value PIM parameters.  *)
+      compatible := ParameterTypeCompatible (tokenNo,
+                                             '{%4EN} parameter failure due to assignment incompatibility between actual parameter {%3ad} and the {%4N} formal {%2ad} parameter in procedure {%1ad}',
+                                             procedure, formal, actual, paramNo, FALSE)
+   ELSE
+      compatible := ParameterTypeCompatible (tokenNo,
+                                             '{%4EN} parameter failure due to parameter incompatibility between actual parameter {%3ad} and the {%4N} formal {%2ad} parameter in procedure {%1ad}',
+                                             procedure, formal, actual, paramNo, FALSE)
+   END ;
+   IF compatible
    THEN
       SubQuad(q)
    END
@@ -1713,7 +1738,8 @@ BEGIN
                                    'expression of type {%1Etad} is incompatible with type {%2tad}',
                                    left, right, strict, isin)
       THEN
-         SubQuad(q) ;
+         SubQuad(q)
+      ELSE
          setReported (r)
       END
    END

@@ -264,10 +264,12 @@ void
 gfc_add_class_array_ref (gfc_expr *e)
 {
   int rank = CLASS_DATA (e)->as->rank;
+  int corank = CLASS_DATA (e)->as->corank;
   gfc_array_spec *as = CLASS_DATA (e)->as;
   gfc_ref *ref = NULL;
   gfc_add_data_component (e);
   e->rank = rank;
+  e->corank = corank;
   for (ref = e->ref; ref; ref = ref->next)
     if (!ref->next)
       break;
@@ -377,27 +379,33 @@ gfc_is_class_scalar_expr (gfc_expr *e)
     return false;
 
   /* Is this a class object?  */
-  if (e->symtree
-	&& e->symtree->n.sym->ts.type == BT_CLASS
-	&& CLASS_DATA (e->symtree->n.sym)
-	&& !CLASS_DATA (e->symtree->n.sym)->attr.dimension
-	&& (e->ref == NULL
-	    || (e->ref->type == REF_COMPONENT
-		&& strcmp (e->ref->u.c.component->name, "_data") == 0
-		&& e->ref->next == NULL)))
+  if (e->symtree && e->symtree->n.sym->ts.type == BT_CLASS
+      && CLASS_DATA (e->symtree->n.sym)
+      && !CLASS_DATA (e->symtree->n.sym)->attr.dimension
+      && (e->ref == NULL
+	  || (e->ref->type == REF_COMPONENT
+	      && strcmp (e->ref->u.c.component->name, "_data") == 0
+	      && (e->ref->next == NULL
+		  || (e->ref->next->type == REF_ARRAY
+		      && e->ref->next->u.ar.codimen > 0
+		      && e->ref->next->u.ar.dimen == 0
+		      && e->ref->next->next == NULL)))))
     return true;
 
   /* Or is the final reference BT_CLASS or _data?  */
   for (ref = e->ref; ref; ref = ref->next)
     {
-      if (ref->type == REF_COMPONENT
-	    && ref->u.c.component->ts.type == BT_CLASS
-	    && CLASS_DATA (ref->u.c.component)
-	    && !CLASS_DATA (ref->u.c.component)->attr.dimension
-	    && (ref->next == NULL
-		|| (ref->next->type == REF_COMPONENT
-		    && strcmp (ref->next->u.c.component->name, "_data") == 0
-		    && ref->next->next == NULL)))
+      if (ref->type == REF_COMPONENT && ref->u.c.component->ts.type == BT_CLASS
+	  && CLASS_DATA (ref->u.c.component)
+	  && !CLASS_DATA (ref->u.c.component)->attr.dimension
+	  && (ref->next == NULL
+	      || (ref->next->type == REF_COMPONENT
+		  && strcmp (ref->next->u.c.component->name, "_data") == 0
+		  && (ref->next->next == NULL
+		      || (ref->next->next->type == REF_ARRAY
+			  && ref->next->next->u.ar.codimen > 0
+			  && ref->next->next->u.ar.dimen == 0
+			  && ref->next->next->next == NULL)))))
 	return true;
     }
 
@@ -709,8 +717,12 @@ gfc_build_class_symbol (gfc_typespec *ts, symbol_attribute *attr,
      work on the declared type. All array type other than deferred shape or
      assumed rank are added to the function namespace to ensure that they
      are properly distinguished.  */
-  if (attr->dummy && !attr->codimension && (*as)
-      && !((*as)->type == AS_DEFERRED || (*as)->type == AS_ASSUMED_RANK))
+  if (attr->dummy && (*as)
+      && ((!attr->codimension
+	   && !((*as)->type == AS_DEFERRED || (*as)->type == AS_ASSUMED_RANK))
+	  || (attr->codimension
+	      && !((*as)->cotype == AS_DEFERRED
+		   || (*as)->cotype == AS_ASSUMED_RANK))))
     {
       char *sname;
       ns = gfc_current_ns;
@@ -812,6 +824,56 @@ gfc_build_class_symbol (gfc_typespec *ts, symbol_attribute *attr,
   (*as) = NULL;
   free (name);
   return true;
+}
+
+
+/* Change class, using gfc_build_class_symbol. This is needed for associate
+   names, when rank changes or a derived type is produced by resolution.  */
+
+void
+gfc_change_class (gfc_typespec *ts, symbol_attribute *sym_attr,
+		  gfc_array_spec *sym_as, int rank, int corank)
+{
+  symbol_attribute attr;
+  gfc_component *c;
+  gfc_array_spec *as = NULL;
+  gfc_symbol *der = ts->u.derived;
+
+  ts->type = BT_CLASS;
+  attr = *sym_attr;
+  attr.class_ok = 0;
+  attr.associate_var = 1;
+  attr.class_pointer = 1;
+  attr.allocatable = 0;
+  attr.pointer = 1;
+  attr.dimension = rank ? 1 : 0;
+  if (rank)
+    {
+      if (sym_as)
+	as = gfc_copy_array_spec (sym_as);
+      else
+	{
+	  as = gfc_get_array_spec ();
+	  as->rank = rank;
+	  as->type = AS_DEFERRED;
+	  as->corank = corank;
+	}
+    }
+  if (as && as->corank != 0)
+    attr.codimension = 1;
+
+  if (!gfc_build_class_symbol (ts, &attr, &as))
+    gcc_unreachable ();
+
+  gfc_set_sym_referenced (ts->u.derived);
+
+  /* Make sure the _vptr is set.  */
+  c = gfc_find_component (ts->u.derived, "_vptr", true, true, NULL);
+  if (c->ts.u.derived == NULL)
+    c->ts.u.derived = gfc_find_derived_vtab (der);
+  /* _vptr now has the _vtab in it, change it to the _vtype.  */
+  if (c->ts.u.derived->attr.vtab)
+    c->ts.u.derived = c->ts.u.derived->ts.u.derived;
 }
 
 
@@ -1007,6 +1069,7 @@ finalize_component (gfc_expr *expr, gfc_symbol *derived, gfc_component *comp,
       ref->next->u.ar.as = comp->ts.type == BT_CLASS ? CLASS_DATA (comp)->as
 							: comp->as;
       e->rank = ref->next->u.ar.as->rank;
+      e->corank = ref->next->u.ar.as->corank;
       ref->next->u.ar.type = e->rank ? AR_FULL : AR_ELEMENT;
     }
 

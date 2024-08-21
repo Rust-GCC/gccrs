@@ -1,3 +1,26 @@
+2024-08-09  Will Hawkins  <hawkinsw@obs.cr>
+
+	* btf.h (BTF_TYPE_INFO): Protect against user providing invalid
+	kind.
+
+2024-07-02  David Faust  <david.faust@oracle.com>
+
+	* btf.h (BTF_VOID_TYPEID, BTF_INIT_TYPEID): Move defines here,
+	from gcc/btfout.cc.
+
+2024-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	* hsa.h (HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT): Add
+	enum value.
+
+2024-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	* cuda/cuda.h (CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS): Add.
+
+2024-04-08  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* cuda/cuda.h (CUresult): Add 'CUDA_ERROR_NO_DEVICE'.
+
 2024-02-29  Tom Tromey  <tom@tromey.com>
 
 	* gcc-cp-interface.h (gcc_cp_fe_context_function): Update

@@ -1,3 +1,103 @@
+2024-08-18  Sergey Fedorov  <vital.had@gmail.com>
+
+	* config/fpu-macppc.h (new file): initial support for powerpc-darwin.
+	* configure.host: enable ieee_support for powerpc-darwin case,
+	set fpu_host='fpu-macppc'.
+
+2024-07-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/105361
+	* io/list_read.c (finish_list_read): Add a condition check for
+	a user defined derived type IO operation to avoid calling the
+	EOF error.
+
+2024-07-11  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/96992
+	* Makefile.am: Add in_un-/pack_class.c to build.
+	* Makefile.in: Regenerated from Makefile.am.
+	* gfortran.map: Added new functions and bumped ABI.
+	* libgfortran.h (GFC_CLASS_T): Added for generating class
+	representation at runtime.
+	* runtime/in_pack_class.c: New file.
+	* runtime/in_unpack_class.c: New file.
+
+2024-06-06  Thomas Schwinge  <tschwinge@baylibre.com>
+	    Andrew Stubbs  <ams@gcc.gnu.org>
+
+	* configure.ac: No longer set 'LIBGFOR_MINIMAL' for nvptx.
+	* configure: Regenerate.
+
+2024-06-06  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR target/85463
+	* runtime/minimal.c [__nvptx__] (exit): Don't override.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBGFOR_USE_SYMVER_SUN} (gfortran.ver-sun): Pass
+	$(libgfortran_la_OBJECTS), $(libgfortran_la_LIBADD) to
+	make_sunver.pl unmodified.
+	* Makefile.in: Regenerate.
+
+2024-05-06  David Edelsohn  <dje.gcc@gmail.com>
+
+	* config/t-aix (all-local, libcaf_single): Explicitly reference
+	caf/.libs/single.o
+
+2024-05-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBGFOR_USE_SYMVER_SUN] (gfortran.ver-sun): Handle
+	objects in subdirs.
+	* Makefile.in: Regenerate.
+
+2024-05-02  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* Makefile.am: Use sub-dirs, amend recipies accordingly.
+	* Makefile.in: Regenerate.
+
+2024-04-29  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* gfortran.map: Add _gfortran_selected_logical_kind.
+	* intrinsics/selected_int_kind.f90: Add SELECTED_LOGICAL_KIND.
+
+2024-04-12  Ian McInerney  <i.mcinerney17@imperial.ac.uk>
+
+	* runtime/error.c (gf_vsnprintf): Fix compilation
+
+2024-04-08  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR libfortran/114304
+	* io/list_read.c (eat_separator): Accept tab as alternative to space.
+
+2024-04-06  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/114304
+	PR libfortran/105473
+	* io/list_read.c (eat_separator): Add logic to handle spaces
+	preceding a comma or semicolon such that that a 'null' read
+	occurs without error at the end of comma or semicolon
+	terminated input lines. Add check and error message for ';'.
+	(list_formatted_read_scalar): Treat comma as a decimal point
+	when specified by the decimal mode on the first item.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.host: Fix duplicated words; the the -> the.
+
+2024-03-27  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/107031
+	* io/file_pos.c (st_endfile): Remove call to next_record().
+
+2024-03-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/105437
+	PR libfortran/114304
+	* io/list_read.c (eat_separator): Remove check for decimal
+	point mode and semicolon used as a seprator. Removes
+	the regression.
+
 2024-03-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/105456

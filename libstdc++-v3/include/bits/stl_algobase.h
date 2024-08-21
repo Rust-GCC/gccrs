@@ -228,7 +228,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  preprocessor macro.
   */
   template<typename _Tp>
-    _GLIBCXX14_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX14_CONSTEXPR
     inline const _Tp&
     min(const _Tp& __a, const _Tp& __b)
     {
@@ -252,7 +252,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  preprocessor macro.
   */
   template<typename _Tp>
-    _GLIBCXX14_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX14_CONSTEXPR
     inline const _Tp&
     max(const _Tp& __a, const _Tp& __b)
     {
@@ -276,7 +276,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  once, unlike a preprocessor macro.
   */
   template<typename _Tp, typename _Compare>
-    _GLIBCXX14_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX14_CONSTEXPR
     inline const _Tp&
     min(const _Tp& __a, const _Tp& __b, _Compare __comp)
     {
@@ -298,7 +298,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  once, unlike a preprocessor macro.
   */
   template<typename _Tp, typename _Compare>
-    _GLIBCXX14_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX14_CONSTEXPR
     inline const _Tp&
     max(const _Tp& __a, const _Tp& __b, _Compare __comp)
     {
@@ -929,28 +929,39 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
 #define _GLIBCXX_MOVE_BACKWARD3(_Tp, _Up, _Vp) std::copy_backward(_Tp, _Up, _Vp)
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions"
   template<typename _ForwardIterator, typename _Tp>
     _GLIBCXX20_CONSTEXPR
-    inline typename
-    __gnu_cxx::__enable_if<!__is_scalar<_Tp>::__value, void>::__type
+    inline void
     __fill_a1(_ForwardIterator __first, _ForwardIterator __last,
 	      const _Tp& __value)
     {
-      for (; __first != __last; ++__first)
-	*__first = __value;
-    }
+      // We can optimize this loop by moving the load from __value outside
+      // the loop, but only if we know that making that copy is trivial,
+      // and the assignment in the loop is also trivial (so that the identity
+      // of the operand doesn't matter).
+      const bool __load_outside_loop =
+#if __has_builtin(__is_trivially_constructible) \
+      && __has_builtin(__is_trivially_assignable)
+	    __is_trivially_constructible(_Tp, const _Tp&)
+	    && __is_trivially_assignable(__decltype(*__first), const _Tp&)
+#else
+	    __is_trivially_copyable(_Tp)
+	    && __is_same(_Tp, __typeof__(*__first))
+#endif
+	    && sizeof(_Tp) <= sizeof(long long);
 
-  template<typename _ForwardIterator, typename _Tp>
-    _GLIBCXX20_CONSTEXPR
-    inline typename
-    __gnu_cxx::__enable_if<__is_scalar<_Tp>::__value, void>::__type
-    __fill_a1(_ForwardIterator __first, _ForwardIterator __last,
-	      const _Tp& __value)
-    {
-      const _Tp __tmp = __value;
+      // When the condition is true, we use a copy of __value,
+      // otherwise we just use another reference.
+      typedef typename __gnu_cxx::__conditional_type<__load_outside_loop,
+						     const _Tp,
+						     const _Tp&>::__type _Up;
+      _Up __val(__value);
       for (; __first != __last; ++__first)
-	*__first = __tmp;
+	*__first = __val;
     }
+#pragma GCC diagnostic pop
 
   // Specialization: for char types we can use memset.
   template<typename _Tp>
@@ -1079,28 +1090,36 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
   __size_to_integer(__float128 __n) { return (long long)__n; }
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions"
   template<typename _OutputIterator, typename _Size, typename _Tp>
     _GLIBCXX20_CONSTEXPR
-    inline typename
-    __gnu_cxx::__enable_if<!__is_scalar<_Tp>::__value, _OutputIterator>::__type
+    inline _OutputIterator
     __fill_n_a1(_OutputIterator __first, _Size __n, const _Tp& __value)
     {
-      for (; __n > 0; --__n, (void) ++__first)
-	*__first = __value;
-      return __first;
-    }
+      // See std::__fill_a1 for explanation of this condition.
+      const bool __load_outside_loop =
+#if __has_builtin(__is_trivially_constructible) \
+      && __has_builtin(__is_trivially_assignable)
+	    __is_trivially_constructible(_Tp, const _Tp&)
+	    && __is_trivially_assignable(__decltype(*__first), const _Tp&)
+#else
+	    __is_trivially_copyable(_Tp)
+	    && __is_same(_Tp, __typeof__(*__first))
+#endif
+	    && sizeof(_Tp) <= sizeof(long long);
 
-  template<typename _OutputIterator, typename _Size, typename _Tp>
-    _GLIBCXX20_CONSTEXPR
-    inline typename
-    __gnu_cxx::__enable_if<__is_scalar<_Tp>::__value, _OutputIterator>::__type
-    __fill_n_a1(_OutputIterator __first, _Size __n, const _Tp& __value)
-    {
-      const _Tp __tmp = __value;
+      // When the condition is true, we use a copy of __value,
+      // otherwise we just use another reference.
+      typedef typename __gnu_cxx::__conditional_type<__load_outside_loop,
+						     const _Tp,
+						     const _Tp&>::__type _Up;
+      _Up __val(__value);
       for (; __n > 0; --__n, (void) ++__first)
-	*__first = __tmp;
+	*__first = __val;
       return __first;
     }
+#pragma GCC diagnostic pop
 
   template<typename _Ite, typename _Seq, typename _Cat, typename _Size,
 	   typename _Tp>
@@ -1237,8 +1256,14 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
     {
       typedef typename iterator_traits<_II1>::value_type _ValueType1;
       const bool __simple = ((__is_integer<_ValueType1>::__value
-			      || __is_pointer<_ValueType1>::__value)
-			     && __memcmpable<_II1, _II2>::__value);
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__is_pointer)
+				|| __is_pointer(_ValueType1)
+#endif
+#if __glibcxx_byte && __glibcxx_type_trait_variable_templates
+				// bits/cpp_type_traits.h declares std::byte
+				|| is_same_v<_ValueType1, byte>
+#endif
+			     ) && __memcmpable<_II1, _II2>::__value);
       return std::__equal<__simple>::equal(__first1, __last1, __first2);
     }
 
@@ -1401,10 +1426,10 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
     {
       typedef typename iterator_traits<_II1>::value_type _ValueType1;
       typedef typename iterator_traits<_II2>::value_type _ValueType2;
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__is_pointer)
       const bool __simple =
 	(__is_memcmp_ordered_with<_ValueType1, _ValueType2>::__value
-	 && __is_pointer<_II1>::__value
-	 && __is_pointer<_II2>::__value
+	 && __is_pointer(_II1) && __is_pointer(_II2)
 #if __cplusplus > 201703L && __glibcxx_concepts
 	 // For C++20 iterator_traits<volatile T*>::value_type is non-volatile
 	 // so __is_byte<T> could be true, but we can't use memcmp with
@@ -1413,6 +1438,9 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
 	 && !is_volatile_v<remove_reference_t<iter_reference_t<_II2>>>
 #endif
 	 );
+#else
+      const bool __simple = false;
+#endif
 
       return std::__lexicographical_compare<__simple>::__lc(__first1, __last1,
 							    __first2, __last2);
@@ -1522,7 +1550,7 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
    *  @ingroup binary_search_algorithms
   */
   template<typename _ForwardIterator, typename _Tp>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline _ForwardIterator
     lower_bound(_ForwardIterator __first, _ForwardIterator __last,
 		const _Tp& __val)
@@ -1571,7 +1599,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  ranges are equal.
   */
   template<typename _II1, typename _II2>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline bool
     equal(_II1 __first1, _II1 __last1, _II2 __first2)
     {
@@ -1602,7 +1630,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  ranges are equal.
   */
   template<typename _IIter1, typename _IIter2, typename _BinaryPredicate>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline bool
     equal(_IIter1 __first1, _IIter1 __last1,
 	  _IIter2 __first2, _BinaryPredicate __binary_pred)
@@ -1689,7 +1717,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  ranges are equal.
   */
   template<typename _II1, typename _II2>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline bool
     equal(_II1 __first1, _II1 __last1, _II2 __first2, _II2 __last2)
     {
@@ -1722,7 +1750,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  ranges are equal.
   */
   template<typename _IIter1, typename _IIter2, typename _BinaryPredicate>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline bool
     equal(_IIter1 __first1, _IIter1 __last1,
 	  _IIter2 __first2, _IIter2 __last2, _BinaryPredicate __binary_pred)
@@ -1754,7 +1782,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  then this is an inline call to @c memcmp.
   */
   template<typename _II1, typename _II2>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline bool
     lexicographical_compare(_II1 __first1, _II1 __last1,
 			    _II2 __first2, _II2 __last2)
@@ -1789,7 +1817,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  comp parameter instead of @c <.
   */
   template<typename _II1, typename _II2, typename _Compare>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline bool
     lexicographical_compare(_II1 __first1, _II1 __last1,
 			    _II2 __first2, _II2 __last2, _Compare __comp)
@@ -1843,7 +1871,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *		returns.
   */
   template<typename _InputIter1, typename _InputIter2, typename _Comp>
-    constexpr auto
+    [[nodiscard]] constexpr auto
     lexicographical_compare_three_way(_InputIter1 __first1,
 				      _InputIter1 __last1,
 				      _InputIter2 __first2,
@@ -1932,7 +1960,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  to by the iterators are not equal.
   */
   template<typename _InputIterator1, typename _InputIterator2>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline pair<_InputIterator1, _InputIterator2>
     mismatch(_InputIterator1 __first1, _InputIterator1 __last1,
 	     _InputIterator2 __first2)
@@ -1967,7 +1995,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
   */
   template<typename _InputIterator1, typename _InputIterator2,
 	   typename _BinaryPredicate>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline pair<_InputIterator1, _InputIterator2>
     mismatch(_InputIterator1 __first1, _InputIterator1 __last1,
 	     _InputIterator2 __first2, _BinaryPredicate __binary_pred)
@@ -2014,7 +2042,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
    *  to by the iterators are not equal.
   */
   template<typename _InputIterator1, typename _InputIterator2>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline pair<_InputIterator1, _InputIterator2>
     mismatch(_InputIterator1 __first1, _InputIterator1 __last1,
 	     _InputIterator2 __first2, _InputIterator2 __last2)
@@ -2051,7 +2079,7 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
   */
   template<typename _InputIterator1, typename _InputIterator2,
 	   typename _BinaryPredicate>
-    _GLIBCXX20_CONSTEXPR
+    _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
     inline pair<_InputIterator1, _InputIterator2>
     mismatch(_InputIterator1 __first1, _InputIterator1 __last1,
 	     _InputIterator2 __first2, _InputIterator2 __last2,
@@ -2070,77 +2098,15 @@ _GLIBCXX_BEGIN_NAMESPACE_ALGO
 
 _GLIBCXX_END_NAMESPACE_ALGO
 
-  /// This is an overload used by find algos for the Input Iterator case.
-  template<typename _InputIterator, typename _Predicate>
-    _GLIBCXX20_CONSTEXPR
-    inline _InputIterator
-    __find_if(_InputIterator __first, _InputIterator __last,
-	      _Predicate __pred, input_iterator_tag)
-    {
-      while (__first != __last && !__pred(__first))
-	++__first;
-      return __first;
-    }
-
-  /// This is an overload used by find algos for the RAI case.
-  template<typename _RandomAccessIterator, typename _Predicate>
-    _GLIBCXX20_CONSTEXPR
-    _RandomAccessIterator
-    __find_if(_RandomAccessIterator __first, _RandomAccessIterator __last,
-	      _Predicate __pred, random_access_iterator_tag)
-    {
-      typename iterator_traits<_RandomAccessIterator>::difference_type
-	__trip_count = (__last - __first) >> 2;
-
-      for (; __trip_count > 0; --__trip_count)
-	{
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-	}
-
-      switch (__last - __first)
-	{
-	case 3:
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-	  // FALLTHRU
-	case 2:
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-	  // FALLTHRU
-	case 1:
-	  if (__pred(__first))
-	    return __first;
-	  ++__first;
-	  // FALLTHRU
-	case 0:
-	default:
-	  return __last;
-	}
-    }
-
+  // Implementation of std::find_if, also used in std::remove_if and others.
   template<typename _Iterator, typename _Predicate>
     _GLIBCXX20_CONSTEXPR
     inline _Iterator
     __find_if(_Iterator __first, _Iterator __last, _Predicate __pred)
     {
-      return __find_if(__first, __last, __pred,
-		       std::__iterator_category(__first));
+      while (__first != __last && !__pred(__first))
+	++__first;
+      return __first;
     }
 
   template<typename _InputIterator, typename _Predicate>

@@ -160,6 +160,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wbuiltin-macro-redefined)
 Wc11-c23-compat
 UrlSuffix(gcc/Warning-Options.html#index-Wc11-c23-compat)
 
+Wc23-c2y-compat
+UrlSuffix(gcc/Warning-Options.html#index-Wc23-c2y-compat)
+
 Wc90-c99-compat
 UrlSuffix(gcc/Warning-Options.html#index-Wc90-c99-compat)
 
@@ -207,6 +210,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wcast-function-type)
 
 Wcast-qual
 UrlSuffix(gcc/Warning-Options.html#index-Wcast-qual)
+
+Wcast-user-defined
+UrlSuffix(gcc/Warning-Options.html#index-Wcast-user-defined)
 
 Wcatch-value
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wcatch-value)
@@ -831,6 +837,9 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-templates)
 Wtautological-compare
 UrlSuffix(gcc/Warning-Options.html#index-Wno-tautological-compare)
 
+Wtemplate-body
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-template-body)
+
 Wtemplate-id-cdtor
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-template-id-cdtor)
 
@@ -863,6 +872,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-unknown-pragmas) LangUrlSuffix_D(gd
 
 Wunsuffixed-float-constants
 UrlSuffix(gcc/Warning-Options.html#index-Wno-unsuffixed-float-constants)
+
+Wunterminated-string-initialization
+UrlSuffix(gcc/Warning-Options.html#index-Wno-unterminated-string-initialization)
 
 Wunused
 UrlSuffix(gcc/Warning-Options.html#index-Wno-unused)
@@ -977,9 +989,6 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fchar8_005ft)
 
 fconcepts
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fconcepts)
-
-fconcepts-ts
-UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fconcepts-ts)
 
 fcond-mismatch
 UrlSuffix(gcc/C-Dialect-Options.html#index-fcond-mismatch)

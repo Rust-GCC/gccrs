@@ -441,6 +441,10 @@ Wc11-c2x-compat
 C ObjC Alias(Wc11-c23-compat)
 Deprecated in favor of -Wc11-c23-compat.
 
+Wc23-c2y-compat
+C ObjC Var(warn_c23_c2y_compat) Init(-1) Warning
+Warn about features not present in ISO C23, but present in ISO C2Y.
+
 Wc90-c99-compat
 C ObjC CPP(cpp_warn_c90_c99_compat) CppReason(CPP_W_C90_C99_COMPAT) Var(warn_c90_c99_compat) Init(-1) Warning
 Warn about features not present in ISO C90, but present in ISO C99.
@@ -513,6 +517,10 @@ Warn about casts between incompatible function types.
 Wcast-qual
 C ObjC C++ ObjC++ Var(warn_cast_qual) Warning
 Warn about casts which discard qualifiers.
+
+Wcast-user-defined
+C++ ObjC++ Var(warn_cast_user_defined) Warning Init(1)
+Warn about a cast to reference type that does not use a related user-defined conversion function.
 
 Wcatch-value
 C++ ObjC++ Warning Alias(Wcatch-value=, 1, 0)
@@ -596,7 +604,7 @@ C ObjC C++ ObjC++ Joined RejectNegative UInteger Var(warn_dangling_pointer) Warn
 Warn for uses of pointers to auto variables whose lifetime has ended.
 
 Wdangling-reference
-C++ ObjC++ Var(warn_dangling_reference) Warning LangEnabledBy(C++ ObjC++, Wall)
+C++ ObjC++ Var(warn_dangling_reference) Warning LangEnabledBy(C++ ObjC++, Wextra)
 Warn when a reference is bound to a temporary whose lifetime has ended.
 
 Wdate-time
@@ -723,7 +731,7 @@ C ObjC C++ ObjC++ Warning
 ; in common.opt
 
 Wextra-semi
-C++ ObjC++ Var(warn_extra_semi) Warning
+C++ ObjC++ Var(warn_extra_semi) Init(-1) Warning
 Warn about semicolon after in-class function definition.
 
 Wflex-array-member-not-at-end
@@ -1129,7 +1137,7 @@ C ObjC Var(warn_override_init_side_effects) Init(1) Warning
 Warn about overriding initializers with side effects.
 
 Wnrvo
-C++ ObjC++ Var(warn_nrvo)
+C++ ObjC++ Var(warn_nrvo) Warning
 Warn if the named return value optimization is not performed although it is allowed.
 
 Wpacked-bitfield-compat
@@ -1316,7 +1324,7 @@ C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall, 3, 0) IntegerRange(0, 3)
 
 Wstrict-flex-arrays
 C C++ Var(warn_strict_flex_arrays) Warning
-Warn about inproper usages of flexible array members
+Warn about improper usages of flexible array members
 according to the level of -fstrict-flex-arrays.
 
 Wstrict-null-sentinel
@@ -1412,6 +1420,10 @@ Wtautological-compare
 C ObjC C++ ObjC++ Var(warn_tautological_compare) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn if a comparison always evaluates to true or false.
 
+Wtemplate-body
+C++ ObjC++ Var(warn_template_body) Warning Init(1)
+Diagnose errors when parsing a template.
+
 Wtemplate-id-cdtor
 C++ ObjC++ Var(warn_template_id_cdtor) Warning
 Warn about simple-template-id in a constructor or destructor.
@@ -1455,6 +1467,10 @@ Warn about unrecognized pragmas.
 Wunsuffixed-float-constants
 C ObjC Var(warn_unsuffixed_float_constants) Warning
 Warn about unsuffixed float constants.
+
+Wunterminated-string-initialization
+C ObjC Var(warn_unterminated_string_initialization) Warning LangEnabledBy(C ObjC,Wextra || Wc++-compat)
+Warn about character arrays initialized as unterminated character sequences with a string literal.
 
 Wunused
 C ObjC C++ ObjC++ LangEnabledBy(C ObjC C++ ObjC++,Wall)
@@ -1713,8 +1729,8 @@ C++ ObjC++ Var(flag_concepts)
 Enable support for C++ concepts.
 
 fconcepts-ts
-C++ ObjC++ Var(flag_concepts_ts) Init(0)
-Enable certain features present in the Concepts TS.
+C++ ObjC++ WarnRemoved
+Removed in GCC 15.  This switch has no effect.
 
 fconcepts-diagnostics-depth=
 C++ ObjC++ Joined RejectNegative UInteger Var(concepts_diagnostics_max_depth) Init(1)
@@ -2511,6 +2527,10 @@ std=c2x
 C ObjC Alias(std=c23)
 Deprecated in favor of -std=c23.
 
+std=c2y
+C ObjC
+Conform to the ISO 202Y C standard draft (experimental and incomplete support).
+
 std=c89
 C ObjC Alias(std=c90)
 Conform to the ISO 1990 C standard.
@@ -2608,6 +2628,10 @@ Conform to the ISO 2023 C standard draft (expected to be published in 2024) with
 std=gnu2x
 C ObjC Alias(std=gnu23)
 Deprecated in favor of -std=gnu23.
+
+std=gnu2y
+C ObjC
+Conform to the ISO 202Y C standard draft with GNU extensions (experimental and incomplete support).
 
 std=gnu89
 C ObjC Alias(std=gnu90)

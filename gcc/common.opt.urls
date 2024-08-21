@@ -280,6 +280,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-mismatch)
 Wcoverage-invalid-line-number
 UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-invalid-line-number)
 
+Wcoverage-too-many-conditions
+UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-too-many-conditions)
+
 Wmissing-profile
 UrlSuffix(gcc/Warning-Options.html#index-Wmissing-profile)
 
@@ -531,6 +534,9 @@ UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show
 fdiagnostics-show-caret
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-caret)
 
+fdiagnostics-show-event-links
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-event-links)
+
 fdiagnostics-show-labels
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-labels)
 
@@ -575,6 +581,9 @@ UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show
 
 fdiagnostics-show-rules
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-rules)
+
+fdiagnostics-show-highlight-colors
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-highlight-colors)
 
 fdiagnostics-path-format=
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-path-format)
@@ -705,6 +714,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-fhoist-adjacent-loads)
 
 flarge-source-files
 UrlSuffix(gcc/Preprocessor-Options.html#index-flarge-source-files)
+
+flate-combine-instructions
+UrlSuffix(gcc/Optimize-Options.html#index-flate-combine-instructions)
 
 floop-parallelize-all
 UrlSuffix(gcc/Optimize-Options.html#index-floop-parallelize-all)
@@ -1057,6 +1069,9 @@ UrlSuffix(gcc/Instrumentation-Options.html#index-fprofile-abs-path)
 ;   duplicate: 'gcc/Instrumentation-Options.html#index-fprofile-arcs'
 ;   duplicate: 'gcc/Other-Builtins.html#index-fprofile-arcs-1'
 
+fcondition-coverage
+UrlSuffix(gcc/Instrumentation-Options.html#index-fcondition-coverage)
+
 fprofile-dir=
 UrlSuffix(gcc/Instrumentation-Options.html#index-fprofile-dir)
 
@@ -1329,6 +1344,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-fstrict-aliasing)
 
 fstrict-overflow
 UrlSuffix(gcc/Code-Gen-Options.html#index-fstrict-overflow)
+
+fstrub=disable
+UrlSuffix(gcc/Instrumentation-Options.html#index-fstrub_003ddisable)
 
 fstrub=strict
 UrlSuffix(gcc/Instrumentation-Options.html#index-fstrub_003dstrict)
@@ -1626,6 +1644,9 @@ UrlSuffix(gcc/Debugging-Options.html#index-gctf)
 
 gbtf
 UrlSuffix(gcc/Debugging-Options.html#index-gbtf)
+
+gprune-btf
+UrlSuffix(gcc/Debugging-Options.html#index-gprune-btf)
 
 gdwarf
 UrlSuffix(gcc/Debugging-Options.html#index-gdwarf)

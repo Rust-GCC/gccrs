@@ -47,6 +47,7 @@ enum df_problem_id
   {
     DF_SCAN,
     DF_LR,                /* Live Registers backward. */
+    DF_LR_DCE,            /* Dead code elimination post-pass for LR.  */
     DF_LIVE,              /* Live Registers & Uninitialized Registers */
     DF_RD,                /* Reaching Defs. */
     DF_CHAIN,             /* Def-Use and/or Use-Def Chains. */
@@ -940,6 +941,7 @@ extern class df_d *df;
 #define df_scan    (df->problems_by_index[DF_SCAN])
 #define df_rd      (df->problems_by_index[DF_RD])
 #define df_lr      (df->problems_by_index[DF_LR])
+#define df_lr_dce  (df->problems_by_index[DF_LR_DCE])
 #define df_live    (df->problems_by_index[DF_LIVE])
 #define df_chain   (df->problems_by_index[DF_CHAIN])
 #define df_word_lr (df->problems_by_index[DF_WORD_LR])
@@ -987,6 +989,7 @@ extern void df_check_cfg_clean (void);
 #endif
 extern df_ref df_bb_regno_first_def_find (basic_block, unsigned int);
 extern df_ref df_bb_regno_last_def_find (basic_block, unsigned int);
+extern df_ref df_bb_regno_only_def_find (basic_block, unsigned int);
 extern df_ref df_find_def (rtx_insn *, rtx);
 extern bool df_reg_defined (rtx_insn *, rtx);
 extern df_ref df_find_use (rtx_insn *, rtx);
@@ -1091,6 +1094,7 @@ extern bool df_epilogue_uses_p (unsigned int);
 extern void df_set_regs_ever_live (unsigned int, bool);
 extern void df_compute_regs_ever_live (bool);
 extern void df_scan_verify (void);
+extern void df_get_exit_block_use_set (bitmap);
 
 
 /*----------------------------------------------------------------------------

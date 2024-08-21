@@ -3820,6 +3820,12 @@ alpha_expand_block_move (rtx operands[])
           else if (a >= 16 && c % 2 == 0)
 	    src_align = 16;
 	}
+
+      if (MEM_P (orig_src) && MEM_ALIGN (orig_src) < src_align)
+	{
+	  orig_src = shallow_copy_rtx (orig_src);
+	  set_mem_align (orig_src, src_align);
+	}
     }
 
   tmp = XEXP (orig_dst, 0);
@@ -3840,6 +3846,12 @@ alpha_expand_block_move (rtx operands[])
 	    dst_align = 32;
           else if (a >= 16 && c % 2 == 0)
 	    dst_align = 16;
+	}
+
+      if (MEM_P (orig_dst) && MEM_ALIGN (orig_dst) < dst_align)
+	{
+	  orig_dst = shallow_copy_rtx (orig_dst);
+	  set_mem_align (orig_dst, dst_align);
 	}
     }
 
@@ -6090,7 +6102,8 @@ alpha_setup_incoming_varargs (cumulative_args_t pcum,
 {
   CUMULATIVE_ARGS cum = *get_cumulative_args (pcum);
 
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     /* Skip the current argument.  */
     targetm.calls.function_arg_advance (pack_cumulative_args (&cum), arg);
 
@@ -9915,7 +9928,19 @@ alpha_can_change_mode_class (machine_mode from, machine_mode to,
   return (GET_MODE_SIZE (from) == GET_MODE_SIZE (to)
 	  || !reg_classes_intersect_p (FLOAT_REGS, rclass));
 }
-
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+alpha_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return TARGET_LONG_DOUBLE_128 ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
+}
+
 /* Initialize the GCC target structure.  */
 #if TARGET_ABI_OPEN_VMS
 # undef TARGET_ATTRIBUTE_TABLE
@@ -10121,6 +10146,9 @@ alpha_can_change_mode_class (machine_mode from, machine_mode to,
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS alpha_can_change_mode_class
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE alpha_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

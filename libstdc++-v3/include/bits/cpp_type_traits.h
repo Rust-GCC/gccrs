@@ -35,6 +35,10 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
+#include <bits/version.h>
+#if __glibcxx_type_trait_variable_templates
+# include <type_traits> // is_same_v, is_integral_v
+#endif
 
 //
 // This file provides some compile-time information about various types.
@@ -105,21 +109,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef __true_type __type;
     };
 
-  // Holds if the template-argument is a void type.
-  template<typename _Tp>
-    struct __is_void
-    {
-      enum { __value = 0 };
-      typedef __false_type __type;
-    };
-
-  template<>
-    struct __is_void<void>
-    {
-      enum { __value = 1 };
-      typedef __true_type __type;
-    };
-
   //
   // Integer types
   //
@@ -130,10 +119,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef __false_type __type;
     };
 
-  // Thirteen specializations (yes there are eleven standard integer
-  // types; <em>long long</em> and <em>unsigned long long</em> are
-  // supported as extensions).  Up to four target-specific __int<N>
-  // types are supported as well.
+  // Explicit specializations for the standard integer types.
+  // Up to four target-specific __int<N> types are supported as well.
   template<>
     struct __is_integer<bool>
     {
@@ -361,36 +348,11 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
 #endif
 
   //
-  // Pointer types
-  //
-  template<typename _Tp>
-    struct __is_pointer
-    {
-      enum { __value = 0 };
-      typedef __false_type __type;
-    };
-
-  template<typename _Tp>
-    struct __is_pointer<_Tp*>
-    {
-      enum { __value = 1 };
-      typedef __true_type __type;
-    };
-
-  //
   // An arithmetic type is an integer type or a floating point type
   //
   template<typename _Tp>
     struct __is_arithmetic
     : public __traitor<__is_integer<_Tp>, __is_floating<_Tp> >
-    { };
-
-  //
-  // A scalar type is an arithmetic type or a pointer type
-  // 
-  template<typename _Tp>
-    struct __is_scalar
-    : public __traitor<__is_arithmetic<_Tp>, __is_pointer<_Tp> >
     { };
 
   //
@@ -587,6 +549,15 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
   template<typename _Up, bool _SameSize>
     struct __is_memcmp_ordered_with<std::byte, _Up, _SameSize>
     { static constexpr bool __value = false; };
+#endif
+
+#if __glibcxx_type_trait_variable_templates
+  template<typename _ValT, typename _Tp>
+    constexpr bool __can_use_memchr_for_find
+    // Can only use memchr to search for narrow characters and std::byte.
+      = __is_byte<_ValT>::__value
+	// And only if the value to find is an integer (or is also std::byte).
+	  && (is_same_v<_Tp, _ValT> || is_integral_v<_Tp>);
 #endif
 
   //

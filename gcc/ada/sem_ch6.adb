@@ -333,6 +333,15 @@ package body Sem_Ch6 is
       New_Spec := Copy_Subprogram_Spec (Spec);
       Prev     := Current_Entity_In_Scope (Defining_Entity (Spec));
 
+      --  Copy SPARK pragma from expression function
+
+      Set_SPARK_Pragma
+        (Defining_Unit_Name (New_Spec),
+         SPARK_Pragma (Defining_Unit_Name (Spec)));
+      Set_SPARK_Pragma_Inherited
+        (Defining_Unit_Name (New_Spec),
+         SPARK_Pragma_Inherited (Defining_Unit_Name (Spec)));
+
       --  If there are previous overloadable entities with the same name,
       --  check whether any of them is completed by the expression function.
       --  In a generic context a formal subprogram has no completion.
@@ -1937,8 +1946,8 @@ package body Sem_Ch6 is
       --  Check that pragma No_Return is obeyed. Don't complain about the
       --  implicitly-generated return that is placed at the end.
 
-      if No_Return (Scope_Id)
-        and then Kind in E_Procedure | E_Generic_Procedure
+      if Kind in E_Procedure | E_Generic_Procedure
+        and then No_Return (Scope_Id)
         and then Comes_From_Source (N)
       then
          Error_Msg_N
@@ -2685,22 +2694,6 @@ package body Sem_Ch6 is
          Copy_SPARK_Mode_Aspect (Subp_Decl, To => N);
 
          Analyze (Subp_Decl);
-
-         --  Propagate the attributes Rewritten_For_C and Corresponding_Proc to
-         --  the body since the expander may generate calls using that entity.
-         --  Required to ensure that Expand_Call rewrites calls to this
-         --  function by calls to the built procedure.
-
-         if Transform_Function_Array
-           and then Nkind (Body_Spec) = N_Function_Specification
-           and then
-             Rewritten_For_C (Defining_Entity (Specification (Subp_Decl)))
-         then
-            Set_Rewritten_For_C (Defining_Entity (Body_Spec));
-            Set_Corresponding_Procedure (Defining_Entity (Body_Spec),
-              Corresponding_Procedure
-                (Defining_Entity (Specification (Subp_Decl))));
-         end if;
 
          --  Analyze any relocated source pragmas or pragmas created for aspect
          --  specifications.
@@ -3740,18 +3733,6 @@ package body Sem_Ch6 is
                  and then not Inside_A_Generic
                then
                   Build_Subprogram_Declaration;
-
-               --  If this is a function that returns a constrained array, and
-               --  Transform_Function_Array is set, create subprogram
-               --  declaration to simplify e.g. subsequent C generation.
-
-               elsif No (Spec_Id)
-                 and then Transform_Function_Array
-                 and then Nkind (Body_Spec) = N_Function_Specification
-                 and then Is_Array_Type (Etype (Body_Id))
-                 and then Is_Constrained (Etype (Body_Id))
-               then
-                  Build_Subprogram_Declaration;
                end if;
             end if;
 
@@ -3828,60 +3809,6 @@ package body Sem_Ch6 is
         and then Is_Protected_Type (Current_Scope)
       then
          Spec_Id := Build_Internal_Protected_Declaration (N);
-      end if;
-
-      --  If Transform_Function_Array is set and this is a function returning a
-      --  constrained array type for which we must create a procedure with an
-      --  extra out parameter, build and analyze the body now. The procedure
-      --  declaration has already been created. We reuse the source body of the
-      --  function, because in an instance it may contain global references
-      --  that cannot be reanalyzed. The source function itself is not used any
-      --  further, so we mark it as having a completion. If the subprogram is a
-      --  stub the transformation is done later, when the proper body is
-      --  analyzed.
-
-      if Expander_Active
-        and then Transform_Function_Array
-        and then Nkind (N) /= N_Subprogram_Body_Stub
-      then
-         declare
-            S         : constant Entity_Id :=
-                          (if Present (Spec_Id)
-                           then Spec_Id
-                           else Defining_Unit_Name (Specification (N)));
-            Proc_Body : Node_Id;
-
-         begin
-            if Ekind (S) = E_Function and then Rewritten_For_C (S) then
-               Set_Has_Completion (S);
-               Proc_Body := Build_Procedure_Body_Form (S, N);
-
-               if Present (Spec_Id) then
-                  Rewrite (N, Proc_Body);
-                  Analyze (N);
-
-                  --  The entity for the created procedure must remain
-                  --  invisible, so it does not participate in resolution of
-                  --  subsequent references to the function.
-
-                  Set_Is_Immediately_Visible (Corresponding_Spec (N), False);
-
-               --  If we do not have a separate spec for N, build one and
-               --  insert the new body right after.
-
-               else
-                  Rewrite (N,
-                    Make_Subprogram_Declaration (Loc,
-                      Specification => Relocate_Node (Specification (N))));
-                  Analyze (N);
-                  Insert_After_And_Analyze (N, Proc_Body);
-                  Set_Is_Immediately_Visible
-                    (Corresponding_Spec (Proc_Body), False);
-               end if;
-
-               goto Leave;
-            end if;
-         end;
       end if;
 
       --  If a separate spec is present, then deal with freezing issues
@@ -4082,6 +4009,15 @@ package body Sem_Ch6 is
 
          else
             Set_Corresponding_Spec (N, Spec_Id);
+
+            --  The body entity is not used for semantics or code generation,
+            --  but it is attached to the entity list of the enclosing scope
+            --  to allow listing its entities when outputting representation
+            --  information.
+
+            if Scope (Spec_Id) /= Standard_Standard then
+               Append_Entity (Body_Id, Scope (Spec_Id));
+            end if;
 
             --  Ada 2005 (AI-345): If the operation is a primitive operation
             --  of a concurrent type, the type of the first parameter has been
@@ -4971,8 +4907,11 @@ package body Sem_Ch6 is
          --  Skip the check for subprograms generated for protected subprograms
          --  because it is also done for the protected subprograms themselves.
 
-         elsif Present (Spec_Id)
-           and then Present (Protected_Subprogram (Spec_Id))
+         elsif (Present (Spec_Id)
+                 and then Present (Protected_Subprogram (Spec_Id)))
+           or else
+             (Acts_As_Spec (N)
+               and then Present (Protected_Subprogram (Body_Id)))
          then
             null;
 
@@ -6517,6 +6456,20 @@ package body Sem_Ch6 is
                      New_Discr_Id);
                   return;
                end if;
+
+               if NewD
+                 and then Ada_Version >= Ada_2005
+                 and then Nkind (Discriminant_Type (New_Discr)) =
+                            N_Access_Definition
+                 and then not Is_Immutably_Limited_Type
+                                (Defining_Identifier (N))
+               then
+                  Error_Msg_N
+                    ("(Ada 2005) default value for access discriminant "
+                     & "requires immutably limited type",
+                     Expression (New_Discr));
+                  return;
+               end if;
             end if;
          end;
 
@@ -6904,13 +6857,11 @@ package body Sem_Ch6 is
                --  operation is the inherited primitive (which is available
                --  through the attribute alias)
 
-               if (Is_Dispatching_Operation (Subp)
-                    or else Is_Dispatching_Operation (Overridden_Subp))
+               if Is_Dispatching_Operation (Subp)
                  and then not Comes_From_Source (Overridden_Subp)
                  and then Find_Dispatching_Type (Overridden_Subp) =
                           Find_Dispatching_Type (Subp)
                  and then Present (Alias (Overridden_Subp))
-                 and then Comes_From_Source (Alias (Overridden_Subp))
                then
                   Set_Overridden_Operation    (Subp, Alias (Overridden_Subp));
                   Inherit_Subprogram_Contract (Subp, Alias (Overridden_Subp));
@@ -7174,6 +7125,10 @@ package body Sem_Ch6 is
                 N_Goto_Statement | N_Label | N_Object_Declaration
                and then Exception_Junk (Last_Stm))
            or else Nkind (Last_Stm) in N_Push_xxx_Label | N_Pop_xxx_Label
+
+           --  Don't count subprogram bodies, for example finalizers
+
+           or else Nkind (Last_Stm) = N_Subprogram_Body
 
            --  Inserted code, such as finalization calls, is irrelevant; we
            --  only need to check original source. If we see a transfer of
@@ -8660,9 +8615,12 @@ package body Sem_Ch6 is
       --  Determines if E has its extra formals
 
       function Might_Need_BIP_Task_Actuals (E : Entity_Id) return Boolean;
-      --  Determines if E is a dispatching primitive returning a limited tagged
-      --  type object since some descendant might return an object with tasks
-      --  (and therefore need the BIP task extra actuals).
+      --  Determines if E is a function or an access to a function returning a
+      --  limited tagged type object. On dispatching primitives this predicate
+      --  is used to determine if some descendant of the function might return
+      --  an object with tasks (and therefore need the BIP task extra actuals).
+      --  On access-to-subprogram types it is used to determine if the target
+      --  function might return an object with tasks.
 
       function Needs_Accessibility_Check_Extra
         (E      : Entity_Id;
@@ -8783,9 +8741,8 @@ package body Sem_Ch6 is
 
          Func_Typ := Root_Type (Underlying_Type (Etype (Subp_Id)));
 
-         return Ekind (Subp_Id) = E_Function
+         return Ekind (Subp_Id) in E_Function | E_Subprogram_Type
            and then not Has_Foreign_Convention (Func_Typ)
-           and then Is_Dispatching_Operation (Subp_Id)
            and then Is_Tagged_Type (Func_Typ)
            and then Is_Limited_Type (Func_Typ)
            and then not Has_Aspect (Func_Typ, Aspect_No_Task_Parts);
@@ -9168,9 +9125,15 @@ package body Sem_Ch6 is
             --  If the type does not have a completion yet, treat as prior to
             --  Ada 2012 for consistency.
 
-            if Has_Discriminants (Formal_Type)
+            --  Note that we need also to handle mutably tagged types in the
+            --  same way as discriminated types since they can be constrained
+            --  or unconstrained as well.
+
+            if (Has_Discriminants (Formal_Type)
+                 or else Is_Mutably_Tagged_Type (Formal_Type))
               and then not Is_Constrained (Formal_Type)
-              and then Is_Definite_Subtype (Formal_Type)
+              and then (Is_Definite_Subtype (Formal_Type)
+                         or else Is_Mutably_Tagged_Type (Formal_Type))
               and then (Ada_Version < Ada_2012
                          or else No (Underlying_Type (Formal_Type))
                          or else not
@@ -9302,24 +9265,24 @@ package body Sem_Ch6 is
             end if;
 
             --  In the case of functions whose result type needs finalization,
-            --  add an extra formal which represents the finalization master.
+            --  add an extra formal which represents the caller's collection.
 
-            if Needs_BIP_Finalization_Master (Ref_E)
+            if Needs_BIP_Collection (Ref_E)
               or else
                 (Present (Parent_Subp)
                    and then Has_BIP_Extra_Formal (Parent_Subp,
-                              Kind           => BIP_Finalization_Master,
+                              Kind           => BIP_Collection,
                               Must_Be_Frozen => False))
               or else
                 (Present (Alias_Subp)
                    and then Has_BIP_Extra_Formal (Alias_Subp,
-                              Kind           => BIP_Finalization_Master,
+                              Kind           => BIP_Collection,
                               Must_Be_Frozen => False))
             then
                Discard :=
                  Add_Extra_Formal
-                   (E, RTE (RE_Finalization_Master_Ptr),
-                    E, BIP_Formal_Suffix (BIP_Finalization_Master));
+                   (E, RTE (RE_Finalization_Collection_Ptr),
+                    E, BIP_Formal_Suffix (BIP_Collection));
             end if;
 
             --  When the result type contains tasks, add two extra formals: the
@@ -11175,9 +11138,7 @@ package body Sem_Ch6 is
                   while Present (Prag) loop
                      Error_Msg_Sloc := Sloc (Prag);
 
-                     if Class_Present (Prag)
-                       and then not Split_PPC (Prag)
-                     then
+                     if Class_Present (Prag) then
                         if Pragma_Name (Prag) = Name_Precondition then
                            Error_Msg_N
                              ("info: & inherits `Pre''Class` aspect from "
@@ -11557,35 +11518,30 @@ package body Sem_Ch6 is
                                       Incomplete_Or_Partial_View (T);
 
                   begin
-                     if not Overrides_Visible_Function (Partial_View) then
+                     if not Overrides_Visible_Function (Partial_View)
+                       and then
+                         Is_Tagged_Type
+                           (if Present (Partial_View) then Partial_View else T)
+                     then
 
                         --  Here, S is "function ... return T;" declared in
                         --  the private part, not overriding some visible
                         --  operation. That's illegal in the tagged case
                         --  (but not if the private type is untagged).
 
-                        if ((Present (Partial_View)
-                              and then Is_Tagged_Type (Partial_View))
-                          or else (No (Partial_View)
-                                    and then Is_Tagged_Type (T)))
-                          and then T = Base_Type (Etype (S))
-                        then
+                        if T = Base_Type (Etype (S)) then
                            Error_Msg_N
-                             ("private function with tagged result must"
+                             ("private function with controlling result must"
                               & " override visible-part function", S);
                            Error_Msg_N
                              ("\move subprogram to the visible part"
                               & " (RM 3.9.3(10))", S);
 
                         --  Ada 2012 (AI05-0073): Extend this check to the case
-                        --  of a function whose result subtype is defined by an
-                        --  access_definition designating specific tagged type.
+                        --  of a function with access result type.
 
                         elsif Ekind (Etype (S)) = E_Anonymous_Access_Type
-                          and then Is_Tagged_Type (Designated_Type (Etype (S)))
-                          and then
-                            not Is_Class_Wide_Type
-                                  (Designated_Type (Etype (S)))
+                          and then T = Base_Type (Designated_Type (Etype (S)))
                           and then Ada_Version >= Ada_2012
                         then
                            Error_Msg_N
@@ -11695,7 +11651,7 @@ package body Sem_Ch6 is
                   Check_Private_Overriding (B_Typ);
                   --  The Ghost policy in effect at the point of declaration
                   --  or a tagged type and a primitive operation must match
-                  --  (SPARK RM 6.9(16)).
+                  --  (SPARK RM 6.9(18)).
 
                   Check_Ghost_Primitive (S, B_Typ);
                end if;
@@ -11739,7 +11695,7 @@ package body Sem_Ch6 is
 
                   --  The Ghost policy in effect at the point of declaration
                   --  of a tagged type and a primitive operation must match
-                  --  (SPARK RM 6.9(16)).
+                  --  (SPARK RM 6.9(18)).
 
                   Check_Ghost_Primitive (S, B_Typ);
                end if;
@@ -11772,7 +11728,7 @@ package body Sem_Ch6 is
 
                --  The Ghost policy in effect at the point of declaration of a
                --  tagged type and a primitive operation must match
-               --  (SPARK RM 6.9(16)).
+               --  (SPARK RM 6.9(18)).
 
                Check_Ghost_Primitive (S, B_Typ);
             end if;
@@ -12228,7 +12184,7 @@ package body Sem_Ch6 is
 
             --  The Ghost policy in effect at the point of declaration of a
             --  parent subprogram and an overriding subprogram must match
-            --  (SPARK RM 6.9(17)).
+            --  (SPARK RM 6.9(19)).
 
             Check_Ghost_Overriding (S, Overridden_Subp);
          end if;
@@ -12391,7 +12347,7 @@ package body Sem_Ch6 is
 
                      --  The Ghost policy in effect at the point of declaration
                      --  of a parent subprogram and an overriding subprogram
-                     --  must match (SPARK RM 6.9(17)).
+                     --  must match (SPARK RM 6.9(19)).
 
                      Check_Ghost_Overriding (E, S);
                   end if;
@@ -12552,16 +12508,25 @@ package body Sem_Ch6 is
 
                   Enter_Overloaded_Entity (S);
 
+                  --  LSP wrappers must override the ultimate alias of their
+                  --  wrapped dispatching primitive E; required to traverse the
+                  --  chain of ancestor primitives (see Map_Primitives). They
+                  --  don't inherit contracts.
+
+                  if Is_Wrapper (S)
+                    and then Present (LSP_Subprogram (S))
+                  then
+                     Set_Overridden_Operation (S, Ultimate_Alias (E));
+
                   --  For entities generated by Derive_Subprograms the
                   --  overridden operation is the inherited primitive
                   --  (which is available through the attribute alias).
 
-                  if not (Comes_From_Source (E))
+                  elsif not (Comes_From_Source (E))
                     and then Is_Dispatching_Operation (E)
                     and then Find_Dispatching_Type (E) =
                              Find_Dispatching_Type (S)
                     and then Present (Alias (E))
-                    and then Comes_From_Source (Alias (E))
                   then
                      Set_Overridden_Operation    (S, Alias (E));
                      Inherit_Subprogram_Contract (S, Alias (E));
@@ -12578,20 +12543,8 @@ package body Sem_Ch6 is
                   --  must check whether the target is an init_proc.
 
                   elsif not Is_Init_Proc (S) then
-
-                     --  LSP wrappers must override the ultimate alias of their
-                     --  wrapped dispatching primitive E; required to traverse
-                     --  the chain of ancestor primitives (c.f. Map_Primitives)
-                     --  They don't inherit contracts.
-
-                     if Is_Wrapper (S)
-                       and then Present (LSP_Subprogram (S))
-                     then
-                        Set_Overridden_Operation    (S, Ultimate_Alias (E));
-                     else
-                        Set_Overridden_Operation    (S, E);
-                        Inherit_Subprogram_Contract (S, E);
-                     end if;
+                     Set_Overridden_Operation    (S, E);
+                     Inherit_Subprogram_Contract (S, E);
 
                      Set_Is_Ada_2022_Only (S, Is_Ada_2022_Only (E));
                   end if;
@@ -12600,43 +12553,36 @@ package body Sem_Ch6 is
 
                   --  The Ghost policy in effect at the point of declaration
                   --  of a parent subprogram and an overriding subprogram
-                  --  must match (SPARK RM 6.9(17)).
+                  --  must match (SPARK RM 6.9(19)).
 
                   Check_Ghost_Overriding (S, E);
 
                   --  If S is a user-defined subprogram or a null procedure
                   --  expanded to override an inherited null procedure, or a
-                  --  predefined dispatching primitive then indicate that E
-                  --  overrides the operation from which S is inherited.
+                  --  predefined dispatching primitive, or a function wrapper
+                  --  expanded to override an inherited function with
+                  --  dispatching result, then indicate that S overrides the
+                  --  operation from which E is inherited.
 
-                  if Comes_From_Source (S)
-                    or else
-                      (Present (Parent (S))
-                        and then Nkind (Parent (S)) = N_Procedure_Specification
-                        and then Null_Present (Parent (S)))
-                    or else
-                      (Present (Alias (E))
-                        and then
-                          Is_Predefined_Dispatching_Operation (Alias (E)))
+                  if (not Is_Wrapper (S) or else No (LSP_Subprogram (S)))
+                    and then Present (Alias (E))
+                    and then
+                      (Comes_From_Source (S)
+                       or else
+                         (Nkind (Parent (S)) = N_Procedure_Specification
+                          and then Null_Present (Parent (S)))
+                       or else Is_Predefined_Dispatching_Operation (Alias (E))
+                       or else
+                         (E in E_Function_Id
+                          and then Is_Dispatching_Operation (E)
+                          and then Has_Controlling_Result (E)
+                          and then Is_Wrapper (S)
+                          and then not Is_Dispatch_Table_Wrapper (S)))
                   then
-                     if Present (Alias (E)) then
+                     Set_Overridden_Operation    (S, Alias (E));
+                     Inherit_Subprogram_Contract (S, Alias (E));
 
-                        --  LSP wrappers must override the ultimate alias of
-                        --  their wrapped dispatching primitive E; required to
-                        --  traverse the chain of ancestor primitives (see
-                        --  Map_Primitives). They don't inherit contracts.
-
-                        if Is_Wrapper (S)
-                          and then Present (LSP_Subprogram (S))
-                        then
-                           Set_Overridden_Operation    (S, Ultimate_Alias (E));
-                        else
-                           Set_Overridden_Operation    (S, Alias (E));
-                           Inherit_Subprogram_Contract (S, Alias (E));
-                        end if;
-
-                        Set_Is_Ada_2022_Only (S, Is_Ada_2022_Only (Alias (E)));
-                     end if;
+                     Set_Is_Ada_2022_Only (S, Is_Ada_2022_Only (Alias (E)));
                   end if;
 
                   if Is_Dispatching_Operation (E) then
@@ -12753,7 +12699,7 @@ package body Sem_Ch6 is
 
          --  The Ghost policy in effect at the point of declaration of a parent
          --  subprogram and an overriding subprogram must match
-         --  (SPARK RM 6.9(17)).
+         --  (SPARK RM 6.9(19)).
 
          Check_Ghost_Overriding (S, Overridden_Subp);
 

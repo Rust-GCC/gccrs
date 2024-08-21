@@ -777,8 +777,9 @@ extern struct c_expr convert_lvalue_to_rvalue (location_t, struct c_expr,
 extern tree decl_constant_value_1 (tree, bool);
 extern void mark_exp_read (tree);
 extern tree composite_type (tree, tree);
+extern tree lookup_field (const_tree, tree);
 extern tree build_component_ref (location_t, tree, tree, location_t,
-				 location_t);
+				 location_t, bool = true);
 extern tree build_array_ref (location_t, tree, tree);
 extern tree build_omp_array_section (location_t, tree, tree, tree);
 extern tree build_external_ref (location_t, tree, bool, tree *);
@@ -826,7 +827,7 @@ extern tree c_begin_stmt_expr (void);
 extern tree c_finish_stmt_expr (location_t, tree);
 extern tree c_process_expr_stmt (location_t, tree);
 extern tree c_finish_expr_stmt (location_t, tree);
-extern tree c_finish_return (location_t, tree, tree);
+extern tree c_finish_return (location_t, tree, tree, bool = false);
 extern tree c_finish_bc_stmt (location_t, tree, bool);
 extern tree c_finish_goto_label (location_t, tree);
 extern tree c_finish_goto_ptr (location_t, c_expr val);
@@ -903,6 +904,8 @@ extern bool pedwarn_c90 (location_t, int opt, const char *, ...)
 extern bool pedwarn_c99 (location_t, int opt, const char *, ...)
     ATTRIBUTE_GCC_DIAG(3,4);
 extern bool pedwarn_c11 (location_t, int opt, const char *, ...)
+    ATTRIBUTE_GCC_DIAG(3,4);
+extern bool pedwarn_c23 (location_t, int opt, const char *, ...)
     ATTRIBUTE_GCC_DIAG(3,4);
 
 extern void

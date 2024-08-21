@@ -30,11 +30,16 @@ along with GCC; see the file COPYING3.  If not see
 /* Target configuration */
 extern struct loongarch_target la_target;
 
+/* RTL cost information */
+extern const struct loongarch_rtx_cost_data *loongarch_cost;
+
+
 /* Initialize loongarch_target from separate option variables.  */
 void
 loongarch_init_target (struct loongarch_target *target,
 		       int cpu_arch, int cpu_tune, int fpu, int simd,
 		       int abi_base, int abi_ext, int cmodel,
+		       int tls_dialect,
 		       HOST_WIDE_INT isa_evolutions,
 		       HOST_WIDE_INT isa_evolutions_set);
 
@@ -46,11 +51,30 @@ loongarch_config_target (struct loongarch_target *target,
 			 struct loongarch_flags *flags,
 			 int follow_multilib_list_p);
 
+
+/* Refresh the switches acccording to the resolved loongarch_target struct.  */
+void
+loongarch_target_option_override (struct loongarch_target *target,
+				  struct gcc_options *opts,
+				  struct gcc_options *opts_set);
+
+
 /* option status feedback for "gcc --help=target -Q" */
 void
 loongarch_update_gcc_opt_status (struct loongarch_target *target,
 				 struct gcc_options *opts,
 				 struct gcc_options *opts_set);
+
+
+/* Parser for -mrecip=<recip_string>.  */
+unsigned int
+loongarch_parse_mrecip_scheme (const char *recip_string);
+
+
+/* Resolve options that's not covered by la_target.  */
+void
+loongarch_init_misc_options (struct gcc_options *opts,
+			     struct gcc_options *opts_set);
 #endif
 
 /* Flag status */
@@ -80,9 +104,9 @@ struct loongarch_flags {
 #define TARGET_DOUBLE_FLOAT_ABI	  (la_target.abi.base == ABI_BASE_LP64D)
 
 #define TARGET_64BIT		  (la_target.isa.base == ISA_BASE_LA64)
-#define TARGET_ABI_LP64		  (la_target.abi.base == ABI_BASE_LP64D	\
-				   || la_target.abi.base == ABI_BASE_LP64F \
-				   || la_target.abi.base == ABI_BASE_LP64S)
+#define TARGET_ABI_LP64		  ABI_LP64_P(la_target.abi.base)
+
+#define TARGET_TLS_DESC		  (la_target.tls_dialect == TLS_DESCRIPTORS)
 
 #define ISA_HAS_LSX \
   (la_target.isa.simd == ISA_EXT_SIMD_LSX \
@@ -91,20 +115,9 @@ struct loongarch_flags {
 #define ISA_HAS_LASX \
   (la_target.isa.simd == ISA_EXT_SIMD_LASX)
 
-#define ISA_HAS_FRECIPE \
-  (la_target.isa.evolution & OPTION_MASK_ISA_FRECIPE)
-#define ISA_HAS_DIV32 \
-  (la_target.isa.evolution & OPTION_MASK_ISA_DIV32)
-#define ISA_HAS_LAM_BH \
-  (la_target.isa.evolution & OPTION_MASK_ISA_LAM_BH)
-#define ISA_HAS_LAMCAS \
-  (la_target.isa.evolution & OPTION_MASK_ISA_LAMCAS)
-#define ISA_HAS_LD_SEQ_SA \
-  (la_target.isa.evolution & OPTION_MASK_ISA_LD_SEQ_SA)
-
 /* TARGET_ macros for use in *.md template conditionals */
-#define TARGET_uARCH_LA464	  (la_target.cpu_tune == CPU_LA464)
-#define TARGET_uARCH_LA664	  (la_target.cpu_tune == CPU_LA664)
+#define TARGET_uARCH_LA464	  (la_target.cpu_tune == TUNE_LA464)
+#define TARGET_uARCH_LA664	  (la_target.cpu_tune == TUNE_LA664)
 
 /* Note: optimize_size may vary across functions,
    while -m[no]-memcpy imposes a global constraint.  */

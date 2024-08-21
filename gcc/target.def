@@ -2033,6 +2033,18 @@ same size and number of elements as @var{mode}, if such a mode exists.",
  (machine_mode mode),
  default_get_mask_mode)
 
+/* Function to say whether a conditional operation is expensive when
+   compared to non-masked operations.  */
+DEFHOOK
+(conditional_operation_is_expensive,
+ "This hook returns true if masked operation @var{ifn} (really of\n\
+type @code{internal_fn}) should be considered more expensive to use than\n\
+implementing the same operation without masking.  GCC can then try to use\n\
+unconditional operations instead with extra selects.",
+ bool,
+ (unsigned ifn),
+ default_conditional_operation_is_expensive)
+
 /* Function to say whether a masked operation is expensive when the
    mask is all zeros.  */
 DEFHOOK
@@ -2314,10 +2326,10 @@ attribute handlers.  So far this only affects the @var{noinit} and\n\
 DEFHOOK
 (function_attribute_inlinable_p,
  "@cindex inlining\n\
-This target hook returns @code{true} if it is OK to inline @var{fndecl}\n\
-into the current function, despite its having target-specific\n\
-attributes, @code{false} otherwise.  By default, if a function has a\n\
-target specific attribute attached to it, it will not be inlined.",
+This target hook returns @code{false} if the target-specific attributes on\n\
+@var{fndecl} always block it getting inlined, @code{true} otherwise.  By\n\
+default, if a function has a target specific attribute attached to it, it\n\
+will not be inlined.",
  bool, (const_tree fndecl),
  hook_bool_const_tree_false)
 
@@ -2782,6 +2794,16 @@ DEFHOOK
  @var{bit_code} is @code{AND} or @code{IOR}, which is the op on the compares.",
  rtx, (rtx_insn **prep_seq, rtx_insn **gen_seq, rtx prev, rtx_code cmp_code, tree op0, tree op1, rtx_code bit_code),
  NULL)
+
+/* Return true if the target supports conditional compare.  */
+DEFHOOK
+(have_ccmp,
+ "This target hook returns true if the target supports conditional compare.\n\
+This target hook is required only when the ccmp support is conditionally\n\
+enabled, such as in response to command-line flags. The default implementation\n\
+returns true iff @code{TARGET_GEN_CCMP_FIRST} is defined.",
+ bool, (void),
+ default_have_ccmp)
 
 /* Return a new value for loop unroll size.  */
 DEFHOOK
@@ -3340,6 +3362,19 @@ is either a declaration of type int or accessed by dereferencing\n\
 a pointer to int.",
  bool, (ao_ref *ref),
  default_ref_may_alias_errno)
+
+DEFHOOK
+(mode_can_transfer_bits,
+ "Define this to return false if the mode @var{mode} cannot be used\n\
+for memory copying of @code{GET_MODE_SIZE (mode)} units.  This might be\n\
+because a register class allowed for @var{mode} has registers that do\n\
+not transparently transfer every bit pattern or because the load or\n\
+store patterns available for @var{mode} have this issue.\n\
+\n\
+The default is to assume modes with the same precision as size are fine\n\
+to be used.",
+ bool, (machine_mode mode),
+ NULL)
 
 /* Support for named address spaces.  */
 #undef HOOK_PREFIX
@@ -4057,12 +4092,10 @@ allocation.",
    FLAGS has the same meaning as in rtlanal.cc: may_trap_p_1.  */
 DEFHOOK
 (unspec_may_trap_p,
- "This target hook returns nonzero if @var{x}, an @code{unspec} or\n\
-@code{unspec_volatile} operation, might cause a trap.  Targets can use\n\
-this hook to enhance precision of analysis for @code{unspec} and\n\
-@code{unspec_volatile} operations.  You may call @code{may_trap_p_1}\n\
-to analyze inner elements of @var{x} in which case @var{flags} should be\n\
-passed along.",
+ "This target hook returns nonzero if @var{x}, an @code{unspec} might cause\n\
+a trap.  Targets can use this hook to enhance precision of analysis for\n\
+@code{unspec} operations.  You may call @code{may_trap_p_1} to analyze inner\n\
+elements of @var{x} in which case @var{flags} should be passed along.",
  int, (const_rtx x, unsigned flags),
  default_unspec_may_trap_p)
 
@@ -4889,6 +4922,15 @@ the final call to @code{TARGET_FUNCTION_ARG}.\n\
 Most ports do not need to implement anything for this hook.",
  void, (cumulative_args_t complete_args),
  hook_void_CUMULATIVE_ARGS)
+
+DEFHOOK
+(call_offset_return_label,
+ "While generating call-site debug info for a CALL insn, or a SEQUENCE\n\
+insn starting with a CALL, this target hook is invoked to compute the\n\
+offset to be added to the debug label emitted after the call to obtain\n\
+the return address that should be recorded as the return PC.",
+ int, (rtx_insn *call_insn),
+ hook_int_rtx_insn_0)
 
 DEFHOOK
 (push_argument,
@@ -6370,6 +6412,15 @@ are zero or sign extended depending on if it is\n\
  bool, (int n, struct bitint_info *info),
  default_bitint_type_info)
 
+DEFHOOK
+(mode_for_floating_type,
+"Return machine mode for a C floating point type which is indicated by\n\
+ a given @code{enum tree_index} @var{ti}, @var{ti} should be\n\
+ @code{TI_FLOAT_TYPE}, @code{TI_DOUBLE_TYPE} or @code{TI_LONG_DOUBLE_TYPE}.\n\
+ The default implementation returns @code{SFmode} for @code{TI_FLOAT_TYPE},\n\
+ and @code{DFmode} for @code{TI_DOUBLE_TYPE} or @code{TI_LONG_DOUBLE_TYPE}.",
+ machine_mode, (enum tree_index ti), default_mode_for_floating_type)
+
 HOOK_VECTOR_END (c)
 
 /* Functions specific to the C++ frontend.  */
@@ -6498,7 +6549,7 @@ is in effect.  The default is to return false to use @code{__cxa_atexit}.",
  hook_bool_void_false)
 
 /* Returns true if target may use atexit in the same manner as
-   __cxa_atexit  to register static destructors.  */
+   __cxa_atexit to register static destructors.  */
 DEFHOOK
 (use_atexit_for_cxa_atexit,
  "This hook returns true if the target @code{atexit} function can be used\n\
@@ -6508,6 +6559,17 @@ shared libraries are run in the correct order when the libraries are\n\
 unloaded. The default is to return false.",
  bool, (void),
  hook_bool_void_false)
+
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+DEFHOOK
+(adjust_cdtor_callabi_fntype,
+ "This hook returns a possibly modified @code{FUNCTION_TYPE} for arguments\n\
+to @code{__cxa_atexit}, @code{__cxa_thread_atexit} or @code{__cxa_throw}\n\
+function pointers.  ABIs like mingw32 require special attributes to be added\n\
+to function types pointed to by arguments of these functions.\n\
+The default is to return the passed argument unmodified.",
+ tree, (tree fntype),
+ default_cxx_adjust_cdtor_callabi_fntype)
 
 DEFHOOK
 (adjust_class_at_definition,

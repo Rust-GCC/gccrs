@@ -2459,8 +2459,12 @@ interclass_mathfn_icode (tree arg, tree fndecl)
       errno_set = true; builtin_optab = ilogb_optab; break;
     CASE_FLT_FN (BUILT_IN_ISINF):
       builtin_optab = isinf_optab; break;
-    case BUILT_IN_ISNORMAL:
     case BUILT_IN_ISFINITE:
+      builtin_optab = isfinite_optab;
+      break;
+    case BUILT_IN_ISNORMAL:
+      builtin_optab = isnormal_optab;
+      break;
     CASE_FLT_FN (BUILT_IN_FINITE):
     case BUILT_IN_FINITED32:
     case BUILT_IN_FINITED64:
@@ -2835,9 +2839,7 @@ expand_builtin_issignaling (tree exp, rtx target)
 	     it is, working on the DImode high part is usually better.  */
 	  if (!MEM_P (temp))
 	    {
-	      if (rtx t = simplify_gen_subreg (imode, temp, fmode,
-					       subreg_highpart_offset (imode,
-								       fmode)))
+	      if (rtx t = force_highpart_subreg (imode, temp, fmode))
 		hi = t;
 	      else
 		{
@@ -2845,9 +2847,7 @@ expand_builtin_issignaling (tree exp, rtx target)
 		  if (int_mode_for_mode (fmode).exists (&imode2))
 		    {
 		      rtx temp2 = gen_lowpart (imode2, temp);
-		      poly_uint64 off = subreg_highpart_offset (imode, imode2);
-		      if (rtx t = simplify_gen_subreg (imode, temp2,
-						       imode2, off))
+		      if (rtx t = force_highpart_subreg (imode, temp2, imode2))
 			hi = t;
 		    }
 		}
@@ -2938,22 +2938,16 @@ expand_builtin_issignaling (tree exp, rtx target)
 	   it is, working on DImode parts is usually better.  */
 	if (!MEM_P (temp))
 	  {
-	    hi = simplify_gen_subreg (imode, temp, fmode,
-				      subreg_highpart_offset (imode, fmode));
-	    lo = simplify_gen_subreg (imode, temp, fmode,
-				      subreg_lowpart_offset (imode, fmode));
+	    hi = force_highpart_subreg (imode, temp, fmode);
+	    lo = force_lowpart_subreg (imode, temp, fmode);
 	    if (!hi || !lo)
 	      {
 		scalar_int_mode imode2;
 		if (int_mode_for_mode (fmode).exists (&imode2))
 		  {
 		    rtx temp2 = gen_lowpart (imode2, temp);
-		    hi = simplify_gen_subreg (imode, temp2, imode2,
-					      subreg_highpart_offset (imode,
-								      imode2));
-		    lo = simplify_gen_subreg (imode, temp2, imode2,
-					      subreg_lowpart_offset (imode,
-								     imode2));
+		    hi = force_highpart_subreg (imode, temp2, imode2);
+		    lo = force_lowpart_subreg (imode, temp2, imode2);
 		  }
 	      }
 	    if (!hi || !lo)
@@ -3502,7 +3496,7 @@ expand_builtin_strnlen (tree exp, rtx target, machine_mode target_mode)
     return NULL_RTX;
 
   wide_int min, max;
-  value_range r;
+  int_range_max r;
   get_global_range_query ()->range_of_expr (r, bound);
   if (r.varying_p () || r.undefined_p ())
     return NULL_RTX;
@@ -3576,7 +3570,7 @@ determine_block_size (tree len, rtx len_rtx,
 
       if (TREE_CODE (len) == SSA_NAME)
 	{
-	  value_range r;
+	  int_range_max r;
 	  tree tmin, tmax;
 	  get_global_range_query ()->range_of_expr (r, len);
 	  range_type = get_legacy_range (r, tmin, tmax);
@@ -6329,7 +6323,7 @@ expand_builtin_fork_or_exec (tree fn, tree exp, rtx target, int ignore)
   tree call;
 
   /* If we are not profiling, just call the function.  */
-  if (!profile_arc_flag)
+  if (!profile_arc_flag && !condition_coverage_flag)
     return NULL_RTX;
 
   /* Otherwise call the wrapper.  This should be equivalent for the rest of
@@ -10042,7 +10036,21 @@ fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
       tree ctype = build_complex_type (type);
       tree call = build_call_expr_internal_loc (loc, ifn, ctype, 2,
 						arg0, arg1);
-      tree tgt = save_expr (call);
+      tree tgt;
+      if (ovf_only)
+	{
+	  tgt = call;
+	  intres = NULL_TREE;
+	}
+      else
+	{
+	  /* Force SAVE_EXPR even for calls which satisfy tree_invariant_p_1,
+	     as while the call itself is const, the REALPART_EXPR store is
+	     certainly not.  And in any case, we want just one call,
+	     not multiple and trying to CSE them later.  */
+	  TREE_SIDE_EFFECTS (call) = 1;
+	  tgt = save_expr (call);
+	}
       intres = build1_loc (loc, REALPART_EXPR, type, tgt);
       ovfres = build1_loc (loc, IMAGPART_EXPR, type, tgt);
       ovfres = fold_convert_loc (loc, boolean_type_node, ovfres);
@@ -10354,11 +10362,17 @@ fold_builtin_addc_subc (location_t loc, enum built_in_function fcode,
   tree ctype = build_complex_type (type);
   tree call = build_call_expr_internal_loc (loc, ifn, ctype, 2,
 					    args[0], args[1]);
+  /* Force SAVE_EXPR even for calls which satisfy tree_invariant_p_1,
+     as while the call itself is const, the REALPART_EXPR store is
+     certainly not.  And in any case, we want just one call,
+     not multiple and trying to CSE them later.  */
+  TREE_SIDE_EFFECTS (call) = 1;
   tree tgt = save_expr (call);
   tree intres = build1_loc (loc, REALPART_EXPR, type, tgt);
   tree ovfres = build1_loc (loc, IMAGPART_EXPR, type, tgt);
   call = build_call_expr_internal_loc (loc, ifn, ctype, 2,
 				       intres, args[2]);
+  TREE_SIDE_EFFECTS (call) = 1;
   tgt = save_expr (call);
   intres = build1_loc (loc, REALPART_EXPR, type, tgt);
   tree ovfres2 = build1_loc (loc, IMAGPART_EXPR, type, tgt);
@@ -10461,7 +10475,7 @@ fold_builtin_1 (location_t loc, tree expr, tree fndecl, tree arg0)
   tree type = TREE_TYPE (TREE_TYPE (fndecl));
   enum built_in_function fcode = DECL_FUNCTION_CODE (fndecl);
 
-  if (TREE_CODE (arg0) == ERROR_MARK)
+  if (error_operand_p (arg0))
     return NULL_TREE;
 
   if (tree ret = fold_const_call (as_combined_fn (fcode), type, arg0))
@@ -10601,8 +10615,8 @@ fold_builtin_2 (location_t loc, tree expr, tree fndecl, tree arg0, tree arg1)
   tree type = TREE_TYPE (TREE_TYPE (fndecl));
   enum built_in_function fcode = DECL_FUNCTION_CODE (fndecl);
 
-  if (TREE_CODE (arg0) == ERROR_MARK
-      || TREE_CODE (arg1) == ERROR_MARK)
+  if (error_operand_p (arg0)
+      || error_operand_p (arg1))
     return NULL_TREE;
 
   if (tree ret = fold_const_call (as_combined_fn (fcode), type, arg0, arg1))
@@ -10693,9 +10707,9 @@ fold_builtin_3 (location_t loc, tree fndecl,
   tree type = TREE_TYPE (TREE_TYPE (fndecl));
   enum built_in_function fcode = DECL_FUNCTION_CODE (fndecl);
 
-  if (TREE_CODE (arg0) == ERROR_MARK
-      || TREE_CODE (arg1) == ERROR_MARK
-      || TREE_CODE (arg2) == ERROR_MARK)
+  if (error_operand_p (arg0)
+      || error_operand_p (arg1)
+      || error_operand_p (arg2))
     return NULL_TREE;
 
   if (tree ret = fold_const_call (as_combined_fn (fcode), type,

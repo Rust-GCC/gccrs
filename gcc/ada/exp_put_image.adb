@@ -32,6 +32,7 @@ with Einfo.Utils;    use Einfo.Utils;
 with Exp_Tss;        use Exp_Tss;
 with Exp_Util;       use Exp_Util;
 with Lib;            use Lib;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Nlists;         use Nlists;
 with Nmake;          use Nmake;
@@ -82,12 +83,11 @@ package body Exp_Put_Image is
    -------------------------------------
 
    procedure Build_Array_Put_Image_Procedure
-     (Nod  : Node_Id;
-      Typ  : Entity_Id;
+     (Typ  : Entity_Id;
       Decl : out Node_Id;
       Pnam : out Entity_Id)
    is
-      Loc  : constant Source_Ptr := Sloc (Nod);
+      Loc  : constant Source_Ptr := Sloc (Typ);
 
       function Wrap_In_Loop
         (Stms : List_Id;
@@ -132,7 +132,7 @@ package body Exp_Put_Image is
                  Expressions => New_List (
                    Make_Integer_Literal (Loc, Dim))));
          Loop_Stm : constant Node_Id :=
-           Make_Implicit_Loop_Statement (Nod, Statements => Stms);
+           Make_Implicit_Loop_Statement (Typ, Statements => Stms);
          Exit_Stm : constant Node_Id :=
            Make_Exit_Statement (Loc,
              Condition =>
@@ -403,9 +403,9 @@ package body Exp_Put_Image is
       end;
    end Build_Elementary_Put_Image_Call;
 
-   -------------------------------------
+   ---------------------------------
    -- Build_String_Put_Image_Call --
-   -------------------------------------
+   ---------------------------------
 
    function Build_String_Put_Image_Call (N : Node_Id) return Node_Id is
       Loc     : constant Source_Ptr := Sloc (N);
@@ -486,9 +486,9 @@ package body Exp_Put_Image is
             Relocate_Node (Sink)));
    end Build_Protected_Put_Image_Call;
 
-   ------------------------------------
+   -------------------------------
    -- Build_Task_Put_Image_Call --
-   ------------------------------------
+   -------------------------------
 
    --  For "Task_Type'Put_Image (S, Task_Object)", build:
    --
@@ -549,11 +549,11 @@ package body Exp_Put_Image is
    --    end Put_Image;
 
    procedure Build_Record_Put_Image_Procedure
-     (Loc  : Source_Ptr;
-      Typ  : Entity_Id;
+     (Typ  : Entity_Id;
       Decl : out Node_Id;
       Pnam : out Entity_Id)
    is
+      Loc  : constant Source_Ptr := Sloc (Typ);
       Btyp : constant Entity_Id := Base_Type (Typ);
       pragma Assert (not Is_Class_Wide_Type (Btyp));
       pragma Assert (not Is_Unchecked_Union (Btyp));
@@ -580,6 +580,18 @@ package body Exp_Put_Image is
 
       function Make_Component_Name (C : Entity_Id) return Node_Id;
       --  Create a call that prints "Comp_Name => "
+
+      function Null_Record_Default_Implementation_OK
+        (Null_Record_Type : Entity_Id) return Boolean
+      is
+        (if Has_Aspect (Null_Record_Type, Aspect_Put_Image)
+           then False
+         elsif not Is_Derived_Type
+                     (Implementation_Base_Type (Null_Record_Type))
+           then True
+         else Null_Record_Default_Implementation_OK
+                (Implementation_Base_Type (Etype (Null_Record_Type))));
+      --  return True iff ok to emit "(NULL RECORD)" for given null record type
 
       ------------------------------------
       -- Make_Component_List_Attributes --
@@ -639,12 +651,14 @@ package body Exp_Put_Image is
          return Result;
       end Make_Component_List_Attributes;
 
-      --------------------------------
+      ---------------------------
       -- Append_Component_Attr --
-      --------------------------------
+      ---------------------------
 
       procedure Append_Component_Attr (Clist : List_Id; C : Entity_Id) is
-         Component_Typ : constant Entity_Id := Put_Image_Base_Type (Etype (C));
+         Component_Typ : constant Entity_Id :=
+           Put_Image_Base_Type
+             (Get_Corresponding_Mutably_Tagged_Type_If_Present (Etype (C)));
       begin
          if Ekind (C) /= E_Void then
             Append_To (Clist,
@@ -827,15 +841,36 @@ package body Exp_Put_Image is
               Make_Raise_Program_Error (Loc,
               Reason => PE_Explicit_Raise));
          else
-            Append_To (Stms,
-              Make_Procedure_Call_Statement (Loc,
-                Name => New_Occurrence_Of (RTE (RE_Put_Image_Unknown), Loc),
-                Parameter_Associations => New_List
-                  (Make_Identifier (Loc, Name_S),
-                   Make_String_Literal (Loc,
-                     To_String (Fully_Qualified_Name_String (Btyp))))));
+            declare
+               Type_Name : String_Id;
+            begin
+               --  If aspect Discard_Names is enabled the intention is to
+               --  prevent type names from leaking into object file. Instead,
+               --  we emit string that is different from the ones from the
+               --  default implementations of the Put_Image attribute.
+
+               if Global_Discard_Names or else Discard_Names (Typ) then
+                  Start_String;
+                  Store_String_Chars ("(DISCARDED TYPE NAME)");
+                  Type_Name := End_String;
+               else
+                  Type_Name :=
+                    Fully_Qualified_Name_String (Btyp, Append_NUL => False);
+               end if;
+
+               Append_To (Stms,
+                 Make_Procedure_Call_Statement (Loc,
+                   Name => New_Occurrence_Of (RTE (RE_Put_Image_Unknown), Loc),
+                   Parameter_Associations => New_List
+                     (Make_Identifier (Loc, Name_S),
+                        Make_String_Literal (Loc,
+                          Type_Name))));
+            end;
          end if;
-      elsif Is_Null_Record_Type (Btyp, Ignore_Privacy => True) then
+
+      elsif Is_Null_Record_Type (Btyp, Ignore_Privacy => True)
+        and then Null_Record_Default_Implementation_OK (Btyp)
+      then
 
          --  Interface types take this path.
 
@@ -904,9 +939,9 @@ package body Exp_Put_Image is
       Build_Put_Image_Proc (Loc, Btyp, Decl, Pnam, Stms);
    end Build_Record_Put_Image_Procedure;
 
-   -------------------------------
+   -----------------------------
    -- Build_Put_Image_Profile --
-   -------------------------------
+   -----------------------------
 
    function Build_Put_Image_Profile
      (Loc : Source_Ptr; Typ : Entity_Id) return List_Id
@@ -951,9 +986,9 @@ package body Exp_Put_Image is
               Statements => Stms));
    end Build_Put_Image_Proc;
 
-   ------------------------------------
+   ----------------------------------
    -- Build_Unknown_Put_Image_Call --
-   ------------------------------------
+   ----------------------------------
 
    function Build_Unknown_Put_Image_Call (N : Node_Id) return Node_Id is
       Loc    : constant Source_Ptr := Sloc (N);
@@ -1290,6 +1325,14 @@ package body Exp_Put_Image is
          Actions := New_List (Sink_Decl, Put_Im, Result_Decl);
       end if;
 
+      --  To avoid leaks, we need to manage the secondary stack, because Get is
+      --  returning a String allocated thereon. It might be cleaner to let the
+      --  normal mechanisms for functions returning on the secondary stack call
+      --  Set_Uses_Sec_Stack, but this expansion of 'Image is happening too
+      --  late for that.
+
+      Set_Uses_Sec_Stack (Current_Scope);
+
       return Make_Expression_With_Actions (Loc,
         Actions    => Actions,
         Expression => New_Occurrence_Of (Result_Entity, Loc));
@@ -1341,6 +1384,8 @@ package body Exp_Put_Image is
    begin
       if Is_Array_Type (E) and then Is_First_Subtype (E) then
          return E;
+      elsif Is_Private_Type (Base_Type (E)) and not Is_Private_Type (E) then
+         return Implementation_Base_Type (E);
       else
          return Base_Type (E);
       end if;

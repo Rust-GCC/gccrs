@@ -136,6 +136,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__znver4");
       def_or_undef (parse_in, "__znver4__");
       break;
+    case PROCESSOR_ZNVER5:
+      def_or_undef (parse_in, "__znver5");
+      def_or_undef (parse_in, "__znver5__");
+      break;
     case PROCESSOR_BTVER1:
       def_or_undef (parse_in, "__btver1");
       def_or_undef (parse_in, "__btver1__");
@@ -151,6 +155,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     case PROCESSOR_YONGFENG:
       def_or_undef (parse_in, "__yongfeng");
       def_or_undef (parse_in, "__yongfeng__");
+      break;
+    case PROCESSOR_SHIJIDADAO:
+      def_or_undef (parse_in, "__shijidadao");
+      def_or_undef (parse_in, "__shijidadao__");
       break;
     case PROCESSOR_PENTIUM4:
       def_or_undef (parse_in, "__pentium4");
@@ -218,13 +226,6 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__clearwaterforest");
       def_or_undef (parse_in, "__clearwaterforest__");
       break;
-    case PROCESSOR_KNL:
-      def_or_undef (parse_in, "__knl");
-      def_or_undef (parse_in, "__knl__");
-      break;
-    case PROCESSOR_KNM:
-      def_or_undef (parse_in, "__knm");
-      def_or_undef (parse_in, "__knm__");
       break;
     case PROCESSOR_SKYLAKE:
       def_or_undef (parse_in, "__skylake");
@@ -374,6 +375,9 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     case PROCESSOR_ZNVER4:
       def_or_undef (parse_in, "__tune_znver4__");
       break;
+    case PROCESSOR_ZNVER5:
+      def_or_undef (parse_in, "__tune_znver5__");
+      break;
     case PROCESSOR_BTVER1:
       def_or_undef (parse_in, "__tune_btver1__");
       break;
@@ -385,6 +389,9 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
        break;
     case PROCESSOR_YONGFENG:
       def_or_undef (parse_in, "__tune_yongfeng__");
+       break;
+    case PROCESSOR_SHIJIDADAO:
+      def_or_undef (parse_in, "__tune_shijidadao__");
        break;
     case PROCESSOR_PENTIUM4:
       def_or_undef (parse_in, "__tune_pentium4__");
@@ -432,12 +439,6 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       break;
     case PROCESSOR_CLEARWATERFOREST:
       def_or_undef (parse_in, "__tune_clearwaterforest__");
-      break;
-    case PROCESSOR_KNL:
-      def_or_undef (parse_in, "__tune_knl__");
-      break;
-    case PROCESSOR_KNM:
-      def_or_undef (parse_in, "__tune_knm__");
       break;
     case PROCESSOR_SKYLAKE:
       def_or_undef (parse_in, "__tune_skylake__");
@@ -556,12 +557,8 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__AVX2__");
   if (isa_flag & OPTION_MASK_ISA_AVX512F)
     def_or_undef (parse_in, "__AVX512F__");
-  if (isa_flag & OPTION_MASK_ISA_AVX512ER)
-    def_or_undef (parse_in, "__AVX512ER__");
   if (isa_flag & OPTION_MASK_ISA_AVX512CD)
     def_or_undef (parse_in, "__AVX512CD__");
-  if (isa_flag & OPTION_MASK_ISA_AVX512PF)
-    def_or_undef (parse_in, "__AVX512PF__");
   if (isa_flag & OPTION_MASK_ISA_AVX512DQ)
     def_or_undef (parse_in, "__AVX512DQ__");
   if (isa_flag & OPTION_MASK_ISA_AVX512BW)
@@ -575,8 +572,6 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__AVX512VBMI__");
   if (isa_flag & OPTION_MASK_ISA_AVX512IFMA)
     def_or_undef (parse_in, "__AVX512IFMA__");
-  if (isa_flag2 & OPTION_MASK_ISA2_AVX5124VNNIW)
-    def_or_undef (parse_in, "__AVX5124VNNIW__");
   if (isa_flag & OPTION_MASK_ISA_AVX512VBMI2)
     def_or_undef (parse_in, "__AVX512VBMI2__");
   if (isa_flag & OPTION_MASK_ISA_AVX512VNNI)
@@ -585,8 +580,6 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__PCONFIG__");
   if (isa_flag2 & OPTION_MASK_ISA2_SGX)
     def_or_undef (parse_in, "__SGX__");
-  if (isa_flag2 & OPTION_MASK_ISA2_AVX5124FMAPS)
-    def_or_undef (parse_in, "__AVX5124FMAPS__");
   if (isa_flag & OPTION_MASK_ISA_AVX512BITALG)
     def_or_undef (parse_in, "__AVX512BITALG__");
   if (isa_flag & OPTION_MASK_ISA_AVX512VPOPCNTDQ)
@@ -635,8 +628,6 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__XSAVE__");
   if (isa_flag & OPTION_MASK_ISA_XSAVEOPT)
     def_or_undef (parse_in, "__XSAVEOPT__");
-  if (isa_flag & OPTION_MASK_ISA_PREFETCHWT1)
-    def_or_undef (parse_in, "__PREFETCHWT1__");
   if ((fpmath & FPMATH_SSE) && (isa_flag & OPTION_MASK_ISA_SSE))
     def_or_undef (parse_in, "__SSE_MATH__");
   if ((fpmath & FPMATH_SSE) && (isa_flag & OPTION_MASK_ISA_SSE2))
@@ -742,6 +733,14 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     }
   if (isa_flag2 & OPTION_MASK_ISA2_AVX10_1_512)
     def_or_undef (parse_in, "__AVX10_1_512__");
+  if (isa_flag2 & OPTION_MASK_ISA2_APX_F)
+    def_or_undef (parse_in, "__APX_F__");
+  if (ix86_apx_inline_asm_use_gpr32)
+    def_or_undef (parse_in, "__APX_INLINE_ASM_USE_GPR32__");
+  if (isa_flag2 & OPTION_MASK_ISA2_AVX10_2_256)
+    def_or_undef (parse_in, "__AVX10_2_256__");
+  if (isa_flag2 & OPTION_MASK_ISA2_AVX10_2_512)
+    def_or_undef (parse_in, "__AVX10_2_512__");
   if (TARGET_IAMCU)
     {
       def_or_undef (parse_in, "__iamcu");

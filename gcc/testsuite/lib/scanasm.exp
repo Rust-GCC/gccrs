@@ -869,15 +869,15 @@ proc configure_check-function-bodies { config } {
     # Regexp for the start of a function definition (name in \1).
     if { [istarget nvptx*-*-*] } {
 	set up_config(start) {
-	    {^// BEGIN(?: GLOBAL|) FUNCTION DEF: ([a-zA-Z_]\S+)$}
+	    {^// BEGIN(?: GLOBAL|) FUNCTION DEF: ([a-zA-Z_]\S*)$}
 	}
     } elseif { [istarget *-*-darwin*] } {
 	set up_config(start) {
-	    {^_([a-zA-Z_]\S+):$}
+	    {^_([a-zA-Z_]\S*):$}
 	    {^LFB[0-9]+:}
 	}
     } else {
-	set up_config(start) {{^([a-zA-Z_]\S+):$}}
+	set up_config(start) {{^([a-zA-Z_]\S*):$}}
     }
 
     # Regexp for the end of a function definition.
@@ -895,7 +895,7 @@ proc configure_check-function-bodies { config } {
 	# example).
 	set up_config(fluff) {^\s*(?://)}
     } elseif { [istarget *-*-darwin*] } {
-	set up_config(fluff) {^\s*(?:\.|//|@)|^L[0-9ACESV]}
+	set up_config(fluff) {^\s*(?:\.|//|@)|^L[0-9ABCESV]}
     } else {
 	# Skip lines beginning with labels ('.L[...]:') or other directives
 	# ('.align', '.cfi_startproc', '.quad [...]', '.text', etc.), '//' or

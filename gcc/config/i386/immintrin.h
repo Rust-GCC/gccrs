@@ -54,10 +54,6 @@
 
 #include <avx512fintrin.h>
 
-#include <avx512erintrin.h>
-
-#include <avx512pfintrin.h>
-
 #include <avx512cdintrin.h>
 
 #include <avx512vlintrin.h>
@@ -77,10 +73,6 @@
 #include <avx512vbmiintrin.h>
 
 #include <avx512vbmivlintrin.h>
-
-#include <avx5124fmapsintrin.h>
-
-#include <avx5124vnniwintrin.h>
 
 #include <avx512vpopcntdqintrin.h>
 
@@ -145,5 +137,7 @@
 #include <keylockerintrin.h>
 
 #include <amxfp16intrin.h>
+
+#include <avx10_2roundingintrin.h>
 
 #endif /* _IMMINTRIN_H_INCLUDED */

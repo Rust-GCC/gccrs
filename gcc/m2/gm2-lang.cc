@@ -191,7 +191,8 @@ gm2_langhook_init_options (unsigned int decoded_options_count,
       switch (code)
 	{
 	case OPT_fcpp:
-	  gcc_checking_assert (building_cpp_command);
+	  if (value)
+	    gcc_checking_assert (building_cpp_command);
 	  break;
 	case OPT_fcpp_begin:
 	  in_cpp_args = true;
@@ -214,8 +215,7 @@ gm2_langhook_init_options (unsigned int decoded_options_count,
 	  M2Options_Setc (value);
 	  break;
 	case OPT_dumpdir:
-	  if (building_cpp_command)
-	    M2Options_SetDumpDir (arg);
+	  M2Options_SetDumpDir (arg);
 	  break;
 	case OPT_save_temps:
 	  if (building_cpp_command)
@@ -407,6 +407,9 @@ gm2_langhook_handle_option (
 
   switch (code)
     {
+    case OPT_dumpdir:
+      M2Options_SetDumpDir (arg);
+      return 1;
     case OPT_I:
       push_back_Ipath (arg);
       return 1;
@@ -470,12 +473,6 @@ gm2_langhook_handle_option (
     case OPT_fdebug_builtins:
       M2Options_SetDebugBuiltins (value);
       return 1;
-    case OPT_fdebug_trace_quad:
-      M2Options_SetDebugTraceQuad (value);
-      return 1;
-    case OPT_fdebug_trace_api:
-      M2Options_SetDebugTraceAPI (value);
-      return 1;
     case OPT_fdebug_function_line_numbers:
       M2Options_SetDebugFunctionLineNumbers (value);
       return 1;
@@ -518,6 +515,23 @@ gm2_langhook_handle_option (
       return M2Options_SetUninitVariableChecking (value, arg);
     case OPT_fm2_strict_type:
       M2Options_SetStrictTypeChecking (value);
+      return 1;
+    case OPT_fm2_debug_trace_:
+      M2Options_SetM2DebugTraceFilter (value, arg);
+      return 1;
+    case OPT_fm2_dump_:
+      return M2Options_SetM2Dump (value, arg);
+    case OPT_fm2_dump_decl_:
+      M2Options_SetDumpDeclFilename (value, arg);
+      return 1;
+    case OPT_fm2_dump_gimple_:
+      M2Options_SetDumpGimpleFilename (value, arg);
+      return 1;
+    case OPT_fm2_dump_quad_:
+      M2Options_SetDumpQuadFilename (value, arg);
+      return 1;
+    case OPT_fm2_dump_filter_:
+      M2Options_SetM2DumpFilter (value, arg);
       return 1;
     case OPT_Wall:
       M2Options_SetWall (value);

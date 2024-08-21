@@ -126,6 +126,8 @@ static const sve_vec_cost neoversev1_sve_vector_cost =
   8, /* fadda_f64_cost  */
   32, /* gather_load_x32_cost  */
   16, /* gather_load_x64_cost  */
+  96, /* gather_load_x32_init_cost  */
+  32, /* gather_load_x64_init_cost  */
   3 /* scatter_store_elt_cost  */
 };
 
@@ -227,7 +229,8 @@ static const struct tune_params neoversev1_tunings =
   (AARCH64_EXTRA_TUNE_CSE_SVE_VL_CONSTANTS
    | AARCH64_EXTRA_TUNE_USE_NEW_VECTOR_COSTS
    | AARCH64_EXTRA_TUNE_MATCHED_VECTOR_THROUGHPUT
-   | AARCH64_EXTRA_TUNE_CHEAP_SHIFT_EXTEND),	/* tune_flags.  */
+   | AARCH64_EXTRA_TUNE_CHEAP_SHIFT_EXTEND
+   | AARCH64_EXTRA_TUNE_AVOID_PRED_RMW),	/* tune_flags.  */
   &generic_prefetch_tune,
   AARCH64_LDP_STP_POLICY_ALWAYS,   /* ldp_policy_model.  */
   AARCH64_LDP_STP_POLICY_ALWAYS    /* stp_policy_model.  */

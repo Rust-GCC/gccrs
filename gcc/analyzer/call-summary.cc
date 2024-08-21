@@ -19,6 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -148,7 +149,7 @@ call_summary::dump (const extrinsic_state &ext_state,
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_to_pp (ext_state, &pp, simple);
   pp_flush (&pp);
 }
@@ -234,6 +235,11 @@ call_summary_replay::convert_svalue_from_summary (const svalue *summary_sval)
     return *slot;
 
   const svalue *caller_sval = convert_svalue_from_summary_1 (summary_sval);
+
+  if (caller_sval)
+    if (summary_sval->get_type () && caller_sval->get_type ())
+      gcc_assert (types_compatible_p (summary_sval->get_type (),
+				      caller_sval->get_type ()));
 
   /* Add to cache.  */
   add_svalue_mapping (summary_sval, caller_sval);
@@ -552,6 +558,11 @@ call_summary_replay::convert_region_from_summary (const region *summary_reg)
 
   const region *caller_reg = convert_region_from_summary_1 (summary_reg);
 
+  if (caller_reg)
+    if (summary_reg->get_type () && caller_reg->get_type ())
+      gcc_assert (types_compatible_p (summary_reg->get_type (),
+				      caller_reg->get_type ()));
+
   /* Add to cache.  */
   add_region_mapping (summary_reg, caller_reg);
 
@@ -603,6 +614,8 @@ call_summary_replay::convert_region_from_summary_1 (const region *summary_reg)
 	  = get_caller_model ()->deref_rvalue (caller_ptr_sval,
 					       NULL_TREE,
 					       get_ctxt ());
+	caller_reg = mgr->get_cast_region (caller_reg,
+					   summary_reg->get_type ());
 	return caller_reg;
       }
       break;
@@ -713,13 +726,12 @@ call_summary_replay::convert_region_from_summary_1 (const region *summary_reg)
       {
 	const cast_region *summary_cast_reg
 	  = as_a <const cast_region *> (summary_reg);
-	const region *summary_original_reg
-	  = summary_cast_reg->get_original_region ();
-	const region *caller_original_reg
-	  = convert_region_from_summary (summary_original_reg);
-	if (!caller_original_reg)
+	const region *summary_parent_reg = summary_reg->get_parent_region ();
+	const region *caller_parent_reg
+	  = convert_region_from_summary (summary_parent_reg);
+	if (!caller_parent_reg)
 	  return NULL;
-	return mgr->get_cast_region (caller_original_reg,
+	return mgr->get_cast_region (caller_parent_reg,
 				     summary_reg->get_type ());
       }
       break;
@@ -878,7 +890,7 @@ call_summary_replay::dump (FILE *fp, bool simple) const
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_to_pp (&pp, simple);
   pp_flush (&pp);
 }

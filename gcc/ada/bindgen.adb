@@ -57,11 +57,11 @@ package body Bindgen is
    Num_Elab_Calls : Nat := 0;
    --  Number of generated calls to elaboration routines
 
-   Num_Primary_Stacks : Int := 0;
+   Num_Primary_Stacks : Nat := 0;
    --  Number of default-sized primary stacks the binder needs to allocate for
    --  task objects declared in the program.
 
-   Num_Sec_Stacks : Int := 0;
+   Num_Sec_Stacks : Nat := 0;
    --  Number of default-sized primary stacks the binder needs to allocate for
    --  task objects declared in the program.
 
@@ -273,9 +273,8 @@ package body Bindgen is
    --  such a pragma is given (the string will be a null string if no pragmas
    --  were used). If pragma were present the entries apply to the interrupts
    --  in sequence from the first interrupt, and are set to one of four
-   --  possible settings: 'n' for not specified, 'u' for user, 'r' for run
-   --  time, 's' for system, see description of Interrupt_State pragma for
-   --  further details.
+   --  possible settings: 'n', 'u', 'r', 's', see description in init.c
+   --  (__gnat_get_interrupt_state) for further details.
 
    --  Num_Interrupt_States is the length of the Interrupt_States string. It
    --  will be set to zero if no Interrupt_State pragmas are present.
@@ -819,14 +818,26 @@ package body Bindgen is
             WBI ("      pragma Import (C, XDR_Stream, ""__gl_xdr_stream"");");
          end if;
 
-         --  Import entry point for elaboration time signal handler
-         --  installation, and indication of if it's been called previously.
+         WBI ("      Interrupts_Default_To_System : Integer;");
+         WBI ("      pragma Import (C, Interrupts_Default_To_System, " &
+              """__gl_interrupts_default_to_system"");");
+
+         --  Import entry point for initialization of the runtime
 
          WBI ("");
          WBI ("      procedure Runtime_Initialize " &
               "(Install_Handler : Integer);");
          WBI ("      pragma Import (C, Runtime_Initialize, " &
               """__gnat_runtime_initialize"");");
+
+         --  Import entry point for initialization of the tasking runtime
+
+         if With_GNARL then
+            WBI ("");
+            WBI ("      procedure Tasking_Runtime_Initialize;");
+            WBI ("      pragma Import (C, Tasking_Runtime_Initialize, " &
+                 """__gnat_tasking_runtime_initialize"");");
+         end if;
 
          --  Import handlers attach procedure for sequential elaboration policy
 
@@ -1032,6 +1043,11 @@ package body Bindgen is
          Set_String (";");
          Write_Statement_Buffer;
 
+         if Interrupts_Default_To_System_Specified then
+            Set_String ("      Interrupts_Default_To_System := 1;");
+            Write_Statement_Buffer;
+         end if;
+
          if Leap_Seconds_Support then
             WBI ("      Leap_Seconds_Support := 1;");
          end if;
@@ -1090,6 +1106,12 @@ package body Bindgen is
          --  Generate call to Runtime_Initialize
 
          WBI ("      Runtime_Initialize (1);");
+
+         --  Generate call to Tasking_Runtime_Initialize
+
+         if With_GNARL then
+            WBI ("      Tasking_Runtime_Initialize;");
+         end if;
       end if;
 
       --  Generate call to set Initialize_Scalar values if active
@@ -2091,7 +2113,7 @@ package body Bindgen is
       if Bind_Main_Program
         and then not Minimal_Binder
         and then not CodePeer_Mode
-        and then not Generate_C_Code
+        and then not CCG_Mode
       then
          WBI ("      Ensure_Reference : aliased System.Address := " &
               "Ada_Main_Program_Name'Address;");
@@ -3491,7 +3513,11 @@ package body Bindgen is
 
             begin
                while IS_Pragma_Settings.Last < Inum loop
-                  IS_Pragma_Settings.Append ('n');
+                  if Interrupts_Default_To_System_Specified then
+                     IS_Pragma_Settings.Append ('s');
+                  else
+                     IS_Pragma_Settings.Append ('n');
+                  end if;
                end loop;
 
                IS_Pragma_Settings.Table (Inum) := Stat;

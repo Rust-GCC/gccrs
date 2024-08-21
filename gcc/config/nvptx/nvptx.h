@@ -75,9 +75,6 @@
 #define INT_TYPE_SIZE 32
 #define LONG_TYPE_SIZE (TARGET_ABI64 ? 64 : 32)
 #define LONG_LONG_TYPE_SIZE 64
-#define FLOAT_TYPE_SIZE 32
-#define DOUBLE_TYPE_SIZE 64
-#define LONG_DOUBLE_TYPE_SIZE 64
 #define TARGET_SUPPORTS_WIDE_INT 1
 
 #undef SIZE_TYPE
@@ -356,7 +353,19 @@ struct GTY(()) machine_function
 #define MOVE_MAX 8
 #define MOVE_RATIO(SPEED) 4
 #define FUNCTION_MODE QImode
-#define HAS_INIT_SECTION 1
+
+/* Implement global constructor, destructor support in a conceptually simpler
+   way than using 'collect2' (the program): implement the respective
+   functionality in the nvptx-tools 'ld'.  This however still requires the
+   compiler-side effects corresponding to 'USE_COLLECT2': the global
+   constructor, destructor support functions need to have external linkage, and
+   therefore names that are "unique across the whole link".  Use
+   '!targetm.have_ctors_dtors' to achieve this (..., and thus don't need to
+   provide 'targetm.asm_out.constructor', 'targetm.asm_out.destructor').  */
+#define TARGET_HAVE_CTORS_DTORS false
+
+/* See 'libgcc/config/nvptx/crt0.c' for wrapping of 'main'.  */
+#define HAS_INIT_SECTION
 
 /* The C++ front end insists to link against libstdc++ -- which we don't build.
    Tell it to instead link against the innocuous libgcc.  */

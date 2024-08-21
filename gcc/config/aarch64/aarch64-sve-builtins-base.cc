@@ -47,10 +47,30 @@
 #include "aarch64-builtins.h"
 #include "ssa.h"
 #include "gimple-fold.h"
+#include "tree-ssa.h"
 
 using namespace aarch64_sve;
 
 namespace {
+
+/* Return true if VAL is an undefined value.  */
+static bool
+is_undef (tree val)
+{
+  if (TREE_CODE (val) == SSA_NAME)
+    {
+      if (ssa_undefined_value_p (val, false))
+	return true;
+
+      gimple *def = SSA_NAME_DEF_STMT (val);
+      if (gcall *call = dyn_cast<gcall *> (def))
+	if (tree fndecl = gimple_call_fndecl (call))
+	  if (const function_instance *instance = lookup_fndecl (fndecl))
+	    if (instance->base == functions::svundef)
+	      return true;
+    }
+  return false;
+}
 
 /* Return the UNSPEC_CMLA* unspec for rotation amount ROT.  */
 static int
@@ -251,7 +271,7 @@ public:
       }
 
     if (e.pred == PRED_x)
-      return e.use_unpred_insn (code_for_aarch64_bic (e.vector_mode (0)));
+      return e.use_unpred_insn (e.direct_optab_handler (andn_optab));
 
     return e.use_cond_insn (code_for_cond_bic (e.vector_mode (0)));
   }
@@ -497,15 +517,22 @@ public:
   expand (function_expander &e) const override
   {
     machine_mode mode = e.vector_mode (0);
-    if (e.pred == PRED_x)
-      {
-	/* The pattern for CNOT includes an UNSPEC_PRED_Z, so needs
-	   a ptrue hint.  */
-	e.add_ptrue_hint (0, e.gp_mode (0));
-	return e.use_pred_x_insn (code_for_aarch64_pred_cnot (mode));
-      }
+    machine_mode pred_mode = e.gp_mode (0);
+    /* The underlying _x pattern is effectively:
 
-    return e.use_cond_insn (code_for_cond_cnot (mode), 0);
+	 dst = src == 0 ? 1 : 0
+
+       rather than an UNSPEC_PRED_X.  Using this form allows autovec
+       constructs to be matched by combine, but it means that the
+       predicate on the src == 0 comparison must be all-true.
+
+       For simplicity, represent other _x operations as fully-defined _m
+       operations rather than using a separate bespoke pattern.  */
+    if (e.pred == PRED_x
+	&& gen_lowpart (pred_mode, e.args[0]) == CONSTM1_RTX (pred_mode))
+      return e.use_pred_x_insn (code_for_aarch64_ptrue_cnot (mode));
+    return e.use_cond_insn (code_for_cond_cnot (mode),
+			    e.pred == PRED_x ? 1 : 0);
   }
 };
 
@@ -718,6 +745,53 @@ public:
     return e.use_cond_insn (icode);
   }
 };
+
+class svdiv_impl : public rtx_code_function
+{
+public:
+  CONSTEXPR svdiv_impl ()
+    : rtx_code_function (DIV, UDIV, UNSPEC_COND_FDIV) {}
+
+  gimple *
+  fold (gimple_folder &f) const override
+  {
+    tree divisor = gimple_call_arg (f.call, 2);
+    tree divisor_cst = uniform_integer_cst_p (divisor);
+
+    if (!divisor_cst || !integer_pow2p (divisor_cst))
+      return NULL;
+
+    tree new_divisor;
+    gcall *call;
+
+    if (f.type_suffix (0).unsigned_p && tree_to_uhwi (divisor_cst) != 1)
+      {
+	function_instance instance ("svlsr", functions::svlsr,
+				    shapes::binary_uint_opt_n, MODE_n,
+				    f.type_suffix_ids, GROUP_none, f.pred);
+	call = f.redirect_call (instance);
+	tree d = INTEGRAL_TYPE_P (TREE_TYPE (divisor)) ? divisor : divisor_cst;
+	new_divisor = wide_int_to_tree (TREE_TYPE (d), tree_log2 (d));
+      }
+    else
+      {
+	if (tree_int_cst_sign_bit (divisor_cst)
+	    || tree_to_shwi (divisor_cst) == 1)
+	  return NULL;
+
+	function_instance instance ("svasrd", functions::svasrd,
+				    shapes::shift_right_imm, MODE_n,
+				    f.type_suffix_ids, GROUP_none, f.pred);
+	call = f.redirect_call (instance);
+	new_divisor = wide_int_to_tree (scalar_types[VECTOR_TYPE_svuint64_t],
+					tree_log2 (divisor_cst));
+      }
+
+    gimple_call_set_arg (call, 2, new_divisor);
+    return call;
+  }
+};
+
 
 class svdot_impl : public function_base
 {
@@ -1094,9 +1168,8 @@ public:
   expand (function_expander &e) const override
   {
     /* Fold the access into a subreg rvalue.  */
-    return simplify_gen_subreg (e.vector_mode (0), e.args[0],
-				GET_MODE (e.args[0]),
-				INTVAL (e.args[1]) * BYTES_PER_SVE_VECTOR);
+    return force_subreg (e.vector_mode (0), e.args[0], GET_MODE (e.args[0]),
+			 INTVAL (e.args[1]) * BYTES_PER_SVE_VECTOR);
   }
 };
 
@@ -1130,8 +1203,7 @@ public:
 	e.add_fixed_operand (indices);
 	return e.generate_insn (icode);
       }
-    return simplify_gen_subreg (e.result_mode (), e.args[0],
-				GET_MODE (e.args[0]), 0);
+    return force_subreg (e.result_mode (), e.args[0], GET_MODE (e.args[0]), 0);
   }
 };
 
@@ -1142,6 +1214,13 @@ public:
   expand (function_expander &e) const override
   {
     machine_mode mode = e.vector_mode (0);
+
+    /* If the SVE argument is undefined, we just need to reinterpret the
+       Advanced SIMD argument as an SVE vector.  */
+    if (!BYTES_BIG_ENDIAN
+	&& is_undef (CALL_EXPR_ARG (e.call_expr, 0)))
+      return force_subreg (mode, e.args[1], GET_MODE (e.args[1]), 0);
+
     rtx_vector_builder builder (VNx16BImode, 16, 2);
     for (unsigned int i = 0; i < 16; i++)
       builder.quick_push (CONST1_RTX (BImode));
@@ -1151,7 +1230,7 @@ public:
     if (BYTES_BIG_ENDIAN)
       return e.use_exact_insn (code_for_aarch64_sve_set_neonq (mode));
     insn_code icode = code_for_vcond_mask (mode, mode);
-    e.args[1] = lowpart_subreg (mode, e.args[1], GET_MODE (e.args[1]));
+    e.args[1] = force_lowpart_subreg (mode, e.args[1], GET_MODE (e.args[1]));
     e.add_output_operand (icode);
     e.add_input_operand (icode, e.args[1]);
     e.add_input_operand (icode, e.args[0]);
@@ -2775,7 +2854,7 @@ public:
        version) is through the USDOT instruction but with the second and third
        inputs swapped.  */
     if (m_su)
-      e.rotate_inputs_left (1, 2);
+      e.rotate_inputs_left (1, 3);
     /* The ACLE function has the same order requirements as for svdot.
        While there's no requirement for the RTL pattern to have the same sort
        of order as that for <sur>dot_prod, it's easier to read.
@@ -3011,7 +3090,7 @@ FUNCTION (svcreate3, svcreate_impl, (3))
 FUNCTION (svcreate4, svcreate_impl, (4))
 FUNCTION (svcvt, svcvt_impl,)
 FUNCTION (svcvtnt, CODE_FOR_MODE0 (aarch64_sve_cvtnt),)
-FUNCTION (svdiv, rtx_code_function, (DIV, UDIV, UNSPEC_COND_FDIV))
+FUNCTION (svdiv, svdiv_impl,)
 FUNCTION (svdivr, rtx_code_function_rotated, (DIV, UDIV, UNSPEC_COND_FDIV))
 FUNCTION (svdot, svdot_impl,)
 FUNCTION (svdot_lane, svdotprod_lane_impl, (UNSPEC_SDOT, UNSPEC_UDOT,
@@ -3152,7 +3231,7 @@ FUNCTION (svqincp, svqdecp_svqincp_impl, (SS_PLUS, US_PLUS))
 FUNCTION (svqincw, svqinc_bhwd_impl, (SImode))
 FUNCTION (svqincw_pat, svqinc_bhwd_impl, (SImode))
 FUNCTION (svqsub, rtx_code_function, (SS_MINUS, US_MINUS, -1))
-FUNCTION (svrbit, unspec_based_function, (UNSPEC_RBIT, UNSPEC_RBIT, -1))
+FUNCTION (svrbit, rtx_code_function, (BITREVERSE, BITREVERSE, -1))
 FUNCTION (svrdffr, svrdffr_impl,)
 FUNCTION (svrecpe, unspec_based_function, (-1, UNSPEC_URECPE, UNSPEC_FRECPE))
 FUNCTION (svrecps, unspec_based_function, (-1, -1, UNSPEC_FRECPS))

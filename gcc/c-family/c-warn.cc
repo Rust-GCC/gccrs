@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "stringpool.h"
 #include "attribs.h"
 #include "asan.h"
-#include "gcc-rich-location.h"
+#include "c-family/c-type-mismatch.h"
 #include "gimplify.h"
 #include "c-family/c-indentation.h"
 #include "c-family/c-spellcheck.h"
@@ -2176,7 +2176,6 @@ warn_about_parentheses (location_t loc, enum tree_code code,
 	}
       return;
     }
-#undef NOT_A_BOOLEAN_EXPR_P
 }
 
 /* If LABEL (a LABEL_DECL) has not been used, issue a warning.  */
@@ -2186,7 +2185,9 @@ warn_for_unused_label (tree label)
 {
   if (!TREE_USED (label))
     {
-      if (DECL_INITIAL (label))
+      if (warning_suppressed_p (label, OPT_Wunused_label))
+	/* Don't warn.  */;
+      else if (DECL_INITIAL (label))
 	warning (OPT_Wunused_label, "label %q+D defined but not used", label);
       else
 	warning (OPT_Wunused_label, "label %q+D declared but not defined", label);
@@ -3831,11 +3832,16 @@ do_warn_array_compare (location_t location, tree_code code, tree op0, tree op1)
       /* C doesn't allow +arr.  */
       if (c_dialect_cxx ())
 	inform (location, "use unary %<+%> which decays operands to pointers "
-		"or %<&%D[0] %s &%D[0]%> to compare the addresses",
-		op0, op_symbol_code (code), op1);
+		"or %<&%s%E%s[0] %s &%s%E%s[0]%> to compare the addresses",
+		DECL_P (op0) ? "" : "(", op0, DECL_P (op0) ? "" : ")",
+		op_symbol_code (code),
+		DECL_P (op1) ? "" : "(", op1, DECL_P (op1) ? "" : ")");
       else
-	inform (location, "use %<&%D[0] %s &%D[0]%> to compare the addresses",
-		op0, op_symbol_code (code), op1);
+	inform (location,
+		"use %<&%s%E%s[0] %s &%s%E%s[0]%> to compare the addresses",
+		DECL_P (op0) ? "" : "(", op0, DECL_P (op0) ? "" : ")",
+		op_symbol_code (code),
+		DECL_P (op1) ? "" : "(", op1, DECL_P (op1) ? "" : ")");
     }
 }
 

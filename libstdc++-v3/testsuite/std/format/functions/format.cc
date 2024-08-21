@@ -8,6 +8,8 @@
 # error "Feature test macro for std::format is missing in <format>"
 #elif __cpp_lib_format < 202110L
 # error "Feature test macro for std::format has wrong value in <format>"
+#elif __cplusplus > 202302L && __cpp_lib_format < 202311L
+# error "Feature test macro for std::format has wrong value in <format>"
 #endif
 
 #ifndef __cpp_lib_format_uchar
@@ -21,6 +23,8 @@
 #ifndef __cpp_lib_format
 # error "Feature test macro for std::format is missing in <version>"
 #elif __cpp_lib_format < 202110L
+# error "Feature test macro for std::format has wrong value in <version>"
+#elif __cplusplus > 202302L && __cpp_lib_format < 202311L
 # error "Feature test macro for std::format has wrong value in <version>"
 #endif
 
@@ -157,6 +161,11 @@ test_std_examples()
 
     // Restore
     std::locale::global(std::locale::classic());
+
+    string s5 = format("{}", -100); // PR libstdc++/114325
+    VERIFY(s5 == "-100");
+    string s6 = format("{:d} {:d}", -123, 999);
+    VERIFY(s6 == "-123 999");
   }
 }
 
@@ -242,6 +251,14 @@ test_locale()
 
   s = std::format(cloc, "{:05L}", -1.0); // PR libstdc++/110968
   VERIFY( s == "-0001" );
+
+  // PR libstdc++/114863 grouping applied to nan and inf
+  double inf = std::numeric_limits<double>::infinity();
+  s = std::format(eloc, "{0:Le} {0:Lf} {0:Lg}", -inf);
+  VERIFY( s == "-inf -inf -inf" );
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  s = std::format(eloc, "{0:Le} {0:Lf} {0:Lg}", -nan);
+  VERIFY( s == "-nan -nan -nan" );
 
   // Restore
   std::locale::global(cloc);
@@ -445,7 +462,7 @@ test_pointer()
   s = std::format("{:20} {:20p}", p, pc);
   VERIFY( s == (str_int + ' ' + str_int) );
 
-#if __cplusplus > 202302L || ! defined __STRICT_ANSI__
+#if __cpp_lib_format >= 202304L
   // P2510R3 Formatting pointers
   s = std::format("{:06} {:07P} {:08p}", (void*)0, (const void*)0, nullptr);
   VERIFY( s == "0x0000 0X00000 0x000000" );

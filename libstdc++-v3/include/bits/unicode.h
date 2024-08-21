@@ -34,10 +34,12 @@
 #include <array>
 #include <bit>      // bit_width
 #include <charconv> // __detail::__from_chars_alnum_to_val_table
+#include <string_view>
 #include <cstdint>
 #include <bits/stl_algo.h>
 #include <bits/stl_iterator.h>
-#include <bits/ranges_base.h>
+#include <bits/ranges_base.h> // iterator_t, sentinel_t, input_range, etc.
+#include <bits/ranges_util.h> // view_interface
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -261,9 +263,13 @@ namespace __unicode
       {
 	_Guard<_Iter> __g{this, _M_curr()};
 	char32_t __c{};
-	uint8_t __u = *_M_curr()++;
 	const uint8_t __lo_bound = 0x80, __hi_bound = 0xBF;
+	uint8_t __u = *_M_curr()++;
 	uint8_t __to_incr = 1;
+	auto __incr = [&, this] {
+	  ++__to_incr;
+	  return ++_M_curr();
+	};
 
 	if (__u <= 0x7F) [[likely]]      // 0x00 to 0x7F
 	  __c = __u;
@@ -281,8 +287,7 @@ namespace __unicode
 	    else
 	      {
 		__c = (__c << 6) | (__u & 0x3F);
-		++_M_curr();
-		++__to_incr;
+		__incr();
 	      }
 	  }
 	else if (__u <= 0xEF) // 0xE0 to 0xEF
@@ -295,11 +300,10 @@ namespace __unicode
 
 	    if (__u < __lo_bound_2 || __u > __hi_bound_2) [[unlikely]]
 	      __c = _S_error();
-	    else if (++_M_curr() == _M_last) [[unlikely]]
+	    else if (__incr() == _M_last) [[unlikely]]
 	      __c = _S_error();
 	    else
 	      {
-		++__to_incr;
 		__c = (__c << 6) | (__u & 0x3F);
 		__u = *_M_curr();
 
@@ -308,8 +312,7 @@ namespace __unicode
 		else
 		  {
 		    __c = (__c << 6) | (__u & 0x3F);
-		    ++_M_curr();
-		    ++__to_incr;
+		    __incr();
 		  }
 	      }
 	  }
@@ -323,21 +326,19 @@ namespace __unicode
 
 	    if (__u < __lo_bound_2 || __u > __hi_bound_2) [[unlikely]]
 	      __c = _S_error();
-	    else if (++_M_curr() == _M_last) [[unlikely]]
+	    else if (__incr() == _M_last) [[unlikely]]
 	      __c = _S_error();
 	    else
 	      {
-		++__to_incr;
 		__c = (__c << 6) | (__u & 0x3F);
 		__u = *_M_curr();
 
 		if (__u < __lo_bound || __u > __hi_bound) [[unlikely]]
 		  __c = _S_error();
-		else if (++_M_curr() == _M_last) [[unlikely]]
+		else if (__incr() == _M_last) [[unlikely]]
 		  __c = _S_error();
 		else
 		  {
-		    ++__to_incr;
 		    __c = (__c << 6) | (__u & 0x3F);
 		    __u = *_M_curr();
 
@@ -346,8 +347,7 @@ namespace __unicode
 		    else
 		      {
 			__c = (__c << 6) | (__u & 0x3F);
-			++_M_curr();
-			++__to_incr;
+			__incr();
 		      }
 		  }
 	      }
@@ -578,8 +578,13 @@ namespace __unicode
       constexpr bool empty() const { return ranges::empty(_M_base); }
     };
 
+#ifdef __cpp_char8_t
   template<typename _View>
     using _Utf8_view = _Utf_view<char8_t, _View>;
+#else
+  template<typename _View>
+    using _Utf8_view = _Utf_view<char, _View>;
+#endif
   template<typename _View>
     using _Utf16_view = _Utf_view<char16_t, _View>;
   template<typename _View>
@@ -799,7 +804,7 @@ inline namespace __v15_1_0
 	operator++(int)
 	{
 	  auto __tmp = *this;
-	  ++this;
+	  ++*this;
 	  return __tmp;
 	}
 
@@ -991,12 +996,14 @@ inline namespace __v15_1_0
     consteval bool
     __literal_encoding_is_unicode()
     {
-      if constexpr (is_same_v<_CharT, char8_t>)
-	return true;
-      else if constexpr (is_same_v<_CharT, char16_t>)
+      if constexpr (is_same_v<_CharT, char16_t>)
 	return true;
       else if constexpr (is_same_v<_CharT, char32_t>)
 	  return true;
+#ifdef __cpp_char8_t
+      else if constexpr (is_same_v<_CharT, char8_t>)
+	return true;
+#endif
 
       const char* __enc = "";
 

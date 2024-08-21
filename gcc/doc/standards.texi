@@ -42,6 +42,8 @@ with some exceptions, and possibly with some extensions.
 @cindex C23
 @cindex ISO C2X
 @cindex C2X
+@cindex ISO C2Y
+@cindex C2Y
 @cindex Technical Corrigenda
 @cindex TC1
 @cindex Technical Corrigendum 1
@@ -113,11 +115,15 @@ known as @dfn{C17} and is supported with @option{-std=c17} or
 @option{-std=c11}, and the only difference between the options is the
 value of @code{__STDC_VERSION__}.
 
-A further version of the C standard, known as @dfn{C23}, is under
+A fifth version of the C standard, known as @dfn{C23}, is under
 development and expected to be published in 2024 as ISO/IEC 9899:2024.
 (While in development, drafts of this standard version were referred
 to as @dfn{C2X}.)  Experimental and incomplete support for this is
 enabled with @option{-std=c23} or @option{-std=iso9899:2024}.
+
+A further version of the C standard, known as @dfn{C2Y}, is under
+development; experimental and incomplete support for this is enabled
+with @option{-std=c2y}.
 
 By default, GCC provides some extensions to the C language that, on
 rare occasions conflict with the C standard.  @xref{C
@@ -331,6 +337,17 @@ described at @uref{https://go.dev/doc/go1}.
 GCC supports the D 2.0 programming language.  The D language itself is
 currently defined by its reference implementation and supporting language
 specification, described at @uref{https://dlang.org/spec/spec.html}.
+
+@section Modula-2 language
+
+GCC supports the Modula-2 language and is compliant with the PIM2,
+PIM3, PIM4 and ISO dialects.  Also implemented are a complete set of
+free ISO libraries.  It also contains a collection of PIM libraries
+and some Logitech compatible libraries.
+
+For more information on Modula-2 see
+@uref{https://gcc.gnu.org/readings.html}.  The online manual is
+available at @uref{https://gcc.gnu.org/onlinedocs/gm2/index.html}.
 
 @section References for Other Languages
 

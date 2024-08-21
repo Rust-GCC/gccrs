@@ -2079,6 +2079,72 @@ mips_const_vector_shuffle_set_p (rtx op, machine_mode mode)
   int nsets = nunits / 4;
   int set = 0;
   int i, j;
+  int val[4];
+  bool ok;
+
+  /* We support swapping 2 Doubleword part with shf.w.  */
+  if (ISA_HAS_MSA && (mode == V2DFmode || mode == V2DImode))
+    {
+      if (!IN_RANGE (INTVAL (XVECEXP (op, 0, 0)), 0, 1)
+	  || !IN_RANGE (INTVAL (XVECEXP (op, 0, 1)), 0, 1))
+	return false;
+    }
+
+  if (ISA_HAS_MSA && mode == V16QImode)
+    {
+     /* We can use shf.w if the elements are in-order inner 32bit.  */
+      ok = true;
+      for (j = 0; j < 4; j++)
+	{
+	  val[0] = INTVAL (XVECEXP (op, 0, j * 4));
+	  val[1] = INTVAL (XVECEXP (op, 0, j * 4 + 1));
+	  val[2] = INTVAL (XVECEXP (op, 0, j * 4 + 2));
+	  val[3] = INTVAL (XVECEXP (op, 0, j * 4 + 3));
+	  if (val[0] != val[1] - 1
+	      || val[1] != val[2] - 1
+	      || val[2] != val[3] - 1)
+	    ok = false;
+	  if (val[0] != 0 && val[0] != 4 && val[0] != 8 && val[0] != 12)
+	    ok = false;
+	}
+      if (ok)
+	return ok;
+
+      /* We can use shf.h if the elements are in order inner 16bit.  */
+      ok = true;
+      for (j = 0; j < 4; j++)
+	{
+	  val[0] = INTVAL (XVECEXP (op, 0, j * 2));
+	  val[1] = INTVAL (XVECEXP (op, 0, j * 2 + 1));
+	  val[2] = INTVAL (XVECEXP (op, 0, j * 2 + 8));
+	  val[3] = INTVAL (XVECEXP (op, 0, j * 2 + 1 + 8));
+	  if (val[0] != val[1] - 1 || val[2] != val[3] - 1)
+	    ok = false;
+	  if (val[0] != val[2] - 8 || val[1] != val[3] - 8)
+	    ok = false;
+	  if (val[0] != 0 && val[0] != 2 && val[0] != 4 && val[0] != 6)
+	    ok = false;
+	}
+      if (ok)
+	return ok;
+    }
+
+  if (ISA_HAS_MSA && mode == V8HImode)
+    {
+     /* We can use shf.w if the elements are in-order inner 32bit.  */
+      ok = true;
+      for (j = 0; j < 4; j++)
+	{
+	  val[0] = INTVAL (XVECEXP (op, 0, j * 2));
+	  val[1] = INTVAL (XVECEXP (op, 0, j * 2 + 1));
+	  if (val[0] != val[1] - 1)
+	    ok = false;
+	  if (val[0] != 0 && val[0] != 2 && val[0] != 4 && val[0] != 6)
+	    ok = false;
+	}
+      if (ok)
+	return ok;
+    }
 
   /* Check if we have the same 4-element sets.  */
   for (j = 0; j < nsets; j++, set = 4 * j)
@@ -3233,6 +3299,9 @@ mips_emit_call_insn (rtx pattern, rtx orig_addr, rtx addr, bool lazy_p)
     {
       rtx post_call_tmp_reg = gen_rtx_REG (word_mode, POST_CALL_TMP_REG);
       clobber_reg (&CALL_INSN_FUNCTION_USAGE (insn), post_call_tmp_reg);
+      clobber_reg (&CALL_INSN_FUNCTION_USAGE (insn), MIPS16_PIC_TEMP);
+      clobber_reg (&CALL_INSN_FUNCTION_USAGE (insn),
+			MIPS_PROLOGUE_TEMP (word_mode));
     }
 
   return insn;
@@ -3329,7 +3398,13 @@ mips16_gp_pseudo_reg (void)
       rtx set = gen_load_const_gp (cfun->machine->mips16_gp_pseudo_rtx);
       rtx_insn *insn = emit_insn_after (set, scan);
       INSN_LOCATION (insn) = 0;
-
+      /* NewABI support hasn't been implement.  NewABI should generate RTL
+	 sequence instead of ASM sequence directly.  */
+      if (mips_current_loadgp_style () == LOADGP_OLDABI)
+	{
+	  emit_clobber (MIPS16_PIC_TEMP);
+	  emit_clobber (MIPS_PROLOGUE_TEMP (Pmode));
+	}
       pop_topmost_sequence ();
     }
 
@@ -4190,7 +4265,7 @@ mips_insn_cost (rtx_insn *x, bool speed)
 
   count = get_attr_insn_count (x);
   ratio = get_attr_perf_ratio (x);
-  cost = count * ratio;
+  cost = COSTS_N_INSNS (count) * ratio;
   if (cost > 0)
     return cost;
 
@@ -4682,6 +4757,30 @@ mips_rtx_costs (rtx x, machine_mode mode, int outer_code,
 	{
 	  *total = mips_set_reg_reg_cost (GET_MODE (SET_DEST (x)));
 	  return true;
+	}
+      int insn_code;
+      if (register_operand (SET_DEST (x), VOIDmode)
+	  && GET_CODE (SET_SRC (x)) == IF_THEN_ELSE)
+	insn_code = recog_memoized (make_insn_raw (x));
+      else
+	insn_code = -1;
+      switch (insn_code)
+	{
+	/* MIPS16e2 ones may be listed here, while the only known CPU core
+	   that implements MIPS16e2 is interAptiv.  The Dependency delays
+	   of MOVN/MOVZ on interAptiv is 3.  */
+	case CODE_FOR_movsi_on_si:
+	case CODE_FOR_movdi_on_si:
+	case CODE_FOR_movsi_on_di:
+	case CODE_FOR_movdi_on_di:
+	case CODE_FOR_movsi_on_si_ne:
+	case CODE_FOR_movdi_on_si_ne:
+	case CODE_FOR_movsi_on_di_ne:
+	case CODE_FOR_movdi_on_di_ne:
+	  *total = mips_set_reg_reg_cost (GET_MODE (SET_DEST (x)));
+	  return true;
+	default:
+	  break;
 	}
       return false;
 
@@ -5650,7 +5749,7 @@ mips_allocate_fcc (machine_mode mode)
 
   gcc_assert (TARGET_HARD_FLOAT && ISA_HAS_8CC);
 
-  if (mode == CCmode)
+  if (mode == CCmode || mode == CCEmode)
     count = 1;
   else if (mode == CCV2mode)
     count = 2;
@@ -5779,17 +5878,57 @@ mips_emit_compare (enum rtx_code *code, rtx *op0, rtx *op1, bool need_eq_ne_p)
 	  /* Three FP conditions cannot be implemented by reversing the
 	     operands for C.cond.fmt, instead a reversed condition code is
 	     required and a test for false.  */
+	  machine_mode ccmode = CCmode;
+	  switch (*code)
+	    {
+	    case LTGT:
+	    case LT:
+	    case LE:
+	      ccmode = CCEmode;
+	      break;
+	    default:
+	      break;
+	    }
 	  *code = mips_reversed_fp_cond (&cmp_code) ? EQ : NE;
 	  if (ISA_HAS_8CC)
-	    *op0 = mips_allocate_fcc (CCmode);
+	    *op0 = mips_allocate_fcc (ccmode);
 	  else
-	    *op0 = gen_rtx_REG (CCmode, FPSW_REGNUM);
+	    *op0 = gen_rtx_REG (ccmode, FPSW_REGNUM);
 	}
 
       *op1 = const0_rtx;
       mips_emit_binary (cmp_code, *op0, cmp_op0, cmp_op1);
     }
 }
+
+
+const char *
+mips_output_compare (const char *fpcmp, const char *fcond,
+			const char *fmt, const char *fpcc_mode, bool swap)
+{
+  const char *fc = fcond;
+
+  if (ISA_HAS_CCF)
+    {
+      /* c.lt.fmt is signaling, while cmp.lt.fmt is quiet.  */
+      if (strcmp (fcond, "lt") == 0)
+	fc = "slt";
+      else if (strcmp (fcond, "le") == 0)
+	fc = "sle";
+    }
+  else if (strcmp (fpcc_mode, "cce") == 0)
+    {
+      /* It was LTGT, while we have only inverse one.  It was then converted
+	 to UNEQ by mips_reversed_fp_cond, and we used CCEmode to mark it.
+	 Lets convert it back to ngl now.  */
+      if (strcmp (fcond, "ueq") == 0)
+	fc = "ngl";
+    }
+  if (swap)
+    return concat(fpcmp, ".", fc, ".", fmt, "\t%Z0%2,%1", NULL);
+  return concat(fpcmp, ".", fc, ".", fmt, "\t%Z0%1,%2", NULL);
+}
+
 
 /* Try performing the comparison in OPERANDS[1], whose arms are OPERANDS[2]
    and OPERAND[3].  Store the result in OPERANDS[0].
@@ -6834,7 +6973,13 @@ mips_setup_incoming_varargs (cumulative_args_t cum,
      argument.  Advance a local copy of CUM past the last "real" named
      argument, to find out how many registers are left over.  */
   local_cum = *get_cumulative_args (cum);
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+
+  /* For a C23 variadic function w/o any named argument, and w/o an
+     artifical argument for large return value, skip advancing args.
+     There is such an artifical argument iff. arg.type is non-NULL
+     (PR 114175).  */
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     mips_function_arg_advance (pack_cumulative_args (&local_cum), arg);
 
   /* Found out how many registers we need to save.  */
@@ -13127,7 +13272,7 @@ mips_hard_regno_mode_ok_uncached (unsigned int regno, machine_mode mode)
 	    && ST_REG_P (regno)
 	    && (regno - ST_REG_FIRST) % 4 == 0);
 
-  if (mode == CCmode)
+  if (mode == CCmode || mode == CCEmode)
     return ISA_HAS_8CC ? ST_REG_P (regno) : regno == FPSW_REGNUM;
 
   size = GET_MODE_SIZE (mode);
@@ -20385,8 +20530,6 @@ mips_option_override (void)
     error ("unsupported combination: %s", "-mfp64 -mfpxx");
   else if (ISA_MIPS1 && !TARGET_FLOAT32)
     error ("%<-march=%s%> requires %<-mfp32%>", mips_arch_info->name);
-  else if (TARGET_FLOATXX && !mips_lra_flag)
-    error ("%<-mfpxx%> requires %<-mlra%>");
 
   /* End of code shared with GAS.  */
 
@@ -22227,6 +22370,89 @@ mips_msa_vec_parallel_const_half (machine_mode mode, bool high_p)
   return gen_rtx_PARALLEL (VOIDmode, v);
 }
 
+/* Construct and return i8 of SHF.df.  No error will happen since tt has
+   been constrained by mips_const_vector_shuffle_set_p.
+   Return (IMM | (INSN << 8)):  The range of IMM is [0, 0xFF].
+   The INSN can be 0 (error)/1 (SHF.B)/2 (SHF.H)/4 (SHF.W).  */
+
+HOST_WIDE_INT
+mips_msa_shf_i8 (rtx *operands)
+{
+  HOST_WIDE_INT rval = 0, val[16];
+  unsigned int i;
+  machine_mode mode = GET_MODE (operands[0]);
+  int which_op = 0;
+
+  /* We use shf.w to swap 2 doubleword part.  */
+  if (mode == V2DImode || mode == V2DFmode)
+    {
+      val[0] = INTVAL (XVECEXP (operands[2], 0, 0));
+      val[1] = INTVAL (XVECEXP (operands[2], 0, 1));
+      val[3] = val[1] == 0 ? 1 : 3;
+      val[2] = val[1] == 0 ? 0 : 2;
+      val[1] = val[0] == 0 ? 1 : 3;
+      val[0] = val[0] == 0 ? 0 : 2;
+      which_op = 4;
+    }
+  else if (mode == V16QImode)
+    {
+      for (i = 0; i < 16; i++)
+	val[i] = INTVAL (XVECEXP (operands[2], 0, i));
+      if (val[1] - val[0] == 1
+	  && val[2] - val[1] == 1
+	  && val[3] - val[2] == 1)
+	{
+	  which_op = 4;
+	  val[0] = val[0] / 4;
+	  val[1] = val[4] / 4;
+	  val[2] = val[8] / 4;
+	  val[3] = val[12] / 4;
+	}
+      else if (val[1] - val[0] == 1
+	  && val[3] - val[2] == 1)
+	{
+	  which_op = 2;
+	  val[0] = val[0] / 2;
+	  val[1] = val[2] / 2;
+	  val[2] = val[4] / 2;
+	  val[3] = val[6] / 2;
+	}
+      else
+	which_op = 1;
+    }
+  else if (mode == V8HImode)
+    {
+      for (i = 0; i < 8; i++)
+	val[i] = INTVAL (XVECEXP (operands[2], 0, i));
+      if (val[1] - val[0] == 1
+	  && val[3] - val[2] == 1
+	  && val[5] - val[4] == 1
+	  && val[7] - val[6] == 1)
+	{
+	  which_op = 4;
+	  val[0] = val[0] / 2;
+	  val[1] = val[2] / 2;
+	  val[2] = val[4] / 2;
+	  val[3] = val[6] / 2;
+	}
+      else
+	which_op = 2;
+    }
+  else if (mode == V4SImode || mode == V4SFmode)
+    {
+      for (i = 0; i < 4; i++)
+	val[i] = INTVAL (XVECEXP (operands[2], 0, i));
+      which_op = 4;
+    }
+
+  /* We convert the selection to an immediate.  */
+  for (i = 0; i < 4; i++)
+    rval |= val[i] << (2 * i);
+
+  rval |= (which_op << 8);
+  return rval;
+}
+
 /* A subroutine of mips_expand_vec_init, match constant vector elements.  */
 
 static inline bool
@@ -22724,14 +22950,20 @@ mips_expand_vec_cmp_expr (rtx *operands)
 
 void
 mips_expand_vec_cond_expr (machine_mode mode, machine_mode vimode,
-			   rtx *operands)
+			   rtx *operands, bool mask)
 {
-  rtx cond = operands[3];
-  rtx cmp_op0 = operands[4];
-  rtx cmp_op1 = operands[5];
-  rtx cmp_res = gen_reg_rtx (vimode);
+  rtx cmp_res;
+  if (mask)
+    cmp_res = operands[3];
+  else
+    {
+      rtx cond = operands[3];
+      rtx cmp_op0 = operands[4];
+      rtx cmp_op1 = operands[5];
+      cmp_res = gen_reg_rtx (vimode);
 
-  mips_expand_msa_cmp (cmp_res, GET_CODE (cond), cmp_op0, cmp_op1);
+      mips_expand_msa_cmp (cmp_res, GET_CODE (cond), cmp_op0, cmp_op1);
+    }
 
   /* We handle the following cases:
      1) r = a CMP b ? -1 : 0
@@ -22865,14 +23097,6 @@ mips_spill_class (reg_class_t rclass ATTRIBUTE_UNUSED,
   return NO_REGS;
 }
 
-/* Implement TARGET_LRA_P.  */
-
-static bool
-mips_lra_p (void)
-{
-  return mips_lra_flag;
-}
-
 /* Implement TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS.  */
 
 static reg_class_t
@@ -22974,6 +23198,18 @@ mips_asm_file_end (void)
 {
   if (NEED_INDICATE_EXEC_STACK)
     file_end_indicate_exec_stack ();
+}
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+mips_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return MIPS_LONG_DOUBLE_TYPE_SIZE == 64 ? DFmode : TFmode;
+  return default_mode_for_floating_type (ti);
 }
 
 void
@@ -23301,8 +23537,6 @@ mips_bit_clear_p (enum machine_mode mode, unsigned HOST_WIDE_INT m)
 
 #undef TARGET_SPILL_CLASS
 #define TARGET_SPILL_CLASS mips_spill_class
-#undef TARGET_LRA_P
-#define TARGET_LRA_P mips_lra_p
 #undef TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS
 #define TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS mips_ira_change_pseudo_allocno_class
 
@@ -23346,6 +23580,8 @@ mips_bit_clear_p (enum machine_mode mode, unsigned HOST_WIDE_INT m)
 #undef TARGET_ASM_FILE_END
 #define TARGET_ASM_FILE_END mips_asm_file_end
 
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE mips_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

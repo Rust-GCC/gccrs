@@ -144,18 +144,18 @@ split_at_bb_p (class loop *loop, basic_block bb, tree *border, affine_iv *iv,
 	   value range.  */
 	else
 	  {
-	    int_range<2> r;
+	    value_range r (TREE_TYPE (op0));
 	    get_global_range_query ()->range_of_expr (r, op0, stmt);
 	    if (!r.varying_p () && !r.undefined_p ()
 		&& TREE_CODE (op1) == INTEGER_CST)
 	      {
 		wide_int val = wi::to_wide (op1);
-		if (known_eq (val, r.lower_bound ()))
+		if (known_eq (val, wi::to_wide (r.lbound ())))
 		  {
 		    code = (code == EQ_EXPR) ? LE_EXPR : GT_EXPR;
 		    break;
 		  }
-		else if (known_eq (val, r.upper_bound ()))
+		else if (known_eq (val, wi::to_wide (r.ubound ())))
 		  {
 		    code = (code == EQ_EXPR) ? GE_EXPR : LT_EXPR;
 		    break;
@@ -653,8 +653,26 @@ split_loop (class loop *loop1)
 	gimple_seq stmts2;
 	border = force_gimple_operand (border, &stmts2, true, NULL_TREE);
 	if (stmts2)
-	  gsi_insert_seq_on_edge_immediate (loop_preheader_edge (loop1),
-					    stmts2);
+	  {
+	    /* When the split condition is not always evaluated make sure
+	       to rewrite it to defined overflow.  */
+	    if (!dominated_by_p (CDI_DOMINATORS, exit1->src, bbs[i]))
+	      {
+		gimple_stmt_iterator gsi;
+		gsi = gsi_start (stmts2);
+		while (!gsi_end_p (gsi))
+		  {
+		    gimple *stmt = gsi_stmt (gsi);
+		    if (is_gimple_assign (stmt)
+			&& arith_code_with_undefined_signed_overflow
+						(gimple_assign_rhs_code (stmt)))
+		      rewrite_to_defined_overflow (&gsi);
+		    gsi_next (&gsi);
+		  }
+	      }
+	    gsi_insert_seq_on_edge_immediate (loop_preheader_edge (loop1),
+					      stmts2);
+	  }
 	tree cond = fold_build2 (guard_code, boolean_type_node,
 				 guard_init, border);
 	if (!initial_true)

@@ -298,6 +298,18 @@ default_mode_for_suffix (char suffix ATTRIBUTE_UNUSED)
   return VOIDmode;
 }
 
+/* Return machine mode for a floating type which is indicated
+   by the given enum tree_index.  */
+
+machine_mode
+default_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_FLOAT_TYPE)
+    return SFmode;
+  gcc_assert (ti == TI_DOUBLE_TYPE || ti == TI_LONG_DOUBLE_TYPE);
+  return DFmode;
+}
+
 /* The generic C++ ABI specifies this is a 64-bit value.  */
 tree
 default_cxx_guard_type (void)
@@ -327,6 +339,14 @@ default_cxx_get_cookie_size (tree type)
     cookie_size = type_align;
 
   return cookie_size;
+}
+
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+
+tree
+default_cxx_adjust_cdtor_callabi_fntype (tree fntype)
+{
+  return fntype;
 }
 
 /* Return true if a parameter must be passed by reference.  This version
@@ -441,11 +461,11 @@ default_scalar_mode_supported_p (scalar_mode mode)
       return false;
 
     case MODE_FLOAT:
-      if (precision == FLOAT_TYPE_SIZE)
+      if (mode == targetm.c.mode_for_floating_type (TI_FLOAT_TYPE))
 	return true;
-      if (precision == DOUBLE_TYPE_SIZE)
+      if (mode == targetm.c.mode_for_floating_type (TI_DOUBLE_TYPE))
 	return true;
-      if (precision == LONG_DOUBLE_TYPE_SIZE)
+      if (mode == targetm.c.mode_for_floating_type (TI_LONG_DOUBLE_TYPE))
 	return true;
       return false;
 
@@ -1589,6 +1609,14 @@ default_get_mask_mode (machine_mode mode)
 /* By default consider masked stores to be expensive.  */
 
 bool
+default_conditional_operation_is_expensive (unsigned ifn)
+{
+  return ifn == IFN_MASK_STORE;
+}
+
+/* By default consider masked stores to be expensive.  */
+
+bool
 default_empty_mask_is_expensive (unsigned ifn)
 {
   return ifn == IFN_MASK_STORE;
@@ -1877,6 +1905,12 @@ bool
 default_have_conditional_execution (void)
 {
   return HAVE_conditional_execution;
+}
+
+bool
+default_have_ccmp (void)
+{
+  return targetm.gen_ccmp_first != NULL;
 }
 
 /* By default we assume that c99 functions are present at the runtime,

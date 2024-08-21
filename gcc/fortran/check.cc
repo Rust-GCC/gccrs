@@ -1075,8 +1075,6 @@ dim_check (gfc_expr *dim, int n, bool optional)
 static bool
 dim_corank_check (gfc_expr *dim, gfc_expr *array)
 {
-  int corank;
-
   gcc_assert (array->expr_type == EXPR_VARIABLE);
 
   if (dim->expr_type != EXPR_CONSTANT)
@@ -1085,10 +1083,8 @@ dim_corank_check (gfc_expr *dim, gfc_expr *array)
   if (array->ts.type == BT_CLASS)
     return true;
 
-  corank = gfc_get_corank (array);
-
   if (mpz_cmp_ui (dim->value.integer, 1) < 0
-      || mpz_cmp_ui (dim->value.integer, corank) > 0)
+      || mpz_cmp_ui (dim->value.integer, array->corank) > 0)
     {
       gfc_error ("%<dim%> argument of %qs intrinsic at %L is not a valid "
 		 "codimension index", gfc_current_intrinsic, &dim->where);
@@ -4269,11 +4265,11 @@ gfc_check_move_alloc (gfc_expr *from, gfc_expr *to)
     }
 
   /* IR F08/0040; cf. 12-006A.  */
-  if (gfc_get_corank (to) != gfc_get_corank (from))
+  if (to->corank != from->corank)
     {
       gfc_error ("The FROM and TO arguments of the MOVE_ALLOC intrinsic at %L "
-		 "must have the same corank %d/%d", &to->where,
-		 gfc_get_corank (from), gfc_get_corank (to));
+		 "must have the same corank %d/%d",
+		 &to->where, from->corank, to->corank);
       return false;
     }
 
@@ -5299,18 +5295,14 @@ is_c_interoperable (gfc_expr *expr, const char **msg, bool c_loc, bool c_f_ptr)
       return false;
     }
 
-  if (!c_loc && expr->rank > 0 && expr->expr_type != EXPR_ARRAY)
+  /* Checks for C_SIZEOF need to take into account edits to 18-007r1, see
+     https://j3-fortran.org/doc/year/22/22-101r1.txt .  */
+  if (!c_loc && !c_f_ptr && expr->rank > 0 && expr->expr_type == EXPR_VARIABLE)
     {
       gfc_array_ref *ar = gfc_find_array_ref (expr);
-      if (ar->type != AR_FULL)
+      if (ar->type == AR_FULL && ar->as->type == AS_ASSUMED_SIZE)
 	{
-	  *msg = "Only whole-arrays are interoperable";
-	  return false;
-	}
-      if (!c_f_ptr && ar->as->type != AS_EXPLICIT
-	  && ar->as->type != AS_ASSUMED_SIZE)
-	{
-	  *msg = "Only explicit-size and assumed-size arrays are interoperable";
+	  *msg = "Assumed-size arrays are not interoperable";
 	  return false;
 	}
     }
@@ -5475,9 +5467,17 @@ gfc_check_c_f_pointer (gfc_expr *cptr, gfc_expr *fptr, gfc_expr *shape)
       return false;
     }
 
+  if (fptr->ts.type == BT_PROCEDURE && attr.function)
+    {
+      gfc_error ("FPTR argument to C_F_POINTER at %L is a function "
+		 "returning a pointer", &fptr->where);
+      return false;
+    }
+
   if (fptr->rank > 0 && !is_c_interoperable (fptr, &msg, false, true))
-    return gfc_notify_std (GFC_STD_F2018, "Noninteroperable array FPTR "
-			   "at %L to C_F_POINTER: %s", &fptr->where, msg);
+    return gfc_notify_std (GFC_STD_F2018,
+			   "Noninteroperable array FPTR argument to "
+			   "C_F_POINTER at %L: %s", &fptr->where, msg);
 
   return true;
 }
@@ -5992,13 +5992,11 @@ gfc_check_image_index (gfc_expr *coarray, gfc_expr *sub)
 
   if (gfc_array_size (sub, &nelems))
     {
-      int corank = gfc_get_corank (coarray);
-
-      if (mpz_cmp_ui (nelems, corank) != 0)
+      if (mpz_cmp_ui (nelems, coarray->corank) != 0)
 	{
 	  gfc_error ("The number of array elements of the SUB argument to "
 		     "IMAGE_INDEX at %L shall be %d (corank) not %d",
-		     &sub->where, corank, (int) mpz_get_si (nelems));
+		     &sub->where, coarray->corank, (int) mpz_get_si (nelems));
 	  mpz_clear (nelems);
 	  return false;
 	}

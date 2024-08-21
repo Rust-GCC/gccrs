@@ -971,14 +971,13 @@ static hash_map<gimple *, data_reference_p> *dse_stmt_to_dr_map;
    if only clobber statements influenced the classification result.
    Returns the classification.  */
 
-dse_store_status
+static dse_store_status
 dse_classify_store (ao_ref *ref, gimple *stmt,
 		    bool byte_tracking_enabled, sbitmap live_bytes,
-		    bool *by_clobber_p, tree stop_at_vuse)
+		    bool *by_clobber_p, tree stop_at_vuse, int &cnt,
+		    bitmap visited)
 {
   gimple *temp;
-  int cnt = 0;
-  auto_bitmap visited;
   std::unique_ptr<data_reference, void(*)(data_reference_p)>
     dra (nullptr, free_data_ref);
 
@@ -1019,8 +1018,11 @@ dse_classify_store (ao_ref *ref, gimple *stmt,
 	  if (defvar == stop_at_vuse)
 	    return DSE_STORE_LIVE;
 
-	  FOR_EACH_IMM_USE_STMT (use_stmt, ui, defvar)
+	  use_operand_p usep;
+	  FOR_EACH_IMM_USE_FAST (usep, ui, defvar)
 	    {
+	      use_stmt = USE_STMT (usep);
+
 	      /* Limit stmt walking.  */
 	      if (++cnt > param_dse_max_alias_queries_per_store)
 		{
@@ -1032,31 +1034,43 @@ dse_classify_store (ao_ref *ref, gimple *stmt,
 		 have to be careful with loops and with memory references
 		 containing operands that are also operands of PHI nodes.
 		 See gcc.c-torture/execute/20051110-*.c.  */
-	      if (gimple_code (use_stmt) == GIMPLE_PHI)
+	      if (gphi *phi = dyn_cast <gphi *> (use_stmt))
 		{
 		  /* Look through single-argument PHIs.  */
-		  if (gimple_phi_num_args (use_stmt) == 1)
-		    worklist.safe_push (gimple_phi_result (use_stmt));
-
-		  /* If we already visited this PHI ignore it for further
-		     processing.  */
-		  else if (!bitmap_bit_p (visited,
-					  SSA_NAME_VERSION
-					    (PHI_RESULT (use_stmt))))
+		  if (gimple_phi_num_args (phi) == 1)
+		    worklist.safe_push (gimple_phi_result (phi));
+		  else
 		    {
 		      /* If we visit this PHI by following a backedge then we
 			 have to make sure ref->ref only refers to SSA names
 			 that are invariant with respect to the loop
-			 represented by this PHI node.  */
-		      if (dominated_by_p (CDI_DOMINATORS, gimple_bb (stmt),
-					  gimple_bb (use_stmt))
-			  && !for_each_index (ref->ref ? &ref->ref : &ref->base,
-					      check_name, gimple_bb (use_stmt)))
-			return DSE_STORE_LIVE;
-		      defs.safe_push (use_stmt);
-		      if (!first_phi_def)
-			first_phi_def = as_a <gphi *> (use_stmt);
-		      last_phi_def = as_a <gphi *> (use_stmt);
+			 represented by this PHI node.  We handle irreducible
+			 regions by relying on backedge marking and identifying
+			 the head of the (sub-)region.  */
+		      edge e = gimple_phi_arg_edge
+				 (phi, PHI_ARG_INDEX_FROM_USE (usep));
+		      if (e->flags & EDGE_DFS_BACK)
+			{
+			  basic_block rgn_head
+			    = nearest_common_dominator (CDI_DOMINATORS,
+							gimple_bb (phi),
+							e->src);
+			  if (!for_each_index (ref->ref
+					       ? &ref->ref : &ref->base,
+					       check_name, rgn_head))
+			    return DSE_STORE_LIVE;
+			}
+		      /* If we already visited this PHI ignore it for further
+			 processing.  But note we have to check each incoming
+			 edge above.  */
+		      if (!bitmap_bit_p (visited,
+					 SSA_NAME_VERSION (PHI_RESULT (phi))))
+			{
+			  defs.safe_push (phi);
+			  if (!first_phi_def)
+			    first_phi_def = phi;;
+			  last_phi_def = phi;
+			}
 		    }
 		}
 	      /* If the statement is a use the store is not dead.  */
@@ -1238,6 +1252,19 @@ dse_classify_store (ao_ref *ref, gimple *stmt,
       /* If all defs kill the ref we are done.  */
       if (defs.is_empty ())
 	return DSE_STORE_DEAD;
+      /* If more than one def survives we have to analyze multiple
+	 paths.  We can handle this by recursing, sharing 'visited'
+	 to avoid redundant work and limiting it by shared 'cnt'.
+	 For now do not bother with byte-tracking in this case.  */
+      while (defs.length () > 1)
+	{
+	  if (dse_classify_store (ref, defs.last (), false, NULL,
+				  by_clobber_p, stop_at_vuse, cnt,
+				  visited) != DSE_STORE_DEAD)
+	    break;
+	  byte_tracking_enabled = false;
+	  defs.pop ();
+	}
       /* If more than one def survives fail.  */
       if (defs.length () > 1)
 	{
@@ -1263,6 +1290,17 @@ dse_classify_store (ao_ref *ref, gimple *stmt,
     }
   /* Continue walking until there are no more live bytes.  */
   while (1);
+}
+
+dse_store_status
+dse_classify_store (ao_ref *ref, gimple *stmt,
+		    bool byte_tracking_enabled, sbitmap live_bytes,
+		    bool *by_clobber_p, tree stop_at_vuse)
+{
+  int cnt = 0;
+  auto_bitmap visited;
+  return dse_classify_store (ref, stmt, byte_tracking_enabled, live_bytes,
+			     by_clobber_p, stop_at_vuse, cnt, visited);
 }
 
 
@@ -1658,7 +1696,11 @@ pass_dse::execute (function *fun)
 
   /* Dead store elimination is fundamentally a reverse program order walk.  */
   int *rpo = XNEWVEC (int, n_basic_blocks_for_fn (fun) - NUM_FIXED_BLOCKS);
-  int n = pre_and_rev_post_order_compute_fn (fun, NULL, rpo, false);
+  auto_bitmap exit_bbs;
+  bitmap_set_bit (exit_bbs, EXIT_BLOCK);
+  edge entry = single_succ_edge (ENTRY_BLOCK_PTR_FOR_FN (fun));
+  int n = rev_post_order_and_mark_dfs_back_seme (fun, entry,
+						 exit_bbs, false, rpo, NULL);
   for (int i = n; i != 0; --i)
     {
       basic_block bb = BASIC_BLOCK_FOR_FN (fun, rpo[i-1]);

@@ -2685,11 +2685,15 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
 	       here as the element alignment may be not visible.  See
 	       PR43783.  Simply drop the element size for constant
 	       sizes.  */
-	    if (TREE_CODE (genop3) == INTEGER_CST
+	    if ((TREE_CODE (genop3) == INTEGER_CST
 		&& TREE_CODE (TYPE_SIZE_UNIT (elmt_type)) == INTEGER_CST
 		&& wi::eq_p (wi::to_offset (TYPE_SIZE_UNIT (elmt_type)),
-			     (wi::to_offset (genop3)
-			      * vn_ref_op_align_unit (currop))))
+			     (wi::to_offset (genop3) * vn_ref_op_align_unit (currop))))
+	      || (TREE_CODE (genop3) == EXACT_DIV_EXPR
+		&& TREE_CODE (TREE_OPERAND (genop3, 1)) == INTEGER_CST
+		&& operand_equal_p (TREE_OPERAND (genop3, 0), TYPE_SIZE_UNIT (elmt_type))
+		&& wi::eq_p (wi::to_offset (TREE_OPERAND (genop3, 1)),
+			     vn_ref_op_align_unit (currop))))
 	      genop3 = NULL_TREE;
 	    else
 	      {
@@ -3247,7 +3251,7 @@ insert_into_preds_of_block (basic_block block, unsigned int exprnum,
 	  >= TYPE_PRECISION (TREE_TYPE (expr->u.nary->op[0])))
       && SSA_NAME_RANGE_INFO (expr->u.nary->op[0]))
     {
-      value_range r;
+      int_range_max r;
       if (get_range_query (cfun)->range_of_expr (r, expr->u.nary->op[0])
 	  && !r.undefined_p ()
 	  && !r.varying_p ()

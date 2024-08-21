@@ -1000,7 +1000,8 @@ extern void fancy_abort (const char *, int, const char *)
 	HARD_REGNO_NREGS SECONDARY_MEMORY_NEEDED_MODE			\
 	SECONDARY_MEMORY_NEEDED CANNOT_CHANGE_MODE_CLASS		\
 	TRULY_NOOP_TRUNCATION FUNCTION_ARG_OFFSET CONSTANT_ALIGNMENT	\
-	STARTING_FRAME_OFFSET
+	STARTING_FRAME_OFFSET FLOAT_TYPE_SIZE DOUBLE_TYPE_SIZE		\
+	LONG_DOUBLE_TYPE_SIZE
 
 /* Target macros only used for code built for the target, that have
    moved to libgcc-tm.h or have never been present elsewhere.  */
@@ -1300,6 +1301,12 @@ void gcc_stablesort_r (void *, size_t, size_t, sort_r_cmp_fn *, void *data);
 #ifdef __cplusplus
 #undef NULL
 #define NULL nullptr
+#endif
+
+/* Workaround clang on PowerPC which has vec_step as reserved keyword
+   rather than function-like macro defined in <altivec.h>.  See PR114369.  */
+#if defined(__clang__) && defined(__powerpc__)
+#define vec_step vec_step_
 #endif
 
 /* Return true if STR string starts with PREFIX.  */

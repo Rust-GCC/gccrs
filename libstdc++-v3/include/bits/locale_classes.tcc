@@ -44,6 +44,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     locale::
     locale(const locale& __other, _Facet* __f)
     {
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 2295. Locale name when the provided Facet is a nullptr
+      if (__builtin_expect(!__f, 0))
+	{
+	  _M_impl = __other._M_impl;
+	  _M_impl->_M_add_reference();
+	  return;
+	}
+
       _M_impl = new _Impl(*__other._M_impl, 1);
 
       __try
@@ -72,6 +81,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  __tmp->_M_remove_reference();
 	  __throw_exception_again;
 	}
+      delete[] __tmp->_M_names[0];
+      __tmp->_M_names[0] = 0;   // Unnamed.
       return locale(__tmp);
     }
 
@@ -162,8 +173,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @return  true if @p __loc contains a facet of type _Facet, else false.
   */
   template<typename _Facet>
+    _GLIBCXX_NODISCARD
     inline bool
-    has_facet(const locale& __loc) throw()
+    has_facet(const locale& __loc) _GLIBCXX_USE_NOEXCEPT
     {
 #if __cplusplus >= 201103L
       static_assert(__is_base_of(locale::facet, _Facet),
@@ -191,6 +203,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdangling-reference"
   template<typename _Facet>
+    _GLIBCXX_NODISCARD
     inline const _Facet&
     use_facet(const locale& __loc)
     {
