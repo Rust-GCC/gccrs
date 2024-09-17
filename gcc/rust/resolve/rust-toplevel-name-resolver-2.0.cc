@@ -211,7 +211,7 @@ TopLevel::visit (AST::Trait &trait)
   trait.insert_implict_self (
     std::unique_ptr<AST::GenericParam> (implicit_self));
 
-  insert_or_error_out (trait_item.get_identifier (), trait_item,
+  insert_or_error_out (trait.get_identifier (), trait,
 		       Namespace::Types);
   DefaultResolver::visit (trait);
 }
