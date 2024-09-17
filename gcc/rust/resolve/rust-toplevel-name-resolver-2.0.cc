@@ -211,6 +211,8 @@ TopLevel::visit (AST::Trait &trait)
   trait.insert_implict_self (
     std::unique_ptr<AST::GenericParam> (implicit_self));
 
+  insert_or_error_out (trait_item.get_identifier (), trait_item,
+		       Namespace::Types);
   DefaultResolver::visit (trait);
 }
 
@@ -420,14 +422,6 @@ TopLevel::visit (AST::Union &union_item)
 {
   insert_or_error_out (union_item.get_identifier (), union_item,
 		       Namespace::Types);
-}
-
-void
-TopLevel::visit (AST::Trait &trait_item)
-{
-  insert_or_error_out (trait_item.get_identifier (), trait_item,
-		       Namespace::Types);
-  DefaultResolver::visit (trait_item);
 }
 
 void
