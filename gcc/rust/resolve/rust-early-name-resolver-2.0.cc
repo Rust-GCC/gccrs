@@ -262,8 +262,7 @@ Early::visit_attributes (std::vector<AST::Attribute> &attrs)
 	      //
 	      // Builtin derive macros should probably be handled
 	      // in a fashion more similar to custom derive macros
-	      if (MacroBuiltin::builtins.is_iter_ok (
-		    MacroBuiltin::builtins.lookup (trait.get ().as_string ())))
+	      if (MacroBuiltin::builtins.lookup (trait.get ().as_string ()).has_value ())
 		continue;
 
 	      auto definition
