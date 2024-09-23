@@ -669,7 +669,7 @@ ASTLoweringBase::lower_self (AST::Param &param)
 
   if (self.has_type ())
     {
-      HIR::Type *type = ASTLoweringType::translate (self.get_type ());
+      HIR::Type *type = ASTLoweringType::translate (self.get_type ().value ());
       return HIR::SelfParam (mapping, std::unique_ptr<HIR::Type> (type),
 			     self.get_is_mut (), self.get_locus ());
     }

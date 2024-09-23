@@ -2701,7 +2701,7 @@ CfgStrip::visit (AST::SelfParam &param)
 
   if (param.has_type ())
     {
-      auto &type = param.get_type ();
+      auto &type = param.get_type ().value ();
       if (type.is_marked_for_strip ())
 	rust_error_at (type.get_locus (), "cannot strip type in this position");
     }
