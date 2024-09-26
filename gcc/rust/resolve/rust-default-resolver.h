@@ -52,6 +52,7 @@ public:
 
   // type dec nodes, which visit their fields or variants by default
   void visit (AST::StructStruct &);
+  void visit (AST::TupleStruct &);
   void visit (AST::Enum &);
 
   // Visitors that visit their expression node(s)
@@ -68,6 +69,7 @@ public:
   void visit (AST::ReturnExpr &);
   void visit (AST::CallExpr &);
   void visit (AST::MethodCallExpr &);
+  void visit (AST::UnsafeBlockExpr &);
   void visit (AST::LoopExpr &);
   void visit (AST::WhileLoopExpr &);
   void visit (AST::WhileLetLoopExpr &);
@@ -118,6 +120,7 @@ public:
   void visit (AST::TraitItemType &);
   void visit (AST::ExternalTypeItem &);
   void visit (AST::ExternalStaticItem &);
+  void visit (AST::ExternalFunctionItem &);
   void visit (AST::MacroMatchRepetition &);
   void visit (AST::MacroMatcher &);
   void visit (AST::MacroRulesDefinition &);

@@ -433,8 +433,8 @@ ForeverStack<N>::resolve_segments (
 
       if (!child.has_value ())
 	{
-	  rust_error_at (seg.get_locus (), ErrorCode::E0433,
-			 "failed to resolve path segment %qs", str.c_str ());
+	  // rust_error_at (seg.get_locus (), ErrorCode::E0433,
+	  //		 "failed to resolve path segment %qs", str.c_str ());
 	  return tl::nullopt;
 	}
 

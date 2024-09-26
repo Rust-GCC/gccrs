@@ -928,18 +928,20 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       if (saw_errors ())
 	break;
 
-      if (flag_name_resolution_2_0)
+      bool has_early_changed = false;
+      if (true /*flag_name_resolution_2_0*/)
 	{
 	  Resolver2_0::Early early (ctx);
 	  early.go (crate);
 	  macro_errors = early.get_macro_resolve_errors ();
+	  has_early_changed = early.has_changed ();
 	}
       else
 	Resolver::EarlyNameResolver ().go (crate);
 
       ExpandVisitor (expander).go (crate);
 
-      fixed_point_reached = !expander.has_changed ();
+      fixed_point_reached = !has_early_changed && !expander.has_changed ();
       expander.reset_changed_state ();
       iterations++;
 

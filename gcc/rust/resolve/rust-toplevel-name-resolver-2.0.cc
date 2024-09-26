@@ -126,7 +126,7 @@ GlobbingVisitor::visit (AST::UseDeclaration &use)
 }
 
 TopLevel::TopLevel (NameResolutionContext &resolver)
-  : DefaultResolver (resolver)
+  : DefaultResolver (resolver), f_has_changed (false)
 {}
 
 template <typename T>
@@ -155,6 +155,10 @@ TopLevel::insert_or_error_out (const Identifier &identifier,
       rust_error_at (rich_loc, ErrorCode::E0428, "%qs defined multiple times",
 		     identifier.as_string ().c_str ());
     }
+  // HACK: ignore macro namespace for change detection
+  // we get infinite loops otherwise, since macros can shadow each other
+  else if (ns != Namespace::Macros)
+    mark_changed ();
 }
 
 void
@@ -207,6 +211,8 @@ TopLevel::visit (AST::Trait &trait)
   trait.insert_implict_self (
     std::unique_ptr<AST::GenericParam> (implicit_self));
 
+  insert_or_error_out (trait.get_identifier (), trait,
+		       Namespace::Types);
   DefaultResolver::visit (trait);
 }
 

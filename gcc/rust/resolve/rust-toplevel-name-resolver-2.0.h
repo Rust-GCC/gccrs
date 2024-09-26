@@ -49,6 +49,10 @@ public:
 private:
   NameResolutionContext &ctx;
 };
+
+// required for TopLevel
+class Import;
+
 /**
  * The `TopLevel` visitor takes care of collecting all the definitions in a
  * crate, and inserting them into the proper namespaces. These definitions can
@@ -62,6 +66,10 @@ public:
   TopLevel (NameResolutionContext &resolver);
 
   void go (AST::Crate &crate);
+
+  bool has_changed () { return f_has_changed; }
+
+  std::vector<Error> &get_errors () { return error_queue; }
 
 private:
   /**
@@ -86,6 +94,9 @@ private:
   // Store node forwarding for use declaration, the link between a
   // "new" local name and its definition.
   std::unordered_map<NodeId, NodeId> node_forwarding;
+
+  void mark_changed () { f_has_changed = true; }
+  bool f_has_changed;
 
   void visit (AST::Module &module) override;
   void visit (AST::Trait &trait) override;
@@ -112,7 +123,39 @@ private:
   bool handle_use_glob (AST::SimplePath &glob);
   bool handle_rebind (std::pair<AST::SimplePath, AST::UseTreeRebind> &pair);
 
+  std::vector<Error> error_queue;
+  void collect_error (Error err) { error_queue.push_back (std::move (err)); }
+
   void visit (AST::UseDeclaration &use) override;
+};
+
+/**
+ * Used to store individual imports
+ * Required for handling rebindings, glob imports
+ */
+class Import
+{
+public:
+  Import (AST::SimplePath path, bool is_glob, std::string name)
+    : path (path), is_glob_f (is_glob), name (name)
+  {}
+
+  AST::SimplePath &get_path () { return path; }
+
+  const AST::SimplePath &get_path () const { return path; }
+
+  bool is_glob () const { return is_glob_f; }
+
+  const std::string &get_name () const { return name; }
+
+  std::string &get_name () { return name; }
+
+  void add_prefix (AST::SimplePath prefix);
+
+private:
+  AST::SimplePath path;
+  bool is_glob_f;
+  std::string name;
 };
 
 } // namespace Resolver2_0

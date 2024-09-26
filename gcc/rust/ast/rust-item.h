@@ -3548,6 +3548,8 @@ public:
    * '_'). */
   bool has_name () const { return name != "_" && name != ""; }
 
+  bool has_type () const { return param_type != nullptr; }
+
   bool has_outer_attrs () const { return !outer_attrs.empty (); }
 
   // Returns whether the named function parameter is in an error state.

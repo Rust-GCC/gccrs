@@ -44,6 +44,15 @@ DefaultResolver::visit (AST::BlockExpr &expr)
 void
 DefaultResolver::visit (AST::Module &module)
 {
+  // Parse the module's items if they haven't been expanded and the file
+  // should be parsed (i.e isn't hidden behind an untrue or impossible cfg
+  // directive
+  // TODO: make sure this is right
+  // This was copied from the old early resolver method
+  // 'accumulate_escaped_macros'
+  if (module.get_kind () == AST::Module::UNLOADED)
+    module.load_items ();
+
   auto item_fn = [this, &module] () {
     for (auto &item : module.get_items ())
       item->accept_vis (*this);
@@ -68,7 +77,8 @@ DefaultResolver::visit (AST::Function &function)
 	else if (p->is_self ())
 	  {
 	    auto &param = static_cast<AST::SelfParam &> (*p);
-	    param.get_type ().accept_vis (*this);
+	    if (param.has_type ())
+	      param.get_type ().accept_vis (*this);
 	    param.get_lifetime ().accept_vis (*this);
 	  }
 	else
@@ -136,6 +146,19 @@ DefaultResolver::visit (AST::TraitImpl &impl)
 
 void
 DefaultResolver::visit (AST::StructStruct &type)
+{
+  // do we need to scope anything here? no, right?
+
+  // we also can't visit `StructField`s by default, so there's nothing to do -
+  // correct? or should we do something like
+
+  AST::DefaultASTVisitor::visit (type);
+
+  // FIXME: ???
+}
+
+void
+DefaultResolver::visit (AST::TupleStruct &type)
 {
   // do we need to scope anything here? no, right?
 
@@ -265,6 +288,10 @@ DefaultResolver::visit (AST::MethodCallExpr &expr)
   for (auto &param : expr.get_params ())
     param->accept_vis (*this);
 }
+
+void
+DefaultResolver::visit (AST::UnsafeBlockExpr &expr)
+{}
 
 void
 DefaultResolver::visit (AST::LoopExpr &expr)
@@ -515,6 +542,20 @@ DefaultResolver::visit (AST::ExternalTypeItem &)
 void
 DefaultResolver::visit (AST::ExternalStaticItem &)
 {}
+
+void
+DefaultResolver::visit (AST::ExternalFunctionItem &function)
+{
+  auto def_fn = [this, &function] () {
+    for (auto &p : function.get_function_params ())
+      if (p.has_type ())
+	p.get_type ().accept_vis (*this);
+    if (function.has_return_type ())
+      function.get_return_type ().accept_vis (*this);
+  };
+
+  ctx.scoped (Rib::Kind::Function, function.get_node_id (), def_fn);
+}
 
 void
 DefaultResolver::visit (AST::MacroMatchRepetition &)
