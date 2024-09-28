@@ -146,6 +146,10 @@ private:
   // `Early` should take care of resolving
   std::unordered_map<NodeId, std::vector<ImportKind>> imports_to_resolve;
 
+  // used to build up canonical paths
+  std::vector<std::pair<NodeId, std::string>> canonical_stack;
+  CrateNum canonical_crate_num;
+
   void visit (AST::Module &module) override;
   void visit (AST::Trait &trait) override;
   void visit (AST::MacroRulesDefinition &macro) override;

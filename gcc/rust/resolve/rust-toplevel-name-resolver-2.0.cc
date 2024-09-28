@@ -27,7 +27,8 @@ namespace Rust {
 namespace Resolver2_0 {
 
 TopLevel::TopLevel (NameResolutionContext &resolver)
-  : DefaultResolver (resolver), dirty (false)
+  : DefaultResolver (resolver), dirty (false),
+    canonical_crate_num (UNKNOWN_CRATENUM)
 {}
 
 template <typename T>
@@ -45,6 +46,17 @@ TopLevel::insert_or_error_out (const Identifier &identifier,
 {
   // keep track of each node's location to provide useful errors
   node_locations.emplace (node_id, locus);
+
+  // set canonical path
+  auto canonical_path = Resolver::CanonicalPath::create_empty ();
+  for (auto &seg : canonical_stack)
+    canonical_path.append (
+      Resolver::CanonicalPath::new_seg (seg.first, seg.second));
+  canonical_path.append (
+    Resolver::CanonicalPath::new_seg (node_id, identifier.as_string ()));
+  canonical_path.set_crate_num (canonical_crate_num);
+  Analysis::Mappings::get ().insert_canonical_path (node_id,
+						    std::move (canonical_path));
 
   auto result = ctx.insert (identifier, node_id, ns);
   if (result)
@@ -67,6 +79,11 @@ TopLevel::go (AST::Crate &crate)
   // times in a row in a fixed-point fashion, so it would make the code
   // responsible for this ugly and perfom a lot of error checking.
 
+  // set the crate id
+  // we shouldn't need to preserve the old one
+  // TODO: make sure this is fine with extern crates
+  canonical_crate_num = Analysis::Mappings::get ().get_current_crate ();
+
   for (auto &item : crate.items)
     item->accept_vis (*this);
 }
@@ -81,8 +98,11 @@ TopLevel::visit (AST::Module &module)
       item->accept_vis (*this);
   };
 
+  canonical_stack.emplace_back (module.get_node_id (),
+				module.get_name ().as_string ());
   ctx.scoped (Rib::Kind::Module, module.get_node_id (), sub_visitor,
 	      module.get_name ());
+  canonical_stack.pop_back ();
 
   if (Analysis::Mappings::get ().lookup_ast_module (module.get_node_id ())
       == tl::nullopt)
@@ -163,12 +183,19 @@ TopLevel::visit (AST::ExternCrate &crate)
       }
   };
 
+  // TODO: give extern crates a more acurate canonical path?
+  CrateNum old_num = canonical_crate_num;
+  canonical_crate_num = num;
+  canonical_stack.emplace_back (crate.get_node_id (),
+				crate.get_referenced_crate ());
   if (crate.has_as_clause ())
     ctx.scoped (Rib::Kind::Module, crate.get_node_id (), sub_visitor,
 		crate.get_as_clause ());
   else
     ctx.scoped (Rib::Kind::Module, crate.get_node_id (), sub_visitor,
 		crate.get_referenced_crate ());
+  canonical_crate_num = old_num;
+  canonical_stack.pop_back ();
 }
 
 static bool
@@ -260,7 +287,10 @@ TopLevel::visit (AST::StructStruct &struct_item)
       }
   };
 
+  canonical_stack.emplace_back (struct_item.get_node_id (),
+				struct_item.get_struct_name ().as_string ());
   ctx.scoped (Rib::Kind::Item, struct_item.get_node_id (), generic_vis);
+  canonical_stack.pop_back ();
 
   insert_or_error_out (struct_item.get_struct_name (), struct_item,
 		       Namespace::Types);
@@ -328,8 +358,11 @@ TopLevel::visit (AST::Enum &enum_item)
       variant->accept_vis (*this);
   };
 
+  canonical_stack.emplace_back (enum_item.get_node_id (),
+				enum_item.get_identifier ().as_string ());
   ctx.scoped (Rib::Kind::Item /* FIXME: Is that correct? */,
 	      enum_item.get_node_id (), field_vis, enum_item.get_identifier ());
+  canonical_stack.pop_back ();
 }
 
 void
