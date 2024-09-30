@@ -2042,12 +2042,19 @@ AC_SUBST(PICFLAG)
 # build of the Rust frontend in case a dep is missing.
 missing_rust_dynlibs=none
 
-save_LIBS="$LIBS"
-LIBS=
-AC_SEARCH_LIBS([dlopen], [dl])
-AC_SEARCH_LIBS([pthread_create], [pthread])
-CRAB1_LIBS="$LIBS"
-LIBS="$save_LIBS"
+case "${target}" in
+  *-*-mingw*)
+    CRAB1_LIBS="-lkernel32 -luser32 -lmsvcrt -lmingwex -lmingw32 -lmingwex -lws2_32"
+    ;;
+  *)
+    save_LIBS="$LIBS"
+    LIBS=
+    AC_SEARCH_LIBS([dlopen], [dl])
+    AC_SEARCH_LIBS([pthread_create], [pthread])
+    CRAB1_LIBS="$LIBS"
+    LIBS="$save_LIBS"
+    ;;
+esac
 
 if test "$ac_cv_search_dlopen" = no; then
     missing_rust_dynlibs="libdl"
