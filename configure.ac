@@ -2297,19 +2297,15 @@ if test -d ${srcdir}/gcc; then
         esac
 
         # Disable Rust if we are missing some required C libraries for the Rust runtime.
-        case ${add_this_lang}:${language}:${missing_rust_dynlibs} in
-          *:rust:none)
-            # Nothing to do - we're not missing any C libraries
+        case ${add_this_lang}:${language}:${missing_rust_dynlibs}:${target} in
+          *:rust:none:* | *:rust:*:*-*-mingw*)
+            # Nothing to do - we're not missing any C libraries OR we're using win32
             ;;
-          yes:rust:*)
+          yes:rust:*:* | all:rust:*:*)
             AC_MSG_ERROR([some C libraries are required to build $language: $missing_rust_dynlibs])
             add_this_lang=unsupported
             ;;
-          all:rust:*)
-            AC_MSG_WARN([some C libraries are required to build $language: $missing_rust_dynlibs])
-            add_this_lang=unsupported
-            ;;
-          *:rust:*)
+          *:rust:*:*)
             # Silently disable.
             add_this_lang=unsupported
             ;;

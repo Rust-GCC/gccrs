@@ -9202,20 +9202,15 @@ $as_echo "$as_me: WARNING: GDC is required to build $language" >&2;}
         esac
 
         # Disable Rust if we are missing some required C libraries for the Rust runtime.
-        case ${add_this_lang}:${language}:${missing_rust_dynlibs} in
-          *:rust:none)
-            # Nothing to do - we're not missing any C libraries
+        case ${add_this_lang}:${language}:${missing_rust_dynlibs}:${target} in
+          *:rust:none:* | *:rust:*:*-*-mingw*)
+            # Nothing to do - we're not missing any C libraries OR we're using win32
             ;;
-          yes:rust:*)
+          yes:rust:*:* | all:rust:*:*)
             as_fn_error $? "some C libraries are required to build $language: $missing_rust_dynlibs" "$LINENO" 5
             add_this_lang=unsupported
             ;;
-          all:rust:*)
-            { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: some C libraries are required to build $language: $missing_rust_dynlibs" >&5
-$as_echo "$as_me: WARNING: some C libraries are required to build $language: $missing_rust_dynlibs" >&2;}
-            add_this_lang=unsupported
-            ;;
-          *:rust:*)
+          *:rust:*:*)
             # Silently disable.
             add_this_lang=unsupported
             ;;
