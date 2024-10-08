@@ -1166,6 +1166,10 @@ jit_langhook_type_for_mode (machine_mode mode, int unsignedp)
 	return complex_integer_type_node;
     }
 
+  for (int i = 0; i < NUM_FLOATN_NX_TYPES; i++)
+    if (FLOATN_NX_TYPE_NODE (i) != NULL_TREE
+	&& mode == TYPE_MODE (FLOATN_NX_TYPE_NODE (i)))
+      return FLOATN_NX_TYPE_NODE (i);
   /* gcc_unreachable */
   return NULL;
 }
