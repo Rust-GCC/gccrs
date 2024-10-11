@@ -194,8 +194,8 @@ coercion_site (HirId id, TyTy::TyWithLocation lhs, TyTy::TyWithLocation rhs,
   TyTy::BaseType *expected = lhs.get_ty ();
   TyTy::BaseType *expr = rhs.get_ty ();
 
-  rust_debug ("coercion_site id={%u} expected={%s} expr={%s}", id,
-	      expected->debug_str ().c_str (), expr->debug_str ().c_str ());
+  rust_debug_loc (locus, "coercion_site id={%u} expected={%s} expr={%s}", id,
+		  expected->debug_str ().c_str (), expr->debug_str ().c_str ());
 
   auto context = TypeCheckContext::get ();
   if (expected->get_kind () == TyTy::TypeKind::ERROR
@@ -325,6 +325,7 @@ lookup_associated_impl_block (const TyTy::TypeBoundPredicate &bound,
   // if we have a non-general inference variable we need to be
   // careful about the selection here
   bool is_infer_var = binding->get_kind () == TyTy::TypeKind::INFER;
+  bool is_ref = binding->get_kind () == TyTy::TypeKind::REF;
   bool is_integer_infervar
     = is_infer_var
       && static_cast<const TyTy::InferType *> (binding)->get_infer_kind ()
@@ -368,6 +369,30 @@ lookup_associated_impl_block (const TyTy::TypeBoundPredicate &bound,
 	  if (found)
 	    {
 	      associate_impl_trait = impl;
+	      break;
+	    }
+	}
+    }
+  else if (is_ref)
+    {
+      for (auto &impl : associated_impl_traits)
+	{
+	  TyTy::BaseType *s = impl->get_self ();
+	  bool impl_is_ref = s->get_kind () == TyTy::TypeKind::REF;
+	  if (!impl_is_ref)
+	    continue;
+
+	  const auto r = (const TyTy::ReferenceType &) *binding;
+	  const auto sr = (const TyTy::ReferenceType &) *s;
+
+	  if (r.mutability () == sr.mutability ())
+	    {
+	      associate_impl_trait = impl;
+
+	      rust_debug_loc (impl->get_locus (), "RESOLVED: [%s] vs [%s]",
+			      r.as_string ().c_str (),
+			      sr.as_string ().c_str ());
+
 	      break;
 	    }
 	}

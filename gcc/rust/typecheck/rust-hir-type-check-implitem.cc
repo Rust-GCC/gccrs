@@ -395,6 +395,13 @@ TypeCheckImplItem::visit (HIR::Function &function)
 	mapping, {"self"}, self_param.get_locus (), self_param.is_ref (),
 	self_param.get_mut (), std::unique_ptr<HIR::Pattern> (nullptr));
 
+      /*
+1. FEC: something wrong with my alloc report for rejections they got marked as
+claimed in indigo
+2. Enfusion: they want a new symbol mapping for emmissions, the issues they had
+last week was actually grand
+*/
+
       // might have a specified type
       TyTy::BaseType *self_type = nullptr;
       if (self_param.has_type ())
