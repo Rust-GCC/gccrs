@@ -495,7 +495,7 @@ jobs:
       matrix:
         include:
           - { sys: mingw64, env: x86_64 }
-          - { sys: mingw32, env: i686 }
+          # - { sys: mingw32, env: i686 }
     name: 'Windows ${{ matrix.env }} ${{ matrix.sys }}'
     defaults:
       run:
