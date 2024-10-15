@@ -457,9 +457,10 @@ public:
 
   /* HACK: convert to trait bound. Virtual method overriden by classes that
    * enable this. */
-  virtual TraitBound *to_trait_bound (bool in_parens ATTRIBUTE_UNUSED) const
+  virtual std::unique_ptr<TraitBound>
+  to_trait_bound (bool in_parens ATTRIBUTE_UNUSED) const
   {
-    return nullptr;
+    return std::unique_ptr<TraitBound> (nullptr);
   }
   /* as pointer, shouldn't require definition beforehand, only forward
    * declaration. */
@@ -677,7 +678,7 @@ public:
   // Returns whether the lifetime param has an outer attribute.
   bool has_outer_attribute () const override { return outer_attrs.size () > 1; }
 
-  AST::AttrVec &get_outer_attrs () { return outer_attrs; }
+  AST::AttrVec &get_outer_attrs () override { return outer_attrs; }
 
   // Returns whether the lifetime param is in an error state.
   bool is_error () const { return lifetime.is_error (); }

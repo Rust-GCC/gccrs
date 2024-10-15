@@ -264,7 +264,8 @@ public:
   }
 
   // Creates a trait bound (clone of this one's trait bound) - HACK
-  TraitBound *to_trait_bound (bool in_parens ATTRIBUTE_UNUSED) const override
+  std::unique_ptr<TraitBound>
+  to_trait_bound (bool in_parens ATTRIBUTE_UNUSED) const override
   {
     /* NOTE: obviously it is unknown whether the internal type is a trait bound
      * due to polymorphism, so just let the internal type handle it. As

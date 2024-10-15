@@ -739,7 +739,7 @@ public:
   AST::SimplePath as_simple_path () const;
 
   // Creates a trait bound with a clone of this type path as its only element.
-  TraitBound *to_trait_bound (bool in_parens) const override;
+  std::unique_ptr<TraitBound> to_trait_bound (bool in_parens) const override;
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRTypeVisitor &vis) override;
@@ -751,10 +751,7 @@ public:
     return segments;
   }
 
-  std::unique_ptr<TypePathSegment> &get_final_segment ()
-  {
-    return segments.back ();
-  }
+  TypePathSegment &get_final_segment () { return *segments.back (); }
 };
 
 class QualifiedPathType
@@ -818,22 +815,22 @@ public:
   bool trait_has_generic_args () const
   {
     rust_assert (has_as_clause ());
-    bool is_generic_seg = trait->get_final_segment ()->get_type ()
+    bool is_generic_seg = trait->get_final_segment ().get_type ()
 			  == TypePathSegment::SegmentType::GENERIC;
     if (!is_generic_seg)
       return false;
 
-    TypePathSegmentGeneric *seg = static_cast<TypePathSegmentGeneric *> (
-      trait->get_final_segment ().get ());
-    return seg->has_generic_args ();
+    auto &seg
+      = static_cast<TypePathSegmentGeneric &> (trait->get_final_segment ());
+    return seg.has_generic_args ();
   }
 
   GenericArgs &get_trait_generic_args ()
   {
     rust_assert (trait_has_generic_args ());
-    TypePathSegmentGeneric *seg = static_cast<TypePathSegmentGeneric *> (
-      trait->get_final_segment ().get ());
-    return seg->get_generic_args ();
+    auto &seg
+      = static_cast<TypePathSegmentGeneric &> (trait->get_final_segment ());
+    return seg.get_generic_args ();
   }
 };
 
