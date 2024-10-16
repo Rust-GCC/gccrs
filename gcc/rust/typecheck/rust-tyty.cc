@@ -31,6 +31,7 @@
 #include "rust-hir-type-bounds.h"
 
 #include "options.h"
+#include <functional>
 
 namespace Rust {
 namespace TyTy {
@@ -593,9 +594,9 @@ BaseType::monomorphized_clone () const
     }
   else if (auto fn = x->try_as<const FnType> ())
     {
-      std::vector<std::pair<HIR::Pattern *, BaseType *>> cloned_params;
+      std::vector<TyTy::FnParam> cloned_params;
       for (auto &p : fn->get_params ())
-	cloned_params.push_back ({p.first, p.second->monomorphized_clone ()});
+	cloned_params.push_back (p.clone ());
 
       BaseType *retty = fn->get_return_type ()->monomorphized_clone ();
       return new FnType (fn->get_ref (), fn->get_ty_ref (), fn->get_id (),
@@ -686,7 +687,7 @@ BaseType::is_concrete () const
     {
       for (const auto &param : fn->get_params ())
 	{
-	  if (!param.second->is_concrete ())
+	  if (!param.get_type ()->is_concrete ())
 	    return false;
 	}
       return fn->get_return_type ()->is_concrete ();
@@ -1341,9 +1342,10 @@ VariantDef::variant_type_string (VariantType type)
 }
 
 VariantDef::VariantDef (HirId id, DefId defid, std::string identifier,
-			RustIdent ident, HIR::Expr *discriminant)
+			RustIdent ident,
+			std::unique_ptr<HIR::Expr> &&discriminant)
   : id (id), defid (defid), identifier (identifier), ident (ident),
-    discriminant (discriminant)
+    discriminant (std::move (discriminant))
 
 {
   type = VariantType::NUM;
@@ -1352,32 +1354,13 @@ VariantDef::VariantDef (HirId id, DefId defid, std::string identifier,
 
 VariantDef::VariantDef (HirId id, DefId defid, std::string identifier,
 			RustIdent ident, VariantType type,
-			HIR::Expr *discriminant,
+			std::unique_ptr<HIR::Expr> &&discriminant,
 			std::vector<StructFieldType *> fields)
   : id (id), defid (defid), identifier (identifier), ident (ident), type (type),
-    discriminant (discriminant), fields (fields)
+    discriminant (std::move (discriminant)), fields (fields)
 {
   rust_assert ((type == VariantType::NUM && fields.empty ())
 	       || (type == VariantType::TUPLE || type == VariantType::STRUCT));
-}
-
-VariantDef::VariantDef (const VariantDef &other)
-  : id (other.id), defid (other.defid), identifier (other.identifier),
-    ident (other.ident), type (other.type), discriminant (other.discriminant),
-    fields (other.fields)
-{}
-
-VariantDef &
-VariantDef::operator= (const VariantDef &other)
-{
-  id = other.id;
-  identifier = other.identifier;
-  type = other.type;
-  discriminant = other.discriminant;
-  fields = other.fields;
-  ident = other.ident;
-
-  return *this;
 }
 
 VariantDef &
@@ -1475,11 +1458,11 @@ VariantDef::lookup_field (const std::string &lookup,
   return false;
 }
 
-HIR::Expr *
-VariantDef::get_discriminant () const
+HIR::Expr &
+VariantDef::get_discriminant ()
 {
   rust_assert (discriminant != nullptr);
-  return discriminant;
+  return *discriminant;
 }
 
 std::string
@@ -1533,8 +1516,8 @@ VariantDef::clone () const
   for (auto &f : fields)
     cloned_fields.push_back ((StructFieldType *) f->clone ());
 
-  return new VariantDef (id, defid, identifier, ident, type, discriminant,
-			 cloned_fields);
+  return new VariantDef (id, defid, identifier, ident, type,
+			 discriminant->clone_expr (), cloned_fields);
 }
 
 VariantDef *
@@ -1544,8 +1527,8 @@ VariantDef::monomorphized_clone () const
   for (auto &f : fields)
     cloned_fields.push_back ((StructFieldType *) f->monomorphized_clone ());
 
-  return new VariantDef (id, defid, identifier, ident, type, discriminant,
-			 cloned_fields);
+  return new VariantDef (id, defid, identifier, ident, type,
+			 discriminant->clone_expr (), cloned_fields);
 }
 
 const RustIdent &
@@ -1891,9 +1874,9 @@ FnType::as_string () const
   std::string params_str = "";
   for (auto &param : params)
     {
-      auto pattern = param.first;
-      auto ty = param.second;
-      params_str += pattern->as_string () + " " + ty->as_string ();
+      auto &pattern = param.get_pattern ();
+      auto ty = param.get_type ();
+      params_str += pattern.as_string () + " " + ty->as_string ();
       params_str += ",";
     }
 
@@ -1914,7 +1897,7 @@ FnType::is_equal (const BaseType &other) const
   if (get_kind () != other.get_kind ())
     return false;
 
-  auto other2 = static_cast<const FnType &> (other);
+  auto &other2 = static_cast<const FnType &> (other);
   if (get_identifier ().compare (other2.get_identifier ()) != 0)
     return false;
 
@@ -1948,8 +1931,8 @@ FnType::is_equal (const BaseType &other) const
 
   for (size_t i = 0; i < num_params (); i++)
     {
-      auto lhs = param_at (i).second;
-      auto rhs = other2.param_at (i).second;
+      auto lhs = param_at (i).get_type ();
+      auto rhs = other2.param_at (i).get_type ();
       if (!lhs->is_equal (*rhs))
 	return false;
     }
@@ -1959,9 +1942,9 @@ FnType::is_equal (const BaseType &other) const
 BaseType *
 FnType::clone () const
 {
-  std::vector<std::pair<HIR::Pattern *, BaseType *>> cloned_params;
+  std::vector<TyTy::FnParam> cloned_params;
   for (auto &p : params)
-    cloned_params.push_back ({p.first, p.second->clone ()});
+    cloned_params.push_back (p.clone ());
 
   return new FnType (get_ref (), get_ty_ref (), get_id (), get_identifier (),
 		     ident, flags, abi, std::move (cloned_params),
@@ -2035,7 +2018,7 @@ FnType::handle_substitions (SubstitutionArgumentMappings &subst_mappings)
 
   for (auto &param : fn->get_params ())
     {
-      auto fty = param.second;
+      auto fty = param.get_type ();
 
       bool is_param_ty = fty->get_kind () == TypeKind::PARAM;
       if (is_param_ty)
@@ -2054,7 +2037,7 @@ FnType::handle_substitions (SubstitutionArgumentMappings &subst_mappings)
 		{
 		  auto new_field = argt->clone ();
 		  new_field->set_ref (fty->get_ref ());
-		  param.second = new_field;
+		  param.set_type (new_field);
 		}
 	      else
 		{
@@ -2078,7 +2061,7 @@ FnType::handle_substitions (SubstitutionArgumentMappings &subst_mappings)
 
 	  auto new_field = concrete->clone ();
 	  new_field->set_ref (fty->get_ref ());
-	  param.second = new_field;
+	  param.set_type (new_field);
 	}
     }
 

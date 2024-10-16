@@ -2712,14 +2712,14 @@ Expr::as_string () const
 }
 
 // hopefully definition here will prevent circular dependency issue
-TraitBound *
+std::unique_ptr<TraitBound>
 TypePath::to_trait_bound (bool in_parens) const
 {
   // create clone FIXME is this required? or is copy constructor automatically
   // called?
   TypePath copy (*this);
-  return new TraitBound (mappings, std::move (copy), copy.get_locus (),
-			 in_parens);
+  return Rust::make_unique<TraitBound> (mappings, std::move (copy),
+					copy.get_locus (), in_parens);
 }
 
 std::string
@@ -3047,7 +3047,7 @@ StructExprStructFields::as_string () const
     }
   else
     {
-      str += struct_base->as_string ();
+      str += (*struct_base)->as_string ();
     }
 
   return str;

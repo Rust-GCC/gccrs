@@ -107,8 +107,8 @@ public:
   Identifier &get_identifier () { return identifier; }
   const Identifier &get_identifier () const { return identifier; }
 
-  std::unique_ptr<Type> &get_type () { return type; }
-  const std::unique_ptr<Type> &get_type () const { return type; }
+  Type &get_type () { return *type; }
+  const Type &get_type () const { return *type; }
 
   location_t get_locus () const { return locus; }
 };
@@ -574,7 +574,7 @@ public:
   TypePathFunction (TypePathFunction const &other)
   {
     return_type = other.has_return_type ()
-		    ? other.get_return_type ()->clone_type ()
+		    ? other.get_return_type ().clone_type ()
 		    : nullptr;
 
     inputs.reserve (other.inputs.size ());
@@ -588,7 +588,7 @@ public:
   TypePathFunction &operator= (TypePathFunction const &other)
   {
     return_type = other.has_return_type ()
-		    ? other.get_return_type ()->clone_type ()
+		    ? other.get_return_type ().clone_type ()
 		    : nullptr;
 
     inputs.reserve (other.inputs.size ());
@@ -610,8 +610,8 @@ public:
   };
   std::vector<std::unique_ptr<Type> > &get_params () { return inputs; };
 
-  const std::unique_ptr<Type> &get_return_type () const { return return_type; };
-  std::unique_ptr<Type> &get_return_type () { return return_type; };
+  const Type &get_return_type () const { return *return_type; };
+  Type &get_return_type () { return *return_type; };
 };
 
 // Segment used in type path with a function argument
@@ -739,7 +739,7 @@ public:
   AST::SimplePath as_simple_path () const;
 
   // Creates a trait bound with a clone of this type path as its only element.
-  TraitBound *to_trait_bound (bool in_parens) const override;
+  std::unique_ptr<TraitBound> to_trait_bound (bool in_parens) const override;
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRTypeVisitor &vis) override;
@@ -751,10 +751,7 @@ public:
     return segments;
   }
 
-  std::unique_ptr<TypePathSegment> &get_final_segment ()
-  {
-    return segments.back ();
-  }
+  TypePathSegment &get_final_segment () { return *segments.back (); }
 };
 
 class QualifiedPathType
@@ -811,29 +808,29 @@ public:
 
   Analysis::NodeMapping get_mappings () const { return mappings; }
 
-  std::unique_ptr<Type> &get_type () { return type; }
+  Type &get_type () { return *type; }
 
-  std::unique_ptr<TypePath> &get_trait () { return trait; }
+  TypePath &get_trait () { return *trait; }
 
   bool trait_has_generic_args () const
   {
     rust_assert (has_as_clause ());
-    bool is_generic_seg = trait->get_final_segment ()->get_type ()
+    bool is_generic_seg = trait->get_final_segment ().get_type ()
 			  == TypePathSegment::SegmentType::GENERIC;
     if (!is_generic_seg)
       return false;
 
-    TypePathSegmentGeneric *seg = static_cast<TypePathSegmentGeneric *> (
-      trait->get_final_segment ().get ());
-    return seg->has_generic_args ();
+    auto &seg
+      = static_cast<TypePathSegmentGeneric &> (trait->get_final_segment ());
+    return seg.has_generic_args ();
   }
 
   GenericArgs &get_trait_generic_args ()
   {
     rust_assert (trait_has_generic_args ());
-    TypePathSegmentGeneric *seg = static_cast<TypePathSegmentGeneric *> (
-      trait->get_final_segment ().get ());
-    return seg->get_generic_args ();
+    auto &seg
+      = static_cast<TypePathSegmentGeneric &> (trait->get_final_segment ());
+    return seg.get_generic_args ();
   }
 };
 
@@ -963,10 +960,7 @@ public:
 
   QualifiedPathType &get_path_type () { return path_type; }
 
-  std::unique_ptr<TypePathSegment> &get_associated_segment ()
-  {
-    return associated_segment;
-  }
+  TypePathSegment &get_associated_segment () { return *associated_segment; }
 
   std::vector<std::unique_ptr<TypePathSegment> > &get_segments ()
   {

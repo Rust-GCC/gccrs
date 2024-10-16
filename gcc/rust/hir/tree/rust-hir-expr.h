@@ -19,12 +19,14 @@
 #ifndef RUST_HIR_EXPR_H
 #define RUST_HIR_EXPR_H
 
+#include "optional.h"
 #include "rust-common.h"
 #include "rust-ast-full-decls.h"
 #include "rust-hir.h"
 #include "rust-hir-path.h"
 #include "rust-operators.h"
 #include "rust-expr.h"
+#include "rust-system.h"
 namespace Rust {
 namespace HIR {
 
@@ -209,7 +211,7 @@ protected:
 public:
   location_t get_locus () const override final { return locus; }
 
-  std::unique_ptr<Expr> &get_expr () { return main_or_left_expr; }
+  Expr &get_expr () { return *main_or_left_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -423,8 +425,8 @@ public:
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   std::string get_operator_str () const;
 
@@ -497,8 +499,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   ExprType get_kind () { return expr_type; }
 
@@ -571,8 +573,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -633,12 +635,9 @@ public:
   void accept_vis (HIRExpressionVisitor &vis) override;
 
   // FIXME: isn't it the same as get_expr() from parent?
-  std::unique_ptr<Expr> &get_casted_expr () { return main_or_left_expr; }
+  Expr &get_casted_expr () { return *main_or_left_expr; }
 
-  std::unique_ptr<Type> &get_type_to_convert_to ()
-  {
-    return type_to_convert_to;
-  }
+  Type &get_type_to_convert_to () { return *type_to_convert_to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -700,8 +699,8 @@ public:
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -770,9 +769,9 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
 
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
@@ -834,7 +833,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_expr_in_parens () { return expr_in_parens; }
+  Expr &get_expr_in_parens () { return *expr_in_parens; }
 
   ExprType get_expression_type () const override final
   {
@@ -896,13 +895,13 @@ protected:
 // Value array elements
 class ArrayElemsValues : public ArrayElems
 {
-  std::vector<std::unique_ptr<Expr> > values;
+  std::vector<std::unique_ptr<Expr>> values;
 
   // TODO: should this store location data?
 
 public:
   ArrayElemsValues (Analysis::NodeMapping mappings,
-		    std::vector<std::unique_ptr<Expr> > elems)
+		    std::vector<std::unique_ptr<Expr>> elems)
     : ArrayElems (mappings), values (std::move (elems))
   {}
 
@@ -934,7 +933,7 @@ public:
 
   size_t get_num_elements () const { return values.size (); }
 
-  std::vector<std::unique_ptr<Expr> > &get_values () { return values; }
+  std::vector<std::unique_ptr<Expr>> &get_values () { return values; }
 
   ArrayElems::ArrayExprType get_array_expr_type () const override final
   {
@@ -986,9 +985,9 @@ public:
 
   void accept_vis (HIRFullVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_elem_to_copy () { return elem_to_copy; }
+  Expr &get_elem_to_copy () { return *elem_to_copy; }
 
-  std::unique_ptr<Expr> &get_num_copies_expr () { return num_copies; }
+  Expr &get_num_copies_expr () { return *num_copies; }
 
   ArrayElems::ArrayExprType get_array_expr_type () const override final
   {
@@ -1056,10 +1055,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<ArrayElems> &get_internal_elements ()
-  {
-    return internal_elements;
-  };
+  ArrayElems &get_internal_elements () { return *internal_elements; };
 
   ExprType get_expression_type () const override final
   {
@@ -1125,8 +1121,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_array_expr () { return array_expr; }
-  std::unique_ptr<Expr> &get_index_expr () { return index_expr; }
+  Expr &get_array_expr () { return *array_expr; }
+  Expr &get_index_expr () { return *index_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -1152,7 +1148,7 @@ protected:
 // HIR representation of a tuple
 class TupleExpr : public ExprWithoutBlock, public WithInnerAttrs
 {
-  std::vector<std::unique_ptr<Expr> > tuple_elems;
+  std::vector<std::unique_ptr<Expr>> tuple_elems;
   // replaces (inlined version of) TupleElements
 
   location_t locus;
@@ -1161,7 +1157,7 @@ public:
   std::string as_string () const override;
 
   TupleExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Expr> > tuple_elements,
+	     std::vector<std::unique_ptr<Expr>> tuple_elements,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
 	     location_t locus)
     : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
@@ -1205,14 +1201,11 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  const std::vector<std::unique_ptr<Expr> > &get_tuple_elems () const
+  const std::vector<std::unique_ptr<Expr>> &get_tuple_elems () const
   {
     return tuple_elems;
   }
-  std::vector<std::unique_ptr<Expr> > &get_tuple_elems ()
-  {
-    return tuple_elems;
-  }
+  std::vector<std::unique_ptr<Expr>> &get_tuple_elems () { return tuple_elems; }
 
   bool is_unit () const { return tuple_elems.size () == 0; }
 
@@ -1279,7 +1272,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_tuple_expr () { return tuple_expr; }
+  Expr &get_tuple_expr () { return *tuple_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -1368,9 +1361,10 @@ protected:
  * struct */
 struct StructBase
 {
-public:
+private:
   std::unique_ptr<Expr> base_struct;
 
+public:
   // TODO: should this store location data?
   StructBase (std::unique_ptr<Expr> base_struct_ptr)
     : base_struct (std::move (base_struct_ptr))
@@ -1408,7 +1402,7 @@ public:
 
   std::string as_string () const;
 
-  Expr *get_base () { return base_struct.get (); }
+  Expr &get_base () { return *base_struct; }
 };
 
 /* Base HIR node for a single struct expression field (in struct instance
@@ -1524,7 +1518,7 @@ protected:
 public:
   std::string as_string () const override;
 
-  std::unique_ptr<Expr> &get_value () { return value; }
+  Expr &get_value () { return *value; }
 };
 
 // Identifier and value variant of StructExprField HIR node
@@ -1604,38 +1598,39 @@ protected:
 // HIR node of a struct creator with fields
 class StructExprStructFields : public StructExprStruct
 {
-public:
   // std::vector<StructExprField> fields;
-  std::vector<std::unique_ptr<StructExprField> > fields;
+  std::vector<std::unique_ptr<StructExprField>> fields;
+  tl::optional<std::unique_ptr<StructBase>> struct_base;
 
-  // bool has_struct_base;
-  // FIXME make unique_ptr
-  StructBase *struct_base;
-
+public:
   // For unions there is just one field, the index
   // is set when type checking
   int union_index = -1;
 
   std::string as_string () const override;
 
-  bool has_struct_base () const { return struct_base != nullptr; }
+  bool has_struct_base () const { return struct_base.has_value (); }
 
   // Constructor for StructExprStructFields when no struct base is used
   StructExprStructFields (
     Analysis::NodeMapping mappings, PathInExpression struct_path,
-    std::vector<std::unique_ptr<StructExprField> > expr_fields,
-    location_t locus, StructBase *base_struct,
+    std::vector<std::unique_ptr<StructExprField>> expr_fields, location_t locus,
+    tl::optional<std::unique_ptr<StructBase>> base_struct,
     AST::AttrVec inner_attribs = AST::AttrVec (),
     AST::AttrVec outer_attribs = AST::AttrVec ())
     : StructExprStruct (std::move (mappings), std::move (struct_path),
 			std::move (inner_attribs), std::move (outer_attribs),
 			locus),
-      fields (std::move (expr_fields)), struct_base (base_struct)
+      fields (std::move (expr_fields)), struct_base (std::move (base_struct))
   {}
 
   // copy constructor with vector clone
   StructExprStructFields (StructExprStructFields const &other)
-    : StructExprStruct (other), struct_base (other.struct_base),
+    : StructExprStruct (other),
+      struct_base (
+	other.has_struct_base () ? tl::optional<std::unique_ptr<StructBase>> (
+	  Rust::make_unique<StructBase> (*other.struct_base.value ()))
+				 : tl::nullopt),
       union_index (other.union_index)
   {
     fields.reserve (other.fields.size ());
@@ -1647,7 +1642,10 @@ public:
   StructExprStructFields &operator= (StructExprStructFields const &other)
   {
     StructExprStruct::operator= (other);
-    struct_base = other.struct_base;
+    struct_base
+      = other.has_struct_base () ? tl::optional<std::unique_ptr<StructBase>> (
+	  Rust::make_unique<StructBase> (*other.struct_base.value ()))
+				 : tl::nullopt;
     union_index = other.union_index;
 
     fields.reserve (other.fields.size ());
@@ -1664,20 +1662,20 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::vector<std::unique_ptr<StructExprField> > &get_fields ()
+  std::vector<std::unique_ptr<StructExprField>> &get_fields ()
   {
     return fields;
   };
 
-  const std::vector<std::unique_ptr<StructExprField> > &get_fields () const
+  const std::vector<std::unique_ptr<StructExprField>> &get_fields () const
   {
     return fields;
   };
 
-  StructBase *get_struct_base () { return struct_base; }
+  StructBase &get_struct_base () { return *struct_base.value (); }
 
-  void set_fields_as_owner (
-    std::vector<std::unique_ptr<StructExprField> > new_fields)
+  void
+  set_fields_as_owner (std::vector<std::unique_ptr<StructExprField>> new_fields)
   {
     fields = std::move (new_fields);
   }
@@ -1723,7 +1721,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  StructBase *get_struct_base () { return &struct_base; }
+  StructBase &get_struct_base () { return struct_base; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1745,14 +1743,14 @@ protected:
 class CallExpr : public ExprWithoutBlock
 {
   std::unique_ptr<Expr> function;
-  std::vector<std::unique_ptr<Expr> > params;
+  std::vector<std::unique_ptr<Expr>> params;
   location_t locus;
 
 public:
   std::string as_string () const override;
 
   CallExpr (Analysis::NodeMapping mappings, std::unique_ptr<Expr> function_expr,
-	    std::vector<std::unique_ptr<Expr> > function_params,
+	    std::vector<std::unique_ptr<Expr>> function_params,
 	    AST::AttrVec outer_attribs, location_t locus)
     : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
       function (std::move (function_expr)),
@@ -1797,13 +1795,14 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_fnexpr () { return function; }
+  bool has_fnexpr () const { return function != nullptr; }
+  Expr &get_fnexpr () { return *function; }
 
   size_t num_params () const { return params.size (); }
 
-  std::vector<std::unique_ptr<Expr> > &get_arguments () { return params; }
+  std::vector<std::unique_ptr<Expr>> &get_arguments () { return params; }
 
-  const std::vector<std::unique_ptr<Expr> > &get_arguments () const
+  const std::vector<std::unique_ptr<Expr>> &get_arguments () const
   {
     return params;
   }
@@ -1831,7 +1830,7 @@ class MethodCallExpr : public ExprWithoutBlock
 {
   std::unique_ptr<Expr> receiver;
   PathExprSegment method_name;
-  std::vector<std::unique_ptr<Expr> > params;
+  std::vector<std::unique_ptr<Expr>> params;
   location_t locus;
 
 public:
@@ -1840,7 +1839,7 @@ public:
   MethodCallExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Expr> call_receiver,
 		  PathExprSegment method_path,
-		  std::vector<std::unique_ptr<Expr> > method_params,
+		  std::vector<std::unique_ptr<Expr>> method_params,
 		  AST::AttrVec outer_attribs, location_t locus)
     : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
       receiver (std::move (call_receiver)),
@@ -1884,7 +1883,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_receiver () { return receiver; }
+  Expr &get_receiver () { return *receiver; }
 
   PathExprSegment &get_method_name () { return method_name; };
   const PathExprSegment &get_method_name () const { return method_name; };
@@ -1892,9 +1891,9 @@ public:
   bool has_params () const { return !params.empty (); }
   size_t num_params () const { return params.size (); }
 
-  std::vector<std::unique_ptr<Expr> > &get_arguments () { return params; }
+  std::vector<std::unique_ptr<Expr>> &get_arguments () { return params; }
 
-  const std::vector<std::unique_ptr<Expr> > &get_arguments () const
+  const std::vector<std::unique_ptr<Expr>> &get_arguments () const
   {
     return params;
   }
@@ -1968,7 +1967,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_receiver_expr () { return receiver; }
+  Expr &get_receiver_expr () { return *receiver; }
 
   Identifier get_field_name () const { return field; }
 
@@ -2058,9 +2057,9 @@ public:
   }
   std::vector<AST::Attribute> &get_outer_attrs () { return outer_attrs; }
 
-  std::unique_ptr<Pattern> &get_pattern () { return pattern; }
+  Pattern &get_pattern () { return *pattern; }
 
-  std::unique_ptr<Type> &get_type () { return type; }
+  Type &get_type () { return *type; }
 
   location_t get_locus () const { return locus; }
 };
@@ -2128,8 +2127,8 @@ public:
 
   bool has_return_type () const { return return_type != nullptr; }
 
-  std::unique_ptr<Type> &get_return_type () { return return_type; };
-  std::unique_ptr<Expr> &get_expr () { return expr; }
+  Type &get_return_type () { return *return_type; };
+  Expr &get_expr () { return *expr; }
 
   bool has_params () const { return !params.empty (); }
   std::vector<ClosureParam> &get_params () { return params; }
@@ -2158,7 +2157,7 @@ class BlockExpr : public ExprWithBlock, public WithInnerAttrs
 {
   // FIXME this should be private + get/set
 public:
-  std::vector<std::unique_ptr<Stmt> > statements;
+  std::vector<std::unique_ptr<Stmt>> statements;
   std::unique_ptr<Expr> expr;
   bool tail_reachable;
   LoopLabel label;
@@ -2178,7 +2177,7 @@ public:
   bool is_tail_reachable () const { return tail_reachable; }
 
   BlockExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Stmt> > block_statements,
+	     std::vector<std::unique_ptr<Stmt>> block_statements,
 	     std::unique_ptr<Expr> block_expr, bool tail_reachable,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
 	     LoopLabel label, location_t start_locus, location_t end_locus)
@@ -2243,9 +2242,10 @@ public:
 
   bool is_final_stmt (Stmt *stmt) { return statements.back ().get () == stmt; }
 
-  std::unique_ptr<Expr> &get_final_expr () { return expr; }
+  bool has_final_expr () { return expr != nullptr; }
+  Expr &get_final_expr () { return *expr; }
 
-  std::vector<std::unique_ptr<Stmt> > &get_statements () { return statements; }
+  std::vector<std::unique_ptr<Stmt>> &get_statements () { return statements; }
 
   ExprType get_expression_type () const final override
   {
@@ -2388,7 +2388,7 @@ public:
 
   Lifetime &get_label () { return label; }
 
-  std::unique_ptr<Expr> &get_expr () { return break_expr; }
+  Expr &get_expr () { return *break_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2468,8 +2468,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_from_expr () { return *from; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2522,7 +2522,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
+  Expr &get_from_expr () { return *from; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2576,7 +2576,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2666,8 +2666,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_from_expr () { return *from; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2721,7 +2721,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_to_expr () { return to; };
+  Expr &get_to_expr () { return *to; };
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2790,7 +2790,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_expr () { return return_expr; }
+  bool has_expr () { return return_expr != nullptr; }
+  Expr &get_expr () { return *return_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2856,7 +2857,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<BlockExpr> &get_block_expr () { return expr; }
+  BlockExpr &get_block_expr () { return *expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2932,7 +2933,7 @@ public:
 
   location_t get_locus () const override final { return locus; }
 
-  std::unique_ptr<HIR::BlockExpr> &get_loop_block () { return loop_block; };
+  HIR::BlockExpr &get_loop_block () { return *loop_block; };
 
   LoopLabel &get_loop_label () { return loop_label; }
 };
@@ -3010,7 +3011,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_predicate_expr () { return condition; }
+  Expr &get_predicate_expr () { return *condition; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3032,7 +3033,7 @@ protected:
 class WhileLetLoopExpr : public BaseLoopExpr
 {
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns; // inlined
   std::unique_ptr<Expr> condition;
 
 public:
@@ -3040,7 +3041,7 @@ public:
 
   // Constructor with a loop label
   WhileLetLoopExpr (Analysis::NodeMapping mappings,
-		    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+		    std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 		    std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
 		    LoopLabel loop_label,
@@ -3086,8 +3087,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_cond () { return condition; }
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  Expr &get_cond () { return *condition; }
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
@@ -3169,8 +3170,8 @@ public:
   void vis_if_condition (HIRFullVisitor &vis) { condition->accept_vis (vis); }
   void vis_if_block (HIRFullVisitor &vis) { if_block->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_if_condition () { return condition; }
-  std::unique_ptr<BlockExpr> &get_if_block () { return if_block; }
+  Expr &get_if_condition () { return *condition; }
+  BlockExpr &get_if_block () { return *if_block; }
 
   ExprType get_expression_type () const final override { return ExprType::If; }
 
@@ -3233,7 +3234,7 @@ public:
 
   void vis_else_block (HIRFullVisitor &vis) { else_block->accept_vis (vis); }
 
-  std::unique_ptr<ExprWithBlock> &get_else_block () { return else_block; }
+  ExprWithBlock &get_else_block () { return *else_block; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3262,7 +3263,7 @@ protected:
 class IfLetExpr : public ExprWithBlock
 {
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns; // inlined
   std::unique_ptr<Expr> value;
   std::unique_ptr<BlockExpr> if_block;
 
@@ -3272,7 +3273,7 @@ public:
   std::string as_string () const override;
 
   IfLetExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+	     std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 	     std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
 	     location_t locus)
     : ExprWithBlock (std::move (mappings), AST::AttrVec ()),
@@ -3324,14 +3325,14 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_scrutinee_expr () { return value; }
+  Expr &get_scrutinee_expr () { return *value; }
 
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
 
-  std::unique_ptr<BlockExpr> &get_if_block () { return if_block; }
+  BlockExpr &get_if_block () { return *if_block; }
 
   ExprType get_expression_type () const final override
   {
@@ -3366,11 +3367,12 @@ class IfLetExprConseqElse : public IfLetExpr
 public:
   std::string as_string () const override;
 
-  IfLetExprConseqElse (
-    Analysis::NodeMapping mappings,
-    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-    std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
-    std::unique_ptr<ExprWithBlock> else_block, location_t locus)
+  IfLetExprConseqElse (Analysis::NodeMapping mappings,
+		       std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
+		       std::unique_ptr<Expr> value,
+		       std::unique_ptr<BlockExpr> if_block,
+		       std::unique_ptr<ExprWithBlock> else_block,
+		       location_t locus)
     : IfLetExpr (std::move (mappings), std::move (match_arm_patterns),
 		 std::move (value), std::move (if_block), locus),
       else_block (std::move (else_block))
@@ -3404,7 +3406,7 @@ public:
 
   void vis_else_block (HIRFullVisitor &vis) { else_block->accept_vis (vis); }
 
-  std::unique_ptr<ExprWithBlock> &get_else_block () { return else_block; }
+  ExprWithBlock &get_else_block () { return *else_block; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3434,7 +3436,7 @@ struct MatchArm
 {
 private:
   AST::AttrVec outer_attrs;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns;
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns;
   std::unique_ptr<Expr> guard_expr;
   location_t locus;
 
@@ -3443,7 +3445,7 @@ public:
   bool has_match_arm_guard () const { return guard_expr != nullptr; }
 
   // Constructor for match arm with a guard expression
-  MatchArm (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+  MatchArm (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 	    location_t locus, std::unique_ptr<Expr> guard_expr = nullptr,
 	    AST::AttrVec outer_attrs = AST::AttrVec ())
     : outer_attrs (std::move (outer_attrs)),
@@ -3494,17 +3496,17 @@ public:
   static MatchArm create_error ()
   {
     location_t locus = UNDEF_LOCATION;
-    return MatchArm (std::vector<std::unique_ptr<Pattern> > (), locus);
+    return MatchArm (std::vector<std::unique_ptr<Pattern>> (), locus);
   }
 
   std::string as_string () const;
 
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
 
-  std::unique_ptr<Expr> &get_guard_expr () { return guard_expr; }
+  Expr &get_guard_expr () { return *guard_expr; }
 
   location_t get_locus () const { return locus; }
 };
@@ -3548,7 +3550,7 @@ public:
   Analysis::NodeMapping get_mappings () const { return mappings; }
 
   MatchArm &get_arm () { return arm; }
-  std::unique_ptr<Expr> &get_expr () { return expr; }
+  Expr &get_expr () { return *expr; }
 };
 
 // Match expression HIR node
@@ -3609,7 +3611,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_scrutinee_expr () { return branch_value; }
+  Expr &get_scrutinee_expr () { return *branch_value; }
   AST::AttrVec get_inner_attrs () const { return inner_attrs; }
   const std::vector<MatchCase> &get_match_cases () const { return match_arms; }
   std::vector<MatchCase> &get_match_cases () { return match_arms; }
@@ -3673,7 +3675,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_awaited_expr () { return awaited_expr; }
+  Expr &get_awaited_expr () { return *awaited_expr; }
 
   ExprType get_expression_type () const final override
   {
@@ -3730,7 +3732,7 @@ public:
   location_t get_locus () const override final { return locus; }
 
   bool get_has_move () const { return has_move; }
-  std::unique_ptr<BlockExpr> &get_block_expr () { return block_expr; }
+  BlockExpr &get_block_expr () { return *block_expr; }
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -3755,31 +3757,31 @@ class OperatorExprMeta
 public:
   OperatorExprMeta (HIR::CompoundAssignmentExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::ArithmeticOrLogicalExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::NegationExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::DereferenceExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
   OperatorExprMeta (HIR::ArrayIndexExpr &expr)
     : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_array_expr ()->get_mappings ()),
+      lvalue_mappings (expr.get_array_expr ().get_mappings ()),
       locus (expr.get_locus ())
   {}
 
@@ -3874,7 +3876,6 @@ struct AnonConst
     return *this;
   }
 };
-;
 
 class InlineAsmOperand
 {
@@ -4104,6 +4105,8 @@ public:
   struct Const get_const () const { return cnst.value (); }
   struct Sym get_sym () const { return sym.value (); }
   struct Label get_label () const { return label.value (); }
+
+  location_t get_locus () const { return locus; }
 };
 // Inline Assembly Node
 class InlineAsm : public ExprWithoutBlock
