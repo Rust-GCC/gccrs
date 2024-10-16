@@ -1,0 +1,245 @@
+\input texinfo @c -*-texinfo-*-
+@setfilename gccrs.info
+@settitle The GNU Rust Compiler
+
+@c Merge the standard indexes into a single one.
+@syncodeindex fn cp
+@syncodeindex vr cp
+@syncodeindex ky cp
+@syncodeindex pg cp
+@syncodeindex tp cp
+
+@include gcc-common.texi
+
+@c Copyright years for this manual.
+@set copyrights-gccrs 2024
+
+@copying
+@c man begin COPYRIGHT
+Copyright @copyright{} @value{copyrights-gccrs} Free Software Foundation, Inc.
+
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, the Front-Cover Texts being (a) (see below), and
+with the Back-Cover Texts being (b) (see below).
+A copy of the license is included in the
+@c man end
+section entitled ``GNU Free Documentation License''.
+@ignore
+@c man begin COPYRIGHT
+man page gfdl(7).
+@c man end
+@end ignore
+
+@c man begin COPYRIGHT
+
+(a) The FSF's Front-Cover Text is:
+
+     A GNU Manual
+
+(b) The FSF's Back-Cover Text is:
+
+     You have freedom to copy and modify this GNU Manual, like GNU
+     software.  Copies published by the Free Software Foundation raise
+     funds for GNU development.
+@c man end
+@end copying
+
+@ifinfo
+@format
+@dircategory Software development
+@direntry
+* gccrs: (gccrs).           A GCC-based compiler for the Rust programming language
+@end direntry
+@end format
+
+@insertcopying
+@end ifinfo
+
+@titlepage
+@title The GNU Rust Compiler
+@versionsubtitle
+@author The gccrs team
+
+@page
+@vskip 0pt plus 1filll
+Published by the Free Software Foundation @*
+51 Franklin Street, Fifth Floor@*
+Boston, MA 02110-1301, USA@*
+@sp 1
+@insertcopying
+@end titlepage
+@contents
+@page
+
+@node Top
+@top Introduction
+
+This manual describes how to use @command{gccrs}, the GNU compiler for
+the Rust programming language.  This manual is specifically about
+@command{gccrs}.  For more information about the Rust programming
+language, see @uref{https//rust-lang.org}.
+
+@menu
+* Copying::                     The GNU General Public License.
+* GNU Free Documentation License::
+                                How you can share and copy this manual.
+* Invoking @code{gccrs}::       How to run @code{gccrs}.
+* Using @code{gccrs}::          Compiling Rust code with @code{gccrs}.
+* Index::                       Index.
+@end menu
+
+
+@include gpl_v3.texi
+
+@include fdl.texi
+
+@node Invoking @code{gccrs}
+@chapter Invoking @code{gccrs}
+
+@c man title gccrs A GCC-based compiler for the Rust programming language
+
+@c man begin DESCRIPTION gccrs
+
+The @command{gccrs} command is a frontend to @command{gcc} and
+supports many of the same options, @xref{Option Summary, , Option
+Summary, gcc, Using the GNU Compiler Collection (GCC)}, as well
+as some @command{gccrs} specific ones. This manual only documents
+the options that are specific to @command{gccrs}.
+
+@c man end
+
+@c man begin OPTIONS gccrust
+
+@table @gcctabopt
+
+@cindex @option{-frust-incomplete-and-experimental-compiler-do-not-use}
+@item -frust-incomplete-and-experimental-compiler-do-not-use
+This flag enables the compilation of Rust code with the GCC Rust compiler.
+It is used to indicate the unstability of the compiler, and reminds the user
+about the expected incoming breakage. @command{gccrs} is not yet able to
+compile real Rust code, or to report valid errors when seeing incorrect Rust.
+It also does not compile and link to the Rust standard library, meaning you
+are not able to access most existing Rust types, macros and functions.
+
+@cindex @option{-frust-mini-std}
+@item -frust-mini-std
+Add the @code{mini_std} module to the crate you are currently compiling. This miniature
+standard library is experimental, and does not represent a strict subset of Rust's
+standard library. It is there so that you can have access to basic Rust functionality,
+such as common arithmetic operations on natural numbers or printing basic strings to
+the standard output streams.
+
+@cindex @option{-frust-borrowcheck}
+@item -frust-borrowcheck
+Enable the experimental borrow-checking pass in the @command{gccrs} pipeline. This pass
+feeds information to @command{polonius}, a next-generation borrow-checking algorithm for
+Rust. It is incomplete and cannot be used to safely analyze Rust borrowing rules with
+@command{gccrs} yet.
+
+@cindex @option{-frust-cfg}
+@item -frust-cfg=@var{input}
+Specify a @code{#[cfg]} directive for the Rust compiler. This is used in Rust code
+to perform conditional compilation. The input can be of the form @code{key} or @code{key=value}.
+
+@cindex @option{-frust-compile-until}
+@item -frust-compile-until=@var{step}
+Stop the compilation at a certain stage in the @command{gccrs} pipeline. The available steps are:
+@code{ast}, @code{attributecheck}, @code{expansion}, @code{astvalidation}, @code{featuregating}, @code{nameresolution}, @code{lowering}, @code{typecheck}, @code{privacy}, @code{unsafety}, @code{const}, @code{borrowcheck}, @code{compilation}, @code{end}.
+
+@cindex @option{-frust-crate-type}
+@item -frust-crate-type=@var{type}
+What type of crate to produce using @command{gccrs}. While the official Rust compiler supports
+multiple options such as @code{staticlib} or @code{rlib}, the Rust compiler for GCC does not.
+The complete list of accepted @code{type}s is as follows: @code{bin}, @code{lib}, @code{rlib}, @code{dylib}, @code{cdylib}, @code{staticlib}, @code{proc_macro}.
+The list of supported @code{type}s is: @code{bin}, @code{proc_macro}.
+
+@cindex @option{-frust-crate}
+@item -frust-crate=@var{name}
+Specify the name to use for the crate we are producing.
+
+@cindex @option{-frust-edition}
+@item -frust-edition=@var{year}
+Rust edition to use when compiling the code. Available editions are @code{2015}, @code{2018} and @code{2021}.
+
+@cindex @option{-frust-embed-metadata}
+@item -frust-embed-metadata
+Enable embedding metadata directly into object files.
+
+@cindex @option{-frust-metadata-output}
+@item -frust-metadata-output=@var{path}
+Path where crate metadata should be written.
+
+@cindex @option{-frust-extern}
+@item -frust-extern=@var{path}
+Specify a path from which an external crate should be loaded.
+
+@cindex @option{-frust-mangling}
+@item -frust-mangling=@var{version}
+Mangling algorithm to use: @code{legacy} or @code{v0}.
+
+@cindex @option{-frust-max-recursion-depth}
+@item -frust-max-recursion-depth=@var{max_value}
+Set the maximum recursion depth for macro expansion. The default is 128.
+
+@cindex @option{-frust-name-resolution-2.0}
+@item -frust-name-resolution-2.0
+Switch to the experimental name resolution algorithm which is currently being rewritten.
+
+@cindex @option{-frust-debug}
+@item -frust-debug
+Turn on debug printing from the Rust compiler frontend. This does not turn on debug
+information for the produced binaries, and will create a lot of noise on the output.
+This option is aimed for the developers of @command{gccrs}.
+
+@cindex @option{-frust-dump-}
+@item -frust-dump-@var{to_dump}
+Create debug dump files from various passes of the @command{gccrs} pipeline.
+Available dumps are: @code{lex}, @code{ast-pretty}, @code{register_plugins}, @code{injection}, @code{expansion}, @code{resolution}, @code{target_options}, @code{hir}, @code{hir-pretty}, @code{all}
+
+@end table
+
+@node Using @code{gccrs}
+@chapter Using @code{gccrs}
+
+@code{gccrs} is not yet able to compile "real" Rust code, but it is progressing fast. A lot of the language's functionality resides in its runtime, the @code{core} library, which exposes interfaces intrinsic to the language that the compiler has to implement as built-in. These interfaces are so important to the Rust programming language that basic functionality, like adding two numbers together, is not even possible without part of the @code{core} library. Similarly, it is not possible to create closures, or to index into an array without @code{core}.
+
+And while @code{gccrs} is able to compile a large part of the @code{core} library, it is not yet able to compile all of it, or to provide all of the functionality it expects. As a result, we are not yet able to compile and distribute the runtime libraries for you to use when compiling Rust code.
+
+This means that most of the Rust code you will attempt to write will not compile out of the box without extensive modifications, and without delving into the compiler's internals.
+
+Furthermore, a lot of Rust code will make extensive use of the language's standard library. The standard library includes @code{core}, but also another Rust crate named @code{alloc}: @code{alloc} makes use of dynamic memory allocation in order to provide abstractions for vector types, hashmaps, or mutexes. @code{gccrs} is not yet able to make use of a global memory allocator for Rust, so all of the dynamically allocated types that the standard library provides are not usable.
+
+Likewise, format strings and their printing on standard output requires dynamic memory buffers as well as a mutex type - we are thus not able to offer proper formatting and printing with @code{gccrs}.
+
+You can however make use of a lot of Rust abstractions and experiment with them - and obviously, report bugs if the implementation comes up short. For example, you are able to define Rust @code{enum}s, @code{struct}s, and do rudimentary pattern matching on them. You can use this to experiment with @code{Result} and @code{Option}, two abstractions often used in Rust for error handling. Likewise, you are able to define and use traits, Rust's equivalent of abstract classes, which allow shared behavior between types.
+
+If you try and use functionality which depends on a @code{core} interface, @code{gccrs} should warn you about the missing interface and ask you to define it. You can then have a look for that interface in our testsuite, in @code{core}'s code, or directly ask the @code{gccrs} team about it on IRC, Zulip or on our mailing-list.
+
+For string formatting and printing to @code{stdout}, you are able to use the C @code{printf} family of functions, or any other C function as a matter of fact, since @code{gccrs} support linking your Rust code to your system's C library.
+
+For example, a simple addition and printing of the result may look like this:
+
+@example
+extern "C" @{
+    fn printf(s: *const i8, ...) -> i32;
+@}
+
+fn main() @{
+    let a = 15 + 14;
+
+    unsafe @{ printf("%d\n\0" as *const str as *const i8, a) @}
+@}
+@end example
+
+When compiled and linked as you would any other program with @code{gcc}, running the resulting binary should display @code{29}. You might see a non-zero exit code in your shell, which is due to the lack of @code{main} shim in @code{gccrs}. You can circumvent this by creating a C-like @code{main} function, which returns an integer as a result. Note that this is not valid Rust code and will be rejected in the near future!
+
+Despite all these limitations, we encourage you to try out our compiler and to please report back any issues you find with it. The frontend is extremely experimental, and will break on valid Rust code - if you see an error, it is most probably because of the @code{gccrs} team rather than the code you are trying to compile. Please do not direct bug reports to the authors of this Rust code, but rather to us.
+
+@node Index
+@unnumbered Index
+
+@printindex cp
+
+@bye
