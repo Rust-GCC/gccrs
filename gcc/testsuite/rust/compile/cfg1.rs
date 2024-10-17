@@ -1,4 +1,4 @@
-// { dg-additional-options "-w" }
+// { dg-additional-options "-w -frust-name-resolution-2.0" }
 extern "C" {
     fn printf(s: *const i8, ...);
 }
@@ -27,5 +27,5 @@ fn test() {
 
 fn main() {
     test();
-    // { dg-error "Cannot find path .test. in this scope" "" { target *-*-* } .-1 }
+    // { dg-error "could not resolve path expression: .test." "" { target *-*-* } .-1 }
 }
