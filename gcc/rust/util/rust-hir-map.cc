@@ -891,16 +891,16 @@ void
 Mappings::insert_macro_invocation (AST::MacroInvocation &invoc,
 				   AST::MacroRulesDefinition *def)
 {
-  auto it = macroInvocations.find (invoc.get_macro_node_id ());
+  auto it = macroInvocations.find (invoc.get_node_id ());
   rust_assert (it == macroInvocations.end ());
 
-  macroInvocations[invoc.get_macro_node_id ()] = def;
+  macroInvocations[invoc.get_node_id ()] = def;
 }
 
 tl::optional<AST::MacroRulesDefinition *>
 Mappings::lookup_macro_invocation (AST::MacroInvocation &invoc)
 {
-  auto it = macroInvocations.find (invoc.get_macro_node_id ());
+  auto it = macroInvocations.find (invoc.get_node_id ());
   if (it == macroInvocations.end ())
     return tl::nullopt;
 
@@ -1060,16 +1060,16 @@ void
 Mappings::insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
 					     BangProcMacro def)
 {
-  auto it = procmacroBangInvocations.find (invoc.get_macro_node_id ());
+  auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroBangInvocations.end ());
 
-  procmacroBangInvocations[invoc.get_macro_node_id ()] = def;
+  procmacroBangInvocations[invoc.get_node_id ()] = def;
 }
 
 tl::optional<BangProcMacro &>
 Mappings::lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc)
 {
-  auto it = procmacroBangInvocations.find (invoc.get_macro_node_id ());
+  auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   if (it == procmacroBangInvocations.end ())
     return tl::nullopt;
 
