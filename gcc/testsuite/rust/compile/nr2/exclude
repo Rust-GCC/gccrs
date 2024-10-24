@@ -19,7 +19,6 @@ macros/builtin/recurse2.rs
 macros/builtin/include3.rs
 macros/builtin/include4.rs
 canonical_paths1.rs
-cfg1.rs
 cfg3.rs
 cfg4.rs
 cfg5.rs
