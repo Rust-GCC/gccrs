@@ -235,3 +235,6 @@ issue-3036.rs
 issue-2951.rs
 issue-2203.rs
 issue-2499.rs
+# https://github.com/Rust-GCC/gccrs/issues/3189
+if_let_expr_simple.rs
+iflet.rs
