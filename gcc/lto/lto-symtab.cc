@@ -183,7 +183,7 @@ lto_varpool_replace_node (varpool_node *vnode,
   vnode->remove ();
 }
 
-/* Return non-zero if we want to output waring about T1 and T2.
+/* Return non-zero if we want to output warning about T1 and T2.
    Return value is a bitmask of reasons of violation:
    Bit 0 indicates that types are not compatible.
    Bit 1 indicates that types are not compatible because of C++ ODR rule.
