@@ -23,6 +23,7 @@
 #include "rust-bir.h"
 #include "rust-hir-item.h"
 #include "gcc-rich-location.h"
+#include "text-range-label.h"
 
 namespace Rust {
 namespace BIR {
