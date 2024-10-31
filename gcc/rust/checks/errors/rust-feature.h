@@ -51,6 +51,12 @@ public:
     RAW_REF_OP,
     EXCLUSIVE_RANGE_PATTERN,
     PRELUDE_IMPORT,
+    ARBITRARY_SELF_TYPES,
+    DOC_CFG,
+    IMPL_TRAIT_IN_ASSOC_TYPE,
+    REGISTER_TOOL,
+    ASSOCIATED_TYPE_DEFAULTS,
+    CONST_TRAIT_IMPL,
   };
 
   const std::string &as_string () { return m_name_str; }
