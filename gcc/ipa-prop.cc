@@ -929,7 +929,7 @@ static bool
 param_type_may_change_p (tree function, tree arg, gimple *call)
 {
   /* Pure functions cannot do any changes on the dynamic type;
-     that require writting to memory.  */
+     that require writing to memory.  */
   if (flags_from_decl_or_type (function) & (ECF_PURE | ECF_CONST))
     return false;
   /* We need to check if we are within inlined consturctor
