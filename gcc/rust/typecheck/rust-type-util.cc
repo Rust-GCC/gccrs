@@ -52,7 +52,7 @@ query_type (HirId reference, TyTy::BaseType **result)
     {
       HIR::Enum *parent = enum_candidiate.first;
       HIR::EnumItem *enum_item = enum_candidiate.second;
-      rust_debug_loc (enum_item->get_locus (), "resolved item {%u} to",
+      rust_debug_loc (enum_item->get_locus (), "resolved enum item {%u} to",
 		      reference);
 
       *result = TypeCheckItem::Resolve (*parent);
