@@ -87,6 +87,14 @@ query_type (HirId reference, TyTy::BaseType **result)
   // is it an impl_type?
   if (auto impl_block_by_type = mappings.lookup_impl_block_type (reference))
     {
+      // check if the type is already being resolved
+      HirId impl_block_type_hirid = impl_block_by_type.value ()
+				      ->get_type ()
+				      ->get_mappings ()
+				      .get_hirid ();
+      if (context->query_in_progress (impl_block_type_hirid))
+	return false;
+
       *result
 	= TypeCheckItem::ResolveImplBlockSelf (*impl_block_by_type.value ());
       context->query_completed (reference);
