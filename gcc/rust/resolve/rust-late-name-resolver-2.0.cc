@@ -177,6 +177,16 @@ Late::visit (AST::SelfParam &param)
 }
 
 void
+Late::visit (AST::TypeParam &param)
+{
+  // handle similar to AST::IdentifierPattern but as a type
+
+  DefaultResolver::visit (param);
+  std::ignore
+    = ctx.types.insert (param.get_type_representation (), param.get_node_id ());
+}
+
+void
 Late::visit (AST::IdentifierExpr &expr)
 {
   // TODO: same thing as visit(PathInExpression) here?
