@@ -92,6 +92,8 @@ static tree
 move_val_init_handler (Context *ctx, TyTy::FnType *fntype);
 static tree
 assume_handler (Context *ctx, TyTy::FnType *fntype);
+static tree
+ctpop_hander (Context *ctx, TyTy::FnType *fntype);
 
 enum class Prefetch
 {
@@ -241,6 +243,7 @@ static const std::map<std::string,
     {"likely", expect_handler (true)},
     {"unlikely", expect_handler (false)},
     {"assume", assume_handler},
+    {"ctpop", ctpop_hander},
 };
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
@@ -605,6 +608,67 @@ wrapping_op_handler_inner (Context *ctx, TyTy::FnType *fntype, tree_code op)
     = Backend::return_statement (fndecl, wrap_expr, UNDEF_LOCATION);
   ctx->add_statement (return_statement);
   // BUILTIN wrapping_<op> FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+static tree
+ctpop_hander (Context *ctx, TyTy::FnType *fntype)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto &x_param = param_vars.at (0);
+
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  rust_assert (fntype->get_num_substitutions () == 1);
+  auto &param_mapping = fntype->get_substs ().at (0);
+  const TyTy::ParamType *param_tyty = param_mapping.get_param_ty ();
+  TyTy::BaseType *resolved_tyty = param_tyty->resolve ();
+  tree template_parameter_type
+    = TyTyResolveCompile::compile (ctx, resolved_tyty);
+
+  tree tmp_stmt = error_mark_node;
+  Bvariable *result_variable
+    = Backend::temporary_variable (fndecl, NULL_TREE, template_parameter_type,
+				   NULL_TREE, true /*address_is_taken*/,
+				   UNDEF_LOCATION, &tmp_stmt);
+
+  enter_intrinsic_block (ctx, fndecl, {result_variable});
+
+  // BUILTIN popcount FN BODY BEGIN
+  auto x = Backend::var_expression (x_param, UNDEF_LOCATION);
+
+  tree popcount_builtin = error_mark_node;
+
+  BuiltinsContext::get ().lookup_simple_builtin ("__builtin_popcountg",
+						 &popcount_builtin);
+  rust_assert (popcount_builtin != error_mark_node);
+
+  tree builtin_call
+    = build_call_expr_loc (BUILTINS_LOCATION, popcount_builtin, 1, x);
+
+  auto return_statement
+    = Backend::return_statement (fndecl,
+				 build1 (CONVERT_EXPR, unsigned_type_node,
+					 builtin_call),
+				 UNDEF_LOCATION);
+  ctx->add_statement (return_statement);
+
+  // BUILTIN popcount FN BODY END
 
   finalize_intrinsic_block (ctx, fndecl);
 
