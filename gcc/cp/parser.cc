@@ -1198,7 +1198,8 @@ static const cp_trait *
 cp_lexer_peek_trait (cp_lexer *lexer)
 {
   const cp_token *token1 = cp_lexer_peek_token (lexer);
-  if (token1->type == CPP_NAME && IDENTIFIER_TRAIT_P (token1->u.value))
+  if (token1->type == CPP_NAME
+      && UNLIKELY (IDENTIFIER_TRAIT_P (token1->u.value)))
     {
       const cp_trait &trait = cp_traits[IDENTIFIER_CP_INDEX (token1->u.value)];
       const bool is_pack_element = (trait.kind == CPTK_TYPE_PACK_ELEMENT);
@@ -7161,18 +7162,13 @@ cp_parser_nested_name_specifier_opt (cp_parser *parser,
 		      tree fns = get_fns (tid);
 		      if (OVL_SINGLE_P (fns))
 			tmpl = OVL_FIRST (fns);
-		      if (function_concept_p (fns))
-			error_at (token->location, "concept-id %qD "
-				  "in nested-name-specifier", tid);
-		      else
-			error_at (token->location, "function template-id "
-				  "%qD in nested-name-specifier", tid);
+		      error_at (token->location, "function template-id "
+				"%qD in nested-name-specifier", tid);
 		    }
 		  else
 		    {
 		      tmpl = TREE_OPERAND (tid, 0);
-		      if (variable_concept_p (tmpl)
-			  || standard_concept_p (tmpl))
+		      if (concept_definition_p (tmpl))
 			error_at (token->location, "concept-id %qD "
 				  "in nested-name-specifier", tid);
 		      else
@@ -12223,9 +12219,6 @@ static void
 add_debug_begin_stmt (location_t loc)
 {
   if (!MAY_HAVE_DEBUG_MARKER_STMTS)
-    return;
-  if (DECL_DECLARED_CONCEPT_P (current_function_decl))
-    /* A concept is never expanded normally.  */
     return;
 
   tree stmt = build0 (DEBUG_BEGIN_STMT, void_type_node);
@@ -27729,11 +27722,20 @@ cp_parser_class_head (cp_parser* parser,
                          class_head_start_location,
                          get_finish (type_start_token->location));
       rich_location richloc (line_table, reported_loc);
-      richloc.add_fixit_insert_before (class_head_start_location,
-                                       "template <> ");
-      error_at (&richloc,
-		"an explicit specialization must be preceded by"
-		" %<template <>%>");
+      if (processing_explicit_instantiation)
+	{
+	  richloc.add_fixit_insert_before ("<> ");
+	  error_at (&richloc,
+		    "an explicit instantiation cannot have a definition;"
+		    " use %<template <>%> to declare a specialization");
+	}
+      else
+	{
+	  richloc.add_fixit_insert_before ("template <> ");
+	  error_at (&richloc,
+		    "an explicit specialization must be preceded by"
+		    " %<template <>%>");
+	}
       invalid_explicit_specialization_p = true;
       /* Take the same action that would have been taken by
 	 cp_parser_explicit_specialization.  */
@@ -33087,8 +33089,6 @@ cp_parser_template_declaration_after_parameters (cp_parser* parser,
   else if (flag_concepts
            && cp_lexer_next_token_is_keyword (parser->lexer, RID_CONCEPT)
 	   && cp_lexer_nth_token_is (parser->lexer, 2, CPP_NAME))
-    /* -fconcept-ts 'concept bool' syntax is handled below, in
-	cp_parser_single_declaration.  */
     decl = cp_parser_concept_definition (parser);
   else
     {

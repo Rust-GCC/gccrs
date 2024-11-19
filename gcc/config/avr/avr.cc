@@ -330,6 +330,13 @@ avr_adiw_reg_p (rtx reg)
 }
 
 
+static bool
+ra_in_progress ()
+{
+  return avr_lra_p ? lra_in_progress : reload_in_progress;
+}
+
+
 namespace {
 
 static const pass_data avr_pass_data_recompute_notes =
@@ -2121,6 +2128,10 @@ avr_pass_fuse_add::Mem_Insn::Mem_Insn (rtx_insn *insn)
   else
     return;
 
+  if (avr_mem_memx_p (mem)
+      || avr_load_libgcc_p (mem))
+    return;
+
   addr = XEXP (mem, 0);
   addr_code = GET_CODE (addr);
 
@@ -3556,8 +3567,8 @@ avr_legitimate_address_p (machine_mode mode, rtx x, bool strict)
   if (avr_log.legitimate_address_p)
     {
       avr_edump ("\n%?: ret=%d, mode=%m strict=%d "
-		 "reload_completed=%d reload_in_progress=%d %s:",
-		 ok, mode, strict, reload_completed, reload_in_progress,
+		 "reload_completed=%d ra_in_progress=%d %s:",
+		 ok, mode, strict, reload_completed, ra_in_progress (),
 		 reg_renumber ? "(reg_renumber)" : "");
 
       if (GET_CODE (x) == PLUS
@@ -4621,7 +4632,7 @@ avr_out_lpm_no_lpmx (rtx_insn *insn, rtx *xop, int *plen)
 	    avr_asm_len ("mov %0,r0", &reg, plen, 1);
 	}
 
-      if (! _reg_unused_after (insn, xop[2], false))
+      if (! reg_unused_after (insn, xop[2]))
 	avr_asm_len ("adiw %2,1", xop, plen, 1);
 
       break; /* POST_INC */
@@ -11318,6 +11329,25 @@ avr_adjust_insn_length (rtx_insn *insn, int len)
   return len;
 }
 
+
+/* Return true when INSN has a REG_UNUSED note for hard reg REG.
+   rtlanal.cc::find_reg_note() uses == to compare XEXP (link, 0)
+   therefore use a custom function.  */
+
+static bool
+avr_insn_has_reg_unused_note_p (rtx_insn *insn, rtx reg)
+{
+  for (rtx link = REG_NOTES (insn); link; link = XEXP (link, 1))
+    if (REG_NOTE_KIND (link) == REG_UNUSED
+	&& REG_P (XEXP (link, 0))
+	&& REGNO (reg) >= REGNO (XEXP (link, 0))
+	&& END_REGNO (reg) <= END_REGNO (XEXP (link, 0)))
+      return true;
+
+  return false;
+}
+
+
 /* Return nonzero if register REG dead after INSN.  */
 
 int
@@ -11344,6 +11374,17 @@ _reg_unused_after (rtx_insn *insn, rtx reg, bool look_at_insn)
       if (set && !MEM_P (SET_DEST (set))
 	  && reg_overlap_mentioned_p (reg, SET_DEST (set)))
 	return 1;
+
+      /* This case occurs when fuse-add introduced a POST_INC addressing,
+	 but the address register is unused after.  */
+      if (set)
+	{
+	  rtx mem = MEM_P (SET_SRC (set)) ? SET_SRC (set) : SET_DEST (set);
+	  if (MEM_P (mem)
+	      && reg_overlap_mentioned_p (reg, XEXP (mem, 0))
+	      && avr_insn_has_reg_unused_note_p (insn, reg))
+	    return 1;
+	}
     }
 
   while ((insn = NEXT_INSN (insn)))
@@ -13939,8 +13980,8 @@ extra_constraint_Q (rtx x)
 	    || xx == arg_pointer_rtx);
 
       if (avr_log.constraints)
-	avr_edump ("\n%?=%d reload_completed=%d reload_in_progress=%d\n %r\n",
-		   ok, reload_completed, reload_in_progress, x);
+	avr_edump ("\n%?=%d reload_completed=%d ra_in_progress=%d\n %r\n",
+		   ok, reload_completed, ra_in_progress (), x);
     }
 
   return ok;
@@ -14146,7 +14187,9 @@ avr_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 	address registers is extreme stress test for reload.  */
 
   if (GET_MODE_SIZE (mode) >= 4
-      && regno >= REG_X)
+      && regno >= REG_X
+      // This problem only concerned the old reload.
+      && ! avr_lra_p)
     return false;
 
   /* All modes larger than 8 bits should start in an even register.  */
@@ -15002,8 +15045,8 @@ avr_addr_space_legitimate_address_p (machine_mode mode, rtx x, bool strict,
   if (avr_log.legitimate_address_p)
     {
       avr_edump ("\n%?: ret=%b, mode=%m strict=%d "
-		 "reload_completed=%d reload_in_progress=%d %s:",
-		 ok, mode, strict, reload_completed, reload_in_progress,
+		 "reload_completed=%d ra_in_progress=%d %s:",
+		 ok, mode, strict, reload_completed, ra_in_progress (),
 		 reg_renumber ? "(reg_renumber)" : "");
 
       if (GET_CODE (x) == PLUS
@@ -16648,6 +16691,15 @@ avr_float_lib_compare_returns_bool (machine_mode mode, enum rtx_code)
   return false;
 }
 
+
+/* Implement `TARGET_LRA_P'.  */
+
+static bool
+avr_use_lra_p ()
+{
+  return avr_lra_p;
+}
+
 
 
 /* Initialize the GCC target structure.  */
@@ -16790,7 +16842,7 @@ avr_float_lib_compare_returns_bool (machine_mode mode, enum rtx_code)
 #define TARGET_CONVERT_TO_TYPE avr_convert_to_type
 
 #undef TARGET_LRA_P
-#define TARGET_LRA_P hook_bool_void_false
+#define TARGET_LRA_P avr_use_lra_p
 
 #undef  TARGET_ADDR_SPACE_SUBSET_P
 #define TARGET_ADDR_SPACE_SUBSET_P avr_addr_space_subset_p

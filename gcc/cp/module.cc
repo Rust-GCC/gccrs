@@ -2589,6 +2589,9 @@ public:
     void add_partial_entities (vec<tree, va_gc> *);
     void add_class_entities (vec<tree, va_gc> *);
 
+  private:
+    void add_deduction_guides (tree decl);
+
   public:    
     void find_dependencies (module_state *);
     bool finalize_dependencies ();
@@ -2955,7 +2958,8 @@ private:
 public:
   tree decl_container ();
   tree key_mergeable (int tag, merge_kind, tree decl, tree inner, tree type,
-		      tree container, bool is_attached);
+		      tree container, bool is_attached,
+		      bool is_imported_temploid_friend);
   unsigned binfo_mergeable (tree *);
 
 private:
@@ -7803,6 +7807,7 @@ trees_out::decl_value (tree decl, depset *dep)
 		       || !TYPE_PTRMEMFUNC_P (TREE_TYPE (decl)));
 
   merge_kind mk = get_merge_kind (decl, dep);
+  bool is_imported_temploid_friend = imported_temploid_friends->get (decl);
 
   if (CHECKING_P)
     {
@@ -7838,13 +7843,11 @@ trees_out::decl_value (tree decl, depset *dep)
 		  && DECL_MODULE_ATTACH_P (not_tmpl))
 		is_attached = true;
 
-	      /* But don't consider imported temploid friends as attached,
-		 since importers will need to merge this decl even if it was
-		 attached to a different module.  */
-	      if (imported_temploid_friends->get (decl))
-		is_attached = false;
-
 	      bits.b (is_attached);
+
+	      /* Also tell the importer whether this is an imported temploid
+		 friend, which has implications for merging.  */
+	      bits.b (is_imported_temploid_friend);
 	    }
 	  bits.b (dep && dep->has_defn ());
 	}
@@ -8021,13 +8024,12 @@ trees_out::decl_value (tree decl, depset *dep)
 	}
     }
 
-  if (TREE_CODE (inner) == FUNCTION_DECL
-      || TREE_CODE (inner) == TYPE_DECL)
+  if (is_imported_temploid_friend)
     {
       /* Write imported temploid friends so that importers can reconstruct
 	 this information on stream-in.  */
       tree* slot = imported_temploid_friends->get (decl);
-      tree_node (slot ? *slot : NULL_TREE);
+      tree_node (*slot);
     }
 
   bool is_typedef = false;
@@ -8106,6 +8108,7 @@ trees_in::decl_value ()
 {
   int tag = 0;
   bool is_attached = false;
+  bool is_imported_temploid_friend = false;
   bool has_defn = false;
   unsigned mk_u = u ();
   if (mk_u >= MK_hwm || !merge_kind_name[mk_u])
@@ -8126,7 +8129,10 @@ trees_in::decl_value ()
 	{
 	  bits_in bits = stream_bits ();
 	  if (!(mk & MK_template_mask) && !state->is_header ())
-	    is_attached = bits.b ();
+	    {
+	      is_attached = bits.b ();
+	      is_imported_temploid_friend = bits.b ();
+	    }
 
 	  has_defn = bits.b ();
 	}
@@ -8231,7 +8237,7 @@ trees_in::decl_value ()
     parm_tag = fn_parms_init (inner);
 
   tree existing = key_mergeable (tag, mk, decl, inner, type, container,
-				 is_attached);
+				 is_attached, is_imported_temploid_friend);
   tree existing_inner = existing;
   if (existing)
     {
@@ -8336,8 +8342,7 @@ trees_in::decl_value ()
 	}
     }
 
-  if (TREE_CODE (inner) == FUNCTION_DECL
-      || TREE_CODE (inner) == TYPE_DECL)
+  if (is_imported_temploid_friend)
     if (tree owner = tree_node ())
       if (is_new)
 	imported_temploid_friends->put (decl, owner);
@@ -11174,7 +11179,8 @@ check_mergeable_decl (merge_kind mk, tree decl, tree ovl, merge_key const &key)
 
 tree
 trees_in::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
-			 tree type, tree container, bool is_attached)
+			 tree type, tree container, bool is_attached,
+			 bool is_imported_temploid_friend)
 {
   const char *kind = "new";
   tree existing = NULL_TREE;
@@ -11316,6 +11322,7 @@ trees_in::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
 
 	  case NAMESPACE_DECL:
 	    if (is_attached
+		&& !is_imported_temploid_friend
 		&& !(state->is_module () || state->is_partition ()))
 	      kind = "unique";
 	    else
@@ -11347,6 +11354,7 @@ trees_in::key_mergeable (int tag, merge_kind mk, tree decl, tree inner,
 	    break;
 
 	  case TYPE_DECL:
+	    gcc_checking_assert (!is_imported_temploid_friend);
 	    if (is_attached && !(state->is_module () || state->is_partition ())
 		/* Implicit member functions can come from
 		   anywhere.  */
@@ -12684,9 +12692,9 @@ trees_in::read_enum_def (tree defn, tree maybe_template)
 	  if (known_decl && new_decl)
 	    {
 	      inform (DECL_SOURCE_LOCATION (new_decl),
-		      "... this enumerator %qD", new_decl);
+		      "enumerator %qD does not match ...", new_decl);
 	      inform (DECL_SOURCE_LOCATION (known_decl),
-		      "enumerator %qD does not match ...", known_decl);
+		      "... this enumerator %qD", known_decl);
 	    }
 	  else if (known_decl || new_decl)
 	    {
@@ -13172,6 +13180,15 @@ depset::hash::add_binding_entity (tree decl, WMB_Flags flags, void *data_)
 	/* Ignore NTTP objects.  */
 	return false;
 
+      if (deduction_guide_p (decl))
+	{
+	  /* Ignore deduction guides, bindings for them will be created within
+	     find_dependencies for their class template.  But still build a dep
+	     for them so that we don't discard them.  */
+	  data->hash->make_dependency (decl, EK_FOR_BINDING);
+	  return false;
+	}
+
       if (!(flags & WMB_Using) && CP_DECL_CONTEXT (decl) != data->ns)
 	{
 	  /* An unscoped enum constant implicitly brought into the containing
@@ -13600,6 +13617,50 @@ find_pending_key (tree decl, tree *decl_p = nullptr)
   return ns;
 }
 
+/* Creates bindings and dependencies for all deduction guides of
+   the given class template DECL as needed.  */
+
+void
+depset::hash::add_deduction_guides (tree decl)
+{
+  /* Alias templates never have deduction guides.  */
+  if (DECL_ALIAS_TEMPLATE_P (decl))
+    return;
+
+  /* We don't need to do anything for class-scope deduction guides,
+     as they will be added as members anyway.  */
+  if (!DECL_NAMESPACE_SCOPE_P (decl))
+    return;
+
+  tree ns = CP_DECL_CONTEXT (decl);
+  tree name = dguide_name (decl);
+
+  /* We always add all deduction guides with a given name at once,
+     so if there's already a binding there's nothing to do.  */
+  if (find_binding (ns, name))
+    return;
+
+  tree guides = lookup_qualified_name (ns, name, LOOK_want::NORMAL,
+				       /*complain=*/false);
+  if (guides == error_mark_node)
+    return;
+
+  /* We have bindings to add.  */
+  depset *binding = make_binding (ns, name);
+  add_namespace_context (binding, ns);
+
+  depset **slot = binding_slot (ns, name, /*insert=*/true);
+  *slot = binding;
+
+  for (lkp_iterator it (guides); it; ++it)
+    {
+      gcc_checking_assert (!TREE_VISITED (*it));
+      depset *dep = make_dependency (*it, EK_FOR_BINDING);
+      binding->deps.safe_push (dep);
+      dep->deps.safe_push (binding);
+    }
+}
+
 /* Iteratively find dependencies.  During the walk we may find more
    entries on the same binding that need walking.  */
 
@@ -13658,6 +13719,10 @@ depset::hash::find_dependencies (module_state *module)
 		    walker.write_definition (decl);
 		}
 	      walker.end ();
+
+	      if (!walker.is_key_order ()
+		  && DECL_CLASS_TEMPLATE_P (decl))
+		add_deduction_guides (decl);
 
 	      if (!walker.is_key_order ()
 		  && TREE_CODE (decl) == TEMPLATE_DECL
@@ -15158,6 +15223,11 @@ module_state::write_cluster (elf_out *to, depset *scc[], unsigned size,
 		      flags |= cbf_hidden;
 		    else if (DECL_MODULE_EXPORT_P (STRIP_TEMPLATE (bound)))
 		      flags |= cbf_export;
+		    else if (deduction_guide_p (bound))
+		      /* Deduction guides are always exported so that they are
+			 visible to name lookup whenever their class template
+			 is reachable.  */
+		      flags |= cbf_export;
 		  }
 
 		gcc_checking_assert (DECL_P (bound));
@@ -15291,6 +15361,7 @@ module_state::read_cluster (unsigned snum)
 	    tree visible = NULL_TREE;
 	    tree type = NULL_TREE;
 	    bool dedup = false;
+	    bool global_p = is_header ();
 
 	    /* We rely on the bindings being in the reverse order of
 	       the resulting overload set.  */
@@ -15307,6 +15378,16 @@ module_state::read_cluster (unsigned snum)
 		tree decl = sec.tree_node ();
 		if (sec.get_overrun ())
 		  break;
+
+		if (!global_p)
+		  {
+		    /* Check if the decl could require GM merging.  */
+		    tree orig = get_originating_module_decl (decl);
+		    tree inner = STRIP_TEMPLATE (orig);
+		    if (!DECL_LANG_SPECIFIC (inner)
+			|| !DECL_MODULE_ATTACH_P (inner))
+		      global_p = true;
+		  }
 
 		if (decls && TREE_CODE (decl) == TYPE_DECL)
 		  {
@@ -15394,10 +15475,8 @@ module_state::read_cluster (unsigned snum)
 	      break; /* Bail.  */
 
 	    dump () && dump ("Binding of %P", ns, name);
-	    if (!set_module_binding (ns, name, mod,
-				     is_header () ? -1
-				     : is_module () || is_partition () ? 1
-				     : 0,
+	    if (!set_module_binding (ns, name, mod, global_p,
+				     is_module () || is_partition (),
 				     decls, type, visible))
 	      sec.set_overrun ();
 	  }
@@ -20768,7 +20847,10 @@ finish_module_processing (cpp_reader *reader)
 
       cookie = new module_processing_cookie (cmi_name, tmp_name, fd, e);
 
-      if (errorcount)
+      if (errorcount
+	  /* Don't write the module if it contains an erroneous template.  */
+	  || (erroneous_templates
+	      && !erroneous_templates->is_empty ()))
 	warning_at (state->loc, 0, "not writing module %qs due to errors",
 		    state->get_flatname ());
       else if (cookie->out.begin ())

@@ -3232,14 +3232,6 @@ check_explicit_specialization (tree declarator,
               tree tmpl_func = DECL_TEMPLATE_RESULT (gen_tmpl);
               gcc_assert (TREE_CODE (tmpl_func) == FUNCTION_DECL);
 
-              /* A concept cannot be specialized.  */
-              if (DECL_DECLARED_CONCEPT_P (tmpl_func))
-                {
-                  error ("explicit specialization of function concept %qD",
-                         gen_tmpl);
-                  return error_mark_node;
-                }
-
               /* This specialization has the same linkage and visibility as
                  the function template it specializes.  */
               TREE_PUBLIC (decl) = TREE_PUBLIC (tmpl_func);
@@ -5149,13 +5141,6 @@ process_partial_specialization (tree decl)
   struct template_parm_data tpd2;
 
   gcc_assert (current_template_parms);
-
-  /* A concept cannot be specialized.  */
-  if (flag_concepts && variable_concept_p (maintmpl))
-    {
-      error ("specialization of variable concept %q#D", maintmpl);
-      return error_mark_node;
-    }
 
   inner_parms = INNERMOST_TEMPLATE_PARMS (current_template_parms);
   ntparms = TREE_VEC_LENGTH (inner_parms);
@@ -10532,9 +10517,6 @@ lookup_template_class (tree d1, tree arglist, tree in_decl, tree context,
 tree
 lookup_template_variable (tree templ, tree arglist, tsubst_flags_t complain)
 {
-  if (flag_concepts && variable_concept_p (templ))
-    return build_concept_check (templ, arglist, tf_none);
-
   tree gen_templ = most_general_template (templ);
   tree parms = DECL_INNERMOST_TEMPLATE_PARMS (gen_templ);
   arglist = add_outermost_template_args (templ, arglist);
@@ -11750,6 +11732,14 @@ tsubst_friend_class (tree friend_tmpl, tree args)
       return TREE_TYPE (tmpl);
     }
 
+  if (TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (friend_tmpl)) == 1)
+    /* The template has already been fully substituted, e.g. for
+
+	 template <typename> friend class ::C;
+
+       so we can just return it directly.  */
+    return TREE_TYPE (friend_tmpl);
+
   tree context = CP_DECL_CONTEXT (friend_tmpl);
   if (TREE_CODE (context) == NAMESPACE_DECL)
     push_nested_namespace (context);
@@ -11782,8 +11772,7 @@ tsubst_friend_class (tree friend_tmpl, tree args)
 	   compatible with the attachment of the friend template.  */
 	module_may_redeclare (tmpl, friend_tmpl);
 
-      if (TMPL_PARMS_DEPTH (DECL_TEMPLATE_PARMS (friend_tmpl))
-	  > TMPL_ARGS_DEPTH (args))
+      if (DECL_UNINSTANTIATED_TEMPLATE_FRIEND_P (friend_tmpl))
 	{
 	  tree parms = tsubst_template_parms (DECL_TEMPLATE_PARMS (friend_tmpl),
 					      args, tf_warning_or_error);
@@ -11825,6 +11814,7 @@ tsubst_friend_class (tree friend_tmpl, tree args)
 	  CLASSTYPE_USE_TEMPLATE (TREE_TYPE (tmpl)) = 0;
 	  CLASSTYPE_TI_ARGS (TREE_TYPE (tmpl))
 	    = INNERMOST_TEMPLATE_ARGS (CLASSTYPE_TI_ARGS (TREE_TYPE (tmpl)));
+	  DECL_UNINSTANTIATED_TEMPLATE_FRIEND_P (tmpl) = false;
 
 	  /* Substitute into and set the constraints on the new declaration.  */
 	  if (tree ci = get_constraints (friend_tmpl))
@@ -12219,6 +12209,8 @@ apply_late_template_attributes (tree *decl_p, tree attributes, int attr_flags,
          to our attributes parameter.  */
       gcc_assert (*p == attributes);
     }
+  else if (FUNC_OR_METHOD_TYPE_P (*decl_p))
+    p = NULL;
   else
     {
       p = &TYPE_ATTRIBUTES (*decl_p);
@@ -12237,7 +12229,10 @@ apply_late_template_attributes (tree *decl_p, tree attributes, int attr_flags,
   tree nondep = t;
 
   /* Apply any non-dependent attributes.  */
-  *p = nondep;
+  if (p)
+    *p = nondep;
+  else if (nondep)
+    *decl_p = cp_build_type_attribute_variant (*decl_p, nondep);
 
   if (nondep == attributes)
     return true;
@@ -12304,6 +12299,24 @@ perform_instantiation_time_access_checks (tree tmpl, tree targs)
 	iloc_sentinel ils (chk->loc);
 	perform_or_defer_access_check (TYPE_BINFO (type_scope),
 				       decl, diag_decl, tf_warning_or_error);
+      }
+}
+
+/* If the template T that we're about to instantiate contained errors at
+   parse time that we downgraded into warnings or suppressed, diagnose the
+   error now to render the TU ill-formed (if the TU has not already been
+   deemed ill-formed by an earlier error).  */
+
+static void
+maybe_diagnose_erroneous_template (tree t)
+{
+  if (erroneous_templates && !(seen_error) ())
+    if (location_t *error_loc = erroneous_templates->get (t))
+      {
+	auto_diagnostic_group d;
+	location_t decl_loc = location_of (t);
+	error_at (decl_loc, "instantiating erroneous template");
+	inform (*error_loc, "first error appeared here");
       }
 }
 
@@ -12375,6 +12388,8 @@ instantiate_class_template (tree type)
   /* If we've recursively instantiated too many templates, stop.  */
   if (! push_tinst_level (type))
     return type;
+
+  maybe_diagnose_erroneous_template (t ? TI_TEMPLATE (t) : templ);
 
   int saved_unevaluated_operand = cp_unevaluated_operand;
   int saved_inhibit_evaluation_warnings = c_inhibit_evaluation_warnings;
@@ -14375,8 +14390,9 @@ lookup_explicit_specifier (tree v)
    identical to T.  */
 
 static tree
-rebuild_function_or_method_type (tree t, tree return_type, tree arg_types,
-				 tree raises, tsubst_flags_t complain)
+rebuild_function_or_method_type (tree t, tree args, tree return_type,
+				 tree arg_types, tree raises,
+				 tsubst_flags_t complain)
 {
   gcc_assert (FUNC_OR_METHOD_TYPE_P (t));
 
@@ -14409,7 +14425,9 @@ rebuild_function_or_method_type (tree t, tree return_type, tree arg_types,
       new_type = build_method_type_directly (r, return_type,
 					     TREE_CHAIN (arg_types));
     }
-  new_type = cp_build_type_attribute_variant (new_type, TYPE_ATTRIBUTES (t));
+  if (!apply_late_template_attributes (&new_type, TYPE_ATTRIBUTES (t), 0,
+				       args, complain, NULL_TREE))
+    return error_mark_node;
 
   cp_ref_qualifier rqual = type_memfn_rqual (t);
   bool late_return_type_p = TYPE_HAS_LATE_RETURN_TYPE (t);
@@ -14422,7 +14440,7 @@ rebuild_function_or_method_type (tree t, tree return_type, tree arg_types,
    resolution for Core issues 1001/1322.  */
 
 static void
-maybe_rebuild_function_decl_type (tree decl)
+maybe_rebuild_function_decl_type (tree decl, tree args)
 {
   bool function_type_needs_rebuilding = false;
   if (tree parm_list = FUNCTION_FIRST_USER_PARM (decl))
@@ -14474,7 +14492,7 @@ maybe_rebuild_function_decl_type (tree decl)
     *q = void_list_node;
 
   TREE_TYPE (decl)
-    = rebuild_function_or_method_type (fntype,
+    = rebuild_function_or_method_type (fntype, args,
 				       TREE_TYPE (fntype), new_parm_type_list,
 				       TYPE_RAISES_EXCEPTIONS (fntype), tf_none);
 }
@@ -14657,7 +14675,7 @@ tsubst_function_decl (tree t, tree args, tsubst_flags_t complain,
   DECL_ARGUMENTS (r) = parms;
   DECL_RESULT (r) = NULL_TREE;
 
-  maybe_rebuild_function_decl_type (r);
+  maybe_rebuild_function_decl_type (r, args);
 
   TREE_STATIC (r) = 0;
   TREE_PUBLIC (r) = TREE_PUBLIC (t);
@@ -15025,8 +15043,6 @@ tsubst_template_decl (tree t, tree args, tsubst_flags_t complain,
 
   if (PRIMARY_TEMPLATE_P (t))
     DECL_PRIMARY_TEMPLATE (r) = r;
-
-  DECL_UNINSTANTIATED_TEMPLATE_FRIEND_P (r) = false;
 
   if (!lambda_fntype && !class_p)
     {
@@ -15925,7 +15941,7 @@ tsubst_function_type (tree t,
     }
 
   /* Construct a new type node and return it.  */
-  return rebuild_function_or_method_type (t, return_type, arg_types,
+  return rebuild_function_or_method_type (t, args, return_type, arg_types,
 					  /*raises=*/NULL_TREE, complain);
 }
 
@@ -20119,14 +20135,6 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	    tree check = build_concept_check (templ, targs, complain);
 	    if (check == error_mark_node)
 	      RETURN (error_mark_node);
-
-	    tree id = unpack_concept_check (check);
-
-	    /* If we built a function concept check, return the underlying
-	       template-id. So we can evaluate it as a function call.  */
-	    if (function_concept_p (TREE_OPERAND (id, 0)))
-	      RETURN (id);
-
 	    RETURN (check);
 	  }
 
@@ -21096,19 +21104,8 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	  ret = build_offset_ref_call_from_tree (function, &call_args,
 						 complain);
 	else if (concept_check_p (function))
-	  {
-	    /* FUNCTION is a template-id referring to a concept definition.  */
-	    tree id = unpack_concept_check (function);
-	    tree tmpl = TREE_OPERAND (id, 0);
-	    tree args = TREE_OPERAND (id, 1);
-
-	    /* Calls to standard and variable concepts should have been
-	       previously diagnosed.  */
-	    gcc_assert (function_concept_p (tmpl));
-
-	    /* Ensure the result is wrapped as a call expression.  */
-	    ret = build_concept_check (tmpl, args, tf_warning_or_error);
-	  }
+	  /* Calls to concepts should have been previously diagnosed.  */
+	  gcc_assert (false);
 	else
 	  ret = finish_call_expr (function, &call_args,
 				  /*disallow_virtual=*/qualified_p,
@@ -23068,6 +23065,7 @@ deducible_expression (tree expr)
   /* Strip implicit conversions and implicit INDIRECT_REFs.  */
   while (CONVERT_EXPR_P (expr)
 	 || TREE_CODE (expr) == VIEW_CONVERT_EXPR
+	 || TREE_CODE (expr) == IMPLICIT_CONV_EXPR
 	 || REFERENCE_REF_P (expr))
     expr = TREE_OPERAND (expr, 0);
   return (TREE_CODE (expr) == TEMPLATE_PARM_INDEX);
@@ -24597,7 +24595,8 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
      signedness is the only information lost, and I think that will be
      okay.  VIEW_CONVERT_EXPR can appear with class NTTP, thanks to
      finish_id_expression_1, and are also OK.  */
-  while (CONVERT_EXPR_P (parm) || TREE_CODE (parm) == VIEW_CONVERT_EXPR)
+  while (CONVERT_EXPR_P (parm) || TREE_CODE (parm) == VIEW_CONVERT_EXPR
+	 || TREE_CODE (parm) == IMPLICIT_CONV_EXPR)
     parm = TREE_OPERAND (parm, 0);
 
   if (arg == error_mark_node)
@@ -24610,6 +24609,12 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 
   if (parm == any_targ_node || arg == any_targ_node)
     return unify_success (explain_p);
+
+  /* Stripping IMPLICIT_CONV_EXPR above can produce this mismatch
+     (g++.dg/abi/mangle57.C).  */
+  if (TREE_CODE (parm) == FUNCTION_DECL
+      && TREE_CODE (arg) == ADDR_EXPR)
+    arg = TREE_OPERAND (arg, 0);
 
   /* If PARM uses template parameters, then we can't bail out here,
      even if ARG == PARM, since we won't record unifications for the
@@ -26414,14 +26419,6 @@ do_decl_instantiation (tree decl, tree storage)
       error ("explicit instantiation of non-template %q#D", decl);
       return;
     }
-  else if (DECL_DECLARED_CONCEPT_P (decl))
-    {
-      if (VAR_P (decl))
-	error ("explicit instantiation of variable concept %q#D", decl);
-      else
-	error ("explicit instantiation of function concept %q#D", decl);
-      return;
-    }
 
   bool var_templ = (DECL_TEMPLATE_INFO (decl)
                     && variable_template_p (DECL_TI_TEMPLATE (decl)));
@@ -27211,9 +27208,6 @@ instantiate_decl (tree d, bool defer_ok, bool expl_inst_class_mem_p)
      functions and static member variables.  */
   gcc_assert (VAR_OR_FUNCTION_DECL_P (d));
 
-  /* A concept is never instantiated. */
-  gcc_assert (!DECL_DECLARED_CONCEPT_P (d));
-
   gcc_checking_assert (!DECL_FUNCTION_SCOPE_P (d));
 
   if (modules_p ())
@@ -27290,6 +27284,8 @@ instantiate_decl (tree d, bool defer_ok, bool expl_inst_class_mem_p)
 	  args = TI_ARGS (partial_ti);
 	}
     }
+
+  maybe_diagnose_erroneous_template (td);
 
   code_pattern = DECL_TEMPLATE_RESULT (td);
 
@@ -29492,8 +29488,8 @@ make_constrained_decltype_auto (tree con, tree args)
 static bool
 placeholder_type_constraint_dependent_p (tree t)
 {
-  tree id = unpack_concept_check (t);
-  tree args = TREE_OPERAND (id, 1);
+  gcc_assert (concept_check_p (t));
+  tree args = TREE_OPERAND (t, 1);
   tree first = TREE_VEC_ELT (args, 0);
   if (ARGUMENT_PACK_P (first))
     {
@@ -29718,6 +29714,25 @@ builtin_guide_p (const_tree fn)
     /* Derived from a constructor.  */
     return false;
   return true;
+}
+
+/* True if FN is a C++23 inherited guide.  */
+
+bool
+inherited_guide_p (const_tree fn)
+{
+  gcc_assert (deduction_guide_p (fn));
+  return LANG_DECL_FN_CHECK (fn)->context != NULL_TREE;
+}
+
+/* Set the base class BASE from which the transformed guide FN
+   was inherited as part of C++23 inherited CTAD.  */
+
+static void
+set_inherited_guide_context (const_tree fn, tree base)
+{
+  gcc_assert (deduction_guide_p (fn));
+  LANG_DECL_FN_CHECK (fn)->context = base;
 }
 
 /* OLDDECL is a _DECL for a template parameter.  Return a similar parameter at
@@ -30490,6 +30505,7 @@ alias_ctad_tweaks (tree tmpl, tree uguides)
 	  TREE_TYPE (fprime) = fntype;
 	  if (TREE_CODE (fprime) == TEMPLATE_DECL)
 	    TREE_TYPE (DECL_TEMPLATE_RESULT (fprime)) = fntype;
+	  set_inherited_guide_context (fprime, utype);
 	}
 
       aguides = lookup_add (fprime, aguides);
@@ -30521,11 +30537,14 @@ inherited_ctad_tweaks (tree tmpl, tree ctor, tsubst_flags_t complain)
      template specialization with the template argument list of A but with C as
      the template.  */
 
-  /* FIXME: Also recognize inherited constructors of the form 'using C::B::B',
-     which seem to be represented with TYPENAME_TYPE C::B as USING_DECL_SCOPE?
-     And recognize constructors inherited from a non-dependent base class, which
-     seem to be missing from the overload set entirely?  */
   tree scope = USING_DECL_SCOPE (ctor);
+  if (TREE_CODE (scope) == TYPENAME_TYPE
+      && (TYPE_IDENTIFIER (TYPE_CONTEXT (scope))
+	  == TYPENAME_TYPE_FULLNAME (scope)))
+    /* Recognize using B<T>::B::B as an inherited constructor.  */
+    /* FIXME: Also recognize using C::B::B?  We might have to call
+       resolve_typename_type for that.  */
+    scope = TYPE_CONTEXT (scope);
   if (!CLASS_TYPE_P (scope)
       || !CLASSTYPE_TEMPLATE_INFO (scope)
       || !PRIMARY_TEMPLATE_P (CLASSTYPE_TI_TEMPLATE (scope)))
@@ -30659,10 +30678,14 @@ ctor_deduction_guides_for (tree tmpl, tsubst_flags_t complain)
     }
 
   if (cxx_dialect >= cxx23)
-    for (tree ctor : ovl_range (CLASSTYPE_CONSTRUCTORS (type)))
-      if (TREE_CODE (ctor) == USING_DECL)
+    /* FIXME: CLASSTYPE_CONSTRUCTORS doesn't contain inherited constructors if
+       e.g. the class also has a user-defined constructor.  So instead iterate
+       over TYPE_FIELDS manually to robustly find all relevant using-decls.  */
+    for (tree field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
+      if (TREE_CODE (field) == USING_DECL
+	  && DECL_NAME (field) == ctor_identifier)
 	{
-	  tree uguides = inherited_ctad_tweaks (tmpl, ctor, complain);
+	  tree uguides = inherited_ctad_tweaks (tmpl, field, complain);
 	  if (uguides)
 	    cands = lookup_add (uguides, cands);
 	}
@@ -30739,7 +30762,7 @@ deduction_guides_for (tree tmpl, bool &any_dguides_p, tsubst_flags_t complain)
   else
     {
       cands = ctor_deduction_guides_for (tmpl, complain);
-      for (ovl_iterator it (guides); it; ++it)
+      for (lkp_iterator it (guides); it; ++it)
 	cands = lookup_add (*it, cands);
     }
 
@@ -31452,8 +31475,8 @@ convert_generic_types_to_packs (tree parm, int start_idx, int end_idx)
          requirements.  */
       if (tree constr = TEMPLATE_PARM_CONSTRAINTS (node))
 	{
-	  tree id = unpack_concept_check (constr);
-	  TREE_VEC_ELT (TREE_OPERAND (id, 1), 0) = t;
+	  gcc_assert (concept_check_p (constr));
+	  TREE_VEC_ELT (TREE_OPERAND (constr, 1), 0) = t;
 	  /* Use UNKNOWN_LOCATION so write_template_args can tell the
 	     difference between this and a fold the user wrote.  */
 	  location_t loc = UNKNOWN_LOCATION;

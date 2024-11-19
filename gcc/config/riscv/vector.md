@@ -845,7 +845,7 @@
 	   (const_int 4)
 
 	 ;; If operands[3] of "vlds" is not vector mode, it is pred_broadcast.
-	 ;; wheras it is pred_strided_load if operands[3] is vector mode.
+	 ;; whereas it is pred_strided_load if operands[3] is vector mode.
          (eq_attr "type" "vlds")
 	   (if_then_else (match_test "VECTOR_MODE_P (GET_MODE (operands[3]))")
              (const_int 5)
@@ -879,7 +879,7 @@
 	   (symbol_ref "riscv_vector::get_ta(operands[5])")
 
 	 ;; If operands[3] of "vlds" is not vector mode, it is pred_broadcast.
-	 ;; wheras it is pred_strided_load if operands[3] is vector mode.
+	 ;; whereas it is pred_strided_load if operands[3] is vector mode.
 	 (eq_attr "type" "vlds")
 	   (if_then_else (match_test "VECTOR_MODE_P (GET_MODE (operands[3]))")
 	     (symbol_ref "riscv_vector::get_ta(operands[6])")
@@ -911,7 +911,7 @@
 	   (symbol_ref "riscv_vector::get_ma(operands[6])")
 
 	 ;; If operands[3] of "vlds" is not vector mode, it is pred_broadcast.
-	 ;; wheras it is pred_strided_load if operands[3] is vector mode.
+	 ;; whereas it is pred_strided_load if operands[3] is vector mode.
 	 (eq_attr "type" "vlds")
 	   (if_then_else (match_test "VECTOR_MODE_P (GET_MODE (operands[3]))")
 	     (symbol_ref "riscv_vector::get_ma(operands[7])")
@@ -947,7 +947,7 @@
 	   (const_int 5)
 
 	 ;; If operands[3] of "vlds" is not vector mode, it is pred_broadcast.
-	 ;; wheras it is pred_strided_load if operands[3] is vector mode.
+	 ;; whereas it is pred_strided_load if operands[3] is vector mode.
 	 (eq_attr "type" "vlds")
 	   (if_then_else (match_test "VECTOR_MODE_P (GET_MODE (operands[3]))")
 	     (const_int 8)
@@ -1048,7 +1048,7 @@
 )
 
 ;; This pattern is used to hold the AVL operand for
-;; RVV instructions that implicity use VLMAX AVL.
+;; RVV instructions that implicitly use VLMAX AVL.
 ;; RVV instruction implicitly use GPR that is ultimately
 ;; defined by this pattern is safe for VSETVL pass emit
 ;; a vsetvl instruction modify this register after RA.
@@ -1190,7 +1190,7 @@
 ;; Also applicable for all register moves.
 ;; Fractional vector modes load/store are not allowed to match this pattern.
 ;; Mask modes load/store are not allowed to match this pattern.
-;; We seperate "*mov<mode>" into "*mov<mode>_whole" and "*mov<mode>_fract" because
+;; We separate "*mov<mode>" into "*mov<mode>_whole" and "*mov<mode>_fract" because
 ;; we don't want to include fractional load/store in "*mov<mode>" which will
 ;; create unexpected patterns in LRA.
 ;; For example:
@@ -1206,7 +1206,7 @@
 ;;       (set (reg:RVVMF4QI 98 v2 [orig:134 _1 ] [134])
 ;;           (mem/c:RVVMF4QI (reg:SI 13 a3 [155]) [1 %sfp+[-2, -2] S[2, 2] A8]))
 ;;       (clobber (reg:SI 14 a4 [149]))])
-;; So that we could be able to emit vsetvl instruction using clobber sratch a4.
+;; So that we could be able to emit vsetvl instruction using clobber scratch a4.
 ;; To let LRA generate the expected pattern, we should exclude fractional vector
 ;; load/store in "*mov<mode>_whole". Otherwise, it will reload this pattern into:
 ;;  (insn 20 19 9 2 (set (reg:RVVMF4QI 98 v2 [orig:134 _1 ] [134])
@@ -1320,7 +1320,7 @@
 ;; Define tuple modes data movement.
 ;; operands[2] is used to save the offset of each subpart.
 ;; operands[3] is used to calculate the address for each subpart.
-;; operands[4] is VL of vsevli instruction.
+;; operands[4] is VL of vsetvli instruction.
 (define_expand "mov<mode>"
   [(parallel [(set (match_operand:VT 0 "reg_or_mem_operand")
                    (match_operand:VT 1 "general_operand"))
@@ -1523,7 +1523,7 @@
 ;; - 6.1 vsetvli/vsetivl/vsetvl instructions
 ;; -----------------------------------------------------------------
 
-;; we dont't define vsetvli as unspec_volatile which has side effects.
+;; we don't define vsetvli as unspec_volatile which has side effects.
 ;; This instruction can be scheduled by the instruction scheduler.
 ;; This means these instructions will be deleted when
 ;; there is no instructions using vl or vtype in the following.
@@ -1589,7 +1589,7 @@
 ;;   vsetvli a4,zero,e32,mf2,ta,ma   ;; -
 ;;   vse32.v v24,(a1)                ;;   vse32.v v24,(a1)
 
-;; However, it may produce wrong codegen if we exclude VL/VTYPE in "vsevl<mode>".
+;; However, it may produce wrong codegen if we exclude VL/VTYPE in "vsetvl<mode>".
 ;; 3. void foo (int8_t *in, int8_t *out, int32_t *in2, int32_t *out2, int M)
 ;;    {
 ;;      for (int i = 0; i < M; i++){
@@ -1687,7 +1687,7 @@
    (set (attr "ma") (symbol_ref "INTVAL (operands[4])"))])
 
 ;; It's emit by vsetvl/vsetvlmax intrinsics with no side effects.
-;; Since we have many optmization passes from "expand" to "reload_completed",
+;; Since we have many optimization passes from "expand" to "reload_completed",
 ;; such pattern can allow us gain benefits of these optimizations.
 (define_insn_and_split "@vsetvl<mode>_no_side_effects"
   [(set (match_operand:P 0 "register_operand" "=r")
@@ -1793,7 +1793,7 @@
 ;; constraint alternative 2 match vse.v.
 ;; constraint alternative 3 match vmv.v.v.
 
-;; If operand 3 is a const_vector, then it is left to pred_braordcast patterns.
+;; If operand 3 is a const_vector, then it is left to pred_broadcast patterns.
 (define_expand "@pred_mov<mode>"
   [(set (match_operand:V_VLS 0 "nonimmediate_operand")
     (if_then_else:V_VLS
@@ -1971,9 +1971,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::simm5_p (operands[3]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_merge<mode> (operands[0], operands[1],
-	       operands[2], boardcast_scalar, operands[4], operands[5],
+	       operands[2], broadcast_scalar, operands[4], operands[5],
 	       operands[6], operands[7]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[7])))
@@ -2644,7 +2644,7 @@
 
 ;; vx instructions patterns.
 ;; Note: Unlike vv patterns, we should split them since they are variant.
-;; For vsll.vx/vsra.vx/vsrl.vx the scalar mode should be Pmode wheras the
+;; For vsll.vx/vsra.vx/vsrl.vx the scalar mode should be Pmode whereas the
 ;; scalar mode is inner mode of the RVV mode for other vx patterns.
 (define_insn "@pred_<optab><mode>_scalar"
   [(set (match_operand:V_VLSI 0 "register_operand"           "=vd,vd, vr, vr,vd,vd, vr, vr")
@@ -2756,9 +2756,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
-	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[2], operands[3], broadcast_scalar, operands[5],
 	       operands[6], operands[7], operands[8]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -2832,9 +2832,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
-	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[2], operands[3], broadcast_scalar, operands[5],
 	       operands[6], operands[7], operands[8]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -2908,9 +2908,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::neg_simm5_p (operands[4]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_sub<mode> (operands[0], operands[1],
-	       operands[2], boardcast_scalar, operands[3], operands[5],
+	       operands[2], broadcast_scalar, operands[3], operands[5],
 	       operands[6], operands[7], operands[8]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -3026,9 +3026,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_mulh<v_su><mode> (operands[0], operands[1],
-	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[2], operands[3], broadcast_scalar, operands[5],
 	       operands[6], operands[7], operands[8]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -3201,9 +3201,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::simm5_p (operands[3]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_adc<mode> (operands[0], operands[1],
-	       operands[2], boardcast_scalar, operands[4], operands[5],
+	       operands[2], broadcast_scalar, operands[4], operands[5],
 	       operands[6], operands[7]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[7])))
@@ -3285,9 +3285,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_sbc<mode> (operands[0], operands[1],
-	       operands[2], boardcast_scalar, operands[4], operands[5],
+	       operands[2], broadcast_scalar, operands[4], operands[5],
 	       operands[6], operands[7]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[7])))
@@ -3448,9 +3448,9 @@
 	/* vl */operands[4],
 	<MODE>mode,
 	riscv_vector::simm5_p (operands[2]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_madc<mode> (operands[0], operands[1],
-	       boardcast_scalar, operands[3], operands[4], operands[5]));
+	       broadcast_scalar, operands[3], operands[4], operands[5]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[5])))
     DONE;
@@ -3520,9 +3520,9 @@
 	/* vl */operands[4],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_msbc<mode> (operands[0], operands[1],
-	       boardcast_scalar, operands[3], operands[4], operands[5]));
+	       broadcast_scalar, operands[3], operands[4], operands[5]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[5])))
     DONE;
@@ -3669,9 +3669,9 @@
 	/* vl */operands[3],
 	<MODE>mode,
 	riscv_vector::simm5_p (operands[2]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_madc<mode>_overflow (operands[0], operands[1],
-	       boardcast_scalar, operands[3], operands[4]));
+	       broadcast_scalar, operands[3], operands[4]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[4])))
     DONE;
@@ -3738,9 +3738,9 @@
 	/* vl */operands[3],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_msbc<mode>_overflow (operands[0], operands[1],
-	       boardcast_scalar, operands[3], operands[4]));
+	       broadcast_scalar, operands[3], operands[4]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[4])))
     DONE;
@@ -4198,7 +4198,7 @@
 ;; -------------------------------------------------------------------------------
 ;; Includes:
 ;; - 12.1 Vector Single-Width Saturating Add and Subtract
-;; - 12.2 Vector Single-Width Aaveraging Add and Subtract
+;; - 12.2 Vector Single-Width Averaging Add and Subtract
 ;; - 12.3 Vector Single-Width Fractional Multiply with Rounding and Saturation
 ;; - 12.4 Vector Single-Width Scaling Shift Instructions
 ;; - 12.5 Vector Narrowing Fixed-Point Clip Instructions
@@ -4300,9 +4300,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
-	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[2], operands[3], broadcast_scalar, operands[5],
 	       operands[6], operands[7], operands[8]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -4376,9 +4376,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	riscv_vector::has_vi_variant_p (<CODE>, operands[4]),
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_<optab><mode> (operands[0], operands[1],
-	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[2], operands[3], broadcast_scalar, operands[5],
 	       operands[6], operands[7], operands[8]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -4522,9 +4522,9 @@
 	/* vl */operands[5],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_<sat_op><mode> (operands[0], operands[1],
-	       operands[2], operands[3], boardcast_scalar, operands[5],
+	       operands[2], operands[3], broadcast_scalar, operands[5],
 	       operands[6], operands[7], operands[8], operands[9]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -4627,7 +4627,7 @@
 ;; ---- Predicated integer comparison operations
 ;; -------------------------------------------------------------------------------
 ;; Includes:
-;; - 11.8 Vector Integer Comparision Instructions
+;; - 11.8 Vector Integer Comparison Instructions
 ;; -------------------------------------------------------------------------------
 
 (define_expand "@pred_cmp<mode>"
@@ -4907,15 +4907,15 @@
 	<MODE>mode,
 	riscv_vector::has_vi_variant_p (code, operands[5]),
 	code == LT || code == LTU ?
-	  [] (rtx *operands, rtx boardcast_scalar) {
+	  [] (rtx *operands, rtx broadcast_scalar) {
 	    emit_insn (gen_pred_ltge<mode> (operands[0], operands[1],
-	    	operands[2], operands[3], operands[4], boardcast_scalar,
+		operands[2], operands[3], operands[4], broadcast_scalar,
 	  	operands[6], operands[7], operands[8]));
           }
 	:
-	  [] (rtx *operands, rtx boardcast_scalar) {
+	  [] (rtx *operands, rtx broadcast_scalar) {
 	    emit_insn (gen_pred_cmp<mode> (operands[0], operands[1],
-	    	operands[2], operands[3], operands[4], boardcast_scalar,
+		operands[2], operands[3], operands[4], broadcast_scalar,
 	  	operands[6], operands[7], operands[8]));
           },
 	(riscv_vector::avl_type) INTVAL (operands[8])))
@@ -5407,9 +5407,9 @@
 	/* vl */operands[6],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_mul_plus<mode> (operands[0], operands[1],
-	       boardcast_scalar, operands[3], operands[4], operands[5],
+	       broadcast_scalar, operands[3], operands[4], operands[5],
 	       operands[6], operands[7], operands[8], operands[9]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[9])))
@@ -5705,9 +5705,9 @@
 	/* vl */operands[6],
 	<MODE>mode,
 	false,
-	[] (rtx *operands, rtx boardcast_scalar) {
+	[] (rtx *operands, rtx broadcast_scalar) {
 	  emit_insn (gen_pred_minus_mul<mode> (operands[0], operands[1],
-	       boardcast_scalar, operands[3], operands[4], operands[5],
+	       broadcast_scalar, operands[3], operands[4], operands[5],
 	       operands[6], operands[7], operands[8], operands[9]));
         },
 	(riscv_vector::avl_type) INTVAL (operands[9])))
@@ -5925,7 +5925,7 @@
 ;; -------------------------------------------------------------------------------
 
 ;; We keep this pattern same as pred_mov so that we can gain more optimizations.
-;; For example, if we have vmxor.mm v1,v1,v1. It will be optmized as vmclr.m which
+;; For example, if we have vmxor.mm v1,v1,v1. It will be optimized as vmclr.m which
 ;; is generated by pred_mov.
 (define_insn "@pred_<optab><mode>"
   [(set (match_operand:VB_VLS 0 "register_operand"                   "=vr")

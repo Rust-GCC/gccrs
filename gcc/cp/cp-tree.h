@@ -1255,56 +1255,57 @@ enum cp_identifier_kind {
 #define IDENTIFIER_VIRTUAL_P(NODE) \
   TREE_LANG_FLAG_5 (IDENTIFIER_NODE_CHECK (NODE))
 
+/* Return the cp_identifier_kind of the given IDENTIFIER node ID.  */
+
+ATTRIBUTE_PURE inline cp_identifier_kind
+get_identifier_kind (tree id)
+{
+  unsigned bit0 = IDENTIFIER_KIND_BIT_0 (id);
+  unsigned bit1 = IDENTIFIER_KIND_BIT_1 (id);
+  unsigned bit2 = IDENTIFIER_KIND_BIT_2 (id);
+  return cp_identifier_kind ((bit2 << 2) | (bit1 << 1) | bit0);
+}
+
 /* True if this identifier is a reserved word.  C_RID_CODE (node) is
    then the RID_* value of the keyword.  Value 1.  */
 #define IDENTIFIER_KEYWORD_P(NODE)		\
-  ((!IDENTIFIER_KIND_BIT_2 (NODE))		\
-   & (!IDENTIFIER_KIND_BIT_1 (NODE))		\
-   & IDENTIFIER_KIND_BIT_0 (NODE))
+  (get_identifier_kind (NODE) == cik_keyword)
 
 /* True if this identifier is the name of a constructor or
    destructor.  Value 2 or 3.  */
 #define IDENTIFIER_CDTOR_P(NODE)		\
-  ((!IDENTIFIER_KIND_BIT_2 (NODE))		\
-   & IDENTIFIER_KIND_BIT_1 (NODE))
+  (IDENTIFIER_CTOR_P (NODE) || IDENTIFIER_DTOR_P (NODE))
 
 /* True if this identifier is the name of a constructor.  Value 2.  */
 #define IDENTIFIER_CTOR_P(NODE)			\
-  (IDENTIFIER_CDTOR_P(NODE)			\
-    & (!IDENTIFIER_KIND_BIT_0 (NODE)))
+  (get_identifier_kind (NODE) == cik_ctor)
 
 /* True if this identifier is the name of a destructor.  Value 3.  */
 #define IDENTIFIER_DTOR_P(NODE)			\
-  (IDENTIFIER_CDTOR_P(NODE)			\
-    & IDENTIFIER_KIND_BIT_0 (NODE))
+  (get_identifier_kind (NODE) == cik_dtor)
 
 /* True if this identifier is for any operator name (including
    conversions).  Value 4, 5, or 6.  */
 #define IDENTIFIER_ANY_OP_P(NODE)		\
-  (IDENTIFIER_KIND_BIT_2 (NODE) && !IDENTIFIER_TRAIT_P (NODE))
+  (IDENTIFIER_OVL_OP_P (NODE) || IDENTIFIER_CONV_OP_P (NODE))
 
 /* True if this identifier is for an overloaded operator. Values 4, 5.  */
 #define IDENTIFIER_OVL_OP_P(NODE)		\
-  (IDENTIFIER_ANY_OP_P (NODE)			\
-   & (!IDENTIFIER_KIND_BIT_1 (NODE)))
+  (get_identifier_kind (NODE) == cik_simple_op  \
+   || get_identifier_kind (NODE) == cik_assign_op)
 
 /* True if this identifier is for any assignment. Values 5.  */
 #define IDENTIFIER_ASSIGN_OP_P(NODE)		\
-  (IDENTIFIER_OVL_OP_P (NODE)			\
-   & IDENTIFIER_KIND_BIT_0 (NODE))
+  (get_identifier_kind (NODE) == cik_assign_op)
 
 /* True if this identifier is the name of a type-conversion
    operator.  Value 6.  */
 #define IDENTIFIER_CONV_OP_P(NODE)		\
-  (IDENTIFIER_ANY_OP_P (NODE)			\
-   & IDENTIFIER_KIND_BIT_1 (NODE)		\
-   & (!IDENTIFIER_KIND_BIT_0 (NODE)))
+  (get_identifier_kind (NODE) == cik_conv_op)
 
 /* True if this identifier is the name of a built-in trait.  */
 #define IDENTIFIER_TRAIT_P(NODE)		\
-  (IDENTIFIER_KIND_BIT_0 (NODE)			\
-   & IDENTIFIER_KIND_BIT_1 (NODE)		\
-   & IDENTIFIER_KIND_BIT_2 (NODE))
+  (get_identifier_kind (NODE) == cik_trait)
 
 /* True if this identifier is a new or delete operator.  */
 #define IDENTIFIER_NEWDEL_OP_P(NODE)		\
@@ -2971,9 +2972,10 @@ struct GTY(()) lang_decl_fn {
      this pointer and result pointer adjusting thunks are
      chained here.  This pointer thunks to return pointer thunks
      will be chained on the return pointer thunk.
-     For a DECL_CONSTUCTOR_P FUNCTION_DECL, this is the base from
-     whence we inherit.  Otherwise, it is the class in which a
-     (namespace-scope) friend is defined (if any).   */
+     For a DECL_CONSTRUCTOR_P or deduction_guide_p FUNCTION_DECL,
+     this is the base from whence we inherit.
+     Otherwise, it is the class in which a (namespace-scope) friend
+     is defined (if any).  */
   tree context;
 
   union lang_decl_u5
@@ -3523,12 +3525,6 @@ struct GTY(()) lang_decl {
 #define SET_DECL_IMMEDIATE_FUNCTION_P(NODE) \
   (retrofit_lang_decl (FUNCTION_DECL_CHECK (NODE)),			\
    LANG_DECL_FN_CHECK (NODE)->immediate_fn_p = true)
-
-// True if NODE was declared as 'concept'.  The flag implies that the
-// declaration is constexpr, that the declaration cannot be specialized or
-// refined, and that the result type must be convertible to bool.
-#define DECL_DECLARED_CONCEPT_P(NODE) \
-  (DECL_LANG_SPECIFIC (NODE)->u.base.concept_p)
 
 /* Nonzero if this DECL is the __PRETTY_FUNCTION__ variable in a
    template function.  */
@@ -7191,6 +7187,13 @@ extern location_t location_of                   (tree);
 extern void qualified_name_lookup_error		(tree, tree, tree,
 						 location_t);
 
+using erroneous_templates_t
+  = hash_map<tree, location_t, simple_hashmap_traits<tree_decl_hash, location_t>>;
+extern erroneous_templates_t *erroneous_templates;
+
+extern bool cp_seen_error ();
+#define seen_error() cp_seen_error ()
+
 /* in except.cc */
 extern void init_terminate_fn			(void);
 extern void init_exception_processing		(void);
@@ -7660,6 +7663,7 @@ extern bool deduction_guide_p			(const_tree);
 extern bool copy_guide_p			(const_tree);
 extern bool template_guide_p			(const_tree);
 extern bool builtin_guide_p			(const_tree);
+extern bool inherited_guide_p			(const_tree);
 extern void store_explicit_specifier		(tree, tree);
 extern tree lookup_explicit_specifier		(tree);
 extern tree lookup_imported_hidden_friend	(tree);
@@ -8583,7 +8587,6 @@ extern bool equivalent_placeholder_constraints  (tree, tree);
 extern hashval_t iterative_hash_placeholder_constraint	(tree, hashval_t);
 extern bool deduce_constrained_parameter        (tree, tree&, tree&);
 extern tree resolve_constraint_check            (tree);
-extern tree check_function_concept              (tree);
 extern bool valid_requirements_p                (tree);
 extern tree finish_concept_name                 (tree);
 extern tree finish_shorthand_constraint         (tree, tree);
@@ -8606,7 +8609,6 @@ struct processing_constraint_expression_sentinel
 
 extern bool processing_constraint_expression_p	();
 
-extern tree unpack_concept_check		(tree);
 extern tree get_concept_check_template		(tree);
 extern tree evaluate_concept_check              (tree);
 extern bool constraints_satisfied_p		(tree, tree = NULL_TREE);
@@ -8868,69 +8870,12 @@ variable_template_p (tree t)
   return false;
 }
 
-/* True iff T is a standard concept definition. This will return
-   true for both the template and underlying declaration.  */
-
-inline bool
-standard_concept_p (tree t)
-{
-  if (TREE_CODE (t) == TEMPLATE_DECL)
-    t = DECL_TEMPLATE_RESULT (t);
-  return TREE_CODE (t) == CONCEPT_DECL;
-}
-
-/* True iff T is a variable concept definition. This will return
-   true for both the template and the underlying declaration.  */
-
-inline bool
-variable_concept_p (tree t)
-{
-  if (TREE_CODE (t) == TEMPLATE_DECL)
-    t = DECL_TEMPLATE_RESULT (t);
-  return VAR_P (t) && DECL_DECLARED_CONCEPT_P (t);
-}
-
-/* True iff T is a function concept definition or an overload set
-   containing multiple function concepts. This will return true for
-   both the template and the underlying declaration.  */
-
-inline bool
-function_concept_p (tree t)
-{
-  if (TREE_CODE (t) == OVERLOAD)
-    t = OVL_FIRST (t);
-  if (TREE_CODE (t) == TEMPLATE_DECL)
-    t = DECL_TEMPLATE_RESULT (t);
-  return TREE_CODE (t) == FUNCTION_DECL && DECL_DECLARED_CONCEPT_P (t);
-}
-
-/* True iff T is a standard, variable, or function concept.  */
+/* True iff T is a concept.  */
 
 inline bool
 concept_definition_p (tree t)
 {
-  if (t == error_mark_node)
-    return false;
-
-  /* Adjust for function concept overloads.  */
-  if (TREE_CODE (t) == OVERLOAD)
-    t = OVL_FIRST (t);
-
-  /* See through templates.  */
-  if (TREE_CODE (t) == TEMPLATE_DECL)
-    t = DECL_TEMPLATE_RESULT (t);
-
-  /* The obvious and easy case.  */
-  if (TREE_CODE (t) == CONCEPT_DECL)
-    return true;
-
-  /* Definitely not a concept.  */
-  if (!VAR_OR_FUNCTION_DECL_P (t))
-    return false;
-  if (!DECL_LANG_SPECIFIC (t))
-    return false;
-
-  return DECL_DECLARED_CONCEPT_P (t);
+  return TREE_CODE (STRIP_TEMPLATE (t)) == CONCEPT_DECL;
 }
 
 /* Same as above, but for const trees.  */
@@ -8946,8 +8891,6 @@ concept_definition_p (const_tree t)
 inline bool
 concept_check_p (const_tree t)
 {
-  if (TREE_CODE (t) == CALL_EXPR)
-    t = CALL_EXPR_FN (t);
   if (t && TREE_CODE (t) == TEMPLATE_ID_EXPR)
     return concept_definition_p (TREE_OPERAND (t, 0));
   return false;

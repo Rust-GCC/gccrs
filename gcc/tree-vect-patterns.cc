@@ -434,7 +434,9 @@ vect_look_through_possible_promotion (vec_info *vinfo, tree op,
 	     sign of the previous promotion.  */
 	  if (!res
 	      || TYPE_PRECISION (unprom->type) == orig_precision
-	      || TYPE_SIGN (unprom->type) == TYPE_SIGN (op_type))
+	      || TYPE_SIGN (unprom->type) == TYPE_SIGN (op_type)
+	      || (TYPE_UNSIGNED (op_type)
+		  && TYPE_PRECISION (op_type) < TYPE_PRECISION (unprom->type)))
 	    {
 	      unprom->set_op (op, dt, caster);
 	      min_precision = TYPE_PRECISION (op_type);
@@ -4695,11 +4697,12 @@ vect_recog_sat_trunc_pattern (vec_info *vinfo, stmt_vec_info stmt_vinfo,
 
   tree ops[1];
   tree lhs = gimple_assign_lhs (last_stmt);
+  tree otype = TREE_TYPE (lhs);
 
-  if (gimple_unsigned_integer_sat_trunc (lhs, ops, NULL))
+  if (gimple_unsigned_integer_sat_trunc (lhs, ops, NULL)
+      && type_has_mode_precision_p (otype))
     {
       tree itype = TREE_TYPE (ops[0]);
-      tree otype = TREE_TYPE (lhs);
       tree v_itype = get_vectype_for_scalar_type (vinfo, itype);
       tree v_otype = get_vectype_for_scalar_type (vinfo, otype);
       internal_fn fn = IFN_SAT_TRUNC;
@@ -7359,8 +7362,6 @@ static vect_recog_func vect_vect_recog_func_ptrs[] = {
   /* These must come after the double widening ones.  */
 };
 
-const unsigned int NUM_PATTERNS = ARRAY_SIZE (vect_vect_recog_func_ptrs);
-
 /* Mark statements that are involved in a pattern.  */
 
 void
@@ -7515,7 +7516,7 @@ vect_mark_pattern_stmts (vec_info *vinfo,
 
 static void
 vect_pattern_recog_1 (vec_info *vinfo,
-		      vect_recog_func *recog_func, stmt_vec_info stmt_info)
+		      const vect_recog_func &recog_func, stmt_vec_info stmt_info)
 {
   gimple *pattern_stmt;
   tree pattern_vectype;
@@ -7535,7 +7536,7 @@ vect_pattern_recog_1 (vec_info *vinfo,
     }
 
   gcc_assert (!STMT_VINFO_PATTERN_DEF_SEQ (stmt_info));
-  pattern_stmt = recog_func->fn (vinfo, stmt_info, &pattern_vectype);
+  pattern_stmt = recog_func.fn (vinfo, stmt_info, &pattern_vectype);
   if (!pattern_stmt)
     {
       /* Clear any half-formed pattern definition sequence.  */
@@ -7547,7 +7548,7 @@ vect_pattern_recog_1 (vec_info *vinfo,
   if (dump_enabled_p ())
     dump_printf_loc (MSG_NOTE, vect_location,
 		     "%s pattern recognized: %G",
-		     recog_func->name, pattern_stmt);
+		     recog_func.name, pattern_stmt);
 
   /* Mark the stmts that are involved in the pattern. */
   vect_mark_pattern_stmts (vinfo, stmt_info, pattern_stmt, pattern_vectype);
@@ -7655,8 +7656,8 @@ vect_pattern_recog (vec_info *vinfo)
 	    continue;
 
 	  /* Scan over all generic vect_recog_xxx_pattern functions.  */
-	  for (unsigned j = 0; j < NUM_PATTERNS; j++)
-	    vect_pattern_recog_1 (vinfo, &vect_vect_recog_func_ptrs[j],
+	  for (const auto &func_ptr : vect_vect_recog_func_ptrs)
+	    vect_pattern_recog_1 (vinfo, func_ptr,
 				  stmt_info);
 	}
     }

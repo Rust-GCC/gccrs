@@ -333,6 +333,15 @@ package body Sem_Ch6 is
       New_Spec := Copy_Subprogram_Spec (Spec);
       Prev     := Current_Entity_In_Scope (Defining_Entity (Spec));
 
+      --  Copy SPARK pragma from expression function
+
+      Set_SPARK_Pragma
+        (Defining_Unit_Name (New_Spec),
+         SPARK_Pragma (Defining_Unit_Name (Spec)));
+      Set_SPARK_Pragma_Inherited
+        (Defining_Unit_Name (New_Spec),
+         SPARK_Pragma_Inherited (Defining_Unit_Name (Spec)));
+
       --  If there are previous overloadable entities with the same name,
       --  check whether any of them is completed by the expression function.
       --  In a generic context a formal subprogram has no completion.
@@ -6445,6 +6454,20 @@ package body Sem_Ch6 is
                   Conformance_Error
                     ("default expression for & does not match!",
                      New_Discr_Id);
+                  return;
+               end if;
+
+               if NewD
+                 and then Ada_Version >= Ada_2005
+                 and then Nkind (Discriminant_Type (New_Discr)) =
+                            N_Access_Definition
+                 and then not Is_Immutably_Limited_Type
+                                (Defining_Identifier (N))
+               then
+                  Error_Msg_N
+                    ("(Ada 2005) default value for access discriminant "
+                     & "requires immutably limited type",
+                     Expression (New_Discr));
                   return;
                end if;
             end if;

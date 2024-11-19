@@ -392,6 +392,8 @@ public:
 
   void finish ();
 
+  bool execution_failed_p () const;
+
   void set_original_argv (unique_argv original_argv);
   const char * const *get_original_argv ()
   {
@@ -698,6 +700,10 @@ private:
 public:
   /* Client hook to report an internal error.  */
   void (*m_internal_error) (diagnostic_context *, const char *, va_list *);
+
+  /* Client hook to adjust properties of the given diagnostic that we're
+     about to issue, such as its kind.  */
+  void (*m_adjust_diagnostic_info)(diagnostic_context *, diagnostic_info *);
 
 private:
   /* Client-supplied callbacks for working with options.  */

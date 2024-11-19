@@ -1,3 +1,292 @@
+2024-08-10  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116276
+	* call.cc (joust): Implement P2582R1 inherited vs non-inherited
+	guide tiebreaker.
+	* cp-tree.h (lang_decl_fn::context): Document usage in
+	deduction_guide_p FUNCTION_DECLs.
+	(inherited_guide_p): Declare.
+	* pt.cc (inherited_guide_p): Define.
+	(set_inherited_guide_context): Define.
+	(alias_ctad_tweaks): Use set_inherited_guide_context.
+	(inherited_ctad_tweaks): Recognize some inherited constructors
+	whose scope is a TYPENAME_TYPE.
+	(ctor_deduction_guides_for): For C++23 inherited CTAD, iterate
+	over TYPE_FIELDS instead of CLASSTYPE_CONSTRUCTORS to recognize
+	all inherited constructors.
+
+2024-08-10  Patrick Palka  <ppalka@redhat.com>
+
+	* pt.cc (tsubst_friend_class): Simplify depth comparison test
+	in the redeclaration code path to
+	DECL_UNINSTANTIATED_TEMPLATE_FRIEND_P.  Clear the flag after
+	partial instantiation here ...
+	(tsubst_template_decl): ... instead of here.
+
+2024-08-10  Patrick Palka  <ppalka@redhat.com>
+
+	* cp-tree.h (get_identifier_kind): Define.
+	(IDENTIFIER_KEYWORD_P): Redefine in terms of get_identifier_kind.
+	(IDENTIFIER_CDTOR_P): Likewise.
+	(IDENTIFIER_CTOR_P): Likewise.
+	(IDENTIFIER_DTOR_P): Likewise.
+	(IDENTIFIER_ANY_OP_P): Likewise.
+	(IDENTIFIER_OVL_OP_P): Likewise.
+	(IDENTIFIER_ASSIGN_OP_P): Likewise.
+	(IDENTIFIER_CONV_OP_P): Likewise.
+	(IDENTIFIER_TRAIT_P): Likewise.
+	* parser.cc (cp_lexer_peek_trait): Mark IDENTIFIER_TRAIT_P
+	check UNLIKELY.
+
+2024-08-09  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/115806
+	* decl.cc (start_enum): Only set OPAQUE_ENUM_P and
+	ENUM_FIXED_UNDERLYING_TYPE_P when pushing a new tag.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/115062
+	* class.cc (fixup_type_variants): Propagate TREE_ADDRESSABLE.
+	(finish_struct_bits): Cleanup now that TREE_ADDRESSABLE is
+	propagated by fixup_type_variants.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* module.cc (module_state::read_cluster): Assume header module
+	declarations will require GM merging.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/115801
+	* pt.cc (tsubst_friend_class): Return the type immediately when
+	no tsubsting or name lookup is required.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/114950
+	* module.cc (trees_out::decl_value): Stream bit indicating
+	imported temploid friends early.
+	(trees_in::decl_value): Use this bit with key_mergeable.
+	(trees_in::key_mergeable): Allow merging attached declarations
+	if they're imported temploid friends (which must be namespace
+	scope).
+	(module_state::read_cluster): Check for GM entities that may
+	require merging even when importing from partitions.
+	* name-lookup.cc (enum binding_slots): Adjust comment.
+	(get_fixed_binding_slot): Always create partition slot.
+	(name_lookup::search_namespace_only): Support binding vectors
+	with both partition and GM entities to dedup.
+	(walk_module_binding): Likewise.
+	(name_lookup::adl_namespace_fns): Likewise.
+	(set_module_binding): Likewise.
+	(check_module_override): Use attachment of the decl when
+	checking overrides rather than named_module_p.
+	(lookup_imported_hidden_friend): Use partition slot for finding
+	mergeable template bindings.
+	* name-lookup.h (set_module_binding): Split mod_glob_flag
+	parameter into separate global_p and partition_p params.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* module.cc (trees_in::read_enum_def): Clarify error.
+
+2024-08-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116064
+	* error.cc (get_current_template): If the current scope is
+	a partial specialization, return it instead of the primary
+	template.
+	* pt.cc (instantiate_class_template): Pass the partial
+	specialization if any to maybe_diagnose_erroneous_template
+	instead of the primary template.
+
+2024-08-07  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tobias@baylibre.com>
+
+	* decl2.cc (tree-inline.h): Include.
+	(static_init_fini_fns): Bump to four entries. Update comment.
+	(start_objects, start_partial_init_fini_fn): Add 'omp_target'
+	parameter. Support "declare target" decls. Update forward declaration.
+	(emit_partial_init_fini_fn): Add 'host_fn' parameter. Return tree for
+	the created function. Support "declare target".
+	(OMP_SSDF_IDENTIFIER): New macro.
+	(partition_vars_for_init_fini): Support partitioning "declare target"
+	variables also.
+	(generate_ctor_or_dtor_function): Add 'omp_target' parameter. Support
+	"declare target" decls.
+	(c_parse_final_cleanups): Support constructors/destructors on OpenMP
+	offload targets.
+
+2024-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/109126
+	* decl.cc (grokvardecl): Implement CWG 2387 - Linkage of
+	const-qualified variable template.  Set TREE_PUBLIC on variable
+	templates with const qualified types unless static is present.
+
+2024-08-07  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/111592
+	* call.cc (build_over_call): Only error out if there's a single
+	parameter of type A in a call to A::A(...).
+
+2024-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/116175
+	* pt.cc (apply_late_template_attributes): For function/method types
+	call cp_build_type_attribute_variant on the non-dependent attributes.
+	(rebuild_function_or_method_type): Add ARGS argument.  Use
+	apply_late_template_attributes rather than
+	cp_build_type_attribute_variant.
+	(maybe_rebuild_function_decl_type): Add ARGS argument, pass it to
+	rebuild_function_or_method_type.
+	(tsubst_function_decl): Adjust caller.
+	(tsubst_function_type): Adjust rebuild_function_or_method_type caller.
+
+2024-08-07  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/115231
+	* error.cc (dump_function_decl): Add a space before '->' when
+	printing deduction guides.
+	* module.cc (depset::hash::add_binding_entity): Don't create
+	bindings for guides here, only mark dependencies.
+	(depset::hash::add_deduction_guides): New.
+	(depset::hash::find_dependencies): Add deduction guide
+	dependencies for a class template.
+	(module_state::write_cluster): Always consider deduction guides
+	as exported.
+	* pt.cc (deduction_guides_for): Use 'lkp_iterator' instead of
+	'ovl_iterator'.
+
+2024-08-07  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* parser.cc (cp_parser_class_head): Clarify error message for
+	explicit instantiations.
+
+2024-08-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116064
+	* cp-tree.h (erroneous_templates_t): Declare.
+	(erroneous_templates): Declare.
+	(cp_seen_error): Declare.
+	(seen_error): #define to cp_seen_error.
+	* error.cc (get_current_template): Define.
+	(relaxed_template_errors): Define.
+	(cp_adjust_diagnostic_info): Define.
+	(cp_seen_error): Define.
+	(cxx_initialize_diagnostics): Set
+	diagnostic_context::m_adjust_diagnostic_info.
+	* module.cc (finish_module_processing): Don't write the
+	module if it contains an erroneous template.
+	* pt.cc (maybe_diagnose_erroneous_template): Define.
+	(instantiate_class_template): Call it.
+	(instantiate_decl): Likewise.
+
+2024-08-06  Marek Polacek  <polacek@redhat.com>
+
+	* constexpr.cc (cxx_eval_call_expression): Remove concept_check_p check.
+	(cxx_eval_outermost_constant_expr): Likewise.
+	* cp-gimplify.cc (cp_genericize_r) <case CALL_EXPR>: Likewise.
+	* except.cc (check_noexcept_r): Likewise.
+
+2024-08-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/116223
+	* pt.cc (deducible_expression): Strip all IMPLICIT_CONV_EXPR.
+	(unify): Likewise.  Handle resulting function/addr mismatch.
+
+2024-08-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/116223
+	PR c++/112632
+	* pt.cc (deducible_expression): Also look through
+	IMPLICIT_CONV_EXPR_FORCED.
+	(unify): Likewise.
+
+2024-08-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/94568
+	* init.cc (build_zero_init_1): Call cv_unqualified.
+
+2024-08-06  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/96780
+	* cp-gimplify.cc (cp_fold) <case CALL_EXPR>: Fold calls
+	to std::forward_like as well.
+
+2024-08-06  Marek Polacek  <polacek@redhat.com>
+
+	* constexpr.cc (cxx_eval_constant_expression): Don't call
+	unpack_concept_check.  Add a concept_check_p assert.  Remove
+	function_concept_p code.
+	* constraint.cc (check_constraint_atom): Remove function concepts code.
+	(unpack_concept_check): Remove.
+	(get_concept_check_template): Remove Concepts TS code.
+	(resolve_function_concept_overload): Remove.
+	(resolve_function_concept_check): Remove.
+	(resolve_concept_check): Remove Concepts TS code.
+	(get_returned_expression): Remove.
+	(get_variable_initializer): Remove.
+	(get_concept_definition): Remove Concepts TS code.
+	(normalize_concept_check): Likewise.
+	(build_function_check): Remove.
+	(build_variable_check): Remove.
+	(build_standard_check): Use concept_definition_p instead of
+	standard_concept_p.
+	(build_concept_check): Remove variable_concept_p/function_concept_p
+	code.
+	(build_concept_id): Simplify.
+	(build_type_constraint): Likewise.
+	(placeholder_extract_concept_and_args): Likewise.
+	(satisfy_nondeclaration_constraints): Likewise.
+	(check_function_concept): Remove.
+	(get_constraint_error_location): Remove Concepts TS code.
+	* cp-tree.h (DECL_DECLARED_CONCEPT_P): Remove.
+	(check_function_concept): Remove.
+	(unpack_concept_check): Remove.
+	(standard_concept_p): Remove.
+	(variable_concept_p): Remove.
+	(function_concept_p): Remove.
+	(concept_definition_p): Simplify.
+	(concept_check_p): Don't check for CALL_EXPR.
+	* decl.cc (check_concept_refinement): Remove.
+	(duplicate_decls): Remove check_concept_refinement code.
+	(is_concept_var): Remove.
+	(cp_finish_decl): Remove is_concept_var.
+	(check_concept_fn): Remove.
+	(grokfndecl): Give an error about function concepts not being supported
+	anymore.  Remove unused code.
+	(grokvardecl): Give an error about variable concepts not being
+	supported anymore.
+	(finish_function): Remove DECL_DECLARED_CONCEPT_P code.
+	* decl2.cc (min_vis_expr_r): Use concept_definition_p instead of
+	standard_concept_p.
+	(maybe_instantiate_decl): Remove DECL_DECLARED_CONCEPT_P check.
+	(mark_used): Likewise.
+	* error.cc (dump_simple_decl): Use concept_definition_p instead of
+	standard_concept_p.
+	(dump_function_decl): Remove DECL_DECLARED_CONCEPT_P code.
+	(print_concept_check_info): Don't call unpack_concept_check.  Simplify.
+	* mangle.cc (write_type_constraint): Likewise.
+	* parser.cc (cp_parser_nested_name_specifier_opt): Remove
+	function_concept_p code.  Only check concept_definition_p, not
+	variable_concept_p/standard_concept_p.
+	(add_debug_begin_stmt): Remove DECL_DECLARED_CONCEPT_P code.
+	(cp_parser_template_declaration_after_parameters): Remove a stale
+	comment.
+	* pt.cc (check_explicit_specialization): Remove
+	DECL_DECLARED_CONCEPT_P code.
+	(process_partial_specialization): Remove variable_concept_p code.
+	(lookup_template_variable): Likewise.
+	(tsubst_expr) <case CALL_EXPR>: Remove Concepts TS code and simplify.
+	(do_decl_instantiation): Remove DECL_DECLARED_CONCEPT_P code.
+	(instantiate_decl): Likewise.
+	(placeholder_type_constraint_dependent_p): Don't call
+	unpack_concept_check.  Add a concept_check_p assert.
+	(convert_generic_types_to_packs): Likewise.
+	* semantics.cc (finish_call_expr): Remove Concepts TS code and simplify.
+
 2024-08-05  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* coroutines.cc (split_coroutine_body_from_ramp): New.

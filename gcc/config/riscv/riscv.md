@@ -2592,8 +2592,8 @@
 ;; In RV32, we lack fmv.x.d and fmv.d.x.  Go through memory instead.
 ;; (However, we can still use fcvt.d.w to zero a floating-point register.)
 (define_insn "*movdf_hardfloat_rv32"
-  [(set (match_operand:DF 0 "nonimmediate_operand" "=f,   f,f,f,m,m,*zmvf,*zmvr,  *r,*r,*m")
-	(match_operand:DF 1 "move_operand"         " f,zfli,G,m,f,G,*zmvr,*zmvf,*r*G,*m,*r"))]
+  [(set (match_operand:DF 0 "nonimmediate_operand" "=f,   f,f,f,m,m,*zmvf,*zmvr,  *r,*r,*th_m_noi")
+	(match_operand:DF 1 "move_operand"         " f,zfli,G,m,f,G,*zmvr,*zmvf,*r*G,*th_m_noi,*r"))]
   "!TARGET_64BIT && TARGET_DOUBLE_FLOAT
    && (register_operand (operands[0], DFmode)
        || reg_or_0_operand (operands[1], DFmode))"
@@ -3969,7 +3969,7 @@
 	(unspec:BLK [(match_operand:X 0 "register_operand" "r")
 		     (match_operand:X 1 "register_operand" "r")]
 		    UNSPEC_TIE))]
-  ""
+  "!rtx_equal_p (operands[0], operands[1])"
   ""
   [(set_attr "type" "ghost")
    (set_attr "length" "0")]

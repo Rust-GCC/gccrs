@@ -2493,6 +2493,13 @@ gcn_secondary_reload (bool in_p, rtx x, reg_class_t rclass,
 static void
 gcn_conditional_register_usage (void)
 {
+  /* Some architectures have a register allocation granularity that does not
+     permit use of the full register count.  */
+  for (int i = 256 - (256 % TARGET_VGPR_GRANULARITY);
+       i < 256;
+       i++)
+    fixed_regs[VGPR_REGNO (i)] = call_used_regs[VGPR_REGNO (i)] = 1;
+
   if (!cfun || !cfun->machine)
     return;
 
@@ -3787,6 +3794,7 @@ gcn_asm_trampoline_template (FILE *f)
   asm_fprintf (f, "\ts_mov_b32\ts%i, 0xffff\n", CC_SAVE_REG);
   asm_fprintf (f, "\ts_mov_b32\ts%i, 0xffff\n", CC_SAVE_REG + 1);
   asm_fprintf (f, "\ts_setpc_b64\ts[%i:%i]\n", CC_SAVE_REG, CC_SAVE_REG + 1);
+  asm_fprintf (f, "\t.align 8\n");
 }
 
 /* Implement TARGET_TRAMPOLINE_INIT.
@@ -3799,11 +3807,6 @@ gcn_asm_trampoline_template (FILE *f)
 static void
 gcn_trampoline_init (rtx m_tramp, tree fndecl, rtx chain_value)
 {
-  // FIXME
-  if (TARGET_GCN5_PLUS)
-    sorry ("nested function trampolines not supported on GCN5 due to"
-           " non-executable stacks");
-
   emit_block_move (m_tramp, assemble_trampoline_template (),
 		   GEN_INT (TRAMPOLINE_SIZE), BLOCK_OP_NORMAL);
 

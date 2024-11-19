@@ -270,7 +270,8 @@ in the following sections.
 -Wno-non-template-friend  -Wold-style-cast
 -Woverloaded-virtual  -Wno-pmf-conversions -Wself-move -Wsign-promo
 -Wsized-deallocation  -Wsuggest-final-methods
--Wsuggest-final-types  -Wsuggest-override  -Wno-template-id-cdtor
+-Wsuggest-final-types  -Wsuggest-override  -Wno-template-body
+-Wno-template-id-cdtor
 -Wno-terminate  -Wno-vexing-parse  -Wvirtual-inheritance
 -Wno-virtual-move-assign  -Wvolatile  -Wzero-as-null-pointer-constant}
 
@@ -1479,7 +1480,8 @@ See RS/6000 and PowerPC Options.
 -mamx-tile  -mamx-int8  -mamx-bf16 -muintr -mhreset -mavxvnni
 -mavx512fp16 -mavxifma -mavxvnniint8 -mavxneconvert -mcmpccxadd -mamx-fp16
 -mprefetchi -mraoint -mamx-complex -mavxvnniint16 -msm3 -msha512 -msm4 -mapxf
--musermsr -mavx10.1 -mavx10.1-256 -mavx10.1-512 -mevex512
+-musermsr -mavx10.1 -mavx10.1-256 -mavx10.1-512 -mevex512 -mavx10.2 -mavx10.2-256
+-mavx10.2-512
 -mcldemote  -mms-bitfields  -mno-align-stringops  -minline-all-stringops
 -minline-stringops-dynamically  -mstringop-strategy=@var{alg}
 -mkl -mwidekl
@@ -4634,6 +4636,14 @@ namespaces, and this may be used to enforce that rule.  The warning is
 inactive inside a system header file, such as the STL, so one can still
 use the STL.  One may also use using directives and qualified names.
 
+@opindex Wtemplate-body
+@opindex Wno-template-body
+@item -Wno-template-body @r{(C++ and Objective-C++ only)}
+Disable diagnosing errors when parsing a template, and instead issue an
+error only upon instantiation of the template.  This flag can also be
+used to downgrade such errors into warnings with @option{Wno-error=} or
+@option{-fpermissive}.
+
 @opindex Wtemplate-id-cdtor
 @opindex Wno-template-id-cdtor
 @item -Wno-template-id-cdtor @r{(C++ and Objective-C++ only)}
@@ -6361,6 +6371,7 @@ that have their own flag:
 -Wint-conversion @r{(C and Objective-C only)}
 -Wnarrowing @r{(C++ and Objective-C++ only)}
 -Wreturn-mismatch @r{(C and Objective-C only)}
+-Wtemplate-body @r{(C++ and Objective-C++ only)}
 }
 
 The @option{-fpermissive} option is the default for historic C language
@@ -35694,6 +35705,15 @@ preferred alignment to @option{-mpreferred-stack-boundary=2}.
 @need 200
 @opindex mavx10.1-512
 @itemx -mavx10.1-512
+@need 200
+@opindex mavx10.2
+@itemx -mavx10.2
+@need 200
+@opindex mavx10.2-256
+@itemx -mavx10.2-256
+@need 200
+@opindex mavx10.2-512
+@itemx -mavx10.2-512
 These switches enable the use of instructions in the MMX, SSE,
 AVX512CD, AVX512VL, AVX512BW, AVX512DQ, AVX512IFMA, AVX512VBMI, SHA, AES,
 PCLMUL, CLFLUSHOPT, CLWB, FSGSBASE, PTWRITE, RDRND, F16C, FMA, PCONFIG,
@@ -35704,8 +35724,9 @@ WAITPKG, VPCLMULQDQ, AVX512BITALG, MOVDIRI, MOVDIR64B, AVX512BF16, ENQCMD,
 AVX512VPOPCNTDQ, AVX512VNNI, SERIALIZE, UINTR, HRESET, AMXTILE, AMXINT8,
 AMXBF16, KL, WIDEKL, AVXVNNI, AVX512-FP16, AVXIFMA, AVXVNNIINT8, AVXNECONVERT,
 CMPCCXADD, AMX-FP16, PREFETCHI, RAOINT, AMX-COMPLEX, AVXVNNIINT16, SM3, SHA512,
-SM4, APX_F, USER_MSR, AVX10.1 or CLDEMOTE extended instruction sets.  Each has
-a corresponding @option{-mno-} option to disable use of these instructions.
+SM4, APX_F, USER_MSR, AVX10.1, AVX10.2 or CLDEMOTE extended instruction sets.
+Each has a corresponding @option{-mno-} option to disable use of these
+instructions.
 
 These extensions are also available as built-in functions: see
 @ref{x86 Built-in Functions}, for details of the functions enabled and

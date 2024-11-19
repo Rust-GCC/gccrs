@@ -165,6 +165,76 @@ class cxx_format_postprocessor : public format_postprocessor
   deferred_printed_type m_type_b;
 };
 
+/* Return the in-scope template that's currently being parsed, or
+   NULL_TREE otherwise.  */
+
+static tree
+get_current_template ()
+{
+  if (scope_chain && in_template_context && !current_instantiation ())
+    if (tree ti = get_template_info (current_scope ()))
+      {
+	if (PRIMARY_TEMPLATE_P (TI_TEMPLATE (ti)) && TI_PARTIAL_INFO (ti))
+	  ti = TI_PARTIAL_INFO (ti);
+	return TI_TEMPLATE (ti);
+      }
+
+  return NULL_TREE;
+}
+
+/* A map from TEMPLATE_DECLs that we've determined to be erroneous
+   at parse time to the location of the first error within.  */
+
+erroneous_templates_t *erroneous_templates;
+
+/* Callback function diagnostic_context::m_adjust_diagnostic_info.
+
+   Errors issued when parsing a template are automatically treated like
+   permerrors associated with the -Wtemplate-body flag and can be
+   downgraded into warnings accordingly, in which case we'll still
+   issue an error if we later need to instantiate the template.  */
+
+static void
+cp_adjust_diagnostic_info (diagnostic_context *context,
+			   diagnostic_info *diagnostic)
+{
+  if (diagnostic->kind == DK_ERROR)
+    if (tree tmpl = get_current_template ())
+      {
+	diagnostic->option_index = OPT_Wtemplate_body;
+
+	if (context->m_permissive)
+	  diagnostic->kind = DK_WARNING;
+
+	bool existed;
+	location_t &error_loc
+	  = hash_map_safe_get_or_insert<false> (erroneous_templates,
+						tmpl, &existed);
+	if (!existed)
+	  /* Remember that this template had a parse-time error so
+	     that we'll ensure a hard error has been issued upon
+	     its instantiation.  */
+	  error_loc = diagnostic->richloc->get_loc ();
+      }
+}
+
+/* A generalization of seen_error which also returns true if we've
+   permissively downgraded an error to a warning inside a template.  */
+
+bool
+cp_seen_error ()
+{
+  if ((seen_error) ())
+    return true;
+
+  if (erroneous_templates)
+    if (tree tmpl = get_current_template ())
+      if (erroneous_templates->get (tmpl))
+	return true;
+
+  return false;
+}
+
 /* CONTEXT->printer is a basic pretty printer that was constructed
    presumably by diagnostic_initialize(), called early in the
    compiler's initialization process (in general_init) Before the FE
@@ -187,6 +257,7 @@ cxx_initialize_diagnostics (diagnostic_context *context)
   diagnostic_starter (context) = cp_diagnostic_starter;
   /* diagnostic_finalizer is already c_diagnostic_finalizer.  */
   diagnostic_format_decoder (context) = cp_printer;
+  context->m_adjust_diagnostic_info = cp_adjust_diagnostic_info;
   pp_format_postprocessor (pp) = new cxx_format_postprocessor ();
 }
 
@@ -1163,7 +1234,7 @@ dump_simple_decl (cxx_pretty_printer *pp, tree t, tree type, int flags)
       else if (VAR_P (t) && DECL_DECLARED_CONSTEXPR_P (t))
 	pp_cxx_ws_string (pp, "constexpr");
 
-      if (!standard_concept_p (t))
+      if (!concept_definition_p (t))
 	dump_type_prefix (pp, type, flags & ~TFF_UNQUALIFIED_NAME);
       pp_maybe_space (pp);
     }
@@ -1806,9 +1877,7 @@ dump_function_decl (cxx_pretty_printer *pp, tree t, int flags)
 
       if (constexpr_p)
         {
-          if (DECL_DECLARED_CONCEPT_P (t))
-            pp_cxx_ws_string (pp, "concept");
-	  else if (DECL_IMMEDIATE_FUNCTION_P (t))
+	  if (DECL_IMMEDIATE_FUNCTION_P (t))
 	    pp_cxx_ws_string (pp, "consteval");
 	  else
 	    pp_cxx_ws_string (pp, "constexpr");
@@ -1871,6 +1940,7 @@ dump_function_decl (cxx_pretty_printer *pp, tree t, int flags)
 	dump_type_suffix (pp, ret, flags);
       else if (deduction_guide_p (t))
 	{
+	  pp->set_padding (pp_before);
 	  pp_cxx_ws_string (pp, "->");
 	  dump_type (pp, TREE_TYPE (TREE_TYPE (t)), flags);
 	}
@@ -3952,10 +4022,7 @@ print_concept_check_info (diagnostic_context *context, tree expr, tree map, tree
 {
   gcc_assert (concept_check_p (expr));
 
-  tree id = unpack_concept_check (expr);
-  tree tmpl = TREE_OPERAND (id, 0);
-  if (OVL_P (tmpl))
-    tmpl = OVL_FIRST (tmpl);
+  tree tmpl = TREE_OPERAND (expr, 0);
 
   print_location (context, DECL_SOURCE_LOCATION (tmpl));
 

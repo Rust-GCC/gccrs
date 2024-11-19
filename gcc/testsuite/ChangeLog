@@ -1,3 +1,512 @@
+2024-08-10  Xi Ruoyao  <xry111@xry111.site>
+
+	PR testsuite/70150
+	* gcc.target/i386/fentryname3.c (dg-final): Revert r13-1614
+	change.
+
+2024-08-10  Xi Ruoyao  <xry111@xry111.site>
+
+	PR testsuite/70150
+	* gcc.target/i386/pr113689-1.c (dg-options): Add -no-pie.
+
+2024-08-10  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.target/powerpc/sse3-addsubps.c (TEST): Divide by
+	sizeof (vals[0]) rather than sizeof (vals).
+
+2024-08-10  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116276
+	* g++.dg/cpp23/class-deduction-inherited4.C: Remove an xfail.
+	* g++.dg/cpp23/class-deduction-inherited5.C: New test.
+	* g++.dg/cpp23/class-deduction-inherited6.C: New test.
+
+2024-08-09  Jeff Law  <jlaw@ventanamicro.com>
+
+	PR target/116283
+	* gcc.target/riscv/pr116283.c: New test
+
+2024-08-09  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	Revert:
+	2024-08-09  Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	PR rtl-optimization/116028
+	* gcc.dg/ira-shrinkwrap-prep-1.c: Remove xfail for powerpc.
+	* gcc.dg/pr10474.c: Remove xfail for powerpc.
+
+2024-08-09  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/115806
+	* g++.dg/parse/enum15.C: New test.
+
+2024-08-09  Raphael Moreira Zinsly  <rzinsly@ventanamicro.com>
+
+	* gcc.target/riscv/stack-check-14.c: New test.
+	* gcc.target/riscv/stack-check-15.c: New test.
+	* gcc.target/riscv/stack-check-alloca-1.c: New test.
+	* gcc.target/riscv/stack-check-alloca-2.c: New test.
+	* gcc.target/riscv/stack-check-alloca-3.c: New test.
+	* gcc.target/riscv/stack-check-alloca-4.c: New test.
+	* gcc.target/riscv/stack-check-alloca-5.c: New test.
+	* gcc.target/riscv/stack-check-alloca-6.c: New test.
+	* gcc.target/riscv/stack-check-alloca-7.c: New test.
+	* gcc.target/riscv/stack-check-alloca-8.c: New test.
+	* gcc.target/riscv/stack-check-alloca-9.c: New test.
+	* gcc.target/riscv/stack-check-alloca-10.c: New test.
+	* gcc.target/riscv/stack-check-alloca.h: New.
+
+2024-08-09  Raphael Moreira Zinsly  <rzinsly@ventanamicro.com>
+
+	* gcc.target/riscv/stack-check-cfa-3.c: New test.
+	* gcc.target/riscv/stack-check-prologue-16.c: New test.
+	* gcc.target/riscv/struct_vect_24.c: New test.
+
+2024-08-09  Raphael Moreira Zinsly  <rzinsly@ventanamicro.com>
+
+	* gcc.dg/params/blocksort-part.c: Skip riscv for
+	stack-clash protection intervals.
+	* gcc.dg/pr82788.c: Skip riscv.
+	* gcc.dg/stack-check-6.c: Skip residual check for riscv.
+	* gcc.dg/stack-check-6a.c: Skip riscv.
+	* gcc.target/riscv/stack-check-12.c: New test.
+	* gcc.target/riscv/stack-check-13.c: New test.
+	* gcc.target/riscv/stack-check-cfa-1.c: New test.
+	* gcc.target/riscv/stack-check-cfa-2.c: New test.
+	* gcc.target/riscv/stack-check-prologue-1.c: New test.
+	* gcc.target/riscv/stack-check-prologue-10.c: New test.
+	* gcc.target/riscv/stack-check-prologue-11.c: New test.
+	* gcc.target/riscv/stack-check-prologue-12.c: New test.
+	* gcc.target/riscv/stack-check-prologue-13.c: New test.
+	* gcc.target/riscv/stack-check-prologue-14.c: New test.
+	* gcc.target/riscv/stack-check-prologue-15.c: New test.
+	* gcc.target/riscv/stack-check-prologue-2.c: New test.
+	* gcc.target/riscv/stack-check-prologue-3.c: New test.
+	* gcc.target/riscv/stack-check-prologue-4.c: New test.
+	* gcc.target/riscv/stack-check-prologue-5.c: New test.
+	* gcc.target/riscv/stack-check-prologue-6.c: New test.
+	* gcc.target/riscv/stack-check-prologue-7.c: New test.
+	* gcc.target/riscv/stack-check-prologue-8.c: New test.
+	* gcc.target/riscv/stack-check-prologue-9.c: New test.
+	* gcc.target/riscv/stack-check-prologue.h: New file.
+	* lib/target-supports.exp
+	(check_effective_target_supports_stack_clash_protection):
+	Add riscv.
+	(check_effective_target_caller_implicit_probes): Likewise.
+
+2024-08-09  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116289
+	PR c++/113063
+	* g++.dg/cpp2a/spaceship-synth16a.C: New test.
+
+2024-08-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/116287
+	* gcc.target/i386/bmi-pr116287.c: New test.
+	* gcc.target/i386/bmi2-pr116287.c: New test.
+	* gcc.target/i386/tbm-pr116287.c: New test.
+
+2024-08-08  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR testsuite/116041
+	* gcc.target/aarch64/if-compare_2.c: Support bit and bif for
+	both bar1 and bar2; add comment on why too.
+
+2024-08-08  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/116229
+	* gcc.target/aarch64/pr116229.c: New test.
+
+2024-08-08  Georg-Johann Lay  <avr@gjlay.de>
+
+	* gcc.target/avr/torture/pr116295.c: New test.
+
+2024-08-08  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* gcc.target/riscv/xtheadfmemidx-xtheadfmv-medany.c: Adjust.
+	* gcc.target/riscv/xtheadfmemidx-zfa-medany.c: Likewise.
+
+2024-08-08  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	PR target/116131
+	* gcc.target/riscv/pr116131.c: New test.
+
+2024-08-08  Christoph Müllner  <christoph.muellner@vrull.eu>
+
+	* gcc.target/riscv/xtheadfmemidx-medany.c: Move to...
+	* gcc.target/riscv/xtheadfmemidx-xtheadfmv-medany.c: ...here.
+	* gcc.target/riscv/xtheadfmemidx-zfa-medany.c: New test.
+
+2024-08-08  Jeff Law  <jlaw@ventanamicro.com>
+
+	PR target/116240
+	* gcc.target/riscv/pr116240.c: New test.
+
+2024-08-08  Manolis Tsamis  <manolis.tsamis@vrull.eu>
+
+	PR tree-optimization/98138
+	* gcc.target/aarch64/vect-slp-two-operator.c: New test.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/115062
+	* g++.dg/modules/pr115062_a.H: New test.
+	* g++.dg/modules/pr115062_b.H: New test.
+	* g++.dg/modules/pr115062_c.C: New test.
+
+2024-08-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/115744
+	* g++.dg/cpp2a/construct_at.h (operator new, operator new[]):
+	Use constexpr instead of inline if __cpp_constexpr >= 202406L.
+	* g++.dg/cpp26/constexpr-new1.C: New test.
+	* g++.dg/cpp26/constexpr-new2.C: New test.
+	* g++.dg/cpp26/constexpr-new3.C: New test.
+	* g++.dg/cpp26/feat-cxx26.C (__cpp_constexpr): Adjust expected
+	value.
+
+2024-08-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/116258
+	* gcc.target/i386/pr116258.c: Also allow vpermilps.
+
+2024-08-08  Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	PR rtl-optimization/116028
+	* gcc.dg/ira-shrinkwrap-prep-1.c: Remove xfail for powerpc.
+	* gcc.dg/pr10474.c: Remove xfail for powerpc.
+
+2024-08-08  Jiawei  <jiawei@iscas.ac.cn>
+
+	* gcc.target/riscv/arch-42.c: New test.
+	* gcc.target/riscv/arch-43.c: New test.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/115801
+	* g++.dg/modules/tpl-friend-16_a.C: New test.
+	* g++.dg/modules/tpl-friend-16_b.C: New test.
+	* g++.dg/template/friend82.C: New test.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/114950
+	* g++.dg/modules/tpl-friend-13_e.C: Adjust error message.
+	* g++.dg/modules/ambig-2_a.C: New test.
+	* g++.dg/modules/ambig-2_b.C: New test.
+	* g++.dg/modules/part-9_a.C: New test.
+	* g++.dg/modules/part-9_b.C: New test.
+	* g++.dg/modules/part-9_c.C: New test.
+	* g++.dg/modules/tpl-friend-15.h: New test.
+	* g++.dg/modules/tpl-friend-15_a.C: New test.
+	* g++.dg/modules/tpl-friend-15_b.C: New test.
+	* g++.dg/modules/tpl-friend-15_c.C: New test.
+
+2024-08-08  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* g++.dg/modules/enum-bad-1_b.C: Update error message.
+
+2024-08-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116064
+	* g++.dg/template/permissive-error2.C: New test.
+
+2024-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/109126
+	* g++.dg/DRs/dr2387.C: New test.
+	* g++.dg/DRs/dr2387-aux.cc: New file.
+
+2024-08-07  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR middle-end/116258
+	PR middle-end/116259
+	* gcc.target/aarch64/pr116258.c: New test.
+	* gcc.target/aarch64/sve/pr116259-1.c: New test.
+
+2024-08-07  Carl Love  <cel@linux.ibm.com>
+
+	* gcc.target/powerpc/vec-shift-double-runnable-int128.c: New test
+	file.
+
+2024-08-07  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/116258
+	* gcc.target/i386/pr116258.c: New testcase.
+
+2024-08-07  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* g++.dg/other/sse2-pr85572-1.C: Update expected output after
+	my recent patch for ashrv2di3.  Now with one less instruction.
+
+2024-08-07  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/111592
+	* g++.dg/cpp0x/variadic186.C: New test.
+
+2024-08-07  Xi Ruoyao  <xry111@xry111.site>
+	    Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/116142
+	* gcc.target/i386/pr116142.c: New test.
+
+2024-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/116175
+	* g++.dg/ext/attr-format4.C: New test.
+
+2024-08-07  Kewen Lin  <linkw@linux.ibm.com>
+
+	* gcc.target/powerpc/pr78056-1.c: Check for powerpc_altivec rather than
+	powerpc_vsx.
+	* gcc.target/powerpc/pr78056-3.c: Likewise.
+	* gcc.target/powerpc/pr78056-5.c: Drop powerpc_vsx_ok check.
+	* gcc.target/powerpc/pr78056-7.c: Check for powerpc_fprs rather than
+	dfp_hw.
+	* gcc.target/powerpc/pr78056-2.c: Remove.
+	* gcc.target/powerpc/pr78056-4.c: Remove.
+	* gcc.target/powerpc/pr78056-6.c: Remove.
+
+2024-08-07  Kewen Lin  <linkw@linux.ibm.com>
+
+	* gcc.target/powerpc/swaps-p8-46.c: Check for p8vector_hw rather than
+	powerpc_vsx_ok.
+	* gcc.target/powerpc/ppc64-abi-2.c: Check for vmx_hw rather than
+	powerpc_altivec_ok.
+	* gcc.target/powerpc/pr96139-c.c: Likewise.
+
+2024-08-07  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR testsuite/114842
+	* gcc.target/powerpc/error-1.c: Replace powerpc_vsx_ok check with
+	powerpc_vsx.
+	* gcc.target/powerpc/warn-2.c: Likewise.
+	* gcc.target/powerpc/fold-vec-logical-ors-longlong.c: Likewise.
+	* gcc.target/powerpc/ppc-fortran/pr80108-1.f90: Replace powerpc_vsx_ok
+	check with powerpc_vsx and remove useless -mfloat128.
+	* gcc.target/powerpc/pragma_power8.c: Replace powerpc_vsx_ok check with
+	powerpc_vsx.
+
+2024-08-07  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR testsuite/114842
+	* gcc.target/powerpc/bswap64-2.c: Replace powerpc_vsx_ok check with
+	has_arch_pwr7.
+	* gcc.target/powerpc/ppc-fpconv-2.c: Replace powerpc_vsx_ok check with
+	powerpc_fprs.
+	* gcc.target/powerpc/ppc-fpconv-6.c: Likewise.
+	* gcc.target/powerpc/ppc-pow.c: Likewise.
+	* gcc.target/powerpc/ppc-target-1.c: Likewise.
+	* gcc.target/powerpc/ppc-target-2.c: Likewise.
+	* gcc.target/powerpc/ppc-target-3.c: Likewise.
+	* gcc.target/powerpc/ppc-target-4.c: Likewise.
+	* gcc.target/powerpc/ppc-fpconv-4.c: Check for powerpc_fprs.
+	* gcc.target/powerpc/fold-vec-select-char.c: Replace powerpc_vsx_ok
+	with powerpc_altivec check and move it after dg-options line.
+	* gcc.target/powerpc/fold-vec-select-float.c: Likewise.
+	* gcc.target/powerpc/fold-vec-select-int.c: Likewise.
+	* gcc.target/powerpc/fold-vec-select-short.c: Likewise.
+	* gcc.target/powerpc/p9-novsx.c: Likewise.
+	* gcc.target/powerpc/p9-options-1.c: Likewise.
+
+2024-08-07  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR testsuite/114842
+	* gcc.target/powerpc/amo2.c: Remove powerpc_vsx_ok effective target
+	check as p9vector_hw already covers it.
+	* gcc.target/powerpc/p9-sign_extend-runnable.c: Likewise.
+	* gcc.target/powerpc/clone2.c: Remove powerpc_vsx_ok effective target
+	check as ppc_cpu_supports_hw already covers it.
+	* gcc.target/powerpc/pr47251.c: Remove powerpc_vsx_ok effective target
+	check as it doesn't need VSX.
+	* gcc.target/powerpc/pr60137.c: Likewise.
+	* gcc.target/powerpc/pr80098-1.c: Likewise.
+	* gcc.target/powerpc/pr80098-2.c: Likewise.
+	* gcc.target/powerpc/pr80098-3.c: Likewise.
+	* gcc.target/powerpc/sd-pwr6.c: Likewise.
+	* gcc.target/powerpc/pr57744.c: Remove powerpc_vsx_ok effective target
+	check and option -mvsx as it doesn't need VSX.
+	* gcc.target/powerpc/pr69548.c: Remove powerpc_vsx_ok effective target
+	check as it doesn't need VSX, remove lp64 and use int128 instead.
+	* gcc.target/powerpc/vec-cmpne-long.c: Remove powerpc_vsx_ok effective
+	target check as p8vector_hw already covers it.
+	* gcc.target/powerpc/darwin-save-world-1.c: Remove powerpc_altivec_ok
+	effective target check as vmx_hw already covers it.
+
+2024-08-07  Kewen Lin  <linkw@linux.ibm.com>
+
+	* lib/target-supports.exp (check_vsx_hw_available): Modify C source
+	code used for testing with type vector long long and constraint wa
+	which require VSX feature.
+	(check_p8vector_hw_available): Likewise.
+	(check_vmx_hw_available): Modify C source code used for testing with
+	type vector int and constraint v which require Altivec feature.
+	* gcc.target/powerpc/divkc3-1.c: Specify -mdejagnu-cpu=power8 for
+	!has_arch_pwr8 to ensure power8 support.
+	* gcc.target/powerpc/mulkc3-1.c: Likewise.
+	* gcc.target/powerpc/pr96264.c: Likewise.
+
+2024-08-07  Jiawei  <jiawei@iscas.ac.cn>
+
+	* gcc.dg/Wstringop-overflow-47.c: Remove xfail target.
+
+2024-08-07  Joern Rennecke  <joern.rennecke@riscy-ip.com>
+
+	* g++.dg/vect/pr115278.cc: Make cast's type agree with
+	assignment destination WRITE.
+
+2024-08-07  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/115231
+	* g++.dg/modules/dguide-1_a.C: New test.
+	* g++.dg/modules/dguide-1_b.C: New test.
+	* g++.dg/modules/dguide-2_a.C: New test.
+	* g++.dg/modules/dguide-2_b.C: New test.
+	* g++.dg/modules/dguide-3_a.C: New test.
+	* g++.dg/modules/dguide-3_b.C: New test.
+	* g++.dg/modules/dguide-3_c.C: New test.
+	* g++.dg/modules/dguide-3_d.C: New test.
+
+2024-08-07  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* g++.dg/template/explicit-instantiation9.C: New test.
+
+2024-08-07  Joern Rennecke  <joern.rennecke@riscy-ip.com>
+
+	* gcc.dg/vect/tsvc/tsvc.h (iterations): Allow to override,
+	default to 10.
+	(get_expected_result): Add values for iterations counts
+	10, 256 and 3200.
+	(run): Add code to output values for new iterations counts.
+	* gcc.dg/vect/tsvc/vect-tsvc-s1119.c (dg-additional-options):
+	Add -Diterations=LEN_2D .
+	* gcc.dg/vect/tsvc/vect-tsvc-s115.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s119.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s125.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s2102.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s2233.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s2275.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s231.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s235.c: Likewise.
+	* gcc.dg/vect/tsvc/vect-tsvc-s176.c: (dg-additional-options):
+	Add -Diterations=3200 .
+	[!run_expensive_tests]: dg-additional-options "-DTRUNCATE_TEST" .
+	[TRUNCATE_TEST]: Set m to 32.
+
+2024-08-07  Pan Li  <pan2.li@intel.com>
+
+	PR target/116202
+	* gcc.target/riscv/rvv/base/pr116202-run-1.c: New test.
+
+2024-08-07  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-1.c: Adjust
+	asm check times from 2 to 4.
+
+2024-08-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116064
+	* g++.dg/ext/typedef-init.C: Downgrade error inside template
+	to warning due to -fpermissive.
+	* g++.dg/pr84492.C: Likewise.
+	* g++.old-deja/g++.pt/crash51.C: Remove unneeded dg-options.
+	* g++.dg/template/permissive-error1.C: New test.
+	* g++.dg/template/permissive-error1a.C: New test.
+	* g++.dg/template/permissive-error1b.C: New test.
+	* g++.dg/template/permissive-error1c.C: New test.
+
+2024-08-06  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR testsuite/116207
+	* gcc.target/aarch64/simd/vmmla.c: Add -save-temps to the
+	options.
+
+2024-08-06  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116177
+	* gcc.dg/sarif-output/include-chain-2.c: Remove pruning of
+	"exit status is 1", as we expect this to exit with 0.
+	* gcc.dg/sarif-output/no-diagnostics.c: New test.
+	* gcc.dg/sarif-output/test-include-chain-1.py
+	(test_execution_unsuccessful): Add.
+	* gcc.dg/sarif-output/test-include-chain-2.py
+	(test_execution_successful): Add.
+	* gcc.dg/sarif-output/test-missing-semicolon.py
+	(test_execution_unsuccessful): Add.
+	* gcc.dg/sarif-output/test-no-diagnostics.py: New test.
+	* gcc.dg/sarif-output/test-werror.py: New test.
+	* gcc.dg/sarif-output/werror.c: New test.
+
+2024-08-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/116223
+	PR c++/112632
+	* g++.dg/cpp1z/nontype-auto25.C: New test.
+
+2024-08-06  Jason Merrill  <jason@redhat.com>
+
+	PR c++/94568
+	* g++.dg/cpp2a/nontype-class36.C: Remove xfail.
+	* g++.dg/cpp2a/nontype-class37.C: Remove xfail.
+	* g++.dg/cpp1z/nontype-auto26.C: New test.
+
+2024-08-06  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* gcc.target/i386/sse2-stv-2.c: New test case.
+
+2024-08-06  Patrick O'Neill  <patrick@rivosinc.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.target/riscv/predef-9.c: Update testcase.
+
+2024-08-06  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/96780
+	* g++.dg/opt/pr96780.C: Also test std::forward_like folding.
+
+2024-08-06  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/116241
+	* g++.dg/vect/pr116241.cc: New testcase.
+
+2024-08-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/116037
+	PR testsuite/116245
+	* gcc.dg/torture/pr116037.c (foo): Fix up for big end middle endian.
+
+2024-08-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/116224
+	* gcc.dg/torture/bitint-72.c: New test.
+
+2024-08-06  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/111821
+	* gcc.dg/torture/pr111821.c: New testcase.
+
+2024-08-06  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/102689
+	* gfortran.dg/class_transformational_1.f90: New test for class-
+	valued reshape.
+	* gfortran.dg/class_transformational_2.f90: New test for other
+	class_valued transformational intrinsics.
+
+2024-08-06  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR target/116189
+	* c-c++-common/torture/pr116189-1.c: New test.
+
+2024-08-06  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/concepts/decl-diagnose.C: Adjust dg-error.
+	* g++.dg/concepts/fn-concept2.C: Likewise.
+	* g++.dg/concepts/pr71128.C: Likewise.
+	* g++.dg/concepts/var-concept6.C: Likewise.
+	* g++.dg/cpp2a/concepts.C: Likewise.
+
 2024-08-05  Patrick O'Neill  <patrick@rivosinc.com>
 
 	* gcc.target/riscv/predef-9.c: Add check for warning.

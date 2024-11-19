@@ -1,3 +1,22 @@
+2024-08-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/115744
+	* libsupc++/new (__glibcxx_want_constexpr_new): Define before
+	including bits/version.h.
+	(_GLIBCXX_PLACEMENT_CONSTEXPR): Define.
+	(operator new, operator new[]): Use it for placement new instead
+	of inline.
+	* include/bits/version.def (constexpr_new): New FTM.
+	* include/bits/version.h: Regenerate.
+
+2024-08-06  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/116247
+	* include/bits/fs_path.h: Use __UINTPTR_TYPE__ instead of
+	uintptr_t.
+	* include/bits/shared_ptr_atomic.h: Likewise.
+	* include/ext/pointer.h: Include <stdint.h>.
+
 2024-08-03  Patrick Palka  <ppalka@redhat.com>
 
 	* include/bits/move.h (__like_impl): New metafunction.

@@ -1,3 +1,24 @@
+2024-08-09  Patrick Palka  <ppalka@redhat.com>
+
+	* c.opt.urls: Regenerate.
+
+2024-08-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-pragma.cc (c_pp_lookup_pragma): Use ARRAY_SIZE in
+	n_omp_pragmas_simd initializer.
+	(init_pragmas): Likewise.
+
+2024-08-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/115744
+	* c-cppbuiltin.cc (c_cpp_builtins): Change __cpp_constexpr
+	from 202306L to 202406L for C++26.
+
+2024-08-07  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116064
+	* c.opt (Wtemplate-body): New warning.
+
 2024-08-02  Marek Polacek  <polacek@redhat.com>
 
 	* c.opt (Wdangling-reference): Move from -Wall to -Wextra.
