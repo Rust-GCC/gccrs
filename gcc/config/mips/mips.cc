@@ -22801,14 +22801,20 @@ mips_expand_vec_cmp_expr (rtx *operands)
 
 void
 mips_expand_vec_cond_expr (machine_mode mode, machine_mode vimode,
-			   rtx *operands)
+			   rtx *operands, bool mask)
 {
-  rtx cond = operands[3];
-  rtx cmp_op0 = operands[4];
-  rtx cmp_op1 = operands[5];
-  rtx cmp_res = gen_reg_rtx (vimode);
+  rtx cmp_res;
+  if (mask)
+    cmp_res = operands[3];
+  else
+    {
+      rtx cond = operands[3];
+      rtx cmp_op0 = operands[4];
+      rtx cmp_op1 = operands[5];
+      cmp_res = gen_reg_rtx (vimode);
 
-  mips_expand_msa_cmp (cmp_res, GET_CODE (cond), cmp_op0, cmp_op1);
+      mips_expand_msa_cmp (cmp_res, GET_CODE (cond), cmp_op0, cmp_op1);
+    }
 
   /* We handle the following cases:
      1) r = a CMP b ? -1 : 0
@@ -23043,6 +23049,18 @@ mips_asm_file_end (void)
 {
   if (NEED_INDICATE_EXEC_STACK)
     file_end_indicate_exec_stack ();
+}
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+mips_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return MIPS_LONG_DOUBLE_TYPE_SIZE == 64 ? DFmode : TFmode;
+  return default_mode_for_floating_type (ti);
 }
 
 void
@@ -23413,6 +23431,8 @@ mips_bit_clear_p (enum machine_mode mode, unsigned HOST_WIDE_INT m)
 #undef TARGET_ASM_FILE_END
 #define TARGET_ASM_FILE_END mips_asm_file_end
 
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE mips_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

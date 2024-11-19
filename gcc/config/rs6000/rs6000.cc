@@ -1707,6 +1707,9 @@ static const scoped_attribute_specs *const rs6000_attribute_table[] =
 #undef TARGET_C_MODE_FOR_SUFFIX
 #define TARGET_C_MODE_FOR_SUFFIX rs6000_c_mode_for_suffix
 
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE rs6000_c_mode_for_floating_type
+
 #undef TARGET_INVALID_BINARY_OP
 #define TARGET_INVALID_BINARY_OP rs6000_invalid_binary_op
 
@@ -3431,6 +3434,14 @@ rs6000_override_options_after_change (void)
   /* If we are inserting ROP-protect instructions, disable shrink wrap.  */
   if (rs6000_rop_protect)
     flag_shrink_wrap = 0;
+
+  /* One of the late-combine passes runs after register allocation
+     and can match define_insn_and_splits that were previously used
+     only before register allocation.  Some of those define_insn_and_splits
+     use gen_reg_rtx unconditionally.  Disable late-combine by default
+     until the define_insn_and_splits are fixed.  */
+  if (!OPTION_SET_P (flag_late_combine_instructions))
+    flag_late_combine_instructions = 0;
 }
 
 #ifdef TARGET_USES_LINUX64_OPT
@@ -4767,14 +4778,6 @@ rs6000_option_override_internal (bool global_init_p)
       if (DEFAULT_ABI != ABI_V4)
 	targetm.expand_builtin_va_start = NULL;
     }
-
-  /* One of the late-combine passes runs after register allocation
-     and can match define_insn_and_splits that were previously used
-     only before register allocation.  Some of those define_insn_and_splits
-     use gen_reg_rtx unconditionally.  Disable late-combine by default
-     until the define_insn_and_splits are fixed.  */
-  if (!OPTION_SET_P (flag_late_combine_instructions))
-    flag_late_combine_instructions = 0;
 
   rs6000_override_options_after_change ();
 
@@ -24371,6 +24374,19 @@ rs6000_c_mode_for_suffix (char suffix)
     }
 
   return VOIDmode;
+}
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode for
+   TI_LONG_DOUBLE_TYPE which is for long double type, go with the default
+   one for the others.  */
+
+static machine_mode
+rs6000_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return rs6000_long_double_type_size == FLOAT_PRECISION_TFmode ? TFmode
+								  : DFmode;
+  return default_mode_for_floating_type (ti);
 }
 
 /* Target hook for invalid_arg_for_unprototyped_fn. */

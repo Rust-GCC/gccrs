@@ -678,10 +678,6 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define LONG_TYPE_SIZE (TARGET_X32 ? 32 : BITS_PER_WORD)
 #define POINTER_SIZE (TARGET_X32 ? 32 : BITS_PER_WORD)
 #define LONG_LONG_TYPE_SIZE 64
-#define FLOAT_TYPE_SIZE 32
-#define DOUBLE_TYPE_SIZE 64
-#define LONG_DOUBLE_TYPE_SIZE \
-  (TARGET_LONG_DOUBLE_64 ? 64 : (TARGET_LONG_DOUBLE_128 ? 128 : 80))
 
 #define WIDEST_HARDWARE_FP_SIZE 80
 
@@ -2262,6 +2258,8 @@ extern int const svr4_debugger_register_map[FIRST_PSEUDO_REGISTER];
 
 /* Which processor to tune code generation for.  These must be in sync
    with processor_cost_table in i386-options.cc.  */
+
+#define GOT_ALIAS_SET -1
 
 enum processor_type
 {

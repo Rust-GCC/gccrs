@@ -269,7 +269,6 @@ extern unsigned int ix86_local_alignment (tree, machine_mode,
 extern unsigned int ix86_minimum_alignment (tree, machine_mode,
 					    unsigned int);
 extern tree ix86_handle_shared_attribute (tree *, tree, tree, int, bool *);
-extern tree ix86_handle_selectany_attribute (tree *, tree, tree, int, bool *);
 extern int x86_field_alignment (tree, int);
 extern tree ix86_valid_target_attribute_tree (tree, tree,
 					      struct gcc_options *,
@@ -306,21 +305,13 @@ extern void ix86_target_macros (void);
 extern void ix86_register_pragmas (void);
 
 /* In winnt.cc  */
-extern void mingw_pe_unique_section (tree, int);
-extern void mingw_pe_declare_function_type (FILE *, const char *, int);
 extern void i386_pe_record_external_function (tree, const char *);
-extern void mingw_pe_maybe_record_exported_symbol (tree, const char *, int);
-extern void mingw_pe_encode_section_info (tree, rtx, int);
 extern bool i386_pe_binds_local_p (const_tree);
 extern const char *i386_pe_strip_name_encoding_full (const char *);
-extern bool i386_pe_valid_dllimport_attribute_p (const_tree);
-extern unsigned int mingw_pe_section_type_flags (tree, const char *, int);
-extern void mingw_pe_asm_named_section (const char *, unsigned int, tree);
 extern void i386_pe_asm_output_aligned_decl_common (FILE *, tree,
 						    const char *,
 						    HOST_WIDE_INT,
 						    HOST_WIDE_INT);
-extern void i386_pe_file_end (void);
 extern void i386_pe_asm_lto_start (void);
 extern void i386_pe_asm_lto_end (void);
 extern void i386_pe_start_function (FILE *, const char *, tree);
@@ -329,7 +320,6 @@ extern void i386_pe_end_cold_function (FILE *, const char *, tree);
 extern void i386_pe_assemble_visibility (tree, int);
 extern tree i386_pe_mangle_decl_assembler_name (tree, tree);
 extern tree i386_pe_mangle_assembler_name (const char *);
-extern void i386_pe_record_stub (const char *);
 
 extern void i386_pe_seh_init (FILE *);
 extern void i386_pe_seh_end_prologue (FILE *);
