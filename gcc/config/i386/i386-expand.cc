@@ -2176,19 +2176,19 @@ ix86_expand_fp_absneg_operator (enum rtx_code code, machine_mode mode,
 
   switch (mode)
   {
-  case HFmode:
+  case E_HFmode:
     use_sse = true;
     vmode = V8HFmode;
     break;
-  case BFmode:
+  case E_BFmode:
     use_sse = true;
     vmode = V8BFmode;
     break;
-  case SFmode:
+  case E_SFmode:
     use_sse = TARGET_SSE_MATH && TARGET_SSE;
     vmode = V4SFmode;
     break;
-  case DFmode:
+  case E_DFmode:
     use_sse = TARGET_SSE_MATH && TARGET_SSE2;
     vmode = V2DFmode;
     break;
@@ -2330,19 +2330,19 @@ ix86_expand_copysign (rtx operands[])
 
   switch (mode)
   {
-  case HFmode:
+  case E_HFmode:
     vmode = V8HFmode;
     break;
-  case BFmode:
+  case E_BFmode:
     vmode = V8BFmode;
     break;
-  case SFmode:
+  case E_SFmode:
     vmode = V4SFmode;
     break;
-  case DFmode:
+  case E_DFmode:
     vmode = V2DFmode;
     break;
-  case TFmode:
+  case E_TFmode:
     vmode = mode;
     break;
   default:
@@ -2410,16 +2410,16 @@ ix86_expand_xorsign (rtx operands[])
 
   switch (mode)
   {
-  case HFmode:
+  case E_HFmode:
     vmode = V8HFmode;
     break;
-  case BFmode:
+  case E_BFmode:
     vmode = V8BFmode;
     break;
-  case SFmode:
+  case E_SFmode:
     vmode = V4SFmode;
     break;
-  case DFmode:
+  case E_DFmode:
     vmode = V2DFmode;
     break;
   default:
@@ -14198,7 +14198,7 @@ ix86_expand_builtin (tree exp, rtx target, rtx subtarget,
 	  op0 = convert_memory_address (Pmode, op0);
 	  op0 = copy_addr_to_reg (op0);
 	}
-      op0 = gen_rtx_MEM (XImode, op0);
+      op0 = gen_rtx_MEM (BLKmode, op0);
       if (fcode == IX86_BUILTIN_LDTILECFG)
 	icode = CODE_FOR_ldtilecfg;
       else

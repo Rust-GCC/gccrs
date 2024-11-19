@@ -31,10 +31,16 @@ TargetVariable
 enum aarch64_arch selected_arch = aarch64_no_arch
 
 TargetVariable
-aarch64_feature_flags aarch64_asm_isa_flags = 0
+uint64_t aarch64_asm_isa_flags_0 = 0
 
 TargetVariable
-aarch64_feature_flags aarch64_isa_flags = 0
+uint64_t aarch64_asm_isa_flags_1 = 0
+
+TargetVariable
+uint64_t aarch64_isa_flags_0 = 0
+
+TargetVariable
+uint64_t aarch64_isa_flags_1 = 0
 
 TargetVariable
 unsigned aarch_enable_bti = 2
@@ -250,7 +256,7 @@ EnumValue
 Enum(early_ra_scope) String(none) Value(AARCH64_EARLY_RA_NONE)
 
 mearly-ra=
-Target RejectNegative Joined Enum(early_ra_scope) Var(aarch64_early_ra) Init(AARCH64_EARLY_RA_NONE) Save
+Target RejectNegative Joined Enum(early_ra_scope) Var(aarch64_early_ra) Init(AARCH64_EARLY_RA_NONE) Optimization
 Specify when to enable an early register allocation pass.  The possibilities
 are: all functions, functions that have access to strided multi-register
 instructions, and no functions.

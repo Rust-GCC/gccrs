@@ -29,8 +29,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic.h"
 #include "diagnostic-color.h"
 #include "gcc-rich-location.h"
+#include "text-range-label.h"
 #include "selftest.h"
 #include "selftest-diagnostic.h"
+#include "selftest-diagnostic-show-locus.h"
 #include "cpplib.h"
 #include "text-art/types.h"
 #include "text-art/theme.h"
@@ -88,12 +90,24 @@ class colorizer
 {
  public:
   colorizer (pretty_printer *pp,
+	     const rich_location &richloc,
 	     diagnostic_t diagnostic_kind);
   ~colorizer ();
 
   void set_range (int range_idx)
   {
-    /* Normally we emphasize the primary location, then alternate between
+    /* If we have a specific highlight color for the range, use it.  */
+    if (pp_show_highlight_colors (m_pp))
+      {
+	const location_range *const loc_range = m_richloc.get_range (range_idx);
+	if (loc_range->m_highlight_color)
+	  {
+	    set_named_color (loc_range->m_highlight_color);
+	    return;
+	  }
+      }
+
+    /* Otherwise, we emphasize the primary location, then alternate between
        two colors for the secondary locations.
        But if we're printing a run of events in a diagnostic path, that
        makes no sense, so print all of them with the same colorization.  */
@@ -106,6 +120,7 @@ class colorizer
   void set_normal_text () { set_state (STATE_NORMAL_TEXT); }
   void set_fixit_insert () { set_state (STATE_FIXIT_INSERT); }
   void set_fixit_delete () { set_state (STATE_FIXIT_DELETE); }
+  void set_named_color (const char *color);
 
  private:
   void set_state (int state);
@@ -117,8 +132,10 @@ class colorizer
   static const int STATE_NORMAL_TEXT = -1;
   static const int STATE_FIXIT_INSERT  = -2;
   static const int STATE_FIXIT_DELETE  = -3;
+  static const int STATE_NAMED_COLOR  = -4;
 
   pretty_printer *m_pp;
+  const rich_location &m_richloc;
   diagnostic_t m_diagnostic_kind;
   int m_current_state;
   const char *m_range1;
@@ -520,8 +537,10 @@ class layout
    different kinds of things we might need to print.  */
 
 colorizer::colorizer (pretty_printer *pp,
+		      const rich_location &richloc,
 		      diagnostic_t diagnostic_kind) :
   m_pp (pp),
+  m_richloc (richloc),
   m_diagnostic_kind (diagnostic_kind),
   m_current_state (STATE_NORMAL_TEXT)
 {
@@ -538,6 +557,17 @@ colorizer::colorizer (pretty_printer *pp,
 colorizer::~colorizer ()
 {
   finish_state (m_current_state);
+}
+
+/* Update state, changing to the specific named color and printing its
+   color codes.  */
+
+void
+colorizer::set_named_color (const char *color)
+{
+  finish_state (m_current_state);
+  m_current_state = STATE_NAMED_COLOR;
+  pp_string (m_pp, colorize_start (pp_show_color (m_pp), color));
 }
 
 /* Update state, printing color codes if necessary if there's a state
@@ -571,6 +601,10 @@ colorizer::begin_state (int state)
     case STATE_FIXIT_DELETE:
       pp_string (m_pp, m_fixit_delete);
       break;
+
+    case STATE_NAMED_COLOR:
+      /* Should be handled by colorizer::set_named_color.  */
+      gcc_unreachable ();
 
     case 0:
       /* Make range 0 be the same color as the "kind" text
@@ -1304,7 +1338,7 @@ layout::layout (const diagnostic_context &context,
   m_exploc (m_file_cache,
 	    richloc.get_expanded_location (0), m_policy,
 	    LOCATION_ASPECT_CARET),
-  m_colorizer (m_pp, diagnostic_kind),
+  m_colorizer (m_pp, richloc, diagnostic_kind),
   m_diagnostic_path_p (diagnostic_kind == DK_DIAGNOSTIC_PATH),
   m_layout_ranges (richloc.get_num_locations ()),
   m_fixit_hints (richloc.get_num_fixit_hints ()),
@@ -3259,6 +3293,18 @@ namespace selftest {
 
 /* Selftests for diagnostic_show_locus.  */
 
+diagnostic_show_locus_fixture::
+diagnostic_show_locus_fixture (const line_table_case &case_,
+			       const char *content)
+: m_content (content),
+  m_tmp_source_file (SELFTEST_LOCATION, ".c", content),
+  m_ltt (case_),
+  m_fc ()
+{
+  linemap_add (line_table, LC_ENTER, false,
+	       m_tmp_source_file.get_filename (), 1);
+}
+
 /* Verify that cpp_display_width correctly handles escaping.  */
 
 static void
@@ -3363,11 +3409,9 @@ test_layout_x_offset_display_utf8 (const line_table_case &case_)
      no multibyte characters earlier on the line.  */
   const int emoji_col = 102;
 
-  temp_source_file tmp (SELFTEST_LOCATION, ".c", content);
-  file_cache fc;
-  line_table_test ltt (case_);
+  diagnostic_show_locus_fixture f (case_, content);
 
-  linemap_add (line_table, LC_ENTER, false, tmp.get_filename (), 1);
+  linemap_add (line_table, LC_ENTER, false, f.get_filename (), 1);
 
   location_t line_end = linemap_position_for_column (line_table, line_bytes);
 
@@ -3375,16 +3419,16 @@ test_layout_x_offset_display_utf8 (const line_table_case &case_)
   if (line_end > LINE_MAP_MAX_LOCATION_WITH_COLS)
     return;
 
-  ASSERT_STREQ (tmp.get_filename (), LOCATION_FILE (line_end));
+  ASSERT_STREQ (f.get_filename (), LOCATION_FILE (line_end));
   ASSERT_EQ (1, LOCATION_LINE (line_end));
   ASSERT_EQ (line_bytes, LOCATION_COLUMN (line_end));
 
-  char_span lspan = fc.get_source_line (tmp.get_filename (), 1);
+  char_span lspan = f.m_fc.get_source_line (f.get_filename (), 1);
   ASSERT_EQ (line_display_cols,
 	     cpp_display_width (lspan.get_buffer (), lspan.length (),
 				def_policy ()));
   ASSERT_EQ (line_display_cols,
-	     location_compute_display_column (fc,
+	     location_compute_display_column (f.m_fc,
 					      expand_location (line_end),
 					      def_policy ()));
   ASSERT_EQ (0, memcmp (lspan.get_buffer () + (emoji_col - 1),
@@ -4012,7 +4056,7 @@ test_one_liner_labels ()
     text_range_label label0 ("0");
     text_range_label label1 ("1");
     text_range_label label2 ("2");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4042,7 +4086,7 @@ test_one_liner_labels ()
     text_range_label label0 ("label 0");
     text_range_label label1 ("label 1");
     text_range_label label2 ("label 2");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4063,7 +4107,7 @@ test_one_liner_labels ()
     text_range_label label0 ("aaaaa");
     text_range_label label1 ("bbbb");
     text_range_label label2 ("c");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4082,7 +4126,7 @@ test_one_liner_labels ()
     text_range_label label0 ("0");
     text_range_label label1 ("1");
     text_range_label label2 ("2");
-    gcc_rich_location richloc (field, &label0);
+    gcc_rich_location richloc (field, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (foo, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4101,7 +4145,7 @@ test_one_liner_labels ()
     text_range_label label0 ("label 0");
     text_range_label label1 ("label 1");
     text_range_label label2 ("label 2");
-    gcc_rich_location richloc (bar, &label0);
+    gcc_rich_location richloc (bar, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4128,7 +4172,7 @@ test_one_liner_labels ()
     text_range_label label_0c ("label 0c");
     text_range_label label_1c ("label 1c");
     text_range_label label_2c ("label 2c");
-    gcc_rich_location richloc (field, &label_0a);
+    gcc_rich_location richloc (field, &label_0a, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label_1a);
     richloc.add_range (foo, SHOW_RANGE_WITHOUT_CARET, &label_2a);
 
@@ -4161,7 +4205,7 @@ test_one_liner_labels ()
      handled gracefully.  */
   {
     text_range_label label (NULL);
-    gcc_rich_location richloc (bar, &label);
+    gcc_rich_location richloc (bar, &label, nullptr);
 
     test_diagnostic_context dc;
     diagnostic_show_locus (&dc, &richloc, DK_ERROR);
@@ -4183,10 +4227,8 @@ test_diagnostic_show_locus_one_liner (const line_table_case &case_)
      ....................0000000001111111.
      ....................1234567890123456.  */
   const char *content = "foo = bar.field;\n";
-  temp_source_file tmp (SELFTEST_LOCATION, ".c", content);
-  line_table_test ltt (case_);
 
-  linemap_add (line_table, LC_ENTER, false, tmp.get_filename (), 1);
+  diagnostic_show_locus_fixture f (case_, content);
 
   location_t line_end = linemap_position_for_column (line_table, 16);
 
@@ -4194,7 +4236,7 @@ test_diagnostic_show_locus_one_liner (const line_table_case &case_)
   if (line_end > LINE_MAP_MAX_LOCATION_WITH_COLS)
     return;
 
-  ASSERT_STREQ (tmp.get_filename (), LOCATION_FILE (line_end));
+  ASSERT_STREQ (f.get_filename (), LOCATION_FILE (line_end));
   ASSERT_EQ (1, LOCATION_LINE (line_end));
   ASSERT_EQ (16, LOCATION_COLUMN (line_end));
 
@@ -4214,27 +4256,17 @@ test_diagnostic_show_locus_one_liner (const line_table_case &case_)
   test_one_liner_labels ();
 }
 
-/* Version of all one-liner tests exercising multibyte awareness.  For
-   simplicity we stick to using two multibyte characters in the test, U+1F602
-   == "\xf0\x9f\x98\x82", which uses 4 bytes and 2 display columns, and U+03C0
-   == "\xcf\x80", which uses 2 bytes and 1 display column.  Note: all of the
-   below asserts would be easier to read if we used UTF-8 directly in the
-   string constants, but it seems better not to demand the host compiler
-   support this, when it isn't otherwise necessary.  Instead, whenever an
-   extended character appears in a string, we put a line break after it so that
-   all succeeding characters can appear visually at the correct display column.
+/* Version of all one-liner tests exercising multibyte awareness.
+   These are all called from test_diagnostic_show_locus_one_liner,
+   which uses diagnostic_show_locus_fixture_one_liner_utf8 to create
+   the test file; see the notes in diagnostic-show-locus-selftest.h.
 
-   All of these work on the following 1-line source file:
-
-     .0000000001111111111222222   display
-     .1234567890123456789012345   columns
-     "SS_foo = P_bar.SS_fieldP;\n"
-     .0000000111111111222222223   byte
-     .1356789012456789134567891   columns
-
-   which is set up by test_diagnostic_show_locus_one_liner and calls
-   them.  Here SS represents the two display columns for the U+1F602 emoji and
-   P represents the one display column for the U+03C0 pi symbol.  */
+   Note: all of the below asserts would be easier to read if we used UTF-8
+   directly in the string constants, but it seems better not to demand the
+   host compiler support this, when it isn't otherwise necessary.  Instead,
+   whenever an extended character appears in a string, we put a line break
+   after it so that all succeeding characters can appear visually at the
+   correct display column.  */
 
 /* Just a caret.  */
 
@@ -4620,7 +4652,7 @@ test_one_liner_labels_utf8 ()
     text_range_label label2
       ("\xf0\x9f\x98\x82\xcf\x80\xf0\x9f\x98\x82\xf0\x9f\x98\x82\xcf\x80"
        "\xcf\x80");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4648,7 +4680,7 @@ test_one_liner_labels_utf8 ()
     text_range_label label0 ("label 0\xf0\x9f\x98\x82");
     text_range_label label1 ("label 1\xcf\x80");
     text_range_label label2 ("label 2\xcf\x80");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4674,7 +4706,7 @@ test_one_liner_labels_utf8 ()
     text_range_label label0 ("aaaaa\xf0\x9f\x98\x82\xcf\x80");
     text_range_label label1 ("bb\xf0\x9f\x98\x82\xf0\x9f\x98\x82");
     text_range_label label2 ("c");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
 
@@ -4698,7 +4730,7 @@ test_one_liner_labels_utf8 ()
     text_range_label label0 ("label 0\xf0\x9f\x98\x82");
     text_range_label label1 ("label 1\xcf\x80");
     text_range_label label2 ("label 2\xcf\x80");
-    gcc_rich_location richloc (foo, &label0);
+    gcc_rich_location richloc (foo, &label0, nullptr);
     richloc.add_range (bar, SHOW_RANGE_WITHOUT_CARET, &label1);
     richloc.add_range (field, SHOW_RANGE_WITHOUT_CARET, &label2);
     richloc.set_escape_on_output (true);
@@ -4752,25 +4784,27 @@ test_one_liner_colorized_utf8 ()
   ASSERT_STR_CONTAINS (first_pi + 2, "\xcf\x80");
 }
 
+static const char * const one_liner_utf8_content
+  /* Display columns.
+     0000000000000000000000011111111111111111111111111111112222222222222
+     1111111122222222345678900000000123456666666677777777890123444444445  */
+  = "\xf0\x9f\x98\x82_foo = \xcf\x80_bar.\xf0\x9f\x98\x82_field\xcf\x80;\n";
+  /* 0000000000000000000001111111111111111111222222222222222222222233333
+     1111222233334444567890122223333456789999000011112222345678999900001
+     Byte columns.  */
+
+diagnostic_show_locus_fixture_one_liner_utf8::
+diagnostic_show_locus_fixture_one_liner_utf8 (const line_table_case &case_)
+: diagnostic_show_locus_fixture (case_, one_liner_utf8_content)
+{
+}
+
 /* Run the various one-liner tests.  */
 
 static void
 test_diagnostic_show_locus_one_liner_utf8 (const line_table_case &case_)
 {
-  /* Create a tempfile and write some text to it.  */
-  const char *content
-    /* Display columns.
-       0000000000000000000000011111111111111111111111111111112222222222222
-       1111111122222222345678900000000123456666666677777777890123444444445  */
-    = "\xf0\x9f\x98\x82_foo = \xcf\x80_bar.\xf0\x9f\x98\x82_field\xcf\x80;\n";
-    /* 0000000000000000000001111111111111111111222222222222222222222233333
-       1111222233334444567890122223333456789999000011112222345678999900001
-       Byte columns.  */
-  temp_source_file tmp (SELFTEST_LOCATION, ".c", content);
-  file_cache fc;
-  line_table_test ltt (case_);
-
-  linemap_add (line_table, LC_ENTER, false, tmp.get_filename (), 1);
+  diagnostic_show_locus_fixture_one_liner_utf8 f (case_);
 
   location_t line_end = linemap_position_for_column (line_table, 31);
 
@@ -4778,14 +4812,14 @@ test_diagnostic_show_locus_one_liner_utf8 (const line_table_case &case_)
   if (line_end > LINE_MAP_MAX_LOCATION_WITH_COLS)
     return;
 
-  ASSERT_STREQ (tmp.get_filename (), LOCATION_FILE (line_end));
+  ASSERT_STREQ (f.get_filename (), LOCATION_FILE (line_end));
   ASSERT_EQ (1, LOCATION_LINE (line_end));
   ASSERT_EQ (31, LOCATION_COLUMN (line_end));
 
-  char_span lspan = fc.get_source_line (tmp.get_filename (), 1);
+  char_span lspan = f.m_fc.get_source_line (f.get_filename (), 1);
   ASSERT_EQ (25, cpp_display_width (lspan.get_buffer (), lspan.length (),
 				    def_policy ()));
-  ASSERT_EQ (25, location_compute_display_column (fc,
+  ASSERT_EQ (25, location_compute_display_column (f.m_fc,
 						  expand_location (line_end),
 						  def_policy ()));
 

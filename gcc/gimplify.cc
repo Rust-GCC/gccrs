@@ -227,6 +227,7 @@ struct gimplify_ctx
   unsigned keep_stack : 1;
   unsigned save_stack : 1;
   unsigned in_switch_expr : 1;
+  unsigned in_handler_expr : 1;
 };
 
 enum gimplify_defaultmap_kind
@@ -6979,7 +6980,8 @@ gimplify_addr_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 	*expr_p = build_fold_addr_expr (op0);
 
       /* Make sure TREE_CONSTANT and TREE_SIDE_EFFECTS are set properly.  */
-      recompute_tree_invariant_for_addr_expr (*expr_p);
+      if (TREE_CODE (*expr_p) == ADDR_EXPR)
+	recompute_tree_invariant_for_addr_expr (*expr_p);
 
       /* If we re-built the ADDR_EXPR add a conversion to the original type
          if required.  */
@@ -18447,22 +18449,28 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	    input_location = UNKNOWN_LOCATION;
 	    eval = cleanup = NULL;
 	    gimplify_and_add (TREE_OPERAND (*expr_p, 0), &eval);
+	    bool save_in_handler_expr = gimplify_ctxp->in_handler_expr;
 	    if (TREE_CODE (*expr_p) == TRY_FINALLY_EXPR
 		&& TREE_CODE (TREE_OPERAND (*expr_p, 1)) == EH_ELSE_EXPR)
 	      {
 		gimple_seq n = NULL, e = NULL;
+		gimplify_ctxp->in_handler_expr = true;
 		gimplify_and_add (TREE_OPERAND (TREE_OPERAND (*expr_p, 1),
 						0), &n);
 		gimplify_and_add (TREE_OPERAND (TREE_OPERAND (*expr_p, 1),
 						1), &e);
-		if (!gimple_seq_empty_p (n) && !gimple_seq_empty_p (e))
+		if (!gimple_seq_empty_p (n) || !gimple_seq_empty_p (e))
 		  {
 		    geh_else *stmt = gimple_build_eh_else (n, e);
 		    gimple_seq_add_stmt (&cleanup, stmt);
 		  }
 	      }
 	    else
-	      gimplify_and_add (TREE_OPERAND (*expr_p, 1), &cleanup);
+	      {
+		gimplify_ctxp->in_handler_expr = true;
+		gimplify_and_add (TREE_OPERAND (*expr_p, 1), &cleanup);
+	      }
+	    gimplify_ctxp->in_handler_expr = save_in_handler_expr;
 	    /* Don't create bogus GIMPLE_TRY with empty cleanup.  */
 	    if (gimple_seq_empty_p (cleanup))
 	      {
@@ -18562,6 +18570,10 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	  /* When within an OMP context, notice uses of variables.  */
 	  if (gimplify_omp_ctxp)
 	    omp_notice_variable (gimplify_omp_ctxp, *expr_p, true);
+	  /* Handlers can refer to the function result; if that has been
+	     moved, we need to track it.  */
+	  if (gimplify_ctxp->in_handler_expr && gimplify_ctxp->return_temp)
+	    *expr_p = gimplify_ctxp->return_temp;
 	  ret = GS_ALL_DONE;
 	  break;
 
@@ -19411,7 +19423,7 @@ gimplify_body (tree fndecl, bool do_parms)
   DECL_SAVED_TREE (fndecl) = NULL_TREE;
 
   /* If we had callee-copies statements, insert them at the beginning
-     of the function and clear DECL_VALUE_EXPR_P on the parameters.  */
+     of the function and clear DECL_HAS_VALUE_EXPR_P on the parameters.  */
   if (!gimple_seq_empty_p (parm_stmts))
     {
       tree parm;

@@ -53,6 +53,10 @@ static GTY(()) hash_set<tree> *deferred_escalating_exprs;
 static void
 remember_escalating_expr (tree t)
 {
+  if (uses_template_parms (t))
+    /* Templates don't escalate, and cp_fold_immediate can get confused by
+       other template trees in the function body (c++/115986).  */
+    return;
   if (!deferred_escalating_exprs)
     deferred_escalating_exprs = hash_set<tree>::create_ggc (37);
   deferred_escalating_exprs->add (t);
@@ -3929,7 +3933,14 @@ fold_builtin_source_location (const_tree t)
 	      const char *name = "";
 
 	      if (current_function_decl)
-		name = cxx_printable_name (current_function_decl, 2);
+		{
+		  /* If this is a coroutine, we should get the name of the user
+		     function rather than the actor we generate.  */
+		  if (tree ramp = DECL_RAMP_FN (current_function_decl))
+		    name = cxx_printable_name (ramp, 2);
+		  else
+		    name = cxx_printable_name (current_function_decl, 2);
+		}
 
 	      val = build_string_literal (name);
 	    }

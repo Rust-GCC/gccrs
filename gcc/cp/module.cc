@@ -6000,6 +6000,10 @@ trees_out::core_vals (tree t)
 
       if (state)
 	state->write_location (*this, t->decl_minimal.locus);
+
+      if (streaming_p ())
+	if (has_warning_spec (t))
+	  u (get_warning_spec (t));
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
@@ -6112,6 +6116,10 @@ trees_out::core_vals (tree t)
     {
       if (state)
 	state->write_location (*this, t->exp.locus);
+
+      if (streaming_p ())
+	if (has_warning_spec (t))
+	  u (get_warning_spec (t));
 
       /* Walk in forward order, as (for instance) REQUIRES_EXPR has a
          bunch of unscoped parms on its first operand.  It's safer to
@@ -6576,6 +6584,8 @@ trees_in::core_vals (tree t)
       /* Don't zap the locus just yet, we don't record it correctly
 	 and thus lose all location information.  */
       t->decl_minimal.locus = state->read_location (*this);
+      if (has_warning_spec (t))
+	put_warning_spec (t, u ());
     }
 
   if (CODE_CONTAINS_STRUCT (code, TS_TYPE_COMMON))
@@ -6654,6 +6664,8 @@ trees_in::core_vals (tree t)
   if (CODE_CONTAINS_STRUCT (code, TS_EXP))
     {
       t->exp.locus = state->read_location (*this);
+      if (has_warning_spec (t))
+	put_warning_spec (t, u ());
 
       bool vl = TREE_CODE_CLASS (code) == tcc_vl_exp;
       for (unsigned limit = (vl ? VL_EXP_OPERAND_LENGTH (t)
@@ -19604,7 +19616,7 @@ lazy_load_binding (unsigned mod, tree ns, tree id, binding_slot *mslot)
 {
   int count = errorcount + warningcount;
 
-  timevar_start (TV_MODULE_IMPORT);
+  bool timer_running = timevar_cond_start (TV_MODULE_IMPORT);
 
   /* Make sure lazy loading from a template context behaves as if
      from a non-template context.  */
@@ -19634,7 +19646,7 @@ lazy_load_binding (unsigned mod, tree ns, tree id, binding_slot *mslot)
 
   function_depth--;
 
-  timevar_stop (TV_MODULE_IMPORT);
+  timevar_cond_stop (TV_MODULE_IMPORT, timer_running);
 
   if (!ok)
     fatal_error (input_location,
@@ -19673,7 +19685,7 @@ lazy_load_pendings (tree decl)
 
   int count = errorcount + warningcount;
 
-  timevar_start (TV_MODULE_IMPORT);
+  bool timer_running = timevar_cond_start (TV_MODULE_IMPORT);
   bool ok = !recursive_lazy ();
   if (ok)
     {
@@ -19707,7 +19719,7 @@ lazy_load_pendings (tree decl)
       function_depth--;
     }
 
-  timevar_stop (TV_MODULE_IMPORT);
+  timevar_cond_stop (TV_MODULE_IMPORT, timer_running);
 
   if (!ok)
     fatal_error (input_location, "failed to load pendings for %<%E%s%E%>",

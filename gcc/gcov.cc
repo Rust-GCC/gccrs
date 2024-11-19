@@ -32,6 +32,7 @@ along with Gcov; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_ALGORITHM
+#define INCLUDE_MEMORY
 #define INCLUDE_VECTOR
 #define INCLUDE_STRING
 #define INCLUDE_MAP
@@ -1285,8 +1286,8 @@ output_intermediate_json_line (json::array *object,
 	const int covered = info.popcount ();
 
 	json::object *cond = new json::object ();
-	cond->set ("count", new json::integer_number (count));
-	cond->set ("covered", new json::integer_number (covered));
+	cond->set_integer ("count", count);
+	cond->set_integer ("covered", covered);
 
 	json::array *mtrue = new json::array ();
 	json::array *mfalse = new json::array ();

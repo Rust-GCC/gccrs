@@ -1,3 +1,126 @@
+2024-07-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR fortran/115559
+	* trans-common.cc (build_common_decl): Add 'omp declare target' and
+	'omp declare target link' variables to offload_vars.
+	* trans-decl.cc (add_attributes_to_decl): Likewise; update args and
+	call decl_attributes.
+	(get_proc_pointer_decl, gfc_get_extern_function_decl,
+	build_function_decl): Update calls.
+	(gfc_get_symbol_decl): Likewise; move after 'DECL_STATIC (t)=1'
+	to avoid errors with symtab_node::get_create.
+
+2024-07-22  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/88624
+	* trans-expr.cc (gfc_conv_procedure_call): Treat
+	pointers/references (e.g. from parameters) correctly by derefing
+	them.
+
+2024-07-21  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/59104
+	* gfortran.h : Add decl_order to gfc_symbol.
+	* symbol.cc : Add static next_decl_order..
+	(gfc_set_sym_referenced): Set symbol decl_order.
+	* trans-decl.cc : Include dependency.h.
+	(decl_order): Replace symbol declared_at.lb->location with
+	decl_order.
+
+2024-07-19  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/103115
+	* trans-array.cc (gfc_trans_array_constructor_value): If the first
+	element of an array constructor is deferred-length character and
+	therefore does not have an element size known at compile time, do
+	not try to collect subsequent constant elements into a constructor
+	for optimization.
+
+2024-07-18  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/78466
+	PR fortran/80774
+	* array.cc (gfc_compare_array_spec): Take cotype into account.
+	* class.cc (gfc_build_class_symbol): Coarrays are also arrays.
+	* gfortran.h (IS_CLASS_COARRAY_OR_ARRAY): New macro to detect
+	regular and coarray class arrays.
+	* interface.cc (compare_components): Take codimension into
+	account.
+	* resolve.cc (resolve_symbol): Improve error message.
+	* simplify.cc (simplify_bound_dim): Remove duplicate.
+	* trans-array.cc (gfc_trans_array_cobounds): Coarrays are also
+	arrays.
+	(gfc_trans_array_bounds): Same.
+	(gfc_trans_dummy_array_bias): Same.
+	(get_coarray_as): Get the as having a non-zero codim.
+	(is_explicit_coarray): Detect explicit coarrays.
+	(gfc_conv_expr_descriptor): Create a new descriptor for explicit
+	coarrays.
+	* trans-decl.cc (gfc_build_qualified_array): Coarrays are also
+	arrays.
+	(gfc_build_dummy_array_decl): Same.
+	(gfc_get_symbol_decl): Same.
+	(gfc_trans_deferred_vars): Same.
+	* trans-expr.cc (class_scalar_coarray_to_class): Get the
+	descriptor from the correct location.
+	(gfc_conv_variable): Pick up the descriptor when needed.
+	* trans-types.cc (gfc_is_nodesc_array): Coarrays are also
+	arrays.
+	(gfc_get_nodesc_array_type): Indentation fix only.
+	(cobounds_match_decl): Match a tree's bounds to the expr's
+	bounds and return true, when they match.
+	(gfc_get_derived_type): Create a new type tree/descriptor, when
+	the cobounds of the existing declaration and expr to not
+	match.  This happends for class arrays in parameter list, when
+	there are different cobound declarations.
+
+2024-07-18  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/108889
+	* gfortran.h: Add bit field 'allocated_in_scope' to gfc_symbol.
+	* trans-array.cc (gfc_array_allocate): Set 'allocated_in_scope'
+	after allocation if not a component reference.
+	(gfc_alloc_allocatable_for_assignment): If 'allocated_in_scope'
+	not set, not a component ref and not allocated, set the array
+	bounds and offset to give zero length in all dimensions. Then
+	set allocated_in_scope.
+
+2024-07-18  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/82904
+	* trans-types.cc (gfc_sym_type): Use type `char*` for saved
+	deferred length char arrays.
+	* trans.cc (get_array_span): Get `.span` also for `char*` typed
+	arrays, i.e. for those that have INTEGER_TYPE instead of
+	ARRAY_TYPE.
+
+2024-07-17  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR target/112993
+	* trans-types.cc (get_real_kind_from_node): Consider the case where
+	more than one modes have the same precision.
+
+2024-07-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/84868
+	* simplify.cc (gfc_simplify_len_trim): If the argument is an
+	element of a parameter array, simplify all the elements and
+	build a new parameter array to hold the result, after checking
+	that it doesn't already exist.
+	* trans-expr.cc (gfc_get_interface_mapping_array) if a string
+	length is available, use it for the typespec.
+	(gfc_add_interface_mapping): Supply the se string length.
+
+2024-07-16  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+
+	* trans-expr.cc (gfc_trans_zero_assign): Handle allocatable arrays.
+
+2024-07-13  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Add the
+	preliminary code generated for MASK to the preliminary code of
+	MINLOC/MAXLOC.
+
 2024-07-12  Mikael Morin  <morin-mikael@orange.fr>
 
 	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Create a new

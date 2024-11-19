@@ -1924,8 +1924,8 @@ struct processor_costs znver4_cost = {
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
   {8, 8, 8, 12, 12},			/* cost of storing SSE register
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  {6, 6, 6, 6, 6},			/* cost of unaligned loads.  */
-  {8, 8, 8, 8, 8},			/* cost of unaligned stores.  */
+  {6, 6, 10, 10, 12},			/* cost of unaligned loads.  */
+  {8, 8, 8, 12, 12},			/* cost of unaligned stores.  */
   2, 2, 2,				/* cost of moving XMM,YMM,ZMM
 					   register.  */
   6,					/* cost of moving SSE register to integer.  */
@@ -2060,8 +2060,8 @@ struct processor_costs znver5_cost = {
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
   {8, 8, 8, 12, 12},			/* cost of storing SSE register
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  {6, 6, 6, 6, 6},			/* cost of unaligned loads.  */
-  {8, 8, 8, 8, 8},			/* cost of unaligned stores.  */
+  {6, 6, 10, 10, 12},			/* cost of unaligned loads.  */
+  {8, 8, 8, 12, 12},			/* cost of unaligned stores.  */
   2, 2, 2,				/* cost of moving XMM,YMM,ZMM
 					   register.  */
   6,					/* cost of moving SSE register to integer.  */
@@ -2182,7 +2182,7 @@ struct processor_costs skylake_cost = {
   COSTS_N_INSNS (1),			/* variable shift costs */
   COSTS_N_INSNS (1),			/* constant shift costs */
   {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
-   COSTS_N_INSNS (4),			/*				 HI */
+   COSTS_N_INSNS (3),			/*				 HI */
    COSTS_N_INSNS (3),			/*				 SI */
    COSTS_N_INSNS (3),			/*				 DI */
    COSTS_N_INSNS (3)},			/*			      other */
@@ -2310,7 +2310,7 @@ struct processor_costs icelake_cost = {
   COSTS_N_INSNS (1),			/* variable shift costs */
   COSTS_N_INSNS (1),			/* constant shift costs */
   {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
-   COSTS_N_INSNS (4),			/*				 HI */
+   COSTS_N_INSNS (3),			/*				 HI */
    COSTS_N_INSNS (3),			/*				 SI */
    COSTS_N_INSNS (3),			/*				 DI */
    COSTS_N_INSNS (3)},			/*			      other */
@@ -2434,9 +2434,9 @@ struct processor_costs alderlake_cost = {
   COSTS_N_INSNS (1),			/* variable shift costs */
   COSTS_N_INSNS (1),			/* constant shift costs */
   {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
-   COSTS_N_INSNS (4),			/*				 HI */
+   COSTS_N_INSNS (3),			/*				 HI */
    COSTS_N_INSNS (3),			/*				 SI */
-   COSTS_N_INSNS (4),			/*				 DI */
+   COSTS_N_INSNS (3),			/*				 DI */
    COSTS_N_INSNS (4)},			/*			      other */
   0,					/* cost of multiply per each bit set */
   {COSTS_N_INSNS (16),			/* cost of a divide/mod for QI */
@@ -3234,9 +3234,9 @@ struct processor_costs tremont_cost = {
   COSTS_N_INSNS (1),			/* variable shift costs */
   COSTS_N_INSNS (1),			/* constant shift costs */
   {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
-   COSTS_N_INSNS (4),			/*				 HI */
+   COSTS_N_INSNS (3),			/*				 HI */
    COSTS_N_INSNS (3),			/*				 SI */
-   COSTS_N_INSNS (4),			/*				 DI */
+   COSTS_N_INSNS (3),			/*				 DI */
    COSTS_N_INSNS (4)},			/*			      other */
   0,					/* cost of multiply per each bit set */
   {COSTS_N_INSNS (16),			/* cost of a divide/mod for QI */
@@ -3816,9 +3816,9 @@ struct processor_costs generic_cost = {
   COSTS_N_INSNS (1),			/* variable shift costs */
   COSTS_N_INSNS (1),			/* constant shift costs */
   {COSTS_N_INSNS (3),			/* cost of starting multiply for QI */
-   COSTS_N_INSNS (4),			/*				 HI */
+   COSTS_N_INSNS (3),			/*				 HI */
    COSTS_N_INSNS (3),			/*				 SI */
-   COSTS_N_INSNS (4),			/*				 DI */
+   COSTS_N_INSNS (3),			/*				 DI */
    COSTS_N_INSNS (4)},			/*			      other */
   0,					/* cost of multiply per each bit set */
   {COSTS_N_INSNS (16),			/* cost of a divide/mod for QI */

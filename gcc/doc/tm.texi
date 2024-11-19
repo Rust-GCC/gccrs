@@ -4545,6 +4545,17 @@ is either a declaration of type int or accessed by dereferencing
 a pointer to int.
 @end deftypefn
 
+@deftypefn {Target Hook} bool TARGET_MODE_CAN_TRANSFER_BITS (machine_mode @var{mode})
+Define this to return false if the mode @var{mode} cannot be used
+for memory copying of @code{GET_MODE_SIZE (mode)} units.  This might be
+because a register class allowed for @var{mode} has registers that do
+not transparently transfer every bit pattern or because the load or
+store patterns available for @var{mode} have this issue.
+
+The default is to assume modes with the same precision as size are fine
+to be used.
+@end deftypefn
+
 @deftypefn {Target Hook} machine_mode TARGET_TRANSLATE_MODE_ATTRIBUTE (machine_mode @var{mode})
 Define this hook if during mode attribute processing, the port should
 translate machine_mode @var{mode} to another mode.  For example, rs6000's
@@ -6447,6 +6458,13 @@ mask mode exists.
 
 The default implementation returns a @code{MODE_VECTOR_INT} with the
 same size and number of elements as @var{mode}, if such a mode exists.
+@end deftypefn
+
+@deftypefn {Target Hook} bool TARGET_VECTORIZE_CONDITIONAL_OPERATION_IS_EXPENSIVE (unsigned @var{ifn})
+This hook returns true if masked operation @var{ifn} (really of
+type @code{internal_fn}) should be considered more expensive to use than
+implementing the same operation without masking.  GCC can then try to use
+unconditional operations instead with extra selects.
 @end deftypefn
 
 @deftypefn {Target Hook} bool TARGET_VECTORIZE_EMPTY_MASK_IS_EXPENSIVE (unsigned @var{ifn})

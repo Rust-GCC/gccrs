@@ -2147,7 +2147,9 @@ gfc_trans_array_constructor_value (stmtblock_t * pblock,
 	      p = gfc_constructor_next (p);
 	      n++;
 	    }
-	  if (n < 4)
+	  /* Constructor with few constant elements, or element size not
+	     known at compile time (e.g. deferred-length character).  */
+	  if (n < 4 || !INTEGER_CST_P (TYPE_SIZE_UNIT (type)))
 	    {
 	      /* Scalar values.  */
 	      gfc_init_se (&se, NULL);
@@ -6580,6 +6582,8 @@ gfc_array_allocate (gfc_se * se, gfc_expr * expr, tree status, tree errmsg,
   else
       gfc_add_expr_to_block (&se->pre, set_descriptor);
 
+  expr->symtree->n.sym->allocated_in_scope = 1;
+
   return true;
 }
 
@@ -6750,7 +6754,7 @@ gfc_trans_array_cobounds (tree type, stmtblock_t * pblock,
   gfc_se se;
   gfc_array_spec *as;
 
-  as = IS_CLASS_ARRAY (sym) ? CLASS_DATA (sym)->as : sym->as;
+  as = IS_CLASS_COARRAY_OR_ARRAY (sym) ? CLASS_DATA (sym)->as : sym->as;
 
   for (dim = as->rank; dim < as->rank + as->corank; dim++)
     {
@@ -6799,7 +6803,7 @@ gfc_trans_array_bounds (tree type, gfc_symbol * sym, tree * poffset,
 
   int dim;
 
-  as = IS_CLASS_ARRAY (sym) ? CLASS_DATA (sym)->as : sym->as;
+  as = IS_CLASS_COARRAY_OR_ARRAY (sym) ? CLASS_DATA (sym)->as : sym->as;
 
   size = gfc_index_one_node;
   offset = gfc_index_zero_node;
@@ -7142,7 +7146,7 @@ gfc_trans_dummy_array_bias (gfc_symbol * sym, tree tmpdesc,
   int no_repack;
   bool optional_arg;
   gfc_array_spec *as;
-  bool is_classarray = IS_CLASS_ARRAY (sym);
+  bool is_classarray = IS_CLASS_COARRAY_OR_ARRAY (sym);
 
   /* Do nothing for pointer and allocatable arrays.  */
   if ((sym->ts.type != BT_CLASS && sym->attr.pointer)
@@ -7818,6 +7822,51 @@ walk_coarray (gfc_expr *e)
   return ss;
 }
 
+gfc_array_spec *
+get_coarray_as (const gfc_expr *e)
+{
+  gfc_array_spec *as;
+  gfc_symbol *sym = e->symtree->n.sym;
+  gfc_component *comp;
+
+  if (sym->ts.type == BT_CLASS && CLASS_DATA (sym)->attr.codimension)
+    as = CLASS_DATA (sym)->as;
+  else if (sym->attr.codimension)
+    as = sym->as;
+  else
+    as = nullptr;
+
+  for (gfc_ref *ref = e->ref; ref; ref = ref->next)
+    {
+      switch (ref->type)
+	{
+	case REF_COMPONENT:
+	  comp = ref->u.c.component;
+	  if (comp->ts.type == BT_CLASS && CLASS_DATA (comp)->attr.codimension)
+	    as = CLASS_DATA (comp)->as;
+	  else if (comp->ts.type != BT_CLASS && comp->attr.codimension)
+	    as = comp->as;
+	  break;
+
+	case REF_ARRAY:
+	case REF_SUBSTRING:
+	case REF_INQUIRY:
+	  break;
+	}
+    }
+
+  return as;
+}
+
+bool
+is_explicit_coarray (gfc_expr *expr)
+{
+  if (!gfc_is_coarray (expr))
+    return false;
+
+  gfc_array_spec *cas = get_coarray_as (expr);
+  return cas && cas->cotype == AS_EXPLICIT;
+}
 
 /* Convert an array for passing as an actual argument.  Expressions and
    vector subscripts are evaluated and stored in a temporary, which is then
@@ -7931,6 +7980,8 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 	need_tmp = 0;
 
       if (need_tmp)
+	full = 0;
+      else if (is_explicit_coarray (expr))
 	full = 0;
       else if (GFC_ARRAY_TYPE_P (TREE_TYPE (desc)))
 	{
@@ -11060,6 +11111,8 @@ gfc_alloc_allocatable_for_assignment (gfc_loopinfo *loop,
   stmtblock_t realloc_block;
   stmtblock_t alloc_block;
   stmtblock_t fblock;
+  stmtblock_t loop_pre_block;
+  gfc_ref *ref;
   gfc_ss *rss;
   gfc_ss *lss;
   gfc_array_info *linfo;
@@ -11259,6 +11312,45 @@ gfc_alloc_allocatable_for_assignment (gfc_loopinfo *loop,
   cond_null = fold_build2_loc (input_location, EQ_EXPR, logical_type_node,
 			 array1, build_int_cst (TREE_TYPE (array1), 0));
   cond_null= gfc_evaluate_now (cond_null, &fblock);
+
+  /* If the data is null, set the descriptor bounds and offset. This suppresses
+     the maybe used uninitialized warning and forces the use of malloc because
+     the size is zero in all dimensions. Note that this block is only executed
+     if the lhs is unallocated and is only applied once in any namespace.
+     Component references are not subject to the warnings.  */
+  for (ref = expr1->ref; ref; ref = ref->next)
+    if (ref->type == REF_COMPONENT)
+      break;
+
+  if (!expr1->symtree->n.sym->allocated_in_scope && !ref)
+    {
+      gfc_start_block (&loop_pre_block);
+      for (n = 0; n < expr1->rank; n++)
+	{
+	  gfc_conv_descriptor_lbound_set (&loop_pre_block, desc,
+					  gfc_rank_cst[n],
+					  gfc_index_one_node);
+	  gfc_conv_descriptor_ubound_set (&loop_pre_block, desc,
+					  gfc_rank_cst[n],
+					  gfc_index_zero_node);
+	  gfc_conv_descriptor_stride_set (&loop_pre_block, desc,
+					  gfc_rank_cst[n],
+					  gfc_index_zero_node);
+	}
+
+      tmp = gfc_conv_descriptor_offset (desc);
+      gfc_add_modify (&loop_pre_block, tmp, gfc_index_zero_node);
+
+      tmp = fold_build2_loc (input_location, EQ_EXPR,
+			     logical_type_node, array1,
+			     build_int_cst (TREE_TYPE (array1), 0));
+      tmp = build3_v (COND_EXPR, tmp,
+		      gfc_finish_block (&loop_pre_block),
+		      build_empty_stmt (input_location));
+      gfc_prepend_expr_to_block (&loop->pre, tmp);
+
+      expr1->symtree->n.sym->allocated_in_scope = 1;
+    }
 
   tmp = build3_v (COND_EXPR, cond_null,
 		  build1_v (GOTO_EXPR, jump_label1),

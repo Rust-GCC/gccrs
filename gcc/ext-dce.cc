@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl-iter.h"
 #include "df.h"
 #include "print-rtl.h"
+#include "dbgcnt.h"
 
 /* These should probably move into a C++ class.  */
 static vec<bitmap_head> livein;
@@ -46,6 +47,57 @@ static bool modify;
    bit 8..15  (second least significant byte)
    bit 16..31
    bit 32..BITS_PER_WORD-1  */
+
+/* For the given REG, return the number of bit groups implied by the
+   size of the REG's mode, up to a maximum of 4 (number of bit groups
+   tracked by this pass).
+
+   For partial integer and variable sized modes also return 4.  This
+   could possibly be refined for something like PSI mode, but it
+   does not seem worth the effort.  */
+
+static int
+group_limit (const_rtx reg)
+{
+  machine_mode mode = GET_MODE (reg);
+
+  if (!GET_MODE_BITSIZE (mode).is_constant ())
+    return 4;
+
+  int size = GET_MODE_SIZE (mode).to_constant ();
+
+  size = exact_log2 (size);
+
+  if (size < 0)
+    return 4;
+
+  size++;
+  return (size > 4 ? 4 : size);
+}
+
+/* Make all bit groups live for REGNO in bitmap BMAP.  For hard regs,
+   we assume all groups are live.  For a pseudo we consider the size
+   of the pseudo to avoid creating unnecessarily live chunks of data.  */
+
+static void
+make_reg_live (bitmap bmap, int regno)
+{
+  int limit;
+
+  /* For pseudos we can use the mode to limit how many bit groups
+     are marked as live since a pseudo only has one mode.  Hard
+     registers have to be handled more conservatively.  */
+  if (regno > FIRST_PSEUDO_REGISTER)
+    {
+      rtx reg = regno_reg_rtx[regno];
+      limit = group_limit (reg);
+    }
+  else
+    limit = 4;
+
+  for (int i = 0; i < limit; i++)
+    bitmap_set_bit (bmap, regno * 4 + i);
+}
 
 /* Note this pass could be used to narrow memory loads too.  It's
    not clear if that's profitable or not in general.  */
@@ -68,6 +120,7 @@ safe_for_live_propagation (rtx_code code)
   switch (GET_RTX_CLASS (code))
     {
       case RTX_OBJ:
+      case RTX_CONST_OBJ:
 	return true;
 
       case RTX_COMPARE:
@@ -128,9 +181,11 @@ safe_for_live_propagation (rtx_code code)
    within an object) are set by INSN, the more aggressive the
    optimization phase during use handling will be.  */
 
-static void
+static bool
 ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 {
+  bool skipped_dest = false;
+
   subrtx_iterator::array_type array;
   FOR_EACH_SUBRTX (iter, array, obj, NONCONST)
     {
@@ -157,6 +212,7 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 	      /* Skip the subrtxs of this destination.  There is
 		 little value in iterating into the subobjects, so
 		 just skip them for a bit of efficiency.  */
+	      skipped_dest = true;
 	      iter.skip_subrtxes ();
 	      continue;
 	    }
@@ -188,15 +244,29 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 		  /* Skip the subrtxs of the STRICT_LOW_PART.  We can't
 		     process them because it'll set objects as no longer
 		     live when they are in fact still live.  */
+		  skipped_dest = true;
 		  iter.skip_subrtxes ();
 		  continue;
 		}
 
-	      /* Transfer all the LIVENOW bits for X into LIVE_TMP.  */
+	      /* LIVE_TMP contains the set groups that are live-out and set in
+		 this insn.  It is used to narrow the groups live-in for the
+		 inputs of this insn.
+
+		 The simple thing to do is mark all the groups as live, but
+		 that will significantly inhibit optimization.
+
+		 We also need to be careful in the case where we have an in-out
+		 operand.  If we're not careful we'd clear LIVE_TMP
+		 incorrectly.  */
 	      HOST_WIDE_INT rn = REGNO (SUBREG_REG (x));
-	      for (HOST_WIDE_INT i = 4 * rn; i < 4 * rn + 4; i++)
+	      int limit = group_limit (SUBREG_REG (x));
+	      for (HOST_WIDE_INT i = 4 * rn; i < 4 * rn + limit; i++)
 		if (bitmap_bit_p (livenow, i))
 		  bitmap_set_bit (live_tmp, i);
+
+	      if (bitmap_empty_p (live_tmp))
+		make_reg_live (live_tmp, rn);
 
 	      /* The mode of the SUBREG tells us how many bits we can
 		 clear.  */
@@ -216,11 +286,19 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 	    = GET_MODE_MASK (GET_MODE_INNER (GET_MODE (x)));
 	  if (SUBREG_P (x))
 	    {
-	      /* If we have a SUBREG that is too wide, just continue the loop
-		 and let the iterator go down into SUBREG_REG.  */
+	      /* If we have a SUBREG destination that is too wide, just
+		 skip the destination rather than continuing this iterator.
+		 While continuing would be better, we'd need to strip the
+		 subreg and restart within the SET processing rather than
+		 the top of the loop which just complicates the flow even
+		 more.  */
 	      if (!is_a <scalar_int_mode> (GET_MODE (SUBREG_REG (x)), &outer_mode)
 		  || GET_MODE_BITSIZE (outer_mode) > 64)
-		continue;
+		{
+		  skipped_dest = true;
+		  iter.skip_subrtxes ();
+		  continue;
+		}
 
 	      /* We can safely strip a paradoxical subreg.  The inner mode will
 		 be narrower than the outer mode.  We'll clear fewer bits in
@@ -245,6 +323,7 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 		 remain the same.  Thus we can not continue here, we must
 		 either figure out what part of the destination is modified
 		 or skip the sub-rtxs.  */
+	      skipped_dest = true;
 	      iter.skip_subrtxes ();
 	      continue;
 	    }
@@ -255,12 +334,24 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
 	  /* Now handle the actual object that was changed.  */
 	  if (REG_P (x))
 	    {
-	      /* Transfer the appropriate bits from LIVENOW into
-		 LIVE_TMP.  */
+	      /* LIVE_TMP contains the set groups that are live-out and set in
+		 this insn.  It is used to narrow the groups live-in for the
+		 inputs of this insn.
+
+		 The simple thing to do is mark all the groups as live, but
+		 that will significantly inhibit optimization.
+
+		 We also need to be careful in the case where we have an in-out
+		 operand.  If we're not careful we'd clear LIVE_TMP
+		 incorrectly.  */
 	      HOST_WIDE_INT rn = REGNO (x);
-	      for (HOST_WIDE_INT i = 4 * rn; i < 4 * rn + 4; i++)
+	      int limit = group_limit (x);
+	      for (HOST_WIDE_INT i = 4 * rn; i < 4 * rn + limit; i++)
 		if (bitmap_bit_p (livenow, i))
 		  bitmap_set_bit (live_tmp, i);
+
+	      if (bitmap_empty_p (live_tmp))
+		make_reg_live (live_tmp, rn);
 
 	      /* Now clear the bits known written by this instruction.
 		 Note that BIT need not be a power of two, consider a
@@ -285,9 +376,11 @@ ext_dce_process_sets (rtx_insn *insn, rtx obj, bitmap live_tmp)
       else if (GET_CODE (x) == COND_EXEC)
 	{
 	  /* This isn't ideal, but may not be so bad in practice.  */
+	  skipped_dest = true;
 	  iter.skip_subrtxes ();
 	}
     }
+  return skipped_dest;
 }
 
 /* INSN has a sign/zero extended source inside SET that we will
@@ -310,6 +403,15 @@ ext_dce_try_optimize_insn (rtx_insn *insn, rtx set)
       dump_insn_slim (dump_file, insn);
       fprintf (dump_file, "Trying to simplify pattern:\n");
       print_rtl_single (dump_file, SET_SRC (set));
+    }
+
+  /* We decided to turn do the optimization but allow it to be rejected for
+     bisection purposes.  */
+  if (!dbg_cnt (::ext_dce))
+    {
+      if (dump_file)
+	fprintf (dump_file, "Rejected due to debug counter.\n");
+      return;
     }
 
   new_pattern = simplify_gen_subreg (GET_MODE (src), inner,
@@ -373,7 +475,7 @@ binop_implies_op2_fully_live (rtx_code code)
    binop_implies_op2_fully_live (e.g. shifts), the computed mask may
    exclusively pertain to the first operand.  */
 
-HOST_WIDE_INT
+unsigned HOST_WIDE_INT
 carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
 {
   if (mask == 0)
@@ -391,15 +493,15 @@ carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
     /* We propagate for the shifted operand, but not the shift
        count.  The count is handled specially.  */
     case ASHIFT:
-      if (CONSTANT_P (XEXP (x, 1))
+      if (CONST_INT_P (XEXP (x, 1))
 	  && known_lt (UINTVAL (XEXP (x, 1)), GET_MODE_BITSIZE (mode)))
-	return mask >> INTVAL (XEXP (x, 1));
+	return (HOST_WIDE_INT)mask >> INTVAL (XEXP (x, 1));
       return (2ULL << floor_log2 (mask)) - 1;
 
     /* We propagate for the shifted operand, but not the shift
        count.  The count is handled specially.  */
     case LSHIFTRT:
-      if (CONSTANT_P (XEXP (x, 1))
+      if (CONST_INT_P (XEXP (x, 1))
 	  && known_lt (UINTVAL (XEXP (x, 1)), GET_MODE_BITSIZE (mode)))
 	return mmask & (mask << INTVAL (XEXP (x, 1)));
       return mmask;
@@ -407,7 +509,7 @@ carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
     /* We propagate for the shifted operand, but not the shift
        count.  The count is handled specially.  */
     case ASHIFTRT:
-      if (CONSTANT_P (XEXP (x, 1))
+      if (CONST_INT_P (XEXP (x, 1))
 	  && known_lt (UINTVAL (XEXP (x, 1)), GET_MODE_BITSIZE (mode)))
 	{
 	  HOST_WIDE_INT sign = 0;
@@ -424,7 +526,7 @@ carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
 	return 0;
       if (XEXP (x, 1) == const1_rtx)
 	return mmask;
-      if (CONSTANT_P (XEXP (x, 1)))
+      if (CONST_INT_P (XEXP (x, 1)))
 	{
 	  if (pow2p_hwi (INTVAL (XEXP (x, 1))))
 	    return mmask & (mask << (GET_MODE_BITSIZE (mode).to_constant ()
@@ -447,7 +549,7 @@ carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
        count.  The count is handled specially.  */
     case SS_ASHIFT:
     case US_ASHIFT:
-      if (CONSTANT_P (XEXP (x, 1))
+      if (CONST_INT_P (XEXP (x, 1))
 	  && UINTVAL (XEXP (x, 1)) < GET_MODE_BITSIZE (mode).to_constant ())
 	{
 	  return ((mmask & ~((unsigned HOST_WIDE_INT)mmask
@@ -472,7 +574,8 @@ carry_backpropagate (unsigned HOST_WIDE_INT mask, enum rtx_code code, rtx x)
    eliminated in CHANGED_PSEUDOS.  */
 
 static void
-ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
+ext_dce_process_uses (rtx_insn *insn, rtx obj,
+		      bitmap live_tmp, bool skipped_dest)
 {
   subrtx_var_iterator::array_type array_var;
   FOR_EACH_SUBRTX_VAR (iter, array_var, obj, NONCONST)
@@ -546,6 +649,11 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 		  dst_mask |= mask_array[i];
 	      dst_mask >>= bit;
 
+	      /* If we ignored a destination during set processing, then
+		 consider all the bits live.  */
+	      if (skipped_dest)
+		dst_mask = -1;
+
 	      /* ??? Could also handle ZERO_EXTRACT / SIGN_EXTRACT
 		 of the source specially to improve optimization.  */
 	      if (code == SIGN_EXTEND || code == ZERO_EXTEND)
@@ -556,9 +664,15 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 
 		  /* DST_MASK could be zero if we had something in the SET
 		     that we couldn't handle.  */
-		  if (modify && dst_mask && (dst_mask & ~src_mask) == 0)
+		  if (modify && !skipped_dest && (dst_mask & ~src_mask) == 0)
 		    ext_dce_try_optimize_insn (insn, x);
 
+		  /* Stripping the extension here just seems wrong on multiple
+		     levels.  It's source side handling, so it seems like it
+		     belongs in the loop below.  Stripping here also makes it
+		     harder than necessary to properly handle live bit groups
+		     for (ANY_EXTEND (SUBREG)) where the SUBREG has
+		     SUBREG_PROMOTED state.  */
 		  dst_mask &= src_mask;
 		  src = XEXP (src, 0);
 		  code = GET_CODE (src);
@@ -566,8 +680,8 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 
 	      /* Optimization is done at this point.  We just want to make
 		 sure everything that should get marked as live is marked
-		 from here onward.  */
-
+		 from here onward.  Shouldn't the backpropagate step happen
+		 before optimization?  */
 	      dst_mask = carry_backpropagate (dst_mask, code, src);
 
 	      /* We will handle the other operand of a binary operator
@@ -580,9 +694,19 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 	      /* We're inside a SET and want to process the source operands
 		 making things live.  Breaking from this loop will cause
 		 the iterator to work on sub-rtxs, so it is safe to break
-		 if we see something we don't know how to handle.  */
+		 if we see something we don't know how to handle.
+
+		 This code is just hokey as it really just handles trivial
+		 unary and binary cases.  Otherwise the loop exits and we
+		 continue iterating on sub-rtxs, but outside the set context.  */
+	      unsigned HOST_WIDE_INT save_mask = dst_mask;
 	      for (;;)
 		{
+		  /* In general we want to restore DST_MASK before each loop
+		     iteration.  The exception is when the opcode implies that
+		     the other operand is fully live.  That's handled by
+		     changing SAVE_MASK below.  */
+		  dst_mask = save_mask;
 		  /* Strip an outer paradoxical subreg.  The bits outside
 		     the inner mode are don't cares.  So we can just strip
 		     and process the inner object.  */
@@ -590,10 +714,26 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 		    y = XEXP (y, 0);
 		  else if (SUBREG_P (y) && SUBREG_BYTE (y).is_constant ())
 		    {
-		      /* For anything but (subreg (reg)), break the inner loop
-			 and process normally (conservatively).  */
-		      if (!REG_P (SUBREG_REG (y)))
+		      /* We really want to know the outer code here, ie do we
+			 have (ANY_EXTEND (SUBREG ...)) as we need to know if
+			 the extension matches the SUBREG_PROMOTED state.  In
+			 that case optimizers can turn the extension into a
+			 simple copy.  Which means that bits outside the
+			 SUBREG's mode are actually live.
+
+			 We don't want to mark those bits live unnecessarily
+			 as that inhibits extension elimination in important
+			 cases such as those in Coremark.  So we need that
+			 outer code.  */
+		      if (!REG_P (SUBREG_REG (y))
+			  || (SUBREG_PROMOTED_VAR_P (y)
+			      && ((GET_CODE (SET_SRC (x)) == SIGN_EXTEND
+				   && SUBREG_PROMOTED_SIGNED_P (y))
+				  || (GET_CODE (SET_SRC (x)) == ZERO_EXTEND
+				      && SUBREG_PROMOTED_UNSIGNED_P (y)))))
 			break;
+
+		      /* The SUBREG's mode determine the live width.  */
 		      bit = subreg_lsb (y).to_constant ();
 		      if (dst_mask)
 			{
@@ -632,10 +772,15 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 		  else if (!CONSTANT_P (y))
 		    break;
 
-		  /* We might have (ashift (const_int 1) (reg...)) */
-		  /* XXX share this logic with code below.  */
+		  /* We might have (ashift (const_int 1) (reg...))
+		     By setting dst_mask we can continue iterating on the
+		     the next operand and it will be considered fully live.
+
+		     Note that since we restore DST_MASK from SAVE_MASK at the
+		     top of the loop, we have to change SAVE_MASK to get the
+		     semantics we want.  */
 		  if (binop_implies_op2_fully_live (GET_CODE (src)))
-		    break;
+		    save_mask = -1;
 
 		  /* If this was anything but a binary operand, break the inner
 		     loop.  This is conservatively correct as it will cause the
@@ -666,6 +811,11 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
 	  HOST_WIDE_INT size = GET_MODE_BITSIZE (GET_MODE (x)).to_constant ();
 	  HOST_WIDE_INT rn = 4 * REGNO (SUBREG_REG (x));
 
+	  /* If this is a promoted subreg, then more of it may be live than
+	     is otherwise obvious.  */
+	  if (SUBREG_PROMOTED_VAR_P (x))
+	    size = GET_MODE_BITSIZE (GET_MODE (SUBREG_REG (x))).to_constant ();
+
 	  bitmap_set_bit (livenow, rn);
 	  if (size > 8)
 	    bitmap_set_bit (livenow, rn + 1);
@@ -678,7 +828,7 @@ ext_dce_process_uses (rtx_insn *insn, rtx obj, bitmap live_tmp)
       /* If we have a register reference that is not otherwise handled,
 	 just assume all the chunks are live.  */
       else if (REG_P (x))
-	bitmap_set_range (livenow, REGNO (x) * 4, 4);
+	bitmap_set_range (livenow, REGNO (x) * 4, group_limit (x));
     }
 }
 
@@ -705,14 +855,16 @@ ext_dce_process_bb (basic_block bb)
       bitmap live_tmp = BITMAP_ALLOC (NULL);
 
       /* First process any sets/clobbers in INSN.  */
-      ext_dce_process_sets (insn, PATTERN (insn), live_tmp);
+      bool skipped_dest = ext_dce_process_sets (insn, PATTERN (insn), live_tmp);
 
       /* CALL_INSNs need processing their fusage data.  */
       if (CALL_P (insn))
-	ext_dce_process_sets (insn, CALL_INSN_FUNCTION_USAGE (insn), live_tmp);
+	skipped_dest |= ext_dce_process_sets (insn,
+					      CALL_INSN_FUNCTION_USAGE (insn),
+					      live_tmp);
 
       /* And now uses, optimizing away SIGN/ZERO extensions as we go.  */
-      ext_dce_process_uses (insn, PATTERN (insn), live_tmp);
+      ext_dce_process_uses (insn, PATTERN (insn), live_tmp, skipped_dest);
 
       /* A nonlocal goto implicitly uses the frame pointer.  */
       if (JUMP_P (insn) && find_reg_note (insn, REG_NON_LOCAL_GOTO, NULL_RTX))
@@ -735,7 +887,7 @@ ext_dce_process_bb (basic_block bb)
 	      if (global_regs[i])
 		bitmap_set_range (livenow, i * 4, 4);
 
-	  ext_dce_process_uses (insn, CALL_INSN_FUNCTION_USAGE (insn), live_tmp);
+	  ext_dce_process_uses (insn, CALL_INSN_FUNCTION_USAGE (insn), live_tmp, false);
 	}
 
       BITMAP_FREE (live_tmp);
@@ -805,10 +957,7 @@ ext_dce_init (void)
   unsigned i;
   bitmap_iterator bi;
   EXECUTE_IF_SET_IN_BITMAP (refs, 0, i, bi)
-    {
-      for (int j = 0; j < 4; j++)
-	bitmap_set_bit (&livein[EXIT_BLOCK], i * 4 + j);
-    }
+    make_reg_live (&livein[EXIT_BLOCK], i);
 
   livenow = BITMAP_ALLOC (NULL);
   all_blocks = BITMAP_ALLOC (NULL);
@@ -864,8 +1013,6 @@ ext_dce_rd_transfer_n (int bb_index)
      the generic dataflow code that something changed.  */
   if (!bitmap_equal_p (&livein[bb_index], livenow))
     {
-      gcc_assert (!bitmap_intersect_compl_p (&livein[bb_index], livenow));
-
       bitmap_copy (&livein[bb_index], livenow);
       return true;
     }
@@ -880,8 +1027,8 @@ static bool ext_dce_rd_confluence_n (edge) { return true; }
    are never read.  Turn such extensions into SUBREGs instead which
    can often be propagated away.  */
 
-static void
-ext_dce (void)
+void
+ext_dce_execute (void)
 {
   df_analyze ();
   ext_dce_init ();
@@ -928,7 +1075,7 @@ public:
   virtual bool gate (function *) { return flag_ext_dce && optimize > 0; }
   virtual unsigned int execute (function *)
     {
-      ext_dce ();
+      ext_dce_execute ();
       return 0;
     }
 

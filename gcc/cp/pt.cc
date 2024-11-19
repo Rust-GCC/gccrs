@@ -992,6 +992,7 @@ maybe_new_partial_specialization (tree& type)
       tree t = make_class_type (TREE_CODE (type));
       CLASSTYPE_DECLARED_CLASS (t) = CLASSTYPE_DECLARED_CLASS (type);
       SET_TYPE_TEMPLATE_INFO (t, build_template_info (tmpl, args));
+      TYPE_CONTEXT (t) = TYPE_CONTEXT (type);
 
       /* We only need a separate type node for storing the definition of this
 	 partial specialization; uses of S<T*> are unconstrained, so all are
@@ -4499,7 +4500,12 @@ struct ctp_hasher : ggc_ptr_hash<tree_node>
     val = iterative_hash_object (TEMPLATE_TYPE_LEVEL (t), val);
     val = iterative_hash_object (TEMPLATE_TYPE_IDX (t), val);
     if (TREE_CODE (t) == TEMPLATE_TYPE_PARM)
-      val = iterative_hash_template_arg (CLASS_PLACEHOLDER_TEMPLATE (t), val);
+      {
+	val
+	  = iterative_hash_template_arg (CLASS_PLACEHOLDER_TEMPLATE (t), val);
+	if (tree c = NON_ERROR (PLACEHOLDER_TYPE_CONSTRAINTS (t)))
+	  val = iterative_hash_placeholder_constraint (c, val);
+      }
     if (TREE_CODE (t) == BOUND_TEMPLATE_TEMPLATE_PARM)
       val = iterative_hash_template_arg (TYPE_TI_ARGS (t), val);
     --comparing_specializations;
@@ -6265,6 +6271,18 @@ push_template_decl (tree decl, bool is_friend)
 	}
     }
 
+  if (is_typedef_decl (decl)
+      && (dependent_opaque_alias_p (TREE_TYPE (decl))
+	  || dependent_alias_template_spec_p (TREE_TYPE (decl), nt_opaque)))
+    {
+      /* Manually mark such aliases as dependent so that dependent_type_p_r
+	 doesn't have to handle them.  */
+      TYPE_DEPENDENT_P_VALID (TREE_TYPE (decl)) = true;
+      TYPE_DEPENDENT_P (TREE_TYPE (decl)) = true;
+      /* The identity of such aliases is hairy; see structural_comptypes.  */
+      SET_TYPE_STRUCTURAL_EQUALITY (TREE_TYPE (decl));
+    }
+
   if (flag_implicit_templates
       && !is_friend
       && TREE_PUBLIC (decl)
@@ -6524,7 +6542,7 @@ alias_template_specialization_p (const_tree t,
       if (tree tinfo = TYPE_ALIAS_TEMPLATE_INFO (t))
 	if (PRIMARY_TEMPLATE_P (TI_TEMPLATE (tinfo)))
 	  return CONST_CAST_TREE (t);
-      if (transparent_typedefs)
+      if (transparent_typedefs && !dependent_opaque_alias_p (t))
 	return alias_template_specialization_p (DECL_ORIGINAL_TYPE
 						(TYPE_NAME (t)),
 						transparent_typedefs);
@@ -6628,6 +6646,10 @@ complex_alias_template_p (const_tree tmpl, tree *seen_out)
   if (get_constraints (tmpl))
     return true;
 
+  /* An alias with dependent type attributes is complex.  */
+  if (dependent_opaque_alias_p (TREE_TYPE (tmpl)))
+    return true;
+
   if (!complex_alias_tmpl_info)
     complex_alias_tmpl_info = hash_map<const_tree, tree>::create_ggc (13);
 
@@ -6676,7 +6698,10 @@ complex_alias_template_p (const_tree tmpl, tree *seen_out)
 /* If T is a specialization of a complex alias template with a dependent
    argument for an unused template parameter, return it; otherwise return
    NULL_TREE.  If T is a typedef to such a specialization, return the
-   specialization.  */
+   specialization.  This predicate is usually checked alongside
+   dependent_opaque_alias_p.  Whereas dependent_opaque_alias_p checks
+   type equivalence of an alias vs its expansion, this predicate more
+   broadly checks SFINAE equivalence.  */
 
 tree
 dependent_alias_template_spec_p (const_tree t, bool transparent_typedefs)
@@ -6712,13 +6737,26 @@ dependent_alias_template_spec_p (const_tree t, bool transparent_typedefs)
 	}
     }
 
-  if (transparent_typedefs)
+  if (transparent_typedefs && !dependent_opaque_alias_p (t))
     {
       tree utype = DECL_ORIGINAL_TYPE (TYPE_NAME (t));
       return dependent_alias_template_spec_p (utype, transparent_typedefs);
     }
 
   return NULL_TREE;
+}
+
+/* Return true if substituting into T would yield a different type than
+   substituting into its expansion.  This predicate is usually checked
+   alongside dependent_alias_template_spec_p.  */
+
+bool
+dependent_opaque_alias_p (const_tree t)
+{
+  return (TYPE_P (t)
+	  && typedef_variant_p (t)
+	  && any_dependent_type_attributes_p (DECL_ATTRIBUTES
+					      (TYPE_NAME (t))));
 }
 
 /* Return the number of innermost template parameters in TMPL.  */
@@ -6778,6 +6816,10 @@ get_underlying_template (tree tmpl)
       /* If TMPL adds or changes any constraints, it isn't equivalent.  I think
 	 it's appropriate to treat a less-constrained alias as equivalent.  */
       if (!at_least_as_constrained (underlying, tmpl))
+	break;
+
+      /* If TMPL adds dependent type attributes, it isn't equivalent.  */
+      if (dependent_opaque_alias_p (TREE_TYPE (tmpl)))
 	break;
 
       /* Alias is equivalent.  Strip it and repeat.  */
@@ -8466,7 +8508,7 @@ is_compatible_template_arg (tree parm, tree arg, tree args)
         return false;
     }
 
-  return weakly_subsumes (parm_cons, arg);
+  return ttp_subsumes (parm_cons, arg);
 }
 
 // Convert a placeholder argument into a binding to the original
@@ -11571,6 +11613,7 @@ tsubst_friend_function (tree decl, tree args)
 	    ;
 	  else
 	    {
+	      tree old_template = most_general_template (old_decl);
 	      tree new_template = TI_TEMPLATE (new_friend_template_info);
 	      tree new_args = TI_ARGS (new_friend_template_info);
 
@@ -11608,7 +11651,7 @@ tsubst_friend_function (tree decl, tree args)
 		  /* Reassign any specializations already in the hash table
 		     to the new more general template, and add the
 		     additional template args.  */
-		  for (t = DECL_TEMPLATE_INSTANTIATIONS (old_decl);
+		  for (t = DECL_TEMPLATE_INSTANTIATIONS (old_template);
 		       t != NULL_TREE;
 		       t = TREE_CHAIN (t))
 		    {
@@ -11621,15 +11664,15 @@ tsubst_friend_function (tree decl, tree args)
 
 		      decl_specializations->remove_elt (&elt);
 
-		      DECL_TI_ARGS (spec)
-			= add_outermost_template_args (new_args,
-						       DECL_TI_ARGS (spec));
+		      tree& spec_args = DECL_TI_ARGS (spec);
+		      spec_args = add_outermost_template_args
+			(new_args, INNERMOST_TEMPLATE_ARGS (spec_args));
 
 		      register_specialization
-			(spec, new_template, DECL_TI_ARGS (spec), true, 0);
+			(spec, new_template, spec_args, true, 0);
 
 		    }
-		  DECL_TEMPLATE_INSTANTIATIONS (old_decl) = NULL_TREE;
+		  DECL_TEMPLATE_INSTANTIATIONS (old_template) = NULL_TREE;
 		}
 	    }
 
@@ -21077,12 +21120,19 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	    bool op = CALL_EXPR_OPERATOR_SYNTAX (t);
 	    bool ord = CALL_EXPR_ORDERED_ARGS (t);
 	    bool rev = CALL_EXPR_REVERSE_ARGS (t);
-	    if (op || ord || rev)
+	    bool mtc = false;
+	    if (TREE_CODE (t) == CALL_EXPR)
+	      mtc = CALL_EXPR_MUST_TAIL_CALL (t);
+	    if (op || ord || rev || mtc)
 	      if (tree call = extract_call_expr (ret))
 		{
 		  CALL_EXPR_OPERATOR_SYNTAX (call) = op;
 		  CALL_EXPR_ORDERED_ARGS (call) = ord;
 		  CALL_EXPR_REVERSE_ARGS (call) = rev;
+		  if (TREE_CODE (call) == CALL_EXPR)
+		    CALL_EXPR_MUST_TAIL_CALL (call) = mtc;
+		  else if (TREE_CODE (call) == AGGR_INIT_EXPR)
+		    AGGR_INIT_EXPR_MUST_TAIL (call) = mtc;
 		}
 	    if (warning_suppressed_p (t, OPT_Wpessimizing_move))
 	      /* This also suppresses -Wredundant-move.  */
@@ -22254,6 +22304,7 @@ instantiate_alias_template (tree tmpl, tree args, tsubst_flags_t complain)
 
   if (tree d = dependent_alias_template_spec_p (TREE_TYPE (r), nt_opaque))
     {
+      /* Note this is also done at parse time from push_template_decl.  */
       /* An alias template specialization can be dependent
 	 even if its underlying type is not.  */
       TYPE_DEPENDENT_P (d) = true;
@@ -27882,11 +27933,6 @@ dependent_type_p_r (tree type)
   if (TREE_CODE (type) == TYPENAME_TYPE)
     return true;
 
-  /* An alias template specialization can be dependent even if the
-     resulting type is not.  */
-  if (dependent_alias_template_spec_p (type, nt_transparent))
-    return true;
-
   /* -- a cv-qualified type where the cv-unqualified type is
 	dependent.
      No code is necessary for this bullet; the code below handles
@@ -28994,7 +29040,8 @@ any_template_arguments_need_structural_equality_p (tree args)
 		return true;
 	      else if (TYPE_P (arg)
 		       && TYPE_STRUCTURAL_EQUALITY_P (arg)
-		       && dependent_alias_template_spec_p (arg, nt_transparent))
+		       && (dependent_alias_template_spec_p (arg, nt_opaque)
+			   || dependent_opaque_alias_p (arg)))
 		/* Require structural equality for specializations written
 		   in terms of a dependent alias template specialization.  */
 		return true;
@@ -29569,7 +29616,7 @@ auto_hash::hash (tree t)
   if (tree c = NON_ERROR (PLACEHOLDER_TYPE_CONSTRAINTS (t)))
     /* Matching constrained-type-specifiers denote the same template
        parameter, so hash the constraint.  */
-    return hash_placeholder_constraint (c);
+    return iterative_hash_placeholder_constraint (c, 0);
   else
     /* But unconstrained autos are all separate, so just hash the pointer.  */
     return iterative_hash_object (t, 0);
@@ -30270,7 +30317,7 @@ alias_ctad_tweaks (tree tmpl, tree uguides)
 			  (INNERMOST_TEMPLATE_PARMS (fullatparms)));
     }
 
-  tsubst_flags_t complain = tf_warning_or_error;
+  tsubst_flags_t complain = tf_none;
   tree aguides = NULL_TREE;
   tree atparms = INNERMOST_TEMPLATE_PARMS (fullatparms);
   unsigned natparms = TREE_VEC_LENGTH (atparms);
@@ -30394,9 +30441,9 @@ alias_ctad_tweaks (tree tmpl, tree uguides)
 	     A with the same template arguments.  */
 	  ret = TREE_TYPE (TREE_TYPE (fprime));
 	  if (ctad_kind == alias
-	      && (!same_type_p (atype, ret)
-		  /* FIXME this should mean they don't compare as equivalent. */
-		  || dependent_alias_template_spec_p (atype, nt_opaque)))
+	      /* Use template_args_equal instead of same_type_p to get the
+		 comparing_dependent_aliases behavior.  */
+	      && !template_args_equal (atype, ret))
 	    {
 	      tree same = finish_trait_expr (loc, CPTK_IS_DEDUCIBLE, tmpl, ret);
 	      ci = append_constraint (ci, same);

@@ -349,9 +349,6 @@ static bool aarch64_print_address_internal (FILE*, machine_mode, rtx,
 /* The processor for which instructions should be scheduled.  */
 enum aarch64_processor aarch64_tune = cortexa53;
 
-/* Mask to specify which instruction scheduling options should be used.  */
-uint64_t aarch64_tune_flags = 0;
-
 /* Global flag for PC relative loads.  */
 bool aarch64_pcrelative_literal_loads;
 
@@ -2021,6 +2018,7 @@ aarch64_hard_regno_nregs (unsigned regno, machine_mode mode)
     case PR_HI_REGS:
       return mode == VNx32BImode ? 2 : 1;
 
+    case MOVEABLE_SYSREGS:
     case FFR_REGS:
     case PR_AND_FFR_REGS:
     case FAKE_REGS:
@@ -2047,6 +2045,9 @@ aarch64_hard_regno_mode_ok (unsigned regno, machine_mode mode)
   if (regno == VG_REGNUM)
     /* This must have the same size as _Unwind_Word.  */
     return mode == DImode;
+
+  if (regno == FPM_REGNUM)
+    return mode == QImode || mode == HImode || mode == SImode || mode == DImode;
 
   unsigned int vec_flags = aarch64_classify_vector_mode (mode);
   if (vec_flags == VEC_SVE_PRED)
@@ -2169,17 +2170,17 @@ aarch64_fntype_abi (const_tree fntype)
 
 /* Return the state of PSTATE.SM on entry to functions of type FNTYPE.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_fntype_pstate_sm (const_tree fntype)
 {
   if (lookup_attribute ("arm", "streaming", TYPE_ATTRIBUTES (fntype)))
-    return AARCH64_FL_SM_ON;
+    return AARCH64_ISA_MODE_SM_ON;
 
   if (lookup_attribute ("arm", "streaming_compatible",
 			TYPE_ATTRIBUTES (fntype)))
     return 0;
 
-  return AARCH64_FL_SM_OFF;
+  return AARCH64_ISA_MODE_SM_OFF;
 }
 
 /* Return state flags that describe whether and how functions of type
@@ -2194,19 +2195,19 @@ aarch64_fntype_shared_flags (const_tree fntype, const char *state_name)
 
 /* Return the state of PSTATE.ZA on entry to functions of type FNTYPE.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_fntype_pstate_za (const_tree fntype)
 {
   if (aarch64_fntype_shared_flags (fntype, "za")
       || aarch64_fntype_shared_flags (fntype, "zt0"))
-    return AARCH64_FL_ZA_ON;
+    return AARCH64_ISA_MODE_ZA_ON;
 
   return 0;
 }
 
 /* Return the ISA mode on entry to functions of type FNTYPE.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_fntype_isa_mode (const_tree fntype)
 {
   return (aarch64_fntype_pstate_sm (fntype)
@@ -2227,11 +2228,11 @@ aarch64_fndecl_is_locally_streaming (const_tree fndecl)
    function FNDECL.  This might be different from the state of
    PSTATE.SM on entry.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_fndecl_pstate_sm (const_tree fndecl)
 {
   if (aarch64_fndecl_is_locally_streaming (fndecl))
-    return AARCH64_FL_SM_ON;
+    return AARCH64_ISA_MODE_SM_ON;
 
   return aarch64_fntype_pstate_sm (TREE_TYPE (fndecl));
 }
@@ -2250,12 +2251,12 @@ aarch64_fndecl_has_state (tree fndecl, const char *state_name)
 /* Return the state of PSTATE.ZA when compiling the body of function FNDECL.
    This might be different from the state of PSTATE.ZA on entry.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_fndecl_pstate_za (const_tree fndecl)
 {
   if (aarch64_fndecl_has_new_state (fndecl, "za")
       || aarch64_fndecl_has_new_state (fndecl, "zt0"))
-    return AARCH64_FL_ZA_ON;
+    return AARCH64_ISA_MODE_ZA_ON;
 
   return aarch64_fntype_pstate_za (TREE_TYPE (fndecl));
 }
@@ -2263,7 +2264,7 @@ aarch64_fndecl_pstate_za (const_tree fndecl)
 /* Return the ISA mode that should be used to compile the body of
    function FNDECL.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_fndecl_isa_mode (const_tree fndecl)
 {
   return (aarch64_fndecl_pstate_sm (fndecl)
@@ -2274,7 +2275,7 @@ aarch64_fndecl_isa_mode (const_tree fndecl)
    This might be different from the state of PSTATE.SM in the function
    body.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_cfun_incoming_pstate_sm ()
 {
   return aarch64_fntype_pstate_sm (TREE_TYPE (cfun->decl));
@@ -2284,7 +2285,7 @@ aarch64_cfun_incoming_pstate_sm ()
    This might be different from the state of PSTATE.ZA in the function
    body.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_cfun_incoming_pstate_za ()
 {
   return aarch64_fntype_pstate_za (TREE_TYPE (cfun->decl));
@@ -2316,7 +2317,7 @@ static bool
 aarch64_cfun_enables_pstate_sm ()
 {
   return (aarch64_fndecl_is_locally_streaming (cfun->decl)
-	  && aarch64_cfun_incoming_pstate_sm () != AARCH64_FL_SM_ON);
+	  && aarch64_cfun_incoming_pstate_sm () != AARCH64_ISA_MODE_SM_ON);
 }
 
 /* Return true if the current function has state STATE_NAME, either by
@@ -2333,9 +2334,9 @@ aarch64_cfun_has_state (const char *state_name)
    the BL instruction.  */
 
 static bool
-aarch64_call_switches_pstate_sm (aarch64_feature_flags callee_mode)
+aarch64_call_switches_pstate_sm (aarch64_isa_mode callee_mode)
 {
-  return (callee_mode & ~AARCH64_ISA_MODE & AARCH64_FL_SM_STATE) != 0;
+  return (bool) (callee_mode & ~AARCH64_ISA_MODE & AARCH64_ISA_MODE_SM_STATE);
 }
 
 /* Implement TARGET_COMPATIBLE_VECTOR_TYPES_P.  */
@@ -2404,7 +2405,7 @@ aarch64_reg_save_mode (unsigned int regno)
    return the CONST_INT that should be placed in an UNSPEC_CALLEE_ABI rtx.  */
 
 rtx
-aarch64_gen_callee_cookie (aarch64_feature_flags isa_mode, arm_pcs pcs_variant)
+aarch64_gen_callee_cookie (aarch64_isa_mode isa_mode, arm_pcs pcs_variant)
 {
   return gen_int_mode ((unsigned int) isa_mode
 		       | (unsigned int) pcs_variant << AARCH64_NUM_ISA_MODES,
@@ -2424,10 +2425,10 @@ aarch64_callee_abi (rtx cookie)
    required ISA mode on entry to the callee, which is also the ISA
    mode on return from the callee.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_callee_isa_mode (rtx cookie)
 {
-  return UINTVAL (cookie) & AARCH64_FL_ISA_MODES;
+  return UINTVAL (cookie) & ((1 << AARCH64_NUM_ISA_MODES) - 1);
 }
 
 /* INSN is a call instruction.  Return the CONST_INT stored in its
@@ -2455,7 +2456,7 @@ aarch64_insn_callee_abi (const rtx_insn *insn)
 /* INSN is a call instruction.  Return the required ISA mode on entry to
    the callee, which is also the ISA mode on return from the callee.  */
 
-static aarch64_feature_flags
+static aarch64_isa_mode
 aarch64_insn_callee_isa_mode (const rtx_insn *insn)
 {
   return aarch64_callee_isa_mode (aarch64_insn_callee_cookie (insn));
@@ -3989,10 +3990,10 @@ aarch64_output_sve_vector_inc_dec (const char *operands, rtx x)
 
 rtx
 aarch64_sme_vq_immediate (machine_mode mode, HOST_WIDE_INT factor,
-			  aarch64_feature_flags isa_mode)
+			  aarch64_isa_mode isa_mode)
 {
   gcc_assert (aarch64_sve_rdvl_addvl_factor_p (factor));
-  if (isa_mode & AARCH64_FL_SM_ON)
+  if (isa_mode & AARCH64_ISA_MODE_SM_ON)
     /* We're in streaming mode, so we can use normal poly-int values.  */
     return gen_int_mode ({ factor, factor }, mode);
 
@@ -4643,7 +4644,7 @@ aarch64_add_offset_temporaries (rtx x)
    TEMP2, if nonnull, is a second temporary register that doesn't
    overlap either DEST or REG.
 
-   FORCE_ISA_MODE is AARCH64_FL_SM_ON if any variable component of OFFSET
+   FORCE_ISA_MODE is AARCH64_ISA_MODE_SM_ON if any variable component of OFFSET
    is measured relative to the SME vector length instead of the current
    prevailing vector length.  It is 0 otherwise.
 
@@ -4655,7 +4656,7 @@ aarch64_add_offset_temporaries (rtx x)
 static void
 aarch64_add_offset (scalar_int_mode mode, rtx dest, rtx src,
 		    poly_int64 offset, rtx temp1, rtx temp2,
-		    aarch64_feature_flags force_isa_mode,
+		    aarch64_isa_mode force_isa_mode,
 		    bool frame_related_p, bool emit_move_imm = true)
 {
   gcc_assert (emit_move_imm || temp1 != NULL_RTX);
@@ -4676,7 +4677,7 @@ aarch64_add_offset (scalar_int_mode mode, rtx dest, rtx src,
 	offset_rtx = aarch64_sme_vq_immediate (mode, offset.coeffs[0], 0);
       rtx_insn *insn = emit_insn (gen_add3_insn (dest, src, offset_rtx));
       RTX_FRAME_RELATED_P (insn) = frame_related_p;
-      if (frame_related_p && (force_isa_mode & AARCH64_FL_SM_ON))
+      if (frame_related_p && (force_isa_mode & AARCH64_ISA_MODE_SM_ON))
 	add_reg_note (insn, REG_CFA_ADJUST_CFA,
 		      gen_rtx_SET (dest, plus_constant (Pmode, src,
 							offset)));
@@ -4704,7 +4705,7 @@ aarch64_add_offset (scalar_int_mode mode, rtx dest, rtx src,
 	{
 	  rtx_insn *insn = emit_insn (gen_add3_insn (dest, src, offset_rtx));
 	  RTX_FRAME_RELATED_P (insn) = true;
-	  if (force_isa_mode & AARCH64_FL_SM_ON)
+	  if (force_isa_mode & AARCH64_ISA_MODE_SM_ON)
 	    add_reg_note (insn, REG_CFA_ADJUST_CFA,
 			  gen_rtx_SET (dest, plus_constant (Pmode, src,
 							    poly_offset)));
@@ -4738,7 +4739,7 @@ aarch64_add_offset (scalar_int_mode mode, rtx dest, rtx src,
       rtx val;
       if (IN_RANGE (rel_factor, -32, 31))
 	{
-	  if (force_isa_mode & AARCH64_FL_SM_ON)
+	  if (force_isa_mode & AARCH64_ISA_MODE_SM_ON)
 	    {
 	      /* Try to use an unshifted RDSVL, otherwise fall back on
 		 a shifted RDSVL #1.  */
@@ -4786,7 +4787,7 @@ aarch64_add_offset (scalar_int_mode mode, rtx dest, rtx src,
 	      val = gen_int_mode (poly_int64 (low_bit, low_bit), mode);
 	      shift = 0;
 	    }
-	  else if ((force_isa_mode & AARCH64_FL_SM_ON)
+	  else if ((force_isa_mode & AARCH64_ISA_MODE_SM_ON)
 		   && aarch64_sve_rdvl_addvl_factor_p (low_bit))
 	    {
 	      val = aarch64_sme_vq_immediate (mode, low_bit, 0);
@@ -4889,7 +4890,7 @@ aarch64_split_add_offset (scalar_int_mode mode, rtx dest, rtx src,
 
 static inline void
 aarch64_add_sp (rtx temp1, rtx temp2, poly_int64 delta,
-		aarch64_feature_flags force_isa_mode, bool emit_move_imm)
+		aarch64_isa_mode force_isa_mode, bool emit_move_imm)
 {
   aarch64_add_offset (Pmode, stack_pointer_rtx, stack_pointer_rtx, delta,
 		      temp1, temp2, force_isa_mode, true, emit_move_imm);
@@ -4901,7 +4902,7 @@ aarch64_add_sp (rtx temp1, rtx temp2, poly_int64 delta,
 
 static inline void
 aarch64_sub_sp (rtx temp1, rtx temp2, poly_int64 delta,
-		aarch64_feature_flags force_isa_mode,
+		aarch64_isa_mode force_isa_mode,
 		bool frame_related_p, bool emit_move_imm = true)
 {
   aarch64_add_offset (Pmode, stack_pointer_rtx, stack_pointer_rtx, -delta,
@@ -4918,11 +4919,11 @@ aarch64_sub_sp (rtx temp1, rtx temp2, poly_int64 delta,
    matches LOCAL_MODE.  Return the label that the branch jumps to.  */
 
 static rtx_insn *
-aarch64_guard_switch_pstate_sm (rtx old_svcr, aarch64_feature_flags local_mode)
+aarch64_guard_switch_pstate_sm (rtx old_svcr, aarch64_isa_mode local_mode)
 {
-  local_mode &= AARCH64_FL_SM_STATE;
+  local_mode &= AARCH64_ISA_MODE_SM_STATE;
   gcc_assert (local_mode != 0);
-  auto already_ok_cond = (local_mode & AARCH64_FL_SM_ON ? NE : EQ);
+  auto already_ok_cond = (local_mode & AARCH64_ISA_MODE_SM_ON ? NE : EQ);
   auto *label = gen_label_rtx ();
   auto branch = aarch64_gen_test_and_branch (already_ok_cond, old_svcr, 0,
 					     label);
@@ -4936,15 +4937,14 @@ aarch64_guard_switch_pstate_sm (rtx old_svcr, aarch64_feature_flags local_mode)
    an SMSTOP SM.  */
 
 static void
-aarch64_switch_pstate_sm (aarch64_feature_flags old_mode,
-			  aarch64_feature_flags new_mode)
+aarch64_switch_pstate_sm (aarch64_isa_mode old_mode, aarch64_isa_mode new_mode)
 {
-  old_mode &= AARCH64_FL_SM_STATE;
-  new_mode &= AARCH64_FL_SM_STATE;
+  old_mode &= AARCH64_ISA_MODE_SM_STATE;
+  new_mode &= AARCH64_ISA_MODE_SM_STATE;
   gcc_assert (old_mode != new_mode);
 
-  if ((new_mode & AARCH64_FL_SM_ON)
-      || (new_mode == 0 && (old_mode & AARCH64_FL_SM_OFF)))
+  if ((new_mode & AARCH64_ISA_MODE_SM_ON)
+      || (!new_mode && (old_mode & AARCH64_ISA_MODE_SM_OFF)))
     emit_insn (gen_aarch64_smstart_sm ());
   else
     emit_insn (gen_aarch64_smstop_sm ());
@@ -7225,7 +7225,7 @@ aarch64_init_cumulative_args (CUMULATIVE_ARGS *pcum,
   else
     {
       pcum->pcs_variant = ARM_PCS_AAPCS64;
-      pcum->isa_mode = AARCH64_FL_DEFAULT_ISA_MODE;
+      pcum->isa_mode = AARCH64_DEFAULT_ISA_MODE;
     }
   pcum->aapcs_reg = NULL_RTX;
   pcum->aapcs_arg_processed = false;
@@ -9160,14 +9160,14 @@ aarch64_emit_stack_tie (rtx reg)
    then the signal handler doesn't know the state of the stack and can make no
    assumptions about which pages have been probed.
 
-   FORCE_ISA_MODE is AARCH64_FL_SM_ON if any variable component of POLY_SIZE
-   is measured relative to the SME vector length instead of the current
-   prevailing vector length.  It is 0 otherwise.  */
+   FORCE_ISA_MODE is AARCH64_ISA_MODE_SM_ON if any variable component of
+   POLY_SIZE is measured relative to the SME vector length instead of the
+   current prevailing vector length.  It is 0 otherwise.  */
 
 static void
 aarch64_allocate_and_probe_stack_space (rtx temp1, rtx temp2,
 					poly_int64 poly_size,
-					aarch64_feature_flags force_isa_mode,
+					aarch64_isa_mode force_isa_mode,
 					bool frame_related_p,
 					bool final_adjustment_p)
 {
@@ -9480,7 +9480,7 @@ aarch64_read_old_svcr (unsigned int regno)
 
 static rtx_insn *
 aarch64_guard_switch_pstate_sm (unsigned int regno,
-				aarch64_feature_flags local_mode)
+				aarch64_isa_mode local_mode)
 {
   rtx old_svcr = aarch64_read_old_svcr (regno);
   return aarch64_guard_switch_pstate_sm (old_svcr, local_mode);
@@ -9581,9 +9581,9 @@ aarch64_expand_prologue (void)
   unsigned reg2 = frame.wb_push_candidate2;
   bool emit_frame_chain = frame.emit_frame_chain;
   rtx_insn *insn;
-  aarch64_feature_flags force_isa_mode = 0;
+  aarch64_isa_mode force_isa_mode = 0;
   if (aarch64_cfun_enables_pstate_sm ())
-    force_isa_mode = AARCH64_FL_SM_ON;
+    force_isa_mode = AARCH64_ISA_MODE_SM_ON;
 
   if (flag_stack_clash_protection
       && known_eq (callee_adjust, 0)
@@ -9787,7 +9787,7 @@ aarch64_expand_prologue (void)
 	  emit_insn (gen_aarch64_read_svcr (svcr));
 	  emit_move_insn (aarch64_old_svcr_mem (), svcr);
 	  guard_label = aarch64_guard_switch_pstate_sm (svcr,
-							aarch64_isa_flags);
+							AARCH64_ISA_MODE);
 	}
       aarch64_sme_mode_switch_regs args_switch;
       auto &args = crtl->args.info;
@@ -9848,9 +9848,9 @@ aarch64_expand_epilogue (rtx_call_insn *sibcall)
   HOST_WIDE_INT guard_size
     = 1 << param_stack_clash_protection_guard_size;
   HOST_WIDE_INT guard_used_by_caller = STACK_CLASH_CALLER_GUARD;
-  aarch64_feature_flags force_isa_mode = 0;
+  aarch64_isa_mode force_isa_mode = 0;
   if (aarch64_cfun_enables_pstate_sm ())
-    force_isa_mode = AARCH64_FL_SM_ON;
+    force_isa_mode = AARCH64_ISA_MODE_SM_ON;
 
   /* We can re-use the registers when:
 
@@ -9881,7 +9881,7 @@ aarch64_expand_epilogue (rtx_call_insn *sibcall)
       rtx_insn *guard_label = nullptr;
       if (known_ge (cfun->machine->frame.old_svcr_offset, 0))
 	guard_label = aarch64_guard_switch_pstate_sm (IP0_REGNUM,
-						      aarch64_isa_flags);
+						      AARCH64_ISA_MODE);
       aarch64_sme_mode_switch_regs return_switch;
       if (sibcall)
 	return_switch.add_call_args (sibcall);
@@ -11162,7 +11162,7 @@ aarch64_start_call_args (cumulative_args_t ca_v)
 {
   CUMULATIVE_ARGS *ca = get_cumulative_args (ca_v);
 
-  if (!TARGET_SME && (ca->isa_mode & AARCH64_FL_SM_ON))
+  if (!TARGET_SME && (ca->isa_mode & AARCH64_ISA_MODE_SM_ON))
     {
       error ("calling a streaming function requires the ISA extension %qs",
 	     "sme");
@@ -11179,20 +11179,20 @@ aarch64_start_call_args (cumulative_args_t ca_v)
 	   && !aarch64_cfun_has_state ("zt0"))
     error ("call to a function that shares %qs state from a function"
 	   " that has no %qs state", "zt0", "zt0");
-  else if (!TARGET_ZA && (ca->isa_mode & AARCH64_FL_ZA_ON))
+  else if (!TARGET_ZA && (ca->isa_mode & AARCH64_ISA_MODE_ZA_ON))
     error ("call to a function that shares SME state from a function"
 	   " that has no SME state");
 
   /* If this is a call to a private ZA function, emit a marker to
      indicate where any necessary set-up code could be inserted.
      The code itself is inserted by the mode-switching pass.  */
-  if (TARGET_ZA && !(ca->isa_mode & AARCH64_FL_ZA_ON))
+  if (TARGET_ZA && !(ca->isa_mode & AARCH64_ISA_MODE_ZA_ON))
     emit_insn (gen_aarch64_start_private_za_call ());
 
   /* If this is a call to a shared-ZA function that doesn't share ZT0,
      save and restore ZT0 around the call.  */
   if (aarch64_cfun_has_state ("zt0")
-      && (ca->isa_mode & AARCH64_FL_ZA_ON)
+      && (ca->isa_mode & AARCH64_ISA_MODE_ZA_ON)
       && ca->shared_zt0_flags == 0)
     aarch64_save_zt0 ();
 }
@@ -11235,7 +11235,7 @@ aarch64_expand_call (rtx result, rtx mem, rtx cookie, bool sibcall)
   auto callee_isa_mode = aarch64_callee_isa_mode (callee_abi);
 
   if (aarch64_cfun_has_state ("za")
-      && (callee_isa_mode & AARCH64_FL_ZA_ON)
+      && (callee_isa_mode & AARCH64_ISA_MODE_ZA_ON)
       && !shared_za_flags)
     {
       sorry ("call to a function that shares state other than %qs"
@@ -11390,7 +11390,7 @@ aarch64_expand_call (rtx result, rtx mem, rtx cookie, bool sibcall)
 	       gen_rtx_REG (VNx16BImode, ZA_SAVED_REGNUM));
 
       /* Keep the aarch64_start/end_private_za_call markers live.  */
-      if (!(callee_isa_mode & AARCH64_FL_ZA_ON))
+      if (!(callee_isa_mode & AARCH64_ISA_MODE_ZA_ON))
 	use_reg (&CALL_INSN_FUNCTION_USAGE (call_insn),
 		 gen_rtx_REG (VNx16BImode, LOWERING_REGNUM));
 
@@ -11416,13 +11416,13 @@ aarch64_end_call_args (cumulative_args_t ca_v)
   /* If this is a call to a private ZA function, emit a marker to
      indicate where any necessary restoration code could be inserted.
      The code itself is inserted by the mode-switching pass.  */
-  if (TARGET_ZA && !(ca->isa_mode & AARCH64_FL_ZA_ON))
+  if (TARGET_ZA && !(ca->isa_mode & AARCH64_ISA_MODE_ZA_ON))
     emit_insn (gen_aarch64_end_private_za_call ());
 
   /* If this is a call to a shared-ZA function that doesn't share ZT0,
      save and restore ZT0 around the call.  */
   if (aarch64_cfun_has_state ("zt0")
-      && (ca->isa_mode & AARCH64_FL_ZA_ON)
+      && (ca->isa_mode & AARCH64_ISA_MODE_ZA_ON)
       && ca->shared_zt0_flags == 0)
     aarch64_restore_zt0 (false);
 }
@@ -12684,6 +12684,9 @@ aarch64_regno_regclass (unsigned regno)
   if (PR_REGNUM_P (regno))
     return PR_LO_REGNUM_P (regno) ? PR_LO_REGS : PR_HI_REGS;
 
+  if (regno == FPM_REGNUM)
+    return MOVEABLE_SYSREGS;
+
   if (regno == FFR_REGNUM || regno == FFRT_REGNUM)
     return FFR_REGS;
 
@@ -13072,6 +13075,7 @@ aarch64_class_max_nregs (reg_class_t regclass, machine_mode mode)
     case PR_HI_REGS:
       return mode == VNx32BImode ? 2 : 1;
 
+    case MOVEABLE_SYSREGS:
     case STACK_REG:
     case FFR_REGS:
     case PR_AND_FFR_REGS:
@@ -18273,7 +18277,6 @@ void
 aarch64_override_options_internal (struct gcc_options *opts)
 {
   const struct processor *tune = aarch64_get_tune_cpu (opts->x_selected_tune);
-  aarch64_tune_flags = tune->flags;
   aarch64_tune = tune->sched_core;
   /* Make a copy of the tuning parameters attached to the core, which
      we may later overwrite.  */
@@ -18334,10 +18337,11 @@ aarch64_override_options_internal (struct gcc_options *opts)
       && !fixed_regs[R18_REGNUM])
     error ("%<-fsanitize=shadow-call-stack%> requires %<-ffixed-x18%>");
 
-  if ((opts->x_aarch64_isa_flags & (AARCH64_FL_SM_ON | AARCH64_FL_ZA_ON))
-      && !(opts->x_aarch64_isa_flags & AARCH64_FL_SME))
+  aarch64_feature_flags isa_flags = aarch64_get_isa_flags (opts);
+  if ((isa_flags & (AARCH64_FL_SM_ON | AARCH64_FL_ZA_ON))
+      && !(isa_flags & AARCH64_FL_SME))
     {
-      if (opts->x_aarch64_isa_flags & AARCH64_FL_SM_ON)
+      if (isa_flags & AARCH64_FL_SM_ON)
 	error ("streaming functions require the ISA extension %qs", "sme");
       else
 	error ("functions with SME state require the ISA extension %qs",
@@ -18346,8 +18350,7 @@ aarch64_override_options_internal (struct gcc_options *opts)
 	      " option %<-march%>, or by using the %<target%>"
 	      " attribute or pragma", "sme");
       opts->x_target_flags &= ~MASK_GENERAL_REGS_ONLY;
-      auto new_flags = (opts->x_aarch64_asm_isa_flags
-			| feature_deps::SME ().enable);
+      auto new_flags = isa_flags | feature_deps::SME ().enable;
       aarch64_set_asm_isa_flags (opts, new_flags);
     }
 
@@ -18860,7 +18863,6 @@ aarch64_override_options (void)
   SUBTARGET_OVERRIDE_OPTIONS;
 #endif
 
-  auto isa_mode = AARCH64_FL_DEFAULT_ISA_MODE;
   if (cpu && arch)
     {
       /* If both -mcpu and -march are specified, warn if they are not
@@ -18883,25 +18885,25 @@ aarch64_override_options (void)
 	}
 
       selected_arch = arch->arch;
-      aarch64_set_asm_isa_flags (arch_isa | isa_mode);
+      aarch64_set_asm_isa_flags (arch_isa | AARCH64_FL_DEFAULT_ISA_MODE);
     }
   else if (cpu)
     {
       selected_arch = cpu->arch;
-      aarch64_set_asm_isa_flags (cpu_isa | isa_mode);
+      aarch64_set_asm_isa_flags (cpu_isa | AARCH64_FL_DEFAULT_ISA_MODE);
     }
   else if (arch)
     {
       cpu = &all_cores[arch->ident];
       selected_arch = arch->arch;
-      aarch64_set_asm_isa_flags (arch_isa | isa_mode);
+      aarch64_set_asm_isa_flags (arch_isa | AARCH64_FL_DEFAULT_ISA_MODE);
     }
   else
     {
       /* No -mcpu or -march specified, so use the default CPU.  */
       cpu = &all_cores[TARGET_CPU_DEFAULT];
       selected_arch = cpu->arch;
-      aarch64_set_asm_isa_flags (cpu->flags | isa_mode);
+      aarch64_set_asm_isa_flags (cpu->flags | AARCH64_FL_DEFAULT_ISA_MODE);
     }
 
   selected_tune = tune ? tune->ident : cpu->ident;
@@ -19042,9 +19044,9 @@ aarch64_option_print (FILE *file, int indent, struct cl_target_option *ptr)
   const struct processor *cpu
     = aarch64_get_tune_cpu (ptr->x_selected_tune);
   const struct processor *arch = aarch64_get_arch (ptr->x_selected_arch);
+  aarch64_feature_flags isa_flags = aarch64_get_asm_isa_flags(ptr);
   std::string extension
-    = aarch64_get_extension_string_for_isa_flags (ptr->x_aarch64_asm_isa_flags,
-						  arch->flags);
+    = aarch64_get_extension_string_for_isa_flags (isa_flags, arch->flags);
 
   fprintf (file, "%*sselected tune = %s\n", indent, "", cpu->name);
   fprintf (file, "%*sselected arch = %s%s\n", indent, "",
@@ -19103,8 +19105,8 @@ aarch64_set_current_function (tree fndecl)
 
   auto new_isa_mode = (fndecl
 		       ? aarch64_fndecl_isa_mode (fndecl)
-		       : AARCH64_FL_DEFAULT_ISA_MODE);
-  auto isa_flags = TREE_TARGET_OPTION (new_tree)->x_aarch64_isa_flags;
+		       : AARCH64_DEFAULT_ISA_MODE);
+  auto isa_flags = aarch64_get_isa_flags (TREE_TARGET_OPTION (new_tree));
 
   static bool reported_zt0_p;
   if (!reported_zt0_p
@@ -19125,7 +19127,7 @@ aarch64_set_current_function (tree fndecl)
      aarch64_pragma_target_parse.  */
   if (old_tree == new_tree
       && (!fndecl || aarch64_previous_fndecl)
-      && (isa_flags & AARCH64_FL_ISA_MODES) == new_isa_mode)
+      && (isa_flags & AARCH64_FL_ISA_MODES).val[0] == new_isa_mode)
     {
       gcc_assert (AARCH64_ISA_MODE == new_isa_mode);
       return;
@@ -19140,10 +19142,11 @@ aarch64_set_current_function (tree fndecl)
   /* The ISA mode can vary based on function type attributes and
      function declaration attributes.  Make sure that the target
      options correctly reflect these attributes.  */
-  if ((isa_flags & AARCH64_FL_ISA_MODES) != new_isa_mode)
+  if ((isa_flags & AARCH64_FL_ISA_MODES).val[0] != new_isa_mode)
     {
       auto base_flags = (aarch64_asm_isa_flags & ~AARCH64_FL_ISA_MODES);
-      aarch64_set_asm_isa_flags (base_flags | new_isa_mode);
+      aarch64_set_asm_isa_flags (base_flags
+				 | aarch64_feature_flags (new_isa_mode));
 
       aarch64_override_options_internal (&global_options);
       new_tree = build_target_option_node (&global_options,
@@ -19208,7 +19211,8 @@ aarch64_handle_attr_arch (const char *str)
     {
       gcc_assert (tmp_arch);
       selected_arch = tmp_arch->arch;
-      aarch64_set_asm_isa_flags (tmp_flags | AARCH64_ISA_MODE);
+      aarch64_set_asm_isa_flags (tmp_flags | (aarch64_asm_isa_flags
+					      & AARCH64_FL_ISA_MODES));
       return true;
     }
 
@@ -19249,7 +19253,8 @@ aarch64_handle_attr_cpu (const char *str)
       gcc_assert (tmp_cpu);
       selected_tune = tmp_cpu->ident;
       selected_arch = tmp_cpu->arch;
-      aarch64_set_asm_isa_flags (tmp_flags | AARCH64_ISA_MODE);
+      aarch64_set_asm_isa_flags (tmp_flags | (aarch64_asm_isa_flags
+					      & AARCH64_FL_ISA_MODES));
       return true;
     }
 
@@ -19327,7 +19332,7 @@ aarch64_handle_attr_isa_flags (char *str)
      features if the user wants to handpick specific features.  */
   if (strncmp ("+nothing", str, 8) == 0)
     {
-      isa_flags = AARCH64_ISA_MODE;
+      isa_flags &= AARCH64_FL_ISA_MODES;
       str += 8;
     }
 
@@ -20706,16 +20711,16 @@ aarch64_can_inline_p (tree caller, tree callee)
 					   : target_option_default_node);
 
   /* Callee's ISA flags should be a subset of the caller's.  */
-  auto caller_asm_isa = (caller_opts->x_aarch64_asm_isa_flags
+  auto caller_asm_isa = (aarch64_get_asm_isa_flags (caller_opts)
 			 & ~AARCH64_FL_ISA_MODES);
-  auto callee_asm_isa = (callee_opts->x_aarch64_asm_isa_flags
+  auto callee_asm_isa = (aarch64_get_asm_isa_flags (callee_opts)
 			 & ~AARCH64_FL_ISA_MODES);
   if (callee_asm_isa & ~caller_asm_isa)
     return false;
 
-  auto caller_isa = (caller_opts->x_aarch64_isa_flags
+  auto caller_isa = (aarch64_get_isa_flags (caller_opts)
 		     & ~AARCH64_FL_ISA_MODES);
-  auto callee_isa = (callee_opts->x_aarch64_isa_flags
+  auto callee_isa = (aarch64_get_isa_flags (callee_opts)
 		     & ~AARCH64_FL_ISA_MODES);
   if (callee_isa & ~caller_isa)
     return false;
@@ -20735,8 +20740,8 @@ aarch64_can_inline_p (tree caller, tree callee)
      PSTATE.SM mode.  Otherwise the caller and callee must agree on
      PSTATE.SM mode, unless we can prove that the callee is naturally
      streaming-compatible.  */
-  auto caller_sm = (caller_opts->x_aarch64_isa_flags & AARCH64_FL_SM_STATE);
-  auto callee_sm = (callee_opts->x_aarch64_isa_flags & AARCH64_FL_SM_STATE);
+  auto caller_sm = (aarch64_get_isa_flags (caller_opts) & AARCH64_FL_SM_STATE);
+  auto callee_sm = (aarch64_get_isa_flags (callee_opts) & AARCH64_FL_SM_STATE);
   if (callee_sm
       && caller_sm != callee_sm
       && callee_has_property (AARCH64_IPA_SM_FIXED))
@@ -20749,8 +20754,8 @@ aarch64_can_inline_p (tree caller, tree callee)
 
      The only other problematic case for ZA is inlining a function that
      directly clobbers ZA or ZT0 into a function that has ZA or ZT0 state.  */
-  auto caller_za = (caller_opts->x_aarch64_isa_flags & AARCH64_FL_ZA_ON);
-  auto callee_za = (callee_opts->x_aarch64_isa_flags & AARCH64_FL_ZA_ON);
+  auto caller_za = (aarch64_get_isa_flags (caller_opts) & AARCH64_FL_ZA_ON);
+  auto callee_za = (aarch64_get_isa_flags (callee_opts) & AARCH64_FL_ZA_ON);
   if (!caller_za && callee_za)
     return false;
   if (!callee_za
@@ -23377,8 +23382,9 @@ aarch64_endian_lane_rtx (machine_mode mode, unsigned int n)
 bool
 aarch64_simd_mem_operand_p (rtx op)
 {
-  return MEM_P (op) && (GET_CODE (XEXP (op, 0)) == POST_INC
-			|| REG_P (XEXP (op, 0)));
+  return (MEM_P (op)
+	  && (GET_CODE (XEXP (op, 0)) == POST_INC || REG_P (XEXP (op, 0)))
+	  && memory_operand (op, VOIDmode));
 }
 
 /* Return true if OP is a valid MEM operand for an SVE LD1R instruction.  */
@@ -24485,7 +24491,7 @@ aarch64_declare_function_name (FILE *stream, const char* name,
   const struct processor *this_arch
     = aarch64_get_arch (targ_options->x_selected_arch);
 
-  auto isa_flags = targ_options->x_aarch64_asm_isa_flags;
+  auto isa_flags = aarch64_get_asm_isa_flags (targ_options);
   std::string extension
     = aarch64_get_extension_string_for_isa_flags (isa_flags,
 						  this_arch->flags);
@@ -24615,7 +24621,7 @@ aarch64_start_file (void)
 
   const struct processor *default_arch
     = aarch64_get_arch (default_options->x_selected_arch);
-  auto default_isa_flags = default_options->x_aarch64_asm_isa_flags;
+  auto default_isa_flags = aarch64_get_asm_isa_flags (default_options);
   std::string extension
     = aarch64_get_extension_string_for_isa_flags (default_isa_flags,
 						  default_arch->flags);
@@ -28211,6 +28217,15 @@ aarch64_gen_adjusted_ldpstp (rtx *operands, bool load,
   return true;
 }
 
+/* Implement TARGET_VECTORIZE_CONDITIONAL_OPERATION_IS_EXPENSIVE.  Assume that
+   predicated operations when available are beneficial.  */
+
+static bool
+aarch64_conditional_operation_is_expensive (unsigned)
+{
+  return false;
+}
+
 /* Implement TARGET_VECTORIZE_EMPTY_MASK_IS_EXPENSIVE.  Assume for now that
    it isn't worth branching around empty masked ops (including masked
    stores).  */
@@ -30045,11 +30060,11 @@ aarch64_switch_pstate_sm_for_landing_pad (basic_block bb)
   rtx_insn *guard_label = nullptr;
   if (TARGET_STREAMING_COMPATIBLE)
     guard_label = aarch64_guard_switch_pstate_sm (IP0_REGNUM,
-						  AARCH64_FL_SM_OFF);
+						  AARCH64_ISA_MODE_SM_OFF);
   aarch64_sme_mode_switch_regs args_switch;
   args_switch.add_call_preserved_regs (df_get_live_in (bb));
   args_switch.emit_prologue ();
-  aarch64_switch_pstate_sm (AARCH64_FL_SM_OFF, AARCH64_FL_SM_ON);
+  aarch64_switch_pstate_sm (AARCH64_ISA_MODE_SM_OFF, AARCH64_ISA_MODE_SM_ON);
   args_switch.emit_epilogue ();
   if (guard_label)
     emit_label (guard_label);
@@ -30073,8 +30088,8 @@ aarch64_switch_pstate_sm_for_jump (rtx_insn *jump)
   rtx_insn *guard_label = nullptr;
   if (TARGET_STREAMING_COMPATIBLE)
     guard_label = aarch64_guard_switch_pstate_sm (IP0_REGNUM,
-						  AARCH64_FL_SM_OFF);
-  aarch64_switch_pstate_sm (AARCH64_FL_SM_ON, AARCH64_FL_SM_OFF);
+						  AARCH64_ISA_MODE_SM_OFF);
+  aarch64_switch_pstate_sm (AARCH64_ISA_MODE_SM_ON, AARCH64_ISA_MODE_SM_OFF);
   if (guard_label)
     emit_label (guard_label);
   auto seq = get_insns ();
@@ -30169,7 +30184,7 @@ public:
 bool
 pass_switch_pstate_sm::gate (function *fn)
 {
-  return (aarch64_fndecl_pstate_sm (fn->decl) != AARCH64_FL_SM_OFF
+  return (aarch64_fndecl_pstate_sm (fn->decl) != AARCH64_ISA_MODE_SM_OFF
 	  || cfun->machine->call_switches_pstate_sm);
 }
 
@@ -30289,7 +30304,7 @@ aarch64_valid_sysreg_name_p (const char *regname)
   if (sysreg == NULL)
     return aarch64_is_implem_def_reg (regname);
   if (sysreg->arch_reqs)
-    return (aarch64_isa_flags & sysreg->arch_reqs);
+    return bool (aarch64_isa_flags & sysreg->arch_reqs);
   return true;
 }
 
@@ -30898,6 +30913,9 @@ aarch64_libgcc_floating_mode_supported_p
 #define TARGET_VECTORIZE_RELATED_MODE aarch64_vectorize_related_mode
 #undef TARGET_VECTORIZE_GET_MASK_MODE
 #define TARGET_VECTORIZE_GET_MASK_MODE aarch64_get_mask_mode
+#undef TARGET_VECTORIZE_CONDITIONAL_OPERATION_IS_EXPENSIVE
+#define TARGET_VECTORIZE_CONDITIONAL_OPERATION_IS_EXPENSIVE \
+  aarch64_conditional_operation_is_expensive
 #undef TARGET_VECTORIZE_EMPTY_MASK_IS_EXPENSIVE
 #define TARGET_VECTORIZE_EMPTY_MASK_IS_EXPENSIVE \
   aarch64_empty_mask_is_expensive

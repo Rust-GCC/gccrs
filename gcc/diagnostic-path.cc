@@ -518,7 +518,7 @@ struct event_range
     m_stack_depth (initial_event.get_stack_depth ()),
     m_start_idx (start_idx), m_end_idx (start_idx),
     m_path_label (ctxt, path, start_idx),
-    m_richloc (initial_event.get_location (), &m_path_label),
+    m_richloc (initial_event.get_location (), &m_path_label, nullptr),
     m_thread_id (initial_event.get_thread_id ()),
     m_per_thread_summary (t),
     m_show_event_links (show_event_links)
@@ -860,7 +860,8 @@ public:
     if (const logical_location *logical_loc = range->m_logical_loc)
       {
 	label_text name (logical_loc->get_name_for_path_output ());
-	pp_printf (pp, "%qs: ", name.get ());
+	if (name.get ())
+	  pp_printf (pp, "%qs: ", name.get ());
       }
     if (range->m_start_idx == range->m_end_idx)
       pp_printf (pp, "event %i",

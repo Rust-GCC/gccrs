@@ -310,7 +310,8 @@ Objective-C and Objective-C++ Dialects}.
 -fno-diagnostics-show-event-links
 -fno-diagnostics-show-labels  -fno-diagnostics-show-line-numbers
 -fno-diagnostics-show-cwe
--fno-diagnostics-show-rule
+-fno-diagnostics-show-rules
+-fno-diagnostics-show-highlight-colors
 -fdiagnostics-minimum-margin-width=@var{width}
 -fdiagnostics-parseable-fixits  -fdiagnostics-generate-patch
 -fdiagnostics-show-template-tree  -fno-elide-type
@@ -414,7 +415,9 @@ Objective-C and Objective-C++ Dialects}.
 -Wsystem-headers  -Wtautological-compare  -Wtrampolines  -Wtrigraphs
 -Wtrivial-auto-var-init  -Wno-tsan  -Wtype-limits  -Wundef
 -Wuninitialized  -Wunknown-pragmas
--Wunsuffixed-float-constants  -Wunused
+-Wunsuffixed-float-constants
+-Wunterminated-string-initialization
+-Wunused
 -Wunused-but-set-parameter  -Wunused-but-set-variable
 -Wunused-const-variable  -Wunused-const-variable=@var{n}
 -Wunused-function  -Wunused-label  -Wunused-local-typedefs
@@ -5288,7 +5291,8 @@ The default @env{GCC_COLORS} is
 error=01;31:warning=01;35:note=01;36:range1=32:range2=34:locus=01:\
 quote=01:path=01;36:fixit-insert=32:fixit-delete=31:\
 diff-filename=01:diff-hunk=32:diff-delete=31:diff-insert=32:\
-type-diff=01;32:fnname=01;32:targs=35:valid=01;31:invalid=01;32
+type-diff=01;32:fnname=01;32:targs=35:valid=01;31:invalid=01;32\
+highlight-a=01;32:highlight-b=01;34
 @end smallexample
 @noindent
 where @samp{01;31} is bold red, @samp{01;35} is bold magenta,
@@ -5379,6 +5383,14 @@ SGR substring for highlighting valid elements within text art diagrams.
 @vindex invalid GCC_COLORS @r{capability}
 @item invalid=
 SGR substring for highlighting invalid elements within text art diagrams.
+
+@vindex highlight-a GCC_COLORS @r{capability}
+@vindex highlight-b GCC_COLORS @r{capability}
+@item highlight-a=
+@item highlight-b=
+SGR substrings for contrasting two different things within diagnostics,
+such as a pair of mismatching types.
+See @option{-fdiagnostics-show-highlight-colors}.
 @end table
 
 @opindex fdiagnostics-urls
@@ -5503,6 +5515,43 @@ as from a coding standard, or a specification.
 GCC itself does not do this for any of its diagnostics, but plugins may do so.
 By default, if this information is present, it will be printed with
 the diagnostic.  This option suppresses the printing of this metadata.
+
+@opindex fno-diagnostics-show-highlight-colors
+@opindex fdiagnostics-show-highlight-colors
+@item -fno-diagnostics-show-highlight-colors
+
+GCC can use color for emphasis and contrast when printing diagnostic
+messages and quoting the user's source.
+
+For example, in
+
+@smallexample
+demo.c: In function `test_bad_format_string_args':
+../../src/demo.c:25:18: warning: format `%i' expects argument of type `int', but argument 2 has type `const char *' [-Wformat=]
+   25 |   printf("hello %i", msg);
+      |                 ~^   ~~~
+      |                  |   |
+      |                  int const char *
+      |                 %s
+@end smallexample
+
+@itemize @bullet
+@item
+the @code{%i} and @code{int} in the message and the @code{int} in the
+quoted source are colored using @code{highlight-a} (bold green by default),
+and
+@item
+the @code{const char *} in the message and in the quoted source are both
+colored using @code{highlight-b} (bold blue by default).
+@end itemize
+
+The intent is to draw the reader's eyes to the relationships between the
+various aspects of the diagnostic message and the source, using color
+to group related elements and distinguish between mismatching ones.
+
+This additional colorization is enabled by default if color printing
+is enabled (as per @option{-fdiagnostics-color=}), but it can be separately
+disabled via @option{-fno-diagnostics-show-highlight-colors}.
 
 @opindex fno-diagnostics-show-line-numbers
 @opindex fdiagnostics-show-line-numbers
@@ -5816,8 +5865,9 @@ named @file{@var{source}.sarif}, respectively.
 
 The @samp{json} format is a synonym for @samp{json-stderr}.
 The @samp{json-stderr} and @samp{json-file} formats are identical, apart from
-where the JSON is emitted to - with the former, the JSON is emitted to stderr,
-whereas with @samp{json-file} it is written to @file{@var{source}.gcc.json}.
+where the JSON is emitted to.  With @samp{json-stderr}, the JSON is emitted
+to stderr, whereas with @samp{json-file} it is written to
+@file{@var{source}.gcc.json}.
 
 The emitted JSON consists of a top-level JSON array containing JSON objects
 representing the diagnostics.
@@ -6449,6 +6499,7 @@ name is still supported, but the newer name is more descriptive.)
 -Wstring-compare
 -Wtype-limits
 -Wuninitialized
+-Wunterminated-string-initialization
 -Wunused-parameter @r{(only with} @option{-Wunused} @r{or} @option{-Wall}@r{)}
 -Wunused-but-set-parameter @r{(only with} @option{-Wunused} @r{or} @option{-Wall}@r{)}}
 
@@ -8616,6 +8667,21 @@ This warning level also warns about the intermediate results of pointer
 arithmetic that may yield out of bounds values. This warning level may
 give a larger number of false positives and is deactivated by default.
 @end table
+
+@opindex Wunterminated-string-initialization
+@opindex Wno-unterminated-string-initialization
+@item -Wunterminated-string-initialization @r{(C and Objective-C only)}
+Warn about character arrays
+initialized as unterminated character sequences
+with a string literal.
+For example:
+
+@smallexample
+char arr[3] = "foo";
+@end smallexample
+
+This warning is enabled by @option{-Wextra} and @option{-Wc++-compat}.
+In C++, such initializations are an error.
 
 @opindex Warray-compare
 @opindex Wno-array-compare
@@ -12494,6 +12560,11 @@ more memory for a large function.
 With @option{-O}, the compiler tries to reduce code size and execution
 time, without performing any optimizations that take a great deal of
 compilation time.
+
+@option{-O} is the recommended optimization level for large machine-generated
+code as a sensible balance between time taken to compile and memory use:
+higher optimization levels perform optimizations with greater algorithmic
+complexity than at @option{-O}.
 
 @c Note that in addition to the default_options_table list in opts.cc,
 @c several optimization flags default to true but control optimization
@@ -21433,7 +21504,10 @@ and the features that they enable by default:
 The value @samp{native} is available on native AArch64 GNU/Linux and
 causes the compiler to pick the architecture of the host system.  This
 option has no effect if the compiler is unable to recognize the
-architecture of the host system,
+architecture of the host system.  When @option{-march=native} is given and
+no other @option{-mcpu} or @option{-mtune} is given then GCC will pick
+the host CPU as the CPU to tune for as well as select the architecture features
+from.  That is, @option{-march=native} is treated as @option{-mcpu=native}.
 
 The permissible values for @var{feature} are listed in the sub-section
 on @ref{aarch64-feature-modifiers,,@option{-march} and @option{-mcpu}
@@ -21775,6 +21849,8 @@ Enable support for Armv9.4-a Guarded Control Stack extension.
 Enable support for Armv8.9-a/9.4-a translation hardening extension.
 @item rcpc3
 Enable the RCpc3 (Release Consistency) extension.
+@item fp8
+Enable the fp8 (8-bit floating point) extension.
 
 @end table
 
@@ -24495,6 +24571,13 @@ and defined to@tie{}0, otherwise.
 @item __WITH_AVRLIBC__
 The compiler is configured to be used together with AVR-Libc.
 See the @option{--with-avrlibc} configure option.
+
+@item __HAVE_SIGNAL_N__
+The compiler supports the @code{signal(@var{num})} and
+@code{interrupt(@var{num})}
+@ref{AVR Function Attributes,,function attributes}
+with an argument @var{num} that specifies the number of the
+interrupt service routine.
 
 @item __HAVE_DOUBLE_MULTILIB__
 Defined if @option{-mdouble=} acts as a multilib option.
@@ -31490,7 +31573,7 @@ Supported values for @var{cpu_type} are @samp{401}, @samp{403},
 @samp{e6500}, @samp{ec603e}, @samp{G3}, @samp{G4}, @samp{G5},
 @samp{titan}, @samp{power3}, @samp{power4}, @samp{power5}, @samp{power5+},
 @samp{power6}, @samp{power6x}, @samp{power7}, @samp{power8},
-@samp{power9}, @samp{power10}, @samp{powerpc}, @samp{powerpc64},
+@samp{power9}, @samp{power10}, @samp{power11}, @samp{powerpc}, @samp{powerpc64},
 @samp{powerpc64le}, @samp{rs64}, and @samp{native}.
 
 @option{-mcpu=powerpc}, @option{-mcpu=powerpc64}, and
@@ -36869,9 +36952,6 @@ link         Options to pass to the linker
 lib          Libraries to include on the command line to the linker
 libgcc       Decides which GCC support library to pass to the linker
 linker       Sets the name of the linker
-predefines   Defines to be passed to the C preprocessor
-signed_char  Defines to pass to CPP to say whether @code{char} is signed
-             by default
 startfile    Object files to include at the start of the link
 @end smallexample
 

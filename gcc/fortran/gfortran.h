@@ -1893,6 +1893,9 @@ typedef struct gfc_symbol
      points to C and B's is NULL.  */
   struct gfc_common_head* common_head;
 
+  /* Make sure initialization code is generated in the correct order.  */
+  int decl_order;
+
   gfc_namelist *namelist, *namelist_tail;
 
   /* The tlink field is used in the front end to carry the module
@@ -1950,6 +1953,10 @@ typedef struct gfc_symbol
   /* Set if this should be passed by value, but is not a VALUE argument
      according to the Fortran standard.  */
   unsigned pass_as_value:1;
+  /* Set if an allocatable array variable has been allocated in the current
+     scope. Used in the suppression of uninitialized warnings in reallocation
+     on assignment.  */
+  unsigned allocated_in_scope:1;
 
   /* Reference counter, used for memory management.
 
@@ -4042,6 +4049,11 @@ bool gfc_may_be_finalized (gfc_typespec);
 	(sym->ts.type == BT_CLASS \
 	 && CLASS_DATA (sym) \
 	 && CLASS_DATA (sym)->attr.dimension \
+	 && !CLASS_DATA (sym)->attr.class_pointer)
+#define IS_CLASS_COARRAY_OR_ARRAY(sym) \
+	(sym->ts.type == BT_CLASS && CLASS_DATA (sym) \
+	 && (CLASS_DATA (sym)->attr.dimension \
+	     || CLASS_DATA (sym)->attr.codimension) \
 	 && !CLASS_DATA (sym)->attr.class_pointer)
 #define IS_POINTER(sym) \
 	(sym->ts.type == BT_CLASS && sym->attr.class_ok && CLASS_DATA (sym) \

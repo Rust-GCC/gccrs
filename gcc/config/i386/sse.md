@@ -294,6 +294,7 @@
    (V16SI "TARGET_AVX512F && TARGET_EVEX512") (V8SI "TARGET_AVX") V4SI
    (V8DI "TARGET_AVX512F && TARGET_EVEX512")  (V4DI "TARGET_AVX") V2DI
    (V32HF "TARGET_AVX512F && TARGET_EVEX512") (V16HF "TARGET_AVX") V8HF
+   (V32BF "TARGET_AVX512F && TARGET_EVEX512") (V16BF "TARGET_AVX") V8BF
    (V16SF "TARGET_AVX512F && TARGET_EVEX512") (V8SF "TARGET_AVX") V4SF
    (V8DF "TARGET_AVX512F && TARGET_EVEX512")  (V4DF "TARGET_AVX") (V2DF "TARGET_SSE2")])
 
@@ -430,8 +431,8 @@
    (V16SF "TARGET_EVEX512")
    (V8DF "TARGET_EVEX512")])
 
-(define_mode_iterator V4SF_V8HF
-  [V4SF V8HF])
+(define_mode_iterator V24F_128
+  [V4SF V8HF V8BF])
 
 (define_mode_iterator VI48_AVX512VL
   [(V16SI "TARGET_EVEX512") (V8SI "TARGET_AVX512VL") (V4SI "TARGET_AVX512VL")
@@ -11543,8 +11544,8 @@
    (set_attr "mode" "V4SF,SF,DI,DI")])
 
 (define_insn "*vec_concat<mode>"
-  [(set (match_operand:V4SF_V8HF 0 "register_operand"       "=x,v,x,v")
-	(vec_concat:V4SF_V8HF
+  [(set (match_operand:V24F_128 0 "register_operand"       "=x,v,x,v")
+	(vec_concat:V24F_128
 	  (match_operand:<ssehalfvecmode> 1 "register_operand"     " 0,v,0,v")
 	  (match_operand:<ssehalfvecmode> 2 "nonimmediate_operand" " x,v,m,m")))]
   "TARGET_SSE"
@@ -11559,8 +11560,8 @@
    (set_attr "mode" "V4SF,V4SF,V2SF,V2SF")])
 
 (define_insn "*vec_concat<mode>_0"
-  [(set (match_operand:V4SF_V8HF 0 "register_operand"       "=v")
-	(vec_concat:V4SF_V8HF
+  [(set (match_operand:V24F_128 0 "register_operand"       "=v")
+	(vec_concat:V24F_128
 	  (match_operand:<ssehalfvecmode> 1 "nonimmediate_operand" "vm")
 	  (match_operand:<ssehalfvecmode> 2 "const0_operand")))]
   "TARGET_SSE2"
@@ -15000,7 +15001,8 @@
   "TARGET_AVX512VL")
 
 (define_mode_iterator PMOV_SRC_MODE_3 [V4DI V2DI V8SI V4SI (V8HI "TARGET_AVX512BW")])
-(define_mode_iterator PMOV_SRC_MODE_3_AVX2 [V4DI V2DI V8SI V4SI V8HI])
+(define_mode_iterator PMOV_SRC_MODE_3_AVX2
+ [(V4DI "TARGET_AVX2") V2DI (V8SI "TARGET_AVX2") V4SI V8HI])
 (define_mode_attr pmov_dst_3_lower
   [(V4DI "v4qi") (V2DI "v2qi") (V8SI "v8qi") (V4SI "v4qi") (V8HI "v8qi")])
 (define_mode_attr pmov_dst_3
@@ -15014,7 +15016,7 @@
   [(set (match_operand:<pmov_dst_3> 0 "register_operand")
 	(truncate:<pmov_dst_3>
 	  (match_operand:PMOV_SRC_MODE_3_AVX2 1 "register_operand")))]
-  "TARGET_AVX2"
+  "TARGET_SSSE3"
 {
   if (TARGET_AVX512VL
       && (<MODE>mode != V8HImode || TARGET_AVX512BW))
@@ -15390,7 +15392,7 @@
 	  (match_dup 2)))]
   "operands[0] = adjust_address_nv (operands[0], V8QImode, 0);")
 
-(define_mode_iterator PMOV_SRC_MODE_4 [V4DI V2DI V4SI])
+(define_mode_iterator PMOV_SRC_MODE_4 [(V4DI "TARGET_AVX2") V2DI V4SI])
 (define_mode_attr pmov_dst_4
   [(V4DI "V4HI") (V2DI "V2HI") (V4SI "V4HI")])
 (define_mode_attr pmov_dst_4_lower
@@ -15404,7 +15406,7 @@
   [(set (match_operand:<pmov_dst_4> 0 "register_operand")
 	(truncate:<pmov_dst_4>
 	  (match_operand:PMOV_SRC_MODE_4 1 "register_operand")))]
-  "TARGET_AVX2"
+  "TARGET_SSSE3"
 {
   if (TARGET_AVX512VL)
     {
@@ -15659,7 +15661,7 @@
   [(set (match_operand:V2SI 0 "register_operand")
 	(truncate:V2SI
 	  (match_operand:V2DI 1 "register_operand")))]
-  "TARGET_AVX2"
+  "TARGET_SSE"
 {
   if (TARGET_AVX512VL)
     {
@@ -19690,47 +19692,47 @@
 (define_insn "*<extract_type>_vinsert<shuffletype><extract_suf>_0"
   [(set (match_operand:AVX512_VEC 0 "register_operand" "=v,x,Yv")
 	(vec_merge:AVX512_VEC
-	  (match_operand:AVX512_VEC 1 "reg_or_0_operand" "v,C,C")
 	  (vec_duplicate:AVX512_VEC
-		(match_operand:<ssequartermode> 2 "nonimmediate_operand" "vm,xm,vm"))
+	    (match_operand:<ssequartermode> 1 "nonimmediate_operand" "vm,xm,vm"))
+	  (match_operand:AVX512_VEC 2 "reg_or_0_operand" "v,C,C")
 	  (match_operand:SI 3 "const_int_operand")))]
   "TARGET_AVX512F
    && (INTVAL (operands[3])
-       == (GET_MODE_UNIT_SIZE (<MODE>mode) == 4 ? 0xFFF0 : 0xFC))"
+       == (GET_MODE_UNIT_SIZE (<MODE>mode) == 4 ? 0xF : 0x3))"
 {
   if (which_alternative == 0)
-    return "vinsert<shuffletype><extract_suf>\t{$0, %2, %1, %0|%0, %1, %2, 0}";
+    return "vinsert<shuffletype><extract_suf>\t{$0, %1, %2, %0|%0, %2, %1, 0}";
   bool egpr_used = (TARGET_APX_EGPR
-		    && x86_extended_rex2reg_mentioned_p (operands[2]));
-  const char *align_templ = egpr_used ? "vmovaps\t{%2, %x0|%x0, %2}"
-				      : "vmovdqa\t{%2, %x0|%x0, %2}";
-  const char *unalign_templ = egpr_used ? "vmovups\t{%2, %x0|%x0, %2}"
-					: "vmovdqu\t{%2, %x0|%x0, %2}";
+		    && x86_extended_rex2reg_mentioned_p (operands[1]));
+  const char *align_templ = egpr_used ? "vmovaps\t{%1, %x0|%x0, %1}"
+				      : "vmovdqa\t{%1, %x0|%x0, %1}";
+  const char *unalign_templ = egpr_used ? "vmovups\t{%1, %x0|%x0, %1}"
+					: "vmovdqu\t{%1, %x0|%x0, %1}";
   switch (<MODE>mode)
     {
     case E_V8DFmode:
-      if (misaligned_operand (operands[2], <ssequartermode>mode))
-	return "vmovupd\t{%2, %x0|%x0, %2}";
+      if (misaligned_operand (operands[1], <ssequartermode>mode))
+	return "vmovupd\t{%1, %x0|%x0, %1}";
       else
-	return "vmovapd\t{%2, %x0|%x0, %2}";
+	return "vmovapd\t{%1, %x0|%x0, %1}";
     case E_V16SFmode:
-      if (misaligned_operand (operands[2], <ssequartermode>mode))
-	return "vmovups\t{%2, %x0|%x0, %2}";
+      if (misaligned_operand (operands[1], <ssequartermode>mode))
+	return "vmovups\t{%1, %x0|%x0, %1}";
       else
-	return "vmovaps\t{%2, %x0|%x0, %2}";
+	return "vmovaps\t{%1, %x0|%x0, %1}";
     case E_V8DImode:
-      if (misaligned_operand (operands[2], <ssequartermode>mode))
-	return which_alternative == 2 ? "vmovdqu64\t{%2, %x0|%x0, %2}"
+      if (misaligned_operand (operands[1], <ssequartermode>mode))
+	return which_alternative == 2 ? "vmovdqu64\t{%1, %x0|%x0, %1}"
 				      : unalign_templ;
       else
-	return which_alternative == 2 ? "vmovdqa64\t{%2, %x0|%x0, %2}"
+	return which_alternative == 2 ? "vmovdqa64\t{%1, %x0|%x0, %1}"
 				      : align_templ;
     case E_V16SImode:
-      if (misaligned_operand (operands[2], <ssequartermode>mode))
-	return which_alternative == 2 ? "vmovdqu32\t{%2, %x0|%x0, %2}"
+      if (misaligned_operand (operands[1], <ssequartermode>mode))
+	return which_alternative == 2 ? "vmovdqu32\t{%1, %x0|%x0, %1}"
 				      : unalign_templ;
       else
-	return which_alternative == 2 ? "vmovdqa32\t{%2, %x0|%x0, %2}"
+	return which_alternative == 2 ? "vmovdqa32\t{%1, %x0|%x0, %1}"
 				      : align_templ;
     default:
       gcc_unreachable ();
@@ -28573,6 +28575,26 @@
    (set_attr "memory" "store")
    (set_attr "mode" "<sseinsnmode>")])
 
+(define_insn_and_split "*<avx512>_store<mode>_mask_1"
+  [(set (match_operand:V 0 "memory_operand")
+	(unspec:V
+	  [(match_operand:V 1 "register_operand")
+	   (match_dup 0)
+	   (match_operand:<avx512fmaskmode> 2 "const0_or_m1_operand")]
+	  UNSPEC_MASKMOV))]
+  "TARGET_AVX512F && ix86_pre_reload_split ()"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  if (constm1_operand (operands[2], <MODE>mode))
+    emit_move_insn (operands[0], operands[1]);
+  else
+    emit_note (NOTE_INSN_DELETED);
+
+  DONE;
+})
+
 (define_expand "cbranch<mode>4"
   [(set (reg:CC FLAGS_REG)
 	(compare:CC (match_operand:VI_AVX_AVX512F 1 "register_operand")
@@ -31460,38 +31482,3 @@
   "TARGET_AVXVNNIINT16"
   "vpdp<vpdpwprodtype>\t{%3, %2, %0|%0, %2, %3}"
    [(set_attr "prefix" "vex")])
-
-(define_mode_attr hi_cvt_bf
-  [(V8HI "v8bf") (V16HI "v16bf") (V32HI "v32bf")])
-
-(define_mode_attr HI_CVT_BF
-  [(V8HI "V8BF") (V16HI "V16BF") (V32HI "V32BF")])
-
-(define_insn_and_split "vpermt2_sepcial_bf16_shuffle_<mode>"
-  [(set (match_operand:VI2_AVX512F 0 "register_operand")
-	(unspec:VI2_AVX512F
-	  [(match_operand:VI2_AVX512F 1 "vcvtne2ps2bf_parallel")
-	   (match_operand:VI2_AVX512F 2 "register_operand")
-	   (match_operand:VI2_AVX512F 3 "nonimmediate_operand")]
-	   UNSPEC_VPERMT2))]
-  "TARGET_AVX512VL && TARGET_AVX512BF16 && ix86_pre_reload_split ()"
-  "#"
-  "&& 1"
-  [(const_int 0)]
-{
-  rtx op0 = gen_reg_rtx (<HI_CVT_BF>mode);
-  operands[2] = lowpart_subreg (<ssePSmode>mode,
-				force_reg (<MODE>mode, operands[2]),
-				<MODE>mode);
-  operands[3] = lowpart_subreg (<ssePSmode>mode,
-				force_reg (<MODE>mode, operands[3]),
-				<MODE>mode);
-
-  emit_insn (gen_avx512f_cvtne2ps2bf16_<hi_cvt_bf>(op0,
-						   operands[3],
-						   operands[2]));
-  emit_move_insn (operands[0], lowpart_subreg (<MODE>mode, op0,
-					       <HI_CVT_BF>mode));
-  DONE;
-}
-[(set_attr "mode" "<sseinsnmode>")])

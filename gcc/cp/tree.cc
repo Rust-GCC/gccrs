@@ -1607,11 +1607,33 @@ strip_typedefs (tree t, bool *remove_attributes /* = NULL */,
   if (t == TYPE_CANONICAL (t))
     return t;
 
-  if (!(flags & STF_STRIP_DEPENDENT)
-      && dependent_alias_template_spec_p (t, nt_opaque))
-    /* DR 1558: However, if the template-id is dependent, subsequent
-       template argument substitution still applies to the template-id.  */
-    return t;
+  if (typedef_variant_p (t))
+    {
+      if ((flags & STF_USER_VISIBLE)
+	  && !user_facing_original_type_p (t))
+	return t;
+
+      if (dependent_opaque_alias_p (t))
+	return t;
+
+      if (alias_template_specialization_p (t, nt_opaque))
+	{
+	  if (dependent_alias_template_spec_p (t, nt_opaque)
+	      && !(flags & STF_STRIP_DEPENDENT))
+	    /* DR 1558: However, if the template-id is dependent, subsequent
+	       template argument substitution still applies to the template-id.  */
+	    return t;
+	}
+      else
+	/* If T is a non-template alias or typedef, we can assume that
+	   instantiating its definition will hit any substitution failure,
+	   so we don't need to retain it here as well.  */
+	flags |= STF_STRIP_DEPENDENT;
+
+      result = strip_typedefs (DECL_ORIGINAL_TYPE (TYPE_NAME (t)),
+			       remove_attributes, flags);
+      goto stripped;
+    }
 
   switch (TREE_CODE (t))
     {
@@ -1805,23 +1827,9 @@ strip_typedefs (tree t, bool *remove_attributes /* = NULL */,
     }
 
   if (!result)
-    {
-      if (typedef_variant_p (t))
-	{
-	  if ((flags & STF_USER_VISIBLE)
-	      && !user_facing_original_type_p (t))
-	    return t;
-	  /* If T is a non-template alias or typedef, we can assume that
-	     instantiating its definition will hit any substitution failure,
-	     so we don't need to retain it here as well.  */
-	  if (!alias_template_specialization_p (t, nt_opaque))
-	    flags |= STF_STRIP_DEPENDENT;
-	  result = strip_typedefs (DECL_ORIGINAL_TYPE (TYPE_NAME (t)),
-				   remove_attributes, flags);
-	}
-      else
-	result = TYPE_MAIN_VARIANT (t);
-    }
+    result = TYPE_MAIN_VARIANT (t);
+
+stripped:
   /*gcc_assert (!typedef_variant_p (result)
 	      || dependent_alias_template_spec_p (result, nt_opaque)
 	      || ((flags & STF_USER_VISIBLE)
@@ -4116,11 +4124,6 @@ cp_tree_equal (tree t1, tree t2)
       return cp_tree_equal (CI_ASSOCIATED_CONSTRAINTS (t1),
                             CI_ASSOCIATED_CONSTRAINTS (t2));
 
-    case CHECK_CONSTR:
-      return (CHECK_CONSTR_CONCEPT (t1) == CHECK_CONSTR_CONCEPT (t2)
-              && comp_template_args (CHECK_CONSTR_ARGS (t1),
-				     CHECK_CONSTR_ARGS (t2)));
-
     case TREE_VEC:
       /* These are template args.  Really we should be getting the
 	 caller to do this as it knows it to be true.  */
@@ -4637,7 +4640,9 @@ trivial_type_p (const_tree t)
   t = strip_array_types (CONST_CAST_TREE (t));
 
   if (CLASS_TYPE_P (t))
-    return (TYPE_HAS_TRIVIAL_DFLT (t)
+    /* A trivial class is a class that is trivially copyable and has one or
+       more eligible default constructors, all of which are trivial.  */
+    return (type_has_non_deleted_trivial_default_ctor (CONST_CAST_TREE (t))
 	    && trivially_copyable_p (t));
   else
     return scalarish_type_p (t);

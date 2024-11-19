@@ -802,6 +802,15 @@ gimplify_and_update_call_from_tree (gimple_stmt_iterator *si_p, tree expr)
   gsi_replace_with_seq_vops (si_p, stmts);
 }
 
+/* Print a message in the dump file recording transformation of FROM to TO.  */
+
+static void
+dump_transformation (gcall *from, gcall *to)
+{
+  if (dump_enabled_p ())
+    dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, from, "simplified %T to %T\n",
+		     gimple_call_fn (from), gimple_call_fn (to));
+}
 
 /* Replace the call at *GSI with the gimple value VAL.  */
 
@@ -835,6 +844,7 @@ static void
 replace_call_with_call_and_fold (gimple_stmt_iterator *gsi, gimple *repl)
 {
   gimple *stmt = gsi_stmt (*gsi);
+  dump_transformation (as_a <gcall *> (stmt), as_a <gcall *> (repl));
   gimple_call_set_lhs (repl, gimple_call_lhs (stmt));
   gimple_set_location (repl, gimple_location (stmt));
   gimple_move_vops (repl, stmt);
@@ -3090,16 +3100,6 @@ gimple_fold_builtin_memory_chk (gimple_stmt_iterator *gsi,
   return true;
 }
 
-/* Print a message in the dump file recording transformation of FROM to TO.  */
-
-static void
-dump_transformation (gcall *from, gcall *to)
-{
-  if (dump_enabled_p ())
-    dump_printf_loc (MSG_OPTIMIZED_LOCATIONS, from, "simplified %T to %T\n",
-		     gimple_call_fn (from), gimple_call_fn (to));
-}
-
 /* Fold a call to the __st[rp]cpy_chk builtin.
    DEST, SRC, and SIZE are the arguments to the call.
    IGNORE is true if return value can be ignored.  FCODE is the BUILT_IN_*
@@ -3189,7 +3189,6 @@ gimple_fold_builtin_stxcpy_chk (gimple_stmt_iterator *gsi,
     return false;
 
   gcall *repl = gimple_build_call (fn, 2, dest, src);
-  dump_transformation (stmt, repl);
   replace_call_with_call_and_fold (gsi, repl);
   return true;
 }
@@ -3235,7 +3234,6 @@ gimple_fold_builtin_stxncpy_chk (gimple_stmt_iterator *gsi,
     return false;
 
   gcall *repl = gimple_build_call (fn, 3, dest, src, len);
-  dump_transformation (stmt, repl);
   replace_call_with_call_and_fold (gsi, repl);
   return true;
 }
@@ -4242,7 +4240,8 @@ clear_padding_flush (clear_padding_struct *buf, bool full)
 	  i -= wordsize;
 	  continue;
 	}
-      for (size_t j = i; j < i + wordsize && j < end; j++)
+      size_t endsize = end - i > wordsize ? wordsize : end - i;
+      for (size_t j = i; j < i + endsize; j++)
 	{
 	  if (buf->buf[j])
 	    {
@@ -4271,12 +4270,12 @@ clear_padding_flush (clear_padding_struct *buf, bool full)
       if (padding_bytes)
 	{
 	  if (nonzero_first == 0
-	      && nonzero_last == wordsize
+	      && nonzero_last == endsize
 	      && all_ones)
 	    {
 	      /* All bits are padding and we had some padding
 		 before too.  Just extend it.  */
-	      padding_bytes += wordsize;
+	      padding_bytes += endsize;
 	      continue;
 	    }
 	  if (all_ones && nonzero_first == 0)
@@ -4316,7 +4315,7 @@ clear_padding_flush (clear_padding_struct *buf, bool full)
       if (nonzero_first == wordsize)
 	/* All bits in a word are 0, there are no padding bits.  */
 	continue;
-      if (all_ones && nonzero_last == wordsize)
+      if (all_ones && nonzero_last == endsize)
 	{
 	  /* All bits between nonzero_first and end of word are padding
 	     bits, start counting padding_bytes.  */
@@ -4358,7 +4357,7 @@ clear_padding_flush (clear_padding_struct *buf, bool full)
 		  j = k;
 		}
 	    }
-	  if (nonzero_last == wordsize)
+	  if (nonzero_last == endsize)
 	    padding_bytes = nonzero_last - zero_last;
 	  continue;
 	}
@@ -4832,6 +4831,7 @@ clear_padding_type (clear_padding_struct *buf, tree type,
 	  buf->off = 0;
 	  buf->size = 0;
 	  clear_padding_emit_loop (buf, elttype, end, for_auto_init);
+	  off += sz;
 	  buf->base = base;
 	  buf->sz = prev_sz;
 	  buf->align = prev_align;

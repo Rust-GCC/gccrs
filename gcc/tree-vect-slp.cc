@@ -1751,13 +1751,6 @@ vect_build_slp_tree (vec_info *vinfo,
       return NULL;
     }
 
-  /* Seed the bst_map with a stub node to be filled by vect_build_slp_tree_2
-     so we can pick up backedge destinations during discovery.  */
-  slp_tree res = new _slp_tree;
-  SLP_TREE_DEF_TYPE (res) = vect_internal_def;
-  SLP_TREE_SCALAR_STMTS (res) = stmts;
-  bst_map->put (stmts.copy (), res);
-
   /* Single-lane SLP doesn't have the chance of run-away, do not account
      it to the limit.  */
   if (stmts.length () > 1)
@@ -1767,17 +1760,18 @@ vect_build_slp_tree (vec_info *vinfo,
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_NOTE, vect_location,
 			     "SLP discovery limit exceeded\n");
-	  /* Mark the node invalid so we can detect those when still in use
-	     as backedge destinations.  */
-	  SLP_TREE_SCALAR_STMTS (res) = vNULL;
-	  SLP_TREE_DEF_TYPE (res) = vect_uninitialized_def;
-	  res->failed = XNEWVEC (bool, group_size);
-	  memset (res->failed, 0, sizeof (bool) * group_size);
 	  memset (matches, 0, sizeof (bool) * group_size);
 	  return NULL;
 	}
       --*limit;
     }
+
+  /* Seed the bst_map with a stub node to be filled by vect_build_slp_tree_2
+     so we can pick up backedge destinations during discovery.  */
+  slp_tree res = new _slp_tree;
+  SLP_TREE_DEF_TYPE (res) = vect_internal_def;
+  SLP_TREE_SCALAR_STMTS (res) = stmts;
+  bst_map->put (stmts.copy (), res);
 
   if (dump_enabled_p ())
     dump_printf_loc (MSG_NOTE, vect_location,
@@ -3363,6 +3357,10 @@ vect_build_slp_instance (vec_info *vinfo,
 			 /* ???  We need stmt_info for group splitting.  */
 			 stmt_vec_info stmt_info_)
 {
+  /* If there's no budget left bail out early.  */
+  if (*limit == 0)
+    return false;
+
   if (kind == slp_inst_kind_ctor)
     {
       if (dump_enabled_p ())
@@ -3520,7 +3518,7 @@ vect_build_slp_instance (vec_info *vinfo,
 
   stmt_vec_info stmt_info = stmt_info_;
   /* Try to break the group up into pieces.  */
-  if (kind == slp_inst_kind_store)
+  if (*limit > 0 && kind == slp_inst_kind_store)
     {
       /* ???  We could delay all the actual splitting of store-groups
 	 until after SLP discovery of the original group completed.
@@ -6554,36 +6552,13 @@ vect_slp_analyze_node_operations_1 (vec_info *vinfo, slp_tree node,
 {
   stmt_vec_info stmt_info = SLP_TREE_REPRESENTATIVE (node);
 
-  /* Calculate the number of vector statements to be created for the
-     scalar stmts in this node.  For SLP reductions it is equal to the
-     number of vector statements in the children (which has already been
-     calculated by the recursive call).  Otherwise it is the number of
-     scalar elements in one scalar iteration (DR_GROUP_SIZE) multiplied by
-     VF divided by the number of elements in a vector.  */
-  if (SLP_TREE_CODE (node) != VEC_PERM_EXPR
-      && !STMT_VINFO_DATA_REF (stmt_info)
-      && REDUC_GROUP_FIRST_ELEMENT (stmt_info))
-    {
-      for (unsigned i = 0; i < SLP_TREE_CHILDREN (node).length (); ++i)
-	if (SLP_TREE_DEF_TYPE (SLP_TREE_CHILDREN (node)[i]) == vect_internal_def)
-	  {
-	    SLP_TREE_NUMBER_OF_VEC_STMTS (node)
-	      = SLP_TREE_NUMBER_OF_VEC_STMTS (SLP_TREE_CHILDREN (node)[i]);
-	    break;
-	  }
-    }
-  else
-    {
-      poly_uint64 vf;
-      if (loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (vinfo))
-	vf = loop_vinfo->vectorization_factor;
-      else
-	vf = 1;
-      unsigned int group_size = SLP_TREE_LANES (node);
-      tree vectype = SLP_TREE_VECTYPE (node);
-      SLP_TREE_NUMBER_OF_VEC_STMTS (node)
-	= vect_get_num_vectors (vf * group_size, vectype);
-    }
+  /* Calculate the number of vector statements to be created for the scalar
+     stmts in this node.  It is the number of scalar elements in one scalar
+     iteration (DR_GROUP_SIZE) multiplied by VF divided by the number of
+     elements in a vector.  For single-defuse-cycle, lane-reducing op, and
+     PHI statement that starts reduction comprised of only lane-reducing ops,
+     the number is more than effective vector statements actually required.  */
+  SLP_TREE_NUMBER_OF_VEC_STMTS (node) = vect_get_num_copies (vinfo, node);
 
   /* Handle purely internal nodes.  */
   if (SLP_TREE_CODE (node) == VEC_PERM_EXPR)
@@ -6851,12 +6826,9 @@ vect_slp_analyze_node_operations (vec_info *vinfo, slp_tree node,
 			  && j == 1);
 	      continue;
 	    }
-	  unsigned group_size = SLP_TREE_LANES (child);
-	  poly_uint64 vf = 1;
-	  if (loop_vec_info loop_vinfo = dyn_cast <loop_vec_info> (vinfo))
-	    vf = loop_vinfo->vectorization_factor;
+
 	  SLP_TREE_NUMBER_OF_VEC_STMTS (child)
-	    = vect_get_num_vectors (vf * group_size, vector_type);
+		= vect_get_num_copies (vinfo, child);
 	  /* And cost them.  */
 	  vect_prologue_cost_for_slp (child, cost_vec);
 	}

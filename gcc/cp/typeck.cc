@@ -1658,8 +1658,17 @@ structural_comptypes (tree t1, tree t2, int strict)
     return false;
 
  check_alias:
-  if (comparing_dependent_aliases)
+  if (comparing_dependent_aliases
+      && (typedef_variant_p (t1) || typedef_variant_p (t2)))
     {
+      tree dep1 = dependent_opaque_alias_p (t1) ? t1 : NULL_TREE;
+      tree dep2 = dependent_opaque_alias_p (t2) ? t2 : NULL_TREE;
+      if ((dep1 || dep2)
+	  && (!(dep1 && dep2)
+	      || !comp_type_attributes (DECL_ATTRIBUTES (TYPE_NAME (dep1)),
+					DECL_ATTRIBUTES (TYPE_NAME (dep2)))))
+	return false;
+
       /* Don't treat an alias template specialization with dependent
 	 arguments as equivalent to its underlying type when used as a
 	 template argument; we need them to be distinct so that we
@@ -1667,8 +1676,8 @@ structural_comptypes (tree t1, tree t2, int strict)
 	 time.  And aliases can't be equivalent without being ==, so
 	 we don't need to look any deeper.  */
       ++processing_template_decl;
-      tree dep1 = dependent_alias_template_spec_p (t1, nt_transparent);
-      tree dep2 = dependent_alias_template_spec_p (t2, nt_transparent);
+      dep1 = dependent_alias_template_spec_p (t1, nt_transparent);
+      dep2 = dependent_alias_template_spec_p (t2, nt_transparent);
       --processing_template_decl;
       if ((dep1 || dep2) && dep1 != dep2)
 	return false;
@@ -3542,7 +3551,7 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	  afi.maybe_suggest_accessor (TYPE_READONLY (object_type));
 	  if (member == NULL_TREE)
 	    {
-	      if (dependent_type_p (object_type))
+	      if (dependentish_scope_p (object_type))
 		/* Try again at instantiation time.  */
 		goto dependent;
 	      if (complain & tf_error)
@@ -4346,6 +4355,18 @@ cp_build_function_call_nary (tree function, tsubst_flags_t complain, ...)
   return ret;
 }
 
+/* C++ implementation of callback for use when checking param types.  */
+
+bool
+cp_comp_parm_types (tree wanted_type, tree actual_type)
+{
+  if (TREE_CODE (wanted_type) == POINTER_TYPE
+      && TREE_CODE (actual_type) == POINTER_TYPE)
+    return same_or_base_type_p (TREE_TYPE (wanted_type),
+				TREE_TYPE (actual_type));
+  return false;
+}
+
 /* Build a function call using a vector of arguments.
    If FUNCTION is the result of resolving an overloaded target built-in,
    ORIG_FNDECL is the original function decl, otherwise it is null.
@@ -4457,7 +4478,8 @@ cp_build_function_call_vec (tree function, vec<tree, va_gc> **params,
   /* Check for errors in format strings and inappropriately
      null parameters.  */
   bool warned_p = check_function_arguments (input_location, fndecl, fntype,
-					    nargs, argarray, NULL);
+					    nargs, argarray, NULL,
+					    cp_comp_parm_types);
 
   ret = build_cxx_call (function, nargs, argarray, complain, orig_fndecl);
 
@@ -10380,7 +10402,10 @@ convert_for_assignment (tree type, tree rhs,
 	      else
 		{
 		  range_label_for_type_mismatch label (rhstype, type);
-		  gcc_rich_location richloc (rhs_loc, has_loc ? &label : NULL);
+		  gcc_rich_location richloc
+		    (rhs_loc,
+		     has_loc ? &label : NULL,
+		     has_loc ? highlight_colors::percent_h : NULL);
 		  auto_diagnostic_group d;
 
 		  switch (errtype)
@@ -11414,24 +11439,13 @@ check_return_expr (tree retval, bool *no_warning, bool *dangling)
 
   /* Actually copy the value returned into the appropriate location.  */
   if (retval && retval != result)
-    {
-      /* If there's a postcondition for a scalar return value, wrap
-	 retval in a call to the postcondition function.  */
-      if (tree post = apply_postcondition_to_return (retval))
-	retval = post;
-      retval = cp_build_init_expr (result, retval);
-    }
+    retval = cp_build_init_expr (result, retval);
 
   if (current_function_return_value == bare_retval)
     INIT_EXPR_NRV_P (retval) = true;
 
   if (tree set = maybe_set_retval_sentinel ())
     retval = build2 (COMPOUND_EXPR, void_type_node, retval, set);
-
-  /* If there's a postcondition for an aggregate return value, call the
-     postcondition function after the return object is initialized.  */
-  if (tree post = apply_postcondition_to_return (result))
-    retval = build2 (COMPOUND_EXPR, void_type_node, retval, post);
 
   return retval;
 }

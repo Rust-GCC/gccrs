@@ -2033,6 +2033,18 @@ same size and number of elements as @var{mode}, if such a mode exists.",
  (machine_mode mode),
  default_get_mask_mode)
 
+/* Function to say whether a conditional operation is expensive when
+   compared to non-masked operations.  */
+DEFHOOK
+(conditional_operation_is_expensive,
+ "This hook returns true if masked operation @var{ifn} (really of\n\
+type @code{internal_fn}) should be considered more expensive to use than\n\
+implementing the same operation without masking.  GCC can then try to use\n\
+unconditional operations instead with extra selects.",
+ bool,
+ (unsigned ifn),
+ default_conditional_operation_is_expensive)
+
 /* Function to say whether a masked operation is expensive when the
    mask is all zeros.  */
 DEFHOOK
@@ -3350,6 +3362,19 @@ is either a declaration of type int or accessed by dereferencing\n\
 a pointer to int.",
  bool, (ao_ref *ref),
  default_ref_may_alias_errno)
+
+DEFHOOK
+(mode_can_transfer_bits,
+ "Define this to return false if the mode @var{mode} cannot be used\n\
+for memory copying of @code{GET_MODE_SIZE (mode)} units.  This might be\n\
+because a register class allowed for @var{mode} has registers that do\n\
+not transparently transfer every bit pattern or because the load or\n\
+store patterns available for @var{mode} have this issue.\n\
+\n\
+The default is to assume modes with the same precision as size are fine\n\
+to be used.",
+ bool, (machine_mode mode),
+ NULL)
 
 /* Support for named address spaces.  */
 #undef HOOK_PREFIX

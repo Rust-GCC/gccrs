@@ -3234,6 +3234,41 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
       && types_match (type, @0, @1))))
 
+/* Unsigned saturation sub with op_0 imm, case 9 (branch with gt):
+   SAT_U_SUB = IMM > Y  ? (IMM - Y) : 0.
+             = IMM >= Y ? (IMM - Y) : 0.  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (cond^ (le @1 INTEGER_CST@2) (minus INTEGER_CST@0 @1) integer_zerop)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+     && types_match (type, @1))
+ (with
+  {
+   unsigned precision = TYPE_PRECISION (type);
+   wide_int max = wi::mask (precision, false, precision);
+   wide_int c0 = wi::to_wide (@0);
+   wide_int c2 = wi::to_wide (@2);
+   wide_int c2_add_1 = wi::add (c2, wi::uhwi (1, precision));
+   bool equal_p = wi::eq_p (c0, c2);
+   bool less_than_1_p = !wi::eq_p (c2, max) && wi::eq_p (c2_add_1, c0);
+  }
+  (if (equal_p || less_than_1_p)))))
+
+/* Unsigned saturation sub with op_1 imm, case 10:
+   SAT_U_SUB = X > IMM  ? (X - IMM) : 0.
+             = X >= IMM ? (X - IMM) : 0.  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (plus (max @0 INTEGER_CST@1) INTEGER_CST@2)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+     && types_match (type, @1))
+ (with
+  {
+   unsigned precision = TYPE_PRECISION (type);
+   wide_int c1 = wi::to_wide (@1);
+   wide_int c2 = wi::to_wide (@2);
+   wide_int sum = wi::add (c1, c2);
+  }
+  (if (wi::eq_p (sum, wi::uhwi (0, precision)))))))
+
 /* Unsigned saturation truncate, case 1, sizeof (WT) > sizeof (NT).
    SAT_U_TRUNC = (NT)x | (NT)(-(X > (WT)(NT)(-1))).  */
 (match (unsigned_integer_sat_trunc @0)
@@ -3252,10 +3287,21 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 
 /* Unsigned saturation truncate, case 2, sizeof (WT) > sizeof (NT).
    SAT_U_TRUNC = (NT)(MIN_EXPR (X, 255)).  */
+/* If Op_0 def is MIN_EXPR and not single_use.  Aka below pattern:
+
+     _18 = MIN_EXPR <left_8, 4294967295>; // op_0 def
+     iftmp.0_11 = (unsigned int) _18;     // op_0
+     stream.avail_out = iftmp.0_11;
+     left_37 = left_8 - _18;              // op_0 use
+
+   Transfer to .SAT_TRUNC will have MIN_EXPR still live.  Then the backend
+   (for example x86/riscv) will have 2-3 more insns generation for .SAT_TRUNC
+   besides the MIN_EXPR.  Thus,  keep the normal truncation as is should be
+   the better choose.  */
 (match (unsigned_integer_sat_trunc @0)
- (convert (min @0 INTEGER_CST@1))
+ (convert (min@2 @0 INTEGER_CST@1))
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
-      && TYPE_UNSIGNED (TREE_TYPE (@0)))
+      && TYPE_UNSIGNED (TREE_TYPE (@0)) && single_use (@2))
  (with
   {
    unsigned itype_precision = TYPE_PRECISION (TREE_TYPE (@0));
@@ -4171,30 +4217,39 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    Likewise, handle (X<<C3) and X as legitimate variants of X*C.  */
 (for op (bit_ior bit_xor)
  (simplify
-  (op (mult:s@0 @1 INTEGER_CST@2)
-      (mult:s@3 @1 INTEGER_CST@4))
-  (if (INTEGRAL_TYPE_P (type) && TYPE_OVERFLOW_WRAPS (type)
-       && (tree_nonzero_bits (@0) & tree_nonzero_bits (@3)) == 0)
-   (mult @1
-	 { wide_int_to_tree (type, wi::to_wide (@2) + wi::to_wide (@4)); })))
+  (op (nop_convert?:s@6 (mult:s@0 (nop_convert? @1) INTEGER_CST@2))
+      (nop_convert?:s@7 (mult:s@3 (nop_convert? @5) INTEGER_CST@4)))
+  (if (INTEGRAL_TYPE_P (type)
+       && operand_equal_p (@1, @5, 0)
+       && (tree_nonzero_bits (@6) & tree_nonzero_bits (@7)) == 0)
+   (with { tree t = type;
+	   if (!TYPE_OVERFLOW_WRAPS (t))
+	     t = unsigned_type_for (t);
+	   wide_int c = wi::add (wi::to_wide (@2), wi::to_wide (@4)); }
+    (convert (mult:t (convert:t @1) { wide_int_to_tree (t, c); })))))
  (simplify
-  (op:c (mult:s@0 @1 INTEGER_CST@2)
+  (op:c (nop_convert?:s@5 (mult:s@0 (nop_convert? @1) INTEGER_CST@2))
 	(lshift:s@3 @1 INTEGER_CST@4))
-  (if (INTEGRAL_TYPE_P (type) && TYPE_OVERFLOW_WRAPS (type)
+  (if (INTEGRAL_TYPE_P (type)
        && tree_int_cst_sgn (@4) > 0
-       && (tree_nonzero_bits (@0) & tree_nonzero_bits (@3)) == 0)
-   (with { wide_int wone = wi::one (TYPE_PRECISION (type));
+       && (tree_nonzero_bits (@5) & tree_nonzero_bits (@3)) == 0)
+   (with { tree t = type;
+	   if (!TYPE_OVERFLOW_WRAPS (t))
+	     t = unsigned_type_for (t);
+	   wide_int wone = wi::one (TYPE_PRECISION (type));
 	   wide_int c = wi::add (wi::to_wide (@2),
 				 wi::lshift (wone, wi::to_wide (@4))); }
-    (mult @1 { wide_int_to_tree (type, c); }))))
+    (convert (mult:t (convert:t @1) { wide_int_to_tree (t, c); })))))
  (simplify
-  (op:c (mult:s@0 @1 INTEGER_CST@2)
+  (op:c (nop_convert?:s@3 (mult:s@0 (nop_convert? @1) INTEGER_CST@2))
 	@1)
-  (if (INTEGRAL_TYPE_P (type) && TYPE_OVERFLOW_WRAPS (type)
-       && (tree_nonzero_bits (@0) & tree_nonzero_bits (@1)) == 0)
-   (mult @1
-	 { wide_int_to_tree (type,
-			     wi::add (wi::to_wide (@2), 1)); })))
+  (if (INTEGRAL_TYPE_P (type)
+       && (tree_nonzero_bits (@3) & tree_nonzero_bits (@1)) == 0)
+   (with { tree t = type;
+	   if (!TYPE_OVERFLOW_WRAPS (t))
+	     t = unsigned_type_for (t);
+	   wide_int c = wi::add (wi::to_wide (@2), 1); }
+    (convert (mult:t (convert:t @1) { wide_int_to_tree (t, c); })))))
  (simplify
   (op (lshift:s@0 @1 INTEGER_CST@2)
       (lshift:s@3 @1 INTEGER_CST@4))
@@ -5577,6 +5632,23 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (vec_cond (bit_and (bit_not @0) @1) @2 @3)))
 #endif
 
+/* (a ? x : y) != (b ? x : y) --> (a^b) ? TRUE  : FALSE */
+/* (a ? x : y) == (b ? x : y) --> (a^b) ? FALSE : TRUE  */
+/* (a ? x : y) != (b ? y : x) --> (a^b) ? FALSE : TRUE  */
+/* (a ? x : y) == (b ? y : x) --> (a^b) ? TRUE  : FALSE */
+(for cnd (cond vec_cond)
+ (for eqne (eq ne)
+  (simplify
+   (eqne:c (cnd @0 @1 @2) (cnd @3 @1 @2))
+    (if (types_match (TREE_TYPE (@0), TREE_TYPE (@3)))
+     (cnd (bit_xor @0 @3) { constant_boolean_node (eqne == NE_EXPR, type); }
+      { constant_boolean_node (eqne != NE_EXPR, type); })))
+  (simplify
+   (eqne:c (cnd @0 @1 @2) (cnd @3 @2 @1))
+    (if (types_match (TREE_TYPE (@0), TREE_TYPE (@3)))
+     (cnd (bit_xor @0 @3) { constant_boolean_node (eqne != NE_EXPR, type); }
+      { constant_boolean_node (eqne == NE_EXPR, type); })))))
+
 /* Canonicalize mask ? { 0, ... } : { -1, ...} to ~mask if the mask
    types are compatible.  */
 (simplify
@@ -6838,13 +6910,13 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
        tree itype = TREE_TYPE (@0);
        format_helper fmt (REAL_MODE_FORMAT (TYPE_MODE (TREE_TYPE (@1))));
        const REAL_VALUE_TYPE *cst = TREE_REAL_CST_PTR (@1);
-       /* Be careful to preserve any potential exceptions due to
-	  NaNs.  qNaNs are ok in == or != context.
-	  TODO: relax under -fno-trapping-math or
-	  -fno-signaling-nans.  */
-       bool exception_p
-         = real_isnan (cst) && (cst->signalling
-				|| (cmp != EQ_EXPR && cmp != NE_EXPR));
+       /* Be careful to preserve any potential exceptions due to NaNs.
+	  qNaNs are ok in == or != context.  */
+       bool exception_p = real_isnan (cst)
+			  && flag_trapping_math
+			  && ((cmp != EQ_EXPR && cmp != NE_EXPR)
+			      || (cst->signalling
+				  && HONOR_SNANS (TREE_TYPE (@1))));
      }
      /* TODO: allow non-fitting itype and SNaNs when
 	-fno-trapping-math.  */
@@ -9032,6 +9104,12 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 
 /* CTZ simplifications.  */
 (for ctz (CTZ)
+ /* ctz (-X) => ctz (X).  ctz (abs (X)) => ctz (X).  */
+ (for op (negate abs)
+  (simplify
+   (ctz (nop_convert?@0 (op @1)))
+    (with { tree t = TREE_TYPE (@0); }
+     (ctz (convert:t @1)))))
  (for op (ge gt le lt)
       cmp (eq eq ne ne)
   (simplify

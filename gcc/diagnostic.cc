@@ -261,6 +261,7 @@ diagnostic_context::initialize (int n_opts)
   m_includes_seen = nullptr;
   m_client_data_hooks = nullptr;
   m_diagrams.m_theme = nullptr;
+  m_original_argv = nullptr;
 
   enum diagnostic_text_art_charset text_art_charset
     = DIAGNOSTICS_TEXT_ART_CHARSET_EMOJI;
@@ -345,6 +346,14 @@ initialize_input_context (diagnostic_input_charset_callback ccb,
 void
 diagnostic_context::finish ()
 {
+  /* We might be handling a fatal error.
+     Close any active diagnostic groups, which may trigger flushing
+     the output format.  */
+  while (m_diagnostic_groups.m_nesting_depth > 0)
+    end_group ();
+
+  /* Clean ups.  */
+
   delete m_output_format;
   m_output_format= nullptr;
 
@@ -385,6 +394,9 @@ diagnostic_context::finish ()
 
   delete m_urlifier;
   m_urlifier = nullptr;
+
+  freeargv (m_original_argv);
+  m_original_argv = nullptr;
 }
 
 void
@@ -401,6 +413,19 @@ diagnostic_context::set_client_data_hooks (diagnostic_client_data_hooks *hooks)
   /* Ideally we'd use a std::unique_ptr here.  */
   delete m_client_data_hooks;
   m_client_data_hooks = hooks;
+}
+
+void
+diagnostic_context::set_original_argv (unique_argv original_argv)
+{
+  /* Ideally we'd use a unique_argv for m_original_argv, but
+     diagnostic_context doesn't yet have a ctor/dtor pair.  */
+
+  // Ensure any old value is freed
+  freeargv (m_original_argv);
+
+  // Take ownership of the new value
+  m_original_argv = original_argv.release ();
 }
 
 void
@@ -1379,6 +1404,11 @@ diagnostic_context::report_diagnostic (diagnostic_info *diagnostic)
 
   gcc_assert (m_output_format);
 
+  /* Every call to report_diagnostic should be within a
+     begin_group/end_group pair so that output formats can reliably
+     flush diagnostics with on_end_group when the topmost group is ended.  */
+  gcc_assert (m_diagnostic_groups.m_nesting_depth > 0);
+
   /* Give preference to being able to inhibit warnings, before they
      get reclassified to something else.  */
   bool was_warning = (diagnostic->kind == DK_WARNING
@@ -1800,7 +1830,7 @@ diagnostic_text_output_format::on_diagram (const diagnostic_diagram &diagram)
    file-based output formats.  */
 
 void
-diagnostic_output_format_init (diagnostic_context *context,
+diagnostic_output_format_init (diagnostic_context &context,
 			       const char *main_input_filename_,
 			       const char *base_file_name,
 			       enum diagnostics_output_format format,
@@ -1827,12 +1857,14 @@ diagnostic_output_format_init (diagnostic_context *context,
 
     case DIAGNOSTICS_OUTPUT_FORMAT_SARIF_STDERR:
       diagnostic_output_format_init_sarif_stderr (context,
+						  line_table,
 						  main_input_filename_,
 						  json_formatting);
       break;
 
     case DIAGNOSTICS_OUTPUT_FORMAT_SARIF_FILE:
       diagnostic_output_format_init_sarif_file (context,
+						line_table,
 						main_input_filename_,
 						json_formatting,
 						base_file_name);

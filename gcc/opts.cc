@@ -2963,7 +2963,8 @@ common_handle_option (struct gcc_options *opts,
 	{
 	  const char *basename = (opts->x_dump_base_name ? opts->x_dump_base_name
 				  : opts->x_main_input_basename);
-	  diagnostic_output_format_init (dc,
+	  gcc_assert (dc);
+	  diagnostic_output_format_init (*dc,
 					 opts->x_main_input_filename, basename,
 					 (enum diagnostics_output_format)value,
 					 opts->x_flag_diagnostics_json_formatting);
@@ -2990,6 +2991,10 @@ common_handle_option (struct gcc_options *opts,
 
     case OPT_fdiagnostics_escape_format_:
       dc->set_escape_format ((enum diagnostics_escape_format)value);
+      break;
+
+    case OPT_fdiagnostics_show_highlight_colors:
+      dc->set_show_highlight_colors (value);
       break;
 
     case OPT_fdiagnostics_show_cwe:
@@ -3822,6 +3827,7 @@ gen_command_line_string (cl_decoded_option *options,
       case OPT_grecord_gcc_switches:
       case OPT_frecord_gcc_switches:
       case OPT__output_pch:
+      case OPT_fdiagnostics_show_highlight_colors:
       case OPT_fdiagnostics_show_location_:
       case OPT_fdiagnostics_show_option:
       case OPT_fdiagnostics_show_caret:

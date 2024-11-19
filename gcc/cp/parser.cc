@@ -2467,7 +2467,7 @@ static tree cp_parser_perform_range_for_lookup
 static tree cp_parser_range_for_member_function
   (tree, tree);
 static tree cp_parser_jump_statement
-  (cp_parser *);
+  (cp_parser *, tree &);
 static void cp_parser_declaration_statement
   (cp_parser *);
 
@@ -2600,7 +2600,7 @@ static tree cp_parser_type_id_1
 static void cp_parser_type_specifier_seq
   (cp_parser *, cp_parser_flags, bool, bool, cp_decl_specifier_seq *);
 static tree cp_parser_parameter_declaration_clause
-  (cp_parser *, cp_parser_flags);
+  (cp_parser *, cp_parser_flags, bool);
 static tree cp_parser_parameter_declaration_list
   (cp_parser *, cp_parser_flags, auto_vec<tree> *);
 static cp_parameter_declarator *cp_parser_parameter_declaration
@@ -3888,7 +3888,8 @@ cp_parser_diagnose_invalid_type_name (cp_parser *parser, tree id,
       else if (TYPE_P (parser->scope))
 	{
 	  auto_diagnostic_group d;
-	  if (!COMPLETE_TYPE_P (parser->scope))
+	  if (!COMPLETE_TYPE_P (parser->scope)
+	      && !currently_open_class (parser->scope))
 	    cxx_incomplete_type_error (location_of (id), NULL_TREE,
 				       parser->scope);
 	  else if (cp_lexer_next_token_is (parser->lexer, CPP_LESS))
@@ -9241,6 +9242,14 @@ cp_parser_unary_expression (cp_parser *parser, cp_id_kind * pidk,
 	    if (expr == error_mark_node)
 	      return error_mark_node;
 
+	    /* ... but, we cannot use co_await in default arguments.  */
+	    if (parser->local_variables_forbidden_p & LOCAL_VARS_FORBIDDEN)
+	      {
+		error_at (kw_loc,
+			  "%<co_await%> cannot be used in default arguments");
+		return error_mark_node;
+	      }
+
 	    /* Handle [expr.await].  */
 	    return cp_expr (finish_co_await_expr (kw_loc, expr));
 	  }
@@ -11888,7 +11897,7 @@ cp_parser_lambda_declarator_opt (cp_parser* parser, tree lambda_expr)
       /* Parse parameters.  */
       param_list
 	= cp_parser_parameter_declaration_clause
-	    (parser, CP_PARSER_FLAGS_TYPENAME_OPTIONAL);
+	    (parser, CP_PARSER_FLAGS_TYPENAME_OPTIONAL, /*lambda_p=*/true);
 
       /* Default arguments shall not be specified in the
 	 parameter-declaration-clause of a lambda-declarator.  */
@@ -12756,7 +12765,7 @@ cp_parser_statement (cp_parser* parser, tree in_statement_expr,
 	case RID_CO_RETURN:
 	case RID_GOTO:
 	  std_attrs = process_stmt_hotness_attribute (std_attrs, attrs_loc);
-	  statement = cp_parser_jump_statement (parser);
+	  statement = cp_parser_jump_statement (parser, std_attrs);
 	  break;
 
 	  /* Objective-C++ exception-handling constructs.  */
@@ -14844,10 +14853,11 @@ cp_parser_init_statement (cp_parser *parser, tree *decl)
    jump-statement:
      goto * expression ;
 
+   STD_ATTRS are the statement attributes. They can be modified.
    Returns the new BREAK_STMT, CONTINUE_STMT, RETURN_EXPR, or GOTO_EXPR.  */
 
 static tree
-cp_parser_jump_statement (cp_parser* parser)
+cp_parser_jump_statement (cp_parser* parser, tree &std_attrs)
 {
   tree statement = error_mark_node;
   cp_token *token;
@@ -14924,6 +14934,31 @@ cp_parser_jump_statement (cp_parser* parser)
 	  /* If the next token is a `;', then there is no
 	     expression.  */
 	  expr = NULL_TREE;
+
+	if (keyword == RID_RETURN)
+	  {
+	    bool musttail_p = false;
+	    if (lookup_attribute ("gnu", "musttail", std_attrs))
+	      {
+		musttail_p = true;
+		std_attrs = remove_attribute ("gnu", "musttail", std_attrs);
+	      }
+	    /* Support this for compatibility.  */
+	    if (lookup_attribute ("clang", "musttail", std_attrs))
+	      {
+		musttail_p = true;
+		std_attrs = remove_attribute ("clang", "musttail", std_attrs);
+	      }
+
+	    tree ret_expr = expr;
+	    if (ret_expr && TREE_CODE (ret_expr) == TARGET_EXPR)
+	      ret_expr = TARGET_EXPR_INITIAL (ret_expr);
+	    if (ret_expr && TREE_CODE (ret_expr) == AGGR_INIT_EXPR)
+	      AGGR_INIT_EXPR_MUST_TAIL (ret_expr) = musttail_p;
+	    else
+	      set_musttail_on_return (expr, token->location, musttail_p);
+	  }
+
 	/* Build the return-statement, check co-return first, since type
 	   deduction is not valid there.  */
 	if (keyword == RID_CO_RETURN)
@@ -17514,7 +17549,10 @@ cp_parser_conversion_function_id (cp_parser* parser)
 
      In order to see that `I' is a type-name in the definition, we
      must be in the scope of `S'.  */
-  if (saved_scope)
+  if (saved_scope
+      /* In A<T>::operator I(), we don't want to enter A<T> if we're
+	 in an expression rather than declaration context.  */
+      && adjust_type_for_entering_scope (saved_scope) == saved_scope)
     pushed_scope = push_scope (saved_scope);
   /* Parse the conversion-type-id.  */
   type = cp_parser_conversion_type_id (parser);
@@ -20756,9 +20794,13 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 	}
 
       /* If it didn't work out, we don't have a TYPE.  */
-      if ((flags & CP_PARSER_FLAGS_OPTIONAL)
-	  && !cp_parser_parse_definitely (parser))
-	type = NULL_TREE;
+      if (flags & CP_PARSER_FLAGS_OPTIONAL)
+	{
+	  if (!type)
+	    cp_parser_simulate_error (parser);
+	  if (!cp_parser_parse_definitely (parser))
+	    type = NULL_TREE;
+	}
 
       /* Keep track of all name-lookups performed in class scopes.  */
       if (type
@@ -24063,7 +24105,8 @@ cp_parser_direct_declarator (cp_parser* parser,
 
 	      /* Parse the parameter-declaration-clause.  */
 	      params
-		= cp_parser_parameter_declaration_clause (parser, flags);
+		= cp_parser_parameter_declaration_clause (parser, flags,
+							  /*lambda_p=*/false);
 	      const location_t parens_end
 		= cp_lexer_peek_token (parser->lexer)->location;
 
@@ -25410,13 +25453,17 @@ function_being_declared_is_template_p (cp_parser* parser)
 
    The parser flags FLAGS is used to control type-specifier parsing.
 
+   LAMBDA_P is true if this is the parameter-declaration-clause of
+   a lambda-declarator.
+
    Returns a representation for the parameter declarations.  A return
    value of NULL indicates a parameter-declaration-clause consisting
    only of an ellipsis.  */
 
 static tree
 cp_parser_parameter_declaration_clause (cp_parser* parser,
-					cp_parser_flags flags)
+					cp_parser_flags flags,
+					bool lambda_p)
 {
   tree parameters;
   cp_token *token;
@@ -25425,15 +25472,15 @@ cp_parser_parameter_declaration_clause (cp_parser* parser,
   auto cleanup = make_temp_override
     (parser->auto_is_implicit_function_template_parm_p);
 
-  if (!processing_specialization
-      && !processing_template_parmlist
-      && !processing_explicit_instantiation
-      /* default_arg_ok_p tracks whether this is a parameter-clause for an
-         actual function or a random abstract declarator.  */
-      && parser->default_arg_ok_p)
-    if (!current_function_decl
-	|| (current_class_type && LAMBDA_TYPE_P (current_class_type)))
-      parser->auto_is_implicit_function_template_parm_p = true;
+  if (lambda_p
+      || (!processing_specialization
+	  && !processing_template_parmlist
+	  && !processing_explicit_instantiation
+	  /* default_arg_ok_p tracks whether this is a parameter-clause for an
+	     actual function or a random abstract declarator.  */
+	  && parser->default_arg_ok_p
+	  && !current_function_decl))
+    parser->auto_is_implicit_function_template_parm_p = true;
 
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
@@ -29612,6 +29659,15 @@ cp_parser_yield_expression (cp_parser* parser)
   else
     expr = cp_parser_assignment_expression (parser);
 
+  /* Similar to co_await, we cannot use co_yield in default arguments (as
+     co_awaits underlie co_yield).  */
+  if (parser->local_variables_forbidden_p & LOCAL_VARS_FORBIDDEN)
+    {
+      error_at (kw_loc,
+		"%<co_yield%> cannot be used in default arguments");
+      return error_mark_node;
+    }
+
   if (expr == error_mark_node)
     return expr;
 
@@ -31709,7 +31765,8 @@ cp_parser_requirement_parameter_list (cp_parser *parser)
     return error_mark_node;
 
   tree parms = (cp_parser_parameter_declaration_clause
-		(parser, CP_PARSER_FLAGS_TYPENAME_OPTIONAL));
+		(parser, CP_PARSER_FLAGS_TYPENAME_OPTIONAL,
+		 /*lambda_p=*/false));
 
   if (!parens.require_close (parser))
     return error_mark_node;
@@ -32219,7 +32276,7 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
       /* If the scope is a dependent type and either we deferred lookup or
 	 we did lookup but didn't find the name, rememeber the name.  */
       if (decl == error_mark_node && TYPE_P (parser->scope)
-	  && dependent_type_p (parser->scope))
+	  && dependentish_scope_p (parser->scope))
 	{
 	  if (tag_type)
 	    {

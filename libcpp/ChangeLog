@@ -1,3 +1,41 @@
+2024-07-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/110343
+	* lex.cc: C++26 P2558R2 - Add @, $, and ` to the basic character set.
+	(lex_raw_string): For C++26 allow $@` characters in prefix.
+	* charset.cc (_cpp_valid_ucn): For C++26 reject \u0024 in identifiers.
+
+2024-07-24  David Malcolm  <dmalcolm@redhat.com>
+
+	* include/rich-location.h
+	(semi_embedded_vec::semi_embedded_vec): Add copy ctor.
+	(rich_location::rich_location): Remove "= delete" from decl of
+	copy ctor.  Add deleted decl of move ctor.
+	(rich_location::operator=): Remove "= delete" from decl of
+	copy assignment.  Add deleted decl of move assignment.
+	(fixit_hint::fixit_hint): Add copy ctor decl.  Add deleted decl of
+	move.
+	(fixit_hint::operator=): Add copy assignment decl.  Add deleted
+	decl of move assignment.
+	* line-map.cc (rich_location::rich_location): New copy ctor.
+	(fixit_hint::fixit_hint): New copy ctor.
+
+2024-07-13  David Malcolm  <dmalcolm@redhat.com>
+
+	* include/rich-location.h (location_range::m_highlight_color): New
+	field.
+	(rich_location::rich_location): Add optional label_highlight_color
+	param.
+	(rich_location::set_highlight_color): New decl.
+	(rich_location::add_range): Add optional label_highlight_color
+	param.
+	(rich_location::set_range): Likewise.
+	* line-map.cc (rich_location::rich_location): Add
+	"label_highlight_color" param and pass it to add_range.
+	(rich_location::set_highlight_color): New.
+	(rich_location::add_range): Add "label_highlight_color" param.
+	(rich_location::set_range): Add "highlight_color" param.
+
 2024-06-21  David Malcolm  <dmalcolm@redhat.com>
 
 	PR testsuite/109360

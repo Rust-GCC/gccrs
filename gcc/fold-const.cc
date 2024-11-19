@@ -4123,7 +4123,7 @@ operand_compare::hash_operand (const_tree t, inchash::hash &hstate,
 		hash_operand (TREE_OPERAND (t, 0), one, flags);
 		hash_operand (TREE_OPERAND (t, 1), two, flags);
 		hstate.add_commutative (one, two);
-		hash_operand (TREE_OPERAND (t, 2), two, flags);
+		hash_operand (TREE_OPERAND (t, 2), hstate, flags);
 		return;
 	      }
 
@@ -5003,6 +5003,9 @@ decode_field_reference (location_t loc, tree *exp_, HOST_WIDE_INT *pbitsize,
       || *pbitsize < 0
       || offset != 0
       || TREE_CODE (inner) == PLACEHOLDER_EXPR
+      /* We eventually want to build a larger reference and need to take
+	 the address of this.  */
+      || (!REFERENCE_CLASS_P (inner) && !DECL_P (inner))
       /* Reject out-of-bound accesses (PR79731).  */
       || (! AGGREGATE_TYPE_P (TREE_TYPE (inner))
 	  && compare_tree_int (TYPE_SIZE (TREE_TYPE (inner)),
@@ -8097,16 +8100,17 @@ native_encode_vector_part (const_tree expr, unsigned char *ptr, int len,
       unsigned int elts_per_byte = BITS_PER_UNIT / elt_bits;
       unsigned int first_elt = off * elts_per_byte;
       unsigned int extract_elts = extract_bytes * elts_per_byte;
+      unsigned int elt_mask = (1 << elt_bits) - 1;
       for (unsigned int i = 0; i < extract_elts; ++i)
 	{
 	  tree elt = VECTOR_CST_ELT (expr, first_elt + i);
 	  if (TREE_CODE (elt) != INTEGER_CST)
 	    return 0;
 
-	  if (ptr && wi::extract_uhwi (wi::to_wide (elt), 0, 1))
+	  if (ptr && integer_nonzerop (elt))
 	    {
 	      unsigned int bit = i * elt_bits;
-	      ptr[bit / BITS_PER_UNIT] |= 1 << (bit % BITS_PER_UNIT);
+	      ptr[bit / BITS_PER_UNIT] |= elt_mask << (bit % BITS_PER_UNIT);
 	    }
 	}
       return extract_bytes;

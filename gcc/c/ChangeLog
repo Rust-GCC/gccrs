@@ -1,3 +1,69 @@
+2024-07-23  Andi Kleen  <ak@linux.intel.com>
+
+	PR c/83324
+	* c-parser.cc (struct attr_state): Define with musttail_p.
+	(c_parser_statement_after_labels): Handle [[musttail]].
+	(c_parser_std_attribute): Dito.
+	(c_parser_handle_musttail): Dito.
+	(c_parser_compound_statement_nostart): Dito.
+	(c_parser_all_labels): Dito.
+	(c_parser_statement): Dito.
+	* c-tree.h (c_finish_return): Add musttail_p flag.
+	* c-typeck.cc (c_finish_return): Handle musttail_p flag.
+
+2024-07-20  Andi Kleen  <ak@gcc.gnu.org>
+
+	Revert:
+	2024-07-20  Andi Kleen  <ak@linux.intel.com>
+
+	PR c/83324
+	* c-parser.cc (struct attr_state): Define with musttail_p.
+	(c_parser_statement_after_labels): Handle [[musttail]].
+	(c_parser_std_attribute): Dito.
+	(c_parser_handle_musttail): Dito.
+	(c_parser_compound_statement_nostart): Dito.
+	(c_parser_all_labels): Dito.
+	(c_parser_statement): Dito.
+	* c-tree.h (c_finish_return): Add musttail_p flag.
+	* c-typeck.cc (c_finish_return): Handle musttail_p flag.
+
+2024-07-20  Andi Kleen  <ak@linux.intel.com>
+
+	PR c/83324
+	* c-parser.cc (struct attr_state): Define with musttail_p.
+	(c_parser_statement_after_labels): Handle [[musttail]].
+	(c_parser_std_attribute): Dito.
+	(c_parser_handle_musttail): Dito.
+	(c_parser_compound_statement_nostart): Dito.
+	(c_parser_all_labels): Dito.
+	(c_parser_statement): Dito.
+	* c-tree.h (c_finish_return): Add musttail_p flag.
+	* c-typeck.cc (c_finish_return): Handle musttail_p flag.
+
+2024-07-14  Alejandro Colomar  <alx@kernel.org>
+
+	PR c/115185
+	* c-typeck.cc (digest_init): Separate warnings about character
+	arrays being initialized as unterminated character sequences
+	with string literals, from -Wc++-compat, into a new warning,
+	-Wunterminated-string-initialization.
+
+2024-07-13  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-objc-common.cc: Include "tree-pretty-print-markup.h".
+	(print_type): Add optional "highlight_color" param and use it
+	to show highlight colors in "aka" text.
+	(pp_markup::element_quoted_type::print_type): New.
+	* c-typeck.cc: Include "tree-pretty-print-markup.h".
+	(comp_parm_types): New.
+	(build_function_call_vec): Pass it to check_function_arguments.
+	(inform_for_arg): Use %e and highlight colors to contrast actual
+	versus expected.
+	(convert_for_assignment): Use highlight_colors::actual for the
+	rhs_label.
+	(build_binary_op): Use highlight_colors::lhs and highlight_colors::rhs
+	for the ranges.
+
 2024-07-10  Marek Polacek  <polacek@redhat.com>
 
 	PR c/115642

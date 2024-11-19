@@ -1820,8 +1820,11 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 		if (k->aux && k->aux->link_key)
 		  {
 		    /* Set link pointer on target to the device address of the
-		       mapped object.  */
-		    void *tgt_addr = (void *) (tgt->tgt_start + k->tgt_offset);
+		       mapped object.  Also deal with offsets due to
+		       array-section mapping.  */
+		    void *tgt_addr = (void *) (tgt->tgt_start + k->tgt_offset
+					       - (k->host_start
+						  - k->aux->link_key->host_start));
 		    /* We intentionally do not use coalescing here, as it's not
 		       data allocated by the current call to this function.  */
 		    gomp_copy_host2dev (devicep, aq, (void *) n->tgt_offset,
@@ -4352,6 +4355,8 @@ gomp_target_task_fn (void *data)
   return false;
 }
 
+/* Implement OpenMP 'teams' construct, legacy entry point.  */
+
 void
 GOMP_teams (unsigned int num_teams, unsigned int thread_limit)
 {
@@ -4363,6 +4368,13 @@ GOMP_teams (unsigned int num_teams, unsigned int thread_limit)
     }
   (void) num_teams;
 }
+
+/* Implement OpenMP 'teams' construct.
+
+   Initialize upon FIRST call.  Return whether this invocation is active.
+   Depending on whether NUM_TEAMS_LOW asks for more teams than are provided
+   in hardware, we may need to loop multiple times; in that case make sure to
+   update the team-level variable used by 'omp_get_team_num'.  */
 
 bool
 GOMP_teams4 (unsigned int num_teams_low, unsigned int num_teams_high,

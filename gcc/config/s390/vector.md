@@ -27,14 +27,9 @@
    V2SF V4SF V1DF V2DF V1TF V1TI TI])
 
 ; All modes directly supported by the hardware having full vector reg size
-; V_HW2 is for having two iterators expanding independently e.g. vcond.
-; It's similar to V_HW, but not fully identical: V1TI is not included, because
-; there are no 128-bit compares.
-(define_mode_iterator V_HW  [V16QI V8HI V4SI V2DI (V1TI "TARGET_VXE") V2DF
+(define_mode_iterator V_HW  [V16QI V8HI V4SI V2DI V1TI TI V2DF
 			     (V4SF "TARGET_VXE") (V1TF "TARGET_VXE")
 			     (TF "TARGET_VXE")])
-(define_mode_iterator V_HW2 [V16QI V8HI V4SI V2DI V2DF (V4SF "TARGET_VXE")
-			     (V1TF "TARGET_VXE") (TF "TARGET_VXE")])
 
 (define_mode_iterator VT_HW_HSDT [V8HI V4SI V4SF V2DI V2DF V1TI V1TF TI TF])
 (define_mode_iterator V_HW_HSD [V8HI V4SI (V4SF "TARGET_VXE") V2DI V2DF])
@@ -50,6 +45,7 @@
 (define_mode_iterator VI_HW_HSDT [V8HI V4SI V2DI V1TI TI])
 (define_mode_iterator VI_HW_HS  [V8HI  V4SI])
 (define_mode_iterator VI_HW_QH  [V16QI V8HI])
+(define_mode_iterator VI_HW_T   [V1TI TI])
 
 ; Directly supported vector modes with a certain number of elements
 (define_mode_iterator V_HW_2   [V2DI V2DF])
@@ -136,7 +132,7 @@
 			(V1TI "q") (TI "q")
 			(V1SF "f") (V2SF "f") (V4SF "f")
 			(V1DF "g") (V2DF "g")
-			(V1TF "q")])
+			(V1TF "q") (TF "q")])
 
 ; This is for vmalhw. It gets an 'w' attached to avoid confusion with
 ; multiply and add logical high vmalh.
@@ -151,7 +147,7 @@
 			    (V1HI "V1HI") (V2HI "V2HI") (V4HI "V4HI") (V8HI "V8HI")
 			    (V1SI "V1SI") (V2SI "V2SI") (V4SI "V4SI")
 			    (V1DI "V1DI") (V2DI "V2DI")
-			    (V1TI "V1TI")
+			    (V1TI "V1TI") (TI "V1TI")
 			    (V1SF "V1SI") (V2SF "V2SI") (V4SF "V4SI")
 			    (V1DF "V1DI") (V2DF "V2DI")
 			    (V1TF "V1TI") (TF "V1TI")])
@@ -160,7 +156,7 @@
 			    (V1HI "v1hi") (V2HI "v2hi") (V4HI "v4hi") (V8HI "v8hi")
 			    (V1SI "v1si") (V2SI "v2si") (V4SI "v4si")
 			    (V1DI "v1di") (V2DI "v2di")
-			    (V1TI "v1ti")
+			    (V1TI "v1ti") (TI "v1ti")
 			    (V1SF "v1si") (V2SF "v2si") (V4SF "v4si")
 			    (V1DF "v1di") (V2DF "v2di")
 			    (V1TF "v1ti") (TF   "v1ti")])
@@ -728,43 +724,13 @@
     }
 })
 
-(define_expand "vcond<V_HW:mode><V_HW2:mode>"
-  [(set (match_operand:V_HW 0 "register_operand" "")
-	(if_then_else:V_HW
-	 (match_operator 3 "vcond_comparison_operator"
-			 [(match_operand:V_HW2 4 "register_operand" "")
-			  (match_operand:V_HW2 5 "nonmemory_operand" "")])
-	 (match_operand:V_HW 1 "nonmemory_operand" "")
-	 (match_operand:V_HW 2 "nonmemory_operand" "")))]
-  "TARGET_VX && GET_MODE_NUNITS (<V_HW:MODE>mode) == GET_MODE_NUNITS (<V_HW2:MODE>mode)"
-{
-  s390_expand_vcond (operands[0], operands[1], operands[2],
-		     GET_CODE (operands[3]), operands[4], operands[5]);
-  DONE;
-})
-
-(define_expand "vcondu<V_HW:mode><V_HW2:mode>"
-  [(set (match_operand:V_HW 0 "register_operand" "")
-	(if_then_else:V_HW
-	 (match_operator 3 "comparison_operator"
-			 [(match_operand:V_HW2 4 "register_operand" "")
-			  (match_operand:V_HW2 5 "nonmemory_operand" "")])
-	 (match_operand:V_HW 1 "nonmemory_operand" "")
-	 (match_operand:V_HW 2 "nonmemory_operand" "")))]
-  "TARGET_VX && GET_MODE_NUNITS (<V_HW:MODE>mode) == GET_MODE_NUNITS (<V_HW2:MODE>mode)"
-{
-  s390_expand_vcond (operands[0], operands[1], operands[2],
-		     GET_CODE (operands[3]), operands[4], operands[5]);
-  DONE;
-})
-
 (define_expand "vcond_mask_<mode><tointvec>"
-  [(set (match_operand:V 0 "register_operand" "")
-	(if_then_else:V
+  [(set (match_operand:VT 0 "register_operand" "")
+	(if_then_else:VT
 	 (eq (match_operand:<TOINTVEC> 3 "register_operand" "")
 	     (match_dup 4))
-	 (match_operand:V 2 "register_operand" "")
-	 (match_operand:V 1 "register_operand" "")))]
+	 (match_operand:VT 2 "register_operand" "")
+	 (match_operand:VT 1 "register_operand" "")))]
   "TARGET_VX"
   "operands[4] = CONST0_RTX (<TOINTVEC>mode);")
 
@@ -1960,11 +1926,11 @@
   DONE;
 })
 
-(define_expand "vec_cmpu<VI_HW:mode><VI_HW:mode>"
-  [(set (match_operand:VI_HW    0 "register_operand" "")
-	(match_operator:VI_HW   1 ""
-	  [(match_operand:VI_HW 2 "register_operand" "")
-	   (match_operand:VI_HW 3 "register_operand" "")]))]
+(define_expand "vec_cmpu<VIT_HW:mode><VIT_HW:mode>"
+  [(set (match_operand:VIT_HW    0 "register_operand" "")
+	(match_operator:VIT_HW   1 ""
+	  [(match_operand:VIT_HW 2 "register_operand" "")
+	   (match_operand:VIT_HW 3 "register_operand" "")]))]
   "TARGET_VX"
 {
   s390_expand_vec_compare (operands[0], GET_CODE(operands[1]), operands[2], operands[3]);
@@ -1978,6 +1944,94 @@
   "TARGET_VX"
   "vc<VICMP_HW_OP:insn_cmp_op><VI:bhfgq>\t%v2,%v0,%v1"
   [(set_attr "op_type" "VRR")])
+
+(define_insn_and_split "*vec_cmpeq<mode><mode>_nocc_emu"
+  [(set (match_operand:VI_HW_T             0 "register_operand" "=v")
+	(eq:VI_HW_T (match_operand:VI_HW_T 1 "register_operand"  "v")
+		    (match_operand:VI_HW_T 2 "register_operand"  "v")))]
+  "TARGET_VX"
+  "#"
+  "&& can_create_pseudo_p ()"
+  [(set (match_dup 3)
+	(eq:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(vec_select:V2DI (match_dup 3) (parallel [(const_int 1) (const_int 0)])))
+   (set (match_dup 3)
+	(and:V2DI (match_dup 3) (match_dup 4)))
+   (set (match_dup 0)
+	(subreg:<MODE> (match_dup 3) 0))]
+{
+  operands[1] = simplify_gen_subreg (V2DImode, operands[1], <MODE>mode, 0);
+  operands[2] = simplify_gen_subreg (V2DImode, operands[2], <MODE>mode, 0);
+  operands[3] = gen_reg_rtx (V2DImode);
+  operands[4] = gen_reg_rtx (V2DImode);
+})
+
+(define_insn_and_split "*vec_cmpgt<mode><mode>_nocc_emu"
+  [(set (match_operand:VI_HW_T             0 "register_operand" "=v")
+	(gt:VI_HW_T (match_operand:VI_HW_T 1 "register_operand"  "v")
+		    (match_operand:VI_HW_T 2 "register_operand"  "v")))]
+  "TARGET_VX"
+  "#"
+  "&& can_create_pseudo_p ()"
+  [(set (match_dup 3)
+	(gt:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(eq:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 5)
+	(gtu:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 5)
+	(vec_select:V2DI (match_dup 5) (parallel [(const_int 1) (const_int 0)])))
+   (set (match_dup 4)
+	(and:V2DI (match_dup 4) (match_dup 5)))
+   (set (match_dup 4)
+	(ior:V2DI (match_dup 3) (match_dup 4)))
+   (set (match_dup 4)
+	(vec_duplicate:V2DI
+	 (vec_select:DI
+	  (match_dup 4)
+	  (parallel [(const_int 1)]))))
+   (set (match_dup 0)
+	(subreg:<MODE> (match_dup 4) 0))]
+{
+  operands[1] = simplify_gen_subreg (V2DImode, operands[1], <MODE>mode, 0);
+  operands[2] = simplify_gen_subreg (V2DImode, operands[2], <MODE>mode, 0);
+  operands[3] = gen_reg_rtx (V2DImode);
+  operands[4] = gen_reg_rtx (V2DImode);
+  operands[5] = gen_reg_rtx (V2DImode);
+})
+
+(define_insn_and_split "*vec_cmpgtu<mode><mode>_nocc_emu"
+  [(set (match_operand:VI_HW_T              0 "register_operand" "=v")
+	(gtu:VI_HW_T (match_operand:VI_HW_T 1 "register_operand"  "v")
+		     (match_operand:VI_HW_T 2 "register_operand"  "v")))]
+  "TARGET_VX"
+  "#"
+  "&& can_create_pseudo_p ()"
+  [(set (match_dup 3)
+	(gtu:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(eq:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 5)
+	(vec_select:V2DI (match_dup 3) (parallel [(const_int 1) (const_int 0)])))
+   (set (match_dup 4)
+	(and:V2DI (match_dup 4) (match_dup 5)))
+   (set (match_dup 4)
+	(ior:V2DI (match_dup 3) (match_dup 4)))
+   (set (match_dup 4)
+	(vec_duplicate:V2DI
+	 (vec_select:DI
+	  (match_dup 4)
+	  (parallel [(const_int 1)]))))
+   (set (match_dup 0)
+	(subreg:<MODE> (match_dup 4) 0))]
+{
+  operands[1] = simplify_gen_subreg (V2DImode, operands[1], <MODE>mode, 0);
+  operands[2] = simplify_gen_subreg (V2DImode, operands[2], <MODE>mode, 0);
+  operands[3] = gen_reg_rtx (V2DImode);
+  operands[4] = gen_reg_rtx (V2DImode);
+  operands[5] = gen_reg_rtx (V2DImode);
+})
 
 
 ;;
@@ -2315,12 +2369,12 @@
 
 ; op0 = op3 == 0 ? op1 : op2
 (define_insn "*vec_sel0<mode>"
-  [(set (match_operand:V 0 "register_operand" "=v")
-	(if_then_else:V
+  [(set (match_operand:VT 0 "register_operand" "=v")
+	(if_then_else:VT
 	 (eq (match_operand:<TOINTVEC> 3 "register_operand" "v")
 	     (match_operand:<TOINTVEC> 4 "const0_operand" ""))
-	 (match_operand:V 1 "register_operand" "v")
-	 (match_operand:V 2 "register_operand" "v")))]
+	 (match_operand:VT 1 "register_operand" "v")
+	 (match_operand:VT 2 "register_operand" "v")))]
   "TARGET_VX"
   "vsel\t%v0,%2,%1,%3"
   [(set_attr "op_type" "VRR")])

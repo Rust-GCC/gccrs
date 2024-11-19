@@ -118,12 +118,6 @@ void do_concat (void)
   d[0][0] = __builtin_vsx_concat_2df (x, y);
 }
 
-void do_set (void)
-{
-  d[0][0] = __builtin_vsx_set_2df (d[0][1], x, 0);
-  d[1][0] = __builtin_vsx_set_2df (d[1][1], y, 1);
-}
-
 extern double z[][4];
 
 int do_math (void)
@@ -156,13 +150,27 @@ int do_cmp (void)
 {
   int i = 0;
 
-  d[i][0] = __builtin_vsx_xvcmpeqdp (d[i][1], d[i][2]); i++;
-  d[i][0] = __builtin_vsx_xvcmpgtdp (d[i][1], d[i][2]); i++;
-  d[i][0] = __builtin_vsx_xvcmpgedp (d[i][1], d[i][2]); i++;
+  /* The __builtin_vsx_xvcmp[gt|ge|eq]dp and __builtin_vsx_xvcmp[gt|ge|eq]sp
+     have been removed in favor of the overloaded vec_cmpeq, vec_cmpgt and
+     vec_cmpge built-ins.  The __builtin_vsx_xvcmp* builtins returned a vector
+     result of the same type as the arguments.  The vec_cmp* built-ins return
+     a vector of boolenas of the same size as the arguments.  Thus the result
+     assignment must be to a boolean or cast to a boolean.  Test both cases.
+  */
+     
+  d[i][0] = (vector double) vec_cmpeq (d[i][1], d[i][2]); i++;
+  d[i][0] = (vector double) vec_cmpgt (d[i][1], d[i][2]); i++;
+  d[i][0] = (vector double) vec_cmpge (d[i][1], d[i][2]); i++;
+  bl[i][0] = vec_cmpeq (d[i][1], d[i][2]); i++;
+  bl[i][0] = vec_cmpgt (d[i][1], d[i][2]); i++;
+  bl[i][0] = vec_cmpge (d[i][1], d[i][2]); i++;
 
-  f[i][0] = __builtin_vsx_xvcmpeqsp (f[i][1], f[i][2]); i++;
-  f[i][0] = __builtin_vsx_xvcmpgtsp (f[i][1], f[i][2]); i++;
-  f[i][0] = __builtin_vsx_xvcmpgesp (f[i][1], f[i][2]); i++;
+  f[i][0] = (vector float) vec_cmpeq (f[i][1], f[i][2]); i++;
+  f[i][0] = (vector float) vec_cmpgt (f[i][1], f[i][2]); i++;
+  f[i][0] = (vector float) vec_cmpge (f[i][1], f[i][2]); i++;
+  bi[i][0] = vec_cmpeq (f[i][1], f[i][2]); i++;
+  bi[i][0] = vec_cmpgt (f[i][1], f[i][2]); i++;
+  bi[i][0] = vec_cmpge (f[i][1], f[i][2]); i++;
   return i;
 }
 

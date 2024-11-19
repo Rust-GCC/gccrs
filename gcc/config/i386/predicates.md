@@ -825,6 +825,11 @@
   (and (match_code "const_int")
        (match_test "op == constm1_rtx")))
 
+;; Match 0 or -1.
+(define_predicate "const0_or_m1_operand"
+  (ior (match_operand 0 "const0_operand")
+       (match_operand 0 "constm1_operand")))
+
 ;; Match exactly eight.
 (define_predicate "const8_operand"
   (and (match_code "const_int")
@@ -2325,16 +2330,5 @@
       && XINT (XEXP (op, 0), 1) == UNSPEC_GOTNTPOFF)
     return false;
 
-  return true;
-})
-
-;; Check that each element is odd and incrementally increasing from 1
-(define_predicate "vcvtne2ps2bf_parallel"
-  (and (match_code "const_vector")
-       (match_code "const_int" "a"))
-{
-  for (int i = 0; i < XVECLEN (op, 0); ++i)
-    if (INTVAL (XVECEXP (op, 0, i)) != (2 * i + 1))
-      return false;
   return true;
 })

@@ -1,3 +1,613 @@
+2024-07-31  François Dumont  <frs.dumont@gmail.com>
+
+	* testsuite/23_containers/map/operators/1_neg.cc (test01): Add test variable
+	declaration.
+	* testsuite/23_containers/set/operators/1_neg.cc (test01): Likewise.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++20/format.cc [!_GLIBCXX_HAS_GTHREADS] (mutex): Define
+	dummy mutex type.
+	* testsuite/std/time/format_localized.cc: Use loop variable
+	instead of creating the same locale on every iteration.
+
+2024-07-31  Sam James  <sam@gentoo.org>
+
+	* testsuite/28_regex/traits/char/translate.cc: Drop bogus 'dg_do run'.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++11/system_error.cc (strerror_string): Handle
+	non-conforming NULL return from strerror.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/lib/libstdc++.exp (check_v3_target_namedlocale):
+	Only append "@euro" to ".ISO8859-15" locales for Glibc.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/version.def (format): Update value for C++26.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (runtime_format, wruntime_format): Check
+	__cpp_lib_format instead of __cplusplus.
+	* testsuite/std/format/functions/format.cc: Update expected
+	value of macro for C++26 mode.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/110356
+	* include/bits/c++config (_GLIBCXX26_DEPRECATED): Define.
+	(_GLIBCXX26_DEPRECATED_SUGGEST): Define.
+	* include/bits/version.def (format): Update for C++26.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (basic_format_arg::visit): New member
+	functions.
+	(visit_format_arg): Add deprecated attribute.
+	* testsuite/std/format/arguments/args.cc: Expect deprecated
+	warnings. Check member visit.
+	* testsuite/std/format/functions/format.cc: Update expected
+	value for __cpp_lib_format macro.
+	* testsuite/std/format/parse_ctx.cc: Add dg-warning for
+	deprecation.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/110356
+	* include/bits/version.def (variant): Update for C++26.
+	* include/bits/version.h: Regenerate.
+	* include/std/variant (variant::visit): New member functions.
+	* testsuite/20_util/variant/visit.cc: Check second alternative.
+	* testsuite/20_util/variant/visit_member.cc: New test.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115776
+	* include/bits/version.def (format): Update for C++26.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (basic_format_parse_context): Remove
+	default argument from constructor and split into two
+	constructors. Make the constructor taking size_t private for
+	C++26 and later.
+	(basic_format_parse_context::check_dynamic_spec): New member
+	function template.
+	(basic_format_parse_context::check_dynamic_spec_integral): New
+	member function.
+	(basic_format_parse_context::check_dynamic_spec_string):
+	Likewise.
+	(__format::_Spec::_S_parse_width_or_precision): Use
+	check_dynamic_spec_integral.
+	(__format::__to_arg_t_enum): New helper function.
+	(basic_format_arg):  Declare __to_arg_t_enum as friend.
+	(__format::_Scanner): Define and use a derived parse context
+	type.
+	(__format::_Checking_scanner): Make arg types available to parse
+	context.
+	* testsuite/std/format/functions/format.cc: Check for new values
+	of __cpp_lib_format macro.
+	* testsuite/std/format/parse_ctx.cc: Check all members of
+	basic_format_parse_context.
+	* testsuite/std/format/parse_ctx_neg.cc: New test.
+	* testsuite/std/format/string.cc: Add more checks for dynamic
+	width and precision args.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/version.def (format): Update value for P2510R3.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (_GLIBCXX_P2518R3): Remove misspelled macro
+	and check __glibcxx_format instead.
+	* testsuite/std/format/functions/format.cc: Check value of the
+	__cpp_lib_format macro for formatting pointers support.
+	* testsuite/std/format/parse_ctx.cc: Likewise.
+
+2024-07-31  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/109162
+	* acinclude.m4 (libtool_VERSION): Update to 6:34:0.
+	* config/abi/pre/gnu.ver: Disambiguate old patters. Add new
+	GLIBCXX_3.4.34 symbol version and new exports.
+	* configure: Regenerate.
+	* include/bits/chrono_io.h (_ChronoSpec::_M_locale_specific):
+	Add new accessor functions to use a reserved bit in _Spec.
+	(__formatter_chrono::_M_parse): Use _M_locale_specific(true)
+	when chrono-specs contains locale-dependent conversion
+	specifiers.
+	(__formatter_chrono::_M_format): Open iconv descriptor if
+	conversion to UTF-8 will be needed.
+	(__formatter_chrono::_M_write): New function to write a
+	localized string with possible character conversion.
+	(__formatter_chrono::_M_a_A, __formatter_chrono::_M_b_B)
+	(__formatter_chrono::_M_p, __formatter_chrono::_M_r)
+	(__formatter_chrono::_M_x, __formatter_chrono::_M_X)
+	(__formatter_chrono::_M_locale_fmt): Use _M_write.
+	* include/bits/version.def (format): Update value.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (_GLIBCXX_P2518R3): Check feature test
+	macro instead of __cplusplus.
+	(basic_format_context): Declare __formatter_chrono as friend.
+	* src/c++20/Makefile.am: Add new file.
+	* src/c++20/Makefile.in: Regenerate.
+	* src/c++20/format.cc: New file.
+	* testsuite/std/time/format_localized.cc: New test.
+	* testsuite/util/testsuite_abi.cc: Add new symbol version.
+
+2024-07-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono_io.h (__local_time_fmt_for): New alias
+	template.
+	(formatter<zoned_time<D, P>>): Use __local_time_fmt_for.
+	* testsuite/std/time/zoned_time/io.cc: Check zoned_time<minutes>
+	can be formatted.
+
+2024-07-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono_io.h (__local_fmt_t): Remove unused
+	declaration.
+	(__formatter_chrono::_M_format_to_ostream): Add explicit
+	handling for specializations of __local_time_fmt, including the
+	time zone abbreviation in the output if __is_neg is true.
+	(formatter<chrono::tai_time<D>>::format): Add comment.
+	(formatter<chrono::gps_time<D>>::format): Likewise.
+	(formatter<chrono::__detail::__local_time_fmt::format): Call
+	_M_format with true for the __is_neg flag.
+	* testsuite/std/time/clock/gps/io.cc: Remove unused variable.
+	* testsuite/std/time/clock/local/io.cc: Fix test error that
+	checked tai_time instead of local_time. Add tests for
+	local-time-format-t formatting.
+	* testsuite/std/time/clock/system/io.cc: Check empty
+	chrono-specs.
+	* testsuite/std/time/clock/tai/io.cc: Likewise.
+	* testsuite/std/time/zoned_time/io.cc: Likewise.
+
+2024-07-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/expected (expected(U&&), operator=(U&&))
+	(value_or): Use remove_cv_t on default template argument, as per
+	LWG 3886.
+	* include/std/optional (optional(U&&), operator=(U&&))
+	(value_or): Likewise.
+	* testsuite/20_util/expected/lwg3886.cc: New test.
+	* testsuite/20_util/optional/cons/lwg3886.cc: New test.
+
+2024-07-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++17/fs_ops.cc: Fix file name in comment.
+
+2024-07-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++17/fs_ops.cc (auto_win_file_handle): Change constructor
+	parameter from const path& to const wchar_t*.
+	(fs::equiv_files): New function.
+	(fs::equivalent): Use equiv_files.
+	* src/filesystem/ops-common.h (fs::equiv_files): Declare.
+	(do_copy_file): Use equiv_files.
+	* src/filesystem/ops.cc (fs::equiv_files): Define.
+	(fs::copy, fs::equivalent): Use equiv_files.
+	* testsuite/27_io/filesystem/operations/copy.cc: Test
+	overwriting directory contents recursively.
+	* testsuite/27_io/filesystem/operations/copy_file.cc: Test
+	overwriting existing files.
+
+2024-07-30  Lennox Shou Hao Ho  <lennoxhoe@gmail.com>
+
+	PR libstdc++/113663
+	* src/c++17/fs_ops.cc (fs::equivalent): Moved helper class
+	auto_handle to anonymous namespace as auto_win_file_handle.
+	(fs::hard_link_count): Changed Windows implementation to use
+	information provided by GetFileInformationByHandle which is more
+	reliable.
+	* testsuite/27_io/filesystem/operations/hard_link_count.cc: New
+	test.
+
+2024-07-29  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/lib/libstdc++.exp (file-io-diff): Polish.
+
+2024-07-28  Sam James  <sam@gentoo.org>
+
+	PR libstdc++/110572
+	* testsuite/18_support/type_info/110572.cc: Fix dg-do directive order.
+
+2024-07-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/charconv (__to_chars_16, __to_chars_10)
+	(__to_chars_8, __to_chars_2, __to_chars): Cast ptrdiff_t to
+	size_t for comparison.
+	(__to_chars_i): Check for first >= last instead of first == last
+	for initial sanity check.
+
+2024-07-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/std_function.h: Add comment about LWG 3617 being
+	supported.
+
+2024-07-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_algobase.h (__find_if): Remove overloads for
+	dispatching on iterator_category. Do not unroll loop manually.
+	* include/bits/stl_algo.h (__find_if_not): Remove
+	iterator_category argument from __find_if call.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/expected (expected::value): Add assertions for LWG
+	3843 requirements.
+	(expected<cv void, E>::value): Add assertions for LWG 3940
+	requirements.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/format (basic_format_args): Remove default
+	constructor, as per LWG 4106.
+	* testsuite/std/format/arguments/args.cc: Check it isn't default
+	constructible.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/utility.h (_Swallow_assign): Make assignment
+	constexpr for C++11 as well, and add noexcept.
+	* include/std/tuple (_Swallow_assign, ignore): Move to
+	bits/utility.h.
+	* testsuite/20_util/headers/utility/ignore.cc: New test.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/optional: Reorder parameters in comparison
+	operators as per LWG 2945.
+
+2024-07-25  Patrick Palka  <ppalka@redhat.com>
+
+	PR libstdc++/116038
+	* include/std/functional (_Bind_front::operator()): Use __like_t
+	instead of std::forward when forwarding __self.
+	(_Bind_back::operator()): Likewise.
+	* include/std/ranges (_Partial::operator()): Likewise.
+	(_Pipe::operator()): Likewise.
+	* testsuite/20_util/function_objects/bind_back/116038.cc: New test.
+	* testsuite/20_util/function_objects/bind_front/116038.cc: New test.
+	* testsuite/std/ranges/adaptors/116038.cc: New test.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/expected (bad_expected_access<void>): Add noexcept
+	to special member functions, as per LWG 4031.
+	* testsuite/20_util/expected/bad.cc: Check for nothrow copy and
+	move members.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/optional (optional): Use C++20 features to
+	simplify overload sets for constructors and assignment
+	operators.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/optional (optional): Constrain constructors to
+	prevent problematic bool conversions, as per LWG 3836.
+	* testsuite/20_util/optional/cons/lwg3836.cc: New test.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/expected (expected): Constrain constructors to
+	prevent problematic bool conversions, as per LWG 3836.
+	* testsuite/20_util/expected/lwg3836.cc: New test.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/optional (_Optional_payload_base::_Storage)
+	[C++20]: Define constrained non-trivial destructor.
+	(_Optional_payload_base::_Storage<U, false>) [C++20]: Do not
+	define partial specialization when primary template has
+	constrained destructor.
+	(_Optional_base) [C++20]: Define constrained trivial copy and
+	move cons and move constructors. Define payload accessors here
+	instead of inheriting them from _Optional_base_impl.
+	(_Optional_base_impl, _Optional_base<T, false, true>)
+	(_Optional_base<T, true, false>, _Optional_base<T, true, true>)
+	[C++20]: Do not define.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/optional (optional): Add using-declaraction for
+	_Base::_M_get and declare optional<U> as friend.
+	(optional(const optional<U>&)): Use
+	_M_get instead of operator*.
+	(optional(optional<U>&&)): Likewise.
+	(operator=(const optional<U>&)): Likewise.
+	(operator=(optional<U>&&)): Likewise.
+	(and_then, tansform): Likewise.
+
+2024-07-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/optional (_Optional_base_impl::_M_get()): Move
+	assertions to ...
+	(optional::operator->, optional::operator*): ... here.
+
+2024-07-25  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	* testsuite/lib/libstdc++.exp (v3_target_compile): Call
+	string trim on v3_target_compile before calling split.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/116070
+	* include/std/istream: Check feature test macro before using
+	is_class_v and is_same_v.
+	* include/std/ostream: Likewise.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/116070
+	* include/bits/stl_bvector.h: Check feature test macro before
+	using is_default_constructible_v.
+
+2024-07-24  Michael Levine  <mlevine55@bloomberg.net>
+
+	* include/bits/ranges_algobase.h: Remove duplicate include of
+	<bits/stl_algobase.h>.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/12048
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-1.cc: Move to...
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12048-1.cc: ...here.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-2.cc: Move to...
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12048-2.cc: ...here.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-3.cc: Move to...
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12048-3.cc: ...here.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-4.cc: Move to...
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12048-4.cc: ...here.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/lib/libstdc++.exp (libstdc++_init): Do not copy all
+	data files into test directory.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/20_util/hash/chi2_q_document_words.cc: Use
+	dg-additional-files for input text.
+	* testsuite/performance/ext/pb_ds/all_text_find.cc: Likewise.
+	* testsuite/performance/ext/pb_ds/multimap_text_find.hpp:
+	Likewise.
+	* testsuite/performance/ext/pb_ds/multimap_text_insert.hpp:
+	Likewise.
+	* testsuite/performance/ext/pb_ds/multimap_text_insert_mem.hpp:
+	Likewise.
+	* testsuite/performance/ext/pb_ds/priority_queue_text_join.cc:
+	Likewise.
+	* testsuite/performance/ext/pb_ds/priority_queue_text_modify.hpp: Likewise.
+	* testsuite/performance/ext/pb_ds/priority_queue_text_pop_mem.cc: Likewise.
+	* testsuite/performance/ext/pb_ds/priority_queue_text_push.cc:
+	Likewise.
+	* testsuite/performance/ext/pb_ds/priority_queue_text_push_pop.cc: Likewise.
+	* testsuite/performance/ext/pb_ds/tree_text_insert.cc: Likewise.
+	* testsuite/performance/ext/pb_ds/tree_text_lor_find.cc:
+	Likewise.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/25_algorithms/advance/istreambuf_iterators/char/2.cc:
+	Use dg-additional-files.
+	* testsuite/25_algorithms/advance/istreambuf_iterators/wchar_t/2.cc:
+	Likewise.
+	* testsuite/25_algorithms/copy/streambuf_iterators/char/4.cc:
+	Likewise.
+	* testsuite/25_algorithms/copy/streambuf_iterators/wchar_t/4.cc:
+	Likewise.
+	* testsuite/25_algorithms/copy_n/istreambuf_iterator/2.cc:
+	Likewise.
+	* testsuite/25_algorithms/copy_n/istreambuf_iterator/deque.cc:
+	Likewise.
+	* testsuite/25_algorithms/find/istreambuf_iterators/char/2.cc:
+	Likewise.
+	* testsuite/25_algorithms/find/istreambuf_iterators/wchar_t/2.cc:
+	Likewise.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/27_io/basic_filebuf/close/char/1.cc: Remove
+	@require@ and @diff@. Use dg-final file-io-diff action.
+	* testsuite/27_io/basic_istream/extractors_other/char/2.cc:
+	Likewise.
+	* testsuite/27_io/basic_istream/extractors_other/wchar_t/2.cc:
+	Likewise.
+	* testsuite/27_io/basic_istream/get/char/2.cc: Likewise.
+	* testsuite/27_io/basic_istream/get/wchar_t/2.cc: Likewise.
+	* testsuite/27_io/basic_istream/ignore/char/3.cc: Likewise.
+	* testsuite/27_io/basic_istream/ignore/wchar_t/3.cc: Likewise.
+	* testsuite/27_io/basic_istream/peek/char/6414.cc: Likewise.
+	* testsuite/27_io/basic_istream/peek/wchar_t/6414.cc: Likewise.
+	* testsuite/27_io/basic_istream/seekg/char/fstream.cc: Likewise.
+	* testsuite/27_io/basic_istream/seekg/wchar_t/fstream.cc:
+	Likewise.
+	* testsuite/27_io/basic_istream/tellg/char/fstream.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/wchar_t/fstream.cc:
+	Likewise.
+	* testsuite/27_io/basic_ofstream/open/char/1.cc: Likewise.
+	* testsuite/27_io/basic_ostream/inserters_other/char/1.cc:
+	Likewise.
+	* testsuite/27_io/basic_ostream/inserters_other/wchar_t/1.cc:
+	Likewise.
+	* testsuite/27_io/ios_base/sync_with_stdio/1.cc: Likewise.
+	* testsuite/27_io/basic_ostream/inserters_other/char/2.cc:
+	Likewise. Check file positions.
+	* testsuite/27_io/basic_ostream/inserters_other/wchar_t/2.cc:
+	Likewise.
+	* testsuite/lib/libstdc++.exp (file-io-diff): New proc.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/27_io/basic_filebuf/imbue/char/2.cc: Use
+	dg-additional-files.
+	* testsuite/27_io/basic_filebuf/imbue/wchar_t/2.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/open/char/path.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/pbackfail/char/9761.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/char/3-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/char/3-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekpos/char/3-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekpos/char/3-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/setbuf/char/1.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/3.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/underflow/10096.cc: Likewise.
+	* testsuite/27_io/basic_fstream/cons/char/path.cc: Likewise.
+	* testsuite/27_io/basic_fstream/open/char/path.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/assign/1.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/cons/move.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/cons/char/path.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/open/char/path.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/open/wchar_t/1.cc: Likewise.
+	* testsuite/27_io/objects/char/10.cc: Likewise.
+	* testsuite/27_io/objects/char/12048-1.cc: Likewise.
+	* testsuite/27_io/objects/char/12048-2.cc: Likewise.
+	* testsuite/27_io/objects/char/12048-3.cc: Likewise.
+	* testsuite/27_io/objects/char/12048-4.cc: Likewise.
+	* testsuite/27_io/objects/char/12048-5.cc: Likewise.
+	* testsuite/27_io/objects/wchar_t/12048-1.cc: Likewise.
+	* testsuite/27_io/objects/wchar_t/12048-2.cc: Likewise.
+	* testsuite/27_io/objects/wchar_t/12048-3.cc: Likewise.
+	* testsuite/27_io/objects/wchar_t/12048-4.cc: Likewise.
+	* testsuite/27_io/objects/wchar_t/12048-5.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/char/12048-1.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/char/12048-2.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/char/12048-3.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/char/12048-4.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-1.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-2.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-3.cc: Likewise.
+	* testsuite/ext/stdio_sync_filebuf/wchar_t/12948-4.cc: Likewise.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/27_io/basic_filebuf/close/char/2.cc: Remove
+	@require@ and @diff@ markup. Use dg-additional-files. Remove
+	unused variable.
+	* testsuite/27_io/basic_filebuf/close/char/3.cc: Remove
+	@require@ and @diff@ markup. Use dg-additional-files.
+	* testsuite/27_io/basic_filebuf/close/char/4.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/close/char/5.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/in_avail/char/1.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/is_open/char/1.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/open/char/1.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/open/char/2.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sbumpc/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sbumpc/char/1-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sbumpc/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sbumpc/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekoff/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekpos/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekpos/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekpos/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/seekpos/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetc/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetc/char/1-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetc/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetc/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/1-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/snextc/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/snextc/char/1-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/snextc/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/snextc/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/snextc/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputbackc/char/1-in.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/sputbackc/char/2-in.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/sputc/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputc/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputc/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputn/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputn/char/1-io.cc: Likewise.
+	Remove unused variable.
+	* testsuite/27_io/basic_filebuf/sputn/char/2-in.cc: Remove
+	@require@ and @diff@ markup. Use dg-additional-files.
+	* testsuite/27_io/basic_filebuf/sungetc/char/1-in.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sungetc/char/2-in.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/cons/char/1.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/open/char/1.cc: Likewise.
+	* testsuite/27_io/basic_ifstream/rdbuf/char/2832.cc: Likewise.
+	* testsuite/27_io/basic_istream/readsome/char/6746-2.cc:
+	Likewise.
+	* testsuite/27_io/basic_istream/readsome/wchar_t/6746-2.cc:
+	Likewise.
+	* testsuite/27_io/basic_istream/seekg/char/sstream.cc: Likewise.
+	* testsuite/27_io/basic_istream/seekg/wchar_t/sstream.cc:
+	Likewise.
+	* testsuite/27_io/basic_istream/tellg/char/1.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/char/sstream.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/wchar_t/1.cc: Likewise.
+	* testsuite/27_io/basic_istream/tellg/wchar_t/sstream.cc:
+	Likewise.
+	* testsuite/27_io/basic_ofstream/open/char/1.cc: Likewise.
+	* testsuite/lib/dg-options.exp (dg-additional-files): Append to
+	v3_additional_files instead of replacing.
+	* testsuite/lib/libstdc++.exp (v3_target_compile): Reset
+	v3_additional_files after copying files.
+
+2024-07-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/27_io/basic_filebuf/close/char/4879.cc: Remove
+	@require@ and @diff@ comments.
+	* testsuite/27_io/basic_filebuf/close/char/9964.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/open/char/3.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/open/char/9507.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sbumpc/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sbumpc/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetc/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetc/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sgetn/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/snextc/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputbackc/char/1-io.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/sputbackc/char/1-out.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/sputbackc/char/2-io.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/sputbackc/char/2-out.cc:
+	Likewise.
+	* testsuite/27_io/basic_filebuf/sputc/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputc/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputn/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputn/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sungetc/char/1-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sungetc/char/1-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sungetc/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sungetc/char/2-out.cc: Likewise.
+	* testsuite/27_io/basic_filebuf/sputc/char/1-io.cc: Likewise.
+	Remove unused variable.
+	* testsuite/27_io/basic_filebuf/sputn/char/2-io.cc: Likewise.
+	* testsuite/27_io/basic_ofstream/cons/char/1.cc: Remove
+	@require@ and @diff@ comments. Remove unused variables.
+	* testsuite/27_io/basic_ofstream/rdbuf/char/2832.cc: Remove
+	* testsuite/27_io/ios_base/sync_with_stdio/2.cc: Likewise.
+
+2024-07-23  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++23/print.cc (__open_terminal): Use [[maybe_unused]] on
+	parameter.
+
+2024-07-23  Detlef Vollmann  <dv@vollmann.ch>
+
+	PR libstdc++/115482
+	* src/c++23/print.cc (__open_terminal) [__AVR__]: Do not use
+	isatty.
+
+2024-07-18  Patrick Palka  <ppalka@redhat.com>
+
+	* include/experimental/socket
+	(basic_socket_iostream::basic_socket_iostream): Fix typo.
+	* include/tr2/dynamic_bitset
+	(__dynamic_bitset_base::_M_is_proper_subset_of): Likewise.
+
 2024-07-12  Alexandre Oliva  <oliva@adacore.com>
 
 	* testsuite/decimal/binary-arith.cc: Require dfprt.

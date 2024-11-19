@@ -719,6 +719,15 @@ riscv_min_arithmetic_precision (void)
   return 32;
 }
 
+/* Get the arch string from an options object.  */
+
+template <class T>
+static const char *
+get_arch_str (const T *opts)
+{
+  return opts->x_riscv_arch_string;
+}
+
 template <class T>
 static const char *
 get_tune_str (const T *opts)
@@ -3221,16 +3230,17 @@ riscv_legitimize_move (machine_mode mode, rtx dest, rtx src)
 				    (const_poly_int:HI [m, n])
 				    (const_poly_int:SI [m, n]).  */
 	  rtx tmp = gen_reg_rtx (Pmode);
-	  riscv_legitimize_poly_move (Pmode, gen_lowpart (Pmode, dest), tmp,
-				      src);
+	  rtx tmp2 = gen_reg_rtx (Pmode);
+	  riscv_legitimize_poly_move (Pmode, tmp2, tmp, src);
+	  emit_move_insn (dest, gen_lowpart (mode, tmp2));
 	}
       else
 	{
 	  /* In RV32 system, handle (const_poly_int:SI [m, n])
 				    (const_poly_int:DI [m, n]).
 	     In RV64 system, handle (const_poly_int:DI [m, n]).
-       FIXME: Maybe we could gen SImode in RV32 and then sign-extend to DImode,
-       the offset should not exceed 4GiB in general.  */
+	     FIXME: Maybe we could gen SImode in RV32 and then sign-extend to
+	     DImode, the offset should not exceed 4GiB in general.  */
 	  rtx tmp = gen_reg_rtx (mode);
 	  riscv_legitimize_poly_move (mode, dest, tmp, src);
 	}
@@ -6014,11 +6024,14 @@ riscv_validate_vector_type (const_tree type, const char *hint)
   bool float_type_p = riscv_vector_float_type_p (type);
 
   if (float_type_p && element_bitsize == 16
-    && !TARGET_VECTOR_ELEN_FP_16_P (riscv_vector_elen_flags))
+      && (!TARGET_VECTOR_ELEN_FP_16_P (riscv_vector_elen_flags)
+	  && !TARGET_VECTOR_ELEN_BF_16_P (riscv_vector_elen_flags)))
     {
-      error_at (input_location,
-		"%s %qT requires the zvfhmin or zvfh ISA extension",
-		hint, type);
+      const char *name = IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (type)));
+      if (strstr (name, "vfloat"))
+	error_at (input_location,
+		  "%s %qT requires the zvfhmin or zvfh ISA extension",
+		  hint, type);
       return;
     }
 
@@ -6485,6 +6498,7 @@ riscv_asm_output_opcode (FILE *asm_out_file, const char *p)
    'A'	Print the atomic operation suffix for memory model OP.
    'I'	Print the LR suffix for memory model OP.
    'J'	Print the SC suffix for memory model OP.
+   'L'	Print a non-temporal locality hints instruction.
    'z'	Print x0 if OP is zero, otherwise print OP normally.
    'i'	Print i if the operand is not a register.
    'S'	Print shift-index of single-bit mask OP.
@@ -6678,6 +6692,27 @@ riscv_print_operand (FILE *file, rtx op, int letter)
 	fputs (".rl", file);
       break;
     }
+
+    case 'L':
+      {
+	const char *ntl_hint = NULL;
+	switch (INTVAL (op))
+	  {
+	  case 0:
+	    ntl_hint = "ntl.all";
+	    break;
+	  case 1:
+	    ntl_hint = "ntl.pall";
+	    break;
+	  case 2:
+	    ntl_hint = "ntl.p1";
+	    break;
+	  }
+
+      if (ntl_hint)
+	asm_fprintf (file, "%s\n\t", ntl_hint);
+      break;
+      }
 
     case 'i':
       if (code != REG)
@@ -9416,17 +9451,16 @@ riscv_declare_function_name (FILE *stream, const char *name, tree fndecl)
     {
       fprintf (stream, "\t.option push\n");
 
-      std::string *target_name = riscv_func_target_get (fndecl);
-      std::string isa = target_name != NULL
-	? *target_name
-	: riscv_cmdline_subset_list ()->to_string (true);
-      fprintf (stream, "\t.option arch, %s\n", isa.c_str ());
-      riscv_func_target_remove_and_destory (fndecl);
-
       struct cl_target_option *local_cl_target =
 	TREE_TARGET_OPTION (DECL_FUNCTION_SPECIFIC_TARGET (fndecl));
       struct cl_target_option *global_cl_target =
 	TREE_TARGET_OPTION (target_option_default_node);
+
+      const char *local_arch_str = get_arch_str (local_cl_target);
+      const char *arch_str = local_arch_str != NULL
+	? local_arch_str
+	: riscv_arch_str (true).c_str ();
+      fprintf (stream, "\t.option arch, %s\n", arch_str);
       const char *local_tune_str = get_tune_str (local_cl_target);
       const char *global_tune_str = get_tune_str (global_cl_target);
       if (strcmp (local_tune_str, global_tune_str) != 0)
@@ -9656,6 +9690,11 @@ riscv_override_options_internal (struct gcc_options *opts)
     opts->x_target_flags |= MASK_DIV;
   else if (!TARGET_MUL_OPTS_P (opts) && TARGET_DIV_OPTS_P (opts))
     error ("%<-mdiv%> requires %<-march%> to subsume the %<M%> extension");
+
+  /* We might use a multiplication to calculate the scalable vector length at
+     runtime.  Therefore, require the M extension.  */
+  if (TARGET_VECTOR && !TARGET_MUL)
+    sorry ("Currently the %<V%> implementation requires the %<M%> extension");
 
   /* Likewise floating-point division and square root.  */
   if ((TARGET_HARD_FLOAT_OPTS_P (opts) || TARGET_ZFINX_OPTS_P (opts))
@@ -11581,26 +11620,66 @@ void
 riscv_expand_ussub (rtx dest, rtx x, rtx y)
 {
   machine_mode mode = GET_MODE (dest);
-  rtx pmode_x = gen_lowpart (Pmode, x);
-  rtx pmode_y = gen_lowpart (Pmode, y);
-  rtx pmode_lt = gen_reg_rtx (Pmode);
-  rtx pmode_minus = gen_reg_rtx (Pmode);
-  rtx pmode_dest = gen_reg_rtx (Pmode);
+  rtx xmode_x = gen_lowpart (Xmode, x);
+  rtx xmode_y = gen_lowpart (Xmode, y);
+  rtx xmode_lt = gen_reg_rtx (Xmode);
+  rtx xmode_minus = gen_reg_rtx (Xmode);
+  rtx xmode_dest = gen_reg_rtx (Xmode);
 
   /* Step-1: minus = x - y  */
-  riscv_emit_binary (MINUS, pmode_minus, pmode_x, pmode_y);
+  riscv_emit_binary (MINUS, xmode_minus, xmode_x, xmode_y);
 
   /* Step-2: lt = x < y  */
-  riscv_emit_binary (LTU, pmode_lt, pmode_x, pmode_y);
+  riscv_emit_binary (LTU, xmode_lt, xmode_x, xmode_y);
 
   /* Step-3: lt = lt - 1 (lt + (-1))  */
-  riscv_emit_binary (PLUS, pmode_lt, pmode_lt, CONSTM1_RTX (Pmode));
+  riscv_emit_binary (PLUS, xmode_lt, xmode_lt, CONSTM1_RTX (Xmode));
 
-  /* Step-4: pmode_dest = minus & lt  */
-  riscv_emit_binary (AND, pmode_dest, pmode_lt, pmode_minus);
+  /* Step-4: xmode_dest = minus & lt  */
+  riscv_emit_binary (AND, xmode_dest, xmode_lt, xmode_minus);
 
-  /* Step-5: dest = pmode_dest  */
-  emit_move_insn (dest, gen_lowpart (mode, pmode_dest));
+  /* Step-5: dest = xmode_dest  */
+  emit_move_insn (dest, gen_lowpart (mode, xmode_dest));
+}
+
+/* Implement the unsigned saturation truncation for int mode.
+
+   b = SAT_TRUNC (a);
+   =>
+   1. max = half truncated max
+   2. lt = a < max
+   3. lt = lt - 1 (lt 0, ge -1)
+   4. d = a | lt
+   5. b = (trunc)d  */
+
+void
+riscv_expand_ustrunc (rtx dest, rtx src)
+{
+  machine_mode mode = GET_MODE (dest);
+  rtx xmode_max = gen_reg_rtx (Xmode);
+  unsigned precision = GET_MODE_PRECISION (mode).to_constant ();
+
+  gcc_assert (precision < 64);
+
+  uint64_t max = ((uint64_t)1u << precision) - 1u;
+  rtx xmode_src = gen_lowpart (Xmode, src);
+  rtx xmode_dest = gen_reg_rtx (Xmode);
+  rtx xmode_lt = gen_reg_rtx (Xmode);
+
+  /* Step-1: max = half truncated max  */
+  emit_move_insn (xmode_max, gen_int_mode (max, Xmode));
+
+  /* Step-2: lt = src < max  */
+  riscv_emit_binary (LTU, xmode_lt, xmode_src, xmode_max);
+
+  /* Step-3: lt = lt - 1  */
+  riscv_emit_binary (PLUS, xmode_lt, xmode_lt, CONSTM1_RTX (Xmode));
+
+  /* Step-4: xmode_dest = lt | src  */
+  riscv_emit_binary (IOR, xmode_dest, xmode_lt, xmode_src);
+
+  /* Step-5: dest = xmode_dest  */
+  emit_move_insn (dest, gen_lowpart (mode, xmode_dest));
 }
 
 /* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode for
