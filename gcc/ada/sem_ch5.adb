@@ -3253,31 +3253,9 @@ package body Sem_Ch5 is
       end if;
 
       Mutate_Ekind (Id, E_Loop_Parameter);
+      Set_Etype (Id, Etype (DS));
+
       Set_Is_Not_Self_Hidden (Id);
-
-      --  A quantified expression which appears in a pre- or post-condition may
-      --  be analyzed multiple times. The analysis of the range creates several
-      --  itypes which reside in different scopes depending on whether the pre-
-      --  or post-condition has been expanded. Update the type of the loop
-      --  variable to reflect the proper itype at each stage of analysis.
-
-      --  Loop_Nod might not be present when we are preanalyzing a class-wide
-      --  pre/postcondition since preanalysis occurs in a place unrelated to
-      --  the actual code and the quantified expression may be the outermost
-      --  expression of the class-wide condition.
-
-      if No (Etype (Id))
-        or else Etype (Id) = Any_Type
-        or else
-          (Present (Etype (Id))
-            and then Is_Itype (Etype (Id))
-            and then Present (Loop_Nod)
-            and then Nkind (Parent (Loop_Nod)) = N_Expression_With_Actions
-            and then Nkind (Original_Node (Parent (Loop_Nod))) =
-                                                   N_Quantified_Expression)
-      then
-         Set_Etype (Id, Etype (DS));
-      end if;
 
       --  Treat a range as an implicit reference to the type, to inhibit
       --  spurious warnings.
@@ -3806,20 +3784,16 @@ package body Sem_Ch5 is
                Rng_Typ := Etype (Rng_Copy);
 
                --  Wrap the loop statement within a block in order to manage
-               --  the secondary stack when the discrete range is
+               --  the secondary stack when the discrete range:
                --
-               --    * Either a Forward_Iterator or a Reverse_Iterator
+               --    * is either a Forward_Iterator or a Reverse_Iterator
+               --  or
                --
-               --    * Function call whose return type requires finalization
-               --      actions.
-
-               --  ??? it is unclear why using Has_Sec_Stack_Call directly on
-               --  the discrete range causes the freeze node of an itype to be
-               --  in the wrong scope in complex assertion expressions.
+               --    * contains a function call that returns on the secondary
+               --      stack.
 
                if Is_Iterator (Rng_Typ)
-                 or else (Nkind (Rng_Copy) = N_Function_Call
-                           and then Needs_Finalization (Rng_Typ))
+                 or else Has_Sec_Stack_Call (Rng_Copy)
                then
                   Wrap_Loop_Statement (Manage_Sec_Stack => True);
                   Stop_Processing := True;

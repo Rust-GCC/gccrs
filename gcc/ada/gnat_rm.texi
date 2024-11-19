@@ -19,7 +19,7 @@
 
 @copying
 @quotation
-GNAT Reference Manual , Jun 27, 2024
+GNAT Reference Manual , Jul 29, 2024
 
 AdaCore
 
@@ -29223,20 +29223,8 @@ Put_Line
    f" an open brace is \@{");
 @end example
 
-Finally, a syntax is provided for creating multi-line string literals,
-without having to explicitly use an escape sequence such as @code{\n}. For
-example:
-
-@example
-Put_Line
-  (f"This is a multi-line"
-    "string literal"
-    "There is no ambiguity about how many"
-    "spaces are included in each line");
-@end example
-
-Here is a link to the original RFC   :
-@indicateurl{https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-string-interpolation.rst}
+Link to the original RFC:
+@indicateurl{https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-string-interpolation.md}
 
 @node Constrained attribute for generic objects,Static aspect on intrinsic functions,String interpolation,Curated Extensions
 @anchor{gnat_rm/gnat_language_extensions constrained-attribute-for-generic-objects}@anchor{448}
@@ -29529,8 +29517,7 @@ procedure Finalize   (Obj : in out Ctrl);
 procedure Initialize (Obj : in out Ctrl);
 @end example
 
-As of this writing, the relaxed semantics for finalization operations are
-only implemented for dynamically allocated objects.
+As of this writing, the RFC is implemented except for the @cite{No_Raise} aspect.
 
 Link to the original RFC:
 @indicateurl{https://github.com/AdaCore/ada-spark-rfcs/blob/topic/finalization-rehaul/considered/rfc-generalized-finalization.md}

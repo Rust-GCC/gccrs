@@ -34,7 +34,6 @@
 
 #include <bits/c++config.h>
 #include <new> // For placement new
-#include <stdint.h>
 #include <bits/atomic_lockfree_defines.h>
 #include <bits/move.h>
 
@@ -1118,8 +1117,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _GLIBCXX_ALWAYS_INLINE bool
       compare_exchange_weak(_Tp* __ptr, _Val<_Tp>& __expected,
 			    _Val<_Tp> __desired, memory_order __success,
-			    memory_order __failure,
-			    bool __check_padding = false) noexcept
+			    memory_order __failure) noexcept
       {
 	return __atomic_impl::__compare_exchange<_AtomicRef>(
 		   *__ptr, __expected, __desired, true, __success, __failure);
@@ -1129,8 +1127,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _GLIBCXX_ALWAYS_INLINE bool
       compare_exchange_strong(_Tp* __ptr, _Val<_Tp>& __expected,
 			      _Val<_Tp> __desired, memory_order __success,
-			      memory_order __failure,
-			      bool __ignore_padding = false) noexcept
+			      memory_order __failure) noexcept
       {
 	return __atomic_impl::__compare_exchange<_AtomicRef>(
 		   *__ptr, __expected, __desired, false, __success, __failure);
@@ -1506,7 +1503,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Tp& __t) : _M_ptr(std::__addressof(__t))
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 
@@ -1617,7 +1616,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Tp& __t) : _M_ptr(&__t)
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 
@@ -1790,7 +1791,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Fp& __t) : _M_ptr(&__t)
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 
@@ -1917,7 +1920,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       explicit
       __atomic_ref(_Tp*& __t) : _M_ptr(std::__addressof(__t))
-      { __glibcxx_assert(((uintptr_t)_M_ptr % required_alignment) == 0); }
+      {
+	__glibcxx_assert(((__UINTPTR_TYPE__)_M_ptr % required_alignment) == 0);
+      }
 
       __atomic_ref(const __atomic_ref&) noexcept = default;
 

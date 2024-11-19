@@ -323,20 +323,8 @@ For example:
        f" a double quote is \" and" &
        f" an open brace is \{");
 
-Finally, a syntax is provided for creating multi-line string literals,
-without having to explicitly use an escape sequence such as ``\n``. For
-example:
-
-.. code-block:: ada
-
-    Put_Line
-      (f"This is a multi-line"
-        "string literal"
-        "There is no ambiguity about how many"
-        "spaces are included in each line");
-
-Here is a link to the original RFC   :
-https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-string-interpolation.rst
+Link to the original RFC:
+https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-string-interpolation.md
 
 Constrained attribute for generic objects
 -----------------------------------------
@@ -590,8 +578,7 @@ Example:
     procedure Finalize   (Obj : in out Ctrl);
     procedure Initialize (Obj : in out Ctrl);
 
-As of this writing, the relaxed semantics for finalization operations are
-only implemented for dynamically allocated objects.
+As of this writing, the RFC is implemented except for the `No_Raise` aspect.
 
 Link to the original RFC:
 https://github.com/AdaCore/ada-spark-rfcs/blob/topic/finalization-rehaul/considered/rfc-generalized-finalization.md

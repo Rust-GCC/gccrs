@@ -3168,7 +3168,6 @@ package body Freeze is
               Find_Aspect (Typ, Aspect_No_Parts);
             Curr_Aspect_Spec : Entity_Id;
          begin
-
             --  Examine Typ's associated node, when present, since aspect
             --  specifications do not get transferred when nodes get rewritten.
 
@@ -3235,7 +3234,6 @@ package body Freeze is
             Aspect_Spec : constant Entity_Id :=
               Find_Aspect_No_Parts (Typ);
          begin
-
             --  Return the value of the aspect when present
 
             if Present (Aspect_Spec) then
@@ -10313,18 +10311,6 @@ package body Freeze is
         and then not Error_Posted (Parent (E))
       then
          Check_Overriding_Indicator (E, Empty, Is_Primitive (E));
-      end if;
-
-      Retype := Get_Fullest_View (Etype (E));
-
-      if Transform_Function_Array
-        and then Nkind (Parent (E)) = N_Function_Specification
-        and then Is_Array_Type (Retype)
-        and then Is_Constrained (Retype)
-        and then not Is_Unchecked_Conversion_Instance (E)
-        and then not Rewritten_For_C (E)
-      then
-         Build_Procedure_Form (Unit_Declaration_Node (E));
       end if;
    end Freeze_Subprogram;
 

@@ -24758,14 +24758,6 @@ package body Sem_Prag is
 
             if No (Context) then
                Check_Valid_Configuration_Pragma;
-
-               if Present (SPARK_Mode_Pragma) then
-                  Duplication_Error
-                    (Prag => N,
-                     Prev => SPARK_Mode_Pragma);
-                  raise Pragma_Exit;
-               end if;
-
                Set_SPARK_Context;
 
             --  The pragma acts as a configuration pragma in a compilation unit
@@ -33950,7 +33942,6 @@ package body Sem_Prag is
    --  Start of processing for Validate_Compile_Time_Warning_Errors
 
    begin
-
       --  These error/warning messages were deferred because they could not be
       --  evaluated in the front-end and they needed additional information
       --  from the back-end. There is no reason to run these checks again if

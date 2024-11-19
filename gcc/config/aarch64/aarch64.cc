@@ -392,6 +392,7 @@ static const struct aarch64_flag_desc aarch64_tuning_flags[] =
 #include "tuning_models/cortexa57.h"
 #include "tuning_models/cortexa72.h"
 #include "tuning_models/cortexa73.h"
+#include "tuning_models/cortexx925.h"
 #include "tuning_models/exynosm1.h"
 #include "tuning_models/thunderxt88.h"
 #include "tuning_models/thunderx.h"
@@ -409,7 +410,10 @@ static const struct aarch64_flag_desc aarch64_tuning_flags[] =
 #include "tuning_models/neoversev1.h"
 #include "tuning_models/neoverse512tvb.h"
 #include "tuning_models/neoversen2.h"
+#include "tuning_models/neoversen3.h"
 #include "tuning_models/neoversev2.h"
+#include "tuning_models/neoversev3.h"
+#include "tuning_models/neoversev3ae.h"
 #include "tuning_models/a64fx.h"
 
 /* Support for fine-grained override of the tuning structures.  */
