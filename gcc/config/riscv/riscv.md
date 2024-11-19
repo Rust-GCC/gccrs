@@ -2675,9 +2675,19 @@
 				       operands[2], operands[3]))
     DONE;
 
-  if (riscv_expand_block_compare (operands[0], operands[1], operands[2],
+  rtx temp = gen_reg_rtx (word_mode);
+  if (riscv_expand_block_compare (temp, operands[1], operands[2],
                                   operands[3]))
-    DONE;
+    {
+      if (TARGET_64BIT)
+	{
+	  temp = gen_lowpart (SImode, temp);
+	  SUBREG_PROMOTED_VAR_P (temp) = 1;
+	  SUBREG_PROMOTED_SET (temp, SRP_SIGNED);
+	}
+      emit_move_insn (operands[0], temp);
+      DONE;
+    }
   else
     FAIL;
 })
@@ -2718,6 +2728,28 @@
     FAIL;
 
   if (riscv_expand_block_clear (operands[0], operands[1]))
+    DONE;
+  else
+    FAIL;
+})
+
+;; Inlining general memmove is a pessimisation: we can't avoid having to decide
+;; which direction to go at runtime, which is costly in instruction count
+;; however for situations where the entire move fits in one vector operation
+;; we can do all reads before doing any writes so we don't have to worry
+;; so generate the inline vector code in such situations
+;; nb. prefer scalar path for tiny memmoves.
+(define_expand "movmem<mode>"
+  [(parallel [(set (match_operand:BLK 0 "general_operand")
+   (match_operand:BLK 1 "general_operand"))
+    (use (match_operand:P 2 "const_int_operand"))
+    (use (match_operand:SI 3 "const_int_operand"))])]
+  "TARGET_VECTOR"
+{
+  if ((INTVAL (operands[2]) >= TARGET_MIN_VLEN / 8)
+	&& (INTVAL (operands[2]) <= TARGET_MIN_VLEN)
+	&& riscv_vector::expand_block_move (operands[0], operands[1],
+	     operands[2]))
     DONE;
   else
     FAIL;
@@ -4140,9 +4172,19 @@
   "riscv_inline_strncmp && !optimize_size
     && (TARGET_ZBB || TARGET_XTHEADBB || TARGET_VECTOR)"
 {
-  if (riscv_expand_strcmp (operands[0], operands[1], operands[2],
+  rtx temp = gen_reg_rtx (word_mode);
+  if (riscv_expand_strcmp (temp, operands[1], operands[2],
                            operands[3], operands[4]))
-    DONE;
+    {
+      if (TARGET_64BIT)
+	{
+	  temp = gen_lowpart (SImode, temp);
+	  SUBREG_PROMOTED_VAR_P (temp) = 1;
+	  SUBREG_PROMOTED_SET (temp, SRP_SIGNED);
+	}
+      emit_move_insn (operands[0], temp);
+      DONE;
+    }
   else
     FAIL;
 })
@@ -4161,9 +4203,19 @@
   "riscv_inline_strcmp && !optimize_size
     && (TARGET_ZBB || TARGET_XTHEADBB || TARGET_VECTOR)"
 {
-  if (riscv_expand_strcmp (operands[0], operands[1], operands[2],
+  rtx temp = gen_reg_rtx (word_mode);
+  if (riscv_expand_strcmp (temp, operands[1], operands[2],
                            NULL_RTX, operands[3]))
-    DONE;
+    {
+      if (TARGET_64BIT)
+	{
+	  temp = gen_lowpart (SImode, temp);
+	  SUBREG_PROMOTED_VAR_P (temp) = 1;
+	  SUBREG_PROMOTED_SET (temp, SRP_SIGNED);
+	}
+      emit_move_insn (operands[0], temp);
+      DONE;
+    }
   else
     FAIL;
 })

@@ -1,3 +1,330 @@
+2024-07-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/29_atomics/atomic_ref/bool.cc: New test.
+
+2024-07-11  Damien Lebrun-Grandie  <dalg24@gmail.com>
+
+	* include/bits/atomic_base.h (__atomic_ref): Do not use integral
+	specialization for bool.
+
+2024-07-11  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/xml/manual/using.xml: Switch gcc.gnu.org links to https.
+	* doc/html/manual/using_concurrency.html: Regenerate.
+	* doc/html/manual/using_dynamic_or_shared.html: Ditto.
+	* doc/html/manual/using_headers.html: Ditto.
+	* doc/html/manual/using_namespaces.html: Ditto.
+
+2024-07-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/108636
+	* testsuite/27_io/filesystem/path/108636.cc: Require normal
+	mode.
+
+2024-07-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/114387
+	* include/std/format (basic_format_context): Define copy
+	operations as deleted, as per LWG 4061.
+	* testsuite/std/format/context.cc: New test.
+
+2024-07-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++26/text_encoding.cc (__locale_encoding): Add to unnamed
+	namespace.
+	(std::locale::encoding): Optimize for "C" and "*" names.
+
+2024-07-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115854
+	* include/bits/stl_bvector.h (_Bvector_base): Convert allocator
+	to rebound type explicitly.
+	* testsuite/23_containers/vector/allocator/115854.cc: New test.
+	* testsuite/23_containers/vector/bool/allocator/115854.cc: New test.
+
+2024-07-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115799
+	* include/bits/ranges_util.h (__find_fn): Make conversion
+	from difference type ti size_t explicit.
+	* testsuite/25_algorithms/find/bytes.cc: Check ranges::find with
+	__gnu_test::test_contiguous_range.
+	* testsuite/std/ranges/range.cc: Adjust expected difference_type
+	for __gnu_test::test_contiguous_range.
+	* testsuite/util/testsuite_iterators.h (contiguous_iterator_wrapper):
+	Use __max_diff_type as difference type.
+	(test_range::sentinel, test_sized_range_sized_sent::sentinel):
+	Ensure that operator- returns difference_type.
+
+2024-07-10  Marek Polacek  <polacek@redhat.com>
+
+	* testsuite/std/ranges/access/101782.cc: Don't compile with
+	-fconcepts-ts.
+
+2024-07-08  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115807
+	* include/c_compatibility/stdatomic.h (_Atomic): Ensure it
+	refers to std::atomic in the global namespace.
+	* testsuite/29_atomics/headers/stdatomic.h/115807.cc: New test.
+
+2024-07-07  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/xml/manual/configure.xml: Update Autobook 14 link.
+	Update GCC installation instructions link.
+	* doc/html/manual/configure.html: Regenerate.
+
+2024-07-07  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115799
+	* include/bits/stl_algo.h (find): Use 'if constexpr' so that
+	memchr optimization is a discarded statement for non-contiguous
+	iterators.
+	* testsuite/25_algorithms/find/bytes.cc: Check with input
+	iterators.
+
+2024-07-07  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115799
+	* include/bits/ranges_util.h (__find_fn): Return iterator
+	instead of sentinel.
+	* testsuite/25_algorithms/find/constrained.cc: Check non-common
+	contiguous sized range of char.
+
+2024-07-06  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/17_intro/headers/c++1998/all_attributes.cc: Add
+	attribute names from later standards and remove dg-options.
+	* testsuite/17_intro/headers/c++1998/stdc++.cc: Add c++98_only
+	target selector.
+	* testsuite/17_intro/headers/c++1998/stdc++_multiple_inclusion.cc:
+	Remove content and include stdc++.cc twice instead.
+	* testsuite/17_intro/headers/c++2011/stdc++.cc: Replace
+	dg-options with c++11 target selector.
+	* testsuite/17_intro/headers/c++2011/stdc++_multiple_inclusion.cc:
+	Remove content and include stdc++.cc twice instead.
+	* testsuite/17_intro/headers/c++2011/all_attributes.cc: Removed.
+	* testsuite/17_intro/headers/c++2011/all_no_exceptions.cc: Removed.
+	* testsuite/17_intro/headers/c++2011/all_no_rtti.cc: Removed.
+	* testsuite/17_intro/headers/c++2011/all_pedantic_errors.cc: Removed.
+	* testsuite/17_intro/headers/c++2011/charset.cc: Removed.
+	* testsuite/17_intro/headers/c++2011/operator_names.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/all_attributes.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/all_no_exceptions.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/all_no_rtti.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/all_pedantic_errors.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/charset.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/operator_names.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/stdc++.cc: Removed.
+	* testsuite/17_intro/headers/c++2014/stdc++_multiple_inclusion.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/all_attributes.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/all_no_exceptions.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/all_no_rtti.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/all_pedantic_errors.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/charset.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/operator_names.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/stdc++.cc: Removed.
+	* testsuite/17_intro/headers/c++2017/stdc++_multiple_inclusion.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/all_attributes.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/all_no_exceptions.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/all_no_rtti.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/all_pedantic_errors.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/charset.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/operator_names.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/stdc++.cc: Removed.
+	* testsuite/17_intro/headers/c++2020/stdc++_multiple_inclusion.cc: Removed.
+
+2024-07-06  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/std/variant (_Variant_storage::_M_reset): Use
+	__unlikely__ form of attribute instead of unlikely.
+
+2024-07-06  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115797
+	* include/std/type_traits: Ensure "C++" language linkage.
+	* testsuite/17_intro/headers/c++2011/linkage.cc: Replace
+	dg-options with c++11 target selector.
+
+2024-07-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR c++/115747
+	* testsuite/tr1/2_general_utilities/shared_ptr/cons/43820_neg.cc:
+	Add dg-error for new C++26 diagnostics.
+
+2024-07-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_uninitialized.h (_UninitDestroyGuard): New
+	class template and partial specialization.
+	(__do_uninit_copy, __do_uninit_fill, __do_uninit_fill_n)
+	(__uninitialized_copy_a, __uninitialized_fill_a)
+	(__uninitialized_fill_n_a, __uninitialized_copy_move)
+	(__uninitialized_move_copy, __uninitialized_fill_move)
+	(__uninitialized_move_fill, __uninitialized_default_1)
+	(__uninitialized_default_n_a, __uninitialized_default_novalue_1)
+	(__uninitialized_default_novalue_n_1, __uninitialized_copy_n)
+	(__uninitialized_copy_n_pair): Use it.
+
+2024-07-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/88545
+	PR libstdc++/115040
+	* include/bits/cpp_type_traits.h (__can_use_memchr_for_find):
+	New variable template.
+	* include/bits/ranges_util.h (__find_fn): Use memchr when
+	possible.
+	* include/bits/stl_algo.h (find): Likewise.
+	* testsuite/25_algorithms/find/bytes.cc: New test.
+
+2024-07-04  John David Anglin  <danglin@gcc.gnu.org>
+
+	PR libstdc++/98678
+	* testsuite/30_threads/future/members/poll.cc: Skip on hppa*-*-linux*.
+
+2024-06-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115585
+	* src/c++11/assert_fail.cc (__glibcxx_assert_fail): Add
+	definition for non-verbose builds.
+
+2024-06-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/101485
+	* include/bits/stl_algobase.h (__equal_aux1): Check for
+	std::byte as well.
+	* testsuite/25_algorithms/equal/101485.cc: New test.
+
+2024-06-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/104395
+	* include/bits/new_allocator.h: Disable extended alignment
+	support in C++98 mode.
+	* include/bits/stl_tempbuf.h: Likewise.
+	* include/ext/bitmap_allocator.h: Likewise.
+	* include/ext/malloc_allocator.h: Likewise.
+	* include/ext/mt_allocator.h: Likewise.
+	* include/ext/pool_allocator.h: Likewise.
+	* testsuite/ext/104395.cc: New test.
+
+2024-06-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/ext/aligned_buffer.h (__aligned_membuf): Use
+	alignas(T) directly instead of defining a struct and using 9its
+	alignment.
+	(__aligned_buffer): Remove use of std::aligned_storage.
+	* testsuite/abi/aligned_buffers.cc: New test.
+
+2024-06-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/37475
+	* config/locale/gnu/codecvt_members.cc (Guard): New RAII type.
+	(do_out, do_in): Return partial if the destination is empty but
+	the source is not. Use Guard to restore locale on scope exit.
+	Return immediately on any conversion error.
+	(do_encoding, do_max_length, do_length): Use Guard.
+	* testsuite/22_locale/codecvt/in/char/37475.cc: New test.
+	* testsuite/22_locale/codecvt/in/wchar_t/37475.cc: New test.
+	* testsuite/22_locale/codecvt/out/char/37475.cc: New test.
+	* testsuite/22_locale/codecvt/out/wchar_t/37475.cc: New test.
+
+2024-06-27  Alexandre Oliva  <oliva@adacore.com>
+
+	PR libstdc++/115454
+	* testsuite/experimental/simd/pr115454_find_last_set.cc: Defer
+	to check_vect_support_and_set_flags's default dg-do action.
+
+2024-06-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/115668
+	* include/bits/chrono_io.h (formatter<duration<R,P, C>::format):
+	Do not use chrono::abs.
+	* testsuite/20_util/duration/io.cc: Check formatting a duration
+	with unsigned rep.
+
+2024-06-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/103191
+	* include/bits/stl_bvector.h (vector<bool>::operator[])
+	(vector<bool>::front, vector<bool>::back): Add debug assertions.
+	* testsuite/23_containers/vector/bool/element_access/constexpr.cc:
+	Remove dg-error that no longer triggers.
+
+2024-06-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/111250
+	* include/debug/assertions.h (__glibcxx_requires_non_empty_range)
+	(__glibcxx_requires_nonempty, __glibcxx_requires_subscript):
+	Define to __glibcxx_assert expressions or to debug mode
+	__glibcxx_check_xxx expressions.
+	* testsuite/23_containers/array/element_access/constexpr_c++17.cc:
+	Add checks for out-of-bounds accesses in constant expressions.
+	* testsuite/23_containers/vector/element_access/constexpr.cc:
+	Likewise.
+
+2024-06-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* scripts/update_release_branch.sh: New file.
+
+2024-06-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/20_util/specialized_algorithms/uninitialized_copy/808590.cc:
+	Copy defaulted assignment operator from 808590-cxx11.cc to
+	suppress a warning.
+	* testsuite/20_util/specialized_algorithms/uninitialized_copy/808590-cxx11.cc:
+	Removed.
+
+2024-06-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/90276
+	* testsuite/25_algorithms/pstl/alg_modifying_operations/rotate_copy.cc:
+	Increase timeout for debug mode.
+	* testsuite/25_algorithms/pstl/alg_modifying_operations/transform_binary.cc:
+	Likewise.
+	* testsuite/25_algorithms/pstl/alg_nonmodifying/mismatch.cc:
+	Likewise.
+	* testsuite/25_algorithms/pstl/alg_sorting/lexicographical_compare.cc:
+	Likewise.
+	* testsuite/25_algorithms/pstl/alg_sorting/minmax_element.cc:
+	Likewise.
+	* testsuite/25_algorithms/pstl/alg_sorting/set_symmetric_difference.cc:
+	Likewise.
+
+2024-06-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/90276
+	* testsuite/25_algorithms/pstl/alg_sorting/partial_sort.cc
+	[_GLIBCXX_DEBUG]: Add xfail-run-if for debug mode.
+	* testsuite/25_algorithms/pstl/alg_nonmodifying/nth_element.cc
+	[_GLIBCXX_DEBUG]: Reduce size of test data.
+	* testsuite/25_algorithms/pstl/alg_sorting/includes.cc:
+	Likewise.
+	* testsuite/25_algorithms/pstl/alg_sorting/set_util.h:
+	Likewise.
+
+2024-06-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* src/c++20/tzdb.cc (minmax_year, minmax_year2): Remove.
+	(years_from_to): New class replacing minmax_year and
+	minmax_year2.
+	(format_abbrev_str, select_std_or_dst_abbrev): Move earlier in
+	the file. Handle "-" for letters.
+	(ZoneInfo::to): Use format_abbrev_str to expand %z.
+	(ZoneInfo::set_abbrev): Remove exception. Change parameter from
+	reference to value.
+	(operator>>(istream&, Rule&)): Do not clear letters when it
+	contains "-".
+	(time_zone::_M_get_sys_info): Add missing logic to find the Rule
+	in effect before the time point.
+	* testsuite/std/time/tzdb/1.cc: Adjust for vanguard format using
+	"GMT" as the Zone name, not as a Link to "Etc/GMT".
+	* testsuite/std/time/time_zone/sys_info_abbrev.cc: New test.
+
+2024-06-26  Alexandre Oliva  <oliva@adacore.com>
+	    Marc Poulhiès  <poulhies@adacore.com>
+
+	* testsuite/lib/dg-options.exp (add_options_for_libatomic):
+	None for *-*-vxworks*.
+
 2024-06-25  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/bits/valarray_array.h (_Array_default_ctor): Remove.

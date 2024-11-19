@@ -118,6 +118,8 @@ tree gfor_fndecl_fdate;
 tree gfor_fndecl_ttynam;
 tree gfor_fndecl_in_pack;
 tree gfor_fndecl_in_unpack;
+tree gfor_fndecl_in_pack_class;
+tree gfor_fndecl_in_unpack_class;
 tree gfor_fndecl_associated;
 tree gfor_fndecl_system_clock4;
 tree gfor_fndecl_system_clock8;
@@ -3916,9 +3918,19 @@ gfc_build_builtin_function_decls (void)
 	get_identifier (PREFIX("internal_unpack")), ". w R ",
 	void_type_node, 2, pvoid_type_node, pvoid_type_node);
 
+  gfor_fndecl_in_pack_class = gfc_build_library_function_decl_with_spec (
+    get_identifier (PREFIX ("internal_pack_class")), ". w R r r ",
+    void_type_node, 4, pvoid_type_node, pvoid_type_node, size_type_node,
+    integer_type_node);
+
+  gfor_fndecl_in_unpack_class = gfc_build_library_function_decl_with_spec (
+    get_identifier (PREFIX ("internal_unpack_class")), ". w R r r ",
+    void_type_node, 4, pvoid_type_node, pvoid_type_node, size_type_node,
+    integer_type_node);
+
   gfor_fndecl_associated = gfc_build_library_function_decl_with_spec (
-	get_identifier (PREFIX("associated")), ". R R ",
-	integer_type_node, 2, ppvoid_type_node, ppvoid_type_node);
+    get_identifier (PREFIX ("associated")), ". R R ", integer_type_node, 2,
+    ppvoid_type_node, ppvoid_type_node);
   DECL_PURE_P (gfor_fndecl_associated) = 1;
   TREE_NOTHROW (gfor_fndecl_associated) = 1;
 
@@ -5107,26 +5119,11 @@ gfc_trans_deferred_vars (gfc_symbol * proc_sym, gfc_wrapped_block * block)
 	      if (sym->ts.type == BT_CLASS)
 		{
 		  /* Initialize _vptr to declared type.  */
-		  gfc_symbol *vtab;
-		  tree rhs;
-
 		  gfc_save_backend_locus (&loc);
 		  gfc_set_backend_locus (&sym->declared_at);
 		  e = gfc_lval_expr_from_sym (sym);
-		  gfc_add_vptr_component (e);
-		  gfc_init_se (&se, NULL);
-		  se.want_pointer = 1;
-		  gfc_conv_expr (&se, e);
+		  gfc_reset_vptr (&init, e);
 		  gfc_free_expr (e);
-		  if (UNLIMITED_POLY (sym))
-		    rhs = build_int_cst (TREE_TYPE (se.expr), 0);
-		  else
-		    {
-		      vtab = gfc_find_derived_vtab (sym->ts.u.derived);
-		      rhs = gfc_build_addr_expr (TREE_TYPE (se.expr),
-						gfc_get_symbol_decl (vtab));
-		    }
-		  gfc_add_modify (&init, se.expr, rhs);
 		  gfc_restore_backend_locus (&loc);
 		}
 
@@ -7968,7 +7965,7 @@ gfc_generate_function_code (gfc_namespace * ns)
 			      fold_convert (TREE_TYPE (tmp),
 					    null_pointer_node));
 	      gfc_reset_vptr (&init, nullptr, result,
-			      CLASS_DATA (sym->result)->ts.u.derived);
+			      sym->result->ts.u.derived);
 	    }
 	  else if (sym->ts.type == BT_DERIVED
 		   && !sym->attr.allocatable)

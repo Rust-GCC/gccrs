@@ -1,3 +1,40 @@
+2024-07-10  Marek Polacek  <polacek@redhat.com>
+
+	PR c/115642
+	* c-typeck.cc (c_cast_expr): Return error_mark_node if build_c_cast
+	failed.
+
+2024-07-10  Marek Polacek  <polacek@redhat.com>
+
+	PR c/115549
+	* c-decl.cc (c_decl_attributes): If lookup_last_decl returns
+	error_mark_node, use NULL_TREE as last_decl.
+
+2024-07-09  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/114727
+	* c-typeck.cc (tagged_types_tu_compatible): Add test.
+
+2024-07-09  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/115696
+	* c-typeck.cc (comptypes_verify): Bail out for
+	identical, empty, and erroneous input types.
+
+2024-07-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-parser.cc (c_parser_omp_tile_sizes): Use c_parser_expr_list.
+
+2024-06-27  Martin Uecker  <uecker@tugraz.at>
+
+	* c-parser.cc (c_parser_direct_declarator_inner): Add
+	error message.
+
+2024-06-26  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-parser.cc (c_parser_require): Pass *global_dc to
+	gcc_rich_location::add_location_if_nearby.
+
 2024-06-25  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	PR c/115587

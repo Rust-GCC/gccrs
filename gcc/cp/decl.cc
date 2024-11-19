@@ -514,6 +514,20 @@ level_for_consteval_if (cp_binding_level *b)
 	  && IF_STMT_CONSTEVAL_P (b->this_entity));
 }
 
+/* True if T is a non-static VAR_DECL that has a non-trivial destructor.
+   See [stmt.dcl]/2.  */
+
+static bool
+automatic_var_with_nontrivial_dtor_p (const_tree t)
+{
+  if (error_operand_p (t))
+    return false;
+
+  return (VAR_P (t)
+	  && decl_storage_duration (CONST_CAST_TREE (t)) == dk_auto
+	  && TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (t)));
+}
+
 /* Update data for defined and undefined labels when leaving a scope.  */
 
 int
@@ -575,8 +589,7 @@ poplevel_named_label_1 (named_label_entry **slot, cp_binding_level *bl)
 		if (bl->kind == sk_catch)
 		  vec_safe_push (cg, get_identifier ("catch"));
 		for (tree d = use->names_in_scope; d; d = DECL_CHAIN (d))
-		  if (TREE_CODE (d) == VAR_DECL && !TREE_STATIC (d)
-		      && TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (d)))
+		  if (automatic_var_with_nontrivial_dtor_p (d))
 		    vec_safe_push (cg, d);
 	      }
 
@@ -689,15 +702,16 @@ poplevel (int keep, int reverse, int functionbody)
 	/* There are cases where D itself is a TREE_LIST.  See in
 	   push_local_binding where the list of decls returned by
 	   getdecls is built.  */
-	decl = TREE_CODE (d) == TREE_LIST ? TREE_VALUE (d) : d;
+	tree udecl = TREE_CODE (d) == TREE_LIST ? TREE_VALUE (d) : d;
+	decl = strip_using_decl (udecl);
 
 	tree type = TREE_TYPE (decl);
 	if (VAR_P (decl)
-	    && (! TREE_USED (decl) || !DECL_READ_P (decl))
-	    && ! DECL_IN_SYSTEM_HEADER (decl)
+	    && (!TREE_USED (decl) || !DECL_READ_P (decl))
+	    && !DECL_IN_SYSTEM_HEADER (udecl)
 	    /* For structured bindings, consider only real variables, not
 	       subobjects.  */
-	    && (DECL_DECOMPOSITION_P (decl) ? !DECL_DECOMP_BASE (decl)
+	    && (DECL_DECOMPOSITION_P (decl) ? DECL_DECOMP_IS_BASE (decl)
 		: (DECL_NAME (decl) && !DECL_ARTIFICIAL (decl)))
 	    /* Don't warn about name-independent declarations.  */
 	    && !name_independent_decl_p (decl)
@@ -707,9 +721,13 @@ poplevel (int keep, int reverse, int functionbody)
 		|| lookup_attribute ("warn_unused",
 				     TYPE_ATTRIBUTES (TREE_TYPE (decl)))))
 	  {
-	    if (! TREE_USED (decl))
+	    if (!TREE_USED (decl))
 	      {
-		if (!DECL_NAME (decl) && DECL_DECOMPOSITION_P (decl))
+		if (TREE_CODE (udecl) == USING_DECL)
+		  warning_at (DECL_SOURCE_LOCATION (udecl),
+			      OPT_Wunused_variable,
+			      "unused using-declaration %qD", udecl);
+		else if (!DECL_NAME (decl) && DECL_DECOMPOSITION_P (decl))
 		  warning_at (DECL_SOURCE_LOCATION (decl),
 			      OPT_Wunused_variable,
 			      "unused structured binding declaration");
@@ -1004,16 +1022,6 @@ member_like_constrained_friend_p (tree decl)
 static bool
 function_requirements_equivalent_p (tree newfn, tree oldfn)
 {
-  /* In the concepts TS, the combined constraints are compared.  */
-  if (cxx_dialect < cxx20)
-    {
-      tree ci1 = get_constraints (oldfn);
-      tree ci2 = get_constraints (newfn);
-      tree req1 = ci1 ? CI_ASSOCIATED_CONSTRAINTS (ci1) : NULL_TREE;
-      tree req2 = ci2 ? CI_ASSOCIATED_CONSTRAINTS (ci2) : NULL_TREE;
-      return cp_tree_equal (req1, req2);
-    }
-
   /* [temp.friend]/9 "Such a constrained friend function does not declare the
      same function as a declaration in any other scope."  So no need to
      actually compare the requirements.  */
@@ -3136,6 +3144,16 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
   if (TREE_CODE (newdecl) == FIELD_DECL)
     DECL_PACKED (olddecl) = DECL_PACKED (newdecl);
 
+  /* Merge module entity mapping information.  */
+  if (DECL_LANG_SPECIFIC (olddecl)
+      && (DECL_MODULE_ENTITY_P (olddecl)
+	  || DECL_MODULE_KEYED_DECLS_P (olddecl)))
+    {
+      retrofit_lang_decl (newdecl);
+      DECL_MODULE_ENTITY_P (newdecl) = DECL_MODULE_ENTITY_P (olddecl);
+      DECL_MODULE_KEYED_DECLS_P (newdecl) = DECL_MODULE_KEYED_DECLS_P (olddecl);
+    }
+
   /* The DECL_LANG_SPECIFIC information in OLDDECL will be replaced
      with that from NEWDECL below.  */
   if (DECL_LANG_SPECIFIC (olddecl))
@@ -4003,8 +4021,7 @@ check_goto_1 (named_label_entry *ent, bool computed)
 	  tree end = b == level ? names : NULL_TREE;
 	  for (tree d = b->names; d != end; d = DECL_CHAIN (d))
 	    {
-	      if (TREE_CODE (d) == VAR_DECL && !TREE_STATIC (d)
-		  && TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (d)))
+	      if (automatic_var_with_nontrivial_dtor_p (d))
 		{
 		  if (!identified)
 		    {
@@ -7561,7 +7578,7 @@ check_array_initializer (tree decl, tree type, tree init)
      to have complete type.  */
   if (decl
       && DECL_DECOMPOSITION_P (decl)
-      && !DECL_DECOMP_BASE (decl)
+      && DECL_DECOMP_IS_BASE (decl)
       && !COMPLETE_TYPE_P (type))
     {
       error_at (DECL_SOURCE_LOCATION (decl),
@@ -9426,6 +9443,12 @@ cp_finish_decomp (tree decl, cp_decomp *decomp)
       nelts = array_type_nelts_top (type);
       if (nelts == error_mark_node)
 	goto error_out;
+      if (DECL_DECOMP_BASE (decl))
+	{
+	  error_at (loc, "array initializer for structured binding "
+		    "declaration in condition");
+	  goto error_out;
+	}
       if (!tree_fits_uhwi_p (nelts))
 	{
 	  error_at (loc, "cannot decompose variable length array %qT", type);
@@ -9525,6 +9548,30 @@ cp_finish_decomp (tree decl, cp_decomp *decomp)
       eltscnt = tree_to_uhwi (tsize);
       if (count != eltscnt)
 	goto cnt_mismatch;
+      if (!processing_template_decl && DECL_DECOMP_BASE (decl))
+	{
+	  /* For structured bindings used in conditions we need to evaluate
+	     the conversion of decl (aka e in the standard) to bool or
+	     integral/enumeral type (the latter for switch conditions)
+	     before the get methods.  */
+	  tree cond = convert_from_reference (decl);
+	  if (integer_onep (DECL_DECOMP_BASE (decl)))
+	    /* switch condition.  */
+	    cond = build_expr_type_conversion (WANT_INT | WANT_ENUM,
+					       cond, true);
+	  else
+	    /* if/while/for condition.  */
+	    cond = contextual_conv_bool (cond, tf_warning_or_error);
+	  if (cond && !error_operand_p (cond))
+	    {
+	      /* Wrap that value into a TARGET_EXPR, emit it right
+		 away and save for later uses in the cp_parse_condition
+		 or its instantiation.  */
+	      cond = get_target_expr (cond);
+	      add_stmt (cond);
+	      DECL_DECOMP_BASE (decl) = cond;
+	    }
+	}
       int save_read = DECL_READ_P (decl);	
       for (unsigned i = 0; i < count; ++i)
 	{
@@ -10619,9 +10666,8 @@ grokfndecl (tree ctype,
 	 template shall be a definition. */
       if (ci
 	  && (block_local
-	      || (!flag_concepts_ts
-		  && (!processing_template_decl
-		      || (friendp && !memtmpl && !funcdef_flag)))))
+	      || !processing_template_decl
+	      || (friendp && !memtmpl && !funcdef_flag)))
 	{
 	  if (!friendp || !processing_template_decl)
 	    error_at (location, "constraints on a non-templated function");
@@ -11324,9 +11370,6 @@ grokvardecl (tree type,
 	}
       else
         DECL_DECLARED_CONCEPT_P (decl) = true;
-      if (!same_type_ignoring_top_level_qualifiers_p (type, boolean_type_node))
-	error_at (declspecs->locations[ds_type_spec],
-		  "concept must have type %<bool%>");
       if (TEMPLATE_PARMS_CONSTRAINTS (current_template_parms))
         {
           error_at (location, "a variable concept cannot be constrained");
@@ -16453,7 +16496,6 @@ lookup_and_check_tag (enum tag_types tag_code, tree name,
       /* First try ordinary name lookup, ignoring hidden class name
 	 injected via friend declaration.  */
       decl = lookup_name (name, LOOK_want::TYPE);
-      decl = strip_using_decl (decl);
       /* If that fails, the name will be placed in the smallest
 	 non-class, non-function-prototype scope according to 3.3.1/5.
 	 We may already have a hidden name declared as friend in this
@@ -16695,12 +16737,14 @@ xref_tag (enum tag_types tag_code, tree name,
 	  if (CLASS_TYPE_P (t) && CLASSTYPE_IS_TEMPLATE (t))
 	    maybe_tmpl = CLASSTYPE_TI_TEMPLATE (t);
 
+	  /* FIXME: we should do a more precise check for redefinitions
+	     of a conflicting using-declaration here, as these diagnostics
+	     are not ideal.  */
 	  if (DECL_LANG_SPECIFIC (decl)
 	      && DECL_MODULE_IMPORT_P (decl)
-	      && TREE_CODE (CP_DECL_CONTEXT (decl)) == NAMESPACE_DECL)
+	      && CP_DECL_CONTEXT (decl) == current_namespace)
 	    {
 	      /* Push it into this TU's symbol slot.  */
-	      gcc_checking_assert (current_namespace == CP_DECL_CONTEXT (decl));
 	      if (maybe_tmpl != decl)
 		/* We're in the template parm binding level.
 		   Pushtag has logic to slide under that, but we're

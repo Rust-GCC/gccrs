@@ -281,6 +281,12 @@ get_tree_node_for_type (enum gcc_jit_types type_)
 
     case GCC_JIT_TYPE_FLOAT:
       return float_type_node;
+    case GCC_JIT_TYPE_BFLOAT16:
+#ifndef HAVE_BFmode
+      add_error (NULL, "gcc_jit_types value unsupported on this target: %i",
+		 type_);
+#endif
+      return bfloat16_type_node;
     case GCC_JIT_TYPE_DOUBLE:
       return double_type_node;
     case GCC_JIT_TYPE_LONG_DOUBLE:
@@ -1115,6 +1121,17 @@ playback::context::
 new_sizeof (type *type)
 {
   tree inner = TYPE_SIZE_UNIT (type->as_tree ());
+  return new rvalue (this, inner);
+}
+
+/* Construct a playback::rvalue instance (wrapping a tree).  */
+
+playback::rvalue *
+playback::context::
+new_alignof (type *type)
+{
+  int alignment = TYPE_ALIGN (type->as_tree ()) / BITS_PER_UNIT;
+  tree inner = build_int_cst (integer_type_node, alignment);
   return new rvalue (this, inner);
 }
 

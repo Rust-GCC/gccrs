@@ -1,3 +1,275 @@
+2024-07-07  Maciej W. Rozycki  <macro@orcam.me.uk>
+
+	* gcc-interface/Make-lang.in (ada.all.cross): Move recipe to...
+	(GNATTOOLS_CROSS_MV): ... this new variable.
+	(cross-gnattools): Paste it here.
+	(gnattools-cross-mv): New target.
+
+2024-07-03  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc-interface/misc.cc (gnat_get_array_descr_info): Only follow
+	TYPE_DEBUG_TYPE if TYPE_CAN_HAVE_DEBUG_TYPE_P.
+	* gcc-interface/utils.cc (sized_type_hash): New struct.
+	(sized_type_hasher): New struct.
+	(sized_type_hash_table): New variable.
+	(init_gnat_utils): Allocate it.
+	(destroy_gnat_utils): Release it.
+	(sized_type_hasher::equal): New.
+	(hash_sized_type): New.
+	(canonicalize_sized_type): New.
+	(make_type_from_size): Use it to cache packed variants.  Fix
+	type reuse by combining biased_p and for_biased earlier.  Hold
+	the combination in for_biased, adjusting later uses.
+
+2024-07-03  Alexandre Oliva  <oliva@adacore.com>
+
+	* gcc-interface/cuintp.cc (UI_To_gnu): Add mode that selects a
+	wide enough unsigned type.  Fail if the constant exceeds the
+	representable numbers.
+	* gcc-interface/decl.cc (gnat_to_gnu_entity): Use it for
+	numerator and denominator of fixed-point types.  In case of
+	failure, fall back to an indeterminate fraction.
+
+2024-07-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch4.adb (Expand_Concatenate): In the case where an operand
+	does not have both bounds known at compile time, use nevertheless
+	the low bound directly if it is known at compile time.
+	Fold the conditional expression giving the low bound of the result
+	in the general case if the low bound of all the operands are equal.
+
+2024-07-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_ch12.adb (Save_And_Reset): Fix value of low bound used to
+	reset table.
+
+2024-07-02  Steve Baird  <baird@adacore.com>
+
+	* sem_attr.adb
+	(Analyze_Image_Attribute.Check_Image_Type): Check for
+	E_Access_Attribute_Type prefix type.
+
+2024-07-02  Steve Baird  <baird@adacore.com>
+
+	* exp_ch9.adb
+	(Expand_N_Protected_Body): Declare new procedure
+	Unanalyze_Use_Clauses and call it before analyzing the newly
+	constructed subprogram body.
+
+2024-07-02  Steve Baird  <baird@adacore.com>
+
+	* exp_put_image.adb
+	(Build_Record_Put_Image_Procedure): Declare new Boolean-valued
+	function Null_Record_Default_Implementation_OK; call it as part of
+	deciding whether to generate "(NULL RECORD)" text.
+
+2024-07-02  Justin Squirek  <squirek@adacore.com>
+
+	* sem_ch5.adb:
+	(Analyze_Assignment): Add special expansion for qualified expressions
+	in certain cases dealing with mutably tagged types.
+
+2024-07-02  Bob Duff  <duff@adacore.com>
+
+	* freeze.adb (Freeze_Type_Refs): If Node is in N_Has_Etype,
+	check that it has had its Etype set, because this can be
+	called early for expression functions that are completions.
+
+2024-07-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch4.adb (Expand_Array_Comparison): Remove the obsolete byte
+	addressibility test. If Support_Composite_Compare_On_Target is true,
+	immediately return for a component size of 8, an unsigned component
+	type and aligned operands. Disable when Unnest_Subprogram_Mode is
+	true (for LLVM).
+	(Expand_N_Op_Eq): Adjust comment.
+	* targparm.ads (Support_Composite_Compare_On_Target): Replace bit by
+	byte in description and document support for ordering comparisons.
+	* gcc-interface/utils2.cc (compare_arrays): Rename into...
+	(compare_arrays_for_equality): ...this.  Remove redundant lines.
+	(compare_arrays_for_ordering): New function.
+	(build_binary_op) <comparisons>: Call compare_arrays_for_ordering
+	to implement ordering comparisons for arrays.
+
+2024-07-02  Yannick Moy  <moy@adacore.com>
+
+	* contracts.adb (Analyze_Pragmas_In_Declarations): Analyze
+	pragmas in two iterations over the list of declarations in
+	order to analyze some pragmas before others.
+	* einfo-utils.ads (Get_Pragma): Fix comment.
+	* sem_prag.ads (Pragma_Significant_To_Subprograms): Fix.
+	(Pragma_Significant_To_Subprograms_Analyzed_First): Add new
+	global array to identify these pragmas which should be analyzed
+	first, which concerns only Extensions_Visible for now.
+
+2024-07-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch7.adb (Convert_View): Add third parameter Typ and use it if
+	the second parameter does not have an Etype.
+	(Make_Adjust_Call): Remove obsolete setting of Etype and pass Typ in
+	call to Convert_View.
+	(Make_Final_Call): Likewise.
+	(Make_Init_Call): Pass Typ in call to Convert_View.
+
+2024-07-02  Javier Miranda  <miranda@adacore.com>
+
+	* sem_aggr.adb (Cannot_Compute_High_Bound): New subprogram.
+	(Report_Null_Array_Constraint_Error): New subprogram.
+	(Collect_Aggr_Bounds): For null aggregates, build the bounds
+	of the inner dimensions.
+	(Has_Null_Aggregate_Raising_Constraint_Error): New subprogram.
+	(Subtract): New subprogram.
+	(Resolve_Array_Aggregate): Report a warning when the index of
+	null array aggregates is an enumeration type or a modular type
+	at we can statically determine that the program will raise CE
+	at runtime computing its high bound.
+	(Resolve_Null_Array_Aggregate): ditto.
+
+2024-07-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* doc/gnat_rm/standard_and_implementation_defined_restrictions.rst
+	(No_Default_Initialization): Mention components alongside variables.
+	* exp_aggr.adb (Build_Array_Aggr_Code.Gen_Assign): Check that the
+	restriction No_Default_Initialization is not in effect for default
+	initialized component.
+	(Build_Record_Aggr_Code): Likewise.
+	* gnat_rm.texi: Regenerate.
+
+2024-07-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* debug.adb (dJ): Add back as unused.
+
+2024-06-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* libgnat/s-carsi8.adb: Remove clauses for System.Address_Operations
+	and use only operations of System.Storage_Elements for addresses.
+	* libgnat/s-casi16.adb: Likewise.
+	* libgnat/s-casi32.adb: Likewise.
+	* libgnat/s-casi64.adb: Likewise.
+	* libgnat/s-casi128.adb: Likewise.
+	* libgnat/s-carun8.adb: Likewise.
+	* libgnat/s-caun16.adb: Likewise.
+	* libgnat/s-caun32.adb: Likewise.
+	* libgnat/s-caun64.adb: Likewise.
+	* libgnat/s-caun128.adb: Likewise.
+	* libgnat/s-geveop.adb: Likewise.
+
+2024-06-27  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch2.adb (Analyze_Interpolated_String_Literal): Report
+	interpretations of ambiguous parameterless function calls.
+
+2024-06-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch5.adb (Analyze_Target_Name): Call Analyze_Dimension on the
+	node once the Etype is set.
+	* sem_dim.adb (OK_For_Dimension): Set to True for N_Target_Name.
+	(Analyze_Dimension): Call Analyze_Dimension_Has_Etype for it.
+
+2024-06-27  Ronan Desplanques  <desplanques@adacore.com>
+
+	* mdll.adb (Build_Non_Reloc_DLL): Fix incorrect assignment
+	to array object.
+	(Ada_Build_Non_Reloc_DLL): Likewise.
+
+2024-06-27  Javier Miranda  <miranda@adacore.com>
+
+	* sem_res.adb (Has_Applicable_User_Defined_Literal): Add missing
+	support for interpolated strings.
+
+2024-06-27  Martin Clochard  <clochard@adacore.com>
+
+	* sem_ch6.adb (Check_Overriding_Indicator) Remove Comes_From_Source filter.
+	(New_Overloaded_Entity) Move up special case of LSP_Subprogram,
+	and remove Comes_From_Source filter.
+
+2024-06-27  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* aspects.ads (Aspect_Id): Add Aspect_Finalizable.
+	(Implementation_Defined_Aspect): Add True for Aspect_Finalizable.
+	(Operational_Aspect): Add True for Aspect_Finalizable.
+	(Aspect_Argument): Add Expression for Aspect_Finalizable.
+	(Is_Representation_Aspect): Add False for Aspect_Finalizable.
+	(Aspect_Names): Add Name_Finalizable for Aspect_Finalizable.
+	(Aspect_Delay): Add Always_Delay  for Aspect_Finalizable.
+	* checks.adb: Add with and use clauses for Sem_Elab.
+	(Install_Primitive_Elaboration_Check): Call Is_Controlled_Procedure.
+	* einfo.ads (Has_Relaxed_Finalization): Document new flag.
+	(Is_Controlled_Active): Update documentation.
+	* exp_aggr.adb (Generate_Finalization_Actions): Replace Find_Prim_Op
+	with Find_Controlled_Prim_Op for Name_Finalize.
+	* exp_attr.adb (Expand_N_Attribute_Reference) <Finalization_Size>:
+	Return 0 if the prefix type has relaxed finalization.
+	* exp_ch3.adb (Build_Equivalent_Record_Aggregate): Return Empty if
+	the type needs finalization.
+	(Expand_Freeze_Record_Type): Call Find_Controlled_Prim_Op instead of
+	Find_Prim_Op for Name_{Adjust,Initialize,Finalize}.
+	Call Make_Finalize_Address_Body for all controlled types.
+	* exp_ch4.adb (Insert_Dereference_Action): Do not generate a call to
+	Adjust_Controlled_Dereference if the designated type has relaxed
+	finalization.
+	* exp_ch6.adb (Needs_BIP_Collection): Return false for an untagged
+	type that has relaxed finalization.
+	* exp_ch7.adb (Allows_Finalization_Collection): Return false if the
+	designated type has relaxed finalization.
+	(Check_Visibly_Controlled): Call Find_Controlled_Prim_Op instead of
+	Find_Prim_Op.
+	(Make_Adjust_Call): Likewise.
+	(Make_Deep_Record_Body): Likewise.
+	(Make_Final_Call): Likewise.
+	(Make_Init_Call): Likewise.
+	* exp_disp.adb (Set_All_DT_Position): Remove obsolete warning.
+	* exp_util.ads: Add with and use clauses for Snames.
+	(Find_Prim_Op): Add precondition.
+	(Find_Controlled_Prim_Op): New function declaration.
+	(Name_Of_Controlled_Prim_Op): Likewise.
+	* exp_util.adb: Remove with and use clauses for Snames.
+	(Build_Allocate_Deallocate_Proc): Do not build finalization actions
+	if the designated type has relaxed finalization.
+	(Find_Controlled_Prim_Op): New function.
+	(Find_Last_Init): Call Find_Controlled_Prim_Op instead of
+	Find_Prim_Op.
+	(Name_Of_Controlled_Prim_Op): New function.
+	* freeze.adb (Freeze_Entity.Freeze_Record_Type): Propagate the
+	Has_Relaxed_Finalization flag from components.
+	* gen_il-fields.ads (Opt_Field_Enum): Add Has_Relaxed_Finalization.
+	* gen_il-gen-gen_entities.adb (Entity_Kind): Likewise.
+	* sem_aux.adb (Is_By_Reference_Type): Return true for all controlled
+	types.
+	* sem_ch3.adb (Build_Derived_Record_Type): Do not special case types
+	declared in Ada.Finalization.
+	(Record_Type_Definition): Propagate the Has_Relaxed_Finalization
+	flag from components.
+	* sem_ch13.adb (Analyze_Aspects_At_Freeze_Point): Also process the
+	Finalizable aspect.
+	(Analyze_Aspect_Specifications): Likewise. Call Flag_Non_Static_Expr
+	in more cases.
+	(Check_Aspect_At_Freeze_Point): Likewise.
+	(Inherit_Aspects_At_Freeze_Point): Likewise.
+	(Resolve_Aspect_Expressions): Likewise.
+	(Resolve_Finalizable_Argument): New procedure.
+	(Validate_Finalizable_Aspect): Likewise.
+	* sem_elab.ads: Add with and use clauses for Snames.
+	(Is_Controlled_Procedure): New function declaration.
+	* sem_elab.adb: Remove with and use clauses for Snames.
+	(Is_Controlled_Proc): Move to...
+	(Is_Controlled_Procedure): ...here and rename.
+	(Check_A_Call): Call Find_Controlled_Prim_Op instead of
+	Find_Prim_Op.
+	(Is_Finalization_Procedure): Likewise.
+	* sem_util.ads (Propagate_Controlled_Flags): Update documentation.
+	* sem_util.adb (Is_Fully_Initialized_Type): Replace call to
+	Find_Optional_Prim_Op with Find_Controlled_Prim_Op.
+	Call Has_Null_Extension only for derived tagged types.
+	(Propagate_Controlled_Flags): Propagate Has_Relaxed_Finalization.
+	* snames.ads-tmpl (Name_Finalizable): New name.
+	(Name_Relaxed_Finalization): Likewise.
+	* libgnat/s-finroo.ads (Root_Controlled): Add Finalizable aspect.
+	* doc/gnat_rm/gnat_language_extensions.rst: Document implementation
+	of Generalized Finalization.
+	* gnat_rm.texi: Regenerate.
+	* gnat_ugn.texi: Regenerate.
+
 2024-06-21  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* gcc-interface/trans.cc (Subprogram_Body_to_gnu): Also return early

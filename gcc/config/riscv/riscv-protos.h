@@ -524,6 +524,10 @@ enum insn_type : unsigned int
   SCALAR_MOVE_MERGED_OP = HAS_DEST_P | HAS_MASK_P | USE_ONE_TRUE_MASK_P
 			  | HAS_MERGE_P | TDEFAULT_POLICY_P | MDEFAULT_POLICY_P
 			  | UNARY_OP_P,
+
+  SCALAR_MOVE_MERGED_OP_TU = HAS_DEST_P | HAS_MASK_P | USE_ONE_TRUE_MASK_P
+			  | HAS_MERGE_P | TU_POLICY_P | MDEFAULT_POLICY_P
+			  | UNARY_OP_P,
 };
 
 enum vlmul_type
@@ -639,6 +643,10 @@ void expand_vec_lceil (rtx, rtx, machine_mode, machine_mode);
 void expand_vec_lfloor (rtx, rtx, machine_mode, machine_mode);
 void expand_vec_usadd (rtx, rtx, rtx, machine_mode);
 void expand_vec_ussub (rtx, rtx, rtx, machine_mode);
+void expand_vec_double_ustrunc (rtx, rtx, machine_mode);
+void expand_vec_quad_ustrunc (rtx, rtx, machine_mode, machine_mode);
+void expand_vec_oct_ustrunc (rtx, rtx, machine_mode, machine_mode,
+			     machine_mode);
 #endif
 bool sew64_scalar_helper (rtx *, rtx *, rtx, machine_mode,
 			  bool, void (*)(rtx *, rtx), enum avl_type);

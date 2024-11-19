@@ -19405,8 +19405,10 @@ aarch64_process_one_target_attr (char *arg_str)
       return false;
     }
 
-  char *str_to_check = (char *) alloca (len + 1);
-  strcpy (str_to_check, arg_str);
+  auto_vec<char, 32> buffer;
+  buffer.safe_grow (len + 1);
+  char *str_to_check = buffer.address ();
+  memcpy (str_to_check, arg_str, len + 1);
 
   /* We have something like __attribute__ ((target ("+fp+nosimd"))).
      It is easier to detect and handle it explicitly here rather than going
@@ -19569,8 +19571,10 @@ aarch64_process_target_attr (tree args)
     }
 
   size_t len = strlen (TREE_STRING_POINTER (args));
-  char *str_to_check = (char *) alloca (len + 1);
-  strcpy (str_to_check, TREE_STRING_POINTER (args));
+  auto_vec<char, 32> buffer;
+  buffer.safe_grow (len + 1);
+  char *str_to_check = buffer.address ();
+  memcpy (str_to_check, TREE_STRING_POINTER (args), len + 1);
 
   if (len == 0)
     {
@@ -23188,7 +23192,8 @@ aarch64_gen_shareable_zero (machine_mode mode)
    to split without that restriction and instead recombine shared zeros
    if they turn out not to be worthwhile.  This would allow splits in
    single-block functions and would also cope more naturally with
-   rematerialization.  */
+   rematerialization.  The downside of not doing this is that we lose the
+   optimizations for vector epilogues as well.  */
 
 bool
 aarch64_split_simd_shift_p (rtx_insn *insn)
@@ -25412,6 +25417,7 @@ struct expand_vec_perm_d
   unsigned int vec_flags;
   unsigned int op_vec_flags;
   bool one_vector_p;
+  bool zero_op0_p, zero_op1_p;
   bool testing_p;
 };
 
@@ -25908,13 +25914,38 @@ aarch64_evpc_tbl (struct expand_vec_perm_d *d)
   /* to_constant is safe since this routine is specific to Advanced SIMD
      vectors.  */
   unsigned int nelt = d->perm.length ().to_constant ();
+
+  /* If one register is the constant vector of 0 then we only need
+     a one reg TBL and we map any accesses to the vector of 0 to -1.  We can't
+     do this earlier since vec_perm_indices clamps elements to within range so
+     we can only do it during codegen.  */
+  if (d->zero_op0_p)
+    d->op0 = d->op1;
+  else if (d->zero_op1_p)
+    d->op1 = d->op0;
+
   for (unsigned int i = 0; i < nelt; ++i)
-    /* If big-endian and two vectors we end up with a weird mixed-endian
-       mode on NEON.  Reverse the index within each word but not the word
-       itself.  to_constant is safe because we checked is_constant above.  */
-    rperm[i] = GEN_INT (BYTES_BIG_ENDIAN
-			? d->perm[i].to_constant () ^ (nelt - 1)
-			: d->perm[i].to_constant ());
+    {
+      auto val = d->perm[i].to_constant ();
+
+      /* If we're selecting from a 0 vector, we can just use an out of range
+	 index instead.  */
+      if ((d->zero_op0_p && val < nelt) || (d->zero_op1_p && val >= nelt))
+	rperm[i] = constm1_rtx;
+      else
+	{
+	  /* If we are remapping a zero register as the first parameter we need
+	     to adjust the indices of the non-zero register.  */
+	  if (d->zero_op0_p)
+	    val = val % nelt;
+
+	  /* If big-endian and two vectors we end up with a weird mixed-endian
+	     mode on NEON.  Reverse the index within each word but not the word
+	     itself.  to_constant is safe because we checked is_constant
+	     above.  */
+	  rperm[i] = GEN_INT (BYTES_BIG_ENDIAN ? val ^ (nelt - 1) : val);
+	}
+    }
 
   sel = gen_rtx_CONST_VECTOR (vmode, gen_rtvec_v (nelt, rperm));
   sel = force_reg (vmode, sel);
@@ -26178,6 +26209,8 @@ aarch64_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
   else
     d.one_vector_p = false;
 
+  d.zero_op0_p = op0 == CONST0_RTX (op_mode);
+  d.zero_op1_p = op1 == CONST0_RTX (op_mode);
   d.perm.new_vector (sel.encoding (), d.one_vector_p ? 1 : 2,
 		     sel.nelts_per_input ());
   d.vmode = vmode;

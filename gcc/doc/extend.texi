@@ -21444,6 +21444,26 @@ Additional built-in functions are available for the 64-bit PowerPC
 family of processors, for efficient use of 128-bit floating point
 (@code{__float128}) values.
 
+Vector select
+
+@smallexample
+vector signed __int128 vec_sel (vector signed __int128,
+               vector signed __int128, vector bool __int128);
+vector signed __int128 vec_sel (vector signed __int128,
+               vector signed __int128, vector unsigned __int128);
+vector unsigned __int128 vec_sel (vector unsigned __int128,
+               vector unsigned __int128, vector bool __int128);
+vector unsigned __int128 vec_sel (vector unsigned __int128,
+               vector unsigned __int128, vector unsigned __int128);
+vector bool __int128 vec_sel (vector bool __int128,
+               vector bool __int128, vector bool __int128);
+vector bool __int128 vec_sel (vector bool __int128,
+               vector bool __int128, vector unsigned __int128);
+@end smallexample
+
+The instance is an extension of the exiting overloaded built-in @code{vec_sel}
+that is documented in the PVIPR.
+
 @node Basic PowerPC Built-in Functions Available on ISA 2.06
 @subsubsection Basic PowerPC Built-in Functions Available on ISA 2.06
 
@@ -22614,6 +22634,10 @@ void vec_vsx_st (vector bool char, int, signed char *);
 
 vector double vec_xxpermdi (vector double, vector double, const int);
 vector float vec_xxpermdi (vector float, vector float, const int);
+vector __int128 vec_xxpermdi (vector __int128,
+                              vector __int128, const int);
+vector __uint128 vec_xxpermdi (vector __uint128,
+                               vector __uint128, const int);
 vector long long vec_xxpermdi (vector long long, vector long long, const int);
 vector unsigned long long vec_xxpermdi (vector unsigned long long,
                                         vector unsigned long long, const int);
@@ -22648,6 +22672,16 @@ generate the AltiVec @samp{LVX} and @samp{STVX} instructions even
 if the VSX instruction set is available.  The @samp{vec_vsx_ld} and
 @samp{vec_vsx_st} built-in functions always generate the VSX @samp{LXVD2X},
 @samp{LXVW4X}, @samp{STXVD2X}, and @samp{STXVW4X} instructions.
+
+@smallexample
+vector signed long long vec_signedo (vector float);
+vector signed long long vec_signede (vector float);
+vector unsigned long long vec_unsignedo (vector float);
+vector unsigned long long vec_unsignede (vector float);
+@end smallexample
+
+The overloaded built-ins @code{vec_signedo} and @code{vec_signede} are
+additional extensions to the built-ins as documented in the PVIPR.
 
 @node PowerPC AltiVec Built-in Functions Available on ISA 2.07
 @subsubsection PowerPC AltiVec Built-in Functions Available on ISA 2.07

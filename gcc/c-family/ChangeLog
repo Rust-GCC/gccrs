@@ -1,3 +1,27 @@
+2024-07-10  Marek Polacek  <polacek@redhat.com>
+
+	* c-cppbuiltin.cc (c_cpp_builtins): Remove flag_concepts_ts code.
+	* c-opts.cc (c_common_post_options): Likewise.
+	* c.opt: Remove -fconcepts-ts.
+	* c.opt.urls: Regenerate.
+
+2024-07-08  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-format.cc (format_check_results::format_check_results): New
+	ctor.
+	(struct format_check_context): Add ctor; add "m_" prefix to all
+	fields.
+	(check_format_info): Use above ctors.
+	(check_format_arg): Update for "m_" prefix to
+	format_check_context.
+
+2024-07-03  Lewis Hyatt  <lhyatt@gmail.com>
+
+	PR pch/115312
+	* c-opts.cc (c_common_init): Call c_init_preprocess() before
+	c_finish_options() so that a parser is available to process any
+	includes specified on the command line.
+
 2024-06-25  Andrew Pinski  <quic_apinski@quicinc.com>
 
 	PR c++/115624

@@ -2030,19 +2030,6 @@ rs6000_gimple_fold_builtin (gimple_stmt_iterator *gsi)
       fold_compare_helper (gsi, GT_EXPR, stmt);
       return true;
 
-    case RS6000_BIF_CMPLE_16QI:
-    case RS6000_BIF_CMPLE_U16QI:
-    case RS6000_BIF_CMPLE_8HI:
-    case RS6000_BIF_CMPLE_U8HI:
-    case RS6000_BIF_CMPLE_4SI:
-    case RS6000_BIF_CMPLE_U4SI:
-    case RS6000_BIF_CMPLE_2DI:
-    case RS6000_BIF_CMPLE_U2DI:
-    case RS6000_BIF_CMPLE_1TI:
-    case RS6000_BIF_CMPLE_U1TI:
-      fold_compare_helper (gsi, LE_EXPR, stmt);
-      return true;
-
     /* flavors of vec_splat_[us]{8,16,32}.  */
     case RS6000_BIF_VSPLTISB:
     case RS6000_BIF_VSPLTISH:
@@ -2113,20 +2100,16 @@ rs6000_gimple_fold_builtin (gimple_stmt_iterator *gsi)
     /* vec_mergel (integrals).  */
     case RS6000_BIF_VMRGLH:
     case RS6000_BIF_VMRGLW:
-    case RS6000_BIF_XXMRGLW_4SI:
     case RS6000_BIF_VMRGLB:
     case RS6000_BIF_VEC_MERGEL_V2DI:
-    case RS6000_BIF_XXMRGLW_4SF:
     case RS6000_BIF_VEC_MERGEL_V2DF:
       fold_mergehl_helper (gsi, stmt, 1);
       return true;
     /* vec_mergeh (integrals).  */
     case RS6000_BIF_VMRGHH:
     case RS6000_BIF_VMRGHW:
-    case RS6000_BIF_XXMRGHW_4SI:
     case RS6000_BIF_VMRGHB:
     case RS6000_BIF_VEC_MERGEH_V2DI:
-    case RS6000_BIF_XXMRGHW_4SF:
     case RS6000_BIF_VEC_MERGEH_V2DF:
       fold_mergehl_helper (gsi, stmt, 0);
       return true;
@@ -2325,43 +2308,6 @@ altivec_expand_predicate_builtin (enum insn_code icode, tree exp, rtx target)
       error ("argument 1 of %qs is out of range",
 	     "__builtin_altivec_predicate");
       break;
-    }
-
-  return target;
-}
-
-/* Expand vec_init builtin.  */
-static rtx
-altivec_expand_vec_init_builtin (tree type, tree exp, rtx target)
-{
-  machine_mode tmode = TYPE_MODE (type);
-  machine_mode inner_mode = GET_MODE_INNER (tmode);
-  int i, n_elt = GET_MODE_NUNITS (tmode);
-
-  gcc_assert (VECTOR_MODE_P (tmode));
-  gcc_assert (n_elt == call_expr_nargs (exp));
-
-  if (!target || !register_operand (target, tmode))
-    target = gen_reg_rtx (tmode);
-
-  /* If we have a vector compromised of a single element, such as V1TImode, do
-     the initialization directly.  */
-  if (n_elt == 1 && GET_MODE_SIZE (tmode) == GET_MODE_SIZE (inner_mode))
-    {
-      rtx x = expand_normal (CALL_EXPR_ARG (exp, 0));
-      emit_move_insn (target, gen_lowpart (tmode, x));
-    }
-  else
-    {
-      rtvec v = rtvec_alloc (n_elt);
-
-      for (i = 0; i < n_elt; ++i)
-	{
-	  rtx x = expand_normal (CALL_EXPR_ARG (exp, i));
-	  RTVEC_ELT (v, i) = gen_lowpart (inner_mode, x);
-	}
-
-      rs6000_expand_vector_init (target, gen_rtx_PARALLEL (tmode, v));
     }
 
   return target;
@@ -3417,9 +3363,6 @@ rs6000_expand_builtin (tree exp, rtx target, rtx /* subtarget */,
 
   if (bif_is_cpu (*bifaddr))
     return cpu_expand_builtin (fcode, exp, target);
-
-  if (bif_is_init (*bifaddr))
-    return altivec_expand_vec_init_builtin (TREE_TYPE (exp), exp, target);
 
   if (bif_is_set (*bifaddr))
     return altivec_expand_vec_set_builtin (exp);

@@ -414,6 +414,7 @@ ix86_expand_move (machine_mode mode, rtx operands[])
 	{
 #if TARGET_PECOFF
 	  tmp = legitimize_pe_coff_symbol (op1, addend != NULL_RTX);
+
 	  if (tmp)
 	    {
 	      op1 = tmp;
@@ -421,11 +422,11 @@ ix86_expand_move (machine_mode mode, rtx operands[])
 		break;
 	    }
 	  else
+#endif
 	    {
 	      op1 = operands[1];
 	      break;
 	    }
-#endif
 	}
 
       if (addend)
@@ -479,12 +480,12 @@ ix86_expand_move (machine_mode mode, rtx operands[])
 	  /* dynamic-no-pic */
 	  if (MACHOPIC_INDIRECT)
 	    {
-	      rtx temp = (op0 && REG_P (op0) && mode == Pmode)
-			 ? op0 : gen_reg_rtx (Pmode);
-	      op1 = machopic_indirect_data_reference (op1, temp);
+	      tmp = (op0 && REG_P (op0) && mode == Pmode)
+		    ? op0 : gen_reg_rtx (Pmode);
+	      op1 = machopic_indirect_data_reference (op1, tmp);
 	      if (MACHOPIC_PURE)
 		op1 = machopic_legitimize_pic_address (op1, mode,
-						       temp == op1 ? 0 : temp);
+						       tmp == op1 ? 0 : tmp);
 	    }
 	  if (op0 != op1 && GET_CODE (op0) != MEM)
 	    {
@@ -539,9 +540,9 @@ ix86_expand_move (machine_mode mode, rtx operands[])
 	      op1 = validize_mem (force_const_mem (mode, op1));
 	      if (!register_operand (op0, mode))
 		{
-		  rtx temp = gen_reg_rtx (mode);
-		  emit_insn (gen_rtx_SET (temp, op1));
-		  emit_move_insn (op0, temp);
+		  tmp = gen_reg_rtx (mode);
+		  emit_insn (gen_rtx_SET (tmp, op1));
+		  emit_move_insn (op0, tmp);
 		  return;
 		}
 	    }
@@ -562,7 +563,7 @@ ix86_expand_move (machine_mode mode, rtx operands[])
       if (SUBREG_BYTE (op0) == 0)
 	{
 	  wide_int mask = wi::mask (64, true, 128);
-	  rtx tmp = immed_wide_int_const (mask, TImode);
+	  tmp = immed_wide_int_const (mask, TImode);
 	  op0 = SUBREG_REG (op0);
 	  tmp = gen_rtx_AND (TImode, copy_rtx (op0), tmp);
 	  if (mode == DFmode)
@@ -574,7 +575,7 @@ ix86_expand_move (machine_mode mode, rtx operands[])
       else if (SUBREG_BYTE (op0) == 8)
 	{
 	  wide_int mask = wi::mask (64, false, 128);
-	  rtx tmp = immed_wide_int_const (mask, TImode);
+	  tmp = immed_wide_int_const (mask, TImode);
 	  op0 = SUBREG_REG (op0);
 	  tmp = gen_rtx_AND (TImode, copy_rtx (op0), tmp);
 	  if (mode == DFmode)
@@ -612,7 +613,7 @@ ix86_broadcast_from_constant (machine_mode mode, rtx op)
     return nullptr;
 
   rtx constant = get_pool_constant (XEXP (op, 0));
-  if (GET_CODE (constant) != CONST_VECTOR)
+  if (!CONST_VECTOR_P (constant))
     return nullptr;
 
   /* There could be some rtx like
@@ -622,7 +623,7 @@ ix86_broadcast_from_constant (machine_mode mode, rtx op)
     {
       constant = simplify_subreg (mode, constant, GET_MODE (constant),
 				  0);
-      if (constant == nullptr || GET_CODE (constant) != CONST_VECTOR)
+      if (constant == nullptr || !CONST_VECTOR_P (constant))
 	return nullptr;
     }
 
@@ -1898,10 +1899,6 @@ ix86_split_convert_uns_si_sse (rtx operands[])
   emit_insn (gen_xorv4si3 (value, value, large));
 }
 
-static bool ix86_expand_vector_init_one_nonzero (bool mmx_ok,
-						 machine_mode mode, rtx target,
-						 rtx var, int one_var);
-
 /* Convert an unsigned DImode value into a DFmode, using only SSE.
    Expects the 64-bit DImode to be supplied in a pair of integral
    registers.  Requires SSE2; will use SSE3 if available.  For x86_32,
@@ -2177,20 +2174,28 @@ ix86_expand_fp_absneg_operator (enum rtx_code code, machine_mode mode,
   machine_mode vmode = mode;
   rtvec par;
 
-  if (vector_mode || mode == TFmode || mode == HFmode)
-    {
-      use_sse = true;
-      if (mode == HFmode)
-	vmode = V8HFmode;
-    }
-  else if (TARGET_SSE_MATH)
-    {
-      use_sse = SSE_FLOAT_MODE_P (mode);
-      if (mode == SFmode)
-	vmode = V4SFmode;
-      else if (mode == DFmode)
-	vmode = V2DFmode;
-    }
+  switch (mode)
+  {
+  case HFmode:
+    use_sse = true;
+    vmode = V8HFmode;
+    break;
+  case BFmode:
+    use_sse = true;
+    vmode = V8BFmode;
+    break;
+  case SFmode:
+    use_sse = TARGET_SSE_MATH && TARGET_SSE;
+    vmode = V4SFmode;
+    break;
+  case DFmode:
+    use_sse = TARGET_SSE_MATH && TARGET_SSE2;
+    vmode = V2DFmode;
+    break;
+  default:
+    use_sse = vector_mode || mode == TFmode;
+    break;
+  }
 
   dst = operands[0];
   src = operands[1];
@@ -2323,16 +2328,26 @@ ix86_expand_copysign (rtx operands[])
 
   mode = GET_MODE (operands[0]);
 
-  if (mode == HFmode)
+  switch (mode)
+  {
+  case HFmode:
     vmode = V8HFmode;
-  else if (mode == SFmode)
+    break;
+  case BFmode:
+    vmode = V8BFmode;
+    break;
+  case SFmode:
     vmode = V4SFmode;
-  else if (mode == DFmode)
+    break;
+  case DFmode:
     vmode = V2DFmode;
-  else if (mode == TFmode)
+    break;
+  case TFmode:
     vmode = mode;
-  else
-    gcc_unreachable ();
+    break;
+  default:
+    gcc_unreachable();
+  }
 
   if (rtx_equal_p (operands[1], operands[2]))
     {
@@ -2393,14 +2408,24 @@ ix86_expand_xorsign (rtx operands[])
 
   mode = GET_MODE (dest);
 
-  if (mode == HFmode)
+  switch (mode)
+  {
+  case HFmode:
     vmode = V8HFmode;
-  else if (mode == SFmode)
+    break;
+  case BFmode:
+    vmode = V8BFmode;
+    break;
+  case SFmode:
     vmode = V4SFmode;
-  else if (mode == DFmode)
+    break;
+  case DFmode:
     vmode = V2DFmode;
-  else
+    break;
+  default:
     gcc_unreachable ();
+    break;
+  }
 
   temp = gen_reg_rtx (vmode);
   mask = ix86_build_signbit_mask (vmode, 0, 0);
@@ -16126,7 +16151,7 @@ ix86_expand_vector_init_duplicate (bool mmx_ok, machine_mode mode,
    whose ONE_VAR element is VAR, and other elements are zero.  Return true
    if successful.  */
 
-static bool
+bool
 ix86_expand_vector_init_one_nonzero (bool mmx_ok, machine_mode mode,
 				     rtx target, rtx var, int one_var)
 {
@@ -25536,7 +25561,7 @@ static rtx
 ix86_gen_bcst_mem (machine_mode mode, rtx x)
 {
   if (!TARGET_AVX512F
-      || GET_CODE (x) != CONST_VECTOR
+      || !CONST_VECTOR_P (x)
       || (!TARGET_AVX512VL
 	  && (GET_MODE_SIZE (mode) != 64 || !TARGET_EVEX512))
       || !VALID_BCST_MODE_P (GET_MODE_INNER (mode))
@@ -25610,7 +25635,7 @@ ix86_ternlog_idx (rtx op, rtx *args)
     case VEC_DUPLICATE:
       if (!bcst_mem_operand (op, GET_MODE (op)))
 	return -1;
-      /* FALLTHRU */
+      goto do_mem_operand;
 
     case MEM:
       if (!memory_operand (op, GET_MODE (op)))
@@ -25622,23 +25647,52 @@ ix86_ternlog_idx (rtx op, rtx *args)
       /* FALLTHRU */
 
     case CONST_VECTOR:
+do_mem_operand:
       if (!args[2])
 	{
 	  args[2] = op;
 	  return 0xaa;
 	}
       /* Maximum of one volatile memory reference per expression.  */
-      if (side_effects_p (op) && side_effects_p (args[2]))
+      if (side_effects_p (op))
 	return -1;
       if (rtx_equal_p (op, args[2]))
 	return 0xaa;
-      /* Check if one CONST_VECTOR is the ones-complement of the other.  */
+      /* Check if CONST_VECTOR is the ones-complement of args[2].  */
       if (GET_CODE (op) == CONST_VECTOR
 	  && GET_CODE (args[2]) == CONST_VECTOR
 	  && rtx_equal_p (simplify_const_unary_operation (NOT, GET_MODE (op),
 							  op, GET_MODE (op)),
 			  args[2]))
 	return 0x55;
+      if (!args[0])
+	{
+	  args[0] = op;
+	  return 0xf0;
+	}
+      if (rtx_equal_p (op, args[0]))
+	return 0xf0;
+      /* Check if CONST_VECTOR is the ones-complement of args[0].  */
+      if (GET_CODE (op) == CONST_VECTOR
+	  && GET_CODE (args[0]) == CONST_VECTOR
+	  && rtx_equal_p (simplify_const_unary_operation (NOT, GET_MODE (op),
+							  op, GET_MODE (op)),
+			  args[0]))
+	return 0x0f;
+      if (!args[1])
+	{
+	  args[1] = op;
+	  return 0xcc;
+	}
+      if (rtx_equal_p (op, args[1]))
+	return 0xcc;
+      /* Check if CONST_VECTOR is the ones-complement of args[1].  */
+      if (GET_CODE (op) == CONST_VECTOR
+	  && GET_CODE (args[1]) == CONST_VECTOR
+	  && rtx_equal_p (simplify_const_unary_operation (NOT, GET_MODE (op),
+							  op, GET_MODE (op)),
+			  args[1]))
+	return 0x33;
       return -1;
 
     case NOT:
@@ -25697,7 +25751,7 @@ ix86_ternlog_leaf_p (rtx op, machine_mode mode)
      problems splitting instructions.  */
   return register_operand (op, mode)
 	 || MEM_P (op)
-	 || GET_CODE (op) == CONST_VECTOR
+	 || CONST_VECTOR_P (op)
 	 || bcst_mem_operand (op, mode);
 }
 
@@ -25747,8 +25801,7 @@ ix86_ternlog_operand_p (rtx op)
       op1 = XEXP (op, 1);
       /* Prefer pxor, or one_cmpl<vmode>2.  */
       if (ix86_ternlog_leaf_p (XEXP (op, 0), mode)
-	  && (ix86_ternlog_leaf_p (op1, mode)
-	      || vector_all_ones_operand (op1, mode)))
+	  && ix86_ternlog_leaf_p (XEXP (op, 1), mode))
 	return false;
       break;
 
@@ -25768,15 +25821,20 @@ ix86_expand_ternlog_binop (enum rtx_code code, machine_mode mode,
   if (GET_MODE (op1) != mode)
     op1 = gen_lowpart (mode, op1);
 
-  if (GET_CODE (op0) == CONST_VECTOR)
+  if (CONST_VECTOR_P (op0))
     op0 = validize_mem (force_const_mem (mode, op0));
-  if (GET_CODE (op1) == CONST_VECTOR)
+  if (CONST_VECTOR_P (op1))
     op1 = validize_mem (force_const_mem (mode, op1));
 
-  if (memory_operand (op0, mode))
+  if (!register_operand (op0, mode))
     {
-      if (memory_operand (op1, mode))
-	op0 = force_reg (mode, op0);
+      if (!register_operand (op1, mode))
+	{
+	  /* We can't use force_reg (op0, mode).  */
+	  rtx reg = gen_reg_rtx (mode);
+	  emit_move_insn (reg, op0);
+	  op0 = reg;
+	}
       else
 	std::swap (op0, op1);
     }
@@ -25795,6 +25853,8 @@ ix86_expand_ternlog_andnot (machine_mode mode, rtx op0, rtx op1, rtx target)
   op0 = gen_rtx_NOT (mode, op0);
   if (GET_MODE (op1) != mode)
     op1 = gen_lowpart (mode, op1);
+  if (CONST_VECTOR_P (op1))
+    op1 = validize_mem (force_const_mem (mode, op1));
   emit_move_insn (target, gen_rtx_AND (mode, op0, op1));
   return target;
 }
@@ -25831,9 +25891,9 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
     {
     case 0x00:
       if ((!op0 || !side_effects_p (op0))
-          && (!op1 || !side_effects_p (op1))
-          && (!op2 || !side_effects_p (op2)))
-        {
+	  && (!op1 || !side_effects_p (op1))
+	  && (!op2 || !side_effects_p (op2)))
+	{
 	  emit_move_insn (target, CONST0_RTX (mode));
 	  return target;
 	}
@@ -25842,26 +25902,31 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
     case 0x0a: /* ~a&c */
       if ((!op1 || !side_effects_p (op1))
 	  && op0 && register_operand (op0, mode)
-	  && op2 && register_operand (op2, mode))
+	  && op2 && ix86_ternlog_leaf_p (op2, mode))
 	return ix86_expand_ternlog_andnot (mode, op0, op2, target);
       break;
 
     case 0x0c: /* ~a&b */
       if ((!op2 || !side_effects_p (op2))
 	  && op0 && register_operand (op0, mode)
-	  && op1 && register_operand (op1, mode))
+	  && op1 && ix86_ternlog_leaf_p (op1, mode))
 	return ix86_expand_ternlog_andnot (mode, op0, op1, target);
       break;
 
     case 0x0f:  /* ~a */
       if ((!op1 || !side_effects_p (op1))
 	  && (!op2 || !side_effects_p (op2))
-          && op0)
+	  && op0)
 	{
 	  if (GET_MODE (op0) != mode)
 	    op0 = gen_lowpart (mode, op0);
 	  if (!TARGET_64BIT && !register_operand (op0, mode))
-	    op0 = force_reg (mode, op0);
+	    {
+	      /* Avoid force_reg (mode, op0).  */
+	      rtx reg = gen_reg_rtx (mode);
+	      emit_move_insn (reg, op0);
+	      op0 = reg;
+	    }
 	  emit_move_insn (target, gen_rtx_XOR (mode, op0, CONSTM1_RTX (mode)));
 	  return target;
 	}
@@ -25870,13 +25935,13 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
     case 0x22: /* ~b&c */
       if ((!op0 || !side_effects_p (op0))
 	  && op1 && register_operand (op1, mode)
-	  && op2 && register_operand (op2, mode))
+	  && op2 && ix86_ternlog_leaf_p (op2, mode))
 	return ix86_expand_ternlog_andnot (mode, op1, op2, target);
       break;
 
     case 0x30: /* ~b&a */
       if ((!op2 || !side_effects_p (op2))
-	  && op0 && register_operand (op0, mode)
+	  && op0 && ix86_ternlog_leaf_p (op0, mode)
 	  && op1 && register_operand (op1, mode))
 	return ix86_expand_ternlog_andnot (mode, op1, op0, target);
       break;
@@ -25884,33 +25949,39 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
     case 0x33:  /* ~b */
       if ((!op0 || !side_effects_p (op0))
 	  && (!op2 || !side_effects_p (op2))
-          && op1)
+	  && op1)
 	{
 	  if (GET_MODE (op1) != mode)
 	    op1 = gen_lowpart (mode, op1);
 	  if (!TARGET_64BIT && !register_operand (op1, mode))
-	    op1 = force_reg (mode, op1);
+	    {
+	      /* Avoid force_reg (mode, op1).  */
+	      rtx reg = gen_reg_rtx (mode);
+	      emit_move_insn (reg, op1);
+	      op1 = reg;
+	    }
 	  emit_move_insn (target, gen_rtx_XOR (mode, op1, CONSTM1_RTX (mode)));
 	  return target;
 	}
       break;
 
     case 0x3c:  /* a^b */
-      if (op0 && op1
-          && (!op2 || !side_effects_p (op2)))
+      if (op0 && ix86_ternlog_leaf_p (op0, mode)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
+	  && (!op2 || !side_effects_p (op2)))
 	return ix86_expand_ternlog_binop (XOR, mode, op0, op1, target);
       break;
 
     case 0x44: /* ~c&b */
       if ((!op0 || !side_effects_p (op0))
-	  && op1 && register_operand (op1, mode)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
 	  && op2 && register_operand (op2, mode))
 	return ix86_expand_ternlog_andnot (mode, op2, op1, target);
       break;
 
     case 0x50: /* ~c&a */
       if ((!op1 || !side_effects_p (op1))
-	  && op0 && register_operand (op0, mode)
+	  && op0 && ix86_ternlog_leaf_p (op0, mode)
 	  && op2 && register_operand (op2, mode))
 	return ix86_expand_ternlog_andnot (mode, op2, op0, target);
       break;
@@ -25918,45 +25989,54 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
     case 0x55:  /* ~c */
       if ((!op0 || !side_effects_p (op0))
 	  && (!op1 || !side_effects_p (op1))
-          && op2)
+	  && op2)
 	{
 	  if (GET_MODE (op2) != mode)
 	    op2 = gen_lowpart (mode, op2);
 	  if (!TARGET_64BIT && !register_operand (op2, mode))
-	    op2 = force_reg (mode, op2);
+	    {
+	      /* Avoid force_reg (mode, op2).  */
+	      rtx reg = gen_reg_rtx (mode);
+	      emit_move_insn (reg, op2);
+	      op2 = reg;
+	    }
 	  emit_move_insn (target, gen_rtx_XOR (mode, op2, CONSTM1_RTX (mode)));
 	  return target;
 	}
       break;
   
     case 0x5a:  /* a^c */
-      if (op0 && op2
-          && (!op1 || !side_effects_p (op1)))
+      if (op0 && ix86_ternlog_leaf_p (op0, mode)
+	  && op2 && ix86_ternlog_leaf_p (op2, mode)
+	  && (!op1 || !side_effects_p (op1)))
 	return ix86_expand_ternlog_binop (XOR, mode, op0, op2, target);
       break;
 
     case 0x66:  /* b^c */
       if ((!op0 || !side_effects_p (op0))
-          && op1 && op2)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
+	  && op2 && ix86_ternlog_leaf_p (op2, mode))
 	return ix86_expand_ternlog_binop (XOR, mode, op1, op2, target);
       break;
 
     case 0x88:  /* b&c */
       if ((!op0 || !side_effects_p (op0))
-          && op1 && op2)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
+	  && op2 && ix86_ternlog_leaf_p (op2, mode))
 	return ix86_expand_ternlog_binop (AND, mode, op1, op2, target);
       break;
 
     case 0xa0:  /* a&c */
       if ((!op1 || !side_effects_p (op1))
-          && op0 && op2)
+	  && op0 && ix86_ternlog_leaf_p (op0, mode)
+	  && op2 && ix86_ternlog_leaf_p (op2, mode))
 	return ix86_expand_ternlog_binop (AND, mode, op0, op2, target);
       break;
 
     case 0xaa:  /* c */
       if ((!op0 || !side_effects_p (op0))
 	  && (!op1 || !side_effects_p (op1))
-          && op2)
+	  && op2)
 	{
 	  if (GET_MODE (op2) != mode)
 	    op2 = gen_lowpart (mode, op2);
@@ -25966,14 +26046,15 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
       break;
 
     case 0xc0:  /* a&b */
-      if (op0 && op1
-          && (!op2 || !side_effects_p (op2)))
+      if (op0 && ix86_ternlog_leaf_p (op0, mode)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
+	  && (!op2 || !side_effects_p (op2)))
 	return ix86_expand_ternlog_binop (AND, mode, op0, op1, target);
       break;
 
     case 0xcc:  /* b */
       if ((!op0 || !side_effects_p (op0))
-          && op1
+	  && op1
 	  && (!op2 || !side_effects_p (op2)))
 	{
 	  if (GET_MODE (op1) != mode)
@@ -25985,13 +26066,14 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
 
     case 0xee:  /* b|c */
       if ((!op0 || !side_effects_p (op0))
-          && op1 && op2)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
+	  && op2 && ix86_ternlog_leaf_p (op2, mode))
 	return ix86_expand_ternlog_binop (IOR, mode, op1, op2, target);
       break;
 
     case 0xf0:  /* a */
       if (op0
-          && (!op1 || !side_effects_p (op1))
+	  && (!op1 || !side_effects_p (op1))
 	  && (!op2 || !side_effects_p (op2)))
 	{
 	  if (GET_MODE (op0) != mode)
@@ -26002,36 +26084,49 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
       break;
 
     case 0xfa:  /* a|c */
-      if (op0 && op2
-          && (!op1 || !side_effects_p (op1)))
+      if (op0 && ix86_ternlog_leaf_p (op0, mode)
+	  && op2 && ix86_ternlog_leaf_p (op2, mode)
+	  && (!op1 || !side_effects_p (op1)))
 	return ix86_expand_ternlog_binop (IOR, mode, op0, op2, target);
       break;
 
     case 0xfc:  /* a|b */
-      if (op0 && op1
-          && (!op2 || !side_effects_p (op2)))
+      if (op0 && ix86_ternlog_leaf_p (op0, mode)
+	  && op1 && ix86_ternlog_leaf_p (op1, mode)
+	  && (!op2 || !side_effects_p (op2)))
 	return ix86_expand_ternlog_binop (IOR, mode, op0, op1, target);
       break;
 
     case 0xff:
       if ((!op0 || !side_effects_p (op0))
-          && (!op1 || !side_effects_p (op1))
-          && (!op2 || !side_effects_p (op2)))
-        {
-          emit_move_insn (target, CONSTM1_RTX (mode));
+	  && (!op1 || !side_effects_p (op1))
+	  && (!op2 || !side_effects_p (op2)))
+	{
+	  emit_move_insn (target, CONSTM1_RTX (mode));
 	  return target;
 	}
       break;
     }
 
-  tmp0 = register_operand (op0, mode) ? op0 : force_reg (mode, op0);
+  if (!register_operand (op0, mode))
+    {
+      /* We can't use force_reg (mode, op0).  */
+      tmp0 = gen_reg_rtx (GET_MODE (op0));
+      emit_move_insn (tmp0,op0);
+    }
+  else
+    tmp0 = op0;
   if (GET_MODE (tmp0) != mode)
     tmp0 = gen_lowpart (mode, tmp0);
 
   if (!op1 || rtx_equal_p (op0, op1))
     tmp1 = copy_rtx (tmp0);
   else if (!register_operand (op1, mode))
-    tmp1 = force_reg (mode, op1);
+    {
+      /* We can't use force_reg (mode, op1).  */
+      tmp1 = gen_reg_rtx (GET_MODE (op1));
+      emit_move_insn (tmp1, op1);
+    }
   else
     tmp1 = op1;
   if (GET_MODE (tmp1) != mode)
@@ -26041,7 +26136,7 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
     tmp2 = copy_rtx (tmp0);
   else if (rtx_equal_p (op1, op2))
     tmp2 = copy_rtx (tmp1);
-  else if (GET_CODE (op2) == CONST_VECTOR)
+  else if (CONST_VECTOR_P (op2))
     {
       if (GET_MODE (op2) != mode)
 	op2 = gen_lowpart (mode, op2);
@@ -26135,6 +26230,44 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
   rtvec vec = gen_rtvec (4, tmp0, tmp1, tmp2, GEN_INT (idx));
   emit_move_insn (target, gen_rtx_UNSPEC (mode, vec, UNSPEC_VTERNLOG));
   return target;
+}
+
+/* Trunc a vector to a narrow vector, like v4di -> v4si.  */
+
+void
+ix86_expand_trunc_with_avx2_noavx512f (rtx output, rtx input, machine_mode cvt_mode)
+{
+  machine_mode out_mode = GET_MODE (output);
+  machine_mode in_mode = GET_MODE (input);
+  int len = GET_MODE_SIZE (in_mode);
+  gcc_assert (len == GET_MODE_SIZE (cvt_mode)
+	      && GET_MODE_INNER (out_mode) == GET_MODE_INNER (cvt_mode)
+	      && (REG_P (input) || SUBREG_P (input)));
+  scalar_mode inner_out_mode = GET_MODE_INNER (out_mode);
+  int in_innersize = GET_MODE_SIZE (GET_MODE_INNER (in_mode));
+  int out_innersize = GET_MODE_SIZE (inner_out_mode);
+
+  struct expand_vec_perm_d d;
+  d.target = gen_reg_rtx (cvt_mode);
+  d.op0 = lowpart_subreg (cvt_mode, force_reg(in_mode, input), in_mode);
+  d.op1 = d.op0;
+  d.vmode = cvt_mode;
+  d.nelt = GET_MODE_NUNITS (cvt_mode);
+  d.testing_p = false;
+  d.one_operand_p = true;
+
+  /* Init perm. Put the needed bits of input in order and
+     fill the rest of bits by default.  */
+  for (int i = 0; i < d.nelt; ++i)
+    {
+      d.perm[i] = i;
+      if (i < GET_MODE_NUNITS (out_mode))
+	d.perm[i] = i * (in_innersize / out_innersize);
+    }
+
+  bool ok = ix86_expand_vec_perm_const_1(&d);
+  gcc_assert (ok);
+  emit_move_insn (output, gen_lowpart (out_mode, d.target));
 }
 
 #include "gt-i386-expand.h"

@@ -82,6 +82,24 @@ static const riscv_implied_info_t riscv_implied_info[] =
   {"a", "zaamo"},
   {"a", "zalrsc"},
 
+  {"c", "zca"},
+  {"c", "zcf",
+   [] (const riscv_subset_list *subset_list) -> bool
+   {
+     return subset_list->xlen () == 32 && subset_list->lookup ("f");
+   }},
+  {"c", "zcd",
+   [] (const riscv_subset_list *subset_list) -> bool
+   {
+     return subset_list->lookup ("d");
+   }},
+
+  {"zabha", "zaamo"},
+
+  {"b", "zba"},
+  {"b", "zbb"},
+  {"b", "zbs"},
+
   {"zdinx", "zfinx"},
   {"zfinx", "zicsr"},
   {"zdinx", "zicsr"},
@@ -198,6 +216,8 @@ static const riscv_implied_info_t riscv_implied_info[] =
   {"ssstateen", "zicsr"},
   {"sstc", "zicsr"},
 
+  {"xsfvcp", "zve32x"},
+
   {NULL, NULL}
 };
 
@@ -243,6 +263,8 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"c", ISA_SPEC_CLASS_20190608, 2, 0},
   {"c", ISA_SPEC_CLASS_2P2,      2, 0},
 
+  {"b",       ISA_SPEC_CLASS_NONE, 1, 0},
+
   {"h",       ISA_SPEC_CLASS_NONE, 1, 0},
 
   {"v",       ISA_SPEC_CLASS_NONE, 1, 0},
@@ -260,6 +282,7 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"zawrs", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zaamo", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zalrsc", ISA_SPEC_CLASS_NONE, 1, 0},
+  {"zabha", ISA_SPEC_CLASS_NONE, 1, 0},
 
   {"zba", ISA_SPEC_CLASS_NONE, 1, 0},
   {"zbb", ISA_SPEC_CLASS_NONE, 1, 0},
@@ -394,6 +417,9 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
 
   {"xventanacondops", ISA_SPEC_CLASS_NONE, 1, 0},
 
+  {"xsfvcp",   ISA_SPEC_CLASS_NONE, 1, 0},
+  {"xsfcease", ISA_SPEC_CLASS_NONE, 1, 0},
+
   /* Terminate the list.  */
   {NULL, ISA_SPEC_CLASS_NONE, 0, 0}
 };
@@ -402,6 +428,7 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
 static const struct riscv_ext_version riscv_combine_info[] =
 {
   {"a", ISA_SPEC_CLASS_20191213, 2, 1},
+  {"b",  ISA_SPEC_CLASS_NONE, 1, 0},
   {"zk",  ISA_SPEC_CLASS_NONE, 1, 0},
   {"zkn",  ISA_SPEC_CLASS_NONE, 1, 0},
   {"zks",  ISA_SPEC_CLASS_NONE, 1, 0},
@@ -566,7 +593,8 @@ riscv_subset_t::riscv_subset_t ()
 }
 
 riscv_subset_list::riscv_subset_list (const char *arch, location_t loc)
-  : m_arch (arch), m_loc (loc), m_head (NULL), m_tail (NULL), m_xlen (0)
+  : m_arch (arch), m_loc (loc), m_head (NULL), m_tail (NULL), m_xlen (0),
+    m_subset_num (0)
 {
 }
 
@@ -812,6 +840,7 @@ riscv_subset_list::add (const char *subset, int major_version,
       return;
     }
 
+  m_subset_num++;
   riscv_subset_t *s = new riscv_subset_t ();
   riscv_subset_t *itr;
 
@@ -918,6 +947,7 @@ riscv_subset_list::to_string (bool version_p) const
 
   bool skip_zifencei = false;
   bool skip_zaamo_zalrsc = false;
+  bool skip_zabha = false;
   bool skip_zicsr = false;
   bool i2p0 = false;
 
@@ -949,6 +979,10 @@ riscv_subset_list::to_string (bool version_p) const
   /* Skip since binutils 2.42 and earlier don't recognize zaamo/zalrsc.  */
   skip_zaamo_zalrsc = true;
 #endif
+#ifndef HAVE_AS_MARCH_ZABHA
+  /* Skip since binutils 2.42 and earlier don't recognize zabha.  */
+  skip_zabha = true;
+#endif
 
   for (subset = m_head; subset != NULL; subset = subset->next)
     {
@@ -964,6 +998,9 @@ riscv_subset_list::to_string (bool version_p) const
 	continue;
 
       if (skip_zaamo_zalrsc && subset->name == "zalrsc")
+	continue;
+
+      if (skip_zabha && subset->name == "zabha")
 	continue;
 
       /* For !version_p, we only separate extension with underline for
@@ -1586,9 +1623,15 @@ void
 riscv_subset_list::finalize ()
 {
   riscv_subset_t *subset;
+  unsigned pre_subset_num;
 
-  for (subset = m_head; subset != NULL; subset = subset->next)
-    handle_implied_ext (subset->name.c_str ());
+  do
+    {
+      pre_subset_num = m_subset_num;
+      for (subset = m_head; subset != NULL; subset = subset->next)
+	handle_implied_ext (subset->name.c_str ());
+    }
+  while (pre_subset_num != m_subset_num);
 
   gcc_assert (check_implied_ext ());
 
@@ -1638,6 +1681,7 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
   {"zawrs",   &gcc_options::x_riscv_za_subext, MASK_ZAWRS},
   {"zaamo",   &gcc_options::x_riscv_za_subext, MASK_ZAAMO},
   {"zalrsc",  &gcc_options::x_riscv_za_subext, MASK_ZALRSC},
+  {"zabha",   &gcc_options::x_riscv_za_subext, MASK_ZABHA},
 
   {"zba",    &gcc_options::x_riscv_zb_subext, MASK_ZBA},
   {"zbb",    &gcc_options::x_riscv_zb_subext, MASK_ZBB},
@@ -1783,6 +1827,9 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
 
   {"xventanacondops", &gcc_options::x_riscv_xventana_subext, MASK_XVENTANACONDOPS},
 
+  {"xsfvcp",   &gcc_options::x_riscv_sifive_subext, MASK_XSFVCP},
+  {"xsfcease", &gcc_options::x_riscv_sifive_subext, MASK_XSFCEASE},
+
   {NULL, NULL, 0}
 };
 
@@ -1806,7 +1853,8 @@ riscv_set_arch_by_subset_list (riscv_subset_list *subset_list,
       else if (subset_list->xlen () == 64)
 	opts->x_target_flags |= MASK_64BIT;
 
-      for (arch_ext_flag_tab = &riscv_ext_flag_table[0]; arch_ext_flag_tab->ext;
+      for (arch_ext_flag_tab = &riscv_ext_flag_table[0];
+	   arch_ext_flag_tab->ext;
 	   ++arch_ext_flag_tab)
 	{
 	  if (subset_list->lookup (arch_ext_flag_tab->ext))
@@ -1830,30 +1878,6 @@ riscv_parse_arch_string (const char *isa,
   if (!subset_list)
     return;
 
-  if (opts)
-    {
-      const riscv_ext_flag_table_t *arch_ext_flag_tab;
-      /* Clean up target flags before we set.  */
-      for (arch_ext_flag_tab = &riscv_ext_flag_table[0];
-	   arch_ext_flag_tab->ext;
-	   ++arch_ext_flag_tab)
-	opts->*arch_ext_flag_tab->var_ref &= ~arch_ext_flag_tab->mask;
-
-      if (subset_list->xlen () == 32)
-	opts->x_target_flags &= ~MASK_64BIT;
-      else if (subset_list->xlen () == 64)
-	opts->x_target_flags |= MASK_64BIT;
-
-
-      for (arch_ext_flag_tab = &riscv_ext_flag_table[0];
-	   arch_ext_flag_tab->ext;
-	   ++arch_ext_flag_tab)
-	{
-	  if (subset_list->lookup (arch_ext_flag_tab->ext))
-	    opts->*arch_ext_flag_tab->var_ref |= arch_ext_flag_tab->mask;
-	}
-    }
-
   /* Avoid double delete if current_subset_list equals cmdline_subset_list.  */
   if (current_subset_list && current_subset_list != cmdline_subset_list)
     delete current_subset_list;
@@ -1861,7 +1885,10 @@ riscv_parse_arch_string (const char *isa,
   if (cmdline_subset_list)
     delete cmdline_subset_list;
 
-  current_subset_list = cmdline_subset_list = subset_list;
+  cmdline_subset_list = subset_list;
+  /* current_subset_list is set in the call below.  */
+
+  riscv_set_arch_by_subset_list (subset_list, opts);
 }
 
 /* Return the riscv_cpu_info entry for CPU, NULL if not found.  */

@@ -1,3 +1,53 @@
+2024-07-05  Antoni Boucher  <bouanto@zoho.com>
+
+	* jit-common.h: Add array_type class.
+	* jit-recording.h (type::dyn_cast_array_type,
+	memento_of_get_aligned::dyn_cast_array_type,
+	array_type::dyn_cast_array_type, array_type::is_same_type_as):
+	New methods.
+
+2024-07-05  Antoni Boucher  <bouanto@zoho.com>
+
+	PR jit/112574
+	* docs/topics/types.rst: Document GCC_JIT_TYPE_BFLOAT16.
+	* jit-common.h: Update NUM_GCC_JIT_TYPES.
+	* jit-playback.cc (get_tree_node_for_type): Support bfloat16.
+	* jit-recording.cc (recording::memento_of_get_type::get_size,
+	recording::memento_of_get_type::dereference,
+	recording::memento_of_get_type::is_int,
+	recording::memento_of_get_type::is_signed,
+	recording::memento_of_get_type::is_float,
+	recording::memento_of_get_type::is_bool): Support bfloat16.
+	* libgccjit.h (enum gcc_jit_types): Add GCC_JIT_TYPE_BFLOAT16.
+
+2024-06-29  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* jit-recording.cc
+	(recording::memento_of_typeinfo::make_debug_string): Default the value
+	of ident.
+	(recording::memento_of_typeinfo::write_reproducer): Default the value
+	of type.
+
+2024-06-27  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_28): New ABI tag.
+	* docs/topics/expressions.rst: Document gcc_jit_context_new_alignof.
+	* jit-playback.cc (new_alignof): New method.
+	* jit-playback.h: New method.
+	* jit-recording.cc (recording::context::new_alignof): New
+	method.
+	(recording::memento_of_sizeof::replay_into,
+	recording::memento_of_typeinfo::replay_into,
+	recording::memento_of_sizeof::make_debug_string,
+	recording::memento_of_typeinfo::make_debug_string,
+	recording::memento_of_sizeof::write_reproducer,
+	recording::memento_of_typeinfo::write_reproducer): Rename.
+	* jit-recording.h (enum type_info_type): New enum.
+	(class memento_of_sizeof class memento_of_typeinfo): Rename.
+	* libgccjit.cc (gcc_jit_context_new_alignof): New function.
+	* libgccjit.h (gcc_jit_context_new_alignof): New function.
+	* libgccjit.map: New function.
+
 2024-06-25  Kewen Lin  <linkw@linux.ibm.com>
 
 	* jit-recording.cc (recording::memento_of_get_type::get_size): Update

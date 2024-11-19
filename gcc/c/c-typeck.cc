@@ -1175,6 +1175,10 @@ common_type (tree t1, tree t2)
 static bool
 comptypes_verify (tree type1, tree type2)
 {
+  if (type1 == type2 || !type1 || !type2
+      || TREE_CODE (type1) == ERROR_MARK || TREE_CODE (type2) == ERROR_MARK)
+    return true;
+
   if (TYPE_CANONICAL (type1) != TYPE_CANONICAL (type2)
       && !TYPE_STRUCTURAL_EQUALITY_P (type1)
       && !TYPE_STRUCTURAL_EQUALITY_P (type2))
@@ -1598,6 +1602,9 @@ tagged_types_tu_compatible_p (const_tree t1, const_tree t2,
       && (TYPE_REVERSE_STORAGE_ORDER (t1)
 	  != TYPE_REVERSE_STORAGE_ORDER (t2)))
     return false;
+
+  if (TYPE_USER_ALIGN (t1) != TYPE_USER_ALIGN (t2))
+    data->different_types_p = true;
 
   /* For types already being looked at in some active
      invocation of this function, assume compatibility.
@@ -6695,6 +6702,9 @@ c_cast_expr (location_t loc, struct c_type_name *type_name, tree expr)
     return error_mark_node;
 
   ret = build_c_cast (loc, type, expr);
+  if (ret == error_mark_node)
+    return error_mark_node;
+
   if (type_expr)
     {
       bool inner_expr_const = true;

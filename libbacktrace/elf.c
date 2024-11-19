@@ -589,7 +589,7 @@ elf_nodebug (struct backtrace_state *state, uintptr_t pc,
       return bdata.ret;
     }
 
-  error_callback (data, "no debug info in ELF executable", -1);
+  error_callback (data, "no debug info in ELF executable (make sure to compile with -g)", -1);
   return 0;
 }
 
@@ -6841,7 +6841,8 @@ elf_add (struct backtrace_state *state, const char *filename, int descriptor,
 	    }
 	}
 
-      if (!gnu_debugdata_view_valid
+      if (!debuginfo
+	  && !gnu_debugdata_view_valid
 	  && strcmp (name, ".gnu_debugdata") == 0)
 	{
 	  if (!elf_get_view (state, descriptor, memory, memory_size,

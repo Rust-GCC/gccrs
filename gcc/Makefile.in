@@ -1455,6 +1455,7 @@ OBJS = \
 	explow.o \
 	expmed.o \
 	expr.o \
+	ext-dce.o \
 	fibonacci_heap.o \
 	file-prefix-map.o \
 	final.o \
@@ -1824,6 +1825,7 @@ OBJS = \
 OBJS-libcommon = diagnostic-spec.o diagnostic.o diagnostic-color.o \
 	diagnostic-format-json.o \
 	diagnostic-format-sarif.o \
+	diagnostic-global-context.o \
 	diagnostic-macro-unwinding.o \
 	diagnostic-path.o \
 	diagnostic-show-locus.o \

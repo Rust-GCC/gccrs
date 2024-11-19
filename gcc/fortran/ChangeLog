@@ -1,3 +1,88 @@
+2024-07-11  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* trans-array.cc (gfc_conv_array_parameter): Init variable to
+	NULL_TREE to fix bootstrap.
+
+2024-07-11  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/96992
+	* trans-array.cc (gfc_trans_array_bounds): Set a starting
+	stride, when descriptor expects a variable for the stride.
+	(gfc_trans_dummy_array_bias): Allow storage association for
+	dummy class arrays, when they are not elemental.
+	(gfc_conv_array_parameter): Add more general class support
+	and packing for classes, too.
+	* trans-array.h (gfc_conv_array_parameter): Add lbound shift
+	for class arrays.
+	* trans-decl.cc (gfc_build_builtin_function_decls): Add decls
+	for internal_un-/pack_class.
+	* trans-expr.cc (gfc_reset_vptr): Allow supplying a type-tree
+	to generate the vtab from.
+	(gfc_class_set_vptr): Allow supplying a class-tree to take the
+	vptr from.
+	(class_array_data_assign): Rename to gfc_class_array_data_assign
+	and make usable from other compile units.
+	(gfc_class_array_data_assign): Renamed from class_array_data_
+	assign.
+	(gfc_conv_derived_to_class): Remove assert to
+	allow converting derived to class type arrays with assumed
+	rank.  Reduce code base and use gfc_conv_array_parameter also
+	for classes.
+	(gfc_conv_class_to_class): Use gfc_class_data_assign.
+	(gfc_conv_procedure_call): Adapt to new signature of
+	gfc_conv_derived_to_class.
+	* trans-io.cc (transfer_expr): Same.
+	* trans-stmt.cc (trans_associate_var): Same.
+	* trans.h (gfc_conv_derived_to_class): Signature changed.
+	(gfc_class_array_data_assign): Made public.
+	(gfor_fndecl_in_pack_class): Added declaration.
+	(gfor_fndecl_in_unpack_class): Same.
+
+2024-07-08  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* trans-array.cc (gfc_trans_preloop_setup): Use a separate variable
+	for iteration.  Use directly the value of variable I if it is known.
+	Move the definition of the variable to the branch where the
+	remaining uses are.
+
+2024-07-03  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/115700
+	* trans-stmt.cc (trans_associate_var): When the associate target
+	is an array-valued character variable, the length is known at entry
+	of the associate block.  Move setting of string length of the
+	selector to the initialization part of the block.
+
+2024-07-01  Andrew Stubbs  <ams@baylibre.com>
+	    Thomas Schwinge  <thomas@codesourcery.com>
+
+	* openmp.cc (is_predefined_allocator): Update valid ranges to
+	incorporate ompx_gnu_pinned_mem_alloc.
+
+2024-06-29  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/114019
+	* trans-stmt.cc (gfc_trans_allocate): Fix handling of case of
+	scalar character expression being used for SOURCE.
+
+2024-06-28  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* trans-expr.cc (gfc_class_set_vptr): Add setting of _vptr
+	member.
+	* trans-intrinsic.cc (conv_intrinsic_move_alloc): First use
+	of gfc_class_set_vptr and refactor very similar code.
+	* trans.h (gfc_class_set_vptr): Declare the new function.
+
+2024-06-28  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* trans-array.cc (structure_alloc_comps): Use reset_vptr.
+	* trans-decl.cc (gfc_trans_deferred_vars): Same.
+	(gfc_generate_function_code): Same.
+	* trans-expr.cc (gfc_reset_vptr): Allow supplying the class
+	type.
+	(gfc_conv_procedure_call): Use reset_vptr.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_transfer): Same.
+
 2024-06-24  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/55978

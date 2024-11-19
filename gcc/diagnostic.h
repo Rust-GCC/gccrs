@@ -562,6 +562,14 @@ public:
 
   label_text get_location_text (const expanded_location &s) const;
 
+  bool diagnostic_impl (rich_location *, const diagnostic_metadata *,
+			int, const char *,
+			va_list *, diagnostic_t) ATTRIBUTE_GCC_DIAG(5,0);
+  bool diagnostic_n_impl (rich_location *, const diagnostic_metadata *,
+			  int, unsigned HOST_WIDE_INT,
+			  const char *, const char *, va_list *,
+			  diagnostic_t) ATTRIBUTE_GCC_DIAG(7,0);
+
 private:
   bool includes_seen_p (const line_map_ordinary *map);
 
@@ -583,7 +591,7 @@ private:
 		   pretty_printer *pp,
 		   diagnostic_source_effect_info *effect_info);
 
-  void print_path (const diagnostic_path *path);
+  void print_path (const diagnostic_path &path);
 
   /* Data members.
      Ideally, all of these would be private and have "m_" prefixes.  */

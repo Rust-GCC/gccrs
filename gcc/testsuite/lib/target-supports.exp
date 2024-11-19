@@ -1911,6 +1911,17 @@ proc check_effective_target_riscv_zaamo { } {
     }]
 }
 
+# Return 1 if the target arch supports the atomic BHA extension, 0 otherwise.
+# Cache the result.
+
+proc check_effective_target_riscv_zabha { } {
+    return [check_no_compiler_messages riscv_ext_zabha assembly {
+       #ifndef __riscv_zabha
+       #error "Not __riscv_zabha"
+       #endif
+    }]
+}
+
 # Return 1 if the target arch supports the double precision floating point
 # extension, 0 otherwise.  Cache the result.
 
@@ -2129,7 +2140,7 @@ proc check_effective_target_riscv_v_misalign_ok { } {
 proc riscv_get_arch { } {
     set gcc_march ""
     # ??? do we neeed to add more extensions to the list below?
-    foreach ext { i m a f d q c v zicsr zifencei zfh zba zbb zbc zbs zvbb zvfh ztso zaamo zalrsc } {
+    foreach ext { i m a f d q c b v zicsr zifencei zfh zba zbb zbc zbs zvbb zvfh ztso zaamo zalrsc zabha } {
 	if { [check_no_compiler_messages  riscv_ext_$ext assembly [string map [list DEF __riscv_$ext] {
 		#ifndef DEF
 		#error "Not DEF"
@@ -2294,12 +2305,15 @@ proc add_options_for_riscv_zaamo { flags } {
 
 proc remove_options_for_riscv_zaamo { flags } {
     set modified_flags [remove_options_for_riscv_z_ext zaamo $flags]
+    # If zabha is set then zaamo will be implied. We need to remove zabha
+    # as well.
+    set modified_flags [remove_options_for_riscv_z_ext zabha $modified_flags]
     # If 'a' is set then zaamo will be implied. We need to downgrade instances
     # of 'a' to 'zalrsc'
-    set no_a_flags [remove_options_for_riscv_a_only [split $modified_flags]]
+    set no_a_flags [remove_options_for_riscv_a_only $modified_flags]
     if {![string equal $modified_flags $no_a_flags]} {
 	# 'a' was removed, add 'zalrsc' since it was previously implied
-	set modified_flags [add_options_for_riscv_zalrsc [split $no_a_flags]]
+	set modified_flags [add_options_for_riscv_zalrsc $no_a_flags]
     }
     return $modified_flags
 }
@@ -2312,12 +2326,21 @@ proc remove_options_for_riscv_zalrsc { flags } {
     set modified_flags [remove_options_for_riscv_z_ext zalrsc $flags]
     # If 'a' is set then zalrsc will be implied. We need to downgrade instances
     # of 'a' to 'zaamo'
-    set no_a_flags [remove_options_for_riscv_a_only [split $modified_flags]]
+    set no_a_flags [remove_options_for_riscv_a_only $modified_flags]
     if {![string equal $modified_flags $no_a_flags]} {
 	# 'a' was removed, add 'zalrsc' since it was previously implied
-	set modified_flags [add_options_for_riscv_zalrsc [split $no_a_flags]]
+	set modified_flags [add_options_for_riscv_zalrsc $no_a_flags]
     }
     return $modified_flags
+}
+
+proc add_options_for_riscv_zabha { flags } {
+    return [add_options_for_riscv_z_ext zabha $flags]
+}
+
+proc remove_options_for_riscv_zabha { flags } {
+    set modified_flags [remove_options_for_riscv_zaamo $flags]
+    return [remove_options_for_riscv_z_ext zabha $modified_flags]
 }
 
 proc add_options_for_riscv_zfh { flags } {
@@ -5652,6 +5675,8 @@ foreach { armfunc armflag armdefs } {
 	v7em "-march=armv7e-m+fp -mthumb" __ARM_ARCH_7EM__
 	v7ve "-march=armv7ve+fp -marm"
 		"__ARM_ARCH_7A__ && __ARM_FEATURE_IDIV"
+	v7ve_neon "-march=armv7ve+simd -mfpu=auto -mfloat-abi=softfp"
+		  "__ARM_ARCH_7A__ && __ARM_FEATURE_IDIV && __ARM_NEON__"
 	v8a "-march=armv8-a+simd" __ARM_ARCH_8A__
 	v8a_hard "-march=armv8-a+simd -mfpu=auto -mfloat-abi=hard" __ARM_ARCH_8A__
 	v8_1a "-march=armv8.1-a+simd" __ARM_ARCH_8A__
@@ -13594,10 +13619,10 @@ proc check_effective_target_heap_trampoline {} {
     return 0
 }
 
-# Return 1 if jsonschema is available.
+# Return 1 if check-jsonschema is available.
 
-proc check_effective_target_jsonschema { } {
-    set result [remote_exec host "jsonschema --version"]
+proc check_effective_target_check_jsonschema { } {
+    set result [remote_exec host "check-jsonschema --version"]
     set status [lindex $result 0]
     if { $status == 0 } then {
         return 1;

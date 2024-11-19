@@ -1,3 +1,188 @@
+2024-07-11  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/99241
+	* decl.cc (duplicate_decls): Merge module entity information.
+
+2024-07-10  Marek Polacek  <polacek@redhat.com>
+
+	* constraint.cc (deduce_concept_introduction, get_deduced_wildcard,
+	get_introduction_prototype, introduce_type_template_parameter,
+	introduce_template_template_parameter,
+	introduce_nontype_template_parameter,
+	build_introduced_template_parameter, introduce_template_parameter,
+	introduce_template_parameter_pack, introduce_template_parameter,
+	introduce_template_parameters, process_introduction_parms,
+	check_introduction_list, finish_template_introduction): Remove.
+	(finish_shorthand_constraint): Remove a Concepts TS comment.
+	* cp-tree.h (check_auto_in_tmpl_args, finish_template_introduction):
+	Remove.
+	* decl.cc (function_requirements_equivalent_p): Remove pre-C++20 code.
+	(grokfndecl): Don't check flag_concepts_ts.
+	(grokvardecl): Don't check that concept have type bool.
+	* parser.cc (cp_parser_decl_specifier_seq): Don't check
+	flag_concepts_ts.
+	(cp_parser_introduction_list): Remove.
+	(cp_parser_template_id): Remove dead code.
+	(cp_parser_simple_type_specifier): Don't check flag_concepts_ts.
+	(cp_parser_placeholder_type_specifier): Require require auto or
+	decltype(auto) even pre-C++20.  Don't check flag_concepts_ts.
+	(cp_parser_type_id_1): Don't check flag_concepts_ts.
+	(cp_parser_template_type_arg): Likewise.
+	(cp_parser_requires_clause_opt): Remove flag_concepts_ts code.
+	(cp_parser_compound_requirement): Don't check flag_concepts_ts.
+	(cp_parser_template_introduction): Remove.
+	(cp_parser_template_declaration_after_export): Don't call
+	cp_parser_template_introduction.
+	* pt.cc (template_heads_equivalent_p): Remove pre-C++20 code.
+	(find_parameter_pack_data): Remove type_pack_expansion_p.
+	(find_parameter_packs_r): Remove flag_concepts_ts code.  Remove
+	type_pack_expansion_p code.
+	(uses_parameter_packs): Remove type_pack_expansion_p code.
+	(make_pack_expansion): Likewise.
+	(check_for_bare_parameter_packs): Likewise.
+	(fixed_parameter_pack_p): Likewise.
+	(tsubst_qualified_id): Remove dead code.
+	(extract_autos_r): Remove.
+	(extract_autos): Remove.
+	(do_auto_deduction): Remove flag_concepts_ts code.
+	(type_uses_auto): Likewise.
+	(check_auto_in_tmpl_args): Remove.
+
+2024-07-10  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/115645
+	* init.cc (build_new): Don't do any deduction for arrays with
+	bounds if it's value-initialized.
+
+2024-07-10  Nina Ranns  <dinka.ranns@gmail.com>
+
+	PR c++/113968
+	* contracts.cc (grok_contract): Check for error_mark_node early
+	exit.
+
+2024-07-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* constexpr.cc (cxx_eval_constant_expression): CWG2819 - Allow
+	cv void * null pointer value conversion to object types in constant
+	expressions.
+
+2024-07-07  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* module.cc (trees_out::get_merge_kind): Use
+	LAMBDA_TYPE_EXTRA_SCOPE instead of LAMBDA_EXPR_EXTRA_SCOPE.
+	(trees_out::key_mergeable): Likewise.
+
+2024-07-04  Tamar Christina  <tamar.christina@arm.com>
+
+	PR c++/115623
+	* semantics.cc (finish_for_cond): Add check for C++ cond.
+
+2024-07-04  Jason Merrill  <jason@redhat.com>
+
+	* error.cc (dump_decl) [OVERLOAD]: Recurse on single case.
+
+2024-07-04  Jason Merrill  <jason@redhat.com>
+
+	* pt.cc (ctad_template_p): Return false for trait names.
+
+2024-07-02  Jakub Jelinek  <jakub@redhat.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/115754
+	* constexpr.cc (cxx_eval_constant_expression) <case CONVERT_EXPR>:
+	For conversions to void, pass vc_discard to the recursive call
+	and otherwise for tcode other than VIEW_CONVERT_EXPR pass vc_prvalue.
+
+2024-07-02  Jakub Jelinek  <jakub@redhat.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/115747
+	* init.cc: Implement C++26 P3144R2 - Deleting a Pointer to an
+	Incomplete Type Should be Ill-formed.
+	(build_vec_delete_1): Emit permerror_at and return error_mark_node
+	for delete [] on incomplete type.
+	(build_delete): Similarly for delete.
+
+2024-07-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/115745
+	* cp-tree.h: Implement C++26 P0963R3 - Structured binding declaration
+	as a condition.
+	(DECL_DECOMP_BASE): Adjust comment.
+	(DECL_DECOMP_IS_BASE): Define.
+	* parser.cc (cp_parser_selection_statement): Adjust
+	cp_parser_condition caller.
+	(cp_parser_condition): Add KEYWORD argument.  Parse
+	C++26 structured bindings in conditions.
+	(cp_parser_c_for, cp_parser_iteration_statement): Adjust
+	cp_parser_condition callers.
+	(cp_parser_simple_declaration): Adjust
+	cp_parser_decomposition_declaration caller.
+	(cp_parser_decomposition_declaration): Add KEYWORD argument.
+	If it is not RID_MAX, diagnose for C++23 and older rather than C++14
+	and older.  Set DECL_DECOMP_BASE to integer_zero_node for structured
+	bindings used in if/while/for conditions or integer_one_node for
+	those used in switch conditions.
+	* decl.cc (poplevel, check_array_initializer): Use DECL_DECOMP_IS_BASE
+	instead of !DECL_DECOMP_BASE.
+	(cp_finish_decomp): Diagnose array initializer for structured bindings
+	used in conditions.  If using std::tuple_{size,element}, emit
+	conversion to bool or integer/enumeration of e into a TARGET_EXPR
+	before emitting get method calls.
+	* decl2.cc (mark_used): Use DECL_DECOMP_IS_BASE instead of
+	!DECL_DECOMP_BASE.
+	* module.cc (trees_in::tree_node): Likewise.
+	* typeck.cc (maybe_warn_about_returning_address_of_local): Likewise.
+	* semantics.cc (maybe_convert_cond): For structured bindings with
+	TARGET_EXPR DECL_DECOMP_BASE use that as condition.
+	(finish_switch_cond): Likewise.
+
+2024-07-02  Lewis Hyatt  <lhyatt@gmail.com>
+
+	* Make-lang.in: Remove redundant slash.
+
+2024-07-02  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/111160
+	* tree.cc (stabilize_expr): Stabilized expressions can have
+	TREE_SIDE_EFFECTS if they're volatile.
+
+2024-07-01  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/115469
+	* decl.cc (automatic_var_with_nontrivial_dtor_p): New.
+	(poplevel_named_label_1): Use it.
+	(check_goto_1): Likewise.
+
+2024-07-01  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/115430
+	* typeck.cc (cp_build_compound_expr): Call resolve_nondeduced_context
+	on RHS.
+
+2024-07-01  Marek Polacek  <polacek@redhat.com>
+
+	DR 2627
+	PR c++/94058
+	PR c++/104392
+	* typeck2.cc (check_narrowing): Don't warn if the conversion isn't
+	narrowing as per DR 2627.
+
+2024-06-28  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/106760
+	* call.cc (add_candidates): Relax test for adding a candidate
+	to 'bad_cands' to also accept an uninstantiated template candidate
+	that has no missing conversions.
+
+2024-06-26  David Malcolm  <dmalcolm@redhat.com>
+
+	* parser.cc (cp_parser_error_1): Pass *global_dc to
+	gcc_rich_location::add_location_if_nearby.
+	(cp_parser_decl_specifier_seq): Likewise.
+	(cp_parser_set_storage_class): Likewise.
+	(cp_parser_set_storage_class): Likewise.
+
 2024-06-26  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/115504

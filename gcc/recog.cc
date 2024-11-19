@@ -230,7 +230,12 @@ validate_change_1 (rtx object, rtx *loc, rtx new_rtx, bool in_group,
       new_len = -1;
     }
 
-  if ((old == new_rtx || rtx_equal_p (old, new_rtx))
+  /* When a change is part of a group, callers expect to be able to change
+     INSN_CODE after making the change and have the code reset to its old
+     value by a later cancel_changes.  We therefore need to register group
+     changes even if they're no-ops.  */
+  if (!in_group
+      && (old == new_rtx || rtx_equal_p (old, new_rtx))
       && (new_len < 0 || XVECLEN (new_rtx, 0) == new_len))
     return true;
 
@@ -1055,7 +1060,11 @@ insn_propagation::apply_to_rvalue_1 (rtx *loc)
   machine_mode mode = GET_MODE (x);
 
   auto old_num_changes = num_validated_changes ();
-  if (from && GET_CODE (x) == GET_CODE (from) && rtx_equal_p (x, from))
+  if (from
+      && GET_CODE (x) == GET_CODE (from)
+      && (REG_P (x)
+	  ? REGNO (x) == REGNO (from)
+	  : rtx_equal_p (x, from)))
     {
       /* Don't replace register asms in asm statements; we mustn't
 	 change the user's register allocation.  */
@@ -1065,11 +1074,26 @@ insn_propagation::apply_to_rvalue_1 (rtx *loc)
 	  && asm_noperands (PATTERN (insn)) > 0)
 	return false;
 
+      rtx newval = to;
+      if (GET_MODE (x) != GET_MODE (from))
+	{
+	  gcc_assert (REG_P (x) && HARD_REGISTER_P (x));
+	  if (REG_NREGS (x) != REG_NREGS (from)
+	      || !REG_CAN_CHANGE_MODE_P (REGNO (x), GET_MODE (from),
+					 GET_MODE (x)))
+	    return false;
+	  newval = simplify_subreg (GET_MODE (x), to, GET_MODE (from),
+				    subreg_lowpart_offset (GET_MODE (x),
+							   GET_MODE (from)));
+	  if (!newval)
+	    return false;
+	}
+
       if (should_unshare)
-	validate_unshare_change (insn, loc, to, 1);
+	validate_unshare_change (insn, loc, newval, 1);
       else
-	validate_change (insn, loc, to, 1);
-      if (mem_depth && !REG_P (to) && !CONSTANT_P (to))
+	validate_change (insn, loc, newval, 1);
+      if (mem_depth && !REG_P (newval) && !CONSTANT_P (newval))
 	{
 	  /* We're substituting into an address, but TO will have the
 	     form expected outside an address.  Canonicalize it if
@@ -1083,9 +1107,9 @@ insn_propagation::apply_to_rvalue_1 (rtx *loc)
 	    {
 	      /* TO is owned by someone else, so create a copy and
 		 return TO to its original form.  */
-	      rtx to = copy_rtx (*loc);
+	      newval = copy_rtx (*loc);
 	      cancel_changes (old_num_changes);
-	      validate_change (insn, loc, to, 1);
+	      validate_change (insn, loc, newval, 1);
 	    }
 	}
       num_replacements += 1;

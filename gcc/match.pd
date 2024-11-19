@@ -3154,6 +3154,30 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (match (unsigned_integer_sat_add @0 @1)
  (cond^ (gt @0 (usadd_left_part_1@2 @0 @1)) integer_minus_onep @2))
 
+/* Unsigned saturation add, case 9 (one op is imm):
+   SAT_U_ADD = (X + 3) >= x ? (X + 3) : -1.  */
+(match (unsigned_integer_sat_add @0 @1)
+ (plus (min @0 INTEGER_CST@2) INTEGER_CST@1)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))
+  (with
+   {
+    unsigned precision = TYPE_PRECISION (type);
+    wide_int cst_1 = wi::to_wide (@1);
+    wide_int cst_2 = wi::to_wide (@2);
+    wide_int max = wi::mask (precision, false, precision);
+    wide_int sum = wi::add (cst_1, cst_2);
+   }
+   (if (wi::eq_p (max, sum))))))
+
+/* Unsigned saturation add, case 10 (one op is imm):
+   SAT_U_ADD = __builtin_add_overflow (X, 3, &ret) == 0 ? ret : -1.  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (ne (imagpart (IFN_ADD_OVERFLOW@2 @0 INTEGER_CST@1)) integer_zerop)
+  integer_minus_onep (realpart @2))
+  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0))))
+
 /* Unsigned saturation sub, case 1 (branch with gt):
    SAT_U_SUB = X > Y ? X - Y : 0  */
 (match (unsigned_integer_sat_sub @0 @1)
@@ -3164,9 +3188,9 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 /* Unsigned saturation sub, case 2 (branch with ge):
    SAT_U_SUB = X >= Y ? X - Y : 0.  */
 (match (unsigned_integer_sat_sub @0 @1)
- (cond^ (ge @0 @1) (minus @0 @1) integer_zerop)
+ (cond^ (ge @0 @1) (convert? (minus (convert1? @0) (convert1? @1))) integer_zerop)
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
-      && types_match (type, @0, @1))))
+      && TYPE_UNSIGNED (TREE_TYPE (@0)) && types_match (@0, @1))))
 
 /* Unsigned saturation sub, case 3 (branchless with gt):
    SAT_U_SUB = (X - Y) * (X > Y).  */
@@ -3209,6 +3233,37 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    integer_zerop (realpart @2))
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
       && types_match (type, @0, @1))))
+
+/* Unsigned saturation truncate, case 1, sizeof (WT) > sizeof (NT).
+   SAT_U_TRUNC = (NT)x | (NT)(-(X > (WT)(NT)(-1))).  */
+(match (unsigned_integer_sat_trunc @0)
+ (bit_ior:c (negate (convert (gt @0 INTEGER_CST@1)))
+   (convert @0))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && TYPE_UNSIGNED (TREE_TYPE (@0)))
+ (with
+  {
+   unsigned itype_precision = TYPE_PRECISION (TREE_TYPE (@0));
+   unsigned otype_precision = TYPE_PRECISION (type);
+   wide_int trunc_max = wi::mask (otype_precision, false, itype_precision);
+   wide_int int_cst = wi::to_wide (@1, itype_precision);
+  }
+  (if (otype_precision < itype_precision && wi::eq_p (trunc_max, int_cst))))))
+
+/* Unsigned saturation truncate, case 2, sizeof (WT) > sizeof (NT).
+   SAT_U_TRUNC = (NT)(MIN_EXPR (X, 255)).  */
+(match (unsigned_integer_sat_trunc @0)
+ (convert (min @0 INTEGER_CST@1))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && TYPE_UNSIGNED (TREE_TYPE (@0)))
+ (with
+  {
+   unsigned itype_precision = TYPE_PRECISION (TREE_TYPE (@0));
+   unsigned otype_precision = TYPE_PRECISION (type);
+   wide_int trunc_max = wi::mask (otype_precision, false, itype_precision);
+   wide_int int_cst = wi::to_wide (@1, itype_precision);
+  }
+  (if (otype_precision < itype_precision && wi::eq_p (trunc_max, int_cst))))))
 
 /* x >  y  &&  x != XXX_MIN  -->  x > y
    x >  y  &&  x == XXX_MIN  -->  false . */
@@ -5927,6 +5982,36 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    (if (VECTOR_INTEGER_TYPE_P (type)
        && target_supports_op_p (type, MINMAX, optab_vector))
     (minmax @0 @1))))
+
+/* Try to optimize x < 0 ? -1 : 0 into (signed) x >> 31
+   and x < 0 ? 1 : 0 into (unsigned) x >> 31.  */
+(simplify
+  (vec_cond (lt @0 integer_zerop) integer_all_onesp integer_zerop)
+   (if (VECTOR_INTEGER_TYPE_P (TREE_TYPE (@0))
+       && !TYPE_UNSIGNED (TREE_TYPE (@0))
+       && tree_nop_conversion_p (type, TREE_TYPE (@0))
+       && target_supports_op_p (TREE_TYPE (@0), RSHIFT_EXPR, optab_scalar))
+    (with
+      {
+       unsigned int prec = element_precision (TREE_TYPE (@0));
+      }
+    (view_convert
+      (rshift @0 { build_int_cst (integer_type_node, prec - 1);})))))
+
+(simplify
+  (vec_cond (lt @0 integer_zerop) integer_onep integer_zerop)
+   (if (VECTOR_INTEGER_TYPE_P (TREE_TYPE (@0))
+       && !TYPE_UNSIGNED (TREE_TYPE (@0))
+       && tree_nop_conversion_p (type, TREE_TYPE (@0)))
+    (with
+     {
+       unsigned int prec = element_precision (TREE_TYPE (@0));
+       tree utype = unsigned_type_for (TREE_TYPE (@0));
+     }
+     (if (target_supports_op_p (utype, RSHIFT_EXPR, optab_scalar))
+      (view_convert
+	(rshift (view_convert:utype @0)
+		{ build_int_cst (integer_type_node, prec - 1);}))))))
 #endif
 
 (for cnd (cond vec_cond)
@@ -7700,6 +7785,10 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
      when the operand has that value.)  */
 
 (if (flag_unsafe_math_optimizations)
+ /* Simplify x / sqrt(x) -> sqrt(x).  */
+ (simplify
+  (rdiv @0 (SQRT @0)) (SQRT @0))
+
  /* Simplify sqrt(x) * sqrt(x) -> x.  */
  (simplify
   (mult (SQRT_ALL@1 @0) @1)

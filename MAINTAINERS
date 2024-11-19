@@ -56,7 +56,7 @@ aarch64 port		Kyrylo Tkachov		<ktkachov@nvidia.com>
 alpha port		Richard Henderson	<rth@gcc.gnu.org>
 amdgcn port		Julian Brown		<julian@codesourcery.com>
 amdgcn port		Andrew Stubbs		<ams@baylibre.com>
-arc port		Claudiu Zissulescu	<claziss@synopsys.com>
+arc port		Claudiu Zissulescu	<claziss@gmail.com>
 arm port		Nick Clifton		<nickc@redhat.com>
 arm port		Richard Earnshaw	<richard.earnshaw@arm.com>
 arm port		Ramana Radhakrishnan	<ramanara@nvidia.com>
@@ -267,7 +267,6 @@ check in changes outside of the parts of the compiler they maintain.
 
 			Reviewers
 
-arc port		Claudiu Zissulescu	<claziss@synopsys.com>
 callgraph		Martin Jambor		<mjambor@suse.cz>
 C front end		Marek Polacek		<polacek@redhat.com>
 CTF, BTF		Indu Bhagat		<indu.bhagat@oracle.com>
@@ -512,7 +511,7 @@ Matt Kraai					<kraai@ftbfs.org>
 Jan Kratochvil					<jan.kratochvil@redhat.com>
 Matthias Kretz					<m.kretz@gsi.de>
 Louis Krupp					<louis.krupp@zoho.com>
-Prathamesh Kulkarni				<prathamesh.kulkarni@linaro.org>
+Prathamesh Kulkarni				<prathameshk@nvidia.com>
 Venkataramanan Kumar				<venkataramanan.kumar@amd.com>
 Doug Kwan					<dougkwan@google.com>
 Aaron W. LaFramboise				<aaronavay62@aaronwl.com>
@@ -705,7 +704,7 @@ Alex Velenko					<alex.velenko@arm.com>
 Ilya Verbin					<iverbin@gmail.com>
 Andre Vieira					<andre.simoesdiasvieira@arm.com>
 Rasmus Villemoes				<rv@rasmusvillemoes.dk>
-Kugan Vivekanandarajah				<kuganv@linaro.org>
+Kugan Vivekanandarajah				<kvivekananda@nvidia.com>
 Marcel Vollweiler				<marcel@codesourcery.com>
 Ville Voutilainen				<ville.voutilainen@gmail.com>
 Nenad Vukicevic					<nenad@intrepid.com>
@@ -767,6 +766,7 @@ Robin Dapp					<rdapp.gcc@gmail.com>
 Robin Dapp					<rdapp@ventanamicro.com>
 Michal Jires					<mjires@suse.cz>
 Matthias Kretz					<m.kretz@gsi.de>
+Prathamesh Kulkarni				<prathameshk@nvidia.com>
 Tim Lange					<mail@tim-lange.me>
 Jeff Law					<jeffreyalaw@gmail.com>
 Jeff Law					<jlaw@tachyum.com>
@@ -788,6 +788,7 @@ Fangrui Song	                                <maskray@gcc.gnu.org>
 Kyrylo Tkachov					<ktkachov@nvidia.com>
 Petter Tomner					<tomner@bahnhof.se>
 Martin Uecker					<uecker@gcc.gnu.org>
+Kugan Vivekanandarajah				<kvivekananda@nvidia.com>
 Jonathan Wakely					<jwakely@redhat.com>
 Alexander Westbrooks			<alexanderw@gcc.gnu.org>
 Chung-Ju Wu					<jasonwucj@gmail.com>
