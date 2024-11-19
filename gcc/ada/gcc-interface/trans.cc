@@ -6124,7 +6124,12 @@ Raise_Error_to_gnu (Node_Id gnat_node, tree *gnu_result_type_p)
 	      gnu_index = convert (gnu_type, gnu_index);
 	    }
 
+	  /* Do not print the range information for an enumeration type with
+	     holes since it is meaningless.  */
 	  if (with_extra_info
+	      && !(Nkind (gnat_index) == N_Function_Call
+		   && Is_Entity_Name (Name (gnat_index))
+		   && Is_Rep_To_Pos (Entity (Name (gnat_index))))
 	      && Known_Esize (gnat_type)
 	      && UI_To_Int (Esize (gnat_type)) <= 32)
 	    gnu_result
@@ -6399,6 +6404,17 @@ gnat_to_gnu (Node_Id gnat_node)
       if (simple_atomic_access_required_p (gnat_node, &aa_sync)
 	  && !present_in_lhs_or_actual_p (gnat_node))
 	gnu_result = build_atomic_load (gnu_result, aa_sync);
+      break;
+
+    case N_External_Initializer:
+      {
+	gnu_result_type = get_unpadded_type (Etype (gnat_node));
+	struct c_array a = C_Source_Buffer (File_Index (gnat_node));
+
+	gnu_result = build_string ((unsigned) a.length, a.pointer);
+
+	TREE_TYPE (gnu_result) = gnu_result_type;
+      }
       break;
 
     case N_Integer_Literal:

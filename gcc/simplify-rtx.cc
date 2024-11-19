@@ -2994,6 +2994,18 @@ simplify_context::simplify_binary_operation_1 (rtx_code code,
 				    simplify_gen_binary (XOR, mode, op1,
 							 XEXP (op0, 1)));
 
+      /* (plus (xor X C1) C2) is (xor X (C1^C2)) if X is either 0 or 1 and
+	 2 * ((X ^ C1) & C2) == 0; based on A + B == A ^ B + 2 * (A & B). */
+      if (CONST_SCALAR_INT_P (op1)
+	  && GET_CODE (op0) == XOR
+	  && CONST_SCALAR_INT_P (XEXP (op0, 1))
+	  && nonzero_bits (XEXP (op0, 0), mode) == 1
+	  && 2 * (INTVAL (XEXP (op0, 1)) & INTVAL (op1)) == 0
+	  && 2 * ((1 ^ INTVAL (XEXP (op0, 1))) & INTVAL (op1)) == 0)
+	return simplify_gen_binary (XOR, mode, XEXP (op0, 0),
+				    simplify_gen_binary (XOR, mode, op1,
+							 XEXP (op0, 1)));
+
       /* Canonicalize (plus (mult (neg B) C) A) to (minus A (mult B C)).  */
       if (!HONOR_SIGN_DEPENDENT_ROUNDING (mode)
 	  && GET_CODE (op0) == MULT
@@ -3465,12 +3477,16 @@ simplify_context::simplify_binary_operation_1 (rtx_code code,
 	}
 
       if (GET_CODE (opleft) == ASHIFT && GET_CODE (opright) == LSHIFTRT
-          && rtx_equal_p (XEXP (opleft, 0), XEXP (opright, 0))
-          && CONST_INT_P (XEXP (opleft, 1))
-          && CONST_INT_P (XEXP (opright, 1))
-          && (INTVAL (XEXP (opleft, 1)) + INTVAL (XEXP (opright, 1))
-	      == GET_MODE_UNIT_PRECISION (mode)))
-        return gen_rtx_ROTATE (mode, XEXP (opright, 0), XEXP (opleft, 1));
+	  && rtx_equal_p (XEXP (opleft, 0), XEXP (opright, 0)))
+	{
+	  rtx leftcst = unwrap_const_vec_duplicate (XEXP (opleft, 1));
+	  rtx rightcst = unwrap_const_vec_duplicate (XEXP (opright, 1));
+
+	  if (CONST_INT_P (leftcst) && CONST_INT_P (rightcst)
+	      && (INTVAL (leftcst) + INTVAL (rightcst)
+		  == GET_MODE_UNIT_PRECISION (mode)))
+	    return gen_rtx_ROTATE (mode, XEXP (opright, 0), XEXP (opleft, 1));
+	}
 
       /* Same, but for ashift that has been "simplified" to a wider mode
         by simplify_shift_const.  */
@@ -4072,10 +4088,10 @@ simplify_context::simplify_binary_operation_1 (rtx_code code,
       if (VECTOR_MODE_P (mode) && GET_CODE (op0) == ASHIFTRT
 	  && (CONST_INT_P (XEXP (op0, 1))
 	      || (GET_CODE (XEXP (op0, 1)) == CONST_VECTOR
-		  && CONST_VECTOR_DUPLICATE_P (XEXP (op0, 1))
+		  && const_vec_duplicate_p (XEXP (op0, 1))
 		  && CONST_INT_P (XVECEXP (XEXP (op0, 1), 0, 0))))
 	  && GET_CODE (op1) == CONST_VECTOR
-	  && CONST_VECTOR_DUPLICATE_P (op1)
+	  && const_vec_duplicate_p (op1)
 	  && CONST_INT_P (XVECEXP (op1, 0, 0)))
 	{
 	  unsigned HOST_WIDE_INT shift_count

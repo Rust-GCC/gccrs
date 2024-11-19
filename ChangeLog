@@ -1,3 +1,28 @@
+2024-10-16  Filip Kastl  <fkastl@suse.cz>
+
+	* MAINTAINERS: Fix Write After Approval name order.
+
+2024-10-14  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* MAINTAINERS (s390 port): Add myself.
+
+2024-10-13  Josef Melcr  <melcrjos@fit.cvut.cz>
+
+	* MAINTAINERS: Add myself to write after approval
+
+2024-10-12  Feng Xue  <fxue@os.amperecomputing.com>
+
+	* MAINTAINERS: Add myself to write after approval.
+
+2024-10-04  Thiago Jung Bauermann  <thiago.bauermann@linaro.org>
+
+	* MAINTAINERS: Add myself to write after approval.
+
+2024-09-27  Christophe Lyon  <christophe.lyon@arm.com>
+
+	* MAINTAINERS: Add myself as MVE Reviewer for the AArch32 (arm)
+	port.
+
 2024-09-25  Sam James  <sam@gentoo.org>
 
 	* ltmain.sh (func_mode_link): Allow various flags through filter.

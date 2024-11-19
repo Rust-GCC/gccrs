@@ -1,3 +1,235 @@
+2024-10-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/117022
+	* semantics.cc (begin_while_stmt, begin_do_stmt, begin_for_stmt,
+	finish_break_stmt, finish_continue_stmt, begin_switch_stmt): Pass
+	another NULL_TREE to build_stmt calls.
+
+2024-10-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/116710
+	* pt.cc (unify) <case REFERENCE_TYPE>: Compare rvalueness.
+
+2024-10-15  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/117054
+	* pt.cc (extract_locals_r): Disable tree_extra_args assert
+	for LAMBDA_EXPR.
+
+2024-10-14  Jason Merrill  <jason@redhat.com>
+
+	* cp-tree.h (most_constrained_function): Declare..
+	* class.cc (resolve_address_of_overloaded_function): Call it.
+	* pt.cc (get_template_for_ordering): Handle list from
+	resolve_address_of_overloaded_function.
+	(most_constrained_function): No longer static.
+	(resolve_overloaded_unification): Always compare type rather
+	than decl.
+
+2024-10-13  Simon Martin  <simon@nasilyan.com>
+
+	Revert:
+	2024-10-12  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/109918
+	* class.cc (warn_hidden): Keep track of overloaded and of hidden
+	base methods. Mention the actual hiding function in the warning,
+	not the first overload.
+	* error.cc (location_of): Skip over conv_op_marker.
+
+2024-10-12  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/109918
+	* class.cc (warn_hidden): Keep track of overloaded and of hidden
+	base methods. Mention the actual hiding function in the warning,
+	not the first overload.
+	* error.cc (location_of): Skip over conv_op_marker.
+
+2024-10-07  Jason Merrill  <jason@redhat.com>
+
+	* decl.cc (duplicate_decls): Only check PURVIEW_P if
+	DECL_LANG_SPECIFIC.
+
+2024-10-07  Jason Merrill  <jason@redhat.com>
+
+	* decl2.cc (mark_used): Always check require_deduced_type.
+
+2024-10-07  Jason Merrill  <jason@redhat.com>
+
+	* module.cc (init_modules): Don't warn about -M.
+
+2024-10-04  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/113266
+	PR c++/116911
+	* parser.cc (cp_parser_template_argument): Allow
+	internal-linkage variables since C++11.
+
+2024-10-04  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/116913
+	* name-lookup.cc (update_binding): Return the strip_using'd old
+	decl rather than the binding.
+
+2024-10-04  Jason Merrill  <jason@redhat.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	* cp-tree.h (spec_entry::hash): New member.
+	* pt.cc (spec_hasher::hash): Set it and return it.
+	(maybe_process_partial_specialization): Clear it when
+	changing tmpl/args.
+	(lookup_template_class): Likewise, don't pass hash to find.
+	(retrieve_specialization): Set it, don't pass hash to find.
+	(register_specialization): Don't pass hash to find.
+	(reregister_specialization): Likewise.
+	(match_mergeable_specialization): Likewise.
+	(add_mergeable_specialization): Likewise.
+
+2024-10-03  Jason Merrill  <jason@redhat.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	* pt.cc (coerce_template_parms): Free garbage vecs.
+
+2024-10-03  Jason Merrill  <jason@redhat.com>
+
+	Revert:
+	2024-10-03  Jason Merrill  <jason@redhat.com>
+		    Richard Biener   <rguenther@suse.de>
+
+	* pt.cc (struct free_if_changed_proxy): New.
+	(coerce_template_parms): Use it.
+
+2024-10-03  Jason Merrill  <jason@redhat.com>
+
+	* parser.cc (location_between): New.
+	(cp_parser_operator): Handle -Wdeprecated-literal-operator.
+
+2024-10-03  Jason Merrill  <jason@redhat.com>
+	    Richard Biener   <rguenther@suse.de>
+
+	* pt.cc (struct free_if_changed_proxy): New.
+	(coerce_template_parms): Use it.
+
+2024-10-02  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/116722
+	* constexpr.cc (cxx_bind_parameters_in_call): When !ctx->quiet,
+	emit error before bailing out due to a call to {con,de}structor
+	for a class with virtual bases.
+
+2024-10-02  Richard Biener  <rguenther@suse.de>
+
+	* pt.cc (iterative_hash_template_arg): Use iterative_hash_hashval_t
+	to hash TYPE_HASH.
+
+2024-10-02  Richard Biener  <rguenther@suse.de>
+
+	* pt.cc (iterative_hash_template_arg): Avoid using
+	iterative_hash_object.
+
+2024-10-01  Giuseppe D'Angelo  <giuseppe.dangelo@kdab.com>
+
+	* constraint.cc (diagnose_trait_expr): New diagnostic.
+	* cp-trait.def (IS_VIRTUAL_BASE_OF): New builtin.
+	* cp-tree.h (enum base_access_flags): Add a new flag to be
+	able to request a search for a virtual base class.
+	* cxx-pretty-print.cc (pp_cxx_userdef_literal): Update the
+	list of GNU extensions to the grammar.
+	* search.cc (struct lookup_base_data_s): Add a field to
+	request searching for a virtual base class.
+	(dfs_lookup_base): Add the ability to look for a virtual
+	base class.
+	(lookup_base): Forward the flag to dfs_lookup_base.
+	* semantics.cc (trait_expr_value): Implement the builtin
+	by calling lookup_base with the new flag.
+	(finish_trait_expr): Handle the new builtin.
+
+2024-09-30  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/109859
+	* parser.cc (cp_parser_lambda_declarator_opt): Temporarily clear
+	local_variables_forbidden_p.
+	(cp_parser_placeholder_type_specifier): Turn an assert into an
+	error.
+
+2024-09-30  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* pt.cc: Include "pretty-print-markup.h".
+	(warn_spec_missing_attributes): Defer colorization choices by
+	replacing printing to a pretty_printer * param with appending
+	to a vec of strings.  Replace pretty_printer with usage of
+	pp_markup::comma_separated_quoted_strings and "%e".
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/116160
+	* name-lookup.cc (supplement_binding): Allow redeclaration via
+	USING_DECL if not in class scope.
+	(do_nonmember_using_decl): Remove function-scope exemption.
+	(push_using_decl_bindings): Remove outdated comment.
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/116748
+	* name-lookup.cc (update_binding): Maintain USING_DECLs in the
+	binding slots.
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/116803
+	* decl.cc (duplicate_decls): Propagate DECL_MODULE_PURVIEW_P and
+	DECL_MODULE_IMPORT_P for template redeclarations.
+
+2024-09-27  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/102594
+	* init.cc (build_vec_init): Build up a CONSTRUCTOR to signal
+	direct-initialization rather than a TREE_LIST.
+
+2024-09-27  Arsen Arsenović  <arsen@aarsen.me>
+
+	PR c++/116793
+	* coroutines.cc (await_statement_expander): Just process
+	subtrees if encountering a CLEANUP_POINT_EXPR.
+
+2024-09-27  Arsen Arsenović  <arsen@aarsen.me>
+
+	* coroutines.cc (co_await_get_resume_call): Return a tree
+	directly, rather than a tree pointer.
+	* cp-tree.h (co_await_get_resume_call): Adjust signature
+	accordingly.
+	* cvt.cc (convert_to_void): Do not alter CO_AWAIT_EXPRs when
+	discarding them.  Simplify handling implicit INDIRECT_REFs.
+
+2024-09-27  Arsen Arsenović  <arsen@aarsen.me>
+
+	PR c++/116502
+	* coroutines.cc (maybe_promote_temps): Convert temporary
+	initializers to void without complaining.
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* module.cc (has_definition): Use decl_maybe_constant_var
+	instead of TREE_CONSTANT.
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* name-lookup.cc (check_can_export_using_decl): Handle internal
+	linkage GM entities (but ignore in header units); use linkage
+	of entity ultimately referred to by aliases.
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* name-lookup.cc (maybe_record_mergeable_decl): Use decl_linkage
+	instead of ad-hoc checks.
+
+2024-09-27  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* name-lookup.cc (do_namespace_alias): Propagate TREE_PUBLIC for
+	namespace aliases.
+	* tree.cc (decl_linkage): Update rules for C++11.
+
 2024-09-26  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/116731

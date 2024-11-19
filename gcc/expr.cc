@@ -7165,6 +7165,13 @@ categorize_ctor_elements_1 (const_tree ctor, HOST_WIDE_INT *p_nz_elts,
 	  init_elts += mult * TREE_STRING_LENGTH (value);
 	  break;
 
+	case RAW_DATA_CST:
+	  nz_elts += mult * RAW_DATA_LENGTH (value);
+	  unique_nz_elts += RAW_DATA_LENGTH (value);
+	  init_elts += mult * RAW_DATA_LENGTH (value);
+	  num_fields += mult * (RAW_DATA_LENGTH (value) - 1);
+	  break;
+
 	case COMPLEX_CST:
 	  if (!initializer_zerop (TREE_REALPART (value)))
 	    {
@@ -9524,7 +9531,8 @@ expand_cond_expr_using_cmove (tree treeop0 ATTRIBUTE_UNUSED,
 		   EXPAND_NORMAL);
 
   if (TREE_CODE (treeop0) == SSA_NAME
-      && (srcstmt = get_def_for_expr_class (treeop0, tcc_comparison)))
+      && (srcstmt = get_def_for_expr_class (treeop0, tcc_comparison))
+      && !VECTOR_TYPE_P (TREE_TYPE (gimple_assign_rhs1 (srcstmt))))
     {
       type = TREE_TYPE (gimple_assign_rhs1 (srcstmt));
       enum tree_code cmpcode = gimple_assign_rhs_code (srcstmt);
@@ -9534,7 +9542,8 @@ expand_cond_expr_using_cmove (tree treeop0 ATTRIBUTE_UNUSED,
       unsignedp = TYPE_UNSIGNED (type);
       comparison_code = convert_tree_comp_to_rtx (cmpcode, unsignedp);
     }
-  else if (COMPARISON_CLASS_P (treeop0))
+  else if (COMPARISON_CLASS_P (treeop0)
+	   && !VECTOR_TYPE_P (TREE_TYPE (TREE_OPERAND (treeop0, 0))))
     {
       type = TREE_TYPE (TREE_OPERAND (treeop0, 0));
       enum tree_code cmpcode = TREE_CODE (treeop0);
@@ -9661,7 +9670,7 @@ expand_expr_divmod (tree_code code, machine_mode mode, tree treeop0,
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	  fprintf(dump_file, "positive division:%s unsigned cost: %u; "
-		  "signed cost: %u\n", was_tie ? "(needed tie breaker)":"",
+		  "signed cost: %u\n", was_tie ? "(needed tie breaker)" : "",
 		  uns_cost, sgn_cost);
 
       if (uns_cost < sgn_cost || (uns_cost == sgn_cost && unsignedp))
@@ -11823,7 +11832,8 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 				      field, value)
 	      if (tree_int_cst_equal (field, index))
 		{
-		  if (!TREE_SIDE_EFFECTS (value))
+		  if (!TREE_SIDE_EFFECTS (value)
+		      && TREE_CODE (value) != RAW_DATA_CST)
 		    return expand_expr (fold (value), target, tmode, modifier);
 		  break;
 		}
@@ -11865,7 +11875,8 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 					  field, value)
 		  if (tree_int_cst_equal (field, index))
 		    {
-		      if (TREE_SIDE_EFFECTS (value))
+		      if (TREE_SIDE_EFFECTS (value)
+			  || TREE_CODE (value) == RAW_DATA_CST)
 			break;
 
 		      if (TREE_CODE (value) == CONSTRUCTOR)
@@ -11882,8 +11893,8 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 			    break;
 			}
 
-		      return
-		        expand_expr (fold (value), target, tmode, modifier);
+		      return expand_expr (fold (value), target, tmode,
+					  modifier);
 		    }
 	      }
 	    else if (TREE_CODE (init) == STRING_CST)

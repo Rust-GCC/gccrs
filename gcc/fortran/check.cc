@@ -637,13 +637,46 @@ int_or_real_or_char_check_f2003 (gfc_expr *e, int n)
   return true;
 }
 
+/* Check that an expression is integer or real or unsigned; allow character for
+   F2003 or later.  */
+
+static bool
+int_or_real_or_char_or_unsigned_check_f2003 (gfc_expr *e, int n)
+{
+  if (e->ts.type != BT_INTEGER && e->ts.type != BT_REAL
+      && e->ts.type != BT_UNSIGNED)
+    {
+      if (e->ts.type == BT_CHARACTER)
+	return gfc_notify_std (GFC_STD_F2003, "Fortran 2003: Character for "
+			       "%qs argument of %qs intrinsic at %L",
+			       gfc_current_intrinsic_arg[n]->name,
+			       gfc_current_intrinsic, &e->where);
+      else
+	{
+	  if (gfc_option.allow_std & GFC_STD_F2003)
+	    gfc_error ("%qs argument of %qs intrinsic at %L must be INTEGER "
+		       "or REAL or CHARACTER or UNSIGNED",
+		       gfc_current_intrinsic_arg[n]->name,
+		       gfc_current_intrinsic, &e->where);
+	  else
+	    gfc_error ("%qs argument of %qs intrinsic at %L must be INTEGER "
+		       "or REAL or UNSIGNED",
+		       gfc_current_intrinsic_arg[n]->name,
+		       gfc_current_intrinsic, &e->where);
+	}
+      return false;
+    }
+
+  return true;
+}
+
 /* Check that an expression is an intrinsic type.  */
 static bool
 intrinsic_type_check (gfc_expr *e, int n)
 {
   if (e->ts.type != BT_INTEGER && e->ts.type != BT_REAL
       && e->ts.type != BT_COMPLEX && e->ts.type != BT_CHARACTER
-      && e->ts.type != BT_LOGICAL)
+      && e->ts.type != BT_LOGICAL && e->ts.type != BT_UNSIGNED)
     {
       gfc_error ("%qs argument of %qs intrinsic at %L must be of intrinsic type",
 		 gfc_current_intrinsic_arg[n]->name,
@@ -3073,6 +3106,12 @@ gfc_check_eoshift (gfc_expr *array, gfc_expr *shift, gfc_expr *boundary,
 	case BT_CHARACTER:
 	  break;
 
+	case BT_UNSIGNED:
+	  if (flag_unsigned)
+	    break;
+
+	  gcc_fallthrough();
+
 	default:
 	  gfc_error ("Missing %qs argument to %qs intrinsic at %L for %qs "
 		     "of type %qs", gfc_current_intrinsic_arg[2]->name,
@@ -4180,7 +4219,17 @@ gfc_check_minloc_maxloc (gfc_actual_arglist *ap)
   gfc_expr *a, *m, *d, *k, *b;
 
   a = ap->expr;
-  if (!int_or_real_or_char_check_f2003 (a, 0) || !array_check (a, 0))
+
+  if (flag_unsigned)
+    {
+      if (!int_or_real_or_char_or_unsigned_check_f2003 (a, 0))
+	return false;
+    }
+  else
+    if (!int_or_real_or_char_check_f2003 (a, 0))
+      return false;
+
+  if (!array_check (a, 0))
     return false;
 
   d = ap->next->expr;
@@ -4259,6 +4308,9 @@ gfc_check_findloc (gfc_actual_arglist *ap)
   a1 = a->ts.type == BT_CHARACTER;
   v1 = v->ts.type == BT_CHARACTER;
   if ((a1 && !v1) || (!a1 && v1))
+    goto incompat;
+
+  if (flag_unsigned && gfc_invalid_unsigned_ops (a,v))
     goto incompat;
 
   /* Check the kind of the characters argument match.  */
@@ -4380,8 +4432,15 @@ check_reduction (gfc_actual_arglist *ap)
 bool
 gfc_check_minval_maxval (gfc_actual_arglist *ap)
 {
-  if (!int_or_real_or_char_check_f2003 (ap->expr, 0)
-      || !array_check (ap->expr, 0))
+  if (flag_unsigned)
+    {
+      if (!int_or_real_or_char_or_unsigned_check_f2003 (ap->expr, 0))
+	return false;
+    }
+  else if (!int_or_real_or_char_check_f2003 (ap->expr, 0))
+    return false;
+
+  if (!array_check (ap->expr, 0))
     return false;
 
   return check_reduction (ap);

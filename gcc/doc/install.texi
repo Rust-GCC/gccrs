@@ -4086,9 +4086,7 @@ This configuration is intended for embedded systems.
 @anchor{x-x-freebsd}
 @heading *-*-freebsd*
 We support FreeBSD using the ELF file format with DWARF 2 debugging
-for all CPU architectures.  There are
-no known issues with mixing object files and libraries with different
-debugging formats.
+for all CPU architectures.
 
 We recommend bootstrapping against the latest GNU binutils or the
 version found in the @file{devel/binutils} port. This also has been
@@ -4117,13 +4115,6 @@ This configuration is intended for embedded systems.
 @anchor{h8300-hms}
 @heading h8300-hms
 Renesas H8/300 series of processors.
-
-Please have a look at the @uref{binaries.html,,binaries page}.
-
-The calling convention and structure layout has changed in release 2.6.
-All code must be recompiled.  The calling convention now passes the
-first three arguments in function calls in registers.  Structures are no
-longer a multiple of 2 bytes.
 
 @html
 <hr />
@@ -4274,9 +4265,6 @@ libstdc++-v3 documentation.
 @end html
 @anchor{ix86-x-linux}
 @heading i?86-*-linux*
-As of GCC 3.3, binutils 2.13.1 or later is required for this platform.
-See @uref{https://gcc.gnu.org/PR10877,,bug 10877} for more information.
-
 If you receive Signal 11 errors when building on GNU/Linux, then it is
 possible you have a hardware problem.  Further information on this can be
 found on @uref{https://www.bitwizard.nl/sig11/,,www.bitwizard.nl}.

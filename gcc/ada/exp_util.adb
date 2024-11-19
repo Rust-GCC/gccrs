@@ -6742,6 +6742,7 @@ package body Exp_Util is
                                         | N_Aggregate
                                         | N_Delta_Aggregate
                                         | N_Extension_Aggregate
+                                        | N_Elsif_Part
               and then Nkind (Parent (Par)) not in N_Function_Call
                                                  | N_Procedure_Call_Statement
                                                  | N_Entry_Call_Statement
@@ -8260,6 +8261,7 @@ package body Exp_Util is
                | N_Expanded_Name
                | N_Explicit_Dereference
                | N_Extension_Aggregate
+               | N_External_Initializer
                | N_Floating_Point_Definition
                | N_Formal_Decimal_Fixed_Point_Definition
                | N_Formal_Derived_Type_Definition

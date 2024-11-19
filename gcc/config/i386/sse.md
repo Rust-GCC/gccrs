@@ -3269,7 +3269,7 @@
      u = UNSPEC_IEEE_MAX;
 
    if (MEM_P (operands[2]))
-     force_reg (<MODE>mode, operands[2]);
+     operands[2] = force_reg (<MODE>mode, operands[2]);
    rtvec v = gen_rtvec (2, operands[2], operands[1]);
    rtx tmp = gen_rtx_UNSPEC (<MODE>mode, v, u);
    emit_move_insn (operands[0], tmp);
@@ -5895,7 +5895,7 @@
   [(set (match_operand:VFH_AVX512VL 0 "register_operand" "=v,v")
 	(vec_merge:VFH_AVX512VL
 	  (fma:VFH_AVX512VL
-	    (match_operand:VFH_AVX512VL 1 "register_operand" "0,0")
+	    (match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "0,0")
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>,v")
 	    (match_operand:VFH_AVX512VL 3 "<round_nimm_predicate>" "v,<round_constraint>"))
 	  (match_dup 1)
@@ -5914,7 +5914,7 @@
 	  (fma:VFH_AVX512VL
 	    (match_operand:VFH_AVX512VL 1 "<round_nimm_predicate>" "%v")
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
-	    (match_operand:VFH_AVX512VL 3 "register_operand" "0"))
+	    (match_operand:VFH_AVX512VL 3 "nonimmediate_operand" "0"))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX512F && <round_mode_condition>"
@@ -5999,7 +5999,7 @@
   [(set (match_operand:VFH_AVX512VL 0 "register_operand" "=v,v")
 	(vec_merge:VFH_AVX512VL
 	  (fma:VFH_AVX512VL
-	    (match_operand:VFH_AVX512VL 1 "register_operand" "0,0")
+	    (match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "0,0")
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>,v")
 	    (neg:VFH_AVX512VL
 	      (match_operand:VFH_AVX512VL 3 "<round_nimm_predicate>" "v,<round_constraint>")))
@@ -6020,7 +6020,7 @@
 	    (match_operand:VFH_AVX512VL 1 "<round_nimm_predicate>" "%v")
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
 	    (neg:VFH_AVX512VL
-	      (match_operand:VFH_AVX512VL 3 "register_operand" "0")))
+	      (match_operand:VFH_AVX512VL 3 "nonimmediate_operand" "0")))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX512F && <round_mode_condition>"
@@ -6106,7 +6106,7 @@
 	(vec_merge:VFH_AVX512VL
 	  (fma:VFH_AVX512VL
 	    (neg:VFH_AVX512VL
-	      (match_operand:VFH_AVX512VL 1 "register_operand" "0,0"))
+	      (match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "0,0"))
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>,v")
 	    (match_operand:VFH_AVX512VL 3 "<round_nimm_predicate>" "v,<round_constraint>"))
 	  (match_dup 1)
@@ -6126,7 +6126,7 @@
 	    (neg:VFH_AVX512VL
 	      (match_operand:VFH_AVX512VL 1 "<round_nimm_predicate>" "%v"))
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
-	    (match_operand:VFH_AVX512VL 3 "register_operand" "0"))
+	    (match_operand:VFH_AVX512VL 3 "nonimmediate_operand" "0"))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX512F && <round_mode_condition>"
@@ -6215,7 +6215,7 @@
 	(vec_merge:VFH_AVX512VL
 	  (fma:VFH_AVX512VL
 	    (neg:VFH_AVX512VL
-	      (match_operand:VFH_AVX512VL 1 "register_operand" "0,0"))
+	      (match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "0,0"))
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>,v")
 	    (neg:VFH_AVX512VL
 	      (match_operand:VFH_AVX512VL 3 "<round_nimm_predicate>" "v,<round_constraint>")))
@@ -6237,7 +6237,7 @@
 	      (match_operand:VFH_AVX512VL 1 "<round_nimm_predicate>" "%v"))
 	    (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
 	    (neg:VFH_AVX512VL
-	      (match_operand:VFH_AVX512VL 3 "register_operand" "0")))
+	      (match_operand:VFH_AVX512VL 3 "nonimmediate_operand" "0")))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX512F && <round_mode_condition>"
@@ -6369,9 +6369,9 @@
   [(set (match_operand:VFH_AVX512VL 0 "register_operand" "=v")
 	(vec_merge:VFH_AVX512VL
 	  (unspec:VFH_AVX512VL
-	    [(match_operand:VFH_AVX512VL 1 "register_operand" "v")
+	    [(match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "v")
 	     (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
-	     (match_operand:VFH_AVX512VL 3 "register_operand" "0")]
+	     (match_operand:VFH_AVX512VL 3 "nonimmediate_operand" "0")]
 	    UNSPEC_FMADDSUB)
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
@@ -6421,7 +6421,7 @@
   [(set (match_operand:VFH_AVX512VL 0 "register_operand" "=v,v")
 	(vec_merge:VFH_AVX512VL
 	  (unspec:VFH_AVX512VL
-	    [(match_operand:VFH_AVX512VL 1 "register_operand" "0,0")
+	    [(match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "0,0")
 	     (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>,v")
 	     (neg:VFH_AVX512VL
 	       (match_operand:VFH_AVX512VL 3 "<round_nimm_predicate>" "v,<round_constraint>"))]
@@ -6440,10 +6440,10 @@
   [(set (match_operand:VFH_AVX512VL 0 "register_operand" "=v")
 	(vec_merge:VFH_AVX512VL
 	  (unspec:VFH_AVX512VL
-	    [(match_operand:VFH_AVX512VL 1 "register_operand" "v")
+	    [(match_operand:VFH_AVX512VL 1 "nonimmediate_operand" "v")
 	     (match_operand:VFH_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
 	     (neg:VFH_AVX512VL
-	       (match_operand:VFH_AVX512VL 3 "register_operand" "0"))]
+	       (match_operand:VFH_AVX512VL 3 "nonimmediate_operand" "0"))]
 	    UNSPEC_FMADDSUB)
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
@@ -6460,7 +6460,7 @@
   [(set (match_operand:VFH_128 0 "register_operand")
 	(vec_merge:VFH_128
 	  (fma:VFH_128
-	    (match_operand:VFH_128 1 "register_operand")
+	    (match_operand:VFH_128 1 "nonimmediate_operand")
 	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>")
 	    (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>"))
 	  (match_dup 1)
@@ -6471,7 +6471,7 @@
   [(set (match_operand:VFH_128 0 "register_operand")
 	(vec_merge:VFH_128
 	  (fma:VFH_128
-	    (match_operand:VFH_128 1 "register_operand")
+	    (match_operand:VFH_128 1 "nonimmediate_operand")
 	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>")
 	    (neg:VFH_128
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>")))
@@ -6484,8 +6484,8 @@
 	(vec_merge:VFH_128
 	  (fma:VFH_128
 	    (neg:VFH_128
-	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>"))
-	    (match_operand:VFH_128 1 "register_operand")
+	      (match_operand:VFH_128 1 "nonimmediate_operand"))
+	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>")
 	    (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>"))
 	  (match_dup 1)
 	  (const_int 1)))]
@@ -6496,8 +6496,8 @@
 	(vec_merge:VFH_128
 	  (fma:VFH_128
 	    (neg:VFH_128
-	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>"))
-	    (match_operand:VFH_128 1 "register_operand")
+	      (match_operand:VFH_128 1 "nonimmediate_operand"))
+	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>")
 	    (neg:VFH_128
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>")))
 	  (match_dup 1)
@@ -6508,7 +6508,7 @@
   [(set (match_operand:VFH_128 0 "register_operand" "=v,v")
         (vec_merge:VFH_128
 	  (fma:VFH_128
-	    (match_operand:VFH_128 1 "register_operand" "0,0")
+	    (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>, v")
 	    (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>"))
 	  (match_dup 1)
@@ -6525,7 +6525,7 @@
   [(set (match_operand:VFH_128 0 "register_operand" "=v,v")
         (vec_merge:VFH_128
 	  (fma:VFH_128
-	    (match_operand:VFH_128   1 "register_operand" "0,0")
+	    (match_operand:VFH_128   1 "nonimmediate_operand" "0,0")
 	    (match_operand:VFH_128   2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	    (neg:VFH_128
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>")))
@@ -6544,8 +6544,8 @@
         (vec_merge:VFH_128
 	  (fma:VFH_128
 	    (neg:VFH_128
-	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v"))
-	    (match_operand:VFH_128   1 "register_operand" "0,0")
+	      (match_operand:VFH_128   1 "nonimmediate_operand" "0,0"))
+	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	    (match_operand:VFH_128   3 "<round_nimm_scalar_predicate>" "v,<round_constraint>"))
 	  (match_dup 1)
 	  (const_int 1)))]
@@ -6562,8 +6562,8 @@
         (vec_merge:VFH_128
 	  (fma:VFH_128
 	    (neg:VFH_128
-	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v"))
-	    (match_operand:VFH_128   1 "register_operand" "0,0")
+	      (match_operand:VFH_128   1 "nonimmediate_operand" "0,0"))
+	    (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	    (neg:VFH_128
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>")))
 	  (match_dup 1)
@@ -6581,7 +6581,7 @@
 	(vec_merge:VFH_128
 	  (vec_merge:VFH_128
 	    (fma:VFH_128
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+	      (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>"))
 	    (match_dup 1)
@@ -6603,7 +6603,7 @@
 	    (fma:VFH_128
 	      (match_operand:VFH_128 1 "<round_nimm_scalar_predicate>" "%v")
 	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>")
-	      (match_operand:VFH_128 3 "register_operand" "0"))
+	      (match_operand:VFH_128 3 "nonimmediate_operand" "0"))
 	    (match_dup 3)
 	    (match_operand:QI 4 "register_operand" "Yk"))
 	  (match_dup 3)
@@ -6633,7 +6633,7 @@
 	(vec_merge:VFH_128
 	  (vec_merge:VFH_128
 	    (fma:VFH_128
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+	      (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>"))
 	    (match_operand:VFH_128 4 "const0_operand")
@@ -6653,7 +6653,7 @@
 	(vec_merge:VFH_128
 	  (vec_merge:VFH_128
 	    (fma:VFH_128
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+	      (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	      (neg:VFH_128
 		(match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>")))
@@ -6677,7 +6677,7 @@
 	      (match_operand:VFH_128 1 "<round_nimm_scalar_predicate>" "%v")
 	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>")
 	      (neg:VFH_128
-		(match_operand:VFH_128 3 "register_operand" "0")))
+		(match_operand:VFH_128 3 "nonimmediate_operand" "0")))
 	    (match_dup 3)
 	    (match_operand:QI 4 "register_operand" "Yk"))
 	  (match_dup 3)
@@ -6693,7 +6693,7 @@
 	(vec_merge:VFH_128
 	  (vec_merge:VFH_128
 	    (fma:VFH_128
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+	      (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	      (match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	      (neg:VFH_128
 		(match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>")))
@@ -6715,8 +6715,8 @@
 	  (vec_merge:VFH_128
 	    (fma:VFH_128
 	      (neg:VFH_128
-		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v"))
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+		(match_operand:VFH_128 1 "nonimmediate_operand" "0,0"))
+		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>"))
 	    (match_dup 1)
 	    (match_operand:QI 4 "register_operand" "Yk,Yk"))
@@ -6738,7 +6738,7 @@
 	      (neg:VFH_128
 		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>"))
 	      (match_operand:VFH_128 1 "<round_nimm_scalar_predicate>" "%v")
-	      (match_operand:VFH_128 3 "register_operand" "0"))
+	      (match_operand:VFH_128 3 "nonimmediate_operand" "0"))
 	    (match_dup 3)
 	    (match_operand:QI 4 "register_operand" "Yk"))
 	  (match_dup 3)
@@ -6770,7 +6770,7 @@
 	    (fma:VFH_128
 	      (neg:VFH_128
 		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v"))
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+	      (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	      (match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>"))
 	    (match_operand:VFH_128 4 "const0_operand")
 	    (match_operand:QI 5 "register_operand" "Yk,Yk"))
@@ -6790,8 +6790,8 @@
 	  (vec_merge:VFH_128
 	    (fma:VFH_128
 	      (neg:VFH_128
-		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v"))
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+		(match_operand:VFH_128 1 "nonimmediate_operand" "0,0"))
+		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v")
 	      (neg:VFH_128
 		(match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>")))
 	    (match_dup 1)
@@ -6815,7 +6815,7 @@
 		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>"))
 	      (match_operand:VFH_128 1 "<round_nimm_scalar_predicate>" "%v")
 	      (neg:VFH_128
-		(match_operand:VFH_128 3 "register_operand" "0")))
+		(match_operand:VFH_128 3 "nonimmediate_operand" "0")))
 	    (match_dup 3)
 	    (match_operand:QI 4 "register_operand" "Yk"))
 	  (match_dup 3)
@@ -6833,7 +6833,7 @@
 	    (fma:VFH_128
 	      (neg:VFH_128
 		(match_operand:VFH_128 2 "<round_nimm_scalar_predicate>" "<round_constraint>,v"))
-	      (match_operand:VFH_128 1 "register_operand" "0,0")
+	      (match_operand:VFH_128 1 "nonimmediate_operand" "0,0")
 	      (neg:VFH_128
 		(match_operand:VFH_128 3 "<round_nimm_scalar_predicate>" "v,<round_constraint>")))
 	    (match_operand:VFH_128 4 "const0_operand")
@@ -10995,7 +10995,7 @@
    vmovlps\t{%H2, %1, %0|%0, %1, %H2}
    %vmovhps\t{%2, %0|%q0, %2}"
   [(set_attr "isa" "noavx,avx,noavx,avx,*")
-   (set_attr "type" "ssemov")
+   (set_attr "type" "ssemov2")
    (set_attr "prefix" "orig,maybe_evex,orig,maybe_evex,maybe_vex")
    (set_attr "mode" "V4SF,V4SF,V2SF,V2SF,V2SF")])
 
@@ -11557,7 +11557,7 @@
    vmovlhps\t{%2, %1, %0|%0, %1, %2}
    %vmovlps\t{%2, %H0|%H0, %2}"
   [(set_attr "isa" "noavx,avx,noavx,avx,*")
-   (set_attr "type" "ssemov")
+   (set_attr "type" "ssemov2")
    (set_attr "prefix" "orig,maybe_evex,orig,maybe_evex,maybe_vex")
    (set_attr "mode" "V2SF,V2SF,V4SF,V4SF,V2SF")])
 
@@ -11610,7 +11610,7 @@
    vmovlps\t{%2, %1, %0|%0, %1, %q2}
    %vmovlps\t{%2, %0|%q0, %2}"
   [(set_attr "isa" "noavx,avx,noavx,avx,*")
-   (set_attr "type" "sseshuf,sseshuf,ssemov,ssemov,ssemov")
+   (set_attr "type" "sseshuf,sseshuf,ssemov2,ssemov2,ssemov")
    (set (attr "length_immediate")
      (if_then_else (eq_attr "alternative" "0,1")
 		   (const_string "1")
@@ -11766,7 +11766,7 @@
    movhps\t{%2, %0|%0, %q2}
    vmovhps\t{%2, %1, %0|%0, %1, %q2}"
   [(set_attr "isa" "noavx,avx,noavx,avx")
-   (set_attr "type" "ssemov")
+   (set_attr "type" "ssemov2")
    (set_attr "prefix" "orig,maybe_evex,orig,maybe_evex")
    (set_attr "mode" "V4SF,V4SF,V2SF,V2SF")])
 
@@ -12214,7 +12214,7 @@
    movlpd\t{%2, %0|%0, %2}
    vmovlpd\t{%2, %1, %0|%0, %1, %2}"
   [(set_attr "isa" "noavx,avx,noavx,avx")
-   (set_attr "type" "ssemov")
+   (set_attr "type" "ssemov2")
    (set_attr "mode" "DF")])
 
 (define_expand "vec_set<mode>"
@@ -14665,7 +14665,7 @@
    #
    #"
   [(set_attr "isa" "noavx,avx,noavx,avx,*,*,*")
-   (set_attr "type" "ssemov,ssemov,sselog,sselog,ssemov,fmov,imov")
+   (set_attr "type" "ssemov2,ssemov2,sselog,sselog,ssemov,fmov,imov")
    (set (attr "prefix_data16")
      (if_then_else (eq_attr "alternative" "0")
 		   (const_string "1")
@@ -14735,6 +14735,8 @@
 	      (const_string "fmov")
 	    (eq_attr "alternative" "10")
 	      (const_string "imov")
+	    (eq_attr "alternative" "0,1,2")
+	      (const_string "ssemov2")
 	   ]
 	   (const_string "ssemov")))
    (set (attr "prefix_data16")
@@ -14787,7 +14789,7 @@
      (if_then_else
        (eq_attr "alternative" "5")
        (const_string "sselog")
-       (const_string "ssemov")))
+       (const_string "ssemov2")))
    (set (attr "prefix_data16")
      (if_then_else
        (and (eq_attr "alternative" "2,4")
@@ -14859,7 +14861,7 @@
      (if_then_else
        (eq_attr "alternative" "0,1,2")
        (const_string "sselog")
-       (const_string "ssemov")))
+       (const_string "ssemov2")))
    (set (attr "prefix_data16")
 	(if_then_else (eq_attr "alternative" "3")
 		      (const_string "1")
@@ -16975,7 +16977,7 @@
 (define_mode_attr SDOT_VPDP_SUF
   [(V32HI "v16si") (V16HI "v8si") (V8HI "v4si")])
 
-(define_expand "sdot_prod<mode>"
+(define_expand "sdot_prod<sseunpackmodelower><mode>"
   [(match_operand:<sseunpackmode> 0 "register_operand")
    (match_operand:VI2_AVX512VNNIBW 1 "register_operand")
    (match_operand:VI2_AVX512VNNIBW 2 "register_operand")
@@ -17010,7 +17012,7 @@
 
 ;; Normally we use widen_mul_even/odd, but combine can't quite get it all
 ;; back together when madd is available.
-(define_expand "sdot_prodv4si"
+(define_expand "sdot_prodv2div4si"
   [(match_operand:V2DI 0 "register_operand")
    (match_operand:V4SI 1 "register_operand")
    (match_operand:V4SI 2 "register_operand")
@@ -18142,7 +18144,7 @@
 	    [(match_operand:VI_128_256 3 "nonimmediate_operand")
 	     (match_operand:VI_128_256 4 "nonimmediate_operand")
 	     (match_operand:SI 5 "const_0_to_7_operand")]
-	     UNSPEC_PCMP_ITER)))]
+	     UNSPEC_PCMP)))]
   "TARGET_AVX512VL && ix86_pre_reload_split ()
      /* NE is commutative.  */
    && (INTVAL (operands[5]) == 4
@@ -18161,6 +18163,31 @@
     operands[3] = force_reg (<MODE>mode, operands[3]);
   enum rtx_code code = INTVAL (operands[5]) != 4 ? GT : EQ;
   emit_move_insn (operands[0], gen_rtx_fmt_ee (code, <MODE>mode,
+					       operands[3], operands[4]));
+  DONE;
+})
+
+(define_insn_and_split "*avx2_pcmp<mode>3_8"
+ [(set (match_operand:VI_128_256  0 "register_operand")
+	(vec_merge:VI_128_256
+	  (match_operand:VI_128_256 1 "const0_operand")
+	  (match_operand:VI_128_256 2 "vector_all_ones_operand")
+	  (unspec:<avx512fmaskmode>
+	    [(match_operand:VI_128_256 3 "nonimmediate_operand")
+	     (match_operand:VI_128_256 4 "nonimmediate_operand")
+	     (match_operand:SI 5 "const_0_to_7_operand")]
+	     UNSPEC_UNSIGNED_PCMP)))]
+  "TARGET_AVX512VL && ix86_pre_reload_split ()
+     /* NE is commutative.  */
+   && INTVAL (operands[5]) == 4"
+
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  if (MEM_P (operands[3]))
+    operands[3] = force_reg (<MODE>mode, operands[3]);
+  emit_move_insn (operands[0], gen_rtx_fmt_ee (EQ, <MODE>mode,
 					       operands[3], operands[4]));
   DONE;
 })
@@ -18434,6 +18461,13 @@
 	(and:VI_AVX2
 	  (not:VI_AVX2 (match_operand:VI_AVX2 1 "register_operand"))
 	  (match_operand:VI_AVX2 2 "vector_operand")))]
+  "TARGET_SSE2")
+
+(define_expand "andn<mode>3"
+  [(set (match_operand:VI 0 "register_operand")
+	(and:VI
+	  (not:VI (match_operand:VI 2 "register_operand"))
+	  (match_operand:VI 1 "register_operand")))]
   "TARGET_SSE2")
 
 (define_expand "<sse2_avx2>_andnot<mode>3_mask"
@@ -21545,7 +21579,7 @@
    movhps\t{%2, %0|%0, %q2}
    vmovhps\t{%2, %1, %0|%0, %1, %q2}"
   [(set_attr "isa" "sse2_noavx,avx,noavx,noavx,avx")
-   (set_attr "type" "sselog,sselog,ssemov,ssemov,ssemov")
+   (set_attr "type" "sselog,sselog,ssemov,ssemov2,ssemov2")
    (set_attr "prefix" "orig,maybe_evex,orig,orig,maybe_evex")
    (set_attr "mode" "TI,TI,V4SF,V2SF,V2SF")])
 
@@ -21653,7 +21687,7 @@
      (if_then_else
        (eq_attr "alternative" "0,1,2,3,4,5")
        (const_string "sselog")
-       (const_string "ssemov")))
+       (const_string "ssemov2")))
    (set (attr "addr")
      (if_then_else (eq_attr "alternative" "0,1")
 		   (const_string "gpr16")
@@ -30471,7 +30505,7 @@
    [(set_attr ("prefix") ("evex"))
    (set_attr "mode" "<sseinsnmode>")])
 
-(define_expand "usdot_prod<mode>"
+(define_expand "usdot_prod<ssedvecmodelower><mode>"
   [(match_operand:<ssedvecmode> 0 "register_operand")
    (match_operand:VI1_AVX512 1 "register_operand")
    (match_operand:VI1_AVX512 2 "register_operand")
@@ -30509,10 +30543,11 @@
       rtx sum = gen_reg_rtx (<ssedvecmode>mode);
 
       emit_move_insn (sum, CONST0_RTX (<ssedvecmode>mode));
-      emit_insn (gen_sdot_prod<sseunpackmodelower> (res1, op1_lo,
-						    op2_lo, sum));
-      emit_insn (gen_sdot_prod<sseunpackmodelower> (res2, op1_hi,
-						    op2_hi, operands[3]));
+      emit_insn (gen_sdot_prod<ssedvecmodelower><sseunpackmodelower> (res1,
+						    op1_lo, op2_lo, sum));
+      emit_insn (gen_sdot_prod<ssedvecmodelower><sseunpackmodelower> (res2,
+						    op1_hi, op2_hi,
+						    operands[3]));
       emit_insn (gen_add<ssedvecmodelower>3 (operands[0], res1, res2));
     }
   DONE;
@@ -30802,7 +30837,7 @@
 	  UNSPEC_VAESDEC))]
   "TARGET_VAES"
 {
-  if (which_alternative == 0 && <MODE>mode == V16QImode)
+  if (!TARGET_AES && <MODE>mode == V16QImode)
     return "%{evex%} vaesdec\t{%2, %1, %0|%0, %1, %2}";
   else
     return "vaesdec\t{%2, %1, %0|%0, %1, %2}";
@@ -30816,7 +30851,7 @@
 	  UNSPEC_VAESDECLAST))]
   "TARGET_VAES"
 {
-  if (which_alternative == 0 && <MODE>mode == V16QImode)
+  if (!TARGET_AES && <MODE>mode == V16QImode)
     return "%{evex%} vaesdeclast\t{%2, %1, %0|%0, %1, %2}";
   else
     return "vaesdeclast\t{%2, %1, %0|%0, %1, %2}";
@@ -30830,7 +30865,7 @@
 	  UNSPEC_VAESENC))]
   "TARGET_VAES"
 {
-  if (which_alternative == 0 && <MODE>mode == V16QImode)
+  if (!TARGET_AES && <MODE>mode == V16QImode)
     return "%{evex%} vaesenc\t{%2, %1, %0|%0, %1, %2}";
   else
     return "vaesenc\t{%2, %1, %0|%0, %1, %2}";
@@ -30844,7 +30879,7 @@
 	  UNSPEC_VAESENCLAST))]
   "TARGET_VAES"
 {
-  if (which_alternative == 0 && <MODE>mode == V16QImode)
+  if (!TARGET_AES && <MODE>mode == V16QImode)
     return "%{evex%} vaesenclast\t{%2, %1, %0|%0, %1, %2}";
   else
     return "vaesenclast\t{%2, %1, %0|%0, %1, %2}";
@@ -31336,7 +31371,7 @@
    (UNSPEC_VPDPBSUD "bsud") (UNSPEC_VPDPBSUDS "bsuds")
    (UNSPEC_VPDPBUUD "buud") (UNSPEC_VPDPBUUDS "buuds")])
 
-(define_expand "sdot_prod<mode>"
+(define_expand "sdot_prod<ssedvecmodelower><mode>"
   [(match_operand:<ssedvecmode> 0 "register_operand")
    (match_operand:VI1_AVX512VNNIBW 1 "register_operand")
    (match_operand:VI1_AVX512VNNIBW 2 "register_operand")
@@ -31373,17 +31408,18 @@
       rtx sum = gen_reg_rtx (<ssedvecmode>mode);
 
       emit_move_insn (sum, CONST0_RTX (<ssedvecmode>mode));
-      emit_insn (gen_sdot_prod<sseunpackmodelower> (res1, op1_lo,
-						    op2_lo, sum));
-      emit_insn (gen_sdot_prod<sseunpackmodelower> (res2, op1_hi,
-						    op2_hi, operands[3]));
+      emit_insn (gen_sdot_prod<ssedvecmodelower><sseunpackmodelower> (res1,
+						    op1_lo, op2_lo, sum));
+      emit_insn (gen_sdot_prod<ssedvecmodelower><sseunpackmodelower> (res2,
+						    op1_hi, op2_hi,
+						    operands[3]));
       emit_insn (gen_add<ssedvecmodelower>3 (operands[0], res1, res2));
     }
 
   DONE;
 })
 
-(define_expand "udot_prod<mode>"
+(define_expand "udot_prod<ssedvecmodelower><mode>"
   [(match_operand:<ssedvecmode> 0 "register_operand")
    (match_operand:VI1_AVX512VNNIBW 1 "register_operand")
    (match_operand:VI1_AVX512VNNIBW 2 "register_operand")
@@ -31420,10 +31456,11 @@
      rtx sum = gen_reg_rtx (<ssedvecmode>mode);
 
      emit_move_insn (sum, CONST0_RTX (<ssedvecmode>mode));
-     emit_insn (gen_sdot_prod<sseunpackmodelower> (res1, op1_lo,
-						    op2_lo, sum));
-     emit_insn (gen_sdot_prod<sseunpackmodelower> (res2, op1_hi,
-						    op2_hi, operands[3]));
+     emit_insn (gen_sdot_prod<ssedvecmodelower><sseunpackmodelower> (res1,
+						    op1_lo, op2_lo, sum));
+     emit_insn (gen_sdot_prod<ssedvecmodelower><sseunpackmodelower> (res2,
+						    op1_hi, op2_hi,
+						    operands[3]));
      emit_insn (gen_add<ssedvecmodelower>3 (operands[0], res1, res2));
    }
 
@@ -31803,7 +31840,7 @@
    (UNSPEC_VPDPWSUD "wsud") (UNSPEC_VPDPWSUDS "wsuds")
    (UNSPEC_VPDPWUUD "wuud") (UNSPEC_VPDPWUUDS "wuuds")])
 
-(define_expand "usdot_prod<mode>"
+(define_expand "usdot_prod<sseunpackmodelower><mode>"
   [(match_operand:<sseunpackmode> 0 "register_operand")
    (match_operand:VI2_AVX10_2 1 "register_operand")
    (match_operand:VI2_AVX10_2 2 "register_operand")
@@ -31821,7 +31858,7 @@
   DONE;
 })
 
-(define_expand "udot_prod<mode>"
+(define_expand "udot_prod<sseunpackmodelower><mode>"
   [(match_operand:<sseunpackmode> 0 "register_operand")
    (match_operand:VI2_AVX10_2 1 "register_operand")
    (match_operand:VI2_AVX10_2 2 "register_operand")
@@ -32043,7 +32080,7 @@
 	  (fma:VBF_AVX10_2
 	     (match_operand:VBF_AVX10_2 1 "nonimmediate_operand" "%v")
 	     (match_operand:VBF_AVX10_2 2 "nonimmediate_operand" "vm")
-	     (match_operand:VBF_AVX10_2 3 "register_operand" "0"))
+	     (match_operand:VBF_AVX10_2 3 "nonimmediate_operand" "0"))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX10_2_256"
@@ -32108,7 +32145,7 @@
             (neg:VBF_AVX10_2
 	      (match_operand:VBF_AVX10_2 1 "nonimmediate_operand" "%v"))
 	    (match_operand:VBF_AVX10_2 2 "nonimmediate_operand" "vm")
-	    (match_operand:VBF_AVX10_2 3 "register_operand" "0"))
+	    (match_operand:VBF_AVX10_2 3 "nonimmediate_operand" "0"))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX10_2_256"
@@ -32173,7 +32210,7 @@
 	     (match_operand:VBF_AVX10_2 1 "nonimmediate_operand" "%v")
 	     (match_operand:VBF_AVX10_2 2 "nonimmediate_operand" "vm")
              (neg:VBF_AVX10_2
-	       (match_operand:VBF_AVX10_2 3 "register_operand" "0")))
+	       (match_operand:VBF_AVX10_2 3 "nonimmediate_operand" "0")))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX10_2_256"
@@ -32241,7 +32278,7 @@
 	      (match_operand:VBF_AVX10_2 1 "nonimmediate_operand" "%v"))
 	    (match_operand:VBF_AVX10_2 2 "nonimmediate_operand" "vm")
             (neg:VBF_AVX10_2
-	      (match_operand:VBF_AVX10_2 3 "register_operand" "0")))
+	      (match_operand:VBF_AVX10_2 3 "nonimmediate_operand" "0")))
 	  (match_dup 3)
 	  (match_operand:<avx512fmaskmode> 4 "register_operand" "Yk")))]
   "TARGET_AVX10_2_256"
@@ -32329,8 +32366,12 @@
 (define_insn "avx10_2_comsbf16_v8bf"
   [(set (reg:CCFP FLAGS_REG)
 	(unspec:CCFP
-	  [(match_operand:V8BF 0 "register_operand" "v")
-	   (match_operand:V8BF 1 "nonimmediate_operand" "vm")]
+	  [(vec_select:BF
+	     (match_operand:V8BF 0 "register_operand" "v")
+	     (parallel [(const_int 0)]))
+	   (vec_select:BF
+	     (match_operand:V8BF 1 "nonimmediate_operand" "vm")
+	     (parallel [(const_int 0)]))]
 	 UNSPEC_VCOMSBF16))]
   "TARGET_AVX10_2_256"
   "vcomsbf16\t{%1, %0|%0, %1}"

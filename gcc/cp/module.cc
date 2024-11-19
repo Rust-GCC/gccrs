@@ -11829,7 +11829,7 @@ has_definition (tree decl)
 	       since there's no TU to emit them in otherwise.  */
 	    return true;
 
-	  if (!TREE_CONSTANT (decl))
+	  if (!decl_maybe_constant_var_p (decl))
 	    return false;
 
 	  return true;
@@ -20533,23 +20533,6 @@ init_modules (cpp_reader *reader)
   if (cpp_get_options (reader)->traditional)
     fatal_error (input_location,
 		 "C++ modules are incompatible with traditional preprocessing");
-
-  if (flag_preprocess_only)
-    {
-      cpp_options *cpp_opts = cpp_get_options (reader);
-      if (flag_no_output
-	  || (cpp_opts->deps.style != DEPS_NONE
-	      && !cpp_opts->deps.need_preprocessor_output))
-	{
-	  auto_diagnostic_group d;
-	  warning (0, flag_dump_macros == 'M'
-		   ? G_("macro debug output may be incomplete with modules")
-		   : G_("module dependencies require preprocessing"));
-	  if (cpp_opts->deps.style != DEPS_NONE)
-	    inform (input_location, "you should use the %<-%s%> option",
-		    cpp_opts->deps.style == DEPS_SYSTEM ? "MD" : "MMD");
-	}
-    }
 
   /* :: is always exported.  */
   DECL_MODULE_EXPORT_P (global_namespace) = true;

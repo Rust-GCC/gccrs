@@ -1,3 +1,162 @@
+2024-10-15  Thomas Schwinge  <tschwinge@baylibre.com>
+	    Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/82250
+	PR fortran/82251
+	PR fortran/117136
+	* trans-expr.cc (gfc_conv_procedure_call): Initialize
+	'is_builtin'.
+	(conv_function_val): Clean up.
+
+2024-10-14  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/77871
+	* trans-expr.cc (gfc_conv_derived_to_class): Assign token when
+	converting a coarray to class.
+	(gfc_get_tree_for_caf_expr): For classes get the caf decl from
+	the saved descriptor.
+	(gfc_get_caf_token_offset):Assert that coarray=lib is set and
+	cover more cases where the tree having the coarray token can be.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_caf_get): Use unified
+	test for pointers.
+
+2024-10-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.h (gfc_option_t): Add disable_acc_on_device.
+	* options.cc (gfc_handle_option): Handle -fno-builtin-acc_on_device.
+	* trans-decl.cc (gfc_get_extern_function_decl): Move
+	__builtin_omp_is_initial_device handling to ...
+	* trans-expr.cc (get_builtin_fn): ... this new function.
+	(conv_function_val): Call it.
+	(update_builtin_function): New.
+	(gfc_conv_procedure_call): Call it.
+	* types.def (BT_BOOL): Fix type by using bool_type_node.
+
+2024-10-12  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* dump-parse-tree.cc (get_c_type_name): Also handle BT_UNSIGNED.
+	* gfortran.h (NAMED_UINTCST): Define before inclusion
+	of iso-c-binding.def and iso-fortran-env.def.
+	(gfc_get_uint_kind_from_width_isofortranenv): Prototype.
+	* gfortran.texi: Mention new constants in iso_c_binding and
+	iso_fortran_env.
+	* iso-c-binding.def: Handle NAMED_UINTCST. Add c_unsigned,
+	c_unsigned_short,c_unsigned_char, c_unsigned_long,
+	c_unsigned_long_long, c_uintmax_t, c_uint8_t, c_uint16_t,
+	c_uint32_t, c_uint64_t, c_uint128_t, c_uint_least8_t,
+	c_uint_least16_t, c_uint_least32_t, c_uint_least64_t,
+	c_uint_least128_t, c_uint_fast8_t, c_uint_fast16_t,
+	c_uint_fast32_t, c_uint_fast64_t and c_uint_fast128_t.
+	* iso-fortran-env.def: Handle NAMED_UINTCST. Add uint8, uint16,
+	uint32 and uint64.
+	* module.cc (parse_integer): Whitespace fix.
+	(write_module): Whitespace fix.
+	(NAMED_UINTCST): Define before inclusion of iso-fortran-evn.def
+	and iso-fortran-env.def.
+	* symbol.cc: Likewise.
+	* trans-types.cc (get_unsigned_kind_from_node): New function.
+	(get_uint_kind_from_name): New function.
+	(gfc_get_uint_kind_from_width_isofortranenv): New function.
+	(get_uint_kind_from_width): New function.
+	(gfc_init_kinds): Initialize gfc_c_uint_kind.
+
+2024-10-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (resolve_omp_clauses): Diagnose polymorphic mapping.
+	* trans-openmp.cc (gfc_omp_finish_clause): Warn when
+	polymorphic variable is implicitly mapped.
+
+2024-10-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* array.cc (gfc_match_array_constructor): Only update the
+	character length if the expression is of character type.
+	* error.cc (gfc_get_location_with_offset): New; split off
+	from ...
+	(gfc_format_decoder): ... here; call it.
+	* gfortran.h (gfc_get_location_with_offset): New prototype.
+	(gfc_get_location): New inline function.
+	* trans.cc (gfc_get_location): Remove function definition.
+	* trans.h (gfc_get_location): Remove declaration.
+
+2024-10-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* intrinsic.cc (add_functions): Convert uint and
+	selected_unsigned_kind to GFC_STD_UNSIGNED.
+	(gfc_check_intrinsic_standard): Handle GFC_STD_UNSIGNED.
+	* libgfortran.h (GFC_STD_UNSIGNED): Add.
+	* options.cc (gfc_post_options): Set GFC_STD_UNSIGNED
+	if -funsigned is set.
+
+2024-10-11  Tobias Burnus  <tburnus@baylibre.com>
+
+	* error.cc (error_char, error_string, error_uinteger, error_integer,
+	error_hwuint, error_hwint, gfc_widechar_display_length,
+	gfc_wide_display_length, error_printf, show_locus, show_loci):
+	Remove unused static functions.
+	(IBUF_LEN, MAX_ARGS): Remove now unused #define.
+
+2024-10-08  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/51815
+	* array.cc (gfc_match_array_ref): Only parse coarray part of
+	ref.
+	* match.h (gfc_match_array_ref): Add flag.
+	* primary.cc (gfc_match_varspec): Request only coarray ref
+	parsing when no regular array is present.  Report error on
+	unexpected additional ref.
+
+2024-10-07  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* check.cc (gfc_check_minloc_maxloc): Handle BT_UNSIGNED.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Likewise.
+	* gfortran.texi: Document MAXLOC and MINLOC for UNSIGNED.
+
+2024-10-07  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (is_predefined_allocator): Use gomp-constants.h consts.
+	* trans-common.cc (translate_common): Reject OpenMP allocate directives.
+	* trans-decl.cc (gfc_finish_var_decl): Handle allocate directive
+	for static variables.
+	(gfc_trans_deferred_vars): Update for the latter.
+
+2024-10-01  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* check.cc (int_or_real_or_char_or_unsigned_check_f2003): New function.
+	(gfc_check_minval_maxval): Use it.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxval): Handle
+	initial values for UNSIGNED.
+	* gfortran.texi: Document MINVAL and MAXVAL for unsigned.
+
+2024-09-30  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* error.cc (gfc_diagnostic_build_locus_prefix): Convert first
+	param from diagnostic_context * to
+	const diagnostic_location_print_policy &.  Add colorize param.
+	Likewise for the "two expanded_locations" overload.
+	(gfc_diagnostic_text_starter): Update for above changes.
+	(gfc_diagnostic_start_span): Update for change to callback type.
+
+2024-09-30  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/81265
+	* trans-expr.cc (gfc_conv_procedure_call): Ensure coarrays use a
+	descriptor when passed.
+
+2024-09-28  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* check.cc (intrinsic_type_check): Handle unsigned.
+	(gfc_check_findloc): Likewise.
+	* gfortran.texi: Include FINDLOC in unsigned documentation.
+	* iresolve.cc (gfc_resolve_findloc): Use INTEGER version
+	for UNSIGNED.
+
+2024-09-28  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* check.cc (gfc_check_eoshift): Handle BT_UNSIGNED.
+	* simplify.cc (gfc_simplify_eoshift): Likewise.
+	* gfortran.texi: Document CSHIFT and EOSHIFT for UNSIGNED.
+
 2024-09-26  Mikael Morin  <mikael@gcc.gnu.org>
 
 	* invoke.texi (-M): Remove index reference to removed documentation.

@@ -3646,7 +3646,7 @@ get_constraint_for_1 (tree t, vec<ce_s> *results, bool address_p,
       }
     case tcc_reference:
       {
-	if (TREE_THIS_VOLATILE (t))
+	if (!lhs_p && TREE_THIS_VOLATILE (t))
 	  /* Fall back to anything.  */
 	  break;
 
@@ -3751,7 +3751,7 @@ get_constraint_for_1 (tree t, vec<ce_s> *results, bool address_p,
       }
     case tcc_declaration:
       {
-	if (VAR_P (t) && TREE_THIS_VOLATILE (t))
+	if (!lhs_p && VAR_P (t) && TREE_THIS_VOLATILE (t))
 	  /* Fall back to anything.  */
 	  break;
 	get_constraint_for_ssa_var (t, results, address_p);
@@ -4194,7 +4194,6 @@ handle_call_arg (gcall *stmt, tree arg, vec<ce_s> *results, int flags,
     {
       make_transitive_closure_constraints (tem);
       callarg_transitive = true;
-      gcc_checking_assert (!(flags & EAF_NO_DIRECT_READ));
     }
 
   /* If necessary, produce varinfo for indirect accesses to ARG.  */

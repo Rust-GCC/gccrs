@@ -6622,8 +6622,8 @@ riscv_union_memmodels (enum memmodel model1, enum memmodel model2)
   model1 = memmodel_base (model1);
   model2 = memmodel_base (model2);
 
-  enum memmodel weaker = model1 <= model2 ? model1: model2;
-  enum memmodel stronger = model1 > model2 ? model1: model2;
+  enum memmodel weaker = model1 <= model2 ? model1 : model2;
+  enum memmodel stronger = model1 > model2 ? model1 : model2;
 
   switch (stronger)
     {
@@ -7652,6 +7652,69 @@ riscv_compute_frame_info (void)
   frame->total_size = offset;
 
   /* Next points the incoming stack pointer and any incoming arguments. */
+}
+
+/* Implement TARGET_CAN_INLINE_P.  Determine whether inlining the function
+   CALLER into the function CALLEE is safe.  Inlining should be rejected if
+   there is no always_inline attribute and the target options differ except
+   for differences in ISA extensions or performance tuning options like the
+   code model, TLS dialect, and stack protector, etc.  Inlining is
+   permissible when the non-ISA extension options are identical and the ISA
+   extensions of CALLEE are a subset of those of CALLER, thereby improving
+   the performance of Function Multi-Versioning.  */
+
+static bool
+riscv_can_inline_p (tree caller, tree callee)
+{
+  tree callee_tree = DECL_FUNCTION_SPECIFIC_TARGET (callee);
+  tree caller_tree = DECL_FUNCTION_SPECIFIC_TARGET (caller);
+
+  /* It's safe to inline if callee has no opts.  */
+  if (! callee_tree)
+    return true;
+
+  if (! caller_tree)
+    caller_tree = target_option_default_node;
+
+  struct cl_target_option *callee_opts = TREE_TARGET_OPTION (callee_tree);
+  struct cl_target_option *caller_opts = TREE_TARGET_OPTION (caller_tree);
+
+  int isa_flag_mask = riscv_x_target_flags_isa_mask ();
+
+  /* Callee and caller should have the same target options except for ISA.  */
+  int callee_target_flags = callee_opts->x_target_flags & ~isa_flag_mask;
+  int caller_target_flags = caller_opts->x_target_flags & ~isa_flag_mask;
+
+  if (callee_target_flags != caller_target_flags)
+    return false;
+
+  /* Callee's ISA should be a subset of the caller's ISA.  */
+  if (! riscv_ext_is_subset (caller_opts, callee_opts))
+    return false;
+
+  /* If the callee has always_inline set, we can ignore the rest attributes.  */
+  if (lookup_attribute ("always_inline", DECL_ATTRIBUTES (callee)))
+    return true;
+
+  if (caller_opts->x_riscv_cmodel != callee_opts->x_riscv_cmodel)
+    return false;
+
+  if (caller_opts->x_riscv_tls_dialect != callee_opts->x_riscv_tls_dialect)
+    return false;
+
+  if (caller_opts->x_riscv_stack_protector_guard_reg
+      != callee_opts->x_riscv_stack_protector_guard_reg)
+    return false;
+
+  if (caller_opts->x_riscv_stack_protector_guard_offset
+      != callee_opts->x_riscv_stack_protector_guard_offset)
+    return false;
+
+  if (caller_opts->x_rvv_vector_strict_align
+      != callee_opts->x_rvv_vector_strict_align)
+    return false;
+
+  return true;
 }
 
 /* Make sure that we're not trying to eliminate to the wrong hard frame
@@ -12329,6 +12392,75 @@ riscv_expand_ussub (rtx dest, rtx x, rtx y)
   emit_move_insn (dest, gen_lowpart (mode, xmode_dest));
 }
 
+/* Implements the signed saturation sub standard name ssadd for int mode.
+
+   z = SAT_SUB(x, y).
+   =>
+   1.  minus = x - y
+   2.  xor_0 = x ^ y
+   3.  xor_1 = x ^ minus
+   4.  lt_0 = xor_1 < 0
+   5.  lt_1 = xor_0 < 0
+   6.  and = lt_0 & lt_1
+   7.  lt = x < 0
+   8.  neg = -lt
+   9.  max = INT_MAX
+   10. max = max ^ neg
+   11. neg = -and
+   12. max = max & neg
+   13. and = and - 1
+   14. z = minus & and
+   15. z = z | max  */
+
+void
+riscv_expand_sssub (rtx dest, rtx x, rtx y)
+{
+  machine_mode mode = GET_MODE (dest);
+  unsigned bitsize = GET_MODE_BITSIZE (mode).to_constant ();
+  rtx shift_bits = GEN_INT (bitsize - 1);
+  rtx xmode_x = gen_lowpart (Xmode, x);
+  rtx xmode_y = gen_lowpart (Xmode, y);
+  rtx xmode_minus = gen_reg_rtx (Xmode);
+  rtx xmode_xor_0 = gen_reg_rtx (Xmode);
+  rtx xmode_xor_1 = gen_reg_rtx (Xmode);
+  rtx xmode_lt_0 = gen_reg_rtx (Xmode);
+  rtx xmode_lt_1 = gen_reg_rtx (Xmode);
+  rtx xmode_and = gen_reg_rtx (Xmode);
+  rtx xmode_lt = gen_reg_rtx (Xmode);
+  rtx xmode_neg = gen_reg_rtx (Xmode);
+  rtx xmode_max = gen_reg_rtx (Xmode);
+  rtx xmode_dest = gen_reg_rtx (Xmode);
+
+  /* Step-1: mins = x - y, xor_0 = x ^ y, xor_1 = x ^ minus.  */
+  riscv_emit_binary (MINUS, xmode_minus, xmode_x, xmode_y);
+  riscv_emit_binary (XOR, xmode_xor_0, xmode_x, xmode_y);
+  riscv_emit_binary (XOR, xmode_xor_1, xmode_x, xmode_minus);
+
+  /* Step-2: and = xor_0 < 0 & xor_1 < 0.  */
+  riscv_emit_binary (LSHIFTRT, xmode_lt_0, xmode_xor_0, shift_bits);
+  riscv_emit_binary (LSHIFTRT, xmode_lt_1, xmode_xor_1, shift_bits);
+  riscv_emit_binary (AND, xmode_and, xmode_lt_0, xmode_lt_1);
+  riscv_emit_binary (AND, xmode_and, xmode_and, CONST1_RTX (Xmode));
+
+  /* Step-3: lt = x < 0, neg = -lt.  */
+  riscv_emit_binary (LT, xmode_lt, xmode_x, CONST0_RTX (Xmode));
+  riscv_emit_unary (NEG, xmode_neg, xmode_lt);
+
+  /* Step-4: max = 0x7f..., max = max ^ neg, neg = -and, max = max & neg.  */
+  riscv_emit_move (xmode_max, riscv_gen_sign_max_cst (mode));
+  riscv_emit_binary (XOR, xmode_max, xmode_max, xmode_neg);
+  riscv_emit_unary (NEG, xmode_neg, xmode_and);
+  riscv_emit_binary (AND, xmode_max, xmode_max, xmode_neg);
+
+  /* Step-5: and = and - 1, dest = minus & and.  */
+  riscv_emit_binary (PLUS, xmode_and, xmode_and, CONSTM1_RTX (Xmode));
+  riscv_emit_binary (AND, xmode_dest, xmode_minus, xmode_and);
+
+  /* Step-6: dest = dest | max.  */
+  riscv_emit_binary (IOR, xmode_dest, xmode_dest, xmode_max);
+  emit_move_insn (dest, gen_lowpart (mode, xmode_dest));
+}
+
 /* Implement the unsigned saturation truncation for int mode.
 
    b = SAT_TRUNC (a);
@@ -12364,6 +12496,67 @@ riscv_expand_ustrunc (rtx dest, rtx src)
 
   /* Step-4: xmode_dest = lt | src  */
   riscv_emit_binary (IOR, xmode_dest, xmode_lt, xmode_src);
+
+  /* Step-5: dest = xmode_dest  */
+  emit_move_insn (dest, gen_lowpart (mode, xmode_dest));
+}
+
+/* Implement the signed saturation truncation for int mode.
+
+   b = SAT_TRUNC (a);
+   =>
+   1.  lt = a < max
+   2.  gt = min < a
+   3.  mask = lt & gt
+   4.  trunc_mask = -mask
+   5.  sat_mask = mask - 1
+   6.  lt = a < 0
+   7.  neg = -lt
+   8.  sat = neg ^ max
+   9.  trunc = src & trunc_mask
+   10. sat = sat & sat_mask
+   11. dest = trunc | sat  */
+
+void
+riscv_expand_sstrunc (rtx dest, rtx src)
+{
+  machine_mode mode = GET_MODE (dest);
+  unsigned narrow_prec = GET_MODE_PRECISION (mode).to_constant ();
+  HOST_WIDE_INT narrow_max = ((int64_t)1 << (narrow_prec - 1)) - 1; // 127
+  HOST_WIDE_INT narrow_min = -narrow_max - 1; // -128
+
+  rtx xmode_narrow_max = gen_reg_rtx (Xmode);
+  rtx xmode_narrow_min = gen_reg_rtx (Xmode);
+  rtx xmode_lt = gen_reg_rtx (Xmode);
+  rtx xmode_gt = gen_reg_rtx (Xmode);
+  rtx xmode_src = gen_lowpart (Xmode, src);
+  rtx xmode_dest = gen_reg_rtx (Xmode);
+  rtx xmode_mask = gen_reg_rtx (Xmode);
+  rtx xmode_sat = gen_reg_rtx (Xmode);
+  rtx xmode_trunc = gen_reg_rtx (Xmode);
+  rtx xmode_sat_mask = gen_reg_rtx (Xmode);
+  rtx xmode_trunc_mask = gen_reg_rtx (Xmode);
+
+  /* Step-1: lt = src < max, gt = min < src, mask = lt & gt  */
+  emit_move_insn (xmode_narrow_min, gen_int_mode (narrow_min, Xmode));
+  emit_move_insn (xmode_narrow_max, gen_int_mode (narrow_max, Xmode));
+  riscv_emit_binary (LT, xmode_lt, xmode_src, xmode_narrow_max);
+  riscv_emit_binary (LT, xmode_gt, xmode_narrow_min, xmode_src);
+  riscv_emit_binary (AND, xmode_mask, xmode_lt, xmode_gt);
+
+  /* Step-2: sat_mask = mask - 1, trunc_mask = ~mask  */
+  riscv_emit_binary (PLUS, xmode_sat_mask, xmode_mask, CONSTM1_RTX (Xmode));
+  riscv_emit_unary (NEG, xmode_trunc_mask, xmode_mask);
+
+  /* Step-3: lt = src < 0, lt = -lt, sat = lt ^ narrow_max  */
+  riscv_emit_binary (LT, xmode_lt, xmode_src, CONST0_RTX (Xmode));
+  riscv_emit_unary (NEG, xmode_lt, xmode_lt);
+  riscv_emit_binary (XOR, xmode_sat, xmode_lt, xmode_narrow_max);
+
+  /* Step-4: xmode_dest = (src & trunc_mask) | (sat & sat_mask)  */
+  riscv_emit_binary (AND, xmode_trunc, xmode_src, xmode_trunc_mask);
+  riscv_emit_binary (AND, xmode_sat, xmode_sat, xmode_sat_mask);
+  riscv_emit_binary (IOR, xmode_dest, xmode_trunc, xmode_sat);
 
   /* Step-5: dest = xmode_dest  */
   emit_move_insn (dest, gen_lowpart (mode, xmode_dest));
@@ -12537,6 +12730,9 @@ riscv_stack_clash_protection_alloca_probe_range (void)
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P	riscv_legitimate_address_p
+
+#undef TARGET_CAN_INLINE_P
+#define TARGET_CAN_INLINE_P riscv_can_inline_p
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE riscv_can_eliminate

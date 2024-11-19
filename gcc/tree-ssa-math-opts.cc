@@ -117,6 +117,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "domwalk.h"
 #include "tree-ssa-math-opts.h"
 #include "dbgcnt.h"
+#include "cfghooks.h"
 
 /* This structure represents one basic block that either computes a
    division, or is a common dominator for basic block that compute a
@@ -4024,10 +4025,13 @@ extern bool gimple_unsigned_integer_sat_sub (tree, tree*, tree (*)(tree));
 extern bool gimple_unsigned_integer_sat_trunc (tree, tree*, tree (*)(tree));
 
 extern bool gimple_signed_integer_sat_add (tree, tree*, tree (*)(tree));
+extern bool gimple_signed_integer_sat_sub (tree, tree*, tree (*)(tree));
+extern bool gimple_signed_integer_sat_trunc (tree, tree*, tree (*)(tree));
 
 static void
-build_saturation_binary_arith_call (gimple_stmt_iterator *gsi, internal_fn fn,
-				    tree lhs, tree op_0, tree op_1)
+build_saturation_binary_arith_call_and_replace (gimple_stmt_iterator *gsi,
+						internal_fn fn, tree lhs,
+						tree op_0, tree op_1)
 {
   if (direct_internal_fn_supported_p (fn, TREE_TYPE (lhs), OPTIMIZE_FOR_BOTH))
     {
@@ -4037,20 +4041,19 @@ build_saturation_binary_arith_call (gimple_stmt_iterator *gsi, internal_fn fn,
     }
 }
 
-static void
-build_saturation_binary_arith_call (gimple_stmt_iterator *gsi, gphi *phi,
-				    internal_fn fn, tree lhs, tree op_0,
-				    tree op_1)
+static bool
+build_saturation_binary_arith_call_and_insert (gimple_stmt_iterator *gsi,
+					       internal_fn fn, tree lhs,
+					       tree op_0, tree op_1)
 {
-  if (direct_internal_fn_supported_p (fn, TREE_TYPE (op_0), OPTIMIZE_FOR_BOTH))
-    {
-      gcall *call = gimple_build_call_internal (fn, 2, op_0, op_1);
-      gimple_call_set_lhs (call, lhs);
-      gsi_insert_before (gsi, call, GSI_SAME_STMT);
+  if (!direct_internal_fn_supported_p (fn, TREE_TYPE (op_0), OPTIMIZE_FOR_BOTH))
+    return false;
 
-      gimple_stmt_iterator psi = gsi_for_stmt (phi);
-      remove_phi_node (&psi, /* release_lhs_p */ false);
-    }
+  gcall *call = gimple_build_call_internal (fn, 2, op_0, op_1);
+  gimple_call_set_lhs (call, lhs);
+  gsi_insert_before (gsi, call, GSI_SAME_STMT);
+
+  return true;
 }
 
 /*
@@ -4070,7 +4073,8 @@ match_unsigned_saturation_add (gimple_stmt_iterator *gsi, gassign *stmt)
   tree lhs = gimple_assign_lhs (stmt);
 
   if (gimple_unsigned_integer_sat_add (lhs, ops, NULL))
-    build_saturation_binary_arith_call (gsi, IFN_SAT_ADD, lhs, ops[0], ops[1]);
+    build_saturation_binary_arith_call_and_replace (gsi, IFN_SAT_ADD, lhs,
+						    ops[0], ops[1]);
 }
 
 /*
@@ -4112,19 +4116,22 @@ match_unsigned_saturation_add (gimple_stmt_iterator *gsi, gassign *stmt)
  *   =>
  *   _6 = .SAT_ADD (x_5(D), y_6(D)); [tail call]  */
 
-static void
+static bool
 match_saturation_add (gimple_stmt_iterator *gsi, gphi *phi)
 {
   if (gimple_phi_num_args (phi) != 2)
-    return;
+    return false;
 
   tree ops[2];
   tree phi_result = gimple_phi_result (phi);
 
-  if (gimple_unsigned_integer_sat_add (phi_result, ops, NULL)
-      || gimple_signed_integer_sat_add (phi_result, ops, NULL))
-    build_saturation_binary_arith_call (gsi, phi, IFN_SAT_ADD, phi_result,
-					ops[0], ops[1]);
+  if (!gimple_unsigned_integer_sat_add (phi_result, ops, NULL)
+      && !gimple_signed_integer_sat_add (phi_result, ops, NULL))
+    return false;
+
+  return build_saturation_binary_arith_call_and_insert (gsi, IFN_SAT_ADD,
+							phi_result, ops[0],
+							ops[1]);
 }
 
 /*
@@ -4142,7 +4149,8 @@ match_unsigned_saturation_sub (gimple_stmt_iterator *gsi, gassign *stmt)
   tree lhs = gimple_assign_lhs (stmt);
 
   if (gimple_unsigned_integer_sat_sub (lhs, ops, NULL))
-    build_saturation_binary_arith_call (gsi, IFN_SAT_SUB, lhs, ops[0], ops[1]);
+    build_saturation_binary_arith_call_and_replace (gsi, IFN_SAT_SUB, lhs,
+						    ops[0], ops[1]);
 }
 
 /*
@@ -4161,18 +4169,22 @@ match_unsigned_saturation_sub (gimple_stmt_iterator *gsi, gassign *stmt)
  *  =>
  *  <bb 4> [local count: 1073741824]:
  *  _1 = .SAT_SUB (x_2(D), y_3(D));  */
-static void
-match_unsigned_saturation_sub (gimple_stmt_iterator *gsi, gphi *phi)
+static bool
+match_saturation_sub (gimple_stmt_iterator *gsi, gphi *phi)
 {
   if (gimple_phi_num_args (phi) != 2)
-    return;
+    return false;
 
   tree ops[2];
   tree phi_result = gimple_phi_result (phi);
 
-  if (gimple_unsigned_integer_sat_sub (phi_result, ops, NULL))
-    build_saturation_binary_arith_call (gsi, phi, IFN_SAT_SUB, phi_result,
-					ops[0], ops[1]);
+  if (!gimple_unsigned_integer_sat_sub (phi_result, ops, NULL)
+      && !gimple_signed_integer_sat_sub (phi_result, ops, NULL))
+    return false;
+
+  return build_saturation_binary_arith_call_and_insert (gsi, IFN_SAT_SUB,
+							phi_result, ops[0],
+							ops[1]);
 }
 
 /*
@@ -4203,6 +4215,66 @@ match_unsigned_saturation_trunc (gimple_stmt_iterator *gsi, gassign *stmt)
       gimple_call_set_lhs (call, lhs);
       gsi_replace (gsi, call, /* update_eh_info */ true);
     }
+}
+
+/*
+ * Try to match saturation truncate.
+ * Aka:
+ *   x.0_1 = (unsigned long) x_4(D);
+ *   _2 = x.0_1 + 2147483648;
+ *   if (_2 > 4294967295)
+ *     goto <bb 4>; [50.00%]
+ *   else
+ *     goto <bb 3>; [50.00%]
+ * ;;    succ:       4
+ * ;;                3
+ *
+ * ;;   basic block 3, loop depth 0
+ * ;;    pred:       2
+ *   trunc_5 = (int32_t) x_4(D);
+ *   goto <bb 5>; [100.00%]
+ * ;;    succ:       5
+ *
+ * ;;   basic block 4, loop depth 0
+ * ;;    pred:       2
+ *   _7 = x_4(D) < 0;
+ *   _8 = (int) _7;
+ *   _9 = -_8;
+ *   _10 = _9 ^ 2147483647;
+ * ;;    succ:       5
+ *
+ * ;;   basic block 5, loop depth 0
+ * ;;    pred:       3
+ * ;;                4
+ *   # _3 = PHI <trunc_5(3), _10(4)>
+ * =>
+ * _6 = .SAT_TRUNC (x_4(D));
+ */
+
+static bool
+match_saturation_trunc (gimple_stmt_iterator *gsi, gphi *phi)
+{
+  if (gimple_phi_num_args (phi) != 2)
+    return false;
+
+  tree ops[1];
+  tree phi_result = gimple_phi_result (phi);
+  tree type = TREE_TYPE (phi_result);
+
+  if (!gimple_unsigned_integer_sat_trunc (phi_result, ops, NULL)
+      && !gimple_signed_integer_sat_trunc (phi_result, ops, NULL))
+    return false;
+
+  if (!direct_internal_fn_supported_p (IFN_SAT_TRUNC,
+				       tree_pair (type, TREE_TYPE (ops[0])),
+				       OPTIMIZE_FOR_BOTH))
+    return false;
+
+  gcall *call = gimple_build_call_internal (IFN_SAT_TRUNC, 1, ops[0]);
+  gimple_call_set_lhs (call, phi_result);
+  gsi_insert_before (gsi, call, GSI_SAME_STMT);
+
+  return true;
 }
 
 /* Recognize for unsigned x
@@ -5867,7 +5939,7 @@ convert_mult_to_highpart (gassign *stmt, gimple_stmt_iterator *gsi)
    <bb 6> [local count: 1073741824]:
    and turn it into:
    <bb 2> [local count: 1073741824]:
-   _1 = .SPACESHIP (a_2(D), b_3(D));
+   _1 = .SPACESHIP (a_2(D), b_3(D), 0);
    if (_1 == 0)
      goto <bb 6>; [34.00%]
    else
@@ -5889,7 +5961,13 @@ convert_mult_to_highpart (gassign *stmt, gimple_stmt_iterator *gsi)
 
    <bb 6> [local count: 1073741824]:
    so that the backend can emit optimal comparison and
-   conditional jump sequence.  */
+   conditional jump sequence.  If the
+   <bb 6> [local count: 1073741824]:
+   above has a single PHI like:
+   # _27 = PHI<0(2), -1(3), 2(4), 1(5)>
+   then replace it with effectively
+   _1 = .SPACESHIP (a_2(D), b_3(D), 1);
+   _27 = _1;  */
 
 static void
 optimize_spaceship (gcond *stmt)
@@ -5899,7 +5977,8 @@ optimize_spaceship (gcond *stmt)
     return;
   tree arg1 = gimple_cond_lhs (stmt);
   tree arg2 = gimple_cond_rhs (stmt);
-  if (!SCALAR_FLOAT_TYPE_P (TREE_TYPE (arg1))
+  if ((!SCALAR_FLOAT_TYPE_P (TREE_TYPE (arg1))
+       && !INTEGRAL_TYPE_P (TREE_TYPE (arg1)))
       || optab_handler (spaceship_optab,
 			TYPE_MODE (TREE_TYPE (arg1))) == CODE_FOR_nothing
       || operand_equal_p (arg1, arg2, 0))
@@ -6011,11 +6090,126 @@ optimize_spaceship (gcond *stmt)
 	}
     }
 
-  gcall *gc = gimple_build_call_internal (IFN_SPACESHIP, 2, arg1, arg2);
+  /* Check if there is a single bb into which all failed conditions
+     jump to (perhaps through an empty block) and if it results in
+     a single integral PHI which just sets it to -1, 0, 1, X
+     (or -1, 0, 1 when NaNs can't happen).  In that case use 1 rather
+     than 0 as last .SPACESHIP argument to tell backends it might
+     consider different code generation and just cast the result
+     of .SPACESHIP to the PHI result.  X above is some value
+     other than -1, 0, 1, for libstdc++ 2, for libc++ -127.  */
+  tree arg3 = integer_zero_node;
+  edge e = EDGE_SUCC (bb0, 0);
+  if (e->dest == bb1)
+    e = EDGE_SUCC (bb0, 1);
+  basic_block bbp = e->dest;
+  gphi *phi = NULL;
+  for (gphi_iterator psi = gsi_start_phis (bbp);
+       !gsi_end_p (psi); gsi_next (&psi))
+    {
+      gphi *gp = psi.phi ();
+      tree res = gimple_phi_result (gp);
+
+      if (phi != NULL
+	  || virtual_operand_p (res)
+	  || !INTEGRAL_TYPE_P (TREE_TYPE (res))
+	  || TYPE_PRECISION (TREE_TYPE (res)) < 2)
+	{
+	  phi = NULL;
+	  break;
+	}
+      phi = gp;
+    }
+  if (phi
+      && integer_zerop (gimple_phi_arg_def_from_edge (phi, e))
+      && EDGE_COUNT (bbp->preds) == (HONOR_NANS (TREE_TYPE (arg1)) ? 4 : 3))
+    {
+      HOST_WIDE_INT argval = SCALAR_FLOAT_TYPE_P (TREE_TYPE (arg1)) ? 2 : -1;
+      for (unsigned i = 0; phi && i < EDGE_COUNT (bbp->preds) - 1; ++i)
+	{
+	  edge e3 = i == 0 ? e1 : i == 1 ? em1 : e2;
+	  if (e3->dest != bbp)
+	    {
+	      if (!empty_block_p (e3->dest)
+		  || !single_succ_p (e3->dest)
+		  || single_succ (e3->dest) != bbp)
+		{
+		  phi = NULL;
+		  break;
+		}
+	      e3 = single_succ_edge (e3->dest);
+	    }
+	  tree a = gimple_phi_arg_def_from_edge (phi, e3);
+	  if (TREE_CODE (a) != INTEGER_CST
+	      || (i == 0 && !integer_onep (a))
+	      || (i == 1 && !integer_all_onesp (a)))
+	    {
+	      phi = NULL;
+	      break;
+	    }
+	  if (i == 2)
+	    {
+	      tree minv = TYPE_MIN_VALUE (signed_char_type_node);
+	      tree maxv = TYPE_MAX_VALUE (signed_char_type_node);
+	      widest_int w = widest_int::from (wi::to_wide (a), SIGNED);
+	      if ((w >= -1 && w <= 1)
+		  || w < wi::to_widest (minv)
+		  || w > wi::to_widest (maxv))
+		{
+		  phi = NULL;
+		  break;
+		}
+	      argval = w.to_shwi ();
+	    }
+	}
+      if (phi)
+	arg3 = build_int_cst (integer_type_node,
+			      TYPE_UNSIGNED (TREE_TYPE (arg1)) ? 1 : argval);
+    }
+
+  /* For integral <=> comparisons only use .SPACESHIP if it is turned
+     into an integer (-1, 0, 1).  */
+  if (!SCALAR_FLOAT_TYPE_P (TREE_TYPE (arg1)) && arg3 == integer_zero_node)
+    return;
+
+  gcall *gc = gimple_build_call_internal (IFN_SPACESHIP, 3, arg1, arg2, arg3);
   tree lhs = make_ssa_name (integer_type_node);
   gimple_call_set_lhs (gc, lhs);
   gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
   gsi_insert_before (&gsi, gc, GSI_SAME_STMT);
+
+  wide_int wmin = wi::minus_one (TYPE_PRECISION (integer_type_node));
+  wide_int wmax = wi::one (TYPE_PRECISION (integer_type_node));
+  if (HONOR_NANS (TREE_TYPE (arg1)))
+    {
+      if (arg3 == integer_zero_node)
+	wmax = wi::two (TYPE_PRECISION (integer_type_node));
+      else if (tree_int_cst_sgn (arg3) < 0)
+	wmin = wi::to_wide (arg3);
+      else
+	wmax = wi::to_wide (arg3);
+    }
+  int_range<1> vr (TREE_TYPE (lhs), wmin, wmax);
+  set_range_info (lhs, vr);
+
+  if (arg3 != integer_zero_node)
+    {
+      tree type = TREE_TYPE (gimple_phi_result (phi));
+      if (!useless_type_conversion_p (type, integer_type_node))
+	{
+	  tree tem = make_ssa_name (type);
+	  gimple *gcv = gimple_build_assign (tem, NOP_EXPR, lhs);
+	  gsi_insert_before (&gsi, gcv, GSI_SAME_STMT);
+	  lhs = tem;
+	}
+      SET_PHI_ARG_DEF_ON_EDGE (phi, e, lhs);
+      gimple_cond_set_lhs (stmt, boolean_false_node);
+      gimple_cond_set_rhs (stmt, boolean_false_node);
+      gimple_cond_set_code (stmt, (e->flags & EDGE_TRUE_VALUE)
+				  ? EQ_EXPR : NE_EXPR);
+      update_stmt (stmt);
+      return;
+    }
 
   gimple_cond_set_lhs (stmt, lhs);
   gimple_cond_set_rhs (stmt, integer_zero_node);
@@ -6053,11 +6247,6 @@ optimize_spaceship (gcond *stmt)
 			    (e2->flags & EDGE_TRUE_VALUE) ? NE_EXPR : EQ_EXPR);
       update_stmt (cond);
     }
-
-  wide_int wm1 = wi::minus_one (TYPE_PRECISION (integer_type_node));
-  wide_int w2 = wi::two (TYPE_PRECISION (integer_type_node));
-  int_range<1> vr (TREE_TYPE (lhs), wm1, w2);
-  set_range_info (lhs, vr);
 }
 
 
@@ -6129,12 +6318,19 @@ math_opts_dom_walker::after_dom_children (basic_block bb)
 
   fma_deferring_state fma_state (param_avoid_fma_max_bits > 0);
 
-  for (gphi_iterator psi = gsi_start_phis (bb); !gsi_end_p (psi);
-    gsi_next (&psi))
+  for (gphi_iterator psi_next, psi = gsi_start_phis (bb); !gsi_end_p (psi);
+       psi = psi_next)
     {
+      psi_next = psi;
+      gsi_next (&psi_next);
+
       gimple_stmt_iterator gsi = gsi_after_labels (bb);
-      match_saturation_add (&gsi, psi.phi ());
-      match_unsigned_saturation_sub (&gsi, psi.phi ());
+      gphi *phi = psi.phi ();
+
+      if (match_saturation_add (&gsi, phi)
+	  || match_saturation_sub (&gsi, phi)
+	  || match_saturation_trunc (&gsi, phi))
+	remove_phi_node (&psi, /* release_lhs_p */ false);
     }
 
   for (gsi = gsi_after_labels (bb); !gsi_end_p (gsi);)

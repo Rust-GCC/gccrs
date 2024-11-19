@@ -179,8 +179,10 @@ extern void Get_Variant_Encoding	(Entity_Id);
 /* exp_tss: */
 
 #define Is_Init_Proc	exp_tss__is_init_proc
+#define Is_Rep_To_Pos	exp_tss__is_rep_to_pos
 
 extern Boolean Is_Init_Proc		(Entity_Id);
+extern Boolean Is_Rep_To_Pos		(Entity_Id);
 
 /* exp_util: */
 
@@ -345,11 +347,18 @@ extern void Set_Present_Expr		(Node_Id, Uint);
 
 /* sinput: */
 
+struct c_array {
+  const char *pointer;
+  int length;
+};
+
+#define C_Source_Buffer 	sinput__c_source_buffer
 #define Debug_Source_Name	sinput__debug_source_name
 #define Get_Column_Number	sinput__get_column_number
 #define Get_Logical_Line_Number	sinput__get_logical_line_number
 #define Get_Source_File_Index	sinput__get_source_file_index
 
+extern struct c_array C_Source_Buffer 		(Source_File_Index);
 extern File_Name_Type Debug_Source_Name		(Source_File_Index);
 extern Column_Number_Type Get_Column_Number	(Source_Ptr);
 extern Line_Number_Type Get_Logical_Line_Number	(Source_Ptr);

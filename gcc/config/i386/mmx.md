@@ -4467,6 +4467,13 @@
   operands[0] = lowpart_subreg (V16QImode, operands[0], <MODE>mode);
 })
 
+(define_expand "andn<mode>3"
+  [(set (match_operand:MMXMODEI 0 "register_operand")
+        (and:MMXMODEI
+          (not:MMXMODEI (match_operand:MMXMODEI 2 "register_operand"))
+          (match_operand:MMXMODEI 1 "register_operand")))]
+  "TARGET_MMX_WITH_SSE")
+
 (define_insn "mmx_andnot<mode>3"
   [(set (match_operand:MMXMODEI 0 "register_operand" "=y,x,x,v")
 	(and:MMXMODEI
@@ -6504,7 +6511,7 @@
   DONE;
 })
 
-(define_expand "usdot_prodv8qi"
+(define_expand "usdot_prodv2siv8qi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand:V8QI 1 "register_operand")
    (match_operand:V8QI 2 "register_operand")
@@ -6523,7 +6530,7 @@
       rtx op3 = lowpart_subreg (V4SImode, operands[3], V2SImode);
       rtx op0 = gen_reg_rtx (V4SImode);
 
-      emit_insn (gen_usdot_prodv16qi (op0, op1, op2, op3));
+      emit_insn (gen_usdot_prodv4siv16qi (op0, op1, op2, op3));
       emit_move_insn (operands[0], lowpart_subreg (V2SImode, op0, V4SImode));
      }
    else
@@ -6537,7 +6544,7 @@
       emit_move_insn (op3, CONST0_RTX (V4SImode));
       emit_insn (gen_zero_extendv8qiv8hi2 (op1, operands[1]));
       emit_insn (gen_extendv8qiv8hi2 (op2, operands[2]));
-      emit_insn (gen_sdot_prodv8hi (op0, op1, op2, op3));
+      emit_insn (gen_sdot_prodv4siv8hi (op0, op1, op2, op3));
 
       /* vec_perm (op0, 2, 3, 0, 1);  */
       emit_insn (gen_sse2_pshufd (op0_1, op0, GEN_INT (78)));
@@ -6548,7 +6555,7 @@
     DONE;
 })
 
-(define_expand "sdot_prodv8qi"
+(define_expand "sdot_prodv2siv8qi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand:V8QI 1 "register_operand")
    (match_operand:V8QI 2 "register_operand")
@@ -6566,7 +6573,7 @@
       rtx op3 = lowpart_subreg (V4SImode, operands[3], V2SImode);
       rtx op0 = gen_reg_rtx (V4SImode);
 
-      emit_insn (gen_sdot_prodv16qi (op0, op1, op2, op3));
+      emit_insn (gen_sdot_prodv4siv16qi (op0, op1, op2, op3));
       emit_move_insn (operands[0], lowpart_subreg (V2SImode, op0, V4SImode));
     }
   else
@@ -6580,7 +6587,7 @@
       emit_move_insn (op3, CONST0_RTX (V4SImode));
       emit_insn (gen_extendv8qiv8hi2 (op1, operands[1]));
       emit_insn (gen_extendv8qiv8hi2 (op2, operands[2]));
-      emit_insn (gen_sdot_prodv8hi (op0, op1, op2, op3));
+      emit_insn (gen_sdot_prodv4siv8hi (op0, op1, op2, op3));
 
       /* vec_perm (op0, 2, 3, 0, 1);  */
       emit_insn (gen_sse2_pshufd (op0_1, op0, GEN_INT (78)));
@@ -6592,7 +6599,7 @@
 
 })
 
-(define_expand "udot_prodv8qi"
+(define_expand "udot_prodv2siv8qi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand:V8QI 1 "register_operand")
    (match_operand:V8QI 2 "register_operand")
@@ -6610,7 +6617,7 @@
       rtx op3 = lowpart_subreg (V4SImode, operands[3], V2SImode);
       rtx op0 = gen_reg_rtx (V4SImode);
 
-      emit_insn (gen_udot_prodv16qi (op0, op1, op2, op3));
+      emit_insn (gen_udot_prodv4siv16qi (op0, op1, op2, op3));
       emit_move_insn (operands[0], lowpart_subreg (V2SImode, op0, V4SImode));
     }
   else
@@ -6624,7 +6631,7 @@
       emit_move_insn (op3, CONST0_RTX (V4SImode));
       emit_insn (gen_zero_extendv8qiv8hi2 (op1, operands[1]));
       emit_insn (gen_zero_extendv8qiv8hi2 (op2, operands[2]));
-      emit_insn (gen_sdot_prodv8hi (op0, op1, op2, op3));
+      emit_insn (gen_sdot_prodv4siv8hi (op0, op1, op2, op3));
 
       /* vec_perm (op0, 2, 3, 0, 1);  */
       emit_insn (gen_sse2_pshufd (op0_1, op0, GEN_INT (78)));
@@ -6636,7 +6643,7 @@
 
 })
 
-(define_expand "usdot_prodv4hi"
+(define_expand "usdot_prodv2siv4hi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand:V4HI 1 "register_operand")
    (match_operand:V4HI 2 "register_operand")
@@ -6652,12 +6659,12 @@
   rtx op3 = lowpart_subreg (V4SImode, operands[3], V2SImode);
   rtx op0 = gen_reg_rtx (V4SImode);
 
-  emit_insn (gen_usdot_prodv8hi (op0, op1, op2, op3));
+  emit_insn (gen_usdot_prodv4siv8hi (op0, op1, op2, op3));
   emit_move_insn (operands[0], lowpart_subreg (V2SImode, op0, V4SImode));
   DONE;
 })
 
-(define_expand "udot_prodv4hi"
+(define_expand "udot_prodv2siv4hi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand:V4HI 1 "register_operand")
    (match_operand:V4HI 2 "register_operand")
@@ -6673,12 +6680,12 @@
   rtx op3 = lowpart_subreg (V4SImode, operands[3], V2SImode);
   rtx op0 = gen_reg_rtx (V4SImode);
 
-  emit_insn (gen_udot_prodv8hi (op0, op1, op2, op3));
+  emit_insn (gen_udot_prodv4siv8hi (op0, op1, op2, op3));
   emit_move_insn (operands[0], lowpart_subreg (V2SImode, op0, V4SImode));
   DONE;
 })
 
-(define_expand "sdot_prodv4hi"
+(define_expand "sdot_prodv2siv4hi"
   [(match_operand:V2SI 0 "register_operand")
    (match_operand:V4HI 1 "register_operand")
    (match_operand:V4HI 2 "register_operand")
@@ -6694,7 +6701,7 @@
   rtx op3 = lowpart_subreg (V4SImode, operands[3], V2SImode);
   rtx op0 = gen_reg_rtx (V4SImode);
 
-  emit_insn (gen_sdot_prodv8hi (op0, op1, op2, op3));
+  emit_insn (gen_sdot_prodv4siv8hi (op0, op1, op2, op3));
   emit_move_insn (operands[0], lowpart_subreg (V2SImode, op0, V4SImode));
   DONE;
 })

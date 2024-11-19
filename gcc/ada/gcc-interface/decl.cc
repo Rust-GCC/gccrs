@@ -1563,6 +1563,13 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	  prepend_one_attribute_pragma (&attr_list,
 					Linker_Section_Pragma (gnat_entity));
 
+	/* Do not initialize Out parameters with -ftrivial-auto-var-init.  */
+	if (kind == E_Out_Parameter)
+	  prepend_one_attribute
+	    (&attr_list, ATTR_MACHINE_ATTRIBUTE,
+	     get_identifier ("uninitialized"), NULL_TREE,
+	     gnat_entity);
+
 	/* Now create the variable or the constant and set various flags.  */
 	gnu_decl
 	  = create_var_decl (gnu_entity_name, gnu_ext_name, gnu_type,
@@ -9595,14 +9602,9 @@ validate_size (Uint uint_size, tree gnu_type, Entity_Id gnat_object,
     old_size = max_size (old_size, true);
 
   /* If this is an access type or a fat pointer, the minimum size is that given
-     by the smallest integral mode that's valid for pointers.  */
+     by the default pointer mode.  */
   if (TREE_CODE (gnu_type) == POINTER_TYPE || TYPE_IS_FAT_POINTER_P (gnu_type))
-    {
-      scalar_int_mode p_mode = NARROWEST_INT_MODE;
-      while (!targetm.valid_pointer_mode (p_mode))
-	p_mode = GET_MODE_WIDER_MODE (p_mode).require ();
-      old_size = bitsize_int (GET_MODE_BITSIZE (p_mode));
-    }
+    old_size = bitsize_int (GET_MODE_BITSIZE (ptr_mode));
 
   /* Issue an error either if the default size of the object isn't a constant
      or if the new size is smaller than it.  */

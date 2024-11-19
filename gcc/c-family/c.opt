@@ -452,7 +452,7 @@ C ObjC Alias(Wc11-c23-compat)
 Deprecated in favor of -Wc11-c23-compat.
 
 Wc23-c2y-compat
-C ObjC Var(warn_c23_c2y_compat) Init(-1) Warning
+C ObjC CPP(cpp_warn_c23_c2y_compat) CppReason(CPP_W_C23_C2Y_COMPAT) Var(warn_c23_c2y_compat) Init(-1) Warning
 Warn about features not present in ISO C23, but present in ISO C2Y.
 
 Wc90-c99-compat
@@ -664,6 +664,10 @@ C++ ObjC++ Var(warn_deprecated_enum_float_conv) Warning
 Warn about deprecated arithmetic conversions on operands where one is of enumeration
 type and the other is of a floating-point type.
 
+Wdeprecated-literal-operator
+C++ ObjC++ Var(warn_deprecated_literal_operator) Warning
+Warn about deprecated space between "" and suffix in a user-defined literal operator.
+
 Wdesignated-init
 C ObjC Var(warn_designated_init) Init(1) Warning
 Warn about positional initialization of structs requiring designated initializers.
@@ -827,6 +831,10 @@ Warn when __builtin_frame_address or __builtin_return_address is used unsafely.
 Wglobal-module
 C++ ObjC++ Var(warn_global_module) Warning Init(1)
 Warn about the global module fragment not containing only preprocessing directives.
+
+Wheader-guard
+C ObjC C++ ObjC++ CPP(warn_header_guard) CppReason(CPP_W_HEADER_GUARD) Var(cpp_warn_header_guard) Init(0) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
+Warn when #ifndef of a header guard is followed by #define of a different macro with the header guard macro not defined at the end of header.
 
 Wif-not-aligned
 C ObjC C++ ObjC++ Var(warn_if_not_aligned) Init(1) Warning
@@ -1206,6 +1214,10 @@ Wpragmas
 C ObjC C++ ObjC++ Var(warn_pragmas) Init(1) Warning
 Warn about misuses of pragmas.
 
+Wpragma-once-outside-header
+C ObjC C++ ObjC++ Var(warn_pragma_once_outside_header) CppReason(CPP_W_PRAGMA_ONCE_OUTSIDE_HEADER) Init(1) Warning
+Warn about #pragma once outside of a header.
+
 Wprio-ctor-dtor
 C ObjC C++ ObjC++ Var(warn_prio_ctor_dtor) Init(1) Warning
 Warn if constructor or destructors with priorities from 0 to 100 are used.
@@ -1453,6 +1465,26 @@ Warn about features not present in traditional C.
 Wtraditional-conversion
 C ObjC Var(warn_traditional_conversion) Warning
 Warn of prototypes causing type conversions different from what would happen in the absence of prototype.
+
+Enum
+Name(warn_trailing_whitespace_kind) Type(int) UnknownError(argument %qs to %<-Wtrailing-whitespace=%> not recognized)
+
+EnumValue
+Enum(warn_trailing_whitespace_kind) String(none) Value(0)
+
+EnumValue
+Enum(warn_trailing_whitespace_kind) String(blank) Value(1)
+
+EnumValue
+Enum(warn_trailing_whitespace_kind) String(space) Value(2)
+
+Wtrailing-whitespace=
+C ObjC C++ ObjC++ CPP(cpp_warn_trailing_whitespace) CppReason(CPP_W_TRAILING_WHITESPACE) Enum(warn_trailing_whitespace_kind) Joined RejectNegative Var(warn_trailing_whitespace) Init(0) Warning
+Warn about trailing whitespace on lines except when in raw string literals.
+
+Wtrailing-whitespace
+C ObjC C++ ObjC++ Alias(Wtrailing-whitespace=,blank,none) Warning
+Warn about trailing whitespace on lines except when in raw string literals.   Equivalent to Wtrailing-whitespace=blank when enabled or Wtrailing-whitespace=none when disabled.
 
 Wtrigraphs
 C ObjC C++ ObjC++ CPP(warn_trigraphs) CppReason(CPP_W_TRIGRAPHS) Var(cpp_warn_trigraphs) Init(2) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)

@@ -345,9 +345,17 @@ factor_out_conditional_operation (edge e0, edge e1, gphi *phi,
 	      if (gassign *assign = dyn_cast <gassign *> (stmt))
 		{
 		  tree lhs = gimple_assign_lhs (assign);
+		  tree lhst = TREE_TYPE (lhs);
 		  enum tree_code ass_code
 		    = gimple_assign_rhs_code (assign);
-		  if (ass_code != MAX_EXPR && ass_code != MIN_EXPR)
+		  if (ass_code != MAX_EXPR && ass_code != MIN_EXPR
+		      /* Conversions from boolean like types is ok
+			 as `a?1:b` and `a?0:b` will always simplify
+			 to `a & b` or `a | b`.
+			 See PR 116890.  */
+		      && !(INTEGRAL_TYPE_P (lhst)
+			   && TYPE_UNSIGNED (lhst)
+			   && TYPE_PRECISION (lhst) == 1))
 		    return NULL;
 		  if (lhs != gimple_assign_rhs1 (arg0_def_stmt))
 		    return NULL;
@@ -734,7 +742,8 @@ empty_bb_or_one_feeding_into_p (basic_block bb,
 }
 
 /* Move STMT to before GSI and insert its defining
-   name into INSERTED_EXPRS bitmap. */
+   name into INSERTED_EXPRS bitmap.
+   Also rewrite its if it might be undefined when unconditionalized.  */
 static void
 move_stmt (gimple *stmt, gimple_stmt_iterator *gsi, auto_bitmap &inserted_exprs)
 {
@@ -753,6 +762,31 @@ move_stmt (gimple *stmt, gimple_stmt_iterator *gsi, auto_bitmap &inserted_exprs)
   gimple_stmt_iterator gsi1 = gsi_for_stmt (stmt);
   gsi_move_before (&gsi1, gsi);
   reset_flow_sensitive_info (name);
+
+  /* Rewrite some code which might be undefined when
+     unconditionalized. */
+  if (gimple_assign_single_p (stmt))
+    {
+      tree rhs = gimple_assign_rhs1 (stmt);
+      /* VCE from integral types to another integral types but with
+	 different precisions need to be changed into casts
+	 to be well defined when unconditional. */
+      if (gimple_assign_rhs_code (stmt) == VIEW_CONVERT_EXPR
+	  && INTEGRAL_TYPE_P (TREE_TYPE (name))
+	  && INTEGRAL_TYPE_P (TREE_TYPE (TREE_OPERAND (rhs, 0))))
+	{
+	  if (dump_file && (dump_flags & TDF_DETAILS))
+	    {
+	      fprintf (dump_file, "rewriting stmt with maybe undefined VCE ");
+	      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
+	    }
+	  tree new_rhs = TREE_OPERAND (rhs, 0);
+	  gcc_assert (is_gimple_val (new_rhs));
+	  gimple_assign_set_rhs_code (stmt, NOP_EXPR);
+	  gimple_assign_set_rhs1 (stmt, new_rhs);
+	  update_stmt (stmt);
+	}
+    }
 }
 
 /* RAII style class to temporarily remove flow sensitive
@@ -4288,7 +4322,6 @@ pass_phiopt::execute (function *)
 	}
 
       gimple_stmt_iterator gsi;
-      bool candorest = true;
 
       /* Check that we're looking for nested phis.  */
       basic_block merge = diamond_p ? EDGE_SUCC (bb2, 0)->dest : bb2;
@@ -4304,14 +4337,10 @@ pass_phiopt::execute (function *)
 	    tree arg1 = gimple_phi_arg_def (phi, e2->dest_idx);
 	    if (value_replacement (bb, bb1, e1, e2, phi, arg0, arg1) == 2)
 	      {
-		candorest = false;
 		cfgchanged = true;
-		break;
+		return;
 	      }
 	  }
-
-      if (!candorest)
-	return;
 
       gphi *phi = single_non_singleton_phi_for_edges (phis, e1, e2);
       if (!phi)

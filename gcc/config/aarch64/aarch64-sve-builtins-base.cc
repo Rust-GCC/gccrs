@@ -758,18 +758,15 @@ public:
     if (auto *res = f.fold_const_binary (TRUNC_DIV_EXPR))
       return res;
 
-    /* If the dividend is all zeros, fold to zero vector.  */
+    /* If the divisor is all ones, fold to dividend.  */
     tree op1 = gimple_call_arg (f.call, 1);
-    if (integer_zerop (op1))
-      return gimple_build_assign (f.lhs, op1);
-
-    /* If the divisor is all zeros, fold to zero vector.  */
-    tree pg = gimple_call_arg (f.call, 0);
     tree op2 = gimple_call_arg (f.call, 2);
-    if (integer_zerop (op2)
-	&& (f.pred != PRED_m
-	    || is_ptrue (pg, f.type_suffix (0).element_bytes)))
-      return gimple_build_assign (f.lhs, build_zero_cst (TREE_TYPE (f.lhs)));
+    if (integer_onep (op2))
+      return f.fold_active_lanes_to (op1);
+
+    /* If one of the operands is all zeros, fold to zero vector.  */
+    if (integer_zerop (op1) || integer_zerop (op2))
+      return f.fold_active_lanes_to (build_zero_cst (TREE_TYPE (f.lhs)));
 
     /* If the divisor is a uniform power of 2, fold to a shift
        instruction.  */
@@ -820,15 +817,16 @@ public:
     e.rotate_inputs_left (0, 3);
     insn_code icode;
     if (e.type_suffix_ids[1] == NUM_TYPE_SUFFIXES)
-      icode = e.direct_optab_handler_for_sign (sdot_prod_optab,
-					       udot_prod_optab,
-					       0, GET_MODE (e.args[0]));
+      icode = e.convert_optab_handler_for_sign (sdot_prod_optab,
+						udot_prod_optab,
+						0, e.result_mode (),
+						GET_MODE (e.args[0]));
     else
       icode = (e.type_suffix (0).float_p
 	       ? CODE_FOR_aarch64_sve_fdotvnx4sfvnx8hf
 	       : e.type_suffix (0).unsigned_p
-	       ? CODE_FOR_aarch64_sve_udotvnx4sivnx8hi
-	       : CODE_FOR_aarch64_sve_sdotvnx4sivnx8hi);
+	       ? CODE_FOR_udot_prodvnx4sivnx8hi
+	       : CODE_FOR_sdot_prodvnx4sivnx8hi);
     return e.use_unpred_insn (icode);
   }
 };
@@ -2023,19 +2021,48 @@ public:
     if (auto *res = f.fold_const_binary (MULT_EXPR))
       return res;
 
-    /* If one of the operands is all zeros, fold to zero vector.  */
+    /* If one of the operands is all ones, fold to other operand.  */
     tree op1 = gimple_call_arg (f.call, 1);
-    if (integer_zerop (op1))
-      return gimple_build_assign (f.lhs, op1);
-
-    tree pg = gimple_call_arg (f.call, 0);
     tree op2 = gimple_call_arg (f.call, 2);
-    if (integer_zerop (op2)
+    if (integer_onep (op1))
+      return f.fold_active_lanes_to (op2);
+    if (integer_onep (op2))
+      return f.fold_active_lanes_to (op1);
+
+    /* If one of the operands is all zeros, fold to zero vector.  */
+    if (integer_zerop (op1) || integer_zerop (op2))
+      return f.fold_active_lanes_to (build_zero_cst (TREE_TYPE (f.lhs)));
+
+    /* If one of the operands is a uniform power of 2, fold to a left shift
+       by immediate.  */
+    tree pg = gimple_call_arg (f.call, 0);
+    tree op1_cst = uniform_integer_cst_p (op1);
+    tree op2_cst = uniform_integer_cst_p (op2);
+    tree shift_op1, shift_op2;
+    if (op1_cst && integer_pow2p (op1_cst)
 	&& (f.pred != PRED_m
 	    || is_ptrue (pg, f.type_suffix (0).element_bytes)))
-      return gimple_build_assign (f.lhs, build_zero_cst (TREE_TYPE (f.lhs)));
+      {
+	shift_op1 = op2;
+	shift_op2 = op1_cst;
+      }
+    else if (op2_cst && integer_pow2p (op2_cst))
+      {
+	shift_op1 = op1;
+	shift_op2 = op2_cst;
+      }
+    else
+      return NULL;
 
-    return NULL;
+    shift_op2 = wide_int_to_tree (unsigned_type_for (TREE_TYPE (shift_op2)),
+				  tree_log2 (shift_op2));
+    function_instance instance ("svlsl", functions::svlsl,
+				shapes::binary_uint_opt_n, MODE_n,
+				f.type_suffix_ids, GROUP_none, f.pred);
+    gcall *call = f.redirect_call (instance);
+    gimple_call_set_arg (call, 1, shift_op1);
+    gimple_call_set_arg (call, 2, shift_op2);
+    return call;
   }
 };
 
@@ -2905,7 +2932,7 @@ public:
        Hence we do the same rotation on arguments as svdot_impl does.  */
     e.rotate_inputs_left (0, 3);
     machine_mode mode = e.vector_mode (0);
-    insn_code icode = code_for_dot_prod (UNSPEC_USDOT, mode);
+    insn_code icode = code_for_dot_prod (UNSPEC_USDOT, e.result_mode (), mode);
     return e.use_exact_insn (icode);
   }
 
@@ -2944,7 +2971,9 @@ public:
     : while_comparison (unspec_for_sint, unspec_for_uint), m_eq_p (eq_p)
   {}
 
-  /* Try to fold a call by treating its arguments as constants of type T.  */
+  /* Try to fold a call by treating its arguments as constants of type T.
+     We have already filtered out the degenerate cases of X .LT. MIN
+     and X .LE. MAX.  */
   template<typename T>
   gimple *
   fold_type (gimple_folder &f) const
@@ -2999,6 +3028,13 @@ public:
   {
     if (f.vectors_per_tuple () > 1)
       return nullptr;
+
+    /* Filter out cases where the condition is always true or always false.  */
+    tree arg1 = gimple_call_arg (f.call, 1);
+    if (!m_eq_p && operand_equal_p (arg1, TYPE_MIN_VALUE (TREE_TYPE (arg1))))
+      return f.fold_to_pfalse ();
+    if (m_eq_p && operand_equal_p (arg1, TYPE_MAX_VALUE (TREE_TYPE (arg1))))
+      return f.fold_to_ptrue ();
 
     if (f.type_suffix (1).unsigned_p)
       return fold_type<poly_uint64> (f);
@@ -3070,6 +3106,10 @@ FUNCTION (svadrb, svadr_bhwd_impl, (0))
 FUNCTION (svadrd, svadr_bhwd_impl, (3))
 FUNCTION (svadrh, svadr_bhwd_impl, (1))
 FUNCTION (svadrw, svadr_bhwd_impl, (2))
+FUNCTION (svamax, cond_or_uncond_unspec_function,
+	  (UNSPEC_COND_FAMAX, UNSPEC_FAMAX))
+FUNCTION (svamin, cond_or_uncond_unspec_function,
+	  (UNSPEC_COND_FAMIN, UNSPEC_FAMIN))
 FUNCTION (svand, rtx_code_function, (AND, AND))
 FUNCTION (svandv, reduction, (UNSPEC_ANDV))
 FUNCTION (svasr, rtx_code_function, (ASHIFTRT, ASHIFTRT))

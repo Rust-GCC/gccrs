@@ -1933,6 +1933,46 @@ aarch64_sve_int_mode (machine_mode mode)
   return aarch64_sve_data_mode (int_mode, GET_MODE_NUNITS (mode)).require ();
 }
 
+/* Look for a vector mode with the same classification as VEC_MODE,
+   but with each group of FACTOR elements coalesced into a single element.
+   In other words, look for a mode in which the elements are FACTOR times
+   larger and in which the number of elements is FACTOR times smaller.
+
+   Return the mode found, if one exists.  */
+
+static opt_machine_mode
+aarch64_coalesce_units (machine_mode vec_mode, unsigned int factor)
+{
+  auto elt_bits = vector_element_size (GET_MODE_BITSIZE (vec_mode),
+				       GET_MODE_NUNITS (vec_mode));
+  auto vec_flags = aarch64_classify_vector_mode (vec_mode);
+  if (vec_flags & VEC_SVE_PRED)
+    {
+      if (known_eq (GET_MODE_SIZE (vec_mode), BYTES_PER_SVE_PRED))
+	return aarch64_sve_pred_mode (elt_bits * factor);
+      return {};
+    }
+
+  scalar_mode new_elt_mode;
+  if (!int_mode_for_size (elt_bits * factor, false).exists (&new_elt_mode))
+    return {};
+
+  if (vec_flags == VEC_ADVSIMD)
+    {
+      auto mode = aarch64_simd_container_mode (new_elt_mode,
+					       GET_MODE_BITSIZE (vec_mode));
+      if (mode != word_mode)
+	return mode;
+    }
+  else if (vec_flags & VEC_SVE_DATA)
+    {
+      poly_uint64 new_nunits;
+      if (multiple_p (GET_MODE_NUNITS (vec_mode), factor, &new_nunits))
+	return aarch64_sve_data_mode (new_elt_mode, new_nunits);
+    }
+  return {};
+}
+
 /* Implement TARGET_VECTORIZE_RELATED_MODE.  */
 
 static opt_machine_mode
@@ -16238,7 +16278,7 @@ public:
 private:
   void record_potential_advsimd_unrolling (loop_vec_info);
   void analyze_loop_vinfo (loop_vec_info);
-  void count_ops (unsigned int, vect_cost_for_stmt, stmt_vec_info,
+  void count_ops (unsigned int, vect_cost_for_stmt, stmt_vec_info, slp_tree,
 		  aarch64_vec_op_count *);
   fractional_cost adjust_body_cost_sve (const aarch64_vec_op_count *,
 					fractional_cost, unsigned int,
@@ -16555,11 +16595,13 @@ aarch64_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
     }
 }
 
-/* Return true if an access of kind KIND for STMT_INFO represents one
-   vector of an LD[234] or ST[234] operation.  Return the total number of
-   vectors (2, 3 or 4) if so, otherwise return a value outside that range.  */
+/* Return true if an access of kind KIND for STMT_INFO (or NODE if SLP)
+   represents one vector of an LD[234] or ST[234] operation.  Return the total
+   number of vectors (2, 3 or 4) if so, otherwise return a value outside that
+   range.  */
 static int
-aarch64_ld234_st234_vectors (vect_cost_for_stmt kind, stmt_vec_info stmt_info)
+aarch64_ld234_st234_vectors (vect_cost_for_stmt kind, stmt_vec_info stmt_info,
+			     slp_tree node)
 {
   if ((kind == vector_load
        || kind == unaligned_load
@@ -16569,7 +16611,7 @@ aarch64_ld234_st234_vectors (vect_cost_for_stmt kind, stmt_vec_info stmt_info)
     {
       stmt_info = DR_GROUP_FIRST_ELEMENT (stmt_info);
       if (stmt_info
-	  && STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_LOAD_STORE_LANES)
+	  && vect_mem_access_type (stmt_info, node) == VMAT_LOAD_STORE_LANES)
 	return DR_GROUP_SIZE (stmt_info);
     }
   return 0;
@@ -16807,14 +16849,15 @@ aarch64_detect_scalar_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
 }
 
 /* STMT_COST is the cost calculated by aarch64_builtin_vectorization_cost
-   for the vectorized form of STMT_INFO, which has cost kind KIND and which
-   when vectorized would operate on vector type VECTYPE.  Try to subdivide
-   the target-independent categorization provided by KIND to get a more
-   accurate cost.  WHERE specifies where the cost associated with KIND
-   occurs.  */
+   for the vectorized form of STMT_INFO possibly using SLP node NODE, which has
+   cost kind KIND and which when vectorized would operate on vector type
+   VECTYPE.  Try to subdivide the target-independent categorization provided by
+   KIND to get a more accurate cost.  WHERE specifies where the cost associated
+   with KIND occurs.  */
 static fractional_cost
 aarch64_detect_vector_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
-				    stmt_vec_info stmt_info, tree vectype,
+				    stmt_vec_info stmt_info, slp_tree node,
+				    tree vectype,
 				    enum vect_cost_model_location where,
 				    fractional_cost stmt_cost)
 {
@@ -16840,7 +16883,7 @@ aarch64_detect_vector_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
      cost by the number of elements in the vector.  */
   if (kind == scalar_load
       && sve_costs
-      && STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_GATHER_SCATTER)
+      && vect_mem_access_type (stmt_info, node) == VMAT_GATHER_SCATTER)
     {
       unsigned int nunits = vect_nunits_for_cost (vectype);
       /* Test for VNx2 modes, which have 64-bit containers.  */
@@ -16853,7 +16896,7 @@ aarch64_detect_vector_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
      in a scatter operation.  */
   if (kind == scalar_store
       && sve_costs
-      && STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_GATHER_SCATTER)
+      && vect_mem_access_type (stmt_info, node) == VMAT_GATHER_SCATTER)
     return sve_costs->scatter_store_elt_cost;
 
   /* Detect cases in which vec_to_scalar represents an in-loop reduction.  */
@@ -16977,7 +17020,7 @@ aarch64_sve_adjust_stmt_cost (class vec_info *vinfo, vect_cost_for_stmt kind,
    cost of any embedded operations.  */
 static fractional_cost
 aarch64_adjust_stmt_cost (vec_info *vinfo, vect_cost_for_stmt kind,
-			  stmt_vec_info stmt_info, tree vectype,
+			  stmt_vec_info stmt_info, slp_tree node, tree vectype,
 			  unsigned vec_flags, fractional_cost stmt_cost)
 {
   if (vectype)
@@ -16986,7 +17029,7 @@ aarch64_adjust_stmt_cost (vec_info *vinfo, vect_cost_for_stmt kind,
 
       /* Detect cases in which a vector load or store represents an
 	 LD[234] or ST[234] instruction.  */
-      switch (aarch64_ld234_st234_vectors (kind, stmt_info))
+      switch (aarch64_ld234_st234_vectors (kind, stmt_info, node))
 	{
 	case 2:
 	  stmt_cost += simd_costs->ld2_st2_permute_cost;
@@ -17058,7 +17101,7 @@ aarch64_force_single_cycle (vec_info *vinfo, stmt_vec_info stmt_info)
    information relating to the vector operation in OPS.  */
 void
 aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
-				 stmt_vec_info stmt_info,
+				 stmt_vec_info stmt_info, slp_tree node,
 				 aarch64_vec_op_count *ops)
 {
   const aarch64_base_vec_issue_info *base_issue = ops->base_issue_info ();
@@ -17156,7 +17199,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
 
   /* Add any extra overhead associated with LD[234] and ST[234] operations.  */
   if (simd_issue)
-    switch (aarch64_ld234_st234_vectors (kind, stmt_info))
+    switch (aarch64_ld234_st234_vectors (kind, stmt_info, node))
       {
       case 2:
 	ops->general_ops += simd_issue->ld2_st2_general_ops * count;
@@ -17174,7 +17217,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
   /* Add any overhead associated with gather loads and scatter stores.  */
   if (sve_issue
       && (kind == scalar_load || kind == scalar_store)
-      && STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_GATHER_SCATTER)
+      && vect_mem_access_type (stmt_info, node) == VMAT_GATHER_SCATTER)
     {
       unsigned int pairs = CEIL (count, 2);
       ops->pred_ops += sve_issue->gather_scatter_pair_pred_ops * pairs;
@@ -17279,7 +17322,7 @@ aarch64_stp_sequence_cost (unsigned int count, vect_cost_for_stmt kind,
 
 unsigned
 aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
-				     stmt_vec_info stmt_info, slp_tree,
+				     stmt_vec_info stmt_info, slp_tree node,
 				     tree vectype, int misalign,
 				     vect_cost_model_location where)
 {
@@ -17323,13 +17366,14 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 
       if (vectype && m_vec_flags)
 	stmt_cost = aarch64_detect_vector_stmt_subtype (m_vinfo, kind,
-							stmt_info, vectype,
-							where, stmt_cost);
+							stmt_info, node,
+							vectype, where,
+							stmt_cost);
 
       /* Check if we've seen an SVE gather/scatter operation and which size.  */
       if (kind == scalar_load
 	  && aarch64_sve_mode_p (TYPE_MODE (vectype))
-	  && STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_GATHER_SCATTER)
+	  && vect_mem_access_type (stmt_info, node) == VMAT_GATHER_SCATTER)
 	{
 	  const sve_vec_cost *sve_costs = aarch64_tune_params.vec_costs->sve;
 	  if (sve_costs)
@@ -17378,7 +17422,7 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
     {
       /* Account for any extra "embedded" costs that apply additively
 	 to the base cost calculated above.  */
-      stmt_cost = aarch64_adjust_stmt_cost (m_vinfo, kind, stmt_info,
+      stmt_cost = aarch64_adjust_stmt_cost (m_vinfo, kind, stmt_info, node,
 					    vectype, m_vec_flags, stmt_cost);
 
       /* If we're recording a nonzero vector loop body cost for the
@@ -17389,7 +17433,7 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 	  && (!LOOP_VINFO_LOOP (loop_vinfo)->inner || in_inner_loop_p)
 	  && stmt_cost != 0)
 	for (auto &ops : m_ops)
-	  count_ops (count, kind, stmt_info, &ops);
+	  count_ops (count, kind, stmt_info, node, &ops);
 
       /* If we're applying the SVE vs. Advanced SIMD unrolling heuristic,
 	 estimate the number of statements in the unrolled Advanced SIMD
@@ -22507,6 +22551,10 @@ aarch64_mangle_type (const_tree type)
 	return "Dh";
     }
 
+  /* Modal 8 bit floating point types.  */
+  if (TYPE_MAIN_VARIANT (type) == aarch64_mfp8_type_node)
+    return "u6__mfp8";
+
   /* Mangle AArch64-specific internal types.  TYPE_NAME is non-NULL_TREE for
      builtin types.  */
   if (TYPE_NAME (type) != NULL)
@@ -22518,6 +22566,29 @@ aarch64_mangle_type (const_tree type)
     }
 
   /* Use the default mangling.  */
+  return NULL;
+}
+
+/* Implement TARGET_INVALID_CONVERSION.  */
+
+static const char *
+aarch64_invalid_conversion (const_tree fromtype, const_tree totype)
+{
+  /* Do not allow conversions to/from FP8. But do allow conversions between
+     volatile and const variants of __mfp8. */
+  bool fromtype_is_fp8
+      = (TYPE_MAIN_VARIANT (fromtype) == aarch64_mfp8_type_node);
+  bool totype_is_fp8 = (TYPE_MAIN_VARIANT (totype) == aarch64_mfp8_type_node);
+
+  if (fromtype_is_fp8 && totype_is_fp8)
+    return NULL;
+
+  if (fromtype_is_fp8)
+    return N_ ("invalid conversion from type %<mfloat8_t%>");
+  if (totype_is_fp8)
+    return N_ ("invalid conversion to type %<mfloat8_t%>");
+
+  /* Conversion allowed.  */
   return NULL;
 }
 
@@ -22828,19 +22899,19 @@ aarch64_advsimd_valid_immediate_hs (unsigned int val32,
   return false;
 }
 
-/* Return true if replicating VAL64 is a valid immediate for the
+/* Return true if replicating VAL64 with mode MODE is a valid immediate for the
    Advanced SIMD operation described by WHICH.  If INFO is nonnull,
    use it to describe valid immediates.  */
 static bool
 aarch64_advsimd_valid_immediate (unsigned HOST_WIDE_INT val64,
+				 scalar_int_mode mode,
 				 simd_immediate_info *info,
 				 enum simd_immediate_check which)
 {
   unsigned int val32 = val64 & 0xffffffff;
-  unsigned int val16 = val64 & 0xffff;
   unsigned int val8 = val64 & 0xff;
 
-  if (val32 == (val64 >> 32))
+  if (mode != DImode)
     {
       if ((which & AARCH64_CHECK_ORR) != 0
 	  && aarch64_advsimd_valid_immediate_hs (val32, info, which,
@@ -22853,9 +22924,7 @@ aarch64_advsimd_valid_immediate (unsigned HOST_WIDE_INT val64,
 	return true;
 
       /* Try using a replicated byte.  */
-      if (which == AARCH64_CHECK_MOV
-	  && val16 == (val32 >> 16)
-	  && val8 == (val16 >> 8))
+      if (which == AARCH64_CHECK_MOV && mode == QImode)
 	{
 	  if (info)
 	    *info = simd_immediate_info (QImode, val8);
@@ -22883,28 +22952,15 @@ aarch64_advsimd_valid_immediate (unsigned HOST_WIDE_INT val64,
   return false;
 }
 
-/* Return true if replicating VAL64 gives a valid immediate for an SVE MOV
-   instruction.  If INFO is nonnull, use it to describe valid immediates.  */
+/* Return true if replicating IVAL with MODE gives a valid immediate for an SVE
+   MOV instruction.  If INFO is nonnull, use it to describe valid
+   immediates.  */
 
 static bool
-aarch64_sve_valid_immediate (unsigned HOST_WIDE_INT val64,
+aarch64_sve_valid_immediate (unsigned HOST_WIDE_INT ival, scalar_int_mode mode,
 			     simd_immediate_info *info)
 {
-  scalar_int_mode mode = DImode;
-  unsigned int val32 = val64 & 0xffffffff;
-  if (val32 == (val64 >> 32))
-    {
-      mode = SImode;
-      unsigned int val16 = val32 & 0xffff;
-      if (val16 == (val32 >> 16))
-	{
-	  mode = HImode;
-	  unsigned int val8 = val16 & 0xff;
-	  if (val8 == (val16 >> 8))
-	    mode = QImode;
-	}
-    }
-  HOST_WIDE_INT val = trunc_int_for_mode (val64, mode);
+  HOST_WIDE_INT val = trunc_int_for_mode (ival, mode);
   if (IN_RANGE (val, -0x80, 0x7f))
     {
       /* DUP with no shift.  */
@@ -22919,7 +22975,7 @@ aarch64_sve_valid_immediate (unsigned HOST_WIDE_INT val64,
 	*info = simd_immediate_info (mode, val);
       return true;
     }
-  if (aarch64_bitmask_imm (val64, mode))
+  if (aarch64_bitmask_imm (ival, mode))
     {
       /* DUPM.  */
       if (info)
@@ -23000,6 +23056,91 @@ aarch64_sve_pred_valid_immediate (rtx x, simd_immediate_info *info)
   return false;
 }
 
+/* We can only represent floating point constants which will fit in
+   "quarter-precision" values.  These values are characterised by
+   a sign bit, a 4-bit mantissa and a 3-bit exponent.  And are given
+   by:
+
+   (-1)^s * (n/16) * 2^r
+
+   Where:
+     's' is the sign bit.
+     'n' is an integer in the range 16 <= n <= 31.
+     'r' is an integer in the range -3 <= r <= 4.
+
+   Return true iff R represents a vale encodable into an AArch64 floating point
+   move instruction as an immediate.  Othewise false.  */
+
+static bool
+aarch64_real_float_const_representable_p (REAL_VALUE_TYPE r)
+{
+  /* This represents our current view of how many bits
+     make up the mantissa.  */
+  int point_pos = 2 * HOST_BITS_PER_WIDE_INT - 1;
+  int exponent;
+  unsigned HOST_WIDE_INT mantissa, mask;
+  REAL_VALUE_TYPE m;
+  bool fail = false;
+
+  /* We cannot represent infinities, NaNs or +/-zero.  We won't
+     know if we have +zero until we analyse the mantissa, but we
+     can reject the other invalid values.  */
+  if (REAL_VALUE_ISINF (r) || REAL_VALUE_ISNAN (r)
+      || REAL_VALUE_MINUS_ZERO (r))
+    return false;
+
+  /* Extract exponent.  */
+  r = real_value_abs (&r);
+  exponent = REAL_EXP (&r);
+
+  /* For the mantissa, we expand into two HOST_WIDE_INTS, apart from the
+     highest (sign) bit, with a fixed binary point at bit point_pos.
+     m1 holds the low part of the mantissa, m2 the high part.
+     WARNING: If we ever have a representation using more than 2 * H_W_I - 1
+     bits for the mantissa, this can fail (low bits will be lost).  */
+  real_ldexp (&m, &r, point_pos - exponent);
+  wide_int w = real_to_integer (&m, &fail, HOST_BITS_PER_WIDE_INT * 2);
+
+  /* If the low part of the mantissa has bits set we cannot represent
+     the value.  */
+  if (fail || w.ulow () != 0)
+    return false;
+
+  /* We have rejected the lower HOST_WIDE_INT, so update our
+     understanding of how many bits lie in the mantissa and
+     look only at the high HOST_WIDE_INT.  */
+  mantissa = w.elt (1);
+  point_pos -= HOST_BITS_PER_WIDE_INT;
+
+  /* We can only represent values with a mantissa of the form 1.xxxx.  */
+  mask = ((unsigned HOST_WIDE_INT)1 << (point_pos - 5)) - 1;
+  if ((mantissa & mask) != 0)
+    return false;
+
+  /* Having filtered unrepresentable values, we may now remove all
+     but the highest 5 bits.  */
+  mantissa >>= point_pos - 5;
+
+  /* We cannot represent the value 0.0, so reject it.  This is handled
+     elsewhere.  */
+  if (mantissa == 0)
+    return false;
+
+  /* Then, as bit 4 is always set, we can mask it off, leaving
+     the mantissa in the range [0, 15].  */
+  mantissa &= ~(1 << 4);
+  gcc_assert (mantissa <= 15);
+
+  /* GCC internally does not use IEEE754-like encoding (where normalized
+     significands are in the range [1, 2).  GCC uses [0.5, 1) (see real.cc).
+     Our mantissa values are shifted 4 places to the left relative to
+     normalized IEEE754 so we must modify the exponent returned by REAL_EXP
+     by 5 places to correct for GCC's representation.  */
+  exponent = 5 - exponent;
+
+  return (exponent >= 0 && exponent <= 7);
+}
+
 /* Return true if OP is a valid SIMD immediate for the operation
    described by WHICH.  If INFO is nonnull, use it to describe valid
    immediates.  */
@@ -23052,20 +23193,6 @@ aarch64_simd_valid_immediate (rtx op, simd_immediate_info *info,
     /* N_ELTS set above.  */;
   else
     return false;
-
-  scalar_float_mode elt_float_mode;
-  if (n_elts == 1
-      && is_a <scalar_float_mode> (elt_mode, &elt_float_mode))
-    {
-      rtx elt = CONST_VECTOR_ENCODED_ELT (op, 0);
-      if (aarch64_float_const_zero_rtx_p (elt)
-	  || aarch64_float_const_representable_p (elt))
-	{
-	  if (info)
-	    *info = simd_immediate_info (elt_float_mode, elt);
-	  return true;
-	}
-    }
 
   /* If all elements in an SVE vector have the same value, we have a free
      choice between using the element mode and using the container mode.
@@ -23128,10 +23255,57 @@ aarch64_simd_valid_immediate (rtx op, simd_immediate_info *info,
     val64 |= ((unsigned HOST_WIDE_INT) bytes[i % nbytes]
 	      << (i * BITS_PER_UNIT));
 
+  /* Try encoding the integer immediate as a floating point value if it's an
+     exact value.  */
+  scalar_float_mode fmode = DFmode;
+  scalar_int_mode imode = DImode;
+  unsigned HOST_WIDE_INT ival = val64;
+  unsigned int val32 = val64 & 0xffffffff;
+  if (val32 == (val64 >> 32))
+    {
+      fmode = SFmode;
+      imode = SImode;
+      ival = val32;
+      unsigned int val16 = val32 & 0xffff;
+      if (val16 == (val32 >> 16))
+	{
+	  fmode = HFmode;
+	  imode = HImode;
+	  ival = val16;
+	  unsigned int val8 = val16 & 0xff;
+	  if (val8 == (val16 >> 8))
+	    {
+	      imode = QImode;
+	      ival = val8;
+	    }
+	}
+    }
+
+  if (which == AARCH64_CHECK_MOV
+      && imode != QImode
+      && (imode != HImode || TARGET_FP_F16INST))
+    {
+      long int as_long_ints[2];
+      as_long_ints[0] = ival & 0xFFFFFFFF;
+      as_long_ints[1] = (ival >> 32) & 0xFFFFFFFF;
+
+      REAL_VALUE_TYPE r;
+      real_from_target (&r, as_long_ints, fmode);
+      if (aarch64_real_float_const_representable_p (r))
+	{
+	  if (info)
+	    {
+	      rtx float_val = const_double_from_real_value (r, fmode);
+	      *info = simd_immediate_info (fmode, float_val);
+	    }
+	  return true;
+	}
+    }
+
   if (vec_flags & VEC_SVE_DATA)
-    return aarch64_sve_valid_immediate (val64, info);
+    return aarch64_sve_valid_immediate (ival, imode, info);
   else
-    return aarch64_advsimd_valid_immediate (val64, info, which);
+    return aarch64_advsimd_valid_immediate (val64, imode, info, which);
 }
 
 /* Check whether X is a VEC_SERIES-like constant that starts at 0 and
@@ -25134,106 +25308,29 @@ aarch64_c_mode_for_suffix (char suffix)
   return VOIDmode;
 }
 
-/* We can only represent floating point constants which will fit in
-   "quarter-precision" values.  These values are characterised by
-   a sign bit, a 4-bit mantissa and a 3-bit exponent.  And are given
-   by:
-
-   (-1)^s * (n/16) * 2^r
-
-   Where:
-     's' is the sign bit.
-     'n' is an integer in the range 16 <= n <= 31.
-     'r' is an integer in the range -3 <= r <= 4.  */
-
-/* Return true iff X can be represented by a quarter-precision
+/* Return true iff X with mode MODE can be represented by a quarter-precision
    floating point immediate operand X.  Note, we cannot represent 0.0.  */
+
 bool
 aarch64_float_const_representable_p (rtx x)
 {
-  /* This represents our current view of how many bits
-     make up the mantissa.  */
-  int point_pos = 2 * HOST_BITS_PER_WIDE_INT - 1;
-  int exponent;
-  unsigned HOST_WIDE_INT mantissa, mask;
-  REAL_VALUE_TYPE r, m;
-  bool fail;
-
   x = unwrap_const_vec_duplicate (x);
+  machine_mode mode = GET_MODE (x);
   if (!CONST_DOUBLE_P (x))
     return false;
 
-  if (GET_MODE (x) == VOIDmode
-      || (GET_MODE (x) == HFmode && !TARGET_FP_F16INST))
+  if ((mode == HFmode && !TARGET_FP_F16INST)
+      || mode == BFmode)
     return false;
 
-  r = *CONST_DOUBLE_REAL_VALUE (x);
+  REAL_VALUE_TYPE r = *CONST_DOUBLE_REAL_VALUE (x);
 
-  /* We cannot represent infinities, NaNs or +/-zero.  We won't
-     know if we have +zero until we analyse the mantissa, but we
-     can reject the other invalid values.  */
-  if (REAL_VALUE_ISINF (r) || REAL_VALUE_ISNAN (r)
-      || REAL_VALUE_MINUS_ZERO (r))
-    return false;
-
-  /* For BFmode, only handle 0.0. */
-  if (GET_MODE (x) == BFmode)
-    return real_iszero (&r, false);
-
-  /* Extract exponent.  */
-  r = real_value_abs (&r);
-  exponent = REAL_EXP (&r);
-
-  /* For the mantissa, we expand into two HOST_WIDE_INTS, apart from the
-     highest (sign) bit, with a fixed binary point at bit point_pos.
-     m1 holds the low part of the mantissa, m2 the high part.
-     WARNING: If we ever have a representation using more than 2 * H_W_I - 1
-     bits for the mantissa, this can fail (low bits will be lost).  */
-  real_ldexp (&m, &r, point_pos - exponent);
-  wide_int w = real_to_integer (&m, &fail, HOST_BITS_PER_WIDE_INT * 2);
-
-  /* If the low part of the mantissa has bits set we cannot represent
-     the value.  */
-  if (w.ulow () != 0)
-    return false;
-  /* We have rejected the lower HOST_WIDE_INT, so update our
-     understanding of how many bits lie in the mantissa and
-     look only at the high HOST_WIDE_INT.  */
-  mantissa = w.elt (1);
-  point_pos -= HOST_BITS_PER_WIDE_INT;
-
-  /* We can only represent values with a mantissa of the form 1.xxxx.  */
-  mask = ((unsigned HOST_WIDE_INT)1 << (point_pos - 5)) - 1;
-  if ((mantissa & mask) != 0)
-    return false;
-
-  /* Having filtered unrepresentable values, we may now remove all
-     but the highest 5 bits.  */
-  mantissa >>= point_pos - 5;
-
-  /* We cannot represent the value 0.0, so reject it.  This is handled
-     elsewhere.  */
-  if (mantissa == 0)
-    return false;
-
-  /* Then, as bit 4 is always set, we can mask it off, leaving
-     the mantissa in the range [0, 15].  */
-  mantissa &= ~(1 << 4);
-  gcc_assert (mantissa <= 15);
-
-  /* GCC internally does not use IEEE754-like encoding (where normalized
-     significands are in the range [1, 2).  GCC uses [0.5, 1) (see real.cc).
-     Our mantissa values are shifted 4 places to the left relative to
-     normalized IEEE754 so we must modify the exponent returned by REAL_EXP
-     by 5 places to correct for GCC's representation.  */
-  exponent = 5 - exponent;
-
-  return (exponent >= 0 && exponent <= 7);
+  return aarch64_real_float_const_representable_p (r);
 }
 
-/* Returns the string with the instruction for AdvSIMD MOVI, MVNI, ORR or BIC
-   immediate with a CONST_VECTOR of MODE and WIDTH.  WHICH selects whether to
-   output MOVI/MVNI, ORR or BIC immediate.  */
+/* Returns the string with the instruction for AdvSIMD MOVI, MVNI, ORR, BIC or
+   FMOV immediate with a CONST_VECTOR of MODE and WIDTH.  WHICH selects whether
+   to output MOVI/MVNI, ORR or BIC immediate.  */
 char*
 aarch64_output_simd_mov_immediate (rtx const_vector, unsigned width,
 				   enum simd_immediate_check which)
@@ -25419,8 +25516,11 @@ aarch64_output_sve_mov_immediate (rtx const_vector)
 	}
     }
 
-  snprintf (templ, sizeof (templ), "mov\t%%0.%c, #" HOST_WIDE_INT_PRINT_DEC,
-	    element_char, INTVAL (info.u.mov.value));
+  if (info.u.mov.value == const0_rtx && TARGET_NON_STREAMING)
+    snprintf (templ, sizeof (templ), "movi\t%%d0, #0");
+  else
+    snprintf (templ, sizeof (templ), "mov\t%%0.%c, #" HOST_WIDE_INT_PRINT_DEC,
+	      element_char, INTVAL (info.u.mov.value));
   return templ;
 }
 
@@ -25704,26 +25804,23 @@ aarch64_evpc_reencode (struct expand_vec_perm_d *d)
 {
   expand_vec_perm_d newd;
 
-  if (d->vec_flags != VEC_ADVSIMD)
+  /* The subregs that we'd create are not supported for big-endian SVE;
+     see aarch64_modes_compatible_p for details.  */
+  if (BYTES_BIG_ENDIAN && (d->vec_flags & VEC_ANY_SVE))
     return false;
 
   /* Get the new mode.  Always twice the size of the inner
      and half the elements.  */
-  poly_uint64 vec_bits = GET_MODE_BITSIZE (d->vmode);
-  unsigned int new_elt_bits = GET_MODE_UNIT_BITSIZE (d->vmode) * 2;
-  auto new_elt_mode = int_mode_for_size (new_elt_bits, false).require ();
-  machine_mode new_mode = aarch64_simd_container_mode (new_elt_mode, vec_bits);
-
-  if (new_mode == word_mode)
+  machine_mode new_mode;
+  if (!aarch64_coalesce_units (d->vmode, 2).exists (&new_mode))
     return false;
 
   vec_perm_indices newpermindices;
-
   if (!newpermindices.new_shrunk_vector (d->perm, 2))
     return false;
 
   newd.vmode = new_mode;
-  newd.vec_flags = VEC_ADVSIMD;
+  newd.vec_flags = d->vec_flags;
   newd.op_mode = newd.vmode;
   newd.op_vec_flags = newd.vec_flags;
   newd.target = d->target ? gen_lowpart (new_mode, d->target) : NULL;
@@ -29071,8 +29168,20 @@ aarch64_stack_protect_guard (void)
   return NULL_TREE;
 }
 
-/* Return the diagnostic message string if the binary operation OP is
-   not permitted on TYPE1 and TYPE2, NULL otherwise.  */
+/* Implement TARGET_INVALID_UNARY_OP.  */
+
+static const char *
+aarch64_invalid_unary_op (int op, const_tree type)
+{
+  /* Reject all single-operand operations on __mfp8 except for &.  */
+  if (TYPE_MAIN_VARIANT (type) == aarch64_mfp8_type_node && op != ADDR_EXPR)
+    return N_ ("operation not permitted on type %<mfloat8_t%>");
+
+  /* Operation allowed.  */
+  return NULL;
+}
+
+/* Implement TARGET_INVALID_BINARY_OP.  */
 
 static const char *
 aarch64_invalid_binary_op (int op ATTRIBUTE_UNUSED, const_tree type1,
@@ -29085,6 +29194,11 @@ aarch64_invalid_binary_op (int op ATTRIBUTE_UNUSED, const_tree type1,
       && (aarch64_sve::builtin_type_p (type1)
 	  != aarch64_sve::builtin_type_p (type2)))
     return N_("cannot combine GNU and SVE vectors in a binary operation");
+
+  /* Reject all 2-operand operations on __mfp8.  */
+  if (TYPE_MAIN_VARIANT (type1) == aarch64_mfp8_type_node
+      || TYPE_MAIN_VARIANT (type2) == aarch64_mfp8_type_node)
+    return N_ ("operation not permitted on type %<mfloat8_t%>");
 
   /* Operation allowed.  */
   return NULL;
@@ -30802,6 +30916,12 @@ aarch64_libgcc_floating_mode_supported_p
 
 #undef TARGET_MANGLE_TYPE
 #define TARGET_MANGLE_TYPE aarch64_mangle_type
+
+#undef TARGET_INVALID_CONVERSION
+#define TARGET_INVALID_CONVERSION aarch64_invalid_conversion
+
+#undef TARGET_INVALID_UNARY_OP
+#define TARGET_INVALID_UNARY_OP aarch64_invalid_unary_op
 
 #undef TARGET_INVALID_BINARY_OP
 #define TARGET_INVALID_BINARY_OP aarch64_invalid_binary_op

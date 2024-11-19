@@ -730,14 +730,14 @@ coro_get_destroy_function (tree decl)
 
 /* Given a CO_AWAIT_EXPR AWAIT_EXPR, return its resume call.  */
 
-tree*
+tree
 co_await_get_resume_call (tree await_expr)
 {
   gcc_checking_assert (TREE_CODE (await_expr) == CO_AWAIT_EXPR);
   tree vec = TREE_OPERAND (await_expr, 3);
   if (!vec)
     return nullptr;
-  return &TREE_VEC_ELT (vec, 2);
+  return TREE_VEC_ELT (vec, 2);
 }
 
 
@@ -2063,7 +2063,9 @@ await_statement_expander (tree *stmt, int *do_subtree, void *d)
   tree res = NULL_TREE;
 
   /* Process a statement at a time.  */
-  if (STATEMENT_CLASS_P (*stmt) || TREE_CODE (*stmt) == BIND_EXPR)
+  if (STATEMENT_CLASS_P (*stmt)
+      || TREE_CODE (*stmt) == BIND_EXPR
+      || TREE_CODE (*stmt) == CLEANUP_POINT_EXPR)
     return NULL_TREE; /* Just process the sub-trees.  */
   else if (TREE_CODE (*stmt) == STATEMENT_LIST)
     {
@@ -3203,7 +3205,13 @@ maybe_promote_temps (tree *stmt, void *d)
 	 to run the initializer.
 	 If the initializer is a conditional expression, we need to collect
 	 and declare any promoted variables nested within it.  DTORs for such
-	 variables must be run conditionally too.  */
+	 variables must be run conditionally too.
+
+	 Since here we're synthetically processing code here, we've already
+	 emitted any Wunused-result warnings.  Below, however, we call
+	 finish_expr_stmt, which will convert its operand to void, and could
+	 result in such a diagnostic being emitted.  To avoid that, convert to
+	 void ahead of time.  */
       if (t->var)
 	{
 	  tree var = t->var;
@@ -3213,7 +3221,7 @@ maybe_promote_temps (tree *stmt, void *d)
 	  if (TREE_CODE (t->init) == COND_EXPR)
 	    process_conditional (t, vlist);
 	  else
-	    finish_expr_stmt (t->init);
+	    finish_expr_stmt (convert_to_void (t->init, ICV_STATEMENT, tf_none));
 	  if (tree cleanup = cxx_maybe_build_cleanup (var, tf_warning_or_error))
 	    {
 	      tree cl = build_stmt (sloc, CLEANUP_STMT, expr_list, cleanup, var);
@@ -3232,7 +3240,7 @@ maybe_promote_temps (tree *stmt, void *d)
 	  if (TREE_CODE (t->init) == COND_EXPR)
 	    process_conditional (t, vlist);
 	  else
-	    finish_expr_stmt (t->init);
+	    finish_expr_stmt (convert_to_void (t->init, ICV_STATEMENT, tf_none));
 	  if (expr_list)
 	    {
 	      if (TREE_CODE (expr_list) != STATEMENT_LIST)

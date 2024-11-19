@@ -54,7 +54,7 @@ cpp_diagnostic_get_current_location (cpp_reader *pfile)
 
 /* Print a diagnostic at the given location.  */
 
-ATTRIBUTE_FPTR_PRINTF(5,0)
+ATTRIBUTE_CPP_PPDIAG (5, 0)
 static bool
 cpp_diagnostic_at (cpp_reader * pfile, enum cpp_diagnostic_level level,
 		   enum cpp_warning_reason reason, rich_location *richloc,
@@ -71,7 +71,7 @@ cpp_diagnostic_at (cpp_reader * pfile, enum cpp_diagnostic_level level,
 
 /* Print a diagnostic at the location of the previously lexed token.  */
 
-ATTRIBUTE_FPTR_PRINTF(4,0)
+ATTRIBUTE_CPP_PPDIAG (4, 0)
 static bool
 cpp_diagnostic (cpp_reader * pfile, enum cpp_diagnostic_level level,
 		enum cpp_warning_reason reason,
@@ -190,7 +190,7 @@ cpp_pedwarning_at (cpp_reader * pfile, enum cpp_warning_reason reason,
 
 /* Print a diagnostic at a specific location.  */
 
-ATTRIBUTE_FPTR_PRINTF(6,0)
+ATTRIBUTE_CPP_PPDIAG (6, 0)
 static bool
 cpp_diagnostic_with_line (cpp_reader * pfile, enum cpp_diagnostic_level level,
 			  enum cpp_warning_reason reason,
@@ -349,4 +349,20 @@ cpp_errno_filename (cpp_reader *pfile, enum cpp_diagnostic_level level,
 
   return cpp_error_at (pfile, level, loc, "%s: %s", filename,
 		       xstrerror (errno));
+}
+
+cpp_auto_suppress_diagnostics::cpp_auto_suppress_diagnostics (cpp_reader *pfile)
+  : m_pfile (pfile), m_cb (pfile->cb.diagnostic)
+{
+  m_pfile->cb.diagnostic
+    = [] (cpp_reader *, cpp_diagnostic_level, cpp_warning_reason,
+	  rich_location *, const char *, va_list *)
+    {
+      return true;
+    };
+}
+
+cpp_auto_suppress_diagnostics::~cpp_auto_suppress_diagnostics ()
+{
+  m_pfile->cb.diagnostic = m_cb;
 }

@@ -6580,8 +6580,8 @@ gen_push2 (rtx mem, rtx reg1, rtx reg2, bool ppx_p = false)
   if (REG_P (reg2) && GET_MODE (reg2) != word_mode)
     reg2 = gen_rtx_REG (word_mode, REGNO (reg2));
 
-  return ppx_p ? gen_push2p_di (mem, reg1, reg2):
-		 gen_push2_di (mem, reg1, reg2);
+  return ppx_p ? gen_push2p_di (mem, reg1, reg2)
+	       : gen_push2_di (mem, reg1, reg2);
 }
 
 /* Return >= 0 if there is an unused call-clobbered register available
@@ -24435,6 +24435,13 @@ ix86_stack_protect_guard (void)
   return default_stack_protect_guard ();
 }
 
+static bool
+ix86_stack_protect_runtime_enabled_p (void)
+{
+  /* Naked functions should not enable stack protector.  */
+  return !ix86_function_naked (current_function_decl);
+}
+
 /* For 32-bit code we can save PIC register setup by using
    __stack_chk_fail_local hidden function instead of calling
    __stack_chk_fail directly.  64-bit code doesn't need to setup any PIC
@@ -25018,12 +25025,15 @@ private:
      where we know it's not loaded from memory.  */
   unsigned m_num_gpr_needed[3];
   unsigned m_num_sse_needed[3];
+  /* Number of 256-bit vector permutation.  */
+  unsigned m_num_avx256_vec_perm[3];
 };
 
 ix86_vector_costs::ix86_vector_costs (vec_info* vinfo, bool costing_for_scalar)
   : vector_costs (vinfo, costing_for_scalar),
     m_num_gpr_needed (),
-    m_num_sse_needed ()
+    m_num_sse_needed (),
+    m_num_avx256_vec_perm ()
 {
 }
 
@@ -25191,13 +25201,21 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
      (AGU and load ports).  Try to account for this by scaling the
      construction cost by the number of elements involved.  */
   if ((kind == vec_construct || kind == vec_to_scalar)
-      && stmt_info
-      && (STMT_VINFO_TYPE (stmt_info) == load_vec_info_type
-	  || STMT_VINFO_TYPE (stmt_info) == store_vec_info_type)
-      && ((STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_ELEMENTWISE
-	   && (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF (stmt_info)))
-	       != INTEGER_CST))
-	  || STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_GATHER_SCATTER))
+      && ((stmt_info
+	   && (STMT_VINFO_TYPE (stmt_info) == load_vec_info_type
+	       || STMT_VINFO_TYPE (stmt_info) == store_vec_info_type)
+	   && ((STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_ELEMENTWISE
+		&& (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF (stmt_info)))
+		    != INTEGER_CST))
+	       || (STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info)
+		   == VMAT_GATHER_SCATTER)))
+	  || (node
+	      && ((SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_ELEMENTWISE
+		  && (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF
+					    (SLP_TREE_REPRESENTATIVE (node))))
+		      != INTEGER_CST))
+		  || (SLP_TREE_MEMORY_ACCESS_TYPE (node)
+		      == VMAT_GATHER_SCATTER)))))
     {
       stmt_cost = ix86_builtin_vectorization_cost (kind, vectype, misalign);
       stmt_cost *= (TYPE_VECTOR_SUBPARTS (vectype) + 1);
@@ -25256,6 +25274,10 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
     }
   if (stmt_cost == -1)
     stmt_cost = ix86_builtin_vectorization_cost (kind, vectype, misalign);
+
+  if (kind == vec_perm && vectype
+      && GET_MODE_SIZE (TYPE_MODE (vectype)) == 32)
+    m_num_avx256_vec_perm[where]++;
 
   /* Penalize DFmode vector operations for Bonnell.  */
   if (TARGET_CPU_P (BONNELL) && kind == vector_stmt
@@ -25325,6 +25347,11 @@ ix86_vector_costs::finish_cost (const vector_costs *scalar_costs)
     }
 
   ix86_vect_estimate_reg_pressure ();
+
+  for (int i = 0; i != 3; i++)
+    if (m_num_avx256_vec_perm[i]
+	&& TARGET_AVX256_AVOID_VEC_PERM)
+      m_costs[i] = INT_MAX;
 
   vector_costs::finish_cost (scalar_costs);
 }
@@ -26820,6 +26847,10 @@ ix86_libgcc_floating_mode_supported_p
 
 #undef TARGET_STACK_PROTECT_GUARD
 #define TARGET_STACK_PROTECT_GUARD ix86_stack_protect_guard
+
+#undef TARGET_STACK_PROTECT_RUNTIME_ENABLED_P
+#define TARGET_STACK_PROTECT_RUNTIME_ENABLED_P \
+  ix86_stack_protect_runtime_enabled_p
 
 #if !TARGET_MACHO
 #undef TARGET_STACK_PROTECT_FAIL

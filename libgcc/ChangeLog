@@ -1,3 +1,43 @@
+2024-10-14  Yangyu Chen  <chenyangyu@isrc.iscas.ac.cn>
+
+	* config/riscv/feature_bits.c (__init_riscv_features_bits_linux):
+	Add detailed comments on processing implied extensions.
+
+2024-10-14  Kito Cheng  <kito.cheng@sifive.com>
+
+	* config/riscv/feature_bits.c: New.
+	* config/riscv/t-elf (LIB2ADD): Add feature_bits.c.
+
+2024-10-10  Sébastien Michelland  <sebastien.michelland@lcis.grenoble-inp.fr>
+
+	PR target/29845
+	* config.host (sh-*-elf*): Replace fdpbit with softfp.
+	* config/sh/sfp-machine.h: New file.
+
+2024-10-04  Tsung Chun Lin  <tclin914@gmail.com>
+
+	* config/riscv/save-restore.S: Fix .cfi_offset for saving ra in
+	__riscv_save_[0-3] on ilp32e.
+
+2024-10-01  Tsung Chun Lin  <tclin914@gmail.com>
+
+	* config/riscv/save-restore.S: Fix .cfi_offset for
+	__riscv_save_[0-3] on RV32.
+
+2024-09-27  Matthieu Longo  <matthieu.longo@arm.com>
+
+	* config/aarch64/aarch64-unwind.h: Fix header path.
+
+2024-09-27  Mark Mentovai  <mark@mentovai.com>
+
+	PR target/116809
+	* config.host: Don't build legacy libgcc_s.1 on macOS 14.
+
+2024-09-27  Jim Lin  <jim@andestech.com>
+
+	* config/riscv/save-restore.S: Check with __riscv_abi_rve rather than
+	__riscv_32e.
+
 2024-09-26  Nathaniel Shead  <nathanieloshead@gmail.com>
 
 	PR libstdc++/115126

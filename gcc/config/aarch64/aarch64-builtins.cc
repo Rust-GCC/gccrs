@@ -458,6 +458,19 @@ aarch64_types_storestruct_lane_p_qualifiers[SIMD_MAX_BUILTIN_ARGS]
       qualifier_poly, qualifier_struct_load_store_lane_index };
 #define TYPES_STORESTRUCT_LANE_P (aarch64_types_storestruct_lane_p_qualifiers)
 
+constexpr insn_code CODE_FOR_aarch64_sdot_prodv8qi
+  = CODE_FOR_sdot_prodv2siv8qi;
+constexpr insn_code CODE_FOR_aarch64_udot_prodv8qi
+  = CODE_FOR_udot_prodv2siv8qi;
+constexpr insn_code CODE_FOR_aarch64_usdot_prodv8qi
+  = CODE_FOR_usdot_prodv2siv8qi;
+constexpr insn_code CODE_FOR_aarch64_sdot_prodv16qi
+  = CODE_FOR_sdot_prodv4siv16qi;
+constexpr insn_code CODE_FOR_aarch64_udot_prodv16qi
+  = CODE_FOR_udot_prodv4siv16qi;
+constexpr insn_code CODE_FOR_aarch64_usdot_prodv16qi
+  = CODE_FOR_usdot_prodv4siv16qi;
+
 #define CF0(N, X) CODE_FOR_aarch64_##N##X
 #define CF1(N, X) CODE_FOR_##N##X##1
 #define CF2(N, X) CODE_FOR_##N##X##2
@@ -977,6 +990,11 @@ static GTY(()) tree aarch64_simd_tuple_types[ARM_NEON_H_TYPES_LAST][3];
 static GTY(()) tree aarch64_simd_intOI_type_node = NULL_TREE;
 static GTY(()) tree aarch64_simd_intCI_type_node = NULL_TREE;
 static GTY(()) tree aarch64_simd_intXI_type_node = NULL_TREE;
+
+/* The user-visible __mfp8 type, and a pointer to that type.  Used
+   across the back-end.  */
+tree aarch64_mfp8_type_node = NULL_TREE;
+tree aarch64_mfp8_ptr_type_node = NULL_TREE;
 
 /* The user-visible __fp16 type, and a pointer to that type.  Used
    across the back-end.  */
@@ -1811,6 +1829,19 @@ aarch64_init_builtin_rsqrt (void)
   }
 }
 
+/* Initialize the backend type that supports the user-visible __mfp8
+   type and its relative pointer type.  */
+
+static void
+aarch64_init_fp8_types (void)
+{
+  aarch64_mfp8_type_node = make_unsigned_type (8);
+  SET_TYPE_MODE (aarch64_mfp8_type_node, QImode);
+
+  lang_hooks.types.register_builtin_type (aarch64_mfp8_type_node, "__mfp8");
+  aarch64_mfp8_ptr_type_node = build_pointer_type (aarch64_mfp8_type_node);
+}
+
 /* Initialize the backend types that support the user-visible __fp16
    type, also initialize a pointer to that type, to be used when
    forming HFAs.  */
@@ -2214,6 +2245,8 @@ void
 aarch64_general_init_builtins (void)
 {
   aarch64_init_fpsr_fpcr_builtins ();
+
+  aarch64_init_fp8_types ();
 
   aarch64_init_fp16_types ();
 

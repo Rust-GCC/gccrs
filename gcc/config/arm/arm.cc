@@ -815,6 +815,9 @@ static const scoped_attribute_specs *const arm_attribute_table[] =
 #undef TARGET_MODES_TIEABLE_P
 #define TARGET_MODES_TIEABLE_P arm_modes_tieable_p
 
+#undef TARGET_NOCE_CONVERSION_PROFITABLE_P
+#define TARGET_NOCE_CONVERSION_PROFITABLE_P arm_noce_conversion_profitable_p
+
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS arm_can_change_mode_class
 
@@ -11908,7 +11911,7 @@ arm_rtx_costs_internal (rtx x, enum rtx_code code, enum rtx_code outer_code,
 
     case CONST_DOUBLE:
       if (TARGET_HARD_FLOAT && GET_MODE_CLASS (mode) == MODE_FLOAT
-	  && (mode == SFmode || !TARGET_VFP_SINGLE))
+	  && (mode == SFmode || mode == HFmode || !TARGET_VFP_SINGLE))
 	{
 	  if (vfp3_const_double_rtx (x))
 	    {
@@ -11933,12 +11936,18 @@ arm_rtx_costs_internal (rtx x, enum rtx_code code, enum rtx_code outer_code,
       return true;
 
     case CONST_VECTOR:
-      /* Fixme.  */
       if (((TARGET_NEON && TARGET_HARD_FLOAT
 	    && (VALID_NEON_DREG_MODE (mode) || VALID_NEON_QREG_MODE (mode)))
 	   || TARGET_HAVE_MVE)
 	  && simd_immediate_valid_for_move (x, mode, NULL, NULL))
 	*cost = COSTS_N_INSNS (1);
+      else if (TARGET_HAVE_MVE)
+	{
+	  /* 128-bit vector requires two vldr.64 on MVE.  */
+	  *cost = COSTS_N_INSNS (2);
+	  if (speed_p)
+	    *cost += extra_cost->ldst.loadd * 2;
+	}
       else
 	*cost = COSTS_N_INSNS (4);
       return true;
@@ -24727,11 +24736,11 @@ arm_print_operand (FILE *stream, rtx x, int code)
 	    asm_fprintf (stream, "[%r", REGNO (XEXP (addr, 0)));
 	    inc_val = GET_MODE_SIZE (GET_MODE (x));
 	    if (code == POST_INC || code == POST_DEC)
-	      asm_fprintf (stream, "], #%s%d",(code == POST_INC)
-					      ? "": "-", inc_val);
+	      asm_fprintf (stream, "], #%s%d", (code == POST_INC)
+					       ? "" : "-", inc_val);
 	    else
-	      asm_fprintf (stream, ", #%s%d]!",(code == PRE_INC)
-					       ? "": "-", inc_val);
+	      asm_fprintf (stream, ", #%s%d]!", (code == PRE_INC)
+						? "" : "-", inc_val);
 	  }
 	else if (code == POST_MODIFY || code == PRE_MODIFY)
 	  {
@@ -24740,9 +24749,9 @@ arm_print_operand (FILE *stream, rtx x, int code)
 	    if (postinc_reg && CONST_INT_P (postinc_reg))
 	      {
 		if (code == POST_MODIFY)
-		  asm_fprintf (stream, "], #%wd",INTVAL (postinc_reg));
+		  asm_fprintf (stream, "], #%wd", INTVAL (postinc_reg));
 		else
-		  asm_fprintf (stream, ", #%wd]!",INTVAL (postinc_reg));
+		  asm_fprintf (stream, ", #%wd]!", INTVAL (postinc_reg));
 	      }
 	  }
 	else if (code == PLUS)
@@ -35231,6 +35240,32 @@ arm_mve_dlstp_check_inc_counter (loop *loop, rtx_insn* vctp_insn,
   return vctp_insn;
 }
 
+/* Helper function to 'arm_mve_dlstp_check_dec_counter' to make sure DEC_INSN
+   is of the expected form:
+   (set (reg a) (plus (reg a) (const_int)))
+   where (reg a) is the same as CONDCOUNT.
+   Return a rtx with the set if it is in the right format or NULL_RTX
+   otherwise.  */
+
+static rtx
+check_dec_insn (rtx_insn *dec_insn, rtx condcount)
+{
+  if (!NONDEBUG_INSN_P (dec_insn))
+    return NULL_RTX;
+  rtx dec_set = single_set (dec_insn);
+  if (!dec_set
+      || !REG_P (SET_DEST (dec_set))
+      || GET_CODE (SET_SRC (dec_set)) != PLUS
+      || !REG_P (XEXP (SET_SRC (dec_set), 0))
+      || !CONST_INT_P (XEXP (SET_SRC (dec_set), 1))
+      || REGNO (SET_DEST (dec_set))
+	  != REGNO (XEXP (SET_SRC (dec_set), 0))
+      || REGNO (SET_DEST (dec_set)) != REGNO (condcount))
+    return NULL_RTX;
+
+  return dec_set;
+}
+
 /* Helper function to `arm_mve_loop_valid_for_dlstp`.  In the case of a
    counter that is decrementing, ensure that it is decrementing by the
    right amount in each iteration and that the target condition is what
@@ -35247,30 +35282,19 @@ arm_mve_dlstp_check_dec_counter (loop *loop, rtx_insn* vctp_insn,
      loop latch.  Here we simply need to verify that this counter is the same
      reg that is also used in the vctp_insn and that it is not otherwise
      modified.  */
-  rtx_insn *dec_insn = BB_END (loop->latch);
+  rtx dec_set = check_dec_insn (BB_END (loop->latch), condcount);
   /* If not in the loop latch, try to find the decrement in the loop header.  */
-  if (!NONDEBUG_INSN_P (dec_insn))
+  if (dec_set == NULL_RTX)
   {
     df_ref temp = df_bb_regno_only_def_find (loop->header, REGNO (condcount));
     /* If we haven't been able to find the decrement, bail out.  */
     if (!temp)
       return NULL;
-    dec_insn = DF_REF_INSN (temp);
+    dec_set = check_dec_insn (DF_REF_INSN (temp), condcount);
+
+    if (dec_set == NULL_RTX)
+      return NULL;
   }
-
-  rtx dec_set = single_set (dec_insn);
-
-  /* Next, ensure that it is a PLUS of the form:
-     (set (reg a) (plus (reg a) (const_int)))
-     where (reg a) is the same as condcount.  */
-  if (!dec_set
-      || !REG_P (SET_DEST (dec_set))
-      || !REG_P (XEXP (SET_SRC (dec_set), 0))
-      || !CONST_INT_P (XEXP (SET_SRC (dec_set), 1))
-      || REGNO (SET_DEST (dec_set))
-	  != REGNO (XEXP (SET_SRC (dec_set), 0))
-      || REGNO (SET_DEST (dec_set)) != REGNO (condcount))
-    return NULL;
 
   decrementnum = INTVAL (XEXP (SET_SRC (dec_set), 1));
 
@@ -36072,6 +36096,90 @@ arm_get_mask_mode (machine_mode mode)
     return arm_mode_to_pred_mode (mode);
 
   return default_get_mask_mode (mode);
+}
+
+/* Helper function to determine whether SEQ represents a sequence of
+   instructions representing the Armv8.1-M Mainline conditional arithmetic
+   instructions: csinc, csneg and csinv. The cinc instruction is generated
+   using a different mechanism.  */
+
+static bool
+arm_is_v81m_cond_insn (rtx_insn *seq)
+{
+  rtx_insn *curr_insn = seq;
+  rtx set = NULL_RTX;
+  /* The pattern may start with a simple set with register operands.  Skip
+     through any of those.  */
+  while (curr_insn)
+    {
+      set = single_set (curr_insn);
+      if (!set
+	  || !REG_P (SET_DEST (set)))
+	return false;
+
+      if (!REG_P (SET_SRC (set)))
+	break;
+      curr_insn = NEXT_INSN (curr_insn);
+    }
+
+  if (!set)
+    return false;
+
+  /* The next instruction should be one of:
+     NEG: for csneg,
+     PLUS: for csinc,
+     NOT: for csinv.  */
+  if (GET_CODE (SET_SRC (set)) != NEG
+      && GET_CODE (SET_SRC (set)) != PLUS
+      && GET_CODE (SET_SRC (set)) != NOT)
+    return false;
+
+  curr_insn = NEXT_INSN (curr_insn);
+  if (!curr_insn)
+    return false;
+
+  /* The next instruction should be a COMPARE.  */
+  set = single_set (curr_insn);
+  if (!set
+      || !REG_P (SET_DEST (set))
+      || GET_CODE (SET_SRC (set)) != COMPARE)
+    return false;
+
+  curr_insn = NEXT_INSN (curr_insn);
+  if (!curr_insn)
+    return false;
+
+  /* And the last instruction should be an IF_THEN_ELSE.  */
+  set = single_set (curr_insn);
+  if (!set
+      || !REG_P (SET_DEST (set))
+      || GET_CODE (SET_SRC (set)) != IF_THEN_ELSE)
+    return false;
+
+  return !NEXT_INSN (curr_insn);
+}
+
+/* For Armv8.1-M Mainline we have both conditional execution through IT blocks,
+   as well as conditional arithmetic instructions controlled by
+   TARGET_COND_ARITH.  To generate the latter we rely on a special part of the
+   "ce" pass that generates code for targets that don't support conditional
+   execution of general instructions known as "noce".  These transformations
+   happen before 'reload_completed'.  However, "noce" also triggers for some
+   unwanted patterns [PR 116444] that prevent "ce" optimisations after reload.
+   To make sure we can get both we use the TARGET_NOCE_CONVERSION_PROFITABLE_P
+   hook to only allow "noce" to generate the patterns that are profitable.  */
+
+bool
+arm_noce_conversion_profitable_p (rtx_insn *seq, struct noce_if_info *)
+{
+  if (!TARGET_COND_ARITH
+      || reload_completed)
+    return true;
+
+  if (arm_is_v81m_cond_insn (seq))
+    return true;
+
+  return false;
 }
 
 /* Output assembly to read the thread pointer from the appropriate TPIDR

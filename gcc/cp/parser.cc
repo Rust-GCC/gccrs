@@ -943,6 +943,18 @@ make_location (cp_token *caret, cp_token *start, cp_token *end)
   return make_location (caret->location, start->location, end->location);
 }
 
+/* Location for the whitespace between two tokens.  */
+
+static location_t
+location_between (cp_token *stok, cp_token *etok)
+{
+  location_t s = get_finish (stok->location);
+  s = linemap_position_for_loc_and_offset (line_table, s, 1);
+  location_t e = get_start (etok->location);
+  e = linemap_position_for_loc_and_offset (line_table, e, -1);
+  return make_location (s, s, e);
+}
+
 /* nonzero if we are presently saving tokens.  */
 
 static inline int
@@ -11891,6 +11903,11 @@ cp_parser_lambda_declarator_opt (cp_parser* parser, tree lambda_expr)
 		 "lambda templates are only available with "
 		 "%<-std=c++20%> or %<-std=gnu++20%>");
 
+      /* Even though the whole lambda may be a default argument, its
+	 template-parameter-list is a context where it's OK to create
+	 new parameters.  */
+      auto lvf = make_temp_override (parser->local_variables_forbidden_p, 0u);
+
       cp_lexer_consume_token (parser->lexer);
 
       template_param_list = cp_parser_template_parameter_list (parser);
@@ -18320,6 +18337,8 @@ cp_parser_operator (cp_parser* parser, location_t start_loc)
 	if (cxx_dialect == cxx98)
 	  maybe_warn_cpp0x (CPP0X_USER_DEFINED_LITERALS);
 
+	token = cp_lexer_peek_token (parser->lexer);
+
 	/* Consume the string.  */
 	cp_expr str = cp_parser_userdef_string_literal (parser,
 							/*lookup_udlit=*/false);
@@ -18335,13 +18354,24 @@ cp_parser_operator (cp_parser* parser, location_t start_loc)
 	  {
 	    string_tree = str;
 	    /* Look for the suffix identifier.  */
-	    token = cp_lexer_peek_token (parser->lexer);
-	    if (token->type == CPP_NAME)
+	    cp_token *id_tok = cp_lexer_peek_token (parser->lexer);
+	    if (id_tok->type == CPP_NAME)
 	      {
 		id = cp_parser_identifier (parser);
-		end_loc = token->location;
+		end_loc = id_tok->location;
+
+		/* Deprecated by CWG2521 in C++23.  */
+		if (warn_deprecated_literal_operator)
+		  {
+		    gcc_rich_location
+		      space (location_between (token, id_tok));
+		    space.add_fixit_remove ();
+		    warning_at (&space, OPT_Wdeprecated_literal_operator,
+				"space between quotes and suffix is "
+				"deprecated in C++23");
+		  }
 	      }
-	    else if (token->type == CPP_KEYWORD)
+	    else if (id_tok->type == CPP_KEYWORD)
 	      {
 		error ("unexpected keyword;"
 		       " remove space between quotes and suffix identifier");
@@ -19834,9 +19864,11 @@ cp_parser_template_argument (cp_parser* parser)
 
      -- the name of a non-type template-parameter; or
 
-     -- the name of an object or function with external linkage...
+     -- the name of an object or function with external (or internal,
+	since C++11) linkage...
 
-     -- the address of an object or function with external linkage...
+     -- the address of an object or function with external (or internal,
+	since C++11) linkage...
 
      -- a pointer to member...  */
   /* Look for a non-type template parameter.  */
@@ -19899,11 +19931,16 @@ cp_parser_template_argument (cp_parser* parser)
 	    probe = TREE_OPERAND (probe, 1);
 	  if (VAR_P (probe))
 	    {
-	      /* A variable without external linkage might still be a
+	      /* A variable without valid linkage might still be a
 		 valid constant-expression, so no error is issued here
 		 if the external-linkage check fails.  */
-	      if (!address_p && !DECL_EXTERNAL_LINKAGE_P (probe))
-		cp_parser_simulate_error (parser);
+	      if (!address_p)
+		{
+		  linkage_kind linkage = decl_linkage (probe);
+		  if (linkage != lk_external
+		      && (cxx_dialect < cxx11 || linkage != lk_internal))
+		    cp_parser_simulate_error (parser);
+		}
 	    }
 	  else if (is_overloaded_fn (argument))
 	    /* All overloaded functions are allowed; if the external
@@ -20989,8 +21026,8 @@ cp_parser_placeholder_type_specifier (cp_parser *parser, location_t loc,
       /* In a default argument we may not be creating new parameters.  */
       if (parser->local_variables_forbidden_p & LOCAL_VARS_FORBIDDEN)
 	{
-	  /* If this assert turns out to be false, do error() instead.  */
-	  gcc_assert (tentative);
+	  if (!tentative)
+	    error_at (loc, "invalid use of concept-name %qD", con);
 	  return error_mark_node;
 	}
       return build_constrained_parameter (con, proto, args);

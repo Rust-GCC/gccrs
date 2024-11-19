@@ -6142,7 +6142,6 @@ avr_out_compare (rtx_insn *insn, rtx *xop, int *plen)
       && REGNO (xreg) >= REG_22
       && (xval == const0_rtx
 	  || (IN_RANGE (avr_int16 (xval, 2), 0, 63)
-	      && eqne_p
 	      && reg_unused_after (insn, xreg))))
     {
       xop[2] = avr_word (xval, 2);
@@ -13604,8 +13603,12 @@ avr_hard_regno_rename_ok (unsigned int old_reg, unsigned int new_reg)
    Operand 3: label to jump to if the test is true.  */
 
 const char *
-avr_out_sbxx_branch (rtx_insn *insn, rtx operands[])
+avr_out_sbxx_branch (rtx_insn *insn, rtx xop[])
 {
+  // jump_over_one_insn_p may call extract on the next insn, clobbering
+  // recog_data.operand.  Hence make a copy of the operands (PR116953).
+  rtx operands[] = { xop[0], xop[1], xop[2], xop[3] };
+
   rtx_code comp = GET_CODE (operands[0]);
   bool long_jump = get_attr_length (insn) >= 4;
   bool reverse = long_jump || jump_over_one_insn_p (insn, operands[3]);

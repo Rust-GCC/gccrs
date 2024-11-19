@@ -810,6 +810,16 @@ gfc_conv_derived_to_class (gfc_se *parmse, gfc_expr *e, gfc_symbol *fsym,
   /* Now set the data field.  */
   ctree = gfc_class_data_get (var);
 
+  if (flag_coarray == GFC_FCOARRAY_LIB && CLASS_DATA (fsym)->attr.codimension)
+    {
+      tree token;
+      tmp = gfc_get_tree_for_caf_expr (e);
+      if (POINTER_TYPE_P (TREE_TYPE (tmp)))
+	tmp = build_fold_indirect_ref (tmp);
+      gfc_get_caf_token_offset (parmse, &token, nullptr, tmp, NULL_TREE, e);
+      gfc_add_modify (&parmse->pre, gfc_conv_descriptor_token (ctree), token);
+    }
+
   if (optional)
     cond_optional = gfc_conv_expr_present (e->symtree->n.sym);
 
@@ -2344,6 +2354,10 @@ gfc_get_tree_for_caf_expr (gfc_expr *expr)
 
   if (expr->symtree->n.sym->ts.type == BT_CLASS)
     {
+      if (DECL_P (caf_decl) && DECL_LANG_SPECIFIC (caf_decl)
+	  && GFC_DECL_SAVED_DESCRIPTOR (caf_decl))
+	caf_decl = GFC_DECL_SAVED_DESCRIPTOR (caf_decl);
+
       if (expr->ref && expr->ref->type == REF_ARRAY)
 	{
 	  caf_decl = gfc_class_data_get (caf_decl);
@@ -2408,16 +2422,12 @@ gfc_get_caf_token_offset (gfc_se *se, tree *token, tree *offset, tree caf_decl,
 {
   tree tmp;
 
+  gcc_assert (flag_coarray == GFC_FCOARRAY_LIB);
+
   /* Coarray token.  */
   if (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (caf_decl)))
-    {
-      gcc_assert (GFC_TYPE_ARRAY_AKIND (TREE_TYPE (caf_decl))
-		    == GFC_ARRAY_ALLOCATABLE
-		  || expr->symtree->n.sym->attr.select_type_temporary
-		  || expr->symtree->n.sym->assoc);
       *token = gfc_conv_descriptor_token (caf_decl);
-    }
-  else if (DECL_LANG_SPECIFIC (caf_decl)
+  else if (DECL_P (caf_decl) && DECL_LANG_SPECIFIC (caf_decl)
 	   && GFC_DECL_TOKEN (caf_decl) != NULL_TREE)
     *token = GFC_DECL_TOKEN (caf_decl);
   else
@@ -2435,7 +2445,7 @@ gfc_get_caf_token_offset (gfc_se *se, tree *token, tree *offset, tree caf_decl,
       && (GFC_TYPE_ARRAY_AKIND (TREE_TYPE (caf_decl)) == GFC_ARRAY_ALLOCATABLE
 	  || GFC_TYPE_ARRAY_AKIND (TREE_TYPE (caf_decl)) == GFC_ARRAY_POINTER))
     *offset = build_int_cst (gfc_array_index_type, 0);
-  else if (DECL_LANG_SPECIFIC (caf_decl)
+  else if (DECL_P (caf_decl) && DECL_LANG_SPECIFIC (caf_decl)
 	   && GFC_DECL_CAF_OFFSET (caf_decl) != NULL_TREE)
     *offset = GFC_DECL_CAF_OFFSET (caf_decl);
   else if (GFC_TYPE_ARRAY_CAF_OFFSET (TREE_TYPE (caf_decl)) != NULL_TREE)
@@ -2502,11 +2512,13 @@ gfc_get_caf_token_offset (gfc_se *se, tree *token, tree *offset, tree caf_decl,
     }
   else if (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (caf_decl)))
     tmp = gfc_conv_descriptor_data_get (caf_decl);
+  else if (INDIRECT_REF_P (caf_decl))
+    tmp = TREE_OPERAND (caf_decl, 0);
   else
-   {
-     gcc_assert (POINTER_TYPE_P (TREE_TYPE (caf_decl)));
-     tmp = caf_decl;
-   }
+    {
+      gcc_assert (POINTER_TYPE_P (TREE_TYPE (caf_decl)));
+      tmp = caf_decl;
+    }
 
   *offset = fold_build2_loc (input_location, MINUS_EXPR, gfc_array_index_type,
 			    fold_convert (gfc_array_index_type, *offset),
@@ -4381,10 +4393,47 @@ conv_base_obj_fcn_val (gfc_se * se, tree base_object, gfc_expr * expr)
   se->expr = build_fold_addr_expr_loc (input_location, se->expr);
 }
 
+static tree
+get_builtin_fn (gfc_symbol * sym)
+{
+  if (!gfc_option.disable_omp_is_initial_device
+      && flag_openmp && sym->attr.function && sym->ts.type == BT_LOGICAL
+      && !strcmp (sym->name, "omp_is_initial_device"))
+    return builtin_decl_explicit (BUILT_IN_OMP_IS_INITIAL_DEVICE);
+
+  if (!gfc_option.disable_acc_on_device
+      && flag_openacc && sym->attr.function && sym->ts.type == BT_LOGICAL
+      && !strcmp (sym->name, "acc_on_device_h"))
+    return builtin_decl_explicit (BUILT_IN_ACC_ON_DEVICE);
+
+  return NULL_TREE;
+}
+
+static tree
+update_builtin_function (tree fn_call, gfc_symbol *sym)
+{
+  tree fn = TREE_OPERAND (CALL_EXPR_FN (fn_call), 0);
+
+  if (DECL_FUNCTION_CODE (fn) == BUILT_IN_OMP_IS_INITIAL_DEVICE)
+     /* In Fortran omp_is_initial_device returns logical(4)
+	but the builtin uses 'int'.  */
+    return fold_convert (TREE_TYPE (TREE_TYPE (sym->backend_decl)), fn_call);
+
+  else if (DECL_FUNCTION_CODE (fn) == BUILT_IN_ACC_ON_DEVICE)
+    {
+      /* Likewise for the return type; additionally, the argument it a
+	 call-by-value int, Fortran has a by-reference 'integer(4)'.  */
+      tree arg = build_fold_indirect_ref_loc (input_location,
+					      CALL_EXPR_ARG (fn_call, 0));
+      CALL_EXPR_ARG (fn_call, 0) = fold_convert (integer_type_node, arg);
+      return fold_convert (TREE_TYPE (TREE_TYPE (sym->backend_decl)), fn_call);
+    }
+  return fn_call;
+}
 
 static void
-conv_function_val (gfc_se * se, gfc_symbol * sym, gfc_expr * expr,
-		   gfc_actual_arglist *actual_args)
+conv_function_val (gfc_se * se, bool *is_builtin, gfc_symbol * sym,
+		   gfc_expr * expr, gfc_actual_arglist *actual_args)
 {
   tree tmp;
 
@@ -4404,9 +4453,13 @@ conv_function_val (gfc_se * se, gfc_symbol * sym, gfc_expr * expr,
       if (!sym->backend_decl)
 	sym->backend_decl = gfc_get_extern_function_decl (sym, actual_args);
 
-      TREE_USED (sym->backend_decl) = 1;
-
-      tmp = sym->backend_decl;
+      if ((tmp = get_builtin_fn (sym)) != NULL_TREE)
+	*is_builtin = true;
+      else
+	{
+	  TREE_USED (sym->backend_decl) = 1;
+	  tmp = sym->backend_decl;
+	}
 
       if (sym->attr.cray_pointee)
 	{
@@ -6324,6 +6377,7 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
   gfc_actual_arglist *arg;
   int has_alternate_specifier = 0;
   bool need_interface_mapping;
+  bool is_builtin;
   bool callee_alloc;
   bool ulim_copy;
   gfc_typespec ts;
@@ -6438,11 +6492,15 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
     {
       bool finalized = false;
       tree derived_array = NULL_TREE;
+      symbol_attribute *attr;
 
       e = arg->expr;
       fsym = formal ? formal->sym : NULL;
       parm_kind = MISSING;
 
+      attr = fsym ? &(fsym->ts.type == BT_CLASS ? CLASS_DATA (fsym)->attr
+						: fsym->attr)
+		  : nullptr;
       /* If the procedure requires an explicit interface, the actual
 	 argument is passed according to the corresponding formal
 	 argument.  If the corresponding formal argument is a POINTER,
@@ -6458,7 +6516,9 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
       if (comp)
 	nodesc_arg = nodesc_arg || !comp->attr.always_explicit;
       else
-	nodesc_arg = nodesc_arg || !sym->attr.always_explicit;
+	nodesc_arg
+	  = nodesc_arg
+	    || !(sym->attr.always_explicit || (attr && attr->codimension));
 
       /* Class array expressions are sometimes coming completely unadorned
 	 with either arrayspec or _data component.  Correct that here.
@@ -8157,8 +8217,9 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
   arglist = retargs;
 
   /* Generate the actual call.  */
+  is_builtin = false;
   if (base_object == NULL_TREE)
-    conv_function_val (se, sym, expr, args);
+    conv_function_val (se, &is_builtin, sym, expr, args);
   else
     conv_base_obj_fcn_val (se, base_object, expr);
 
@@ -8182,6 +8243,9 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 
   fntype = TREE_TYPE (TREE_TYPE (se->expr));
   se->expr = build_call_vec (TREE_TYPE (fntype), se->expr, arglist);
+
+  if (is_builtin)
+    se->expr = update_builtin_function (se->expr, sym);
 
   /* Allocatable scalar function results must be freed and nullified
      after use. This necessitates the creation of a temporary to

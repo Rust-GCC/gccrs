@@ -610,6 +610,8 @@ vec_info::move_dr (stmt_vec_info new_stmt_info, stmt_vec_info old_stmt_info)
     = STMT_VINFO_DR_WRT_VEC_LOOP (old_stmt_info);
   STMT_VINFO_GATHER_SCATTER_P (new_stmt_info)
     = STMT_VINFO_GATHER_SCATTER_P (old_stmt_info);
+  STMT_VINFO_STRIDED_P (new_stmt_info)
+    = STMT_VINFO_STRIDED_P (old_stmt_info);
 }
 
 /* Permanently remove the statement described by STMT_INFO from the
@@ -1067,7 +1069,8 @@ try_vectorize_loop_1 (hash_table<simduid_to_vf> *&simduid_to_vf_htab,
 		 LOCATION_LINE (vect_location.get_location_t ()));
 
   /* Try to analyze the loop, retaining an opt_problem if dump_enabled_p.  */
-  opt_loop_vec_info loop_vinfo = vect_analyze_loop (loop, &shared);
+  opt_loop_vec_info loop_vinfo = vect_analyze_loop (loop, loop_vectorized_call,
+						    &shared);
   loop->aux = loop_vinfo;
 
   if (!loop_vinfo)

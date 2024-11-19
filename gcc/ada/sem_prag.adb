@@ -8148,6 +8148,11 @@ package body Sem_Prag is
          Check_Arg_Is_OK_Static_Expression (Arg2, Standard_String);
          Analyze_And_Resolve (Arg1x, Standard_Boolean);
 
+         if CodePeer_Mode then
+            Rewrite (N, Make_Null_Statement (Loc));
+            return;
+         end if;
+
          --  In GNATprove mode, pragma Compile_Time_Error is translated as
          --  a Check pragma in GNATprove mode, handled as an assumption in
          --  GNATprove. This is correct as the compiler will issue an error
@@ -24271,6 +24276,27 @@ package body Sem_Prag is
             end if;
          end Side_Effects;
 
+         ------------------------------------
+         -- Pragma_Simulate_Internal_Error --
+         ------------------------------------
+
+         --  pragma Simulate_Internal_Error;
+
+         --  Since the only purpose of this pragma is to write tests for the
+         --  compiler, it is not documented in the GNAT reference manual. The
+         --  effect of the pragma is to cause the compiler to raise an
+         --  exception when it analyzes the pragma.
+
+         when Pragma_Simulate_Internal_Error =>
+         Simulate_Internal_Error : declare
+            Simulated_Internal_Error : exception;
+         begin
+            GNAT_Pragma;
+            Check_Arg_Count (0);
+
+            raise Simulated_Internal_Error;
+         end Simulate_Internal_Error;
+
          ------------------------------
          -- Simple_Storage_Pool_Type --
          ------------------------------
@@ -33025,6 +33051,7 @@ package body Sem_Prag is
       Pragma_Shared_Passive                 =>  0,
       Pragma_Short_Circuit_And_Or           =>  0,
       Pragma_Short_Descriptors              =>  0,
+      Pragma_Simulate_Internal_Error        =>  0,
       Pragma_Simple_Storage_Pool_Type       =>  0,
       Pragma_Source_File_Name               =>  0,
       Pragma_Source_File_Name_Project       =>  0,

@@ -1368,7 +1368,7 @@ tree
 begin_while_stmt (void)
 {
   tree r;
-  r = build_stmt (input_location, WHILE_STMT, NULL_TREE, NULL_TREE);
+  r = build_stmt (input_location, WHILE_STMT, NULL_TREE, NULL_TREE, NULL_TREE);
   add_stmt (r);
   WHILE_BODY (r) = do_pushlevel (sk_block);
   begin_cond (&WHILE_COND (r));
@@ -1425,7 +1425,8 @@ finish_while_stmt (tree while_stmt)
 tree
 begin_do_stmt (void)
 {
-  tree r = build_stmt (input_location, DO_STMT, NULL_TREE, NULL_TREE);
+  tree r = build_stmt (input_location, DO_STMT, NULL_TREE, NULL_TREE,
+		       NULL_TREE);
   begin_maybe_infinite_loop (boolean_true_node);
   add_stmt (r);
   DO_BODY (r) = push_stmt_list ();
@@ -1546,7 +1547,7 @@ begin_for_stmt (tree scope, tree init)
   tree r;
 
   r = build_stmt (input_location, FOR_STMT, NULL_TREE, NULL_TREE,
-		  NULL_TREE, NULL_TREE, NULL_TREE);
+		  NULL_TREE, NULL_TREE, NULL_TREE, NULL_TREE);
 
   if (scope == NULL_TREE)
     {
@@ -1783,7 +1784,7 @@ finish_break_stmt (void)
   if (!block_may_fallthru (cur_stmt_list))
     return void_node;
   note_break_stmt ();
-  return add_stmt (build_stmt (input_location, BREAK_STMT));
+  return add_stmt (build_stmt (input_location, BREAK_STMT, NULL_TREE));
 }
 
 /* Finish a continue-statement.  */
@@ -1791,7 +1792,7 @@ finish_break_stmt (void)
 tree
 finish_continue_stmt (void)
 {
-  return add_stmt (build_stmt (input_location, CONTINUE_STMT));
+  return add_stmt (build_stmt (input_location, CONTINUE_STMT, NULL_TREE));
 }
 
 /* Begin a switch-statement.  Returns a new SWITCH_STMT if
@@ -1803,7 +1804,8 @@ begin_switch_stmt (void)
   tree r, scope;
 
   scope = do_pushlevel (sk_cond);
-  r = build_stmt (input_location, SWITCH_STMT, NULL_TREE, NULL_TREE, NULL_TREE, scope);
+  r = build_stmt (input_location, SWITCH_STMT, NULL_TREE, NULL_TREE, NULL_TREE,
+		  scope, NULL_TREE);
 
   begin_cond (&SWITCH_STMT_COND (r));
 
@@ -12932,6 +12934,11 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_UNION:
       return type_code1 == UNION_TYPE;
 
+    case CPTK_IS_VIRTUAL_BASE_OF:
+      return (NON_UNION_CLASS_TYPE_P (type1) && NON_UNION_CLASS_TYPE_P (type2)
+	      && lookup_base (type2, type1, ba_require_virtual,
+			      NULL, tf_none) != NULL_TREE);
+
     case CPTK_IS_VOLATILE:
       return CP_TYPE_VOLATILE_P (type1);
 
@@ -13149,6 +13156,13 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_POINTER_INTERCONVERTIBLE_BASE_OF:
       if (NON_UNION_CLASS_TYPE_P (type1) && NON_UNION_CLASS_TYPE_P (type2)
 	  && !same_type_ignoring_top_level_qualifiers_p (type1, type2)
+	  && !complete_type_or_else (type2, NULL_TREE))
+	/* We already issued an error.  */
+	return error_mark_node;
+      break;
+
+    case CPTK_IS_VIRTUAL_BASE_OF:
+      if (NON_UNION_CLASS_TYPE_P (type1) && NON_UNION_CLASS_TYPE_P (type2)
 	  && !complete_type_or_else (type2, NULL_TREE))
 	/* We already issued an error.  */
 	return error_mark_node;
