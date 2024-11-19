@@ -49,6 +49,7 @@ with Exp_Util;       use Exp_Util;
 with Freeze;         use Freeze;
 with Ghost;          use Ghost;
 with Lib;            use Lib;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Nlists;         use Nlists;
 with Nmake;          use Nmake;
@@ -631,8 +632,13 @@ package body Exp_Ch3 is
    ---------------------------
 
    procedure Build_Array_Init_Proc (A_Type : Entity_Id; Nod : Node_Id) is
-      Comp_Type        : constant Entity_Id := Component_Type (A_Type);
-      Comp_Simple_Init : constant Boolean   :=
+      --  Obtain the corresponding mutably tagged type's parent subtype to
+      --  handle default initialization.
+
+      Comp_Type : constant Entity_Id :=
+        Get_Corresponding_Tagged_Type_If_Present (Component_Type (A_Type));
+
+      Comp_Simple_Init : constant Boolean :=
         Needs_Simple_Initialization
           (Typ         => Comp_Type,
            Consider_IS =>
@@ -1367,6 +1373,7 @@ package body Exp_Ch3 is
 
          return
            not (Present (Obj_Id) and then Is_Internal (Obj_Id))
+             and then not Is_Mutably_Tagged_CW_Equivalent_Type (Typ)
              and then
                Needs_Simple_Initialization
                  (Typ         => Typ,
@@ -3709,7 +3716,11 @@ package body Exp_Ch3 is
               (Subtype_Indication (Component_Definition (Decl)), Checks);
 
             Id  := Defining_Identifier (Decl);
-            Typ := Etype (Id);
+
+            --  Obtain the corresponding mutably tagged type's parent subtype
+            --  to handle default initialization.
+
+            Typ := Get_Corresponding_Tagged_Type_If_Present (Etype (Id));
 
             --  Leave any processing of component requiring late initialization
             --  for the second pass.
@@ -4125,7 +4136,11 @@ package body Exp_Ch3 is
             while Present (Decl) loop
                Comp_Loc := Sloc (Decl);
                Id := Defining_Identifier (Decl);
-               Typ := Etype (Id);
+
+               --  Obtain the corresponding mutably tagged type's parent
+               --  subtype to handle default initialization.
+
+               Typ := Get_Corresponding_Tagged_Type_If_Present (Etype (Id));
 
                if Initialization_Control.Requires_Late_Init (Decl, Rec_Type)
                then
@@ -5407,21 +5422,15 @@ package body Exp_Ch3 is
    procedure Expand_Freeze_Array_Type (N : Node_Id) is
       Typ      : constant Entity_Id := Entity (N);
       Base     : constant Entity_Id := Base_Type (Typ);
-      Comp_Typ : constant Entity_Id := Component_Type (Typ);
+
+      --  Obtain the corresponding mutably tagged type if necessary
+
+      Comp_Typ : constant Entity_Id :=
+        Get_Corresponding_Mutably_Tagged_Type_If_Present
+          (Component_Type (Typ));
 
    begin
       if not Is_Bit_Packed_Array (Typ) then
-
-         --  If the component contains tasks, so does the array type. This may
-         --  not be indicated in the array type because the component may have
-         --  been a private type at the point of definition. Same if component
-         --  type is controlled or contains protected objects.
-
-         Propagate_Concurrent_Flags (Base, Comp_Typ);
-         Set_Has_Controlled_Component
-           (Base, Has_Controlled_Component (Comp_Typ)
-                    or else Is_Controlled (Comp_Typ));
-
          if No (Init_Proc (Base)) then
 
             --  If this is an anonymous array created for a declaration with
@@ -6103,8 +6112,6 @@ package body Exp_Ch3 is
       Typ      : constant Node_Id := Entity (N);
       Typ_Decl : constant Node_Id := Parent (Typ);
 
-      Comp        : Entity_Id;
-      Comp_Typ    : Entity_Id;
       Predef_List : List_Id;
 
       Wrapper_Decl_List : List_Id;
@@ -6135,31 +6142,6 @@ package body Exp_Ch3 is
       then
          Check_Stream_Attributes (Typ);
       end if;
-
-      --  Update task, protected, and controlled component flags, because some
-      --  of the component types may have been private at the point of the
-      --  record declaration. Detect anonymous access-to-controlled components.
-
-      Comp := First_Component (Typ);
-      while Present (Comp) loop
-         Comp_Typ := Etype (Comp);
-
-         Propagate_Concurrent_Flags (Typ, Comp_Typ);
-
-         --  Do not set Has_Controlled_Component on a class-wide equivalent
-         --  type. See Make_CW_Equivalent_Type.
-
-         if not Is_Class_Wide_Equivalent_Type (Typ)
-           and then
-             (Has_Controlled_Component (Comp_Typ)
-               or else (Chars (Comp) /= Name_uParent
-                         and then Is_Controlled (Comp_Typ)))
-         then
-            Set_Has_Controlled_Component (Typ);
-         end if;
-
-         Next_Component (Comp);
-      end loop;
 
       --  Handle constructors of untagged CPP_Class types
 
@@ -6436,7 +6418,9 @@ package body Exp_Ch3 is
       --  Do not need init for interfaces on virtual targets since they're
       --  abstract.
 
-      if Tagged_Type_Expansion or else not Is_Interface (Typ) then
+      if not Is_Mutably_Tagged_CW_Equivalent_Type (Typ)
+        and then (Tagged_Type_Expansion or else not Is_Interface (Typ))
+      then
          Build_Record_Init_Proc (Typ_Decl, Typ);
       end if;
 
@@ -6694,6 +6678,29 @@ package body Exp_Ch3 is
             end loop;
          end;
       end if;
+
+      --  Handle mutably tagged types by replacing their declarations with
+      --  their class-wide equivalent types.
+
+      declare
+         Comp : Entity_Id;
+      begin
+         if Is_Array_Type (Def_Id) then
+            Comp := First_Entity (Component_Type (Def_Id));
+         else
+            Comp := First_Entity (Def_Id);
+         end if;
+
+         while Present (Comp) loop
+            if Ekind (Etype (Comp)) /= E_Void
+              and then Is_Mutably_Tagged_Type (Etype (Comp))
+            then
+               Set_Etype
+                 (Comp, Class_Wide_Equivalent_Type (Etype (Comp)));
+            end if;
+            Next_Entity (Comp);
+         end loop;
+      end;
 
       Par_Id := Etype (B_Id);
 
@@ -7244,7 +7251,12 @@ package body Exp_Ch3 is
 
          --  Or else build the fully-fledged initialization if need be
 
-         Init_Stmts := Build_Default_Initialization (N, Typ, Def_Id);
+         if Is_Mutably_Tagged_Type (Typ) then
+            Init_Stmts :=
+              Build_Default_Initialization (N, Etype (Typ), Def_Id);
+         else
+            Init_Stmts := Build_Default_Initialization (N, Typ, Def_Id);
+         end if;
 
          --  Insert the whole initialization sequence into the tree. If the
          --  object has a delayed freeze, as will be the case when it has

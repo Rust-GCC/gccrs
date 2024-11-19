@@ -2914,6 +2914,17 @@ package Sem_Util is
    --  by one of these flags. This procedure can only set flags for Typ, and
    --  never clear them. Comp_Typ is the type of a component or a parent.
 
+   procedure Propagate_Controlled_Flags
+     (Typ      : Entity_Id;
+      From_Typ : Entity_Id;
+      Comp     : Boolean := False;
+      Deriv    : Boolean := False);
+   --  Set Disable_Controlled, Finalize_Storage_Only, Has_Controlled_Component,
+   --  and Is_Controlled_Active on Typ when the flags are set on From_Typ. If
+   --  Comp is True, From_Typ is the type of a component of Typ while, if Deriv
+   --  is True, From_Typ is the parent type of Typ. This procedure can only set
+   --  flags for Typ, and never clear them.
+
    procedure Propagate_DIC_Attributes
      (Typ      : Entity_Id;
       From_Typ : Entity_Id);
@@ -3387,6 +3398,9 @@ package Sem_Util is
 
    function Yields_Universal_Type (N : Node_Id) return Boolean;
    --  Determine whether unanalyzed node N yields a universal type
+
+   procedure Preanalyze_And_Resolve_Without_Errors (N : Node_Id);
+   --  Preanalyze and resolve N without reporting errors
 
    procedure Preanalyze_Without_Errors (N : Node_Id);
    --  Preanalyze N without reporting errors

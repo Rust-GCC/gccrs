@@ -47,6 +47,7 @@ with Exp_Util;       use Exp_Util;
 with Freeze;         use Freeze;
 with Inline;         use Inline;
 with Lib;            use Lib;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Nlists;         use Nlists;
 with Nmake;          use Nmake;
@@ -1569,26 +1570,17 @@ package body Exp_Ch4 is
            (Outer_Type => Typ, Nod => Nod, Comp_Type => Component_Type (Typ),
             Lhs => L, Rhs => R);
 
-         --  If some (sub)component is an unchecked_union, the whole operation
-         --  will raise program error.
+         --  This is necessary to give the warning about Program_Error being
+         --  raised when some (sub)component is an unchecked_union.
 
-         if Nkind (Test) = N_Raise_Program_Error then
+         Preserve_Comes_From_Source (Test, Nod);
 
-            --  This node is going to be inserted at a location where a
-            --  statement is expected: clear its Etype so analysis will set
-            --  it to the expected Standard_Void_Type.
-
-            Set_Etype (Test, Empty);
-            return Test;
-
-         else
-            return
-              Make_Implicit_If_Statement (Nod,
-                Condition       => Make_Op_Not (Loc, Right_Opnd => Test),
-                Then_Statements => New_List (
-                  Make_Simple_Return_Statement (Loc,
-                    Expression => New_Occurrence_Of (Standard_False, Loc))));
-         end if;
+         return
+           Make_Implicit_If_Statement (Nod,
+             Condition       => Make_Op_Not (Loc, Right_Opnd => Test),
+             Then_Statements => New_List (
+               Make_Simple_Return_Statement (Loc,
+                 Expression => New_Occurrence_Of (Standard_False, Loc))));
       end Component_Equality;
 
       ------------------
@@ -2337,6 +2329,28 @@ package body Exp_Ch4 is
       --  Case of untagged record types
 
       elsif Is_Record_Type (Full_Type) then
+         --  Equality composes in Ada 2012 for untagged record types. It also
+         --  composes for bounded strings, because they are part of the
+         --  predefined environment (see 4.5.2(32.1/1)). We could make it
+         --  compose for bounded strings by making them tagged, or by making
+         --  sure all subcomponents are set to the same value, even when not
+         --  used. Instead, we have this special case in the compiler, because
+         --  it's more efficient.
+
+         if Ada_Version >= Ada_2012 or else Is_Bounded_String (Comp_Type) then
+            declare
+               Eq_Call : constant Node_Id :=
+                 Build_Eq_Call (Comp_Type, Loc, Lhs, Rhs);
+
+            begin
+               if Present (Eq_Call) then
+                  return Eq_Call;
+               end if;
+            end;
+         end if;
+
+         --  Check whether a TSS has been created for the type
+
          Eq_Op := TSS (Full_Type, TSS_Composite_Equality);
 
          if Present (Eq_Op) then
@@ -2361,34 +2375,6 @@ package body Exp_Ch4 is
                  Make_Function_Call (Loc,
                    Name                   => New_Occurrence_Of (Eq_Op, Loc),
                    Parameter_Associations => New_List (L_Exp, R_Exp));
-            end;
-
-         --  Equality composes in Ada 2012 for untagged record types. It also
-         --  composes for bounded strings, because they are part of the
-         --  predefined environment (see 4.5.2(32.1/1)). We could make it
-         --  compose for bounded strings by making them tagged, or by making
-         --  sure all subcomponents are set to the same value, even when not
-         --  used. Instead, we have this special case in the compiler, because
-         --  it's more efficient.
-
-         elsif Ada_Version >= Ada_2012 or else Is_Bounded_String (Comp_Type)
-         then
-            --  If no TSS has been created for the type, check whether there is
-            --  a primitive equality declared for it.
-
-            declare
-               Op : constant Node_Id :=
-                 Build_Eq_Call (Comp_Type, Loc, Lhs, Rhs);
-
-            begin
-               --  Use user-defined primitive if it exists, otherwise use
-               --  predefined equality.
-
-               if Present (Op) then
-                  return Op;
-               else
-                  return Make_Op_Eq (Loc, Lhs, Rhs);
-               end if;
             end;
 
          else
@@ -4888,10 +4874,17 @@ package body Exp_Ch4 is
 
             Temp := Make_Temporary (Loc, 'P');
 
-            Init_Stmts :=
-              Build_Default_Initialization (N, Etyp, Temp,
-                For_CW     => Is_Class_Wide_Type (Dtyp),
-                Target_Ref => Target_Ref);
+            if Is_Mutably_Tagged_Type (Dtyp) then
+               Init_Stmts :=
+                 Build_Default_Initialization (N, Etype (Etyp), Temp,
+                   For_CW     => False,
+                   Target_Ref => Target_Ref);
+            else
+               Init_Stmts :=
+                 Build_Default_Initialization (N, Etyp, Temp,
+                   For_CW     => Is_Class_Wide_Type (Dtyp),
+                   Target_Ref => Target_Ref);
+            end if;
 
             if Present (Init_Stmts) then
                --  We set the allocator as analyzed so that when we analyze
@@ -12743,6 +12736,9 @@ package body Exp_Ch4 is
             New_Lhs : Node_Id;
             New_Rhs : Node_Id;
             Check   : Node_Id;
+            Lhs_Sel : Node_Id;
+            Rhs_Sel : Node_Id;
+            C_Typ   : Entity_Id := Etype (C);
 
          begin
             if First_Time then
@@ -12753,17 +12749,31 @@ package body Exp_Ch4 is
                New_Rhs := New_Copy_Tree (Rhs);
             end if;
 
+            Lhs_Sel :=
+              Make_Selected_Component (Loc,
+                Prefix        => New_Lhs,
+                Selector_Name => New_Occurrence_Of (C, Loc));
+            Rhs_Sel :=
+               Make_Selected_Component (Loc,
+                 Prefix        => New_Rhs,
+                 Selector_Name => New_Occurrence_Of (C, Loc));
+
+            --  Generate mutably tagged conversions in case we encounter a
+            --  special class-wide equivalent type.
+
+            if Is_Mutably_Tagged_CW_Equivalent_Type (Etype (C)) then
+               C_Typ := Corresponding_Mutably_Tagged_Type (Etype (C));
+               Make_Mutably_Tagged_Conversion (Lhs_Sel, C_Typ);
+               Make_Mutably_Tagged_Conversion (Rhs_Sel, C_Typ);
+            end if;
+
             Check :=
               Expand_Composite_Equality
-                (Outer_Type => Typ, Nod => Nod, Comp_Type => Etype (C),
-                 Lhs =>
-                   Make_Selected_Component (Loc,
-                     Prefix        => New_Lhs,
-                     Selector_Name => New_Occurrence_Of (C, Loc)),
-                 Rhs =>
-                   Make_Selected_Component (Loc,
-                     Prefix        => New_Rhs,
-                     Selector_Name => New_Occurrence_Of (C, Loc)));
+                (Outer_Type => Typ,
+                 Nod        => Nod,
+                 Comp_Type  => C_Typ,
+                 Lhs        => Lhs_Sel,
+                 Rhs        => Rhs_Sel);
 
             --  If some (sub)component is an unchecked_union, the whole
             --  operation will raise program error.

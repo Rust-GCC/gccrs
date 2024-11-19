@@ -4083,6 +4083,15 @@ package body Sem_Ch6 is
          else
             Set_Corresponding_Spec (N, Spec_Id);
 
+            --  The body entity is not used for semantics or code generation,
+            --  but it is attached to the entity list of the enclosing scope
+            --  to allow listing its entities when outputting representation
+            --  information.
+
+            if Scope (Spec_Id) /= Standard_Standard then
+               Append_Entity (Body_Id, Scope (Spec_Id));
+            end if;
+
             --  Ada 2005 (AI-345): If the operation is a primitive operation
             --  of a concurrent type, the type of the first parameter has been
             --  replaced with the corresponding record, which is the proper
@@ -9173,9 +9182,15 @@ package body Sem_Ch6 is
             --  If the type does not have a completion yet, treat as prior to
             --  Ada 2012 for consistency.
 
-            if Has_Discriminants (Formal_Type)
+            --  Note that we need also to handle mutably tagged types in the
+            --  same way as discriminated types since they can be constrained
+            --  or unconstrained as well.
+
+            if (Has_Discriminants (Formal_Type)
+                 or else Is_Mutably_Tagged_Type (Formal_Type))
               and then not Is_Constrained (Formal_Type)
-              and then Is_Definite_Subtype (Formal_Type)
+              and then (Is_Definite_Subtype (Formal_Type)
+                         or else Is_Mutably_Tagged_Type (Formal_Type))
               and then (Ada_Version < Ada_2012
                          or else No (Underlying_Type (Formal_Type))
                          or else not

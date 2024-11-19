@@ -2939,8 +2939,8 @@ package body Exp_Ch6 is
             --  If the aspect is inherited, convert the pointer to the
             --  parent type that specifies the contract.
             --  If the original access_to_subprogram has defaults for
-            --  in_parameters, the call may include named associations, so
-            --  we create one for the pointer as well.
+            --  in-mode parameters, the call may include named associations,
+            --  so we create one for the pointer as well.
 
             if Is_Derived_Type (Ptr_Type)
               and then Ptr_Type /= Etype (Last_Formal (Wrapper))
@@ -4224,8 +4224,10 @@ package body Exp_Ch6 is
          --  because the object has underlying discriminants with defaults.
 
          if Present (Extra_Constrained (Formal)) then
-            if Is_Private_Type (Etype (Prev))
-              and then not Has_Discriminants (Base_Type (Etype (Prev)))
+            if Is_Mutably_Tagged_Type (Etype (Actual))
+              or else (Is_Private_Type (Etype (Prev))
+                        and then not Has_Discriminants
+                                       (Base_Type (Etype (Prev))))
             then
                Add_Extra_Actual
                  (Expr => New_Occurrence_Of (Standard_False, Loc),
@@ -5311,10 +5313,11 @@ package body Exp_Ch6 is
          then
             Expand_Inlined_Call (Call_Node, Subp, Orig_Subp);
 
-         --  Back-end inlining either if optimization is enabled or the call is
-         --  required to be inlined.
+         --  Back-end inlining either if optimization is enabled, we're
+         --  generating C, or the call is required to be inlined.
 
          elsif Optimization_Level > 0
+           or else CCG_Mode
            or else Has_Pragma_Inline_Always (Subp)
          then
             Add_Inlined_Body (Subp, Call_Node);

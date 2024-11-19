@@ -11835,6 +11835,12 @@ ix86_expand_args_builtin (const struct builtin_description *d,
 	      case CODE_FOR_avx_vmcmpv4sf3:
 	      case CODE_FOR_avx_cmpv2df3:
 	      case CODE_FOR_avx_cmpv4sf3:
+		if (CONST_INT_P (op) && IN_RANGE (INTVAL (op), 8, 31))
+		  {
+		    error ("'%s' needs isa option %s", d->name, "-mavx");
+		    return const0_rtx;
+		  }
+		/* FALLTHRU */
 	      case CODE_FOR_avx_cmpv4df3:
 	      case CODE_FOR_avx_cmpv8sf3:
 	      case CODE_FOR_avx512f_cmpv8df3_mask:
@@ -23657,8 +23663,8 @@ ix86_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
   if (GET_MODE_SIZE (vmode) == 64 && !TARGET_EVEX512)
     return false;
 
-  /* For HF mode vector, convert it to HI using subreg.  */
-  if (GET_MODE_INNER (vmode) == HFmode)
+  /* For HF and BF mode vector, convert it to HI using subreg.  */
+  if (GET_MODE_INNER (vmode) == HFmode || GET_MODE_INNER (vmode) == BFmode)
     {
       machine_mode orig_mode = vmode;
       vmode = mode_for_vector (HImode,
@@ -25570,27 +25576,32 @@ ix86_ternlog_idx (rtx op, rtx *args)
 
   switch (GET_CODE (op))
     {
+    case SUBREG:
+      if (!register_operand (op, GET_MODE (op)))
+	return -1;
+      /* FALLTHRU */
+
     case REG:
       if (!args[0])
 	{
 	  args[0] = op;
 	  return 0xf0;
 	}
-      if (REGNO (op) == REGNO (args[0]))
+      if (rtx_equal_p (op, args[0]))
 	return 0xf0;
       if (!args[1])
 	{
 	  args[1] = op;
 	  return 0xcc;
 	}
-      if (REGNO (op) == REGNO (args[1]))
+      if (rtx_equal_p (op, args[1]))
 	return 0xcc;
       if (!args[2])
 	{
 	  args[2] = op;
 	  return 0xaa;
 	}
-      if (REG_P (args[2]) && REGNO (op) == REGNO (args[2]))
+      if (rtx_equal_p (op, args[2]))
 	return 0xaa;
       return -1;
 
@@ -25627,12 +25638,6 @@ ix86_ternlog_idx (rtx op, rtx *args)
 			  args[2]))
 	return 0x55;
       return -1;
-
-    case SUBREG:
-      if (GET_MODE_SIZE (GET_MODE (SUBREG_REG (op)))
-	  != GET_MODE_SIZE (GET_MODE (op)))
-	return -1;
-      return ix86_ternlog_idx (SUBREG_REG (op), args);
 
     case NOT:
       idx0 = ix86_ternlog_idx (XEXP (op, 0), args);
@@ -26041,6 +26046,69 @@ ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2, int idx,
       tmp2 = ix86_gen_bcst_mem (mode, op2);
       if (!tmp2)
 	{
+	  machine_mode bcst32_mode = mode;
+	  machine_mode bcst64_mode = mode;
+	  switch (mode)
+	    {
+	    case V1TImode:
+	    case V4SImode:
+	    case V4SFmode:
+	    case V8HImode:
+	    case V16QImode:
+	      bcst32_mode = V4SImode;
+	      bcst64_mode = V2DImode;
+	      break;
+
+	    case V2TImode:
+	    case V8SImode:
+	    case V8SFmode:
+	    case V16HImode:
+	    case V32QImode:
+	      bcst32_mode = V8SImode;
+	      bcst64_mode = V4DImode;
+	      break;
+
+	    case V4TImode:
+	    case V16SImode:
+	    case V16SFmode:
+	    case V32HImode:
+	    case V64QImode:
+	      bcst32_mode = V16SImode;
+	      bcst64_mode = V8DImode;
+	      break;
+
+	    default:
+	      break;
+	    }
+
+	  if (bcst32_mode != mode)
+	    {
+	      tmp2 = gen_lowpart (bcst32_mode, op2);
+	      if (ix86_gen_bcst_mem (bcst32_mode, tmp2))
+		{
+		  tmp2 = ix86_expand_ternlog (bcst32_mode,
+					      gen_lowpart (bcst32_mode, tmp0),
+					      gen_lowpart (bcst32_mode, tmp1),
+					      tmp2, idx, NULL_RTX);
+		  emit_move_insn (target, gen_lowpart (mode, tmp2));
+		  return target;
+		}
+	    }
+
+	  if (bcst64_mode != mode)
+	    {
+	      tmp2 = gen_lowpart (bcst64_mode, op2);
+	      if (ix86_gen_bcst_mem (bcst64_mode, tmp2))
+		{
+		  tmp2 = ix86_expand_ternlog (bcst64_mode,
+					      gen_lowpart (bcst64_mode, tmp0),
+					      gen_lowpart (bcst64_mode, tmp1),
+					      tmp2, idx, NULL_RTX);
+		  emit_move_insn (target, gen_lowpart (mode, tmp2));
+		  return target;
+		}
+	    }
+
 	  tmp2 = force_const_mem (mode, op2);
 	  rtx bcast = ix86_broadcast_from_constant (mode, tmp2);
 	  tmp2 = validize_mem (tmp2);

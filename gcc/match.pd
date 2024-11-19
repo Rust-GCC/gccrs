@@ -200,6 +200,13 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (match (maybe_bit_not @0)
  (bit_xor_cst@0 @1 @2))
 
+#if GIMPLE
+(match (maybe_truncate @0)
+ (convert @0)
+ (if (INTEGRAL_TYPE_P (type)
+      && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (@0)))))
+#endif
+
 /* Transform likes of (char) ABS_EXPR <(int) x> into (char) ABSU_EXPR <x>
    ABSU_EXPR returns unsigned absolute value of the operand and the operand
    of the ABSU_EXPR will have the corresponding signed type.  */
@@ -3137,17 +3144,27 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (cond^ (ne (imagpart (IFN_ADD_OVERFLOW:c @0 @1)) integer_zerop)
   integer_minus_onep (usadd_left_part_2 @0 @1)))
 
+/* Unsigned saturation add, case 7 (branch with le):
+   SAT_ADD = x <= (X + Y) ? (X + Y) : -1.  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (le @0 (usadd_left_part_1@2 @0 @1)) @2 integer_minus_onep))
+
+/* Unsigned saturation add, case 8 (branch with gt):
+   SAT_ADD = x > (X + Y) ? -1 : (X + Y).  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (gt @0 (usadd_left_part_1@2 @0 @1)) integer_minus_onep @2))
+
 /* Unsigned saturation sub, case 1 (branch with gt):
    SAT_U_SUB = X > Y ? X - Y : 0  */
 (match (unsigned_integer_sat_sub @0 @1)
- (cond (gt @0 @1) (minus @0 @1) integer_zerop)
+ (cond^ (gt @0 @1) (minus @0 @1) integer_zerop)
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
       && types_match (type, @0, @1))))
 
 /* Unsigned saturation sub, case 2 (branch with ge):
    SAT_U_SUB = X >= Y ? X - Y : 0.  */
 (match (unsigned_integer_sat_sub @0 @1)
- (cond (ge @0 @1) (minus @0 @1) integer_zerop)
+ (cond^ (ge @0 @1) (minus @0 @1) integer_zerop)
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
       && types_match (type, @0, @1))))
 
@@ -3162,6 +3179,34 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    SAT_U_SUB = (X - Y) * (X >= Y).  */
 (match (unsigned_integer_sat_sub @0 @1)
  (mult:c (minus @0 @1) (convert (ge @0 @1)))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 5 (branchless bit_and with .SUB_OVERFLOW).  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (bit_and:c (realpart (IFN_SUB_OVERFLOW@2 @0 @1))
+  (plus (imagpart @2) integer_minus_onep))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 6 (branchless mult with .SUB_OVERFLOW).  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (mult:c (realpart (IFN_SUB_OVERFLOW@2 @0 @1))
+  (bit_xor (imagpart @2) integer_onep))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 7 (branch eq with .SUB_OVERFLOW).  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (cond^ (eq (imagpart (IFN_SUB_OVERFLOW@2 @0 @1)) integer_zerop)
+  (realpart @2) integer_zerop)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 8 (branch ne with .SUB_OVERFLOW).  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (cond^ (ne (imagpart (IFN_SUB_OVERFLOW@2 @0 @1)) integer_zerop)
+   integer_zerop (realpart @2))
  (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
       && types_match (type, @0, @1))))
 

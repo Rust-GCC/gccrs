@@ -4768,6 +4768,14 @@ rs6000_option_override_internal (bool global_init_p)
 	targetm.expand_builtin_va_start = NULL;
     }
 
+  /* One of the late-combine passes runs after register allocation
+     and can match define_insn_and_splits that were previously used
+     only before register allocation.  Some of those define_insn_and_splits
+     use gen_reg_rtx unconditionally.  Disable late-combine by default
+     until the define_insn_and_splits are fixed.  */
+  if (!OPTION_SET_P (flag_late_combine_instructions))
+    flag_late_combine_instructions = 0;
+
   rs6000_override_options_after_change ();
 
   /* If not explicitly specified via option, decide whether to generate indexed
@@ -23450,8 +23458,8 @@ altivec_expand_vec_perm_const (rtx target, rtx op0, rtx op1,
 		      : CODE_FOR_altivec_vmrglh_direct,
      {0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghw_direct_v4si
-		      : CODE_FOR_altivec_vmrglw_direct_v4si,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrghw_direct_v4si_be
+		      : CODE_FOR_altivec_vmrglw_direct_v4si_le,
      {0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23}},
     {OPTION_MASK_ALTIVEC,
      BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglb_direct
@@ -23462,8 +23470,8 @@ altivec_expand_vec_perm_const (rtx target, rtx op0, rtx op1,
 		      : CODE_FOR_altivec_vmrghh_direct,
      {8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31}},
     {OPTION_MASK_ALTIVEC,
-     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglw_direct_v4si
-		      : CODE_FOR_altivec_vmrghw_direct_v4si,
+     BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglw_direct_v4si_be
+		      : CODE_FOR_altivec_vmrghw_direct_v4si_le,
      {8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31}},
     {OPTION_MASK_P8_VECTOR,
      BYTES_BIG_ENDIAN ? CODE_FOR_p8_vmrgew_v4sf_direct

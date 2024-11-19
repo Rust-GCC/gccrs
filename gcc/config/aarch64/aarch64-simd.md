@@ -377,8 +377,7 @@
 
 (define_insn "aarch64_rbit<mode><vczle><vczbe>"
   [(set (match_operand:VB 0 "register_operand" "=w")
-	(unspec:VB [(match_operand:VB 1 "register_operand" "w")]
-		   UNSPEC_RBIT))]
+	(bitreverse:VB (match_operand:VB 1 "register_operand" "w")))]
   "TARGET_SIMD"
   "rbit\\t%0.<Vbtype>, %1.<Vbtype>"
   [(set_attr "type" "neon_rbit")]
@@ -390,8 +389,8 @@
   "TARGET_SIMD"
   {
      emit_insn (gen_bswap<mode>2 (operands[0], operands[1]));
-     rtx op0_castsi2qi = simplify_gen_subreg(<VS:VSI2QI>mode, operands[0],
-					     <MODE>mode, 0);
+     rtx op0_castsi2qi = force_subreg (<VS:VSI2QI>mode, operands[0],
+				       <MODE>mode, 0);
      emit_insn (gen_aarch64_rbit<VS:vsi2qi> (op0_castsi2qi, op0_castsi2qi));
      emit_insn (gen_clz<mode>2 (operands[0], operands[0]));
      DONE;

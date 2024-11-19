@@ -633,6 +633,10 @@ package Einfo is
 --       the corresponding implicitly declared class-wide type. For a
 --       class-wide type, returns itself. Set to Empty for untagged types.
 
+--    Class_Wide_Equivalent_Type
+--       Defined in all type entities. Used to store an internally generated
+--       class-wide equivalent type for an associated mutably tagged type.
+
 --    Cloned_Subtype
 --       Defined in E_Record_Subtype and E_Class_Wide_Subtype entities.
 --       Each such entity can either have a Discriminant_Constraint, in
@@ -928,18 +932,17 @@ package Einfo is
 --       subtypes. Contains the Digits value specified in the declaration.
 
 --    Direct_Primitive_Operations
---       Defined in tagged types and subtypes (including synchronized types),
---       in tagged private types, and in tagged incomplete types. Moreover, it
---       is also defined for untagged types, both when Extensions_Allowed is
---       True (-gnatX) to support the extension feature of prefixed calls for
---       untagged types, and when Extensions_Allowed is False to get better
---       error messages. This field is an element list of entities for
---       primitive operations of the type. For incomplete types the list is
---       always empty. In order to follow the C++ ABI, entities of primitives
---       that come from source must be stored in this list in the order of
---       their occurrence in the sources. When expansion is disabled, the
---       corresponding record type of a synchronized type is not constructed.
---       In that case, such types carry this attribute directly.
+--       Defined in concurrent types, tagged record types and subtypes, tagged
+--       private types, and tagged incomplete types. Moreover, it is also
+--       defined in untagged types, both when GNAT extensions are allowed, to
+--       support prefixed calls for untagged types, and when GNAT extensions
+--       are not allowed, to give better error messages. Set to a list of
+--       entities for primitive operations of the type. For incomplete types
+--       the list is always empty. In order to follow the C++ ABI, entities of
+--       primitives that come from source must be stored in this list in the
+--       order of their occurrence in the sources. When expansion is disabled,
+--       the corresponding record type of concurrent types is not constructed;
+--       in this case, such types carry this attribute directly.
 
 --    Directly_Designated_Type
 --       Defined in access types. This field points to the type that is
@@ -1330,13 +1333,17 @@ package Einfo is
 --    First_Component (synthesized)
 --       Applies to incomplete, private, protected, record and task types.
 --       Returns the first component by following the chain of declared
---       entities for the type a component is found (one with an Ekind of
+--       entities for the type until a component is found (one with an Ekind of
 --       E_Component). The discriminants are skipped. If the record is null,
 --       then Empty is returned.
 
 --    First_Component_Or_Discriminant (synthesized)
 --       Similar to First_Component, but discriminants are not skipped, so will
 --       find the first discriminant if discriminants are present.
+
+--    First_Discriminant (synthesized)
+--       Defined for types with discriminants or unknown discriminants.
+--       Returns the first in the Next_Discriminant chain; see Sem_Aux.
 
 --    First_Entity
 --       Defined in all entities that act as scopes to which a list of
@@ -1371,12 +1378,11 @@ package Einfo is
 --    First_Index
 --       Defined in array types and subtypes. By introducing implicit subtypes
 --       for the index constraints, we have the same structure for constrained
---       and unconstrained arrays, subtype marks and discrete ranges are
---       both represented by a subtype. This function returns the tree node
---       corresponding to an occurrence of the first index (NOT the entity for
---       the type). Subsequent indices are obtained using Next_Index. Note that
---       this field is defined for the case of string literal subtypes, but is
---       always Empty.
+--       and unconstrained arrays, subtype marks and discrete ranges are both
+--       represented by a subtype. This function returns the N_Is_Index tree
+--       node corresponding to the first index (not an entity). Subsequent
+--       indices are obtained using Next_Index. Note that this field is defined
+--       for the case of string literal subtypes, but is always Empty.
 
 --    First_Literal
 --       Defined in all enumeration types, including character and boolean
@@ -2980,6 +2986,10 @@ package Einfo is
 --    Is_Modular_Integer_Type (synthesized)
 --       Applies to all entities. True if entity is a modular integer type
 
+--    Is_Mutably_Tagged_Type
+--       Defined in all type entities. Used to signify that a given type is a
+--       "mutably tagged" class-wide type where 'Size'Class has been specified.
+
 --    Is_Non_Static_Subtype
 --       Defined in all type and subtype entities. It is set in some (but not
 --       all) cases in which a subtype is known to be non-static. Before this
@@ -3741,13 +3751,11 @@ package Einfo is
 --       all the extra formals (see description of Extra_Formal field)
 
 --    Next_Index (synthesized)
---       Applies to array types and subtypes and to string types and
---       subtypes. Yields the next index. The first index is obtained by
---       using the First_Index attribute, and then subsequent indexes are
---       obtained by applying Next_Index to the previous index. Empty is
---       returned to indicate that there are no more indexes. Note that
---       unlike most attributes in this package, Next_Index applies to
---       nodes for the indexes, not to entities.
+--       Applies to the N_Is_Index node returned by First_Index/Next_Index;
+--       returns the next N_Is_Index node in the chain. Empty is returned to
+--       indicate that there are no more indexes. Note that unlike most
+--       attributes in this package, Next_Index applies to nodes for the
+--       indexes, not to entities.
 
 --    Next_Inlined_Subprogram
 --       Defined in subprograms. Used to chain inlined subprograms used in
@@ -4057,10 +4065,13 @@ package Einfo is
 
 --    Primitive_Operations (synthesized)
 --       Defined in concurrent types, tagged record types and subtypes, tagged
---       private types and tagged incomplete types. For concurrent types whose
---       Corresponding_Record_Type (CRT) is available, returns the list of
---       Direct_Primitive_Operations of its CRT; otherwise returns No_Elist.
---       For all the other types returns the Direct_Primitive_Operations.
+--       private types, and tagged incomplete types. Moreover, it is also
+--       defined in untagged types, both when GNAT extensions are allowed, to
+--       support prefixed calls for untagged types, and when GNAT extensions
+--       are not allowed, to give better error messages.  For concurrent types
+--       whose Corresponding_Record_Type (CRT) is available, returns the list
+--       of Direct_Primitive_Operations of this CRT. In all the other cases,
+--       returns the list of Direct_Primitive_Operations.
 
 --    Prival
 --       Defined in private components of protected types. Refers to the entity

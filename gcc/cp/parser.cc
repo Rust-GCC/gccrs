@@ -22852,28 +22852,18 @@ cp_parser_asm_string_expression (cp_parser *parser)
       tree string = cp_parser_constant_expression (parser);
       if (string != error_mark_node)
 	string = cxx_constant_value (string, tf_error);
-      if (TREE_CODE (string) == NOP_EXPR)
-	string = TREE_OPERAND (string, 0);
-      if (TREE_CODE (string) == ADDR_EXPR
-	  && TREE_CODE (TREE_OPERAND (string, 0)) == STRING_CST)
-	string = TREE_OPERAND (string, 0);
-      if (TREE_CODE (string) == VIEW_CONVERT_EXPR)
-	string = TREE_OPERAND (string, 0);
       cexpr_str cstr (string);
       if (!cstr.type_check (tok->location))
 	return error_mark_node;
-      const char *msg;
-      int len;
-      if (!cstr.extract (tok->location, msg, len))
-	return error_mark_node;
+      if (!cstr.extract (tok->location, string))
+	string = error_mark_node;
       parens.require_close (parser);
-      string = build_string (len, msg);
       return string;
     }
   else if (!cp_parser_is_string_literal (tok))
     {
       error_at (tok->location,
-		"expected string-literal or constexpr in brackets");
+		"expected string-literal or constexpr in parentheses");
       return error_mark_node;
     }
   return cp_parser_string_literal (parser, false, false);
@@ -31535,6 +31525,8 @@ cp_parser_constraint_primary_expression (cp_parser *parser, bool lambda_p)
     }
   if (pce == pce_ok)
     {
+      if (idk == CP_ID_KIND_UNQUALIFIED && identifier_p (expr))
+	expr = unqualified_name_lookup_error (expr);
       cp_lexer_commit_tokens (parser->lexer);
       return finish_constraint_primary_expr (expr);
     }

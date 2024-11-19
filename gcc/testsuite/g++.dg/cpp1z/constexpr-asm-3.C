@@ -1,22 +1,24 @@
 /* { dg-do compile } */
-/* { dg-options "-std=gnu++11" } */
+/* { dg-options "-std=gnu++17" } */
 
-constexpr const char *genfoo ()
+#include <string>
+
+constexpr std::string_view genfoo ()
 {
   return "foo %1,%0";
 }
 
-constexpr const char *genoutput ()
+constexpr std::string_view genoutput ()
 {
   return "=r";
 }
 
-constexpr const char *geninput ()
+constexpr std::string_view geninput ()
 {
   return "r";
 }
 
-constexpr const char *genclobber ()
+constexpr std::string_view genclobber ()
 {
   return "memory";
 }
@@ -24,7 +26,7 @@ constexpr const char *genclobber ()
 void f()
 {
   int a;
-  asm(genfoo () : /* { dg-error "expected string-literal or constexpr in brackets" } */
+  asm(genfoo () : /* { dg-error "expected string-literal or constexpr in parentheses" } */
       genoutput() (a) :
       geninput() (1) :
       genclobber());

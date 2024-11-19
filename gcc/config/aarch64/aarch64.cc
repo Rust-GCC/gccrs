@@ -3288,7 +3288,7 @@ aarch64_sve_reinterpret (machine_mode mode, rtx x)
   /* can_change_mode_class must only return true if subregs and svreinterprets
      have the same semantics.  */
   if (targetm.can_change_mode_class (GET_MODE (x), mode, FP_REGS))
-    return lowpart_subreg (mode, x, GET_MODE (x));
+    return force_lowpart_subreg (mode, x, GET_MODE (x));
 
   rtx res = gen_reg_rtx (mode);
   x = force_reg (GET_MODE (x), x);
@@ -14690,6 +14690,7 @@ cost_plus:
 	return true;
       }
 
+    case BITREVERSE:
     case BSWAP:
       *cost = COSTS_N_INSNS (1);
 
@@ -15336,14 +15337,6 @@ cost_plus:
         {
           if (speed)
             *cost += extra_cost->fp[mode == DFmode].roundint;
-
-          return false;
-        }
-
-      if (XINT (x, 1) == UNSPEC_RBIT)
-        {
-          if (speed)
-            *cost += extra_cost->alu.rev;
 
           return false;
         }
@@ -26877,22 +26870,14 @@ aarch64_addti_scratch_regs (rtx op1, rtx op2, rtx *low_dest,
 			    rtx *high_in2)
 {
   *low_dest = gen_reg_rtx (DImode);
-  *low_in1 = gen_lowpart (DImode, op1);
-  *low_in2 = simplify_gen_subreg (DImode, op2, TImode,
-				  subreg_lowpart_offset (DImode, TImode));
+  *low_in1 = force_lowpart_subreg (DImode, op1, TImode);
+  *low_in2 = force_lowpart_subreg (DImode, op2, TImode);
   *high_dest = gen_reg_rtx (DImode);
-  *high_in1 = gen_highpart (DImode, op1);
-  *high_in2 = simplify_gen_subreg (DImode, op2, TImode,
-				   subreg_highpart_offset (DImode, TImode));
+  *high_in1 = force_highpart_subreg (DImode, op1, TImode);
+  *high_in2 = force_highpart_subreg (DImode, op2, TImode);
 }
 
 /* Generate DImode scratch registers for 128-bit (TImode) subtraction.
-
-   This function differs from 'arch64_addti_scratch_regs' in that
-   OP1 can be an immediate constant (zero). We must call
-   subreg_highpart_offset with DImode and TImode arguments, otherwise
-   VOIDmode will be used for the const_int which generates an internal
-   error from subreg_size_highpart_offset which does not expect a size of zero.
 
    OP1 represents the TImode destination operand 1
    OP2 represents the TImode destination operand 2
@@ -26911,17 +26896,12 @@ aarch64_subvti_scratch_regs (rtx op1, rtx op2, rtx *low_dest,
 			     rtx *high_in2)
 {
   *low_dest = gen_reg_rtx (DImode);
-  *low_in1 = simplify_gen_subreg (DImode, op1, TImode,
-				  subreg_lowpart_offset (DImode, TImode));
-
-  *low_in2 = simplify_gen_subreg (DImode, op2, TImode,
-				  subreg_lowpart_offset (DImode, TImode));
+  *low_in1 = force_lowpart_subreg (DImode, op1, TImode);
+  *low_in2 = force_lowpart_subreg (DImode, op2, TImode);
   *high_dest = gen_reg_rtx (DImode);
 
-  *high_in1 = simplify_gen_subreg (DImode, op1, TImode,
-				   subreg_highpart_offset (DImode, TImode));
-  *high_in2 = simplify_gen_subreg (DImode, op2, TImode,
-				   subreg_highpart_offset (DImode, TImode));
+  *high_in1 = force_highpart_subreg (DImode, op1, TImode);
+  *high_in2 = force_highpart_subreg (DImode, op2, TImode);
 }
 
 /* Generate RTL for 128-bit (TImode) subtraction with overflow.

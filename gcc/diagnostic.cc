@@ -44,6 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cpplib.h"
 #include "text-art/theme.h"
 #include "pretty-print-urlifier.h"
+#include "logical-location.h"
 
 #ifdef HAVE_TERMIOS_H
 # include <termios.h>
@@ -342,8 +343,8 @@ diagnostic_context::urls_init (int value)
 	value = DIAGNOSTICS_URLS_DEFAULT;
     }
 
-  this->printer->url_format
-    = determine_url_format ((diagnostic_url_rule_t) value);
+  this->printer->set_url_format
+    (determine_url_format ((diagnostic_url_rule_t) value));
 }
 
 /* Create the file_cache, if not already created, and tell it how to
@@ -588,6 +589,14 @@ static const char *const diagnostic_kind_text[] = {
 #undef DEFINE_DIAGNOSTIC_KIND
   "must-not-happen"
 };
+
+/* Get unlocalized string describing KIND.  */
+
+const char *
+get_diagnostic_kind_text (diagnostic_t kind)
+{
+  return diagnostic_kind_text[kind];
+}
 
 /* Return a malloc'd string describing a location and the severity of the
    diagnostic, e.g. "foo.c:42:10: error: ".  The caller is responsible for
@@ -914,166 +923,33 @@ diagnostic_context::show_any_path (const diagnostic_info &diagnostic)
   if (!path)
     return;
 
-  if (m_print_path)
-    m_print_path (this, path);
+  print_path (path);
 }
 
-/* class diagnostic_event.  */
+/* class logical_location.  */
 
-/* struct diagnostic_event::meaning.  */
-
-void
-diagnostic_event::meaning::dump_to_pp (pretty_printer *pp) const
-{
-  bool need_comma = false;
-  pp_character (pp, '{');
-  if (const char *verb_str = maybe_get_verb_str (m_verb))
-    {
-      pp_printf (pp, "verb: %qs", verb_str);
-      need_comma = true;
-    }
-  if (const char *noun_str = maybe_get_noun_str (m_noun))
-    {
-      if (need_comma)
-	pp_string (pp, ", ");
-      pp_printf (pp, "noun: %qs", noun_str);
-      need_comma = true;
-    }
-  if (const char *property_str = maybe_get_property_str (m_property))
-    {
-      if (need_comma)
-	pp_string (pp, ", ");
-      pp_printf (pp, "property: %qs", property_str);
-      need_comma = true;
-    }
-  pp_character (pp, '}');
-}
-
-/* Get a string (or NULL) for V suitable for use within a SARIF
-   threadFlowLocation "kinds" property (SARIF v2.1.0 section 3.38.8).  */
-
-const char *
-diagnostic_event::meaning::maybe_get_verb_str (enum verb v)
-{
-  switch (v)
-    {
-    default:
-      gcc_unreachable ();
-    case VERB_unknown:
-      return NULL;
-    case VERB_acquire:
-      return "acquire";
-    case VERB_release:
-      return "release";
-    case VERB_enter:
-      return "enter";
-    case VERB_exit:
-      return "exit";
-    case VERB_call:
-      return "call";
-    case VERB_return:
-      return "return";
-    case VERB_branch:
-      return "branch";
-    case VERB_danger:
-      return "danger";
-    }
-}
-
-/* Get a string (or NULL) for N suitable for use within a SARIF
-   threadFlowLocation "kinds" property (SARIF v2.1.0 section 3.38.8).  */
-
-const char *
-diagnostic_event::meaning::maybe_get_noun_str (enum noun n)
-{
-  switch (n)
-    {
-    default:
-      gcc_unreachable ();
-    case NOUN_unknown:
-      return NULL;
-    case NOUN_taint:
-      return "taint";
-    case NOUN_sensitive:
-      return "sensitive";
-    case NOUN_function:
-      return "function";
-    case NOUN_lock:
-      return "lock";
-    case NOUN_memory:
-      return "memory";
-    case NOUN_resource:
-      return "resource";
-    }
-}
-
-/* Get a string (or NULL) for P suitable for use within a SARIF
-   threadFlowLocation "kinds" property (SARIF v2.1.0 section 3.38.8).  */
-
-const char *
-diagnostic_event::meaning::maybe_get_property_str (enum property p)
-{
-  switch (p)
-    {
-    default:
-      gcc_unreachable ();
-    case PROPERTY_unknown:
-      return NULL;
-    case PROPERTY_true:
-      return "true";
-    case PROPERTY_false:
-      return "false";
-    }
-}
-
-/* class diagnostic_path.  */
-
-/* Subroutint of diagnostic_path::interprocedural_p.
-   Look for the first event in this path that is within a function
-   i.e. has a non-NULL fndecl, and a non-zero stack depth.
-   If found, write its index to *OUT_IDX and return true.
-   Otherwise return false.  */
+/* Return true iff this is a function or method.  */
 
 bool
-diagnostic_path::get_first_event_in_a_function (unsigned *out_idx) const
+logical_location::function_p () const
 {
-  const unsigned num = num_events ();
-  for (unsigned i = 0; i < num; i++)
+  switch (get_kind ())
     {
-      if (!(get_event (i).get_fndecl () == NULL
-	    && get_event (i).get_stack_depth () == 0))
-	{
-	  *out_idx = i;
-	  return true;
-	}
+    default:
+      gcc_unreachable ();
+    case LOGICAL_LOCATION_KIND_UNKNOWN:
+    case LOGICAL_LOCATION_KIND_MODULE:
+    case LOGICAL_LOCATION_KIND_NAMESPACE:
+    case LOGICAL_LOCATION_KIND_TYPE:
+    case LOGICAL_LOCATION_KIND_RETURN_TYPE:
+    case LOGICAL_LOCATION_KIND_PARAMETER:
+    case LOGICAL_LOCATION_KIND_VARIABLE:
+      return false;
+
+    case LOGICAL_LOCATION_KIND_FUNCTION:
+    case LOGICAL_LOCATION_KIND_MEMBER:
+      return true;
     }
-  return false;
-}
-
-/* Return true if the events in this path involve more than one
-   function, or false if it is purely intraprocedural.  */
-
-bool
-diagnostic_path::interprocedural_p () const
-{
-  /* Ignore leading events that are outside of any function.  */
-  unsigned first_fn_event_idx;
-  if (!get_first_event_in_a_function (&first_fn_event_idx))
-    return false;
-
-  const diagnostic_event &first_fn_event = get_event (first_fn_event_idx);
-  tree first_fndecl = first_fn_event.get_fndecl ();
-  int first_fn_stack_depth = first_fn_event.get_stack_depth ();
-
-  const unsigned num = num_events ();
-  for (unsigned i = first_fn_event_idx + 1; i < num; i++)
-    {
-      if (get_event (i).get_fndecl () != first_fndecl)
-	return true;
-      if (get_event (i).get_stack_depth () != first_fn_stack_depth)
-	return true;
-    }
-  return false;
 }
 
 void
@@ -1354,7 +1230,7 @@ diagnostic_context::print_any_cwe (const diagnostic_info &diagnostic)
       pp_string (pp, " [");
       pp_string (pp, colorize_start (pp_show_color (pp),
 				     diagnostic_kind_color[diagnostic.kind]));
-      if (pp->url_format != URL_FORMAT_NONE)
+      if (pp->supports_urls_p ())
 	{
 	  char *cwe_url = get_cwe_url (cwe);
 	  pp_begin_url (pp, cwe_url);
@@ -1362,7 +1238,7 @@ diagnostic_context::print_any_cwe (const diagnostic_info &diagnostic)
 	}
       pp_printf (pp, "CWE-%i", cwe);
       pp_set_prefix (pp, saved_prefix);
-      if (pp->url_format != URL_FORMAT_NONE)
+      if (pp->supports_urls_p ())
 	pp_end_url (pp);
       pp_string (pp, colorize_stop (pp_show_color (pp)));
       pp_character (pp, ']');
@@ -1394,7 +1270,7 @@ diagnostic_context::print_any_rules (const diagnostic_info &diagnostic)
 		     colorize_start (pp_show_color (pp),
 				     diagnostic_kind_color[diagnostic.kind]));
 	  char *url = NULL;
-	  if (pp->url_format != URL_FORMAT_NONE)
+	  if (pp->supports_urls_p ())
 	    {
 	      url = rule.make_url ();
 	      if (url)
@@ -1402,7 +1278,7 @@ diagnostic_context::print_any_rules (const diagnostic_info &diagnostic)
 	    }
 	  pp_string (pp, desc);
 	  pp_set_prefix (pp, saved_prefix);
-	  if (pp->url_format != URL_FORMAT_NONE)
+	  if (pp->supports_urls_p ())
 	    if (url)
 	      pp_end_url (pp);
 	  free (url);
@@ -1425,7 +1301,7 @@ diagnostic_context::print_option_information (const diagnostic_info &diagnostic,
 					    orig_diag_kind, diagnostic.kind))
     {
       char *option_url = nullptr;
-      if (this->printer->url_format != URL_FORMAT_NONE)
+      if (this->printer->supports_urls_p ())
 	option_url = make_option_url (diagnostic.option_index);
       pretty_printer * const pp = this->printer;
       pp_string (pp, " [");
@@ -2515,165 +2391,6 @@ set_text_art_charset (enum diagnostic_text_art_charset charset)
       m_diagrams.m_theme = new text_art::emoji_theme ();
       break;
     }
-}
-
-/* class simple_diagnostic_path : public diagnostic_path.  */
-
-simple_diagnostic_path::simple_diagnostic_path (pretty_printer *event_pp)
-: m_event_pp (event_pp),
-  m_localize_events (true)
-{
-  add_thread ("main");
-}
-
-/* Implementation of diagnostic_path::num_events vfunc for
-   simple_diagnostic_path: simply get the number of events in the vec.  */
-
-unsigned
-simple_diagnostic_path::num_events () const
-{
-  return m_events.length ();
-}
-
-/* Implementation of diagnostic_path::get_event vfunc for
-   simple_diagnostic_path: simply return the event in the vec.  */
-
-const diagnostic_event &
-simple_diagnostic_path::get_event (int idx) const
-{
-  return *m_events[idx];
-}
-
-unsigned
-simple_diagnostic_path::num_threads () const
-{
-  return m_threads.length ();
-}
-
-const diagnostic_thread &
-simple_diagnostic_path::get_thread (diagnostic_thread_id_t idx) const
-{
-  return *m_threads[idx];
-}
-
-diagnostic_thread_id_t
-simple_diagnostic_path::add_thread (const char *name)
-{
-  m_threads.safe_push (new simple_diagnostic_thread (name));
-  return m_threads.length () - 1;
-}
-
-/* Add an event to this path at LOC within function FNDECL at
-   stack depth DEPTH.
-
-   Use m_context's printer to format FMT, as the text of the new
-   event.  Localize FMT iff m_localize_events is set.
-
-   Return the id of the new event.  */
-
-diagnostic_event_id_t
-simple_diagnostic_path::add_event (location_t loc, tree fndecl, int depth,
-				   const char *fmt, ...)
-{
-  pretty_printer *pp = m_event_pp;
-  pp_clear_output_area (pp);
-
-  rich_location rich_loc (line_table, UNKNOWN_LOCATION);
-
-  va_list ap;
-
-  va_start (ap, fmt);
-
-  text_info ti (m_localize_events ? _(fmt) : fmt,
-		&ap, 0, nullptr, &rich_loc);
-  pp_format (pp, &ti);
-  pp_output_formatted_text (pp);
-
-  va_end (ap);
-
-  simple_diagnostic_event *new_event
-    = new simple_diagnostic_event (loc, fndecl, depth, pp_formatted_text (pp));
-  m_events.safe_push (new_event);
-
-  pp_clear_output_area (pp);
-
-  return diagnostic_event_id_t (m_events.length () - 1);
-}
-
-diagnostic_event_id_t
-simple_diagnostic_path::add_thread_event (diagnostic_thread_id_t thread_id,
-					  location_t loc,
-					  tree fndecl,
-					  int depth,
-					  const char *fmt, ...)
-{
-  pretty_printer *pp = m_event_pp;
-  pp_clear_output_area (pp);
-
-  rich_location rich_loc (line_table, UNKNOWN_LOCATION);
-
-  va_list ap;
-
-  va_start (ap, fmt);
-
-  text_info ti (_(fmt), &ap, 0, nullptr, &rich_loc);
-
-  pp_format (pp, &ti);
-  pp_output_formatted_text (pp);
-
-  va_end (ap);
-
-  simple_diagnostic_event *new_event
-    = new simple_diagnostic_event (loc, fndecl, depth, pp_formatted_text (pp),
-				   thread_id);
-  m_events.safe_push (new_event);
-
-  pp_clear_output_area (pp);
-
-  return diagnostic_event_id_t (m_events.length () - 1);
-}
-
-/* Mark the most recent event on this path (which must exist) as being
-   connected to the next one to be added.  */
-
-void
-simple_diagnostic_path::connect_to_next_event ()
-{
-  gcc_assert (m_events.length () > 0);
-  m_events[m_events.length () - 1]->connect_to_next_event ();
-}
-
-/* struct simple_diagnostic_event.  */
-
-/* simple_diagnostic_event's ctor.  */
-
-simple_diagnostic_event::
-simple_diagnostic_event (location_t loc,
-			 tree fndecl,
-			 int depth,
-			 const char *desc,
-			 diagnostic_thread_id_t thread_id)
-: m_loc (loc), m_fndecl (fndecl), m_depth (depth), m_desc (xstrdup (desc)),
-  m_connected_to_next_event (false),
-  m_thread_id (thread_id)
-{
-}
-
-/* simple_diagnostic_event's dtor.  */
-
-simple_diagnostic_event::~simple_diagnostic_event ()
-{
-  free (m_desc);
-}
-
-/* Print PATH by emitting a dummy "note" associated with it.  */
-
-DEBUG_FUNCTION
-void debug (diagnostic_path *path)
-{
-  rich_location richloc (line_table, UNKNOWN_LOCATION);
-  richloc.set_path (path);
-  inform (&richloc, "debug path");
 }
 
 /* Really call the system 'abort'.  This has to go right at the end of

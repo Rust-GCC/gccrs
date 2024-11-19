@@ -37,8 +37,9 @@ file, or in a ``.adc`` file corresponding to your project.
 
 .. attention:: You can activate the extended set of extensions by using either
    the ``-gnatX0`` command line flag, or the pragma ``Extensions_Allowed`` with
-   ``All`` as an argument. However, it is not recommended you use this subset
-   for serious projects, and is only means as a playground/technology preview.
+   ``All_Extensions`` as an argument. However, it is not recommended you use
+   this subset for serious projects; it is only meant as a technology preview
+   for use in playground experiments.
 
 .. _Curated_Language_Extensions:
 
@@ -355,8 +356,8 @@ particular the ``Shift_Left`` and ``Shift_Right`` intrinsics.
 Experimental Language Extensions
 ================================
 
-Pragma Storage_Model
---------------------
+Storage Model
+-------------
 
 This feature proposes to redesign the concepts of Storage Pools into a more
 efficient model allowing higher performances and easier integration with low
@@ -367,6 +368,33 @@ support interactions with GPU.
 
 Here is a link to the full RFC:
 https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-storage-model.rst
+
+Attribute Super
+---------------
+.. index:: Super
+
+The ``Super`` attribute can be applied to objects of tagged types in order
+to obtain a view conversion to the most immediate specific parent type.
+
+It cannot be applied to objects of types without any ancestors, or types whose
+immediate parent is abstract.
+
+.. code-block:: ada
+
+  type T1 is tagged null record;
+  procedure P (V : T1);
+
+  type T2 is new T1 with null record;
+  procedure P (V : T2);
+
+  procedure Call (V : T2'Class) is
+  begin
+    V'Super.P; --  Equivalent to "P (T1 (V));", a nondispatching call
+               --  to T1's primitive procedure P.
+  end;
+
+Here is a link to the full RFC:
+https://github.com/QuentinOchem/ada-spark-rfcs/blob/oop/considered/rfc-oop-super.rst
 
 Simpler accessibility model
 ---------------------------
@@ -496,3 +524,41 @@ case statement with composite selector type".
 
 Link to the original RFC:
 https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-pattern-matching.rst
+
+Mutably Tagged Types with Size'Class Aspect
+-------------------------------------------
+
+The `Size'Class` aspect can be applied to a tagged type to specify a size
+constraint for the type and its descendants. When this aspect is specified
+on a tagged type, the class-wide type of that type is considered to be a
+"mutably tagged" type - meaning that objects of the class-wide type can have
+their tag changed by assignment from objects with a different tag.
+
+When the aspect is applied to a type, the size of each of its descendant types
+must not exceed the size specified for the aspect.
+
+Example:
+
+.. code-block:: ada
+
+    type Base is tagged null record
+        with Size'Class => 16 * 8;  -- Size in bits (128 bits, or 16 bytes)
+
+    type Derived_Type is new Base with record
+       Data_Field : Integer;
+    end record;  -- ERROR if Derived_Type exceeds 16 bytes
+
+Class-wide types with a specified `Size'Class` can be used as the type of
+array components, record components, and stand-alone objects.
+
+.. code-block:: ada
+
+    Inst : Base'Class;
+    type Array_of_Base is array (Positive range <>) of Base'Class;
+
+Note: Legality of the `Size'Class` aspect is subject to certain restrictions on
+the tagged type, such as being undiscriminated, having no dynamic composite
+subcomponents, among others detailed in the RFC.
+
+Link to the original RFC:
+https://github.com/AdaCore/ada-spark-rfcs/blob/topic/rfc-finally/considered/rfc-class-size.md

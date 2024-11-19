@@ -207,13 +207,6 @@ procedure Gnat1drv is
          Error_To_Warning := True;
       end if;
 
-      --  -gnatdJ sets Include_Subprogram_In_Messages, adding the related
-      --  subprogram as part of the error and warning messages.
-
-      if Debug_Flag_JJ then
-         Include_Subprogram_In_Messages := True;
-      end if;
-
       --  Disable CodePeer_Mode in Check_Syntax, since we need front-end
       --  expansion.
 
@@ -1533,6 +1526,8 @@ begin
             Check_Rep_Info;
          end if;
 
+         pragma Annotate (Xcov, Dump_Buffers);
+
          return;
       end if;
 
@@ -1686,6 +1681,8 @@ begin
       Atree.Print_Statistics;
    end if;
 
+   pragma Annotate (Xcov, Dump_Buffers);
+
 --  The outer exception handler handles an unrecoverable error
 
 exception
@@ -1700,6 +1697,9 @@ exception
       Set_Standard_Output;
       Source_Dump;
       Tree_Dump;
+
+      pragma Annotate (Xcov, Dump_Buffers);
+
       Exit_Program (E_Errors);
 
 end Gnat1drv;

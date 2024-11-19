@@ -583,6 +583,8 @@ private:
 		   pretty_printer *pp,
 		   diagnostic_source_effect_info *effect_info);
 
+  void print_path (const diagnostic_path *path);
+
   /* Data members.
      Ideally, all of these would be private and have "m_" prefixes.  */
 
@@ -712,10 +714,6 @@ private:
   urlifier *m_urlifier;
 
 public:
-  void (*m_print_path) (diagnostic_context *, const diagnostic_path *);
-  json::value *(*m_make_json_for_path) (diagnostic_context *,
-					const diagnostic_path *);
-
   /* Auxiliary data for client.  */
   void *m_client_aux_data;
 
@@ -842,10 +840,10 @@ diagnostic_finalizer (diagnostic_context *context)
 #define diagnostic_info_auxiliary_data(DI) (DI)->x_data
 
 /* Same as pp_format_decoder.  Works on 'diagnostic_context *'.  */
-#define diagnostic_format_decoder(DC) ((DC)->printer->format_decoder)
+#define diagnostic_format_decoder(DC) pp_format_decoder ((DC)->printer)
 
-/* Same as output_prefixing_rule.  Works on 'diagnostic_context *'.  */
-#define diagnostic_prefixing_rule(DC) ((DC)->printer->wrapping.rule)
+/* Same as pp_prefixing_rule.  Works on 'diagnostic_context *'.  */
+#define diagnostic_prefixing_rule(DC) pp_prefixing_rule ((DC)->printer)
 
 /* Raise SIGABRT on any diagnostic of severity DK_ERROR or higher.  */
 inline void
@@ -1122,5 +1120,7 @@ option_unspecified_p (int opt)
 }
 
 extern char *get_cwe_url (int cwe);
+
+extern const char *get_diagnostic_kind_text (diagnostic_t kind);
 
 #endif /* ! GCC_DIAGNOSTIC_H */
