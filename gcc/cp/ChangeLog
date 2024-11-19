@@ -1,3 +1,131 @@
+2024-04-05  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/111132
+	* constexpr.cc (get_function_named_in_call): Use
+	cp_get_fndecl_from_callee.
+	* cvt.cc (cp_get_fndecl_from_callee): If there's a
+	DECL_LOCAL_DECL_ALIAS, use it.
+
+2024-04-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114572
+	* cp-gimplify.cc (cxx_omp_clause_apply_fn): Call build_cplus_new
+	on build_call_a result if it has class type.
+
+2024-04-04  centurion  <centurion009@proton.me>
+
+	PR c++/114377
+	* pt.cc (find_template_parameter_info::found): Use TREE_TYPE for
+	TEMPLATE_DECL instead of DECL_INITIAL.
+
+2024-04-02  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/114479
+	* semantics.cc (trait_expr_value) <case CPTK_IS_ARRAY>: Return false
+	for zero-sized arrays.
+
+2024-04-02  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/103825
+	* typeck.cc (is_bitfield_expr_with_lowered_type): Handle
+	CLEANUP_POINT_EXPR.
+
+2024-04-02  Jason Merrill  <jason@redhat.com>
+
+	PR c++/114561
+	PR c++/114562
+	* call.cc (convert_like_internal): Avoid adding qualification
+	conversion in direct reference binding.
+
+2024-04-01  Jason Merrill  <jason@redhat.com>
+
+	* typeck.cc (maybe_warn_about_returning_address_of_local):
+	Permerror in C++26.
+
+2024-03-28  Jason Merrill  <jason@redhat.com>
+
+	PR c++/100667
+	* semantics.cc (same_type_ref_bind_p): New.
+	(finish_trait_expr): Use it.
+
+2024-03-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/112724
+	* error.cc (dump_expr): Handle EXCESS_PRECISION_EXPR like NOP_EXPR.
+
+2024-03-25  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/114349
+	* name-lookup.cc (maybe_push_to_top_level): For a non-lambda,
+	don't push to top level if decl_function_context is non-null.
+	* pt.cc (maybe_instantiate_noexcept): Use maybe_push_to_top_level.
+
+2024-03-25  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/114439
+	* init.cc (can_init_array_with_p): Return true for a VEC_INIT_EXPR
+	wrapped in a TARGET_EXPR.
+
+2024-03-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/59465
+	* init.cc (can_init_array_with_p): New.
+	(perform_member_init): Check it.
+
+2024-03-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/110323
+	* decl2.cc (min_vis_expr_r) <case VAR_DECL>: Do nothing for
+	decl_constant_var_p VAR_DECLs.
+
+2024-03-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* coroutines.cc (expand_one_await_expression): Use
+	integer_zero_node instead of build_int_cst (integer_type_node, 0)
+	and integer_one_node instead of build_int_cst (integer_type_node, 1).
+
+2024-03-19  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	* cp-tree.h (module_maybe_has_cmi_p): New function.
+	* decl.cc (grokfndecl): Mark block-scope functions as public if
+	they could be visible in other TUs.
+	* decl2.cc (no_linkage_error): Don't error for declarations that
+	could be defined in other TUs since C++20. Suppress duplicate
+	errors from 'check_global_declaration'.
+	* tree.cc (no_linkage_check): In relaxed mode, don't consider
+	types in a module CMI to have no linkage.
+
+2024-03-16  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/112631
+	* cp-tree.h (named_module_attach_p): New function.
+	* decl.cc (start_decl): Check for attachment not purview.
+	(grokmethod): Likewise.
+
+2024-03-14  Chung-Lin Tang  <cltang@baylibre.com>
+
+	* parser.cc (cp_parser_oacc_data_clause): Add parsing support for
+	'readonly' modifier, set OMP_CLAUSE_MAP_READONLY if readonly modifier
+	found, update comments.
+	(cp_parser_oacc_cache): Add parsing support for 'readonly' modifier,
+	set OMP_CLAUSE__CACHE__READONLY if readonly modifier found, update
+	comments.
+
+2024-03-12  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/98645
+	PR c++/98688
+	PR c++/111224
+	* module.cc (enum tree_tag): Add new tag for builtin types.
+	(trees_out::start): POLY_INT_CSTs can be emitted.
+	(trees_in::start): Likewise.
+	(trees_out::core_vals): Stream POLY_INT_CSTs.
+	(trees_in::core_vals): Likewise.
+	(trees_out::type_node): Handle vectors with multiple coeffs.
+	(trees_in::tree_node): Likewise.
+	(init_modules): Register target-specific builtin types. Bump
+	initial capacity slightly.
+
 2024-03-08  Jakub Jelinek  <jakub@redhat.com>
 
 	* pt.cc (tsubst_expr): Handle MEM_REF.

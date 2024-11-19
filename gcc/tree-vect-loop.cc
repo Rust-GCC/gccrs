@@ -9197,6 +9197,28 @@ vectorizable_recurr (loop_vec_info loop_vinfo, stmt_vec_info stmt_info,
 		return false;
 	      }
 	}
+
+      /* Verify we have set up compatible types.  */
+      edge le = loop_latch_edge (LOOP_VINFO_LOOP (loop_vinfo));
+      tree latch_vectype = NULL_TREE;
+      if (slp_node)
+	{
+	  slp_tree latch_def = SLP_TREE_CHILDREN (slp_node)[le->dest_idx];
+	  latch_vectype = SLP_TREE_VECTYPE (latch_def);
+	}
+      else
+	{
+	  tree latch_def = PHI_ARG_DEF_FROM_EDGE (phi, le);
+	  if (TREE_CODE (latch_def) == SSA_NAME)
+	    {
+	      stmt_vec_info latch_def_info = loop_vinfo->lookup_def (latch_def);
+	      latch_def_info = vect_stmt_to_vectorize (latch_def_info);
+	      latch_vectype = STMT_VINFO_VECTYPE (latch_def_info);
+	    }
+	}
+      if (!types_compatible_p (latch_vectype, vectype))
+	return false;
+
       /* The recurrence costs the initialization vector and one permute
 	 for each copy.  */
       unsigned prologue_cost = record_stmt_cost (cost_vec, 1, scalar_to_vec,
@@ -9454,7 +9476,7 @@ vect_peel_nonlinear_iv_init (gimple_seq* stmts, tree init_expr,
 	wi::to_mpz (skipn, exp, UNSIGNED);
 	mpz_ui_pow_ui (mod, 2, TYPE_PRECISION (type));
 	mpz_powm (res, base, exp, mod);
-	begin = wi::from_mpz (type, res, TYPE_SIGN (type));
+	begin = wi::from_mpz (utype, res, true);
 	tree mult_expr = wide_int_to_tree (utype, begin);
 	init_expr = gimple_build (stmts, MULT_EXPR, utype,
 				  init_expr, mult_expr);
@@ -10729,17 +10751,18 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
 	 block, but we have to find an alternate exit first.  */
       if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo))
 	{
+	  slp_tree phis_node = slp_node ? slp_node_instance->reduc_phis : NULL;
 	  for (auto exit : get_loop_exit_edges (LOOP_VINFO_LOOP (loop_vinfo)))
 	    if (exit != LOOP_VINFO_IV_EXIT (loop_vinfo))
 	      {
 		vect_create_epilog_for_reduction (loop_vinfo, reduc_info,
-						  slp_node, slp_node_instance,
+						  phis_node, slp_node_instance,
 						  exit);
 		break;
 	      }
 	  if (LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo))
-	    vect_create_epilog_for_reduction (loop_vinfo, reduc_info, slp_node,
-					      slp_node_instance,
+	    vect_create_epilog_for_reduction (loop_vinfo, reduc_info,
+					      phis_node, slp_node_instance,
 					      LOOP_VINFO_IV_EXIT (loop_vinfo));
 	}
 
@@ -10939,8 +10962,8 @@ vectorizable_live_operation (vec_info *vinfo, stmt_vec_info stmt_info,
 						 lhs_type, &exit_gsi);
 
 	      auto gsi = gsi_for_stmt (use_stmt);
-	      remove_phi_node (&gsi, false);
 	      tree lhs_phi = gimple_phi_result (use_stmt);
+	      remove_phi_node (&gsi, false);
 	      gimple *copy = gimple_build_assign (lhs_phi, new_tree);
 	      gsi_insert_before (&exit_gsi, copy, GSI_SAME_STMT);
 	      break;
@@ -11567,9 +11590,7 @@ find_in_mapping (tree t, void *context)
    corresponding dr_vec_info need to be reconnected to the EPILOGUE's
    stmt_vec_infos, their statements need to point to their corresponding copy,
    if they are gather loads or scatter stores then their reference needs to be
-   updated to point to its corresponding copy and finally we set
-   'base_misaligned' to false as we have already peeled for alignment in the
-   prologue of the main loop.  */
+   updated to point to its corresponding copy.  */
 
 static void
 update_epilogue_loop_vinfo (class loop *epilogue, tree advance)
@@ -11713,10 +11734,6 @@ update_epilogue_loop_vinfo (class loop *epilogue, tree advance)
 	}
       DR_STMT (dr) = STMT_VINFO_STMT (stmt_vinfo);
       stmt_vinfo->dr_aux.stmt = stmt_vinfo;
-      /* The vector size of the epilogue is smaller than that of the main loop
-	 so the alignment is either the same or lower. This means the dr will
-	 thus by definition be aligned.  */
-      STMT_VINFO_DR_INFO (stmt_vinfo)->base_misaligned = false;
     }
 
   epilogue_vinfo->shared->datarefs_copy.release ();

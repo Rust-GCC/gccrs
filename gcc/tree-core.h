@@ -993,9 +993,11 @@ enum clobber_kind {
   CLOBBER_UNDEF,
   /* Beginning of storage duration, e.g. malloc.  */
   CLOBBER_STORAGE_BEGIN,
-  /* Beginning of object lifetime, e.g. C++ constructor.  */
+  /* Beginning of object data, e.g. start of C++ constructor.  This differs
+     from C++ 'lifetime', which starts when initialization is complete; a
+     clobber there would discard the initialization.  */
   CLOBBER_OBJECT_BEGIN,
-  /* End of object lifetime, e.g. C++ destructor.  */
+  /* End of object data, e.g. end of C++ destructor.  */
   CLOBBER_OBJECT_END,
   /* End of storage duration, e.g. free.  */
   CLOBBER_STORAGE_END,
@@ -1344,6 +1346,12 @@ struct GTY(()) tree_base {
        TYPE_READONLY in
            all types
 
+       OMP_CLAUSE_MAP_READONLY in
+           OMP_CLAUSE_MAP
+
+       OMP_CLAUSE__CACHE__READONLY in
+           OMP_CLAUSE__CACHE_
+
    constant_flag:
 
        TREE_CONSTANT in
@@ -1592,6 +1600,9 @@ enum omp_clause_linear_kind
 struct GTY(()) tree_exp {
   struct tree_typed typed;
   location_t locus;
+  /* Discriminator for basic conditions in a Boolean expressions.  Trees that
+     are operands of the same Boolean expression should have the same uid.  */
+  unsigned condition_uid;
   tree GTY ((length ("TREE_OPERAND_LENGTH ((tree)&%h)"))) operands[1];
 };
 

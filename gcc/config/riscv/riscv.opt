@@ -430,6 +430,8 @@ Mask(ZCMP) Var(riscv_zc_subext)
 
 Mask(ZCMT) Var(riscv_zc_subext)
 
+Mask(XCVBI) Var(riscv_xcv_subext)
+
 TargetVariable
 int riscv_sv_subext
 
@@ -529,27 +531,27 @@ Target RejectNegative Joined UInteger Var(riscv_strcmp_inline_limit) Init(64)
 Max number of bytes to compare as part of inlined strcmp/strncmp routines (default: 64).
 
 Enum
-Name(riscv_autovec_lmul) Type(enum riscv_autovec_lmul_enum)
-The RVV possible LMUL (-param=riscv-autovec-lmul=):
+Name(rvv_max_lmul) Type(enum rvv_max_lmul_enum)
+The RVV possible LMUL (-mrvv-max-lmul=):
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m1) Value(RVV_M1)
+Enum(rvv_max_lmul) String(m1) Value(RVV_M1)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m2) Value(RVV_M2)
+Enum(rvv_max_lmul) String(m2) Value(RVV_M2)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m4) Value(RVV_M4)
+Enum(rvv_max_lmul) String(m4) Value(RVV_M4)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m8) Value(RVV_M8)
+Enum(rvv_max_lmul) String(m8) Value(RVV_M8)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(dynamic) Value(RVV_DYNAMIC)
+Enum(rvv_max_lmul) String(dynamic) Value(RVV_DYNAMIC)
 
--param=riscv-autovec-lmul=
-Target RejectNegative Joined Enum(riscv_autovec_lmul) Var(riscv_autovec_lmul) Init(RVV_M1)
--param=riscv-autovec-lmul=<string>	Set the RVV LMUL of auto-vectorization in the RISC-V port.
+mrvv-max-lmul=
+Target RejectNegative Joined Enum(rvv_max_lmul) Var(rvv_max_lmul) Init(RVV_M1)
+-mrvv-max-lmul=<string>	Set the RVV LMUL of auto-vectorization.
 
 madjust-lmul-cost
 Target Var(TARGET_ADJUST_LMUL_COST) Init(0)
@@ -604,3 +606,17 @@ Enum(rvv_vector_bits) String(zvl) Value(RVV_VECTOR_BITS_ZVL)
 mrvv-vector-bits=
 Target RejectNegative Joined Enum(rvv_vector_bits) Var(rvv_vector_bits) Init(RVV_VECTOR_BITS_SCALABLE)
 -mrvv-vector-bits=<string>	Set the kind of bits for an RVV vector register.
+
+Enum
+Name(tls_type) Type(enum riscv_tls_type)
+The possible TLS dialects:
+
+EnumValue
+Enum(tls_type) String(trad) Value(TLS_TRADITIONAL)
+
+EnumValue
+Enum(tls_type) String(desc) Value(TLS_DESCRIPTORS)
+
+mtls-dialect=
+Target RejectNegative Joined Enum(tls_type) Var(riscv_tls_dialect) Init(TLS_TRADITIONAL) Save
+Specify TLS dialect.

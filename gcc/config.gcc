@@ -703,9 +703,9 @@ c7 esther"
 # 64-bit x86 processors supported by --with-arch=.  Each processor
 # MUST be separated by exactly one space.
 x86_64_archs="amdfam10 athlon64 athlon64-sse3 barcelona bdver1 bdver2 \
-bdver3 bdver4 znver1 znver2 znver3 znver4 btver1 btver2 k8 k8-sse3 opteron \
-opteron-sse3 nocona core2 corei7 corei7-avx core-avx-i core-avx2 atom \
-slm nehalem westmere sandybridge ivybridge haswell broadwell bonnell \
+bdver3 bdver4 znver1 znver2 znver3 znver4 znver5 btver1 btver2 k8 k8-sse3 \
+opteron opteron-sse3 nocona core2 corei7 corei7-avx core-avx-i core-avx2 \
+atom slm nehalem westmere sandybridge ivybridge haswell broadwell bonnell \
 silvermont knl knm skylake-avx512 cannonlake icelake-client icelake-server \
 skylake goldmont goldmont-plus tremont cascadelake tigerlake cooperlake \
 sapphirerapids alderlake rocketlake eden-x2 nano nano-1000 nano-2000 nano-3000 \
@@ -1199,6 +1199,7 @@ aarch64*-*-elf | aarch64*-*-fuchsia* | aarch64*-*-rtems*)
                 ;;
 	aarch64-*-rtems*)
 		tm_file="${tm_file} aarch64/rtems.h rtems.h"
+		tmake_file="${tmake_file} aarch64/t-aarch64-rtems"
 		;;
 	esac
 	case $target in
@@ -1263,6 +1264,12 @@ aarch64*-*-linux*)
 		esac
 	done
 	TM_MULTILIB_CONFIG=`echo $TM_MULTILIB_CONFIG | sed 's/^,//'`
+	;;
+aarch64*-*-gnu*)
+        tm_file="${tm_file} elfos.h gnu-user.h gnu.h glibc-stdint.h"
+        tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-errata.h aarch64/aarch64-gnu.h"
+        tmake_file="${tmake_file} aarch64/t-aarch64"
+        tm_defines="${tm_defines}  TARGET_DEFAULT_ASYNC_UNWIND_TABLES=1"
 	;;
 aarch64*-wrs-vxworks*)
         tm_file="${tm_file} elfos.h aarch64/aarch64-elf.h"
@@ -2492,6 +2499,7 @@ riscv*-*-linux*)
 	# Force .init_array support.  The configure script cannot always
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
+	with_tls=${with_tls:-trad}
 	;;
 riscv*-*-elf* | riscv*-*-rtems*)
 	tm_file="elfos.h newlib-stdint.h ${tm_file} riscv/elf.h"
@@ -2534,6 +2542,7 @@ riscv*-*-freebsd*)
 	# Force .init_array support.  The configure script cannot always
 	# automatically detect that GAS supports it, yet we require it.
 	gcc_cv_initfini_array=yes
+	with_tls=${with_tls:-trad}
 	;;
 
 loongarch*-*-linux*)
@@ -3759,6 +3768,10 @@ case ${target} in
 	arch=znver4
 	cpu=znver4
 	;;
+      znver5-*)
+	arch=znver5
+	cpu=znver5
+	;;
       bdver4-*)
         arch=bdver4
         cpu=bdver4
@@ -3895,6 +3908,10 @@ case ${target} in
 	  znver4-*)
 	arch=znver4
 	cpu=znver4
+	;;
+      znver5-*)
+	arch=znver5
+	cpu=znver5
 	;;
       bdver4-*)
         arch=bdver4
@@ -4552,7 +4569,7 @@ case "${target}" in
 		for which in arch tune; do
 			eval "val=\$with_$which"
 			case ${val} in
-			"" | fiji | gfx900 | gfx906 | gfx908 | gfx90a | gfx1030 | gfx1100)
+			"" | fiji | gfx900 | gfx906 | gfx908 | gfx90a | gfx1030 | gfx1036 | gfx1100 | gfx1103)
 				# OK
 				;;
 			*)
@@ -4568,7 +4585,7 @@ case "${target}" in
 			TM_MULTILIB_CONFIG=
 			;;
 		xdefault | xyes)
-			TM_MULTILIB_CONFIG=`echo "gfx900,gfx906,gfx908,gfx90a,gfx1030,gfx1100" | sed "s/${with_arch},\?//;s/,$//"`
+			TM_MULTILIB_CONFIG=`echo "gfx900,gfx906,gfx908,gfx90a,gfx1030,gfx1036,gfx1100,gfx1103" | sed "s/${with_arch},\?//;s/,$//"`
 			;;
 		*)
 			TM_MULTILIB_CONFIG="${with_multilib_list}"
@@ -4663,7 +4680,7 @@ case "${target}" in
 		;;
 
 	riscv*-*-*)
-		supported_defaults="abi arch tune riscv_attribute isa_spec"
+		supported_defaults="abi arch tune riscv_attribute isa_spec tls"
 
 		case "${target}" in
 		riscv-* | riscv32*) xlen=32 ;;
@@ -4793,6 +4810,17 @@ case "${target}" in
 				;;
 			esac
 		fi
+		# Handle --with-tls.
+		case "$with_tls" in
+		"" \
+		| trad | desc)
+			# OK
+			;;
+		*)
+			echo "Unknown TLS method used in --with-tls=$with_tls" 1>&2
+			exit 1
+			;;
+		esac
 
 		# Handle --with-multilib-list.
 		if test "x${with_multilib_list}" != xdefault; then
@@ -4991,7 +5019,7 @@ case "${target}" in
 		;;
 
 	loongarch*-*)
-		supported_defaults="abi arch tune fpu simd multilib-default strict-align-lib"
+		supported_defaults="abi arch tune fpu simd multilib-default strict-align-lib tls"
 
 		# Local variables
 		unset \
@@ -5248,6 +5276,18 @@ case "${target}" in
 
 			with_multilib_list="${abi_base}/${abi_ext}"
 		fi
+
+		# Handle --with-tls.
+		case "$with_tls" in
+		"" \
+		| trad | desc)
+		    # OK
+		    ;;
+		*)
+		    echo "Unknown TLS method used in --with-tls=$with_tls" 1>&2
+		    exit 1
+		    ;;
+		esac
 
 		# Check if the configured default ABI combination is included in
 		# ${with_multilib_list}.
@@ -5912,6 +5952,11 @@ case ${target} in
 		none)    tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_NONE" ;;
 		lsx)     tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_SIMD_LSX" ;;
 		lasx)    tm_defines="$tm_defines DEFAULT_ISA_EXT_SIMD=ISA_EXT_SIMD_LASX" ;;
+		esac
+
+		case ${with_tls} in
+		"" | trad)	tm_defines="$tm_defines DEFAULT_TLS_TYPE=TLS_TRADITIONAL" ;;
+		desc)		tm_defines="$tm_defines DEFAULT_TLS_TYPE=TLS_DESCRIPTORS" ;;
 		esac
 
 		tmake_file="loongarch/t-loongarch $tmake_file"

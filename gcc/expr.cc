@@ -392,7 +392,7 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 		 BFmode -> SFmode -> HFmode conversion where SFmode
 		 has superset of BFmode values.  We don't need
 		 to handle sNaNs by raising exception and turning
-		 into into qNaN though, as that can be done in the
+		 it into qNaN though, as that can be done in the
 		 SFmode -> HFmode conversion too.  */
 	      rtx temp = gen_reg_rtx (SFmode);
 	      int save_flag_finite_math_only = flag_finite_math_only;
@@ -5466,6 +5466,7 @@ emit_push_insn (rtx x, machine_mode mode, tree type, rtx size,
 	  /* If source is a constant VAR_DECL with a simple constructor,
              store the constructor to the stack instead of moving it.  */
 	  const_tree decl;
+	  HOST_WIDE_INT sz;
 	  if (partial == 0
 	      && MEM_P (xinner)
 	      && SYMBOL_REF_P (XEXP (xinner, 0))
@@ -5473,9 +5474,11 @@ emit_push_insn (rtx x, machine_mode mode, tree type, rtx size,
 	      && VAR_P (decl)
 	      && TREE_READONLY (decl)
 	      && !TREE_SIDE_EFFECTS (decl)
-	      && immediate_const_ctor_p (DECL_INITIAL (decl), 2))
-	    store_constructor (DECL_INITIAL (decl), target, 0,
-			       int_expr_size (DECL_INITIAL (decl)), false);
+	      && immediate_const_ctor_p (DECL_INITIAL (decl), 2)
+	      && (sz = int_expr_size (DECL_INITIAL (decl))) > 0
+	      && CONST_INT_P (size)
+	      && INTVAL (size) == sz)
+	    store_constructor (DECL_INITIAL (decl), target, 0, sz, false);
 	  else
 	    emit_block_move (target, xinner, size, BLOCK_OP_CALL_PARM);
 	}
@@ -12350,7 +12353,8 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	    return expand_builtin (exp, target, subtarget, tmode, ignore);
 	  }
       }
-      return expand_call (exp, target, ignore);
+      temp = expand_call (exp, target, ignore);
+      return EXTEND_BITINT (temp);
 
     case VIEW_CONVERT_EXPR:
       op0 = NULL_RTX;

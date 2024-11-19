@@ -7381,6 +7381,14 @@ inline bool module_attach_p ()
 
 inline bool named_module_purview_p ()
 { return named_module_p () && module_purview_p (); }
+inline bool named_module_attach_p ()
+{ return named_module_p () && module_attach_p (); }
+
+/* We don't know if this TU will have a CMI while parsing the GMF,
+   so tentatively assume that it might, for the purpose of determining
+   whether no-linkage decls could be used by an importer.  */
+inline bool module_maybe_has_cmi_p ()
+{ return module_has_cmi_p () || (named_module_p () && !module_purview_p ()); }
 
 /* We're currently exporting declarations.  */
 inline bool module_exporting_p ()

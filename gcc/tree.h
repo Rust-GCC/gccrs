@@ -1358,6 +1358,10 @@ class auto_suppress_location_wrappers
   ~auto_suppress_location_wrappers () { --suppress_location_wrappers; }
 };
 
+/* COND_EXPR identificer/discriminator accessors.  */
+#define SET_EXPR_UID(t, v) EXPR_CHECK ((t))->exp.condition_uid = (v)
+#define EXPR_COND_UID(t) EXPR_CHECK ((t))->exp.condition_uid
+
 /* In a TARGET_EXPR node.  */
 #define TARGET_EXPR_SLOT(NODE) TREE_OPERAND_CHECK_CODE (NODE, TARGET_EXPR, 0)
 #define TARGET_EXPR_INITIAL(NODE) TREE_OPERAND_CHECK_CODE (NODE, TARGET_EXPR, 1)
@@ -1840,6 +1844,14 @@ class auto_suppress_location_wrappers
    lowering.  */
 #define OMP_CLAUSE_MAP_DECL_MAKE_ADDRESSABLE(NODE) \
   (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_MAP)->base.addressable_flag)
+
+/* Nonzero if OpenACC 'readonly' modifier set, used for 'copyin'.  */
+#define OMP_CLAUSE_MAP_READONLY(NODE) \
+  TREE_READONLY (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE_MAP))
+
+/* Same as above, for use in OpenACC cache directives.  */
+#define OMP_CLAUSE__CACHE__READONLY(NODE) \
+  TREE_READONLY (OMP_CLAUSE_SUBCODE_CHECK (NODE, OMP_CLAUSE__CACHE_))
 
 /* True on an OMP_CLAUSE_USE_DEVICE_PTR with an OpenACC 'if_present'
    clause.  */

@@ -900,7 +900,7 @@ gfc_allocate_using_caf_lib (stmtblock_t * block, tree pointer, tree size,
     {
       gcc_assert(errlen == NULL_TREE);
       errmsg = null_pointer_node;
-      errlen = build_int_cst (integer_type_node, 0);
+      errlen = integer_zero_node;
     }
 
   size = fold_convert (size_type_node, size);
@@ -1624,7 +1624,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
     }
   else if (derived && gfc_is_finalizable (derived, NULL))
     {
-      if (derived->attr.zero_comp && !rank)
+      if (!derived->components && (!rank || attr.elemental))
 	{
 	  /* Any attempt to assign zero length entities, causes the gimplifier
 	     all manner of problems. Instead, a variable is created to act as
@@ -1675,7 +1675,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
 					      final_fndecl);
   if (!GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (desc)))
     {
-      if (is_class)
+      if (is_class || attr.elemental)
 	desc = gfc_conv_scalar_to_descriptor (se, desc, attr);
       else
 	{
@@ -1685,7 +1685,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
 	}
     }
 
-  if (derived && derived->attr.zero_comp)
+  if (derived && !derived->components)
     {
       /* All the conditions below break down for zero length derived types.  */
       tmp = build_call_expr_loc (input_location, final_fndecl, 3,
@@ -1903,7 +1903,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 	  if (descr)
 	    cond = fold_build2_loc (input_location, EQ_EXPR, boolean_type_node,
 				    gfc_conv_descriptor_version (descr),
-				    build_int_cst (integer_type_node, 1));
+				    integer_one_node);
 	  else
 	    cond = gfc_omp_call_is_alloc (pointer);
 	  omp_tmp = builtin_decl_explicit (BUILT_IN_GOMP_FREE);
@@ -1917,7 +1917,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 							 0));
       if (flag_openmp_allocators && descr)
 	gfc_add_modify (&non_null, gfc_conv_descriptor_version (descr),
-			build_zero_cst (integer_type_node));
+			integer_zero_node);
 
       if (status != NULL_TREE && !integer_zerop (status))
 	{
@@ -1946,7 +1946,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 	{
 	  gcc_assert (errlen == NULL_TREE);
 	  errmsg = null_pointer_node;
-	  errlen = build_zero_cst (integer_type_node);
+	  errlen = integer_zero_node;
 	}
       else
 	{

@@ -1,3 +1,49 @@
+2024-04-04  Jørgen Kvalsvik  <j@lambda.is>
+
+	* libgcov-merge.c (__gcov_merge_ior): New.
+
+2024-04-03  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/aarch64/cpuinfo.c: Add HWCAP_EVTSTRM, HWCAP_CRC32, HWCAP_CPUID,
+	HWCAP_PACA and HWCAP_PACG.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* unwind-dw2-fde.c (struct fde_accumulator): Fix duplicated
+	words in comment; is is -> is.
+
+2024-03-25  Max Filippov  <jcmvbkbc@gmail.com>
+
+	* unwind-arm-common.inc (__gnu_personality_sigframe_fdpic): Cast
+	last argument of _Unwind_VRS_Set to void *.
+
+2024-03-22  Thomas Neumann  <tneumann@users.sourceforge.net>
+
+	PR libgcc/111731
+	* unwind-dw2-fde.c: Split unwind ranges if they contain the
+	unwind table.
+
+2024-03-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114397
+	* libgcc2.c (__divmodbitint4): Don't assume un < vn always means
+	abs(v) > abs(u), check for a special case of un + 1 == vn where
+	u is non-negative and v negative and after v's negation vn could
+	be reduced by 1.
+
+2024-03-20  Flavio Cruz  <flaviocruz@gmail.com>
+
+	* config/i386/gnu-unwind.h: Support unwinding x86_64 signal frames.
+
+2024-03-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/114327
+	* libgcc2.c (bitint_negate): Return UWtype bitwise or of all the limbs
+	before negation rather than void.
+	(__divmodbitint4): Determine whether to fill in the upper limbs after
+	negation based on whether bitint_negate returned 0 or non-zero, rather
+	then always filling with -1.
+
 2024-02-22  Kewen Lin  <linkw@linux.ibm.com>
 
 	PR target/109987

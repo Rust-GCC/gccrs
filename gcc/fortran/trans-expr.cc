@@ -1719,6 +1719,7 @@ gfc_trans_class_init_assign (gfc_code *code)
   tree tmp;
   gfc_se dst,src,memsz;
   gfc_expr *lhs, *rhs, *sz;
+  gfc_component *cmp;
 
   gfc_start_block (&block);
 
@@ -1734,6 +1735,21 @@ gfc_trans_class_init_assign (gfc_code *code)
   gfc_add_def_init_component (rhs);
   /* The _def_init is always scalar.  */
   rhs->rank = 0;
+
+  /* Check def_init for initializers.  If this is a dummy with all default
+     initializer components NULL, return NULL_TREE and use the passed value as
+     required by F2018(8.5.10).  */
+  if (!lhs->ref && lhs->symtree->n.sym->attr.dummy)
+    {
+      cmp = rhs->ref->next->u.c.component->ts.u.derived->components;
+      for (; cmp; cmp = cmp->next)
+	{
+	  if (cmp->initializer)
+	    break;
+	  else if (!cmp->next)
+	    return build_empty_stmt (input_location);
+	}
+    }
 
   if (code->expr1->ts.type == BT_CLASS
       && CLASS_DATA (code->expr1)->attr.dimension)
@@ -3142,6 +3158,10 @@ gfc_conv_variable (gfc_se * se, gfc_expr * expr)
       gcc_assert (se->string_length);
     }
 
+  /* Some expressions leak through that haven't been fixed up.  */
+  if (IS_INFERRED_TYPE (expr) && expr->ref)
+    gfc_fixup_inferred_type_refs (expr);
+
   gfc_typespec *ts = &sym->ts;
   while (ref)
     {
@@ -4078,7 +4098,7 @@ conv_scalar_char_value (gfc_symbol *sym, gfc_se *se, gfc_expr **expr)
       if ((*expr)->ref == NULL)
 	{
 	  se->expr = gfc_string_to_single_character
-	    (build_int_cst (integer_type_node, 1),
+	    (integer_one_node,
 	      gfc_build_addr_expr (gfc_get_pchar_type ((*expr)->ts.kind),
 				  gfc_get_symbol_decl
 				  ((*expr)->symtree->n.sym)),
@@ -4088,7 +4108,7 @@ conv_scalar_char_value (gfc_symbol *sym, gfc_se *se, gfc_expr **expr)
 	{
 	  gfc_conv_variable (se, *expr);
 	  se->expr = gfc_string_to_single_character
-	    (build_int_cst (integer_type_node, 1),
+	    (integer_one_node,
 	      gfc_build_addr_expr (gfc_get_pchar_type ((*expr)->ts.kind),
 				  se->expr),
 	      (*expr)->ts.kind);
@@ -9646,7 +9666,7 @@ gfc_conv_structure (gfc_se * se, gfc_expr * expr, int init)
   cm = expr->ts.u.derived->components;
 
   for (c = gfc_constructor_first (expr->value.constructor);
-       c; c = gfc_constructor_next (c), cm = cm->next)
+       c && cm; c = gfc_constructor_next (c), cm = cm->next)
     {
       /* Skip absent members in default initializers and allocatable
 	 components.  Although the latter have a default initializer
@@ -12507,11 +12527,14 @@ gfc_trans_assignment_1 (gfc_expr * expr1, gfc_expr * expr2, bool init_flag,
   gfc_add_block_to_block (&body, &lse.pre);
   gfc_add_expr_to_block (&body, tmp);
 
-  /* Add the post blocks to the body.  */
-  if (!l_is_temp)
+  /* Add the post blocks to the body.  Scalar finalization must appear before
+     the post block in case any dellocations are done.  */
+  if (rse.finalblock.head
+      && (!l_is_temp || (expr2->expr_type == EXPR_FUNCTION
+			 && gfc_expr_attr (expr2).elemental)))
     {
-      gfc_add_block_to_block (&rse.finalblock, &rse.post);
       gfc_add_block_to_block (&body, &rse.finalblock);
+      gfc_add_block_to_block (&body, &rse.post);
     }
   else
     gfc_add_block_to_block (&body, &rse.post);

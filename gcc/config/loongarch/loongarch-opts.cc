@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "obstack.h"
+#include "opts.h"
 #include "diagnostic-core.h"
 
 #include "loongarch-cpu.h"
@@ -32,7 +33,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "loongarch-str.h"
 #include "loongarch-def.h"
 
+/* Target configuration */
 struct loongarch_target la_target;
+
+/* RTL cost information */
+const struct loongarch_rtx_cost_data *loongarch_cost;
 
 /* ABI-related configuration.  */
 #define ABI_COUNT (sizeof(abi_priority_list)/sizeof(struct loongarch_abi))
@@ -139,6 +144,7 @@ void
 loongarch_init_target (struct loongarch_target *target,
 		       int cpu_arch, int cpu_tune, int fpu, int simd,
 		       int abi_base, int abi_ext, int cmodel,
+		       int tls_dialect,
 		       HOST_WIDE_INT isa_evolution,
 		       HOST_WIDE_INT isa_evolution_set)
 {
@@ -153,6 +159,7 @@ loongarch_init_target (struct loongarch_target *target,
   target->abi.base = abi_base;
   target->abi.ext = abi_ext;
   target->cmodel = cmodel;
+  target->tls_dialect = tls_dialect;
 }
 
 
@@ -174,7 +181,8 @@ loongarch_config_target (struct loongarch_target *target,
   obstack_init (&msg_obstack);
 
   struct {
-    int arch, tune, fpu, simd, abi_base, abi_ext, cmodel, abi_flt;
+    int arch, tune, fpu, simd, abi_base, abi_ext, cmodel,
+	tls_dialect, abi_flt;
   } constrained = {
       M_OPT_ABSENT (target->cpu_arch)	  ? 0 : 1,
       M_OPT_ABSENT (target->cpu_tune)	  ? 0 : 1,
@@ -183,6 +191,7 @@ loongarch_config_target (struct loongarch_target *target,
       M_OPT_ABSENT (target->abi.base)	  ? 0 : 1,
       M_OPT_ABSENT (target->abi.ext)	  ? 0 : 1,
       M_OPT_ABSENT (target->cmodel)	  ? 0 : 1,
+      M_OPT_ABSENT (target->tls_dialect)  ? 0 : 1,
       M_OPT_ABSENT (target->abi.base)	  ? 0 : 1,
   };
 
@@ -362,7 +371,7 @@ config_target_isa:
 	  gcc_assert (constrained.simd);
 
 	  inform (UNKNOWN_LOCATION,
-		  "enabing %qs promotes %<%s%s%> to %<%s%s%>",
+		  "enabling %qs promotes %<%s%s%> to %<%s%s%>",
 		  loongarch_isa_ext_strings[t.isa.simd],
 		  OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[t.isa.fpu],
 		  OPTSTR_ISA_EXT_FPU, loongarch_isa_ext_strings[ISA_EXT_FPU64]);
@@ -550,6 +559,9 @@ fallback:
     default:
       gcc_unreachable ();
     }
+
+  t.tls_dialect = constrained.tls_dialect ? target->tls_dialect
+	  : DEFAULT_TLS_TYPE;
 
   /* Cleanup and return.  */
   obstack_free (&msg_obstack, NULL);
@@ -786,6 +798,9 @@ loongarch_update_gcc_opt_status (struct loongarch_target *target,
   /* status of -mcmodel */
   opts->x_la_opt_cmodel = target->cmodel;
 
+  /* status of -mtls-dialect */
+  opts->x_la_opt_tls_dialect = target->tls_dialect;
+
   /* status of -mfpu */
   opts->x_la_opt_fpu = target->isa.fpu;
 
@@ -794,4 +809,259 @@ loongarch_update_gcc_opt_status (struct loongarch_target *target,
 
   /* ISA evolution features */
   opts->x_la_isa_evolution = target->isa.evolution;
+}
+
+/* -mrecip=<str> handling */
+static struct
+  {
+    const char *string;	    /* option name.  */
+    unsigned int mask;	    /* mask bits to set.  */
+  }
+const recip_options[] = {
+      { "all",       RECIP_MASK_ALL },
+      { "none",      RECIP_MASK_NONE },
+      { "div",       RECIP_MASK_DIV },
+      { "sqrt",      RECIP_MASK_SQRT },
+      { "rsqrt",     RECIP_MASK_RSQRT },
+      { "vec-div",   RECIP_MASK_VEC_DIV },
+      { "vec-sqrt",  RECIP_MASK_VEC_SQRT },
+      { "vec-rsqrt", RECIP_MASK_VEC_RSQRT },
+};
+
+/* Parser for -mrecip=<recip_string>.  */
+unsigned int
+loongarch_parse_mrecip_scheme (const char *recip_string)
+{
+  unsigned int result_mask = RECIP_MASK_NONE;
+
+  if (recip_string)
+    {
+      char *p = ASTRDUP (recip_string);
+      char *q;
+      unsigned int mask, i;
+      bool invert;
+
+      while ((q = strtok (p, ",")) != NULL)
+	{
+	  p = NULL;
+	  if (*q == '!')
+	    {
+	      invert = true;
+	      q++;
+	    }
+	  else
+	    invert = false;
+
+	  if (!strcmp (q, "default"))
+	    mask = RECIP_MASK_ALL;
+	  else
+	    {
+	      for (i = 0; i < ARRAY_SIZE (recip_options); i++)
+		if (!strcmp (q, recip_options[i].string))
+		  {
+		    mask = recip_options[i].mask;
+		    break;
+		  }
+
+	      if (i == ARRAY_SIZE (recip_options))
+		{
+		  error ("unknown option for %<-mrecip=%s%>", q);
+		  invert = false;
+		  mask = RECIP_MASK_NONE;
+		}
+	    }
+
+	  if (invert)
+	    result_mask &= ~mask;
+	  else
+	    result_mask |= mask;
+	}
+    }
+  return result_mask;
+}
+
+/* Generate -mrecip= argument based on the mask.  */
+const char*
+loongarch_generate_mrecip_scheme (unsigned int mask)
+{
+  static char recip_scheme_str[128];
+  int p = 0, tmp;
+
+  switch (mask)
+    {
+      case RECIP_MASK_ALL:
+	return "all";
+
+      case RECIP_MASK_NONE:
+	return "none";
+    }
+
+  for (unsigned long i = 2; i < ARRAY_SIZE (recip_options); i++)
+    {
+      if (mask & recip_options[i].mask)
+	{
+	  if ((tmp = strlen (recip_options[i].string) + 1) >= 127 - p)
+	    gcc_unreachable ();
+
+	  recip_scheme_str[p] = ',';
+	  strcpy (recip_scheme_str + p + 1, recip_options[i].string);
+	  p += tmp;
+	}
+    }
+  recip_scheme_str[p] = '\0';
+  return recip_scheme_str + 1;
+}
+
+
+
+/* Refresh the switches acccording to the resolved loongarch_target struct.  */
+void
+loongarch_target_option_override (struct loongarch_target *target,
+				  struct gcc_options *opts,
+				  struct gcc_options *opts_set)
+{
+  loongarch_update_gcc_opt_status (target, opts, opts_set);
+
+  /* If not optimizing for size, set the default
+     alignment to what the target wants.  */
+  if (!opts->x_optimize_size)
+    {
+      if (opts->x_flag_align_functions && !opts->x_str_align_functions)
+	opts->x_str_align_functions
+	  = loongarch_cpu_align[target->cpu_tune].function;
+
+      if (opts->x_flag_align_loops && !opts->x_str_align_loops)
+	opts->x_str_align_loops = loongarch_cpu_align[target->cpu_tune].loop;
+
+      if (opts->x_flag_align_jumps && !opts->x_str_align_jumps)
+	opts->x_str_align_jumps = loongarch_cpu_align[target->cpu_tune].jump;
+    }
+
+  /* Set up parameters to be used in prefetching algorithm.  */
+  int simultaneous_prefetches
+    = loongarch_cpu_cache[target->cpu_tune].simultaneous_prefetches;
+
+  SET_OPTION_IF_UNSET (opts, opts_set, param_simultaneous_prefetches,
+		       simultaneous_prefetches);
+
+  SET_OPTION_IF_UNSET (opts, opts_set, param_l1_cache_line_size,
+		       loongarch_cpu_cache[target->cpu_tune].l1d_line_size);
+
+  SET_OPTION_IF_UNSET (opts, opts_set, param_l1_cache_size,
+		       loongarch_cpu_cache[target->cpu_tune].l1d_size);
+
+  SET_OPTION_IF_UNSET (opts, opts_set, param_l2_cache_size,
+		       loongarch_cpu_cache[target->cpu_tune].l2d_size);
+
+  /* Other arch-specific overrides.  */
+  switch (target->cpu_arch)
+    {
+      case CPU_LA664:
+	/* Enable -mrecipe=all for LA664 by default.  */
+	if (!opts_set->x_recip_mask)
+	  {
+	    opts->x_recip_mask = RECIP_MASK_ALL;
+	    opts_set->x_recip_mask = 1;
+	  }
+    }
+
+  /* -mrecip= */
+  opts->x_la_recip_name
+    = loongarch_generate_mrecip_scheme (opts->x_recip_mask);
+
+  /* Decide which rtx_costs structure to use.  */
+  if (opts->x_optimize_size)
+    loongarch_cost = &loongarch_rtx_cost_optimize_size;
+  else
+    loongarch_cost = &loongarch_cpu_rtx_cost_data[target->cpu_tune];
+
+  /* If the user hasn't specified a branch cost, use the processor's
+     default.  */
+  if (!opts_set->x_la_branch_cost)
+    opts->x_la_branch_cost = loongarch_cost->branch_cost;
+
+  /* other stuff */
+  if (ABI_LP64_P (target->abi.base))
+    opts->x_flag_pcc_struct_return = 0;
+
+  switch (target->cmodel)
+    {
+      case CMODEL_EXTREME:
+	if (opts->x_flag_plt)
+	  {
+	    if (opts_set->x_flag_plt)
+	      error ("code model %qs is not compatible with %s",
+		     "extreme", "-fplt");
+	    opts->x_flag_plt = 0;
+	  }
+	break;
+
+      case CMODEL_TINY_STATIC:
+      case CMODEL_MEDIUM:
+      case CMODEL_NORMAL:
+      case CMODEL_TINY:
+      case CMODEL_LARGE:
+	break;
+
+      default:
+	gcc_unreachable ();
+    }
+}
+
+
+/* Resolve options that's not covered by la_target.  */
+void
+loongarch_init_misc_options (struct gcc_options *opts,
+			     struct gcc_options *opts_set)
+{
+  if (opts->x_flag_pic)
+    opts->x_g_switch_value = 0;
+
+  /* -mrecip options.  */
+  opts->x_recip_mask = loongarch_parse_mrecip_scheme (opts->x_la_recip_name);
+
+#define INIT_TARGET_FLAG(NAME, INIT) \
+  { \
+    if (!(opts_set->x_target_flags & MASK_##NAME)) \
+      { \
+	if (INIT) \
+	  opts->x_target_flags |= MASK_##NAME; \
+	else \
+	  opts->x_target_flags &= ~MASK_##NAME; \
+      } \
+  }
+
+  /* Enable conditional moves for int and float by default.  */
+  INIT_TARGET_FLAG (COND_MOVE_INT, 1)
+  INIT_TARGET_FLAG (COND_MOVE_FLOAT, 1)
+
+  /* Set mrelax default.  */
+  INIT_TARGET_FLAG (LINKER_RELAXATION,
+		    HAVE_AS_MRELAX_OPTION && HAVE_AS_COND_BRANCH_RELAXATION)
+
+#undef INIT_TARGET_FLAG
+
+  /* Set mexplicit-relocs default.  */
+  if (opts->x_la_opt_explicit_relocs == M_OPT_UNSET)
+    opts->x_la_opt_explicit_relocs = (HAVE_AS_EXPLICIT_RELOCS
+				      ? (TARGET_LINKER_RELAXATION
+					 ? EXPLICIT_RELOCS_AUTO
+					 : EXPLICIT_RELOCS_ALWAYS)
+				      : EXPLICIT_RELOCS_NONE);
+
+  /* Enable sw prefetching at -O3 and higher.  */
+  if (opts->x_flag_prefetch_loop_arrays < 0
+      && (opts->x_optimize >= 3 || opts->x_flag_profile_use)
+      && !opts->x_optimize_size)
+    opts->x_flag_prefetch_loop_arrays = 1;
+
+  if (TARGET_DIRECT_EXTERN_ACCESS_OPTS_P (opts) && opts->x_flag_shlib)
+    error ("%qs cannot be used for compiling a shared library",
+	   "-mdirect-extern-access");
+
+  /* Enforce that interval is the same size as size so the mid-end does the
+     right thing.  */
+  SET_OPTION_IF_UNSET (opts, opts_set,
+		       param_stack_clash_protection_probe_interval,
+		       param_stack_clash_protection_guard_size);
 }

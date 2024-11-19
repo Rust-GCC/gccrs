@@ -366,6 +366,7 @@ static const struct riscv_ext_version riscv_ext_version_table[] =
   {"xcvalu", ISA_SPEC_CLASS_NONE, 1, 0},
   {"xcvelw", ISA_SPEC_CLASS_NONE, 1, 0},
   {"xcvsimd", ISA_SPEC_CLASS_NONE, 1, 0},
+  {"xcvbi", ISA_SPEC_CLASS_NONE, 1, 0},
 
   {"xtheadba", ISA_SPEC_CLASS_NONE, 1, 0},
   {"xtheadbb", ISA_SPEC_CLASS_NONE, 1, 0},
@@ -425,9 +426,106 @@ bool riscv_subset_list::parse_failed = false;
 
 static riscv_subset_list *current_subset_list = NULL;
 
+static riscv_subset_list *cmdline_subset_list = NULL;
+
+struct riscv_func_target_info
+{
+  tree fn_decl;
+  std::string fn_target_name;
+
+  riscv_func_target_info (const tree &decl, const std::string &target_name)
+    : fn_decl (decl), fn_target_name (target_name)
+  {
+  }
+};
+
+struct riscv_func_target_hasher : nofree_ptr_hash<struct riscv_func_target_info>
+{
+  typedef tree compare_type;
+
+  static hashval_t hash (value_type);
+  static bool equal (value_type, const compare_type &);
+};
+
+static hash_table<riscv_func_target_hasher> *func_target_table = NULL;
+
+static inline hashval_t riscv_func_decl_hash (tree fn_decl)
+{
+  inchash::hash h;
+
+  h.add_ptr (fn_decl);
+
+  return h.end ();
+}
+
+inline hashval_t
+riscv_func_target_hasher::hash (value_type value)
+{
+  return riscv_func_decl_hash (value->fn_decl);
+}
+
+inline bool
+riscv_func_target_hasher::equal (value_type value, const compare_type &key)
+{
+  return value->fn_decl == key;
+}
+
 const riscv_subset_list *riscv_current_subset_list ()
 {
   return current_subset_list;
+}
+
+const riscv_subset_list * riscv_cmdline_subset_list ()
+{
+  return cmdline_subset_list;
+}
+
+static inline void riscv_func_target_table_lazy_init ()
+{
+  if (func_target_table != NULL)
+    return;
+
+  func_target_table = new hash_table<riscv_func_target_hasher> (1023);
+}
+
+std::string * riscv_func_target_get (tree fn_decl)
+{
+  riscv_func_target_table_lazy_init ();
+
+  hashval_t hash = riscv_func_decl_hash (fn_decl);
+  struct riscv_func_target_info *info
+    = func_target_table->find_with_hash (fn_decl, hash);
+
+  return info == NULL ? NULL : &info->fn_target_name;
+}
+
+void riscv_func_target_put (tree fn_decl, std::string fn_target_name)
+{
+  riscv_func_target_table_lazy_init ();
+
+  hashval_t hash = riscv_func_decl_hash (fn_decl);
+  struct riscv_func_target_info **target_info_slot
+    = func_target_table->find_slot_with_hash (fn_decl, hash, INSERT);
+
+  gcc_assert (!*target_info_slot);
+
+  struct riscv_func_target_info *info
+    = new riscv_func_target_info (fn_decl, fn_target_name);
+
+  *target_info_slot = info;
+}
+
+void riscv_func_target_remove_and_destory (tree fn_decl)
+{
+  hashval_t hash = riscv_func_decl_hash (fn_decl);
+  struct riscv_func_target_info *info
+    = func_target_table->find_with_hash (fn_decl, hash);
+
+  if (info)
+    {
+      func_target_table->remove_elt_with_hash (fn_decl, hash);
+      delete info;
+    }
 }
 
 /* struct for recording multi-lib info.  */
@@ -1400,7 +1498,6 @@ riscv_subset_list::parse (const char *arch, location_t loc)
     return NULL;
 
   riscv_subset_list *subset_list = new riscv_subset_list (arch, loc);
-  riscv_subset_t *itr;
   const char *p = arch;
   p = subset_list->parse_base_ext (p);
   if (p == NULL)
@@ -1427,16 +1524,7 @@ riscv_subset_list::parse (const char *arch, location_t loc)
   if (p == NULL)
     goto fail;
 
-  for (itr = subset_list->m_head; itr != NULL; itr = itr->next)
-    {
-      subset_list->handle_implied_ext (itr->name.c_str ());
-    }
-
-  /* Make sure all implied extensions are included. */
-  gcc_assert (subset_list->check_implied_ext ());
-
-  subset_list->handle_combine_ext ();
-  subset_list->check_conflict_ext ();
+  subset_list->finalize ();
 
   return subset_list;
 
@@ -1464,6 +1552,26 @@ void
 riscv_subset_list::set_loc (location_t loc)
 {
   m_loc = loc;
+}
+
+/* Make sure the implied or combined extension is included after add
+   a new std extension to subset list or likewise.  For exmaple as below,
+
+   void __attribute__((target("arch=+v"))) func () with -march=rv64gc.
+
+   The implied zvl128b and zve64d of the std v should be included.  */
+void
+riscv_subset_list::finalize ()
+{
+  riscv_subset_t *subset;
+
+  for (subset = m_head; subset != NULL; subset = subset->next)
+    handle_implied_ext (subset->name.c_str ());
+
+  gcc_assert (check_implied_ext ());
+
+  handle_combine_ext ();
+  check_conflict_ext ();
 }
 
 /* Return the current arch string.  */
@@ -1618,6 +1726,7 @@ static const riscv_ext_flag_table_t riscv_ext_flag_table[] =
   {"xcvalu",        &gcc_options::x_riscv_xcv_subext, MASK_XCVALU},
   {"xcvelw",        &gcc_options::x_riscv_xcv_subext, MASK_XCVELW},
   {"xcvsimd",       &gcc_options::x_riscv_xcv_subext, MASK_XCVSIMD},
+  {"xcvbi",         &gcc_options::x_riscv_xcv_subext, MASK_XCVBI},
 
   {"xtheadba",      &gcc_options::x_riscv_xthead_subext, MASK_XTHEADBA},
   {"xtheadbb",      &gcc_options::x_riscv_xthead_subext, MASK_XTHEADBB},
@@ -1718,10 +1827,14 @@ riscv_parse_arch_string (const char *isa,
 	}
     }
 
-  if (current_subset_list)
+  /* Avoid double delete if current_subset_list equals cmdline_subset_list.  */
+  if (current_subset_list && current_subset_list != cmdline_subset_list)
     delete current_subset_list;
 
-  current_subset_list = subset_list;
+  if (cmdline_subset_list)
+    delete cmdline_subset_list;
+
+  current_subset_list = cmdline_subset_list = subset_list;
 }
 
 /* Return the riscv_cpu_info entry for CPU, NULL if not found.  */

@@ -106,6 +106,9 @@ public:
   /* Generate hash value based on the overload_name and the argument list passed
      by the user when calling. */
   hashval_t overloaded_hash (const vec<tree, va_gc> &);
+
+  /* The reqired extension for the register function.  */
+  enum required_ext required;
 };
 
 /* Hash traits for registered_function.  */
@@ -3123,6 +3126,36 @@ register_builtin_types ()
 #include "riscv-vector-builtins.def"
 }
 
+/* Similar as register_builtin_types but perform the registration if and
+   only if the element of abi_vector_type is NULL_TREE.  */
+static void
+register_builtin_types_on_null ()
+{
+  /* Get type node from get_typenode_from_name to prevent we have different type
+     node define in different target libraries, e.g. int32_t defined as
+     `long` in RV32/newlib-stdint, but `int` for RV32/glibc-stdint.h.
+     NOTE: uint[16|32|64]_type_node already defined in tree.h.  */
+  tree int8_type_node = get_typenode_from_name (INT8_TYPE);
+  tree uint8_type_node = get_typenode_from_name (UINT8_TYPE);
+  tree int16_type_node = get_typenode_from_name (INT16_TYPE);
+  tree int32_type_node = get_typenode_from_name (INT32_TYPE);
+  tree int64_type_node = get_typenode_from_name (INT64_TYPE);
+
+  machine_mode mode;
+#define DEF_RVV_TYPE(NAME, NCHARS, ABI_NAME, SCALAR_TYPE, VECTOR_MODE,         \
+		     ARGS...)                                                  \
+  mode = VECTOR_MODE##mode;                                                    \
+  if (abi_vector_types[VECTOR_TYPE_##NAME] == NULL_TREE)                       \
+    register_builtin_type (VECTOR_TYPE_##NAME, SCALAR_TYPE##_type_node, mode);
+
+#define DEF_RVV_TUPLE_TYPE(NAME, NCHARS, ABI_NAME, SUBPART_TYPE, SCALAR_TYPE,  \
+			   NF, VECTOR_SUFFIX)                                  \
+  if (abi_vector_types[VECTOR_TYPE_##NAME] == NULL_TREE)                       \
+    register_tuple_type (VECTOR_TYPE_##NAME, VECTOR_TYPE_##SUBPART_TYPE,       \
+			 SCALAR_TYPE##_type_node, NF);
+#include "riscv-vector-builtins.def"
+}
+
 /* Register vector type TYPE under its risv_vector.h name.  */
 static void
 register_vector_type (vector_type_index type)
@@ -3671,6 +3704,7 @@ function_builder::add_function (const function_instance &instance,
 				const char *name, tree fntype, tree attrs,
 				bool placeholder_p, const char *overload_name,
 				const vec<tree> &argument_types,
+				enum required_ext required,
 				bool overloaded_p = false)
 {
   unsigned int code = vec_safe_length (registered_functions);
@@ -3700,6 +3734,7 @@ function_builder::add_function (const function_instance &instance,
   rfn.overload_name = overload_name ? xstrdup (overload_name) : NULL;
   rfn.argument_types = argument_types;
   rfn.overloaded_p = overloaded_p;
+  rfn.required = required;
   vec_safe_push (registered_functions, &rfn);
 
   return rfn;
@@ -3714,7 +3749,8 @@ void
 function_builder::add_unique_function (const function_instance &instance,
 				       const function_shape *shape,
 				       tree return_type,
-				       vec<tree> &argument_types)
+				       vec<tree> &argument_types,
+				       enum required_ext required)
 {
   /* Do not add this function if it is invalid.  */
   if (!check_required_extensions (instance))
@@ -3732,7 +3768,7 @@ function_builder::add_unique_function (const function_instance &instance,
   tree attrs = get_attributes (instance);
   registered_function &rfn
     = add_function (instance, name, fntype, attrs, false, overload_name,
-		    argument_types.copy ());
+		    argument_types.copy (), required);
 
   /* Enter the function into the hash table.  */
   hashval_t hash = instance.hash ();
@@ -3747,7 +3783,7 @@ function_builder::add_unique_function (const function_instance &instance,
       tree attrs = get_attributes (instance);
       bool placeholder_p = !m_direct_overloads;
       add_function (instance, overload_name, fntype, attrs, placeholder_p, NULL,
-		    vNULL);
+		    vNULL, required);
 
       /* Enter the function into the non-overloaded hash table.  */
       hash = rfn.overloaded_hash ();
@@ -3762,7 +3798,8 @@ function_builder::add_unique_function (const function_instance &instance,
 /* Add overloaded function for gcc. */
 void
 function_builder::add_overloaded_function (const function_instance &instance,
-					   const function_shape *shape)
+					   const function_shape *shape,
+					   enum required_ext required)
 {
   if (!check_required_extensions (instance))
     return;
@@ -3775,7 +3812,7 @@ function_builder::add_overloaded_function (const function_instance &instance,
 	 for the overloaded function.  */
       tree fntype = build_function_type (void_type_node, void_list_node);
       add_function (instance, name, fntype, NULL_TREE, m_direct_overloads, name,
-		    vNULL, true);
+		    vNULL, required, true);
       obstack_free (&m_string_obstack, name);
     }
 }
@@ -4419,6 +4456,22 @@ init_builtins ()
     handle_pragma_vector ();
 }
 
+/* Reinitialize builtins similar to init_builtins,  but only the null
+   builtin types will be registered.  */
+void
+reinit_builtins ()
+{
+  rvv_switcher rvv;
+
+  if (!TARGET_VECTOR)
+    return;
+
+  register_builtin_types_on_null ();
+
+  if (in_lto_p)
+    handle_pragma_vector ();
+}
+
 /* Implement TARGET_VERIFY_TYPE_CONTEXT for RVV types.  */
 bool
 verify_type_context (location_t loc, type_context_kind context, const_tree type,
@@ -4586,6 +4639,16 @@ rtx
 expand_builtin (unsigned int code, tree exp, rtx target)
 {
   registered_function &rfn = *(*registered_functions)[code];
+
+  if (!required_extensions_specified (rfn.required))
+    {
+      error_at (EXPR_LOCATION (exp),
+		"built-in function %qE requires the %qs ISA extension",
+		exp,
+		reqired_ext_to_isa_name (rfn.required));
+      return target;
+    }
+
   return function_expander (rfn.instance, rfn.decl, exp, target).expand ();
 }
 

@@ -6092,10 +6092,10 @@ start_decl (const cp_declarator *declarator,
     {
       /* A function-scope decl of some namespace-scope decl.  */
       DECL_LOCAL_DECL_P (decl) = true;
-      if (named_module_purview_p ())
+      if (named_module_attach_p ())
 	error_at (declarator->id_loc,
-		  "block-scope extern declaration %q#D not permitted"
-		  " in module purview", decl);
+		  "block-scope extern declaration %q#D must not be"
+		  " attached to a named module", decl);
     }
 
   /* Enter this declaration into the symbol table.  Don't push the plain
@@ -10756,9 +10756,15 @@ grokfndecl (tree ctype,
 
   /* Members of anonymous types and local classes have no linkage; make
      them internal.  If a typedef is made later, this will be changed.  */
-  if (ctype && (!TREE_PUBLIC (TYPE_MAIN_DECL (ctype))
-		|| decl_function_context (TYPE_MAIN_DECL (ctype))))
+  if (ctype && !TREE_PUBLIC (TYPE_MAIN_DECL (ctype)))
     publicp = 0;
+  else if (ctype && decl_function_context (TYPE_MAIN_DECL (ctype)))
+    /* But members of local classes in a module CMI should have their
+       definitions exported, in case they are (directly or indirectly)
+       used by an importer.  We don't just use module_has_cmi_p here
+       because for entities in the GMF we don't yet know whether this
+       module will have a CMI, so we'll conservatively assume it might.  */
+    publicp = module_maybe_has_cmi_p ();
 
   if (publicp && cxx_dialect == cxx98)
     {
@@ -18907,10 +18913,10 @@ grokmethod (cp_decl_specifier_seq *declspecs,
   check_template_shadow (fndecl);
 
   /* p1779 ABI-Isolation makes inline not a default for in-class
-     definitions in named module purview.  If the user explicitly
+     definitions attached to a named module.  If the user explicitly
      made it inline, grokdeclarator will already have done the right
      things.  */
-  if ((!named_module_purview_p ()
+  if ((!named_module_attach_p ()
        || flag_module_implicit_inline
       /* Lambda's operator function remains inline.  */
        || LAMBDA_TYPE_P (DECL_CONTEXT (fndecl)))

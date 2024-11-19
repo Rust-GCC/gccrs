@@ -1,3 +1,93 @@
+2024-04-08  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* plugin/plugin-gcn.c (init_hsa_context): Add and handle
+	'bool probe' parameter.  Adjust all users; errors during device
+	probing are fatal.
+	* plugin/plugin-nvptx.c (nvptx_get_num_devices): Aside from
+	'CUDA_ERROR_NO_DEVICE', errors during device probing are fatal.
+
+2024-04-05  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/reverse-offload-sm30.c: Set 'GCC_COLORS' to the empty string.
+
+2024-04-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114572
+	* testsuite/libgomp.c++/pr114572.C: New test.
+
+2024-04-04  Tobias Burnus  <tburnus@baylibre.com>
+
+	* libgomp.texi (TR12): Honor post-TR12 directive name change; add
+	item about curly braces/BLOCK permitted in canonical loop nests.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* libgomp.texi (OpenMP 5.2): Fix duplicated words; with with ->
+	with.
+	(omp_target_associate_ptr): Fix duplicated words; either either ->
+	either.
+	(omp_init_allocator): Fix duplicated words; be be -> be.
+	(omp_realloc): Fix duplicated words; is is -> is.
+	(OMP_ALLOCATOR): Fix duplicated words; other other -> other.
+	* priority_queue.h (priority_queue_multi_p): Fix duplicated words;
+	to to -> to.
+
+2024-03-25  Richard Biener  <rguenther@suse.de>
+
+	* plugin/plugin-gcn.c (EF_AMDGPU_MACH): GFX1036.
+	(gcn_gfx1103_s): New.
+	(isa_hsa_name): Handle gfx1036.
+	(isa_code): Likewise.
+	(max_isa_vgprs): Likewise.
+
+2024-03-22  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+
+	* config/accel/target-indirect.c: Include string.h and hashtab.h.
+	Remove include of splay-tree.h.  Update comments.
+	(splay_tree_prefix, splay_tree_c): Delete.
+	(struct indirect_map_t): New.
+	(hash_entry_type, htab_alloc, htab_free, htab_hash, htab_eq): New.
+	(GOMP_INDIRECT_ADD_MAP): Remove volatile qualifier.
+	(USE_SPLAY_TREE_LOOKUP): Rename to...
+	(USE_HASHTAB_LOOKUP): ..this.
+	(indirect_map, indirect_array): Delete.
+	(indirect_htab): New.
+	(build_indirect_map): Remove locking.  Build indirect map using
+	hashtab.
+	(GOMP_target_map_indirect_ptr): Use indirect_htab to lookup target
+	address.
+	(GOMP_target_map_indirect_ptr): Remove volatile qualifier.
+	* config/gcn/team.c (gomp_gcn_enter_kernel): Call build_indirect_map
+	from first thread of first team only.
+	* config/nvptx/team.c (gomp_nvptx_main): Likewise.
+	* testsuite/libgomp.c-c++-common/declare-target-indirect-2.c (main):
+	Add missing break statements.
+	* testsuite/libgomp.fortran/declare-target-indirect-2.f90: Remove
+	xfail.
+
+2024-03-22  Andrew Stubbs  <ams@baylibre.com>
+
+	* plugin/plugin-gcn.c (EF_AMDGPU_MACH): GFX1103.
+	(gcn_gfx1103_s): New.
+	(isa_hsa_name): Handle gfx1103.
+	(isa_code): Likewise.
+	(max_isa_vgprs): Likewise.
+
+2024-03-14  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.oacc-fortran/acc-memcpy.f90: Fix 'char'
+	initialization, copy, check.
+
+2024-03-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR fortran/114283
+	* testsuite/libgomp.fortran/declare-target-indirect-4.f90: New test.
+
+2024-03-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* libgomp.texi (Device Memory Routines): Swap item order to match
+	the order of the '@node's of the '@subsection's.
+
 2024-03-08  Thomas Schwinge  <tschwinge@baylibre.com>
 
 	* plugin/plugin-gcn.c (GOMP_OFFLOAD_can_run): Don't consider

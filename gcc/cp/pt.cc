@@ -11032,7 +11032,8 @@ find_template_parameter_info::found (tree parm)
 {
   if (TREE_CODE (parm) == TREE_LIST)
     parm = TREE_VALUE (parm);
-  if (TREE_CODE (parm) == TYPE_DECL)
+  if (TREE_CODE (parm) == TYPE_DECL
+      || TREE_CODE (parm) == TEMPLATE_DECL)
     parm = TREE_TYPE (parm);
   else
     parm = DECL_INITIAL (parm);
@@ -25502,7 +25503,7 @@ more_specialized_fn (tree pat1, tree pat2, int len)
   if (DECL_STATIC_FUNCTION_P (decl1) || DECL_STATIC_FUNCTION_P (decl2))
     {
       /* Note C++20 DR2445 extended the above to static member functions, but
-	 I think think the old G++ behavior of just skipping the object
+	 I think the old G++ behavior of just skipping the object
 	 parameter when comparing to a static member function was better, so
 	 let's stick with that for now.  This is CWG2834.  --jason 2023-12 */
       if (DECL_OBJECT_MEMBER_FUNCTION_P (decl1))
@@ -26855,7 +26856,7 @@ maybe_instantiate_noexcept (tree fn, tsubst_flags_t complain)
 	}
       else if (push_tinst_level (fn))
 	{
-	  push_to_top_level ();
+	  const bool push_to_top = maybe_push_to_top_level (fn);
 	  push_access_scope (fn);
 	  push_deferring_access_checks (dk_no_deferred);
 	  input_location = DECL_SOURCE_LOCATION (fn);
@@ -26878,17 +26879,10 @@ maybe_instantiate_noexcept (tree fn, tsubst_flags_t complain)
 	  if (orig_fn)
 	    ++processing_template_decl;
 
-	  ++cp_unevaluated_operand;
-	  ++c_inhibit_evaluation_warnings;
-	  ++cp_noexcept_operand;
 	  /* Do deferred instantiation of the noexcept-specifier.  */
 	  noex = tsubst_expr (DEFERRED_NOEXCEPT_PATTERN (noex),
 			      DEFERRED_NOEXCEPT_ARGS (noex),
 			      tf_warning_or_error, fn);
-	  --cp_unevaluated_operand;
-	  --c_inhibit_evaluation_warnings;
-	  --cp_noexcept_operand;
-
 	  /* Build up the noexcept-specification.  */
 	  spec = build_noexcept_spec (noex, tf_warning_or_error);
 
@@ -26898,7 +26892,7 @@ maybe_instantiate_noexcept (tree fn, tsubst_flags_t complain)
 	  pop_deferring_access_checks ();
 	  pop_access_scope (fn);
 	  pop_tinst_level ();
-	  pop_from_top_level ();
+	  maybe_pop_from_top_level (push_to_top);
 	}
       else
 	spec = noexcept_false_spec;
@@ -30570,7 +30564,7 @@ type_targs_deducible_from (tree tmpl, tree type)
 
   /* Maybe add in default template args.  This seems like a flaw in the
      specification in terms of partial specialization, since it says the
-     partial specialization has the the template parameter list of A, but a
+     partial specialization has the template parameter list of A, but a
      partial specialization can't have default targs.  */
   targs = coerce_template_parms (tparms, targs, tmpl, tf_none);
   if (targs == error_mark_node)

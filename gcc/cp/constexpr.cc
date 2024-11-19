@@ -702,16 +702,14 @@ build_constexpr_constructor_member_initializers (tree type, tree body)
 
 /* We have an expression tree T that represents a call, either CALL_EXPR
    or AGGR_INIT_EXPR.  If the call is lexically to a named function,
-   retrun the _DECL for that function.  */
+   return the _DECL for that function.  */
 
 static tree
 get_function_named_in_call (tree t)
 {
-  tree fun = cp_get_callee (t);
-  if (fun && TREE_CODE (fun) == ADDR_EXPR
-      && TREE_CODE (TREE_OPERAND (fun, 0)) == FUNCTION_DECL)
-    fun = TREE_OPERAND (fun, 0);
-  return fun;
+  tree callee = cp_get_callee (t);
+  tree fun = cp_get_fndecl_from_callee (callee, /*fold*/false);
+  return fun ? fun : callee;
 }
 
 /* Subroutine of check_constexpr_fundef.  BODY is the body of a function
@@ -7226,7 +7224,7 @@ maybe_warn_about_constant_value (location_t loc, tree decl)
    in bytes.  If COOKIE_SIZE is NULL, return array type
    ELT_TYPE[FULL_SIZE / sizeof(ELT_TYPE)], otherwise return
    struct { size_t[COOKIE_SIZE/sizeof(size_t)]; ELT_TYPE[N]; }
-   where N is is computed such that the size of the struct fits into FULL_SIZE.
+   where N is computed such that the size of the struct fits into FULL_SIZE.
    If ARG_SIZE is non-NULL, it is the first argument to the new operator.
    It should be passed if ELT_TYPE is zero sized type in which case FULL_SIZE
    will be also 0 and so it is not possible to determine the actual array

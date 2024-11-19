@@ -1844,6 +1844,11 @@ find_inquiry_ref (gfc_expr *p, gfc_expr **newp)
 
   gfc_resolve_expr (tmp);
 
+  /* Leave these to the backend since the type and kind is not confirmed until
+     resolution.  */
+  if (IS_INFERRED_TYPE (tmp))
+    goto cleanup;
+
   /* In principle there can be more than one inquiry reference.  */
   for (; inquiry; inquiry = inquiry->next)
     {
@@ -3509,19 +3514,14 @@ check_restricted (gfc_expr *e)
       if (!check_references (e->ref, &check_restricted))
 	break;
 
-      /* gfc_is_formal_arg broadcasts that a formal argument list is being
-	 processed in resolve.cc(resolve_formal_arglist).  This is done so
-	 that host associated dummy array indices are accepted (PR23446).
-	 This mechanism also does the same for the specification expressions
-	 of array-valued functions.  */
       if (e->error
 	    || sym->attr.in_common
 	    || sym->attr.use_assoc
+	    || sym->attr.used_in_submodule
 	    || sym->attr.dummy
 	    || sym->attr.implied_index
 	    || sym->attr.flavor == FL_PARAMETER
-	    || is_parent_of_current_ns (sym->ns)
-	    || (gfc_is_formal_arg () && (sym->ns == gfc_current_ns)))
+	    || is_parent_of_current_ns (gfc_get_spec_ns (sym)))
 	{
 	  t = true;
 	  break;
@@ -6025,15 +6025,16 @@ gfc_is_simply_contiguous (gfc_expr *expr, bool strict, bool permit_element)
     }
 
   sym = expr->symtree->n.sym;
-  if (expr->ts.type != BT_CLASS
-      && ((part_ref
-	   && !part_ref->u.c.component->attr.contiguous
-	   && part_ref->u.c.component->attr.pointer)
-	  || (!part_ref
-	      && !sym->attr.contiguous
-	      && (sym->attr.pointer
-		  || (sym->as && sym->as->type == AS_ASSUMED_RANK)
-		  || (sym->as && sym->as->type == AS_ASSUMED_SHAPE)))))
+  if ((part_ref
+       && part_ref->u.c.component
+       && !part_ref->u.c.component->attr.contiguous
+       && IS_POINTER (part_ref->u.c.component))
+      || (!part_ref
+	  && expr->ts.type != BT_CLASS
+	  && !sym->attr.contiguous
+	  && (sym->attr.pointer
+	      || (sym->as && sym->as->type == AS_ASSUMED_RANK)
+	      || (sym->as && sym->as->type == AS_ASSUMED_SHAPE))))
     return false;
 
   if (!ar || ar->type == AR_FULL)

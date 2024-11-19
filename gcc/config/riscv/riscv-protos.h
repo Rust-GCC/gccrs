@@ -34,9 +34,10 @@ enum riscv_symbol_type {
   SYMBOL_TLS,
   SYMBOL_TLS_LE,
   SYMBOL_TLS_IE,
-  SYMBOL_TLS_GD
+  SYMBOL_TLS_GD,
+  SYMBOL_TLSDESC,
 };
-#define NUM_SYMBOL_TYPES (SYMBOL_TLS_GD + 1)
+#define NUM_SYMBOL_TYPES (SYMBOL_TLSDESC + 1)
 
 /* Classifies an address.
 
@@ -546,6 +547,7 @@ enum avl_type
 };
 /* Routines implemented in riscv-vector-builtins.cc.  */
 void init_builtins (void);
+void reinit_builtins (void);
 const char *mangle_builtin_type (const_tree);
 tree lookup_vector_type_attribute (const_tree);
 bool builtin_type_p (const_tree);
@@ -762,6 +764,7 @@ extern bool
 riscv_option_valid_attribute_p (tree, tree, tree, int);
 extern void
 riscv_override_options_internal (struct gcc_options *);
+extern void riscv_option_override (void);
 
 struct riscv_tune_param;
 /* Information about one micro-arch we know about.  */

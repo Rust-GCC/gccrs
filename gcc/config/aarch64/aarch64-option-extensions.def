@@ -54,14 +54,14 @@
      If a feature A appears in this list then the list implicitly includes
      any features that are transitively dependent on A (according to REQUIRES).
 
-   - FEAT_STRING is a string containing the entries in the 'Features' field of
-     /proc/cpuinfo on a GNU/Linux system that correspond to this architecture
-     extension being available.  Sometimes multiple entries are needed to enable
-     the extension (for example, the 'crypto' extension depends on four
-     entries: aes, pmull, sha1, sha2 being present).  In that case this field
-     should contain a space (" ") separated list of the strings in 'Features'
-     that are required.  Their order is not important.  An empty string means
-     do not detect this feature during auto detection.
+   - FEATURE_STRING is a string containing the entries in the 'Features' field
+     of /proc/cpuinfo on a GNU/Linux system that correspond to this
+     architecture extension being available.  Sometimes multiple entries are
+     needed to enable the extension (for example, the 'crypto' extension
+     depends on four entries: aes, pmull, sha1, sha2 being present).  In that
+     case this field should contain a space (" ") separated list of the strings
+     in 'Features' that are required.  Their order is not important.  An empty
+     string means do not detect this feature during auto detection.
 
    - OPT_FLAGS is a list of feature IDENTS that should be enabled (along with
      their transitive dependencies) when the specified FMV feature is present.
@@ -174,7 +174,7 @@ AARCH64_OPT_FMV_EXTENSION("rcpc", RCPC, (), (), (), "lrcpc")
 
 AARCH64_FMV_FEATURE("rcpc2", RCPC2, (RCPC))
 
-AARCH64_OPT_FMV_EXTENSION("rcpc3", RCPC3, (), (), (), "rcpc3")
+AARCH64_OPT_FMV_EXTENSION("rcpc3", RCPC3, (), (), (), "lrcpc3")
 
 AARCH64_FMV_FEATURE("frintts", FRINTTS, ())
 
@@ -275,7 +275,9 @@ AARCH64_OPT_EXTENSION("mops", MOPS, (), (), (), "")
 
 AARCH64_OPT_EXTENSION("cssc", CSSC, (), (), (), "cssc")
 
-AARCH64_OPT_EXTENSION("d128", D128, (), (), (), "d128")
+AARCH64_OPT_EXTENSION("lse128", LSE128, (LSE), (), (), "lse128")
+
+AARCH64_OPT_EXTENSION("d128", D128, (LSE128), (), (), "d128")
 
 AARCH64_OPT_EXTENSION("the", THE, (), (), (), "the")
 

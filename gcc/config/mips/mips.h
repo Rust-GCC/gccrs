@@ -251,7 +251,7 @@ struct mips_cpu_info {
 				     || ISA_HAS_MSA))
 
 /* ISA load/store instructions can handle unaligned address */
-#define ISA_HAS_UNALIGNED_ACCESS (TARGET_UNALIGNED_ACCESS \
+#define ISA_HAS_UNALIGNED_ACCESS (!TARGET_STRICT_ALIGN \
 				 && (mips_isa_rev >= 6))
 
 /* The ISA compression flags that are currently in effect.  */
@@ -694,6 +694,9 @@ struct mips_cpu_info {
 	builtin_define ("__mips_compact_branches_always");		\
       else 								\
 	builtin_define ("__mips_compact_branches_optimal");		\
+									\
+      if (STRICT_ALIGNMENT)						\
+	builtin_define ("__mips_strict_alignment");			\
     }									\
   while (0)
 
