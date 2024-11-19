@@ -60,6 +60,7 @@
 #include "opts.h"
 #include "gimplify.h"
 #include "dwarf2.h"
+#include "dwarf2out.h"
 #include "gimple-iterator.h"
 #include "tree-vectorizer.h"
 #include "aarch64-cost-tables.h"
@@ -1448,6 +1449,32 @@ aarch64_dwarf_frame_reg_mode (int regno)
   if (PR_REGNUM_P (regno))
     return VOIDmode;
   return default_dwarf_frame_reg_mode (regno);
+}
+
+/* Implement TARGET_OUTPUT_CFI_DIRECTIVE.  */
+static bool
+aarch64_output_cfi_directive (FILE *f, dw_cfi_ref cfi)
+{
+  bool found = false;
+  if (cfi->dw_cfi_opc == DW_CFA_AARCH64_negate_ra_state)
+    {
+      fprintf (f, "\t.cfi_negate_ra_state\n");
+      found = true;
+    }
+  return found;
+}
+
+/* Implement TARGET_DW_CFI_OPRND1_DESC.  */
+static bool
+aarch64_dw_cfi_oprnd1_desc (dwarf_call_frame_info cfi_opc,
+			    dw_cfi_oprnd_type &oprnd_type)
+{
+  if (cfi_opc == DW_CFA_AARCH64_negate_ra_state)
+    {
+      oprnd_type = dw_cfi_oprnd_unused;
+      return true;
+    }
+  return false;
 }
 
 /* If X is a CONST_DOUBLE, return its bit representation as a constant
@@ -9612,7 +9639,7 @@ aarch64_expand_prologue (void)
 	  default:
 	    gcc_unreachable ();
 	}
-      add_reg_note (insn, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
+      add_reg_note (insn, REG_CFA_NEGATE_RA_STATE, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
     }
 
@@ -10033,7 +10060,7 @@ aarch64_expand_epilogue (rtx_call_insn *sibcall)
 	  default:
 	    gcc_unreachable ();
 	}
-      add_reg_note (insn, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
+      add_reg_note (insn, REG_CFA_NEGATE_RA_STATE, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
     }
 
@@ -17564,6 +17591,19 @@ adjust_body_cost (loop_vec_info loop_vinfo,
   if (dump_enabled_p ())
     dump_printf_loc (MSG_NOTE, vect_location,
 		     "Original vector body cost = %d\n", body_cost);
+
+  /* If we know we have a single partial vector iteration, cap the VF
+     to the number of scalar iterations for costing purposes.  */
+  if (LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))
+    {
+      auto niters = LOOP_VINFO_INT_NITERS (loop_vinfo);
+      if (niters < estimated_vf && dump_enabled_p ())
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "Scalar loop iterates at most %wd times.  Capping VF "
+			 " from %d to %wd\n", niters, estimated_vf, niters);
+
+      estimated_vf = MIN (estimated_vf, niters);
+    }
 
   fractional_cost scalar_cycles_per_iter
     = scalar_ops.min_cycles_per_iter () * estimated_vf;
@@ -30821,6 +30861,12 @@ aarch64_libgcc_floating_mode_supported_p
 
 #undef TARGET_DWARF_FRAME_REG_MODE
 #define TARGET_DWARF_FRAME_REG_MODE aarch64_dwarf_frame_reg_mode
+
+#undef TARGET_OUTPUT_CFI_DIRECTIVE
+#define TARGET_OUTPUT_CFI_DIRECTIVE aarch64_output_cfi_directive
+
+#undef TARGET_DW_CFI_OPRND1_DESC
+#define TARGET_DW_CFI_OPRND1_DESC aarch64_dw_cfi_oprnd1_desc
 
 #undef TARGET_PROMOTED_TYPE
 #define TARGET_PROMOTED_TYPE aarch64_promoted_type

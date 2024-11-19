@@ -3715,7 +3715,7 @@ vect_build_slp_instance (vec_info *vinfo,
   unsigned i;
 
   slp_tree node = NULL;
-  if (force_single_lane)
+  if (group_size > 1 && force_single_lane)
     {
       matches[0] = true;
       matches[1] = false;
@@ -3957,6 +3957,7 @@ vect_build_slp_instance (vec_info *vinfo,
 	  /* Calculate the unrolling factor based on the smallest type.  */
 	  poly_uint64 unrolling_factor = 1;
 
+	  unsigned int rhs_common_nlanes = 0;
 	  unsigned int start = 0, end = i;
 	  while (start < group_size)
 	    {
@@ -3978,6 +3979,10 @@ vect_build_slp_instance (vec_info *vinfo,
 					     calculate_unrolling_factor
 					       (max_nunits, end - start));
 		  rhs_nodes.safe_push (node);
+		  if (start == 0)
+		    rhs_common_nlanes = SLP_TREE_LANES (node);
+		  else if (rhs_common_nlanes != SLP_TREE_LANES (node))
+		    rhs_common_nlanes = 0;
 		  start = end;
 		  if (want_store_lanes || force_single_lane)
 		    end = start + 1;
@@ -4014,6 +4019,19 @@ vect_build_slp_instance (vec_info *vinfo,
 			}
 		}
 	    }
+
+	  /* Now re-assess whether we want store lanes in case the
+	     discovery ended up producing all single-lane RHSs.  */
+	  if (rhs_common_nlanes == 1
+	      && ! STMT_VINFO_GATHER_SCATTER_P (stmt_info)
+	      && ! STMT_VINFO_STRIDED_P (stmt_info)
+	      && compare_step_with_zero (vinfo, stmt_info) > 0
+	      && (vect_store_lanes_supported (SLP_TREE_VECTYPE (rhs_nodes[0]),
+					      group_size,
+					      SLP_TREE_CHILDREN
+						(rhs_nodes[0]).length () != 1)
+		  != IFN_LAST))
+	    want_store_lanes = true;
 
 	  /* Now we assume we can build the root SLP node from all stores.  */
 	  if (want_store_lanes)
@@ -7471,8 +7489,8 @@ vect_prologue_cost_for_slp (slp_tree node,
       nelt_limit = const_nunits;
       hash_set<vect_scalar_ops_slice_hash> vector_ops;
       for (unsigned int i = 0; i < SLP_TREE_NUMBER_OF_VEC_STMTS (node); ++i)
-	if (!vector_ops.add ({ ops, i * const_nunits, const_nunits }))
-	  starts.quick_push (i * const_nunits);
+	if (!vector_ops.add ({ ops, i * nelt_limit, nelt_limit }))
+	  starts.quick_push (i * nelt_limit);
     }
   else
     {
@@ -9158,6 +9176,18 @@ vect_slp_region (vec<basic_block> bbs, vec<data_reference_p> datarefs,
 	      vect_schedule_slp (bb_vinfo, instance->subgraph_entries);
 
 	      vect_location = saved_vect_location;
+	    }
+
+
+	  /* Generate the invariant statements.  */
+	  if (!gimple_seq_empty_p (bb_vinfo->inv_pattern_def_seq))
+	    {
+	      if (dump_enabled_p ())
+		dump_printf_loc (MSG_NOTE, vect_location,
+			 "------>generating invariant statements\n");
+
+	      bb_vinfo->insert_seq_on_entry (NULL,
+					     bb_vinfo->inv_pattern_def_seq);
 	    }
 	}
       else

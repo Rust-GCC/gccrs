@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_RANGES_BASE_H
 #define _GLIBCXX_RANGES_BASE_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus > 201703L
 #include <initializer_list>
@@ -41,6 +43,12 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic" // __int128
+
+#if __glibcxx_algorithm_default_value_type // C++ >= 26
+# define _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_I, _P) = projected_value_t<_I, _P>
+#else
+# define _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_I, _P)
+#endif
 
 #ifdef __cpp_lib_concepts
 namespace std _GLIBCXX_VISIBILITY(default)

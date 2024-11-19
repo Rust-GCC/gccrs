@@ -30,7 +30,9 @@
 #ifndef _ITERATOR_CONCEPTS_H
 #define _ITERATOR_CONCEPTS_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus >= 202002L
 #include <concepts>
@@ -828,6 +830,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using _Proj = typename _Tp::__projected_Proj;
       using type = invoke_result_t<_Proj&, __indirect_value_t<_Iter>>;
     };
+
+#if __glibcxx_algorithm_default_value_type // C++ >= 26
+  template<indirectly_readable _Iter,
+	   indirectly_regular_unary_invocable<_Iter> _Proj>
+    using projected_value_t
+	= remove_cvref_t<invoke_result_t<_Proj&, iter_value_t<_Iter>&>>;
+#endif
 
   // [alg.req], common algorithm requirements
 

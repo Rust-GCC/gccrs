@@ -1345,8 +1345,12 @@ decode_omp_directive (void)
 
   switch (ret)
     {
-    /* Set omp_target_seen; exclude ST_OMP_DECLARE_TARGET.
-       FIXME: Get clarification, cf. OpenMP Spec Issue #3240.  */
+    /* For the constraints on clauses with the global requirement property,
+       we set omp_target_seen. This included all clauses that take the
+       DEVICE clause, (BEGIN) DECLARE_TARGET and procedures run the device
+       (which effectively is implied by the former).  */
+    case ST_OMP_DECLARE_TARGET:
+    case ST_OMP_INTEROP:
     case ST_OMP_TARGET:
     case ST_OMP_TARGET_DATA:
     case ST_OMP_TARGET_ENTER_DATA:
@@ -7415,6 +7419,9 @@ done:
     omp_requires_mask
 	  = (enum omp_requires) (omp_requires_mask
 				 | OMP_REQUIRES_UNIFIED_SHARED_MEMORY);
+  if (omp_requires & OMP_REQ_SELF_MAPS)
+    omp_requires_mask
+	  = (enum omp_requires) (omp_requires_mask | OMP_REQUIRES_SELF_MAPS);
   if (omp_requires & OMP_REQ_DYNAMIC_ALLOCATORS)
     omp_requires_mask = (enum omp_requires) (omp_requires_mask
 					     | OMP_REQUIRES_DYNAMIC_ALLOCATORS);

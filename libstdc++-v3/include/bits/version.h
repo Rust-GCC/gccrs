@@ -44,7 +44,9 @@
 // if unwanted, to permit bits and other FTMs to depend on them for condtional
 // computation without exposing extra FTMs to user code.
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 
@@ -1968,6 +1970,26 @@
 #endif /* !defined(__cpp_lib_unreachable) && defined(__glibcxx_want_unreachable) */
 #undef __glibcxx_want_unreachable
 
+#if !defined(__cpp_lib_algorithm_default_value_type)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_algorithm_default_value_type 202403L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_algorithm_default_value_type)
+#   define __cpp_lib_algorithm_default_value_type 202403L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_algorithm_default_value_type) && defined(__glibcxx_want_algorithm_default_value_type) */
+#undef __glibcxx_want_algorithm_default_value_type
+
+#if !defined(__cpp_lib_constexpr_new)
+# if (__cplusplus >  202302L) && (__cpp_constexpr >= 202406L)
+#  define __glibcxx_constexpr_new 202406L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_new)
+#   define __cpp_lib_constexpr_new 202406L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_constexpr_new) && defined(__glibcxx_want_constexpr_new) */
+#undef __glibcxx_want_constexpr_new
+
 #if !defined(__cpp_lib_fstream_native_handle)
 # if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
 #  define __glibcxx_fstream_native_handle 202306L
@@ -1977,6 +1999,16 @@
 # endif
 #endif /* !defined(__cpp_lib_fstream_native_handle) && defined(__glibcxx_want_fstream_native_handle) */
 #undef __glibcxx_want_fstream_native_handle
+
+#if !defined(__cpp_lib_ranges_concat)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_ranges_concat 202403L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_ranges_concat)
+#   define __cpp_lib_ranges_concat 202403L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_ranges_concat) && defined(__glibcxx_want_ranges_concat) */
+#undef __glibcxx_want_ranges_concat
 
 #if !defined(__cpp_lib_ratio)
 # if (__cplusplus >  202302L)
@@ -2027,25 +2059,5 @@
 # endif
 #endif /* !defined(__cpp_lib_to_string) && defined(__glibcxx_want_to_string) */
 #undef __glibcxx_want_to_string
-
-#if !defined(__cpp_lib_ranges_concat)
-# if (__cplusplus >  202302L)
-#  define __glibcxx_ranges_concat 202403L
-#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_ranges_concat)
-#   define __cpp_lib_ranges_concat 202403L
-#  endif
-# endif
-#endif /* !defined(__cpp_lib_ranges_concat) && defined(__glibcxx_want_ranges_concat) */
-#undef __glibcxx_want_ranges_concat
-
-#if !defined(__cpp_lib_constexpr_new)
-# if (__cplusplus >  202302L) && (__cpp_constexpr >= 202406L)
-#  define __glibcxx_constexpr_new 202406L
-#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_new)
-#   define __cpp_lib_constexpr_new 202406L
-#  endif
-# endif
-#endif /* !defined(__cpp_lib_constexpr_new) && defined(__glibcxx_want_constexpr_new) */
-#undef __glibcxx_want_constexpr_new
 
 #undef __glibcxx_want_all

@@ -1,3 +1,171 @@
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* check.cc (gfc_check_random_number): Adjust for unsigned.
+	* iresolve.cc (gfc_resolve_random_number): Handle unsigned.
+	* trans-expr.cc (gfc_conv_expr_op): Handle BT_UNSIGNED for divide.
+	* trans-types.cc (gfc_get_dtype_rank_type): Handle BT_UNSIGNED.
+	* gfortran.texi: Add RANDOM_NUMBER for UNSIGNED.
+
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* check.cc (gfc_check_transf_bit_intrins): Handle unsigned.
+	* gfortran.texi: Docment IANY, IALL and IPARITY for unsigned.
+	* iresolve.cc (gfc_resolve_iall): Set flag to use integer
+	if type is BT_UNSIGNED.
+	(gfc_resolve_iany): Likewise.
+	(gfc_resolve_iparity): Likewise.
+	* simplify.cc (do_bit_and): Adjust asserts for BT_UNSIGNED.
+	(do_bit_ior): Likewise.
+	(do_bit_xor): Likewise
+
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* gfortran.texi: Document SUM and PRODUCT.
+	* iresolve.cc (resolve_transformational): New argument,
+	use_integer, to translate calls to unsigned to calls to
+	integer.
+	(gfc_resolve_product): Use it
+	(gfc_resolve_sum): Use it.
+	* simplify.cc (init_result_expr): Handle BT_UNSIGNED.
+
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* arith.cc (gfc_arith_uminus): Fix warning.
+	(gfc_arith_minus): Correctly truncate unsigneds.
+	* check.cc (gfc_check_dot_product): Handle unsigned arguments.
+	(gfc_check_matmul): Likewise.
+	* expr.cc (gfc_get_unsigned_expr): New function.
+	* gfortran.h (gfc_get_unsigned_expr): Add prototype.
+	* iresolve.cc (gfc_resolve_matmul): If using UNSIGNED, use the
+	signed integer version.
+	* gfortran.texi: Document MATMUL and DOT_PRODUCT for unsigned.
+	* simplify.cc (compute_dot_product): Handle unsigneds.
+
+2024-09-24  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/101100
+	* trans-expr.cc (trans_caf_token_assign): Take caf-token from
+	decl for non ultimate coarray components.
+
+2024-09-24  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/84870
+	* trans-array.cc (duplicate_allocatable_coarray): For scalar
+	allocatable components the memory allocated is now assigned to
+	the component's pointer.
+
+2024-09-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.h (enum gfc_omp_requires_kind): Add OMP_REQ_SELF_MAPS.
+	(gfc_namespace): Enlarge omp_requires bitfield.
+	* module.cc (enum ab_attribute, attr_bits): Add AB_OMP_REQ_SELF_MAPS.
+	(mio_symbol_attribute): Handle it.
+	* openmp.cc (gfc_check_omp_requires, gfc_match_omp_requires): Handle
+	self_maps clause.
+	* parse.cc (gfc_parse_file): Handle self_maps clause.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* invoke.texi(finline-intrinsics): Document new flag.
+	* lang.opt (finline-intrinsics, finline-intrinsics=,
+	fno-inline-intrinsics): New flags.
+	* options.cc (gfc_post_options): If the option variable controlling
+	the inlining of MAXLOC (respectively MINLOC) has not been set, set
+	it or clear it depending on the optimization option variables.
+	* trans-intrinsic.cc (gfc_inline_intrinsic_function_p): Return false
+	if inlining for the intrinsic is disabled according to the option
+	variable.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Generate a set
+	of index variables.  Set them using the loop indexes before leaving
+	the first set of loops.  Generate a new loop entry predicate.
+	Initialize it.  Set it before leaving the first set of loops.  Clear
+	it in the body of the second set of loops.  For the second set of
+	loops, update each loop lower bound to use the corresponding index
+	variable if the predicate variable is set.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Initialize
+	and update all the variables.  Put the label and goto in the
+	outermost scalarizer loop.  Don't start the second loop where the
+	first stopped.
+	(gfc_inline_intrinsic_function_p): Also return TRUE for array MASK
+	or for any REAL type.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Generate
+	variable initialization for each dimension in the else branch of
+	the toplevel condition.
+	(gfc_inline_intrinsic_function_p): Return TRUE for scalar MASK.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* trans-array.cc (gfc_conv_ss_startstride): Set the MINLOC/MAXLOC
+	result upper bound using the rank of the ARRAY argument.  Ajdust
+	the error message for intrinsic result arrays.  Only check array
+	bounds for array references.  Move bound check decision code...
+	(bounds_check_needed): ... here as a new predicate.  Allow bound
+	check for MINLOC/MAXLOC intrinsic results.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Change the
+	result array upper bound to the rank of ARRAY.  Update the NONEMPTY
+	variable to depend on the non-empty extent of every dimension.  Use
+	one variable per dimension instead of a single variable for the
+	position and the offset.  Update their declaration, initialization,
+	and update to affect the variable of each dimension.  Use the first
+	variable only in areas only accessed with rank 1 ARRAY argument.
+	Set every element of the result using its corresponding variable.
+	(gfc_inline_intrinsic_function_p): Return true for integral ARRAY
+	and absent DIM and MASK.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* trans-array.cc (gfc_conv_ss_startstride): Move array bound check
+	generation code...
+	(add_check_section_in_array_bounds): ... here as a new function.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* frontend-passes.cc (optimize_minmaxloc): Remove.
+	(optimize_expr): Remove dispatch to optimize_minmaxloc.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* trans-array.cc (gfc_conv_ss_startstride): Set the scalarization
+	rank based on the MINLOC/MAXLOC rank if needed.  Call the inline
+	code generation and setup the scalarizer array descriptor info
+	in the MINLOC and MAXLOC cases.
+	* trans-intrinsic.cc (gfc_conv_intrinsic_minmaxloc): Return the
+	result array element if the scalarizer is setup and we are inside
+	the loops.  Restrict library function call dispatch to the case
+	where inline expansion is not supported.  Declare an array result
+	if the expression isn't scalar.  Initialize the array result single
+	element and return the result variable if the expression isn't
+	scalar.
+	(walk_inline_intrinsic_minmaxloc): New function.
+	(walk_inline_intrinsic_function): Add MINLOC and MAXLOC cases,
+	dispatching to walk_inline_intrinsic_minmaxloc.
+	(gfc_add_intrinsic_ss_code): Add MINLOC and MAXLOC cases.
+	(gfc_inline_intrinsic_function_p): Return true if ARRAY has rank 1,
+	regardless of DIM.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* frontend-passes.cc (optimize_minmaxloc): Skip if we can generate
+	inline code for the unmodified expression.
+	* trans-intrinsic.cc (gfc_inline_intrinsic_function_p): Add
+	MINLOC and MAXLOC cases.
+
 2024-09-20  David Malcolm  <dmalcolm@redhat.com>
 
 	PR other/116613

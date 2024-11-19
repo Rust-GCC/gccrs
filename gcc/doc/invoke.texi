@@ -214,7 +214,7 @@ in the following sections.
 @xref{C++ Dialect Options,,Options Controlling C++ Dialect}.
 @gccoptlist{-fabi-version=@var{n}  -fno-access-control
 -faligned-new=@var{n}  -fargs-in-order=@var{n}  -fchar8_t  -fcheck-new
--fconstexpr-depth=@var{n}  -fconstexpr-cache-depth=@var{n}
+-fconcepts  -fconstexpr-depth=@var{n}  -fconstexpr-cache-depth=@var{n}
 -fconstexpr-loop-limit=@var{n}  -fconstexpr-ops-limit=@var{n}
 -fno-elide-constructors
 -fno-enforce-eh-specs
@@ -233,7 +233,7 @@ in the following sections.
 -fnew-ttp-matching
 -fno-nonansi-builtins  -fnothrow-opt  -fno-operator-names
 -fno-optional-diags
--fno-pretty-templates
+-fno-pretty-templates  -frange-for-ext-temps
 -fno-rtti  -fsized-deallocation
 -ftemplate-backtrace-limit=@var{n}
 -ftemplate-depth=@var{n}
@@ -3613,6 +3613,15 @@ template, the compiler omits any template arguments that match
 the default template arguments for that template.  If either of these
 behaviors make it harder to understand the error message rather than
 easier, you can use @option{-fno-pretty-templates} to disable them.
+
+@opindex frange-for-ext-temps
+@item -frange-for-ext-temps
+Enable lifetime extension of C++ range based for temporaries.
+With @option{-std=c++23} and above this is part of the language standard,
+so lifetime of the temporaries is extended until the end of the loop
+regardless of this option.  This option allows enabling that behavior also
+in earlier versions of the standard and is enabled by default in the
+GNU dialects, from @option{-std=gnu++11} until @option{-std=gnu++20}.
 
 @opindex fno-rtti
 @opindex frtti
@@ -21877,6 +21886,8 @@ Enable support for Armv8.9-a/9.4-a translation hardening extension.
 Enable the RCpc3 (Release Consistency) extension.
 @item fp8
 Enable the fp8 (8-bit floating point) extension.
+@item faminmax
+Enable the Floating Point Absolute Maximum/Minimum extension.
 
 @end table
 
@@ -22716,9 +22727,7 @@ the case.
 
 @opindex mlra
 @item -mlra
-Enable Local Register Allocation.  This is still experimental for ARC,
-so by default the compiler uses standard reload
-(i.e.@: @option{-mno-lra}).
+Does nothing.  Preserved for backward compatibility.
 
 @opindex mlra-priority-none
 @item -mlra-priority-none

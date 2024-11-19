@@ -2804,11 +2804,23 @@ gfc_check_dot_product (gfc_expr *vector_a, gfc_expr *vector_b)
 	return false;
       break;
 
+    case BT_UNSIGNED:
+      /* Check comes later.  */
+      break;
+
     default:
       gfc_error ("%qs argument of %qs intrinsic at %L must be numeric "
 		 "or LOGICAL", gfc_current_intrinsic_arg[0]->name,
 		 gfc_current_intrinsic, &vector_a->where);
       return false;
+    }
+
+  if (gfc_invalid_unsigned_ops (vector_a, vector_b))
+    {
+      gfc_error ("Argument types of %qs intrinsic at %L must match (%s/%s)",
+		 gfc_current_intrinsic, &vector_a->where,
+		 gfc_typename(&vector_a->ts), gfc_typename(&vector_b->ts));
+       return false;
     }
 
   if (!rank_check (vector_a, 0, 1))
@@ -4092,7 +4104,8 @@ gfc_check_matmul (gfc_expr *matrix_a, gfc_expr *matrix_b)
     }
 
   if ((matrix_a->ts.type == BT_LOGICAL && gfc_numeric_ts (&matrix_b->ts))
-      || (gfc_numeric_ts (&matrix_a->ts) && matrix_b->ts.type == BT_LOGICAL))
+      || (gfc_numeric_ts (&matrix_a->ts) && matrix_b->ts.type == BT_LOGICAL)
+      || gfc_invalid_unsigned_ops (matrix_a, matrix_b))
     {
       gfc_error ("Argument types of %qs intrinsic at %L must match (%s/%s)",
 		 gfc_current_intrinsic, &matrix_a->where,
@@ -4417,7 +4430,19 @@ gfc_check_mask (gfc_expr *i, gfc_expr *kind)
 bool
 gfc_check_transf_bit_intrins (gfc_actual_arglist *ap)
 {
-  if (ap->expr->ts.type != BT_INTEGER)
+  bt type = ap->expr->ts.type;
+
+  if (flag_unsigned)
+    {
+      if (type != BT_INTEGER && type != BT_UNSIGNED)
+	{
+	  gfc_error ("%qs argument of %qs intrinsic at %L must be INTEGER "
+		     "or UNSIGNED", gfc_current_intrinsic_arg[0]->name,
+		     gfc_current_intrinsic, &ap->expr->where);
+	  return false;
+	}
+    }
+  else if (ap->expr->ts.type != BT_INTEGER)
     {
       gfc_error ("%qs argument of %qs intrinsic at %L must be INTEGER",
                  gfc_current_intrinsic_arg[0]->name,
@@ -6982,8 +7007,14 @@ gfc_check_random_init (gfc_expr *repeatable, gfc_expr *image_distinct)
 bool
 gfc_check_random_number (gfc_expr *harvest)
 {
-  if (!type_check (harvest, 0, BT_REAL))
-    return false;
+  if (flag_unsigned)
+    {
+      if (!type_check2 (harvest, 0, BT_REAL, BT_UNSIGNED))
+	return false;
+    }
+  else
+    if (!type_check (harvest, 0, BT_REAL))
+      return false;
 
   if (!variable_check (harvest, 0, false))
     return false;

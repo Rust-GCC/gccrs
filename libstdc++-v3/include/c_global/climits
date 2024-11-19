@@ -36,13 +36,15 @@
 // ISO C++ 14882: 18.2.2  Implementation properties: C library
 //
 
+#ifndef _GLIBCXX_CLIMITS
+#define _GLIBCXX_CLIMITS 1
+
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 #include <limits.h>
-
-#ifndef _GLIBCXX_CLIMITS
-#define _GLIBCXX_CLIMITS 1
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wlong-long"

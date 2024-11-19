@@ -1,3 +1,357 @@
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* gfortran.dg/unsigned_30.f90: New test.
+
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* gfortran.dg/unsigned_29.f90: New test.
+
+2024-09-24  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* gfortran.dg/unsigned_25.f90: New test.
+	* gfortran.dg/unsigned_26.f90: New test.
+
+2024-09-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/107637
+	* g++.dg/cpp23/range-for1.C: New test.
+	* g++.dg/cpp23/range-for2.C: New test.
+	* g++.dg/cpp23/range-for3.C: New test.
+	* g++.dg/cpp23/range-for4.C: New test.
+	* g++.dg/cpp23/range-for5.C: New test.
+	* g++.dg/cpp23/range-for6.C: New test.
+	* g++.dg/cpp23/range-for7.C: New test.
+	* g++.dg/cpp23/range-for8.C: New test.
+	* g++.dg/cpp23/feat-cxx2b.C (__cpp_range_based_for): Check for
+	202212L rather than 201603L.
+	* g++.dg/cpp26/feat-cxx26.C (__cpp_range_based_for): Likewise.
+	* g++.dg/warn/Wdangling-reference4.C: Don't expect warning for C++23
+	or newer.  Use dg-additional-options rather than dg-options.
+
+2024-09-24  Nina Dinka Ranns  <dinka.ranns@googlemail.com>
+
+	PR c++/116490
+	* g++.dg/contracts/pr116490.C: New test.
+
+2024-09-24  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c-c++-common/gomp/declare-variant-10.c: Fix broken tests.
+	* c-c++-common/gomp/declare-variant-3.c: Likewise.
+	* c-c++-common/gomp/declare-variant-9.c: Likewise.
+	* c-c++-common/gomp/declare-variant-any.c: New.
+	* c-c++-common/gomp/declare-variant-duplicates.c: New.
+	* gfortran.dg/gomp/declare-variant-10.f90: Fix broken tests.
+	* gfortran.dg/gomp/declare-variant-3.f90: Likewise.
+	* gfortran.dg/gomp/declare-variant-9.f90: Likewise.
+	* gfortran.dg/gomp/declare-variant-any.f90: New.
+	* gfortran.dg/gomp/declare-variant-duplicates.f90: New.
+
+2024-09-24  Pan Li  <pan2.li@intel.com>
+
+	PR middle-end/116814
+	* g++.dg/torture/pr116814-1.C: New test.
+
+2024-09-24  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-1.c: Expect
+	length-controlled loop.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-10.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-11.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-12.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-13.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-14.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-15.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-16.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-17.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-18.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-19.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-20.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-21.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-22.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-23.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-24.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-25.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-26.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-27.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-28.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-29.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-30.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-31.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-32.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-8.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_add-9.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-10.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-11.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-12.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-13.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-14.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-15.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-16.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-17.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-18.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-19.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-20.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-21.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-22.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-23.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-24.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-25.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-26.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-27.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-28.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-29.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-30.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-31.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-32.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-33.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-34.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-35.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-36.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-37.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-38.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-39.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-40.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-8.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub-9.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub_trunc-1.c:
+	Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub_trunc-2.c:
+	Ditto.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_u_sub_trunc-3.c:
+	Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-10.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-11.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-12.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-13.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-14.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-15.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-16.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-17.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-18.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-19.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-20.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-21.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-22.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-23.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-24.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-8.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/unop/vec_sat_u_trunc-9.c: Ditto.
+
+2024-09-24  Robin Dapp  <rdapp@ventanamicro.com>
+
+	* lib/target-supports.exp: Fix effective target check.
+
+2024-09-24  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* gfortran.dg/coarray/proc_pointer_assign_1.f90: New test.
+
+2024-09-24  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* gfortran.dg/coarray/alloc_comp_10.f90: New test.
+
+2024-09-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-c++-common/gomp/declare-variant-1.c: Add self_maps test.
+	* c-c++-common/gomp/requires-4.c: Likewise.
+	* gfortran.dg/gomp/declare-variant-3.f90:  Likewise.
+	* c-c++-common/gomp/requires-2.c: Update dg-error msg.
+	* gfortran.dg/gomp/requires-2.f90: Likewise.
+	* gfortran.dg/gomp/requires-self-maps-aux.f90: New.
+	* gfortran.dg/gomp/requires-self-maps.f90: New.
+
+2024-09-24  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* gcc.dg/darwin-minversion-link.c: Account for macOS 15.
+
+2024-09-24  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+	    Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR target/104957
+	* gcc.target/nvptx/alias-to-alias-1.c: Adjust.
+
+2024-09-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/116798
+	* g++.dg/cpp23/explicit-obj-diagnostics12.C: New test.
+
+2024-09-23  Saurabh Jha  <saurabh.jha@arm.com>
+
+	* gcc.target/aarch64/simd/faminmax-codegen-no-flag.c: New test.
+	* gcc.target/aarch64/simd/faminmax-codegen.c: New test.
+	* gcc.target/aarch64/simd/faminmax-no-codegen.c: New test.
+
+2024-09-23  Saurabh Jha  <saurabh.jha@arm.com>
+
+	* gcc.target/aarch64/simd/faminmax-builtins-no-flag.c: New test.
+	* gcc.target/aarch64/simd/faminmax-builtins.c: New test.
+
+2024-09-23  Matthieu Longo  <matthieu.longo@arm.com>
+
+	* g++.target/aarch64/pr94515-1.C: Improve test documentation.
+	* g++.target/aarch64/pr94515-2.C: Same.
+
+2024-09-23  Matthieu Longo  <matthieu.longo@arm.com>
+
+	* g++.target/aarch64/pr94515-1.C: Replace SPARC CFI directive by
+	AArch64 one.
+	* g++.target/aarch64/pr94515-2.C: Same.
+
+2024-09-23  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/109790
+	PR c++/100632
+	* g++.dg/cpp0x/decltype83.C: New test.
+	* g++.dg/cpp0x/decltype83a.C: New test.
+	* g++.dg/cpp1y/lambda-ice3.C: New test.
+	* g++.dg/cpp1y/lambda-ice3a.C: New test.
+	* g++.dg/cpp2a/nontype-class67.C: New test.
+
+2024-09-23  Simon Martin  <simon@nasilyan.com>
+
+	PR c++/116722
+	* g++.dg/cpp0x/constexpr-ctor22.C: New test.
+
+2024-09-23  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/116812
+	* gcc.dg/vect/pr116812.c: New test.
+
+2024-09-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/116791
+	* gcc.dg/vect/pr116791.c: New testcase.
+
+2024-09-23  Pan Li  <pan2.li@intel.com>
+
+	PR target/116795
+	* gcc.dg/torture/pr116795-1.c: New test.
+
+2024-09-23  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/rvv/autovec/vec_sat_arith.h: Add test helper macro.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-5.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-6.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-7.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-8.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-run-5.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-run-6.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-run-7.c: New test.
+	* gcc.target/riscv/rvv/autovec/binop/vec_sat_s_add-run-8.c: New test.
+
+2024-09-23  Hans-Peter Nilsson  <hp@axis.com>
+
+	PR testsuite/116701
+	* gfortran.dg/unsigned_22.f90: Add missing close with delete.
+
+2024-09-22  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat_arith.h: Add test helper macros.
+	* gcc.target/riscv/sat_s_add-13.c: New test.
+	* gcc.target/riscv/sat_s_add-14.c: New test.
+	* gcc.target/riscv/sat_s_add-15.c: New test.
+	* gcc.target/riscv/sat_s_add-16.c: New test.
+	* gcc.target/riscv/sat_s_add-run-13.c: New test.
+	* gcc.target/riscv/sat_s_add-run-14.c: New test.
+	* gcc.target/riscv/sat_s_add-run-15.c: New test.
+	* gcc.target/riscv/sat_s_add-run-16.c: New test.
+
+2024-09-22  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat_arith.h: Add test helper macros.
+	* gcc.target/riscv/sat_s_add-10.c: New test.
+	* gcc.target/riscv/sat_s_add-11.c: New test.
+	* gcc.target/riscv/sat_s_add-12.c: New test.
+	* gcc.target/riscv/sat_s_add-9.c: New test.
+	* gcc.target/riscv/sat_s_add-run-10.c: New test.
+	* gcc.target/riscv/sat_s_add-run-11.c: New test.
+	* gcc.target/riscv/sat_s_add-run-12.c: New test.
+	* gcc.target/riscv/sat_s_add-run-9.c: New test.
+
+2024-09-22  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* g++.dg/coroutines/torture/special-termination-00-sync-completion.C: New test.
+	* g++.dg/coroutines/torture/special-termination-01-self-destruct.C: New test.
+
+2024-09-22  Tamar Christina  <tamar.christina@arm.com>
+
+	* gcc.dg/vect/bb-slp-conditional_store_1.c: New test.
+	* gcc.dg/vect/vect-conditional_store_5.c: New test.
+	* gcc.dg/vect/vect-conditional_store_6.c: New test.
+
+2024-09-22  Tamar Christina  <tamar.christina@arm.com>
+
+	* gcc.target/aarch64/sve/asrdiv_4.c: Update bounds.
+	* gcc.target/aarch64/sve/cond_asrd_2.c: Likewise.
+	* gcc.target/aarch64/sve/cond_uxt_6.c: Likewise.
+	* gcc.target/aarch64/sve/cond_uxt_7.c: Likewise.
+	* gcc.target/aarch64/sve/cond_uxt_8.c: Likewise.
+	* gcc.target/aarch64/sve/miniloop_1.c: Likewise.
+	* gcc.target/aarch64/sve/spill_6.c: Likewise.
+	* gcc.target/aarch64/sve/sve_iters_low_1.c: New test.
+	* gcc.target/aarch64/sve/sve_iters_low_2.c: New test.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* gfortran.dg/minmaxloc_18.f90: New test.
+	* gfortran.dg/minmaxloc_18a.f90: New test.
+	* gfortran.dg/minmaxloc_18b.f90: New test.
+	* gfortran.dg/minmaxloc_18c.f90: New test.
+	* gfortran.dg/minmaxloc_18d.f90: New test.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* gfortran.dg/maxloc_bounds_5.f90: Additionally accept error
+	messages reported by the scalarizer.
+	* gfortran.dg/maxloc_bounds_6.f90: Ditto.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* gfortran.dg/maxloc_bounds_7.f90: Additionally accept the error message
+	reported by the scalarizer.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* gfortran.dg/maxloc_bounds_4.f90: Additionally accept the error
+	message emitted by the scalarizer.
+
+2024-09-21  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/90608
+	* gfortran.dg/ieee/maxloc_nan_1.f90: New test.
+	* gfortran.dg/ieee/minloc_nan_1.f90: New test.
+	* gfortran.dg/maxloc_7.f90: New test.
+	* gfortran.dg/maxloc_with_mask_1.f90: New test.
+	* gfortran.dg/minloc_8.f90: New test.
+	* gfortran.dg/minloc_with_mask_1.f90: New test.
+
 2024-09-20  David Malcolm  <dmalcolm@redhat.com>
 
 	PR other/116792

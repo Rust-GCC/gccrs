@@ -145,6 +145,16 @@ optimize_vectors_before_lowering_p ()
   return !cfun || (cfun->curr_properties & PROP_gimple_lvec) == 0;
 }
 
+/* Returns true if the expression T has no side effects
+   including not trapping. */
+static inline bool
+expr_no_side_effects_p (tree t)
+{
+  /* For gimple, there should only be gimple val's here. */
+  gcc_assert (is_gimple_val (t));
+  return true;
+}
+
 /* Return true if pow(cst, x) should be optimized into exp(log(cst) * x).
    As a workaround for SPEC CPU2017 628.pop2_s, don't do it if arg0
    is an exact integer, arg1 = phi_res +/- cst1 and phi_res = PHI <cst2, ...>
@@ -402,7 +412,7 @@ match_cond_with_binary_phi (gphi *phi, tree *true_arg, tree *false_arg)
   if (EDGE_COUNT (pred_b0->succs) == 2
       && EDGE_COUNT (pred_b1->succs) == 1
       && EDGE_COUNT (pred_b1->preds) == 1
-      && pred_b0 == EDGE_PRED (gimple_bb (phi), 0)->src)
+      && pred_b0 == EDGE_PRED (pred_b1, 0)->src)
     /*
      * +------+
      * | b0:  |

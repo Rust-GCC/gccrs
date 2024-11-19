@@ -359,7 +359,16 @@ init_result_expr (gfc_expr *e, int init, gfc_expr *array)
 	      mpz_set_si (e->value.integer, init);
 	    break;
 
-	  case BT_REAL:
+	  case BT_UNSIGNED:
+	    if (init == INT_MIN)
+	      mpz_set_ui (e->value.integer, 0);
+	    else if (init == INT_MAX)
+	      mpz_set (e->value.integer, gfc_unsigned_kinds[i].huge);
+	    else
+	      mpz_set_ui (e->value.integer, init);
+	    break;
+
+	case BT_REAL:
 	    if (init == INT_MIN)
 	      {
 		mpfr_set (e->value.real, gfc_real_kinds[i].huge, GFC_RND_MODE);
@@ -420,13 +429,20 @@ compute_dot_product (gfc_expr *matrix_a, int stride_a, int offset_a,
 {
   gfc_expr *result, *a, *b, *c;
 
-  /* Set result to an INTEGER(1) 0 for numeric types and .false. for
+  /* Set result to an UNSIGNED of correct kind for unsigned,
+     INTEGER(1) 0 for other numeric types, and .false. for
      LOGICAL.  Mixed-mode math in the loop will promote result to the
      correct type and kind.  */
   if (matrix_a->ts.type == BT_LOGICAL)
     result = gfc_get_logical_expr (gfc_default_logical_kind, NULL, false);
+  else if (matrix_a->ts.type == BT_UNSIGNED)
+    {
+      int kind = MAX (matrix_a->ts.kind, matrix_b->ts.kind);
+      result = gfc_get_unsigned_expr (kind, NULL, 0);
+    }
   else
     result = gfc_get_int_expr (1, NULL, 0);
+
   result->where = matrix_a->where;
 
   a = gfc_constructor_lookup_expr (matrix_a->value.constructor, offset_a);
@@ -446,6 +462,7 @@ compute_dot_product (gfc_expr *matrix_a, int stride_a, int offset_a,
 	  case BT_INTEGER:
 	  case BT_REAL:
 	  case BT_COMPLEX:
+	  case BT_UNSIGNED:
 	    if (conj_a && a->ts.type == BT_COMPLEX)
 	      c = gfc_simplify_conjg (a);
 	    else
@@ -3384,9 +3401,20 @@ gfc_simplify_iachar (gfc_expr *e, gfc_expr *kind)
 static gfc_expr *
 do_bit_and (gfc_expr *result, gfc_expr *e)
 {
-  gcc_assert (e->ts.type == BT_INTEGER && e->expr_type == EXPR_CONSTANT);
-  gcc_assert (result->ts.type == BT_INTEGER
-	      && result->expr_type == EXPR_CONSTANT);
+  if (flag_unsigned)
+    {
+      gcc_assert ((e->ts.type == BT_INTEGER || e->ts.type == BT_UNSIGNED)
+		  && e->expr_type == EXPR_CONSTANT);
+      gcc_assert ((result->ts.type == BT_INTEGER
+		   || result->ts.type == BT_UNSIGNED)
+		  && result->expr_type == EXPR_CONSTANT);
+    }
+  else
+    {
+      gcc_assert (e->ts.type == BT_INTEGER && e->expr_type == EXPR_CONSTANT);
+      gcc_assert (result->ts.type == BT_INTEGER
+		  && result->expr_type == EXPR_CONSTANT);
+    }
 
   mpz_and (result->value.integer, result->value.integer, e->value.integer);
   return result;
@@ -3403,9 +3431,20 @@ gfc_simplify_iall (gfc_expr *array, gfc_expr *dim, gfc_expr *mask)
 static gfc_expr *
 do_bit_ior (gfc_expr *result, gfc_expr *e)
 {
-  gcc_assert (e->ts.type == BT_INTEGER && e->expr_type == EXPR_CONSTANT);
-  gcc_assert (result->ts.type == BT_INTEGER
-	      && result->expr_type == EXPR_CONSTANT);
+  if (flag_unsigned)
+    {
+      gcc_assert ((e->ts.type == BT_INTEGER || e->ts.type == BT_UNSIGNED)
+		  && e->expr_type == EXPR_CONSTANT);
+      gcc_assert ((result->ts.type == BT_INTEGER
+		   || result->ts.type == BT_UNSIGNED)
+		  && result->expr_type == EXPR_CONSTANT);
+    }
+  else
+    {
+      gcc_assert (e->ts.type == BT_INTEGER && e->expr_type == EXPR_CONSTANT);
+      gcc_assert (result->ts.type == BT_INTEGER
+		  && result->expr_type == EXPR_CONSTANT);
+    }
 
   mpz_ior (result->value.integer, result->value.integer, e->value.integer);
   return result;
@@ -3867,9 +3906,20 @@ gfc_simplify_ior (gfc_expr *x, gfc_expr *y)
 static gfc_expr *
 do_bit_xor (gfc_expr *result, gfc_expr *e)
 {
-  gcc_assert (e->ts.type == BT_INTEGER && e->expr_type == EXPR_CONSTANT);
-  gcc_assert (result->ts.type == BT_INTEGER
-	      && result->expr_type == EXPR_CONSTANT);
+  if (flag_unsigned)
+    {
+      gcc_assert ((e->ts.type == BT_INTEGER || e->ts.type == BT_UNSIGNED)
+		  && e->expr_type == EXPR_CONSTANT);
+      gcc_assert ((result->ts.type == BT_INTEGER
+		   || result->ts.type == BT_UNSIGNED)
+		  && result->expr_type == EXPR_CONSTANT);
+    }
+  else
+    {
+      gcc_assert (e->ts.type == BT_INTEGER && e->expr_type == EXPR_CONSTANT);
+      gcc_assert (result->ts.type == BT_INTEGER
+		  && result->expr_type == EXPR_CONSTANT);
+    }
 
   mpz_xor (result->value.integer, result->value.integer, e->value.integer);
   return result;

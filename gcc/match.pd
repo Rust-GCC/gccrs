@@ -3251,6 +3251,22 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (if (INTEGRAL_TYPE_P (type) && !TYPE_UNSIGNED (type)
       && types_match (type, @0, @1))))
 
+/* Signed saturation add, case 5:
+   T sum = (T)((UT)X + (UT)Y);
+   SAT_S_ADD = (X ^ sum) < 0 & ~((X ^ Y) < 0) ? (-(T)(X < 0) ^ MAX) : sum;
+
+   The T and UT are type pair like T=int8_t, UT=uint8_t.  */
+(match (signed_integer_sat_add @0 @1)
+ (cond^ (bit_and:c (lt (bit_xor @0 (nop_convert@2 (plus (nop_convert @0)
+							 (nop_convert @1))))
+		       integer_zerop)
+		   (bit_not (lt (bit_xor:c @0 @1) integer_zerop)))
+	(bit_xor:c (nop_convert (negate (nop_convert (convert
+						      (lt @0 integer_zerop)))))
+		   max_value)
+	@2)
+ (if (INTEGRAL_TYPE_P (type) && !TYPE_UNSIGNED (type))))
+
 /* Unsigned saturation sub, case 1 (branch with gt):
    SAT_U_SUB = X > Y ? X - Y : 0  */
 (match (unsigned_integer_sat_sub @0 @1)
@@ -3771,6 +3787,36 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
     (if (types_match (type, TREE_TYPE (@0)))
      (bit_xor @0 { build_one_cst (type); } ))))))
 
+/* ((a ^ b) & c) cmp d || a != b --> (0 cmp d || a != b). */
+(for cmp (simple_comparison)
+  (simplify
+    (bit_ior
+      (cmp:c
+	(bit_and:c
+	  (bit_xor:c @0 @1)
+	  tree_expr_nonzero_p@2)
+	@3)
+      (ne:c@4 @0 @1))
+    (bit_ior
+      (cmp
+	{ build_zero_cst (TREE_TYPE (@0)); }
+	@3)
+      @4)))
+
+/* (a ^ b) cmp c || a != b --> (0 cmp c || a != b). */
+(for cmp (simple_comparison)
+  (simplify
+    (bit_ior
+      (cmp:c
+	(bit_xor:c @0 @1)
+	@2)
+      (ne:c@3 @0 @1))
+    (bit_ior
+      (cmp
+	{ build_zero_cst (TREE_TYPE (@0)); }
+	@2)
+      @3)))
+
 /* We can't reassociate at all for saturating types.  */
 (if (!TYPE_SATURATING (type))
 
@@ -4260,7 +4306,26 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 			 ? wi::max_value (TYPE_PRECISION (type), SIGNED)
 			 : wi::min_value (TYPE_PRECISION (type), SIGNED))))))
 	 && single_use (@3))
-     (mult (plusminus @2 { build_one_cst (type); }) @0))))))
+      (mult (plusminus @2 { build_one_cst (type); }) @0)))))
+ /* (A * B) + (-C) -> (B - C/A) * A, if C is a multiple of A.  */
+ (if (!ALL_FRACT_MODE_P (TYPE_MODE (type)))
+  (simplify
+    (plus (mult:cs integer_nonzerop@0 @1) INTEGER_CST@2)
+    /* Exclude the case that @2 == min to prevent UB when calculating abs
+       and (B - C/A).  */
+    (if (TREE_CODE (type) == INTEGER_TYPE
+	&& wi::neg_p (wi::to_wide (@2))
+	&& wi::to_wide (@2) != wi::min_value (TYPE_PRECISION (type), SIGNED))
+      (with {
+	wide_int c0 = wi::to_wide (@0);
+	wide_int c2 = wi::to_wide (@2);
+	wide_int c2_abs = wi::abs (c2); }
+      (if (wi::multiple_of_p (c2_abs, c0, TYPE_SIGN (type)))
+	(with {
+	  /* Calculate @2 / @0 in order to factorize the expression.  */
+	  wide_int div_res = wi::sdiv_trunc (c2, c0);
+	  tree div_cst = wide_int_to_tree (type, div_res); }
+	(mult (plus @1 { div_cst; }) @0))))))))
 
 #if GIMPLE
 /* Canonicalize X + (X << C) into X * (1 + (1 << C)) and
@@ -4663,7 +4728,10 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (simplify
   (cond (ne @0 integer_zerop) (op@2 @3 @1) integer_zerop )
    (if (bitwise_equal_p (@0, @3)
-        && tree_expr_nonzero_p (@1))
+        && tree_expr_nonzero_p (@1)
+	/* Cannot make a expression with side effects
+	   unconditional. */
+	&& expr_no_side_effects_p (@3))
     @2)))
 
 /* Note we prefer the != case here
@@ -4673,7 +4741,10 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (for op (mult bit_and)
  (simplify
   (cond (ne @0 integer_zerop) (op:c@2 @1 @3) integer_zerop)
-  (if (bitwise_equal_p (@0, @3))
+  (if (bitwise_equal_p (@0, @3)
+	/* Cannot make a expression with side effects
+	   unconditional. */
+	&& expr_no_side_effects_p (@1))
    @2)))
 
 /* Simplifications of shift and rotates.  */

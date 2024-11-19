@@ -3973,9 +3973,9 @@ gfc_conv_expr_op (gfc_se * se, gfc_expr * expr)
 
     case INTRINSIC_DIVIDE:
       /* If expr is a real or complex expr, use an RDIV_EXPR. If op1 is
-         an integer, we must round towards zero, so we use a
+	 an integer or unsigned, we must round towards zero, so we use a
          TRUNC_DIV_EXPR.  */
-      if (expr->ts.type == BT_INTEGER)
+      if (expr->ts.type == BT_INTEGER || expr->ts.type == BT_UNSIGNED)
 	code = TRUNC_DIV_EXPR;
       else
 	code = RDIV_EXPR;
@@ -10359,7 +10359,13 @@ trans_caf_token_assign (gfc_se *lse, gfc_se *rse, gfc_expr *expr1,
   else if (lhs_attr.codimension)
     {
       lhs_tok = gfc_get_ultimate_alloc_ptr_comps_caf_token (lse, expr1);
-      lhs_tok = build_fold_indirect_ref (lhs_tok);
+      if (!lhs_tok)
+	{
+	  lhs_tok = gfc_get_tree_for_caf_expr (expr1);
+	  lhs_tok = GFC_TYPE_ARRAY_CAF_TOKEN (TREE_TYPE (lhs_tok));
+	}
+      else
+	lhs_tok = build_fold_indirect_ref (lhs_tok);
       tmp = build2_loc (input_location, MODIFY_EXPR, void_type_node,
 			lhs_tok, null_pointer_node);
       gfc_prepend_expr_to_block (&lse->post, tmp);

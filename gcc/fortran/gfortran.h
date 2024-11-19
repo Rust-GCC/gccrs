@@ -1521,7 +1521,7 @@ enum gfc_omp_atomic_op
 
 enum gfc_omp_requires_kind
 {
-  /* Keep in sync with gfc_namespace, esp. with omp_req_mem_order.  */
+  /* Keep gfc_namespace's omp_requires bitfield size in sync.  */
   OMP_REQ_ATOMIC_MEM_ORDER_SEQ_CST = 1,  /* 001 */
   OMP_REQ_ATOMIC_MEM_ORDER_ACQ_REL = 2,  /* 010 */
   OMP_REQ_ATOMIC_MEM_ORDER_RELAXED = 3,  /* 011 */
@@ -1530,10 +1530,12 @@ enum gfc_omp_requires_kind
   OMP_REQ_REVERSE_OFFLOAD = (1 << 3),
   OMP_REQ_UNIFIED_ADDRESS = (1 << 4),
   OMP_REQ_UNIFIED_SHARED_MEMORY = (1 << 5),
-  OMP_REQ_DYNAMIC_ALLOCATORS = (1 << 6),
+  OMP_REQ_SELF_MAPS = (1 << 6),
+  OMP_REQ_DYNAMIC_ALLOCATORS = (1 << 7),
   OMP_REQ_TARGET_MASK = (OMP_REQ_REVERSE_OFFLOAD
 			 | OMP_REQ_UNIFIED_ADDRESS
-			 | OMP_REQ_UNIFIED_SHARED_MEMORY),
+			 | OMP_REQ_UNIFIED_SHARED_MEMORY
+			 | OMP_REQ_SELF_MAPS),
   OMP_REQ_ATOMIC_MEM_ORDER_MASK = (OMP_REQ_ATOMIC_MEM_ORDER_SEQ_CST
 				   | OMP_REQ_ATOMIC_MEM_ORDER_ACQ_REL
 				   | OMP_REQ_ATOMIC_MEM_ORDER_RELAXED
@@ -2290,7 +2292,7 @@ typedef struct gfc_namespace
   unsigned implicit_interface_calls:1;
 
   /* OpenMP requires. */
-  unsigned omp_requires:7;
+  unsigned omp_requires:8;
   unsigned omp_target_seen:1;
 
   /* Set to 1 if this is an implicit OMP structured block.  */
@@ -3792,6 +3794,7 @@ gfc_expr *gfc_get_structure_constructor_expr (bt, int, locus *);
 gfc_expr *gfc_get_constant_expr (bt, int, locus *);
 gfc_expr *gfc_get_character_expr (int, locus *, const char *, gfc_charlen_t len);
 gfc_expr *gfc_get_int_expr (int, locus *, HOST_WIDE_INT);
+gfc_expr *gfc_get_unsigned_expr (int, locus *, HOST_WIDE_INT);
 gfc_expr *gfc_get_logical_expr (int, locus *, bool);
 gfc_expr *gfc_get_iokind_expr (locus *, io_kind);
 
