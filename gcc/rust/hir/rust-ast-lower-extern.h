@@ -135,6 +135,8 @@ public:
 
     HIR::Visibility vis = translate_visibility (type.get_visibility ());
 
+    HIR::Visibility vis = translate_visibility (type.get_visibility ());
+
     translated = new HIR::ExternalTypeItem (mapping, type.get_identifier (),
 					    vis, type.get_locus ());
   }
