@@ -214,7 +214,7 @@ public:
   const T &operator[] (I pid) const { return internal_vector[pid.value]; }
 
   void push_back (T &&param) { internal_vector.push_back (std::move (param)); }
-  template <typename... Args> void emplace_back (Args &&... args)
+  template <typename... Args> void emplace_back (Args &&...args)
   {
     internal_vector.emplace_back (std::forward<Args> (args)...);
   }
@@ -421,29 +421,6 @@ public:
     add_place ({Place::VARIABLE, id, {}, is_type_copy (tyty), tyty});
     return {places.size () - 1};
   };
-
-  template <typename FN> void for_each_path_from_root (PlaceId var, FN fn) const
-  {
-    PlaceId current = var;
-    current = places[current].path.first_child;
-    while (current != INVALID_PLACE)
-      {
-	fn (current);
-	for_each_path_from_root (current, fn);
-	current = places[current].path.next_sibling;
-      }
-  }
-
-  template <typename FN>
-  void for_each_path_segment (PlaceId place_id, FN fn) const
-  {
-    PlaceId current = place_id;
-    while (current != INVALID_PLACE)
-      {
-	fn (current);
-	current = places[current].path.parent;
-      }
-  }
 
   template <typename FN> void for_each_path_from_root (PlaceId var, FN fn) const
   {
