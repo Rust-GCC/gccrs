@@ -1,3 +1,180 @@
+2024-04-14  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/106820
+	* module.cc (trees_in::decl_value): Assemble alias when needed.
+
+2024-04-13  Patrick Palka  <ppalka@redhat.com>
+
+	* module.cc (struct bytes_in::bits_in): Define defaulted
+	move ctor.
+	(struct bytes_out::bits_out): Likewise.
+
+2024-04-13  Patrick Palka  <ppalka@redhat.com>
+
+	* module.cc: Update comment about classes defined within.
+	(class data): Enclose in an anonymous namespace.
+	(data::calc_crc): Moved from bytes::calc_crc.
+	(class bytes): Remove.  Move bit_flush to namespace scope.
+	(class bytes_in): Enclose in an anonymous namespace.  Inherit
+	directly from data and adjust accordingly.  Move b and bflush
+	members to bits_in.
+	(class bytes_out): As above.  Remove is_set static data member.
+	(bit_flush): Moved from class bytes.
+	(struct bytes_in::bits_in): Define.
+	(struct bytes_out::bits_out): Define.
+	(bytes_in::stream_bits): Define.
+	(bytes_out::stream_bits): Define.
+	(bytes_out::bflush): Moved to bits_out/in.
+	(bytes_in::bflush): Likewise
+	(bytes_in::bfill): Removed.
+	(bytes_out::b): Moved to bits_out/in.
+	(bytes_in::b): Likewise.
+	(class trees_in): Enclose in an anonymous namespace.
+	(class trees_out): Enclose in an anonymous namespace.
+	(trees_out::core_bools): Add bits_out/in parameter and use it.
+	Unconditionally stream a bit for public_flag.  Add early exits
+	as appropriate.
+	(trees_out::core_bools): Likewise.
+	(trees_out::lang_decl_bools): Add bits_out/in parameter and use
+	it.  Flush the current bit buffer at the start.  Unconditionally
+	stream a bit for module_keyed_decls_p.
+	(trees_in::lang_decl_bools): Likewise.
+	(trees_out::lang_type_bools): Add bits_out/in parameter and use
+	it.  Flush the current bit buffer at the start.
+	(trees_in::lang_type_bools): Likewise.
+	(trees_out::tree_node_bools): Construct a bits_out object and
+	use/pass it.
+	(trees_in::tree_node_bools): Likewise.
+	(trees_out::decl_value): Likewise.
+	(trees_in::decl_value): Likewise.
+	(module_state::write_define): Likewise.
+	(module_state::read_define): Likewise.
+
+2024-04-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/109966
+	* typeck2.cc (potential_prvalue_result_of): Remove.
+	(replace_placeholders_for_class_temp_r): Check TARGET_EXPR_ELIDING_P.
+	Use a pset.  Don't replace_placeholders in TARGET_EXPRs that initialize
+	a function argument.
+
+2024-04-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/99426
+	* module.cc (merge_kind::MK_local_type): New enumerator.
+	(merge_kind_name): Update.
+	(trees_out::chained_decls): Move BLOCK-specific handling
+	of DECL_LOCAL_DECL_P decls to ...
+	(trees_out::core_vals) <case BLOCK>: ... here.  Stream
+	BLOCK_VARS manually.
+	(trees_in::core_vals) <case BLOCK>: Stream BLOCK_VARS
+	manually.  Handle deduplicated local types..
+	(trees_out::key_local_type): Define.
+	(trees_in::key_local_type): Define.
+	(trees_out::get_merge_kind) <case FUNCTION_DECL>: Return
+	MK_local_type for a local type.
+	(trees_out::key_mergeable) <case FUNCTION_DECL>: Use
+	key_local_type.
+	(trees_in::key_mergeable) <case FUNCTION_DECL>: Likewise.
+	(trees_in::is_matching_decl): Be flexible with type mismatches
+	for local entities.
+	(trees_in::register_duplicate): Also register the
+	DECL_TEMPLATE_RESULT of a TEMPLATE_DECL as a duplicate.
+	(depset_cmp): Return 0 for equal IDENTIFIER_HASH_VALUEs.
+
+2024-04-12  Jason Merrill  <jason@redhat.com>
+	    Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/113141
+	* call.cc (reference_binding): For an invalid cast, warn and don't
+	recalculate.
+
+2024-04-12  Jason Merrill  <jason@redhat.com>
+	    Patrick Palka  <ppalka@redhat.com>
+
+	DR 1996
+	PR c++/113141
+	* call.cc (reference_binding): Check direct binding from
+	a single-element list.
+
+2024-04-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114691
+	* semantics.cc (simplify_loop_decl_cond): Use cp_build_unary_op with
+	TRUTH_NOT_EXPR on ANNOTATE_EXPR argument (if any) rather than
+	ANNOTATE_EXPR itself.
+
+2024-04-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/114393
+	* pt.cc (tsubst_lambda_expr): Also defer all dependent
+	substitution.
+
+2024-04-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114426
+	* constexpr.cc (is_valid_constexpr_fn): Return false/diagnose with
+	complain destructors in classes with virtual bases.
+
+2024-04-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/114393
+	PR c++/107457
+	PR c++/93595
+	* cp-tree.h (LAMBDA_EXPR_EXTRA_ARGS): Define.
+	(tree_lambda_expr::extra_args): New field.
+	* module.cc (trees_out::core_vals) <case LAMBDA_EXPR>: Stream
+	LAMBDA_EXPR_EXTRA_ARGS.
+	(trees_in::core_vals) <case LAMBDA_EXPR>: Likewise.
+	* pt.cc (has_extra_args_mechanism_p): Return true for LAMBDA_EXPR.
+	(tree_extra_args): Handle LAMBDA_EXPR.
+	(tsubst_lambda_expr): Use LAMBDA_EXPR_EXTRA_ARGS to defer templated
+	substitution into a lambda-expr if we lost the template context.
+	Add sanity check for error_mark_node result from begin_lambda_type.
+
+2024-04-11  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/114303
+	* constraint.cc (tsubst_requires_expr): Clear
+	REQUIRES_EXPR_EXTRA_ARGS before calling build_extra_args.
+	* pt.cc (tree_extra_args): Define.
+	(extract_locals_r): Assert *_EXTRA_ARGS is empty.
+	(tsubst_stmt) <case IF_STMT>: Clear IF_SCOPE on the new
+	IF_STMT.  Call build_extra_args on the new IF_STMT instead
+	of t which might already have IF_STMT_EXTRA_ARGS.
+
+2024-04-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114409
+	* pt.cc (tsubst_expr) <case ANNOTATE_EXPR>: Move to ...
+	(tsubst_stmt) <case ANNOTATE_EXPR>: ... here.  Use tsubst_expr
+	instead of RECUR for the last 2 arguments.
+
+2024-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114462
+	* semantics.cc: Implement C++26 P2809R3 - Trivial infinite
+	loops are not Undefined Behavior.
+	(maybe_warn_for_constant_evaluated): Add trivial_infinite argument
+	and emit special diagnostics for that case.
+	(finish_if_stmt_cond): Adjust caller.
+	(finish_loop_cond): New function.
+	(finish_while_stmt): Use it.
+	(finish_do_stmt): Likewise.
+	(finish_for_stmt): Likewise.
+
+2024-04-10  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/104040
+	* semantics.cc (expand_or_defer_fn_1): Keep DECL_SAVED_TREE for
+	all vague linkage cdtors with modules.
+
+2024-04-10  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/99377
+	* module.cc (trees_in::install_entity): Overwrite entity map
+	index if installing from a partition.
+
 2024-04-09  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/114580

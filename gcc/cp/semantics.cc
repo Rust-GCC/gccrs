@@ -799,7 +799,11 @@ simplify_loop_decl_cond (tree *cond_p, tree body)
   *cond_p = boolean_true_node;
 
   if_stmt = begin_if_stmt ();
-  cond = cp_build_unary_op (TRUTH_NOT_EXPR, cond, false, tf_warning_or_error);
+  cond_p = &cond;
+  while (TREE_CODE (*cond_p) == ANNOTATE_EXPR)
+    cond_p = &TREE_OPERAND (*cond_p, 0);
+  *cond_p = cp_build_unary_op (TRUTH_NOT_EXPR, *cond_p, false,
+			       tf_warning_or_error);
   finish_if_stmt_cond (cond, if_stmt);
   finish_break_stmt ();
   finish_then_clause (if_stmt);
@@ -1090,7 +1094,8 @@ find_std_constant_evaluated_r (tree *tp, int *walk_subtrees, void *)
    (e.g., in a non-constexpr non-consteval function) so give the user a clue.  */
 
 static void
-maybe_warn_for_constant_evaluated (tree cond, bool constexpr_if)
+maybe_warn_for_constant_evaluated (tree cond, bool constexpr_if,
+				   bool trivial_infinite)
 {
   if (!warn_tautological_compare)
     return;
@@ -1108,6 +1113,18 @@ maybe_warn_for_constant_evaluated (tree cond, bool constexpr_if)
 	warning_at (EXPR_LOCATION (cond), OPT_Wtautological_compare,
 		    "%<std::is_constant_evaluated%> always evaluates to "
 		    "true in %<if constexpr%>");
+      else if (trivial_infinite)
+	{
+	  auto_diagnostic_group d;
+	  if (warning_at (EXPR_LOCATION (cond), OPT_Wtautological_compare,
+			  "%<std::is_constant_evaluated%> evaluates to "
+			  "true when checking if trivially empty iteration "
+			  "statement is trivial infinite loop")
+	      && !maybe_constexpr_fn (current_function_decl))
+	    inform (EXPR_LOCATION (cond),
+		    "and evaluates to false when actually evaluating "
+		    "the condition in non-%<constexpr%> function");
+	}
       else if (!maybe_constexpr_fn (current_function_decl))
 	warning_at (EXPR_LOCATION (cond), OPT_Wtautological_compare,
 		    "%<std::is_constant_evaluated%> always evaluates to "
@@ -1126,7 +1143,8 @@ tree
 finish_if_stmt_cond (tree orig_cond, tree if_stmt)
 {
   tree cond = maybe_convert_cond (orig_cond);
-  maybe_warn_for_constant_evaluated (cond, IF_STMT_CONSTEXPR_P (if_stmt));
+  maybe_warn_for_constant_evaluated (cond, IF_STMT_CONSTEXPR_P (if_stmt),
+				     /*trivial_infinite=*/false);
   if (IF_STMT_CONSTEXPR_P (if_stmt)
       && !type_dependent_expression_p (cond)
       && require_constant_expression (cond)
@@ -1205,6 +1223,48 @@ finish_if_stmt (tree if_stmt)
   add_stmt (do_poplevel (scope));
 }
 
+/* Determine if iteration statement with *CONDP condition and
+   loop BODY is trivially empty iteration statement or even
+   trivial infinite loop.  In the latter case for -ffinite-loops
+   add ANNOTATE_EXPR to mark the loop as maybe validly infinite.
+   Also, emit -Wtautological-compare warning for std::is_constant_evaluated ()
+   calls in the condition when needed.  */
+
+static void
+finish_loop_cond (tree *condp, tree body)
+{
+  if (TREE_CODE (*condp) == INTEGER_CST)
+    return;
+  bool trivially_empty = expr_first (body) == NULL_TREE;
+  bool trivial_infinite = false;
+  if (trivially_empty)
+    {
+      tree c = fold_non_dependent_expr (*condp, tf_none,
+					/*manifestly_const_eval=*/true);
+      trivial_infinite = c && integer_nonzerop (c);
+    }
+  if (warn_tautological_compare)
+    {
+      tree cond = *condp;
+      while (TREE_CODE (cond) == ANNOTATE_EXPR)
+	cond = TREE_OPERAND (cond, 0);
+      if (trivial_infinite
+	  && !DECL_IMMEDIATE_FUNCTION_P (current_function_decl))
+	maybe_warn_for_constant_evaluated (cond, /*constexpr_if=*/false,
+					   /*trivial_infinite=*/true);
+      else if (!trivially_empty
+	       || !processing_template_decl
+	       || DECL_IMMEDIATE_FUNCTION_P (current_function_decl))
+	maybe_warn_for_constant_evaluated (cond, /*constexpr_if=*/false,
+					   /*trivial_infinite=*/false);
+    }
+  if (trivial_infinite && flag_finite_loops && !processing_template_decl)
+    *condp = build3 (ANNOTATE_EXPR, TREE_TYPE (*condp), *condp,
+		     build_int_cst (integer_type_node,
+				    annot_expr_maybe_infinite_kind),
+		     integer_zero_node);
+}
+
 /* Begin a while-statement.  Returns a newly created WHILE_STMT if
    appropriate.  */
 
@@ -1260,6 +1320,7 @@ finish_while_stmt (tree while_stmt)
 {
   end_maybe_infinite_loop (boolean_true_node);
   WHILE_BODY (while_stmt) = do_poplevel (WHILE_BODY (while_stmt));
+  finish_loop_cond (&WHILE_COND (while_stmt), WHILE_BODY (while_stmt));
 }
 
 /* Begin a do-statement.  Returns a newly created DO_STMT if
@@ -1317,6 +1378,12 @@ finish_do_stmt (tree cond, tree do_stmt, bool ivdep, tree unroll,
 		   build_int_cst (integer_type_node, annot_expr_no_vector_kind),
 		   integer_zero_node);
   DO_COND (do_stmt) = cond;
+  tree do_body = DO_BODY (do_stmt);
+  if (CONVERT_EXPR_P (do_body)
+      && integer_zerop (TREE_OPERAND (do_body, 0))
+      && VOID_TYPE_P (TREE_TYPE (do_body)))
+    do_body = NULL_TREE;
+  finish_loop_cond (&DO_COND (do_stmt), do_body);
 }
 
 /* Finish a return-statement.  The EXPRESSION returned, if any, is as
@@ -1487,7 +1554,13 @@ finish_for_stmt (tree for_stmt)
   if (TREE_CODE (for_stmt) == RANGE_FOR_STMT)
     RANGE_FOR_BODY (for_stmt) = do_poplevel (RANGE_FOR_BODY (for_stmt));
   else
-    FOR_BODY (for_stmt) = do_poplevel (FOR_BODY (for_stmt));
+    {
+      FOR_BODY (for_stmt) = do_poplevel (FOR_BODY (for_stmt));
+      if (FOR_COND (for_stmt))
+	finish_loop_cond (&FOR_COND (for_stmt),
+			  FOR_EXPR (for_stmt) ? integer_one_node
+					      : FOR_BODY (for_stmt));
+    }
 
   /* Pop the scope for the body of the loop.  */
   tree *scope_ptr = (TREE_CODE (for_stmt) == RANGE_FOR_STMT
@@ -5029,9 +5102,13 @@ expand_or_defer_fn_1 (tree fn)
       /* We don't want to process FN again, so pretend we've written
 	 it out, even though we haven't.  */
       TREE_ASM_WRITTEN (fn) = 1;
-      /* If this is a constexpr function, keep DECL_SAVED_TREE.  */
+      /* If this is a constexpr function we still need the body to be
+	 able to evaluate it.  Similarly, with modules we only stream
+	 the maybe-in-charge cdtor and regenerate the clones from it on
+	 demand, so we also need to keep the body.  Otherwise we don't
+	 need it anymore.  */
       if (!DECL_DECLARED_CONSTEXPR_P (fn)
-	  && !(modules_p () && DECL_DECLARED_INLINE_P (fn)))
+	  && !(modules_p () && vague_linkage_p (fn)))
 	DECL_SAVED_TREE (fn) = NULL_TREE;
       return false;
     }

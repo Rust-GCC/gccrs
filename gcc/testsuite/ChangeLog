@@ -1,3 +1,324 @@
+2024-04-14  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/106820
+	* g++.dg/modules/pr106820_a.H: New test.
+	* g++.dg/modules/pr106820_b.C: New test.
+
+2024-04-12  Andrew Carlotti  <andrew.carlotti@arm.com>
+
+	* gcc.target/aarch64/cpunative/info_24: Include lrcpc and ilrcpc.
+
+2024-04-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/109966
+	* g++.dg/cpp1y/nsdmi-aggr20.C: New test.
+	* g++.dg/cpp1y/nsdmi-aggr21.C: New test.
+
+2024-04-12  Will Schmidt  <will_schmidt@linux.ibm.com>
+	    Peter Bergner  <bergner@linux.ibm.com>
+
+	PR target/101865
+	* gcc.target/powerpc/predefine-p7-novsx.c: New test.
+	* gcc.target/powerpc/predefine-p8-noaltivec-novsx.c: New test.
+	* gcc.target/powerpc/predefine-p8-noaltivec.c: New test.
+	* gcc.target/powerpc/predefine-p8-novsx.c: New test.
+	* gcc.target/powerpc/predefine-p8-pragma-vsx.c: New test.
+	* gcc.target/powerpc/predefine-p9-novsx.c: New test.
+
+2024-04-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/99426
+	* g++.dg/modules/merge-17.h: New test.
+	* g++.dg/modules/merge-17_a.H: New test.
+	* g++.dg/modules/merge-17_b.C: New test.
+	* g++.dg/modules/xtreme-header-7_a.H: New test.
+	* g++.dg/modules/xtreme-header-7_b.C: New test.
+
+2024-04-12  Jason Merrill  <jason@redhat.com>
+	    Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/113141
+	* g++.dg/conversion/ref12.C: New test.
+
+2024-04-12  Jason Merrill  <jason@redhat.com>
+	    Patrick Palka  <ppalka@redhat.com>
+
+	DR 1996
+	PR c++/113141
+	* g++.dg/cpp0x/initlist-ref1.C: New test.
+	* g++.dg/cpp0x/initlist-ref2.C: New test.
+	* g++.dg/cpp0x/initlist-ref3.C: New test.
+
+2024-04-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114691
+	* g++.dg/ext/pr114691.C: New test.
+
+2024-04-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/114393
+	* g++.dg/cpp2a/lambda-targ2a.C: New test.
+
+2024-04-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114426
+	* g++.dg/cpp2a/pr114426.C: New test.
+	* g++.dg/cpp2a/constexpr-dtor16.C: New test.
+
+2024-04-12  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR tree-optimization/114666
+	* gcc.c-torture/execute/bitfld-signed1-1.c: New test.
+
+2024-04-12  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* gcc.target/aarch64/sme/acle-asm/zero_mask_za.c (zero_mask_za_ab)
+	(zero_mask_za_d7, zero_mask_za_bf): Expect a list of .d tiles instead
+	of a mixture.
+
+2024-04-12  Stefan Schulze Frielinghaus  <stefansf@linux.ibm.com>
+
+	* gcc.dg/tree-ssa/range-sincos.c: Xfail for s390.
+	* gcc.dg/tree-ssa/vrp-float-abs-1.c: Dito.
+
+2024-04-12  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/114393
+	PR c++/107457
+	PR c++/93595
+	* g++.dg/cpp2a/lambda-targ2.C: New test.
+	* g++.dg/cpp2a/lambda-targ3.C: New test.
+	* g++.dg/cpp2a/lambda-targ4.C: New test.
+
+2024-04-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR sanitizer/114687
+	* gcc.dg/asan/pr114687.c: New test.
+
+2024-04-12  Stefan Schulze Frielinghaus  <stefansf@linux.ibm.com>
+
+	* gcc.dg/tree-ssa/loop-interchange-16.c: Prevent loop unrolling
+	of the innermost loop.
+
+2024-04-12  Pan Li  <pan2.li@intel.com>
+
+	PR target/114639
+	* gcc.target/riscv/pr114639-1.c: New test.
+	* gcc.target/riscv/pr114639-2.c: New test.
+	* gcc.target/riscv/pr114639-3.c: New test.
+	* gcc.target/riscv/pr114639-4.c: New test.
+
+2024-04-11  David Faust  <david.faust@oracle.com>
+
+	* gcc.dg/debug/btf/btf-bitfields-4.c: Add two new checks.
+
+2024-04-11  Andre Vieira (lists)  <andre.simoesdiasvieira@arm.com>
+
+	* gcc.target/aarch64/bitfield-bitint-abi-align16.c (g1, g8, g16, g1p, g8p,
+	g16p): Remove unnecessary sbfx.
+	* gcc.target/aarch64/bitfield-bitint-abi-align8.c (g1, g8, g16, g1p, g8p,
+	g16p): Likewise.
+
+2024-04-11  Andrew Carlotti  <andrew.carlotti@arm.com>
+
+	* g++.target/aarch64/mv-1.C: New test.
+
+2024-04-11  Andrew Carlotti  <andrew.carlotti@arm.com>
+
+	* gcc.target/aarch64/cpunative/native_cpu_21.c: Reorder features.
+	* gcc.target/aarch64/cpunative/native_cpu_22.c: Ditto.
+
+2024-04-11  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/114303
+	* g++.dg/cpp1z/constexpr-if-lambda6.C: New test.
+
+2024-04-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/110027
+	* gcc.dg/asan/pr110027.c: New test.
+
+2024-04-11  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/114681
+	* gcc.misc-tests/gcov-pr114681.c: New testcase.
+
+2024-04-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114409
+	* g++.dg/ext/pr114409-2.C: New test.
+
+2024-04-11  Pan Li  <pan2.li@intel.com>
+
+	* g++.target/riscv/rvv/base/pr109244.C: Remove deprecated
+	-Wno-psabi option.
+	* g++.target/riscv/rvv/base/pr109535.C: Ditto.
+	* gcc.target/riscv/rvv/autovec/fixed-vlmax-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress_run-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress_run-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress_run-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress_run-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress_run-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/compress_run-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/consecutive-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/consecutive-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/consecutive_run-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/consecutive_run-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/merge_run-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-5.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-6.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/perm_run-7.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-1u.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-2u.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-3u.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-4u.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-run.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_extract-runu.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_set-1.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_set-2.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_set-3.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_set-4.c: Ditto.
+	* gcc.target/riscv/rvv/autovec/vls-vlmax/vec_set-run.c: Ditto.
+
+2024-04-11  Pan Li  <pan2.li@intel.com>
+
+	PR target/114639
+	* g++.target/riscv/rvv/base/pr114639-1.C: New test.
+	* gcc.target/riscv/rvv/base/pr114639-1.c: New test.
+
+2024-04-11  Indu Bhagat  <indu.bhagat@oracle.com>
+
+	* gcc.dg/debug/btf/btf-bitfields-4.c: Update the vlen check.
+	* gcc.dg/debug/btf/btf-struct-2.c: Check that member named 'f'
+	with void data type is emitted.
+
+2024-04-11  Indu Bhagat  <indu.bhagat@oracle.com>
+
+	PR debug/112878
+	* gcc.dg/debug/ctf/ctf-bitfields-5.c: New test.
+
+2024-04-10  Hans-Peter Nilsson  <hp@axis.com>
+
+	Revert:
+	2024-04-05  Hans-Peter Nilsson  <hp@axis.com>
+
+	* gcc.target/cris/pr93372-2.c: Tweak scan-assembler
+	checks to cover recent combine improvement.
+
+2024-04-10  Marek Polacek  <polacek@redhat.com>
+
+	PR target/114606
+	* gcc.target/i386/fhardened-1.c: New test.
+	* gcc.target/i386/fhardened-2.c: New test.
+
+2024-04-10  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-c++-common/analyzer/out-of-bounds-pr114472.c: New test.
+
+2024-04-10  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-c++-common/analyzer/memset-1.c: Clarify some comments.
+
+2024-04-10  David Malcolm  <dmalcolm@redhat.com>
+
+	* gcc.dg/plugin/copy_from_user-1.c: Add missing directives for an
+	analyzer test.
+	* gcc.dg/plugin/taint-CVE-2011-0521-1-fixed.c: Add missing
+	-fanalyzer to options.
+	* gcc.dg/plugin/taint-CVE-2011-0521-1.c: Likewise.
+	* gcc.dg/plugin/taint-CVE-2011-0521-2-fixed.c: Likewise.
+	(dvb_usercopy): Add default case to avoid complaints about NULL
+	derefs.
+	* gcc.dg/plugin/taint-CVE-2011-0521-2.c: Likewise.
+	* gcc.dg/plugin/taint-CVE-2011-0521-3-fixed.c: Add missing
+	-fanalyzer to options.
+	* gcc.dg/plugin/taint-CVE-2011-0521-3.c: Likewise.  Drop
+	xfail.
+
+2024-04-10  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/106500
+	* gfortran.dg/c_sizeof_6.f90: Remove wrong dg-error.
+	* gfortran.dg/sizeof_2.f90: Adjust pattern.
+	* gfortran.dg/c_f_pointer_tests_9.f90: New test.
+	* gfortran.dg/c_sizeof_7.f90: New test.
+
+2024-04-10  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/114672
+	* gcc.dg/torture/pr114672.c: New testcase.
+
+2024-04-10  Andre Vieira  <andre.simoesdiasvieira@arm.com>
+
+	* gcc.target/aarch64/bitint-alignments.c: New test.
+	* gcc.target/aarch64/bitint-args.c: New test.
+	* gcc.target/aarch64/bitint-sizes.c: New test.
+	* gcc.target/aarch64/bitfield-bitint-abi.h: New header.
+	* gcc.target/aarch64/bitfield-bitint-abi-align16.c: New test.
+	* gcc.target/aarch64/bitfield-bitint-abi-align8.c: New test.
+
+2024-04-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/114462
+	* g++.dg/cpp26/trivial-infinite-loop1.C: New test.
+	* g++.dg/cpp26/trivial-infinite-loop2.C: New test.
+	* g++.dg/cpp26/trivial-infinite-loop3.C: New test.
+
+2024-04-10  Kewen Lin  <linkw@linux.ibm.com>
+
+	PR testsuite/114662
+	* gcc.dg/lto/pr113359-2_0.c: Use unsigned long long instead of
+	unsigned long.
+	* gcc.dg/lto/pr113359-2_1.c: Likewise.
+
+2024-04-10  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/104040
+	* g++.dg/modules/pr104040_a.C: New test.
+	* g++.dg/modules/pr104040_b.C: New test.
+
+2024-04-10  Nathaniel Shead  <nathanieloshead@gmail.com>
+
+	PR c++/99377
+	* g++.dg/modules/pr99377-3_a.H: New test.
+	* g++.dg/modules/pr99377-3_b.C: New test.
+	* g++.dg/modules/pr99377-3_c.C: New test.
+	* g++.dg/modules/pr99377-3_d.C: New test.
+
 2024-04-09  David Faust  <david.faust@oracle.com>
 
 	PR testsuite/114642
