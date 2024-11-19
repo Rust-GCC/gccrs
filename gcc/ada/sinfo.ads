@@ -1322,6 +1322,8 @@ package Sinfo is
    --    assignment or initialization. When the full context is known, the
    --    target of the assignment or initialization is used to generate the
    --    left-hand side of individual assignment to each subcomponent.
+   --    Also set on conditional expressions whose dependent expressions are
+   --    nested aggregates, in order to avoid creating a temporary for them.
 
    --  Expression_Copy
    --    Present in N_Pragma_Argument_Association nodes. Contains a copy of the
@@ -1572,9 +1574,9 @@ package Sinfo is
    --  Instance_Spec
    --    This field is present in generic instantiation nodes, and also in
    --    formal package declaration nodes (formal package declarations are
-   --    treated in a manner very similar to package instantiations). It points
-   --    to the node for the spec of the instance, inserted as part of the
-   --    semantic processing for instantiations in Sem_Ch12.
+   --    treated similarly to package instantiations). It points to the node
+   --    for the spec of the instance, inserted as part of the semantic
+   --    processing for instantiations in Sem_Ch12.
 
    --  Is_Abort_Block
    --    Present in N_Block_Statement nodes. True if the block protects a list
@@ -1715,18 +1717,10 @@ package Sinfo is
    --    nodes which emulate the barrier function of a protected entry body.
    --    The flag is used when checking for incorrect use of Current_Task.
 
-   --  Is_Enum_Array_Aggregate
-   --    A flag set on an aggregate created internally while building the
-   --    images tables for enumerations.
-
    --  Is_Expanded_Build_In_Place_Call
    --    This flag is set in an N_Function_Call node to indicate that the extra
    --    actuals to support a build-in-place style of call have been added to
    --    the call.
-
-   --  Is_Expanded_Contract
-   --    Present in N_Contract nodes. Set if the contract has already undergone
-   --    expansion activities.
 
    --  Is_Generic_Contract_Pragma
    --    This flag is present in N_Pragma nodes. It is set when the pragma is
@@ -2322,14 +2316,6 @@ package Sinfo is
    --    source type entity for the unchecked conversion instantiation
    --    which gigi must do size validation for.
 
-   --  Split_PPC
-   --    When a Pre or Post aspect specification is processed, it is broken
-   --    into AND THEN sections. The leftmost section has Split_PPC set to
-   --    False, indicating that it is the original specification (e.g. for
-   --    posting errors). For other sections, Split_PPC is set to True.
-   --    This flag is set in both the N_Aspect_Specification node itself,
-   --    and in the pragma which is generated from this node.
-
    --  Storage_Pool
    --    Present in N_Allocator, N_Free_Statement, N_Simple_Return_Statement,
    --    and N_Extended_Return_Statement nodes. References the entity for the
@@ -2732,7 +2718,6 @@ package Sinfo is
       --  Is_Delayed_Aspect
       --  Is_Disabled
       --  Import_Interface_Present
-      --  Split_PPC set if corresponding aspect had Split_PPC set
       --  Uneval_Old_Warn
 
       --  Note: we should have a section on what pragmas are passed on to
@@ -3654,8 +3639,8 @@ package Sinfo is
 
       --  The only choice that appears explicitly is the OTHERS choice, as
       --  defined here. Other cases of discrete choice (expression and
-      --  discrete range) appear directly. This production is also used
-      --  for the OTHERS possibility of an exception choice.
+      --  discrete range) appear directly. N_Others_Choice is also used
+      --  in exception handlers and generic formal packages.
 
       --  Note: in accordance with the syntax, the parser does not check that
       --  OTHERS appears at the end on its own in a choice list context. This
@@ -4091,7 +4076,6 @@ package Sinfo is
       --  Compile_Time_Known_Aggregate
       --  Expansion_Delayed
       --  Has_Self_Reference
-      --  Is_Enum_Array_Aggregate
       --  Is_Homogeneous_Aggregate
       --  Is_Parenthesis_Aggregate
       --  plus fields for expression
@@ -4277,7 +4261,7 @@ package Sinfo is
       --  Etype
 
       ---------------------------------
-      --  3.4.5 Container_Aggregates --
+      --  4.3.5 Container_Aggregates --
       ---------------------------------
 
       --  ITERATED_ELEMENT_ASSOCIATION ::=
@@ -4675,6 +4659,7 @@ package Sinfo is
       --  Else_Actions
       --  Is_Elsif (set if comes from ELSIF)
       --  Do_Overflow_Check
+      --  Expansion_Delayed
       --  plus fields for expression
 
       --  Expressions here is a three-element list, whose first element is the
@@ -4713,6 +4698,7 @@ package Sinfo is
       --  Alternatives (the case expression alternatives)
       --  Etype
       --  Do_Overflow_Check
+      --  Expansion_Delayed
 
       ----------------------------------------
       -- 4.5.7  Case Expression Alternative --
@@ -7153,6 +7139,7 @@ package Sinfo is
 
       --  GENERIC_ASSOCIATION ::=
       --    [generic_formal_parameter_SELECTOR_NAME =>]
+      --      EXPLICIT_GENERIC_ACTUAL_PARAMETER
 
       --  Note: unlike the procedure call case, a generic association node
       --  is generated for every association, even if no formal parameter
@@ -7163,7 +7150,8 @@ package Sinfo is
       --  In Ada 2005, a formal may be associated with a box, if the
       --  association is part of the list of actuals for a formal package.
       --  If the association is given by  OTHERS => <>, the association is
-      --  an N_Others_Choice.
+      --  an N_Others_Choice (not an N_Generic_Association whose Selector_Name
+      --  is an N_Others_Choice).
 
       --  N_Generic_Association
       --  Sloc points to first token of generic association
@@ -7456,7 +7444,7 @@ package Sinfo is
       --  Defining_Identifier
       --  Name
       --  Generic_Associations (set to No_List if (<>) case or
-      --   empty generic actual part)
+      --   empty formal package actual part)
       --  Box_Present
       --  Instance_Spec
       --  Is_Known_Guaranteed_ABE
@@ -7466,21 +7454,50 @@ package Sinfo is
       --------------------------------------
 
       --  FORMAL_PACKAGE_ACTUAL_PART ::=
-      --    ([OTHERS] => <>)
+      --    ([OTHERS =>] <>)
       --    | [GENERIC_ACTUAL_PART]
-      --    (FORMAL_PACKAGE_ASSOCIATION {. FORMAL_PACKAGE_ASSOCIATION}
+      --    | (FORMAL_PACKAGE_ASSOCIATION {, FORMAL_PACKAGE_ASSOCIATION}
+      --        [, OTHERS => <>])
 
       --  FORMAL_PACKAGE_ASSOCIATION ::=
       --   GENERIC_ASSOCIATION
       --  | GENERIC_FORMAL_PARAMETER_SELECTOR_NAME => <>
 
       --  There is no explicit node in the tree for a formal package actual
-      --  part. Instead the information appears in the parent node (i.e. the
-      --  formal package declaration node itself).
-
-      --  There is no explicit node for a formal package association. All of
-      --  them are represented either by a generic association, possibly with
-      --  Box_Present, or by an N_Others_Choice.
+      --  part, nor for a formal package association. A formal package
+      --  association is represented as a generic association, possibly with
+      --  Box_Present.
+      --
+      --  The "others => <>" syntax (both cases) is represented as an
+      --  N_Others_Choice (not an N_Generic_Association whose Selector_Name
+      --  is an N_Others_Choice). This admittedly odd representation does not
+      --  lose information, because "others" cannot be followed by anything
+      --  other than "=> <>". Thus:
+      --
+      --  "... is new G;"
+      --    The N_Formal_Package_Declaration has empty Generic_Associations,
+      --    and Box_Present = False.
+      --
+      --  "... is new G(<>);"
+      --    The N_Formal_Package_Declaration has empty Generic_Associations,
+      --    and Box_Present = True.
+      --
+      --  "... is new G(others => <>);"
+      --    The N_Formal_Package_Declaration has Generic_Associations with a
+      --    single element, which is an N_Others_Choice.
+      --    The N_Formal_Package_Declaration has Box_Present = False.
+      --
+      --  "... is new G(X, F => Y, others => <>);"
+      --    The N_Formal_Package_Declaration has Generic_Associations with
+      --    three elements, the last of which is an N_Others_Choice.
+      --    The N_Formal_Package_Declaration has Box_Present = False.
+      --
+      --  "... is new G(F1 => X, F2 => <>, others => <>);"
+      --    The N_Formal_Package_Declaration has Generic_Associations with
+      --    three elements. The first is an N_Generic_Association with
+      --    Box_Present = False. The second is an N_Generic_Association with
+      --    Box_Present = True. The last is an N_Others_Choice.
+      --    The N_Formal_Package_Declaration has Box_Present = False.
 
       ---------------------------------
       -- 13.1  Representation clause --
@@ -7603,7 +7620,6 @@ package Sinfo is
       --  Is_Delayed_Aspect
       --  Is_Disabled
       --  Is_Boolean_Aspect
-      --  Split_PPC Set if split pre/post attribute
       --  Aspect_On_Partial_View
 
       --  Note: Aspect_Specification is an Ada 2012 feature
@@ -7617,11 +7633,6 @@ package Sinfo is
 
       --  In the case of aspects of the form xxx'Class, the aspect identifier
       --  is for xxx, and Class_Present is set to True.
-
-      --  Note: When a Pre or Post aspect specification is processed, it is
-      --  broken into AND THEN sections. The left most section has Split_PPC
-      --  set to False, indicating that it is the original specification (e.g.
-      --  for posting errors). For the other sections, Split_PPC is set True.
 
       ---------------------------------------------
       -- 13.4  Enumeration representation clause --
@@ -7964,7 +7975,6 @@ package Sinfo is
       --  Pre_Post_Conditions (set to Empty if none)
       --  Contract_Test_Cases (set to Empty if none)
       --  Classifications (set to Empty if none)
-      --  Is_Expanded_Contract
 
       --  Pre_Post_Conditions contains a collection of pragmas that correspond
       --  to pre- and postconditions associated with an entry or a subprogram
@@ -7979,9 +7989,7 @@ package Sinfo is
       --  The ordering in the list is in LIFO fashion.
 
       --  Note that there might be multiple preconditions or postconditions
-      --  in this list, either because they come from separate pragmas in the
-      --  source, or because a Pre (resp. Post) aspect specification has been
-      --  broken into AND THEN sections. See Split_PPC for details.
+      --  in this list, because they come from separate pragmas in the source.
 
       --  In GNATprove mode, the inherited classwide pre- and postconditions
       --  (suitably specialized for the specific type of the overriding

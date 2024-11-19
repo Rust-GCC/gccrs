@@ -128,6 +128,14 @@ mstrict-align
 Target Mask(STRICT_ALIGN) Save
 Do not generate unaligned memory accesses.
 
+mscalar-strict-align
+Target Save Alias(mstrict-align)
+Do not generate unaligned scalar memory accesses.
+
+mvector-strict-align
+Target Save Var(rvv_vector_strict_align) Init(1)
+Do not create element-misaligned vector memory accesses.
+
 Enum
 Name(code_model) Type(enum riscv_code_model)
 Known code models (for use with the -mcmodel= option):
@@ -152,7 +160,7 @@ required to materialize symbol addresses.
 
 mcsr-check
 Target Var(riscv_mcsr_check) Init(0)
-Enable the CSR checking for the ISA-dependent CRS and the read-only CSR.
+Enable the CSR checking for the ISA-dependent CSR and the read-only CSR.
 The ISA-dependent CSR are only valid when the specific ISA is set.  The
 read-only CSR can not be written by the CSR instructions.
 
@@ -236,8 +244,6 @@ Mask(ZIHINTNTL)   Var(riscv_zi_subext)
 Mask(ZIHINTPAUSE) Var(riscv_zi_subext)
 
 Mask(ZICOND)      Var(riscv_zi_subext)
-
-Mask(ZIC64B)      Var(riscv_zi_subext)
 
 Mask(ZICCAMOA)    Var(riscv_zi_subext)
 
@@ -390,14 +396,20 @@ Mask(ZICBOM) Var(riscv_zicmo_subext)
 
 Mask(ZICBOP) Var(riscv_zicmo_subext)
 
+Mask(ZIC64B) Var(riscv_zicmo_subext)
+
 TargetVariable
 int riscv_zf_subext
+
+Mask(ZFBFMIN)  Var(riscv_zf_subext)
 
 Mask(ZFHMIN)  Var(riscv_zf_subext)
 
 Mask(ZFH)     Var(riscv_zf_subext)
 
 Mask(ZVFBFMIN) Var(riscv_zf_subext)
+
+Mask(ZVFBFWMA) Var(riscv_zf_subext)
 
 Mask(ZVFHMIN) Var(riscv_zf_subext)
 
@@ -515,15 +527,15 @@ Target Var(TARGET_INLINE_SUBWORD_ATOMIC) Init(1)
 Always inline subword atomic operations.
 
 minline-strcmp
-Target Var(riscv_inline_strcmp) Init(0)
+Target Var(riscv_inline_strcmp) Init(1)
 Inline strcmp calls if possible.
 
 minline-strncmp
-Target Var(riscv_inline_strncmp) Init(0)
+Target Var(riscv_inline_strncmp) Init(1)
 Inline strncmp calls if possible.
 
 minline-strlen
-Target Var(riscv_inline_strlen) Init(0)
+Target Var(riscv_inline_strlen) Init(1)
 Inline strlen calls if possible.
 
 -param=riscv-strcmp-inline-limit=
@@ -620,3 +632,7 @@ Enum(tls_type) String(desc) Value(TLS_DESCRIPTORS)
 mtls-dialect=
 Target RejectNegative Joined Enum(tls_type) Var(riscv_tls_dialect) Init(TLS_TRADITIONAL) Save
 Specify TLS dialect.
+
+mfence-tso
+Target Var(TARGET_FENCE_TSO) Init(1)
+Specifies whether the fence.tso instruction should be used.

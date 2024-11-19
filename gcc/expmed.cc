@@ -704,9 +704,15 @@ store_bit_field_using_insv (const extraction_insn *insv, rtx op0,
 	    }
 	  else
 	    {
-	      tmp = gen_lowpart_if_possible (op_mode, value1);
-	      if (! tmp)
-		tmp = gen_lowpart (op_mode, force_reg (value_mode, value1));
+	      if (targetm.mode_rep_extended (op_mode, value_mode) != UNKNOWN)
+		tmp = simplify_gen_unary (TRUNCATE, op_mode,
+					  value1, value_mode);
+	      else
+		{
+		  tmp = gen_lowpart_if_possible (op_mode, value1);
+		  if (! tmp)
+		    tmp = gen_lowpart (op_mode, force_reg (value_mode, value1));
+		}
 	    }
 	  value1 = tmp;
 	}
@@ -2610,10 +2616,11 @@ expand_shift_1 (enum tree_code code, machine_mode mode, rtx shifted,
 	  else if (methods == OPTAB_LIB_WIDEN)
 	    {
 	      /* If we have been unable to open-code this by a rotation,
-		 do it as the IOR of two shifts.  I.e., to rotate A
-		 by N bits, compute
+		 do it as the IOR or PLUS of two shifts.  I.e., to rotate
+		 A by N bits, compute
 		 (A << N) | ((unsigned) A >> ((-N) & (C - 1)))
-		 where C is the bitsize of A.
+		 where C is the bitsize of A.  If N cannot be zero,
+		 use PLUS instead of IOR.
 
 		 It is theoretically possible that the target machine might
 		 not be able to perform either shift and hence we would
@@ -2650,8 +2657,9 @@ expand_shift_1 (enum tree_code code, machine_mode mode, rtx shifted,
 	      temp1 = expand_shift_1 (left ? RSHIFT_EXPR : LSHIFT_EXPR,
 				      mode, shifted, other_amount,
 				      subtarget, 1);
-	      return expand_binop (mode, ior_optab, temp, temp1, target,
-				   unsignedp, methods);
+	      return expand_binop (mode,
+				   CONST_INT_P (op1) ? add_optab : ior_optab,
+				   temp, temp1, target, unsignedp, methods);
 	    }
 
 	  temp = expand_binop (mode,
@@ -2742,8 +2750,7 @@ static rtx expand_mult_const (machine_mode, rtx, HOST_WIDE_INT, rtx,
 static unsigned HOST_WIDE_INT invert_mod2n (unsigned HOST_WIDE_INT, int);
 static rtx extract_high_half (scalar_int_mode, rtx);
 static rtx expmed_mult_highpart (scalar_int_mode, rtx, rtx, rtx, int, int);
-static rtx expmed_mult_highpart_optab (scalar_int_mode, rtx, rtx, rtx,
-				       int, int);
+
 /* Compute and return the best algorithm for multiplying by T.
    The algorithm must cost less than cost_limit
    If retval.cost >= COST_LIMIT, no algorithm was found and all
@@ -3689,50 +3696,62 @@ expand_widening_mult (machine_mode mode, rtx op0, rtx op1, rtx target,
 		       unsignedp, OPTAB_LIB_WIDEN);
 }
 
-/* Choose a minimal N + 1 bit approximation to 1/D that can be used to
-   replace division by D, and put the least significant N bits of the result
-   in *MULTIPLIER_PTR and return the most significant bit.
+/* Choose a minimal N + 1 bit approximation to 2**K / D that can be used to
+   replace division by D, put the least significant N bits of the result in
+   *MULTIPLIER_PTR, the value K - N in *POST_SHIFT_PTR, and return the most
+   significant bit.
 
    The width of operations is N (should be <= HOST_BITS_PER_WIDE_INT), the
-   needed precision is in PRECISION (should be <= N).
+   needed precision is PRECISION (should be <= N).
 
-   PRECISION should be as small as possible so this function can choose
-   multiplier more freely.
+   PRECISION should be as small as possible so this function can choose the
+   multiplier more freely.  If PRECISION is <= N - 1, the most significant
+   bit returned by the function will be zero.
 
-   The rounded-up logarithm of D is placed in *lgup_ptr.  A shift count that
-   is to be used for a final right shift is placed in *POST_SHIFT_PTR.
-
-   Using this function, x/D will be equal to (x * m) >> (*POST_SHIFT_PTR),
-   where m is the full HOST_BITS_PER_WIDE_INT + 1 bit multiplier.  */
+   Using this function, x / D is equal to (x*m) / 2**N >> (*POST_SHIFT_PTR),
+   where m is the full N + 1 bit multiplier.  */
 
 unsigned HOST_WIDE_INT
 choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
 		   unsigned HOST_WIDE_INT *multiplier_ptr,
-		   int *post_shift_ptr, int *lgup_ptr)
+		   int *post_shift_ptr)
 {
   int lgup, post_shift;
-  int pow, pow2;
+  int pow1, pow2;
 
-  /* lgup = ceil(log2(divisor)); */
+  /* lgup = ceil(log2(d)) */
+  /* Assuming d > 1, we have d >= 2^(lgup-1) + 1 */
   lgup = ceil_log2 (d);
 
   gcc_assert (lgup <= n);
+  gcc_assert (lgup <= precision);
 
-  pow = n + lgup;
+  pow1 = n + lgup;
   pow2 = n + lgup - precision;
 
-  /* mlow = 2^(N + lgup)/d */
-  wide_int val = wi::set_bit_in_zero (pow, HOST_BITS_PER_DOUBLE_INT);
+  /* mlow = 2^(n + lgup)/d */
+  /* Trivially from above we have mlow < 2^(n+1) */
+  wide_int val = wi::set_bit_in_zero (pow1, HOST_BITS_PER_DOUBLE_INT);
   wide_int mlow = wi::udiv_trunc (val, d);
 
-  /* mhigh = (2^(N + lgup) + 2^(N + lgup - precision))/d */
+  /* mhigh = (2^(n + lgup) + 2^(n + lgup - precision))/d */
+  /* From above we have mhigh < 2^(n+1) assuming lgup <= precision */
+  /* From precision <= n, the difference between the numerators of mhigh and
+     mlow is >= 2^lgup >= d.  Therefore the difference of the quotients in
+     the Euclidean division by d is at least 1, so we have mlow < mhigh and
+     the exact value of 2^(n + lgup)/d lies in the interval [mlow; mhigh).  */
   val |= wi::set_bit_in_zero (pow2, HOST_BITS_PER_DOUBLE_INT);
   wide_int mhigh = wi::udiv_trunc (val, d);
 
-  /* If precision == N, then mlow, mhigh exceed 2^N
-     (but they do not exceed 2^(N+1)).  */
-
   /* Reduce to lowest terms.  */
+  /* If precision <= n - 1, then the difference between the numerators of
+     mhigh and mlow is >= 2^(lgup + 1) >= 2 * 2^lgup >= 2 * d.  Therefore
+     the difference of the quotients in the Euclidean division by d is at
+     least 2, which means that mhigh and mlow differ by at least one bit
+     not in the last place.  The conclusion is that the first iteration of
+     the loop below completes and shifts mhigh and mlow by 1 bit, which in
+     particular means that mhigh < 2^n, that is to say, the most significant
+     bit in the n + 1 bit value is zero.  */
   for (post_shift = lgup; post_shift > 0; post_shift--)
     {
       unsigned HOST_WIDE_INT ml_lo = wi::extract_uhwi (mlow, 1,
@@ -3747,7 +3766,7 @@ choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
     }
 
   *post_shift_ptr = post_shift;
-  *lgup_ptr = lgup;
+
   if (n < HOST_BITS_PER_WIDE_INT)
     {
       unsigned HOST_WIDE_INT mask = (HOST_WIDE_INT_1U << n) - 1;
@@ -3761,31 +3780,32 @@ choose_multiplier (unsigned HOST_WIDE_INT d, int n, int precision,
     }
 }
 
-/* Compute the inverse of X mod 2**n, i.e., find Y such that X * Y is
-   congruent to 1 (mod 2**N).  */
+/* Compute the inverse of X mod 2**N, i.e., find Y such that X * Y is congruent
+   to 1 modulo 2**N, assuming that X is odd.  Bézout's lemma guarantees that Y
+   exists for any given positive N.  */
 
 static unsigned HOST_WIDE_INT
 invert_mod2n (unsigned HOST_WIDE_INT x, int n)
 {
-  /* Solve x*y == 1 (mod 2^n), where x is odd.  Return y.  */
+  gcc_assert ((x & 1) == 1);
 
-  /* The algorithm notes that the choice y = x satisfies
-     x*y == 1 mod 2^3, since x is assumed odd.
-     Each iteration doubles the number of bits of significance in y.  */
+  /* The algorithm notes that the choice Y = Z satisfies X*Y == 1 mod 2^3,
+     since X is odd.  Then each iteration doubles the number of bits of
+     significance in Y.  */
 
-  unsigned HOST_WIDE_INT mask;
+  const unsigned HOST_WIDE_INT mask
+    = (n == HOST_BITS_PER_WIDE_INT
+       ? HOST_WIDE_INT_M1U
+       : (HOST_WIDE_INT_1U << n) - 1);
   unsigned HOST_WIDE_INT y = x;
   int nbit = 3;
-
-  mask = (n == HOST_BITS_PER_WIDE_INT
-	  ? HOST_WIDE_INT_M1U
-	  : (HOST_WIDE_INT_1U << n) - 1);
 
   while (nbit < n)
     {
       y = y * (2 - x*y) & mask;		/* Modulo 2^N */
       nbit *= 2;
     }
+
   return y;
 }
 
@@ -3837,30 +3857,25 @@ extract_high_half (scalar_int_mode mode, rtx op)
   return convert_modes (mode, wider_mode, op, 0);
 }
 
-/* Like expmed_mult_highpart, but only consider using a multiplication
-   optab.  OP1 is an rtx for the constant operand.  */
+/* Like expmed_mult_highpart, but only consider using multiplication optab.  */
 
-static rtx
+rtx
 expmed_mult_highpart_optab (scalar_int_mode mode, rtx op0, rtx op1,
 			    rtx target, int unsignedp, int max_cost)
 {
-  rtx narrow_op1 = gen_int_mode (INTVAL (op1), mode);
+  const scalar_int_mode wider_mode = GET_MODE_WIDER_MODE (mode).require ();
+  const bool speed = optimize_insn_for_speed_p ();
+  const int size = GET_MODE_BITSIZE (mode);
   optab moptab;
   rtx tem;
-  int size;
-  bool speed = optimize_insn_for_speed_p ();
-
-  scalar_int_mode wider_mode = GET_MODE_WIDER_MODE (mode).require ();
-
-  size = GET_MODE_BITSIZE (mode);
 
   /* Firstly, try using a multiplication insn that only generates the needed
      high part of the product, and in the sign flavor of unsignedp.  */
   if (mul_highpart_cost (speed, mode) < max_cost)
     {
       moptab = unsignedp ? umul_highpart_optab : smul_highpart_optab;
-      tem = expand_binop (mode, moptab, op0, narrow_op1, target,
-			  unsignedp, OPTAB_DIRECT);
+      tem = expand_binop (mode, moptab, op0, op1, target, unsignedp,
+			  OPTAB_DIRECT);
       if (tem)
 	return tem;
     }
@@ -3873,12 +3888,12 @@ expmed_mult_highpart_optab (scalar_int_mode mode, rtx op0, rtx op1,
 	  + 4 * add_cost (speed, mode) < max_cost))
     {
       moptab = unsignedp ? smul_highpart_optab : umul_highpart_optab;
-      tem = expand_binop (mode, moptab, op0, narrow_op1, target,
-			  unsignedp, OPTAB_DIRECT);
+      tem = expand_binop (mode, moptab, op0, op1, target, !unsignedp,
+			  OPTAB_DIRECT);
       if (tem)
 	/* We used the wrong signedness.  Adjust the result.  */
-	return expand_mult_highpart_adjust (mode, tem, op0, narrow_op1,
-					    tem, unsignedp);
+	return expand_mult_highpart_adjust (mode, tem, op0, op1, tem,
+					    unsignedp);
     }
 
   /* Try widening multiplication.  */
@@ -3886,8 +3901,8 @@ expmed_mult_highpart_optab (scalar_int_mode mode, rtx op0, rtx op1,
   if (convert_optab_handler (moptab, wider_mode, mode) != CODE_FOR_nothing
       && mul_widen_cost (speed, wider_mode) < max_cost)
     {
-      tem = expand_binop (wider_mode, moptab, op0, narrow_op1, 0,
-			  unsignedp, OPTAB_WIDEN);
+      tem = expand_binop (wider_mode, moptab, op0, op1, NULL_RTX, unsignedp,
+			  OPTAB_WIDEN);
       if (tem)
 	return extract_high_half (mode, tem);
     }
@@ -3928,14 +3943,14 @@ expmed_mult_highpart_optab (scalar_int_mode mode, rtx op0, rtx op1,
 	  + 2 * shift_cost (speed, mode, size-1)
 	  + 4 * add_cost (speed, mode) < max_cost))
     {
-      tem = expand_binop (wider_mode, moptab, op0, narrow_op1,
-			  NULL_RTX, ! unsignedp, OPTAB_WIDEN);
+      tem = expand_binop (wider_mode, moptab, op0, op1, NULL_RTX, !unsignedp,
+			  OPTAB_WIDEN);
       if (tem != 0)
 	{
 	  tem = extract_high_half (mode, tem);
 	  /* We used the wrong signedness.  Adjust the result.  */
-	  return expand_mult_highpart_adjust (mode, tem, op0, narrow_op1,
-					      target, unsignedp);
+	  return expand_mult_highpart_adjust (mode, tem, op0, op1, target,
+					      unsignedp);
 	}
     }
 
@@ -3957,18 +3972,19 @@ static rtx
 expmed_mult_highpart (scalar_int_mode mode, rtx op0, rtx op1,
 		      rtx target, int unsignedp, int max_cost)
 {
+  const bool speed = optimize_insn_for_speed_p ();
   unsigned HOST_WIDE_INT cnst1;
   int extra_cost;
   bool sign_adjust = false;
   enum mult_variant variant;
   struct algorithm alg;
-  rtx tem;
-  bool speed = optimize_insn_for_speed_p ();
+  rtx narrow_op1, tem;
 
   /* We can't support modes wider than HOST_BITS_PER_INT.  */
   gcc_assert (HWI_COMPUTABLE_MODE_P (mode));
 
   cnst1 = INTVAL (op1) & GET_MODE_MASK (mode);
+  narrow_op1 = gen_int_mode (INTVAL (op1), mode);
 
   /* We can't optimize modes wider than BITS_PER_WORD.
      ??? We might be able to perform double-word arithmetic if
@@ -3976,7 +3992,7 @@ expmed_mult_highpart (scalar_int_mode mode, rtx op0, rtx op1,
      synth_mult etc. assume single-word operations.  */
   scalar_int_mode wider_mode = GET_MODE_WIDER_MODE (mode).require ();
   if (GET_MODE_BITSIZE (wider_mode) > BITS_PER_WORD)
-    return expmed_mult_highpart_optab (mode, op0, op1, target,
+    return expmed_mult_highpart_optab (mode, op0, narrow_op1, target,
 				       unsignedp, max_cost);
 
   extra_cost = shift_cost (speed, mode, GET_MODE_BITSIZE (mode) - 1);
@@ -3994,7 +4010,8 @@ expmed_mult_highpart (scalar_int_mode mode, rtx op0, rtx op1,
     {
       /* See whether the specialized multiplication optabs are
 	 cheaper than the shift/add version.  */
-      tem = expmed_mult_highpart_optab (mode, op0, op1, target, unsignedp,
+      tem = expmed_mult_highpart_optab (mode, op0, narrow_op1, target,
+					unsignedp,
 					alg.cost.cost + extra_cost);
       if (tem)
 	return tem;
@@ -4009,7 +4026,7 @@ expmed_mult_highpart (scalar_int_mode mode, rtx op0, rtx op1,
 
       return tem;
     }
-  return expmed_mult_highpart_optab (mode, op0, op1, target,
+  return expmed_mult_highpart_optab (mode, op0, narrow_op1, target,
 				     unsignedp, max_cost);
 }
 
@@ -4443,7 +4460,6 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 	      {
 		unsigned HOST_WIDE_INT mh, ml;
 		int pre_shift, post_shift;
-		int dummy;
 		wide_int wd = rtx_mode_t (op1, int_mode);
 		unsigned HOST_WIDE_INT d = wd.to_uhwi ();
 
@@ -4476,10 +4492,9 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 		    else
 		      {
 			/* Find a suitable multiplier and right shift count
-			   instead of multiplying with D.  */
-
+			   instead of directly dividing by D.  */
 			mh = choose_multiplier (d, size, size,
-						&ml, &post_shift, &dummy);
+						&ml, &post_shift);
 
 			/* If the suggested multiplier is more than SIZE bits,
 			   we can do better for even divisors, using an
@@ -4489,7 +4504,7 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 			    pre_shift = ctz_or_zero (d);
 			    mh = choose_multiplier (d >> pre_shift, size,
 						    size - pre_shift,
-						    &ml, &post_shift, &dummy);
+						    &ml, &post_shift);
 			    gcc_assert (!mh);
 			  }
 			else
@@ -4561,7 +4576,7 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 	    else		/* TRUNC_DIV, signed */
 	      {
 		unsigned HOST_WIDE_INT ml;
-		int lgup, post_shift;
+		int post_shift;
 		rtx mlr;
 		HOST_WIDE_INT d = INTVAL (op1);
 		unsigned HOST_WIDE_INT abs_d;
@@ -4657,7 +4672,7 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 		else if (size <= HOST_BITS_PER_WIDE_INT)
 		  {
 		    choose_multiplier (abs_d, size, size - 1,
-				       &ml, &post_shift, &lgup);
+				       &ml, &post_shift);
 		    if (ml < HOST_WIDE_INT_1U << (size - 1))
 		      {
 			rtx t1, t2, t3;
@@ -4748,7 +4763,7 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 	    scalar_int_mode int_mode = as_a <scalar_int_mode> (compute_mode);
 	    int size = GET_MODE_BITSIZE (int_mode);
 	    unsigned HOST_WIDE_INT mh, ml;
-	    int pre_shift, lgup, post_shift;
+	    int pre_shift, post_shift;
 	    HOST_WIDE_INT d = INTVAL (op1);
 
 	    if (d > 0)
@@ -4778,7 +4793,7 @@ expand_divmod (int rem_flag, enum tree_code code, machine_mode mode,
 		    rtx t1, t2, t3, t4;
 
 		    mh = choose_multiplier (d, size, size - 1,
-					    &ml, &post_shift, &lgup);
+					    &ml, &post_shift);
 		    gcc_assert (!mh);
 
 		    if (post_shift < BITS_PER_WORD

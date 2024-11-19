@@ -1140,6 +1140,12 @@ avr_option_override (void)
   if (targetm.addr_space.zero_address_valid (ADDR_SPACE_GENERIC))
     flag_delete_null_pointer_checks = 0;
 
+  /* PR ipa/92606: Inter-procedural analysis optimizes data across
+     address-spaces and PROGMEM.  As of v14, the PROGMEM part is
+     still not fixed (and there is still no target hook as proposed
+     in PR92932).  Just disable respective bogus optimization.  */
+  flag_ipa_icf_variables = 0;
+
   if (flag_pic == 1)
     warning (OPT_fpic, "%<-fpic%> is not supported");
   if (flag_pic == 2)
@@ -3932,11 +3938,20 @@ avr_print_operand (FILE *file, rtx x, int code)
     }
   else if (CONST_DOUBLE_P (x))
     {
-      long val;
-      if (GET_MODE (x) != SFmode)
+      if (GET_MODE (x) == SFmode)
+	{
+	  long val;
+	  REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (x), val);
+	  fprintf (file, "0x%lx", val);
+	}
+      else if (GET_MODE (x) == DFmode)
+	{
+	  long l[2];
+	  REAL_VALUE_TO_TARGET_DOUBLE (*CONST_DOUBLE_REAL_VALUE (x), l);
+	  fprintf (file, "0x%lx%08lx", l[1] & 0xffffffff, l[0] & 0xffffffff);
+	}
+      else
 	fatal_insn ("internal compiler error.  Unknown mode:", x);
-      REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (x), val);
-      fprintf (file, "0x%lx", val);
     }
   else if (GET_CODE (x) == CONST_STRING)
     fputs (XSTR (x, 0), file);

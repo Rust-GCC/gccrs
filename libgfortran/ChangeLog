@@ -1,3 +1,42 @@
+2024-06-06  Thomas Schwinge  <tschwinge@baylibre.com>
+	    Andrew Stubbs  <ams@gcc.gnu.org>
+
+	* configure.ac: No longer set 'LIBGFOR_MINIMAL' for nvptx.
+	* configure: Regenerate.
+
+2024-06-06  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR target/85463
+	* runtime/minimal.c [__nvptx__] (exit): Don't override.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBGFOR_USE_SYMVER_SUN} (gfortran.ver-sun): Pass
+	$(libgfortran_la_OBJECTS), $(libgfortran_la_LIBADD) to
+	make_sunver.pl unmodified.
+	* Makefile.in: Regenerate.
+
+2024-05-06  David Edelsohn  <dje.gcc@gmail.com>
+
+	* config/t-aix (all-local, libcaf_single): Explicitly reference
+	caf/.libs/single.o
+
+2024-05-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBGFOR_USE_SYMVER_SUN] (gfortran.ver-sun): Handle
+	objects in subdirs.
+	* Makefile.in: Regenerate.
+
+2024-05-02  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* Makefile.am: Use sub-dirs, amend recipies accordingly.
+	* Makefile.in: Regenerate.
+
+2024-04-29  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* gfortran.map: Add _gfortran_selected_logical_kind.
+	* intrinsics/selected_int_kind.f90: Add SELECTED_LOGICAL_KIND.
+
 2024-04-12  Ian McInerney  <i.mcinerney17@imperial.ac.uk>
 
 	* runtime/error.c (gf_vsnprintf): Fix compilation

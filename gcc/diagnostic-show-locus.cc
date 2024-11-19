@@ -19,6 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "version.h"
@@ -31,6 +32,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "selftest.h"
 #include "selftest-diagnostic.h"
 #include "cpplib.h"
+#include "text-art/types.h"
+#include "text-art/theme.h"
+#include "diagnostic-label-effects.h"
 
 #ifdef HAVE_TERMIOS_H
 # include <termios.h>
@@ -98,6 +102,7 @@ class colorizer
     else
       set_state (range_idx);
   }
+  void set_cfg_edge () { set_state (0); }
   void set_normal_text () { set_state (STATE_NORMAL_TEXT); }
   void set_fixit_insert () { set_state (STATE_FIXIT_INSERT); }
   void set_fixit_delete () { set_state (STATE_FIXIT_DELETE); }
@@ -234,6 +239,9 @@ class layout_range
 		       enum column_unit col_unit) const;
   bool intersects_line_p (linenum_type row) const;
 
+  bool has_in_edge () const;
+  bool has_out_edge () const;
+
   layout_point m_start;
   layout_point m_finish;
   enum range_display_kind m_range_display_kind;
@@ -369,7 +377,8 @@ class layout
   layout (const diagnostic_context &context,
 	  const rich_location &richloc,
 	  diagnostic_t diagnostic_kind,
-	  pretty_printer *pp);
+	  pretty_printer *pp,
+	  diagnostic_source_effect_info *effect_info = nullptr);
 
   bool maybe_add_location_range (const location_range *loc_range,
 				 unsigned original_idx,
@@ -388,7 +397,11 @@ class layout
 
   void print_line (linenum_type row);
 
+  void print_any_right_to_left_edge_lines ();
+
   void on_bad_codepoint (const char *ptr, cppchar_t ch, size_t ch_sz);
+
+  void update_any_effects () const;
 
  private:
   bool will_show_line_p (linenum_type row) const;
@@ -396,14 +409,15 @@ class layout
   line_bounds print_source_line (linenum_type row, const char *line,
 				 int line_bytes);
   bool should_print_annotation_line_p (linenum_type row) const;
-  void start_annotation_line (char margin_char = ' ') const;
+  void print_leftmost_column ();
+  void start_annotation_line (char margin_char = ' ');
   void print_annotation_line (linenum_type row, const line_bounds lbounds);
   void print_any_labels (linenum_type row);
   void print_trailing_fixits (linenum_type row);
 
   bool annotation_line_showed_range_p (linenum_type line, int start_column,
 				       int finish_column) const;
-  void show_ruler (int max_column) const;
+  void show_ruler (int max_column);
 
   bool validate_fixit_hint_p (const fixit_hint *hint);
 
@@ -435,6 +449,9 @@ class layout
   const line_maps *m_line_table;
   file_cache &m_file_cache;
   pretty_printer *m_pp;
+  const text_art::ascii_theme m_fallback_theme;
+  const text_art::theme &m_theme;
+  diagnostic_source_effect_info *m_effect_info;
   char_display_policy m_policy;
   location_t m_primary_loc;
   exploc_with_display_col m_exploc;
@@ -446,6 +463,55 @@ class layout
   int m_linenum_width;
   int m_x_offset_display;
   bool m_escape_on_output;
+
+  /* Fields for handling links between labels (e.g. for showing CFG edges
+     in execution paths).
+     Note that the logic for printing such links makes various simplifying
+     assumptions about the set of labels in the rich_location, and users
+     of this code will need to split up labels into separate rich_location
+     instances to respect these assumptions, or the output will look wrong.
+     See the diagnostic_path-printing code for more information.  */
+
+  /* An enum for describing the state of the leftmost column,
+     used for showing links between labels.
+     Consider e.g.
+     .x0000000001111111111222222222233333333334444444444.
+     .x1234567890123456789012345678901234567890123456789.
+     |      |                                    <- none
+     |      (9) following ‘false’ branch... ->-+ <- none
+     |                                         | <- none
+     |                                         | <- none
+     |+----------------------------------------+ <- rewinding to lhs
+     ||  result->i = i;                          <- at lhs
+     ||  ~~~~~~~~~~^~~                           <- at lhs
+     ||            |                             <- at lhs
+     |+----------->(10) ...to here               <- indenting to dest
+     ^^
+     ||
+     |leftmost column ("x" above).
+     "margin".  */
+  enum class link_lhs_state {
+    none,
+    rewinding_to_lhs,
+    at_lhs,
+    indenting_to_dest
+  } m_link_lhs_state;
+
+  /* The column of the current link on the RHS, if any, or
+     -1 if there is none.
+     Consider e.g.
+     .x0000000001111111111222222222233333333334444444444.
+     .x1234567890123456789012345678901234567890123456789.
+     |      |                                     <- -1
+     |      (10) following ‘false’ branch... ->-+ <- 42
+     |                                          | <- 42
+     |                                          | <- 42
+     |+-----------------------------------------+ <- 42
+     ||  result->i = i;                           <- -1
+     ||  ~~~~~~~~~~^~~                            <- -1
+     ||            |                              <- -1
+     |+----------->(11) ...to here                <- -1.  */
+  int m_link_rhs_column;
 };
 
 /* Implementation of "class colorizer".  */
@@ -687,6 +753,34 @@ layout_range::intersects_line_p (linenum_type row) const
   if (row > m_finish.m_line)
     return false;
   return true;
+}
+
+/* Return true if this layout_range should have an in-edge.  */
+
+bool
+layout_range::has_in_edge () const
+{
+  if (!m_label)
+    return false;
+  const label_effects *effects = m_label->get_effects (m_original_idx);
+  if (!effects)
+    return false;
+
+  return effects->has_in_edge (m_original_idx);
+}
+
+/* Return true if this layout_range should have an out-edge.  */
+
+bool
+layout_range::has_out_edge () const
+{
+  if (!m_label)
+    return false;
+  const label_effects *effects = m_label->get_effects (m_original_idx);
+  if (!effects)
+    return false;
+
+  return effects->has_out_edge (m_original_idx);
 }
 
 #if CHECKING_P
@@ -1194,11 +1288,17 @@ make_policy (const diagnostic_context &dc,
 layout::layout (const diagnostic_context &context,
 		const rich_location &richloc,
 		diagnostic_t diagnostic_kind,
-		pretty_printer *pp)
+		pretty_printer *pp,
+		diagnostic_source_effect_info *effect_info)
 : m_options (context.m_source_printing),
   m_line_table (richloc.get_line_table ()),
   m_file_cache (context.get_file_cache ()),
   m_pp (pp ? pp : context.printer),
+  /* Ensure we have a non-null m_theme. */
+  m_theme (context.get_diagram_theme ()
+	   ? *context.get_diagram_theme ()
+	   : *static_cast <const text_art::theme *> (&m_fallback_theme)),
+  m_effect_info (effect_info),
   m_policy (make_policy (context, richloc)),
   m_primary_loc (richloc.get_range (0)->m_loc),
   m_exploc (m_file_cache,
@@ -1211,8 +1311,15 @@ layout::layout (const diagnostic_context &context,
   m_line_spans (1 + richloc.get_num_locations ()),
   m_linenum_width (0),
   m_x_offset_display (0),
-  m_escape_on_output (richloc.escape_on_output_p ())
+  m_escape_on_output (richloc.escape_on_output_p ()),
+  m_link_lhs_state (link_lhs_state::none),
+  m_link_rhs_column (-1)
 {
+  if (m_options.show_event_links_p)
+    if (effect_info)
+      if (effect_info->m_leading_in_edge_column)
+	m_link_rhs_column = effect_info->m_leading_in_edge_column;
+
   for (unsigned int idx = 0; idx < richloc.get_num_locations (); idx++)
     {
       /* This diagnostic printer can only cope with "sufficiently sane" ranges.
@@ -1247,7 +1354,7 @@ layout::layout (const diagnostic_context &context,
    those that we can sanely print.
 
    ORIGINAL_IDX is the index of LOC_RANGE within its rich_location,
-   (for use as extrinsic state by label ranges FIXME).
+   (for use as extrinsic state by label ranges).
 
    If RESTRICT_TO_CURRENT_LINE_SPANS is true, then LOC_RANGE is also
    filtered against this layout instance's current line spans: it
@@ -1716,10 +1823,10 @@ layout::print_source_line (linenum_type row, const char *line, int line_bytes)
       int width = num_digits (row);
       for (int i = 0; i < m_linenum_width - width; i++)
 	pp_space (m_pp);
-      pp_printf (m_pp, "%i | ", row);
+      pp_printf (m_pp, "%i |", row);
     }
-  else
-    pp_space (m_pp);
+
+  print_leftmost_column ();
 
   /* We will stop printing the source line at any trailing whitespace.  */
   line_bytes = get_line_bytes_without_trailing_whitespace (line,
@@ -1822,11 +1929,59 @@ layout::should_print_annotation_line_p (linenum_type row) const
   return false;
 }
 
-/* Begin an annotation line.  If m_show_line_numbers_p, print the left
-   margin, which is empty for annotation lines.  Otherwise, do nothing.  */
+/* Print the leftmost column after the margin, which is used for showing
+   links between labels (e.g. for CFG edges in execution paths).  */
 
 void
-layout::start_annotation_line (char margin_char) const
+layout::print_leftmost_column ()
+{
+  if (!m_options.show_event_links_p)
+    gcc_assert (m_link_lhs_state == link_lhs_state::none);
+
+  switch (m_link_lhs_state)
+    {
+    default:
+      gcc_unreachable ();
+    case link_lhs_state::none:
+      pp_space (m_pp);
+      break;
+    case link_lhs_state::rewinding_to_lhs:
+      {
+	m_colorizer.set_cfg_edge ();
+	const cppchar_t ch= m_theme.get_cppchar
+	  (text_art::theme::cell_kind::CFG_FROM_LEFT_TO_DOWN);
+	pp_unicode_character (m_pp, ch);
+	m_colorizer.set_normal_text ();
+      }
+      break;
+    case link_lhs_state::at_lhs:
+      {
+	m_colorizer.set_cfg_edge ();
+	const cppchar_t ch= m_theme.get_cppchar
+	  (text_art::theme::cell_kind::CFG_DOWN);
+	pp_unicode_character (m_pp, ch);
+	m_colorizer.set_normal_text ();
+      }
+      break;
+    case link_lhs_state::indenting_to_dest:
+      {
+	m_colorizer.set_cfg_edge ();
+	const cppchar_t ch= m_theme.get_cppchar
+	  (text_art::theme::cell_kind::CFG_FROM_DOWN_TO_RIGHT);
+	pp_unicode_character (m_pp, ch);
+	m_colorizer.set_normal_text ();
+      }
+      break;
+    }
+}
+
+/* Begin an annotation line.  If m_show_line_numbers_p, print the left
+   margin, which is empty for annotation lines.
+   After any left margin, print a leftmost column, which is used for
+   showing links between labels (e.g. for CFG edges in execution paths).  */
+
+void
+layout::start_annotation_line (char margin_char)
 {
   pp_emit_prefix (m_pp);
   if (m_options.show_line_numbers_p)
@@ -1840,6 +1995,10 @@ layout::start_annotation_line (char margin_char) const
 	pp_character (m_pp, margin_char);
       pp_string (m_pp, " |");
     }
+  if (margin_char == ' ')
+    print_leftmost_column ();
+  else
+    pp_character (m_pp, margin_char);
 }
 
 /* Print a line consisting of the caret/underlines for the given
@@ -1852,7 +2011,6 @@ layout::print_annotation_line (linenum_type row, const line_bounds lbounds)
 				     lbounds.m_last_non_ws_disp_col);
 
   start_annotation_line ();
-  pp_space (m_pp);
 
   for (int column = 1 + m_x_offset_display; column < x_bound; column++)
     {
@@ -1923,14 +2081,22 @@ struct pod_label_text
 class line_label
 {
 public:
-  line_label (const cpp_char_column_policy &policy,
-	      int state_idx, int column,
-	      label_text text)
+  line_label (int state_idx, int column,
+	      label_text text,
+	      bool has_in_edge,
+	      bool has_out_edge)
   : m_state_idx (state_idx), m_column (column),
-    m_text (std::move (text)), m_label_line (0), m_has_vbar (true)
+    m_text (std::move (text)), m_label_line (0), m_has_vbar (true),
+    m_has_in_edge (has_in_edge),
+    m_has_out_edge (has_out_edge)
   {
-    const int bytes = strlen (m_text.m_buffer);
-    m_display_width = cpp_display_width (m_text.m_buffer, bytes, policy);
+    /* Using styled_string rather than cpp_display_width here
+       lets us skip SGR formatting characters for color and URLs.
+       It doesn't handle tabs and unicode escaping, but we don't
+       expect to see either of those in labels.  */
+    text_art::style_manager sm;
+    text_art::styled_string str (sm, m_text.m_buffer);
+    m_display_width = str.calc_canvas_width ();
   }
 
   /* Sorting is primarily by column, then by state index.  */
@@ -1953,6 +2119,8 @@ public:
   size_t m_display_width;
   int m_label_line;
   bool m_has_vbar;
+  bool m_has_in_edge;
+  bool m_has_out_edge;
 };
 
 /* Print any labels in this row.  */
@@ -1990,7 +2158,9 @@ layout::print_any_labels (linenum_type row)
 	if (text.get () == NULL)
 	  continue;
 
-	labels.safe_push (line_label (m_policy, i, disp_col, std::move (text)));
+	labels.safe_push (line_label (i, disp_col, std::move (text),
+				      range->has_in_edge (),
+				      range->has_out_edge ()));
       }
   }
 
@@ -2034,6 +2204,7 @@ layout::print_any_labels (linenum_type row)
            label 1         : label line 3.  */
 
   int max_label_line = 1;
+  int label_line_with_in_edge = -1;
   {
     int next_column = INT_MAX;
     line_label *label;
@@ -2052,9 +2223,14 @@ layout::print_any_labels (linenum_type row)
 	  }
 
 	label->m_label_line = max_label_line;
+	if (m_options.show_event_links_p)
+	  if (label->m_has_in_edge)
+	    label_line_with_in_edge = max_label_line;
 	next_column = label->m_column;
       }
   }
+
+  gcc_assert (labels.length () > 0);
 
   /* Print the "label lines".  For each label within the line, print
      either a vertical bar ('|') for the labels that are lower down, or the
@@ -2062,8 +2238,13 @@ layout::print_any_labels (linenum_type row)
   {
     for (int label_line = 0; label_line <= max_label_line; label_line++)
       {
+	if (label_line == label_line_with_in_edge)
+	  {
+	    gcc_assert (m_options.show_event_links_p);
+	    m_link_lhs_state = link_lhs_state::indenting_to_dest;
+	  }
 	start_annotation_line ();
-	pp_space (m_pp);
+
 	int column = 1 + m_x_offset_display;
 	line_label *label;
 	FOR_EACH_VEC_ELT (labels, i, label)
@@ -2075,7 +2256,35 @@ layout::print_any_labels (linenum_type row)
 	    if (label_line == label->m_label_line)
 	      {
 		gcc_assert (column <= label->m_column);
-		move_to_column (&column, label->m_column, true);
+
+		if (label_line == label_line_with_in_edge)
+		  {
+		    /* Print a prefix showing an incoming
+		       link from another label.
+		       .|+----------->(10) ...to here
+		       . ^~~~~~~~~~~~~
+		       . this text.  */
+		    gcc_assert (m_options.show_event_links_p);
+		    m_colorizer.set_cfg_edge ();
+		    const cppchar_t right= m_theme.get_cppchar
+		      (text_art::theme::cell_kind::CFG_RIGHT);
+		    while (column < label->m_column - 1)
+		      {
+			pp_unicode_character (m_pp, right);
+			column++;
+		      }
+		    if (column == label->m_column - 1)
+		      {
+			pp_character (m_pp, '>');
+			column++;
+		      }
+		    m_colorizer.set_normal_text ();
+		    m_link_lhs_state = link_lhs_state::none;
+		    label_line_with_in_edge = -1;
+		  }
+		else
+		  move_to_column (&column, label->m_column, true);
+		gcc_assert (column == label->m_column);
 		/* Colorize the text, unless it's for events in a
 		   diagnostic_path.  */
 		if (!m_diagnostic_path_p)
@@ -2083,6 +2292,29 @@ layout::print_any_labels (linenum_type row)
 		pp_string (m_pp, label->m_text.m_buffer);
 		m_colorizer.set_normal_text ();
 		column += label->m_display_width;
+		if (m_options.show_event_links_p && label->m_has_out_edge)
+		  {
+		    /* Print a suffix showing the start of a linkage
+		       to another label e.g. " ->-+" which will be the
+		       first part of e.g.
+		       .      (9) following ‘false’ branch... ->-+ <- HERE
+		       .                                         |
+		       .                                         |
+		       .  */
+		    const cppchar_t right= m_theme.get_cppchar
+		      (text_art::theme::cell_kind::CFG_RIGHT);
+		    const cppchar_t from_right_to_down= m_theme.get_cppchar
+		      (text_art::theme::cell_kind::CFG_FROM_RIGHT_TO_DOWN);
+		    m_colorizer.set_cfg_edge ();
+		    pp_space (m_pp);
+		    pp_unicode_character (m_pp, right);
+		    pp_unicode_character (m_pp, '>');
+		    pp_unicode_character (m_pp, right);
+		    pp_unicode_character (m_pp, from_right_to_down);
+		    m_colorizer.set_normal_text ();
+		    column += 5;
+		    m_link_rhs_column = column - 1;
+		  }
 	      }
 	    else if (label->m_has_vbar)
 	      {
@@ -2094,8 +2326,36 @@ layout::print_any_labels (linenum_type row)
 		column++;
 	      }
 	  }
+
+	/* If we have a vertical link line on the RHS, print the
+	   '|' on this annotation line after the labels.  */
+	if (m_link_rhs_column != -1 && column < m_link_rhs_column)
+	  {
+	    move_to_column (&column, m_link_rhs_column, true);
+	    m_colorizer.set_cfg_edge ();
+	    const cppchar_t down= m_theme.get_cppchar
+	      (text_art::theme::cell_kind::CFG_DOWN);
+	    pp_unicode_character (m_pp, down);
+	    m_colorizer.set_normal_text ();
+	  }
+
 	print_newline ();
       }
+    }
+
+  /* If we have a vertical link line on the RHS, print a trailing
+     annotation line showing the vertical line.  */
+  if (m_link_rhs_column != -1)
+    {
+      int column = 1 + m_x_offset_display;
+      start_annotation_line ();
+      move_to_column (&column, m_link_rhs_column, true);
+      m_colorizer.set_cfg_edge ();
+      const cppchar_t down= m_theme.get_cppchar
+	(text_art::theme::cell_kind::CFG_DOWN);
+      pp_unicode_character (m_pp, down);
+      m_colorizer.set_normal_text ();
+      print_newline ();
     }
 
   /* Clean up.  */
@@ -2133,7 +2393,6 @@ layout::print_leading_fixits (linenum_type row)
 	     the surrounding text.  */
 	  m_colorizer.set_normal_text ();
 	  start_annotation_line ('+');
-	  pp_character (m_pp, '+');
 	  m_colorizer.set_fixit_insert ();
 	  /* Print all but the trailing newline of the fix-it hint.
 	     We have to print the newline separately to avoid
@@ -2592,7 +2851,7 @@ layout::print_trailing_fixits (linenum_type row)
   /* Now print the corrections.  */
   unsigned i;
   correction *c;
-  int column = m_x_offset_display;
+  int column = 1 + m_x_offset_display;
 
   if (!corrections.m_corrections.is_empty ())
     start_annotation_line ();
@@ -2643,7 +2902,7 @@ layout::print_trailing_fixits (linenum_type row)
     }
 
   /* Add a trailing newline, if necessary.  */
-  move_to_column (&column, 0, false);
+  move_to_column (&column, 1 + m_x_offset_display, false);
 }
 
 /* Disable any colorization and emit a newline.  */
@@ -2760,11 +3019,15 @@ layout::move_to_column (int *column, int dest_column, bool add_left_margin)
       print_newline ();
       if (add_left_margin)
 	start_annotation_line ();
-      *column = m_x_offset_display;
+      *column = 1 + m_x_offset_display;
     }
 
   while (*column < dest_column)
     {
+      /* For debugging column issues, it can be helpful to replace this
+	 pp_space call with
+	   pp_character (m_pp, '0' + (*column % 10));
+	 to visualize the changing value of "*column".  */
       pp_space (m_pp);
       (*column)++;
     }
@@ -2774,13 +3037,12 @@ layout::move_to_column (int *column, int dest_column, bool add_left_margin)
    (after the 1-column indent).  */
 
 void
-layout::show_ruler (int max_column) const
+layout::show_ruler (int max_column)
 {
   /* Hundreds.  */
   if (max_column > 99)
     {
       start_annotation_line ();
-      pp_space (m_pp);
       for (int column = 1 + m_x_offset_display; column <= max_column; column++)
 	if (column % 10 == 0)
 	  pp_character (m_pp, '0' + (column / 100) % 10);
@@ -2791,7 +3053,6 @@ layout::show_ruler (int max_column) const
 
   /* Tens.  */
   start_annotation_line ();
-  pp_space (m_pp);
   for (int column = 1 + m_x_offset_display; column <= max_column; column++)
     if (column % 10 == 0)
       pp_character (m_pp, '0' + (column / 10) % 10);
@@ -2801,7 +3062,6 @@ layout::show_ruler (int max_column) const
 
   /* Units.  */
   start_annotation_line ();
-  pp_space (m_pp);
   for (int column = 1 + m_x_offset_display; column <= max_column; column++)
     pp_character (m_pp, '0' + (column % 10));
   pp_newline (m_pp);
@@ -2818,6 +3078,7 @@ layout::print_line (linenum_type row)
   if (!line)
     return;
 
+  print_any_right_to_left_edge_lines ();
   print_leading_fixits (row);
   const line_bounds lbounds
     = print_source_line (row, line.get_buffer (), line.length ());
@@ -2826,6 +3087,63 @@ layout::print_line (linenum_type row)
   if (m_options.show_labels_p)
     print_any_labels (row);
   print_trailing_fixits (row);
+}
+
+/* If there's a link column in the RHS, print something like this:
+   "                                           │\n"
+   "┌──────────────────────────────────────────┘\n"
+   showing the link entering at the top right and emerging
+   at the bottom left.  */
+
+void
+layout::print_any_right_to_left_edge_lines ()
+{
+  if (m_link_rhs_column == -1)
+    /* Can also happen if the out-edge had UNKNOWN_LOCATION.  */
+    return;
+
+  gcc_assert (m_options.show_event_links_p);
+
+  /* Print the line with "|".  */
+  start_annotation_line ();
+  int column = 1 + m_x_offset_display;
+  move_to_column (&column, m_link_rhs_column, true);
+  m_colorizer.set_cfg_edge ();
+  const cppchar_t down= m_theme.get_cppchar
+    (text_art::theme::cell_kind::CFG_DOWN);
+  pp_unicode_character (m_pp, down);
+  m_colorizer.set_normal_text ();
+  pp_newline (m_pp);
+
+  /* Print the line with "┌──────────────────────────────────────────┘".  */
+  m_link_lhs_state = link_lhs_state::rewinding_to_lhs;
+  start_annotation_line ();
+  m_colorizer.set_cfg_edge ();
+  const cppchar_t left= m_theme.get_cppchar
+    (text_art::theme::cell_kind::CFG_LEFT);
+  for (int column = 1 + m_x_offset_display; column < m_link_rhs_column;
+       column++)
+    pp_unicode_character (m_pp, left);
+  const cppchar_t from_down_to_left = m_theme.get_cppchar
+    (text_art::theme::cell_kind::CFG_FROM_DOWN_TO_LEFT);
+  pp_unicode_character (m_pp, from_down_to_left);
+  m_colorizer.set_normal_text ();
+  pp_newline (m_pp);
+
+  /* We now have a link line on the LHS,
+     and no longer have one on the RHS.  */
+  m_link_lhs_state = link_lhs_state::at_lhs;
+  m_link_rhs_column = -1;
+}
+
+/* Update this layout's m_effect_info (if any) after printing this
+   layout.  */
+
+void
+layout::update_any_effects () const
+{
+  if (m_effect_info)
+    m_effect_info->m_trailing_out_edge_column = m_link_rhs_column;
 }
 
 } /* End of anonymous namespace.  */
@@ -2847,6 +3165,7 @@ gcc_rich_location::add_location_if_nearby (location_t loc,
   location_range loc_range;
   loc_range.m_loc = loc;
   loc_range.m_range_display_kind = SHOW_RANGE_WITHOUT_CARET;
+  loc_range.m_label = nullptr;
   if (!layout.maybe_add_location_range (&loc_range, 0,
 					restrict_to_current_line_spans))
     return false;
@@ -2861,7 +3180,8 @@ gcc_rich_location::add_location_if_nearby (location_t loc,
 void
 diagnostic_context::maybe_show_locus (const rich_location &richloc,
 				      diagnostic_t diagnostic_kind,
-				      pretty_printer *pp)
+				      pretty_printer *pp,
+				      diagnostic_source_effect_info *effects)
 {
   const location_t loc = richloc.get_loc ();
   /* Do nothing if source-printing has been disabled.  */
@@ -2882,19 +3202,22 @@ diagnostic_context::maybe_show_locus (const rich_location &richloc,
 
   m_last_location = loc;
 
-  show_locus (richloc, diagnostic_kind, pp);
+  show_locus (richloc, diagnostic_kind, pp, effects);
 }
 
 /* Print the physical source code corresponding to the location of
    this diagnostic, with additional annotations.
-   If PP is non-null, then use it rather than this context's printer.  */
+   If PP is non-null, then use it rather than this context's printer.
+   If EFFECTS is non-null, then use and update it.  */
 
 void
 diagnostic_context::show_locus (const rich_location &richloc,
 				diagnostic_t diagnostic_kind,
-				pretty_printer *pp)
+				pretty_printer *pp,
+				diagnostic_source_effect_info *effects)
 {
-  layout layout (*this, richloc, diagnostic_kind, pp);
+  layout layout (*this, richloc, diagnostic_kind, pp, effects);
+
   for (int line_span_idx = 0; line_span_idx < layout.get_num_line_spans ();
        line_span_idx++)
     {
@@ -2923,6 +3246,8 @@ diagnostic_context::show_locus (const rich_location &richloc,
 	   row <= last_line; row++)
 	layout.print_line (row);
     }
+
+  layout.update_any_effects ();
 }
 
 #if CHECKING_P
@@ -3131,7 +3456,7 @@ test_layout_x_offset_display_utf8 (const line_table_case &case_)
 		  "   1 | \xf0\x9f\x98\x82\xf0\x9f\x98\x82 is a pair of emojis "
 		  "that occupies 8 bytes and 4 display columns, starting at "
 		  "column #102.\n"
-		  "     | ^\n\n",
+		  "     | ^\n",
 		  pp_formatted_text (dc.printer));
   }
 
@@ -3156,7 +3481,7 @@ test_layout_x_offset_display_utf8 (const line_table_case &case_)
 		  "   1 |  \xf0\x9f\x98\x82 is a pair of emojis "
 		  "that occupies 8 bytes and 4 display columns, starting at "
 		  "column #102.\n"
-		  "     |  ^\n\n",
+		  "     |  ^\n",
 		  pp_formatted_text (dc.printer));
   }
 
@@ -3260,11 +3585,11 @@ test_layout_x_offset_display_tab (const line_table_case &case_)
       const char *output1
 	= "   1 |   ' is a tab that occupies 1 byte and a variable number of "
 	  "display columns, starting at column #103.\n"
-	  "     |   ^\n\n";
+	  "     |   ^\n";
       const char *output2
 	= "   1 | ` ' is a tab that occupies 1 byte and a variable number of "
 	  "display columns, starting at column #103.\n"
-	  "     |   ^\n\n";
+	  "     |   ^\n";
       const char *expected_output = (extra_width[tabstop] ? output1 : output2);
       ASSERT_STREQ (expected_output, pp_formatted_text (dc.printer));
     }
@@ -4382,9 +4707,9 @@ test_one_liner_labels_utf8 ()
       ASSERT_STREQ (" <U+1F602>_foo = <U+03C0>_bar.<U+1F602>_field<U+03C0>;\n"
 		    " ^~~~~~~~~~~~~   ~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~\n"
 		    " |               |            |\n"
-		    " |               |            label 2\xcf\x80\n"
-		    " |               label 1\xcf\x80\n"
-		    " label 0\xf0\x9f\x98\x82\n",
+		    " label 0\xf0\x9f\x98\x82"
+		    /* ... */ "       label 1\xcf\x80"
+		    /* ...................*/ "     label 2\xcf\x80\n",
 		    pp_formatted_text (dc.printer));
     }
     {
@@ -4395,9 +4720,9 @@ test_one_liner_labels_utf8 ()
 	(" <f0><9f><98><82>_foo = <cf><80>_bar.<f0><9f><98><82>_field<cf><80>;\n"
 	 " ^~~~~~~~~~~~~~~~~~~~   ~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
 	 " |                      |            |\n"
-	 " |                      |            label 2\xcf\x80\n"
-	 " |                      label 1\xcf\x80\n"
-	 " label 0\xf0\x9f\x98\x82\n",
+	 " label 0\xf0\x9f\x98\x82"
+	 /* ... */ "              label 1\xcf\x80"
+	 /* ..........................*/ "     label 2\xcf\x80\n",
 	 pp_formatted_text (dc.printer));
     }
   }

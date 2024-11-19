@@ -1,6 +1,7 @@
 /* { dg-add-options vect_early_break } */
 /* { dg-require-effective-target vect_early_break_hw } */
 /* { dg-require-effective-target vect_long_long } */
+/* { dg-additional-options "-mtune=generic-ooo" { target riscv*-*-* } } */
 
 /* { dg-final { scan-tree-dump "LOOP VECTORIZED" "vect" } } */
 
@@ -68,10 +69,9 @@ int main ()
 
   int store_size = sizeof(PV);
 #pragma GCC novector
-  for (int i = 0; i < NUM - 1; i+=store_size)
-    if (0 != __builtin_memcmp (buffer+i, (char*)&tmp[i].Val, store_size))
+  for (int i = 0; i < NUM - 1; i++)
+    if (0 != __builtin_memcmp (buffer+(i*store_size), (char*)&tmp[i].Val, store_size))
       __builtin_abort ();
 
   return 0;
 }
-

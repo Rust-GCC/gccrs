@@ -2381,8 +2381,7 @@ ipa_compute_jump_functions_for_edge (struct ipa_func_body_info *fbi,
 	      irange_bitmask bm (value, mask);
 	      if (!addr_nonzero)
 		vr.set_varying (TREE_TYPE (arg));
-	      irange &r = as_a <irange> (vr);
-	      r.update_bitmask (bm);
+	      vr.update_bitmask (bm);
 	      ipa_set_jfunc_vr (jfunc, vr);
 	    }
 	  else if (addr_nonzero)
@@ -2393,10 +2392,8 @@ ipa_compute_jump_functions_for_edge (struct ipa_func_body_info *fbi,
       else
 	{
 	  if (param_type
-	      && Value_Range::supports_type_p (TREE_TYPE (arg))
-	      && Value_Range::supports_type_p (param_type)
-	      && irange::supports_p (TREE_TYPE (arg))
-	      && irange::supports_p (param_type)
+	      && ipa_supports_p (TREE_TYPE (arg))
+	      && ipa_supports_p (param_type)
 	      && get_range_query (cfun)->range_of_expr (vr, arg, cs->call_stmt)
 	      && !vr.undefined_p ())
 	    {
@@ -5764,7 +5761,7 @@ ipcp_get_parm_bits (tree parm, tree *value, widest_int *mask)
   ipcp_transformation *ts = ipcp_get_transformation_summary (cnode);
   if (!ts
       || vec_safe_length (ts->m_vr) == 0
-      || !irange::supports_p (TREE_TYPE (parm)))
+      || !ipa_supports_p (TREE_TYPE (parm)))
     return false;
 
   int i = ts->get_param_index (current_function_decl, parm);
@@ -5785,8 +5782,8 @@ ipcp_get_parm_bits (tree parm, tree *value, widest_int *mask)
   vr[i].get_vrange (tmp);
   if (tmp.undefined_p () || tmp.varying_p ())
     return false;
-  irange &r = as_a <irange> (tmp);
-  irange_bitmask bm = r.get_bitmask ();
+  irange_bitmask bm;
+  bm = tmp.get_bitmask ();
   *mask = widest_int::from (bm.mask (), TYPE_SIGN (TREE_TYPE (parm)));
   *value = wide_int_to_tree (TREE_TYPE (parm), bm.value ());
   return true;
@@ -5857,8 +5854,7 @@ ipcp_update_vr (struct cgraph_node *node, ipcp_transformation *ts)
 	      if (POINTER_TYPE_P (TREE_TYPE (parm))
 		  && opt_for_fn (node->decl, flag_ipa_bit_cp))
 		{
-		  irange &r = as_a<irange> (tmp);
-		  irange_bitmask bm = r.get_bitmask ();
+		  irange_bitmask bm = tmp.get_bitmask ();
 		  unsigned tem = bm.mask ().to_uhwi ();
 		  unsigned HOST_WIDE_INT bitpos = bm.value ().to_uhwi ();
 		  unsigned align = tem & -tem;

@@ -214,7 +214,7 @@ refine_value_range_using_guard (tree type, tree var,
   get_type_static_bounds (type, mint, maxt);
   mpz_init (minc1);
   mpz_init (maxc1);
-  Value_Range r (TREE_TYPE (varc1));
+  int_range_max r (TREE_TYPE (varc1));
   /* Setup range information for varc1.  */
   if (integer_zerop (varc1))
     {
@@ -368,7 +368,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
       gphi_iterator gsi;
 
       /* Either for VAR itself...  */
-      Value_Range var_range (TREE_TYPE (var));
+      int_range_max var_range (TREE_TYPE (var));
       get_range_query (cfun)->range_of_expr (var_range, var);
       if (var_range.varying_p () || var_range.undefined_p ())
 	rtype = VR_VARYING;
@@ -382,7 +382,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 
       /* Or for PHI results in loop->header where VAR is used as
 	 PHI argument from the loop preheader edge.  */
-      Value_Range phi_range (TREE_TYPE (var));
+      int_range_max phi_range (TREE_TYPE (var));
       for (gsi = gsi_start_phis (loop->header); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
 	  gphi *phi = gsi.phi ();
@@ -408,7 +408,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 		     involved.  */
 		  if (wi::gt_p (minv, maxv, sgn))
 		    {
-		      Value_Range vr (TREE_TYPE (var));
+		      int_range_max vr (TREE_TYPE (var));
 		      get_range_query (cfun)->range_of_expr (vr, var);
 		      if (vr.varying_p () || vr.undefined_p ())
 			rtype = VR_VARYING;
@@ -2303,6 +2303,38 @@ build_cltz_expr (tree src, bool leading, bool define_at_zero)
   return call;
 }
 
+/* Returns true if STMT is equivalent to x << 1.  */
+
+static bool
+is_lshift_by_1 (gassign *stmt)
+{
+  if (gimple_assign_rhs_code (stmt) == LSHIFT_EXPR
+      && integer_onep (gimple_assign_rhs2 (stmt)))
+    return true;
+  if (gimple_assign_rhs_code (stmt) == MULT_EXPR
+      && tree_fits_shwi_p (gimple_assign_rhs2 (stmt))
+      && tree_to_shwi (gimple_assign_rhs2 (stmt)) == 2)
+    return true;
+  return false;
+}
+
+/* Returns true if STMT is equivalent to x >> 1.  */
+
+static bool
+is_rshift_by_1 (gassign *stmt)
+{
+  if (!TYPE_UNSIGNED (TREE_TYPE (gimple_assign_lhs (stmt))))
+    return false;
+  if (gimple_assign_rhs_code (stmt) == RSHIFT_EXPR
+      && integer_onep (gimple_assign_rhs2 (stmt)))
+    return true;
+  if (gimple_assign_rhs_code (stmt) == TRUNC_DIV_EXPR
+      && tree_fits_shwi_p (gimple_assign_rhs2 (stmt))
+      && tree_to_shwi (gimple_assign_rhs2 (stmt)) == 2)
+    return true;
+  return false;
+}
+
 /* See comment below for number_of_iterations_bitcount.
    For c[lt]z, we have:
 
@@ -2400,14 +2432,12 @@ number_of_iterations_cltz (loop_p loop, edge exit,
 
   /* Make sure iv_2_stmt is a logical shift by one stmt:
      iv_2 = iv_1 {<<|>>} 1  */
-  if (!is_gimple_assign (iv_2_stmt)
-      || (gimple_assign_rhs_code (iv_2_stmt) != LSHIFT_EXPR
-	  && (gimple_assign_rhs_code (iv_2_stmt) != RSHIFT_EXPR
-	      || !TYPE_UNSIGNED (TREE_TYPE (gimple_assign_lhs (iv_2_stmt)))))
-      || !integer_onep (gimple_assign_rhs2 (iv_2_stmt)))
+  if (!is_gimple_assign (iv_2_stmt))
     return false;
-
-  bool left_shift = (gimple_assign_rhs_code (iv_2_stmt) == LSHIFT_EXPR);
+  bool left_shift = false;
+  if (!((left_shift = is_lshift_by_1 (as_a <gassign *> (iv_2_stmt)))
+	|| is_rshift_by_1 (as_a <gassign *> (iv_2_stmt))))
+    return false;
 
   tree iv_1 = gimple_assign_rhs1 (iv_2_stmt);
 
@@ -2516,14 +2546,12 @@ number_of_iterations_cltz_complement (loop_p loop, edge exit,
 
   /* Make sure iv_2_stmt is a logical shift by one stmt:
      iv_2 = iv_1 {>>|<<} 1  */
-  if (!is_gimple_assign (iv_2_stmt)
-      || (gimple_assign_rhs_code (iv_2_stmt) != LSHIFT_EXPR
-	  && (gimple_assign_rhs_code (iv_2_stmt) != RSHIFT_EXPR
-	      || !TYPE_UNSIGNED (TREE_TYPE (gimple_assign_lhs (iv_2_stmt)))))
-      || !integer_onep (gimple_assign_rhs2 (iv_2_stmt)))
+  if (!is_gimple_assign (iv_2_stmt))
     return false;
-
-  bool left_shift = (gimple_assign_rhs_code (iv_2_stmt) == LSHIFT_EXPR);
+  bool left_shift = false;
+  if (!((left_shift = is_lshift_by_1 (as_a <gassign *> (iv_2_stmt)))
+	|| is_rshift_by_1 (as_a <gassign *> (iv_2_stmt))))
+    return false;
 
   tree iv_1 = gimple_assign_rhs1 (iv_2_stmt);
 
@@ -4067,7 +4095,7 @@ record_nonwrapping_iv (class loop *loop, tree base, tree step, gimple *stmt,
       Value_Range base_range (TREE_TYPE (orig_base));
       if (get_range_query (cfun)->range_of_expr (base_range, orig_base)
 	  && !base_range.undefined_p ())
-	max = base_range.upper_bound ();
+	max = wi::to_wide (base_range.ubound ());
       extreme = fold_convert (unsigned_type, low);
       if (TREE_CODE (orig_base) == SSA_NAME
 	  && TREE_CODE (high) == INTEGER_CST
@@ -4090,7 +4118,7 @@ record_nonwrapping_iv (class loop *loop, tree base, tree step, gimple *stmt,
       Value_Range base_range (TREE_TYPE (orig_base));
       if (get_range_query (cfun)->range_of_expr (base_range, orig_base)
 	  && !base_range.undefined_p ())
-	min = base_range.lower_bound ();
+	min = wi::to_wide (base_range.lbound ());
       extreme = fold_convert (unsigned_type, high);
       if (TREE_CODE (orig_base) == SSA_NAME
 	  && TREE_CODE (low) == INTEGER_CST
@@ -4367,7 +4395,7 @@ infer_loop_bounds_from_signedness (class loop *loop, gimple *stmt)
 
   low = lower_bound_in_type (type, type);
   high = upper_bound_in_type (type, type);
-  Value_Range r (TREE_TYPE (def));
+  int_range_max r (TREE_TYPE (def));
   get_range_query (cfun)->range_of_expr (r, def);
   if (!r.varying_p () && !r.undefined_p ())
     {
@@ -5426,7 +5454,7 @@ scev_var_range_cant_overflow (tree var, tree step, class loop *loop)
   if (!def_bb || !dominated_by_p (CDI_DOMINATORS, loop->latch, def_bb))
     return false;
 
-  Value_Range r (TREE_TYPE (var));
+  int_range_max r (TREE_TYPE (var));
   get_range_query (cfun)->range_of_expr (r, var);
   if (r.varying_p () || r.undefined_p ())
     return false;

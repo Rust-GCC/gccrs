@@ -205,6 +205,8 @@ static Entity_Id Gigi_Cloned_Subtype (Entity_Id);
 static tree gnu_ext_name_for_subprog (Entity_Id, tree);
 static void set_nonaliased_component_on_array_type (tree);
 static void set_reverse_storage_order_on_array_type (tree);
+static void set_typeless_storage_on_aggregate_type (tree);
+static void set_universal_aliasing_on_type (tree);
 static bool same_discriminant_p (Entity_Id, Entity_Id);
 static bool array_type_has_nonaliased_component (tree, Entity_Id);
 static bool compile_time_known_address_p (Node_Id);
@@ -504,11 +506,10 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
       /* Machine_Attributes on types are expected to be propagated to
 	 subtypes.  The corresponding Gigi_Rep_Items are only attached
 	 to the first subtype though, so we handle the propagation here.  */
-      if (Base_Type (gnat_entity) != gnat_entity
+      if (!Is_Base_Type (gnat_entity)
 	  && !Is_First_Subtype (gnat_entity)
-	  && Has_Gigi_Rep_Item (First_Subtype (Base_Type (gnat_entity))))
-	prepend_attributes (&attr_list,
-			    First_Subtype (Base_Type (gnat_entity)));
+	  && Has_Gigi_Rep_Item (First_Subtype (gnat_entity)))
+	prepend_attributes (&attr_list, First_Subtype (gnat_entity));
 
       /* Compute a default value for the size of an elementary type.  */
       if (Known_Esize (gnat_entity) && Is_Elementary_Type (gnat_entity))
@@ -519,7 +520,8 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	  esize = UI_To_Int (Esize (gnat_entity));
 
 	  if (IN (kind, Float_Kind))
-	    max_esize = fp_prec_to_size (LONG_DOUBLE_TYPE_SIZE);
+	    max_esize
+	      = fp_prec_to_size (TYPE_PRECISION (long_double_type_node));
 	  else if (IN (kind, Access_Kind))
 	    max_esize = POINTER_SIZE * 2;
 	  else
@@ -939,6 +941,9 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	    && !type_annotate_only)
 	  {
 	    tree gnu_array = gnat_to_gnu_type (Base_Type (gnat_type));
+	    /* Make sure to have an array type for the template.  */
+	    if (TYPE_IS_PADDING_P (gnu_type))
+	      gnu_type = TREE_TYPE (TYPE_FIELDS (gnu_type));
 	    gnu_type
 	      = build_unc_object_type_from_ptr (TREE_TYPE (gnu_array),
 						gnu_type,
@@ -1412,10 +1417,22 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 			     false);
 		  }
 
-		if (TREE_CODE (TYPE_SIZE_UNIT (gnu_alloc_type)) == INTEGER_CST
-		    && !valid_constant_size_p (TYPE_SIZE_UNIT (gnu_alloc_type)))
-		  post_error ("??Storage_Error will be raised at run time!",
-			      gnat_entity);
+		/* Give a warning if the size is constant but too large.  */
+		if (TREE_CODE (TYPE_SIZE_UNIT (gnu_alloc_type)) == INTEGER_CST)
+		  {
+		    if (valid_constant_size_p (TYPE_SIZE_UNIT (gnu_alloc_type)))
+		      {
+			post_error
+			  ("??too large object cannot be allocated statically",
+			   gnat_entity);
+			post_error ("\\?dynamic allocation will be used instead",
+				    gnat_entity);
+		      }
+
+		    else
+		      post_error ("??Storage_Error will be raised at run time!",
+				  gnat_entity);
+		  }
 
 		gnu_expr
 		  = build_allocator (gnu_alloc_type, gnu_expr, gnu_type,
@@ -2102,6 +2119,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 
     case E_Array_Type:
       {
+	const Entity_Id OAT = Original_Array_Type (gnat_entity);
 	const Entity_Id PAT = Packed_Array_Impl_Type (gnat_entity);
 	const bool convention_fortran_p
 	  = (Convention (gnat_entity) == Convention_Fortran);
@@ -2370,16 +2388,15 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	      set_reverse_storage_order_on_array_type (tem);
 	    if (array_type_has_nonaliased_component (tem, gnat_entity))
 	      set_nonaliased_component_on_array_type (tem);
+	    if (Universal_Aliasing (gnat_entity)
+	        || Universal_Aliasing (Component_Type (gnat_entity)))
+	      set_typeless_storage_on_aggregate_type (tem);
 	  }
 
-	/* If this is a packed type implemented specially, then process the
-	   implementation type so it is elaborated in the proper scope.  */
-	if (Present (PAT))
-	  gnat_to_gnu_entity (PAT, NULL_TREE, false);
-
-	/* Otherwise, if an alignment is specified, use it if valid and, if
-	   the alignment was requested with an explicit clause, state so.  */
-	else if (Known_Alignment (gnat_entity))
+	/* If an alignment is specified for an array that is not a packed type
+	   implemented specially, use the alignment if it is valid and, if it
+	   was requested with an explicit clause, preserve the information.  */
+	if (Known_Alignment (gnat_entity) && No (PAT))
 	  {
 	    SET_TYPE_ALIGN (tem,
 			    validate_alignment (Alignment (gnat_entity),
@@ -2398,7 +2415,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 
 	TYPE_BIT_PACKED_ARRAY_TYPE_P (tem)
 	  = (Is_Packed_Array_Impl_Type (gnat_entity)
-	     ? Is_Bit_Packed_Array (Original_Array_Type (gnat_entity))
+	     ? Is_Bit_Packed_Array (OAT)
 	     : Is_Bit_Packed_Array (gnat_entity));
 
 	if (Treat_As_Volatile (gnat_entity))
@@ -2427,8 +2444,9 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	  TYPE_ARRAY_MAX_SIZE (tem) = gnu_max_size;
 
 	/* See the above description for the rationale.  */
-	create_type_decl (create_concat_name (gnat_entity, "XUA"), tem,
-			  artificial_p, debug_info_p, gnat_entity);
+	tree gnu_tmp_decl
+	  = create_type_decl (create_concat_name (gnat_entity, "XUA"), tem,
+			      artificial_p, debug_info_p, gnat_entity);
 	TYPE_CONTEXT (tem) = gnu_fat_type;
 	TYPE_CONTEXT (TYPE_POINTER_TO (tem)) = gnu_fat_type;
 
@@ -2455,6 +2473,25 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	TYPE_REFERENCE_TO (gnu_type) = gnu_fat_type;
 	SET_TYPE_MODE (gnu_type, BLKmode);
 	SET_TYPE_ALIGN (gnu_type, TYPE_ALIGN (tem));
+
+	/* If this is a packed type implemented specially, then process the
+	   implementation type so it is elaborated in the proper scope.  */
+	if (Present (PAT))
+	  {
+	    /* Save the XUA type as our equivalent temporarily for the call
+	       to gnat_to_gnu_type on the OAT below.  */
+	    save_gnu_tree (gnat_entity, gnu_tmp_decl, false);
+	    gnat_to_gnu_entity (PAT, NULL_TREE, false);
+	    save_gnu_tree (gnat_entity, NULL_TREE, false);
+	  }
+
+	/* If this is precisely the implementation type and it has the same
+	   component as the original type (which happens for peculiar index
+	   types), copy the alias set from the latter; this ensures that all
+	   implementation types built on the fly have the same alias set.  */
+        if (Is_Packed_Array_Impl_Type (gnat_entity)
+	    && Component_Type (gnat_entity) == Component_Type (OAT))
+	  relate_alias_sets (gnu_type, gnat_to_gnu_type (OAT), ALIAS_SET_COPY);
       }
       break;
 
@@ -2775,6 +2812,9 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 		set_reverse_storage_order_on_array_type (gnu_type);
 	      if (array_type_has_nonaliased_component (gnu_type, gnat_entity))
 		set_nonaliased_component_on_array_type (gnu_type);
+	      if (Universal_Aliasing (gnat_entity)
+		  || Universal_Aliasing (Component_Type (gnat_entity)))
+		set_typeless_storage_on_aggregate_type (gnu_type);
 
 	      /* Clear the TREE_OVERFLOW flag, if any, for null arrays.  */
 	      if (gnu_null_ranges[index])
@@ -4740,9 +4780,24 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 		  && align_clause))
 	    TYPE_USER_ALIGN (gnu_type) = 1;
 
-	  /* Record whether a pragma Universal_Aliasing was specified.  */
-	  if (Universal_Aliasing (gnat_entity) && !TYPE_IS_DUMMY_P (gnu_type))
-	    TYPE_UNIVERSAL_ALIASING_P (gnu_type) = 1;
+	  /* Record whether a pragma Universal_Aliasing was specified.  Also
+	     consider that it is always present on interface types because,
+	     while they are abstract tagged types and thus no object of these
+	     types exists anywhere, they are used to access objects of types
+	     that implement them.  */
+	  if ((Universal_Aliasing (gnat_entity) || Is_Interface (gnat_entity))
+	      && !TYPE_IS_DUMMY_P (gnu_type))
+	    {
+	      /* Set TYPE_TYPELESS_STORAGE if this is an aggregate type and
+		 TYPE_UNIVERSAL_ALIASING_P otherwise, since the former is not
+		 available in the latter case  Both will effectively put alias
+		 set 0 on the type, but the former is more robust because it
+		 will be streamed in LTO mode.  */
+	      if (AGGREGATE_TYPE_P (gnu_type))
+		set_typeless_storage_on_aggregate_type (gnu_type);
+	      else
+		set_universal_aliasing_on_type (gnu_type);
+	    }
 
 	  /* If it is passed by reference, force BLKmode to ensure that
 	     objects of this type will always be put in memory.  */
@@ -5614,7 +5669,7 @@ gnat_to_gnu_param (Entity_Id gnat_param, tree gnu_param_type, bool first,
       by_ref = true;
     }
 
-  /* If we were requested or muss pass by reference, do so.
+  /* If we were requested or must pass by reference, do so.
      If we were requested to pass by copy, do so.
      Otherwise, for foreign conventions, pass In Out or Out parameters
      or aggregates by reference.  For COBOL and Fortran, pass all
@@ -6626,6 +6681,26 @@ set_reverse_storage_order_on_array_type (tree type)
     TYPE_REVERSE_STORAGE_ORDER (TYPE_CANONICAL (type)) = 1;
 }
 
+/* Set TYPE_TYPELESS_STORAGE on an aggregate type.  */
+
+static void
+set_typeless_storage_on_aggregate_type (tree type)
+{
+  TYPE_TYPELESS_STORAGE (type) = 1;
+  if (TYPE_CANONICAL (type))
+    TYPE_TYPELESS_STORAGE (TYPE_CANONICAL (type)) = 1;
+}
+
+/* Set TYPE_UNIVERSAL_ALIASING_P on a type.  */
+
+static void
+set_universal_aliasing_on_type (tree type)
+{
+  TYPE_UNIVERSAL_ALIASING_P (type) = 1;
+  if (TYPE_CANONICAL (type))
+    TYPE_UNIVERSAL_ALIASING_P (TYPE_CANONICAL (type)) = 1;
+}
+
 /* Return true if DISCR1 and DISCR2 represent the same discriminant.  */
 
 static bool
@@ -6819,9 +6894,12 @@ constructor_address_p (tree gnu_expr)
 static bool
 allocatable_size_p (tree gnu_size, bool static_p)
 {
-  /* We can allocate a fixed size if it is a valid for the middle-end.  */
+  /* We can allocate a fixed size if it is a valid for the middle-end but, for
+     a static allocation, we do not allocate more than 2 GB because this would
+     very likely be unintended and problematic for usual code models.  */
   if (TREE_CODE (gnu_size) == INTEGER_CST)
-    return valid_constant_size_p (gnu_size);
+    return valid_constant_size_p (gnu_size)
+	   && (!static_p || tree_to_uhwi (gnu_size) <= INT_MAX);
 
   /* We can allocate a variable size if this isn't a static allocation.  */
   else

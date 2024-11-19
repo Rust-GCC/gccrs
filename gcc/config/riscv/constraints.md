@@ -80,6 +80,12 @@
   (and (match_code "const_int")
        (match_test "LUI_OPERAND (ival)")))
 
+(define_constraint "MiG"
+  "const can be represented as sum of any S12 values."
+  (and (match_code "const_int")
+       (ior (match_test "IN_RANGE (ival,  2048,  4094)")
+	    (match_test "IN_RANGE (ival, -4096, -2049)"))))
+
 (define_constraint "Ds3"
   "@internal
    1, 2 or 3 immediate"
@@ -158,29 +164,6 @@
 
 (define_register_constraint "vm" "TARGET_VECTOR ? VM_REGS : NO_REGS"
   "A vector mask register (if available).")
-
-;; These following constraints are used by RVV instructions with dest EEW > src EEW.
-;; RISC-V 'V' Spec 5.2. Vector Operands:
-;; The destination EEW is greater than the source EEW, the source EMUL is at least 1,
-;; and the overlap is in the highest-numbered part of the destination register group.
-;; (e.g., when LMUL=8, vzext.vf4 v0, v6 is legal, but a source of v0, v2, or v4 is not).
-(define_register_constraint "W21" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 2 == 1." "regno % 2 == 1")
-
-(define_register_constraint "W42" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 4 == 2." "regno % 4 == 2")
-
-(define_register_constraint "W84" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 8 == 4." "regno % 8 == 4")
-
-(define_register_constraint "W43" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 4 == 3." "regno % 4 == 3")
-
-(define_register_constraint "W86" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 8 == 6." "regno % 8 == 6")
-
-(define_register_constraint "W87" "TARGET_VECTOR ? V_REGS : NO_REGS"
-  "A vector register has register number % 8 == 7." "regno % 8 == 7")
 
 ;; This constraint is used to match instruction "csrr %0, vlenb" which is generated in "mov<mode>".
 ;; VLENB is a run-time constant which represent the vector register length in bytes.

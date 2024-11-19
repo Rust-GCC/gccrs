@@ -1238,6 +1238,15 @@ ftms = {
 };
 
 ftms = {
+  name = constrained_equality;
+  values = {
+    v = 202403;
+    cxxmin = 20;
+    extra_cond = "__glibcxx_three_way_comparison";
+  };
+};
+
+ftms = {
   name = erase_if;
   values = {
     v = 202002;
@@ -1642,7 +1651,7 @@ ftms = {
   values = {
     v = 202207;
     cxxmin = 23;
-    extra_cond = "__glibcxx_coroutine";
+    extra_cond = "__glibcxx_coroutine && __cpp_sized_deallocation";
   };
 };
 
@@ -1793,6 +1802,14 @@ ftms = {
     cxxmin = 26;
     hosted = yes;
     extra_cond = "__glibcxx_to_chars";
+  };
+};
+
+ftms = {
+  name = ranges_concat;
+  values = {
+    v = 202403;
+    cxxmin = 26;
   };
 };
 

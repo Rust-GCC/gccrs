@@ -93,7 +93,7 @@ static void record_key_method_defined (tree);
 static tree create_array_type_for_decl (tree, tree, tree, location_t);
 static tree get_atexit_node (void);
 static tree get_dso_handle_node (void);
-static tree start_cleanup_fn (void);
+static tree start_cleanup_fn (bool);
 static void end_cleanup_fn (void);
 static tree cp_make_fname_decl (location_t, tree, int);
 static void initialize_predefined_identifiers (void);
@@ -1156,6 +1156,16 @@ decls_match (tree newdecl, tree olddecl, bool record_versions /* = true */)
       tree r2 = fndecl_declared_return_type (olddecl);
       tree r1 = fndecl_declared_return_type (newdecl);
 
+      /* For memchr et al, allow const void* return type (as specified by C++)
+	 when we expect void* (as in C).  */
+      if (DECL_IS_UNDECLARED_BUILTIN (olddecl)
+	  && DECL_EXTERN_C_P (olddecl)
+	  && !same_type_p (r1, r2)
+	  && TREE_CODE (r1) == POINTER_TYPE
+	  && TREE_CODE (r2) == POINTER_TYPE
+	  && comp_ptr_ttypes (TREE_TYPE (r1), TREE_TYPE (r2)))
+	r2 = r1;
+
       tree p1 = TYPE_ARG_TYPES (f1);
       tree p2 = TYPE_ARG_TYPES (f2);
 
@@ -1928,8 +1938,7 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
 	  inform (olddecl_loc, "previous declaration %q#D", olddecl);
 	  return error_mark_node;
 	}
-      else if ((VAR_P (olddecl) && DECL_DECOMPOSITION_P (olddecl))
-	       || (VAR_P (newdecl) && DECL_DECOMPOSITION_P (newdecl)))
+      else if (DECL_DECOMPOSITION_P (olddecl) || DECL_DECOMPOSITION_P (newdecl))
 	/* A structured binding must be unique in its declarative region.  */;
       else if (DECL_IMPLICIT_TYPEDEF_P (olddecl)
 	       || DECL_IMPLICIT_TYPEDEF_P (newdecl))
@@ -2276,40 +2285,35 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
 
   if (modules_p ()
       && TREE_CODE (CP_DECL_CONTEXT (olddecl)) == NAMESPACE_DECL
-      && TREE_CODE (olddecl) != NAMESPACE_DECL
-      && !hiding)
+      && TREE_CODE (olddecl) != NAMESPACE_DECL)
     {
-      if (!module_may_redeclare (olddecl))
-	{
-	  if (DECL_ARTIFICIAL (olddecl))
-	    error ("declaration %qD conflicts with builtin", newdecl);
-	  else
-	    {
-	      error ("declaration %qD conflicts with import", newdecl);
-	      inform (olddecl_loc, "import declared %q#D here", olddecl);
-	    }
+      if (!module_may_redeclare (olddecl, newdecl))
+	return error_mark_node;
 
-	  return error_mark_node;
-	}
-
-      tree not_tmpl = STRIP_TEMPLATE (olddecl);
-      if (DECL_LANG_SPECIFIC (not_tmpl)
-	  && DECL_MODULE_ATTACH_P (not_tmpl)
-	  /* Typedefs are not entities and so are OK to be redeclared
-	     as exported: see [module.interface]/p6.  */
-	  && TREE_CODE (olddecl) != TYPE_DECL)
+      if (!hiding)
 	{
-	  if (DECL_MODULE_EXPORT_P (STRIP_TEMPLATE (newdecl))
-	      && !DECL_MODULE_EXPORT_P (not_tmpl))
+	  /* The old declaration should match the exportingness of the new
+	     declaration.  But hidden friend declarations just keep the
+	     exportingness of the old declaration; see CWG2588.  */
+	  tree not_tmpl = STRIP_TEMPLATE (olddecl);
+	  if (DECL_LANG_SPECIFIC (not_tmpl)
+	      && DECL_MODULE_ATTACH_P (not_tmpl)
+	      /* Typedefs are not entities and so are OK to be redeclared
+		 as exported: see [module.interface]/p6.  */
+	      && TREE_CODE (olddecl) != TYPE_DECL)
 	    {
-	      auto_diagnostic_group d;
-	      error ("conflicting exporting for declaration %qD", newdecl);
-	      inform (olddecl_loc,
-		      "previously declared here without exporting");
+	      if (DECL_MODULE_EXPORT_P (newdecl)
+		  && !DECL_MODULE_EXPORT_P (not_tmpl))
+		{
+		  auto_diagnostic_group d;
+		  error ("conflicting exporting for declaration %qD", newdecl);
+		  inform (olddecl_loc,
+			  "previously declared here without exporting");
+		}
 	    }
+	  else if (DECL_MODULE_EXPORT_P (newdecl))
+	    DECL_MODULE_EXPORT_P (not_tmpl) = true;
 	}
-      else if (DECL_MODULE_EXPORT_P (newdecl))
-	DECL_MODULE_EXPORT_P (not_tmpl) = true;
     }
 
   /* We have committed to returning OLDDECL at this point.  */
@@ -2415,6 +2419,10 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
 			"previous declaration of %qD", olddecl);
 	    }
 	  DECL_DELETED_FN (newdecl) |= DECL_DELETED_FN (olddecl);
+	  if (DECL_DELETED_FN (olddecl)
+	      && DECL_INITIAL (olddecl)
+	      && TREE_CODE (DECL_INITIAL (olddecl)) == STRING_CST)
+	    DECL_INITIAL (newdecl) = DECL_INITIAL (olddecl);
 	}
     }
 
@@ -2784,10 +2792,13 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
 	  retrofit_lang_decl (newdecl);
 	  tree alias = DECL_LOCAL_DECL_ALIAS (newdecl)
 	    = DECL_LOCAL_DECL_ALIAS (olddecl);
-	  DECL_ATTRIBUTES (alias)
-	    = (*targetm.merge_decl_attributes) (alias, newdecl);
-	  if (TREE_CODE (newdecl) == FUNCTION_DECL)
-	    merge_attribute_bits (newdecl, alias);
+	  if (alias != error_mark_node)
+	    {
+	      DECL_ATTRIBUTES (alias)
+		= (*targetm.merge_decl_attributes) (alias, newdecl);
+	      if (TREE_CODE (newdecl) == FUNCTION_DECL)
+		merge_attribute_bits (newdecl, alias);
+	    }
 	}
     }
 
@@ -3330,6 +3341,10 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
      reclaiming memory. */
   if (flag_concepts)
     remove_constraints (newdecl);
+
+  /* And similarly for any module tracking data.  */
+  if (modules_p ())
+    remove_defining_module (newdecl);
 
   ggc_free (newdecl);
 
@@ -4569,7 +4584,6 @@ make_typename_type (tree context, tree name, enum tag_types tag_type,
     {
       t = lookup_template_class (t, TREE_OPERAND (fullname, 1),
 				 NULL_TREE, context,
-				 /*entering_scope=*/0,
 				 complain | tf_user);
       if (t == error_mark_node)
 	return error_mark_node;
@@ -6555,8 +6569,9 @@ layout_var_decl (tree decl)
 	}
     }
 
-  /* If the final element initializes a flexible array field, add the size of
-     that initializer to DECL's size.  */
+  /* If the final element initializes a flexible array field, adjust
+     the size of the DECL with the initializer based on whether the
+     DECL is a union or a structure.  */
   if (type != error_mark_node
       && DECL_INITIAL (decl)
       && TREE_CODE (DECL_INITIAL (decl)) == CONSTRUCTOR
@@ -6577,11 +6592,28 @@ layout_var_decl (tree decl)
 	      && TREE_CODE (vtype) == ARRAY_TYPE
 	      && COMPLETE_TYPE_P (vtype))
 	    {
-	      DECL_SIZE (decl)
-		= size_binop (PLUS_EXPR, DECL_SIZE (decl), TYPE_SIZE (vtype));
-	      DECL_SIZE_UNIT (decl)
-		= size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl),
-			      TYPE_SIZE_UNIT (vtype));
+	      /* For a structure, add the size of the initializer to the DECL's
+		 size.  */
+	      if (TREE_CODE (TREE_TYPE (decl)) == RECORD_TYPE)
+		{
+		  DECL_SIZE (decl)
+		    = size_binop (PLUS_EXPR, DECL_SIZE (decl),
+				  TYPE_SIZE (vtype));
+		  DECL_SIZE_UNIT (decl)
+		    = size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl),
+				  TYPE_SIZE_UNIT (vtype));
+		}
+	      /* For a union, the DECL's size is the maximum of the current size
+		 and the size of the initializer.  */
+	      else
+		{
+		  DECL_SIZE (decl)
+		    = size_binop (MAX_EXPR, DECL_SIZE (decl),
+				  TYPE_SIZE (vtype));
+		  DECL_SIZE_UNIT (decl)
+		    = size_binop (MAX_EXPR, DECL_SIZE_UNIT (decl),
+				  TYPE_SIZE_UNIT (vtype));
+		}
 	    }
 	}
     }
@@ -7999,11 +8031,11 @@ wrap_cleanups_r (tree *stmt_p, int *walk_subtrees, void *data)
    Unfortunately, there's no way to express this properly in terms of
    nesting, as the regions for the temporaries overlap the region for the
    variable itself; if there are two temporaries, the variable needs to be
-   the first thing destroyed if either of them throws.  However, we only
-   want to run the variable's cleanup if it actually got constructed.  So
-   we need to guard the temporary cleanups with the variable's cleanup if
-   they are run on the normal path, but not if they are run on the
-   exceptional path.  We implement this by telling
+   the first thing destroyed if either of the temporary destructors throws.
+   However, we only want to run the variable's cleanup if it actually got
+   constructed.  So we need to guard the temporary cleanups with the
+   variable's cleanup if they are run on the normal path, but not if they
+   are run on the exceptional path.  We implement this by telling
    honor_protect_cleanup_actions to strip the variable cleanup from the
    exceptional path.
 
@@ -8592,17 +8624,20 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
   if (init && TREE_CODE (decl) == FUNCTION_DECL)
     {
       tree clone;
-      if (init == ridpointers[(int)RID_DELETE])
+      if (init == ridpointers[(int)RID_DELETE]
+	  || (TREE_CODE (init) == STRING_CST
+	      && TREE_TYPE (init) == ridpointers[(int)RID_DELETE]))
 	{
 	  /* FIXME check this is 1st decl.  */
 	  DECL_DELETED_FN (decl) = 1;
 	  DECL_DECLARED_INLINE_P (decl) = 1;
-	  DECL_INITIAL (decl) = error_mark_node;
+	  DECL_INITIAL (decl)
+	    = TREE_CODE (init) == STRING_CST ? init : error_mark_node;
 	  FOR_EACH_CLONE (clone, decl)
 	    {
 	      DECL_DELETED_FN (clone) = 1;
 	      DECL_DECLARED_INLINE_P (clone) = 1;
-	      DECL_INITIAL (clone) = error_mark_node;
+	      DECL_INITIAL (clone) = DECL_INITIAL (decl);
 	    }
 	  init = NULL_TREE;
 	}
@@ -9163,7 +9198,7 @@ get_tuple_size (tree type)
   tree inst = lookup_template_class (tuple_size_identifier, args,
 				     /*in_decl*/NULL_TREE,
 				     /*context*/std_node,
-				     /*entering_scope*/false, tf_none);
+				     tf_none);
   inst = complete_type (inst);
   if (inst == error_mark_node
       || !COMPLETE_TYPE_P (inst)
@@ -9192,7 +9227,6 @@ get_tuple_element_type (tree type, unsigned i)
   tree inst = lookup_template_class (tuple_element_identifier, args,
 				     /*in_decl*/NULL_TREE,
 				     /*context*/std_node,
-				     /*entering_scope*/false,
 				     tf_warning_or_error);
   return make_typename_type (inst, type_identifier,
 			     none_type, tf_warning_or_error);
@@ -9647,32 +9681,37 @@ declare_global_var (tree name, tree type)
   return decl;
 }
 
-/* Returns the type for the argument to "__cxa_atexit" (or "atexit",
-   if "__cxa_atexit" is not being used) corresponding to the function
+/* Returns the type for the argument to "atexit" corresponding to the function
    to be called when the program exits.  */
 
 static tree
-get_atexit_fn_ptr_type (void)
+get_atexit_fn_ptr_type ()
 {
-  tree fn_type;
-
   if (!atexit_fn_ptr_type_node)
     {
-      tree arg_type;
-      if (flag_use_cxa_atexit 
-	  && !targetm.cxx.use_atexit_for_cxa_atexit ())
-	/* The parameter to "__cxa_atexit" is "void (*)(void *)".  */
-	arg_type = ptr_type_node;
-      else
-	/* The parameter to "atexit" is "void (*)(void)".  */
-	arg_type = NULL_TREE;
-      
-      fn_type = build_function_type_list (void_type_node,
-					  arg_type, NULL_TREE);
+      tree fn_type = build_function_type_list (void_type_node, NULL_TREE);
       atexit_fn_ptr_type_node = build_pointer_type (fn_type);
     }
 
   return atexit_fn_ptr_type_node;
+}
+
+/* Returns the type for the argument to "__cxa_atexit", "__cxa_thread_atexit"
+   or "__cxa_throw" corresponding to the destructor to be called when the
+   program exits.  */
+
+tree
+get_cxa_atexit_fn_ptr_type ()
+{
+  if (!cleanup_type)
+    {
+      tree fntype = build_function_type_list (void_type_node,
+					      ptr_type_node, NULL_TREE);
+      fntype = targetm.cxx.adjust_cdtor_callabi_fntype (fntype);
+      cleanup_type = build_pointer_type (fntype);
+    }
+
+  return cleanup_type;
 }
 
 /* Returns a pointer to the `atexit' function.  Note that if
@@ -9705,7 +9744,7 @@ get_atexit_node (void)
       use_aeabi_atexit = targetm.cxx.use_aeabi_atexit ();
       /* First, build the pointer-to-function type for the first
 	 argument.  */
-      fn_ptr_type = get_atexit_fn_ptr_type ();
+      fn_ptr_type = get_cxa_atexit_fn_ptr_type ();
       /* Then, build the rest of the argument types.  */
       argtype2 = ptr_type_node;
       if (use_aeabi_atexit)
@@ -9788,7 +9827,7 @@ get_thread_atexit_node (void)
 
      int __cxa_thread_atexit (void (*)(void *), void *, void *) */
   tree fn_type = build_function_type_list (integer_type_node,
-					   get_atexit_fn_ptr_type (),
+					   get_cxa_atexit_fn_ptr_type (),
 					   ptr_type_node, ptr_type_node,
 					   NULL_TREE);
 
@@ -9830,12 +9869,13 @@ get_dso_handle_node (void)
 }
 
 /* Begin a new function with internal linkage whose job will be simply
-   to destroy some particular variable.  */
+   to destroy some particular variable.  OB_PARM is true if object pointer
+   is passed to the cleanup function, otherwise no argument is passed.  */
 
 static GTY(()) int start_cleanup_cnt;
 
 static tree
-start_cleanup_fn (void)
+start_cleanup_fn (bool ob_parm)
 {
   char name[32];
 
@@ -9846,8 +9886,9 @@ start_cleanup_fn (void)
 
   /* Build the name of the function.  */
   sprintf (name, "__tcf_%d", start_cleanup_cnt++);
+  tree fntype = TREE_TYPE (ob_parm ? get_cxa_atexit_fn_ptr_type ()
+				   : get_atexit_fn_ptr_type ());
   /* Build the function declaration.  */
-  tree fntype = TREE_TYPE (get_atexit_fn_ptr_type ());
   tree fndecl = build_lang_decl (FUNCTION_DECL, get_identifier (name), fntype);
   DECL_CONTEXT (fndecl) = FROB_CONTEXT (current_namespace);
   /* It's a function with internal linkage, generated by the
@@ -9860,7 +9901,7 @@ start_cleanup_fn (void)
      emissions this way.  */
   DECL_DECLARED_INLINE_P (fndecl) = 1;
   DECL_INTERFACE_KNOWN (fndecl) = 1;
-  if (flag_use_cxa_atexit && !targetm.cxx.use_atexit_for_cxa_atexit ())
+  if (ob_parm)
     {
       /* Build the parameter.  */
       tree parmdecl = cp_build_parm_decl (fndecl, NULL_TREE, ptr_type_node);
@@ -9937,8 +9978,8 @@ register_dtor_fn (tree decl)
       build_cleanup (decl);
   
       /* Now start the function.  */
-      cleanup = start_cleanup_fn ();
-      
+      cleanup = start_cleanup_fn (ob_parm);
+
       /* Now, recompute the cleanup.  It may contain SAVE_EXPRs that refer
 	 to the original function, rather than the anonymous one.  That
 	 will make the back end think that nested functions are in use,
@@ -9967,7 +10008,7 @@ register_dtor_fn (tree decl)
     {
       /* We must convert CLEANUP to the type that "__cxa_atexit"
 	 expects.  */
-      cleanup = build_nop (get_atexit_fn_ptr_type (), cleanup);
+      cleanup = build_nop (get_cxa_atexit_fn_ptr_type (), cleanup);
       /* "__cxa_atexit" will pass the address of DECL to the
 	 cleanup function.  */
       mark_used (decl);
@@ -10750,6 +10791,11 @@ grokfndecl (tree ctype,
 		  "cannot declare %<::main%> to be %qs", "consteval");
       if (!publicp)
 	error_at (location, "cannot declare %<::main%> to be static");
+      if (current_lang_depth () != 0)
+	pedwarn (location, OPT_Wpedantic, "cannot declare %<::main%> with a"
+		 " linkage specification");
+      if (module_attach_p ())
+	error_at (location, "cannot attach %<::main%> to a named module");
       inlinep = 0;
       publicp = 1;
     }
@@ -11249,10 +11295,16 @@ grokvardecl (tree type,
     DECL_INTERFACE_KNOWN (decl) = 1;
 
   if (DECL_NAME (decl)
-      && MAIN_NAME_P (DECL_NAME (decl))
-      && scope == global_namespace)
-    error_at (DECL_SOURCE_LOCATION (decl),
-	      "cannot declare %<::main%> to be a global variable");
+      && MAIN_NAME_P (DECL_NAME (decl)))
+    {
+      if (scope == global_namespace)
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "cannot declare %<::main%> to be a global variable");
+      else if (DECL_EXTERN_C_P (decl))
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "an entity named %<main%> cannot be declared with "
+		  "C language linkage");
+    }
 
   /* Check that the variable can be safely declared as a concept.
      Note that this also forbids explicit specializations.  */
@@ -13728,6 +13780,12 @@ grokdeclarator (const cp_declarator *declarator,
 			inform (DECL_SOURCE_LOCATION (xobj_parm),
 				"explicit object parameter declared here");
 		      }
+		    if (unqualified_id
+			&& identifier_p (unqualified_id)
+			&& IDENTIFIER_NEWDEL_OP_P (unqualified_id))
+		      error_at (DECL_SOURCE_LOCATION (xobj_parm),
+				"%qD cannot be an explicit object member "
+				"function", unqualified_id);
 		  }
 	      }
 	    tree pushed_scope = NULL_TREE;
@@ -14566,10 +14624,9 @@ grokdeclarator (const cp_declarator *declarator,
 	    if (ctype
 		&& (TREE_CODE (ctype) == UNION_TYPE
 		    || TREE_CODE (ctype) == QUAL_UNION_TYPE))
-	      {
-		error_at (id_loc, "flexible array member in union");
-		type = error_mark_node;
-	      }
+	      pedwarn (id_loc, OPT_Wpedantic,
+		       "flexible array member in union is a GCC extension");
+
 	    else
 	      {
 		/* Array is a flexible member.  */
@@ -16620,12 +16677,7 @@ xref_tag (enum tag_types tag_code, tree name,
 	{
 	  tree decl = TYPE_NAME (t);
 	  if (!module_may_redeclare (decl))
-	    {
-	      auto_diagnostic_group d;
-	      error ("cannot declare %qD in a different module", decl);
-	      inform (DECL_SOURCE_LOCATION (decl), "previously declared here");
-	      return error_mark_node;
-	    }
+	    return error_mark_node;
 
 	  tree not_tmpl = STRIP_TEMPLATE (decl);
 	  if (DECL_LANG_SPECIFIC (not_tmpl)
@@ -16973,12 +17025,7 @@ start_enum (tree name, tree enumtype, tree underlying_type,
 	{
 	  tree decl = TYPE_NAME (enumtype);
 	  if (!module_may_redeclare (decl))
-	    {
-	      auto_diagnostic_group d;
-	      error ("cannot declare %qD in different module", decl);
-	      inform (DECL_SOURCE_LOCATION (decl), "previously declared here");
-	      enumtype = error_mark_node;
-	    }
+	    enumtype = error_mark_node;
 	  else
 	    set_instantiating_module (decl);
 	}
@@ -17788,6 +17835,9 @@ start_preparsed_function (tree decl1, tree attrs, int flags)
 	doing_friend = true;
     }
 
+  /* Adjust for #pragma target/optimize.  */
+  decl_attributes (&decl1, NULL_TREE, 0);
+
   if (DECL_DECLARED_INLINE_P (decl1)
       && lookup_attribute ("noinline", attrs))
     warning_at (DECL_SOURCE_LOCATION (decl1), 0,
@@ -18480,7 +18530,13 @@ record_key_method_defined (tree fndecl)
     {
       tree fnclass = DECL_CONTEXT (fndecl);
       if (fndecl == CLASSTYPE_KEY_METHOD (fnclass))
-	vec_safe_push (keyed_classes, fnclass);
+	{
+	  tree classdecl = TYPE_NAME (fnclass);
+	  /* Classes attached to a named module are already handled.  */
+	  if (!DECL_LANG_SPECIFIC (classdecl)
+	      || !DECL_MODULE_ATTACH_P (classdecl))
+	    vec_safe_push (keyed_classes, fnclass);
+	}
     }
 }
 
@@ -19248,6 +19304,13 @@ cxx_comdat_group (tree decl)
 	  else
 	    break;
 	}
+      /* If a ctor/dtor has already set the comdat group by
+	 maybe_clone_body, don't override it.  */
+      if (SUPPORTS_ONE_ONLY
+	  && TREE_CODE (decl) == FUNCTION_DECL
+	  && DECL_CLONED_FUNCTION_P (decl))
+	if (tree comdat = DECL_COMDAT_GROUP (decl))
+	  return comdat;
     }
 
   return decl;

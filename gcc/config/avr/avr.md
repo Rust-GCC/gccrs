@@ -292,6 +292,8 @@
 (define_mode_iterator SPLIT34 [SI SF PSI
                                SQ USQ SA USA])
 
+(define_mode_iterator SFDF [SF DF])
+
 ;; Where the most significant bit is located.
 (define_mode_attr MSB  [(QI "7") (QQ "7") (UQQ "7")
                         (HI "15") (HQ "15") (UHQ "15") (HA "15") (UHA "15")
@@ -8418,7 +8420,22 @@
    (set (match_dup 0)
         (reg:HI 24))])
 
-(define_insn_and_split "*parityqihi2"
+(define_insn_and_split "*parityqihi2.1"
+  [(set (match_operand:HI 0 "register_operand"            "=r")
+        (zero_extend:HI
+         (parity:QI (match_operand:QI 1 "register_operand" "r"))))
+   (clobber (reg:HI 24))]
+  "!reload_completed"
+  { gcc_unreachable(); }
+  "&& 1"
+  [(set (reg:QI 24)
+        (match_dup 1))
+   (set (reg:HI 24)
+        (zero_extend:HI (parity:QI (reg:QI 24))))
+   (set (match_dup 0)
+        (reg:HI 24))])
+
+(define_insn_and_split "*parityqihi2.2"
   [(set (match_operand:HI 0 "register_operand"           "=r")
         (parity:HI (match_operand:QI 1 "register_operand" "r")))
    (clobber (reg:HI 24))]
@@ -8526,6 +8543,19 @@
   {
     operands[2] = gen_reg_rtx (HImode);
   })
+
+(define_insn_and_split "*popcounthi2.split8"
+  [(set (reg:HI 24)
+        (zero_extend:HI (popcount:QI (match_operand:QI 0 "register_operand"))))]
+  "! reload_completed"
+  { gcc_unreachable(); }
+  "&& 1"
+  [(set (reg:QI 24)
+        (match_dup 0))
+   (set (reg:QI 24)
+        (popcount:QI (reg:QI 24)))
+   (set (reg:QI 25)
+        (const_int 0))])
 
 (define_insn_and_split "*popcounthi2.libgcc_split"
   [(set (reg:HI 24)
@@ -10018,6 +10048,20 @@
         (zero_extract:QI (match_dup 1)
                          (const_int 1)
                          (match_dup 2)))])
+
+
+;; Work around PR115307: Early passes expand isinf/f/l to a bloat.
+;; These passes do not consider costs, and there is no way to
+;; hook in or otherwise disable the generated bloat.
+
+;; isinfsf2  isinfdf2
+(define_expand "isinf<mode>2"
+  [(parallel [(match_operand:HI 0)
+              (match_operand:SFDF 1)])]
+  ""
+  {
+    FAIL;
+  })
 
 
 ;; Fixed-point instructions

@@ -1,3 +1,22 @@
+2024-05-29  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/115276
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Use AC_HEADER_TIME.
+	* libm2iso/wraptime.cc (InitTM): Check HAVE_SYS_TIME_H
+	before using struct tm to obtain the size.
+
+2024-05-02  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* Makefile.in: Regenerate.
+	* libm2cor/Makefile.in: Ditto.
+	* libm2iso/Makefile.in: Ditto.
+	* libm2log/Makefile.in: Ditto.
+	* libm2min/Makefile.in: Ditto.
+	* libm2pim/Makefile.in: Ditto.
+	* aclocal.m4: Ditto.
+
 2024-04-02  Jakub Jelinek  <jakub@redhat.com>
 
 	* configure.host: Fix duplicated words; the the -> the.

@@ -109,15 +109,6 @@
   ;; For embed. rounding feature
   UNSPEC_EMBEDDED_ROUNDING
 
-  ;; For AVX512PF support
-  UNSPEC_GATHER_PREFETCH
-  UNSPEC_SCATTER_PREFETCH
-
-  ;; For AVX512ER support
-  UNSPEC_EXP2
-  UNSPEC_RCP28
-  UNSPEC_RSQRT28
-
   ;; For SHA support
   UNSPEC_SHA1MSG1
   UNSPEC_SHA1MSG2
@@ -146,12 +137,6 @@
 
   ;; For AVX512VBMI support
   UNSPEC_VPMULTISHIFT
-
-  ;; For AVX5124FMAPS/AVX5124VNNIW support
-  UNSPEC_VP4FMADD
-  UNSPEC_VP4FNMADD
-  UNSPEC_VP4DPWSSD
-  UNSPEC_VP4DPWSSDS
 
   ;; For GFNI support
   UNSPEC_GF2P8AFFINEINV
@@ -457,10 +442,6 @@
 (define_mode_iterator VF_AVX512VL
   [(V16SF "TARGET_EVEX512") (V8SF "TARGET_AVX512VL") (V4SF "TARGET_AVX512VL")
    (V8DF "TARGET_EVEX512") (V4DF "TARGET_AVX512VL") (V2DF "TARGET_AVX512VL")])
-
-;; AVX512ER SF plus 128- and 256-bit SF vector modes
-(define_mode_iterator VF1_AVX512ER_128_256
-  [(V16SF "TARGET_AVX512ER") (V8SF "TARGET_AVX") V4SF])
 
 (define_mode_iterator VFH_AVX512VL
   [(V32HF "TARGET_AVX512FP16 && TARGET_EVEX512")
@@ -2009,6 +1990,17 @@
   [(set (match_operand:SWI1248_AVX512BW 0 "mask_reg_operand")
 	(any_logic:SWI1248_AVX512BW
 	  (match_operand:SWI1248_AVX512BW 1 "mask_reg_operand")
+	  (match_operand:SWI1248_AVX512BW 2 "mask_reg_operand")))]
+  "TARGET_AVX512F && reload_completed"
+  [(parallel
+     [(set (match_dup 0)
+	   (any_logic:SWI1248_AVX512BW (match_dup 1) (match_dup 2)))
+      (unspec [(const_int 0)] UNSPEC_MASKOP)])])
+
+(define_split
+  [(set (match_operand:SWI1248_AVX512BW 0 "mask_reg_operand")
+	(any_logic:SWI1248_AVX512BW
+	  (match_operand:SWI1248_AVX512BW 1 "mask_reg_operand")
 	  (match_operand:SWI1248_AVX512BW 2 "mask_reg_operand")))
    (clobber (reg:CC FLAGS_REG))]
   "TARGET_AVX512F && reload_completed"
@@ -2162,6 +2154,19 @@
   [(set (match_operand:SWI1248_AVX512BW 0 "mask_reg_operand")
 	(any_lshift:SWI1248_AVX512BW
 	  (match_operand:SWI1248_AVX512BW 1 "mask_reg_operand")
+	  (match_operand 2 "const_int_operand")))]
+  "TARGET_AVX512F && reload_completed"
+  [(parallel
+     [(set (match_dup 0)
+	   (any_lshift:SWI1248_AVX512BW
+	     (match_dup 1)
+	     (match_dup 2)))
+      (unspec [(const_int 0)] UNSPEC_MASKOP)])])
+
+(define_split
+  [(set (match_operand:SWI1248_AVX512BW 0 "mask_reg_operand")
+	(any_lshift:SWI1248_AVX512BW
+	  (match_operand:SWI1248_AVX512BW 1 "mask_reg_operand")
 	  (match_operand 2 "const_int_operand")))
    (clobber (reg:CC FLAGS_REG))]
   "TARGET_AVX512F && reload_completed"
@@ -2219,6 +2224,73 @@
 	   (match_operand:SWI1248_AVX512BWDQ 1 "register_operand")]
 	  UNSPEC_KORTEST))]
   "TARGET_AVX512F")
+
+;; Optimize cmp + setcc with mask register by kortest + setcc.
+(define_insn_and_split "*kortest_cmp<mode>_setcc"
+   [(set (match_operand:QI 0 "nonimmediate_operand" "=qm, qm")
+	 (match_operator:QI 1 "bt_comparison_operator"
+	    [(match_operand:SWI1248_AVX512BWDQ_64 2 "register_operand" "?k, <r>")
+	     (const_int -1)]))
+  (clobber (reg:CC FLAGS_REG))]
+  "TARGET_AVX512BW"
+  "#"
+  "&& reload_completed"
+  [(const_int 0)]
+{
+  if (MASK_REGNO_P (REGNO (operands[2])))
+    {
+      emit_insn (gen_kortest<mode>_ccc (operands[2], operands[2]));
+      operands[4] = gen_rtx_REG (CCCmode, FLAGS_REG);
+    }
+  else
+    {
+      operands[4] = gen_rtx_REG (CCZmode, FLAGS_REG);
+      emit_insn (gen_rtx_SET (operands[4],
+			      gen_rtx_COMPARE (CCZmode,
+					       operands[2],
+					       constm1_rtx)));
+    }
+  ix86_expand_setcc (operands[0],
+		     GET_CODE (operands[1]),
+		     operands[4],
+		     const0_rtx);
+  DONE;
+})
+
+;; Optimize cmp + jcc with mask register by kortest + jcc.
+(define_insn_and_split "*kortest_cmp<mode>_jcc"
+   [(set (pc)
+      (if_then_else
+	(match_operator 0 "bt_comparison_operator"
+	  [(match_operand:SWI1248_AVX512BWDQ_64 1 "register_operand" "?k, <r>")
+	   (const_int -1)])
+	  (label_ref (match_operand 2))
+      (pc)))
+  (clobber (reg:CC FLAGS_REG))]
+  "TARGET_AVX512BW"
+  "#"
+  "&& reload_completed"
+  [(const_int 0)]
+{
+  if (MASK_REGNO_P (REGNO (operands[1])))
+    {
+      emit_insn (gen_kortest<mode>_ccc (operands[1], operands[1]));
+      operands[4] = gen_rtx_REG (CCCmode, FLAGS_REG);
+    }
+  else
+    {
+      operands[4] = gen_rtx_REG (CCZmode, FLAGS_REG);
+      emit_insn (gen_rtx_SET (operands[4],
+			      gen_rtx_COMPARE (CCZmode,
+					       operands[1],
+					       constm1_rtx)));
+    }
+  ix86_expand_branch (GET_CODE (operands[0]),
+		      operands[4],
+		      const0_rtx,
+		      operands[2]);
+  DONE;
+})
 
 (define_insn "kunpckhi"
   [(set (match_operand:HI 0 "register_operand" "=k")
@@ -2785,9 +2857,9 @@
    (set_attr "mode" "<ssescalarmode>")])
 
 (define_expand "rsqrt<mode>2"
-  [(set (match_operand:VF1_AVX512ER_128_256 0 "register_operand")
-	(unspec:VF1_AVX512ER_128_256
-	  [(match_operand:VF1_AVX512ER_128_256 1 "vector_operand")]
+  [(set (match_operand:VF1_128_256 0 "register_operand")
+	(unspec:VF1_128_256
+	  [(match_operand:VF1_128_256 1 "vector_operand")]
 	  UNSPEC_RSQRT))]
   "TARGET_SSE && TARGET_SSE_MATH"
 {
@@ -4823,6 +4895,26 @@
 {
   ix86_expand_sse_movcc (operands[0], operands[3],
 			 operands[1], operands[2]);
+  DONE;
+})
+
+(define_expand "vcond_mask_<mode><mode>"
+  [(match_operand:SWI1248_AVX512BW 0 "register_operand")
+   (match_operand:SWI1248_AVX512BW 1 "register_operand")
+   (match_operand:SWI1248_AVX512BW 2 "register_operand")
+   (match_operand:SWI1248_AVX512BW 3 "register_operand")]
+  "TARGET_AVX512F"
+{
+  /* (operand[1] & operand[3]) | (operand[2] & ~operand[3])  */
+  rtx op1 = gen_reg_rtx (<MODE>mode);
+  rtx op2 = gen_reg_rtx (<MODE>mode);
+  rtx op3 = gen_reg_rtx (<MODE>mode);
+
+  emit_insn (gen_and<mode>3 (op1, operands[1], operands[3]));
+  emit_insn (gen_one_cmpl<mode>2 (op3, operands[3]));
+  emit_insn (gen_and<mode>3 (op2, operands[2], op3));
+  emit_insn (gen_ior<mode>3 (operands[0], op1, op2));
+
   DONE;
 })
 
@@ -6886,9 +6978,9 @@
   [(set (match_operand:VHF_AVX512VL 0 "register_operand" "=&v")
 	(vec_merge:VHF_AVX512VL
 	  (unspec:VHF_AVX512VL
-	    [(match_operand:VHF_AVX512VL 1 "nonimmediate_operand" "<int_comm>v")
-	     (match_operand:VHF_AVX512VL 2 "nonimmediate_operand" "<round_constraint>")
-	     (match_operand:VHF_AVX512VL 3 "register_operand" "0")]
+	    [(match_operand:VHF_AVX512VL 1 "<round_nimm_predicate>" "<int_comm>v")
+	     (match_operand:VHF_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")
+	     (match_operand:VHF_AVX512VL 3 "<round_nimm_predicate>" "0")]
 	     UNSPEC_COMPLEX_F_C_MA)
 	  (match_dup 1)
 	  (unspec:<avx512fmaskmode>
@@ -6911,8 +7003,8 @@
 (define_insn "<avx512>_<complexopname>_<mode><maskc_name><round_name>"
   [(set (match_operand:VHF_AVX512VL 0 "register_operand" "=&v")
 	  (unspec:VHF_AVX512VL
-	    [(match_operand:VHF_AVX512VL 1 "nonimmediate_operand" "<int_comm>v")
-	     (match_operand:VHF_AVX512VL 2 "nonimmediate_operand" "<round_constraint>")]
+	    [(match_operand:VHF_AVX512VL 1 "<round_nimm_predicate>" "<int_comm>v")
+	     (match_operand:VHF_AVX512VL 2 "<round_nimm_predicate>" "<round_constraint>")]
 	     UNSPEC_COMPLEX_F_C_MUL))]
   "TARGET_AVX512FP16 && <round_mode512bit_condition>"
 {
@@ -12940,6 +13032,26 @@
 ;;
 ;; and so on.
 
+(define_insn_and_split "*<avx512>_vpternlog<mode>_0"
+  [(set (match_operand:V 0 "register_operand")
+	(match_operand:V 1 "ternlog_operand"))]
+  "(<MODE_SIZE> == 64 || TARGET_AVX512VL
+    || (TARGET_AVX512F && TARGET_EVEX512 && !TARGET_PREFER_AVX256))
+   && ix86_pre_reload_split ()"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  rtx args[3];
+  args[0] = NULL_RTX;
+  args[1] = NULL_RTX;
+  args[2] = NULL_RTX;
+  int idx = ix86_ternlog_idx (operands[1], args);
+  ix86_expand_ternlog (<MODE>mode, args[0], args[1], args[2], idx,
+		       operands[0]);
+  DONE;
+})
+
 (define_code_iterator any_logic1 [and ior xor])
 (define_code_iterator any_logic2 [and ior xor])
 (define_code_attr logic_op [(and "&") (ior "|") (xor "^")])
@@ -13160,7 +13272,33 @@
 })
 
 
-(define_insn "<avx512>_vternlog<mode>_mask"
+(define_expand "<avx512>_vternlog<mode>_mask"
+  [(set (match_operand:VI48_AVX512VL 0 "register_operand")
+	(vec_merge:VI48_AVX512VL
+	  (unspec:VI48_AVX512VL
+	    [(match_operand:VI48_AVX512VL 1 "register_operand")
+	     (match_operand:VI48_AVX512VL 2 "register_operand")
+	     (match_operand:VI48_AVX512VL 3 "bcst_vector_operand")
+	     (match_operand:SI 4 "const_0_to_255_operand")]
+	    UNSPEC_VTERNLOG)
+	  (match_dup 1)
+	  (match_operand:<avx512fmaskmode> 5 "general_operand")))]
+  "TARGET_AVX512F"
+{
+  unsigned HOST_WIDE_INT mode_mask = GET_MODE_MASK (<avx512fmaskmode>mode);
+  if (CONST_INT_P (operands[5])
+      && (UINTVAL (operands[5]) & mode_mask) == mode_mask)
+    {
+      ix86_expand_ternlog (<MODE>mode, operands[1], operands[2],
+			   operands[3], INTVAL (operands[4]),
+			   operands[0]);
+      DONE;
+    }
+  if (!register_operand (operands[5], <avx512fmaskmode>mode))
+    operands[5] = force_reg (<avx512fmaskmode>mode, operands[5]);
+})
+
+(define_insn "*<avx512>_vternlog<mode>_mask"
   [(set (match_operand:VI48_AVX512VL 0 "register_operand" "=v")
 	(vec_merge:VI48_AVX512VL
 	  (unspec:VI48_AVX512VL
@@ -15483,7 +15621,7 @@
    (set_attr "prefix" "evex")
    (set_attr "mode" "<sseinsnmode>")])
 
-(define_expand "<sse2_avx2>_<insn><mode>3<mask_name>"
+(define_expand "<insn><mode>3<mask_name>"
   [(set (match_operand:VI12_AVX2_AVX512BW 0 "register_operand")
 	(sat_plusminus:VI12_AVX2_AVX512BW
 	  (match_operand:VI12_AVX2_AVX512BW 1 "vector_operand")
@@ -16950,7 +17088,7 @@
       operands[1] = force_reg (<MODE>mode, operands[1]);
       if (rtx_equal_p (op3, op2))
 	op3 = gen_reg_rtx (V8HImode);
-      emit_insn (gen_sse2_ussubv8hi3 (op3, operands[1], op2));
+      emit_insn (gen_ussubv8hi3 (op3, operands[1], op2));
       emit_insn (gen_addv8hi3 (op0, op3, op2));
       DONE;
     }
@@ -17029,7 +17167,7 @@
   [(set (match_operand:VI_256 0 "register_operand" "=x")
 	(eq:VI_256
 	  (match_operand:VI_256 1 "nonimmediate_operand" "%x")
-	  (match_operand:VI_256 2 "nonimmediate_operand" "jm")))]
+	  (match_operand:VI_256 2 "nonimmediate_operand" "xjm")))]
   "TARGET_AVX2 && !(MEM_P (operands[1]) && MEM_P (operands[2]))"
   "vpcmpeq<ssemodesuffix>\t{%2, %1, %0|%0, %1, %2}"
   [(set_attr "type" "ssecmp")
@@ -24869,271 +25007,6 @@
    (set_attr "btver2_decode" "vector,vector,vector,vector")
    (set_attr "mode" "TI")])
 
-;; Packed float variants
-(define_mode_attr GATHER_SCATTER_SF_MEM_MODE
-		      [(V8DI "V8SF") (V16SI "V16SF")])
-
-(define_expand "avx512pf_gatherpf<mode>sf"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand")
-      (mem:<GATHER_SCATTER_SF_MEM_MODE>
-	(match_par_dup 5
-	  [(match_operand 2 "vsib_address_operand")
-	   (match_operand:VI48_512 1 "register_operand")
-	   (match_operand:SI 3 "const1248_operand")]))
-      (match_operand:SI 4 "const_2_to_3_operand")]
-     UNSPEC_GATHER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  operands[5]
-    = gen_rtx_UNSPEC (Pmode, gen_rtvec (3, operands[2], operands[1],
-					operands[3]), UNSPEC_VSIBADDR);
-})
-
-(define_insn "*avx512pf_gatherpf<VI48_512:mode>sf_mask"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand" "Yk")
-      (match_operator:<GATHER_SCATTER_SF_MEM_MODE> 5 "vsib_mem_operator"
-	[(unspec:P
-	   [(match_operand:P 2 "vsib_address_operand" "Tv")
-	    (match_operand:VI48_512 1 "register_operand" "v")
-	    (match_operand:SI 3 "const1248_operand")]
-	   UNSPEC_VSIBADDR)])
-      (match_operand:SI 4 "const_2_to_3_operand")]
-     UNSPEC_GATHER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  switch (INTVAL (operands[4]))
-    {
-    case 3:
-      /* %X5 so that we don't emit any *WORD PTR for -masm=intel, as
-	 gas changed what it requires incompatibly.  */
-      return "%M2vgatherpf0<ssemodesuffix>ps\t{%5%{%0%}|%X5%{%0%}}";
-    case 2:
-      return "%M2vgatherpf1<ssemodesuffix>ps\t{%5%{%0%}|%X5%{%0%}}";
-    default:
-      gcc_unreachable ();
-    }
-}
-  [(set_attr "type" "sse")
-   (set_attr "prefix" "evex")
-   (set_attr "mode" "XI")])
-
-;; Packed double variants
-(define_expand "avx512pf_gatherpf<mode>df"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand")
-      (mem:V8DF
-	(match_par_dup 5
-	  [(match_operand 2 "vsib_address_operand")
-	   (match_operand:VI4_256_8_512 1 "register_operand")
-	   (match_operand:SI 3 "const1248_operand")]))
-      (match_operand:SI 4 "const_2_to_3_operand")]
-     UNSPEC_GATHER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  operands[5]
-    = gen_rtx_UNSPEC (Pmode, gen_rtvec (3, operands[2], operands[1],
-					operands[3]), UNSPEC_VSIBADDR);
-})
-
-(define_insn "*avx512pf_gatherpf<VI4_256_8_512:mode>df_mask"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand" "Yk")
-      (match_operator:V8DF 5 "vsib_mem_operator"
-	[(unspec:P
-	   [(match_operand:P 2 "vsib_address_operand" "Tv")
-	    (match_operand:VI4_256_8_512 1 "register_operand" "v")
-	    (match_operand:SI 3 "const1248_operand")]
-	   UNSPEC_VSIBADDR)])
-      (match_operand:SI 4 "const_2_to_3_operand")]
-     UNSPEC_GATHER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  switch (INTVAL (operands[4]))
-    {
-    case 3:
-      /* %X5 so that we don't emit any *WORD PTR for -masm=intel, as
-	 gas changed what it requires incompatibly.  */
-      return "%M2vgatherpf0<ssemodesuffix>pd\t{%5%{%0%}|%X5%{%0%}}";
-    case 2:
-      return "%M2vgatherpf1<ssemodesuffix>pd\t{%5%{%0%}|%X5%{%0%}}";
-    default:
-      gcc_unreachable ();
-    }
-}
-  [(set_attr "type" "sse")
-   (set_attr "prefix" "evex")
-   (set_attr "mode" "XI")])
-
-;; Packed float variants
-(define_expand "avx512pf_scatterpf<mode>sf"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand")
-      (mem:<GATHER_SCATTER_SF_MEM_MODE>
-	(match_par_dup 5
-	  [(match_operand 2 "vsib_address_operand")
-	   (match_operand:VI48_512 1 "register_operand")
-	   (match_operand:SI 3 "const1248_operand")]))
-      (match_operand:SI 4 "const2367_operand")]
-     UNSPEC_SCATTER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  operands[5]
-    = gen_rtx_UNSPEC (Pmode, gen_rtvec (3, operands[2], operands[1],
-					operands[3]), UNSPEC_VSIBADDR);
-})
-
-(define_insn "*avx512pf_scatterpf<VI48_512:mode>sf_mask"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand" "Yk")
-      (match_operator:<GATHER_SCATTER_SF_MEM_MODE> 5 "vsib_mem_operator"
-	[(unspec:P
-	   [(match_operand:P 2 "vsib_address_operand" "Tv")
-	    (match_operand:VI48_512 1 "register_operand" "v")
-	    (match_operand:SI 3 "const1248_operand")]
-	   UNSPEC_VSIBADDR)])
-      (match_operand:SI 4 "const2367_operand")]
-     UNSPEC_SCATTER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  switch (INTVAL (operands[4]))
-    {
-    case 3:
-    case 7:
-      /* %X5 so that we don't emit any *WORD PTR for -masm=intel, as
-	 gas changed what it requires incompatibly.  */
-      return "%M2vscatterpf0<ssemodesuffix>ps\t{%5%{%0%}|%X5%{%0%}}";
-    case 2:
-    case 6:
-      return "%M2vscatterpf1<ssemodesuffix>ps\t{%5%{%0%}|%X5%{%0%}}";
-    default:
-      gcc_unreachable ();
-    }
-}
-  [(set_attr "type" "sse")
-   (set_attr "prefix" "evex")
-   (set_attr "mode" "XI")])
-
-;; Packed double variants
-(define_expand "avx512pf_scatterpf<mode>df"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand")
-      (mem:V8DF
-	(match_par_dup 5
-	  [(match_operand 2 "vsib_address_operand")
-	   (match_operand:VI4_256_8_512 1 "register_operand")
-	   (match_operand:SI 3 "const1248_operand")]))
-      (match_operand:SI 4 "const2367_operand")]
-     UNSPEC_SCATTER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  operands[5]
-    = gen_rtx_UNSPEC (Pmode, gen_rtvec (3, operands[2], operands[1],
-					operands[3]), UNSPEC_VSIBADDR);
-})
-
-(define_insn "*avx512pf_scatterpf<VI4_256_8_512:mode>df_mask"
-  [(unspec
-     [(match_operand:<avx512fmaskmode> 0 "register_operand" "Yk")
-      (match_operator:V8DF 5 "vsib_mem_operator"
-	[(unspec:P
-	   [(match_operand:P 2 "vsib_address_operand" "Tv")
-	    (match_operand:VI4_256_8_512 1 "register_operand" "v")
-	    (match_operand:SI 3 "const1248_operand")]
-	   UNSPEC_VSIBADDR)])
-      (match_operand:SI 4 "const2367_operand")]
-     UNSPEC_SCATTER_PREFETCH)]
-  "TARGET_AVX512PF"
-{
-  switch (INTVAL (operands[4]))
-    {
-    case 3:
-    case 7:
-      /* %X5 so that we don't emit any *WORD PTR for -masm=intel, as
-	 gas changed what it requires incompatibly.  */
-      return "%M2vscatterpf0<ssemodesuffix>pd\t{%5%{%0%}|%X5%{%0%}}";
-    case 2:
-    case 6:
-      return "%M2vscatterpf1<ssemodesuffix>pd\t{%5%{%0%}|%X5%{%0%}}";
-    default:
-      gcc_unreachable ();
-    }
-}
-  [(set_attr "type" "sse")
-   (set_attr "prefix" "evex")
-   (set_attr "mode" "XI")])
-
-(define_expand "exp2<mode>2"
-  [(set (match_operand:VF_512 0 "register_operand")
-	(unspec:VF_512
-	  [(match_operand:VF_512 1 "vector_operand")]
-	  UNSPEC_EXP2))]
-  "TARGET_AVX512ER")
-
-(define_insn "avx512er_exp2<mode><mask_name><round_saeonly_name>"
-  [(set (match_operand:VF_512 0 "register_operand" "=v")
-	(unspec:VF_512
-	  [(match_operand:VF_512 1 "<round_saeonly_nimm_predicate>" "<round_saeonly_constraint>")]
-	  UNSPEC_EXP2))]
-  "TARGET_AVX512ER"
-  "vexp2<ssemodesuffix>\t{<round_saeonly_mask_op2>%1, %0<mask_operand2>|%0<mask_operand2>, %1<round_saeonly_mask_op2>}"
-  [(set_attr "prefix" "evex")
-   (set_attr "type" "sse")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "<mask_codefor>avx512er_rcp28<mode><mask_name><round_saeonly_name>"
-  [(set (match_operand:VF_512 0 "register_operand" "=v")
-	(unspec:VF_512
-	  [(match_operand:VF_512 1 "<round_saeonly_nimm_predicate>" "<round_saeonly_constraint>")]
-	  UNSPEC_RCP28))]
-  "TARGET_AVX512ER"
-  "vrcp28<ssemodesuffix>\t{<round_saeonly_mask_op2>%1, %0<mask_operand2>|%0<mask_operand2>, %1<round_saeonly_mask_op2>}"
-  [(set_attr "prefix" "evex")
-   (set_attr "type" "sse")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "avx512er_vmrcp28<mode><mask_name><round_saeonly_name>"
-  [(set (match_operand:VF_128 0 "register_operand" "=v")
-	(vec_merge:VF_128
-	  (unspec:VF_128
-	    [(match_operand:VF_128 1 "<round_saeonly_nimm_scalar_predicate>" "<round_saeonly_constraint>")]
-	    UNSPEC_RCP28)
-	  (match_operand:VF_128 2 "register_operand" "v")
-	  (const_int 1)))]
-  "TARGET_AVX512ER"
-  "vrcp28<ssescalarmodesuffix>\t{<round_saeonly_mask_op3>%1, %2, %0<mask_operand3>|<mask_operand3>%0, %2, %<iptr>1<round_saeonly_mask_op3>}"
-  [(set_attr "length_immediate" "1")
-   (set_attr "prefix" "evex")
-   (set_attr "type" "sse")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "<mask_codefor>avx512er_rsqrt28<mode><mask_name><round_saeonly_name>"
-  [(set (match_operand:VF_512 0 "register_operand" "=v")
-	(unspec:VF_512
-	  [(match_operand:VF_512 1 "<round_saeonly_nimm_predicate>" "<round_saeonly_constraint>")]
-	  UNSPEC_RSQRT28))]
-  "TARGET_AVX512ER"
-  "vrsqrt28<ssemodesuffix>\t{<round_saeonly_mask_op2>%1, %0<mask_operand2>|%0<mask_operand2>, %1<round_saeonly_mask_op2>}"
-  [(set_attr "prefix" "evex")
-   (set_attr "type" "sse")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "avx512er_vmrsqrt28<mode><mask_name><round_saeonly_name>"
-  [(set (match_operand:VF_128 0 "register_operand" "=v")
-	(vec_merge:VF_128
-	  (unspec:VF_128
-	    [(match_operand:VF_128 1 "<round_saeonly_nimm_scalar_predicate>" "<round_saeonly_constraint>")]
-	    UNSPEC_RSQRT28)
-	  (match_operand:VF_128 2 "register_operand" "v")
-	  (const_int 1)))]
-  "TARGET_AVX512ER"
-  "vrsqrt28<ssescalarmodesuffix>\t{<round_saeonly_mask_op3>%1, %2, %0<mask_operand3>|<mask_operand3>%0, %2, %<iptr>1<round_saeonly_mask_op3>}"
-  [(set_attr "length_immediate" "1")
-   (set_attr "type" "sse")
-   (set_attr "prefix" "evex")
-   (set_attr "mode" "<MODE>")])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; XOP instructions
@@ -29419,291 +29292,6 @@
    (set_attr "prefix" "evex")
    (set_attr "mode" "<sseinsnmode>")])
 
-(define_mode_iterator IMOD4
-  [(V64SF "TARGET_AVX5124FMAPS") (V64SI "TARGET_AVX5124VNNIW")])
-
-(define_mode_attr imod4_narrow
-  [(V64SF "V16SF") (V64SI "V16SI")])
-
-(define_expand "mov<mode>"
-  [(set (match_operand:IMOD4 0 "nonimmediate_operand")
-	(match_operand:IMOD4 1 "nonimm_or_0_operand"))]
-  "TARGET_AVX512F"
-{
-  ix86_expand_vector_move (<MODE>mode, operands);
-  DONE;
-})
-
-(define_insn_and_split "*mov<mode>_internal"
-  [(set (match_operand:IMOD4 0 "nonimmediate_operand" "=v,v ,m")
-	(match_operand:IMOD4 1 "nonimm_or_0_operand"  " C,vm,v"))]
-  "TARGET_AVX512F
-   && (register_operand (operands[0], <MODE>mode)
-       || register_operand (operands[1], <MODE>mode))"
-  "#"
-  "&& reload_completed"
-  [(const_int 0)]
-{
-  rtx op0, op1;
-  int i;
-
-  for (i = 0; i < 4; i++)
-    {
-      op0 = simplify_subreg
-	     (<imod4_narrow>mode, operands[0], <MODE>mode, i * 64);
-      op1 = simplify_subreg
-	     (<imod4_narrow>mode, operands[1], <MODE>mode, i * 64);
-      emit_move_insn (op0, op1);
-    }
-  DONE;
-})
-
-(define_insn "avx5124fmaddps_4fmaddps"
-  [(set (match_operand:V16SF 0 "register_operand" "=v")
-	(unspec:V16SF
-	  [(match_operand:V16SF 1 "register_operand" "0")
-	   (match_operand:V64SF 2 "register_operand" "v")
-	   (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FMADD))]
-  "TARGET_AVX5124FMAPS"
-  "v4fmaddps\t{%3, %g2, %0|%0, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("V16SF"))])
-
-(define_insn "avx5124fmaddps_4fmaddps_mask"
-  [(set (match_operand:V16SF 0 "register_operand" "=v")
-	(vec_merge:V16SF
-	  (unspec:V16SF
-	     [(match_operand:V64SF 1 "register_operand" "v")
-	      (match_operand:V4SF 2 "memory_operand" "m")] UNSPEC_VP4FMADD)
-	  (match_operand:V16SF 3 "register_operand" "0")
-	  (match_operand:HI 4 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fmaddps\t{%2, %g1, %0%{%4%}|%0%{%4%}, %g1, %2}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("V16SF"))])
-
-(define_insn "avx5124fmaddps_4fmaddps_maskz"
-  [(set (match_operand:V16SF 0 "register_operand" "=v")
-	(vec_merge:V16SF
-	  (unspec:V16SF
-	    [(match_operand:V16SF 1 "register_operand" "0")
-	     (match_operand:V64SF 2 "register_operand" "v")
-	     (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FMADD)
-	  (match_operand:V16SF 4 "const0_operand")
-	  (match_operand:HI 5 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fmaddps\t{%3, %g2, %0%{%5%}%{z%}|%0%{%5%}%{z%}, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("V16SF"))])
-
-(define_insn "avx5124fmaddps_4fmaddss"
-  [(set (match_operand:V4SF 0 "register_operand" "=v")
-	(unspec:V4SF
-	  [(match_operand:V4SF 1 "register_operand" "0")
-	   (match_operand:V64SF 2 "register_operand" "v")
-	   (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FMADD))]
-  "TARGET_AVX5124FMAPS"
-  "v4fmaddss\t{%3, %x2, %0|%0, %x2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("SF"))])
-
-(define_insn "avx5124fmaddps_4fmaddss_mask"
-  [(set (match_operand:V4SF 0 "register_operand" "=v")
-	(vec_merge:V4SF
-	  (unspec:V4SF
-	    [(match_operand:V64SF 1 "register_operand" "v")
-	     (match_operand:V4SF 2 "memory_operand" "m")] UNSPEC_VP4FMADD)
-	  (match_operand:V4SF 3 "register_operand" "0")
-	  (match_operand:QI 4 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fmaddss\t{%2, %x1, %0%{%4%}|%0%{%4%}, %x1, %2}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("SF"))])
-
-(define_insn "avx5124fmaddps_4fmaddss_maskz"
-  [(set (match_operand:V4SF 0 "register_operand" "=v")
-	(vec_merge:V4SF
-	  (unspec:V4SF
-	    [(match_operand:V4SF 1 "register_operand" "0")
-	     (match_operand:V64SF 2 "register_operand" "v")
-	     (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FMADD)
-	  (match_operand:V4SF 4 "const0_operand")
-	  (match_operand:QI 5 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fmaddss\t{%3, %x2, %0%{%5%}%{z%}|%0%{%5%}%{z%}, %x2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("SF"))])
-
-(define_insn "avx5124fmaddps_4fnmaddps"
-  [(set (match_operand:V16SF 0 "register_operand" "=v")
-	(unspec:V16SF
-	  [(match_operand:V16SF 1 "register_operand" "0")
-	   (match_operand:V64SF 2 "register_operand" "v")
-	   (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FNMADD))]
-  "TARGET_AVX5124FMAPS"
-  "v4fnmaddps\t{%3, %g2, %0|%0, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("V16SF"))])
-
-(define_insn "avx5124fmaddps_4fnmaddps_mask"
-  [(set (match_operand:V16SF 0 "register_operand" "=v")
-	(vec_merge:V16SF
-	  (unspec:V16SF
-	     [(match_operand:V64SF 1 "register_operand" "v")
-	      (match_operand:V4SF 2 "memory_operand" "m")] UNSPEC_VP4FNMADD)
-	  (match_operand:V16SF 3 "register_operand" "0")
-	  (match_operand:HI 4 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fnmaddps\t{%2, %g1, %0%{%4%}|%0%{%4%}, %g1, %2}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("V16SF"))])
-
-(define_insn "avx5124fmaddps_4fnmaddps_maskz"
-  [(set (match_operand:V16SF 0 "register_operand" "=v")
-	(vec_merge:V16SF
-	  (unspec:V16SF
-	    [(match_operand:V16SF 1 "register_operand" "0")
-	     (match_operand:V64SF 2 "register_operand" "v")
-	     (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FNMADD)
-	  (match_operand:V16SF 4 "const0_operand")
-	  (match_operand:HI 5 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fnmaddps\t{%3, %g2, %0%{%5%}%{z%}|%0%{%5%}%{z%}, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("V16SF"))])
-
-(define_insn "avx5124fmaddps_4fnmaddss"
-  [(set (match_operand:V4SF 0 "register_operand" "=v")
-	(unspec:V4SF
-	  [(match_operand:V4SF 1 "register_operand" "0")
-	   (match_operand:V64SF 2 "register_operand" "v")
-	   (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FNMADD))]
-  "TARGET_AVX5124FMAPS"
-  "v4fnmaddss\t{%3, %x2, %0|%0, %x2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("SF"))])
-
-(define_insn "avx5124fmaddps_4fnmaddss_mask"
-  [(set (match_operand:V4SF 0 "register_operand" "=v")
-	(vec_merge:V4SF
-	  (unspec:V4SF
-	    [(match_operand:V64SF 1 "register_operand" "v")
-	     (match_operand:V4SF 2 "memory_operand" "m")] UNSPEC_VP4FNMADD)
-	  (match_operand:V4SF 3 "register_operand" "0")
-	  (match_operand:QI 4 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fnmaddss\t{%2, %x1, %0%{%4%}|%0%{%4%}, %x1, %2}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("SF"))])
-
-(define_insn "avx5124fmaddps_4fnmaddss_maskz"
-  [(set (match_operand:V4SF 0 "register_operand" "=v")
-	(vec_merge:V4SF
-	  (unspec:V4SF
-	    [(match_operand:V4SF 1 "register_operand" "0")
-	     (match_operand:V64SF 2 "register_operand" "v")
-	     (match_operand:V4SF 3 "memory_operand" "m")] UNSPEC_VP4FNMADD)
-	  (match_operand:V4SF 4 "const0_operand")
-	  (match_operand:QI 5 "register_operand" "Yk")))]
-  "TARGET_AVX5124FMAPS"
-  "v4fnmaddss\t{%3, %x2, %0%{%5%}%{z%}|%0%{%5%}%{z%}, %x2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("SF"))])
-
-(define_insn "avx5124vnniw_vp4dpwssd"
-  [(set (match_operand:V16SI 0 "register_operand" "=v")
-	(unspec:V16SI
-	  [(match_operand:V16SI 1 "register_operand" "0")
-	   (match_operand:V64SI 2 "register_operand" "v")
-	   (match_operand:V4SI 3 "memory_operand" "m")] UNSPEC_VP4DPWSSD))]
-  "TARGET_AVX5124VNNIW"
-  "vp4dpwssd\t{%3, %g2, %0|%0, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("TI"))])
-
-(define_insn "avx5124vnniw_vp4dpwssd_mask"
-  [(set (match_operand:V16SI 0 "register_operand" "=v")
-	(vec_merge:V16SI
-	  (unspec:V16SI
-	     [(match_operand:V64SI 1 "register_operand" "v")
-	      (match_operand:V4SI 2 "memory_operand" "m")] UNSPEC_VP4DPWSSD)
-	  (match_operand:V16SI 3 "register_operand" "0")
-	  (match_operand:HI 4 "register_operand" "Yk")))]
-  "TARGET_AVX5124VNNIW"
-  "vp4dpwssd\t{%2, %g1, %0%{%4%}|%0%{%4%}, %g1, %2}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("TI"))])
-
-(define_insn "avx5124vnniw_vp4dpwssd_maskz"
-  [(set (match_operand:V16SI 0 "register_operand" "=v")
-	(vec_merge:V16SI
-	  (unspec:V16SI
-	    [(match_operand:V16SI 1 "register_operand" "0")
-	     (match_operand:V64SI 2 "register_operand" "v")
-	     (match_operand:V4SI 3 "memory_operand" "m")] UNSPEC_VP4DPWSSD)
-	  (match_operand:V16SI 4 "const0_operand")
-	  (match_operand:HI 5 "register_operand" "Yk")))]
-  "TARGET_AVX5124VNNIW"
-  "vp4dpwssd\t{%3, %g2, %0%{%5%}%{z%}|%0%{%5%}%{z%}, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("TI"))])
-
-(define_insn "avx5124vnniw_vp4dpwssds"
-  [(set (match_operand:V16SI 0 "register_operand" "=v")
-	(unspec:V16SI
-	  [(match_operand:V16SI 1 "register_operand" "0")
-	   (match_operand:V64SI 2 "register_operand" "v")
-	   (match_operand:V4SI 3 "memory_operand" "m")] UNSPEC_VP4DPWSSDS))]
-  "TARGET_AVX5124VNNIW"
-  "vp4dpwssds\t{%3, %g2, %0|%0, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("TI"))])
-
-(define_insn "avx5124vnniw_vp4dpwssds_mask"
-  [(set (match_operand:V16SI 0 "register_operand" "=v")
-	(vec_merge:V16SI
-	  (unspec:V16SI
-	     [(match_operand:V64SI 1 "register_operand" "v")
-	      (match_operand:V4SI 2 "memory_operand" "m")] UNSPEC_VP4DPWSSDS)
-	  (match_operand:V16SI 3 "register_operand" "0")
-	  (match_operand:HI 4 "register_operand" "Yk")))]
-  "TARGET_AVX5124VNNIW"
-  "vp4dpwssds\t{%2, %g1, %0%{%4%}|%0%{%4%}, %g1, %2}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("TI"))])
-
-(define_insn "avx5124vnniw_vp4dpwssds_maskz"
-  [(set (match_operand:V16SI 0 "register_operand" "=v")
-	(vec_merge:V16SI
-	  (unspec:V16SI
-	    [(match_operand:V16SI 1 "register_operand" "0")
-	     (match_operand:V64SI 2 "register_operand" "v")
-	     (match_operand:V4SI 3 "memory_operand" "m")] UNSPEC_VP4DPWSSDS)
-	  (match_operand:V16SI 4 "const0_operand")
-	  (match_operand:HI 5 "register_operand" "Yk")))]
-  "TARGET_AVX5124VNNIW"
-  "vp4dpwssds\t{%3, %g2, %0%{%5%}%{z%}|%0%{%5%}%{z%}, %g2, %3}"
-   [(set_attr ("type") ("ssemuladd"))
-    (set_attr ("prefix") ("evex"))
-    (set_attr ("mode") ("TI"))])
-
 (define_expand "popcount<mode>2"
   [(set (match_operand:VI48_AVX512VL 0 "register_operand")
 	(popcount:VI48_AVX512VL
@@ -29955,21 +29543,48 @@
 
 (define_expand "usdot_prod<mode>"
   [(match_operand:<ssedvecmode> 0 "register_operand")
-   (match_operand:VI1_AVX512VNNI 1 "register_operand")
-   (match_operand:VI1_AVX512VNNI 2 "register_operand")
+   (match_operand:VI1_AVX512 1 "register_operand")
+   (match_operand:VI1_AVX512 2 "register_operand")
    (match_operand:<ssedvecmode> 3 "register_operand")]
-  "((<MODE_SIZE> == 64 && TARGET_EVEX512)
-    || ((TARGET_AVX512VNNI && TARGET_AVX512VL)
-	|| TARGET_AVXVNNI))"
+  "TARGET_SSE2"
 {
-  operands[1] = lowpart_subreg (<ssedvecmode>mode,
-				force_reg (<MODE>mode, operands[1]),
-				<MODE>mode);
-  operands[2] = lowpart_subreg (<ssedvecmode>mode,
-				force_reg (<MODE>mode, operands[2]),
-				<MODE>mode);
-  emit_insn (gen_vpdpbusd_<ssedvecmodelower> (operands[0], operands[3],
-				  operands[1], operands[2]));
+  if (<MODE_SIZE> == 64
+     ? TARGET_AVX512VNNI
+     : ((TARGET_AVX512VNNI && TARGET_AVX512VL) || TARGET_AVXVNNI))
+    {
+      operands[1] = lowpart_subreg (<ssedvecmode>mode,
+				    force_reg (<MODE>mode, operands[1]),
+				    <MODE>mode);
+      operands[2] = lowpart_subreg (<ssedvecmode>mode,
+				    force_reg (<MODE>mode, operands[2]),
+				    <MODE>mode);
+      emit_insn (gen_vpdpbusd_<ssedvecmodelower> (operands[0], operands[3],
+						  operands[1], operands[2]));
+    }
+  else
+    {
+      /* Emulate with vpdpwssd.  */
+      rtx op1_lo = gen_reg_rtx (<sseunpackmode>mode);
+      rtx op1_hi = gen_reg_rtx (<sseunpackmode>mode);
+      rtx op2_lo = gen_reg_rtx (<sseunpackmode>mode);
+      rtx op2_hi = gen_reg_rtx (<sseunpackmode>mode);
+
+      emit_insn (gen_vec_unpacku_lo_<mode> (op1_lo, operands[1]));
+      emit_insn (gen_vec_unpacks_lo_<mode> (op2_lo, operands[2]));
+      emit_insn (gen_vec_unpacku_hi_<mode> (op1_hi, operands[1]));
+      emit_insn (gen_vec_unpacks_hi_<mode> (op2_hi, operands[2]));
+
+      rtx res1 = gen_reg_rtx (<ssedvecmode>mode);
+      rtx res2 = gen_reg_rtx (<ssedvecmode>mode);
+      rtx sum = gen_reg_rtx (<ssedvecmode>mode);
+
+      emit_move_insn (sum, CONST0_RTX (<ssedvecmode>mode));
+      emit_insn (gen_sdot_prod<sseunpackmodelower> (res1, op1_lo,
+						    op2_lo, sum));
+      emit_insn (gen_sdot_prod<sseunpackmodelower> (res2, op1_hi,
+						    op2_hi, operands[3]));
+      emit_insn (gen_add<ssedvecmodelower>3 (operands[0], res1, res2));
+    }
   DONE;
 })
 

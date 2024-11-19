@@ -32,7 +32,6 @@ with Elists;         use Elists;
 with Errout;         use Errout;
 with Einfo.Utils;    use Einfo.Utils;
 with Exp_Atag;       use Exp_Atag;
-with Exp_Ch3;        use Exp_Ch3;
 with Exp_Ch7;        use Exp_Ch7;
 with Exp_Tss;        use Exp_Tss;
 with Exp_Util;       use Exp_Util;
@@ -466,7 +465,15 @@ package body Accessibility is
             --  so handle these cases explicitly.
 
             elsif Attribute_Name (E)
-                    in Name_Old | Name_Loop_Entry | Name_Result
+                    in Name_Old        |
+                       Name_Loop_Entry |
+                       Name_Result     |
+                       Name_Super      |
+                       Name_Tag        |
+                       Name_Safe_First |
+                       Name_Safe_Last  |
+                       Name_First      |
+                       Name_Last
             then
                --  Named access types
 
@@ -2220,7 +2227,7 @@ package body Accessibility is
                   --  that of the type.
 
                   elsif Ekind (Def_Ent) = E_Discriminant then
-                     return Scope_Depth (Scope (Def_Ent));
+                     return Scope_Depth (Get_Full_View (Scope (Def_Ent)));
                   end if;
                end if;
 

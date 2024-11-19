@@ -178,13 +178,6 @@ class line_table_test
   ~line_table_test ();
 };
 
-/* Helper function for selftests that need a function decl.  */
-
-extern tree make_fndecl (tree return_type,
-			 const char *name,
-			 vec <tree> &param_types,
-			 bool is_variadic = false);
-
 /* Run TESTCASE multiple times, once for each case in our test matrix.  */
 
 extern void
@@ -227,6 +220,7 @@ extern void attribs_cc_tests ();
 extern void bitmap_cc_tests ();
 extern void cgraph_cc_tests ();
 extern void convert_cc_tests ();
+extern void diagnostic_color_cc_tests ();
 extern void diagnostic_format_json_cc_tests ();
 extern void diagnostic_show_locus_cc_tests ();
 extern void digraph_cc_tests ();

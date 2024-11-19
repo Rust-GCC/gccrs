@@ -599,6 +599,8 @@ struct input_reload
 {
   /* True for input reload of matched operands.  */
   bool match_p;
+  /* True for input reload of inout earlyclobber operand.  */
+  bool early_clobber_p;
   /* Reloaded value.  */
   rtx input;
   /* Reload pseudo used.  */
@@ -649,13 +651,15 @@ canonicalize_reload_addr (rtx addr)
 /* Create a new pseudo using MODE, RCLASS, EXCLUDE_START_HARD_REGS, ORIGINAL or
    reuse an existing reload pseudo.  Don't reuse an existing reload pseudo if
    IN_SUBREG_P is true and the reused pseudo should be wrapped up in a SUBREG.
+   EARLY_CLOBBER_P is true for input reload of inout early clobber operand.
    The result pseudo is returned through RESULT_REG.  Return TRUE if we created
    a new pseudo, FALSE if we reused an existing reload pseudo.  Use TITLE to
    describe new registers for debug purposes.  */
 static bool
 get_reload_reg (enum op_type type, machine_mode mode, rtx original,
 		enum reg_class rclass, HARD_REG_SET *exclude_start_hard_regs,
-		bool in_subreg_p, const char *title, rtx *result_reg)
+		bool in_subreg_p, bool early_clobber_p,
+		const char *title, rtx *result_reg)
 {
   int i, regno;
   enum reg_class new_class;
@@ -703,6 +707,7 @@ get_reload_reg (enum op_type type, machine_mode mode, rtx original,
     for (i = 0; i < curr_insn_input_reloads_num; i++)
       {
 	if (! curr_insn_input_reloads[i].match_p
+	    && ! curr_insn_input_reloads[i].early_clobber_p
 	    && rtx_equal_p (curr_insn_input_reloads[i].input, original)
 	    && in_class_p (curr_insn_input_reloads[i].reg, rclass, &new_class))
 	  {
@@ -750,6 +755,8 @@ get_reload_reg (enum op_type type, machine_mode mode, rtx original,
   lra_assert (curr_insn_input_reloads_num < LRA_MAX_INSN_RELOADS);
   curr_insn_input_reloads[curr_insn_input_reloads_num].input = original;
   curr_insn_input_reloads[curr_insn_input_reloads_num].match_p = false;
+  curr_insn_input_reloads[curr_insn_input_reloads_num].early_clobber_p
+    = early_clobber_p;
   curr_insn_input_reloads[curr_insn_input_reloads_num++].reg = *result_reg;
   return true;
 }
@@ -1189,6 +1196,7 @@ match_reload (signed char out, signed char *ins, signed char *outs,
   lra_assert (curr_insn_input_reloads_num < LRA_MAX_INSN_RELOADS);
   curr_insn_input_reloads[curr_insn_input_reloads_num].input = in_rtx;
   curr_insn_input_reloads[curr_insn_input_reloads_num].match_p = true;
+  curr_insn_input_reloads[curr_insn_input_reloads_num].early_clobber_p = false;
   curr_insn_input_reloads[curr_insn_input_reloads_num++].reg = new_in_reg;
   for (i = 0; (in = ins[i]) >= 0; i++)
     if (GET_MODE (*curr_id->operand_loc[in]) == VOIDmode
@@ -1577,7 +1585,7 @@ process_addr_reg (rtx *loc, bool check_only_p, rtx_insn **before, rtx_insn **aft
 	  reg = *loc;
 	  if (get_reload_reg (after == NULL ? OP_IN : OP_INOUT,
 			      mode, reg, cl, NULL,
-			      subreg_p, "address", &new_reg))
+			      subreg_p, false, "address", &new_reg))
 	    before_p = true;
 	}
       else if (new_class != NO_REGS && rclass != new_class)
@@ -1733,7 +1741,7 @@ simplify_operand_subreg (int nop, machine_mode reg_mode)
 	    = (enum reg_class) targetm.preferred_reload_class (reg, ALL_REGS);
 	  if (get_reload_reg (curr_static_id->operand[nop].type, innermode,
 			      reg, rclass, NULL,
-			      true, "slow/invalid mem", &new_reg))
+			      true, false, "slow/invalid mem", &new_reg))
 	    {
 	      bool insert_before, insert_after;
 	      bitmap_set_bit (&lra_subreg_reload_pseudos, REGNO (new_reg));
@@ -1753,7 +1761,7 @@ simplify_operand_subreg (int nop, machine_mode reg_mode)
 	    = (enum reg_class) targetm.preferred_reload_class (reg, ALL_REGS);
 	  if (get_reload_reg (curr_static_id->operand[nop].type, mode, reg,
 			      rclass, NULL,
-			      true, "slow/invalid mem", &new_reg))
+			      true, false, "slow/invalid mem", &new_reg))
 	    {
 	      bool insert_before, insert_after;
 	      bitmap_set_bit (&lra_subreg_reload_pseudos, REGNO (new_reg));
@@ -1854,7 +1862,7 @@ simplify_operand_subreg (int nop, machine_mode reg_mode)
 
       if (get_reload_reg (curr_static_id->operand[nop].type, reg_mode, reg,
 			  rclass, NULL,
-			  true, "subreg reg", &new_reg))
+			  true, false, "subreg reg", &new_reg))
 	{
 	  bool insert_before, insert_after;
 	  bitmap_set_bit (&lra_subreg_reload_pseudos, REGNO (new_reg));
@@ -1928,7 +1936,7 @@ simplify_operand_subreg (int nop, machine_mode reg_mode)
 
       if (get_reload_reg (curr_static_id->operand[nop].type, mode, reg,
                           rclass, NULL,
-			  true, "paradoxical subreg", &new_reg))
+			  true, false, "paradoxical subreg", &new_reg))
         {
 	  rtx subreg;
 	  bool insert_before, insert_after;
@@ -2127,6 +2135,8 @@ process_alt_operands (int only_alternative)
   /* Numbers of operands which are early clobber registers.  */
   int early_clobbered_nops[MAX_RECOG_OPERANDS];
   enum reg_class curr_alt[MAX_RECOG_OPERANDS];
+  enum reg_class all_this_alternative;
+  int all_used_nregs, all_reload_nregs;
   HARD_REG_SET curr_alt_set[MAX_RECOG_OPERANDS];
   HARD_REG_SET curr_alt_exclude_start_hard_regs[MAX_RECOG_OPERANDS];
   bool curr_alt_match_win[MAX_RECOG_OPERANDS];
@@ -2229,7 +2239,8 @@ process_alt_operands (int only_alternative)
       curr_alt_out_sp_reload_p = false;
       curr_reuse_alt_p = true;
       curr_alt_class_change_p = false;
-      
+      all_this_alternative = NO_REGS;
+      all_used_nregs = all_reload_nregs = 0;
       for (nop = 0; nop < n_operands; nop++)
 	{
 	  const char *p;
@@ -2660,6 +2671,16 @@ process_alt_operands (int only_alternative)
 	  /* Record which operands fit this alternative.  */
 	  if (win)
 	    {
+	      if (early_clobber_p
+		  || curr_static_id->operand[nop].type != OP_OUT)
+		{
+		  if (winreg)
+		    all_used_nregs
+		      += ira_reg_class_min_nregs[this_alternative][mode];
+		  all_this_alternative
+		    = (reg_class_subunion
+		       [all_this_alternative][this_alternative]);
+		}
 	      this_alternative_win = true;
 	      if (class_change_p)
 		{
@@ -2781,7 +2802,19 @@ process_alt_operands (int only_alternative)
 		       & ~((ira_prohibited_class_mode_regs
 			    [this_alternative][mode])
 			   | lra_no_alloc_regs));
-		  if (hard_reg_set_empty_p (available_regs))
+		  if (!hard_reg_set_empty_p (available_regs))
+		    {
+		      if (early_clobber_p
+			  || curr_static_id->operand[nop].type != OP_OUT)
+			{
+			  all_reload_nregs
+			    += ira_reg_class_min_nregs[this_alternative][mode];
+			  all_this_alternative
+			    = (reg_class_subunion
+			       [all_this_alternative][this_alternative]);
+			}
+		    }
+		  else
 		    {
 		      /* There are no hard regs holding a value of given
 			 mode.  */
@@ -3215,6 +3248,22 @@ process_alt_operands (int only_alternative)
 	  if (lra_dump_file != NULL)
 	    fprintf (lra_dump_file,
 		     "            Cycle danger: overall += LRA_MAX_REJECT\n");
+	  overall += LRA_MAX_REJECT;
+	}
+      if (all_this_alternative != NO_REGS
+	  && !SMALL_REGISTER_CLASS_P (all_this_alternative)
+	  && all_used_nregs != 0 && all_reload_nregs != 0
+	  && (all_used_nregs + all_reload_nregs + 1
+	      >= ira_class_hard_regs_num[all_this_alternative]))
+	{
+	  if (lra_dump_file != NULL)
+	    fprintf
+	      (lra_dump_file,
+	       "            Register starvation: overall += LRA_MAX_REJECT"
+	       "(class=%s,avail=%d,used=%d,reload=%d)\n",
+	       reg_class_names[all_this_alternative],
+	       ira_class_hard_regs_num[all_this_alternative],
+	       all_used_nregs, all_reload_nregs);
 	  overall += LRA_MAX_REJECT;
 	}
       ok_p = true;
@@ -4594,7 +4643,7 @@ curr_insn_transform (bool check_only_p)
 				/* This value does not matter for MODIFY.  */
 				GET_MODE_SIZE (GET_MODE (op)));
 	  else if (get_reload_reg (OP_IN, Pmode, *loc, rclass,
-				   NULL, false,
+				   NULL, false, false,
 				   "offsetable address", &new_reg))
 	    {
 	      rtx addr = *loc;
@@ -4680,7 +4729,10 @@ curr_insn_transform (bool check_only_p)
 	  old = *loc;
 	  if (get_reload_reg (type, mode, old, goal_alt[i],
 			      &goal_alt_exclude_start_hard_regs[i],
-			      loc != curr_id->operand_loc[i], "", &new_reg)
+			      loc != curr_id->operand_loc[i],
+			      curr_static_id->operand_alternative
+			      [goal_alt_number * n_operands + i].earlyclobber,
+			       "", &new_reg)
 	      && type != OP_OUT)
 	    {
 	      push_to_sequence (before);

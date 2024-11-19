@@ -499,6 +499,16 @@ public:
      made any decisions about which vector modes to use.  */
   machine_mode vector_mode;
 
+  /* The basic blocks in the vectorization region.  For _loop_vec_info,
+     the memory is internally managed, while for _bb_vec_info, it points
+     to element space of an external auto_vec<>.  This inconsistency is
+     not a good class design pattern.  TODO: improve it with an unified
+     auto_vec<> whose lifetime is confined to vec_info object.  */
+  basic_block *bbs;
+
+  /* The count of the basic blocks in the vectorization region.  */
+  unsigned int nbbs;
+
 private:
   stmt_vec_info new_stmt_vec_info (gimple *stmt);
   void set_vinfo_for_stmt (gimple *, stmt_vec_info, bool = true);
@@ -678,9 +688,6 @@ public:
 
   /* The loop to which this info struct refers to.  */
   class loop *loop;
-
-  /* The loop basic blocks.  */
-  basic_block *bbs;
 
   /* Number of latch executions.  */
   tree num_itersm1;
@@ -969,6 +976,7 @@ public:
 #define LOOP_VINFO_EPILOGUE_IV_EXIT(L)     (L)->vec_epilogue_loop_iv_exit
 #define LOOP_VINFO_SCALAR_IV_EXIT(L)       (L)->scalar_loop_iv_exit
 #define LOOP_VINFO_BBS(L)                  (L)->bbs
+#define LOOP_VINFO_NBBS(L)                 (L)->nbbs
 #define LOOP_VINFO_NITERSM1(L)             (L)->num_itersm1
 #define LOOP_VINFO_NITERS(L)               (L)->num_iters
 /* Since LOOP_VINFO_NITERS and LOOP_VINFO_NITERSM1 can change after
@@ -1094,16 +1102,11 @@ public:
   _bb_vec_info (vec<basic_block> bbs, vec_info_shared *);
   ~_bb_vec_info ();
 
-  /* The region we are operating on.  bbs[0] is the entry, excluding
-     its PHI nodes.  In the future we might want to track an explicit
-     entry edge to cover bbs[0] PHI nodes and have a region entry
-     insert location.  */
-  vec<basic_block> bbs;
-
   vec<slp_root> roots;
 } *bb_vec_info;
 
-#define BB_VINFO_BB(B)               (B)->bb
+#define BB_VINFO_BBS(B)              (B)->bbs
+#define BB_VINFO_NBBS(B)             (B)->nbbs
 #define BB_VINFO_GROUPED_STORES(B)   (B)->grouped_stores
 #define BB_VINFO_SLP_INSTANCES(B)    (B)->slp_instances
 #define BB_VINFO_DATAREFS(B)         (B)->shared->datarefs
@@ -2166,6 +2169,12 @@ vect_apply_runtime_profitability_check_p (loop_vec_info loop_vinfo)
 	  && th >= vect_vf_for_cost (loop_vinfo));
 }
 
+inline bool
+lane_reducing_op_p (code_helper code)
+{
+  return code == DOT_PROD_EXPR || code == WIDEN_SUM_EXPR || code == SAD_EXPR;
+}
+
 /* Source location + hotness information. */
 extern dump_user_location_t vect_location;
 
@@ -2408,6 +2417,10 @@ extern void vect_record_loop_len (loop_vec_info, vec_loop_lens *, unsigned int,
 extern tree vect_get_loop_len (loop_vec_info, gimple_stmt_iterator *,
 			       vec_loop_lens *, unsigned int, tree,
 			       unsigned int, unsigned int);
+extern tree vect_gen_loop_len_mask (loop_vec_info, gimple_stmt_iterator *,
+				    gimple_stmt_iterator *, vec_loop_lens *,
+				    unsigned int, tree, tree, unsigned int,
+				    unsigned int);
 extern gimple_seq vect_gen_len (tree, tree, tree, tree);
 extern stmt_vec_info info_for_reduction (vec_info *, stmt_vec_info);
 extern bool reduction_fn_for_scalar_code (code_helper, internal_fn *);

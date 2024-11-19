@@ -1090,7 +1090,8 @@ decode_cmdline_options_to_array (unsigned int argc, const char **argv,
 	    "-fdiagnostics-color=never",
 	    "-fdiagnostics-urls=never",
 	    "-fdiagnostics-path-format=separate-events",
-	    "-fdiagnostics-text-art-charset=none"
+	    "-fdiagnostics-text-art-charset=none",
+	    "-fno-diagnostics-show-event-links"
 	  };
 	  const int num_expanded = ARRAY_SIZE (expanded_args);
 	  opt_array_len += num_expanded - 1;
@@ -1152,6 +1153,7 @@ prune_options (struct cl_decoded_option **decoded_options,
   unsigned int options_to_prepend = 0;
   unsigned int Wcomplain_wrong_lang_idx = 0;
   unsigned int fdiagnostics_color_idx = 0;
+  unsigned int fdiagnostics_urls_idx = 0;
 
   /* Remove arguments which are negated by others after them.  */
   new_decoded_options_count = 0;
@@ -1184,6 +1186,12 @@ prune_options (struct cl_decoded_option **decoded_options,
 	  if (fdiagnostics_color_idx == 0)
 	    ++options_to_prepend;
 	  fdiagnostics_color_idx = i;
+	  continue;
+	case OPT_fdiagnostics_urls_:
+	  gcc_checking_assert (i != 0);
+	  if (fdiagnostics_urls_idx == 0)
+	    ++options_to_prepend;
+	  fdiagnostics_urls_idx = i;
 	  continue;
 
 	default:
@@ -1246,6 +1254,12 @@ keep:
 	{
 	  new_decoded_options[argv_0 + options_prepended++]
 	    = old_decoded_options[fdiagnostics_color_idx];
+	  new_decoded_options_count++;
+	}
+      if (fdiagnostics_urls_idx != 0)
+	{
+	  new_decoded_options[argv_0 + options_prepended++]
+	    = old_decoded_options[fdiagnostics_urls_idx];
 	  new_decoded_options_count++;
 	}
       gcc_checking_assert (options_to_prepend == options_prepended);

@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -68,6 +69,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-dfa.h"
 #include "analyzer/known-function-manager.h"
 #include "analyzer/call-summary.h"
+#include "text-art/dump.h"
 
 /* For an overview, see gcc/doc/analyzer.texi.  */
 
@@ -261,6 +263,26 @@ setjmp_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
     pp_printf (pp, "SETJMP(EN: %i)", get_enode_index ());
   else
     pp_printf (pp, "setjmp_svalue(EN%i)", get_enode_index ());
+}
+
+/* Implementation of svalue::print_dump_widget_label vfunc for
+   setjmp_svalue.  */
+
+void
+setjmp_svalue::print_dump_widget_label (pretty_printer *pp) const
+{
+  pp_printf (pp, "setjmp_svalue(EN: %i)", get_enode_index ());
+}
+
+/* Implementation of svalue::add_dump_widget_children vfunc for
+   setjmp_svalue.  */
+
+void
+setjmp_svalue::
+add_dump_widget_children (text_art::tree_widget &,
+			  const text_art::dump_widget_info &) const
+{
+  /* No children.  */
 }
 
 /* Get the index of the stored exploded_node.  */
@@ -659,6 +681,11 @@ public:
     return NULL;
   }
 
+  void update_event_loc_info (event_loc_info &) final override
+  {
+    /* No-op.  */
+  }
+
 private:
   const exploded_graph &m_eg;
   tree m_var;
@@ -876,7 +903,8 @@ impl_region_model_context::on_state_leak (const state_machine &sm,
   svalue_set visited;
   path_var leaked_pv
     = m_old_state->m_region_model->get_representative_path_var (sval,
-								&visited);
+								&visited,
+								nullptr);
 
   /* Strip off top-level casts  */
   if (leaked_pv.m_tree && TREE_CODE (leaked_pv.m_tree) == NOP_EXPR)
@@ -2034,7 +2062,7 @@ exploded_node::detect_leaks (exploded_graph &eg)
 				  &old_state, &new_state, &uncertainty, NULL,
 				  get_stmt ());
   const svalue *result = NULL;
-  new_state.m_region_model->pop_frame (NULL, &result, &ctxt);
+  new_state.m_region_model->pop_frame (NULL, &result, &ctxt, nullptr);
   program_state::detect_leaks (old_state, new_state, result,
 			       eg.get_ext_state (), &ctxt);
 }
@@ -3768,7 +3796,7 @@ stmt_requires_new_enode_p (const gimple *stmt,
 	 regular next state, which defeats the "detect state change" logic
 	 in process_node.  Work around this via special-casing, to ensure
 	 we split the enode immediately before any "signal" call.  */
-      if (is_special_named_call_p (call, "signal", 2))
+      if (is_special_named_call_p (call, "signal", 2, true))
 	return true;
     }
 
@@ -5420,7 +5448,7 @@ exploded_graph::dump_exploded_nodes () const
 	  pretty_printer pp;
 	  enode->get_point ().print (&pp, format (true));
 	  fprintf (outf, "%s\n", pp_formatted_text (&pp));
-	  enode->get_state ().dump_to_file (m_ext_state, false, true, outf);
+	  text_art::dump_to_file (enode->get_state (), outf);
 	}
 
       fclose (outf);
@@ -5439,7 +5467,8 @@ exploded_graph::dump_exploded_nodes () const
 	    = xasprintf ("%s.en-%i.txt", dump_base_name, i);
 	  FILE *outf = fopen (filename, "w");
 	  if (!outf)
-	    error_at (UNKNOWN_LOCATION, "unable to open %qs for writing", filename);
+	    error_at (UNKNOWN_LOCATION, "unable to open %qs for writing",
+		      filename);
 	  free (filename);
 
 	  fprintf (outf, "EN %i:\n", enode->m_index);
@@ -5447,7 +5476,7 @@ exploded_graph::dump_exploded_nodes () const
 	  pretty_printer pp;
 	  enode->get_point ().print (&pp, format (true));
 	  fprintf (outf, "%s\n", pp_formatted_text (&pp));
-	  enode->get_state ().dump_to_file (m_ext_state, false, true, outf);
+	  text_art::dump_to_file (enode->get_state (), outf);
 
 	  fclose (outf);
 	}

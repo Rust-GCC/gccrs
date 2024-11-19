@@ -35,7 +35,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "convert.h"
 #include "c-family/c-objc.h"
 #include "c-family/c-ubsan.h"
-#include "gcc-rich-location.h"
+#include "c-family/c-type-mismatch.h"
 #include "stringpool.h"
 #include "attribs.h"
 #include "asan.h"
@@ -1227,7 +1227,9 @@ comp_except_specs (const_tree t1, const_tree t2, int exact)
   if ((t1 && TREE_PURPOSE (t1))
       || (t2 && TREE_PURPOSE (t2)))
     return (t1 && t2
-	    && cp_tree_equal (TREE_PURPOSE (t1), TREE_PURPOSE (t2)));
+	    && (exact == ce_exact
+		? TREE_PURPOSE (t1) == TREE_PURPOSE (t2)
+		: cp_tree_equal (TREE_PURPOSE (t1), TREE_PURPOSE (t2))));
 
   if (t1 == NULL_TREE)			   /* T1 is ...  */
     return t2 == NULL_TREE || exact == ce_derived;
@@ -3023,6 +3025,8 @@ build_class_member_access_expr (cp_expr object, tree member,
 	 know the type of the expression.  Otherwise, we must wait
 	 until overload resolution has been performed.  */
       functions = BASELINK_FUNCTIONS (member);
+      if (TREE_CODE (functions) == OVERLOAD && OVL_SINGLE_P (functions))
+	functions = OVL_FIRST (functions);
       if (TREE_CODE (functions) == FUNCTION_DECL
 	  && DECL_STATIC_FUNCTION_P (functions))
 	type = TREE_TYPE (functions);
@@ -5501,6 +5505,7 @@ cp_build_binary_op (const op_location_t &location,
 	  if (!TYPE_P (type1))
 	    type1 = TREE_TYPE (type1);
 	  if (type0
+	      && type1
 	      && INDIRECT_TYPE_P (type0)
 	      && same_type_p (TREE_TYPE (type0), type1))
 	    {
@@ -7329,6 +7334,9 @@ cp_build_addr_expr_1 (tree arg, bool strict_lvalue, tsubst_flags_t complain)
   else if (BASELINK_P (TREE_OPERAND (arg, 1)))
     {
       tree fn = BASELINK_FUNCTIONS (TREE_OPERAND (arg, 1));
+
+      if (TREE_CODE (fn) == OVERLOAD && OVL_SINGLE_P (fn))
+	fn = OVL_FIRST (fn);
 
       /* We can only get here with a single static member
 	 function.  */
@@ -9352,27 +9360,27 @@ cp_build_c_cast (location_t loc, tree type, tree expr,
 
 /* Warn when a value is moved to itself with std::move.  LHS is the target,
    RHS may be the std::move call, and LOC is the location of the whole
-   assignment.  */
+   assignment.  Return true if we warned.  */
 
-static void
+bool
 maybe_warn_self_move (location_t loc, tree lhs, tree rhs)
 {
   if (!warn_self_move)
-    return;
+    return false;
 
   /* C++98 doesn't know move.  */
   if (cxx_dialect < cxx11)
-    return;
+    return false;
 
   if (processing_template_decl)
-    return;
+    return false;
 
   if (!REFERENCE_REF_P (rhs)
       || TREE_CODE (TREE_OPERAND (rhs, 0)) != CALL_EXPR)
-    return;
+    return false;
   tree fn = TREE_OPERAND (rhs, 0);
   if (!is_std_move_p (fn))
-    return;
+    return false;
 
   /* Just a little helper to strip * and various NOPs.  */
   auto extract_op = [] (tree &op) {
@@ -9390,13 +9398,17 @@ maybe_warn_self_move (location_t loc, tree lhs, tree rhs)
   tree type = TREE_TYPE (lhs);
   tree orig_lhs = lhs;
   extract_op (lhs);
-  if (cp_tree_equal (lhs, arg))
-    {
-      auto_diagnostic_group d;
-      if (warning_at (loc, OPT_Wself_move,
-		      "moving %qE of type %qT to itself", orig_lhs, type))
-	inform (loc, "remove %<std::move%> call");
-    }
+  if (cp_tree_equal (lhs, arg)
+      /* Also warn in a member-initializer-list, as in : i(std::move(i)).  */
+      || (TREE_CODE (lhs) == FIELD_DECL
+	  && TREE_CODE (arg) == COMPONENT_REF
+	  && cp_tree_equal (TREE_OPERAND (arg, 0), current_class_ref)
+	  && TREE_OPERAND (arg, 1) == lhs))
+    if (warning_at (loc, OPT_Wself_move,
+		    "moving %qE of type %qT to itself", orig_lhs, type))
+      return true;
+
+  return false;
 }
 
 /* For use from the C common bits.  */
@@ -10650,8 +10662,7 @@ maybe_warn_about_returning_address_of_local (tree retval, location_t loc)
       && !(TREE_STATIC (whats_returned)
 	   || TREE_PUBLIC (whats_returned)))
     {
-      if (VAR_P (whats_returned)
-	  && DECL_DECOMPOSITION_P (whats_returned)
+      if (DECL_DECOMPOSITION_P (whats_returned)
 	  && DECL_DECOMP_BASE (whats_returned)
 	  && DECL_HAS_VALUE_EXPR_P (whats_returned))
 	{

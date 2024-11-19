@@ -221,6 +221,7 @@ tree gfor_fndecl_is_contiguous0;
 /* Intrinsic functions implemented in Fortran.  */
 tree gfor_fndecl_sc_kind;
 tree gfor_fndecl_si_kind;
+tree gfor_fndecl_sl_kind;
 tree gfor_fndecl_sr_kind;
 
 /* BLAS gemm functions.  */
@@ -1797,7 +1798,8 @@ gfc_get_symbol_decl (gfc_symbol * sym)
     }
 
   if (sym->ts.type == BT_UNKNOWN)
-    gfc_fatal_error ("%s at %C has no default type", sym->name);
+    gfc_fatal_error ("%s at %L has no default type", sym->name,
+		     &sym->declared_at);
 
   if (sym->attr.intrinsic)
     gfc_internal_error ("intrinsic variable which isn't a procedure");
@@ -3604,6 +3606,12 @@ gfc_build_intrinsic_function_decls (void)
   DECL_PURE_P (gfor_fndecl_si_kind) = 1;
   TREE_NOTHROW (gfor_fndecl_si_kind) = 1;
 
+  gfor_fndecl_sl_kind = gfc_build_library_function_decl_with_spec (
+	get_identifier (PREFIX("selected_logical_kind")), ". R ",
+	gfc_int4_type_node, 1, pvoid_type_node);
+  DECL_PURE_P (gfor_fndecl_sl_kind) = 1;
+  TREE_NOTHROW (gfor_fndecl_sl_kind) = 1;
+
   gfor_fndecl_sr_kind = gfc_build_library_function_decl_with_spec (
 	get_identifier (PREFIX("selected_real_kind2008")), ". R R ",
 	gfc_int4_type_node, 3, pvoid_type_node, pvoid_type_node,
@@ -5214,8 +5222,8 @@ gfc_trans_deferred_vars (gfc_symbol * proc_sym, gfc_wrapped_block * block)
 	tree tmp = lookup_attribute ("omp allocate",
 				     DECL_ATTRIBUTES (n->sym->backend_decl));
 	tmp = TREE_VALUE (tmp);
-	TREE_PURPOSE (tmp) = se.expr;	
-	TREE_VALUE (tmp) = align;	
+	TREE_PURPOSE (tmp) = se.expr;
+	TREE_VALUE (tmp) = align;
 	TREE_PURPOSE (TREE_CHAIN (tmp)) = init_stmtlist;
 	TREE_VALUE (TREE_CHAIN (tmp)) = cleanup_stmtlist;
       }

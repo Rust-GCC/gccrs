@@ -35,10 +35,17 @@ package Exp_Ch7 is
    -- Finalization Management --
    -----------------------------
 
-   procedure Build_Anonymous_Master (Ptr_Typ : Entity_Id);
-   --  Build a finalization master for an anonymous access-to-controlled type
-   --  denoted by Ptr_Typ. The master is inserted in the declarations of the
-   --  current unit.
+   procedure Attach_Object_To_Master_Node
+     (Obj_Decl    : Node_Id;
+      Master_Node : Entity_Id);
+   --  Generate code to attach an object denoted by its declaration Obj_Decl
+   --  to a master node denoted by Master_Node. The code is inserted after
+   --  the object is initialized.
+
+   procedure Build_Anonymous_Collection (Ptr_Typ : Entity_Id);
+   --  Build a finalization collection for an anonymous access-to-controlled
+   --  type denoted by Ptr_Typ. The collection is inserted in the declarations
+   --  of the current unit.
 
    procedure Build_Controlling_Procs (Typ : Entity_Id);
    --  Typ is a record, and array type having controlled components.
@@ -102,21 +109,21 @@ package Exp_Ch7 is
    --  used when operating at the library level, when enabled the current
    --  exception will be saved to a global location.
 
-   procedure Build_Finalization_Master
+   procedure Build_Finalization_Collection
      (Typ            : Entity_Id;
       For_Lib_Level  : Boolean   := False;
       For_Private    : Boolean   := False;
       Context_Scope  : Entity_Id := Empty;
       Insertion_Node : Node_Id   := Empty);
-   --  Build a finalization master for an access type. The designated type may
-   --  not necessarily be controlled or need finalization actions depending on
-   --  the context. Flag For_Lib_Level must be set when creating a master for a
-   --  build-in-place function call access result type. Flag For_Private must
+   --  Build a finalization collection for an access type. The designated type
+   --  may not necessarily be controlled or need finalization actions depending
+   --  on the context. For_Lib_Level must be set when creating a collection for
+   --  a build-in-place function call access result type. Flag For_Private must
    --  be set when the designated type contains a private component. Parameters
    --  Context_Scope and Insertion_Node must be used in conjunction with flag
-   --  For_Private. Context_Scope is the scope of the context where the
-   --  finalization master must be analyzed. Insertion_Node is the insertion
-   --  point before which the master is to be inserted.
+   --  For_Private. Context_Scope is the scope of the context where the newly
+   --  built collection must be analyzed. Insertion_Node is the insertion point
+   --  before which the collection is to be inserted.
 
    procedure Build_Finalizer
      (N           : Node_Id;
@@ -182,6 +189,13 @@ package Exp_Ch7 is
    --  one of N_Block_Statement, N_Subprogram_Body, N_Task_Body, N_Entry_Body,
    --  or N_Extended_Return_Statement.
 
+   function Make_Address_For_Finalize
+     (Loc     : Source_Ptr;
+      Obj_Ref : Node_Id;
+      Obj_Typ : Entity_Id) return Node_Id;
+   --  Build the address of an object denoted by Obj_Ref and Obj_Typ for use as
+   --  the actual parameter in a call to a Finalize_Address procedure.
+
    function Make_Adjust_Call
      (Obj_Ref   : Node_Id;
       Typ       : Entity_Id;
@@ -231,14 +245,17 @@ package Exp_Ch7 is
    --  Create a special version of Deep_Finalize with identifier Nam. The
    --  routine has state information and can perform partial finalization.
 
-   function Make_Set_Finalize_Address_Call
-     (Loc     : Source_Ptr;
-      Ptr_Typ : Entity_Id) return Node_Id;
-   --  Associate the Finalize_Address primitive of the designated type with the
-   --  finalization master of access type Ptr_Typ. The returned call is:
-   --
-   --    Set_Finalize_Address
-   --      (<Ptr_Typ>FM, <Desig_Typ>FD'Unrestricted_Access);
+   function Make_Master_Node_Declaration
+     (Loc         : Source_Ptr;
+      Master_Node : Entity_Id;
+      Obj         : Entity_Id) return Node_Id;
+   --  Build the declaration of the Master_Node for the object Obj
+
+   function Make_Suppress_Object_Finalize_Call
+     (Loc : Source_Ptr;
+      Obj : Entity_Id) return Node_Id;
+   --  Build a call to suppress the finalization of the object Obj, only after
+   --  creating the Master_Node of Obj if it does not already exist.
 
    --------------------------------------------
    -- Task and Protected Object finalization --

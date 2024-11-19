@@ -96,7 +96,7 @@ turn on tracing of procedure line numbers (internal switch)
 
 fdef=
 Modula-2 Joined
-recognise the specified suffix as a definition module filename
+recognize the specified suffix as a definition module filename
 
 fdump-system-exports
 Modula-2
@@ -133,6 +133,26 @@ set all location values to a specific value (internal switch)
 fm2-debug-trace=
 Modula-2 Joined
 turn on internal debug tracing for quad,token,line,all (internal switch)
+
+fm2-dump=
+Modula-2 Joined
+dump Modula-2 internal intemediate representation specified by: all,quad,decl,gimple
+
+fm2-dump-decl=
+Modula-2 Joined
+dump Modula-2 decls to the filename stem specified
+
+fm2-dump-gimple=
+Modula-2 Joined
+dump Modula-2 gimple to the filename stem specified
+
+fm2-dump-quad=
+Modula-2 Joined
+dump Modula-2 quads to the filename stem specified
+
+fm2-dump-filter=
+Modula-2 Joined
+filter the language dump using a comma separated list of procedures and modules
 
 fm2-g
 Modula-2
@@ -172,7 +192,7 @@ compile all implementation modules and program module at once
 
 fmod=
 Modula-2 Joined
-recognise the specified suffix as implementation and module filenames
+recognize the specified suffix as implementation and module filenames
 
 fnil
 Modula-2
@@ -260,7 +280,7 @@ optimize non var unbounded parameters by passing it by reference, providing it i
 
 fuse-list=
 Modula-2 Joined
-orders the initialization/finalializations for scaffold-static or force linking of modules if scaffold-dynamic
+orders the initialization/finalizations for scaffold-static or force linking of modules if scaffold-dynamic
 
 fversion
 Modula-2
@@ -278,7 +298,7 @@ static-libgm2
 Driver
 Link the standard Modula-2 libraries statically in the compilation.
 
-; Here are C options that we also recognise, either within the compiler
+; Here are C options that we also recognize, either within the compiler
 ; or to build the preprocessor command lines.
 
 Wall

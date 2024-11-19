@@ -433,6 +433,22 @@ static bool i386_asm_output_addr_const_extra (FILE *, rtx);
 static bool ix86_can_inline_p (tree, tree);
 static unsigned int ix86_minimum_incoming_stack_boundary (bool);
 
+typedef enum ix86_flags_cc
+{
+  X86_CCO = 0, X86_CCNO, X86_CCB, X86_CCNB,
+  X86_CCE, X86_CCNE, X86_CCBE, X86_CCNBE,
+  X86_CCS, X86_CCNS, X86_CCP, X86_CCNP,
+  X86_CCL, X86_CCNL, X86_CCLE, X86_CCNLE
+} ix86_cc;
+
+static const char *ix86_ccmp_dfv_mapping[] =
+{
+  "{dfv=of}", "{dfv=}", "{dfv=cf}", "{dfv=}",
+  "{dfv=zf}", "{dfv=}", "{dfv=cf, zf}", "{dfv=}",
+  "{dfv=sf}", "{dfv=}", "{dfv=cf}", "{dfv=}",
+  "{dfv=sf}", "{dfv=sf, of}", "{dfv=sf, of, zf}", "{dfv=sf, of}"
+};
+
 
 /* Whether -mtune= or -march= were specified */
 int ix86_tune_defaulted;
@@ -5976,12 +5992,10 @@ ix86_setup_frame_addresses (void)
   cfun->machine->accesses_prev_frame = 1;
 }
 
-#ifndef USE_HIDDEN_LINKONCE
-# if defined(HAVE_GAS_HIDDEN) && (SUPPORTS_ONE_ONLY - 0)
-#  define USE_HIDDEN_LINKONCE 1
-# else
-#  define USE_HIDDEN_LINKONCE 0
-# endif
+#if defined(HAVE_GAS_HIDDEN) && (SUPPORTS_ONE_ONLY - 0)
+# define USE_HIDDEN_LINKONCE 1
+#else
+# define USE_HIDDEN_LINKONCE 0
 #endif
 
 /* Label count for call and return thunks.  It is used to make unique
@@ -13692,6 +13706,7 @@ print_reg (rtx x, int code, FILE *file)
    M -- print addr32 prefix for TARGET_X32 with VSIB address.
    ! -- print NOTRACK prefix for jxx/call/ret instructions if required.
    N -- print maskz if it's constant 0 operand.
+   G -- print embedded flag for ccmp/ctest.
  */
 
 void
@@ -14083,6 +14098,14 @@ ix86_print_operand (FILE *file, rtx x, int code)
 			      code == 'c' || code == 'f',
 			      code == 'F' || code == 'f',
 			      file);
+	  return;
+
+	case 'G':
+	  {
+	    int dfv = INTVAL (x);
+	    const char *dfv_suffix = ix86_ccmp_dfv_mapping[dfv];
+	    fputs (dfv_suffix, file);
+	  }
 	  return;
 
 	case 'H':
@@ -16466,6 +16489,24 @@ ix86_convert_const_vector_to_integer (rtx op, machine_mode mode)
     }
 
   return val.to_shwi ();
+}
+
+int ix86_get_flags_cc (rtx_code code)
+{
+  switch (code)
+    {
+      case NE: return X86_CCNE;
+      case EQ: return X86_CCE;
+      case GE: return X86_CCNL;
+      case GT: return X86_CCNLE;
+      case LE: return X86_CCLE;
+      case LT: return X86_CCL;
+      case GEU: return X86_CCNB;
+      case GTU: return X86_CCNBE;
+      case LEU: return X86_CCBE;
+      case LTU: return X86_CCB;
+      default: return -1;
+    }
 }
 
 /* Return TRUE or FALSE depending on whether the first SET in INSN
@@ -20357,7 +20398,8 @@ ix86_hardreg_mov_ok (rtx dst, rtx src)
 	   ? standard_sse_constant_p (src, GET_MODE (dst))
 	   : x86_64_immediate_operand (src, GET_MODE (dst)))
       && ix86_class_likely_spilled_p (REGNO_REG_CLASS (REGNO (dst)))
-      && !reload_completed)
+      && !reload_completed
+      && !lra_in_progress)
     return false;
   return true;
 }
@@ -20880,13 +20922,6 @@ ix86_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
       if (TARGET_AVX512F
 	  && ((VALID_AVX512F_REG_OR_XI_MODE (mode) && TARGET_EVEX512)
 	      || VALID_AVX512F_SCALAR_MODE (mode)))
-	return true;
-
-      /* For AVX-5124FMAPS or AVX-5124VNNIW
-	 allow V64SF and V64SI modes for special regnos.  */
-      if ((TARGET_AVX5124FMAPS || TARGET_AVX5124VNNIW)
-	  && (mode == V64SFmode || mode == V64SImode)
-	  && MOD4_SSE_REGNO_P (regno))
 	return true;
 
       /* TODO check for QI/HI scalars.  */
@@ -21570,7 +21605,8 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
       if (x86_64_immediate_operand (x, VOIDmode))
 	*total = 0;
      else
-	*total = 1;
+	/* movabsq is slightly more expensive than a simple instruction. */
+	*total = COSTS_N_INSNS (1) + 1;
       return true;
 
     case CONST_DOUBLE:
@@ -21876,6 +21912,49 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	    }
 	  *total = ix86_vec_cost (mode, cost->sse_op);
 	}
+      else if (TARGET_64BIT
+	       && mode == TImode
+	       && GET_CODE (XEXP (x, 0)) == ASHIFT
+	       && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
+	       && GET_MODE (XEXP (XEXP (XEXP (x, 0), 0), 0)) == DImode
+	       && CONST_INT_P (XEXP (XEXP (x, 0), 1))
+	       && INTVAL (XEXP (XEXP (x, 0), 1)) == 64
+	       && GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
+	       && GET_MODE (XEXP (XEXP (x, 1), 0)) == DImode)
+	{
+	  /* *concatditi3 is cheap.  */
+	  rtx op0 = XEXP (XEXP (XEXP (x, 0), 0), 0);
+	  rtx op1 = XEXP (XEXP (x, 1), 0);
+	  *total = (SUBREG_P (op0) && GET_MODE (SUBREG_REG (op0)) == DFmode)
+		   ? COSTS_N_INSNS (1)    /* movq.  */
+		   : set_src_cost (op0, DImode, speed);
+	  *total += (SUBREG_P (op1) && GET_MODE (SUBREG_REG (op1)) == DFmode)
+		    ? COSTS_N_INSNS (1)    /* movq.  */
+		    : set_src_cost (op1, DImode, speed);
+	  return true;
+	}
+      else if (TARGET_64BIT
+	       && mode == TImode
+	       && GET_CODE (XEXP (x, 0)) == AND
+	       && REG_P (XEXP (XEXP (x, 0), 0))
+	       && CONST_WIDE_INT_P (XEXP (XEXP (x, 0), 1))
+	       && CONST_WIDE_INT_NUNITS (XEXP (XEXP (x, 0), 1)) == 2
+	       && CONST_WIDE_INT_ELT (XEXP (XEXP (x, 0), 1), 0) == -1
+	       && CONST_WIDE_INT_ELT (XEXP (XEXP (x, 0), 1), 1) == 0
+	       && GET_CODE (XEXP (x, 1)) == ASHIFT
+	       && GET_CODE (XEXP (XEXP (x, 1), 0)) == ZERO_EXTEND
+	       && GET_MODE (XEXP (XEXP (XEXP (x, 1), 0), 0)) == DImode
+	       && CONST_INT_P (XEXP (XEXP (x, 1), 1))
+	       && INTVAL (XEXP (XEXP (x, 1), 1)) == 64)
+	{
+	  /* *insvti_highpart is cheap.  */
+	  rtx op = XEXP (XEXP (XEXP (x, 1), 0), 0);
+	  *total = COSTS_N_INSNS (1) + 1;
+	  *total += (SUBREG_P (op) && GET_MODE (SUBREG_REG (op)) == DFmode)
+		    ? COSTS_N_INSNS (1)    /* movq.  */
+		    : set_src_cost (op, DImode, speed);
+	  return true;
+	}
       else if (GET_MODE_SIZE (mode) > UNITS_PER_WORD)
 	*total = cost->add * 2;
       else
@@ -22134,6 +22213,8 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	*total = cost->fabs;
       else if (FLOAT_MODE_P (mode))
 	*total = ix86_vec_cost (mode, cost->sse_op);
+      else if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT)
+	*total = cost->sse_op;
       return false;
 
     case SQRT:
@@ -22196,10 +22277,39 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
       return true;
 
     case MEM:
+      /* CONST_VECTOR_DUPLICATE_P in constant_pool is just broadcast.
+	 or variants in ix86_vector_duplicate_simode_const.  */
+
+      if (GET_MODE_SIZE (mode) >= 16
+	  && VECTOR_MODE_P (mode)
+	  && SYMBOL_REF_P (XEXP (x, 0))
+	  && CONSTANT_POOL_ADDRESS_P (XEXP (x, 0))
+	  && ix86_broadcast_from_constant (mode, x))
+	{
+	  *total = COSTS_N_INSNS (2) + speed;
+	  return true;
+	}
+
       /* An insn that accesses memory is slightly more expensive
          than one that does not.  */
       if (speed)
-        *total += 1;
+	{
+	  *total += 1;
+	  rtx addr = XEXP (x, 0);
+	  /* For MEM, rtx_cost iterates each subrtx, and adds up the costs,
+	     so for MEM (reg) and MEM (reg + 4), the former costs 5,
+	     the latter costs 9, it is not accurate for x86. Ideally
+	     address_cost should be used, but it reduce cost too much.
+	     So current solution is make constant disp as cheap as possible.  */
+	  if (GET_CODE (addr) == PLUS
+	      && x86_64_immediate_operand (XEXP (addr, 1), Pmode))
+	    {
+	      *total += 1;
+	      *total += rtx_cost (XEXP (addr, 0), Pmode, PLUS, 0, speed);
+	      return true;
+	    }
+	}
+
       return false;
 
     case ZERO_EXTRACT:
@@ -22237,7 +22347,7 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	{
 	  /* cmov.  */
 	  *total = COSTS_N_INSNS (1);
-	  if (!REG_P (XEXP (x, 0)))
+	  if (!COMPARISON_P (XEXP (x, 0)) && !REG_P (XEXP (x, 0)))
 	    *total += rtx_cost (XEXP (x, 0), mode, code, 0, speed);
 	  if (!REG_P (XEXP (x, 1)))
 	    *total += rtx_cost (XEXP (x, 1), mode, code, 1, speed);
@@ -23135,7 +23245,7 @@ ix86_avoid_jump_mispredicts (void)
 	  if (dump_file)
 	    fprintf (dump_file, "Padding insn %i by %i bytes!\n",
 		     INSN_UID (insn), padsize);
-          emit_insn_before (gen_pad (GEN_INT (padsize)), insn);
+	  emit_insn_before (gen_max_skip_align (GEN_INT (4), GEN_INT (padsize)), insn);
 	}
     }
 }
@@ -23408,6 +23518,150 @@ ix86_split_stlf_stall_load ()
     }
 }
 
+/* When a hot loop can be fit into one cacheline,
+   force align the loop without considering the max skip.  */
+static void
+ix86_align_loops ()
+{
+  basic_block bb;
+
+  /* Don't do this when we don't know cache line size.  */
+  if (ix86_cost->prefetch_block == 0)
+    return;
+
+  loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
+  profile_count count_threshold = cfun->cfg->count_max / param_align_threshold;
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx_insn *label = BB_HEAD (bb);
+      bool has_fallthru = 0;
+      edge e;
+      edge_iterator ei;
+
+      if (!LABEL_P (label))
+	continue;
+
+      profile_count fallthru_count = profile_count::zero ();
+      profile_count branch_count = profile_count::zero ();
+
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	{
+	  if (e->flags & EDGE_FALLTHRU)
+	    has_fallthru = 1, fallthru_count += e->count ();
+	  else
+	    branch_count += e->count ();
+	}
+
+      if (!fallthru_count.initialized_p () || !branch_count.initialized_p ())
+	continue;
+
+      if (bb->loop_father
+	  && bb->loop_father->latch != EXIT_BLOCK_PTR_FOR_FN (cfun)
+	  && (has_fallthru
+	      ? (!(single_succ_p (bb)
+		   && single_succ (bb) == EXIT_BLOCK_PTR_FOR_FN (cfun))
+		 && optimize_bb_for_speed_p (bb)
+		 && branch_count + fallthru_count > count_threshold
+		 && (branch_count > fallthru_count * param_align_loop_iterations))
+	      /* In case there'no fallthru for the loop.
+		 Nops inserted won't be executed.  */
+	      : (branch_count > count_threshold
+		 || (bb->count > bb->prev_bb->count * 10
+		     && (bb->prev_bb->count
+			 <= ENTRY_BLOCK_PTR_FOR_FN (cfun)->count / 2)))))
+	{
+	  rtx_insn* insn, *end_insn;
+	  HOST_WIDE_INT size = 0;
+	  bool padding_p = true;
+	  basic_block tbb = bb;
+	  unsigned cond_branch_num = 0;
+	  bool detect_tight_loop_p = false;
+
+	  for (unsigned int i = 0; i != bb->loop_father->num_nodes;
+	       i++, tbb = tbb->next_bb)
+	    {
+	      /* Only handle continuous cfg layout. */
+	      if (bb->loop_father != tbb->loop_father)
+		{
+		  padding_p = false;
+		  break;
+		}
+
+	      FOR_BB_INSNS (tbb, insn)
+		{
+		  if (!NONDEBUG_INSN_P (insn))
+		    continue;
+		  size += ix86_min_insn_size (insn);
+
+		  /* We don't know size of inline asm.
+		     Don't align loop for call.  */
+		  if (asm_noperands (PATTERN (insn)) >= 0
+		      || CALL_P (insn))
+		    {
+		      size = -1;
+		      break;
+		    }
+		}
+
+	      if (size == -1 || size > ix86_cost->prefetch_block)
+		{
+		  padding_p = false;
+		  break;
+		}
+
+	      FOR_EACH_EDGE (e, ei, tbb->succs)
+		{
+		  /* It could be part of the loop.  */
+		  if (e->dest == bb)
+		    {
+		      detect_tight_loop_p = true;
+		      break;
+		    }
+		}
+
+	      if (detect_tight_loop_p)
+		break;
+
+	      end_insn = BB_END (tbb);
+	      if (JUMP_P (end_insn))
+		{
+		  /* For decoded icache:
+		     1. Up to two branches are allowed per Way.
+		     2. A non-conditional branch is the last micro-op in a Way.
+		  */
+		  if (onlyjump_p (end_insn)
+		      && (any_uncondjump_p (end_insn)
+			  || single_succ_p (tbb)))
+		    {
+		      padding_p = false;
+		      break;
+		    }
+		  else if (++cond_branch_num >= 2)
+		    {
+		      padding_p = false;
+		      break;
+		    }
+		}
+
+	    }
+
+	  if (padding_p && detect_tight_loop_p)
+	    {
+	      emit_insn_before (gen_max_skip_align (GEN_INT (ceil_log2 (size)),
+						    GEN_INT (0)), label);
+	      /* End of function.  */
+	      if (!tbb || tbb == EXIT_BLOCK_PTR_FOR_FN (cfun))
+		break;
+	      /* Skip bb which already fits into one cacheline.  */
+	      bb = tbb;
+	    }
+	}
+    }
+
+  loop_optimizer_finalize ();
+  free_dominance_info (CDI_DOMINATORS);
+}
+
 /* Implement machine specific optimizations.  We implement padding of returns
    for K8 CPUs and pass to avoid 4 jumps in the single 16 byte window.  */
 static void
@@ -23431,6 +23685,8 @@ ix86_reorg (void)
 #ifdef ASM_OUTPUT_MAX_SKIP_ALIGN
       if (TARGET_FOUR_JUMP_LIMIT)
 	ix86_avoid_jump_mispredicts ();
+
+      ix86_align_loops ();
 #endif
     }
 }
@@ -24722,6 +24978,23 @@ ix86_noce_conversion_profitable_p (rtx_insn *seq, struct noce_if_info *if_info)
 	    return false;
 	}
     }
+
+  /* W/o TARGET_SSE4_1, it takes 3 instructions (pand, pandn and por)
+     for movdfcc/movsfcc, and could possibly fail cost comparison.
+     Increase branch cost will hurt performance for other modes, so
+     specially add some preference for floating point ifcvt.  */
+  if (!TARGET_SSE4_1 && if_info->x
+      && GET_MODE_CLASS (GET_MODE (if_info->x)) == MODE_FLOAT
+      && if_info->speed_p)
+    {
+      unsigned cost = seq_cost (seq, true);
+
+      if (cost <= if_info->original_cost)
+	return true;
+
+      return cost <= (if_info->max_seq_cost + COSTS_N_INSNS (2));
+    }
+
   return default_noce_conversion_profitable_p (seq, if_info);
 }
 
@@ -25799,6 +26072,20 @@ ix86_bitint_type_info (int n, struct bitint_info *info)
   return true;
 }
 
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+tree
+ix86_cxx_adjust_cdtor_callabi_fntype (tree fntype)
+{
+  if (TARGET_64BIT
+      || TARGET_RTD
+      || ix86_function_type_abi (fntype) != MS_ABI)
+    return fntype;
+  /* For 32-bit MS ABI add thiscall attribute.  */
+  tree attribs = tree_cons (get_identifier ("thiscall"), NULL_TREE,
+			    TYPE_ATTRIBUTES (fntype));
+  return build_type_attribute_variant (fntype, attribs);
+}
+
 /* Implement PUSH_ROUNDING.  On 386, we have pushw instruction that
    decrements by exactly 2 no matter what the position was, there is no pushb.
 
@@ -26410,6 +26697,8 @@ static const scoped_attribute_specs *const ix86_attribute_table[] =
 #define TARGET_C_EXCESS_PRECISION ix86_get_excess_precision
 #undef TARGET_C_BITINT_TYPE_INFO
 #define TARGET_C_BITINT_TYPE_INFO ix86_bitint_type_info
+#undef TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE
+#define TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE ix86_cxx_adjust_cdtor_callabi_fntype
 #undef TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
 #undef TARGET_PUSH_ARGUMENT
@@ -26747,6 +27036,13 @@ ix86_libgcc_floating_mode_supported_p
 
 #undef TARGET_MEMTAG_TAG_SIZE
 #define TARGET_MEMTAG_TAG_SIZE ix86_memtag_tag_size
+
+#undef TARGET_GEN_CCMP_FIRST
+#define TARGET_GEN_CCMP_FIRST ix86_gen_ccmp_first
+
+#undef TARGET_GEN_CCMP_NEXT
+#define TARGET_GEN_CCMP_NEXT ix86_gen_ccmp_next
+
 
 static bool
 ix86_libc_has_fast_function (int fcode ATTRIBUTE_UNUSED)

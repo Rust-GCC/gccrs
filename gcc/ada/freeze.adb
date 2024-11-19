@@ -222,7 +222,9 @@ package body Freeze is
                       = Scope (Typ)
          then
             return Abandon;
-         elsif Nkind (N) = N_Aggregate
+         elsif Nkind (N) in N_Aggregate
+                          | N_Extension_Aggregate
+                          | N_Delta_Aggregate
            and then Base_Type (Etype (N)) = Base_Type (Typ)
          then
             return Abandon;
@@ -303,8 +305,12 @@ package body Freeze is
       if Known_Esize (Typ) and then Known_Alignment (Typ) then
          Align := Alignment_In_Bits (Typ);
 
-         if Align > Esize (Typ) and then Align <= System_Max_Integer_Size then
-            Set_Esize (Typ, Align);
+         if Align > Esize (Typ) then
+            if Align > System_Max_Integer_Size then
+               pragma Assert (Serious_Errors_Detected > 0);
+            else
+               Set_Esize (Typ, Align);
+            end if;
          end if;
       end if;
    end Adjust_Esize_For_Alignment;
@@ -1073,6 +1079,7 @@ package body Freeze is
                     and then
                       No (Discriminant_Default_Value (First_Discriminant (T)))
                     and then not Known_RM_Size (T)
+                    and then not Known_Esize (T)
                   then
                      return False;
                   end if;
@@ -2616,11 +2623,11 @@ package body Freeze is
             end loop;
          end if;
 
-         --  Historical note: We used to create a finalization master for an
-         --  access type whose designated type is not controlled, but contains
+         --  Historical note: We used to create a finalization collection for
+         --  access types whose designated type is not controlled, but contains
          --  private controlled compoments. This form of postprocessing is no
-         --  longer needed because the finalization master is now created when
-         --  the access type is frozen (see Exp_Ch3.Freeze_Type).
+         --  longer needed because the finalization collection is now created
+         --  when the access type is frozen (see Exp_Ch3.Freeze_Type).
 
          Next_Entity (E);
       end loop;
@@ -4094,7 +4101,7 @@ package body Freeze is
          <<Skip_Packed>>
 
          --  A Ghost type cannot have a component of protected or task type
-         --  (SPARK RM 6.9(19)).
+         --  (SPARK RM 6.9(21)).
 
          if Is_Ghost_Entity (Arr) and then Is_Concurrent_Type (Ctyp) then
             Error_Msg_N
@@ -6958,7 +6965,7 @@ package body Freeze is
                if Is_Type (Comp) then
                   Freeze_And_Append (Comp, N, Result);
 
-               elsif (Ekind (Comp)) /= E_Function then
+               elsif Ekind (Comp) /= E_Function then
 
                   --  The guard on the presence of the Etype seems to be needed
                   --  for some CodePeer (-gnatcC) cases, but not clear why???
@@ -7327,17 +7334,21 @@ package body Freeze is
 
          if Is_Composite_Type (E) then
 
-            --  AI95-117 requires that all new primitives of a tagged type must
-            --  inherit the convention of the full view of the type. Inherited
-            --  and overriding operations are defined to inherit the convention
-            --  of their parent or overridden subprogram (also specified in
-            --  AI-117), which will have occurred earlier (in Derive_Subprogram
-            --  and New_Overloaded_Entity). Here we set the convention of
+            --  AI95-117 requires that all new primitives of a tagged type
+            --  must inherit the convention of the full view of the
+            --  type. Inherited and overriding operations are defined to
+            --  inherit the convention of their parent or overridden
+            --  subprogram (also specified in AI-117), which will have
+            --  occurred earlier (in Derive_Subprogram and
+            --  New_Overloaded_Entity). Here we set the convention of
             --  primitives that are still convention Ada, which will ensure
-            --  that any new primitives inherit the type's convention. Class-
-            --  wide types can have a foreign convention inherited from their
-            --  specific type, but are excluded from this since they don't have
-            --  any associated primitives.
+            --  that any new primitives inherit the type's convention. We
+            --  don't do this for primitives that are internal to avoid
+            --  potential problems in the case of nested subprograms and
+            --  convention C. In addition, class-wide types can have a
+            --  foreign convention inherited from their specific type, but
+            --  are excluded from this since they don't have any associated
+            --  primitives.
 
             if Is_Tagged_Type (E)
               and then not Is_Class_Wide_Type (E)
@@ -7350,7 +7361,9 @@ package body Freeze is
                begin
                   Prim := First_Elmt (Prim_List);
                   while Present (Prim) loop
-                     if Convention (Node (Prim)) = Convention_Ada then
+                     if Convention (Node (Prim)) = Convention_Ada
+                       and then Comes_From_Source (Node (Prim))
+                     then
                         Set_Convention (Node (Prim), Convention (E));
                      end if;
 

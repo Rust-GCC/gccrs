@@ -85,14 +85,15 @@ along with GCC; see the file COPYING3.  If not see
 
 class remove_unreachable {
 public:
-  remove_unreachable (gimple_ranger &r, bool all) : m_ranger (r), final_p (all)
+  remove_unreachable (range_query &r, bool all) : m_ranger (r), final_p (all)
     { m_list.create (30); }
   ~remove_unreachable () { m_list.release (); }
   void handle_early (gimple *s, edge e);
   void maybe_register (gimple *s);
+  bool remove ();
   bool remove_and_update_globals ();
   vec<std::pair<int, int> > m_list;
-  gimple_ranger &m_ranger;
+  range_query &m_ranger;
   bool final_p;
 };
 
@@ -195,6 +196,9 @@ fully_replaceable (tree name, basic_block bb)
 void
 remove_unreachable::handle_early (gimple *s, edge e)
 {
+  // If there is no gori_ssa, there is no early processsing.
+  if (!m_ranger.gori_ssa ())
+    return ;
   bool lhs_p = TREE_CODE (gimple_cond_lhs (s)) == SSA_NAME;
   bool rhs_p = TREE_CODE (gimple_cond_rhs (s)) == SSA_NAME;
   // Do not remove __builtin_unreachable if it confers a relation, or
@@ -210,14 +214,14 @@ remove_unreachable::handle_early (gimple *s, edge e)
 
   // Check if every export use is dominated by this branch.
   tree name;
-  FOR_EACH_GORI_EXPORT_NAME (m_ranger.gori (), e->src, name)
+  FOR_EACH_GORI_EXPORT_NAME (m_ranger.gori_ssa (), e->src, name)
     {
       if (!fully_replaceable (name, e->src))
 	return;
     }
 
   // Set the global value for each.
-  FOR_EACH_GORI_EXPORT_NAME (m_ranger.gori (), e->src, name)
+  FOR_EACH_GORI_EXPORT_NAME (m_ranger.gori_ssa (), e->src, name)
     {
       Value_Range r (TREE_TYPE (name));
       m_ranger.range_on_entry (r, e->dest, name);
@@ -253,6 +257,41 @@ remove_unreachable::handle_early (gimple *s, edge e)
     }
 }
 
+// Process the edges in the list, change the conditions and removing any
+// dead code feeding those conditions.   This removes the unreachables, but
+// makes no attempt to set globals values.
+
+bool
+remove_unreachable::remove ()
+{
+  if (!final_p || m_list.length () == 0)
+    return false;
+
+  bool change = false;
+  unsigned i;
+  for (i = 0; i < m_list.length (); i++)
+    {
+      auto eb = m_list[i];
+      basic_block src = BASIC_BLOCK_FOR_FN (cfun, eb.first);
+      basic_block dest = BASIC_BLOCK_FOR_FN (cfun, eb.second);
+      if (!src || !dest)
+	continue;
+      edge e = find_edge (src, dest);
+      gimple *s = gimple_outgoing_range_stmt_p (e->src);
+      gcc_checking_assert (gimple_code (s) == GIMPLE_COND);
+
+      change = true;
+      // Rewrite the condition.
+      if (e->flags & EDGE_TRUE_VALUE)
+	gimple_cond_make_true (as_a<gcond *> (s));
+      else
+	gimple_cond_make_false (as_a<gcond *> (s));
+      update_stmt (s);
+    }
+
+  return change;
+}
+
 
 // Process the edges in the list, change the conditions and removing any
 // dead code feeding those conditions.  Calculate the range of any
@@ -265,6 +304,10 @@ remove_unreachable::remove_and_update_globals ()
 {
   if (m_list.length () == 0)
     return false;
+
+  // If there is no import/export info, just remove unreachables if necessary.
+  if (!m_ranger.gori_ssa ())
+    return remove ();
 
   // Ensure the cache in SCEV has been cleared before processing
   // globals to be removed.
@@ -287,7 +330,7 @@ remove_unreachable::remove_and_update_globals ()
       gcc_checking_assert (gimple_code (s) == GIMPLE_COND);
 
       bool dominate_exit_p = true;
-      FOR_EACH_GORI_EXPORT_NAME (m_ranger.gori (), e->src, name)
+      FOR_EACH_GORI_EXPORT_NAME (m_ranger.gori_ssa (), e->src, name)
 	{
 	  // Ensure the cache is set for NAME in the succ block.
 	  Value_Range r(TREE_TYPE (name));
@@ -304,7 +347,8 @@ remove_unreachable::remove_and_update_globals ()
       // If the exit is dominated, add to the export list.  Otherwise if this
       // isn't the final VRP pass, leave the call in the IL.
       if (dominate_exit_p)
-	bitmap_ior_into (all_exports, m_ranger.gori ().exports (e->src));
+	bitmap_ior_into (all_exports,
+			 m_ranger.gori_ssa ()->exports (e->src));
       else if (!final_p)
 	continue;
 
@@ -1051,8 +1095,7 @@ private:
   from anywhere to perform a VRP pass, including from EVRP.  */
 
 unsigned int
-execute_ranger_vrp (struct function *fun, bool warn_array_bounds_p,
-		    bool final_p)
+execute_ranger_vrp (struct function *fun, bool final_p)
 {
   loop_optimizer_init (LOOPS_NORMAL | LOOPS_HAVE_RECORDED_EXITS);
   rewrite_into_loop_closed_ssa (NULL, TODO_update_ssa);
@@ -1068,27 +1111,6 @@ execute_ranger_vrp (struct function *fun, bool warn_array_bounds_p,
   folder.m_unreachable.remove_and_update_globals ();
   if (dump_file && (dump_flags & TDF_DETAILS))
     ranger->dump (dump_file);
-
-  if ((warn_array_bounds || warn_strict_flex_arrays) && warn_array_bounds_p)
-    {
-      // Set all edges as executable, except those ranger says aren't.
-      int non_exec_flag = ranger->non_executable_edge_flag;
-      basic_block bb;
-      FOR_ALL_BB_FN (bb, fun)
-	{
-	  edge_iterator ei;
-	  edge e;
-	  FOR_EACH_EDGE (e, ei, bb->succs)
-	    if (e->flags & non_exec_flag)
-	      e->flags &= ~EDGE_EXECUTABLE;
-	    else
-	      e->flags |= EDGE_EXECUTABLE;
-	}
-      scev_reset ();
-      array_bounds_checker array_checker (fun, ranger);
-      array_checker.check ();
-    }
-
 
   if (Value_Range::supports_type_p (TREE_TYPE
 				     (TREE_TYPE (current_function_decl)))
@@ -1286,14 +1308,13 @@ const pass_data pass_data_fast_vrp =
 class pass_vrp : public gimple_opt_pass
 {
 public:
-  pass_vrp (gcc::context *ctxt, const pass_data &data_, bool warn_p)
-    : gimple_opt_pass (data_, ctxt), data (data_),
-      warn_array_bounds_p (warn_p), final_p (false)
+  pass_vrp (gcc::context *ctxt, const pass_data &data_)
+    : gimple_opt_pass (data_, ctxt), data (data_), final_p (false)
     { }
 
   /* opt_pass methods: */
   opt_pass * clone () final override
-    { return new pass_vrp (m_ctxt, data, false); }
+    { return new pass_vrp (m_ctxt, data); }
   void set_pass_param (unsigned int n, bool param) final override
     {
       gcc_assert (n == 0);
@@ -1306,12 +1327,11 @@ public:
       if (&data == &pass_data_fast_vrp)
 	return execute_fast_vrp (fun);
 
-      return execute_ranger_vrp (fun, warn_array_bounds_p, final_p);
+      return execute_ranger_vrp (fun, final_p);
     }
 
  private:
   const pass_data &data;
-  bool warn_array_bounds_p;
   bool final_p;
 }; // class pass_vrp
 
@@ -1382,19 +1402,19 @@ public:
 gimple_opt_pass *
 make_pass_vrp (gcc::context *ctxt)
 {
-  return new pass_vrp (ctxt, pass_data_vrp, true);
+  return new pass_vrp (ctxt, pass_data_vrp);
 }
 
 gimple_opt_pass *
 make_pass_early_vrp (gcc::context *ctxt)
 {
-  return new pass_vrp (ctxt, pass_data_early_vrp, false);
+  return new pass_vrp (ctxt, pass_data_early_vrp);
 }
 
 gimple_opt_pass *
 make_pass_fast_vrp (gcc::context *ctxt)
 {
-  return new pass_vrp (ctxt, pass_data_fast_vrp, false);
+  return new pass_vrp (ctxt, pass_data_fast_vrp);
 }
 
 gimple_opt_pass *

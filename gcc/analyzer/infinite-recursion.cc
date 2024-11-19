@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -182,7 +183,7 @@ public:
      it at the topmost entrypoint to the function.  */
   void add_final_event (const state_machine *,
 			const exploded_node *enode,
-			const gimple *,
+			const event_loc_info &,
 			tree,
 			state_machine::state_t,
 			checker_path *emission_path) final override

@@ -1885,6 +1885,16 @@ gfc_trans_array_ctor_element (stmtblock_t * pblock, tree desc,
 				 gfc_conv_descriptor_data_get (desc));
   tmp = gfc_build_array_ref (tmp, offset, NULL);
 
+  if (expr->expr_type == EXPR_FUNCTION && expr->ts.type == BT_DERIVED
+      && expr->ts.u.derived->attr.alloc_comp)
+    {
+      if (!VAR_P (se->expr))
+	se->expr = gfc_evaluate_now (se->expr, &se->pre);
+      gfc_add_expr_to_block (&se->finalblock,
+			     gfc_deallocate_alloc_comp_no_caf (
+			       expr->ts.u.derived, se->expr, expr->rank, true));
+    }
+
   if (expr->ts.type == BT_CHARACTER)
     {
       int i = gfc_validate_kind (BT_CHARACTER, expr->ts.kind, false);
@@ -2147,6 +2157,8 @@ gfc_trans_array_constructor_value (stmtblock_t * pblock,
 	      *poffset = fold_build2_loc (input_location, PLUS_EXPR,
 					  gfc_array_index_type,
 					  *poffset, gfc_index_one_node);
+	      if (finalblock)
+		gfc_add_block_to_block (finalblock, &se.finalblock);
 	    }
 	  else
 	    {
@@ -2795,6 +2807,7 @@ trans_array_constructor (gfc_ss * ss, locus * where)
   tree neg_len;
   char *msg;
   stmtblock_t finalblock;
+  bool finalize_required;
 
   /* Save the old values for nested checking.  */
   old_first_len = first_len;
@@ -2973,8 +2986,11 @@ trans_array_constructor (gfc_ss * ss, locus * where)
   TREE_USED (offsetvar) = 0;
 
   gfc_init_block (&finalblock);
+  finalize_required = expr->must_finalize;
+  if (expr->ts.type == BT_DERIVED && expr->ts.u.derived->attr.alloc_comp)
+    finalize_required = true;
   gfc_trans_array_constructor_value (&outer_loop->pre,
-				     expr->must_finalize ? &finalblock : NULL,
+				     finalize_required ? &finalblock : NULL,
 				     type, desc, c, &offset, &offsetvar,
 				     dynamic);
 
@@ -4911,6 +4927,7 @@ done:
 	  gfc_expr *expr;
 	  locus *expr_loc;
 	  const char *expr_name;
+	  char *ref_name = NULL;
 
 	  ss_info = ss->info;
 	  if (ss_info->type != GFC_SS_SECTION)
@@ -4922,7 +4939,10 @@ done:
 
 	  expr = ss_info->expr;
 	  expr_loc = &expr->where;
-	  expr_name = expr->symtree->name;
+	  if (expr->ref)
+	    expr_name = ref_name = abridged_ref_name (expr, NULL);
+	  else
+	    expr_name = expr->symtree->name;
 
 	  gfc_start_block (&inner);
 
@@ -5134,6 +5154,7 @@ done:
 
 	  gfc_add_expr_to_block (&block, tmp);
 
+	  free (ref_name);
 	}
 
       tmp = gfc_finish_block (&block);
@@ -5956,6 +5977,11 @@ gfc_array_init_size (tree descriptor, int rank, int corank, tree * poffset,
       type = gfc_get_character_type_len (expr->ts.kind, tmp);
       tmp = gfc_conv_descriptor_dtype (descriptor);
       gfc_add_modify (pblock, tmp, gfc_get_dtype_rank_type (rank, type));
+    }
+  else if (expr3_desc && GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (expr3_desc)))
+    {
+      tmp = gfc_conv_descriptor_dtype (descriptor);
+      gfc_add_modify (pblock, tmp, gfc_conv_descriptor_dtype (expr3_desc));
     }
   else
     {
@@ -11278,6 +11304,19 @@ gfc_alloc_allocatable_for_assignment (gfc_loopinfo *loop,
 	gfc_add_modify (&fblock, linfo->delta[dim], tmp);
     }
 
+  /* Take into account _len of unlimited polymorphic entities, so that span
+     for array descriptors and allocation sizes are computed correctly.  */
+  if (UNLIMITED_POLY (expr2))
+    {
+      tree len = gfc_class_len_get (TREE_OPERAND (desc2, 0));
+      len = fold_build2_loc (input_location, MAX_EXPR, size_type_node,
+			     fold_convert (size_type_node, len),
+			     size_one_node);
+      elemsize2 = fold_build2_loc (input_location, MULT_EXPR,
+				   gfc_array_index_type, elemsize2,
+				   fold_convert (gfc_array_index_type, len));
+    }
+
   if (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (desc)))
     gfc_conv_descriptor_span_set (&fblock, desc, elemsize2);
 
@@ -11324,6 +11363,9 @@ gfc_alloc_allocatable_for_assignment (gfc_loopinfo *loop,
 	    gfc_add_modify (&fblock, tmp,
 			    fold_convert (TREE_TYPE (tmp),
 					  TYPE_SIZE_UNIT (type)));
+	  else if (UNLIMITED_POLY (expr2))
+	    gfc_add_modify (&fblock, tmp,
+			    gfc_class_len_get (TREE_OPERAND (desc2, 0)));
 	  else
 	    gfc_add_modify (&fblock, tmp,
 			    build_int_cst (TREE_TYPE (tmp), 0));

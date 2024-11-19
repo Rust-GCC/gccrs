@@ -445,6 +445,10 @@
 ;; target-independent code.
 (define_attr "is_call" "no,yes" (const_string "no"))
 
+;; Indicates whether we want to enable the pattern with an optional early
+;; clobber for SVE predicates.
+(define_attr "pred_clobber" "any,no,yes" (const_string "any"))
+
 ;; [For compatibility with Arm in pipeline models]
 ;; Attribute that specifies whether or not the instruction touches fp
 ;; registers.
@@ -460,7 +464,17 @@
 
 (define_attr "arch_enabled" "no,yes"
   (if_then_else
-    (ior
+    (and
+      (ior
+	(and
+	  (eq_attr "pred_clobber" "no")
+	  (match_test "!TARGET_SVE_PRED_CLOBBER"))
+	(and
+	  (eq_attr "pred_clobber" "yes")
+	  (match_test "TARGET_SVE_PRED_CLOBBER"))
+	(eq_attr "pred_clobber" "any"))
+
+      (ior
 	(eq_attr "arch" "any")
 
 	(and (eq_attr "arch" "rcpc8_4")
@@ -488,7 +502,7 @@
 	     (match_test "TARGET_SVE"))
 
 	(and (eq_attr "arch" "sme")
-	     (match_test "TARGET_SME")))
+	     (match_test "TARGET_SME"))))
     (const_string "yes")
     (const_string "no")))
 
@@ -1447,7 +1461,7 @@
      [w  , m  ; load_4   , fp  , 4] ldr\t%s0, %1
      [m  , r Z; store_4  , *   , 4] str\t%w1, %0
      [m  , w  ; store_4  , fp  , 4] str\t%s1, %0
-     [r  , Usw; load_4   , *   , 8] adrp\t%x0, %A1;ldr\t%w0, [%x0, %L1]
+     [r  , Usw; load_4   , *   , 8] adrp\t%x0, %A1\;ldr\t%w0, [%x0, %L1]
      [r  , Usa; adr      , *   , 4] adr\t%x0, %c1
      [r  , Ush; adr      , *   , 4] adrp\t%x0, %A1
      [w  , r Z; f_mcr    , fp  , 4] fmov\t%s0, %w1
@@ -1484,7 +1498,7 @@
      [w, m  ; load_8   , fp  , 4] ldr\t%d0, %1
      [m, r Z; store_8  , *   , 4] str\t%x1, %0
      [m, w  ; store_8  , fp  , 4] str\t%d1, %0
-     [r, Usw; load_8   , *   , 8] << TARGET_ILP32 ? "adrp\t%0, %A1;ldr\t%w0, [%0, %L1]" : "adrp\t%0, %A1;ldr\t%0, [%0, %L1]";
+     [r, Usw; load_8   , *   , 8] << TARGET_ILP32 ? "adrp\t%0, %A1\;ldr\t%w0, [%0, %L1]" : "adrp\t%0, %A1\;ldr\t%0, [%0, %L1]";
      [r, Usa; adr      , *   , 4] adr\t%x0, %c1
      [r, Ush; adr      , *   , 4] adrp\t%x0, %A1
      [w, r Z; f_mcr    , fp  , 4] fmov\t%d0, %x1
@@ -4811,7 +4825,7 @@
   ""
   {@ [ cons: =0 , 1  , 2        ; attrs: type , arch  ]
      [ r        , %r , r        ; logic_reg   , *     ] <logical>\t%<w>0, %<w>1, %<w>2
-     [ rk       , ^r , <lconst> ; logic_imm   , *     ] <logical>\t%<w>0, %<w>1, %2
+     [ rk       , r  , <lconst> ; logic_imm   , *     ] <logical>\t%<w>0, %<w>1, %2
      [ w        , 0  , <lconst> ; *           , sve   ] <logical>\t%Z0.<s>, %Z0.<s>, #%2
      [ w        , w  , w        ; neon_logic  , simd  ] <logical>\t%0.<Vbtype>, %1.<Vbtype>, %2.<Vbtype>
   }
@@ -7192,22 +7206,29 @@
    (match_operand:GPF 2 "nonmemory_operand")]
   "TARGET_SIMD"
 {
-  machine_mode int_mode = <V_INT_EQUIV>mode;
-  rtx bitmask = gen_reg_rtx (int_mode);
-  emit_move_insn (bitmask, GEN_INT (HOST_WIDE_INT_M1U
-				    << (GET_MODE_BITSIZE (<MODE>mode) - 1)));
+  rtx signbit_const = GEN_INT (HOST_WIDE_INT_M1U
+			       << (GET_MODE_BITSIZE (<MODE>mode) - 1));
   /* copysign (x, -1) should instead be expanded as orr with the sign
      bit.  */
   rtx op2_elt = unwrap_const_vec_duplicate (operands[2]);
   if (GET_CODE (op2_elt) == CONST_DOUBLE
       && real_isneg (CONST_DOUBLE_REAL_VALUE (op2_elt)))
     {
-      emit_insn (gen_ior<v_int_equiv>3 (
-	lowpart_subreg (int_mode, operands[0], <MODE>mode),
-	lowpart_subreg (int_mode, operands[1], <MODE>mode), bitmask));
+      rtx v_bitmask
+	= force_reg (V2<V_INT_EQUIV>mode,
+		     gen_const_vec_duplicate (V2<V_INT_EQUIV>mode,
+					      signbit_const));
+
+      emit_insn (gen_iorv2<v_int_equiv>3 (
+	lowpart_subreg (V2<V_INT_EQUIV>mode, operands[0], <MODE>mode),
+	lowpart_subreg (V2<V_INT_EQUIV>mode, operands[1], <MODE>mode),
+	v_bitmask));
       DONE;
     }
 
+  machine_mode int_mode = <V_INT_EQUIV>mode;
+  rtx bitmask = gen_reg_rtx (int_mode);
+  emit_move_insn (bitmask, signbit_const);
   operands[2] = force_reg (<MODE>mode, operands[2]);
   emit_insn (gen_copysign<mode>3_insn (operands[0], operands[1], operands[2],
 				       bitmask));

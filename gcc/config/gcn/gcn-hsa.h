@@ -80,7 +80,7 @@ extern unsigned int gcn_local_sym_hash (const char *name);
    writes a new AMD GPU object file and the ABI version needs to be the
    same. - LLVM <= 17 defaults to 4 while LLVM >= 18 defaults to 5.
    GCC supports LLVM >= 13.0.1 and only LLVM >= 14 supports version 5.
-   Note that Fiji is only suppored with LLVM <= 17 as version 3 is no longer
+   Note that Fiji is only supported with LLVM <= 17 as version 3 is no longer
    supported in LLVM >= 18.  */
 #define ABI_VERSION_SPEC "march=fiji:--amdhsa-code-object-version=3;" \
 			 "!march=*|march=*:--amdhsa-code-object-version=4"
@@ -93,7 +93,7 @@ extern unsigned int gcn_local_sym_hash (const char *name);
 #define NO_XNACK "march=fiji:;march=gfx1030:;march=gfx1036:;march=gfx1100:;march=gfx1103:;" \
     /* These match the defaults set in gcn.cc.  */ \
     "!mxnack*|mxnack=default:%{march=gfx900|march=gfx906|march=gfx908:-mattr=-xnack};"
-#define NO_SRAM_ECC "!march=*:;march=fiji:;march=gfx900:;march=gfx906:;"
+#define NO_SRAM_ECC "!march=*:;march=fiji:;march=gfx900:;march=gfx906:;march=gfx90c:;"
 
 /* In HSACOv4 no attribute setting means the binary supports "any" hardware
    configuration.  The name of the attribute also changed.  */

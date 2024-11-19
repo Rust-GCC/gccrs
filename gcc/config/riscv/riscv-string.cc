@@ -86,35 +86,47 @@ GEN_EMIT_HELPER2(th_rev) /* do_th_rev2  */
 GEN_EMIT_HELPER2(th_tstnbz) /* do_th_tstnbz2  */
 GEN_EMIT_HELPER3(xor) /* do_xor3  */
 GEN_EMIT_HELPER2(zero_extendqi) /* do_zero_extendqi2  */
+GEN_EMIT_HELPER2(zero_extendhi) /* do_zero_extendhi2  */
 
 #undef GEN_EMIT_HELPER2
 #undef GEN_EMIT_HELPER3
 
-/* Helper function to load a byte or a Pmode register.
+/* Helper function to emit zero-extended loads.
+
+   MODE is the mode to use for the load.
+   DEST is the destination register for the data.
+   MEM is the source to load from.  */
+
+static void
+do_load (machine_mode mode, rtx dest, rtx mem)
+{
+  if (mode == QImode)
+    do_zero_extendqi2 (dest, mem);
+  else if (mode == HImode)
+    do_zero_extendhi2 (dest, mem);
+  else if (mode == SImode && TARGET_64BIT)
+    emit_insn (gen_zero_extendsidi2 (dest, mem));
+  else if (mode == Xmode)
+    emit_move_insn (dest, mem);
+  else
+    gcc_unreachable ();
+}
+
+/* Helper function to emit zero-extended loads.
 
    MODE is the mode to use for the load (QImode or Pmode).
    DEST is the destination register for the data.
    ADDR_REG is the register that holds the address.
-   ADDR is the address expression to load from.
+   ADDR is the address expression to load from.  */
 
-   This function returns an rtx containing the register,
-   where the ADDR is stored.  */
-
-static rtx
+static void
 do_load_from_addr (machine_mode mode, rtx dest, rtx addr_reg, rtx addr)
 {
   rtx mem = gen_rtx_MEM (mode, addr_reg);
   MEM_COPY_ATTRIBUTES (mem, addr);
   set_mem_size (mem, GET_MODE_SIZE (mode));
 
-  if (mode == QImode)
-    do_zero_extendqi2 (dest, mem);
-  else if (mode == Xmode)
-    emit_move_insn (dest, mem);
-  else
-    gcc_unreachable ();
-
-  return addr_reg;
+  do_load (mode, dest, mem);
 }
 
 /* Generate a sequence to compare single characters in data1 and data2.
@@ -153,7 +165,7 @@ emit_strcmp_scalar_compare_subword (rtx data1, rtx data2, rtx orc1,
   rtx imask = gen_rtx_CONST_INT (Xmode, im);
   rtx m_reg = gen_reg_rtx (Xmode);
   emit_insn (gen_rtx_SET (m_reg, imask));
-  do_rotr3 (m_reg, m_reg, GEN_INT (64 - cmp_bytes * BITS_PER_UNIT));
+  do_rotr3 (m_reg, m_reg, GEN_INT (BITS_PER_WORD - cmp_bytes * BITS_PER_UNIT));
   do_and3 (data1, m_reg, data1);
   do_and3 (data2, m_reg, data2);
   if (TARGET_ZBB)
@@ -215,8 +227,6 @@ emit_strcmp_scalar_load_and_compare (rtx result, rtx src1, rtx src2,
 				     rtx final_label)
 {
   const unsigned HOST_WIDE_INT xlen = GET_MODE_SIZE (Xmode);
-  rtx src1_addr = force_reg (Pmode, XEXP (src1, 0));
-  rtx src2_addr = force_reg (Pmode, XEXP (src2, 0));
   unsigned HOST_WIDE_INT offset = 0;
 
   rtx testval = gen_reg_rtx (Xmode);
@@ -234,10 +244,10 @@ emit_strcmp_scalar_load_and_compare (rtx result, rtx src1, rtx src2,
       else
 	load_mode = Xmode;
 
-      rtx addr1 = gen_rtx_PLUS (Pmode, src1_addr, GEN_INT (offset));
-      do_load_from_addr (load_mode, data1, addr1, src1);
-      rtx addr2 = gen_rtx_PLUS (Pmode, src2_addr, GEN_INT (offset));
-      do_load_from_addr (load_mode, data2, addr2, src2);
+      rtx addr1 = adjust_address (src1, load_mode, offset);
+      do_load (load_mode, data1, addr1);
+      rtx addr2 = adjust_address (src2, load_mode, offset);
+      do_load (load_mode, data2, addr2);
 
       if (cmp_bytes == 1)
 	{
@@ -497,6 +507,13 @@ riscv_expand_strcmp (rtx result, rtx src1, rtx src2,
 	return false;
       nbytes = UINTVAL (bytes_rtx);
 
+      /* If NBYTES is zero the result of strncmp will always be zero,
+	 but that would require special casing in the caller.  So for
+	 now just don't do an inline expansion.  This probably rarely
+	 happens in practice, but it is tested by the testsuite.  */
+      if (nbytes == 0)
+	return false;
+
       /* We don't emit parts of a strncmp() call.  */
       if (nbytes > compare_max)
 	return false;
@@ -610,11 +627,190 @@ riscv_expand_strlen (rtx result, rtx src, rtx search_char, rtx align)
   return false;
 }
 
-/* Emit straight-line code to move LENGTH bytes from SRC to DEST.
+/* Generate the sequence of load and compares for memcmp using Zbb.
+
+   RESULT is the register where the return value of memcmp will be stored.
+   The source pointers are SRC1 and SRC2 (NBYTES bytes to compare).
+   DATA1 and DATA2 are registers where the data chunks will be stored.
+   DIFF_LABEL is the location of the code that calculates the return value.
+   FINAL_LABEL is the location of the code that comes after the calculation
+   of the return value.  */
+
+static void
+emit_memcmp_scalar_load_and_compare (rtx result, rtx src1, rtx src2,
+				     unsigned HOST_WIDE_INT nbytes,
+				     rtx data1, rtx data2,
+				     rtx diff_label, rtx final_label)
+{
+  const unsigned HOST_WIDE_INT xlen = GET_MODE_SIZE (Xmode);
+  unsigned HOST_WIDE_INT offset = 0;
+
+  while (nbytes > 0)
+    {
+      unsigned HOST_WIDE_INT cmp_bytes = xlen < nbytes ? xlen : nbytes;
+      machine_mode load_mode;
+
+      /* Special cases to avoid masking of trailing bytes.  */
+      if (cmp_bytes == 1)
+	load_mode = QImode;
+      else if (cmp_bytes == 2)
+	load_mode = HImode;
+      else if (cmp_bytes == 4)
+	load_mode = SImode;
+      else
+	load_mode = Xmode;
+
+      rtx addr1 = adjust_address (src1, load_mode, offset);
+      do_load (load_mode, data1, addr1);
+      rtx addr2 = adjust_address (src2, load_mode, offset);
+      do_load (load_mode, data2, addr2);
+
+      /* Fast-path for a single byte.  */
+      if (cmp_bytes == 1)
+	{
+	  rtx tmp = gen_reg_rtx (Xmode);
+	  do_sub3 (tmp, data1, data2);
+	  emit_insn (gen_movsi (result, gen_lowpart (SImode, tmp)));
+	  emit_jump_insn (gen_jump (final_label));
+	  emit_barrier (); /* No fall-through.  */
+	  return;
+	}
+
+      /* Shift off trailing bytes in words if needed.  */
+      unsigned int load_bytes = GET_MODE_SIZE (load_mode).to_constant ();
+      if (cmp_bytes < load_bytes)
+	{
+	  int shamt = (load_bytes - cmp_bytes) * BITS_PER_UNIT;
+	  do_ashl3 (data1, data1, GEN_INT (shamt));
+	  do_ashl3 (data2, data2, GEN_INT (shamt));
+	}
+
+      /* Break out if data1 != data2 */
+      rtx cond = gen_rtx_NE (VOIDmode, data1, data2);
+      emit_unlikely_jump_insn (gen_cbranch4 (Pmode, cond, data1,
+					     data2, diff_label));
+      /* Fall-through on equality.  */
+
+      offset += cmp_bytes;
+      nbytes -= cmp_bytes;
+    }
+}
+
+/* memcmp result calculation.
+
+   RESULT is the register where the return value will be stored.
+   The two data chunks are in DATA1 and DATA2.  */
+
+static void
+emit_memcmp_scalar_result_calculation (rtx result, rtx data1, rtx data2)
+{
+  /* Get bytes in big-endian order and compare as words.  */
+  do_bswap2 (data1, data1);
+  do_bswap2 (data2, data2);
+  /* Synthesize (data1 >= data2) ? 1 : -1 in a branchless sequence.  */
+  rtx tmp = gen_reg_rtx (Xmode);
+  emit_insn (gen_slt_3 (LTU, Xmode, Xmode, tmp, data1, data2));
+  do_neg2 (tmp, tmp);
+  do_ior3 (tmp, tmp, const1_rtx);
+  emit_insn (gen_movsi (result, gen_lowpart (SImode, tmp)));
+}
+
+/* Expand memcmp using scalar instructions (incl. Zbb).
+
+   RESULT is the register where the return value will be stored.
+   The source pointers are SRC1 and SRC2 (NBYTES bytes to compare).  */
+
+static bool
+riscv_expand_block_compare_scalar (rtx result, rtx src1, rtx src2, rtx nbytes)
+{
+  const unsigned HOST_WIDE_INT xlen = GET_MODE_SIZE (Xmode);
+
+  if (optimize_function_for_size_p (cfun))
+    return false;
+
+  /* We don't support big endian.  */
+  if (BYTES_BIG_ENDIAN)
+    return false;
+
+  if (!CONST_INT_P (nbytes))
+    return false;
+
+  /* We need the rev (bswap) instruction.  */
+  if (!TARGET_ZBB)
+    return false;
+
+  unsigned HOST_WIDE_INT length = UINTVAL (nbytes);
+
+  /* Limit to 12-bits (maximum load-offset).  */
+  if (length > IMM_REACH)
+    length = IMM_REACH;
+
+  /* We need xlen-aligned memory.  */
+  unsigned HOST_WIDE_INT align = MIN (MEM_ALIGN (src1), MEM_ALIGN (src2));
+  if (align < (xlen * BITS_PER_UNIT))
+    return false;
+
+  if (length > RISCV_MAX_MOVE_BYTES_STRAIGHT)
+    return false;
+
+  /* Overall structure of emitted code:
+       Load-and-compare:
+	 - Load data1 and data2
+	 - Compare strings and either:
+	   - Fall-through on equality
+	   - Jump to end_label if data1 != data2
+       // Fall-through
+       Set result to 0 and jump to final_label
+     diff_label:
+       Calculate result value with the use of data1 and data2
+       Jump to final_label
+     final_label:
+       // Nothing.  */
+
+  rtx data1 = gen_reg_rtx (Xmode);
+  rtx data2 = gen_reg_rtx (Xmode);
+  rtx diff_label = gen_label_rtx ();
+  rtx final_label = gen_label_rtx ();
+
+  /* Generate a sequence of zbb instructions to compare out
+     to the length specified.  */
+  emit_memcmp_scalar_load_and_compare (result, src1, src2, length,
+				       data1, data2,
+				       diff_label, final_label);
+
+  emit_insn (gen_rtx_SET (result, gen_rtx_CONST_INT (SImode, 0)));
+  emit_jump_insn (gen_jump (final_label));
+  emit_barrier (); /* No fall-through.  */
+
+  emit_label (diff_label);
+  emit_memcmp_scalar_result_calculation (result, data1, data2);
+  emit_jump_insn (gen_jump (final_label));
+  emit_barrier (); /* No fall-through.  */
+
+  emit_label (final_label);
+  return true;
+}
+
+/* Expand memcmp operation.
+
+   RESULT is the register where the return value will be stored.
+   The source pointers are SRC1 and SRC2 (NBYTES bytes to compare).  */
+
+bool
+riscv_expand_block_compare (rtx result, rtx src1, rtx src2, rtx nbytes)
+{
+  if (stringop_strategy & STRATEGY_SCALAR)
+    return riscv_expand_block_compare_scalar (result, src1, src2, nbytes);
+
+  return false;
+}
+/* Emit straight-line code to move LENGTH bytes from SRC to DEST
+   with accesses that are ALIGN bytes aligned.
    Assume that the areas do not overlap.  */
 
 static void
-riscv_block_move_straight (rtx dest, rtx src, unsigned HOST_WIDE_INT length)
+riscv_block_move_straight (rtx dest, rtx src, unsigned HOST_WIDE_INT length,
+			   unsigned HOST_WIDE_INT align)
 {
   unsigned HOST_WIDE_INT offset, delta;
   unsigned HOST_WIDE_INT bits;
@@ -622,25 +818,24 @@ riscv_block_move_straight (rtx dest, rtx src, unsigned HOST_WIDE_INT length)
   enum machine_mode mode;
   rtx *regs;
 
-  bits = MAX (BITS_PER_UNIT,
-	      MIN (BITS_PER_WORD, MIN (MEM_ALIGN (src), MEM_ALIGN (dest))));
+  bits = MAX (BITS_PER_UNIT, MIN (BITS_PER_WORD, align));
 
   mode = mode_for_size (bits, MODE_INT, 0).require ();
   delta = bits / BITS_PER_UNIT;
 
   /* Allocate a buffer for the temporary registers.  */
-  regs = XALLOCAVEC (rtx, length / delta);
+  regs = XALLOCAVEC (rtx, length / delta - 1);
 
   /* Load as many BITS-sized chunks as possible.  Use a normal load if
      the source has enough alignment, otherwise use left/right pairs.  */
-  for (offset = 0, i = 0; offset + delta <= length; offset += delta, i++)
+  for (offset = 0, i = 0; offset + 2 * delta <= length; offset += delta, i++)
     {
       regs[i] = gen_reg_rtx (mode);
       riscv_emit_move (regs[i], adjust_address (src, mode, offset));
     }
 
   /* Copy the chunks to the destination.  */
-  for (offset = 0, i = 0; offset + delta <= length; offset += delta, i++)
+  for (offset = 0, i = 0; offset + 2 * delta <= length; offset += delta, i++)
     riscv_emit_move (adjust_address (dest, mode, offset), regs[i]);
 
   /* Mop up any left-over bytes.  */
@@ -648,21 +843,20 @@ riscv_block_move_straight (rtx dest, rtx src, unsigned HOST_WIDE_INT length)
     {
       src = adjust_address (src, BLKmode, offset);
       dest = adjust_address (dest, BLKmode, offset);
-      move_by_pieces (dest, src, length - offset,
-		      MIN (MEM_ALIGN (src), MEM_ALIGN (dest)), RETURN_BEGIN);
+      move_by_pieces (dest, src, length - offset, align, RETURN_BEGIN);
     }
 }
 
 /* Helper function for doing a loop-based block operation on memory
-   reference MEM.  Each iteration of the loop will operate on LENGTH
-   bytes of MEM.
+   reference MEM.
 
    Create a new base register for use within the loop and point it to
    the start of MEM.  Create a new memory reference that uses this
-   register.  Store them in *LOOP_REG and *LOOP_MEM respectively.  */
+   register and has an alignment of ALIGN.  Store them in *LOOP_REG
+   and *LOOP_MEM respectively.  */
 
 static void
-riscv_adjust_block_mem (rtx mem, unsigned HOST_WIDE_INT length,
+riscv_adjust_block_mem (rtx mem, unsigned HOST_WIDE_INT align,
 			rtx *loop_reg, rtx *loop_mem)
 {
   *loop_reg = copy_addr_to_reg (XEXP (mem, 0));
@@ -670,15 +864,17 @@ riscv_adjust_block_mem (rtx mem, unsigned HOST_WIDE_INT length,
   /* Although the new mem does not refer to a known location,
      it does keep up to LENGTH bytes of alignment.  */
   *loop_mem = change_address (mem, BLKmode, *loop_reg);
-  set_mem_align (*loop_mem, MIN (MEM_ALIGN (mem), length * BITS_PER_UNIT));
+  set_mem_align (*loop_mem, align);
 }
 
 /* Move LENGTH bytes from SRC to DEST using a loop that moves BYTES_PER_ITER
-   bytes at a time.  LENGTH must be at least BYTES_PER_ITER.  Assume that
-   the memory regions do not overlap.  */
+   bytes at a time.  LENGTH must be at least BYTES_PER_ITER.  The alignment
+   of the access can be set by ALIGN.  Assume that the memory regions do not
+   overlap.  */
 
 static void
 riscv_block_move_loop (rtx dest, rtx src, unsigned HOST_WIDE_INT length,
+		       unsigned HOST_WIDE_INT align,
 		       unsigned HOST_WIDE_INT bytes_per_iter)
 {
   rtx label, src_reg, dest_reg, final_src, test;
@@ -688,8 +884,8 @@ riscv_block_move_loop (rtx dest, rtx src, unsigned HOST_WIDE_INT length,
   length -= leftover;
 
   /* Create registers and memory references for use within the loop.  */
-  riscv_adjust_block_mem (src, bytes_per_iter, &src_reg, &src);
-  riscv_adjust_block_mem (dest, bytes_per_iter, &dest_reg, &dest);
+  riscv_adjust_block_mem (src, align, &src_reg, &src);
+  riscv_adjust_block_mem (dest, align, &dest_reg, &dest);
 
   /* Calculate the value that SRC_REG should have after the last iteration
      of the loop.  */
@@ -701,7 +897,7 @@ riscv_block_move_loop (rtx dest, rtx src, unsigned HOST_WIDE_INT length,
   emit_label (label);
 
   /* Emit the loop body.  */
-  riscv_block_move_straight (dest, src, bytes_per_iter);
+  riscv_block_move_straight (dest, src, bytes_per_iter, align);
 
   /* Move on to the next block.  */
   riscv_emit_move (src_reg, plus_constant (Pmode, src_reg, bytes_per_iter));
@@ -713,7 +909,7 @@ riscv_block_move_loop (rtx dest, rtx src, unsigned HOST_WIDE_INT length,
 
   /* Mop up any left-over bytes.  */
   if (leftover)
-    riscv_block_move_straight (dest, src, leftover);
+    riscv_block_move_straight (dest, src, leftover, align);
   else
     emit_insn(gen_nop ());
 }
@@ -730,8 +926,17 @@ riscv_expand_block_move_scalar (rtx dest, rtx src, rtx length)
   unsigned HOST_WIDE_INT hwi_length = UINTVAL (length);
   unsigned HOST_WIDE_INT factor, align;
 
-  align = MIN (MIN (MEM_ALIGN (src), MEM_ALIGN (dest)), BITS_PER_WORD);
-  factor = BITS_PER_WORD / align;
+  if (riscv_slow_unaligned_access_p)
+    {
+      align = MIN (MIN (MEM_ALIGN (src), MEM_ALIGN (dest)), BITS_PER_WORD);
+      factor = BITS_PER_WORD / align;
+    }
+  else
+    {
+      /* Pretend word-alignment.  */
+      align = BITS_PER_WORD;
+      factor = 1;
+    }
 
   if (optimize_function_for_size_p (cfun)
       && hwi_length * factor * UNITS_PER_WORD > MOVE_RATIO (false))
@@ -739,7 +944,7 @@ riscv_expand_block_move_scalar (rtx dest, rtx src, rtx length)
 
   if (hwi_length <= (RISCV_MAX_MOVE_BYTES_STRAIGHT / factor))
     {
-      riscv_block_move_straight (dest, src, INTVAL (length));
+      riscv_block_move_straight (dest, src, hwi_length, align);
       return true;
     }
   else if (optimize && align >= BITS_PER_WORD)
@@ -759,7 +964,8 @@ riscv_expand_block_move_scalar (rtx dest, rtx src, rtx length)
 	    iter_words = i;
 	}
 
-      riscv_block_move_loop (dest, src, bytes, iter_words * UNITS_PER_WORD);
+      riscv_block_move_loop (dest, src, bytes, align,
+			     iter_words * UNITS_PER_WORD);
       return true;
     }
 
@@ -785,6 +991,68 @@ riscv_expand_block_move (rtx dest, rtx src, rtx length)
     return riscv_expand_block_move_scalar (dest, src, length);
 
   return false;
+}
+
+/* Expand a block-clear instruction via cbo.zero instructions.  */
+
+static bool
+riscv_expand_block_clear_zicboz_zic64b (rtx dest, rtx length)
+{
+  unsigned HOST_WIDE_INT hwi_length;
+  unsigned HOST_WIDE_INT align;
+  const unsigned HOST_WIDE_INT cbo_bytes = 64;
+
+  gcc_assert (TARGET_ZICBOZ && TARGET_ZIC64B);
+
+  if (!CONST_INT_P (length))
+    return false;
+
+  hwi_length = UINTVAL (length);
+  if (hwi_length < cbo_bytes)
+    return false;
+
+  align = MEM_ALIGN (dest) / BITS_PER_UNIT;
+  if (align < cbo_bytes)
+    return false;
+
+  /* We don't emit loops.  Instead apply move-bytes limitation.  */
+  unsigned HOST_WIDE_INT max_bytes = RISCV_MAX_MOVE_BYTES_STRAIGHT /
+	  UNITS_PER_WORD * cbo_bytes;
+  if (hwi_length > max_bytes)
+    return false;
+
+  unsigned HOST_WIDE_INT offset = 0;
+  while (offset + cbo_bytes <= hwi_length)
+    {
+      rtx mem = adjust_address (dest, BLKmode, offset);
+      rtx addr = force_reg (Pmode, XEXP (mem, 0));
+      if (TARGET_64BIT)
+	emit_insn (gen_riscv_zero_di (addr));
+      else
+	emit_insn (gen_riscv_zero_si (addr));
+      offset += cbo_bytes;
+    }
+
+  if (offset < hwi_length)
+    {
+      rtx mem = adjust_address (dest, BLKmode, offset);
+      clear_by_pieces (mem, hwi_length - offset, align);
+    }
+
+  return true;
+}
+
+bool
+riscv_expand_block_clear (rtx dest, rtx length)
+{
+  /* Only use setmem-zero expansion for Zicboz + Zic64b.  */
+  if (!TARGET_ZICBOZ || !TARGET_ZIC64B)
+    return false;
+
+  if (optimize_function_for_size_p (cfun))
+    return false;
+
+  return riscv_expand_block_clear_zicboz_zic64b (dest, length);
 }
 
 /* --- Vector expanders --- */

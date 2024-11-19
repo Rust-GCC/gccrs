@@ -1958,29 +1958,44 @@ package body Sem_Warn is
                      SR : Entity_Id;
                      SE : constant Entity_Id := Scope (E);
 
-                     function Within_Postcondition return Boolean;
-                     --  Returns True if N is within a Postcondition, a
-                     --  Refined_Post, an Ensures component in a Test_Case,
-                     --  or a Contract_Cases.
+                     function Within_Contract_Or_Predicate  return Boolean;
+                     --  Returns True if N is within a contract or predicate,
+                     --  an Ensures component in a Test_Case, or a
+                     --  Contract_Cases.
 
-                     --------------------------
-                     -- Within_Postcondition --
-                     --------------------------
+                     ----------------------------------
+                     -- Within_Contract_Or_Predicate --
+                     ----------------------------------
 
-                     function Within_Postcondition return Boolean is
+                     function Within_Contract_Or_Predicate return Boolean is
                         Nod, P : Node_Id;
 
                      begin
                         Nod := Parent (N);
                         while Present (Nod) loop
+                           --  General contract / predicate related pragma
+
                            if Nkind (Nod) = N_Pragma
                              and then
                                Pragma_Name_Unmapped (Nod)
-                                in Name_Postcondition
+                                in Name_Precondition
+                                 | Name_Postcondition
                                  | Name_Refined_Post
                                  | Name_Contract_Cases
                            then
                               return True;
+
+                           --  Verify we are not within a generated predicate
+                           --  function call.
+
+                           elsif Nkind (Nod) = N_Function_Call
+                             and then Is_Entity_Name (Name (Nod))
+                             and then Is_Predicate_Function
+                                        (Entity (Name (Nod)))
+                           then
+                              return True;
+
+                           --  Deal with special 'Ensures' Test_Case component
 
                            elsif Present (Parent (Nod)) then
                               P := Parent (Nod);
@@ -2002,7 +2017,7 @@ package body Sem_Warn is
                         end loop;
 
                         return False;
-                     end Within_Postcondition;
+                     end Within_Contract_Or_Predicate;
 
                   --  Start of processing for Potential_Unset_Reference
 
@@ -2126,7 +2141,7 @@ package body Sem_Warn is
                      --  postcondition, since the expression occurs in a
                      --  place unrelated to the actual test.
 
-                     if not Within_Postcondition then
+                     if not Within_Contract_Or_Predicate then
 
                         --  Here we definitely have a case for giving a warning
                         --  for a reference to an unset value. But we don't
@@ -3816,16 +3831,6 @@ package body Sem_Warn is
                   then
                      null;
 
-                  --  We only report warnings on overlapping arrays and record
-                  --  types if switch is set.
-
-                  elsif not Warn_On_Overlap
-                    and then not (Is_Elementary_Type (Etype (Form1))
-                                    and then
-                                  Is_Elementary_Type (Etype (Form2)))
-                  then
-                     null;
-
                   --  Here we may need to issue overlap message
 
                   else
@@ -3843,22 +3848,25 @@ package body Sem_Warn is
 
                        or else not
                         (Is_Elementary_Type (Etype (Form1))
-                         and then Is_Elementary_Type (Etype (Form2)))
+                         and then Is_Elementary_Type (Etype (Form2)));
 
-                       --  debug flag -gnatd.E changes the error to a warning
-                       --  even in Ada 2012 mode.
+                     if not Error_Msg_Warn or else Warn_On_Overlap then
+                        --  debug flag -gnatd.E changes the error to a warning
+                        --  even in Ada 2012 mode.
 
-                       or else Error_To_Warning;
+                        if Error_To_Warning then
+                           Error_Msg_Warn := True;
+                        end if;
 
-                     --  For greater clarity, give name of formal
+                        --  For greater clarity, give name of formal
 
-                     Error_Msg_Node_2 := Form2;
+                        Error_Msg_Node_2 := Form2;
 
-                     --  This is one of the messages
+                        --  This is one of the messages
 
-                     Error_Msg_FE
-                       ("<.i<writable actual for & overlaps with actual for &",
-                        Act1, Form1);
+                        Error_Msg_FE ("<.i<writable actual for & overlaps with"
+                          & " actual for &", Act1, Form1);
+                     end if;
                   end if;
                end if;
             end if;
@@ -4444,12 +4452,16 @@ package body Sem_Warn is
                  ("?u?literal & is not referenced!", E);
 
             when E_Function =>
-               Error_Msg_N -- CODEFIX
-                 ("?u?function & is not referenced!", E);
+               if not Is_Abstract_Subprogram (E) then
+                  Error_Msg_N -- CODEFIX
+                    ("?u?function & is not referenced!", E);
+               end if;
 
             when E_Procedure =>
-               Error_Msg_N -- CODEFIX
-                 ("?u?procedure & is not referenced!", E);
+               if not Is_Abstract_Subprogram (E) then
+                  Error_Msg_N -- CODEFIX
+                    ("?u?procedure & is not referenced!", E);
+               end if;
 
             when E_Package =>
                Error_Msg_N -- CODEFIX

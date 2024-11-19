@@ -1776,6 +1776,9 @@ static const scoped_attribute_specs *const rs6000_attribute_table[] =
 #undef TARGET_CONST_ANCHOR
 #define TARGET_CONST_ANCHOR 0x8000
 
+#undef TARGET_OVERLAP_OP_BY_PIECES_P
+#define TARGET_OVERLAP_OP_BY_PIECES_P hook_bool_void_true
+
 
 
 /* Processor table.  */
@@ -3937,8 +3940,9 @@ rs6000_option_override_internal (bool global_init_p)
       rs6000_isa_flags &= ~OPTION_MASK_FPRND;
     }
 
-  if (TARGET_P8_VECTOR && !TARGET_ALTIVEC)
-    rs6000_isa_flags &= ~OPTION_MASK_P8_VECTOR;
+  /* Assert !TARGET_VSX if !TARGET_ALTIVEC and make some adjustments
+     based on either !TARGET_VSX or !TARGET_ALTIVEC concise.  */
+  gcc_assert (TARGET_ALTIVEC || !TARGET_VSX);
 
   if (TARGET_P8_VECTOR && !TARGET_VSX)
     rs6000_isa_flags &= ~OPTION_MASK_P8_VECTOR;
@@ -15280,7 +15284,7 @@ rs6000_generate_compare (rtx cmp, machine_mode mode)
   rtx op0 = XEXP (cmp, 0);
   rtx op1 = XEXP (cmp, 1);
 
-  if (!TARGET_FLOAT128_HW && FLOAT128_VECTOR_P (mode))
+  if (!TARGET_FLOAT128_HW && FLOAT128_IEEE_P (mode))
     comp_mode = CCmode;
   else if (FLOAT_MODE_P (mode))
     comp_mode = CCFPmode;
@@ -15312,7 +15316,7 @@ rs6000_generate_compare (rtx cmp, machine_mode mode)
 
   /* IEEE 128-bit support in VSX registers when we do not have hardware
      support.  */
-  if (!TARGET_FLOAT128_HW && FLOAT128_VECTOR_P (mode))
+  if (!TARGET_FLOAT128_HW && FLOAT128_IEEE_P (mode))
     {
       rtx libfunc = NULL_RTX;
       bool check_nan = false;

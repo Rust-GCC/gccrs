@@ -845,19 +845,8 @@ package body Inline is
    ------------------------
 
    procedure Add_Scope_To_Clean (Scop : Entity_Id) is
-      Elmt : Elmt_Id;
-
    begin
-      Elmt := First_Elmt (To_Clean);
-      while Present (Elmt) loop
-         if Node (Elmt) = Scop then
-            return;
-         end if;
-
-         Next_Elmt (Elmt);
-      end loop;
-
-      Append_Elmt (Scop, To_Clean);
+      Append_Unique_Elmt (Scop, To_Clean);
    end Add_Scope_To_Clean;
 
    --------------
@@ -915,7 +904,7 @@ package body Inline is
 
    procedure Analyze_Inlined_Bodies is
       Comp_Unit : Node_Id;
-      J         : Int;
+      J         : Nat;
       Pack      : Entity_Id;
       Subp      : Subp_Index;
       S         : Succ_Index;
@@ -1101,14 +1090,6 @@ package body Inline is
       --  conflict with subsequent inlinings, so that it is unsafe to try to
       --  inline in such a case.
 
-      function Has_Single_Return_In_GNATprove_Mode return Boolean;
-      --  This function is called only in GNATprove mode, and it returns
-      --  True if the subprogram has no return statement or a single return
-      --  statement as last statement. It returns False for subprogram with
-      --  a single return as last statement inside one or more blocks, as
-      --  inlining would generate gotos in that case as well (although the
-      --  goto is useless in that case).
-
       function Uses_Secondary_Stack (Bod : Node_Id) return Boolean;
       --  If the body of the subprogram includes a call that returns an
       --  unconstrained type, the secondary stack is involved, and it is
@@ -1184,64 +1165,6 @@ package body Inline is
          return False;
       end Has_Pending_Instantiation;
 
-      -----------------------------------------
-      -- Has_Single_Return_In_GNATprove_Mode --
-      -----------------------------------------
-
-      function Has_Single_Return_In_GNATprove_Mode return Boolean is
-         Body_To_Inline : constant Node_Id := N;
-         Last_Statement : Node_Id := Empty;
-
-         function Check_Return (N : Node_Id) return Traverse_Result;
-         --  Returns OK on node N if this is not a return statement different
-         --  from the last statement in the subprogram.
-
-         ------------------
-         -- Check_Return --
-         ------------------
-
-         function Check_Return (N : Node_Id) return Traverse_Result is
-         begin
-            case Nkind (N) is
-               when N_Extended_Return_Statement
-                  | N_Simple_Return_Statement
-               =>
-                  if N = Last_Statement then
-                     return OK;
-                  else
-                     return Abandon;
-                  end if;
-
-               --  Skip locally declared subprogram bodies inside the body to
-               --  inline, as the return statements inside those do not count.
-
-               when N_Subprogram_Body =>
-                  if N = Body_To_Inline then
-                     return OK;
-                  else
-                     return Skip;
-                  end if;
-
-               when others =>
-                  return OK;
-            end case;
-         end Check_Return;
-
-         function Check_All_Returns is new Traverse_Func (Check_Return);
-
-      --  Start of processing for Has_Single_Return_In_GNATprove_Mode
-
-      begin
-         --  Retrieve the last statement
-
-         Last_Statement := Last (Statements (Handled_Statement_Sequence (N)));
-
-         --  Check that the last statement is the only possible return
-         --  statement in the subprogram.
-
-         return Check_All_Returns (N) = OK;
-      end Has_Single_Return_In_GNATprove_Mode;
-
       --------------------------
       -- Uses_Secondary_Stack --
       --------------------------
@@ -1284,16 +1207,6 @@ package body Inline is
       if Nkind (Decl) = N_Subprogram_Declaration
         and then Present (Body_To_Inline (Decl))
       then
-         return;
-
-      --  Subprograms that have return statements in the middle of the body are
-      --  inlined with gotos. GNATprove does not currently support gotos, so
-      --  we prevent such inlining.
-
-      elsif GNATprove_Mode
-        and then not Has_Single_Return_In_GNATprove_Mode
-      then
-         Cannot_Inline ("cannot inline & (multiple returns)?", N, Spec_Id);
          return;
 
       --  Functions that return controlled types cannot currently be inlined
@@ -1460,10 +1373,47 @@ package body Inline is
     (N    : Node_Id;
      Subp : Entity_Id) return Boolean
    is
+      function Has_Dereference (N : Node_Id) return Boolean;
+      --  Return whether N contains an explicit dereference
+
+      ---------------------
+      -- Has_Dereference --
+      ---------------------
+
+      function Has_Dereference (N : Node_Id) return Boolean is
+
+         function Process (N : Node_Id) return Traverse_Result;
+         --  Process one node in search for dereference
+
+         -------------
+         -- Process --
+         -------------
+
+         function Process (N : Node_Id) return Traverse_Result is
+         begin
+            if Nkind (N) = N_Explicit_Dereference then
+               return Abandon;
+            else
+               return OK;
+            end if;
+         end Process;
+
+         function Traverse is new Traverse_Func (Process);
+         --  Traverse tree to look for dereference
+
+      begin
+         return Traverse (N) = Abandon;
+      end Has_Dereference;
+
+      --  Local variables
+
       F : Entity_Id;
       A : Node_Id;
 
    begin
+      --  Check if inlining may lead to missing a check on type conversion of
+      --  input parameters otherwise.
+
       F := First_Formal (Subp);
       A := First_Actual (N);
       while Present (F) loop
@@ -1472,6 +1422,27 @@ package body Inline is
            and then
              (Is_By_Reference_Type (Etype (A))
                or else Is_Limited_Type (Etype (A)))
+         then
+            return False;
+         end if;
+
+         Next_Formal (F);
+         Next_Actual (A);
+      end loop;
+
+      --  Check if inlining may lead to introducing temporaries of access type,
+      --  which can lead to missing checks for memory leaks. This can only
+      --  come from an (IN-)OUT parameter transformed into a renaming by SPARK
+      --  expansion, whose side-effects are removed, and a dereference in the
+      --  corresponding actual. If the formal itself is of a deep type (it has
+      --  access subcomponents), the subprogram already cannot be inlined in
+      --  GNATprove mode.
+
+      F := First_Formal (Subp);
+      A := First_Actual (N);
+      while Present (F) loop
+         if Ekind (F) /= E_In_Parameter
+           and then Has_Dereference (A)
          then
             return False;
          end if;
@@ -1497,11 +1468,17 @@ package body Inline is
       --  a return type of a deep type: either an access type or a composite
       --  type containing an access type.
 
-      function Has_Formal_With_Discriminant_Dependent_Fields
+      function Has_Formal_With_Per_Object_Constrained_Component
         (Id : Entity_Id) return Boolean;
       --  Returns true if the subprogram has at least one formal parameter of
       --  an unconstrained record type with per-object constraints on component
       --  types.
+
+      function Has_Hide_Unhide_Annotation
+        (Spec_Id, Body_Id : Entity_Id)
+         return Boolean;
+      --  Returns whether the subprogram has an annotation Hide_Info or
+      --  Unhide_Info on its spec or body.
 
       function Has_Skip_Proof_Annotation (Id : Entity_Id) return Boolean;
       --  Returns True if subprogram Id has an annotation Skip_Proof or
@@ -1637,23 +1614,23 @@ package body Inline is
          return False;
       end Has_Formal_Or_Result_Of_Deep_Type;
 
-      ---------------------------------------------------
-      -- Has_Formal_With_Discriminant_Dependent_Fields --
-      ---------------------------------------------------
+      ------------------------------------------------------
+      -- Has_Formal_With_Per_Object_Constrained_Component --
+      ------------------------------------------------------
 
-      function Has_Formal_With_Discriminant_Dependent_Fields
+      function Has_Formal_With_Per_Object_Constrained_Component
         (Id : Entity_Id) return Boolean
       is
-         function Has_Discriminant_Dependent_Component
+         function Has_Per_Object_Constrained_Component
            (Typ : Entity_Id) return Boolean;
          --  Determine whether unconstrained record type Typ has at least one
          --  component that depends on a discriminant.
 
          ------------------------------------------
-         -- Has_Discriminant_Dependent_Component --
+         -- Has_Per_Object_Constrained_Component --
          ------------------------------------------
 
-         function Has_Discriminant_Dependent_Component
+         function Has_Per_Object_Constrained_Component
            (Typ : Entity_Id) return Boolean
          is
             Comp : Entity_Id;
@@ -1664,7 +1641,7 @@ package body Inline is
 
             Comp := First_Component (Typ);
             while Present (Comp) loop
-               if Has_Discriminant_Dependent_Constraint (Comp) then
+               if Has_Per_Object_Constraint (Comp) then
                   return True;
                end if;
 
@@ -1672,7 +1649,7 @@ package body Inline is
             end loop;
 
             return False;
-         end Has_Discriminant_Dependent_Component;
+         end Has_Per_Object_Constrained_Component;
 
          --  Local variables
 
@@ -1681,7 +1658,7 @@ package body Inline is
          Formal_Typ : Entity_Id;
 
       --  Start of processing for
-      --  Has_Formal_With_Discriminant_Dependent_Fields
+      --  Has_Formal_With_Per_Object_Constrained_Component
 
       begin
          --  Inspect all parameters of the subprogram looking for a formal
@@ -1694,7 +1671,7 @@ package body Inline is
 
             if Is_Record_Type (Formal_Typ)
               and then not Is_Constrained (Formal_Typ)
-              and then Has_Discriminant_Dependent_Component (Formal_Typ)
+              and then Has_Per_Object_Constrained_Component (Formal_Typ)
             then
                return True;
             end if;
@@ -1703,7 +1680,80 @@ package body Inline is
          end loop;
 
          return False;
-      end Has_Formal_With_Discriminant_Dependent_Fields;
+      end Has_Formal_With_Per_Object_Constrained_Component;
+
+      --------------------------------
+      -- Has_Hide_Unhide_Annotation --
+      --------------------------------
+
+      function Has_Hide_Unhide_Annotation
+        (Spec_Id, Body_Id : Entity_Id)
+         return Boolean
+      is
+         function Has_Hide_Unhide_Pragma (Prag : Node_Id) return Boolean;
+         --  Return whether a pragma Hide/Unhide is present in the list of
+         --  pragmas starting with Prag.
+
+         ----------------------------
+         -- Has_Hide_Unhide_Pragma --
+         ----------------------------
+
+         function Has_Hide_Unhide_Pragma (Prag : Node_Id) return Boolean is
+            Decl : Node_Id := Prag;
+         begin
+            while Present (Decl)
+              and then Nkind (Decl) = N_Pragma
+            loop
+               if Get_Pragma_Id (Decl) = Pragma_Annotate
+                 and then List_Length (Pragma_Argument_Associations (Decl)) = 4
+               then
+                  declare
+                     Arg1      : constant Node_Id :=
+                       First (Pragma_Argument_Associations (Decl));
+                     Arg2      : constant Node_Id := Next (Arg1);
+                     Arg1_Name : constant Name_Id :=
+                       Chars (Get_Pragma_Arg (Arg1));
+                     Arg2_Name : constant String :=
+                       Get_Name_String (Chars (Get_Pragma_Arg (Arg2)));
+                  begin
+                     if Arg1_Name = Name_Gnatprove
+                       and then Arg2_Name in "hide_info" | "unhide_info"
+                     then
+                        return True;
+                     end if;
+                  end;
+               end if;
+
+               Next (Decl);
+            end loop;
+
+            return False;
+         end Has_Hide_Unhide_Pragma;
+
+      begin
+         if Present (Spec_Id)
+           and then Is_List_Member (Unit_Declaration_Node (Spec_Id))
+           and then Has_Hide_Unhide_Pragma
+             (Next (Unit_Declaration_Node (Spec_Id)))
+         then
+            return True;
+
+         elsif Present (Body_Id) then
+            declare
+               Subp_Body : constant N_Subprogram_Body_Id :=
+                 Unit_Declaration_Node (Body_Id);
+            begin
+               return
+                 (Is_List_Member (Subp_Body)
+                   and then Has_Hide_Unhide_Pragma (Next (Subp_Body)))
+                 or else
+                   Has_Hide_Unhide_Pragma (First (Declarations (Subp_Body)));
+            end;
+
+         else
+            return False;
+         end if;
+      end Has_Hide_Unhide_Annotation;
 
       -------------------------------
       -- Has_Skip_Proof_Annotation --
@@ -1725,12 +1775,12 @@ package body Inline is
                   Arg1      : constant Node_Id :=
                     First (Pragma_Argument_Associations (Decl));
                   Arg2      : constant Node_Id := Next (Arg1);
-                  Arg1_Name : constant String :=
-                    Get_Name_String (Chars (Get_Pragma_Arg (Arg1)));
+                  Arg1_Name : constant Name_Id :=
+                    Chars (Get_Pragma_Arg (Arg1));
                   Arg2_Name : constant String :=
                     Get_Name_String (Chars (Get_Pragma_Arg (Arg2)));
                begin
-                  if Arg1_Name = "gnatprove"
+                  if Arg1_Name = Name_Gnatprove
                     and then Arg2_Name in "skip_proof" | "skip_flow_and_proof"
                   then
                      return True;
@@ -1926,7 +1976,7 @@ package body Inline is
       --  in record component accesses (in particular with records containing
       --  packed arrays).
 
-      elsif Has_Formal_With_Discriminant_Dependent_Fields (Id) then
+      elsif Has_Formal_With_Per_Object_Constrained_Component (Id) then
          return False;
 
       --  Do not inline subprograms with a formal parameter or return type of
@@ -1950,6 +2000,13 @@ package body Inline is
       --  annotation, which should be handled separately.
 
       elsif Has_Skip_Proof_Annotation (Id) then
+         return False;
+
+      --  Do not inline subprograms with the Hide_Info or Unhide_Info
+      --  annotation, since their scope has special visibility on the
+      --  precise definition of some entities.
+
+      elsif Has_Hide_Unhide_Annotation (Spec_Id, Body_Id) then
          return False;
 
       --  Otherwise, this is a subprogram declared inside the private part of a
@@ -2425,8 +2482,8 @@ package body Inline is
            (Proc_Id   : out Entity_Id;
             Decl_List : out List_Id)
          is
-            Formals   : constant List_Id   := New_List;
-            Subp_Name : constant Name_Id   := New_Internal_Name ('F');
+            Formals   : constant List_Id := New_List;
+            Subp_Name : constant Name_Id := New_Internal_Name ('F');
 
             Body_Decls : List_Id := No_List;
             Decl       : Node_Id;
@@ -3385,6 +3442,7 @@ package body Inline is
       ---------------------
 
       function Process_Formals (N : Node_Id) return Traverse_Result is
+         Loc : constant Source_Ptr := Sloc (N);
          A   : Entity_Id;
          E   : Entity_Id;
          Ret : Node_Id;
@@ -3411,13 +3469,13 @@ package body Inline is
 
                if Is_Entity_Name (A) then
                   Had_Private_View := Has_Private_View (N);
-                  Rewrite (N, New_Occurrence_Of (Entity (A), Sloc (N)));
+                  Rewrite (N, New_Occurrence_Of (Entity (A), Loc));
                   Set_Has_Private_View (N, Had_Private_View);
                   Check_Private_View (N);
 
                elsif Nkind (A) = N_Defining_Identifier then
                   Had_Private_View := Has_Private_View (N);
-                  Rewrite (N, New_Occurrence_Of (A, Sloc (N)));
+                  Rewrite (N, New_Occurrence_Of (A, Loc));
                   Set_Has_Private_View (N, Had_Private_View);
                   Check_Private_View (N);
 
@@ -3485,8 +3543,8 @@ package body Inline is
                  or else Yields_Universal_Type (Expression (N))
                then
                   Ret :=
-                    Make_Qualified_Expression (Sloc (N),
-                      Subtype_Mark => New_Occurrence_Of (Ret_Type, Sloc (N)),
+                    Make_Qualified_Expression (Loc,
+                      Subtype_Mark => New_Occurrence_Of (Ret_Type, Loc),
                       Expression   => Relocate_Node (Expression (N)));
 
                --  Use an unchecked type conversion between access types, for
@@ -3502,8 +3560,8 @@ package body Inline is
 
                else
                   Ret :=
-                    Make_Type_Conversion (Sloc (N),
-                      Subtype_Mark => New_Occurrence_Of (Ret_Type, Sloc (N)),
+                    Make_Type_Conversion (Loc,
+                      Subtype_Mark => New_Occurrence_Of (Ret_Type, Loc),
                       Expression   => Relocate_Node (Expression (N)));
                end if;
 
@@ -3582,7 +3640,7 @@ package body Inline is
          elsif Nkind (N) = N_Pragma
            and then Pragma_Name (N) = Name_Unreferenced
          then
-            Rewrite (N, Make_Null_Statement (Sloc (N)));
+            Rewrite (N, Make_Null_Statement (Loc));
             return OK;
 
          else
@@ -4665,8 +4723,7 @@ package body Inline is
 
       else
          return
-           Present (Declarations (N))
-             and then Present (First (Declarations (N)))
+           Present (First (Declarations (N)))
              and then Nkind (First (Declarations (N))) = N_Object_Declaration
              and then Entity (Expression (Return_Statement)) =
                         Defining_Identifier (First (Declarations (N)));

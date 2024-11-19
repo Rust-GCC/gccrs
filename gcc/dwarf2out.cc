@@ -80,6 +80,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "expr.h"
 #include "dwarf2out.h"
 #include "dwarf2ctf.h"
+#include "dwarf2codeview.h"
 #include "dwarf2asm.h"
 #include "toplev.h"
 #include "md5.h"
@@ -1252,6 +1253,11 @@ dwarf2out_end_epilogue (unsigned int line ATTRIBUTE_UNUSED,
   if (dwarf2out_do_cfi_asm ())
     fprintf (asm_out_file, "\t.cfi_endproc\n");
 
+#ifdef CODEVIEW_DEBUGGING_INFO
+  if (codeview_debuginfo_p ())
+    codeview_end_epilogue ();
+#endif
+
   /* Output a label to mark the endpoint of the code generated for this
      function.  */
   ASM_GENERATE_INTERNAL_LABEL (label, FUNC_END_LABEL,
@@ -1304,6 +1310,11 @@ dwarf2out_switch_text_section (void)
       fde->dw_fde_second_end = crtl->subsections.cold_section_end_label;
     }
   have_multiple_function_sections = true;
+
+#ifdef CODEVIEW_DEBUGGING_INFO
+  if (codeview_debuginfo_p ())
+    codeview_switch_text_section ();
+#endif
 
   if (dwarf2out_do_cfi_asm ())
     fprintf (asm_out_file, "\t.cfi_endproc\n");
@@ -3582,7 +3593,7 @@ typedef struct var_loc_list_def var_loc_list;
 
 /* Call argument location list.  */
 struct GTY ((chain_next ("%h.next"))) call_arg_loc_node {
-  rtx GTY (()) call_arg_loc_note;
+  rtx_insn * GTY (()) call_insn;
   const char * GTY (()) label;
   tree GTY (()) block;
   bool tail_call_p;
@@ -3766,7 +3777,8 @@ static void remove_addr_table_entry (addr_table_entry *);
 static void add_AT_addr (dw_die_ref, enum dwarf_attribute, rtx, bool);
 static inline rtx AT_addr (dw_attr_node *);
 static void add_AT_symview (dw_die_ref, enum dwarf_attribute, const char *);
-static void add_AT_lbl_id (dw_die_ref, enum dwarf_attribute, const char *);
+static void add_AT_lbl_id (dw_die_ref, enum dwarf_attribute, const char *,
+			   int = 0);
 static void add_AT_lineptr (dw_die_ref, enum dwarf_attribute, const char *);
 static void add_AT_macptr (dw_die_ref, enum dwarf_attribute, const char *);
 static void add_AT_range_list (dw_die_ref, enum dwarf_attribute,
@@ -5342,14 +5354,17 @@ add_AT_symview (dw_die_ref die, enum dwarf_attribute attr_kind,
 
 static inline void
 add_AT_lbl_id (dw_die_ref die, enum dwarf_attribute attr_kind,
-               const char *lbl_id)
+	       const char *lbl_id, int offset)
 {
   dw_attr_node attr;
 
   attr.dw_attr = attr_kind;
   attr.dw_attr_val.val_class = dw_val_class_lbl_id;
   attr.dw_attr_val.val_entry = NULL;
-  attr.dw_attr_val.v.val_lbl_id = xstrdup (lbl_id);
+  if (!offset)
+    attr.dw_attr_val.v.val_lbl_id = xstrdup (lbl_id);
+  else
+    attr.dw_attr_val.v.val_lbl_id = xasprintf ("%s%+i", lbl_id, offset);
   if (dwarf_split_debug_info)
     attr.dw_attr_val.val_entry
         = add_addr_table_entry (attr.dw_attr_val.v.val_lbl_id,
@@ -19372,7 +19387,7 @@ loc_list_from_tree_1 (tree loc, int want_address,
     case ROUND_DIV_EXPR:
       if (TYPE_UNSIGNED (TREE_TYPE (loc)))
 	{
-	  enum machine_mode mode = TYPE_MODE (TREE_TYPE (loc));
+	  const enum machine_mode mode = TYPE_MODE (TREE_TYPE (loc));
 	  scalar_int_mode int_mode;
 
 	  if ((dwarf_strict && dwarf_version < 5)
@@ -19507,6 +19522,15 @@ loc_list_from_tree_1 (tree loc, int want_address,
     do_comp_binop:
       if (TYPE_UNSIGNED (TREE_TYPE (TREE_OPERAND (loc, 0))))
 	{
+	  const enum machine_mode mode
+	    = TYPE_MODE (TREE_TYPE (TREE_OPERAND (loc, 0)));
+	  scalar_int_mode int_mode;
+
+	  /* We can use a signed comparison if the sign bit is not set.  */
+	  if (is_a <scalar_int_mode> (mode, &int_mode)
+	      && GET_MODE_SIZE (int_mode) < DWARF2_ADDR_SIZE)
+	    goto do_binop;
+
 	  list_ret = loc_list_from_tree (TREE_OPERAND (loc, 0), 0, context);
 	  list_ret1 = loc_list_from_tree (TREE_OPERAND (loc, 1), 0, context);
 	  list_ret = loc_list_from_uint_comparison (list_ret, list_ret1,
@@ -19533,6 +19557,7 @@ loc_list_from_tree_1 (tree loc, int want_address,
       add_loc_list (&list_ret, list_ret1);
       if (list_ret == 0)
 	return 0;
+
       add_loc_descr_to_each (list_ret, new_loc_descr (op, 0, 0));
       break;
 
@@ -19656,6 +19681,28 @@ loc_list_from_tree_1 (tree loc, int want_address,
 
   if (!ret && !list_ret)
     return 0;
+
+  /* Implement wrap-around arithmetics for small integer types.  */
+  if ((TREE_CODE (loc) == PLUS_EXPR
+       || TREE_CODE (loc) == MINUS_EXPR
+       || TREE_CODE (loc) == MULT_EXPR
+       || TREE_CODE (loc) == NEGATE_EXPR
+       || TREE_CODE (loc) == LSHIFT_EXPR)
+      && INTEGRAL_TYPE_P (TREE_TYPE (loc))
+      && TYPE_OVERFLOW_WRAPS (TREE_TYPE (loc)))
+    {
+      const enum machine_mode mode = TYPE_MODE (TREE_TYPE (loc));
+      scalar_int_mode int_mode;
+
+      if (is_a <scalar_int_mode> (mode, &int_mode)
+	  && GET_MODE_SIZE (int_mode) < DWARF2_ADDR_SIZE)
+	{
+	   const unsigned HOST_WIDE_INT mask
+	    = (HOST_WIDE_INT_1U << GET_MODE_BITSIZE (int_mode)) - 1;
+	   add_loc_descr_to_each (list_ret, uint_loc_descriptor (mask));
+	   add_loc_descr_to_each (list_ret, new_loc_descr (DW_OP_and, 0, 0));
+	}
+    }
 
   if (want_address == 2 && !have_address
       && (dwarf_version >= 4 || !dwarf_strict))
@@ -23504,7 +23551,9 @@ gen_call_site_die (tree decl, dw_die_ref subr_die,
   if (stmt_die == NULL)
     stmt_die = subr_die;
   die = new_die (dwarf_TAG (DW_TAG_call_site), stmt_die, NULL_TREE);
-  add_AT_lbl_id (die, dwarf_AT (DW_AT_call_return_pc), ca_loc->label);
+  add_AT_lbl_id (die, dwarf_AT (DW_AT_call_return_pc),
+		 ca_loc->label,
+		 targetm.calls.call_offset_return_label (ca_loc->call_insn));
   if (ca_loc->tail_call_p)
     add_AT_flag (die, dwarf_AT (DW_AT_call_tail_call), 1);
   if (ca_loc->symbol_ref)
@@ -24191,11 +24240,14 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	    {
 	      dw_die_ref die = NULL;
 	      rtx tloc = NULL_RTX, tlocc = NULL_RTX;
+	      rtx call_arg_loc_note
+		= find_reg_note (ca_loc->call_insn,
+				 REG_CALL_ARG_LOCATION, NULL_RTX);
 	      rtx arg, next_arg;
 	      tree arg_decl = NULL_TREE;
 
-	      for (arg = (ca_loc->call_arg_loc_note != NULL_RTX
-			  ? XEXP (ca_loc->call_arg_loc_note, 0)
+	      for (arg = (call_arg_loc_note != NULL_RTX
+			  ? XEXP (call_arg_loc_note, 0)
 			  : NULL_RTX);
 		   arg; arg = next_arg)
 		{
@@ -26992,7 +27044,7 @@ gen_namespace_die (tree decl, dw_die_ref context_die)
     {
       /* Output a real namespace or module.  */
       context_die = setup_namespace_context (decl, comp_unit_die ());
-      namespace_die = new_die (is_fortran () || is_dlang ()
+      namespace_die = new_die (is_fortran () || is_dlang () || is_ada ()
 			       ? DW_TAG_module : DW_TAG_namespace,
 			       context_die, decl);
       /* For Fortran modules defined in different CU don't add src coords.  */
@@ -28240,8 +28292,7 @@ create_label:
 	= ggc_cleared_alloc<call_arg_loc_node> ();
       rtx_insn *prev = call_insn;
 
-      ca_loc->call_arg_loc_note
-	= find_reg_note (call_insn, REG_CALL_ARG_LOCATION, NULL_RTX);
+      ca_loc->call_insn = call_insn;
       ca_loc->next = NULL;
       ca_loc->label = last_label;
       gcc_assert (prev
@@ -28668,6 +28719,11 @@ dwarf2out_source_line (unsigned int line, unsigned int column,
   dw_line_info_table *table;
   static var_loc_view lvugid;
 
+#ifdef CODEVIEW_DEBUGGING_INFO
+  if (codeview_debuginfo_p ())
+    codeview_source_line (line, filename);
+#endif
+
   /* 'line_info_table' information gathering is not needed when the debug
      info level is set to the lowest value.  Also, the current DWARF-based
      debug formats do not use this info.  */
@@ -28888,6 +28944,11 @@ dwarf2out_set_ignored_loc (unsigned int line, unsigned int column,
 static void
 dwarf2out_start_source_file (unsigned int lineno, const char *filename)
 {
+#ifdef CODEVIEW_DEBUGGING_INFO
+  if (codeview_debuginfo_p ())
+    codeview_start_source_file (filename);
+#endif
+
   if (debug_info_level >= DINFO_LEVEL_VERBOSE)
     {
       macinfo_entry e;
@@ -29024,7 +29085,7 @@ output_macinfo_op (macinfo_entry *ref)
 	  && !DWARF2_INDIRECT_STRING_SUPPORT_MISSING_ON_TARGET
 	  && (debug_str_section->common.flags & SECTION_MERGE) != 0)
 	{
-	  if (dwarf_split_debug_info && dwarf_version >= 5)
+	  if (dwarf_split_debug_info)
 	    ref->code = ref->code == DW_MACINFO_define
 			? DW_MACRO_define_strx : DW_MACRO_undef_strx;
 	  else
@@ -29076,12 +29137,20 @@ output_macinfo_op (macinfo_entry *ref)
 				   HOST_WIDE_INT_PRINT_UNSIGNED,
 				   ref->lineno);
       if (node->form == DW_FORM_strp)
-        dw2_asm_output_offset (dwarf_offset_size, node->label,
-                               debug_str_section, "The macro: \"%s\"",
-                               ref->info);
+	{
+	  gcc_assert (ref->code == DW_MACRO_define_strp
+		      || ref->code == DW_MACRO_undef_strp);
+	  dw2_asm_output_offset (dwarf_offset_size, node->label,
+				 debug_str_section, "The macro: \"%s\"",
+				 ref->info);
+	}
       else
-        dw2_asm_output_data_uleb128 (node->index, "The macro: \"%s\"",
-                                     ref->info);
+	{
+	  gcc_assert (ref->code == DW_MACRO_define_strx
+		      || ref->code == DW_MACRO_undef_strx);
+	  dw2_asm_output_data_uleb128 (node->index, "The macro: \"%s\"",
+				       ref->info);
+	}
       break;
     case DW_MACRO_import:
       dw2_asm_output_data (1, ref->code, "Import");
@@ -32277,6 +32346,11 @@ dwarf2out_finish (const char *filename)
   if ((ctf_debug_info_level > CTFINFO_LEVEL_NONE
        || btf_debuginfo_p ()) && lang_GNU_C ())
     ctf_debug_finish (filename);
+
+#ifdef CODEVIEW_DEBUGGING_INFO
+  if (codeview_debuginfo_p ())
+    codeview_debug_finish ();
+#endif
 
   /* Skip emitting DWARF if not required.  */
   if (!dwarf_debuginfo_p ())

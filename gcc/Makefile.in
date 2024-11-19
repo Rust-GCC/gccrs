@@ -447,7 +447,6 @@ CPPINC = -I$(srcdir)/../libcpp/include
 
 CODYLIB = ../libcody/libcody.a
 CODYINC = -I$(srcdir)/../libcody
-NETLIBS = @NETLIBS@
 
 # Where to find decNumber
 enable_decimal_float = @enable_decimal_float@
@@ -1039,6 +1038,7 @@ SYSTEM_H = system.h hwint.h $(srcdir)/../include/libiberty.h \
 PREDICT_H = predict.h predict.def
 CPPLIB_H = $(srcdir)/../libcpp/include/line-map.h \
 	$(srcdir)/../libcpp/include/rich-location.h \
+	$(srcdir)/../libcpp/include/label-text.h \
 	$(srcdir)/../libcpp/include/cpplib.h
 CODYLIB_H = $(srcdir)/../libcody/cody.hh
 INPUT_H = $(srcdir)/../libcpp/include/line-map.h input.h
@@ -1302,7 +1302,8 @@ C_COMMON_OBJS = c-family/c-common.o c-family/c-cppbuiltin.o c-family/c-dump.o \
   c-family/c-ppoutput.o c-family/c-pragma.o c-family/c-pretty-print.o \
   c-family/c-semantics.o c-family/c-ada-spec.o \
   c-family/c-ubsan.o c-family/known-headers.o \
-  c-family/c-attribs.o c-family/c-warn.o c-family/c-spellcheck.o
+  c-family/c-attribs.o c-family/c-warn.o c-family/c-spellcheck.o \
+  c-family/c-type-mismatch.o
 
 # Analyzer object files
 ANALYZER_OBJS = \
@@ -1444,6 +1445,7 @@ OBJS = \
 	dumpfile.o \
 	dwarf2asm.o \
 	dwarf2cfi.o \
+	dwarf2codeview.o \
 	dwarf2ctf.o \
 	dwarf2out.o \
 	early-remat.o \
@@ -1563,6 +1565,7 @@ OBJS = \
 	ipa-strub.o \
 	ipa.o \
 	ira.o \
+	pair-fusion.o \
 	ira-build.o \
 	ira-costs.o \
 	ira-conflicts.o \
@@ -1835,6 +1838,7 @@ OBJS-libcommon = diagnostic-spec.o diagnostic.o diagnostic-color.o \
 	text-art/styled-string.o \
 	text-art/table.o \
 	text-art/theme.o \
+	text-art/tree-widget.o \
 	text-art/widget.o
 
 # Objects in libcommon-target.a, used by drivers and by the core
@@ -2839,6 +2843,7 @@ GTFILES = $(CPPLIB_H) $(srcdir)/input.h $(srcdir)/coretypes.h \
   $(srcdir)/dwarf2out.h \
   $(srcdir)/dwarf2asm.cc \
   $(srcdir)/dwarf2cfi.cc \
+  $(srcdir)/dwarf2codeview.cc \
   $(srcdir)/dwarf2ctf.cc \
   $(srcdir)/dwarf2out.cc \
   $(srcdir)/ctfc.h \

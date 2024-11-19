@@ -738,10 +738,11 @@ package Errout is
    procedure Error_Msg
      (Msg                    : String;
       Flag_Location          : Source_Ptr;
+      N                      : Node_Id;
       Is_Compile_Time_Pragma : Boolean);
-   --  Same as Error_Msg (String, Source_Ptr) except Is_Compile_Time_Pragma
-   --  lets the caller specify whether this is a Compile_Time_Warning or
-   --  Compile_Time_Error pragma.
+   --  Same as Error_Msg (String, Source_Ptr, Node_Id) except
+   --  Is_Compile_Time_Pragma lets the caller specify whether this is a
+   --  Compile_Time_Warning or Compile_Time_Error pragma.
 
    procedure Error_Msg_S (Msg : String);
    --  Output a message at current scan pointer location. This routine can be
@@ -896,7 +897,7 @@ package Errout is
    --  location from which warnings are to be turned back on.
 
    procedure Set_Specific_Warning_Off
-     (Loc    : Source_Ptr;
+     (Node   : Node_Id;
       Msg    : String;
       Reason : String_Id;
       Config : Boolean;

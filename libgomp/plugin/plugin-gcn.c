@@ -390,6 +390,7 @@ typedef enum {
   EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
   EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
   EF_AMDGPU_MACH_AMDGCN_GFX90a = 0x03f,
+  EF_AMDGPU_MACH_AMDGCN_GFX90c = 0x032,
   EF_AMDGPU_MACH_AMDGCN_GFX1030 = 0x036,
   EF_AMDGPU_MACH_AMDGCN_GFX1036 = 0x045,
   EF_AMDGPU_MACH_AMDGCN_GFX1100 = 0x041,
@@ -1679,6 +1680,7 @@ const static char *gcn_gfx900_s = "gfx900";
 const static char *gcn_gfx906_s = "gfx906";
 const static char *gcn_gfx908_s = "gfx908";
 const static char *gcn_gfx90a_s = "gfx90a";
+const static char *gcn_gfx90c_s = "gfx90c";
 const static char *gcn_gfx1030_s = "gfx1030";
 const static char *gcn_gfx1036_s = "gfx1036";
 const static char *gcn_gfx1100_s = "gfx1100";
@@ -1702,6 +1704,8 @@ isa_hsa_name (int isa) {
       return gcn_gfx908_s;
     case EF_AMDGPU_MACH_AMDGCN_GFX90a:
       return gcn_gfx90a_s;
+    case EF_AMDGPU_MACH_AMDGCN_GFX90c:
+      return gcn_gfx90c_s;
     case EF_AMDGPU_MACH_AMDGCN_GFX1030:
       return gcn_gfx1030_s;
     case EF_AMDGPU_MACH_AMDGCN_GFX1036:
@@ -1749,6 +1753,9 @@ isa_code(const char *isa) {
   if (!strncmp (isa, gcn_gfx90a_s, gcn_isa_name_len))
     return EF_AMDGPU_MACH_AMDGCN_GFX90a;
 
+  if (!strncmp (isa, gcn_gfx90c_s, gcn_isa_name_len))
+    return EF_AMDGPU_MACH_AMDGCN_GFX90c;
+
   if (!strncmp (isa, gcn_gfx1030_s, gcn_isa_name_len))
     return EF_AMDGPU_MACH_AMDGCN_GFX1030;
 
@@ -1778,6 +1785,8 @@ max_isa_vgprs (int isa)
       return 256;
     case EF_AMDGPU_MACH_AMDGCN_GFX90a:
       return 512;
+    case EF_AMDGPU_MACH_AMDGCN_GFX90c:
+      return 256;
     case EF_AMDGPU_MACH_AMDGCN_GFX1030:
     case EF_AMDGPU_MACH_AMDGCN_GFX1036:
       return 512;  /* 512 SIMD32 = 256 wavefrontsize64.  */
@@ -3346,8 +3355,25 @@ GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
   if (hsa_context.agent_count > 0
       && ((omp_requires_mask
 	   & ~(GOMP_REQUIRES_UNIFIED_ADDRESS
+	       | GOMP_REQUIRES_UNIFIED_SHARED_MEMORY
 	       | GOMP_REQUIRES_REVERSE_OFFLOAD)) != 0))
     return -1;
+  /* Check whether host page access is supported; this is per system level
+     (all GPUs supported by HSA).  While intrinsically true for APUs, it
+     requires XNACK support for discrete GPUs.  */
+  if (hsa_context.agent_count > 0
+      && (omp_requires_mask & GOMP_REQUIRES_UNIFIED_SHARED_MEMORY))
+    {
+      bool b;
+      hsa_system_info_t type = HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT;
+      hsa_status_t status = hsa_fns.hsa_system_get_info_fn (type, &b);
+      if (status != HSA_STATUS_SUCCESS)
+	GOMP_PLUGIN_error ("HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT "
+			   "failed");
+      if (!b)
+	return -1;
+    }
+
   return hsa_context.agent_count;
 }
 

@@ -53,6 +53,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl-iter.h"
 #include "gimple-range.h"
 #include "fold-const-call.h"
+#include "tree-ssa-live.h"
+#include "tree-outof-ssa.h"
 
 /* For lang_hooks.types.type_for_mode.  */
 #include "langhooks.h"
@@ -891,7 +893,7 @@ get_min_precision (tree arg, signop sign)
     }
   if (TREE_CODE (arg) != SSA_NAME)
     return prec + (orig_sign != sign);
-  value_range r;
+  int_range_max r;
   while (!get_global_range_query ()->range_of_expr (r, arg)
 	 || r.varying_p ()
 	 || r.undefined_p ())
@@ -1631,7 +1633,11 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
   rtx target = NULL_RTX;
   signop sign;
   enum insn_code icode;
+  int save_flag_trapv = flag_trapv;
 
+  /* We don't want any __mulv?i3 etc. calls from the expansion of
+     these internal functions, so disable -ftrapv temporarily.  */
+  flag_trapv = 0;
   done_label = gen_label_rtx ();
   do_error = gen_label_rtx ();
 
@@ -2479,6 +2485,7 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
       else
 	expand_arith_overflow_result_store (lhs, target, mode, res);
     }
+  flag_trapv = save_flag_trapv;
 }
 
 /* Expand UBSAN_CHECK_* internal function if it has vector operands.  */
@@ -2499,7 +2506,11 @@ expand_vector_ubsan_overflow (location_t loc, enum tree_code code, tree lhs,
   rtx resvr = NULL_RTX;
   unsigned HOST_WIDE_INT const_cnt = 0;
   bool use_loop_p = (!cnt.is_constant (&const_cnt) || const_cnt > 4);
+  int save_flag_trapv = flag_trapv;
 
+  /* We don't want any __mulv?i3 etc. calls from the expansion of
+     these internal functions, so disable -ftrapv temporarily.  */
+  flag_trapv = 0;
   if (lhs)
     {
       optab op;
@@ -2629,6 +2640,7 @@ expand_vector_ubsan_overflow (location_t loc, enum tree_code code, tree lhs,
     }
   else if (resvr)
     emit_move_insn (lhsr, resvr);
+  flag_trapv = save_flag_trapv;
 }
 
 /* Expand UBSAN_CHECK_ADD call STMT.  */
@@ -2707,7 +2719,11 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
   prec0 = MIN (prec0, pr);
   pr = get_min_precision (arg1, uns1_p ? UNSIGNED : SIGNED);
   prec1 = MIN (prec1, pr);
+  int save_flag_trapv = flag_trapv;
 
+  /* We don't want any __mulv?i3 etc. calls from the expansion of
+     these internal functions, so disable -ftrapv temporarily.  */
+  flag_trapv = 0;
   /* If uns0_p && uns1_p, precop is minimum needed precision
      of unsigned type to hold the exact result, otherwise
      precop is minimum needed precision of signed type to
@@ -2748,6 +2764,7 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	  ops.location = loc;
 	  rtx tem = expand_expr_real_2 (&ops, NULL_RTX, mode, EXPAND_NORMAL);
 	  expand_arith_overflow_result_store (lhs, target, mode, tem);
+	  flag_trapv = save_flag_trapv;
 	  return;
 	}
 
@@ -2771,16 +2788,19 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	      if (integer_zerop (arg0) && !unsr_p)
 		{
 		  expand_neg_overflow (loc, lhs, arg1, false, NULL);
+		  flag_trapv = save_flag_trapv;
 		  return;
 		}
 	      /* FALLTHRU */
 	    case PLUS_EXPR:
 	      expand_addsub_overflow (loc, code, lhs, arg0, arg1, unsr_p,
 				      unsr_p, unsr_p, false, NULL);
+	      flag_trapv = save_flag_trapv;
 	      return;
 	    case MULT_EXPR:
 	      expand_mul_overflow (loc, lhs, arg0, arg1, unsr_p,
 				   unsr_p, unsr_p, false, NULL);
+	      flag_trapv = save_flag_trapv;
 	      return;
 	    default:
 	      gcc_unreachable ();
@@ -2826,6 +2846,7 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	  else
 	    expand_mul_overflow (loc, lhs, arg0, arg1, unsr_p,
 				 uns0_p, uns1_p, false, NULL);
+	  flag_trapv = save_flag_trapv;
 	  return;
 	}
 
@@ -2945,8 +2966,8 @@ expand_call_mem_ref (tree type, gcall *stmt, int index)
   tree tmp = addr;
   if (TREE_CODE (tmp) == SSA_NAME)
     {
-      gimple *def = SSA_NAME_DEF_STMT (tmp);
-      if (gimple_assign_single_p (def))
+      gimple *def = get_gimple_for_ssa_name (tmp);
+      if (def && gimple_assign_single_p (def))
 	tmp = gimple_assign_rhs1 (def);
     }
 
@@ -3143,9 +3164,6 @@ expand_vec_cond_mask_optab_fn (internal_fn, gcall *stmt, convert_optab optab)
   mask = expand_normal (op0);
   rtx_op1 = expand_normal (op1);
   rtx_op2 = expand_normal (op2);
-
-  mask = force_reg (mask_mode, mask);
-  rtx_op1 = force_reg (mode, rtx_op1);
 
   rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
   create_output_operand (&ops[0], target, mode);
@@ -3418,6 +3436,42 @@ expand_DEFERRED_INIT (internal_fn, gcall *stmt)
 
       expand_assignment (lhs, init, false);
     }
+}
+
+/* Expand the IFN_ACCESS_WITH_SIZE function:
+   ACCESS_WITH_SIZE (REF_TO_OBJ, REF_TO_SIZE, CLASS_OF_SIZE,
+		     TYPE_OF_SIZE, ACCESS_MODE)
+   which returns the REF_TO_OBJ same as the 1st argument;
+
+   1st argument REF_TO_OBJ: The reference to the object;
+   2nd argument REF_TO_SIZE: The reference to the size of the object,
+   3rd argument CLASS_OF_SIZE: The size referenced by the REF_TO_SIZE represents
+     0: the number of bytes.
+     1: the number of the elements of the object type;
+   4th argument TYPE_OF_SIZE: A constant 0 with its TYPE being the same as the TYPE
+    of the object referenced by REF_TO_SIZE
+   5th argument ACCESS_MODE:
+    -1: Unknown access semantics
+     0: none
+     1: read_only
+     2: write_only
+     3: read_write
+   6th argument: A constant 0 with the pointer TYPE to the original flexible
+     array type.
+
+   Both the return type and the type of the first argument of this
+   function have been converted from the incomplete array type to
+   the corresponding pointer type.
+
+   For each call to a .ACCESS_WITH_SIZE, replace it with its 1st argument.  */
+
+static void
+expand_ACCESS_WITH_SIZE (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  tree ref_to_obj = gimple_call_arg (stmt, 0);
+  if (lhs)
+    expand_assignment (lhs, ref_to_obj, false);
 }
 
 /* The size of an OpenACC compute dimension.  */
@@ -4181,6 +4235,7 @@ commutative_binary_fn_p (internal_fn fn)
     case IFN_UBSAN_CHECK_MUL:
     case IFN_ADD_OVERFLOW:
     case IFN_MUL_OVERFLOW:
+    case IFN_SAT_ADD:
     case IFN_VEC_WIDEN_PLUS:
     case IFN_VEC_WIDEN_PLUS_LO:
     case IFN_VEC_WIDEN_PLUS_HI:

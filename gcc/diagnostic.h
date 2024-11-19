@@ -194,6 +194,7 @@ namespace json { class value; }
 class diagnostic_client_data_hooks;
 class logical_location;
 class diagnostic_diagram;
+class diagnostic_source_effect_info;
 
 /* Abstract base class for a particular output format for diagnostics;
    each value of -fdiagnostics-output-format= will have its own
@@ -360,6 +361,11 @@ struct diagnostic_source_printing_options
   /* Usable by plugins; if true, print a debugging ruler above the
      source output.  */
   bool show_ruler_p;
+
+  /* When printing events in an inline path, should we print lines
+     visualizing links between related events (e.g. for CFG paths)?
+     Corresponds to -fdiagnostics-show-event-links.  */
+  bool show_event_links_p;
 };
 
 /* This data structure bundles altogether any information relevant to
@@ -433,7 +439,8 @@ public:
 
   void maybe_show_locus (const rich_location &richloc,
 			 diagnostic_t diagnostic_kind,
-			 pretty_printer *pp);
+			 pretty_printer *pp,
+			 diagnostic_source_effect_info *effect_info);
 
   void emit_diagram (const diagnostic_diagram &diagram);
 
@@ -573,7 +580,8 @@ private:
 
   void show_locus (const rich_location &richloc,
 		   diagnostic_t diagnostic_kind,
-		   pretty_printer *pp);
+		   pretty_printer *pp,
+		   diagnostic_source_effect_info *effect_info);
 
   /* Data members.
      Ideally, all of these would be private and have "m_" prefixes.  */
@@ -920,10 +928,11 @@ inline void
 diagnostic_show_locus (diagnostic_context *context,
 		       rich_location *richloc,
 		       diagnostic_t diagnostic_kind,
-		       pretty_printer *pp = nullptr)
+		       pretty_printer *pp = nullptr,
+		       diagnostic_source_effect_info *effect_info = nullptr)
 {
   gcc_assert (richloc);
-  context->maybe_show_locus (*richloc, diagnostic_kind, pp);
+  context->maybe_show_locus (*richloc, diagnostic_kind, pp, effect_info);
 }
 
 /* Because we read source files a second time after the frontend did it the
@@ -1073,6 +1082,7 @@ extern char *file_name_as_prefix (diagnostic_context *, const char *);
 extern char *build_message_string (const char *, ...) ATTRIBUTE_PRINTF_1;
 
 extern void diagnostic_output_format_init (diagnostic_context *,
+					   const char *main_input_filename_,
 					   const char *base_file_name,
 					   enum diagnostics_output_format,
 					   bool json_formatting);
@@ -1082,11 +1092,14 @@ extern void diagnostic_output_format_init_json_file (diagnostic_context *context
 						     bool formatted,
 						     const char *base_file_name);
 extern void diagnostic_output_format_init_sarif_stderr (diagnostic_context *context,
+							const char *main_input_filename_,
 							bool formatted);
 extern void diagnostic_output_format_init_sarif_file (diagnostic_context *context,
+						      const char *main_input_filename_,
 						      bool formatted,
 						      const char *base_file_name);
 extern void diagnostic_output_format_init_sarif_stream (diagnostic_context *context,
+							const char *main_input_filename_,
 							bool formatted,
 							FILE *stream);
 

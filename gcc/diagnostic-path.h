@@ -41,22 +41,20 @@ class sarif_object;
         29 |     PyList_Append(list, item);
            |     ^~~~~~~~~~~~~~~~~~~~~~~~~
        'demo': events 1-3
-          |
-          |   25 |   list = PyList_New(0);
-          |      |          ^~~~~~~~~~~~~
-          |      |          |
-          |      |          (1) when 'PyList_New' fails, returning NULL
-          |   26 |
-          |   27 |   for (i = 0; i < count; i++) {
-          |      |   ~~~
-          |      |   |
-          |      |   (2) when 'i < count'
-          |   28 |     item = PyLong_FromLong(random());
-          |   29 |     PyList_Append(list, item);
-          |      |     ~~~~~~~~~~~~~~~~~~~~~~~~~
-          |      |     |
-          |      |     (3) when calling 'PyList_Append', passing NULL from (1) as argument 1
-          |
+        25 |   list = PyList_New(0);
+           |          ^~~~~~~~~~~~~
+           |          |
+           |          (1) when 'PyList_New' fails, returning NULL
+        26 |
+        27 |   for (i = 0; i < count; i++) {
+           |   ~~~
+           |   |
+           |   (2) when 'i < count'
+        28 |     item = PyLong_FromLong(random());
+        29 |     PyList_Append(list, item);
+           |     ~~~~~~~~~~~~~~~~~~~~~~~~~
+           |     |
+           |     (3) when calling 'PyList_Append', passing NULL from (1) as argument 1
 
     The diagnostic-printing code has consolidated the path into a single
     run of events, since all the events are near each other and within the same
@@ -146,7 +144,7 @@ class diagnostic_event
 
   virtual tree get_fndecl () const = 0;
 
-  /* Stack depth, so that consumers can visualizes the interprocedural
+  /* Stack depth, so that consumers can visualize the interprocedural
      calls, returns, and frame nesting.  */
   virtual int get_stack_depth () const = 0;
 
@@ -157,6 +155,10 @@ class diagnostic_event
   virtual const logical_location *get_logical_location () const = 0;
 
   virtual meaning get_meaning () const = 0;
+
+  /* True iff we should draw a line connecting this event to the
+     next event (e.g. to highlight control flow).  */
+  virtual bool connect_to_next_event_p () const = 0;
 
   virtual diagnostic_thread_id_t get_thread_id () const = 0;
 
@@ -226,9 +228,18 @@ class simple_diagnostic_event : public diagnostic_event
   {
     return meaning ();
   }
+  bool connect_to_next_event_p () const final override
+  {
+    return m_connected_to_next_event;
+  }
   diagnostic_thread_id_t get_thread_id () const final override
   {
     return m_thread_id;
+  }
+
+  void connect_to_next_event ()
+  {
+    m_connected_to_next_event = true;
   }
 
  private:
@@ -236,6 +247,7 @@ class simple_diagnostic_event : public diagnostic_event
   tree m_fndecl;
   int m_depth;
   char *m_desc; // has been i18n-ed and formatted
+  bool m_connected_to_next_event;
   diagnostic_thread_id_t m_thread_id;
 };
 
@@ -279,12 +291,17 @@ class simple_diagnostic_path : public diagnostic_path
 		    const char *fmt, ...)
     ATTRIBUTE_GCC_DIAG(6,7);
 
+  void connect_to_next_event ();
+
+  void disable_event_localization () { m_localize_events = false; }
+
  private:
   auto_delete_vec<simple_diagnostic_thread> m_threads;
   auto_delete_vec<simple_diagnostic_event> m_events;
 
   /* (for use by add_event).  */
   pretty_printer *m_event_pp;
+  bool m_localize_events;
 };
 
 extern void debug (diagnostic_path *path);

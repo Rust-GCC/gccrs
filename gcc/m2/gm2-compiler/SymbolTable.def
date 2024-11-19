@@ -1395,6 +1395,13 @@ PROCEDURE IsProcedureNoReturn (Sym: CARDINAL) : BOOLEAN ;
 
 
 (*
+   GetProcedureProcType - returns the proctype matching procedure sym.
+*)
+
+PROCEDURE GetProcedureProcType (sym: CARDINAL) : CARDINAL ;
+
+
+(*
    PutModuleStartQuad - Places QuadNumber into the Module symbol, Sym.
                         QuadNumber is the start quad of Module,
                         Sym.
@@ -3027,6 +3034,14 @@ PROCEDURE PutHiddenTypeDeclared ;
 *)
 
 PROCEDURE IsHiddenTypeDeclared (Sym: CARDINAL) : BOOLEAN ;
+
+
+(*
+   IsHiddenReallyPointer - returns TRUE is sym is a pointer, address or a
+                           type declared as a pointer or address.
+*)
+
+PROCEDURE IsHiddenReallyPointer (Sym: CARDINAL) : BOOLEAN ;
 
 
 (*

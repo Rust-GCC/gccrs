@@ -2189,6 +2189,14 @@ resolve_actual_arglist (gfc_actual_arglist *arg, procedure_type ptype,
 			    ? CLASS_DATA (sym)->as : sym->as;
 	}
 
+      /* These symbols are set untyped by calls to gfc_set_default_type
+	 with 'error_flag' = false.  Reset the untyped attribute so that
+	 the error will be generated in gfc_resolve_expr.  */
+      if (e->expr_type == EXPR_VARIABLE
+	  && sym->ts.type == BT_UNKNOWN
+	  && sym->attr.untyped)
+	sym->attr.untyped = 0;
+
       /* Expressions are assigned a default ts.type of BT_PROCEDURE in
 	 primary.cc (match_actual_arg). If above code determines that it
 	 is a  variable instead, it needs to be resolved as it was not
@@ -5001,7 +5009,8 @@ gfc_resolve_index_1 (gfc_expr *index, int check_scalar,
 
   if ((index->ts.kind != gfc_index_integer_kind
        && force_index_integer_kind)
-      || index->ts.type != BT_INTEGER)
+      || (index->ts.type != BT_INTEGER
+	  && index->ts.type != BT_UNKNOWN))
     {
       gfc_clear_ts (&ts);
       ts.type = BT_INTEGER;
@@ -5879,6 +5888,9 @@ resolve_variable (gfc_expr *e)
       if (e->expr_type == EXPR_CONSTANT)
 	return true;
     }
+  else if (sym->attr.select_type_temporary
+	   && sym->ns->assoc_name_inferred)
+    gfc_fixup_inferred_type_refs (e);
 
   /* For variables that are used in an associate (target => object) where
      the object's basetype is array valued while the target is scalar,
@@ -6222,10 +6234,12 @@ gfc_fixup_inferred_type_refs (gfc_expr *e)
 	      free (new_ref);
 	    }
 	  else
-	  {
-	    e->ref = ref->next;
-	    free (ref);
-	  }
+	    {
+	      if (e->ref->u.ar.type == AR_UNKNOWN)
+		gfc_error ("Invalid array reference at %L", &e->where);
+	      e->ref = ref->next;
+	      free (ref);
+	    }
 	}
 
       /* It is possible for an inquiry reference to be mistaken for a
@@ -6306,6 +6320,8 @@ gfc_fixup_inferred_type_refs (gfc_expr *e)
 	  && e->ref->u.ar.type != AR_ELEMENT)
 	{
 	  ref = e->ref;
+	  if (ref->u.ar.type == AR_UNKNOWN)
+	    gfc_error ("Invalid array reference at %L", &e->where);
 	  e->ref = ref->next;
 	  free (ref);
 
@@ -6328,6 +6344,8 @@ gfc_fixup_inferred_type_refs (gfc_expr *e)
 	       && e->ref->next->u.ar.type != AR_ELEMENT)
 	{
 	  ref = e->ref->next;
+	  if (ref->u.ar.type == AR_UNKNOWN)
+	    gfc_error ("Invalid array reference at %L", &e->where);
 	  e->ref->next = e->ref->next->next;
 	  free (ref);
 	}
@@ -8277,6 +8295,16 @@ resolve_allocate_expr (gfc_expr *e, gfc_code *code, bool *array_alloc_wo_spec)
 		      &code->expr3->where, &e->where);
 	  goto failure;
 	}
+
+      /* Check F2008:C639: "Corresponding kind type parameters of
+	 allocate-object and source-expr shall have the same values."  */
+      if (e->ts.type == BT_CHARACTER
+	  && !e->ts.deferred
+	  && e->ts.u.cl->length
+	  && code->expr3->ts.type == BT_CHARACTER
+	  && !gfc_check_same_strlen (e, code->expr3, "ALLOCATE with "
+				     "SOURCE= or MOLD= specifier"))
+	    goto failure;
 
       /* Check TS18508, C702/C703.  */
       if (code->expr3->ts.type == BT_DERIVED
@@ -11409,6 +11437,8 @@ gfc_resolve_blocks (gfc_code *b, gfc_namespace *ns)
 	case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
 	case EXEC_OMP_TEAMS_LOOP:
 	case EXEC_OMP_TEAMS_DISTRIBUTE_SIMD:
+	case EXEC_OMP_TILE:
+	case EXEC_OMP_UNROLL:
 	case EXEC_OMP_WORKSHARE:
 	  break;
 
@@ -12576,6 +12606,8 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
 	    case EXEC_OMP_LOOP:
 	    case EXEC_OMP_SIMD:
 	    case EXEC_OMP_TARGET_SIMD:
+	    case EXEC_OMP_TILE:
+	    case EXEC_OMP_UNROLL:
 	      gfc_resolve_omp_do_blocks (code, ns);
 	      break;
 	    case EXEC_SELECT_TYPE:
@@ -13074,6 +13106,8 @@ start:
 	case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
 	case EXEC_OMP_TEAMS_DISTRIBUTE_SIMD:
 	case EXEC_OMP_TEAMS_LOOP:
+	case EXEC_OMP_TILE:
+	case EXEC_OMP_UNROLL:
 	case EXEC_OMP_WORKSHARE:
 	  gfc_resolve_omp_directive (code, ns);
 	  break;

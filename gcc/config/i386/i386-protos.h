@@ -107,6 +107,7 @@ extern void ix86_expand_clear (rtx);
 extern void ix86_expand_move (machine_mode, rtx[]);
 extern void ix86_expand_vector_move (machine_mode, rtx[]);
 extern void ix86_expand_vector_move_misalign (machine_mode, rtx[]);
+extern rtx ix86_broadcast_from_constant (machine_mode, rtx);
 extern rtx ix86_fixup_binary_operands (enum rtx_code, machine_mode,
 				       rtx[], bool = false);
 extern void ix86_fixup_binary_operands_no_copy (enum rtx_code, machine_mode,
@@ -242,8 +243,18 @@ extern void ix86_expand_atomic_fetch_op_loop (rtx, rtx, rtx, enum rtx_code,
 extern void ix86_expand_cmpxchg_loop (rtx *, rtx, rtx, rtx, rtx, rtx,
 				      bool, rtx_code_label *);
 extern rtx ix86_expand_fast_convert_bf_to_sf (rtx);
+extern rtx ix86_gen_ccmp_first (rtx_insn **, rtx_insn **, enum rtx_code,
+				tree, tree);
+extern rtx ix86_gen_ccmp_next (rtx_insn **, rtx_insn **, rtx,
+			       enum rtx_code, tree, tree, enum rtx_code);
+extern int ix86_get_flags_cc (enum rtx_code);
 extern rtx ix86_memtag_untagged_pointer (rtx, rtx);
 extern bool ix86_memtag_can_tag_addresses (void);
+
+extern int ix86_ternlog_idx (rtx op, rtx *args);
+extern bool ix86_ternlog_operand_p (rtx op);
+extern rtx ix86_expand_ternlog (machine_mode mode, rtx op0, rtx op1, rtx op2,
+				int idx, rtx target);
 
 #ifdef TREE_CODE
 extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree, int);
@@ -295,16 +306,16 @@ extern void ix86_target_macros (void);
 extern void ix86_register_pragmas (void);
 
 /* In winnt.cc  */
-extern void i386_pe_unique_section (tree, int);
-extern void i386_pe_declare_function_type (FILE *, const char *, int);
+extern void mingw_pe_unique_section (tree, int);
+extern void mingw_pe_declare_function_type (FILE *, const char *, int);
 extern void i386_pe_record_external_function (tree, const char *);
-extern void i386_pe_maybe_record_exported_symbol (tree, const char *, int);
-extern void i386_pe_encode_section_info (tree, rtx, int);
+extern void mingw_pe_maybe_record_exported_symbol (tree, const char *, int);
+extern void mingw_pe_encode_section_info (tree, rtx, int);
 extern bool i386_pe_binds_local_p (const_tree);
 extern const char *i386_pe_strip_name_encoding_full (const char *);
 extern bool i386_pe_valid_dllimport_attribute_p (const_tree);
-extern unsigned int i386_pe_section_type_flags (tree, const char *, int);
-extern void i386_pe_asm_named_section (const char *, unsigned int, tree);
+extern unsigned int mingw_pe_section_type_flags (tree, const char *, int);
+extern void mingw_pe_asm_named_section (const char *, unsigned int, tree);
 extern void i386_pe_asm_output_aligned_decl_common (FILE *, tree,
 						    const char *,
 						    HOST_WIDE_INT,

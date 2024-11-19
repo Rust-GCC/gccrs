@@ -3338,18 +3338,22 @@
 
 ;; Predicated string matching.
 (define_insn "@aarch64_pred_<sve_int_op><mode>"
-  [(set (match_operand:<VPRED> 0 "register_operand" "=Upa")
+  [(set (match_operand:<VPRED> 0 "register_operand")
 	(unspec:<VPRED>
-	  [(match_operand:<VPRED> 1 "register_operand" "Upl")
+	  [(match_operand:<VPRED> 1 "register_operand")
 	   (match_operand:SI 2 "aarch64_sve_ptrue_flag")
 	   (unspec:<VPRED>
-	     [(match_operand:SVE_FULL_BHI 3 "register_operand" "w")
-	      (match_operand:SVE_FULL_BHI 4 "register_operand" "w")]
+	     [(match_operand:SVE_FULL_BHI 3 "register_operand")
+	      (match_operand:SVE_FULL_BHI 4 "register_operand")]
 	     SVE2_MATCH)]
 	  UNSPEC_PRED_Z))
    (clobber (reg:CC_NZC CC_REGNUM))]
   "TARGET_SVE2 && TARGET_NON_STREAMING"
-  "<sve_int_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, %4.<Vetype>"
+  {@ [ cons: =0, 1  , 3, 4; attrs: pred_clobber ]
+     [ &Upa    , Upl, w, w; yes                 ] <sve_int_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, %4.<Vetype>
+     [ ?Upl    , 0  , w, w; yes                 ] ^
+     [ Upa     , Upl, w, w; no                  ] ^
+  }
 )
 
 ;; Predicated string matching in which both the flag and predicate results

@@ -3887,6 +3887,8 @@ These machine description macros help implement varargs:
 
 @hook TARGET_STRICT_ARGUMENT_NAMING
 
+@hook TARGET_CALL_OFFSET_RETURN_LABEL
+
 @hook TARGET_START_CALL_ARGS
 
 @hook TARGET_CALL_ARGS
@@ -7222,6 +7224,8 @@ floating-point support; they are not included in this mechanism.
 @hook TARGET_CXX_USE_AEABI_ATEXIT
 
 @hook TARGET_CXX_USE_ATEXIT_FOR_CXA_ATEXIT
+
+@hook TARGET_CXX_ADJUST_CDTOR_CALLABI_FNTYPE
 
 @hook TARGET_CXX_ADJUST_CLASS_AT_DEFINITION
 

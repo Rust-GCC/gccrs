@@ -167,7 +167,6 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 		   TYPE_VECTOR_SUBPARTS (TREE_TYPE (@0)))
       && tree_nop_conversion_p (TREE_TYPE (type), TREE_TYPE (TREE_TYPE (@0))))))
 
-#if GIMPLE
 /* These are used by gimple_bitwise_inverted_equal_p to simplify
    detection of BIT_NOT and comparisons. */
 (match (bit_not_with_nop @0)
@@ -175,6 +174,8 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (match (bit_not_with_nop @0)
  (convert (bit_not @0))
  (if (tree_nop_conversion_p (type, TREE_TYPE (@0)))))
+(match (bit_xor_cst @0 @1)
+ (bit_xor @0 uniform_integer_cst_p@1))
 (for cmp (tcc_comparison)
  (match (maybe_cmp @0)
   (cmp@0 @1 @2))
@@ -188,7 +189,16 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (bit_xor@0 @1 @2)
  (if (INTEGRAL_TYPE_P (type)
       && TYPE_PRECISION (type) == 1)))
-#endif
+/* maybe_bit_not is used to match what
+   is acceptable for bitwise_inverted_equal_p. */
+(match (maybe_bit_not @0)
+ (bit_not_with_nop@0 @1))
+(match (maybe_bit_not @0)
+ (INTEGER_CST@0))
+(match (maybe_bit_not @0)
+ (maybe_cmp@0 @1))
+(match (maybe_bit_not @0)
+ (bit_xor_cst@0 @1 @2))
 
 /* Transform likes of (char) ABS_EXPR <(int) x> into (char) ABSU_EXPR <x>
    ABSU_EXPR returns unsigned absolute value of the operand and the operand
@@ -623,7 +633,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   if (TYPE_OVERFLOW_UNDEFINED (type))
     {
 #if GIMPLE
-      value_range vr0;
+      int_range_max vr0;
       if (ovf1 == wi::OVF_NONE && ovf2 == wi::OVF_NONE
 	  && get_global_range_query ()->range_of_expr (vr0, @4)
 	  && !vr0.varying_p () && !vr0.undefined_p ())
@@ -664,7 +674,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   if (TYPE_OVERFLOW_UNDEFINED (type))
     {
 #if GIMPLE
-      value_range vr0;
+      int_range_max vr0;
       if (ovf1 == wi::OVF_NONE && ovf2 == wi::OVF_NONE
 	  && get_global_range_query ()->range_of_expr (vr0, @0)
 	  && !vr0.varying_p () && !vr0.undefined_p ())
@@ -947,7 +957,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    (if (TYPE_OVERFLOW_UNDEFINED (type) && !TYPE_OVERFLOW_SANITIZED (type))
     @0
 #if GIMPLE
-    (with {value_range vr0, vr1;}
+    (with {int_range_max vr0, vr1;}
      (if (INTEGRAL_TYPE_P (type)
 	  && get_range_query (cfun)->range_of_expr (vr0, @0)
 	  && get_range_query (cfun)->range_of_expr (vr1, @1)
@@ -963,7 +973,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
        && wi::multiple_of_p (wi::to_widest (@1), wi::to_widest (@2), SIGNED))
    (if (TYPE_OVERFLOW_UNDEFINED (type) && !TYPE_OVERFLOW_SANITIZED (type))
     (mult @0 (div! @1 @2))
-    (with {value_range vr0, vr1;}
+    (with {int_range_max vr0, vr1;}
      (if (get_range_query (cfun)->range_of_expr (vr0, @0)
 	  && get_range_query (cfun)->range_of_expr (vr1, @1)
 	  && range_op_handler (MULT_EXPR).overflow_free_p (vr0, vr1))
@@ -978,7 +988,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    (if (TYPE_OVERFLOW_UNDEFINED (type) && !TYPE_OVERFLOW_SANITIZED (type))
     (div @1 @2)
 #if GIMPLE
-    (with {value_range vr0, vr1, vr2;}
+    (with {int_range_max vr0, vr1, vr2;}
      (if (get_range_query (cfun)->range_of_expr (vr0, @0)
 	  && get_range_query (cfun)->range_of_expr (vr1, @1)
 	  && get_range_query (cfun)->range_of_expr (vr2, @2)
@@ -993,7 +1003,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  /* Simplify (X + M*N) / N -> X / N + M.  */
  (simplify
   (div (plus:c@4 @0 (mult:c@3 @1 @2)) @2)
-  (with {value_range vr0, vr1, vr2, vr3, vr4;}
+  (with {int_range_max vr0, vr1, vr2, vr3, vr4;}
   (if (INTEGRAL_TYPE_P (type)
        && get_range_query (cfun)->range_of_expr (vr1, @1)
        && get_range_query (cfun)->range_of_expr (vr2, @2)
@@ -1014,7 +1024,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  /* Simplify (X - M*N) / N -> X / N - M.  */
  (simplify
   (div (minus@4 @0 (mult:c@3 @1 @2)) @2)
-  (with {value_range vr0, vr1, vr2, vr3, vr4;}
+  (with {int_range_max vr0, vr1, vr2, vr3, vr4;}
   (if (INTEGRAL_TYPE_P (type)
        && get_range_query (cfun)->range_of_expr (vr1, @1)
        && get_range_query (cfun)->range_of_expr (vr2, @2)
@@ -1047,7 +1057,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 			   : wi::div_trunc (v, n, TYPE_SIGN (type)))
 #define exact_mod(v) (shift ? wi::ctz (v) >= n.to_shwi () \
 			    : wi::multiple_of_p (v, n, TYPE_SIGN (type)))
-      value_range vr0, vr1, vr3;
+      int_range_max vr0, vr1, vr3;
     }
     (if (INTEGRAL_TYPE_P (type)
 	 && get_range_query (cfun)->range_of_expr (vr0, @0))
@@ -1332,7 +1342,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 
 /* Simplify ~X & X as zero.  */
 (simplify
- (bit_and (convert? @0) (convert? @1))
+ (bit_and:c (convert? @0) (convert? (maybe_bit_not @1)))
  (with { bool wascmp; }
   (if (types_match (TREE_TYPE (@0), TREE_TYPE (@1))
        && bitwise_inverted_equal_p (@0, @1, wascmp))
@@ -1597,7 +1607,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 /* ~x ^ x -> -1 */
 (for op (bit_ior bit_xor)
  (simplify
-  (op (convert? @0) (convert? @1))
+  (op:c (convert? @0) (convert? (maybe_bit_not @1)))
   (with { bool wascmp; }
    (if (types_match (TREE_TYPE (@0), TREE_TYPE (@1))
         && bitwise_inverted_equal_p (@0, @1, wascmp))
@@ -2395,12 +2405,14 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (mult (convert @0) @1)))
 
 /* Narrow integer multiplication by a zero_one_valued_p operand.
-   Multiplication by [0,1] is guaranteed not to overflow.  */
+   Multiplication by [0,1] is guaranteed not to overflow except for
+   1bit signed types.  */
 (simplify
  (convert (mult@0 zero_one_valued_p@1 INTEGER_CST@2))
  (if (INTEGRAL_TYPE_P (type)
       && INTEGRAL_TYPE_P (TREE_TYPE (@0))
-      && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (@0)))
+      && TYPE_PRECISION (type) < TYPE_PRECISION (TREE_TYPE (@0))
+      && (TYPE_UNSIGNED (type) || TYPE_PRECISION (type) > 1))
   (mult (convert @1) (convert @2))))
 
 /* (X << C) != 0 can be simplified to X, when C is zero_one_valued_p.
@@ -2855,7 +2867,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    { constant_boolean_node (cmp == NE_EXPR, type); })))
 
 /* ((X inner_op C0) outer_op C1)
-   With X being a tree where value_range has reasoned certain bits to always be
+   With X being a tree where range has reasoned certain bits to always be
    zero throughout its computed value range,
    inner_op = {|,^}, outer_op = {|,^} and inner_op != outer_op
    where zero_mask has 1's for all bits that are sure to be 0 in
@@ -3042,6 +3054,116 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (if ((INTEGRAL_TYPE_P (itype)
        || POINTER_TYPE_P (itype))
       && wi::eq_p (wi::to_wide (int_cst), wi::max_value (itype))))))
+
+/* Unsigned Saturation Add */
+/* SAT_ADD = usadd_left_part_1 | usadd_right_part_1, aka:
+   SAT_ADD = (X + Y) | -((X + Y) < X)  */
+(match (usadd_left_part_1 @0 @1)
+ (plus:c @0 @1)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* SAT_ADD = usadd_left_part_2 | usadd_right_part_2, aka:
+   SAT_ADD = REALPART_EXPR <.ADD_OVERFLOW> | (IMAGPART_EXPR <.ADD_OVERFLOW> != 0) */
+(match (usadd_left_part_2 @0 @1)
+ (realpart (IFN_ADD_OVERFLOW:c @0 @1))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* SAT_ADD = usadd_left_part_1 | usadd_right_part_1, aka:
+   SAT_ADD = (X + Y) | -((type)(X + Y) < X)  */
+(match (usadd_right_part_1 @0 @1)
+ (negate (convert (lt (plus:c @0 @1) @0)))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* SAT_ADD = usadd_left_part_1 | usadd_right_part_1, aka:
+   SAT_ADD = (X + Y) | -(X > (X + Y))  */
+(match (usadd_right_part_1 @0 @1)
+ (negate (convert (gt @0 (plus:c @0 @1))))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* SAT_ADD = usadd_left_part_2 | usadd_right_part_2, aka:
+   SAT_ADD = REALPART_EXPR <.ADD_OVERFLOW> | (IMAGPART_EXPR <.ADD_OVERFLOW> != 0) */
+(match (usadd_right_part_2 @0 @1)
+ (negate (convert (ne (imagpart (IFN_ADD_OVERFLOW:c @0 @1)) integer_zerop)))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* SAT_ADD = usadd_left_part_2 | usadd_right_part_2, aka:
+   SAT_ADD = REALPART_EXPR <.ADD_OVERFLOW> | -IMAGPART_EXPR <.ADD_OVERFLOW> */
+(match (usadd_right_part_2 @0 @1)
+ (negate (imagpart (IFN_ADD_OVERFLOW:c @0 @1)))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* We cannot merge or overload usadd_left_part_1 and usadd_left_part_2
+   because the sub part of left_part_2 cannot work with right_part_1.
+   For example, left_part_2 pattern focus one .ADD_OVERFLOW but the
+   right_part_1 has nothing to do with .ADD_OVERFLOW.  */
+
+/* Unsigned saturation add, case 1 (branchless):
+   SAT_U_ADD = (X + Y) | - ((X + Y) < X) or
+   SAT_U_ADD = (X + Y) | - (X > (X + Y)).  */
+(match (unsigned_integer_sat_add @0 @1)
+ (bit_ior:c (usadd_left_part_1 @0 @1) (usadd_right_part_1 @0 @1)))
+
+/* Unsigned saturation add, case 2 (branchless with .ADD_OVERFLOW):
+   SAT_ADD = REALPART_EXPR <.ADD_OVERFLOW> | -IMAGPART_EXPR <.ADD_OVERFLOW> or
+   SAT_ADD = REALPART_EXPR <.ADD_OVERFLOW> | (IMAGPART_EXPR <.ADD_OVERFLOW> != 0) */
+(match (unsigned_integer_sat_add @0 @1)
+ (bit_ior:c (usadd_left_part_2 @0 @1) (usadd_right_part_2 @0 @1)))
+
+/* Unsigned saturation add, case 3 (branch with ge):
+   SAT_U_ADD = (X + Y) >= x ? (X + Y) : -1.  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (ge (usadd_left_part_1@2 @0 @1) @0) @2 integer_minus_onep))
+
+/* Unsigned saturation add, case 4 (branch with lt):
+   SAT_U_ADD = (X + Y) < x ? -1 : (X + Y).  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (lt (usadd_left_part_1@2 @0 @1) @0) integer_minus_onep @2))
+
+/* Unsigned saturation add, case 5 (branch with eq .ADD_OVERFLOW):
+   SAT_U_ADD = REALPART_EXPR <.ADD_OVERFLOW> == 0 ? .ADD_OVERFLOW : -1.  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (eq (imagpart (IFN_ADD_OVERFLOW:c @0 @1)) integer_zerop)
+  (usadd_left_part_2 @0 @1) integer_minus_onep))
+
+/* Unsigned saturation add, case 6 (branch with ne .ADD_OVERFLOW):
+   SAT_U_ADD = REALPART_EXPR <.ADD_OVERFLOW> != 0 ? -1 : .ADD_OVERFLOW.  */
+(match (unsigned_integer_sat_add @0 @1)
+ (cond^ (ne (imagpart (IFN_ADD_OVERFLOW:c @0 @1)) integer_zerop)
+  integer_minus_onep (usadd_left_part_2 @0 @1)))
+
+/* Unsigned saturation sub, case 1 (branch with gt):
+   SAT_U_SUB = X > Y ? X - Y : 0  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (cond (gt @0 @1) (minus @0 @1) integer_zerop)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 2 (branch with ge):
+   SAT_U_SUB = X >= Y ? X - Y : 0.  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (cond (ge @0 @1) (minus @0 @1) integer_zerop)
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 3 (branchless with gt):
+   SAT_U_SUB = (X - Y) * (X > Y).  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (mult:c (minus @0 @1) (convert (gt @0 @1)))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
+
+/* Unsigned saturation sub, case 4 (branchless with ge):
+   SAT_U_SUB = (X - Y) * (X >= Y).  */
+(match (unsigned_integer_sat_sub @0 @1)
+ (mult:c (minus @0 @1) (convert (ge @0 @1)))
+ (if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type)
+      && types_match (type, @0, @1))))
 
 /* x >  y  &&  x != XXX_MIN  -->  x > y
    x >  y  &&  x == XXX_MIN  -->  false . */
@@ -3621,7 +3743,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 	  = wide_int::from (wi::to_wide (@1), TYPE_PRECISION (inner_type),
 			    TYPE_SIGN (inner_type));
 
-	value_range vr;
+	int_range_max vr;
 	if (get_global_range_query ()->range_of_expr (vr, @0)
 	    && !vr.varying_p () && !vr.undefined_p ())
           {
@@ -4289,6 +4411,24 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
  (simplify
   (cond (eq @0 integer_all_onesp) @1 (op:c@2 @1 @0))
    @2))
+
+/* a != 0 ? a / b : 0  -> a / b iff b is nonzero. */
+(for op (trunc_div ceil_div floor_div round_div exact_div)
+ (simplify
+  (cond (ne @0 integer_zerop) (op@2 @3 @1) integer_zerop )
+   (if (bitwise_equal_p (@0, @3)
+        && tree_expr_nonzero_p (@1))
+    @2)))
+
+/* Note we prefer the != case here
+   as (a != 0) * (a * b) will generate that version. */
+/* a != 0 ? a * b : 0 -> a * b */
+/* a != 0 ? a & b : 0 -> a & b */
+(for op (mult bit_and)
+ (simplify
+  (cond (ne @0 integer_zerop) (op:c@2 @1 @3) integer_zerop)
+  (if (bitwise_equal_p (@0, @3))
+   @2)))
 
 /* Simplifications of shift and rotates.  */
 
@@ -5449,7 +5589,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
        && (wi::to_widest (@2) + 1 == wi::to_widest (@3)
            || wi::to_widest (@2) == wi::to_widest (@3) + 1))
    (with {
-     value_range r;
+     int_range_max r;
      get_range_query (cfun)->range_of_expr (r, @0);
      if (r.undefined_p ())
        r.set_varying (TREE_TYPE (@0));
@@ -5857,6 +5997,21 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
     (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
      (convert (absu:utype @0)))
     @3))))
+
+/* X >  Positive ? X : ABS(X) -> ABS(X) */
+/* X >= Positive ? X : ABS(X) -> ABS(X) */
+/* X == Positive ? X : ABS(X) -> ABS(X) */
+(for cmp (eq gt ge)
+ (simplify
+  (cond (cmp:c @0 tree_expr_nonnegative_p@1) @0 (abs@3 @0))
+  (if (INTEGRAL_TYPE_P (type))
+   @3)))
+
+/* X == Positive ? Positive : ABS(X) -> ABS(X) */
+(simplify
+ (cond (eq:c @0 tree_expr_nonnegative_p@1) @1 (abs@3 @0))
+ (if (INTEGRAL_TYPE_P (type))
+  @3))
 
 /* (X + 1) > Y ? -X : 1 simplifies to X >= Y ? -X : 1 when
    X is unsigned, as when X + 1 overflows, X is -1, so -X == 1.  */
@@ -10006,19 +10161,21 @@ and,
      d = VEC_PERM_EXPR <a, b, NEW_VCST>;  */
 
 (simplify
- (vec_perm (vec_perm@0 @1 @2 VECTOR_CST@3) @0 VECTOR_CST@4)
+ (vec_perm (view_convert?@0 (vec_perm@1 @2 @3 VECTOR_CST@4)) @0 VECTOR_CST@5)
  (if (TYPE_VECTOR_SUBPARTS (type).is_constant ())
   (with
    {
      machine_mode result_mode = TYPE_MODE (type);
-     machine_mode op_mode = TYPE_MODE (TREE_TYPE (@1));
+     machine_mode op_mode = TYPE_MODE (TREE_TYPE (@2));
      int nelts = TYPE_VECTOR_SUBPARTS (type).to_constant ();
      vec_perm_builder builder0;
      vec_perm_builder builder1;
      vec_perm_builder builder2 (nelts, nelts, 1);
    }
-   (if (tree_to_vec_perm_builder (&builder0, @3)
-	&& tree_to_vec_perm_builder (&builder1, @4))
+   (if (tree_to_vec_perm_builder (&builder0, @4)
+	&& tree_to_vec_perm_builder (&builder1, @5)
+	&& TYPE_SIZE (TREE_TYPE (TREE_TYPE (@0)))
+	   == TYPE_SIZE (TREE_TYPE (TREE_TYPE (@1))))
     (with
      {
        vec_perm_indices sel0 (builder0, 2, nelts);
@@ -10040,10 +10197,10 @@ and,
 	       ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, false)
 		  || !can_vec_perm_const_p (result_mode, op_mode, sel1, false))
 	       : !can_vec_perm_const_p (result_mode, op_mode, sel1, false)))
-	 op0 = vec_perm_indices_to_tree (TREE_TYPE (@4), sel2);
+	 op0 = vec_perm_indices_to_tree (TREE_TYPE (@5), sel2);
      }
      (if (op0)
-      (vec_perm @1 @2 { op0; })))))))
+      (view_convert (vec_perm @2 @3 { op0; }))))))))
 
 /* Merge
      c = VEC_PERM_EXPR <a, b, VCST0>;

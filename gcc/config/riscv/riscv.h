@@ -315,7 +315,7 @@ ASM_MISA_SPEC
 	- FRAME_POINTER_REGNUM
    - 1 vl register
    - 1 vtype register
-   - 30 unused registers for future expansion
+   - 28 unused registers for future expansion
    - 32 vector registers  */
 
 #define FIRST_PSEUDO_REGISTER 128
@@ -626,6 +626,28 @@ enum reg_class
   (((VALUE) | ((1UL<<31) - IMM_REACH)) == ((1UL<<31) - IMM_REACH)	\
    || ((VALUE) | ((1UL<<31) - IMM_REACH)) + IMM_REACH == 0)
 
+/* True if a VALUE (constant) can be expressed as sum of two S12 constants
+   (in range -2048 to 2047).
+   Range check logic:
+     from: min S12 + 1 (or -1 depending on what side of zero)
+       to: two times the min S12 value (to max out S12 bits).  */
+
+#define SUM_OF_TWO_S12_N(VALUE)						\
+  (((VALUE) >= (-2048 * 2)) && ((VALUE) <= (-2048 - 1)))
+
+#define SUM_OF_TWO_S12_P(VALUE)						\
+  (((VALUE) >= (2047 + 1)) && ((VALUE) <= (2047 * 2)))
+
+#define SUM_OF_TWO_S12(VALUE)						\
+  (SUM_OF_TWO_S12_N (VALUE) || SUM_OF_TWO_S12_P (VALUE))
+
+/* Variant with first value 8 byte aligned if involving stack regs.  */
+#define SUM_OF_TWO_S12_P_ALGN(VALUE)				\
+  (((VALUE) >= (2032 + 1)) && ((VALUE) <= (2032 * 2)))
+
+#define SUM_OF_TWO_S12_ALGN(VALUE)				\
+  (SUM_OF_TWO_S12_N (VALUE) || SUM_OF_TWO_S12_P_ALGN (VALUE))
+
 /* If this is a single bit mask, then we can load it with bseti.  Special
    handling of SImode 0x80000000 on RV64 is done in riscv_build_integer_1. */
 #define SINGLE_BIT_MASK_OPERAND(VALUE)					\
@@ -912,6 +934,10 @@ extern enum riscv_cc get_riscv_cc (const rtx use);
   || (riscv_microarchitecture == sifive_p400) \
   || (riscv_microarchitecture == sifive_p600))
 
+/* True if the target supports misaligned vector loads and stores.  */
+#define TARGET_VECTOR_MISALIGN_SUPPORTED \
+   riscv_vector_unaligned_access_p
+
 #define LOGICAL_OP_NON_SHORT_CIRCUIT 0
 
 /* Control the assembler format that we output.  */
@@ -1139,6 +1165,7 @@ while (0)
 #ifndef USED_FOR_TARGET
 extern const enum reg_class riscv_regno_to_class[];
 extern bool riscv_slow_unaligned_access_p;
+extern bool riscv_vector_unaligned_access_p;
 extern bool riscv_user_wants_strict_align;
 extern unsigned riscv_stack_boundary;
 extern unsigned riscv_bytes_per_vector_chunk;

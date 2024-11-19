@@ -476,7 +476,9 @@ gomp_free_device_memory (struct gomp_device_descr *devicep, void *devptr)
 static inline void
 gomp_increment_refcount (splay_tree_key k, htab_t *refcount_set)
 {
-  if (k == NULL || k->refcount == REFCOUNT_INFINITY)
+  if (k == NULL
+      || k->refcount == REFCOUNT_INFINITY
+      || k->refcount == REFCOUNT_ACC_MAP_DATA)
     return;
 
   uintptr_t *refcount_ptr = &k->refcount;
@@ -520,7 +522,9 @@ static inline void
 gomp_decrement_refcount (splay_tree_key k, htab_t *refcount_set, bool delete_p,
 			 bool *do_copy, bool *do_remove)
 {
-  if (k == NULL || k->refcount == REFCOUNT_INFINITY)
+  if (k == NULL
+      || k->refcount == REFCOUNT_INFINITY
+      || k->refcount == REFCOUNT_ACC_MAP_DATA)
     {
       *do_copy = *do_remove = false;
       return;
@@ -2965,8 +2969,25 @@ gomp_copy_back_icvs (struct gomp_device_descr *devicep, int device)
   if (item == NULL)
     return;
 
+  gomp_mutex_lock (&devicep->lock);
+
+  struct splay_tree_s *mem_map = &devicep->mem_map;
+  struct splay_tree_key_s cur_node;
+  void *dev_ptr = NULL;
+
   void *host_ptr = &item->icvs;
-  void *dev_ptr = omp_get_mapped_ptr (host_ptr, device);
+  cur_node.host_start = (uintptr_t) host_ptr;
+  cur_node.host_end = cur_node.host_start;
+  splay_tree_key n = gomp_map_0len_lookup (mem_map, &cur_node);
+
+  if (n)
+    {
+      uintptr_t offset = cur_node.host_start - n->host_start;
+      dev_ptr = (void *) (n->tgt->tgt_start + n->tgt_offset + offset);
+    }
+
+  gomp_mutex_unlock (&devicep->lock);
+
   if (dev_ptr != NULL)
     gomp_copy_dev2host (devicep, NULL, host_ptr, dev_ptr,
 			sizeof (struct gomp_offload_icvs));
@@ -5298,6 +5319,11 @@ gomp_target_init (void)
 	    else if (new_num_devs >= 1)
 	      {
 		/* Augment DEVICES and NUM_DEVICES.  */
+
+		/* If USM has been requested and is supported by all devices
+		   of this type, set the capability accordingly.  */
+		if (omp_requires_mask & GOMP_REQUIRES_UNIFIED_SHARED_MEMORY)
+		  current_device.capabilities |= GOMP_OFFLOAD_CAP_SHARED_MEM;
 
 		devs = realloc (devs, (num_devs + new_num_devs)
 				      * sizeof (struct gomp_device_descr));

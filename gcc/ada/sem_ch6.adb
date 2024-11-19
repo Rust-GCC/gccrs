@@ -4971,8 +4971,11 @@ package body Sem_Ch6 is
          --  Skip the check for subprograms generated for protected subprograms
          --  because it is also done for the protected subprograms themselves.
 
-         elsif Present (Spec_Id)
-           and then Present (Protected_Subprogram (Spec_Id))
+         elsif (Present (Spec_Id)
+                 and then Present (Protected_Subprogram (Spec_Id)))
+           or else
+             (Acts_As_Spec (N)
+               and then Present (Protected_Subprogram (Body_Id)))
          then
             null;
 
@@ -8660,9 +8663,12 @@ package body Sem_Ch6 is
       --  Determines if E has its extra formals
 
       function Might_Need_BIP_Task_Actuals (E : Entity_Id) return Boolean;
-      --  Determines if E is a dispatching primitive returning a limited tagged
-      --  type object since some descendant might return an object with tasks
-      --  (and therefore need the BIP task extra actuals).
+      --  Determines if E is a function or an access to a function returning a
+      --  limited tagged type object. On dispatching primitives this predicate
+      --  is used to determine if some descendant of the function might return
+      --  an object with tasks (and therefore need the BIP task extra actuals).
+      --  On access-to-subprogram types it is used to determine if the target
+      --  function might return an object with tasks.
 
       function Needs_Accessibility_Check_Extra
         (E      : Entity_Id;
@@ -8783,9 +8789,8 @@ package body Sem_Ch6 is
 
          Func_Typ := Root_Type (Underlying_Type (Etype (Subp_Id)));
 
-         return Ekind (Subp_Id) = E_Function
+         return Ekind (Subp_Id) in E_Function | E_Subprogram_Type
            and then not Has_Foreign_Convention (Func_Typ)
-           and then Is_Dispatching_Operation (Subp_Id)
            and then Is_Tagged_Type (Func_Typ)
            and then Is_Limited_Type (Func_Typ)
            and then not Has_Aspect (Func_Typ, Aspect_No_Task_Parts);
@@ -9302,24 +9307,24 @@ package body Sem_Ch6 is
             end if;
 
             --  In the case of functions whose result type needs finalization,
-            --  add an extra formal which represents the finalization master.
+            --  add an extra formal which represents the caller's collection.
 
-            if Needs_BIP_Finalization_Master (Ref_E)
+            if Needs_BIP_Collection (Ref_E)
               or else
                 (Present (Parent_Subp)
                    and then Has_BIP_Extra_Formal (Parent_Subp,
-                              Kind           => BIP_Finalization_Master,
+                              Kind           => BIP_Collection,
                               Must_Be_Frozen => False))
               or else
                 (Present (Alias_Subp)
                    and then Has_BIP_Extra_Formal (Alias_Subp,
-                              Kind           => BIP_Finalization_Master,
+                              Kind           => BIP_Collection,
                               Must_Be_Frozen => False))
             then
                Discard :=
                  Add_Extra_Formal
-                   (E, RTE (RE_Finalization_Master_Ptr),
-                    E, BIP_Formal_Suffix (BIP_Finalization_Master));
+                   (E, RTE (RE_Finalization_Collection_Ptr),
+                    E, BIP_Formal_Suffix (BIP_Collection));
             end if;
 
             --  When the result type contains tasks, add two extra formals: the
@@ -11175,9 +11180,7 @@ package body Sem_Ch6 is
                   while Present (Prag) loop
                      Error_Msg_Sloc := Sloc (Prag);
 
-                     if Class_Present (Prag)
-                       and then not Split_PPC (Prag)
-                     then
+                     if Class_Present (Prag) then
                         if Pragma_Name (Prag) = Name_Precondition then
                            Error_Msg_N
                              ("info: & inherits `Pre''Class` aspect from "
@@ -11557,35 +11560,30 @@ package body Sem_Ch6 is
                                       Incomplete_Or_Partial_View (T);
 
                   begin
-                     if not Overrides_Visible_Function (Partial_View) then
+                     if not Overrides_Visible_Function (Partial_View)
+                       and then
+                         Is_Tagged_Type
+                           (if Present (Partial_View) then Partial_View else T)
+                     then
 
                         --  Here, S is "function ... return T;" declared in
                         --  the private part, not overriding some visible
                         --  operation. That's illegal in the tagged case
                         --  (but not if the private type is untagged).
 
-                        if ((Present (Partial_View)
-                              and then Is_Tagged_Type (Partial_View))
-                          or else (No (Partial_View)
-                                    and then Is_Tagged_Type (T)))
-                          and then T = Base_Type (Etype (S))
-                        then
+                        if T = Base_Type (Etype (S)) then
                            Error_Msg_N
-                             ("private function with tagged result must"
+                             ("private function with controlling result must"
                               & " override visible-part function", S);
                            Error_Msg_N
                              ("\move subprogram to the visible part"
                               & " (RM 3.9.3(10))", S);
 
                         --  Ada 2012 (AI05-0073): Extend this check to the case
-                        --  of a function whose result subtype is defined by an
-                        --  access_definition designating specific tagged type.
+                        --  of a function with access result type.
 
                         elsif Ekind (Etype (S)) = E_Anonymous_Access_Type
-                          and then Is_Tagged_Type (Designated_Type (Etype (S)))
-                          and then
-                            not Is_Class_Wide_Type
-                                  (Designated_Type (Etype (S)))
+                          and then T = Base_Type (Designated_Type (Etype (S)))
                           and then Ada_Version >= Ada_2012
                         then
                            Error_Msg_N
@@ -11695,7 +11693,7 @@ package body Sem_Ch6 is
                   Check_Private_Overriding (B_Typ);
                   --  The Ghost policy in effect at the point of declaration
                   --  or a tagged type and a primitive operation must match
-                  --  (SPARK RM 6.9(16)).
+                  --  (SPARK RM 6.9(18)).
 
                   Check_Ghost_Primitive (S, B_Typ);
                end if;
@@ -11739,7 +11737,7 @@ package body Sem_Ch6 is
 
                   --  The Ghost policy in effect at the point of declaration
                   --  of a tagged type and a primitive operation must match
-                  --  (SPARK RM 6.9(16)).
+                  --  (SPARK RM 6.9(18)).
 
                   Check_Ghost_Primitive (S, B_Typ);
                end if;
@@ -11772,7 +11770,7 @@ package body Sem_Ch6 is
 
                --  The Ghost policy in effect at the point of declaration of a
                --  tagged type and a primitive operation must match
-               --  (SPARK RM 6.9(16)).
+               --  (SPARK RM 6.9(18)).
 
                Check_Ghost_Primitive (S, B_Typ);
             end if;
@@ -12228,7 +12226,7 @@ package body Sem_Ch6 is
 
             --  The Ghost policy in effect at the point of declaration of a
             --  parent subprogram and an overriding subprogram must match
-            --  (SPARK RM 6.9(17)).
+            --  (SPARK RM 6.9(19)).
 
             Check_Ghost_Overriding (S, Overridden_Subp);
          end if;
@@ -12391,7 +12389,7 @@ package body Sem_Ch6 is
 
                      --  The Ghost policy in effect at the point of declaration
                      --  of a parent subprogram and an overriding subprogram
-                     --  must match (SPARK RM 6.9(17)).
+                     --  must match (SPARK RM 6.9(19)).
 
                      Check_Ghost_Overriding (E, S);
                   end if;
@@ -12600,7 +12598,7 @@ package body Sem_Ch6 is
 
                   --  The Ghost policy in effect at the point of declaration
                   --  of a parent subprogram and an overriding subprogram
-                  --  must match (SPARK RM 6.9(17)).
+                  --  must match (SPARK RM 6.9(19)).
 
                   Check_Ghost_Overriding (S, E);
 
@@ -12753,7 +12751,7 @@ package body Sem_Ch6 is
 
          --  The Ghost policy in effect at the point of declaration of a parent
          --  subprogram and an overriding subprogram must match
-         --  (SPARK RM 6.9(17)).
+         --  (SPARK RM 6.9(19)).
 
          Check_Ghost_Overriding (S, Overridden_Subp);
 

@@ -2,6 +2,7 @@
 /* { dg-options "-g" } */
 
 #define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "gcc-plugin.h"
 #include "config.h"
 #include "system.h"
@@ -271,6 +272,11 @@ public:
 
     gcc_unreachable ();
     return NULL;
+  }
+
+  void update_event_loc_info (event_loc_info &) final override
+  {
+    /* No-op.  */
   }
 
 private:

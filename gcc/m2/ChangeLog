@@ -1,3 +1,254 @@
+2024-06-06  Gaius Mulley  <gaiusmod2@gmail.com>
+	    Kewen.Lin   <linkw@linux.ibm.com>
+
+	* gm2-gcc/m2type.cc (build_m2_short_real_node): Rewrite
+	to use the default float_type_node.
+	(build_m2_real_node): Rewrite to use the default
+	double_type_node.
+	(build_m2_long_real_node): Rewrite to use the default
+	long_double_type_node or float128_type_node.
+
+2024-05-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* Make-lang.in (MC_EXTENDED_OPAQUE): New definition.
+	* mc-boot/GDynamicStrings.cc: Rebuild.
+	* mc-boot/GDynamicStrings.h: Rebuild.
+	* mc-boot/Galists.cc: Rebuild.
+	* mc-boot/Galists.h: Rebuild.
+	* mc-boot/Gdecl.cc: Rebuild.
+	* mc/alists.def (equalList): New procedure.
+	* mc/alists.mod (equalList): New procedure implementation.
+	* mc/decl.mod (group): New type.
+	(freeGroup): New variable.
+	(globalGroup): Ditto.
+	(todoQ): Remove declaration and prefix all occurances with globalGroup^.
+	(partialQ): Ditto.
+	(doneQ): Ditto.
+	(newGroup): New procedure.
+	(initGroup): Ditto.
+	(killGroup): Ditto.
+	(dupGroup): Ditto.
+	(equalGroup): Ditto.
+	(topologicallyOut): Rewrite.
+
+2024-05-21  Sam James  <sam@gentoo.org>
+
+	* Make-lang.in (m2.install-info): Pass --destdir for dir index.
+
+2024-05-15  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/115057
+	* gm2-libs-iso/TextIO.mod (ReadRestLine): Use ReadChar to
+	skip unwanted characters as this calls IOChan.Look and updates
+	the cid result status.  A Skip without a Look does not update
+	the status.  Skip always sets read result to allRight.
+	* gm2-libs-iso/TextUtil.def (SkipSpaces): Improve comments.
+	(CharAvailable): Improve comments.
+	* gm2-libs-iso/TextUtil.mod (SkipSpaces): Improve comments.
+	(CharAvailable): Improve comments.
+
+2024-05-09  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/115003
+	* gm2-compiler/SymbolTable.mod (GetScope): Add UndefinedSym
+	case clause and return NulSym.
+
+2024-05-03  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114929
+	* gm2-compiler/M2LangDump.mod (GenQualidentSymString): Add
+	missing return result into identstr.
+	* gm2-compiler/M2Quads.mod (ForLoopLastIteratorVariable): New
+	procedure.
+	(ForLoopLastIteratorConstant): Ditto.
+	(ForLoopLastIterator): Ditto.
+	(BuildForToByDo): Remove LastIterator calculation and call
+	ForLoopLastIterator instead.
+	(FinalValue): Replace with ...
+	(LastIterator): ... this.
+
+2024-05-02  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/113836
+	* gm2-compiler/M2AsmUtil.def: Remove export qualified and
+	unused import.
+	* gm2-compiler/M2LangDump.mod (AddRuleTextDump): New procedure.
+	(AddRuleScopeQualidentDump): Add warning check against unmatched
+	rule.
+	(GenQualidentSymString): New procedure function.
+	(IdentQualidentMatch): New procedure function.
+	(IsRuleFilenameMatch): New procedure function.
+	(CheckRuleMatch): New procedure function.
+	(AddRuleFilenameDump): New procedure function.
+	* gm2-gcc/m2misc.cc (m2misc_warning_m2_dump_filter): New function.
+	* gm2-gcc/m2misc.def (warning_m2_dump_filter): New procedure.
+	* gm2-gcc/m2misc.h (m2misc_warning_m2_dump_filter): New prototype.
+	* gm2-gcc/m2pp.cc (VERBOSE_TYPE_DESC): New define.
+	(m2pp_identifier): Define out verbose type info.
+	(m2pp_constructor): Define out verbose type info.
+	(m2pp_assignment): Define out verbose type info.
+	* gm2-lang.cc (ENABLE_M2DUMP_ALL): Remove.
+	* lang.opt (fm2-dump): Add.
+	(fm2-dump-decl=): Add.
+	(fm2-dump-gimple=): Add.
+	(fm2-dump-quad=): Add.
+	(fm2-dump-filter=): Add.
+
+2024-04-25  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114836
+	* gm2-compiler/M2Range.mod (FoldTypeAssign): Avoid error
+	string concatenation.
+
+2024-04-25  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* gm2-compiler/M2FileName.def (CalculateFileName): Remove
+	quoted string in comment.
+	* gm2-compiler/M2Range.mod (FoldTypeParam): Generate dialect
+	specific parameter incompatibility error message.
+
+2024-04-23  Jakub Jelinek  <jakub@redhat.com>
+
+	* lang.opt (fdef=, fmod=): Spelling fix: recognise -> recognize.
+
+2024-04-23  Jakub Jelinek  <jakub@redhat.com>
+
+	* lang.opt (fuse-list=): Spelling fix: finalializations ->
+	finalizations.
+
+2024-04-22  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114811
+	* gm2-compiler/M2GenGCC.mod (FoldBinarySet): Add condition
+	checking to ensure op2 and op3 are fully resolved before
+	type checking is performed.
+
+2024-04-22  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114807
+	* gm2-compiler/M2Check.mod (checkUnbounded): Remove unused
+	local variables.
+	(constCheckMeta): Include check for IsReallyPointer in the
+	failure case.
+	* gm2-compiler/M2Quads.mod (MoveWithMode): Remove CopyConstString.
+	* gm2-compiler/SymbolTable.def (IsHiddenReallyPointer): Export.
+	* gm2-compiler/SymbolTable.mod (SkipHiddenType): Remove.
+	(IsReallyPointer): Include IsHiddenReallyPointer test.
+
+2024-04-20  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/112893
+	* gm2-compiler/M2Check.mod (GetProcedureProcType): Import.
+	(getType): Return value using GetProcedureProcType if sym is a
+	procedure.
+	* gm2-compiler/M2Range.mod (FoldTypeExpr): Remove quad if
+	expression is type compatible.
+	* gm2-compiler/SymbolTable.def (GetProcedureProcType): New
+	procedure function.
+	* gm2-compiler/SymbolTable.mod (Procedure): Add ProcedureType.
+	(MakeProcedure): Initialize ProcedureType.
+	(PutParam): Call AddProcedureProcTypeParam.
+	(PutVarParam): Call AddProcedureProcTypeParam.
+	(AddProcedureProcTypeParam): New procedure.
+	(GetProcedureProcType): New procedure function.
+
+2024-04-16  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114745
+	* gm2-compiler/M2Code.mod (DumpLangDecl): Replace with ...
+	(GetDumpDecl): ... this.
+	(DumpLangGimple): Replace with ...
+	(GetDumpGimple): ... this.
+	* gm2-compiler/M2GenGCC.mod:
+	* gm2-compiler/M2LangDump.mod (GetDumpLangQuadFilename): Replace with ...
+	(GetDumpQuadFilename): ... this.
+	(GetDumpLangDeclFilename): Replace with ...
+	(GetDumpDeclFilename): ... this.
+	(GetDumpLangGimpleFilename): Replace with ...
+	(GetDumpGimpleFilename): ... this.
+	* gm2-compiler/M2Options.def (GetDumpLangDeclFilename): New
+	procedure function.
+	(GetDumpDeclFilename): Ditto.
+	(SetDumpLangDeclFilename): New procedure.
+	(SetDumpDeclFilename): Ditto.
+	(GetDumpLangQuadFilename): New procedure function.
+	(GetDumpQuadFilename): Ditto
+	(SetDumpLangQuadFilename): New procedure.
+	(SetDumpQuadFilename): Ditto.
+	(GetDumpLangGimpleFilename): New procedure function.
+	(GetDumpGimpleFilename): Ditto.
+	(SetDumpLangGimpleFilename): New procedure.
+	(SetDumpGimpleFilename): Ditto.
+	(GetDumpLangGimple): New procedure function.
+	(SetM2Dump): New procedure.
+	(GetDumpGimple): New procedure function.
+	(GetDumpQuad): Ditto.
+	(GetDumpDecl): Ditto.
+	* gm2-compiler/M2Options.mod (DumpLangDeclFilename): Remove.
+	(DumpLangQuadFilename): Ditto.
+	(DumpLangGimpleFilename): Ditto.
+	(DumpDeclFilename): New variable.
+	(DumpQuadFilename): Ditto.
+	(DumpGimpleFilename): Ditto.
+	(DebugTraceTree): New variable.
+	(SetQuadDebugging): Rewrite.
+	(GetDumpLangDeclFilename): Replace with ...
+	(GetDumpDeclFilename): ... this.
+	(SetDumpLangQuadFilename): Replace with ...
+	(SetDumpQuadFilename): ... this.
+	(GetDumpLangGimpleFilename): Replace with ...
+	(GetDumpGimpleFilename): ... this.
+	(SetDumpLangGimpleFilename): Replace with ...
+	(SetDumpGimpleFilename): ... this.
+	(GetDumpLangGimple): Remove.
+	(MatchDump): New procedure function.
+	(SetM2Dump): New procedure.
+	(GetDumpGimple): New procedure function.
+	(GetDumpQuad): Ditto.
+	(GetDumpDecl): Ditto.
+	(GetDumpLangGimple): Ditto.
+	* gm2-compiler/M2Quads.mod (BreakAtQuad): Assigned to 140.
+	(BuildTypeCoercion): Add ConstExpr parameter.
+	Check for const parameter in a const expression.
+	Create a constant temporary if in a const expression.
+	(BuildCastFunction): Pass ConstExpr to BuildTypeCoercion.
+	(BuildFunctionCall): Pass ConstExpr to BuildTypeCoercion.
+	* gm2-compiler/PCSymBuild.mod (buildConstFunction): Test for Cast
+	and call InitConvert.
+	(ErrorConstFunction): Add CAST to the error message.
+	* gm2-compiler/SymbolTable.mod (GetConstStringContent): Remove
+	unused procedure.
+	* gm2-gcc/m2decl.cc (m2decl_DeclareKnownConstant): Copy value
+	and change type of value.
+	* gm2-gcc/m2options.h (M2Options_GetDumpLangDeclFilename): Remove.
+	(M2Options_SetDumpLangDeclFilename): Ditto.
+	(M2Options_GetDumpLangQuadFilename): Ditto.
+	(M2Options_SetDumpLangQuadFilename): Ditto.
+	(M2Options_GetDumpLangGimpleFilename): Ditto.
+	(M2Options_SetDumpLangGimpleFilename): Ditto.
+	(M2Options_GetDumpLangGimple): Ditto.
+	(M2Options_GetDumpDeclFilename): New function.
+	(M2Options_SetDumpDeclFilename): Ditto.
+	(M2Options_GetDumpQuadFilename): Ditto.
+	(M2Options_SetDumpQuadFilename): Ditto.
+	(M2Options_GetDumpGimpleFilename): Ditto.
+	(M2Options_SetDumpGimpleFilename): Ditto.
+	(M2Options_SetM2Dump): Ditto.
+	(M2Options_GetDumpGimple): Ditto.
+	* gm2-gcc/m2pp.cc (GM2): New define.
+	(m2pp_type_lowlevel): Remove linefeed.
+	(m2pp_identifier): Add type description for const.
+	(m2pp_assignment): Display lhs/rhs types.
+	(m2pp_dump_gimple): Replace GetDumpLangGimple with GetDumpGimple.
+	* gm2-lang.cc (ENABLE_QUAD_DUMP_ALL): Remove.
+	(ENABLE_M2DUMP_ALL): New define.
+	(gm2_langhook_handle_option): Remove commented options
+	OPT_fdump_lang_all, OPT_fdump_lang_decl_, OPT_fdump_lang_gimple,
+	OPT_fdump_lang_gimple_, OPT_fdump_lang_quad and
+	OPT_fdump_lang_quad_.
+	Add commented options OPT_fm2_dump_, OPT_fm2_dump_decl_,
+	OPT_fm2_dump_gimple_ and OPT_fm2_dump_quad_.
+
 2024-04-09  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	* tools-src/makeSystem: Invoke ${COMPILER} once and adjust

@@ -170,7 +170,10 @@ package body Sem_Attr is
      (Attribute_First_Valid                  |
       Attribute_Has_Same_Storage             |
       Attribute_Last_Valid                   |
-      Attribute_Max_Alignment_For_Allocation => True,
+      Attribute_Max_Alignment_For_Allocation |
+      Attribute_Old                          |
+      Attribute_Overlaps_Storage             |
+      Attribute_Result                       => True,
       others                                 => False);
 
    --  The following array is the list of attributes defined in the Ada 2022
@@ -982,15 +985,13 @@ package body Sem_Attr is
          if Is_Entity_Name (P) then
             Typ := Entity (P);
 
-            --  The reference may appear in an aggregate that has been expanded
-            --  into a loop. Locate scope of type definition, if any.
-
-            Scop := Current_Scope;
-            while Ekind (Scop) = E_Loop loop
-               Scop := Scope (Scop);
-            end loop;
-
             if Is_Type (Typ) then
+
+               --  The reference may appear in an aggregate that has been
+               --  expanded into a loop. Locate scope of type definition,
+               --  if any.
+
+               Scop := Current_Scope_No_Loops;
 
                --  OK if we are within the scope of a limited type
                --  let's mark the component as having per object constraint
@@ -1014,16 +1015,20 @@ package body Sem_Attr is
                      Q : Node_Id := Parent (N);
 
                   begin
-                     while Present (Q)
-                       and then Nkind (Q) /= N_Component_Declaration
-                     loop
+                     while Present (Q) loop
+                        if Nkind (Q) = N_Component_Declaration then
+                           Set_Has_Per_Object_Constraint
+                             (Defining_Identifier (Q), True);
+                           exit;
+
+                        --  Prevent the search from going too far
+
+                        elsif Is_Body_Or_Package_Declaration (Q) then
+                           exit;
+                        end if;
+
                         Q := Parent (Q);
                      end loop;
-
-                     if Present (Q) then
-                        Set_Has_Per_Object_Constraint
-                          (Defining_Identifier (Q), True);
-                     end if;
                   end;
 
                   if Nkind (P) = N_Expanded_Name then
@@ -3219,11 +3224,12 @@ package body Sem_Attr is
 
       Check_Restriction_No_Use_Of_Attribute (N);
 
-      --  Deal with Ada 83 issues
-
       if Comes_From_Source (N) then
+
+         --  Deal with Ada 83 issues
+
          if not Attribute_83 (Attr_Id) then
-            if Ada_Version = Ada_83 and then Comes_From_Source (N) then
+            if Ada_Version = Ada_83 then
                Error_Msg_Name_1 := Aname;
                Error_Msg_N ("(Ada 83) attribute% is not standard??", N);
             end if;
@@ -3232,19 +3238,19 @@ package body Sem_Attr is
                Check_Restriction (No_Implementation_Attributes, N);
             end if;
          end if;
-      end if;
 
-      --  Deal with Ada 2005 attributes that are implementation attributes
-      --  because they appear in a version of Ada before Ada 2005, ditto for
-      --  Ada 2012 and Ada 2022 attributes appearing in an earlier version.
+         --  Deal with Ada 2005 attributes that are implementation attributes
+         --  because they appear in a version of Ada before Ada 2005, ditto for
+         --  Ada 2012 and Ada 2022 attributes appearing in an earlier version.
 
-      if (Attribute_05 (Attr_Id) and then Ada_Version < Ada_2005)
-            or else
-         (Attribute_12 (Attr_Id) and then Ada_Version < Ada_2012)
-            or else
-         (Attribute_22 (Attr_Id) and then Ada_Version < Ada_2022)
-      then
-         Check_Restriction (No_Implementation_Attributes, N);
+         if (Attribute_05 (Attr_Id) and then Ada_Version < Ada_2005)
+               or else
+            (Attribute_12 (Attr_Id) and then Ada_Version < Ada_2012)
+               or else
+            (Attribute_22 (Attr_Id) and then Ada_Version < Ada_2022)
+         then
+            Check_Restriction (No_Implementation_Attributes, N);
+         end if;
       end if;
 
       --   Remote access to subprogram type access attribute reference needs
@@ -3423,7 +3429,7 @@ package body Sem_Attr is
       --  perform legality checks on the original tree.
 
       if Nkind (P) in N_Raise_xxx_Error then
-         Rewrite (N, Relocate_Node (P));
+         Rewrite (N, P);
          P := Original_Node (P_Old);
       end if;
 
@@ -6255,7 +6261,12 @@ package body Sem_Attr is
 
       when Attribute_Round =>
          Check_E1;
-         Check_Decimal_Fixed_Point_Type;
+         Check_Type;
+
+         if not Is_Fixed_Point_Type (P_Type) then
+            Error_Attr_P ("prefix of % attribute must be fixed point type");
+         end if;
+
          Set_Etype (N, P_Base_Type);
 
          --  Because the context is universal_real (3.5.10(12)) it is a
@@ -6440,49 +6451,6 @@ package body Sem_Attr is
          Check_Not_Incomplete_Type;
          Check_Not_CPP_Type;
          Set_Etype (N, Universal_Integer);
-
-         --  If we are processing pragmas Compile_Time_Warning and Compile_
-         --  Time_Errors after the back end has been called and this occurrence
-         --  of 'Size is known at compile time then it is safe to perform this
-         --  evaluation. Needed to perform the static evaluation of the full
-         --  boolean expression of these pragmas. Note that Known_RM_Size is
-         --  sometimes True when Size_Known_At_Compile_Time is False, when the
-         --  back end has computed it.
-
-         if In_Compile_Time_Warning_Or_Error
-           and then Is_Entity_Name (P)
-           and then (Is_Type (Entity (P))
-                      or else Ekind (Entity (P)) = E_Enumeration_Literal)
-           and then (Known_RM_Size (Entity (P))
-                       or else Size_Known_At_Compile_Time (Entity (P)))
-         then
-            declare
-               Prefix_E : Entity_Id := Entity (P);
-               Siz      : Uint;
-
-            begin
-               --  Handle private and incomplete types
-
-               if Present (Underlying_Type (Prefix_E)) then
-                  Prefix_E := Underlying_Type (Prefix_E);
-               end if;
-
-               if Known_Static_RM_Size (Prefix_E) then
-                  Siz := RM_Size (Prefix_E);
-               else
-                  Siz := Esize (Prefix_E);
-               end if;
-
-               --  Protect the frontend against cases where the attribute
-               --  Size_Known_At_Compile_Time is set, but the Esize value
-               --  is not available (see Einfo.ads).
-
-               if Present (Siz) then
-                  Rewrite (N, Make_Integer_Literal (Sloc (N), Siz));
-                  Analyze (N);
-               end if;
-            end;
-         end if;
 
       -----------
       -- Small --
@@ -6676,6 +6644,64 @@ package body Sem_Attr is
 
       --  Shares processing with Pred attribute
 
+      -----------
+      -- Super --
+      -----------
+
+      when Attribute_Super =>
+         Error_Msg_Name_1 := Aname;
+         Error_Msg_GNAT_Extension ("attribute %", Sloc (N));
+
+         Check_E0;
+
+         --  Verify that we are looking at a type with ancestors
+
+         if not Is_Record_Type (P_Type)
+           or else not Is_Tagged_Type (P_Type)
+         then
+            Error_Attr_P
+              ("prefix type of % attribute must be tagged or class-wide");
+         end if;
+
+         --  Verify that the immediate parent type is suitable for 'Super
+
+         declare
+            Parents : constant Elist_Id :=
+              --  Grab all immediate ancestor types of the prefix's type
+
+              Visible_Ancestors
+                ((if Ekind (P_Type) = E_Class_Wide_Type then Etype (P_Type)
+                  else P_Type));
+         begin
+            --  No parent type to reference
+
+            if Is_Empty_Elmt_List (Parents) then
+               Error_Attr_P ("prefix type of % must be type extension");
+
+            --  We can't grant access of a child to a parent's private part
+
+            elsif Depends_On_Private (P_Type) then
+               Error_Attr_P ("prefix type of % is a private extension");
+
+            --  Disallow view conversions to interfaces in order to avoid
+            --  depending on whether an interface type is used as a parent
+            --  or progenitor type.
+
+            elsif Is_Interface (Node (First_Elmt (Parents))) then
+               Error_Attr_P ("type of % cannot be an interface");
+            end if;
+
+            --  Generate a view conversion and analyze it
+
+            Rewrite (N,
+              Make_Type_Conversion (Loc,
+                Expression   => Relocate_Node (P),
+                Subtype_Mark =>
+                  New_Occurrence_Of (Node (First_Elmt (Parents)), Loc)));
+
+            Analyze_And_Resolve (N);
+         end;
+
       --------------------------------
       -- System_Allocator_Alignment --
       --------------------------------
@@ -6843,8 +6869,8 @@ package body Sem_Attr is
       --------------
 
       when Attribute_Type_Key => Type_Key : declare
-         Full_Name  : constant String_Id :=
-                        Fully_Qualified_Name_String (Entity (P));
+         Full_Name : constant String_Id :=
+           Fully_Qualified_Name_String (Entity (P), Append_NUL => False);
 
          CRC : CRC32;
          --  The computed signature for the type
@@ -6977,9 +7003,9 @@ package body Sem_Attr is
          Start_String;
          Deref := False;
 
-         --  Copy all characters in Full_Name but the trailing NUL
+         --  Copy all characters in Full_Name
 
-         for J in 1 .. String_Length (Full_Name) - 1 loop
+         for J in 1 .. String_Length (Full_Name) loop
             Store_String_Char (Get_String_Char (Full_Name, Pos (J)));
          end loop;
 
@@ -7804,6 +7830,9 @@ package body Sem_Attr is
       --  Computes the Fore value for the current attribute prefix, which is
       --  known to be a static fixed-point type. Used by Fore and Width.
 
+      function Full_Type (Typ : Entity_Id) return Entity_Id;
+      --  Return the Underlying_Type of Typ if it exists, otherwise return Typ
+
       function Mantissa return Uint;
       --  Returns the Mantissa value for the prefix type
 
@@ -7867,7 +7896,13 @@ package body Sem_Attr is
          T : constant Entity_Id := Etype (N);
 
       begin
-         Fold_Uint (N, Val, False);
+         --  If we are processing a pragma Compile_Time_{Warning,Error} after
+         --  the back end has been called and the value of this attribute is
+         --  known at compile time, then it is safe to perform its evaluation
+         --  as static. This is needed to perform the evaluation of the full
+         --  boolean expression of these pragmas.
+
+         Fold_Uint (N, Val, Static => In_Compile_Time_Warning_Or_Error);
 
          --  Check that result is in bounds of the type if it is static
 
@@ -7930,6 +7965,22 @@ package body Sem_Attr is
 
          return R;
       end Fore_Value;
+
+      ---------------
+      -- Full_Type --
+      ---------------
+
+      function Full_Type (Typ : Entity_Id) return Entity_Id is
+         Underlying_Typ : constant Entity_Id := Underlying_Type (Typ);
+
+      begin
+         if Present (Underlying_Typ) then
+            return Underlying_Typ;
+
+         else
+            return Typ;
+         end if;
+      end Full_Type;
 
       --------------
       -- Mantissa --
@@ -8176,13 +8227,26 @@ package body Sem_Attr is
       then
          declare
             Lit : constant Entity_Id := Expr_Value_E (P);
+            Typ : constant Entity_Id := Etype (Entity (P));
             Str : String_Id;
 
          begin
             Start_String;
-            Get_Unqualified_Decoded_Name_String (Chars (Lit));
-            Set_Casing (All_Upper_Case);
-            Store_String_Chars (Name_Buffer (1 .. Name_Len));
+
+            --  If Discard_Names is in effect for the type, then we emit the
+            --  numeric representation of the prefix literal 'Pos attribute,
+            --  prefixed with a single space.
+
+            if Discard_Names (Typ) then
+               UI_Image (Enumeration_Pos (Lit), Decimal);
+               Store_String_Char  (' ');
+               Store_String_Chars (UI_Image_Buffer (1 .. UI_Image_Length));
+            else
+               Get_Unqualified_Decoded_Name_String (Chars (Lit));
+               Set_Casing (All_Upper_Case);
+               Store_String_Chars (Name_Buffer (1 .. Name_Len));
+            end if;
+
             Str := End_String;
 
             Rewrite (N, Make_String_Literal (Loc, Strval => Str));
@@ -8592,25 +8656,40 @@ package body Sem_Attr is
       --  for a size from an attribute definition clause). At this stage, this
       --  can happen only for types (e.g. record types) for which the size is
       --  always non-static. We exclude generic types from consideration (since
-      --  they have bogus sizes set within templates). We can also fold
-      --  Max_Size_In_Storage_Elements in the same cases.
+      --  they have bogus sizes set within templates).
 
-      elsif (Id = Attribute_Size or
+      elsif Id = Attribute_Size
+        and then Is_Type (P_Entity)
+        and then not Is_Generic_Type (P_Entity)
+        and then Known_Static_RM_Size (Full_Type (P_Entity))
+      then
+         Compile_Time_Known_Attribute (N, RM_Size (Full_Type (P_Entity)));
+         return;
+
+      --  We can also fold 'Object_Size applied to a type if the object size is
+      --  known (as happens for a size from an attribute definition clause). At
+      --  this stage, this can happen only for types (e.g. record types) for
+      --  which the size is always non-static. We exclude generic types from
+      --  consideration (since they have bogus sizes set within templates).
+      --  We can also fold Max_Size_In_Storage_Elements in the same cases.
+
+      elsif (Id = Attribute_Object_Size or
              Id = Attribute_Max_Size_In_Storage_Elements)
         and then Is_Type (P_Entity)
         and then not Is_Generic_Type (P_Entity)
-        and then Known_Static_RM_Size (P_Entity)
+        and then Known_Static_Esize (Full_Type (P_Entity))
       then
          declare
-            Attr_Value : Uint := RM_Size (P_Entity);
+            Attr_Value : Uint := Esize (Full_Type (P_Entity));
+
          begin
             if Id = Attribute_Max_Size_In_Storage_Elements then
-               Attr_Value := (Attr_Value + System_Storage_Unit - 1)
-                             / System_Storage_Unit;
+               Attr_Value := (Attr_Value + System_Storage_Unit - 1) /
+                                                           System_Storage_Unit;
             end if;
             Compile_Time_Known_Attribute (N, Attr_Value);
+            return;
          end;
-         return;
 
       --  We can fold 'Alignment applied to a type if the alignment is known
       --  (as happens for an alignment from an attribute definition clause).
@@ -8621,9 +8700,9 @@ package body Sem_Attr is
       elsif Id = Attribute_Alignment
         and then Is_Type (P_Entity)
         and then not Is_Generic_Type (P_Entity)
-        and then Known_Alignment (P_Entity)
+        and then Known_Alignment (Full_Type (P_Entity))
       then
-         Compile_Time_Known_Attribute (N, Alignment (P_Entity));
+         Compile_Time_Known_Attribute (N, Alignment (Full_Type (P_Entity)));
          return;
 
       --  If this is an access attribute that is known to fail accessibility
@@ -8678,10 +8757,20 @@ package body Sem_Attr is
       --  If the root type or base type is generic, then we cannot fold. This
       --  test is needed because subtypes of generic types are not always
       --  marked as being generic themselves (which seems odd???)
+      --
+      --  Should this situation be addressed instead by either
+      --     a) setting Is_Generic_Type in more cases
+      --  or b) replacing preceding calls to Is_Generic_Type with calls to
+      --        Sem_Util.Some_New_Function
+      --  so that we wouldn't have to deal with these cases here ???
 
       if Is_Generic_Type (P_Root_Type)
         or else Is_Generic_Type (P_Base_Type)
+        or else (Present (Associated_Node_For_Itype (P_Base_Type))
+                  and then Is_Generic_Type (Defining_Identifier
+                             (Associated_Node_For_Itype (P_Base_Type))))
       then
+         Set_Is_Static_Expression (N, False);
          return;
       end if;
 
@@ -8722,14 +8811,15 @@ package body Sem_Attr is
       --  Unconstrained_Array are again exceptions, because they apply as well
       --  to unconstrained types.
 
+      --  Folding can also be done for Preelaborable_Initialization based on
+      --  whether the prefix type has preelaborable initialization, even though
+      --  the attribute is nonstatic.
+
       --  In addition Component_Size is an exception since it is possibly
       --  foldable, even though it is never static, and it does apply to
       --  unconstrained arrays. Furthermore, it is essential to fold this
       --  in the packed case, since otherwise the value will be incorrect.
-
-      --  Folding can also be done for Preelaborable_Initialization based on
-      --  whether the prefix type has preelaborable initialization, even though
-      --  the attribute is nonstatic.
+      --  Moreover, the exact same reasoning can be applied to Alignment.
 
       elsif Id = Attribute_Atomic_Always_Lock_Free      or else
             Id = Attribute_Definite                     or else
@@ -8740,7 +8830,8 @@ package body Sem_Attr is
             Id = Attribute_Preelaborable_Initialization or else
             Id = Attribute_Type_Class                   or else
             Id = Attribute_Unconstrained_Array          or else
-            Id = Attribute_Component_Size
+            Id = Attribute_Component_Size               or else
+            Id = Attribute_Alignment
       then
          Static := False;
          Set_Is_Static_Expression (N, False);
@@ -8958,7 +9049,7 @@ package body Sem_Attr is
       ---------------
 
       when Attribute_Alignment => Alignment_Block : declare
-         P_TypeA : constant Entity_Id := Underlying_Type (P_Type);
+         P_TypeA : constant Entity_Id := Full_Type (P_Type);
 
       begin
          --  Fold if alignment is set and not otherwise
@@ -9690,7 +9781,7 @@ package body Sem_Attr is
       --  Note: Machine_Size is identical to Object_Size
 
       when Attribute_Machine_Size => Machine_Size : declare
-         P_TypeA : constant Entity_Id := Underlying_Type (P_Type);
+         P_TypeA : constant Entity_Id := Full_Type (P_Type);
 
       begin
          if Known_Esize (P_TypeA) then
@@ -9825,13 +9916,17 @@ package body Sem_Attr is
       --  Storage_Unit boundary. We can fold any cases for which the size
       --  is known by the front end.
 
-      when Attribute_Max_Size_In_Storage_Elements =>
-         if Known_Esize (P_Type) then
+      when Attribute_Max_Size_In_Storage_Elements => Max_Size : declare
+         P_TypeA : constant Entity_Id := Full_Type (P_Type);
+
+      begin
+         if Known_Esize (P_TypeA) then
             Fold_Uint (N,
-              (Esize (P_Type) + System_Storage_Unit - 1) /
+              (Esize (P_TypeA) + System_Storage_Unit - 1) /
                                           System_Storage_Unit,
                Static);
          end if;
+      end Max_Size;
 
       --------------------
       -- Mechanism_Code --
@@ -9945,7 +10040,7 @@ package body Sem_Attr is
       --  type and can be folded if this value is known.
 
       when Attribute_Object_Size => Object_Size : declare
-         P_TypeA : constant Entity_Id := Underlying_Type (P_Type);
+         P_TypeA : constant Entity_Id := Full_Type (P_Type);
 
       begin
          if Known_Esize (P_TypeA) then
@@ -10263,7 +10358,7 @@ package body Sem_Attr is
          | Attribute_VADS_Size
       =>
          Size : declare
-            P_TypeA : constant Entity_Id := Underlying_Type (P_Type);
+            P_TypeA : constant Entity_Id := Full_Type (P_Type);
 
          begin
             pragma Assert
@@ -10419,7 +10514,7 @@ package body Sem_Attr is
       ----------------
 
       when Attribute_Type_Class => Type_Class : declare
-         Typ : constant Entity_Id := Underlying_Type (P_Base_Type);
+         Typ : constant Entity_Id := Full_Type (P_Base_Type);
          Id  : RE_Id;
 
       begin
@@ -10483,7 +10578,7 @@ package body Sem_Attr is
       -------------------------
 
       when Attribute_Unconstrained_Array => Unconstrained_Array : declare
-         Typ : constant Entity_Id := Underlying_Type (P_Type);
+         Typ : constant Entity_Id := Full_Type (P_Type);
 
       begin
          Rewrite (N, New_Occurrence_Of (
@@ -10541,7 +10636,7 @@ package body Sem_Attr is
       --  it is annoying that a size of zero means two things!
 
       when Attribute_Value_Size => Value_Size : declare
-         P_TypeA : constant Entity_Id := Underlying_Type (P_Type);
+         P_TypeA : constant Entity_Id := Full_Type (P_Type);
 
       begin
          pragma Assert
@@ -10830,9 +10925,10 @@ package body Sem_Attr is
                      --  that accommodates the Pos of the largest value, which
                      --  is the high bound of the range + one for the space.
 
-                     W := 1;
-                     T := Hi;
-                     while T /= 0 loop
+                     W := 1;      --  one character for the leading space
+                     W := W + 1;  --  one character for the 0 .. 9 digit
+                     T := Hi;     --  one character for every decimal digit
+                     while T >= 10 loop
                         T := T / 10;
                         W := W + 1;
                      end loop;
@@ -10959,6 +11055,7 @@ package body Sem_Attr is
          | Attribute_Storage_Size
          | Attribute_Storage_Unit
          | Attribute_Stub_Type
+         | Attribute_Super
          | Attribute_System_Allocator_Alignment
          | Attribute_Tag
          | Attribute_Target_Name

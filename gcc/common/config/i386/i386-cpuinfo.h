@@ -50,12 +50,10 @@ enum processor_types
   AMDFAM10H,
   AMDFAM15H,
   INTEL_SILVERMONT,
-  INTEL_KNL,
-  AMD_BTVER1,
+  AMD_BTVER1 = 8,
   AMD_BTVER2,
   AMDFAM17H,
-  INTEL_KNM,
-  INTEL_GOLDMONT,
+  INTEL_GOLDMONT = 12,
   INTEL_GOLDMONT_PLUS,
   INTEL_TREMONT,
   AMDFAM19H,
@@ -112,7 +110,7 @@ enum processor_subtypes
 /* Priority of i386 features, greater value is higher priority.   This is
    used to decide the order in which function dispatch must happen.  For
    instance, a version specialized for SSE4.2 should be checked for dispatch
-   before a version for SSE3, as SSE4.2 implies SSE3.  */
+   before a version for SSE3.  */
 enum feature_priority
 {
   P_NONE = 0,
@@ -148,6 +146,9 @@ enum feature_priority
   P_AVX512F,
   P_PROC_AVX512F,
   P_X86_64_V4,
+  P_AVX10_1_256,
+  P_AVX10_1_512,
+  P_PROC_AVX10_1_512,
   P_PROC_DYNAMIC
 };
 
@@ -179,13 +180,9 @@ enum processor_features
   FEATURE_AVX512BW,
   FEATURE_AVX512DQ,
   FEATURE_AVX512CD,
-  FEATURE_AVX512ER,
-  FEATURE_AVX512PF,
-  FEATURE_AVX512VBMI,
+  FEATURE_AVX512VBMI = 26,
   FEATURE_AVX512IFMA,
-  FEATURE_AVX5124VNNIW,
-  FEATURE_AVX5124FMAPS,
-  FEATURE_AVX512VPOPCNTDQ,
+  FEATURE_AVX512VPOPCNTDQ = 30,
   FEATURE_AVX512VBMI2,
   FEATURE_GFNI,
   FEATURE_VPCLMULQDQ,
@@ -220,8 +217,7 @@ enum processor_features
   FEATURE_OSXSAVE,
   FEATURE_PCONFIG,
   FEATURE_PKU,
-  FEATURE_PREFETCHWT1,
-  FEATURE_PRFCHW,
+  FEATURE_PRFCHW = 66,
   FEATURE_PTWRITE,
   FEATURE_RDPID,
   FEATURE_RDRND,

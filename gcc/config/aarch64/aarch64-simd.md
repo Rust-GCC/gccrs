@@ -288,28 +288,6 @@
   }
 )
 
-(define_expand "aarch64_get_low<mode>"
-  [(match_operand:<VHALF> 0 "register_operand")
-   (match_operand:VQMOV 1 "register_operand")]
-  "TARGET_FLOAT"
-  {
-    rtx lo = aarch64_simd_vect_par_cnst_half (<MODE>mode, <nunits>, false);
-    emit_insn (gen_aarch64_get_half<mode> (operands[0], operands[1], lo));
-    DONE;
-  }
-)
-
-(define_expand "aarch64_get_high<mode>"
-  [(match_operand:<VHALF> 0 "register_operand")
-   (match_operand:VQMOV 1 "register_operand")]
-  "TARGET_FLOAT"
-  {
-    rtx hi = aarch64_simd_vect_par_cnst_half (<MODE>mode, <nunits>, true);
-    emit_insn (gen_aarch64_get_half<mode> (operands[0], operands[1], hi));
-    DONE;
-  }
-)
-
 (define_insn_and_split "aarch64_simd_mov_from_<mode>low"
   [(set (match_operand:<VHALF> 0 "register_operand")
         (vec_select:<VHALF>
@@ -3154,7 +3132,7 @@
     DONE;
   }
 )
-(define_insn "aarch64_float_extend_lo_<Vwide>"
+(define_insn "extend<mode><Vwide>2"
   [(set (match_operand:<VWIDE> 0 "register_operand" "=w")
 	(float_extend:<VWIDE>
 	  (match_operand:VDF 1 "register_operand" "w")))]
@@ -4388,7 +4366,7 @@
    && (register_operand (operands[0], <VDBL>mode)
        || register_operand (operands[2], <MODE>mode))"
   {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
-     [ w        , 0  , w   ; neon_ins<dblq>            , simd  ] ins\t%0.<single_type>[1], %2.<single_type>[0]
+     [ w        , w  , w   ; neon_permute<dblq>        , simd  ] uzp1\t%0.2<single_type>, %1.2<single_type>, %2.2<single_type>
      [ w        , 0  , ?r  ; neon_from_gp<dblq>        , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
      [ w        , 0  , ?r  ; f_mcr                     , *     ] fmov\t%0.d[1], %2
      [ w        , 0  , Utv ; neon_load1_one_lane<dblq> , simd  ] ld1\t{%0.<single_type>}[1], %2
@@ -4407,7 +4385,7 @@
    && (register_operand (operands[0], <VDBL>mode)
        || register_operand (operands[2], <MODE>mode))"
   {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
-     [ w        , 0  , w   ; neon_ins<dblq>            , simd  ] ins\t%0.<single_type>[1], %2.<single_type>[0]
+     [ w        , w  , w   ; neon_permute<dblq>        , simd  ] uzp1\t%0.2<single_type>, %1.2<single_type>, %2.2<single_type>
      [ w        , 0  , ?r  ; neon_from_gp<dblq>        , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
      [ w        , 0  , ?r  ; f_mcr                     , *     ] fmov\t%0.d[1], %2
      [ w        , 0  , Utv ; neon_load1_one_lane<dblq> , simd  ] ld1\t{%0.<single_type>}[1], %2
@@ -8496,7 +8474,7 @@
 			UNSPEC_CONCAT))]
   "TARGET_SIMD"
   "#"
-  "&& reload_completed"
+  "&& 1"
   [(const_int 0)]
 {
   aarch64_split_combinev16qi (operands);
@@ -9773,27 +9751,6 @@
 }
   [(set_attr "type" "neon_dot<VDQSF:q>")]
 )
-
-;; vget_low/high_bf16
-(define_expand "aarch64_vget_lo_halfv8bf"
-  [(match_operand:V4BF 0 "register_operand")
-   (match_operand:V8BF 1 "register_operand")]
-  "TARGET_BF16_SIMD"
-{
-  rtx p = aarch64_simd_vect_par_cnst_half (V8BFmode, 8, false);
-  emit_insn (gen_aarch64_get_halfv8bf (operands[0], operands[1], p));
-  DONE;
-})
-
-(define_expand "aarch64_vget_hi_halfv8bf"
-  [(match_operand:V4BF 0 "register_operand")
-   (match_operand:V8BF 1 "register_operand")]
-  "TARGET_BF16_SIMD"
-{
-  rtx p = aarch64_simd_vect_par_cnst_half (V8BFmode, 8, true);
-  emit_insn (gen_aarch64_get_halfv8bf (operands[0], operands[1], p));
-  DONE;
-})
 
 ;; bfmmla
 (define_insn "aarch64_bfmmlaqv4sf"

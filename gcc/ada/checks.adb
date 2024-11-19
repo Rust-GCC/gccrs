@@ -322,7 +322,8 @@ package body Checks is
    --  that the access value is non-null, since the checks do not
    --  not apply to null access values.
 
-   procedure Install_Static_Check (R_Cno : Node_Id; Loc : Source_Ptr);
+   procedure Install_Static_Check
+     (R_Cno : Node_Id; Loc : Source_Ptr; Reason : RT_Exception_Code);
    --  Called by Apply_{Length,Range}_Checks to rewrite the tree with the
    --  Constraint_Error node.
 
@@ -346,7 +347,7 @@ package body Checks is
       Warn_Node  : Node_Id) return Check_Result;
    --  Like Apply_Selected_Length_Checks, except it doesn't modify
    --  anything, just returns a list of nodes as described in the spec of
-   --  this package for the Range_Check function.
+   --  this package for the Get_Range_Checks function.
    --  ??? In fact it does construct the test and insert it into the tree,
    --  and insert actions in various ways (calling Insert_Action directly
    --  in particular) so we do not call it in GNATprove mode, contrary to
@@ -359,7 +360,7 @@ package body Checks is
       Warn_Node  : Node_Id) return Check_Result;
    --  Like Apply_Range_Check, except it does not modify anything, just
    --  returns a list of nodes as described in the spec of this package
-   --  for the Range_Check function.
+   --  for the Get_Range_Checks function.
 
    ------------------------------
    -- Access_Checks_Suppressed --
@@ -3001,7 +3002,7 @@ package body Checks is
             Insert_Action (Insert_Node, R_Cno);
 
          else
-            Install_Static_Check (R_Cno, Loc);
+            Install_Static_Check (R_Cno, Loc, CE_Range_Check_Failed);
          end if;
       end loop;
    end Apply_Range_Check;
@@ -3469,7 +3470,7 @@ package body Checks is
             end if;
 
          else
-            Install_Static_Check (R_Cno, Loc);
+            Install_Static_Check (R_Cno, Loc, CE_Length_Check_Failed);
          end if;
       end loop;
    end Apply_Selected_Length_Checks;
@@ -6838,6 +6839,9 @@ package body Checks is
       then
          return True;
 
+      elsif Is_Static_Expression (Expr) then
+         return True;
+
       --  If the expression is the value of an object that is known to be
       --  valid, then clearly the expression value itself is valid.
 
@@ -8692,14 +8696,16 @@ package body Checks is
    -- Install_Static_Check --
    --------------------------
 
-   procedure Install_Static_Check (R_Cno : Node_Id; Loc : Source_Ptr) is
+   procedure Install_Static_Check
+     (R_Cno : Node_Id; Loc : Source_Ptr; Reason : RT_Exception_Code)
+   is
       Stat : constant Boolean   := Is_OK_Static_Expression (R_Cno);
       Typ  : constant Entity_Id := Etype (R_Cno);
 
    begin
       Rewrite (R_Cno,
         Make_Raise_Constraint_Error (Loc,
-          Reason => CE_Range_Check_Failed));
+          Reason => Reason));
       Set_Analyzed (R_Cno);
       Set_Etype (R_Cno, Typ);
       Set_Raises_Constraint_Error (R_Cno);

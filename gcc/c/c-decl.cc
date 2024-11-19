@@ -5051,6 +5051,8 @@ shadow_tag_warned (const struct c_declspecs *declspecs, int warned)
 	      if (t == NULL_TREE)
 		{
 		  t = make_node (code);
+		  if (flag_isoc23 || code == ENUMERAL_TYPE)
+		    SET_TYPE_STRUCTURAL_EQUALITY (t);
 		  pushtag (input_location, name, t);
 		}
 	    }
@@ -5301,19 +5303,6 @@ set_array_declarator_inner (struct c_declarator *decl,
   return decl;
 }
 
-/* Determine whether TYPE is a ISO C99 flexible array memeber type "[]".  */
-static bool
-flexible_array_member_type_p (const_tree type)
-{
-  if (TREE_CODE (type) == ARRAY_TYPE
-      && TYPE_SIZE (type) == NULL_TREE
-      && TYPE_DOMAIN (type) != NULL_TREE
-      && TYPE_MAX_VALUE (TYPE_DOMAIN (type)) == NULL_TREE)
-    return true;
-
-  return false;
-}
-
 /* Determine whether TYPE is a one-element array type "[1]".  */
 static bool
 one_element_array_type_p (const_tree type)
@@ -5337,8 +5326,9 @@ zero_length_array_type_p (const_tree type)
 }
 
 /* INIT is a constructor that forms DECL's initializer.  If the final
-   element initializes a flexible array field, add the size of that
-   initializer to DECL's size.  */
+   element initializes a flexible array field, adjust the size of the
+   DECL with the initializer based on whether the DECL is a union or
+   a structure.  */
 
 static void
 add_flexible_array_elts_to_size (tree decl, tree init)
@@ -5350,13 +5340,29 @@ add_flexible_array_elts_to_size (tree decl, tree init)
 
   elt = CONSTRUCTOR_ELTS (init)->last ().value;
   type = TREE_TYPE (elt);
-  if (flexible_array_member_type_p (type))
+  if (c_flexible_array_member_type_p (type))
     {
       complete_array_type (&type, elt, false);
-      DECL_SIZE (decl)
-	= size_binop (PLUS_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
-      DECL_SIZE_UNIT (decl)
-	= size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl), TYPE_SIZE_UNIT (type));
+      /* For a structure, add the size of the initializer to the DECL's
+	 size.  */
+      if (TREE_CODE (TREE_TYPE (decl)) == RECORD_TYPE)
+	{
+	  DECL_SIZE (decl)
+	    = size_binop (PLUS_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
+	  DECL_SIZE_UNIT (decl)
+	    = size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl),
+			  TYPE_SIZE_UNIT (type));
+	}
+      /* For a union, the DECL's size is the maximum of the current size
+	 and the size of the initializer.  */
+      else
+	{
+	  DECL_SIZE (decl)
+	    = size_binop (MAX_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
+	  DECL_SIZE_UNIT (decl)
+	    = size_binop (MAX_EXPR, DECL_SIZE_UNIT (decl),
+			  TYPE_SIZE_UNIT (type));
+	}
     }
 }
 
@@ -8809,6 +8815,8 @@ parser_xref_tag (location_t loc, enum tree_code code, tree name,
      the forward-reference will be altered into a real type.  */
 
   ref = make_node (code);
+  if (flag_isoc23 || code == ENUMERAL_TYPE)
+    SET_TYPE_STRUCTURAL_EQUALITY (ref);
   if (code == ENUMERAL_TYPE)
     {
       /* Give the type a default layout like unsigned int
@@ -8910,6 +8918,8 @@ start_struct (location_t loc, enum tree_code code, tree name,
   if (ref == NULL_TREE || TREE_CODE (ref) != code)
     {
       ref = make_node (code);
+      if (flag_isoc23)
+	SET_TYPE_STRUCTURAL_EQUALITY (ref);
       pushtag (loc, name, ref);
     }
 
@@ -9317,7 +9327,7 @@ is_flexible_array_member_p (bool is_last_field,
 
   bool is_zero_length_array = zero_length_array_type_p (TREE_TYPE (x));
   bool is_one_element_array = one_element_array_type_p (TREE_TYPE (x));
-  bool is_flexible_array = flexible_array_member_type_p (TREE_TYPE (x));
+  bool is_flexible_array = c_flexible_array_member_type_p (TREE_TYPE (x));
 
   unsigned int strict_flex_array_level = c_strict_flex_array_level_of (x);
 
@@ -9347,6 +9357,105 @@ is_flexible_array_member_p (bool is_last_field,
   return false;
 }
 
+/* Recompute TYPE_CANONICAL for variants of the type including qualified
+   versions of the type and related pointer types after an aggregate type
+   has been finalized.
+   Will not update array types, pointers to array types, function
+   types and other derived types created while the type was still
+   incomplete, those will remain TYPE_STRUCTURAL_EQUALITY_P.  */
+
+static void
+c_update_type_canonical (tree t)
+{
+  for (tree x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
+    {
+      if (x != t && TYPE_STRUCTURAL_EQUALITY_P (x))
+	{
+	  if (TYPE_QUALS (x) == TYPE_QUALS (t))
+	    TYPE_CANONICAL (x) = TYPE_CANONICAL (t);
+	  else if (TYPE_CANONICAL (t) != t
+		   || check_qualified_type (x, t, TYPE_QUALS (x)))
+	    TYPE_CANONICAL (x)
+	      = build_qualified_type (TYPE_CANONICAL (t), TYPE_QUALS (x));
+	  else
+	    TYPE_CANONICAL (x) = x;
+	}
+      else if (x != t)
+	continue;
+      for (tree p = TYPE_POINTER_TO (x); p; p = TYPE_NEXT_PTR_TO (p))
+	{
+	  if (!TYPE_STRUCTURAL_EQUALITY_P (p))
+	    continue;
+	  if (TYPE_CANONICAL (x) != x || TYPE_REF_CAN_ALIAS_ALL (p))
+	    TYPE_CANONICAL (p)
+	      = build_pointer_type_for_mode (TYPE_CANONICAL (x), TYPE_MODE (p),
+					     false);
+	  else
+	    TYPE_CANONICAL (p) = p;
+	  c_update_type_canonical (p);
+	}
+    }
+}
+
+/* Verify the argument of the counted_by attribute of the flexible array
+   member FIELD_DECL is a valid field of the containing structure,
+   STRUCT_TYPE, Report error and remove this attribute when it's not.  */
+
+static void
+verify_counted_by_attribute (tree struct_type, tree field_decl)
+{
+  tree attr_counted_by = lookup_attribute ("counted_by",
+					   DECL_ATTRIBUTES (field_decl));
+
+  if (!attr_counted_by)
+    return;
+
+  /* If there is an counted_by attribute attached to the field,
+     verify it.  */
+
+  tree fieldname = TREE_VALUE (TREE_VALUE (attr_counted_by));
+
+  /* Verify the argument of the attrbute is a valid field of the
+     containing structure.  */
+
+  tree counted_by_field = lookup_field (struct_type, fieldname);
+
+  /* Error when the field is not found in the containing structure.  */
+  if (!counted_by_field)
+    error_at (DECL_SOURCE_LOCATION (field_decl),
+	      "argument %qE to the %qE attribute is not a field declaration"
+	      " in the same structure as %qD", fieldname,
+	      (get_attribute_name (attr_counted_by)),
+	      field_decl);
+
+  else
+  /* Error when the field is not with an integer type.  */
+    {
+      while (TREE_CHAIN (counted_by_field))
+	counted_by_field = TREE_CHAIN (counted_by_field);
+      tree real_field = TREE_VALUE (counted_by_field);
+
+      if (!INTEGRAL_TYPE_P (TREE_TYPE (real_field)))
+	error_at (DECL_SOURCE_LOCATION (field_decl),
+		  "argument %qE to the %qE attribute is not a field declaration"
+		  " with an integer type", fieldname,
+		  (get_attribute_name (attr_counted_by)));
+
+    }
+
+  return;
+}
+
+/* TYPE is a struct or union that we're applying may_alias to after the body is
+   parsed.  Fixup any POINTER_TO types.  */
+
+static void
+c_fixup_may_alias (tree type)
+{
+  for (tree t = TYPE_POINTER_TO (type); t; t = TYPE_NEXT_PTR_TO (t))
+    for (tree v = TYPE_MAIN_VARIANT (t); v; v = TYPE_NEXT_VARIANT (v))
+      TYPE_REF_CAN_ALIAS_ALL (v) = true;
+}
 
 /* Fill in the fields of a RECORD_TYPE or UNION_TYPE node, T.
    LOC is the location of the RECORD_TYPE or UNION_TYPE's definition.
@@ -9408,6 +9517,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
      until now.)  */
 
   bool saw_named_field = false;
+  tree counted_by_fam_field = NULL_TREE;
   for (x = fieldlist; x; x = DECL_CHAIN (x))
     {
       /* Whether this field is the last field of the structure or union.
@@ -9468,14 +9578,11 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	DECL_PACKED (x) = 1;
 
       /* Detect flexible array member in an invalid context.  */
-      if (flexible_array_member_type_p (TREE_TYPE (x)))
+      if (c_flexible_array_member_type_p (TREE_TYPE (x)))
 	{
 	  if (TREE_CODE (t) == UNION_TYPE)
-	    {
-	      error_at (DECL_SOURCE_LOCATION (x),
-			"flexible array member in union");
-	      TREE_TYPE (x) = error_mark_node;
-	    }
+	    pedwarn (DECL_SOURCE_LOCATION (x), OPT_Wpedantic,
+		     "flexible array member in union is a GCC extension");
 	  else if (!is_last_field)
 	    {
 	      error_at (DECL_SOURCE_LOCATION (x),
@@ -9483,12 +9590,15 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	      TREE_TYPE (x) = error_mark_node;
 	    }
 	  else if (!saw_named_field)
-	    {
-	      error_at (DECL_SOURCE_LOCATION (x),
-			"flexible array member in a struct with no named "
-			"members");
-	      TREE_TYPE (x) = error_mark_node;
-	    }
+	    pedwarn (DECL_SOURCE_LOCATION (x), OPT_Wpedantic,
+		     "flexible array member in a struct with no named "
+		     "members is a GCC extension");
+
+	  /* If there is a counted_by attribute attached to this field,
+	     record it here and do more verification later after the
+	     whole structure is complete.  */
+	  if (lookup_attribute ("counted_by", DECL_ATTRIBUTES (x)))
+	    counted_by_fam_field = x;
 	}
 
       if (pedantic && TREE_CODE (t) == RECORD_TYPE
@@ -9503,7 +9613,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	 when x is an array and is the last field.  */
       if (TREE_CODE (TREE_TYPE (x)) == ARRAY_TYPE)
 	TYPE_INCLUDES_FLEXARRAY (t)
-	  = is_last_field && flexible_array_member_type_p (TREE_TYPE (x));
+	  = is_last_field && c_flexible_array_member_type_p (TREE_TYPE (x));
       /* Recursively set TYPE_INCLUDES_FLEXARRAY for the context of x, t
 	 when x is an union or record and is the last field.  */
       else if (RECORD_OR_UNION_TYPE_P (TREE_TYPE (x)))
@@ -9692,14 +9802,19 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 
   C_TYPE_BEING_DEFINED (t) = 0;
 
+  if (lookup_attribute ("may_alias", TYPE_ATTRIBUTES (t)))
+    for (x = TYPE_MAIN_VARIANT (t); x; x = TYPE_NEXT_VARIANT (x))
+      c_fixup_may_alias (x);
+
   /* Set type canonical based on equivalence class.  */
-  if (flag_isoc23)
+  if (flag_isoc23 && !C_TYPE_VARIABLE_SIZE (t))
     {
-      if (NULL == c_struct_htab)
+      if (c_struct_htab == NULL)
 	c_struct_htab = hash_table<c_struct_hasher>::create_ggc (61);
 
       hashval_t hash = c_struct_hasher::hash (t);
 
+      gcc_checking_assert (TYPE_STRUCTURAL_EQUALITY_P (t));
       tree *e = c_struct_htab->find_slot_with_hash (t, hash, INSERT);
       if (*e)
 	TYPE_CANONICAL (t) = *e;
@@ -9708,6 +9823,7 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	  TYPE_CANONICAL (t) = t;
 	  *e = t;
 	}
+      c_update_type_canonical (t);
     }
 
   tree incomplete_vars = C_TYPE_INCOMPLETE_VARS (TYPE_MAIN_VARIANT (t));
@@ -9757,6 +9873,9 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	  && !in_sizeof && !in_typeof && !in_alignof)
 	struct_parse_info->struct_types.safe_push (t);
      }
+
+  if (counted_by_fam_field)
+    verify_counted_by_attribute (t, counted_by_fam_field);
 
   return t;
 }
@@ -9861,6 +9980,7 @@ start_enum (location_t loc, struct c_enum_contents *the_enum, tree name,
     {
       enumtype = make_node (ENUMERAL_TYPE);
       TYPE_SIZE (enumtype) = NULL_TREE;
+      SET_TYPE_STRUCTURAL_EQUALITY (enumtype);
       pushtag (loc, name, enumtype);
       if (fixed_underlying_type != NULL_TREE)
 	{
@@ -9877,6 +9997,8 @@ start_enum (location_t loc, struct c_enum_contents *the_enum, tree name,
 	  TYPE_SIZE (enumtype) = NULL_TREE;
 	  TYPE_PRECISION (enumtype) = TYPE_PRECISION (fixed_underlying_type);
 	  ENUM_UNDERLYING_TYPE (enumtype) = fixed_underlying_type;
+	  TYPE_CANONICAL (enumtype) = TYPE_CANONICAL (fixed_underlying_type);
+	  c_update_type_canonical (enumtype);
 	  layout_type (enumtype);
 	}
     }
@@ -10035,6 +10157,10 @@ finish_enum (tree enumtype, tree values, tree attributes)
       TYPE_PRECISION (enumtype) = TYPE_PRECISION (tem);
       ENUM_UNDERLYING_TYPE (enumtype) =
 	c_common_type_for_size (TYPE_PRECISION (tem), TYPE_UNSIGNED (tem));
+
+      TYPE_CANONICAL (enumtype) =
+	TYPE_CANONICAL (ENUM_UNDERLYING_TYPE (enumtype));
+      c_update_type_canonical (enumtype);
 
       layout_type (enumtype);
     }

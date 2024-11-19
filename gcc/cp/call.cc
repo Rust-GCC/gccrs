@@ -42,7 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "stringpool.h"
 #include "attribs.h"
 #include "decl.h"
-#include "gcc-rich-location.h"
+#include "c-family/c-type-mismatch.h"
 #include "tristate.h"
 
 /* The various kinds of conversion.  */
@@ -8597,16 +8597,12 @@ convert_like_internal (conversion *convs, tree expr, tree fn, int argnum,
 	    && TYPE_HAS_DEFAULT_CONSTRUCTOR (totype)
 	    && !processing_template_decl)
 	  {
-	    bool direct = CONSTRUCTOR_IS_DIRECT_INIT (expr);
 	    if (abstract_virtuals_error (NULL_TREE, totype, complain))
 	      return error_mark_node;
 	    expr = build_value_init (totype, complain);
 	    expr = get_target_expr (expr, complain);
 	    if (expr != error_mark_node)
-	      {
-		TARGET_EXPR_LIST_INIT_P (expr) = true;
-		TARGET_EXPR_DIRECT_INIT_P (expr) = direct;
-	      }
+	      TARGET_EXPR_LIST_INIT_P (expr) = true;
 	    return expr;
 	  }
 
@@ -9440,6 +9436,10 @@ convert_for_arg_passing (tree type, tree val, tsubst_flags_t complain)
 
   if (complain & tf_warning)
     warn_for_address_of_packed_member (type, val);
+
+  /* gimplify_arg elides TARGET_EXPRs that initialize a function argument.  */
+  if (SIMPLE_TARGET_EXPR_P (val))
+    set_target_expr_eliding (val);
 
   return val;
 }
@@ -11167,7 +11167,9 @@ in_charge_arg_for_name (tree name)
       if (name == complete_dtor_identifier)
 	return integer_two_node;
       else if (name == deleting_dtor_identifier)
-	return integer_three_node;
+	/* The deleting dtor should now be handled by
+	   build_delete_destructor_body.  */
+	gcc_unreachable ();
       gcc_checking_assert (name == base_dtor_identifier);
     }
 
@@ -13800,6 +13802,9 @@ make_temporary_var_for_ref_to_temp (tree decl, tree type)
       tree name = mangle_ref_init_variable (decl);
       DECL_NAME (var) = name;
       SET_DECL_ASSEMBLER_NAME (var, name);
+
+      /* Set the context to make the variable mergeable in modules.  */
+      DECL_CONTEXT (var) = current_scope ();
     }
   else
     /* Create a new cleanup level if necessary.  */

@@ -4196,6 +4196,17 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
       adjust_for_new_dest (i3);
     }
 
+  /* If I2 didn't change, this is not a combination (but a simplification or
+     canonicalisation with context), which should not be done here.  Doing
+     it here explodes the algorithm.  Don't.  */
+  if (rtx_equal_p (newi2pat, PATTERN (i2)))
+    {
+      if (dump_file)
+	fprintf (dump_file, "i2 didn't change, not doing this\n");
+      undo_all ();
+      return 0;
+    }
+
   /* We now know that we can do this combination.  Merge the insns and
      update the status of registers and LOG_LINKS.  */
 
@@ -11841,8 +11852,10 @@ simplify_compare_const (enum rtx_code code, machine_mode mode,
      `and'ed with that bit), we can replace this with a comparison
      with zero.  */
   if (const_op
-      && (code == EQ || code == NE || code == GE || code == GEU
-	  || code == LT || code == LTU)
+      && (code == EQ || code == NE || code == GEU || code == LTU
+	  /* This optimization is incorrect for signed >= INT_MIN or
+	     < INT_MIN, those are always true or always false.  */
+	  || ((code == GE || code == LT) && const_op > 0))
       && is_a <scalar_int_mode> (mode, &int_mode)
       && GET_MODE_PRECISION (int_mode) - 1 < HOST_BITS_PER_WIDE_INT
       && pow2p_hwi (const_op & GET_MODE_MASK (int_mode))

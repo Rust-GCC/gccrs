@@ -2400,7 +2400,7 @@ package body Sem_Ch7 is
 
          --  Do not enter implicitly inherited non-overridden subprograms of
          --  a tagged type back into visibility if they have non-conformant
-         --  homographs (Ada RM 8.3 12.3/2).
+         --  homographs (RM 8.3(12.3/2)).
 
          elsif Is_Hidden_Non_Overridden_Subpgm (Id) then
             null;
@@ -2746,10 +2746,6 @@ package body Sem_Ch7 is
       Set_Is_First_Subtype (Id);
       Reinit_Size_Align (Id);
 
-      Set_Is_Constrained (Id,
-        No (Discriminant_Specifications (N))
-          and then not Unknown_Discriminants_Present (N));
-
       --  Set tagged flag before processing discriminants, to catch illegal
       --  usage.
 
@@ -2765,6 +2761,9 @@ package body Sem_Ch7 is
 
       elsif Unknown_Discriminants_Present (N) then
          Set_Has_Unknown_Discriminants (Id);
+
+      else
+         Set_Is_Constrained (Id);
       end if;
 
       Set_Private_Dependents (Id, New_Elmt_List);

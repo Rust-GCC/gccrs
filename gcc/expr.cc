@@ -85,7 +85,6 @@ static void emit_block_move_via_sized_loop (rtx, rtx, rtx, unsigned, unsigned);
 static void emit_block_move_via_oriented_loop (rtx, rtx, rtx, unsigned, unsigned);
 static rtx emit_block_cmp_via_loop (rtx, rtx, rtx, tree, rtx, bool,
 				    unsigned, unsigned);
-static void clear_by_pieces (rtx, unsigned HOST_WIDE_INT, unsigned int);
 static rtx_insn *compress_float_constant (rtx, rtx);
 static rtx get_subtarget (rtx);
 static rtx store_field (rtx, poly_int64, poly_int64, poly_uint64, poly_uint64,
@@ -355,8 +354,16 @@ convert_mode_scalar (rtx to, rtx from, int unsignedp)
 		      && REAL_MODE_FORMAT (from_mode) == &ieee_half_format));
 
       if (GET_MODE_PRECISION (from_mode) == GET_MODE_PRECISION (to_mode))
-	/* Conversion between decimal float and binary float, same size.  */
-	tab = DECIMAL_FLOAT_MODE_P (from_mode) ? trunc_optab : sext_optab;
+	{
+	  if (REAL_MODE_FORMAT (to_mode) == &arm_bfloat_half_format
+	      && REAL_MODE_FORMAT (from_mode) == &ieee_half_format)
+	    /* libgcc implements just __trunchfbf2, not __extendhfbf2.  */
+	    tab = trunc_optab;
+	  else
+	    /* Conversion between decimal float and binary float, same
+	       size.  */
+	    tab = DECIMAL_FLOAT_MODE_P (from_mode) ? trunc_optab : sext_optab;
+	}
       else if (GET_MODE_PRECISION (from_mode) < GET_MODE_PRECISION (to_mode))
 	tab = sext_optab;
       else
@@ -1832,10 +1839,7 @@ store_by_pieces (rtx to, unsigned HOST_WIDE_INT len,
     return to;
 }
 
-/* Generate several move instructions to clear LEN bytes of block TO.  (A MEM
-   rtx with BLKmode).  ALIGN is maximum alignment we can assume.  */
-
-static void
+void
 clear_by_pieces (rtx to, unsigned HOST_WIDE_INT len, unsigned int align)
 {
   if (len == 0)

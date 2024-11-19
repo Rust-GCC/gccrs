@@ -235,19 +235,26 @@ package Exp_Util is
    --  Pref'Constrained.
 
    procedure Build_Allocate_Deallocate_Proc
-     (N           : Node_Id;
-      Is_Allocate : Boolean);
+     (N    : Node_Id;
+      Mark : Node_Id := Empty);
    --  Create a custom Allocate/Deallocate to be associated with an allocation
-   --  or deallocation:
+   --  or deallocation for:
    --
    --    1) controlled objects
    --    2) class-wide objects
-   --    3) any kind of object on a subpool
+   --    3) any kind of objects on a subpool
    --
-   --  N must be an allocator or the declaration of a temporary variable which
-   --  represents the expression of the original allocator node, otherwise N
-   --  must be a free statement. If flag Is_Allocate is set, the generated
-   --  routine is allocate, deallocate otherwise.
+   --  Moreover, for objects that need finalization, generate the attachment
+   --  actions to resp. detachment actions from the appropriate collection.
+   --
+   --  N must be an allocator or the declaration of a temporary initialized by
+   --  an allocator or an assignment of an allocator to a temporary, otherwise
+   --  N must be a free statement of a temporary.
+   --
+   --  Mark must be set to a mark past the initialization of the allocator if
+   --  it is initialized (the allocator itself is OK) or left empty otherwise.
+   --  It is used to determine the place where objects that need finalization
+   --  can be attached to the appropriate collection.
 
    function Build_Abort_Undefer_Block
      (Loc     : Source_Ptr;
@@ -363,35 +370,6 @@ package Exp_Util is
 
    --  This should be used when Typ can potentially be large, to avoid putting
    --  too much pressure on the primary stack, for example with storage models.
-
-   procedure Build_Transient_Object_Statements
-     (Obj_Decl     : Node_Id;
-      Fin_Call     : out Node_Id;
-      Hook_Assign  : out Node_Id;
-      Hook_Clear   : out Node_Id;
-      Hook_Decl    : out Node_Id;
-      Ptr_Decl     : out Node_Id;
-      Finalize_Obj : Boolean := True);
-   --  Subsidiary to the processing of transient objects in transient scopes,
-   --  if expressions, case expressions, and expression_with_action nodes.
-   --  Obj_Decl denotes the declaration of the transient object. Generate the
-   --  following nodes:
-   --
-   --    * Fin_Call - the call to [Deep_]Finalize which cleans up the transient
-   --    object if flag Finalize_Obj is set to True, or finalizes the hook when
-   --    the flag is False.
-   --
-   --    * Hook_Assign - the assignment statement which captures a reference to
-   --    the transient object in the hook.
-   --
-   --    * Hook_Clear - the assignment statement which resets the hook to null
-   --
-   --    * Hook_Decl - the declaration of the hook object
-   --
-   --    * Ptr_Decl - the full type declaration of the hook type
-   --
-   --  These nodes are inserted in specific places depending on the context by
-   --  the various Process_Transient_xxx routines.
 
    procedure Check_Float_Op_Overflow (N : Node_Id);
    --  Called where we could have a floating-point binary operator where we
@@ -596,6 +574,9 @@ package Exp_Util is
 
    --  WARNING: There is a matching C declaration of this subprogram in fe.h
 
+   function Find_Last_Init (Decl : Node_Id) return Node_Id;
+   --  Find the last initialization call related to object declaration Decl
+
    function Find_Prim_Op (T : Entity_Id; Name : Name_Id) return Entity_Id;
    --  Find the first primitive operation of a tagged type T with name Name.
    --  This function allows the use of a primitive operation which is not
@@ -753,9 +734,6 @@ package Exp_Util is
    --  chain, counting only entries in the current scope. If an entity is not
    --  overloaded, the returned number will be one.
 
-   function Inside_Init_Proc return Boolean;
-   --  Returns True if current scope is within an init proc
-
    function In_Library_Level_Package_Body (Id : Entity_Id) return Boolean;
    --  Given an arbitrary entity, determine whether it appears at the library
    --  level of a package body.
@@ -765,6 +743,13 @@ package Exp_Util is
    --  function determines if the statement appears in a context that is
    --  unconditionally executed, i.e. it is not within a loop or a conditional
    --  or a case statement etc.
+
+   function Init_Proc_Level_Formal (Proc : Entity_Id) return Entity_Id;
+   --  Return the extra formal of an initialization procedure corresponding to
+   --  the level of the object being initialized, or Empty if none is present.
+
+   function Inside_Init_Proc return Boolean;
+   --  Return True if current scope is within an init proc
 
    function Integer_Type_For (S : Uint; Uns : Boolean) return Entity_Id;
    --  Return a suitable standard integer type containing at least S bits and

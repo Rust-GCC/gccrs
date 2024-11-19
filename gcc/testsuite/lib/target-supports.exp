@@ -942,8 +942,7 @@ proc check_effective_target_nonlocal_goto {} {
 # Return 1 if global constructors are supported, 0 otherwise.
 
 proc check_effective_target_global_constructor {} {
-    if { [istarget nvptx-*-*]
-	 || [istarget bpf-*-*] } {
+    if { [istarget bpf-*-*] } {
 	return 0
     }
     return 1
@@ -1415,16 +1414,10 @@ proc check_effective_target_pie { } {
 	 || [istarget *-*-freebsd*]
 	 || [istarget *-*-linux*]
 	 || [istarget arm*-*-uclinuxfdpiceabi]
+	 || [istarget *-*-solaris2*]
 	 || [istarget *-*-gnu*]
 	 || [istarget *-*-amdhsa]} {
 	return 1;
-    }
-    if { [istarget *-*-solaris2.1\[1-9\]*] } {
-	# Full PIE support was added in Solaris 11.3, but gcc errors out
-	# if missing, so check for that.
-	return [check_no_compiler_messages pie executable {
-	    int main (void) { return 0; }
-	} "-pie -fpie"]
     }
     return 0
 }
@@ -1965,6 +1958,17 @@ proc check_effective_target_riscv_zbb { } {
     }]
 }
 
+# Return 1 if the target arch supports the Zbb extension, 0 otherwise.
+# Cache the result.
+
+proc check_effective_target_riscv_zvbb { } {
+    return [check_no_compiler_messages riscv_ext_zvbb assembly {
+       #ifndef __riscv_zvbb
+       #error "Not __riscv_zvbb"
+       #endif
+    }]
+}
+
 # Return 1 if the target arch supports the XTheadVector extension, 0 otherwise.
 # Cache the result.
 
@@ -2040,7 +2044,7 @@ proc check_effective_target_riscv_zvfh_ok { } {
     # check if we can execute vector insns with the given hardware or
     # simulator
     set gcc_march [regsub {[[:alnum:]]*} [riscv_get_arch] &v]
-    if { [check_runtime ${gcc_march}_exec {
+    if { [check_runtime ${gcc_march}_zvfh_exec {
 	int main()
 	{
 	    asm ("vsetivli zero,8,e16,m1,ta,ma");
@@ -2053,10 +2057,57 @@ proc check_effective_target_riscv_zvfh_ok { } {
     return 0
 }
 
+# Return 1 if we can execute code when using dg-add-options riscv_zvbb
+
+proc check_effective_target_riscv_zvbb_ok { } {
+    # If the target already supports v without any added options,
+    # we may assume we can execute just fine.
+    if { [check_effective_target_riscv_zvbb] } {
+	return 1
+    }
+
+    # check if we can execute vector insns with the given hardware or
+    # simulator
+    set gcc_march [regsub {[[:alnum:]]*} [riscv_get_arch] &zvbb]
+    if { [check_runtime ${gcc_march}_zvbb_exec {
+	int main()
+	{
+	    asm ("vsetivli zero,8,e16,m1,ta,ma");
+	    asm ("vwsll.vi v8,v16,2" : : : "v8");
+	    return 0;
+	} } "-march=${gcc_march}"] } {
+	    return 1
+	}
+    return 0
+}
+
+# Return 1 if we can load a vector from a 1-byte aligned address.
+
+proc check_effective_target_riscv_v_misalign_ok { } {
+
+    if { ![check_effective_target_riscv_v_ok] } {
+	return 0
+    }
+
+    set gcc_march [riscv_get_arch]
+    if { [check_runtime ${gcc_march}_misalign_exec {
+	  int main() {
+	      unsigned char a[16]
+		= {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+	      asm ("vsetivli zero,7,e8,m1,ta,ma");
+	      asm ("addi a7,%0,1" : : "r" (a) : "a7" );
+	      asm ("vle8.v v8,0(a7)" : : : "v8");
+	      return 0; } } "-march=${gcc_march}"] } {
+	return 1
+    }
+
+    return 0
+}
+
 proc riscv_get_arch { } {
     set gcc_march ""
     # ??? do we neeed to add more extensions to the list below?
-    foreach ext { i m a f d q c v zicsr zifencei zfh zba zbb zbc zbs zvfh ztso } {
+    foreach ext { i m a f d q c v zicsr zifencei zfh zba zbb zbc zbs zvbb zvfh ztso } {
 	if { [check_no_compiler_messages  riscv_ext_$ext assembly [string map [list DEF __riscv_$ext] {
 		#ifndef DEF
 		#error "Not DEF"
@@ -2149,6 +2200,18 @@ proc add_options_for_riscv_zvfh { flags } {
 	return "$flags"
     }
     return "$flags -march=[riscv_get_arch]_zvfh"
+}
+
+proc add_options_for_riscv_zvbb { flags } {
+    if { [lsearch $flags -march=*] >= 0 } {
+	# If there are multiple -march flags, we have to adjust all of them.
+	set flags [regsub -all -- {(?:^|[[:space:]])-march=[[:alnum:]_.]*} $flags &_zvbb ]
+	return [regsub -all -- {((?:^|[[:space:]])-march=[[:alnum:]_.]*_zvbb[[:alnum:]_.]*)_zvbb} $flags \\1 ]
+    }
+    if { [check_effective_target_riscv_zvbb] } {
+	return "$flags"
+    }
+    return "$flags -march=[riscv_get_arch]_zvbb"
 }
 
 # Return 1 if the target OS supports running SSE executables, 0
@@ -2584,7 +2647,6 @@ proc check_ppc_cpu_supports_hw_available { } {
 	# Some simulators are known to not support VSX/power8 instructions.
 	# For now, disable on Darwin
 	if { [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -2638,7 +2700,6 @@ proc check_p8vector_hw_available { } {
 	# Some simulators are known to not support VSX/power8 instructions.
 	# For now, disable on Darwin
 	if { [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -2666,7 +2727,6 @@ proc check_p9vector_hw_available { } {
 	# Some simulators are known to not support VSX/power8/power9
 	# instructions.	For now, disable on Darwin.
 	if { [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -2711,7 +2771,6 @@ proc check_p9modulo_hw_available { } {
 	# Some simulators are known to not support VSX/power8/power9
 	# instructions.	For now, disable on Darwin.
 	if { [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -2783,7 +2842,6 @@ proc check_ppc_float128_sw_available { } {
 	# instructions.	For now, disable on Darwin and VxWorks.
 	if { [istarget *-*-vxworks*]
 	     || [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -2810,7 +2868,6 @@ proc check_ppc_float128_hw_available { } {
 	# instructions.	For now, disable on Darwin.
 	if { [istarget *-*-vxworks*]
 	     || [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -2936,49 +2993,6 @@ proc add_options_for_long_double_ieee128 { flags } {
     return "$flags"
 }
 
-# Check if GCC and GLIBC supports explicitly specifying that the long double
-# format uses the IEEE 64-bit.  Under little endian PowerPC Linux, you need
-# GLIBC 2.32 or later to be able to use a different long double format for
-# running a program than the system default.
-
-proc check_effective_target_long_double_64bit { } {
-    return [check_runtime_nocache long_double_64bit {
-	#include <string.h>
-	#include <stdio.h>
-	/* use volatile to prevent optimization.  */
-	volatile double a = 3.0;
-	volatile long double one = 1.0L;
-	volatile long double two = 2.0L;
-	volatile long double b;
-	char buffer[20];
-	int main()
-	{
-	  double a2;
-	  long double b2;
-	  if (sizeof (long double) != 8)
-	    return 1;
-	  b = one + two;
-	  /* eliminate removing volatile cast warning.  */
-	  a2 = a;
-	  b2 = b;
-	  if (memcmp (&a2, &b2, 16) != 0)
-	    return 1;
-	  sprintf (buffer, "%lg", b);
-	  return strcmp (buffer, "3") != 0;
-	}
-    }  [add_options_for_ppc_long_double_override_64bit ""]]
-}
-
-# Return the appropriate options to specify that long double uses the IEEE
-# 64-bit format on PowerPC.
-
-proc add_options_for_long_double_64bit { flags } {
-    if { [istarget powerpc*-*-*] } {
-	return "$flags -mlong-double-64"
-    }
-    return "$flags"
-}
-
 # Return 1 if the target supports executing VSX instructions, 0
 # otherwise.  Cache the result.
 
@@ -2987,7 +3001,6 @@ proc check_vsx_hw_available { } {
 	# Some simulators are known to not support VSX instructions.
 	# For now, disable on Darwin
 	if { [istarget powerpc-*-eabi]
-	     || [istarget powerpc*-*-eabispe]
 	     || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
@@ -3013,7 +3026,7 @@ proc check_vsx_hw_available { } {
 proc check_vmx_hw_available { } {
     return [check_cached_effective_target vmx_hw_available {
 	# Some simulators are known to not support VMX instructions.
-	if { [istarget powerpc-*-eabi] || [istarget powerpc*-*-eabispe] } {
+	if { [istarget powerpc-*-eabi] } {
 	    expr 0
 	} else {
 	    # Most targets don't require special flags for this test case, but
@@ -3044,7 +3057,7 @@ proc check_ppc_recip_hw_available { } {
     return [check_cached_effective_target ppc_recip_hw_available {
 	# Some simulators may not support FRE/FRES/FRSQRTE/FRSQRTES
 	# For now, disable on Darwin
-	if { [istarget powerpc-*-eabi] || [istarget powerpc*-*-eabispe] || [istarget *-*-darwin*]} {
+	if { [istarget powerpc-*-eabi] || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
 	    set options "-mpowerpc-gfxopt -mpowerpc-gpopt -mpopcntb"
@@ -3952,33 +3965,13 @@ proc check_effective_target_unsigned_char {} {
     }]
 }
 
-proc check_effective_target_powerpc_popcntb_ok { } {
-    return [check_cached_effective_target powerpc_popcntb_ok {
-
-	# Disable on Darwin.
-	if { [istarget powerpc-*-eabi] || [istarget powerpc*-*-eabispe] || [istarget *-*-darwin*]} {
-	    expr 0
-	} else {
-	    check_runtime_nocache powerpc_popcntb_ok {
-		volatile int r;
-		volatile int a = 0x12345678;
-		int main()
-		{
-		    asm volatile ("popcntb %0,%1" : "=r" (r) : "r" (a));
-		    return 0;
-		}
-	    } "-mcpu=power5"
-	}
-    }]
-}
-
 # Return 1 if the target supports executing DFP hardware instructions,
 # 0 otherwise.  Cache the result.
 
 proc check_dfp_hw_available { } {
     return [check_cached_effective_target dfp_hw_available {
 	# For now, disable on Darwin
-	if { [istarget powerpc-*-eabi] || [istarget powerpc*-*-eabispe] || [istarget *-*-darwin*]} {
+	if { [istarget powerpc-*-eabi] || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
 	    check_runtime_nocache dfp_hw_available {
@@ -4052,8 +4045,7 @@ proc check_effective_target_vect_cmdline_needed { } {
 	     || (([istarget i?86-*-*] || [istarget x86_64-*-*])
 		 && ![is-effective-target ia32])
 	     || ([istarget powerpc*-*-*]
-		 && ([check_effective_target_powerpc_spe]
-		     || [check_effective_target_powerpc_altivec]))
+		 && [check_effective_target_powerpc_altivec])
 	     || ([istarget sparc*-*-*] && [check_effective_target_sparc_vis])
 	     || ([istarget arm*-*-*] && [check_effective_target_arm_neon])
 	     || [istarget aarch64*-*-*]
@@ -4073,8 +4065,7 @@ proc check_effective_target_vect_int { } {
     return [check_cached_effective_target_indexed vect_int {
       expr {
          [istarget i?86-*-*] || [istarget x86_64-*-*]
-         || ([istarget powerpc*-*-*]
-	     && ![istarget powerpc-*-linux*paired*])
+         || [istarget powerpc*-*-*]
 	 || [istarget amdgcn-*-*]
 	 || [istarget sparc*-*-*]
 	 || [istarget alpha*-*-*]
@@ -4105,6 +4096,7 @@ proc check_effective_target_vect_early_break { } {
 	|| [check_effective_target_arm_v8_neon_ok]
 	|| [check_effective_target_sse4]
 	|| [istarget amdgcn-*-*]
+	|| [check_effective_target_riscv_v]
 	}}]
 }
 
@@ -4120,6 +4112,7 @@ proc check_effective_target_vect_early_break_hw { } {
 	|| [check_effective_target_arm_v8_neon_hw]
 	|| [check_sse4_hw_available]
 	|| [istarget amdgcn-*-*]
+	|| [check_effective_target_riscv_v_ok]
 	}}]
 }
 
@@ -4257,8 +4250,7 @@ proc check_effective_target_vect_complex_add_double { } {
 proc check_effective_target_vect_intfloat_cvt { } {
     return [check_cached_effective_target_indexed vect_intfloat_cvt {
       expr { [istarget i?86-*-*] || [istarget x86_64-*-*]
-	     || ([istarget powerpc*-*-*]
-		 && ![istarget powerpc-*-linux*paired*])
+	     || [istarget powerpc*-*-*]
 	     || [is-effective-target arm_neon]
 	     || ([istarget mips*-*-*]
 		 && [et-is-effective-target mips_msa])
@@ -4337,8 +4329,7 @@ proc check_effective_target_int128 { } {
 proc check_effective_target_vect_uintfloat_cvt { } {
     return [check_cached_effective_target_indexed vect_uintfloat_cvt {
       expr { [istarget i?86-*-*] || [istarget x86_64-*-*]
-	     || ([istarget powerpc*-*-*]
-		 && ![istarget powerpc-*-linux*paired*])
+	     || [istarget powerpc*-*-*]
 	     || [istarget aarch64*-*-*]
 	     || [is-effective-target arm_neon]
 	     || ([istarget mips*-*-*]
@@ -4359,8 +4350,7 @@ proc check_effective_target_vect_uintfloat_cvt { } {
 proc check_effective_target_vect_floatint_cvt { } {
     return [check_cached_effective_target_indexed vect_floatint_cvt {
       expr { [istarget i?86-*-*] || [istarget x86_64-*-*]
-	     || ([istarget powerpc*-*-*]
-		 && ![istarget powerpc-*-linux*paired*])
+	     || [istarget powerpc*-*-*]
 	     || [is-effective-target arm_neon]
 	     || ([istarget mips*-*-*]
 		 && [et-is-effective-target mips_msa])
@@ -4378,8 +4368,7 @@ proc check_effective_target_vect_floatint_cvt { } {
 
 proc check_effective_target_vect_floatuint_cvt { } {
     return [check_cached_effective_target_indexed vect_floatuint_cvt {
-      expr { ([istarget powerpc*-*-*]
-	      && ![istarget powerpc-*-linux*paired*])
+      expr { [istarget powerpc*-*-*]
 	    || [is-effective-target arm_neon]
 	    || ([istarget mips*-*-*]
 		&& [et-is-effective-target mips_msa])
@@ -6960,14 +6949,6 @@ proc check_effective_target_powerpc_altivec_ok { } {
     # Not PowerPC, then not ok
     if { !([istarget powerpc*-*-*] || [istarget rs6000-*-*]) } { return 0 }
 
-    # Paired Single, then not ok
-    if { [istarget powerpc-*-linux*paired*] } { return 0 }
-
-    # AltiVec is not supported on AIX before 5.3.
-    if { [istarget powerpc*-*-aix4*]
-	 || [istarget powerpc*-*-aix5.1*]
-	 || [istarget powerpc*-*-aix5.2*] } { return 0 }
-
     # Return true iff compiling with -maltivec does not error.
     return [check_no_compiler_messages powerpc_altivec_ok object {
 	int dummy;
@@ -6977,15 +6958,8 @@ proc check_effective_target_powerpc_altivec_ok { } {
 # Return 1 if this is a PowerPC target supporting -mmodulo
 
 proc check_effective_target_powerpc_p9modulo_ok { } {
-    if { ([istarget powerpc*-*-*]
-         && ![istarget powerpc-*-linux*paired*])
+    if { [istarget powerpc*-*-*]
 	 || [istarget rs6000-*-*] } {
-	# AltiVec is not supported on AIX before 5.3.
-	if { [istarget powerpc*-*-aix4*]
-	     || [istarget powerpc*-*-aix5.1*] 
-	     || [istarget powerpc*-*-aix5.2*] } {
-	    return 0
-	}
 	return [check_no_compiler_messages powerpc_p9modulo_ok object {
 	    int main (void) {
 		int i = 5, j = 3, r = -1;
@@ -7113,15 +7087,8 @@ proc check_effective_target_power10_ok { } {
 # software emulation on power7/power8 systems or hardware support on power9.
 
 proc check_effective_target_powerpc_float128_sw_ok { } {
-    if { ([istarget powerpc*-*-*]
-         && ![istarget powerpc-*-linux*paired*])
+    if { [istarget powerpc*-*-*]
 	 || [istarget rs6000-*-*] } {
-	# AltiVec is not supported on AIX before 5.3.
-	if { [istarget powerpc*-*-aix4*]
-	     || [istarget powerpc*-*-aix5.1*] 
-	     || [istarget powerpc*-*-aix5.2*] } {
-	    return 0
-	}
 	# Darwin doesn't have VSX, so no soft support for float128.
 	if { [istarget *-*-darwin*] } {
 	    return 0
@@ -7143,15 +7110,8 @@ proc check_effective_target_powerpc_float128_sw_ok { } {
 # support on power9.
 
 proc check_effective_target_powerpc_float128_hw_ok { } {
-    if { ([istarget powerpc*-*-*]
-         && ![istarget powerpc-*-linux*paired*])
+    if { [istarget powerpc*-*-*]
 	 || [istarget rs6000-*-*] } {
-	# AltiVec is not supported on AIX before 5.3.
-	if { [istarget powerpc*-*-aix4*]
-	     || [istarget powerpc*-*-aix5.1*] 
-	     || [istarget powerpc*-*-aix5.2*] } {
-	    return 0
-	}
 	# Darwin doesn't run on any machine with float128 h/w so far.
 	if { [istarget *-*-darwin*] } {
 	    return 0
@@ -7206,21 +7166,14 @@ proc check_effective_target_powerpc_vsx { } {
 	  nope no vsx
 	#endif
 	}
-    }]
+    } [current_compiler_flags]]
 }
 
 # Return 1 if this is a PowerPC target supporting -mvsx
 
 proc check_effective_target_powerpc_vsx_ok { } {
-    if { ([istarget powerpc*-*-*]
-         && ![istarget powerpc-*-linux*paired*])
+    if { [istarget powerpc*-*-*]
 	 || [istarget rs6000-*-*] } {
-	# VSX is not supported on AIX before 7.1.
-	if { [istarget powerpc*-*-aix4*]
-	     || [istarget powerpc*-*-aix5*]
-	     || [istarget powerpc*-*-aix6*] } {
-	    return 0
-	}
 	# Darwin doesn't have VSX, even if it's used with an assembler
 	# which recognises the insns.
 	if { [istarget *-*-darwin*] } {
@@ -7240,8 +7193,7 @@ proc check_effective_target_powerpc_vsx_ok { } {
 # Return 1 if this is a PowerPC target supporting -mhtm
 
 proc check_effective_target_powerpc_htm_ok { } {
-    if { ([istarget powerpc*-*-*]
-         && ![istarget powerpc-*-linux*paired*])
+    if { [istarget powerpc*-*-*]
 	 || [istarget rs6000-*-*] } {
 	# HTM is not supported on AIX yet.
 	if { [istarget powerpc*-*-aix*] } {
@@ -7264,7 +7216,7 @@ proc check_effective_target_powerpc_htm_ok { } {
 proc check_htm_hw_available { } {
     return [check_cached_effective_target htm_hw_available {
 	# For now, disable on Darwin
-	if { [istarget powerpc-*-eabi] || [istarget powerpc*-*-eabispe] || [istarget *-*-darwin*]} {
+	if { [istarget powerpc-*-eabi] || [istarget *-*-darwin*]} {
 	    expr 0
 	} else {
 	    check_runtime_nocache htm_hw_available {
@@ -7306,39 +7258,6 @@ proc check_effective_target_powerpc_spu { } {
     }
 }
 
-# Return 1 if this is a PowerPC SPE target.  The check includes options
-# specified by dg-options for this test, so don't cache the result.
-
-proc check_effective_target_powerpc_spe_nocache { } {
-    if { [istarget powerpc*-*-*] } {
-	return [check_no_compiler_messages_nocache powerpc_spe object {
-	    #ifndef __SPE__
-	    #error not SPE
-	    #else
-	    int dummy;
-	    #endif
-	} [current_compiler_flags]]
-    } else {
-	return 0
-    }
-}
-
-# Return 1 if this is a PowerPC target with SPE enabled.
-
-proc check_effective_target_powerpc_spe { } {
-    if { [istarget powerpc*-*-*] } {
-	return [check_no_compiler_messages powerpc_spe object {
-	    #ifndef __SPE__
-	    #error not SPE
-	    #else
-	    int dummy;
-	    #endif
-	}]
-    } else {
-	return 0
-    }
-}
-
 # Return 1 if this is a PowerPC target with Altivec enabled.
 
 proc check_effective_target_powerpc_altivec { } {
@@ -7350,23 +7269,6 @@ proc check_effective_target_powerpc_altivec { } {
 	    int dummy;
 	    #endif
 	}]
-    } else {
-	return 0
-    }
-}
-
-# Return 1 if this is a PowerPC 405 target.  The check includes options
-# specified by dg-options for this test, so don't cache the result.
-
-proc check_effective_target_powerpc_405_nocache { } {
-    if { [istarget powerpc*-*-*] || [istarget rs6000-*-*] } {
-	return [check_no_compiler_messages_nocache powerpc_405 object {
-	    #ifdef __PPC405__
-	    int dummy;
-	    #else
-	    #error not a PPC405
-	    #endif
-	} [current_compiler_flags]]
     } else {
 	return 0
     }
@@ -7447,7 +7349,7 @@ proc check_effective_target_sparc_vis { } {
 	    #else
 	    int dummy;
 	    #endif
-	}]
+	} [current_compiler_flags]]
     } else {
 	return 0
     }
@@ -7457,8 +7359,7 @@ proc check_effective_target_sparc_vis { } {
 
 proc check_effective_target_vect_shift { } {
     return [check_cached_effective_target_indexed vect_shift {
-      expr {([istarget powerpc*-*-*]
-	      && ![istarget powerpc-*-linux*paired*])
+      expr {[istarget powerpc*-*-*]
 	     || [istarget ia64-*-*]
 	     || [istarget i?86-*-*] || [istarget x86_64-*-*]
 	     || [istarget aarch64*-*-*]
@@ -7547,8 +7448,7 @@ proc check_effective_target_vect_char_add { } {
     return [check_cached_effective_target_indexed vect_char_add {
       expr {
          [istarget i?86-*-*] || [istarget x86_64-*-*]
-         || ([istarget powerpc*-*-*]
-	     && ![istarget powerpc-*-linux*paired*])
+	 || [istarget powerpc*-*-*]
 	 || [istarget amdgcn-*-*]
 	 || [istarget ia64-*-*]
 	 || [istarget aarch64*-*-*]
@@ -7569,8 +7469,7 @@ proc check_effective_target_vect_char_add { } {
 
 proc check_effective_target_vect_shift_char { } {
     return [check_cached_effective_target_indexed vect_shift_char {
-      expr { ([istarget powerpc*-*-*]
-             && ![istarget powerpc-*-linux*paired*])
+      expr { [istarget powerpc*-*-*]
 	     || [is-effective-target arm_neon]
 	     || ([istarget mips*-*-*]
 		 && [et-is-effective-target mips_msa])
@@ -7589,9 +7488,8 @@ proc check_effective_target_vect_shift_char { } {
 
 proc check_effective_target_vect_long { } {
     if { [istarget i?86-*-*] || [istarget x86_64-*-*]
-	 || (([istarget powerpc*-*-*]
-              && ![istarget powerpc-*-linux*paired*])
-              && [check_effective_target_ilp32])
+	 || ([istarget powerpc*-*-*]
+	      && [check_effective_target_ilp32])
 	 || [is-effective-target arm_neon]
 	 || ([istarget sparc*-*-*] && [check_effective_target_ilp32])
 	 || [istarget aarch64*-*-*]
@@ -7692,13 +7590,13 @@ proc check_effective_target_vect_long_long { } {
 	     || ([istarget s390*-*-*]
 		 && [check_effective_target_s390_vx])
 	     || ([istarget powerpc*-*-*]
-		 && ![istarget powerpc-*-linux*paired*]
 		 && [check_effective_target_has_arch_pwr8])
 	     || [istarget aarch64*-*-*]
 	     || ([istarget riscv*-*-*]
 		 && [check_effective_target_riscv_v])
 	     || ([istarget loongarch*-*-*]
-		 && [check_effective_target_loongarch_sx])}}]
+		 && [check_effective_target_loongarch_sx])
+	     || [istarget amdgcn-*-*] }}]
 }
 
 
@@ -7919,8 +7817,7 @@ proc check_effective_target_ifn_copysign { } {
 	   && [is-effective-target sse])
 	 || ([istarget loongarch*-*-*]
 	     && [check_effective_target_hard_float])
-	 || ([istarget powerpc*-*-*]
-	     && ![istarget powerpc-*-linux*paired*])
+	 || [istarget powerpc*-*-*]
 	 || [istarget alpha*-*-*]
 	 || [istarget aarch64*-*-*]
 	 || [is-effective-target arm_neon]
@@ -8150,7 +8047,7 @@ proc check_effective_target_vect_usdot_qi { } {
 
 proc check_effective_target_vect_sdot_hi { } {
     return [check_cached_effective_target_indexed vect_sdot_hi {
-      expr { ([istarget powerpc*-*-*] && ![istarget powerpc-*-linux*paired*])
+      expr { [istarget powerpc*-*-*]
 	     || [istarget ia64-*-*]
 	     || [istarget i?86-*-*] || [istarget x86_64-*-*]
 	     || ([istarget mips*-*-*]
@@ -8168,7 +8065,7 @@ proc check_effective_target_vect_sdot_hi { } {
 
 proc check_effective_target_vect_udot_hi { } {
     return [check_cached_effective_target_indexed vect_udot_hi {
-      expr { ([istarget powerpc*-*-*] && ![istarget powerpc-*-linux*paired*])
+      expr { [istarget powerpc*-*-*]
 	     || ([istarget mips*-*-*]
 		 && [et-is-effective-target mips_msa])
 	     || ([istarget riscv*-*-*]
@@ -8233,7 +8130,7 @@ proc check_effective_target_vect_sdiv_pow2_si {} {
                                                                                 
 proc check_effective_target_vect_pack_trunc { } {
     return [check_cached_effective_target_indexed vect_pack_trunc {
-      expr { ([istarget powerpc*-*-*] && ![istarget powerpc-*-linux*paired*])
+      expr { [istarget powerpc*-*-*]
              || [istarget i?86-*-*] || [istarget x86_64-*-*]
              || [istarget aarch64*-*-*]
              || ([istarget arm*-*-*] && [check_effective_target_arm_neon_ok]
@@ -8311,7 +8208,6 @@ proc check_effective_target_vect_hw_misalign { } {
 	     || ([istarget mips*-*-*] && [et-is-effective-target mips_msa])
 	     || ([istarget s390*-*-*]
 		 && [check_effective_target_s390_vx])
-	     || ([istarget riscv*-*-*])
 	     || ([istarget loongarch*-*-*])
 	     || [istarget amdgcn*-*-*] } {
 	  return 1
@@ -8320,6 +8216,11 @@ proc check_effective_target_vect_hw_misalign { } {
 	     && ![check_effective_target_arm_vect_no_misalign] } {
 	  return 1
 	}
+	if { [istarget riscv*-*-*]
+	     && [check_effective_target_riscv_v_misalign_ok] } {
+	    return 1
+	}
+
         return 0
     }]
 }
@@ -9022,7 +8923,7 @@ proc check_effective_target_vect_short_mult { } {
 
 proc check_effective_target_vect_int_mult { } {
     return [check_cached_effective_target_indexed vect_int_mult {
-      expr { ([istarget powerpc*-*-*] && ![istarget powerpc-*-linux*paired*])
+      expr { [istarget powerpc*-*-*]
 	     || [istarget i?86-*-*] || [istarget x86_64-*-*]
 	     || [istarget ia64-*-*]
 	     || [istarget aarch64*-*-*]
@@ -10550,7 +10451,13 @@ proc check_effective_target_apxf { } {
 	void
 	foo ()
 	{
-	  __asm__ volatile ("add\t%%r16, %%r31" ::);
+	  __asm__ volatile ("movq\t%r16, %rax");
+	  __asm__ volatile ("push2p\t%r15, %r14");
+	  __asm__ volatile ("addq\t%r16, %r31, %r17");
+	  __asm__ volatile ("{nf} addq\t%r16, %r31");
+	  __asm__ volatile ("setzule\t%al");
+	  __asm__ volatile ("cfcmoveq\t%r16, %r31");
+	  __asm__ volatile ("ccmpleq\t{dfv=sf} %r16, %r31");
 	}
     } "-mapxf" ]
 }
@@ -11580,6 +11487,17 @@ proc check_effective_target_stpcpy {} {
     return [check_function_available "stpcpy"]
 }
 
+# Returns 1 if "strndup" is available on the target system.
+
+proc check_effective_target_strndup {} {
+    if { [istarget *-*-vxworks*] } {
+	# VxWorks doesn't have strndup but our way to test fails
+	# to detect as we're doing partial links for kernel modules.
+	return 0
+    }
+    return [check_function_available "strndup"]
+}
+
 # Returns 1 if "sigsetjmp" is available on the target system.
 # Also check if "__sigsetjmp" is defined since that's what glibc
 # uses.
@@ -11726,6 +11644,9 @@ proc check_vect_support_and_set_flags { } {
     } elseif [istarget riscv*-*-*] {
 	if [check_effective_target_riscv_v] {
 	    set dg-do-what-default run
+	    if [check_effective_target_riscv_v_misalign_ok] {
+		lappend DEFAULT_VECTCFLAGS "-mno-vector-strict-align"
+	    }
 	} else {
 	    foreach item [add_options_for_riscv_v ""] {
 		lappend DEFAULT_VECTCFLAGS $item
@@ -12378,6 +12299,20 @@ proc check_effective_target_profile_update_atomic {} {
     return [check_no_compiler_messages profile_update_atomic assembly {
 	int main (void) { return 0; }
     } "-fprofile-update=atomic -fprofile-generate"]
+}
+
+# Return 1 if the target has a vector facility.
+proc check_effective_target_s390_mvx { } {
+    if ![istarget s390*-*-*] then {
+	return 0;
+    }
+
+    return [check_no_compiler_messages_nocache s390_mvx assembly {
+	#if !defined __VX__
+	#error no vector facility.
+	#endif
+	int dummy;
+    } [current_compiler_flags]]
 }
 
 # Return 1 if vector (va - vector add) instructions are understood by

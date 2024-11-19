@@ -4837,6 +4837,17 @@ verify_gimple_assign_single (gassign *stmt)
 static bool
 verify_gimple_assign (gassign *stmt)
 {
+  if (gimple_assign_nontemporal_move_p (stmt))
+    {
+      tree lhs = gimple_assign_lhs (stmt);
+      if (is_gimple_reg (lhs))
+	{
+	  error ("nontemporal store lhs cannot be a gimple register");
+	  debug_generic_stmt (lhs);
+	  return true;
+	}
+    }
+
   switch (gimple_assign_rhs_class (stmt))
     {
     case GIMPLE_SINGLE_RHS:
@@ -6484,6 +6495,13 @@ gimple_can_duplicate_bb_p (const_basic_block bb)
 	&& gimple_call_internal_p (last)
 	&& gimple_call_internal_unique_p (last))
       return false;
+
+    /* Prohibit duplication of returns_twice calls, otherwise associated
+       abnormal edges also need to be duplicated properly.
+       return_twice functions will always be the last statement.  */
+    if (is_gimple_call (last)
+	&& (gimple_call_flags (last) & ECF_RETURNS_TWICE))
+      return false;
   }
 
   for (gimple_stmt_iterator gsi = gsi_start_bb (CONST_CAST_BB (bb));
@@ -6491,15 +6509,12 @@ gimple_can_duplicate_bb_p (const_basic_block bb)
     {
       gimple *g = gsi_stmt (gsi);
 
-      /* Prohibit duplication of returns_twice calls, otherwise associated
-	 abnormal edges also need to be duplicated properly.
-	 An IFN_GOMP_SIMT_ENTER_ALLOC/IFN_GOMP_SIMT_EXIT call must be
+      /* An IFN_GOMP_SIMT_ENTER_ALLOC/IFN_GOMP_SIMT_EXIT call must be
 	 duplicated as part of its group, or not at all.
 	 The IFN_GOMP_SIMT_VOTE_ANY and IFN_GOMP_SIMT_XCHG_* are part of such a
 	 group, so the same holds there.  */
       if (is_gimple_call (g)
-	  && (gimple_call_flags (g) & ECF_RETURNS_TWICE
-	      || gimple_call_internal_p (g, IFN_GOMP_SIMT_ENTER_ALLOC)
+	  && (gimple_call_internal_p (g, IFN_GOMP_SIMT_ENTER_ALLOC)
 	      || gimple_call_internal_p (g, IFN_GOMP_SIMT_EXIT)
 	      || gimple_call_internal_p (g, IFN_GOMP_SIMT_VOTE_ANY)
 	      || gimple_call_internal_p (g, IFN_GOMP_SIMT_XCHG_BFLY)
@@ -9013,10 +9028,30 @@ remove_edge_and_dominated_blocks (edge e)
 
   /* If we are removing a path inside a non-root loop that may change
      loop ownership of blocks or remove loops.  Mark loops for fixup.  */
+  class loop *src_loop = e->src->loop_father;
   if (current_loops
-      && loop_outer (e->src->loop_father) != NULL
-      && e->src->loop_father == e->dest->loop_father)
-    loops_state_set (LOOPS_NEED_FIXUP);
+      && loop_outer (src_loop) != NULL
+      && src_loop == e->dest->loop_father)
+    {
+      loops_state_set (LOOPS_NEED_FIXUP);
+      /* If we are removing a backedge clear the number of iterations
+	 and estimates.  */
+      class loop *dest_loop = e->dest->loop_father;
+      if (e->dest == src_loop->header
+	  || (e->dest == dest_loop->header
+	      && flow_loop_nested_p (dest_loop, src_loop)))
+	{
+	  free_numbers_of_iterations_estimates (dest_loop);
+	  /* If we removed the last backedge mark the loop for removal.  */
+	  FOR_EACH_EDGE (f, ei, dest_loop->header->preds)
+	    if (f != e
+		&& (f->src->loop_father == dest_loop
+		    || flow_loop_nested_p (dest_loop, f->src->loop_father)))
+	      break;
+	  if (!f)
+	    mark_loop_for_removal (dest_loop);
+	}
+    }
 
   if (!dom_info_available_p (CDI_DOMINATORS))
     {

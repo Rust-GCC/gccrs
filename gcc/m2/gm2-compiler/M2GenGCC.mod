@@ -2950,9 +2950,11 @@ BEGIN
          virtpos := MakeVirtualTok (becomespos, despos, exprpos) ;
          CheckOrResetOverflow (exprpos, Mod2Gcc (des), MustCheckOverflow (quad)) ;
          AddModGcc (des,
-                    DeclareKnownConstant (TokenToLocation (virtpos),
-                                          Mod2Gcc (GetType (expr)),
-                                          Mod2Gcc (expr)))
+                    BuildConvert (TokenToLocation (virtpos),
+                                  Mod2Gcc (GetType (des)),
+                                  DeclareKnownConstant (TokenToLocation (virtpos),
+                                                        Mod2Gcc (GetType (expr)),
+                                                        Mod2Gcc (expr)), FALSE))
       END
    END ;
    RemoveQuad (p, des, quad) ;
@@ -4998,29 +5000,32 @@ BEGIN
    TryDeclareConstant(tokenno, op3) ;
    location := TokenToLocation(tokenno) ;
 
-   IF CheckBinaryExpressionTypes (quad, p)
+   IF GccKnowsAbout(op2) AND GccKnowsAbout(op3)
    THEN
-      IF IsConst(op2) AND IsConstSet(op2) AND
-         IsConst(op3) AND IsConstSet(op3) AND
-         IsConst(op1)
+      IF CheckBinaryExpressionTypes (quad, p)
       THEN
-         IF IsValueSolved(op2) AND IsValueSolved(op3)
+         IF IsConst(op2) AND IsConstSet(op2) AND
+            IsConst(op3) AND IsConstSet(op3) AND
+            IsConst(op1)
          THEN
-            Assert(MixTypes(FindType(op3), FindType(op2), tokenno)#NulSym) ;
-            PutConst(op1, MixTypes(FindType(op3), FindType(op2), tokenno)) ;
-            PushValue(op2) ;
-            PushValue(op3) ;
-            op(tokenno) ;
-            PopValue(op1) ;
-            PushValue(op1) ;
-            PutConstSet(op1) ;
-            AddModGcc(op1,
-                      DeclareKnownConstant(location,
-                                           Mod2Gcc(GetType(op3)),
-                                           PopSetTree(tokenno))) ;
-            p(op1) ;
-            NoChange := FALSE ;
-            SubQuad(quad)
+            IF IsValueSolved(op2) AND IsValueSolved(op3)
+            THEN
+               Assert(MixTypes(FindType(op3), FindType(op2), tokenno)#NulSym) ;
+               PutConst(op1, MixTypes(FindType(op3), FindType(op2), tokenno)) ;
+               PushValue(op2) ;
+               PushValue(op3) ;
+               op(tokenno) ;
+               PopValue(op1) ;
+               PushValue(op1) ;
+               PutConstSet(op1) ;
+               AddModGcc(op1,
+                         DeclareKnownConstant(location,
+                                              Mod2Gcc(GetType(op3)),
+                                              PopSetTree(tokenno))) ;
+               p(op1) ;
+               NoChange := FALSE ;
+               SubQuad(quad)
+            END
          END
       END
    END
@@ -5328,13 +5333,18 @@ BEGIN
       IF IsValueSolved (left) AND IsValueSolved (right)
       THEN
          (* We can take advantage of the known values and evaluate the condition.  *)
-         PushValue (left) ;
-         PushValue (right) ;
-         IF Less (tokenno)
+         IF IsBooleanRelOpPattern (quad)
          THEN
-            PutQuad (quad, GotoOp, NulSym, NulSym, destQuad)
+            FoldBooleanRelopPattern (p, quad)
          ELSE
-            SubQuad (quad)
+            PushValue (left) ;
+            PushValue (right) ;
+            IF Less (tokenno)
+            THEN
+               PutQuad (quad, GotoOp, NulSym, NulSym, destQuad)
+            ELSE
+               SubQuad (quad)
+            END
          END ;
          NoChange := FALSE
       END
@@ -7795,7 +7805,6 @@ PROCEDURE IsValidExpressionRelOp (quad: CARDINAL; isin: BOOLEAN) : BOOLEAN ;
 CONST
    Verbose = FALSE ;
 VAR
-   lefttype, righttype,
    left, right, dest, combined,
    leftpos, rightpos, destpos : CARDINAL ;
    constExpr, overflow        : BOOLEAN ;
@@ -7810,8 +7819,6 @@ BEGIN
    DeclareConstant (rightpos, right) ;
    DeclareConstructor (leftpos, quad, left) ;
    DeclareConstructor (rightpos, quad, right) ;
-   lefttype := GetType (left) ;
-   righttype := GetType (right) ;
    IF ExpressionTypeCompatible (combined, "", left, right,
                                 StrictTypeChecking, isin)
    THEN

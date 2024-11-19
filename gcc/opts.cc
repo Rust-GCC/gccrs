@@ -53,7 +53,7 @@ static void set_Wstrict_aliasing (struct gcc_options *opts, int onoff);
 
 const char *const debug_type_names[] =
 {
-  "none", "dwarf-2", "vms", "ctf", "btf"
+  "none", "dwarf-2", "vms", "ctf", "btf", "codeview"
 };
 
 /* Bitmasks of fundamental debug info formats indexed by enum
@@ -62,13 +62,13 @@ const char *const debug_type_names[] =
 static uint32_t debug_type_masks[] =
 {
   NO_DEBUG, DWARF2_DEBUG, VMS_DEBUG,
-  CTF_DEBUG, BTF_DEBUG
+  CTF_DEBUG, BTF_DEBUG, CODEVIEW_DEBUG
 };
 
 /* Names of the set of debug formats requested by user.  Updated and accessed
    via debug_set_names.  */
 
-static char df_set_names[sizeof "none dwarf-2 vms ctf btf"];
+static char df_set_names[sizeof "none dwarf-2 vms ctf btf codeview"];
 
 /* Get enum debug_info_type of the specified debug format, for error messages.
    Can be used only for individual debug format types.  */
@@ -162,6 +162,14 @@ ctf_debuginfo_p ()
   return (write_symbols & CTF_DEBUG);
 }
 
+/* Return TRUE iff CodeView debug info is enabled.  */
+
+bool
+codeview_debuginfo_p ()
+{
+  return (write_symbols & CODEVIEW_DEBUG);
+}
+
 /* Return TRUE iff dwarf2 debug info is enabled.  */
 
 bool
@@ -176,7 +184,8 @@ dwarf_debuginfo_p (struct gcc_options *opts)
 bool dwarf_based_debuginfo_p ()
 {
   return ((write_symbols & CTF_DEBUG)
-	  || (write_symbols & BTF_DEBUG));
+	  || (write_symbols & BTF_DEBUG)
+	  || (write_symbols & CODEVIEW_DEBUG));
 }
 
 /* All flag uses below need to explicitely reference the option sets
@@ -1390,7 +1399,7 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
     opts->x_debug_nonbind_markers_p
       = (opts->x_optimize
 	 && opts->x_debug_info_level >= DINFO_LEVEL_NORMAL
-	 && dwarf_debuginfo_p (opts)
+	 && (dwarf_debuginfo_p (opts) || codeview_debuginfo_p ())
 	 && !(opts->x_flag_selective_scheduling
 	      || opts->x_flag_selective_scheduling2));
 
@@ -2928,6 +2937,10 @@ common_handle_option (struct gcc_options *opts,
       dc->m_source_printing.enabled = value;
       break;
 
+    case OPT_fdiagnostics_show_event_links:
+      dc->m_source_printing.show_event_links_p = value;
+      break;
+
     case OPT_fdiagnostics_show_labels:
       dc->m_source_printing.show_labels_p = value;
       break;
@@ -2948,7 +2961,8 @@ common_handle_option (struct gcc_options *opts,
 	{
 	  const char *basename = (opts->x_dump_base_name ? opts->x_dump_base_name
 				  : opts->x_main_input_basename);
-	  diagnostic_output_format_init (dc, basename,
+	  diagnostic_output_format_init (dc,
+					 opts->x_main_input_filename, basename,
 					 (enum diagnostics_output_format)value,
 					 opts->x_flag_diagnostics_json_formatting);
 	  break;
@@ -3206,6 +3220,9 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_gcodeview:
+      set_debug_level (CODEVIEW_DEBUG, false, arg, opts, opts_set, loc);
+      if (opts->x_debug_info_level < DINFO_LEVEL_NORMAL)
+	opts->x_debug_info_level = DINFO_LEVEL_NORMAL;
       break;
 
     case OPT_gbtf:
@@ -3480,7 +3497,8 @@ set_debug_level (uint32_t dinfo, int extended, const char *arg,
 	    warning_at (loc, 0, "target system does not support debug output");
 	}
       else if ((opts->x_write_symbols & CTF_DEBUG)
-	       || (opts->x_write_symbols & BTF_DEBUG))
+	       || (opts->x_write_symbols & BTF_DEBUG)
+	       || (opts->x_write_symbols & CODEVIEW_DEBUG))
 	{
 	  opts->x_write_symbols |= DWARF2_DEBUG;
 	  opts_set->x_write_symbols |= DWARF2_DEBUG;
@@ -3805,6 +3823,7 @@ gen_command_line_string (cl_decoded_option *options,
       case OPT_fdiagnostics_show_location_:
       case OPT_fdiagnostics_show_option:
       case OPT_fdiagnostics_show_caret:
+      case OPT_fdiagnostics_show_event_links:
       case OPT_fdiagnostics_show_labels:
       case OPT_fdiagnostics_show_line_numbers:
       case OPT_fdiagnostics_color_:

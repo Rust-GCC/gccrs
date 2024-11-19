@@ -150,6 +150,8 @@ init_cuda_lib (void)
 
 #include "secure_getenv.h"
 
+static void notify_var (const char *, const char *);
+
 #undef MIN
 #undef MAX
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
@@ -341,10 +343,18 @@ struct ptx_device
 
 static struct ptx_device **ptx_devices;
 
+/* "Native" GPU thread stack size.  */
+static unsigned native_gpu_thread_stack_size = 0;
+
 /* OpenMP kernels reserve a small amount of ".shared" space for use by
    omp_alloc.  The size is configured using GOMP_NVPTX_LOWLAT_POOL, but the
    default is set here.  */
 static unsigned lowlat_pool_size = 8 * 1024;
+
+static bool nvptx_do_global_cdtors (CUmodule, struct ptx_device *,
+				    const char *);
+static size_t nvptx_stacks_size ();
+static void *nvptx_stacks_acquire (struct ptx_device *, size_t, int);
 
 static inline struct nvptx_thread *
 nvptx_thread (void)
@@ -550,6 +560,46 @@ nvptx_open_device (int n)
   ptx_dev->free_blocks = NULL;
   pthread_mutex_init (&ptx_dev->free_blocks_lock, NULL);
 
+  /* "Native" GPU thread stack size.  */
+  {
+    /* This is intentionally undocumented, until we work out a proper, common
+       scheme (as much as makes sense) between all offload plugins as well
+       as between nvptx offloading use of "native" stacks for OpenACC vs.
+       OpenMP "soft stacks" vs. OpenMP '-msoft-stack-reserve-local=[...]'.
+
+       GCN offloading has a 'GCN_STACK_SIZE' environment variable (without
+       'GOMP_' prefix): documented; presumably used for all things OpenACC and
+       OpenMP?  Based on GCN command-line option '-mstack-size=[...]' (marked
+       "obsolete"), that one may be set via a GCN 'mkoffload'-synthesized
+       'constructor' function.  */
+    const char *var_name = "GOMP_NVPTX_NATIVE_GPU_THREAD_STACK_SIZE";
+    const char *env_var = secure_getenv (var_name);
+    notify_var (var_name, env_var);
+
+    if (env_var != NULL)
+      {
+	char *endptr;
+	unsigned long val = strtoul (env_var, &endptr, 10);
+	if (endptr == NULL || *endptr != '\0'
+	    || errno == ERANGE || errno == EINVAL
+	    || val > UINT_MAX)
+	  GOMP_PLUGIN_error ("Error parsing %s", var_name);
+	else
+	  native_gpu_thread_stack_size = val;
+      }
+  }
+  if (native_gpu_thread_stack_size == 0)
+    ; /* Zero means use default.  */
+  else
+    {
+      GOMP_PLUGIN_debug (0, "Setting \"native\" GPU thread stack size"
+			 " ('CU_LIMIT_STACK_SIZE') to %u bytes\n",
+			 native_gpu_thread_stack_size);
+      CUDA_CALL (cuCtxSetLimit,
+		 CU_LIMIT_STACK_SIZE, (size_t) native_gpu_thread_stack_size);
+    }
+
+  /* OpenMP "soft stacks".  */
   ptx_dev->omp_stacks.ptr = 0;
   ptx_dev->omp_stacks.size = 0;
   pthread_mutex_init (&ptx_dev->omp_stacks.lock, NULL);
@@ -564,6 +614,18 @@ nvptx_close_device (struct ptx_device *ptx_dev)
 {
   if (!ptx_dev)
     return true;
+
+  bool ret = true;
+
+  for (struct ptx_image_data *image = ptx_dev->images;
+       image != NULL;
+       image = image->next)
+    {
+      if (!nvptx_do_global_cdtors (image->module, ptx_dev,
+				   "__do_global_dtors__entry"
+				   /* or "__do_global_dtors__entry__mgomp" */))
+	ret = false;
+    }
 
   for (struct ptx_free_block *b = ptx_dev->free_blocks; b;)
     {
@@ -585,7 +647,8 @@ nvptx_close_device (struct ptx_device *ptx_dev)
     CUDA_CALL (cuCtxDestroy, ptx_dev->ctx);
 
   free (ptx_dev);
-  return true;
+
+  return ret;
 }
 
 static int
@@ -1201,8 +1264,23 @@ GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
   if (num_devices > 0
       && ((omp_requires_mask
 	   & ~(GOMP_REQUIRES_UNIFIED_ADDRESS
+	       | GOMP_REQUIRES_UNIFIED_SHARED_MEMORY
 	       | GOMP_REQUIRES_REVERSE_OFFLOAD)) != 0))
     return -1;
+  /* Check whether host page access (direct or via migration) is supported;
+     if so, enable USM.  Currently, capabilities is per device type, hence,
+     check all devices.  */
+  if (num_devices > 0
+      && (omp_requires_mask & GOMP_REQUIRES_UNIFIED_SHARED_MEMORY))
+    for (int dev = 0; dev < num_devices; dev++)
+      {
+	int pi;
+	CUresult r;
+	r = CUDA_CALL_NOCHECK (cuDeviceGetAttribute, &pi,
+			       CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS, dev);
+	if (r != CUDA_SUCCESS || pi == 0)
+	  return -1;
+      }
   return num_devices;
 }
 
@@ -1300,6 +1378,93 @@ nvptx_set_clocktick (CUmodule module, struct ptx_device *dev)
 			 sizeof (__nvptx_clocktick));
   if (r != CUDA_SUCCESS)
     GOMP_PLUGIN_fatal ("cuMemcpyHtoD error: %s", cuda_error (r));
+}
+
+/* Invoke MODULE's global constructors/destructors.  */
+
+static bool
+nvptx_do_global_cdtors (CUmodule module, struct ptx_device *ptx_dev,
+			const char *funcname)
+{
+  bool ret = true;
+  char *funcname_mgomp = NULL;
+  CUresult r;
+  CUfunction funcptr;
+  r = CUDA_CALL_NOCHECK (cuModuleGetFunction,
+			 &funcptr, module, funcname);
+  GOMP_PLUGIN_debug (0, "cuModuleGetFunction (%s): %s\n",
+		     funcname, cuda_error (r));
+  if (r == CUDA_ERROR_NOT_FOUND)
+    {
+      /* Try '[funcname]__mgomp'.  */
+
+      size_t funcname_len = strlen (funcname);
+      const char *mgomp_suffix = "__mgomp";
+      size_t mgomp_suffix_len = strlen (mgomp_suffix);
+      funcname_mgomp
+	= GOMP_PLUGIN_malloc (funcname_len + mgomp_suffix_len + 1);
+      memcpy (funcname_mgomp, funcname, funcname_len);
+      memcpy (funcname_mgomp + funcname_len,
+	      mgomp_suffix, mgomp_suffix_len + 1);
+      funcname = funcname_mgomp;
+
+      r = CUDA_CALL_NOCHECK (cuModuleGetFunction,
+			     &funcptr, module, funcname);
+      GOMP_PLUGIN_debug (0, "cuModuleGetFunction (%s): %s\n",
+			 funcname, cuda_error (r));
+    }
+  if (r == CUDA_ERROR_NOT_FOUND)
+    ;
+  else if (r != CUDA_SUCCESS)
+    {
+      GOMP_PLUGIN_error ("cuModuleGetFunction (%s) error: %s",
+			 funcname, cuda_error (r));
+      ret = false;
+    }
+  else
+    {
+      /* If necessary, set up soft stack.  */
+      void *nvptx_stacks_0;
+      void *kargs[1];
+      if (funcname_mgomp)
+	{
+	  size_t stack_size = nvptx_stacks_size ();
+	  pthread_mutex_lock (&ptx_dev->omp_stacks.lock);
+	  nvptx_stacks_0 = nvptx_stacks_acquire (ptx_dev, stack_size, 1);
+	  nvptx_stacks_0 += stack_size;
+	  kargs[0] = &nvptx_stacks_0;
+	}
+      r = CUDA_CALL_NOCHECK (cuLaunchKernel,
+			     funcptr,
+			     1, 1, 1, 1, 1, 1,
+			     /* sharedMemBytes */ 0,
+			     /* hStream */ NULL,
+			     /* kernelParams */ funcname_mgomp ? kargs : NULL,
+			     /* extra */ NULL);
+      if (r != CUDA_SUCCESS)
+	{
+	  GOMP_PLUGIN_error ("cuLaunchKernel (%s) error: %s",
+			     funcname, cuda_error (r));
+	  ret = false;
+	}
+
+      r = CUDA_CALL_NOCHECK (cuStreamSynchronize,
+			     NULL);
+      if (r != CUDA_SUCCESS)
+	{
+	  GOMP_PLUGIN_error ("cuStreamSynchronize (%s) error: %s",
+			     funcname, cuda_error (r));
+	  ret = false;
+	}
+
+      if (funcname_mgomp)
+	pthread_mutex_unlock (&ptx_dev->omp_stacks.lock);
+    }
+
+  if (funcname_mgomp)
+    free (funcname_mgomp);
+
+  return ret;
 }
 
 /* Load the (partial) program described by TARGET_DATA to device
@@ -1531,6 +1696,11 @@ GOMP_OFFLOAD_load_image (int ord, unsigned version, const void *target_data,
 
   nvptx_set_clocktick (module, dev);
 
+  if (!nvptx_do_global_cdtors (module, dev,
+			       "__do_global_ctors__entry"
+			       /* or "__do_global_ctors__entry__mgomp" */))
+    return -1;
+
   return fn_entries + var_entries + other_entries;
 }
 
@@ -1556,6 +1726,11 @@ GOMP_OFFLOAD_unload_image (int ord, unsigned version, const void *target_data)
   for (prev_p = &dev->images; (image = *prev_p) != 0; prev_p = &image->next)
     if (image->target_data == target_data)
       {
+	if (!nvptx_do_global_cdtors (image->module, dev,
+				     "__do_global_dtors__entry"
+				     /* or "__do_global_dtors__entry__mgomp" */))
+	  ret = false;
+
 	*prev_p = image->next;
 	if (CUDA_CALL_NOCHECK (cuModuleUnload, image->module) != CUDA_SUCCESS)
 	  ret = false;

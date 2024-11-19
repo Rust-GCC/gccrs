@@ -213,6 +213,10 @@ package body Errout is
    --  should have 'Class appended to its name (see Add_Class procedure), and
    --  is otherwise unchanged.
 
+   procedure Validate_Specific_Warnings;
+   --  Checks that specific warnings are consistent (for non-configuration
+   --  case, properly closed, and used).
+
    function Warn_Insertion return String;
    --  This is called for warning messages only (so Warning_Msg_Char is set)
    --  and returns a corresponding string to use at the beginning of generated
@@ -321,12 +325,13 @@ package body Errout is
    procedure Error_Msg
       (Msg : String;
        Flag_Location : Source_Ptr;
+       N : Node_Id;
        Is_Compile_Time_Pragma : Boolean)
    is
       Save_Is_Compile_Time_Msg : constant Boolean := Is_Compile_Time_Msg;
    begin
       Is_Compile_Time_Msg := Is_Compile_Time_Pragma;
-      Error_Msg (Msg, To_Span (Flag_Location), Current_Node);
+      Error_Msg (Msg, To_Span (Flag_Location), N);
       Is_Compile_Time_Msg := Save_Is_Compile_Time_Msg;
    end Error_Msg;
 
@@ -1745,7 +1750,7 @@ package body Errout is
       --  do this on the last call, after all possible warnings are posted.
 
       if Last_Call then
-         Validate_Specific_Warnings (Error_Msg'Access);
+         Validate_Specific_Warnings;
       end if;
    end Finalize;
 
@@ -2000,6 +2005,50 @@ package body Errout is
         and then S (S'First .. S'First + Size_For'Length - 1) = Size_For;
       --  True if S starts with Size_For
    end Is_Size_Too_Small_Message;
+
+   --------------------------------
+   -- Validate_Specific_Warnings --
+   --------------------------------
+
+   procedure Validate_Specific_Warnings is
+   begin
+      if not Warnsw.Warn_On_Warnings_Off then
+         return;
+      end if;
+
+      for J in Specific_Warnings.First .. Specific_Warnings.Last loop
+         declare
+            SWE : Specific_Warning_Entry renames Specific_Warnings.Table (J);
+
+         begin
+            if not SWE.Config then
+
+               --  Warn for unmatched Warnings (Off, ...)
+
+               if SWE.Open then
+                  Error_Msg_N
+                    ("?.w?pragma Warnings Off with no matching Warnings On",
+                     SWE.Node);
+
+               --  Warn for ineffective Warnings (Off, ..)
+
+               elsif not SWE.Used
+
+                 --  Do not issue this warning for -Wxxx messages since the
+                 --  back-end doesn't report the information. Note that there
+                 --  is always an asterisk at the start of every message.
+
+                 and then not
+                   (SWE.Msg'Length > 3 and then SWE.Msg (2 .. 3) = "-W")
+               then
+                  Error_Msg_N
+                    ("?.w?no warning suppressed by this pragma",
+                     SWE.Node);
+               end if;
+            end if;
+         end;
+      end loop;
+   end Validate_Specific_Warnings;
 
    ---------------
    -- Last_Node --
@@ -3399,11 +3448,16 @@ package body Errout is
 
       if Warning_Mode = Treat_As_Error then
          declare
-            Compile_Time_Pragma_Warnings : constant Int :=
+            Compile_Time_Pragma_Warnings : constant Nat :=
                Count_Compile_Time_Pragma_Warnings;
-         begin
-            Total_Errors_Detected := Total_Errors_Detected + Warnings_Detected
+            Total : constant Int := Total_Errors_Detected + Warnings_Detected
                - Warning_Info_Messages - Compile_Time_Pragma_Warnings;
+            --  We need to protect against a negative Total here, because
+            --  if a pragma Compile_Time_Warning occurs in dead code, it
+            --  gets counted in Compile_Time_Pragma_Warnings but not in
+            --  Warnings_Detected.
+         begin
+            Total_Errors_Detected := Int'Max (Total, 0);
             Warnings_Detected :=
                Warning_Info_Messages + Compile_Time_Pragma_Warnings;
          end;

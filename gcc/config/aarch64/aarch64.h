@@ -495,6 +495,11 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
     enabled through +gcs.  */
 #define TARGET_GCS (AARCH64_ISA_GCS)
 
+/* Prefer different predicate registers for the output of a predicated
+   operation over re-using an existing input predicate.  */
+#define TARGET_SVE_PRED_CLOBBER (TARGET_SVE \
+				 && (aarch64_tune_params.extra_tuning_flags \
+				     & AARCH64_EXTRA_TUNE_AVOID_PRED_RMW))
 
 /* Standard register usage.  */
 
@@ -537,11 +542,14 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
    register.  GCC internally uses the poly_int variable aarch64_sve_vg
    instead.  */
 
+#define FIXED_X18 0
+#define CALL_USED_X18 1
+
 #define FIXED_REGISTERS					\
   {							\
     0, 0, 0, 0,   0, 0, 0, 0,	/* R0 - R7 */		\
     0, 0, 0, 0,   0, 0, 0, 0,	/* R8 - R15 */		\
-    0, 0, 0, 0,   0, 0, 0, 0,	/* R16 - R23 */		\
+    0, 0, FIXED_X18, 0,   0, 0, 0, 0,	/* R16 - R23.  */	\
     0, 0, 0, 0,   0, 1, 0, 1,	/* R24 - R30, SP */	\
     0, 0, 0, 0,   0, 0, 0, 0,   /* V0 - V7 */           \
     0, 0, 0, 0,   0, 0, 0, 0,   /* V8 - V15 */		\
@@ -565,7 +573,7 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
   {							\
     1, 1, 1, 1,   1, 1, 1, 1,	/* R0 - R7 */		\
     1, 1, 1, 1,   1, 1, 1, 1,	/* R8 - R15 */		\
-    1, 1, 1, 0,   0, 0, 0, 0,	/* R16 - R23 */		\
+    1, 1, CALL_USED_X18, 0, 0,   0, 0, 0, /* R16 - R23.  */   \
     0, 0, 0, 0,   0, 1, 1, 1,	/* R24 - R30, SP */	\
     1, 1, 1, 1,   1, 1, 1, 1,	/* V0 - V7 */		\
     0, 0, 0, 0,   0, 0, 0, 0,	/* V8 - V15 */		\
@@ -1043,6 +1051,9 @@ struct GTY (()) aarch64_frame
   bool is_scs_enabled;
 };
 
+/* Private to winnt.cc.  */
+struct seh_frame_state;
+
 #ifdef hash_set_h
 typedef struct GTY (()) machine_function
 {
@@ -1083,6 +1094,9 @@ typedef struct GTY (()) machine_function
      still exists and still fulfils its original purpose. the same register
      can be reused by other code.  */
   rtx_insn *advsimd_zero_insn;
+
+  /* During SEH output, this is non-null.  */
+  struct seh_frame_state * GTY ((skip (""))) seh;
 } machine_function;
 #endif
 #endif

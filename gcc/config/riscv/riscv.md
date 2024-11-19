@@ -64,7 +64,6 @@
   UNSPEC_ROUNDEVEN
   UNSPEC_NEARBYINT
   UNSPEC_LRINT
-  UNSPEC_LROUND
   UNSPEC_FMIN
   UNSPEC_FMAX
   UNSPEC_FMINM
@@ -87,8 +86,8 @@
   ;; String unspecs
   UNSPEC_STRLEN
 
-  ;; Workaround for HFmode without hardware extension
-  UNSPEC_FMV_SFP16_X
+  ;; Workaround for HFmode and BFmode without hardware extension
+  UNSPEC_FMV_FP16_X
 
   ;; XTheadFmv moves
   UNSPEC_XTHEADFMV
@@ -197,7 +196,7 @@
   (const_string "unknown"))
 
 ;; Main data type used by the insn
-(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,HF,SF,DF,TF,
+(define_attr "mode" "unknown,none,QI,HI,SI,DI,TI,HF,BF,SF,DF,TF,
   RVVMF64BI,RVVMF32BI,RVVMF16BI,RVVMF8BI,RVVMF4BI,RVVMF2BI,RVVM1BI,
   RVVM8QI,RVVM4QI,RVVM2QI,RVVM1QI,RVVMF2QI,RVVMF4QI,RVVMF8QI,
   RVVM8HI,RVVM4HI,RVVM2HI,RVVM1HI,RVVMF2HI,RVVMF4HI,
@@ -538,51 +537,6 @@
   ]
   (const_string "no")))
 
-;; Widening instructions have group-overlap constraints.  Those are only
-;; valid for certain register-group sizes.  This attribute marks the
-;; alternatives not matching the required register-group size as disabled.
-(define_attr "group_overlap" "none,W21,W42,W84,W43,W86,W87,W0"
-  (const_string "none"))
-
-(define_attr "group_overlap_valid" "no,yes"
-  (cond [(eq_attr "group_overlap" "none")
-         (const_string "yes")
-
-         (and (eq_attr "group_overlap" "W21")
-	      (match_test "riscv_get_v_regno_alignment (GET_MODE (operands[0])) != 2"))
-	 (const_string "no")
-
-         (and (eq_attr "group_overlap" "W42")
-	      (match_test "riscv_get_v_regno_alignment (GET_MODE (operands[0])) != 4"))
-	 (const_string "no")
-
-         (and (eq_attr "group_overlap" "W84")
-	      (match_test "riscv_get_v_regno_alignment (GET_MODE (operands[0])) != 8"))
-	 (const_string "no")
-
-         ;; According to RVV ISA:
-         ;; The destination EEW is greater than the source EEW, the source EMUL is at least 1,
-         ;; and the overlap is in the highest-numbered part of the destination register group
-         ;; (e.g., when LMUL=8, vzext.vf4 v0, v6 is legal, but a source of v0, v2, or v4 is not).
-         ;; So the source operand should have LMUL >= 1.
-         (and (eq_attr "group_overlap" "W43")
-	      (match_test "riscv_get_v_regno_alignment (GET_MODE (operands[0])) != 4
-			   && riscv_get_v_regno_alignment (GET_MODE (operands[3])) >= 1"))
-	 (const_string "no")
-
-         (and (eq_attr "group_overlap" "W86,W87")
-	      (match_test "riscv_get_v_regno_alignment (GET_MODE (operands[0])) != 8
-			   && riscv_get_v_regno_alignment (GET_MODE (operands[3])) >= 1"))
-	 (const_string "no")
-
-         ;; W21 supports highest-number overlap for source LMUL = 1.
-         ;; For 'wv' variant, we can also allow wide source operand overlaps dest operand.
-         (and (eq_attr "group_overlap" "W0")
-	      (match_test "riscv_get_v_regno_alignment (GET_MODE (operands[0])) > 1"))
-	 (const_string "no")
-        ]
-       (const_string "yes")))
-
 ;; This attribute marks the alternatives not matching the constraints
 ;; described in spec as disabled.
 (define_attr "spec_restriction" "none,thv,rvv"
@@ -609,9 +563,6 @@
     (const_string "no")
 
     (eq_attr "fp_vector_disabled" "yes")
-    (const_string "no")
-
-    (eq_attr "group_overlap_valid" "no")
     (const_string "no")
 
     (eq_attr "spec_restriction_disabled" "yes")
@@ -750,6 +701,46 @@
   "add%i2\t%0,%1,%2"
   [(set_attr "type" "arith")
    (set_attr "mode" "DI")])
+
+;; Special case of adding a reg and constant if latter is sum of two S12
+;; values (in range -2048 to 2047). Avoid materialized the const and fuse
+;; into the add (with an additional add for 2nd value). Makes a 3 insn
+;; sequence into 2 insn.
+
+(define_insn_and_split "*add<mode>3_const_sum_of_two_s12"
+  [(set (match_operand:P	 0 "register_operand" "=r,r")
+	(plus:P (match_operand:P 1 "register_operand" " r,r")
+		(match_operand:P 2 "const_two_s12"    " MiG,r")))]
+  "!riscv_reg_frame_related (operands[0])"
+{
+  /* operand matching MiG constraint is always meant to be split.  */
+  if (which_alternative == 0)
+    return "#";
+  else
+    return "add %0,%1,%2";
+}
+  ""
+  [(set (match_dup 0)
+	(plus:P (match_dup 1) (match_dup 3)))
+   (set (match_dup 0)
+	(plus:P (match_dup 0) (match_dup 4)))]
+{
+  int val = INTVAL (operands[2]);
+  if (SUM_OF_TWO_S12_P (val))
+    {
+       operands[3] = GEN_INT (2047);
+       operands[4] = GEN_INT (val - 2047);
+    }
+  else if (SUM_OF_TWO_S12_N (val))
+    {
+       operands[3] = GEN_INT (-2048);
+       operands[4] = GEN_INT (val + 2048);
+    }
+  else
+      gcc_unreachable ();
+}
+  [(set_attr "type" "arith")
+   (set_attr "mode" "<P:MODE>")])
 
 (define_expand "addv<mode>4"
   [(set (match_operand:GPR           0 "register_operand" "=r,r")
@@ -1657,7 +1648,7 @@
 (define_expand "and<mode>3"
   [(set (match_operand:X                0 "register_operand")
         (and:X (match_operand:X 1 "register_operand")
-                       (match_operand:X 2 "arith_operand_or_mode_mask")))]
+	       (match_operand:X 2 "arith_or_mode_mask_or_zbs_operand")))]
   ""
 {
   /* If the second operand is a mode mask, emit an extension
@@ -1688,7 +1679,22 @@
   [(set_attr "type" "logical")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "<optab><mode>3"
+;; When we construct constants we may want to twiddle a single bit
+;; by generating an IOR.  But the constant likely doesn't fit
+;; arith_operand.  So the generic code will reload the constant into
+;; a register.  Post-reload we won't have the chance to squash things
+;; back into a Zbs insn.
+;;
+;; So indirect through a define_expand.  That allows us to have a
+;; predicate that conditionally accepts single bit constants without
+;; putting the details of Zbs instructions in here.
+(define_expand "<optab><mode>3"
+  [(set (match_operand:X 0 "register_operand")
+	(any_or:X (match_operand:X 1 "register_operand" "")
+		   (match_operand:X 2 "arith_or_zbs_operand" "")))]
+  "")
+
+(define_insn "*<optab><mode>3"
   [(set (match_operand:X                0 "register_operand" "=r,r")
 	(any_or:X (match_operand:X 1 "register_operand" "%r,r")
 		       (match_operand:X 2 "arith_operand"    " r,I")))]
@@ -1756,6 +1762,31 @@
   "fcvt.h.d\t%0,%1"
   [(set_attr "type" "fcvt")
    (set_attr "mode" "HF")])
+
+(define_insn "truncsfbf2"
+  [(set (match_operand:BF    0 "register_operand" "=f")
+	(float_truncate:BF
+	   (match_operand:SF 1 "register_operand" " f")))]
+  "TARGET_ZFBFMIN"
+  "fcvt.bf16.s\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "BF")])
+
+;; The conversion of HF/DF/TF to BF needs to be done with SF if there is a
+;; chance to generate at least one instruction, otherwise just using
+;; libfunc __trunc[h|d|t]fbf2.
+(define_expand "trunc<mode>bf2"
+  [(set (match_operand:BF	0 "register_operand" "=f")
+	(float_truncate:BF
+	   (match_operand:FBF	1 "register_operand" " f")))]
+  "TARGET_ZFBFMIN"
+  {
+    convert_move (operands[0],
+		  convert_modes (SFmode, <MODE>mode, operands[1], 0), 0);
+    DONE;
+  }
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "BF")])
 
 ;;
 ;;  ....................
@@ -1901,6 +1932,15 @@
   [(set_attr "type" "fcvt")
    (set_attr "mode" "SF")])
 
+(define_insn "extendbfsf2"
+  [(set (match_operand:SF    0 "register_operand" "=f")
+	(float_extend:SF
+	   (match_operand:BF 1 "register_operand" " f")))]
+  "TARGET_ZFBFMIN"
+  "fcvt.s.bf16\t%0,%1"
+  [(set_attr "type" "fcvt")
+   (set_attr "mode" "SF")])
+
 (define_insn "extendsfdf2"
   [(set (match_operand:DF     0 "register_operand" "=f")
 	(float_extend:DF
@@ -1921,40 +1961,42 @@
    (set_attr "mode" "DF")])
 
 ;; 16-bit floating point moves
-(define_expand "movhf"
-  [(set (match_operand:HF 0 "")
-	(match_operand:HF 1 ""))]
+(define_expand "mov<mode>"
+  [(set (match_operand:HFBF 0 "")
+	(match_operand:HFBF 1 ""))]
   ""
 {
-  if (riscv_legitimize_move (HFmode, operands[0], operands[1]))
+  if (riscv_legitimize_move (<MODE>mode, operands[0], operands[1]))
     DONE;
 })
 
-(define_insn "*movhf_hardfloat"
-  [(set (match_operand:HF 0 "nonimmediate_operand" "=f,   f,f,f,m,m,*f,*r,  *r,*r,*m")
-	(match_operand:HF 1 "move_operand"         " f,zfli,G,m,f,G,*r,*f,*G*r,*m,*r"))]
-  "TARGET_ZFHMIN
-   && (register_operand (operands[0], HFmode)
-       || reg_or_0_operand (operands[1], HFmode))"
+(define_insn "*mov<mode>_hardfloat"
+  [(set (match_operand:HFBF 0 "nonimmediate_operand" "=f,   f,f,f,m,m,*f,*r,  *r,*r,*m")
+	(match_operand:HFBF 1 "move_operand"	     " f,zfli,G,m,f,G,*r,*f,*G*r,*m,*r"))]
+  "((TARGET_ZFHMIN && <MODE>mode == HFmode)
+    || (TARGET_ZFBFMIN && <MODE>mode == BFmode))
+   && (register_operand (operands[0], <MODE>mode)
+       || reg_or_0_operand (operands[1], <MODE>mode))"
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "fmove,fmove,mtc,fpload,fpstore,store,mtc,mfc,move,load,store")
    (set_attr "type" "fmove,fmove,mtc,fpload,fpstore,store,mtc,mfc,move,load,store")
-   (set_attr "mode" "HF")])
+   (set_attr "mode" "<MODE>")])
 
-(define_insn "*movhf_softfloat"
-  [(set (match_operand:HF 0 "nonimmediate_operand" "=f, r,r,m,*f,*r")
-	(match_operand:HF 1 "move_operand"         " f,Gr,m,r,*r,*f"))]
-  "!TARGET_ZFHMIN
-   && (register_operand (operands[0], HFmode)
-       || reg_or_0_operand (operands[1], HFmode))"
+(define_insn "*mov<mode>_softfloat"
+  [(set (match_operand:HFBF 0 "nonimmediate_operand" "=f, r,r,m,*f,*r")
+	(match_operand:HFBF 1 "move_operand"	     " f,Gr,m,r,*r,*f"))]
+  "((!TARGET_ZFHMIN && <MODE>mode == HFmode) || (<MODE>mode == BFmode))
+   && (register_operand (operands[0], <MODE>mode)
+       || reg_or_0_operand (operands[1], <MODE>mode))"
   { return riscv_output_move (operands[0], operands[1]); }
   [(set_attr "move_type" "fmove,move,load,store,mtc,mfc")
    (set_attr "type" "fmove,move,load,store,mtc,mfc")
-   (set_attr "mode" "HF")])
+   (set_attr "mode" "<MODE>")])
 
-(define_insn "*movhf_softfloat_boxing"
-  [(set (match_operand:HF 0 "register_operand"            "=f")
-        (unspec:HF [(match_operand:X 1 "register_operand" " r")] UNSPEC_FMV_SFP16_X))]
+(define_insn "*mov<HFBF:mode>_softfloat_boxing"
+  [(set (match_operand:HFBF 0 "register_operand"	    "=f")
+	(unspec:HFBF [(match_operand:X 1 "register_operand" " r")]
+	 UNSPEC_FMV_FP16_X))]
   "!TARGET_ZFHMIN"
   "fmv.w.x\t%0,%1"
   [(set_attr "type" "fmove")
@@ -1967,21 +2009,48 @@
 ;;
 ;;  ....................
 
-(define_insn "fix_trunc<ANYF:mode><GPR:mode>2"
-  [(set (match_operand:GPR      0 "register_operand" "=r")
-	(fix:GPR
+(define_expand "<fix_uns>_trunc<ANYF:mode>si2"
+  [(set (match_operand:SI      0 "register_operand" "=r")
+	(fix_ops:SI
 	    (match_operand:ANYF 1 "register_operand" " f")))]
   "TARGET_HARD_FLOAT || TARGET_ZFINX"
-  "fcvt.<GPR:ifmt>.<ANYF:fmt> %0,%1,rtz"
+{
+  if (TARGET_64BIT)
+    {
+      rtx t = gen_reg_rtx (DImode);
+      emit_insn (gen_<fix_uns>_trunc<ANYF:mode>si2_sext (t, operands[1]));
+      t = gen_lowpart (SImode, t);
+      SUBREG_PROMOTED_VAR_P (t) = 1;
+      SUBREG_PROMOTED_SET (t, SRP_SIGNED);
+      emit_move_insn (operands[0], t);
+      DONE;
+    }
+})
+
+(define_insn "*<fix_uns>_trunc<ANYF:mode>si2"
+  [(set (match_operand:SI      0 "register_operand" "=r")
+	(fix_ops:SI
+	    (match_operand:ANYF 1 "register_operand" " f")))]
+  "TARGET_HARD_FLOAT || TARGET_ZFINX"
+  "fcvt.w<u>.<ANYF:fmt> %0,%1,rtz"
   [(set_attr "type" "fcvt_f2i")
    (set_attr "mode" "<ANYF:MODE>")])
 
-(define_insn "fixuns_trunc<ANYF:mode><GPR:mode>2"
-  [(set (match_operand:GPR      0 "register_operand" "=r")
-	(unsigned_fix:GPR
+(define_insn "<fix_uns>_trunc<ANYF:mode>si2_sext"
+  [(set (match_operand:DI      0 "register_operand" "=r")
+  (sign_extend:DI (fix_ops:SI
+	    (match_operand:ANYF 1 "register_operand" " f"))))]
+  "TARGET_64BIT && (TARGET_HARD_FLOAT || TARGET_ZFINX)"
+  "fcvt.w<u>.<ANYF:fmt> %0,%1,rtz"
+  [(set_attr "type" "fcvt_f2i")
+   (set_attr "mode" "<ANYF:MODE>")])
+
+(define_insn "<fix_uns>_trunc<ANYF:mode>di2"
+  [(set (match_operand:DI      0 "register_operand" "=r")
+	(fix_ops:DI
 	    (match_operand:ANYF 1 "register_operand" " f")))]
-  "TARGET_HARD_FLOAT  || TARGET_ZFINX"
-  "fcvt.<GPR:ifmt>u.<ANYF:fmt> %0,%1,rtz"
+  "TARGET_64BIT && (TARGET_HARD_FLOAT || TARGET_ZFINX)"
+  "fcvt.l<u>.<ANYF:fmt> %0,%1,rtz"
   [(set_attr "type" "fcvt_f2i")
    (set_attr "mode" "<ANYF:MODE>")])
 
@@ -2003,17 +2072,173 @@
   [(set_attr "type" "fcvt_i2f")
    (set_attr "mode" "<ANYF:MODE>")])
 
-(define_insn "l<rint_pattern><ANYF:mode><GPR:mode>2"
-  [(set (match_operand:GPR       0 "register_operand" "=r")
-	(unspec:GPR
+(define_expand "lrint<ANYF:mode>si2"
+  [(set (match_operand:SI       0 "register_operand" "=r")
+	(unspec:SI
 	    [(match_operand:ANYF 1 "register_operand" " f")]
-	    RINT))]
+	    UNSPEC_LRINT))]
   "TARGET_HARD_FLOAT || TARGET_ZFINX"
-  "fcvt.<GPR:ifmt>.<ANYF:fmt> %0,%1,<rint_rm>"
+{
+  if (TARGET_64BIT)
+    {
+      rtx t = gen_reg_rtx (DImode);
+      emit_insn (gen_lrint<ANYF:mode>si2_sext (t, operands[1]));
+      t = gen_lowpart (SImode, t);
+      SUBREG_PROMOTED_VAR_P (t) = 1;
+      SUBREG_PROMOTED_SET (t, SRP_SIGNED);
+      emit_move_insn (operands[0], t);
+      DONE;
+    }
+})
+
+(define_insn "*lrint<ANYF:mode>si2"
+  [(set (match_operand:SI       0 "register_operand" "=r")
+	(unspec:SI
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+	    UNSPEC_LRINT))]
+  "TARGET_HARD_FLOAT || TARGET_ZFINX"
+  "fcvt.w.<ANYF:fmt> %0,%1,dyn"
   [(set_attr "type" "fcvt_f2i")
    (set_attr "mode" "<ANYF:MODE>")])
 
-(define_insn "<round_pattern><ANYF:mode>2"
+(define_insn "lrint<ANYF:mode>si2_sext"
+  [(set (match_operand:DI       0 "register_operand" "=r")
+  (sign_extend:DI (unspec:SI
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+	    UNSPEC_LRINT)))]
+  "TARGET_64BIT && (TARGET_HARD_FLOAT || TARGET_ZFINX)"
+  "fcvt.w.<ANYF:fmt> %0,%1,dyn"
+  [(set_attr "type" "fcvt_f2i")
+   (set_attr "mode" "<ANYF:MODE>")])
+
+(define_insn "lrint<ANYF:mode>di2"
+  [(set (match_operand:DI       0 "register_operand" "=r")
+	(unspec:DI
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+	    UNSPEC_LRINT))]
+  "TARGET_64BIT && (TARGET_HARD_FLOAT || TARGET_ZFINX)"
+  "fcvt.l.<ANYF:fmt> %0,%1,dyn"
+  [(set_attr "type" "fcvt_f2i")
+   (set_attr "mode" "<ANYF:MODE>")])
+
+(define_expand "l<round_pattern><ANYF:mode>si2"
+  [(set (match_operand:SI       0 "register_operand" "=r")
+	(unspec:SI
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+    ROUND))]
+  "TARGET_HARD_FLOAT || TARGET_ZFINX"
+{
+  if (TARGET_64BIT)
+    {
+      rtx t = gen_reg_rtx (DImode);
+      emit_insn (gen_l<round_pattern><ANYF:mode>si2_sext (t, operands[1]));
+      t = gen_lowpart (SImode, t);
+      SUBREG_PROMOTED_VAR_P (t) = 1;
+      SUBREG_PROMOTED_SET (t, SRP_SIGNED);
+      emit_move_insn (operands[0], t);
+      DONE;
+    }
+})
+
+(define_insn "*l<round_pattern><ANYF:mode>si2"
+  [(set (match_operand:SI       0 "register_operand" "=r")
+	(unspec:SI
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+    ROUND))]
+  "TARGET_HARD_FLOAT || TARGET_ZFINX"
+  "fcvt.w.<ANYF:fmt> %0,%1,<round_rm>"
+  [(set_attr "type" "fcvt_f2i")
+   (set_attr "mode" "<ANYF:MODE>")])
+
+(define_insn "l<round_pattern><ANYF:mode>si2_sext"
+  [(set (match_operand:DI       0 "register_operand" "=r")
+	 (sign_extend:DI (unspec:SI
+			     [(match_operand:ANYF 1 "register_operand" " f")]
+		      ROUND)))]
+  "TARGET_64BIT && (TARGET_HARD_FLOAT || TARGET_ZFINX)"
+  "fcvt.w.<ANYF:fmt> %0,%1,<round_rm>"
+  [(set_attr "type" "fcvt_f2i")
+   (set_attr "mode" "<ANYF:MODE>")])
+
+(define_insn "l<round_pattern><ANYF:mode>di2"
+  [(set (match_operand:DI       0 "register_operand" "=r")
+	(unspec:DI
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+    ROUND))]
+  "TARGET_64BIT && (TARGET_HARD_FLOAT || TARGET_ZFINX)"
+  "fcvt.l.<ANYF:fmt> %0,%1,<round_rm>"
+  [(set_attr "type" "fcvt_f2i")
+   (set_attr "mode" "<ANYF:MODE>")])
+
+;; There are a couple non-obvious restrictions to be aware of.
+;;
+;; We'll do a FP-INT conversion in the sequence.  But we don't
+;; have a .l (64bit) variant of those instructions for rv32.
+;; To preserve proper semantics we must reject DFmode inputs
+;; for rv32 unless Zfa is enabled.
+;;
+;; The ANYF iterator allows HFmode.  We don't have all the
+;; necessary patterns defined for HFmode.  So restrict HFmode
+;; to TARGET_ZFA.
+(define_expand "<round_pattern><ANYF:mode>2"
+  [(set (match_operand:ANYF     0 "register_operand" "=f")
+	(unspec:ANYF
+	    [(match_operand:ANYF 1 "register_operand" " f")]
+	ROUND))]
+  "(TARGET_HARD_FLOAT
+    && (TARGET_ZFA || flag_fp_int_builtin_inexact || !flag_trapping_math)
+    && (TARGET_ZFA || TARGET_64BIT || <ANYF:MODE>mode != DFmode)
+    && (TARGET_ZFA || <ANYF:MODE>mode != HFmode))"
+{
+  if (TARGET_ZFA)
+    emit_insn (gen_<round_pattern><ANYF:mode>_zfa2 (operands[0],
+                                                    operands[1]));
+  else
+    {
+      rtx reg;
+      rtx label = gen_label_rtx ();
+      rtx end_label = gen_label_rtx ();
+      rtx abs_reg = gen_reg_rtx (<ANYF:MODE>mode);
+      rtx coeff_reg = gen_reg_rtx (<ANYF:MODE>mode);
+      rtx tmp_reg = gen_reg_rtx (<ANYF:MODE>mode);
+
+      riscv_emit_move (tmp_reg, operands[1]);
+      riscv_emit_move (coeff_reg,
+		       riscv_vector::get_fp_rounding_coefficient (<ANYF:MODE>mode));
+      emit_insn (gen_abs<ANYF:mode>2 (abs_reg, operands[1]));
+
+      riscv_expand_conditional_branch (label, LT, abs_reg, coeff_reg);
+
+      emit_jump_insn (gen_jump (end_label));
+      emit_barrier ();
+
+      emit_label (label);
+      switch (<ANYF:MODE>mode)
+	{
+	case SFmode:
+	  reg = gen_reg_rtx (SImode);
+	  emit_insn (gen_l<round_pattern>sfsi2 (reg, operands[1]));
+	  emit_insn (gen_floatsisf2 (abs_reg, reg));
+	  break;
+	case DFmode:
+	  reg = gen_reg_rtx (DImode);
+	  emit_insn (gen_l<round_pattern>dfdi2 (reg, operands[1]));
+	  emit_insn (gen_floatdidf2 (abs_reg, reg));
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+
+      emit_insn (gen_copysign<ANYF:mode>3 (tmp_reg, abs_reg, operands[1]));
+
+      emit_label (end_label);
+      riscv_emit_move (operands[0], tmp_reg);
+    }
+
+  DONE;
+})
+
+(define_insn "<round_pattern><ANYF:mode>_zfa2"
   [(set (match_operand:ANYF     0 "register_operand" "=f")
 	(unspec:ANYF
 	    [(match_operand:ANYF 1 "register_operand" " f")]
@@ -2436,6 +2661,21 @@
   DONE;
 })
 
+(define_expand "cmpmemsi"
+  [(parallel [(set (match_operand:SI 0)
+               (compare:SI (match_operand:BLK 1)
+                           (match_operand:BLK 2)))
+	      (use (match_operand:SI 3))
+	      (use (match_operand:SI 4))])]
+  "!optimize_size"
+{
+  if (riscv_expand_block_compare (operands[0], operands[1], operands[2],
+                                  operands[3]))
+    DONE;
+  else
+    FAIL;
+})
+
 (define_expand "cpymem<mode>"
   [(parallel [(set (match_operand:BLK 0 "general_operand")
 		   (match_operand:BLK 1 "general_operand"))
@@ -2448,6 +2688,30 @@
   else
     FAIL;
 })
+
+;; Fill memory with constant byte.
+;; Argument 0 is the destination
+;; Argument 1 is the constant byte
+;; Argument 2 is the length
+;; Argument 3 is the alignment
+
+(define_expand "setmem<mode>"
+  [(parallel [(set (match_operand:BLK 0 "memory_operand")
+		   (match_operand:QI 2 "const_int_operand"))
+	      (use (match_operand:P 1 ""))
+	      (use (match_operand:SI 3 "const_int_operand"))])]
+ ""
+ {
+  /* If value to set is not zero, use the library routine.  */
+  if (operands[2] != const0_rtx)
+    FAIL;
+
+  if (riscv_expand_block_clear (operands[0], operands[1]))
+    DONE;
+  else
+    FAIL;
+})
+
 
 ;; Expand in-line code to clear the instruction cache between operand[0] and
 ;; operand[1].
@@ -2600,6 +2864,37 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
 
+;; We can reassociate the shift and bitwise operator which may allow us to
+;; reduce the immediate operand of the bitwise operator into a range that
+;; fits in a simm12.
+;;
+;; We need to make sure that shifting does not lose any bits, particularly
+;; for IOR/XOR.  It probably doesn't matter for AND.
+;;
+;; We also don't want to do this if the immediate already fits in a simm12
+;; field.
+(define_insn_and_split "<optab>_shift_reverse<X:mode>"
+  [(set (match_operand:X 0 "register_operand" "=r")
+    (any_bitwise:X (ashift:X (match_operand:X 1 "register_operand" "r")
+			     (match_operand 2 "immediate_operand" "n"))
+		   (match_operand 3 "immediate_operand" "n")))]
+  "(!SMALL_OPERAND (INTVAL (operands[3]))
+    && SMALL_OPERAND (INTVAL (operands[3]) >> INTVAL (operands[2]))
+    && popcount_hwi (INTVAL (operands[3])) > 1
+    && (!TARGET_64BIT
+	|| (exact_log2 ((INTVAL (operands[3]) >> INTVAL (operands[2])) + 1)
+	     == -1))
+    && (INTVAL (operands[3]) & ((1ULL << INTVAL (operands[2])) - 1)) == 0)"
+  "#"
+  "&& 1"
+  [(set (match_dup 0) (any_bitwise:X (match_dup 1) (match_dup 3)))
+   (set (match_dup 0) (ashift:X (match_dup 0) (match_dup 2)))]
+  {
+    operands[3] = GEN_INT (INTVAL (operands[3]) >> INTVAL (operands[2]));
+  }
+  [(set_attr "type" "shift")
+   (set_attr "mode" "<X:MODE>")])
+
 ;; Non-canonical, but can be formed by ree when combine is not successful at
 ;; producing one of the two canonical patterns below.
 (define_insn "*lshrsi3_zero_extend_1"
@@ -2616,16 +2911,17 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
 
-;; Canonical form for a zero-extend of a logical right shift.
-(define_insn "*lshrsi3_zero_extend_2"
+;; Canonical form for a sign/zero-extend of a logical right shift.
+;; Special case: extract MSB bits of lower 32-bit word
+(define_insn "*lshrsi3_extend_2"
   [(set (match_operand:DI                   0 "register_operand" "=r")
-	(zero_extract:DI (match_operand:DI  1 "register_operand" " r")
+	(any_extract:DI (match_operand:DI  1 "register_operand" " r")
 			 (match_operand     2 "const_int_operand")
 			 (match_operand     3 "const_int_operand")))]
   "(TARGET_64BIT && (INTVAL (operands[3]) > 0)
     && (INTVAL (operands[2]) + INTVAL (operands[3]) == 32))"
 {
-  return "srliw\t%0,%1,%3";
+  return "<extract_sidi_shift>\t%0,%1,%3";
 }
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
@@ -2642,6 +2938,45 @@
 }
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
+
+;; Canonical form for a extend of a logical shift right (sign/zero extraction).
+;; Special cases, that are ignored (handled elsewhere):
+;; * Single-bit extraction (Zbs/XTheadBs)
+;; * Single-bit extraction (Zicondops/XVentanaCondops)
+;; * Single-bit extraction (SFB)
+;; * Extraction instruction th.ext(u) (XTheadBb)
+;; * lshrsi3_extend_2 (see above)
+(define_insn_and_split "*<any_extract:optab><GPR:mode>3"
+  [(set (match_operand:GPR 0 "register_operand" "=r")
+	 (any_extract:GPR
+       (match_operand:GPR 1 "register_operand" " r")
+       (match_operand     2 "const_int_operand")
+       (match_operand     3 "const_int_operand")))
+   (clobber (match_scratch:GPR  4 "=&r"))]
+  "!((TARGET_ZBS || TARGET_XTHEADBS || TARGET_ZICOND
+      || TARGET_XVENTANACONDOPS || TARGET_SFB_ALU)
+     && (INTVAL (operands[2]) == 1))
+   && !TARGET_XTHEADBB
+   && !(TARGET_64BIT
+        && (INTVAL (operands[3]) > 0)
+        && (INTVAL (operands[2]) + INTVAL (operands[3]) == 32))"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 4)
+     (ashift:GPR (match_dup 1) (match_dup 2)))
+   (set (match_dup 0)
+     (<extract_shift>:GPR (match_dup 4) (match_dup 3)))]
+{
+  int regbits = GET_MODE_BITSIZE (GET_MODE (operands[0])).to_constant ();
+  int sizebits = INTVAL (operands[2]);
+  int startbits = INTVAL (operands[3]);
+  int lshamt = regbits - sizebits - startbits;
+  int rshamt = lshamt + startbits;
+  operands[2] = GEN_INT (lshamt);
+  operands[3] = GEN_INT (rshamt);
+}
+  [(set_attr "type" "shift")
+   (set_attr "mode" "<GPR:MODE>")])
 
 ;; Handle AND with 2^N-1 for N from 12 to XLEN.  This can be split into
 ;; two logical shifts.  Otherwise it requires 3 instructions: lui,
@@ -3856,6 +4191,109 @@
   "ld\t%0,%1"
   [(set_attr "type" "load")
    (set (attr "length") (const_int 8))])
+
+;; The AND is redunant here.  It always turns off the high 32 bits  and the
+;; low number of bits equal to the shift count.  Those upper 32 bits will be
+;; reset by the SIGN_EXTEND at the end.
+;;
+;; One could argue combine should have realized this and simplified what it
+;; presented to the backend.  But we can obviously cope with what it gave us.
+(define_insn_and_split ""
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(sign_extend:DI
+	  (plus:SI (subreg:SI
+		     (and:DI
+		       (ashift:DI (match_operand:DI 1 "register_operand" "r")
+				  (match_operand 2 "const_int_operand" "n"))
+		       (match_operand 3 "const_int_operand" "n")) 0)
+		   (match_operand:SI 4 "register_operand" "r"))))
+   (clobber (match_scratch:DI 5 "=&r"))]
+  "TARGET_64BIT
+   && (INTVAL (operands[3]) | ((1 << INTVAL (operands[2])) - 1)) == 0xffffffff"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 5) (ashift:DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 0) (sign_extend:DI (plus:SI (match_dup 6) (match_dup 4))))]
+  "{ operands[6] = gen_lowpart (SImode, operands[5]); }"
+  [(set_attr "type" "arith")])
+
+(define_expand "usadd<mode>3"
+  [(match_operand:ANYI 0 "register_operand")
+   (match_operand:ANYI 1 "register_operand")
+   (match_operand:ANYI 2 "register_operand")]
+  ""
+  {
+    riscv_expand_usadd (operands[0], operands[1], operands[2]);
+    DONE;
+  }
+)
+
+(define_expand "ussub<mode>3"
+  [(match_operand:ANYI 0 "register_operand")
+   (match_operand:ANYI 1 "register_operand")
+   (match_operand:ANYI 2 "register_operand")]
+  ""
+  {
+    riscv_expand_ussub (operands[0], operands[1], operands[2]);
+    DONE;
+  }
+)
+
+;; These are forms of (x << C1) + C2, potentially canonicalized from
+;; ((x + C2') << C1.  Depending on the cost to load C2 vs C2' we may
+;; want to go ahead and recognize this form as C2 may be cheaper to
+;; synthesize than C2'.
+;;
+;; It might be better to refactor riscv_const_insns a bit so that we
+;; can have an API that passes integer values around rather than
+;; constructing a lot of garbage RTL.
+;;
+;; The mvconst_internal pattern in effect requires this pattern to
+;; also be a define_insn_and_split due to insn count costing when
+;; splitting in combine.
+(define_insn_and_split ""
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(plus:DI (ashift:DI (match_operand:DI 1 "register_operand" "r")
+			    (match_operand 2 "const_int_operand" "n"))
+		 (match_operand 3 "const_int_operand" "n")))
+   (clobber (match_scratch:DI 4 "=&r"))]
+  "(TARGET_64BIT
+    && riscv_const_insns (operands[3])
+    && ((riscv_const_insns (operands[3])
+	 < riscv_const_insns (GEN_INT (INTVAL (operands[3]) >> INTVAL (operands[2]))))
+	|| riscv_const_insns (GEN_INT (INTVAL (operands[3]) >> INTVAL (operands[2]))) == 0))"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 0) (ashift:DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4) (match_dup 3))
+   (set (match_dup 0) (plus:DI (match_dup 0) (match_dup 4)))]
+  ""
+  [(set_attr "type" "arith")])
+
+(define_insn_and_split ""
+  [(set (match_operand:DI 0 "register_operand" "=r")
+	(sign_extend:DI (plus:SI (ashift:SI
+				   (match_operand:SI 1 "register_operand" "r")
+				   (match_operand 2 "const_int_operand" "n"))
+				 (match_operand 3 "const_int_operand" "n"))))
+   (clobber (match_scratch:DI 4 "=&r"))]
+  "(TARGET_64BIT
+    && riscv_const_insns (operands[3])
+    && ((riscv_const_insns (operands[3])
+	 < riscv_const_insns (GEN_INT (INTVAL (operands[3]) >> INTVAL (operands[2]))))
+	|| riscv_const_insns (GEN_INT (INTVAL (operands[3]) >> INTVAL (operands[2]))) == 0))"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 0) (ashift:DI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4) (match_dup 3))
+   (set (match_dup 0) (sign_extend:DI (plus:SI (match_dup 5) (match_dup 6))))]
+  "{
+     operands[1] = gen_lowpart (DImode, operands[1]);
+     operands[5] = gen_lowpart (SImode, operands[0]);
+     operands[6] = gen_lowpart (SImode, operands[4]);
+   }"
+  [(set_attr "type" "arith")])
+
 
 (include "bitmanip.md")
 (include "crypto.md")

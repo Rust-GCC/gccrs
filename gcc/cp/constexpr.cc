@@ -1872,13 +1872,18 @@ cxx_bind_parameters_in_call (const constexpr_ctx *ctx, tree t, tree fun,
 	  x = build_address (x);
 	}
       if (TREE_ADDRESSABLE (type))
-	/* Undo convert_for_arg_passing work here.  */
-	x = convert_from_reference (x);
-      /* Normally we would strip a TARGET_EXPR in an initialization context
-	 such as this, but here we do the elision differently: we keep the
-	 TARGET_EXPR, and use its CONSTRUCTOR as the value of the parm.  */
-      arg = cxx_eval_constant_expression (ctx, x, vc_prvalue,
-					  non_constant_p, overflow_p);
+	{
+	  /* Undo convert_for_arg_passing work here.  */
+	  x = convert_from_reference (x);
+	  arg = cxx_eval_constant_expression (ctx, x, vc_glvalue,
+					      non_constant_p, overflow_p);
+	}
+      else
+	/* Normally we would strip a TARGET_EXPR in an initialization context
+	   such as this, but here we do the elision differently: we keep the
+	   TARGET_EXPR, and use its CONSTRUCTOR as the value of the parm.  */
+	arg = cxx_eval_constant_expression (ctx, x, vc_prvalue,
+					    non_constant_p, overflow_p);
       /* Check we aren't dereferencing a null pointer when calling a non-static
 	 member function, which is undefined behaviour.  */
       if (i == 0 && DECL_OBJECT_MEMBER_FUNCTION_P (fun)
@@ -1904,7 +1909,16 @@ cxx_bind_parameters_in_call (const constexpr_ctx *ctx, tree t, tree fun,
 	{
 	  /* Make sure the binding has the same type as the parm.  But
 	     only for constant args.  */
-	  if (!TYPE_REF_P (type))
+	  if (TREE_ADDRESSABLE (type))
+	    {
+	      if (!same_type_p (type, TREE_TYPE (arg)))
+		{
+		  arg = build_fold_addr_expr (arg);
+		  arg = cp_fold_convert (build_reference_type (type), arg);
+		  arg = convert_from_reference (arg);
+		}
+	    }
+	  else if (!TYPE_REF_P (type))
 	    arg = adjust_temp_type (type, arg);
 	  if (!TREE_CONSTANT (arg))
 	    *non_constant_args = true;
@@ -3229,19 +3243,13 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 	      ctx->global->put_value (remapped, arg);
 	      remapped = DECL_CHAIN (remapped);
 	    }
-	  for (; remapped; remapped = TREE_CHAIN (remapped))
-	    if (DECL_NAME (remapped) == in_charge_identifier)
-	      {
-		/* FIXME destructors unnecessarily have in-charge parameters
-		   even in classes without vbases, map it to 0 for now.  */
-		gcc_assert (!CLASSTYPE_VBASECLASSES (DECL_CONTEXT (fun)));
-		ctx->global->put_value (remapped, integer_zero_node);
-	      }
-	    else
-	      {
-		gcc_assert (seen_error ());
-		*non_constant_p = true;
-	      }
+	  if (remapped)
+	    {
+	      /* We shouldn't have any parms without args, but fail gracefully
+		 in error recovery.  */
+	      gcc_checking_assert (seen_error ());
+	      *non_constant_p = true;
+	    }
 	  /* Add the RESULT_DECL to the values map, too.  */
 	  gcc_assert (!DECL_BY_REFERENCE (res));
 	  ctx->global->put_value (res, NULL_TREE);
@@ -4416,7 +4424,8 @@ cxx_eval_array_reference (const constexpr_ctx *ctx, tree t,
   if (!lval
       && TREE_CODE (ary) == VIEW_CONVERT_EXPR
       && VECTOR_TYPE_P (TREE_TYPE (TREE_OPERAND (ary, 0)))
-      && TREE_TYPE (t) == TREE_TYPE (TREE_TYPE (TREE_OPERAND (ary, 0))))
+      && (TYPE_MAIN_VARIANT (TREE_TYPE (t))
+	  == TYPE_MAIN_VARIANT (TREE_TYPE (TREE_TYPE (TREE_OPERAND (ary, 0))))))
     ary = TREE_OPERAND (ary, 0);
 
   tree oldidx = TREE_OPERAND (t, 1);
@@ -4843,6 +4852,8 @@ check_bit_cast_type (const constexpr_ctx *ctx, location_t loc, tree type,
       if (TREE_CODE (field) == FIELD_DECL
 	  && check_bit_cast_type (ctx, loc, TREE_TYPE (field), orig_type))
 	return true;
+  if (TREE_CODE (type) == ARRAY_TYPE)
+    return check_bit_cast_type (ctx, loc, TREE_TYPE (type), orig_type);
   return false;
 }
 
@@ -5797,6 +5808,9 @@ cxx_fold_indirect_ref (const constexpr_ctx *ctx, location_t loc, tree type,
      more folding opportunities.  */
   auto canonicalize_obj_off = [] (tree& obj, tree& off) {
     while (TREE_CODE (obj) == COMPONENT_REF
+	   /* We need to preserve union member accesses so that we can
+	      later properly diagnose accessing the wrong member.  */
+	   && TREE_CODE (TREE_TYPE (TREE_OPERAND (obj, 0))) == RECORD_TYPE
 	   && (tree_int_cst_sign_bit (off) || integer_zerop (off)))
       {
 	tree field = TREE_OPERAND (obj, 1);
@@ -7494,9 +7508,19 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 
     case PARM_DECL:
       if (lval && !TYPE_REF_P (TREE_TYPE (t)))
-	/* glvalue use.  */;
+	{
+	  /* glvalue use.  */
+	  if (TREE_ADDRESSABLE (TREE_TYPE (t)))
+	    if (tree v = ctx->global->get_value (t))
+	      r = v;
+	}
       else if (tree v = ctx->global->get_value (t))
-	r = v;
+	{
+	  r = v;
+	  if (TREE_ADDRESSABLE (TREE_TYPE (t)))
+	    r = cxx_eval_constant_expression (ctx, r, vc_prvalue,
+					      non_constant_p, overflow_p);
+	}
       else if (lval)
 	/* Defer in case this is only used for its type.  */;
       else if (ctx->global->is_outside_lifetime (t))

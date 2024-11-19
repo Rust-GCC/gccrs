@@ -2885,6 +2885,13 @@ check_transformational (gfc_expr *e)
     "trim", "unpack", "findloc", NULL
   };
 
+  static const char * const trans_func_f2023[] =  {
+    "all", "any", "count", "dot_product", "matmul", "null", "pack",
+    "product", "repeat", "reshape", "selected_char_kind", "selected_int_kind",
+    "selected_logical_kind", "selected_real_kind", "spread", "sum", "transfer",
+    "transpose", "trim", "unpack", "findloc", NULL
+  };
+
   int i;
   const char *name;
   const char *const *functions;
@@ -2895,7 +2902,9 @@ check_transformational (gfc_expr *e)
 
   name = e->symtree->n.sym->name;
 
-  if (gfc_option.allow_std & GFC_STD_F2008)
+  if (gfc_option.allow_std & GFC_STD_F2023)
+    functions = trans_func_f2023;
+  else if (gfc_option.allow_std & GFC_STD_F2008)
     functions = trans_func_f2008;
   else if (gfc_option.allow_std & GFC_STD_F2003)
     functions = trans_func_f2003;
@@ -3200,6 +3209,11 @@ bool
 gfc_reduce_init_expr (gfc_expr *expr)
 {
   bool t;
+
+  /* It is far too early to resolve a class compcall. Punt to resolution.  */
+  if (expr && expr->expr_type == EXPR_COMPCALL
+      && expr->symtree->n.sym->ts.type == BT_CLASS)
+    return false;
 
   gfc_init_expr_flag = true;
   t = gfc_resolve_expr (expr);
@@ -5491,7 +5505,7 @@ gfc_traverse_expr (gfc_expr *expr, gfc_symbol *sym,
 	  break;
 
 	case REF_INQUIRY:
-	  return true;
+	  return false;
 
 	default:
 	  gcc_unreachable ();
@@ -5559,11 +5573,14 @@ bool
 gfc_is_alloc_class_scalar_function (gfc_expr *expr)
 {
   if (expr->expr_type == EXPR_FUNCTION
-      && expr->value.function.esym
-      && expr->value.function.esym->result
-      && expr->value.function.esym->result->ts.type == BT_CLASS
-      && !CLASS_DATA (expr->value.function.esym->result)->attr.dimension
-      && CLASS_DATA (expr->value.function.esym->result)->attr.allocatable)
+      && ((expr->value.function.esym
+	   && expr->value.function.esym->result
+	   && expr->value.function.esym->result->ts.type == BT_CLASS
+	   && !CLASS_DATA (expr->value.function.esym->result)->attr.dimension
+	   && CLASS_DATA (expr->value.function.esym->result)->attr.allocatable)
+	  || (expr->ts.type == BT_CLASS
+	      && CLASS_DATA (expr)->attr.allocatable
+	      && !CLASS_DATA (expr)->attr.dimension)))
     return true;
 
   return false;

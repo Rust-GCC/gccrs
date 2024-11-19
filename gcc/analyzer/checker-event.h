@@ -23,21 +23,9 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "tree-logical-location.h"
 #include "analyzer/program-state.h"
+#include "analyzer/event-loc-info.h"
 
 namespace ana {
-
-/* A bundle of location information for a checker_event.  */
-
-struct event_loc_info
-{
-  event_loc_info (location_t loc, tree fndecl, int depth)
-  : m_loc (loc), m_fndecl (fndecl), m_depth (depth)
-  {}
-
-  location_t m_loc;
-  tree m_fndecl;
-  int m_depth;
-};
 
 /* An enum for discriminating between the concrete subclasses of
    checker_event.  */
@@ -113,6 +101,7 @@ public:
       return NULL;
   }
   meaning get_meaning () const override;
+  bool connect_to_next_event_p () const override { return false; }
   diagnostic_thread_id_t get_thread_id () const final override
   {
     return 0;
@@ -451,6 +440,7 @@ public:
   }
 
   label_text get_desc (bool can_colorize) const override;
+  bool connect_to_next_event_p () const final override { return true; }
 
 protected:
   label_text maybe_describe_condition (bool can_colorize) const;
@@ -534,6 +524,7 @@ public:
 
   label_text get_desc (bool can_colorize) const final override;
   meaning get_meaning () const override;
+  bool connect_to_next_event_p () const final override { return true; }
 
  private:
   bool m_edge_sense;

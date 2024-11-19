@@ -3233,6 +3233,9 @@ mips_emit_call_insn (rtx pattern, rtx orig_addr, rtx addr, bool lazy_p)
     {
       rtx post_call_tmp_reg = gen_rtx_REG (word_mode, POST_CALL_TMP_REG);
       clobber_reg (&CALL_INSN_FUNCTION_USAGE (insn), post_call_tmp_reg);
+      clobber_reg (&CALL_INSN_FUNCTION_USAGE (insn), MIPS16_PIC_TEMP);
+      clobber_reg (&CALL_INSN_FUNCTION_USAGE (insn),
+			MIPS_PROLOGUE_TEMP (word_mode));
     }
 
   return insn;
@@ -3329,7 +3332,13 @@ mips16_gp_pseudo_reg (void)
       rtx set = gen_load_const_gp (cfun->machine->mips16_gp_pseudo_rtx);
       rtx_insn *insn = emit_insn_after (set, scan);
       INSN_LOCATION (insn) = 0;
-
+      /* NewABI support hasn't been implement.  NewABI should generate RTL
+	 sequence instead of ASM sequence directly.  */
+      if (mips_current_loadgp_style () == LOADGP_OLDABI)
+	{
+	  emit_clobber (MIPS16_PIC_TEMP);
+	  emit_clobber (MIPS_PROLOGUE_TEMP (Pmode));
+	}
       pop_topmost_sequence ();
     }
 
@@ -4190,7 +4199,7 @@ mips_insn_cost (rtx_insn *x, bool speed)
 
   count = get_attr_insn_count (x);
   ratio = get_attr_perf_ratio (x);
-  cost = count * ratio;
+  cost = COSTS_N_INSNS (count) * ratio;
   if (cost > 0)
     return cost;
 
@@ -20391,8 +20400,6 @@ mips_option_override (void)
     error ("unsupported combination: %s", "-mfp64 -mfpxx");
   else if (ISA_MIPS1 && !TARGET_FLOAT32)
     error ("%<-march=%s%> requires %<-mfp32%>", mips_arch_info->name);
-  else if (TARGET_FLOATXX && !mips_lra_flag)
-    error ("%<-mfpxx%> requires %<-mlra%>");
 
   /* End of code shared with GAS.  */
 
@@ -22871,14 +22878,6 @@ mips_spill_class (reg_class_t rclass ATTRIBUTE_UNUSED,
   return NO_REGS;
 }
 
-/* Implement TARGET_LRA_P.  */
-
-static bool
-mips_lra_p (void)
-{
-  return mips_lra_flag;
-}
-
 /* Implement TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS.  */
 
 static reg_class_t
@@ -23307,8 +23306,6 @@ mips_bit_clear_p (enum machine_mode mode, unsigned HOST_WIDE_INT m)
 
 #undef TARGET_SPILL_CLASS
 #define TARGET_SPILL_CLASS mips_spill_class
-#undef TARGET_LRA_P
-#define TARGET_LRA_P mips_lra_p
 #undef TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS
 #define TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS mips_ira_change_pseudo_allocno_class
 

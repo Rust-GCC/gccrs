@@ -904,6 +904,7 @@ extern tree fold_for_warn (tree);
 extern tree c_common_get_narrower (tree, int *);
 extern bool get_attribute_operand (tree, unsigned HOST_WIDE_INT *);
 extern void c_common_finalize_early_debug (void);
+extern bool c_flexible_array_member_type_p (const_tree);
 extern unsigned int c_strict_flex_array_level_of (tree);
 extern bool c_option_is_from_cpp_diagnostics (int);
 extern tree c_hardbool_type_attr_1 (tree, tree *, tree *);
@@ -1303,6 +1304,7 @@ extern void c_finish_omp_taskwait (location_t);
 extern void c_finish_omp_taskyield (location_t);
 extern tree c_finish_omp_for (location_t, enum tree_code, tree, tree, tree,
 			      tree, tree, tree, tree, bool);
+extern int c_omp_find_generated_loop (tree &, int, walk_tree_lh);
 extern bool c_omp_check_loop_iv (tree, tree, walk_tree_lh);
 extern bool c_omp_check_loop_iv_exprs (location_t, enum tree_code, tree, int,
 				       tree, tree, tree, walk_tree_lh);

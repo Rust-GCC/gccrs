@@ -999,7 +999,7 @@ perform_member_init (tree member, tree init, hash_set<tree> &uninitialized)
   if (decl == error_mark_node)
     return;
 
-  if ((warn_init_self || warn_uninitialized)
+  if ((warn_init_self || warn_uninitialized || warn_self_move)
       && init
       && TREE_CODE (init) == TREE_LIST
       && TREE_CHAIN (init) == NULL_TREE)
@@ -1013,7 +1013,8 @@ perform_member_init (tree member, tree init, hash_set<tree> &uninitialized)
 	warning_at (DECL_SOURCE_LOCATION (current_function_decl),
 		    OPT_Winit_self, "%qD is initialized with itself",
 		    member);
-      else
+      else if (!maybe_warn_self_move (input_location, member,
+				      TREE_VALUE (init)))
 	find_uninit_fields (&val, &uninitialized, decl);
     }
 
@@ -2008,7 +2009,7 @@ build_aggr_init (tree exp, tree init, int flags, tsubst_flags_t complain)
       tree itype = init ? TREE_TYPE (init) : NULL_TREE;
       int from_array = 0;
 
-      if (VAR_P (exp) && DECL_DECOMPOSITION_P (exp))
+      if (DECL_DECOMPOSITION_P (exp))
 	{
 	  from_array = 1;
 	  init = mark_rvalue_use (init);
@@ -4287,7 +4288,7 @@ create_temporary_var (tree type)
   TREE_USED (decl) = 1;
   DECL_ARTIFICIAL (decl) = 1;
   DECL_IGNORED_P (decl) = 1;
-  DECL_CONTEXT (decl) = current_scope ();
+  DECL_CONTEXT (decl) = current_function_decl;
 
   return decl;
 }
@@ -4685,8 +4686,14 @@ build_vec_init (tree base, tree maxindex, tree init,
 	 for any temporaries in the initialization are naturally within our
 	 cleanup region, so we don't want wrap_temporary_cleanups to do
 	 anything for arrays.  But if the array is a subobject, we need to
-	 tell split_nonconstant_init how to turn off this cleanup in favor of
-	 the cleanup for the complete object.  */
+	 tell split_nonconstant_init or cp_genericize_target_expr how to turn
+	 off this cleanup in favor of the cleanup for the complete object.
+
+	 ??? For an array temporary such as an initializer_list backing array,
+	 it would avoid redundancy to leave this cleanup active, clear
+	 CLEANUP_EH_ONLY, and not build another cleanup for the temporary
+	 itself.  But that breaks when gimplify_target_expr adds a clobber
+	 cleanup that runs before the build_vec_init cleanup.  */
       if (cleanup_flags)
 	vec_safe_push (*cleanup_flags, build_tree_list (iterator, maxindex));
     }
@@ -5222,9 +5229,13 @@ build_delete (location_t loc, tree otype, tree addr,
       addr = convert_force (build_pointer_type (type), addr, 0, complain);
     }
 
+  tree addr_expr = NULL_TREE;
   if (deleting)
     /* We will use ADDR multiple times so we must save it.  */
-    addr = save_expr (addr);
+    {
+      addr_expr = get_target_expr (addr);
+      addr = TARGET_EXPR_SLOT (addr_expr);
+    }
 
   bool virtual_p = false;
   if (type_build_dtor_call (type))
@@ -5342,6 +5353,9 @@ build_delete (location_t loc, tree otype, tree addr,
 
   if (!integer_nonzerop (ifexp))
     expr = build3 (COND_EXPR, void_type_node, ifexp, expr, void_node);
+
+  if (addr_expr)
+    expr = cp_build_compound_expr (addr_expr, expr, tf_none);
 
   protected_set_expr_location (expr, loc);
   return expr;

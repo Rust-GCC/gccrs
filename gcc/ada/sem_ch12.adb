@@ -1130,10 +1130,11 @@ package body Sem_Ch12 is
       Saved_Formal    : Node_Id;
 
       Default_Formals : constant List_Id := New_List;
-      --  If an Others_Choice is present, some of the formals may be defaulted.
-      --  To simplify the treatment of visibility in an instance, we introduce
-      --  individual defaults for each such formal. These defaults are
-      --  appended to the list of associations and replace the Others_Choice.
+      --  If an N_Others_Choice is present, some of the formals may be
+      --  defaulted. To simplify the treatment of visibility in an instance,
+      --  we introduce individual defaults for each such formal. These
+      --  defaults are appended to the list of associations and replace the
+      --  N_Others_Choice.
 
       Found_Assoc : Node_Id;
       --  Association for the current formal being match. Empty if there are
@@ -1145,9 +1146,8 @@ package body Sem_Ch12 is
       Num_Actuals    : Nat := 0;
 
       Others_Present : Boolean := False;
-      Others_Choice  : Node_Id := Empty;
       --  In Ada 2005, indicates partial parameterization of a formal
-      --  package. As usual an other association must be last in the list.
+      --  package. As usual an 'others' association must be last in the list.
 
       procedure Build_Subprogram_Wrappers;
       --  Ada 2022: AI12-0272 introduces pre/postconditions for formal
@@ -1195,7 +1195,7 @@ package body Sem_Ch12 is
       procedure Process_Default (Formal : Node_Id);
       --  Add a copy of the declaration of a generic formal to the list of
       --  associations, and add an explicit box association for its entity
-      --  if there is none yet, and the default comes from an Others_Choice.
+      --  if there is none yet, and the default comes from an N_Others_Choice.
 
       function Renames_Standard_Subprogram (Subp : Entity_Id) return Boolean;
       --  Determine whether Subp renames one of the subprograms defined in the
@@ -1314,14 +1314,8 @@ package body Sem_Ch12 is
                   Error_Msg_N
                     ("named association not allowed for overloaded formal",
                      Found_Assoc);
-
-               else
-                  Error_Msg_N
-                    ("named association not allowed for overloaded formal",
-                     Others_Choice);
+                  Abandon_Instantiation (Instantiation_Node);
                end if;
-
-               Abandon_Instantiation (Instantiation_Node);
             end if;
 
             Next (Temp_Formal);
@@ -1592,7 +1586,7 @@ package body Sem_Ch12 is
 
          Append (Decl, Assoc_List);
 
-         if No (Found_Assoc) then
+         if No (Found_Assoc) then -- i.e. 'others'
             Default :=
                Make_Generic_Association (Loc,
                  Selector_Name                     =>
@@ -1686,7 +1680,6 @@ package body Sem_Ch12 is
          while Present (Actual) loop
             if Nkind (Actual) = N_Others_Choice then
                Others_Present := True;
-               Others_Choice  := Actual;
 
                if Present (Next (Actual)) then
                   Error_Msg_N ("OTHERS must be last association", Actual);
@@ -2311,7 +2304,7 @@ package body Sem_Ch12 is
 
       --  If this is a formal package, normalize the parameter list by adding
       --  explicit box associations for the formals that are covered by an
-      --  Others_Choice.
+      --  N_Others_Choice.
 
       Append_List (Default_Formals, Formals);
 
@@ -9663,21 +9656,17 @@ package body Sem_Ch12 is
       A_Spec : Node_Id;
       A_Id   : Aspect_Id;
    begin
-      if No (A_List) then
-         return False;
-      else
-         A_Spec := First (A_List);
-         while Present (A_Spec) loop
-            A_Id := Get_Aspect_Id (A_Spec);
-            if A_Id = Aspect_Pre or else A_Id = Aspect_Post then
-               return True;
-            end if;
+      A_Spec := First (A_List);
+      while Present (A_Spec) loop
+         A_Id := Get_Aspect_Id (A_Spec);
+         if A_Id = Aspect_Pre or else A_Id = Aspect_Post then
+            return True;
+         end if;
 
-            Next (A_Spec);
-         end loop;
+         Next (A_Spec);
+      end loop;
 
-         return False;
-      end if;
+      return False;
    end Has_Contracts;
 
    ----------
@@ -13239,7 +13228,7 @@ package body Sem_Ch12 is
             Abandon_Instantiation (Actual);
 
          elsif Nkind (Def) = N_Constrained_Array_Definition then
-            if not (Is_Constrained (Act_T)) then
+            if not Is_Constrained (Act_T) then
                Error_Msg_NE
                  ("expect constrained array in instantiation of &",
                   Actual, Gen_T);
@@ -17757,4 +17746,66 @@ package body Sem_Ch12 is
             raise Program_Error;
       end case;
    end Validate_Formal_Type_Default;
+
+   package body Instance_Context is
+
+      --------------------
+      -- Save_And_Reset --
+      --------------------
+
+      function Save_And_Reset return Context is
+      begin
+         return Result : Context (0 .. Integer (Generic_Renamings.Last)) do
+            for Index in Result'Range loop
+               declare
+                  Indexed_Assoc : Assoc renames Generic_Renamings.Table
+                                                  (Assoc_Ptr (Index));
+                  Result_Pair : Binding_Pair renames Result (Index);
+               begin
+                  --  If we have called Increment_Last but have not yet
+                  --  initialized the new last element of the table, then
+                  --  that last element might be invalid. Saving and
+                  --  restoring (especially restoring, it turns out) invalid
+                  --  values can result in exceptions if predicate checking
+                  --  is enabled, so replace invalid values with Empty.
+
+                  if Indexed_Assoc.Gen_Id'Valid then
+                     Result_Pair.Formal_Id := Indexed_Assoc.Gen_Id;
+                  else
+                     pragma Assert (Index = Result'Last);
+                     Result_Pair.Formal_Id := Empty;
+                  end if;
+
+                  if Indexed_Assoc.Act_Id'Valid then
+                     Result_Pair.Actual_Id := Indexed_Assoc.Act_Id;
+                  else
+                     pragma Assert (Index = Result'Last);
+                     Result_Pair.Actual_Id := Empty;
+                  end if;
+               end;
+            end loop;
+
+            Generic_Renamings.Init;
+            Generic_Renamings.Set_Last (0);
+            Generic_Renamings_HTable.Reset;
+         end return;
+      end Save_And_Reset;
+
+      -------------
+      -- Restore --
+      -------------
+
+      procedure Restore (Saved : Context) is
+      begin
+         Generic_Renamings.Init;
+         Generic_Renamings.Set_Last (0);
+         Generic_Renamings_HTable.Reset;
+         Generic_Renamings.Increment_Last;
+         for Pair of Saved loop
+            Set_Instance_Of (Pair.Formal_Id, Pair.Actual_Id);
+         end loop;
+         Generic_Renamings.Decrement_Last;
+      end Restore;
+
+   end Instance_Context;
 end Sem_Ch12;

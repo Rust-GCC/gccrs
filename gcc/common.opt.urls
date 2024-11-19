@@ -534,6 +534,9 @@ UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show
 fdiagnostics-show-caret
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-caret)
 
+fdiagnostics-show-event-links
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-event-links)
+
 fdiagnostics-show-labels
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-labels)
 
@@ -1335,6 +1338,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-fstrict-aliasing)
 
 fstrict-overflow
 UrlSuffix(gcc/Code-Gen-Options.html#index-fstrict-overflow)
+
+fstrub=disable
+UrlSuffix(gcc/Instrumentation-Options.html#index-fstrub_003ddisable)
 
 fstrub=strict
 UrlSuffix(gcc/Instrumentation-Options.html#index-fstrub_003dstrict)

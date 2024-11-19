@@ -422,6 +422,12 @@ Display target specific command line options (including assembler and linker opt
 -time
 Driver Alias(time)
 
+;; Truncate the file specified after linking.
+;; This option is used by lto-wrapper to reduce the peak disk-usage when
+;; linking with many .LTRANS units.
+truncate
+Driver Separate Undocumented MissingArgError(missing filename after %qs)
+
 -verbose
 Driver Alias(v)
 
@@ -1362,6 +1368,10 @@ fdiagnostics-show-caret
 Common Var(flag_diagnostics_show_caret) Init(1)
 Show the source line with a caret indicating the column.
 
+fdiagnostics-show-event-links
+Common Var(flag_diagnostics_show_event_links) Init(1)
+Show lines linking related events in diagnostic paths.
+
 fdiagnostics-show-labels
 Common Var(flag_diagnostics_show_labels) Init(1)
 Show labels annotating ranges of source code when showing source.
@@ -2223,6 +2233,9 @@ Enum(lto_partition_model) String(1to1) Value(LTO_PARTITION_1TO1)
 EnumValue
 Enum(lto_partition_model) String(max) Value(LTO_PARTITION_MAX)
 
+EnumValue
+Enum(lto_partition_model) String(cache) Value(LTO_PARTITION_CACHE)
+
 flto-partition=
 Common Joined RejectNegative Enum(lto_partition_model) Var(flag_lto_partition) Init(LTO_PARTITION_BALANCED)
 Specify the algorithm to partition symbols and vars at linktime.
@@ -2406,7 +2419,7 @@ Common RejectNegative Joined UInteger Optimization
 -fpack-struct=<number>	Set initial maximum structure member alignment.
 
 fpcc-struct-return
-Common Var(flag_pcc_struct_return,1) Init(DEFAULT_PCC_STRUCT_RETURN)
+Common Var(flag_pcc_struct_return,1) Init(DEFAULT_PCC_STRUCT_RETURN) Optimization
 Return small aggregates in memory, not registers.
 
 fpeel-loops
@@ -2596,7 +2609,7 @@ Common Var(flag_record_gcc_switches)
 Record gcc command line switches in the object file.
 
 freg-struct-return
-Common Var(flag_pcc_struct_return,0) Optimization
+Common NegativeAlias Alias(fpcc_struct_return) Optimization
 Return small aggregates in registers.
 
 fregmove

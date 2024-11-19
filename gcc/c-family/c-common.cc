@@ -5783,6 +5783,7 @@ check_function_sentinel (const_tree fntype, int nargs, tree *argarray)
       sentinel = fold_for_warn (argarray[nargs - 1 - pos]);
       if ((!POINTER_TYPE_P (TREE_TYPE (sentinel))
 	   || !integer_zerop (sentinel))
+	  && TREE_CODE (TREE_TYPE (sentinel)) != NULLPTR_TYPE
 	  /* Although __null (in C++) is only an integer we allow it
 	     nevertheless, as we are guaranteed that it's exactly
 	     as wide as a pointer, and we don't want to force
@@ -7114,6 +7115,13 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
   TYPE_TYPELESS_STORAGE (main_type) = TYPE_TYPELESS_STORAGE (type);
   layout_type (main_type);
 
+  /* Set TYPE_STRUCTURAL_EQUALITY_P early.  */
+  if (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (main_type))
+      || TYPE_STRUCTURAL_EQUALITY_P (TYPE_DOMAIN (main_type)))
+    SET_TYPE_STRUCTURAL_EQUALITY (main_type);
+  else
+    TYPE_CANONICAL (main_type) = main_type;
+
   /* Make sure we have the canonical MAIN_TYPE. */
   hashval_t hashcode = type_hash_canon_hash (main_type);
   main_type = type_hash_canon (hashcode, main_type);
@@ -7121,7 +7129,7 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
   /* Fix the canonical type.  */
   if (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (main_type))
       || TYPE_STRUCTURAL_EQUALITY_P (TYPE_DOMAIN (main_type)))
-    SET_TYPE_STRUCTURAL_EQUALITY (main_type);
+    gcc_assert (TYPE_STRUCTURAL_EQUALITY_P (main_type));
   else if (TYPE_CANONICAL (TREE_TYPE (main_type)) != TREE_TYPE (main_type)
 	   || (TYPE_CANONICAL (TYPE_DOMAIN (main_type))
 	       != TYPE_DOMAIN (main_type)))
@@ -7129,8 +7137,6 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
       = build_array_type (TYPE_CANONICAL (TREE_TYPE (main_type)),
 			  TYPE_CANONICAL (TYPE_DOMAIN (main_type)),
 			  TYPE_TYPELESS_STORAGE (main_type));
-  else
-    TYPE_CANONICAL (main_type) = main_type;
 
   if (quals == 0)
     type = main_type;
@@ -8958,6 +8964,7 @@ convert_vector_to_array_for_subscript (location_t loc,
   if (gnu_vector_type_p (TREE_TYPE (*vecp)))
     {
       tree type = TREE_TYPE (*vecp);
+      tree newitype;
 
       ret = !lvalue_p (*vecp);
 
@@ -8972,8 +8979,12 @@ convert_vector_to_array_for_subscript (location_t loc,
 	 for function parameters.  */
       c_common_mark_addressable_vec (*vecp);
 
+      /* Make sure qualifiers are copied from the vector type to the new element
+	 of the array type.  */
+      newitype = build_qualified_type (TREE_TYPE (type), TYPE_QUALS (type));
+
       *vecp = build1 (VIEW_CONVERT_EXPR,
-		      build_array_type_nelts (TREE_TYPE (type),
+		      build_array_type_nelts (newitype,
 					      TYPE_VECTOR_SUBPARTS (type)),
 		      *vecp);
     }
@@ -9929,6 +9940,19 @@ c_common_finalize_early_debug (void)
 	&& (cnode->has_gimple_body_p ()
 	    || !DECL_IS_UNDECLARED_BUILTIN (cnode->decl)))
       (*debug_hooks->early_global_decl) (cnode->decl);
+}
+
+/* Determine whether TYPE is an ISO C99 flexible array member type "[]".  */
+bool
+c_flexible_array_member_type_p (const_tree type)
+{
+  if (TREE_CODE (type) == ARRAY_TYPE
+      && TYPE_SIZE (type) == NULL_TREE
+      && TYPE_DOMAIN (type) != NULL_TREE
+      && TYPE_MAX_VALUE (TYPE_DOMAIN (type)) == NULL_TREE)
+    return true;
+
+  return false;
 }
 
 /* Get the LEVEL of the strict_flex_array for the ARRAY_FIELD based on the

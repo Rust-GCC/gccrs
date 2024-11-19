@@ -1156,76 +1156,96 @@
 
 ;; Likewise with zero predication.
 (define_insn "aarch64_rdffr_z"
-  [(set (match_operand:VNx16BI 0 "register_operand" "=Upa")
+  [(set (match_operand:VNx16BI 0 "register_operand")
 	(and:VNx16BI
 	  (reg:VNx16BI FFRT_REGNUM)
-	  (match_operand:VNx16BI 1 "register_operand" "Upa")))]
+	  (match_operand:VNx16BI 1 "register_operand")))]
   "TARGET_SVE && TARGET_NON_STREAMING"
-  "rdffr\t%0.b, %1/z"
+  {@ [ cons: =0, 1   ; attrs: pred_clobber ]
+     [ &Upa    , Upa ; yes                 ] rdffr\t%0.b, %1/z
+     [ ?Upa    , 0Upa; yes                 ] ^
+     [ Upa     , Upa ; no                  ] ^
+  }
 )
 
 ;; Read the FFR to test for a fault, without using the predicate result.
 (define_insn "*aarch64_rdffr_z_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (match_operand:SI 2 "aarch64_sve_ptrue_flag")
 	   (and:VNx16BI
 	     (reg:VNx16BI FFRT_REGNUM)
 	     (match_dup 1))]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE && TARGET_NON_STREAMING"
-  "rdffrs\t%0.b, %1/z"
+  {@ [ cons: =0, 1   ; attrs: pred_clobber ]
+     [ &Upa    , Upa ; yes                 ] rdffrs\t%0.b, %1/z
+     [ ?Upa    , 0Upa; yes                 ] ^
+     [ Upa     , Upa ; no                  ] ^
+  }
 )
 
 ;; Same for unpredicated RDFFR when tested with a known PTRUE.
 (define_insn "*aarch64_rdffr_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (const_int SVE_KNOWN_PTRUE)
 	   (reg:VNx16BI FFRT_REGNUM)]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE && TARGET_NON_STREAMING"
-  "rdffrs\t%0.b, %1/z"
+  {@ [ cons: =0, 1   ; attrs: pred_clobber ]
+     [ &Upa    , Upa ; yes                 ] rdffrs\t%0.b, %1/z
+     [ ?Upa    , 0Upa; yes                 ] ^
+     [ Upa     , Upa ; no                  ] ^
+  }
 )
 
 ;; Read the FFR with zero predication and test the result.
 (define_insn "*aarch64_rdffr_z_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (match_operand:SI 2 "aarch64_sve_ptrue_flag")
 	   (and:VNx16BI
 	     (reg:VNx16BI FFRT_REGNUM)
 	     (match_dup 1))]
 	  UNSPEC_PTEST))
-   (set (match_operand:VNx16BI 0 "register_operand" "=Upa")
+   (set (match_operand:VNx16BI 0 "register_operand")
 	(and:VNx16BI
 	  (reg:VNx16BI FFRT_REGNUM)
 	  (match_dup 1)))]
   "TARGET_SVE && TARGET_NON_STREAMING"
-  "rdffrs\t%0.b, %1/z"
+  {@ [ cons: =0, 1   ; attrs: pred_clobber ]
+     [ &Upa    , Upa ; yes                 ] rdffrs\t%0.b, %1/z
+     [ ?Upa    , 0Upa; yes                 ] ^
+     [ Upa     , Upa ; no                  ] ^
+  }
 )
 
 ;; Same for unpredicated RDFFR when tested with a known PTRUE.
 (define_insn "*aarch64_rdffr_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (const_int SVE_KNOWN_PTRUE)
 	   (reg:VNx16BI FFRT_REGNUM)]
 	  UNSPEC_PTEST))
-   (set (match_operand:VNx16BI 0 "register_operand" "=Upa")
+   (set (match_operand:VNx16BI 0 "register_operand")
 	(reg:VNx16BI FFRT_REGNUM))]
   "TARGET_SVE && TARGET_NON_STREAMING"
-  "rdffrs\t%0.b, %1/z"
+  {@ [ cons: =0, 1   ; attrs: pred_clobber ]
+     [ &Upa    , Upa ; yes                 ] rdffrs\t%0.b, %1/z
+     [ ?Upa    , 0Upa; yes                 ] ^
+     [ Upa     , Upa ; no                  ] ^
+  }
 )
 
 ;; [R3 in the block comment above about FFR handling]
@@ -6637,11 +6657,15 @@
 ;; Doubling the second operand is the preferred implementation
 ;; of the MOV alias, so we use that instead of %1/z, %1, %2.
 (define_insn "and<mode>3"
-  [(set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
-	(and:PRED_ALL (match_operand:PRED_ALL 1 "register_operand" "Upa")
-		      (match_operand:PRED_ALL 2 "register_operand" "Upa")))]
+  [(set (match_operand:PRED_ALL 0 "register_operand")
+	(and:PRED_ALL (match_operand:PRED_ALL 1 "register_operand")
+		      (match_operand:PRED_ALL 2 "register_operand")))]
   "TARGET_SVE"
-  "and\t%0.b, %1/z, %2.b, %2.b"
+  {@ [ cons: =0, 1   , 2   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa ; yes                 ] and\t%0.b, %1/z, %2.b, %2.b
+     [ ?Upa    , 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Unpredicated predicate EOR and ORR.
@@ -6660,14 +6684,18 @@
 
 ;; Predicated predicate AND, EOR and ORR.
 (define_insn "@aarch64_pred_<optab><mode>_z"
-  [(set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+  [(set (match_operand:PRED_ALL 0 "register_operand")
 	(and:PRED_ALL
 	  (LOGICAL:PRED_ALL
-	    (match_operand:PRED_ALL 2 "register_operand" "Upa")
-	    (match_operand:PRED_ALL 3 "register_operand" "Upa"))
-	  (match_operand:PRED_ALL 1 "register_operand" "Upa")))]
+	    (match_operand:PRED_ALL 2 "register_operand")
+	    (match_operand:PRED_ALL 3 "register_operand"))
+	  (match_operand:PRED_ALL 1 "register_operand")))]
   "TARGET_SVE"
-  "<logical>\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <logical>\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Perform a logical operation on operands 2 and 3, using operand 1 as
@@ -6676,38 +6704,46 @@
 (define_insn "*<optab><mode>3_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (and:PRED_ALL
 	     (LOGICAL:PRED_ALL
-	       (match_operand:PRED_ALL 2 "register_operand" "Upa")
-	       (match_operand:PRED_ALL 3 "register_operand" "Upa"))
+	       (match_operand:PRED_ALL 2 "register_operand")
+	       (match_operand:PRED_ALL 3 "register_operand"))
 	     (match_dup 4))]
 	  UNSPEC_PTEST))
-   (set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+   (set (match_operand:PRED_ALL 0 "register_operand")
 	(and:PRED_ALL (LOGICAL:PRED_ALL (match_dup 2) (match_dup 3))
 		      (match_dup 4)))]
   "TARGET_SVE"
-  "<logical>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <logical>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Same with just the flags result.
 (define_insn "*<optab><mode>3_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (and:PRED_ALL
 	     (LOGICAL:PRED_ALL
-	       (match_operand:PRED_ALL 2 "register_operand" "Upa")
-	       (match_operand:PRED_ALL 3 "register_operand" "Upa"))
+	       (match_operand:PRED_ALL 2 "register_operand")
+	       (match_operand:PRED_ALL 3 "register_operand"))
 	     (match_dup 4))]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE"
-  "<logical>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <logical>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; -------------------------------------------------------------------------
@@ -6720,56 +6756,68 @@
 
 ;; Predicated predicate BIC and ORN.
 (define_insn "aarch64_pred_<nlogical><mode>_z"
-  [(set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+  [(set (match_operand:PRED_ALL 0 "register_operand")
 	(and:PRED_ALL
 	  (NLOGICAL:PRED_ALL
-	    (not:PRED_ALL (match_operand:PRED_ALL 3 "register_operand" "Upa"))
-	    (match_operand:PRED_ALL 2 "register_operand" "Upa"))
-	  (match_operand:PRED_ALL 1 "register_operand" "Upa")))]
+	    (not:PRED_ALL (match_operand:PRED_ALL 3 "register_operand"))
+	    (match_operand:PRED_ALL 2 "register_operand"))
+	  (match_operand:PRED_ALL 1 "register_operand")))]
   "TARGET_SVE"
-  "<nlogical>\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <nlogical>\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Same, but set the flags as a side-effect.
 (define_insn "*<nlogical><mode>3_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (and:PRED_ALL
 	     (NLOGICAL:PRED_ALL
 	       (not:PRED_ALL
-		 (match_operand:PRED_ALL 3 "register_operand" "Upa"))
-	       (match_operand:PRED_ALL 2 "register_operand" "Upa"))
+		 (match_operand:PRED_ALL 3 "register_operand"))
+	       (match_operand:PRED_ALL 2 "register_operand"))
 	     (match_dup 4))]
 	  UNSPEC_PTEST))
-   (set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+   (set (match_operand:PRED_ALL 0 "register_operand")
 	(and:PRED_ALL (NLOGICAL:PRED_ALL
 			(not:PRED_ALL (match_dup 3))
 			(match_dup 2))
 		      (match_dup 4)))]
   "TARGET_SVE"
-  "<nlogical>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <nlogical>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Same with just the flags result.
 (define_insn "*<nlogical><mode>3_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (and:PRED_ALL
 	     (NLOGICAL:PRED_ALL
 	       (not:PRED_ALL
-		 (match_operand:PRED_ALL 3 "register_operand" "Upa"))
-	       (match_operand:PRED_ALL 2 "register_operand" "Upa"))
+		 (match_operand:PRED_ALL 3 "register_operand"))
+	       (match_operand:PRED_ALL 2 "register_operand"))
 	     (match_dup 4))]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE"
-  "<nlogical>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons:  =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa     , Upa , Upa , Upa ; yes                 ] <nlogical>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa     , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa      , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; -------------------------------------------------------------------------
@@ -6782,58 +6830,70 @@
 
 ;; Predicated predicate NAND and NOR.
 (define_insn "aarch64_pred_<logical_nn><mode>_z"
-  [(set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+  [(set (match_operand:PRED_ALL 0 "register_operand")
 	(and:PRED_ALL
 	  (NLOGICAL:PRED_ALL
-	    (not:PRED_ALL (match_operand:PRED_ALL 2 "register_operand" "Upa"))
-	    (not:PRED_ALL (match_operand:PRED_ALL 3 "register_operand" "Upa")))
-	  (match_operand:PRED_ALL 1 "register_operand" "Upa")))]
+	    (not:PRED_ALL (match_operand:PRED_ALL 2 "register_operand"))
+	    (not:PRED_ALL (match_operand:PRED_ALL 3 "register_operand")))
+	  (match_operand:PRED_ALL 1 "register_operand")))]
   "TARGET_SVE"
-  "<logical_nn>\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0,  1  , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <logical_nn>\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Same, but set the flags as a side-effect.
 (define_insn "*<logical_nn><mode>3_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (and:PRED_ALL
 	     (NLOGICAL:PRED_ALL
 	       (not:PRED_ALL
-		 (match_operand:PRED_ALL 2 "register_operand" "Upa"))
+		 (match_operand:PRED_ALL 2 "register_operand"))
 	       (not:PRED_ALL
-		 (match_operand:PRED_ALL 3 "register_operand" "Upa")))
+		 (match_operand:PRED_ALL 3 "register_operand")))
 	     (match_dup 4))]
 	  UNSPEC_PTEST))
-   (set (match_operand:PRED_ALL 0 "register_operand" "=Upa")
+   (set (match_operand:PRED_ALL 0 "register_operand")
 	(and:PRED_ALL (NLOGICAL:PRED_ALL
 			(not:PRED_ALL (match_dup 2))
 			(not:PRED_ALL (match_dup 3)))
 		      (match_dup 4)))]
   "TARGET_SVE"
-  "<logical_nn>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <logical_nn>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Same with just the flags result.
 (define_insn "*<logical_nn><mode>3_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (and:PRED_ALL
 	     (NLOGICAL:PRED_ALL
 	       (not:PRED_ALL
-		 (match_operand:PRED_ALL 2 "register_operand" "Upa"))
+		 (match_operand:PRED_ALL 2 "register_operand"))
 	       (not:PRED_ALL
-		 (match_operand:PRED_ALL 3 "register_operand" "Upa")))
+		 (match_operand:PRED_ALL 3 "register_operand")))
 	     (match_dup 4))]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE"
-  "<logical_nn>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] <logical_nn>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; =========================================================================
@@ -8074,9 +8134,13 @@
 	  UNSPEC_PRED_Z))
    (clobber (reg:CC_NZC CC_REGNUM))]
   "TARGET_SVE"
-  {@ [ cons: =0 , 1   , 3 , 4              ]
-     [ Upa      , Upl , w , <sve_imm_con>  ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, #%4
-     [ Upa      , Upl , w , w              ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, %4.<Vetype>
+  {@ [ cons: =0 , 1  , 3 , 4            ; attrs: pred_clobber ]
+     [ &Upa     , Upl, w , <sve_imm_con>; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, #%4
+     [ ?Upl     , 0  , w , <sve_imm_con>; yes                 ] ^
+     [ Upa      , Upl, w , <sve_imm_con>; no                  ] ^
+     [ &Upa     , Upl, w , w            ; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, %4.<Vetype>
+     [ ?Upl     , 0  , w , w            ; yes                 ] ^
+     [ Upa      , Upl, w , w            ; no                  ] ^
   }
 )
 
@@ -8106,9 +8170,13 @@
 	  UNSPEC_PRED_Z))]
   "TARGET_SVE
    && aarch64_sve_same_pred_for_ptest_p (&operands[4], &operands[6])"
-  {@ [ cons: =0 , 1   , 2 , 3              ]
-     [ Upa      , Upl , w , <sve_imm_con>  ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, #%3
-     [ Upa      , Upl , w , w              ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.<Vetype>
+  {@ [ cons: =0 , 1   , 2 , 3            ; attrs: pred_clobber ]
+     [ &Upa     ,  Upl, w , <sve_imm_con>; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, #%3
+     [ ?Upl     ,  0  , w , <sve_imm_con>; yes                 ] ^
+     [ Upa      ,  Upl, w , <sve_imm_con>; no                  ] ^
+     [ &Upa     ,  Upl, w , w            ; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.<Vetype>
+     [ ?Upl     ,  0  , w , w            ; yes                 ] ^
+     [ Upa      ,  Upl, w , w            ; no                  ] ^
   }
   "&& !rtx_equal_p (operands[4], operands[6])"
   {
@@ -8133,12 +8201,16 @@
 		(match_operand:SVE_I 3 "aarch64_sve_cmp_<sve_imm_con>_operand"))]
 	     UNSPEC_PRED_Z)]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:<VPRED> 0 "=Upa, Upa"))]
+   (clobber (match_scratch:<VPRED> 0))]
   "TARGET_SVE
    && aarch64_sve_same_pred_for_ptest_p (&operands[4], &operands[6])"
-  {@ [ cons: 1 , 2 , 3              ]
-     [ Upl     , w , <sve_imm_con>  ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, #%3
-     [ Upl     , w , w              ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.<Vetype>
+  {@ [ cons: =0, 1    , 2 , 3            ; attrs: pred_clobber ]
+     [ &Upa    ,  Upl, w , <sve_imm_con>; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, #%3
+     [ ?Upl    ,  0  , w , <sve_imm_con>; yes                 ] ^
+     [ Upa     ,  Upl, w , <sve_imm_con>; no                  ] ^
+     [ &Upa    ,  Upl, w , w            ; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.<Vetype>
+     [ ?Upl    ,  0  , w , w            ; yes                 ] ^
+     [ Upa     ,  Upl, w , w            ; no                  ] ^
   }
   "&& !rtx_equal_p (operands[4], operands[6])"
   {
@@ -8180,18 +8252,22 @@
 
 ;; Predicated integer wide comparisons.
 (define_insn "@aarch64_pred_cmp<cmp_op><mode>_wide"
-  [(set (match_operand:<VPRED> 0 "register_operand" "=Upa")
+  [(set (match_operand:<VPRED> 0 "register_operand")
 	(unspec:<VPRED>
-	  [(match_operand:VNx16BI 1 "register_operand" "Upl")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand:SI 2 "aarch64_sve_ptrue_flag")
 	   (unspec:<VPRED>
-	     [(match_operand:SVE_FULL_BHSI 3 "register_operand" "w")
-	      (match_operand:VNx2DI 4 "register_operand" "w")]
+	     [(match_operand:SVE_FULL_BHSI 3 "register_operand")
+	      (match_operand:VNx2DI 4 "register_operand")]
 	     SVE_COND_INT_CMP_WIDE)]
 	  UNSPEC_PRED_Z))
    (clobber (reg:CC_NZC CC_REGNUM))]
   "TARGET_SVE"
-  "cmp<cmp_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, %4.d"
+  {@ [ cons: =0, 1   , 2, 3, 4; attrs: pred_clobber ]
+     [ &Upa    ,  Upl,  , w, w; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %3.<Vetype>, %4.d
+     [ ?Upl    ,  0  ,  , w, w; yes                 ] ^
+     [ Upa     ,  Upl,  , w, w; no                  ] ^
+  }
 )
 
 ;; Predicated integer wide comparisons in which both the flag and
@@ -8199,19 +8275,19 @@
 (define_insn "*aarch64_pred_cmp<cmp_op><mode>_wide_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upl")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (unspec:<VPRED>
-	     [(match_operand:VNx16BI 6 "register_operand" "Upl")
+	     [(match_operand:VNx16BI 6 "register_operand")
 	      (match_operand:SI 7 "aarch64_sve_ptrue_flag")
 	      (unspec:<VPRED>
-		[(match_operand:SVE_FULL_BHSI 2 "register_operand" "w")
-		 (match_operand:VNx2DI 3 "register_operand" "w")]
+		[(match_operand:SVE_FULL_BHSI 2 "register_operand")
+		 (match_operand:VNx2DI 3 "register_operand")]
 		SVE_COND_INT_CMP_WIDE)]
 	     UNSPEC_PRED_Z)]
 	  UNSPEC_PTEST))
-   (set (match_operand:<VPRED> 0 "register_operand" "=Upa")
+   (set (match_operand:<VPRED> 0 "register_operand")
 	(unspec:<VPRED>
 	  [(match_dup 6)
 	   (match_dup 7)
@@ -8222,7 +8298,11 @@
 	  UNSPEC_PRED_Z))]
   "TARGET_SVE
    && aarch64_sve_same_pred_for_ptest_p (&operands[4], &operands[6])"
-  "cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.d"
+  {@ [ cons: =0, 1   , 2, 3, 6  ; attrs: pred_clobber ]
+     [ &Upa    ,  Upl, w, w, Upl; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.d
+     [ ?Upl    ,  0  , w, w, Upl; yes                 ] ^
+     [ Upa     ,  Upl, w, w, Upl; no                  ] ^
+  }
 )
 
 ;; Predicated integer wide comparisons in which only the flags result
@@ -8230,22 +8310,26 @@
 (define_insn "*aarch64_pred_cmp<cmp_op><mode>_wide_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upl")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_operand 4)
 	   (match_operand:SI 5 "aarch64_sve_ptrue_flag")
 	   (unspec:<VPRED>
-	     [(match_operand:VNx16BI 6 "register_operand" "Upl")
+	     [(match_operand:VNx16BI 6 "register_operand")
 	      (match_operand:SI 7 "aarch64_sve_ptrue_flag")
 	      (unspec:<VPRED>
-		[(match_operand:SVE_FULL_BHSI 2 "register_operand" "w")
-		 (match_operand:VNx2DI 3 "register_operand" "w")]
+		[(match_operand:SVE_FULL_BHSI 2 "register_operand")
+		 (match_operand:VNx2DI 3 "register_operand")]
 		SVE_COND_INT_CMP_WIDE)]
 	     UNSPEC_PRED_Z)]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:<VPRED> 0 "=Upa"))]
+   (clobber (match_scratch:<VPRED> 0))]
   "TARGET_SVE
    && aarch64_sve_same_pred_for_ptest_p (&operands[4], &operands[6])"
-  "cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.d"
+  {@ [ cons:  =0, 1   , 2, 3, 6  ; attrs: pred_clobber ]
+     [ &Upa     ,  Upl, w, w, Upl; yes                 ] cmp<cmp_op>\t%0.<Vetype>, %1/z, %2.<Vetype>, %3.d
+     [ ?Upl     ,  0  , w, w, Upl; yes                 ] ^
+     [ Upa      ,  Upl, w, w, Upl; no                  ] ^
+  }
 )
 
 ;; -------------------------------------------------------------------------
@@ -9912,9 +9996,13 @@
 	   (match_operand:VNx16BI 3 "aarch64_simd_reg_or_zero")]
 	  SVE_BRK_UNARY))]
   "TARGET_SVE"
-  {@ [ cons: =0 , 1   , 2   , 3   ]
-     [ Upa      , Upa , Upa , Dz  ] brk<brk_op>\t%0.b, %1/z, %2.b
-     [ Upa      , Upa , Upa , 0   ] brk<brk_op>\t%0.b, %1/m, %2.b
+  {@ [ cons: =0 , 1   , 2   , 3  ; attrs: pred_clobber ]
+     [ &Upa     ,  Upa , Upa , Dz; yes                 ] brk<brk_op>\t%0.b, %1/z, %2.b
+     [ ?Upa     ,  0Upa, 0Upa, Dz; yes                 ] ^
+     [ Upa      ,  Upa , Upa , Dz; no                  ] ^
+     [ &Upa     ,  Upa , Upa , 0 ; yes                 ] brk<brk_op>\t%0.b, %1/m, %2.b
+     [ ?Upa     ,  0Upa, 0Upa, 0 ; yes                 ] ^
+     [ Upa      ,  Upa , Upa , 0 ; no                  ] ^
   }
 )
 
@@ -9922,41 +10010,49 @@
 (define_insn "*aarch64_brk<brk_op>_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (match_operand:SI 4 "aarch64_sve_ptrue_flag")
 	   (unspec:VNx16BI
 	     [(match_dup 1)
-	      (match_operand:VNx16BI 2 "register_operand" "Upa")
+	      (match_operand:VNx16BI 2 "register_operand")
 	      (match_operand:VNx16BI 3 "aarch64_simd_imm_zero")]
 	     SVE_BRK_UNARY)]
 	  UNSPEC_PTEST))
-   (set (match_operand:VNx16BI 0 "register_operand" "=Upa")
+   (set (match_operand:VNx16BI 0 "register_operand")
 	(unspec:VNx16BI
 	  [(match_dup 1)
 	   (match_dup 2)
 	   (match_dup 3)]
 	  SVE_BRK_UNARY))]
   "TARGET_SVE"
-  "brk<brk_op>s\t%0.b, %1/z, %2.b"
+  {@ [ cons: =0, 1   , 2   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa ; yes                 ] brk<brk_op>s\t%0.b, %1/z, %2.b
+     [ ?Upa    , 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; Same, but with only the flags result being interesting.
 (define_insn "*aarch64_brk<brk_op>_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (match_operand:SI 4 "aarch64_sve_ptrue_flag")
 	   (unspec:VNx16BI
 	     [(match_dup 1)
-	      (match_operand:VNx16BI 2 "register_operand" "Upa")
+	      (match_operand:VNx16BI 2 "register_operand")
 	      (match_operand:VNx16BI 3 "aarch64_simd_imm_zero")]
 	     SVE_BRK_UNARY)]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE"
-  "brk<brk_op>s\t%0.b, %1/z, %2.b"
+  {@ [ cons: =0, 1   , 2   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa ; yes                 ] brk<brk_op>s\t%0.b, %1/z, %2.b
+     [ ?Upa    , 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; -------------------------------------------------------------------------
@@ -9973,14 +10069,18 @@
 
 ;; Binary BRKs (BRKN, BRKPA, BRKPB).
 (define_insn "@aarch64_brk<brk_op>"
-  [(set (match_operand:VNx16BI 0 "register_operand" "=Upa")
+  [(set (match_operand:VNx16BI 0 "register_operand")
 	(unspec:VNx16BI
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
-	   (match_operand:VNx16BI 2 "register_operand" "Upa")
-	   (match_operand:VNx16BI 3 "register_operand" "<brk_reg_con>")]
+	  [(match_operand:VNx16BI 1 "register_operand")
+	   (match_operand:VNx16BI 2 "register_operand")
+	   (match_operand:VNx16BI 3 "register_operand")]
 	  SVE_BRK_BINARY))]
   "TARGET_SVE"
-  "brk<brk_op>\t%0.b, %1/z, %2.b, %<brk_reg_opno>.b"
+  {@ [ cons: =0,  1  , 2   , 3             ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , <brk_reg_con> ; yes                 ] brk<brk_op>\t%0.b, %1/z, %2.b, %<brk_reg_opno>.b
+     [ ?Upa    , 0Upa, 0Upa, 0<brk_reg_con>; yes                 ] ^
+     [ Upa     , Upa , Upa , <brk_reg_con> ; no                  ] ^
+  }
 )
 
 ;; BRKN, producing both a predicate and a flags result.  Unlike other
@@ -10041,41 +10141,49 @@
 (define_insn "*aarch64_brk<brk_op>_cc"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (match_operand:SI 4 "aarch64_sve_ptrue_flag")
 	   (unspec:VNx16BI
 	     [(match_dup 1)
-	      (match_operand:VNx16BI 2 "register_operand" "Upa")
-	      (match_operand:VNx16BI 3 "register_operand" "Upa")]
+	      (match_operand:VNx16BI 2 "register_operand")
+	      (match_operand:VNx16BI 3 "register_operand")]
 	     SVE_BRKP)]
 	  UNSPEC_PTEST))
-   (set (match_operand:VNx16BI 0 "register_operand" "=Upa")
+   (set (match_operand:VNx16BI 0 "register_operand")
 	(unspec:VNx16BI
 	  [(match_dup 1)
 	   (match_dup 2)
 	   (match_dup 3)]
 	  SVE_BRKP))]
   "TARGET_SVE"
-  "brk<brk_op>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   , 4; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ,  ; yes                 ] brk<brk_op>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa,  ; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ,  ; no                  ] ^
+  }
 )
 
 ;; Same, but with only the flags result being interesting.
 (define_insn "*aarch64_brk<brk_op>_ptest"
   [(set (reg:CC_NZC CC_REGNUM)
 	(unspec:CC_NZC
-	  [(match_operand:VNx16BI 1 "register_operand" "Upa")
+	  [(match_operand:VNx16BI 1 "register_operand")
 	   (match_dup 1)
 	   (match_operand:SI 4 "aarch64_sve_ptrue_flag")
 	   (unspec:VNx16BI
 	     [(match_dup 1)
-	      (match_operand:VNx16BI 2 "register_operand" "Upa")
-	      (match_operand:VNx16BI 3 "register_operand" "Upa")]
+	      (match_operand:VNx16BI 2 "register_operand")
+	      (match_operand:VNx16BI 3 "register_operand")]
 	     SVE_BRKP)]
 	  UNSPEC_PTEST))
-   (clobber (match_scratch:VNx16BI 0 "=Upa"))]
+   (clobber (match_scratch:VNx16BI 0))]
   "TARGET_SVE"
-  "brk<brk_op>s\t%0.b, %1/z, %2.b, %3.b"
+  {@ [ cons: =0, 1   , 2   , 3   ; attrs: pred_clobber ]
+     [ &Upa    , Upa , Upa , Upa ; yes                 ] brk<brk_op>s\t%0.b, %1/z, %2.b, %3.b
+     [ ?Upa    , 0Upa, 0Upa, 0Upa; yes                 ] ^
+     [ Upa     , Upa , Upa , Upa ; no                  ] ^
+  }
 )
 
 ;; -------------------------------------------------------------------------

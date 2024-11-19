@@ -597,10 +597,13 @@ package body Sem_Ch5 is
 
       --  Error of assigning to limited type. We do however allow this in
       --  certain cases where the front end generates the assignments.
+      --  Comes_From_Source test is needed to allow compiler-generated
+      --  streaming/put_image subprograms, which may ignore privacy.
 
       elsif Is_Limited_Type (T1)
         and then not Assignment_OK (Lhs)
         and then not Assignment_OK (Original_Node (Lhs))
+        and then (Comes_From_Source (N) or Is_Immutably_Limited_Type (T1))
       then
          --  CPP constructors can only be called in declarations
 
@@ -1473,7 +1476,7 @@ package body Sem_Ch5 is
       --  out non-discretes may resolve the ambiguity.
       --  But GNAT extensions allow casing on non-discretes.
 
-      elsif Core_Extensions_Allowed and then Is_Overloaded (Exp) then
+      elsif All_Extensions_Allowed and then Is_Overloaded (Exp) then
 
          --  It would be nice if we could generate all the right error
          --  messages by calling "Resolve (Exp, Any_Type);" in the
@@ -1491,12 +1494,21 @@ package body Sem_Ch5 is
       --  Check for a GNAT-extension "general" case statement (i.e., one where
       --  the type of the selecting expression is not discrete).
 
-      elsif Core_Extensions_Allowed
+      elsif All_Extensions_Allowed
          and then not Is_Discrete_Type (Etype (Exp))
       then
          Resolve (Exp, Etype (Exp));
          Exp_Type := Etype (Exp);
          Is_General_Case_Statement := True;
+         if not (Is_Record_Type (Exp_Type) or Is_Array_Type (Exp_Type)) then
+            Error_Msg_N
+              ("selecting expression of general case statement " &
+               "must be a record or an array",
+               Exp);
+
+            --  Avoid cascading errors
+            return;
+         end if;
       else
          Analyze_And_Resolve (Exp, Any_Discrete);
          Exp_Type := Etype (Exp);
@@ -1529,7 +1541,7 @@ package body Sem_Ch5 is
            ("(Ada 83) case expression cannot be of a generic type", Exp);
          return;
 
-      elsif not Core_Extensions_Allowed
+      elsif not All_Extensions_Allowed
         and then not Is_Discrete_Type (Exp_Type)
       then
          Error_Msg_N
@@ -2158,7 +2170,7 @@ package body Sem_Ch5 is
          return Etype (Ent);
       end Get_Cursor_Type;
 
-   --   Start of processing for Analyze_Iterator_Specification
+   --  Start of processing for Analyze_Iterator_Specification
 
    begin
       Enter_Name (Def_Id);

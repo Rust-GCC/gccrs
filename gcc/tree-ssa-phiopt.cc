@@ -62,14 +62,6 @@ single_non_singleton_phi_for_edges (gimple_seq seq, edge e0, edge e1)
 {
   gimple_stmt_iterator i;
   gphi *phi = NULL;
-  if (gimple_seq_singleton_p (seq))
-    {
-      phi = as_a <gphi *> (gsi_stmt (gsi_start (seq)));
-      /* Never return virtual phis.  */
-      if (virtual_operand_p (gimple_phi_result (phi)))
-	return NULL;
-      return phi;
-    }
   for (i = gsi_start (seq); !gsi_end_p (i); gsi_next (&i))
     {
       gphi *p = as_a <gphi *> (gsi_stmt (i));
@@ -1139,6 +1131,28 @@ value_replacement (basic_block cond_bb, basic_block middle_bb,
   enum tree_code code;
   bool empty_or_with_defined_p = true;
 
+  /* Virtual operands don't need to be handled. */
+  if (virtual_operand_p (arg1))
+    return 0;
+
+  /* Special case A ? B : B as this will always simplify to B. */
+  if (operand_equal_for_phi_arg_p (arg0, arg1))
+    return 0;
+
+  gcond *cond = as_a <gcond *> (*gsi_last_bb (cond_bb));
+  code = gimple_cond_code (cond);
+
+  /* This transformation is only valid for equality comparisons.  */
+  if (code != NE_EXPR && code != EQ_EXPR)
+    return 0;
+
+  /* Do not make conditional undefs unconditional.  */
+  if ((TREE_CODE (arg0) == SSA_NAME
+       && ssa_name_maybe_undef_p (arg0))
+      || (TREE_CODE (arg1) == SSA_NAME
+	  && ssa_name_maybe_undef_p (arg1)))
+    return false;
+
   /* If the type says honor signed zeros we cannot do this
      optimization.  */
   if (HONOR_SIGNED_ZEROS (arg1))
@@ -1168,13 +1182,6 @@ value_replacement (basic_block cond_bb, basic_block middle_bb,
 		&& jump_function_from_stmt (&arg1, stmt)))
 	empty_or_with_defined_p = false;
     }
-
-  gcond *cond = as_a <gcond *> (*gsi_last_bb (cond_bb));
-  code = gimple_cond_code (cond);
-
-  /* This transformation is only valid for equality comparisons.  */
-  if (code != NE_EXPR && code != EQ_EXPR)
-    return 0;
 
   /* We need to know which is the true edge and which is the false
       edge so that we know if have abs or negative abs.  */
@@ -1319,12 +1326,11 @@ value_replacement (basic_block cond_bb, basic_block middle_bb,
 		    {
 		      /* After the optimization PHI result can have value
 			 which it couldn't have previously.  */
-		      int_range_max r;
+		      Value_Range r (TREE_TYPE (phires));
 		      if (get_global_range_query ()->range_of_expr (r, phires,
 								    phi))
 			{
-			  wide_int warg = wi::to_wide (carg);
-			  int_range<2> tmp (TREE_TYPE (carg), warg, warg);
+			  Value_Range tmp (carg, carg);
 			  r.union_ (tmp);
 			  reset_flow_sensitive_info (phires);
 			  set_range_info (phires, r);
@@ -1918,6 +1924,10 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb, basic_block alt_
 	  || gimple_code (assign) != GIMPLE_ASSIGN)
 	return false;
 
+      /* There cannot be any phi nodes in the middle bb. */
+      if (!gimple_seq_empty_p (phi_nodes (middle_bb)))
+	return false;
+
       lhs = gimple_assign_lhs (assign);
       ass_code = gimple_assign_rhs_code (assign);
       if (ass_code != MAX_EXPR && ass_code != MIN_EXPR)
@@ -1929,6 +1939,10 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb, basic_block alt_
       assign = last_and_only_stmt (alt_middle_bb);
       if (!assign
 	  || gimple_code (assign) != GIMPLE_ASSIGN)
+	return false;
+
+      /* There cannot be any phi nodes in the alt middle bb. */
+      if (!gimple_seq_empty_p (phi_nodes (alt_middle_bb)))
 	return false;
 
       alt_lhs = gimple_assign_lhs (assign);
@@ -2040,6 +2054,10 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb, basic_block alt_
 
       if (!assign
 	  || gimple_code (assign) != GIMPLE_ASSIGN)
+	return false;
+
+      /* There cannot be any phi nodes in the middle bb. */
+      if (!gimple_seq_empty_p (phi_nodes (middle_bb)))
 	return false;
 
       lhs = gimple_assign_lhs (assign);

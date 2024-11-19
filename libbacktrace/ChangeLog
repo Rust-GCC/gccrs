@@ -1,3 +1,34 @@
+2024-05-03  Ian Lance Taylor  <iant@golang.org>
+
+	* pecoff.c (struct dll_notification_data): Define.
+	(LDR_DLL_NOTIFICATION): New typedef.
+	(LDR_REGISTER_FUNCTION): New typedef.
+	(struct dll_notification_context): Define.
+	(dll_notification): New static function.
+	(backtrace_initialize): Register DLL notification.
+
+2024-04-28  Ian Lance Taylor  <iant@golang.org>
+
+	* configure.ac: Checked for tlhelp32.h
+	* pecoff.c: Include <tlhelp32.h> if available.
+	(backtrace_initialize): Use tlhelp32 api for a snapshot to
+	detect loaded modules.
+	(coff_add): New argument for the module handle of the file,
+	to get the base address.
+	* configure, config.h.in: Regenerate.
+
+2024-04-23  Ian Lance Taylor  <iant@golang.org>
+
+	* configure.ac: Test --compress-debug-sections=zlib-gnu and
+	--compress-debug-sections=zlib-gabi separately, setting new
+	automake conditionals.
+	* Makefile.am (ctestg, ctestg_alloc): Only build if
+	HAVE_COMPRESSED_DEBUG_ZLIB_GNU.
+	(ctesta, ctesta_alloc): Only build if
+	HAVE_COMPRESSED_DEBUG_ZLIB_GABI.
+	(ctestzstd_alloc): New test if HAVE_COMPRESSED_DEBUG_ZSTD.
+	* configure, Makefile.in: Regenerate.
+
 2024-03-08  Ian Lance Taylor  <iant@golang.org>
 
 	* elf.c (elf_uncompress_chdr): Don't assume compressed section is
