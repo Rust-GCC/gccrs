@@ -742,9 +742,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif // __cpp_concepts
 
   template<typename _Tp>
-  class optional;
-
-  template<typename _Tp>
     inline constexpr bool __is_optional_v = false;
   template<typename _Tp>
     inline constexpr bool __is_optional_v<optional<_Tp>> = true;
@@ -853,8 +850,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	using __not_self = __not_<is_same<optional, __remove_cvref_t<_Up>>>;
       template<typename _Up>
 	using __not_tag = __not_<is_same<in_place_t, __remove_cvref_t<_Up>>>;
-      template<typename _Up>
-	using __is_bool = is_same<remove_cv_t<_Up>, bool>;
       template<typename... _Cond>
 	using _Requires = enable_if_t<__and_v<_Cond...>, bool>;
 #endif
@@ -1584,9 +1579,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return !__rhs; }
 #endif // three-way-comparison
 
+#if __cpp_lib_concepts
   // _GLIBCXX_RESOLVE_LIB_DEFECTS
   // 4072. std::optional comparisons: constrain harder
-#if __cpp_lib_concepts
 # define _REQUIRES_NOT_OPTIONAL(T) requires (!__is_optional_v<T>)
 #else
 # define _REQUIRES_NOT_OPTIONAL(T)
@@ -1678,8 +1673,16 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { return !__rhs || __lhs >= *__rhs; }
 
 #ifdef __cpp_lib_three_way_comparison
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3746. optional's spaceship with U with a type derived from optional
+  // causes infinite constraint meta-recursion
+  template<typename _Tp>
+    concept __is_derived_from_optional = requires (const _Tp& __t) {
+      []<typename _Up>(const optional<_Up>&){ }(__t);
+    };
+
   template<typename _Tp, typename _Up>
-    requires (!__is_optional_v<_Up>)
+    requires (!__is_derived_from_optional<_Up>)
       && three_way_comparable_with<_Up, _Tp>
     constexpr compare_three_way_result_t<_Tp, _Up>
     operator<=> [[nodiscard]] (const optional<_Tp>& __x, const _Up& __v)

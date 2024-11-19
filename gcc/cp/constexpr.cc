@@ -168,7 +168,7 @@ constexpr_error (location_t location, bool constexpr_fundef_p,
     {
       diagnostic_set_info (&diagnostic, gmsgid, &ap, &richloc,
 			   cxx_dialect < cxx23 ? DK_PEDWARN : DK_WARNING);
-      diagnostic.option_index = OPT_Winvalid_constexpr;
+      diagnostic.option_id = OPT_Winvalid_constexpr;
       ret = diagnostic_report_diagnostic (global_dc, &diagnostic);
     }
   else
@@ -1057,9 +1057,16 @@ explain_invalid_constexpr_fn (tree fun)
   /* Only diagnose defaulted functions, lambdas, or instantiations.  */
   else if (!DECL_DEFAULTED_FN (fun)
 	   && !LAMBDA_TYPE_P (CP_DECL_CONTEXT (fun))
+	   && !(flag_implicit_constexpr
+		&& !DECL_DECLARED_CONSTEXPR_P (fun)
+		&& DECL_DECLARED_INLINE_P (fun))
 	   && !is_instantiation_of_constexpr (fun))
     {
       inform (DECL_SOURCE_LOCATION (fun), "%qD declared here", fun);
+      if (flag_implicit_constexpr && !maybe_constexpr_fn (fun)
+	  && decl_defined_p (fun))
+	inform (DECL_SOURCE_LOCATION (fun),
+		"%<-fimplicit-constexpr%> only affects %<inline%> functions");
       return;
     }
   if (diagnosed == NULL)
@@ -7215,6 +7222,7 @@ maybe_warn_about_constant_value (location_t loc, tree decl)
       && warn_interference_size
       && !OPTION_SET_P (param_destruct_interfere_size)
       && DECL_CONTEXT (decl) == std_node
+      && DECL_NAME (decl)
       && id_equal (DECL_NAME (decl), "hardware_destructive_interference_size")
       && (LOCATION_FILE (input_location) != main_input_filename
 	  || module_exporting_p ())
@@ -8193,8 +8201,11 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
 			      TREE_TYPE (op), TREE_TYPE (TREE_TYPE (sop)),
 			      TREE_TYPE (type));
 		    tree obj = build_fold_indirect_ref (sop);
-		    inform (DECL_SOURCE_LOCATION (obj),
-			    "pointed-to object declared here");
+		    if (TREE_CODE (obj) == COMPONENT_REF)
+		      obj = TREE_OPERAND (obj, 1);
+		    if (DECL_P (obj))
+		      inform (DECL_SOURCE_LOCATION (obj),
+			      "pointed-to object declared here");
 		  }
 		*non_constant_p = true;
 		return t;

@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define INCLUDE_MEMORY
 #define INCLUDE_STRING
 #define IN_TARGET_CODE 1
 
@@ -4907,13 +4908,31 @@ ix86_gimplify_va_arg (tree valist, tree type, gimple_seq *pre_p,
 
       examine_argument (nat_mode, type, 0, &needed_intregs, &needed_sseregs);
 
-      need_temp = (!REG_P (container)
+      bool container_in_reg = false;
+      if (REG_P (container))
+	container_in_reg = true;
+      else if (GET_CODE (container) == PARALLEL
+	       && GET_MODE (container) == BLKmode
+	       && XVECLEN (container, 0) == 1)
+	{
+	  /* Check if it is a PARALLEL BLKmode container of an EXPR_LIST
+	     expression in a TImode register.  In this case, temp isn't
+	     needed.  Otherwise, the TImode variable will be put in the
+	     GPR save area which guarantees only 8-byte alignment.   */
+	  rtx x = XVECEXP (container, 0, 0);
+	  if (GET_CODE (x) == EXPR_LIST
+	      && REG_P (XEXP (x, 0))
+	      && XEXP (x, 1) == const0_rtx)
+	    container_in_reg = true;
+	}
+
+      need_temp = (!container_in_reg
 		   && ((needed_intregs && TYPE_ALIGN (type) > 64)
 		       || TYPE_ALIGN (type) > 128));
 
       /* In case we are passing structure, verify that it is consecutive block
          on the register save area.  If not we need to do moves.  */
-      if (!need_temp && !REG_P (container))
+      if (!need_temp && !container_in_reg)
 	{
 	  /* Verify that all registers are strictly consecutive  */
 	  if (SSE_REGNO_P (REGNO (XEXP (XVECEXP (container, 0, 0), 0))))
@@ -14881,9 +14900,19 @@ ix86_dirflag_mode_needed (rtx_insn *insn)
 static bool
 ix86_check_avx_upper_register (const_rtx exp)
 {
-  return (SSE_REG_P (exp)
-	  && !EXT_REX_SSE_REG_P (exp)
-	  && GET_MODE_BITSIZE (GET_MODE (exp)) > 128);
+  /* construct_container may return a parallel with expr_list
+     which contains the real reg and mode  */
+  subrtx_iterator::array_type array;
+  FOR_EACH_SUBRTX (iter, array, exp, NONCONST)
+    {
+      const_rtx x = *iter;
+      if (SSE_REG_P (x)
+	  && !EXT_REX_SSE_REG_P (x)
+	  && GET_MODE_BITSIZE (GET_MODE (x)) > 128)
+	return true;
+    }
+
+  return false;
 }
 
 /* Check if a 256bit or 512bit AVX register is referenced in stores.   */
@@ -14891,7 +14920,9 @@ ix86_check_avx_upper_register (const_rtx exp)
 static void
 ix86_check_avx_upper_stores (rtx dest, const_rtx, void *data)
 {
-  if (ix86_check_avx_upper_register (dest))
+  if (SSE_REG_P (dest)
+      && !EXT_REX_SSE_REG_P (dest)
+      && GET_MODE_BITSIZE (GET_MODE (dest)) > 128)
     {
       bool *used = (bool *) data;
       *used = true;
@@ -14950,14 +14981,14 @@ ix86_avx_u128_mode_needed (rtx_insn *insn)
       return AVX_U128_CLEAN;
     }
 
-  subrtx_iterator::array_type array;
-
   rtx set = single_set (insn);
   if (set)
     {
       rtx dest = SET_DEST (set);
       rtx src = SET_SRC (set);
-      if (ix86_check_avx_upper_register (dest))
+      if (SSE_REG_P (dest)
+	  && !EXT_REX_SSE_REG_P (dest)
+	  && GET_MODE_BITSIZE (GET_MODE (dest)) > 128)
 	{
 	  /* This is an YMM/ZMM load.  Return AVX_U128_DIRTY if the
 	     source isn't zero.  */
@@ -14968,9 +14999,8 @@ ix86_avx_u128_mode_needed (rtx_insn *insn)
 	}
       else
 	{
-	  FOR_EACH_SUBRTX (iter, array, src, NONCONST)
-	    if (ix86_check_avx_upper_register (*iter))
-	      return AVX_U128_DIRTY;
+	  if (ix86_check_avx_upper_register (src))
+	    return AVX_U128_DIRTY;
 	}
 
       /* This isn't YMM/ZMM load/store.  */
@@ -14981,9 +15011,8 @@ ix86_avx_u128_mode_needed (rtx_insn *insn)
      Hardware changes state only when a 256bit register is written to,
      but we need to prevent the compiler from moving optimal insertion
      point above eventual read from 256bit or 512 bit register.  */
-  FOR_EACH_SUBRTX (iter, array, PATTERN (insn), NONCONST)
-    if (ix86_check_avx_upper_register (*iter))
-      return AVX_U128_DIRTY;
+  if (ix86_check_avx_upper_register (PATTERN (insn)))
+    return AVX_U128_DIRTY;
 
   return AVX_U128_ANY;
 }
@@ -16176,6 +16205,8 @@ ix86_build_const_vector (machine_mode mode, bool vect, rtx value)
     case E_V32BFmode:
     case E_V16BFmode:
     case E_V8BFmode:
+    case E_V4BFmode:
+    case E_V2BFmode:
       n_elt = GET_MODE_NUNITS (mode);
       v = rtvec_alloc (n_elt);
       scalar_mode = GET_MODE_INNER (mode);
@@ -16215,6 +16246,8 @@ ix86_build_signbit_mask (machine_mode mode, bool vect, bool invert)
     case E_V32BFmode:
     case E_V16BFmode:
     case E_V8BFmode:
+    case E_V4BFmode:
+    case E_V2BFmode:
       vec_mode = mode;
       imode = HImode;
       break;
@@ -16623,6 +16656,11 @@ ix86_fp_compare_code_to_integer (enum rtx_code code)
       return LEU;
     case LTGT:
       return NE;
+    case EQ:
+    case NE:
+      if (TARGET_AVX10_2_256)
+	return code;
+      /* FALLTHRU.  */
     default:
       return UNKNOWN;
     }
@@ -20292,6 +20330,18 @@ inline_secondary_memory_needed (machine_mode mode, reg_class_t class1,
       if (!(INTEGER_CLASS_P (class1) || INTEGER_CLASS_P (class2)))
 	return true;
 
+      /* If the target says that inter-unit moves are more expensive
+	 than moving through memory, then don't generate them.  */
+      if ((SSE_CLASS_P (class1) && !TARGET_INTER_UNIT_MOVES_FROM_VEC)
+	  || (SSE_CLASS_P (class2) && !TARGET_INTER_UNIT_MOVES_TO_VEC))
+	return true;
+
+      /* With SSE4.1, *mov{ti,di}_internal supports moves between
+	 SSE_REGS and GENERAL_REGS using pinsr{q,d} or pextr{q,d}.  */
+      if (TARGET_SSE4_1
+	  && (TARGET_64BIT ? mode == TImode : mode == DImode))
+	return false;
+
       int msize = GET_MODE_SIZE (mode);
 
       /* Between SSE and general, we have moves no larger than word size.  */
@@ -20303,12 +20353,6 @@ inline_secondary_memory_needed (machine_mode mode, reg_class_t class1,
       int minsize = GET_MODE_SIZE (TARGET_SSE2 ? HImode : SImode);
 
       if (msize < minsize)
-	return true;
-
-      /* If the target says that inter-unit moves are more expensive
-	 than moving through memory, then don't generate them.  */
-      if ((SSE_CLASS_P (class1) && !TARGET_INTER_UNIT_MOVES_FROM_VEC)
-	  || (SSE_CLASS_P (class2) && !TARGET_INTER_UNIT_MOVES_TO_VEC))
 	return true;
     }
 
@@ -23403,150 +23447,6 @@ ix86_split_stlf_stall_load ()
     }
 }
 
-/* When a hot loop can be fit into one cacheline,
-   force align the loop without considering the max skip.  */
-static void
-ix86_align_loops ()
-{
-  basic_block bb;
-
-  /* Don't do this when we don't know cache line size.  */
-  if (ix86_cost->prefetch_block == 0)
-    return;
-
-  loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
-  profile_count count_threshold = cfun->cfg->count_max / param_align_threshold;
-  FOR_EACH_BB_FN (bb, cfun)
-    {
-      rtx_insn *label = BB_HEAD (bb);
-      bool has_fallthru = 0;
-      edge e;
-      edge_iterator ei;
-
-      if (!LABEL_P (label))
-	continue;
-
-      profile_count fallthru_count = profile_count::zero ();
-      profile_count branch_count = profile_count::zero ();
-
-      FOR_EACH_EDGE (e, ei, bb->preds)
-	{
-	  if (e->flags & EDGE_FALLTHRU)
-	    has_fallthru = 1, fallthru_count += e->count ();
-	  else
-	    branch_count += e->count ();
-	}
-
-      if (!fallthru_count.initialized_p () || !branch_count.initialized_p ())
-	continue;
-
-      if (bb->loop_father
-	  && bb->loop_father->latch != EXIT_BLOCK_PTR_FOR_FN (cfun)
-	  && (has_fallthru
-	      ? (!(single_succ_p (bb)
-		   && single_succ (bb) == EXIT_BLOCK_PTR_FOR_FN (cfun))
-		 && optimize_bb_for_speed_p (bb)
-		 && branch_count + fallthru_count > count_threshold
-		 && (branch_count > fallthru_count * param_align_loop_iterations))
-	      /* In case there'no fallthru for the loop.
-		 Nops inserted won't be executed.  */
-	      : (branch_count > count_threshold
-		 || (bb->count > bb->prev_bb->count * 10
-		     && (bb->prev_bb->count
-			 <= ENTRY_BLOCK_PTR_FOR_FN (cfun)->count / 2)))))
-	{
-	  rtx_insn* insn, *end_insn;
-	  HOST_WIDE_INT size = 0;
-	  bool padding_p = true;
-	  basic_block tbb = bb;
-	  unsigned cond_branch_num = 0;
-	  bool detect_tight_loop_p = false;
-
-	  for (unsigned int i = 0; i != bb->loop_father->num_nodes;
-	       i++, tbb = tbb->next_bb)
-	    {
-	      /* Only handle continuous cfg layout. */
-	      if (bb->loop_father != tbb->loop_father)
-		{
-		  padding_p = false;
-		  break;
-		}
-
-	      FOR_BB_INSNS (tbb, insn)
-		{
-		  if (!NONDEBUG_INSN_P (insn))
-		    continue;
-		  size += ix86_min_insn_size (insn);
-
-		  /* We don't know size of inline asm.
-		     Don't align loop for call.  */
-		  if (asm_noperands (PATTERN (insn)) >= 0
-		      || CALL_P (insn))
-		    {
-		      size = -1;
-		      break;
-		    }
-		}
-
-	      if (size == -1 || size > ix86_cost->prefetch_block)
-		{
-		  padding_p = false;
-		  break;
-		}
-
-	      FOR_EACH_EDGE (e, ei, tbb->succs)
-		{
-		  /* It could be part of the loop.  */
-		  if (e->dest == bb)
-		    {
-		      detect_tight_loop_p = true;
-		      break;
-		    }
-		}
-
-	      if (detect_tight_loop_p)
-		break;
-
-	      end_insn = BB_END (tbb);
-	      if (JUMP_P (end_insn))
-		{
-		  /* For decoded icache:
-		     1. Up to two branches are allowed per Way.
-		     2. A non-conditional branch is the last micro-op in a Way.
-		  */
-		  if (onlyjump_p (end_insn)
-		      && (any_uncondjump_p (end_insn)
-			  || single_succ_p (tbb)))
-		    {
-		      padding_p = false;
-		      break;
-		    }
-		  else if (++cond_branch_num >= 2)
-		    {
-		      padding_p = false;
-		      break;
-		    }
-		}
-
-	    }
-
-	  if (padding_p && detect_tight_loop_p)
-	    {
-	      emit_insn_before (gen_max_skip_align (GEN_INT (ceil_log2 (size)),
-						    GEN_INT (0)), label);
-	      /* End of function.  */
-	      if (!tbb || tbb == EXIT_BLOCK_PTR_FOR_FN (cfun))
-		break;
-	      /* Skip bb which already fits into one cacheline.  */
-	      bb = tbb;
-	    }
-	}
-    }
-
-  loop_optimizer_finalize ();
-  free_dominance_info (CDI_DOMINATORS);
-}
-
 /* Implement machine specific optimizations.  We implement padding of returns
    for K8 CPUs and pass to avoid 4 jumps in the single 16 byte window.  */
 static void
@@ -23570,8 +23470,6 @@ ix86_reorg (void)
 #ifdef ASM_OUTPUT_MAX_SKIP_ALIGN
       if (TARGET_FOUR_JUMP_LIMIT)
 	ix86_avoid_jump_mispredicts ();
-
-      ix86_align_loops ();
 #endif
     }
 }
@@ -24607,13 +24505,17 @@ ix86_reassociation_width (unsigned int op, machine_mode mode)
       if (width == 1)
 	return 1;
 
-      /* Integer vector instructions execute in FP unit
+      /* Znver1-4 Integer vector instructions execute in FP unit
 	 and can execute 3 additions and one multiplication per cycle.  */
       if ((ix86_tune == PROCESSOR_ZNVER1 || ix86_tune == PROCESSOR_ZNVER2
-	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4
-	   || ix86_tune == PROCESSOR_ZNVER5)
+	   || ix86_tune == PROCESSOR_ZNVER3 || ix86_tune == PROCESSOR_ZNVER4)
    	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
 	return 1;
+      /* Znver5 can do 2 integer multiplications per cycle with latency
+	 of 3.  */
+      if (ix86_tune == PROCESSOR_ZNVER5
+	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
+	width = 6;
 
       /* Account for targets that splits wide vectors into multiple parts.  */
       if (TARGET_AVX512_SPLIT_REGS && GET_MODE_BITSIZE (mode) > 256)
@@ -24694,6 +24596,14 @@ ix86_preferred_simd_mode (scalar_mode mode)
 	}
       return word_mode;
 
+    case E_BFmode:
+      if (TARGET_AVX512F && TARGET_EVEX512 && !TARGET_PREFER_AVX256)
+	return V32BFmode;
+      else if (TARGET_AVX && !TARGET_PREFER_AVX128)
+	return V16BFmode;
+      else
+	return V8BFmode;
+
     case E_SFmode:
       if (TARGET_AVX512F && TARGET_EVEX512 && !TARGET_PREFER_AVX256)
 	return V16SFmode;
@@ -24772,16 +24682,17 @@ ix86_get_mask_mode (machine_mode data_mode)
       /* AVX512FP16 only supports vector comparison
 	 to kmask for _Float16.  */
       || (TARGET_AVX512VL && TARGET_AVX512FP16
-	  && GET_MODE_INNER (data_mode) == E_HFmode))
+	  && GET_MODE_INNER (data_mode) == E_HFmode)
+      || (TARGET_AVX10_2_256 && GET_MODE_INNER (data_mode) == E_BFmode))
     {
       if (elem_size == 4
 	  || elem_size == 8
 	  || (TARGET_AVX512BW && (elem_size == 1 || elem_size == 2)))
-	return smallest_int_mode_for_size (nunits);
+	return smallest_int_mode_for_size (nunits).require ();
     }
 
   scalar_int_mode elem_mode
-    = smallest_int_mode_for_size (elem_size * BITS_PER_UNIT);
+    = smallest_int_mode_for_size (elem_size * BITS_PER_UNIT).require ();
 
   gcc_assert (elem_size * nunits == vector_size);
 

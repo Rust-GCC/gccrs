@@ -2009,11 +2009,8 @@ strip_typedefs_expr (tree t, bool *remove_attributes, unsigned int flags)
       }
 
     case LAMBDA_EXPR:
+    case STMT_EXPR:
       return t;
-
-    case STATEMENT_LIST:
-      error ("statement-expression in a constant expression");
-      return error_mark_node;
 
     default:
       break;
@@ -5199,7 +5196,8 @@ handle_init_priority_attribute (tree* node,
 
   /* Check for init_priorities that are reserved for
      language and runtime support implementations.*/
-  if (pri <= MAX_RESERVED_INIT_PRIORITY)
+  if (pri <= MAX_RESERVED_INIT_PRIORITY
+      && !in_system_header_at (input_location))
     {
       warning
 	(0, "requested %<init_priority%> %i is reserved for internal use",
@@ -5223,6 +5221,7 @@ check_abi_tag_redeclaration (const_tree decl, const_tree old, const_tree new_)
   if (new_ && TREE_CODE (TREE_VALUE (new_)) == TREE_LIST)
     new_ = TREE_VALUE (new_);
   bool err = false;
+  auto_diagnostic_group d;
   for (const_tree t = new_; t; t = TREE_CHAIN (t))
     {
       tree str = TREE_VALUE (t);
@@ -5276,6 +5275,7 @@ check_abi_tag_args (tree args, tree name)
 	    {
 	      if (!ISALPHA (c) && c != '_')
 		{
+		  auto_diagnostic_group d;
 		  error ("arguments to the %qE attribute must contain valid "
 			 "identifiers", name);
 		  inform (input_location, "%<%c%> is not a valid first "
@@ -5289,6 +5289,7 @@ check_abi_tag_args (tree args, tree name)
 	    {
 	      if (!ISALNUM (c) && c != '_')
 		{
+		  auto_diagnostic_group d;
 		  error ("arguments to the %qE attribute must contain valid "
 			 "identifiers", name);
 		  inform (input_location, "%<%c%> is not a valid character "

@@ -38,6 +38,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-type-mismatch.h"
 #include "cp-name-hint.h"
 #include "attribs.h"
+#include "pretty-print-format-impl.h"
+#include "make-unique.h"
 
 #define pp_separate_with_comma(PP) pp_cxx_separate_with (PP, ',')
 #define pp_separate_with_semicolon(PP) pp_cxx_separate_with (PP, ';')
@@ -109,7 +111,7 @@ static void cp_print_error_function (diagnostic_context *,
 				     const diagnostic_info *);
 
 static bool cp_printer (pretty_printer *, text_info *, const char *,
-			int, bool, bool, bool, bool *, const char **);
+			int, bool, bool, bool, bool *, pp_token_list &);
 
 /* Color names for highlighting "%qH" vs "%qI" values,
    and ranges corresponding to them.  */
@@ -123,22 +125,50 @@ class deferred_printed_type
 {
 public:
   deferred_printed_type ()
-  : m_tree (NULL_TREE), m_buffer_ptr (NULL), m_verbose (false), m_quote (false)
+  : m_tree (NULL_TREE),
+    m_printed_text (),
+    m_token_list (nullptr),
+    m_verbose (false), m_quote (false)
   {}
 
-  deferred_printed_type (tree type, const char **buffer_ptr, bool verbose,
+  deferred_printed_type (tree type,
+			 pp_token_list &token_list,
+			 bool verbose,
 			 bool quote)
-  : m_tree (type), m_buffer_ptr (buffer_ptr), m_verbose (verbose),
+  : m_tree (type),
+    m_printed_text (),
+    m_token_list (&token_list),
+    m_verbose (verbose),
     m_quote (quote)
   {
     gcc_assert (type);
-    gcc_assert (buffer_ptr);
+  }
+
+  void set_text_for_token_list (const char *text, bool quote)
+  {
+    /* Replace the contents of m_token_list with a text token for TEXT,
+       possibly wrapped by BEGIN_QUOTE/END_QUOTE (if QUOTE is true).
+       This allows us to ignore any {BEGIN,END}_QUOTE tokens added
+       by %qH and %qI, and instead use the quoting from type_to_string,
+       and its logic for "aka".  */
+    while (m_token_list->m_first)
+      m_token_list->pop_front ();
+
+    if (quote)
+      m_token_list->push_back<pp_token_begin_quote> ();
+
+    // TEXT is gc-allocated, so we can borrow it
+    m_token_list->push_back_text (label_text::borrow (text));
+
+    if (quote)
+      m_token_list->push_back<pp_token_end_quote> ();
   }
 
   /* The tree is not GTY-marked: they are only non-NULL within a
      call to pp_format.  */
   tree m_tree;
-  const char **m_buffer_ptr;
+  label_text m_printed_text;
+  pp_token_list *m_token_list;
   bool m_verbose;
   bool m_quote;
 };
@@ -201,7 +231,7 @@ cp_adjust_diagnostic_info (diagnostic_context *context,
   if (diagnostic->kind == DK_ERROR)
     if (tree tmpl = get_current_template ())
       {
-	diagnostic->option_index = OPT_Wtemplate_body;
+	diagnostic->option_id = OPT_Wtemplate_body;
 
 	if (context->m_permissive)
 	  diagnostic->kind = DK_WARNING;
@@ -245,9 +275,9 @@ cp_seen_error ()
 void
 cxx_initialize_diagnostics (diagnostic_context *context)
 {
-  pretty_printer *base = context->printer;
+  pretty_printer *base = context->m_printer;
   cxx_pretty_printer *pp = XNEW (cxx_pretty_printer);
-  context->printer = new (pp) cxx_pretty_printer ();
+  context->m_printer = new (pp) cxx_pretty_printer ();
 
   /* It is safe to free this object because it was previously XNEW()'d.  */
   base->~pretty_printer ();
@@ -3503,7 +3533,7 @@ type_to_string (tree typ, int verbose, bool postprocessed, bool *quote,
 	pp_string (cxx_pp, colorize_start (show_color, highlight_color));
     }
 
-  struct obstack *ob = pp_buffer (cxx_pp)->obstack;
+  struct obstack *ob = pp_buffer (cxx_pp)->m_obstack;
   int type_start, type_len;
   type_start = obstack_object_size (ob);
 
@@ -3644,7 +3674,7 @@ cxx_print_error_function (diagnostic_context *context, const char *file,
   else
     prefix = NULL;
   lhd_print_error_function (context, file, diagnostic);
-  pp_set_prefix (context->printer, prefix);
+  pp_set_prefix (context->m_printer, prefix);
   maybe_print_instantiation_context (context);
 }
 
@@ -3657,8 +3687,8 @@ cp_diagnostic_starter (diagnostic_context *context,
   maybe_print_instantiation_context (context);
   maybe_print_constexpr_context (context);
   maybe_print_constraint_context (context);
-  pp_set_prefix (context->printer, diagnostic_build_prefix (context,
-								 diagnostic));
+  pp_set_prefix (context->m_printer, diagnostic_build_prefix (context,
+							      diagnostic));
 }
 
 /* Print current function onto BUFFER, in the process of reporting
@@ -3676,16 +3706,17 @@ cp_print_error_function (diagnostic_context *context,
     return;
   if (diagnostic_last_function_changed (context, diagnostic))
     {
-      char *old_prefix = pp_take_prefix (context->printer);
+      pretty_printer *const pp = context->m_printer;
+      char *old_prefix = pp_take_prefix (pp);
       const char *file = LOCATION_FILE (diagnostic_location (diagnostic));
       tree abstract_origin = diagnostic_abstract_origin (diagnostic);
       char *new_prefix = (file && abstract_origin == NULL)
 			 ? file_name_as_prefix (context, file) : NULL;
 
-      pp_set_prefix (context->printer, new_prefix);
+      pp_set_prefix (pp, new_prefix);
 
       if (current_function_decl == NULL)
-	pp_string (context->printer, _("At global scope:"));
+	pp_string (pp, _("At global scope:"));
       else
 	{
 	  tree fndecl, ao;
@@ -3699,7 +3730,7 @@ cp_print_error_function (diagnostic_context *context,
 	  else
 	    fndecl = current_function_decl;
 
-	  pp_printf (context->printer, function_category (fndecl),
+	  pp_printf (pp, function_category (fndecl),
 		     fndecl);
 
 	  while (abstract_origin)
@@ -3738,33 +3769,33 @@ cp_print_error_function (diagnostic_context *context,
 	      if (fndecl)
 		{
 		  expanded_location s = expand_location (*locus);
-		  pp_character (context->printer, ',');
-		  pp_newline (context->printer);
+		  pp_character (pp, ',');
+		  pp_newline (pp);
 		  if (s.file != NULL)
 		    {
 		      if (context->m_show_column && s.column != 0)
-			pp_printf (context->printer,
+			pp_printf (pp,
 				   _("    inlined from %qD at %r%s:%d:%d%R"),
 				   fndecl,
 				   "locus", s.file, s.line, s.column);
 		      else
-			pp_printf (context->printer,
+			pp_printf (pp,
 				   _("    inlined from %qD at %r%s:%d%R"),
 				   fndecl,
 				   "locus", s.file, s.line);
 
 		    }
 		  else
-		    pp_printf (context->printer, _("    inlined from %qD"),
+		    pp_printf (pp, _("    inlined from %qD"),
 			       fndecl);
 		}
 	    }
-	  pp_character (context->printer, ':');
+	  pp_character (pp, ':');
 	}
-      pp_newline (context->printer);
+      pp_newline (pp);
 
       diagnostic_set_last_function (context, diagnostic);
-      context->printer->set_prefix (old_prefix);
+      pp->set_prefix (old_prefix);
     }
 }
 
@@ -3817,7 +3848,7 @@ print_instantiation_full_context (diagnostic_context *context)
 
   if (p)
     {
-      pp_verbatim (context->printer,
+      pp_verbatim (context->m_printer,
 		   p->list_p ()
 		   ? _("%s: In substitution of %qS:\n")
 		   : _("%s: In instantiation of %q#D:\n"),
@@ -3844,23 +3875,25 @@ print_instantiation_partial_context_line (diagnostic_context *context,
 
   expanded_location xloc = expand_location (loc);
 
+  pretty_printer *const pp = context->m_printer;
+
   if (context->m_show_column)
-    pp_verbatim (context->printer, _("%r%s:%d:%d:%R   "),
+    pp_verbatim (pp, _("%r%s:%d:%d:%R   "),
 		 "locus", xloc.file, xloc.line, xloc.column);
   else
-    pp_verbatim (context->printer, _("%r%s:%d:%R   "),
+    pp_verbatim (pp, _("%r%s:%d:%R   "),
 		 "locus", xloc.file, xloc.line);
 
   if (t != NULL)
     {
       if (t->list_p ())
-	pp_verbatim (context->printer,
+	pp_verbatim (pp,
 		     recursive_p
 		     ? _("recursively required by substitution of %qS\n")
 		     : _("required by substitution of %qS\n"),
 		     t->get_node ());
       else
-	pp_verbatim (context->printer,
+	pp_verbatim (pp,
 		     recursive_p
 		     ? _("recursively required from %q#D\n")
 		     : _("required from %q#D\n"),
@@ -3868,15 +3901,15 @@ print_instantiation_partial_context_line (diagnostic_context *context,
     }
   else
     {
-      pp_verbatim (context->printer,
+      pp_verbatim (pp,
 		   recursive_p
 		   ? _("recursively required from here\n")
 		   : _("required from here\n"));
     }
   gcc_rich_location rich_loc (loc);
-  char *saved_prefix = pp_take_prefix (context->printer);
+  char *saved_prefix = pp_take_prefix (pp);
   diagnostic_show_locus (context, &rich_loc, DK_NOTE);
-  pp_set_prefix (context->printer, saved_prefix);
+  pp_set_prefix (pp, saved_prefix);
 }
 
 /* Same as print_instantiation_full_context but less verbose.  */
@@ -3925,14 +3958,15 @@ print_instantiation_partial_context (diagnostic_context *context,
 	{
 	  expanded_location xloc;
 	  xloc = expand_location (loc);
+	  pretty_printer *const pp = context->m_printer;
 	  if (context->m_show_column)
-	    pp_verbatim (context->printer,
+	    pp_verbatim (pp,
 			 _("%r%s:%d:%d:%R   [ skipping %d instantiation "
 			   "contexts, use -ftemplate-backtrace-limit=0 to "
 			   "disable ]\n"),
 			 "locus", xloc.file, xloc.line, xloc.column, skip);
 	  else
-	    pp_verbatim (context->printer,
+	    pp_verbatim (pp,
 			 _("%r%s:%d:%R   [ skipping %d instantiation "
 			   "contexts, use -ftemplate-backtrace-limit=0 to "
 			   "disable ]\n"),
@@ -3985,15 +4019,16 @@ maybe_print_constexpr_context (diagnostic_context *context)
     {
       expanded_location xloc = expand_location (EXPR_LOCATION (t));
       const char *s = expr_as_string (t, 0);
+      pretty_printer *const pp = context->m_printer;
       if (context->m_show_column)
-	pp_verbatim (context->printer,
+	pp_verbatim (pp,
 		     _("%r%s:%d:%d:%R   in %<constexpr%> expansion of %qs"),
 		     "locus", xloc.file, xloc.line, xloc.column, s);
       else
-	pp_verbatim (context->printer,
+	pp_verbatim (pp,
 		     _("%r%s:%d:%R   in %<constexpr%> expansion of %qs"),
 		     "locus", xloc.file, xloc.line, s);
-      pp_newline (context->printer);
+      pp_newline (pp);
     }
 }
 
@@ -4002,11 +4037,12 @@ static void
 print_location (diagnostic_context *context, location_t loc)
 {
   expanded_location xloc = expand_location (loc);
+  pretty_printer *const pp = context->m_printer;
   if (context->m_show_column)
-    pp_verbatim (context->printer, _("%r%s:%d:%d:%R   "),
+    pp_verbatim (pp, _("%r%s:%d:%d:%R   "),
                  "locus", xloc.file, xloc.line, xloc.column);
   else
-    pp_verbatim (context->printer, _("%r%s:%d:%R   "),
+    pp_verbatim (pp, _("%r%s:%d:%R   "),
                  "locus", xloc.file, xloc.line);
 }
 
@@ -4014,7 +4050,8 @@ static void
 print_constrained_decl_info (diagnostic_context *context, tree decl)
 {
   print_location (context, DECL_SOURCE_LOCATION (decl));
-  pp_verbatim (context->printer, "required by the constraints of %q#D\n", decl);
+  pretty_printer *const pp = context->m_printer;
+  pp_verbatim (pp, "required by the constraints of %q#D\n", decl);
 }
 
 static void
@@ -4026,7 +4063,7 @@ print_concept_check_info (diagnostic_context *context, tree expr, tree map, tree
 
   print_location (context, DECL_SOURCE_LOCATION (tmpl));
 
-  cxx_pretty_printer *pp = (cxx_pretty_printer *)context->printer;
+  cxx_pretty_printer *const pp = (cxx_pretty_printer *)context->m_printer;
   pp_verbatim (pp, "required for the satisfaction of %qE", expr);
   if (map && map != error_mark_node)
     {
@@ -4047,7 +4084,8 @@ print_constraint_context_head (diagnostic_context *context, tree cxt, tree args)
   if (!src)
     {
       print_location (context, input_location);
-      pp_verbatim (context->printer, "required for constraint satisfaction\n");
+      pretty_printer *const pp = context->m_printer;
+      pp_verbatim (pp, "required for constraint satisfaction\n");
       return NULL_TREE;
     }
   if (DECL_P (src))
@@ -4073,21 +4111,23 @@ print_requires_expression_info (diagnostic_context *context, tree constr, tree a
     return;
 
   print_location (context, cp_expr_loc_or_input_loc (expr));
-  pp_verbatim (context->printer, "in requirements ");
+  cxx_pretty_printer *const pp
+    = static_cast <cxx_pretty_printer *> (context->m_printer);
+  pp_verbatim (pp, "in requirements ");
 
   tree parms = TREE_OPERAND (expr, 0);
   if (parms)
-    pp_verbatim (context->printer, "with ");
+    pp_verbatim (pp, "with ");
   while (parms)
     {
-      pp_verbatim (context->printer, "%q#D", parms);
+      pp_verbatim (pp, "%q#D", parms);
       if (TREE_CHAIN (parms))
-        pp_separate_with_comma ((cxx_pretty_printer *)context->printer);
+	pp_separate_with_comma (pp);
       parms = TREE_CHAIN (parms);
     }
-  pp_cxx_parameter_mapping ((cxx_pretty_printer *)context->printer, map);
+  pp_cxx_parameter_mapping (pp, map);
 
-  pp_verbatim (context->printer, "\n");
+  pp_verbatim (pp, "\n");
 }
 
 void
@@ -4400,27 +4440,8 @@ static void
 append_formatted_chunk (pretty_printer *pp, const char *content)
 {
   output_buffer *buffer = pp_buffer (pp);
-  chunk_info *chunk_array = buffer->cur_chunk_array;
-  chunk_array->append_formatted_chunk (content);
-}
-
-/* Create a copy of CONTENT, with quotes added, and,
-   potentially, with colorization.
-   No escaped is performed on CONTENT.
-   The result is in a GC-allocated buffer. */
-
-static const char *
-add_quotes (const char *content, bool show_color)
-{
-  pretty_printer tmp_pp;
-  pp_show_color (&tmp_pp) = show_color;
-
-  /* We have to use "%<%s%>" rather than "%qs" here in order to avoid
-     quoting colorization bytes within the results and using either
-     pp_quote or pp_begin_quote doesn't work the same.  */
-  pp_printf (&tmp_pp, "%<%s%>", content);
-
-  return pp_ggc_formatted_text (&tmp_pp);
+  pp_formatted_chunks *chunk_array = buffer->m_cur_formatted_chunks;
+  chunk_array->append_formatted_chunk (buffer->m_chunk_obstack, content);
 }
 
 #if __GNUC__ >= 10
@@ -4428,8 +4449,8 @@ add_quotes (const char *content, bool show_color)
 #endif
 
 /* If we had %H and %I, and hence deferred printing them,
-   print them now, storing the result into the chunk_info
-   for pp_format.  Quote them if 'q' was provided.
+   print them now, storing the result into custom_token_value
+   for the custom pp_token.  Quote them if 'q' was provided.
    Also print the difference in tree form, adding it as
    an additional chunk.  */
 
@@ -4447,13 +4468,13 @@ cxx_format_postprocessor::handle (pretty_printer *pp)
 	= show_highlight_colors ? highlight_colors::percent_i : nullptr;
       /* Avoid reentrancy issues by working with a copy of
 	 m_type_a and m_type_b, resetting them now.  */
-      deferred_printed_type type_a = m_type_a;
-      deferred_printed_type type_b = m_type_b;
+      deferred_printed_type type_a = std::move (m_type_a);
+      deferred_printed_type type_b = std::move (m_type_b);
       m_type_a = deferred_printed_type ();
       m_type_b = deferred_printed_type ();
 
-      gcc_assert (type_a.m_buffer_ptr);
-      gcc_assert (type_b.m_buffer_ptr);
+      gcc_assert (type_a.m_token_list);
+      gcc_assert (type_b.m_token_list);
 
       bool show_color = pp_show_color (pp);
 
@@ -4494,13 +4515,8 @@ cxx_format_postprocessor::handle (pretty_printer *pp)
 					percent_i);
 	}
 
-      if (type_a.m_quote)
-	type_a_text = add_quotes (type_a_text, show_color);
-      *type_a.m_buffer_ptr = type_a_text;
-
-       if (type_b.m_quote)
-	type_b_text = add_quotes (type_b_text, show_color);
-      *type_b.m_buffer_ptr = type_b_text;
+      type_a.set_text_for_token_list (type_a_text, type_a.m_quote);
+      type_b.set_text_for_token_list (type_b_text, type_b.m_quote);
    }
 }
 
@@ -4525,9 +4541,12 @@ cxx_format_postprocessor::handle (pretty_printer *pp)
    pretty_printer's m_format_postprocessor hook.
 
    This is called in phase 2 of pp_format, when it is accumulating
-   a series of formatted chunks.  We stash the location of the chunk
-   we're meant to have written to, so that we can write to it in the
-   m_format_postprocessor hook.
+   a series of pp_token lists.  Since we have to interact with the
+   fiddly quoting logic for "aka", we store the pp_token_list *
+   and in the m_format_postprocessor hook we generate text for the type
+   (possibly with quotes and colors), then replace all tokens in that token list
+   (such as [BEGIN_QUOTE, END_QUOTE]) with a text token containing the
+   freshly generated text.
 
    We also need to stash whether a 'q' prefix was provided (the QUOTE
    param)  so that we can add the quotes when writing out the delayed
@@ -4535,12 +4554,13 @@ cxx_format_postprocessor::handle (pretty_printer *pp)
 
 static void
 defer_phase_2_of_type_diff (deferred_printed_type *deferred,
-			    tree type, const char **buffer_ptr,
+			    tree type,
+			    pp_token_list &formatted_token_list,
 			    bool verbose, bool quote)
 {
   gcc_assert (deferred->m_tree == NULL_TREE);
-  gcc_assert (deferred->m_buffer_ptr == NULL);
-  *deferred = deferred_printed_type (type, buffer_ptr, verbose, quote);
+  *deferred = deferred_printed_type (type, formatted_token_list,
+				     verbose, quote);
 }
 
 /* Implementation of pp_markup::element_quoted_type::print_type
@@ -4577,7 +4597,7 @@ pp_markup::element_quoted_type::print_type (pp_markup::context &ctxt)
 static bool
 cp_printer (pretty_printer *pp, text_info *text, const char *spec,
 	    int precision, bool wide, bool set_locus, bool verbose,
-	    bool *quoted, const char **buffer_ptr)
+	    bool *quoted, pp_token_list &formatted_token_list)
 {
   gcc_assert (pp_format_postprocessor (pp));
   cxx_format_postprocessor *postprocessor
@@ -4617,11 +4637,11 @@ cp_printer (pretty_printer *pp, text_info *text, const char *spec,
     case 'F': result = fndecl_to_string (next_tree, verbose);	break;
     case 'H':
       defer_phase_2_of_type_diff (&postprocessor->m_type_a, next_tree,
-				  buffer_ptr, verbose, *quoted);
+				  formatted_token_list, verbose, *quoted);
       return true;
     case 'I':
       defer_phase_2_of_type_diff (&postprocessor->m_type_b, next_tree,
-				  buffer_ptr, verbose, *quoted);
+				  formatted_token_list, verbose, *quoted);
       return true;
     case 'L': result = language_to_string (next_lang);		break;
     case 'O': result = op_to_string (false, next_tcode);	break;
@@ -4725,9 +4745,10 @@ maybe_warn_cpp0x (cpp0x_warn_str str, location_t loc/*=input_location*/)
 		 "only available with %<-std=c++11%> or %<-std=gnu++11%>");
         break;
       case CPP0X_ATTRIBUTES:
-	pedwarn (loc, OPT_Wc__11_extensions,
-		 "C++11 attributes "
-		 "only available with %<-std=c++11%> or %<-std=gnu++11%>");
+	if (pedantic)
+	  pedwarn (loc, OPT_Wc__11_extensions,
+		   "C++11 attributes "
+		   "only available with %<-std=c++11%> or %<-std=gnu++11%>");
 	break;
       case CPP0X_REF_QUALIFIER:
 	pedwarn (loc, OPT_Wc__11_extensions,
@@ -4748,11 +4769,13 @@ maybe_warn_variadic_templates (void)
 
 
 /* Issue an ISO C++98 pedantic warning at LOCATION, conditional on
-   option OPT with text GMSGID.  Use this function to report
+   option OPTION_ID with text GMSGID.  Use this function to report
    diagnostics for constructs that are invalid C++98, but valid
    C++0x.  */
 bool
-pedwarn_cxx98 (location_t location, int opt, const char *gmsgid, ...)
+pedwarn_cxx98 (location_t location,
+	       diagnostic_option_id option_id,
+	       const char *gmsgid, ...)
 {
   diagnostic_info diagnostic;
   va_list ap;
@@ -4762,7 +4785,7 @@ pedwarn_cxx98 (location_t location, int opt, const char *gmsgid, ...)
   va_start (ap, gmsgid);
   diagnostic_set_info (&diagnostic, gmsgid, &ap, &richloc,
 		       (cxx_dialect == cxx98) ? DK_PEDWARN : DK_WARNING);
-  diagnostic.option_index = opt;
+  diagnostic.option_id = option_id;
   ret = diagnostic_report_diagnostic (global_dc, &diagnostic);
   va_end (ap);
   return ret;
@@ -4786,12 +4809,14 @@ qualified_name_lookup_error (tree scope, tree name,
 		  scope);
       else if (TREE_CODE (decl) == TREE_LIST)
 	{
+	  auto_diagnostic_group d;
 	  error_at (location, "reference to %<%T::%D%> is ambiguous",
 		    scope, name);
 	  print_candidates (decl);
 	}
       else
 	{
+	  auto_diagnostic_group d;
 	  name_hint hint;
 	  if (SCOPED_ENUM_P (scope) && TREE_CODE (name) == IDENTIFIER_NODE)
 	    hint = suggest_alternative_in_scoped_enum (name, scope);

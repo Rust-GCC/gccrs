@@ -1,3 +1,574 @@
+2024-09-10  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/misc.cc: Include memmodel.h before tm_p.h.
+
+2024-09-10  Viljar Indus  <indus@adacore.com>
+
+	* gcc-interface/decl.cc: Use same warning characters in
+	continuation messages.
+	* gcc-interface/trans.cc: Likewise.
+
+2024-09-10  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch13.adb (Analyze_One_Aspect): Call
+	Error_Msg_GNAT_Extension() to report an error when the aspect
+	First_Controlling_Parameter is set to True and the sources are
+	compiled without Core_Extensions_ Allowed.
+	* sem_prag.adb (Pragma_First_Controlling_Parameter): Call
+	subprogram Error_Msg_GNAT_Extension() to report an error when the
+	aspect First_Controlling_Parameter is set to True and the sources
+	are compiled without Core_Extensions_Allowed. Report an error when
+	the aspect pragma does not confirm an inherited True value.
+
+2024-09-10  Viljar Indus  <indus@adacore.com>
+
+	* diagnostics-pretty_emitter.adb (Get_Last_Line_Char): New. Get
+	the last non line change character. Write_Span_Labels use the
+	adjusted line end pointer to calculate the length of the span.
+
+2024-09-10  Piotr Trojanek  <trojanek@adacore.com>
+
+	* exp_intr.ads, exp_intr.adb (Expand_Source_Info): Move
+	declaration to package spec.
+	* sem_eval.adb (Eval_Intrinsic_Call): Evaluate calls to
+	GNAT.Source_Info where possible.
+
+2024-09-10  Piotr Trojanek  <trojanek@adacore.com>
+
+	* checks.adb (Remove_Checks): Combine CASE alternatives.
+
+2024-09-10  Piotr Trojanek  <trojanek@adacore.com>
+
+	* libgnat/s-os_lib.ads: Remove extra whitespace.
+
+2024-09-09  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* gcc-interface/misc.cc (internal_error_function): Rename
+	diagnostic_context's "printer" field to "m_printer".
+
+2024-09-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.cc (addressable_p) <COMPONENT_REF>: Add bypass
+	for internal fields on strict-alignment platforms.
+
+2024-09-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/gigi.h (default_field_alignment): New function.
+	* gcc-interface/misc.cc: Include tm_p header file.
+	(default_field_alignment): New function.
+	* gcc-interface/trans.cc (addressable_p) <COMPONENT_REF>: Replace
+	previous alignment klduge with call to default_field_alignment.
+	* gcc-interface/utils.cc (finish_record_type): Likewise for the
+	alignment based on which DECL_BIT_FIELD should be cleared.
+
+2024-09-05  Piotr Trojanek  <trojanek@adacore.com>
+
+	* exp_util.ads, exp_util.adb (Duplicate_Subexpr_No_Checks):
+	Remove parameters, which are no longer used.
+
+2024-09-05  Viljar Indus  <indus@adacore.com>
+
+	* par-endh.adb: add call to new diagnostic for end loop errors.
+	* sem_ch13.adb: add call to new diagnostic for default iterator
+	error and record representation being too late.
+	* sem_ch4.adb: Add new diagnostic for wrong operands.
+	* sem_ch9.adb: Add new diagnostic for a Lock_Free warning.
+	* libgnat/g-lists.adb (Ensure_Unlocked): Make checks for tampering
+	conditional.
+	* libgnat/g-lists.ads: Add parameter Tampering_Checks to control
+	whether tampering checks should be executed.
+	* backend_utils.adb: Add new gcc switches
+	'-fdiagnostics-format=sarif-file' and
+	'-fdiagnostics-format=sarif-stderr'.
+	* debug.adb: document -gnatd_D switch.
+	* diagnostics-brief_emitter.adb: New package for displaying
+	diagnostic messages in a compact manner.
+	* diagnostics-brief_emitter.ads: Same as above.
+	* diagnostics-constructors.adb: New pacakge for providing simpler
+	constructor methods for new diagnostic objects.
+	* diagnostics-constructors.ads: Same as above.
+	* diagnostics-converter.adb: New package for converting old
+	Error_Msg_Object-s to Diagnostic_Types.
+	* diagnostics-converter.ads: Same as above.
+	* diagnostics-json_utils.adb: Package for utility methods related
+	to emitting JSON.
+	* diagnostics-json_utils.ads: Same as above.
+	* diagnostics-pretty_emitter.adb: New package for displaying
+	diagnostic messages in a more elaborate manner.
+	* diagnostics-pretty_emitter.ads: Same as above.
+	* diagnostics-repository.adb: New package for collecting all
+	created error messages.
+	* diagnostics-repository.ads: Same as above.
+	* diagnostics-sarif_emitter.adb: New pacakge for converting all of
+	the diagnostics into a report in the SARIF format.
+	* diagnostics-sarif_emitter.ads: Same as above.
+	* diagnostics-switch_repository.adb: New package containing the
+	definitions for all of the warninging switches.
+	* diagnostics-switch_repository.ads: Same as above.
+	* diagnostics-utils.adb: Contains various utility methods for the
+	diagnostic pacakges.
+	* diagnostics-utils.ads: Same as above.
+	* diagnostics.adb: Contains the definitions and common functions
+	for all the new diagnostics objects.
+	* diagnostics.ads: Same as above.
+	* errout.adb: Relocate the old implementations for brief and
+	pretty printing the diagnostic messages and the entrypoint to the
+	new implementation if a debug switch is used.
+	* errout.ads: Improve documentation. Make Set_Msg_Text publicly
+	available.
+	* opt.ads: Add the flag SARIF_File which controls whether the
+	diagnostic messages should be printed to a file in the SARIF
+	format. Add the flag SARIF_Output to control whether the
+	diagnostic messages should be printed to std-err in the SARIF
+	format.
+	* gcc-interface/Make-lang.in: Add new pacakages to the object
+	list.
+	* gcc-interface/Makefile.in: Add new pacakages to the object list.
+
+2024-09-05  Jose Ruiz  <ruiz@adacore.com>
+
+	* ali-util.adb (Get_File_Checksum): Force the parsing for
+	the checksum computation of runtime files to be done in
+	the corresponding recent Ada version.
+
+2024-09-05  Ronan Desplanques  <desplanques@adacore.com>
+
+	* inline.adb (Cannot_Inline): Remove assertion.
+	* inline.ads (Cannot_Inline): Add precondition.
+
+2024-09-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.cc (addressable_p) <COMPONENT_REF>: Add kludge
+	to cope with ancient 32-bit ABIs.
+
+2024-09-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.cc (create_temporary): Deal with types whose
+	size is self-referential by allocating the maximum size.
+
+2024-09-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.cc (get_atomic_access): Deal specifically with
+	nodes that are both Atomic and Volatile_Full_Access in Ada 2012.
+
+2024-09-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.cc (addressable_p) <COMPONENT_REF>: Take into
+	account the alignment of the field on all platforms.
+
+2024-09-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (gnat_to_gnu_field): Clear again gnu_size
+	after updating it if it is not constant.
+
+2024-09-03  Marc Poulhiès  <poulhies@adacore.com>
+
+	* exp_unst.adb (Check_Static_Type::Note_Uplevel_Bound): Refactor
+	to use the generic Traverse_Proc.
+	(Check_Static_Type): Adjust calls to Note_Uplevel_Bound as the
+	previous second parameter was unused, so removed.
+
+2024-09-03  Steve Baird  <baird@adacore.com>
+
+	* exp_attr.adb (Expand_N_Attribute_Reference): If it makes sense
+	to do so, then rewrite a Length attribute reference as an
+	equivalent conditional expression.
+
+2024-09-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_res.adb (Is_Atomic_Ref_With_Address): Rename into...
+	(Is_Atomic_Non_VFA_Ref_With_Address): ...this and adjust the
+	implementation to exclude Volatile_Full_Access objects.
+	(Resolve_Indexed_Component): Adjust to above renaming.
+	(Resolve_Selected_Component): Likewise.
+
+2024-09-03  Steve Baird  <baird@adacore.com>
+
+	* sem_aggr.adb (Resolve_Array_Aggregate): Implement the two new
+	legality rules of AI11-0106. Add code to avoid cascading error
+	messages.
+
+2024-09-03  Bob Duff  <duff@adacore.com>
+
+	* exp_ch6.adb (Add_Collection_Actual_To_Build_In_Place_Call):
+	Remove Finalize_Storage_Only from the code that checks whether to
+	pass null to the Collection parameter. Having done that, we don't
+	need to check for Is_Library_Level_Entity, because
+	No_Heap_Finalization requires that. And if we ever change
+	No_Heap_Finalization to allow nested access types, we will still
+	want to pass null. Note that the comment "Such a type lacks a
+	collection." is incorrect in the case of Finalize_Storage_Only;
+	such types have a collection.
+
+2024-09-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (gnat_to_gnu_entity): Cap the Esize of a
+	floating-point type to the size of the widest format supported in
+	hardware if it is explicity defined.
+
+2024-09-02  Viljar Indus  <indus@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst: update
+	documentation for the -gnatw_l switch.
+	* usage.adb: Add -gnatw_l entry.
+	* gnat_ugn.texi: Regenerate.
+
+2024-09-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* gnatcmd.adb (GNATCmd): Fix standard output stream.
+
+2024-09-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst: Fix
+	minor issues.
+	* gnat_ugn.texi: Regenerate.
+
+2024-09-02  Bob Duff  <duff@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst: I assume "extended set
+	of extensions" was a typo for "experimental set of extensions",
+	because "extended extensions" is repetitive and redundant. "in
+	addition" clarifies that the one subsumes the other. Add a
+	reminder at the start of each subsection about what switch/pragma
+	enables what extensions. Add new section about "Inference of
+	Dependent Types in Generic Instantiations".
+	* gnat_rm.texi: Regenerate.
+
+2024-09-02  Patrick Bernardi  <bernardi@adacore.com>
+
+	* s-oscons-tmplt.c: Define sizes of pthread data types on FreeBSD.
+	* tracebak.c: Use GCC unwinder and adjust PC appropriately on
+	aarch64-freebsd.
+
+2024-09-02  Marc Poulhiès  <poulhies@adacore.com>
+
+	* exp_ch9.adb (Reset_Scopes_To): Adjust comment.
+	(Reset_Scopes_To.Reset_Scope): Adjust the scope reset for object
+	declaration. In particular, visit the children nodes if any. Also
+	extend the handling of other declarations to
+	N_Implicit_Label_Declaration.
+
+2024-09-02  Piotr Trojanek  <trojanek@adacore.com>
+
+	* exp_ch3.adb (Expand_N_Object_Declaration): Replace calls to Sloc
+	with uses of Loc; turn variable Prag into constant.
+
+2024-09-02  Piotr Trojanek  <trojanek@adacore.com>
+
+	* exp_imgv.adb (Expand_User_Defined_Enumeration_Image)
+	(Expand_Image_Attribute): Remove redundant guards.
+
+2024-08-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch8.adb (Has_Private_With): Add test on Is_Entity_Name.
+
+2024-08-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* checks.adb (Selected_Length_Checks.Get_E_Length): For a
+	component of a record with discriminants and if the expression is
+	a selected component, try to build an actual subtype from its
+	prefix instead of from the discriminal.
+
+2024-08-29  Steve Baird  <baird@adacore.com>
+
+	* sem_ch6.adb (Check_Discriminant_Conformance): Immediately after
+	calling Is_Immutably_Limited_Type, perform an additional test that
+	one might reasonably imagine would instead have been part of
+	Is_Immutably_Limited_Type. The new test is a call to a new
+	function Has_Tagged_Limited_Partial_View whose implementation
+	includes a call to Incomplete_Or_Partial_View, which cannot be
+	easily be called from Is_Immutably_Limited_Type (because sem_aux,
+	which is in the closure of the binder, cannot easily "with"
+	sem_util).
+	* sem_aux.adb (Is_Immutably_Limited): Include
+	N_Derived_Type_Definition case when testing Limited_Present flag.
+
+2024-08-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch6.adb (Expand_Call_Helper): In the case of a function
+	call, look at the Etype of the call node to determine whether
+	finalization actions need to be performed.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* erroutc.adb (dmsg): Print Insertion_Sloc.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* exp_aggr.adb (Expand_Range_Component): Remove extra warning
+	character. Use same conditional warning char.
+	* freeze.adb (Warn_Overlay): Use named warning character.
+	* restrict.adb (Id_Case): Use named warning character.
+	* sem_prag.adb (Rewrite_Assertion_Kind): Use default warning
+	character.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* par-ch4.adb (P_Name): Use Error_Msg_Sloc for the location of the
+	continuation message.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* exp_prag.adb (Expand_Pragma_Inspection_Point): Improve sub
+	diagnostic generation.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* sem_ch12.adb (Abandon_Instantiation): Remove continuation
+	characters from the error message.
+	* sem_ch13.adb (Check_False_Aspect_For_Derived_Type): Remove
+	continuation characters from the error message.
+	* sem_ch6.adb (Assert_False): Avoid creating a continuation
+	message without a parent. If no primary message is created then
+	the message is considered as primary.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* erroutc.adb (Prescan_Message): Avoid not parsing all of the
+	message attributes.
+	* erroutc.ads: Update the documentation.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* freeze.adb: Remove warning insertion characters from a
+	continuation message.
+	* sem_util.adb: Remove warning insertion characters from a
+	continuation message.
+	* sem_warn.adb: Use same warning character as the main message.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* erroutc.ads: Add new method Output_Text_Within
+	* erroutc.adb: Move the line fitting code to a new method called
+	Output_Text_Within
+
+2024-08-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* checks.adb (Expr_Known_Valid): Use Validated_View, which strips
+	type derivation and privacy.
+	* exp_ch3.adb (Simple_Init_Private_Type): Kill checks inside
+	unchecked conversions, just like in Simple_Init_Scalar_Type.
+
+2024-08-29  Viljar Indus  <indus@adacore.com>
+
+	* styleg.adb (Check_Line_Max_Length): Add the actual line length
+	to the diagnostic message.
+
+2024-08-29  Gary Dismukes  <dismukes@adacore.com>
+
+	* sem_aggr.adb (Resolve_Array_Aggregate): Add loop over associations to locate
+	N_Iterated_Component_Associations that do not have an Iterator_Specification,
+	and if their Discrete_Choices list consists of a single choice, analyze it and
+	if it's the name of an iterator object, then create an Iterator_Specification
+	and associate it with the iterated component association.
+	(Resolve_Iterated_Association): Replace test for function call with test of
+	Is_Object_Reference, to handle other forms of iterator objects in container
+	aggregates.
+
+2024-08-29  Javier Miranda  <miranda@adacore.com>
+
+	* usage.adb (Usage): Document switch -gnatw_j
+	* doc/gnat_rm/gnat_language_extensions.rst: Add documentation.
+	* gnat_rm.texi: Regenerate.
+
+2024-08-29  Justin Squirek  <squirek@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst: Move conditional when
+	constructs out of the curated set.
+	* gnat_rm.texi: Regenerate.
+	* gnat_ugn.texi: Regenerate.
+
+2024-08-23  Robin Dapp  <rdapp@ventanamicro.com>
+
+	PR middle-end/115495
+	* gcc-interface/utils2.cc (fast_modulo_reduction): Require mode.
+	(nonbinary_modular_operation): Ditto.
+
+2024-08-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/misc.cc (gnat_get_array_descr_info): Test the
+	BIT_PACKED_ARRAY_TYPE_P flag only once on the final debug type. In
+	the case of records containing a template, replay the entire
+	processing for the array type contained therein.
+
+2024-08-23  Javier Miranda  <miranda@adacore.com>
+
+	* scng.adb (Scan): Call Error_Msg_GNAT_Extension() to report an
+	error, when the sources are compiled without Core_Extensions_
+	Allowed, and the scanner detects the beginning of an interpolated
+	string.
+
+2024-08-23  Sebastian Poeplau  <poeplau@adacore.com>
+
+	* libgnat/s-dwalin.adb (Symbolic_Address): Ignore symbol size in
+	address-to-symbol translation for PECOFF files.
+
+2024-08-23  Javier Miranda  <miranda@adacore.com>
+
+	* exp_attr.adb (Expand_N_Attribute_Reference: [Put_Image]): Add
+	support for custom string types.
+	* exp_ch2.adb (Expand_N_Interpolated_String_Literal): Add a type
+	conversion to the result object declaration of custom string
+	types.
+	* exp_put_image.adb (Build_String_Put_Image_Call): Handle custom
+	string types.
+
+2024-08-23  Steve Baird  <baird@adacore.com>
+
+	* sem_ch13.adb (Analyze_Aspect_Implicit_Dereference): Generate
+	error if an aspect specification specifies the
+	Implicit_Dereference aspect of a non-first subtype.
+
+2024-08-23  Steve Baird  <baird@adacore.com>
+
+	* checks.adb (Is_Signed_Integer_Arithmetic_Op): Return True in the
+	case of relational operator whose operands are of a signed integer
+	type.
+
+2024-08-23  Viljar Indus  <indus@adacore.com>
+
+	* libgnat/a-coinho__shared.ads: add limited keyword.
+	* libgnat/g-awk.adb: add limited keyword.
+	* libgnat/g-comlin.ads: add limited keyword.
+	* libgnat/s-excmac__arm.ads: add limited keyword.
+	* libgnat/s-excmac__gcc.ads: add limited keyword.
+	* libgnat/s-soflin.ads: add limited keyword.
+
+2024-08-23  Viljar Indus  <indus@adacore.com>
+
+	* sem_ch3.adb: Add method Check_Inherited_Limted_Record for
+	emitting the warning for an inherited limited type.
+	* warnsw.adb: Add processing for the -gnatw_l switch that
+	triggeres the inheritly limited type warning.
+	* warnsw.ads: same as above.
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst: Add
+	entry for -gnatw_l switch.
+	* gnat_ugn.texi: Regenerate.
+
+2024-08-23  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch6.adb (Check_Private_Overriding): Improve code detecting
+	error on private function with controlling result. Fixes the
+	regression of ACATS bde0003.
+
+2024-08-23  Piotr Trojanek  <trojanek@adacore.com>
+
+	* checks.ads, cstand.adb, exp_aggr.adb, exp_ch4.adb, exp_ch5.adb,
+	exp_dbug.adb, exp_util.adb, gnatlink.adb, lib-util.adb,
+	libgnat/a-except.adb, libgnat/a-exexpr.adb, libgnat/a-ngcoar.adb,
+	libgnat/s-rannum.adb, libgnat/s-trasym__dwarf.adb, osint.adb,
+	rtsfind.adb, sem_case.adb, sem_ch12.adb, sem_ch13.adb,
+	sem_ch3.adb, sem_ch6.adb, sem_eval.adb, sem_prag.adb,
+	sem_util.adb: Fix style.
+
+2024-08-23  Piotr Trojanek  <trojanek@adacore.com>
+
+	* checks.adb (Ensure_Valid): Remove detection of boolean and
+	short-circuit operators.
+	(Expr_Known_Valid): Detect short-circuit operators; detection of
+	boolean operators was already done in this routine.
+
+2024-08-23  Piotr Trojanek  <trojanek@adacore.com>
+
+	* checks.adb (Ensure_Valid): Use Find_Actual.
+
+2024-08-23  Piotr Trojanek  <trojanek@adacore.com>
+
+	* checks.adb (Ensure_Valid): Use First_Actual/Next_Actual.
+	* exp_ch6.adb (Is_Direct_Deep_Call): Likewise.
+	* exp_util.adb (Type_Of_Formal): Likewise.
+	* sem_util.adb (Is_Container_Element): Likewise; cleanup
+	membership test by using a subtype.
+
+2024-08-23  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch13.adb (Analyze_One_Aspect): Temporarily remove reporting
+	an error when the new aspect is set to True and the extensions are
+	not enabled.
+
+2024-08-23  Javier Miranda  <miranda@adacore.com>
+
+	* exp_util.ads (Is_Expanded_Class_Wide_Interface_Object_Decl): New
+	subprogram.
+	* exp_util.adb (Is_Expanded_Class_Wide_Interface_Object_Decl):
+	ditto.
+	* sem_util.adb (Is_Aliased_View): Handle expanded class-wide type
+	object declaration.
+	* checks.adb (Is_Aliased_Unconstrained_Component): Protect the
+	frontend against calling Is_Aliased_View with Empty. Found working
+	on this issue.
+
+2024-08-23  Javier Miranda  <miranda@adacore.com>
+
+	* aspects.ads (Aspect_First_Controlling_Parameter): New aspect.
+	Defined as implementation defined aspect that has a static boolean
+	value and it is converted to pragma when the value is True.
+	* einfo.ads (Has_First_Controlling_Parameter): New attribute.
+	* exp_ch9.adb (Build_Corresponding_Record): Propagate the aspect
+	to the corresponding record type.
+	(Expand_N_Protected_Type_Declaration): Analyze the inherited
+	aspect to add the pragma.
+	(Expand_N_Task_Type_Declaration): ditto.
+	* freeze.adb (Warn_If_Implicitly_Inherited_Aspects): New
+	subprogram.
+	(Has_First_Ctrl_Param_Aspect): New subprogram.
+	(Freeze_Record_Type): Call Warn_If_Implicitly_Inherited_Aspects.
+	(Freeze_Subprogram): Check illegal subprograms of tagged types and
+	interface types that have this new aspect.
+	* gen_il-fields.ads (Has_First_Controlling_Parameter): New entity
+	field.
+	* gen_il-gen-gen_entities.adb (Has_First_Controlling_Parameter):
+	The new field is a semantic flag.
+	* gen_il-internals.adb (Image): Add
+	Has_First_Controlling_Parameter.
+	* par-prag.adb (Prag): No action for
+	Pragma_First_Controlling_Parameter since processing is handled
+	entirely in Sem_Prag.
+	* sem_ch12.adb (Validate_Private_Type_Instance): When the generic
+	formal has this new aspect, check that the actual type also has
+	this aspect.
+	* sem_ch13.adb (Analyze_One_Aspect): Check that the aspect is
+	applied to a tagged type or a concurrent type.
+	* sem_ch3.adb (Analyze_Full_Type_Declaration): Derived tagged
+	types inherit this new aspect, and also from their implemented
+	interface types.
+	(Process_Full_View): Propagate the aspect to the full view.
+	* sem_ch6.adb (Is_A_Primitive): New subprogram; used to factor
+	code and also clarify detection of primitives.
+	* sem_ch9.adb (Check_Interfaces): Propagate this new aspect to the
+	type implementing interface types.
+	* sem_disp.adb (Check_Controlling_Formals): Handle tagged type
+	that has the aspect and has subprograms overriding primitives of
+	tagged types that lack this aspect.
+	(Check_Dispatching_Operation): Warn on dispatching primitives
+	disallowed by this new aspect.
+	(Has_Predefined_Dispatching_Operation_Name): New subprogram.
+	(Find_Dispatching_Type): Handle dispatching functions of tagged
+	types that have the new aspect.
+	(Find_Primitive_Covering_Interface): For primitives of tagged
+	types that have the aspect and override a primitive of a parent
+	type that does not have the aspect, we must temporarily unset
+	attribute First_Controlling_ Parameter to properly check
+	conformance.
+	* sem_prag.ads (Aspect_Specifying_Pragma): Add new pragma.
+	* sem_prag.adb (Pragma_First_Controlling_Parameter): Handle new
+	pragma.
+	* snames.ads-tmpl (Name_First_Controlling_Parameter): New name.
+	* warnsw.ads (Warn_On_Non_Dispatching_Primitives): New warning.
+	* warnsw.adb (Warn_On_Non_Dispatching_Primitives): New warning;
+	not set by default when GNAT_Mode warnings are enabled, nor when
+	all warnings are enabled (-gnatwa).
+
+2024-08-19  Arsen Arsenović  <arsen@aarsen.me>
+
+	PR ada/115917
+	* gnatvsn.ads: Add note about the duplication of this value in
+	version.c.
+	* version.c (VER_LEN_MAX): Define to the same value as
+	Gnatvsn.Ver_Len_Max.
+	(gnat_version_string): Use VER_LEN_MAX as bound.
+
 2024-08-08  Steve Baird  <baird@adacore.com>
 
 	* sem_ch6.adb (Check_Discriminant_Conformance): Perform check for

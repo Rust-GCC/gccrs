@@ -289,7 +289,7 @@
 #undef __glibcxx_want_to_chars
 
 #if !defined(__cpp_lib_chrono_udls)
-# if (__cplusplus >= 201402L) && _GLIBCXX_HOSTED
+# if (__cplusplus >= 201402L)
 #  define __glibcxx_chrono_udls 201304L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_chrono_udls)
 #   define __cpp_lib_chrono_udls 201304L
@@ -1204,10 +1204,15 @@
 #undef __glibcxx_want_shift
 
 #if !defined(__cpp_lib_ranges)
-# if (__cplusplus >= 202100L) && (__glibcxx_concepts)
-#  define __glibcxx_ranges 202211L
+# if (__cplusplus >  202302L) && (__glibcxx_concepts)
+#  define __glibcxx_ranges 202406L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_ranges)
-#   define __cpp_lib_ranges 202211L
+#   define __cpp_lib_ranges 202406L
+#  endif
+# elif (__cplusplus >= 202100L) && (__glibcxx_concepts)
+#  define __glibcxx_ranges 202302L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_ranges)
+#   define __cpp_lib_ranges 202302L
 #  endif
 # elif (__cplusplus >= 202002L) && (__glibcxx_concepts)
 #  define __glibcxx_ranges 202110L

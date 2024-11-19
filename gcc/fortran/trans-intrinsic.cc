@@ -1945,11 +1945,14 @@ conv_caf_send (gfc_code *code) {
   tree lhs_type = NULL_TREE;
   tree vec = null_pointer_node, rhs_vec = null_pointer_node;
   symbol_attribute lhs_caf_attr, rhs_caf_attr;
+  bool lhs_is_coindexed, rhs_is_coindexed;
 
   gcc_assert (flag_coarray == GFC_FCOARRAY_LIB);
 
   lhs_expr = code->ext.actual->expr;
   rhs_expr = code->ext.actual->next->expr;
+  lhs_is_coindexed = gfc_is_coindexed (lhs_expr);
+  rhs_is_coindexed = gfc_is_coindexed (rhs_expr);
   may_require_tmp = gfc_check_dependency (lhs_expr, rhs_expr, true) == 0
 		    ? boolean_false_node : boolean_true_node;
   gfc_init_block (&block);
@@ -1966,7 +1969,8 @@ conv_caf_send (gfc_code *code) {
       if (lhs_expr->ts.type == BT_CHARACTER && lhs_expr->ts.deferred)
 	{
 	  lhs_se.expr = gfc_get_tree_for_caf_expr (lhs_expr);
-	  lhs_se.expr = gfc_build_addr_expr (NULL_TREE, lhs_se.expr);
+	  if (!POINTER_TYPE_P (TREE_TYPE (lhs_se.expr)))
+	    lhs_se.expr = gfc_build_addr_expr (NULL_TREE, lhs_se.expr);
 	}
       else
 	{
@@ -1999,7 +2003,7 @@ conv_caf_send (gfc_code *code) {
     {
       bool has_vector = gfc_has_vector_subscript (lhs_expr);
 
-      if (gfc_is_coindexed (lhs_expr) || !has_vector)
+      if (lhs_is_coindexed || !has_vector)
 	{
 	  /* If has_vector, pass descriptor for whole array and the
 	     vector bounds separately.  */
@@ -2030,7 +2034,7 @@ conv_caf_send (gfc_code *code) {
 	      *ar = ar2;
 	    }
 	}
-      else
+      else if (rhs_is_coindexed)
 	{
 	  /* Special casing for arr1 ([...]) = arr2[...], i.e. caf_get to
 	     indexed array expression.  This is rewritten to:
@@ -2122,13 +2126,12 @@ conv_caf_send (gfc_code *code) {
 
   /* Special case: RHS is a coarray but LHS is not; this code path avoids a
      temporary and a loop.  */
-  if (!gfc_is_coindexed (lhs_expr)
+  if (!lhs_is_coindexed && rhs_is_coindexed
       && (!lhs_caf_attr.codimension
 	  || !(lhs_expr->rank > 0
 	       && (lhs_caf_attr.allocatable || lhs_caf_attr.pointer))))
     {
       bool lhs_may_realloc = lhs_expr->rank > 0 && lhs_caf_attr.allocatable;
-      gcc_assert (gfc_is_coindexed (rhs_expr));
       gfc_init_se (&rhs_se, NULL);
       if (lhs_expr->rank == 0 && lhs_caf_attr.allocatable)
 	{
@@ -2217,7 +2220,7 @@ conv_caf_send (gfc_code *code) {
       bool has_vector = false;
       tree tmp2;
 
-      if (gfc_is_coindexed (rhs_expr) && gfc_has_vector_subscript (rhs_expr))
+      if (rhs_is_coindexed && gfc_has_vector_subscript (rhs_expr))
 	{
           has_vector = true;
           ar = gfc_find_array_ref (rhs_expr);
@@ -2271,7 +2274,7 @@ conv_caf_send (gfc_code *code) {
       gfc_add_block_to_block (&block, &team_se.post);
     }
 
-  if (!gfc_is_coindexed (rhs_expr))
+  if (!rhs_is_coindexed)
     {
       if (lhs_caf_attr.alloc_comp || lhs_caf_attr.pointer_comp)
 	{
@@ -2407,7 +2410,7 @@ trans_this_image (gfc_se * se, gfc_expr *expr)
   /* Coarray-argument version: THIS_IMAGE(coarray [, dim]).  */
 
   type = gfc_get_int_type (gfc_default_integer_kind);
-  corank = gfc_get_corank (expr->value.function.actual->expr);
+  corank = expr->value.function.actual->expr->corank;
   rank = expr->value.function.actual->expr->rank;
 
   /* Obtain the descriptor of the COARRAY.  */
@@ -2684,7 +2687,7 @@ trans_image_index (gfc_se * se, gfc_expr *expr)
   int rank, corank, codim;
 
   type = gfc_get_int_type (gfc_default_integer_kind);
-  corank = gfc_get_corank (expr->value.function.actual->expr);
+  corank = expr->value.function.actual->expr->corank;
   rank = expr->value.function.actual->expr->rank;
 
   /* Obtain the descriptor of the COARRAY.  */
@@ -3162,7 +3165,7 @@ conv_intrinsic_cobound (gfc_se * se, gfc_expr * expr)
   arg2 = arg->next;
 
   gcc_assert (arg->expr->expr_type == EXPR_VARIABLE);
-  corank = gfc_get_corank (arg->expr);
+  corank = arg->expr->corank;
 
   gfc_init_se (&argse, NULL);
   argse.want_coarray = 1;
@@ -3421,6 +3424,13 @@ gfc_conv_intrinsic_mod (gfc_se * se, gfc_expr * expr, int modulo)
       else
        se->expr = fold_build2_loc (input_location, TRUNC_MOD_EXPR, type,
 				   args[0], args[1]);
+      break;
+
+    case BT_UNSIGNED:
+      /* Even easier, we only need one.  */
+      type = TREE_TYPE (args[0]);
+      se->expr = fold_build2_loc (input_location, TRUNC_MOD_EXPR, type,
+				  args[0], args[1]);
       break;
 
     case BT_REAL:
@@ -6772,6 +6782,7 @@ gfc_conv_intrinsic_shift (gfc_se * se, gfc_expr * expr, bool right_shift,
 {
   tree args[2], type, num_bits, cond;
   tree bigshift;
+  bool do_convert = false;
 
   gfc_conv_intrinsic_function_args (se, expr, args, 2);
 
@@ -6780,15 +6791,24 @@ gfc_conv_intrinsic_shift (gfc_se * se, gfc_expr * expr, bool right_shift,
   type = TREE_TYPE (args[0]);
 
   if (!arithmetic)
-    args[0] = fold_convert (unsigned_type_for (type), args[0]);
+    {
+      args[0] = fold_convert (unsigned_type_for (type), args[0]);
+      do_convert = true;
+    }
   else
     gcc_assert (right_shift);
+
+  if (flag_unsigned && arithmetic && expr->ts.type == BT_UNSIGNED)
+    {
+      do_convert = true;
+      args[0] = fold_convert (signed_type_for (type), args[0]);
+    }
 
   se->expr = fold_build2_loc (input_location,
 			      right_shift ? RSHIFT_EXPR : LSHIFT_EXPR,
 			      TREE_TYPE (args[0]), args[0], args[1]);
 
-  if (!arithmetic)
+  if (do_convert)
     se->expr = fold_convert (type, se->expr);
 
   if (!arithmetic)
@@ -8213,10 +8233,17 @@ gfc_conv_intrinsic_sizeof (gfc_se *se, gfc_expr *expr)
       else if (arg->rank > 0
 	       || (arg->rank == 0
 		   && arg->ref && arg->ref->type == REF_COMPONENT))
-	/* The scalarizer added an additional temp.  To get the class' vptr
-	   one has to look at the original backend_decl.  */
-	byte_size = gfc_class_vtab_size_get (
+	{
+	  /* The scalarizer added an additional temp.  To get the class' vptr
+	     one has to look at the original backend_decl.  */
+	  if (argse.class_container)
+	    byte_size = gfc_class_vtab_size_get (argse.class_container);
+	  else if (DECL_LANG_SPECIFIC (arg->symtree->n.sym->backend_decl))
+	    byte_size = gfc_class_vtab_size_get (
 	      GFC_DECL_SAVED_DESCRIPTOR (arg->symtree->n.sym->backend_decl));
+	  else
+	    gcc_unreachable ();
+	}
       else
 	gcc_unreachable ();
     }
@@ -10908,6 +10935,7 @@ gfc_conv_intrinsic_function (gfc_se * se, gfc_expr * expr)
     case GFC_ISYM_INT2:
     case GFC_ISYM_INT8:
     case GFC_ISYM_LONG:
+    case GFC_ISYM_UINT:
       gfc_conv_intrinsic_int (se, expr, RND_TRUNC);
       break;
 
@@ -11723,13 +11751,13 @@ gfc_walk_intrinsic_function (gfc_ss * ss, gfc_expr * expr,
 					     expr->value.function.isym,
 					     GFC_SS_SCALAR);
 
-  if (expr->rank == 0)
+  if (expr->rank == 0 && expr->corank == 0)
     return ss;
 
   if (gfc_inline_intrinsic_function_p (expr))
     return walk_inline_intrinsic_function (ss, expr);
 
-  if (gfc_is_intrinsic_libcall (expr))
+  if (expr->rank != 0 && gfc_is_intrinsic_libcall (expr))
     return gfc_walk_intrinsic_libfunc (ss, expr);
 
   /* Special cases.  */
@@ -12746,7 +12774,7 @@ conv_intrinsic_move_alloc (gfc_code *code)
   gfc_init_se (&to_se, NULL);
 
   gcc_assert (from_expr->ts.type != BT_CLASS || to_expr->ts.type == BT_CLASS);
-  coarray = gfc_get_corank (from_expr) != 0;
+  coarray = from_expr->corank != 0;
 
   from_is_class = from_expr->ts.type == BT_CLASS;
   from_is_scalar = from_expr->rank == 0 && !coarray;
@@ -12764,9 +12792,12 @@ conv_intrinsic_move_alloc (gfc_code *code)
 	  gfc_symbol *vtab;
 	  from_tree = from_se.expr;
 
-	  vtab = gfc_find_vtab (&from_expr->ts);
-	  gcc_assert (vtab);
-	  from_se.expr = gfc_get_symbol_decl (vtab);
+	  if (to_expr->ts.type == BT_CLASS)
+	    {
+	      vtab = gfc_find_vtab (&from_expr->ts);
+	      gcc_assert (vtab);
+	      from_se.expr = gfc_get_symbol_decl (vtab);
+	    }
 	}
       gfc_add_block_to_block (&block, &from_se.pre);
 
@@ -12811,6 +12842,15 @@ conv_intrinsic_move_alloc (gfc_code *code)
 	  gfc_class_set_vptr (&block, to_se.expr, from_se.expr);
 	  if (from_is_class)
 	    gfc_reset_vptr (&block, from_expr);
+	  if (UNLIMITED_POLY (to_expr))
+	    {
+	      tree to_len = gfc_class_len_get (to_se.class_container);
+	      tmp = from_expr->ts.type == BT_CHARACTER && from_se.string_length
+		      ? from_se.string_length
+		      : size_zero_node;
+	      gfc_add_modify_loc (input_location, &block, to_len,
+				  fold_convert (TREE_TYPE (to_len), tmp));
+	    }
 	}
 
       if (from_is_scalar)
@@ -12825,6 +12865,8 @@ conv_intrinsic_move_alloc (gfc_code *code)
 		  input_location, &block, from_se.string_length,
 		  build_int_cst (TREE_TYPE (from_se.string_length), 0));
 	    }
+	  if (UNLIMITED_POLY (from_expr))
+	    gfc_reset_len (&block, from_expr);
 
 	  return gfc_finish_block (&block);
 	}
@@ -12882,7 +12924,7 @@ conv_intrinsic_move_alloc (gfc_code *code)
       gfc_add_expr_to_block (&block, tmp);
     }
 
-  /* Move the pointer and update the array descriptor data.  */
+  /* Copy the array descriptor data.  */
   gfc_add_modify_loc (input_location, &block, to_se.expr, from_se.expr);
 
   /* Set "from" to NULL.  */

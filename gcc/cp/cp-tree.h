@@ -6754,6 +6754,9 @@ extern bool usual_deallocation_fn_p		(tree);
 extern tree build_op_delete_call		(enum tree_code, tree, tree,
 						 bool, tree, tree,
 						 tsubst_flags_t);
+extern tree build_coroutine_op_delete_call	(enum tree_code, tree, tree,
+						 bool, tree, tree,
+						 tsubst_flags_t complain);
 extern bool can_convert				(tree, tree, tsubst_flags_t);
 extern bool can_convert_standard		(tree, tree, tsubst_flags_t);
 extern bool can_convert_arg			(tree, tree, tree, int,
@@ -6926,7 +6929,8 @@ extern bool type_build_ctor_call		(tree);
 extern bool type_build_dtor_call		(tree);
 extern void explain_non_literal_class		(tree);
 extern void inherit_targ_abi_tags		(tree);
-extern void defaulted_late_check		(tree);
+extern void maybe_delete_defaulted_fn		(tree, tree);
+extern void defaulted_late_check		(tree, tristate = tristate::unknown ());
 extern bool defaultable_fn_check		(tree);
 extern void check_abi_tags			(tree);
 extern tree missing_abi_tags			(tree);
@@ -6989,6 +6993,7 @@ extern bool member_like_constrained_friend_p	(tree);
 extern bool fns_correspond			(tree, tree);
 extern int decls_match				(tree, tree, bool = true);
 extern bool maybe_version_functions		(tree, tree, bool);
+extern bool validate_constexpr_redeclaration	(tree, tree);
 extern bool merge_default_template_args		(tree, tree, bool);
 extern tree duplicate_decls			(tree, tree,
 						 bool hiding = false,
@@ -7021,7 +7026,7 @@ extern void omp_declare_variant_finalize	(tree, tree);
 struct cp_decomp { tree decl; unsigned int count; };
 extern void cp_finish_decl			(tree, tree, bool, tree, int, cp_decomp * = nullptr);
 extern tree lookup_decomp_type			(tree);
-extern void cp_finish_decomp			(tree, cp_decomp *);
+extern bool cp_finish_decomp			(tree, cp_decomp *, bool = false);
 extern int cp_complete_array_type		(tree *, tree, bool);
 extern int cp_complete_array_type_or_error	(tree *, tree, bool, tsubst_flags_t);
 extern tree build_ptrmemfunc_type		(tree);
@@ -7182,7 +7187,9 @@ extern const char *class_key_or_enum_as_string	(tree);
 extern void maybe_warn_variadic_templates       (void);
 extern void maybe_warn_cpp0x			(cpp0x_warn_str str,
 						 location_t = input_location);
-extern bool pedwarn_cxx98                       (location_t, int, const char *, ...) ATTRIBUTE_GCC_DIAG(3,4);
+extern bool pedwarn_cxx98                       (location_t,
+						 diagnostic_option_id option_id,
+						 const char *, ...) ATTRIBUTE_GCC_DIAG(3,4);
 extern location_t location_of                   (tree);
 extern void qualified_name_lookup_error		(tree, tree, tree,
 						 location_t);
@@ -7626,7 +7633,8 @@ enum { nt_opaque = false, nt_transparent = true };
 extern tree alias_template_specialization_p     (const_tree, bool);
 extern tree dependent_alias_template_spec_p     (const_tree, bool);
 extern bool dependent_opaque_alias_p            (const_tree);
-extern tree get_template_parm_object		(tree expr, tree mangle);
+extern tree get_template_parm_object		(tree expr, tree mangle,
+						 bool check_init = true);
 extern tree tparm_object_argument		(tree);
 extern bool explicit_class_specialization_p     (tree);
 extern bool push_tinst_level                    (tree);
@@ -7672,7 +7680,8 @@ extern void walk_specializations		(bool,
 							  void *),
 						 void *);
 extern tree match_mergeable_specialization	(bool is_decl, spec_entry *);
-extern unsigned get_mergeable_specialization_flags (tree tmpl, tree spec);
+extern unsigned get_mergeable_specialization_flags (bool is_decl, tree tmpl,
+						    tree spec);
 extern void add_mergeable_specialization        (bool is_decl, spec_entry *,
 						 tree outer, unsigned);
 extern tree add_to_template_args		(tree, tree);
@@ -8767,7 +8776,6 @@ extern tree finish_co_await_expr		(location_t, tree);
 extern tree finish_co_yield_expr		(location_t, tree);
 extern tree coro_validate_builtin_call		(tree,
 						 tsubst_flags_t = tf_warning_or_error);
-extern bool morph_fn_to_coro			(tree, tree *, tree *);
 extern tree coro_get_actor_function		(tree);
 extern tree coro_get_destroy_function		(tree);
 extern tree coro_get_ramp_function		(tree);

@@ -916,7 +916,8 @@ name_lookup::search_namespace_only (tree scope)
 		if (unsigned base = cluster->indices[jx].base)
 		  if (unsigned span = cluster->indices[jx].span)
 		    do
-		      if (bitmap_bit_p (imports, base))
+		      if (bool (want & LOOK_want::ANY_REACHABLE)
+			  || bitmap_bit_p (imports, base))
 			goto found;
 		    while (++base, --span);
 		continue;
@@ -960,9 +961,17 @@ name_lookup::search_namespace_only (tree scope)
 			dup_detect |= dup;
 		      }
 
-		    if (STAT_TYPE_VISIBLE_P (bind))
-		      type = STAT_TYPE (bind);
-		    bind = STAT_VISIBLE (bind);
+		    if (bool (want & LOOK_want::ANY_REACHABLE))
+		      {
+			type = STAT_TYPE (bind);
+			bind = STAT_DECL (bind);
+		      }
+		    else
+		      {
+			if (STAT_TYPE_VISIBLE_P (bind))
+			  type = STAT_TYPE (bind);
+			bind = STAT_VISIBLE (bind);
+		      }
 		  }
 
 		/* And process it.  */
@@ -2884,6 +2893,7 @@ supplement_binding (cxx_binding *binding, tree decl)
 void
 diagnose_name_conflict (tree decl, tree bval)
 {
+  auto_diagnostic_group d;
   if (TREE_CODE (decl) == TREE_CODE (bval)
       && TREE_CODE (decl) != NAMESPACE_DECL
       && !DECL_DECLARES_FUNCTION_P (decl)
@@ -3627,6 +3637,8 @@ push_local_extern_decl_alias (tree decl)
 	  if (decls_match (decl, *iter, /*record_versions*/false))
 	    {
 	      alias = *iter;
+	      if (!validate_constexpr_redeclaration (alias, decl))
+		return;
 	      break;
 	    }
 
@@ -3761,6 +3773,10 @@ check_module_override (tree decl, tree mvec, bool hiding,
   tree nontmpl = STRIP_TEMPLATE (decl);
   bool attached = DECL_LANG_SPECIFIC (nontmpl) && DECL_MODULE_ATTACH_P (nontmpl);
 
+  /* For deduction guides we don't do normal name lookup, but rather consider
+     any reachable declaration, so we should check for overriding here too.  */
+  bool any_reachable = deduction_guide_p (decl);
+
   if (BINDING_VECTOR_SLOTS_PER_CLUSTER == BINDING_SLOTS_FIXED)
     {
       cluster++;
@@ -3775,7 +3791,8 @@ check_module_override (tree decl, tree mvec, bool hiding,
 	  continue;
 	if (!cluster->indices[jx].base)
 	  continue;
-	if (!bitmap_bit_p (imports, cluster->indices[jx].base))
+	if (!any_reachable
+	    && !bitmap_bit_p (imports, cluster->indices[jx].base))
 	  continue;
 	/* Is it loaded? */
 	if (cluster->slots[jx].is_lazy ())
@@ -3795,9 +3812,17 @@ check_module_override (tree decl, tree mvec, bool hiding,
 	    /* If there was a matching STAT_TYPE here then xref_tag
 	       should have found it, but we need to check anyway because
 	       a conflicting using-declaration may exist.  */
-	    if (STAT_TYPE_VISIBLE_P (bind))
-	      type = STAT_TYPE (bind);
-	    bind = STAT_VISIBLE (bind);
+	    if (any_reachable)
+	      {
+		type = STAT_TYPE (bind);
+		bind = STAT_DECL (bind);
+	      }
+	    else
+	      {
+		if (STAT_TYPE_VISIBLE_P (bind))
+		  type = STAT_TYPE (bind);
+		bind = STAT_VISIBLE (bind);
+	      }
 	  }
 
 	if (type)
@@ -6191,6 +6216,7 @@ lookup_using_decl (tree scope, name_lookup &lookup)
 	   /* We can (independently) have ambiguous implicit typedefs.  */
 	   || (lookup.type && TREE_CODE (lookup.type) == TREE_LIST))
     {
+      auto_diagnostic_group d;
       error ("reference to %qD is ambiguous", lookup.name);
       print_candidates (TREE_CODE (lookup.value) == TREE_LIST
 			? lookup.value : lookup.type);
@@ -6322,6 +6348,7 @@ set_decl_namespace (tree decl, tree scope, bool friendp)
   if (TREE_CODE (old) == TREE_LIST)
     {
     ambiguous:
+      auto_diagnostic_group d;
       DECL_CONTEXT (decl) = FROB_CONTEXT (scope);
       error ("reference to %qD is ambiguous", decl);
       print_candidates (old);
@@ -6421,6 +6448,7 @@ set_decl_namespace (tree decl, tree scope, bool friendp)
     {
       if (hidden_p)
 	{
+	  auto_diagnostic_group d;
 	  pedwarn (DECL_SOURCE_LOCATION (decl), 0,
 		   "%qD has not been declared within %qD", decl, scope);
 	  inform (DECL_SOURCE_LOCATION (found),
@@ -7393,10 +7421,9 @@ tree lookup_qualified_name (tree t, const char *p, LOOK_want w, bool c)
 static bool
 qualified_namespace_lookup (tree scope, name_lookup *lookup)
 {
-  timevar_start (TV_NAME_LOOKUP);
+  auto_cond_timevar tv (TV_NAME_LOOKUP);
   query_oracle (lookup->name);
   bool found = lookup->search_qualified (ORIGINAL_NAMESPACE (scope));
-  timevar_stop (TV_NAME_LOOKUP);
   return found;
 }
 
@@ -8753,6 +8780,7 @@ struct local_state_t
 {
   int cp_unevaluated_operand;
   int c_inhibit_evaluation_warnings;
+  int cp_noexcept_operand_;
 
   static local_state_t
   save_and_clear ()
@@ -8762,6 +8790,8 @@ struct local_state_t
     ::cp_unevaluated_operand = 0;
     s.c_inhibit_evaluation_warnings = ::c_inhibit_evaluation_warnings;
     ::c_inhibit_evaluation_warnings = 0;
+    s.cp_noexcept_operand_ = ::cp_noexcept_operand;
+    ::cp_noexcept_operand = 0;
     return s;
   }
 
@@ -8770,6 +8800,7 @@ struct local_state_t
   {
     ::cp_unevaluated_operand = this->cp_unevaluated_operand;
     ::c_inhibit_evaluation_warnings = this->c_inhibit_evaluation_warnings;
+    ::cp_noexcept_operand = this->cp_noexcept_operand_;
   }
 };
 
@@ -8905,6 +8936,7 @@ finish_using_directive (tree target, tree attribs)
 	if (current_binding_level->kind == sk_namespace
 	    && is_attribute_p ("strong", name))
 	  {
+	    auto_diagnostic_group d;
 	    if (warning (0, "%<strong%> using directive no longer supported")
 		&& CP_DECL_CONTEXT (target) == current_namespace)
 	      inform (DECL_SOURCE_LOCATION (target),
@@ -9224,6 +9256,7 @@ push_namespace (tree name, bool make_inline)
 
       if (make_inline && !DECL_NAMESPACE_INLINE_P (ns))
 	{
+	  auto_diagnostic_group d;
 	  error_at (input_location,
 		    "inline namespace must be specified at initial definition");
 	  inform (DECL_SOURCE_LOCATION (ns), "%qD defined here", ns);
@@ -9274,6 +9307,7 @@ add_imported_namespace (tree ctx, tree name, location_t loc, unsigned import,
     }
   else if (DECL_NAMESPACE_INLINE_P (decl) != inline_p)
     {
+      auto_diagnostic_group d;
       error_at (loc, "%s namespace %qD conflicts with reachable definition",
 		inline_p ? "inline" : "non-inline", decl);
       inform (DECL_SOURCE_LOCATION (decl), "reachable %s definition here",

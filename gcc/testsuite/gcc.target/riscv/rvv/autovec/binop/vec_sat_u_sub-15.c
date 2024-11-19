@@ -8,13 +8,11 @@
 /*
 ** vec_sat_u_sub_uint32_t_fmt_4:
 ** ...
-** vsetvli\s+[atx][0-9]+,\s*[atx][0-9]+,\s*e32,\s*m1,\s*ta,\s*ma
+** vsetvli\s+[atx][0-9]+,\s*zero,\s*e32,\s*m1,\s*ta,\s*ma
 ** ...
-** vle32\.v\s+v[0-9]+,\s*0\([atx][0-9]+\)
-** vle32\.v\s+v[0-9]+,\s*0\([atx][0-9]+\)
 ** vssubu\.vv\s+v[0-9]+,\s*v[0-9]+,\s*v[0-9]+
 ** ...
 */
 DEF_VEC_SAT_U_SUB_FMT_4(uint32_t)
 
-/* { dg-final { scan-rtl-dump-times ".SAT_SUB " 2 "expand" } } */
+/* { dg-final { scan-rtl-dump-times ".SAT_SUB " 4 "expand" } } */

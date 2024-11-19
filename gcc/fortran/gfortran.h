@@ -227,7 +227,8 @@ enum gfc_intrinsic_op
 enum arith
 { ARITH_OK = 1, ARITH_OVERFLOW, ARITH_UNDERFLOW, ARITH_NAN,
   ARITH_DIV0, ARITH_INCOMMENSURATE, ARITH_ASYMMETRIC, ARITH_PROHIBIT,
-  ARITH_WRONGCONCAT, ARITH_INVALID_TYPE, ARITH_NOT_REDUCED
+  ARITH_WRONGCONCAT, ARITH_INVALID_TYPE, ARITH_NOT_REDUCED,
+  ARITH_UNSIGNED_TRUNCATED, ARITH_UNSIGNED_NEGATIVE
 };
 
 /* Statements.  */
@@ -323,7 +324,7 @@ enum gfc_statement
   /* Note: gfc_match_omp_nothing returns ST_NONE. */
   ST_OMP_NOTHING, ST_NONE,
   ST_OMP_UNROLL, ST_OMP_END_UNROLL,
-  ST_OMP_TILE, ST_OMP_END_TILE
+  ST_OMP_TILE, ST_OMP_END_TILE, ST_OMP_INTEROP
 };
 
 /* Types of interfaces that we can have.  Assignment interfaces are
@@ -705,7 +706,12 @@ enum gfc_isym_id
   GFC_ISYM_Y0,
   GFC_ISYM_Y1,
   GFC_ISYM_YN,
-  GFC_ISYM_YN2
+  GFC_ISYM_YN2,
+
+  /* Add this at the end, so maybe the module format
+     remains compatible.  */
+  GFC_ISYM_SU_KIND,
+  GFC_ISYM_UINT,
 };
 
 enum init_local_logical
@@ -1381,6 +1387,13 @@ typedef struct gfc_omp_namelist
       struct gfc_symbol *memspace_sym;
       bool lastprivate_conditional;
       bool present_modifier;
+      struct
+	{
+	  char *attr;
+	  int len;
+	  bool target;
+	  bool targetsync;
+	} init;
     } u;
   union
     {
@@ -1389,6 +1402,7 @@ typedef struct gfc_omp_namelist
       gfc_expr *allocator;
       struct gfc_symbol *traits_sym;
       struct gfc_omp_namelist *duplicate_of;
+      char *init_interop_fr;
     } u2;
   struct gfc_omp_namelist *next;
   locus where;
@@ -1433,6 +1447,9 @@ enum
   OMP_LIST_HAS_DEVICE_ADDR,
   OMP_LIST_ENTER,
   OMP_LIST_USES_ALLOCATORS,
+  OMP_LIST_INIT,
+  OMP_LIST_USE,
+  OMP_LIST_DESTROY,
   OMP_LIST_NUM /* Must be the last.  */
 };
 
@@ -2571,6 +2588,7 @@ typedef struct gfc_expr
   gfc_typespec ts;	/* These two refer to the overall expression */
 
   int rank;		/* 0 indicates a scalar, -1 an assumed-rank array.  */
+  int corank;		/* same as rank, but for coarrays.  */
   mpz_t *shape;		/* Can be NULL if shape is unknown at compile time */
 
   /* Nonnull for functions and structure constructors, may also used to hold the
@@ -2735,6 +2753,25 @@ gfc_integer_info;
 
 extern gfc_integer_info gfc_integer_kinds[];
 
+/* Unsigned numbers, experimental.  */
+
+typedef struct
+{
+  mpz_t huge, int_min;
+
+  int kind, radix, digits, bit_size, range;
+
+  /* True if the C type of the given name maps to this precision.  Note that
+     more than one bit can be set.  We will use this later on.  */
+  unsigned int c_unsigned_char : 1;
+  unsigned int c_unsigned_short : 1;
+  unsigned int c_unsigned_int : 1;
+  unsigned int c_unsigned_long : 1;
+  unsigned int c_unsigned_long_long : 1;
+}
+gfc_unsigned_info;
+
+extern gfc_unsigned_info gfc_unsigned_kinds[];
 
 typedef struct
 {
@@ -3043,7 +3080,7 @@ enum gfc_exec_op
   EXEC_OMP_TARGET_TEAMS_LOOP, EXEC_OMP_MASKED, EXEC_OMP_PARALLEL_MASKED,
   EXEC_OMP_PARALLEL_MASKED_TASKLOOP, EXEC_OMP_PARALLEL_MASKED_TASKLOOP_SIMD,
   EXEC_OMP_MASKED_TASKLOOP, EXEC_OMP_MASKED_TASKLOOP_SIMD, EXEC_OMP_SCOPE,
-  EXEC_OMP_UNROLL, EXEC_OMP_TILE,
+  EXEC_OMP_UNROLL, EXEC_OMP_TILE, EXEC_OMP_INTEROP,
   EXEC_OMP_ERROR, EXEC_OMP_ALLOCATE, EXEC_OMP_ALLOCATORS
 };
 
@@ -3447,7 +3484,10 @@ void gfc_errors_to_warnings (bool);
 void gfc_arith_init_1 (void);
 void gfc_arith_done_1 (void);
 arith gfc_check_integer_range (mpz_t p, int kind);
+arith gfc_check_unsigned_range (mpz_t p, int kind);
 bool gfc_check_character_range (gfc_char_t, int);
+const char *gfc_arith_error (arith);
+void gfc_reduce_unsigned (gfc_expr *e);
 
 extern bool gfc_seen_div0;
 
@@ -3459,6 +3499,7 @@ tree gfc_get_union_type (gfc_symbol *);
 tree gfc_get_derived_type (gfc_symbol * derived, int codimen = 0);
 extern int gfc_index_integer_kind;
 extern int gfc_default_integer_kind;
+extern int gfc_default_unsigned_kind;
 extern int gfc_max_integer_kind;
 extern int gfc_default_real_kind;
 extern int gfc_default_double_kind;
@@ -3682,7 +3723,7 @@ void gfc_free_iterator (gfc_iterator *, int);
 void gfc_free_forall_iterator (gfc_forall_iterator *);
 void gfc_free_alloc_list (gfc_alloc *);
 void gfc_free_namelist (gfc_namelist *);
-void gfc_free_omp_namelist (gfc_omp_namelist *, bool, bool, bool);
+void gfc_free_omp_namelist (gfc_omp_namelist *, bool, bool, bool, bool);
 void gfc_free_equiv (gfc_equiv *);
 void gfc_free_equiv_until (gfc_equiv *, gfc_equiv *);
 void gfc_free_data (gfc_data *);
@@ -3801,7 +3842,6 @@ bool gfc_is_class_array_function (gfc_expr *);
 bool gfc_ref_this_image (gfc_ref *ref);
 bool gfc_is_coindexed (gfc_expr *);
 bool gfc_is_coarray (gfc_expr *);
-int gfc_get_corank (gfc_expr *);
 bool gfc_has_ultimate_allocatable (gfc_expr *);
 bool gfc_has_ultimate_pointer (gfc_expr *);
 gfc_expr* gfc_find_team_co (gfc_expr *);
@@ -4001,10 +4041,12 @@ bool gfc_check_same_strlen (const gfc_expr*, const gfc_expr*, const char*);
 bool gfc_calculate_transfer_sizes (gfc_expr*, gfc_expr*, gfc_expr*,
 				      size_t*, size_t*, size_t*);
 bool gfc_boz2int (gfc_expr *, int);
+bool gfc_boz2uint (gfc_expr *, int);
 bool gfc_boz2real (gfc_expr *, int);
 bool gfc_invalid_boz (const char *, locus *);
 bool gfc_invalid_null_arg (gfc_expr *);
 
+bool gfc_invalid_unsigned_ops (gfc_expr *, gfc_expr *);
 
 /* class.cc */
 void gfc_fix_class_refs (gfc_expr *e);
@@ -4087,6 +4129,7 @@ void gfc_convert_mpz_to_signed (mpz_t, int);
 gfc_expr *gfc_simplify_ieee_functions (gfc_expr *);
 bool gfc_is_constant_array_expr (gfc_expr *);
 bool gfc_is_size_zero_array (gfc_expr *);
+void gfc_convert_mpz_to_unsigned (mpz_t, int, bool sign = true);
 
 /* trans-array.cc  */
 

@@ -66,6 +66,16 @@ C ObjC C++ ObjC++ Separate Alias(d)
 -dump=
 C ObjC C++ ObjC++ Joined Alias(d)
 
+-embed-dir=
+C ObjC C++ ObjC++ Joined MissingArgError(missing filename after %qs)
+--embed-dir=<dir>	Add <dir> to the #embed path.
+
+-embed-directory
+C ObjC C++ ObjC++ Separate Alias(-embed-dir=) MissingArgError(missing path after %qs)
+
+-embed-directory=
+C ObjC C++ ObjC++ Joined Alias(-embed-dir=) MissingArgError(missing path after %qs)
+
 -imacros
 C ObjC C++ ObjC++ Separate Alias(imacros) MissingArgError(missing filename after %qs)
 
@@ -487,19 +497,19 @@ C++ ObjC++ Var(warn_cxx11_extensions) Warning Init(1)
 Warn about C++11 constructs in code compiled with an older standard.
 
 Wc++14-extensions
-C++ ObjC++ Var(warn_cxx14_extensions) Warning Init(1)
+C++ ObjC++ Var(warn_cxx14_extensions) Warning Init(1) CppReason(CPP_W_CXX14_EXTENSIONS)
 Warn about C++14 constructs in code compiled with an older standard.
 
 Wc++17-extensions
-C++ ObjC++ Var(warn_cxx17_extensions) Warning Init(1)
+C++ ObjC++ Var(warn_cxx17_extensions) Warning Init(1) CppReason(CPP_W_CXX17_EXTENSIONS)
 Warn about C++17 constructs in code compiled with an older standard.
 
 Wc++20-extensions
-C++ ObjC++ Var(warn_cxx20_extensions) Warning Init(1)
+C++ ObjC++ Var(warn_cxx20_extensions) Warning Init(1) CppReason(CPP_W_CXX20_EXTENSIONS)
 Warn about C++20 constructs in code compiled with an older standard.
 
 Wc++23-extensions
-C++ ObjC++ Var(warn_cxx23_extensions) Warning Init(1)
+C++ ObjC++ Var(warn_cxx23_extensions) Warning Init(1) CppReason(CPP_W_CXX23_EXTENSIONS)
 Warn about C++23 constructs in code compiled with an older standard.
 
 Wc++26-extensions
@@ -618,6 +628,10 @@ Warn when a declaration is found after a statement.
 Wdeclaration-missing-parameter-type
 C ObjC Var(warn_declaration_missing_parameter) Warning Init(1)
 Warn for missing parameter types in function declarations.
+
+Wdefaulted-function-deleted
+C++ ObjC++ Var(warn_defaulted_fn_deleted) Init(1) Warning
+Warn when an explicitly defaulted function is deleted.
 
 Wdelete-incomplete
 C++ ObjC++ Var(warn_delete_incomplete) Init(1) Warning

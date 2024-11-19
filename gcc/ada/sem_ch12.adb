@@ -2295,7 +2295,7 @@ package body Sem_Ch12 is
 
    procedure Abandon_Instantiation (N : Node_Id) is
    begin
-      Error_Msg_N ("\instantiation abandoned!", N);
+      Error_Msg_N ("instantiation abandoned!", N);
       raise Instantiation_Error;
    end Abandon_Instantiation;
 
@@ -7736,15 +7736,15 @@ package body Sem_Ch12 is
      (Instance      : Entity_Id;
       Is_Formal_Box : Boolean)
    is
-      Gen_Id : constant Entity_Id
-        := (if Is_Generic_Unit (Instance) then
-              Instance
-            elsif Is_Wrapper_Package (Instance) then
-              Generic_Parent
-                (Specification
-                  (Unit_Declaration_Node (Related_Instance (Instance))))
-            else
-              Generic_Parent (Package_Specification (Instance)));
+      Gen_Id : constant Entity_Id :=
+        (if Is_Generic_Unit (Instance) then
+           Instance
+         elsif Is_Wrapper_Package (Instance) then
+           Generic_Parent
+             (Specification
+               (Unit_Declaration_Node (Related_Instance (Instance))))
+         else
+           Generic_Parent (Package_Specification (Instance)));
       --  The generic unit
 
       Parent_Scope : constant Entity_Id := Scope (Gen_Id);
@@ -14952,6 +14952,18 @@ package body Sem_Ch12 is
          then
             Error_Msg_NE
               ("actual for & must be a tagged type", Actual, Gen_T);
+
+         --  For generic formal tagged types with the First_Controlling_Param
+         --  aspect, ensure that the actual type also has this aspect.
+
+         elsif Is_Tagged_Type (Act_T)
+           and then Is_Tagged_Type (A_Gen_T)
+           and then not Has_First_Controlling_Parameter_Aspect (Act_T)
+           and then Has_First_Controlling_Parameter_Aspect (A_Gen_T)
+         then
+            Error_Msg_NE
+              ("actual for & must be a 'First_'Controlling_'Parameter tagged "
+               & "type", Actual, Gen_T);
          end if;
 
          Validate_Discriminated_Formal_Type;

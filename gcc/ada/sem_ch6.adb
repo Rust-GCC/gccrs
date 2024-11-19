@@ -6432,6 +6432,25 @@ package body Sem_Ch6 is
             OldD : constant Boolean :=
                      Present (Expression (Parent (Old_Discr)));
 
+            function Has_Tagged_Limited_Partial_View
+              (Typ : Entity_Id) return Boolean;
+            --  Returns True iff Typ has a tagged limited partial view.
+
+            -------------------------------------
+            -- Has_Tagged_Limited_Partial_View --
+            -------------------------------------
+
+            function Has_Tagged_Limited_Partial_View
+              (Typ : Entity_Id) return Boolean
+            is
+               Priv : constant Entity_Id := Incomplete_Or_Partial_View (Typ);
+            begin
+               return Present (Priv)
+                 and then not Is_Incomplete_Type (Priv)
+                 and then Is_Tagged_Type (Priv)
+                 and then Limited_Present (Parent (Priv));
+            end Has_Tagged_Limited_Partial_View;
+
          begin
             if NewD or OldD then
 
@@ -6462,6 +6481,13 @@ package body Sem_Ch6 is
                  and then Nkind (Discriminant_Type (New_Discr)) =
                             N_Access_Definition
                  and then not Is_Immutably_Limited_Type
+                                (Defining_Identifier (N))
+
+                 --  Check for a case that would be awkward to handle in
+                 --  Is_Immutably_Limited_Type (because sem_aux can't
+                 --  "with" sem_util).
+
+                 and then not Has_Tagged_Limited_Partial_View
                                 (Defining_Identifier (N))
                then
                   Error_Msg_N
@@ -7361,6 +7387,8 @@ package body Sem_Ch6 is
                   Error_Msg_N
                     ("implied return after this statement would have raised "
                      & "Program_Error", Last_Stm);
+                  Error_Msg_NE
+                    ("\procedure & is marked as No_Return!", Last_Stm, Proc);
 
                --  In normal compilation mode, do not warn on a generated call
                --  (e.g. in the body of a renaming as completion).
@@ -7369,11 +7397,15 @@ package body Sem_Ch6 is
                   Error_Msg_N
                     ("implied return after this statement will raise "
                      & "Program_Error??", Last_Stm);
+
+                  Error_Msg_NE
+                    ("\procedure & is marked as No_Return??!", Last_Stm, Proc);
+               else
+
+                  Error_Msg_NE
+                    ("procedure & is marked as No_Return!", Last_Stm, Proc);
                end if;
 
-               Error_Msg_Warn := SPARK_Mode /= On;
-               Error_Msg_NE
-                 ("\procedure & is marked as No_Return<<!", Last_Stm, Proc);
             end if;
 
             declare
@@ -11348,11 +11380,6 @@ package body Sem_Ch6 is
          --  replace the overridden primitive in Typ's primitives list with
          --  the new subprogram.
 
-         function Visible_Part_Type (T : Entity_Id) return Boolean;
-         --  Returns true if T is declared in the visible part of the current
-         --  package scope; otherwise returns false. Assumes that T is declared
-         --  in a package.
-
          procedure Check_Private_Overriding (T : Entity_Id);
          --  Checks that if a primitive abstract subprogram of a visible
          --  abstract type is declared in a private part, then it must override
@@ -11360,6 +11387,17 @@ package body Sem_Ch6 is
          --  that if a primitive function with a controlling result is declared
          --  in a private part, then it must override a function declared in
          --  the visible part.
+
+         function Is_A_Primitive
+           (Typ  : Entity_Id;
+            Subp : Entity_Id) return Boolean;
+         --  Typ is either the return type of function Subp or the type of one
+         --  of its formals; determine if Subp is a primitive of type Typ.
+
+         function Visible_Part_Type (T : Entity_Id) return Boolean;
+         --  Returns true if T is declared in the visible part of the current
+         --  package scope; otherwise returns false. Assumes that T is declared
+         --  in a package.
 
          ---------------------------------------
          -- Add_Or_Replace_Untagged_Primitive --
@@ -11529,7 +11567,17 @@ package body Sem_Ch6 is
                         --  operation. That's illegal in the tagged case
                         --  (but not if the private type is untagged).
 
-                        if T = Base_Type (Etype (S)) then
+                        --  Do not report this error when the tagged type has
+                        --  the First_Controlling_Parameter aspect, unless the
+                        --  function has a controlling result (which is only
+                        --  possible if the function overrides an inherited
+                        --  primitive).
+
+                        if T = Base_Type (Etype (S))
+                          and then
+                            (not Has_First_Controlling_Parameter_Aspect (T)
+                               or else Has_Controlling_Result (S))
+                        then
                            Error_Msg_N
                              ("private function with controlling result must"
                               & " override visible-part function", S);
@@ -11542,6 +11590,9 @@ package body Sem_Ch6 is
 
                         elsif Ekind (Etype (S)) = E_Anonymous_Access_Type
                           and then T = Base_Type (Designated_Type (Etype (S)))
+                          and then
+                            (not Has_First_Controlling_Parameter_Aspect (T)
+                               or else Has_Controlling_Result (S))
                           and then Ada_Version >= Ada_2012
                         then
                            Error_Msg_N
@@ -11557,6 +11608,58 @@ package body Sem_Ch6 is
                end if;
             end if;
          end Check_Private_Overriding;
+
+         --------------------
+         -- Is_A_Primitive --
+         --------------------
+
+         function Is_A_Primitive
+           (Typ  : Entity_Id;
+            Subp : Entity_Id) return Boolean is
+         begin
+            if Scope (Typ) /= Current_Scope
+              or else Is_Class_Wide_Type (Typ)
+              or else Is_Generic_Type (Typ)
+            then
+               return False;
+
+            --  Untagged type primitive
+
+            elsif not Is_Tagged_Type (Typ) then
+               return True;
+
+            --  Primitive of a tagged type without the First_Controlling_Param
+            --  aspect.
+
+            elsif not Has_First_Controlling_Parameter_Aspect (Typ) then
+               return True;
+
+            --  Non-overriding primitive of a tagged type with the
+            --  First_Controlling_Parameter aspect
+
+            elsif No (Overridden_Operation (Subp)) then
+               return Present (First_Formal (Subp))
+                 and then Etype (First_Formal (Subp)) = Typ;
+
+            --  Primitive of a tagged type with the First_Controlling_Parameter
+            --  aspect, overriding an inherited primitive of a tagged type
+            --  without this aspect.
+
+            else
+               if Ekind (Subp) = E_Function
+                 and then Has_Controlling_Result (Overridden_Operation (Subp))
+               then
+                  return True;
+
+               elsif Is_Dispatching_Operation
+                       (Overridden_Operation (Subp))
+               then
+                  return True;
+               end if;
+            end if;
+
+            return False;
+         end Is_A_Primitive;
 
          -----------------------
          -- Visible_Part_Type --
@@ -11630,10 +11733,7 @@ package body Sem_Ch6 is
 
                B_Typ := Base_Type (F_Typ);
 
-               if Scope (B_Typ) = Current_Scope
-                 and then not Is_Class_Wide_Type (B_Typ)
-                 and then not Is_Generic_Type (B_Typ)
-               then
+               if Is_A_Primitive (B_Typ, S) then
                   Is_Primitive := True;
                   Set_Has_Primitive_Operations (B_Typ);
                   Set_Is_Primitive (S);
@@ -11673,10 +11773,7 @@ package body Sem_Ch6 is
                   B_Typ := Base_Type (B_Typ);
                end if;
 
-               if Scope (B_Typ) = Current_Scope
-                 and then not Is_Class_Wide_Type (B_Typ)
-                 and then not Is_Generic_Type (B_Typ)
-               then
+               if Is_A_Primitive (B_Typ, S) then
                   Is_Primitive := True;
                   Set_Is_Primitive (S);
                   Set_Has_Primitive_Operations (B_Typ);
@@ -12478,8 +12575,8 @@ package body Sem_Ch6 is
 
                            if Chars (E) = Name_Op_Eq then
                               declare
-                                 Typ : constant Entity_Id
-                                         := Etype (First_Entity (E));
+                                 Typ : constant Entity_Id :=
+                                   Etype (First_Entity (E));
                                  H   : Entity_Id := Homonym (E);
 
                               begin

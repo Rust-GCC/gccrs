@@ -22,6 +22,7 @@
 #define IN_TARGET_CODE 1
 
 #include "config.h"
+#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "backend.h"
@@ -6261,7 +6262,7 @@ vspltis_constant (rtx op, unsigned step, unsigned copies)
           | (small_val & mask)))
 	return false;
       splat_val = small_val;
-      inner = smallest_int_mode_for_size (bitsize);
+      inner = smallest_int_mode_for_size (bitsize).require ();
     }
 
   /* Check if SPLAT_VAL can really be the operand of a vspltis[bhw].  */
@@ -17329,9 +17330,9 @@ static char *
 rs6000_offload_options (void)
 {
   if (TARGET_64BIT)
-    return xstrdup ("-foffload-abi=lp64");
+    return xstrdup ("-foffload-abi=lp64 -foffload-abi-host-opts=-m64");
   else
-    return xstrdup ("-foffload-abi=ilp32");
+    return xstrdup ("-foffload-abi=ilp32 -foffload-abi-host-opts=-m32");
 }
 
 

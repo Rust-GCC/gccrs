@@ -1301,28 +1301,23 @@ get_array_ref_dim_for_loop_dim (gfc_ss *ss, int loop_dim)
    is a class expression.  */
 
 static tree
-get_class_info_from_ss (stmtblock_t * pre, gfc_ss *ss, tree *eltype,
-			gfc_ss **fcnss)
+get_class_info_from_ss (stmtblock_t * pre, gfc_ss *ss, tree *eltype)
 {
-  gfc_ss *loop_ss = ss->loop->ss;
   gfc_ss *lhs_ss;
   gfc_ss *rhs_ss;
-  gfc_ss *fcn_ss = NULL;
   tree tmp;
   tree tmp2;
   tree vptr;
-  tree class_expr = NULL_TREE;
+  tree rhs_class_expr = NULL_TREE;
   tree lhs_class_expr = NULL_TREE;
   bool unlimited_rhs = false;
   bool unlimited_lhs = false;
   bool rhs_function = false;
-  bool unlimited_arg1 = false;
   gfc_symbol *vtab;
-  tree cntnr = NULL_TREE;
 
   /* The second element in the loop chain contains the source for the
-     class temporary created in gfc_trans_create_temp_array.  */
-  rhs_ss = loop_ss->loop_chain;
+     temporary; ie. the rhs of the assignment.  */
+  rhs_ss = ss->loop->ss->loop_chain;
 
   if (rhs_ss != gfc_ss_terminator
       && rhs_ss->info
@@ -1331,57 +1326,27 @@ get_class_info_from_ss (stmtblock_t * pre, gfc_ss *ss, tree *eltype,
       && rhs_ss->info->data.array.descriptor)
     {
       if (rhs_ss->info->expr->expr_type != EXPR_VARIABLE)
-	class_expr
+	rhs_class_expr
 	  = gfc_get_class_from_expr (rhs_ss->info->data.array.descriptor);
       else
-	class_expr = gfc_get_class_from_gfc_expr (rhs_ss->info->expr);
+	rhs_class_expr = gfc_get_class_from_gfc_expr (rhs_ss->info->expr);
       unlimited_rhs = UNLIMITED_POLY (rhs_ss->info->expr);
       if (rhs_ss->info->expr->expr_type == EXPR_FUNCTION)
 	rhs_function = true;
     }
 
-  /* Usually, ss points to the function. When the function call is an actual
-     argument, it is instead rhs_ss because the ss chain is shifted by one.  */
-  *fcnss = fcn_ss = rhs_function ? rhs_ss : ss;
-
-  /* If this is a transformational function with a class result, the info
-     class_container field points to the class container of arg1.  */
-  if (class_expr != NULL_TREE
-      && fcn_ss->info && fcn_ss->info->expr
-      && fcn_ss->info->expr->expr_type == EXPR_FUNCTION
-      && fcn_ss->info->expr->value.function.isym
-      && fcn_ss->info->expr->value.function.isym->transformational)
-    {
-      cntnr = ss->info->class_container;
-      unlimited_arg1
-	   = UNLIMITED_POLY (fcn_ss->info->expr->value.function.actual->expr);
-    }
-
   /* For an assignment the lhs is the next element in the loop chain.
      If we have a class rhs, this had better be a class variable
-     expression!  Otherwise, the class container from arg1 can be used
-     to set the vptr and len fields of the result class container.  */
+     expression!  */
   lhs_ss = rhs_ss->loop_chain;
-  if (lhs_ss && lhs_ss != gfc_ss_terminator
-      && lhs_ss->info && lhs_ss->info->expr
+  if (lhs_ss != gfc_ss_terminator
+      && lhs_ss->info
+      && lhs_ss->info->expr
       && lhs_ss->info->expr->expr_type ==EXPR_VARIABLE
       && lhs_ss->info->expr->ts.type == BT_CLASS)
     {
       tmp = lhs_ss->info->data.array.descriptor;
       unlimited_lhs = UNLIMITED_POLY (rhs_ss->info->expr);
-    }
-  else if (cntnr != NULL_TREE)
-    {
-      tmp = gfc_class_vptr_get (class_expr);
-      gfc_add_modify (pre, tmp, fold_convert (TREE_TYPE (tmp),
-					      gfc_class_vptr_get (cntnr)));
-      if (unlimited_rhs)
-	{
-	  tmp = gfc_class_len_get (class_expr);
-	  if (unlimited_arg1)
-	    gfc_add_modify (pre, tmp, gfc_class_len_get (cntnr));
-	}
-      tmp = NULL_TREE;
     }
   else
     tmp = NULL_TREE;
@@ -1390,33 +1355,35 @@ get_class_info_from_ss (stmtblock_t * pre, gfc_ss *ss, tree *eltype,
   if (tmp != NULL_TREE && lhs_ss->loop_chain == gfc_ss_terminator)
     lhs_class_expr = gfc_get_class_from_expr (tmp);
   else
-    return class_expr;
+    return rhs_class_expr;
 
   gcc_assert (GFC_CLASS_TYPE_P (TREE_TYPE (lhs_class_expr)));
 
   /* Set the lhs vptr and, if necessary, the _len field.  */
-  if (class_expr)
+  if (rhs_class_expr)
     {
       /* Both lhs and rhs are class expressions.  */
       tmp = gfc_class_vptr_get (lhs_class_expr);
       gfc_add_modify (pre, tmp,
 		      fold_convert (TREE_TYPE (tmp),
-				    gfc_class_vptr_get (class_expr)));
+				    gfc_class_vptr_get (rhs_class_expr)));
       if (unlimited_lhs)
 	{
-	  gcc_assert (unlimited_rhs);
 	  tmp = gfc_class_len_get (lhs_class_expr);
-	  tmp2 = gfc_class_len_get (class_expr);
+	  if (unlimited_rhs)
+	    tmp2 = gfc_class_len_get (rhs_class_expr);
+	  else
+	    tmp2 = build_int_cst (TREE_TYPE (tmp), 0);
 	  gfc_add_modify (pre, tmp, tmp2);
 	}
 
       if (rhs_function)
 	{
-	  tmp = gfc_class_data_get (class_expr);
+	  tmp = gfc_class_data_get (rhs_class_expr);
 	  gfc_conv_descriptor_offset_set (pre, tmp, gfc_index_zero_node);
 	}
     }
-  else if (rhs_ss->info->data.array.descriptor)
+  else
    {
       /* lhs is class and rhs is intrinsic or derived type.  */
       *eltype = TREE_TYPE (rhs_ss->info->data.array.descriptor);
@@ -1444,7 +1411,7 @@ get_class_info_from_ss (stmtblock_t * pre, gfc_ss *ss, tree *eltype,
 	}
     }
 
-  return class_expr;
+  return rhs_class_expr;
 }
 
 
@@ -1485,7 +1452,6 @@ gfc_trans_create_temp_array (stmtblock_t * pre, stmtblock_t * post, gfc_ss * ss,
   tree or_expr;
   tree elemsize;
   tree class_expr = NULL_TREE;
-  gfc_ss *fcn_ss = NULL;
   int n, dim, tmp_dim;
   int total_dim = 0;
 
@@ -1505,7 +1471,7 @@ gfc_trans_create_temp_array (stmtblock_t * pre, stmtblock_t * post, gfc_ss * ss,
      The descriptor can be obtained from the ss->info and then converted
      to the class object.  */
   if (class_expr == NULL_TREE && GFC_CLASS_TYPE_P (eltype))
-    class_expr = get_class_info_from_ss (pre, ss, &eltype, &fcn_ss);
+    class_expr = get_class_info_from_ss (pre, ss, &eltype);
 
   /* If the dynamic type is not available, use the declared type.  */
   if (eltype && GFC_CLASS_TYPE_P (eltype))
@@ -1605,46 +1571,14 @@ gfc_trans_create_temp_array (stmtblock_t * pre, stmtblock_t * post, gfc_ss * ss,
   gfc_add_expr_to_block (pre, build1 (DECL_EXPR,
 				      arraytype, TYPE_NAME (arraytype)));
 
-  if (class_expr != NULL_TREE
-      || (fcn_ss && fcn_ss->info && fcn_ss->info->class_container))
+  if (class_expr != NULL_TREE)
     {
       tree class_data;
       tree dtype;
-      gfc_expr *expr1 = fcn_ss ? fcn_ss->info->expr : NULL;
 
-      /* Create a class temporary for the result using the lhs class object.  */
-      if (class_expr != NULL_TREE)
-	{
-	  tmp = gfc_create_var (TREE_TYPE (class_expr), "ctmp");
-	  gfc_add_modify (pre, tmp, class_expr);
-	}
-      else
-	{
-	  tree vptr;
-	  class_expr = fcn_ss->info->class_container;
-	  gcc_assert (expr1);
-
-	  /* Build a new class container using the arg1 class object. The class
-	     typespec must be rebuilt because the rank might have changed.  */
-	  gfc_typespec ts = CLASS_DATA (expr1)->ts;
-	  symbol_attribute attr = CLASS_DATA (expr1)->attr;
-	  gfc_change_class (&ts, &attr, NULL, expr1->rank, 0);
-	  tmp = gfc_create_var (gfc_typenode_for_spec (&ts), "ctmp");
-	  fcn_ss->info->class_container = tmp;
-
-	  /* Set the vptr and obtain the element size.  */
-	  vptr = gfc_class_vptr_get (tmp);
-	  gfc_add_modify (pre, vptr,
-			  fold_convert (TREE_TYPE (vptr),
-					gfc_class_vptr_get (class_expr)));
-	  elemsize = gfc_class_vtab_size_get (class_expr);
-	  elemsize = gfc_evaluate_now (elemsize, pre);
-
-	  /* Set the _len field, if necessary.  */
-	  if (UNLIMITED_POLY (expr1))
-	    gfc_add_modify (pre, gfc_class_len_get (tmp),
-			    gfc_class_len_get (class_expr));
-	}
+      /* Create a class temporary.  */
+      tmp = gfc_create_var (TREE_TYPE (class_expr), "ctmp");
+      gfc_add_modify (pre, tmp, class_expr);
 
       /* Assign the new descriptor to the _data field. This allows the
 	 vptr _copy to be used for scalarized assignment since the class
@@ -1654,25 +1588,11 @@ gfc_trans_create_temp_array (stmtblock_t * pre, stmtblock_t * post, gfc_ss * ss,
 			     TREE_TYPE (desc), desc);
       gfc_add_modify (pre, class_data, tmp);
 
-      if (expr1 && expr1->expr_type == EXPR_FUNCTION
-	  && expr1->value.function.isym
-	  && (expr1->value.function.isym->id == GFC_ISYM_RESHAPE
-	      || expr1->value.function.isym->id == GFC_ISYM_UNPACK))
-	{
-	  /* Take the dtype from the class expression.  */
-	  dtype = gfc_conv_descriptor_dtype (gfc_class_data_get (class_expr));
-	  tmp = gfc_conv_descriptor_dtype (class_data);
-	  gfc_add_modify (pre, tmp, dtype);
+      /* Take the dtype from the class expression.  */
+      dtype = gfc_conv_descriptor_dtype (gfc_class_data_get (class_expr));
+      tmp = gfc_conv_descriptor_dtype (class_data);
+      gfc_add_modify (pre, tmp, dtype);
 
-	  /* Transformational functions reshape and reduce can change the rank.  */
-	  if (fcn_ss && fcn_ss->info && fcn_ss->info->class_container)
-	    {
-	      tmp = gfc_conv_descriptor_rank (class_data);
-	      gfc_add_modify (pre, tmp,
-			      build_int_cst (TREE_TYPE (tmp), ss->loop->dimen));
-	      fcn_ss->info->class_container = NULL_TREE;
-	    }
-	}
       /* Point desc to the class _data field.  */
       desc = class_data;
     }
@@ -6070,14 +5990,6 @@ gfc_array_init_size (tree descriptor, int rank, int corank, tree * poffset,
       tmp = gfc_conv_descriptor_dtype (descriptor);
       gfc_add_modify (pblock, tmp, gfc_conv_descriptor_dtype (expr3_desc));
     }
-  else if (expr->ts.type == BT_CLASS
-	   && expr3 && expr3->ts.type != BT_CLASS
-	   && expr3_elem_size != NULL_TREE && expr3_desc == NULL_TREE)
-    {
-      tmp = gfc_conv_descriptor_elem_len (descriptor);
-      gfc_add_modify (pblock, tmp,
-		      fold_convert (TREE_TYPE (tmp), expr3_elem_size));
-    }
   else
     {
       tmp = gfc_conv_descriptor_dtype (descriptor);
@@ -7882,8 +7794,6 @@ walk_coarray (gfc_expr *e)
 {
   gfc_ss *ss;
 
-  gcc_assert (gfc_get_corank (e) > 0);
-
   ss = gfc_walk_expr (e);
 
   /* Fix scalar coarray.  */
@@ -7904,7 +7814,7 @@ walk_coarray (gfc_expr *e)
       gcc_assert (ref != NULL);
       if (ref->u.ar.type == AR_ELEMENT)
 	ref->u.ar.type = AR_SECTION;
-      ss = gfc_reverse_ss (gfc_walk_array_ref (ss, e, ref));
+      ss = gfc_reverse_ss (gfc_walk_array_ref (ss, e, ref, false));
     }
 
   return ss;
@@ -8005,7 +7915,7 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
   bool substr = false;
   gfc_expr *arg, *ss_expr;
 
-  if (se->want_coarray)
+  if (se->want_coarray || expr->rank == 0)
     ss = walk_coarray (expr);
   else
     ss = gfc_walk_expr (expr);
@@ -8338,7 +8248,7 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 	{
 	  gfc_array_ref *ar = &info->ref->u.ar;
 
-	  codim = gfc_get_corank (expr);
+	  codim = expr->corank;
 	  for (n = 0; n < codim - 1; n++)
 	    {
 	      /* Make sure we are not lost somehow.  */
@@ -8488,6 +8398,8 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 
       /* The 1st element in the section.  */
       base = gfc_index_zero_node;
+      if (expr->ts.type == BT_CHARACTER && expr->rank == 0 && codim)
+	base = gfc_index_one_node;
 
       /* The offset from the 1st element in the section.  */
       offset = gfc_index_zero_node;
@@ -8587,6 +8499,23 @@ gfc_conv_expr_descriptor (gfc_se *se, gfc_expr *expr)
 
       gfc_conv_descriptor_offset_set (&loop.pre, parm, offset);
 
+      if (flag_coarray == GFC_FCOARRAY_LIB && expr->corank)
+	{
+	  tmp = INDIRECT_REF_P (desc) ? TREE_OPERAND (desc, 0) : desc;
+	  if (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (tmp)))
+	    {
+	      tmp = gfc_conv_descriptor_token (tmp);
+	    }
+	  else if (DECL_P (tmp) && DECL_LANG_SPECIFIC (tmp)
+		   && GFC_DECL_TOKEN (tmp) != NULL_TREE)
+	    tmp = GFC_DECL_TOKEN (tmp);
+	  else
+	    {
+	      tmp = GFC_TYPE_ARRAY_CAF_TOKEN (TREE_TYPE (tmp));
+	    }
+
+	  gfc_add_modify (&loop.pre, gfc_conv_descriptor_token (parm), tmp);
+	}
       desc = parm;
     }
 
@@ -9488,10 +9417,9 @@ gfc_duplicate_allocatable_nocopy (tree dest, tree src, tree type, int rank)
 				NULL_TREE, NULL_TREE);
 }
 
-
 static tree
-duplicate_allocatable_coarray (tree dest, tree dest_tok, tree src,
-			       tree type, int rank)
+duplicate_allocatable_coarray (tree dest, tree dest_tok, tree src, tree type,
+			       int rank, tree add_when_allocated)
 {
   tree tmp;
   tree size;
@@ -9545,7 +9473,7 @@ duplicate_allocatable_coarray (tree dest, tree dest_tok, tree src,
       gfc_add_modify (&globalblock, tmp, build_int_cst (TREE_TYPE (tmp), rank));
 
       if (rank)
-	nelems = gfc_full_array_size (&block, src, rank);
+	nelems = gfc_full_array_size (&globalblock, src, rank);
       else
 	nelems = integer_one_node;
 
@@ -9576,7 +9504,7 @@ duplicate_allocatable_coarray (tree dest, tree dest_tok, tree src,
 				 fold_convert (size_type_node, size));
       gfc_add_expr_to_block (&block, tmp);
     }
-
+  gfc_add_expr_to_block (&block, add_when_allocated);
   tmp = gfc_finish_block (&block);
 
   /* Null the destination if the source is null; otherwise do
@@ -9755,7 +9683,7 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 	 gfc_duplicate_allocatable (), where the deep copy code is just added
 	 into the if's body, by adding tmp (the deep copy code) as last
 	 argument to gfc_duplicate_allocatable ().  */
-      if (purpose == COPY_ALLOC_COMP
+      if (purpose == COPY_ALLOC_COMP && caf_mode == 0
 	  && GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (dest)))
 	tmp = gfc_duplicate_allocatable (dest, decl, decl_type, rank,
 					 tmp);
@@ -10485,8 +10413,9 @@ structure_alloc_comps (gfc_symbol * der_type, tree decl, tree dest,
 						 c->caf_token,
 						 NULL_TREE);
 		    }
-		  tmp = duplicate_allocatable_coarray (dcmp, dst_tok, comp,
-						       ctype, rank);
+		  tmp
+		    = duplicate_allocatable_coarray (dcmp, dst_tok, comp, ctype,
+						     rank, add_when_allocated);
 		}
 	      else
 		tmp = gfc_duplicate_allocatable (dcmp, comp, ctype, rank,
@@ -12110,9 +12039,8 @@ gfc_walk_variable_expr (gfc_ss * ss, gfc_expr * expr)
   return gfc_walk_array_ref (ss, expr, ref);
 }
 
-
 gfc_ss *
-gfc_walk_array_ref (gfc_ss * ss, gfc_expr * expr, gfc_ref * ref)
+gfc_walk_array_ref (gfc_ss *ss, gfc_expr *expr, gfc_ref *ref, bool array_only)
 {
   gfc_array_ref *ar;
   gfc_ss *newss;
@@ -12128,7 +12056,8 @@ gfc_walk_array_ref (gfc_ss * ss, gfc_expr * expr, gfc_ref * ref)
 	}
 
       /* We're only interested in array sections from now on.  */
-      if (ref->type != REF_ARRAY)
+      if (ref->type != REF_ARRAY
+	  || (array_only && ref->u.ar.as && ref->u.ar.as->rank == 0))
 	continue;
 
       ar = &ref->u.ar;

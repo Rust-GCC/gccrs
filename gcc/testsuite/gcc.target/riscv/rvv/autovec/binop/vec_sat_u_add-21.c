@@ -8,12 +8,11 @@
 /*
 ** vec_sat_u_add_uint8_t_fmt_6:
 ** ...
-** vsetvli\s+[atx][0-9]+,\s*[atx][0-9]+,\s*e8,\s*m1,\s*ta,\s*ma
-** vle8\.v\s+v[0-9]+,\s*0\([atx][0-9]+\)
-** vle8\.v\s+v[0-9]+,\s*0\([atx][0-9]+\)
+** vsetvli\s+[atx][0-9]+,\s*zero,\s*e8,\s*m1,\s*ta,\s*ma
+** ...
 ** vsaddu\.vv\s+v[0-9]+,\s*v[0-9]+,\s*v[0-9]+
 ** ...
 */
 DEF_VEC_SAT_U_ADD_FMT_6(uint8_t)
 
-/* { dg-final { scan-rtl-dump-times ".SAT_ADD " 2 "expand" } } */
+/* { dg-final { scan-rtl-dump-times ".SAT_ADD " 4 "expand" } } */

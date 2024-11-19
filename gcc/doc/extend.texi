@@ -1593,7 +1593,7 @@ locates data in flash but
 accesses to these data read from generic address space, i.e.@:
 from RAM,
 so that you need special accessors like @code{pgm_read_byte}
-from @w{@uref{https://www.nongnu.org/avr-libc/user-manual/,AVR-LibC}}
+from @w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/,AVR-LibC}}
 together with attribute @code{progmem}.
 
 @noindent
@@ -4024,6 +4024,69 @@ diagnosed.  Because a pure function cannot have any observable side
 effects it does not make sense for such a function to return @code{void}.
 Declaring such a function is diagnosed.
 
+@cindex @code{unsequenced} function type attribute
+@cindex functions that have no side effects
+@item unsequenced
+
+This attribute is a GNU counterpart of the C23 @code{[[unsequenced]]}
+attribute, used to specify function pointers to effectless, idempotent,
+stateless and independent functions according to the C23 definition.
+
+Unlike the standard C23 attribute it can be also specified in attributes
+which appertain to function declarations and applies to the their function
+type even in that case.
+
+Unsequenced functions without pointer or reference arguments are similar
+to functions with the @code{const} attribute, except that @code{const}
+attribute also requires finiteness.  So, both functions with @code{const}
+and with @code{unsequenced} attributes can be optimized by common
+subexpression elimination, but only functions with @code{const}
+attribute can be optimized by dead code elimination if their result is
+unused or is used only by dead code.  Unsequenced functions without pointer
+or reference arguments with @code{void} return type are diagnosed because
+they can't store any results and don't have other observable side-effects
+either.
+
+Unsequenced functions with pointer or reference arguments can inspect
+objects through the passed pointers or references or references to pointers
+or can store additional results through those pointers or references or
+references to pointers.
+
+The @code{unsequenced} attribute imposes greater restrictions than
+the similar @code{reproducible} attribute and fewer restrictions than
+the @code{const} attribute, so during optimization @code{const} has
+precedence over @code{unsequenced} which has precedence over
+@code{reproducible}.
+
+@cindex @code{reproducible} function type attribute
+@cindex functions that have no side effects
+@item reproducible
+
+This attribute is a GNU counterpart of the C23 @code{[[reproducible]]}
+attribute, used to specify function pointers to effectless and idempotent
+functions according to the C23 definition.
+
+Unlike the standard C23 attribute it can be also specified in attributes
+which appertain to function declarations and applies to the their function
+type even in that case.
+
+Reproducible functions without pointer or reference arguments or which do
+not modify objects referenced by those pointer/reference arguments are
+similar to functions with the @code{pure} attribute, except that
+@code{pure} attribute also requires finiteness.  So, both functions with
+@code{pure} and with @code{reproducible} attributes can be optimized by common
+subexpression elimination if the global state or anything reachable through
+the pointer/reference arguments isn't modified, but only functions with
+@code{pure} attribute can be optimized by dead code elimination if their result is
+unused or is used only by dead code.  Reproducible functions without pointer
+or reference arguments with @code{void} return type are diagnosed because
+they can't store any results and don't have other observable side-effects
+either.
+
+Reproducible functions with pointer or reference arguments can store
+additional results through those pointers or references or references to
+pointers.
+
 @cindex @code{retain} function attribute
 @item retain
 For ELF targets that support the GNU or FreeBSD OSABIs, this attribute
@@ -5118,7 +5181,7 @@ globally enable interrupts.
 
 The recommended way to use these attributes is by means of the
 @code{ISR} macro provided by @code{avr/interrupt.h} from
-@w{@uref{https://www.nongnu.org/avr-libc/user-manual/group__avr__interrupts.html,,AVR-LibC}}:
+@w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/group__avr__interrupts.html,,AVR-LibC}}:
 @example
 #include <avr/interrupt.h>
 
@@ -5156,7 +5219,7 @@ static void my_handler (void)
 Notice that the handler function needs not to be externally visible.
 The recommended way to use these attributes is by means of the
 @code{ISR_N} macro provided by @code{avr/interrupt.h} from
-@w{@uref{https://www.nongnu.org/avr-libc/user-manual/group__avr__interrupts.html,,AVR-LibC}}:
+@w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/group__avr__interrupts.html,,AVR-LibC}}:
 
 @example
 #include <avr/interrupt.h>
@@ -7863,6 +7926,10 @@ The @code{counted_by} attribute may be attached to the C99 flexible array
 member of a structure.  It indicates that the number of the elements of the
 array is given by the field "@var{count}" in the same structure as the
 flexible array member.
+
+This attribute is available only in C for now.
+In C++ this attribute is ignored.
+
 GCC may use this information to improve detection of object size information
 for such structures and provide better results in compile-time diagnostics
 and runtime features like the array bound sanitizer and
@@ -9123,6 +9190,13 @@ initialization will result in future breakage.
 
 GCC emits warnings based on this attribute by default; use
 @option{-Wno-designated-init} to suppress them.
+
+@cindex @code{flag_enum} type attribute
+@item flag_enum
+This attribute may be applied to an enumerated type to indicate that
+its enumerators are used in bitwise operations, so e.g. @option{-Wswitch}
+should not warn about a @code{case} that corresponds to a bitwise
+combination of enumerators.
 
 @cindex @code{hardbool} type attribute
 @item hardbool
@@ -23347,6 +23421,25 @@ signed long long will sign extend the rightmost byte of each doubleword.
 The following additional built-in functions are also available for the
 PowerPC family of processors, starting with ISA 3.1 (@option{-mcpu=power10}):
 
+@smallexample
+@exdent int vec_test_lsbb_all_ones (vector signed char);
+@exdent int vec_test_lsbb_all_ones (vector unsigned char);
+@exdent int vec_test_lsbb_all_ones (vector bool char);
+@end smallexample
+@findex vec_test_lsbb_all_ones
+
+The builtin @code{vec_test_lsbb_all_ones} returns 1 if the least significant
+bit in each byte is equal to 1.  It returns 0 otherwise.
+
+@smallexample
+@exdent int vec_test_lsbb_all_zeros (vector signed char);
+@exdent int vec_test_lsbb_all_zeros (vector unsigned char);
+@exdent int vec_test_lsbb_all_zeros (vector bool char);
+@end smallexample
+@findex vec_test_lsbb_all_zeros
+
+The builtin @code{vec_test_lsbb_all_zeros} returns 1 if the least significant
+bit in each byte is equal to zero.  It returns 0 otherwise.
 
 @smallexample
 @exdent vector unsigned long long int

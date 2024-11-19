@@ -5540,7 +5540,8 @@ gfc_create_module_variable (gfc_symbol * sym)
   /* Create the variable.  */
   pushdecl (decl);
   gcc_assert (sym->ns->proc_name->attr.flavor == FL_MODULE
-	      || (sym->ns->parent->proc_name->attr.flavor == FL_MODULE
+	      || ((sym->ns->parent->proc_name->attr.flavor == FL_MODULE
+		   || sym->ns->parent->proc_name->attr.flavor == FL_PROCEDURE)
 		  && sym->fn_result_spec));
   DECL_CONTEXT (decl) = sym->ns->proc_name->backend_decl;
   rest_of_decl_compilation (decl, 1, 0);
@@ -7098,6 +7099,10 @@ gfc_conv_cfi_to_gfc (stmtblock_t *init, stmtblock_t *finally,
 		  type = (sym->ts.u.derived->intmod_sym_id == ISOCBINDING_FUNPTR
 			? CFI_type_cfunptr : CFI_type_cptr);
 		  break;
+
+	      case BT_UNSIGNED:
+		gfc_internal_error ("Unsigned not yet implemented");
+
 		case BT_ASSUMED:
 		case BT_CLASS:
 		case BT_PROCEDURE:

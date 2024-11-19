@@ -2610,8 +2610,9 @@ modref_eaf_analysis::analyze_ssa_name (tree name, bool deferred)
 		 is used arbitrarily.  */
 	      if (memory_access_to (gimple_assign_rhs1 (assign), name))
 		m_lattice[index].merge (deref_flags (0, false));
+
 	      /* Handle *name = *exp.  */
-	      else if (memory_access_to (gimple_assign_lhs (assign), name))
+	      if (memory_access_to (gimple_assign_lhs (assign), name))
 		m_lattice[index].merge_direct_store ();
 	    }
 	  /* Handle lhs = *name.  */
@@ -2975,7 +2976,7 @@ analyze_parms (modref_summary *summary, modref_summary_lto *summary_lto,
 		summary->arg_flags.safe_grow_cleared (count, true);
 	      summary->arg_flags[parm_index] = EAF_UNUSED;
 	    }
-	  else if (summary_lto)
+	  if (summary_lto)
 	    {
 	      if (parm_index >= summary_lto->arg_flags.length ())
 		summary_lto->arg_flags.safe_grow_cleared (count, true);
@@ -3034,7 +3035,7 @@ analyze_parms (modref_summary *summary, modref_summary_lto *summary_lto,
 		summary->arg_flags.safe_grow_cleared (count, true);
 	      summary->arg_flags[parm_index] = flags;
 	    }
-	  else if (summary_lto)
+	  if (summary_lto)
 	    {
 	      if (parm_index >= summary_lto->arg_flags.length ())
 		summary_lto->arg_flags.safe_grow_cleared (count, true);

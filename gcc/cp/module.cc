@@ -3681,7 +3681,7 @@ class GTY((chain_next ("%h.parent"), for_user)) module_state {
 
  public:
   /* Read and write module.  */
-  void write_begin (elf_out *to, cpp_reader *,
+  bool write_begin (elf_out *to, cpp_reader *,
 		    module_state_config &, unsigned &crc);
   void write_end (elf_out *to, cpp_reader *,
 		  module_state_config &, unsigned &crc);
@@ -4695,7 +4695,7 @@ noisy_p ()
   if (quiet_flag)
     return false;
 
-  pp_needs_newline (global_dc->printer) = true;
+  pp_needs_newline (global_dc->m_printer) = true;
   diagnostic_set_last_function (global_dc, (diagnostic_info *) NULL);
 
   return true;
@@ -7981,7 +7981,8 @@ trees_out::decl_value (tree decl, depset *dep)
 	      auto *entry = reinterpret_cast <spec_entry *> (dep->deps[0]);
 
 	      if (streaming_p ())
-		u (get_mergeable_specialization_flags (entry->tmpl, decl));
+		u (get_mergeable_specialization_flags (mk & MK_tmpl_decl_mask,
+						       entry->tmpl, decl));
 	      tree_node (entry->tmpl);
 	      tree_node (entry->args);
 	    }
@@ -8432,11 +8433,6 @@ trees_in::decl_value ()
 	  spec.spec = is_type ? type : mk & MK_tmpl_tmpl_mask ? inner : decl;
 	  add_mergeable_specialization (!is_type, &spec, decl, spec_flags);
 	}
-
-      /* When making a CMI from a partition we're going to need to walk partial
-	 specializations again, so make sure they're tracked.  */
-      if (state->is_partition () && (spec_flags & 2))
-	set_defining_module_for_partial_spec (inner);
 
       if (NAMESPACE_SCOPE_P (decl)
 	  && (mk == MK_named || mk == MK_unique
@@ -9937,7 +9933,11 @@ trees_in::tree_node (bool is_use)
 	tree name = tree_node ();
 	if (!get_overrun ())
 	  {
-	    res = get_template_parm_object (init, name);
+	    /* We don't want to check the initializer as that may require
+	       name lookup, which could recursively start lazy loading.
+	       Instead we know that INIT is already valid so we can just
+	       apply that directly.  */
+	    res = get_template_parm_object (init, name, /*check_init=*/false);
 	    int tag = insert (res);
 	    dump (dumper::TREE)
 	      && dump ("Created nttp object:%d %N", tag, name);
@@ -11622,6 +11622,7 @@ trees_in::is_matching_decl (tree existing, tree decl, bool is_typedef)
 	{
 	  // FIXME:QOI Might be template specialization from a module,
 	  // not necessarily global module
+	  auto_diagnostic_group d;
 	  error_at (DECL_SOURCE_LOCATION (decl),
 		    "conflicting global module declaration %#qD", decl);
 	  inform (DECL_SOURCE_LOCATION (existing),
@@ -11785,10 +11786,9 @@ has_definition (tree decl)
       if (DECL_DECLARED_INLINE_P (decl))
 	return true;
 
-      if (DECL_THIS_STATIC (decl)
-	  && (header_module_p ()
-	      || (!DECL_LANG_SPECIFIC (decl) || !DECL_MODULE_PURVIEW_P (decl))))
-	/* GM static function.  */
+      if (header_module_p ())
+	/* We always need to write definitions in header modules,
+	   since there's no TU to emit them in otherwise.  */
 	return true;
 
       if (DECL_TEMPLATE_INFO (decl))
@@ -11821,11 +11821,12 @@ has_definition (tree decl)
       else
 	{
 	  if (!DECL_INITIALIZED_P (decl))
+	    /* Not defined.  */
 	    return false;
 
-	  if (header_module_p ()
-	      || (!DECL_LANG_SPECIFIC (decl) || !DECL_MODULE_PURVIEW_P (decl)))
-	    /* GM static variable.  */
+	  if (header_module_p ())
+	    /* We always need to write definitions in header modules,
+	       since there's no TU to emit them in otherwise.  */
 	    return true;
 
 	  if (!TREE_CONSTANT (decl))
@@ -12677,6 +12678,7 @@ trees_in::read_enum_def (tree defn, tree maybe_template)
 
       if (known || values)
 	{
+	  auto_diagnostic_group d;
 	  error_at (DECL_SOURCE_LOCATION (maybe_dup),
 		    "definition of %qD does not match", maybe_dup);
 	  inform (DECL_SOURCE_LOCATION (defn),
@@ -13349,16 +13351,20 @@ depset::hash::add_partial_entities (vec<tree, va_gc> *partial_classes)
 	     specialization.  */
 	  gcc_checking_assert (dep->get_entity_kind ()
 			       == depset::EK_PARTIAL);
+
+	  /* Only emit GM entities if reached.  */
+	  if (!DECL_LANG_SPECIFIC (inner)
+	      || !DECL_MODULE_PURVIEW_P (inner))
+	    dep->set_flag_bit<DB_UNREACHED_BIT> ();
 	}
       else
-	/* It was an explicit specialization, not a partial one.  */
-	gcc_checking_assert (dep->get_entity_kind ()
-			     == depset::EK_SPECIALIZATION);
-
-      /* Only emit GM entities if reached.  */
-      if (!DECL_LANG_SPECIFIC (inner)
-	  || !DECL_MODULE_PURVIEW_P (inner))
-	dep->set_flag_bit<DB_UNREACHED_BIT> ();
+	{
+	  /* It was an explicit specialization, not a partial one.
+	     We should have already added this.  */
+	  gcc_checking_assert (dep->get_entity_kind ()
+			       == depset::EK_SPECIALIZATION);
+	  gcc_checking_assert (dep->is_special ());
+	}
     }
 }
 
@@ -13640,7 +13646,7 @@ depset::hash::add_deduction_guides (tree decl)
   if (find_binding (ns, name))
     return;
 
-  tree guides = lookup_qualified_name (ns, name, LOOK_want::NORMAL,
+  tree guides = lookup_qualified_name (ns, name, LOOK_want::ANY_REACHABLE,
 				       /*complain=*/false);
   if (guides == error_mark_node)
     return;
@@ -14492,6 +14498,7 @@ module_state::check_not_purview (location_t from)
   if (imp == this)
     {
       /* Cannot import the current module.  */
+      auto_diagnostic_group d;
       error_at (from, "cannot import module in its own purview");
       inform (loc, "module %qs declared here", get_flatname ());
       return false;
@@ -15222,11 +15229,6 @@ module_state::write_cluster (elf_out *to, depset *scc[], unsigned size,
 		    if (dep->is_hidden ())
 		      flags |= cbf_hidden;
 		    else if (DECL_MODULE_EXPORT_P (STRIP_TEMPLATE (bound)))
-		      flags |= cbf_export;
-		    else if (deduction_guide_p (bound))
-		      /* Deduction guides are always exported so that they are
-			 visible to name lookup whenever their class template
-			 is reachable.  */
 		      flags |= cbf_export;
 		  }
 
@@ -17859,6 +17861,7 @@ module_state::deferred_macro (cpp_reader *reader, location_t loc,
     {
       /* If LOC is the first loc, this is the end of file check, which
 	 is a warning.  */
+      auto_diagnostic_group d;
       if (loc == MAP_START_LOCATION (LINEMAPS_ORDINARY_MAP_AT (line_table, 0)))
 	warning_at (loc, OPT_Winvalid_imported_macros,
 		    "inconsistent imported macro definition %qE",
@@ -18133,6 +18136,7 @@ module_state::read_config (module_state_config &config)
 
       /* Reject when either is non-experimental or when experimental
 	 major versions differ.  */
+      auto_diagnostic_group d;
       bool reject_p = ((!IS_EXPERIMENTAL (my_ver)
 			|| !IS_EXPERIMENTAL (their_ver)
 			|| MODULE_MAJOR (my_ver) != MODULE_MAJOR (their_ver))
@@ -18317,7 +18321,7 @@ ool_cmp (const void *a_, const void *b_)
      MOD_SNAME_PFX.cfg      : config data
 */
 
-void
+bool
 module_state::write_begin (elf_out *to, cpp_reader *reader,
 			   module_state_config &config, unsigned &crc)
 {
@@ -18395,10 +18399,7 @@ module_state::write_begin (elf_out *to, cpp_reader *reader,
   table.find_dependencies (this);
 
   if (!table.finalize_dependencies ())
-    {
-      to->set_error ();
-      return;
-    }
+    return false;
 
 #if CHECKING_P
   /* We're done verifying at-most once reading, reset to verify
@@ -18595,6 +18596,8 @@ module_state::write_begin (elf_out *to, cpp_reader *reader,
   // so-controlled.
   if (false)
     write_env (to);
+
+  return true;
 }
 
 // Finish module writing after we've emitted all dynamic initializers. 
@@ -18946,6 +18949,7 @@ module_state::check_read (bool outermost, bool ok)
 
   if (int e = from ()->get_error ())
     {
+      auto_diagnostic_group d;
       error_at (loc, "failed to read compiled module: %s",
 		from ()->get_error (filename));
       note_cmi_name ();
@@ -19879,6 +19883,7 @@ declare_module (module_state *module, location_t from_loc, bool exporting_p,
   module_state *current = (*modules)[0];
   if (module_purview_p () || module->loadedness > ML_CONFIG)
     {
+      auto_diagnostic_group d;
       error_at (from_loc, module_purview_p ()
 		? G_("module already declared")
 		: G_("module already imported"));
@@ -20087,14 +20092,21 @@ canonicalize_header_name (cpp_reader *reader, location_t loc, bool unquoted,
 
 void module_state::set_filename (const Cody::Packet &packet)
 {
-  gcc_checking_assert (!filename);
   if (packet.GetCode () == Cody::Client::PC_PATHNAME)
-    filename = xstrdup (packet.GetString ().c_str ());
+    {
+      /* If we've seen this import before we better have the same CMI.  */
+      const std::string &path = packet.GetString ();
+      if (!filename)
+	filename = xstrdup (packet.GetString ().c_str ());
+      else if (filename != path)
+	error_at (loc, "mismatching compiled module interface: "
+		  "had %qs, got %qs", filename, path.c_str ());
+    }
   else
     {
       gcc_checking_assert (packet.GetCode () == Cody::Client::PC_ERROR);
-      error_at (loc, "unknown Compiled Module Interface: %s",
-		packet.GetString ().c_str ());
+      fatal_error (loc, "unknown compiled module interface: %s",
+		   packet.GetString ().c_str ());
     }
 }
 
@@ -20119,15 +20131,20 @@ maybe_translate_include (cpp_reader *reader, line_maps *lmaps, location_t loc,
   size_t len = strlen (path);
   path = canonicalize_header_name (NULL, loc, true, path, len);
   auto packet = mapper->IncludeTranslate (path, Cody::Flags::None, len);
-  int xlate = false;
+
+  enum class xlate_kind {
+    unknown, text, import,
+  } translate = xlate_kind::unknown;
+
   if (packet.GetCode () == Cody::Client::PC_BOOL)
-    xlate = -int (packet.GetInteger ());
+    translate = packet.GetInteger () ? xlate_kind::text : xlate_kind::unknown;
   else if (packet.GetCode () == Cody::Client::PC_PATHNAME)
     {
-      /* Record the CMI name for when we do the import.  */
+      /* Record the CMI name for when we do the import.
+	 We may already know about this import, but libcpp doesn't yet.  */
       module_state *import = get_module (build_string (len, path));
       import->set_filename (packet);
-      xlate = +1;
+      translate = xlate_kind::import;
     }
   else
     {
@@ -20137,9 +20154,9 @@ maybe_translate_include (cpp_reader *reader, line_maps *lmaps, location_t loc,
     }
 
   bool note = false;
-  if (note_include_translate_yes && xlate > 1)
+  if (note_include_translate_yes && translate == xlate_kind::import)
     note = true;
-  else if (note_include_translate_no && xlate == 0)
+  else if (note_include_translate_no && translate == xlate_kind::unknown)
     note = true;
   else if (note_includes)
     /* We do not expect the note_includes vector to be large, so O(N)
@@ -20149,15 +20166,16 @@ maybe_translate_include (cpp_reader *reader, line_maps *lmaps, location_t loc,
 	note = true;
 
   if (note)
-    inform (loc, xlate
+    inform (loc, translate == xlate_kind::import
 	    ? G_("include %qs translated to import")
-	    : G_("include %qs processed textually") , path);
+	    : G_("include %qs processed textually"), path);
 
-  dump () && dump (xlate ? "Translating include to import"
+  dump () && dump (translate == xlate_kind::import
+		   ? "Translating include to import"
 		   : "Keeping include as include");
   dump.pop (0);
 
-  if (!(xlate > 0))
+  if (translate != xlate_kind::import)
     return nullptr;
   
   /* Create the translation text.  */
@@ -20523,6 +20541,7 @@ init_modules (cpp_reader *reader)
 	  || (cpp_opts->deps.style != DEPS_NONE
 	      && !cpp_opts->deps.need_preprocessor_output))
 	{
+	  auto_diagnostic_group d;
 	  warning (0, flag_dump_macros == 'M'
 		   ? G_("macro debug output may be incomplete with modules")
 		   : G_("module dependencies require preprocessing"));
@@ -20847,20 +20866,29 @@ finish_module_processing (cpp_reader *reader)
 
       cookie = new module_processing_cookie (cmi_name, tmp_name, fd, e);
 
-      if (errorcount
-	  /* Don't write the module if it contains an erroneous template.  */
-	  || (erroneous_templates
-	      && !erroneous_templates->is_empty ()))
-	warning_at (state->loc, 0, "not writing module %qs due to errors",
-		    state->get_flatname ());
+      if (errorcount)
+	/* Don't write the module if we have reported errors.  */;
+      else if (erroneous_templates
+	       && !erroneous_templates->is_empty ())
+	{
+	  /* Don't write the module if it contains an erroneous template.
+	     Also emit notes about where errors occurred in case
+	     -Wno-template-body was passed.  */
+	  auto_diagnostic_group d;
+	  error_at (state->loc, "not writing module %qs due to errors "
+		    "in template bodies", state->get_flatname ());
+	  if (!warn_template_body)
+	    inform (state->loc, "enable %<-Wtemplate-body%> for more details");
+	  for (auto e : *erroneous_templates)
+	    inform (e.second, "first error in %qD appeared here", e.first);
+	}
       else if (cookie->out.begin ())
 	{
-	  cookie->began = true;
-	  auto loc = input_location;
 	  /* So crashes finger-point the module decl.  */
-	  input_location = state->loc;
-	  state->write_begin (&cookie->out, reader, cookie->config, cookie->crc);
-	  input_location = loc;
+	  iloc_sentinel ils = state->loc;
+	  if (state->write_begin (&cookie->out, reader, cookie->config,
+				  cookie->crc))
+	    cookie->began = true;
 	}
 
       dump.pop (n);

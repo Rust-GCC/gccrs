@@ -51,6 +51,9 @@
 #define splay_tree_c
 #include "splay-tree.h"
 
+/* Used by omp_get_device_from_uid / omp_get_uid_from_device for the host.  */
+static char *str_omp_initial_device = "OMP_INITIAL_DEVICE";
+#define STR_OMP_DEV_PREFIX "OMP_DEV_"
 
 typedef uintptr_t *hash_entry_type;
 static inline void * htab_alloc (size_t size) { return gomp_malloc (size); }
@@ -5113,6 +5116,166 @@ omp_pause_resource_all (omp_pause_resource_t kind)
 ialias (omp_pause_resource)
 ialias (omp_pause_resource_all)
 
+int
+omp_get_num_interop_properties (const omp_interop_t interop
+				__attribute__ ((unused)))
+{
+  /* Zero implementation defined. In total:
+     omp_get_num_interop_properties () - omp_ipr_first.  */
+  return 0;
+}
+
+omp_intptr_t
+omp_get_interop_int (const omp_interop_t interop __attribute__ ((unused)),
+		     omp_interop_property_t property_id,
+		     omp_interop_rc_t *ret_code)
+{
+  if (ret_code == NULL)
+    return 0;
+  if (property_id < omp_ipr_first || property_id >= 0)
+    *ret_code = omp_irc_out_of_range;
+  else
+    *ret_code = omp_irc_empty;  /* Assume omp_interop_none.  */
+  return 0;
+}
+
+void *
+omp_get_interop_ptr (const omp_interop_t interop __attribute__ ((unused)),
+		     omp_interop_property_t property_id,
+		     omp_interop_rc_t *ret_code)
+{
+  if (ret_code == NULL)
+    return NULL;
+  if (property_id < omp_ipr_first || property_id >= 0)
+    *ret_code = omp_irc_out_of_range;
+  else
+    *ret_code = omp_irc_empty;  /* Assume omp_interop_none.  */
+  return NULL;
+}
+
+const char *
+omp_get_interop_str (const omp_interop_t interop __attribute__ ((unused)),
+		     omp_interop_property_t property_id,
+		     omp_interop_rc_t *ret_code)
+{
+  if (ret_code == NULL)
+    return NULL;
+  if (property_id < omp_ipr_first || property_id >= 0)
+    *ret_code = omp_irc_out_of_range;
+  else
+    *ret_code = omp_irc_empty;  /* Assume omp_interop_none.  */
+  return NULL;
+}
+
+const char *
+omp_get_interop_name (const omp_interop_t interop __attribute__ ((unused)),
+		      omp_interop_property_t property_id)
+{
+  static const char *prop_string[0 - omp_ipr_first]
+    = {"fr_id", "fr_name", "vendor", "vendor_name", "device_num", "platform",
+       "device", "device_context", "targetsync"};
+  if (property_id < omp_ipr_first || property_id >= 0)
+    return NULL;
+  return prop_string[omp_ipr_fr_id - property_id];
+}
+
+const char *
+omp_get_interop_type_desc (const omp_interop_t interop,
+			   omp_interop_property_t property_id)
+{
+  static const char *desc[omp_ipr_fr_id - omp_ipr_device_num + 1]
+    = {"omp_interop_t",	/* fr_id */
+       "const char*",	/* fr_name */
+       "int",		/* vendor */
+       "const char *",	/* vendor_name */
+       "int"};		/* device_num */
+  if (property_id > omp_ipr_fr_id || property_id < omp_ipr_first)
+    return NULL;
+  if (interop == omp_interop_none)
+    return NULL;
+  if (property_id >= omp_ipr_device_num)
+    return desc[omp_ipr_fr_id - property_id];
+  return NULL;  /* FIXME: Call plugin.  */
+}
+
+const char *
+omp_get_interop_rc_desc (const omp_interop_t interop __attribute__ ((unused)),
+			 omp_interop_rc_t ret_code)
+{
+  static const char *rc_strings[omp_irc_no_value - omp_irc_other]
+    = {"no meaningful value available",
+       "successful",
+       "provided interoperability object is equal to omp_interop_none",
+       "property ID is out of range",
+       "property type is integer; use omp_get_interop_int",
+       "property type is pointer; use omp_get_interop_ptr",
+       "property type is string; use omp_get_interop_str"};
+
+  /* omp_irc_other is returned by device-side omp_get_interop_{int,ptr,str};
+     on the host it is not used, hence, return NULL here.   */
+  if (ret_code > omp_irc_no_value || ret_code <= omp_irc_other)
+    return NULL;
+  return rc_strings[omp_irc_no_value - ret_code];
+}
+
+ialias (omp_get_num_interop_properties)
+ialias (omp_get_interop_int)
+ialias (omp_get_interop_ptr)
+ialias (omp_get_interop_str)
+ialias (omp_get_interop_name)
+ialias (omp_get_interop_type_desc)
+ialias (omp_get_interop_rc_desc)
+
+static const char *
+gomp_get_uid_for_device (struct gomp_device_descr *devicep, int device_num)
+{
+  if (devicep->uid)
+    return devicep->uid;
+
+  if (devicep->get_uid_func)
+    devicep->uid = devicep->get_uid_func (devicep->target_id);
+  if (!devicep->uid)
+    {
+      size_t ln = strlen (STR_OMP_DEV_PREFIX) + 10 + 1;
+      char *uid;
+      uid = gomp_malloc (ln);
+      snprintf (uid, ln, "%s%d", STR_OMP_DEV_PREFIX, device_num);
+      devicep->uid = uid;
+    }
+  return devicep->uid;
+}
+
+const char *
+omp_get_uid_from_device (int device_num)
+{
+  if (device_num < omp_initial_device || device_num > gomp_get_num_devices ())
+    return NULL;
+
+  if (device_num == omp_initial_device || device_num == gomp_get_num_devices ())
+    return str_omp_initial_device;
+
+  struct gomp_device_descr *devicep = resolve_device (device_num, false);
+  if (devicep == NULL)
+    return NULL;
+  return gomp_get_uid_for_device (devicep, device_num);
+}
+
+int
+omp_get_device_from_uid (const char *uid)
+{
+  if (uid == NULL)
+    return omp_invalid_device;
+  if (strcmp (uid, str_omp_initial_device) == 0)
+    return omp_initial_device;
+  for (int dev = 0; dev < gomp_get_num_devices (); dev++)
+    if (strcmp (uid, gomp_get_uid_for_device (&devices[dev], dev)) == 0)
+      return dev;
+  return omp_invalid_device;
+}
+
+ialias (omp_get_uid_from_device)
+ialias (omp_get_device_from_uid)
+
 #ifdef PLUGIN_SUPPORT
 
 /* This function tries to load a plugin for DEVICE.  Name of plugin is passed
@@ -5154,6 +5317,7 @@ gomp_load_plugin_for_device (struct gomp_device_descr *device,
     }
 
   DLSYM (get_name);
+  DLSYM_OPT (get_uid, get_uid);
   DLSYM (get_caps);
   DLSYM (get_type);
   DLSYM (get_num_devices);
@@ -5339,6 +5503,8 @@ gomp_target_init (void)
 		  }
 
 		current_device.name = current_device.get_name_func ();
+		/* Defer UID setting until needed + after gomp_init_device.  */
+		current_device.uid = NULL;
 		/* current_device.capabilities has already been set.  */
 		current_device.type = current_device.get_type_func ();
 		current_device.mem_map.root = NULL;

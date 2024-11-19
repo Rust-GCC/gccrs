@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler,
-   for ATMEL AVR at90s8515, ATmega103/103L, ATmega603/603L microcontrollers.
+   for AVR 8-bit microcontrollers.
    Copyright (C) 1998-2024 Free Software Foundation, Inc.
    Contributed by Denis Chertykov (chertykov@gmail.com)
 
@@ -308,11 +308,18 @@ enum reg_class {
 
 #define STATIC_CHAIN_REGNUM ((AVR_TINY) ? 18 :2)
 
-#define ELIMINABLE_REGS {					\
+#define RELOAD_ELIMINABLE_REGS {				\
     { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },               \
     { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },               \
     { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM },             \
     { FRAME_POINTER_REGNUM + 1, STACK_POINTER_REGNUM + 1 } }
+
+#define ELIMINABLE_REGS						\
+  {								\
+    { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },		\
+    { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },		\
+    { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM }		\
+  }
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
   OFFSET = avr_initial_elimination_offset (FROM, TO)

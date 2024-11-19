@@ -2765,7 +2765,7 @@ static CONSTEXPR const rvv_op_info all_v_scalar_ptr_index_ops
      scalar_ptr_index_args /* Args */};
 
 /* A static operand information for vector_type func (vector_type).
-   Some ins just supports SEW=32, such as crypto vectol Zvkg extension.
+   Some insns just supports SEW=32, such as the crypto vector Zvkg extension.
  * function registration.  */
 static CONSTEXPR const rvv_arg_type_info vs_lmul_x2_args[]
   = {rvv_arg_type_info (RVV_BASE_vlmul_ext_x2),
@@ -2838,7 +2838,7 @@ static CONSTEXPR const rvv_op_info u_vvs_crypto_sew32_lmul_x16_ops
      vs_lmul_x16_args /* Args */};
 
 /* A static operand information for vector_type func (vector_type).
-   Some ins just supports SEW=64, such as crypto vectol Zvbc extension
+   Some insns just supports SEW=64, such as the crypto vector Zvbc extension
    vclmul.vv, vclmul.vx.
  * function registration.  */
 static CONSTEXPR const rvv_op_info u_vvv_crypto_sew64_ops
@@ -3497,11 +3497,11 @@ function_instance::operator== (const function_instance &other) const
 bool
 function_instance::any_type_float_p () const
 {
-  if (FLOAT_MODE_P (TYPE_MODE (get_return_type ())))
+  if (riscv_vector_float_type_p (get_return_type ()))
     return true;
 
   for (int i = 0; op_info->args[i].base_type != NUM_BASE_TYPES; ++i)
-    if (FLOAT_MODE_P (TYPE_MODE (get_arg_type (i))))
+    if (riscv_vector_float_type_p (get_arg_type (i)))
       return true;
 
   return false;

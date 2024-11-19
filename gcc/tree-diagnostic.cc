@@ -46,16 +46,16 @@ static void
 default_tree_diagnostic_starter (diagnostic_context *context,
 				 const diagnostic_info *diagnostic)
 {
+  pretty_printer *pp = context->m_printer;
   diagnostic_report_current_function (context, diagnostic);
-  pp_set_prefix (context->printer, diagnostic_build_prefix (context,
-							    diagnostic));
+  pp_set_prefix (pp, diagnostic_build_prefix (context, diagnostic));
 }
 
 /* Default tree printer.   Handles declarations only.  */
 bool
 default_tree_printer (pretty_printer *pp, text_info *text, const char *spec,
 		      int precision, bool wide, bool set_locus, bool hash,
-		      bool *, const char **)
+		      bool *, pp_token_list &)
 {
   tree t;
 

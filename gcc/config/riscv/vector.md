@@ -816,7 +816,7 @@
 				vfcmp,vfminmax,vfsgnj,vfclass,vfmerge,vfmov,\
 				vfcvtitof,vfncvtitof,vfncvtftoi,vfncvtftof,vmalu,vmiota,vmidx,\
 				vimovxv,vfmovfv,vslideup,vslidedown,vislide1up,vislide1down,vfslide1up,vfslide1down,\
-				vgather,vcompress,vmov,vnclip,vnshift,vandn,vcpop,vclz,vctz")
+				vgather,vcompress,vmov,vnclip,vnshift,vandn,vcpop,vclz,vctz,vrol,vror")
 	       (const_int 0)
 
 	       (eq_attr "type" "vimovvx,vfmovvf")
@@ -1486,7 +1486,8 @@
   {
     /* Early expand DImode broadcast in RV32 system to avoid RA reload
        generate (set (reg) (vec_duplicate:DI)).  */
-    if (maybe_gt (GET_MODE_SIZE (<VEL>mode), GET_MODE_SIZE (Pmode)))
+    bool gt_p = maybe_gt (GET_MODE_SIZE (<VEL>mode), GET_MODE_SIZE (Pmode));
+    if (!FLOAT_MODE_P (<VEL>mode) && gt_p)
       {
         riscv_vector::emit_vlmax_insn (code_for_pred_broadcast (<MODE>mode),
 				       riscv_vector::UNARY_OP, operands);
@@ -1520,7 +1521,7 @@
 ;; ---- 6. Configuration-Setting Instructions
 ;; -----------------------------------------------------------------
 ;; Includes:
-;; - 6.1 vsetvli/vsetivl/vsetvl instructions
+;; - 6.1 vsetvli/vsetivli/vsetvl instructions
 ;; -----------------------------------------------------------------
 
 ;; we don't define vsetvli as unspec_volatile which has side effects.
@@ -4399,10 +4400,10 @@
 	  (sat_int_minus_binop:VI_D
 	    (match_operand:VI_D 3 "register_operand"     " vr, vr, vr, vr")
 	    (vec_duplicate:VI_D
-	      (match_operand:<VEL> 4 "register_operand"  "  r,  r,  r,  r")))
+	      (match_operand:<VEL> 4 "reg_or_0_operand"  "  rJ, rJ, rJ, rJ")))
 	  (match_operand:VI_D 2 "vector_merge_operand"   " vu,  0, vu,  0")))]
   "TARGET_VECTOR"
-  "v<insn>.vx\t%0,%3,%4%p1"
+  "v<insn>.vx\t%0,%3,%z4%p1"
   [(set_attr "type" "<int_binop_insn_type>")
    (set_attr "mode" "<MODE>")])
 
@@ -4421,10 +4422,10 @@
 	    (match_operand:VI_D 3 "register_operand"         " vr, vr, vr, vr")
 	    (vec_duplicate:VI_D
 	      (sign_extend:<VEL>
-	        (match_operand:<VSUBEL> 4 "register_operand" "  r,  r,  r,  r"))))
+		(match_operand:<VSUBEL> 4 "reg_or_0_operand" "  rJ, rJ, rJ, rJ"))))
 	  (match_operand:VI_D 2 "vector_merge_operand"       " vu,  0, vu,  0")))]
   "TARGET_VECTOR && !TARGET_64BIT"
-  "v<insn>.vx\t%0,%3,%4%p1"
+  "v<insn>.vx\t%0,%3,%z4%p1"
   [(set_attr "type" "<int_binop_insn_type>")
    (set_attr "mode" "<MODE>")])
 
@@ -5331,16 +5332,16 @@
 	  (plus:V_VLSI
 	    (mult:V_VLSI
 	      (vec_duplicate:V_VLSI
-	        (match_operand:<VEL> 2 "register_operand" "  r,   r,  r,   r"))
+		(match_operand:<VEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ"))
 	      (match_operand:V_VLSI 3 "register_operand"      "  0,  vr,  0,  vr"))
 	    (match_operand:V_VLSI 4 "register_operand"        " vr,  vr, vr,  vr"))
 	  (match_dup 3)))]
   "TARGET_VECTOR"
   "@
-   vmadd.vx\t%0,%2,%4%p1
-   vmv%m3r.v\t%0,%3\;vmadd.vx\t%0,%2,%4%p1
-   vmadd.vx\t%0,%2,%4%p1
-   vmv%m3r.v\t%0,%3\;vmadd.vx\t%0,%2,%4%p1"
+   vmadd.vx\t%0,%z2,%4%p1
+   vmv%m3r.v\t%0,%3\;vmadd.vx\t%0,%z2,%4%p1
+   vmadd.vx\t%0,%z2,%4%p1
+   vmv%m3r.v\t%0,%3\;vmadd.vx\t%0,%z2,%4%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "3")
@@ -5363,16 +5364,16 @@
 	  (plus:V_VLSI
 	    (mult:V_VLSI
 	      (vec_duplicate:V_VLSI
-	        (match_operand:<VEL> 2 "register_operand" "  r,   r,  r,   r"))
+		(match_operand:<VEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ"))
 	      (match_operand:V_VLSI 3 "register_operand"      " vr,  vr, vr,  vr"))
 	    (match_operand:V_VLSI 4 "register_operand"        "  0,  vr,  0,  vr"))
 	  (match_dup 4)))]
   "TARGET_VECTOR"
   "@
-   vmacc.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%2,%3%p1
-   vmacc.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%2,%3%p1"
+   vmacc.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%z2,%3%p1
+   vmacc.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%z2,%3%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "4")
@@ -5431,16 +5432,16 @@
 	    (mult:V_VLSI_D
 	      (vec_duplicate:V_VLSI_D
 	        (sign_extend:<VEL>
-	          (match_operand:<VSUBEL> 2 "register_operand" "  r,   r,  r,   r")))
+		  (match_operand:<VSUBEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ")))
 	      (match_operand:V_VLSI_D 3 "register_operand"         "  0,  vr,  0,  vr"))
 	    (match_operand:V_VLSI_D 4 "register_operand"           " vr,  vr, vr,  vr"))
 	  (match_dup 3)))]
   "TARGET_VECTOR && !TARGET_64BIT"
   "@
-   vmadd.vx\t%0,%2,%4%p1
-   vmv%m2r.v\t%0,%2\;vmadd.vx\t%0,%2,%4%p1
-   vmadd.vx\t%0,%2,%4%p1
-   vmv%m2r.v\t%0,%2\;vmadd.vx\t%0,%2,%4%p1"
+   vmadd.vx\t%0,%z2,%4%p1
+   vmv%m2r.v\t%0,%z2\;vmadd.vx\t%0,%z2,%4%p1
+   vmadd.vx\t%0,%z2,%4%p1
+   vmv%m2r.v\t%0,%z2\;vmadd.vx\t%0,%z2,%4%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "3")
@@ -5464,16 +5465,16 @@
 	    (mult:V_VLSI_D
 	      (vec_duplicate:V_VLSI_D
 	        (sign_extend:<VEL>
-	          (match_operand:<VSUBEL> 2 "register_operand" "  r,   r,  r,   r")))
+		  (match_operand:<VSUBEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ")))
 	      (match_operand:V_VLSI_D 3 "register_operand"         " vr,  vr, vr,  vr"))
 	    (match_operand:V_VLSI_D 4 "register_operand"           "  0,  vr,  0,  vr"))
 	  (match_dup 4)))]
   "TARGET_VECTOR && !TARGET_64BIT"
   "@
-   vmacc.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%2,%3%p1
-   vmacc.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%2,%3%p1"
+   vmacc.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%z2,%3%p1
+   vmacc.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vmacc.vx\t%0,%z2,%3%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "4")
@@ -5630,15 +5631,15 @@
 	    (match_operand:V_VLSI 4 "register_operand"        " vr,  vr, vr,  vr")
 	    (mult:V_VLSI
 	      (vec_duplicate:V_VLSI
-	        (match_operand:<VEL> 2 "register_operand" "  r,   r,  r,   r"))
+		(match_operand:<VEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ"))
 	      (match_operand:V_VLSI 3 "register_operand"      "  0,  vr,  0,  vr")))
 	  (match_dup 3)))]
   "TARGET_VECTOR"
   "@
-   vnmsub.vx\t%0,%2,%4%p1
-   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%2,%4%p1
-   vnmsub.vx\t%0,%2,%4%p1
-   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%2,%4%p1"
+   vnmsub.vx\t%0,%z2,%4%p1
+   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%z2,%4%p1
+   vnmsub.vx\t%0,%z2,%4%p1
+   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%z2,%4%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "3")
@@ -5662,15 +5663,15 @@
 	    (match_operand:V_VLSI 4 "register_operand"        "  0,  vr,  0,  vr")
 	    (mult:V_VLSI
 	      (vec_duplicate:V_VLSI
-	        (match_operand:<VEL> 2 "register_operand" "  r,   r,  r,   r"))
+		(match_operand:<VEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ"))
 	      (match_operand:V_VLSI 3 "register_operand"      " vr,  vr, vr,  vr")))
 	  (match_dup 4)))]
   "TARGET_VECTOR"
   "@
-   vnmsac.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%2,%3%p1
-   vnmsac.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%2,%3%p1"
+   vnmsac.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%z2,%3%p1
+   vnmsac.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%z2,%3%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "4")
@@ -5730,15 +5731,15 @@
 	    (mult:V_VLSI_D
 	      (vec_duplicate:V_VLSI_D
 	        (sign_extend:<VEL>
-	          (match_operand:<VSUBEL> 2 "register_operand" "  r,   r,  r,   r")))
+		  (match_operand:<VSUBEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ")))
 	      (match_operand:V_VLSI_D 3 "register_operand"         "  0,  vr,  0,  vr")))
 	  (match_dup 3)))]
   "TARGET_VECTOR && !TARGET_64BIT"
   "@
-   vnmsub.vx\t%0,%2,%4%p1
-   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%2,%4%p1
-   vnmsub.vx\t%0,%2,%4%p1
-   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%2,%4%p1"
+   vnmsub.vx\t%0,%z2,%4%p1
+   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%z2,%4%p1
+   vnmsub.vx\t%0,%z2,%4%p1
+   vmv%m3r.v\t%0,%3\;vnmsub.vx\t%0,%z2,%4%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "3")
@@ -5763,15 +5764,15 @@
 	    (mult:V_VLSI_D
 	      (vec_duplicate:V_VLSI_D
 	        (sign_extend:<VEL>
-	          (match_operand:<VSUBEL> 2 "register_operand" "  r,   r,  r,   r")))
+		  (match_operand:<VSUBEL> 2 "reg_or_0_operand" " rJ,  rJ, rJ,  rJ")))
 	      (match_operand:V_VLSI_D 3 "register_operand"         " vr,  vr, vr,  vr")))
 	  (match_dup 4)))]
   "TARGET_VECTOR && !TARGET_64BIT"
   "@
-   vnmsac.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%2,%3%p1
-   vnmsac.vx\t%0,%2,%3%p1
-   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%2,%3%p1"
+   vnmsac.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%z2,%3%p1
+   vnmsac.vx\t%0,%z2,%3%p1
+   vmv%m4r.v\t%0,%4\;vnmsac.vx\t%0,%z2,%3%p1"
   [(set_attr "type" "vimuladd")
    (set_attr "mode" "<MODE>")
    (set_attr "merge_op_idx" "4")

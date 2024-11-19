@@ -517,15 +517,11 @@ package body Exp_Ch6 is
       else
          Desig_Typ := Directly_Designated_Type (Ptr_Typ);
 
-         --  Check for a library-level access type whose designated type has
-         --  suppressed finalization or the access type is subject to pragma
-         --  No_Heap_Finalization. Such an access type lacks a collection. Pass
-         --  a null actual to callee in order to signal a missing collection.
+         --  Check for a type that is subject to pragma No_Heap_Finalization.
+         --  Such a type lacks a collection. Pass a null actual to callee to
+         --  signal a missing collection.
 
-         if Is_Library_Level_Entity (Ptr_Typ)
-           and then (Finalize_Storage_Only (Desig_Typ)
-                      or else No_Heap_Finalization (Ptr_Typ))
-         then
+         if No_Heap_Finalization (Ptr_Typ) then
             Actual := Make_Null (Loc);
 
          --  Types in need of finalization actions
@@ -3879,7 +3875,7 @@ package body Exp_Ch6 is
                Formal : Entity_Id;
 
             begin
-               Actual := First (Parameter_Associations (Call_Node));
+               Actual := First_Actual (Call_Node);
                Formal := First_Formal (Subp);
                while Present (Actual)
                  and then Present (Formal)
@@ -3891,7 +3887,7 @@ package body Exp_Ch6 is
                      return True;
                   end if;
 
-                  Next (Actual);
+                  Next_Actual (Actual);
                   Next_Formal (Formal);
                end loop;
             end;
@@ -5262,7 +5258,9 @@ package body Exp_Ch6 is
       --  function call is transformed into a reference to the result that has
       --  been built either on the primary or the secondary stack.
 
-      if Needs_Finalization (Etype (Subp)) then
+      if Nkind (Call_Node) = N_Function_Call
+        and then Needs_Finalization (Etype (Call_Node))
+      then
          if not Is_Build_In_Place_Function_Call (Call_Node)
            and then
              (No (First_Formal (Subp))
@@ -5270,7 +5268,7 @@ package body Exp_Ch6 is
                  not Is_Concurrent_Record_Type (Etype (First_Formal (Subp))))
          then
             Expand_Ctrl_Function_Call
-              (Call_Node, Needs_Secondary_Stack (Etype (Subp)));
+              (Call_Node, Needs_Secondary_Stack (Etype (Call_Node)));
 
          --  Build-in-place function calls which appear in anonymous contexts
          --  need a transient scope to ensure the proper finalization of the
@@ -5292,7 +5290,7 @@ package body Exp_Ch6 is
                  Is_Build_In_Place_Function_Call (Parent (Call_Node)))
          then
             Establish_Transient_Scope
-              (Call_Node, Needs_Secondary_Stack (Etype (Subp)));
+              (Call_Node, Needs_Secondary_Stack (Etype (Call_Node)));
          end if;
       end if;
    end Expand_Call_Helper;

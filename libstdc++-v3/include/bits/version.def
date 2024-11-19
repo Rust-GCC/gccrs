@@ -275,7 +275,6 @@ ftms = {
   values = {
     v = 201304;
     cxxmin = 14;
-    hosted = yes;
   };
 };
 
@@ -1072,7 +1071,12 @@ ftms = {
 ftms = {
   name = ranges;
   values = {
-    v = 202211;
+    v = 202406;
+    cxxmin = 26;
+    extra_cond = "__glibcxx_concepts";
+  };
+  values = {
+    v = 202302;
     cxxmin = 23;
     extra_cond = "__glibcxx_concepts";
   };
