@@ -437,14 +437,6 @@ package body Sem_Ch5 is
                then
                   null;
 
-               --  This may be a call to a parameterless function through an
-               --  implicit dereference, so discard interpretation as well.
-
-               elsif Is_Entity_Name (Lhs)
-                 and then Has_Implicit_Dereference (It.Typ)
-               then
-                  null;
-
                elsif Has_Compatible_Type (Rhs, It.Typ) then
                   if T1 = Any_Type then
                      T1 := It.Typ;
@@ -3967,7 +3959,7 @@ package body Sem_Ch5 is
       Push_Scope (Ent);
       Analyze_Iteration_Scheme (Iter);
 
-      --  Check for following case which merits a warning if the type E of is
+      --  Check for following case which merits a warning if the type of E is
       --  a multi-dimensional array (and no explicit subscript ranges present).
 
       --      for J in E'Range
@@ -3992,6 +3984,10 @@ package body Sem_Ch5 is
                     and then Number_Dimensions (Typ) > 1
                     and then Nkind (Parent (N)) = N_Loop_Statement
                     and then Present (Iteration_Scheme (Parent (N)))
+                  --  The next conjunct tests that the enclosing loop is
+                  --  a for loop and not a while loop.
+                    and then Present (Loop_Parameter_Specification
+                      (Iteration_Scheme (Parent (N))))
                   then
                      declare
                         OIter : constant Node_Id :=

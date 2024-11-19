@@ -8146,12 +8146,13 @@ package body Exp_Util is
                  --  not already set can lead to gigi assertion failures that
                  --  are presumably due to malformed trees, so don't do that.
 
-                 and then (Nkind (P) /= N_Iterated_Component_Association
-                            or else not Is_List_Member (N)
-                            or else
-                              List_Containing (N) /= Discrete_Choices (P))
-                 and then (Nkind (P) /= N_Component_Association
-                            or else Present (Loop_Actions (P)))
+                 and then
+                   not (Nkind (P) = N_Iterated_Component_Association
+                          and then Is_List_Member (N)
+                          and then List_Containing (N) = Discrete_Choices (P))
+                 and then
+                   not (Nkind (P) = N_Component_Association
+                          and then No (Loop_Actions (P)))
                then
                   if Is_Empty_List (Loop_Actions (P)) then
                      Set_Loop_Actions (P, Ins_Actions);
@@ -8185,9 +8186,6 @@ package body Exp_Util is
                   end if;
 
                   return;
-
-               else
-                  null;
                end if;
 
             --  Special case: an attribute denoting a procedure call
@@ -8559,6 +8557,22 @@ package body Exp_Util is
          return False;
       end if;
    end Is_Captured_Function_Call;
+
+   ------------------------------------------
+   -- Is_Conversion_Or_Reference_To_Formal --
+   ------------------------------------------
+
+   function Is_Conversion_Or_Reference_To_Formal (N : Node_Id) return Boolean
+   is
+   begin
+      return Nkind (N) in N_Type_Conversion | N_Unchecked_Type_Conversion
+        or else (Nkind (N) = N_Explicit_Dereference
+                  and then Nkind (Prefix (N)) in N_Type_Conversion
+                                              |  N_Unchecked_Type_Conversion)
+        or else (Is_Entity_Name (N)
+                  and then Present (Entity (N))
+                  and then Is_Formal (Entity (N)));
+   end Is_Conversion_Or_Reference_To_Formal;
 
    ------------------------------
    -- Is_Finalizable_Transient --
@@ -14508,6 +14522,16 @@ package body Exp_Util is
 
       return Target;
    end Thunk_Target;
+
+   -----------------------
+   -- Try_Inline_Always --
+   -----------------------
+
+   function Try_Inline_Always (Subp : Entity_Id) return Boolean is
+     ((Is_Expression_Function (Subp) or else Is_Finalizer (Subp))
+       and then not Debug_Flag_Dot_8);
+   --  We want to inline expression functions and finalizers as much as
+   --  practical unless -gnatd.8.
 
    -------------------
    -- Type_Map_Hash --

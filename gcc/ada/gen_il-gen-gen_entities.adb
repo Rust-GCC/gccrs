@@ -146,6 +146,7 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Is_Entry_Formal, Flag),
         Sm (Is_Entry_Wrapper, Flag),
         Sm (Is_Exported, Flag),
+        Sm (Is_Finalizer, Flag),
         Sm (Is_First_Subtype, Flag),
         Sm (Is_Formal_Subprogram, Flag),
         Sm (Is_Frozen, Flag),
@@ -984,6 +985,7 @@ begin -- Gen_IL.Gen.Gen_Entities
         Sm (Linker_Section_Pragma, Node_Id),
         Sm (Overridden_Operation, Node_Id),
         Sm (Protected_Body_Subprogram, Node_Id),
+        Sm (No_Raise, Flag),
         Sm (No_Return, Flag),
         Sm (Scope_Depth_Value, Unat),
         Sm (Static_Call_Helper, Node_Id),
@@ -1193,6 +1195,7 @@ begin -- Gen_IL.Gen.Gen_Entities
        (Sm (Has_Out_Or_In_Out_Parameter, Flag),
         Sm (Is_Primitive, Flag),
         Sm (Next_Inlined_Subprogram, Node_Id),
+        Sm (No_Raise, Flag),
         Sm (No_Return, Flag),
         Sm (Overridden_Operation, Node_Id)));
 

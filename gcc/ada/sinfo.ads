@@ -1749,6 +1749,11 @@ package Sinfo is
    --    flag aids the ABE Processing phase to suppress the diagnostics of
    --    finalization actions in initialization contexts.
 
+   --  Is_Interpolated_String_Literal
+   --    Defined in string literals. Used to differentiate string literals
+   --    composed of interpolated string elements from string literals found
+   --    in interpolated expressions.
+
    --  Is_Known_Guaranteed_ABE
    --    NOTE: this flag is shared between the legacy ABE mechanism and the
    --    default ABE mechanism.
@@ -2610,6 +2615,7 @@ package Sinfo is
       --  Has_Wide_Character
       --  Has_Wide_Wide_Character
       --  Is_Folded_In_Parser
+      --  Is_Interpolated_String_Literal
       --  plus fields for expression
 
       ---------------------------------------
@@ -2617,8 +2623,7 @@ package Sinfo is
       ---------------------------------------
 
       --  INTERPOLATED_STRING_LITERAL ::=
-      --    '{' "{INTERPOLATED_STRING_ELEMENT}" {
-      --        "{INTERPOLATED_STRING_ELEMENT}" } '}'
+      --    'f' "{INTERPOLATED_STRING_ELEMENT}"
 
       --  INTERPOLATED_STRING_ELEMENT ::=
       --      ESCAPED_CHARACTER | INTERPOLATED_EXPRESSION
@@ -4198,6 +4203,11 @@ package Sinfo is
 
       --  At most one of (Defining_Identifier, Iterator_Specification)
       --  is present at a time, in which case the other one is empty.
+      --  The Reverse_Present flag is present for cases where semantic analysis
+      --  later changes the association to have an N_Iterator_Specification
+      --  rather than a Defining_Identifier (due to the "discrete choice"
+      --  being resolved as an iterator name), and needs to set that flag on
+      --  the N_Iterator_Specification node.
 
       --  N_Iterated_Component_Association
       --  Sloc points to FOR
@@ -4205,6 +4215,7 @@ package Sinfo is
       --  Iterator_Specification
       --  Expression
       --  Discrete_Choices
+      --  Reverse_Present
       --  Loop_Actions
       --  Box_Present
 

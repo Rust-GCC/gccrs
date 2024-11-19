@@ -53,8 +53,6 @@ A basic_declarative_item may appear at the place of any statement.
 This avoids the heavy syntax of block_statements just to declare
 something locally.
 
-Link to the original RFC:
-https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-local-vars-without-block.md
 For example:
 
 .. code-block:: ada
@@ -66,6 +64,9 @@ For example:
 
       X := X + Squared;
    end if;
+
+Link to the original RFC:
+https://github.com/AdaCore/ada-spark-rfcs/blob/master/prototyped/rfc-local-vars-without-block.md
 
 Conditional when constructs
 ---------------------------
@@ -577,8 +578,6 @@ Example:
     procedure Adjust     (Obj : in out Ctrl);
     procedure Finalize   (Obj : in out Ctrl);
     procedure Initialize (Obj : in out Ctrl);
-
-As of this writing, the RFC is implemented except for the `No_Raise` aspect.
 
 Link to the original RFC:
 https://github.com/AdaCore/ada-spark-rfcs/blob/topic/finalization-rehaul/considered/rfc-generalized-finalization.md

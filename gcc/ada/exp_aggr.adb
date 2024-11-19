@@ -1010,8 +1010,8 @@ package body Exp_Aggr is
       --  Returns a new reference to the index type name
 
       function Gen_Assign
-        (Ind     : Node_Id;
-         Expr    : Node_Id) return List_Id;
+        (Ind  : Node_Id;
+         Expr : Node_Id) return List_Id;
       --  Ind must be a side-effect-free expression. If the input aggregate N
       --  to Build_Loop contains no subaggregates, then this function returns
       --  the assignment statement:
@@ -1237,8 +1237,8 @@ package body Exp_Aggr is
       ----------------
 
       function Gen_Assign
-        (Ind     : Node_Id;
-         Expr    : Node_Id) return List_Id
+        (Ind  : Node_Id;
+         Expr : Node_Id) return List_Id
        is
          function Add_Loop_Actions (Lis : List_Id) return List_Id;
          --  Collect insert_actions generated in the construction of a loop,
@@ -1259,12 +1259,13 @@ package body Exp_Aggr is
             if No (Expr) then
                return Lis;
 
-            elsif Nkind (Parent (Expr)) = N_Component_Association
+            elsif Nkind (Parent (Expr)) in N_Component_Association
+                                         | N_Iterated_Component_Association
               and then Present (Loop_Actions (Parent (Expr)))
             then
-               Append_List (Lis, Loop_Actions (Parent (Expr)));
                Res := Loop_Actions (Parent (Expr));
                Set_Loop_Actions (Parent (Expr), No_List);
+               Append_List (Lis, To => Res);
                return Res;
 
             else
@@ -1962,7 +1963,9 @@ package body Exp_Aggr is
 
                Bounds := Get_Index_Bounds (Choice);
 
-               if Low /= High then
+               if Low /= High
+                 and then No (Loop_Actions (Assoc))
+               then
                   Set_Loop_Actions (Assoc, New_List);
                end if;
 
@@ -2038,7 +2041,12 @@ package body Exp_Aggr is
 
                   if First or else not Empty_Range (Low, High) then
                      First := False;
-                     Set_Loop_Actions (Others_Assoc, New_List);
+                     if Present (Loop_Actions (Others_Assoc)) then
+                        pragma Assert
+                          (Is_Empty_List (Loop_Actions (Others_Assoc)));
+                     else
+                        Set_Loop_Actions (Others_Assoc, New_List);
+                     end if;
                      Expr := Get_Assoc_Expr (Others_Assoc);
                      Append_List (Gen_Loop (Low, High, Expr), To => New_Code);
                   end if;
@@ -6642,8 +6650,6 @@ package body Exp_Aggr is
 
       Choice_Lo     : Node_Id := Empty;
       Choice_Hi     : Node_Id := Empty;
-      Int_Choice_Lo : Int;
-      Int_Choice_Hi : Int;
 
       Is_Indexed_Aggregate : Boolean := False;
 
@@ -6696,32 +6702,38 @@ package body Exp_Aggr is
          --------------------
 
          procedure Add_Range_Size is
-            Range_Int_Lo : Int;
-            Range_Int_Hi : Int;
+            function To_Int (Expr : N_Subexpr_Id) return Int;
+            --  Return the Int value corresponding to the bound Expr
+
+            ------------
+            -- To_Int --
+            ------------
+
+            function To_Int (Expr : N_Subexpr_Id) return Int is
+            begin
+               --  The bounds of the discrete range are integers or enumeration
+               --  literals
+               return UI_To_Int
+                 ((if Nkind (Expr) = N_Integer_Literal then
+                     Intval (Expr)
+                   else
+                     Enumeration_Pos (Expr)));
+            end To_Int;
+
+            --  Local variables
+
+            Range_Int_Lo : constant Int := To_Int (Lo);
+            Range_Int_Hi : constant Int := To_Int (Hi);
 
          begin
-            --  The bounds of the discrete range are integers or enumeration
-            --  literals
-
-            if Nkind (Lo) = N_Integer_Literal then
-               Range_Int_Lo := UI_To_Int (Intval (Lo));
-               Range_Int_Hi := UI_To_Int (Intval (Hi));
-
-            else
-               Range_Int_Lo := UI_To_Int (Enumeration_Pos (Lo));
-               Range_Int_Hi := UI_To_Int (Enumeration_Pos (Hi));
-            end if;
-
             Siz := Siz + Range_Int_Hi - Range_Int_Lo + 1;
 
-            if No (Choice_Lo) or else Range_Int_Lo < Int_Choice_Lo then
+            if No (Choice_Lo) or else Range_Int_Lo < To_Int (Choice_Lo) then
                Choice_Lo   := Lo;
-               Int_Choice_Lo := Range_Int_Lo;
             end if;
 
-            if No (Choice_Hi) or else Range_Int_Hi > Int_Choice_Hi then
+            if No (Choice_Hi) or else Range_Int_Hi > To_Int (Choice_Hi) then
                Choice_Hi   := Hi;
-               Int_Choice_Hi := Range_Int_Hi;
             end if;
          end Add_Range_Size;
 
@@ -7015,6 +7027,7 @@ package body Exp_Aggr is
                    Loop_Parameter_Specification =>
                      Make_Loop_Parameter_Specification (Loc,
                        Defining_Identifier => Loop_Id,
+                       Reverse_Present => Reverse_Present (Comp),
                        Discrete_Subtype_Definition => L_Range));
             end if;
          end if;

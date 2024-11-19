@@ -2212,6 +2212,15 @@ package body Sem_Aggr is
 
          if Operating_Mode /= Check_Semantics then
             Remove_References (Expr);
+            declare
+               Loop_Action : Node_Id;
+            begin
+               Loop_Action := First (Loop_Actions (N));
+               while Present (Loop_Action) loop
+                  Remove_References (Loop_Action);
+                  Next (Loop_Action);
+               end loop;
+            end;
          end if;
 
          --  An iterated_component_association may appear in a nested
@@ -2735,15 +2744,9 @@ package body Sem_Aggr is
             -----------------
 
             function Empty_Range (A : Node_Id) return Boolean is
-               R : Node_Id;
+               R : constant Node_Id := First (Choice_List (A));
 
             begin
-               if Nkind (A) = N_Iterated_Component_Association then
-                  R := First (Discrete_Choices (A));
-               else
-                  R := First (Choices (A));
-               end if;
-
                return No (Next (R))
                  and then Nkind (R) = N_Range
                  and then Compile_Time_Compare
@@ -3818,7 +3821,7 @@ package body Sem_Aggr is
                       Defining_Identifier =>
                         Relocate_Node (Defining_Identifier (Comp)),
                       Name                => Copy,
-                      Reverse_Present     => False,
+                      Reverse_Present     => Reverse_Present (Comp),
                       Iterator_Filter     => Empty,
                       Subtype_Indication  => Empty);
                begin

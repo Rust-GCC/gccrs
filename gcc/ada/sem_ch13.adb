@@ -17903,6 +17903,37 @@ package body Sem_Ch13 is
 
          Next (Assoc);
       end loop;
+
+      --  If Relaxed_Finalization is set, the Finalize and Adjust procedures
+      --  are considered as having the No_Raise aspect specified.
+
+      if Serious_Errors_Detected > 0 then
+         null;
+
+      elsif Has_Relaxed_Finalization (Typ) then
+         Assoc := First (Component_Associations (Aggr));
+         while Present (Assoc) loop
+            Nam := First (Choices (Assoc));
+            Exp := Expression (Assoc);
+
+            if Chars (Nam) in Name_Adjust | Name_Finalize then
+               pragma Assert (Is_Entity_Name (Exp));
+               Set_No_Raise (Entity (Exp));
+            end if;
+
+            Next (Assoc);
+         end loop;
+
+      --  If Relaxed_Finalization is not set, then check that the support for
+      --  strict finalization is available in the runtime library.
+
+      elsif not In_Predefined_Unit (Cunit (Get_Source_Unit (Typ)))
+        and then not RTE_Available (RE_Finalization_Master)
+      then
+         Error_Msg_N
+           ("only Relaxed Finalization is supported in this configuration",
+            ASN);
+      end if;
    end Validate_Finalizable_Aspect;
 
    ------------------------------
