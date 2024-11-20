@@ -12379,8 +12379,12 @@ trees_in::read_class_def (tree defn, tree maybe_template)
 
 	  /* Core pieces.  */
 	  TYPE_MODE_RAW (type) = TYPE_MODE_RAW (type_dup);
+	  TYPE_ALIGN_RAW (type) = TYPE_ALIGN_RAW (type_dup);
+	  TYPE_WARN_IF_NOT_ALIGN_RAW (type)
+	    = TYPE_WARN_IF_NOT_ALIGN_RAW (type_dup);
+	  TYPE_USER_ALIGN (type) = TYPE_USER_ALIGN (type_dup);
+
 	  SET_DECL_MODE (defn, DECL_MODE (maybe_dup));
-	  TREE_ADDRESSABLE (type) = TREE_ADDRESSABLE (type_dup);
 	  DECL_SIZE (defn) = DECL_SIZE (maybe_dup);
 	  DECL_SIZE_UNIT (defn) = DECL_SIZE_UNIT (maybe_dup);
 	  DECL_ALIGN_RAW (defn) = DECL_ALIGN_RAW (maybe_dup);
@@ -12388,12 +12392,26 @@ trees_in::read_class_def (tree defn, tree maybe_template)
 	    = DECL_WARN_IF_NOT_ALIGN_RAW (maybe_dup);
 	  DECL_USER_ALIGN (defn) = DECL_USER_ALIGN (maybe_dup);
 
+	  TYPE_TYPELESS_STORAGE (type) = TYPE_TYPELESS_STORAGE (type_dup);
+	  TYPE_CXX_ODR_P (type) = TYPE_CXX_ODR_P (type_dup);
+	  TYPE_NO_FORCE_BLK (type) = TYPE_NO_FORCE_BLK (type_dup);
+	  TYPE_TRANSPARENT_AGGR (type) = TYPE_TRANSPARENT_AGGR (type_dup);
+	  TYPE_CONTAINS_PLACEHOLDER_INTERNAL (type)
+	    = TYPE_CONTAINS_PLACEHOLDER_INTERNAL (type_dup);
+
+	  TYPE_EMPTY_P (type) = TYPE_EMPTY_P (type_dup);
+	  TREE_ADDRESSABLE (type) = TREE_ADDRESSABLE (type_dup);
+
 	  /* C++ pieces.  */
 	  TYPE_POLYMORPHIC_P (type) = TYPE_POLYMORPHIC_P (type_dup);
+	  CLASSTYPE_FINAL (type) = CLASSTYPE_FINAL (type_dup);
+
 	  TYPE_HAS_USER_CONSTRUCTOR (type)
 	    = TYPE_HAS_USER_CONSTRUCTOR (type_dup);
 	  TYPE_HAS_NONTRIVIAL_DESTRUCTOR (type)
 	    = TYPE_HAS_NONTRIVIAL_DESTRUCTOR (type_dup);
+	  TYPE_NEEDS_CONSTRUCTING (type)
+	    = TYPE_NEEDS_CONSTRUCTING (type_dup);
 
 	  if (auto ls = TYPE_LANG_SPECIFIC (type_dup))
 	    {
@@ -15539,7 +15557,7 @@ module_state::read_cluster (unsigned snum)
 
       if (abstract)
 	;
-      else if (DECL_ABSTRACT_P (decl))
+      else if (DECL_MAYBE_IN_CHARGE_CDTOR_P (decl))
 	vec_safe_push (post_load_decls, decl);
       else
 	{
@@ -17958,10 +17976,23 @@ post_load_processing ()
 
       dump () && dump ("Post-load processing of %N", decl);
 
-      gcc_checking_assert (DECL_ABSTRACT_P (decl));
-      /* Cloning can cause loading -- specifically operator delete for
-	 the deleting dtor.  */
-      maybe_clone_body (decl);
+      gcc_checking_assert (DECL_MAYBE_IN_CHARGE_CDTOR_P (decl));
+
+      if (DECL_COMDAT (decl))
+	comdat_linkage (decl);
+      if (!TREE_ASM_WRITTEN (decl))
+	{
+	  /* Cloning can cause loading -- specifically operator delete for
+	     the deleting dtor.  */
+	  if (maybe_clone_body (decl))
+	    TREE_ASM_WRITTEN (decl) = 1;
+	  else
+	    {
+	      /* We didn't clone the cdtor, make sure we emit it.  */
+	      note_vague_linkage_fn (decl);
+	      cgraph_node::finalize_function (decl, true);
+	    }
+	}
     }
 
   cfun = old_cfun;
