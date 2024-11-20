@@ -1641,8 +1641,7 @@ gfc_copy_class_to_class (tree from, tree to, tree nelems, bool unlimited)
 	      cond = fold_build2_loc (input_location, NE_EXPR,
 				      logical_type_node, from_len, to_len);
 	      gfc_trans_runtime_check (true, false, cond, &body,
-				       &gfc_current_locus, msg,
-				       to_len, from_len);
+				       NULL, msg, to_len, from_len);
 	      free (msg);
 	    }
 	}
@@ -3252,6 +3251,31 @@ gfc_conv_variable (gfc_se * se, gfc_expr * expr)
 	  && !se->descriptor_only
 	  && TREE_CODE (TREE_TYPE (se->expr)) != ARRAY_TYPE)
 	se->expr = gfc_conv_descriptor_data_get (se->expr);
+    }
+
+  /* F202Y: Runtime warning that an assumed rank object is associated
+     with an assumed size object.  */
+  if ((gfc_option.rtcheck & GFC_RTCHECK_BOUNDS)
+      && (gfc_option.allow_std & GFC_STD_F202Y)
+      && expr->rank == -1 && GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (se->expr)))
+    {
+      tree dim, lower, upper, cond;
+      char *msg;
+
+      dim = fold_convert (signed_char_type_node,
+			  gfc_conv_descriptor_rank (se->expr));
+      dim = fold_build2_loc (input_location, MINUS_EXPR, signed_char_type_node,
+			     dim, build_int_cst (signed_char_type_node, 1));
+      lower = gfc_conv_descriptor_lbound_get (se->expr, dim);
+      upper = gfc_conv_descriptor_ubound_get (se->expr, dim);
+
+      msg = xasprintf ("Assumed rank object %s is associated with an "
+		       "assumed size object", sym->name);
+      cond = fold_build2_loc (input_location, LT_EXPR,
+			      logical_type_node, upper, lower);
+      gfc_trans_runtime_check (false, true, cond, &se->pre,
+			       &gfc_current_locus, msg);
+      free (msg);
     }
 
   /* Some expressions leak through that haven't been fixed up.  */
@@ -10023,10 +10047,12 @@ gfc_conv_expr (gfc_se * se, gfc_expr * expr)
 	  && expr->must_finalize
 	  && gfc_may_be_finalized (expr->ts))
 	{
-	  gfc_warning (0, "The structure constructor at %C has been"
+	  locus loc;
+	  gfc_locus_from_location (&loc, input_location);
+	  gfc_warning (0, "The structure constructor at %L has been"
 			 " finalized. This feature was removed by f08/0011."
 			 " Use -std=f2018 or -std=gnu to eliminate the"
-			 " finalization.");
+			 " finalization.", &loc);
 	  symbol_attribute attr;
 	  attr.allocatable = attr.pointer = 0;
 	  gfc_finalize_tree_expr (se, expr->ts.u.derived, attr, 0);
@@ -10829,20 +10855,26 @@ gfc_trans_pointer_assignment (gfc_expr * expr1, gfc_expr * expr2)
 
 	      /* Copy offset but adjust it such that it would correspond
 		 to a lbound of zero.  */
-	      offs = gfc_conv_descriptor_offset_get (rse.expr);
-	      for (dim = 0; dim < expr2->rank; ++dim)
+	      if (expr2->rank == -1)
+		gfc_conv_descriptor_offset_set (&block, desc,
+						gfc_index_zero_node);
+	      else
 		{
-		  stride = gfc_conv_descriptor_stride_get (rse.expr,
-							   gfc_rank_cst[dim]);
-		  lbound = gfc_conv_descriptor_lbound_get (rse.expr,
-							   gfc_rank_cst[dim]);
-		  tmp = fold_build2_loc (input_location, MULT_EXPR,
-					 gfc_array_index_type, stride, lbound);
-		  offs = fold_build2_loc (input_location, PLUS_EXPR,
-					  gfc_array_index_type, offs, tmp);
+		  offs = gfc_conv_descriptor_offset_get (rse.expr);
+		  for (dim = 0; dim < expr2->rank; ++dim)
+		    {
+		      stride = gfc_conv_descriptor_stride_get (rse.expr,
+							gfc_rank_cst[dim]);
+		      lbound = gfc_conv_descriptor_lbound_get (rse.expr,
+							gfc_rank_cst[dim]);
+		      tmp = fold_build2_loc (input_location, MULT_EXPR,
+					     gfc_array_index_type, stride,
+					     lbound);
+		      offs = fold_build2_loc (input_location, PLUS_EXPR,
+					      gfc_array_index_type, offs, tmp);
+		    }
+		  gfc_conv_descriptor_offset_set (&block, desc, offs);
 		}
-	      gfc_conv_descriptor_offset_set (&block, desc, offs);
-
 	      /* Set the bounds as declared for the LHS and calculate strides as
 		 well as another offset update accordingly.  */
 	      stride = gfc_conv_descriptor_stride_get (rse.expr,
@@ -10853,6 +10885,13 @@ gfc_trans_pointer_assignment (gfc_expr * expr1, gfc_expr * expr2)
 		  gfc_se upper_se;
 
 		  gcc_assert (remap->u.ar.start[dim] && remap->u.ar.end[dim]);
+
+		  if (remap->u.ar.start[dim]->expr_type != EXPR_CONSTANT
+		      || remap->u.ar.start[dim]->expr_type != EXPR_VARIABLE)
+		    gfc_resolve_expr (remap->u.ar.start[dim]);
+		  if (remap->u.ar.end[dim]->expr_type != EXPR_CONSTANT
+		      || remap->u.ar.end[dim]->expr_type != EXPR_VARIABLE)
+		    gfc_resolve_expr (remap->u.ar.end[dim]);
 
 		  /* Convert declared bounds.  */
 		  gfc_init_se (&lower_se, NULL);
@@ -10929,7 +10968,8 @@ gfc_trans_pointer_assignment (gfc_expr * expr1, gfc_expr * expr2)
 
       /* If rank remapping was done, check with -fcheck=bounds that
 	 the target is at least as large as the pointer.  */
-      if (rank_remap && (gfc_option.rtcheck & GFC_RTCHECK_BOUNDS))
+      if (rank_remap && (gfc_option.rtcheck & GFC_RTCHECK_BOUNDS)
+	  && expr2->rank != -1)
 	{
 	  tree lsize, rsize;
 	  tree fault;

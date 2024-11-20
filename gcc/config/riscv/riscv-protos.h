@@ -624,6 +624,7 @@ enum mask_policy
 enum tail_policy get_prefer_tail_policy ();
 enum mask_policy get_prefer_mask_policy ();
 rtx get_avl_type_rtx (enum avl_type);
+opt_machine_mode get_lmul_mode (scalar_mode, int);
 opt_machine_mode get_vector_mode (scalar_mode, poly_uint64);
 opt_machine_mode get_tuple_mode (machine_mode, unsigned int);
 bool simm5_p (rtx);
@@ -651,8 +652,12 @@ void expand_vec_ssadd (rtx, rtx, rtx, machine_mode);
 void expand_vec_ussub (rtx, rtx, rtx, machine_mode);
 void expand_vec_sssub (rtx, rtx, rtx, machine_mode);
 void expand_vec_double_ustrunc (rtx, rtx, machine_mode);
+void expand_vec_double_sstrunc (rtx, rtx, machine_mode);
 void expand_vec_quad_ustrunc (rtx, rtx, machine_mode, machine_mode);
+void expand_vec_quad_sstrunc (rtx, rtx, machine_mode, machine_mode);
 void expand_vec_oct_ustrunc (rtx, rtx, machine_mode, machine_mode,
+			     machine_mode);
+void expand_vec_oct_sstrunc (rtx, rtx, machine_mode, machine_mode,
 			     machine_mode);
 #endif
 bool sew64_scalar_helper (rtx *, rtx *, rtx, machine_mode,
@@ -673,7 +678,7 @@ bool slide1_sew64_helper (int, machine_mode, machine_mode,
 			  machine_mode, rtx *);
 rtx gen_avl_for_scalar_move (rtx);
 void expand_tuple_move (rtx *);
-bool expand_block_move (rtx, rtx, rtx);
+bool expand_block_move (rtx, rtx, rtx, bool);
 machine_mode preferred_simd_mode (scalar_mode);
 machine_mode get_mask_mode (machine_mode);
 void expand_vec_series (rtx, rtx, rtx, rtx = 0);

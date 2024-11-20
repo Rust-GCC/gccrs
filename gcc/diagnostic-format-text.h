@@ -34,11 +34,18 @@ class diagnostic_text_output_format : public diagnostic_output_format
 public:
   diagnostic_text_output_format (diagnostic_context &context)
   : diagnostic_output_format (context),
+    m_saved_output_buffer (nullptr),
     m_column_policy (context),
     m_last_module (nullptr),
     m_includes_seen (nullptr)
   {}
   ~diagnostic_text_output_format ();
+
+  void dump (FILE *out, int indent) const override;
+
+  diagnostic_per_format_buffer *make_per_format_buffer () final override;
+  void set_buffer (diagnostic_per_format_buffer *) final override;
+
   void on_begin_group () override {}
   void on_end_group () override {}
   void on_report_diagnostic (const diagnostic_info &,
@@ -77,6 +84,9 @@ private:
 
   label_text get_location_text (const expanded_location &s) const;
   bool includes_seen_p (const line_map_ordinary *map);
+
+  /* For handling diagnostic_buffer.  */
+  output_buffer *m_saved_output_buffer;
 
   diagnostic_column_policy m_column_policy;
 

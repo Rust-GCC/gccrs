@@ -129,10 +129,19 @@ constexpr auto AARCH64_STATE_SHARED = 1U << 0;
 constexpr auto AARCH64_STATE_IN = 1U << 1;
 constexpr auto AARCH64_STATE_OUT = 1U << 2;
 
+/* Enum to distinguish which type of check is to be done in
+   aarch64_simd_valid_imm.  */
+enum simd_immediate_check {
+  AARCH64_CHECK_MOV,
+  AARCH64_CHECK_ORR,
+  AARCH64_CHECK_AND,
+  AARCH64_CHECK_XOR
+};
+
 /* Information about a legitimate vector immediate operand.  */
 struct simd_immediate_info
 {
-  enum insn_type { MOV, MVN, INDEX, PTRUE };
+  enum insn_type { MOV, MVN, INDEX, PTRUE, SVE_MOV };
   enum modifier_type { LSL, MSL };
 
   simd_immediate_info () {}
@@ -3621,6 +3630,27 @@ aarch64_ptrue_reg (machine_mode mode)
   return gen_lowpart (mode, reg);
 }
 
+/* Return an all-true (restricted to the leading VL bits) predicate register of
+   mode MODE.  */
+
+rtx
+aarch64_ptrue_reg (machine_mode mode, unsigned int vl)
+{
+  gcc_assert (aarch64_sve_pred_mode_p (mode));
+
+  rtx_vector_builder builder (VNx16BImode, vl, 2);
+
+  for (unsigned i = 0; i < vl; i++)
+    builder.quick_push (CONST1_RTX (BImode));
+
+  for (unsigned i = 0; i < vl; i++)
+    builder.quick_push (CONST0_RTX (BImode));
+
+  rtx const_vec = builder.build ();
+  rtx reg = force_reg (VNx16BImode, const_vec);
+  return gen_lowpart (mode, reg);
+}
+
 /* Return an all-false predicate register of mode MODE.  */
 
 rtx
@@ -5657,7 +5687,7 @@ aarch64_expand_sve_const_vector (rtx target, rtx src)
 	  builder.quick_push (CONST_VECTOR_ENCODED_ELT (src, srci));
 	}
       rtx vq_src = builder.build ();
-      if (aarch64_simd_valid_immediate (vq_src, NULL))
+      if (aarch64_simd_valid_mov_imm (vq_src))
 	{
 	  vq_src = force_reg (vq_mode, vq_src);
 	  return aarch64_expand_sve_dupq (target, mode, vq_src);
@@ -6169,8 +6199,7 @@ aarch64_expand_mov_immediate (rtx dest, rtx imm)
 	    }
 	}
 
-      if (GET_CODE (imm) == HIGH
-	  || aarch64_simd_valid_immediate (imm, NULL))
+      if (GET_CODE (imm) == HIGH || aarch64_simd_valid_mov_imm (imm))
 	{
 	  emit_insn (gen_rtx_SET (dest, imm));
 	  return;
@@ -11112,7 +11141,7 @@ aarch64_can_const_movi_rtx_p (rtx x, machine_mode mode)
   vmode = aarch64_simd_container_mode (imode, width);
   rtx v_op = aarch64_simd_gen_const_vector_dup (vmode, ival);
 
-  return aarch64_simd_valid_immediate (v_op, NULL);
+  return aarch64_simd_valid_mov_imm (v_op);
 }
 
 
@@ -12893,7 +12922,7 @@ aarch64_secondary_reload (bool in_p ATTRIBUTE_UNUSED, rtx x,
   unsigned int vec_flags = aarch64_classify_vector_mode (mode);
   if (reg_class_subset_p (rclass, FP_REGS)
       && !((REG_P (x) && HARD_REGISTER_P (x))
-	   || aarch64_simd_valid_immediate (x, NULL))
+	   || aarch64_simd_valid_mov_imm (x))
       && mode != VNx16QImode
       && (vec_flags & VEC_SVE_DATA)
       && ((vec_flags & VEC_PARTIAL) || BYTES_BIG_ENDIAN))
@@ -15479,7 +15508,7 @@ cost_plus:
     case CONST_VECTOR:
 	{
 	  /* Load using MOVI/MVNI.  */
-	  if (aarch64_simd_valid_immediate (x, NULL))
+	  if (aarch64_simd_valid_mov_imm (x))
 	    *cost = extra_cost->vect.movi;
 	  else /* Load using constant pool.  */
 	    *cost = extra_cost->ldst.load;
@@ -15564,6 +15593,12 @@ aarch64_register_move_cost (machine_mode mode,
       && hard_reg_set_subset_p (reg_class_contents[from_i],
 				reg_class_contents[FFR_REGS]))
     return 80;
+
+  /* Moves to/from sysregs are expensive, and must go via GPR.  */
+  if (from == MOVEABLE_SYSREGS)
+    return 80 + aarch64_register_move_cost (mode, GENERAL_REGS, to);
+  if (to == MOVEABLE_SYSREGS)
+    return 80 + aarch64_register_move_cost (mode, from, GENERAL_REGS);
 
   /* Moving between GPR and stack cost is the same as GP2GP.  */
   if ((from == GENERAL_REGS && to == STACK_REG)
@@ -21159,7 +21194,7 @@ aarch64_legitimate_constant_p (machine_mode mode, rtx x)
      ??? It would be possible (but complex) to handle rematerialization
      of other constants via secondary reloads.  */
   if (!GET_MODE_SIZE (mode).is_constant ())
-    return aarch64_simd_valid_immediate (x, NULL);
+    return aarch64_simd_valid_mov_imm (x);
 
   /* Otherwise, accept any CONST_VECTOR that, if all else fails, can at
      least be forced to memory and loaded from there.  */
@@ -22913,12 +22948,12 @@ aarch64_advsimd_valid_immediate (unsigned HOST_WIDE_INT val64,
 
   if (mode != DImode)
     {
-      if ((which & AARCH64_CHECK_ORR) != 0
+      if ((which == AARCH64_CHECK_MOV || which == AARCH64_CHECK_ORR)
 	  && aarch64_advsimd_valid_immediate_hs (val32, info, which,
 						 simd_immediate_info::MOV))
 	return true;
 
-      if ((which & AARCH64_CHECK_BIC) != 0
+      if ((which == AARCH64_CHECK_MOV || which == AARCH64_CHECK_AND)
 	  && aarch64_advsimd_valid_immediate_hs (~val32, info, which,
 						 simd_immediate_info::MVN))
 	return true;
@@ -22958,28 +22993,35 @@ aarch64_advsimd_valid_immediate (unsigned HOST_WIDE_INT val64,
 
 static bool
 aarch64_sve_valid_immediate (unsigned HOST_WIDE_INT ival, scalar_int_mode mode,
-			     simd_immediate_info *info)
+			     simd_immediate_info *info,
+			     enum simd_immediate_check which)
 {
   HOST_WIDE_INT val = trunc_int_for_mode (ival, mode);
-  if (IN_RANGE (val, -0x80, 0x7f))
+
+  if (which == AARCH64_CHECK_MOV)
     {
-      /* DUP with no shift.  */
-      if (info)
-	*info = simd_immediate_info (mode, val);
-      return true;
-    }
-  if ((val & 0xff) == 0 && IN_RANGE (val, -0x8000, 0x7f00))
-    {
-      /* DUP with LSL #8.  */
-      if (info)
-	*info = simd_immediate_info (mode, val);
-      return true;
+      if (IN_RANGE (val, -0x80, 0x7f))
+	{
+	  /* DUP with no shift.  */
+	  if (info)
+	    *info = simd_immediate_info (mode, val,
+					 simd_immediate_info::SVE_MOV);
+	  return true;
+	}
+      if ((val & 0xff) == 0 && IN_RANGE (val, -0x8000, 0x7f00))
+	{
+	  /* DUP with LSL #8.  */
+	  if (info)
+	    *info = simd_immediate_info (mode, val,
+					 simd_immediate_info::SVE_MOV);
+	  return true;
+	}
     }
   if (aarch64_bitmask_imm (ival, mode))
     {
       /* DUPM.  */
       if (info)
-	*info = simd_immediate_info (mode, val);
+	*info = simd_immediate_info (mode, val, simd_immediate_info::SVE_MOV);
       return true;
     }
   return false;
@@ -23144,9 +23186,9 @@ aarch64_real_float_const_representable_p (REAL_VALUE_TYPE r)
 /* Return true if OP is a valid SIMD immediate for the operation
    described by WHICH.  If INFO is nonnull, use it to describe valid
    immediates.  */
-bool
-aarch64_simd_valid_immediate (rtx op, simd_immediate_info *info,
-			      enum simd_immediate_check which)
+static bool
+aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
+			enum simd_immediate_check which)
 {
   machine_mode mode = GET_MODE (op);
   unsigned int vec_flags = aarch64_classify_vector_mode (mode);
@@ -23303,9 +23345,42 @@ aarch64_simd_valid_immediate (rtx op, simd_immediate_info *info,
     }
 
   if (vec_flags & VEC_SVE_DATA)
-    return aarch64_sve_valid_immediate (ival, imode, info);
-  else
-    return aarch64_advsimd_valid_immediate (val64, imode, info, which);
+    return aarch64_sve_valid_immediate (ival, imode, info, which);
+
+  if (aarch64_advsimd_valid_immediate (val64, imode, info, which))
+    return true;
+
+  if (TARGET_SVE)
+    return aarch64_sve_valid_immediate (ival, imode, info, which);
+  return false;
+}
+
+/* Return true if OP is a valid SIMD move immediate for SVE or AdvSIMD.  */
+bool
+aarch64_simd_valid_mov_imm (rtx op)
+{
+  return aarch64_simd_valid_imm (op, NULL, AARCH64_CHECK_MOV);
+}
+
+/* Return true if OP is a valid SIMD orr immediate for SVE or AdvSIMD.  */
+bool
+aarch64_simd_valid_orr_imm (rtx op)
+{
+  return aarch64_simd_valid_imm (op, NULL, AARCH64_CHECK_ORR);
+}
+
+/* Return true if OP is a valid SIMD and immediate for SVE or AdvSIMD.  */
+bool
+aarch64_simd_valid_and_imm (rtx op)
+{
+  return aarch64_simd_valid_imm (op, NULL, AARCH64_CHECK_AND);
+}
+
+/* Return true if OP is a valid SIMD xor immediate for SVE.  */
+bool
+aarch64_simd_valid_xor_imm (rtx op)
+{
+  return aarch64_simd_valid_imm (op, NULL, AARCH64_CHECK_XOR);
 }
 
 /* Check whether X is a VEC_SERIES-like constant that starts at 0 and
@@ -23371,7 +23446,7 @@ aarch64_mov_operand_p (rtx x, machine_mode mode)
 	  && GET_MODE (x) != VNx16BImode)
 	return false;
 
-      return aarch64_simd_valid_immediate (x, NULL);
+      return aarch64_simd_valid_mov_imm (x);
     }
 
   /* Remove UNSPEC_SALT_ADDR before checking symbol reference.  */
@@ -23472,7 +23547,7 @@ aarch64_simd_scalar_immediate_valid_for_move (rtx op, scalar_int_mode mode)
 
   vmode = aarch64_simd_container_mode (mode, 64);
   rtx op_v = aarch64_simd_gen_const_vector_dup (vmode, INTVAL (op));
-  return aarch64_simd_valid_immediate (op_v, NULL);
+  return aarch64_simd_valid_mov_imm (op_v);
 }
 
 /* Construct and return a PARALLEL RTX vector with elements numbering the
@@ -23952,7 +24027,7 @@ aarch64_simd_make_constant (rtx vals)
     gcc_unreachable ();
 
   if (const_vec != NULL_RTX
-      && aarch64_simd_valid_immediate (const_vec, NULL))
+      && aarch64_simd_valid_mov_imm (const_vec))
     /* Load using MOVI/MVNI.  */
     return const_vec;
   else if ((const_dup = aarch64_simd_dup_constant (vals)) != NULL_RTX)
@@ -24157,7 +24232,7 @@ aarch64_expand_vector_init_fallback (rtx target, rtx vals)
       /* Load constant part of vector.  We really don't care what goes into the
 	 parts we will overwrite, but we're more likely to be able to load the
 	 constant efficiently if it has fewer, larger, repeating parts
-	 (see aarch64_simd_valid_immediate).  */
+	 (see aarch64_simd_valid_imm).  */
       for (int i = 0; i < n_elts; i++)
 	{
 	  rtx x = XVECEXP (vals, 0, i);
@@ -25328,12 +25403,11 @@ aarch64_float_const_representable_p (rtx x)
   return aarch64_real_float_const_representable_p (r);
 }
 
-/* Returns the string with the instruction for AdvSIMD MOVI, MVNI, ORR, BIC or
-   FMOV immediate with a CONST_VECTOR of MODE and WIDTH.  WHICH selects whether
-   to output MOVI/MVNI, ORR or BIC immediate.  */
+/* Returns the string with the instruction for the SIMD immediate
+ * CONST_VECTOR of MODE and WIDTH.  WHICH selects a move, and(bic) or orr.  */
 char*
-aarch64_output_simd_mov_immediate (rtx const_vector, unsigned width,
-				   enum simd_immediate_check which)
+aarch64_output_simd_imm (rtx const_vector, unsigned width,
+			 enum simd_immediate_check which)
 {
   bool is_valid;
   static char templ[40];
@@ -25344,11 +25418,7 @@ aarch64_output_simd_mov_immediate (rtx const_vector, unsigned width,
 
   struct simd_immediate_info info;
 
-  /* This will return true to show const_vector is legal for use as either
-     a AdvSIMD MOVI instruction (or, implicitly, MVNI), ORR or BIC immediate.
-     It will also update INFO to show how the immediate should be generated.
-     WHICH selects whether to check for MOVI/MVNI, ORR or BIC.  */
-  is_valid = aarch64_simd_valid_immediate (const_vector, &info, which);
+  is_valid = aarch64_simd_valid_imm (const_vector, &info, which);
   gcc_assert (is_valid);
 
   element_char = sizetochar (GET_MODE_BITSIZE (info.elt_mode));
@@ -25393,6 +25463,14 @@ aarch64_output_simd_mov_immediate (rtx const_vector, unsigned width,
 	  return templ;
 	}
 
+      if (info.insn == simd_immediate_info::SVE_MOV)
+	{
+	  gcc_assert (TARGET_SVE);
+	  snprintf (templ, sizeof (templ), "mov\t%%Z0.%c, #" HOST_WIDE_INT_PRINT_DEC,
+		    element_char, INTVAL (info.u.mov.value));
+	  return templ;
+	}
+
       mnemonic = info.insn == simd_immediate_info::MVN ? "mvni" : "movi";
       shift_op = (info.u.mov.modifier == simd_immediate_info::MSL
 		  ? "msl" : "lsl");
@@ -25411,9 +25489,21 @@ aarch64_output_simd_mov_immediate (rtx const_vector, unsigned width,
     }
   else
     {
-      /* For AARCH64_CHECK_BIC and AARCH64_CHECK_ORR.  */
-      mnemonic = info.insn == simd_immediate_info::MVN ? "bic" : "orr";
-      if (info.u.mov.shift)
+      /* AARCH64_CHECK_ORR, AARCH64_CHECK_AND or AARCH64_CHECK_XOR.  */
+      mnemonic = "orr";
+      if (which == AARCH64_CHECK_AND)
+	mnemonic = info.insn == simd_immediate_info::MVN ? "bic" : "and";
+      else if (which == AARCH64_CHECK_XOR)
+	mnemonic = "eor";
+
+      if (info.insn == simd_immediate_info::SVE_MOV)
+	{
+	  gcc_assert (TARGET_SVE);
+	  snprintf (templ, sizeof (templ), "%s\t%%Z0.%c, %%Z0.%c, "
+		    HOST_WIDE_INT_PRINT_DEC, mnemonic, element_char,
+		    element_char, INTVAL (info.u.mov.value));
+	}
+      else if (info.u.mov.shift)
 	snprintf (templ, sizeof (templ), "%s\t%%0.%d%c, #"
 		  HOST_WIDE_INT_PRINT_DEC ", %s #%d", mnemonic, lane_count,
 		  element_char, UINTVAL (info.u.mov.value), "lsl",
@@ -25424,6 +25514,38 @@ aarch64_output_simd_mov_immediate (rtx const_vector, unsigned width,
 		  element_char, UINTVAL (info.u.mov.value));
     }
   return templ;
+}
+
+/* Returns the string with the ORR instruction for the SIMD immediate
+   CONST_VECTOR of WIDTH bits.  */
+char*
+aarch64_output_simd_orr_imm (rtx const_vector, unsigned width)
+{
+  return aarch64_output_simd_imm (const_vector, width, AARCH64_CHECK_ORR);
+}
+
+/* Returns the string with the AND/BIC instruction for the SIMD immediate
+   CONST_VECTOR of WIDTH bits.  */
+char*
+aarch64_output_simd_and_imm (rtx const_vector, unsigned width)
+{
+  return aarch64_output_simd_imm (const_vector, width, AARCH64_CHECK_AND);
+}
+
+/* Returns the string with the EOR instruction for the SIMD immediate
+   CONST_VECTOR of WIDTH bits.  */
+char*
+aarch64_output_simd_xor_imm (rtx const_vector, unsigned width)
+{
+  return aarch64_output_simd_imm (const_vector, width, AARCH64_CHECK_XOR);
+}
+
+/* Returns the string with the MOV instruction for the SIMD immediate
+   CONST_VECTOR of WIDTH bits.  */
+char*
+aarch64_output_simd_mov_imm (rtx const_vector, unsigned width)
+{
+  return aarch64_output_simd_imm (const_vector, width, AARCH64_CHECK_MOV);
 }
 
 char*
@@ -25447,7 +25569,7 @@ aarch64_output_scalar_simd_mov_immediate (rtx immediate, scalar_int_mode mode)
 
   vmode = aarch64_simd_container_mode (mode, width);
   rtx v_op = aarch64_simd_gen_const_vector_dup (vmode, INTVAL (immediate));
-  return aarch64_output_simd_mov_immediate (v_op, width);
+  return aarch64_output_simd_mov_imm (v_op, width);
 }
 
 /* Return the output string to use for moving immediate CONST_VECTOR
@@ -25459,8 +25581,9 @@ aarch64_output_sve_mov_immediate (rtx const_vector)
   static char templ[40];
   struct simd_immediate_info info;
   char element_char;
+  bool is_valid;
 
-  bool is_valid = aarch64_simd_valid_immediate (const_vector, &info);
+  is_valid = aarch64_simd_valid_imm (const_vector, &info, AARCH64_CHECK_MOV);
   gcc_assert (is_valid);
 
   element_char = sizetochar (GET_MODE_BITSIZE (info.elt_mode));
@@ -25532,9 +25655,10 @@ char *
 aarch64_output_sve_ptrues (rtx const_unspec)
 {
   static char templ[40];
-
   struct simd_immediate_info info;
-  bool is_valid = aarch64_simd_valid_immediate (const_unspec, &info);
+  bool is_valid;
+
+  is_valid = aarch64_simd_valid_imm (const_unspec, &info, AARCH64_CHECK_MOV);
   gcc_assert (is_valid && info.insn == simd_immediate_info::PTRUE);
 
   char element_char = sizetochar (GET_MODE_BITSIZE (info.elt_mode));

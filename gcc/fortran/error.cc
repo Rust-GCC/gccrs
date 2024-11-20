@@ -39,30 +39,55 @@ static int suppress_errors = 0;
 
 static bool warnings_not_errors = false;
 
-static int terminal_width;
-
 /* True if the error/warnings should be buffered.  */
 static bool buffered_p;
 
 static gfc_error_buffer error_buffer;
-/* These are always buffered buffers (.flush_p == false) to be used by
-   the pretty-printer.  */
-static output_buffer *pp_error_buffer, *pp_warning_buffer;
-static int warningcount_buffered, werrorcount_buffered;
+static diagnostic_buffer *pp_error_buffer, *pp_warning_buffer;
 
+gfc_error_buffer::gfc_error_buffer ()
+: flag (false), buffer (*global_dc)
+{
+}
 
 /* Return a location_t suitable for 'tree' for a gfortran locus.  During
-   parsing in gfortran, loc->lb->location contains only the line number
+   parsing in gfortran, loc->u.lb->location contains only the line number
    and LOCATION_COLUMN is 0; hence, the column has to be added when generating
-   locations for 'tree'.  */
+   locations for 'tree'.  If available, return location_t directly, which
+   might be a range. */
 
 location_t
 gfc_get_location_with_offset (locus *loc, unsigned offset)
 {
-  gcc_checking_assert (loc->nextc >= loc->lb->line);
-  return linemap_position_for_loc_and_offset (line_table, loc->lb->location,
-					      loc->nextc - loc->lb->line
+  if (loc->nextc == (gfc_char_t *) -1)
+    {
+      gcc_checking_assert (offset == 0);
+      return loc->u.location;
+    }
+  gcc_checking_assert (loc->nextc >= loc->u.lb->line);
+  return linemap_position_for_loc_and_offset (line_table, loc->u.lb->location,
+					      loc->nextc - loc->u.lb->line
 					      + offset);
+}
+
+/* Convert a locus to a range. */
+
+locus
+gfc_get_location_range (locus *caret_loc, unsigned caret_offset,
+			locus *start_loc, unsigned start_offset,
+			locus *end_loc)
+{
+  location_t caret;
+  location_t start = gfc_get_location_with_offset (start_loc, start_offset);
+  location_t end = gfc_get_location_with_offset (end_loc, 0);
+
+  if (caret_loc)
+    caret = gfc_get_location_with_offset (caret_loc, caret_offset);
+
+  locus range;
+  range.nextc = (gfc_char_t *) -1;
+  range.u.location = make_location (caret_loc ? caret : start, start, end);
+  return range;
 }
 
 /* Return buffered_p.  */
@@ -70,14 +95,6 @@ bool
 gfc_buffered_p (void)
 {
   return buffered_p;
-}
-
-/* Return true if there output_buffer is empty.  */
-
-static bool
-gfc_output_buffer_empty_p (const output_buffer * buf)
-{
-  return output_buffer_last_position_in_text (buf) == NULL;
 }
 
 /* Go one level deeper suppressing errors.  */
@@ -115,21 +132,11 @@ gfc_query_suppress_errors (void)
 }
 
 
-/* Determine terminal width (for trimming source lines in output).  */
-
-static int
-gfc_get_terminal_width (void)
-{
-  return isatty (STDERR_FILENO) ? get_terminal_width () : INT_MAX;
-}
-
-
 /* Per-file error initialization.  */
 
 void
 gfc_error_init_1 (void)
 {
-  terminal_width = gfc_get_terminal_width ();
   gfc_buffer_error (false);
 }
 
@@ -217,19 +224,14 @@ gfc_print_wide_char (gfc_char_t c)
 }
 
 
-/* Clear any output buffered in a pretty-print output_buffer.  */
+/* Clear any output buffered in THIS_BUFFER without issuing
+   it to global_dc.  */
 
 static void
-gfc_clear_pp_buffer (output_buffer *this_buffer)
+gfc_clear_diagnostic_buffer (diagnostic_buffer *this_buffer)
 {
-  pretty_printer *pp = global_dc->m_printer;
-  output_buffer *tmp_buffer = pp_buffer (pp);
-  pp_buffer (pp) = this_buffer;
-  pp_clear_output_area (pp);
-  pp_buffer (pp) = tmp_buffer;
-  /* We need to reset last_location, otherwise we may skip caret lines
-     when we actually give a diagnostic.  */
-  global_dc->m_last_location = UNKNOWN_LOCATION;
+  gcc_assert (this_buffer);
+  global_dc->clear_diagnostic_buffer (*this_buffer);
 }
 
 /* The currently-printing diagnostic, for use by gfc_format_decoder,
@@ -261,19 +263,13 @@ gfc_warning (int opt, const char *gmsgid, va_list ap)
 
   diagnostic_info diagnostic;
   rich_location rich_loc (line_table, UNKNOWN_LOCATION);
-  bool fatal_errors = global_dc->m_fatal_errors;
-  pretty_printer *pp = global_dc->m_printer;
-  output_buffer *tmp_buffer = pp_buffer (pp);
+  diagnostic_buffer *old_buffer = global_dc->get_diagnostic_buffer ();
+  gcc_assert (!old_buffer);
 
-  gfc_clear_pp_buffer (pp_warning_buffer);
+  gfc_clear_diagnostic_buffer (pp_warning_buffer);
 
   if (buffered_p)
-    {
-      pp_buffer (pp) = pp_warning_buffer;
-      global_dc->m_fatal_errors = false;
-      /* To prevent -fmax-errors= triggering.  */
-      --werrorcount;
-    }
+    global_dc->set_diagnostic_buffer (pp_warning_buffer);
 
   diagnostic_set_info (&diagnostic, gmsgid, &argp, &rich_loc,
 		       DK_WARNING);
@@ -281,21 +277,7 @@ gfc_warning (int opt, const char *gmsgid, va_list ap)
   bool ret = gfc_report_diagnostic (&diagnostic);
 
   if (buffered_p)
-    {
-      pp_buffer (pp) = tmp_buffer;
-      global_dc->m_fatal_errors = fatal_errors;
-
-      warningcount_buffered = 0;
-      werrorcount_buffered = 0;
-      /* Undo the above --werrorcount if not Werror, otherwise
-	 werrorcount is correct already.  */
-      if (!ret)
-	++werrorcount;
-      else if (diagnostic.kind == DK_ERROR)
-	++werrorcount_buffered;
-      else
-	++werrorcount, --warningcount, ++warningcount_buffered;
-    }
+    global_dc->set_diagnostic_buffer (old_buffer);
 
   va_end (argp);
   return ret;
@@ -755,9 +737,7 @@ gfc_fatal_error (const char *gmsgid, ...)
 void
 gfc_clear_warning (void)
 {
-  gfc_clear_pp_buffer (pp_warning_buffer);
-  warningcount_buffered = 0;
-  werrorcount_buffered = 0;
+  gfc_clear_diagnostic_buffer (pp_warning_buffer);
 }
 
 
@@ -767,21 +747,8 @@ gfc_clear_warning (void)
 void
 gfc_warning_check (void)
 {
-  if (! gfc_output_buffer_empty_p (pp_warning_buffer))
-    {
-      pretty_printer *pp = global_dc->m_printer;
-      output_buffer *tmp_buffer = pp_buffer (pp);
-      pp_buffer (pp) = pp_warning_buffer;
-      pp_really_flush (pp);
-      warningcount += warningcount_buffered;
-      werrorcount += werrorcount_buffered;
-      gcc_assert (warningcount_buffered + werrorcount_buffered == 1);
-      pp_buffer (pp) = tmp_buffer;
-      diagnostic_action_after_output (global_dc,
-				      warningcount_buffered
-				      ? DK_WARNING : DK_ERROR);
-      diagnostic_check_max_errors (global_dc, true);
-    }
+  if (! pp_warning_buffer->empty_p ())
+    global_dc->flush_diagnostic_buffer (*pp_warning_buffer);
 }
 
 
@@ -792,7 +759,6 @@ gfc_error_opt (int opt, const char *gmsgid, va_list ap)
 {
   va_list argp;
   va_copy (argp, ap);
-  bool saved_abort_on_error = false;
 
   if (warnings_not_errors)
     {
@@ -809,35 +775,19 @@ gfc_error_opt (int opt, const char *gmsgid, va_list ap)
 
   diagnostic_info diagnostic;
   rich_location richloc (line_table, UNKNOWN_LOCATION);
-  bool fatal_errors = global_dc->m_fatal_errors;
-  pretty_printer *pp = global_dc->m_printer;
-  output_buffer *tmp_buffer = pp_buffer (pp);
+  diagnostic_buffer *old_buffer = global_dc->get_diagnostic_buffer ();
+  gcc_assert (!old_buffer);
 
-  gfc_clear_pp_buffer (pp_error_buffer);
+  gfc_clear_diagnostic_buffer (pp_error_buffer);
 
   if (buffered_p)
-    {
-      /* To prevent -dH from triggering an abort on a buffered error,
-	 save abort_on_error and restore it below.  */
-      saved_abort_on_error = global_dc->m_abort_on_error;
-      global_dc->m_abort_on_error = false;
-      pp_buffer (pp) = pp_error_buffer;
-      global_dc->m_fatal_errors = false;
-      /* To prevent -fmax-errors= triggering, we decrease it before
-	 report_diagnostic increases it.  */
-      --errorcount;
-    }
+    global_dc->set_diagnostic_buffer (pp_error_buffer);
 
   diagnostic_set_info (&diagnostic, gmsgid, &argp, &richloc, DK_ERROR);
   gfc_report_diagnostic (&diagnostic);
 
   if (buffered_p)
-    {
-      pp_buffer (pp) = tmp_buffer;
-      global_dc->m_fatal_errors = fatal_errors;
-      global_dc->m_abort_on_error = saved_abort_on_error;
-
-    }
+    global_dc->set_diagnostic_buffer (old_buffer);
 
   va_end (argp);
 }
@@ -893,7 +843,7 @@ gfc_clear_error (void)
 {
   error_buffer.flag = false;
   warnings_not_errors = false;
-  gfc_clear_pp_buffer (pp_error_buffer);
+  gfc_clear_diagnostic_buffer (pp_error_buffer);
 }
 
 
@@ -902,8 +852,8 @@ gfc_clear_error (void)
 bool
 gfc_error_flag_test (void)
 {
-  return error_buffer.flag
-    || !gfc_output_buffer_empty_p (pp_error_buffer);
+  return (error_buffer.flag
+	  || !pp_error_buffer->empty_p ());
 }
 
 
@@ -914,18 +864,10 @@ bool
 gfc_error_check (void)
 {
   if (error_buffer.flag
-      || ! gfc_output_buffer_empty_p (pp_error_buffer))
+      || ! pp_error_buffer->empty_p ())
     {
       error_buffer.flag = false;
-      pretty_printer *pp = global_dc->m_printer;
-      output_buffer *tmp_buffer = pp_buffer (pp);
-      pp_buffer (pp) = pp_error_buffer;
-      pp_really_flush (pp);
-      ++errorcount;
-      gcc_assert (gfc_output_buffer_empty_p (pp_error_buffer));
-      pp_buffer (pp) = tmp_buffer;
-      diagnostic_action_after_output (global_dc, DK_ERROR);
-      diagnostic_check_max_errors (global_dc, true);
+      global_dc->flush_diagnostic_buffer (*pp_error_buffer);
       return true;
     }
 
@@ -940,21 +882,18 @@ static void
 gfc_move_error_buffer_from_to (gfc_error_buffer * buffer_from,
 			       gfc_error_buffer * buffer_to)
 {
-  output_buffer * from = &(buffer_from->buffer);
-  output_buffer * to =  &(buffer_to->buffer);
+  diagnostic_buffer * from = &(buffer_from->buffer);
+  diagnostic_buffer * to =  &(buffer_to->buffer);
 
   buffer_to->flag = buffer_from->flag;
   buffer_from->flag = false;
 
-  gfc_clear_pp_buffer (to);
-  /* We make sure this is always buffered.  */
-  to->m_flush_p = false;
+  gfc_clear_diagnostic_buffer (to);
 
-  if (! gfc_output_buffer_empty_p (from))
+  if (! from->empty_p ())
     {
-      const char *str = output_buffer_formatted_text (from);
-      output_buffer_append_r (to, str, strlen (str));
-      gfc_clear_pp_buffer (from);
+      from->move_to (*to);
+      gfc_clear_diagnostic_buffer (from);
     }
 }
 
@@ -981,7 +920,7 @@ gfc_pop_error (gfc_error_buffer *err)
 void
 gfc_free_error (gfc_error_buffer *err)
 {
-  gfc_clear_pp_buffer (&(err->buffer));
+  gfc_clear_diagnostic_buffer (&(err->buffer));
 }
 
 
@@ -1014,12 +953,10 @@ gfc_diagnostics_init (void)
   diagnostic_format_decoder (global_dc) = gfc_format_decoder;
   global_dc->m_source_printing.caret_chars[0] = '1';
   global_dc->m_source_printing.caret_chars[1] = '2';
-  pp_warning_buffer = new (XNEW (output_buffer)) output_buffer ();
-  pp_warning_buffer->m_flush_p = false;
+  pp_warning_buffer = new diagnostic_buffer (*global_dc);
   /* pp_error_buffer is statically allocated.  This simplifies memory
      management when using gfc_push/pop_error. */
   pp_error_buffer = &(error_buffer.buffer);
-  pp_error_buffer->m_flush_p = false;
 }
 
 void

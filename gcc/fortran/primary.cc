@@ -1471,6 +1471,9 @@ match_sym_complex_part (gfc_expr **result)
 	goto error;
       break;
 
+    case BT_UNSIGNED:
+      goto error;
+
     default:
       gfc_internal_error ("gfc_match_sym_complex_part(): Bad type");
     }
@@ -2273,6 +2276,7 @@ gfc_match_varspec (gfc_expr *primary, int equiv_flag, bool sub_flag,
 	}
     }
   else if (sym->ts.type == BT_CLASS
+	   && !(sym->assoc && sym->assoc->ar)
 	   && tgt_expr
 	   && tgt_expr->expr_type == EXPR_VARIABLE
 	   && sym->ts.u.derived != tgt_expr->ts.u.derived)
@@ -2666,7 +2670,7 @@ gfc_match_varspec (gfc_expr *primary, int equiv_flag, bool sub_flag,
 
       if (tmp && tmp->type == REF_INQUIRY)
 	{
-	  if (!primary->where.lb || !primary->where.nextc)
+	  if (!primary->where.u.lb || !primary->where.nextc)
 	    primary->where = gfc_current_locus;
 	  gfc_simplify_expr (primary, 0);
 
@@ -4441,7 +4445,6 @@ match_variable (gfc_expr **result, int equiv_flag, int host_flag)
   expr->expr_type = EXPR_VARIABLE;
   expr->symtree = st;
   expr->ts = sym->ts;
-  expr->where = where;
 
   /* Now see if we have to do more.  */
   m = gfc_match_varspec (expr, equiv_flag, false, false);
@@ -4451,6 +4454,7 @@ match_variable (gfc_expr **result, int equiv_flag, int host_flag)
       return m;
     }
 
+  expr->where = gfc_get_location_range (NULL, 0, &where, 1, &gfc_current_locus);
   *result = expr;
   return MATCH_YES;
 }

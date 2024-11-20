@@ -5196,13 +5196,15 @@ find_array_spec (gfc_expr *e)
       case REF_ARRAY:
 	if (as == NULL)
 	  {
-	    locus loc = ref->u.ar.where.lb ? ref->u.ar.where : e->where;
+	    locus loc = (GFC_LOCUS_IS_SET (ref->u.ar.where)
+			 ? ref->u.ar.where : e->where);
 	    gfc_error ("Invalid array reference of a non-array entity at %L",
 		       &loc);
 	    return false;
 	  }
 
 	ref->u.ar.as = as;
+	if (ref->u.ar.dimen == -1) ref->u.ar.dimen = as->rank;
 	as = NULL;
 	break;
 
@@ -5807,7 +5809,8 @@ gfc_expression_rank (gfc_expr *e)
 	  break;
 	}
     }
-  if (last_arr_ref && last_arr_ref->u.ar.as)
+  if (last_arr_ref && last_arr_ref->u.ar.as
+      && last_arr_ref->u.ar.as->rank != -1)
     {
       for (i = last_arr_ref->u.ar.as->rank;
 	   i < last_arr_ref->u.ar.as->rank + last_arr_ref->u.ar.as->corank; ++i)
@@ -5951,12 +5954,14 @@ resolve_variable (gfc_expr *e)
 	     && CLASS_DATA (sym)->as
 	     && CLASS_DATA (sym)->as->type == AS_ASSUMED_RANK)
 	    || (sym->ts.type != BT_CLASS && sym->as
-	        && sym->as->type == AS_ASSUMED_RANK))
-	   && !sym->attr.select_rank_temporary)
+		&& sym->as->type == AS_ASSUMED_RANK))
+	   && !sym->attr.select_rank_temporary
+	   && !(sym->assoc && sym->assoc->ar))
     {
       if (!actual_arg
 	  && !(cs_base && cs_base->current
-	       && cs_base->current->op == EXEC_SELECT_RANK))
+	       && (cs_base->current->op == EXEC_SELECT_RANK
+		   || sym->attr.target)))
 	{
 	  gfc_error ("Assumed-rank variable %s at %L may only be used as "
 		     "actual argument", sym->name, &e->where);
@@ -6000,6 +6005,7 @@ resolve_variable (gfc_expr *e)
 	&& CLASS_DATA (sym)->as->type == AS_ASSUMED_RANK)
        || (sym->ts.type != BT_CLASS && sym->as
 	   && sym->as->type == AS_ASSUMED_RANK))
+      && !(sym->assoc && sym->assoc->ar)
       && e->ref
       && !(e->ref->type == REF_ARRAY && e->ref->u.ar.type == AR_FULL
 	   && e->ref->next == NULL))
@@ -6116,6 +6122,7 @@ resolve_variable (gfc_expr *e)
       newref->type = REF_ARRAY;
       newref->u.ar.type = AR_FULL;
       newref->u.ar.dimen = 0;
+
       /* Because this is an associate var and the first ref either is a ref to
 	 the _data component or not, no traversal of the ref chain is
 	 needed.  The array ref needs to be inserted after the _data ref,
@@ -9557,6 +9564,22 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
   if (resolve_target && !gfc_resolve_expr (target))
     return;
 
+  if (sym->assoc->ar)
+    {
+      int dim;
+      gfc_array_ref *ar = sym->assoc->ar;
+      for (dim = 0; dim < sym->assoc->ar->dimen; dim++)
+	{
+	  if (!(ar->start[dim] && gfc_resolve_expr (ar->start[dim])
+		&& ar->start[dim]->ts.type == BT_INTEGER)
+	      || !(ar->end[dim] && gfc_resolve_expr (ar->end[dim])
+		   && ar->end[dim]->ts.type == BT_INTEGER))
+	    gfc_error ("(F202y)Missing or invalid bound in ASSOCIATE rank "
+		       "remapping of associate name %s at %L",
+		       sym->name, &sym->declared_at);
+	}
+    }
+
   /* For variable targets, we get some attributes from the target.  */
   if (target->expr_type == EXPR_VARIABLE)
     {
@@ -9746,7 +9769,7 @@ resolve_assoc_var (gfc_symbol* sym, bool resolve_target)
   if (target->ts.type == BT_CLASS)
     gfc_fix_class_refs (target);
 
-  if ((target->rank != 0 || target->corank != 0)
+  if ((target->rank > 0 || target->corank > 0)
       && !sym->attr.select_rank_temporary)
     {
       gfc_array_spec *as;
@@ -13983,8 +14006,8 @@ deferred_requirements (gfc_symbol *sym)
 static bool
 resolve_fl_variable (gfc_symbol *sym, int mp_flag)
 {
-  const char *auto_save_msg = "Automatic object %qs at %L cannot have the "
-			      "SAVE attribute";
+  const char *auto_save_msg = G_("Automatic object %qs at %L cannot have the "
+				 "SAVE attribute");
 
   if (!resolve_fl_var_and_proc (sym, mp_flag))
     return false;
@@ -16745,7 +16768,9 @@ resolve_symbol (gfc_symbol *sym)
       if (as->type == AS_ASSUMED_RANK && !sym->attr.dummy
 	  && !sym->attr.select_type_temporary
 	  && !(cs_base && cs_base->current
-	       && cs_base->current->op == EXEC_SELECT_RANK))
+	       && (cs_base->current->op == EXEC_SELECT_RANK
+		   || ((gfc_option.allow_std & GFC_STD_F202Y)
+			&& cs_base->current->op == EXEC_BLOCK))))
 	{
 	  gfc_error ("Assumed-rank array at %L must be a dummy argument",
 		     &sym->declared_at);
@@ -18245,8 +18270,8 @@ resolve_equivalence (gfc_equiv *eq)
       /* Since the pair of objects is not of the same type, mixed or
 	 non-default sequences can be rejected.  */
 
-      msg = "Sequence %s with mixed components in EQUIVALENCE "
-	    "statement at %L with different type objects";
+      msg = G_("Sequence %s with mixed components in EQUIVALENCE "
+	       "statement at %L with different type objects");
       if ((object ==2
 	   && last_eq_type == SEQ_MIXED
 	   && last_where
@@ -18255,8 +18280,8 @@ resolve_equivalence (gfc_equiv *eq)
 	      && !gfc_notify_std (GFC_STD_GNU, msg, sym->name, &e->where)))
 	continue;
 
-      msg = "Non-default type object or sequence %s in EQUIVALENCE "
-	    "statement at %L with objects of different type";
+      msg = G_("Non-default type object or sequence %s in EQUIVALENCE "
+	       "statement at %L with objects of different type");
       if ((object ==2
 	   && last_eq_type == SEQ_NONDEFAULT
 	   && last_where
@@ -18265,15 +18290,15 @@ resolve_equivalence (gfc_equiv *eq)
 	      && !gfc_notify_std (GFC_STD_GNU, msg, sym->name, &e->where)))
 	continue;
 
-      msg ="Non-CHARACTER object %qs in default CHARACTER "
-	   "EQUIVALENCE statement at %L";
+      msg = G_("Non-CHARACTER object %qs in default CHARACTER "
+	       "EQUIVALENCE statement at %L");
       if (last_eq_type == SEQ_CHARACTER
 	  && eq_type != SEQ_CHARACTER
 	  && !gfc_notify_std (GFC_STD_GNU, msg, sym->name, &e->where))
 		continue;
 
-      msg ="Non-NUMERIC object %qs in default NUMERIC "
-	   "EQUIVALENCE statement at %L";
+      msg = G_("Non-NUMERIC object %qs in default NUMERIC "
+	       "EQUIVALENCE statement at %L");
       if (last_eq_type == SEQ_NUMERIC
 	  && eq_type != SEQ_NUMERIC
 	  && !gfc_notify_std (GFC_STD_GNU, msg, sym->name, &e->where))

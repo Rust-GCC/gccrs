@@ -1890,6 +1890,18 @@ get_mask_mode (machine_mode mode)
   return get_vector_mode (BImode, nunits).require ();
 }
 
+/* Return the appropriate LMUL mode for MODE.  */
+
+opt_machine_mode
+get_lmul_mode (scalar_mode mode, int lmul)
+{
+  poly_uint64 lmul_nunits;
+  unsigned int bytes = GET_MODE_SIZE (mode);
+  if (multiple_p (BYTES_PER_RISCV_VECTOR * lmul, bytes, &lmul_nunits))
+    return get_vector_mode (mode, lmul_nunits);
+  return E_VOIDmode;
+}
+
 /* Return the appropriate M1 mode for MODE.  */
 
 static opt_machine_mode
@@ -4927,6 +4939,22 @@ expand_vec_double_ustrunc (rtx op_0, rtx op_1, machine_mode vec_mode)
   emit_vlmax_insn (icode, BINARY_OP_VXRM_RNU, ops);
 }
 
+/* Expand the standard name sstrunc<m><n>2 for double vector mode,  like
+   DI => SI.  we can leverage the vector fixed point vector narrowing
+   fixed-point clip directly.  */
+
+void
+expand_vec_double_sstrunc (rtx op_0, rtx op_1, machine_mode vec_mode)
+{
+  insn_code icode;
+  rtx zero = CONST0_RTX (Xmode);
+  enum unspec unspec = UNSPEC_VNCLIP;
+  rtx ops[] = {op_0, op_1, zero};
+
+  icode = code_for_pred_narrow_clip_scalar (unspec, vec_mode);
+  emit_vlmax_insn (icode, BINARY_OP_VXRM_RNU, ops);
+}
+
 /* Expand the standard name ustrunc<m><n>2 for double vector mode,  like
    DI => HI.  we can leverage the vector fixed point vector narrowing
    fixed-point clip directly.  */
@@ -4939,6 +4967,20 @@ expand_vec_quad_ustrunc (rtx op_0, rtx op_1, machine_mode vec_mode,
 
   expand_vec_double_ustrunc (double_rtx, op_1, vec_mode);
   expand_vec_double_ustrunc (op_0, double_rtx, double_mode);
+}
+
+/* Expand the standard name sstrunc<m><n>2 for quad vector mode,  like
+   DI => HI.  we can leverage the vector fixed point vector narrowing
+   fixed-point clip directly.  */
+
+void
+expand_vec_quad_sstrunc (rtx op_0, rtx op_1, machine_mode vec_mode,
+			 machine_mode double_mode)
+{
+  rtx double_rtx = gen_reg_rtx (double_mode);
+
+  expand_vec_double_sstrunc (double_rtx, op_1, vec_mode);
+  expand_vec_double_sstrunc (op_0, double_rtx, double_mode);
 }
 
 /* Expand the standard name ustrunc<m><n>2 for double vector mode,  like
@@ -4955,6 +4997,22 @@ expand_vec_oct_ustrunc (rtx op_0, rtx op_1, machine_mode vec_mode,
   expand_vec_double_ustrunc (double_rtx, op_1, vec_mode);
   expand_vec_double_ustrunc (quad_rtx, double_rtx, double_mode);
   expand_vec_double_ustrunc (op_0, quad_rtx, quad_mode);
+}
+
+/* Expand the standard name sstrunc<m><n>2 for oct vector mode,  like
+   DI => QI.  we can leverage the vector fixed point vector narrowing
+   fixed-point clip directly.  */
+
+void
+expand_vec_oct_sstrunc (rtx op_0, rtx op_1, machine_mode vec_mode,
+			machine_mode double_mode, machine_mode quad_mode)
+{
+  rtx double_rtx = gen_reg_rtx (double_mode);
+  rtx quad_rtx = gen_reg_rtx (quad_mode);
+
+  expand_vec_double_sstrunc (double_rtx, op_1, vec_mode);
+  expand_vec_double_sstrunc (quad_rtx, double_rtx, double_mode);
+  expand_vec_double_sstrunc (op_0, quad_rtx, quad_mode);
 }
 
 /* Vectorize popcount by the Wilkes-Wheeler-Gill algorithm that libgcc uses as

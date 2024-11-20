@@ -23,6 +23,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "diagnostic.h"
 
+class diagnostic_per_format_buffer;
+
 /* Abstract base class for a particular output format for diagnostics;
    each value of -fdiagnostics-output-format= will have its own
    implementation.  */
@@ -31,6 +33,18 @@ class diagnostic_output_format
 {
 public:
   virtual ~diagnostic_output_format () {}
+
+  virtual void dump (FILE *out, int indent) const;
+
+  /* Vfunc for making an appropriate diagnostic_per_format_buffer
+     subclass for this format.  */
+  virtual diagnostic_per_format_buffer *make_per_format_buffer () = 0;
+
+  /* Vfunc to be called when call a diagnostic_buffer is set on
+     a diagnostic_context, to update this format.  The per_format_buffer
+     will be one created by make_per_format_buffer above and thus be
+     of the correct subclass.  */
+  virtual void set_buffer (diagnostic_per_format_buffer *) = 0;
 
   virtual void on_begin_group () = 0;
   virtual void on_end_group () = 0;
@@ -51,6 +65,8 @@ public:
   {
     return m_context.get_diagram_theme ();
   }
+
+  void DEBUG_FUNCTION dump () const { dump (stderr, 0); }
 
 protected:
   diagnostic_output_format (diagnostic_context &context)

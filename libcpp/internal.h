@@ -318,7 +318,8 @@ struct _cpp_line_note
 
   /* Type of note.  The 9 'from' trigraph characters represent those
      trigraphs, '\\' an escaped newline, ' ' an escaped newline with
-     intervening space, 'W' trailing whitespace, 0 represents a note that
+     intervening space, 'W' trailing whitespace, 'L', 'S' and 'T' for
+     leading whitespace issues, 0 represents a note that
      has already been handled, and anything else is invalid.  */
   unsigned int type;
 };
@@ -615,6 +616,10 @@ struct cpp_reader
   /* Location identifying the main source file -- intended to be line
      zero of said file.  */
   location_t main_loc;
+
+  /* If non-zero, override diagnostic locations (other than DK_NOTE
+     diagnostics) to this one.  */
+  location_t diagnostic_override_loc;
 
   /* Returns true iff we should warn about UTF-8 bidirectional control
      characters.  */
