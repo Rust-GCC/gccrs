@@ -1492,18 +1492,18 @@ EnumValue
 Enum(warn_trailing_whitespace_kind) String(none) Value(0)
 
 EnumValue
-Enum(warn_trailing_whitespace_kind) String(blank) Value(1)
+Enum(warn_trailing_whitespace_kind) String(blanks) Value(1)
 
 EnumValue
-Enum(warn_trailing_whitespace_kind) String(space) Value(2)
+Enum(warn_trailing_whitespace_kind) String(any) Value(2)
 
 Wtrailing-whitespace=
 C ObjC C++ ObjC++ CPP(cpp_warn_trailing_whitespace) CppReason(CPP_W_TRAILING_WHITESPACE) Enum(warn_trailing_whitespace_kind) Joined RejectNegative Var(warn_trailing_whitespace) Init(0) Warning
 Warn about trailing whitespace on lines except when in raw string literals.
 
 Wtrailing-whitespace
-C ObjC C++ ObjC++ Alias(Wtrailing-whitespace=,blank,none) Warning
-Warn about trailing whitespace on lines except when in raw string literals.   Equivalent to Wtrailing-whitespace=blank when enabled or Wtrailing-whitespace=none when disabled.
+C ObjC C++ ObjC++ Alias(Wtrailing-whitespace=,blanks,none) Warning
+Warn about trailing whitespace on lines except when in raw string literals.   Equivalent to Wtrailing-whitespace=blanks when enabled or Wtrailing-whitespace=none when disabled.
 
 Wtrigraphs
 C ObjC C++ ObjC++ CPP(warn_trigraphs) CppReason(CPP_W_TRIGRAPHS) Var(cpp_warn_trigraphs) Init(2) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
@@ -2590,7 +2590,7 @@ Conform to the ISO 2017 C standard (published in 2018).
 
 std=c23
 C ObjC
-Conform to the ISO 2023 C standard draft (expected to be published in 2024) (experimental and incomplete support).
+Conform to the ISO 2023 C standard draft (expected to be published in 2024).
 
 std=c2x
 C ObjC Alias(std=c23)
@@ -2692,7 +2692,7 @@ Conform to the ISO 2017 C standard (published in 2018) with GNU extensions.
 
 std=gnu23
 C ObjC
-Conform to the ISO 2023 C standard draft (expected to be published in 2024) with GNU extensions (experimental and incomplete support).
+Conform to the ISO 2023 C standard draft (expected to be published in 2024) with GNU extensions.
 
 std=gnu2x
 C ObjC Alias(std=gnu23)
@@ -2748,7 +2748,7 @@ Conform to the ISO 2017 C standard (published in 2018).
 
 std=iso9899:2024
 C ObjC Alias(std=c23)
-Conform to the ISO 2023 C standard draft (expected to be published in 2024) (experimental and incomplete support).
+Conform to the ISO 2023 C standard draft (expected to be published in 2024).
 
 stdlib=
 Driver C++ ObjC++ Common Condition(ENABLE_STDLIB_OPTION) Var(flag_stdlib_kind) Joined Enum(stdlib_kind) RejectNegative Init(1)

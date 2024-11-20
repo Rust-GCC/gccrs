@@ -138,6 +138,7 @@
 #define bit_AMX_FP16    (1 << 21)
 #define bit_HRESET      (1 << 22)
 #define bit_AVXIFMA     (1 << 23)
+#define bit_MOVRS	(1 << 31)
 
 /* %edx */
 #define bit_AVXVNNIINT8 (1 << 4)
@@ -161,6 +162,14 @@
 /* %ebx */
 #define bit_AESKLE	( 1<<0 )
 #define bit_WIDEKL	( 1<<2 )
+
+/* AMX sub leaf (%eax == 0x1e, %ecx == 1) */
+/* %eax */
+#define bit_AMX_FP8	(1 << 4)
+#define bit_AMX_TRANSPOSE	(1 << 5)
+#define bit_AMX_TF32	(1 << 6)
+#define bit_AMX_AVX512  (1 << 7)
+#define bit_AMX_MOVRS	(1 << 8)
 
 /* AVX10 sub leaf (%eax == 0x24) */
 /* %ebx */

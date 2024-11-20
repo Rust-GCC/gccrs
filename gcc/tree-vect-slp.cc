@@ -549,7 +549,7 @@ vect_get_operand_map (const gimple *stmt, bool gather_scatter_p = false,
     {
       if (gimple_assign_rhs_code (assign) == COND_EXPR
 	  && COMPARISON_CLASS_P (gimple_assign_rhs1 (assign)))
-	return cond_expr_maps[swap];
+	gcc_unreachable ();
       if (TREE_CODE_CLASS (gimple_assign_rhs_code (assign)) == tcc_comparison
 	  && swap)
 	return op1_op0_map;
@@ -4911,37 +4911,16 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 	     from them.  It's highly likely that the resulting SLP tree here if both
 	     arguments have a def will be incompatible, but we rely on it being split
 	     later on.  */
-	  if (auto varg = loop_vinfo->lookup_def (args0))
-	    {
-	      vec<stmt_vec_info> stmts;
-	      vec<tree> remain = vNULL;
-	      stmts.create (1);
-	      stmts.quick_push (vect_stmt_to_vectorize (varg));
+	  auto varg = loop_vinfo->lookup_def (args0);
+	  vec<stmt_vec_info> stmts;
+	  vec<tree> remain = vNULL;
+	  stmts.create (1);
+	  stmts.quick_push (vect_stmt_to_vectorize (varg));
 
-	      vect_build_slp_instance (vinfo, slp_inst_kind_gcond,
-				       stmts, roots, remain,
-				       max_tree_size, &limit,
-				       bst_map, NULL, force_single_lane);
-	    }
-	  else
-	    {
-	      /* Create a new SLP instance.  */
-	      slp_instance new_instance = XNEW (class _slp_instance);
-	      vec<tree> ops;
-	      ops.create (1);
-	      ops.quick_push (args0);
-	      slp_tree invnode = vect_create_new_slp_node (ops);
-	      SLP_TREE_DEF_TYPE (invnode) = vect_external_def;
-	      SLP_INSTANCE_TREE (new_instance) = invnode;
-	      SLP_INSTANCE_LOADS (new_instance) = vNULL;
-	      SLP_INSTANCE_ROOT_STMTS (new_instance) = roots;
-	      SLP_INSTANCE_REMAIN_DEFS (new_instance) = vNULL;
-	      SLP_INSTANCE_KIND (new_instance) = slp_inst_kind_gcond;
-	      new_instance->reduc_phis = NULL;
-	      new_instance->cost_vec = vNULL;
-	      new_instance->subgraph_entries = vNULL;
-	      vinfo->slp_instances.safe_push (new_instance);
-	    }
+	  vect_build_slp_instance (vinfo, slp_inst_kind_gcond,
+				   stmts, roots, remain,
+				   max_tree_size, &limit,
+				   bst_map, NULL, force_single_lane);
 	}
 
 	/* Find and create slp instances for inductions that have been forced
@@ -5632,6 +5611,8 @@ vect_optimize_slp_pass::build_vertices ()
   hash_set<slp_tree> visited;
   unsigned i;
   slp_instance instance;
+  m_vertices.truncate (0);
+  m_leafs.truncate (0);
   FOR_EACH_VEC_ELT (m_vinfo->slp_instances, i, instance)
     build_vertices (visited, SLP_INSTANCE_TREE (instance));
 }
@@ -7244,6 +7225,8 @@ vect_optimize_slp_pass::run ()
     }
   else
     remove_redundant_permutations ();
+  free_graph (m_slpg);
+  build_graph ();
   decide_masked_load_lanes ();
   free_graph (m_slpg);
 }
@@ -8855,9 +8838,8 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo,
 	}
       while (si < li_scalar_costs.length ()
 	     && li_scalar_costs[si].first == sl);
-      unsigned dummy;
-      finish_cost (scalar_target_cost_data, nullptr,
-		   &dummy, &scalar_cost, &dummy);
+      scalar_target_cost_data->finish_cost (nullptr);
+      scalar_cost = scalar_target_cost_data->body_cost ();
 
       /* Complete the target-specific vector cost calculation.  */
       class vector_costs *vect_target_cost_data = init_cost (bb_vinfo, false);
@@ -8868,8 +8850,10 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo,
 	}
       while (vi < li_vector_costs.length ()
 	     && li_vector_costs[vi].first == vl);
-      finish_cost (vect_target_cost_data, scalar_target_cost_data,
-		   &vec_prologue_cost, &vec_inside_cost, &vec_epilogue_cost);
+      vect_target_cost_data->finish_cost (scalar_target_cost_data);
+      vec_prologue_cost = vect_target_cost_data->prologue_cost ();
+      vec_inside_cost = vect_target_cost_data->body_cost ();
+      vec_epilogue_cost = vect_target_cost_data->epilogue_cost ();
       delete scalar_target_cost_data;
       delete vect_target_cost_data;
 

@@ -700,6 +700,8 @@ bool expand_strcmp (rtx, rtx, rtx, rtx, unsigned HOST_WIDE_INT, bool);
 void emit_vec_extract (rtx, rtx, rtx);
 bool expand_vec_setmem (rtx, rtx, rtx);
 bool expand_vec_cmpmem (rtx, rtx, rtx, rtx);
+void expand_strided_load (machine_mode, rtx *);
+void expand_strided_store (machine_mode, rtx *);
 
 /* Rounding mode bitfield for fixed point VXRM.  */
 enum fixed_point_rounding_mode
@@ -803,6 +805,8 @@ extern bool riscv_use_divmod_expander (void);
 void riscv_init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree, int);
 extern bool
 riscv_option_valid_attribute_p (tree, tree, tree, int);
+extern bool
+riscv_process_target_attr (const char *, location_t);
 extern void
 riscv_override_options_internal (struct gcc_options *);
 extern void riscv_option_override (void);

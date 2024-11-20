@@ -1,3 +1,46 @@
+2024-10-30  Joseph Myers  <josmyers@redhat.com>
+
+	* c.opt (std=c23, std=gnu23, std=iso9899:2024): Do not mark as
+	experimental and incomplete.
+
+2024-10-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/117021
+	* c-common.cc (c_add_case_label): Emit different diagnostics for C
+	on case ranges.  Diagnose for C using pedwarn conversions of range
+	expressions changing value and don't emit further conversion
+	diagnostics if the pedwarn has been diagnosed.  For empty ranges
+	bail out after emitting warning, don't add anything into splay
+	trees nor add a CASE_LABEL_EXPR.
+
+2024-10-29  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* c-format.cc (selftest::test_type_mismatch_range_labels): Update
+	for m_printer becoming reference printer.
+	(selftest::test_type_mismatch_range_labels): Likewise.
+
+2024-10-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/117313
+	* c-common.cc (complete_array_type): For RAW_DATA_CST elements
+	advance curindex by RAW_DATA_LENGTH or one less than that if
+	ce->index is non-NULL.  Handle even the first element if
+	it is RAW_DATA_CST.  Formatting fix.
+
+2024-10-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/117030
+	* c-common.cc (c_common_reswords): Add __builtin_stdc_rotate_left
+	and __builtin_stdc_rotate_right.
+	* c-ubsan.cc (ubsan_instrument_shift): For {L,R}ROTATE_EXPR
+	just check if op1 is negative.
+
+2024-10-27  Jakub Jelinek  <jakub@redhat.com>
+
+	* c.opt (warn_trailing_whitespace_kind): Change blank
+	to blanks and space to any.
+
 2024-10-25  Jakub Jelinek  <jakub@redhat.com>
 
 	* c-ubsan.cc: Remove trailing whitespace.

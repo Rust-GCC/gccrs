@@ -307,6 +307,8 @@ Objective-C and Objective-C++ Dialects}.
 -fdiagnostics-color=@r{[}auto@r{|}never@r{|}always@r{]}
 -fdiagnostics-urls=@r{[}auto@r{|}never@r{|}always@r{]}
 -fdiagnostics-format=@r{[}text@r{|}sarif-stderr@r{|}sarif-file@r{|}json@r{|}json-stderr@r{|}json-file@r{]}
+-fdiagnostics-add-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
+-fdiagnostics-set-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
 -fno-diagnostics-json-formatting
 -fno-diagnostics-show-option  -fno-diagnostics-show-caret
 -fno-diagnostics-show-event-links
@@ -1480,11 +1482,11 @@ See RS/6000 and PowerPC Options.
 -mvpclmulqdq  -mavx512bitalg  -mmovdiri  -mmovdir64b  -mavx512vpopcntdq
 -mavx512vnni  -mprfchw  -mrdpid
 -mrdseed  -msgx -mavx512vp2intersect -mserialize -mtsxldtrk
--mamx-tile  -mamx-int8  -mamx-bf16 -muintr -mhreset -mavxvnni
+-mamx-tile  -mamx-int8  -mamx-bf16 -muintr -mhreset -mavxvnni -mamx-fp8
 -mavx512fp16 -mavxifma -mavxvnniint8 -mavxneconvert -mcmpccxadd -mamx-fp16
 -mprefetchi -mraoint -mamx-complex -mavxvnniint16 -msm3 -msha512 -msm4 -mapxf
 -musermsr -mavx10.1 -mavx10.1-256 -mavx10.1-512 -mevex512 -mavx10.2 -mavx10.2-256
--mavx10.2-512
+-mavx10.2-512 -mamx-avx512 -mamx-tf32 -mamx-transpose -mmovrs -mamx-movrs
 -mcldemote  -mms-bitfields  -mno-align-stringops  -minline-all-stringops
 -minline-stringops-dynamically  -mstringop-strategy=@var{alg}
 -mkl -mwidekl
@@ -2478,8 +2480,7 @@ applied with @option{-std=c11}) and a new value of
 @itemx c2x
 @itemx iso9899:2024
 ISO C23, the 2023 revision of the ISO C standard (expected to be
-published in 2024).  The support for this version is experimental and
-incomplete.  The name @samp{c2x} is deprecated.
+published in 2024).  The name @samp{c2x} is deprecated.
 
 @item c2y
 The next version of the ISO C standard, still under development.  The
@@ -2504,8 +2505,7 @@ GNU dialect of ISO C17.  This is the default for C code.
 
 @item gnu23
 @itemx gnu2x
-GNU dialect of ISO C23.  The support for this version is experimental
-and incomplete.  The name @samp{gnu2x} is deprecated.
+GNU dialect of ISO C23.  The name @samp{gnu2x} is deprecated.
 
 @item gnu2y
 The next version of the ISO C standard, still under development, plus
@@ -5902,6 +5902,10 @@ Select a different format for printing diagnostics.
 @var{FORMAT} is @samp{text}, @samp{sarif-stderr}, @samp{sarif-file},
 @samp{json}, @samp{json-stderr}, or @samp{json-file}.
 
+Using this option replaces any additional ``output sinks'' added by
+@option{-fdiagnostics-add-output=}, or that set by
+@option{-fdiagnostics-set-output=}.
+
 The default is @samp{text}.
 
 The @samp{sarif-stderr} and @samp{sarif-file} formats both emit
@@ -5915,6 +5919,97 @@ The @samp{json-stderr} and @samp{json-file} formats are identical, apart from
 where the JSON is emitted to.  With @samp{json-stderr}, the JSON is emitted
 to stderr, whereas with @samp{json-file} it is written to
 @file{@var{source}.gcc.json}.
+
+@opindex fdiagnostics-add-output
+@item -fdiagnostics-add-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
+Add an additional ``output sink'' for emitting diagnostics.
+
+@var{DIAGNOSTICS-OUTPUT-SPEC} should specify a scheme, optionally followed
+by @code{:} and one or more @var{KEY}=@var{VALUE} pairs, in this form:
+
+@smallexample
+@var{SCHEME}
+@var{SCHEME}:@var{KEY}=@var{VALUE}
+@var{SCHEME}:@var{KEY}=@var{VALUE},@var{KEY2}=@var{VALUE2}
+@end smallexample
+
+etc.
+
+@var{SCHEME} can be
+
+@table @gcctabopt
+
+@item text
+Emit diagnostics to stderr using GCC's classic text output format.
+
+Supported keys are:
+
+@table @gcctabopt
+
+@item color=@r{[}yes@r{|}no@r{]}
+Override colorization settings from @option{-fdiagnostics-color} for this
+text output.
+
+@end table
+
+@item sarif
+Emit diagnostics to a file in SARIF format.
+
+Supported keys are:
+
+@table @gcctabopt
+
+@item file=@var{FILENAME}
+Specify the filename to write the SARIF output to, potentially with a
+leading absolute or relative path.  If not specified, it defaults to
+@file{@var{source}.sarif}.
+
+@item version=@r{[}2.1@r{|}2.2-prerelease@r{]}
+Specify the version of SARIF to use for the output.  If not specified,
+defaults to 2.1.  @code{2.2-prerelease} uses an unofficial draft of the
+future SARIF 2.2 specification and should only be used for experimentation
+in this release.
+
+@end table
+
+@end table
+
+For example,
+
+@smallexample
+-fdiagnostics-add-output=sarif:version=2.1,file=foo.2.1.sarif
+-fdiagnostics-add-output=sarif:version=2.2-prerelease,file=foo.2.2.sarif
+@end smallexample
+
+would add a pair of outputs, each writing to a different file, using
+versions 2.1 and 2.2 of the SARIF standard respectively.
+
+In EBNF:
+
+@smallexample
+
+@var{diagnostics-output-specifier} = @var{diagnostics-output-name}
+                                   | @var{diagnostics-output-name}, ":", @var{key-value-pairs};
+
+@var{diagnostics-output-name} = "text" | "sarif";
+
+@var{key-value-pairs} = @var{key-value-pair}
+                      | @var{key-value-pair} "," @var{key-value-pairs};
+
+@var{key-value-pair} = @var{key} "=" @var{value};
+
+@var{key} = ? string without a '=' ? ;
+@var{value} = ? string without a ',' ? ;
+
+@end smallexample
+
+@opindex fdiagnostics-set-output
+@item -fdiagnostics-set-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
+This works in a similar way to @option{-fdiagnostics-add-output=} except
+that instead of adding an additional ``output sink'' for diagnostics, it
+replaces all existing output sinks, such as from @option{-fdiagnostics-format=},
+@option{-fdiagnostics-add-output=}, or a prior call to
+@option{-fdiagnostics-set-output=}.
 
 @opindex fno-diagnostics-json-formatting
 @opindex fdiagnostics-json-formatting
@@ -8784,8 +8879,8 @@ This warning is enabled by @option{-Wall}.
 Warn about trailing whitespace at the end of lines, including inside of
 comments, but excluding trailing whitespace in raw string literals.
 @code{-Wtrailing-whitespace} is equivalent to
-@code{-Wtrailing-whitespace=blank} and warns just about trailing space and
-horizontal tab characters.  @code{-Wtrailing-whitespace=space} warns about
+@code{-Wtrailing-whitespace=blanks} and warns just about trailing space and
+horizontal tab characters.  @code{-Wtrailing-whitespace=any} warns about
 those or trailing form feed or vertical tab characters.
 @code{-Wno-trailing-whitespace} or @code{-Wtrailing-whitespace=none}
 disables the warning, which is the default.
@@ -35579,6 +35674,24 @@ preferred alignment to @option{-mpreferred-stack-boundary=2}.
 @need 200
 @opindex mavx10.2-512
 @itemx -mavx10.2-512
+@need 200
+@opindex mamx-avx512
+@itemx -mamx-avx512
+@need 200
+@opindex mamx-tf32
+@itemx -mamx-tf32
+@need 200
+@opindex mamx-transpose
+@itemx -mamx-transpose
+@need 200
+@itemx -mamx-fp8
+@opindex mamx-fp8
+@need 200
+@opindex mmovrs
+@itemx -mmovrs
+@need 200
+@opindex mamx-movrs
+@itemx -mamx-movrs
 These switches enable the use of instructions in the MMX, SSE,
 AVX512CD, AVX512VL, AVX512BW, AVX512DQ, AVX512IFMA, AVX512VBMI, SHA, AES,
 PCLMUL, CLFLUSHOPT, CLWB, FSGSBASE, PTWRITE, RDRND, F16C, FMA, PCONFIG,
@@ -35589,9 +35702,9 @@ WAITPKG, VPCLMULQDQ, AVX512BITALG, MOVDIRI, MOVDIR64B, AVX512BF16, ENQCMD,
 AVX512VPOPCNTDQ, AVX512VNNI, SERIALIZE, UINTR, HRESET, AMXTILE, AMXINT8,
 AMXBF16, KL, WIDEKL, AVXVNNI, AVX512-FP16, AVXIFMA, AVXVNNIINT8, AVXNECONVERT,
 CMPCCXADD, AMX-FP16, PREFETCHI, RAOINT, AMX-COMPLEX, AVXVNNIINT16, SM3, SHA512,
-SM4, APX_F, USER_MSR, AVX10.1, AVX10.2 or CLDEMOTE extended instruction sets.
-Each has a corresponding @option{-mno-} option to disable use of these
-instructions.
+SM4, APX_F, USER_MSR, AVX10.1, AVX10.2, AMX-AVX512, AMX-TF32, AMX-TRANSPOSE,
+AMX-FP8, MOVRS, AMX-MOVRS or CLDEMOTE extended instruction sets. Each has a
+corresponding @option{-mno-} option to disable use of these instructions.
 
 These extensions are also available as built-in functions: see
 @ref{x86 Built-in Functions}, for details of the functions enabled and

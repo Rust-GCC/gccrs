@@ -2644,11 +2644,26 @@ Target supports the execution of @code{amx-int8} instructions.
 @item amx_bf16
 Target supports the execution of @code{amx-bf16} instructions.
 
+@item amx_avx512
+Target supports the execution of @code{amx-avx512} instructions.
+
 @item amx_complex
 Target supports the execution of @code{amx-complex} instructions.
 
 @item amx_fp16
 Target supports the execution of @code{amx-fp16} instructions.
+
+@item amx_movrs
+Target supports the execution of @code{amx-movrs} instructions.
+
+@item amx_tf32
+Target supports the execution of @code{amx-tf32} instructions.
+
+@item amx_transpose
+Target supports the execution of @code{amx-transpose} instructions.
+
+@item amx_fp8
+Target supports the execution of @code{amx-fp8} instructions.
 
 @item cell_hw
 Test system can execute AltiVec and Cell PPU instructions.
@@ -2685,6 +2700,9 @@ Target supporting hardware divmod insn or divmod libcall for SImode.
 
 @item hard_float
 Target supports FPU instructions.
+
+@item movrs
+Target supports the execution of @code{movrs} instructions.
 
 @item non_strict_align
 Target does not require strict alignment.

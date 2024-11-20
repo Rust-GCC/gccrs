@@ -11415,6 +11415,7 @@ ix86_expand_args_builtin (const struct builtin_description *d,
     case V16QI_FTYPE_V8HI_V8HI:
     case V16HF_FTYPE_V16HF_V16HF:
     case V16SF_FTYPE_V16SF_V16SF:
+    case V16SI_FTYPE_V16SI_V16SI:
     case V8QI_FTYPE_V8QI_V8QI:
     case V8QI_FTYPE_V4HI_V4HI:
     case V8HI_FTYPE_V8HI_V8HI:
@@ -13026,6 +13027,10 @@ ix86_expand_special_args_builtin (const struct builtin_description *d,
       klass = load;
       memory = 0;
       break;
+    case CHAR_FTYPE_PCCHAR:
+    case SHORT_FTYPE_PCSHORT:
+    case INT_FTYPE_PCINT:
+    case INT64_FTYPE_PCINT64:
     case UINT64_FTYPE_PUNSIGNED:
     case V2DI_FTYPE_PV2DI:
     case V4DI_FTYPE_PV4DI:
@@ -13738,13 +13743,13 @@ ix86_expand_builtin (tree exp, rtx target, rtx subtarget,
 
     case IX86_BUILTIN_LDMXCSR:
       op0 = expand_normal (CALL_EXPR_ARG (exp, 0));
-      target = assign_386_stack_local (SImode, SLOT_TEMP);
+      target = assign_stack_temp (SImode, GET_MODE_SIZE (SImode));
       emit_move_insn (target, op0);
       emit_insn (gen_sse_ldmxcsr (target));
       return 0;
 
     case IX86_BUILTIN_STMXCSR:
-      target = assign_386_stack_local (SImode, SLOT_TEMP);
+      target = assign_stack_temp (SImode, GET_MODE_SIZE (SImode));
       emit_insn (gen_sse_stmxcsr (target));
       return copy_to_mode_reg (SImode, target);
 
@@ -25743,7 +25748,7 @@ ix86_expand_divmod_libfunc (rtx libfunc, machine_mode mode,
 			    rtx op0, rtx op1,
 			    rtx *quot_p, rtx *rem_p)
 {
-  rtx rem = assign_386_stack_local (mode, SLOT_TEMP);
+  rtx rem = assign_stack_temp (mode, GET_MODE_SIZE (mode));
 
   rtx quot = emit_library_call_value (libfunc, NULL_RTX, LCT_NORMAL,
 				      mode, op0, mode, op1, mode,

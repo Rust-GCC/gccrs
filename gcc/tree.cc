@@ -12429,7 +12429,7 @@ escaped_string::escape (const char *unescaped)
 	  continue;
 	}
 
-      if (c != '\n' || !pp_is_wrapping_line (global_dc->m_printer))
+      if (c != '\n' || !pp_is_wrapping_line (global_dc->get_reference_printer ()))
 	{
 	  if (escaped == NULL)
 	    {
@@ -15081,7 +15081,7 @@ valid_new_delete_pair_p (tree new_asm, tree delete_asm,
 	       && !memcmp (new_name + 4, "St11align_val_tRKSt9nothrow_t", 29)))
     {
       /* _ZnXYSt11align_val_t or _ZnXYSt11align_val_tRKSt9nothrow_t matches
-	 _ZdXPvSt11align_val_t or _ZdXPvYSt11align_val_t or  or
+	 _ZdXPvSt11align_val_t or _ZdXPvYSt11align_val_t or
 	 _ZdXPvSt11align_val_tRKSt9nothrow_t.  */
       if (delete_len == 20 && !memcmp (delete_name + 5, "St11align_val_t", 15))
 	return true;
@@ -15901,7 +15901,7 @@ test_escaped_strings (void)
   ASSERT_STREQ ("foobar", (const char *) msg);
 
   /* Ensure that we have -fmessage-length set to 0.  */
-  pretty_printer *pp = global_dc->m_printer;
+  pretty_printer *pp = global_dc->get_reference_printer ();
   saved_cutoff = pp_line_cutoff (pp);
   pp_line_cutoff (pp) = 0;
 

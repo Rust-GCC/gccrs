@@ -1,3 +1,142 @@
+2024-10-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/23_containers/vector/cons/from_range.cc: Fix copy &
+	paste error in comment.
+	* testsuite/23_containers/vector/modifiers/append_range.cc:
+	Likewise.
+	* testsuite/23_containers/vector/modifiers/assign/assign_range.cc:
+	Likewise.
+	* testsuite/23_containers/vector/modifiers/insert/insert_range.cc:
+	Likewise.
+
+2024-10-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/using_exceptions.xml: Fix typos and grammatical
+	errors.
+	* doc/html/manual/using_exceptions.html: Regenerate.
+
+2024-10-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/c++config (_GLIBCXX_DOUBLE_IS_IEEE_BINARY32):
+	Define.
+	(_GLIBCXX_LDOUBLE_IS_IEEE_BINARY64): Define.
+	(_GLIBCXX_LDOUBLE_IS_IEEE_BINARY32): Define.
+	* include/bits/cpp_type_traits.h (__memcpyable): Define
+	specializations when double and long double are compatible.
+
+2024-10-30  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/cpp_type_traits.h (__memcpyable): Add
+	specializations for compatible floating-point types.
+
+2024-10-29  Patrick Palka  <ppalka@redhat.com>
+
+	PR libstdc++/112641
+	* include/std/ranges (drop_view::begin): Reimplement const
+	overload so that it's O(1) always.
+	* testsuite/std/ranges/adaptors/drop.cc (test10): New test.
+
+2024-10-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libstdc++/117321
+	* include/c_global/cmath (nextafter(_Float16, _Float16)): Use
+	if consteval rather than if (std::__is_constant_evaluated()) around
+	the __builtin_nextafterf16 call.
+	(nextafter(__gnu_cxx::__bfloat16_t, __gnu_cxx::__bfloat16_t)): Use
+	if consteval rather than if (std::__is_constant_evaluated()) around
+	the __builtin_nextafterf16b call.
+	* testsuite/26_numerics/headers/cmath/117321.cc: New test.
+
+2024-10-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/23_containers/vector/bool/cons/from_range.cc: Use
+	dg-do run instead of compile.
+	(test_ranges): Use do_test instead of do_test_a for rvalue
+	range.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+	* testsuite/23_containers/vector/bool/modifiers/assign/assign_range.cc:
+	Use dg-do run instead of compile.
+	(do_test): Use same test logic for vector<bool> as for primary
+	template.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+	* testsuite/23_containers/vector/bool/modifiers/insert/append_range.cc:
+	Use dg-do run instead of compile.
+	(test_ranges): Use do_test instead of do_test_a for rvalue
+	range.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+	* testsuite/23_containers/vector/bool/modifiers/insert/insert_range.cc:
+	Use dg-do run instead of compile.
+	(do_test): Fix incorrect function arguments to match intended
+	results.
+	(test_ranges): Use do_test instead of do_test_a for rvalue
+	range.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+	* testsuite/23_containers/vector/cons/from_range.cc: Use dg-do
+	run instead of compile.
+	(test_ranges): Fix ill-formed call to do_test.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+	* testsuite/23_containers/vector/modifiers/append_range.cc:
+	Use dg-do run instead of compile.
+	(test_constexpr): Likewise.
+	* testsuite/23_containers/vector/modifiers/assign/assign_range.cc:
+	Use dg-do run instead of compile.
+	(do_test): Do not reuse input ranges.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+	* testsuite/23_containers/vector/modifiers/insert/insert_range.cc:
+	Use dg-do run instead of compile.
+	(do_test): Fix incorrect function arguments to match intended
+	results.
+	(test_constexpr): Call function template instead of just
+	instantiating it.
+
+2024-10-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/111055
+	* include/bits/ranges_base.h (__container_compatible_range): New
+	concept.
+	* include/bits/stl_bvector.h (vector(from_range, R&&, const Alloc&))
+	(assign_range, insert_range, append_range): Define.
+	* include/bits/stl_uninitialized.h (__do_uninit_copy): Support
+	non-common ranges.
+	(__uninitialized_copy_a): Likewise.
+	* include/bits/stl_vector.h (_Vector_base::_M_append_range_to):
+	New function.
+	(_Vector_base::_M_append_range): Likewise.
+	(vector(from_range, R&&, const Alloc&), assign_range): Define.
+	(append_range): Define.
+	(insert_range): Declare.
+	* include/debug/vector (vector(from_range, R&&, const Alloc&))
+	(assign_range, insert_range, append_range): Define.
+	* include/bits/vector.tcc (insert_range): Define.
+	* testsuite/util/testsuite_iterators.h (input_iterator_wrapper_rval):
+	New class template.
+	* testsuite/23_containers/vector/bool/cons/from_range.cc: New test.
+	* testsuite/23_containers/vector/bool/modifiers/assign/assign_range.cc:
+	New test.
+	* testsuite/23_containers/vector/bool/modifiers/insert/append_range.cc:
+	New test.
+	* testsuite/23_containers/vector/bool/modifiers/insert/insert_range.cc:
+	New test.
+	* testsuite/23_containers/vector/cons/from_range.cc: New test.
+	* testsuite/23_containers/vector/modifiers/append_range.cc: New test.
+	* testsuite/23_containers/vector/modifiers/assign/assign_range.cc:
+	New test.
+	* testsuite/23_containers/vector/modifiers/insert/insert_range.cc:
+	New test.
+
+2024-10-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_bvector.h (emplace_back, emplace): Forward
+	parameter pack to preserve value category.
+	* testsuite/23_containers/vector/bool/emplace_rvalue.cc: New
+	test.
+
 2024-10-25  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/21_strings/basic_string/operators/char/op_plus_string_view.cc:

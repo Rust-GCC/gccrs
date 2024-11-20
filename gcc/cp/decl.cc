@@ -8375,7 +8375,7 @@ omp_declare_variant_finalize_one (tree decl, tree attr)
   if (variant == error_mark_node && !processing_template_decl)
     return true;
 
-  variant = cp_get_callee_fndecl_nofold (variant);
+  variant = cp_get_callee_fndecl_nofold (STRIP_REFERENCE_REF (variant));
   input_location = save_loc;
 
   if (variant)

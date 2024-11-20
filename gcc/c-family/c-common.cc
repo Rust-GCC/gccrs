@@ -448,6 +448,8 @@ const struct c_common_resword c_common_reswords[] =
   { "__builtin_stdc_has_single_bit", RID_BUILTIN_STDC, D_CONLY },
   { "__builtin_stdc_leading_ones", RID_BUILTIN_STDC, D_CONLY },
   { "__builtin_stdc_leading_zeros", RID_BUILTIN_STDC, D_CONLY },
+  { "__builtin_stdc_rotate_left", RID_BUILTIN_STDC, D_CONLY },
+  { "__builtin_stdc_rotate_right", RID_BUILTIN_STDC, D_CONLY },
   { "__builtin_stdc_trailing_ones", RID_BUILTIN_STDC, D_CONLY },
   { "__builtin_stdc_trailing_zeros", RID_BUILTIN_STDC, D_CONLY },
   { "__builtin_tgmath", RID_BUILTIN_TGMATH, D_CONLY },
@@ -5184,13 +5186,41 @@ c_add_case_label (location_t loc, splay_tree cases, tree cond,
 
   /* Case ranges are a GNU extension.  */
   if (high_value)
-    pedwarn (loc, OPT_Wpedantic,
-	     "range expressions in switch statements are non-standard");
+    {
+      if (c_dialect_cxx ())
+	pedwarn (loc, OPT_Wpedantic,
+		 "range expressions in switch statements are non-standard");
+      else if (warn_c23_c2y_compat > 0)
+	{
+	  if (pedantic && !flag_isoc2y)
+	    pedwarn (loc, OPT_Wc23_c2y_compat,
+		     "ISO C does not support range expressions in switch "
+		     "statements before C2Y");
+	  else
+	    warning_at (loc, OPT_Wc23_c2y_compat,
+			"ISO C does not support range expressions in switch "
+			"statements before C2Y");
+	}
+      else if (warn_c23_c2y_compat && pedantic && !flag_isoc2y)
+	pedwarn (loc, OPT_Wpedantic,
+		 "ISO C does not support range expressions in switch "
+		 "statements before C2Y");
+    }
 
   type = TREE_TYPE (cond);
   if (low_value)
     {
       low_value = check_case_value (loc, low_value);
+      tree tem = NULL_TREE;
+      if (high_value
+	  && !c_dialect_cxx ()
+	  && low_value != error_mark_node
+	  && !int_fits_type_p (low_value, type)
+	  && pedwarn (loc, OPT_Wpedantic,
+		      "conversion of %qE to %qT in range expression changes "
+		      "value to %qE", low_value, type,
+		      (tem = fold_convert (type, low_value))))
+	low_value = tem;
       low_value = convert_and_check (loc, type, low_value);
       low_value = fold (low_value);
       if (low_value == error_mark_node)
@@ -5199,6 +5229,15 @@ c_add_case_label (location_t loc, splay_tree cases, tree cond,
   if (high_value)
     {
       high_value = check_case_value (loc, high_value);
+      tree tem = NULL_TREE;
+      if (!c_dialect_cxx ()
+	  && high_value != error_mark_node
+	  && !int_fits_type_p (high_value, type)
+	  && pedwarn (loc, OPT_Wpedantic,
+		      "conversion of %qE to %qT in range expression changes "
+		      "value to %qE", high_value, type,
+		      (tem = fold_convert (type, high_value))))
+	high_value = tem;
       high_value = convert_and_check (loc, type, high_value);
       high_value = fold (high_value);
       if (high_value == error_mark_node)
@@ -5213,7 +5252,10 @@ c_add_case_label (location_t loc, splay_tree cases, tree cond,
       if (tree_int_cst_equal (low_value, high_value))
 	high_value = NULL_TREE;
       else if (!tree_int_cst_lt (low_value, high_value))
-	warning_at (loc, 0, "empty range specified");
+	{
+	  warning_at (loc, 0, "empty range specified");
+	  goto error_out;
+	}
     }
 
   /* Look up the LOW_VALUE in the table of case labels we already
@@ -7044,7 +7086,8 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
 	{
 	  int eltsize
 	    = int_size_in_bytes (TREE_TYPE (TREE_TYPE (initial_value)));
-	  maxindex = size_int (TREE_STRING_LENGTH (initial_value)/eltsize - 1);
+	  maxindex = size_int (TREE_STRING_LENGTH (initial_value) / eltsize
+			       - 1);
 	}
       else if (TREE_CODE (initial_value) == CONSTRUCTOR)
 	{
@@ -7059,23 +7102,25 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
 	  else
 	    {
 	      tree curindex;
-	      unsigned HOST_WIDE_INT cnt;
+	      unsigned HOST_WIDE_INT cnt = 1;
 	      constructor_elt *ce;
 	      bool fold_p = false;
 
 	      if ((*v)[0].index)
 		maxindex = (*v)[0].index, fold_p = true;
+	      if (TREE_CODE ((*v)[0].value) == RAW_DATA_CST)
+		cnt = 0;
 
 	      curindex = maxindex;
 
-	      for (cnt = 1; vec_safe_iterate (v, cnt, &ce); cnt++)
+	      for (; vec_safe_iterate (v, cnt, &ce); cnt++)
 		{
 		  bool curfold_p = false;
 		  if (ce->index)
 		    curindex = ce->index, curfold_p = true;
-		  else
+		  if (!ce->index || TREE_CODE (ce->value) == RAW_DATA_CST)
 		    {
-		      if (fold_p)
+		      if (fold_p || curfold_p)
 			{
 			  /* Since we treat size types now as ordinary
 			     unsigned types, we need an explicit overflow
@@ -7083,9 +7128,17 @@ complete_array_type (tree *ptype, tree initial_value, bool do_default)
 			  tree orig = curindex;
 		          curindex = fold_convert (sizetype, curindex);
 			  overflow_p |= tree_int_cst_lt (curindex, orig);
+			  curfold_p = false;
 			}
-		      curindex = size_binop (PLUS_EXPR, curindex,
-					     size_one_node);
+		      if (TREE_CODE (ce->value) == RAW_DATA_CST)
+			curindex
+			  = size_binop (PLUS_EXPR, curindex,
+					size_int (RAW_DATA_LENGTH (ce->value)
+						  - ((ce->index || !cnt)
+						     ? 1 : 0)));
+		      else
+			curindex = size_binop (PLUS_EXPR, curindex,
+					       size_one_node);
 		    }
 		  if (tree_int_cst_lt (maxindex, curindex))
 		    maxindex = curindex, fold_p = curfold_p;

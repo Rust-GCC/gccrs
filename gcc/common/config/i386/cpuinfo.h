@@ -918,6 +918,8 @@ get_available_features (struct __processor_model *cpu_model,
 	    set_feature (FEATURE_RAOINT);
 	  if (edx & bit_USER_MSR)
 	    set_feature (FEATURE_USER_MSR);
+	  if (eax & bit_MOVRS)
+	    set_feature (FEATURE_MOVRS);
 	  if (avx_usable)
 	    {
 	      if (eax & bit_AVXVNNI)
@@ -992,6 +994,25 @@ get_available_features (struct __processor_model *cpu_model,
 	    set_feature (FEATURE_WIDEKL);
 	  if (has_kl)
 	    set_feature (FEATURE_KL);
+	}
+    }
+
+  /* Get Advanced Features at level 0x1e (eax = 0x1e, ecx = 1). */
+  if (max_cpuid_level >= 0x1e)
+    {
+      __cpuid_count (0x1e, 1, eax, ebx, ecx, edx);
+      if (amx_usable)
+	{
+	  if (eax & bit_AMX_AVX512)
+	    set_feature (FEATURE_AMX_AVX512);
+	  if (eax & bit_AMX_TF32)
+	    set_feature (FEATURE_AMX_TF32);
+	  if (eax & bit_AMX_TRANSPOSE)
+	    set_feature (FEATURE_AMX_TRANSPOSE);
+	  if (eax & bit_AMX_FP8)
+	    set_feature (FEATURE_AMX_FP8);
+	  if (eax & bit_AMX_MOVRS)
+	    set_feature (FEATURE_AMX_MOVRS);
 	}
     }
 

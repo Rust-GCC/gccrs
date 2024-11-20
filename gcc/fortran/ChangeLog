@@ -1,3 +1,41 @@
+2024-10-30  Harald Anlauf  <anlauf@gmx.de>
+
+	* trans-expr.cc (gfc_trans_class_init_assign): Free intermediate
+	gfc_expr's.
+	* trans.cc (get_final_proc_ref): Likewise.
+	(get_elem_size): Likewise.
+	(gfc_add_finalizer_call): Likewise.
+
+2024-10-29  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* error.cc (gfc_diagnostic_build_kind_prefix): Update for
+	global_dc's m_printer becoming reference printer.
+	(gfc_diagnostics_init): Replace usage of diagnostic_format_decoder
+	with global_dc->set_format_decoder.
+
+2024-10-27  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/115070
+	PR fortran/115348
+	* trans-expr.cc (gfc_trans_class_init_assign): If all the
+	components of the default initializer are null for a scalar,
+	build an empty statement to prevent prior declarations from
+	disappearing.
+
+2024-10-26  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* intrinsic.texi: Add menu item for UINT.
+
+2024-10-26  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	* gfortran.texi: Correct reference to make clear that UNSIGNED
+	will not be part of F202Y.
+	Other clarifications.
+	Extend table of intrinsics, add links.
+	* intrinsic.texi: Add descriptions for UNSIGNED arguments.
+	* invoke.texi: Add anchor for -funsigned.
+
 2024-10-25  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/79685

@@ -2951,6 +2951,15 @@ vect_get_strided_load_store_ops (stmt_vec_info stmt_info,
       *dataref_bump = cse_and_gimplify_to_preheader (loop_vinfo, bump);
     }
 
+  internal_fn ifn
+    = DR_IS_READ (dr) ? IFN_MASK_LEN_STRIDED_LOAD : IFN_MASK_LEN_STRIDED_STORE;
+  if (direct_internal_fn_supported_p (ifn, vectype, OPTIMIZE_FOR_SPEED))
+    {
+      *vec_offset = cse_and_gimplify_to_preheader (loop_vinfo,
+						   unshare_expr (DR_STEP (dr)));
+      return;
+    }
+
   /* The offset given in GS_INFO can have pointer type, so use the element
      type of the vector instead.  */
   tree offset_type = TREE_TYPE (gs_info->offset_vectype);
@@ -9195,10 +9204,20 @@ vectorizable_store (vec_info *vinfo,
 
 		  gcall *call;
 		  if (final_len && final_mask)
-		    call = gimple_build_call_internal
-			     (IFN_MASK_LEN_SCATTER_STORE, 7, dataref_ptr,
-			      vec_offset, scale, vec_oprnd, final_mask,
-			      final_len, bias);
+		    {
+		      if (VECTOR_TYPE_P (TREE_TYPE (vec_offset)))
+			call = gimple_build_call_internal (
+			  IFN_MASK_LEN_SCATTER_STORE, 7, dataref_ptr,
+			  vec_offset, scale, vec_oprnd, final_mask, final_len,
+			  bias);
+		      else
+			/* Non-vector offset indicates that prefer to take
+			   MASK_LEN_STRIDED_STORE instead of the
+			   IFN_MASK_SCATTER_STORE with direct stride arg.  */
+			call = gimple_build_call_internal (
+			  IFN_MASK_LEN_STRIDED_STORE, 6, dataref_ptr,
+			  vec_offset, vec_oprnd, final_mask, final_len, bias);
+		    }
 		  else if (final_mask)
 		    call = gimple_build_call_internal
 			     (IFN_MASK_SCATTER_STORE, 5, dataref_ptr,
@@ -11195,11 +11214,19 @@ vectorizable_load (vec_info *vinfo,
 
 		  gcall *call;
 		  if (final_len && final_mask)
-		    call
-		      = gimple_build_call_internal (IFN_MASK_LEN_GATHER_LOAD, 7,
-						    dataref_ptr, vec_offset,
-						    scale, zero, final_mask,
-						    final_len, bias);
+		    {
+		      if (VECTOR_TYPE_P (TREE_TYPE (vec_offset)))
+			call = gimple_build_call_internal (
+			  IFN_MASK_LEN_GATHER_LOAD, 7, dataref_ptr, vec_offset,
+			  scale, zero, final_mask, final_len, bias);
+		      else
+			/* Non-vector offset indicates that prefer to take
+			   MASK_LEN_STRIDED_LOAD instead of the
+			   MASK_LEN_GATHER_LOAD with direct stride arg.  */
+			call = gimple_build_call_internal (
+			  IFN_MASK_LEN_STRIDED_LOAD, 6, dataref_ptr, vec_offset,
+			  zero, final_mask, final_len, bias);
+		    }
 		  else if (final_mask)
 		    call = gimple_build_call_internal (IFN_MASK_GATHER_LOAD, 5,
 						       dataref_ptr, vec_offset,
@@ -12290,6 +12317,7 @@ vectorizable_condition (vec_info *vinfo,
     return false; /* FORNOW */
 
   cond_expr = gimple_assign_rhs1 (stmt);
+  gcc_assert (! COMPARISON_CLASS_P (cond_expr));
 
   if (!vect_is_simple_cond (cond_expr, vinfo, stmt_info, slp_node,
 			    &comp_vectype, &dts[0], vectype)
@@ -14257,12 +14285,7 @@ vect_is_simple_use (vec_info *vinfo, stmt_vec_info stmt, slp_tree slp_node,
 	{
 	  if (gimple_assign_rhs_code (ass) == COND_EXPR
 	      && COMPARISON_CLASS_P (gimple_assign_rhs1 (ass)))
-	    {
-	      if (operand < 2)
-		*op = TREE_OPERAND (gimple_assign_rhs1 (ass), operand);
-	      else
-		*op = gimple_op (ass, operand);
-	    }
+	    gcc_unreachable ();
 	  else if (gimple_assign_rhs_code (ass) == VIEW_CONVERT_EXPR)
 	    *op = TREE_OPERAND (gimple_assign_rhs1 (ass), 0);
 	  else

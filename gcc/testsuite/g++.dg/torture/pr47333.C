@@ -1,5 +1,5 @@
-/* "WARNING: lto.exp does not support dg-additional-options" */
-#pragma GCC diagnostic ignored "-Wtemplate-body"
+/* { dg-require-effective-target sync_int_long } */
+// { dg-additional-options "-Wno-template-body" }
 
 namespace std
 {
