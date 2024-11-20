@@ -6938,6 +6938,21 @@ package body Freeze is
             end if;
          end;
 
+         --  If the entity is a declaration of an access-to-subprogram type
+         --  with pre/postcondition contracts, build the wrapper (if it hasn't
+         --  already been done during aspect processing), and propagate the
+         --  pre/postcondition pragmas to the wrapper.
+
+         if Ada_Version >= Ada_2022
+           and then Expander_Active
+           and then Ekind (E) = E_Access_Subprogram_Type
+           and then Nkind (Parent (E)) = N_Full_Type_Declaration
+           and then Present (Contract (Designated_Type (E)))
+           and then not Is_Derived_Type (E)
+         then
+            Build_Access_Subprogram_Wrapper (Parent (E));
+         end if;
+
          --  Deal with special cases of freezing for subtype
 
          if E /= Base_Type (E) then
@@ -8326,10 +8341,9 @@ package body Freeze is
 
       function In_Expanded_Body (N : Node_Id) return Boolean;
       --  Given an N_Handled_Sequence_Of_Statements node, determines whether it
-      --  is the statement sequence of an expander-generated subprogram: body
-      --  created for an expression function, for a predicate function, an init
-      --  proc, a stream subprogram, or a renaming as body. If so, this is not
-      --  a freezing context and the entity will be frozen at a later point.
+      --  is the statement sequence of an expander-generated subprogram body or
+      --  of a renaming_as_body. If so, this is not a freezing context and the
+      --  entity will be frozen at a later point.
 
       function Has_Decl_In_List
         (E : Entity_Id;
@@ -8438,11 +8452,19 @@ package body Freeze is
          then
             return True;
 
+         --  This is the body of a helper/wrapper built for CW preconditions
+
+         elsif Present (Corresponding_Spec (P))
+           and then
+             Present (Class_Preconditions_Subprogram (Corresponding_Spec (P)))
+         then
+            return True;
+
          else
             Id := Defining_Unit_Name (Specification (P));
 
-            --  The following are expander-created bodies, or bodies that
-            --  are not freeze points.
+            --  This is the body of a Type-Specific Support routine or the one
+            --  generated for a renaming_as_body.
 
             if Nkind (Id) = N_Defining_Identifier
               and then (Is_Init_Proc (Id)

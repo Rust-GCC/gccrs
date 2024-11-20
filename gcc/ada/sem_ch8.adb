@@ -2343,6 +2343,11 @@ package body Sem_Ch8 is
                      elsif From_Limited_With (Etype (F)) then
                         null;
 
+                     --  Incomplete types are never frozen (AI12-0155-1)
+
+                     elsif Is_Incomplete_Type (Etype (F)) then
+                        null;
+
                      else
                         Error_Msg_NE
                           ("type& must be frozen before this point",
@@ -10049,7 +10054,7 @@ package body Sem_Ch8 is
 
             Set_Corresponding_Spec (Withn, System_Aux_Id);
             Set_First_Name         (Withn);
-            Set_Implicit_With      (Withn);
+            Set_Is_Implicit_With   (Withn);
             Set_Library_Unit       (Withn, Cunit (Unum));
 
             Insert_After (With_Sys, Withn);

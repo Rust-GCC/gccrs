@@ -5228,17 +5228,17 @@ package body Sem_Prag is
            Find_Related_Declaration_Or_Body
              (N, Do_Checks => not Duplicates_OK);
 
-         --  When a pre/postcondition pragma applies to an abstract subprogram,
-         --  its original form must be an aspect with 'Class.
+         --  Abstract subprogram
 
          if Nkind (Subp_Decl) = N_Abstract_Subprogram_Declaration then
-            if not From_Aspect_Specification (N) then
-               Error_Pragma
-                 ("pragma % cannot be applied to abstract subprogram");
-
-            elsif not Class_Present (N) then
-               Error_Pragma
-                 ("aspect % requires ''Class for abstract subprogram");
+            if not Class_Present (N) then
+               if From_Aspect_Specification (N) then
+                  Error_Pragma
+                    ("aspect % requires ''Class for abstract subprogram");
+               else
+                  Error_Pragma
+                    ("pragma % cannot be applied to abstract subprogram");
+               end if;
             end if;
 
          --  Entry declaration
@@ -5346,10 +5346,14 @@ package body Sem_Prag is
          --  Chain the pragma on the contract for further processing by
          --  Analyze_Pre_Post_Condition_In_Decl_Part.
 
-         if Ekind (Subp_Id) in Access_Subprogram_Kind then
-            Add_Contract_Item (N, Directly_Designated_Type (Subp_Id));
-         else
-            Add_Contract_Item (N, Subp_Id);
+         if Chars (Prag_Iden) not in Name_Post_Class
+                                   | Name_Pre_Class
+         then
+            if Ekind (Subp_Id) in Access_Subprogram_Kind then
+               Add_Contract_Item (N, Directly_Designated_Type (Subp_Id));
+            else
+               Add_Contract_Item (N, Subp_Id);
+            end if;
          end if;
 
          --  Fully analyze the pragma when it appears inside an entry or
@@ -5366,6 +5370,38 @@ package body Sem_Prag is
             Analyze_If_Present (Pragma_SPARK_Mode);
             Analyze_If_Present (Pragma_Volatile_Function);
             Analyze_Pre_Post_Condition_In_Decl_Part (N);
+         end if;
+
+         --  Complete the decoration of Subp_Id saving in the tree copy of
+         --  class-wide pre/postcondition expression (for aspects this is
+         --  done when the aspect is analyzed). This is required to merge
+         --  the expression with inherited conditions.
+
+         if Comes_From_Source (N)
+           and then Class_Present (N)
+           and then Is_Subprogram (Subp_Id)
+         then
+            declare
+               Expr : constant Node_Id := Expression (Get_Argument (N));
+
+            begin
+               if Pname = Name_Pre_Class then
+                  if Is_Ignored (N) then
+                     Set_Ignored_Class_Preconditions (Subp_Id,
+                       New_Copy_Tree (Expr));
+                  else
+                     Set_Class_Preconditions (Subp_Id, New_Copy_Tree (Expr));
+                  end if;
+
+               else
+                  if Is_Ignored (N) then
+                     Set_Ignored_Class_Postconditions (Subp_Id,
+                       New_Copy_Tree (Expr));
+                  else
+                     Set_Class_Postconditions (Subp_Id, New_Copy_Tree (Expr));
+                  end if;
+               end if;
+            end;
          end if;
       end Analyze_Pre_Post_Condition;
 
@@ -16513,15 +16549,15 @@ package body Sem_Prag is
 
             --  In Ada 83 mode, there can be no items following it in the
             --  context list except other pragmas and implicit with clauses
-            --  (e.g. those added by use of Rtsfind). In Ada 95 mode, this
-            --  placement rule does not apply.
+            --  (e.g. those added by Rtsfind). In Ada 95 mode, this placement
+            --  rule does not apply.
 
             if Ada_Version = Ada_83 and then Comes_From_Source (N) then
                Citem := Next (N);
                while Present (Citem) loop
                   if Nkind (Citem) = N_Pragma
                     or else (Nkind (Citem) = N_With_Clause
-                              and then Implicit_With (Citem))
+                              and then Is_Implicit_With (Citem))
                   then
                      null;
                   else
@@ -33302,7 +33338,9 @@ package body Sem_Prag is
             | Name_Loop_Invariant
             | Name_Loop_Variant
             | Name_Postcondition
+            | Name_Post_Class
             | Name_Precondition
+            | Name_Pre_Class
             | Name_Predicate
             | Name_Refined_Post
             | Name_Statement_Assertions
