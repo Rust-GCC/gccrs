@@ -45,6 +45,7 @@ public:
 
   // resolutions
   void visit (AST::IdentifierExpr &) override;
+  void visit (AST::BreakExpr &) override;
   void visit (AST::PathInExpression &) override;
   void visit (AST::LangItemPath &) override;
   void visit (AST::TypePath &) override;
@@ -59,6 +60,8 @@ public:
 private:
   /* Setup Rust's builtin types (u8, i32, !...) in the resolver */
   void setup_builtin_types ();
+
+  bool funny_error;
 };
 
 // TODO: Add missing mappings and data structures
