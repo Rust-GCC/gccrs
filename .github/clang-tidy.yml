@@ -1,0 +1,1 @@
+Checks: '-*,bugprone-*,clang-analyzer-*,misc-*,performance-*,readability-*,portability-*,modernize-*,cppcoreguidelines-*'

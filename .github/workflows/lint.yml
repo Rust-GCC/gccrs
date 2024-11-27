@@ -1,0 +1,106 @@
+name: Additional lint
+
+on:
+  push:
+    branches:
+      - trying
+      - staging
+  pull_request:
+    branches: [ master ]
+  merge_group:
+
+jobs:
+  compilation-database:
+    env:
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
+      LC_ALL: C.UTF-8
+
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Deps
+      run: |
+          sudo apt-get update;
+          sudo apt-get install -y \
+                  automake \
+                  autoconf \
+                  libtool \
+                  autogen \
+                  bison \
+                  flex \
+                  libgmp3-dev \
+                  libmpfr-dev \
+                  libmpc-dev \
+                  build-essential \
+                  gcc-multilib \
+                  g++-multilib \
+                  bear \
+                  dejagnu;
+          # install Rust directly using rustup
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+
+    - name: Make Source Read-Only
+      run: chmod -R a-w ./*
+
+    - name: Configure
+      run: |
+           mkdir -p gccrs-build;
+           cd gccrs-build;
+           ../configure \
+               --enable-languages=rust \
+               --disable-bootstrap \
+               --enable-multilib
+
+    - name: Build
+      shell: bash
+      run: |
+           cd gccrs-build; \
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
+           bear -- make -j1 2>&1 | tee log
+    - uses: actions/upload-artifact@v4
+      with:
+        name: compilation-database
+        path: gccrs-build/compile_commands.json
+    
+
+  cland-tidy:
+    needs: compilation-database
+    env:
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
+      LC_ALL: C.UTF-8
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Deps
+        run: |
+          sudo apt-get update;
+          sudo apt-get install -y \
+                  clang-tools
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: compilation-database
+          path: db
+      - run: |
+          run-clang-tidy -p db/compile-commands.json -style .github/clang-tidy.yml gcc/rust/*
+
+  include-what-you-use:
+    needs: compilation-database
+    env:
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
+      LC_ALL: C.UTF-8
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Deps
+        run: |
+          sudo apt-get update;
+          sudo apt-get install -y \
+                  iwyu
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: compilation-database
+          path: db
+      - run: |
+          iwyu_tool.py -p db/compile-commands.json gcc/rust/
