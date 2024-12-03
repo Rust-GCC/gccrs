@@ -48,7 +48,7 @@
   UNSPEC_TLS_LE
   UNSPEC_TLS_IE
   UNSPEC_TLS_GD
-
+  UNSPEC_TLSDESC
   ;; High part of PC-relative address.
   UNSPEC_AUIPC
 
@@ -685,7 +685,7 @@
 ;; Microarchitectures we know how to tune for.
 ;; Keep this in sync with enum riscv_microarchitecture.
 (define_attr "tune"
-  "generic,sifive_7,sifive_p400,sifive_p600,generic_ooo"
+  "generic,sifive_7,sifive_p400,sifive_p600,xiangshan,generic_ooo"
   (const (symbol_ref "((enum attr_tune) riscv_microarchitecture)")))
 
 ;; Describe a user's asm statement.
@@ -2089,6 +2089,24 @@
    (set_attr "type" "load")
    (set_attr "mode" "<MODE>")])
 
+(define_insn "@tlsdesc<mode>"
+  [(set (reg:P A0_REGNUM)
+	    (unspec:P
+			[(match_operand:P 0 "symbolic_operand" "")
+			 (match_operand:P 1 "const_int_operand")]
+			UNSPEC_TLSDESC))
+   (clobber (reg:P T0_REGNUM))]
+  "TARGET_TLSDESC"
+  {
+    return ".LT%1: auipc\ta0,%%tlsdesc_hi(%0)\;"
+           "<load>\tt0,%%tlsdesc_load_lo(.LT%1)(a0)\;"
+           "addi\ta0,a0,%%tlsdesc_add_lo(.LT%1)\;"
+           "jalr\tt0,t0,%%tlsdesc_call(.LT%1)";
+  }
+  [(set_attr "type" "multi")
+   (set_attr "length" "16")
+   (set_attr "mode" "<MODE>")])
+
 (define_insn "auipc<mode>"
   [(set (match_operand:P           0 "register_operand" "=r")
 	(unspec:P
@@ -2756,7 +2774,7 @@
 			  (match_operand:X 3 "reg_or_0_operand" "rJ")])
 	 (label_ref (match_operand 0 "" ""))
 	 (pc)))]
-  ""
+  "!TARGET_XCVBI"
 {
   if (get_attr_length (insn) == 12)
     return "b%N1\t%2,%z3,1f; jump\t%l0,ra; 1:";
@@ -3859,3 +3877,4 @@
 (include "sfb.md")
 (include "zc.md")
 (include "corev.md")
+(include "xiangshan.md")

@@ -156,6 +156,20 @@ ipa_vr::equal_p (const vrange &r) const
   return (types_compatible_p (m_type, r.type ()) && m_storage->equal_p (r));
 }
 
+bool
+ipa_vr::equal_p (const ipa_vr &o) const
+{
+  if (!known_p ())
+    return !o.known_p ();
+
+  if (!types_compatible_p (m_type, o.m_type))
+    return false;
+
+  Value_Range r;
+  o.get_vrange (r);
+  return m_storage->equal_p (r);
+}
+
 void
 ipa_vr::get_vrange (Value_Range &r) const
 {
@@ -2500,7 +2514,9 @@ static tree
 ipa_get_stmt_member_ptr_load_param (gimple *stmt, bool use_delta,
 				    HOST_WIDE_INT *offset_p)
 {
-  tree rhs, rec, ref_field, ref_offset, fld, ptr_field, delta_field;
+  tree rhs, fld, ptr_field, delta_field;
+  tree ref_field = NULL_TREE;
+  tree ref_offset = NULL_TREE;
 
   if (!gimple_assign_single_p (stmt))
     return NULL_TREE;
@@ -2511,35 +2527,53 @@ ipa_get_stmt_member_ptr_load_param (gimple *stmt, bool use_delta,
       ref_field = TREE_OPERAND (rhs, 1);
       rhs = TREE_OPERAND (rhs, 0);
     }
+
+  if (TREE_CODE (rhs) == MEM_REF)
+    {
+      ref_offset = TREE_OPERAND (rhs, 1);
+      if (ref_field && integer_nonzerop (ref_offset))
+	return NULL_TREE;
+    }
+  else if (!ref_field)
+    return NULL_TREE;
+
+  if (TREE_CODE (rhs) == MEM_REF
+      && TREE_CODE (TREE_OPERAND (rhs, 0)) == SSA_NAME
+      && SSA_NAME_IS_DEFAULT_DEF (TREE_OPERAND (rhs, 0)))
+    {
+      rhs = TREE_OPERAND (rhs, 0);
+      if (TREE_CODE (SSA_NAME_VAR (rhs)) != PARM_DECL
+	  || !type_like_member_ptr_p (TREE_TYPE (TREE_TYPE (rhs)), &ptr_field,
+				      &delta_field))
+	return NULL_TREE;
+    }
   else
-    ref_field = NULL_TREE;
-  if (TREE_CODE (rhs) != MEM_REF)
-    return NULL_TREE;
-  rec = TREE_OPERAND (rhs, 0);
-  if (TREE_CODE (rec) != ADDR_EXPR)
-    return NULL_TREE;
-  rec = TREE_OPERAND (rec, 0);
-  if (TREE_CODE (rec) != PARM_DECL
-      || !type_like_member_ptr_p (TREE_TYPE (rec), &ptr_field, &delta_field))
-    return NULL_TREE;
-  ref_offset = TREE_OPERAND (rhs, 1);
+    {
+      if (TREE_CODE (rhs) == MEM_REF
+	  && TREE_CODE (TREE_OPERAND (rhs, 0)) == ADDR_EXPR)
+	rhs = TREE_OPERAND (TREE_OPERAND (rhs, 0), 0);
+      if (TREE_CODE (rhs) != PARM_DECL
+	  || !type_like_member_ptr_p (TREE_TYPE (rhs), &ptr_field,
+				      &delta_field))
+	return NULL_TREE;
+    }
 
   if (use_delta)
     fld = delta_field;
   else
     fld = ptr_field;
-  if (offset_p)
-    *offset_p = int_bit_position (fld);
 
   if (ref_field)
     {
-      if (integer_nonzerop (ref_offset))
+      if (ref_field != fld)
 	return NULL_TREE;
-      return ref_field == fld ? rec : NULL_TREE;
     }
-  else
-    return tree_int_cst_equal (byte_position (fld), ref_offset) ? rec
-      : NULL_TREE;
+  else if (!tree_int_cst_equal (byte_position (fld), ref_offset))
+    return NULL_TREE;
+
+  if (offset_p)
+    *offset_p = int_bit_position (fld);
+  return rhs;
 }
 
 /* Returns true iff T is an SSA_NAME defined by a statement.  */
@@ -2585,8 +2619,9 @@ ipa_note_param_call (struct cgraph_node *node, int param_index,
    describing the call is created.  This is very simple for ordinary pointers
    represented in SSA but not-so-nice when it comes to member pointers.  The
    ugly part of this function does nothing more than trying to match the
-   pattern of such a call.  An example of such a pattern is the gimple dump
-   below, the call is on the last line:
+   pattern of such a call.  Look up the documentation of macro
+   TARGET_PTRMEMFUNC_VBIT_LOCATION for details.  An example of such a pattern
+   is the gimple dump below, the call is on the last line:
 
      <bb 2>:
        f$__delta_5 = f.__delta;
@@ -2710,9 +2745,22 @@ ipa_analyze_indirect_call_uses (struct ipa_func_body_info *fbi, gcall *call,
      corresponding to the pattern. */
 
   if (!single_pred_p (virt_bb) || !single_succ_p (virt_bb)
-      || single_pred (virt_bb) != bb
       || single_succ (virt_bb) != join)
     return;
+
+
+  if (single_pred (virt_bb) != bb)
+    {
+      /* In cases when the distinction between a normal and a virtual
+	 function is encoded in the delta field, the load of the
+	 actual non-virtual function pointer can be in its own BB.  */
+
+      if (!single_pred_p (bb) || !single_succ_p (bb))
+	return;
+      bb = single_pred (bb);
+      if (bb != single_pred (virt_bb))
+	return;
+    }
 
   /* Third, let's see that the branching is done depending on the least
      significant bit of the pfn. */
@@ -2759,17 +2807,31 @@ ipa_analyze_indirect_call_uses (struct ipa_func_body_info *fbi, gcall *call,
   if (rec != rec2)
     return;
 
-  index = ipa_get_param_decl_index (info, rec);
-  if (index >= 0
-      && parm_preserved_before_stmt_p (fbi, index, call, rec))
+  if (TREE_CODE (rec) == SSA_NAME)
     {
-      struct cgraph_edge *cs = ipa_note_param_call (fbi->node, index,
-	 					    call, false);
-      cs->indirect_info->offset = offset;
-      cs->indirect_info->agg_contents = 1;
-      cs->indirect_info->member_ptr = 1;
-      cs->indirect_info->guaranteed_unmodified = 1;
+      index = ipa_get_param_decl_index (info, SSA_NAME_VAR (rec));
+      if (index < 0
+	  || !parm_ref_data_preserved_p (fbi, index, call,
+					 gimple_assign_rhs1 (def)))
+	return;
+      by_ref = true;
     }
+  else
+    {
+      index = ipa_get_param_decl_index (info, rec);
+      if (index < 0
+	  || !parm_preserved_before_stmt_p (fbi, index, call, rec))
+	return;
+      by_ref = false;
+    }
+
+  struct cgraph_edge *cs = ipa_note_param_call (fbi->node, index,
+						call, false);
+  cs->indirect_info->offset = offset;
+  cs->indirect_info->agg_contents = 1;
+  cs->indirect_info->member_ptr = 1;
+  cs->indirect_info->by_ref = by_ref;
+  cs->indirect_info->guaranteed_unmodified = 1;
 
   return;
 }
@@ -6007,6 +6069,159 @@ ipa_prop_cc_finalize (void)
   if (ipa_node_params_sum)
     ggc_delete (ipa_node_params_sum);
   ipa_node_params_sum = NULL;
+}
+
+/* Return true if the two pass_through components of two jump functions are
+   known to be equivalent.  AGG_JF denotes whether they are part of aggregate
+   functions or not.  The function can be used before the IPA phase of IPA-CP
+   or inlining because it cannot cope with refdesc changes these passes can
+   carry out.  */
+
+static bool
+ipa_agg_pass_through_jf_equivalent_p (ipa_pass_through_data *ipt1,
+				      ipa_pass_through_data *ipt2,
+				      bool agg_jf)
+
+{
+  gcc_assert (agg_jf ||
+	      (!ipt1->refdesc_decremented && !ipt2->refdesc_decremented));
+  if (ipt1->operation != ipt2->operation
+      || ipt1->formal_id != ipt2->formal_id
+      || (!agg_jf && (ipt1->agg_preserved != ipt2->agg_preserved)))
+    return false;
+  if (((ipt1->operand != NULL_TREE) != (ipt2->operand != NULL_TREE))
+      || (ipt1->operand
+	  && !values_equal_for_ipcp_p (ipt1->operand, ipt2->operand)))
+    return false;
+  return true;
+}
+
+/* Return true if the two aggregate jump functions are known to be equivalent.
+   The function can be used before the IPA phase of IPA-CP or inlining because
+   it cannot cope with refdesc changes these passes can carry out.  */
+
+static bool
+ipa_agg_jump_functions_equivalent_p (ipa_agg_jf_item *ajf1,
+				     ipa_agg_jf_item *ajf2)
+{
+  if (ajf1->offset != ajf2->offset
+      || ajf1->jftype != ajf2->jftype
+      || !types_compatible_p (ajf1->type, ajf2->type))
+    return false;
+
+  switch (ajf1->jftype)
+    {
+    case IPA_JF_CONST:
+      if (!values_equal_for_ipcp_p (ajf1->value.constant,
+				    ajf2->value.constant))
+	return false;
+      break;
+    case IPA_JF_PASS_THROUGH:
+      {
+	ipa_pass_through_data *ipt1 = &ajf1->value.pass_through;
+	ipa_pass_through_data *ipt2 = &ajf2->value.pass_through;
+	if (!ipa_agg_pass_through_jf_equivalent_p (ipt1, ipt2, true))
+	  return false;
+      }
+      break;
+    case IPA_JF_LOAD_AGG:
+      {
+	ipa_load_agg_data *ila1 = &ajf1->value.load_agg;
+	ipa_load_agg_data *ila2 = &ajf2->value.load_agg;
+	if (!ipa_agg_pass_through_jf_equivalent_p (&ila1->pass_through,
+						   &ila2->pass_through, true))
+	  return false;
+	if (ila1->offset != ila2->offset
+	    || ila1->by_ref != ila2->by_ref
+	    || !types_compatible_p (ila1->type, ila2->type))
+	  return false;
+      }
+      break;
+    default:
+	gcc_unreachable ();
+    }
+  return true;
+}
+
+/* Return true if the two jump functions are known to be equivalent.  The
+   function can be used before the IPA phase of IPA-CP or inlining because it
+   cannot cope with refdesc changes these passes can carry out.  */
+
+bool
+ipa_jump_functions_equivalent_p (ipa_jump_func *jf1, ipa_jump_func *jf2)
+{
+  if (jf1->type != jf2->type)
+    return false;
+
+  switch (jf1->type)
+    {
+    case IPA_JF_UNKNOWN:
+      break;
+    case IPA_JF_CONST:
+      {
+	tree cst1 = ipa_get_jf_constant (jf1);
+	tree cst2 = ipa_get_jf_constant (jf2);
+	if (!values_equal_for_ipcp_p (cst1, cst2))
+	  return false;
+
+	ipa_cst_ref_desc *rd1 = jfunc_rdesc_usable (jf1);
+	ipa_cst_ref_desc *rd2 = jfunc_rdesc_usable (jf2);
+	if (rd1 && rd2)
+	  {
+	    gcc_assert (rd1->refcount == 1
+			&& rd2->refcount == 1);
+	    gcc_assert (!rd1->next_duplicate && !rd2->next_duplicate);
+	  }
+	else if (rd1)
+	  return false;
+	else if (rd2)
+	  return false;
+      }
+      break;
+    case IPA_JF_PASS_THROUGH:
+      {
+	ipa_pass_through_data *ipt1 = &jf1->value.pass_through;
+	ipa_pass_through_data *ipt2 = &jf2->value.pass_through;
+	if (!ipa_agg_pass_through_jf_equivalent_p (ipt1, ipt2, false))
+	  return false;
+      }
+      break;
+    case IPA_JF_ANCESTOR:
+      {
+	ipa_ancestor_jf_data *ia1 = &jf1->value.ancestor;
+	ipa_ancestor_jf_data *ia2 = &jf2->value.ancestor;
+
+	if (ia1->formal_id != ia2->formal_id
+	    || ia1->agg_preserved != ia2->agg_preserved
+	    || ia1->keep_null != ia2->keep_null
+	    || ia1->offset != ia2->offset)
+	  return false;
+      }
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  if (((jf1->m_vr != nullptr) != (jf2->m_vr != nullptr))
+      || (jf1->m_vr && !jf1->m_vr->equal_p (*jf2->m_vr)))
+    return false;
+
+  unsigned alen = vec_safe_length (jf1->agg.items);
+  if (vec_safe_length (jf2->agg.items) != alen)
+    return false;
+
+  if (!alen)
+    return true;
+
+  if (jf1->agg.by_ref != jf2->agg.by_ref)
+    return false;
+
+  for (unsigned i = 0 ; i < alen; i++)
+    if (!ipa_agg_jump_functions_equivalent_p (&(*jf1->agg.items)[i],
+					      &(*jf2->agg.items)[i]))
+      return false;
+
+  return true;
 }
 
 #include "gt-ipa-prop.h"

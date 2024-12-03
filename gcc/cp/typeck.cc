@@ -2400,6 +2400,7 @@ is_bitfield_expr_with_lowered_type (const_tree exp)
     case NEGATE_EXPR:
     case NON_LVALUE_EXPR:
     case BIT_NOT_EXPR:
+    case CLEANUP_POINT_EXPR:
       return is_bitfield_expr_with_lowered_type (TREE_OPERAND (exp, 0));
 
     case COMPONENT_REF:
@@ -10626,8 +10627,10 @@ maybe_warn_about_returning_address_of_local (tree retval, location_t loc)
       || TREE_CODE (whats_returned) == TARGET_EXPR)
     {
       if (TYPE_REF_P (valtype))
-	warning_at (loc, OPT_Wreturn_local_addr,
-		    "returning reference to temporary");
+	/* P2748 made this an error in C++26.  */
+	emit_diagnostic (cxx_dialect >= cxx26 ? DK_PERMERROR : DK_WARNING,
+			 loc, OPT_Wreturn_local_addr,
+			 "returning reference to temporary");
       else if (TYPE_PTR_P (valtype))
 	warning_at (loc, OPT_Wreturn_local_addr,
 		    "returning pointer to temporary");

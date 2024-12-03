@@ -764,7 +764,7 @@ gfc_trans_form_team (gfc_code *code)
       tmp = build_call_expr_loc (input_location,
 				 gfor_fndecl_caf_form_team, 3,
 				 team_id, team_type,
-				 build_int_cst (integer_type_node, 0));
+				 integer_zero_node);
       gfc_add_expr_to_block (&se.pre, tmp);
       gfc_add_block_to_block (&se.pre, &argse1.post);
       gfc_add_block_to_block (&se.pre, &argse2.post);
@@ -795,7 +795,7 @@ gfc_trans_change_team (gfc_code *code)
 
       tmp = build_call_expr_loc (input_location,
 				 gfor_fndecl_caf_change_team, 2, team_type,
-				 build_int_cst (integer_type_node, 0));
+				 integer_zero_node);
       gfc_add_expr_to_block (&argse.pre, tmp);
       gfc_add_block_to_block (&argse.pre, &argse.post);
       return gfc_finish_block (&argse.pre);
@@ -846,7 +846,7 @@ gfc_trans_sync_team (gfc_code *code)
       tmp = build_call_expr_loc (input_location,
 				 gfor_fndecl_caf_sync_team, 2,
 				 team_type,
-				 build_int_cst (integer_type_node, 0));
+				 integer_zero_node);
       gfc_add_expr_to_block (&argse.pre, tmp);
       gfc_add_block_to_block (&argse.pre, &argse.post);
       return gfc_finish_block (&argse.pre);
@@ -1357,7 +1357,7 @@ gfc_trans_sync (gfc_code *code, gfc_exec_op type)
 	}
       else if (code->expr1->rank == 0)
 	{
-	  len = build_int_cst (integer_type_node, 1);
+	  len = integer_one_node;
 	  images = gfc_build_addr_expr (NULL_TREE, images);
 	}
       else
@@ -1747,9 +1747,9 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
   e = sym->assoc->target;
 
   class_target = (e->expr_type == EXPR_VARIABLE)
-		    && e->ts.type == BT_CLASS
-		    && (gfc_is_class_scalar_expr (e)
-			|| gfc_is_class_array_ref (e, NULL));
+		  && e->ts.type == BT_CLASS
+		  && (gfc_is_class_scalar_expr (e)
+		      || gfc_is_class_array_ref (e, NULL));
 
   unlimited = UNLIMITED_POLY (e);
 
@@ -2043,6 +2043,10 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 	{
 	  gfc_conv_expr (&se, e);
 	  se.expr = gfc_evaluate_now (se.expr, &se.pre);
+	  /* Finalize the expression and free if it is allocatable.  */
+	  gfc_finalize_tree_expr (&se, NULL, gfc_expr_attr (e), e->rank);
+	  gfc_add_block_to_block (&se.post, &se.finalblock);
+	  need_len_assign = false;
 	}
       else if (sym->ts.type == BT_CLASS && CLASS_DATA (sym)->attr.dimension)
 	{
@@ -2157,26 +2161,36 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 	    {
 	      tree stmp;
 	      tree dtmp;
+	      tree ctmp;
 
-	      se.expr = ctree;
+	      ctmp = ctree;
 	      dtmp = TREE_TYPE (TREE_TYPE (sym->backend_decl));
 	      ctree = gfc_create_var (dtmp, "class");
 
-	      stmp = gfc_class_data_get (se.expr);
+	      if (IS_INFERRED_TYPE (e)
+		  && !GFC_CLASS_TYPE_P (TREE_TYPE (se.expr)))
+		stmp = se.expr;
+	      else
+		stmp = gfc_class_data_get (ctmp);
+
 	      /* Coarray scalar component expressions can emerge from
 		 the front end as array elements of the _data field.  */
 	      if (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (stmp)))
 		stmp = gfc_conv_descriptor_data_get (stmp);
+
+	      if (!POINTER_TYPE_P (TREE_TYPE (stmp)))
+		stmp = gfc_build_addr_expr (NULL, stmp);
+
 	      dtmp = gfc_class_data_get (ctree);
 	      stmp = fold_convert (TREE_TYPE (dtmp), stmp);
 	      gfc_add_modify (&se.pre, dtmp, stmp);
-	      stmp = gfc_class_vptr_get (se.expr);
+	      stmp = gfc_class_vptr_get (ctmp);
 	      dtmp = gfc_class_vptr_get (ctree);
 	      stmp = fold_convert (TREE_TYPE (dtmp), stmp);
 	      gfc_add_modify (&se.pre, dtmp, stmp);
 	      if (UNLIMITED_POLY (sym))
 		{
-		  stmp = gfc_class_len_get (se.expr);
+		  stmp = gfc_class_len_get (ctmp);
 		  dtmp = gfc_class_len_get (ctree);
 		  stmp = fold_convert (TREE_TYPE (dtmp), stmp);
 		  gfc_add_modify (&se.pre, dtmp, stmp);

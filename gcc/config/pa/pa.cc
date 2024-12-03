@@ -2039,7 +2039,8 @@ pa_emit_move_sequence (rtx *operands, machine_mode mode, rtx scratch_reg)
 	      op1 = replace_equiv_address (op1, scratch_reg);
 	    }
 	}
-      else if ((!INT14_OK_STRICT && symbolic_memory_operand (op1, VOIDmode))
+      else if (((TARGET_ELF32 || !TARGET_PA_20)
+		&& symbolic_memory_operand (op1, VOIDmode))
 	       || IS_LO_SUM_DLT_ADDR_P (XEXP (op1, 0))
 	       || IS_INDEX_ADDR_P (XEXP (op1, 0)))
 	{
@@ -2088,7 +2089,8 @@ pa_emit_move_sequence (rtx *operands, machine_mode mode, rtx scratch_reg)
 	      op0 = replace_equiv_address (op0, scratch_reg);
 	    }
 	}
-      else if ((!INT14_OK_STRICT && symbolic_memory_operand (op0, VOIDmode))
+      else if (((TARGET_ELF32 || !TARGET_PA_20)
+		&& symbolic_memory_operand (op0, VOIDmode))
 	       || IS_LO_SUM_DLT_ADDR_P (XEXP (op0, 0))
 	       || IS_INDEX_ADDR_P (XEXP (op0, 0)))
 	{
@@ -5782,7 +5784,12 @@ pa_output_global_address (FILE *file, rtx x, int round_constant)
   if (GET_CODE (x) == HIGH)
     x = XEXP (x, 0);
 
-  if (GET_CODE (x) == SYMBOL_REF && read_only_operand (x, VOIDmode))
+  if (GET_CODE (x) == UNSPEC && XINT (x, 1) == UNSPEC_DLTIND14R)
+    {
+      x = XVECEXP (x, 0, 0);
+      output_addr_const (file, x);
+    }
+  else if (GET_CODE (x) == SYMBOL_REF && read_only_operand (x, VOIDmode))
     output_addr_const (file, x);
   else if (GET_CODE (x) == SYMBOL_REF && !flag_pic)
     {
@@ -10707,7 +10714,13 @@ pa_trampoline_adjust_address (rtx addr)
 static rtx
 pa_delegitimize_address (rtx orig_x)
 {
-  rtx x = delegitimize_mem_from_attrs (orig_x);
+  rtx x;
+
+  if (GET_CODE (orig_x) == UNSPEC
+      && XINT (orig_x, 1) == UNSPEC_TP)
+    orig_x = XVECEXP (orig_x, 0, 0);
+
+  x = delegitimize_mem_from_attrs (orig_x);
 
   if (GET_CODE (x) == LO_SUM
       && GET_CODE (XEXP (x, 1)) == UNSPEC
@@ -10968,20 +10981,15 @@ pa_legitimate_address_p (machine_mode mode, rtx x, bool strict, code_helper)
 
 	  /* Long 14-bit displacements always okay for these cases.  */
 	  if (INT14_OK_STRICT
+	      || reload_completed
 	      || mode == QImode
 	      || mode == HImode)
 	    return true;
 
-	  /* A secondary reload may be needed to adjust the displacement
-	     of floating-point accesses when STRICT is nonzero.  */
-	  if (strict)
-	    return false;
-
-	  /* We get significantly better code if we allow long displacements
-	     before reload for all accesses.  Instructions must satisfy their
-	     constraints after reload, so we must have an integer access.
-	     Return true for both cases.  */
-	  return true;
+	  /* We have to limit displacements to those supported by
+	     both floating-point and integer accesses as reload can't
+	     fix invalid displacements.  See PR114288.  */
+	  return false;
 	}
 
       if (!TARGET_DISABLE_INDEXING
@@ -11037,18 +11045,22 @@ pa_legitimate_address_p (machine_mode mode, rtx x, bool strict, code_helper)
 	  && (strict ? STRICT_REG_OK_FOR_BASE_P (y)
 		     : REG_OK_FOR_BASE_P (y)))
 	{
+	  y = XEXP (x, 1);
+
 	  /* Needed for -fPIC */
 	  if (mode == Pmode
-	      && GET_CODE (XEXP (x, 1)) == UNSPEC)
+	      && GET_CODE (y) == UNSPEC)
 	    return true;
 
-	  if (!INT14_OK_STRICT
-	      && (strict || !(reload_in_progress || reload_completed))
+	  /* Before reload, we need support for 14-bit floating
+	     point loads and stores, and associated relocations.  */
+	  if ((TARGET_ELF32 || !INT14_OK_STRICT)
+	      && !reload_completed
 	      && mode != QImode
 	      && mode != HImode)
 	    return false;
 
-	  if (CONSTANT_P (XEXP (x, 1)))
+	  if (CONSTANT_P (y))
 	    return true;
 	}
       return false;

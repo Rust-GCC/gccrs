@@ -34,10 +34,77 @@ along with GCC; see the file COPYING3.  If not see
 
 #define builtin_define(TXT) cpp_define (pfile, TXT)
 
+struct pragma_intrinsic_flags
+{
+  int intrinsic_target_flags;
+
+  int intrinsic_riscv_vector_elen_flags;
+  int intrinsic_riscv_zvl_flags;
+  int intrinsic_riscv_zvb_subext;
+  int intrinsic_riscv_zvk_subext;
+};
+
+static void
+riscv_pragma_intrinsic_flags_pollute (struct pragma_intrinsic_flags *flags)
+{
+  flags->intrinsic_target_flags = target_flags;
+  flags->intrinsic_riscv_vector_elen_flags = riscv_vector_elen_flags;
+  flags->intrinsic_riscv_zvl_flags = riscv_zvl_flags;
+  flags->intrinsic_riscv_zvb_subext = riscv_zvb_subext;
+  flags->intrinsic_riscv_zvk_subext = riscv_zvk_subext;
+
+  target_flags = target_flags
+    | MASK_VECTOR;
+
+  riscv_zvl_flags = riscv_zvl_flags
+    | MASK_ZVL32B
+    | MASK_ZVL64B
+    | MASK_ZVL128B;
+
+  riscv_vector_elen_flags = riscv_vector_elen_flags
+    | MASK_VECTOR_ELEN_32
+    | MASK_VECTOR_ELEN_64
+    | MASK_VECTOR_ELEN_FP_16
+    | MASK_VECTOR_ELEN_FP_32
+    | MASK_VECTOR_ELEN_FP_64;
+
+  riscv_zvb_subext = riscv_zvb_subext
+    | MASK_ZVBB
+    | MASK_ZVBC
+    | MASK_ZVKB;
+
+  riscv_zvk_subext = riscv_zvk_subext
+    | MASK_ZVKG
+    | MASK_ZVKNED
+    | MASK_ZVKNHA
+    | MASK_ZVKNHB
+    | MASK_ZVKSED
+    | MASK_ZVKSH
+    | MASK_ZVKN
+    | MASK_ZVKNC
+    | MASK_ZVKNG
+    | MASK_ZVKS
+    | MASK_ZVKSC
+    | MASK_ZVKSG
+    | MASK_ZVKT;
+}
+
+static void
+riscv_pragma_intrinsic_flags_restore (struct pragma_intrinsic_flags *flags)
+{
+  target_flags = flags->intrinsic_target_flags;
+
+  riscv_vector_elen_flags = flags->intrinsic_riscv_vector_elen_flags;
+  riscv_zvl_flags = flags->intrinsic_riscv_zvl_flags;
+  riscv_zvb_subext = flags->intrinsic_riscv_zvb_subext;
+  riscv_zvk_subext = flags->intrinsic_riscv_zvk_subext;
+}
+
 static int
 riscv_ext_version_value (unsigned major, unsigned minor)
 {
-  return (major * RISCV_MAJOR_VERSION_BASE) + (minor * RISCV_MINOR_VERSION_BASE);
+  return (major * RISCV_MAJOR_VERSION_BASE)
+    + (minor * RISCV_MINOR_VERSION_BASE);
 }
 
 /* Implement TARGET_CPU_CPP_BUILTINS.  */
@@ -110,7 +177,6 @@ riscv_cpu_cpp_builtins (cpp_reader *pfile)
     case CM_MEDANY:
       builtin_define ("__riscv_cmodel_medany");
       break;
-
     }
 
   if (riscv_user_wants_strict_align)
@@ -140,11 +206,14 @@ riscv_cpu_cpp_builtins (cpp_reader *pfile)
       builtin_define ("__riscv_vector");
       builtin_define_with_int_value ("__riscv_v_intrinsic",
 				     riscv_ext_version_value (0, 12));
+
+      if (rvv_vector_bits == RVV_VECTOR_BITS_ZVL)
+	builtin_define_with_int_value ("__riscv_v_fixed_vlen", TARGET_MIN_VLEN);
     }
 
-   if (TARGET_XTHEADVECTOR)
-     builtin_define_with_int_value ("__riscv_th_v_intrinsic",
-				     riscv_ext_version_value (0, 11));
+  if (TARGET_XTHEADVECTOR)
+    builtin_define_with_int_value ("__riscv_th_v_intrinsic",
+				   riscv_ext_version_value (0, 11));
 
   /* Define architecture extension test macros.  */
   builtin_define_with_int_value ("__riscv_arch_test", 1);
@@ -198,14 +267,20 @@ riscv_pragma_intrinsic (cpp_reader *)
   if (strcmp (name, "vector") == 0
       || strcmp (name, "xtheadvector") == 0)
     {
-      if (!TARGET_VECTOR)
-	{
-	  error ("%<#pragma riscv intrinsic%> option %qs needs 'V' or "
-		 "'XTHEADVECTOR' extension enabled",
-		 name);
-	  return;
-	}
+      struct pragma_intrinsic_flags backup_flags;
+
+      riscv_pragma_intrinsic_flags_pollute (&backup_flags);
+
+      riscv_option_override ();
+      init_adjust_machine_modes ();
+      riscv_vector::reinit_builtins ();
       riscv_vector::handle_pragma_vector ();
+
+      riscv_pragma_intrinsic_flags_restore (&backup_flags);
+
+      /* Re-initialize after the flags are restored.  */
+      riscv_option_override ();
+      init_adjust_machine_modes ();
     }
   else
     error ("unknown %<#pragma riscv intrinsic%> option %qs", name);
