@@ -6713,9 +6713,9 @@ Parser<ManagedTokenSource>::parse_path_in_expression ()
   AST::PathExprSegment initial_segment = parse_path_expr_segment ();
   if (initial_segment.is_error ())
     {
-      // skip after somewhere?
-      // don't necessarily throw error but yeah
-      return AST::PathInExpression::create_error ();
+      // we can not throw an error here because if entered from macro expansion
+      // the macro expander can throw another error which might confuse the user
+      return AST::PathInExpression::create_error (locus);
     }
   segments.push_back (std::move (initial_segment));
 
@@ -11636,6 +11636,11 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr ()
       case DOLLAR_SIGN: {
 	AST::PathInExpression path = parse_path_in_expression ();
 	std::unique_ptr<AST::Expr> null_denotation;
+
+	if (path.is_error ())
+	  {
+	    rust_error_at (path.get_locus (), "expected identifier");
+	  }
 
 	if (lexer.peek_token ()->get_id () == EXCLAM)
 	  {
