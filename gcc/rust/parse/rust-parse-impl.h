@@ -12023,6 +12023,11 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
   if (restrictions.expr_can_be_null)
     {
       TokenId id = current_token->get_id ();
+      if (restrictions.stop_on_token && (id == MATCH_ARROW || id == COMMA))
+	{
+	  rust_debug ("Stopping Parsing at special token");
+	  return nullptr;
+	}
       if (id == SEMICOLON || id == RIGHT_PAREN || id == RIGHT_CURLY
 	  || id == RIGHT_SQUARE || id == COMMA || id == LEFT_CURLY)
 	return nullptr;
@@ -12078,6 +12083,14 @@ Parser<ManagedTokenSource>::left_denotations (std::unique_ptr<AST::Expr> expr,
   while (right_binding_power < left_binding_power (current_token))
     {
       lexer.skip_token ();
+      if (restrictions.stop_on_token
+	  && (current_token->get_id () == MATCH_ARROW
+	      || current_token->get_id () == COMMA))
+	{
+	  rust_debug (
+	    "Stopping parsing at restricted token in left_denotations");
+	  return expr;
+	}
 
       // FIXME attributes should generally be applied to the null denotation.
       expr = left_denotation (current_token, std::move (expr),
@@ -12115,6 +12128,13 @@ Parser<ManagedTokenSource>::null_denotation (const_TokenPtr tok,
 {
   /* note: tok is previous character in input stream, not current one, as
    * parse_expr skips it before passing it in */
+
+  if (restrictions.stop_on_token
+      && (tok->get_id () == MATCH_ARROW || tok->get_id () == COMMA))
+    {
+      rust_debug ("Stopping parsing at restricted token in null_denotation");
+      return nullptr;
+    }
 
   /* as a Pratt parser (which works by decomposing expressions into a null
    * denotation and then a left denotation), null denotations handle primaries

@@ -89,6 +89,8 @@ struct ParseRestrictions
   bool entered_from_unary = false;
   bool expr_can_be_null = false;
   bool expr_can_be_stmt = false;
+  bool stop_on_token
+    = false; // This is for stopping parsing at a specific token
   bool consume_semi = true;
   /* Macro invocations that are statements can expand without a semicolon after
    * the final statement, if it's an expression statement. */
