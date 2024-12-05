@@ -1,3 +1,27 @@
+2024-04-12  Filip Kastl  <fkastl@suse.cz>
+
+	* check-params-in-docs.py: Ignore target specific params.
+
+2024-04-11  Martin Jambor  <mjambor@suse.cz>
+
+	* check-params-in-docs.py (ignored): Add
+	gcn-preferred-vectorization-factor.
+
+2024-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py: Add
+	8057f9aa1f7e70490064de796d7a8d42d446caf8 to IGNORED_COMMITS.
+
+2024-03-19  Jonathan Wakely  <jwakely@redhat.com>
+
+	* unicode/gen_libstdcxx_unicode_data.py: Fix header of generated
+	file to name the correct script.
+
+2024-03-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	* gcc_update: Add more generated files in libcc1, lto-plugin,
+	fixincludes, and libstdc++-v3.
+
 2024-03-08  Sam James  <sam@gentoo.org>
 
 	PR other/109668

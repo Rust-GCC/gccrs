@@ -23,6 +23,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config/loongarch/loongarch-opts.h"
 
+#define SWITCHABLE_TARGET 1
+
 #define TARGET_SUPPORTS_WIDE_INT 1
 
 /* Macros to silence warnings about numbers being signed in traditional
@@ -138,19 +140,16 @@ along with GCC; see the file COPYING3.  If not see
 /* Width of a LASX vector register in bits.  */
 #define BITS_PER_LASX_REG (UNITS_PER_LASX_REG * BITS_PER_UNIT)
 
-/* For LARCH, width of a floating point register.  */
-#define UNITS_PER_FPREG (TARGET_DOUBLE_FLOAT ? 8 : 4)
-
 /* The largest size of value that can be held in floating-point
    registers and moved with a single instruction.  */
 #define UNITS_PER_HWFPVALUE \
-  (TARGET_SOFT_FLOAT ? 0 : UNITS_PER_FPREG)
+  (TARGET_SOFT_FLOAT ? 0 : UNITS_PER_FP_REG)
 
 /* The largest size of value that can be held in floating-point
    registers.  */
 #define UNITS_PER_FPVALUE \
   (TARGET_SOFT_FLOAT ? 0 \
-   : TARGET_SINGLE_FLOAT ? UNITS_PER_FPREG \
+   : TARGET_SINGLE_FLOAT ? UNITS_PER_FP_REG \
 			 : LONG_DOUBLE_TYPE_SIZE / BITS_PER_UNIT)
 
 /* The number of bytes in a double.  */
@@ -713,12 +712,18 @@ enum reg_class
 			| RECIP_MASK_RSQRT | RECIP_MASK_VEC_SQRT \
 			| RECIP_MASK_VEC_DIV | RECIP_MASK_VEC_RSQRT)
 
-#define TARGET_RECIP_DIV        ((recip_mask & RECIP_MASK_DIV) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_SQRT       ((recip_mask & RECIP_MASK_SQRT) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_RSQRT      ((recip_mask & RECIP_MASK_RSQRT) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_VEC_DIV    ((recip_mask & RECIP_MASK_VEC_DIV) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_VEC_SQRT   ((recip_mask & RECIP_MASK_VEC_SQRT) != 0 || TARGET_uARCH_LA664)
-#define TARGET_RECIP_VEC_RSQRT  ((recip_mask & RECIP_MASK_VEC_RSQRT) != 0 || TARGET_uARCH_LA664)
+#define TARGET_RECIP_DIV \
+  ((recip_mask & RECIP_MASK_DIV) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_SQRT \
+  ((recip_mask & RECIP_MASK_SQRT) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_RSQRT \
+  ((recip_mask & RECIP_MASK_RSQRT) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_VEC_DIV \
+  ((recip_mask & RECIP_MASK_VEC_DIV) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_VEC_SQRT \
+  ((recip_mask & RECIP_MASK_VEC_SQRT) != 0 && ISA_HAS_FRECIPE)
+#define TARGET_RECIP_VEC_RSQRT \
+  ((recip_mask & RECIP_MASK_VEC_RSQRT) != 0 && ISA_HAS_FRECIPE)
 
 /* 1 if N is a possible register number for function argument passing.
    We have no FP argument registers when soft-float.  */

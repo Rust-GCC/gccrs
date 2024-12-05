@@ -1,3 +1,40 @@
+2024-04-12  Ian McInerney  <i.mcinerney17@imperial.ac.uk>
+
+	* runtime/error.c (gf_vsnprintf): Fix compilation
+
+2024-04-08  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR libfortran/114304
+	* io/list_read.c (eat_separator): Accept tab as alternative to space.
+
+2024-04-06  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/114304
+	PR libfortran/105473
+	* io/list_read.c (eat_separator): Add logic to handle spaces
+	preceding a comma or semicolon such that that a 'null' read
+	occurs without error at the end of comma or semicolon
+	terminated input lines. Add check and error message for ';'.
+	(list_formatted_read_scalar): Treat comma as a decimal point
+	when specified by the decimal mode on the first item.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.host: Fix duplicated words; the the -> the.
+
+2024-03-27  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/107031
+	* io/file_pos.c (st_endfile): Remove call to next_record().
+
+2024-03-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/105437
+	PR libfortran/114304
+	* io/list_read.c (eat_separator): Remove check for decimal
+	point mode and semicolon used as a seprator. Removes
+	the regression.
+
 2024-03-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/105456
