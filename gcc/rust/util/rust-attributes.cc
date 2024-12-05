@@ -67,14 +67,18 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_CONST_UNSTABLE, STATIC_ANALYSIS},
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION}};
 
-BuiltinAttributeMappings *
-BuiltinAttributeMappings::get ()
-{
-  static BuiltinAttributeMappings *instance = nullptr;
-  if (instance == nullptr)
-    instance = new BuiltinAttributeMappings ();
+BuiltinAttributeMappings* BuiltinAttributeMappings::get() {
+    static std::mutex mtx;
+    static BuiltinAttributeMappings* instance = nullptr;
 
-  return instance;
+    if (instance == nullptr) {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (instance == nullptr) {
+            instance = new BuiltinAttributeMappings();
+        }
+    }
+
+    return instance;
 }
 
 const BuiltinAttrDefinition &
@@ -96,39 +100,77 @@ BuiltinAttributeMappings::BuiltinAttributeMappings ()
       mappings.insert ({def.name, def});
     }
 }
+class Attributes {
+public:
+    // Check if an attribute with the specified name exists in the list
+    static bool has_attribute(const std::vector<Attribute> &attributes, const std::string &attr_name) {
+        return std::any_of(attributes.begin(), attributes.end(),
+                           [&attr_name](const Attribute &attr) { return attr.name == attr_name; });
+    }
+
+    // Get the value of an attribute by its name, returning an empty string if not found
+    static std::string get_attribute_value(const std::vector<Attribute> &attributes, const std::string &attr_name) {
+        auto it = std::find_if(attributes.begin(), attributes.end(),
+                               [&attr_name](const Attribute &attr) { return attr.name == attr_name; });
+        return (it != attributes.end()) ? it->value : ""; // Default or fallback if not found
+    }
+    static bool is_proc_macro_type(const AST::Attribute &attribute) {
+        BuiltinAttrDefinition result;
+        if (!is_builtin(attribute, result)) {
+            return false;
+        }
+
+        auto name = result.name;
+        return name == Attrs::PROC_MACRO || name == Attrs::PROC_MACRO_DERIVE
+            || name == Attrs::PROC_MACRO_ATTRIBUTE;
+    }
+};
 
 AttributeChecker::AttributeChecker () {}
 
-void
-AttributeChecker::go (AST::Crate &crate)
+void AttributeChecker::go(AST::Crate &crate)
 {
-  visit (crate);
+    visit(crate);
+
+    // Use the centralized methods from the Attributes class
+    if (Attributes::has_attribute(crate.get_inner_attrs(), "example_attribute")) {
+        std::string value = Attributes::get_attribute_value(crate.get_inner_attrs(), "example_attribute");
+        // Now you can use the 'value' as needed
+    }
 }
 
-void
-AttributeChecker::visit (AST::Crate &crate)
-{
-  check_attributes (crate.get_inner_attrs ());
 
-  for (auto &item : crate.items)
-    item->accept_vis (*this);
+void AttributeChecker::visit(AST::Crate &crate)
+{
+    check_attributes(crate.get_inner_attrs());
+
+    for (auto &item : crate.items) {
+        // Use the centralized methods from the Attributes class
+        if (Attributes::has_attribute(item->attributes, "example_attribute")) {
+            auto value = Attributes::get_attribute_value(item->attributes, "example_attribute");
+            // Now you can use the 'value' as needed
+        }
+        item->accept_vis(*this);
+    }
 }
+
 
 static bool
 is_builtin (const AST::Attribute &attribute, BuiltinAttrDefinition &builtin)
 {
-  auto &segments = attribute.get_path ().get_segments ();
+    // Retrieve path segments
+    const auto &segments = attribute.get_path().get_segments();
 
-  // Builtin attributes always have a single segment. This avoids us creating
-  // strings all over the place and performing a linear search in the builtins
-  // map
-  if (segments.size () != 1)
-    return false;
+    // Check if it's a single-segment path
+    if (segments.empty() || segments.size() != 1)
+        return false;
 
-  builtin = BuiltinAttributeMappings::get ()->lookup_builtin (
-    segments.at (0).get_segment_name ());
+    // Lookup the builtin attribute in mappings
+    builtin = BuiltinAttributeMappings::get()->lookup_builtin(
+        segments.at(0).get_segment_name());
 
-  return !builtin.is_error ();
+    // Return true if the attribute is valid and not an error
+    return !builtin.is_error();
 }
 
 /**
@@ -215,66 +257,89 @@ check_doc_attribute (const AST::Attribute &attribute)
     }
 }
 
-static bool
-is_proc_macro_type (const AST::Attribute &attribute)
+static bool is_proc_macro_type(const AST::Attribute &attribute)
 {
-  BuiltinAttrDefinition result;
-  if (!is_builtin (attribute, result))
-    return false;
-
-  auto name = result.name;
-  return name == Attrs::PROC_MACRO || name == Attrs::PROC_MACRO_DERIVE
-	 || name == Attrs::PROC_MACRO_ATTRIBUTE;
+    return Attributes::is_proc_macro_type(attribute);
 }
+
 
 // Emit an error when one encountered attribute is either #[proc_macro],
 // #[proc_macro_attribute] or #[proc_macro_derive]
-static void
-check_proc_macro_non_function (const AST::AttrVec &attributes)
+static void check_proc_macro_non_function(const AST::AttrVec &attributes)
 {
-  for (auto &attr : attributes)
+    for (auto &attr : attributes)
     {
-      if (is_proc_macro_type (attr))
-	rust_error_at (
-	  attr.get_locus (),
-	  "the %<#[%s]%> attribute may only be used on bare functions",
-	  attr.get_path ().get_segments ()[0].as_string ().c_str ());
+        if (Attributes::is_proc_macro_type(attr)) { // Use the centralized method
+            rust_error_at(
+                attr.get_locus(),
+                "the %<#[%s]%> attribute may only be used on bare functions",
+                attr.get_path().get_segments()[0].as_string().c_str());
+        }
     }
 }
 
+
 // Emit an error when one attribute is either proc_macro, proc_macro_attribute
 // or proc_macro_derive
-static void
-check_proc_macro_non_root (AST::AttrVec attributes, location_t loc)
+static void check_proc_macro_non_root(AST::AttrVec attributes, location_t loc)
 {
-  for (auto &attr : attributes)
+    for (auto &attr : attributes)
     {
-      if (is_proc_macro_type (attr))
-	{
-	  rust_error_at (
-	    loc,
-	    "functions tagged with %<#[%s]%> must currently "
-	    "reside in the root of the crate",
-	    attr.get_path ().get_segments ().at (0).as_string ().c_str ());
-	}
+        if (Attributes::is_proc_macro_type(attr)) { // Centralized check
+            rust_error_at(
+                loc,
+                "functions tagged with %<#[%s]%> must currently "
+                "reside in the root of the crate",
+                attr.get_path().get_segments().at(0).as_string().c_str());
+        }
     }
+}
+
+enum class BuiltinAttributeType {
+    DOC,
+    PROC_MACRO,
+    PROC_MACRO_DERIVE,
+    PROC_MACRO_ATTRIBUTE,
+    UNKNOWN // Fallback for unrecognized attributes
+};
+BuiltinAttributeType Attributes::get_builtin_type(const std::string &name) {
+    static const std::unordered_map<std::string, BuiltinAttributeType> mapping = {
+        {Attrs::DOC, BuiltinAttributeType::DOC},
+        {Attrs::PROC_MACRO, BuiltinAttributeType::PROC_MACRO},
+        {Attrs::PROC_MACRO_DERIVE, BuiltinAttributeType::PROC_MACRO_DERIVE},
+        {Attrs::PROC_MACRO_ATTRIBUTE, BuiltinAttributeType::PROC_MACRO_ATTRIBUTE}
+    };
+
+    auto it = mapping.find(name);
+    return (it != mapping.end()) ? it->second : BuiltinAttributeType::UNKNOWN;
 }
 
 void
 AttributeChecker::check_attribute (const AST::Attribute &attribute)
 {
-  BuiltinAttrDefinition result;
+    BuiltinAttrDefinition result;
 
-  // This checker does not check non-builtin attributes
-  if (!is_builtin (attribute, result))
-    return;
+    // Skip non-builtin attributes
+    if (!is_builtin(attribute, result))
+        return;
 
-  // TODO: Add checks here for each builtin attribute
-  // TODO: Have an enum of builtins as well, switching on strings is annoying
-  // and costly
-  if (result.name == Attrs::DOC)
-    check_doc_attribute (attribute);
+    // Map attribute name to enum
+    BuiltinAttributeType type = Attributes::get_builtin_type(result.name);
+
+    // Perform specific checks based on type
+    switch (type) {
+        case BuiltinAttributeType::DOC:
+            check_doc_attribute(attribute);
+            break;
+
+        // Add more cases as needed for other types
+        case BuiltinAttributeType::UNKNOWN:
+        default:
+            // Handle unknown or unimplemented attribute types
+            break;
+    }
 }
+
 
 void
 AttributeChecker::check_attributes (const AST::AttrVec &attributes)
