@@ -1,0 +1,11 @@
+#!/bin/sh
+# grep exits with 1 if it doesn't match any lines
+# this script wraps grep, mapping exits codes 1->0, x->x
+
+grep "$@"
+EXIT_CODE="$?"
+if [ x$EXIT_CODE = x1 ]; then
+  exit 0
+else
+  exit $EXIT_CODE
+fi
