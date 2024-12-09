@@ -61,13 +61,14 @@ jobs:
       run: |
            cd gccrs-build; \
            # Add cargo to our path quickly
-           . "$HOME/.cargo/env";
-           make -Otarget -j $(nproc) 2>&1 | tee log
+           . "$HOME/.cargo/env"; \
+           # Build without network access
+           unshare --net --ipc -r /bin/bash -c "make -Otarget -j $(nproc) 2>&1 | tee log ; exit \${PIPESTATUS[0]}"
 
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           < log grep 'warning: ' | grep rust | sort > log_warnings
            if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
@@ -80,9 +81,9 @@ jobs:
            cd gccrs-build; \
            make check-rust RUNTESTFLAGS="--target_board=unix\{-m64}"
     - name: Archive check-rust results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: check-rust-logs
+        name: check-rust-logs-ubuntu-64
         path: |
           gccrs-build/gcc/testsuite/rust/
     - name: Check regressions
@@ -152,7 +153,7 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           < log grep 'warning: ' | grep rust | sort > log_warnings
            if diff -U0 ../.github/glibcxx_ubuntu64b_log_expected_warnings log_warnings; then
                :
            else
@@ -165,9 +166,9 @@ jobs:
            cd gccrs-build; \
            make check-rust RUNTESTFLAGS="--target_board=unix\{-m64}"
     - name: Archive check-rust results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: check-rust-logs
+        name: check-rust-logs-ubuntu-64-glibcxx
         path: |
           gccrs-build/gcc/testsuite/rust/
     - name: Check regressions
@@ -236,7 +237,7 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           < log grep 'warning: ' | grep rust | sort > log_warnings
            if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
@@ -249,9 +250,9 @@ jobs:
            cd gccrs-build; \
            make check-rust RUNTESTFLAGS="--target_board=unix\{-m32}"
     - name: Archive check-rust results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: check-rust-logs
+        name: check-rust-logs-ubuntu-32
         path: |
           gccrs-build/gcc/testsuite/rust/
     - name: Check regressions
@@ -350,7 +351,7 @@ jobs:
              make check-rust RUNTESTFLAGS="--target_board=unix\{-m32,-m64}"
 
     - name: Archive check-rust results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: check-rust-logs-5
         path: |
@@ -374,10 +375,21 @@ jobs:
       CC: clang
       CXX: clang++
 
-    runs-on: macos-13
+    runs-on: macos-15
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Handle ARM64
+      # TODO: update commit as required
+      run: |
+          git remote add arm-ian 'https://github.com/iains/gcc-darwin-arm64.git';
+          git fetch arm-ian;
+          GIT_AUTHOR_NAME=CI \
+          GIT_AUTHOR_EMAIL='ci@invalid' \
+          git merge --no-edit a81533316b9b64245d85b352a93e17f302482acd;
 
     - name: Install Deps
       run: |
@@ -396,6 +408,9 @@ jobs:
                --enable-languages=rust \
                --disable-bootstrap \
                --enable-multilib \
+               --with-gmp="$(brew --prefix gmp)" \
+               --with-mpfr="$(brew --prefix mpfr)" \
+               --with-mpc="$(brew --prefix libmpc)" \
                --with-native-system-header-dir=/usr/include \
                --with-sysroot=$(xcrun --show-sdk-path)
 
@@ -409,12 +424,14 @@ jobs:
       run: |
            cd gccrs-build; \
            make check-rust
+
     - name: Archive check-rust results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: check-rust-logs-macos
         path: |
           gccrs-build/gcc/testsuite/rust/
+
     - name: Check regressions
       run: |
            cd gccrs-build; \
@@ -496,9 +513,9 @@ jobs:
            ASAN_OPTIONS=detect_leaks=0:use_odr_indicator=1 \
            make check-rust RUNTESTFLAGS="--target_board=unix\{-m64}"
     - name: Archive check-rust results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: check-rust-logs
+        name: check-rust-logs-asan
         path: |
           gccrs-build/gcc/testsuite/rust/
     - name: Check regressions
