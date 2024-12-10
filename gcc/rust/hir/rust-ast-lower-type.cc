@@ -17,16 +17,31 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-lower-type.h"
-#include "rust-attribute-values.h"
+#include "rust-hir-map.h"
+#include "rust-hir-path.h"
+#include "rust-path.h"
+#include "rust-pattern.h"
 
 namespace Rust {
 namespace HIR {
 
 HIR::TypePath *
-ASTLowerTypePath::translate (AST::TypePath &type)
+ASTLowerTypePath::translate (AST::Path &type)
 {
   ASTLowerTypePath resolver;
-  type.accept_vis (resolver);
+
+  switch (type.get_path_kind ())
+    {
+    case AST::Path::Kind::LangItem:
+      resolver.visit (static_cast<AST::LangItemPath &> (type));
+      break;
+    case AST::Path::Kind::Type:
+      resolver.visit (static_cast<AST::TypePath &> (type));
+      break;
+    default:
+      rust_unreachable ();
+    }
+
   rust_assert (resolver.translated != nullptr);
   return resolver.translated;
 }
@@ -123,6 +138,26 @@ ASTLowerTypePath::visit (AST::TypePath &path)
     = new HIR::TypePath (std::move (mapping), std::move (translated_segments),
 			 path.get_locus (),
 			 path.has_opening_scope_resolution_op ());
+}
+
+void
+ASTLowerTypePath::visit (AST::LangItemPath &path)
+{
+  auto crate_num = mappings.get_current_crate ();
+  auto hirid = mappings.get_next_hir_id (crate_num);
+
+  Analysis::NodeMapping mapping (crate_num, path.get_node_id (), hirid,
+				 mappings.get_next_localdef_id (crate_num));
+
+  std::vector<std::unique_ptr<HIR::TypePathSegment>> translated_segments;
+  translated_segments.emplace_back (std::unique_ptr<HIR::TypePathSegment> (
+    new HIR::TypePathSegment (mapping,
+			      LangItem::ToString (path.get_lang_item_kind ()),
+			      false, path.get_locus ())));
+
+  translated
+    = new HIR::TypePath (std::move (mapping), std::move (translated_segments),
+			 path.get_locus ());
 }
 
 HIR::QualifiedPathInType *
@@ -502,9 +537,11 @@ ASTLowerGenericParam::visit (AST::TypeParam &param)
 	}
     }
 
-  HIR::Type *type = param.has_type ()
-		      ? ASTLoweringType::translate (param.get_type ())
-		      : nullptr;
+  tl::optional<std::unique_ptr<HIR::Type>> type = tl::nullopt;
+  if (param.has_type ())
+    type
+      = tl::optional<std::unique_ptr<HIR::Type>> (std::unique_ptr<HIR::Type> (
+	ASTLoweringType::translate (param.get_type ())));
 
   auto crate_num = mappings.get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, param.get_node_id (),
@@ -514,8 +551,7 @@ ASTLowerGenericParam::visit (AST::TypeParam &param)
   translated
     = new HIR::TypeParam (mapping, param.get_type_representation (),
 			  param.get_locus (), std::move (type_param_bounds),
-			  std::unique_ptr<Type> (type),
-			  param.get_outer_attrs ());
+			  std::move (type), param.get_outer_attrs ());
 }
 
 HIR::TypeParamBound *

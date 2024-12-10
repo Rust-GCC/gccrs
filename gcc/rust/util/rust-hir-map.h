@@ -256,22 +256,11 @@ public:
     return it->second;
   }
 
-  void insert_lang_item (LangItem::Kind item_type, DefId id)
-  {
-    auto it = lang_item_mappings.find (item_type);
-    rust_assert (it == lang_item_mappings.end ());
+  void insert_lang_item (LangItem::Kind item_type, DefId id);
+  tl::optional<DefId &> lookup_lang_item (LangItem::Kind item_type);
 
-    lang_item_mappings[item_type] = id;
-  }
-
-  tl::optional<DefId &> lookup_lang_item (LangItem::Kind item_type)
-  {
-    auto it = lang_item_mappings.find (item_type);
-    if (it == lang_item_mappings.end ())
-      return tl::nullopt;
-
-    return it->second;
-  }
+  void insert_lang_item_node (LangItem::Kind item_type, NodeId node_id);
+  tl::optional<NodeId &> lookup_lang_item_node (LangItem::Kind item_type);
 
   // This will fatal_error when this lang item does not exist
   DefId get_lang_item (LangItem::Kind item_type, location_t locus);
@@ -389,7 +378,12 @@ private:
   std::map<HirId, HIR::GenericParam *> hirGenericParamMappings;
   std::map<HirId, HIR::Trait *> hirTraitItemsToTraitMappings;
   std::map<HirId, HIR::Pattern *> hirPatternMappings;
+
+  // We need to have two maps here, as lang-items need to be used for both AST
+  // passes and HIR passes. Thus those two maps are created at different times.
   std::map<LangItem::Kind, DefId> lang_item_mappings;
+  std::map<LangItem::Kind, NodeId> lang_item_nodes;
+
   std::map<NodeId, Resolver::CanonicalPath> paths;
   std::map<NodeId, location_t> locations;
   std::map<NodeId, HirId> nodeIdToHirMappings;

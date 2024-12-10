@@ -2831,6 +2831,7 @@ class Trait : public VisItem
   bool has_auto;
   Identifier name;
   std::vector<std::unique_ptr<GenericParam>> generic_params;
+  TypeParam self_param;
   std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds;
   WhereClause where_clause;
   std::vector<Attribute> inner_attrs;
@@ -2870,7 +2871,7 @@ public:
 	 std::vector<Attribute> inner_attrs, location_t locus)
     : VisItem (std::move (vis), std::move (outer_attrs)),
       has_unsafe (is_unsafe), has_auto (is_auto), name (std::move (name)),
-      generic_params (std::move (generic_params)),
+      generic_params (std::move (generic_params)), self_param ({"Self"}, locus),
       type_param_bounds (std::move (type_param_bounds)),
       where_clause (std::move (where_clause)),
       inner_attrs (std::move (inner_attrs)),
@@ -2880,8 +2881,9 @@ public:
   // Copy constructor with vector clone
   Trait (Trait const &other)
     : VisItem (other), has_unsafe (other.has_unsafe), has_auto (other.has_auto),
-      name (other.name), where_clause (other.where_clause),
-      inner_attrs (other.inner_attrs), locus (other.locus)
+      name (other.name), self_param (other.self_param),
+      where_clause (other.where_clause), inner_attrs (other.inner_attrs),
+      locus (other.locus)
   {
     generic_params.reserve (other.generic_params.size ());
     for (const auto &e : other.generic_params)
@@ -2901,6 +2903,7 @@ public:
   {
     VisItem::operator= (other);
     name = other.name;
+    self_param = other.self_param;
     has_unsafe = other.has_unsafe;
     has_auto = other.has_auto;
     where_clause = other.where_clause;
@@ -2968,19 +2971,7 @@ public:
 
   WhereClause &get_where_clause () { return where_clause; }
 
-  void insert_implict_self (std::unique_ptr<AST::GenericParam> &&param)
-  {
-    std::vector<std::unique_ptr<GenericParam>> new_list;
-    new_list.reserve (generic_params.size () + 1);
-
-    new_list.push_back (std::move (param));
-    for (auto &p : generic_params)
-      {
-	new_list.push_back (std::move (p));
-      }
-
-    generic_params = std::move (new_list);
-  }
+  AST::TypeParam &get_implicit_self () { return self_param; }
 
 protected:
   /* Use covariance to implement clone function as returning this object
@@ -3181,7 +3172,7 @@ class TraitImpl : public Impl
 {
   bool has_unsafe;
   bool has_exclam;
-  TypePath trait_path;
+  std::unique_ptr<Path> trait_path;
 
   // bool has_impl_items;
   std::vector<std::unique_ptr<AssociatedItem>> impl_items;
@@ -3193,7 +3184,7 @@ public:
   bool has_impl_items () const { return !impl_items.empty (); }
 
   // Mega-constructor
-  TraitImpl (TypePath trait_path, bool is_unsafe, bool has_exclam,
+  TraitImpl (std::unique_ptr<Path> trait_path, bool is_unsafe, bool has_exclam,
 	     std::vector<std::unique_ptr<AssociatedItem>> impl_items,
 	     std::vector<std::unique_ptr<GenericParam>> generic_params,
 	     std::unique_ptr<Type> trait_type, WhereClause where_clause,
@@ -3206,10 +3197,26 @@ public:
       trait_path (std::move (trait_path)), impl_items (std::move (impl_items))
   {}
 
+  // Helper constructor with a typepath
+  TraitImpl (TypePath trait_path, bool is_unsafe, bool has_exclam,
+	     std::vector<std::unique_ptr<AssociatedItem>> impl_items,
+	     std::vector<std::unique_ptr<GenericParam>> generic_params,
+	     std::unique_ptr<Type> trait_type, WhereClause where_clause,
+	     Visibility vis, std::vector<Attribute> inner_attrs,
+	     std::vector<Attribute> outer_attrs, location_t locus)
+    : Impl (std::move (generic_params), std::move (trait_type),
+	    std::move (where_clause), std::move (vis), std::move (inner_attrs),
+	    std::move (outer_attrs), locus),
+      has_unsafe (is_unsafe), has_exclam (has_exclam),
+      trait_path (std::unique_ptr<TypePath> (new TypePath (trait_path))),
+      impl_items (std::move (impl_items))
+  {}
+
   // Copy constructor with vector clone
   TraitImpl (TraitImpl const &other)
     : Impl (other), has_unsafe (other.has_unsafe),
-      has_exclam (other.has_exclam), trait_path (other.trait_path)
+      has_exclam (other.has_exclam),
+      trait_path (other.trait_path->clone_path ())
   {
     impl_items.reserve (other.impl_items.size ());
     for (const auto &e : other.impl_items)
@@ -3220,7 +3227,7 @@ public:
   TraitImpl &operator= (TraitImpl const &other)
   {
     Impl::operator= (other);
-    trait_path = other.trait_path;
+    trait_path = other.trait_path->clone_path ();
     has_unsafe = other.has_unsafe;
     has_exclam = other.has_exclam;
 
@@ -3251,10 +3258,17 @@ public:
   }
 
   // TODO: is this better? Or is a "vis_block" better?
-  TypePath &get_trait_path ()
+  Path &get_trait_path ()
   {
     // TODO: assert that trait path is not empty?
-    return trait_path;
+    return *trait_path;
+  }
+
+  Type &get_trait_path_type ()
+  {
+    rust_assert (trait_path->get_path_kind () == Path::Kind::Type);
+
+    return (AST::Type &) static_cast<AST::TypePath &> (*trait_path);
   }
 
 protected:

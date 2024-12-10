@@ -18,6 +18,7 @@
 
 #include "optional.h"
 #include "rust-ast-full.h"
+#include "rust-diagnostics.h"
 #include "rust-hir-map.h"
 #include "rust-late-name-resolver-2.0.h"
 #include "rust-default-resolver.h"
@@ -100,7 +101,7 @@ Late::setup_builtin_types ()
     }
 
   // ...here!
-  auto *unit_type = TyTy::TupleType::get_unit_type (next_hir_id ());
+  auto *unit_type = TyTy::TupleType::get_unit_type ();
   ty_ctx.insert_builtin (unit_type->get_ref (), next_node_id (), unit_type);
 }
 
@@ -162,6 +163,18 @@ Late::visit (AST::IdentifierPattern &identifier)
   // We do want to ignore duplicated data because some situations rely on it.
   std::ignore = ctx.values.insert_shadowable (identifier.get_ident (),
 					      identifier.get_node_id ());
+}
+
+void
+Late::visit (AST::SelfParam &param)
+{
+  // handle similar to AST::IdentifierPattern
+
+  DefaultResolver::visit (param);
+  // FIXME: this location should be a bit off
+  // ex: would point to the begining of "mut self" instead of the "self"
+  std::ignore = ctx.values.insert (Identifier ("self", param.get_locus ()),
+				   param.get_node_id ());
 }
 
 void
@@ -236,6 +249,25 @@ Late::visit (AST::PathInExpression &expr)
 }
 
 void
+Late::visit (AST::LangItemPath &type)
+{
+  auto &mappings = Rust::Analysis::Mappings::get ();
+  auto lang_item = mappings.lookup_lang_item_node (type.get_lang_item_kind ());
+
+  if (!lang_item)
+    {
+      rust_fatal_error (
+	type.get_locus (), "use of undeclared lang item %qs",
+	LangItem::ToString (type.get_lang_item_kind ()).c_str ());
+      return;
+    }
+
+  ctx.map_usage (Usage (type.get_node_id ()), Definition (lang_item.value ()));
+
+  DefaultResolver::visit (type);
+}
+
+void
 Late::visit (AST::TypePath &type)
 {
   // should we add type path resolution in `ForeverStack` directly? Since it's
@@ -251,6 +283,8 @@ Late::visit (AST::TypePath &type)
 		   Definition (resolved->get_node_id ()));
   else
     rust_unreachable ();
+
+  DefaultResolver::visit (type);
 }
 
 void
@@ -261,9 +295,18 @@ Late::visit (AST::StructStruct &s)
 }
 
 void
+Late::visit (AST::StructExprStruct &s)
+{
+  auto resolved = ctx.types.resolve_path (s.get_struct_name ().get_segments ());
+
+  ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
+		 Definition (resolved->get_node_id ()));
+}
+
+void
 Late::visit (AST::StructExprStructBase &s)
 {
-  auto resolved = ctx.types.get (s.get_struct_name ().as_string ());
+  auto resolved = ctx.types.resolve_path (s.get_struct_name ().get_segments ());
 
   ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
 		 Definition (resolved->get_node_id ()));
@@ -273,7 +316,7 @@ Late::visit (AST::StructExprStructBase &s)
 void
 Late::visit (AST::StructExprStructFields &s)
 {
-  auto resolved = ctx.types.get (s.get_struct_name ().as_string ());
+  auto resolved = ctx.types.resolve_path (s.get_struct_name ().get_segments ());
 
   ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
 		 Definition (resolved->get_node_id ()));

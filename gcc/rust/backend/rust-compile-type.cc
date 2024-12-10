@@ -22,6 +22,7 @@
 #include "rust-gcc.h"
 
 #include "tree.h"
+#include "stor-layout.h"
 
 namespace Rust {
 namespace Compile {
@@ -208,12 +209,12 @@ TyTyResolveCompile::visit (const TyTy::FnType &type)
 
   for (auto &param_pair : type.get_params ())
     {
-      auto param_tyty = param_pair.second;
+      auto param_tyty = param_pair.get_type ();
       auto compiled_param_type
 	= TyTyResolveCompile::compile (ctx, param_tyty, trait_object_mode);
 
       auto compiled_param = Backend::typed_identifier (
-	param_pair.first->as_string (), compiled_param_type,
+	param_pair.get_pattern ().as_string (), compiled_param_type,
 	ctx->get_mappings ().lookup_location (param_tyty->get_ref ()));
 
       parameters.push_back (compiled_param);
@@ -268,8 +269,8 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 	  fields.push_back (std::move (f));
 	}
 
-      type_record = type.is_union () ? Backend::union_type (fields)
-				     : Backend::struct_type (fields);
+      type_record = type.is_union () ? Backend::union_type (fields, false)
+				     : Backend::struct_type (fields, false);
     }
   else
     {
@@ -359,7 +360,7 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 	}
 
       // finally make the union or the enum
-      type_record = Backend::union_type (enum_fields);
+      type_record = Backend::union_type (enum_fields, false);
     }
 
   // Handle repr options
@@ -381,6 +382,7 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
       SET_TYPE_ALIGN (type_record, repr.align * 8);
       TYPE_USER_ALIGN (type_record) = 1;
     }
+  layout_type (type_record);
 
   std::string named_struct_str
     = type.get_ident ().path.get () + type.subst_as_string ();
@@ -428,7 +430,7 @@ TyTyResolveCompile::visit (const TyTy::ArrayType &type)
     = TyTyResolveCompile::compile (ctx, type.get_element_type ());
 
   ctx->push_const_context ();
-  tree capacity_expr = CompileExpr::Compile (&type.get_capacity_expr (), ctx);
+  tree capacity_expr = CompileExpr::Compile (type.get_capacity_expr (), ctx);
   ctx->pop_const_context ();
 
   tree folded_capacity_expr = fold_expr (capacity_expr);

@@ -16,13 +16,13 @@ jobs:
   build-alpine-32bit-and-check-alpine-32bit:
 
     env:
-      # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Setup Alpine Linux (32-bit)
       uses: jirutka/setup-alpine@v1
       with:

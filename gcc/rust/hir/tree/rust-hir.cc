@@ -70,6 +70,33 @@ get_string_in_delims (std::string str_input, AST::DelimType delim_type)
   rust_unreachable ();
 }
 
+Crate::Crate (std::vector<std::unique_ptr<Item>> items,
+	      AST::AttrVec inner_attrs, Analysis::NodeMapping mappings)
+  : WithInnerAttrs (std::move (inner_attrs)), items (std::move (items)),
+    mappings (mappings)
+{}
+
+Crate::Crate (Crate const &other)
+  : WithInnerAttrs (other.inner_attrs), mappings (other.mappings)
+{
+  items.reserve (other.items.size ());
+  for (const auto &e : other.items)
+    items.push_back (e->clone_item ());
+}
+
+Crate &
+Crate::operator= (Crate const &other)
+{
+  inner_attrs = other.inner_attrs;
+  mappings = other.mappings;
+
+  items.reserve (other.items.size ());
+  for (const auto &e : other.items)
+    items.push_back (e->clone_item ());
+
+  return *this;
+}
+
 std::string
 Crate::as_string () const
 {
@@ -1572,41 +1599,6 @@ IfExprConseqElse::as_string () const
 }
 
 std::string
-IfLetExpr::as_string () const
-{
-  std::string str ("IfLetExpr: ");
-
-  str += "\n Condition match arm patterns: ";
-  if (match_arm_patterns.empty ())
-    {
-      str += "none";
-    }
-  else
-    {
-      for (const auto &pattern : match_arm_patterns)
-	{
-	  str += "\n  " + pattern->as_string ();
-	}
-    }
-
-  str += "\n Scrutinee expr: " + value->as_string ();
-
-  str += "\n If let block expr: " + if_block->as_string ();
-
-  return str;
-}
-
-std::string
-IfLetExprConseqElse::as_string () const
-{
-  std::string str = IfLetExpr::as_string ();
-
-  str += "\n Else expr: " + else_block->as_string ();
-
-  return str;
-}
-
-std::string
 RangeFromToInclExpr::as_string () const
 {
   return from->as_string () + "..=" + to->as_string ();
@@ -2186,7 +2178,7 @@ TypeParam::as_string () const
     }
   else
     {
-      str += type->as_string ();
+      str += type.value ()->as_string ();
     }
 
   return str;
@@ -2677,12 +2669,12 @@ LetStmt::as_string () const
 
   if (has_type ())
     {
-      str += " : " + type->as_string ();
+      str += " : " + get_type ().as_string ();
     }
 
   if (has_init_expr ())
     {
-      str += " = " + init_expr->as_string ();
+      str += " = " + get_init_expr ().as_string ();
     }
 
   return str;
@@ -2712,14 +2704,14 @@ Expr::as_string () const
 }
 
 // hopefully definition here will prevent circular dependency issue
-TraitBound *
+std::unique_ptr<TraitBound>
 TypePath::to_trait_bound (bool in_parens) const
 {
   // create clone FIXME is this required? or is copy constructor automatically
   // called?
   TypePath copy (*this);
-  return new TraitBound (mappings, std::move (copy), copy.get_locus (),
-			 in_parens);
+  return Rust::make_unique<TraitBound> (mappings, std::move (copy),
+					copy.get_locus (), in_parens);
 }
 
 std::string
@@ -3047,7 +3039,7 @@ StructExprStructFields::as_string () const
     }
   else
     {
-      str += struct_base->as_string ();
+      str += (*struct_base)->as_string ();
     }
 
   return str;
@@ -4030,6 +4022,12 @@ StructExprStructBase::accept_vis (HIRFullVisitor &vis)
 }
 
 void
+StructExprStructBase::accept_vis (HIRExpressionVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
 CallExpr::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -4145,18 +4143,6 @@ IfExpr::accept_vis (HIRFullVisitor &vis)
 
 void
 IfExprConseqElse::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfLetExpr::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfLetExprConseqElse::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -4912,18 +4898,6 @@ RangeFromToInclExpr::accept_vis (HIRExpressionVisitor &vis)
 }
 
 void
-IfLetExprConseqElse::accept_vis (HIRExpressionVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-IfLetExpr::accept_vis (HIRExpressionVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 IfExprConseqElse::accept_vis (HIRExpressionVisitor &vis)
 {
   vis.visit (*this);
@@ -5210,21 +5184,6 @@ StaticItem::accept_vis (HIRVisItemVisitor &vis)
 {
   vis.visit (*this);
 }
-
-std::string
-ConstGenericParam::as_string () const
-{
-  auto result = "ConstGenericParam: " + name + " : " + type->as_string ();
-
-  if (default_expression)
-    result += " = " + default_expression->as_string ();
-
-  return result;
-}
-
-void
-ConstGenericParam::accept_vis (HIRFullVisitor &)
-{}
 
 } // namespace HIR
 } // namespace Rust

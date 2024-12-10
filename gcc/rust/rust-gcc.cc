@@ -592,23 +592,24 @@ function_ptr_type (tree result_type, const std::vector<tree> &parameters,
 // Make a struct type.
 
 tree
-struct_type (const std::vector<typed_identifier> &fields)
+struct_type (const std::vector<typed_identifier> &fields, bool layout)
 {
-  return fill_in_fields (make_node (RECORD_TYPE), fields);
+  return fill_in_fields (make_node (RECORD_TYPE), fields, layout);
 }
 
 // Make a union type.
 
 tree
-union_type (const std::vector<typed_identifier> &fields)
+union_type (const std::vector<typed_identifier> &fields, bool layout)
 {
-  return fill_in_fields (make_node (UNION_TYPE), fields);
+  return fill_in_fields (make_node (UNION_TYPE), fields, layout);
 }
 
 // Fill in the fields of a struct or union type.
 
 tree
-fill_in_fields (tree fill, const std::vector<typed_identifier> &fields)
+fill_in_fields (tree fill, const std::vector<typed_identifier> &fields,
+		bool layout)
 {
   tree field_trees = NULL_TREE;
   tree *pp = &field_trees;
@@ -625,7 +626,9 @@ fill_in_fields (tree fill, const std::vector<typed_identifier> &fields)
       pp = &DECL_CHAIN (field);
     }
   TYPE_FIELDS (fill) = field_trees;
-  layout_type (fill);
+
+  if (layout)
+    layout_type (fill);
 
   // Because Rust permits converting between named struct types and
   // equivalent struct types, for which we use VIEW_CONVERT_EXPR, and
@@ -1102,6 +1105,17 @@ arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op, tree left,
   // TODO: How do we handle floating point?
   if (floating_point && extended_type != NULL_TREE)
     ret = convert (original_type, ret);
+
+  if (op == ArithmeticOrLogicalOperator::DIVIDE
+      && (integer_zerop (right) || fixed_zerop (right)))
+    {
+      rust_error_at (location, "division by zero");
+    }
+  else if (op == ArithmeticOrLogicalOperator::LEFT_SHIFT
+	   && (compare_tree_int (right, TYPE_PRECISION (TREE_TYPE (ret))) >= 0))
+    {
+      rust_error_at (location, "left shift count >= width of type");
+    }
 
   return ret;
 }

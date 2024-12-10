@@ -34,8 +34,7 @@ void
 TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
 {
   HIR::QualifiedPathType qual_path_type = expr.get_path_type ();
-  TyTy::BaseType *root
-    = TypeCheckType::Resolve (qual_path_type.get_type ().get ());
+  TyTy::BaseType *root = TypeCheckType::Resolve (qual_path_type.get_type ());
   if (root->get_kind () == TyTy::TypeKind::ERROR)
     return;
 
@@ -48,8 +47,8 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
     }
 
   // Resolve the trait now
-  std::unique_ptr<HIR::TypePath> &trait_path_ref = qual_path_type.get_trait ();
-  TraitReference *trait_ref = TraitResolver::Resolve (*trait_path_ref.get ());
+  HIR::TypePath &trait_path_ref = qual_path_type.get_trait ();
+  TraitReference *trait_ref = TraitResolver::Resolve (trait_path_ref);
   if (trait_ref->is_error ())
     return;
 
@@ -64,8 +63,7 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
 
   // get the predicate for the bound
   auto specified_bound
-    = get_predicate_from_bound (*trait_path_ref.get (),
-				qual_path_type.get_type ().get ());
+    = get_predicate_from_bound (trait_path_ref, qual_path_type.get_type ());
   if (specified_bound.is_error ())
     return;
 
@@ -155,8 +153,20 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
   bool fully_resolved = expr.get_segments ().size () <= 1;
   if (fully_resolved)
     {
-      resolver->insert_resolved_name (expr.get_mappings ().get_nodeid (),
-				      root_resolved_node_id);
+      if (flag_name_resolution_2_0)
+	{
+	  auto &nr_ctx = const_cast<Resolver2_0::NameResolutionContext &> (
+	    Resolver2_0::ImmutableNameResolutionContext::get ().resolver ());
+
+	  nr_ctx.map_usage (Resolver2_0::Usage (
+			      expr.get_mappings ().get_nodeid ()),
+			    Resolver2_0::Definition (root_resolved_node_id));
+	}
+      else
+	{
+	  resolver->insert_resolved_name (expr.get_mappings ().get_nodeid (),
+					  root_resolved_node_id);
+	}
       context->insert_receiver (expr.get_mappings ().get_hirid (), root);
       return;
     }
@@ -245,6 +255,7 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 
       auto seg_is_module = mappings.lookup_module (ref).has_value ();
       auto seg_is_crate = mappings.is_local_hirid_crate (ref);
+      auto seg_is_pattern = mappings.lookup_hir_pattern (ref).has_value ();
       if (seg_is_module || seg_is_crate)
 	{
 	  // A::B::C::this_is_a_module::D::E::F
@@ -321,7 +332,7 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 	  if (lookup->get_kind () == TyTy::TypeKind::ERROR)
 	    return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
 	}
-      else if (lookup->needs_generic_substitutions ())
+      else if (lookup->needs_generic_substitutions () && !seg_is_pattern)
 	{
 	  lookup = SubstMapper::InferSubst (lookup, expr.get_locus ());
 	}
@@ -344,6 +355,7 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
   NodeId resolved_node_id = root_resolved_node_id;
   TyTy::BaseType *prev_segment = tyseg;
   bool reciever_is_generic = prev_segment->get_kind () == TyTy::TypeKind::PARAM;
+  bool reciever_is_dyn = prev_segment->get_kind () == TyTy::TypeKind::DYNAMIC;
 
   for (size_t i = offset; i < segments.size (); i++)
     {
@@ -423,7 +435,7 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	    }
 	}
 
-      if (associated_impl_block != nullptr)
+      if (associated_impl_block != nullptr && !reciever_is_dyn)
 	{
 	  // associated types
 	  HirId impl_block_id
@@ -456,7 +468,7 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 	    {
 	      // we need to setup with apropriate bounds
 	      HIR::TypePath &bound_path
-		= *associated->get_impl_block ()->get_trait_ref ().get ();
+		= associated->get_impl_block ()->get_trait_ref ();
 	      const auto &trait_ref = *TraitResolver::Resolve (bound_path);
 	      rust_assert (!trait_ref.is_error ());
 
@@ -490,18 +502,19 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
     }
 
   rust_assert (resolved_node_id != UNKNOWN_NODEID);
-  if (tyseg->needs_generic_substitutions () && !reciever_is_generic)
-    {
-      location_t locus = segments.back ().get_locus ();
-      tyseg = SubstMapper::InferSubst (tyseg, locus);
-      if (tyseg->get_kind () == TyTy::TypeKind::ERROR)
-	return;
-    }
-
   context->insert_receiver (expr_mappings.get_hirid (), prev_segment);
 
+  if (flag_name_resolution_2_0)
+    {
+      auto &nr_ctx = const_cast<Resolver2_0::NameResolutionContext &> (
+	Resolver2_0::ImmutableNameResolutionContext::get ().resolver ());
+
+      nr_ctx.map_usage (Resolver2_0::Usage (expr_mappings.get_nodeid ()),
+			Resolver2_0::Definition (resolved_node_id));
+    }
   // name scope first
-  if (resolver->get_name_scope ().decl_was_declared_here (resolved_node_id))
+  else if (resolver->get_name_scope ().decl_was_declared_here (
+	     resolved_node_id))
     {
       resolver->insert_resolved_name (expr_mappings.get_nodeid (),
 				      resolved_node_id);

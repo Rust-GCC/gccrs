@@ -19,12 +19,13 @@
 #ifndef RUST_HIR_EXPR_H
 #define RUST_HIR_EXPR_H
 
+#include "rust-hir-expr-abstract.h"
+#include "rust-hir-literal.h"
 #include "rust-common.h"
-#include "rust-ast-full-decls.h"
-#include "rust-hir.h"
-#include "rust-hir-path.h"
-#include "rust-operators.h"
+#include "rust-hir-bound.h"
+#include "rust-hir-attrs.h"
 #include "rust-expr.h"
+
 namespace Rust {
 namespace HIR {
 
@@ -32,7 +33,7 @@ namespace HIR {
 // TODO: inline?
 class LoopLabel /*: public Node*/
 {
-  Lifetime label; // or type LIFETIME_OR_LABEL
+  Lifetime label; // of type LIFETIME_OR_LABEL
 
   location_t locus;
 
@@ -42,9 +43,7 @@ public:
   std::string as_string () const;
 
   LoopLabel (Analysis::NodeMapping mapping, Lifetime loop_label,
-	     location_t locus)
-    : label (std::move (loop_label)), locus (locus), mappings (mapping)
-  {}
+	     location_t locus);
 
   // Returns whether the LoopLabel is in an error state.
   bool is_error () const { return label.is_error (); }
@@ -62,9 +61,7 @@ class ExprWithBlock : public Expr
   // TODO: should this mean that a BlockExpr should be a member variable?
 protected:
   ExprWithBlock (Analysis::NodeMapping mappings,
-		 AST::AttrVec outer_attrs = AST::AttrVec ())
-    : Expr (std::move (mappings), std::move (outer_attrs))
-  {}
+		 AST::AttrVec outer_attrs = AST::AttrVec ());
 
   // pure virtual clone implementation
   virtual ExprWithBlock *clone_expr_with_block_impl () const = 0;
@@ -106,16 +103,10 @@ public:
 
   LiteralExpr (Analysis::NodeMapping mappings, std::string value_as_string,
 	       Literal::LitType type, PrimitiveCoreType type_hint,
-	       location_t locus, AST::AttrVec outer_attrs)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attrs)),
-      literal (std::move (value_as_string), type, type_hint), locus (locus)
-  {}
+	       location_t locus, AST::AttrVec outer_attrs);
 
   LiteralExpr (Analysis::NodeMapping mappings, Literal literal,
-	       location_t locus, AST::AttrVec outer_attrs)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attrs)),
-      literal (std::move (literal)), locus (locus)
-  {}
+	       location_t locus, AST::AttrVec outer_attrs);
 
   // Unique pointer custom clone function
   std::unique_ptr<LiteralExpr> clone_literal_expr () const
@@ -180,27 +171,13 @@ protected:
   // Constructor (only for initialisation of expr purposes)
   OperatorExpr (Analysis::NodeMapping mappings,
 		std::unique_ptr<Expr> main_or_left_expr,
-		AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      locus (locus), main_or_left_expr (std::move (main_or_left_expr))
-  {}
+		AST::AttrVec outer_attribs, location_t locus);
 
   // Copy constructor (only for initialisation of expr purposes)
-  OperatorExpr (OperatorExpr const &other)
-    : ExprWithoutBlock (other), locus (other.locus),
-      main_or_left_expr (other.main_or_left_expr->clone_expr ())
-  {}
+  OperatorExpr (OperatorExpr const &other);
 
   // Overload assignment operator to deep copy expr
-  OperatorExpr &operator= (OperatorExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    main_or_left_expr = other.main_or_left_expr->clone_expr ();
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  OperatorExpr &operator= (OperatorExpr const &other);
 
   // move constructors
   OperatorExpr (OperatorExpr &&other) = default;
@@ -209,7 +186,7 @@ protected:
 public:
   location_t get_locus () const override final { return locus; }
 
-  std::unique_ptr<Expr> &get_expr () { return main_or_left_expr; }
+  Expr &get_expr () { return *main_or_left_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -228,11 +205,7 @@ public:
 
   BorrowExpr (Analysis::NodeMapping mappings,
 	      std::unique_ptr<Expr> borrow_lvalue, Mutability mut,
-	      AST::AttrVec outer_attribs, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (borrow_lvalue),
-		    std::move (outer_attribs), locus),
-      mut (mut)
-  {}
+	      AST::AttrVec outer_attribs, location_t locus);
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -265,10 +238,7 @@ public:
   // Constructor calls OperatorExpr's protected constructor
   DereferenceExpr (Analysis::NodeMapping mappings,
 		   std::unique_ptr<Expr> deref_lvalue,
-		   AST::AttrVec outer_attribs, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (deref_lvalue),
-		    std::move (outer_attribs), locus)
-  {}
+		   AST::AttrVec outer_attribs, location_t locus);
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -298,10 +268,7 @@ public:
   // Constructor calls OperatorExpr's protected constructor
   ErrorPropagationExpr (Analysis::NodeMapping mappings,
 			std::unique_ptr<Expr> potential_error_value,
-			AST::AttrVec outer_attribs, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (potential_error_value),
-		    std::move (outer_attribs), locus)
-  {}
+			AST::AttrVec outer_attribs, location_t locus);
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -342,11 +309,7 @@ public:
   // Constructor calls OperatorExpr's protected constructor
   NegationExpr (Analysis::NodeMapping mappings,
 		std::unique_ptr<Expr> negated_value, ExprType expr_kind,
-		AST::AttrVec outer_attribs, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (negated_value),
-		    std::move (outer_attribs), locus),
-      expr_type (expr_kind)
-  {}
+		AST::AttrVec outer_attribs, location_t locus);
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -388,29 +351,14 @@ public:
   ArithmeticOrLogicalExpr (Analysis::NodeMapping mappings,
 			   std::unique_ptr<Expr> left_value,
 			   std::unique_ptr<Expr> right_value,
-			   ExprType expr_kind, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (left_value),
-		    AST::AttrVec (), locus),
-      expr_type (expr_kind), right_expr (std::move (right_value))
-  {}
+			   ExprType expr_kind, location_t locus);
   // outer attributes not allowed
 
   // Copy constructor - probably required due to unique pointer
-  ArithmeticOrLogicalExpr (ArithmeticOrLogicalExpr const &other)
-    : OperatorExpr (other), expr_type (other.expr_type),
-      right_expr (other.right_expr->clone_expr ())
-  {}
+  ArithmeticOrLogicalExpr (ArithmeticOrLogicalExpr const &other);
 
   // Overload assignment operator
-  ArithmeticOrLogicalExpr &operator= (ArithmeticOrLogicalExpr const &other)
-  {
-    OperatorExpr::operator= (other);
-    // main_or_left_expr = other.main_or_left_expr->clone_expr();
-    right_expr = other.right_expr->clone_expr ();
-    expr_type = other.expr_type;
-
-    return *this;
-  }
+  ArithmeticOrLogicalExpr &operator= (ArithmeticOrLogicalExpr const &other);
 
   // move constructors
   ArithmeticOrLogicalExpr (ArithmeticOrLogicalExpr &&other) = default;
@@ -423,8 +371,8 @@ public:
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   std::string get_operator_str () const;
 
@@ -465,30 +413,14 @@ public:
   ComparisonExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Expr> left_value,
 		  std::unique_ptr<Expr> right_value, ExprType comparison_kind,
-		  location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (left_value),
-		    AST::AttrVec (), locus),
-      expr_type (comparison_kind), right_expr (std::move (right_value))
-  {}
+		  location_t locus);
   // outer attributes not allowed
 
   // Copy constructor also calls OperatorExpr's protected constructor
-  ComparisonExpr (ComparisonExpr const &other)
-    : OperatorExpr (other), expr_type (other.expr_type),
-      right_expr (other.right_expr->clone_expr ())
-  {}
+  ComparisonExpr (ComparisonExpr const &other);
 
   // Overload assignment operator to deep copy
-  ComparisonExpr &operator= (ComparisonExpr const &other)
-  {
-    OperatorExpr::operator= (other);
-    // main_or_left_expr = other.main_or_left_expr->clone_expr();
-    right_expr = other.right_expr->clone_expr ();
-    expr_type = other.expr_type;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  ComparisonExpr &operator= (ComparisonExpr const &other);
 
   // move constructors
   ComparisonExpr (ComparisonExpr &&other) = default;
@@ -497,8 +429,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   ExprType get_kind () { return expr_type; }
 
@@ -536,29 +468,14 @@ public:
   LazyBooleanExpr (Analysis::NodeMapping mappings,
 		   std::unique_ptr<Expr> left_bool_expr,
 		   std::unique_ptr<Expr> right_bool_expr, ExprType expr_kind,
-		   location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (left_bool_expr),
-		    AST::AttrVec (), locus),
-      expr_type (expr_kind), right_expr (std::move (right_bool_expr))
-  {}
+		   location_t locus);
   // outer attributes not allowed
 
   // Copy constructor also calls OperatorExpr's protected constructor
-  LazyBooleanExpr (LazyBooleanExpr const &other)
-    : OperatorExpr (other), expr_type (other.expr_type),
-      right_expr (other.right_expr->clone_expr ())
-  {}
+  LazyBooleanExpr (LazyBooleanExpr const &other);
 
   // Overload assignment operator to deep copy
-  LazyBooleanExpr &operator= (LazyBooleanExpr const &other)
-  {
-    OperatorExpr::operator= (other);
-    // main_or_left_expr = other.main_or_left_expr->clone_expr();
-    right_expr = other.right_expr->clone_expr ();
-    expr_type = other.expr_type;
-
-    return *this;
-  }
+  LazyBooleanExpr &operator= (LazyBooleanExpr const &other);
 
   // move constructors
   LazyBooleanExpr (LazyBooleanExpr &&other) = default;
@@ -571,8 +488,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -602,28 +519,14 @@ public:
   // Constructor requires calling protected constructor of OperatorExpr
   TypeCastExpr (Analysis::NodeMapping mappings,
 		std::unique_ptr<Expr> expr_to_cast,
-		std::unique_ptr<Type> type_to_cast_to, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (expr_to_cast),
-		    AST::AttrVec (), locus),
-      type_to_convert_to (std::move (type_to_cast_to))
-  {}
+		std::unique_ptr<Type> type_to_cast_to, location_t locus);
   // outer attributes not allowed
 
   // Copy constructor also requires calling protected constructor
-  TypeCastExpr (TypeCastExpr const &other)
-    : OperatorExpr (other),
-      type_to_convert_to (other.type_to_convert_to->clone_type ())
-  {}
+  TypeCastExpr (TypeCastExpr const &other);
 
   // Overload assignment operator to deep copy
-  TypeCastExpr &operator= (TypeCastExpr const &other)
-  {
-    OperatorExpr::operator= (other);
-    // main_or_left_expr = other.main_or_left_expr->clone_expr();
-    type_to_convert_to = other.type_to_convert_to->clone_type ();
-
-    return *this;
-  }
+  TypeCastExpr &operator= (TypeCastExpr const &other);
 
   // move constructors as not supported in c++03
   TypeCastExpr (TypeCastExpr &&other) = default;
@@ -633,12 +536,9 @@ public:
   void accept_vis (HIRExpressionVisitor &vis) override;
 
   // FIXME: isn't it the same as get_expr() from parent?
-  std::unique_ptr<Expr> &get_casted_expr () { return main_or_left_expr; }
+  Expr &get_casted_expr () { return *main_or_left_expr; }
 
-  std::unique_ptr<Type> &get_type_to_convert_to ()
-  {
-    return type_to_convert_to;
-  }
+  Type &get_type_to_convert_to () { return *type_to_convert_to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -667,28 +567,14 @@ public:
   // Call OperatorExpr constructor to initialise left_expr
   AssignmentExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Expr> value_to_assign_to,
-		  std::unique_ptr<Expr> value_to_assign, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (value_to_assign_to),
-		    AST::AttrVec (), locus),
-      right_expr (std::move (value_to_assign))
-  {}
+		  std::unique_ptr<Expr> value_to_assign, location_t locus);
   // outer attributes not allowed
 
   // Call OperatorExpr constructor in copy constructor, as well as clone
-  AssignmentExpr (AssignmentExpr const &other)
-    : OperatorExpr (other), right_expr (other.right_expr->clone_expr ())
-  {}
+  AssignmentExpr (AssignmentExpr const &other);
 
   // Overload assignment operator to clone unique_ptr right_expr
-  AssignmentExpr &operator= (AssignmentExpr const &other)
-  {
-    OperatorExpr::operator= (other);
-    // main_or_left_expr = other.main_or_left_expr->clone_expr();
-    right_expr = other.right_expr->clone_expr ();
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  AssignmentExpr &operator= (AssignmentExpr const &other);
 
   // move constructors
   AssignmentExpr (AssignmentExpr &&other) = default;
@@ -700,8 +586,8 @@ public:
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -738,30 +624,14 @@ public:
   CompoundAssignmentExpr (Analysis::NodeMapping mappings,
 			  std::unique_ptr<Expr> value_to_assign_to,
 			  std::unique_ptr<Expr> value_to_assign,
-			  ExprType expr_kind, location_t locus)
-    : OperatorExpr (std::move (mappings), std::move (value_to_assign_to),
-		    AST::AttrVec (), locus),
-      expr_type (expr_kind), right_expr (std::move (value_to_assign))
-  {}
+			  ExprType expr_kind, location_t locus);
   // outer attributes not allowed
 
   // Have clone in copy constructor
-  CompoundAssignmentExpr (CompoundAssignmentExpr const &other)
-    : OperatorExpr (other), expr_type (other.expr_type),
-      right_expr (other.right_expr->clone_expr ())
-  {}
+  CompoundAssignmentExpr (CompoundAssignmentExpr const &other);
 
   // Overload assignment operator to clone
-  CompoundAssignmentExpr &operator= (CompoundAssignmentExpr const &other)
-  {
-    OperatorExpr::operator= (other);
-    // main_or_left_expr = other.main_or_left_expr->clone_expr();
-    right_expr = other.right_expr->clone_expr ();
-    expr_type = other.expr_type;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  CompoundAssignmentExpr &operator= (CompoundAssignmentExpr const &other);
 
   // move constructors
   CompoundAssignmentExpr (CompoundAssignmentExpr &&other) = default;
@@ -770,9 +640,9 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_lhs () { return main_or_left_expr; }
+  Expr &get_lhs () { return *main_or_left_expr; }
 
-  std::unique_ptr<Expr> &get_rhs () { return right_expr; }
+  Expr &get_rhs () { return *right_expr; }
 
   void visit_lhs (HIRFullVisitor &vis) { main_or_left_expr->accept_vis (vis); }
   void visit_rhs (HIRFullVisitor &vis) { right_expr->accept_vis (vis); }
@@ -801,29 +671,13 @@ public:
   GroupedExpr (Analysis::NodeMapping mappings,
 	       std::unique_ptr<Expr> parenthesised_expr,
 	       AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-	       location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      WithInnerAttrs (std::move (inner_attribs)),
-      expr_in_parens (std::move (parenthesised_expr)), locus (locus)
-  {}
+	       location_t locus);
 
   // Copy constructor includes clone for expr_in_parens
-  GroupedExpr (GroupedExpr const &other)
-    : ExprWithoutBlock (other), WithInnerAttrs (other.inner_attrs),
-      expr_in_parens (other.expr_in_parens->clone_expr ()), locus (other.locus)
-  {}
+  GroupedExpr (GroupedExpr const &other);
 
   // Overloaded assignment operator to clone expr_in_parens
-  GroupedExpr &operator= (GroupedExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    inner_attrs = other.inner_attrs;
-    expr_in_parens = other.expr_in_parens->clone_expr ();
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  GroupedExpr &operator= (GroupedExpr const &other);
 
   // move constructors
   GroupedExpr (GroupedExpr &&other) = default;
@@ -834,7 +688,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_expr_in_parens () { return expr_in_parens; }
+  Expr &get_expr_in_parens () { return *expr_in_parens; }
 
   ExprType get_expression_type () const override final
   {
@@ -896,33 +750,19 @@ protected:
 // Value array elements
 class ArrayElemsValues : public ArrayElems
 {
-  std::vector<std::unique_ptr<Expr> > values;
+  std::vector<std::unique_ptr<Expr>> values;
 
   // TODO: should this store location data?
 
 public:
   ArrayElemsValues (Analysis::NodeMapping mappings,
-		    std::vector<std::unique_ptr<Expr> > elems)
-    : ArrayElems (mappings), values (std::move (elems))
-  {}
+		    std::vector<std::unique_ptr<Expr>> elems);
 
   // copy constructor with vector clone
-  ArrayElemsValues (ArrayElemsValues const &other) : ArrayElems (other)
-  {
-    values.reserve (other.values.size ());
-    for (const auto &e : other.values)
-      values.push_back (e->clone_expr ());
-  }
+  ArrayElemsValues (ArrayElemsValues const &other);
 
   // overloaded assignment operator with vector clone
-  ArrayElemsValues &operator= (ArrayElemsValues const &other)
-  {
-    values.reserve (other.values.size ());
-    for (const auto &e : other.values)
-      values.push_back (e->clone_expr ());
-
-    return *this;
-  }
+  ArrayElemsValues &operator= (ArrayElemsValues const &other);
 
   // move constructors
   ArrayElemsValues (ArrayElemsValues &&other) = default;
@@ -934,7 +774,7 @@ public:
 
   size_t get_num_elements () const { return values.size (); }
 
-  std::vector<std::unique_ptr<Expr> > &get_values () { return values; }
+  std::vector<std::unique_ptr<Expr>> &get_values () { return values; }
 
   ArrayElems::ArrayExprType get_array_expr_type () const override final
   {
@@ -958,25 +798,13 @@ public:
   // Constructor requires pointers for polymorphism
   ArrayElemsCopied (Analysis::NodeMapping mappings,
 		    std::unique_ptr<Expr> copied_elem,
-		    std::unique_ptr<Expr> copy_amount)
-    : ArrayElems (mappings), elem_to_copy (std::move (copied_elem)),
-      num_copies (std::move (copy_amount))
-  {}
+		    std::unique_ptr<Expr> copy_amount);
 
   // Copy constructor required due to unique_ptr - uses custom clone
-  ArrayElemsCopied (ArrayElemsCopied const &other)
-    : ArrayElems (other), elem_to_copy (other.elem_to_copy->clone_expr ()),
-      num_copies (other.num_copies->clone_expr ())
-  {}
+  ArrayElemsCopied (ArrayElemsCopied const &other);
 
   // Overloaded assignment operator for deep copying
-  ArrayElemsCopied &operator= (ArrayElemsCopied const &other)
-  {
-    elem_to_copy = other.elem_to_copy->clone_expr ();
-    num_copies = other.num_copies->clone_expr ();
-
-    return *this;
-  }
+  ArrayElemsCopied &operator= (ArrayElemsCopied const &other);
 
   // move constructors
   ArrayElemsCopied (ArrayElemsCopied &&other) = default;
@@ -986,9 +814,9 @@ public:
 
   void accept_vis (HIRFullVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_elem_to_copy () { return elem_to_copy; }
+  Expr &get_elem_to_copy () { return *elem_to_copy; }
 
-  std::unique_ptr<Expr> &get_num_copies_expr () { return num_copies; }
+  Expr &get_num_copies_expr () { return *num_copies; }
 
   ArrayElems::ArrayExprType get_array_expr_type () const override final
   {
@@ -1019,33 +847,13 @@ public:
   ArrayExpr (Analysis::NodeMapping mappings,
 	     std::unique_ptr<ArrayElems> array_elems,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-	     location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      WithInnerAttrs (std::move (inner_attribs)),
-      internal_elements (std::move (array_elems)), locus (locus)
-  {}
+	     location_t locus);
 
   // Copy constructor requires cloning ArrayElems for polymorphism to hold
-  ArrayExpr (ArrayExpr const &other)
-    : ExprWithoutBlock (other), WithInnerAttrs (other.inner_attrs),
-      locus (other.locus)
-  {
-    if (other.has_array_elems ())
-      internal_elements = other.internal_elements->clone_array_elems ();
-  }
+  ArrayExpr (ArrayExpr const &other);
 
   // Overload assignment operator to clone internal_elements
-  ArrayExpr &operator= (ArrayExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    inner_attrs = other.inner_attrs;
-    if (other.has_array_elems ())
-      internal_elements = other.internal_elements->clone_array_elems ();
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  ArrayExpr &operator= (ArrayExpr const &other);
 
   // move constructors
   ArrayExpr (ArrayExpr &&other) = default;
@@ -1056,10 +864,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<ArrayElems> &get_internal_elements ()
-  {
-    return internal_elements;
-  };
+  ArrayElems &get_internal_elements () { return *internal_elements; };
 
   ExprType get_expression_type () const override final
   {
@@ -1092,29 +897,13 @@ public:
   ArrayIndexExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Expr> array_expr,
 		  std::unique_ptr<Expr> array_index_expr,
-		  AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      array_expr (std::move (array_expr)),
-      index_expr (std::move (array_index_expr)), locus (locus)
-  {}
+		  AST::AttrVec outer_attribs, location_t locus);
 
   // Copy constructor requires special cloning due to unique_ptr
-  ArrayIndexExpr (ArrayIndexExpr const &other)
-    : ExprWithoutBlock (other), array_expr (other.array_expr->clone_expr ()),
-      index_expr (other.index_expr->clone_expr ()), locus (other.locus)
-  {}
+  ArrayIndexExpr (ArrayIndexExpr const &other);
 
   // Overload assignment operator to clone unique_ptrs
-  ArrayIndexExpr &operator= (ArrayIndexExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    array_expr = other.array_expr->clone_expr ();
-    index_expr = other.index_expr->clone_expr ();
-    // outer_attrs = other.outer_attrs;
-    locus = other.locus;
-
-    return *this;
-  }
+  ArrayIndexExpr &operator= (ArrayIndexExpr const &other);
 
   // move constructors
   ArrayIndexExpr (ArrayIndexExpr &&other) = default;
@@ -1125,8 +914,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_array_expr () { return array_expr; }
-  std::unique_ptr<Expr> &get_index_expr () { return index_expr; }
+  Expr &get_array_expr () { return *array_expr; }
+  Expr &get_index_expr () { return *index_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -1152,7 +941,7 @@ protected:
 // HIR representation of a tuple
 class TupleExpr : public ExprWithoutBlock, public WithInnerAttrs
 {
-  std::vector<std::unique_ptr<Expr> > tuple_elems;
+  std::vector<std::unique_ptr<Expr>> tuple_elems;
   // replaces (inlined version of) TupleElements
 
   location_t locus;
@@ -1161,37 +950,15 @@ public:
   std::string as_string () const override;
 
   TupleExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Expr> > tuple_elements,
+	     std::vector<std::unique_ptr<Expr>> tuple_elements,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-	     location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      WithInnerAttrs (std::move (inner_attribs)),
-      tuple_elems (std::move (tuple_elements)), locus (locus)
-  {}
+	     location_t locus);
 
   // copy constructor with vector clone
-  TupleExpr (TupleExpr const &other)
-    : ExprWithoutBlock (other), WithInnerAttrs (other.inner_attrs),
-      locus (other.locus)
-  {
-    tuple_elems.reserve (other.tuple_elems.size ());
-    for (const auto &e : other.tuple_elems)
-      tuple_elems.push_back (e->clone_expr ());
-  }
+  TupleExpr (TupleExpr const &other);
 
   // overloaded assignment operator to vector clone
-  TupleExpr &operator= (TupleExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    inner_attrs = other.inner_attrs;
-    locus = other.locus;
-
-    tuple_elems.reserve (other.tuple_elems.size ());
-    for (const auto &e : other.tuple_elems)
-      tuple_elems.push_back (e->clone_expr ());
-
-    return *this;
-  }
+  TupleExpr &operator= (TupleExpr const &other);
 
   // move constructors
   TupleExpr (TupleExpr &&other) = default;
@@ -1205,14 +972,11 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  const std::vector<std::unique_ptr<Expr> > &get_tuple_elems () const
+  const std::vector<std::unique_ptr<Expr>> &get_tuple_elems () const
   {
     return tuple_elems;
   }
-  std::vector<std::unique_ptr<Expr> > &get_tuple_elems ()
-  {
-    return tuple_elems;
-  }
+  std::vector<std::unique_ptr<Expr>> &get_tuple_elems () { return tuple_elems; }
 
   bool is_unit () const { return tuple_elems.size () == 0; }
 
@@ -1247,28 +1011,13 @@ public:
 
   TupleIndexExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Expr> tuple_expr, TupleIndex index,
-		  AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      tuple_expr (std::move (tuple_expr)), tuple_index (index), locus (locus)
-  {}
+		  AST::AttrVec outer_attribs, location_t locus);
 
   // Copy constructor requires a clone for tuple_expr
-  TupleIndexExpr (TupleIndexExpr const &other)
-    : ExprWithoutBlock (other), tuple_expr (other.tuple_expr->clone_expr ()),
-      tuple_index (other.tuple_index), locus (other.locus)
-  {}
+  TupleIndexExpr (TupleIndexExpr const &other);
 
   // Overload assignment operator in order to clone
-  TupleIndexExpr &operator= (TupleIndexExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    tuple_expr = other.tuple_expr->clone_expr ();
-    tuple_index = other.tuple_index;
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  TupleIndexExpr &operator= (TupleIndexExpr const &other);
 
   // move constructors
   TupleIndexExpr (TupleIndexExpr &&other) = default;
@@ -1279,7 +1028,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_tuple_expr () { return tuple_expr; }
+  Expr &get_tuple_expr () { return *tuple_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -1310,10 +1059,7 @@ protected:
 
   // Protected constructor to allow initialising struct_name
   StructExpr (Analysis::NodeMapping mappings, PathInExpression struct_path,
-	      AST::AttrVec outer_attribs)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      struct_name (std::move (struct_path))
-  {}
+	      AST::AttrVec outer_attribs);
 
 public:
   PathInExpression &get_struct_name () { return struct_name; }
@@ -1337,11 +1083,7 @@ public:
   // Constructor has to call protected constructor of base class
   StructExprStruct (Analysis::NodeMapping mappings,
 		    PathInExpression struct_path, AST::AttrVec inner_attribs,
-		    AST::AttrVec outer_attribs, location_t locus)
-    : StructExpr (std::move (mappings), std::move (struct_path),
-		  std::move (outer_attribs)),
-      WithInnerAttrs (std::move (inner_attribs)), locus (locus)
-  {}
+		    AST::AttrVec outer_attribs, location_t locus);
 
   location_t get_locus () const override final { return locus; }
 
@@ -1368,33 +1110,21 @@ protected:
  * struct */
 struct StructBase
 {
-public:
+private:
   std::unique_ptr<Expr> base_struct;
 
+public:
   // TODO: should this store location data?
-  StructBase (std::unique_ptr<Expr> base_struct_ptr)
-    : base_struct (std::move (base_struct_ptr))
-  {}
+  StructBase (std::unique_ptr<Expr> base_struct_ptr);
 
   // Copy constructor requires clone
-  StructBase (StructBase const &other)
-  {
-    /* HACK: gets around base_struct pointer being null (e.g. if no struct base
-     * exists) */
-    if (other.base_struct != nullptr)
-      other.base_struct->clone_expr ();
-  }
+  StructBase (StructBase const &other);
 
   // Destructor
   ~StructBase () = default;
 
   // Overload assignment operator to clone base_struct
-  StructBase &operator= (StructBase const &other)
-  {
-    base_struct = other.base_struct->clone_expr ();
-
-    return *this;
-  }
+  StructBase &operator= (StructBase const &other);
 
   // move constructors
   StructBase (StructBase &&other) = default;
@@ -1408,7 +1138,7 @@ public:
 
   std::string as_string () const;
 
-  Expr *get_base () { return base_struct.get (); }
+  Expr &get_base () { return *base_struct; }
 };
 
 /* Base HIR node for a single struct expression field (in struct instance
@@ -1446,9 +1176,7 @@ protected:
   // pure virtual clone implementation
   virtual StructExprField *clone_struct_expr_field_impl () const = 0;
 
-  StructExprField (Analysis::NodeMapping mapping, location_t locus)
-    : mappings (mapping), locus (locus)
-  {}
+  StructExprField (Analysis::NodeMapping mapping, location_t locus);
 
   Analysis::NodeMapping mappings;
   location_t locus;
@@ -1463,10 +1191,7 @@ private:
   // TODO: should this store location data?
 public:
   StructExprFieldIdentifier (Analysis::NodeMapping mapping,
-			     Identifier field_identifier, location_t locus)
-    : StructExprField (mapping, locus),
-      field_name (std::move (field_identifier))
-  {}
+			     Identifier field_identifier, location_t locus);
 
   std::string as_string () const override { return field_name.as_string (); }
 
@@ -1497,25 +1222,13 @@ class StructExprFieldWithVal : public StructExprField
 
 protected:
   StructExprFieldWithVal (Analysis::NodeMapping mapping,
-			  std::unique_ptr<Expr> field_value, location_t locus)
-    : StructExprField (mapping, locus), value (std::move (field_value))
-  {}
+			  std::unique_ptr<Expr> field_value, location_t locus);
 
   // Copy constructor requires clone
-  StructExprFieldWithVal (StructExprFieldWithVal const &other)
-    : StructExprField (other.mappings, other.locus),
-      value (other.value->clone_expr ())
-  {}
+  StructExprFieldWithVal (StructExprFieldWithVal const &other);
 
   // Overload assignment operator to clone unique_ptr
-  StructExprFieldWithVal &operator= (StructExprFieldWithVal const &other)
-  {
-    value = other.value->clone_expr ();
-    mappings = other.mappings;
-    locus = other.locus;
-
-    return *this;
-  }
+  StructExprFieldWithVal &operator= (StructExprFieldWithVal const &other);
 
   // move constructors
   StructExprFieldWithVal (StructExprFieldWithVal &&other) = default;
@@ -1524,7 +1237,7 @@ protected:
 public:
   std::string as_string () const override;
 
-  std::unique_ptr<Expr> &get_value () { return value; }
+  Expr &get_value () { return *value; }
 };
 
 // Identifier and value variant of StructExprField HIR node
@@ -1538,10 +1251,7 @@ public:
   StructExprFieldIdentifierValue (Analysis::NodeMapping mapping,
 				  Identifier field_identifier,
 				  std::unique_ptr<Expr> field_value,
-				  location_t locus)
-    : StructExprFieldWithVal (mapping, std::move (field_value), locus),
-      field_name (std::move (field_identifier))
-  {}
+				  location_t locus);
 
   std::string as_string () const override;
 
@@ -1575,10 +1285,7 @@ public:
   StructExprFieldIndexValue (Analysis::NodeMapping mapping,
 			     TupleIndex tuple_index,
 			     std::unique_ptr<Expr> field_value,
-			     location_t locus)
-    : StructExprFieldWithVal (mapping, std::move (field_value), locus),
-      index (tuple_index)
-  {}
+			     location_t locus);
 
   std::string as_string () const override;
 
@@ -1604,58 +1311,31 @@ protected:
 // HIR node of a struct creator with fields
 class StructExprStructFields : public StructExprStruct
 {
-public:
   // std::vector<StructExprField> fields;
-  std::vector<std::unique_ptr<StructExprField> > fields;
+  std::vector<std::unique_ptr<StructExprField>> fields;
+  tl::optional<std::unique_ptr<StructBase>> struct_base;
 
-  // bool has_struct_base;
-  // FIXME make unique_ptr
-  StructBase *struct_base;
-
+public:
   // For unions there is just one field, the index
   // is set when type checking
   int union_index = -1;
 
   std::string as_string () const override;
 
-  bool has_struct_base () const { return struct_base != nullptr; }
+  bool has_struct_base () const { return struct_base.has_value (); }
 
   // Constructor for StructExprStructFields when no struct base is used
   StructExprStructFields (
     Analysis::NodeMapping mappings, PathInExpression struct_path,
-    std::vector<std::unique_ptr<StructExprField> > expr_fields,
-    location_t locus, StructBase *base_struct,
-    AST::AttrVec inner_attribs = AST::AttrVec (),
-    AST::AttrVec outer_attribs = AST::AttrVec ())
-    : StructExprStruct (std::move (mappings), std::move (struct_path),
-			std::move (inner_attribs), std::move (outer_attribs),
-			locus),
-      fields (std::move (expr_fields)), struct_base (base_struct)
-  {}
+    std::vector<std::unique_ptr<StructExprField>> expr_fields, location_t locus,
+    tl::optional<std::unique_ptr<StructBase>> base_struct,
+    AST::AttrVec inner_attribs, AST::AttrVec outer_attribs);
 
   // copy constructor with vector clone
-  StructExprStructFields (StructExprStructFields const &other)
-    : StructExprStruct (other), struct_base (other.struct_base),
-      union_index (other.union_index)
-  {
-    fields.reserve (other.fields.size ());
-    for (const auto &e : other.fields)
-      fields.push_back (e->clone_struct_expr_field ());
-  }
+  StructExprStructFields (StructExprStructFields const &other);
 
   // overloaded assignment operator with vector clone
-  StructExprStructFields &operator= (StructExprStructFields const &other)
-  {
-    StructExprStruct::operator= (other);
-    struct_base = other.struct_base;
-    union_index = other.union_index;
-
-    fields.reserve (other.fields.size ());
-    for (const auto &e : other.fields)
-      fields.push_back (e->clone_struct_expr_field ());
-
-    return *this;
-  }
+  StructExprStructFields &operator= (StructExprStructFields const &other);
 
   // move constructors
   StructExprStructFields (StructExprStructFields &&other) = default;
@@ -1664,20 +1344,20 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::vector<std::unique_ptr<StructExprField> > &get_fields ()
+  std::vector<std::unique_ptr<StructExprField>> &get_fields ()
   {
     return fields;
   };
 
-  const std::vector<std::unique_ptr<StructExprField> > &get_fields () const
+  const std::vector<std::unique_ptr<StructExprField>> &get_fields () const
   {
     return fields;
   };
 
-  StructBase *get_struct_base () { return struct_base; }
+  StructBase &get_struct_base () { return *struct_base.value (); }
 
-  void set_fields_as_owner (
-    std::vector<std::unique_ptr<StructExprField> > new_fields)
+  void
+  set_fields_as_owner (std::vector<std::unique_ptr<StructExprField>> new_fields)
   {
     fields = std::move (new_fields);
   }
@@ -1704,26 +1384,15 @@ class StructExprStructBase : public StructExprStruct
   StructBase struct_base;
 
 public:
-  std::string as_string () const override;
-
-  /*inline StructBase get_struct_base() const {
-      return struct_base;
-  }*/
-
   StructExprStructBase (Analysis::NodeMapping mappings,
 			PathInExpression struct_path, StructBase base_struct,
 			AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-			location_t locus)
-    : StructExprStruct (std::move (mappings), std::move (struct_path),
-			std::move (inner_attribs), std::move (outer_attribs),
-			locus),
-      struct_base (std::move (base_struct))
-  {}
+			location_t locus);
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  StructBase *get_struct_base () { return &struct_base; }
+  StructBase &get_struct_base () { return struct_base; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1745,45 +1414,21 @@ protected:
 class CallExpr : public ExprWithoutBlock
 {
   std::unique_ptr<Expr> function;
-  std::vector<std::unique_ptr<Expr> > params;
+  std::vector<std::unique_ptr<Expr>> params;
   location_t locus;
 
 public:
   std::string as_string () const override;
 
   CallExpr (Analysis::NodeMapping mappings, std::unique_ptr<Expr> function_expr,
-	    std::vector<std::unique_ptr<Expr> > function_params,
-	    AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      function (std::move (function_expr)),
-      params (std::move (function_params)), locus (locus)
-  {}
+	    std::vector<std::unique_ptr<Expr>> function_params,
+	    AST::AttrVec outer_attribs, location_t locus);
 
   // copy constructor requires clone
-  CallExpr (CallExpr const &other)
-    : ExprWithoutBlock (other), function (other.function->clone_expr ()),
-      locus (other.locus)
-  /*, params(other.params),*/ {
-    params.reserve (other.params.size ());
-    for (const auto &e : other.params)
-      params.push_back (e->clone_expr ());
-  }
+  CallExpr (CallExpr const &other);
 
   // Overload assignment operator to clone
-  CallExpr &operator= (CallExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    function = other.function->clone_expr ();
-    locus = other.locus;
-    // params = other.params;
-    // outer_attrs = other.outer_attrs;
-
-    params.reserve (other.params.size ());
-    for (const auto &e : other.params)
-      params.push_back (e->clone_expr ());
-
-    return *this;
-  }
+  CallExpr &operator= (CallExpr const &other);
 
   // move constructors
   CallExpr (CallExpr &&other) = default;
@@ -1797,13 +1442,14 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_fnexpr () { return function; }
+  bool has_fnexpr () const { return function != nullptr; }
+  Expr &get_fnexpr () { return *function; }
 
   size_t num_params () const { return params.size (); }
 
-  std::vector<std::unique_ptr<Expr> > &get_arguments () { return params; }
+  std::vector<std::unique_ptr<Expr>> &get_arguments () { return params; }
 
-  const std::vector<std::unique_ptr<Expr> > &get_arguments () const
+  const std::vector<std::unique_ptr<Expr>> &get_arguments () const
   {
     return params;
   }
@@ -1831,7 +1477,7 @@ class MethodCallExpr : public ExprWithoutBlock
 {
   std::unique_ptr<Expr> receiver;
   PathExprSegment method_name;
-  std::vector<std::unique_ptr<Expr> > params;
+  std::vector<std::unique_ptr<Expr>> params;
   location_t locus;
 
 public:
@@ -1840,40 +1486,14 @@ public:
   MethodCallExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Expr> call_receiver,
 		  PathExprSegment method_path,
-		  std::vector<std::unique_ptr<Expr> > method_params,
-		  AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      receiver (std::move (call_receiver)),
-      method_name (std::move (method_path)), params (std::move (method_params)),
-      locus (locus)
-  {}
+		  std::vector<std::unique_ptr<Expr>> method_params,
+		  AST::AttrVec outer_attribs, location_t locus);
 
   // copy constructor required due to cloning
-  MethodCallExpr (MethodCallExpr const &other)
-    : ExprWithoutBlock (other), receiver (other.receiver->clone_expr ()),
-      method_name (other.method_name), locus (other.locus)
-  /*, params(other.params),*/ {
-    params.reserve (other.params.size ());
-    for (const auto &e : other.params)
-      params.push_back (e->clone_expr ());
-  }
+  MethodCallExpr (MethodCallExpr const &other);
 
   // Overload assignment operator to clone receiver object
-  MethodCallExpr &operator= (MethodCallExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    receiver = other.receiver->clone_expr ();
-    method_name = other.method_name;
-    locus = other.locus;
-    // params = other.params;
-    // outer_attrs = other.outer_attrs;
-
-    params.reserve (other.params.size ());
-    for (const auto &e : other.params)
-      params.push_back (e->clone_expr ());
-
-    return *this;
-  }
+  MethodCallExpr &operator= (MethodCallExpr const &other);
 
   // move constructors
   MethodCallExpr (MethodCallExpr &&other) = default;
@@ -1884,7 +1504,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_receiver () { return receiver; }
+  Expr &get_receiver () { return *receiver; }
 
   PathExprSegment &get_method_name () { return method_name; };
   const PathExprSegment &get_method_name () const { return method_name; };
@@ -1892,9 +1512,9 @@ public:
   bool has_params () const { return !params.empty (); }
   size_t num_params () const { return params.size (); }
 
-  std::vector<std::unique_ptr<Expr> > &get_arguments () { return params; }
+  std::vector<std::unique_ptr<Expr>> &get_arguments () { return params; }
 
-  const std::vector<std::unique_ptr<Expr> > &get_arguments () const
+  const std::vector<std::unique_ptr<Expr>> &get_arguments () const
   {
     return params;
   }
@@ -1935,29 +1555,13 @@ public:
   FieldAccessExpr (Analysis::NodeMapping mappings,
 		   std::unique_ptr<Expr> field_access_receiver,
 		   Identifier field_name, AST::AttrVec outer_attribs,
-		   location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      receiver (std::move (field_access_receiver)),
-      field (std::move (field_name)), locus (locus)
-  {}
+		   location_t locus);
 
   // Copy constructor required due to unique_ptr cloning
-  FieldAccessExpr (FieldAccessExpr const &other)
-    : ExprWithoutBlock (other), receiver (other.receiver->clone_expr ()),
-      field (other.field), locus (other.locus)
-  {}
+  FieldAccessExpr (FieldAccessExpr const &other);
 
   // Overload assignment operator to clone unique_ptr
-  FieldAccessExpr &operator= (FieldAccessExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    receiver = other.receiver->clone_expr ();
-    field = other.field;
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  FieldAccessExpr &operator= (FieldAccessExpr const &other);
 
   // move constructors
   FieldAccessExpr (FieldAccessExpr &&other) = default;
@@ -1968,7 +1572,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_receiver_expr () { return receiver; }
+  Expr &get_receiver_expr () { return *receiver; }
 
   Identifier get_field_name () const { return field; }
 
@@ -2009,42 +1613,15 @@ public:
   // Constructor for closure parameter
   ClosureParam (std::unique_ptr<Pattern> param_pattern, location_t locus,
 		std::unique_ptr<Type> param_type = nullptr,
-		std::vector<AST::Attribute> outer_attrs = {})
-    : outer_attrs (std::move (outer_attrs)),
-      pattern (std::move (param_pattern)), type (std::move (param_type)),
-      locus (locus)
-  {}
+		std::vector<AST::Attribute> outer_attrs = {});
 
   // Copy constructor required due to cloning as a result of unique_ptrs
-  ClosureParam (ClosureParam const &other)
-    : pattern (other.pattern->clone_pattern ())
-  {
-    // guard to protect from null pointer dereference
-    if (other.pattern != nullptr)
-      pattern = other.pattern->clone_pattern ();
-    if (other.type != nullptr)
-      type = other.type->clone_type ();
-  }
+  ClosureParam (ClosureParam const &other);
 
   ~ClosureParam () = default;
 
   // Assignment operator must be overloaded to clone as well
-  ClosureParam &operator= (ClosureParam const &other)
-  {
-    outer_attrs = other.outer_attrs;
-
-    // guard to protect from null pointer dereference
-    if (other.pattern != nullptr)
-      pattern = other.pattern->clone_pattern ();
-    else
-      pattern = nullptr;
-    if (other.type != nullptr)
-      type = other.type->clone_type ();
-    else
-      type = nullptr;
-
-    return *this;
-  }
+  ClosureParam &operator= (ClosureParam const &other);
 
   // move constructors
   ClosureParam (ClosureParam &&other) = default;
@@ -2058,9 +1635,9 @@ public:
   }
   std::vector<AST::Attribute> &get_outer_attrs () { return outer_attrs; }
 
-  std::unique_ptr<Pattern> &get_pattern () { return pattern; }
+  Pattern &get_pattern () { return *pattern; }
 
-  std::unique_ptr<Type> &get_type () { return type; }
+  Type &get_type () { return *type; }
 
   location_t get_locus () const { return locus; }
 };
@@ -2080,36 +1657,13 @@ public:
 	       std::vector<ClosureParam> closure_params,
 	       std::unique_ptr<Type> closure_return_type,
 	       std::unique_ptr<Expr> closure_expr, bool has_move,
-	       AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      has_move (has_move), params (std::move (closure_params)), locus (locus),
-      return_type (std::move (closure_return_type)),
-      expr (std::move (closure_expr))
-  {}
+	       AST::AttrVec outer_attribs, location_t locus);
 
   // Copy constructor requires cloning
-  ClosureExpr (ClosureExpr const &other)
-    : ExprWithoutBlock (other.get_mappings (), other.get_outer_attrs ())
-  {
-    return_type
-      = other.has_return_type () ? other.return_type->clone_type () : nullptr;
-    expr = other.expr->clone_expr ();
-    params = other.params;
-    has_move = other.has_move;
-  }
+  ClosureExpr (ClosureExpr const &other);
 
   // Overload assignment operator to clone unique_ptrs
-  ClosureExpr &operator= (ClosureExpr const &other)
-  {
-    mappings = other.mappings;
-    return_type
-      = other.has_return_type () ? other.return_type->clone_type () : nullptr;
-    expr = other.expr->clone_expr ();
-    params = other.params;
-    has_move = other.has_move;
-
-    return *this;
-  }
+  ClosureExpr &operator= (ClosureExpr const &other);
 
   // move constructors
   ClosureExpr (ClosureExpr &&other) = default;
@@ -2128,8 +1682,8 @@ public:
 
   bool has_return_type () const { return return_type != nullptr; }
 
-  std::unique_ptr<Type> &get_return_type () { return return_type; };
-  std::unique_ptr<Expr> &get_expr () { return expr; }
+  Type &get_return_type () { return *return_type; };
+  Expr &get_expr () { return *expr; }
 
   bool has_params () const { return !params.empty (); }
   std::vector<ClosureParam> &get_params () { return params; }
@@ -2158,7 +1712,7 @@ class BlockExpr : public ExprWithBlock, public WithInnerAttrs
 {
   // FIXME this should be private + get/set
 public:
-  std::vector<std::unique_ptr<Stmt> > statements;
+  std::vector<std::unique_ptr<Stmt>> statements;
   std::unique_ptr<Expr> expr;
   bool tail_reachable;
   LoopLabel label;
@@ -2178,49 +1732,16 @@ public:
   bool is_tail_reachable () const { return tail_reachable; }
 
   BlockExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Stmt> > block_statements,
+	     std::vector<std::unique_ptr<Stmt>> block_statements,
 	     std::unique_ptr<Expr> block_expr, bool tail_reachable,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-	     LoopLabel label, location_t start_locus, location_t end_locus)
-    : ExprWithBlock (std::move (mappings), std::move (outer_attribs)),
-      WithInnerAttrs (std::move (inner_attribs)),
-      statements (std::move (block_statements)), expr (std::move (block_expr)),
-      tail_reachable (tail_reachable), label (std::move (label)),
-      start_locus (start_locus), end_locus (end_locus)
-  {}
+	     LoopLabel label, location_t start_locus, location_t end_locus);
 
   // Copy constructor with clone
-  BlockExpr (BlockExpr const &other)
-    : ExprWithBlock (other), /*statements(other.statements),*/
-      WithInnerAttrs (other.inner_attrs), label (other.label),
-      start_locus (other.start_locus), end_locus (other.end_locus)
-  {
-    // guard to protect from null pointer dereference
-    if (other.expr != nullptr)
-      expr = other.expr->clone_expr ();
-
-    statements.reserve (other.statements.size ());
-    for (const auto &e : other.statements)
-      statements.push_back (e->clone_stmt ());
-  }
+  BlockExpr (BlockExpr const &other);
 
   // Overloaded assignment operator to clone pointer
-  BlockExpr &operator= (BlockExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    // statements = other.statements;
-    expr = other.expr->clone_expr ();
-    inner_attrs = other.inner_attrs;
-    start_locus = other.end_locus;
-    end_locus = other.end_locus;
-    // outer_attrs = other.outer_attrs;
-
-    statements.reserve (other.statements.size ());
-    for (const auto &e : other.statements)
-      statements.push_back (e->clone_stmt ());
-
-    return *this;
-  }
+  BlockExpr &operator= (BlockExpr const &other);
 
   // move constructors
   BlockExpr (BlockExpr &&other) = default;
@@ -2243,9 +1764,10 @@ public:
 
   bool is_final_stmt (Stmt *stmt) { return statements.back ().get () == stmt; }
 
-  std::unique_ptr<Expr> &get_final_expr () { return expr; }
+  bool has_final_expr () { return expr != nullptr; }
+  Expr &get_final_expr () { return *expr; }
 
-  std::vector<std::unique_ptr<Stmt> > &get_statements () { return statements; }
+  std::vector<std::unique_ptr<Stmt>> &get_statements () { return statements; }
 
   ExprType get_expression_type () const final override
   {
@@ -2292,10 +1814,7 @@ public:
 
   // Constructor for a ContinueExpr with a label.
   ContinueExpr (Analysis::NodeMapping mappings, location_t locus,
-		Lifetime label, AST::AttrVec outer_attribs = AST::AttrVec ())
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      label (std::move (label)), locus (locus)
-  {}
+		Lifetime label, AST::AttrVec outer_attribs = AST::AttrVec ());
 
   location_t get_locus () const override final { return locus; }
 
@@ -2350,32 +1869,13 @@ public:
   BreakExpr (Analysis::NodeMapping mappings, location_t locus,
 	     Lifetime break_label,
 	     std::unique_ptr<Expr> expr_in_break = nullptr,
-	     AST::AttrVec outer_attribs = AST::AttrVec ())
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      label (std::move (break_label)), break_expr (std::move (expr_in_break)),
-      locus (locus)
-  {}
+	     AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor defined to use clone for unique pointer
-  BreakExpr (BreakExpr const &other)
-    : ExprWithoutBlock (other), label (other.label), locus (other.locus)
-  {
-    // guard to protect from null pointer dereference
-    if (other.break_expr != nullptr)
-      break_expr = other.break_expr->clone_expr ();
-  }
+  BreakExpr (BreakExpr const &other);
 
   // Overload assignment operator to clone unique pointer
-  BreakExpr &operator= (BreakExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    label = other.label;
-    break_expr = other.break_expr->clone_expr ();
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  BreakExpr &operator= (BreakExpr const &other);
 
   // move constructors
   BreakExpr (BreakExpr &&other) = default;
@@ -2388,7 +1888,7 @@ public:
 
   Lifetime &get_label () { return label; }
 
-  std::unique_ptr<Expr> &get_expr () { return break_expr; }
+  Expr &get_expr () { return *break_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2415,9 +1915,7 @@ class RangeExpr : public ExprWithoutBlock
 
 protected:
   // outer attributes not allowed before range expressions
-  RangeExpr (Analysis::NodeMapping mappings, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), AST::AttrVec ()), locus (locus)
-  {}
+  RangeExpr (Analysis::NodeMapping mappings, location_t locus);
 
 public:
   location_t get_locus () const override final { return locus; }
@@ -2440,26 +1938,13 @@ public:
 
   RangeFromToExpr (Analysis::NodeMapping mappings,
 		   std::unique_ptr<Expr> range_from,
-		   std::unique_ptr<Expr> range_to, location_t locus)
-    : RangeExpr (std::move (mappings), locus), from (std::move (range_from)),
-      to (std::move (range_to))
-  {}
+		   std::unique_ptr<Expr> range_to, location_t locus);
 
   // Copy constructor with cloning
-  RangeFromToExpr (RangeFromToExpr const &other)
-    : RangeExpr (other), from (other.from->clone_expr ()),
-      to (other.to->clone_expr ())
-  {}
+  RangeFromToExpr (RangeFromToExpr const &other);
 
   // Overload assignment operator to clone unique pointers
-  RangeFromToExpr &operator= (RangeFromToExpr const &other)
-  {
-    RangeExpr::operator= (other);
-    from = other.from->clone_expr ();
-    to = other.to->clone_expr ();
-
-    return *this;
-  }
+  RangeFromToExpr &operator= (RangeFromToExpr const &other);
 
   // move constructors
   RangeFromToExpr (RangeFromToExpr &&other) = default;
@@ -2468,8 +1953,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_from_expr () { return *from; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2497,23 +1982,13 @@ public:
   std::string as_string () const override;
 
   RangeFromExpr (Analysis::NodeMapping mappings,
-		 std::unique_ptr<Expr> range_from, location_t locus)
-    : RangeExpr (std::move (mappings), locus), from (std::move (range_from))
-  {}
+		 std::unique_ptr<Expr> range_from, location_t locus);
 
   // Copy constructor with clone
-  RangeFromExpr (RangeFromExpr const &other)
-    : RangeExpr (other), from (other.from->clone_expr ())
-  {}
+  RangeFromExpr (RangeFromExpr const &other);
 
   // Overload assignment operator to clone unique_ptr
-  RangeFromExpr &operator= (RangeFromExpr const &other)
-  {
-    RangeExpr::operator= (other);
-    from = other.from->clone_expr ();
-
-    return *this;
-  }
+  RangeFromExpr &operator= (RangeFromExpr const &other);
 
   // move constructors
   RangeFromExpr (RangeFromExpr &&other) = default;
@@ -2522,7 +1997,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
+  Expr &get_from_expr () { return *from; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2551,23 +2026,13 @@ public:
 
   // outer attributes not allowed
   RangeToExpr (Analysis::NodeMapping mappings, std::unique_ptr<Expr> range_to,
-	       location_t locus)
-    : RangeExpr (std::move (mappings), locus), to (std::move (range_to))
-  {}
+	       location_t locus);
 
   // Copy constructor with clone
-  RangeToExpr (RangeToExpr const &other)
-    : RangeExpr (other), to (other.to->clone_expr ())
-  {}
+  RangeToExpr (RangeToExpr const &other);
 
   // Overload assignment operator to clone unique_ptr
-  RangeToExpr &operator= (RangeToExpr const &other)
-  {
-    RangeExpr::operator= (other);
-    to = other.to->clone_expr ();
-
-    return *this;
-  }
+  RangeToExpr &operator= (RangeToExpr const &other);
 
   // move constructors
   RangeToExpr (RangeToExpr &&other) = default;
@@ -2576,7 +2041,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2601,9 +2066,7 @@ class RangeFullExpr : public RangeExpr
 public:
   std::string as_string () const override;
 
-  RangeFullExpr (Analysis::NodeMapping mappings, location_t locus)
-    : RangeExpr (std::move (mappings), locus)
-  {}
+  RangeFullExpr (Analysis::NodeMapping mappings, location_t locus);
   // outer attributes not allowed
 
   void accept_vis (HIRFullVisitor &vis) override;
@@ -2637,27 +2100,14 @@ public:
 
   RangeFromToInclExpr (Analysis::NodeMapping mappings,
 		       std::unique_ptr<Expr> range_from,
-		       std::unique_ptr<Expr> range_to, location_t locus)
-    : RangeExpr (std::move (mappings), locus), from (std::move (range_from)),
-      to (std::move (range_to))
-  {}
+		       std::unique_ptr<Expr> range_to, location_t locus);
   // outer attributes not allowed
 
   // Copy constructor with clone
-  RangeFromToInclExpr (RangeFromToInclExpr const &other)
-    : RangeExpr (other), from (other.from->clone_expr ()),
-      to (other.to->clone_expr ())
-  {}
+  RangeFromToInclExpr (RangeFromToInclExpr const &other);
 
   // Overload assignment operator to use clone
-  RangeFromToInclExpr &operator= (RangeFromToInclExpr const &other)
-  {
-    RangeExpr::operator= (other);
-    from = other.from->clone_expr ();
-    to = other.to->clone_expr ();
-
-    return *this;
-  }
+  RangeFromToInclExpr &operator= (RangeFromToInclExpr const &other);
 
   // move constructors
   RangeFromToInclExpr (RangeFromToInclExpr &&other) = default;
@@ -2666,8 +2116,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_from_expr () { return from; }
-  std::unique_ptr<Expr> &get_to_expr () { return to; }
+  Expr &get_from_expr () { return *from; }
+  Expr &get_to_expr () { return *to; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2695,24 +2145,14 @@ public:
   std::string as_string () const override;
 
   RangeToInclExpr (Analysis::NodeMapping mappings,
-		   std::unique_ptr<Expr> range_to, location_t locus)
-    : RangeExpr (std::move (mappings), locus), to (std::move (range_to))
-  {}
+		   std::unique_ptr<Expr> range_to, location_t locus);
   // outer attributes not allowed
 
   // Copy constructor with clone
-  RangeToInclExpr (RangeToInclExpr const &other)
-    : RangeExpr (other), to (other.to->clone_expr ())
-  {}
+  RangeToInclExpr (RangeToInclExpr const &other);
 
   // Overload assignment operator to clone pointer
-  RangeToInclExpr &operator= (RangeToInclExpr const &other)
-  {
-    RangeExpr::operator= (other);
-    to = other.to->clone_expr ();
-
-    return *this;
-  }
+  RangeToInclExpr &operator= (RangeToInclExpr const &other);
 
   // move constructors
   RangeToInclExpr (RangeToInclExpr &&other) = default;
@@ -2721,7 +2161,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_to_expr () { return to; };
+  Expr &get_to_expr () { return *to; };
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -2756,30 +2196,13 @@ public:
   // Constructor for ReturnExpr.
   ReturnExpr (Analysis::NodeMapping mappings, location_t locus,
 	      std::unique_ptr<Expr> returned_expr = nullptr,
-	      AST::AttrVec outer_attribs = AST::AttrVec ())
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      return_expr (std::move (returned_expr)), locus (locus)
-  {}
+	      AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
-  ReturnExpr (ReturnExpr const &other)
-    : ExprWithoutBlock (other), locus (other.locus)
-  {
-    // guard to protect from null pointer dereference
-    if (other.return_expr != nullptr)
-      return_expr = other.return_expr->clone_expr ();
-  }
+  ReturnExpr (ReturnExpr const &other);
 
   // Overloaded assignment operator to clone return_expr pointer
-  ReturnExpr &operator= (ReturnExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    return_expr = other.return_expr->clone_expr ();
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  ReturnExpr &operator= (ReturnExpr const &other);
 
   // move constructors
   ReturnExpr (ReturnExpr &&other) = default;
@@ -2790,7 +2213,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_expr () { return return_expr; }
+  bool has_expr () { return return_expr != nullptr; }
+  Expr &get_expr () { return *return_expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2825,27 +2249,13 @@ public:
 
   UnsafeBlockExpr (Analysis::NodeMapping mappings,
 		   std::unique_ptr<BlockExpr> block_expr,
-		   AST::AttrVec outer_attribs, location_t locus)
-    : ExprWithBlock (std::move (mappings), std::move (outer_attribs)),
-      expr (std::move (block_expr)), locus (locus)
-  {}
+		   AST::AttrVec outer_attribs, location_t locus);
 
   // Copy constructor with clone
-  UnsafeBlockExpr (UnsafeBlockExpr const &other)
-    : ExprWithBlock (other), expr (other.expr->clone_block_expr ()),
-      locus (other.locus)
-  {}
+  UnsafeBlockExpr (UnsafeBlockExpr const &other);
 
   // Overloaded assignment operator to clone
-  UnsafeBlockExpr &operator= (UnsafeBlockExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    expr = other.expr->clone_block_expr ();
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  UnsafeBlockExpr &operator= (UnsafeBlockExpr const &other);
 
   // move constructors
   UnsafeBlockExpr (UnsafeBlockExpr &&other) = default;
@@ -2856,7 +2266,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<BlockExpr> &get_block_expr () { return expr; }
+  BlockExpr &get_block_expr () { return *expr; }
 
   ExprType get_expression_type () const override final
   {
@@ -2894,29 +2304,13 @@ protected:
   BaseLoopExpr (Analysis::NodeMapping mappings,
 		std::unique_ptr<BlockExpr> loop_block, location_t locus,
 		LoopLabel loop_label,
-		AST::AttrVec outer_attribs = AST::AttrVec ())
-    : ExprWithBlock (std::move (mappings), std::move (outer_attribs)),
-      loop_label (std::move (loop_label)), loop_block (std::move (loop_block)),
-      locus (locus)
-  {}
+		AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor for BaseLoopExpr with clone
-  BaseLoopExpr (BaseLoopExpr const &other)
-    : ExprWithBlock (other), loop_label (other.loop_label),
-      loop_block (other.loop_block->clone_block_expr ()), locus (other.locus)
-  {}
+  BaseLoopExpr (BaseLoopExpr const &other);
 
   // Overloaded assignment operator to clone
-  BaseLoopExpr &operator= (BaseLoopExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    loop_block = other.loop_block->clone_block_expr ();
-    loop_label = other.loop_label;
-    locus = other.locus;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  BaseLoopExpr &operator= (BaseLoopExpr const &other);
 
   // move constructors
   BaseLoopExpr (BaseLoopExpr &&other) = default;
@@ -2932,7 +2326,7 @@ public:
 
   location_t get_locus () const override final { return locus; }
 
-  std::unique_ptr<HIR::BlockExpr> &get_loop_block () { return loop_block; };
+  HIR::BlockExpr &get_loop_block () { return *loop_block; };
 
   LoopLabel &get_loop_label () { return loop_label; }
 };
@@ -2946,10 +2340,7 @@ public:
   // Constructor for LoopExpr
   LoopExpr (Analysis::NodeMapping mappings,
 	    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-	    LoopLabel loop_label, AST::AttrVec outer_attribs = AST::AttrVec ())
-    : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
-		    std::move (loop_label), std::move (outer_attribs))
-  {}
+	    LoopLabel loop_label, AST::AttrVec outer_attribs = AST::AttrVec ());
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -2980,28 +2371,13 @@ public:
 		 std::unique_ptr<Expr> loop_condition,
 		 std::unique_ptr<BlockExpr> loop_block, location_t locus,
 		 LoopLabel loop_label,
-		 AST::AttrVec outer_attribs = AST::AttrVec ())
-    : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
-		    std::move (loop_label), std::move (outer_attribs)),
-      condition (std::move (loop_condition))
-  {}
+		 AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
-  WhileLoopExpr (WhileLoopExpr const &other)
-    : BaseLoopExpr (other), condition (other.condition->clone_expr ())
-  {}
+  WhileLoopExpr (WhileLoopExpr const &other);
 
   // Overloaded assignment operator to clone
-  WhileLoopExpr &operator= (WhileLoopExpr const &other)
-  {
-    BaseLoopExpr::operator= (other);
-    condition = other.condition->clone_expr ();
-    // loop_block = other.loop_block->clone_block_expr();
-    // loop_label = other.loop_label;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
+  WhileLoopExpr &operator= (WhileLoopExpr const &other);
 
   // move constructors
   WhileLoopExpr (WhileLoopExpr &&other) = default;
@@ -3010,7 +2386,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_predicate_expr () { return condition; }
+  Expr &get_predicate_expr () { return *condition; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3032,7 +2408,7 @@ protected:
 class WhileLetLoopExpr : public BaseLoopExpr
 {
   // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns; // inlined
   std::unique_ptr<Expr> condition;
 
 public:
@@ -3040,44 +2416,17 @@ public:
 
   // Constructor with a loop label
   WhileLetLoopExpr (Analysis::NodeMapping mappings,
-		    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+		    std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 		    std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
 		    LoopLabel loop_label,
-		    AST::AttrVec outer_attribs = AST::AttrVec ())
-    : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
-		    std::move (loop_label), std::move (outer_attribs)),
-      match_arm_patterns (std::move (match_arm_patterns)),
-      condition (std::move (condition))
-  {}
+		    AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
-  WhileLetLoopExpr (WhileLetLoopExpr const &other)
-    : BaseLoopExpr (other),
-      /*match_arm_patterns(other.match_arm_patterns),*/ condition (
-	other.condition->clone_expr ())
-  {
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-  }
+  WhileLetLoopExpr (WhileLetLoopExpr const &other);
 
   // Overloaded assignment operator to clone pointers
-  WhileLetLoopExpr &operator= (WhileLetLoopExpr const &other)
-  {
-    BaseLoopExpr::operator= (other);
-    // match_arm_patterns = other.match_arm_patterns;
-    condition = other.condition->clone_expr ();
-    // loop_block = other.loop_block->clone_block_expr();
-    // loop_label = other.loop_label;
-    // outer_attrs = other.outer_attrs;
-
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
+  WhileLetLoopExpr &operator= (WhileLetLoopExpr const &other);
 
   // move constructors
   WhileLetLoopExpr (WhileLetLoopExpr &&other) = default;
@@ -3086,8 +2435,8 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_cond () { return condition; }
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  Expr &get_cond () { return *condition; }
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
@@ -3108,9 +2457,6 @@ protected:
   }
 };
 
-// forward decl for IfExpr
-class IfLetExpr;
-
 // Base if expression with no "else" or "if let" HIR node
 class IfExpr : public ExprWithBlock
 {
@@ -3123,29 +2469,14 @@ public:
   std::string as_string () const override;
 
   IfExpr (Analysis::NodeMapping mappings, std::unique_ptr<Expr> condition,
-	  std::unique_ptr<BlockExpr> if_block, location_t locus)
-    : ExprWithBlock (std::move (mappings), AST::AttrVec ()),
-      condition (std::move (condition)), if_block (std::move (if_block)),
-      locus (locus)
-  {}
+	  std::unique_ptr<BlockExpr> if_block, location_t locus);
   // outer attributes are never allowed on IfExprs
 
   // Copy constructor with clone
-  IfExpr (IfExpr const &other)
-    : ExprWithBlock (other), condition (other.condition->clone_expr ()),
-      if_block (other.if_block->clone_block_expr ()), locus (other.locus)
-  {}
+  IfExpr (IfExpr const &other);
 
   // Overloaded assignment operator to clone expressions
-  IfExpr &operator= (IfExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    condition = other.condition->clone_expr ();
-    if_block = other.if_block->clone_block_expr ();
-    locus = other.locus;
-
-    return *this;
-  }
+  IfExpr &operator= (IfExpr const &other);
 
   // move constructors
   IfExpr (IfExpr &&other) = default;
@@ -3169,8 +2500,8 @@ public:
   void vis_if_condition (HIRFullVisitor &vis) { condition->accept_vis (vis); }
   void vis_if_block (HIRFullVisitor &vis) { if_block->accept_vis (vis); }
 
-  std::unique_ptr<Expr> &get_if_condition () { return condition; }
-  std::unique_ptr<BlockExpr> &get_if_block () { return if_block; }
+  Expr &get_if_condition () { return *condition; }
+  BlockExpr &get_if_block () { return *if_block; }
 
   ExprType get_expression_type () const final override { return ExprType::If; }
 
@@ -3201,28 +2532,15 @@ public:
   IfExprConseqElse (Analysis::NodeMapping mappings,
 		    std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> if_block,
-		    std::unique_ptr<ExprWithBlock> else_block, location_t locus)
-    : IfExpr (std::move (mappings), std::move (condition), std::move (if_block),
-	      locus),
-      else_block (std::move (else_block))
-  {}
+		    std::unique_ptr<ExprWithBlock> else_block,
+		    location_t locus);
   // again, outer attributes not allowed
 
   // Copy constructor with clone
-  IfExprConseqElse (IfExprConseqElse const &other)
-    : IfExpr (other), else_block (other.else_block->clone_expr_with_block ())
-  {}
+  IfExprConseqElse (IfExprConseqElse const &other);
 
   // Overloaded assignment operator with cloning
-  IfExprConseqElse &operator= (IfExprConseqElse const &other)
-  {
-    IfExpr::operator= (other);
-    // condition = other.condition->clone_expr();
-    // if_block = other.if_block->clone_block_expr();
-    else_block = other.else_block->clone_expr_with_block ();
-
-    return *this;
-  }
+  IfExprConseqElse &operator= (IfExprConseqElse const &other);
 
   // move constructors
   IfExprConseqElse (IfExprConseqElse &&other) = default;
@@ -3233,7 +2551,7 @@ public:
 
   void vis_else_block (HIRFullVisitor &vis) { else_block->accept_vis (vis); }
 
-  std::unique_ptr<ExprWithBlock> &get_else_block () { return else_block; }
+  ExprWithBlock &get_else_block () { return *else_block; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -3258,183 +2576,12 @@ protected:
   }
 };
 
-// Basic "if let" expression HIR node with no else
-class IfLetExpr : public ExprWithBlock
-{
-  // MatchArmPatterns patterns;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns; // inlined
-  std::unique_ptr<Expr> value;
-  std::unique_ptr<BlockExpr> if_block;
-
-  location_t locus;
-
-public:
-  std::string as_string () const override;
-
-  IfLetExpr (Analysis::NodeMapping mappings,
-	     std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-	     std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
-	     location_t locus)
-    : ExprWithBlock (std::move (mappings), AST::AttrVec ()),
-      match_arm_patterns (std::move (match_arm_patterns)),
-      value (std::move (value)), if_block (std::move (if_block)), locus (locus)
-  {}
-  // outer attributes not allowed on if let exprs either
-
-  // copy constructor with clone
-  IfLetExpr (IfLetExpr const &other)
-    : ExprWithBlock (other),
-      /*match_arm_patterns(other.match_arm_patterns),*/ value (
-	other.value->clone_expr ()),
-      if_block (other.if_block->clone_block_expr ()), locus (other.locus)
-  {
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-  }
-
-  // overload assignment operator to clone
-  IfLetExpr &operator= (IfLetExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    // match_arm_patterns = other.match_arm_patterns;
-    value = other.value->clone_expr ();
-    if_block = other.if_block->clone_block_expr ();
-    locus = other.locus;
-
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
-
-  // move constructors
-  IfLetExpr (IfLetExpr &&other) = default;
-  IfLetExpr &operator= (IfLetExpr &&other) = default;
-
-  // Unique pointer custom clone function
-  std::unique_ptr<IfLetExpr> clone_if_let_expr () const
-  {
-    return std::unique_ptr<IfLetExpr> (clone_if_let_expr_impl ());
-  }
-
-  location_t get_locus () const override final { return locus; }
-
-  void accept_vis (HIRFullVisitor &vis) override;
-  void accept_vis (HIRExpressionVisitor &vis) override;
-
-  std::unique_ptr<Expr> &get_scrutinee_expr () { return value; }
-
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
-  {
-    return match_arm_patterns;
-  }
-
-  std::unique_ptr<BlockExpr> &get_if_block () { return if_block; }
-
-  ExprType get_expression_type () const final override
-  {
-    return ExprType::IfLet;
-  }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfLetExpr *clone_expr_impl () const override { return new IfLetExpr (*this); }
-
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfLetExpr *clone_expr_with_block_impl () const override
-  {
-    return new IfLetExpr (*this);
-  }
-
-  // Base clone function but still concrete as concrete base class
-  virtual IfLetExpr *clone_if_let_expr_impl () const
-  {
-    return new IfLetExpr (*this);
-  }
-};
-
-/* HIR node representing "if let" expression with an "else" expression at the
- * end */
-class IfLetExprConseqElse : public IfLetExpr
-{
-  std::unique_ptr<ExprWithBlock> else_block;
-
-public:
-  std::string as_string () const override;
-
-  IfLetExprConseqElse (
-    Analysis::NodeMapping mappings,
-    std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
-    std::unique_ptr<Expr> value, std::unique_ptr<BlockExpr> if_block,
-    std::unique_ptr<ExprWithBlock> else_block, location_t locus)
-    : IfLetExpr (std::move (mappings), std::move (match_arm_patterns),
-		 std::move (value), std::move (if_block), locus),
-      else_block (std::move (else_block))
-  {}
-  // outer attributes not allowed
-
-  // copy constructor with clone
-  IfLetExprConseqElse (IfLetExprConseqElse const &other)
-    : IfLetExpr (other), else_block (other.else_block->clone_expr_with_block ())
-  {}
-
-  // overload assignment operator to clone
-  IfLetExprConseqElse &operator= (IfLetExprConseqElse const &other)
-  {
-    IfLetExpr::operator= (other);
-    // match_arm_patterns = other.match_arm_patterns;
-    // value = other.value->clone_expr();
-    // if_block = other.if_block->clone_block_expr();
-    else_block = other.else_block->clone_expr_with_block ();
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
-
-  // move constructors
-  IfLetExprConseqElse (IfLetExprConseqElse &&other) = default;
-  IfLetExprConseqElse &operator= (IfLetExprConseqElse &&other) = default;
-
-  void accept_vis (HIRFullVisitor &vis) override;
-  void accept_vis (HIRExpressionVisitor &vis) override;
-
-  void vis_else_block (HIRFullVisitor &vis) { else_block->accept_vis (vis); }
-
-  std::unique_ptr<ExprWithBlock> &get_else_block () { return else_block; }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfLetExprConseqElse *clone_expr_impl () const override
-  {
-    return new IfLetExprConseqElse (*this);
-  }
-
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfLetExprConseqElse *clone_expr_with_block_impl () const override
-  {
-    return new IfLetExprConseqElse (*this);
-  }
-
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  IfLetExprConseqElse *clone_if_let_expr_impl () const override
-  {
-    return new IfLetExprConseqElse (*this);
-  }
-};
-
 // Match arm expression
 struct MatchArm
 {
 private:
   AST::AttrVec outer_attrs;
-  std::vector<std::unique_ptr<Pattern> > match_arm_patterns;
+  std::vector<std::unique_ptr<Pattern>> match_arm_patterns;
   std::unique_ptr<Expr> guard_expr;
   location_t locus;
 
@@ -3443,45 +2590,17 @@ public:
   bool has_match_arm_guard () const { return guard_expr != nullptr; }
 
   // Constructor for match arm with a guard expression
-  MatchArm (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
+  MatchArm (std::vector<std::unique_ptr<Pattern>> match_arm_patterns,
 	    location_t locus, std::unique_ptr<Expr> guard_expr = nullptr,
-	    AST::AttrVec outer_attrs = AST::AttrVec ())
-    : outer_attrs (std::move (outer_attrs)),
-      match_arm_patterns (std::move (match_arm_patterns)),
-      guard_expr (std::move (guard_expr)), locus (locus)
-  {}
+	    AST::AttrVec outer_attrs = AST::AttrVec ());
 
   // Copy constructor with clone
-  MatchArm (MatchArm const &other) : outer_attrs (other.outer_attrs)
-  {
-    // guard to protect from null pointer dereference
-    if (other.guard_expr != nullptr)
-      guard_expr = other.guard_expr->clone_expr ();
-
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-
-    locus = other.locus;
-  }
+  MatchArm (MatchArm const &other);
 
   ~MatchArm () = default;
 
   // Overload assignment operator to clone
-  MatchArm &operator= (MatchArm const &other)
-  {
-    outer_attrs = other.outer_attrs;
-
-    if (other.guard_expr != nullptr)
-      guard_expr = other.guard_expr->clone_expr ();
-
-    match_arm_patterns.clear ();
-    match_arm_patterns.reserve (other.match_arm_patterns.size ());
-    for (const auto &e : other.match_arm_patterns)
-      match_arm_patterns.push_back (e->clone_pattern ());
-
-    return *this;
-  }
+  MatchArm &operator= (MatchArm const &other);
 
   // move constructors
   MatchArm (MatchArm &&other) = default;
@@ -3494,17 +2613,17 @@ public:
   static MatchArm create_error ()
   {
     location_t locus = UNDEF_LOCATION;
-    return MatchArm (std::vector<std::unique_ptr<Pattern> > (), locus);
+    return MatchArm (std::vector<std::unique_ptr<Pattern>> (), locus);
   }
 
   std::string as_string () const;
 
-  std::vector<std::unique_ptr<Pattern> > &get_patterns ()
+  std::vector<std::unique_ptr<Pattern>> &get_patterns ()
   {
     return match_arm_patterns;
   }
 
-  std::unique_ptr<Expr> &get_guard_expr () { return guard_expr; }
+  Expr &get_guard_expr () { return *guard_expr; }
 
   location_t get_locus () const { return locus; }
 };
@@ -3520,23 +2639,11 @@ private:
 
 public:
   MatchCase (Analysis::NodeMapping mappings, MatchArm arm,
-	     std::unique_ptr<Expr> expr)
-    : mappings (mappings), arm (std::move (arm)), expr (std::move (expr))
-  {}
+	     std::unique_ptr<Expr> expr);
 
-  MatchCase (const MatchCase &other)
-    : mappings (other.mappings), arm (other.arm),
-      expr (other.expr->clone_expr ())
-  {}
+  MatchCase (const MatchCase &other);
 
-  MatchCase &operator= (const MatchCase &other)
-  {
-    mappings = other.mappings;
-    arm = other.arm;
-    expr = other.expr->clone_expr ();
-
-    return *this;
-  }
+  MatchCase &operator= (const MatchCase &other);
 
   MatchCase (MatchCase &&other) = default;
   MatchCase &operator= (MatchCase &&other) = default;
@@ -3548,7 +2655,7 @@ public:
   Analysis::NodeMapping get_mappings () const { return mappings; }
 
   MatchArm &get_arm () { return arm; }
-  std::unique_ptr<Expr> &get_expr () { return expr; }
+  Expr &get_expr () { return *expr; }
 };
 
 // Match expression HIR node
@@ -3565,40 +2672,13 @@ public:
 
   MatchExpr (Analysis::NodeMapping mappings, std::unique_ptr<Expr> branch_value,
 	     std::vector<MatchCase> match_arms, AST::AttrVec inner_attrs,
-	     AST::AttrVec outer_attrs, location_t locus)
-    : ExprWithBlock (std::move (mappings), std::move (outer_attrs)),
-      WithInnerAttrs (std::move (inner_attrs)),
-      branch_value (std::move (branch_value)),
-      match_arms (std::move (match_arms)), locus (locus)
-  {}
+	     AST::AttrVec outer_attrs, location_t locus);
 
   // Copy constructor requires clone due to unique_ptr
-  MatchExpr (MatchExpr const &other)
-    : ExprWithBlock (other), WithInnerAttrs (other.inner_attrs),
-      branch_value (other.branch_value->clone_expr ()),
-      match_arms (other.match_arms), locus (other.locus)
-  {
-    /*match_arms.reserve (other.match_arms.size ());
-    for (const auto &e : other.match_arms)
-      match_arms.push_back (e->clone_match_case ());*/
-  }
+  MatchExpr (MatchExpr const &other);
 
   // Overloaded assignment operator to clone due to unique_ptr
-  MatchExpr &operator= (MatchExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    branch_value = other.branch_value->clone_expr ();
-    inner_attrs = other.inner_attrs;
-    match_arms = other.match_arms;
-    // outer_attrs = other.outer_attrs;
-    locus = other.locus;
-
-    /*match_arms.reserve (other.match_arms.size ());
-    for (const auto &e : other.match_arms)
-      match_arms.push_back (e->clone_match_case ());*/
-
-    return *this;
-  }
+  MatchExpr &operator= (MatchExpr const &other);
 
   // move constructors
   MatchExpr (MatchExpr &&other) = default;
@@ -3609,7 +2689,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_scrutinee_expr () { return branch_value; }
+  Expr &get_scrutinee_expr () { return *branch_value; }
   AST::AttrVec get_inner_attrs () const { return inner_attrs; }
   const std::vector<MatchCase> &get_match_cases () const { return match_arms; }
   std::vector<MatchCase> &get_match_cases () { return match_arms; }
@@ -3641,26 +2721,13 @@ class AwaitExpr : public ExprWithoutBlock
 public:
   // TODO: ensure outer attributes are actually allowed
   AwaitExpr (Analysis::NodeMapping mappings, std::unique_ptr<Expr> awaited_expr,
-	     AST::AttrVec outer_attrs, location_t locus)
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attrs)),
-      awaited_expr (std::move (awaited_expr)), locus (locus)
-  {}
+	     AST::AttrVec outer_attrs, location_t locus);
 
   // copy constructor with clone
-  AwaitExpr (AwaitExpr const &other)
-    : ExprWithoutBlock (other),
-      awaited_expr (other.awaited_expr->clone_expr ()), locus (other.locus)
-  {}
+  AwaitExpr (AwaitExpr const &other);
 
   // overloaded assignment operator with clone
-  AwaitExpr &operator= (AwaitExpr const &other)
-  {
-    ExprWithoutBlock::operator= (other);
-    awaited_expr = other.awaited_expr->clone_expr ();
-    locus = other.locus;
-
-    return *this;
-  }
+  AwaitExpr &operator= (AwaitExpr const &other);
 
   // move constructors
   AwaitExpr (AwaitExpr &&other) = default;
@@ -3673,7 +2740,7 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
 
-  std::unique_ptr<Expr> &get_awaited_expr () { return awaited_expr; }
+  Expr &get_awaited_expr () { return *awaited_expr; }
 
   ExprType get_expression_type () const final override
   {
@@ -3699,27 +2766,13 @@ class AsyncBlockExpr : public ExprWithBlock
 public:
   AsyncBlockExpr (Analysis::NodeMapping mappings,
 		  std::unique_ptr<BlockExpr> block_expr, bool has_move,
-		  AST::AttrVec outer_attrs, location_t locus)
-    : ExprWithBlock (std::move (mappings), std::move (outer_attrs)),
-      has_move (has_move), block_expr (std::move (block_expr)), locus (locus)
-  {}
+		  AST::AttrVec outer_attrs, location_t locus);
 
   // copy constructor with clone
-  AsyncBlockExpr (AsyncBlockExpr const &other)
-    : ExprWithBlock (other), has_move (other.has_move),
-      block_expr (other.block_expr->clone_block_expr ()), locus (other.locus)
-  {}
+  AsyncBlockExpr (AsyncBlockExpr const &other);
 
   // overloaded assignment operator to clone
-  AsyncBlockExpr &operator= (AsyncBlockExpr const &other)
-  {
-    ExprWithBlock::operator= (other);
-    has_move = other.has_move;
-    block_expr = other.block_expr->clone_block_expr ();
-    locus = other.locus;
-
-    return *this;
-  }
+  AsyncBlockExpr &operator= (AsyncBlockExpr const &other);
 
   // move constructors
   AsyncBlockExpr (AsyncBlockExpr &&other) = default;
@@ -3730,7 +2783,7 @@ public:
   location_t get_locus () const override final { return locus; }
 
   bool get_has_move () const { return has_move; }
-  std::unique_ptr<BlockExpr> &get_block_expr () { return block_expr; }
+  BlockExpr &get_block_expr () { return *block_expr; }
 
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
@@ -3753,35 +2806,15 @@ protected:
 class OperatorExprMeta
 {
 public:
-  OperatorExprMeta (HIR::CompoundAssignmentExpr &expr)
-    : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
-      locus (expr.get_locus ())
-  {}
+  OperatorExprMeta (HIR::CompoundAssignmentExpr &expr);
 
-  OperatorExprMeta (HIR::ArithmeticOrLogicalExpr &expr)
-    : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
-      locus (expr.get_locus ())
-  {}
+  OperatorExprMeta (HIR::ArithmeticOrLogicalExpr &expr);
 
-  OperatorExprMeta (HIR::NegationExpr &expr)
-    : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
-      locus (expr.get_locus ())
-  {}
+  OperatorExprMeta (HIR::NegationExpr &expr);
 
-  OperatorExprMeta (HIR::DereferenceExpr &expr)
-    : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_expr ()->get_mappings ()),
-      locus (expr.get_locus ())
-  {}
+  OperatorExprMeta (HIR::DereferenceExpr &expr);
 
-  OperatorExprMeta (HIR::ArrayIndexExpr &expr)
-    : node_mappings (expr.get_mappings ()),
-      lvalue_mappings (expr.get_array_expr ()->get_mappings ()),
-      locus (expr.get_locus ())
-  {}
+  OperatorExprMeta (HIR::ArrayIndexExpr &expr);
 
   const Analysis::NodeMapping &get_mappings () const { return node_mappings; }
 
@@ -3856,25 +2889,13 @@ struct AnonConst
 {
   NodeId id;
   std::unique_ptr<Expr> expr;
-  AnonConst (NodeId id, std::unique_ptr<Expr> expr)
-    : id (id), expr (std::move (expr))
-  {
-    rust_assert (this->expr != nullptr);
-  }
-  AnonConst (const AnonConst &other)
-  {
-    id = other.id;
-    expr = other.expr->clone_expr ();
-  }
 
-  AnonConst operator= (const AnonConst &other)
-  {
-    id = other.id;
-    expr = other.expr->clone_expr ();
-    return *this;
-  }
+  AnonConst (NodeId id, std::unique_ptr<Expr> expr);
+
+  AnonConst (const AnonConst &other);
+
+  AnonConst operator= (const AnonConst &other);
 };
-;
 
 class InlineAsmOperand
 {
@@ -3885,26 +2906,11 @@ public:
     std::unique_ptr<Expr> expr;
 
     In (const tl::optional<struct AST::InlineAsmRegOrRegClass> &reg,
-	std::unique_ptr<Expr> expr)
-      : reg (reg), expr (std::move (expr))
-    {
-      rust_assert (this->expr != nullptr);
-    }
+	std::unique_ptr<Expr> expr);
 
-    In (const struct In &other)
-    {
-      reg = other.reg;
+    In (const struct In &other);
 
-      expr = other.expr->clone_expr ();
-    }
-
-    In operator= (const struct In &other)
-    {
-      reg = other.reg;
-      expr = other.expr->clone_expr ();
-
-      return *this;
-    }
+    In operator= (const struct In &other);
   };
 
   struct Out
@@ -3914,26 +2920,11 @@ public:
     std::unique_ptr<Expr> expr; // can be null
 
     Out (tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
-	 std::unique_ptr<Expr> expr)
-      : reg (reg), late (late), expr (std::move (expr))
-    {
-      rust_assert (this->expr != nullptr);
-    }
+	 std::unique_ptr<Expr> expr);
 
-    Out (const struct Out &other)
-    {
-      reg = other.reg;
-      late = other.late;
-      expr = other.expr->clone_expr ();
-    }
+    Out (const struct Out &other);
 
-    Out operator= (const struct Out &other)
-    {
-      reg = other.reg;
-      late = other.late;
-      expr = other.expr->clone_expr ();
-      return *this;
-    }
+    Out operator= (const struct Out &other);
   };
 
   struct InOut
@@ -3943,27 +2934,11 @@ public:
     std::unique_ptr<Expr> expr; // this can't be null
 
     InOut (tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
-	   std::unique_ptr<Expr> expr)
-      : reg (reg), late (late), expr (std::move (expr))
-    {
-      rust_assert (this->expr != nullptr);
-    }
+	   std::unique_ptr<Expr> expr);
 
-    InOut (const struct InOut &other)
-    {
-      reg = other.reg;
-      late = other.late;
-      expr = other.expr->clone_expr ();
-    }
+    InOut (const struct InOut &other);
 
-    InOut operator= (const struct InOut &other)
-    {
-      reg = other.reg;
-      late = other.late;
-      expr = other.expr->clone_expr ();
-
-      return *this;
-    }
+    InOut operator= (const struct InOut &other);
   };
 
   struct SplitInOut
@@ -3975,31 +2950,11 @@ public:
 
     SplitInOut (tl::optional<struct AST::InlineAsmRegOrRegClass> &reg,
 		bool late, std::unique_ptr<Expr> in_expr,
-		std::unique_ptr<Expr> out_expr)
-      : reg (reg), late (late), in_expr (std::move (in_expr)),
-	out_expr (std::move (out_expr))
-    {
-      rust_assert (this->in_expr != nullptr);
-      rust_assert (this->out_expr != nullptr);
-    }
+		std::unique_ptr<Expr> out_expr);
 
-    SplitInOut (const struct SplitInOut &other)
-    {
-      reg = other.reg;
-      late = other.late;
-      in_expr = other.in_expr->clone_expr ();
-      out_expr = other.out_expr->clone_expr ();
-    }
+    SplitInOut (const struct SplitInOut &other);
 
-    SplitInOut operator= (const struct SplitInOut &other)
-    {
-      reg = other.reg;
-      late = other.late;
-      in_expr = other.in_expr->clone_expr ();
-      out_expr = other.out_expr->clone_expr ();
-
-      return *this;
-    }
+    SplitInOut operator= (const struct SplitInOut &other);
   };
 
   struct Const
@@ -4011,20 +2966,11 @@ public:
   {
     std::unique_ptr<Expr> expr;
 
-    Sym (std::unique_ptr<Expr> expr) : expr (std::move (expr))
-    {
-      rust_assert (this->expr != nullptr);
-    }
-    Sym (const struct Sym &other)
-    {
-      expr = std::unique_ptr<Expr> (other.expr->clone_expr ());
-    }
+    Sym (std::unique_ptr<Expr> expr);
 
-    Sym operator= (const struct Sym &other)
-    {
-      expr = std::unique_ptr<Expr> (other.expr->clone_expr ());
-      return *this;
-    }
+    Sym (const struct Sym &other);
+
+    Sym operator= (const struct Sym &other);
   };
 
   struct Label
@@ -4032,23 +2978,11 @@ public:
     std::string label_name;
     std::unique_ptr<Expr> expr;
 
-    Label (tl::optional<std::string> label_name, std::unique_ptr<Expr> expr)
-      : expr (std::move (expr))
-    {
-      rust_assert (this->expr != nullptr);
-      if (label_name.has_value ())
-	this->label_name = label_name.value ();
-    }
-    Label (const struct Label &other)
-    {
-      expr = std::unique_ptr<Expr> (other.expr->clone_expr ());
-    }
+    Label (tl::optional<std::string> label_name, std::unique_ptr<Expr> expr);
 
-    Label operator= (const struct Label &other)
-    {
-      expr = std::unique_ptr<Expr> (other.expr->clone_expr ());
-      return *this;
-    }
+    Label (const struct Label &other);
+
+    Label operator= (const struct Label &other);
   };
 
 private:
@@ -4062,7 +2996,6 @@ private:
   tl::optional<struct Const> cnst;
   tl::optional<struct Sym> sym;
   tl::optional<struct Label> label;
-  location_t locus;
 
 public:
   InlineAsmOperand (const InlineAsmOperand &other)
@@ -4105,6 +3038,7 @@ public:
   struct Sym get_sym () const { return sym.value (); }
   struct Label get_label () const { return label.value (); }
 };
+
 // Inline Assembly Node
 class InlineAsm : public ExprWithoutBlock
 {
@@ -4166,6 +3100,7 @@ public:
     // INFO: An inline asm is asm!, which is the opposite of a global_asm()
     return !this->is_global_asm;
   }
+
   InlineAsm (location_t locus, bool is_global_asm,
 	     std::vector<AST::InlineAsmTemplatePiece> template_,
 	     std::vector<AST::TupleTemplateStr> template_strs,
@@ -4173,16 +3108,9 @@ public:
 	     std::vector<AST::TupleClobber> clobber_abi,
 	     std::set<AST::InlineAsmOption> options,
 	     Analysis::NodeMapping mappings,
-	     AST::AttrVec outer_attribs = AST::AttrVec ())
-    : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
-      locus (locus), is_global_asm (is_global_asm),
-      template_ (std::move (template_)),
-      template_strs (std::move (template_strs)),
-      operands (std::move (operands)), clobber_abi (std::move (clobber_abi)),
-      options (std::move (options))
-
-  {}
+	     AST::AttrVec outer_attribs = AST::AttrVec ());
 };
+
 } // namespace HIR
 } // namespace Rust
 

@@ -42,7 +42,7 @@ public:
   };
 
   TypeCheckContextItem (HIR::Function *item);
-  TypeCheckContextItem (HIR::ImplBlock *impl_block, HIR::Function *item);
+  TypeCheckContextItem (HIR::ImplBlock &impl_block, HIR::Function *item);
   TypeCheckContextItem (HIR::TraitItemFunc *trait_item);
   TypeCheckContextItem (const TypeCheckContextItem &other);
 
@@ -78,6 +78,37 @@ private:
     Item (HIR::TraitItemFunc *trait_item);
   };
 
+  ItemType type;
+  Item item;
+};
+
+class TypeCheckBlockContextItem
+{
+public:
+  enum ItemType
+  {
+    IMPL_BLOCK,
+    TRAIT
+  };
+
+  TypeCheckBlockContextItem (HIR::ImplBlock *block);
+  TypeCheckBlockContextItem (HIR::Trait *trait);
+
+  bool is_impl_block () const;
+  bool is_trait_block () const;
+
+  HIR::ImplBlock &get_impl_block ();
+  HIR::Trait &get_trait ();
+
+private:
+  union Item
+  {
+    HIR::ImplBlock *block;
+    HIR::Trait *trait;
+
+    Item (HIR::ImplBlock *block);
+    Item (HIR::Trait *trait);
+  };
   ItemType type;
   Item item;
 };
@@ -135,6 +166,7 @@ public:
   bool lookup_builtin (NodeId id, TyTy::BaseType **type);
   bool lookup_builtin (std::string name, TyTy::BaseType **type);
   void insert_builtin (HirId id, NodeId ref, TyTy::BaseType *type);
+  const std::vector<std::unique_ptr<TyTy::BaseType>> &get_builtins () const;
 
   void insert_type (const Analysis::NodeMapping &mappings,
 		    TyTy::BaseType *type);
@@ -153,6 +185,12 @@ public:
   void push_return_type (TypeCheckContextItem item,
 			 TyTy::BaseType *return_type);
   void pop_return_type ();
+
+  bool have_block_context () const;
+  TypeCheckBlockContextItem peek_block_context ();
+  void push_block_context (TypeCheckBlockContextItem item);
+  void pop_block_context ();
+
   void iterate (std::function<bool (HirId, TyTy::BaseType *)> cb);
 
   bool have_loop_context () const;
@@ -244,6 +282,7 @@ private:
   std::vector<std::pair<TypeCheckContextItem, TyTy::BaseType *>>
     return_type_stack;
   std::vector<TyTy::BaseType *> loop_type_stack;
+  std::vector<TypeCheckBlockContextItem> block_stack;
   std::map<DefId, TraitReference> trait_context;
   std::map<HirId, TyTy::BaseType *> receiver_context;
   std::map<HirId, AssociatedImplTrait> associated_impl_traits;

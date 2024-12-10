@@ -28,6 +28,7 @@
 #include "rust-tyty-subst.h"
 #include "rust-tyty-region.h"
 #include "rust-system.h"
+#include "rust-hir.h"
 
 namespace Rust {
 
@@ -447,7 +448,7 @@ public:
 	     std::vector<TyVar> fields = std::vector<TyVar> (),
 	     std::set<HirId> refs = std::set<HirId> ());
 
-  static TupleType *get_unit_type (HirId ref);
+  static TupleType *get_unit_type ();
 
   void accept_vis (TyVisitor &vis) override;
   void accept_vis (TyConstVisitor &vis) const override;
@@ -567,15 +568,12 @@ public:
   static std::string variant_type_string (VariantType type);
 
   VariantDef (HirId id, DefId defid, std::string identifier, RustIdent ident,
-	      HIR::Expr *discriminant);
+	      tl::optional<std::unique_ptr<HIR::Expr>> &&discriminant);
 
   VariantDef (HirId id, DefId defid, std::string identifier, RustIdent ident,
-	      VariantType type, HIR::Expr *discriminant,
+	      VariantType type,
+	      tl::optional<std::unique_ptr<HIR::Expr>> &&discriminant,
 	      std::vector<StructFieldType *> fields);
-
-  VariantDef (const VariantDef &other);
-
-  VariantDef &operator= (const VariantDef &other);
 
   static VariantDef &get_error_node ();
   bool is_error () const;
@@ -597,7 +595,10 @@ public:
   bool lookup_field (const std::string &lookup, StructFieldType **field_lookup,
 		     size_t *index) const;
 
-  HIR::Expr *get_discriminant () const;
+  bool has_discriminant () const;
+
+  HIR::Expr &get_discriminant ();
+  const HIR::Expr &get_discriminant () const;
 
   std::string as_string () const;
 
@@ -615,8 +616,10 @@ private:
   std::string identifier;
   RustIdent ident;
   VariantType type;
+
   // can either be a structure or a discriminant value
-  HIR::Expr *discriminant;
+  tl::optional<std::unique_ptr<HIR::Expr>> discriminant;
+
   std::vector<StructFieldType *> fields;
 };
 
@@ -652,7 +655,7 @@ public:
 	   std::vector<SubstitutionParamMapping> subst_refs,
 	   SubstitutionArgumentMappings generic_arguments
 	   = SubstitutionArgumentMappings::error (),
-	   RegionConstraints region_constraints = {},
+	   RegionConstraints region_constraints = RegionConstraints{},
 	   std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ref, TypeKind::ADT, ident, refs),
       SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
@@ -665,7 +668,7 @@ public:
 	   std::vector<SubstitutionParamMapping> subst_refs,
 	   SubstitutionArgumentMappings generic_arguments
 	   = SubstitutionArgumentMappings::error (),
-	   RegionConstraints region_constraints = {},
+	   RegionConstraints region_constraints = RegionConstraints{},
 	   std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ty_ref, TypeKind::ADT, ident, refs),
       SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
@@ -678,7 +681,7 @@ public:
 	   std::vector<SubstitutionParamMapping> subst_refs, ReprOptions repr,
 	   SubstitutionArgumentMappings generic_arguments
 	   = SubstitutionArgumentMappings::error (),
-	   RegionConstraints region_constraints = {},
+	   RegionConstraints region_constraints = RegionConstraints{},
 	   std::set<HirId> refs = std::set<HirId> ())
     : BaseType (ref, ty_ref, TypeKind::ADT, ident, refs),
       SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
@@ -767,6 +770,39 @@ private:
   ReprOptions repr;
 };
 
+class FnParam
+{
+public:
+  FnParam (std::unique_ptr<HIR::Pattern> pattern, BaseType *type)
+    : pattern (std::move (pattern)), type (type)
+  {}
+
+  FnParam (const FnParam &) = delete;
+  FnParam (FnParam &&) = default;
+  FnParam &operator= (FnParam &&) = default;
+
+  HIR::Pattern &get_pattern () { return *pattern; }
+  const HIR::Pattern &get_pattern () const { return *pattern; }
+
+  bool has_pattern () { return pattern != nullptr; }
+  BaseType *get_type () const { return type; }
+  void set_type (BaseType *new_type) { type = new_type; }
+
+  FnParam clone () const
+  {
+    return FnParam (pattern->clone_pattern (), type->clone ());
+  }
+
+  FnParam monomorphized_clone () const
+  {
+    return FnParam (pattern->clone_pattern (), type->monomorphized_clone ());
+  }
+
+private:
+  std::unique_ptr<HIR::Pattern> pattern;
+  BaseType *type;
+};
+
 class FnType : public CallableTypeInterface, public SubstitutionRef
 {
 public:
@@ -778,9 +814,8 @@ public:
   static const uint8_t FNTYPE_IS_VARADIC_FLAG = 0X04;
 
   FnType (HirId ref, DefId id, std::string identifier, RustIdent ident,
-	  uint8_t flags, ABI abi,
-	  std::vector<std::pair<HIR::Pattern *, BaseType *>> params,
-	  BaseType *type, std::vector<SubstitutionParamMapping> subst_refs,
+	  uint8_t flags, ABI abi, std::vector<FnParam> params, BaseType *type,
+	  std::vector<SubstitutionParamMapping> subst_refs,
 	  SubstitutionArgumentMappings substitution_argument_mappings,
 	  RegionConstraints region_constraints,
 	  std::set<HirId> refs = std::set<HirId> ())
@@ -795,8 +830,7 @@ public:
   }
 
   FnType (HirId ref, HirId ty_ref, DefId id, std::string identifier,
-	  RustIdent ident, uint8_t flags, ABI abi,
-	  std::vector<std::pair<HIR::Pattern *, BaseType *>> params,
+	  RustIdent ident, uint8_t flags, ABI abi, std::vector<FnParam> params,
 	  BaseType *type, std::vector<SubstitutionParamMapping> subst_refs,
 	  SubstitutionArgumentMappings substitution_argument_mappings,
 	  RegionConstraints region_constraints,
@@ -804,12 +838,15 @@ public:
     : CallableTypeInterface (ref, ty_ref, TypeKind::FNDEF, ident, refs),
       SubstitutionRef (std::move (subst_refs), substitution_argument_mappings,
 		       region_constraints),
-      params (params), type (type), flags (flags), identifier (identifier),
-      id (id), abi (abi)
+      params (std::move (params)), type (type), flags (flags),
+      identifier (identifier), id (id), abi (abi)
   {
     LocalDefId local_def_id = id.localDefId;
     rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);
   }
+
+  FnType (const FnType &) = delete;
+  FnType (FnType &&) = default;
 
   void accept_vis (TyVisitor &vis) override;
   void accept_vis (TyConstVisitor &vis) const override;
@@ -844,28 +881,16 @@ public:
   BaseType *get_self_type () const
   {
     rust_assert (is_method ());
-    return param_at (0).second;
+    return param_at (0).get_type ();
   }
 
-  std::vector<std::pair<HIR::Pattern *, BaseType *>> &get_params ()
-  {
-    return params;
-  }
+  std::vector<FnParam> &get_params () { return params; }
 
-  const std::vector<std::pair<HIR::Pattern *, BaseType *>> &get_params () const
-  {
-    return params;
-  }
+  const std::vector<FnParam> &get_params () const { return params; }
 
-  std::pair<HIR::Pattern *, BaseType *> &param_at (size_t idx)
-  {
-    return params.at (idx);
-  }
+  FnParam &param_at (size_t idx) { return params.at (idx); }
 
-  const std::pair<HIR::Pattern *, BaseType *> &param_at (size_t idx) const
-  {
-    return params.at (idx);
-  }
+  const FnParam &param_at (size_t idx) const { return params.at (idx); }
 
   BaseType *clone () const final override;
 
@@ -882,7 +907,7 @@ public:
 
   WARN_UNUSED_RESULT BaseType *get_param_type_at (size_t index) const override
   {
-    return param_at (index).second;
+    return param_at (index).get_type ();
   }
 
   WARN_UNUSED_RESULT BaseType *get_return_type () const override
@@ -891,7 +916,7 @@ public:
   }
 
 private:
-  std::vector<std::pair<HIR::Pattern *, BaseType *>> params;
+  std::vector<FnParam> params;
   BaseType *type;
   uint8_t flags;
   std::string identifier;

@@ -459,7 +459,7 @@ Mappings::insert_hir_impl_block (HIR::ImplBlock *item)
   auto id = item->get_mappings ().get_hirid ();
   rust_assert (!lookup_hir_impl_block (id));
 
-  HirId impl_type_id = item->get_type ()->get_mappings ().get_hirid ();
+  HirId impl_type_id = item->get_type ().get_mappings ().get_hirid ();
   hirImplBlockMappings[id] = item;
   hirImplBlockTypeMappings[impl_type_id] = item;
   insert_node_to_hir (item->get_mappings ().get_nodeid (), id);
@@ -1241,6 +1241,9 @@ Mappings::lookup_builtin_marker ()
   return builtinMarker;
 }
 
+// FIXME: Before merging: Should we remove the `locus` parameter here? since
+// lang items are looked up mostly for code generation, it doesn't make sense to
+// error out on the locus of the node trying to access an inexistant lang item
 DefId
 Mappings::get_lang_item (LangItem::Kind item_type, location_t locus)
 {
@@ -1256,6 +1259,44 @@ Mappings::lookup_trait_item_lang_item (LangItem::Kind item, location_t locus)
 {
   DefId trait_item_id = get_lang_item (item, locus);
   return lookup_trait_item_defid (trait_item_id);
+}
+
+void
+Mappings::insert_lang_item (LangItem::Kind item_type, DefId id)
+{
+  auto it = lang_item_mappings.find (item_type);
+  rust_assert (it == lang_item_mappings.end ());
+
+  lang_item_mappings[item_type] = id;
+}
+
+tl::optional<DefId &>
+Mappings::lookup_lang_item (LangItem::Kind item_type)
+{
+  auto it = lang_item_mappings.find (item_type);
+  if (it == lang_item_mappings.end ())
+    return tl::nullopt;
+
+  return it->second;
+}
+
+void
+Mappings::insert_lang_item_node (LangItem::Kind item_type, NodeId node_id)
+{
+  auto it = lang_item_nodes.find (item_type);
+  rust_assert (it == lang_item_nodes.end ());
+
+  lang_item_nodes.insert ({item_type, node_id});
+}
+
+tl::optional<NodeId &>
+Mappings::lookup_lang_item_node (LangItem::Kind item_type)
+{
+  auto it = lang_item_nodes.find (item_type);
+  if (it == lang_item_nodes.end ())
+    return tl::nullopt;
+
+  return it->second;
 }
 
 } // namespace Analysis

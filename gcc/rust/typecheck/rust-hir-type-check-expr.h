@@ -29,7 +29,7 @@ namespace Resolver {
 class TypeCheckExpr : private TypeCheckBase, private HIR::HIRExpressionVisitor
 {
 public:
-  static TyTy::BaseType *Resolve (HIR::Expr *expr);
+  static TyTy::BaseType *Resolve (HIR::Expr &expr);
 
   void visit (HIR::TupleIndexExpr &expr) override;
   void visit (HIR::TupleExpr &expr) override;
@@ -45,8 +45,6 @@ public:
   void visit (HIR::NegationExpr &expr) override;
   void visit (HIR::IfExpr &expr) override;
   void visit (HIR::IfExprConseqElse &expr) override;
-  void visit (HIR::IfLetExpr &expr) override;
-  void visit (HIR::IfLetExprConseqElse &) override;
   void visit (HIR::BlockExpr &expr) override;
   void visit (HIR::UnsafeBlockExpr &expr) override;
   void visit (HIR::ArrayIndexExpr &expr) override;

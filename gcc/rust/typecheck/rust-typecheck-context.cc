@@ -73,6 +73,12 @@ TypeCheckContext::insert_builtin (HirId id, NodeId ref, TyTy::BaseType *type)
   builtins.push_back (std::unique_ptr<TyTy::BaseType> (type));
 }
 
+const std::vector<std::unique_ptr<TyTy::BaseType>> &
+TypeCheckContext::get_builtins () const
+{
+  return builtins;
+}
+
 void
 TypeCheckContext::insert_type (const Analysis::NodeMapping &mappings,
 			       TyTy::BaseType *type)
@@ -169,6 +175,32 @@ TypeCheckContext::peek_context ()
 {
   rust_assert (!return_type_stack.empty ());
   return return_type_stack.back ().first;
+}
+
+bool
+TypeCheckContext::have_block_context () const
+{
+  return !block_stack.empty ();
+}
+
+TypeCheckBlockContextItem
+TypeCheckContext::peek_block_context ()
+{
+  rust_assert (!block_stack.empty ());
+  return block_stack.back ();
+}
+
+void
+TypeCheckContext::push_block_context (TypeCheckBlockContextItem block)
+{
+  block_stack.push_back (block);
+}
+
+void
+TypeCheckContext::pop_block_context ()
+{
+  rust_assert (!block_stack.empty ());
+  block_stack.pop_back ();
 }
 
 void
@@ -640,9 +672,9 @@ TypeCheckContextItem::TypeCheckContextItem (HIR::Function *item)
   : type (ItemType::ITEM), item (item)
 {}
 
-TypeCheckContextItem::TypeCheckContextItem (HIR::ImplBlock *impl_block,
+TypeCheckContextItem::TypeCheckContextItem (HIR::ImplBlock &impl_block,
 					    HIR::Function *item)
-  : type (ItemType::IMPL_ITEM), item (impl_block, item)
+  : type (ItemType::IMPL_ITEM), item (&impl_block, item)
 {}
 
 TypeCheckContextItem::TypeCheckContextItem (HIR::TraitItemFunc *trait_item)
@@ -794,6 +826,44 @@ TypeCheckContextItem::get_defid () const
     }
 
   return UNKNOWN_DEFID;
+}
+
+// TypeCheckBlockContextItem
+
+TypeCheckBlockContextItem::Item::Item (HIR::ImplBlock *b) : block (b) {}
+
+TypeCheckBlockContextItem::Item::Item (HIR::Trait *t) : trait (t) {}
+
+TypeCheckBlockContextItem::TypeCheckBlockContextItem (HIR::ImplBlock *block)
+  : type (TypeCheckBlockContextItem::ItemType::IMPL_BLOCK), item (block)
+{}
+
+TypeCheckBlockContextItem::TypeCheckBlockContextItem (HIR::Trait *trait)
+  : type (TypeCheckBlockContextItem::ItemType::TRAIT), item (trait)
+{}
+
+bool
+TypeCheckBlockContextItem::is_impl_block () const
+{
+  return type == IMPL_BLOCK;
+}
+
+bool
+TypeCheckBlockContextItem::is_trait_block () const
+{
+  return type == TRAIT;
+}
+
+HIR::ImplBlock &
+TypeCheckBlockContextItem::get_impl_block ()
+{
+  return *(item.block);
+}
+
+HIR::Trait &
+TypeCheckBlockContextItem::get_trait ()
+{
+  return *(item.trait);
 }
 
 } // namespace Resolver

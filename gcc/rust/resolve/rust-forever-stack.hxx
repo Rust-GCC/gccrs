@@ -52,9 +52,10 @@ ForeverStack<N>::Node::insert_child (Link link, Node child)
 
 template <Namespace N>
 void
-ForeverStack<N>::push (Rib rib, NodeId id, tl::optional<Identifier> path)
+ForeverStack<N>::push (Rib::Kind rib_kind, NodeId id,
+		       tl::optional<Identifier> path)
 {
-  push_inner (rib, Link (id, path));
+  push_inner (rib_kind, Link (id, path));
 }
 
 template <Namespace N>
@@ -373,8 +374,8 @@ check_leading_kw_at_start (const S &segment, bool condition)
 template <Namespace N>
 template <typename S>
 tl::optional<typename std::vector<S>::const_iterator>
-ForeverStack<N>::find_starting_point (const std::vector<S> &segments,
-				      Node &starting_point)
+ForeverStack<N>::find_starting_point (
+  const std::vector<S> &segments, std::reference_wrapper<Node> &starting_point)
 {
   auto iterator = segments.begin ();
 
@@ -411,14 +412,15 @@ ForeverStack<N>::find_starting_point (const std::vector<S> &segments,
 	}
       if (seg.is_super_path_seg ())
 	{
-	  if (starting_point.is_root ())
+	  if (starting_point.get ().is_root ())
 	    {
 	      rust_error_at (seg.get_locus (), ErrorCode::E0433,
 			     "too many leading %<super%> keywords");
 	      return tl::nullopt;
 	    }
 
-	  starting_point = find_closest_module (starting_point.parent.value ());
+	  starting_point
+	    = find_closest_module (starting_point.get ().parent.value ());
 	  continue;
 	}
 
@@ -493,12 +495,12 @@ ForeverStack<N>::resolve_path (const std::vector<S> &segments)
   if (segments.size () == 1)
     return get (segments.back ().as_string ());
 
-  auto starting_point = cursor ();
+  std::reference_wrapper<Node> starting_point = cursor ();
 
   return find_starting_point (segments, starting_point)
     .and_then ([this, &segments, &starting_point] (
 		 typename std::vector<S>::const_iterator iterator) {
-      return resolve_segments (starting_point, segments, iterator);
+      return resolve_segments (starting_point.get (), segments, iterator);
     })
     .and_then ([&segments] (Node final_node) {
       return final_node.rib.get (segments.back ().as_string ());
@@ -626,12 +628,32 @@ template <Namespace N>
 tl::optional<Rib &>
 ForeverStack<N>::dfs_rib (ForeverStack<N>::Node &starting_point, NodeId to_find)
 {
+  return dfs_node (starting_point, to_find).map ([] (Node &x) -> Rib & {
+    return x.rib;
+  });
+}
+
+template <Namespace N>
+tl::optional<const Rib &>
+ForeverStack<N>::dfs_rib (const ForeverStack<N>::Node &starting_point,
+			  NodeId to_find) const
+{
+  return dfs_node (starting_point, to_find).map ([] (Node &x) -> Rib & {
+    return x.rib;
+  });
+}
+
+template <Namespace N>
+tl::optional<typename ForeverStack<N>::Node &>
+ForeverStack<N>::dfs_node (ForeverStack<N>::Node &starting_point,
+			   NodeId to_find)
+{
   if (starting_point.id == to_find)
-    return starting_point.rib;
+    return starting_point;
 
   for (auto &child : starting_point.children)
     {
-      auto candidate = dfs_rib (child.second, to_find);
+      auto candidate = dfs_node (child.second, to_find);
 
       if (candidate.has_value ())
 	return candidate;
@@ -641,16 +663,16 @@ ForeverStack<N>::dfs_rib (ForeverStack<N>::Node &starting_point, NodeId to_find)
 }
 
 template <Namespace N>
-tl::optional<const Rib &>
-ForeverStack<N>::dfs_rib (const ForeverStack<N>::Node &starting_point,
-			  NodeId to_find) const
+tl::optional<const typename ForeverStack<N>::Node &>
+ForeverStack<N>::dfs_node (const ForeverStack<N>::Node &starting_point,
+			   NodeId to_find) const
 {
   if (starting_point.id == to_find)
-    return starting_point.rib;
+    return starting_point;
 
   for (auto &child : starting_point.children)
     {
-      auto candidate = dfs_rib (child.second, to_find);
+      auto candidate = dfs_node (child.second, to_find);
 
       if (candidate.has_value ())
 	return candidate;
@@ -735,6 +757,13 @@ ForeverStack<N>::as_debug_string ()
   stream_node (stream, 0, root);
 
   return stream.str ();
+}
+
+template <Namespace N>
+bool
+ForeverStack<N>::is_module_descendant (NodeId parent, NodeId child) const
+{
+  return dfs_node (dfs_node (root, parent).value (), child).has_value ();
 }
 
 // FIXME: Can we add selftests?

@@ -41,11 +41,14 @@ public:
   // TODO: Do we need this?
   // void visit (AST::Method &) override;
   void visit (AST::IdentifierPattern &) override;
+  void visit (AST::SelfParam &) override;
 
   // resolutions
   void visit (AST::IdentifierExpr &) override;
   void visit (AST::PathInExpression &) override;
+  void visit (AST::LangItemPath &) override;
   void visit (AST::TypePath &) override;
+  void visit (AST::StructExprStruct &) override;
   void visit (AST::StructExprStructBase &) override;
   void visit (AST::StructExprStructFields &) override;
   void visit (AST::StructStruct &) override;

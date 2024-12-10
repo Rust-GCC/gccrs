@@ -3,7 +3,6 @@
 [![Build Docker image](https://github.com/Rust-GCC/gccrs/actions/workflows/docker.yml/badge.svg)](https://github.com/Rust-GCC/gccrs/actions/workflows/docker.yml)
 ![Docker Pulls](https://img.shields.io/docker/pulls/philberty/gccrs)
 [![project chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://gcc-rust.zulipchat.com/)
-[![Bors enabled](https://bors.tech/images/badge_small.svg)](https://app.bors.tech/repositories/32890)
 [![justforfunnoreally.dev badge](https://img.shields.io/badge/justforfunnoreally-dev-9ff)](https://justforfunnoreally.dev)
 # GCC Rust
 ![GCC Rust](logo.png?raw=true "GCC rust Logo")
@@ -44,6 +43,12 @@ Fetch dependencies for Ubuntu:
 
 ```bash
 $ apt install build-essential libgmp3-dev libmpfr-dev libmpc-dev flex bison autogen gcc-multilib dejagnu
+```
+
+Fetch dependencies for Fedora:
+
+```bash
+$ dnf install autoconf automake dejagnu flex bison glibc-devel.{x86_64,i686} gmp-devel libmpc-devel mpfr-devel
 ```
 
 Clone the repository
@@ -255,7 +260,7 @@ With that, we're missing out on the aspect that _enforces that GCC compiles with
 To encounter that, the default CI has a [_check for new warnings_ step](https://github.com/Rust-GCC/gccrs/pull/1026)
 that verifies in the CI `--disable-bootstrap` build configuration that no new warnings are introduced.
 If that step fails, it usually points out a new _warning_ you've introduced erroneously, and should address.
-Occasionally it means that simply the `.github/bors_log_expected_warnings` file needs to be updated,
+Occasionally it means that simply the `.github/log_expected_warnings` file needs to be updated,
 for example if due to any kind of "environmental changes" (for example, CI "initial" compiler changes).
 Unless diligently reproducing the CI configuration (in particular "initial" compiler, GCC version),
 it's not really feasible to reproduce this check locally.

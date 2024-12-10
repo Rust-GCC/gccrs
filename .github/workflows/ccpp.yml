@@ -16,13 +16,13 @@ jobs:
   build-and-check-ubuntu-64bit:
 
     env:
-      # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
@@ -68,7 +68,7 @@ jobs:
       run: |
            cd gccrs-build
            < log grep 'warning: ' | sort > log_warnings
-           if diff -U0 ../.github/bors_log_expected_warnings log_warnings; then
+           if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
                echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'
@@ -100,13 +100,13 @@ jobs:
   build-and-check-ubuntu-64bit-glibcxx:
 
     env:
-      # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
@@ -185,13 +185,13 @@ jobs:
   build-and-check-ubuntu-32bit:
 
     env:
-      # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
@@ -237,7 +237,7 @@ jobs:
       run: |
            cd gccrs-build
            < log grep 'warning: ' | sort > log_warnings
-           if diff -U0 ../.github/bors_log_expected_warnings log_warnings; then
+           if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
                echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'
@@ -266,20 +266,19 @@ jobs:
               exit 0; \
             fi
 
-  build-and-check-gcc-48:
+  build-and-check-gcc-5:
 
     runs-on: ubuntu-22.04
-    container: ubuntu:18.04
     env:
       # otherwise we hang when installing tzdata
       DEBIAN_FRONTEND: noninteractive
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          apt-get update;
-          apt-get install -y \
+          sudo apt-get update;
+          sudo apt-get install -y \
                   curl \
                   automake \
                   autoconf \
@@ -287,17 +286,37 @@ jobs:
                   autogen \
                   bison \
                   flex \
+                  libc6-dev \
+                  libc6-dev-i386 \
                   libgmp3-dev \
                   libmpfr-dev \
                   libmpc-dev \
                   build-essential \
-                  gcc-4.8 \
-                  g++-4.8 \
-                  gcc-4.8-multilib \
-                  g++-4.8-multilib \
                   dejagnu;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+
+    - name: Restore cached gcc-5.4
+      id: restore-gcc5
+      uses: actions/cache/restore@v4
+      with:
+        key: ce-tar-gcc-5
+        path: ~/gcc-5.4.0/
+
+    - name: Download and install gcc5.4
+      if: ${{ steps.restore-gcc5.outputs.cache-hit != 'true' }}
+      run: |
+        curl "https://s3.amazonaws.com/compiler-explorer/opt/gcc-5.4.0.tar.xz" -o /tmp/gcc.tar.xz;
+        cd ~;
+        tar xvf /tmp/gcc.tar.xz
+
+    - name: Store gcc-5.4 to cache
+      id: cache-gcc5
+      if: always() && steps.restore-gcc5.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        key: ce-tar-gcc-5
+        path: ~/gcc-5.4.0/
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -306,29 +325,34 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
-           ../configure \
-               CC='gcc-4.8' \
-               CXX='g++-4.8' \
-               --enable-languages=rust \
-               --disable-bootstrap \
-               --enable-multilib
+
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
+
+           PATH=$HOME/gcc-5.4.0/bin:$PATH \
+             ../configure \
+                 --enable-languages=rust \
+                 --disable-bootstrap \
+                 --enable-multilib
 
     - name: Build
       shell: bash
       run: |
            # Add cargo to our path quickly
            . "$HOME/.cargo/env";
-           make -C gccrs-build -j $(nproc)
+           PATH=$HOME/gcc-5.4.0/bin:$PATH \
+             make -C gccrs-build -j $(nproc)
 
     - name: Run Tests
       run: |
            cd gccrs-build; \
-           make check-rust RUNTESTFLAGS="--target_board=unix\{-m32,-m64}"
+           PATH=$HOME/gcc-5.4.0/bin:$PATH \
+             make check-rust RUNTESTFLAGS="--target_board=unix\{-m32,-m64}"
 
     - name: Archive check-rust results
       uses: actions/upload-artifact@v3
       with:
-        name: check-rust-logs-4.8
+        name: check-rust-logs-5
         path: |
           gccrs-build/gcc/testsuite/rust/
 
@@ -353,7 +377,7 @@ jobs:
     runs-on: macos-13
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
@@ -405,13 +429,13 @@ jobs:
   build-and-check-asan:
 
     env:
-      # Force locale, in particular for reproducible results re '.github/bors_log_expected_warnings' (see below).
+      # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
     runs-on: ubuntu-22.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
@@ -459,7 +483,7 @@ jobs:
 #      run: |
 #           cd gccrs-build
 #           < log grep 'warning: ' | sort > log_warnings
-#           if diff -U0 ../.github/bors_log_expected_warnings log_warnings; then
+#           if diff -U0 ../.github/log_expected_warnings log_warnings; then
 #               :
 #           else
 #               echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'

@@ -416,7 +416,7 @@ public:
    * @param path An optional path if the Rib was created due to a "named"
    *        lexical scope, like a module's.
    */
-  void push (Rib rib, NodeId id, tl::optional<Identifier> path = {});
+  void push (Rib::Kind rib_kind, NodeId id, tl::optional<Identifier> path = {});
 
   /**
    * Pop the innermost Rib from the stack
@@ -521,6 +521,12 @@ public:
 
   std::string as_debug_string ();
 
+  /**
+   * Used to check if a module is a descendant of another module
+   * Intended for use in the privacy checker
+   */
+  bool is_module_descendant (NodeId parent, NodeId child) const;
+
 private:
   /**
    * A link between two Nodes in our trie data structure. This class represents
@@ -608,7 +614,8 @@ private:
 
   template <typename S>
   tl::optional<SegIterator<S>>
-  find_starting_point (const std::vector<S> &segments, Node &starting_point);
+  find_starting_point (const std::vector<S> &segments,
+		       std::reference_wrapper<Node> &starting_point);
 
   template <typename S>
   tl::optional<Node &> resolve_segments (Node &starting_point,
@@ -635,6 +642,10 @@ private:
   tl::optional<Rib &> dfs_rib (Node &starting_point, NodeId to_find);
   tl::optional<const Rib &> dfs_rib (const Node &starting_point,
 				     NodeId to_find) const;
+  // FIXME: Documentation
+  tl::optional<Node &> dfs_node (Node &starting_point, NodeId to_find);
+  tl::optional<const Node &> dfs_node (const Node &starting_point,
+				       NodeId to_find) const;
 };
 
 } // namespace Resolver2_0

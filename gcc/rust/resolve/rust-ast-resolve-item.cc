@@ -582,7 +582,14 @@ ResolveItem::visit (AST::InherentImpl &impl_block)
   // Setup paths
   CanonicalPath self_cpath = CanonicalPath::create_empty ();
   bool ok = ResolveTypeToCanonicalPath::go (impl_block.get_type (), self_cpath);
-  rust_assert (ok);
+  if (!ok)
+    {
+      resolver->get_name_scope ().pop ();
+      resolver->get_type_scope ().pop ();
+      resolver->get_label_scope ().pop ();
+      return;
+    }
+
   rust_debug ("AST::InherentImpl resolve Self: {%s}",
 	      self_cpath.get ().c_str ());
 
@@ -671,12 +678,33 @@ ResolveItem::visit (AST::TraitImpl &impl_block)
       return;
     }
 
-  bool ok;
+  bool ok = true;
+
   // setup paths
   CanonicalPath canonical_trait_type = CanonicalPath::create_empty ();
-  ok = ResolveTypeToCanonicalPath::go (impl_block.get_trait_path (),
-				       canonical_trait_type);
-  rust_assert (ok);
+  if (impl_block.get_trait_path ().get_path_kind ()
+      == AST::Path::Kind::LangItem)
+    {
+      auto &lang_item
+	= static_cast<AST::LangItemPath &> (impl_block.get_trait_path ());
+
+      canonical_trait_type
+	= CanonicalPath::new_seg (lang_item.get_node_id (),
+				  LangItem::ToString (
+				    lang_item.get_lang_item_kind ()));
+    }
+  else
+    {
+      ok = ResolveTypeToCanonicalPath::go (impl_block.get_trait_path_type (),
+					   canonical_trait_type);
+      if (!ok)
+	{
+	  resolver->get_name_scope ().pop ();
+	  resolver->get_type_scope ().pop ();
+	  resolver->get_label_scope ().pop ();
+	  return;
+	}
+    }
 
   rust_debug ("AST::TraitImpl resolve trait type: {%s}",
 	      canonical_trait_type.get ().c_str ());
@@ -684,7 +712,13 @@ ResolveItem::visit (AST::TraitImpl &impl_block)
   CanonicalPath canonical_impl_type = CanonicalPath::create_empty ();
   ok = ResolveTypeToCanonicalPath::go (impl_block.get_type (),
 				       canonical_impl_type);
-  rust_assert (ok);
+  if (!ok)
+    {
+      resolver->get_name_scope ().pop ();
+      resolver->get_type_scope ().pop ();
+      resolver->get_label_scope ().pop ();
+      return;
+    }
 
   rust_debug ("AST::TraitImpl resolve self: {%s}",
 	      canonical_impl_type.get ().c_str ());
@@ -755,20 +789,14 @@ ResolveItem::visit (AST::Trait &trait)
   resolver->push_new_name_rib (resolver->get_name_scope ().peek ());
   resolver->push_new_type_rib (resolver->get_type_scope ().peek ());
 
-  // we need to inject an implicit self TypeParam here
-  // FIXME: which location should be used for Rust::Identifier `Self`?
-  AST::TypeParam *implicit_self
-    = new AST::TypeParam ({"Self"}, trait.get_locus ());
-  trait.insert_implict_self (
-    std::unique_ptr<AST::GenericParam> (implicit_self));
-  CanonicalPath Self = CanonicalPath::get_big_self (trait.get_node_id ());
-
+  ResolveGenericParam::go (trait.get_implicit_self (), prefix,
+			   canonical_prefix);
   for (auto &generic : trait.get_generic_params ())
     ResolveGenericParam::go (*generic, prefix, canonical_prefix);
 
   // Self is an implicit TypeParam so lets mark it as such
   resolver->get_type_scope ().append_reference_for_def (
-    Self.get_node_id (), implicit_self->get_node_id ());
+    trait.get_node_id (), trait.get_implicit_self ().get_node_id ());
 
   if (trait.has_type_param_bounds ())
     {
