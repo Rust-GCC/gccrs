@@ -24,6 +24,7 @@
 #include "rust-ast.h"
 #include "rust-ast-full.h"
 #include "rust-system.h"
+#include <functional>
 
 namespace Rust {
 namespace AST {
@@ -183,6 +184,8 @@ private:
 	newline ();
       }
   }
+
+  void internal_comment (std::string node_name, std::function<void ()> visitor);
 
   void trailing_comma ();
   void newline ();
