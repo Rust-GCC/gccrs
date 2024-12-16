@@ -2187,6 +2187,8 @@ TypeParam::as_string () const
 AST::SimplePath
 PathPattern::convert_to_simple_path (bool with_opening_scope_resolution) const
 {
+  rust_assert (kind == Kind::Segmented);
+
   if (!has_segments ())
     {
       return AST::SimplePath::create_empty ();
