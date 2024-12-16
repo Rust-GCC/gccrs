@@ -231,14 +231,17 @@ public:
 // HIR node representing a pattern that involves a "path" - abstract base class
 class PathPattern : public Pattern
 {
-  std::vector<PathExprSegment> segments;
-  tl::optional<LangItem::Kind> lang_item;
-
+public:
   enum class Kind
   {
     Segmented,
     LangItem
-  } kind;
+  };
+
+private:
+  std::vector<PathExprSegment> segments;
+  tl::optional<LangItem::Kind> lang_item;
+  Kind kind;
 
 protected:
   PathPattern (std::vector<PathExprSegment> segments)
@@ -277,6 +280,10 @@ public:
 
   size_t get_num_segments () const
   {
+    if (kind == Kind::LangItem)
+      rust_fatal_error (UNKNOWN_LOCATION, "[ARTHUR] %s",
+			LangItem::ToString (*lang_item).c_str ());
+
     rust_assert (kind == Kind::Segmented);
     return segments.size ();
   }
@@ -309,6 +316,8 @@ public:
   {
     return PatternType::PATH;
   }
+
+  Kind get_path_kind () const { return kind; }
 };
 
 /* HIR node representing a path-in-expression pattern (path that allows generic

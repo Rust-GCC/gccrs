@@ -19,6 +19,7 @@
 #include "rust-ast-full.h"
 #include "rust-hir-expr.h"
 #include "rust-hir-full.h"
+#include "rust-hir-path.h"
 #include "rust-hir-visitor.h"
 #include "rust-diagnostics.h"
 
@@ -1210,6 +1211,9 @@ ClosureExpr::as_string () const
 std::string
 PathPattern::as_string () const
 {
+  if (kind == PathPattern::Kind::LangItem)
+    return LangItem::ToString (*lang_item);
+
   std::string str;
 
   for (const auto &segment : segments)
