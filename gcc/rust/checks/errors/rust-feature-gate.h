@@ -55,7 +55,6 @@ public:
   void visit (AST::ImplTraitType &type) override;
   void visit (AST::ImplTraitTypeOneBound &type) override;
   void visit (AST::Attribute &attr) override;
-  void visit (AST::TypeAlias &attr) override;
 
 private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);

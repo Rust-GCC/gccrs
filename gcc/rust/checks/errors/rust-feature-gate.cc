@@ -275,15 +275,9 @@ FeatureGate::visit (AST::ImplTraitTypeOneBound &type)
 void
 FeatureGate::visit (AST::Attribute &attr)
 {
-  if (attr.get_path().as_string() == "register_tool")
+  if (attr.get_path ().as_string () == "register_tool")
     gate (Feature::Name::REGISTER_TOOL, attr.get_locus (),
 	  "register tool is an experimental feature");
-}
-
-void
-FeatureGate::visit (AST::TypeAlias &type)
-{
-  
 }
 
 } // namespace Rust

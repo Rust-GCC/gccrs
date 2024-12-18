@@ -59,17 +59,22 @@ Feature::create (Feature::Name f)
       return Feature (f, Feature::State::ACTIVE, "optin_builtin_traits",
 		      "1.0.0", 13231);
     case Feature::Name::ARBITRARY_SELF_TYPES:
-      return Feature (f, Feature::State::ACCEPTED, "arbitrary_self_types", "1.49.0", 44874);
+      return Feature (f, Feature::State::ACCEPTED, "arbitrary_self_types",
+		      "1.49.0", 44874);
     case Feature::Name::DOC_CFG:
       return Feature (f, Feature::State::ACCEPTED, "doc_cfg", "1.49.0", 43781);
     case Feature::Name::IMPL_TRAIT_IN_ASSOC_TYPE:
-      return Feature (f, Feature::State::ACCEPTED, "impl_trait_in_assoc_type", "1.49.0", 63063);
+      return Feature (f, Feature::State::ACCEPTED, "impl_trait_in_assoc_type",
+		      "1.49.0", 63063);
     case Feature::Name::REGISTER_TOOL:
-      return Feature (f, Feature::State::ACCEPTED, "register_tool", "1.49.0", 66079);
+      return Feature (f, Feature::State::ACCEPTED, "register_tool", "1.49.0",
+		      66079);
     case Feature::Name::ASSOCIATED_TYPE_DEFAULTS:
-      return Feature (f, Feature::State::ACCEPTED, "associated_type_defaults", "1.49.0", 29661);
+      return Feature (f, Feature::State::ACCEPTED, "associated_type_defaults",
+		      "1.49.0", 29661);
     case Feature::Name::CONST_TRAIT_IMPL:
-      return Feature (f, Feature::State::ACCEPTED, "const_trait_impl", "1.49.0", 67792);
+      return Feature (f, Feature::State::ACCEPTED, "const_trait_impl", "1.49.0",
+		      67792);
     default:
       rust_unreachable ();
     }
