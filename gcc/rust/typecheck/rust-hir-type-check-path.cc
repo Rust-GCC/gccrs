@@ -196,11 +196,10 @@ TypeCheckExpr::visit (HIR::PathInExpression &expr)
 	  // We can type resolve the path in expression easily as it is a lang
 	  // item path, but we still need to setup the various generics and
 	  // substitutions
-	  infered = resolved;
 
 	  // FIXME: We probably need to check *if* the type needs substitutions
 	  // or not
-	  infered = SubstMapper::InferSubst (infered, expr.get_locus());
+	  infered = SubstMapper::InferSubst (resolved, expr.get_locus());
 
 	  // FIXME: also we probably need to insert resolved types in the name
 	  // resolver here
