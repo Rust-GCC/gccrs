@@ -19,9 +19,11 @@
 #include "rust-desugar-for-loops.h"
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
+#include "rust-path.h"
 #include "rust-stmt.h"
 #include "rust-diagnostics.h"
 #include "rust-expr.h"
+#include "rust-ast-builder.h"
 
 namespace Rust {
 namespace AST {
@@ -32,6 +34,25 @@ void
 DesugarForLoops::go (AST::Crate &crate)
 {
   DefaultASTVisitor::visit (crate);
+}
+
+void
+replace_for_loop (std::unique_ptr<Expr> &for_loop,
+		  std::unique_ptr<Expr> &&expanded)
+{
+  for_loop = std::move (expanded);
+}
+
+std::unique_ptr<Expr>
+desugar (AST::ForLoopExpr &expr)
+{
+  auto builder = AST::Builder (expr.get_locus ());
+
+  auto into_iter
+    = builder.call (builder.lang_item_path (LangItem::Kind::INTOITER_INTOITER),
+		    expr.get_iterator_expr ().clone_expr ());
+
+  return into_iter;
 }
 
 void
@@ -48,7 +69,14 @@ DesugarForLoops::visit (AST::BlockExpr &block)
 	      auto &loop = static_cast<AST::BaseLoopExpr &> (expr.get_expr ());
 
 	      if (loop.get_loop_kind () == AST::BaseLoopExpr::Kind::For)
-		rust_error_at (loop.get_locus (), "found a for-loop - yuck");
+		{
+		  auto &for_loop = static_cast<AST::ForLoopExpr &> (loop);
+
+		  auto desugared = desugar (for_loop);
+
+		  replace_for_loop (expr.get_expr_ptr (),
+				    std::move (desugared));
+		}
 	    }
 	}
     }
