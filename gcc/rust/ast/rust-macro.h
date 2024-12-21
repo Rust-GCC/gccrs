@@ -29,6 +29,7 @@
 
 namespace Rust {
 namespace AST {
+
 class MacroFragSpec
 {
 public:
@@ -572,12 +573,9 @@ public:
     is_builtin_rule = true;
   }
 
-  AST::Kind get_ast_kind () const override
-  {
-    return AST::Kind::MACRO_RULES_DEFINITION;
-  }
-
   MacroKind get_kind () const { return kind; }
+
+  Item::Kind get_item_kind() const override { return Item::Kind::MacroRulesDefinition; }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -609,11 +607,6 @@ public:
   };
 
   std::string as_string () const override;
-
-  Pattern::Kind get_pattern_kind () override
-  {
-    return Pattern::Kind::MacroInvocation;
-  }
 
   /**
    * The default constructor you should use. Whenever we parse a macro call, we
@@ -675,11 +668,6 @@ public:
   NodeId get_node_id () const override final
   {
     return ExprWithoutBlock::get_node_id ();
-  }
-
-  AST::Kind get_ast_kind () const override
-  {
-    return AST::Kind::MACRO_INVOCATION;
   }
 
   NodeId get_macro_node_id () const { return node_id; }
@@ -799,6 +787,21 @@ public:
   }
 
   void add_semicolon () override { is_semi_coloned = true; }
+
+  Pattern::Kind get_pattern_kind () override
+  {
+    return Pattern::Kind::MacroInvocation;
+  }
+
+  Expr::Kind get_expr_kind () const override
+  {
+    return Expr::Kind::MacroInvocation;
+  }
+
+  Item::Kind get_item_kind () const override
+  {
+    return Item::Kind::MacroInvocation;
+  }
 
 protected:
   Item *clone_item_impl () const override
