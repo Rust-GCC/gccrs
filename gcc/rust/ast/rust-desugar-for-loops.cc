@@ -25,6 +25,7 @@
 #include "rust-diagnostics.h"
 #include "rust-expr.h"
 #include "rust-ast-builder.h"
+#include "rust-ast-dump.h"
 
 namespace Rust {
 namespace AST {
@@ -133,7 +134,8 @@ DesugarForLoops::desugar (AST::ForLoopExpr &expr)
   loop_stmts.emplace_back (std::move (let_next));
   loop_stmts.emplace_back (ctx.statementify (std::move (match_next)));
   loop_stmts.emplace_back (std::move (let_pat));
-  loop_stmts.emplace_back (ctx.statementify (expr.get_loop_block().clone_expr()));
+  loop_stmts.emplace_back (
+    ctx.statementify (expr.get_loop_block ().clone_expr ()));
 
   // loop {
   //     <let_next>;

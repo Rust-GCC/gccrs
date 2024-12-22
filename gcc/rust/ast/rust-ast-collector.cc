@@ -21,6 +21,7 @@
 #include "rust-expr.h"
 #include "rust-item.h"
 #include "rust-keyword-values.h"
+#include "rust-path.h"
 #include "rust-system.h"
 #include "rust-token.h"
 
@@ -553,10 +554,24 @@ TokenCollector::visit (PathExprSegment &segment)
 void
 TokenCollector::visit (PathInExpression &path)
 {
-  if (path.opening_scope_resolution ())
+  if (path.get_path ().get_path_kind () == Path::Kind::LangItem)
     {
-      push (Rust::Token::make (SCOPE_RESOLUTION, path.get_locus ()));
+      auto lang_item = static_cast<LangItemPath &> (path.get_path ());
+
+      push (Rust::Token::make (TokenId::HASH, path.get_locus ()));
+      push (Rust::Token::make (TokenId::LEFT_SQUARE, path.get_locus ()));
+      push (Rust::Token::make_identifier (path.get_locus (), "lang"));
+      push (Rust::Token::make (TokenId::EQUAL, path.get_locus ()));
+      push (Rust::Token::make_string (path.get_locus (),
+				      LangItem::ToString (
+					lang_item.get_lang_item_kind ())));
+      push (Rust::Token::make (TokenId::RIGHT_SQUARE, path.get_locus ()));
+
+      return;
     }
+
+  if (path.opening_scope_resolution ())
+    push (Rust::Token::make (SCOPE_RESOLUTION, path.get_locus ()));
 
   visit_items_joined_by_separator (path.get_segments (), SCOPE_RESOLUTION);
 }

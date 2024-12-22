@@ -783,6 +783,8 @@ public:
 
   location_t get_locus () const override final { return locus; }
 
+  Path& get_path() { return *path; }
+
   void accept_vis (ASTVisitor &vis) override;
 
   void mark_for_strip () override { marked_for_strip = true; }

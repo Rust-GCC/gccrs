@@ -418,24 +418,7 @@ ASTLoweringExprWithBlock::visit (AST::WhileLoopExpr &expr)
 void
 ASTLoweringExprWithBlock::visit (AST::ForLoopExpr &expr)
 {
-  // TODO FIXME
-
-  // HIR::BlockExpr *loop_block
-  //   = ASTLoweringBlock::translate (expr.get_loop_block ().get (),
-  //   &terminated);
-  // HIR::LoopLabel loop_label = lower_loop_label (expr.get_loop_label ());
-  // HIR::Expr *iterator_expr
-  //   = ASTLoweringExpr::translate (expr.get_iterator_expr ().get (),
-  //       			  &terminated);
-  // HIR::Pattern *loop_pattern
-  //   = ASTLoweringPattern::translate (expr.get_pattern ().get ());
-
-  // auto crate_num = mappings->get_current_crate ();
-  // Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-  //       			 mappings->get_next_hir_id (crate_num),
-  //       			 UNKNOWN_LOCAL_DEFID);
-
-  gcc_unreachable ();
+  rust_unreachable();
 }
 
 void
