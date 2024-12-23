@@ -20,6 +20,7 @@
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
 #include "rust-path.h"
+#include "rust-pattern.h"
 #include "rust-stmt.h"
 #include "rust-diagnostics.h"
 #include "rust-expr.h"
@@ -55,29 +56,37 @@ DesugarForLoops::DesugarCtx::make_match_arm (std::unique_ptr<Pattern> &&path)
 MatchCase
 DesugarForLoops::DesugarCtx::make_break_arm ()
 {
-  auto arm
-    = make_match_arm (builder.lang_item_path (LangItem::Kind::OPTION_NONE));
+  auto arm = make_match_arm (std::unique_ptr<Pattern> (new PathInExpression (
+    builder.path_in_expression (LangItem::Kind::OPTION_NONE))));
 
   auto break_expr = std::unique_ptr<Expr> (
     new BreakExpr (Lifetime::error (), nullptr, {}, loc));
 
-  return MatchCase (arm, std::move (break_expr));
+  return MatchCase (std::move (arm), std::move (break_expr));
 }
 
 MatchCase
 DesugarForLoops::DesugarCtx::make_continue_arm ()
 {
-  // Missing the actual `val` binding
-  auto arm
-    = make_match_arm (builder.lang_item_path (LangItem::Kind::OPTION_SOME));
+  auto val = builder.identifier_pattern ("val");
+
+  auto patterns = std::vector<std::unique_ptr<Pattern>> ();
+  patterns.emplace_back (std::move (val));
+
+  auto pattern_item = std::unique_ptr<TupleStructItems> (
+    new TupleStructItemsNoRange (std::move (patterns)));
+  auto pattern = std::unique_ptr<Pattern> (new TupleStructPattern (
+    builder.path_in_expression (LangItem::Kind::OPTION_SOME),
+    std::move (pattern_item)));
+
+  auto val_arm = make_match_arm (std::move (pattern));
 
   auto next = builder.identifier ("__next");
-  auto val = builder.identifier ("val");
 
   auto assignment = std::unique_ptr<Expr> (
-    new AssignmentExpr (std::move (next), std::move (val), {}, loc));
+    new AssignmentExpr (std::move (next), builder.identifier ("val"), {}, loc));
 
-  return MatchCase (arm, std::move (assignment));
+  return MatchCase (std::move (val_arm), std::move (assignment));
 }
 
 std::unique_ptr<Stmt>
@@ -97,9 +106,9 @@ DesugarForLoops::desugar (AST::ForLoopExpr &expr)
 				     expr.get_iterator_expr ().clone_expr ());
 
   // Iterator::next(iter)
-  auto next_call = ctx.builder.call (ctx.builder.lang_item_path (
-				       LangItem::Kind::ITERATOR_NEXT),
-				     ctx.builder.identifier ("iter"));
+  auto next_call = ctx.builder.call (
+    ctx.builder.lang_item_path (LangItem::Kind::ITERATOR_NEXT),
+    ctx.builder.ref (ctx.builder.identifier ("iter"), true));
 
   // None => break,
   auto break_arm = ctx.make_break_arm ();
@@ -135,7 +144,24 @@ DesugarForLoops::desugar (AST::ForLoopExpr &expr)
   // }
   ctx.builder.loop(std::move(loop_stmts));
 
-  return into_iter;
+  auto mut_iter_pattern = ctx.builder.identifier_pattern ("iter");
+  auto match_iter
+    = ctx.builder.match (std::move (into_iter),
+			 {ctx.builder.match_case (std::move (mut_iter_pattern),
+						  std::move (loop))});
+
+  auto let_result = ctx.builder.let (ctx.builder.identifier_pattern ("result"),
+				     nullptr, std::move (match_iter));
+  auto result_return = ctx.builder.identifier ("result");
+
+  // return ctx.builder.block (std::move (let_result), std::move
+  // (result_return));
+  auto desugar
+    = ctx.builder.block (std::move (let_result), std::move (result_return));
+
+  AST::Dump::debug (*desugar);
+
+  return desugar;
 }
 
 void
