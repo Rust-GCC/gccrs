@@ -18,6 +18,7 @@
 
 #include "rust-ast-resolve-path.h"
 #include "rust-ast-resolve-type.h"
+#include "rust-hir-map.h"
 #include "rust-path.h"
 
 namespace Rust {
@@ -49,6 +50,19 @@ ResolvePath::go (AST::SimplePath &expr)
 NodeId
 ResolvePath::resolve_path (AST::PathInExpression &expr)
 {
+  if (expr.get_path ().get_path_kind () == AST::Path::Kind::LangItem)
+    {
+      auto lang_item = static_cast<AST::LangItemPath &> (expr.get_path ());
+
+      if (auto lookup = Analysis::Mappings::get ().lookup_lang_item_node (
+	    lang_item.get_lang_item_kind ()))
+	return *lookup;
+
+      rust_fatal_error (
+	expr.get_locus (), "undeclared lang item: %qs",
+	LangItem::ToString (lang_item.get_lang_item_kind ()).c_str ());
+    }
+
   NodeId resolved_node_id = UNKNOWN_NODEID;
   NodeId module_scope_id = resolver->peek_current_module_scope ();
   NodeId previous_resolved_node_id = module_scope_id;

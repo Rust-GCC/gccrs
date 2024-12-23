@@ -156,9 +156,10 @@ EarlyNameResolver::visit (AST::ConstGenericParam &)
 void
 EarlyNameResolver::visit (AST::PathInExpression &path)
 {
-  for (auto &segment : path.get_segments ())
-    if (segment.has_generic_args ())
-      resolve_generic_args (segment.get_generic_args ());
+  if (path.get_path ().get_path_kind () != AST::Path::Kind::LangItem)
+    for (auto &segment : path.get_segments ())
+      if (segment.has_generic_args ())
+	resolve_generic_args (segment.get_generic_args ());
 }
 
 void

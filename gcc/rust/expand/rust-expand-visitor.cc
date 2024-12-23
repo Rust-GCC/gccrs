@@ -477,9 +477,10 @@ ExpandVisitor::visit (AST::MacroInvocation &macro_invoc)
 void
 ExpandVisitor::visit (AST::PathInExpression &path)
 {
-  for (auto &segment : path.get_segments ())
-    if (segment.has_generic_args ())
-      expand_generic_args (segment.get_generic_args ());
+  if (path.get_path ().get_path_kind () != AST::Path::Kind::LangItem)
+    for (auto &segment : path.get_segments ())
+      if (segment.has_generic_args ())
+	expand_generic_args (segment.get_generic_args ());
 }
 
 void
