@@ -16,6 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-diagnostics.h"
+#include "rust-hir-map.h"
+#include "rust-hir-path.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-item.h"
@@ -24,6 +27,7 @@
 #include "rust-hir-path-probe.h"
 #include "rust-type-util.h"
 #include "rust-hir-type-bounds.h"
+#include "rust-hir-item.h"
 #include "rust-session-manager.h"
 #include "rust-immutable-name-resolution-context.h"
 
@@ -179,20 +183,42 @@ void
 TypeCheckExpr::visit (HIR::PathInExpression &expr)
 {
   NodeId resolved_node_id = UNKNOWN_NODEID;
-  size_t offset = -1;
-  TyTy::BaseType *tyseg = resolve_root_path (expr, &offset, &resolved_node_id);
-  if (tyseg->get_kind () == TyTy::TypeKind::ERROR)
-    return;
-
-  bool fully_resolved = offset == expr.get_segments ().size ();
-  if (fully_resolved)
+  if (expr.get_path_kind () == HIR::PathPattern::Kind::LangItem)
     {
-      infered = tyseg;
-      return;
-    }
+      if (auto lookup = Analysis::Mappings::get ().lookup_lang_item_node (
+	    expr.get_lang_item_kind ()))
+	{
+	  auto hir_id = mappings.lookup_node_to_hir (*lookup);
 
-  resolve_segments (resolved_node_id, expr.get_segments (), offset, tyseg,
-		    expr.get_mappings (), expr.get_locus ());
+	  TyTy::BaseType *resolved = nullptr;
+	  context->lookup_type (*hir_id, &resolved);
+
+	  infered = resolved;
+	  return;
+	}
+      else
+	rust_fatal_error (
+	  expr.get_locus (), "lang item missing: %s",
+	  LangItem::ToString (expr.get_lang_item_kind ()).c_str ());
+    }
+  else
+    {
+      size_t offset = -1;
+      TyTy::BaseType *tyseg
+	= resolve_root_path (expr, &offset, &resolved_node_id);
+      if (tyseg->get_kind () == TyTy::TypeKind::ERROR)
+	return;
+
+      bool fully_resolved = offset == expr.get_segments ().size ();
+      if (fully_resolved)
+	{
+	  infered = tyseg;
+	  return;
+	}
+
+      resolve_segments (resolved_node_id, expr.get_segments (), offset, tyseg,
+			expr.get_mappings (), expr.get_locus ());
+    }
 }
 
 TyTy::BaseType *
