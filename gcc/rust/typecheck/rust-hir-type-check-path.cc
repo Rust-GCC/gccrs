@@ -193,8 +193,17 @@ TypeCheckExpr::visit (HIR::PathInExpression &expr)
 	  TyTy::BaseType *resolved = nullptr;
 	  context->lookup_type (*hir_id, &resolved);
 
+	  // We can type resolve the path in expression easily as it is a lang
+	  // item path, but we still need to setup the various generics and
+	  // substitutions
 	  infered = resolved;
-	  return;
+
+	  // FIXME: We probably need to check *if* the type needs substitutions
+	  // or not
+	  infered = SubstMapper::InferSubst (infered, expr.get_locus());
+
+	  // FIXME: also we probably need to insert resolved types in the name
+	  // resolver here
 	}
       else
 	rust_fatal_error (
