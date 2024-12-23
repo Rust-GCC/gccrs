@@ -190,16 +190,42 @@ TypeCheckExpr::visit (HIR::PathInExpression &expr)
 	{
 	  auto hir_id = mappings.lookup_node_to_hir (*lookup);
 
-	  TyTy::BaseType *resolved = nullptr;
-	  context->lookup_type (*hir_id, &resolved);
-
 	  // We can type resolve the path in expression easily as it is a lang
 	  // item path, but we still need to setup the various generics and
 	  // substitutions
 
 	  // FIXME: We probably need to check *if* the type needs substitutions
 	  // or not
-	  infered = SubstMapper::InferSubst (resolved, expr.get_locus ());
+	  if (LangItem::IsEnumVariant (expr.get_lang_item_kind ()))
+	    {
+	      std::pair<HIR::Enum *, HIR::EnumItem *> enum_item_lookup
+		= mappings.lookup_hir_enumitem (*hir_id);
+	      bool enum_item_ok = enum_item_lookup.first != nullptr
+				  && enum_item_lookup.second != nullptr;
+	      rust_assert (enum_item_ok);
+
+	      HirId variant_id
+		= enum_item_lookup.second->get_mappings ().get_hirid ();
+
+	      HIR::EnumItem *enum_item = enum_item_lookup.second;
+	      resolved_node_id = enum_item->get_mappings ().get_nodeid ();
+
+	      // insert the id of the variant we are resolved to
+	      context->insert_variant_definition (
+		expr.get_mappings ().get_hirid (), variant_id);
+
+	      query_type(variant_id, &infered);
+	      infered = SubstMapper::InferSubst (infered, expr.get_locus ());
+	    }
+	  else
+	    {
+	      TyTy::BaseType *resolved = nullptr;
+	      context->lookup_type (*hir_id, &resolved);
+
+	      rust_assert (resolved);
+
+	      infered = SubstMapper::InferSubst (resolved, expr.get_locus ());
+	    }
 
 	  // FIXME: also we probably need to insert resolved types in the name
 	  // resolver here
