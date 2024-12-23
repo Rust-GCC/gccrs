@@ -24,6 +24,7 @@
 #include "rust-hir-type-no-bounds.h"
 #include "rust-hir-pattern-abstract.h"
 #include "rust-hir-expr-abstract.h"
+#include "rust-system.h"
 
 namespace Rust {
 namespace HIR {
@@ -281,8 +282,11 @@ public:
   size_t get_num_segments () const
   {
     if (kind == Kind::LangItem)
-      rust_fatal_error (UNKNOWN_LOCATION, "[ARTHUR] %s",
-			LangItem::ToString (*lang_item).c_str ());
+      {
+	// rust_fatal_error (UNKNOWN_LOCATION, "[ARTHUR] %s",
+	// 		  LangItem::ToString (*lang_item).c_str ());
+	rust_unreachable ();
+      }
 
     rust_assert (kind == Kind::Segmented);
     return segments.size ();
@@ -315,6 +319,12 @@ public:
   PatternType get_pattern_type () const override final
   {
     return PatternType::PATH;
+  }
+
+  LangItem::Kind get_lang_item_kind () const
+  {
+    rust_assert (kind == Kind::LangItem);
+    return *lang_item;
   }
 
   Kind get_path_kind () const { return kind; }
