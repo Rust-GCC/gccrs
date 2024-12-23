@@ -142,7 +142,7 @@ DesugarForLoops::desugar (AST::ForLoopExpr &expr)
   //
   //     <body>;
   // }
-  ctx.builder.loop(std::move(loop_stmts));
+  auto loop = ctx.builder.loop (std::move (loop_stmts));
 
   auto mut_iter_pattern = ctx.builder.identifier_pattern ("iter");
   auto match_iter
