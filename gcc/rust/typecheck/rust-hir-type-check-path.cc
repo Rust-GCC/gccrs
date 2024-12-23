@@ -199,7 +199,7 @@ TypeCheckExpr::visit (HIR::PathInExpression &expr)
 
 	  // FIXME: We probably need to check *if* the type needs substitutions
 	  // or not
-	  infered = SubstMapper::InferSubst (resolved, expr.get_locus());
+	  infered = SubstMapper::InferSubst (resolved, expr.get_locus ());
 
 	  // FIXME: also we probably need to insert resolved types in the name
 	  // resolver here
