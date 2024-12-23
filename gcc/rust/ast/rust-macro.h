@@ -575,7 +575,10 @@ public:
 
   MacroKind get_kind () const { return kind; }
 
-  Item::Kind get_item_kind() const override { return Item::Kind::MacroRulesDefinition; }
+  Item::Kind get_item_kind () const override
+  {
+    return Item::Kind::MacroRulesDefinition;
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
