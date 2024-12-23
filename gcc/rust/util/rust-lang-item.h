@@ -135,6 +135,7 @@ public:
   static Kind
   CompoundAssignmentOperatorToLangItem (ArithmeticOrLogicalOperator op);
   static Kind NegationOperatorToLangItem (NegationOperator op);
+  static bool IsEnumVariant (Kind type);
 };
 
 } // namespace Rust

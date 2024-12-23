@@ -188,4 +188,10 @@ LangItem::NegationOperatorToLangItem (NegationOperator op)
   rust_unreachable ();
 }
 
+bool
+LangItem::IsEnumVariant (LangItem::Kind type)
+{
+  return type == Kind::OPTION_NONE || type == Kind::OPTION_SOME;
+}
+
 } // namespace Rust
