@@ -88,10 +88,11 @@ private:
     MatchArm make_match_arm (std::unique_ptr<Pattern> &&pattern);
     MatchCase make_break_arm ();
     MatchCase make_continue_arm ();
-    std::unique_ptr<Stmt> statementify(std::unique_ptr<Expr> &&expr);
+    std::unique_ptr<Stmt> statementify (std::unique_ptr<Expr> &&expr);
   };
 
   std::unique_ptr<Expr> desugar (AST::ForLoopExpr &expr);
+  void maybe_desugar_expr (std::unique_ptr<Expr> &expr);
 
   void visit (AST::BlockExpr &) override;
 };

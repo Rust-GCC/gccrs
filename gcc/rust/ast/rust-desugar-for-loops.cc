@@ -146,7 +146,7 @@ DesugarForLoops::desugar (AST::ForLoopExpr &expr)
   // }
   auto loop = ctx.builder.loop (std::move (loop_stmts));
 
-  auto mut_iter_pattern = ctx.builder.identifier_pattern ("iter");
+  auto mut_iter_pattern = ctx.builder.identifier_pattern ("iter", true);
   auto match_iter
     = ctx.builder.match (std::move (into_iter),
 			 {ctx.builder.match_case (std::move (mut_iter_pattern),
@@ -156,41 +156,36 @@ DesugarForLoops::desugar (AST::ForLoopExpr &expr)
 				     nullptr, std::move (match_iter));
   auto result_return = ctx.builder.identifier ("result");
 
-  // return ctx.builder.block (std::move (let_result), std::move
-  // (result_return));
-  auto desugar
-    = ctx.builder.block (std::move (let_result), std::move (result_return));
+  return ctx.builder.block (std::move (let_result), std::move (result_return));
+}
 
-  AST::Dump::debug (*desugar);
+void
+DesugarForLoops::maybe_desugar_expr (std::unique_ptr<Expr> &expr)
+{
+  if (expr->get_expr_kind () == AST::Expr::Kind::Loop)
+    {
+      auto &loop = static_cast<AST::BaseLoopExpr &> (*expr);
 
-  return desugar;
+      if (loop.get_loop_kind () == AST::BaseLoopExpr::Kind::For)
+	{
+	  auto &for_loop = static_cast<AST::ForLoopExpr &> (loop);
+
+	  auto desugared = desugar (for_loop);
+
+	  replace_for_loop (expr, std::move (desugared));
+	}
+    }
 }
 
 void
 DesugarForLoops::visit (AST::BlockExpr &block)
 {
   for (auto &stmt : block.get_statements ())
-    {
-      if (stmt->get_stmt_kind () == AST::Stmt::Kind::Expr)
-	{
-	  auto &expr = static_cast<AST::ExprStmt &> (*stmt);
+    if (stmt->get_stmt_kind () == AST::Stmt::Kind::Expr)
+      maybe_desugar_expr (static_cast<AST::ExprStmt &> (*stmt).get_expr_ptr ());
 
-	  if (expr.get_expr ().get_expr_kind () == AST::Expr::Kind::Loop)
-	    {
-	      auto &loop = static_cast<AST::BaseLoopExpr &> (expr.get_expr ());
-
-	      if (loop.get_loop_kind () == AST::BaseLoopExpr::Kind::For)
-		{
-		  auto &for_loop = static_cast<AST::ForLoopExpr &> (loop);
-
-		  auto desugared = desugar (for_loop);
-
-		  replace_for_loop (expr.get_expr_ptr (),
-				    std::move (desugared));
-		}
-	    }
-	}
-    }
+  if (block.has_tail_expr ())
+    maybe_desugar_expr (block.get_tail_expr_ptr ());
 }
 
 } // namespace AST
