@@ -19,6 +19,7 @@
 #ifndef RUST_DESUGAR_FOR_LOOPS
 #define RUST_DESUGAR_FOR_LOOPS
 
+#include "rust-ast-builder.h"
 #include "rust-ast-visitor.h"
 #include "rust-expr.h"
 
@@ -77,6 +78,21 @@ public:
   void go (AST::Crate &);
 
 private:
+  struct DesugarCtx
+  {
+    DesugarCtx (location_t loc) : builder (Builder (loc)), loc (loc) {}
+
+    Builder builder;
+    location_t loc;
+
+    MatchArm make_match_arm (std::unique_ptr<Pattern> &&pattern);
+    MatchCase make_break_arm ();
+    MatchCase make_continue_arm ();
+    std::unique_ptr<Stmt> statementify(std::unique_ptr<Expr> &&expr);
+  };
+
+  std::unique_ptr<Expr> desugar (AST::ForLoopExpr &expr);
+
   void visit (AST::BlockExpr &) override;
 };
 

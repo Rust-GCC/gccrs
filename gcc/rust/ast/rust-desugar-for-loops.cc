@@ -43,14 +43,97 @@ replace_for_loop (std::unique_ptr<Expr> &for_loop,
   for_loop = std::move (expanded);
 }
 
-std::unique_ptr<Expr>
-desugar (AST::ForLoopExpr &expr)
+MatchArm
+DesugarForLoops::DesugarCtx::make_match_arm (std::unique_ptr<Pattern> &&path)
 {
-  auto builder = AST::Builder (expr.get_locus ());
+  auto patterns = std::vector<std::unique_ptr<Pattern>> ();
+  patterns.emplace_back (std::move (path));
 
-  auto into_iter
-    = builder.call (builder.lang_item_path (LangItem::Kind::INTOITER_INTOITER),
-		    expr.get_iterator_expr ().clone_expr ());
+  return MatchArm (std::move (patterns), loc);
+}
+
+MatchCase
+DesugarForLoops::DesugarCtx::make_break_arm ()
+{
+  auto arm
+    = make_match_arm (builder.lang_item_path (LangItem::Kind::OPTION_NONE));
+
+  auto break_expr = std::unique_ptr<Expr> (
+    new BreakExpr (Lifetime::error (), nullptr, {}, loc));
+
+  return MatchCase (arm, std::move (break_expr));
+}
+
+MatchCase
+DesugarForLoops::DesugarCtx::make_continue_arm ()
+{
+  // Missing the actual `val` binding
+  auto arm
+    = make_match_arm (builder.lang_item_path (LangItem::Kind::OPTION_SOME));
+
+  auto next = builder.identifier ("__next");
+  auto val = builder.identifier ("val");
+
+  auto assignment = std::unique_ptr<Expr> (
+    new AssignmentExpr (std::move (next), std::move (val), {}, loc));
+
+  return MatchCase (arm, std::move (assignment));
+}
+
+std::unique_ptr<Stmt>
+DesugarForLoops::DesugarCtx::statementify (std::unique_ptr<Expr> &&expr)
+{
+  return std::unique_ptr<Stmt> (new ExprStmt (std::move (expr), loc, true));
+}
+
+std::unique_ptr<Expr>
+DesugarForLoops::desugar (AST::ForLoopExpr &expr)
+{
+  auto ctx = DesugarCtx (expr.get_locus ());
+
+  // IntoIterator::into_iter(<head>)
+  auto into_iter = ctx.builder.call (ctx.builder.lang_item_path (
+				       LangItem::Kind::INTOITER_INTOITER),
+				     expr.get_iterator_expr ().clone_expr ());
+
+  // Iterator::next(iter)
+  auto next_call = ctx.builder.call (ctx.builder.lang_item_path (
+				       LangItem::Kind::ITERATOR_NEXT),
+				     ctx.builder.identifier ("iter"));
+
+  // None => break,
+  auto break_arm = ctx.make_break_arm ();
+  // Some(val) => { __next = val; },
+  auto continue_arm = ctx.make_continue_arm ();
+
+  // match <next_call> {
+  //     <continue_arm>
+  //     <break_arm>
+  // }
+  auto match_next
+    = ctx.builder.match (std::move (next_call),
+			 {std::move (continue_arm), std::move (break_arm)});
+
+  // let mut __next;
+  auto let_next = ctx.builder.let (ctx.builder.identifier_pattern ("__next"));
+  // let <pattern> = __next;
+  auto let_pat = ctx.builder.let (expr.get_pattern ().clone_pattern (), nullptr,
+				  ctx.builder.identifier ("__next"));
+
+  auto loop_stmts = std::vector<std::unique_ptr<Stmt>> ();
+  loop_stmts.emplace_back (std::move (let_next));
+  loop_stmts.emplace_back (ctx.statementify (std::move (match_next)));
+  loop_stmts.emplace_back (std::move (let_pat));
+  loop_stmts.emplace_back (ctx.statementify (expr.get_loop_block().clone_expr()));
+
+  // loop {
+  //     <let_next>;
+  //     <match_next>;
+  //     <let_pat>;
+  //
+  //     <body>;
+  // }
+  ctx.builder.loop(std::move(loop_stmts));
 
   return into_iter;
 }
