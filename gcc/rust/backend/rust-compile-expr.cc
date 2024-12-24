@@ -31,6 +31,7 @@
 #include "convert.h"
 #include "print-tree.h"
 #include "rust-system.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Compile {
@@ -1007,11 +1008,13 @@ check_match_scrutinee (HIR::MatchExpr &expr, Context *ctx)
     }
 
   TyTy::TypeKind scrutinee_kind = scrutinee_expr_tyty->get_kind ();
-  rust_assert ((TyTy::is_primitive_type_kind (scrutinee_kind)
-		&& scrutinee_kind != TyTy::TypeKind::NEVER)
-	       || scrutinee_kind == TyTy::TypeKind::ADT
-	       || scrutinee_kind == TyTy::TypeKind::TUPLE
-	       || scrutinee_kind == TyTy::TypeKind::REF);
+  rust_debug_loc(expr.get_locus(), "[ARTHUR] check scrutinee: type: %s, %s", TyTy::TypeKindFormat::to_string(scrutinee_kind).c_str(), scrutinee_expr_tyty->as_string().c_str());
+
+  // rust_assert ((TyTy::is_primitive_type_kind (scrutinee_kind)
+		// && scrutinee_kind != TyTy::TypeKind::NEVER)
+	 //       || scrutinee_kind == TyTy::TypeKind::ADT
+	 //       || scrutinee_kind == TyTy::TypeKind::TUPLE
+	 //       || scrutinee_kind == TyTy::TypeKind::REF);
 
   if (scrutinee_kind == TyTy::TypeKind::FLOAT)
     {
