@@ -224,6 +224,8 @@ TypeCheckExpr::visit (HIR::PathInExpression &expr)
 
 	      rust_assert (resolved);
 
+	      query_type(*hir_id, &infered);
+
 	      infered = SubstMapper::InferSubst (resolved, expr.get_locus ());
 	    }
 
