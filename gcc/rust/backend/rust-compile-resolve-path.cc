@@ -23,6 +23,7 @@
 #include "rust-compile-implitem.h"
 #include "rust-compile-expr.h"
 #include "rust-hir-map.h"
+#include "rust-hir-path.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-hir-path-probe.h"
 #include "rust-compile-extern.h"
@@ -35,14 +36,28 @@ namespace Compile {
 void
 ResolvePathRef::visit (HIR::QualifiedPathInExpression &expr)
 {
-  resolved = resolve (expr.get_final_segment ().get_segment (),
-		      expr.get_mappings (), expr.get_locus (), true);
+  auto final_segment = HIR::PathIdentSegment::create_error ();
+  if (expr.get_path_kind () == HIR::PathPattern::Kind::LangItem)
+    final_segment
+      = HIR::PathIdentSegment (LangItem::ToString (expr.get_lang_item_kind ()));
+  else
+    final_segment = expr.get_final_segment ().get_segment ();
+
+  resolved
+    = resolve (final_segment, expr.get_mappings (), expr.get_locus (), true);
 }
 
 void
 ResolvePathRef::visit (HIR::PathInExpression &expr)
 {
-  resolved = resolve (expr.get_final_segment ().get_segment (),
+  auto final_segment = HIR::PathIdentSegment::create_error ();
+  if (expr.get_path_kind () == HIR::PathPattern::Kind::LangItem)
+    final_segment
+      = HIR::PathIdentSegment (LangItem::ToString (expr.get_lang_item_kind ()));
+  else
+    final_segment = expr.get_final_segment ().get_segment ();
+
+  resolved = resolve (final_segment,
 		      expr.get_mappings (), expr.get_locus (), false);
 }
 
