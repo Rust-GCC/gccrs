@@ -736,9 +736,9 @@ public:
   }
 
   // Creates an error state path in expression.
-  static PathInExpression create_error ()
+  static PathInExpression create_error (location_t locus = UNDEF_LOCATION)
   {
-    return PathInExpression ({}, {}, UNDEF_LOCATION);
+    return PathInExpression ({}, {}, locus);
   }
 
   // Returns whether path in expression is in an error state.
