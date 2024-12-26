@@ -2564,7 +2564,7 @@ package body Sem_Ch9 is
          end if;
 
       --  If we had a requeue of the form REQUEUE A (B), then the parser
-      --  accepted it (because it could have been a requeue on an entry index.
+      --  accepted it (because it could have been a requeue on an entry index).
       --  If A turns out not to be an entry family, then the analysis of A (B)
       --  turned it into a function call.
 
