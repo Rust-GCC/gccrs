@@ -37,6 +37,64 @@ Attributes::is_known (const std::string &attribute_path)
 
   return !lookup.is_error ();
 }
+static std::vector<std::string>
+Attributes::get_attributes (const AST::Attribute &attr)
+{
+  std::vector<std::string> result;
+
+  rust_assert (attr.get_attr_input ().get_attr_input_type ()
+	       == Rust::AST::AttrInput::TOKEN_TREE);
+  const auto &tt
+    = static_cast<const AST::DelimTokenTree &> (attr.get_attr_input ());
+
+  // TODO: Should we rely on fixed index ? Should we search for the
+  // attribute tokentree instead ?
+
+  // Derive proc macros have the following format:
+  // #[proc_macro_derive(TraitName, attributes(attr1, attr2, attr3))]
+  //                    -~~~~~~~~ - ~~~~~~~~~~---------------------
+  //                    ^0  ^1    ^2     ^3           ^4
+  // - "attributes" is stored at position 3 in the token tree
+  // - attribute are stored in the delimited token tree in position 4
+  constexpr size_t attr_kw_pos = 3;
+  constexpr size_t attribute_list_pos = 4;
+
+  if (tt.get_token_trees ().size () > attr_kw_pos)
+    {
+      rust_assert (tt.get_token_trees ()[attr_kw_pos]->as_string ()
+		   == "attributes");
+
+      auto attributes = static_cast<const AST::DelimTokenTree *> (
+	tt.get_token_trees ()[attribute_list_pos].get ());
+
+      auto &token_trees = attributes->get_token_trees ();
+
+      for (auto i = token_trees.cbegin () + 1; // Skip opening parenthesis
+	   i < token_trees.cend ();
+	   i += 2) // Skip comma and closing parenthesis
+	{
+	  result.push_back ((*i)->as_string ());
+	}
+    }
+  return result;
+}
+
+static std::string
+Attributes::get_trait_name (const AST::Attribute &attr)
+{
+  // Derive proc macros have the following format:
+  // #[proc_macro_derive(TraitName, attributes(attr1, attr2, attr3))]
+  //                    -~~~~~~~~ - ~~~~~~~~~~---------------------
+  //                    ^0  ^1    ^2     ^3           ^4
+  // - The trait name is stored at position 1
+  constexpr size_t trait_name_pos = 1;
+
+  rust_assert (attr.get_attr_input ().get_attr_input_type ()
+	       == Rust::AST::AttrInput::TOKEN_TREE);
+  const auto &tt
+    = static_cast<const AST::DelimTokenTree &> (attr.get_attr_input ());
+  return tt.get_token_trees ()[trait_name_pos]->as_string ();
+}
 
 using Attrs = Values::Attributes;
 
