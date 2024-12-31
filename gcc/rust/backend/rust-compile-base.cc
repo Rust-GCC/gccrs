@@ -33,6 +33,7 @@
 #include "rust-compile-implitem.h"
 #include "rust-attribute-values.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-attributes.h"
 
 #include "fold-const.h"
 #include "stringpool.h"
