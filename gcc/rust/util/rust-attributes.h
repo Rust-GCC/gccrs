@@ -29,6 +29,8 @@ class Attributes
 {
 public:
   static bool is_known (const std::string &attribute_path);
+  static tl::optional<std::string>
+  is_proc_macro_type (const AST::Attribute &attribute);
 };
 
 enum CompilerPass

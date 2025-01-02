@@ -223,19 +223,22 @@ check_doc_attribute (const AST::Attribute &attribute)
       }
     }
 }
-
-static bool
-is_proc_macro_type (const AST::Attribute &attribute)
+tl::optional<std::string>
+Attributes::is_proc_macro_type (const AST::Attribute &attribute)
 {
   BuiltinAttrDefinition result;
   if (!is_builtin (attribute, result))
-    return false;
+    return tl::nullopt;
 
   auto name = result.name;
-  return name == Attrs::PROC_MACRO || name == Attrs::PROC_MACRO_DERIVE
-	 || name == Attrs::PROC_MACRO_ATTRIBUTE;
+  if (name == Attrs::PROC_MACRO || name == Attrs::PROC_MACRO_DERIVE
+      || name == Attrs::PROC_MACRO_ATTRIBUTE)
+    {
+      return name;
+    }
+  else
+    return tl::nullopt;
 }
-
 // Emit an error when one encountered attribute is either #[proc_macro],
 // #[proc_macro_attribute] or #[proc_macro_derive]
 static void
@@ -243,7 +246,7 @@ check_proc_macro_non_function (const AST::AttrVec &attributes)
 {
   for (auto &attr : attributes)
     {
-      if (is_proc_macro_type (attr))
+      if (Attributes::is_proc_macro_type (attr) != tl::nullopt)
 	rust_error_at (
 	  attr.get_locus (),
 	  "the %<#[%s]%> attribute may only be used on bare functions",
@@ -258,7 +261,7 @@ check_proc_macro_non_root (AST::AttrVec attributes, location_t loc)
 {
   for (auto &attr : attributes)
     {
-      if (is_proc_macro_type (attr))
+      if (Attributes::is_proc_macro_type (attr) != tl::nullopt)
 	{
 	  rust_error_at (
 	    loc,
