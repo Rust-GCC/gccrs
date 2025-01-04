@@ -29,6 +29,7 @@ class Attributes
 {
 public:
   static bool is_known (const std::string &attribute_path);
+  static bool is_rustc_builtin_macro (AST::AttrVec outer_attrs);
 };
 
 enum CompilerPass

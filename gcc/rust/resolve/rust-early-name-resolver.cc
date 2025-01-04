@@ -21,6 +21,7 @@
 #include "rust-name-resolver.h"
 #include "rust-macro-builtins.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 
 namespace Rust {
 namespace Resolver {
@@ -485,14 +486,8 @@ EarlyNameResolver::visit (AST::MacroInvocation &invoc)
   auto rules_def = mappings.lookup_macro_def (resolved_node);
 
   auto &outer_attrs = rules_def.value ()->get_outer_attrs ();
-  bool is_builtin
-    = std::any_of (outer_attrs.begin (), outer_attrs.end (),
-		   [] (AST::Attribute attr) {
-		     return attr.get_path ()
-			    == Values::Attributes::RUSTC_BUILTIN_MACRO;
-		   });
 
-  if (is_builtin)
+  if (Analysis::Attributes::is_rustc_builtin_macro (outer_attrs))
     {
       auto builtin_kind = builtin_macro_from_string (
 	rules_def.value ()->get_rule_name ().as_string ());
