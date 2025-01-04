@@ -993,12 +993,9 @@ ASTLoweringBase::lower_extern_block (AST::ExternBlock &extern_block)
 void
 ASTLoweringBase::lower_macro_definition (AST::MacroRulesDefinition &def)
 {
-  auto is_export = false;
-  for (const auto &attr : def.get_outer_attrs ())
-    if (attr.get_path ().as_string () == Values::Attributes::MACRO_EXPORT)
-      is_export = true;
-
-  if (is_export)
+  
+  
+  if (Analysis::Attributes::is_macro_export(def.get_outer_attrs()))
     {
       mappings.insert_exported_macro (def);
       mappings.insert_ast_item (&def);

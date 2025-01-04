@@ -22,6 +22,7 @@
 #include "rust-ast-full.h"
 #include "rust-hir-map.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -168,15 +169,15 @@ TopLevel::visit (AST::ExternCrate &crate)
 		crate.get_referenced_crate ());
 }
 
-static bool
-is_macro_export (AST::MacroRulesDefinition &def)
-{
-  for (const auto &attr : def.get_outer_attrs ())
-    if (attr.get_path ().as_string () == Values::Attributes::MACRO_EXPORT)
-      return true;
+// static bool
+// is_macro_export (AST::MacroRulesDefinition &def)
+// {
+//   for (const auto &attr : def.get_outer_attrs ())
+//     if (attr.get_path ().as_string () == Values::Attributes::MACRO_EXPORT)
+//       return true;
 
-  return false;
-}
+//   return false;
+// }
 
 void
 TopLevel::visit (AST::MacroRulesDefinition &macro)
@@ -186,7 +187,7 @@ TopLevel::visit (AST::MacroRulesDefinition &macro)
   // crate if they are marked with #[macro_export]. The execption to this is
   // macros 2.0, which get resolved and inserted like regular items.
 
-  if (is_macro_export (macro))
+  if (Analysis::Attributes::is_macro_export (macro.get_outer_attrs()))
     {
       auto res = ctx.macros.insert_at_root (macro.get_rule_name (),
 					    macro.get_node_id ());

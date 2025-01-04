@@ -29,6 +29,7 @@ class Attributes
 {
 public:
   static bool is_known (const std::string &attribute_path);
+  static bool is_macro_export (AST::AttrVec outer_attrs);
 };
 
 enum CompilerPass
