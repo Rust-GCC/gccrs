@@ -348,17 +348,6 @@ ResolveItem::visit (AST::EnumItemStruct &item)
 }
 
 void
-ResolveItem::visit (AST::EnumItemDiscriminant &item)
-{
-  auto decl = CanonicalPath::new_seg (item.get_node_id (),
-				      item.get_identifier ().as_string ());
-  auto path = prefix.append (decl);
-  auto cpath = canonical_prefix.append (decl);
-
-  mappings.insert_canonical_path (item.get_node_id (), cpath);
-}
-
-void
 ResolveItem::visit (AST::StructStruct &struct_decl)
 {
   auto decl

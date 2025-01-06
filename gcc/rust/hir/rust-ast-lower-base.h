@@ -177,7 +177,6 @@ public:
   virtual void visit (AST::EnumItem &item);
   virtual void visit (AST::EnumItemTuple &item);
   virtual void visit (AST::EnumItemStruct &item);
-  virtual void visit (AST::EnumItemDiscriminant &item);
   virtual void visit (AST::Enum &enum_item);
   virtual void visit (AST::Union &union_item);
   virtual void visit (AST::ConstantItem &const_item);

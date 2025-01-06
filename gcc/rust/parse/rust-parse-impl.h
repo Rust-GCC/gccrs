@@ -4793,11 +4793,9 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 
 	std::unique_ptr<AST::Expr> discriminant_expr = parse_expr ();
 
-	return std::unique_ptr<AST::EnumItemDiscriminant> (
-	  new AST::EnumItemDiscriminant (std::move (item_name), std::move (vis),
-					 std::move (discriminant_expr),
-					 std::move (outer_attrs),
-					 item_name_tok->get_locus ()));
+	return std::unique_ptr<AST::EnumItem> (new AST::EnumItem (
+	  std::move (item_name), std::move (vis), std::move (outer_attrs),
+	  item_name_tok->get_locus (), discriminant_expr->clone_expr ()));
       }
     default:
       // regular enum with just an identifier
@@ -10443,7 +10441,7 @@ Parser<ManagedTokenSource>::parse_pattern ()
     {
       lexer.skip_token ();
       alts.push_back (parse_pattern_no_alt ());
-    }
+  }
 
   while (lexer.peek_token ()->get_id () == PIPE);
 
