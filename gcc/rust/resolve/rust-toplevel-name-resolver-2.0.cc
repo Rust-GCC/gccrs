@@ -330,12 +330,6 @@ TopLevel::visit (AST::EnumItemStruct &variant)
 }
 
 void
-TopLevel::visit (AST::EnumItemDiscriminant &variant)
-{
-  insert_or_error_out (variant.get_identifier (), variant, Namespace::Types);
-}
-
-void
 TopLevel::visit (AST::Enum &enum_item)
 {
   auto generic_vis = [this, &enum_item] () {
