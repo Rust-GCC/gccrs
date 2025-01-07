@@ -5042,8 +5042,7 @@ FormatArgs::get_outer_attrs ()
   rust_unreachable ();
 }
 
-void
-FormatArgs::set_outer_attrs (std::vector<Attribute>)
+void FormatArgs::set_outer_attrs (std::vector<Attribute>)
 {
   rust_unreachable ();
 }
