@@ -135,8 +135,7 @@ TopLevel::visit (AST::Module &module)
 void
 TopLevel::visit (AST::Trait &trait)
 {
-  insert_or_error_out (trait.get_identifier ().as_string (), trait,
-		       Namespace::Types);
+  insert_or_error_out (trait.get_identifier (), trait, Namespace::Types);
 
   DefaultResolver::visit (trait);
 }
