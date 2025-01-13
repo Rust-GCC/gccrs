@@ -29,12 +29,7 @@ class Attributes
 {
 public:
   static bool is_known (const std::string &attribute_path);
-<<<<<<< HEAD
   static bool is_macro_export (const AST::AttrVec outer_attrs);
-||||||| parent of 4bbad83669e (gcc/rust/ChangeLog:)
-=======
-  static bool is_macro_export (AST::AttrVec outer_attrs);
->>>>>>> 4bbad83669e (gcc/rust/ChangeLog:)
 };
 
 enum CompilerPass
