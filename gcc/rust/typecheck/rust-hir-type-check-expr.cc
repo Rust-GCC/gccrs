@@ -344,6 +344,21 @@ TypeCheckExpr::visit (HIR::ComparisonExpr &expr)
   auto lhs = TypeCheckExpr::Resolve (expr.get_lhs ());
   auto rhs = TypeCheckExpr::Resolve (expr.get_rhs ());
 
+  auto borrowed_rhs
+    = new TyTy::ReferenceType (mappings.get_next_hir_id (),
+			       TyTy::TyVar (rhs->get_ref ()), Mutability::Imm);
+  context->insert_implicit_type (borrowed_rhs->get_ref (), borrowed_rhs);
+
+  auto seg_name = LangItem::ComparisonToSegment (expr.get_expr_type ());
+  auto segment = HIR::PathIdentSegment (seg_name);
+  auto lang_item_type = LangItem::ComparisonToLangItem (expr.get_expr_type ());
+
+  bool operator_overloaded
+    = resolve_operator_overload (lang_item_type, expr, lhs, borrowed_rhs,
+				 segment);
+  if (operator_overloaded)
+    return;
+
   unify_site (expr.get_mappings ().get_hirid (),
 	      TyTy::TyWithLocation (lhs, expr.get_lhs ().get_locus ()),
 	      TyTy::TyWithLocation (rhs, expr.get_rhs ().get_locus ()),
@@ -1366,6 +1381,8 @@ void
 TypeCheckExpr::visit (HIR::BorrowExpr &expr)
 {
   TyTy::BaseType *resolved_base = TypeCheckExpr::Resolve (expr.get_expr ());
+  if (resolved_base->is<TyTy::ErrorType> ())
+    return;
 
   // In Rust this is valid because of DST's
   //
@@ -1515,9 +1532,10 @@ TypeCheckExpr::visit (HIR::MatchExpr &expr)
   for (size_t i = 1; i < kase_block_tys.size (); i++)
     {
       TyTy::BaseType *kase_ty = kase_block_tys.at (i);
-      infered = unify_site (expr.get_mappings ().get_hirid (),
-			    TyTy::TyWithLocation (infered),
-			    TyTy::TyWithLocation (kase_ty), expr.get_locus ());
+      infered
+	= coercion_site (expr.get_mappings ().get_hirid (),
+			 TyTy::TyWithLocation (infered),
+			 TyTy::TyWithLocation (kase_ty), expr.get_locus ());
     }
 }
 
@@ -1638,10 +1656,10 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
 }
 
 bool
-TypeCheckExpr::resolve_operator_overload (LangItem::Kind lang_item_type,
-					  HIR::OperatorExprMeta expr,
-					  TyTy::BaseType *lhs,
-					  TyTy::BaseType *rhs)
+TypeCheckExpr::resolve_operator_overload (
+  LangItem::Kind lang_item_type, HIR::OperatorExprMeta expr,
+  TyTy::BaseType *lhs, TyTy::BaseType *rhs,
+  HIR::PathIdentSegment specified_segment)
 {
   // look up lang item for arithmetic type
   std::string associated_item_name = LangItem::ToString (lang_item_type);
@@ -1659,7 +1677,9 @@ TypeCheckExpr::resolve_operator_overload (LangItem::Kind lang_item_type,
       current_context = context->peek_context ();
     }
 
-  auto segment = HIR::PathIdentSegment (associated_item_name);
+  auto segment = specified_segment.is_error ()
+		   ? HIR::PathIdentSegment (associated_item_name)
+		   : specified_segment;
   auto candidates = MethodResolver::Probe (lhs, segment);
 
   // remove any recursive candidates
