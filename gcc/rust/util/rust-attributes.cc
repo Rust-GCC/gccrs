@@ -37,6 +37,7 @@ Attributes::is_known (const std::string &attribute_path)
 
   return !lookup.is_error ();
 }
+<<<<<<< HEAD
 bool
 Attributes::is_macro_export (const AST::AttrVec outer_attrs)
 {
@@ -48,6 +49,21 @@ Attributes::is_macro_export (const AST::AttrVec outer_attrs)
 
   return false;
 }
+||||||| parent of 4bbad83669e (gcc/rust/ChangeLog:)
+=======
+bool
+Attributes::is_macro_export (AST::AttrVec outer_attrs)
+{
+  for (auto &attr : outer_attrs)
+    {
+      if (attr.get_path ().as_string() == Values::Attributes::MACRO_EXPORT)
+	{
+	  return true;
+	}
+    }
+  return false;
+}
+>>>>>>> 4bbad83669e (gcc/rust/ChangeLog:)
 
 using Attrs = Values::Attributes;
 
