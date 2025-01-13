@@ -37,7 +37,6 @@ Attributes::is_known (const std::string &attribute_path)
 
   return !lookup.is_error ();
 }
-<<<<<<< HEAD
 bool
 Attributes::is_macro_export (const AST::AttrVec outer_attrs)
 {
