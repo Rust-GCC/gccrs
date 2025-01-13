@@ -148,9 +148,11 @@ private:
 
   void visit (AST::Module &module) override;
   void visit (AST::Trait &trait) override;
+  void visit (AST::InherentImpl &impl) override;
+  void visit (AST::TraitImpl &impl) override;
+  void visit (AST::TraitItemType &trait_item) override;
   void visit (AST::MacroRulesDefinition &macro) override;
   void visit (AST::Function &function) override;
-  void visit (AST::BlockExpr &expr) override;
   void visit (AST::StaticItem &static_item) override;
   void visit (AST::ExternalStaticItem &static_item) override;
   void visit (AST::StructStruct &struct_item) override;

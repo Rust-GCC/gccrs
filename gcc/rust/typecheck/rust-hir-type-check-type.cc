@@ -591,10 +591,11 @@ TypeCheckType::resolve_segments (
       bool first_segment = i == offset;
       bool selfResolveOk = false;
 
-      if (first_segment && tySegIsBigSelf && context->have_block_context ()
-	  && context->peek_block_context ().is_impl_block ())
+      if (first_segment && tySegIsBigSelf
+	  && context->block_context ().is_in_context ()
+	  && context->block_context ().peek ().is_impl_block ())
 	{
-	  TypeCheckBlockContextItem ctx = context->peek_block_context ();
+	  TypeCheckBlockContextItem ctx = context->block_context ().peek ();
 	  TyTy::BaseType *lookup = nullptr;
 	  selfResolveOk
 	    = resolve_associated_type (seg->as_string (), ctx, &lookup);
@@ -791,6 +792,12 @@ TypeCheckType::visit (HIR::TraitObjectType &type)
 }
 
 void
+TypeCheckType::visit (HIR::ParenthesisedType &type)
+{
+  translated = TypeCheckType::Resolve (type.get_type_in_parens ());
+}
+
+void
 TypeCheckType::visit (HIR::ArrayType &type)
 {
   auto capacity_type = TypeCheckExpr::Resolve (type.get_size_expr ());
@@ -924,7 +931,7 @@ TypeResolveGenericParam::visit (HIR::TypeParam &param)
 				      param.get_mappings ().get_nodeid (),
 				      implicit_id,
 				      param.get_mappings ().get_local_defid ());
-      implicit_self_bound = Rust::make_unique<HIR::TypePath> (
+      implicit_self_bound = std::make_unique<HIR::TypePath> (
 	HIR::TypePath (mappings, {}, BUILTINS_LOCATION, false));
     }
 

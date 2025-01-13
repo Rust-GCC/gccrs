@@ -710,8 +710,8 @@ public:
     : outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (has_opening_scope_resolution),
       locus (locus), _node_id (Analysis::Mappings::get ().get_next_node_id ()),
-      path (Rust::make_unique<RegularPath> (std::move (path_segments), locus,
-					    _node_id)),
+      path (std::make_unique<RegularPath> (std::move (path_segments), locus,
+					   _node_id)),
       marked_for_strip (false)
   {}
 
@@ -720,7 +720,7 @@ public:
     : outer_attrs (std::move (outer_attrs)),
       has_opening_scope_resolution (false), locus (locus),
       _node_id (Analysis::Mappings::get ().get_next_node_id ()),
-      path (Rust::make_unique<LangItemPath> (lang_item_kind, locus)),
+      path (std::make_unique<LangItemPath> (lang_item_kind, locus)),
       marked_for_strip (false)
   {}
 
@@ -849,6 +849,11 @@ public:
   }
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Path; }
+
+  Expr::Kind get_expr_kind () const override
+  {
+    return Expr::Kind::PathInExpression;
+  }
 
 protected:
   PathInExpression (std::vector<Attribute> &&outer_attrs,
@@ -1439,7 +1444,7 @@ public:
 			     location_t locus)
     : outer_attrs (std::move (outer_attrs)),
       path_type (std::move (qual_path_type)),
-      path (Rust::make_unique<RegularPath> (
+      path (std::make_unique<RegularPath> (
 	std::move (path_segments), locus,
 	Analysis::Mappings::get ().get_next_node_id ()))
   {}
@@ -1514,6 +1519,11 @@ public:
       return static_cast<RegularPath &> (*path).get_segments ().size () == 1;
 
     rust_unreachable ();
+  }
+
+  Expr::Kind get_expr_kind () const override
+  {
+    return Expr::Kind::QualifiedPathInExpression;
   }
 
 protected:

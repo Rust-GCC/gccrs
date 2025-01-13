@@ -29,7 +29,6 @@
 #include "rust-token.h"
 #define INCLUDE_ALGORITHM
 #include "rust-diagnostics.h"
-#include "rust-make-unique.h"
 #include "rust-dir-owner.h"
 #include "rust-attribute-values.h"
 #include "rust-keyword-values.h"
@@ -3683,7 +3682,7 @@ Parser<ManagedTokenSource>::parse_function_param ()
   if (lexer.peek_token ()->get_id () == ELLIPSIS) // Unnamed variadic
     {
       lexer.skip_token (); // Skip ellipsis
-      return Rust::make_unique<AST::VariadicParam> (
+      return std::make_unique<AST::VariadicParam> (
 	AST::VariadicParam (std::move (outer_attrs), locus));
     }
 
@@ -3705,7 +3704,7 @@ Parser<ManagedTokenSource>::parse_function_param ()
   if (lexer.peek_token ()->get_id () == ELLIPSIS) // Named variadic
     {
       lexer.skip_token (); // Skip ellipsis
-      return Rust::make_unique<AST::VariadicParam> (
+      return std::make_unique<AST::VariadicParam> (
 	AST::VariadicParam (std::move (param_pattern), std::move (outer_attrs),
 			    locus));
     }
@@ -3716,7 +3715,7 @@ Parser<ManagedTokenSource>::parse_function_param ()
 	{
 	  return nullptr;
 	}
-      return Rust::make_unique<AST::FunctionParam> (
+      return std::make_unique<AST::FunctionParam> (
 	AST::FunctionParam (std::move (param_pattern), std::move (param_type),
 			    std::move (outer_attrs), locus));
     }
@@ -5937,106 +5936,6 @@ Parser<ManagedTokenSource>::parse_extern_block (AST::Visibility vis,
 			  std::move (outer_attrs), locus));
 }
 
-template <typename ManagedTokenSource>
-AST::NamedFunctionParam
-Parser<ManagedTokenSource>::parse_named_function_param ()
-{
-  AST::AttrVec outer_attrs = parse_outer_attributes ();
-  location_t locus = lexer.peek_token ()->get_locus ();
-
-  if (lexer.peek_token ()->get_id () == ELLIPSIS) // Unnamed variadic
-    {
-      lexer.skip_token (); // Skip ellipsis
-      return AST::NamedFunctionParam (std::move (outer_attrs), locus);
-    }
-
-  // parse identifier/_
-  std::string name;
-
-  const_TokenPtr t = lexer.peek_token ();
-  location_t name_location = t->get_locus ();
-  switch (t->get_id ())
-    {
-    case IDENTIFIER:
-      name = t->get_str ();
-      lexer.skip_token ();
-      break;
-    case UNDERSCORE:
-      name = "_";
-      lexer.skip_token ();
-      break;
-    default:
-      // this is not a function param, but not necessarily an error
-      return AST::NamedFunctionParam::create_error ();
-    }
-
-  if (!skip_token (COLON))
-    {
-      // skip after somewhere?
-      return AST::NamedFunctionParam::create_error ();
-    }
-
-  if (lexer.peek_token ()->get_id () == ELLIPSIS) // Named variadic
-    {
-      lexer.skip_token (); // Skip ellipsis
-      return AST::NamedFunctionParam (std::move (name), std::move (outer_attrs),
-				      locus);
-    }
-
-  // parse (required) type
-  std::unique_ptr<AST::Type> param_type = parse_type ();
-  if (param_type == nullptr)
-    {
-      Error error (
-	lexer.peek_token ()->get_locus (),
-	"could not parse param type in extern block function declaration");
-      add_error (std::move (error));
-
-      skip_after_semicolon ();
-      return AST::NamedFunctionParam::create_error ();
-    }
-
-  return AST::NamedFunctionParam (std::move (name), std::move (param_type),
-				  std::move (outer_attrs), name_location);
-}
-
-template <typename ManagedTokenSource>
-template <typename EndTokenPred>
-std::vector<AST::NamedFunctionParam>
-Parser<ManagedTokenSource>::parse_named_function_params (
-  EndTokenPred is_end_token)
-{
-  std::vector<AST::NamedFunctionParam> params;
-  if (is_end_token (lexer.peek_token ()->get_id ()))
-    return params;
-
-  auto initial_param = parse_named_function_param ();
-  if (initial_param.is_error ())
-    return params;
-
-  params.push_back (std::move (initial_param));
-  auto t = lexer.peek_token ();
-  while (t->get_id () == COMMA)
-    {
-      lexer.skip_token ();
-      if (is_end_token (lexer.peek_token ()->get_id ()))
-	break;
-
-      auto param = parse_named_function_param ();
-      if (param.is_error ())
-	{
-	  Error error (lexer.peek_token ()->get_locus (),
-		       "failed to parse param in c function params");
-	  add_error (error);
-	  return std::vector<AST::NamedFunctionParam> ();
-	}
-      params.push_back (std::move (param));
-      t = lexer.peek_token ();
-    }
-  params.shrink_to_fit ();
-  return params;
-}
-
 // Parses a single extern block item (static or function declaration).
 template <typename ManagedTokenSource>
 std::unique_ptr<AST::ExternalItem>
@@ -7124,14 +7023,14 @@ Parser<ManagedTokenSource>::parse_self_param ()
 
   if (has_reference)
     {
-      return Rust::make_unique<AST::SelfParam> (std::move (lifetime), has_mut,
-						locus);
+      return std::make_unique<AST::SelfParam> (std::move (lifetime), has_mut,
+					       locus);
     }
   else
     {
       // note that type may be nullptr here and that's fine
-      return Rust::make_unique<AST::SelfParam> (std::move (type), has_mut,
-						locus);
+      return std::make_unique<AST::SelfParam> (std::move (type), has_mut,
+					       locus);
     }
 }
 
@@ -8693,10 +8592,10 @@ Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 
       std::vector<std::unique_ptr<AST::Expr>> exprs;
       auto array_elems
-	= Rust::make_unique<AST::ArrayElemsValues> (std::move (exprs), locus);
-      return Rust::make_unique<AST::ArrayExpr> (std::move (array_elems),
-						std::move (inner_attrs),
-						std::move (outer_attrs), locus);
+	= std::make_unique<AST::ArrayElemsValues> (std::move (exprs), locus);
+      return std::make_unique<AST::ArrayExpr> (std::move (array_elems),
+					       std::move (inner_attrs),
+					       std::move (outer_attrs), locus);
     }
   else
     {

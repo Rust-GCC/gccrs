@@ -87,13 +87,7 @@ TopLevel::visit (AST::Module &module)
   if (module.get_kind () == AST::Module::UNLOADED)
     module.load_items ();
 
-  auto sub_visitor = [this, &module] () {
-    for (auto &item : module.get_items ())
-      item->accept_vis (*this);
-  };
-
-  ctx.scoped (Rib::Kind::Module, module.get_node_id (), sub_visitor,
-	      module.get_name ());
+  DefaultResolver::visit (module);
 
   if (Analysis::Mappings::get ().lookup_ast_module (module.get_node_id ())
       == tl::nullopt)
@@ -107,6 +101,41 @@ TopLevel::visit (AST::Trait &trait)
 		       Namespace::Types);
 
   DefaultResolver::visit (trait);
+}
+
+void
+TopLevel::visit (AST::InherentImpl &impl)
+{
+  auto inner_fn = [this, &impl] () {
+    insert_or_error_out (Identifier ("Self", impl.get_type ().get_locus ()),
+			 impl.get_type (), Namespace::Types);
+
+    AST::DefaultASTVisitor::visit (impl);
+  };
+
+  ctx.scoped (Rib::Kind::TraitOrImpl, impl.get_node_id (), inner_fn);
+}
+
+void
+TopLevel::visit (AST::TraitImpl &impl)
+{
+  auto inner_fn = [this, &impl] () {
+    insert_or_error_out (Identifier ("Self", impl.get_type ().get_locus ()),
+			 impl.get_type (), Namespace::Types);
+
+    AST::DefaultASTVisitor::visit (impl);
+  };
+
+  ctx.scoped (Rib::Kind::TraitOrImpl, impl.get_node_id (), inner_fn);
+}
+
+void
+TopLevel::visit (AST::TraitItemType &trait_item)
+{
+  insert_or_error_out (trait_item.get_identifier ().as_string (), trait_item,
+		       Namespace::Types);
+
+  DefaultResolver::visit (trait_item);
 }
 
 template <typename PROC_MACRO>
@@ -222,23 +251,6 @@ TopLevel::visit (AST::Function &function)
 }
 
 void
-TopLevel::visit (AST::BlockExpr &expr)
-{
-  // extracting the lambda from the `scoped` call otherwise the code looks like
-  // a hot turd thanks to our .clang-format
-
-  auto sub_vis = [this, &expr] () {
-    for (auto &stmt : expr.get_statements ())
-      stmt->accept_vis (*this);
-
-    if (expr.has_tail_expr ())
-      expr.get_tail_expr ().accept_vis (*this);
-  };
-
-  ctx.scoped (Rib::Kind::Normal, expr.get_node_id (), sub_vis);
-}
-
-void
 TopLevel::visit (AST::StaticItem &static_item)
 {
   insert_or_error_out (static_item.get_identifier (), static_item,
@@ -252,6 +264,8 @@ TopLevel::visit (AST::ExternalStaticItem &static_item)
 {
   insert_or_error_out (static_item.get_identifier ().as_string (), static_item,
 		       Namespace::Values);
+
+  DefaultResolver::visit (static_item);
 }
 
 void
@@ -280,11 +294,10 @@ TopLevel::visit (AST::StructStruct &struct_item)
 void
 TopLevel::visit (AST::TypeParam &type_param)
 {
-  // Hacky and weird, find a better solution
-  // We should probably not even insert self in the first place ?
-  if (type_param.get_type_representation ().as_string () != "Self")
-    insert_or_error_out (type_param.get_type_representation (), type_param,
-			 Namespace::Types);
+  insert_or_error_out (type_param.get_type_representation (), type_param,
+		       Namespace::Types);
+
+  DefaultResolver::visit (type_param);
 }
 
 void
@@ -303,6 +316,8 @@ TopLevel::visit (AST::TupleStruct &tuple_struct)
 
   insert_or_error_out (tuple_struct.get_struct_name (), tuple_struct,
 		       Namespace::Values);
+
+  DefaultResolver::visit (tuple_struct);
 }
 
 void
@@ -335,13 +350,7 @@ TopLevel::visit (AST::Enum &enum_item)
   insert_or_error_out (enum_item.get_identifier (), enum_item,
 		       Namespace::Types);
 
-  auto field_vis = [this, &enum_item] () {
-    for (auto &variant : enum_item.get_variants ())
-      variant->accept_vis (*this);
-  };
-
-  ctx.scoped (Rib::Kind::Item /* FIXME: Is that correct? */,
-	      enum_item.get_node_id (), field_vis, enum_item.get_identifier ());
+  DefaultResolver::visit (enum_item);
 }
 
 void
@@ -349,6 +358,8 @@ TopLevel::visit (AST::Union &union_item)
 {
   insert_or_error_out (union_item.get_identifier (), union_item,
 		       Namespace::Types);
+
+  DefaultResolver::visit (union_item);
 }
 
 void

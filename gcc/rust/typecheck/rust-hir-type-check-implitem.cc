@@ -142,7 +142,7 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
 				     mappings.get_next_hir_id (crate_num),
 				     UNKNOWN_LOCAL_DEFID);
 
-      auto param_pattern = Rust::make_unique<HIR::IdentifierPattern> (
+      auto param_pattern = std::make_unique<HIR::IdentifierPattern> (
 	HIR::IdentifierPattern (mapping, param.get_param_name (),
 				UNDEF_LOCATION, false, Mutability::Imm,
 				std::unique_ptr<HIR::Pattern> (nullptr)));
@@ -335,9 +335,10 @@ TypeCheckImplItem::Resolve (
 
   // resolve
   TypeCheckImplItem resolver (parent, self, substitutions);
-  resolver.context->push_block_context (TypeCheckBlockContextItem (&parent));
+  resolver.context->block_context ().enter (
+    TypeCheckBlockContextItem (&parent));
   item.accept_vis (resolver);
-  resolver.context->pop_block_context ();
+  resolver.context->block_context ().exit ();
 
   return resolver.result;
 }
@@ -390,7 +391,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
       HIR::SelfParam &self_param = function.get_self_param ();
       // FIXME: which location should be used for Rust::Identifier for `self`?
       std::unique_ptr<HIR::Pattern> self_pattern
-	= Rust::make_unique<HIR::IdentifierPattern> (
+	= std::make_unique<HIR::IdentifierPattern> (
 	  HIR::IdentifierPattern (mapping, {"self"}, self_param.get_locus (),
 				  self_param.is_ref (), self_param.get_mut (),
 				  std::unique_ptr<HIR::Pattern> (nullptr)));

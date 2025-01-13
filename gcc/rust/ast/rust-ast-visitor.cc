@@ -997,6 +997,8 @@ DefaultASTVisitor::visit (AST::Trait &trait)
 
   visit_inner_attrs (trait);
 
+  visit (trait.get_implicit_self ());
+
   for (auto &generic : trait.get_generic_params ())
     visit (generic);
 
@@ -1037,6 +1039,7 @@ DefaultASTVisitor::visit (AST::TraitImpl &impl)
   if (impl.has_where_clause ())
     visit (impl.get_where_clause ());
   visit (impl.get_type ());
+  visit (impl.get_trait_path ());
   visit_inner_attrs (impl);
   for (auto &item : impl.get_impl_items ())
     visit (item);
@@ -1055,14 +1058,6 @@ DefaultASTVisitor::visit (AST::ExternalStaticItem &item)
   visit_outer_attrs (item);
   visit (item.get_visibility ());
   visit (item.get_type ());
-}
-
-void
-DefaultASTVisitor::visit (AST::NamedFunctionParam &param)
-{
-  visit_outer_attrs (param);
-  if (!param.is_variadic ())
-    visit (param.get_type ());
 }
 
 void

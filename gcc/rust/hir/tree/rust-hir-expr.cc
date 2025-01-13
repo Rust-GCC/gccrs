@@ -541,10 +541,10 @@ StructExprStructFields::StructExprStructFields (
 StructExprStructFields::StructExprStructFields (
   StructExprStructFields const &other)
   : StructExprStruct (other),
-    struct_base (
-      other.has_struct_base () ? tl::optional<std::unique_ptr<StructBase>> (
-	Rust::make_unique<StructBase> (*other.struct_base.value ()))
-			       : tl::nullopt),
+    struct_base (other.has_struct_base ()
+		   ? tl::optional<std::unique_ptr<StructBase>> (
+		     std::make_unique<StructBase> (*other.struct_base.value ()))
+		   : tl::nullopt),
     union_index (other.union_index)
 {
   fields.reserve (other.fields.size ());
@@ -558,7 +558,7 @@ StructExprStructFields::operator= (StructExprStructFields const &other)
   StructExprStruct::operator= (other);
   struct_base = other.has_struct_base ()
 		  ? tl::optional<std::unique_ptr<StructBase>> (
-		    Rust::make_unique<StructBase> (*other.struct_base.value ()))
+		    std::make_unique<StructBase> (*other.struct_base.value ()))
 		  : tl::nullopt;
   union_index = other.union_index;
 
@@ -1295,6 +1295,12 @@ OperatorExprMeta::OperatorExprMeta (HIR::DereferenceExpr &expr)
 OperatorExprMeta::OperatorExprMeta (HIR::ArrayIndexExpr &expr)
   : node_mappings (expr.get_mappings ()),
     lvalue_mappings (expr.get_array_expr ().get_mappings ()),
+    locus (expr.get_locus ())
+{}
+
+OperatorExprMeta::OperatorExprMeta (HIR::ComparisonExpr &expr)
+  : node_mappings (expr.get_mappings ()),
+    lvalue_mappings (expr.get_expr ().get_mappings ()),
     locus (expr.get_locus ())
 {}
 

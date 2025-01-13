@@ -272,8 +272,8 @@ Attribute::get_traits_to_derive ()
 		      case AST::MetaItem::ItemKind::Word: {
 			auto word = static_cast<AST::MetaWord *> (meta_item);
 			// Convert current word to path
-			current
-			  = make_unique<AST::MetaItemPath> (AST::MetaItemPath (
+			current = std::make_unique<AST::MetaItemPath> (
+			  AST::MetaItemPath (
 			    AST::SimplePath (word->get_ident ())));
 			auto path
 			  = static_cast<AST::MetaItemPath *> (current.get ());
@@ -2993,22 +2993,6 @@ ExternalStaticItem::as_string () const
 
   // add type on new line
   str += "\n Type: " + item_type->as_string ();
-
-  return str;
-}
-
-std::string
-NamedFunctionParam::as_string () const
-{
-  std::string str = append_attributes (outer_attrs, OUTER);
-
-  if (has_name ())
-    str += "\n" + name;
-
-  if (is_variadic ())
-    str += "...";
-  else
-    str += "\n Type: " + param_type->as_string ();
 
   return str;
 }
