@@ -279,6 +279,26 @@ CompileExpr::visit (HIR::ComparisonExpr &expr)
   auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
   auto location = expr.get_locus ();
 
+  // this might be an operator overload situation lets check
+  TyTy::FnType *fntype;
+  bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
+    expr.get_mappings ().get_hirid (), &fntype);
+  if (is_op_overload)
+    {
+      auto seg_name = LangItem::ComparisonToSegment (expr.get_expr_type ());
+      auto segment = HIR::PathIdentSegment (seg_name);
+      auto lang_item_type
+	= LangItem::ComparisonToLangItem (expr.get_expr_type ());
+
+      rhs = address_expression (rhs, EXPR_LOCATION (rhs));
+
+      translated = resolve_operator_overload (
+	lang_item_type, expr, lhs, rhs, expr.get_lhs (),
+	tl::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()),
+	segment);
+      return;
+    }
+
   translated = Backend::comparison_expression (op, lhs, rhs, location);
 }
 
@@ -538,24 +558,32 @@ CompileExpr::visit (HIR::StructExprStructFields &struct_expr)
 	}
     }
 
-  // the constructor depends on whether this is actually an enum or not if
-  // its an enum we need to setup the discriminator
-  std::vector<tree> ctor_arguments;
-  if (adt->is_enum ())
+  if (!adt->is_enum ())
     {
-      HIR::Expr &discrim_expr = variant->get_discriminant ();
-      tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
-      tree folded_discrim_expr = fold_expr (discrim_expr_node);
-      tree qualifier = folded_discrim_expr;
-
-      ctor_arguments.push_back (qualifier);
+      translated
+	= Backend::constructor_expression (compiled_adt_type, adt->is_enum (),
+					   arguments, union_disriminator,
+					   struct_expr.get_locus ());
+      return;
     }
-  for (auto &arg : arguments)
-    ctor_arguments.push_back (arg);
+
+  HIR::Expr &discrim_expr = variant->get_discriminant ();
+  tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
+  tree folded_discrim_expr = fold_expr (discrim_expr_node);
+  tree qualifier = folded_discrim_expr;
+
+  tree enum_root_files = TYPE_FIELDS (compiled_adt_type);
+  tree payload_root = DECL_CHAIN (enum_root_files);
+
+  tree payload = Backend::constructor_expression (TREE_TYPE (payload_root),
+						  adt->is_enum (), arguments,
+						  union_disriminator,
+						  struct_expr.get_locus ());
+
+  std::vector<tree> ctor_arguments = {qualifier, payload};
 
   translated
-    = Backend::constructor_expression (compiled_adt_type, adt->is_enum (),
-				       ctor_arguments, union_disriminator,
+    = Backend::constructor_expression (compiled_adt_type, 0, ctor_arguments, -1,
 				       struct_expr.get_locus ());
 }
 
@@ -1128,8 +1156,19 @@ CompileExpr::visit (HIR::MatchExpr &expr)
 	  location_t arm_locus = kase_arm.get_locus ();
 	  tree kase_expr_tree = CompileExpr::Compile (kase.get_expr (), ctx);
 	  tree result_reference = Backend::var_expression (tmp, arm_locus);
+
+	  TyTy::BaseType *actual = nullptr;
+	  bool ok = ctx->get_tyctx ()->lookup_type (
+	    kase.get_expr ().get_mappings ().get_hirid (), &actual);
+	  rust_assert (ok);
+
+	  tree coerced_result
+	    = coercion_site (kase.get_expr ().get_mappings ().get_hirid (),
+			     kase_expr_tree, actual, expr_tyty,
+			     expr.get_locus (), arm_locus);
+
 	  tree assignment
-	    = Backend::assignment_statement (result_reference, kase_expr_tree,
+	    = Backend::assignment_statement (result_reference, coerced_result,
 					     arm_locus);
 	  ctx->add_statement (assignment);
 
@@ -1227,25 +1266,33 @@ CompileExpr::visit (HIR::CallExpr &expr)
 	  arguments.push_back (rvalue);
 	}
 
-      // the constructor depends on whether this is actually an enum or not if
-      // its an enum we need to setup the discriminator
-      std::vector<tree> ctor_arguments;
-      if (adt->is_enum ())
+      if (!adt->is_enum ())
 	{
-	  HIR::Expr &discrim_expr = variant->get_discriminant ();
-	  tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
-	  tree folded_discrim_expr = fold_expr (discrim_expr_node);
-	  tree qualifier = folded_discrim_expr;
-
-	  ctor_arguments.push_back (qualifier);
+	  translated
+	    = Backend::constructor_expression (compiled_adt_type,
+					       adt->is_enum (), arguments,
+					       union_disriminator,
+					       expr.get_locus ());
+	  return;
 	}
-      for (auto &arg : arguments)
-	ctor_arguments.push_back (arg);
 
-      translated
-	= Backend::constructor_expression (compiled_adt_type, adt->is_enum (),
-					   ctor_arguments, union_disriminator,
+      HIR::Expr &discrim_expr = variant->get_discriminant ();
+      tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
+      tree folded_discrim_expr = fold_expr (discrim_expr_node);
+      tree qualifier = folded_discrim_expr;
+
+      tree enum_root_files = TYPE_FIELDS (compiled_adt_type);
+      tree payload_root = DECL_CHAIN (enum_root_files);
+
+      tree payload
+	= Backend::constructor_expression (TREE_TYPE (payload_root), true,
+					   {arguments}, union_disriminator,
 					   expr.get_locus ());
+
+      std::vector<tree> ctor_arguments = {qualifier, payload};
+      translated = Backend::constructor_expression (compiled_adt_type, false,
+						    ctor_arguments, -1,
+						    expr.get_locus ());
 
       return;
     }
@@ -1478,7 +1525,8 @@ CompileExpr::get_receiver_from_dyn (const TyTy::DynamicObjectType *dyn,
 tree
 CompileExpr::resolve_operator_overload (
   LangItem::Kind lang_item_type, HIR::OperatorExprMeta expr, tree lhs, tree rhs,
-  HIR::Expr &lhs_expr, tl::optional<std::reference_wrapper<HIR::Expr>> rhs_expr)
+  HIR::Expr &lhs_expr, tl::optional<std::reference_wrapper<HIR::Expr>> rhs_expr,
+  HIR::PathIdentSegment specified_segment)
 {
   TyTy::FnType *fntype;
   bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
@@ -1499,7 +1547,10 @@ CompileExpr::resolve_operator_overload (
     }
 
   // lookup compiled functions since it may have already been compiled
-  HIR::PathIdentSegment segment_name (LangItem::ToString (lang_item_type));
+  HIR::PathIdentSegment segment_name
+    = specified_segment.is_error ()
+	? HIR::PathIdentSegment (LangItem::ToString (lang_item_type))
+	: specified_segment;
   tree fn_expr = resolve_method_address (fntype, receiver, expr.get_locus ());
 
   // lookup the autoderef mappings
