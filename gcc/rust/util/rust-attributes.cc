@@ -38,15 +38,14 @@ Attributes::is_known (const std::string &attribute_path)
   return !lookup.is_error ();
 }
 bool
-Attributes::is_macro_export (AST::AttrVec outer_attrs)
+Attributes::is_macro_export (const AST::AttrVec outer_attrs)
 {
-  for (auto &attr : outer_attrs)
-    {
-      if (attr.get_path ().as_string() == Values::Attributes::MACRO_EXPORT)
-	{
-	  return true;
-	}
-    }
+  for (const auto &attr : outer_attrs)
+
+    if (attr.get_path ().as_string () == Values::Attributes::MACRO_EXPORT)
+
+      return true;
+
   return false;
 }
 
