@@ -38,15 +38,14 @@ Attributes::is_known (const std::string &attribute_path)
   return !lookup.is_error ();
 }
 bool
-Attributes::is_rustc_builtin_macro (AST::AttrVec outer_attrs)
+Attributes::is_rustc_builtin_macro (const AST::AttrVec outer_attrs)
 {
-  for (auto attr : outer_attrs)
-    {
-      if (attr.get_path () == Values::Attributes::RUSTC_BUILTIN_MACRO)
-	{
-	  return true;
-	}
-    }
+  for (const auto attr : outer_attrs)
+
+    if (attr.get_path () == Values::Attributes::RUSTC_BUILTIN_MACRO)
+
+      return true;
+
   return false;
 }
 
