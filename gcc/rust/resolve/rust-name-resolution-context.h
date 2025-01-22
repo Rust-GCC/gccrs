@@ -203,6 +203,7 @@ public:
 	       std::function<void (void)> lambda,
 	       tl::optional<Identifier> path = {});
 
+  ForeverStackStore node_store;
   ForeverStack<Namespace::Values> values;
   ForeverStack<Namespace::Types> types;
   ForeverStack<Namespace::Macros> macros;

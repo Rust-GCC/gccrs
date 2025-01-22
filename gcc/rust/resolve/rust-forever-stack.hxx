@@ -27,59 +27,11 @@ namespace Rust {
 namespace Resolver2_0 {
 
 template <Namespace N>
-bool
-ForeverStack<N>::Node::is_root () const
-{
-  return !parent.has_value ();
-}
-
-template <Namespace N>
-bool
-ForeverStack<N>::Node::is_leaf () const
-{
-  return children.empty ();
-}
-
-template <Namespace N>
-void
-ForeverStack<N>::Node::insert_child (Link link, Node child)
-{
-  auto res = children.insert ({link, child});
-
-  // Do we want to error if the child already exists? Probably not, right?
-  // That's kinda the point, isn't it. So this method always succeeds, right?
-}
-
-template <Namespace N>
 void
 ForeverStack<N>::push (Rib::Kind rib_kind, NodeId id,
 		       tl::optional<Identifier> path)
 {
-  push_inner (rib_kind, Link (id, path));
-}
-
-template <Namespace N>
-void
-ForeverStack<N>::push_inner (Rib rib, Link link)
-{
-  // If the link does not exist, we create it and emplace a new `Node` with the
-  // current node as its parent. `unordered_map::emplace` returns a pair with
-  // the iterator and a boolean. If the value already exists, the iterator
-  // points to it. Otherwise, it points to the newly emplaced value, so we can
-  // just update our cursor().
-  auto emplace = cursor ().children.emplace (
-    std::make_pair (link, Node (rib, link.id, cursor ())));
-
-  auto it = emplace.first;
-  auto existed = !emplace.second;
-
-  rust_debug ("inserting link: Link(%d [%s]): existed? %s", link.id,
-	      link.path.has_value () ? link.path.value ().as_string ().c_str ()
-				     : "<anon>",
-	      existed ? "yes" : "no");
-
-  // We update the cursor
-  update_cursor (it->second);
+  update_cursor (cursor ().insert_child (id, std::move (path), rib_kind));
 }
 
 template <Namespace N>
@@ -90,107 +42,76 @@ ForeverStack<N>::pop ()
 
   rust_debug ("popping link");
 
-  for (const auto &kv : cursor ().rib.get_values ())
+  for (const auto &kv : cursor ().get_rib (N).get_values ())
     rust_debug ("current_rib: k: %s, v: %s", kv.first.c_str (),
 		kv.second.to_string ().c_str ());
 
-  if (cursor ().parent.has_value ())
-    for (const auto &kv : cursor ().parent.value ().rib.get_values ())
-      rust_debug ("new cursor: k: %s, v: %s", kv.first.c_str (),
-		  kv.second.to_string ().c_str ());
+  if (cursor ().get_parent ().has_value ())
+    {
+      auto &parent = cursor ().get_parent ().value ();
+      auto &rib_values = parent.get_rib (N).get_values ();
+      for (const auto &kv : rib_values)
+	rust_debug ("new cursor: k: %s, v: %s", kv.first.c_str (),
+		    kv.second.to_string ().c_str ());
+    }
 
-  update_cursor (cursor ().parent.value ());
-}
-
-static tl::expected<NodeId, DuplicateNameError>
-insert_inner (Rib &rib, std::string name, Rib::Definition definition)
-{
-  return rib.insert (name, definition);
+  update_cursor (cursor ().get_parent ().value ());
 }
 
 template <Namespace N>
 tl::expected<NodeId, DuplicateNameError>
 ForeverStack<N>::insert (Identifier name, NodeId node)
 {
-  auto &innermost_rib = peek ();
-
-  // So what do we do here - if the Rib has already been pushed in an earlier
-  // pass, we might end up in a situation where it is okay to re-add new names.
-  // Do we just ignore that here? Do we keep track of if the Rib is new or not?
-  // should our cursor have info on the current node like "is it newly pushed"?
-  return insert_inner (innermost_rib, name.as_string (),
-		       Rib::Definition::NonShadowable (node));
+  // Handle Macros and Labels - where we are allowed to shadow
+  // existing definitions
+  if (N == Namespace::Labels || N == Namespace::Macros)
+    return cursor ().insert_shadowable (name, node, N);
+  else
+    return cursor ().insert (name, node, N);
 }
 
 template <Namespace N>
 tl::expected<NodeId, DuplicateNameError>
 ForeverStack<N>::insert_shadowable (Identifier name, NodeId node)
 {
-  auto &innermost_rib = peek ();
-
-  return insert_inner (innermost_rib, name.as_string (),
-		       Rib::Definition::Shadowable (node));
+  return cursor ().insert_shadowable (name, node, N);
 }
 
 template <Namespace N>
 tl::expected<NodeId, DuplicateNameError>
 ForeverStack<N>::insert_globbed (Identifier name, NodeId node)
 {
-  auto &innermost_rib = peek ();
-
-  return insert_inner (innermost_rib, name.as_string (),
-		       Rib::Definition::Globbed (node));
+  return cursor ().insert_globbed (name, node, N);
 }
 
 template <Namespace N>
 tl::expected<NodeId, DuplicateNameError>
 ForeverStack<N>::insert_at_root (Identifier name, NodeId node)
 {
-  auto &root_rib = root.rib;
-
   // inserting in the root of the crate is never a shadowing operation, even for
   // macros
-  return insert_inner (root_rib, name.as_string (),
-		       Rib::Definition::NonShadowable (node));
-}
-
-// Specialization for Macros and Labels - where we are allowed to shadow
-// existing definitions
-template <>
-inline tl::expected<NodeId, DuplicateNameError>
-ForeverStack<Namespace::Macros>::insert (Identifier name, NodeId node)
-{
-  return insert_inner (peek (), name.as_string (),
-		       Rib::Definition::Shadowable (node));
-}
-
-template <>
-inline tl::expected<NodeId, DuplicateNameError>
-ForeverStack<Namespace::Labels>::insert (Identifier name, NodeId node)
-{
-  return insert_inner (peek (), name.as_string (),
-		       Rib::Definition::Shadowable (node));
+  return base.get ().get_root ().insert_shadowable (name, node, N);
 }
 
 template <Namespace N>
 Rib &
 ForeverStack<N>::peek ()
 {
-  return cursor ().rib;
+  return cursor ().get_rib (N);
 }
 
 template <Namespace N>
 const Rib &
 ForeverStack<N>::peek () const
 {
-  return cursor ().rib;
+  return cursor ().get_rib (N);
 }
 
 template <Namespace N>
 void
 ForeverStack<N>::reverse_iter (std::function<KeepGoing (Node &)> lambda)
 {
-  return reverse_iter (cursor (), lambda);
+  cursor ().reverse_iter (std::move (lambda));
 }
 
 template <Namespace N>
@@ -198,7 +119,7 @@ void
 ForeverStack<N>::reverse_iter (
   std::function<KeepGoing (const Node &)> lambda) const
 {
-  return reverse_iter (cursor (), lambda);
+  cursor ().reverse_iter (std::move (lambda));
 }
 
 template <Namespace N>
@@ -206,19 +127,7 @@ void
 ForeverStack<N>::reverse_iter (Node &start,
 			       std::function<KeepGoing (Node &)> lambda)
 {
-  auto *tmp = &start;
-
-  while (true)
-    {
-      auto keep_going = lambda (*tmp);
-      if (keep_going == KeepGoing::No)
-	return;
-
-      if (tmp->is_root ())
-	return;
-
-      tmp = &tmp->parent.value ();
-    }
+  start.reverse_iter (std::move (lambda));
 }
 
 template <Namespace N>
@@ -226,19 +135,7 @@ void
 ForeverStack<N>::reverse_iter (
   const Node &start, std::function<KeepGoing (const Node &)> lambda) const
 {
-  auto *tmp = &start;
-
-  while (true)
-    {
-      auto keep_going = lambda (*tmp);
-      if (keep_going == KeepGoing::No)
-	return;
-
-      if (tmp->is_root ())
-	return;
-
-      tmp = &tmp->parent.value ();
-    }
+  start.reverse_iter (std::move (lambda));
 }
 
 template <Namespace N>
@@ -270,7 +167,7 @@ ForeverStack<N>::get (const Identifier &name)
 
   // TODO: Can we improve the API? have `reverse_iter` return an optional?
   reverse_iter ([&resolved_definition, &name] (Node &current) {
-    auto candidate = current.rib.get (name.as_string ());
+    auto candidate = current.get_rib (N).get (name.as_string ());
 
     return candidate.map_or (
       [&resolved_definition] (Rib::Definition found) {
@@ -298,10 +195,11 @@ tl::optional<Rib::Definition> inline ForeverStack<Namespace::Labels>::get (
   reverse_iter ([&resolved_definition, &name] (Node &current) {
     // looking up for labels cannot go through function ribs
     // TODO: What other ribs?
-    if (current.rib.kind == Rib::Kind::Function)
+    if (current.get_rib (Namespace::Labels).kind == Rib::Kind::Function)
       return KeepGoing::No;
 
-    auto candidate = current.rib.get (name.as_string ());
+    auto candidate
+      = current.get_rib (Namespace::Labels).get (name.as_string ());
 
     // FIXME: Factor this in a function with the generic `get`
     return candidate.map_or (
@@ -336,19 +234,7 @@ template <Namespace N>
 typename ForeverStack<N>::Node &
 ForeverStack<N>::find_closest_module (Node &starting_point)
 {
-  auto *closest_module = &starting_point;
-
-  reverse_iter (starting_point, [&closest_module] (Node &current) {
-    if (current.rib.kind == Rib::Kind::Module || current.is_root ())
-      {
-	closest_module = &current;
-	return KeepGoing::No;
-      }
-
-    return KeepGoing::Yes;
-  });
-
-  return *closest_module;
+  return starting_point.find_closest_module ();
 }
 
 /* If a the given condition is met, emit an error about misused leading path
@@ -400,7 +286,7 @@ ForeverStack<N>::find_starting_point (
 
       if (seg.is_crate_path_seg ())
 	{
-	  starting_point = root;
+	  starting_point = base.get ().get_root ();
 	  iterator++;
 	  break;
 	}
@@ -419,8 +305,8 @@ ForeverStack<N>::find_starting_point (
 	      return tl::nullopt;
 	    }
 
-	  starting_point
-	    = find_closest_module (starting_point.get ().parent.value ());
+	  starting_point = find_closest_module (
+	    starting_point.get ().get_parent ().value ());
 	  continue;
 	}
 
@@ -453,23 +339,8 @@ ForeverStack<N>::resolve_segments (
 					    || seg.is_lower_self_seg ()))
 	return tl::nullopt;
 
-      tl::optional<typename ForeverStack<N>::Node &> child = tl::nullopt;
-
-      for (auto &kv : current_node->children)
-	{
-	  auto &link = kv.first;
-
-	  if (link.path.map_or (
-		[&str] (Identifier path) {
-		  auto &path_str = path.as_string ();
-		  return str == path_str;
-		},
-		false))
-	    {
-	      child = kv.second;
-	      break;
-	    }
-	}
+      auto child = current_node->get_child (
+	Identifier (seg.as_string (), seg.get_locus ()));
 
       if (!child.has_value ())
 	{
@@ -503,7 +374,7 @@ ForeverStack<N>::resolve_path (const std::vector<S> &segments)
       return resolve_segments (starting_point.get (), segments, iterator);
     })
     .and_then ([&segments] (Node final_node) {
-      return final_node.rib.get (segments.back ().as_string ());
+      return final_node.get_rib (N).get (segments.back ().as_string ());
     });
 }
 
@@ -511,7 +382,7 @@ template <Namespace N>
 tl::optional<typename ForeverStack<N>::DfsResult>
 ForeverStack<N>::dfs (ForeverStack<N>::Node &starting_point, NodeId to_find)
 {
-  auto values = starting_point.rib.get_values ();
+  auto values = starting_point.get_rib (N).get_values ();
 
   for (auto &kv : values)
     {
@@ -526,15 +397,24 @@ ForeverStack<N>::dfs (ForeverStack<N>::Node &starting_point, NodeId to_find)
 	  return {{starting_point, kv.first}};
     }
 
-  for (auto &child : starting_point.children)
-    {
-      auto candidate = dfs (child.second, to_find);
+  tl::optional<ForeverStackStore::DfsResult> ret;
+  starting_point.child_iter (
+    [this, &ret, to_find] (NodeId id, tl::optional<const Identifier &> path,
+			   Node &child) {
+      auto candidate = dfs (child, to_find);
 
       if (candidate.has_value ())
-	return candidate;
-    }
+	{
+	  ret.emplace (std::move (candidate.value ()));
+	  return KeepGoing::No;
+	}
+      else
+	{
+	  return KeepGoing::Yes;
+	}
+    });
 
-  return tl::nullopt;
+  return ret;
 }
 
 template <Namespace N>
@@ -542,7 +422,7 @@ tl::optional<typename ForeverStack<N>::ConstDfsResult>
 ForeverStack<N>::dfs (const ForeverStack<N>::Node &starting_point,
 		      NodeId to_find) const
 {
-  auto values = starting_point.rib.get_values ();
+  auto values = starting_point.get_rib (N).get_values ();
 
   for (auto &kv : values)
     {
@@ -557,15 +437,24 @@ ForeverStack<N>::dfs (const ForeverStack<N>::Node &starting_point,
 	  return {{starting_point, kv.first}};
     }
 
-  for (auto &child : starting_point.children)
-    {
-      auto candidate = dfs (child.second, to_find);
+  tl::optional<ForeverStackStore::ConstDfsResult> ret;
+  starting_point.child_iter (
+    [this, &ret, to_find] (NodeId id, tl::optional<const Identifier &> path,
+			   const Node &child) {
+      auto candidate = dfs (child, to_find);
 
       if (candidate.has_value ())
-	return candidate;
-    }
+	{
+	  ret.emplace (std::move (candidate.value ()));
+	  return KeepGoing::No;
+	}
+      else
+	{
+	  return KeepGoing::Yes;
+	}
+    });
 
-  return tl::nullopt;
+  return ret;
 }
 
 template <Namespace N>
@@ -577,51 +466,35 @@ ForeverStack<N>::to_canonical_path (NodeId id) const
   // back up to the root (parent().parent().parent()...) accumulate link
   // segments reverse them that's your canonical path
 
-  return dfs (root, id).map ([this, id] (ConstDfsResult tuple) {
-    auto containing_node = tuple.first;
-    auto name = tuple.second;
+  return dfs (base.get ().get_root (), id)
+    .map ([this, id] (ConstDfsResult tuple) {
+      auto containing_node = tuple.first;
+      auto name = tuple.second;
 
-    auto segments = std::vector<Resolver::CanonicalPath> ();
+      auto segments = std::vector<Resolver::CanonicalPath> ();
 
-    reverse_iter (containing_node, [&segments] (const Node &current) {
-      if (current.is_root ())
-	return KeepGoing::No;
+      reverse_iter (containing_node, [&segments] (const Node &current) {
+	if (current.is_root ())
+	  return KeepGoing::No;
 
-      auto children = current.parent.value ().children;
-      const Link *outer_link = nullptr;
+	auto link_path = current.get_parent_path ();
+	if (link_path.has_value ())
+	  segments.emplace (segments.begin (),
+			    Resolver::CanonicalPath::new_seg (
+			      current.get_id (), link_path->as_string ()));
 
-      for (auto &kv : children)
-	{
-	  auto &link = kv.first;
-	  auto &child = kv.second;
-
-	  if (link.id == child.id)
-	    {
-	      outer_link = &link;
-	      break;
-	    }
-	}
-
-      rust_assert (outer_link);
-
-      outer_link->path.map ([&segments, outer_link] (Identifier path) {
-	segments.emplace (segments.begin (),
-			  Resolver::CanonicalPath::new_seg (outer_link->id,
-							    path.as_string ()));
+	return KeepGoing::Yes;
       });
 
-      return KeepGoing::Yes;
+      auto path = Resolver::CanonicalPath::create_empty ();
+      for (const auto &segment : segments)
+	path = path.append (segment);
+
+      // Finally, append the name
+      path = path.append (Resolver::CanonicalPath::new_seg (id, name));
+
+      return path;
     });
-
-    auto path = Resolver::CanonicalPath::create_empty ();
-    for (const auto &segment : segments)
-      path = path.append (segment);
-
-    // Finally, append the name
-    path = path.append (Resolver::CanonicalPath::new_seg (id, name));
-
-    return path;
-  });
 }
 
 template <Namespace N>
@@ -629,7 +502,7 @@ tl::optional<Rib &>
 ForeverStack<N>::dfs_rib (ForeverStack<N>::Node &starting_point, NodeId to_find)
 {
   return dfs_node (starting_point, to_find).map ([] (Node &x) -> Rib & {
-    return x.rib;
+    return x.get_rib (N);
   });
 }
 
@@ -639,7 +512,7 @@ ForeverStack<N>::dfs_rib (const ForeverStack<N>::Node &starting_point,
 			  NodeId to_find) const
 {
   return dfs_node (starting_point, to_find).map ([] (Node &x) -> Rib & {
-    return x.rib;
+    return x.get_rib (N);
   });
 }
 
@@ -648,18 +521,7 @@ tl::optional<typename ForeverStack<N>::Node &>
 ForeverStack<N>::dfs_node (ForeverStack<N>::Node &starting_point,
 			   NodeId to_find)
 {
-  if (starting_point.id == to_find)
-    return starting_point;
-
-  for (auto &child : starting_point.children)
-    {
-      auto candidate = dfs_node (child.second, to_find);
-
-      if (candidate.has_value ())
-	return candidate;
-    }
-
-  return tl::nullopt;
+  return starting_point.dfs_node (to_find);
 }
 
 template <Namespace N>
@@ -667,32 +529,21 @@ tl::optional<const typename ForeverStack<N>::Node &>
 ForeverStack<N>::dfs_node (const ForeverStack<N>::Node &starting_point,
 			   NodeId to_find) const
 {
-  if (starting_point.id == to_find)
-    return starting_point;
-
-  for (auto &child : starting_point.children)
-    {
-      auto candidate = dfs_node (child.second, to_find);
-
-      if (candidate.has_value ())
-	return candidate;
-    }
-
-  return tl::nullopt;
+  return starting_point.dfs_node (to_find);
 }
 
 template <Namespace N>
 tl::optional<Rib &>
 ForeverStack<N>::to_rib (NodeId rib_id)
 {
-  return dfs_rib (root, rib_id);
+  return dfs_rib (base.get ().get_root (), rib_id);
 }
 
 template <Namespace N>
 tl::optional<const Rib &>
 ForeverStack<N>::to_rib (NodeId rib_id) const
 {
-  return dfs_rib (root, rib_id);
+  return dfs_rib (base.get ().get_root (), rib_id);
 }
 
 template <Namespace N>
@@ -729,23 +580,24 @@ ForeverStack<N>::stream_node (std::stringstream &stream, unsigned indentation,
 	 << next << "is_leaf: " << (node.is_leaf () ? "true" : "false")
 	 << ",\n";
 
-  stream_rib (stream, node.rib, next, next_next);
+  stream_rib (stream, node.get_rib (N), next, next_next);
 
   stream << indent << "}\n";
 
-  for (auto &kv : node.children)
-    {
-      auto link = kv.first;
-      auto child = kv.second;
-      stream << indent << "Link (" << link.id << ", "
-	     << (link.path.has_value () ? link.path.value ().as_string ()
-					: "<anon>")
-	     << "):\n";
+  node.child_iter ([this, &stream, &indent,
+		    indentation] (NodeId id,
+				  tl::optional<const Identifier &> path,
+				  const Node &child) {
+    stream << indent << "Link (" << id << ", "
+	   << (path.has_value () ? path.value ().as_string () : "<anon>")
+	   << "):\n";
 
-      stream_node (stream, indentation + 4, child);
+    stream_node (stream, indentation + 4, child);
 
-      stream << '\n';
-    }
+    stream << '\n';
+
+    return KeepGoing::Yes;
+  });
 }
 
 template <Namespace N>
@@ -754,7 +606,7 @@ ForeverStack<N>::as_debug_string ()
 {
   std::stringstream stream;
 
-  stream_node (stream, 0, root);
+  stream_node (stream, 0, base.get ().get_root ());
 
   return stream.str ();
 }
@@ -763,7 +615,8 @@ template <Namespace N>
 bool
 ForeverStack<N>::is_module_descendant (NodeId parent, NodeId child) const
 {
-  return dfs_node (dfs_node (root, parent).value (), child).has_value ();
+  return dfs_node (dfs_node (base.get ().get_root (), parent).value (), child)
+    .has_value ();
 }
 
 // FIXME: Can we add selftests?
