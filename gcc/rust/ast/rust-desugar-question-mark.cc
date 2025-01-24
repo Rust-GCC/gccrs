@@ -19,7 +19,6 @@
 #include "rust-desugar-question-mark.h"
 #include "rust-ast-builder.h"
 #include "rust-ast-visitor.h"
-#include "rust-ast-dump.h"
 
 namespace Rust {
 namespace AST {
@@ -149,13 +148,9 @@ DesugarQuestionMark::desugar (ErrorPropagationExpr &expr)
   //     <ok_arm>
   //     <err_arm>
   // }
-  auto match_expr = std::unique_ptr<MatchExpr> (
-    new MatchExpr (std::move (call), std::move (cases), {}, {},
-		   expr.get_locus ()));
-
-  AST::Dump::debug (*match_expr);
-
-  return match_expr;
+  return std::unique_ptr<MatchExpr> (new MatchExpr (std::move (call),
+						    std::move (cases), {}, {},
+						    expr.get_locus ()));
 }
 
 void
