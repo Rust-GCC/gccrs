@@ -92,7 +92,7 @@ fn foo() -> Result {
 
     let b = baz()?;
 
-    print("should have shortcircuited - error");
+    print("should have shortcircuited - error", 0);
 
     Result::Ok(a + b)
 }
