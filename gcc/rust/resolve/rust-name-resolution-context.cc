@@ -24,7 +24,9 @@ namespace Rust {
 namespace Resolver2_0 {
 
 NameResolutionContext::NameResolutionContext ()
-  : mappings (Analysis::Mappings::get ())
+  : node_store (UNKNOWN_NODEID), values (node_store), types (node_store),
+    macros (node_store), labels (node_store),
+    mappings (Analysis::Mappings::get ())
 {}
 
 tl::expected<NodeId, DuplicateNameError>

@@ -394,7 +394,7 @@ this pass's documentation for more details on this resolution process.
 **/
 
 /**
- * Intended for use by ForeverStack to store Nodes
+ * Used by ForeverStack to store Nodes
  * Unlike ForeverStack, does not store a cursor reference
  * Intended to make path resolution in multiple namespaces simpler
  **/
@@ -546,21 +546,17 @@ private:
 template <Namespace N> class ForeverStack
 {
 public:
-  ForeverStack ()
+  ForeverStack (ForeverStackStore &base)
     // FIXME: Is that valid? Do we use the root? If yes, we should give the
     // crate's node id to ForeverStack's constructor
-    : root (Node (Rib (Rib::Kind::Normal), UNKNOWN_NODEID)),
-      cursor_reference (root)
-  {
-    rust_assert (root.is_root ());
-    rust_assert (root.is_leaf ());
-  }
+    : base (base), cursor_reference (base.get_root ())
+  {}
 
   /**
    * Add a new Rib to the stack. If the Rib already exists, nothing is pushed
    * and the stack's cursor is simply moved to this existing Rib.
    *
-   * @param rib The Rib to push
+   * @param rib_kind The kind of Rib to push
    * @param id The NodeId of the node for which the Rib was created. For
    *        example, if a Rib is created because a lexical scope is entered,
    *        then `id` is that `BlockExpr`'s NodeId.
@@ -679,61 +675,8 @@ public:
   bool is_module_descendant (NodeId parent, NodeId child) const;
 
 private:
-  /**
-   * A link between two Nodes in our trie data structure. This class represents
-   * the edges of the graph
-   */
-  class Link
-  {
-  public:
-    Link (NodeId id, tl::optional<Identifier> path) : id (id), path (path) {}
-
-    bool compare (const Link &other) const { return id < other.id; }
-
-    NodeId id;
-    tl::optional<Identifier> path;
-  };
-
-  /* Link comparison class, which we use in a Node's `children` map */
-  class LinkCmp
-  {
-  public:
-    bool operator() (const Link &lhs, const Link &rhs) const
-    {
-      return lhs.compare (rhs);
-    }
-  };
-
-  class Node
-  {
-  public:
-    Node (Rib rib, NodeId id) : rib (rib), id (id) {}
-    Node (Rib rib, NodeId id, Node &parent)
-      : rib (rib), id (id), parent (parent)
-    {}
-
-    bool is_root () const;
-    bool is_leaf () const;
-
-    void insert_child (Link link, Node child);
-
-    Rib rib; // this is the "value" of the node - the data it keeps.
-    std::map<Link, Node, LinkCmp> children; // all the other nodes it links to
-
-    NodeId id; // The node id of the Node's scope
-
-    tl::optional<Node &> parent; // `None` only if the node is a root
-  };
-
-  /* Should we keep going upon seeing a Rib? */
-  enum class KeepGoing
-  {
-    Yes,
-    No,
-  };
-
-  /* Add a new Rib to the stack. This is an internal method */
-  void push_inner (Rib rib, Link link);
+  using Node = ForeverStackStore::Node;
+  using KeepGoing = ForeverStackStore::KeepGoing;
 
   /* Reverse iterate on `Node`s from the cursor, in an outwards fashion */
   void reverse_iter (std::function<KeepGoing (Node &)> lambda);
@@ -748,7 +691,7 @@ private:
   const Node &cursor () const;
   void update_cursor (Node &new_cursor);
 
-  Node root;
+  std::reference_wrapper<ForeverStackStore> base;
   std::reference_wrapper<Node> cursor_reference;
 
   void stream_rib (std::stringstream &stream, const Rib &rib,
@@ -774,16 +717,8 @@ private:
 					 SegIterator<S> iterator);
 
   /* Helper functions for forward resolution (to_canonical_path, to_rib...) */
-  struct DfsResult
-  {
-    Node &first;
-    std::string second;
-  };
-  struct ConstDfsResult
-  {
-    const Node &first;
-    std::string second;
-  };
+  using DfsResult = ForeverStackStore::DfsResult;
+  using ConstDfsResult = ForeverStackStore::ConstDfsResult;
 
   // FIXME: Documentation
   tl::optional<DfsResult> dfs (Node &starting_point, NodeId to_find);
