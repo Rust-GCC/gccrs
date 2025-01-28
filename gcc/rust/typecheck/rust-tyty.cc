@@ -134,6 +134,12 @@ is_primitive_type_kind (TypeKind kind)
     case TypeKind::FLOAT:
     case TypeKind::NEVER:
     case TypeKind::STR:
+    case TypeKind::ARRAY:
+    case TypeKind::SLICE:
+    case TypeKind::POINTER:
+    case TypeKind::REF:
+    case TypeKind::FNPTR:
+    case TypeKind::TUPLE:
       return true;
     default:
       return false;

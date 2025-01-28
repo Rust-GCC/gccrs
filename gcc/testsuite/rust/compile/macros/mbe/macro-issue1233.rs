@@ -3,6 +3,7 @@
 macro_rules! impl_uint {
     ($($ty:ident = $lang:literal),*) => {
         $(
+            #[lang = $lang]
             impl $ty {
                 pub fn to_le(self) -> Self {
                     #[cfg(not(A))]

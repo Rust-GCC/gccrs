@@ -20,6 +20,7 @@ union Repr<T> {
     raw: FatPtr<T>,
 }
 
+#[lang = "const_slice_ptr"]
 impl<T> *const [T] {
     pub const fn len(self) -> usize {
         // SAFETY: this is safe because `*const [T]` and `FatPtr<T>` have the same layout.
@@ -32,6 +33,7 @@ impl<T> *const [T] {
     }
 }
 
+#[lang = "const_ptr"]
 impl<T> *const T {
     pub const unsafe fn offset(self, count: isize) -> *const T {
         unsafe { offset(self, count) }

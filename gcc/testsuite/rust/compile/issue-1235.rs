@@ -13,6 +13,7 @@ pub union Repr<T> {
     raw: FatPtr<T>,
 }
 
+#[lang = "slice"]
 impl<T> [T] {
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
