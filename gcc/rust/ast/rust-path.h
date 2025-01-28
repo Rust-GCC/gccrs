@@ -563,6 +563,11 @@ public:
   PathIdentSegment &get_ident_segment () { return segment_name; }
   const PathIdentSegment &get_ident_segment () const { return segment_name; }
 
+  const std::string get_segment_name () const
+  {
+    return segment_name.as_string ();
+  }
+
   NodeId get_node_id () const { return node_id; }
 
   bool is_super_path_seg () const

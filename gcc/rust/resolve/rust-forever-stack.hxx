@@ -351,6 +351,24 @@ ForeverStack<N>::find_closest_module (Node &starting_point)
   return *closest_module;
 }
 
+template <Namespace N>
+typename ForeverStack<N>::Node &
+ForeverStack<N>::find_closest_inherent_impl (Node &starting_point)
+{
+  auto *closest_impl = &starting_point;
+
+  reverse_iter (starting_point, [&closest_impl] (Node &current) {
+    if (current.rib.kind == Rib::Kind::TraitOrImpl)
+      {
+	closest_impl = &current;
+	return KeepGoing::No;
+      }
+
+    return KeepGoing::Yes;
+  });
+
+  return *closest_impl;
+}
 /* If a the given condition is met, emit an error about misused leading path
  * segments */
 template <typename S>
@@ -384,7 +402,15 @@ ForeverStack<N>::find_starting_point (
   // at the closest module. In order to resolve something like `foo::bar!()`, we
   // need to get back to the surrounding module, and look for a child module
   // named `foo`.
-  if (segments.size () > 1)
+  //
+  // But if path start with a "Self" we skip it and find the closest inherent
+  // implementation.
+  if (segments.size () > 0 && segments[0].as_string () == "Self")
+    {
+      starting_point = find_closest_inherent_impl (starting_point);
+      iterator++;
+    }
+  else if (segments.size () > 1)
     starting_point = find_closest_module (starting_point);
 
   for (; !is_last (iterator, segments); iterator++)

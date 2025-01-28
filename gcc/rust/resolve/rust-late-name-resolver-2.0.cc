@@ -271,7 +271,7 @@ Late::visit (AST::PathInExpression &expr)
       if (!ctx.lookup (expr.get_segments ().front ().get_node_id ()))
 	rust_error_at (expr.get_locus (),
 		       "could not resolve path expression: %qs",
-		       expr.as_simple_path ().as_string ().c_str ());
+		       expr.as_string ().c_str ());
       return;
     }
 

@@ -764,6 +764,7 @@ private:
   using SegIterator = typename std::vector<S>::const_iterator;
 
   Node &find_closest_module (Node &starting_point);
+  Node &find_closest_inherent_impl (Node &starting_point);
 
   template <typename S>
   tl::optional<SegIterator<S>> find_starting_point (
