@@ -1211,6 +1211,8 @@ CompileExpr::visit (HIR::CallExpr &expr)
     {
       rust_assert (tyty->get_kind () == TyTy::TypeKind::ADT);
       TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (tyty);
+      rust_debug ("111 XXXXXXXXXXXXXXXXXXXXXXX");
+      adt->debug ();
       tree compiled_adt_type = TyTyResolveCompile::compile (ctx, tyty);
 
       // what variant is it?
@@ -1272,6 +1274,9 @@ CompileExpr::visit (HIR::CallExpr &expr)
 					       expr.get_locus ());
 	  return;
 	}
+
+      rust_debug_loc (expr.get_locus (), "XXXXXXXXXX ADT CTOR");
+      debug_tree (compiled_adt_type);
 
       HIR::Expr &discrim_expr = variant->get_discriminant ();
       tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);

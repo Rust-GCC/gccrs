@@ -76,7 +76,7 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
 
   // lookup the associated item from the specified bound
   HIR::PathExprSegment &item_seg = expr.get_segments ().at (0);
-  HIR::PathIdentSegment item_seg_identifier = item_seg.get_segment ();
+  HIR::PathIdentSegment &item_seg_identifier = item_seg.get_segment ();
   TyTy::TypeBoundPredicateItem item
     = specified_bound.lookup_associated_item (item_seg_identifier.as_string ());
   if (item.is_error ())
@@ -416,28 +416,77 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
   for (size_t i = offset; i < segments.size (); i++)
     {
       HIR::PathExprSegment &seg = segments.at (i);
+      HIR::PathIdentSegment &item_seg_identifier = seg.get_segment ();
       bool probe_impls = !receiver_is_generic;
+      std::set<PathProbeCandidate> candidates = {};
 
-      // probe the path is done in two parts one where we search impls if no
-      // candidate is found then we search extensions from traits
-      auto candidates
-	= PathProbeType::Probe (prev_segment, seg.get_segment (), probe_impls,
-				false /*probe_bounds*/,
-				true /*ignore_mandatory_trait_items*/);
+      // // is this segment a Trait TODO
+      // if (prev_segment->is<TyTy::DynamicObjectType> ()
+      //     && prev_segment->num_specified_bounds () == 1)
+      //   {
+      //     rust_debug ("attempting trait lookup magic man ");
+      //     TyTy::TyVar infer_var_tyvar
+      //       = TyTy::TyVar::get_implicit_infer_var (seg.get_locus ());
+      //     TyTy::BaseType *new_seg = infer_var_tyvar.get_tyty ();
+      //     new_seg->inherit_bounds (*prev_segment);
+
+      //     auto &pred = new_seg->get_specified_bounds ().at (0);
+      //     TyTy::TypeBoundPredicateItem item
+      //       = pred.lookup_associated_item (item_seg_identifier.as_string ());
+      //     if (!item.is_error ())
+      //       {
+      //         PathProbeCandidate::CandidateType candidate_type;
+      //         switch (item.get_raw_item ()->get_trait_item_type ())
+      //   	{
+      //   	case TraitItemReference::TraitItemType::FN:
+      //   	  candidate_type
+      //   	    = PathProbeCandidate::CandidateType::TRAIT_FUNC;
+      //   	  break;
+      //   	case TraitItemReference::TraitItemType::CONST:
+      //   	  candidate_type
+      //   	    = PathProbeCandidate::CandidateType::TRAIT_ITEM_CONST;
+      //   	  break;
+      //   	case TraitItemReference::TraitItemType::TYPE:
+      //   	  candidate_type
+      //   	    = PathProbeCandidate::CandidateType::TRAIT_TYPE_ALIAS;
+      //   	  break;
+
+      //   	case TraitItemReference::TraitItemType::ERROR:
+      //   	default:
+      //   	  rust_unreachable ();
+      //   	  break;
+      //   	}
+
+      //         auto item_ty = item.get_tyty_for_receiver (new_seg);
+      //         auto trait_item_candidate
+      //   	= PathProbeCandidate::TraitItemCandidate{
+      //   	  item.get_parent ()->get (), item.get_raw_item (), nullptr};
+      //         auto candidate
+      //   	= PathProbeCandidate{candidate_type, item_ty, item.get_locus (),
+      //   			     trait_item_candidate};
+      //         candidates = {std::move (candidate)};
+      //       }
+      //     else
+
+      // probe the path is done in two parts one where we search impls
+      // if no candidate is found then we search extensions from traits
+      candidates = PathProbeType::Probe (prev_segment, seg.get_segment (),
+					 probe_impls, false /*probe_bounds*/,
+					 true /*ignore_mandatory_trait_items*/);
       if (candidates.size () == 0)
 	{
 	  candidates
-	    = PathProbeType::Probe (prev_segment, seg.get_segment (), false,
+	    = PathProbeType::Probe (prev_segment, seg.get_segment (),
+				    false /*probe_impls*/,
 				    true /*probe_bounds*/,
 				    false /*ignore_mandatory_trait_items*/);
+	}
 
-	  if (candidates.size () == 0)
-	    {
-	      rust_error_at (
-		seg.get_locus (),
-		"failed to resolve path segment using an impl Probe");
-	      return;
-	    }
+      if (candidates.size () == 0)
+	{
+	  rust_error_at (seg.get_locus (),
+			 "failed to resolve path segment using an impl Probe");
+	  return;
 	}
 
       if (candidates.size () > 1)

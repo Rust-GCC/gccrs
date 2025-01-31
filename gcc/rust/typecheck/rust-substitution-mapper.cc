@@ -194,6 +194,8 @@ SubstMapperInternal::visit (TyTy::FnType &type)
     = type.adjust_mappings_for_this (mappings);
   if (adjusted.is_error () && !mappings.trait_item_mode ())
     return;
+  if (adjusted.is_error () && mappings.trait_item_mode ())
+    adjusted = mappings;
 
   TyTy::BaseType *concrete = type.handle_substitions (adjusted);
   if (concrete != nullptr)
@@ -207,6 +209,8 @@ SubstMapperInternal::visit (TyTy::ADTType &type)
     = type.adjust_mappings_for_this (mappings);
   if (adjusted.is_error () && !mappings.trait_item_mode ())
     return;
+  if (adjusted.is_error () && mappings.trait_item_mode ())
+    adjusted = mappings;
 
   TyTy::BaseType *concrete = type.handle_substitions (adjusted);
   if (concrete != nullptr)
