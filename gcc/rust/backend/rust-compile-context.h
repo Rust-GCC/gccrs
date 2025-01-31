@@ -37,6 +37,7 @@ struct fncontext
   tree fndecl;
   ::Bvariable *ret_addr;
   TyTy::BaseType *retty;
+  TyTy::BaseType *fnty;
 };
 
 struct CustomDeriveInfo
@@ -275,9 +276,10 @@ public:
     return true;
   }
 
-  void push_fn (tree fn, ::Bvariable *ret_addr, TyTy::BaseType *retty)
+  void push_fn (tree fn, ::Bvariable *ret_addr, TyTy::BaseType *retty,
+		TyTy::BaseType *fntype)
   {
-    fn_stack.push_back (fncontext{fn, ret_addr, retty});
+    fn_stack.push_back (fncontext{fn, ret_addr, retty, fntype});
   }
   void pop_fn () { fn_stack.pop_back (); }
 

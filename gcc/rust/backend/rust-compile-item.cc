@@ -19,6 +19,8 @@
 #include "rust-compile-item.h"
 #include "rust-compile-implitem.h"
 #include "rust-compile-extern.h"
+#include "rust-substitution-mapper.h"
+#include "rust-type-util.h"
 #include "rust-immutable-name-resolution-context.h"
 
 namespace Rust {
@@ -159,6 +161,17 @@ CompileItem::visit (HIR::Function &function)
 
   rust_assert (fntype_tyty->get_kind () == TyTy::TypeKind::FNDEF);
   TyTy::FnType *fntype = static_cast<TyTy::FnType *> (fntype_tyty);
+
+  if (concrete && fntype->has_substitutions_defined ())
+    {
+      rust_assert (concrete->get_kind () == TyTy::TypeKind::FNDEF);
+      TyTy::FnType *concrete_fnty = static_cast<TyTy::FnType *> (fntype_tyty);
+
+      rust_debug ("XPPPPPPPPPPPPPPPPPPPPPPPPPPPPP");
+      fntype->debug ();
+      concrete_fnty->debug ();
+    }
+
   if (fntype->has_substitutions_defined ())
     {
       // we cant do anything for this only when it is used and a concrete type
@@ -168,7 +181,19 @@ CompileItem::visit (HIR::Function &function)
       else
 	{
 	  rust_assert (concrete->get_kind () == TyTy::TypeKind::FNDEF);
-	  fntype = static_cast<TyTy::FnType *> (concrete);
+	  TyTy::BaseType *infer
+	    = Resolver::SubstMapper::InferSubst (fntype, function.get_locus ());
+	  TyTy::BaseType *resolved
+	    = Resolver::unify_site (function.get_mappings ().get_hirid (),
+				    TyTy::TyWithLocation (infer),
+				    TyTy::TyWithLocation (concrete),
+				    function.get_locus ());
+
+	  rust_debug ("UUUUUUUUUUUUU");
+	  resolved->debug ();
+
+	  rust_assert (resolved->is<TyTy::FnType> ());
+	  fntype = resolved->as<TyTy::FnType> ();
 	  fntype->monomorphize ();
 	}
     }

@@ -349,12 +349,19 @@ HIRCompileBase::query_compile (HirId ref, TyTy::BaseType *lookup,
 	      rust_assert (ok);
 
 	      if (!lookup->has_substitutions_defined ())
-		return CompileInherentImplItem::Compile (impl_item, ctx,
-							 nullptr, true,
-							 expr_locus);
+		{
+		  rust_debug ("XXXXXXXXX YYY 1");
+		  return CompileInherentImplItem::Compile (impl_item, ctx,
+							   nullptr, true,
+							   expr_locus);
+		}
 	      else
-		return CompileInherentImplItem::Compile (impl_item, ctx, lookup,
-							 true, expr_locus);
+		{
+		  rust_debug ("XXXXXXXXX YYY 2");
+		  return CompileInherentImplItem::Compile (impl_item, ctx,
+							   lookup, true,
+							   expr_locus);
+		}
 	    }
 	}
     }

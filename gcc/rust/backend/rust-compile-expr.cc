@@ -1278,10 +1278,19 @@ CompileExpr::visit (HIR::CallExpr &expr)
       rust_debug_loc (expr.get_locus (), "XXXXXXXXXX ADT CTOR");
       debug_tree (compiled_adt_type);
 
+      const auto &c = ctx->peek_fn ();
+      c.fnty->debug ();
+
       HIR::Expr &discrim_expr = variant->get_discriminant ();
       tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
       tree folded_discrim_expr = fold_expr (discrim_expr_node);
       tree qualifier = folded_discrim_expr;
+
+      if (compiled_adt_type == error_mark_node)
+	{
+	  rust_debug_loc (expr.get_fnexpr ().get_locus (),
+			  "XXX this is broken!!");
+	}
 
       tree enum_root_files = TYPE_FIELDS (compiled_adt_type);
       tree payload_root = DECL_CHAIN (enum_root_files);
@@ -2503,7 +2512,7 @@ CompileExpr::generate_closure_function (HIR::ClosureExpr &expr,
 
   ctx->add_statement (ret_var_stmt);
 
-  ctx->push_fn (fndecl, return_address, tyret);
+  ctx->push_fn (fndecl, return_address, tyret, fn_tyty);
 
   if (is_block_expr)
     {

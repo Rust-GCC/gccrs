@@ -757,7 +757,7 @@ HIRCompileBase::compile_function (
 
   ctx->add_statement (ret_var_stmt);
 
-  ctx->push_fn (fndecl, return_address, tyret);
+  ctx->push_fn (fndecl, return_address, tyret, fntype);
   compile_function_body (fndecl, *function_body, tyret);
   tree bind_tree = ctx->pop_block ();
 
@@ -825,7 +825,7 @@ HIRCompileBase::compile_constant_item (
 				   address_is_taken, locus, &ret_var_stmt);
 
   ctx->add_statement (ret_var_stmt);
-  ctx->push_fn (fndecl, return_address, resolved_type);
+  ctx->push_fn (fndecl, return_address, resolved_type, resolved_type);
 
   if (is_block_expr)
     {
