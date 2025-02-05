@@ -18,6 +18,7 @@
 
 #include "rust-desugar-question-mark.h"
 #include "rust-ast-builder.h"
+#include "rust-ast-dump.h"
 #include "rust-ast-visitor.h"
 
 namespace Rust {
@@ -158,6 +159,8 @@ DesugarQuestionMark::desugar_and_replace (std::unique_ptr<Expr> &ptr)
 {
   auto original = static_cast<ErrorPropagationExpr &> (*ptr);
   auto desugared = desugar (original);
+
+  AST::Dump::debug (*desugared);
 
   ptr = std::move (desugared);
 }

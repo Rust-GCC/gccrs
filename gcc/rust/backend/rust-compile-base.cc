@@ -676,6 +676,12 @@ HIRCompileBase::compile_function (
   if (flag_name_resolution_2_0)
     ir_symbol_name = mappings.get_current_crate_name () + "::" + ir_symbol_name;
 
+  rust_debug_loc (locus, "[ARTHUR] fn name: %s", fn_name.c_str ());
+  rust_debug_loc (locus, "[ARTHUR] fn name: %s", ir_symbol_name.c_str ());
+  rust_debug_loc (locus, "[ARTHUR] fn type: %s", fntype->as_string ().c_str ());
+
+  debug_tree (compiled_fn_type);
+
   unsigned int flags = 0;
   tree fndecl = Backend::function (compiled_fn_type, ir_symbol_name,
 				   "" /* asm_name */, flags, locus);
