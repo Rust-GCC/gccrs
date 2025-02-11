@@ -550,6 +550,7 @@ public:
     // FIXME: Is that valid? Do we use the root? If yes, we should give the
     // crate's node id to ForeverStack's constructor
     : root (Node (Rib (Rib::Kind::Normal), UNKNOWN_NODEID)),
+      prelude (Node (Rib (Rib::Kind::Prelude), UNKNOWN_NODEID, root)),
       cursor_reference (root)
   {
     rust_assert (root.is_root ());
@@ -651,6 +652,8 @@ public:
    * the current map, an empty one otherwise.
    */
   tl::optional<Rib::Definition> get (const Identifier &name);
+  tl::optional<Rib::Definition> get_prelude (const Identifier &name);
+  tl::optional<Rib::Definition> get_prelude (const std::string &name);
 
   /**
    * Resolve a path to its definition in the current `ForeverStack`
@@ -750,7 +753,15 @@ private:
   const Node &cursor () const;
   void update_cursor (Node &new_cursor);
 
+  /* The forever stack's actual nodes */
   Node root;
+  /*
+   * A special prelude node used currently for resolving language builtins
+   * It has the root node as a parent, and acts as a "special case" for name
+   * resolution
+   */
+  Node prelude;
+
   std::reference_wrapper<Node> cursor_reference;
 
   void stream_rib (std::stringstream &stream, const Rib &rib,
