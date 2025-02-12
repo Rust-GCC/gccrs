@@ -218,7 +218,8 @@ public:
 
   template <typename S>
   tl::optional<Rib::Definition> resolve_path (const std::vector<S> &segments,
-					      Namespace ns)
+					      Namespace ns,
+					      bool from_parent = false)
   {
     std::function<void (const S &, NodeId)> insert_segment_resolution
       = [this] (const S &seg, NodeId id) {
@@ -229,13 +230,17 @@ public:
     switch (ns)
       {
       case Namespace::Values:
-	return values.resolve_path (segments, insert_segment_resolution);
+	return values.resolve_path (segments, insert_segment_resolution,
+				    from_parent);
       case Namespace::Types:
-	return types.resolve_path (segments, insert_segment_resolution);
+	return types.resolve_path (segments, insert_segment_resolution,
+				   from_parent);
       case Namespace::Macros:
-	return macros.resolve_path (segments, insert_segment_resolution);
+	return macros.resolve_path (segments, insert_segment_resolution,
+				    from_parent);
       case Namespace::Labels:
-	return labels.resolve_path (segments, insert_segment_resolution);
+	return labels.resolve_path (segments, insert_segment_resolution,
+				    from_parent);
       default:
 	rust_unreachable ();
       }

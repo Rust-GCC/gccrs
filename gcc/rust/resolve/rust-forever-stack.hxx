@@ -265,12 +265,15 @@ ForeverStack<N>::update_cursor (Node &new_cursor)
 
 template <Namespace N>
 tl::optional<Rib::Definition>
-ForeverStack<N>::get (const Identifier &name)
+ForeverStack<N>::get (const Identifier &name, bool from_parent)
 {
   tl::optional<Rib::Definition> resolved_definition = tl::nullopt;
 
+  if (cursor ().is_root ())
+    return tl::nullopt;
+  auto start = from_parent ? cursor ().parent.value () : cursor ();
   // TODO: Can we improve the API? have `reverse_iter` return an optional?
-  reverse_iter ([&resolved_definition, &name] (Node &current) {
+  reverse_iter (start, [&resolved_definition, &name] (Node &current) {
     auto candidate = current.rib.get (name.as_string ());
 
     return candidate.map_or (
@@ -292,7 +295,7 @@ ForeverStack<N>::get (const Identifier &name)
 
 template <>
 tl::optional<Rib::Definition> inline ForeverStack<Namespace::Labels>::get (
-  const Identifier &name)
+  const Identifier &name, bool from_parent)
 {
   tl::optional<Rib::Definition> resolved_definition = tl::nullopt;
 
@@ -504,14 +507,16 @@ template <typename S>
 tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
   const std::vector<S> &segments,
-  std::function<void (const S &, NodeId)> insert_segment_resolution)
+  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  bool from_parent)
 {
   // TODO: What to do if segments.empty() ?
 
   // if there's only one segment, we just use `get`
   if (segments.size () == 1)
     {
-      auto res = get (unwrap_type_segment (segments.back ()).as_string ());
+      auto res
+	= get (unwrap_type_segment (segments.back ()).as_string (), true);
       if (res && !res->is_ambiguous ())
 	insert_segment_resolution (segments.back (), res->get_node_id ());
       return res;

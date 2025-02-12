@@ -300,7 +300,8 @@ Late::visit (AST::TypePath &type)
 
   // this *should* mostly work
   // TODO: make sure typepath-like path resolution (?) is working
-  auto resolved = ctx.resolve_path (type.get_segments (), Namespace::Types);
+  auto resolved
+    = ctx.resolve_path (type.get_segments (), Namespace::Types, true);
 
   if (resolved.has_value ())
     ctx.map_usage (Usage (type.get_node_id ()),
