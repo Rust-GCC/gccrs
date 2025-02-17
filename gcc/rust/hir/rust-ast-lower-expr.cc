@@ -686,16 +686,7 @@ ASTLoweringExpr::visit (AST::DereferenceExpr &expr)
 void
 ASTLoweringExpr::visit (AST::ErrorPropagationExpr &expr)
 {
-  HIR::Expr *propagating_expr
-    = ASTLoweringExpr::translate (expr.get_propagating_expr ());
-
-  auto crate_num = mappings.get_current_crate ();
-  Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
-				 mappings.get_next_hir_id (crate_num),
-				 UNKNOWN_LOCAL_DEFID);
-  translated = new HIR::ErrorPropagationExpr (
-    mapping, std::unique_ptr<HIR::Expr> (propagating_expr),
-    expr.get_outer_attrs (), expr.get_locus ());
+  rust_unreachable();
 }
 
 void
