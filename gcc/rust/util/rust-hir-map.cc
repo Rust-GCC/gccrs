@@ -25,6 +25,7 @@
 #include "rust-macro-builtins.h"
 #include "rust-mapping-common.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 
 namespace Rust {
 namespace Analysis {
@@ -848,13 +849,8 @@ void
 Mappings::insert_macro_def (AST::MacroRulesDefinition *macro)
 {
   auto outer_attrs = macro->get_outer_attrs ();
-  bool should_be_builtin
-    = std::any_of (outer_attrs.begin (), outer_attrs.end (),
-		   [] (AST::Attribute attr) {
-		     return attr.get_path ()
-			    == Values::Attributes::RUSTC_BUILTIN_MACRO;
-		   });
-  if (should_be_builtin)
+
+  if (Analysis::Attributes::is_rustc_builtin_macro (outer_attrs))
     {
       auto builtin
 	= MacroBuiltin::builtins.lookup (macro->get_rule_name ().as_string ());
