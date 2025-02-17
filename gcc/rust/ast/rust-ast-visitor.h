@@ -430,7 +430,7 @@ public:
   virtual void visit (AST::StructPatternElements &spe);
   virtual void visit (AST::MaybeNamedParam &param);
 
-  void visit (AST::Attribute &attribute) {}
+  virtual void visit (AST::Attribute &attribute) {}
 
   template <typename T> void visit_outer_attrs (T &node)
   {
