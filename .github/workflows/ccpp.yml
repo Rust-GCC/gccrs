@@ -512,3 +512,50 @@ jobs:
             else \
               exit 0; \
             fi
+
+  build-and-check-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          # - { sys: mingw32, env: i686 }
+    name: 'Windows ${{ matrix.env }} ${{ matrix.sys }}'
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: '${{ matrix.sys }} Install deps'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          update: true
+          install: >-
+            git
+            dejagnu
+            base-devel
+          pacboy: >-
+            toolchain:p
+            rust:p
+
+      - run: |
+          find . -name .cargo-checksum.json -exec sed -i.uncheck -e 's/"files":{[^}]*}/"files":{ }/' '{}' '+'
+
+
+      - name: Configure
+        run: |
+           mkdir -p gccrs-build;
+           cd gccrs-build;
+           ../configure \
+               --enable-languages=rust \
+               --disable-bootstrap
+      - name: Build
+        run: |
+           make -C gccrs-build -j1 # $(nproc)
+
+      - name: Run Tests
+        run: |
+           cd gccrs-build; \
+           make check-rust
