@@ -650,7 +650,8 @@ public:
    * @return a valid option with the Definition if the identifier is present in
    * the current map, an empty one otherwise.
    */
-  tl::optional<Rib::Definition> get (const Identifier &name);
+  tl::optional<Rib::Definition> get (const Identifier &name,
+				     bool from_parent = false);
 
   /**
    * Resolve a path to its definition in the current `ForeverStack`
@@ -663,7 +664,8 @@ public:
   template <typename S>
   tl::optional<Rib::Definition> resolve_path (
     const std::vector<S> &segments,
-    std::function<void (const S &, NodeId)> insert_segment_resolution);
+    std::function<void (const S &, NodeId)> insert_segment_resolution,
+    bool from_parent = false);
 
   // FIXME: Documentation
   tl::optional<Resolver::CanonicalPath> to_canonical_path (NodeId id) const;
