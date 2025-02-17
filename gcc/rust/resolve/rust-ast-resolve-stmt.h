@@ -358,7 +358,7 @@ public:
 	else if (p->is_self ())
 	  {
 	    auto &param = static_cast<AST::SelfParam &> (*p);
-	    ResolveType::go (param.get_type ());
+	    ResolveType::go (param.get_type ().value ());
 	  }
 	else
 	  {

@@ -406,6 +406,12 @@ public:
     node->accept_vis (*this);
   }
 
+  template <typename T> void visit (tl::optional<T &> opt)
+  {
+    if (opt.has_value ())
+      visit (opt.value ());
+  }
+
   virtual void visit (AST::GenericArgsBinding &binding);
   virtual void visit (AST::PathExprSegment &segment);
   virtual void visit (AST::GenericArgs &args);
