@@ -33,6 +33,7 @@
 #include "rust-compile-implitem.h"
 #include "rust-attribute-values.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-attributes.h"
 
 #include "fold-const.h"
 #include "stringpool.h"
@@ -158,65 +159,6 @@ HIRCompileBase::handle_attribute_proc_macro_attribute_on_fndecl (
   ctx->collect_attribute_proc_macro (fndecl);
 }
 
-static std::vector<std::string>
-get_attributes (const AST::Attribute &attr)
-{
-  std::vector<std::string> result;
-
-  rust_assert (attr.get_attr_input ().get_attr_input_type ()
-	       == Rust::AST::AttrInput::TOKEN_TREE);
-  const auto &tt
-    = static_cast<const AST::DelimTokenTree &> (attr.get_attr_input ());
-
-  // TODO: Should we rely on fixed index ? Should we search for the
-  // attribute tokentree instead ?
-
-  // Derive proc macros have the following format:
-  // #[proc_macro_derive(TraitName, attributes(attr1, attr2, attr3))]
-  //                    -~~~~~~~~ - ~~~~~~~~~~---------------------
-  //                    ^0  ^1    ^2     ^3           ^4
-  // - "attributes" is stored at position 3 in the token tree
-  // - attribute are stored in the delimited token tree in position 4
-  constexpr size_t attr_kw_pos = 3;
-  constexpr size_t attribute_list_pos = 4;
-
-  if (tt.get_token_trees ().size () > attr_kw_pos)
-    {
-      rust_assert (tt.get_token_trees ()[attr_kw_pos]->as_string ()
-		   == "attributes");
-
-      auto attributes = static_cast<const AST::DelimTokenTree *> (
-	tt.get_token_trees ()[attribute_list_pos].get ());
-
-      auto &token_trees = attributes->get_token_trees ();
-
-      for (auto i = token_trees.cbegin () + 1; // Skip opening parenthesis
-	   i < token_trees.cend ();
-	   i += 2) // Skip comma and closing parenthesis
-	{
-	  result.push_back ((*i)->as_string ());
-	}
-    }
-  return result;
-}
-
-static std::string
-get_trait_name (const AST::Attribute &attr)
-{
-  // Derive proc macros have the following format:
-  // #[proc_macro_derive(TraitName, attributes(attr1, attr2, attr3))]
-  //                    -~~~~~~~~ - ~~~~~~~~~~---------------------
-  //                    ^0  ^1    ^2     ^3           ^4
-  // - The trait name is stored at position 1
-  constexpr size_t trait_name_pos = 1;
-
-  rust_assert (attr.get_attr_input ().get_attr_input_type ()
-	       == Rust::AST::AttrInput::TOKEN_TREE);
-  const auto &tt
-    = static_cast<const AST::DelimTokenTree &> (attr.get_attr_input ());
-  return tt.get_token_trees ()[trait_name_pos]->as_string ();
-}
-
 void
 HIRCompileBase::handle_derive_proc_macro_attribute_on_fndecl (
   tree fndecl, const AST::Attribute &attr)
@@ -224,8 +166,8 @@ HIRCompileBase::handle_derive_proc_macro_attribute_on_fndecl (
   handle_proc_macro_common (fndecl, attr);
 
   attr.get_attr_input ().parse_to_meta_item ();
-  CustomDeriveInfo macro
-    = {fndecl, get_trait_name (attr), get_attributes (attr)};
+  CustomDeriveInfo macro = {fndecl, Analysis::Attributes::get_trait_name (attr),
+			    Analysis::Attributes::get_attributes (attr)};
   ctx->collect_derive_proc_macro (macro);
 }
 
