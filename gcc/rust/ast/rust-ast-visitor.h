@@ -155,7 +155,6 @@ public:
   virtual void visit (EnumItem &item) = 0;
   virtual void visit (EnumItemTuple &item) = 0;
   virtual void visit (EnumItemStruct &item) = 0;
-  virtual void visit (EnumItemDiscriminant &item) = 0;
   virtual void visit (Enum &enum_item) = 0;
   virtual void visit (Union &union_item) = 0;
   virtual void visit (ConstantItem &const_item) = 0;
@@ -331,7 +330,6 @@ public:
   virtual void visit (AST::EnumItem &item) override;
   virtual void visit (AST::EnumItemTuple &item) override;
   virtual void visit (AST::EnumItemStruct &item) override;
-  virtual void visit (AST::EnumItemDiscriminant &item) override;
   virtual void visit (AST::Enum &enum_item) override;
   virtual void visit (AST::Union &union_item) override;
   virtual void visit (AST::ConstantItem &const_item) override;

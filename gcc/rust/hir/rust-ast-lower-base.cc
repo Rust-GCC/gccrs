@@ -319,9 +319,6 @@ void
 ASTLoweringBase::visit (AST::EnumItemStruct &)
 {}
 void
-ASTLoweringBase::visit (AST::EnumItemDiscriminant &)
-{}
-void
 ASTLoweringBase::visit (AST::Enum &)
 {}
 void

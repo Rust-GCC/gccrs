@@ -719,10 +719,6 @@ AttributeChecker::visit (AST::EnumItemStruct &)
 {}
 
 void
-AttributeChecker::visit (AST::EnumItemDiscriminant &)
-{}
-
-void
 AttributeChecker::visit (AST::Enum &enumeration)
 {
   check_proc_macro_non_function (enumeration.get_outer_attrs ());

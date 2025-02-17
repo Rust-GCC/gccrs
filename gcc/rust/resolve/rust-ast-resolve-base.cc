@@ -392,10 +392,6 @@ ResolverBase::visit (AST::EnumItemStruct &)
 {}
 
 void
-ResolverBase::visit (AST::EnumItemDiscriminant &)
-{}
-
-void
 ResolverBase::visit (AST::Enum &)
 {}
 
