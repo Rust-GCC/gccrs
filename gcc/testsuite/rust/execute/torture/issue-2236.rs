@@ -20,6 +20,7 @@ mod core {
     }
 }
 
+#[lang = "i32"]
 impl i32 {
     fn max(self, other: i32) -> i32 {
         if self > other {

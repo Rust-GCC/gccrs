@@ -16,6 +16,7 @@ pub enum Option<T> {
     Some(T),
 }
 
+#[lang = "i32"]
 impl i32 {
     pub fn checked_add(self, rhs: Self) -> Option<Self> {
         let (a, b) = self.overflowing_add(rhs);

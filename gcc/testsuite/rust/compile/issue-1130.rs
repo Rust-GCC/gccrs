@@ -11,6 +11,7 @@ mod mem {
     }
 }
 
+#[lang = "u16"]
 impl u16 {
     fn to_ne_bytes(self) -> [u8; mem::size_of::<Self>()] {
         unsafe { mem::transmute(self) }

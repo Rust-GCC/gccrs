@@ -24,6 +24,7 @@ mod mem {
 macro_rules! impl_uint {
     ($($ty:ident = $lang:literal),*) => {
         $(
+            #[lang = $lang]
             impl $ty {
                 pub fn wrapping_add(self, rhs: Self) -> Self {
                     // intrinsics::wrapping_add(self, rhs)
