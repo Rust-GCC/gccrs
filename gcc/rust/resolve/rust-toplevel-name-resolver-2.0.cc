@@ -22,6 +22,7 @@
 #include "rust-ast-full.h"
 #include "rust-hir-map.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 
 namespace Rust {
 namespace Resolver2_0 {
