@@ -29,6 +29,7 @@ class Attributes
 {
 public:
   static bool is_known (const std::string &attribute_path);
+  static bool is_macro_use_module (const AST::Module &mod);
 };
 
 enum CompilerPass

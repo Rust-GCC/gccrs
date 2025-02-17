@@ -21,25 +21,17 @@
 #include "rust-name-resolver.h"
 #include "rust-macro-builtins.h"
 #include "rust-attribute-values.h"
+#include "rust-attributes.h"
 
 namespace Rust {
 namespace Resolver {
 
 // Check if a module contains the `#[macro_use]` attribute
-static bool
-is_macro_use_module (const AST::Module &mod)
-{
-  for (const auto &attr : mod.get_outer_attrs ())
-    if (attr.get_path ().as_string () == Values::Attributes::MACRO_USE)
-      return true;
-
-  return false;
-}
 
 std::vector<std::unique_ptr<AST::Item>>
 EarlyNameResolver::accumulate_escaped_macros (AST::Module &module)
 {
-  if (!is_macro_use_module (module))
+  if (!Analysis::Attributes::is_macro_use_module (module))
     return {};
 
   // Parse the module's items if they haven't been expanded and the file

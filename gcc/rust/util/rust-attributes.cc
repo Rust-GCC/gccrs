@@ -37,6 +37,15 @@ Attributes::is_known (const std::string &attribute_path)
 
   return !lookup.is_error ();
 }
+bool
+Attributes::is_macro_use_module (const AST::Module &mod)
+{
+  for (const auto &attr : mod.get_outer_attrs ())
+    if (attr.get_path ().as_string () == Values::Attributes::MACRO_USE)
+      return true;
+
+  return false;
+}
 
 using Attrs = Values::Attributes;
 
