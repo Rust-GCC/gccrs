@@ -223,15 +223,12 @@ protected:
 };
 
 // Expression statements (statements containing an expression)
-class ExprStmt : public Stmt
+class ExprStmt : public Stmt, public LocatedImpl
 {
   std::unique_ptr<Expr> expr;
-  location_t locus;
   bool semicolon_followed;
 
 public:
-  location_t get_locus () const override final { return locus; }
-
   bool is_item () const override final { return false; }
 
   bool is_expr () const override final { return true; }
@@ -248,13 +245,13 @@ public:
 
   ExprStmt (std::unique_ptr<Expr> &&expr, location_t locus,
 	    bool semicolon_followed)
-    : expr (std::move (expr)), locus (locus),
+    : LocatedImpl (locus), expr (std::move (expr)),
       semicolon_followed (semicolon_followed)
   {}
 
   // Copy constructor with clone
   ExprStmt (ExprStmt const &other)
-    : locus (other.locus), semicolon_followed (other.semicolon_followed)
+    : LocatedImpl (other), semicolon_followed (other.semicolon_followed)
   {
     // guard to prevent null dereference (only required if error state)
     if (other.expr != nullptr)
@@ -265,6 +262,7 @@ public:
   ExprStmt &operator= (ExprStmt const &other)
   {
     Stmt::operator= (other);
+    LocatedImpl::operator= (other);
 
     // guard to prevent null dereference (only required if error state)
     if (other.expr != nullptr)
@@ -272,7 +270,6 @@ public:
     else
       expr = nullptr;
 
-    locus = other.locus;
     semicolon_followed = other.semicolon_followed;
 
     return *this;
