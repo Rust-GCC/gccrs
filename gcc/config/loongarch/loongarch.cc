@@ -208,9 +208,6 @@ const enum reg_class loongarch_regno_to_class[FIRST_PSEUDO_REGISTER] = {
     FRAME_REGS,	FRAME_REGS
 };
 
-/* Which cost information to use.  */
-static const struct loongarch_rtx_cost_data *loongarch_cost;
-
 /* Information about a single argument.  */
 struct loongarch_arg_info
 {
@@ -767,7 +764,13 @@ loongarch_setup_incoming_varargs (cumulative_args_t cum,
      argument.  Advance a local copy of CUM past the last "real" named
      argument, to find out how many registers are left over.  */
   local_cum = *get_cumulative_args (cum);
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+
+  /* For a C23 variadic function w/o any named argument, and w/o an
+     artifical argument for large return value, skip advancing args.
+     There is such an artifical argument iff. arg.type is non-NULL
+     (PR 114175).  */
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     loongarch_function_arg_advance (pack_cumulative_args (&local_cum), arg);
 
   /* Found out how many registers we need to save.  */
@@ -2028,7 +2031,7 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
-      return 3;
+      return TARGET_TLS_DESC ? 4 : 3;
 
     case SYMBOL_PCREL64:
       return 5;
@@ -2930,24 +2933,43 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 static rtx
 loongarch_legitimize_tls_address (rtx loc)
 {
-  rtx dest, tp, tmp, tmp1, tmp2, tmp3;
+  rtx dest, tp, tmp, tmp1, tmp2, tmp3, a0;
   enum tls_model model = SYMBOL_REF_TLS_MODEL (loc);
   rtx_insn *insn;
 
   switch (model)
     {
     case TLS_MODEL_LOCAL_DYNAMIC:
-      tmp = gen_rtx_REG (Pmode, GP_RETURN);
-      dest = gen_reg_rtx (Pmode);
-      insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSLDM, tmp);
-      emit_libcall_block (insn, dest, tmp, loc);
-      break;
-
+      if (!TARGET_TLS_DESC)
+	{
+	  tmp = gen_rtx_REG (Pmode, GP_RETURN);
+	  dest = gen_reg_rtx (Pmode);
+	  insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSLDM, tmp);
+	  emit_libcall_block (insn, dest, tmp, loc);
+	  break;
+	}
+      /* Fall through.  */
     case TLS_MODEL_GLOBAL_DYNAMIC:
-      tmp = gen_rtx_REG (Pmode, GP_RETURN);
-      dest = gen_reg_rtx (Pmode);
-      insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSGD, tmp);
-      emit_libcall_block (insn, dest, tmp, loc);
+      if (TARGET_TLS_DESC)
+	{
+	  a0 = gen_rtx_REG (Pmode, GP_ARG_FIRST);
+	  dest = gen_reg_rtx (Pmode);
+	  tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
+
+	  if (TARGET_CMODEL_EXTREME)
+	    emit_insn (gen_got_load_tls_desc_off64 (loc, gen_reg_rtx (DImode)));
+	  else
+	    emit_insn (gen_got_load_tls_desc (Pmode, loc));
+
+	  emit_insn (gen_add3_insn (dest, a0, tp));
+	}
+      else
+	{
+	  tmp = gen_rtx_REG (Pmode, GP_RETURN);
+	  dest = gen_reg_rtx (Pmode);
+	  insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSGD, tmp);
+	  emit_libcall_block (insn, dest, tmp, loc);
+	}
       break;
 
     case TLS_MODEL_INITIAL_EXEC:
@@ -4753,82 +4775,6 @@ loongarch_split_256bit_move (rtx dest, rtx src)
     }
 }
 
-
-/* Split a COPY_S.D with operands DEST, SRC and INDEX.  GEN is a function
-   used to generate subregs.  */
-
-void
-loongarch_split_lsx_copy_d (rtx dest, rtx src, rtx index,
-			    rtx (*gen_fn)(rtx, rtx, rtx))
-{
-  gcc_assert ((GET_MODE (src) == V2DImode && GET_MODE (dest) == DImode)
-	      || (GET_MODE (src) == V2DFmode && GET_MODE (dest) == DFmode));
-
-  /* Note that low is always from the lower index, and high is always
-     from the higher index.  */
-  rtx low = loongarch_subword (dest, false);
-  rtx high = loongarch_subword (dest, true);
-  rtx new_src = simplify_gen_subreg (V4SImode, src, GET_MODE (src), 0);
-
-  emit_insn (gen_fn (low, new_src, GEN_INT (INTVAL (index) * 2)));
-  emit_insn (gen_fn (high, new_src, GEN_INT (INTVAL (index) * 2 + 1)));
-}
-
-/* Split a INSERT.D with operand DEST, SRC1.INDEX and SRC2.  */
-
-void
-loongarch_split_lsx_insert_d (rtx dest, rtx src1, rtx index, rtx src2)
-{
-  int i;
-  gcc_assert (GET_MODE (dest) == GET_MODE (src1));
-  gcc_assert ((GET_MODE (dest) == V2DImode
-	       && (GET_MODE (src2) == DImode || src2 == const0_rtx))
-	      || (GET_MODE (dest) == V2DFmode && GET_MODE (src2) == DFmode));
-
-  /* Note that low is always from the lower index, and high is always
-     from the higher index.  */
-  rtx low = loongarch_subword (src2, false);
-  rtx high = loongarch_subword (src2, true);
-  rtx new_dest = simplify_gen_subreg (V4SImode, dest, GET_MODE (dest), 0);
-  rtx new_src1 = simplify_gen_subreg (V4SImode, src1, GET_MODE (src1), 0);
-  i = exact_log2 (INTVAL (index));
-  gcc_assert (i != -1);
-
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, low, new_src1,
-				  GEN_INT (1 << (i * 2))));
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, high, new_dest,
-				  GEN_INT (1 << (i * 2 + 1))));
-}
-
-/* Split FILL.D.  */
-
-void
-loongarch_split_lsx_fill_d (rtx dest, rtx src)
-{
-  gcc_assert ((GET_MODE (dest) == V2DImode
-	       && (GET_MODE (src) == DImode || src == const0_rtx))
-	      || (GET_MODE (dest) == V2DFmode && GET_MODE (src) == DFmode));
-
-  /* Note that low is always from the lower index, and high is always
-     from the higher index.  */
-  rtx low, high;
-  if (src == const0_rtx)
-    {
-      low = src;
-      high = src;
-    }
-  else
-    {
-      low = loongarch_subword (src, false);
-      high = loongarch_subword (src, true);
-    }
-  rtx new_dest = simplify_gen_subreg (V4SImode, dest, GET_MODE (dest), 0);
-  emit_insn (gen_lsx_vreplgr2vr_w (new_dest, low));
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, high, new_dest, GEN_INT (1 << 1)));
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, high, new_dest, GEN_INT (1 << 3)));
-}
-
-
 /* Return the appropriate instructions to move SRC into DEST.  Assume
    that SRC is operand 1 and DEST is operand 0.  */
 
@@ -5905,17 +5851,6 @@ loongarch_print_operand_punctuation (FILE *file, int ch)
     }
 }
 
-/* Initialize loongarch_print_operand_punct.  */
-
-static void
-loongarch_init_print_operand_punct (void)
-{
-  const char *p;
-
-  for (p = ".$"; *p; p++)
-    loongarch_print_operand_punct[(unsigned char) *p] = true;
-}
-
 /* PRINT_OPERAND prefix LETTER refers to the integer branch instruction
    associated with condition CODE.  Print the condition part of the
    opcode to FILE.  */
@@ -6770,7 +6705,7 @@ loongarch_hard_regno_mode_ok_uncached (unsigned int regno, machine_mode mode)
 	 and TRUNC.  There's no point allowing sizes smaller than a word,
 	 because the FPU has no appropriate load/store instructions.  */
       if (mclass == MODE_INT)
-	return size >= MIN_UNITS_PER_WORD && size <= UNITS_PER_FPREG;
+	return size >= MIN_UNITS_PER_WORD && size <= UNITS_PER_FP_REG;
     }
 
   return false;
@@ -6813,7 +6748,7 @@ loongarch_hard_regno_nregs (unsigned int regno, machine_mode mode)
       if (LASX_SUPPORTED_MODE_P (mode))
 	return 1;
 
-      return (GET_MODE_SIZE (mode) + UNITS_PER_FPREG - 1) / UNITS_PER_FPREG;
+      return (GET_MODE_SIZE (mode) + UNITS_PER_FP_REG - 1) / UNITS_PER_FP_REG;
     }
 
   /* All other registers are word-sized.  */
@@ -6848,7 +6783,7 @@ loongarch_class_max_nregs (enum reg_class rclass, machine_mode mode)
 	  else if (LSX_SUPPORTED_MODE_P (mode))
 	    size = MIN (size, UNITS_PER_LSX_REG);
 	  else
-	    size = MIN (size, UNITS_PER_FPREG);
+	    size = MIN (size, UNITS_PER_FP_REG);
 	}
       left &= ~reg_class_contents[FP_REGS];
     }
@@ -7619,118 +7554,15 @@ loongarch_init_machine_status (void)
 }
 
 static void
-loongarch_cpu_option_override (struct loongarch_target *target,
-			       struct gcc_options *opts,
-			       struct gcc_options *opts_set)
+loongarch_global_init (void)
 {
-  /* alignments */
-  if (opts->x_flag_align_functions && !opts->x_str_align_functions)
-    opts->x_str_align_functions
-      = loongarch_cpu_align[target->cpu_tune].function;
-
-  if (opts->x_flag_align_labels && !opts->x_str_align_labels)
-    opts->x_str_align_labels = loongarch_cpu_align[target->cpu_tune].label;
-
-  /* Set up parameters to be used in prefetching algorithm.  */
-  int simultaneous_prefetches
-    = loongarch_cpu_cache[target->cpu_tune].simultaneous_prefetches;
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_simultaneous_prefetches,
-		       simultaneous_prefetches);
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_l1_cache_line_size,
-		       loongarch_cpu_cache[target->cpu_tune].l1d_line_size);
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_l1_cache_size,
-		       loongarch_cpu_cache[target->cpu_tune].l1d_size);
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_l2_cache_size,
-		       loongarch_cpu_cache[target->cpu_tune].l2d_size);
-}
-
-static void
-loongarch_option_override_internal (struct gcc_options *opts,
-				    struct gcc_options *opts_set)
-{
-  int i, regno, mode;
-
-  if (flag_pic)
-    g_switch_value = 0;
-
-  loongarch_init_target (&la_target,
-			 la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
-			 la_opt_simd, la_opt_abi_base, la_opt_abi_ext,
-			 la_opt_cmodel, opts->x_la_isa_evolution,
-			 opts_set->x_la_isa_evolution);
-
-  /* Handle target-specific options: compute defaults/conflicts etc.  */
-  loongarch_config_target (&la_target, NULL, 0);
-
-  loongarch_update_gcc_opt_status (&la_target, opts, opts_set);
-  loongarch_cpu_option_override (&la_target, opts, opts_set);
-
-  if (TARGET_ABI_LP64)
-    flag_pcc_struct_return = 0;
-
-  /* Decide which rtx_costs structure to use.  */
-  if (optimize_size)
-    loongarch_cost = &loongarch_rtx_cost_optimize_size;
-  else
-    loongarch_cost = &loongarch_cpu_rtx_cost_data[la_target.cpu_tune];
-
-  /* If the user hasn't specified a branch cost, use the processor's
-     default.  */
-  if (la_branch_cost == 0)
-    la_branch_cost = loongarch_cost->branch_cost;
-
-  /* Enable sw prefetching at -O3 and higher.  */
-  if (opts->x_flag_prefetch_loop_arrays < 0
-      && (opts->x_optimize >= 3 || opts->x_flag_profile_use)
-      && !opts->x_optimize_size)
-    opts->x_flag_prefetch_loop_arrays = 1;
-
-  if (TARGET_DIRECT_EXTERN_ACCESS && flag_shlib)
-    error ("%qs cannot be used for compiling a shared library",
-	   "-mdirect-extern-access");
-
-  switch (la_target.cmodel)
-    {
-      case CMODEL_EXTREME:
-	if (opts->x_flag_plt)
-	  {
-	    if (global_options_set.x_flag_plt)
-	      error ("code model %qs is not compatible with %s",
-		     "extreme", "-fplt");
-	    opts->x_flag_plt = 0;
-	  }
-	break;
-
-      case CMODEL_TINY_STATIC:
-      case CMODEL_MEDIUM:
-      case CMODEL_NORMAL:
-      case CMODEL_TINY:
-      case CMODEL_LARGE:
-	break;
-
-      default:
-	gcc_unreachable ();
-    }
-
-  /* Validate the guard size.  */
-  int guard_size = param_stack_clash_protection_guard_size;
-
-  /* Enforce that interval is the same size as size so the mid-end does the
-     right thing.  */
-  SET_OPTION_IF_UNSET (opts, &global_options_set,
-		       param_stack_clash_protection_probe_interval,
-		       guard_size);
-
-  loongarch_init_print_operand_punct ();
+  /* Initialize loongarch_print_operand_punct.  */
+  for (const char *p = ".$"; *p; p++)
+    loongarch_print_operand_punct[(unsigned char) *p] = true;
 
   /* Set up array to map GCC register number to debug register number.
      Ignore the special purpose register numbers.  */
-
-  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+  for (int i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     {
       if (GP_REG_P (i) || FP_REG_P (i))
 	loongarch_dwarf_regno[i] = i;
@@ -7738,108 +7570,116 @@ loongarch_option_override_internal (struct gcc_options *opts,
 	loongarch_dwarf_regno[i] = INVALID_REGNUM;
     }
 
-  /* Set up loongarch_hard_regno_mode_ok.  */
-  for (mode = 0; mode < MAX_MACHINE_MODE; mode++)
-    for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
-      loongarch_hard_regno_mode_ok_p[mode][regno]
-	= loongarch_hard_regno_mode_ok_uncached (regno, (machine_mode) mode);
-
   /* Function to allocate machine-dependent function status.  */
   init_machine_status = &loongarch_init_machine_status;
+};
 
-  /* -mrecip options.  */
-  static struct
-    {
-      const char *string;	    /* option name.  */
-      unsigned int mask;	    /* mask bits to set.  */
-    }
-  const recip_options[] = {
-	{ "all",       RECIP_MASK_ALL },
-	{ "none",      RECIP_MASK_NONE },
-	{ "div",       RECIP_MASK_DIV },
-	{ "sqrt",      RECIP_MASK_SQRT },
-	{ "rsqrt",     RECIP_MASK_RSQRT },
-	{ "vec-div",   RECIP_MASK_VEC_DIV },
-	{ "vec-sqrt",  RECIP_MASK_VEC_SQRT },
-	{ "vec-rsqrt", RECIP_MASK_VEC_RSQRT },
-  };
-
-  if (la_recip_name)
-    {
-      char *p = ASTRDUP (la_recip_name);
-      char *q;
-      unsigned int mask, i;
-      bool invert;
-
-      while ((q = strtok (p, ",")) != NULL)
-	{
-	  p = NULL;
-	  if (*q == '!')
-	    {
-	      invert = true;
-	      q++;
-	    }
-	  else
-	    invert = false;
-
-	  if (!strcmp (q, "default"))
-	    mask = RECIP_MASK_ALL;
-	  else
-	    {
-	      for (i = 0; i < ARRAY_SIZE (recip_options); i++)
-		if (!strcmp (q, recip_options[i].string))
-		  {
-		    mask = recip_options[i].mask;
-		    break;
-		  }
-
-	      if (i == ARRAY_SIZE (recip_options))
-		{
-		  error ("unknown option for %<-mrecip=%s%>", q);
-		  invert = false;
-		  mask = RECIP_MASK_NONE;
-		}
-	    }
-
-	  if (invert)
-	    recip_mask &= ~mask;
-	  else
-	    recip_mask |= mask;
-	}
-    }
-  if (la_recip)
-    recip_mask |= RECIP_MASK_ALL;
-  if (!ISA_HAS_FRECIPE)
-    recip_mask = RECIP_MASK_NONE;
-
-#define INIT_TARGET_FLAG(NAME, INIT) \
-  { \
-    if (!(target_flags_explicit & MASK_##NAME)) \
-      { \
-	if (INIT) \
-	  target_flags |= MASK_##NAME; \
-	else \
-	  target_flags &= ~MASK_##NAME; \
-      } \
-  }
-
-  /* Enable conditional moves for int and float by default.  */
-  INIT_TARGET_FLAG (COND_MOVE_INT, 1)
-  INIT_TARGET_FLAG (COND_MOVE_FLOAT, 1)
-
-  /* Set mrelax default.  */
-  INIT_TARGET_FLAG (LINKER_RELAXATION,
-		    HAVE_AS_MRELAX_OPTION && HAVE_AS_COND_BRANCH_RELAXATION)
-
-#undef INIT_TARGET_FLAG
-
-  if (la_opt_explicit_relocs == M_OPT_UNSET)
-    la_opt_explicit_relocs = (HAVE_AS_EXPLICIT_RELOCS
-			      ? (TARGET_LINKER_RELAXATION
-				 ? EXPLICIT_RELOCS_AUTO
-				 : EXPLICIT_RELOCS_ALWAYS)
-			      : EXPLICIT_RELOCS_NONE);
+static void
+loongarch_reg_init (void)
+{
+  /* Set up loongarch_hard_regno_mode_ok.  */
+  for (int mode = 0; mode < MAX_MACHINE_MODE; mode++)
+    for (int regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
+      loongarch_hard_regno_mode_ok_p[mode][regno]
+	= loongarch_hard_regno_mode_ok_uncached (regno, (machine_mode) mode);
 }
+
+static void
+loongarch_option_override_internal (struct loongarch_target *target,
+				    struct gcc_options *opts,
+				    struct gcc_options *opts_set)
+{
+  /* Handle options not covered by struct loongarch_target.  */
+  loongarch_init_misc_options (opts, opts_set);
+
+  /* Resolve the target struct.  */
+  loongarch_init_target (target,
+			 opts->x_la_opt_cpu_arch,
+			 opts->x_la_opt_cpu_tune,
+			 opts->x_la_opt_fpu,
+			 opts->x_la_opt_simd,
+			 opts->x_la_opt_abi_base,
+			 opts->x_la_opt_abi_ext,
+			 opts->x_la_opt_cmodel,
+			 opts->x_la_opt_tls_dialect,
+			 opts->x_la_isa_evolution,
+			 opts_set->x_la_isa_evolution);
+
+  loongarch_config_target (target, NULL, 0);
+
+  /* Override some options according to the resolved target.  */
+  loongarch_target_option_override (target, opts, opts_set);
+
+  target_option_default_node = target_option_current_node
+    = build_target_option_node (opts, opts_set);
+
+  loongarch_reg_init ();
+}
+
+/* Remember the last target of loongarch_set_current_function.  */
+
+static GTY(()) tree loongarch_previous_fndecl;
+
+/* Restore or save the TREE_TARGET_GLOBALS from or to new_tree.
+   Used by loongarch_set_current_function to
+   make sure optab availability predicates are recomputed when necessary.  */
+
+static void
+loongarch_save_restore_target_globals (tree new_tree)
+{
+  if (TREE_TARGET_GLOBALS (new_tree))
+    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
+  else if (new_tree == target_option_default_node)
+    restore_target_globals (&default_target_globals);
+  else
+    TREE_TARGET_GLOBALS (new_tree) = save_target_globals_default_opts ();
+}
+
+/* Implement TARGET_SET_CURRENT_FUNCTION.  */
+
+static void
+loongarch_set_current_function (tree fndecl)
+{
+  if (fndecl == loongarch_previous_fndecl)
+    return;
+
+  tree old_tree;
+  if (loongarch_previous_fndecl == NULL_TREE)
+    old_tree = target_option_current_node;
+  else if (DECL_FUNCTION_SPECIFIC_TARGET (loongarch_previous_fndecl))
+    old_tree = DECL_FUNCTION_SPECIFIC_TARGET (loongarch_previous_fndecl);
+  else
+    old_tree = target_option_default_node;
+
+  if (fndecl == NULL_TREE)
+    {
+      if (old_tree != target_option_current_node)
+	{
+	  loongarch_previous_fndecl = NULL_TREE;
+	  cl_target_option_restore (&global_options, &global_options_set,
+				    TREE_TARGET_OPTION
+				    (target_option_current_node));
+	}
+      return;
+    }
+
+  tree new_tree = DECL_FUNCTION_SPECIFIC_TARGET (fndecl);
+  if (new_tree == NULL_TREE)
+    new_tree = target_option_default_node;
+
+  loongarch_previous_fndecl = fndecl;
+
+  if (new_tree == old_tree)
+    return;
+
+  cl_target_option_restore (&global_options, &global_options_set,
+			    TREE_TARGET_OPTION (new_tree));
+
+  loongarch_reg_init ();
+
+  loongarch_save_restore_target_globals (new_tree);
+}
+
 
 
 /* Implement TARGET_OPTION_OVERRIDE.  */
@@ -7847,7 +7687,14 @@ loongarch_option_override_internal (struct gcc_options *opts,
 static void
 loongarch_option_override (void)
 {
-  loongarch_option_override_internal (&global_options, &global_options_set);
+  /* Global initializations.  */
+  loongarch_global_init ();
+
+  /* Setting up the target configuration.  */
+  loongarch_option_override_internal (&la_target,
+				      &global_options,
+				      &global_options_set);
+
 }
 
 /* Implement TARGET_OPTION_SAVE.  */
@@ -7873,6 +7720,7 @@ loongarch_option_restore (struct gcc_options *,
   la_target.isa.evolution = ptr->x_la_isa_evolution;
 
   la_target.cmodel = ptr->x_la_opt_cmodel;
+  la_target.tls_dialect = ptr->x_la_opt_tls_dialect;
 }
 
 /* Implement TARGET_CONDITIONAL_REGISTER_USAGE.  */
@@ -8222,7 +8070,7 @@ loongarch_get_separate_components (void)
 	if (IMM12_OPERAND (offset))
 	  bitmap_set_bit (components, regno);
 
-	offset -= UNITS_PER_FPREG;
+	offset -= UNITS_PER_FP_REG;
       }
 
   /* Don't mess with the hard frame pointer.  */
@@ -8301,7 +8149,7 @@ loongarch_process_components (sbitmap components, loongarch_save_restore_fn fn)
 	if (bitmap_bit_p (components, regno))
 	  loongarch_save_restore_reg (mode, regno, offset, fn);
 
-	offset -= UNITS_PER_FPREG;
+	offset -= UNITS_PER_FP_REG;
       }
 }
 
@@ -10801,30 +10649,12 @@ loongarch_expand_vec_cond_mask_expr (machine_mode mode, machine_mode vimode,
 }
 
 /* Expand integer vector comparison */
-bool
+void
 loongarch_expand_vec_cmp (rtx operands[])
 {
 
   rtx_code code = GET_CODE (operands[1]);
   loongarch_expand_lsx_cmp (operands[0], code, operands[2], operands[3]);
-  return true;
-}
-
-/* Implement TARGET_CASE_VALUES_THRESHOLD.  */
-
-unsigned int
-loongarch_case_values_threshold (void)
-{
-  return default_case_values_threshold ();
-}
-
-/* Implement TARGET_SPILL_CLASS.  */
-
-static reg_class_t
-loongarch_spill_class (reg_class_t rclass ATTRIBUTE_UNUSED,
-		       machine_mode mode ATTRIBUTE_UNUSED)
-{
-  return NO_REGS;
 }
 
 /* Implement TARGET_PROMOTE_FUNCTION_MODE.  */
@@ -11181,6 +11011,9 @@ loongarch_asm_code_end (void)
 #undef TARGET_OPTION_RESTORE
 #define TARGET_OPTION_RESTORE loongarch_option_restore
 
+#undef TARGET_SET_CURRENT_FUNCTION
+#define TARGET_SET_CURRENT_FUNCTION loongarch_set_current_function
+
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS loongarch_legitimize_address
 
@@ -11281,9 +11114,6 @@ loongarch_asm_code_end (void)
 #undef TARGET_FUNCTION_ARG_BOUNDARY
 #define TARGET_FUNCTION_ARG_BOUNDARY loongarch_function_arg_boundary
 
-#undef TARGET_OPTAB_SUPPORTED_P
-#define TARGET_OPTAB_SUPPORTED_P loongarch_optab_supported_p
-
 #undef TARGET_VECTOR_MODE_SUPPORTED_P
 #define TARGET_VECTOR_MODE_SUPPORTED_P loongarch_vector_mode_supported_p
 
@@ -11353,17 +11183,11 @@ loongarch_asm_code_end (void)
 #undef TARGET_SCHED_REASSOCIATION_WIDTH
 #define TARGET_SCHED_REASSOCIATION_WIDTH loongarch_sched_reassociation_width
 
-#undef TARGET_CASE_VALUES_THRESHOLD
-#define TARGET_CASE_VALUES_THRESHOLD loongarch_case_values_threshold
-
 #undef TARGET_ATOMIC_ASSIGN_EXPAND_FENV
 #define TARGET_ATOMIC_ASSIGN_EXPAND_FENV loongarch_atomic_assign_expand_fenv
 
 #undef TARGET_CALL_FUSAGE_CONTAINS_NON_CALLEE_CLOBBERS
 #define TARGET_CALL_FUSAGE_CONTAINS_NON_CALLEE_CLOBBERS true
-
-#undef TARGET_SPILL_CLASS
-#define TARGET_SPILL_CLASS loongarch_spill_class
 
 #undef TARGET_HARD_REGNO_NREGS
 #define TARGET_HARD_REGNO_NREGS loongarch_hard_regno_nregs

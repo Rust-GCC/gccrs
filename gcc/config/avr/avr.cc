@@ -281,6 +281,31 @@ avr_popcount_each_byte (rtx xval, int n_bytes, int pop_mask)
 }
 
 
+/* Constraint helper function.  XVAL is a CONST_INT.  Return true if we
+   can perform XOR without a clobber reg, provided the operation is on
+   a d-register.  This means each byte is in { 0, 0xff, 0x80 }.  */
+
+bool
+avr_xor_noclobber_dconst (rtx xval, int n_bytes)
+{
+  machine_mode mode = GET_MODE (xval);
+
+  if (VOIDmode == mode)
+    mode = SImode;
+
+  for (int i = 0; i < n_bytes; ++i)
+    {
+      rtx xval8 = simplify_gen_subreg (QImode, xval, mode, i);
+      unsigned int val8 = UINTVAL (xval8) & GET_MODE_MASK (QImode);
+
+      if (val8 != 0 && val8 != 0xff && val8 != 0x80)
+	return false;
+    }
+
+  return true;
+}
+
+
 /* Access some RTX as INT_MODE.  If X is a CONST_FIXED we can get
    the bit representation of X by "casting" it to CONST_INT.  */
 
@@ -1470,12 +1495,18 @@ avr_set_current_function (tree decl)
   // Common problem is using "ISR" without first including avr/interrupt.h.
   const char *name = IDENTIFIER_POINTER (DECL_NAME (decl));
   name = default_strip_name_encoding (name);
-  if (strcmp ("ISR", name) == 0
-      || strcmp ("INTERRUPT", name) == 0
-      || strcmp ("SIGNAL", name) == 0)
+  if (strcmp ("ISR", name) == 0)
     {
       warning_at (loc, OPT_Wmisspelled_isr, "%qs is a reserved identifier"
 		  " in AVR-LibC.  Consider %<#include <avr/interrupt.h>%>"
+		  " before using the %qs macro", name, name);
+    }
+  if (strcmp ("INTERRUPT", name) == 0
+      || strcmp ("SIGNAL", name) == 0)
+    {
+      warning_at (loc, OPT_Wmisspelled_isr, "%qs is a deprecated identifier"
+		  " in AVR-LibC.  Consider %<#include <avr/interrupt.h>%>"
+		  " or %<#include <compat/deprecated.h>%>"
 		  " before using the %qs macro", name, name);
     }
 #endif // AVR-LibC naming conventions

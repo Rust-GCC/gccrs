@@ -136,6 +136,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__znver4");
       def_or_undef (parse_in, "__znver4__");
       break;
+    case PROCESSOR_ZNVER5:
+      def_or_undef (parse_in, "__znver5");
+      def_or_undef (parse_in, "__znver5__");
+      break;
     case PROCESSOR_BTVER1:
       def_or_undef (parse_in, "__btver1");
       def_or_undef (parse_in, "__btver1__");
@@ -373,6 +377,9 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       break;
     case PROCESSOR_ZNVER4:
       def_or_undef (parse_in, "__tune_znver4__");
+      break;
+    case PROCESSOR_ZNVER5:
+      def_or_undef (parse_in, "__tune_znver5__");
       break;
     case PROCESSOR_BTVER1:
       def_or_undef (parse_in, "__tune_btver1__");
@@ -742,6 +749,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     }
   if (isa_flag2 & OPTION_MASK_ISA2_AVX10_1_512)
     def_or_undef (parse_in, "__AVX10_1_512__");
+  if (isa_flag2 & OPTION_MASK_ISA2_APX_F)
+    def_or_undef (parse_in, "__APX_F__");
+  if (ix86_apx_inline_asm_use_gpr32)
+    def_or_undef (parse_in, "__APX_INLINE_ASM_USE_GPR32__");
   if (TARGET_IAMCU)
     {
       def_or_undef (parse_in, "__iamcu");

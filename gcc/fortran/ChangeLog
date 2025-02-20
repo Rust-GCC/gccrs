@@ -1,3 +1,261 @@
+2024-04-10  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/106500
+	* check.cc (is_c_interoperable): Fix checks for C_SIZEOF.
+	(gfc_check_c_f_pointer): Reject function returning a pointer as FPTR,
+	and improve an error message.
+
+2024-04-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/114535
+	* resolve.cc (resolve_symbol): Remove last chunk that checked
+	for finalization of unreferenced symbols.
+
+2024-04-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/113956
+	* trans-expr.cc (gfc_trans_pointer_assignment): Remove assert
+	causing the ICE since it was unnecesary.
+
+2024-04-02  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/106999
+	* interface.cc (gfc_compare_interfaces): Add error for a
+	subroutine proc pointer passed to a variable formal.
+	(compare_parameter): If a procedure pointer is being passed to
+	a non-procedure formal arg, and there is an an interface, use
+	gfc_compare_interfaces to check and provide a more useful error
+	message.
+
+2024-04-02  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/112407
+	* resolve.cc (resolve_procedure_expression): Change the test for
+	for recursion in the case of hidden procedures from modules.
+	(resolve_typebound_static): Add warning for possible recursive
+	calls to typebound procedures.
+	* trans-expr.cc (gfc_trans_class_init_assign): Do not apply
+	default initializer to class dummy where component initializers
+	are all null.
+
+2024-03-29  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/50410
+	* trans-expr.cc (gfc_conv_structure): Check for NULL pointer.
+
+2024-03-29  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/36337
+	PR fortran/110987
+	PR fortran/113885
+	* trans-expr.cc (gfc_trans_assignment_1): Place finalization
+	block before rhs post block for elemental rhs.
+	* trans.cc (gfc_finalize_tree_expr): Check directly if a type
+	has no components, rather than the zero components attribute.
+	Treat elemental zero component expressions in the same way as
+	scalars.
+
+2024-03-28  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/114474
+	* primary.cc (gfc_variable_attr): Catch variables used in structure
+	constructors within DATA statements that are still tagged with a
+	temporary type BT_PROCEDURE from match_actual_arg and which have the
+	target attribute, and fix their typespec.
+
+2024-03-28  Mikael Morin  <mikael@gcc.gnu.org>
+	    Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/111781
+	PR fortran/114475
+	* expr.cc (check_restricted): In submodules, allow variables host-
+	associated from the parent module.
+
+2024-03-22  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/55978
+	* interface.cc (gfc_compare_actual_formal): Skip size check for
+	NULL() actual without MOLD argument.
+
+2024-03-22  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/107426
+	* gfortran.h (gfc_save_module_list, gfc_restore_old_module_list):
+	New declarations.
+	* module.cc (old_module_list_tail): New global variable.
+	(gfc_save_module_list, gfc_restore_old_module_list): New functions.
+	(gfc_use_modules): Set module_list and old_module_list_tail.
+	* parse.cc (next_statement): Save module_list before doing any work.
+	(reject_statement): Restore module_list to its saved value.
+
+2024-03-22  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/111781
+	* symbol.cc (gfc_get_procedure_ns, gfc_get_spec_ns): New functions.
+	* gfortran.h (gfc_get_procedure_ns, gfc_get_spec ns): Declare them.
+	(gfc_is_formal_arg): Remove.
+	* expr.cc (check_restricted): Remove special case allowing local
+	variable in dummy argument bound expressions.  Use gfc_get_spec_ns
+	to get the right namespace.
+	* resolve.cc (gfc_is_formal_arg, formal_arg_flag): Remove.
+	(gfc_resolve_formal_arglist): Set gfc_current_ns.  Quit loop and
+	restore gfc_current_ns instead of early returning.
+	(resolve_symbol): Factor common array spec resolution code to...
+	(resolve_symbol_array_spec): ... this new function.  Additionnally
+	set and restore gfc_current_ns.
+
+2024-03-21  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/30802
+	* trans-array.cc (abridged_ref_name): New helper function.
+	(trans_array_bound_check): Use it.
+	(array_bound_check_elemental): Likewise.
+	(gfc_conv_array_ref): Likewise.
+
+2024-03-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* trans-array.cc (structure_alloc_comps): Use integer_zero_node
+	instead of build_zero_cst (integer_type_node) or
+	build_int_cst (integer_type_node, 0) and integer_one_node instead of
+	build_int_cst (integer_type_node, 1).
+	* trans-expr.cc (conv_scalar_char_value): Likewise.
+	* trans-stmt.cc (gfc_trans_form_team, gfc_trans_change_team,
+	gfc_trans_sync_team, gfc_trans_sync): Likewise.
+	* trans-decl.cc (create_main_function): Likewise.
+	* trans-intrinsic.cc (trans_this_image, conv_intrinsic_move_alloc):
+	Likewise.
+	* trans.cc (gfc_allocate_using_caf_lib, gfc_deallocate_with_status):
+	Likewise.
+
+2024-03-18  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/103715
+	* frontend-passes.cc (check_externals_expr): Prevent invalid read
+	in case of mismatch of external subroutine with function.
+
+2024-03-17  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/101135
+	* trans-array.cc (gfc_get_dataptr_offset): Check for optional
+	arguments being present before dereferencing data pointer.
+
+2024-03-15  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/87477
+	PR fortran/89645
+	PR fortran/99065
+	PR fortran/114141
+	PR fortran/114280
+	* class.cc (gfc_change_class): New function needed for
+	associate names, when rank changes or a derived type is
+	produced by resolution
+	* dump-parse-tree.cc (show_code_node): Make output for SELECT
+	TYPE more comprehensible.
+	* expr.cc (find_inquiry_ref): Do not simplify expressions of
+	an inferred type.
+	* gfortran.h : Add 'gfc_association_list' to structure
+	'gfc_association_list'. Add prototypes for
+	'gfc_find_derived_types', 'gfc_fixup_inferred_type_refs' and
+	'gfc_change_class'. Add macro IS_INFERRED_TYPE.
+	* match.cc (copy_ts_from_selector_to_associate): Add bolean arg
+	'select_type' with default false. If this is a select type name
+	and the selector is a inferred type, build the class type and
+	apply it to the associate name.
+	(build_associate_name): Pass true to 'select_type' in call to
+	previous.
+	* parse.cc (parse_associate): If the selector is inferred type
+	the associate name is too. Make sure that function selector
+	class and rank, if known, are passed to the associate name. If
+	a function result exists, pass its typespec to the associate
+	name.
+	* primary.cc (resolvable_fcns): New function to check that all
+	the function references are resolvable.
+	(gfc_match_varspec): If a scalar derived type select type
+	temporary has an array reference, match the array reference,
+	treating this in the same way as an equivalence member. Do not
+	set 'inquiry' if applied to an unknown type the inquiry name
+	is ambiguous with the component of an accessible derived type.
+	Check that resolution of the target expression is OK by testing
+	if the symbol is declared or is an operator expression, then
+	using 'resolvable_fcns' recursively. If all is well, resolve
+	the expression. If this is an inferred type with a component
+	reference, call 'gfc_find_derived_types' to find a suitable
+	derived type. If there is an inquiry ref and the symbol either
+	is of unknown type or is inferred to be a derived type, set the
+	primary and symbol TKR appropriately.
+	* resolve.cc (resolve_variable): Call new function below.
+	(gfc_fixup_inferred_type_refs): New function to ensure that the
+	expression references for a inferred type are consistent with
+	the now fixed up selector.
+	(resolve_assoc_var): Ensure that derived type or class function
+	selectors transmit the correct arrayspec to the associate name.
+	(resolve_select_type): If the selector is an associate name of
+	inferred type and has no component references, the associate
+	name should have its typespec. Simplify the conversion of a
+	class array to class scalar by calling 'gfc_change_class'.
+	Make sure that a class, inferred type selector with an array
+	ref transfers the typespec from the symbol to the expression.
+	* symbol.cc (gfc_set_default_type): If an associate name with
+	unknown type has a selector expression, try resolving the expr.
+	(find_derived_types, gfc_find_derived_types): New functions
+	that search for a derived type with a given name.
+	* trans-expr.cc (gfc_conv_variable): Some inferred type exprs
+	escape resolution so call 'gfc_fixup_inferred_type_refs'.
+	* trans-stmt.cc (trans_associate_var): Tidy up expression for
+	'class_target'. Finalize and free class function results.
+	Correctly handle selectors that are class functions and class
+	array references, passed as derived types.
+
+2024-03-14  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* dump-parse-tree.cc (show_omp_clauses): Handle 'self_expr'.
+	* openmp.cc (gfc_free_omp_clauses): Likewise.
+	* trans-openmp.cc (gfc_split_omp_clauses): Don't handle 'self_expr'.
+
+2024-03-14  Chung-Lin Tang  <cltang@baylibre.com>
+
+	* dump-parse-tree.cc (show_omp_namelist): Print "readonly," for
+	OMP_LIST_MAP and OMP_LIST_CACHE if n->u.map.readonly is set.
+	Adjust 'n->u.map_op' to 'n->u.map.op'.
+	* gfortran.h (typedef struct gfc_omp_namelist): Adjust map_op as
+	'ENUM_BITFIELD (gfc_omp_map_op) op:8', add 'bool readonly' field,
+	change to named struct field 'map'.
+	* openmp.cc (gfc_match_omp_map_clause): Adjust 'n->u.map_op' to
+	'n->u.map.op'.
+	(gfc_match_omp_clause_reduction): Likewise.
+	(gfc_match_omp_clauses): Add readonly modifier parsing for OpenACC
+	copyin clause, set 'n->u.map.op' and 'n->u.map.readonly' for parsed
+	clause. Adjust 'n->u.map_op' to 'n->u.map.op'.
+	(gfc_match_oacc_declare): Adjust 'n->u.map_op' to 'n->u.map.op'.
+	(gfc_match_oacc_cache): Add readonly modifier parsing for OpenACC
+	cache directive.
+	(resolve_omp_clauses): Adjust 'n->u.map_op' to 'n->u.map.op'.
+	* trans-decl.cc (add_clause): Adjust 'n->u.map_op' to 'n->u.map.op'.
+	(finish_oacc_declare): Likewise.
+	* trans-openmp.cc (gfc_trans_omp_clauses): Set OMP_CLAUSE_MAP_READONLY,
+	OMP_CLAUSE__CACHE__READONLY to 1 when readonly is set. Adjust
+	'n->u.map_op' to 'n->u.map.op'.
+	(gfc_add_clause_implicitly): Adjust 'n->u.map_op' to 'n->u.map.op'.
+
+2024-03-13  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/114001
+	* expr.cc (gfc_is_simply_contiguous): Adjust logic so that CLASS
+	symbols are also handled.
+
+2024-03-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR fortran/114283
+	* trans-openmp.cc (gfc_omp_predetermined_mapping): Map dummy
+	procedures as firstprivate.
+
+2024-03-12  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/110826
+	* array.cc (gfc_array_dimen_size): When walking the ref chain of an
+	array and the ultimate component is a procedure pointer, do not try
+	to figure out its dimension even if it is a array-valued function.
+
 2024-03-06  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/103707

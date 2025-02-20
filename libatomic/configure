@@ -656,8 +656,6 @@ LIBAT_BUILD_VERSIONED_SHLIB_FALSE
 LIBAT_BUILD_VERSIONED_SHLIB_TRUE
 OPT_LDFLAGS
 SECTION_LDFLAGS
-ARCH_AARCH64_HAVE_LSE128_FALSE
-ARCH_AARCH64_HAVE_LSE128_TRUE
 SYSROOT_CFLAGS_FOR_TARGET
 enable_aarch64_lse
 libtool_VERSION
@@ -11458,7 +11456,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11461 "configure"
+#line 11459 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11564,7 +11562,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11567 "configure"
+#line 11565 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -14740,14 +14738,6 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 
-   if test x$libat_cv_have_feat_lse128 = xyes; then
-  ARCH_AARCH64_HAVE_LSE128_TRUE=
-  ARCH_AARCH64_HAVE_LSE128_FALSE='#'
-else
-  ARCH_AARCH64_HAVE_LSE128_TRUE='#'
-  ARCH_AARCH64_HAVE_LSE128_FALSE=
-fi
-
 
 
  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether byte ordering is bigendian" >&5
@@ -16040,10 +16030,6 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${ENABLE_DARWIN_AT_RPATH_TRUE}" && test -z "${ENABLE_DARWIN_AT_RPATH_FALSE}"; then
   as_fn_error $? "conditional \"ENABLE_DARWIN_AT_RPATH\" was never defined.
-Usually this means the macro was only invoked conditionally." "$LINENO" 5
-fi
-if test -z "${ARCH_AARCH64_HAVE_LSE128_TRUE}" && test -z "${ARCH_AARCH64_HAVE_LSE128_FALSE}"; then
-  as_fn_error $? "conditional \"ARCH_AARCH64_HAVE_LSE128\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 

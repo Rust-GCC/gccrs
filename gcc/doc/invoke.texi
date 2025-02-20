@@ -640,6 +640,7 @@ Objective-C and Objective-C++ Dialects}.
 @item Program Instrumentation Options
 @xref{Instrumentation Options,,Program Instrumentation Options}.
 @gccoptlist{-p  -pg  -fprofile-arcs  --coverage  -ftest-coverage
+-fcondition-coverage
 -fprofile-abs-path
 -fprofile-dir=@var{path}  -fprofile-generate  -fprofile-generate=@var{path}
 -fprofile-info-section  -fprofile-info-section=@var{name}
@@ -1058,8 +1059,10 @@ Objective-C and Objective-C++ Dialects}.
 -mmax-inline-memcpy-size=@var{n}
 -mexplicit-relocs=@var{style} -mexplicit-relocs -mno-explicit-relocs
 -mdirect-extern-access -mno-direct-extern-access
--mcmodel=@var{code-model} -mrelax -mpass-mrelax-to-as}
--mrecip  -mrecip=@var{opt}
+-mcmodel=@var{code-model} -mrelax -mpass-mrelax-to-as
+-mrecip  -mrecip=@var{opt} -mfrecipe -mno-frecipe -mdiv32 -mno-div32
+-mlam-bh -mno-lam-bh -mlamcas -mno-lamcas -mld-seq-sa -mno-ld-seq-sa
+-mtls-dialect=@var{opt}}
 
 @emph{M32R/D Options}
 @gccoptlist{-m32r2  -m32rx  -m32r
@@ -1143,7 +1146,8 @@ Objective-C and Objective-C++ Dialects}.
 -mcheck-zero-division  -mno-check-zero-division
 -mdivide-traps  -mdivide-breaks
 -mload-store-pairs  -mno-load-store-pairs
--munaligned-access  -mno-unaligned-access
+-mstrict-align  -mno-strict-align
+-mno-unaligned-access  -munaligned-access
 -mmemcpy  -mno-memcpy  -mlong-calls  -mno-long-calls
 -mmad  -mno-mad  -mimadd  -mno-imadd  -mfused-madd  -mno-fused-madd  -nocpp
 -mfix-24k  -mno-fix-24k
@@ -1261,7 +1265,8 @@ See RS/6000 and PowerPC Options.
 -minline-atomics  -mno-inline-atomics
 -minline-strlen  -mno-inline-strlen
 -minline-strcmp  -mno-inline-strcmp
--minline-strncmp  -mno-inline-strncmp}
+-minline-strncmp  -mno-inline-strncmp
+-mtls-dialect=desc  -mtls-dialect=trad}
 
 @emph{RL78 Options}
 @gccoptlist{-msim  -mmul=none  -mmul=g13  -mmul=g14  -mallregs
@@ -5240,7 +5245,7 @@ The default @env{GCC_COLORS} is
 error=01;31:warning=01;35:note=01;36:range1=32:range2=34:locus=01:\
 quote=01:path=01;36:fixit-insert=32:fixit-delete=31:\
 diff-filename=01:diff-hunk=32:diff-delete=31:diff-insert=32:\
-type-diff=01;32:fnname=01;32:targs=35
+type-diff=01;32:fnname=01;32:targs=35:valid=01;31:invalid=01;32
 @end smallexample
 @noindent
 where @samp{01;31} is bold red, @samp{01;35} is bold magenta,
@@ -5323,6 +5328,14 @@ SGR substring for inserted lines within generated patches.
 @item type-diff=
 SGR substring for highlighting mismatching types within template
 arguments in the C++ frontend.
+
+@vindex valid GCC_COLORS @r{capability}
+@item valid=
+SGR substring for highlighting valid elements within text art diagrams.
+
+@vindex invalid GCC_COLORS @r{capability}
+@item invalid=
+SGR substring for highlighting invalid elements within text art diagrams.
 @end table
 
 @opindex fdiagnostics-urls
@@ -6573,6 +6586,14 @@ disable the error.  Disabling the error for this warning can result in
 poorly optimized code and is useful only in the
 case of very minor changes such as bug fixes to an existing code-base.
 Completely disabling the warning is not recommended.
+
+@opindex Wno-coverage-too-many-conditions
+@opindex Wcoverage-too-many-conditions
+@item -Wno-coverage-too-many-conditions
+Warn if @option{-fcondition-coverage} is used and an expression have too many
+terms and GCC gives up coverage.  Coverage is given up when there are more
+terms in the conditional than there are bits in a @code{gcov_type_unsigned}.
+This warning is enabled by default.
 
 @opindex Wno-coverage-invalid-line-number
 @opindex Wcoverage-invalid-line-number
@@ -9370,6 +9391,19 @@ In a cast involving pointer to member types this warning warns whenever
 the type cast is changing the pointer to member type.
 This warning is enabled by @option{-Wextra}.
 
+@opindex Wcast-user-defined
+@opindex Wno-cast-user-defined
+@item -Wcast-user-defined
+Warn when a cast to reference type does not involve a user-defined
+conversion that the programmer might expect to be called.
+
+@smallexample
+struct A @{ operator const int&(); @} a;
+auto r = (int&)a; // warning
+@end smallexample
+
+This warning is enabled by default.
+
 @opindex Wwrite-strings
 @opindex Wno-write-strings
 @item -Wwrite-strings
@@ -11689,7 +11723,7 @@ By default the analyzer attempts to reconstruct the original function
 frames, and to emit events showing the inlined calls.
 
 With @option{-fno-analyzer-undo-inlining} this attempt to reconstruct
-the original frame information can be be disabled, which may be of help
+the original frame information can be disabled, which may be of help
 when debugging issues in the analyzer.
 
 @item -fanalyzer-verbose-edges
@@ -14930,6 +14964,9 @@ assignments).  This option is enabled by default for C or C++ if a strict
 conformance option such as @option{-std=c99} or @option{-std=c++17} is used.
 @option{-ffast-math} enables @option{-fexcess-precision=fast} by default
 regardless of whether a strict conformance option is used.
+If @option{-fexcess-precision=16} is specified, constants and the
+results of expressions with types @code{_Float16} and @code{__bf16}
+are computed without excess precision.
 
 @opindex mfpmath
 @option{-fexcess-precision=standard} is not implemented for languages
@@ -16993,6 +17030,14 @@ loop.  The default value is four.
 
 @end table
 
+The following choices of @var{name} are available on GCN targets:
+
+@table @gcctabopt
+@item gcn-preferred-vectorization-factor
+Preferred vectorization factor: @samp{default}, @samp{32}, @samp{64}.
+
+@end table
+
 The following choices of @var{name} are available on i386 and x86_64 targets:
 
 @table @gcctabopt
@@ -17072,6 +17117,14 @@ Note that if a command line directly links source files, the corresponding
 E.g. @code{gcc a.c b.c -o binary} would generate @file{binary-a.gcda} and
 @file{binary-b.gcda} files.
 
+@item -fcondition-coverage
+@opindex fcondition-coverage
+Add code so that program conditions are instrumented.  During execution the
+program records what terms in a conditional contributes to a decision, which
+can be used to verify that all terms in a Boolean function are tested and have
+an independent effect on the outcome of a decision.  The result can be read
+with @code{gcov --conditions}.
+
 @xref{Cross-profiling}.
 
 @cindex @command{gcov}
@@ -17133,6 +17186,10 @@ compiler adds code to count the number of times that these arcs are
 executed.  When an arc is the only exit or only entrance to a block, the
 instrumentation code can be added to the block; otherwise, a new basic
 block must be created to hold the instrumentation code.
+
+With @option{-fcondition-coverage}, for each conditional in your program GCC
+creates a bitset and records the exercised boolean values that have an
+independent effect on the outcome of that expression.
 
 @need 2000
 @opindex ftest-coverage
@@ -21574,8 +21631,12 @@ Enable the FEAT_SME_I16I64 extension to SME.
 Enable the FEAT_SME_F64F64 extension to SME.
 +@item sme2
 Enable the Scalable Matrix Extension 2.  This also enables SME instructions.
+@item lse128
+Enable the LSE128 128-bit atomic instructions extension.  This also
+enables LSE instructions.
 @item d128
 Enable support for 128-bit system register read/write instructions.
+This also enables the LSE128 extension.
 @item gcs
 Enable support for Armv9.4-a Guarded Control Stack extension.
 @item the
@@ -21788,8 +21849,14 @@ Compile for CDNA2 Instinct MI200 series devices (gfx90a).
 @item gfx1030
 Compile for RDNA2 gfx1030 devices (GFX10 series).
 
+@item gfx1036
+Compile for RDNA2 gfx1036 devices (GFX10 series).
+
 @item gfx1100
 Compile for RDNA3 gfx1100 devices (GFX11 series).
+
+@item gfx1103
+Compile for RDNA3 gfx1103 devices (GFX11 series).
 
 @end table
 
@@ -25705,7 +25772,7 @@ Outputs pseudo-c assembly dialect.
 @item -minline-memops-threshold=@var{bytes}
 Specifies a size threshold in bytes at or below which memmove, memcpy
 and memset shall always be expanded inline.  Operations dealing with
-sizes larger than this threshold would have to be be implemented using
+sizes larger than this threshold would have to be implemented using
 a library call instead of being expanded inline, but since BPF doesn't
 allow libcalls, exceeding this threshold results in a compile-time
 error.  The default is @samp{1024} bytes.
@@ -27080,6 +27147,59 @@ Enable the approximation for vectorized reciprocal square root.
 
 So, for example, @option{-mrecip=all,!sqrt} enables
 all of the reciprocal approximations, except for scalar square root.
+
+@opindex mfrecipe
+@opindex mno-frecipe
+@item -mfrecipe
+@itemx -mno-frecipe
+Use (do not use) @code{frecipe.@{s/d@}} and @code{frsqrte.@{s/d@}}
+instructions.  When build with @option{-march=la664}, it is enabled by default.
+The default is @option{-mno-frecipe}.
+
+@opindex mdiv32
+@opindex mno-div32
+@item -mdiv32
+@itemx -mno-div32
+Use (do not use) @code{div.w[u]} and @code{mod.w[u]} instructions with input
+not sign-extended.  When build with @option{-march=la664}, it is enabled by
+default.  The default is @option{-mno-div32}.
+
+@opindex mlam-bh
+@opindex mno-lam-bh
+@item -mlam-bh
+@itemx -mno-lam-bh
+Use (do not use) @code{am@{swap/add@}[_db].@{b/h@}} instructions.  When build
+with @option{-march=la664}, it is enabled by default.  The default is
+@option{-mno-lam-bh}.
+
+@opindex mlamcas
+@opindex mno-lamcas
+@item -mlamcas
+@itemx -mno-lamcas
+Use (do not use) @code{amcas[_db].@{b/h/w/d@}} instructions.  When build with
+@option{-march=la664}, it is enabled by default.  The default is
+@option{-mno-lamcas}.
+
+@opindex mld-seq-sa
+@opindex mno-ld-seq-sa
+@item -mld-seq-sa
+@itemx -mno-ld-seq-sa
+Whether a load-load barrier (@code{dbar 0x700}) is needed.  When build with
+@option{-march=la664}, it is enabled by default.  The default is
+@option{-mno-ld-seq-sa}, the load-load barrier is needed.
+
+@opindex mtls-dialect
+@item -mtls-dialect=@var{opt}
+This option controls which tls dialect may be used for general dynamic and
+local dynamic TLS models.
+
+@table @samp
+@item trad
+Use traditional TLS. This is the default.
+
+@item desc
+Use TLS descriptors.
+@end table
 
 @item loongarch-vect-unroll-limit
 The vectorizer will use available tuning information to determine whether it
@@ -28561,14 +28681,19 @@ instructions to enable load/store bonding.  This option is enabled by
 default but only takes effect when the selected architecture is known
 to support bonding.
 
+@opindex mstrict-align
+@opindex mno-strict-align
 @opindex munaligned-access
 @opindex mno-unaligned-access
-@item -munaligned-access
+@item -mstrict-align
+@itemx -mno-strict-align
+@itemx -munaligned-access
 @itemx -mno-unaligned-access
-Enable (disable) direct unaligned access for MIPS Release 6.
-MIPSr6 requires load/store unaligned-access support,
-by hardware or trap&emulate.
-So @option{-mno-unaligned-access} may be needed by kernel.
+Disable (enable) direct unaligned access for MIPS Release 6.
+MIPSr6 requires load/store unaligned-access support, by hardware or
+trap&emulate.  So @option{-mstrict-align} may be needed by kernel.  The
+options @option{-munaligned-access} and @option{-mno-unaligned-access}
+are obsoleted, and only for backward-compatible.
 
 @opindex mmemcpy
 @opindex mno-memcpy
@@ -30960,6 +31085,16 @@ which register to use as base register for reading the canary,
 and from what offset from that base register. There is no default
 register or offset as this is entirely for use within the Linux
 kernel.
+
+@opindex mtls-dialect=desc
+@item -mtls-dialect=desc
+Use TLS descriptors as the thread-local storage mechanism for dynamic accesses
+of TLS variables.
+
+@opindex mtls-dialect=trad
+@item -mtls-dialect=trad
+Use traditional TLS as the thread-local storage mechanism for dynamic accesses
+of TLS variables.  This is the default.
 @end table
 
 @node RL78 Options
@@ -34481,6 +34616,16 @@ WBNOINVD, PKU, VPCLMULQDQ, VAES, AVX512F, AVX512DQ, AVX512IFMA, AVX512CD,
 AVX512BW, AVX512VL, AVX512BF16, AVX512VBMI, AVX512VBMI2, AVX512VNNI,
 AVX512BITALG, AVX512VPOPCNTDQ, GFNI and 64-bit instruction set extensions.)
 
+@item znver5
+AMD Family 1ah core based CPUs with x86-64 instruction set support. (This
+supersets BMI, BMI2, CLWB, F16C, FMA, FSGSBASE, AVX, AVX2, ADCX, RDSEED,
+MWAITX, SHA, CLZERO, AES, PCLMUL, CX16, MOVBE, MMX, SSE, SSE2, SSE3, SSE4A,
+SSSE3, SSE4.1, SSE4.2, ABM, XSAVEC, XSAVES, CLFLUSHOPT, POPCNT, RDPID,
+WBNOINVD, PKU, VPCLMULQDQ, VAES, AVX512F, AVX512DQ, AVX512IFMA, AVX512CD,
+AVX512BW, AVX512VL, AVX512BF16, AVX512VBMI, AVX512VBMI2, AVX512VNNI,
+AVX512BITALG, AVX512VPOPCNTDQ, GFNI, AVXVNNI, MOVDIRI, MOVDIR64B,
+AVX512VP2INTERSECT, PREFETCHI and 64-bit instruction set extensions.)
+
 @item btver1
 CPUs based on AMD Family 14h cores with x86-64 instruction set support.  (This
 supersets MMX, SSE, SSE2, SSE3, SSSE3, SSE4A, CX16, ABM and 64-bit
@@ -36769,17 +36914,17 @@ Substitute the variable part of a matched option.  See below.
 Note that each comma in the substituted string is replaced by
 a single space.
 
-@item %<S
-Remove all occurrences of @code{-S} from the command line.  Note---this
+@item %<@var{S}
+Remove all occurrences of @code{-@var{S}} from the command line.  Note---this
 command is position dependent.  @samp{%} commands in the spec string
-before this one see @code{-S}, @samp{%} commands in the spec string
+before this one see @code{-@var{S}}, @samp{%} commands in the spec string
 after this one do not.
 
-@item %<S*
-Similar to @samp{%<S}, but match all switches beginning with @code{-S}.
+@item %<@var{S}*
+Similar to @samp{%<@var{S}}, but match all switches beginning with @code{-@var{S}}.
 
-@item %>S
-Similar to @samp{%<S}, but keep @code{-S} in the GCC command line.
+@item %>@var{S}
+Similar to @samp{%<@var{S}}, but keep @code{-@var{S}} in the GCC command line.
 
 @item %:@var{function}(@var{args})
 Call the named function @var{function}, passing it @var{args}.
@@ -36963,47 +37108,47 @@ otherwise.
 @end smallexample
 @end table
 
-@item %@{S@}
-Substitutes the @code{-S} switch, if that switch is given to GCC@.
+@item %@{@var{S}@}
+Substitutes the @code{-@var{S}} switch, if that switch is given to GCC@.
 If that switch is not specified, this substitutes nothing.  Note that
 the leading dash is omitted when specifying this option, and it is
 automatically inserted if the substitution is performed.  Thus the spec
 string @samp{%@{foo@}} matches the command-line option @option{-foo}
 and outputs the command-line option @option{-foo}.
 
-@item %W@{S@}
-Like %@{@code{S}@} but mark last argument supplied within as a file to be
+@item %W@{@var{S}@}
+Like %@{@code{@var{S}}@} but mark last argument supplied within as a file to be
 deleted on failure.
 
-@item %@@@{S@}
-Like %@{@code{S}@} but puts the result into a @code{FILE} and substitutes
+@item %@@@{@var{S}@}
+Like %@{@code{@var{S}}@} but puts the result into a @code{FILE} and substitutes
 @code{@@FILE} if an @code{@@file} argument has been supplied.
 
-@item %@{S*@}
+@item %@{@var{S}*@}
 Substitutes all the switches specified to GCC whose names start
-with @code{-S}, but which also take an argument.  This is used for
+with @code{-@var{S}}, but which also take an argument.  This is used for
 switches like @option{-o}, @option{-D}, @option{-I}, etc.
 GCC considers @option{-o foo} as being
 one switch whose name starts with @samp{o}.  %@{o*@} substitutes this
 text, including the space.  Thus two arguments are generated.
 
-@item %@{S*&T*@}
-Like %@{@code{S}*@}, but preserve order of @code{S} and @code{T} options
-(the order of @code{S} and @code{T} in the spec is not significant).
+@item %@{@var{S}*&@var{T}*@}
+Like %@{@code{@var{S}}*@}, but preserve order of @code{@var{S}} and @code{@var{T}} options
+(the order of @code{@var{S}} and @code{@var{T}} in the spec is not significant).
 There can be any number of ampersand-separated variables; for each the
 wild card is optional.  Useful for CPP as @samp{%@{D*&U*&A*@}}.
 
-@item %@{S:X@}
-Substitutes @code{X}, if the @option{-S} switch is given to GCC@.
+@item %@{@var{S}:@var{X}@}
+Substitutes @code{@var{X}}, if the @option{-@var{S}} switch is given to GCC@.
 
-@item %@{!S:X@}
-Substitutes @code{X}, if the @option{-S} switch is @emph{not} given to GCC@.
+@item %@{!@var{S}:@var{X}@}
+Substitutes @code{@var{X}}, if the @option{-@var{S}} switch is @emph{not} given to GCC@.
 
-@item %@{S*:X@}
-Substitutes @code{X} if one or more switches whose names start with
-@code{-S} are specified to GCC@.  Normally @code{X} is substituted only
+@item %@{@var{S}*:@var{X}@}
+Substitutes @code{@var{X}} if one or more switches whose names start with
+@code{-@var{S}} are specified to GCC@.  Normally @code{@var{X}} is substituted only
 once, no matter how many such switches appeared.  However, if @code{%*}
-appears somewhere in @code{X}, then @code{X} is substituted once
+appears somewhere in @code{@var{X}}, then @code{@var{X}} is substituted once
 for each matching switch, with the @code{%*} replaced by the part of
 that switch matching the @code{*}.
 
@@ -37024,23 +37169,23 @@ when matching an option like @option{-mcu=newchip} produces:
 --script=newchip/memory.ld
 @end smallexample
 
-@item %@{.S:X@}
-Substitutes @code{X}, if processing a file with suffix @code{S}.
+@item %@{.@var{S}:@var{X}@}
+Substitutes @code{@var{X}}, if processing a file with suffix @code{@var{S}}.
 
-@item %@{!.S:X@}
-Substitutes @code{X}, if @emph{not} processing a file with suffix @code{S}.
+@item %@{!.@var{S}:@var{X}@}
+Substitutes @code{@var{X}}, if @emph{not} processing a file with suffix @code{@var{S}}.
 
-@item %@{,S:X@}
-Substitutes @code{X}, if processing a file for language @code{S}.
+@item %@{,@var{S}:@var{X}@}
+Substitutes @code{@var{X}}, if processing a file for language @code{@var{S}}.
 
-@item %@{!,S:X@}
-Substitutes @code{X}, if not processing a file for language @code{S}.
+@item %@{!,@var{S}:@var{X}@}
+Substitutes @code{@var{X}}, if not processing a file for language @code{@var{S}}.
 
-@item %@{S|P:X@}
-Substitutes @code{X} if either @code{-S} or @code{-P} is given to
+@item %@{@var{S}|@var{P}:@var{X}@}
+Substitutes @code{@var{X}} if either @code{-@var{S}} or @code{-@var{P}} is given to
 GCC@.  This may be combined with @samp{!}, @samp{.}, @samp{,}, and
 @code{*} sequences as well, although they have a stronger binding than
-the @samp{|}.  If @code{%*} appears in @code{X}, all of the
+the @samp{|}.  If @code{%*} appears in @code{@var{X}}, all of the
 alternatives must be starred, and only the first matching alternative
 is substituted.
 
@@ -37061,33 +37206,33 @@ jim.d         -bar -boggle
 -d jim.d      -bar -baz -boggle
 @end smallexample
 
-@item %@{%:@var{function}(@var{args}):X@}
+@item %@{%:@var{function}(@var{args}):@var{X}@}
 
 Call function named @var{function} with args @var{args}.  If the
-function returns non-NULL, then @code{X} is substituted, if it returns
+function returns non-NULL, then @code{@var{X}} is substituted, if it returns
 NULL, it isn't substituted.
 
-@item %@{S:X; T:Y; :D@}
+@item %@{@var{S}:@var{X}; @var{T}:@var{Y}; :@var{D}@}
 
-If @code{S} is given to GCC, substitutes @code{X}; else if @code{T} is
-given to GCC, substitutes @code{Y}; else substitutes @code{D}.  There can
+If @code{@var{S}} is given to GCC, substitutes @code{@var{X}}; else if @code{@var{T}} is
+given to GCC, substitutes @code{@var{Y}}; else substitutes @code{@var{D}}.  There can
 be as many clauses as you need.  This may be combined with @code{.},
 @code{,}, @code{!}, @code{|}, and @code{*} as needed.
 
 
 @end table
 
-The switch matching text @code{S} in a @samp{%@{S@}}, @samp{%@{S:X@}}
+The switch matching text @code{@var{S}} in a @samp{%@{@var{S}@}}, @samp{%@{@var{S}:@var{X}@}}
 or similar construct can use a backslash to ignore the special meaning
 of the character following it, thus allowing literal matching of a
 character that is otherwise specially treated.  For example,
-@samp{%@{std=iso9899\:1999:X@}} substitutes @code{X} if the
+@samp{%@{std=iso9899\:1999:@var{X}@}} substitutes @code{@var{X}} if the
 @option{-std=iso9899:1999} option is given.
 
-The conditional text @code{X} in a @samp{%@{S:X@}} or similar
+The conditional text @code{@var{X}} in a @samp{%@{@var{S}:@var{X}@}} or similar
 construct may contain other nested @samp{%} constructs or spaces, or
 even newlines.  They are processed as usual, as described above.
-Trailing white space in @code{X} is ignored.  White space may also
+Trailing white space in @code{@var{X}} is ignored.  White space may also
 appear anywhere on the left side of the colon in these constructs,
 except between @code{.} or @code{*} and the corresponding word.
 
@@ -37095,7 +37240,7 @@ The @option{-O}, @option{-f}, @option{-m}, and @option{-W} switches are
 handled specifically in these constructs.  If another value of
 @option{-O} or the negated form of a @option{-f}, @option{-m}, or
 @option{-W} switch is found later in the command line, the earlier
-switch value is ignored, except with @{@code{S}*@} where @code{S} is
+switch value is ignored, except with @{@code{@var{S}}*@} where @code{@var{S}} is
 just one letter, which passes all matching options.
 
 The character @samp{|} at the beginning of the predicate text is used to

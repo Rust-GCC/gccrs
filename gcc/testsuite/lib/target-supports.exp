@@ -3829,6 +3829,9 @@ proc check_effective_target_bfloat16_runtime {} {
 }
 
 proc add_options_for_bfloat16 { flags } {
+    if { [istarget i?86-*-*] || [istarget x86_64-*-*] } {
+	return "$flags -msse2"
+    }
     return "$flags"
 }
 
@@ -4101,6 +4104,7 @@ proc check_effective_target_vect_early_break { } {
 	[istarget aarch64*-*-*]
 	|| [check_effective_target_arm_v8_neon_ok]
 	|| [check_effective_target_sse4]
+	|| [istarget amdgcn-*-*]
 	}}]
 }
 
@@ -4115,6 +4119,7 @@ proc check_effective_target_vect_early_break_hw { } {
 	[istarget aarch64*-*-*]
 	|| [check_effective_target_arm_v8_neon_hw]
 	|| [check_sse4_hw_available]
+	|| [istarget amdgcn-*-*]
 	}}]
 }
 
@@ -8307,7 +8312,8 @@ proc check_effective_target_vect_hw_misalign { } {
 	     || ([istarget s390*-*-*]
 		 && [check_effective_target_s390_vx])
 	     || ([istarget riscv*-*-*])
-	     || ([istarget loongarch*-*-*]) } {
+	     || ([istarget loongarch*-*-*])
+	     || [istarget amdgcn*-*-*] } {
 	  return 1
 	}
 	if { [istarget arm*-*-*]
@@ -8871,8 +8877,7 @@ proc check_effective_target_vect_element_align { } {
     return [check_cached_effective_target_indexed vect_element_align {
       expr { ([istarget arm*-*-*]
 	      && ![check_effective_target_arm_vect_no_misalign])
-	     || [check_effective_target_vect_hw_misalign]
-	     || [istarget amdgcn-*-*] }}]
+	     || [check_effective_target_vect_hw_misalign] }}]
 }
 
 # Return 1 if we expect to see unaligned accesses in at least some
@@ -9054,7 +9059,8 @@ proc check_effective_target_vect_long_mult { } {
 	 || ([istarget riscv*-*-*]
 	      && [check_effective_target_riscv_v])
 	 || ([istarget loongarch*-*-*]
-	      && [check_effective_target_loongarch_sx]) } {
+	      && [check_effective_target_loongarch_sx])
+	 || [istarget amdgcn-*-*] } {
 	set answer 1
     } else {
 	set answer 0
@@ -13198,7 +13204,9 @@ proc check_effective_target_powerpc_as_p10_htm { } {
     }]
 }
 
-# return 1 if LRA is supported.
+# Return 1 if LRA is supported.  This must not be called (results in ERROR) for
+# targets that don't do register allocation, and therefore neither use nor
+# don't use LRA.
 
 proc check_effective_target_lra { } {
     # Start with heavily used targets which are known to always use LRA.
@@ -13212,6 +13220,15 @@ proc check_effective_target_lra { } {
     return [check_no_messages_and_pattern lra "\\\*{9} Local #1: \\\*{9}" rtl-reload {
         void foo (void) {}
     } {-O2 -fdump-rtl-reload-details}] ;# LRA notes requires a detailed dump.
+}
+
+# Return 1 if 'asm goto' with outputs is supported, 0 otherwise.
+
+proc check_effective_target_asm_goto_with_outputs { } {
+    if { [istarget nvptx-*-*] } {
+	return 1
+    }
+    return [check_effective_target_lra]
 }
 
 # Test whether optimizations are enabled ('__OPTIMIZE__') per the
@@ -13375,11 +13392,36 @@ proc check_effective_target_cv_simd { } {
     } "-march=rv32i_xcvsimd" ]
 }
 
+# Return 1 if the CORE-V BI extension is available
+proc check_effective_target_cv_bi { } {
+    if { !([istarget riscv*-*-*]) } {
+         return 0
+     }
+    return [check_no_compiler_messages cv_bi object {
+        void foo (void)
+        {
+          asm ("cv.beqimm t0, -16, foo");
+        }
+    } "-march=rv32i_xcvbi" ]
+}
+
 proc check_effective_target_loongarch_sx { } {
     return [check_no_compiler_messages loongarch_lsx assembly {
        #if !defined(__loongarch_sx)
        #error "LSX not defined"
        #endif
+    } "-mlsx"]
+}
+
+proc check_effective_target_loongarch_sx_as { } {
+    return [check_no_compiler_messages loongarch_sx_as object {
+        #include <lsxintrin.h>
+        int main (void)
+        {
+          __m128i a, b, c;
+          c = __lsx_vand_v (a, b);
+          return 0;
+        }
     } "-mlsx"]
 }
 

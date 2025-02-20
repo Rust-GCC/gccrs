@@ -913,6 +913,8 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
 
     case OMP_CLAUSE_MAP:
       pp_string (pp, "map(");
+      if (OMP_CLAUSE_MAP_READONLY (clause))
+	pp_string (pp, "readonly,");
       switch (OMP_CLAUSE_MAP_KIND (clause))
 	{
 	case GOMP_MAP_ALLOC:
@@ -1095,6 +1097,8 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
 
     case OMP_CLAUSE__CACHE_:
       pp_string (pp, "(");
+      if (OMP_CLAUSE__CACHE__READONLY (clause))
+	pp_string (pp, "readonly:");
       dump_generic_node (pp, OMP_CLAUSE_DECL (clause),
 			 spc, flags, false);
       goto print_clause_size;
@@ -3474,6 +3478,9 @@ dump_generic_node (pretty_printer *pp, tree node, int spc, dump_flags_t flags,
 	  break;
 	case annot_expr_parallel_kind:
 	  pp_string (pp, ", parallel");
+	  break;
+	case annot_expr_maybe_infinite_kind:
+	  pp_string (pp, ", maybe-infinite");
 	  break;
 	default:
 	  gcc_unreachable ();

@@ -162,13 +162,26 @@ m2.dvi: doc/m2.dvi
 doc/m2.dvi: $(TEXISRC) $(objdir)/m2/images/gnu.eps
 	$(TEXI2DVI) -c -I $(objdir)/m2 -I $(srcdir)/doc/include -o $@ $(srcdir)/doc/gm2.texi
 
+M2_DVIFILES = doc/m2.dvi
+
+m2.install-dvi: $(M2_DVIFILES)
+	@$(NORMAL_INSTALL)
+	test -z "$(dvidir)/gcc" || $(mkinstalldirs) "$(DESTDIR)$(dvidir)/gcc"
+	@list='$(M2_DVIFILES)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  f=$(dvi__strip_dir) \
+	  echo " $(INSTALL_DATA) '$$d$$p' '$(DESTDIR)$(dvidir)/gcc/$$f'"; \
+	  $(INSTALL_DATA) "$$d$$p" "$(DESTDIR)$(dvidir)/gcc/$$f"; \
+	done
+
 doc/m2.ps: doc/m2.dvi
 	dvips -o $@ $<
 
 m2.pdf: doc/m2.pdf
 
 doc/m2.pdf: $(TEXISRC) $(objdir)/m2/images/gnu.eps
-	$(TEXI2PDF) -I $(objdir)/m2 -I $(srcdir)/doc/include $(srcdir)/doc/gm2.texi -o $@
+	$(TEXI2PDF) -I $(objdir)/m2 -I $(srcdir)/doc/include \
+          $(srcdir)/doc/gm2.texi -o $@
 
 M2_PDFFILES = doc/m2.pdf
 
@@ -204,6 +217,25 @@ $(build_htmldir)/m2/index.html: $(TEXISRC) $(objdir)/m2/images/gnu.eps
 	$(mkinstalldirs) $(@D)
 	rm -f $(@D)/*
 	$(TEXI2HTML) -I $(objdir)/m2 -I $(srcdir)/m2 -I $(gcc_docdir)/include -o $(@D) $<
+
+M2_HTMLFILES = $(build_htmldir)/m2
+
+m2.install-html: $(M2_HTMLFILES)
+	@$(NORMAL_INSTALL)
+	test -z "$(htmldir)" || $(mkinstalldirs) "$(DESTDIR)$(htmldir)"
+	@list='$(M2_HTMLFILES)'; for p in $$list; do \
+	  if test -f "$$p" || test -d "$$p"; then d=""; else d="$(srcdir)/"; fi; \
+	  f=$(html__strip_dir) \
+	  if test -d "$$d$$p"; then \
+	    echo " $(mkinstalldirs) '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(mkinstalldirs) "$(DESTDIR)$(htmldir)/$$f" || exit 1; \
+	    echo " $(INSTALL_DATA) '$$d$$p'/* '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(INSTALL_DATA) "$$d$$p"/* "$(DESTDIR)$(htmldir)/$$f"; \
+	  else \
+	    echo " $(INSTALL_DATA) '$$d$$p' '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(INSTALL_DATA) "$$d$$p" "$(DESTDIR)$(htmldir)/$$f"; \
+	  fi; \
+	done
 
 # gm2-libs.texi
 
@@ -380,20 +412,20 @@ m2.install-common: installdirs
          done
 
 m2.install-info: installdirs
-	if [ -d gm2$(exeext) ] ; then \
-	  if [ -f $(objdir)/doc/gm2.info ]; then \
-	    rm -f $(DESTDIR)$(infodir)/gm2.info*; \
-	    for f in $(objdir)/doc/gm2.info*; do \
+	if [ -f gm2$(exeext) ] ; then \
+	  if [ -f $(objdir)/doc/m2.info ]; then \
+	    rm -f $(DESTDIR)$(infodir)/m2.info*; \
+	    for f in $(objdir)/doc/m2.info*; do \
 	      realfile=`echo $$f | sed -e 's|.*/\([^/]*\)$$|\1|'`; \
               rm -f $(DESTDIR)$(infodir)/`basename $$realfile`; \
 	      $(INSTALL_DATA) $$f $(DESTDIR)$(infodir)/`basename $$realfile`; \
 	    done; \
-	    chmod a-x $(DESTDIR)$(infodir)/gm2.info*; \
+	    chmod a-x $(DESTDIR)$(infodir)/m2.info*; \
 	  else true; fi; \
 	else true; fi
-	-if [ -f gm2$(exeext) ] && [ -f $(DESTDIR)$(infodir)/gm2.info ]; then \
+	-if [ -f gm2$(exeext) ] && [ -f $(DESTDIR)$(infodir)/m2.info ]; then \
 	  if $(SHELL) -c 'install-info --version' >/dev/null 2>&1; then \
-	    install-info --dir-file=$(infodir)/dir $(DESTDIR)$(infodir)/gm2.info; \
+	    install-info --dir-file=$(infodir)/dir $(DESTDIR)$(infodir)/m2.info; \
 	  else true; fi; \
 	else true; fi
 
@@ -519,7 +551,7 @@ SO=-O0 -g -fPIC
 # Language-specific object files for the gm2 compiler.
 
 GM2_C_OBJS        = m2/gm2-lang.o \
-                    m2/m2pp.o \
+                    m2/gm2-gcc/m2pp.o \
                     m2/gm2-gcc/m2assert.o \
                     m2/gm2-gcc/m2block.o \
                     m2/gm2-gcc/m2builtins.o \
@@ -605,11 +637,6 @@ m2/gm2-gcc/m2configure.o: $(srcdir)/m2/gm2-gcc/m2configure.cc \
 m2/gm2-lang.o: $(srcdir)/m2/gm2-lang.cc gt-m2-gm2-lang.h $(GCC_HEADER_DEPENDENCIES_FOR_M2)
 	$(COMPILER) $(CM2DEP) -c -g $(GM2GCC) $(ALL_COMPILERFLAGS) \
 	    -DLIBSUBDIR=\"$(libsubdir)\" \
-            $(ALL_CPPFLAGS) $(INCLUDES) $< $(OUTPUT_OPTION)
-	$(POSTCOMPILE)
-
-m2/m2pp.o : $(srcdir)/m2/m2pp.cc $(GCC_HEADER_DEPENDENCIES_FOR_M2)
-	$(COMPILER) $(CM2DEP) -c -g -DGM2 $(ALL_COMPILERFLAGS) \
             $(ALL_CPPFLAGS) $(INCLUDES) $< $(OUTPUT_OPTION)
 	$(POSTCOMPILE)
 
@@ -761,6 +788,7 @@ GM2-COMP-BOOT-DEFS = \
    M2GCCDeclare.def \
    M2GenGCC.def \
    M2Graph.def \
+   M2LangDump.def \
    M2LexBuf.def \
    M2MetaError.def \
    M2Optimize.def \
@@ -834,6 +862,7 @@ GM2-COMP-BOOT-MODS = \
    M2GCCDeclare.mod \
    M2GenGCC.mod \
    M2Graph.mod \
+   M2LangDump.mod \
    M2LexBuf.mod \
    M2MetaError.mod \
    M2Optimize.mod \
@@ -886,6 +915,7 @@ GM2-GCC-DEFS = \
    m2expr.def \
    m2linemap.def \
    m2misc.def \
+   m2pp.def \
    m2statement.def \
    m2top.def \
    m2tree.def \
@@ -1040,6 +1070,7 @@ GM2-COMP-DEFS = \
    M2GCCDeclare.def \
    M2GenGCC.def \
    M2Graph.def \
+   M2LangDump.def \
    M2LexBuf.def \
    M2MetaError.def \
    M2Optimize.def \
@@ -1110,6 +1141,7 @@ GM2-COMP-MODS = \
    M2GCCDeclare.mod \
    M2GenGCC.mod \
    M2Graph.mod \
+   M2LangDump.mod \
    M2LexBuf.mod \
    M2MetaError.mod \
    M2Optimize.mod \

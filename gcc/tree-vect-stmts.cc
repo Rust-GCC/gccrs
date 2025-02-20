@@ -6667,7 +6667,8 @@ vectorizable_operation (vec_info *vinfo,
 
   nunits_out = TYPE_VECTOR_SUBPARTS (vectype_out);
   nunits_in = TYPE_VECTOR_SUBPARTS (vectype);
-  if (maybe_ne (nunits_out, nunits_in))
+  if (maybe_ne (nunits_out, nunits_in)
+      || !tree_nop_conversion_p (TREE_TYPE (vectype_out), TREE_TYPE (vectype)))
     return false;
 
   tree vectype2 = NULL_TREE, vectype3 = NULL_TREE;
@@ -6685,7 +6686,9 @@ vectorizable_operation (vec_info *vinfo,
       is_invariant &= (dt[1] == vect_external_def
 		       || dt[1] == vect_constant_def);
       if (vectype2
-	  && maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype2)))
+	  && (maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype2))
+	      || !tree_nop_conversion_p (TREE_TYPE (vectype_out),
+					 TREE_TYPE (vectype2))))
 	return false;
     }
   if (op_type == ternary_op)
@@ -6701,7 +6704,9 @@ vectorizable_operation (vec_info *vinfo,
       is_invariant &= (dt[2] == vect_external_def
 		       || dt[2] == vect_constant_def);
       if (vectype3
-	  && maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype3)))
+	  && (maybe_ne (nunits_out, TYPE_VECTOR_SUBPARTS (vectype3))
+	      || !tree_nop_conversion_p (TREE_TYPE (vectype_out),
+					 TREE_TYPE (vectype3))))
 	return false;
     }
 
@@ -8697,8 +8702,13 @@ vectorizable_store (vec_info *vinfo,
        ? &LOOP_VINFO_LENS (loop_vinfo)
        : NULL);
 
-  /* Shouldn't go with length-based approach if fully masked.  */
-  gcc_assert (!loop_lens || !loop_masks);
+  /* The vect_transform_stmt and vect_analyze_stmt will go here but there
+     are some difference here.  We cannot enable both the lens and masks
+     during transform but it is allowed during analysis.
+     Shouldn't go with length-based approach if fully masked.  */
+  if (cost_vec == NULL)
+    /* The cost_vec is NULL during transfrom.  */
+    gcc_assert ((!loop_lens || !loop_masks));
 
   /* Targets with store-lane instructions must not require explicit
      realignment.  vect_supportable_dr_alignment always returns either
@@ -10075,6 +10085,14 @@ vectorizable_load (vec_info *vinfo,
 			     "unsupported masked emulated gather.\n");
 	  return false;
 	}
+      else if (memory_access_type == VMAT_ELEMENTWISE
+	       || memory_access_type == VMAT_STRIDED_SLP)
+	{
+	  if (dump_enabled_p ())
+	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			     "unsupported masked strided access.\n");
+	  return false;
+	}
     }
 
   bool costing_p = !vec_stmt;
@@ -10577,8 +10595,13 @@ vectorizable_load (vec_info *vinfo,
        ? &LOOP_VINFO_LENS (loop_vinfo)
        : NULL);
 
-  /* Shouldn't go with length-based approach if fully masked.  */
-  gcc_assert (!loop_lens || !loop_masks);
+  /* The vect_transform_stmt and vect_analyze_stmt will go here but there
+     are some difference here.  We cannot enable both the lens and masks
+     during transform but it is allowed during analysis.
+     Shouldn't go with length-based approach if fully masked.  */
+  if (cost_vec == NULL)
+    /* The cost_vec is NULL during transfrom.  */
+    gcc_assert ((!loop_lens || !loop_masks));
 
   /* Targets with store-lane instructions must not require explicit
      realignment.  vect_supportable_dr_alignment always returns either

@@ -6583,6 +6583,7 @@ aarch64_return_in_memory_1 (const_tree type)
   int count;
 
   if (!AGGREGATE_TYPE_P (type)
+      && TREE_CODE (type) != BITINT_TYPE
       && TREE_CODE (type) != COMPLEX_TYPE
       && TREE_CODE (type) != VECTOR_TYPE)
     /* Simple scalar types always returned in registers.  */
@@ -6742,6 +6743,37 @@ aarch64_function_arg_alignment (machine_mode mode, const_tree type,
     }
 
   return alignment;
+}
+
+/* Return true if TYPE describes a _BitInt(N) or an angreggate that uses the
+   _BitInt(N) type.  These include ARRAY_TYPE's with an element that is a
+   _BitInt(N) or an aggregate that uses it, and a RECORD_TYPE or a UNION_TYPE
+   with a field member that is a _BitInt(N) or an aggregate that uses it.
+   Return false otherwise.  */
+
+static bool
+bitint_or_aggr_of_bitint_p (tree type)
+{
+  if (!type)
+    return false;
+
+  if (TREE_CODE (type) == BITINT_TYPE)
+    return true;
+
+  /* If ARRAY_TYPE, check it's element type.  */
+  if (TREE_CODE (type) == ARRAY_TYPE)
+    return bitint_or_aggr_of_bitint_p (TREE_TYPE (type));
+
+  /* If RECORD_TYPE or UNION_TYPE, check the fields' types.  */
+  if (RECORD_OR_UNION_TYPE_P (type))
+    for (tree field = TYPE_FIELDS (type); field; field = TREE_CHAIN (field))
+      {
+	if (TREE_CODE (field) != FIELD_DECL)
+	  continue;
+	if (bitint_or_aggr_of_bitint_p (TREE_TYPE (field)))
+	  return true;
+      }
+  return false;
 }
 
 /* Layout a function argument according to the AAPCS64 rules.  The rule
@@ -6907,6 +6939,10 @@ aarch64_layout_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
 	      && (!alignment || abi_break_gcc_9 < alignment)
 	      && (!abi_break_gcc_13 || alignment < abi_break_gcc_13));
 
+  /* _BitInt(N) was only added in GCC 14.  */
+  bool warn_pcs_change_le_gcc14
+    = warn_pcs_change && !bitint_or_aggr_of_bitint_p (type);
+
   /* allocate_ncrn may be false-positive, but allocate_nvrn is quite reliable.
      The following code thus handles passing by SIMD/FP registers first.  */
 
@@ -6978,14 +7014,14 @@ aarch64_layout_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
 	{
 	  /* Emit a warning if the alignment changed when taking the
 	     'packed' attribute into account.  */
-	  if (warn_pcs_change
+	  if (warn_pcs_change_le_gcc14
 	      && abi_break_gcc_13
 	      && ((abi_break_gcc_13 == 16 * BITS_PER_UNIT)
 		  != (alignment == 16 * BITS_PER_UNIT)))
 	    inform (input_location, "parameter passing for argument of type "
 		    "%qT changed in GCC 13.1", type);
 
-	  if (warn_pcs_change
+	  if (warn_pcs_change_le_gcc14
 	      && abi_break_gcc_14
 	      && ((abi_break_gcc_14 == 16 * BITS_PER_UNIT)
 		  != (alignment == 16 * BITS_PER_UNIT)))
@@ -6998,7 +7034,8 @@ aarch64_layout_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
 	     passed by reference rather than value.  */
 	  if (alignment == 16 * BITS_PER_UNIT)
 	    {
-	      if (warn_pcs_change && abi_break_gcc_9)
+	      if (warn_pcs_change_le_gcc14
+		  && abi_break_gcc_9)
 		inform (input_location, "parameter passing for argument of type "
 			"%qT changed in GCC 9.1", type);
 	      ++ncrn;
@@ -7056,14 +7093,14 @@ aarch64_layout_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
 on_stack:
   pcum->aapcs_stack_words = size / UNITS_PER_WORD;
 
-  if (warn_pcs_change
+  if (warn_pcs_change_le_gcc14
       && abi_break_gcc_13
       && ((abi_break_gcc_13 >= 16 * BITS_PER_UNIT)
 	  != (alignment >= 16 * BITS_PER_UNIT)))
     inform (input_location, "parameter passing for argument of type "
 	    "%qT changed in GCC 13.1", type);
 
-  if (warn_pcs_change
+  if (warn_pcs_change_le_gcc14
       && abi_break_gcc_14
       && ((abi_break_gcc_14 >= 16 * BITS_PER_UNIT)
 	  != (alignment >= 16 * BITS_PER_UNIT)))
@@ -7075,7 +7112,8 @@ on_stack:
       int new_size = ROUND_UP (pcum->aapcs_stack_size, 16 / UNITS_PER_WORD);
       if (pcum->aapcs_stack_size != new_size)
 	{
-	  if (warn_pcs_change && abi_break_gcc_9)
+	  if (warn_pcs_change_le_gcc14
+	      && abi_break_gcc_9)
 	    inform (input_location, "parameter passing for argument of type "
 		    "%qT changed in GCC 9.1", type);
 	  pcum->aapcs_stack_size = new_size;
@@ -9541,12 +9579,12 @@ aarch64_expand_prologue (void)
   /* Sign return address for functions.  */
   if (aarch64_return_address_signing_enabled ())
     {
-      switch (aarch_ra_sign_key)
+      switch (aarch64_ra_sign_key)
 	{
-	  case AARCH_KEY_A:
+	  case AARCH64_KEY_A:
 	    insn = emit_insn (gen_paciasp ());
 	    break;
-	  case AARCH_KEY_B:
+	  case AARCH64_KEY_B:
 	    insn = emit_insn (gen_pacibsp ());
 	    break;
 	  default:
@@ -9962,12 +10000,12 @@ aarch64_expand_epilogue (rtx_call_insn *sibcall)
   if (aarch64_return_address_signing_enabled ()
       && (sibcall || !TARGET_ARMV8_3))
     {
-      switch (aarch_ra_sign_key)
+      switch (aarch64_ra_sign_key)
 	{
-	  case AARCH_KEY_A:
+	  case AARCH64_KEY_A:
 	    insn = emit_insn (gen_autiasp ());
 	    break;
-	  case AARCH_KEY_B:
+	  case AARCH64_KEY_B:
 	    insn = emit_insn (gen_autibsp ());
 	    break;
 	  default:
@@ -13172,29 +13210,33 @@ aarch64_output_sme_zero_za (rtx mask)
   /* The last entry in the list has the form "za7.d }", but that's the
      same length as "za7.d, ".  */
   static char buffer[sizeof("zero\t{ ") + sizeof ("za7.d, ") * 8 + 1];
-  unsigned int i = 0;
-  i += snprintf (buffer + i, sizeof (buffer) - i, "zero\t");
-  const char *prefix = "{ ";
   for (auto &tile : tiles)
     {
       unsigned int tile_mask = tile.mask;
       unsigned int tile_index = 0;
+      unsigned int i = snprintf (buffer, sizeof (buffer), "zero\t");
+      const char *prefix = "{ ";
+      auto remaining_mask = mask_val;
       while (tile_mask < 0x100)
 	{
-	  if ((mask_val & tile_mask) == tile_mask)
+	  if ((remaining_mask & tile_mask) == tile_mask)
 	    {
 	      i += snprintf (buffer + i, sizeof (buffer) - i, "%sza%d.%c",
 			     prefix, tile_index, tile.letter);
 	      prefix = ", ";
-	      mask_val &= ~tile_mask;
+	      remaining_mask &= ~tile_mask;
 	    }
 	  tile_mask <<= 1;
 	  tile_index += 1;
 	}
+      if (remaining_mask == 0)
+	{
+	  gcc_assert (i + 3 <= sizeof (buffer));
+	  snprintf (buffer + i, sizeof (buffer) - i, " }");
+	  return buffer;
+	}
     }
-  gcc_assert (mask_val == 0 && i + 3 <= sizeof (buffer));
-  snprintf (buffer + i, sizeof (buffer) - i, " }");
-  return buffer;
+  gcc_unreachable ();
 }
 
 /* Return size in bits of an arithmetic operand which is shifted/scaled and
@@ -18689,6 +18731,62 @@ aarch64_set_asm_isa_flags (aarch64_feature_flags flags)
   aarch64_set_asm_isa_flags (&global_options, flags);
 }
 
+static void
+aarch64_handle_no_branch_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NONE;
+  aarch_enable_bti = 0;
+}
+
+static void
+aarch64_handle_standard_branch_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NON_LEAF;
+  aarch64_ra_sign_key = AARCH64_KEY_A;
+  aarch_enable_bti = 1;
+}
+
+static void
+aarch64_handle_pac_ret_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NON_LEAF;
+  aarch64_ra_sign_key = AARCH64_KEY_A;
+}
+
+static void
+aarch64_handle_pac_ret_leaf (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_ALL;
+}
+
+static void
+aarch64_handle_pac_ret_b_key (void)
+{
+  aarch64_ra_sign_key = AARCH64_KEY_B;
+}
+
+static void
+aarch64_handle_bti_protection (void)
+{
+  aarch_enable_bti = 1;
+}
+
+static const struct aarch_branch_protect_type aarch64_pac_ret_subtypes[] = {
+  { "leaf", false, aarch64_handle_pac_ret_leaf, NULL, 0 },
+  { "b-key", false, aarch64_handle_pac_ret_b_key, NULL, 0 },
+  { NULL, false, NULL, NULL, 0 }
+};
+
+static const struct aarch_branch_protect_type aarch64_branch_protect_types[] =
+{
+  { "none", true, aarch64_handle_no_branch_protection, NULL, 0 },
+  { "standard", true, aarch64_handle_standard_branch_protection, NULL, 0 },
+  { "pac-ret", false, aarch64_handle_pac_ret_protection,
+    aarch64_pac_ret_subtypes, ARRAY_SIZE (aarch64_pac_ret_subtypes) },
+  { "bti", false, aarch64_handle_bti_protection, NULL, 0 },
+  { NULL, false, NULL, NULL, 0 }
+};
+
 /* Implement TARGET_OPTION_OVERRIDE.  This is called once in the beginning
    and is used to parse the -m{cpu,tune,arch} strings and setup the initial
    tuning structs.  In particular it must set selected_tune and
@@ -18711,7 +18809,8 @@ aarch64_override_options (void)
     aarch64_validate_sls_mitigation (aarch64_harden_sls_string);
 
   if (aarch64_branch_protection_string)
-    aarch_validate_mbranch_protection (aarch64_branch_protection_string,
+    aarch_validate_mbranch_protection (aarch64_branch_protect_types,
+				       aarch64_branch_protection_string,
 				       "-mbranch-protection=");
 
   /* -mcpu=CPU is shorthand for -march=ARCH_FOR_CPU, -mtune=CPU.
@@ -19149,7 +19248,7 @@ aarch64_handle_attr_cpu (const char *str)
 static bool
 aarch64_handle_attr_branch_protection (const char* str)
 {
-  return aarch_validate_mbranch_protection (str,
+  return aarch_validate_mbranch_protection (aarch64_branch_protect_types, str,
 					    "target(\"branch-protection=\")");
 }
 
@@ -19600,6 +19699,10 @@ typedef struct
 #define AARCH64_FMV_FEATURE(NAME, FEAT_NAME, C) \
   {NAME, 1ULL << FEAT_##FEAT_NAME, ::feature_deps::fmv_deps_##FEAT_NAME},
 
+/* The "rdma" alias uses a different FEAT_NAME to avoid a duplicate
+   feature_deps name.  */
+#define FEAT_RDMA FEAT_RDM
+
 /* FMV features are listed in priority order, to make it easier to sort target
    strings.  */
 static aarch64_fmv_feature_datum aarch64_fmv_feature_data[] = {
@@ -19643,7 +19746,7 @@ aarch64_parse_fmv_features (const char *str, aarch64_feature_flags *isa_flags,
       if (len == 0)
 	return AARCH_PARSE_MISSING_ARG;
 
-      static const int num_features = ARRAY_SIZE (aarch64_fmv_feature_data);
+      int num_features = ARRAY_SIZE (aarch64_fmv_feature_data);
       int i;
       for (i = 0; i < num_features; i++)
 	{
@@ -19842,7 +19945,8 @@ compare_feature_masks (aarch64_fmv_feature_mask mask1,
   auto diff_mask = mask1 ^ mask2;
   if (diff_mask == 0ULL)
     return 0;
-  for (int i = FEAT_MAX - 1; i > 0; i--)
+  int num_features = ARRAY_SIZE (aarch64_fmv_feature_data);
+  for (int i = num_features - 1; i >= 0; i--)
     {
       auto bit_mask = aarch64_fmv_feature_data[i].feature_mask;
       if (diff_mask & bit_mask)
@@ -19925,7 +20029,8 @@ aarch64_mangle_decl_assembler_name (tree decl, tree id)
 
       name += "._";
 
-      for (int i = 0; i < FEAT_MAX; i++)
+      int num_features = ARRAY_SIZE (aarch64_fmv_feature_data);
+      for (int i = 0; i < num_features; i++)
 	{
 	  if (feature_mask & aarch64_fmv_feature_data[i].feature_mask)
 	    {
@@ -21209,19 +21314,25 @@ aarch64_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
       rsize = ROUND_UP (size, UNITS_PER_WORD);
       nregs = rsize / UNITS_PER_WORD;
 
-      if (align <= 8 && abi_break_gcc_13 && warn_psabi)
+      if (align <= 8
+	  && abi_break_gcc_13
+	  && warn_psabi
+	  && !bitint_or_aggr_of_bitint_p (type))
 	inform (input_location, "parameter passing for argument of type "
 		"%qT changed in GCC 13.1", type);
 
       if (warn_psabi
 	  && abi_break_gcc_14
-	  && (abi_break_gcc_14 > 8 * BITS_PER_UNIT) != (align > 8))
+	  && (abi_break_gcc_14 > 8 * BITS_PER_UNIT) != (align > 8)
+	  && !bitint_or_aggr_of_bitint_p (type))
 	inform (input_location, "parameter passing for argument of type "
 		"%qT changed in GCC 14.1", type);
 
       if (align > 8)
 	{
-	  if (abi_break_gcc_9 && warn_psabi)
+	  if (abi_break_gcc_9
+	      && warn_psabi
+	      && !bitint_or_aggr_of_bitint_p (type))
 	    inform (input_location, "parameter passing for argument of type "
 		    "%qT changed in GCC 9.1", type);
 	  dw_align = true;
@@ -21893,6 +22004,11 @@ aarch64_composite_type_p (const_tree type,
     return false;
 
   if (type && (AGGREGATE_TYPE_P (type) || TREE_CODE (type) == COMPLEX_TYPE))
+    return true;
+
+  if (type
+      && TREE_CODE (type) == BITINT_TYPE
+      && int_size_in_bytes (type) > 16)
     return true;
 
   if (mode == BLKmode
@@ -24449,7 +24565,7 @@ void
 aarch64_post_cfi_startproc (FILE *f, tree ignored ATTRIBUTE_UNUSED)
 {
   if (cfun->machine->frame.laid_out && aarch64_return_address_signing_enabled ()
-      && aarch_ra_sign_key == AARCH_KEY_B)
+      && aarch64_ra_sign_key == AARCH64_KEY_B)
 	asm_fprintf (f, "\t.cfi_b_key_frame\n");
 }
 
@@ -24636,6 +24752,8 @@ aarch64_expand_compare_and_swap (rtx operands[])
         rval = copy_to_mode_reg (r_mode, oldval);
       else
 	emit_move_insn (rval, gen_lowpart (r_mode, oldval));
+      if (mode == TImode)
+	newval = force_reg (mode, newval);
 
       emit_insn (gen_aarch64_compare_and_swap_lse (mode, rval, mem,
 						   newval, mod_s));
@@ -28374,6 +28492,42 @@ aarch64_excess_precision (enum excess_precision_type type)
   return FLT_EVAL_METHOD_UNPREDICTABLE;
 }
 
+/* Implement TARGET_C_BITINT_TYPE_INFO.
+   Return true if _BitInt(N) is supported and fill its details into *INFO.  */
+bool
+aarch64_bitint_type_info (int n, struct bitint_info *info)
+{
+  if (TARGET_BIG_END)
+    return false;
+
+  if (n <= 8)
+    info->limb_mode = QImode;
+  else if (n <= 16)
+    info->limb_mode = HImode;
+  else if (n <= 32)
+    info->limb_mode = SImode;
+  else if (n <= 64)
+    info->limb_mode = DImode;
+  else if (n <= 128)
+    info->limb_mode = TImode;
+  else
+    /* The AAPCS for AArch64 defines _BitInt(N > 128) as an array with
+       type {signed,unsigned} __int128[M] where M*128 >= N.  However, to be
+       able to use libgcc's implementation to support large _BitInt's we need
+       to use a LIMB_MODE that is no larger than 'long long'.  This is why we
+       use DImode for our internal LIMB_MODE and we define the ABI_LIMB_MODE to
+       be TImode to ensure we are ABI compliant.  */
+    info->limb_mode = DImode;
+
+  if (n > 128)
+    info->abi_limb_mode = TImode;
+  else
+    info->abi_limb_mode = info->limb_mode;
+  info->big_endian = TARGET_BIG_END;
+  info->extended = false;
+  return true;
+}
+
 /* Implement TARGET_SCHED_CAN_SPECULATE_INSN.  Return true if INSN can be
    scheduled for speculative execution.  Reject the long-running division
    and square-root instructions.  */
@@ -30497,6 +30651,9 @@ aarch64_run_selftests (void)
 
 #undef TARGET_C_EXCESS_PRECISION
 #define TARGET_C_EXCESS_PRECISION aarch64_excess_precision
+
+#undef TARGET_C_BITINT_TYPE_INFO
+#define TARGET_C_BITINT_TYPE_INFO aarch64_bitint_type_info
 
 #undef  TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN aarch64_expand_builtin
