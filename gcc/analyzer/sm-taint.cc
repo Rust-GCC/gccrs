@@ -50,6 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/program-state.h"
 #include "analyzer/pending-diagnostic.h"
 #include "analyzer/constraint-manager.h"
+#include "diagnostic-format-sarif.h"
 
 #if ENABLE_ANALYZER
 
@@ -70,6 +71,22 @@ enum bounds
   /* This tainted value has a lower bound but no upper bound.  */
   BOUNDS_LOWER
 };
+
+static const char *
+bounds_to_str (enum bounds b)
+{
+  switch (b)
+    {
+    default:
+      gcc_unreachable ();
+    case BOUNDS_NONE:
+      return "BOUNDS_NONE";
+    case BOUNDS_UPPER:
+      return "BOUNDS_UPPER";
+    case BOUNDS_LOWER:
+      return "BOUNDS_LOWER";
+    }
+}
 
 /* An experimental state machine, for tracking "taint": unsanitized uses
    of data potentially under an attacker's control.  */
@@ -191,6 +208,17 @@ public:
       return diagnostic_event::meaning (diagnostic_event::VERB_acquire,
 					diagnostic_event::NOUN_taint);
     return diagnostic_event::meaning ();
+  }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/taint_diagnostic/"
+    props.set (PROPERTY_PREFIX "arg", tree_to_json (m_arg));
+    props.set_string (PROPERTY_PREFIX "has_bounds",
+		      bounds_to_str (m_has_bounds));
+#undef PROPERTY_PREFIX
   }
 
 protected:
@@ -315,8 +343,10 @@ class tainted_offset : public taint_diagnostic
 {
 public:
   tainted_offset (const taint_state_machine &sm, tree arg,
-		       enum bounds has_bounds)
-  : taint_diagnostic (sm, arg, has_bounds)
+		  enum bounds has_bounds,
+		  const svalue *offset)
+  : taint_diagnostic (sm, arg, has_bounds),
+    m_offset (offset)
   {}
 
   const char *get_kind () const final override { return "tainted_offset"; }
@@ -409,6 +439,19 @@ public:
 				     " checking");
 	}
   }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    taint_diagnostic::maybe_add_sarif_properties (result_obj);
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/tainted_offset/"
+    props.set (PROPERTY_PREFIX "offset", m_offset->to_json ());
+#undef PROPERTY_PREFIX
+  }
+
+private:
+  const svalue *m_offset;
 };
 
 /* Concrete taint_diagnostic subclass for reporting attacker-controlled
@@ -602,8 +645,10 @@ class tainted_allocation_size : public taint_diagnostic
 {
 public:
   tainted_allocation_size (const taint_state_machine &sm, tree arg,
+			   const svalue *size_in_bytes,
 			   enum bounds has_bounds, enum memory_space mem_space)
   : taint_diagnostic (sm, arg, has_bounds),
+    m_size_in_bytes (size_in_bytes),
     m_mem_space (mem_space)
   {
   }
@@ -738,7 +783,18 @@ public:
 	}
   }
 
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    taint_diagnostic::maybe_add_sarif_properties (result_obj);
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/tainted_allocation_size/"
+    props.set (PROPERTY_PREFIX "size_in_bytes", m_size_in_bytes->to_json ());
+#undef PROPERTY_PREFIX
+  }
+
 private:
+  const svalue *m_size_in_bytes;
   enum memory_space m_mem_space;
 };
 
@@ -1065,6 +1121,14 @@ taint_state_machine::on_condition (sm_context *sm_ctxt,
       sm_ctxt->clear_all_per_svalue_state ();
       return;
     }
+
+  /* Strip away casts before considering LHS and RHS, to increase the
+     chance of detecting places where sanitization of a value may have
+     happened.  */
+  if (const svalue *inner = lhs->maybe_undo_cast ())
+    lhs = inner;
+  if (const svalue *inner = rhs->maybe_undo_cast ())
+    rhs = inner;
 
   // TODO
   switch (op)
@@ -1554,7 +1618,8 @@ region_model::check_region_for_taint (const region *reg,
 	    if (taint_sm.get_taint (state, effective_type, &b))
 	      {
 		tree arg = get_representative_tree (offset);
-		ctxt->warn (make_unique<tainted_offset> (taint_sm, arg, b));
+		ctxt->warn (make_unique<tainted_offset> (taint_sm, arg, b,
+							 offset));
 	      }
 	  }
 	  break;
@@ -1626,7 +1691,7 @@ region_model::check_dynamic_size_for_taint (enum memory_space mem_space,
     {
       tree arg = get_representative_tree (size_in_bytes);
       ctxt->warn (make_unique<tainted_allocation_size>
-		    (taint_sm, arg, b, mem_space));
+		    (taint_sm, arg, size_in_bytes, b, mem_space));
     }
 }
 

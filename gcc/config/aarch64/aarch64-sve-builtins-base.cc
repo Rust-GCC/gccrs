@@ -47,10 +47,30 @@
 #include "aarch64-builtins.h"
 #include "ssa.h"
 #include "gimple-fold.h"
+#include "tree-ssa.h"
 
 using namespace aarch64_sve;
 
 namespace {
+
+/* Return true if VAL is an undefined value.  */
+static bool
+is_undef (tree val)
+{
+  if (TREE_CODE (val) == SSA_NAME)
+    {
+      if (ssa_undefined_value_p (val, false))
+	return true;
+
+      gimple *def = SSA_NAME_DEF_STMT (val);
+      if (gcall *call = dyn_cast<gcall *> (def))
+	if (tree fndecl = gimple_call_fndecl (call))
+	  if (const function_instance *instance = lookup_fndecl (fndecl))
+	    if (instance->base == functions::svundef)
+	      return true;
+    }
+  return false;
+}
 
 /* Return the UNSPEC_CMLA* unspec for rotation amount ROT.  */
 static int
@@ -497,15 +517,22 @@ public:
   expand (function_expander &e) const override
   {
     machine_mode mode = e.vector_mode (0);
-    if (e.pred == PRED_x)
-      {
-	/* The pattern for CNOT includes an UNSPEC_PRED_Z, so needs
-	   a ptrue hint.  */
-	e.add_ptrue_hint (0, e.gp_mode (0));
-	return e.use_pred_x_insn (code_for_aarch64_pred_cnot (mode));
-      }
+    machine_mode pred_mode = e.gp_mode (0);
+    /* The underlying _x pattern is effectively:
 
-    return e.use_cond_insn (code_for_cond_cnot (mode), 0);
+	 dst = src == 0 ? 1 : 0
+
+       rather than an UNSPEC_PRED_X.  Using this form allows autovec
+       constructs to be matched by combine, but it means that the
+       predicate on the src == 0 comparison must be all-true.
+
+       For simplicity, represent other _x operations as fully-defined _m
+       operations rather than using a separate bespoke pattern.  */
+    if (e.pred == PRED_x
+	&& gen_lowpart (pred_mode, e.args[0]) == CONSTM1_RTX (pred_mode))
+      return e.use_pred_x_insn (code_for_aarch64_ptrue_cnot (mode));
+    return e.use_cond_insn (code_for_cond_cnot (mode),
+			    e.pred == PRED_x ? 1 : 0);
   }
 };
 
@@ -1142,6 +1169,13 @@ public:
   expand (function_expander &e) const override
   {
     machine_mode mode = e.vector_mode (0);
+
+    /* If the SVE argument is undefined, we just need to reinterpret the
+       Advanced SIMD argument as an SVE vector.  */
+    if (!BYTES_BIG_ENDIAN
+	&& is_undef (CALL_EXPR_ARG (e.call_expr, 0)))
+      return simplify_gen_subreg (mode, e.args[1], GET_MODE (e.args[1]), 0);
+
     rtx_vector_builder builder (VNx16BImode, 16, 2);
     for (unsigned int i = 0; i < 16; i++)
       builder.quick_push (CONST1_RTX (BImode));
@@ -2775,7 +2809,7 @@ public:
        version) is through the USDOT instruction but with the second and third
        inputs swapped.  */
     if (m_su)
-      e.rotate_inputs_left (1, 2);
+      e.rotate_inputs_left (1, 3);
     /* The ACLE function has the same order requirements as for svdot.
        While there's no requirement for the RTL pattern to have the same sort
        of order as that for <sur>dot_prod, it's easier to read.

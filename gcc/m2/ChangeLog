@@ -1,3 +1,611 @@
+2024-04-09  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* tools-src/makeSystem: Invoke ${COMPILER} once and adjust
+	the echo string to expand the shell variables with -wrapper
+	gdb, --args.
+
+2024-04-09  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114648
+	* gm2-compiler/M2Options.mod (LineDirectives): Initially
+	set to true.
+
+2024-04-06  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114617
+	* gm2-compiler/M2GenGCC.mod (CodeStatememt): Add quad trace.
+	(ResolveConstantExpressions): Add parameter p to FoldIfLess,
+	FoldIfGre, FoldIfLessEqu, FoldIfGreEqu, FoldIfEqu, FoldIfNotEqu,
+	FoldIfIn and FoldIfNotIn.
+	(CodeInline): Add constExpr variable and pass it to GetQuadOtok.
+	(CodeReturnValue): Ditto.
+	(CodeParam): Ditto.
+	(FoldStringLength): Ditto.
+	(FoldStringConvertM2nul): Ditto.
+	(FoldStringConvertCnul): Ditto.
+	(DeclaredOperandsBecomes): Ditto.
+	(TypeCheckBecomes): Ditto.
+	(PerformFoldBecomes): Ditto.
+	(CodeBecomes): Ditto.
+	(CheckElementSetTypes): Ditto.
+	(CodeBinarySet): Ditto.
+	(PerformCodeIfLess): Ditto.
+	(PerformCodeIfGre): Ditto.
+	(PerformCodeIfLessEqu): Ditto.
+	(PerformCodeIfGreEqu): Ditto.
+	(PerformCodeIfEqu): Ditto.
+	(PerformCodeIfNotEqu): Ditto.
+	(IsValidExpressionRelOp): Ditto.
+	(PerformCodeIfIn): Ditto.
+	(PerformCodeIfNotIn): Ditto.
+	(CodeXIndr): Ditto.
+	(QuadCondition): New procedure function.
+	(IsBooleanRelOpPattern): Ditto.
+	(FoldBooleanRelopPattern): Ditto.
+	(FoldIfGre): Check for boolean relop constant expression and
+	add parameter p.
+	(FoldIfLessEqu): Ditto.
+	(FoldIfIn): Ditto.
+	(FoldIfEqu): Ditto.
+	(FoldIfNotIn): Ditto.
+	(FoldIfGreEqu): New procedure.
+	(FoldIfNotEqu): Ditto.
+	* gm2-compiler/M2Optimize.mod (ReduceBranch): Add constExpr
+	variable and pass it to GetQuadOtok.
+	* gm2-compiler/M2Quads.def (IsBecomes): New procedure function.
+	(IsDummy): Ditto.
+	(IsQuadConstExpr): Ditto.
+	(SetQuadConstExpr): Ditto.
+	(GetQuadDest): New procedure.
+	(GetQuadOp1): New procedure.
+	(GetQuadOp2): New procedure.
+	(GetQuadOp3): New procedure.
+	(GetQuadOtok): New procedure.
+	(GetQuadOTypetok): New procedure.
+	(PutQuadOtok): New procedure.
+	(IsInConstParameters): New procedure function.
+	* gm2-compiler/M2Quads.mod (IsBecomes): New procedure function.
+	(IsDummy): Ditto.
+	(IsQuadConstExpr): Ditto.
+	(SetQuadConstExpr): Ditto.
+	(GetQuadDest): New procedure.
+	(GetQuadOp1): New procedure.
+	(GetQuadOp2): New procedure.
+	(GetQuadOp3): New procedure.
+	(GetQuadOtok): New procedure.
+	(GetQuadOTypetok): New procedure.
+	(PutQuadOtok): New procedure.
+	(IsInConstParameters): New procedure function.
+	(ConstStack): Remove to ...
+	(ConstExprStack): ... this.
+	(ConstParamStack): New variable and initialize.
+	(QuadFrame): New field ConstExpr.
+	(GetQuadOtok): Add parameter constExpr and assign.
+	(PutQuadOtok): Add constExpr parameter and assign.
+	(PutQuadOType): Ditto.
+	(GetQuadOTypetok): Ditto.
+	(EraseQuad): Assign ConstExpr to FALSE.
+	(FoldSubrange): Set ConstExpr to FALSE in BecomesOp.
+	(PushInConstParameters): New procedure.
+	(PopInConstParameters): New procedure.
+	(IsInConstParameters): New procedure function.
+	* gm2-compiler/M2SymInit.mod (IssueConditional): Add
+	constExpr boolean variable.
+	(CheckReadBeforeInitQuad): Ditto.
+	(trashParam): Ditto.
+	* gm2-compiler/P3Build.bnf (ConstExpression): Call
+	PushInConstExpression and PopInConstExpression.
+	(ConstSetOrQualidentOrFunction): Call
+	PushInConstParameters and PopInConstParameters.
+	* gm2-compiler/PCBuild.bnf (ConstExpression): Call
+	PushInConstExpression and PopInConstExpression.
+	* gm2-compiler/PHBuild.bnf: Ditto
+	* gm2-gcc/m2expr.cc (m2expr_BuildCondIfExpression): New
+	function.
+	* gm2-gcc/m2expr.def (BuildCondIfExpression): New prototype.
+	* gm2-gcc/m2expr.h (m2expr_BuildCondIfExpression): New function.
+
+2024-04-05  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* Make-lang.in (m2.install-dvi): New rule.
+
+2024-04-02  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114565
+	* gm2-compiler/M2GenGCC.mod (CodeStatement): Test
+	GetDebugTraceQuad before calling DisplayQuad.
+	* gm2-compiler/M2LexBuf.mod (NumberIO): Import CardToStr.
+	(GetToken): Test GetDebugTraceToken before writing the
+	token number or token line.
+	* gm2-compiler/M2Options.def (SetDebugTraceQuad): Rename to
+	(SetM2DebugTraceFilter): ...this.
+	(SetDebugTraceAPI): Remove.
+	(GetDebugTraceQuad): New procedure function.
+	(GetDebugTraceTree): Ditto.
+	(GetDebugTraceToken): Ditto.
+	(GetDebugTraceLine): Ditto.
+	(GetDebugFunctionLineNumbers): Ditto.
+	* gm2-compiler/M2Options.mod (DebugFunctionLineNumbers): New
+	boolean variable.
+	(DebugTraceQuad): Ditto.
+	(DebugTraceTree): Ditto.
+	(DebugTraceLine): Ditto.
+	(DebugTraceToken): Ditto.
+	(errors1): New procedure.
+	(SetDebugTraceQuad): Remove.
+	(SetM2DebugTraceFilter): New procedure implemented.
+	(SetM2DebugTrace): Ditto.
+	(GetDebugTraceQuad): Ditto.
+	(GetDebugTraceToken ): Ditto.
+	(GetDebugTraceLine): Ditto.
+	(SetDebugTraceLine): Remove.
+	* gm2-compiler/M2Quads.mod (GenQuadOTrash): Test
+	GetDebugTraceQuad and call DisplayQuad.
+	(GenQuadOTypetok): Ditto.
+	* gm2-compiler/SymbolTable.mod: Replace
+	DebugFunctionLineNumbers with GetDebugFunctionLineNumbers.
+	* gm2-gcc/init.cc (_M2_M2LangDump_init): Add prototype.
+	(init_PerCompilationInit): Add call.
+	* gm2-gcc/m2misc.cc (m2misc_cerror): New function.
+	(m2misc_error): Ditto.
+	* gm2-gcc/m2misc.def (error): New procedure.
+	(cerror): Ditto.
+	* gm2-gcc/m2misc.h (m2misc_cerror): New prototype.
+	(m2misc_error): Ditto.
+	* gm2-gcc/m2options.h (M2Options_SetDebugTraceQuad): New
+	prototype.
+	(M2Options_SetDebugTraceAPI): Remove.
+	(M2Options_GetDebugTraceToken): New prototype.
+	(M2Options_GetDebugTraceLine): Ditto.
+	(M2Options_SetDebugFunctionLineNumbers): Ditto.
+	(M2Options_GetDebugFunctionLineNumbers): Ditto.
+	(M2Options_SetM2DebugTraceFilter): Ditto.
+	* gm2-lang.cc (gm2_langhook_init_options): Remove
+	OPT_fdebug_trace_quad case.
+	Remove OPT_fdebug_trace_api case.
+	Add OPT_fm2_debug_trace_ case.
+	* lang.opt (fm2-debug-trace): New option.
+	(fdebug-trace-api): Remove.
+	(fdebug-trace-quad): Remove.
+	* m2.flex (m2flex_M2Error): Check s for NULL.
+	(skipnewline): New function.
+	(consumeLine): Call traceline.
+
+2024-04-01  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114548
+	* gm2-compiler/M2Quads.mod (ConvertToAddress): Pass
+	procedure, false parameters to BuildConvertFunction.
+	(PushOne): Pass procedure, true parameters to
+	BuildConvertFunction.
+	Remove usused parameter internal.
+	(BuildPseudoBy): Remove parameter to PushOne.
+	(BuildIncProcedure): Ditto.
+	(BuildDecProcedure): Ditto.
+	(BuildFunctionCall): Add ConstExpr parameter to
+	BuildPseudoFunctionCall.
+	(BuildConstFunctionCall): Add procedure and true to
+	BuildConvertFunction.
+	(BuildPseudoFunctionCall): Add ConstExpr parameter.
+	Pass ProcSym and ConstExpr to BuildLengthFunction,
+	BuildConvertFunction, BuildOddFunction, BuildAbsFunction,
+	BuildCapFunction, BuildValFunction, BuildChrFunction,
+	BuildOrdFunction, BuildIntFunction, BuildTruncFunction,
+	BuildFloatFunction, BuildAddAdrFunction, BuildSubAdrFunction,
+	BuildDifAdrFunction, BuildCastFunction, BuildReFunction,
+	BuildImFunction and BuildCmplxFunction.
+	(BuildAddAdrFunction): Add ProcSym, ConstExpr parameters and
+	check for constant parameters.
+	(BuildSubAdrFunction): Ditto.
+	(BuildDifAdrFunction): Ditto.
+	(ConstExprError): Ditto.
+	(BuildLengthFunction): Ditto.
+	(BuildOddFunction): Ditto.
+	(BuildAbsFunction): Ditto.
+	(BuildCapFunction): Ditto.
+	(BuildChrFunction): Ditto.
+	(BuildOrdFunction): Ditto.
+	(BuildIntFunction): Ditto.
+	(BuildValFunction): Ditto.
+	(BuildCastFunction): Ditto.
+	(BuildConvertFunction): Ditto.
+	(BuildTruncFunction): Ditto.
+	(BuildFloatFunction): Ditto.
+	(BuildReFunction): Ditto.
+	(BuildImFunction): Ditto.
+	(BuildCmplxFunction): Ditto.
+
+2024-03-31  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* Make-lang.in (m2.install-info): Fix rule.
+
+2024-03-31  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* Make-lang.in (install-html): New rule.
+
+2024-03-28  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114520
+	* gm2-compiler/P0SyntaxCheck.bnf (DetectImport): New
+	procedure.
+	(EnableImportCheck): New boolean.
+	(Expect): Call DetectImport.
+	(Export): Set EnableImportCheck TRUE before ';' and FALSE
+	afterwards.
+
+2024-03-28  Gaius Mulley  <(no_default)>
+
+	PR modula2/114517
+	* gm2-compiler/M2Options.def (SetCpp): Add comment.
+	(GetCpp): Move after SetCpp.
+	(GetLineDirectives): New procedure function.
+	* gm2-compiler/M2Options.mod (GetLineDirectives): New
+	procedure function.
+	* gm2-gcc/m2options.h (M2Options_GetLineDirectives): New
+	prototype.
+	* gm2-lang.cc (gm2_langhook_init_options): OPT_fcpp only
+	assert if !value.
+	* m2.flex: Test GetLineDirectives before changing to LINE0
+	state.
+
+2024-03-28  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* target-independent/m2/Builtins.texi: Rebuilt.
+	* target-independent/m2/gm2-libs.texi: Rebuilt.
+
+2024-03-26  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114478
+	* gm2-gcc/m2builtins.cc (struct builtin_macro_definition): New struct.
+	(lookup_builtin_macro): New function.
+	(m2builtins_BuildBuiltinTree): Rewrite to lookup builtin function
+	and builtin macro.
+	(lookup_builtin_function): New function.
+	(define_builtin): Rename parameter type to prototype push macro
+	definition to builtin_macros vector.
+	(define_builtin_ext): New function.
+	(define_builtin_math): New function.
+	(m2builtins_init): Add isgreater, isless, isgreaterequal,
+	islessequal, islessgreater, isunordered, isnormal to macro definitions.
+	* gm2-libs/Builtins.def (isgreater): New procedure function.
+	(isgreaterf): Ditto.
+	(isgreaterl): Ditto.
+	(isgreaterequal): Ditto.
+	(isgreaterequalf): Ditto.
+	(isgreaterequall): Ditto.
+	(isless): Ditto.
+	(islessf): Ditto.
+	(islessl): Ditto.
+	(islessequal): Ditto.
+	(islessequalf): Ditto.
+	(islessequall): Ditto.
+	(islessgreater): Ditto.
+	(islessgreaterf): Ditto.
+	(islessgreaterl): Ditto.
+	(isunordered): Ditto.
+	(isunorderedf): Ditto.
+	(isunorderedl): Ditto.
+	(iseqsig): Ditto.
+	(iseqsigf): Ditto.
+	(iseqsigl): Ditto.
+	(isnormal): Ditto.
+	(isnormalf): Ditto.
+	(isnormall): Ditto.
+	(isinf_sign): Ditto.
+	(isinf_signf): Ditto.
+	(isinf_signl): Ditto.
+	* gm2-libs/Builtins.mod (isgreater): New procedure function.
+	(isgreaterf): Ditto.
+	(isgreaterl): Ditto.
+	(isgreaterequal): Ditto.
+	(isgreaterequalf): Ditto.
+	(isgreaterequall): Ditto.
+	(isless): Ditto.
+	(islessf): Ditto.
+	(islessl): Ditto.
+	(islessequal): Ditto.
+	(islessequalf): Ditto.
+	(islessequall): Ditto.
+	(islessgreater): Ditto.
+	(islessgreaterf): Ditto.
+	(islessgreaterl): Ditto.
+	(isunordered): Ditto.
+	(isunorderedf): Ditto.
+	(isunorderedl): Ditto.
+	(iseqsig): Ditto.
+	(iseqsigf): Ditto.
+	(iseqsigl): Ditto.
+	(isnormal): Ditto.
+	(isnormalf): Ditto.
+	(isnormall): Ditto.
+	(isinf_sign): Ditto.
+	(isinf_signf): Ditto.
+	(isinf_signl): Ditto.
+
+2024-03-25  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* Make-lang.in (doc/m2.pdf): Add line break.
+	* target-independent/m2/Builtins.texi: Rebuilt.
+	* target-independent/m2/gm2-libs.texi: Rebuilt.
+
+2024-03-23  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114444
+	* gm2-compiler/M2Quads.mod (BuildTruncFunction): Correct
+	error format specifier.
+	(BuildFloatFunction): Correct error format specifier.
+
+2024-03-23  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114443
+	* m2.flex: Call AddTokCharStar with a stringtok if
+	end of line is reached without a closing quote.
+
+2024-03-22  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114422
+	* gm2-compiler/M2Quads.mod (BuildConstructor): Add escape
+	character.
+
+2024-03-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/113836
+	* Make-lang.in (GM2_C_OBJS): Add m2/gm2-gcc/m2pp.o.
+	(m2/m2pp.o): Remove rule.
+	(GM2-COMP-BOOT-DEFS): Add M2LangDump.def.
+	(GM2-COMP-BOOT-MODS): Add M2LangDump.mod.
+	(GM2-GCC-DEFS): Add M2LangDump.def.
+	(GM2-GCC-MODS): Add M2LangDump.mod.
+	* gm2-compiler/M2CaseList.mod (WriteCase): Rewrite.
+	* gm2-compiler/M2Code.mod (DoModuleDeclare): Call
+	DumpFilteredResolver depending upon DumpLangDecl.
+	(DoCodeBlock): Call CreateDumpGimple depending upon
+	DumpLangGimple.
+	(Code): Replace DisplayQuadList blocks with DumpQuadruples.
+	(DisplayQuadsInScope): Remove.
+	(DisplayQuadNumbers): Remove.
+	(CodeBlock): Rewrite.
+	* gm2-compiler/M2GCCDeclare.def (IncludeDumpSymbol): New procedure.
+	(DumpFilteredResolver): New procedure.
+	(DumpFilteredDefinitive): New procedure.
+	* gm2-compiler/M2GCCDeclare.mod (IncludeDumpSymbol): New procedure.
+	(DumpFilteredResolver): New procedure.
+	(DumpFilteredDefinitive): New procedure.
+	(doInclude): Rewrite to use GetDumpFile.
+	(WatchIncludeList): Remove fixed debugging value.
+	(doExclude): Rewrite to use GetDumpFile.
+	(DeclareTypesConstantsProceduresInRange): Remove fixed debugging
+	values.
+	(PreAddModGcc): Rename parameter t as tree.
+	(IncludeGetNth): Rewrite to use GetDumpFile.
+	(IncludeType): Ditto.
+	(IncludeSubscript): Ditto.
+	(PrintLocalSymbol): Ditto.
+	(PrintLocalSymbols): Ditto.
+	(IncludeGetVarient): Ditto.
+	(PrintDeclared): Ditto.
+	(PrintAlignment): Ditto.
+	(PrintDecl): Ditto.
+	(PrintScope): Ditto.
+	(PrintProcedure): Ditto.
+	(PrintSym): Ditto.
+	(PrintSymbol): Ditto.
+	(PrintTerse): Ditto.
+	* gm2-compiler/M2Options.def (GetDumpLangDeclFilename): New
+	procedure function.
+	(SetDumpLangDeclFilename): New procedure.
+	(GetDumpLangQuadFilename): New procedure function.
+	(SetDumpLangQuadFilename): New procedure.
+	(GetDumpLangGimpleFilename): New procedure function.
+	(SetDumpLangGimpleFilename): New procedure.
+	(SetM2DumpFilter): New procedure.
+	(GetM2DumpFilter): New procedure function.
+	(GetDumpLangGimple): New procedure function.
+	* gm2-compiler/M2Options.mod (GetDumpLangDeclFilename): New
+	procedure function.
+	(SetDumpLangDeclFilename): New procedure.
+	(GetDumpLangQuadFilename): New procedure function.
+	(SetDumpLangQuadFilename): New procedure.
+	(GetDumpLangGimpleFilename): New procedure function.
+	(SetDumpLangGimpleFilename): New procedure.
+	(SetM2DumpFilter): New procedure.
+	(GetM2DumpFilter): New procedure function.
+	(GetDumpLangGimple): New procedure function.
+	* gm2-compiler/M2Quads.def (DumpQuadruples): New procedure.
+	* gm2-compiler/M2Quads.mod (DumpUntil): New procedure.
+	(GetCtorInit): New procedure function.
+	(GetCtorFini): New procedure function.
+	(DumpQuadrupleFilter): New procedure function.
+	(DumpQuadrupleAll): New procedure.
+	(DisplayQuadList): Remove procedure.
+	(DumpQuadruples): New procedure.
+	(DisplayQuadRange): Rewrite.
+	(DisplayQuad): Ditto.
+	(DisplayProcedureAttributes): Ditto.
+	(WriteOperator): Ditto.
+	(WriteMode): Ditto.
+	* gm2-compiler/M2Scope.mod (ForeachScopeBlockDo2): Replace
+	DisplayQuadruples with TraceQuadruples.
+	(ForeachScopeBlockDo3): Replace	DisplayQuadruples with
+	TraceQuadruples.
+	* gm2-compiler/SymbolConversion.def (Gcc2Mod): New procedure function.
+	* gm2-compiler/SymbolConversion.mod: New procedure function.
+	* gm2-gcc/m2misc.cc (m2misc_DebugTree): New function.
+	(m2misc_DebugTreeChain): New function.
+	* gm2-gcc/m2options.h (M2Options_GetDumpLangDeclFilename): New
+	prototype.
+	(M2Options_SetDumpLangDeclFilename): New prototype.
+	(M2Options_GetDumpLangQuadFilename): New prototype.
+	(M2Options_SetDumpLangQuadFilename): New prototype.
+	(M2Options_GetDumpLangGimpleFilename): New prototype.
+	(M2Options_SetDumpLangGimpleFilename): New prototype.
+	(M2Options_GetDumpLangGimple): New prototype.
+	(M2Options_SetM2DumpFilter): New prototype.
+	(M2Options_GetM2DumpFilter): New prototype.
+	* m2pp.cc: Move to...
+	* gm2-gcc/m2pp.cc: ...here.
+	* m2pp.h: Move to...
+	* gm2-gcc/m2pp.h: ...here.
+	* gm2-gcc/m2statement.cc (m2statement_BuildEndFunctionCode): Call
+	m2pp_dump_gimple.
+	* gm2-lang.cc (ENABLE_QUAD_DUMP_ALL): New define.
+	(gm2_langhook_init_options): Add switch cases for proposed new
+	command line options.
+	* gm2-libs/DynamicStrings.def (ReverseIndex): New procedure
+	function.
+	* gm2-libs/DynamicStrings.mod: New procedure function.
+	* gm2-compiler/M2LangDump.def: New file.
+	* gm2-compiler/M2LangDump.mod: New file.
+	* gm2-gcc/m2langdump.h: New file.
+	* gm2-gcc/m2pp.def: New file.
+
+2024-03-21  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114418
+	* gm2-compiler/PCSymBuild.mod (PushConstFunctionType): Check
+	func against NulSym and issue an error.
+
+2024-03-18  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114380
+	* gm2-compiler/SymbolTable.mod (GetLowestType): Do not
+	skip over a set type, but return sym.
+
+2024-03-17  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114296
+	* gm2-compiler/M2ALU.mod (ElementsSolved): Add tokenno parameter.
+	Add constant checks and generate error messages.
+	(EvalSetValues): Pass tokenno parameter to ElementsSolved.
+	* gm2-compiler/M2LexBuf.mod (stop): New procedure.
+	(MakeVirtualTok): Call stop if caret = BadTokenNo.
+	* gm2-compiler/M2Quads.def (BuildNulExpression): Add tokpos
+	parameter.
+	(BuildSetStart): Ditto.
+	(BuildEmptySet): Ditto.
+	(BuildConstructorEnd): Add startpos parameter.
+	(BuildTypeForConstructor): Add tokpos parameter.
+	* gm2-compiler/M2Quads.mod (BuildNulExpression): Add tokpos
+	parameter and push tokpos to the quad stack.
+	(BuildSetStart): Add tokpos parameter and push tokpos.
+	(BuildSetEnd): Rewrite.
+	(BuildEmptySet): Add tokpos parameter and push tokpos with
+	the set	type.
+	(BuildConstructorStart): Pop typepos.
+	(BuildConstructorEnd): Add startpos parameter.
+	Create valtok from startpos and cbratokpos.
+	(BuildTypeForConstructor): Add tokpos parameter.
+	* gm2-compiler/M2Range.def (InitAssignmentRangeCheck): Rename
+	d to des and e to expr.
+	Add destok and exprtok parameters.
+	* gm2-compiler/M2Range.mod (InitAssignmentRangeCheck): Rename
+	d to des and e to expr.
+	Add destok and exprtok parameters.
+	Save destok and exprtok into range record.
+	(FoldAssignment): Pass exprtok to TryDeclareConstant.
+	* gm2-compiler/P3Build.bnf (ComponentValue): Rewrite.
+	(Constructor): Rewrite.
+	(ConstSetOrQualidentOrFunction): Rewrite.
+	(SetOrQualidentOrFunction): Rewrite.
+	* gm2-compiler/PCBuild.bnf (ConstSetOrQualidentOrFunction): Rewrite.
+	(SetOrQualidentOrFunction): Rewrite.
+	* gm2-compiler/PHBuild.bnf (Constructor): Rewrite.
+	(ConstSetOrQualidentOrFunction): Rewrite.
+
+2024-03-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114294
+	* gm2-compiler/M2Quads.mod (BuildConstHighFromSym):
+	Call PutConst to assign the type Cardinal in the result
+	constant.
+
+2024-03-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114333
+	* gm2-compiler/M2GenGCC.mod (CodeStatement): Remove op1, op2 and
+	op3 parameters to CodeIfLess, CodeIfLessEqu, CodeIfGreEqu, CodeIfGre,
+	CodeIfIn, CodeIfNotIn.
+	(CodeIfLess): Rewrite.
+	(PerformCodeIfLess): New procedure.
+	(CodeIfLess): Rewrite.
+	(PerformCodeIfLess): New procedure.
+	(CodeIfLessEqu): Rewrite.
+	(PerformCodeIfLessEqu): New procedure.
+	(CodeIfGreEqu): Rewrite.
+	(PerformCodeIfGreEqu): New procedure.
+	(CodeIfGre): Rewrite.
+	(PerformCodeIfGre): New procedure.
+	(CodeIfIn): Rewrite.
+	(PerformCodeIfIn): New procedure.
+	(CodeIfNotIn): Rewrite.
+	(PerformCodeIfNotIn): New procedure.
+
+2024-03-14  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114333
+	* gm2-compiler/M2Check.mod (checkUnbounded): New procedure
+	function.
+	(checkArrayTypeEquivalence): Extend checking to cover unbounded
+	arrays, arrays and constants.
+	(IsTyped): Simplified the expression and corrected a test for
+	IsConstructor.
+	(checkTypeKindViolation): New procedure function.
+	(doCheckPair): Call checkTypeKindViolation.
+	* gm2-compiler/M2GenGCC.mod (CodeStatement): Remove parameters
+	to CodeEqu and CodeNotEqu.
+	(PerformCodeIfEqu): New procedure.
+	(CodeIfEqu): Rewrite.
+	(PerformCodeIfNotEqu): New procedure.
+	(CodeIfNotEqu): Rewrite.
+	* gm2-compiler/M2Quads.mod (BuildRelOpFromBoolean): Correct
+	comment.
+
+2024-03-11  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/114295
+	* gm2-compiler/M2Batch.mod (MakeProgramSource): Call PutDeclared
+	if the module is known.
+	(MakeDefinitionSource): Ditto.
+	(MakeImplementationSource): Ditto.
+	* gm2-compiler/M2Comp.mod (ExamineHeader): New procedure.
+	(ExamineCompilationUnit): Rewrite.
+	(PeepInto): Rewrite.
+	* gm2-compiler/M2Error.mod (NewError): Remove default call to
+	GetTokenNo.
+	* gm2-compiler/M2Quads.mod (callRequestDependant): Push tokno with
+	Adr.
+	(BuildStringAdrParam): Ditto.
+	(doBuildBinaryOp): Push OperatorPos on the bool stack.
+	(BuildRelOp): Ditto.
+	* gm2-compiler/P2Build.bnf (SetType): Pass set token pos to
+	BuildSetType.
+	(PointerType): Pass pointer token pos to BuildPointerType.
+	* gm2-compiler/P2SymBuild.def (BuildPointerType): Add parameter
+	pointerpos.
+	(BuildSetType): Add parameter setpos.
+	* gm2-compiler/P2SymBuild.mod (BuildPointerType): Add parameter
+	pointerpos.  Build combined token and use it when creating a
+	pointer type.
+	(BuildSetType): Add parameter setpos.  Build combined token and
+	use it when creating a set type.
+	* gm2-compiler/SymbolTable.mod (DebugUnknownToken): New constant.
+	(CheckTok): New procedure function.
+	(MakeProcedure): Call CheckTok.
+	(MakeRecord): Ditto.
+	(MakeVarient): Ditto.
+	(MakeEnumeration): Ditto.
+	(MakeHiddenType): Ditto.
+	(MakeConstant): Ditto.
+	(MakeConstStringCnul): Ditto.
+	(MakeSubrange): Ditto.
+	(MakeTemporary): Ditto.
+	(MakeVariableForParam): Ditto.
+	(MakeParameterHeapVar): Ditto.
+	(MakePointer): Ditto.
+	(MakeSet): Ditto.
+	(MakeUnbounded): Ditto.
+	(MakeProcType): Ditto.
+
 2024-03-08  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	* gm2-compiler/M2Quads.mod (Init): Use InitIndexTuned with

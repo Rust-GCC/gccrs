@@ -568,7 +568,7 @@ do_while_loop_p (class loop *loop)
 	       <body>
        // region start
      loop_header:
-	       if (cond1)   <- we need to update probabbility here
+	       if (cond1)   <- we need to update probability here
 		 goto loop_exit;
 	       if (cond2)   <- and determine scaling factor here.
 			       moreover cond2 is now always true
@@ -957,7 +957,7 @@ ch_base::copy_headers (function *fun)
 
       edge entry = loop_preheader_edge (loop);
 
-      propagate_threaded_block_debug_into (exit->dest, entry->dest);
+      propagate_threaded_block_debug_into (nonexit->dest, entry->dest);
       if (!gimple_duplicate_seme_region (entry, exit, bbs, n_bbs, copied_bbs,
 					 true))
 	{
@@ -1049,7 +1049,7 @@ ch_base::copy_headers (function *fun)
 	  fprintf (dump_file, "\n");
 	}
 
-      /* We possibly decreased number of itrations by 1.  */
+      /* We possibly decreased number of iterations by 1.  */
       auto_vec<edge> exits = get_loop_exit_edges (loop);
       bool precise = (nexits == (int) exits.length ());
       /* Check that loop may not terminate in other way than via

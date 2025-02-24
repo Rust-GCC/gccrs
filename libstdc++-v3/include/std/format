@@ -2478,6 +2478,29 @@ namespace __format
     };
   /// @}
 
+#if defined _GLIBCXX_USE_WCHAR_T && __cpp_lib_format_ranges
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3944. Formatters converting sequences of char to sequences of wchar_t
+
+  namespace __format { struct __disabled; }
+
+  // std::formatter<__disabled, C> uses the primary template, which is disabled.
+  template<>
+    struct formatter<char*, wchar_t>
+    : private formatter<__format::__disabled, wchar_t> { };
+  template<>
+    struct formatter<const char*, wchar_t>
+    : private formatter<__format::__disabled, wchar_t> { };
+  template<size_t _Nm>
+    struct formatter<char[_Nm], wchar_t>
+    : private formatter<__format::__disabled, wchar_t> { };
+  template<class _Traits, class _Allocator>
+    struct formatter<basic_string<char, _Traits, _Allocator>, wchar_t>
+    : private formatter<__format::__disabled, wchar_t> { };
+  template<class _Traits>
+    struct formatter<basic_string_view<char, _Traits>, wchar_t>
+    : private formatter<__format::__disabled, wchar_t> { };
+#endif
 
 /// @cond undocumented
 namespace __format
@@ -4091,6 +4114,7 @@ namespace __format
 	__sink_out = __sink.out();
 
       if constexpr (is_same_v<_CharT, char>)
+	// Fast path for "{}" format strings and simple format arg types.
 	if (__fmt.size() == 2 && __fmt[0] == '{' && __fmt[1] == '}')
 	  {
 	    bool __done = false;
@@ -4124,14 +4148,14 @@ namespace __format
 		    __uval = make_unsigned_t<_Tp>(~__arg) + 1u;
 		  else
 		    __uval = __arg;
-		  const auto __n = __detail::__to_chars_len(__uval) + __neg;
-		  if (auto __res = __sink_out._M_reserve(__n))
+		  const auto __n = __detail::__to_chars_len(__uval);
+		  if (auto __res = __sink_out._M_reserve(__n + __neg))
 		    {
 		      auto __ptr = __res.get();
 		      *__ptr = '-';
 		      __detail::__to_chars_10_impl(__ptr + (int)__neg, __n,
 						   __uval);
-		      __res._M_bump(__n);
+		      __res._M_bump(__n + __neg);
 		      __done = true;
 		    }
 		}

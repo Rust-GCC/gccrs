@@ -1372,7 +1372,12 @@ has_stmt_been_instrumented_p (gimple *stmt)
 	  return true;
 	}
     }
-  else if (is_gimple_call (stmt) && gimple_store_p (stmt))
+  else if (is_gimple_call (stmt)
+	   && gimple_store_p (stmt)
+	   && (gimple_call_builtin_p (stmt)
+	       || gimple_call_internal_p (stmt)
+	       || !aggregate_value_p (TREE_TYPE (gimple_call_lhs (stmt)),
+				      gimple_call_fntype (stmt))))
     {
       asan_mem_ref r;
       asan_mem_ref_init (&r, NULL, 1);
@@ -1906,19 +1911,39 @@ asan_emit_stack_protection (rtx base, rtx pbase, unsigned int alignb,
     }
   str_cst = asan_pp_string (&asan_pp);
 
+  gcc_checking_assert (offsets[0] == (crtl->stack_protect_guard
+				      ? -ASAN_RED_ZONE_SIZE : 0));
   /* Emit the prologue sequence.  */
   if (asan_frame_size > 32 && asan_frame_size <= 65536 && pbase
       && param_asan_use_after_return)
     {
+      HOST_WIDE_INT adjusted_frame_size = asan_frame_size;
+      /* The stack protector guard is allocated at the top of the frame
+	 and cfgexpand.cc then uses align_frame_offset (ASAN_RED_ZONE_SIZE);
+	 while in that case we can still use asan_frame_size, we need to take
+	 that into account when computing base_align_bias.  */
+      if (alignb > ASAN_RED_ZONE_SIZE && crtl->stack_protect_guard)
+	adjusted_frame_size += ASAN_RED_ZONE_SIZE;
       use_after_return_class = floor_log2 (asan_frame_size - 1) - 5;
       /* __asan_stack_malloc_N guarantees alignment
 	 N < 6 ? (64 << N) : 4096 bytes.  */
       if (alignb > (use_after_return_class < 6
 		    ? (64U << use_after_return_class) : 4096U))
 	use_after_return_class = -1;
-      else if (alignb > ASAN_RED_ZONE_SIZE && (asan_frame_size & (alignb - 1)))
-	base_align_bias = ((asan_frame_size + alignb - 1)
-			   & ~(alignb - HOST_WIDE_INT_1)) - asan_frame_size;
+      else if (alignb > ASAN_RED_ZONE_SIZE
+	       && (adjusted_frame_size & (alignb - 1)))
+	{
+	  base_align_bias
+	    = ((adjusted_frame_size + alignb - 1)
+	       & ~(alignb - HOST_WIDE_INT_1)) - adjusted_frame_size;
+	  use_after_return_class
+	    = floor_log2 (asan_frame_size + base_align_bias - 1) - 5;
+	  if (use_after_return_class > 10)
+	    {
+	      base_align_bias = 0;
+	      use_after_return_class = -1;
+	    }
+	}
     }
 
   /* Align base if target is STRICT_ALIGNMENT.  */
@@ -2569,7 +2594,7 @@ maybe_create_ssa_name (location_t loc, tree base, gimple_stmt_iterator *iter,
   gimple *g = gimple_build_assign (make_ssa_name (TREE_TYPE (base)), base);
   gimple_set_location (g, loc);
   if (before_p)
-    gsi_insert_before (iter, g, GSI_SAME_STMT);
+    gsi_safe_insert_before (iter, g);
   else
     gsi_insert_after (iter, g, GSI_NEW_STMT);
   return gimple_assign_lhs (g);
@@ -2588,7 +2613,7 @@ maybe_cast_to_ptrmode (location_t loc, tree len, gimple_stmt_iterator *iter,
 				  NOP_EXPR, len);
   gimple_set_location (g, loc);
   if (before_p)
-    gsi_insert_before (iter, g, GSI_SAME_STMT);
+    gsi_safe_insert_before (iter, g);
   else
     gsi_insert_after (iter, g, GSI_NEW_STMT);
   return gimple_assign_lhs (g);
@@ -2679,7 +2704,7 @@ build_check_stmt (location_t loc, tree base, tree len,
 						 align / BITS_PER_UNIT));
   gimple_set_location (g, loc);
   if (before_p)
-    gsi_insert_before (&gsi, g, GSI_SAME_STMT);
+    gsi_safe_insert_before (&gsi, g);
   else
     {
       gsi_insert_after (&gsi, g, GSI_NEW_STMT);
@@ -2750,8 +2775,14 @@ instrument_derefs (gimple_stmt_iterator *iter, tree t,
   if (VAR_P (inner) && DECL_HARD_REGISTER (inner))
     return;
 
+  /* Accesses to non-generic address-spaces should not be instrumented.  */
+  if (!ADDR_SPACE_GENERIC_P (TYPE_ADDR_SPACE (TREE_TYPE (inner))))
+    return;
+
   poly_int64 decl_size;
-  if ((VAR_P (inner) || TREE_CODE (inner) == RESULT_DECL)
+  if ((VAR_P (inner)
+       || (TREE_CODE (inner) == RESULT_DECL
+	   && !aggregate_value_p (inner, current_function_decl)))
       && offset == NULL_TREE
       && DECL_SIZE (inner)
       && poly_int_tree_p (DECL_SIZE (inner), &decl_size)
@@ -3018,12 +3049,16 @@ maybe_instrument_call (gimple_stmt_iterator *iter)
 	  tree decl = builtin_decl_implicit (BUILT_IN_ASAN_HANDLE_NO_RETURN);
 	  gimple *g = gimple_build_call (decl, 0);
 	  gimple_set_location (g, gimple_location (stmt));
-	  gsi_insert_before (iter, g, GSI_SAME_STMT);
+	  gsi_safe_insert_before (iter, g);
 	}
     }
 
   bool instrumented = false;
-  if (gimple_store_p (stmt))
+  if (gimple_store_p (stmt)
+      && (gimple_call_builtin_p (stmt)
+	  || gimple_call_internal_p (stmt)
+	  || !aggregate_value_p (TREE_TYPE (gimple_call_lhs (stmt)),
+				 gimple_call_fntype (stmt))))
     {
       tree ref_expr = gimple_call_lhs (stmt);
       instrument_derefs (iter, ref_expr,
@@ -3841,7 +3876,7 @@ asan_expand_mark_ifn (gimple_stmt_iterator *iter)
       g = gimple_build_assign (make_ssa_name (pointer_sized_int_node),
 			       NOP_EXPR, len);
       gimple_set_location (g, loc);
-      gsi_insert_before (iter, g, GSI_SAME_STMT);
+      gsi_safe_insert_before (iter, g);
       tree sz_arg = gimple_assign_lhs (g);
 
       tree fun
