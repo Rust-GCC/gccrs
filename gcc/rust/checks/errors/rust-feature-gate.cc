@@ -17,11 +17,19 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-feature-gate.h"
+#include "config.h"
+#include "is-a.h"
 #include "rust-abi.h"
+#include "rust-ast.h"
 #include "rust-attribute-values.h"
 #include "rust-ast-visitor.h"
 #include "rust-feature.h"
 #include "rust-ast-full.h"
+#include "rust-item.h"
+#include "rust-path.h"
+#include "rust-type.h"
+#include "rust-tyty.h"
+#include <iostream>
 
 namespace Rust {
 
@@ -234,6 +242,42 @@ FeatureGate::visit (AST::UseTreeGlob &use)
   // At the moment, UseTrees do not have outer attributes, but they should. we
   // need to eventually gate `#[prelude_import]` on use-trees based on the
   // #[feature(prelude_import)]
+}
+
+void
+FeatureGate::visit (AST::RawPointerType &type)
+{
+  auto &t = static_cast<AST::TypePath &> (type.get_type_pointed_to ());
+  if (t.get_num_segments () == 1)
+    {
+      auto seg
+	= static_cast<AST::TypePathSegment> (*t.get_segments ().at (0).get ());
+      if (seg.is_big_self_seg ())
+	gate (Feature::Name::ARBITRARY_SELF_TYPES, type.get_locus (),
+	      "arbitrary self types are experimental");
+    }
+}
+
+void
+FeatureGate::visit (AST::ImplTraitType &type)
+{
+  gate (Feature::Name::IMPL_TRAIT_IN_ASSOC_TYPE, type.get_locus (),
+	"impl trait in assoc type is experimental");
+}
+
+void
+FeatureGate::visit (AST::ImplTraitTypeOneBound &type)
+{
+  gate (Feature::Name::IMPL_TRAIT_IN_ASSOC_TYPE, type.get_locus (),
+	"impl trait in assoc type is experimental");
+}
+
+void
+FeatureGate::visit (AST::Attribute &attr)
+{
+  if (attr.get_path ().as_string () == "register_tool")
+    gate (Feature::Name::REGISTER_TOOL, attr.get_locus (),
+	  "register tool is an experimental feature");
 }
 
 } // namespace Rust
