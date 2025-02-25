@@ -1266,8 +1266,11 @@ Mappings::insert_lang_item (LangItem::Kind item_type, DefId id)
 {
   auto it = lang_item_mappings.find (item_type);
   rust_assert (it == lang_item_mappings.end ());
-
   lang_item_mappings[item_type] = id;
+
+  auto rit = rev_lang_item_mappings.find (id);
+  rust_assert (rit == rev_lang_item_mappings.end ());
+  rev_lang_item_mappings[id] = item_type;
 }
 
 tl::optional<DefId &>
@@ -1277,6 +1280,15 @@ Mappings::lookup_lang_item (LangItem::Kind item_type)
   if (it == lang_item_mappings.end ())
     return tl::nullopt;
 
+  return it->second;
+}
+
+tl::optional<LangItem::Kind &>
+Mappings::lookup_lang_item (DefId id)
+{
+  auto it = rev_lang_item_mappings.find (id);
+  if (it == rev_lang_item_mappings.end ())
+    return tl::nullopt;
   return it->second;
 }
 
