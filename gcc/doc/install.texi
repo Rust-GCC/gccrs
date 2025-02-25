@@ -312,6 +312,13 @@ documentation including the target @code{SYSTEM} definition module.
 If Python3 is unavailable Modula-2 documentation will include a target
 independent version of the SYSTEM modules.
 
+@item @anchor{GCCRS-prerequisite}Rust
+
+In order to build GCCRS you need a working rust compiler, for now we
+are using cargo and rustc but in the future GCC will be able to compile
+it's own rust components and recompile itself with those components
+included.
+
 @item A ``working'' POSIX compatible shell, or GNU bash
 
 Necessary when running @command{configure} because some
@@ -3224,6 +3231,15 @@ and network filesystems.
 @end ifnothtml
 @ifhtml
 @uref{prerequisites.html#GDC-prerequisite,,GDC prerequisites}.
+@end ifhtml
+
+@section Building the Rust compiler
+
+@ifnothtml
+@ref{GCCRS-prerequisite}.
+@end ifnothtml
+@ifhtml
+@uref{prerequisites.html#GCCRS-prerequisite,,GCCRS prerequisites}.
 @end ifhtml
 
 @section Building with profile feedback
