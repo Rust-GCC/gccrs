@@ -104,9 +104,6 @@ expand_format (const char *fmt)
 // calling function must need to have attribute gnu_printf as well, even
 // though there is already an attribute declaration for it.
 
-static std::string
-expand_message (const char *fmt, va_list ap) RUST_ATTRIBUTE_GCC_DIAG (1, 0);
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
 
@@ -126,6 +123,16 @@ expand_message (const char *fmt, va_list ap)
   std::string rval = std::string (mbuf);
   free (mbuf);
   return rval;
+}
+std::string
+expand_message (const char *fmt, ...)
+{
+  va_list ap;
+
+  va_start (ap, fmt);
+  std::string str = expand_message (fmt, ap);
+  va_end (ap);
+  return str;
 }
 
 #pragma GCC diagnostic pop

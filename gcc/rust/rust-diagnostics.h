@@ -31,7 +31,7 @@
 #if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
 #define RUST_ATTRIBUTE_GCC_DIAG(m, n)                                          \
   __attribute__ ((__format__ (__gcc_tdiag__, m, n)))                           \
-    __attribute__ ((__nonnull__ (m)))
+__attribute__ ((__nonnull__ (m)))
 #else
 #define RUST_ATTRIBUTE_GCC_DIAG(m, n)
 #endif
@@ -80,6 +80,9 @@ enum class ErrorCode : unsigned int
 #undef ERROR
 
 // clang-format off
+std::string
+expand_message (const char *fmt, ...) RUST_ATTRIBUTE_GCC_DIAG (1, 2);
+
 extern void
 rust_internal_error_at (const location_t, const char *fmt, ...)
   RUST_ATTRIBUTE_GCC_DIAG (2, 3)
