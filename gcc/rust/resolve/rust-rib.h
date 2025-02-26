@@ -165,6 +165,7 @@ public:
     Function,
     ConstantItem, // -> this variant has a boolean
     TraitOrImpl,
+    Enum,
     /* Any item other than a Module, Function, Constant, Trait or Impl block */
     Item,
     Closure,
