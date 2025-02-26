@@ -80,6 +80,9 @@ enum class ErrorCode : unsigned int
 #undef ERROR
 
 // clang-format off
+std::string
+expand_message (const char *fmt, ...) RUST_ATTRIBUTE_GCC_DIAG (1, 2);
+
 extern void
 rust_internal_error_at (const location_t, const char *fmt, ...)
   RUST_ATTRIBUTE_GCC_DIAG (2, 3)

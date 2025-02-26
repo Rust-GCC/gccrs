@@ -20,10 +20,10 @@
 #include "rust-compile-expr.h"
 #include "rust-constexpr.h"
 #include "rust-gcc.h"
+#include "rust-diagnostics.h"
 
 #include "tree.h"
 #include "stor-layout.h"
-
 namespace Rust {
 namespace Compile {
 
@@ -248,6 +248,65 @@ TyTyResolveCompile::visit (const TyTy::FnPtr &type)
 					   type.get_ident ().locus);
 }
 
+bool
+check_variant_record_collision (Context *ctx, const TyTy::ADTType &type,
+				std::vector<tree> &variant_records)
+{
+  // bdbt: we're checking if shared discriminants crash with each other or
+  // not. lets make a map from uhwi to hir id. A clash of uhwi in a variant
+  // record to which said record can be converted uhwi is indicative of
+  // issue 3351 of gccrs
+
+  std::map<HOST_WIDE_INT, std::vector<size_t>> shwi_to_index;
+  for (size_t i = 0; i < variant_records.size (); i++)
+    {
+      TyTy::VariantDef *variant = type.get_variants ().at (i);
+      if (variant->has_discriminant ())
+	{
+	  ctx->push_const_context ();
+	  tree discriminant_expr
+	    = CompileExpr::Compile (variant->get_discriminant (), ctx);
+	  ctx->push_const_context ();
+	  tree folded_expr = fold_expr (discriminant_expr);
+	  if (folded_expr == error_mark_node)
+	    {
+	      // if we have discriminant but we fail to fold it, return false
+	      return false;
+	    }
+	  HOST_WIDE_INT discriminant_integer = tree_to_shwi (folded_expr);
+	  shwi_to_index[discriminant_integer].push_back (i);
+	}
+    }
+
+  bool has_failed = false;
+  for (const auto &map_item : shwi_to_index)
+    {
+      auto discriminant_integer = map_item.first;
+      const auto &index_vector = map_item.second;
+      // collision doesn't happen, move to next item
+      if (index_vector.size () <= 1)
+	continue;
+
+      has_failed = true;
+      rich_location r (line_table, type.get_locus ());
+      std::string assigned_here_msg
+	= expand_message (HOST_WIDE_INT_PRINT_DEC " assigned here",
+			  discriminant_integer);
+      std::string assigned_more_once_msg
+	= expand_message ("discriminant value " HOST_WIDE_INT_PRINT_DEC
+			  " assigned more than once",
+			  discriminant_integer);
+      for (auto index : index_vector)
+	{
+	  TyTy::VariantDef *variant = type.get_variants ().at (index);
+	  r.add_fixit_replace (variant->get_discriminant ().get_locus (),
+			       assigned_here_msg.c_str ());
+	}
+      rust_error_at (r, ErrorCode::E0081, "%s",
+		     assigned_more_once_msg.c_str ());
+    }
+  return !has_failed;
+}
 void
 TyTyResolveCompile::visit (const TyTy::ADTType &type)
 {
@@ -255,7 +314,6 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
   if (!type.is_enum ())
     {
       rust_assert (type.number_of_variants () == 1);
-
       TyTy::VariantDef &variant = *type.get_variants ().at (0);
       std::vector<Backend::typed_identifier> fields;
       for (size_t i = 0; i < variant.num_fields (); i++)
@@ -358,9 +416,15 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 	  // add them to the list
 	  variant_records.push_back (named_variant_record);
 	}
-
-      // now we need to make the actual union, but first we need to make
-      // named_type TYPE_DECL's out of the variants
+      //  TODO: bdbt set up defid and a map (or set?) to check if we have
+      // checked for collision already.
+      if (!check_variant_record_collision (ctx, type, variant_records))
+	{
+	  translated = error_mark_node;
+	  return;
+	}
+      // the actual union, but first we need to make named_type TYPE_DECL's out
+      // of the variants
 
       size_t i = 0;
       std::vector<Backend::typed_identifier> enum_fields;

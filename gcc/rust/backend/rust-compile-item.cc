@@ -270,6 +270,16 @@ CompileItem::visit (HIR::Function &function)
 }
 
 void
+CompileItem::visit (HIR::Enum &e)
+{
+  TyTy::BaseType *resolved_type = nullptr;
+  bool ok = ctx->get_tyctx ()->lookup_type (e.get_mappings ().get_hirid (),
+					    &resolved_type);
+  rust_assert (ok);
+  tree type = TyTyResolveCompile::compile (ctx, resolved_type);
+  reference = type;
+}
+void
 CompileItem::visit (HIR::ImplBlock &impl_block)
 {
   TyTy::BaseType *self_lookup = nullptr;
