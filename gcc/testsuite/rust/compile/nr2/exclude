@@ -18,6 +18,7 @@ issue-2782.rs
 issue-2812.rs
 issue-850.rs
 issue-855.rs
+issue-3315-2.rs
 iterators1.rs
 lookup_err1.rs
 macros/mbe/macro43.rs
