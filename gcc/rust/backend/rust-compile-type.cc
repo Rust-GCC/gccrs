@@ -240,13 +240,64 @@ TyTyResolveCompile::visit (const TyTy::FnPtr &type)
 }
 
 void
+check_variant_record_collision (Context *ctx, const TyTy::ADTType &type,
+				std::vector<tree> &variant_records)
+{
+  // bdbt: we're checking if shared discriminants crash with each other or
+  // not. lets make a map from uhwi to hir id. A clash of uhwi in a variant
+  // record to which said record can be converted uhwi is indicative of
+  // issue 3351 of gccrs
+
+  std::map<HOST_WIDE_INT, std::vector<size_t>> shwi_to_index;
+  for (size_t i = 0; i < variant_records.size (); i++)
+    {
+      TyTy::VariantDef *variant = type.get_variants ().at (i);
+      if (variant->has_discriminant ())
+	{
+	  tree discriminant_expr
+	    = CompileExpr::Compile (variant->get_discriminant (), ctx);
+	  tree folded_expr = fold_expr (discriminant_expr);
+	  if (folded_expr == error_mark_node)
+	    {
+	      // if we have discriminant but we fail to fold it, ICE
+	      rust_unreachable ();
+	    }
+	  HOST_WIDE_INT discriminant_integer = tree_to_shwi (folded_expr);
+	  shwi_to_index[discriminant_integer].push_back (i);
+	}
+    }
+
+  for (const auto &map_item : shwi_to_index)
+    {
+      auto discriminant_integer = map_item.first;
+      const auto &index_vector = map_item.second;
+      // collision doesn't happen, move to next item
+      if (index_vector.size () <= 1)
+	continue;
+
+      rich_location r (line_table, type.get_locus ());
+      std::string assigned_here_msg
+	= "`" + std::to_string (discriminant_integer) + "`" + " assigned here";
+      std::string assigned_more_once_msg
+	= "discriminant value `" + std::to_string (discriminant_integer) + "`"
+	  + " assigned more than once";
+      for (auto index : index_vector)
+	{
+	  TyTy::VariantDef *variant = type.get_variants ().at (index);
+	  r.add_fixit_replace (variant->get_discriminant ().get_locus (),
+			       assigned_here_msg.c_str ());
+	}
+      rust_error_at (r, ErrorCode::E0081, "%s",
+		     assigned_more_once_msg.c_str ());
+    }
+}
+void
 TyTyResolveCompile::visit (const TyTy::ADTType &type)
 {
   tree type_record = error_mark_node;
   if (!type.is_enum ())
     {
       rust_assert (type.number_of_variants () == 1);
-
       TyTy::VariantDef &variant = *type.get_variants ().at (0);
       std::vector<Backend::typed_identifier> fields;
       for (size_t i = 0; i < variant.num_fields (); i++)
@@ -349,9 +400,11 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 	  // add them to the list
 	  variant_records.push_back (named_variant_record);
 	}
-
-      // now we need to make the actual union, but first we need to make
-      // named_type TYPE_DECL's out of the variants
+      //  TODO: bdbt set up defid and a map (or set?) to check if we have
+      // checked for collision already.
+      check_variant_record_collision (ctx, type, variant_records);
+      // the actual union, but first we need to make named_type TYPE_DECL's out
+      // of the variants
 
       size_t i = 0;
       std::vector<Backend::typed_identifier> enum_fields;
