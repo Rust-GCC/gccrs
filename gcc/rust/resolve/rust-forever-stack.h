@@ -588,6 +588,9 @@ public:
    */
   tl::expected<NodeId, DuplicateNameError> insert (Identifier name, NodeId id);
 
+  tl::expected<NodeId, DuplicateNameError> insert_variant (Identifier name,
+							   NodeId id);
+
   /**
    * Insert a new shadowable definition in the innermost `Rib` in this stack
    *
@@ -650,7 +653,8 @@ public:
    * @return a valid option with the Definition if the identifier is present in
    * the current map, an empty one otherwise.
    */
-  tl::optional<Rib::Definition> get (const Identifier &name);
+  tl::optional<Rib::Definition> get (const Identifier &name,
+				     bool skip_enum_variants = false);
 
   /**
    * Resolve a path to its definition in the current `ForeverStack`

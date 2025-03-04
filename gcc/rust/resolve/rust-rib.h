@@ -111,7 +111,7 @@ public:
   class Definition
   {
   public:
-    static Definition NonShadowable (NodeId id);
+    static Definition NonShadowable (NodeId id, bool enum_variant = false);
     static Definition Shadowable (NodeId id);
     static Definition Globbed (NodeId id);
 
@@ -124,10 +124,20 @@ public:
     std::vector<NodeId> ids_non_shadowable;
     std::vector<NodeId> ids_globbed;
 
+    // Enum variant should be skipped when dealing with inner definition.
+    // struct E2;
+    //
+    // enum MyEnum<T> /* <-- Should be kept */{
+    //     E2 /* <-- Should be skipped */ (E2);
+    // }
+    bool enum_variant;
+
     Definition () = default;
 
     Definition &operator= (const Definition &) = default;
     Definition (Definition const &) = default;
+
+    bool is_variant () const;
 
     bool is_ambiguous () const;
 
@@ -155,7 +165,7 @@ public:
       GLOBBED
     };
 
-    Definition (NodeId id, Mode mode);
+    Definition (NodeId id, Mode mode, bool enum_variant);
   };
 
   enum class Kind
@@ -165,6 +175,7 @@ public:
     Function,
     ConstantItem, // -> this variant has a boolean
     TraitOrImpl,
+    Enum,
     /* Any item other than a Module, Function, Constant, Trait or Impl block */
     Item,
     Closure,
@@ -174,6 +185,37 @@ public:
     /* Const generic, as in the following example: fn foo<T, const X: T>() {} */
     ConstParamType,
   } kind;
+
+  static std::string kind_to_string (Rib::Kind kind)
+  {
+    switch (kind)
+      {
+      case Rib::Kind::Normal:
+	return "Normal";
+      case Rib::Kind::Module:
+	return "Module";
+      case Rib::Kind::Function:
+	return "Function";
+      case Rib::Kind::ConstantItem:
+	return "ConstantItem";
+      case Rib::Kind::TraitOrImpl:
+	return "TraitOrImpl";
+      case Rib::Kind::Enum:
+	return "Enum";
+      case Rib::Kind::Item:
+	return "Item";
+      case Rib::Kind::Closure:
+	return "Closure";
+      case Rib::Kind::MacroDefinition:
+	return "Macro definition";
+      case Rib::Kind::ForwardTypeParamBan:
+	return "Forward type param ban";
+      case Rib::Kind::ConstParamType:
+	return "Const Param Type";
+      default:
+	rust_unreachable ();
+      }
+  }
 
   Rib (Kind kind);
   Rib (Kind kind, std::string identifier, NodeId id);

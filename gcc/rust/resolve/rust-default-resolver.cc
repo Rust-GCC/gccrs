@@ -108,8 +108,8 @@ DefaultResolver::visit (AST::Enum &type)
 {
   auto variant_fn = [this, &type] () { AST::DefaultASTVisitor::visit (type); };
 
-  ctx.scoped (Rib::Kind::Item /* FIXME: Correct? */, type.get_node_id (),
-	      variant_fn, type.get_identifier ());
+  ctx.scoped (Rib::Kind::Enum, type.get_node_id (), variant_fn,
+	      type.get_identifier ());
 }
 
 void
