@@ -114,9 +114,14 @@ public:
     return std::move (imports_to_resolve);
   }
 
+  void check_multiple_insertion_error (
+    tl::expected<NodeId, DuplicateNameError> result,
+    const Identifier &identifier, const location_t &locus,
+    const NodeId node_id);
+
   /**
-   * Insert a new definition or error out if a definition with the same name was
-   * already present in the same namespace in the same scope.
+   * Insert a new definition or error out if a definition with the same name
+   * was already present in the same namespace in the same scope.
    *
    * @param identifier The identifier of the definition to add.
    * @param node A reference to the node, so we can get its `NodeId` and
