@@ -173,6 +173,14 @@ ForeverStack<Namespace::Labels>::insert (Identifier name, NodeId node)
 		       Rib::Definition::Shadowable (node));
 }
 
+template <>
+inline tl::expected<NodeId, DuplicateNameError>
+ForeverStack<Namespace::Types>::insert_variant (Identifier name, NodeId node)
+{
+  return insert_inner (peek (), name.as_string (),
+		       Rib::Definition::NonShadowable (node, true));
+}
+
 template <Namespace N>
 Rib &
 ForeverStack<N>::peek ()
@@ -265,34 +273,37 @@ ForeverStack<N>::update_cursor (Node &new_cursor)
 
 template <Namespace N>
 tl::optional<Rib::Definition>
-ForeverStack<N>::get (const Identifier &name)
+ForeverStack<N>::get (const Identifier &name, bool skip_enum_variant)
 {
   tl::optional<Rib::Definition> resolved_definition = tl::nullopt;
 
   // TODO: Can we improve the API? have `reverse_iter` return an optional?
-  reverse_iter ([&resolved_definition, &name] (Node &current) {
-    auto candidate = current.rib.get (name.as_string ());
+  reverse_iter (
+    [&resolved_definition, &name, skip_enum_variant] (Node &current) {
+      auto candidate = current.rib.get (name.as_string ());
 
-    return candidate.map_or (
-      [&resolved_definition] (Rib::Definition found) {
-	// for most namespaces, we do not need to care about various ribs - they
-	// are available from all contexts if defined in the current scope, or
-	// an outermore one. so if we do have a candidate, we can return it
-	// directly and stop iterating
-	resolved_definition = found;
+      return candidate.map_or (
+	[&resolved_definition, skip_enum_variant] (Rib::Definition found) {
+	  if (skip_enum_variant && found.is_variant ())
+	    return KeepGoing::Yes;
+	  // for most namespaces, we do not need to care about various ribs -
+	  // they are available from all contexts if defined in the current
+	  // scope, or an outermore one. so if we do have a candidate, we can
+	  // return it directly and stop iterating
+	  resolved_definition = found;
 
-	return KeepGoing::No;
-      },
-      // if there was no candidate, we keep iterating
-      KeepGoing::Yes);
-  });
+	  return KeepGoing::No;
+	},
+	// if there was no candidate, we keep iterating
+	KeepGoing::Yes);
+    });
 
   return resolved_definition;
 }
 
 template <>
 tl::optional<Rib::Definition> inline ForeverStack<Namespace::Labels>::get (
-  const Identifier &name)
+  const Identifier &name, bool skip_enum_variants)
 {
   tl::optional<Rib::Definition> resolved_definition = tl::nullopt;
 
@@ -550,6 +561,8 @@ ForeverStack<N>::resolve_path (
 {
   // TODO: What to do if segments.empty() ?
 
+  std::reference_wrapper<Node> starting_point = cursor ();
+  bool in_enum = starting_point.get ().rib.kind == Rib::Kind::Enum;
   // if there's only one segment, we just use `get`
   if (segments.size () == 1)
     {
@@ -564,13 +577,13 @@ ForeverStack<N>::resolve_path (
 	  return Rib::Definition::NonShadowable (seg_id);
 	}
 
-      auto res = get (unwrap_type_segment (segments.back ()).as_string ());
+      auto res
+	= get (unwrap_type_segment (segments.back ()).as_string (), in_enum);
+
       if (res && !res->is_ambiguous ())
 	insert_segment_resolution (segments.back (), res->get_node_id ());
       return res;
     }
-
-  std::reference_wrapper<Node> starting_point = cursor ();
 
   return find_starting_point (segments, starting_point,
 			      insert_segment_resolution)
