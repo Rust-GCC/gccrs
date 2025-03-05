@@ -219,7 +219,8 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 	    bool apply_sized = !is_self;
 	    auto param_type
 	      = TypeResolveGenericParam::Resolve (*generic_param, apply_sized);
-	    context->insert_type (generic_param->get_mappings (), param_type);
+	    context->insert_implicit_type (
+	      generic_param->get_mappings ().get_hirid (), param_type);
 	    substitutions.push_back (
 	      TyTy::SubstitutionParamMapping (typaram, param_type));
 
@@ -361,7 +362,7 @@ TraitItemReference::resolve_item (HIR::TraitItemType &type)
     = new TyTy::PlaceholderType (type.get_name ().as_string (),
 				 type.get_mappings ().get_defid (),
 				 type.get_mappings ().get_hirid ());
-  context->insert_type (type.get_mappings (), ty);
+  context->insert_implicit_type (type.get_mappings ().get_hirid (), ty);
 }
 
 void

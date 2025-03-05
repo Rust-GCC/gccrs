@@ -69,7 +69,8 @@ TypeCheckType::Resolve (HIR::Type &type)
   TypeCheckType resolver (type.get_mappings ().get_hirid ());
   type.accept_vis (resolver);
   rust_assert (resolver.translated != nullptr);
-  resolver.context->insert_type (type.get_mappings (), resolver.translated);
+  resolver.context->insert_implicit_type (type.get_mappings ().get_hirid (),
+					  resolver.translated);
   return resolver.translated;
 }
 
@@ -689,7 +690,8 @@ TypeCheckType::visit (HIR::ArrayType &type)
   TyTy::BaseType *expected_ty = nullptr;
   bool ok = context->lookup_builtin ("usize", &expected_ty);
   rust_assert (ok);
-  context->insert_type (type.get_size_expr ().get_mappings (), expected_ty);
+  context->insert_implicit_type (
+    type.get_size_expr ().get_mappings ().get_hirid (), expected_ty);
 
   unify_site (type.get_size_expr ().get_mappings ().get_hirid (),
 	      TyTy::TyWithLocation (expected_ty),

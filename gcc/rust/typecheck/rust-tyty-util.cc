@@ -50,11 +50,7 @@ TyVar::get_implicit_infer_var (location_t locus)
   InferType *infer = new InferType (mappings.get_next_hir_id (),
 				    InferType::InferTypeKind::GENERAL,
 				    InferType::TypeHint::Default (), locus);
-  context->insert_type (Analysis::NodeMapping (mappings.get_current_crate (),
-					       UNKNOWN_NODEID,
-					       infer->get_ref (),
-					       UNKNOWN_LOCAL_DEFID),
-			infer);
+  context->insert_implicit_type (infer->get_ref (), infer);
   mappings.insert_location (infer->get_ref (), locus);
 
   return TyVar (infer->get_ref ());
@@ -95,10 +91,7 @@ TyVar::monomorphized_clone () const
   c->set_ref (mappings.get_next_hir_id ());
 
   // insert it
-  context->insert_type (Analysis::NodeMapping (mappings.get_current_crate (),
-					       UNKNOWN_NODEID, c->get_ref (),
-					       UNKNOWN_LOCAL_DEFID),
-			c);
+  context->insert_implicit_type (c->get_ref (), c);
 
   return TyVar (c->get_ref ());
 }

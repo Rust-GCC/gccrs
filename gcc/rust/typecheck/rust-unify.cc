@@ -107,7 +107,8 @@ UnifyRules::commit (TyTy::BaseType *base, TyTy::BaseType *other,
 	      auto node = Analysis::NodeMapping (mappings.get_current_crate (),
 						 UNKNOWN_NODEID, ref,
 						 UNKNOWN_LOCAL_DEFID);
-	      context.insert_type (node, resolved->clone ());
+	      context.insert_implicit_type (node.get_hirid (),
+					    resolved->clone ());
 	    }
 	}
     }

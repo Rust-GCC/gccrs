@@ -61,7 +61,8 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalStaticItem &item)
 {
   TyTy::BaseType *actual_type = TypeCheckType::Resolve (item.get_item_type ());
 
-  context->insert_type (item.get_mappings (), actual_type);
+  context->insert_implicit_type (item.get_mappings ().get_hirid (),
+				 actual_type);
   resolved = actual_type;
 }
 
@@ -91,8 +92,8 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
 	      case HIR::GenericParam::GenericKind::TYPE: {
 		auto param_type
 		  = TypeResolveGenericParam::Resolve (*generic_param);
-		context->insert_type (generic_param->get_mappings (),
-				      param_type);
+		context->insert_implicit_type (
+		  generic_param->get_mappings ().get_hirid (), param_type);
 
 		substitutions.push_back (TyTy::SubstitutionParamMapping (
 		  static_cast<HIR::TypeParam &> (*generic_param), param_type));
@@ -149,7 +150,8 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
 
       params.push_back (TyTy::FnParam (std::move (param_pattern), param_tyty));
 
-      context->insert_type (param.get_mappings (), param_tyty);
+      context->insert_implicit_type (param.get_mappings ().get_hirid (),
+				     param_tyty);
 
       // FIXME do we need error checking for patterns here?
       // see https://github.com/Rust-GCC/gccrs/issues/995
@@ -181,7 +183,7 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);
 
-  context->insert_type (function.get_mappings (), fnType);
+  context->insert_implicit_type (function.get_mappings ().get_hirid (), fnType);
   resolved = fnType;
 }
 
@@ -450,7 +452,8 @@ TypeCheckImplItem::visit (HIR::Function &function)
 	    }
 	}
 
-      context->insert_type (self_param.get_mappings (), self_type);
+      context->insert_implicit_type (self_param.get_mappings ().get_hirid (),
+				     self_type);
       params.push_back (TyTy::FnParam (std::move (self_pattern), self_type));
     }
 
@@ -459,7 +462,8 @@ TypeCheckImplItem::visit (HIR::Function &function)
       // get the name as well required for later on
       auto param_tyty = TypeCheckType::Resolve (param.get_type ());
 
-      context->insert_type (param.get_mappings (), param_tyty);
+      context->insert_implicit_type (param.get_mappings ().get_hirid (),
+				     param_tyty);
       TypeCheckPattern::Resolve (param.get_param_name (), param_tyty);
 
       params.push_back (
@@ -496,7 +500,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);
 
-  context->insert_type (function.get_mappings (), fnType);
+  context->insert_implicit_type (function.get_mappings ().get_hirid (), fnType);
   result = fnType;
 
   // need to get the return type from this
@@ -530,7 +534,8 @@ TypeCheckImplItem::visit (HIR::ConstantItem &constant)
     TyTy::TyWithLocation (type, constant.get_type ().get_locus ()),
     TyTy::TyWithLocation (expr_type, constant.get_expr ().get_locus ()),
     constant.get_locus ());
-  context->insert_type (constant.get_mappings (), unified);
+  context->insert_implicit_type (constant.get_mappings ().get_hirid (),
+				 unified);
   result = unified;
 }
 
@@ -545,7 +550,8 @@ TypeCheckImplItem::visit (HIR::TypeAlias &alias)
   TyTy::BaseType *actual_type
     = TypeCheckType::Resolve (alias.get_type_aliased ());
 
-  context->insert_type (alias.get_mappings (), actual_type);
+  context->insert_implicit_type (alias.get_mappings ().get_hirid (),
+				 actual_type);
   result = actual_type;
   TyTy::RegionConstraints region_constraints;
   for (auto &where_clause_item : alias.get_where_clause ().get_items ())
@@ -688,7 +694,7 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
 				raw_trait_item->get_mappings ().get_defid (),
 				substitutions);
 
-  context->insert_type (type.get_mappings (), projection);
+  context->insert_implicit_type (type.get_mappings ().get_hirid (), projection);
   raw_trait_item->associated_type_set (projection);
 }
 
