@@ -41,7 +41,8 @@ TypeCheckPattern::Resolve (HIR::Pattern &pattern, TyTy::BaseType *parent)
   if (resolver.infered == nullptr)
     return new TyTy::ErrorType (pattern.get_mappings ().get_hirid ());
 
-  resolver.context->insert_type (pattern.get_mappings (), resolver.infered);
+  resolver.context->insert_implicit_type (pattern.get_mappings ().get_hirid (),
+					  resolver.infered);
   return resolver.infered;
 }
 
@@ -246,7 +247,8 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
 	    TyTy::BaseType *fty = field->get_field_type ();
 
 	    // setup the type on this pattern type
-	    context->insert_type (pattern->get_mappings (), fty);
+	    context->insert_implicit_type (
+	      pattern->get_mappings ().get_hirid (), fty);
 	    TypeCheckPattern::Resolve (*pattern, fty);
 	  }
       }
@@ -357,7 +359,8 @@ TypeCheckPattern::visit (HIR::StructPattern &pattern)
 
 	    // setup the type on this pattern
 	    TyTy::BaseType *fty = field->get_field_type ();
-	    context->insert_type (ident.get_mappings (), fty);
+	    context->insert_implicit_type (ident.get_mappings ().get_hirid (),
+					   fty);
 	  }
 	  break;
 	}
