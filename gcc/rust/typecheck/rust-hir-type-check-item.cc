@@ -203,9 +203,9 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
       auto &nr_ctx
 	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      path = nr_ctx.values
-	       .to_canonical_path (struct_decl.get_mappings ().get_nodeid ())
-	       .value ();
+      path
+	= nr_ctx.to_canonical_path (struct_decl.get_mappings ().get_nodeid ())
+	    .value ();
     }
   else
     {
@@ -282,8 +282,8 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
     {
       auto &nr_ctx
 	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
-      auto canonical_path = nr_ctx.types.to_canonical_path (
-	struct_decl.get_mappings ().get_nodeid ());
+      auto canonical_path
+	= nr_ctx.to_canonical_path (struct_decl.get_mappings ().get_nodeid ());
 
       if (!canonical_path.has_value ())
 	rust_unreachable ();
@@ -361,8 +361,8 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
       auto &nr_ctx
 	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      canonical_path = nr_ctx.types.to_canonical_path (
-	enum_decl.get_mappings ().get_nodeid ());
+      canonical_path
+	= nr_ctx.to_canonical_path (enum_decl.get_mappings ().get_nodeid ());
     }
   else
     {
@@ -424,8 +424,8 @@ TypeCheckItem::visit (HIR::Union &union_decl)
       auto &nr_ctx
 	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      canonical_path = nr_ctx.types.to_canonical_path (
-	union_decl.get_mappings ().get_nodeid ());
+      canonical_path
+	= nr_ctx.to_canonical_path (union_decl.get_mappings ().get_nodeid ());
     }
   else
     {
@@ -598,8 +598,8 @@ TypeCheckItem::visit (HIR::Function &function)
     {
       auto &nr_ctx
 	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
-      auto canonical_path = nr_ctx.values.to_canonical_path (
-	function.get_mappings ().get_nodeid ());
+      auto canonical_path
+	= nr_ctx.to_canonical_path (function.get_mappings ().get_nodeid ());
 
       path = canonical_path.value ();
     }
