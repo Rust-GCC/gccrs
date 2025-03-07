@@ -209,7 +209,7 @@ public:
   ForeverStack<Namespace::Labels> labels;
 
   Analysis::Mappings &mappings;
-
+  CrateNum crate_num;
   // TODO: Rename
   // TODO: Use newtype pattern for Usage and Definition
   void map_usage (Usage usage, Definition definition);
@@ -255,6 +255,8 @@ public:
 
     return tl::nullopt;
   }
+
+  tl::optional<Resolver::CanonicalPath> to_canonical_path (NodeId id) const;
 
 private:
   /* Map of "usage" nodes which have been resolved to a "definition" node */

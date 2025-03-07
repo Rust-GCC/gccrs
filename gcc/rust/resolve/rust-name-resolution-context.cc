@@ -24,7 +24,8 @@ namespace Rust {
 namespace Resolver2_0 {
 
 NameResolutionContext::NameResolutionContext ()
-  : mappings (Analysis::Mappings::get ())
+  : mappings (Analysis::Mappings::get ()),
+    crate_num (mappings.get_current_crate ())
 {}
 
 tl::expected<NodeId, DuplicateNameError>
@@ -153,6 +154,22 @@ NameResolutionContext::scoped (Rib::Kind rib_kind, Namespace ns,
     case Namespace::Macros:
       gcc_unreachable ();
     }
+}
+
+tl::optional<Resolver::CanonicalPath>
+NameResolutionContext::to_canonical_path (NodeId id) const
+{
+  return values.to_canonical_path (id)
+    .or_else ([=] () { return types.to_canonical_path (id); })
+    .or_else ([=] () { return macros.to_canonical_path (id); })
+    .and_then ([=] (Resolver::CanonicalPath path) {
+      auto prefix = Resolver::CanonicalPath::new_seg (
+	mappings.crate_num_to_nodeid (crate_num).value (),
+	mappings.get_crate_name (crate_num).value ());
+      prefix.set_crate_num (crate_num);
+
+      return tl::optional<Resolver::CanonicalPath> (prefix.append (path));
+    });
 }
 
 } // namespace Resolver2_0
