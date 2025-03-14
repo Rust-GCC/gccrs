@@ -1,3 +1,34 @@
+2024-04-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-decl.cc (previous_tag): Fix duplicated words in comment; the the
+	-> the.
+	(diagnose_mismatched_decls): Fix duplicated words in comment;
+	about about -> about.
+
+2024-04-05  Martin Uecker  <uecker@tugraz.at>
+
+	Revert:
+	2024-04-02  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/114361
+	* c-decl.cc (finish_struct): Set TYPE_CANONICAL when completing
+	strucute types.
+
+2024-04-02  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/114361
+	* c-decl.cc (finish_struct): Set TYPE_CANONICAL when completing
+	strucute types.
+
+2024-03-14  Chung-Lin Tang  <cltang@baylibre.com>
+
+	* c-parser.cc (c_parser_oacc_data_clause): Add parsing support for
+	'readonly' modifier, set OMP_CLAUSE_MAP_READONLY if readonly modifier
+	found, update comments.
+	(c_parser_oacc_cache): Add parsing support for 'readonly' modifier,
+	set OMP_CLAUSE__CACHE__READONLY if readonly modifier found, update
+	comments.
+
 2024-03-08  Jakub Jelinek  <jakub@redhat.com>
 
 	PR debug/113918

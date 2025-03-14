@@ -33,11 +33,12 @@ FROM Debug IMPORT Halt ;
 FROM m2linemap IMPORT location_t ;
 FROM m2configure IMPORT FullPathCPP, TargetIEEEQuadDefault ;
 FROM M2Error IMPORT InternalError ;
-
+FROM FormatStrings IMPORT Sprintf1 ;
+FROM m2misc IMPORT cerror ;
 
 FROM DynamicStrings IMPORT String, Length, InitString, Mark, Slice, EqualArray,
                            InitStringCharStar, ConCatChar, ConCat, KillString,
-                           Dup, string, char,
+                           Dup, string, char, Index,
                            PushAllocation, PopAllocationExemption,
                            InitStringDB, InitStringCharStarDB,
                            InitStringCharDB, MultDB, DupDB, SliceDB ;
@@ -56,6 +57,10 @@ CONST
    DefaultRuntimeModuleOverride = "m2iso:RTentity,m2iso:Storage,m2iso:SYSTEM,m2iso:M2RTS,m2iso:RTExceptions,m2iso:IOLink" ;
 
 VAR
+   DumpLangDeclFilename,
+   DumpLangQuadFilename,
+   DumpLangGimpleFilename,
+   M2DumpFilter,
    M2Prefix,
    M2PathName,
    Barg,
@@ -70,6 +75,11 @@ VAR
    UselistFilename,
    RuntimeModuleOverride,
    CppArgs              : String ;
+   DebugFunctionLineNumbers,
+   DebugTraceQuad,   (* -fdebug-trace-quad.  *)
+   DebugTraceTree,   (* -fdebug-trace-tree.  *)
+   DebugTraceLine,   (* -fdebug-trace-line.  *)
+   DebugTraceToken, (* -fdebug-trace-token.  *)
    MFlag,
    MMFlag,
    MPFlag,
@@ -312,6 +322,22 @@ PROCEDURE GetMP () : BOOLEAN ;
 BEGIN
    RETURN MPFlag
 END GetMP ;
+
+
+(*
+   errors1 -
+*)
+
+PROCEDURE errors1 (format: ARRAY OF CHAR; arg: String) ;
+VAR
+   message: String ;
+   cstr   : ADDRESS ;
+BEGIN
+   message := Sprintf1 (InitString (format), arg) ;
+   cstr := string (message) ;
+   cerror (cstr) ;
+   exit (1)
+END errors1 ;
 
 
 (*
@@ -667,6 +693,16 @@ PROCEDURE GetCpp () : BOOLEAN ;
 BEGIN
    RETURN CPreProcessor
 END GetCpp ;
+
+
+(*
+   GetLineDirectives - returns TRUE if line directives are allowed.
+*)
+
+PROCEDURE GetLineDirectives () : BOOLEAN ;
+BEGIN
+   RETURN LineDirectives
+END GetLineDirectives ;
 
 
 (*
@@ -1049,7 +1085,9 @@ END SetSwig ;
 
 PROCEDURE SetQuadDebugging (value: BOOLEAN) ;
 BEGIN
-   DisplayQuadruples := value
+   DumpLangQuad := value ;
+   DumpLangQuadFilename := KillString (DumpLangQuadFilename) ;
+   DumpLangQuadFilename := InitString ('-')
 END SetQuadDebugging ;
 
 
@@ -1064,23 +1102,121 @@ END SetCompilerDebugging ;
 
 
 (*
-   SetDebugTraceQuad -
+   SetM2DebugTraceFilter - set internal debug flags.  The flags should be
+                           specified as a comma separated list.  The full
+                           list allowed is quad,line,token,all.
 *)
 
-PROCEDURE SetDebugTraceQuad (value: BOOLEAN) ;
+PROCEDURE SetM2DebugTraceFilter (value: BOOLEAN; filter: ADDRESS) ;
+VAR
+   word,
+   full  : String ;
+   start,
+   i     : INTEGER ;
 BEGIN
-   DebugTraceQuad := value
-END SetDebugTraceQuad ;
+   full := InitStringCharStar (filter) ;
+   start := 0 ;
+   REPEAT
+      i := Index (full, ',', start) ;
+      IF i = -1
+      THEN
+         word := Slice (full, start, 0)
+      ELSE
+         word := Slice (full, start, i)
+      END ;
+      SetM2DebugTrace (word, value) ;
+      word := KillString (word) ;
+      start := i+1 ;
+   UNTIL i = -1 ;
+   full := KillString (full) ;
+END SetM2DebugTraceFilter ;
 
 
 (*
-   SetDebugTraceAPI -
+   SetM2DebugTrace -
 *)
 
-PROCEDURE SetDebugTraceAPI (value: BOOLEAN) ;
+PROCEDURE SetM2DebugTrace (word: String; value: BOOLEAN) ;
 BEGIN
-   DebugTraceAPI := value
-END SetDebugTraceAPI ;
+   IF EqualArray (word, 'all')
+   THEN
+      (* DebugTraceTree := value *)
+      DebugTraceQuad := value ;
+      DebugTraceToken := value ;
+      DebugTraceLine := value
+   ELSIF EqualArray (word, 'quad')
+   THEN
+      DebugTraceQuad := value
+   ELSIF EqualArray (word, 'token')
+   THEN
+      DebugTraceToken := value
+   ELSIF EqualArray (word, 'line')
+   THEN
+      DebugTraceLine := value
+   ELSE
+      errors1 ("unrecognized filter %s seen in -fm2-debug-trace= option\n", word)
+   END
+END SetM2DebugTrace ;
+
+
+(*
+   SetDebugFunctionLineNumbers - set DebugFunctionLineNumbers.
+*)
+
+PROCEDURE SetDebugFunctionLineNumbers (value: BOOLEAN) ;
+BEGIN
+   DebugFunctionLineNumbers := value
+END SetDebugFunctionLineNumbers ;
+
+
+(*
+   GetDebugTraceQuad - return DebugTraceQuad.
+*)
+
+PROCEDURE GetDebugTraceQuad () : BOOLEAN ;
+BEGIN
+   RETURN DebugTraceQuad
+END GetDebugTraceQuad ;
+
+
+(*
+   GetDebugTraceTree - return DebugTraceTree.
+*)
+
+PROCEDURE GetDebugTraceTree () : BOOLEAN ;
+BEGIN
+   RETURN DebugTraceTree
+END GetDebugTraceTree ;
+
+
+(*
+   GetDebugTraceToken - return DebugTraceToken.
+*)
+
+PROCEDURE GetDebugTraceToken () : BOOLEAN ;
+BEGIN
+   RETURN DebugTraceToken
+END GetDebugTraceToken ;
+
+
+(*
+   GetDebugTraceLine - return DebugTraceLine.
+*)
+
+PROCEDURE GetDebugTraceLine () : BOOLEAN ;
+BEGIN
+   RETURN DebugTraceLine
+END GetDebugTraceLine ;
+
+
+(*
+   GetDebugFunctionLineNumbers - return DebugFunctionLineNumbers.
+*)
+
+PROCEDURE GetDebugFunctionLineNumbers () : BOOLEAN ;
+BEGIN
+   RETURN DebugFunctionLineNumbers
+END GetDebugFunctionLineNumbers ;
 
 
 (*
@@ -1219,17 +1355,6 @@ BEGIN
       RETURN( location )
    END
 END OverrideLocation ;
-
-
-(*
-   SetDebugFunctionLineNumbers - turn DebugFunctionLineNumbers on/off
-                                 (used internally for debugging).
-*)
-
-PROCEDURE SetDebugFunctionLineNumbers (value: BOOLEAN) ;
-BEGIN
-   DebugFunctionLineNumbers := value
-END SetDebugFunctionLineNumbers ;
 
 
 (*
@@ -1670,6 +1795,121 @@ BEGIN
 END InitializeLongDoubleFlags ;
 
 
+(*
+   GetDumpLangDeclFilename - returns the DumpLangDeclFilename.
+*)
+
+PROCEDURE GetDumpLangDeclFilename () : String ;
+BEGIN
+   RETURN DumpLangDeclFilename
+END GetDumpLangDeclFilename ;
+
+
+(*
+   SetDumpLangDeclFilename -
+*)
+
+PROCEDURE SetDumpLangDeclFilename (value: BOOLEAN; filename: ADDRESS) ;
+BEGIN
+   DumpLangDecl := value ;
+   DumpLangDeclFilename := KillString (DumpLangDeclFilename) ;
+   IF filename # NIL
+   THEN
+      DumpLangDeclFilename := InitStringCharStar (filename)
+   END
+END SetDumpLangDeclFilename ;
+
+
+(*
+   GetDumpLangQuadFilename - returns the DumpLangQuadFilename.
+*)
+
+PROCEDURE GetDumpLangQuadFilename () : String ;
+BEGIN
+   RETURN DumpLangQuadFilename
+END GetDumpLangQuadFilename ;
+
+
+(*
+   SetDumpLangQuadFilename -
+*)
+
+PROCEDURE SetDumpLangQuadFilename (value: BOOLEAN; filename: ADDRESS) ;
+BEGIN
+   DumpLangQuad := value ;
+   DumpLangQuadFilename := KillString (DumpLangQuadFilename) ;
+   IF filename # NIL
+   THEN
+      DumpLangQuadFilename := InitStringCharStar (filename)
+   END
+END SetDumpLangQuadFilename ;
+
+
+(*
+   GetDumpLangGimpleFilename - returns the DumpLangGimpleFilename.
+*)
+
+PROCEDURE GetDumpLangGimpleFilename () : String ;
+BEGIN
+   RETURN DumpLangGimpleFilename
+END GetDumpLangGimpleFilename ;
+
+
+(*
+   SetDumpLangGimpleFilename - set DumpLangGimpleFilename to filename.
+*)
+
+PROCEDURE SetDumpLangGimpleFilename (value: BOOLEAN; filename: ADDRESS) ;
+BEGIN
+   DumpLangGimple := value ;
+   DumpLangGimpleFilename := KillString (DumpLangGimpleFilename) ;
+   IF value AND (filename # NIL)
+   THEN
+      DumpLangGimpleFilename := InitStringCharStar (filename)
+   END
+END SetDumpLangGimpleFilename ;
+
+
+(*
+   SetM2DumpFilter - sets the filter to a comma separated list of procedures
+                     and modules.
+*)
+
+PROCEDURE SetM2DumpFilter (value: BOOLEAN; filter: ADDRESS) ;
+BEGIN
+   M2DumpFilter := KillString (M2DumpFilter) ;
+   IF value AND (filter # NIL)
+   THEN
+      M2DumpFilter := InitStringCharStar (filter)
+   END
+END SetM2DumpFilter ;
+
+
+(*
+   GetM2DumpFilter - returns the dump filter.
+*)
+
+PROCEDURE GetM2DumpFilter () : ADDRESS ;
+BEGIN
+   IF M2DumpFilter = NIL
+   THEN
+      RETURN NIL
+   ELSE
+      RETURN string (M2DumpFilter)
+   END
+END GetM2DumpFilter ;
+
+
+(*
+   GetDumpLangGimple - return TRUE if -fdump-lang-gimple is set.
+*)
+
+PROCEDURE GetDumpLangGimple () : BOOLEAN ;
+BEGIN
+   RETURN DumpLangGimple
+END GetDumpLangGimple ;
+
+
 BEGIN
    cflag                             := FALSE ;  (* -c.  *)
    RuntimeModuleOverride             := InitString (DefaultRuntimeModuleOverride) ;
@@ -1691,7 +1931,7 @@ BEGIN
    Quiet                             :=  TRUE ;
    CC1Quiet                          :=  TRUE ;
    Profiling                         := FALSE ;
-   DisplayQuadruples                 := FALSE ;
+   DumpLangQuad                      := FALSE ;
    OptimizeBasicBlock                := FALSE ;
    OptimizeUncalledProcedures        := FALSE ;
    OptimizeCommonSubExpressions      := FALSE ;
@@ -1704,7 +1944,7 @@ BEGIN
    ReturnChecking                    := FALSE ;
    CaseElseChecking                  := FALSE ;
    CPreProcessor                     := FALSE ;
-   LineDirectives                    := FALSE ;
+   LineDirectives                    := TRUE ;
    ExtendedOpaque                    := FALSE ;
    UnboundedByReference              := FALSE ;
    VerboseUnbounded                  := FALSE ;
@@ -1718,7 +1958,9 @@ BEGIN
    ForcedLocation                    := FALSE ;
    WholeProgram                      := FALSE ;
    DebugTraceQuad                    := FALSE ;
-   DebugTraceAPI                     := FALSE ;
+   DebugTraceTree                    := FALSE ;
+   DebugTraceLine                    := FALSE ;
+   DebugTraceToken                   := FALSE ;
    DebugFunctionLineNumbers          := FALSE ;
    GenerateStatementNote             := FALSE ;
    LowerCaseKeywords                 := FALSE ;
@@ -1751,5 +1993,12 @@ BEGIN
    MQFlag                            := NIL ;
    InitializeLongDoubleFlags ;
    M2Prefix                          := InitString ('') ;
-   M2PathName                        := InitString ('')
+   M2PathName                        := InitString ('') ;
+   DumpLangQuadFilename              := NIL ;
+   DumpLangGimpleFilename            := NIL ;
+   DumpLangDeclFilename              := NIL ;
+   DumpLangDecl                      := FALSE ;
+   DumpLangQuad                      := FALSE ;
+   DumpLangGimple                    := FALSE ;
+   M2DumpFilter                      := NIL
 END M2Options.
