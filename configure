@@ -9553,9 +9553,14 @@ fi
 # build of the Rust frontend in case a dep is missing.
 missing_rust_dynlibs=none
 
-save_LIBS="$LIBS"
-LIBS=
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing dlopen" >&5
+case "${target}" in
+  *-*-mingw*)
+    CRAB1_LIBS="-lkernel32 -luser32 -lmsvcrt -lmingwex -lmingw32 -lmingwex -lws2_32"
+    ;;
+  *)
+    save_LIBS="$LIBS"
+    LIBS=
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing dlopen" >&5
 $as_echo_n "checking for library containing dlopen... " >&6; }
 if ${ac_cv_search_dlopen+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -9611,7 +9616,7 @@ if test "$ac_res" != no; then :
 
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing pthread_create" >&5
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing pthread_create" >&5
 $as_echo_n "checking for library containing pthread_create... " >&6; }
 if ${ac_cv_search_pthread_create+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -9667,8 +9672,10 @@ if test "$ac_res" != no; then :
 
 fi
 
-CRAB1_LIBS="$LIBS"
-LIBS="$save_LIBS"
+    CRAB1_LIBS="$LIBS"
+    LIBS="$save_LIBS"
+    ;;
+esac
 
 if test "$ac_cv_search_dlopen" = no; then
     missing_rust_dynlibs="libdl"
@@ -9922,20 +9929,15 @@ $as_echo "$as_me: WARNING: GDC is required to build $language" >&2;}
         esac
 
         # Disable Rust if we are missing some required C libraries for the Rust runtime.
-        case ${add_this_lang}:${language}:${missing_rust_dynlibs} in
-          *:rust:none)
-            # Nothing to do - we're not missing any C libraries
+        case ${add_this_lang}:${language}:${missing_rust_dynlibs}:${target} in
+          *:rust:none:* | *:rust:*:*-*-mingw*)
+            # Nothing to do - we're not missing any C libraries OR we're using win32
             ;;
-          yes:rust:*)
+          yes:rust:*:* | all:rust:*:*)
             as_fn_error $? "some C libraries are required to build $language: $missing_rust_dynlibs" "$LINENO" 5
             add_this_lang=unsupported
             ;;
-          all:rust:*)
-            { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: some C libraries are required to build $language: $missing_rust_dynlibs" >&5
-$as_echo "$as_me: WARNING: some C libraries are required to build $language: $missing_rust_dynlibs" >&2;}
-            add_this_lang=unsupported
-            ;;
-          *:rust:*)
+          *:rust:*:*)
             # Silently disable.
             add_this_lang=unsupported
             ;;
