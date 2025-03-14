@@ -528,10 +528,9 @@ public:
   NodeId get_node_id () const { return node_id; }
 
   // TODO: is this better? Or is a "vis_block" better?
-  Type &get_type ()
+  tl::optional<Type &> get_type ()
   {
-    rust_assert (has_type ());
-    return *type;
+    return has_type () ? tl::optional<Type &> (*type) : tl::optional<Type &> ();
   }
 
   std::unique_ptr<Type> &get_type_ptr ()
