@@ -153,7 +153,8 @@ TypeCheckItem::visit (HIR::TypeAlias &alias)
   TyTy::BaseType *actual_type
     = TypeCheckType::Resolve (alias.get_type_aliased ());
 
-  context->insert_type (alias.get_mappings (), actual_type);
+  context->insert_implicit_type (alias.get_mappings ().get_hirid (),
+				 actual_type);
 
   TyTy::RegionConstraints region_constraints;
   for (auto &where_clause_item : alias.get_where_clause ().get_items ())
@@ -189,7 +190,8 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
 				     std::to_string (idx), field_type,
 				     field.get_locus ());
       fields.push_back (ty_field);
-      context->insert_type (field.get_mappings (), ty_field->get_field_type ());
+      context->insert_implicit_type (field.get_mappings ().get_hirid (),
+				     ty_field->get_field_type ());
       idx++;
     }
 
@@ -242,7 +244,9 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);
 
-  context->insert_type (struct_decl.get_mappings (), type);
+  context->insert_implicit_type (struct_decl.get_mappings ().get_hirid (),
+				 type);
+
   infered = type;
 
   context->get_variance_analysis_ctx ().add_type_constraints (*type);
@@ -273,7 +277,8 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
 				     field.get_field_name ().as_string (),
 				     field_type, field.get_locus ());
       fields.push_back (ty_field);
-      context->insert_type (field.get_mappings (), ty_field->get_field_type ());
+      context->insert_implicit_type (field.get_mappings ().get_hirid (),
+				     ty_field->get_field_type ());
     }
 
   auto path = CanonicalPath::create_empty ();
@@ -325,7 +330,8 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);
 
-  context->insert_type (struct_decl.get_mappings (), type);
+  context->insert_implicit_type (struct_decl.get_mappings ().get_hirid (),
+				 type);
   infered = type;
 
   context->get_variance_analysis_ctx ().add_type_constraints (*type);
@@ -385,7 +391,7 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
 			 TyTy::ADTType::ADTKind::ENUM, std::move (variants),
 			 std::move (substitutions), repr);
 
-  context->insert_type (enum_decl.get_mappings (), type);
+  context->insert_implicit_type (enum_decl.get_mappings ().get_hirid (), type);
   infered = type;
 
   context->get_variance_analysis_ctx ().add_type_constraints (*type);
@@ -415,8 +421,8 @@ TypeCheckItem::visit (HIR::Union &union_decl)
 				     variant.get_field_name ().as_string (),
 				     variant_type, variant.get_locus ());
       fields.push_back (ty_variant);
-      context->insert_type (variant.get_mappings (),
-			    ty_variant->get_field_type ());
+      context->insert_implicit_type (variant.get_mappings ().get_hirid (),
+				     ty_variant->get_field_type ());
     }
 
   // get the path
@@ -457,7 +463,7 @@ TypeCheckItem::visit (HIR::Union &union_decl)
 			 TyTy::ADTType::ADTKind::UNION, std::move (variants),
 			 std::move (substitutions));
 
-  context->insert_type (union_decl.get_mappings (), type);
+  context->insert_implicit_type (union_decl.get_mappings ().get_hirid (), type);
   infered = type;
 
   context->get_variance_analysis_ctx ().add_type_constraints (*type);
@@ -475,7 +481,7 @@ TypeCheckItem::visit (HIR::StaticItem &var)
 		     TyTy::TyWithLocation (expr_type,
 					   var.get_expr ().get_locus ()),
 		     var.get_locus ());
-  context->insert_type (var.get_mappings (), unified);
+  context->insert_implicit_type (var.get_mappings ().get_hirid (), unified);
   infered = unified;
 }
 
@@ -490,7 +496,8 @@ TypeCheckItem::visit (HIR::ConstantItem &constant)
     TyTy::TyWithLocation (type, constant.get_type ().get_locus ()),
     TyTy::TyWithLocation (expr_type, constant.get_expr ().get_locus ()),
     constant.get_locus ());
-  context->insert_type (constant.get_mappings (), unified);
+  context->insert_implicit_type (constant.get_mappings ().get_hirid (),
+				 unified);
   infered = unified;
 }
 
@@ -589,7 +596,8 @@ TypeCheckItem::visit (HIR::Function &function)
     {
       // get the name as well required for later on
       auto param_tyty = TypeCheckType::Resolve (param.get_type ());
-      context->insert_type (param.get_mappings (), param_tyty);
+      context->insert_implicit_type (param.get_mappings ().get_hirid (),
+				     param_tyty);
       TypeCheckPattern::Resolve (param.get_param_name (), param_tyty);
       params.push_back (
 	TyTy::FnParam (param.get_param_name ().clone_pattern (), param_tyty));
@@ -626,7 +634,8 @@ TypeCheckItem::visit (HIR::Function &function)
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);
 
-  context->insert_type (function.get_mappings (), fn_type);
+  context->insert_implicit_type (function.get_mappings ().get_hirid (),
+				 fn_type);
 
   // need to get the return type from this
   TyTy::FnType *resolved_fn_type = fn_type;

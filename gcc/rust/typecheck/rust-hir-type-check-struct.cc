@@ -131,7 +131,8 @@ TypeCheckStructExpr::resolve (HIR::StructExprStructFields &struct_expr)
 	  break;
 	}
 
-      context->insert_type (field->get_mappings (), resolved_field_value_expr);
+      context->insert_implicit_type (field->get_mappings ().get_hirid (),
+				     resolved_field_value_expr);
     }
 
   // something failed setting up the fields

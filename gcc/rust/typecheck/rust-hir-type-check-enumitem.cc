@@ -77,7 +77,7 @@ TypeCheckEnumItem::visit (HIR::EnumItem &item)
   TyTy::BaseType *isize = nullptr;
   bool ok = context->lookup_builtin ("isize", &isize);
   rust_assert (ok);
-  context->insert_type (mapping, isize);
+  context->insert_implicit_type (mapping.get_hirid (), isize);
 
   tl::optional<CanonicalPath> canonical_path;
 
@@ -117,7 +117,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemDiscriminant &item)
 
   TyTy::ISizeType *expected_ty
     = new TyTy::ISizeType (discriminant.get_mappings ().get_hirid ());
-  context->insert_type (discriminant.get_mappings (), expected_ty);
+  context->insert_implicit_type (discriminant.get_mappings ().get_hirid (),
+				 expected_ty);
 
   unify_site (item.get_mappings ().get_hirid (),
 	      TyTy::TyWithLocation (expected_ty),
@@ -166,7 +167,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
 				     std::to_string (idx), field_type,
 				     field.get_locus ());
       fields.push_back (ty_field);
-      context->insert_type (field.get_mappings (), ty_field->get_field_type ());
+      context->insert_implicit_type (field.get_mappings ().get_hirid (),
+				     ty_field->get_field_type ());
       idx++;
     }
 
@@ -183,7 +185,7 @@ TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
   TyTy::BaseType *isize = nullptr;
   bool ok = context->lookup_builtin ("isize", &isize);
   rust_assert (ok);
-  context->insert_type (mapping, isize);
+  context->insert_implicit_type (mapping.get_hirid (), isize);
 
   tl::optional<CanonicalPath> canonical_path;
 
@@ -227,7 +229,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
 				     field.get_field_name ().as_string (),
 				     field_type, field.get_locus ());
       fields.push_back (ty_field);
-      context->insert_type (field.get_mappings (), ty_field->get_field_type ());
+      context->insert_implicit_type (field.get_mappings ().get_hirid (),
+				     ty_field->get_field_type ());
     }
 
   Analysis::NodeMapping mapping (item.get_mappings ().get_crate_num (),
@@ -243,7 +246,7 @@ TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
   TyTy::BaseType *isize = nullptr;
   bool ok = context->lookup_builtin ("isize", &isize);
   rust_assert (ok);
-  context->insert_type (mapping, isize);
+  context->insert_implicit_type (mapping.get_hirid (), isize);
 
   tl::optional<CanonicalPath> canonical_path;
 

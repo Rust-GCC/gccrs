@@ -80,17 +80,6 @@ TypeCheckContext::get_builtins () const
 }
 
 void
-TypeCheckContext::insert_type (const Analysis::NodeMapping &mappings,
-			       TyTy::BaseType *type)
-{
-  rust_assert (type != nullptr);
-  NodeId ref = mappings.get_nodeid ();
-  HirId id = mappings.get_hirid ();
-  node_id_refs[ref] = id;
-  resolved[id] = type;
-}
-
-void
 TypeCheckContext::insert_implicit_type (HirId id, TyTy::BaseType *type)
 {
   rust_assert (type != nullptr);
@@ -597,9 +586,7 @@ TypeCheckContext::compute_inference_variables (bool error)
     rust_assert (result);
     rust_assert (result->get_kind () != TyTy::TypeKind::ERROR);
     result->set_ref (id);
-    insert_type (Analysis::NodeMapping (mappings.get_current_crate (), 0, id,
-					UNKNOWN_LOCAL_DEFID),
-		 result);
+    insert_implicit_type (id, result);
 
     return true;
   });
