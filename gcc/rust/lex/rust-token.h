@@ -143,8 +143,10 @@ enum PrimitiveCoreType
   /* Macros */                                                                 \
   RS_TOKEN (DOLLAR_SIGN, "$")                                                  \
   /* Doc Comments */                                                           \
-  RS_TOKEN (INNER_DOC_COMMENT, "#![doc]")                                      \
-  RS_TOKEN (OUTER_DOC_COMMENT, "#[doc]")                                       \
+  RS_TOKEN (INNER_DOC_COMMENT, "/**!")                                         \
+  RS_TOKEN (OUTER_DOC_COMMENT, "/**")                                          \
+  RS_TOKEN (DOC_COMMENT_END, "*/")                                             \
+  RS_TOKEN (DOC_STRING_LITERAL, "string")                                      \
   RS_TOKEN_KEYWORD_2015 (ABSTRACT, "abstract") /* unused */                    \
   RS_TOKEN_KEYWORD_2015 (AS, "as")                                             \
   RS_TOKEN_KEYWORD_2018 (ASYNC, "async") /* unused */                          \
@@ -395,6 +397,11 @@ public:
     return TokenPtr (new Token (OUTER_DOC_COMMENT, locus, std::move (str)));
   }
 
+  static TokenPtr make_doc_string_literal (location_t locus, std::string &&str)
+  {
+    return TokenPtr (new Token (DOC_STRING_LITERAL, locus, std::move (str)));
+  }
+
   // Makes and returns a new TokenPtr of type LIFETIME.
   static TokenPtr make_lifetime (location_t locus, std::string &&str)
   {
@@ -457,6 +464,7 @@ return *str;
       case BYTE_CHAR_LITERAL:
       case BYTE_STRING_LITERAL:
       case RAW_STRING_LITERAL:
+      case DOC_STRING_LITERAL:
 	return true;
       default:
 	return false;
