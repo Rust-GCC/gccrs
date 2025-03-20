@@ -6,8 +6,6 @@ const_generics_4.rs
 feature_rust_attri0.rs
 generics9.rs
 issue-1483.rs
-issue-1901.rs
-issue-1981.rs
 issue-2043.rs
 issue-2330.rs
 issue-2812.rs
@@ -28,7 +26,6 @@ pub_restricted_3.rs
 redef_error2.rs
 redef_error5.rs
 self-path2.rs
-sizeof-stray-infer-var-bug.rs
 struct-expr-parse.rs
 undeclared_label.rs
 use_1.rs
