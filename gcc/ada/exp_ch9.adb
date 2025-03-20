@@ -2114,9 +2114,14 @@ package body Exp_Ch9 is
    is
       Def     : Node_Id;
       Rec_Typ : Entity_Id;
+
       procedure Scan_Declarations (L : List_Id);
       --  Common processing for visible and private declarations
       --  of a protected type.
+
+      -----------------------
+      -- Scan_Declarations --
+      -----------------------
 
       procedure Scan_Declarations (L : List_Id) is
          Decl      : Node_Id;
@@ -2124,10 +2129,6 @@ package body Exp_Ch9 is
          Wrap_Spec : Node_Id;
 
       begin
-         if No (L) then
-            return;
-         end if;
-
          Decl := First (L);
          while Present (Decl) loop
             Wrap_Spec := Empty;
