@@ -3,7 +3,6 @@ canonical_paths1.rs
 cfg1.rs
 const_generics_3.rs
 const_generics_4.rs
-feature_rust_attri0.rs
 generics9.rs
 issue-1483.rs
 issue-1901.rs
