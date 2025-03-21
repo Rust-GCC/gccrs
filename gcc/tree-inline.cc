@@ -2049,6 +2049,17 @@ copy_bb (copy_body_data *id, basic_block bb,
 
   copy_gsi = gsi_start_bb (copy_basic_block);
 
+  unsigned min_cond_uid = 0;
+  if (id->src_cfun->cond_uids)
+    {
+      if (!cfun->cond_uids)
+	cfun->cond_uids = new hash_map <gcond*, unsigned> ();
+
+      for (auto itr : *id->src_cfun->cond_uids)
+	if (itr.second >= min_cond_uid)
+	  min_cond_uid = itr.second + 1;
+    }
+
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     {
       gimple_seq stmts;
@@ -2075,6 +2086,18 @@ copy_bb (copy_body_data *id, basic_block bb,
 
 	  if (gimple_nop_p (stmt))
 	      continue;
+
+	  /* If -fcondition-coverage is used, register the inlined conditions
+	     in the cond->expression mapping of the caller.  The expression tag
+	     is shifted conditions from the two bodies are not mixed.  */
+	  if (id->src_cfun->cond_uids && is_a <gcond*> (stmt))
+	    {
+	      gcond *orig_cond = as_a <gcond*> (orig_stmt);
+	      gcond *cond = as_a <gcond*> (stmt);
+	      unsigned *v = id->src_cfun->cond_uids->get (orig_cond);
+	      if (v)
+		cfun->cond_uids->put (cond, *v + min_cond_uid);
+	    }
 
 	  gimple_duplicate_stmt_histograms (cfun, stmt, id->src_cfun,
 					    orig_stmt);

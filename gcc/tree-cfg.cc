@@ -297,6 +297,9 @@ replace_loop_annotate_in_block (basic_block bb, class loop *loop)
 	  loop->can_be_parallel = true;
 	  loop->safelen = INT_MAX;
 	  break;
+	case annot_expr_maybe_infinite_kind:
+	  loop->finite_p = false;
+	  break;
 	default:
 	  gcc_unreachable ();
 	}
@@ -320,12 +323,12 @@ replace_loop_annotate (void)
 
   for (auto loop : loops_list (cfun, 0))
     {
+      /* Push the global flag_finite_loops state down to individual loops.  */
+      loop->finite_p = flag_finite_loops;
+
       /* Check all exit source blocks for annotations.  */
       for (auto e : get_loop_exit_edges (loop))
 	replace_loop_annotate_in_block (e->src, loop);
-
-      /* Push the global flag_finite_loops state down to individual loops.  */
-      loop->finite_p = flag_finite_loops;
     }
 
   /* Remove IFN_ANNOTATE.  Safeguard for the case loop->latch == NULL.  */
@@ -347,6 +350,7 @@ replace_loop_annotate (void)
 	    case annot_expr_no_vector_kind:
 	    case annot_expr_vector_kind:
 	    case annot_expr_parallel_kind:
+	    case annot_expr_maybe_infinite_kind:
 	      break;
 	    default:
 	      gcc_unreachable ();
@@ -5814,7 +5818,7 @@ gimple_verify_flow_info (void)
 	  if (gimple_code (stmt) == GIMPLE_CALL
 	      && gimple_call_flags (stmt) & ECF_RETURNS_TWICE)
 	    {
-	      const char *misplaced = NULL;
+	      bool misplaced = false;
 	      /* TM is an exception: it points abnormal edges just after the
 		 call that starts a transaction, i.e. it must end the BB.  */
 	      if (gimple_call_builtin_p (stmt, BUILT_IN_TM_START))
@@ -5822,18 +5826,23 @@ gimple_verify_flow_info (void)
 		  if (single_succ_p (bb)
 		      && bb_has_abnormal_pred (single_succ (bb))
 		      && !gsi_one_nondebug_before_end_p (gsi))
-		    misplaced = "not last";
+		    {
+		      error ("returns_twice call is not last in basic block "
+			     "%d", bb->index);
+		      misplaced = true;
+		    }
 		}
 	      else
 		{
-		  if (seen_nondebug_stmt
-		      && bb_has_abnormal_pred (bb))
-		    misplaced = "not first";
+		  if (seen_nondebug_stmt && bb_has_abnormal_pred (bb))
+		    {
+		      error ("returns_twice call is not first in basic block "
+			     "%d", bb->index);
+		      misplaced = true;
+		    }
 		}
 	      if (misplaced)
 		{
-		  error ("returns_twice call is %s in basic block %d",
-			 misplaced, bb->index);
 		  print_gimple_stmt (stderr, stmt, 0, TDF_SLIM);
 		  err = true;
 		}
