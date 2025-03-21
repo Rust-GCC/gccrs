@@ -51,7 +51,8 @@ TypeCheckExpr::Resolve (HIR::Expr &expr)
 
   auto ref = expr.get_mappings ().get_hirid ();
   resolver.infered->set_ref (ref);
-  resolver.context->insert_type (expr.get_mappings (), resolver.infered);
+  resolver.context->insert_implicit_type (expr.get_mappings ().get_hirid (),
+					  resolver.infered);
 
   return resolver.infered;
 }
@@ -1007,8 +1008,9 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
 	TyTy::BaseType *expected_ty = nullptr;
 	bool ok = context->lookup_builtin ("usize", &expected_ty);
 	rust_assert (ok);
-	context->insert_type (elems.get_num_copies_expr ().get_mappings (),
-			      expected_ty);
+	context->insert_implicit_type (
+	  elems.get_num_copies_expr ().get_mappings ().get_hirid (),
+	  expected_ty);
 
 	unify_site (expr.get_mappings ().get_hirid (),
 		    TyTy::TyWithLocation (expected_ty),
@@ -1056,7 +1058,7 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
 	TyTy::BaseType *expected_ty = nullptr;
 	bool ok = context->lookup_builtin ("usize", &expected_ty);
 	rust_assert (ok);
-	context->insert_type (mapping, expected_ty);
+	context->insert_implicit_type (mapping.get_hirid (), expected_ty);
       }
       break;
     }
@@ -1314,7 +1316,8 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
     }
 
   // store the expected fntype
-  context->insert_type (expr.get_method_name ().get_mappings (), lookup);
+  context->insert_implicit_type (
+    expr.get_method_name ().get_mappings ().get_hirid (), lookup);
 
   if (flag_name_resolution_2_0)
     {
