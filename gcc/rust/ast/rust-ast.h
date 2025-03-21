@@ -612,6 +612,9 @@ private:
 
   bool inner_attribute;
 
+  // Only relevant in case of a doc attribute
+  bool from_comment;
+
   // TODO: maybe a variable storing whether attr input is parsed or not
 
 public:
@@ -620,9 +623,10 @@ public:
 
   // Constructor has pointer AttrInput for polymorphism reasons
   Attribute (SimplePath path, std::unique_ptr<AttrInput> input,
-	     location_t locus = UNDEF_LOCATION, bool inner_attribute = false)
+	     location_t locus = UNDEF_LOCATION, bool inner_attribute = false,
+	     bool from_comment = false)
     : path (std::move (path)), attr_input (std::move (input)), locus (locus),
-      inner_attribute (inner_attribute)
+      inner_attribute (inner_attribute), from_comment (from_comment)
   {}
 
   bool is_derive () const;
@@ -656,6 +660,8 @@ public:
 
   // Returns whether the attribute is considered an "empty" attribute.
   bool is_empty () const { return attr_input == nullptr && path.is_empty (); }
+
+  bool is_from_comment () { return from_comment; }
 
   location_t get_locus () const { return locus; }
 
