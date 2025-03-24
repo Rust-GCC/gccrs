@@ -4,7 +4,6 @@ generics9.rs
 issue-2812.rs
 issue-3315-2.rs
 lookup_err1.rs
-macros/mbe/macro6.rs
 multiple_bindings1.rs
 multiple_bindings2.rs
 privacy5.rs
