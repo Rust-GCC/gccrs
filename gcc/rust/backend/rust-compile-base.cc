@@ -1015,5 +1015,52 @@ HIRCompileBase::unit_expression (location_t locus)
   return Backend::constructor_expression (unit_type, false, {}, -1, locus);
 }
 
+bool
+HIRCompileBase::is_lvalue (const_tree ref)
+{
+  const enum tree_code code = TREE_CODE (ref);
+  rust_debug ("Hocus: %d", code);
+  switch (code)
+    {
+    case REALPART_EXPR:
+    case IMAGPART_EXPR:
+    case COMPONENT_REF:
+      return is_lvalue (TREE_OPERAND (ref, 0));
+
+    case COMPOUND_LITERAL_EXPR:
+    case STRING_CST:
+    case CONST_DECL:
+    case INTEGER_CST:
+      return true;
+
+    case MEM_REF:
+    case TARGET_MEM_REF:
+      /* MEM_REFs can appear from -fgimple parsing or folding, so allow them
+	 here as well.  */
+    case INDIRECT_REF:
+      return true;
+    case ARRAY_REF:
+    case VAR_DECL:
+    case PARM_DECL:
+    case RESULT_DECL:
+    case ERROR_MARK:
+      return (TREE_CODE (TREE_TYPE (ref)) != FUNCTION_TYPE
+	      && TREE_CODE (TREE_TYPE (ref)) != METHOD_TYPE);
+
+    case BIND_EXPR:
+      return TREE_CODE (TREE_TYPE (ref)) == ARRAY_TYPE;
+    case PLUS_EXPR:
+    case MINUS_EXPR:
+    case MULT_EXPR:
+    case POINTER_PLUS_EXPR:
+    case POINTER_DIFF_EXPR:
+    case MULT_HIGHPART_EXPR:
+    case TRUNC_DIV_EXPR:
+      return false;
+    default:
+      return false;
+    }
+}
+
 } // namespace Compile
 } // namespace Rust
