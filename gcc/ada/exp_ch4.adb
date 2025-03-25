@@ -7219,14 +7219,13 @@ package body Exp_Ch4 is
                   --  since we cannot rely on dynamic levels.
 
                   if No_Dynamic_Accessibility_Checks_Enabled (Lop) then
-                     if Static_Accessibility_Level
-                          (Lop, Object_Decl_Level)
-                            > Type_Access_Level (Rtyp)
-                     then
-                        Rewrite (N, New_Occurrence_Of (Standard_False, Loc));
-                     else
-                        Rewrite (N, New_Occurrence_Of (Standard_True, Loc));
-                     end if;
+                     Rewrite (N,
+                       New_Occurrence_Of
+                         (Boolean_Literals
+                            (Static_Accessibility_Level
+                               (Lop, Object_Decl_Level) <=
+                                        Type_Access_Level (Rtyp)),
+                          Loc));
                      Analyze_And_Resolve (N, Restyp);
 
                   --  If a conversion of the anonymous access value to the
