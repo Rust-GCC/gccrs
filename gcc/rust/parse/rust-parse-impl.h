@@ -6145,13 +6145,32 @@ Parser<ManagedTokenSource>::parse_let_stmt (AST::AttrVec outer_attrs,
     }
 
   // parse expression to set variable to (optional)
+  location_t end_curly_loc = UNKNOWN_LOCATION;
   std::unique_ptr<AST::Expr> expr = nullptr;
   if (lexer.peek_token ()->get_id () == EQUAL)
     {
       // must have an expression
       lexer.skip_token ();
 
-      expr = parse_expr ();
+      if (lexer.peek_token ()->get_id () == LEFT_CURLY)
+        {
+          expr = parse_block_expr ();
+
+          if (expr != nullptr)
+      {
+        const Rust::AST::BlockExpr& block = static_cast<const Rust::AST::BlockExpr&>(*expr);
+        end_curly_loc = block.get_end_locus ();
+      }
+          else
+      {
+        end_curly_loc = lexer.peek_token ()->get_locus ();
+      }
+        }
+      else
+        {
+          expr = parse_expr ();
+        }
+
       if (expr == nullptr)
 	{
 	  Error error (lexer.peek_token ()->get_locus (),
@@ -6165,7 +6184,16 @@ Parser<ManagedTokenSource>::parse_let_stmt (AST::AttrVec outer_attrs,
 
   tl::optional<std::unique_ptr<AST::Expr>> else_expr = tl::nullopt;
   if (maybe_skip_token (ELSE))
-    else_expr = parse_block_expr ();
+    {
+      if (end_curly_loc != UNKNOWN_LOCATION)
+  {
+    Error error (end_curly_loc,
+      "right curly brace `}` before `else` in a `let...else`");
+    add_error (std::move (error));
+  }
+
+      else_expr = parse_block_expr ();
+    }
 
   if (restrictions.consume_semi)
     {
