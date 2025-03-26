@@ -144,38 +144,58 @@ TokenCollector::visit (VariadicParam &param)
 void
 TokenCollector::visit (Attribute &attrib)
 {
-  push (Rust::Token::make (HASH, attrib.get_locus ()));
-  if (attrib.is_inner_attribute ())
-    push (Rust::Token::make (EXCLAM, UNDEF_LOCATION));
-  push (Rust::Token::make (LEFT_SQUARE, UNDEF_LOCATION));
-  visit (attrib.get_path ());
-
-  if (attrib.has_attr_input ())
+  if (attrib.is_from_comment () && attrib.has_attr_input ())
     {
-      switch (attrib.get_attr_input ().get_attr_input_type ())
-	{
-	  case AST::AttrInput::AttrInputType::LITERAL: {
-	    visit (static_cast<AttrInputLiteral &> (attrib.get_attr_input ()));
-	    break;
-	  }
-	  case AST::AttrInput::AttrInputType::MACRO: {
-	    visit (static_cast<AttrInputMacro &> (attrib.get_attr_input ()));
-	    break;
-	  }
-	  case AST::AttrInput::AttrInputType::META_ITEM: {
-	    visit (static_cast<AttrInputMetaItemContainer &> (
-	      attrib.get_attr_input ()));
-	    break;
-	  }
-	  case AST::AttrInput::AttrInputType::TOKEN_TREE: {
-	    visit (static_cast<DelimTokenTree &> (attrib.get_attr_input ()));
-	    break;
-	  }
-	default:
-	  rust_unreachable ();
-	}
+      if (attrib.is_inner_attribute ())
+	push (Rust::Token::make (INNER_DOC_COMMENT, attrib.get_locus ()));
+      else
+	push (Rust::Token::make (OUTER_DOC_COMMENT, attrib.get_locus ()));
+      auto lit = (static_cast<AttrInputLiteral &> (attrib.get_attr_input ()))
+		   .get_literal ()
+		   .get_literal ();
+      push (Rust::Token::make_doc_string_literal (attrib.get_locus (),
+						  lit.as_string ()));
+      push (Rust::Token::make (DOC_COMMENT_END, attrib.get_locus ()));
+      return;
     }
-  push (Rust::Token::make (RIGHT_SQUARE, UNDEF_LOCATION));
+  else
+    {
+      push (Rust::Token::make (HASH, attrib.get_locus ()));
+      if (attrib.is_inner_attribute ())
+	push (Rust::Token::make (EXCLAM, UNDEF_LOCATION));
+      push (Rust::Token::make (LEFT_SQUARE, UNDEF_LOCATION));
+      visit (attrib.get_path ());
+
+      if (attrib.has_attr_input ())
+	{
+	  switch (attrib.get_attr_input ().get_attr_input_type ())
+	    {
+	      case AST::AttrInput::AttrInputType::LITERAL: {
+		visit (
+		  static_cast<AttrInputLiteral &> (attrib.get_attr_input ()));
+		break;
+	      }
+	      case AST::AttrInput::AttrInputType::MACRO: {
+		visit (
+		  static_cast<AttrInputMacro &> (attrib.get_attr_input ()));
+		break;
+	      }
+	      case AST::AttrInput::AttrInputType::META_ITEM: {
+		visit (static_cast<AttrInputMetaItemContainer &> (
+		  attrib.get_attr_input ()));
+		break;
+	      }
+	      case AST::AttrInput::AttrInputType::TOKEN_TREE: {
+		visit (
+		  static_cast<DelimTokenTree &> (attrib.get_attr_input ()));
+		break;
+	      }
+	    default:
+	      rust_unreachable ();
+	    }
+	}
+      push (Rust::Token::make (RIGHT_SQUARE, UNDEF_LOCATION));
+    }
 }
 
 void
