@@ -152,18 +152,15 @@ SubstMapperInternal::Resolve (TyTy::BaseType *base,
     = context->lookup_type (mapper.resolved->get_ty_ref (), &unused);
   if (!is_ty_available)
     {
-      context->insert_type (
-	Analysis::NodeMapping (0, 0, mapper.resolved->get_ty_ref (), 0),
-	mapper.resolved);
+      context->insert_implicit_type (mapper.resolved->get_ty_ref (),
+				     mapper.resolved);
     }
   bool is_ref_available
     = context->lookup_type (mapper.resolved->get_ref (), &unused);
   if (!is_ref_available)
     {
-      context->insert_type (Analysis::NodeMapping (0, 0,
-						   mapper.resolved->get_ref (),
-						   0),
-			    mapper.resolved);
+      context->insert_implicit_type (mapper.resolved->get_ref (),
+				     mapper.resolved);
     }
 
   return mapper.resolved;

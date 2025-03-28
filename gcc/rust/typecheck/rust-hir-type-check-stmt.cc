@@ -67,7 +67,8 @@ TypeCheckStmt::visit (HIR::ConstantItem &constant)
     TyTy::TyWithLocation (type, constant.get_type ().get_locus ()),
     TyTy::TyWithLocation (expr_type, constant.get_expr ().get_locus ()),
     constant.get_locus ());
-  context->insert_type (constant.get_mappings (), infered);
+  context->insert_implicit_type (constant.get_mappings ().get_hirid (),
+				 infered);
 }
 
 void

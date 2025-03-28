@@ -186,8 +186,8 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 	      case HIR::GenericParam::GenericKind::TYPE: {
 		auto param_type
 		  = TypeResolveGenericParam::Resolve (*generic_param);
-		context->insert_type (generic_param->get_mappings (),
-				      param_type);
+		context->insert_implicit_type (
+		  generic_param->get_mappings ().get_hirid (), param_type);
 
 		substitutions.push_back (TyTy::SubstitutionParamMapping (
 		  static_cast<HIR::TypeParam &> (*generic_param), param_type));
@@ -287,7 +287,8 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 	    }
 	}
 
-      context->insert_type (self_param.get_mappings (), self_type);
+      context->insert_implicit_type (self_param.get_mappings ().get_hirid (),
+				     self_type);
       params.push_back (TyTy::FnParam (std::move (self_pattern), self_type));
     }
 
@@ -295,7 +296,8 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
     {
       // get the name as well required for later on
       auto param_tyty = TypeCheckType::Resolve (param.get_type ());
-      context->insert_type (param.get_mappings (), param_tyty);
+      context->insert_implicit_type (param.get_mappings ().get_hirid (),
+				     param_tyty);
       TypeCheckPattern::Resolve (param.get_param_name (), param_tyty);
       // FIXME: Should we take the name ? Use a shared pointer instead ?
       params.push_back (
@@ -331,7 +333,7 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
     TyTy::SubstitutionArgumentMappings::empty (
       context->get_lifetime_resolver ().get_num_bound_regions ()),
     region_constraints);
-  context->insert_type (fn.get_mappings (), resolved);
+  context->insert_implicit_type (fn.get_mappings ().get_hirid (), resolved);
   return resolved;
 }
 
