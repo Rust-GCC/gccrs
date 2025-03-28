@@ -20,7 +20,11 @@
 #define RUST_FEATURE_GATE_H
 
 #include "rust-ast-visitor.h"
+#include "rust-ast.h"
 #include "rust-feature.h"
+#include "rust-item.h"
+#include "rust-path.h"
+#include "rust-type.h"
 
 namespace Rust {
 
@@ -47,6 +51,10 @@ public:
   void visit (AST::ExternBlock &block) override;
   void visit (AST::MacroRulesDefinition &rules_def) override;
   void visit (AST::RangePattern &pattern) override;
+  void visit (AST::RawPointerType &type) override;
+  void visit (AST::ImplTraitType &type) override;
+  void visit (AST::ImplTraitTypeOneBound &type) override;
+  void visit (AST::Attribute &attr) override;
 
 private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);

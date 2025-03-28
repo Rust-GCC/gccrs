@@ -58,6 +58,23 @@ Feature::create (Feature::Name f)
     case Feature::Name::AUTO_TRAITS:
       return Feature (f, Feature::State::ACTIVE, "optin_builtin_traits",
 		      "1.0.0", 13231);
+    case Feature::Name::ARBITRARY_SELF_TYPES:
+      return Feature (f, Feature::State::ACCEPTED, "arbitrary_self_types",
+		      "1.49.0", 44874);
+    case Feature::Name::DOC_CFG:
+      return Feature (f, Feature::State::ACCEPTED, "doc_cfg", "1.49.0", 43781);
+    case Feature::Name::IMPL_TRAIT_IN_ASSOC_TYPE:
+      return Feature (f, Feature::State::ACCEPTED, "impl_trait_in_assoc_type",
+		      "1.49.0", 63063);
+    case Feature::Name::REGISTER_TOOL:
+      return Feature (f, Feature::State::ACCEPTED, "register_tool", "1.49.0",
+		      66079);
+    case Feature::Name::ASSOCIATED_TYPE_DEFAULTS:
+      return Feature (f, Feature::State::ACCEPTED, "associated_type_defaults",
+		      "1.49.0", 29661);
+    case Feature::Name::CONST_TRAIT_IMPL:
+      return Feature (f, Feature::State::ACCEPTED, "const_trait_impl", "1.49.0",
+		      67792);
     default:
       rust_unreachable ();
     }
@@ -80,6 +97,13 @@ const std::map<std::string, Feature::Name> Feature::name_hash_map = {
   {"raw_ref_op", Feature::Name::RAW_REF_OP},
   {"exclusive_range_pattern", Feature::Name::EXCLUSIVE_RANGE_PATTERN},
   {"prelude_import", Feature::Name::PRELUDE_IMPORT},
+  // Required features for Rust for Linux
+  {"arbitrary_self_types", Feature::Name::ARBITRARY_SELF_TYPES},
+  {"doc_cfg", Feature::Name::DOC_CFG},
+  {"impl_trait_in_assoc_type", Feature::Name::IMPL_TRAIT_IN_ASSOC_TYPE},
+  {"register_tool", Feature::Name::REGISTER_TOOL},
+  {"associated_type_defaults", Feature::Name::ASSOCIATED_TYPE_DEFAULTS},
+  {"const_trait_impl", Feature::Name::CONST_TRAIT_IMPL},
 }; // namespace Rust
 
 tl::optional<Feature::Name>
