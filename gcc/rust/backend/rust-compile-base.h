@@ -30,6 +30,7 @@ public:
   virtual ~HIRCompileBase () {}
 
   static tree address_expression (tree expr, location_t locus);
+  bool is_lvalue (const_tree ref);
 
   static tree compile_constant_expr (
     Context *ctx, HirId coercion_id, TyTy::BaseType *resolved_type,
