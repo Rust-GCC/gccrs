@@ -190,6 +190,18 @@ CompileExpr::visit (HIR::CompoundAssignmentExpr &expr)
   auto lhs = CompileExpr::Compile (expr.get_lhs (), ctx);
   auto rhs = CompileExpr::Compile (expr.get_rhs (), ctx);
 
+  bool validl_value = is_lvalue (lhs);
+
+  if (!validl_value
+      || (expr.get_lhs ().get_expression_type ()
+	    == HIR::Expr::ExprType::Operator
+	  && TREE_CODE (lhs) != INDIRECT_REF
+	  && TREE_CODE (lhs) != COMPONENT_REF))
+    {
+      rust_error_at (expr.get_lhs ().get_locus (), ErrorCode::E0770,
+		     "invalid left-hand side of assignment");
+      return;
+    }
   // this might be an operator overload situation lets check
   TyTy::FnType *fntype;
   bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
@@ -993,6 +1005,17 @@ CompileExpr::visit (HIR::AssignmentExpr &expr)
 {
   auto lvalue = CompileExpr::Compile (expr.get_lhs (), ctx);
   auto rvalue = CompileExpr::Compile (expr.get_rhs (), ctx);
+
+  bool validl_value = is_lvalue (lvalue);
+
+  if (!validl_value
+      || expr.get_lhs ().get_expression_type ()
+	   == HIR::Expr::ExprType::Operator)
+    {
+      rust_error_at (expr.get_lhs ().get_locus (), ErrorCode::E0770,
+		     "invalid left-hand side of assignment");
+      return;
+    }
 
   // assignments are coercion sites so lets convert the rvalue if necessary
   TyTy::BaseType *expected = nullptr;
