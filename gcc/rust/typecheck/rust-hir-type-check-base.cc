@@ -263,7 +263,8 @@ TypeCheckBase::resolve_literal (const Analysis::NodeMapping &expr_mappings,
 	TyTy::BaseType *expected_ty = nullptr;
 	ok = context->lookup_builtin ("usize", &expected_ty);
 	rust_assert (ok);
-	context->insert_type (capacity_mapping, expected_ty);
+	context->insert_implicit_type (capacity_mapping.get_hirid (),
+				       expected_ty);
 
 	Analysis::NodeMapping array_mapping (crate_num, UNKNOWN_NODEID,
 					     mappings.get_next_hir_id (
@@ -274,7 +275,7 @@ TypeCheckBase::resolve_literal (const Analysis::NodeMapping &expr_mappings,
 	  = new TyTy::ArrayType (array_mapping.get_hirid (), locus,
 				 *literal_capacity,
 				 TyTy::TyVar (u8->get_ref ()));
-	context->insert_type (array_mapping, array);
+	context->insert_implicit_type (array_mapping.get_hirid (), array);
 
 	infered = new TyTy::ReferenceType (expr_mappings.get_hirid (),
 					   TyTy::TyVar (array->get_ref ()),
@@ -421,14 +422,15 @@ TypeCheckBase::resolve_generic_params (
 			       param.get_locus ());
 	      }
 
-	    context->insert_type (generic_param->get_mappings (),
-				  specified_type);
+	    context->insert_implicit_type (
+	      generic_param->get_mappings ().get_hirid (), specified_type);
 	  }
 	  break;
 
 	  case HIR::GenericParam::GenericKind::TYPE: {
 	    auto param_type = TypeResolveGenericParam::Resolve (*generic_param);
-	    context->insert_type (generic_param->get_mappings (), param_type);
+	    context->insert_implicit_type (
+	      generic_param->get_mappings ().get_hirid (), param_type);
 
 	    substitutions.push_back (TyTy::SubstitutionParamMapping (
 	      static_cast<HIR::TypeParam &> (*generic_param), param_type));
