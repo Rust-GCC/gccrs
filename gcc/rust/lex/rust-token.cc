@@ -268,6 +268,8 @@ Token::as_string () const
 	    return get_str ();
 	  else
 	    return get_str () + get_type_hint_str ();
+	case DOC_STRING_LITERAL:
+	  return escape_special_chars (*std::move (str), Context::String);
 	default:
 	  return get_str ();
 	}

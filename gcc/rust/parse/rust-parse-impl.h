@@ -522,7 +522,8 @@ Parser<ManagedTokenSource>::parse_inner_attribute ()
       auto path = std::move (std::get<0> (values));
       auto input = std::move (std::get<1> (values));
       auto loc = std::get<2> (values);
-      return AST::Attribute (std::move (path), std::move (input), loc, true);
+      return AST::Attribute (std::move (path), std::move (input), loc, true,
+			     true);
     }
 
   if (lexer.peek_token ()->get_id () != HASH)
@@ -1241,7 +1242,8 @@ Parser<ManagedTokenSource>::parse_outer_attribute ()
       auto path = std::move (std::get<0> (values));
       auto input = std::move (std::get<1> (values));
       auto loc = std::get<2> (values);
-      return AST::Attribute (std::move (path), std::move (input), loc, false);
+      return AST::Attribute (std::move (path), std::move (input), loc, false,
+			     true);
     }
 
   if (lexer.peek_token ()->get_id () == INNER_DOC_COMMENT)
