@@ -912,13 +912,6 @@ DefaultASTVisitor::visit (AST::EnumItemStruct &item)
 }
 
 void
-DefaultASTVisitor::visit (AST::EnumItemDiscriminant &item)
-{
-  visit (reinterpret_cast<EnumItem &> (item));
-  visit (item.get_expr ());
-}
-
-void
 DefaultASTVisitor::visit (AST::Enum &enum_item)
 {
   visit_outer_attrs (enum_item);
