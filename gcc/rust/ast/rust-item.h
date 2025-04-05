@@ -2040,8 +2040,6 @@ public:
     // the base EnumItem class
     //
     // gccrs#3340
-
-    Discriminant,
   };
 
   virtual ~EnumItem () {}

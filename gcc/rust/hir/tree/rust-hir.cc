@@ -3060,9 +3060,6 @@ EnumItem::as_string () const
     case Struct:
       str += "[Struct variant]";
       break;
-    case Discriminant:
-      str += "[Discriminant variant]";
-      break;
     }
 
   return str;

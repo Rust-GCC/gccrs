@@ -1472,8 +1472,7 @@ public:
   {
     Named,
     Tuple,
-    Struct,
-    Discriminant,
+    Struct
   };
 
   EnumItem (Analysis::NodeMapping mappings, Identifier variant_name,

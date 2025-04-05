@@ -511,9 +511,6 @@ Dump::do_enumitem (EnumItem &e)
     case EnumItem::EnumItemKind::Struct:
       str = "[Struct variant]";
       break;
-    case EnumItem::EnumItemKind::Discriminant:
-      str = "[Discriminant variant]";
-      break;
     }
   put_field ("item_kind", str);
 }

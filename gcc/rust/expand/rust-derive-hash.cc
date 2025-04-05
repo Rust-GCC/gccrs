@@ -252,10 +252,6 @@ DeriveHash::visit_enum (Enum &item)
       switch (variant->get_enum_item_kind ())
 	{
 	case EnumItem::Kind::Identifier:
-	case EnumItem::Kind::Discriminant:
-	  // nothing to do in these cases, as we just need to hash the
-	  // discriminant value
-	  continue;
 	case EnumItem::Kind::Tuple:
 	  cases.emplace_back (
 	    match_enum_tuple (variant_path,
