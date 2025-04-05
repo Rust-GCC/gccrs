@@ -31,11 +31,6 @@ public:
   {}
 
   // Returns whether the LoopLabel is in an error state.
-  bool is_error () const { return label.is_error (); }
-
-  // Creates an error state LoopLabel.
-  static LoopLabel error () { return LoopLabel (Lifetime::error ()); }
-
   location_t get_locus () const { return locus; }
 
   Lifetime &get_lifetime () { return label; }
@@ -2590,7 +2585,7 @@ class BlockExpr : public ExprWithBlock
   std::vector<Attribute> inner_attrs;
   std::vector<std::unique_ptr<Stmt> > statements;
   std::unique_ptr<Expr> expr;
-  LoopLabel label;
+  tl::optional<LoopLabel> label;
   location_t start_locus;
   location_t end_locus;
   bool marked_for_strip = false;
@@ -2607,8 +2602,9 @@ public:
   BlockExpr (std::vector<std::unique_ptr<Stmt> > block_statements,
 	     std::unique_ptr<Expr> block_expr,
 	     std::vector<Attribute> inner_attribs,
-	     std::vector<Attribute> outer_attribs, LoopLabel label,
-	     location_t start_locus, location_t end_locus)
+	     std::vector<Attribute> outer_attribs,
+	     tl::optional<LoopLabel> label, location_t start_locus,
+	     location_t end_locus)
     : outer_attrs (std::move (outer_attribs)),
       inner_attrs (std::move (inner_attribs)),
       statements (std::move (block_statements)), expr (std::move (block_expr)),
@@ -2727,8 +2723,8 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  bool has_label () { return !label.is_error (); }
-  LoopLabel &get_label () { return label; }
+  bool has_label () { return label.has_value (); }
+  LoopLabel &get_label () { return label.value (); }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Block; }
 
@@ -2848,7 +2844,7 @@ protected:
 class ContinueExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
-  Lifetime label;
+  tl::optional<Lifetime> label;
   location_t locus;
 
   // TODO: find another way to store this to save memory?
@@ -2858,11 +2854,11 @@ public:
   std::string as_string () const override;
 
   // Returns true if the continue expr has a label.
-  bool has_label () const { return !label.is_error (); }
+  bool has_label () const { return label.has_value (); }
 
   // Constructor for a ContinueExpr with a label.
-  ContinueExpr (Lifetime label, std::vector<Attribute> outer_attribs,
-		location_t locus)
+  ContinueExpr (tl::optional<Lifetime> label,
+		std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)), label (std::move (label)),
       locus (locus)
   {}
@@ -2883,7 +2879,11 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  Lifetime &get_label () { return label; }
+  Lifetime &get_label_unchecked () { return label.value (); }
+  const Lifetime &get_label_unchecked () const { return label.value (); }
+
+  tl::optional<Lifetime> &get_label () { return label; }
+  const tl::optional<Lifetime> &get_label () const { return label; }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Continue; }
 
@@ -2901,7 +2901,7 @@ protected:
 class BreakExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
-  LoopLabel label;
+  tl::optional<LoopLabel> label;
   std::unique_ptr<Expr> break_expr;
   location_t locus;
 
@@ -2912,14 +2912,15 @@ public:
   std::string as_string () const override;
 
   // Returns whether the break expression has a label or not.
-  bool has_label () const { return !label.is_error (); }
+  bool has_label () const { return label.has_value (); }
 
   /* Returns whether the break expression has an expression used in the break or
    * not. */
   bool has_break_expr () const { return break_expr != nullptr; }
 
   // Constructor for a break expression
-  BreakExpr (LoopLabel break_label, std::unique_ptr<Expr> expr_in_break,
+  BreakExpr (tl::optional<LoopLabel> break_label,
+	     std::unique_ptr<Expr> expr_in_break,
 	     std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)), label (std::move (break_label)),
       break_expr (std::move (expr_in_break)), locus (locus)
@@ -2981,7 +2982,11 @@ public:
     outer_attrs = std::move (new_attrs);
   }
 
-  LoopLabel &get_label () { return label; }
+  LoopLabel &get_label_unchecked () { return label.value (); }
+  const LoopLabel &get_label_unchecked () const { return label.value (); }
+
+  tl::optional<LoopLabel> &get_label () { return label; }
+  const tl::optional<LoopLabel> &get_label () const { return label; }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Break; }
 
@@ -3657,7 +3662,7 @@ class BaseLoopExpr : public ExprWithBlock
 protected:
   // protected to allow subclasses better use of them
   std::vector<Attribute> outer_attrs;
-  LoopLabel loop_label;
+  tl::optional<LoopLabel> loop_label;
   std::unique_ptr<BlockExpr> loop_block;
 
 private:
@@ -3666,7 +3671,7 @@ private:
 protected:
   // Constructor for BaseLoopExpr
   BaseLoopExpr (std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		LoopLabel loop_label = LoopLabel::error (),
+		tl::optional<LoopLabel> loop_label = tl::nullopt,
 		std::vector<Attribute> outer_attribs
 		= std::vector<Attribute> ())
     : outer_attrs (std::move (outer_attribs)),
@@ -3706,9 +3711,10 @@ protected:
   BaseLoopExpr &operator= (BaseLoopExpr &&other) = default;
 
 public:
-  bool has_loop_label () const { return !loop_label.is_error (); }
+  bool has_loop_label () const { return loop_label.has_value (); }
 
-  LoopLabel &get_loop_label () { return loop_label; }
+  LoopLabel &get_loop_label () { return loop_label.value (); }
+  const LoopLabel &get_loop_label () const { return loop_label.value (); }
 
   location_t get_locus () const override final { return locus; }
 
@@ -3752,7 +3758,7 @@ public:
 
   // Constructor for LoopExpr
   LoopExpr (std::unique_ptr<BlockExpr> loop_block, location_t locus,
-	    LoopLabel loop_label = LoopLabel::error (),
+	    tl::optional<LoopLabel> loop_label = tl::nullopt,
 	    std::vector<Attribute> outer_attribs = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_block), locus, std::move (loop_label),
 		    std::move (outer_attribs))
@@ -3785,7 +3791,7 @@ public:
   // Constructor for while loop with loop label
   WhileLoopExpr (std::unique_ptr<Expr> loop_condition,
 		 std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		 LoopLabel loop_label = LoopLabel::error (),
+		 tl::optional<LoopLabel> loop_label = tl::nullopt,
 		 std::vector<Attribute> outer_attribs
 		 = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_block), locus, std::move (loop_label),
@@ -3851,7 +3857,7 @@ public:
   WhileLetLoopExpr (std::vector<std::unique_ptr<Pattern> > match_arm_patterns,
 		    std::unique_ptr<Expr> scrutinee,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		    LoopLabel loop_label = LoopLabel::error (),
+		    tl::optional<LoopLabel> loop_label = tl::nullopt,
 		    std::vector<Attribute> outer_attribs
 		    = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_block), locus, std::move (loop_label),
@@ -3938,7 +3944,7 @@ public:
   ForLoopExpr (std::unique_ptr<Pattern> loop_pattern,
 	       std::unique_ptr<Expr> iterator_expr,
 	       std::unique_ptr<BlockExpr> loop_body, location_t locus,
-	       LoopLabel loop_label = LoopLabel::error (),
+	       tl::optional<LoopLabel> loop_label = tl::nullopt,
 	       std::vector<Attribute> outer_attribs = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_body), locus, std::move (loop_label),
 		    std::move (outer_attribs)),

@@ -187,6 +187,9 @@ Late::visit (AST::SelfParam &param)
 void
 Late::visit (AST::BreakExpr &expr)
 {
+  if (expr.has_label ())
+    resolve_label (expr.get_label_unchecked ().get_lifetime ());
+
   if (expr.has_break_expr ())
     {
       auto &break_expr = expr.get_break_expr ();
@@ -210,6 +213,38 @@ Late::visit (AST::BreakExpr &expr)
   DefaultResolver::visit (expr);
 
   funny_error = false;
+}
+
+void
+Late::visit (AST::LoopLabel &label)
+{
+  auto &lifetime = label.get_lifetime ();
+  ctx.labels.insert (Identifier (lifetime.as_string (), lifetime.get_locus ()),
+		     lifetime.get_node_id ());
+}
+
+void
+Late::resolve_label (AST::Lifetime &lifetime)
+{
+  if (auto resolved = ctx.labels.get (lifetime.as_string ()))
+    {
+      if (resolved->get_node_id () != lifetime.get_node_id ())
+	ctx.map_usage (Usage (lifetime.get_node_id ()),
+		       Definition (resolved->get_node_id ()));
+    }
+  else
+    rust_error_at (lifetime.get_locus (), ErrorCode::E0426,
+		   "use of undeclared label %qs",
+		   lifetime.as_string ().c_str ());
+}
+
+void
+Late::visit (AST::ContinueExpr &expr)
+{
+  if (expr.has_label ())
+    resolve_label (expr.get_label_unchecked ());
+
+  DefaultResolver::visit (expr);
 }
 
 void

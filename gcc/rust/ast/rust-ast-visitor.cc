@@ -477,7 +477,8 @@ void
 DefaultASTVisitor::visit (AST::ContinueExpr &expr)
 {
   visit_outer_attrs (expr);
-  visit (expr.get_label ());
+  if (expr.has_label ())
+    visit (expr.get_label_unchecked ());
 }
 
 void
@@ -485,7 +486,7 @@ DefaultASTVisitor::visit (AST::BreakExpr &expr)
 {
   visit_outer_attrs (expr);
   if (expr.has_label ())
-    visit (expr.get_label ());
+    visit (expr.get_label_unchecked ());
 
   if (expr.has_break_expr ())
     visit (expr.get_break_expr ());
@@ -559,7 +560,8 @@ void
 DefaultASTVisitor::visit (AST::LoopExpr &expr)
 {
   visit_outer_attrs (expr);
-  visit (expr.get_loop_label ());
+  if (expr.has_loop_label ())
+    visit (expr.get_loop_label ());
   visit (expr.get_loop_block ());
 }
 
@@ -567,8 +569,9 @@ void
 DefaultASTVisitor::visit (AST::WhileLoopExpr &expr)
 {
   visit_outer_attrs (expr);
+  if (expr.has_loop_label ())
+    visit (expr.get_loop_label ());
   visit (expr.get_predicate_expr ());
-  visit (expr.get_loop_label ());
   visit (expr.get_loop_block ());
 }
 
@@ -589,7 +592,8 @@ DefaultASTVisitor::visit (AST::ForLoopExpr &expr)
   visit_outer_attrs (expr);
   visit (expr.get_pattern ());
   visit (expr.get_iterator_expr ());
-  visit (expr.get_loop_label ());
+  if (expr.has_loop_label ())
+    visit (expr.get_loop_label ());
   visit (expr.get_loop_block ());
 }
 

@@ -97,7 +97,11 @@ ASTLowering::go ()
 void
 ASTLoweringBlock::visit (AST::BlockExpr &expr)
 {
-  auto label = lower_loop_label (expr.get_label ());
+  tl::optional<HIR::LoopLabel> label;
+  if (expr.has_label ())
+    label = lower_loop_label (expr.get_label ());
+  else
+    label = tl::nullopt;
 
   std::vector<std::unique_ptr<HIR::Stmt>> block_stmts;
   bool block_did_terminate = false;
@@ -398,7 +402,10 @@ ASTLoweringExprWithBlock::visit (AST::WhileLoopExpr &expr)
   HIR::BlockExpr *loop_block
     = ASTLoweringBlock::translate (expr.get_loop_block (), &terminated);
 
-  HIR::LoopLabel loop_label = lower_loop_label (expr.get_loop_label ());
+  tl::optional<HIR::LoopLabel> loop_label;
+  if (expr.has_loop_label ())
+    loop_label = lower_loop_label (expr.get_loop_label ());
+
   HIR::Expr *loop_condition
     = ASTLoweringExpr::translate (expr.get_predicate_expr (), &terminated);
 

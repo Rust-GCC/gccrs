@@ -471,7 +471,7 @@ ResolveExpr::visit (AST::BreakExpr &expr)
 {
   if (expr.has_label ())
     {
-      auto label = expr.get_label ().get_lifetime ();
+      auto label = expr.get_label_unchecked ().get_lifetime ();
       if (label.get_lifetime_type () != AST::Lifetime::LifetimeType::NAMED)
 	{
 	  rust_error_at (label.get_locus (),
@@ -486,8 +486,8 @@ ResolveExpr::visit (AST::BreakExpr &expr)
 	    &resolved_node))
 	{
 	  rust_error_at (label.get_locus (), ErrorCode::E0426,
-			 "use of undeclared label %qs in %<break%>",
-			 label.get_lifetime_name ().c_str ());
+			 "use of undeclared label %qs",
+			 label.as_string ().c_str ());
 	  return;
 	}
       resolver->insert_resolved_label (label.get_node_id (), resolved_node);
@@ -594,7 +594,7 @@ ResolveExpr::visit (AST::ContinueExpr &expr)
 {
   if (expr.has_label ())
     {
-      auto label = expr.get_label ();
+      auto label = expr.get_label_unchecked ();
       if (label.get_lifetime_type () != AST::Lifetime::LifetimeType::NAMED)
 	{
 	  rust_error_at (label.get_locus (),
@@ -608,9 +608,9 @@ ResolveExpr::visit (AST::ContinueExpr &expr)
 				    label.get_lifetime_name ()),
 	    &resolved_node))
 	{
-	  rust_error_at (expr.get_label ().get_locus (), ErrorCode::E0426,
-			 "use of undeclared label %qs in %<continue%>",
-			 label.get_lifetime_name ().c_str ());
+	  rust_error_at (expr.get_label_unchecked ().get_locus (),
+			 ErrorCode::E0426, "use of undeclared label %qs",
+			 label.as_string ().c_str ());
 	  return;
 	}
       resolver->insert_resolved_label (label.get_node_id (), resolved_node);
