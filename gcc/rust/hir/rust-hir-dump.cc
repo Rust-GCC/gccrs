@@ -1815,18 +1815,6 @@ Dump::visit (EnumItemStruct &e)
 }
 
 void
-Dump::visit (EnumItemDiscriminant &e)
-{
-  begin ("EnumItemDiscriminant");
-
-  do_enumitem (e);
-
-  visit_field ("discriminant", e.get_discriminant_expression ());
-
-  end ("EnumItemDiscriminant");
-}
-
-void
 Dump::visit (Enum &e)
 {
   begin ("Enum");

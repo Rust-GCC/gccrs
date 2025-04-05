@@ -447,31 +447,6 @@ EnumItemStruct::EnumItemStruct (Analysis::NodeMapping mappings,
     struct_fields (std::move (struct_fields))
 {}
 
-EnumItemDiscriminant::EnumItemDiscriminant (Analysis::NodeMapping mappings,
-					    Identifier variant_name,
-					    std::unique_ptr<Expr> expr,
-					    AST::AttrVec outer_attrs,
-					    location_t locus)
-  : EnumItem (std::move (mappings), std::move (variant_name),
-	      std::move (outer_attrs), locus),
-    expression (std::move (expr))
-{}
-
-EnumItemDiscriminant::EnumItemDiscriminant (EnumItemDiscriminant const &other)
-  : EnumItem (other), expression (other.expression->clone_expr ())
-{}
-
-EnumItemDiscriminant &
-EnumItemDiscriminant::operator= (EnumItemDiscriminant const &other)
-{
-  EnumItem::operator= (other);
-  expression = other.expression->clone_expr ();
-  // variant_name = other.variant_name;
-  // outer_attrs = other.outer_attrs;
-
-  return *this;
-}
-
 Enum::Enum (Analysis::NodeMapping mappings, Identifier enum_name,
 	    Visibility vis,
 	    std::vector<std::unique_ptr<GenericParam>> generic_params,

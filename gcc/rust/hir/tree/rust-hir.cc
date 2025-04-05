@@ -3183,17 +3183,6 @@ StructField::as_string () const
 }
 
 std::string
-EnumItemDiscriminant::as_string () const
-{
-  std::string str = EnumItem::as_string ();
-
-  // add equal and expression
-  str += " = " + expression->as_string ();
-
-  return str;
-}
-
-std::string
 ExternalItem::as_string () const
 {
   // outer attributes
@@ -4272,12 +4261,6 @@ EnumItemStruct::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-EnumItemDiscriminant::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 Enum::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -4621,12 +4604,6 @@ ExternalTypeItem::accept_vis (HIRExternalItemVisitor &vis)
 
 void
 ExternalStaticItem::accept_vis (HIRExternalItemVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-EnumItemDiscriminant::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);
 }

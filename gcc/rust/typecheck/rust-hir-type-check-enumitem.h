@@ -33,7 +33,6 @@ public:
 
 protected:
   void visit (HIR::EnumItem &item);
-  void visit (HIR::EnumItemDiscriminant &item);
   void visit (HIR::EnumItemTuple &item);
   void visit (HIR::EnumItemStruct &item);
 

@@ -750,10 +750,6 @@ UnsafeChecker::visit (EnumItemStruct &)
 {}
 
 void
-UnsafeChecker::visit (EnumItemDiscriminant &)
-{}
-
-void
 UnsafeChecker::visit (Enum &)
 {}
 
