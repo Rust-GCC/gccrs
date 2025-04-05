@@ -1868,15 +1868,6 @@ TokenCollector::visit (EnumItemStruct &item)
 }
 
 void
-TokenCollector::visit (EnumItemDiscriminant &item)
-{
-  auto id = item.get_identifier ().as_string ();
-  push (Rust::Token::make_identifier (item.get_locus (), std::move (id)));
-  push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
-  visit (item.get_expr ());
-}
-
-void
 TokenCollector::visit (Enum &enumeration)
 {
   visit_items_as_lines (enumeration.get_outer_attrs ());

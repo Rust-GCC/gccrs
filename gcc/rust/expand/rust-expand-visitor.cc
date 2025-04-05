@@ -811,12 +811,6 @@ ExpandVisitor::visit (AST::EnumItemStruct &item)
 }
 
 void
-ExpandVisitor::visit (AST::EnumItemDiscriminant &item)
-{
-  maybe_expand_expr (item.get_expr_ptr ());
-}
-
-void
 ExpandVisitor::visit (AST::Union &union_item)
 {
   for (auto &generic : union_item.get_generic_params ())

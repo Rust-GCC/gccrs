@@ -217,26 +217,6 @@ public:
       }
   }
 
-  void visit (AST::EnumItemDiscriminant &item) override
-  {
-    auto decl = enum_prefix.append (
-      CanonicalPath::new_seg (item.get_node_id (),
-			      item.get_identifier ().as_string ()));
-    auto path = decl; // this ensures we have the correct relative resolution
-    auto cpath = canonical_prefix.append (decl);
-    mappings.insert_canonical_path (item.get_node_id (), cpath);
-
-    resolver->get_type_scope ().insert (
-      path, item.get_node_id (), item.get_locus (), false, Rib::ItemType::Type,
-      [&] (const CanonicalPath &, NodeId, location_t locus) -> void {
-	rich_location r (line_table, item.get_locus ());
-	r.add_range (locus);
-	redefined_error (r);
-      });
-
-    // Done, no fields.
-  }
-
   void visit (AST::StructStruct &struct_decl) override
   {
     auto decl

@@ -320,7 +320,6 @@ public:
   void visit (EnumItem &item);
   void visit (EnumItemTuple &item);
   void visit (EnumItemStruct &item);
-  void visit (EnumItemDiscriminant &item);
   void visit (Enum &enumeration);
   void visit (Union &union_item);
   void visit (ConstantItem &const_item);

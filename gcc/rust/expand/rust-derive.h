@@ -185,7 +185,6 @@ private:
   virtual void visit (EnumItem &item) override final{};
   virtual void visit (EnumItemTuple &item) override final{};
   virtual void visit (EnumItemStruct &item) override final{};
-  virtual void visit (EnumItemDiscriminant &item) override final{};
   virtual void visit (ConstantItem &const_item) override final{};
   virtual void visit (StaticItem &static_item) override final{};
   virtual void visit (TraitItemConst &item) override final{};
