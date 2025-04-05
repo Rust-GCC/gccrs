@@ -593,6 +593,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_GLIBCXX20_CONSTEXPR
 	_Bvector_impl() _GLIBCXX_NOEXCEPT_IF(
 	  is_nothrow_default_constructible<_Bit_alloc_type>::value)
+#if __cpp_concepts
+	requires is_default_constructible_v<_Bit_alloc_type>
+#endif
 	: _Bit_alloc_type()
 	{ }
 
@@ -674,13 +677,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _M_allocate(size_t __n)
       {
 	_Bit_pointer __p = _Bit_alloc_traits::allocate(_M_impl, _S_nword(__n));
-#if __cpp_lib_is_constant_evaluated
+#if __cpp_lib_is_constant_evaluated && __cpp_constexpr_dynamic_alloc
 	if (std::is_constant_evaluated())
-	{
-	  __n = _S_nword(__n);
-	  for (size_t __i = 0; __i < __n; ++__i)
-	    __p[__i] = 0ul;
-	}
+	  {
+	    __n = _S_nword(__n);
+	    for (size_t __i = 0; __i < __n; ++__i)
+	      std::construct_at(std::to_address(__p) + __i);
+	  }
 #endif
 	return __p;
       }

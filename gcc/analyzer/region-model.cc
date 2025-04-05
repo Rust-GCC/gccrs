@@ -120,9 +120,27 @@ dump_quoted_tree (pretty_printer *pp, tree t)
 void
 print_quoted_type (pretty_printer *pp, tree t)
 {
+  if (!t)
+    return;
   pp_begin_quote (pp, pp_show_color (pp));
   dump_generic_node (pp, t, 0, TDF_SLIM, 0);
   pp_end_quote (pp, pp_show_color (pp));
+}
+
+/* Print EXPR to PP, without quotes.
+   For use within svalue::maybe_print_for_user
+   and region::maybe_print_for_user. */
+
+void
+print_expr_for_user (pretty_printer *pp, tree expr)
+{
+  /* Workaround for C++'s lang_hooks.decl_printable_name,
+     which unhelpfully (for us) prefixes the decl with its
+     type.  */
+  if (DECL_P (expr))
+    dump_generic_node (pp, expr, 0, TDF_SLIM, 0);
+  else
+    pp_printf (pp, "%E", expr);
 }
 
 /* class region_to_value_map.  */
@@ -2706,7 +2724,7 @@ region_model::get_store_value (const region *reg,
 	= cast_reg->get_original_region ()->dyn_cast_string_region ())
       {
 	tree string_cst = str_reg->get_string_cst ();
-	tree byte_offset_cst = build_int_cst (integer_type_node, 0);
+	tree byte_offset_cst = integer_zero_node;
 	if (const svalue *char_sval
 	    = m_mgr->maybe_get_char_from_string_cst (string_cst,
 						     byte_offset_cst))
@@ -3496,6 +3514,10 @@ region_model::check_region_size (const region *lhs_reg, const svalue *rhs_sval,
       || TYPE_SIZE_UNIT (pointee_type) == NULL_TREE)
     return;
 
+  /* Bail out early on function pointers.  */
+  if (TREE_CODE (pointee_type) == FUNCTION_TYPE)
+    return;
+
   /* Bail out early on pointers to structs where we can
      not deduce whether the buffer size is compatible.  */
   bool is_struct = RECORD_OR_UNION_TYPE_P (pointee_type);
@@ -3949,9 +3971,10 @@ static tree
 get_tree_for_byte_offset (tree ptr_expr, byte_offset_t byte_offset)
 {
   gcc_assert (ptr_expr);
+  tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode, true);
   return fold_build2 (MEM_REF,
 		      char_type_node,
-		      ptr_expr, wide_int_to_tree (size_type_node, byte_offset));
+		      ptr_expr, wide_int_to_tree (ptype, byte_offset));
 }
 
 /* Simulate a series of reads of REG until we find a 0 byte
@@ -4685,17 +4708,27 @@ region_model::eval_condition (const svalue *lhs,
     if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
 	&& rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
 	&& lhs_type == rhs_type)
-      return eval_condition (lhs_un_op->get_arg (),
-			     op,
-			     rhs_un_op->get_arg ());
-
+      {
+	tristate res = eval_condition (lhs_un_op->get_arg (),
+				       op,
+				       rhs_un_op->get_arg ());
+	if (res.is_known ())
+	  return res;
+      }
     else if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
 	     && lhs_type == rhs_type)
-      return eval_condition (lhs_un_op->get_arg (), op, rhs);
-
+      {
+	tristate res = eval_condition (lhs_un_op->get_arg (), op, rhs);
+	if (res.is_known ())
+	  return res;
+      }
     else if (rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
 	     && lhs_type == rhs_type)
-      return eval_condition (lhs, op, rhs_un_op->get_arg ());
+      {
+	tristate res = eval_condition (lhs, op, rhs_un_op->get_arg ());
+	if (res.is_known ())
+	  return res;
+      }
   }
 
   /* Otherwise, try constraints.
@@ -5342,9 +5375,10 @@ region_model::get_representative_path_var_1 (const region *reg,
 	tree addr_parent = build1 (ADDR_EXPR,
 				   build_pointer_type (reg->get_type ()),
 				   parent_pv.m_tree);
-	return path_var (build2 (MEM_REF,
-				 reg->get_type (),
-				 addr_parent, offset_pv.m_tree),
+	tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode,
+						  true);
+	return path_var (build2 (MEM_REF, reg->get_type (), addr_parent,
+				 fold_convert (ptype, offset_pv.m_tree)),
 			 parent_pv.m_stack_depth);
       }
 
@@ -5593,7 +5627,7 @@ region_model::update_for_return_superedge (const return_superedge &return_edge,
   update_for_return_gcall (call_stmt, ctxt);
 }
 
-/* Attempt to to use R to replay SUMMARY into this object.
+/* Attempt to use R to replay SUMMARY into this object.
    Return true if it is possible.  */
 
 bool
@@ -5751,7 +5785,8 @@ apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
 	  && is_a <const initial_svalue *> (unaryop->get_arg ()))
 	if (const initial_svalue *initvalop = (as_a <const initial_svalue *>
 					       (unaryop->get_arg ())))
-	  if (TREE_CODE (initvalop->get_type ()) == ENUMERAL_TYPE)
+	  if (initvalop->get_type ()
+	      && TREE_CODE (initvalop->get_type ()) == ENUMERAL_TYPE)
 	    {
 	      index_sval = initvalop;
 	      check_index_type = false;
@@ -7148,7 +7183,7 @@ build_real_cst_from_string (tree type, const char *str)
 static void
 append_interesting_constants (auto_vec<tree> *out)
 {
-  out->safe_push (build_int_cst (integer_type_node, 0));
+  out->safe_push (integer_zero_node);
   out->safe_push (build_int_cst (integer_type_node, 42));
   out->safe_push (build_int_cst (unsigned_type_node, 0));
   out->safe_push (build_int_cst (unsigned_type_node, 42));
@@ -7373,7 +7408,7 @@ test_array_1 ()
 
   region_model_manager mgr;
   region_model model (&mgr);
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree a_0 = build4 (ARRAY_REF, char_type_node,
 		     a, int_0, NULL_TREE, NULL_TREE);
   tree char_A = build_int_cst (char_type_node, 'A');
@@ -7430,7 +7465,7 @@ test_get_representative_tree ()
     {
       test_region_model_context ctxt;
       region_model model (&mgr);
-      tree idx = build_int_cst (integer_type_node, 0);
+      tree idx = integer_zero_node;
       tree a_0 = build4 (ARRAY_REF, char_type_node,
 			 a, idx, NULL_TREE, NULL_TREE);
       const region *a_0_reg = model.get_lvalue (a_0, &ctxt);
@@ -7482,7 +7517,7 @@ test_get_representative_tree ()
 static void
 test_unique_constants ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_42 = build_int_cst (integer_type_node, 42);
 
   test_region_model_context ctxt;
@@ -7865,7 +7900,7 @@ test_bit_range_regions ()
 static void
 test_assignment ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree x = build_global_decl ("x", integer_type_node);
   tree y = build_global_decl ("y", integer_type_node);
 
@@ -7924,7 +7959,7 @@ test_stack_frames ()
   tree int_42 = build_int_cst (integer_type_node, 42);
   tree int_10 = build_int_cst (integer_type_node, 10);
   tree int_5 = build_int_cst (integer_type_node, 5);
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
 
   auto_vec <tree> param_types;
   tree parent_fndecl = make_fndecl (integer_type_node,
@@ -8607,7 +8642,7 @@ test_state_merging ()
 static void
 test_constraint_merging ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_5 = build_int_cst (integer_type_node, 5);
   tree x = build_global_decl ("x", integer_type_node);
   tree y = build_global_decl ("y", integer_type_node);
@@ -8654,9 +8689,9 @@ test_widening_constraints ()
 {
   region_model_manager mgr;
   function_point point (program_point::origin (mgr).get_function_point ());
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_m1 = build_int_cst (integer_type_node, -1);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_1 = integer_one_node;
   tree int_256 = build_int_cst (integer_type_node, 256);
   test_region_model_context ctxt;
   const svalue *int_0_sval = mgr.get_or_create_constant_svalue (int_0);
@@ -8770,8 +8805,8 @@ test_iteration_1 ()
   region_model_manager mgr;
   program_point point (program_point::origin (mgr));
 
-  tree int_0 = build_int_cst (integer_type_node, 0);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_0 = integer_zero_node;
+  tree int_1 = integer_one_node;
   tree int_256 = build_int_cst (integer_type_node, 256);
   tree i = build_global_decl ("i", integer_type_node);
 
@@ -8924,8 +8959,8 @@ test_array_2 ()
   /* "int i;"  */
   tree i = build_global_decl ("i", integer_type_node);
 
-  tree int_0 = build_int_cst (integer_type_node, 0);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_0 = integer_zero_node;
+  tree int_1 = integer_one_node;
 
   tree arr_0 = build4 (ARRAY_REF, integer_type_node,
 		       arr, int_0, NULL_TREE, NULL_TREE);
@@ -8973,7 +9008,10 @@ test_array_2 ()
     const region *arr_i_reg = model.get_lvalue (arr_i, NULL);
     region_offset offset = arr_i_reg->get_offset (&mgr);
     ASSERT_EQ (offset.get_base_region (), model.get_lvalue (arr, NULL));
-    ASSERT_EQ (offset.get_symbolic_byte_offset ()->get_kind (), SK_BINOP);
+    const svalue *offset_sval = offset.get_symbolic_byte_offset ();
+    if (const svalue *cast = offset_sval->maybe_undo_cast ())
+      offset_sval = cast;
+    ASSERT_EQ (offset_sval->get_kind (), SK_BINOP);
   }
 
   /* "arr[i] = i;" - this should remove the earlier bindings.  */
@@ -9003,7 +9041,8 @@ test_mem_ref ()
 
   tree int_17 = build_int_cst (integer_type_node, 17);
   tree addr_of_x = build1 (ADDR_EXPR, int_star, x);
-  tree offset_0 = build_int_cst (integer_type_node, 0);
+  tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode, true);
+  tree offset_0 = build_int_cst (ptype, 0);
   tree star_p = build2 (MEM_REF, integer_type_node, p, offset_0);
 
   region_model_manager mgr;
@@ -9053,7 +9092,8 @@ test_POINTER_PLUS_EXPR_then_MEM_REF ()
   tree a = build_global_decl ("a", int_star);
   tree offset_12 = build_int_cst (size_type_node, 12);
   tree pointer_plus_expr = build2 (POINTER_PLUS_EXPR, int_star, a, offset_12);
-  tree offset_0 = build_int_cst (integer_type_node, 0);
+  tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode, true);
+  tree offset_0 = build_int_cst (ptype, 0);
   tree mem_ref = build2 (MEM_REF, integer_type_node,
 			 pointer_plus_expr, offset_0);
   region_model_manager mgr;
