@@ -2042,12 +2042,19 @@ AC_SUBST(PICFLAG)
 # build of the Rust frontend in case a dep is missing.
 missing_rust_dynlibs=none
 
-save_LIBS="$LIBS"
-LIBS=
-AC_SEARCH_LIBS([dlopen], [dl])
-AC_SEARCH_LIBS([pthread_create], [pthread])
-CRAB1_LIBS="$LIBS"
-LIBS="$save_LIBS"
+case "${target}" in
+  *-*-mingw*)
+    CRAB1_LIBS="-lkernel32 -luser32 -lmsvcrt -lmingwex -lmingw32 -lmingwex -lws2_32"
+    ;;
+  *)
+    save_LIBS="$LIBS"
+    LIBS=
+    AC_SEARCH_LIBS([dlopen], [dl])
+    AC_SEARCH_LIBS([pthread_create], [pthread])
+    CRAB1_LIBS="$LIBS"
+    LIBS="$save_LIBS"
+    ;;
+esac
 
 if test "$ac_cv_search_dlopen" = no; then
     missing_rust_dynlibs="libdl"
@@ -2297,19 +2304,15 @@ if test -d ${srcdir}/gcc; then
         esac
 
         # Disable Rust if we are missing some required C libraries for the Rust runtime.
-        case ${add_this_lang}:${language}:${missing_rust_dynlibs} in
-          *:rust:none)
-            # Nothing to do - we're not missing any C libraries
+        case ${add_this_lang}:${language}:${missing_rust_dynlibs}:${target} in
+          *:rust:none:* | *:rust:*:*-*-mingw*)
+            # Nothing to do - we're not missing any C libraries OR we're using win32
             ;;
-          yes:rust:*)
+          yes:rust:*:* | all:rust:*:*)
             AC_MSG_ERROR([some C libraries are required to build $language: $missing_rust_dynlibs])
             add_this_lang=unsupported
             ;;
-          all:rust:*)
-            AC_MSG_WARN([some C libraries are required to build $language: $missing_rust_dynlibs])
-            add_this_lang=unsupported
-            ;;
-          *:rust:*)
+          *:rust:*:*)
             # Silently disable.
             add_this_lang=unsupported
             ;;
