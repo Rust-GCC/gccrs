@@ -4792,12 +4792,15 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 
 	std::unique_ptr<AST::Expr> discriminant_expr = parse_expr ();
 
-	return std::unique_ptr<AST::EnumItemDiscriminant> (
-	  new AST::EnumItemDiscriminant (std::move (item_name), std::move (vis),
-					 std::move (discriminant_expr),
-					 std::move (outer_attrs),
-					 item_name_tok->get_locus ()));
+	// FIXME: We need to add special handling for parsing discriminant
+	// expressions for all possible enum items, not just enum item
+	// identifiers (gccrs#3340)
+	return std::unique_ptr<AST::EnumItem> (
+	  new AST::EnumItem (std::move (item_name), std::move (vis),
+			     std::move (outer_attrs),
+			     item_name_tok->get_locus ()));
       }
+
     default:
       // regular enum with just an identifier
       return std::unique_ptr<AST::EnumItem> (

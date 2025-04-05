@@ -130,7 +130,6 @@ types
   virtual void visit (HIR::EnumItemStruct &);
   virtual void visit (HIR::EnumItem &item);
   virtual void visit (HIR::TupleStruct &tuple_struct);
-  virtual void visit (HIR::EnumItemDiscriminant &);
   virtual void visit (HIR::TypePathSegmentFunction &segment);
   virtual void visit (HIR::TypePath &path);
   virtual void visit (HIR::QualifiedPathInType &path);

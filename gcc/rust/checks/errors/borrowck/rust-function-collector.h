@@ -139,7 +139,6 @@ public:
   void visit (HIR::EnumItem &item) override {}
   void visit (HIR::EnumItemTuple &item) override {}
   void visit (HIR::EnumItemStruct &item) override {}
-  void visit (HIR::EnumItemDiscriminant &item) override {}
   void visit (HIR::Enum &enum_item) override {}
   void visit (HIR::Union &union_item) override {}
   void visit (HIR::ConstantItem &const_item) override {}

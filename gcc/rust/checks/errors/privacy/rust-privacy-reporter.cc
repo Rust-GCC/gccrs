@@ -696,10 +696,6 @@ PrivacyReporter::visit (HIR::EnumItemStruct &)
 }
 
 void
-PrivacyReporter::visit (HIR::EnumItemDiscriminant &)
-{}
-
-void
 PrivacyReporter::visit (HIR::Enum &)
 {}
 

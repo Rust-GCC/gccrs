@@ -496,10 +496,6 @@ PatternChecker::visit (EnumItemStruct &)
 {}
 
 void
-PatternChecker::visit (EnumItemDiscriminant &)
-{}
-
-void
 PatternChecker::visit (Enum &)
 {}
 

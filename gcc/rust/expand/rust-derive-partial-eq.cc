@@ -266,9 +266,6 @@ DerivePartialEq::visit_enum (Enum &item)
       switch (variant->get_enum_item_kind ())
 	{
 	case EnumItem::Kind::Identifier:
-	case EnumItem::Kind::Discriminant:
-	  cases.emplace_back (match_enum_identifier (variant_path, variant));
-	  break;
 	case EnumItem::Kind::Tuple:
 	  cases.emplace_back (
 	    match_enum_tuple (variant_path,

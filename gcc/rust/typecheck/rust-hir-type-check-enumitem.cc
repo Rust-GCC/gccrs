@@ -46,10 +46,6 @@ TypeCheckEnumItem::Resolve (HIR::EnumItem &item, int64_t last_discriminant)
     case HIR::EnumItem::EnumItemKind::Struct:
       resolver.visit (static_cast<HIR::EnumItemStruct &> (item));
       break;
-
-    case HIR::EnumItem::EnumItemKind::Discriminant:
-      resolver.visit (static_cast<HIR::EnumItemDiscriminant &> (item));
-      break;
     }
   return resolver.variant;
 }
@@ -102,51 +98,6 @@ TypeCheckEnumItem::visit (HIR::EnumItem &item)
 				  item.get_mappings ().get_defid (),
 				  item.get_identifier ().as_string (), ident,
 				  std::move (discim_expr));
-}
-
-void
-TypeCheckEnumItem::visit (HIR::EnumItemDiscriminant &item)
-{
-  if (last_discriminant == INT64_MAX)
-    rust_error_at (item.get_locus (), "discriminant too big");
-
-  auto &discriminant = item.get_discriminant_expression ();
-  auto capacity_type = TypeCheckExpr::Resolve (discriminant);
-  if (capacity_type->get_kind () == TyTy::TypeKind::ERROR)
-    return;
-
-  TyTy::ISizeType *expected_ty
-    = new TyTy::ISizeType (discriminant.get_mappings ().get_hirid ());
-  context->insert_type (discriminant.get_mappings (), expected_ty);
-
-  unify_site (item.get_mappings ().get_hirid (),
-	      TyTy::TyWithLocation (expected_ty),
-	      TyTy::TyWithLocation (capacity_type), item.get_locus ());
-
-  tl::optional<CanonicalPath> canonical_path;
-
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
-
-      canonical_path
-	= nr_ctx.types.to_canonical_path (item.get_mappings ().get_nodeid ());
-    }
-  else
-    {
-      canonical_path
-	= mappings.lookup_canonical_path (item.get_mappings ().get_nodeid ());
-    }
-
-  rust_assert (canonical_path.has_value ());
-
-  RustIdent ident{*canonical_path, item.get_locus ()};
-  variant
-    = new TyTy::VariantDef (item.get_mappings ().get_hirid (),
-			    item.get_mappings ().get_defid (),
-			    item.get_identifier ().as_string (), ident,
-			    item.get_discriminant_expression ().clone_expr ());
 }
 
 void

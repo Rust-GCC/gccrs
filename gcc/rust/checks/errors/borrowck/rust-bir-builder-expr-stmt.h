@@ -134,7 +134,6 @@ protected: // Ignored.
   void visit (HIR::EnumItemStruct &a_struct) override {}
   void visit (HIR::EnumItem &item) override {}
   void visit (HIR::TupleStruct &tuple_struct) override {}
-  void visit (HIR::EnumItemDiscriminant &discriminant) override {}
   void visit (HIR::TypePathSegmentFunction &segment) override {}
   void visit (HIR::TypePath &path) override {}
   void visit (HIR::QualifiedPathInType &path) override {}

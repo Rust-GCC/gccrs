@@ -187,7 +187,6 @@ private:
   virtual void visit (EnumItem &) override;
   virtual void visit (EnumItemTuple &) override;
   virtual void visit (EnumItemStruct &) override;
-  virtual void visit (EnumItemDiscriminant &) override;
 
   virtual void visit (Enum &) override;
   virtual void visit (Union &) override;

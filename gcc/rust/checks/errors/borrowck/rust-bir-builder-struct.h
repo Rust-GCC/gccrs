@@ -176,7 +176,6 @@ protected:
   void visit (HIR::EnumItem &item) override { rust_unreachable (); }
   void visit (HIR::EnumItemTuple &item) override { rust_unreachable (); }
   void visit (HIR::EnumItemStruct &item) override { rust_unreachable (); }
-  void visit (HIR::EnumItemDiscriminant &item) override { rust_unreachable (); }
   void visit (HIR::Enum &enum_item) override { rust_unreachable (); }
   void visit (HIR::Union &union_item) override { rust_unreachable (); }
   void visit (HIR::ConstantItem &const_item) override { rust_unreachable (); }
