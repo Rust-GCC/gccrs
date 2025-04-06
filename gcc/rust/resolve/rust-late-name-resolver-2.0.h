@@ -42,7 +42,12 @@ public:
   // TODO: Do we need this?
   // void visit (AST::Method &) override;
   void visit (AST::IdentifierPattern &) override;
+  void visit (AST::AltPattern &) override;
+  void visit (AST::Function &) override;
   void visit (AST::SelfParam &) override;
+  void visit (AST::MatchArm &) override;
+  void visit (AST::ForLoopExpr &) override;
+  void visit (AST::IfLetExpr &) override;
 
   // resolutions
   void visit (AST::IdentifierExpr &) override;
