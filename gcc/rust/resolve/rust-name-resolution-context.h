@@ -177,12 +177,10 @@ enum class BindingSource
   Param
 };
 
-class BindingContext
+class BindingLayer
 {
-  // FIXME: Use std::vector<std::vector<Binding>> to handle nested patterns
-  std::vector<Binding> bindings;
-
   BindingSource source;
+  std::vector<Binding> bindings;
 
   bool bind_test (Identifier ident, Binding::Kind kind)
   {
@@ -197,6 +195,12 @@ class BindingContext
   }
 
 public:
+  void push (Binding::Kind kind) { bindings.push_back (Binding (kind)); }
+
+  BindingLayer (BindingSource source) : source (source)
+  {
+    push (Binding::Kind::Product);
+  }
   bool and_binded (Identifier ident)
   {
     return bind_test (ident, Binding::Kind::Product);
@@ -209,21 +213,6 @@ public:
 
   void insert_ident (Identifier ident) { bindings.back ().set.insert (ident); }
 
-  void push (Binding::Kind kind) { bindings.push_back (Binding (kind)); }
-
-  void new_binding (BindingSource source)
-  {
-    rust_assert (bindings.size () == 0);
-    this->source = source;
-    push (Binding::Kind::Product);
-  }
-
-  void clear ()
-  {
-    rust_assert (bindings.size () == 1);
-    bindings.clear ();
-  }
-
   void merge ()
   {
     auto last_binding = bindings.back ();
@@ -235,6 +224,37 @@ public:
   }
 
   BindingSource get_source () const { return source; }
+};
+
+class BindingContext
+{
+  std::vector<BindingLayer> bindings;
+
+public:
+  bool and_binded (Identifier ident)
+  {
+    return bindings.back ().and_binded (ident);
+  }
+
+  bool or_binded (Identifier ident)
+  {
+    return bindings.back ().or_binded (ident);
+  }
+
+  void merge () { bindings.back ().merge (); }
+
+  void push (Binding::Kind kind) { bindings.back ().push (kind); }
+
+  void insert_ident (Identifier ident)
+  {
+    bindings.back ().insert_ident (ident);
+  }
+
+  void new_binding (BindingSource source) { bindings.emplace_back (source); }
+
+  void clear () { bindings.pop_back (); }
+
+  BindingSource get_source () const { return bindings.back ().get_source (); }
 };
 
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
