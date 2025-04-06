@@ -169,11 +169,15 @@ struct Binding
   Binding (Binding::Kind kind) : kind (kind) {}
 };
 
+/**
+ * Used to identify the source of a binding, and emit the correct error message.
+ */
 enum class BindingSource
 {
   Match,
   Let,
   For,
+  /* Closure param or function param */
   Param
 };
 
@@ -182,48 +186,30 @@ class BindingLayer
   BindingSource source;
   std::vector<Binding> bindings;
 
-  bool bind_test (Identifier ident, Binding::Kind kind)
-  {
-    for (auto &bind : bindings)
-      {
-	if (bind.set.find (ident) != bind.set.cend () && bind.kind == kind)
-	  {
-	    return true;
-	  }
-      }
-    return false;
-  }
+  bool bind_test (Identifier ident, Binding::Kind kind);
 
 public:
-  void push (Binding::Kind kind) { bindings.push_back (Binding (kind)); }
+  void push (Binding::Kind kind);
 
-  BindingLayer (BindingSource source) : source (source)
-  {
-    push (Binding::Kind::Product);
-  }
-  bool and_binded (Identifier ident)
-  {
-    return bind_test (ident, Binding::Kind::Product);
-  }
+  BindingLayer (BindingSource source);
 
-  bool or_binded (Identifier ident)
-  {
-    return bind_test (ident, Binding::Kind::Or);
-  }
+  /**
+   * Identifies if the identifier has been used in a product binding context.
+   * eg. `let (a, a) = test();`
+   */
+  bool and_binded (Identifier ident);
 
-  void insert_ident (Identifier ident) { bindings.back ().set.insert (ident); }
+  /**
+   * Identifies if the identifier has been used in a or context.
+   * eg. `let (a, 1) | (a, 2) = test()`
+   */
+  bool or_binded (Identifier ident);
 
-  void merge ()
-  {
-    auto last_binding = bindings.back ();
-    bindings.pop_back ();
-    for (auto &value : last_binding.set)
-      {
-	bindings.back ().set.insert (value);
-      }
-  }
+  void insert_ident (Identifier ident);
 
-  BindingSource get_source () const { return source; }
+  void merge ();
+
+  BindingSource get_source () const;
 };
 
 class BindingContext
@@ -231,30 +217,45 @@ class BindingContext
   std::vector<BindingLayer> bindings;
 
 public:
-  bool and_binded (Identifier ident)
-  {
-    return bindings.back ().and_binded (ident);
-  }
+  /**
+   * Identifies if the identifier is and-binded in the current layer's bindings.
+   */
+  bool and_binded (Identifier ident);
 
-  bool or_binded (Identifier ident)
-  {
-    return bindings.back ().or_binded (ident);
-  }
+  /**
+   * Identifies if the identifier is or-binded in the current layer's bindings.
+   */
+  bool or_binded (Identifier ident);
 
-  void merge () { bindings.back ().merge (); }
+  /**
+   * Remove current layer's last binding level and merge it with it's parent.
+   */
+  void merge ();
 
-  void push (Binding::Kind kind) { bindings.back ().push (kind); }
+  /**
+   * Push a new binding level in the current binding layer.
+   */
+  void push (Binding::Kind kind);
 
-  void insert_ident (Identifier ident)
-  {
-    bindings.back ().insert_ident (ident);
-  }
+  /**
+   * Insert a new identifier in the current binding layer.
+   */
+  void insert_ident (Identifier ident);
 
-  void new_binding (BindingSource source) { bindings.emplace_back (source); }
+  /**
+   * Get current layer's binding source.
+   */
+  BindingSource get_source () const;
 
-  void clear () { bindings.pop_back (); }
+  /**
+   * Create a new binding layer.
+   */
+  void new_binding (BindingSource source);
 
-  BindingSource get_source () const { return bindings.back ().get_source (); }
+  /**
+   * Remove current binding layer.
+   */
+  void clear ();
 };
 
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
