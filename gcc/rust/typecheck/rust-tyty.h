@@ -711,12 +711,22 @@ public:
     ENUM
   };
 
+  enum ReprKind
+  {
+    RUST,
+    C,
+    INT,
+    ALIGN,
+    PACKED,
+    // TRANSPARENT,
+    // SIMD,
+    // ...
+  };
+
   // Representation options, specified via attributes e.g. #[repr(packed)]
   struct ReprOptions
   {
-    // bool is_c;
-    // bool is_transparent;
-    //...
+    ReprKind repr_kind = ReprKind::RUST;
 
     // For align and pack: 0 = unspecified. Nonzero = byte alignment.
     // It is an error for both to be nonzero, this should be caught when
