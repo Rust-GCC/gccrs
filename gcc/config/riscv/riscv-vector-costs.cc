@@ -752,7 +752,7 @@ update_local_live_ranges (
 
 		We will be likely using one more vector variable.  */
 	      unsigned int max_point
-		= (*program_points_per_bb.get (bb)).length () - 1;
+		= (*program_points_per_bb.get (bb)).length ();
 	      auto *live_ranges = live_ranges_per_bb.get (bb);
 	      bool existed_p = false;
 	      tree var = type == load_vec_info_type
@@ -890,7 +890,7 @@ costs::record_potential_unexpected_spills (loop_vec_info loop_vinfo)
 {
   /* We only want to apply the heuristic if LOOP_VINFO is being
      vectorized for VLA and known NITERS VLS loop.  */
-  if (riscv_autovec_lmul == RVV_DYNAMIC
+  if (rvv_max_lmul == RVV_DYNAMIC
       && (m_cost_type == VLA_VECTOR_COST
 	  || (m_cost_type == VLS_VECTOR_COST
 	      && LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))))
@@ -998,7 +998,7 @@ costs::better_main_loop_than_p (const vector_costs *uncast_other) const
 	  return other_prefer_unrolled;
 	}
     }
-  else if (riscv_autovec_lmul == RVV_DYNAMIC)
+  else if (rvv_max_lmul == RVV_DYNAMIC)
     {
       if (other->m_has_unexpected_spills_p)
 	{
@@ -1170,7 +1170,7 @@ costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 
 /* For some target specific vectorization cost which can't be handled per stmt,
    we check the requisite conditions and adjust the vectorization cost
-   accordingly if satisfied.  One typical example is to model model and adjust
+   accordingly if satisfied.  One typical example is to model and adjust
    loop_len cost for known_lt (NITERS, VF).  */
 
 void

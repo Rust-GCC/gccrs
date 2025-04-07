@@ -205,7 +205,7 @@ struct cr_local
 /* Core Relocation Final data */
 struct cr_final
 {
-  char *str;
+  const char *str;
   tree type;
   enum btf_core_reloc_kind kind;
 };
@@ -388,8 +388,8 @@ core_field_info (tree src, enum btf_core_reloc_kind kind)
 
   src = root_for_core_field_info (src);
 
-  get_inner_reference (src, &bitsize, &bitpos, &var_off, &mode, &unsignedp,
-		       &reversep, &volatilep);
+  tree root = get_inner_reference (src, &bitsize, &bitpos, &var_off, &mode,
+				   &unsignedp, &reversep, &volatilep);
 
   /* Note: Use DECL_BIT_FIELD_TYPE rather than DECL_BIT_FIELD here, because it
      remembers whether the field in question was originally declared as a
@@ -414,6 +414,23 @@ core_field_info (tree src, enum btf_core_reloc_kind kind)
     {
     case BPF_RELO_FIELD_BYTE_OFFSET:
       {
+	result = 0;
+	if (var_off == NULL_TREE
+	    && TREE_CODE (root) == INDIRECT_REF
+	    && TREE_CODE (TREE_OPERAND (root, 0)) == POINTER_PLUS_EXPR)
+	  {
+	    tree node = TREE_OPERAND (root, 0);
+	    tree offset = TREE_OPERAND (node, 1);
+	    tree type = TREE_TYPE (TREE_OPERAND (node, 0));
+	    type = TREE_TYPE (type);
+
+	    gcc_assert (TREE_CODE (offset) == INTEGER_CST && tree_fits_shwi_p (offset)
+		&& COMPLETE_TYPE_P (type) && tree_fits_shwi_p (TYPE_SIZE (type)));
+
+	    HOST_WIDE_INT offset_i = tree_to_shwi (offset);
+	    result += offset_i;
+	  }
+
 	type = unsigned_type_node;
 	if (var_off != NULL_TREE)
 	  {
@@ -422,9 +439,9 @@ core_field_info (tree src, enum btf_core_reloc_kind kind)
 	  }
 
 	if (bitfieldp)
-	  result = start_bitpos / 8;
+	  result += start_bitpos / 8;
 	else
-	  result = bitpos / 8;
+	  result += bitpos / 8;
       }
       break;
 
@@ -536,7 +553,11 @@ bpf_core_get_index (const tree node, bool *valid)
 	{
 	  if (l == node)
 	    return i;
-	  i++;
+	  /* Skip unnamed padding, not represented by BTF.  */
+	  if (DECL_NAME(l) != NULL_TREE
+	      || TREE_CODE (TREE_TYPE (l)) == UNION_TYPE
+	      || TREE_CODE (TREE_TYPE (l)) == RECORD_TYPE)
+	    i++;
 	}
     }
   else if (code == ARRAY_REF || code == ARRAY_RANGE_REF || code == MEM_REF)
@@ -552,6 +573,7 @@ bpf_core_get_index (const tree node, bool *valid)
     {
       tree offset = TREE_OPERAND (node, 1);
       tree type = TREE_TYPE (TREE_OPERAND (node, 0));
+      type = TREE_TYPE (type);
 
       if (TREE_CODE (offset) == INTEGER_CST && tree_fits_shwi_p (offset)
 	  && COMPLETE_TYPE_P (type) && tree_fits_shwi_p (TYPE_SIZE (type)))
@@ -627,14 +649,18 @@ compute_field_expr (tree node, unsigned int *accessors,
 
   switch (TREE_CODE (node))
     {
-    case ADDR_EXPR:
-      return 0;
     case INDIRECT_REF:
-      accessors[0] = 0;
-      return 1;
-    case POINTER_PLUS_EXPR:
-      accessors[0] = bpf_core_get_index (node, valid);
-      return 1;
+      if (TREE_CODE (node = TREE_OPERAND (node, 0)) == POINTER_PLUS_EXPR)
+	{
+	  accessors[0] = bpf_core_get_index (node, valid);
+	  *access_node = TREE_OPERAND (node, 0);
+	  return 1;
+	}
+      else
+	{
+	  accessors[0] = 0;
+	  return 1;
+	}
     case COMPONENT_REF:
       n = compute_field_expr (TREE_OPERAND (node, 0), accessors,
 			      valid,
@@ -660,6 +686,7 @@ compute_field_expr (tree node, unsigned int *accessors,
 			      access_node, false);
       return n;
 
+    case ADDR_EXPR:
     case CALL_EXPR:
     case SSA_NAME:
     case VAR_DECL:
@@ -688,6 +715,9 @@ pack_field_expr (tree *args,
   tree access_node = NULL_TREE;
   tree type = NULL_TREE;
 
+  if (TREE_CODE (root) == ADDR_EXPR)
+    root = TREE_OPERAND (root, 0);
+
   ret.reloc_decision = REPLACE_CREATE_RELOCATION;
 
   unsigned int accessors[100];
@@ -695,6 +725,8 @@ pack_field_expr (tree *args,
   compute_field_expr (root, accessors, &valid, &access_node, false);
 
   type = TREE_TYPE (access_node);
+  if (POINTER_TYPE_P (type))
+    type = TREE_TYPE (type);
 
   if (valid == true)
     {
@@ -840,8 +872,10 @@ process_enum_value (struct cr_builtins *data)
 	{
 	  if (TREE_VALUE (l) == expr)
 	    {
-	      ret.str = (char *) ggc_alloc_atomic ((index / 10) + 1);
-	      sprintf (ret.str, "%d", index);
+	      char *tmp = (char *) ggc_alloc_atomic ((index / 10) + 1);
+	      sprintf (tmp, "%d", index);
+	      ret.str = (const char *) tmp;
+
 	      break;
 	    }
 	  index++;
@@ -959,7 +993,7 @@ process_type (struct cr_builtins *data)
 	      || data->kind == BPF_RELO_TYPE_MATCHES);
 
   struct cr_final ret;
-  ret.str = NULL;
+  ret.str = ggc_strdup ("0");
   ret.type = data->type;
   ret.kind = data->kind;
 
@@ -1351,6 +1385,8 @@ make_core_safe_access_index (tree expr, bool *changed, bool entry = true)
   if (base == NULL_TREE || base == expr)
     return expr;
 
+  base = expr;
+
   tree ret = NULL_TREE;
   int n;
   bool valid = true;
@@ -1365,6 +1401,8 @@ make_core_safe_access_index (tree expr, bool *changed, bool entry = true)
     {
       if (TREE_CODE (access_node) == INDIRECT_REF)
 	base = TREE_OPERAND (access_node, 0);
+      else
+	base = access_node;
 
       bool local_changed = false;
       ret = make_core_safe_access_index (base, &local_changed, false);

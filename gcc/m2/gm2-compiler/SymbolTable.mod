@@ -35,7 +35,9 @@ FROM Indexing IMPORT InitIndex, InBounds, LowIndice, HighIndice,
 FROM Sets IMPORT Set, InitSet, IncludeElementIntoSet, IsElementInSet ;
 FROM m2linemap IMPORT location_t ;
 
-FROM M2Options IMPORT Pedantic, ExtendedOpaque, DebugFunctionLineNumbers, ScaffoldDynamic, DebugBuiltins ;
+FROM M2Options IMPORT Pedantic, ExtendedOpaque,
+                      GetDebugFunctionLineNumbers, ScaffoldDynamic,
+                      DebugBuiltins ;
 
 FROM M2LexBuf IMPORT UnknownTokenNo, TokenToLineNo,
                      FindFileNameFromToken, TokenToLocation ;
@@ -99,7 +101,10 @@ IMPORT Indexing ;
 
 
 CONST
-   DebugUnknowns        =  FALSE ;
+   DebugUnknowns        =  FALSE ;   (* Debug unknown symbols.  *)
+   DebugUnknownToken    =  FALSE ;   (* If enabled it will generate a warning every
+                                        time a symbol is created with an unknown
+                                        location.  *)
 
    (*
       The Unbounded is a pseudo type used within the compiler
@@ -1372,7 +1377,7 @@ END DebugProcedureLineNumber ;
 
 PROCEDURE DebugLineNumbers (sym: CARDINAL) ;
 BEGIN
-   IF DebugFunctionLineNumbers
+   IF GetDebugFunctionLineNumbers ()
    THEN
       printf0 ('<lines>\n') ;
       ForeachProcedureDo(sym, DebugProcedureLineNumber) ;
@@ -3266,6 +3271,29 @@ END GetModuleCtors ;
 
 
 (*
+   CheckTok - checks to see that tok is at a known location.  If not
+              it uses GetTokenNo as a fall back.
+*)
+
+PROCEDURE CheckTok (tok: CARDINAL; name: ARRAY OF CHAR) : CARDINAL ;
+VAR
+   s: String ;
+BEGIN
+   IF tok = UnknownTokenNo
+   THEN
+      tok := GetTokenNo () ;
+      IF DebugUnknownToken
+      THEN
+         s := InitString (name) ;
+         s := ConCat (s, InitString (' symbol {%W} has been created with an unknown token location')) ;
+         MetaErrorStringT0 (GetTokenNo (), s)
+      END
+   END ;
+   RETURN tok
+END CheckTok ;
+
+
+(*
    MakeModule - creates a module sym with ModuleName. It returns the
                 symbol index.
 *)
@@ -3276,6 +3304,7 @@ VAR
    pCall: PtrToCallFrame ;
    Sym  : CARDINAL ;
 BEGIN
+   (* tok := CheckTok (tok, 'module') ; *)
    (*
       Make a new symbol since we are at the outer scope level.
       DeclareSym examines the current scope level for any symbols
@@ -3645,7 +3674,7 @@ BEGIN
    (* We cannot use DeclareSym as it examines the current scope *)
    (* for any symbols which have the correct name, but are yet  *)
    (* undefined.  *)
-
+   (* tok := CheckTok (tok, 'defimp') ;  *)
    NewSym(Sym) ;
    pSym := GetPsym(Sym) ;
    WITH pSym^ DO
@@ -3893,6 +3922,7 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'procedure') ;
    Sym := DeclareSym(tok, ProcedureName) ;
    IF NOT IsError(Sym)
    THEN
@@ -4466,6 +4496,7 @@ PROCEDURE MakeRecord (tok: CARDINAL; RecordName: Name) : CARDINAL ;
 VAR
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'record') ;
    sym := HandleHiddenOrDeclare (tok, RecordName, oaf) ;
    FillInRecordFields (tok, sym, RecordName, GetCurrentScope (), oaf) ;
    ForeachOAFamily (oaf, doFillInOAFamily) ;
@@ -4483,6 +4514,7 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'varient') ;
    NewSym (Sym) ;
    pSym := GetPsym(Sym) ;
    WITH pSym^ DO
@@ -4632,6 +4664,7 @@ VAR
    pSym    : PtrToSymbol ;
    sym, oaf: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'enumeration') ;
    sym := CheckForHiddenType (EnumerationName) ;
    IF sym=NulSym
    THEN
@@ -4723,6 +4756,7 @@ VAR
    pSym: PtrToSymbol ;
    Sym : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'hidden') ;
    Sym := DeclareSym (tok, TypeName) ;
    IF NOT IsError(Sym)
    THEN
@@ -4835,6 +4869,7 @@ VAR
    str: String ;
    sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'constant') ;
    str := Sprintf1 (Mark (InitString ("%d")), value) ;
    sym := MakeConstLit (tok, makekey (string (str)), Cardinal) ;
    str := KillString (str) ;
@@ -4970,6 +5005,7 @@ PROCEDURE MakeConstLit (tok: CARDINAL; constName: Name; constType: CARDINAL) : C
 VAR
    sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'constlit') ;
    sym := LookupConstLitPoolEntry (tok, constName, constType) ;
    IF sym = NulSym
    THEN
@@ -5100,6 +5136,7 @@ PROCEDURE MakeConstStringCnul (tok: CARDINAL; name: Name; known: BOOLEAN) : CARD
 VAR
    newstr: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'conststringcnul') ;
    NewSym (newstr) ;
    InitConstString (tok, newstr, name, name, cnulstr, TRUE, known) ;
    RETURN newstr
@@ -5970,6 +6007,7 @@ VAR
    pSym    : PtrToSymbol ;
    sym, oaf: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'subrange') ;
    sym := HandleHiddenOrDeclare (tok, SubrangeName, oaf) ;
    IF NOT IsError(sym)
    THEN
@@ -6118,7 +6156,7 @@ BEGIN
       SubrangeSym         : type := Subrange.Type |
       ArraySym            : type := Array.Type |
       SubscriptSym        : type := Subscript.Type |
-      SetSym              : type := Set.Type |
+      SetSym              : type := Sym |    (* Stop at the set type.  *)
       UnboundedSym        : type := Unbounded.Type |
       UndefinedSym        : type := NulSym |
       DummySym            : type := NulSym
@@ -7739,6 +7777,7 @@ END IsComponent ;
 
 PROCEDURE MakeTemporary (tok: CARDINAL; Mode: ModeOfAddr) : CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'temporary') ;
    RETURN buildTemporary (tok, Mode, FALSE, NulSym)
 END MakeTemporary ;
 
@@ -10122,6 +10161,7 @@ VAR
    pSym       : PtrToSymbol ;
    VariableSym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'parameter') ;
    VariableSym := MakeVar (tok, ParamName) ;
    pSym := GetPsym (VariableSym) ;
    WITH pSym^ DO
@@ -10604,6 +10644,7 @@ PROCEDURE MakeParameterHeapVar (tok: CARDINAL; type: CARDINAL; mode: ModeOfAddr)
 VAR
    heapvar: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'parameter heap var') ;
    heapvar := NulSym ;
    type := SkipType (type) ;
    IF IsPointer (type)
@@ -11079,6 +11120,7 @@ PROCEDURE MakePointer (tok: CARDINAL; PointerName: Name) : CARDINAL ;
 VAR
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'pointer') ;
    sym := HandleHiddenOrDeclare(tok, PointerName, oaf) ;
    FillInPointerFields(sym, PointerName, GetCurrentScope(), oaf) ;
    ForeachOAFamily(oaf, doFillInOAFamily) ;
@@ -11341,6 +11383,7 @@ VAR
    pSym    : PtrToSymbol ;
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'set') ;
    sym := HandleHiddenOrDeclare(tok, SetName, oaf) ;
    IF NOT IsError(sym)
    THEN
@@ -11680,6 +11723,7 @@ PROCEDURE MakeUnbounded (tok: CARDINAL;
 VAR
    sym, oaf: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'unbounded') ;
    oaf := MakeOAFamily(SimpleType) ;
    sym := GetUnbounded(oaf, ndim) ;
    IF sym=NulSym
@@ -12513,6 +12557,7 @@ VAR
    pSym    : PtrToSymbol ;
    oaf, sym: CARDINAL ;
 BEGIN
+   tok := CheckTok (tok, 'proctype') ;
    sym := HandleHiddenOrDeclare (tok, ProcTypeName, oaf) ;
    IF NOT IsError(sym)
    THEN

@@ -6420,7 +6420,6 @@ static tree
 merge_truthop_with_opposite_arm (location_t loc, tree op, tree cmpop,
 				 bool rhs_only)
 {
-  tree type = TREE_TYPE (cmpop);
   enum tree_code code = TREE_CODE (cmpop);
   enum tree_code truthop_code = TREE_CODE (op);
   tree lhs = TREE_OPERAND (op, 0);
@@ -6435,6 +6434,8 @@ merge_truthop_with_opposite_arm (location_t loc, tree op, tree cmpop,
 
   if (TREE_CODE_CLASS (code) != tcc_comparison)
     return NULL_TREE;
+
+  tree type = TREE_TYPE (TREE_OPERAND (cmpop, 0));
 
   if (rhs_code == truthop_code)
     {
@@ -7101,6 +7102,27 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type,
       /* If widening the type changes the signedness, then we can't perform
 	 this optimization as that changes the result.  */
       if (TYPE_UNSIGNED (ctype) != TYPE_UNSIGNED (type))
+	break;
+
+      /* Punt for multiplication altogether.
+	 MAX (1U + INT_MAX, 1U) * 2U is not equivalent to
+	 MAX ((1U + INT_MAX) * 2U, 1U * 2U), the former is
+	 0U, the latter is 2U.
+	 MAX (INT_MIN / 2, 0) * -2 is not equivalent to
+	 MIN (INT_MIN / 2 * -2, 0 * -2), the former is
+	 well defined 0, the latter invokes UB.
+	 MAX (INT_MIN / 2, 5) * 5 is not equivalent to
+	 MAX (INT_MIN / 2 * 5, 5 * 5), the former is
+	 well defined 25, the latter invokes UB.  */
+      if (code == MULT_EXPR)
+	break;
+      /* For division/modulo, punt on c being -1 for MAX, as
+	 MAX (INT_MIN, 0) / -1 is not equivalent to
+	 MIN (INT_MIN / -1, 0 / -1), the former is well defined
+	 0, the latter invokes UB (or for -fwrapv is INT_MIN).
+	 MIN (INT_MIN, 0) / -1 already invokes UB, so the
+	 transformation won't make it worse.  */
+      else if (tcode == MAX_EXPR && integer_minus_onep (c))
 	break;
 
       /* MIN (a, b) / 5 -> MIN (a / 5, b / 5)  */
@@ -8579,6 +8601,8 @@ native_encode_initializer (tree init, unsigned char *ptr, int len,
 		  if (BYTES_BIG_ENDIAN != WORDS_BIG_ENDIAN)
 		    return 0;
 
+		  if (TREE_CODE (val) == NON_LVALUE_EXPR)
+		    val = TREE_OPERAND (val, 0);
 		  if (TREE_CODE (val) != INTEGER_CST)
 		    return 0;
 
