@@ -66,6 +66,12 @@ public:
   static constexpr auto &RUSTC_UNSAFE_SPECIALIZATION_MARKER
     = "rustc_unsafe_specialization_marker";
   static constexpr auto &RUSTC_RESERVATION_IMPL = "rustc_reservation_impl";
+  static constexpr auto &RUSTC_PAREN_SUGAR = "rustc_paren_sugar";
+  static constexpr auto &RUSTC_NONNULL_OPTIMIZATION_GUARANTEED
+    = "rustc_nonnull_optimization_guaranteed";
+
+  static constexpr auto &RUSTC_LAYOUT_SCALAR_VALID_RANGE_START
+    = "rustc_layout_scalar_valid_range_start";
 
   static constexpr auto &MAY_DANGLE = "may_dangle";
   static constexpr auto &PRELUDE_IMPORT = "prelude_import";
@@ -76,6 +82,8 @@ public:
   static constexpr auto &TRACK_CALLER = "track_caller";
 
   static constexpr auto &FUNDAMENTAL = "fundamental";
+
+  static constexpr auto &NON_EXHAUSTIVE = "non_exhaustive";
 };
 } // namespace Values
 } // namespace Rust

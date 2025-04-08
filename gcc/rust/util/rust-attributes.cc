@@ -81,6 +81,10 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_SPECIALIZATION_TRAIT, TYPE_CHECK},
      {Attrs::RUSTC_UNSAFE_SPECIALIZATION_MARKER, TYPE_CHECK},
      {Attrs::RUSTC_RESERVATION_IMPL, TYPE_CHECK},
+     {Attrs::RUSTC_PAREN_SUGAR, TYPE_CHECK},
+     {Attrs::RUSTC_NONNULL_OPTIMIZATION_GUARANTEED, TYPE_CHECK},
+
+     {Attrs::RUSTC_LAYOUT_SCALAR_VALID_RANGE_START, CODE_GENERATION},
 
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION},
 
@@ -89,7 +93,8 @@ static const BuiltinAttrDefinition __definitions[]
 
      {Attrs::TRACK_CALLER, CODE_GENERATION},
 
-     {Attrs::FUNDAMENTAL, TYPE_CHECK}};
+     {Attrs::FUNDAMENTAL, TYPE_CHECK},
+     {Attrs::NON_EXHAUSTIVE, TYPE_CHECK}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
