@@ -1,5 +1,5 @@
 /* Definitions for Intel 386 running FreeBSD with ELF format
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    Contributed by Eric Youngdale.
    Modified for stabs-in-ELF by H.J. Lu.
    Adapted from GNU/Linux version by John Polstra.
@@ -48,17 +48,17 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef  SIZE_TYPE
 #define SIZE_TYPE	(TARGET_64BIT ? "long unsigned int" : "unsigned int")
- 
+
 #undef  PTRDIFF_TYPE
 #define PTRDIFF_TYPE	(TARGET_64BIT ? "long int" : "int")
-  
+
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE	(TARGET_64BIT ? 32 : BITS_PER_WORD)
 
 #undef  SUBTARGET_EXTRA_SPECS	/* i386.h bogusly defines it.  */
 #define SUBTARGET_EXTRA_SPECS \
   { "fbsd_dynamic_linker", FBSD_DYNAMIC_LINKER }
-    
+
 /* Use the STARTFILE_SPEC from config/freebsd-spec.h.  */
 
 #undef  STARTFILE_SPEC
@@ -80,6 +80,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef	LINK_SPEC
 #define LINK_SPEC "\
   %{p:%nconsider using '-pg' instead of '-p' with gprof(1)} \
+  " FBSD_LINK_PG_NOTE " \
   %{v:-V} \
   %{assert*} %{R*} %{rpath*} %{defsym*} \
   %{shared:-Bshareable %{h*} %{soname*}} \

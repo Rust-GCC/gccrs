@@ -31,7 +31,7 @@ load_gcc_lib scanlang.exp
 load_gcc_lib scanrtl.exp
 load_gcc_lib scansarif.exp
 load_gcc_lib scantree.exp
-load_gcc_lib scanltranstree.exp
+load_gcc_lib scanltrans.exp
 load_gcc_lib scanoffload.exp
 load_gcc_lib scanoffloadipa.exp
 load_gcc_lib scanoffloadtree.exp
@@ -41,6 +41,7 @@ load_gcc_lib scanwpaipa.exp
 load_gcc_lib timeout-dg.exp
 load_gcc_lib torture-options.exp
 load_gcc_lib fortran-modules.exp
+load_gcc_lib dg-test-cleanup.exp
 
 # Try to load a test support file, built during libgomp configuration.
 # Search in '..' vs. '.' to support parallel vs. sequential testing.
@@ -232,11 +233,8 @@ proc libgomp_init { args } {
     # error-message parsing machinery.
     lappend ALWAYS_CFLAGS "additional_flags=-fmessage-length=0"
 
-    # Disable caret
-    lappend ALWAYS_CFLAGS "additional_flags=-fno-diagnostics-show-caret"
-
-    # Disable color diagnostics
-    lappend ALWAYS_CFLAGS "additional_flags=-fdiagnostics-color=never"
+    # Disable caret, color, URL diagnostics
+    lappend ALWAYS_CFLAGS "additional_flags=-fdiagnostics-plain-output"
 
     # Help GCC to find offload compilers' 'mkoffload'.
     global offload_additional_options
@@ -296,7 +294,7 @@ proc libgomp_target_compile { source dest type options } {
 	set options [concat "$ALWAYS_CFLAGS" $options]
     }
 
-    set options [dg-additional-files-options $options $source]
+    set options [dg-additional-files-options $options $source $dest $type]
 
     set result [target_compile $source $dest $type $options]
 

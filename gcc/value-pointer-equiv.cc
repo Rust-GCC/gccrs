@@ -1,5 +1,5 @@
 /* Context-aware pointer equivalence tracker.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -62,7 +62,7 @@ public:
 private:
   auto_vec<std::pair <tree, tree>> m_stack;
   auto_vec<tree> m_replacements;
-  const std::pair <tree, tree> m_marker = std::make_pair (NULL, NULL);
+  const std::pair <tree, tree> m_marker = std::make_pair (NULL_TREE, NULL_TREE);
 };
 
 ssa_equiv_stack::ssa_equiv_stack ()

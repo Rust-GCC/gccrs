@@ -1,5 +1,5 @@
 /* Dump a gcov file, for debugging use.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Nathan Sidwell <nathan@codesourcery.com>
 
 Gcov is free software; you can redistribute it and/or modify
@@ -38,6 +38,7 @@ static void print_version (void);
 static void tag_function (const char *, unsigned, int, unsigned);
 static void tag_blocks (const char *, unsigned, int, unsigned);
 static void tag_arcs (const char *, unsigned, int, unsigned);
+static void tag_conditions (const char *, unsigned, int, unsigned);
 static void tag_lines (const char *, unsigned, int, unsigned);
 static void tag_counters (const char *, unsigned, int, unsigned);
 static void tag_summary (const char *, unsigned, int, unsigned);
@@ -77,6 +78,7 @@ static const tag_format_t tag_table[] =
   {GCOV_TAG_FUNCTION, "FUNCTION", tag_function},
   {GCOV_TAG_BLOCKS, "BLOCKS", tag_blocks},
   {GCOV_TAG_ARCS, "ARCS", tag_arcs},
+  {GCOV_TAG_CONDS, "CONDITIONS", tag_conditions},
   {GCOV_TAG_LINES, "LINES", tag_lines},
   {GCOV_TAG_OBJECT_SUMMARY, "OBJECT_SUMMARY", tag_summary},
   {0, NULL, NULL}
@@ -154,7 +156,7 @@ static void
 print_version (void)
 {
   printf ("gcov-dump %s%s\n", pkgversion_string, version_string);
-  printf ("Copyright (C) 2024 Free Software Foundation, Inc.\n");
+  printf ("Copyright (C) 2025 Free Software Foundation, Inc.\n");
   printf ("This is free software; see the source for copying conditions.  There is NO\n\
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n");
 }
@@ -297,8 +299,8 @@ dump_gcov_file (const char *filename)
       gcov_sync (base, length);
       if ((error = gcov_is_error ()))
 	{
-	  printf (error < 0 ? "%s:counter overflow at %lu\n" :
-		  "%s:read error at %lu\n", filename,
+	  printf (error < 0 ? "%s:counter overflow at %lu\n"
+		  : "%s:read error at %lu\n", filename,
 		  (long unsigned) gcov_position ());
 	  break;
 	}
@@ -324,7 +326,7 @@ tag_function (const char *filename ATTRIBUTE_UNUSED,
       if (gcov_position () - pos < (gcov_position_t) length)
 	{
 	  const char *name;
-	  
+
 	  name = gcov_read_string ();
 	  printf (", `%s'", name ? name : "NULL");
 	  unsigned artificial = gcov_read_unsigned ();
@@ -379,7 +381,7 @@ tag_arcs (const char *filename ATTRIBUTE_UNUSED,
 	  if (flags)
 	    {
 	      char c = '(';
-	      
+
 	      if (flags & GCOV_ARC_ON_TREE)
 		printf ("%ctree", c), c = ',';
 	      if (flags & GCOV_ARC_FAKE)
@@ -392,6 +394,28 @@ tag_arcs (const char *filename ATTRIBUTE_UNUSED,
     }
 }
 
+/* Print number of conditions (not outcomes, i.e. if (x && y) is 2, not 4).  */
+static void
+tag_conditions (const char *filename, unsigned /* tag */, int length,
+		unsigned depth)
+{
+  unsigned n_conditions = GCOV_TAG_CONDS_NUM (length);
+
+  printf (" %u conditions", n_conditions);
+  if (flag_dump_contents)
+    {
+      for (unsigned ix = 0; ix != n_conditions; ix++)
+	{
+	  const unsigned blockno = gcov_read_unsigned ();
+	  const unsigned nterms = gcov_read_unsigned ();
+
+	  printf ("\n");
+	  print_prefix (filename, depth, gcov_position ());
+	  printf (VALUE_PADDING_PREFIX "block %u:", blockno);
+	  printf (" %u", nterms);
+	}
+    }
+}
 static void
 tag_lines (const char *filename ATTRIBUTE_UNUSED,
 	   unsigned tag ATTRIBUTE_UNUSED, int length ATTRIBUTE_UNUSED,

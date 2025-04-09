@@ -1,4 +1,5 @@
-/* Copyright (C) 2009-2024 Free Software Foundation, Inc.
+/* Code for the C/C++ front end for AVR 8-bit microcontrollers.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Anatoly Sokolov (aesok@post.ru)
 
    This file is part of GCC.
@@ -7,12 +8,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3, or (at your option)
    any later version.
-   
+
    GCC is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
@@ -35,7 +36,7 @@
 
 enum avr_builtin_id
   {
-#define DEF_BUILTIN(NAME, N_ARGS, TYPE, CODE, LIBNAME)  \
+#define DEF_BUILTIN(NAME, N_ARGS, TYPE, CODE, LIBNAME, ATTRS) \
     AVR_BUILTIN_ ## NAME,
 #include "builtins.def"
 #undef DEF_BUILTIN
@@ -44,26 +45,61 @@ enum avr_builtin_id
   };
 
 
-/* Implement `TARGET_RESOLVE_OVERLOADED_PLUGIN'.  */
+/* Some of our built-in functions are available for GNU-C only:
+   - Built-ins that use named address-spaces.
+   - Built-ins that use fixed-point types.  */
+
+static bool
+avr_builtin_supported_p (location_t loc, avr_builtin_id bid)
+{
+  if (! lang_GNU_C () // Means "C" actually, not "GNU-C".
+      && bid >= AVR_FIRST_C_ONLY_BUILTIN_ID)
+    {
+      if (loc != UNKNOWN_LOCATION)
+	error_at (loc, "built-in function is only supported for GNU-C");
+      return false;
+    }
+
+  const bool uses_as = (bid == AVR_BUILTIN_FLASH_SEGMENT
+			|| bid == AVR_BUILTIN_STRLEN_FLASH
+			|| bid == AVR_BUILTIN_STRLEN_FLASHX
+			|| bid == AVR_BUILTIN_STRLEN_MEMX);
+  if (AVR_TINY && uses_as)
+    {
+      if (loc != UNKNOWN_LOCATION)
+	error_at (loc, "built-in function for named address-space is not"
+		  " supported for reduced Tiny devices");
+      return false;
+    }
+
+  return true;
+}
+
+
+/* Implement `TARGET_RESOLVE_OVERLOADED_BUILTIN'.  */
 
 static tree
-avr_resolve_overloaded_builtin (unsigned int iloc, tree fndecl, void *vargs)
+avr_resolve_overloaded_builtin (location_t loc, tree fndecl, void *vargs, bool)
 {
-  tree type0, type1, fold = NULL_TREE;
-  enum avr_builtin_id id = AVR_BUILTIN_COUNT;
-  location_t loc = (location_t) iloc;
-  vec<tree, va_gc> &args = * (vec<tree, va_gc>*) vargs;
+  const avr_builtin_id bid = (avr_builtin_id) DECL_MD_FUNCTION_CODE (fndecl);
 
-  switch (DECL_MD_FUNCTION_CODE (fndecl))
+  if (! avr_builtin_supported_p (loc, bid))
+    return error_mark_node;
+
+  tree type0, type1, fold = NULL_TREE;
+  avr_builtin_id id = AVR_BUILTIN_COUNT;
+  vec<tree, va_gc> &args = * (vec<tree, va_gc> *) vargs;
+
+  switch (bid)
     {
     default:
       break;
 
     case AVR_BUILTIN_ABSFX:
-      if (args.length() != 1)
+      if (args.length () != 1)
 	{
 	  error_at (loc, "%qs expects 1 argument but %d given",
-		    "absfx", (int) args.length());
+		    "absfx", (int) args.length ());
 
 	  fold = error_mark_node;
 	  break;
@@ -119,10 +155,10 @@ avr_resolve_overloaded_builtin (unsigned int iloc, tree fndecl, void *vargs)
       break; // absfx
 
     case AVR_BUILTIN_ROUNDFX:
-      if (args.length() != 2)
+      if (args.length () != 2)
 	{
 	  error_at (loc, "%qs expects 2 arguments but %d given",
-		    "roundfx", (int) args.length());
+		    "roundfx", (int) args.length ());
 
 	  fold = error_mark_node;
 	  break;
@@ -185,10 +221,10 @@ avr_resolve_overloaded_builtin (unsigned int iloc, tree fndecl, void *vargs)
       break; // roundfx
 
     case AVR_BUILTIN_COUNTLSFX:
-      if (args.length() != 1)
+      if (args.length () != 1)
 	{
 	  error_at (loc, "%qs expects 1 argument but %d given",
-		    "countlsfx", (int) args.length());
+		    "countlsfx", (int) args.length ());
 
 	  fold = error_mark_node;
 	  break;
@@ -290,7 +326,7 @@ avr_toupper (char *up, const char *lo)
 /* Worker function for TARGET_CPU_CPP_BUILTINS.  */
 
 void
-avr_cpu_cpp_builtins (struct cpp_reader *pfile)
+avr_cpu_cpp_builtins (cpp_reader *pfile)
 {
   builtin_define_std ("AVR");
 
@@ -384,12 +420,19 @@ avr_cpu_cpp_builtins (struct cpp_reader *pfile)
   if (TARGET_RMW)
     cpp_define (pfile, "__AVR_ISA_RMW__");
 
+  if (TARGET_CVT)
+    cpp_define (pfile, "__AVR_CVT__");
+
   cpp_define_formatted (pfile, "__AVR_SFR_OFFSET__=0x%x",
 			avr_arch->sfr_offset);
 
 #ifdef WITH_AVRLIBC
   cpp_define (pfile, "__WITH_AVRLIBC__");
 #endif /* WITH_AVRLIBC */
+
+  // We support __attribute__((signal/interrupt (n1, n2, ...)[, noblock]))
+  cpp_define (pfile, "__HAVE_SIGNAL_N__");
+
 
   // From configure --with-libf7={|libgcc|math|math-symbols|yes|no}
 
@@ -495,8 +538,9 @@ avr_cpu_cpp_builtins (struct cpp_reader *pfile)
   /* Define builtin macros so that the user can easily query whether or
      not a specific builtin is available. */
 
-#define DEF_BUILTIN(NAME, N_ARGS, TYPE, CODE, LIBNAME)  \
-  cpp_define (pfile, "__BUILTIN_AVR_" #NAME);
+#define DEF_BUILTIN(NAME, N_ARGS, TYPE, CODE, LIBNAME, ATTRS)		\
+  if (avr_builtin_supported_p (UNKNOWN_LOCATION, AVR_BUILTIN_ ## NAME))	\
+    cpp_define (pfile, "__BUILTIN_AVR_" #NAME);
 #include "builtins.def"
 #undef DEF_BUILTIN
 

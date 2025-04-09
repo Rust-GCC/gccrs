@@ -707,7 +707,7 @@ AC_DEFUN([GLIBCXX_EXPORT_FLAGS], [
   # OPTIMIZE_CXXFLAGS = -O3 -fstrict-aliasing -fvtable-gc
   AC_SUBST(OPTIMIZE_CXXFLAGS)
 
-  WARN_FLAGS="-Wall -Wextra -Wwrite-strings -Wcast-qual -Wabi=2"
+  WARN_FLAGS="-Wall -Wextra -Wwrite-strings -Wcast-qual -Wabi=19"
   AC_SUBST(WARN_FLAGS)
 ])
 
@@ -3267,9 +3267,11 @@ AC_DEFUN([GLIBCXX_ENABLE_CXX_FLAGS], [dnl
 	     AC_MSG_ERROR([compiler flags start with a -]) ;;
       esac
     done
+
+    # Append the additional flags to any that came from 'configure.host'.
+    EXTRA_CXX_FLAGS="$EXTRA_CXX_FLAGS $enable_cxx_flags"
   fi
 
-  EXTRA_CXX_FLAGS="$enable_cxx_flags"
   AC_MSG_RESULT($EXTRA_CXX_FLAGS)
   AC_SUBST(EXTRA_CXX_FLAGS)
 ])
@@ -4021,10 +4023,11 @@ AC_DEFUN([GLIBCXX_ENABLE_LOCK_POLICY], [
     dnl Why don't we check 8-byte CAS for sparc64, where _Atomic_word is long?!
     dnl New targets should only check for CAS for the _Atomic_word type.
     AC_TRY_COMPILE([
-    #if defined __riscv
+    #if defined __AMDGCN__ || defined __nvptx__
+    /* Yes, please.  */
+    #elif defined __riscv
     # error "Defaulting to mutex-based locks for ABI compatibility"
-    #endif
-    #if ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
+    #elif ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
     # error "No 2-byte compare-and-swap"
     #elif ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
     # error "No 4-byte compare-and-swap"
@@ -4230,7 +4233,7 @@ changequote([,])dnl
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:33:0
+libtool_VERSION=6:34:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in
@@ -4493,7 +4496,7 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
 # Check whether LC_MESSAGES is available in <locale.h>.
 # Ulrich Drepper <drepper@cygnus.com>, 1995.
 #
-# This file file be copied and used freely without restrictions.  It can
+# This file can be copied and used freely without restrictions.  It can
 # be used in projects which are not available under the GNU Public License
 # but which still want to provide support for the GNU gettext functionality.
 # Please note that the actual code is *not* freely available.
@@ -5481,6 +5484,11 @@ AC_DEFUN([GLIBCXX_ENABLE_BACKTRACE], [
     BACKTRACE_CPPFLAGS="$BACKTRACE_CPPFLAGS -DHAVE_DL_ITERATE_PHDR=1"
   fi
   AC_CHECK_HEADERS(windows.h)
+  AC_CHECK_HEADERS(tlhelp32.h, [], [],
+  [#ifdef HAVE_WINDOWS_H
+  #  include <windows.h>
+  #endif
+  ])
 
   # Check for the fcntl function.
   if test -n "${with_target_subdir}"; then
@@ -5735,6 +5743,41 @@ AC_DEFUN([GLIBCXX_ZONEINFO_DIR], [
     AC_DEFINE_UNQUOTED(_GLIBCXX_STATIC_TZDATA, 1,
       [Define if static tzdata should be compiled into the library.])
   fi
+])
+
+dnl
+dnl Check for a tm_zone member in struct tm.
+dnl
+dnl This member is defined as const char* in Glibc, newlib, POSIX.1-2024,
+dnl and as char* in BSD (including macOS).
+dnl
+dnl Defines:
+dnl  _GLIBCXX_USE_STRUCT_TM_TM_ZONE if struct tm has a tm_zone member.
+dnl
+AC_DEFUN([GLIBCXX_STRUCT_TM_TM_ZONE], [
+
+  AC_LANG_SAVE
+  AC_LANG_CPLUSPLUS
+  ac_save_CXXFLAGS="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS -std=c++20"
+
+  AC_CACHE_CHECK([for tm_zone member of struct tm], glibcxx_cv_tm_zone, [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <time.h>
+	],
+	[struct tm t{}; t.tm_zone = (char*)0;]
+	)],
+	[glibcxx_cv_tm_zone=yes],
+	[glibcxx_cv_tm_zone=no]
+      )
+    ])
+
+  if test $glibcxx_cv_tm_zone = yes; then
+    AC_DEFINE(_GLIBCXX_USE_STRUCT_TM_TM_ZONE, 1,
+	      [Define if struct tm has a tm_zone member.])
+  fi
+
+  CXXFLAGS="$ac_save_CXXFLAGS"
+  AC_LANG_RESTORE
 ])
 
 dnl

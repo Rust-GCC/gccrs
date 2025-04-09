@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2008-2025 Free Software Foundation, Inc.
    Contributor: Joern Rennecke <joern.rennecke@embecosm.com>
 		on behalf of Synopsys Inc.
 
@@ -29,7 +29,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    If this result can't be rounded to the exact result with confidence, we
    round to the value between the two closest representable values, and
    test if the correctly rounded value is above or below this value.
- 
+
    Because of the Newton-raphson iteration step, an error in the seed at X
    is amplified by X.  Therefore, we don't want a Tchebycheff polynom
    or a polynom that is close to optimal according to the maximum norm

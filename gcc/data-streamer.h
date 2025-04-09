@@ -1,6 +1,6 @@
 /* Generic streaming support for various data types.
 
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -50,6 +50,7 @@ void bp_pack_real_value (struct bitpack_d *, const REAL_VALUE_TYPE *);
 void bp_unpack_real_value (struct bitpack_d *, REAL_VALUE_TYPE *);
 unsigned HOST_WIDE_INT bp_unpack_var_len_unsigned (struct bitpack_d *);
 HOST_WIDE_INT bp_unpack_var_len_int (struct bitpack_d *);
+extern unsigned host_num_poly_int_coeffs;
 
 /* In data-streamer-out.cc  */
 void streamer_write_zero (struct output_block *);
@@ -93,7 +94,7 @@ gcov_type streamer_read_gcov_count (class lto_input_block *);
 wide_int streamer_read_wide_int (class lto_input_block *);
 widest_int streamer_read_widest_int (class lto_input_block *);
 void streamer_read_value_range (class lto_input_block *, class data_in *,
-				class Value_Range &);
+				class value_range &);
 
 /* Returns a new bit-packing context for bit-packing into S.  */
 inline struct bitpack_d
@@ -182,7 +183,7 @@ bp_unpack_value (struct bitpack_d *bp, unsigned nbits)
      switch to the next one.  */
   if (pos + nbits > BITS_PER_BITPACK_WORD)
     {
-      bp->word = val 
+      bp->word = val
 	= streamer_read_uhwi ((class lto_input_block *)bp->stream);
       bp->pos = nbits;
       return val & mask;
@@ -194,15 +195,55 @@ bp_unpack_value (struct bitpack_d *bp, unsigned nbits)
   return val & mask;
 }
 
+/* Common code for reading poly_int.  */
+
+template<typename C, typename F, typename ...Args>
+poly_int<NUM_POLY_INT_COEFFS, C>
+poly_int_read_common (F read_coeff, Args ...args)
+{
+  poly_int<NUM_POLY_INT_COEFFS, C> x;
+  unsigned i;
+
+#ifdef ACCEL_COMPILER
+  /* Ensure that we have streamed-in host_num_poly_int_coeffs.  */
+  const unsigned num_poly_int_coeffs = host_num_poly_int_coeffs;
+  gcc_assert (host_num_poly_int_coeffs > 0);
+#else
+  const unsigned num_poly_int_coeffs = NUM_POLY_INT_COEFFS;
+#endif
+
+  if (num_poly_int_coeffs <= NUM_POLY_INT_COEFFS)
+    {
+      for (i = 0; i < num_poly_int_coeffs; i++)
+	x.coeffs[i] = read_coeff (args...);
+      for (; i < NUM_POLY_INT_COEFFS; i++)
+	x.coeffs[i] = 0;
+    }
+  else
+    {
+      for (i = 0; i < NUM_POLY_INT_COEFFS; i++)
+	x.coeffs[i] = read_coeff (args...);
+
+      /* Ensure that degree of poly_int <= accel NUM_POLY_INT_COEFFS.  */
+      for (; i < num_poly_int_coeffs; i++)
+	{
+	  C val = read_coeff (args...);
+	  if (val != 0)
+	    fatal_error (input_location,
+			 "degree of %<poly_int%> exceeds "
+			 "%<NUM_POLY_INT_COEFFS%> (%d)",
+			 NUM_POLY_INT_COEFFS);
+	}
+    }
+  return x;
+}
+
 /* Unpacks a polynomial value from the bit-packing context BP in which each
    coefficient has NBITS bits.  */
 inline poly_int<NUM_POLY_INT_COEFFS, bitpack_word_t>
 bp_unpack_poly_value (struct bitpack_d *bp, unsigned nbits)
 {
-  poly_int<NUM_POLY_INT_COEFFS, bitpack_word_t> x;
-  for (int i = 0; i < NUM_POLY_INT_COEFFS; ++i)
-    x.coeffs[i] = bp_unpack_value (bp, nbits);
-  return x;
+  return poly_int_read_common<bitpack_word_t> (bp_unpack_value, bp, nbits);
 }
 
 

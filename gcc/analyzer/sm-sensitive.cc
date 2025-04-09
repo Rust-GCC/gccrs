@@ -1,6 +1,6 @@
 /* An experimental state machine, for tracking exposure of sensitive
    data (e.g. through logging).
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -20,7 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -29,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "gimple.h"
 #include "options.h"
+#include "diagnostic-core.h"
 #include "diagnostic-path.h"
 #include "analyzer/analyzer.h"
 #include "diagnostic-event-id.h"
@@ -52,7 +52,7 @@ public:
 
   bool inherited_state_p () const final override { return true; }
 
-  bool on_stmt (sm_context *sm_ctxt,
+  bool on_stmt (sm_context &sm_ctxt,
 		const supernode *node,
 		const gimple *stmt) const final override;
 
@@ -65,7 +65,7 @@ public:
   state_t m_stop;
 
 private:
-  void warn_for_any_exposure (sm_context *sm_ctxt,
+  void warn_for_any_exposure (sm_context &sm_ctxt,
 			      const supernode *node,
 			      const gimple *stmt,
 			      tree arg) const;
@@ -102,15 +102,17 @@ public:
 		      m_arg);
   }
 
-  label_text describe_state_change (const evdesc::state_change &change)
-    final override
+  bool
+  describe_state_change (pretty_printer &pp,
+			 const evdesc::state_change &change) final override
   {
     if (change.m_new_state == m_sm.m_sensitive)
       {
 	m_first_sensitive_event = change.m_event_id;
-	return change.formatted_print ("sensitive value acquired here");
+	pp_string (&pp, "sensitive value acquired here");
+	return true;
       }
-    return label_text ();
+    return false;
   }
 
   diagnostic_event::meaning
@@ -122,34 +124,48 @@ public:
 					diagnostic_event::NOUN_sensitive);
     return diagnostic_event::meaning ();
   }
-  label_text describe_call_with_state (const evdesc::call_with_state &info)
-    final override
+  bool
+  describe_call_with_state (pretty_printer &pp,
+			    const evdesc::call_with_state &info) final override
   {
     if (info.m_state == m_sm.m_sensitive)
-      return info.formatted_print
-	("passing sensitive value %qE in call to %qE from %qE",
-	 info.m_expr, info.m_callee_fndecl, info.m_caller_fndecl);
-    return label_text ();
+      {
+	pp_printf (&pp,
+		   "passing sensitive value %qE in call to %qE from %qE",
+		   info.m_expr, info.m_callee_fndecl, info.m_caller_fndecl);
+	return true;
+      }
+    return false;
   }
 
-  label_text describe_return_of_state (const evdesc::return_of_state &info)
-    final override
+  bool
+  describe_return_of_state (pretty_printer &pp,
+			    const evdesc::return_of_state &info) final override
   {
     if (info.m_state == m_sm.m_sensitive)
-      return info.formatted_print ("returning sensitive value to %qE from %qE",
-				   info.m_caller_fndecl, info.m_callee_fndecl);
-    return label_text ();
+      {
+	pp_printf (&pp,
+		   "returning sensitive value to %qE from %qE",
+		   info.m_caller_fndecl, info.m_callee_fndecl);
+	return true;
+      }
+    return false;
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_first_sensitive_event.known_p ())
-      return ev.formatted_print ("sensitive value %qE written to output file"
-				 "; acquired at %@",
-				 m_arg, &m_first_sensitive_event);
+      pp_printf (&pp,
+		 "sensitive value %qE written to output file"
+		 "; acquired at %@",
+		 m_arg, &m_first_sensitive_event);
     else
-      return ev.formatted_print ("sensitive value %qE written to output file",
-				 m_arg);
+      pp_printf (&pp,
+		 "sensitive value %qE written to output file",
+		 m_arg);
+    return true;
   }
 
 private:
@@ -171,17 +187,17 @@ sensitive_state_machine::sensitive_state_machine (logger *logger)
    state.  */
 
 void
-sensitive_state_machine::warn_for_any_exposure (sm_context *sm_ctxt,
+sensitive_state_machine::warn_for_any_exposure (sm_context &sm_ctxt,
 						const supernode *node,
 						const gimple *stmt,
 						tree arg) const
 {
-  if (sm_ctxt->get_state (stmt, arg) == m_sensitive)
+  if (sm_ctxt.get_state (stmt, arg) == m_sensitive)
     {
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
-      sm_ctxt->warn (node, stmt, arg,
-		     make_unique<exposure_through_output_file> (*this,
-								diag_arg));
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+      sm_ctxt.warn (node, stmt, arg,
+		    make_unique<exposure_through_output_file> (*this,
+							       diag_arg));
     }
 }
 
@@ -189,18 +205,18 @@ sensitive_state_machine::warn_for_any_exposure (sm_context *sm_ctxt,
    sensitive_state_machine.  */
 
 bool
-sensitive_state_machine::on_stmt (sm_context *sm_ctxt,
+sensitive_state_machine::on_stmt (sm_context &sm_ctxt,
 				  const supernode *node,
 				  const gimple *stmt) const
 {
   if (const gcall *call = dyn_cast <const gcall *> (stmt))
-    if (tree callee_fndecl = sm_ctxt->get_fndecl_for_call (call))
+    if (tree callee_fndecl = sm_ctxt.get_fndecl_for_call (call))
       {
 	if (is_named_call_p (callee_fndecl, "getpass", call, 1))
 	  {
 	    tree lhs = gimple_call_lhs (call);
 	    if (lhs)
-	      sm_ctxt->on_transition (node, stmt, lhs, m_start, m_sensitive);
+	      sm_ctxt.on_transition (node, stmt, lhs, m_start, m_sensitive);
 	    return true;
 	  }
 	else if (is_named_call_p (callee_fndecl, "fprintf")

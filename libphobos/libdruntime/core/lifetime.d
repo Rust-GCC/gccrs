@@ -104,7 +104,7 @@ T emplace(T, Args...)(T chunk, auto ref Args args)
 
     // Initialize the object in its pre-ctor state
     const initializer = __traits(initSymbol, T);
-    (() @trusted { (cast(void*) chunk)[0 .. initializer.length] = initializer[]; })();
+    () @trusted { (cast(void*) chunk)[0 .. initializer.length] = cast(void[]) initializer[]; }();
 
     static if (isInnerClass!T)
     {
@@ -1699,7 +1699,7 @@ template forward(args...)
         {
             x_ = forward!x;
         }
-        this()(auto const ref X x)
+        this()(auto ref const X x)
         {
             x_ = forward!x;
         }
@@ -2348,7 +2348,7 @@ pure nothrow @nogc @system unittest
 
 debug(PRINTF)
 {
-    import core.stdc.stdio;
+    import core.stdc.stdio : printf;
 }
 
 /// Implementation of `_d_delstruct` and `_d_delstructTrace`
@@ -2683,7 +2683,7 @@ T _d_newThrowable(T)() @trusted
     debug(PRINTF) printf(" p = %p\n", p);
 
     // initialize it
-    p[0 .. init.length] = init[];
+    p[0 .. init.length] = cast(void[]) init[];
 
     import core.internal.traits : hasIndirections;
     if (hasIndirections!T)
@@ -2739,8 +2739,11 @@ if (is(T == class))
     auto init = __traits(initSymbol, T);
     void* p;
 
-    static if (__traits(getLinkage, T) == "Windows")
+    static if (__traits(isCOMClass, T))
     {
+        // If this is a COM class we allocate it using malloc.
+        // This allows the reference counting to outlive the reference known about by the GC.
+
         p = pureMalloc(init.length);
         if (!p)
             onOutOfMemoryError();
@@ -2776,7 +2779,7 @@ if (is(T == class))
     }
 
     // initialize it
-    p[0 .. init.length] = init[];
+    p[0 .. init.length] = cast(void[]) init[];
 
     debug(PRINTF) printf("initialization done\n");
     return cast(T) p;
@@ -2785,7 +2788,7 @@ if (is(T == class))
 /**
  * TraceGC wrapper around $(REF _d_newclassT, core,lifetime).
  */
-T _d_newclassTTrace(T)(string file, int line, string funcname) @trusted
+T _d_newclassTTrace(T)(string file = __FILE__, int line = __LINE__, string funcname = __FUNCTION__) @trusted
 {
     version (D_TypeInfo)
     {
@@ -2825,21 +2828,11 @@ T* _d_newitemT(T)() @trusted
     import core.memory : GC;
 
     auto flags = !hasIndirections!T ? GC.BlkAttr.NO_SCAN : GC.BlkAttr.NONE;
-    immutable tiSize = TypeInfoSize!T;
     immutable itemSize = T.sizeof;
-    immutable totalSize = itemSize + tiSize;
-    if (tiSize)
-        flags |= GC.BlkAttr.STRUCTFINAL | GC.BlkAttr.FINALIZE;
+    if (TypeInfoSize!T)
+        flags |= GC.BlkAttr.FINALIZE;
 
-    auto blkInfo = GC.qalloc(totalSize, flags, null);
-    auto p = blkInfo.base;
-
-    if (tiSize)
-    {
-        // The GC might not have cleared the padding area in the block.
-        *cast(TypeInfo*) (p + (itemSize & ~(size_t.sizeof - 1))) = null;
-        *cast(TypeInfo*) (p + blkInfo.size - tiSize) = cast() typeid(T);
-    }
+    auto p = GC.malloc(itemSize, flags, typeid(T));
 
     emplaceInitializer(*(cast(T*) p));
 
@@ -2992,10 +2985,19 @@ version (D_ProfileGC)
     /**
     * TraceGC wrapper around $(REF _d_newitemT, core,lifetime).
     */
-    T* _d_newitemTTrace(T)(string file, int line, string funcname) @trusted
+    T* _d_newitemTTrace(T)(string file = __FILE__, int line = __LINE__, string funcname = __FUNCTION__) @trusted
     {
         version (D_TypeInfo)
         {
+            static if (is(T == struct))
+            {
+                // prime the TypeInfo name, we don't want that affecting the allocated bytes
+                // Issue https://github.com/dlang/dmd/issues/20832
+                static string typeName(TypeInfo_Struct ti) nothrow @trusted => ti.name;
+                auto tnPure = cast(string function(TypeInfo_Struct ti) nothrow pure @trusted)&typeName;
+                cast(void)tnPure(typeid(T));
+            }
+
             import core.internal.array.utils : TraceHook, gcStatsPure, accumulatePure;
             mixin(TraceHook!(T.stringof, "_d_newitemT"));
 

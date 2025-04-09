@@ -1,6 +1,6 @@
 // std::mutex implementation -*- C++ -*-
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_MUTEX_H
 #define _GLIBCXX_MUTEX_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus < 201103L
 # include <bits/c++0x_warning.h>

@@ -1,5 +1,5 @@
 /* Cygwin host-specific hook definitions.
- Copyright (C) 2004-2024 Free Software Foundation, Inc.
+ Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
  This file is part of GCC.
 
@@ -59,7 +59,7 @@ cygwin_gt_pch_get_address (size_t sz, int fd)
    /* Cygwin requires that the underlying file be at least
       as large as the requested mapping.  */
   if ((size_t) p < sz)
-    { 
+    {
       if (ftruncate (fd, sz) == -1)
 	fatal_error (input_location, "cannot extend PCH file: %m");
     }

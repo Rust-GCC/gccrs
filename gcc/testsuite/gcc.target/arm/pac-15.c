@@ -1,8 +1,8 @@
 /* Check that GCC does .save and .cfi_offset directives with RA_AUTH_CODE pseudo hard-register.  */
 /* { dg-do compile } */
+/* { dg-require-effective-target arm_arch_v8_1m_main_pacbti_ok } */
 /* { dg-require-effective-target mbranch_protection_ok } */
-/* { dg-skip-if "avoid conflicting multilib options" { *-*-* } { "-marm" "-mcpu=*" } } */
-/* { dg-options "-march=armv8.1-m.main+mve+pacbti -mbranch-protection=pac-ret -mthumb -mfloat-abi=hard -fasynchronous-unwind-tables -g -O0" } */
+/* { dg-options "-mcpu=unset -march=armv8.1-m.main+mve+pacbti -mbranch-protection=pac-ret -mthumb -mfloat-abi=hard -fasynchronous-unwind-tables -g -O0" } */
 
 #include "stdio.h"
 
@@ -24,7 +24,7 @@ int main (void)
 }
 
 /* { dg-final { scan-assembler-times "\.pacspval" 1 } } */
-/* { dg-final { scan-assembler-times "pac	ip, lr, sp" 3 } } */
+/* { dg-final { scan-assembler-times "\tpac\tip, lr, sp" 3 } } */
 /* { dg-final { scan-assembler-times "\.cfi_register 143, 12" 3 } } */
 /* { dg-final { scan-assembler-times "\.save {r7, ra_auth_code, lr}" 2 } } */
 /* { dg-final { scan-assembler-times "\.cfi_offset 143, -8" 2 } } */

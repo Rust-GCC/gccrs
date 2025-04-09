@@ -1,12 +1,12 @@
 /**
  * Contains the `Id` struct with a list of predefined symbols the compiler knows about.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/id.d, _id.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/id.d, _id.d)
  * Documentation:  https://dlang.org/phobos/dmd_id.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/id.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/id.d
  */
 
 module dmd.id;
@@ -102,6 +102,8 @@ immutable Msgtable[] msgtable =
     { "ctfe", "__ctfe" },
     { "offset" },
     { "offsetof" },
+    { "bitoffsetof" },
+    { "bitwidth" },
     { "ModuleInfo" },
     { "ClassInfo" },
     { "classinfo" },
@@ -164,6 +166,7 @@ immutable Msgtable[] msgtable =
     { "xopCmp", "__xopCmp" },
     { "xtoHash", "__xtoHash" },
     { "__tmpfordtor" },
+    { "Entry" },
 
     { "LINE", "__LINE__" },
     { "FILE", "__FILE__" },
@@ -221,60 +224,15 @@ immutable Msgtable[] msgtable =
     { "__LOCAL_SIZE" },
 
     // For operator overloads
-    { "uadd",    "opPos" },
-    { "neg",     "opNeg" },
-    { "com",     "opCom" },
-    { "add",     "opAdd" },
-    { "add_r",   "opAdd_r" },
-    { "sub",     "opSub" },
-    { "sub_r",   "opSub_r" },
-    { "mul",     "opMul" },
-    { "mul_r",   "opMul_r" },
-    { "div",     "opDiv" },
-    { "div_r",   "opDiv_r" },
-    { "mod",     "opMod" },
-    { "mod_r",   "opMod_r" },
-    { "eq",      "opEquals" },
-    { "cmp",     "opCmp" },
-    { "iand",    "opAnd" },
-    { "iand_r",  "opAnd_r" },
-    { "ior",     "opOr" },
-    { "ior_r",   "opOr_r" },
-    { "ixor",    "opXor" },
-    { "ixor_r",  "opXor_r" },
-    { "shl",     "opShl" },
-    { "shl_r",   "opShl_r" },
-    { "shr",     "opShr" },
-    { "shr_r",   "opShr_r" },
-    { "ushr",    "opUShr" },
-    { "ushr_r",  "opUShr_r" },
-    { "cat",     "opCat" },
-    { "cat_r",   "opCat_r" },
-    { "assign",  "opAssign" },
-    { "addass",  "opAddAssign" },
-    { "subass",  "opSubAssign" },
-    { "mulass",  "opMulAssign" },
-    { "divass",  "opDivAssign" },
-    { "modass",  "opModAssign" },
-    { "andass",  "opAndAssign" },
-    { "orass",   "opOrAssign" },
-    { "xorass",  "opXorAssign" },
-    { "shlass",  "opShlAssign" },
-    { "shrass",  "opShrAssign" },
-    { "ushrass", "opUShrAssign" },
-    { "catass",  "opCatAssign" },
-    { "postinc", "opPostInc" },
-    { "postdec", "opPostDec" },
-    { "index",   "opIndex" },
-    { "indexass", "opIndexAssign" },
-    { "slice",   "opSlice" },
-    { "sliceass", "opSliceAssign" },
-    { "call",    "opCall" },
-    { "_cast",    "opCast" },
-    { "opIn" },
-    { "opIn_r" },
-    { "opStar" },
-    { "opDot" },
+    { "opEquals" },
+    { "opCmp" },
+    { "opAssign" },
+    { "opIndex" },
+    { "opIndexAssign" },
+    { "opSlice" },
+    { "opSliceAssign" },
+    { "opCall" },
+    { "opCast" },
     { "opDispatch" },
     { "opDollar" },
     { "opUnary" },
@@ -285,9 +243,6 @@ immutable Msgtable[] msgtable =
     { "opOpAssign" },
     { "opIndexOpAssign" },
     { "opSliceOpAssign" },
-    { "pow", "opPow" },
-    { "pow_r", "opPow_r" },
-    { "powass", "opPowAssign" },
 
     { "classNew", "new" },
     { "classDelete", "delete" },
@@ -387,6 +342,7 @@ immutable Msgtable[] msgtable =
     // Builtin functions
     { "std" },
     { "core" },
+    { "internal" },
     { "config" },
     { "c_complex_float" },
     { "c_complex_double" },
@@ -448,11 +404,14 @@ immutable Msgtable[] msgtable =
     { "outp"},
     { "outpl"},
     { "outpw"},
+    { "builtinsModuleName", "builtins" },
+    { "ctfeWrite", "__ctfeWrite" },
 
     // Traits
     { "isAbstractClass" },
     { "isArithmetic" },
     { "isAssociativeArray" },
+    { "isBitfield" },
     { "isFinalClass" },
     { "isTemplate" },
     { "isPOD" },
@@ -476,9 +435,12 @@ immutable Msgtable[] msgtable =
     { "isRef" },
     { "isOut" },
     { "isLazy" },
+    { "isCOMClass" },
     { "hasMember" },
     { "identifier" },
     { "fullyQualifiedName" },
+    { "getBitfieldOffset" },
+    { "getBitfieldWidth" },
     { "getProtection" },
     { "getVisibility" },
     { "parent" },
@@ -510,6 +472,7 @@ immutable Msgtable[] msgtable =
     { "getLocation" },
     { "hasPostblit" },
     { "hasCopyConstructor" },
+    { "hasMoveConstructor" },
     { "isCopyable" },
     { "toType" },
     { "parameters" },
@@ -528,6 +491,9 @@ immutable Msgtable[] msgtable =
     { "udaOptional", "optional"},
     { "udaMustUse", "mustuse" },
     { "udaStandalone", "standalone" },
+
+    // Editions
+    { "__edition_latest_do_not_use", },
 
     // C names, for undefined identifier error messages
     { "NULL" },
@@ -553,7 +519,7 @@ immutable Msgtable[] msgtable =
     { "_align", "align" },
     { "aligned" },
     { "__pragma", "pragma" },
-    { "builtins", "__builtins" },
+    { "importc_builtins", "__importc_builtins" },
     { "builtin_va_list", "__builtin_va_list" },
     { "builtin_va_arg", "__builtin_va_arg" },
     { "va_list_tag", "__va_list_tag" },
@@ -566,6 +532,7 @@ immutable Msgtable[] msgtable =
     { "define" },
     { "undef" },
     { "ident" },
+    { "packed" },
 ];
 
 

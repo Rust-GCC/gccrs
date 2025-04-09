@@ -1,5 +1,5 @@
 /* Some code common to C and ObjC front ends.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -24,16 +24,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "c-family/c-pretty-print.h"
 #include "tree-pretty-print.h"
+#include "tree-pretty-print-markup.h"
 #include "gimple-pretty-print.h"
 #include "langhooks.h"
 #include "c-objc-common.h"
-#include "gcc-rich-location.h"
+#include "c-family/c-type-mismatch.h"
 #include "stringpool.h"
 #include "attribs.h"
 #include "dwarf2.h"
+#include "make-unique.h"
 
 static bool c_tree_printer (pretty_printer *, text_info *, const char *,
-			    int, bool, bool, bool, bool *, const char **);
+			    int, bool, bool, bool, bool *, pp_token_list &);
 
 /* Info for C language features which can be queried through
    __has_{feature,extension}.  */
@@ -130,6 +132,8 @@ get_aka_type (tree type)
 
       result = get_aka_type (orig_type);
     }
+  else if (TREE_CODE (type) == ENUMERAL_TYPE)
+    return type;
   else
     {
       tree canonical = TYPE_CANONICAL (type);
@@ -220,7 +224,8 @@ get_aka_type (tree type)
 /* Print T to CPP.  */
 
 static void
-print_type (c_pretty_printer *cpp, tree t, bool *quoted)
+print_type (c_pretty_printer *cpp, tree t, bool *quoted,
+	    const char *highlight_color = nullptr)
 {
   if (t == error_mark_node)
     {
@@ -228,8 +233,11 @@ print_type (c_pretty_printer *cpp, tree t, bool *quoted)
       return;
     }
 
+  if (!pp_show_highlight_colors (cpp))
+    highlight_color = nullptr;
+
   gcc_assert (TYPE_P (t));
-  struct obstack *ob = pp_buffer (cpp)->obstack;
+  struct obstack *ob = pp_buffer (cpp)->m_obstack;
   char *p = (char *) obstack_base (ob);
   /* Remember the end of the initial dump.  */
   int len = obstack_object_size (ob);
@@ -247,10 +255,11 @@ print_type (c_pretty_printer *cpp, tree t, bool *quoted)
   tree aka_type = get_aka_type (t);
   if (aka_type != t)
     {
+      const bool show_color = pp_show_color (cpp);
       c_pretty_printer cpp2;
       /* Print the stripped version into a temporary printer.  */
       cpp2.type_id (aka_type);
-      struct obstack *ob2 = cpp2.buffer->obstack;
+      struct obstack *ob2 = pp_buffer (&cpp2)->m_obstack;
       /* Get the stripped version from the temporary printer.  */
       const char *aka = (char *) obstack_base (ob2);
       int aka_len = obstack_object_size (ob2);
@@ -262,20 +271,36 @@ print_type (c_pretty_printer *cpp, tree t, bool *quoted)
 
       /* They're not, print the stripped version now.  */
       if (*quoted)
-	pp_end_quote (cpp, pp_show_color (cpp));
+	pp_end_quote (cpp, show_color);
       pp_c_whitespace (cpp);
       pp_left_brace (cpp);
       pp_c_ws_string (cpp, _("aka"));
       pp_c_whitespace (cpp);
+      pp_string (cpp, colorize_stop (show_color));
       if (*quoted)
-	pp_begin_quote (cpp, pp_show_color (cpp));
+	pp_begin_quote (cpp, show_color);
+      if (highlight_color)
+	pp_string (cpp, colorize_start (show_color, highlight_color));
       cpp->type_id (aka_type);
       if (*quoted)
-	pp_end_quote (cpp, pp_show_color (cpp));
+	pp_end_quote (cpp, show_color);
       pp_right_brace (cpp);
       /* No further closing quotes are needed.  */
       *quoted = false;
     }
+}
+
+/* Implementation of pp_markup::element_quoted_type::print_type
+   for C/ObjC.  */
+
+void
+pp_markup::element_quoted_type::print_type (pp_markup::context &ctxt)
+{
+  auto pp = ctxt.m_pp.clone ();
+  c_pretty_printer *cpp = (c_pretty_printer *)pp.get ();
+  cpp->set_padding (pp_none);
+  ::print_type (cpp, m_type, &ctxt.m_quoted, m_highlight_color);
+  pp_string (&ctxt.m_pp, pp_formatted_text (cpp));
 }
 
 /* Called during diagnostic message formatting process to print a
@@ -294,12 +319,12 @@ print_type (c_pretty_printer *cpp, tree t, bool *quoted)
 static bool
 c_tree_printer (pretty_printer *pp, text_info *text, const char *spec,
 		int precision, bool wide, bool set_locus, bool hash,
-		bool *quoted, const char **)
+		bool *quoted, pp_token_list &)
 {
   tree t = NULL_TREE;
   // FIXME: the next cast should be a dynamic_cast, when it is permitted.
   c_pretty_printer *cpp = (c_pretty_printer *) pp;
-  pp->padding = pp_none;
+  pp->set_padding (pp_none);
 
   if (precision != 0 || wide)
     return false;
@@ -387,16 +412,9 @@ has_c_linkage (const_tree decl ATTRIBUTE_UNUSED)
 void
 c_initialize_diagnostics (diagnostic_context *context)
 {
-  pretty_printer *base = context->printer;
-  c_pretty_printer *pp = XNEW (c_pretty_printer);
-  context->printer = new (pp) c_pretty_printer ();
-
-  /* It is safe to free this object because it was previously XNEW()'d.  */
-  base->~pretty_printer ();
-  XDELETE (base);
-
+  context->set_pretty_printer (::make_unique<c_pretty_printer> ());
   c_common_diagnostics_set_defaults (context);
-  diagnostic_format_decoder (context) = &c_tree_printer;
+  context->set_format_decoder (&c_tree_printer);
 }
 
 int
@@ -418,16 +436,6 @@ c_var_mod_p (tree x, tree fn ATTRIBUTE_UNUSED)
 alias_set_type
 c_get_alias_set (tree t)
 {
-  /* Allow aliasing between enumeral types and the underlying
-     integer type.  This is required since those are compatible types.  */
-  if (TREE_CODE (t) == ENUMERAL_TYPE)
-    return get_alias_set (ENUM_UNDERLYING_TYPE (t));
-
-  /* Structs with variable size can alias different incompatible
-     structs.  Let them alias anything.   */
-  if (RECORD_OR_UNION_TYPE_P (t) && C_TYPE_VARIABLE_SIZE (t))
-    return 0;
-
   return c_common_get_alias_set (t);
 }
 

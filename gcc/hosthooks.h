@@ -1,5 +1,5 @@
 /* The host_hooks data structure.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -47,4 +47,4 @@ struct host_hooks
 /* Each host provides its own.  */
 extern const struct host_hooks host_hooks;
 
-#endif /* GCC_LANG_HOOKS_H */
+#endif /* GCC_HOST_HOOKS_H */

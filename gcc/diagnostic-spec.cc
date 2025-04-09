@@ -1,6 +1,6 @@
 /* Functions to enable and disable individual warnings on an expression
    and statement basis.
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    Contributed by Martin Sebor <msebor@redhat.com>
 
    This file is part of GCC.
@@ -177,6 +177,27 @@ suppress_warning_at (location_t loc, opt_code opt /* = all_warnings */,
 
   nowarn_map->put (loc, optspec);
   return true;
+}
+
+/* Change the warning disposition for LOC to match OPTSPEC.  */
+
+void
+put_warning_spec_at (location_t loc, unsigned bits)
+{
+  gcc_checking_assert (!RESERVED_LOCATION_P (loc));
+
+  nowarn_spec_t optspec = nowarn_spec_t::from_bits (bits);
+  if (!optspec)
+    {
+      if (nowarn_map)
+	nowarn_map->remove (loc);
+    }
+  else
+    {
+      if (!nowarn_map)
+	nowarn_map = nowarn_map_t::create_ggc (32);
+      nowarn_map->put (loc, optspec);
+    }
 }
 
 /* Copy the no-warning disposition from one location to another.  */

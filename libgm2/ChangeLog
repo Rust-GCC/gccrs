@@ -1,3 +1,49 @@
+2025-03-28  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/118045
+	* libm2iso/Makefile.am (libm2iso_la_LINK): Add -lm.
+	* libm2log/Makefile.am (libm2log_la_LINK): Ditto.
+	* libm2pim/Makefile.am (libm2pim_la_LINK): Ditto.
+	* libm2iso/Makefile.in: Regenerate.
+	* libm2log/Makefile.in: Regenerate.
+	* libm2pim/Makefile.in: Regenerate.
+
+2025-03-20  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* libm2iso/ErrnoCategory.cc (IsErrnoHard): Defend against
+	lack of ENOTBLK.
+	(UnAvailable): Ditto.
+	(GetOpenResults): Ditto.
+
+2024-11-20  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/117703
+	* configure: Regenerate.
+	* configure.ac (libtool_VERSION): Bump to 20:0:0.
+
+2024-05-29  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/115276
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Use AC_HEADER_TIME.
+	* libm2iso/wraptime.cc (InitTM): Check HAVE_SYS_TIME_H
+	before using struct tm to obtain the size.
+
+2024-05-02  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	* Makefile.in: Regenerate.
+	* libm2cor/Makefile.in: Ditto.
+	* libm2iso/Makefile.in: Ditto.
+	* libm2log/Makefile.in: Ditto.
+	* libm2min/Makefile.in: Ditto.
+	* libm2pim/Makefile.in: Ditto.
+	* aclocal.m4: Ditto.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure.host: Fix duplicated words; the the -> the.
+
 2024-02-25  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/113749

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2002-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -62,7 +62,7 @@ is
    --  such as SPARK or CodePeer. In the normal case Long_Long_Integer is
    --  always 64-bits so we get the desired 64-bit type.
 
-   type Unsigned_8  is mod 2 ** 8;
+   type Unsigned_8 is mod 2 ** 8;
    for Unsigned_8'Size use  8;
 
    type Unsigned_16 is mod 2 ** 16;

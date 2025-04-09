@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -52,6 +52,9 @@ package Fname.UF is
    --  that is a spec or body (e.g. by examining the extension). If this cannot
    --  be determined with the file naming conventions in use, then the returned
    --  value is set to Unknown.
+
+   function Get_Default_File_Name (Uname : Unit_Name_Type) return String;
+   --  Returns the file name of Uname under the default GNAT naming scheme.
 
    function Get_File_Name
      (Uname    : Unit_Name_Type;

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for IBM RS/6000.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
    This file is part of GCC.
@@ -28,11 +28,6 @@
 
 #ifndef RS6000_OPTS_H
 #include "config/rs6000/rs6000-opts.h"
-#endif
-
-/* 128-bit floating point precision values.  */
-#ifndef RS6000_MODES_H
-#include "config/rs6000/rs6000-modes.h"
 #endif
 
 /* Definitions for the object file format.  These are set at
@@ -106,6 +101,7 @@
    you make changes here, make them also there.  */
 #define ASM_CPU_SPEC \
 "%{mcpu=native: %(asm_cpu_native); \
+  mcpu=power11: -mpower11; \
   mcpu=power10: -mpower10; \
   mcpu=power9: -mpower9; \
   mcpu=power8|mcpu=powerpc64le: -mpower8; \
@@ -471,13 +467,13 @@ extern int rs6000_vector_align[];
 #define TARGET_EXTSWSLI	(TARGET_MODULO && TARGET_POWERPC64)
 #define TARGET_MADDLD	TARGET_MODULO
 
-#define TARGET_XSCVDPSPN	(TARGET_DIRECT_MOVE || TARGET_P8_VECTOR)
-#define TARGET_XSCVSPDPN	(TARGET_DIRECT_MOVE || TARGET_P8_VECTOR)
+/* TARGET_DIRECT_MOVE is redundant to TARGET_P8_VECTOR, so alias it to that.  */
+#define TARGET_DIRECT_MOVE	TARGET_P8_VECTOR
+#define TARGET_XSCVDPSPN	TARGET_P8_VECTOR
+#define TARGET_XSCVSPDPN	TARGET_P8_VECTOR
 #define TARGET_VADDUQM		(TARGET_P8_VECTOR && TARGET_POWERPC64)
-#define TARGET_DIRECT_MOVE_128	(TARGET_P9_VECTOR && TARGET_DIRECT_MOVE \
-				 && TARGET_POWERPC64)
-#define TARGET_VEXTRACTUB	(TARGET_P9_VECTOR && TARGET_DIRECT_MOVE \
-				 && TARGET_POWERPC64)
+#define TARGET_DIRECT_MOVE_128	(TARGET_P9_VECTOR && TARGET_DIRECT_MOVE_64BIT)
+#define TARGET_VEXTRACTUB	(TARGET_P9_VECTOR && TARGET_DIRECT_MOVE_64BIT)
 
 /* Whether we should avoid (SUBREG:SI (REG:SF) and (SUBREG:SF (REG:SI).  */
 #define TARGET_NO_SF_SUBREG	TARGET_DIRECT_MOVE_64BIT
@@ -488,7 +484,7 @@ extern int rs6000_vector_align[];
    memory support.  */
 #define TARGET_SYNC_HI_QI	(TARGET_QUAD_MEMORY			\
 				 || TARGET_QUAD_MEMORY_ATOMIC		\
-				 || TARGET_DIRECT_MOVE)
+				 || TARGET_POWER8)
 
 #define TARGET_SYNC_TI		TARGET_QUAD_MEMORY_ATOMIC
 
@@ -557,7 +553,6 @@ extern int rs6000_vector_align[];
    the calculation in 64-bit GPRs and then is transfered to the vector
    registers.  */
 #define TARGET_DIRECT_MOVE_64BIT	(TARGET_DIRECT_MOVE		\
-					 && TARGET_P8_VECTOR		\
 					 && TARGET_POWERPC64)
 
 /* Inlining allows targets to define the meanings of bits in target_info
@@ -690,20 +685,6 @@ extern unsigned char rs6000_recip_bits[];
    target machine.  If you don't define this, the default is two
    words.  */
 #define LONG_LONG_TYPE_SIZE 64
-
-/* A C expression for the size in bits of the type `float' on the
-   target machine.  If you don't define this, the default is one
-   word.  */
-#define FLOAT_TYPE_SIZE 32
-
-/* A C expression for the size in bits of the type `double' on the
-   target machine.  If you don't define this, the default is two
-   words.  */
-#define DOUBLE_TYPE_SIZE 64
-
-/* A C expression for the size in bits of the type `long double' on the target
-   machine.  If you don't define this, the default is two words.  */
-#define LONG_DOUBLE_TYPE_SIZE rs6000_long_double_type_size
 
 /* Work around rs6000_long_double_type_size dependency in ada/targtyps.cc.  */
 #define WIDEST_HARDWARE_FP_SIZE 64
@@ -1001,6 +982,8 @@ enum data_align { align_abi, align_opt, align_both };
 #define ALTIVEC_OR_VSX_VECTOR_MODE(MODE)				\
   (ALTIVEC_VECTOR_MODE (MODE) || VSX_VECTOR_MODE (MODE)			\
    || (MODE) == V2DImode || (MODE) == V1TImode)
+
+#define TI_OR_PTI_MODE(mode) ((mode) == TImode || (mode) == PTImode)
 
 /* Post-reload, we can't use any new AltiVec registers, as we already
    emitted the vrsave mask.  */
@@ -2438,6 +2421,13 @@ typedef struct GTY(()) machine_function
      global entry.  It helps to control the patchable area before and after
      local entry.  */
   bool global_entry_emitted;
+  bool asm_redzone_clobber_seen;
+  /* With ELFv2 ABI dual entry points being adopted, generic framework
+     targetm.asm_out.print_patchable_function_entry would generate "after"
+     NOPs before local entry, which is wrong.  This flag is to stop it from
+     printing patch area before local entry, it is only useful when the
+     function requires dual entry points.  */
+  bool stop_patch_area_print;
 } machine_function;
 #endif
 

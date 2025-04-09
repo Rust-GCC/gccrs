@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -385,7 +385,7 @@ _mm_extract_ps (__m128 __X, const int __N)
    by index N.  */
 #define _MM_EXTRACT_FLOAT(D, S, N) \
   { (D) = __builtin_ia32_vec_ext_v4sf ((__v4sf)(S), (N)); }
-  
+
 /* Extract specified single precision float element into the lower
    part of __m128.  */
 #define _MM_PICK_OUT_PS(X, N)				\

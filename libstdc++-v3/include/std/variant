@@ -1,6 +1,6 @@
 // <variant> -*- C++ -*-
 
-// Copyright (C) 2016-2024 Free Software Foundation, Inc.
+// Copyright (C) 2016-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,10 +29,13 @@
 #ifndef _GLIBCXX_VARIANT
 #define _GLIBCXX_VARIANT 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #define __glibcxx_want_freestanding_variant
 #define __glibcxx_want_variant
+#define __glibcxx_want_constrained_equality
 #include <bits/version.h>
 
 #ifdef __cpp_lib_variant // C++ >= 17
@@ -42,19 +45,20 @@
 #include <bits/exception_defines.h>
 #include <bits/functional_hash.h>
 #include <bits/invoke.h>
-#include <bits/parse_numbers.h>
+#include <bits/monostate.h>
+#include <bits/parse_numbers.h> // _Select_int
 #include <bits/stl_iterator_base_funcs.h>
 #include <bits/stl_construct.h>
 #include <bits/utility.h> // in_place_index_t
 #if __cplusplus >= 202002L
+# include <concepts>
 # include <compare>
 #endif
 
 // C++ < 20 || __cpp_concepts < 202002L || __cpp_constexpr < 201811L
 #if __cpp_lib_variant < 202106L
-# include <ext/aligned_buffer.h> // Use __aligned_membuf instead of union.
+# include <ext/aligned_buffer.h> // Use __aligned_membuf for storage.
 #endif
-
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -62,7 +66,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename... _Types> class tuple;
   template<typename... _Types> class variant;
-  template <typename> struct hash;
 
   template<typename _Variant>
     struct variant_size;
@@ -207,17 +210,18 @@ namespace __variant
     __as(const std::variant<_Types...>&& __v) noexcept
     { return std::move(__v); }
 
-  // For C++17:
-  // _Uninitialized<T> is guaranteed to be a trivially destructible type,
-  // even if T is not.
-  // For C++20:
-  // _Uninitialized<T> is trivially destructible iff T is, so _Variant_union
-  // needs a constrained non-trivial destructor.
+#if __cpp_lib_variant < 202106L
   template<typename _Type, bool = std::is_trivially_destructible_v<_Type>>
     struct _Uninitialized;
+#else
+  template<typename _Type, bool /* unused */ = true>
+    struct _Uninitialized;
+#endif
 
-  template<typename _Type>
-    struct _Uninitialized<_Type, true>
+  // The primary template is used for trivially destructible types in C++17,
+  // and for all types in C++20.
+  template<typename _Type, bool>
+    struct _Uninitialized
     {
       template<typename... _Args>
 	constexpr
@@ -225,6 +229,7 @@ namespace __variant
 	: _M_storage(std::forward<_Args>(__args)...)
 	{ }
 
+#if __cpp_lib_variant < 202106L
       constexpr const _Type& _M_get() const & noexcept
       { return _M_storage; }
 
@@ -236,46 +241,18 @@ namespace __variant
 
       constexpr _Type&& _M_get() && noexcept
       { return std::move(_M_storage); }
+#endif
 
       _Type _M_storage;
     };
 
+#if __cpp_lib_variant < 202106L
+  // This partial specialization is used for non-trivially destructible types
+  // in C++17, so that _Uninitialized<T> is trivially destructible and can be
+  // used as a union member in _Variadic_union.
   template<typename _Type>
     struct _Uninitialized<_Type, false>
     {
-#if __cpp_lib_variant >= 202106L
-      template<typename... _Args>
-	constexpr
-	_Uninitialized(in_place_index_t<0>, _Args&&... __args)
-	: _M_storage(std::forward<_Args>(__args)...)
-	{ }
-
-      constexpr ~_Uninitialized() { }
-
-      _Uninitialized(const _Uninitialized&) = default;
-      _Uninitialized(_Uninitialized&&) = default;
-      _Uninitialized& operator=(const _Uninitialized&) = default;
-      _Uninitialized& operator=(_Uninitialized&&) = default;
-
-      constexpr const _Type& _M_get() const & noexcept
-      { return _M_storage; }
-
-      constexpr _Type& _M_get() & noexcept
-      { return _M_storage; }
-
-      constexpr const _Type&& _M_get() const && noexcept
-      { return std::move(_M_storage); }
-
-      constexpr _Type&& _M_get() && noexcept
-      { return std::move(_M_storage); }
-
-      struct _Empty_byte { };
-
-      union {
-	_Empty_byte _M_empty;
-	_Type _M_storage;
-      };
-#else
       template<typename... _Args>
 	constexpr
 	_Uninitialized(in_place_index_t<0>, _Args&&... __args)
@@ -297,7 +274,6 @@ namespace __variant
       { return std::move(*_M_storage._M_ptr()); }
 
       __gnu_cxx::__aligned_membuf<_Type> _M_storage;
-#endif
     };
 
   template<size_t _Np, typename _Union>
@@ -314,6 +290,22 @@ namespace __variant
 	return __variant::__get_n<_Np - 3>(
 		 std::forward<_Union>(__u)._M_rest._M_rest._M_rest);
     }
+#else
+  template<size_t _Np, typename _Union>
+    constexpr auto&&
+    __get_n(_Union&& __u) noexcept
+    {
+      if constexpr (_Np == 0)
+	return std::forward<_Union>(__u)._M_first._M_storage;
+      else if constexpr (_Np == 1)
+	return std::forward<_Union>(__u)._M_rest._M_first._M_storage;
+      else if constexpr (_Np == 2)
+	return std::forward<_Union>(__u)._M_rest._M_rest._M_first._M_storage;
+      else
+	return __variant::__get_n<_Np - 3>(
+		 std::forward<_Union>(__u)._M_rest._M_rest._M_rest);
+    }
+#endif
 
   // Returns the typed storage for __v.
   template<size_t _Np, typename _Variant>
@@ -426,6 +418,9 @@ namespace __variant
 
       ~_Variadic_union() = default;
 
+      // If any alternative type is not trivially destructible then we need a
+      // user-provided destructor that does nothing. The active alternative
+      // will be destroyed by _Variant_storage::_M_reset() instead of here.
       constexpr ~_Variadic_union()
 	requires (!__trivially_destructible)
       { }
@@ -484,13 +479,13 @@ namespace __variant
 	constexpr
 	_Variant_storage(in_place_index_t<_Np>, _Args&&... __args)
 	: _M_u(in_place_index<_Np>, std::forward<_Args>(__args)...),
-	_M_index{_Np}
+	  _M_index{_Np}
 	{ }
 
       constexpr void
       _M_reset()
       {
-	if (!_M_valid()) [[unlikely]]
+	if (!_M_valid()) [[__unlikely__]]
 	  return;
 
 	std::__do_visit<void>([](auto&& __this_mem) mutable
@@ -530,7 +525,7 @@ namespace __variant
 	constexpr
 	_Variant_storage(in_place_index_t<_Np>, _Args&&... __args)
 	: _M_u(in_place_index<_Np>, std::forward<_Args>(__args)...),
-	_M_index{_Np}
+	  _M_index{_Np}
 	{ }
 
       constexpr void
@@ -1099,7 +1094,8 @@ namespace __variant
 	= __gen_vtable_impl<_Array_type, std::index_sequence<>>::_S_apply();
     };
 
-  template<size_t _Np, typename _Tp>
+#if ! _GLIBCXX_INLINE_VERSION
+  template<size_t _Nm, typename _Tp>
     struct _Base_dedup : public _Tp { };
 
   template<typename _Variant, typename __indices>
@@ -1108,7 +1104,9 @@ namespace __variant
   template<typename... _Types, size_t... __indices>
     struct _Variant_hash_base<variant<_Types...>,
 			      std::index_sequence<__indices...>>
-    : _Base_dedup<__indices, __poison_hash<remove_const_t<_Types>>>... { };
+    : _Base_dedup<__indices, __hash_empty_base<remove_const_t<_Types>>>...
+    { };
+#endif
 
   // Equivalent to decltype(get<_Np>(as-variant(declval<_Variant>())))
   template<size_t _Np, typename _Variant,
@@ -1234,43 +1232,125 @@ namespace __variant
       return std::get_if<__n>(__ptr);
     }
 
-  struct monostate { };
+namespace __detail::__variant
+{
+  template<typename _Ret, typename _Vp, typename _Op>
+    constexpr _Ret
+    __compare(_Ret __ret, const _Vp& __lhs, const _Vp& __rhs, _Op __op)
+    {
+      __variant::__raw_idx_visit(
+	[&__ret, &__lhs, __op] (auto&& __rhs_mem, auto __rhs_index) mutable
+	{
+	  if constexpr (__rhs_index != variant_npos)
+	    {
+	      if (__lhs.index() == __rhs_index.value)
+		{
+		  auto& __this_mem = std::get<__rhs_index>(__lhs);
+		  __ret = __op(__this_mem, __rhs_mem);
+		  return;
+		}
+	    }
+	  __ret = __op(__lhs.index() + 1, __rhs_index + 1);
+	}, __rhs);
+      return __ret;
+    }
+} // namespace __detail::__variant
 
-#define _VARIANT_RELATION_FUNCTION_TEMPLATE(__OP, __NAME) \
-  template<typename... _Types> \
-    constexpr bool operator __OP(const variant<_Types...>& __lhs, \
-				 const variant<_Types...>& __rhs) \
-    { \
-      bool __ret = true; \
-      __detail::__variant::__raw_idx_visit( \
-        [&__ret, &__lhs] (auto&& __rhs_mem, auto __rhs_index) mutable \
-        { \
-	  if constexpr (__rhs_index != variant_npos) \
-	    { \
-	      if (__lhs.index() == __rhs_index) \
-	        { \
-		  auto& __this_mem = std::get<__rhs_index>(__lhs);	\
-                  __ret = __this_mem __OP __rhs_mem; \
-                } \
-	      else \
-		__ret = (__lhs.index() + 1) __OP (__rhs_index + 1); \
-            } \
-          else \
-            __ret = (__lhs.index() + 1) __OP (__rhs_index + 1); \
-	}, __rhs); \
-      return __ret; \
+  template<typename... _Types>
+#if __cpp_lib_concepts
+    requires ((requires (const _Types& __t) {
+      { __t == __t } -> convertible_to<bool>; }) && ...)
+#endif
+    constexpr bool
+    operator== [[nodiscard]] (const variant<_Types...>& __lhs,
+			      const variant<_Types...>& __rhs)
+    {
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(true, __lhs, __rhs,
+				  [](auto&& __l, auto&& __r) -> bool {
+				    return __l == __r;
+				  });
     }
 
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(<, less)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(<=, less_equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(==, equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(!=, not_equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(>=, greater_equal)
-  _VARIANT_RELATION_FUNCTION_TEMPLATE(>, greater)
+  template<typename... _Types>
+#if __cpp_lib_concepts
+    requires ((requires (const _Types& __t) {
+      { __t != __t } -> convertible_to<bool>; }) && ...)
+#endif
+    constexpr bool
+    operator!= [[nodiscard]] (const variant<_Types...>& __lhs,
+			      const variant<_Types...>& __rhs)
+    {
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(true, __lhs, __rhs,
+				  [](auto&& __l, auto&& __r) -> bool {
+				    return __l != __r;
+				  });
+    }
 
-#undef _VARIANT_RELATION_FUNCTION_TEMPLATE
+  template<typename... _Types>
+#if __cpp_lib_concepts
+    requires ((requires (const _Types& __t) {
+      { __t < __t } -> convertible_to<bool>; }) && ...)
+#endif
+    constexpr bool
+    operator< [[nodiscard]] (const variant<_Types...>& __lhs,
+			     const variant<_Types...>& __rhs)
+    {
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(true, __lhs, __rhs,
+				  [](auto&& __l, auto&& __r) -> bool {
+				    return __l < __r;
+				  });
+    }
 
-  constexpr bool operator==(monostate, monostate) noexcept { return true; }
+  template<typename... _Types>
+#if __cpp_lib_concepts
+    requires ((requires (const _Types& __t) {
+      { __t <= __t } -> convertible_to<bool>; }) && ...)
+#endif
+    constexpr bool
+    operator<= [[nodiscard]] (const variant<_Types...>& __lhs,
+			      const variant<_Types...>& __rhs)
+    {
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(true, __lhs, __rhs,
+				  [](auto&& __l, auto&& __r) -> bool {
+				    return __l <= __r;
+				  });
+    }
+
+  template<typename... _Types>
+#if __cpp_lib_concepts
+    requires ((requires (const _Types& __t) {
+      { __t > __t } -> convertible_to<bool>; }) && ...)
+#endif
+    constexpr bool
+    operator> [[nodiscard]] (const variant<_Types...>& __lhs,
+			     const variant<_Types...>& __rhs)
+    {
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(true, __lhs, __rhs,
+				  [](auto&& __l, auto&& __r) -> bool {
+				    return __l > __r;
+				  });
+    }
+
+  template<typename... _Types>
+#if __cpp_lib_concepts
+    requires ((requires (const _Types& __t) {
+      { __t >= __t } -> convertible_to<bool>; }) && ...)
+#endif
+    constexpr bool
+    operator>= [[nodiscard]] (const variant<_Types...>& __lhs,
+			      const variant<_Types...>& __rhs)
+    {
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(true, __lhs, __rhs,
+				  [](auto&& __l, auto&& __r) -> bool {
+				    return __l >= __r;
+				  });
+    }
 
 #ifdef __cpp_lib_three_way_comparison
   template<typename... _Types>
@@ -1281,37 +1361,23 @@ namespace __variant
     {
       common_comparison_category_t<compare_three_way_result_t<_Types>...> __ret
 	= strong_ordering::equal;
-
-      __detail::__variant::__raw_idx_visit(
-	[&__ret, &__v] (auto&& __w_mem, auto __w_index) mutable
-	{
-	  if constexpr (__w_index != variant_npos)
-	    {
-	      if (__v.index() == __w_index)
-		{
-		  auto& __this_mem = std::get<__w_index>(__v);
-		  __ret = __this_mem <=> __w_mem;
-		  return;
-		}
-	    }
-	  __ret = (__v.index() + 1) <=> (__w_index + 1);
-	}, __w);
-      return __ret;
+      namespace __variant = __detail::__variant;
+      return __variant::__compare(__ret, __v, __w,
+				  [](auto&& __l, auto&& __r) {
+				    return __l <=> __r;
+				  });
     }
-
-  constexpr strong_ordering
-  operator<=>(monostate, monostate) noexcept { return strong_ordering::equal; }
-#else
-  constexpr bool operator!=(monostate, monostate) noexcept { return false; }
-  constexpr bool operator<(monostate, monostate) noexcept { return false; }
-  constexpr bool operator>(monostate, monostate) noexcept { return false; }
-  constexpr bool operator<=(monostate, monostate) noexcept { return true; }
-  constexpr bool operator>=(monostate, monostate) noexcept { return true; }
 #endif
 
   template<typename _Visitor, typename... _Variants>
     constexpr __detail::__variant::__visit_result_t<_Visitor, _Variants...>
     visit(_Visitor&&, _Variants&&...);
+
+#if __cplusplus > 201703L
+  template<typename _Res, typename _Visitor, typename... _Variants>
+    constexpr _Res
+    visit(_Visitor&&, _Variants&&...);
+#endif
 
   template<typename... _Types>
     _GLIBCXX20_CONSTEXPR
@@ -1326,6 +1392,8 @@ namespace __variant
 		   && (is_swappable_v<_Types> && ...))>
     swap(variant<_Types...>&, variant<_Types...>&) = delete;
 
+  [[noreturn]] void __throw_bad_variant_access(unsigned);
+
   class bad_variant_access : public exception
   {
   public:
@@ -1335,27 +1403,23 @@ namespace __variant
     { return _M_reason; }
 
   private:
+    // Must only be called with a string literal
     bad_variant_access(const char* __reason) noexcept : _M_reason(__reason) { }
 
     // Must point to a string with static storage duration:
     const char* _M_reason = "bad variant access";
 
-    friend void __throw_bad_variant_access(const char* __what);
+    friend void __throw_bad_variant_access([[maybe_unused]] unsigned __n)
+    {
+      [[maybe_unused]] static constexpr const char* __reasons[] = {
+	"std::get: wrong index for variant",
+	"std::get: variant is valueless",
+	"std::visit: variant is valueless",
+	"std::visit<R>: variant is valueless",
+      };
+      _GLIBCXX_THROW_OR_ABORT(bad_variant_access(__reasons[__n % 4u]));
+    }
   };
-
-  // Must only be called with a string literal
-  inline void
-  __throw_bad_variant_access(const char* __what)
-  { _GLIBCXX_THROW_OR_ABORT(bad_variant_access(__what)); }
-
-  inline void
-  __throw_bad_variant_access(bool __valueless)
-  {
-    if (__valueless) [[__unlikely__]]
-      __throw_bad_variant_access("std::get: variant is valueless");
-    else
-      __throw_bad_variant_access("std::get: wrong index for variant");
-  }
 
   template<typename... _Types>
     class variant
@@ -1374,10 +1438,8 @@ namespace __variant
 
       static_assert(sizeof...(_Types) > 0,
 		    "variant must have at least one alternative");
-      static_assert(!(std::is_reference_v<_Types> || ...),
-		    "variant must have no reference alternative");
-      static_assert(!(std::is_void_v<_Types> || ...),
-		    "variant must have no void alternative");
+      static_assert(((std::is_object_v<_Types> && !is_array_v<_Types>) && ...),
+		    "variant alternatives must be non-array object types");
 
       using _Base = __detail::__variant::_Variant_base<_Types...>;
 
@@ -1406,15 +1468,9 @@ namespace __variant
       using _Traits = __detail::__variant::_Traits<_Types...>;
 
       template<typename _Tp>
-	struct __is_in_place_tag : false_type { };
-      template<typename _Tp>
-	struct __is_in_place_tag<in_place_type_t<_Tp>> : true_type { };
-      template<size_t _Np>
-	struct __is_in_place_tag<in_place_index_t<_Np>> : true_type { };
-
-      template<typename _Tp>
 	static constexpr bool __not_in_place_tag
-	  = !__is_in_place_tag<__remove_cvref_t<_Tp>>::value;
+	  = !__is_in_place_type_v<__remove_cvref_t<_Tp>>
+	      && !__is_in_place_index_v<__remove_cvref_t<_Tp>>;
 
     public:
 #if __cpp_concepts
@@ -1680,30 +1736,50 @@ namespace __variant
 	  }, __rhs);
       }
 
-#if defined(__clang__) && __clang_major__ <= 7
-    public:
-      using _Base::_M_u; // See https://bugs.llvm.org/show_bug.cgi?id=31852
+#if __cpp_lib_variant >= 202306L // >= C++26
+      // [variant.visit], visitation
+
+      /** Simple visitation for a single variant
+       *
+       * To visit a single variant you can use `var.visit(visitor)`
+       * instead of `std::visit(visitor, var)`.
+       *
+       * @since C++26
+       */
+      template<int = 0, typename _Self, typename _Visitor>
+	constexpr decltype(auto)
+	visit(this _Self&& __self, _Visitor&& __vis)
+	{
+	  using _CVar = __conditional_t<is_const_v<remove_reference_t<_Self>>,
+					const variant, variant>;
+	  using _Var = __conditional_t<is_rvalue_reference_v<_Self&&>,
+				       _CVar&&, _CVar&>;
+	  return std::visit(std::forward<_Visitor>(__vis), (_Var)__self);
+	}
+
+      /** Simple visitation for a single variant, with explicit return type
+       *
+       * To visit a single variant you can use `var.visit<R>(visitor)`
+       * instead of `std::visit<R>(visitor, var)`.
+       *
+       * @since C++26
+       */
+      template<typename _Res, typename _Self, typename _Visitor>
+	constexpr _Res
+	visit(this _Self&& __self, _Visitor&& __vis)
+	{
+	  using _CVar = __conditional_t<is_const_v<remove_reference_t<_Self>>,
+					const variant, variant>;
+	  using _Var = __conditional_t<is_rvalue_reference_v<_Self&&>,
+				       _CVar&&, _CVar&>;
+	  return std::visit<_Res>(std::forward<_Visitor>(__vis), (_Var)__self);
+	}
 #endif
 
     private:
       template<size_t _Np, typename _Vp>
 	friend constexpr decltype(auto)
 	__detail::__variant::__get(_Vp&& __v) noexcept;
-
-#define _VARIANT_RELATION_FUNCTION_TEMPLATE(__OP) \
-      template<typename... _Tp> \
-	friend constexpr bool \
-	operator __OP(const variant<_Tp...>& __lhs, \
-		      const variant<_Tp...>& __rhs);
-
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(<)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(<=)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(==)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(!=)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(>=)
-      _VARIANT_RELATION_FUNCTION_TEMPLATE(>)
-
-#undef _VARIANT_RELATION_FUNCTION_TEMPLATE
     };
 
   template<size_t _Np, typename... _Types>
@@ -1853,7 +1929,7 @@ namespace __variant
       namespace __variant = std::__detail::__variant;
 
       if ((__variant::__as(__variants).valueless_by_exception() || ...))
-	__throw_bad_variant_access("std::visit: variant is valueless");
+	__throw_bad_variant_access(2);
 
       using _Result_type
 	= __detail::__variant::__visit_result_t<_Visitor, _Variants...>;
@@ -1893,7 +1969,7 @@ namespace __variant
       namespace __variant = std::__detail::__variant;
 
       if ((__variant::__as(__variants).valueless_by_exception() || ...))
-	__throw_bad_variant_access("std::visit<R>: variant is valueless");
+	__throw_bad_variant_access(3);
 
       return std::__do_visit<_Res>(std::forward<_Visitor>(__visitor),
 	  __variant::__as(std::forward<_Variants>(__variants))...);
@@ -1901,9 +1977,14 @@ namespace __variant
 #endif
 
   /// @cond undocumented
-  template<bool, typename... _Types>
-    struct __variant_hash_call_base_impl
+  template<typename... _Types>
+    struct __variant_hash
     {
+#if __cplusplus < 202002L
+      using result_type [[__deprecated__]] = size_t;
+      using argument_type [[__deprecated__]] = variant<_Types...>;
+#endif
+
       size_t
       operator()(const variant<_Types...>& __t) const
       noexcept((is_nothrow_invocable_v<hash<decay_t<_Types>>, _Types> && ...))
@@ -1923,39 +2004,18 @@ namespace __variant
 	return __ret;
       }
     };
-
-  template<typename... _Types>
-    struct __variant_hash_call_base_impl<false, _Types...> {};
-
-  template<typename... _Types>
-    using __variant_hash_call_base =
-    __variant_hash_call_base_impl<(__poison_hash<remove_const_t<_Types>>::
-				   __enable_hash_call &&...), _Types...>;
   /// @endcond
 
   template<typename... _Types>
     struct hash<variant<_Types...>>
-    : private __detail::__variant::_Variant_hash_base<
-	variant<_Types...>, std::index_sequence_for<_Types...>>,
-      public __variant_hash_call_base<_Types...>
-    {
-      using result_type [[__deprecated__]] = size_t;
-      using argument_type [[__deprecated__]] = variant<_Types...>;
-    };
-
-  template<>
-    struct hash<monostate>
-    {
-      using result_type [[__deprecated__]] = size_t;
-      using argument_type [[__deprecated__]] = monostate;
-
-      size_t
-      operator()(const monostate&) const noexcept
-      {
-	constexpr size_t __magic_monostate_hash = -7777;
-	return __magic_monostate_hash;
-      }
-    };
+    : __conditional_t<(__is_hash_enabled_for<remove_const_t<_Types>> && ...),
+		      __variant_hash<_Types...>,
+		      __hash_not_enabled<variant<_Types...>>>
+#if ! _GLIBCXX_INLINE_VERSION
+      , __detail::__variant::_Variant_hash_base<variant<_Types...>,
+						index_sequence_for<_Types...>>
+#endif
+    { };
 
   template<typename... _Types>
     struct __is_fast_hash<hash<variant<_Types...>>>

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -196,6 +196,14 @@ package body Util is
       then
          if Token_Name = Name_Some then
             Error_Msg_N ("& is a reserved word in Ada 2012?y?", Token_Node);
+         end if;
+      end if;
+
+      if Ada_Version < Ada_With_All_Extensions then
+         if Token_Name = Name_Finally then
+            Error_Msg_N
+              ("& is a reserved word with all extensions enabled?",
+               Token_Node);
          end if;
       end if;
 
@@ -688,12 +696,6 @@ package body Util is
    begin
       pragma Assert (Scope.Last > 0);
       Scope.Decrement_Last;
-
-      if Include_Subprogram_In_Messages
-        and then Scopes (Scope.Last).Labl /= Error
-      then
-         Current_Node := Scopes (Scope.Last).Labl;
-      end if;
 
       if Debug_Flag_P then
          Error_Msg_Uint_1 := UI_From_Int (Scope.Last);

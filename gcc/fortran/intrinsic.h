@@ -1,6 +1,6 @@
 /* Header file for intrinsics check, resolve and simplify function
    prototypes.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught & Katherine Holcomb
 
 This file is part of GCC.
@@ -71,6 +71,7 @@ bool gfc_check_dshift (gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_eoshift (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_dtime_etime (gfc_expr *);
 bool gfc_check_event_query (gfc_expr *, gfc_expr *, gfc_expr *);
+bool gfc_check_f_c_string (gfc_expr *, gfc_expr *);
 bool gfc_check_failed_or_stopped_images (gfc_expr *, gfc_expr *);
 bool gfc_check_fgetputc (gfc_expr *, gfc_expr *);
 bool gfc_check_fgetput (gfc_expr *);
@@ -89,6 +90,7 @@ bool gfc_check_hostnm (gfc_expr *);
 bool gfc_check_huge (gfc_expr *);
 bool gfc_check_hypot (gfc_expr *, gfc_expr *);
 bool gfc_check_i (gfc_expr *);
+bool gfc_check_iu (gfc_expr *);
 bool gfc_check_iand_ieor_ior (gfc_expr *, gfc_expr *);
 bool gfc_check_and (gfc_expr *, gfc_expr *);
 bool gfc_check_ibits (gfc_expr *, gfc_expr *, gfc_expr *);
@@ -98,6 +100,7 @@ bool gfc_check_image_status (gfc_expr *, gfc_expr *);
 bool gfc_check_index (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_int (gfc_expr *, gfc_expr *);
 bool gfc_check_intconv (gfc_expr *);
+bool gfc_check_uint (gfc_expr *, gfc_expr *);
 bool gfc_check_irand (gfc_expr *);
 bool gfc_check_is_contiguous (gfc_expr *);
 bool gfc_check_isatty (gfc_expr *);
@@ -124,11 +127,13 @@ bool gfc_check_merge (gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_merge_bits (gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_minloc_maxloc (gfc_actual_arglist *);
 bool gfc_check_minval_maxval (gfc_actual_arglist *);
+bool gfc_check_mod (gfc_expr *, gfc_expr *);
 bool gfc_check_nearest (gfc_expr *, gfc_expr *);
 bool gfc_check_new_line (gfc_expr *);
 bool gfc_check_norm2 (gfc_expr *, gfc_expr *);
 bool gfc_check_null (gfc_expr *);
 bool gfc_check_num_images (gfc_expr *, gfc_expr *);
+bool gfc_check_out_of_range (gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_pack (gfc_expr *, gfc_expr *, gfc_expr *);
 bool gfc_check_parity (gfc_expr *, gfc_expr *);
 bool gfc_check_precision (gfc_expr *);
@@ -139,6 +144,8 @@ bool gfc_check_rand (gfc_expr *);
 bool gfc_check_range (gfc_expr *);
 bool gfc_check_rank (gfc_expr *);
 bool gfc_check_real (gfc_expr *, gfc_expr *);
+bool gfc_check_reduce (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *,
+		       gfc_expr *, gfc_expr *);
 bool gfc_check_rename (gfc_expr *, gfc_expr *);
 bool gfc_check_repeat (gfc_expr *, gfc_expr *);
 bool gfc_check_reshape (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
@@ -324,6 +331,7 @@ gfc_expr *gfc_simplify_image_index (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_image_status (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_index (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_int (gfc_expr *, gfc_expr *);
+gfc_expr *gfc_simplify_uint (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_int2 (gfc_expr *);
 gfc_expr *gfc_simplify_int8 (gfc_expr *);
 gfc_expr *gfc_simplify_long (gfc_expr *);
@@ -378,6 +386,7 @@ gfc_expr *gfc_simplify_num_images (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_idnint (gfc_expr *);
 gfc_expr *gfc_simplify_not (gfc_expr *);
 gfc_expr *gfc_simplify_or (gfc_expr *, gfc_expr *);
+gfc_expr *gfc_simplify_out_of_range (gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_pack (gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_parity (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_popcnt (gfc_expr *);
@@ -399,6 +408,8 @@ gfc_expr *gfc_simplify_scale (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_scan (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_selected_char_kind (gfc_expr *);
 gfc_expr *gfc_simplify_selected_int_kind (gfc_expr *);
+gfc_expr *gfc_simplify_selected_unsigned_kind (gfc_expr *);
+gfc_expr *gfc_simplify_selected_logical_kind (gfc_expr *);
 gfc_expr *gfc_simplify_selected_real_kind (gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_set_exponent (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_sign (gfc_expr *, gfc_expr *);
@@ -428,6 +439,8 @@ gfc_expr *gfc_simplify_transpose (gfc_expr *);
 gfc_expr *gfc_simplify_trim (gfc_expr *);
 gfc_expr *gfc_simplify_ubound (gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_ucobound (gfc_expr *, gfc_expr *, gfc_expr *);
+gfc_expr *gfc_simplify_umaskl (gfc_expr *, gfc_expr *);
+gfc_expr *gfc_simplify_umaskr (gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_unpack (gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_verify (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 gfc_expr *gfc_simplify_xor (gfc_expr *, gfc_expr *);
@@ -529,6 +542,7 @@ void gfc_resolve_iall (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_iany (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_idnint (gfc_expr *, gfc_expr *);
 void gfc_resolve_int (gfc_expr *, gfc_expr *, gfc_expr *);
+void gfc_resolve_uint (gfc_expr *, gfc_expr*, gfc_expr *);
 void gfc_resolve_int2 (gfc_expr *, gfc_expr *);
 void gfc_resolve_int8 (gfc_expr *, gfc_expr *);
 void gfc_resolve_long (gfc_expr *, gfc_expr *);
@@ -559,6 +573,7 @@ void gfc_resolve_maxval (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_mclock (gfc_expr *);
 void gfc_resolve_mclock8 (gfc_expr *);
 void gfc_resolve_mask (gfc_expr *, gfc_expr *, gfc_expr *);
+void gfc_resolve_umasklr (gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_merge (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_merge_bits (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_min (gfc_expr *, gfc_actual_arglist *);
@@ -576,6 +591,8 @@ void gfc_resolve_parity (gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_product (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_real (gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_realpart (gfc_expr *, gfc_expr *);
+void gfc_resolve_reduce (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *,
+			 gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_rename (gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_repeat (gfc_expr *, gfc_expr *, gfc_expr *);
 void gfc_resolve_reshape (gfc_expr *, gfc_expr *, gfc_expr *, gfc_expr *,

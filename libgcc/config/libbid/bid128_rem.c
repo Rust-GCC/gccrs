@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -58,7 +58,7 @@ if ((x.w[1] & 0x7c00000000000000ull) == 0x7c00000000000000ull) {
 if ((x.w[1] & 0x7800000000000000ull) == 0x7800000000000000ull) {
   // check if y is Inf.
   if (((y.w[1] & 0x7c00000000000000ull) != 0x7c00000000000000ull))
-    // return NaN 
+    // return NaN
   {
 #ifdef SET_STATUS_FLAGS
     // set status flags

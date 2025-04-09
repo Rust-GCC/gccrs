@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -78,7 +78,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
   }
   // unpack x
   if ((x & MASK_STEERING_BITS) == MASK_STEERING_BITS) {
-    // if the steering bits are 11 (condition will be 0), then 
+    // if the steering bits are 11 (condition will be 0), then
     // the exponent is G[0:w+1]
     exp = ((x & MASK_BINARY_EXPONENT2) >> 51) - 398;
     C1 = (x & MASK_BINARY_SIG2) | MASK_BINARY_OR2;
@@ -90,7 +90,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     C1 = (x & MASK_BINARY_SIG1);
   }
 
-  // if x is 0 or non-canonical return 0 preserving the sign bit and 
+  // if x is 0 or non-canonical return 0 preserving the sign bit and
   // the preferred exponent of MAX(Q(x), 0)
   if (C1 == 0) {
     if (exp < 0)
@@ -135,13 +135,14 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     }
     break;
   case ROUNDING_TO_ZERO:
-    // return 0 if (exp <= -p) 
+    // return 0 if (exp <= -p)
     if (exp <= -16) {
       res = x_sign | 0x31c0000000000000ull;
       *pfpsf |= INEXACT_EXCEPTION;
       BID_RETURN (res);
     }
     break;
+  default: break; // default added to avoid compiler warning
   }	// end switch ()
 
   // q = nr. of decimal digits in x (1 <= q <= 54)
@@ -171,7 +172,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     if ((q + exp) >= 0) {	// exp < 0 and 1 <= -exp <= q
       // need to shift right -exp digits from the coefficient; exp will be 0
       ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-      // chop off ind digits from the lower part of C1 
+      // chop off ind digits from the lower part of C1
       // C1 = C1 + 1/2 * 10^x where the result C1 fits in 64 bits
       // FOR ROUND_TO_NEAREST, WE ADD 1/2 ULP(y) then truncate
       C1 = C1 + midpoint64[ind - 1];
@@ -190,10 +191,10 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       //       shift; C* has p decimal digits, correct by Prop. 1)
       //   else if floor(C*) is odd C* = floor(C*)-1 (logical right
       //       shift; C* has p decimal digits, correct by Pr. 1)
-      // else  
+      // else
       //   C* = floor(C*) (logical right shift; C has p decimal digits,
       //       correct by Property 1)
-      // n = C* * 10^(e+x)  
+      // n = C* * 10^(e+x)
 
       if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
 	res = P128.w[1];
@@ -257,7 +258,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     if ((q + exp) >= 0) {	// exp < 0 and 1 <= -exp <= q
       // need to shift right -exp digits from the coefficient; exp will be 0
       ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-      // chop off ind digits from the lower part of C1 
+      // chop off ind digits from the lower part of C1
       // C1 = C1 + 1/2 * 10^x where the result C1 fits in 64 bits
       // FOR ROUND_TO_NEAREST, WE ADD 1/2 ULP(y) then truncate
       C1 = C1 + midpoint64[ind - 1];
@@ -272,7 +273,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       __mul_64x64_to_128 (P128, C1, ten2mk64[ind - 1]);
 
       // if (0 < f* < 10^(-x)) then the result is a midpoint
-      //   C* = floor(C*) - logical right shift; C* has p decimal digits, 
+      //   C* = floor(C*) - logical right shift; C* has p decimal digits,
       //       correct by Prop. 1)
       // else
       //   C* = floor(C*) (logical right shift; C has p decimal digits,
@@ -297,7 +298,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       //   the result is inexact
       if (ind - 1 <= 2) {
 	if (fstar.w[0] > 0x8000000000000000ull) {
-	  // f* > 1/2 and the result may be exact 
+	  // f* > 1/2 and the result may be exact
 	  // fstar.w[0] - 0x8000000000000000ull is f* - 1/2
 	  if ((fstar.w[0] - 0x8000000000000000ull) > ten2mk64[ind - 1]) {
 	    // set the inexact flag
@@ -336,7 +337,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     if ((q + exp) > 0) {	// exp < 0 and 1 <= -exp < q
       // need to shift right -exp digits from the coefficient; exp will be 0
       ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-      // chop off ind digits from the lower part of C1 
+      // chop off ind digits from the lower part of C1
       // C1 fits in 64 bits
       // calculate C* and f*
       // C* is actually floor(C*) in this case
@@ -351,7 +352,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       // C* = floor(C*) (logical right shift; C has p decimal digits,
       //       correct by Property 1)
       // if (0 < f* < 10^(-x)) then the result is exact
-      // n = C* * 10^(e+x)  
+      // n = C* * 10^(e+x)
 
       if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
 	res = P128.w[1];
@@ -389,7 +390,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     if ((q + exp) > 0) {	// exp < 0 and 1 <= -exp < q
       // need to shift right -exp digits from the coefficient; exp will be 0
       ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-      // chop off ind digits from the lower part of C1 
+      // chop off ind digits from the lower part of C1
       // C1 fits in 64 bits
       // calculate C* and f*
       // C* is actually floor(C*) in this case
@@ -404,7 +405,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       // C* = floor(C*) (logical right shift; C has p decimal digits,
       //       correct by Property 1)
       // if (0 < f* < 10^(-x)) then the result is exact
-      // n = C* * 10^(e+x)  
+      // n = C* * 10^(e+x)
 
       if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
 	res = P128.w[1];
@@ -442,7 +443,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
     if ((q + exp) >= 0) {	// exp < 0 and 1 <= -exp <= q
       // need to shift right -exp digits from the coefficient; exp will be 0
       ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-      // chop off ind digits from the lower part of C1 
+      // chop off ind digits from the lower part of C1
       // C1 fits in 127 bits
       // calculate C* and f*
       // C* is actually floor(C*) in this case
@@ -457,7 +458,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       // C* = floor(C*) (logical right shift; C has p decimal digits,
       //       correct by Property 1)
       // if (0 < f* < 10^(-x)) then the result is exact
-      // n = C* * 10^(e+x)  
+      // n = C* * 10^(e+x)
 
       if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
 	res = P128.w[1];
@@ -483,6 +484,7 @@ bid64_round_integral_exact (UINT64 x _RND_MODE_PARAM _EXC_FLAGS_PARAM
       BID_RETURN (res);
     }
     break;
+  default: break; // default added to avoid compiler warning
   }	// end switch ()
   BID_RETURN (res);
 }
@@ -522,11 +524,11 @@ bid64_round_integral_nearest_even (UINT64 x _EXC_FLAGS_PARAM
     if ((x & 0x0003ffffffffffffull) > 999999999999999ull)
       x = x & 0xfe00000000000000ull;	// clear G6-G12 and the payload bits
     else
-      x = x & 0xfe03ffffffffffffull;	// clear G6-G12 
-    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN 
-      // set invalid flag 
+      x = x & 0xfe03ffffffffffffull;	// clear G6-G12
+    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN
+      // set invalid flag
       *pfpsf |= INVALID_EXCEPTION;
-      // return quiet (SNaN) 
+      // return quiet (SNaN)
       res = x & 0xfdffffffffffffffull;
     } else {	// QNaN
       res = x;
@@ -587,7 +589,7 @@ bid64_round_integral_nearest_even (UINT64 x _EXC_FLAGS_PARAM
   } else if ((q + exp) >= 0) {	// exp < 0 and 1 <= -exp <= q
     // need to shift right -exp digits from the coefficient; the exp will be 0
     ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-    // chop off ind digits from the lower part of C1 
+    // chop off ind digits from the lower part of C1
     // C1 = C1 + 1/2 * 10^x where the result C1 fits in 64 bits
     // FOR ROUND_TO_NEAREST, WE ADD 1/2 ULP(y) then truncate
     C1 = C1 + midpoint64[ind - 1];
@@ -606,10 +608,10 @@ bid64_round_integral_nearest_even (UINT64 x _EXC_FLAGS_PARAM
     //       shift; C* has p decimal digits, correct by Prop. 1)
     //   else if floor(C*) is odd C* = floor(C*)-1 (logical right
     //       shift; C* has p decimal digits, correct by Pr. 1)
-    // else  
+    // else
     //   C* = floor(C*) (logical right shift; C has p decimal digits,
     //       correct by Property 1)
-    // n = C* * 10^(e+x)  
+    // n = C* * 10^(e+x)
 
     if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
       res = P128.w[1];
@@ -673,11 +675,11 @@ bid64_round_integral_negative (UINT64 x _EXC_FLAGS_PARAM
     if ((x & 0x0003ffffffffffffull) > 999999999999999ull)
       x = x & 0xfe00000000000000ull;	// clear G6-G12 and the payload bits
     else
-      x = x & 0xfe03ffffffffffffull;	// clear G6-G12 
-    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN 
-      // set invalid flag 
+      x = x & 0xfe03ffffffffffffull;	// clear G6-G12
+    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN
+      // set invalid flag
       *pfpsf |= INVALID_EXCEPTION;
-      // return quiet (SNaN) 
+      // return quiet (SNaN)
       res = x & 0xfdffffffffffffffull;
     } else {	// QNaN
       res = x;
@@ -742,7 +744,7 @@ bid64_round_integral_negative (UINT64 x _EXC_FLAGS_PARAM
   } else if ((q + exp) > 0) {	// exp < 0 and 1 <= -exp < q
     // need to shift right -exp digits from the coefficient; the exp will be 0
     ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-    // chop off ind digits from the lower part of C1 
+    // chop off ind digits from the lower part of C1
     // C1 fits in 64 bits
     // calculate C* and f*
     // C* is actually floor(C*) in this case
@@ -757,7 +759,7 @@ bid64_round_integral_negative (UINT64 x _EXC_FLAGS_PARAM
     // C* = floor(C*) (logical right shift; C has p decimal digits,
     //       correct by Property 1)
     // if (0 < f* < 10^(-x)) then the result is exact
-    // n = C* * 10^(e+x)  
+    // n = C* * 10^(e+x)
 
     if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
       res = P128.w[1];
@@ -825,11 +827,11 @@ bid64_round_integral_positive (UINT64 x _EXC_FLAGS_PARAM
     if ((x & 0x0003ffffffffffffull) > 999999999999999ull)
       x = x & 0xfe00000000000000ull;	// clear G6-G12 and the payload bits
     else
-      x = x & 0xfe03ffffffffffffull;	// clear G6-G12 
-    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN 
-      // set invalid flag 
+      x = x & 0xfe03ffffffffffffull;	// clear G6-G12
+    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN
+      // set invalid flag
       *pfpsf |= INVALID_EXCEPTION;
-      // return quiet (SNaN) 
+      // return quiet (SNaN)
       res = x & 0xfdffffffffffffffull;
     } else {	// QNaN
       res = x;
@@ -894,7 +896,7 @@ bid64_round_integral_positive (UINT64 x _EXC_FLAGS_PARAM
   } else if ((q + exp) > 0) {	// exp < 0 and 1 <= -exp < q
     // need to shift right -exp digits from the coefficient; the exp will be 0
     ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-    // chop off ind digits from the lower part of C1 
+    // chop off ind digits from the lower part of C1
     // C1 fits in 64 bits
     // calculate C* and f*
     // C* is actually floor(C*) in this case
@@ -909,7 +911,7 @@ bid64_round_integral_positive (UINT64 x _EXC_FLAGS_PARAM
     // C* = floor(C*) (logical right shift; C has p decimal digits,
     //       correct by Property 1)
     // if (0 < f* < 10^(-x)) then the result is exact
-    // n = C* * 10^(e+x)  
+    // n = C* * 10^(e+x)
 
     if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
       res = P128.w[1];
@@ -976,11 +978,11 @@ bid64_round_integral_zero (UINT64 x _EXC_FLAGS_PARAM _EXC_MASKS_PARAM
     if ((x & 0x0003ffffffffffffull) > 999999999999999ull)
       x = x & 0xfe00000000000000ull;	// clear G6-G12 and the payload bits
     else
-      x = x & 0xfe03ffffffffffffull;	// clear G6-G12 
-    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN 
-      // set invalid flag 
+      x = x & 0xfe03ffffffffffffull;	// clear G6-G12
+    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN
+      // set invalid flag
       *pfpsf |= INVALID_EXCEPTION;
-      // return quiet (SNaN) 
+      // return quiet (SNaN)
       res = x & 0xfdffffffffffffffull;
     } else {	// QNaN
       res = x;
@@ -1041,7 +1043,7 @@ bid64_round_integral_zero (UINT64 x _EXC_FLAGS_PARAM _EXC_MASKS_PARAM
   } else if ((q + exp) >= 0) {	// exp < 0 and 1 <= -exp <= q
     // need to shift right -exp digits from the coefficient; the exp will be 0
     ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-    // chop off ind digits from the lower part of C1 
+    // chop off ind digits from the lower part of C1
     // C1 fits in 127 bits
     // calculate C* and f*
     // C* is actually floor(C*) in this case
@@ -1056,7 +1058,7 @@ bid64_round_integral_zero (UINT64 x _EXC_FLAGS_PARAM _EXC_MASKS_PARAM
     // C* = floor(C*) (logical right shift; C has p decimal digits,
     //       correct by Property 1)
     // if (0 < f* < 10^(-x)) then the result is exact
-    // n = C* * 10^(e+x)  
+    // n = C* * 10^(e+x)
 
     if (ind - 1 <= 2) {	// 0 <= ind - 1 <= 2 => shift = 0
       res = P128.w[1];
@@ -1116,11 +1118,11 @@ bid64_round_integral_nearest_away (UINT64 x _EXC_FLAGS_PARAM
     if ((x & 0x0003ffffffffffffull) > 999999999999999ull)
       x = x & 0xfe00000000000000ull;	// clear G6-G12 and the payload bits
     else
-      x = x & 0xfe03ffffffffffffull;	// clear G6-G12 
-    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN 
-      // set invalid flag 
+      x = x & 0xfe03ffffffffffffull;	// clear G6-G12
+    if ((x & MASK_SNAN) == MASK_SNAN) {	// SNaN
+      // set invalid flag
       *pfpsf |= INVALID_EXCEPTION;
-      // return quiet (SNaN) 
+      // return quiet (SNaN)
       res = x & 0xfdffffffffffffffull;
     } else {	// QNaN
       res = x;
@@ -1181,7 +1183,7 @@ bid64_round_integral_nearest_away (UINT64 x _EXC_FLAGS_PARAM
   } else if ((q + exp) >= 0) {	// exp < 0 and 1 <= -exp <= q
     // need to shift right -exp digits from the coefficient; the exp will be 0
     ind = -exp;	// 1 <= ind <= 16; ind is a synonym for 'x'
-    // chop off ind digits from the lower part of C1 
+    // chop off ind digits from the lower part of C1
     // C1 = C1 + 1/2 * 10^x where the result C1 fits in 64 bits
     // FOR ROUND_TO_NEAREST, WE ADD 1/2 ULP(y) then truncate
     C1 = C1 + midpoint64[ind - 1];
@@ -1196,7 +1198,7 @@ bid64_round_integral_nearest_away (UINT64 x _EXC_FLAGS_PARAM
     __mul_64x64_to_128 (P128, C1, ten2mk64[ind - 1]);
 
     // if (0 < f* < 10^(-x)) then the result is a midpoint
-    //   C* = floor(C*) - logical right shift; C* has p decimal digits, 
+    //   C* = floor(C*) - logical right shift; C* has p decimal digits,
     //       correct by Prop. 1)
     // else
     //   C* = floor(C*) (logical right shift; C has p decimal digits,

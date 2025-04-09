@@ -1,6 +1,6 @@
 // Specific definitions for HPUX  -*- C++ -*-
 
-// Copyright (C) 2000-2024 Free Software Foundation, Inc.
+// Copyright (C) 2000-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -57,7 +57,7 @@
    We also force _GLIBCXX_USE_LONG_LONG here so that we don't have
    to bastardize configure to deal with this sillyness.  */
 
-#ifdef __cplusplus
+#if __cplusplus >= 201103L
 namespace std
 {
   extern "C"

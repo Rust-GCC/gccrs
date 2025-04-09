@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for PowerPC machines running Linux.
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    Contributed by Michael Meissner (meissner@cygnus.com).
 
    This file is part of GCC.
@@ -116,7 +116,7 @@
 /* We are 32-bit all the time, so optimize a little.  */
 #undef TARGET_64BIT
 #define TARGET_64BIT 0
- 
+
 /* We don't need to generate entries in .fixup, except when
    -mrelocatable or -mrelocatable-lib is given.  */
 #undef RELOCATABLE_NEEDS_FIXUP
