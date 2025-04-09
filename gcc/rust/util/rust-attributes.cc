@@ -94,7 +94,8 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::TRACK_CALLER, CODE_GENERATION},
 
      {Attrs::FUNDAMENTAL, TYPE_CHECK},
-     {Attrs::NON_EXHAUSTIVE, TYPE_CHECK}};
+     {Attrs::NON_EXHAUSTIVE, TYPE_CHECK},
+     {Attrs::RUSTFMT, EXTERNAL}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()

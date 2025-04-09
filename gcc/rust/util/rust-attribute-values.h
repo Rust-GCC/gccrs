@@ -84,6 +84,8 @@ public:
   static constexpr auto &FUNDAMENTAL = "fundamental";
 
   static constexpr auto &NON_EXHAUSTIVE = "non_exhaustive";
+
+  static constexpr auto &RUSTFMT = "rustfmt";
 };
 } // namespace Values
 } // namespace Rust
