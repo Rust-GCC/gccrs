@@ -1266,6 +1266,22 @@ TokenCollector::visit (BlockExpr &expr)
 }
 
 void
+TokenCollector::visit (AnonConst &expr)
+{
+  visit (expr.get_inner_expr ());
+}
+
+void
+TokenCollector::visit (ConstBlock &expr)
+{
+  push (Rust::Token::make (CONST, expr.get_locus ()));
+
+  // The inner expression is already a block expr, so we don't need to add
+  // curlies
+  visit (expr.get_const_expr ());
+}
+
+void
 TokenCollector::visit (ClosureExprInnerTyped &expr)
 {
   visit_closure_common (expr);

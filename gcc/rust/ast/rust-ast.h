@@ -1251,6 +1251,8 @@ public:
     FieldAccess,
     Closure,
     Block,
+    ConstExpr,
+    ConstBlock,
     Continue,
     Break,
     Range,
