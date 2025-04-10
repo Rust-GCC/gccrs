@@ -5337,8 +5337,6 @@ class LlvmInlineAsm : public ExprWithoutBlock
 
 private:
   location_t locus;
-  // TODO: Not sure how outer_attrs plays with InlineAsm, I put it here in order
-  // to override, very hacky.
   std::vector<Attribute> outer_attrs;
 
   std::vector<TupleClobber> clobber_abi;
