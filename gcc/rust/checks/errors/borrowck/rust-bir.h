@@ -146,6 +146,8 @@ struct BasicBlockId
   bool operator> (const BasicBlockId &rhs) const { return value > rhs.value; }
   bool operator<= (const BasicBlockId &rhs) const { return !(operator> (rhs)); }
   bool operator>= (const BasicBlockId &rhs) const { return !(operator< (rhs)); }
+
+  typedef uint32_t value_type;
 };
 
 static constexpr BasicBlockId INVALID_BB
