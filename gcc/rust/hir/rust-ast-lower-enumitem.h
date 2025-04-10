@@ -144,26 +144,6 @@ public:
 				 item.get_locus ());
   }
 
-  void visit (AST::EnumItemDiscriminant &item) override
-  {
-    auto crate_num = mappings.get_current_crate ();
-    Analysis::NodeMapping mapping (crate_num, item.get_node_id (),
-				   mappings.get_next_hir_id (crate_num),
-				   mappings.get_next_localdef_id (crate_num));
-
-    if (item.has_visibility ())
-      rust_error_at (item.get_locus (),
-		     "visibility qualifier %qs not allowed on enum item",
-		     item.get_visibility ().as_string ().c_str ());
-
-    HIR::Expr *expr = ASTLoweringExpr::translate (item.get_expr ());
-    translated
-      = new HIR::EnumItemDiscriminant (mapping, item.get_identifier (),
-				       std::unique_ptr<HIR::Expr> (expr),
-				       item.get_outer_attrs (),
-				       item.get_locus ());
-  }
-
 private:
   ASTLoweringEnumItem () : translated (nullptr) {}
 

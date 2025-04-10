@@ -212,28 +212,6 @@ public:
     mappings.insert_module_child (current_module, item.get_node_id ());
   }
 
-  void visit (AST::EnumItemDiscriminant &item) override
-  {
-    auto decl = CanonicalPath::new_seg (item.get_node_id (),
-					item.get_identifier ().as_string ());
-    auto path = prefix.append (decl);
-    auto cpath = canonical_prefix.append (decl);
-
-    resolver->get_type_scope ().insert (
-      path, item.get_node_id (), item.get_locus (), false, Rib::ItemType::Type,
-      [&] (const CanonicalPath &, NodeId, location_t locus) -> void {
-	rich_location r (line_table, item.get_locus ());
-	r.add_range (locus);
-	redefined_error (r);
-      });
-
-    mappings.insert_canonical_path (item.get_node_id (), cpath);
-
-    NodeId current_module = resolver->peek_current_module_scope ();
-    mappings.insert_module_child_item (current_module, decl);
-    mappings.insert_module_child (current_module, item.get_node_id ());
-  }
-
   void visit (AST::StructStruct &struct_decl) override
   {
     auto decl
