@@ -156,6 +156,108 @@ public:
   NodeId id;
 };
 
+struct Binding
+{
+  enum class Kind
+  {
+    Product,
+    Or,
+  } kind;
+
+  std::unordered_set<Identifier> set;
+
+  Binding (Binding::Kind kind) : kind (kind) {}
+};
+
+/**
+ * Used to identify the source of a binding, and emit the correct error message.
+ */
+enum class BindingSource
+{
+  Match,
+  Let,
+  For,
+  /* Closure param or function param */
+  Param
+};
+
+class BindingLayer
+{
+  BindingSource source;
+  std::vector<Binding> bindings;
+
+  bool bind_test (Identifier ident, Binding::Kind kind);
+
+public:
+  void push (Binding::Kind kind);
+
+  BindingLayer (BindingSource source);
+
+  /**
+   * Identifies if the identifier has been used in a product binding context.
+   * eg. `let (a, a) = test();`
+   */
+  bool and_binded (Identifier ident);
+
+  /**
+   * Identifies if the identifier has been used in a or context.
+   * eg. `let (a, 1) | (a, 2) = test()`
+   */
+  bool or_binded (Identifier ident);
+
+  void insert_ident (Identifier ident);
+
+  void merge ();
+
+  BindingSource get_source () const;
+};
+
+class BindingContext
+{
+  std::vector<BindingLayer> bindings;
+
+public:
+  /**
+   * Identifies if the identifier is and-binded in the current layer's bindings.
+   */
+  bool and_binded (Identifier ident);
+
+  /**
+   * Identifies if the identifier is or-binded in the current layer's bindings.
+   */
+  bool or_binded (Identifier ident);
+
+  /**
+   * Remove current layer's last binding level and merge it with it's parent.
+   */
+  void merge ();
+
+  /**
+   * Push a new binding level in the current binding layer.
+   */
+  void push (Binding::Kind kind);
+
+  /**
+   * Insert a new identifier in the current binding layer.
+   */
+  void insert_ident (Identifier ident);
+
+  /**
+   * Get current layer's binding source.
+   */
+  BindingSource get_source () const;
+
+  /**
+   * Create a new binding layer.
+   */
+  void new_binding (BindingSource source);
+
+  /**
+   * Remove current binding layer.
+   */
+  void clear ();
+};
+
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
 class NameResolutionContext
 {
@@ -212,6 +314,7 @@ public:
   ForeverStack<Namespace::Labels> labels;
 
   Analysis::Mappings &mappings;
+  BindingContext bindings;
 
   // TODO: Rename
   // TODO: Use newtype pattern for Usage and Definition

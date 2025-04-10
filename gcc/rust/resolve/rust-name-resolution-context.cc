@@ -23,6 +23,113 @@
 namespace Rust {
 namespace Resolver2_0 {
 
+BindingLayer::BindingLayer (BindingSource source) : source (source)
+{
+  push (Binding::Kind::Product);
+}
+
+bool
+BindingLayer::bind_test (Identifier ident, Binding::Kind kind)
+{
+  for (auto &bind : bindings)
+    {
+      if (bind.set.find (ident) != bind.set.cend () && bind.kind == kind)
+	{
+	  return true;
+	}
+    }
+  return false;
+}
+
+void
+BindingLayer::push (Binding::Kind kind)
+{
+  bindings.push_back (Binding (kind));
+}
+
+bool
+BindingLayer::and_binded (Identifier ident)
+{
+  return bind_test (ident, Binding::Kind::Product);
+}
+
+bool
+BindingLayer::or_binded (Identifier ident)
+{
+  return bind_test (ident, Binding::Kind::Or);
+}
+
+void
+BindingLayer::insert_ident (Identifier ident)
+{
+  bindings.back ().set.insert (ident);
+}
+
+void
+BindingLayer::merge ()
+{
+  auto last_binding = bindings.back ();
+  bindings.pop_back ();
+  for (auto &value : last_binding.set)
+    {
+      bindings.back ().set.insert (value);
+    }
+}
+
+BindingSource
+BindingLayer::get_source () const
+{
+  return source;
+}
+
+bool
+BindingContext::and_binded (Identifier ident)
+{
+  return bindings.back ().and_binded (ident);
+}
+
+bool
+BindingContext::or_binded (Identifier ident)
+{
+  return bindings.back ().or_binded (ident);
+}
+
+void
+BindingContext::merge ()
+{
+  bindings.back ().merge ();
+}
+
+void
+BindingContext::push (Binding::Kind kind)
+{
+  bindings.back ().push (kind);
+}
+
+void
+BindingContext::insert_ident (Identifier ident)
+{
+  bindings.back ().insert_ident (ident);
+}
+
+void
+BindingContext::new_binding (BindingSource source)
+{
+  bindings.emplace_back (source);
+}
+
+void
+BindingContext::clear ()
+{
+  bindings.pop_back ();
+}
+
+BindingSource
+BindingContext::get_source () const
+{
+  return bindings.back ().get_source ();
+}
+
 NameResolutionContext::NameResolutionContext ()
   : mappings (Analysis::Mappings::get ())
 {}
