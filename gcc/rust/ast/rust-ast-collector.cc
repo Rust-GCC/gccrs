@@ -1520,7 +1520,9 @@ TokenCollector::visit (AsyncBlockExpr &expr)
 
 void
 TokenCollector::visit (InlineAsm &expr)
-{}
+{
+  rust_unreachable ();
+}
 
 void
 TokenCollector::visit (LlvmInlineAsm &expr)
