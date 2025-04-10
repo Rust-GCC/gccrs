@@ -1,5 +1,5 @@
 /* function_shape implementation for RISC-V 'V' Extension for GNU compiler.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by Ju-Zhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
 
    This file is part of GCC.
@@ -72,9 +72,34 @@ build_one (function_builder &b, const function_group_info &group,
   if (TARGET_XTHEADVECTOR && !check_type (return_type, argument_types))
     return;
 
-  b.add_overloaded_function (function_instance, *group.shape);
+  b.add_overloaded_function (function_instance, *group.shape,
+			     group.required_extensions);
   b.add_unique_function (function_instance, (*group.shape), return_type,
-			 argument_types);
+			 argument_types, group.required_extensions);
+}
+
+/* Determine whether the intrinsic supports the currently
+   processed vector type */
+static bool
+supports_vectype_p (const function_group_info &group, unsigned int vec_type_idx)
+{
+  int index = group.ops_infos.types[vec_type_idx].index;
+  if (index < VECTOR_TYPE_vbfloat16mf4_t || index > VECTOR_TYPE_vbfloat16m8_t)
+    return true;
+  /* Only judge for bf16 vector type  */
+  if (*group.shape == shapes::loadstore
+      || *group.shape == shapes::indexed_loadstore
+      || *group.shape == shapes::vundefined
+      || *group.shape == shapes::misc
+      || *group.shape == shapes::vset
+      || *group.shape == shapes::vget
+      || *group.shape == shapes::vcreate
+      || *group.shape == shapes::fault_load
+      || *group.shape == shapes::seg_loadstore
+      || *group.shape == shapes::seg_indexed_loadstore
+      || *group.shape == shapes::seg_fault_load)
+    return true;
+  return false;
 }
 
 /* Add a function instance for every operand && predicate && args
@@ -90,7 +115,10 @@ build_all (function_builder &b, const function_group_info &group)
     for (unsigned int vec_type_idx = 0;
 	 group.ops_infos.types[vec_type_idx].index != NUM_VECTOR_TYPES;
 	 ++vec_type_idx)
-      build_one (b, group, pred_idx, vec_type_idx);
+      {
+	if (supports_vectype_p (group, vec_type_idx))
+	  build_one (b, group, pred_idx, vec_type_idx);
+      }
 }
 
 /* Declare the function shape NAME, pointing it to an instance
@@ -99,9 +127,9 @@ build_all (function_builder &b, const function_group_info &group)
   static CONSTEXPR const DEF##_def VAR##_obj; \
   namespace shapes { const function_shape *const VAR = &VAR##_obj; }
 
-#define BASE_NAME_MAX_LEN 16
+#define BASE_NAME_MAX_LEN 17
 
-/* Base class for for build.  */
+/* Base class for build.  */
 struct build_base : public function_shape
 {
   void build (function_builder &b,
@@ -249,9 +277,10 @@ build_th_loadstore (function_builder &b, const function_group_info &group,
   if (strstr (group.base_name, "w") && (sew == 8 || sew ==16))
     return;
 
-  b.add_overloaded_function (function_instance, *group.shape);
+  b.add_overloaded_function (function_instance, *group.shape,
+			     group.required_extensions);
   b.add_unique_function (function_instance, (*group.shape), return_type,
-			 argument_types);
+			 argument_types, group.required_extensions);
 }
 
 /* th_loadstore_width_def class.  */
@@ -931,7 +960,7 @@ struct vcreate_def : public build_base
 	    argument_types.quick_push (arg_type);
 
 	  b.add_unique_function (function_instance, (*group.shape), return_type,
-	    argument_types);
+	    argument_types, group.required_extensions);
      }
   }
 
@@ -966,7 +995,8 @@ struct read_vl_def : public function_shape
   {
     auto_vec<tree> argument_types;
     b.add_unique_function (get_read_vl_instance (), (*group.shape),
-			   size_type_node, argument_types);
+			   size_type_node, argument_types,
+			   group.required_extensions);
   }
 
   char *get_name (function_builder &b, const function_instance &instance,
@@ -1024,7 +1054,8 @@ struct vlenb_def : public function_shape
 					 *group.shape, group.ops_infos.types[0],
 					 group.preds[0], &group.ops_infos);
     b.add_unique_function (function_instance, (*group.shape),
-			   long_unsigned_type_node, argument_types);
+			   long_unsigned_type_node, argument_types,
+			   group.required_extensions);
   }
 
   char *get_name (function_builder &b, const function_instance &instance,
@@ -1237,7 +1268,7 @@ struct crypto_vv_no_op_type_def : public build_base
     if (overloaded_p && !instance.base->can_be_overloaded_p (instance.pred))
       return nullptr;
     b.append_base_name (instance.base_name);
-      
+
     if (!overloaded_p)
     {
       b.append_name (operand_suffixes[instance.op_info->op]);
@@ -1251,6 +1282,62 @@ struct crypto_vv_no_op_type_def : public build_base
       b.append_name (type_suffixes[ret_type_idx].vector);
     }
 
+    b.append_name (predication_suffixes[instance.pred]);
+    return b.finish_name ();
+  }
+};
+
+/* sf_vqmacc_def class.  */
+struct sf_vqmacc_def : public build_base
+{
+  char *get_name (function_builder &b, const function_instance &instance,
+		  bool overloaded_p) const override
+  {
+    b.append_base_name (instance.base_name);
+
+    /* vop --> vop_v.  */
+    b.append_name (operand_suffixes[instance.op_info->op]);
+
+    /* Return nullptr if it can not be overloaded.  */
+    if (overloaded_p && !instance.base->can_be_overloaded_p (instance.pred))
+      return b.finish_name ();
+
+    if (!overloaded_p)
+      {
+	/* vop_v --> vop_v_<type>.  */
+	b.append_name (type_suffixes[instance.type.index].vector);
+      }
+
+    /* According to SIFIVE vector-intrinsic-doc, it adds "_tu" suffix
+       for vop_m C++ overloaded API.*/
+    b.append_name (predication_suffixes[instance.pred]);
+
+    return b.finish_name ();
+  }
+};
+
+/* sf_vfnrclip_def class. Handle instructions like vfnrclip.  */
+struct sf_vfnrclip_def : public build_base
+{
+  char *get_name (function_builder &b, const function_instance &instance,
+		  bool overloaded_p) const override
+  {
+    b.append_base_name (instance.base_name);
+
+    if (overloaded_p && (!instance.base->can_be_overloaded_p (instance.pred)
+			  || instance.pred == PRED_TYPE_m))
+      return b.finish_name ();
+
+    if (!overloaded_p)
+      {
+	vector_type_index ret_type_idx
+	  = instance.op_info->ret.get_function_type_index (instance.type.index);
+	/* v --> v_<type>.  */
+	b.append_name (type_suffixes[ret_type_idx].vector);
+      }
+
+    /* According to SIFIVE vector-intrinsic-doc, it adds "_m\_tu\
+       _tum\_tumu\_mu" suffixes for vop_m C++ overloaded API.*/
     b.append_name (predication_suffixes[instance.pred]);
     return b.finish_name ();
   }
@@ -1290,4 +1377,6 @@ SHAPE(seg_fault_load, seg_fault_load)
 SHAPE(crypto_vv, crypto_vv)
 SHAPE(crypto_vi, crypto_vi)
 SHAPE(crypto_vv_no_op_type, crypto_vv_no_op_type)
+SHAPE (sf_vqmacc, sf_vqmacc)
+SHAPE (sf_vfnrclip, sf_vfnrclip)
 } // end namespace riscv_vector

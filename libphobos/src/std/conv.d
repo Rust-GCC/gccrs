@@ -13,6 +13,7 @@ $(TR $(TD Generic) $(TD
         $(LREF parse)
         $(LREF to)
         $(LREF toChars)
+        $(LREF bitCast)
 ))
 $(TR $(TD Strings) $(TD
         $(LREF text)
@@ -205,21 +206,21 @@ $(PRE $(I UnsignedInteger):
 template to(T)
 {
     T to(A...)(A args)
-        if (A.length > 0)
+    if (A.length > 0)
     {
         return toImpl!T(args);
     }
 
     // Fix https://issues.dlang.org/show_bug.cgi?id=6175
     T to(S)(ref S arg)
-        if (isStaticArray!S)
+    if (isStaticArray!S)
     {
         return toImpl!T(arg);
     }
 
     // Fix https://issues.dlang.org/show_bug.cgi?id=16108
     T to(S)(ref S arg)
-        if (isAggregateType!S && !isCopyable!S)
+    if (isAggregateType!S && !isCopyable!S)
     {
         return toImpl!T(arg);
     }
@@ -917,9 +918,22 @@ if (!is(S : T) &&
     auto result = ()@trusted{ return cast(T) value; }();
     if (!result && value)
     {
-        throw new ConvException("Cannot convert object of static type "
-                ~S.classinfo.name~" and dynamic type "~value.classinfo.name
-                ~" to type "~T.classinfo.name);
+        string name(TypeInfo ti) @trusted
+        {
+            while (auto tc = (cast(TypeInfo_Const) ti))
+            {
+                ti = tc.base;
+            }
+            if (auto tinf = cast(TypeInfo_Interface) ti)
+            {
+                ti = tinf.info;
+            }
+            TypeInfo_Class tc = cast(TypeInfo_Class) ti;
+            assert(tc);
+            return tc.name;
+        }
+        throw new ConvException("Cannot convert object of static type " ~
+                name(typeid(S)) ~ " and dynamic type " ~ name(typeid(value)) ~ " to type " ~ name(typeid(T)));
     }
     return result;
 }
@@ -2547,9 +2561,6 @@ Lerr:
     string s1 = "123";
     auto a1 = parse!(int, string, Yes.doCount)(s1);
     assert(a1.data == 123 && a1.count == 3);
-
-    // parse only accepts lvalues
-    static assert(!__traits(compiles, parse!int("123")));
 }
 
 ///
@@ -5250,7 +5261,7 @@ if (isIntegral!T && isOutputRange!(W, char))
 auto unsigned(T)(T x)
 if (isIntegral!T)
 {
-    return cast(Unqual!(Unsigned!T))x;
+    return cast() cast(Unsigned!T) x;
 }
 
 ///
@@ -5271,7 +5282,7 @@ if (isSomeChar!T)
 {
     // All characters are unsigned
     static assert(T.min == 0, T.stringof ~ ".min must be zero");
-    return cast(Unqual!T) x;
+    return cast() x;
 }
 
 @safe unittest
@@ -5328,7 +5339,7 @@ if (isSomeChar!T)
 auto signed(T)(T x)
 if (isIntegral!T)
 {
-    return cast(Unqual!(Signed!T))x;
+    return cast() cast(Signed!T) x;
 }
 
 ///
@@ -5598,6 +5609,14 @@ Params:
 
 Returns:
     a `string`, a `wstring` or a `dstring`, according to the type of hexData.
+
+See_Also:
+    Use $(REF fromHexString, std, digest) for run time conversions.
+    Note, these functions are not drop-in replacements and have different
+    input requirements.
+    This template inherits its data syntax from builtin
+    $(LINK2 $(ROOT_DIR)spec/lex.html#hex_string, hex strings).
+    See $(REF fromHexString, std, digest) for its own respective requirements.
  */
 template hexString(string hexData)
 if (hexData.isHexLiteral)
@@ -6028,4 +6047,39 @@ package enum toCtString(ulong n) = n.stringof[0 .. $ - "LU".length];
 {
     assert(toCtString!0 == "0");
     assert(toCtString!123456 == "123456");
+}
+
+/**
+ * Takes the raw bits of a value and reinterprets them as a different type.
+ *
+ * Params:
+ *   T = the new type.
+ *   value = the value to reinterpret.
+ *
+ * Returns: a reference to the reinterpreted value.
+ */
+pragma(inline, true)
+ref T bitCast(T, S)(ref S value)
+if (T.sizeof <= S.sizeof)
+{
+    return *cast(T*) &value;
+}
+
+///
+@safe unittest
+{
+    uint n = 0xDEADBEEF;
+
+    version (LittleEndian)
+        assert(n.bitCast!(ubyte[4]) == [0xEF, 0xBE, 0xAD, 0xDE]);
+    version (BigEndian)
+        assert(n.bitCast!(ubyte[4]) == [0xDE, 0xAD, 0xBE, 0xEF]);
+}
+
+// Sizes must be compatible
+@safe unittest
+{
+    uint n;
+
+    assert(!__traits(compiles, n.bitCast!ulong));
 }

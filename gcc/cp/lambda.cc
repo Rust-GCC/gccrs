@@ -3,7 +3,7 @@
    building RTL.  These routines are used both during actual parsing
    and during the instantiation of template functions.
 
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimplify.h"
 #include "target.h"
 #include "decl.h"
+#include "flags.h"
 
 /* Constructor for a lambda expression.  */
 
@@ -58,7 +59,13 @@ build_lambda_object (tree lambda_expr)
   vec<constructor_elt, va_gc> *elts = NULL;
   tree node, expr, type;
 
-  if (processing_template_decl || lambda_expr == error_mark_node)
+  if (processing_template_decl && !in_template_context
+      && current_binding_level->requires_expression)
+    /* As in cp_parser_lambda_expression, don't get confused by
+       cp_parser_requires_expression setting processing_template_decl.  In that
+       case we want to return the result of finish_compound_literal, to avoid
+       tsubst_lambda_expr.  */;
+  else if (processing_template_decl || lambda_expr == error_mark_node)
     return lambda_expr;
 
   /* Make sure any error messages refer to the lambda-introducer.  */
@@ -216,14 +223,15 @@ lambda_capture_field_type (tree expr, bool explicit_init_p,
   else if (explicit_init_p)
     {
       tree auto_node = make_auto ();
-      
+
       type = auto_node;
       if (by_reference_p)
 	/* Add the reference now, so deduction doesn't lose
 	   outermost CV qualifiers of EXPR.  */
 	type = build_reference_type (type);
       if (uses_parameter_packs (expr))
-	/* Stick with 'auto' even if the type could be deduced.  */;
+	/* Stick with 'auto' even if the type could be deduced.  */
+	TEMPLATE_TYPE_PARAMETER_PACK (auto_node) = true;
       else
 	type = do_auto_deduction (type, expr, auto_node);
     }
@@ -291,6 +299,17 @@ is_normal_capture_proxy (tree decl)
 
   return (DECL_LANG_SPECIFIC (decl)
 	  && DECL_CAPTURED_VARIABLE (decl));
+}
+
+/* If DECL is a normal capture proxy, return the variable it captures.
+   Otherwise, just return DECL.  */
+
+tree
+strip_normal_capture_proxy (tree decl)
+{
+  while (is_normal_capture_proxy (decl))
+    decl = DECL_CAPTURED_VARIABLE (decl);
+  return decl;
 }
 
 /* Returns true iff DECL is a capture proxy for a normal capture
@@ -467,8 +486,7 @@ build_capture_proxy (tree member, tree init)
       STRIP_NOPS (init);
 
       gcc_assert (VAR_P (init) || TREE_CODE (init) == PARM_DECL);
-      while (is_normal_capture_proxy (init))
-	init = DECL_CAPTURED_VARIABLE (init);
+      init = strip_normal_capture_proxy (init);
       retrofit_lang_decl (var);
       DECL_CAPTURED_VARIABLE (var) = init;
     }
@@ -555,12 +573,14 @@ add_capture (tree lambda, tree id, tree orig_init, bool by_reference_p,
 				     integer_zero_node, tf_warning_or_error);
       initializer = build_constructor_va (init_list_type_node, 2,
 					  NULL_TREE, build_address (elt),
-					  NULL_TREE, array_type_nelts (type));
+					  NULL_TREE,
+					  array_type_nelts_minus_one (type));
       type = vla_capture_type (type);
     }
   else if (!dependent_type_p (type)
 	   && variably_modified_type_p (type, NULL_TREE))
     {
+      auto_diagnostic_group d;
       sorry ("capture of variably-modified type %qT that is not an N3639 array "
 	     "of runtime bound", type);
       if (TREE_CODE (type) == ARRAY_TYPE
@@ -599,6 +619,7 @@ add_capture (tree lambda, tree id, tree orig_init, bool by_reference_p,
 	  type = complete_type (type);
 	  if (!COMPLETE_TYPE_P (type))
 	    {
+	      auto_diagnostic_group d;
 	      error ("capture by copy of incomplete type %qT", type);
 	      cxx_incomplete_type_inform (type);
 	      return error_mark_node;
@@ -606,6 +627,16 @@ add_capture (tree lambda, tree id, tree orig_init, bool by_reference_p,
 	  else if (!verify_type_context (input_location,
 					 TCTX_CAPTURE_BY_COPY, type))
 	    return error_mark_node;
+	}
+
+      if (cxx_dialect < cxx20 && !explicit_init_p)
+	{
+	  auto_diagnostic_group d;
+	  tree stripped_init = tree_strip_any_location_wrapper (initializer);
+	  if (DECL_DECOMPOSITION_P (stripped_init)
+	      && pedwarn (input_location, OPT_Wc__20_extensions,
+			  "captured structured bindings are a C++20 extension"))
+	    inform (DECL_SOURCE_LOCATION (stripped_init), "declared here");
 	}
     }
 
@@ -746,6 +777,7 @@ add_default_capture (tree lambda_stack, tree id, tree initializer)
 	  && this_capture_p
 	  && LAMBDA_EXPR_DEFAULT_CAPTURE_MODE (lambda) == CPLD_COPY)
 	{
+	  auto_diagnostic_group d;
 	  if (warning_at (LAMBDA_EXPR_LOCATION (lambda), OPT_Wdeprecated,
 			  "implicit capture of %qE via %<[=]%> is deprecated "
 			  "in C++20", this_identifier))
@@ -770,6 +802,12 @@ lambda_expr_this_capture (tree lambda, int add_capture_p)
   tree result;
 
   tree this_capture = LAMBDA_EXPR_THIS_CAPTURE (lambda);
+  if (this_capture)
+    if (tree spec = retrieve_local_specialization (this_capture))
+      {
+	gcc_checking_assert (generic_lambda_fn_p (lambda_function (lambda)));
+	this_capture = spec;
+      }
 
   /* In unevaluated context this isn't an odr-use, so don't capture.  */
   if (cp_unevaluated_operand)
@@ -949,9 +987,8 @@ maybe_resolve_dummy (tree object, bool add_capture_p)
 /* When parsing a generic lambda containing an argument-dependent
    member function call we defer overload resolution to instantiation
    time.  But we have to know now whether to capture this or not.
-   Do that if FNS contains any non-static fns.
-   The std doesn't anticipate this case, but I expect this to be the
-   outcome of discussion.  */
+   Do that if FNS contains any non-static fns as per
+   [expr.prim.lambda.capture]/7.1.  */
 
 void
 maybe_generic_this_capture (tree object, tree fns)
@@ -970,7 +1007,7 @@ maybe_generic_this_capture (tree object, tree fns)
 	for (lkp_iterator iter (fns); iter; ++iter)
 	  if (((!id_expr && TREE_CODE (*iter) != USING_DECL)
 	       || TREE_CODE (*iter) == TEMPLATE_DECL)
-	      && DECL_IOBJ_MEMBER_FUNCTION_P (*iter))
+	      && DECL_OBJECT_MEMBER_FUNCTION_P (*iter))
 	    {
 	      /* Found a non-static member.  Capture this.  */
 	      lambda_expr_this_capture (lam, /*maybe*/-1);
@@ -1023,15 +1060,17 @@ nonlambda_method_basetype (void)
     }
 }
 
-/* Like current_scope, but looking through lambdas.  */
+/* Like current_scope, but looking through lambdas.  If ONLY_SKIP_CLOSURES_P,
+   only look through closure types.  */
 
 tree
-current_nonlambda_scope (void)
+current_nonlambda_scope (bool only_skip_closures_p/*=false*/)
 {
   tree scope = current_scope ();
   for (;;)
     {
-      if (TREE_CODE (scope) == FUNCTION_DECL
+      if (!only_skip_closures_p
+	  && TREE_CODE (scope) == FUNCTION_DECL
 	  && LAMBDA_FUNCTION_P (scope))
 	{
 	  scope = CP_TYPE_CONTEXT (DECL_CONTEXT (scope));
@@ -1525,13 +1564,43 @@ finish_lambda_scope (void)
 void
 record_lambda_scope (tree lambda)
 {
-  LAMBDA_EXPR_EXTRA_SCOPE (lambda) = lambda_scope.scope;
-  if (lambda_scope.scope)
+  tree closure = LAMBDA_EXPR_CLOSURE (lambda);
+  gcc_checking_assert (closure);
+
+  /* Before ABI v20, lambdas in static data member initializers did not
+     get a dedicated lambda scope.  */
+  tree scope = lambda_scope.scope;
+  if (is_static_data_member_initialized_in_class (scope))
     {
-      tree closure = LAMBDA_EXPR_CLOSURE (lambda);
-      gcc_checking_assert (closure);
-      maybe_key_decl (lambda_scope.scope, TYPE_NAME (closure));
+      if (!abi_version_at_least (20))
+	scope = NULL_TREE;
+      if (warn_abi && abi_version_crosses (20) && !processing_template_decl)
+	{
+	  if (abi_version_at_least (20))
+	    warning_at (location_of (closure), OPT_Wabi,
+			"the mangled name of %qT changed in "
+			"%<-fabi-version=20%> (GCC 15.1)", closure);
+	  else
+	    warning_at (location_of (closure), OPT_Wabi,
+			"the mangled name of %qT changes in "
+			"%<-fabi-version=20%> (GCC 15.1)", closure);
+	}
     }
+
+  /* An otherwise unattached class-scope lambda in a member template
+     should not have a mangling scope, as the mangling scope will not
+     correctly inherit on instantiation.  */
+  tree ctx = TYPE_CONTEXT (closure);
+  if (scope
+      && ctx
+      && CLASS_TYPE_P (ctx)
+      && ctx == TREE_TYPE (scope)
+      && current_template_depth > template_class_depth (ctx))
+    scope = NULL_TREE;
+
+  LAMBDA_EXPR_EXTRA_SCOPE (lambda) = scope;
+  if (scope)
+    maybe_key_decl (scope, TYPE_NAME (closure));
 }
 
 // Compare lambda template heads TMPL_A and TMPL_B, used for both
@@ -1548,7 +1617,7 @@ compare_lambda_template_head (tree tmpl_a, tree tmpl_b)
   // synthetic ones.
   int len_a = TREE_VEC_LENGTH (inner_a);
   int len_b = TREE_VEC_LENGTH (inner_b);
-  
+
   for (int ix = 0, len = MAX (len_a, len_b); ix != len; ix++)
     {
       tree parm_a = NULL_TREE;
@@ -1563,7 +1632,7 @@ compare_lambda_template_head (tree tmpl_a, tree tmpl_b)
 	  if (DECL_VIRTUAL_P (parm_a))
 	    parm_a = NULL_TREE;
 	}
-      
+
       tree parm_b = NULL_TREE;
       if (ix < len_b)
 	{
@@ -1596,7 +1665,7 @@ compare_lambda_template_head (tree tmpl_a, tree tmpl_b)
 	  if (!same_type_p (TREE_TYPE (parm_a), TREE_TYPE (parm_b)))
 	    return false;
 	}
-      else 
+      else
 	{
 	  if (TEMPLATE_TYPE_PARAMETER_PACK (TREE_TYPE (parm_a))
 	      != TEMPLATE_TYPE_PARAMETER_PACK (TREE_TYPE (parm_b)))

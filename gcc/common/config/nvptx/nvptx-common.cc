@@ -1,5 +1,5 @@
 /* NVPTX common hooks.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
 This file is part of GCC.
@@ -33,7 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 enum unwind_info_type
 nvptx_except_unwind_info (struct gcc_options *opts ATTRIBUTE_UNUSED)
 {
-  return UI_NONE;
+  return UI_TARGET;
 }
 
 #undef TARGET_HAVE_NAMED_SECTIONS

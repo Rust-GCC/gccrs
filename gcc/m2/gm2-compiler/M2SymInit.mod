@@ -1,6 +1,6 @@
 (* M2SymInit.mod records initialization state for variables.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -39,7 +39,8 @@ FROM M2Error IMPORT InternalError ;
 FROM M2BasicBlock IMPORT BasicBlock,
                          InitBasicBlocks, InitBasicBlocksFromRange,
 			 KillBasicBlocks, FreeBasicBlocks,
-                         ForeachBasicBlockDo ;
+                         ForeachBasicBlockDo,
+                         GetBasicBlockStart, GetBasicBlockEnd ;
 
 IMPORT Indexing ;
 FROM Indexing IMPORT Index ;
@@ -49,19 +50,20 @@ FROM Lists IMPORT List, InitList, GetItemFromList, PutItemIntoList,
                   RemoveItemFromList, ForeachItemInListDo, KillList, DuplicateList ;
 
 FROM SymbolTable IMPORT NulSym, ModeOfAddr, IsVar, IsRecord, GetSType,
+                        ProcedureKind, GetNthParam, NoOfParam,
                         GetNth, IsRecordField, IsSet, IsArray, IsProcedure,
                         GetVarScope, IsVarAParam, IsComponent, GetMode,
                         VarCheckReadInit, VarInitState, PutVarInitialized,
                         PutVarFieldInitialized, GetVarFieldInitialized,
-                        IsConst, IsConstString, NoOfParam, IsVarParam,
+                        IsConst, IsConstString, NoOfParamAny, IsVarParamAny,
                         ForeachLocalSymDo, ForeachParamSymDo,
                         IsTemporary, ModeOfAddr,
                         IsReallyPointer, IsUnbounded,
                         IsVarient, IsFieldVarient, GetVarient,
                         IsVarArrayRef, GetSymName,
-                        IsType, IsPointer,
+                        IsType, IsPointer, IsTuple,
                         GetParameterShadowVar, IsParameter, GetLType,
-                        GetParameterHeapVar ;
+                        GetParameterHeapVar, GetVarDeclTok ;
 
 FROM M2Quads IMPORT QuadOperator, GetQuadOtok, GetQuad, GetNextQuad,
                     IsNewLocalVar, IsReturn, IsKillLocalVar, IsConditional,
@@ -200,16 +202,23 @@ BEGIN
       desc^.sym := sym ;
       desc^.type := GetSType (sym) ;
       desc^.initialized := FALSE ;
-      IF IsRecord (desc^.type)
+      (* An unknown symbol will have no type.  *)
+      IF desc^.type = NulSym
       THEN
-         desc^.kind := record ;
-         desc^.rec.fieldDesc := Indexing.InitIndex (1) ;
-         PopulateFields (desc, desc^.type)
-      ELSE
          desc^.kind := scalar ;
-         IF IsArray (desc^.type)
+         desc^.initialized := TRUE   (* For now we don't attempt to handle array types.  *)
+      ELSE
+         IF IsRecord (desc^.type)
          THEN
-            desc^.initialized := TRUE   (* For now we don't attempt to handle array types.  *)
+            desc^.kind := record ;
+            desc^.rec.fieldDesc := Indexing.InitIndex (1) ;
+            PopulateFields (desc, desc^.type)
+         ELSE
+            desc^.kind := scalar ;
+            IF IsArray (desc^.type)
+            THEN
+               desc^.initialized := TRUE   (* For now we don't attempt to handle array types.  *)
+            END
          END
       END
    END
@@ -571,10 +580,11 @@ VAR
    op                          : QuadOperator ;
    op1, op2, op3               : CARDINAL ;
    op1tok, op2tok, op3tok, qtok: CARDINAL ;
-   overflowChecking            : BOOLEAN ;
+   constExpr, overflowChecking : BOOLEAN ;
    s                           : String ;
 BEGIN
-   GetQuadOtok (quad, qtok, op, op1, op2, op3, overflowChecking,
+   GetQuadOtok (quad, qtok, op, op1, op2, op3,
+                overflowChecking, constExpr,
                 op1tok, op2tok, op3tok) ;
    IF IsUniqueWarning (qtok)
    THEN
@@ -1163,6 +1173,21 @@ END CheckRecordField ;
 
 
 (*
+   CheckLastForIterator -
+*)
+
+PROCEDURE CheckLastForIterator (op1tok: CARDINAL; op1: CARDINAL;
+                                op2tok: CARDINAL; op2: CARDINAL;
+                                warning: BOOLEAN; i: CARDINAL) ;
+BEGIN
+   SetVarInitialized (op1, FALSE, op1tok) ;
+   Assert (IsTuple (op2)) ;
+   CheckDeferredRecordAccess (op2tok, GetNth (op2, 1), FALSE, warning, i) ;
+   CheckDeferredRecordAccess (op2tok, GetNth (op2, 2), FALSE, warning, i) ;
+END CheckLastForIterator ;
+
+
+(*
    CheckBecomes -
 *)
 
@@ -1249,7 +1274,7 @@ VAR
    op                          : QuadOperator ;
    op1, op2, op3               : CARDINAL ;
    op1tok, op2tok, op3tok, qtok: CARDINAL ;
-   overflowChecking            : BOOLEAN ;
+   constExpr, overflowChecking : BOOLEAN ;
 BEGIN
    IF quad = 3140
    THEN
@@ -1262,7 +1287,8 @@ BEGIN
       ForeachLocalSymDo (procSym, PrintSym) ;
       printf0 ("***********************************\n")
    END ;
-   GetQuadOtok (quad, qtok, op, op1, op2, op3, overflowChecking,
+   GetQuadOtok (quad, qtok, op, op1, op2, op3,
+                overflowChecking, constExpr,
                 op1tok, op2tok, op3tok) ;
    op1tok := DefaultTokPos (op1tok, qtok) ;
    op2tok := DefaultTokPos (op2tok, qtok) ;
@@ -1278,6 +1304,9 @@ BEGIN
    IfLessEquOp,
    IfGreOp,
    IfGreEquOp        : CheckComparison (op1tok, op1, op2tok, op2, warning, i) |
+   LastForIteratorOp : CheckLastForIterator (op1tok, op1, op2tok, op2,
+                                             warning, i) ;
+                       Assert (IsConst (op3)) |
    TryOp,
    ReturnOp,
    CallOp,
@@ -1300,11 +1329,11 @@ BEGIN
    SizeOp            : SetVarInitialized (op1, FALSE, op1tok) |
    AddrOp            : CheckAddr (op1tok, op1, op3tok, op3) |
    ReturnValueOp     : SetVarInitialized (op1, FALSE, op1tok) |
-   NewLocalVarOp     : |
+   NewLocalVarOp     : SetParameterVariablesInitialized (op3) |
    ParamOp           : CheckDeferredRecordAccess (op2tok, op2, FALSE, warning, i) ;
                        CheckDeferredRecordAccess (op3tok, op3, FALSE, warning, i) ;
-                       IF (op1 > 0) AND (op1 <= NoOfParam (op2)) AND
-                          IsVarParam (op2, op1)
+                       IF (op1 > 0) AND (op1 <= NoOfParamAny (op2)) AND
+                          IsVarParamAny (op2, op1)
                        THEN
                           SetVarInitialized (op3, TRUE, op3tok)
                        END |
@@ -1377,6 +1406,18 @@ BEGIN
    END ;
    RETURN FALSE
 END CheckReadBeforeInitQuad ;
+
+
+(*
+   SetParameterVariablesInitialized - sets all shadow variables for parameters as
+                                      initialized.
+*)
+
+PROCEDURE SetParameterVariablesInitialized (procSym: CARDINAL) ;
+BEGIN
+   ForeachLocalSymDo (procSym, SetVarUninitialized) ;
+   ForeachParamSymDo (procSym, SetVarLRInitialized) ;
+END SetParameterVariablesInitialized ;
 
 
 (*
@@ -1541,12 +1582,13 @@ VAR
    op                            : QuadOperator ;
    op1, proc, param, paramValue  : CARDINAL ;
    op1tok, op2tok, paramtok, qtok: CARDINAL ;
-   overflowChecking              : BOOLEAN ;
+   constExpr, overflowChecking   : BOOLEAN ;
    heapValue, ptrToHeap          : CARDINAL ;
 BEGIN
    IF trashQuad # 0
    THEN
-      GetQuadOtok (trashQuad, qtok, op, op1, proc, param, overflowChecking,
+      GetQuadOtok (trashQuad, qtok, op, op1, proc, param,
+                   overflowChecking, constExpr,
                    op1tok, op2tok, paramtok) ;
       heapValue := GetQuadTrash (trashQuad) ;
       IF Debugging
@@ -1870,7 +1912,7 @@ END DetectTrash ;
    AppendEntry -
 *)
 
-PROCEDURE AppendEntry (Start, End: CARDINAL) ;
+PROCEDURE AppendEntry (bb: BasicBlock) ;
 VAR
    bbPtr: bbEntry ;
    high : CARDINAL ;
@@ -1878,13 +1920,13 @@ BEGIN
    high := Indexing.HighIndice (bbArray) ;
    bbPtr := NewEntry () ;
    WITH bbPtr^ DO
-      start := Start ;
-      end := End ;
+      start := GetBasicBlockStart (bb) ;
+      end := GetBasicBlockEnd (bb) ;
       first := high = 0 ;
-      endCall := IsCall (End) ;
-      endGoto := IsGoto (End) ;
-      endCond := IsConditional (End) ;
-      topOfLoop := IsBackReference (Start) ;
+      endCall := IsCall (end) ;
+      endGoto := IsGoto (end) ;
+      endCond := IsConditional (end) ;
+      topOfLoop := IsBackReference (start) ;
       trashQuad := 0 ;
       indexBB := high + 1 ;
       nextQuad := 0 ;

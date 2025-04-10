@@ -1,5 +1,5 @@
 // -*- C++ -*- std::terminate, std::unexpected and friends.
-// Copyright (C) 1994-2024 Free Software Foundation, Inc.
+// Copyright (C) 1994-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -43,12 +43,12 @@ using namespace __cxxabiv1;
 void
 __cxxabiv1::__terminate (std::terminate_handler handler) throw ()
 {
-  __try 
+  __try
     {
       handler ();
       std::abort ();
-    } 
-  __catch(...) 
+    }
+  __catch(...)
     { std::abort (); }
 }
 

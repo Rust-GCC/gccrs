@@ -1,5 +1,5 @@
 /* d-port.cc -- D frontend interface to the gcc back-end.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@ Port::strupr (char *s)
 bool
 Port::isFloat32LiteralOutOfRange (const char *buffer)
 {
-  real_t r;
+  real_t r = {};
 
   real_from_string3 (&r.rv (), buffer, TYPE_MODE (float_type_node));
 
@@ -87,7 +87,7 @@ Port::isFloat32LiteralOutOfRange (const char *buffer)
 bool
 Port::isFloat64LiteralOutOfRange (const char *buffer)
 {
-  real_t r;
+  real_t r = {};
 
   real_from_string3 (&r.rv (), buffer, TYPE_MODE (double_type_node));
 

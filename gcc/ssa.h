@@ -1,5 +1,5 @@
 /* Common SSA files
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -29,6 +29,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "range.h"
 #include "tree-ssanames.h"
 #include "tree-phinodes.h"
-#include "ssa-iterators.h" 
+#include "ssa-iterators.h"
 
 #endif  /* GCC_SSA_H  */

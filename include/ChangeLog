@@ -1,3 +1,122 @@
+2025-03-29  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR cobol/119283
+	* libiberty.h (memrchr): New.
+
+2025-03-21  Paul-Antoine Arras  <parras@baylibre.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* gomp-constants.h (GOMP_DEVICE_DEFAULT_OMP_61, GOMP_INTEROP_TARGET,
+	GOMP_INTEROP_TARGETSYNC, GOMP_INTEROP_FLAG_NOWAIT): Define.
+
+2025-03-18  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* libiberty.h (ldirname): New function declaration.
+	(dos_ldirname): Likewise.
+	(unix_ldirname): Likewise.
+
+2025-02-11  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* dwarf2.def (DW_CFA_AARCH64_negate_ra_state_with_pc): Define.
+
+2025-01-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* dwarf2.h (enum dwarf_source_language): Fix comment pasto.
+	(enum dwarf_source_language_name): New type.
+	* dwarf2.def (DW_AT_language_name, DW_AT_language_version): New
+	DWARF 6 codes.
+
+2024-12-29  John David Anglin  <danglin@gcc.gnu.org>
+
+	* libiberty.h (mkstemps): Declare
+
+2024-11-23  Jakub Jelinek  <jakub@redhat.com>
+
+	* dwarf2.h (enum dwarf_source_language): Add DW_LANG_Fortran23
+	enumerator.
+
+2024-11-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gomp-constants.h (GOMP_INTEROP_IFR_NONE): Rename ...
+	(GOMP_INTEROP_IFR_UNKNOWN): ... to this. And change value.
+	(GOMP_INTEROP_IFR_SEPARATOR): Likewise.
+
+2024-11-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* dwarf2.h (enum dwarf_source_language): Add comment where
+	the post DWARF 5 additions start.  Refresh list from
+	https://dwarfstd.org/languages.html.
+
+2024-10-31  Mark Wielaard  <mark@klomp.org>
+
+	* safe-ctype.h: Change accidently to accidentally.
+
+2024-10-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* dyn-string.h: Remove trailing whitespace.
+	* libiberty.h: Likewise.
+	* xregex.h: Likewise.
+	* splay-tree.h: Likewise.
+	* partition.h: Likewise.
+	* plugin-api.h: Likewise.
+	* demangle.h: Likewise.
+	* vtv-change-permission.h: Likewise.
+	* fibheap.h: Likewise.
+	* hsa_ext_image.h: Likewise.
+	* hashtab.h: Likewise.
+	* libcollector.h: Likewise.
+	* sort.h: Likewise.
+	* symcat.h: Likewise.
+	* hsa_ext_amd.h: Likewise.
+
+2024-10-07  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gomp-constants.h (GOMP_OMP_PREDEF_ALLOC_MAX,
+	GOMP_OMPX_PREDEF_ALLOC_MIN, GOMP_OMPX_PREDEF_ALLOC_MAX,
+	GOMP_OMP_PREDEF_ALLOC_THREADS): New defines.
+
+2024-09-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gomp-constants.h (GOMP_REQUIRES_SELF_MAPS): #define.
+
+2024-09-23  Matthieu Longo  <matthieu.longo@arm.com>
+
+	* dwarf2.h (enum dwarf_call_frame_info): specify underlying
+
+2024-09-20  Tobias Burnus  <tburnus@baylibre.com>
+
+	* cuda/cuda.h (cuDeviceGetUuid): Declare.
+	(cuDeviceGetUuid_v2): Add prototype.
+
+2024-09-13  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR fortran/116661
+	* gomp-constants.h (GOMP_INTEROP_IFR_LAST,
+	GOMP_INTEROP_IFR_SEPARATOR, GOMP_INTEROP_IFR_NONE): New.
+
+2024-08-09  Will Hawkins  <hawkinsw@obs.cr>
+
+	* btf.h (BTF_TYPE_INFO): Protect against user providing invalid
+	kind.
+
+2024-07-02  David Faust  <david.faust@oracle.com>
+
+	* btf.h (BTF_VOID_TYPEID, BTF_INIT_TYPEID): Move defines here,
+	from gcc/btfout.cc.
+
+2024-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	* hsa.h (HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT): Add
+	enum value.
+
+2024-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	* cuda/cuda.h (CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS): Add.
+
+2024-04-08  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* cuda/cuda.h (CUresult): Add 'CUDA_ERROR_NO_DEVICE'.
+
 2024-02-29  Tom Tromey  <tom@tromey.com>
 
 	* gcc-cp-interface.h (gcc_cp_fe_context_function): Update

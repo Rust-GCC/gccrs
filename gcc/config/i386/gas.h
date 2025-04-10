@@ -1,5 +1,5 @@
 /* Definitions for Intel 386 using GAS.
-   Copyright (C) 1988-2024 Free Software Foundation, Inc.
+   Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -50,7 +50,7 @@ along with GCC; see the file COPYING3.  If not see
    doubt or guess work, and since this file is used for both a.out and other
    file formats, we use one of them.  */
 
-#ifdef HAVE_GAS_BALIGN_AND_P2ALIGN 
+#ifdef HAVE_GAS_BALIGN_AND_P2ALIGN
 #undef ASM_OUTPUT_ALIGN
 #define ASM_OUTPUT_ALIGN(FILE,LOG) \
   if ((LOG)!=0) fprintf ((FILE), "\t.balign %d\n", 1 << (LOG))

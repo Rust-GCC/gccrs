@@ -13,12 +13,12 @@ in
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
@@ -342,6 +342,7 @@ RAW_CXX_TARGET_EXPORTS = \
 
 NORMAL_TARGET_EXPORTS = \
 	$(BASE_TARGET_EXPORTS) \
+	CXX_FOR_TARGET="$(CXX_FOR_TARGET)"; export CXX_FOR_TARGET; \
 	CXX="$(CXX_FOR_TARGET) $(XGCC_FLAGS_FOR_TARGET) $$TFLAGS"; export CXX;
 
 # Where to find GMP
@@ -533,14 +534,11 @@ STAGE[+id+]_CONFIGURE_FLAGS = $(STAGE_CONFIGURE_FLAGS)
 STAGE1_CFLAGS = @stage1_cflags@
 STAGE1_CHECKING = @stage1_checking@
 STAGE1_LANGUAGES = @stage1_languages@
-# * We force-disable intermodule optimizations, even if
-#   --enable-intermodule was passed, since the installed compiler
-#   probably can't handle them.  Luckily, autoconf always respects
-#   the last argument when conflicting --enable arguments are passed.
-# * Likewise, we force-disable coverage flags, since the installed
-#   compiler probably has never heard of them.
+# * We force-disable coverage flags, since the installed compiler probably
+#   has never heard of them. Luckily, autoconf always respects the last
+#   argument when conflicting --enable arguments are passed.
 # * We also disable -Wformat, since older GCCs don't understand newer %s.
-STAGE1_CONFIGURE_FLAGS = --disable-intermodule $(STAGE1_CHECKING) \
+STAGE1_CONFIGURE_FLAGS = $(STAGE1_CHECKING) \
 	  --disable-coverage --enable-languages="$(STAGE1_LANGUAGES)" \
 	  --disable-build-format-warnings
 
@@ -1979,7 +1977,7 @@ configure-target-[+module+]: maybe-all-gcc[+
    (define dep-maybe (lambda ()
       (if (exist? "hard") "" "maybe-")))
 
-   ;; dep-kind returns returns "prebootstrap" for configure or build
+   ;; dep-kind returns "prebootstrap" for configure or build
    ;; dependencies of bootstrapped modules on a build module
    ;; (e.g. all-gcc on all-build-bison); "normal" if the dependency is
    ;; on an "install" target, or if the dependence module is not
@@ -2016,6 +2014,25 @@ configure-target-[+module+]: maybe-all-gcc[+
 	 (unless (=* target "target-")
            (string-append "configure-" target ": " dep "\n"))))))
 
+   ;; Dependencies in between target modules if the dependencies
+   ;; are bootstrap target modules and the target modules which
+   ;; depend on them are emitted inside of @unless gcc-bootstrap.
+   ;; Unfortunately, some target modules like libatomic or libbacktrace
+   ;; have bootstrap flag set, but whether they are actually built
+   ;; during bootstrap or after bootstrap depends on e.g. enabled languages;
+   ;; if d is enabled, libphobos is built as target module and depends
+   ;; on libatomic and libbacktrace, which are therefore also built as
+   ;; bootstrap modules.  If d is not enabled but go is, libatomic and
+   ;; libbacktrace are just dependencies of libgo which is not a bootstrap
+   ;; target module, but we need dependencies on libatomic and libbacktrace
+   ;; in that case even when gcc-bootstrap.  This lambda emits those.
+   (define make-postboot-target-dep (lambda ()
+     (let ((target (dep-module "module")) (on (dep-module "on")))
+       (when (=* on "target-")
+	 (when (=* target "target-")
+	   (string-append "@unless " on "-bootstrap\n" (make-dep "" "")
+			  "\n@endunless " on "-bootstrap\n"))))))
+
    ;; We now build the hash table that is used by dep-kind.
    (define boot-modules (make-hash-table 113))
    (define postboot-targets (make-hash-table 113))
@@ -2046,6 +2063,11 @@ configure-target-[+module+]: maybe-all-gcc[+
 @if gcc-bootstrap
 [+ FOR dependencies +][+ CASE (dep-kind) +]
 [+ == "postbootstrap" +][+ (make-postboot-dep) +][+ ESAC +][+
+ENDFOR dependencies +]@endif gcc-bootstrap
+
+@if gcc-bootstrap
+[+ FOR dependencies +][+ CASE (dep-kind) +]
+[+ == "postbootstrap" +][+ (make-postboot-target-dep) +][+ ESAC +][+
 ENDFOR dependencies +]@endif gcc-bootstrap
 
 @unless gcc-bootstrap

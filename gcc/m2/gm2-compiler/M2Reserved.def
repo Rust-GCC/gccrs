@@ -1,6 +1,6 @@
 (* M2Reserved.def determines is a token is a reserved word.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -44,7 +44,8 @@ EXPORT QUALIFIED IsReserved, tokToTok,
    AndTok, ArrayTok, BeginTok, ByTok, CaseTok, ConstTok,
    DefinitionTok, DivTok, DoTok, ElseTok, ElsifTok, EndTok,
    ExceptTok,
-   ExitTok, ExportTok, FinallyTok, ForTok, FromTok, IfTok,
+   ExitTok, ExportTok, FinallyTok, ForTok, ForwardTok,
+   FromTok, IfTok,
    ImplementationTok, ImportTok, InTok, LoopTok, ModTok,
    ModuleTok, NotTok, OfTok, OrTok,
    PackedSetTok, PointerTok, ProcedureTok,
@@ -71,7 +72,7 @@ TYPE
               arraytok, begintok, bytok, casetok, consttok,
               definitiontok, divtok, dotok, elsetok, elsiftok,
               endtok, excepttok, exittok, exporttok, finallytok,
-              fortok, fromtok, iftok, implementationtok,
+              fortok, forwardtok, fromtok, iftok, implementationtok,
               importtok, intok, looptok, modtok,
               moduletok, nottok, oftok, ortok,
               packedsettok, pointertok, proceduretok,
@@ -96,7 +97,8 @@ VAR
 
    AndTok, ArrayTok, BeginTok, ByTok, CaseTok, ConstTok,
    DefinitionTok, DivTok, DoTok, ElseTok, ElsifTok, EndTok,
-   ExceptTok, ExitTok, ExportTok, FinallyTok, ForTok, FromTok,
+   ExceptTok, ExitTok, ExportTok, FinallyTok, ForTok,
+   ForwardTok, FromTok,
    IfTok, ImplementationTok, ImportTok, InTok, LoopTok, ModTok,
    ModuleTok, NotTok, OfTok, OrTok,
    PackedSetTok, PointerTok, ProcedureTok,

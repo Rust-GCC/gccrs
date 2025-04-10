@@ -1,5 +1,5 @@
 /* Copy propagation on hard registers for the GNU compiler.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -249,7 +249,7 @@ struct kill_set_value_data
   struct value_data *vd;
   rtx ignore_set_reg;
 };
-  
+
 /* Called through note_stores.  If X is set, not clobbered, kill its
    current value and install it as the root of its own value list.  */
 
@@ -831,7 +831,7 @@ copyprop_hardreg_forward_1 (basic_block bb, struct value_data *vd)
 	    break;
 	  continue;
 	}
-	 
+
 
       extract_constrain_insn (insn);
       preprocess_constraints (insn);

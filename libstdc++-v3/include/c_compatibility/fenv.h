@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,12 +29,19 @@
 #ifndef _GLIBCXX_FENV_H
 #define _GLIBCXX_FENV_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic" // include_next
 
 #include <bits/c++config.h>
 #if _GLIBCXX_HAVE_FENV_H
 # include_next <fenv.h>
 #endif
+
+#pragma GCC diagnostic pop
 
 #if __cplusplus >= 201103L
 

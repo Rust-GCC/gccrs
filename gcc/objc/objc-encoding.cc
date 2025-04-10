@@ -1,5 +1,5 @@
 /* Routines dealing with ObjC encoding of types
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -843,7 +843,7 @@ encode_field_decl (tree field_decl)
   encode_field (field_decl,
 		obstack_object_size (&util_obstack),
 		OBJC_ENCODE_DONT_INLINE_DEFS);
-  
+
   /* Null terminate string.  */
   obstack_1grow (&util_obstack, 0);
 

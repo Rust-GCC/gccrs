@@ -1,5 +1,5 @@
 /* Top-level LTO routines.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -62,8 +62,10 @@ along with GCC; see the file COPYING3.  If not see
 /* Number of parallel tasks to run.  */
 static int lto_parallelism;
 
+#ifdef HAVE_WORKING_FORK
 /* Number of active WPA streaming processes.  */
 static int nruns = 0;
+#endif
 
 /* GNU make's jobserver info.  */
 static jobserver_info *jinfo = NULL;
@@ -176,7 +178,7 @@ stream_out (char *temp_filename, lto_symtab_encoder_t encoder, int part)
 
   gcc_assert (!dump_file);
   streamer_dump_file = dump_begin (TDI_lto_stream_out, NULL, part);
-  ipa_write_optimization_summaries (encoder);
+  ipa_write_optimization_summaries (encoder, part == 0);
 
   free (CONST_CAST (char *, file->filename));
 
@@ -554,6 +556,8 @@ do_whole_program_analysis (void)
   else if (flag_lto_partition == LTO_PARTITION_BALANCED)
     lto_balanced_map (param_lto_partitions,
 		      param_max_partition_size);
+  else if (flag_lto_partition == LTO_PARTITION_CACHE)
+    lto_cache_map (param_lto_partitions, param_max_partition_size);
   else
     gcc_unreachable ();
 

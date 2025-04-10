@@ -1,5 +1,5 @@
 /* Declarations and definitions dealing with attribute handling.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -131,7 +131,7 @@ extern tree private_lookup_attribute (const char *attr_ns,
 
 extern unsigned decls_mismatched_attributes (tree, tree, tree,
 					     const char* const[],
-					     pretty_printer*);
+					     auto_vec<const char *> &);
 
 extern void maybe_diag_alias_attributes (tree, tree);
 

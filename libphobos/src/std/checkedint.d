@@ -2078,7 +2078,7 @@ struct ProperCompare
 /**
 
 Hook that reserves a special value as a "Not a Number" representative. For
-signed integrals, the reserved value is `T.min`. For signed integrals, the
+signed integrals, the reserved value is `T.min`. For unsigned integrals, the
 reserved value is `T.max`.
 
 The default value of a $(D Checked!(X, WithNaN)) is its NaN value, so care must
@@ -3362,12 +3362,14 @@ version (StdUnittest) private struct CountOverflows
     static struct Hook1
     {
         uint calls;
-        auto hookOpUnary(string op, T)(T value) if (op == "-")
+        auto hookOpUnary(string op, T)(T value)
+        if (op == "-")
         {
             ++calls;
             return T(42);
         }
-        auto hookOpUnary(string op, T)(T value) if (op == "~")
+        auto hookOpUnary(string op, T)(T value)
+        if (op == "~")
         {
             ++calls;
             return T(43);
@@ -3383,12 +3385,14 @@ version (StdUnittest) private struct CountOverflows
     static struct Hook2
     {
         uint calls;
-        void hookOpUnary(string op, T)(ref T value) if (op == "++")
+        void hookOpUnary(string op, T)(ref T value)
+        if (op == "++")
         {
             ++calls;
             --value;
         }
-        void hookOpUnary(string op, T)(ref T value) if (op == "--")
+        void hookOpUnary(string op, T)(ref T value)
+        if (op == "--")
         {
             ++calls;
             ++value;

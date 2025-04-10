@@ -1,6 +1,6 @@
 // Support routines for the -*- C++ -*- dynamic memory management.
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -47,7 +47,7 @@ using std::size_t;
 extern "C"
 {
 # if _GLIBCXX_HAVE_POSIX_MEMALIGN
-  void *posix_memalign(void **, size_t alignment, size_t size);
+  int posix_memalign(void **, size_t alignment, size_t size);
 # elif _GLIBCXX_HAVE_ALIGNED_ALLOC
   void *aligned_alloc(size_t alignment, size_t size);
 # elif _GLIBCXX_HAVE__ALIGNED_MALLOC

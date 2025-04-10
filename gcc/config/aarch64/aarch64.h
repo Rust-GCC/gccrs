@@ -1,5 +1,5 @@
 /* Machine description for AArch64 architecture.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -22,15 +22,27 @@
 #ifndef GCC_AARCH64_H
 #define GCC_AARCH64_H
 
+#define aarch64_get_asm_isa_flags(opts) \
+  (aarch64_feature_flags ((opts)->x_aarch64_asm_isa_flags_0, \
+			  (opts)->x_aarch64_asm_isa_flags_1))
+#define aarch64_get_isa_flags(opts) \
+  (aarch64_feature_flags ((opts)->x_aarch64_isa_flags_0, \
+			  (opts)->x_aarch64_isa_flags_1))
+
 /* Make these flags read-only so that all uses go via
    aarch64_set_asm_isa_flags.  */
-#ifndef GENERATOR_FILE
+#ifdef GENERATOR_FILE
 #undef aarch64_asm_isa_flags
-#define aarch64_asm_isa_flags \
-  ((aarch64_feature_flags) global_options.x_aarch64_asm_isa_flags)
+#define aarch64_asm_isa_flags (aarch64_feature_flags (aarch64_asm_isa_flags_0,\
+						      aarch64_asm_isa_flags_1))
 #undef aarch64_isa_flags
-#define aarch64_isa_flags \
-  ((aarch64_feature_flags) global_options.x_aarch64_isa_flags)
+#define aarch64_isa_flags (aarch64_feature_flags (aarch64_isa_flags_0, \
+						  aarch64_isa_flags_1))
+#else
+#undef aarch64_asm_isa_flags
+#define aarch64_asm_isa_flags (aarch64_get_asm_isa_flags (&global_options))
+#undef aarch64_isa_flags
+#define aarch64_isa_flags (aarch64_get_isa_flags (&global_options))
 #endif
 
 /* Target CPU builtins.  */
@@ -60,18 +72,6 @@
 #define BYTES_BIG_ENDIAN (TARGET_BIG_END != 0)
 #define WORDS_BIG_ENDIAN (BYTES_BIG_ENDIAN)
 
-/* AdvSIMD is supported in the default configuration, unless disabled by
-   -mgeneral-regs-only or by the +nosimd extension.  The set of available
-   instructions is then subdivided into:
-
-   - the "base" set, available both in SME streaming mode and in
-     non-streaming mode
-
-   - the full set, available only in non-streaming mode.  */
-#define TARGET_BASE_SIMD (AARCH64_ISA_SIMD)
-#define TARGET_SIMD (AARCH64_ISA_SIMD && AARCH64_ISA_SM_OFF)
-#define TARGET_FLOAT (AARCH64_ISA_FP)
-
 #define UNITS_PER_WORD		8
 
 #define UNITS_PER_VREG		16
@@ -96,11 +96,7 @@
 
 #define LONG_LONG_TYPE_SIZE	64
 
-#define FLOAT_TYPE_SIZE		32
-
-#define DOUBLE_TYPE_SIZE	64
-
-#define LONG_DOUBLE_TYPE_SIZE	128
+#define WIDEST_HARDWARE_FP_SIZE	64
 
 /* This value is the amount of bytes a caller is allowed to drop the stack
    before probing has to be done for stack clash protection.  */
@@ -125,24 +121,11 @@
    of LSE instructions.  */
 #define TARGET_OUTLINE_ATOMICS (aarch64_flag_outline_atomics)
 
-/* Align definitions of arrays, unions and structures so that
-   initializations and copies can be made more efficient.  This is not
-   ABI-changing, so it only affects places where we can see the
-   definition.  Increasing the alignment tends to introduce padding,
-   so don't do this when optimizing for size/conserving stack space.  */
-#define AARCH64_EXPAND_ALIGNMENT(COND, EXP, ALIGN)			\
-  (((COND) && ((ALIGN) < BITS_PER_WORD)					\
-    && (TREE_CODE (EXP) == ARRAY_TYPE					\
-	|| TREE_CODE (EXP) == UNION_TYPE				\
-	|| TREE_CODE (EXP) == RECORD_TYPE)) ? BITS_PER_WORD : (ALIGN))
+/* Align global data as an optimization.  */
+#define DATA_ALIGNMENT(EXP, ALIGN) aarch64_data_alignment (EXP, ALIGN)
 
-/* Align global data.  */
-#define DATA_ALIGNMENT(EXP, ALIGN)			\
-  AARCH64_EXPAND_ALIGNMENT (!optimize_size, EXP, ALIGN)
-
-/* Similarly, make sure that objects on the stack are sensibly aligned.  */
-#define LOCAL_ALIGNMENT(EXP, ALIGN)				\
-  AARCH64_EXPAND_ALIGNMENT (!flag_conserve_stack, EXP, ALIGN)
+/* Align stack data as an optimization.  */
+#define LOCAL_ALIGNMENT(EXP, ALIGN) aarch64_stack_alignment (EXP, ALIGN)
 
 #define STRUCTURE_SIZE_BOUNDARY		8
 
@@ -162,6 +145,16 @@
 
 #define PCC_BITFIELD_TYPE_MATTERS	1
 
+/* Use the same RTL truth representation for vector elements as we do
+   for scalars.  This maintains the property that a comparison like
+   eq:V4SI is a composition of 4 individual eq:SIs, just like plus:V4SI
+   is a composition of 4 individual plus:SIs.
+
+   This means that Advanced SIMD comparisons are represented in RTL as
+   (neg (op ...)).  */
+
+#define VECTOR_STORE_FLAG_VALUE(MODE) CONST1_RTX (GET_MODE_INNER (MODE))
+
 #ifndef USED_FOR_TARGET
 
 /* Define an enum of all features (ISA modes, architectures and extensions).
@@ -177,8 +170,8 @@ enum class aarch64_feature : unsigned char {
 
 /* Define unique flags for each of the above.  */
 #define HANDLE(IDENT) \
-  constexpr auto AARCH64_FL_##IDENT \
-    = aarch64_feature_flags (1) << int (aarch64_feature::IDENT);
+  constexpr auto AARCH64_FL_##IDENT ATTRIBUTE_UNUSED \
+    = aarch64_feature_flags::from_index (int (aarch64_feature::IDENT));
 #define DEF_AARCH64_ISA_MODE(IDENT) HANDLE (IDENT)
 #define AARCH64_OPT_EXTENSION(A, IDENT, C, D, E, F) HANDLE (IDENT)
 #define AARCH64_ARCH(A, B, IDENT, D, E) HANDLE (IDENT)
@@ -187,20 +180,28 @@ enum class aarch64_feature : unsigned char {
 #include "aarch64-arches.def"
 #undef HANDLE
 
-constexpr auto AARCH64_FL_SM_STATE = AARCH64_FL_SM_ON | AARCH64_FL_SM_OFF;
-
-constexpr unsigned int AARCH64_NUM_ISA_MODES = (0
-#define DEF_AARCH64_ISA_MODE(IDENT) + 1
+/* Define aarch64_isa_mode masks.  */
+#define DEF_AARCH64_ISA_MODE(IDENT) \
+  constexpr auto AARCH64_ISA_MODE_##IDENT ATTRIBUTE_UNUSED \
+    = aarch64_isa_mode (1) << int (aarch64_feature::IDENT);
 #include "aarch64-isa-modes.def"
-);
+#undef HANDLE
+
+constexpr auto AARCH64_FL_SM_STATE ATTRIBUTE_UNUSED
+  = AARCH64_FL_SM_ON | AARCH64_FL_SM_OFF;
+constexpr auto AARCH64_ISA_MODE_SM_STATE ATTRIBUTE_UNUSED
+  = AARCH64_ISA_MODE_SM_ON | AARCH64_ISA_MODE_SM_OFF;
 
 /* The mask of all ISA modes.  */
 constexpr auto AARCH64_FL_ISA_MODES
-  = (aarch64_feature_flags (1) << AARCH64_NUM_ISA_MODES) - 1;
+  = aarch64_feature_flags ((1 << AARCH64_NUM_ISA_MODES) - 1);
 
 /* The default ISA mode, for functions with no attributes that specify
    something to the contrary.  */
-constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
+constexpr auto AARCH64_DEFAULT_ISA_MODE ATTRIBUTE_UNUSED
+  = AARCH64_ISA_MODE_SM_OFF;
+constexpr auto AARCH64_FL_DEFAULT_ISA_MODE ATTRIBUTE_UNUSED
+  = aarch64_feature_flags (AARCH64_DEFAULT_ISA_MODE);
 
 #endif
 
@@ -210,79 +211,35 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
    is not always set when its constituent features are present.
    Check (TARGET_AES && TARGET_SHA2) instead.  */
 
-#define AARCH64_ISA_SM_OFF         (aarch64_isa_flags & AARCH64_FL_SM_OFF)
-#define AARCH64_ISA_SM_ON          (aarch64_isa_flags & AARCH64_FL_SM_ON)
-#define AARCH64_ISA_ZA_ON          (aarch64_isa_flags & AARCH64_FL_ZA_ON)
-#define AARCH64_ISA_MODE           (aarch64_isa_flags & AARCH64_FL_ISA_MODES)
-#define AARCH64_ISA_V8A		   (aarch64_isa_flags & AARCH64_FL_V8A)
-#define AARCH64_ISA_V8_1A	   (aarch64_isa_flags & AARCH64_FL_V8_1A)
-#define AARCH64_ISA_CRC            (aarch64_isa_flags & AARCH64_FL_CRC)
-#define AARCH64_ISA_FP             (aarch64_isa_flags & AARCH64_FL_FP)
-#define AARCH64_ISA_SIMD           (aarch64_isa_flags & AARCH64_FL_SIMD)
-#define AARCH64_ISA_LSE		   (aarch64_isa_flags & AARCH64_FL_LSE)
-#define AARCH64_ISA_RDMA	   (aarch64_isa_flags & AARCH64_FL_RDMA)
-#define AARCH64_ISA_V8_2A	   (aarch64_isa_flags & AARCH64_FL_V8_2A)
-#define AARCH64_ISA_F16		   (aarch64_isa_flags & AARCH64_FL_F16)
-#define AARCH64_ISA_SVE            (aarch64_isa_flags & AARCH64_FL_SVE)
-#define AARCH64_ISA_SVE2	   (aarch64_isa_flags & AARCH64_FL_SVE2)
-#define AARCH64_ISA_SVE2_AES	   (aarch64_isa_flags & AARCH64_FL_SVE2_AES)
-#define AARCH64_ISA_SVE2_BITPERM  (aarch64_isa_flags & AARCH64_FL_SVE2_BITPERM)
-#define AARCH64_ISA_SVE2_SHA3	   (aarch64_isa_flags & AARCH64_FL_SVE2_SHA3)
-#define AARCH64_ISA_SVE2_SM4	   (aarch64_isa_flags & AARCH64_FL_SVE2_SM4)
-#define AARCH64_ISA_SME		   (aarch64_isa_flags & AARCH64_FL_SME)
-#define AARCH64_ISA_SME_I16I64	   (aarch64_isa_flags & AARCH64_FL_SME_I16I64)
-#define AARCH64_ISA_SME_F64F64	   (aarch64_isa_flags & AARCH64_FL_SME_F64F64)
-#define AARCH64_ISA_SME2	   (aarch64_isa_flags & AARCH64_FL_SME2)
-#define AARCH64_ISA_V8_3A	   (aarch64_isa_flags & AARCH64_FL_V8_3A)
-#define AARCH64_ISA_DOTPROD	   (aarch64_isa_flags & AARCH64_FL_DOTPROD)
-#define AARCH64_ISA_AES	           (aarch64_isa_flags & AARCH64_FL_AES)
-#define AARCH64_ISA_SHA2	   (aarch64_isa_flags & AARCH64_FL_SHA2)
-#define AARCH64_ISA_V8_4A	   (aarch64_isa_flags & AARCH64_FL_V8_4A)
-#define AARCH64_ISA_SM4	           (aarch64_isa_flags & AARCH64_FL_SM4)
-#define AARCH64_ISA_SHA3	   (aarch64_isa_flags & AARCH64_FL_SHA3)
-#define AARCH64_ISA_F16FML	   (aarch64_isa_flags & AARCH64_FL_F16FML)
-#define AARCH64_ISA_RCPC	   (aarch64_isa_flags & AARCH64_FL_RCPC)
-#define AARCH64_ISA_RCPC8_4	   (aarch64_isa_flags & AARCH64_FL_V8_4A)
-#define AARCH64_ISA_RNG		   (aarch64_isa_flags & AARCH64_FL_RNG)
-#define AARCH64_ISA_V8_5A	   (aarch64_isa_flags & AARCH64_FL_V8_5A)
-#define AARCH64_ISA_TME		   (aarch64_isa_flags & AARCH64_FL_TME)
-#define AARCH64_ISA_MEMTAG	   (aarch64_isa_flags & AARCH64_FL_MEMTAG)
-#define AARCH64_ISA_V8_6A	   (aarch64_isa_flags & AARCH64_FL_V8_6A)
-#define AARCH64_ISA_I8MM	   (aarch64_isa_flags & AARCH64_FL_I8MM)
-#define AARCH64_ISA_F32MM	   (aarch64_isa_flags & AARCH64_FL_F32MM)
-#define AARCH64_ISA_F64MM	   (aarch64_isa_flags & AARCH64_FL_F64MM)
-#define AARCH64_ISA_BF16	   (aarch64_isa_flags & AARCH64_FL_BF16)
-#define AARCH64_ISA_SB		   (aarch64_isa_flags & AARCH64_FL_SB)
-#define AARCH64_ISA_RCPC3	   (aarch64_isa_flags & AARCH64_FL_RCPC3)
-#define AARCH64_ISA_V8R		   (aarch64_isa_flags & AARCH64_FL_V8R)
-#define AARCH64_ISA_PAUTH	   (aarch64_isa_flags & AARCH64_FL_PAUTH)
-#define AARCH64_ISA_V8_7A	   (aarch64_isa_flags & AARCH64_FL_V8_7A)
-#define AARCH64_ISA_V8_8A	   (aarch64_isa_flags & AARCH64_FL_V8_8A)
-#define AARCH64_ISA_V8_9A	   (aarch64_isa_flags & AARCH64_FL_V8_9A)
-#define AARCH64_ISA_V9A		   (aarch64_isa_flags & AARCH64_FL_V9A)
-#define AARCH64_ISA_V9_1A          (aarch64_isa_flags & AARCH64_FL_V9_1A)
-#define AARCH64_ISA_V9_2A          (aarch64_isa_flags & AARCH64_FL_V9_2A)
-#define AARCH64_ISA_V9_3A          (aarch64_isa_flags & AARCH64_FL_V9_3A)
-#define AARCH64_ISA_V9_4A	   (aarch64_isa_flags & AARCH64_FL_V9_4A)
-#define AARCH64_ISA_MOPS	   (aarch64_isa_flags & AARCH64_FL_MOPS)
-#define AARCH64_ISA_LS64	   (aarch64_isa_flags & AARCH64_FL_LS64)
-#define AARCH64_ISA_CSSC	   (aarch64_isa_flags & AARCH64_FL_CSSC)
-#define AARCH64_ISA_D128	   (aarch64_isa_flags & AARCH64_FL_D128)
-#define AARCH64_ISA_THE		   (aarch64_isa_flags & AARCH64_FL_THE)
-#define AARCH64_ISA_GCS		   (aarch64_isa_flags & AARCH64_FL_GCS)
+#define AARCH64_HAVE_ISA(X) (bool (aarch64_isa_flags & AARCH64_FL_##X))
+
+#define AARCH64_ISA_MODE    ((aarch64_isa_flags & AARCH64_FL_ISA_MODES).val[0])
 
 /* The current function is a normal non-streaming function.  */
-#define TARGET_NON_STREAMING (AARCH64_ISA_SM_OFF)
+#define TARGET_NON_STREAMING AARCH64_HAVE_ISA (SM_OFF)
 
 /* The current function has a streaming body.  */
-#define TARGET_STREAMING (AARCH64_ISA_SM_ON)
+#define TARGET_STREAMING AARCH64_HAVE_ISA (SM_ON)
 
 /* The current function has a streaming-compatible body.  */
 #define TARGET_STREAMING_COMPATIBLE \
   ((aarch64_isa_flags & AARCH64_FL_SM_STATE) == 0)
 
 /* PSTATE.ZA is enabled in the current function body.  */
-#define TARGET_ZA (AARCH64_ISA_ZA_ON)
+#define TARGET_ZA AARCH64_HAVE_ISA (ZA_ON)
+
+/* AdvSIMD is supported in the default configuration, unless disabled by
+   -mgeneral-regs-only or by the +nosimd extension.  The set of available
+   instructions is then subdivided into:
+
+   - the "base" set, available both in SME streaming mode and in
+     non-streaming mode
+
+   - the full set, available only in non-streaming mode.  */
+#define TARGET_BASE_SIMD AARCH64_HAVE_ISA (SIMD)
+#define TARGET_SIMD (TARGET_BASE_SIMD && TARGET_NON_STREAMING)
+#define TARGET_FLOAT AARCH64_HAVE_ISA (FP)
+
 /* AARCH64_FL options necessary for system register implementation.  */
 
 /* Define AARCH64_FL aliases for architectural features which are protected
@@ -317,123 +274,141 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
 #define AARCH64_FL_SPE_FDS	   AARCH64_FL_V8_9A
 #define AARCH64_FL_TCR2	   AARCH64_FL_V8_9A
 
+#define TARGET_V8R AARCH64_HAVE_ISA (V8R)
+#define TARGET_V9A AARCH64_HAVE_ISA (V9A)
+
+
 /* SHA2 is an optional extension to AdvSIMD.  */
-#define TARGET_SHA2 (AARCH64_ISA_SHA2)
+#define TARGET_SHA2 AARCH64_HAVE_ISA (SHA2)
 
 /* SHA3 is an optional extension to AdvSIMD.  */
-#define TARGET_SHA3 (AARCH64_ISA_SHA3)
+#define TARGET_SHA3 AARCH64_HAVE_ISA (SHA3)
 
 /* AES is an optional extension to AdvSIMD.  */
-#define TARGET_AES (AARCH64_ISA_AES)
+#define TARGET_AES AARCH64_HAVE_ISA (AES)
 
 /* SM is an optional extension to AdvSIMD.  */
-#define TARGET_SM4 (AARCH64_ISA_SM4)
-
-/* FP16FML is an optional extension to AdvSIMD.  */
-#define TARGET_F16FML (TARGET_SIMD && AARCH64_ISA_F16FML && TARGET_FP_F16INST)
+#define TARGET_SM4 AARCH64_HAVE_ISA (SM4)
 
 /* CRC instructions that can be enabled through +crc arch extension.  */
-#define TARGET_CRC32 (AARCH64_ISA_CRC)
+#define TARGET_CRC32 AARCH64_HAVE_ISA (CRC)
 
 /* Atomic instructions that can be enabled through the +lse extension.  */
-#define TARGET_LSE (AARCH64_ISA_LSE)
+#define TARGET_LSE AARCH64_HAVE_ISA (LSE)
 
 /* ARMv8.2-A FP16 support that can be enabled through the +fp16 extension.  */
-#define TARGET_FP_F16INST (AARCH64_ISA_F16)
-#define TARGET_SIMD_F16INST (TARGET_SIMD && AARCH64_ISA_F16)
+#define TARGET_FP_F16INST AARCH64_HAVE_ISA (F16)
+#define TARGET_SIMD_F16INST (TARGET_SIMD && TARGET_FP_F16INST)
+
+/* FP16FML is an optional extension to AdvSIMD.  */
+#define TARGET_F16FML (TARGET_SIMD_F16INST && AARCH64_HAVE_ISA (F16FML))
 
 /* Dot Product is an optional extension to AdvSIMD enabled through +dotprod.  */
-#define TARGET_DOTPROD (AARCH64_ISA_DOTPROD)
+#define TARGET_DOTPROD AARCH64_HAVE_ISA (DOTPROD)
 
 /* SVE instructions, enabled through +sve.  */
-#define TARGET_SVE (AARCH64_ISA_SVE)
+#define TARGET_SVE AARCH64_HAVE_ISA (SVE)
 
 /* SVE2 instructions, enabled through +sve2.  */
-#define TARGET_SVE2 (AARCH64_ISA_SVE2)
+#define TARGET_SVE2 AARCH64_HAVE_ISA (SVE2)
 
 /* SVE2 AES instructions, enabled through +sve2-aes.  */
-#define TARGET_SVE2_AES (AARCH64_ISA_SVE2_AES && TARGET_NON_STREAMING)
+#define TARGET_SVE2_AES (AARCH64_HAVE_ISA (SVE2_AES) && TARGET_NON_STREAMING)
 
 /* SVE2 BITPERM instructions, enabled through +sve2-bitperm.  */
-#define TARGET_SVE2_BITPERM (AARCH64_ISA_SVE2_BITPERM && TARGET_NON_STREAMING)
+#define TARGET_SVE2_BITPERM (AARCH64_HAVE_ISA (SVE2_BITPERM) \
+			     && TARGET_NON_STREAMING)
 
 /* SVE2 SHA3 instructions, enabled through +sve2-sha3.  */
-#define TARGET_SVE2_SHA3 (AARCH64_ISA_SVE2_SHA3 && TARGET_NON_STREAMING)
+#define TARGET_SVE2_SHA3 (AARCH64_HAVE_ISA (SVE2_SHA3) && TARGET_NON_STREAMING)
 
 /* SVE2 SM4 instructions, enabled through +sve2-sm4.  */
-#define TARGET_SVE2_SM4 (AARCH64_ISA_SVE2_SM4 && TARGET_NON_STREAMING)
+#define TARGET_SVE2_SM4 (AARCH64_HAVE_ISA (SVE2_SM4) && TARGET_NON_STREAMING)
+
+/* SVE2p1 instructions, enabled through +sve2p1.  */
+#define TARGET_SVE2p1 AARCH64_HAVE_ISA (SVE2p1)
 
 /* SME instructions, enabled through +sme.  Note that this does not
-   imply anything about the state of PSTATE.SM.  */
-#define TARGET_SME (AARCH64_ISA_SME)
-
-/* Same with streaming mode enabled.  */
-#define TARGET_STREAMING_SME (TARGET_STREAMING && TARGET_SME)
+   imply anything about the state of PSTATE.SM; instructions that require
+   SME and streaming mode should use TARGET_STREAMING instead.  */
+#define TARGET_SME AARCH64_HAVE_ISA (SME)
 
 /* The FEAT_SME_I16I64 extension to SME, enabled through +sme-i16i64.  */
-#define TARGET_SME_I16I64 (AARCH64_ISA_SME_I16I64)
+#define TARGET_SME_I16I64 AARCH64_HAVE_ISA (SME_I16I64)
+
+/* The FEAT_SME_B16B16 extension to SME, enabled through +sme-b16b16.  */
+#define TARGET_STREAMING_SME_B16B16 \
+  (AARCH64_HAVE_ISA (SME_B16B16) && TARGET_STREAMING)
+
+/* The FEAT_SME_F16F16 extension to SME, enabled through +sme-f16f16.  */
+#define TARGET_STREAMING_SME_F16F16 \
+  (AARCH64_HAVE_ISA (SME_F16F16) && TARGET_STREAMING)
 
 /* The FEAT_SME_F64F64 extension to SME, enabled through +sme-f64f64.  */
-#define TARGET_SME_F64F64 (AARCH64_ISA_SME_F64F64)
+#define TARGET_SME_F64F64 AARCH64_HAVE_ISA (SME_F64F64)
 
 /* SME2 instructions, enabled through +sme2.  */
-#define TARGET_SME2 (AARCH64_ISA_SME2)
+#define TARGET_SME2 AARCH64_HAVE_ISA (SME2)
 
 /* Same with streaming mode enabled.  */
 #define TARGET_STREAMING_SME2 (TARGET_STREAMING && TARGET_SME2)
 
+#define TARGET_STREAMING_SME2p1 (TARGET_STREAMING && AARCH64_HAVE_ISA (SME2p1))
+
+#define TARGET_SME_B16B16 AARCH64_HAVE_ISA (SME_B16B16)
+
 /* ARMv8.3-A features.  */
-#define TARGET_ARMV8_3	(AARCH64_ISA_V8_3A)
+#define TARGET_ARMV8_3	AARCH64_HAVE_ISA (V8_3A)
 
 /* Javascript conversion instruction from Armv8.3-a.  */
-#define TARGET_JSCVT	(TARGET_FLOAT && AARCH64_ISA_V8_3A)
+#define TARGET_JSCVT	AARCH64_HAVE_ISA (JSCVT)
 
 /* Armv8.3-a Complex number extension to AdvSIMD extensions.  */
-#define TARGET_COMPLEX (TARGET_SIMD && TARGET_ARMV8_3)
+#define TARGET_COMPLEX AARCH64_HAVE_ISA (FCMA)
 
 /* Floating-point rounding instructions from Armv8.5-a.  */
-#define TARGET_FRINT (AARCH64_ISA_V8_5A && TARGET_FLOAT)
+#define TARGET_FRINT AARCH64_HAVE_ISA (FRINTTS)
 
 /* TME instructions are enabled.  */
-#define TARGET_TME (AARCH64_ISA_TME)
+#define TARGET_TME AARCH64_HAVE_ISA (TME)
 
 /* Random number instructions from Armv8.5-a.  */
-#define TARGET_RNG (AARCH64_ISA_RNG)
+#define TARGET_RNG AARCH64_HAVE_ISA (RNG)
 
 /* Memory Tagging instructions optional to Armv8.5 enabled through +memtag.  */
-#define TARGET_MEMTAG (AARCH64_ISA_MEMTAG)
+#define TARGET_MEMTAG AARCH64_HAVE_ISA (MEMTAG)
 
 /* I8MM instructions are enabled through +i8mm.  */
-#define TARGET_I8MM (AARCH64_ISA_I8MM)
-#define TARGET_SVE_I8MM (TARGET_SVE && AARCH64_ISA_I8MM)
+#define TARGET_I8MM AARCH64_HAVE_ISA (I8MM)
+#define TARGET_SVE_I8MM (TARGET_SVE && TARGET_I8MM)
 
 /* F32MM instructions are enabled through +f32mm.  */
-#define TARGET_SVE_F32MM (AARCH64_ISA_F32MM)
+#define TARGET_SVE_F32MM AARCH64_HAVE_ISA (F32MM)
 
 /* F64MM instructions are enabled through +f64mm.  */
-#define TARGET_SVE_F64MM (AARCH64_ISA_F64MM)
+#define TARGET_SVE_F64MM AARCH64_HAVE_ISA (F64MM)
 
 /* BF16 instructions are enabled through +bf16.  */
-#define TARGET_BF16_FP (AARCH64_ISA_BF16)
-#define TARGET_BF16_SIMD (AARCH64_ISA_BF16 && TARGET_SIMD)
-#define TARGET_SVE_BF16 (TARGET_SVE && AARCH64_ISA_BF16)
+#define TARGET_BF16_FP AARCH64_HAVE_ISA (BF16)
+#define TARGET_BF16_SIMD (TARGET_BF16_FP && TARGET_SIMD)
+#define TARGET_SVE_BF16 (TARGET_BF16_FP && TARGET_SVE)
 
 /* PAUTH instructions are enabled through +pauth.  */
-#define TARGET_PAUTH (AARCH64_ISA_PAUTH)
+#define TARGET_PAUTH AARCH64_HAVE_ISA (PAUTH)
 
 /* BTI instructions exist from Armv8.5-a onwards.  Their automatic use is
    enabled through -mbranch-protection by using NOP-space instructions,
    but this TARGET_ is used for defining BTI-related ACLE things.  */
-#define TARGET_BTI (AARCH64_ISA_V8_5A)
+#define TARGET_BTI AARCH64_HAVE_ISA (V8_5A)
 
 /* MOPS instructions are enabled through +mops.  */
-#define TARGET_MOPS (AARCH64_ISA_MOPS)
+#define TARGET_MOPS AARCH64_HAVE_ISA (MOPS)
 
 /* LS64 instructions are enabled through +ls64.  */
-#define TARGET_LS64 (AARCH64_ISA_LS64)
+#define TARGET_LS64 AARCH64_HAVE_ISA (LS64)
 
 /* CSSC instructions are enabled through +cssc.  */
-#define TARGET_CSSC (AARCH64_ISA_CSSC)
+#define TARGET_CSSC AARCH64_HAVE_ISA (CSSC)
 
 /* Make sure this is always defined so we don't have to check for ifdefs
    but rather use normal ifs.  */
@@ -445,17 +420,17 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
 #endif
 
 /* SB instruction is enabled through +sb.  */
-#define TARGET_SB (AARCH64_ISA_SB)
+#define TARGET_SB AARCH64_HAVE_ISA (SB)
 
 /* RCPC loads from Armv8.3-a.  */
-#define TARGET_RCPC (AARCH64_ISA_RCPC)
+#define TARGET_RCPC AARCH64_HAVE_ISA (RCPC)
 
 /* The RCPC2 extensions from Armv8.4-a that allow immediate offsets to LDAPR
    and sign-extending versions.*/
-#define TARGET_RCPC2 (AARCH64_ISA_RCPC8_4)
+#define TARGET_RCPC2 AARCH64_HAVE_ISA (RCPC2)
 
 /* RCPC3 (Release Consistency) extensions, optional from Armv8.2-a.  */
-#define TARGET_RCPC3 (AARCH64_ISA_RCPC3)
+#define TARGET_RCPC3 AARCH64_HAVE_ISA (RCPC3)
 
 /* Apply the workaround for Cortex-A53 erratum 835769.  */
 #define TARGET_FIX_ERR_A53_835769	\
@@ -477,23 +452,92 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
   ? TARGET_FIX_ERR_A53_843419_DEFAULT : aarch64_fix_a53_err843419)
 
 /* ARMv8.1-A Adv.SIMD support.  */
-#define TARGET_SIMD_RDMA (TARGET_SIMD && AARCH64_ISA_RDMA)
+#define TARGET_SIMD_RDMA (TARGET_SIMD && AARCH64_HAVE_ISA (RDMA))
 
 /* Armv9.4-A features.  */
-#define TARGET_ARMV9_4 (AARCH64_ISA_V9_4A)
+#define TARGET_ARMV9_4 AARCH64_HAVE_ISA (V9_4A)
 
 /*  128-bit System Registers and Instructions from Armv9.4-a are enabled
     through +d128.  */
-#define TARGET_D128 (AARCH64_ISA_D128)
+#define TARGET_D128 AARCH64_HAVE_ISA (D128)
 
 /*  Armv8.9-A/9.4-A Translation Hardening Extension system registers are
     enabled through +the.  */
-#define TARGET_THE (AARCH64_ISA_THE)
+#define TARGET_THE AARCH64_HAVE_ISA (THE)
 
 /*  Armv9.4-A Guarded Control Stack extension system registers are
     enabled through +gcs.  */
-#define TARGET_GCS (AARCH64_ISA_GCS)
+#define TARGET_GCS AARCH64_HAVE_ISA (GCS)
 
+/* Floating Point Absolute Maximum/Minimum extension instructions are
+   enabled through +faminmax.  */
+#define TARGET_FAMINMAX AARCH64_HAVE_ISA (FAMINMAX)
+
+/* Lookup table (LUTI) extension instructions are enabled through +lut.  */
+#define TARGET_LUT AARCH64_HAVE_ISA (LUT)
+
+/* Prefer different predicate registers for the output of a predicated
+   operation over re-using an existing input predicate.  */
+#define TARGET_SVE_PRED_CLOBBER (TARGET_SVE \
+				 && (aarch64_tune_params.extra_tuning_flags \
+				     & AARCH64_EXTRA_TUNE_AVOID_PRED_RMW))
+
+/* fp8 instructions are enabled through +fp8.  */
+#define TARGET_FP8 AARCH64_HAVE_ISA (FP8)
+
+/* See the comment above the tuning flag for details.  */
+#define TARGET_CHEAP_FPMR_WRITE \
+  (bool (aarch64_tune_params.extra_tuning_flags \
+	 & AARCH64_EXTRA_TUNE_CHEAP_FPMR_WRITE))
+
+/* Combinatorial tests.  */
+
+#define TARGET_SVE2_OR_SME2 \
+  ((TARGET_SVE2 || TARGET_STREAMING) \
+   && (TARGET_SME2 || TARGET_NON_STREAMING))
+
+/* There's no need to check TARGET_SME for streaming or streaming-compatible
+   functions, since streaming mode itself implies SME.  */
+#define TARGET_SVE2p1_OR_SME (TARGET_SVE2p1 || TARGET_STREAMING)
+
+#define TARGET_SVE2p1_OR_SME2 \
+  ((TARGET_SVE2p1 || TARGET_STREAMING) \
+   && (TARGET_SME2 || TARGET_NON_STREAMING))
+
+#define TARGET_SSVE_B16B16 \
+  (AARCH64_HAVE_ISA (SVE_B16B16) && TARGET_SVE2_OR_SME2)
+
+/* Some fp8 instructions require +fp8 and one of +sve2 or +sme2.  */
+#define TARGET_SSVE_FP8 (TARGET_FP8 \
+			 && (TARGET_SVE2 || TARGET_STREAMING) \
+			 && (TARGET_SME2 || TARGET_NON_STREAMING))
+
+/* fp8 multiply-accumulate instructions are enabled through +fp8fma.  */
+#define TARGET_FP8FMA AARCH64_HAVE_ISA (FP8FMA)
+
+/* SVE2 versions of fp8 multiply-accumulate instructions are enabled for
+   non-streaming mode by +fp8fma and for streaming mode by +ssve-fp8fma.  */
+#define TARGET_SSVE_FP8FMA \
+  (((TARGET_SVE2 && TARGET_FP8FMA) || TARGET_STREAMING) \
+   && (AARCH64_HAVE_ISA (SSVE_FP8FMA) || TARGET_NON_STREAMING))
+
+/* fp8 four way dot product enabled through +fp8dot4.  */
+#define TARGET_FP8DOT4 AARCH64_HAVE_ISA (FP8DOT4)
+
+/* Streaming versions of fp8 four way dot product instructions are enabled
+through +ssve-fp8dot4.  */
+#define TARGET_SSVE_FP8DOT4 ((\
+		(TARGET_SVE2 && TARGET_FP8DOT4) || TARGET_STREAMING) \
+		&& (AARCH64_HAVE_ISA(SSVE_FP8DOT4) || TARGET_NON_STREAMING))
+
+/* fp8 two way dot product enabled through +fp8dot2.  */
+#define TARGET_FP8DOT2 AARCH64_HAVE_ISA (FP8DOT2)
+
+/* Streaming versions of fp8 two way dot product instructions are enabled
+through +ssve-fp8dot2.  */
+#define TARGET_SSVE_FP8DOT2 ((\
+		(TARGET_SVE2 && TARGET_FP8DOT2) || TARGET_STREAMING) \
+		&& (AARCH64_HAVE_ISA(SSVE_FP8DOT2) || TARGET_NON_STREAMING))
 
 /* Standard register usage.  */
 
@@ -536,11 +580,14 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
    register.  GCC internally uses the poly_int variable aarch64_sve_vg
    instead.  */
 
+#define FIXED_X18 0
+#define CALL_USED_X18 1
+
 #define FIXED_REGISTERS					\
   {							\
     0, 0, 0, 0,   0, 0, 0, 0,	/* R0 - R7 */		\
     0, 0, 0, 0,   0, 0, 0, 0,	/* R8 - R15 */		\
-    0, 0, 0, 0,   0, 0, 0, 0,	/* R16 - R23 */		\
+    0, 0, FIXED_X18, 0,   0, 0, 0, 0,	/* R16 - R23.  */	\
     0, 0, 0, 0,   0, 1, 0, 1,	/* R24 - R30, SP */	\
     0, 0, 0, 0,   0, 0, 0, 0,   /* V0 - V7 */           \
     0, 0, 0, 0,   0, 0, 0, 0,   /* V8 - V15 */		\
@@ -549,6 +596,7 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
     1, 1, 1, 1,			/* SFP, AP, CC, VG */	\
     0, 0, 0, 0,   0, 0, 0, 0,   /* P0 - P7 */           \
     0, 0, 0, 0,   0, 0, 0, 0,   /* P8 - P15 */          \
+    1,				/* FPMR */		\
     1, 1,			/* FFR and FFRT */	\
     1, 1, 1, 1, 1, 1, 1, 1	/* Fake registers */	\
   }
@@ -564,7 +612,7 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
   {							\
     1, 1, 1, 1,   1, 1, 1, 1,	/* R0 - R7 */		\
     1, 1, 1, 1,   1, 1, 1, 1,	/* R8 - R15 */		\
-    1, 1, 1, 0,   0, 0, 0, 0,	/* R16 - R23 */		\
+    1, 1, CALL_USED_X18, 0, 0,   0, 0, 0, /* R16 - R23.  */   \
     0, 0, 0, 0,   0, 1, 1, 1,	/* R24 - R30, SP */	\
     1, 1, 1, 1,   1, 1, 1, 1,	/* V0 - V7 */		\
     0, 0, 0, 0,   0, 0, 0, 0,	/* V8 - V15 */		\
@@ -573,6 +621,7 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
     1, 1, 1, 0,			/* SFP, AP, CC, VG */	\
     1, 1, 1, 1,   1, 1, 1, 1,	/* P0 - P7 */		\
     1, 1, 1, 1,   1, 1, 1, 1,	/* P8 - P15 */		\
+    1,				/* FPMR */		\
     1, 1,			/* FFR and FFRT */	\
     0, 0, 0, 0, 0, 0, 0, 0	/* Fake registers */	\
   }
@@ -590,6 +639,7 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE = AARCH64_FL_SM_OFF;
     "sfp", "ap",  "cc",  "vg",					\
     "p0",  "p1",  "p2",  "p3",  "p4",  "p5",  "p6",  "p7",	\
     "p8",  "p9",  "p10", "p11", "p12", "p13", "p14", "p15",	\
+    "fpmr",							\
     "ffr", "ffrt",						\
     "lowering", "tpidr2_block", "sme_state", "tpidr2_setup",	\
     "za_free", "za_saved", "za", "zt0"				\
@@ -801,6 +851,7 @@ enum reg_class
   PR_REGS,
   FFR_REGS,
   PR_AND_FFR_REGS,
+  MOVEABLE_SYSREGS,
   FAKE_REGS,
   ALL_REGS,
   LIM_REG_CLASSES		/* Last */
@@ -827,6 +878,7 @@ enum reg_class
   "PR_REGS",					\
   "FFR_REGS",					\
   "PR_AND_FFR_REGS",				\
+  "MOVEABLE_SYSREGS",				\
   "FAKE_REGS",					\
   "ALL_REGS"					\
 }
@@ -848,10 +900,11 @@ enum reg_class
   { 0x00000000, 0x00000000, 0x00000ff0 },	/* PR_LO_REGS */	\
   { 0x00000000, 0x00000000, 0x000ff000 },	/* PR_HI_REGS */	\
   { 0x00000000, 0x00000000, 0x000ffff0 },	/* PR_REGS */		\
-  { 0x00000000, 0x00000000, 0x00300000 },	/* FFR_REGS */		\
-  { 0x00000000, 0x00000000, 0x003ffff0 },	/* PR_AND_FFR_REGS */	\
-  { 0x00000000, 0x00000000, 0x3fc00000 },	/* FAKE_REGS */		\
-  { 0xffffffff, 0xffffffff, 0x000fffff }	/* ALL_REGS */		\
+  { 0x00000000, 0x00000000, 0x00600000 },	/* FFR_REGS */		\
+  { 0x00000000, 0x00000000, 0x006ffff0 },	/* PR_AND_FFR_REGS */	\
+  { 0x00000000, 0x00000000, 0x00100000 },	/* MOVEABLE_SYSREGS */	\
+  { 0x00000000, 0x00000000, 0x7f800000 },	/* FAKE_REGS */		\
+  { 0xffffffff, 0xffffffff, 0x001fffff }	/* ALL_REGS */		\
 }
 
 #define REGNO_REG_CLASS(REGNO)	aarch64_regno_regclass (REGNO)
@@ -875,16 +928,9 @@ enum reg_class
 /* CPU/ARCH option handling.  */
 #include "config/aarch64/aarch64-opts.h"
 
-enum target_cpus
-{
-#define AARCH64_CORE(NAME, INTERNAL_IDENT, SCHED, ARCH, FLAGS, COSTS, IMP, PART, VARIANT) \
-  TARGET_CPU_##INTERNAL_IDENT,
-#include "aarch64-cores.def"
-};
-
 /* If there is no CPU defined at configure, use generic as default.  */
 #ifndef TARGET_CPU_DEFAULT
-# define TARGET_CPU_DEFAULT TARGET_CPU_generic_armv8_a
+# define TARGET_CPU_DEFAULT AARCH64_CPU_generic_armv8_a
 #endif
 
 /* If inserting NOP before a mult-accumulate insn remember to adjust the
@@ -900,7 +946,7 @@ enum target_cpus
     aarch64_final_prescan_insn (INSN);			\
 
 /* The processor for which instructions should be scheduled.  */
-extern enum aarch64_processor aarch64_tune;
+extern enum aarch64_cpu aarch64_tune;
 
 /* RTL generation support.  */
 #define INIT_EXPANDERS aarch64_init_expanders ()
@@ -1042,12 +1088,15 @@ struct GTY (()) aarch64_frame
   bool is_scs_enabled;
 };
 
+/* Private to winnt.cc.  */
+struct seh_frame_state;
+
 #ifdef hash_set_h
 typedef struct GTY (()) machine_function
 {
   struct aarch64_frame frame;
   /* One entry for each hard register.  */
-  bool reg_is_wrapped_separately[LAST_SAVED_REGNUM];
+  bool reg_is_wrapped_separately[LAST_SAVED_REGNUM + 1];
   /* One entry for each general purpose register.  */
   rtx call_via[SP_REGNUM];
 
@@ -1082,6 +1131,9 @@ typedef struct GTY (()) machine_function
      still exists and still fulfils its original purpose. the same register
      can be reused by other code.  */
   rtx_insn *advsimd_zero_insn;
+
+  /* During SEH output, this is non-null.  */
+  struct seh_frame_state * GTY ((skip (""))) seh;
 } machine_function;
 #endif
 #endif
@@ -1127,7 +1179,8 @@ enum arm_pcs
 typedef struct
 {
   enum arm_pcs pcs_variant;
-  aarch64_feature_flags isa_mode;
+  aarch64_isa_mode isa_mode;
+  bool indirect_return;		/* Whether function is marked with indirect_return attribute.  */
   int aapcs_arg_processed;	/* No need to lay out this argument again.  */
   int aapcs_ncrn;		/* Next Core register number.  */
   int aapcs_nextncrn;		/* Next next core register number.  */
@@ -1294,6 +1347,13 @@ typedef struct
 #define CTZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
   ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
 
+/* Have space for both SP and GCSPR in the NONLOCAL case in
+   emit_stack_save as well as in __builtin_setjmp, __builtin_longjmp
+   and __builtin_nonlocal_goto.
+   Note: On ILP32 the documented buf size is not enough PR84150.  */
+#define STACK_SAVEAREA_MODE(LEVEL)			\
+  ((LEVEL) == SAVE_NONLOCAL ? E_CDImode : Pmode)
+
 #define INCOMING_RETURN_ADDR_RTX gen_rtx_REG (Pmode, LR_REGNUM)
 
 #define RETURN_ADDR_RTX aarch64_return_addr
@@ -1414,7 +1474,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define HAVE_LOCAL_CPU_DETECT
 # define EXTRA_SPEC_FUNCTIONS                                           \
   { "local_cpu_detect", host_detect_local_cpu },                        \
-  MCPU_TO_MARCH_SPEC_FUNCTIONS
+  AARCH64_BASE_SPEC_FUNCTIONS
 
 /* Rewrite -m{arch,cpu,tune}=native based on the host system information.
    When rewriting -march=native convert it into an -mcpu option if no other
@@ -1431,7 +1491,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
  { "tune", "%{!mcpu=*:%{!mtune=*:%{!march=native:-mtune=%(VALUE)}}}" },
 #else
 # define MCPU_MTUNE_NATIVE_SPECS ""
-# define EXTRA_SPEC_FUNCTIONS MCPU_TO_MARCH_SPEC_FUNCTIONS
+# define EXTRA_SPEC_FUNCTIONS AARCH64_BASE_SPEC_FUNCTIONS
 # define CONFIG_TUNE_SPEC                                                \
   {"tune", "%{!mcpu=*:%{!mtune=*:-mtune=%(VALUE)}}"},
 #endif
@@ -1446,20 +1506,31 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
   {"cpu",  "%{!march=*:%{!mcpu=*:-mcpu=%(VALUE)}}" },   \
   CONFIG_TUNE_SPEC
 
-#define MCPU_TO_MARCH_SPEC \
-   " %{mcpu=*:-march=%:rewrite_mcpu(%{mcpu=*:%*})}"
+#define MARCH_REWRITE_SPEC \
+   "%{march=*:-march=%:rewrite_march(%{march=*:%*});" \
+     "mcpu=*:-march=%:rewrite_mcpu(%{mcpu=*:%*})}"
 
+extern const char *aarch64_rewrite_march (int argc, const char **argv);
 extern const char *aarch64_rewrite_mcpu (int argc, const char **argv);
-#define MCPU_TO_MARCH_SPEC_FUNCTIONS \
-  { "rewrite_mcpu", aarch64_rewrite_mcpu },
+extern const char *is_host_cpu_not_armv8_base (int argc, const char **argv);
+#define AARCH64_BASE_SPEC_FUNCTIONS		       \
+  { "rewrite_march", aarch64_rewrite_march },          \
+  { "rewrite_mcpu",            aarch64_rewrite_mcpu }, \
+  { "is_local_not_armv8_base", is_host_cpu_not_armv8_base },
+
 
 #define ASM_CPU_SPEC \
-   MCPU_TO_MARCH_SPEC
+   MARCH_REWRITE_SPEC
 
 #define EXTRA_SPECS						\
   { "asm_cpu_spec",		ASM_CPU_SPEC }
 
 #define ASM_OUTPUT_POOL_EPILOGUE  aarch64_asm_output_pool_epilogue
+
+/* This type is the user-visible __mfp8, and a pointer to that type.  We
+   need it in many places in the backend.  Defined in aarch64-builtins.cc.  */
+extern GTY(()) tree aarch64_mfp8_type_node;
+extern GTY(()) tree aarch64_mfp8_ptr_type_node;
 
 /* This type is the user-visible __fp16, and a pointer to that type.  We
    need it in many places in the backend.  Defined in aarch64-builtins.cc.  */
@@ -1580,6 +1651,10 @@ enum class aarch64_tristate_mode : int { NO, YES, MAYBE };
 #define NUM_MODES_FOR_MODE_SWITCHING \
   { int (aarch64_tristate_mode::MAYBE), \
     int (aarch64_local_sme_state::ANY) }
+
+/* Zero terminated list of regnos for which hardreg PRE should be
+   applied.  */
+#define HARDREG_PRE_REGNOS { FPM_REGNUM, 0 }
 
 #endif
 

@@ -4,7 +4,6 @@
 
 #include <print>
 #include <cstdio>
-#include <spanstream>
 #include <testsuite_hooks.h>
 #include <testsuite_fs.h>
 
@@ -19,7 +18,7 @@ void
 test_println_default()
 {
   std::println("I walk the line");
-  // { dg-output "I walk the line\n" }
+  // { dg-output "I walk the line\r?\n" }
 }
 
 void
