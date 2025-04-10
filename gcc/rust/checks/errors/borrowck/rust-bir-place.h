@@ -42,6 +42,8 @@ struct PlaceId
   bool operator> (const PlaceId &rhs) const { return value > rhs.value; }
   bool operator<= (const PlaceId &rhs) const { return !(operator> (rhs)); }
   bool operator>= (const PlaceId &rhs) const { return !(operator< (rhs)); }
+
+  typedef uint32_t value_type;
 };
 
 static constexpr PlaceId INVALID_PLACE = {0};
@@ -61,6 +63,8 @@ struct LoanId
   bool operator> (const LoanId &rhs) const { return value > rhs.value; }
   bool operator<= (const LoanId &rhs) const { return !(operator> (rhs)); }
   bool operator>= (const LoanId &rhs) const { return !(operator< (rhs)); }
+
+  typedef uint32_t value_type;
 };
 
 /**
@@ -176,6 +180,8 @@ struct ScopeId
   bool operator> (const ScopeId &rhs) const { return value > rhs.value; }
   bool operator<= (const ScopeId &rhs) const { return !(operator> (rhs)); }
   bool operator>= (const ScopeId &rhs) const { return !(operator< (rhs)); }
+
+  typedef uint32_t value_type;
 };
 
 static constexpr ScopeId INVALID_SCOPE
@@ -279,7 +285,9 @@ public:
 
   ScopeId push_new_scope ()
   {
-    ScopeId new_scope = {scopes.size ()};
+    size_t id = scopes.size ();
+    rust_assert (id < INVALID_SCOPE.value);
+    ScopeId new_scope = {static_cast<ScopeId::value_type> (id)};
     scopes.emplace_back ();
     scopes[new_scope].parent = current_scope;
     scopes[current_scope].children.push_back (new_scope);
@@ -295,8 +303,10 @@ public:
 
   PlaceId add_place (Place &&place, PlaceId last_sibling = INVALID_PLACE)
   {
+    size_t id = places.size ();
+    rust_assert (id <= std::numeric_limits<PlaceId::value_type>::max ());
     places.emplace_back (std::forward<Place &&> (place));
-    PlaceId new_place = {places.size () - 1};
+    PlaceId new_place = {static_cast<PlaceId::value_type> (id)};
     Place &new_place_ref = places[new_place]; // Intentional shadowing.
     if (last_sibling == INVALID_PLACE)
       places[new_place_ref.path.parent].path.first_child = new_place;
@@ -383,7 +393,9 @@ public:
 
   LoanId add_loan (Loan &&loan)
   {
-    LoanId id = {loans.size ()};
+    rust_assert (loans.size ()
+		 <= std::numeric_limits<LoanId::value_type>::max ());
+    LoanId id = {static_cast<LoanId::value_type> (loans.size ())};
     loans.push_back (std::forward<Loan &&> (loan));
     PlaceId borrowed_place = loans.get_vector ().rbegin ()->place;
     places[loans.get_vector ().rbegin ()->place].borrowed_by.push_back (id);
@@ -418,8 +430,7 @@ public:
     if (lookup != INVALID_PLACE)
       return lookup;
 
-    add_place ({Place::VARIABLE, id, {}, is_type_copy (tyty), tyty});
-    return {places.size () - 1};
+    return add_place ({Place::VARIABLE, id, {}, is_type_copy (tyty), tyty});
   };
 
   template <typename FN> void for_each_path_from_root (PlaceId var, FN fn) const

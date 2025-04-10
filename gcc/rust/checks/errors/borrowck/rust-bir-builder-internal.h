@@ -357,8 +357,10 @@ protected: // Helpers to add BIR statements
 protected: // CFG helpers
   BasicBlockId new_bb ()
   {
+    size_t id = ctx.basic_blocks.size ();
+    rust_assert (id < INVALID_BB.value);
     ctx.basic_blocks.emplace_back ();
-    return {ctx.basic_blocks.size () - 1};
+    return {static_cast<BasicBlockId::value_type> (id)};
   }
 
   BasicBlockId start_new_consecutive_bb ()
