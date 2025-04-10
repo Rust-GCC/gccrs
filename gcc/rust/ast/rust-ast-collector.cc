@@ -1522,6 +1522,12 @@ void
 TokenCollector::visit (InlineAsm &expr)
 {}
 
+void
+TokenCollector::visit (LlvmInlineAsm &expr)
+{
+  rust_unreachable ();
+}
+
 // rust-item.h
 
 void
