@@ -1263,6 +1263,7 @@ public:
     Await,
     AsyncBlock,
     InlineAsm,
+    LlvmInlineAsm,
     Identifier,
     FormatArgs,
     MacroInvocation,

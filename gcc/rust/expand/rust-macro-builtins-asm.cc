@@ -660,6 +660,15 @@ MacroBuiltin::asm_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
   return parse_asm (invoc_locus, invoc, semicolon, is_global_asm);
 }
 
+tl::optional<AST::Fragment>
+MacroBuiltin::llvm_asm_handler (location_t invoc_locus,
+				AST::MacroInvocData &invoc,
+				AST::InvocKind semicolon,
+				AST::AsmKind is_global_asm)
+{
+  return parse_llvm_asm (invoc_locus, invoc, semicolon, is_global_asm);
+}
+
 tl::expected<InlineAsmContext, InlineAsmParseError>
 parse_asm_arg (InlineAsmContext inline_asm_ctx)
 {
@@ -670,6 +679,14 @@ parse_asm_arg (InlineAsmContext inline_asm_ctx)
   while (token->get_id () != last_token_id)
     {
       token = parser.peek_current_token ();
+
+      if (token->get_id () == COLON || token->get_id () == SCOPE_RESOLUTION)
+	{
+	  rust_error_at (
+	    token->get_locus (),
+	    "the legacy LLVM-style asm! syntax is no longer supported");
+	  return tl::unexpected<InlineAsmParseError> (COMMITTED);
+	}
 
       // We accept a comma token here.
       if (token->get_id () != COMMA
@@ -962,4 +979,16 @@ validate (InlineAsmContext inline_asm_ctx)
 {
   return tl::expected<InlineAsmContext, InlineAsmParseError> (inline_asm_ctx);
 }
+
+tl::optional<AST::Fragment>
+parse_llvm_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
+		AST::InvocKind semicolon, AST::AsmKind is_global_asm)
+{
+  MacroInvocLexer lex (invoc.get_delim_tok_tree ().to_token_stream ());
+  Parser<MacroInvocLexer> parser (lex);
+  auto last_token_id = macro_end_token (invoc.get_delim_tok_tree (), parser);
+
+  AST::LlvmInlineAsm llvm_asm{invoc_locus};
+}
+
 } // namespace Rust
