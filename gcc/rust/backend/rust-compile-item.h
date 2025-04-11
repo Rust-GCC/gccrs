@@ -44,7 +44,7 @@ public:
   void visit (HIR::ImplBlock &impl_block) override;
   void visit (HIR::ExternBlock &extern_block) override;
   void visit (HIR::Module &module) override;
-
+  void visit (HIR::Enum &) override;
   // Empty visit for unused Stmt HIR nodes.
   void visit (HIR::TupleStruct &) override {}
   void visit (HIR::EnumItem &) override {}
@@ -58,7 +58,6 @@ public:
   void visit (HIR::UseDeclaration &) override {}
   void visit (HIR::TypeAlias &) override {}
   void visit (HIR::StructStruct &) override {}
-  void visit (HIR::Enum &) override {}
   void visit (HIR::Union &) override {}
   void visit (HIR::Trait &) override {}
   void visit (HIR::EmptyStmt &) override {}
