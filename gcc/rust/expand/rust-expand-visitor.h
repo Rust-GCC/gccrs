@@ -249,7 +249,6 @@ public:
   void visit (AST::EnumItem &item) override;
   void visit (AST::EnumItemTuple &item) override;
   void visit (AST::EnumItemStruct &item) override;
-  void visit (AST::EnumItemDiscriminant &item) override;
   void visit (AST::Union &union_item) override;
   void visit (AST::ConstantItem &const_item) override;
   void visit (AST::StaticItem &static_item) override;

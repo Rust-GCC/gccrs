@@ -632,16 +632,6 @@ ConstChecker::visit (EnumItemStruct &)
 {}
 
 void
-ConstChecker::visit (EnumItemDiscriminant &item)
-{
-  const_context.enter (item.get_mappings ().get_hirid ());
-
-  item.get_discriminant_expression ().accept_vis (*this);
-
-  const_context.exit ();
-}
-
-void
 ConstChecker::visit (Enum &enum_item)
 {
   check_default_const_generics (enum_item.get_generic_params (),

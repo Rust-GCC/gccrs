@@ -129,7 +129,6 @@ public:
   void visit (AST::EnumItem &);
   void visit (AST::EnumItemTuple &);
   void visit (AST::EnumItemStruct &);
-  void visit (AST::EnumItemDiscriminant &);
   void visit (AST::Enum &);
   void visit (AST::Union &);
   void visit (AST::ConstantItem &);

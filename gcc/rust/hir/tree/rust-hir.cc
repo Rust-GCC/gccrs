@@ -3055,9 +3055,6 @@ EnumItem::as_string () const
     case Struct:
       str += "[Struct variant]";
       break;
-    case Discriminant:
-      str += "[Discriminant variant]";
-      break;
     }
 
   return str;
@@ -3173,17 +3170,6 @@ StructField::as_string () const
     }
 
   str += " " + field_name.as_string () + " : " + field_type->as_string ();
-
-  return str;
-}
-
-std::string
-EnumItemDiscriminant::as_string () const
-{
-  std::string str = EnumItem::as_string ();
-
-  // add equal and expression
-  str += " = " + expression->as_string ();
 
   return str;
 }
@@ -4260,12 +4246,6 @@ EnumItemStruct::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-EnumItemDiscriminant::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 Enum::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -4609,12 +4589,6 @@ ExternalTypeItem::accept_vis (HIRExternalItemVisitor &vis)
 
 void
 ExternalStaticItem::accept_vis (HIRExternalItemVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-EnumItemDiscriminant::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);
 }

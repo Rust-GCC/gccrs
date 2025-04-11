@@ -64,7 +64,6 @@ public:
   void visit (HIR::EnumItemTuple &) override {}
   void visit (HIR::EnumItemStruct &) override {}
   void visit (HIR::EnumItem &) override {}
-  void visit (HIR::EnumItemDiscriminant &) override {}
 
 private:
   TypeCheckStmt () : TypeCheckBase (), infered (nullptr) {}

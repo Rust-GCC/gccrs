@@ -2950,18 +2950,6 @@ StructField::as_string () const
 }
 
 std::string
-EnumItemDiscriminant::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  std::string str = EnumItem::as_string ();
-
-  // add equal and expression
-  str += " = " + expression->as_string ();
-
-  return str;
-}
-
-std::string
 ExternalTypeItem::as_string () const
 {
   auto str = append_attributes (outer_attrs, OUTER);
@@ -4742,12 +4730,6 @@ EnumItemTuple::accept_vis (ASTVisitor &vis)
 
 void
 EnumItemStruct::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-EnumItemDiscriminant::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

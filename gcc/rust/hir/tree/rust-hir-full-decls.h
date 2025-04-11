@@ -161,7 +161,6 @@ class TupleStruct;
 class EnumItem;
 class EnumItemTuple;
 class EnumItemStruct;
-class EnumItemDiscriminant;
 class Enum;
 class Union;
 class ConstantItem;

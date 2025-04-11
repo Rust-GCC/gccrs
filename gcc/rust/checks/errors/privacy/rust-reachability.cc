@@ -178,7 +178,6 @@ ReachabilityVisitor::visit (HIR::Enum &enum_item)
 	  }
 	// Nothing nested to visit in that case
 	case HIR::EnumItem::Named:
-	case HIR::EnumItem::Discriminant:
 	  break;
 	}
     }

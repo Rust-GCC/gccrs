@@ -511,9 +511,6 @@ Dump::do_enumitem (EnumItem &e)
     case EnumItem::EnumItemKind::Struct:
       str = "[Struct variant]";
       break;
-    case EnumItem::EnumItemKind::Discriminant:
-      str = "[Discriminant variant]";
-      break;
     }
   put_field ("item_kind", str);
 }
@@ -1814,18 +1811,6 @@ Dump::visit (EnumItemStruct &e)
       put_field ("struct_fields", "empty");
     }
   end ("EnumItemStruct");
-}
-
-void
-Dump::visit (EnumItemDiscriminant &e)
-{
-  begin ("EnumItemDiscriminant");
-
-  do_enumitem (e);
-
-  visit_field ("discriminant", e.get_discriminant_expression ());
-
-  end ("EnumItemDiscriminant");
 }
 
 void

@@ -321,9 +321,6 @@ DeriveClone::visit_enum (Enum &item)
 	// Identifiers and discriminated variants are the same for a clone - we
 	// just return the same variant
 	case EnumItem::Kind::Identifier:
-	case EnumItem::Kind::Discriminant:
-	  cases.emplace_back (clone_enum_identifier (path, variant));
-	  break;
 	case EnumItem::Kind::Tuple:
 	  cases.emplace_back (
 	    clone_enum_tuple (path, static_cast<EnumItemTuple &> (*variant)));
