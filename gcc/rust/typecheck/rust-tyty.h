@@ -1000,7 +1000,9 @@ public:
 			     {Resolver::CanonicalPath::create_empty (), locus},
 			     refs),
       params (std::move (params)), result_type (result_type)
-  {}
+  {
+    setup_fn_once_output ();
+  }
 
   FnPtr (HirId ref, HirId ty_ref, location_t locus, std::vector<TyVar> params,
 	 TyVar result_type, std::set<HirId> refs = std::set<HirId> ())
@@ -1008,7 +1010,9 @@ public:
 			     {Resolver::CanonicalPath::create_empty (), locus},
 			     refs),
       params (params), result_type (result_type)
-  {}
+  {
+    setup_fn_once_output ();
+  }
 
   std::string get_name () const override final { return as_string (); }
 
@@ -1029,6 +1033,7 @@ public:
 
   const TyVar &get_var_return_type () const { return result_type; }
 
+  TyTy::BaseType &get_result_type () const { return *result_type.get_tyty (); }
   size_t num_params () const { return params.size (); }
 
   void accept_vis (TyVisitor &vis) override;
@@ -1044,6 +1049,8 @@ public:
 
   std::vector<TyVar> &get_params () { return params; }
   const std::vector<TyVar> &get_params () const { return params; }
+
+  void setup_fn_once_output () const;
 
 private:
   std::vector<TyVar> params;
