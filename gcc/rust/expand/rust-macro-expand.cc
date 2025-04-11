@@ -28,6 +28,7 @@
 #include "rust-cfg-strip.h"
 #include "rust-early-name-resolver.h"
 #include "rust-proc-macro.h"
+#include "rust-token-tree-desugar.h"
 
 namespace Rust {
 
@@ -78,7 +79,10 @@ MacroExpander::expand_decl_macro (location_t invoc_locus,
    * trees.
    */
 
-  AST::DelimTokenTree &invoc_token_tree = invoc.get_delim_tok_tree ();
+  AST::DelimTokenTree &invoc_token_tree_sugar = invoc.get_delim_tok_tree ();
+
+  // We must first desugar doc comments into proper attributes
+  auto invoc_token_tree = AST::TokenTreeDesugar ().go (invoc_token_tree_sugar);
 
   // find matching arm
   AST::MacroRule *matched_rule = nullptr;
@@ -621,9 +625,10 @@ MacroExpander::match_n_matches (Parser<MacroInvocLexer> &parser,
 		// matched fragment get the offset in the token stream
 		size_t offs_end = source.get_offs ();
 
-		sub_stack.insert_metavar (
-		  MatchedFragment (fragment->get_ident ().as_string (),
-				   offs_begin, offs_end));
+		if (valid_current_match)
+		  sub_stack.insert_metavar (
+		    MatchedFragment (fragment->get_ident ().as_string (),
+				     offs_begin, offs_end));
 	      }
 	      break;
 
@@ -650,14 +655,14 @@ MacroExpander::match_n_matches (Parser<MacroInvocLexer> &parser,
 	}
       auto old_stack = sub_stack.pop ();
 
-      // nest metavars into repetitions
-      for (auto &ent : old_stack)
-	sub_stack.append_fragment (ent.first, std::move (ent.second));
-
       // If we've encountered an error once, stop trying to match more
       // repetitions
       if (!valid_current_match)
 	break;
+
+      // nest metavars into repetitions
+      for (auto &ent : old_stack)
+	sub_stack.append_fragment (ent.first, std::move (ent.second));
 
       match_amount++;
 
