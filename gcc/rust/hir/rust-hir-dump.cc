@@ -1508,6 +1508,10 @@ Dump::visit (InlineAsm &e)
 {}
 
 void
+Dump::visit (LlvmInlineAsm &e)
+{}
+
+void
 Dump::visit (TypeParam &e)
 {
   begin ("TypeParam");
