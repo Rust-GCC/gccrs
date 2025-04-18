@@ -1,6 +1,6 @@
 (* SymbolConversion.mod mapping between m2 symbols and gcc symbols.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -24,15 +24,15 @@ IMPLEMENTATION MODULE SymbolConversion ;
 FROM NameKey IMPORT Name ;
 
 FROM Indexing IMPORT Index, InitIndex, PutIndice, GetIndice, InBounds,
-                     DebugIndex, InitIndexTuned ;
+                     DebugIndex, InitIndexTuned, HighIndice ;
 
 FROM SymbolTable IMPORT IsConst, PopValue, IsValueSolved, GetSymName,
-                        GetType, SkipType ;
+                        GetType, SkipType, NulSym ;
 
 FROM M2Error IMPORT InternalError ;
 FROM M2ALU IMPORT PushTypeOfTree ;
 FROM m2block IMPORT GetErrorNode, RememberConstant ;
-FROM m2tree IMPORT Tree ;
+FROM gcctypes IMPORT tree ;
 FROM M2Printf IMPORT printf1 ;
 FROM Storage IMPORT ALLOCATE ;
 FROM SYSTEM IMPORT ADDRESS ;
@@ -53,11 +53,11 @@ VAR
    Mod2Gcc - given a modula-2 symbol, sym, return the gcc equivalent.
 *)
 
-PROCEDURE Mod2Gcc (sym: CARDINAL) : Tree ;
+PROCEDURE Mod2Gcc (sym: CARDINAL) : tree ;
 VAR
    n : Name ;
    t : PtrToCardinal ;
-   tr: Tree ;
+   tr: tree ;
 BEGIN
    IF USEPOISON
    THEN
@@ -72,7 +72,7 @@ BEGIN
    END ;
    IF InBounds(mod2gcc, sym)
    THEN
-      tr := Tree(GetIndice(mod2gcc, sym)) ;
+      tr := tree(GetIndice(mod2gcc, sym)) ;
       IF tr=PoisonedSymbol
       THEN
          n := GetSymName(sym) ;
@@ -88,12 +88,33 @@ END Mod2Gcc ;
 
 
 (*
+   Gcc2Mod - given a gcc tree return the modula-2 symbol.
+*)
+
+PROCEDURE Gcc2Mod (tree: tree) : CARDINAL ;
+VAR
+   high, i: CARDINAL ;
+BEGIN
+   i := 1 ;
+   high := HighIndice (mod2gcc) ;
+   WHILE i <= high DO
+      IF GetIndice (mod2gcc, i) = tree
+      THEN
+         RETURN i
+      END ;
+      INC (i)
+   END ;
+   RETURN NulSym
+END Gcc2Mod ;
+
+
+(*
    AddModGcc - adds the tuple [ sym, gcc ] into the database.
 *)
 
-PROCEDURE AddModGcc (sym: CARDINAL; gcc: Tree) ;
+PROCEDURE AddModGcc (sym: CARDINAL; gcc: tree) ;
 VAR
-   old: Tree ;
+   old: tree ;
    t  : PtrToCardinal ;
 BEGIN
    IF gcc=GetErrorNode()
@@ -104,14 +125,14 @@ BEGIN
    IF USEPOISON
    THEN
       t := PtrToCardinal(gcc) ;
-      IF (gcc#Tree(NIL)) AND (t^=GGCPOISON)
+      IF (gcc#tree(NIL)) AND (t^=GGCPOISON)
       THEN
          InternalError ('gcc symbol has been poisoned')
       END
    END ;
 
    old := Mod2Gcc(sym) ;
-   IF old=Tree(NIL)
+   IF old=tree(NIL)
    THEN
       (* absent - add it *)
       PutIndice(mod2gcc, sym, gcc) ;
@@ -190,14 +211,14 @@ END RemoveTemporaryKnown ;
                              whether the gcc symbol has been poisoned.
 *)
 
-PROCEDURE Mod2GccWithoutGCCPoison (sym: CARDINAL) : Tree ;
+PROCEDURE Mod2GccWithoutGCCPoison (sym: CARDINAL) : tree ;
 VAR
    n : Name ;
-   tr: Tree ;
+   tr: tree ;
 BEGIN
    IF InBounds(mod2gcc, sym)
    THEN
-      tr := Tree(GetIndice(mod2gcc, sym)) ;
+      tr := tree(GetIndice(mod2gcc, sym)) ;
       IF tr=PoisonedSymbol
       THEN
          n := GetSymName(sym) ;

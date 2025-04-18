@@ -1,5 +1,5 @@
 /* A state machine for detecting misuses of POSIX file descriptor APIs.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by Immad Mir <mir@sourceware.org>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "gimple.h"
 #include "options.h"
+#include "diagnostic-core.h"
 #include "diagnostic-path.h"
 #include "analyzer/analyzer.h"
 #include "diagnostic-event-id.h"
@@ -118,10 +119,10 @@ public:
     return m_start;
   }
 
-  bool on_stmt (sm_context *sm_ctxt, const supernode *node,
+  bool on_stmt (sm_context &sm_ctxt, const supernode *node,
 		const gimple *stmt) const final override;
 
-  void on_condition (sm_context *sm_ctxt, const supernode *node,
+  void on_condition (sm_context &sm_ctxt, const supernode *node,
 		     const gimple *stmt, const svalue *lhs, const tree_code op,
 		     const svalue *rhs) const final override;
 
@@ -149,23 +150,23 @@ public:
 
   bool on_socket (const call_details &cd,
 		  bool successful,
-		  sm_context *sm_ctxt,
+		  sm_context &sm_ctxt,
 		  const extrinsic_state &ext_state) const;
   bool on_bind (const call_details &cd,
 		bool successful,
-		sm_context *sm_ctxt,
+		sm_context &sm_ctxt,
 		const extrinsic_state &ext_state) const;
   bool on_listen (const call_details &cd,
 		  bool successful,
-		  sm_context *sm_ctxt,
+		  sm_context &sm_ctxt,
 		  const extrinsic_state &ext_state) const;
   bool on_accept (const call_details &cd,
 		  bool successful,
-		  sm_context *sm_ctxt,
+		  sm_context &sm_ctxt,
 		  const extrinsic_state &ext_state) const;
   bool on_connect (const call_details &cd,
 		   bool successful,
-		   sm_context *sm_ctxt,
+		   sm_context &sm_ctxt,
 		   const extrinsic_state &ext_state) const;
 
   /* State for a constant file descriptor (>= 0) */
@@ -228,34 +229,34 @@ public:
   tree m_SOCK_DGRAM;
 
 private:
-  void on_open (sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+  void on_open (sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
 		const gcall *call) const;
-  void on_creat (sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+  void on_creat (sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
 		const gcall *call) const;
-  void on_close (sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+  void on_close (sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
 		 const gcall *call) const;
-  void on_read (sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+  void on_read (sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
 		const gcall *call, const tree callee_fndecl) const;
-  void on_write (sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+  void on_write (sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
 		 const gcall *call, const tree callee_fndecl) const;
-  void check_for_open_fd (sm_context *sm_ctxt, const supernode *node,
+  void check_for_open_fd (sm_context &sm_ctxt, const supernode *node,
 			  const gimple *stmt, const gcall *call,
 			  const tree callee_fndecl,
 			  enum access_directions access_fn) const;
 
-  void make_valid_transitions_on_condition (sm_context *sm_ctxt,
+  void make_valid_transitions_on_condition (sm_context &sm_ctxt,
 					    const supernode *node,
 					    const gimple *stmt,
 					    const svalue *lhs) const;
-  void make_invalid_transitions_on_condition (sm_context *sm_ctxt,
+  void make_invalid_transitions_on_condition (sm_context &sm_ctxt,
 					      const supernode *node,
 					      const gimple *stmt,
 					      const svalue *lhs) const;
-  void check_for_fd_attrs (sm_context *sm_ctxt, const supernode *node,
+  void check_for_fd_attrs (sm_context &sm_ctxt, const supernode *node,
 			   const gimple *stmt, const gcall *call,
 			   const tree callee_fndecl, const char *attr_name,
 			   access_directions fd_attr_access_dir) const;
-  void check_for_dup (sm_context *sm_ctxt, const supernode *node,
+  void check_for_dup (sm_context &sm_ctxt, const supernode *node,
        const gimple *stmt, const gcall *call, const tree callee_fndecl,
        enum dup kind) const;
 
@@ -263,14 +264,14 @@ private:
 
   bool check_for_socket_fd (const call_details &cd,
 			    bool successful,
-			    sm_context *sm_ctxt,
+			    sm_context &sm_ctxt,
 			    const svalue *fd_sval,
 			    const supernode *node,
 			    state_t old_state,
 			    bool *complained = NULL) const;
   bool check_for_new_socket_fd (const call_details &cd,
 				bool successful,
-				sm_context *sm_ctxt,
+				sm_context &sm_ctxt,
 				const svalue *fd_sval,
 				const supernode *node,
 				state_t old_state,
@@ -291,73 +292,111 @@ public:
     return same_tree_p (m_arg, ((const fd_diagnostic &)base_other).m_arg);
   }
 
-  label_text
-  describe_state_change (const evdesc::state_change &change) override
+  bool
+  describe_state_change (pretty_printer &pp,
+			 const evdesc::state_change &change) override
   {
     if (change.m_old_state == m_sm.get_start_state ())
       {
 	if (change.m_new_state == m_sm.m_unchecked_read_write
 	    || change.m_new_state == m_sm.m_valid_read_write)
-	  return change.formatted_print ("opened here as read-write");
+	  {
+	    pp_string (&pp, "opened here as read-write");
+	    return true;
+	  }
 
 	if (change.m_new_state == m_sm.m_unchecked_read_only
 	    || change.m_new_state == m_sm.m_valid_read_only)
-	  return change.formatted_print ("opened here as read-only");
+	  {
+	    pp_string (&pp, "opened here as read-only");
+	    return true;
+	  }
 
 	if (change.m_new_state == m_sm.m_unchecked_write_only
 	    || change.m_new_state == m_sm.m_valid_write_only)
-	  return change.formatted_print ("opened here as write-only");
+	  {
+	    pp_string (&pp, "opened here as write-only");
+	    return true;
+	  }
 
 	if (change.m_new_state == m_sm.m_new_datagram_socket)
-	  return change.formatted_print ("datagram socket created here");
+	  {
+	    pp_string (&pp, "datagram socket created here");
+	    return true;
+	  }
 
 	if (change.m_new_state == m_sm.m_new_stream_socket)
-	  return change.formatted_print ("stream socket created here");
+	  {
+	    pp_string (&pp, "stream socket created here");
+	    return true;
+	  }
 
 	if (change.m_new_state == m_sm.m_new_unknown_socket
 	    || change.m_new_state == m_sm.m_connected_stream_socket)
-	  return change.formatted_print ("socket created here");
+	  {
+	    pp_string (&pp, "socket created here");
+	    return true;
+	  }
       }
 
     if (change.m_new_state == m_sm.m_bound_datagram_socket)
-      return change.formatted_print ("datagram socket bound here");
+      {
+	pp_string (&pp, "datagram socket bound here");
+	return true;
+      }
 
     if (change.m_new_state == m_sm.m_bound_stream_socket)
-      return change.formatted_print ("stream socket bound here");
+      {
+	pp_string (&pp, "stream socket bound here");
+	return true;
+      }
 
     if (change.m_new_state == m_sm.m_bound_unknown_socket
 	|| change.m_new_state == m_sm.m_connected_stream_socket)
-	  return change.formatted_print ("socket bound here");
+      {
+	pp_string (&pp, "socket bound here");
+	return true;
+      }
 
     if (change.m_new_state == m_sm.m_listening_stream_socket)
-      return change.formatted_print
-	("stream socket marked as passive here via %qs", "listen");
+      {
+	pp_printf (&pp,
+		   "stream socket marked as passive here via %qs",
+		   "listen");
+	return true;
+      }
 
     if (change.m_new_state == m_sm.m_closed)
-      return change.formatted_print ("closed here");
+      {
+	pp_string (&pp, "closed here");
+	return true;
+      }
 
     if (m_sm.is_unchecked_fd_p (change.m_old_state)
 	&& m_sm.is_valid_fd_p (change.m_new_state))
       {
 	if (change.m_expr)
-	  return change.formatted_print (
-	      "assuming %qE is a valid file descriptor (>= 0)", change.m_expr);
+	  pp_printf (&pp,
+		     "assuming %qE is a valid file descriptor (>= 0)",
+		     change.m_expr);
 	else
-	  return change.formatted_print ("assuming a valid file descriptor");
+	  pp_string (&pp, "assuming a valid file descriptor");
+	return true;
       }
 
     if (m_sm.is_unchecked_fd_p (change.m_old_state)
 	&& change.m_new_state == m_sm.m_invalid)
       {
 	if (change.m_expr)
-	  return change.formatted_print (
-	      "assuming %qE is an invalid file descriptor (< 0)",
-	      change.m_expr);
+	  pp_printf (&pp,
+		     "assuming %qE is an invalid file descriptor (< 0)",
+		     change.m_expr);
 	else
-	  return change.formatted_print ("assuming an invalid file descriptor");
+	  pp_string (&pp, "assuming an invalid file descriptor");
+	return true;
       }
 
-    return label_text ();
+    return false;
   }
 
   diagnostic_event::meaning
@@ -476,37 +515,43 @@ public:
       return ctxt.warn ("leak of file descriptor");
   }
 
-  label_text
-  describe_state_change (const evdesc::state_change &change) final override
+  bool
+  describe_state_change (pretty_printer &pp,
+			 const evdesc::state_change &change) final override
   {
     if (m_sm.is_unchecked_fd_p (change.m_new_state))
       {
 	m_open_event = change.m_event_id;
-	return label_text::borrow ("opened here");
+	pp_string (&pp, "opened here");
+	return true;
       }
 
-    return fd_diagnostic::describe_state_change (change);
+    return fd_diagnostic::describe_state_change (pp, change);
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &ev) final override
   {
     if (m_open_event.known_p ())
       {
 	if (ev.m_expr)
-	  return ev.formatted_print ("%qE leaks here; was opened at %@",
-				     ev.m_expr, &m_open_event);
+	  pp_printf (&pp,
+		     "%qE leaks here; was opened at %@",
+		     ev.m_expr, &m_open_event);
 	else
-	  return ev.formatted_print ("leaks here; was opened at %@",
-				     &m_open_event);
+	  pp_printf (&pp,
+		     "leaks here; was opened at %@",
+		     &m_open_event);
       }
     else
       {
 	if (ev.m_expr)
-	  return ev.formatted_print ("%qE leaks here", ev.m_expr);
+	  pp_printf (&pp, "%qE leaks here", ev.m_expr);
 	else
-	  return ev.formatted_print ("leaks here");
+	  pp_string (&pp, "leaks here");
       }
+    return true;
   }
 
 private:
@@ -567,17 +612,22 @@ public:
       return warned;
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     switch (m_fd_dir)
       {
       case DIRS_READ:
-	return ev.formatted_print ("%qE on read-only file descriptor %qE",
-				   m_callee_fndecl, m_arg);
+	pp_printf (&pp,
+		   "%qE on read-only file descriptor %qE",
+		   m_callee_fndecl, m_arg);
+	return true;
       case DIRS_WRITE:
-	return ev.formatted_print ("%qE on write-only file descriptor %qE",
-				   m_callee_fndecl, m_arg);
+	pp_printf (&pp,
+		   "%qE on write-only file descriptor %qE",
+		   m_callee_fndecl, m_arg);
+	return true;
       default:
 	gcc_unreachable ();
       }
@@ -613,27 +663,38 @@ public:
     return ctxt.warn ("double %<close%> of file descriptor %qE", m_arg);
   }
 
-  label_text
-  describe_state_change (const evdesc::state_change &change) override
+  bool
+  describe_state_change (pretty_printer &pp,
+			 const evdesc::state_change &change) override
   {
     if (m_sm.is_unchecked_fd_p (change.m_new_state))
-      return label_text::borrow ("opened here");
+      {
+	pp_string (&pp, "opened here");
+	return true;
+      }
 
     if (change.m_new_state == m_sm.m_closed)
       {
 	m_first_close_event = change.m_event_id;
-	return change.formatted_print ("first %qs here", "close");
+	pp_printf (&pp, "first %qs here", "close");
+	return true;
       }
-    return fd_diagnostic::describe_state_change (change);
+    return fd_diagnostic::describe_state_change (pp, change);
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_first_close_event.known_p ())
-      return ev.formatted_print ("second %qs here; first %qs was at %@",
-				 "close", "close", &m_first_close_event);
-    return ev.formatted_print ("second %qs here", "close");
+      pp_printf (&pp,
+		 "second %qs here; first %qs was at %@",
+		 "close", "close", &m_first_close_event);
+    else
+      pp_printf (&pp,
+		 "second %qs here",
+		 "close");
+    return true;
   }
 
 private:
@@ -678,31 +739,41 @@ public:
     return warned;
   }
 
-  label_text
-  describe_state_change (const evdesc::state_change &change) override
+  bool
+  describe_state_change (pretty_printer &pp,
+			 const evdesc::state_change &change) override
   {
     if (m_sm.is_unchecked_fd_p (change.m_new_state))
-      return label_text::borrow ("opened here");
+      {
+	pp_string (&pp, "opened here");
+	return true;
+      }
 
     if (change.m_new_state == m_sm.m_closed)
       {
 	m_first_close_event = change.m_event_id;
-	return change.formatted_print ("closed here");
+	pp_string (&pp, "closed here");
+	return true;
       }
 
-    return fd_diagnostic::describe_state_change (change);
+    return fd_diagnostic::describe_state_change (pp, change);
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_first_close_event.known_p ())
-	return ev.formatted_print (
-	    "%qE on closed file descriptor %qE; %qs was at %@", m_callee_fndecl,
-	    m_arg, "close", &m_first_close_event);
-      else
-	return ev.formatted_print ("%qE on closed file descriptor %qE",
-				  m_callee_fndecl, m_arg);
+      pp_printf (&pp,
+		 "%qE on closed file descriptor %qE;"
+		 " %qs was at %@",
+		 m_callee_fndecl, m_arg,
+		 "close", &m_first_close_event);
+    else
+      pp_printf (&pp,
+		 "%qE on closed file descriptor %qE",
+		 m_callee_fndecl, m_arg);
+    return true;
   }
 
 private:
@@ -747,27 +818,32 @@ public:
     return warned;
   }
 
-  label_text
-  describe_state_change (const evdesc::state_change &change) override
+  bool
+  describe_state_change (pretty_printer &pp,
+			 const evdesc::state_change &change) override
   {
     if (m_sm.is_unchecked_fd_p (change.m_new_state))
       {
 	m_first_open_event = change.m_event_id;
-	return label_text::borrow ("opened here");
+	pp_string (&pp, "opened here");
+	return true;
       }
 
-    return fd_diagnostic::describe_state_change (change);
+    return fd_diagnostic::describe_state_change (pp, change);
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_first_open_event.known_p ())
-      return ev.formatted_print (
-	  "%qE could be invalid: unchecked value from %@", m_arg,
-	  &m_first_open_event);
+      pp_printf (&pp,
+		 "%qE could be invalid: unchecked value from %@", m_arg,
+		 &m_first_open_event);
     else
-      return ev.formatted_print ("%qE could be invalid", m_arg);
+      pp_printf (&pp,
+		 "%qE could be invalid", m_arg);
+    return true;
   }
 
 private:
@@ -855,29 +931,39 @@ public:
 		      m_callee_fndecl, m_arg);
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     switch (m_expected_phase)
       {
       case EXPECTED_PHASE_CAN_TRANSFER:
 	{
 	  if (m_actual_state == m_sm.m_new_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a stream socket to be connected via %qs"
-	       " but %qE has not yet been bound",
-	       m_callee_fndecl, "accept", m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a stream socket to be connected via %qs"
+			 " but %qE has not yet been bound",
+			 m_callee_fndecl, "accept", m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_bound_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a stream socket to be connected via %qs"
-	       " but %qE is not yet listening",
-	       m_callee_fndecl, "accept", m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a stream socket to be connected via %qs"
+			 " but %qE is not yet listening",
+			 m_callee_fndecl, "accept", m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_listening_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a stream socket to be connected via"
-	       " the return value of %qs"
-	       " but %qE is listening; wrong file descriptor?",
-	       m_callee_fndecl, "accept", m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a stream socket to be connected via"
+			 " the return value of %qs"
+			 " but %qE is listening; wrong file descriptor?",
+			 m_callee_fndecl, "accept", m_arg);
+	      return true;
+	    }
 	}
 	break;
       case EXPECTED_PHASE_CAN_BIND:
@@ -885,56 +971,80 @@ public:
 	  if (m_actual_state == m_sm.m_bound_datagram_socket
 	      || m_actual_state == m_sm.m_bound_stream_socket
 	      || m_actual_state == m_sm.m_bound_unknown_socket)
-	    return ev.formatted_print
-	      ("%qE expects a new socket file descriptor"
-	       " but %qE has already been bound",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a new socket file descriptor"
+			 " but %qE has already been bound",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_connected_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a new socket file descriptor"
-	       " but %qE is already connected",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a new socket file descriptor"
+			 " but %qE is already connected",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_listening_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a new socket file descriptor"
-	       " but %qE is already listening",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a new socket file descriptor"
+			 " but %qE is already listening",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	}
 	break;
       case EXPECTED_PHASE_CAN_LISTEN:
 	{
 	  if (m_actual_state == m_sm.m_new_stream_socket
 	      || m_actual_state == m_sm.m_new_unknown_socket)
-	    return ev.formatted_print
-	      ("%qE expects a bound stream socket file descriptor"
-	       " but %qE has not yet been bound",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a bound stream socket file descriptor"
+			 " but %qE has not yet been bound",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_connected_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a bound stream socket file descriptor"
-	       " but %qE is connected",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a bound stream socket file descriptor"
+			 " but %qE is connected",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	}
 	break;
       case EXPECTED_PHASE_CAN_ACCEPT:
 	{
 	  if (m_actual_state == m_sm.m_new_stream_socket
 	      || m_actual_state == m_sm.m_new_unknown_socket)
-	    return ev.formatted_print
-	      ("%qE expects a listening stream socket file descriptor"
-	       " but %qE has not yet been bound",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a listening stream socket file descriptor"
+			 " but %qE has not yet been bound",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_bound_stream_socket
 	      || m_actual_state == m_sm.m_bound_unknown_socket)
-	    return ev.formatted_print
-	      ("%qE expects a listening stream socket file descriptor"
-	       " whereas %qE is bound but not yet listening",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a listening stream socket file descriptor"
+			 " whereas %qE is bound but not yet listening",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	  if (m_actual_state == m_sm.m_connected_stream_socket)
-	    return ev.formatted_print
-	      ("%qE expects a listening stream socket file descriptor"
-	       " but %qE is connected",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a listening stream socket file descriptor"
+			 " but %qE is connected",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	}
 	break;
       case EXPECTED_PHASE_CAN_CONNECT:
@@ -942,12 +1052,20 @@ public:
 	  if (m_actual_state == m_sm.m_bound_datagram_socket
 	      || m_actual_state == m_sm.m_bound_stream_socket
 	      || m_actual_state == m_sm.m_bound_unknown_socket)
-	    return ev.formatted_print
-	      ("%qE expects a new socket file descriptor but %qE is bound",
-	       m_callee_fndecl, m_arg);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a new socket file descriptor"
+			 " but %qE is bound",
+			 m_callee_fndecl, m_arg);
+	      return true;
+	    }
 	  else
-	    return ev.formatted_print
-	      ("%qE expects a new socket file descriptor", m_callee_fndecl);
+	    {
+	      pp_printf (&pp,
+			 "%qE expects a new socket file descriptor",
+			 m_callee_fndecl);
+	      return true;
+	    }
 	}
 	break;
       }
@@ -1024,8 +1142,9 @@ public:
       }
   }
 
-  label_text
-  describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     switch (m_expected_type)
       {
@@ -1035,16 +1154,21 @@ public:
       case EXPECTED_TYPE_SOCKET:
       case EXPECTED_TYPE_STREAM_SOCKET:
 	if (!m_sm.is_socket_fd_p (m_actual_state))
-	  return ev.formatted_print ("%qE expects a socket file descriptor"
-				     " but %qE is not a socket",
-				     m_callee_fndecl, m_arg);
+	  {
+	    pp_printf (&pp,
+		       "%qE expects a socket file descriptor"
+		       " but %qE is not a socket",
+		       m_callee_fndecl, m_arg);
+	    return true;
+	  }
       }
     gcc_assert (m_expected_type == EXPECTED_TYPE_STREAM_SOCKET);
     gcc_assert (m_sm.is_datagram_socket_fd_p (m_actual_state));
-    return ev.formatted_print
-      ("%qE expects a stream socket file descriptor"
-       " but %qE is a datagram socket",
-       m_callee_fndecl, m_arg);
+    pp_printf (&pp,
+	       "%qE expects a stream socket file descriptor"
+	       " but %qE is a datagram socket",
+	       m_callee_fndecl, m_arg);
+    return true;
   }
 
 private:
@@ -1196,11 +1320,11 @@ fd_state_machine::mark_as_valid_fd (region_model *model,
 }
 
 bool
-fd_state_machine::on_stmt (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_stmt (sm_context &sm_ctxt, const supernode *node,
 			   const gimple *stmt) const
 {
   if (const gcall *call = dyn_cast<const gcall *> (stmt))
-    if (tree callee_fndecl = sm_ctxt->get_fndecl_for_call (call))
+    if (tree callee_fndecl = sm_ctxt.get_fndecl_for_call (call))
       {
 	if (is_named_call_p (callee_fndecl, "open", call, 2))
 	  {
@@ -1273,7 +1397,7 @@ fd_state_machine::on_stmt (sm_context *sm_ctxt, const supernode *node,
 
 void
 fd_state_machine::check_for_fd_attrs (
-    sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+    sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
     const gcall *call, const tree callee_fndecl, const char *attr_name,
     access_directions fd_attr_access_dir) const
 {
@@ -1284,7 +1408,7 @@ fd_state_machine::check_for_fd_attrs (
   tree fndecl = callee_fndecl;
   /* If call is recognized as a builtin known_function,
      use that builtin's function_decl.  */
-  if (const region_model *old_model = sm_ctxt->get_old_region_model ())
+  if (const region_model *old_model = sm_ctxt.get_old_region_model ())
     if (const builtin_known_function *builtin_kf
 	 = old_model->get_builtin_kf (call))
       fndecl = builtin_kf->builtin_decl ();
@@ -1310,8 +1434,8 @@ fd_state_machine::check_for_fd_attrs (
   for (unsigned arg_idx = 0; arg_idx < gimple_call_num_args (call); arg_idx++)
     {
       tree arg = gimple_call_arg (call, arg_idx);
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
-      state_t state = sm_ctxt->get_state (stmt, arg);
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+      state_t state = sm_ctxt.get_state (stmt, arg);
       bool bit_set = bitmap_bit_p (argmap, arg_idx);
       if (TREE_CODE (TREE_TYPE (arg)) != INTEGER_TYPE)
 	continue;
@@ -1324,11 +1448,11 @@ fd_state_machine::check_for_fd_attrs (
 	  if (is_closed_fd_p (state))
 	    {
 
-	      sm_ctxt->warn (node, stmt, arg,
-			     make_unique<fd_use_after_close>
-			       (*this, diag_arg,
-				fndecl, attr_name,
-				arg_idx));
+	      sm_ctxt.warn (node, stmt, arg,
+			    make_unique<fd_use_after_close>
+			    (*this, diag_arg,
+			     fndecl, attr_name,
+			     arg_idx));
 	      continue;
 	    }
 
@@ -1336,11 +1460,11 @@ fd_state_machine::check_for_fd_attrs (
 	    {
 	      if (!is_constant_fd_p (state))
 		{
-		  sm_ctxt->warn (node, stmt, arg,
-				 make_unique<fd_use_without_check>
-				 (*this, diag_arg,
-				  fndecl, attr_name,
-				  arg_idx));
+		  sm_ctxt.warn (node, stmt, arg,
+				make_unique<fd_use_without_check>
+				(*this, diag_arg,
+				 fndecl, attr_name,
+				 arg_idx));
 		  continue;
 		}
 	    }
@@ -1353,7 +1477,7 @@ fd_state_machine::check_for_fd_attrs (
 
 	      if (is_writeonly_fd_p (state))
 		{
-		  sm_ctxt->warn (
+		  sm_ctxt.warn (
 		      node, stmt, arg,
 		      make_unique<fd_access_mode_mismatch> (*this, diag_arg,
 							    DIRS_WRITE,
@@ -1367,7 +1491,7 @@ fd_state_machine::check_for_fd_attrs (
 
 	      if (is_readonly_fd_p (state))
 		{
-		  sm_ctxt->warn (
+		  sm_ctxt.warn (
 		      node, stmt, arg,
 		      make_unique<fd_access_mode_mismatch> (*this, diag_arg,
 							    DIRS_READ,
@@ -1384,7 +1508,7 @@ fd_state_machine::check_for_fd_attrs (
 
 
 void
-fd_state_machine::on_open (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_open (sm_context &sm_ctxt, const supernode *node,
 			   const gimple *stmt, const gcall *call) const
 {
   tree lhs = gimple_call_lhs (call);
@@ -1400,45 +1524,45 @@ fd_state_machine::on_open (sm_context *sm_ctxt, const supernode *node,
       switch (mode)
 	{
 	case READ_ONLY:
-	  sm_ctxt->on_transition (node, stmt, lhs, m_start,
-				  m_unchecked_read_only);
+	  sm_ctxt.on_transition (node, stmt, lhs, m_start,
+				 m_unchecked_read_only);
 	  break;
 	case WRITE_ONLY:
-	  sm_ctxt->on_transition (node, stmt, lhs, m_start,
-				  m_unchecked_write_only);
+	  sm_ctxt.on_transition (node, stmt, lhs, m_start,
+				 m_unchecked_write_only);
 	  break;
 	default:
-	  sm_ctxt->on_transition (node, stmt, lhs, m_start,
-				  m_unchecked_read_write);
+	  sm_ctxt.on_transition (node, stmt, lhs, m_start,
+				 m_unchecked_read_write);
 	}
     }
   else
     {
-      sm_ctxt->warn (node, stmt, NULL_TREE,
-		     make_unique<fd_leak> (*this, NULL_TREE));
+      sm_ctxt.warn (node, stmt, NULL_TREE,
+		    make_unique<fd_leak> (*this, NULL_TREE));
     }
 }
 
 void
-fd_state_machine::on_creat (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_creat (sm_context &sm_ctxt, const supernode *node,
 			    const gimple *stmt, const gcall *call) const
 {
   tree lhs = gimple_call_lhs (call);
   if (lhs)
-    sm_ctxt->on_transition (node, stmt, lhs, m_start, m_unchecked_write_only);
+    sm_ctxt.on_transition (node, stmt, lhs, m_start, m_unchecked_write_only);
   else
-    sm_ctxt->warn (node, stmt, NULL_TREE,
-		   make_unique<fd_leak> (*this, NULL_TREE));
+    sm_ctxt.warn (node, stmt, NULL_TREE,
+		  make_unique<fd_leak> (*this, NULL_TREE));
 }
 
 void
-fd_state_machine::check_for_dup (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::check_for_dup (sm_context &sm_ctxt, const supernode *node,
 				 const gimple *stmt, const gcall *call,
 				 const tree callee_fndecl, enum dup kind) const
 {
   tree lhs = gimple_call_lhs (call);
   tree arg_1 = gimple_call_arg (call, 0);
-  state_t state_arg_1 = sm_ctxt->get_state (stmt, arg_1);
+  state_t state_arg_1 = sm_ctxt.get_state (stmt, arg_1);
   if (state_arg_1 == m_stop)
     return;
   if (!(is_constant_fd_p (state_arg_1) || is_valid_fd_p (state_arg_1)
@@ -1454,25 +1578,25 @@ fd_state_machine::check_for_dup (sm_context *sm_ctxt, const supernode *node,
       if (lhs)
 	{
 	  if (is_constant_fd_p (state_arg_1) || state_arg_1 == m_start)
-	    sm_ctxt->set_next_state (stmt, lhs, m_unchecked_read_write);
+	    sm_ctxt.set_next_state (stmt, lhs, m_unchecked_read_write);
 	  else
-	    sm_ctxt->set_next_state (stmt, lhs,
-				     valid_to_unchecked_state (state_arg_1));
+	    sm_ctxt.set_next_state (stmt, lhs,
+				    valid_to_unchecked_state (state_arg_1));
 	}
       break;
 
     case DUP_2:
     case DUP_3:
       tree arg_2 = gimple_call_arg (call, 1);
-      state_t state_arg_2 = sm_ctxt->get_state (stmt, arg_2);
-      tree diag_arg_2 = sm_ctxt->get_diagnostic_tree (arg_2);
+      state_t state_arg_2 = sm_ctxt.get_state (stmt, arg_2);
+      tree diag_arg_2 = sm_ctxt.get_diagnostic_tree (arg_2);
       if (state_arg_2 == m_stop)
 	return;
       /* Check if -1 was passed as second argument to dup2.  */
       if (!(is_constant_fd_p (state_arg_2) || is_valid_fd_p (state_arg_2)
 	    || state_arg_2 == m_start))
 	{
-	  sm_ctxt->warn (
+	  sm_ctxt.warn (
 	      node, stmt, arg_2,
 	      make_unique<fd_use_without_check> (*this, diag_arg_2,
 						 callee_fndecl));
@@ -1484,10 +1608,10 @@ fd_state_machine::check_for_dup (sm_context *sm_ctxt, const supernode *node,
       if (lhs)
 	{
 	  if (is_constant_fd_p (state_arg_1) || state_arg_1 == m_start)
-	    sm_ctxt->set_next_state (stmt, lhs, m_unchecked_read_write);
+	    sm_ctxt.set_next_state (stmt, lhs, m_unchecked_read_write);
 	  else
-	    sm_ctxt->set_next_state (stmt, lhs,
-				     valid_to_unchecked_state (state_arg_1));
+	    sm_ctxt.set_next_state (stmt, lhs,
+				    valid_to_unchecked_state (state_arg_1));
 	}
 
       break;
@@ -1495,46 +1619,46 @@ fd_state_machine::check_for_dup (sm_context *sm_ctxt, const supernode *node,
 }
 
 void
-fd_state_machine::on_close (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_close (sm_context &sm_ctxt, const supernode *node,
 			    const gimple *stmt, const gcall *call) const
 {
   tree arg = gimple_call_arg (call, 0);
-  state_t state = sm_ctxt->get_state (stmt, arg);
-  tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
+  state_t state = sm_ctxt.get_state (stmt, arg);
+  tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
 
-  sm_ctxt->on_transition (node, stmt, arg, m_start, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_unchecked_read_write, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_unchecked_read_only, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_unchecked_write_only, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_valid_read_write, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_valid_read_only, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_valid_write_only, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_constant_fd, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_new_datagram_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_new_stream_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_new_unknown_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_bound_datagram_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_bound_stream_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_bound_unknown_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_listening_stream_socket, m_closed);
-  sm_ctxt->on_transition (node, stmt, arg, m_connected_stream_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_start, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_unchecked_read_write, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_unchecked_read_only, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_unchecked_write_only, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_valid_read_write, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_valid_read_only, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_valid_write_only, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_constant_fd, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_new_datagram_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_new_stream_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_new_unknown_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_bound_datagram_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_bound_stream_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_bound_unknown_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_listening_stream_socket, m_closed);
+  sm_ctxt.on_transition (node, stmt, arg, m_connected_stream_socket, m_closed);
 
   if (is_closed_fd_p (state))
     {
-      sm_ctxt->warn (node, stmt, arg,
-		     make_unique<fd_double_close> (*this, diag_arg));
-      sm_ctxt->set_next_state (stmt, arg, m_stop);
+      sm_ctxt.warn (node, stmt, arg,
+		    make_unique<fd_double_close> (*this, diag_arg));
+      sm_ctxt.set_next_state (stmt, arg, m_stop);
     }
 }
 void
-fd_state_machine::on_read (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_read (sm_context &sm_ctxt, const supernode *node,
 			   const gimple *stmt, const gcall *call,
 			   const tree callee_fndecl) const
 {
   check_for_open_fd (sm_ctxt, node, stmt, call, callee_fndecl, DIRS_READ);
 }
 void
-fd_state_machine::on_write (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_write (sm_context &sm_ctxt, const supernode *node,
 			    const gimple *stmt, const gcall *call,
 			    const tree callee_fndecl) const
 {
@@ -1543,19 +1667,19 @@ fd_state_machine::on_write (sm_context *sm_ctxt, const supernode *node,
 
 void
 fd_state_machine::check_for_open_fd (
-    sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+    sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
     const gcall *call, const tree callee_fndecl,
     enum access_directions callee_fndecl_dir) const
 {
   tree arg = gimple_call_arg (call, 0);
-  tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
-  state_t state = sm_ctxt->get_state (stmt, arg);
+  tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+  state_t state = sm_ctxt.get_state (stmt, arg);
 
   if (is_closed_fd_p (state))
     {
-      sm_ctxt->warn (node, stmt, arg,
-		     make_unique<fd_use_after_close> (*this, diag_arg,
-						      callee_fndecl));
+      sm_ctxt.warn (node, stmt, arg,
+		    make_unique<fd_use_after_close> (*this, diag_arg,
+						     callee_fndecl));
     }
 
   else
@@ -1564,7 +1688,7 @@ fd_state_machine::check_for_open_fd (
 	  || state == m_bound_stream_socket
 	  || state == m_listening_stream_socket)
 	/* Complain about fncall on socket in wrong phase.  */
-	sm_ctxt->warn
+	sm_ctxt.warn
 	  (node, stmt, arg,
 	   make_unique<fd_phase_mismatch> (*this, diag_arg,
 					   callee_fndecl,
@@ -1578,7 +1702,7 @@ fd_state_machine::check_for_open_fd (
 		 || state == m_stop))
 	{
 	  if (!is_constant_fd_p (state))
-	    sm_ctxt->warn (
+	    sm_ctxt.warn (
 		node, stmt, arg,
 		make_unique<fd_use_without_check> (*this, diag_arg,
 						   callee_fndecl));
@@ -1590,10 +1714,10 @@ fd_state_machine::check_for_open_fd (
 	case DIRS_READ:
 	  if (is_writeonly_fd_p (state))
 	    {
-	      tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
-	      sm_ctxt->warn (node, stmt, arg,
-			     make_unique<fd_access_mode_mismatch> (
-				 *this, diag_arg, DIRS_WRITE, callee_fndecl));
+	      tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+	      sm_ctxt.warn (node, stmt, arg,
+			    make_unique<fd_access_mode_mismatch> (
+			      *this, diag_arg, DIRS_WRITE, callee_fndecl));
 	    }
 
 	  break;
@@ -1601,8 +1725,8 @@ fd_state_machine::check_for_open_fd (
 
 	  if (is_readonly_fd_p (state))
 	    {
-	      tree diag_arg = sm_ctxt->get_diagnostic_tree (arg);
-	      sm_ctxt->warn (node, stmt, arg,
+	      tree diag_arg = sm_ctxt.get_diagnostic_tree (arg);
+	      sm_ctxt.warn (node, stmt, arg,
 			     make_unique<fd_access_mode_mismatch> (
 				 *this, diag_arg, DIRS_READ, callee_fndecl));
 	    }
@@ -1648,7 +1772,7 @@ get_state_for_socket_type (const svalue *socket_type_sval) const
 bool
 fd_state_machine::on_socket (const call_details &cd,
 			     bool successful,
-			     sm_context *sm_ctxt,
+			     sm_context &sm_ctxt,
 			     const extrinsic_state &ext_state) const
 {
   const gcall *stmt = cd.get_call_stmt ();
@@ -1674,12 +1798,12 @@ fd_state_machine::on_socket (const call_details &cd,
 	  const svalue *socket_type_sval = cd.get_arg_svalue (1);
 	  state_machine::state_t new_state
 	    = get_state_for_socket_type (socket_type_sval);
-	  sm_ctxt->on_transition (node, stmt, new_fd, m_start, new_state);
+	  sm_ctxt.on_transition (node, stmt, new_fd, m_start, new_state);
 	  model->set_value (cd.get_lhs_region (), new_fd, cd.get_ctxt ());
 	}
       else
-	sm_ctxt->warn (node, stmt, NULL_TREE,
-		       make_unique<fd_leak> (*this, NULL_TREE));
+	sm_ctxt.warn (node, stmt, NULL_TREE,
+		      make_unique<fd_leak> (*this, NULL_TREE));
     }
   else
     {
@@ -1703,7 +1827,7 @@ fd_state_machine::on_socket (const call_details &cd,
 bool
 fd_state_machine::check_for_socket_fd (const call_details &cd,
 				       bool successful,
-				       sm_context *sm_ctxt,
+				       sm_context &sm_ctxt,
 				       const svalue *fd_sval,
 				       const supernode *node,
 				       state_t old_state,
@@ -1713,8 +1837,8 @@ fd_state_machine::check_for_socket_fd (const call_details &cd,
 
   if (is_closed_fd_p (old_state))
     {
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (fd_sval);
-      sm_ctxt->warn
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (fd_sval);
+      sm_ctxt.warn
 	(node, stmt, fd_sval,
 	 make_unique<fd_use_after_close> (*this, diag_arg,
 					  cd.get_fndecl_for_call ()));
@@ -1726,8 +1850,8 @@ fd_state_machine::check_for_socket_fd (const call_details &cd,
   else if (is_unchecked_fd_p (old_state) || is_valid_fd_p (old_state))
     {
       /* Complain about non-socket.  */
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (fd_sval);
-      sm_ctxt->warn
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (fd_sval);
+      sm_ctxt.warn
 	(node, stmt, fd_sval,
 	 make_unique<fd_type_mismatch> (*this, diag_arg,
 					cd.get_fndecl_for_call (),
@@ -1740,8 +1864,8 @@ fd_state_machine::check_for_socket_fd (const call_details &cd,
     }
   else if (old_state == m_invalid)
     {
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (fd_sval);
-      sm_ctxt->warn
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (fd_sval);
+      sm_ctxt.warn
 	(node, stmt, fd_sval,
 	 make_unique<fd_use_without_check> (*this, diag_arg,
 					    cd.get_fndecl_for_call ()));
@@ -1766,7 +1890,7 @@ fd_state_machine::check_for_socket_fd (const call_details &cd,
 bool
 fd_state_machine::check_for_new_socket_fd (const call_details &cd,
 					   bool successful,
-					   sm_context *sm_ctxt,
+					   sm_context &sm_ctxt,
 					   const svalue *fd_sval,
 					   const supernode *node,
 					   state_t old_state,
@@ -1803,8 +1927,8 @@ fd_state_machine::check_for_new_socket_fd (const call_details &cd,
 		|| old_state == m_constant_fd))
     {
       /* Complain about "bind" or "connect" in wrong phase.  */
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (fd_sval);
-      sm_ctxt->warn
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (fd_sval);
+      sm_ctxt.warn
 	(node, cd.get_call_stmt (), fd_sval,
 	 make_unique<fd_phase_mismatch> (*this, diag_arg,
 					 cd.get_fndecl_for_call (),
@@ -1817,8 +1941,8 @@ fd_state_machine::check_for_new_socket_fd (const call_details &cd,
     {
       /* If we were in the start state, assume we had a new socket.  */
       if (old_state == m_start)
-	sm_ctxt->set_next_state (cd.get_call_stmt (), fd_sval,
-				 m_new_unknown_socket);
+	sm_ctxt.set_next_state (cd.get_call_stmt (), fd_sval,
+				m_new_unknown_socket);
     }
 
   /* Passing NULL as the address will lead to failure.  */
@@ -1836,7 +1960,7 @@ fd_state_machine::check_for_new_socket_fd (const call_details &cd,
 bool
 fd_state_machine::on_bind (const call_details &cd,
 			   bool successful,
-			   sm_context *sm_ctxt,
+			   sm_context &sm_ctxt,
 			   const extrinsic_state &ext_state) const
 {
   const gcall *stmt = cd.get_call_stmt ();
@@ -1845,7 +1969,7 @@ fd_state_machine::on_bind (const call_details &cd,
   const supernode *node = sg->get_supernode_for_stmt (stmt);
   const svalue *fd_sval = cd.get_arg_svalue (0);
   region_model *model = cd.get_model ();
-  state_t old_state = sm_ctxt->get_state (stmt, fd_sval);
+  state_t old_state = sm_ctxt.get_state (stmt, fd_sval);
 
   if (!check_for_new_socket_fd (cd, successful, sm_ctxt,
 				fd_sval, node, old_state,
@@ -1868,7 +1992,7 @@ fd_state_machine::on_bind (const call_details &cd,
 	next_state = m_stop;
       else
 	gcc_unreachable ();
-      sm_ctxt->set_next_state (cd.get_call_stmt (), fd_sval, next_state);
+      sm_ctxt.set_next_state (cd.get_call_stmt (), fd_sval, next_state);
       model->update_for_zero_return (cd, true);
     }
   else
@@ -1888,7 +2012,7 @@ fd_state_machine::on_bind (const call_details &cd,
 bool
 fd_state_machine::on_listen (const call_details &cd,
 			     bool successful,
-			     sm_context *sm_ctxt,
+			     sm_context &sm_ctxt,
 			     const extrinsic_state &ext_state) const
 {
   const gcall *stmt = cd.get_call_stmt ();
@@ -1897,7 +2021,7 @@ fd_state_machine::on_listen (const call_details &cd,
   const supernode *node = sg->get_supernode_for_stmt (cd.get_call_stmt ());
   const svalue *fd_sval = cd.get_arg_svalue (0);
   region_model *model = cd.get_model ();
-  state_t old_state = sm_ctxt->get_state (stmt, fd_sval);
+  state_t old_state = sm_ctxt.get_state (stmt, fd_sval);
 
   /* We expect a stream socket that's had "bind" called on it.  */
   if (!check_for_socket_fd (cd, successful, sm_ctxt, fd_sval, node, old_state))
@@ -1912,16 +2036,16 @@ fd_state_machine::on_listen (const call_details &cd,
 	|| old_state == m_listening_stream_socket))
     {
       /* Complain about fncall on wrong type or in wrong phase.  */
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (fd_sval);
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (fd_sval);
       if (is_stream_socket_fd_p (old_state))
-	sm_ctxt->warn
+	sm_ctxt.warn
 	  (node, stmt, fd_sval,
 	   make_unique<fd_phase_mismatch> (*this, diag_arg,
 					   cd.get_fndecl_for_call (),
 					   old_state,
 					   EXPECTED_PHASE_CAN_LISTEN));
       else
-	sm_ctxt->warn
+	sm_ctxt.warn
 	  (node, stmt, fd_sval,
 	   make_unique<fd_type_mismatch> (*this, diag_arg,
 					  cd.get_fndecl_for_call (),
@@ -1934,8 +2058,8 @@ fd_state_machine::on_listen (const call_details &cd,
   if (successful)
     {
       model->update_for_zero_return (cd, true);
-      sm_ctxt->set_next_state (cd.get_call_stmt (), fd_sval,
-			       m_listening_stream_socket);
+      sm_ctxt.set_next_state (cd.get_call_stmt (), fd_sval,
+			      m_listening_stream_socket);
     }
   else
     {
@@ -1943,8 +2067,8 @@ fd_state_machine::on_listen (const call_details &cd,
       model->update_for_int_cst_return (cd, -1, true);
       model->set_errno (cd);
       if (old_state == m_start)
-	sm_ctxt->set_next_state (cd.get_call_stmt (), fd_sval,
-				 m_bound_stream_socket);
+	sm_ctxt.set_next_state (cd.get_call_stmt (), fd_sval,
+				m_bound_stream_socket);
     }
 
   return true;
@@ -1957,7 +2081,7 @@ fd_state_machine::on_listen (const call_details &cd,
 bool
 fd_state_machine::on_accept (const call_details &cd,
 			     bool successful,
-			     sm_context *sm_ctxt,
+			     sm_context &sm_ctxt,
 			     const extrinsic_state &ext_state) const
 {
   const gcall *stmt = cd.get_call_stmt ();
@@ -1968,7 +2092,7 @@ fd_state_machine::on_accept (const call_details &cd,
   const svalue *address_sval = cd.get_arg_svalue (1);
   const svalue *len_ptr_sval = cd.get_arg_svalue (2);
   region_model *model = cd.get_model ();
-  state_t old_state = sm_ctxt->get_state (stmt, fd_sval);
+  state_t old_state = sm_ctxt.get_state (stmt, fd_sval);
 
   if (!address_sval->all_zeroes_p ())
     {
@@ -2024,8 +2148,8 @@ fd_state_machine::on_accept (const call_details &cd,
   if (old_state == m_start || old_state == m_constant_fd)
     /* If we were in the start state (or a constant), assume we had the
        expected state.  */
-    sm_ctxt->set_next_state (cd.get_call_stmt (), fd_sval,
-			     m_listening_stream_socket);
+    sm_ctxt.set_next_state (cd.get_call_stmt (), fd_sval,
+			    m_listening_stream_socket);
   else if (old_state == m_stop)
     {
       /* No further complaints.  */
@@ -2033,16 +2157,16 @@ fd_state_machine::on_accept (const call_details &cd,
   else if (old_state != m_listening_stream_socket)
     {
       /* Complain about fncall on wrong type or in wrong phase.  */
-      tree diag_arg = sm_ctxt->get_diagnostic_tree (fd_sval);
+      tree diag_arg = sm_ctxt.get_diagnostic_tree (fd_sval);
       if (is_stream_socket_fd_p (old_state))
-	sm_ctxt->warn
+	sm_ctxt.warn
 	  (node, stmt, fd_sval,
 	   make_unique<fd_phase_mismatch> (*this, diag_arg,
 					   cd.get_fndecl_for_call (),
 					   old_state,
 					   EXPECTED_PHASE_CAN_ACCEPT));
       else
-	sm_ctxt->warn
+	sm_ctxt.warn
 	  (node, stmt, fd_sval,
 	   make_unique<fd_type_mismatch> (*this, diag_arg,
 					  cd.get_fndecl_for_call (),
@@ -2066,13 +2190,13 @@ fd_state_machine::on_accept (const call_details &cd,
 						  p);
 	  if (!add_constraint_ge_zero (model, new_fd, cd.get_ctxt ()))
 	    return false;
-	  sm_ctxt->on_transition (node, stmt, new_fd,
-				  m_start, m_connected_stream_socket);
+	  sm_ctxt.on_transition (node, stmt, new_fd,
+				 m_start, m_connected_stream_socket);
 	  model->set_value (cd.get_lhs_region (), new_fd, cd.get_ctxt ());
 	}
       else
-	sm_ctxt->warn (node, stmt, NULL_TREE,
-		       make_unique<fd_leak> (*this, NULL_TREE));
+	sm_ctxt.warn (node, stmt, NULL_TREE,
+		      make_unique<fd_leak> (*this, NULL_TREE));
     }
   else
     {
@@ -2091,7 +2215,7 @@ fd_state_machine::on_accept (const call_details &cd,
 bool
 fd_state_machine::on_connect (const call_details &cd,
 			      bool successful,
-			      sm_context *sm_ctxt,
+			      sm_context &sm_ctxt,
 			      const extrinsic_state &ext_state) const
 {
   const gcall *stmt = cd.get_call_stmt ();
@@ -2100,7 +2224,7 @@ fd_state_machine::on_connect (const call_details &cd,
   const supernode *node = sg->get_supernode_for_stmt (stmt);
   const svalue *fd_sval = cd.get_arg_svalue (0);
   region_model *model = cd.get_model ();
-  state_t old_state = sm_ctxt->get_state (stmt, fd_sval);
+  state_t old_state = sm_ctxt.get_state (stmt, fd_sval);
 
   if (!check_for_new_socket_fd (cd, successful, sm_ctxt,
 				fd_sval, node, old_state,
@@ -2126,7 +2250,7 @@ fd_state_machine::on_connect (const call_details &cd,
 	next_state = m_stop;
       else
 	gcc_unreachable ();
-      sm_ctxt->set_next_state (cd.get_call_stmt (), fd_sval, next_state);
+      sm_ctxt.set_next_state (cd.get_call_stmt (), fd_sval, next_state);
     }
   else
     {
@@ -2142,7 +2266,7 @@ fd_state_machine::on_connect (const call_details &cd,
 }
 
 void
-fd_state_machine::on_condition (sm_context *sm_ctxt, const supernode *node,
+fd_state_machine::on_condition (sm_context &sm_ctxt, const supernode *node,
 				const gimple *stmt, const svalue *lhs,
 				enum tree_code op, const svalue *rhs) const
 {
@@ -2173,27 +2297,27 @@ fd_state_machine::on_condition (sm_context *sm_ctxt, const supernode *node,
 }
 
 void
-fd_state_machine::make_valid_transitions_on_condition (sm_context *sm_ctxt,
+fd_state_machine::make_valid_transitions_on_condition (sm_context &sm_ctxt,
 						       const supernode *node,
 						       const gimple *stmt,
 						       const svalue *lhs) const
 {
-  sm_ctxt->on_transition (node, stmt, lhs, m_unchecked_read_write,
-			  m_valid_read_write);
-  sm_ctxt->on_transition (node, stmt, lhs, m_unchecked_read_only,
-			  m_valid_read_only);
-  sm_ctxt->on_transition (node, stmt, lhs, m_unchecked_write_only,
-			  m_valid_write_only);
+  sm_ctxt.on_transition (node, stmt, lhs, m_unchecked_read_write,
+			 m_valid_read_write);
+  sm_ctxt.on_transition (node, stmt, lhs, m_unchecked_read_only,
+			 m_valid_read_only);
+  sm_ctxt.on_transition (node, stmt, lhs, m_unchecked_write_only,
+			 m_valid_write_only);
 }
 
 void
 fd_state_machine::make_invalid_transitions_on_condition (
-    sm_context *sm_ctxt, const supernode *node, const gimple *stmt,
+    sm_context &sm_ctxt, const supernode *node, const gimple *stmt,
     const svalue *lhs) const
 {
-  sm_ctxt->on_transition (node, stmt, lhs, m_unchecked_read_write, m_invalid);
-  sm_ctxt->on_transition (node, stmt, lhs, m_unchecked_read_only, m_invalid);
-  sm_ctxt->on_transition (node, stmt, lhs, m_unchecked_write_only, m_invalid);
+  sm_ctxt.on_transition (node, stmt, lhs, m_unchecked_read_write, m_invalid);
+  sm_ctxt.on_transition (node, stmt, lhs, m_unchecked_read_only, m_invalid);
+  sm_ctxt.on_transition (node, stmt, lhs, m_unchecked_write_only, m_invalid);
 }
 
 bool
@@ -2289,7 +2413,7 @@ public:
 	  return true;
 	}
 
-      return fd_sm->on_socket (cd, m_success, sm_ctxt.get (), *ext_state);
+      return fd_sm->on_socket (cd, m_success, *(sm_ctxt.get ()), *ext_state);
     }
   };
 
@@ -2341,7 +2465,7 @@ public:
 	  cd.set_any_lhs_with_defaults ();
 	  return true;
 	}
-      return fd_sm->on_bind (cd, m_success, sm_ctxt.get (), *ext_state);
+      return fd_sm->on_bind (cd, m_success, *sm_ctxt.get (), *ext_state);
     }
   };
 
@@ -2393,7 +2517,7 @@ class kf_listen : public known_function
 	  return true;
 	}
 
-      return fd_sm->on_listen (cd, m_success, sm_ctxt.get (), *ext_state);
+      return fd_sm->on_listen (cd, m_success, *sm_ctxt.get (), *ext_state);
     }
   };
 
@@ -2445,7 +2569,7 @@ class kf_accept : public known_function
 	  return true;
 	}
 
-      return fd_sm->on_accept (cd, m_success, sm_ctxt.get (), *ext_state);
+      return fd_sm->on_accept (cd, m_success, *sm_ctxt.get (), *ext_state);
     }
   };
 
@@ -2500,7 +2624,7 @@ public:
 	  return true;
 	}
 
-      return fd_sm->on_connect (cd, m_success, sm_ctxt.get (), *ext_state);
+      return fd_sm->on_connect (cd, m_success, *sm_ctxt.get (), *ext_state);
     }
   };
 

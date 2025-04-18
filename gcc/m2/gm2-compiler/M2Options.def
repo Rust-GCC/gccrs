@@ -1,6 +1,6 @@
 (* M2Options.def initializes the user options.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -32,7 +32,7 @@ DEFINITION MODULE M2Options ;
 
 FROM SYSTEM IMPORT ADDRESS ;
 FROM DynamicStrings IMPORT String ;
-FROM m2linemap IMPORT location_t ;
+FROM gcctypes IMPORT location_t ;
 
 
 VAR
@@ -45,8 +45,6 @@ VAR
    Pim4,                         (* -fpim4 use strict rules.                 *)
    PositiveModFloorDiv,          (* Force PIM4 behaviour for DIV and MOD     *)
    CompilerDebugging,            (* -fd internal debugging messages          *)
-   DebugTraceQuad,               (* -fdebug-trace-quad                       *)
-   DebugTraceAPI,                (* -fdebug-trace-api                        *)
    GenerateDebugging,            (* -g option to generate info for gdb/dbx   *)
    GenerateLineDebug,            (* -gline to generate line debugging.       *)
    Verbose,                      (* -verbose produce verbose error messages. *)
@@ -55,7 +53,6 @@ VAR
    PedanticCast,                 (* -Wpedantic-cast warns if sizes differ.   *)
    Statistics,                   (* -fstatistics information about code      *)
    StyleChecking,                (* -Wstudents checks for common student errs*)
-   DisplayQuadruples,            (* -Wq option will display quadruples.      *)
    UnboundedByReference,         (* -funbounded-by-reference                 *)
    VerboseUnbounded,             (* -Wverbose-unbounded                      *)
    OptimizeUncalledProcedures,   (* -Ouncalled removes uncalled procedures   *)
@@ -117,7 +114,6 @@ VAR
                                  (* the shared library version of the        *)
                                  (* scaffold.                                *)
    ForcedLocation,
-   DebugFunctionLineNumbers,
    GenerateStatementNote,
    Optimizing,
    Coding,
@@ -327,6 +323,28 @@ PROCEDURE GetObj () : ADDRESS ;
 
 
 (*
+   SetCpp - enables the source to be preprocessed and enables the
+            recognition of C preprocessor line directives.
+*)
+
+PROCEDURE SetCpp (value: BOOLEAN) : BOOLEAN ;
+
+
+(*
+   GetCpp - returns TRUE if the C preprocessor was used.
+*)
+
+PROCEDURE GetCpp () : BOOLEAN ;
+
+
+(*
+   GetLineDirectives - returns TRUE if line directives are allowed.
+*)
+
+PROCEDURE GetLineDirectives () : BOOLEAN ;
+
+
+(*
    SetScaffoldDynamic - set the -fscaffold-dynamic flag.
 *)
 
@@ -463,20 +481,6 @@ PROCEDURE SetQuiet (value: BOOLEAN) : BOOLEAN ;
 *)
 
 PROCEDURE SetCC1Quiet (value: BOOLEAN) ;
-
-
-(*
-   SetCpp -
-*)
-
-PROCEDURE SetCpp (value: BOOLEAN) : BOOLEAN ;
-
-
-(*
-   GetCpp - returns TRUE if the C preprocessor was used.
-*)
-
-PROCEDURE GetCpp () : BOOLEAN ;
 
 
 (*
@@ -649,6 +653,7 @@ PROCEDURE SetXCode (value: BOOLEAN) ;
 
 (*
    SetCompilerDebugging - turn on internal compiler debugging.
+                          Enabled via the command line option -fd.
 *)
 
 PROCEDURE SetCompilerDebugging (value: BOOLEAN) ;
@@ -662,22 +667,16 @@ PROCEDURE SetQuadDebugging (value: BOOLEAN) ;
 
 
 (*
-   SetDebugTraceQuad -
+   SetM2DebugTraceFilter - set internal debug flags.  The flags should be
+                           specified as a comma separated list.  The full
+                           list allowed is quad,line,token,tree.
 *)
 
-PROCEDURE SetDebugTraceQuad (value: BOOLEAN) ;
+PROCEDURE SetM2DebugTraceFilter (value: BOOLEAN; filter: ADDRESS) ;
 
 
 (*
-   SetDebugTraceAPI -
-*)
-
-PROCEDURE SetDebugTraceAPI (value: BOOLEAN) ;
-
-
-(*
-   SetDebugFunctionLineNumbers - turn DebugFunctionLineNumbers on/off
-                                 (used internally for debugging).
+   SetDebugFunctionLineNumbers - set DebugFunctionLineNumbers.
 *)
 
 PROCEDURE SetDebugFunctionLineNumbers (value: BOOLEAN) ;
@@ -1000,6 +999,154 @@ PROCEDURE SetIEEELongDouble (value: BOOLEAN) ;
 *)
 
 PROCEDURE GetIEEELongDouble () : BOOLEAN ;
+
+
+(*
+   GetDumpDeclFilename - returns the DumpLangDeclFilename.
+*)
+
+PROCEDURE GetDumpDeclFilename () : String ;
+
+
+(*
+   SetDumpDeclFilename - set DumpDeclFilename to filename.
+*)
+
+PROCEDURE SetDumpDeclFilename (value: BOOLEAN; filename: ADDRESS) ;
+
+
+(*
+   GetDumpQuadFilename - returns the DumpQuadFilename.
+*)
+
+PROCEDURE GetDumpQuadFilename () : String ;
+
+
+(*
+   SetDumpQuadFilename - set DumpQuadFilename to filename.
+*)
+
+PROCEDURE SetDumpQuadFilename (value: BOOLEAN; filename: ADDRESS) ;
+
+
+(*
+   GetDumpGimpleFilename - returns the DumpGimpleFilename.
+*)
+
+PROCEDURE GetDumpGimpleFilename () : String ;
+
+
+(*
+   SetDumpGimpleFilename - set DumpGimpleFilename to filename.
+*)
+
+PROCEDURE SetDumpGimpleFilename (value: BOOLEAN; filename: ADDRESS) ;
+
+
+(*
+   SetM2DumpFilter - sets the filter to a comma separated list of procedures
+                     and modules.
+*)
+
+PROCEDURE SetM2DumpFilter (value: BOOLEAN; filter: ADDRESS) ;
+
+
+(*
+   GetM2DumpFilter - returns the dump filter.
+*)
+
+PROCEDURE GetM2DumpFilter () : ADDRESS ;
+
+
+(*
+   SetM2Dump - sets the dump via a comma separated list: quad,decl,gimple,all.
+*)
+
+PROCEDURE SetM2Dump (value: BOOLEAN; filter: ADDRESS) : BOOLEAN ;
+
+
+(*
+   GetDumpGimple - return TRUE if the dump gimple flag is set from SetM2Dump.
+*)
+
+PROCEDURE GetDumpGimple () : BOOLEAN ;
+
+
+(*
+   GetDumpQuad - return TRUE if the dump quad flag is set from SetM2Dump.
+*)
+
+PROCEDURE GetDumpQuad () : BOOLEAN ;
+
+
+(*
+   GetDumpDecl - return TRUE if the dump quad flag is set from SetM2Dump.
+*)
+
+PROCEDURE GetDumpDecl () : BOOLEAN ;
+
+
+(*
+   GetDebugTraceQuad - return DebugTraceQuad.
+*)
+
+PROCEDURE GetDebugTraceQuad () : BOOLEAN ;
+
+
+(*
+   GetDebugTraceTree - return DebugTraceTree.
+*)
+
+PROCEDURE GetDebugTraceTree () : BOOLEAN ;
+
+
+(*
+   GetDebugTraceToken - return DebugTraceToken.
+*)
+
+PROCEDURE GetDebugTraceToken () : BOOLEAN ;
+
+
+(*
+   GetDebugTraceLine - return DebugTraceLine.
+*)
+
+PROCEDURE GetDebugTraceLine () : BOOLEAN ;
+
+
+(*
+   GetDebugFunctionLineNumbers - return DebugFunctionLineNumbers.
+*)
+
+PROCEDURE GetDebugFunctionLineNumbers () : BOOLEAN ;
+
+
+(*
+   GetEnableForward - return EnableForward.
+*)
+
+PROCEDURE GetEnableForward () : BOOLEAN ;
+
+
+(*
+   SetEnableForward - set EnableForward to value.
+*)
+
+PROCEDURE SetEnableForward (value: BOOLEAN) ;
+
+
+(*
+   SetFileOffsetBits - set the number of bits used by SYSTEM.COFF_T to bits.
+*)
+
+PROCEDURE SetFileOffsetBits (value: BOOLEAN; bits: CARDINAL) : BOOLEAN ;
+
+
+(*
+   GetFileOffsetBits - return the number of bits used by SYSTEM.COFF_T.
+*)
+
+PROCEDURE GetFileOffsetBits () : CARDINAL ;
 
 
 (*

@@ -1,5 +1,5 @@
 /* Generate checksums of executables for PCH validation
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -106,7 +106,7 @@ main (int argc, char ** argv)
     }
 
   md5_init_ctx (&ctx);
-  for (i = 1; i < argc; i++) 
+  for (i = 1; i < argc; i++)
     dosum (&ctx, argv[i]);
   md5_finish_ctx (&ctx, result);
 

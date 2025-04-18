@@ -1,6 +1,6 @@
 // 2003-05-01  Petur Runolfsson  <peturr02@ru.is>
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,6 +19,7 @@
  
 // { dg-require-fileio "" }
 // { dg-require-binary-io "" }
+// { dg-additional-files "filebuf_virtuals-1.txt" }
 
 #include <iostream>
 #include <cstdio>

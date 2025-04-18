@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -552,7 +552,7 @@ package body Exp_Ch11 is
 
          --  Nothing to do if no handlers requiring the goto transformation
 
-         if not (Local_Expansion_Required) then
+         if not Local_Expansion_Required then
             return;
          end if;
 
@@ -1103,12 +1103,6 @@ package body Exp_Ch11 is
    --  Start of processing for Expand_N_Exception_Declaration
 
    begin
-      --  Nothing to do when generating C code
-
-      if Modify_Tree_For_C then
-         return;
-      end if;
-
       --  Definition of the external name: nam : constant String := "A.B.NAME";
 
       Ex_Id :=
@@ -1306,6 +1300,29 @@ package body Exp_Ch11 is
       then
          pragma Assert (not Is_Thunk (Current_Scope));
          Expand_Cleanup_Actions (Parent (N));
+      end if;
+
+      if Present (Finally_Statements (N)) and then Abort_Allowed then
+         if Exceptions_OK then
+            Set_Finally_Statements
+              (N,
+               New_List
+                 (Build_Runtime_Call (Sloc (N), RE_Abort_Defer),
+                  Build_Abort_Undefer_Block
+                    (Sloc (N),
+                     Stmts   => Finally_Statements (N),
+                     Context => N)));
+         else
+            Prepend_To
+              (Finally_Statements (N),
+               Build_Runtime_Call (Sloc (N), RE_Abort_Defer));
+
+            Append_To
+              (Finally_Statements (N),
+               Build_Runtime_Call (Sloc (N), RE_Abort_Undefer));
+         end if;
+
+         Analyze_List (Finally_Statements (N));
       end if;
    end Expand_N_Handled_Sequence_Of_Statements;
 
@@ -1989,6 +2006,8 @@ package body Exp_Ch11 is
             Add_Str_To_Name_Buffer ("PE_Overlaid_Controlled_Object");
          when PE_Potentially_Blocking_Operation =>
             Add_Str_To_Name_Buffer ("PE_Potentially_Blocking_Operation");
+         when PE_Raise_Check_Failed =>
+            Add_Str_To_Name_Buffer ("PE_Raise_Check");
          when PE_Stream_Operation_Not_Allowed =>
             Add_Str_To_Name_Buffer ("PE_Stream_Operation_Not_Allowed");
          when PE_Stubbed_Subprogram_Called =>

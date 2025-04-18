@@ -1,5 +1,5 @@
 /* Classes for modeling the state of memory.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,8 +19,8 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
 #define INCLUDE_ALGORITHM
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -42,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-color.h"
 #include "bitmap.h"
 #include "selftest.h"
+#include "selftest-tree.h"
 #include "analyzer/analyzer.h"
 #include "analyzer/analyzer-logging.h"
 #include "ordered-hash-map.h"
@@ -79,6 +80,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/feasible-graph.h"
 #include "analyzer/record-layout.h"
 #include "diagnostic-format-sarif.h"
+#include "text-art/tree-widget.h"
+#include "gcc-urlifier.h"
 
 #if ENABLE_ANALYZER
 
@@ -120,9 +123,27 @@ dump_quoted_tree (pretty_printer *pp, tree t)
 void
 print_quoted_type (pretty_printer *pp, tree t)
 {
+  if (!t)
+    return;
   pp_begin_quote (pp, pp_show_color (pp));
   dump_generic_node (pp, t, 0, TDF_SLIM, 0);
   pp_end_quote (pp, pp_show_color (pp));
+}
+
+/* Print EXPR to PP, without quotes.
+   For use within svalue::maybe_print_for_user
+   and region::maybe_print_for_user. */
+
+void
+print_expr_for_user (pretty_printer *pp, tree expr)
+{
+  /* Workaround for C++'s lang_hooks.decl_printable_name,
+     which unhelpfully (for us) prefixes the decl with its
+     type.  */
+  if (DECL_P (expr))
+    dump_generic_node (pp, expr, 0, TDF_SLIM, 0);
+  else
+    pp_printf (pp, "%E", expr);
 }
 
 /* class region_to_value_map.  */
@@ -202,23 +223,19 @@ region_to_value_map::dump_to_pp (pretty_printer *pp, bool simple,
 DEBUG_FUNCTION void
 region_to_value_map::dump (bool simple) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp, simple, true);
   pp_newline (&pp);
-  pp_flush (&pp);
 }
 
 /* Generate a JSON value for this region_to_value_map.
    This is intended for debugging the analyzer rather than
    serialization.  */
 
-json::object *
+std::unique_ptr<json::object>
 region_to_value_map::to_json () const
 {
-  json::object *map_obj = new json::object ();
+  auto map_obj = ::make_unique<json::object> ();
 
   auto_vec<const region *> regs;
   for (iterator iter = begin (); iter != end (); ++iter)
@@ -235,6 +252,39 @@ region_to_value_map::to_json () const
     }
 
   return map_obj;
+}
+
+std::unique_ptr<text_art::tree_widget>
+region_to_value_map::
+make_dump_widget (const text_art::dump_widget_info &dwi) const
+{
+  if (is_empty ())
+    return nullptr;
+
+  std::unique_ptr<text_art::tree_widget> w
+    (text_art::tree_widget::make (dwi, "Dynamic Extents"));
+
+  auto_vec<const region *> regs;
+  for (iterator iter = begin (); iter != end (); ++iter)
+    regs.safe_push ((*iter).first);
+  regs.qsort (region::cmp_ptr_ptr);
+
+  unsigned i;
+  const region *reg;
+  FOR_EACH_VEC_ELT (regs, i, reg)
+    {
+      pretty_printer the_pp;
+      pretty_printer * const pp = &the_pp;
+      pp_format_decoder (pp) = default_tree_printer;
+      const bool simple = true;
+
+      reg->dump_to_pp (pp, simple);
+      pp_string (pp, ": ");
+      const svalue *sval = *get (reg);
+      sval->dump_to_pp (pp, true);
+      w->add_child (text_art::tree_widget::make (dwi, pp));
+    }
+  return w;
 }
 
 /* Attempt to merge THIS with OTHER, writing the result
@@ -429,13 +479,9 @@ region_model::dump_to_pp (pretty_printer *pp, bool simple,
 void
 region_model::dump (FILE *fp, bool simple, bool multiline) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  tree_dump_pretty_printer pp (fp);
   dump_to_pp (&pp, simple, multiline);
   pp_newline (&pp);
-  pp_flush (&pp);
 }
 
 /* Dump a multiline representation of this model to stderr.  */
@@ -444,6 +490,14 @@ DEBUG_FUNCTION void
 region_model::dump (bool simple) const
 {
   dump (stderr, simple, true);
+}
+
+/* Dump a tree-like representation of this state to stderr.  */
+
+DEBUG_FUNCTION void
+region_model::dump () const
+{
+  text_art::dump (*this);
 }
 
 /* Dump a multiline representation of this model to stderr.  */
@@ -458,16 +512,43 @@ region_model::debug () const
    This is intended for debugging the analyzer rather than
    serialization.  */
 
-json::object *
+std::unique_ptr<json::object>
 region_model::to_json () const
 {
-  json::object *model_obj = new json::object ();
+  auto model_obj = ::make_unique<json::object> ();
   model_obj->set ("store", m_store.to_json ());
   model_obj->set ("constraints", m_constraints->to_json ());
   if (m_current_frame)
     model_obj->set ("current_frame", m_current_frame->to_json ());
   model_obj->set ("dynamic_extents", m_dynamic_extents.to_json ());
   return model_obj;
+}
+
+std::unique_ptr<text_art::tree_widget>
+region_model::make_dump_widget (const text_art::dump_widget_info &dwi) const
+{
+  using text_art::tree_widget;
+  std::unique_ptr<tree_widget> model_widget
+    (tree_widget::from_fmt (dwi, nullptr, "Region Model"));
+
+  if (m_current_frame)
+    {
+      pretty_printer the_pp;
+      pretty_printer * const pp = &the_pp;
+      pp_format_decoder (pp) = default_tree_printer;
+      pp_show_color (pp) = true;
+      const bool simple = true;
+
+      pp_string (pp, "Current Frame: ");
+      m_current_frame->dump_to_pp (pp, simple);
+      model_widget->add_child (tree_widget::make (dwi, pp));
+    }
+  model_widget->add_child
+    (m_store.make_dump_widget (dwi,
+			       m_mgr->get_store_manager ()));
+  model_widget->add_child (m_constraints->make_dump_widget (dwi));
+  model_widget->add_child (m_dynamic_extents.make_dump_widget (dwi));
+  return model_widget;
 }
 
 /* Assert that this object is valid.  */
@@ -591,25 +672,42 @@ public:
       }
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     switch (m_pkind)
       {
       default:
 	gcc_unreachable ();
       case POISON_KIND_UNINIT:
-	return ev.formatted_print ("use of uninitialized value %qE here",
-				   m_expr);
+	{
+	  pp_printf (&pp,
+		     "use of uninitialized value %qE here",
+		     m_expr);
+	  return true;
+	}
       case POISON_KIND_FREED:
-	return ev.formatted_print ("use after %<free%> of %qE here",
-				   m_expr);
+	{
+	  pp_printf (&pp,
+		     "use after %<free%> of %qE here",
+		     m_expr);
+	  return true;
+	}
       case POISON_KIND_DELETED:
-	return ev.formatted_print ("use after %<delete%> of %qE here",
-				   m_expr);
+	{
+	  pp_printf (&pp,
+		     "use after %<delete%> of %qE here",
+		     m_expr);
+	  return true;
+	}
       case POISON_KIND_POPPED_STACK:
-	return ev.formatted_print
-	  ("dereferencing pointer %qE to within stale stack frame",
-	   m_expr);
+	{
+	  pp_printf (&pp,
+		     "dereferencing pointer %qE to within stale stack frame",
+		     m_expr);
+	  return true;
+	}
       }
   }
 
@@ -655,6 +753,19 @@ public:
     return true;
   }
 
+  void
+  maybe_add_sarif_properties (sarif_object &result_obj) const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/poisoned_value_diagnostic/"
+    props.set (PROPERTY_PREFIX "expr", tree_to_json (m_expr));
+    props.set_string (PROPERTY_PREFIX "kind", poison_kind_to_str (m_pkind));
+    if (m_src_region)
+      props.set (PROPERTY_PREFIX "src_region", m_src_region->to_json ());
+    props.set (PROPERTY_PREFIX "check_expr", tree_to_json (m_check_expr));
+#undef PROPERTY_PREFIX
+  }
+
 private:
   tree m_expr;
   enum poison_kind m_pkind;
@@ -694,9 +805,14 @@ public:
     return ctxt.warn ("shift by negative count (%qE)", m_count_cst);
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
-    return ev.formatted_print ("shift by negative amount here (%qE)", m_count_cst);
+    pp_printf (&pp,
+	       "shift by negative amount here (%qE)",
+	       m_count_cst);
+    return true;
   }
 
 private:
@@ -741,9 +857,14 @@ public:
 		      m_count_cst, m_operand_precision);
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
-    return ev.formatted_print ("shift by count %qE here", m_count_cst);
+    pp_printf (&pp,
+	       "shift by count %qE here",
+	       m_count_cst);
+    return true;
   }
 
 private:
@@ -751,6 +872,149 @@ private:
   int m_operand_precision;
   tree m_count_cst;
 };
+
+/* A subclass of pending_diagnostic for complaining about pointer
+   subtractions involving unrelated buffers.  */
+
+class undefined_ptrdiff_diagnostic
+: public pending_diagnostic_subclass<undefined_ptrdiff_diagnostic>
+{
+public:
+  /* Region_creation_event subclass to give a custom wording when
+     talking about creation of buffers for LHS and RHS of the
+     subtraction.  */
+  class ptrdiff_region_creation_event : public region_creation_event
+  {
+  public:
+    ptrdiff_region_creation_event (const event_loc_info &loc_info,
+				   bool is_lhs)
+    : region_creation_event (loc_info),
+      m_is_lhs (is_lhs)
+    {
+    }
+
+    void print_desc (pretty_printer &pp) const final override
+    {
+      if (m_is_lhs)
+	pp_string (&pp,
+		   "underlying object for left-hand side"
+		   " of subtraction created here");
+      else
+	pp_string (&pp,
+		   "underlying object for right-hand side"
+		   " of subtraction created here");
+    }
+
+  private:
+    bool m_is_lhs;
+  };
+
+  undefined_ptrdiff_diagnostic (const gassign *assign,
+				const svalue *sval_a,
+				const svalue *sval_b,
+				const region *base_reg_a,
+				const region *base_reg_b)
+  : m_assign (assign),
+    m_sval_a (sval_a),
+    m_sval_b (sval_b),
+    m_base_reg_a (base_reg_a),
+    m_base_reg_b (base_reg_b)
+  {
+    gcc_assert (m_base_reg_a != m_base_reg_b);
+  }
+
+  const char *get_kind () const final override
+  {
+    return "undefined_ptrdiff_diagnostic";
+  }
+
+  bool operator== (const undefined_ptrdiff_diagnostic &other) const
+  {
+    return (m_assign == other.m_assign
+	    && m_sval_a == other.m_sval_a
+	    && m_sval_b == other.m_sval_b
+	    && m_base_reg_a == other.m_base_reg_a
+	    && m_base_reg_b == other.m_base_reg_b);
+  }
+
+  int get_controlling_option () const final override
+  {
+    return OPT_Wanalyzer_undefined_behavior_ptrdiff;
+  }
+
+  bool emit (diagnostic_emission_context &ctxt) final override
+  {
+    /* CWE-469: Use of Pointer Subtraction to Determine Size.  */
+    ctxt.add_cwe (469);
+    return ctxt.warn ("undefined behavior when subtracting pointers");
+  }
+
+  void add_region_creation_events (const region *reg,
+				   tree /*capacity*/,
+				   const event_loc_info &loc_info,
+				   checker_path &emission_path) final override
+  {
+    if (reg == m_base_reg_a)
+      emission_path.add_event
+	(make_unique<ptrdiff_region_creation_event> (loc_info, true));
+    else if (reg == m_base_reg_b)
+      emission_path.add_event
+	(make_unique<ptrdiff_region_creation_event> (loc_info, false));
+  }
+
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
+  {
+    pp_string (&pp,
+	       "subtraction of pointers has undefined behavior if"
+	       " they do not point into the same array object");
+    return true;
+  }
+
+  void mark_interesting_stuff (interesting_t *interesting) final override
+  {
+    interesting->add_region_creation (m_base_reg_a);
+    interesting->add_region_creation (m_base_reg_b);
+  }
+
+private:
+  const gassign *m_assign;
+  const svalue *m_sval_a;
+  const svalue *m_sval_b;
+  const region *m_base_reg_a;
+  const region *m_base_reg_b;
+};
+
+/* Check the pointer subtraction SVAL_A - SVAL_B at ASSIGN and add
+   a warning to CTXT if they're not within the same base region.  */
+
+static void
+check_for_invalid_ptrdiff (const gassign *assign,
+			   region_model_context &ctxt,
+			   const svalue *sval_a, const svalue *sval_b)
+{
+  const region *base_reg_a = sval_a->maybe_get_deref_base_region ();
+  if (!base_reg_a)
+    return;
+  const region *base_reg_b = sval_b->maybe_get_deref_base_region ();
+  if (!base_reg_b)
+    return;
+
+  if (base_reg_a == base_reg_b)
+    return;
+
+  if (base_reg_a->get_kind () == RK_SYMBOLIC)
+    return;
+  if (base_reg_b->get_kind () == RK_SYMBOLIC)
+    return;
+
+  ctxt.warn (make_unique<undefined_ptrdiff_diagnostic> (assign,
+							sval_a,
+							sval_b,
+							base_reg_a,
+							base_reg_b));
+}
 
 /* If ASSIGN is a stmt that can be modelled via
      set_value (lhs_reg, SVALUE, CTXT)
@@ -807,6 +1071,9 @@ region_model::get_gassign_result (const gassign *assign,
 	const svalue *rhs2_sval = get_rvalue (rhs2, ctxt);
 
 	// TODO: perhaps fold to zero if they're known to be equal?
+
+	if (ctxt)
+	  check_for_invalid_ptrdiff (assign, *ctxt, rhs1_sval, rhs2_sval);
 
 	const svalue *sval_binop
 	  = m_mgr->get_or_create_binop (TREE_TYPE (lhs), op,
@@ -1807,6 +2074,7 @@ public:
 
   void emit () const final override
   {
+    auto_urlify_attributes sentinel;
     inform (DECL_SOURCE_LOCATION (m_callee_fndecl),
 	    "parameter %i of %qD marked with attribute %qs",
 	    m_ptr_argno + 1, m_callee_fndecl, m_access_str);
@@ -2242,7 +2510,7 @@ region_model::on_longjmp (const gcall *longjmp_call, const gcall *setjmp_call,
      setjmp was called.  */
   gcc_assert (get_stack_depth () >= setjmp_stack_depth);
   while (get_stack_depth () > setjmp_stack_depth)
-    pop_frame (NULL, NULL, ctxt, false);
+    pop_frame (NULL, NULL, ctxt, nullptr, false);
 
   gcc_assert (get_stack_depth () == setjmp_stack_depth);
 
@@ -2533,6 +2801,7 @@ region_model::get_rvalue_1 (path_var pv, region_model_context *ctxt) const
     case COMPLEX_CST:
     case VECTOR_CST:
     case STRING_CST:
+    case RAW_DATA_CST:
       return m_mgr->get_or_create_constant_svalue (pv.m_tree);
 
     case POINTER_PLUS_EXPR:
@@ -2703,10 +2972,10 @@ region_model::get_store_value (const region *reg,
   /* Special-case: read the initial char of a STRING_CST.  */
   if (const cast_region *cast_reg = reg->dyn_cast_cast_region ())
     if (const string_region *str_reg
-	= cast_reg->get_original_region ()->dyn_cast_string_region ())
+	= cast_reg->get_parent_region ()->dyn_cast_string_region ())
       {
 	tree string_cst = str_reg->get_string_cst ();
-	tree byte_offset_cst = build_int_cst (integer_type_node, 0);
+	tree byte_offset_cst = integer_zero_node;
 	if (const svalue *char_sval
 	    = m_mgr->maybe_get_char_from_string_cst (string_cst,
 						     byte_offset_cst))
@@ -2898,16 +3167,30 @@ public:
     return warned;
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     switch (m_reg->get_kind ())
       {
       default:
-	return ev.formatted_print ("write to %<const%> object %qE here", m_decl);
+	{
+	  pp_printf (&pp,
+		     "write to %<const%> object %qE here", m_decl);
+	  return true;
+	}
       case RK_FUNCTION:
-	return ev.formatted_print ("write to function %qE here", m_decl);
+	{
+	  pp_printf (&pp,
+		     "write to function %qE here", m_decl);
+	  return true;
+	}
       case RK_LABEL:
-	return ev.formatted_print ("write to label %qE here", m_decl);
+	{
+	  pp_printf (&pp,
+		     "write to label %qE here", m_decl);
+	  return true;
+	}
       }
   }
 
@@ -2949,9 +3232,12 @@ public:
        but it is not available at this point.  */
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
-    return ev.formatted_print ("write to string literal here");
+    pp_string (&pp, "write to string literal here");
+    return true;
   }
 
 private:
@@ -3152,35 +3438,50 @@ public:
 		      " of the pointee's size");
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final
-  override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     tree pointee_type = TREE_TYPE (m_lhs->get_type ());
     if (m_has_allocation_event)
-      return ev.formatted_print ("assigned to %qT here;"
-				 " %<sizeof (%T)%> is %qE",
-				 m_lhs->get_type (), pointee_type,
-				 size_in_bytes (pointee_type));
+      {
+	pp_printf (&pp,
+		   "assigned to %qT here;"
+		   " %<sizeof (%T)%> is %qE",
+		   m_lhs->get_type (), pointee_type,
+		   size_in_bytes (pointee_type));
+	return true;
+      }
     /* Fallback: Typically, we should always see an allocation_event
        before.  */
     if (m_expr)
       {
 	if (TREE_CODE (m_expr) == INTEGER_CST)
-	  return ev.formatted_print ("allocated %E bytes and assigned to"
-				    " %qT here; %<sizeof (%T)%> is %qE",
-				    m_expr, m_lhs->get_type (), pointee_type,
-				    size_in_bytes (pointee_type));
+	  {
+	    pp_printf (&pp,
+		       "allocated %E bytes and assigned to"
+		       " %qT here; %<sizeof (%T)%> is %qE",
+		       m_expr, m_lhs->get_type (), pointee_type,
+		       size_in_bytes (pointee_type));
+	    return true;
+	  }
 	else
-	  return ev.formatted_print ("allocated %qE bytes and assigned to"
-				    " %qT here; %<sizeof (%T)%> is %qE",
-				    m_expr, m_lhs->get_type (), pointee_type,
-				    size_in_bytes (pointee_type));
+	  {
+	    pp_printf (&pp,
+		       "allocated %qE bytes and assigned to"
+		       " %qT here; %<sizeof (%T)%> is %qE",
+		       m_expr, m_lhs->get_type (), pointee_type,
+		       size_in_bytes (pointee_type));
+	    return true;
+	  }
       }
 
-    return ev.formatted_print ("allocated and assigned to %qT here;"
-			       " %<sizeof (%T)%> is %qE",
-			       m_lhs->get_type (), pointee_type,
-			       size_in_bytes (pointee_type));
+    pp_printf (&pp,
+	       "allocated and assigned to %qT here;"
+	       " %<sizeof (%T)%> is %qE",
+	       m_lhs->get_type (), pointee_type,
+	       size_in_bytes (pointee_type));
+    return true;
   }
 
   void
@@ -3494,6 +3795,10 @@ region_model::check_region_size (const region *lhs_reg, const svalue *rhs_sval,
   /* Make sure that the type on the left-hand size actually has a size.  */
   if (pointee_type == NULL_TREE || VOID_TYPE_P (pointee_type)
       || TYPE_SIZE_UNIT (pointee_type) == NULL_TREE)
+    return;
+
+  /* Bail out early on function pointers.  */
+  if (TREE_CODE (pointee_type) == FUNCTION_TYPE)
     return;
 
   /* Bail out early on pointers to structs where we can
@@ -3949,9 +4254,10 @@ static tree
 get_tree_for_byte_offset (tree ptr_expr, byte_offset_t byte_offset)
 {
   gcc_assert (ptr_expr);
+  tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode, true);
   return fold_build2 (MEM_REF,
 		      char_type_node,
-		      ptr_expr, wide_int_to_tree (size_type_node, byte_offset));
+		      ptr_expr, wide_int_to_tree (ptype, byte_offset));
 }
 
 /* Simulate a series of reads of REG until we find a 0 byte
@@ -4263,21 +4569,21 @@ region_model::check_for_null_terminated_string_arg (const call_details &cd,
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
       if (m_arg_details.m_arg_expr)
-	return make_label_text (can_colorize,
-				"while looking for null terminator"
-				" for argument %i (%qE) of %qD...",
-				m_arg_details.m_arg_idx + 1,
-				m_arg_details.m_arg_expr,
-				m_arg_details.m_called_fndecl);
+	pp_printf (&pp,
+		   "while looking for null terminator"
+		   " for argument %i (%qE) of %qD...",
+		   m_arg_details.m_arg_idx + 1,
+		   m_arg_details.m_arg_expr,
+		   m_arg_details.m_called_fndecl);
       else
-	return make_label_text (can_colorize,
-				"while looking for null terminator"
-				" for argument %i of %qD...",
-				m_arg_details.m_arg_idx + 1,
-				m_arg_details.m_called_fndecl);
+	pp_printf (&pp,
+		   "while looking for null terminator"
+		   " for argument %i of %qD...",
+		   m_arg_details.m_arg_idx + 1,
+		   m_arg_details.m_called_fndecl);
     }
 
   private:
@@ -4685,17 +4991,27 @@ region_model::eval_condition (const svalue *lhs,
     if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
 	&& rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
 	&& lhs_type == rhs_type)
-      return eval_condition (lhs_un_op->get_arg (),
-			     op,
-			     rhs_un_op->get_arg ());
-
+      {
+	tristate res = eval_condition (lhs_un_op->get_arg (),
+				       op,
+				       rhs_un_op->get_arg ());
+	if (res.is_known ())
+	  return res;
+      }
     else if (lhs_un_op && CONVERT_EXPR_CODE_P (lhs_un_op->get_op ())
 	     && lhs_type == rhs_type)
-      return eval_condition (lhs_un_op->get_arg (), op, rhs);
-
+      {
+	tristate res = eval_condition (lhs_un_op->get_arg (), op, rhs);
+	if (res.is_known ())
+	  return res;
+      }
     else if (rhs_un_op && CONVERT_EXPR_CODE_P (rhs_un_op->get_op ())
 	     && lhs_type == rhs_type)
-      return eval_condition (lhs, op, rhs_un_op->get_arg ());
+      {
+	tristate res = eval_condition (lhs, op, rhs_un_op->get_arg ());
+	if (res.is_known ())
+	  return res;
+      }
   }
 
   /* Otherwise, try constraints.
@@ -5098,7 +5414,8 @@ region_model::eval_condition (tree lhs,
 
 path_var
 region_model::get_representative_path_var_1 (const svalue *sval,
-					     svalue_set *visited) const
+					     svalue_set *visited,
+					     logger *logger) const
 {
   gcc_assert (sval);
 
@@ -5115,7 +5432,8 @@ region_model::get_representative_path_var_1 (const svalue *sval,
   /* Handle casts by recursion into get_representative_path_var.  */
   if (const svalue *cast_sval = sval->maybe_undo_cast ())
     {
-      path_var result = get_representative_path_var (cast_sval, visited);
+      path_var result = get_representative_path_var (cast_sval, visited,
+						     logger);
       tree orig_type = sval->get_type ();
       /* If necessary, wrap the result in a cast.  */
       if (result.m_tree && orig_type)
@@ -5124,7 +5442,7 @@ region_model::get_representative_path_var_1 (const svalue *sval,
     }
 
   auto_vec<path_var> pvs;
-  m_store.get_representative_path_vars (this, visited, sval, &pvs);
+  m_store.get_representative_path_vars (this, visited, sval, logger, &pvs);
 
   if (tree cst = sval->maybe_get_constant ())
     pvs.safe_push (path_var (cst, 0));
@@ -5133,7 +5451,7 @@ region_model::get_representative_path_var_1 (const svalue *sval,
   if (const region_svalue *ptr_sval = sval->dyn_cast_region_svalue ())
     {
       const region *reg = ptr_sval->get_pointee ();
-      if (path_var pv = get_representative_path_var (reg, visited))
+      if (path_var pv = get_representative_path_var (reg, visited, logger))
 	return path_var (build1 (ADDR_EXPR,
 				 sval->get_type (),
 				 pv.m_tree),
@@ -5146,7 +5464,7 @@ region_model::get_representative_path_var_1 (const svalue *sval,
       const svalue *parent_sval = sub_sval->get_parent ();
       const region *subreg = sub_sval->get_subregion ();
       if (path_var parent_pv
-	    = get_representative_path_var (parent_sval, visited))
+	    = get_representative_path_var (parent_sval, visited, logger))
 	if (const field_region *field_reg = subreg->dyn_cast_field_region ())
 	  return path_var (build3 (COMPONENT_REF,
 				   sval->get_type (),
@@ -5159,9 +5477,11 @@ region_model::get_representative_path_var_1 (const svalue *sval,
   /* Handle binops.  */
   if (const binop_svalue *binop_sval = sval->dyn_cast_binop_svalue ())
     if (path_var lhs_pv
-	= get_representative_path_var (binop_sval->get_arg0 (), visited))
+	= get_representative_path_var (binop_sval->get_arg0 (), visited,
+				       logger))
       if (path_var rhs_pv
-	  = get_representative_path_var (binop_sval->get_arg1 (), visited))
+	  = get_representative_path_var (binop_sval->get_arg1 (), visited,
+					 logger))
 	return path_var (build2 (binop_sval->get_op (),
 				 sval->get_type (),
 				 lhs_pv.m_tree, rhs_pv.m_tree),
@@ -5184,18 +5504,41 @@ region_model::get_representative_path_var_1 (const svalue *sval,
 
 path_var
 region_model::get_representative_path_var (const svalue *sval,
-					   svalue_set *visited) const
+					   svalue_set *visited,
+					   logger *logger) const
 {
   if (sval == NULL)
     return path_var (NULL_TREE, 0);
 
+  LOG_SCOPE (logger);
+  if (logger)
+    {
+      logger->start_log_line ();
+      logger->log_partial ("sval: ");
+      sval->dump_to_pp (logger->get_printer (), true);
+      logger->end_log_line ();
+    }
+
   tree orig_type = sval->get_type ();
 
-  path_var result = get_representative_path_var_1 (sval, visited);
+  path_var result = get_representative_path_var_1 (sval, visited, logger);
 
   /* Verify that the result has the same type as SVAL, if any.  */
   if (result.m_tree && orig_type)
     gcc_assert (TREE_TYPE (result.m_tree) == orig_type);
+
+  if (logger)
+    {
+      logger->start_log_line ();
+      logger->log_partial ("sval: ");
+      sval->dump_to_pp (logger->get_printer (), true);
+      logger->end_log_line ();
+
+      if (result.m_tree)
+	logger->log ("tree: %qE", result.m_tree);
+      else
+	logger->log ("tree: NULL");
+    }
 
   return result;
 }
@@ -5207,10 +5550,10 @@ region_model::get_representative_path_var (const svalue *sval,
    from analyzer diagnostics.  */
 
 tree
-region_model::get_representative_tree (const svalue *sval) const
+region_model::get_representative_tree (const svalue *sval, logger *logger) const
 {
   svalue_set visited;
-  tree expr = get_representative_path_var (sval, &visited).m_tree;
+  tree expr = get_representative_path_var (sval, &visited, logger).m_tree;
 
   /* Strip off any top-level cast.  */
   if (expr && TREE_CODE (expr) == NOP_EXPR)
@@ -5220,10 +5563,10 @@ region_model::get_representative_tree (const svalue *sval) const
 }
 
 tree
-region_model::get_representative_tree (const region *reg) const
+region_model::get_representative_tree (const region *reg, logger *logger) const
 {
   svalue_set visited;
-  tree expr = get_representative_path_var (reg, &visited).m_tree;
+  tree expr = get_representative_path_var (reg, &visited, logger).m_tree;
 
   /* Strip off any top-level cast.  */
   if (expr && TREE_CODE (expr) == NOP_EXPR)
@@ -5243,7 +5586,8 @@ region_model::get_representative_tree (const region *reg) const
 
 path_var
 region_model::get_representative_path_var_1 (const region *reg,
-					     svalue_set *visited) const
+					     svalue_set *visited,
+					     logger *logger) const
 {
   switch (reg->get_kind ())
     {
@@ -5277,7 +5621,8 @@ region_model::get_representative_path_var_1 (const region *reg,
 	const symbolic_region *symbolic_reg
 	  = as_a <const symbolic_region *> (reg);
 	const svalue *pointer = symbolic_reg->get_pointer ();
-	path_var pointer_pv = get_representative_path_var (pointer, visited);
+	path_var pointer_pv = get_representative_path_var (pointer, visited,
+							   logger);
 	if (!pointer_pv)
 	  return path_var (NULL_TREE, 0);
 	tree offset = build_int_cst (pointer->get_type (), 0);
@@ -5296,7 +5641,8 @@ region_model::get_representative_path_var_1 (const region *reg,
       {
 	const field_region *field_reg = as_a <const field_region *> (reg);
 	path_var parent_pv
-	  = get_representative_path_var (reg->get_parent_region (), visited);
+	  = get_representative_path_var (reg->get_parent_region (), visited,
+					 logger);
 	if (!parent_pv)
 	  return path_var (NULL_TREE, 0);
 	return path_var (build3 (COMPONENT_REF,
@@ -5312,11 +5658,13 @@ region_model::get_representative_path_var_1 (const region *reg,
 	const element_region *element_reg
 	  = as_a <const element_region *> (reg);
 	path_var parent_pv
-	  = get_representative_path_var (reg->get_parent_region (), visited);
+	  = get_representative_path_var (reg->get_parent_region (), visited,
+					 logger);
 	if (!parent_pv)
 	  return path_var (NULL_TREE, 0);
 	path_var index_pv
-	  = get_representative_path_var (element_reg->get_index (), visited);
+	  = get_representative_path_var (element_reg->get_index (), visited,
+					 logger);
 	if (!index_pv)
 	  return path_var (NULL_TREE, 0);
 	return path_var (build4 (ARRAY_REF,
@@ -5331,20 +5679,22 @@ region_model::get_representative_path_var_1 (const region *reg,
 	const offset_region *offset_reg
 	  = as_a <const offset_region *> (reg);
 	path_var parent_pv
-	  = get_representative_path_var (reg->get_parent_region (), visited);
+	  = get_representative_path_var (reg->get_parent_region (), visited,
+					 logger);
 	if (!parent_pv)
 	  return path_var (NULL_TREE, 0);
 	path_var offset_pv
 	  = get_representative_path_var (offset_reg->get_byte_offset (),
-					 visited);
+					 visited, logger);
 	if (!offset_pv || TREE_CODE (offset_pv.m_tree) != INTEGER_CST)
 	  return path_var (NULL_TREE, 0);
 	tree addr_parent = build1 (ADDR_EXPR,
 				   build_pointer_type (reg->get_type ()),
 				   parent_pv.m_tree);
-	return path_var (build2 (MEM_REF,
-				 reg->get_type (),
-				 addr_parent, offset_pv.m_tree),
+	tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode,
+						  true);
+	return path_var (build2 (MEM_REF, reg->get_type (), addr_parent,
+				 fold_convert (ptype, offset_pv.m_tree)),
 			 parent_pv.m_stack_depth);
       }
 
@@ -5354,7 +5704,8 @@ region_model::get_representative_path_var_1 (const region *reg,
     case RK_CAST:
       {
 	path_var parent_pv
-	  = get_representative_path_var (reg->get_parent_region (), visited);
+	  = get_representative_path_var (reg->get_parent_region (), visited,
+					 logger);
 	if (!parent_pv)
 	  return path_var (NULL_TREE, 0);
 	return path_var (build1 (NOP_EXPR,
@@ -5395,13 +5746,36 @@ region_model::get_representative_path_var_1 (const region *reg,
 
 path_var
 region_model::get_representative_path_var (const region *reg,
-					   svalue_set *visited) const
+					   svalue_set *visited,
+					   logger *logger) const
 {
-  path_var result = get_representative_path_var_1 (reg, visited);
+  LOG_SCOPE (logger);
+  if (logger)
+    {
+      logger->start_log_line ();
+      logger->log_partial ("reg: ");
+      reg->dump_to_pp (logger->get_printer (), true);
+      logger->end_log_line ();
+    }
+
+  path_var result = get_representative_path_var_1 (reg, visited, logger);
 
   /* Verify that the result has the same type as REG, if any.  */
   if (result.m_tree && reg->get_type ())
     gcc_assert (TREE_TYPE (result.m_tree) == reg->get_type ());
+
+  if (logger)
+    {
+      logger->start_log_line ();
+      logger->log_partial ("reg: ");
+      reg->dump_to_pp (logger->get_printer (), true);
+      logger->end_log_line ();
+
+      if (result.m_tree)
+	logger->log ("tree: %qE", result.m_tree);
+      else
+	logger->log ("tree: NULL");
+    }
 
   return result;
 }
@@ -5568,10 +5942,10 @@ region_model::update_for_return_gcall (const gcall *call_stmt,
      so that pop_frame can determine the region with respect to the
      *caller* frame.  */
   tree lhs = gimple_call_lhs (call_stmt);
-  pop_frame (lhs, NULL, ctxt);
+  pop_frame (lhs, NULL, ctxt, call_stmt);
 }
 
-/* Extract calling information from the superedge and update the model for the 
+/* Extract calling information from the superedge and update the model for the
    call  */
 
 void
@@ -5582,7 +5956,7 @@ region_model::update_for_call_superedge (const call_superedge &call_edge,
   update_for_gcall (call_stmt, ctxt, call_edge.get_callee_function ());
 }
 
-/* Extract calling information from the return superedge and update the model 
+/* Extract calling information from the return superedge and update the model
    for the returning call */
 
 void
@@ -5593,7 +5967,7 @@ region_model::update_for_return_superedge (const return_superedge &return_edge,
   update_for_return_gcall (call_stmt, ctxt);
 }
 
-/* Attempt to to use R to replay SUMMARY into this object.
+/* Attempt to use R to replay SUMMARY into this object.
    Return true if it is possible.  */
 
 bool
@@ -5751,7 +6125,8 @@ apply_constraints_for_gswitch (const switch_cfg_superedge &edge,
 	  && is_a <const initial_svalue *> (unaryop->get_arg ()))
 	if (const initial_svalue *initvalop = (as_a <const initial_svalue *>
 					       (unaryop->get_arg ())))
-	  if (TREE_CODE (initvalop->get_type ()) == ENUMERAL_TYPE)
+	  if (initvalop->get_type ()
+	      && TREE_CODE (initvalop->get_type ()) == ENUMERAL_TYPE)
 	    {
 	      index_sval = initvalop;
 	      check_index_type = false;
@@ -5977,6 +6352,70 @@ region_model::get_current_function () const
   return &frame->get_function ();
 }
 
+/* Custom region_model_context for the assignment to the result
+   at a call statement when popping a frame (PR analyzer/106203).  */
+
+class caller_context : public region_model_context_decorator
+{
+public:
+  caller_context (region_model_context *inner,
+		  const gcall *call_stmt,
+		  const frame_region &caller_frame)
+    : region_model_context_decorator (inner),
+      m_call_stmt (call_stmt),
+      m_caller_frame (caller_frame)
+  {}
+  bool warn (std::unique_ptr<pending_diagnostic> d,
+	     const stmt_finder *custom_finder) override
+  {
+    if (m_inner && custom_finder == nullptr)
+      {
+	/* Custom stmt_finder to use m_call_stmt for the
+	   diagnostic.  */
+	class my_finder : public stmt_finder
+	{
+	public:
+	  my_finder (const gcall *call_stmt,
+		     const frame_region &caller_frame)
+	    : m_call_stmt (call_stmt),
+	      m_caller_frame (caller_frame)
+	  {}
+	  std::unique_ptr<stmt_finder> clone () const override
+	  {
+	    return ::make_unique<my_finder> (m_call_stmt, m_caller_frame);
+	  }
+	  const gimple *find_stmt (const exploded_path &) override
+	  {
+	    return m_call_stmt;
+	  }
+	  void update_event_loc_info (event_loc_info &loc_info) final override
+	  {
+	    loc_info.m_fndecl = m_caller_frame.get_fndecl ();
+	    loc_info.m_depth = m_caller_frame.get_stack_depth ();
+	  }
+
+	private:
+	  const gcall *m_call_stmt;
+	  const frame_region &m_caller_frame;
+	};
+	my_finder finder (m_call_stmt, m_caller_frame);
+	return m_inner->warn (std::move (d), &finder);
+      }
+    else
+      return region_model_context_decorator::warn (std::move (d),
+						   custom_finder);
+  }
+  const gimple *get_stmt () const override
+  {
+    return m_call_stmt;
+  };
+
+private:
+  const gcall *m_call_stmt;
+  const frame_region &m_caller_frame;
+};
+
+
 /* Pop the topmost frame_region from this region_model's stack;
 
    If RESULT_LVALUE is non-null, copy any return value from the frame
@@ -5984,6 +6423,9 @@ region_model::get_current_function () const
    frame, rather than the called frame).
    If OUT_RESULT is non-null, copy any return value from the frame
    into *OUT_RESULT.
+
+   If non-null, use CALL_STMT as the location when complaining about
+   assignment of the return value to RESULT_LVALUE.
 
    If EVAL_RETURN_SVALUE is false, then don't evaluate the return value.
    This is for use when unwinding frames e.g. due to longjmp, to suppress
@@ -5997,6 +6439,7 @@ void
 region_model::pop_frame (tree result_lvalue,
 			 const svalue **out_result,
 			 region_model_context *ctxt,
+			 const gcall *call_stmt,
 			 bool eval_return_svalue)
 {
   gcc_assert (m_current_frame);
@@ -6031,7 +6474,13 @@ region_model::pop_frame (tree result_lvalue,
       /* Compute result_dst_reg using RESULT_LVALUE *after* popping
 	 the frame, but before poisoning pointers into the old frame.  */
       const region *result_dst_reg = get_lvalue (result_lvalue, ctxt);
-      set_value (result_dst_reg, retval, ctxt);
+
+      /* Assign retval to result_dst_reg, using caller_context
+	 to set the call_stmt and the popped_frame for any diagnostics
+	 due to the assignment.  */
+      gcc_assert (m_current_frame);
+      caller_context caller_ctxt (ctxt, call_stmt, *m_current_frame);
+      set_value (result_dst_reg, retval, call_stmt ? &caller_ctxt : ctxt);
     }
 
   unbind_region_and_descendents (frame_reg,POISON_KIND_POPPED_STACK);
@@ -6300,14 +6749,19 @@ public:
     return warned;
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final
-  override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_arg)
-      return ev.formatted_print ("operand %qE is of type %qT",
-				 m_arg, TREE_TYPE (m_arg));
-    return ev.formatted_print ("at least one operand of the size argument is"
-			       " of a floating-point type");
+      pp_printf (&pp,
+		 "operand %qE is of type %qT",
+		 m_arg, TREE_TYPE (m_arg));
+    else
+      pp_printf (&pp,
+		 "at least one operand of the size argument is"
+		 " of a floating-point type");
+    return true;
   }
 
 private:
@@ -6568,19 +7022,24 @@ public:
     return warned;
   }
 
-  label_text describe_final_event (const evdesc::final_event &) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     enum memory_space mem_space = get_src_memory_space ();
     switch (mem_space)
       {
       default:
-	return label_text::borrow ("uninitialized data copied here");
+	pp_string (&pp, "uninitialized data copied here");
+	return true;
 
       case MEMSPACE_STACK:
-	return label_text::borrow ("uninitialized data copied from stack here");
+	pp_string (&pp, "uninitialized data copied from stack here");
+	return true;
 
       case MEMSPACE_HEAP:
-	return label_text::borrow ("uninitialized data copied from heap here");
+	pp_string (&pp, "uninitialized data copied from heap here");
+	return true;
       }
   }
 
@@ -7019,12 +7478,8 @@ model_merger::dump_to_pp (pretty_printer *pp, bool simple) const
 void
 model_merger::dump (FILE *fp, bool simple) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  tree_dump_pretty_printer pp (fp);
   dump_to_pp (&pp, simple);
-  pp_flush (&pp);
 }
 
 /* Dump a multiline representation of this merger to stderr.  */
@@ -7148,7 +7603,7 @@ build_real_cst_from_string (tree type, const char *str)
 static void
 append_interesting_constants (auto_vec<tree> *out)
 {
-  out->safe_push (build_int_cst (integer_type_node, 0));
+  out->safe_push (integer_zero_node);
   out->safe_push (build_int_cst (integer_type_node, 42));
   out->safe_push (build_int_cst (unsigned_type_node, 0));
   out->safe_push (build_int_cst (unsigned_type_node, 42));
@@ -7271,6 +7726,14 @@ test_dump ()
 		  "constraint_manager:\n"
 		  "  equiv classes:\n"
 		  "  constraints:\n");
+
+  text_art::ascii_theme theme;
+  pretty_printer pp;
+  dump_to_pp (model, &theme, &pp);
+  ASSERT_STREQ ("Region Model\n"
+		"`- Store\n"
+		"   `- m_called_unknown_fn: false\n",
+		pp_formatted_text (&pp));
 }
 
 /* Helper function for selftests.  Create a struct or union type named NAME,
@@ -7373,7 +7836,7 @@ test_array_1 ()
 
   region_model_manager mgr;
   region_model model (&mgr);
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree a_0 = build4 (ARRAY_REF, char_type_node,
 		     a, int_0, NULL_TREE, NULL_TREE);
   tree char_A = build_int_cst (char_type_node, 'A');
@@ -7430,7 +7893,7 @@ test_get_representative_tree ()
     {
       test_region_model_context ctxt;
       region_model model (&mgr);
-      tree idx = build_int_cst (integer_type_node, 0);
+      tree idx = integer_zero_node;
       tree a_0 = build4 (ARRAY_REF, char_type_node,
 			 a, idx, NULL_TREE, NULL_TREE);
       const region *a_0_reg = model.get_lvalue (a_0, &ctxt);
@@ -7482,7 +7945,7 @@ test_get_representative_tree ()
 static void
 test_unique_constants ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_42 = build_int_cst (integer_type_node, 42);
 
   test_region_model_context ctxt;
@@ -7865,7 +8328,7 @@ test_bit_range_regions ()
 static void
 test_assignment ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree x = build_global_decl ("x", integer_type_node);
   tree y = build_global_decl ("y", integer_type_node);
 
@@ -7924,7 +8387,7 @@ test_stack_frames ()
   tree int_42 = build_int_cst (integer_type_node, 42);
   tree int_10 = build_int_cst (integer_type_node, 10);
   tree int_5 = build_int_cst (integer_type_node, 5);
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
 
   auto_vec <tree> param_types;
   tree parent_fndecl = make_fndecl (integer_type_node,
@@ -8016,7 +8479,7 @@ test_stack_frames ()
   ASSERT_FALSE (a_in_parent_reg->descendent_of_p (child_frame_reg));
 
   /* Pop the "child_fn" frame from the stack.  */
-  model.pop_frame (NULL, NULL, &ctxt);
+  model.pop_frame (NULL, NULL, &ctxt, nullptr);
   ASSERT_FALSE (model.region_exists_p (child_frame_reg));
   ASSERT_TRUE (model.region_exists_p (parent_frame_reg));
 
@@ -8093,7 +8556,8 @@ test_get_representative_path_var ()
       {
 	svalue_set visited;
 	ASSERT_EQ (model.get_representative_path_var (parm_regs[depth],
-						      &visited),
+						      &visited,
+						      nullptr),
 		   path_var (n, depth + 1));
       }
       /* ...and that we can lookup lvalues for locals for all frames,
@@ -8104,7 +8568,8 @@ test_get_representative_path_var ()
       {
 	svalue_set visited;
 	ASSERT_EQ (model.get_representative_path_var (parm_svals[depth],
-						      &visited),
+						      &visited,
+						      nullptr),
 		   path_var (n, depth + 1));
       }
     }
@@ -8607,7 +9072,7 @@ test_state_merging ()
 static void
 test_constraint_merging ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_5 = build_int_cst (integer_type_node, 5);
   tree x = build_global_decl ("x", integer_type_node);
   tree y = build_global_decl ("y", integer_type_node);
@@ -8654,9 +9119,9 @@ test_widening_constraints ()
 {
   region_model_manager mgr;
   function_point point (program_point::origin (mgr).get_function_point ());
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_m1 = build_int_cst (integer_type_node, -1);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_1 = integer_one_node;
   tree int_256 = build_int_cst (integer_type_node, 256);
   test_region_model_context ctxt;
   const svalue *int_0_sval = mgr.get_or_create_constant_svalue (int_0);
@@ -8770,8 +9235,8 @@ test_iteration_1 ()
   region_model_manager mgr;
   program_point point (program_point::origin (mgr));
 
-  tree int_0 = build_int_cst (integer_type_node, 0);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_0 = integer_zero_node;
+  tree int_1 = integer_one_node;
   tree int_256 = build_int_cst (integer_type_node, 256);
   tree i = build_global_decl ("i", integer_type_node);
 
@@ -8924,8 +9389,8 @@ test_array_2 ()
   /* "int i;"  */
   tree i = build_global_decl ("i", integer_type_node);
 
-  tree int_0 = build_int_cst (integer_type_node, 0);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_0 = integer_zero_node;
+  tree int_1 = integer_one_node;
 
   tree arr_0 = build4 (ARRAY_REF, integer_type_node,
 		       arr, int_0, NULL_TREE, NULL_TREE);
@@ -8973,7 +9438,10 @@ test_array_2 ()
     const region *arr_i_reg = model.get_lvalue (arr_i, NULL);
     region_offset offset = arr_i_reg->get_offset (&mgr);
     ASSERT_EQ (offset.get_base_region (), model.get_lvalue (arr, NULL));
-    ASSERT_EQ (offset.get_symbolic_byte_offset ()->get_kind (), SK_BINOP);
+    const svalue *offset_sval = offset.get_symbolic_byte_offset ();
+    if (const svalue *cast = offset_sval->maybe_undo_cast ())
+      offset_sval = cast;
+    ASSERT_EQ (offset_sval->get_kind (), SK_BINOP);
   }
 
   /* "arr[i] = i;" - this should remove the earlier bindings.  */
@@ -9003,7 +9471,8 @@ test_mem_ref ()
 
   tree int_17 = build_int_cst (integer_type_node, 17);
   tree addr_of_x = build1 (ADDR_EXPR, int_star, x);
-  tree offset_0 = build_int_cst (integer_type_node, 0);
+  tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode, true);
+  tree offset_0 = build_int_cst (ptype, 0);
   tree star_p = build2 (MEM_REF, integer_type_node, p, offset_0);
 
   region_model_manager mgr;
@@ -9053,7 +9522,8 @@ test_POINTER_PLUS_EXPR_then_MEM_REF ()
   tree a = build_global_decl ("a", int_star);
   tree offset_12 = build_int_cst (size_type_node, 12);
   tree pointer_plus_expr = build2 (POINTER_PLUS_EXPR, int_star, a, offset_12);
-  tree offset_0 = build_int_cst (integer_type_node, 0);
+  tree ptype = build_pointer_type_for_mode (char_type_node, ptr_mode, true);
+  tree offset_0 = build_int_cst (ptype, 0);
   tree mem_ref = build2 (MEM_REF, integer_type_node,
 			 pointer_plus_expr, offset_0);
   region_model_manager mgr;
@@ -9124,7 +9594,7 @@ test_alloca ()
 
   /* Verify that the pointers to the alloca region are replaced by
      poisoned values when the frame is popped.  */
-  model.pop_frame (NULL, NULL, &ctxt);
+  model.pop_frame (NULL, NULL, &ctxt, nullptr);
   ASSERT_EQ (model.get_rvalue (p, NULL)->get_kind (), SK_POISONED);
 }
 

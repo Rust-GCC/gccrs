@@ -478,11 +478,12 @@ via compiler switches such as "-gnata".
 *
   "Implementation-defined check names.  See 11.5(27)."
 
-The implementation defined check names include Alignment_Check,
-Atomic_Synchronization, Duplicated_Tag_Check, Container_Checks,
-Tampering_Check, Predicate_Check, and Validity_Check. In addition, a user
-program can add implementation-defined check names by means of the pragma
-Check_Name. See the description of pragma ``Suppress`` for full details.
+The implementation-defined check names include Alignment_Check,
+Container_Checks, Duplicated_Tag_Check, Predicate_Check,
+Raise_Check, Tampering_Check, and Validity_Check. In addition, a
+user program can add implementation-defined check names by means
+of the pragma Check_Name. See the description of pragma
+``Suppress`` for details.
 
 *
   "Existence and meaning of second parameter of pragma Unsuppress.
@@ -554,9 +555,7 @@ which contains a pointer to the dispatching table.
   "If ``Word_Size`` = ``Storage_Unit``, the default bit
   ordering.  See 13.5.3(5)."
 
-``Word_Size`` (32) is not the same as ``Storage_Unit`` (8) for this
-implementation, so no non-default bit ordering is supported.  The default
-bit ordering corresponds to the natural endianness of the target architecture.
+``Word_Size`` does not equal ``Storage_Unit`` in this implementation.
 
 *
   "The contents of the visible part of package ``System``.  See 13.7(2)."

@@ -1,5 +1,5 @@
 /* jit.c -- Dummy "frontend" for use during JIT-compilation.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -20,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "target.h"
 #include "jit-playback.h"
 #include "stor-layout.h"
 #include "debug.h"
@@ -31,8 +32,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "attribs.h"
 #include "cgraph.h"
 #include "target.h"
+#include "diagnostic-format-text.h"
+#include "make-unique.h"
+#include "print-tree.h"
 
 #include <mpfr.h>
+#include <unordered_map>
+
+using namespace gcc::jit;
 
 /* Attribute handling.  */
 
@@ -136,6 +143,14 @@ static const struct attribute_spec::exclusions attr_target_exclusions[] =
              TARGET_HAS_FMV_TARGET_ATTRIBUTE, TARGET_HAS_FMV_TARGET_ATTRIBUTE),
   ATTR_EXCL (NULL, false, false, false),
 };
+
+/* These variables act as a cache for the target builtins. This is needed in
+   order to be able to type-check the calls since we can only get those types
+   in the playback phase while we need them in the recording phase.  */
+hash_map<nofree_string_hash, tree> target_builtins{};
+std::unordered_map<std::string, recording::function_type*> target_function_types
+{};
+recording::context target_builtins_ctxt{NULL};
 
 /* Table of machine-independent attributes supported in libgccjit.  */
 static const attribute_spec jit_gnu_attributes[] =
@@ -979,35 +994,76 @@ struct ggc_root_tab jit_root_tab[] =
     LAST_GGC_ROOT_TAB
   };
 
+/* Subclass of diagnostic_output_format for libgccjit: like text
+   output, but capture the message and call add_diagnostic with it
+   on the active playback context.  */
+
+class jit_diagnostic_listener : public diagnostic_text_output_format
+{
+public:
+  jit_diagnostic_listener (diagnostic_context &dc,
+			   gcc::jit::playback::context &playback_ctxt)
+  : diagnostic_text_output_format (dc),
+    m_playback_ctxt (playback_ctxt)
+  {
+  }
+
+  void dump (FILE *out, int indent) const final override
+  {
+    fprintf (out, "%*sjit_diagnostic_listener\n", indent, "");
+    fprintf (out, "%*sm_playback_context: %p\n",
+	     indent + 2, "",
+	     (void *)&m_playback_ctxt);
+  }
+
+  void on_report_diagnostic (const diagnostic_info &info,
+			     diagnostic_t orig_diag_kind) final override
+  {
+    JIT_LOG_SCOPE (gcc::jit::active_playback_ctxt->get_logger ());
+
+    /* Let the text output format do most of the work.  */
+    diagnostic_text_output_format::on_report_diagnostic (info, orig_diag_kind);
+
+    const char *text = pp_formatted_text (get_printer ());
+
+    /* Delegate to the playback context (and thence to the
+       recording context).  */
+    gcc::jit::active_playback_ctxt->add_diagnostic (text, info);
+
+    pp_clear_output_area (get_printer ());
+  }
+
+private:
+  gcc::jit::playback::context &m_playback_ctxt;
+};
+
 /* JIT-specific implementation of diagnostic callbacks.  */
 
 /* Implementation of "begin_diagnostic".  */
 
 static void
-jit_begin_diagnostic (diagnostic_context */*context*/,
+jit_begin_diagnostic (diagnostic_text_output_format &,
 		      const diagnostic_info */*diagnostic*/)
 {
   gcc_assert (gcc::jit::active_playback_ctxt);
   JIT_LOG_SCOPE (gcc::jit::active_playback_ctxt->get_logger ());
 
-  /* No-op (apart from logging); the real error-handling is done in the
-     "end_diagnostic" hook.  */
+  /* No-op (apart from logging); the real error-handling is done by the
+     jit_diagnostic_listener.  */
 }
 
 /* Implementation of "end_diagnostic".  */
 
 static void
-jit_end_diagnostic (diagnostic_context *context,
-		    const diagnostic_info *diagnostic,
+jit_end_diagnostic (diagnostic_text_output_format &,
+		    const diagnostic_info *,
 		    diagnostic_t)
 {
   gcc_assert (gcc::jit::active_playback_ctxt);
   JIT_LOG_SCOPE (gcc::jit::active_playback_ctxt->get_logger ());
 
-  /* Delegate to the playback context (and thence to the
-     recording context).  */
-  gcc_assert (diagnostic);
-  gcc::jit::active_playback_ctxt->add_diagnostic (context, *diagnostic);
+  /* No-op (apart from logging); the real error-handling is done by the
+     jit_diagnostic_listener.  */
 }
 
 /* Language hooks.  */
@@ -1026,17 +1082,24 @@ jit_langhook_init (void)
     }
 
   gcc_assert (global_dc);
-  diagnostic_starter (global_dc) = jit_begin_diagnostic;
-  diagnostic_finalizer (global_dc) = jit_end_diagnostic;
+  diagnostic_text_starter (global_dc) = jit_begin_diagnostic;
+  diagnostic_text_finalizer (global_dc) = jit_end_diagnostic;
+  auto sink
+    = ::make_unique<jit_diagnostic_listener> (*global_dc,
+					      *gcc::jit::active_playback_ctxt);
+  global_dc->set_output_format (std::move (sink));
 
-  build_common_tree_nodes (false);
+  build_common_tree_nodes (flag_signed_char);
 
+  target_builtins.empty ();
   build_common_builtin_nodes ();
 
   /* The default precision for floating point numbers.  This is used
      for floating point constants with abstract type.  This may
      eventually be controllable by a command line option.  */
   mpfr_set_default_prec (256);
+
+  targetm.init_builtins ();
 
   return true;
 }
@@ -1105,11 +1168,196 @@ jit_langhook_type_for_mode (machine_mode mode, int unsignedp)
   return NULL;
 }
 
-/* Record a builtin function.  We just ignore builtin functions.  */
+recording::type* tree_type_to_jit_type (tree type)
+{
+  if (TREE_CODE (type) == VECTOR_TYPE)
+  {
+    tree inner_type = TREE_TYPE (type);
+    recording::type* element_type = tree_type_to_jit_type (inner_type);
+    poly_uint64 size = TYPE_VECTOR_SUBPARTS (type);
+    long constant_size = size.to_constant ();
+    if (element_type != NULL)
+      return element_type->get_vector (constant_size);
+    return NULL;
+  }
+  if (TREE_CODE (type) == REFERENCE_TYPE)
+    // For __builtin_ms_va_start.
+    // FIXME: wrong type.
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_VOID);
+  if (TREE_CODE (type) == RECORD_TYPE)
+    // For __builtin_sysv_va_copy.
+    // FIXME: wrong type.
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_VOID);
+  /* TODO: Remove when we add support for sized floating-point types.  */
+  for (int i = 0; i < NUM_FLOATN_NX_TYPES; i++)
+    if (type == FLOATN_NX_TYPE_NODE (i))
+      // FIXME: wrong type.
+      return new recording::memento_of_get_type (&target_builtins_ctxt,
+						 GCC_JIT_TYPE_VOID);
+  if (type == void_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_VOID);
+  else if (type == ptr_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_VOID_PTR);
+  else if (type == const_ptr_type_node)
+  {
+    // Void const ptr.
+    recording::type* result =
+      new recording::memento_of_get_type (&target_builtins_ctxt,
+					  GCC_JIT_TYPE_VOID_PTR);
+    return new recording::memento_of_get_const (result);
+  }
+  else if (type == unsigned_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_UNSIGNED_INT);
+  else if (type == long_unsigned_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_UNSIGNED_LONG);
+  else if (type == integer_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_INT);
+  else if (type == long_integer_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_LONG);
+  else if (type == long_long_integer_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_LONG_LONG);
+  else if (type == signed_char_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_SIGNED_CHAR);
+  else if (type == char_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_CHAR);
+  else if (type == unsigned_intQI_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_UINT8_T);
+  else if (type == short_integer_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_SHORT);
+  else if (type == short_unsigned_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_UNSIGNED_SHORT);
+  else if (type == complex_float_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_COMPLEX_FLOAT);
+  else if (type == complex_double_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_COMPLEX_DOUBLE);
+  else if (type == complex_long_double_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					    GCC_JIT_TYPE_COMPLEX_LONG_DOUBLE);
+  else if (type == float_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_FLOAT);
+  else if (type == double_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_DOUBLE);
+  else if (type == long_double_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_LONG_DOUBLE);
+  else if (type == bfloat16_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_BFLOAT16);
+  else if (type == dfloat128_type_node)
+    // FIXME: wrong type.
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_VOID);
+  else if (type == long_long_unsigned_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_UNSIGNED_LONG_LONG);
+  else if (type == boolean_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_BOOL);
+  else if (type == size_type_node)
+    return new recording::memento_of_get_type (&target_builtins_ctxt,
+					       GCC_JIT_TYPE_SIZE_T);
+  else if (TREE_CODE (type) == POINTER_TYPE)
+  {
+    tree inner_type = TREE_TYPE (type);
+    recording::type* element_type = tree_type_to_jit_type (inner_type);
+    if (!element_type)
+      return nullptr;
+    return element_type->get_pointer ();
+  }
+  else
+  {
+    // Attempt to find an unqualified type when the current type has qualifiers.
+    tree tp = TYPE_MAIN_VARIANT (type);
+    for ( ; tp != NULL ; tp = TYPE_NEXT_VARIANT (tp))
+    {
+      if (TYPE_QUALS (tp) == 0 && type != tp)
+      {
+	recording::type* result = tree_type_to_jit_type (tp);
+	if (result != NULL)
+	{
+	  if (TYPE_READONLY (tp))
+	    result = new recording::memento_of_get_const (result);
+	  if (TYPE_VOLATILE (tp))
+	    result = new recording::memento_of_get_volatile (result);
+	  return result;
+	}
+      }
+    }
+  }
+
+  return NULL;
+}
+
+/* Record a builtin function.  We save their types to be able to check types
+   in recording and for reflection.  */
 
 static tree
 jit_langhook_builtin_function (tree decl)
 {
+  if (TREE_CODE (decl) == FUNCTION_DECL)
+  {
+    const char* name = IDENTIFIER_POINTER (DECL_NAME (decl));
+    target_builtins.put (name, decl);
+
+    std::string string_name (name);
+    if (target_function_types.count (string_name) == 0)
+    {
+      tree function_type = TREE_TYPE (decl);
+      tree arg = TYPE_ARG_TYPES (function_type);
+      bool is_variadic = false;
+
+      auto_vec <recording::type *> param_types;
+
+      while (arg != void_list_node)
+      {
+	if (arg == NULL)
+	{
+	  is_variadic = true;
+	  break;
+	}
+	if (arg != void_list_node)
+	{
+	  recording::type* arg_type = tree_type_to_jit_type (TREE_VALUE (arg));
+	  if (arg_type == NULL)
+	    return decl;
+	  param_types.safe_push (arg_type);
+	}
+	arg = TREE_CHAIN (arg);
+      }
+
+      tree result_type = TREE_TYPE (function_type);
+      recording::type* return_type = tree_type_to_jit_type (result_type);
+
+      if (return_type == NULL)
+	return decl;
+
+      recording::function_type* func_type =
+	new recording::function_type (&target_builtins_ctxt, return_type,
+				      param_types.length (),
+				      param_types.address (), is_variadic,
+				      false);
+
+      target_function_types[string_name] = func_type;
+    }
+  }
   return decl;
 }
 
@@ -1122,7 +1370,7 @@ jit_langhook_global_bindings_p (void)
 static tree
 jit_langhook_pushdecl (tree decl ATTRIBUTE_UNUSED)
 {
-  gcc_unreachable ();
+  return NULL_TREE;
 }
 
 static tree

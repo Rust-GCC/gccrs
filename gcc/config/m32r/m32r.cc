@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on the Renesas M32R cpu.
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -227,6 +227,9 @@ TARGET_GNU_ATTRIBUTES (m32r_attribute_table,
 #undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
 #define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
 
+#undef TARGET_DOCUMENTATION_NAME
+#define TARGET_DOCUMENTATION_NAME "M32R/D"
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 /* Called by m32r_option_override to initialize various things.  */
@@ -307,7 +310,7 @@ init_reg_tables (void)
   for (i = 0; i < NUM_MACHINE_MODES; i++)
     {
       machine_mode m = (machine_mode) i;
-      
+
       switch (GET_MODE_CLASS (m))
 	{
 	case MODE_INT:
@@ -1287,7 +1290,8 @@ m32r_setup_incoming_varargs (cumulative_args_t cum,
   if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
     gcc_assert (arg.mode != BLKmode);
 
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     first_anon_arg = (ROUND_ADVANCE_CUM (*get_cumulative_args (cum),
 					 arg.mode, arg.type)
 		      + ROUND_ADVANCE_ARG (arg.mode, arg.type));

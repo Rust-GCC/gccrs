@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2010-2024 Free Software Foundation, Inc.
+// Copyright (C) 2010-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -38,6 +38,9 @@ void test01()
   std::tr1::shared_ptr<X> p9(ap());  // { dg-error "here" }
   // { dg-error "incomplete" "" { target *-*-* } 600 }
 }
+
+// { dg-error "-Wdelete-incomplete" "" { target c++26 } 283 }
+// { dg-error "-Wdelete-incomplete" "" { target c++26 } 305 }
 
 // Ignore additional diagnostic given with -Wsystem-headers:
 // { dg-prune-output "has incomplete type" }

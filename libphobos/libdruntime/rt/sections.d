@@ -8,9 +8,6 @@
  * Source: $(DRUNTIMESRC rt/_sections.d)
  */
 
-/* NOTE: This file has been patched from the original DMD distribution to
- * work with the GDC compiler.
- */
 module rt.sections;
 
 version (OSX)
@@ -54,12 +51,10 @@ else version (Darwin)
     else
         static assert(0, "unimplemented");
 }
-else version (CRuntime_DigitalMars)
-    public import rt.sections_win32;
 else version (CRuntime_Microsoft)
     public import rt.sections_win64;
 else version (CRuntime_Bionic)
-    public import rt.sections_android;
+    public import rt.sections_elf_shared;
 else version (CRuntime_UClibc)
     public import rt.sections_elf_shared;
 else

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Synopsys DesignWare ARC cpu.
-   Copyright (C) 1994-2024 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -296,9 +296,6 @@ if (GET_MODE_CLASS (MODE) == MODE_INT		\
 #define INT_TYPE_SIZE		32
 #define LONG_TYPE_SIZE		32
 #define LONG_LONG_TYPE_SIZE	64
-#define FLOAT_TYPE_SIZE		32
-#define DOUBLE_TYPE_SIZE	64
-#define LONG_DOUBLE_TYPE_SIZE	64
 
 /* Define this as 1 if `char' should by default be signed; else as 0.  */
 #define DEFAULT_SIGNED_CHAR 0
@@ -611,8 +608,8 @@ extern enum reg_class arc_regno_reg_class[];
    needed to represent mode MODE in a register of class CLASS.  */
 
 #define CLASS_MAX_NREGS(CLASS, MODE) \
-(( GET_MODE_SIZE (MODE) == 16 && CLASS == SIMD_VR_REGS) ? 1: \
-((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD))
+((GET_MODE_SIZE (MODE) == 16 && CLASS == SIMD_VR_REGS) ? 1 \
+ : ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD))
 
 #define SMALL_INT(X) ((unsigned) ((X) + 0x100) < 0x200)
 #define SMALL_INT_RANGE(X, OFFSET, SHIFT)	\
@@ -871,9 +868,9 @@ extern int arc_initial_elimination_offset(int from, int to);
 
 /* Recognize any constant value that is a valid address.  */
 #define CONSTANT_ADDRESS_P(X)					\
-  (flag_pic ? (arc_legitimate_pic_addr_p (X) || LABEL_P (X)):	\
-   (GET_CODE (X) == LABEL_REF || GET_CODE (X) == SYMBOL_REF	\
-    || GET_CODE (X) == CONST_INT || GET_CODE (X) == CONST))
+  (flag_pic ? (arc_legitimate_pic_addr_p (X) || LABEL_P (X))	\
+   : (GET_CODE (X) == LABEL_REF || GET_CODE (X) == SYMBOL_REF	\
+      || GET_CODE (X) == CONST_INT || GET_CODE (X) == CONST))
 
 /* Is the argument a const_int rtx, containing an exact power of 2 */
 #define  IS_POWEROF2_P(X) (! ( (X) & ((X) - 1)) && (X))
@@ -1662,9 +1659,5 @@ enum
 
 /* The default option for BI/BIH instructions.  */
 #define DEFAULT_BRANCH_INDEX 0
-
-#ifndef TARGET_LRA
-#define TARGET_LRA arc_lra_p()
-#endif
 
 #endif /* GCC_ARC_H */

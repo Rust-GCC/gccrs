@@ -1,5 +1,5 @@
 /* Subroutines used for code generation of Andes NDS32 cpu for GNU compiler
-   Copyright (C) 2012-2024 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
    Contributed by Andes Technology Corporation.
 
    This file is part of GCC.
@@ -2374,7 +2374,8 @@ nds32_setup_incoming_varargs (cumulative_args_t ca,
      for varargs.  */
   total_args_regs
     = NDS32_MAX_GPR_REGS_FOR_ARGS + NDS32_GPR_ARG_FIRST_REGNUM;
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     num_of_used_regs
       = NDS32_AVAILABLE_REGNUM_FOR_GPR_ARG (cum->gpr_offset, arg.mode, arg.type)
         + NDS32_NEED_N_REGS_FOR_ARG (arg.mode, arg.type);
@@ -5879,6 +5880,9 @@ nds32_use_blocks_for_constant_p (machine_mode mode,
 
 #undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
 #define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
+
+#undef TARGET_DOCUMENTATION_NAME
+#define TARGET_DOCUMENTATION_NAME "NDS32"
 
 
 /* ------------------------------------------------------------------------ */

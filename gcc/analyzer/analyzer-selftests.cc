@@ -1,5 +1,5 @@
 /* Selftest support for the analyzer.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -51,6 +50,7 @@ void
 run_analyzer_selftests ()
 {
 #if ENABLE_ANALYZER
+  analyzer_access_diagram_cc_tests ();
   analyzer_constraint_manager_cc_tests ();
   analyzer_function_set_cc_tests ();
   analyzer_program_point_cc_tests ();

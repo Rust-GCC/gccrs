@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -41,10 +41,11 @@ package body Gnatvsn is
    function Gnat_Free_Software return String is
    begin
       return
-        "This is free software; see the source for copying conditions." &
+        "This is free software; see the source for copying conditions.  " &
+        "There is NO" &
         ASCII.LF &
-        "There is NO warranty; not even for MERCHANTABILITY or FITNESS" &
-        " FOR A PARTICULAR PURPOSE.";
+        "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR " &
+        "PURPOSE.";
    end Gnat_Free_Software;
 
    type char_array is array (Natural range <>) of aliased Character;

@@ -1,5 +1,5 @@
 /* Operations with long integers.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1061,7 +1061,7 @@ double_int::set_bit (unsigned bitpos) const
     a.low |= HOST_WIDE_INT_1U << bitpos;
   else
     a.high |= HOST_WIDE_INT_1 <<  (bitpos - HOST_BITS_PER_WIDE_INT);
- 
+
   return a;
 }
 

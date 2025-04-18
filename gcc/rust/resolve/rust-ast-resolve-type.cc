@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -335,7 +335,7 @@ ResolveRelativeTypePath::go (AST::TypePath &path, NodeId &resolved_node_id)
 	      else
 		{
 		  rust_error_at (segment->get_locus (),
-				 "Cannot find path %<%s%> in this scope",
+				 "Cannot find path %qs in this scope",
 				 segment->as_string ().c_str ());
 		  return false;
 		}

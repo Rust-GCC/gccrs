@@ -1,6 +1,6 @@
 // HP/SGI iterator extensions -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -56,7 +56,9 @@
 #ifndef _EXT_ITERATOR
 #define _EXT_ITERATOR 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/concept_check.h>
 #include <iterator>

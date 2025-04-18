@@ -1,5 +1,5 @@
 /* Definitions for option handling for IBM S/390.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -39,6 +39,7 @@ enum processor_type
   PROCESSOR_3906_Z14,
   PROCESSOR_8561_Z15,
   PROCESSOR_3931_Z16,
+  PROCESSOR_ARCH15,
   PROCESSOR_NATIVE,
   PROCESSOR_max
 };

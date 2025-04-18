@@ -1,7 +1,7 @@
 --
 -- m2.bnf grammar and associated actions for pass 0.
 --
--- Copyright (C) 2001-2024 Free Software Foundation, Inc.
+-- Copyright (C) 2001-2025 Free Software Foundation, Inc.
 -- Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 --
 -- This file is part of GNU Modula-2.
@@ -23,7 +23,7 @@
 (* output from m2.bnf, automatically generated do not edit if these
    are the top two lines in the file.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -47,9 +47,14 @@ IMPLEMENTATION MODULE P0SyntaxCheck ;
 FROM M2LexBuf IMPORT currentstring, currenttoken, GetToken, InsertToken,
                      InsertTokenAndRewind, GetTokenNo, DisplayToken, DumpTokens ;
 
+FROM M2Quads IMPORT PushT, PushTF, IsAutoPushOn, PushAutoOff, PushAutoOn,
+                    PopAuto, DisplayStack, PushTFtok, PushTtok, DupFrame,
+                    Top ;
+
+FROM M2Reserved IMPORT tokToTok, toktype, NulTok, ImportTok, ExportTok,
+                       QualifiedTok, UnQualifiedTok, BuiltinTok, InlineTok ;
+
 FROM M2MetaError IMPORT MetaErrorStringT0 ;
-FROM M2Quads IMPORT PushT, PushTF, IsAutoPushOn, PushAutoOff, PushAutoOn, PopAuto, DisplayStack, PushTFtok, PushTtok ;
-FROM M2Reserved IMPORT tokToTok, toktype, NulTok, ImportTok, ExportTok, QualifiedTok, UnQualifiedTok, BuiltinTok, InlineTok ;
 FROM P2SymBuild IMPORT BuildString, BuildNumber ;
 FROM NameKey IMPORT Name, NulName, makekey ;
 FROM StrLib IMPORT StrCopy, StrConCat, StrEqual ;
@@ -64,7 +69,7 @@ FROM P0SymBuild IMPORT RegisterImports, RegisterInnerImports,
                        RegisterProgramModule,
                        RegisterImplementationModule, RegisterDefinitionModule,
                        RegisterInnerModule, EndModule,
-                       RegisterProcedure, EndProcedure ;
+                       RegisterProcedure, EndProcedure, EndForward ;
 
 FROM SymbolTable IMPORT NulSym, PutModuleContainsBuiltin, PutHiddenTypeDeclared ;
 
@@ -82,9 +87,20 @@ CONST
                                    (* giving up.                              *)
 
 VAR
-   seenError  : BOOLEAN ;
-   LastIdent  : Name ;
-   InsertCount: CARDINAL ;
+   EnableImportCheck,
+   seenError        : BOOLEAN ;
+   LastIdent        : Name ;
+   InsertCount      : CARDINAL ;
+
+
+(*
+   BlockAssert - wrap an Assert specifically for blocks.
+*)
+
+PROCEDURE BlockAssert (value: BOOLEAN) ;
+BEGIN
+   Assert (value) ;
+END BlockAssert ;
 
 
 PROCEDURE ErrorString (s: String) ;
@@ -320,6 +336,21 @@ END PeepToken ;
 
 
 (*
+   DetectImport - checks whether the next token is an import or from and if so
+                  generates an error message.  This is called after an export
+                  statement to notify the user that the ordering is incorrect.
+*)
+
+PROCEDURE DetectImport ;
+BEGIN
+   IF (currenttoken = importtok) OR (currenttoken = fromtok)
+   THEN
+      ErrorArray ('an {%AkIMPORT} statement must preceed an {%kEXPORT} statement')
+   END
+END DetectImport ;
+
+
+(*
    Expect -
 *)
 
@@ -328,6 +359,10 @@ BEGIN
    IF currenttoken=t
    THEN
       GetToken ;
+      IF EnableImportCheck
+      THEN
+         DetectImport
+      END ;
       IF Pass0
       THEN
          PeepToken (stopset0, stopset1, stopset2)
@@ -347,6 +382,7 @@ END Expect ;
 PROCEDURE CompilationUnit () : BOOLEAN ;
 BEGIN
    seenError := FALSE ;
+   EnableImportCheck := FALSE ;
    InsertCount := 0 ;
    FileUnit (SetOfStop0{eoftok}, SetOfStop1{}, SetOfStop2{}) ;
    RETURN NOT seenError
@@ -466,6 +502,7 @@ token   'EXIT'            exittok
 token   'EXPORT'          exporttok
 token   'FINALLY'         finallytok
 token   'FOR'             fortok
+token   'FORWARD'         forwardtok
 token   'FROM'            fromtok
 token   'IF'              iftok
 token   'IMPLEMENTATION'  implementationtok
@@ -784,11 +821,20 @@ LoopStatement := "LOOP" StatementSequence "END" =:
 
 WithStatement := "WITH" Designator "DO" StatementSequence "END" =:
 
-ProcedureDeclaration :=
-                        ProcedureHeading ";" ( ProcedureBlock             % PushAutoOn %
-                                                              Ident       % EndProcedure %
+ProcedureDeclaration :=                                                   % VAR top: CARDINAL ; %
+                                                                          % top := Top () %
+                        ProcedureHeading ";" PostProcedureHeading         % BlockAssert (top = Top ()) %
+                                                                  =:
+
+PostProcedureHeading := ProperProcedure | ForwardDeclaration =:
+
+ForwardDeclaration := "FORWARD"                                           % EndForward %
+                    =:
+
+ProperProcedure := ProcedureBlock                                         % PushAutoOn %
+                                  Ident                                   % EndProcedure %
                                                                           % PopAuto %
-                                                                    ) =:
+                                         =:
 
 DefineBuiltinProcedure := [ "__ATTRIBUTE__" "__BUILTIN__" "(" "(" Ident ")" ")" |
                             "__INLINE__" ] =:
@@ -883,7 +929,9 @@ Priority := "[" ConstExpression "]" =:
 Export := "EXPORT" ( "QUALIFIED"   IdentList |
                      "UNQUALIFIED" IdentList |
                       IdentList
-                   ) ";" =:
+                   )                                                       % EnableImportCheck := TRUE %
+                     ";"                                                   % EnableImportCheck := FALSE %
+                         =:
 
 Import :=  "FROM" Ident "IMPORT" IdentList ";" |
            "IMPORT"                                                        % PushTtok (ImportTok, GetTokenNo () -1)
@@ -920,7 +968,7 @@ NamedOperand := '[' Ident ']' =:
 
 AsmOperandName := [ NamedOperand ] =:
 
-AsmOperands  := ConstExpression ':' AsmList [ ':' AsmList [ ':' TrashList ] ]
+AsmOperands  := ConstExpression [ ':' AsmList [ ':' AsmList [ ':' TrashList ] ] ]
               =:
 
 AsmList      := [ AsmElement ] { ',' AsmElement } =:

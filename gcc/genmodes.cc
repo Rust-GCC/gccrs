@@ -1,5 +1,5 @@
 /* Generate the machine mode enumeration and associated tables.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1018,8 +1018,8 @@ emit_max_int (void)
 
   puts ("");
 
-  printf ("#define BITS_PER_UNIT (%d)\n", bits_per_unit); 
- 
+  printf ("#define BITS_PER_UNIT (%d)\n", bits_per_unit);
+
   if (max_bitsize_mode_any_int == 0)
     {
       for (max = 1, i = modes[MODE_INT]; i; i = i->next)

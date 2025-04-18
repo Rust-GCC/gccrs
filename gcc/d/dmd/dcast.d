@@ -1,12 +1,12 @@
 /**
  * Semantic analysis for cast-expressions.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/dcast.d, _dcast.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/dcast.d, _dcast.d)
  * Documentation:  https://dlang.org/phobos/dmd_dcast.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/dcast.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/dcast.d
  */
 
 module dmd.dcast;
@@ -20,6 +20,7 @@ import dmd.arraytypes;
 import dmd.astenums;
 import dmd.dclass;
 import dmd.declaration;
+import dmd.denum;
 import dmd.dinterpret;
 import dmd.dscope;
 import dmd.dstruct;
@@ -45,6 +46,7 @@ import dmd.root.ctfloat;
 import dmd.common.outbuffer;
 import dmd.root.rmem;
 import dmd.root.utf;
+import dmd.safe : setUnsafe;
 import dmd.tokens;
 import dmd.typesem;
 
@@ -69,8 +71,8 @@ Expression implicitCastTo(Expression e, Scope* sc, Type t)
 {
     Expression visit(Expression e)
     {
-        // printf("Expression.implicitCastTo(%s of type %s) => %s\n", e.toChars(), e.type.toChars(), t.toChars());
-        if (const match = (sc && sc.flags & SCOPE.Cfile) ? e.cimplicitConvTo(t) : e.implicitConvTo(t))
+        //printf("Expression.implicitCastTo(%s of type %s) => %s\n", e.toChars(), e.type.toChars(), t.toChars());
+        if (const match = (sc && sc.inCfile) ? e.cimplicitConvTo(t) : e.implicitConvTo(t))
         {
             // no need for an extra cast when matching is exact
 
@@ -148,7 +150,7 @@ Expression implicitCastTo(Expression e, Scope* sc, Type t)
                 //printf("type %s t %s\n", type.deco, t.deco);
                 auto ts = toAutoQualChars(e.type, t);
                 error(e.loc, "cannot implicitly convert expression `%s` of type `%s` to `%s`",
-                    e.toChars(), ts[0], ts[1]);
+                    e.toErrMsg(), ts[0], ts[1]);
             }
         }
         return ErrorExp.get();
@@ -271,7 +273,7 @@ MATCH implicitConvTo(Expression e, Type t)
 
         /* See if we can do integral narrowing conversions
          */
-        if (e.type.isintegral() && t.isintegral() && e.type.isTypeBasic() && t.isTypeBasic())
+        if (e.type.isIntegral() && t.isIntegral() && e.type.isTypeBasic() && t.isTypeBasic())
         {
             IntRange src = getIntRange(e);
             IntRange target = IntRange.fromType(t);
@@ -320,14 +322,14 @@ MATCH implicitConvTo(Expression e, Type t)
 
         Type t1b = e.e1.type.toBasetype();
         Type t2b = e.e2.type.toBasetype();
-        if (t1b.ty == Tpointer && t2b.isintegral() && t1b.equivalent(tb))
+        if (t1b.ty == Tpointer && t2b.isIntegral() && t1b.equivalent(tb))
         {
             // ptr + offset
             // ptr - offset
             MATCH m = e.e1.implicitConvTo(t);
             return (m > MATCH.constant) ? MATCH.constant : m;
         }
-        if (t2b.ty == Tpointer && t1b.isintegral() && t2b.equivalent(tb))
+        if (t2b.ty == Tpointer && t1b.isIntegral() && t2b.equivalent(tb))
         {
             // offset + ptr
             MATCH m = e.e2.implicitConvTo(t);
@@ -452,7 +454,7 @@ MATCH implicitConvTo(Expression e, Type t)
 
         bool isLosslesslyConvertibleToFP(T)()
         {
-            if (e.type.isunsigned())
+            if (e.type.isUnsigned())
             {
                 const f = cast(T) value;
                 return cast(dinteger_t) f == value;
@@ -472,7 +474,7 @@ MATCH implicitConvTo(Expression e, Type t)
         case Tint8:
             if (ty == Tuns64 && value & ~0x7FU)
                 return MATCH.nomatch;
-            else if (cast(byte)value != value)
+            if (cast(byte)value != value)
                 return MATCH.nomatch;
             break;
 
@@ -489,7 +491,7 @@ MATCH implicitConvTo(Expression e, Type t)
         case Tint16:
             if (ty == Tuns64 && value & ~0x7FFFU)
                 return MATCH.nomatch;
-            else if (cast(short)value != value)
+            if (cast(short)value != value)
                 return MATCH.nomatch;
             break;
 
@@ -624,12 +626,12 @@ MATCH implicitConvTo(Expression e, Type t)
         if (!e.committed && t.ty == Tpointer && t.nextOf().ty == Tvoid)
             return MATCH.nomatch;
 
-        if (!(e.type.ty == Tsarray || e.type.ty == Tarray || e.type.ty == Tpointer))
+        if (!(e.type.isStaticOrDynamicArray() || e.type.ty == Tpointer))
             return visit(e);
 
         TY tyn = e.type.nextOf().ty;
 
-        if (!tyn.isSomeChar)
+        if (!tyn.isSomeChar && !e.hexString)
             return visit(e);
 
         switch (t.ty)
@@ -702,6 +704,17 @@ MATCH implicitConvTo(Expression e, Type t)
                 if (!tn.isConst() && !tn.isImmutable())
                     return MATCH.nomatch;
                 m = MATCH.constant;
+
+                // After converting e.g. ubyte[] to const(ubyte)[], don't change
+                // to MATCH.convert, return MATCH.constant
+                //  https://github.com/dlang/dmd/issues/20635
+                if (e.type.ty == t.ty && e.type.nextOf().ty == tn.ty)
+                    return m;
+            }
+            if (e.type != t && e.hexString && tn.isIntegral && (tn.size == e.sz || (!e.committed && (e.len % tn.size) == 0)))
+            {
+                m = MATCH.convert;
+                return m;
             }
             if (!e.committed)
             {
@@ -719,9 +732,6 @@ MATCH implicitConvTo(Expression e, Type t)
                     if (e.postfix != 'd')
                         m = MATCH.convert;
                     return m;
-                case Tint8:
-                case Tuns8:
-                    break;
                 case Tenum:
                     if (tn.isTypeEnum().sym.isSpecial())
                     {
@@ -733,14 +743,6 @@ MATCH implicitConvTo(Expression e, Type t)
                     break;
                 default:
                     break;
-                }
-            }
-            if (e.hexString)
-            {
-                if (tn.isintegral && tn.size == e.sz)
-                {
-                    m = MATCH.convert;
-                    return m;
                 }
             }
             break;
@@ -762,8 +764,7 @@ MATCH implicitConvTo(Expression e, Type t)
         Type typeb = e.type.toBasetype();
 
         auto result = MATCH.nomatch;
-        if ((tb.ty == Tarray || tb.ty == Tsarray) &&
-            (typeb.ty == Tarray || typeb.ty == Tsarray))
+        if (tb.isStaticOrDynamicArray() && typeb.isStaticOrDynamicArray())
         {
             result = MATCH.exact;
             Type typen = typeb.nextOf().toBasetype();
@@ -806,7 +807,7 @@ MATCH implicitConvTo(Expression e, Type t)
 
             return result;
         }
-        else if (tb.ty == Tvector && (typeb.ty == Tarray || typeb.ty == Tsarray || typeb.ty == Tpointer))
+        else if (tb.ty == Tvector && (typeb.isStaticOrDynamicArray() || typeb.ty == Tpointer))
         {   // Tpointer because ImportC eagerly converts Tsarray to Tpointer
             result = MATCH.exact;
             // Convert array literal to vector type
@@ -936,7 +937,7 @@ MATCH implicitConvTo(Expression e, Type t)
          */
         Type tb = t.toBasetype();
         MOD mod = tb.mod;
-        if (tf.isref)
+        if (tf.isRef)
         {
         }
         else
@@ -1168,7 +1169,7 @@ MATCH implicitConvTo(Expression e, Type t)
         if (result != MATCH.nomatch)
             return result;
 
-        if (t.isintegral() && e.e1.type.isintegral() && e.e1.implicitConvTo(t) != MATCH.nomatch)
+        if (t.isIntegral() && e.e1.type.isIntegral() && e.e1.implicitConvTo(t) != MATCH.nomatch)
             result = MATCH.convert;
         else
             result = visit(e);
@@ -1474,6 +1475,462 @@ MATCH implicitConvTo(Expression e, Type t)
     }
 }
 
+/********************************
+ * Determine if 'from' can be implicitly converted
+ * to type 'to'.
+ * Returns:
+ *      MATCH.nomatch, MATCH.convert, MATCH.constant, MATCH.exact
+ */
+MATCH implicitConvTo(Type from, Type to)
+{
+    MATCH visitType(Type from)
+    {
+        //printf("Type::implicitConvTo(this=%p, to=%p)\n", this, to);
+        //printf("from: %s\n", from.toChars());
+        //printf("to  : %s\n", to.toChars());
+        if (from.equals(to))
+            return MATCH.exact;
+        return MATCH.nomatch;
+
+    }
+
+    MATCH visitBasic(TypeBasic from)
+    {
+        //printf("TypeBasic::implicitConvTo(%s) from %s\n", to.toChars(), from.toChars());
+        if (from == to)
+            return MATCH.exact;
+
+        if (from.ty == to.ty)
+        {
+            if (from.mod == to.mod)
+                return MATCH.exact;
+            if (MODimplicitConv(from.mod, to.mod))
+                return MATCH.constant;
+            if (!((from.mod ^ to.mod) & MODFlags.shared_)) // for wild matching
+                return MATCH.constant;
+            return MATCH.convert;
+        }
+
+        if (from.ty == Tvoid || to.ty == Tvoid)
+            return MATCH.nomatch;
+        if (to.ty == Tbool)
+            return MATCH.nomatch;
+
+        TypeBasic tob;
+        if (to.ty == Tvector && to.deco)
+        {
+            TypeVector tv = cast(TypeVector)to;
+            tob = tv.elementType();
+        }
+        else if (auto te = to.isTypeEnum())
+        {
+            EnumDeclaration ed = te.sym;
+            if (ed.isSpecial())
+            {
+                /* Special enums that allow implicit conversions to them
+                 * with a MATCH.convert
+                 */
+                tob = to.toBasetype().isTypeBasic();
+            }
+            else
+                return MATCH.nomatch;
+        }
+        else
+            tob = to.isTypeBasic();
+        if (!tob)
+            return MATCH.nomatch;
+
+        if (from.flags & TFlags.integral)
+        {
+            // Disallow implicit conversion of integers to imaginary or complex
+            if (tob.flags & (TFlags.imaginary | TFlags.complex))
+                return MATCH.nomatch;
+
+            // If converting from integral to integral
+            if (tob.flags & TFlags.integral)
+            {
+                const sz = size(from, Loc.initial);
+                const tosz = tob.size(Loc.initial);
+
+                /* Can't convert to smaller size
+                 */
+                if (sz > tosz)
+                    return MATCH.nomatch;
+                /* Can't change sign if same size
+                 */
+                //if (sz == tosz && (flags ^ tob.flags) & TFlags.unsigned)
+                //    return MATCH.nomatch;
+            }
+        }
+        else if (from.flags & TFlags.floating)
+        {
+            // Disallow implicit conversion of floating point to integer
+            if (tob.flags & TFlags.integral)
+                return MATCH.nomatch;
+
+            assert(tob.flags & TFlags.floating || to.ty == Tvector);
+
+            // Disallow implicit conversion from complex to non-complex
+            if (from.flags & TFlags.complex && !(tob.flags & TFlags.complex))
+                return MATCH.nomatch;
+
+            // Disallow implicit conversion of real or imaginary to complex
+            if (from.flags & (TFlags.real_ | TFlags.imaginary) && tob.flags & TFlags.complex)
+                return MATCH.nomatch;
+
+            // Disallow implicit conversion to-from real and imaginary
+            if ((from.flags & (TFlags.real_ | TFlags.imaginary)) != (tob.flags & (TFlags.real_ | TFlags.imaginary)))
+                return MATCH.nomatch;
+        }
+        return MATCH.convert;
+
+    }
+
+    MATCH visitVector(TypeVector from)
+    {
+        //printf("TypeVector::implicitConvTo(%s) from %s\n", to.toChars(), from.toChars());
+        if (from == to)
+            return MATCH.exact;
+        if (to.ty != Tvector)
+            return MATCH.nomatch;
+
+        TypeVector tv = cast(TypeVector)to;
+        assert(from.basetype.ty == Tsarray && tv.basetype.ty == Tsarray);
+
+        // Can't convert to a vector which has different size.
+        if (from.basetype.size() != tv.basetype.size())
+            return MATCH.nomatch;
+
+        // Allow conversion to void[]
+        if (tv.basetype.nextOf().ty == Tvoid)
+            return MATCH.convert;
+
+        // Otherwise implicitly convertible only if basetypes are.
+        return from.basetype.implicitConvTo(tv.basetype);
+    }
+
+    MATCH visitSArray(TypeSArray from)
+    {
+        //printf("TypeSArray::implicitConvTo(to = %s) this = %s\n", to.toChars(), from.toChars());
+        if (auto ta = to.isTypeDArray())
+        {
+            if (!MODimplicitConv(from.next.mod, ta.next.mod))
+                return MATCH.nomatch;
+
+            /* Allow conversion to void[]
+             */
+            if (ta.next.ty == Tvoid)
+            {
+                return MATCH.convert;
+            }
+
+            MATCH m = from.next.constConv(ta.next);
+            if (m > MATCH.nomatch)
+            {
+                return MATCH.convert;
+            }
+            return MATCH.nomatch;
+        }
+        if (auto tsa = to.isTypeSArray())
+        {
+            if (from == to)
+                return MATCH.exact;
+
+            if (from.dim.equals(tsa.dim))
+            {
+                MATCH m = from.next.implicitConvTo(tsa.next);
+
+                /* Allow conversion to non-interface base class.
+                 */
+                if (m == MATCH.convert &&
+                    from.next.ty == Tclass)
+                {
+                    if (auto toc = tsa.next.isTypeClass)
+                    {
+                        if (!toc.sym.isInterfaceDeclaration)
+                            return MATCH.convert;
+                    }
+                }
+
+                /* Since static arrays are value types, allow
+                 * conversions from const elements to non-const
+                 * ones, just like we allow conversion from const int
+                 * to int.
+                 */
+                if (m >= MATCH.constant)
+                {
+                    if (from.mod != to.mod)
+                        m = MATCH.constant;
+                    return m;
+                }
+            }
+        }
+        return MATCH.nomatch;
+    }
+
+    MATCH visitDArray(TypeDArray from)
+    {
+        //printf("TypeDArray::implicitConvTo(to = %s) this = %s\n", to.toChars(), from.toChars());
+        if (from.equals(to))
+            return MATCH.exact;
+
+        if (auto ta = to.isTypeDArray())
+        {
+            if (!MODimplicitConv(from.next.mod, ta.next.mod))
+                return MATCH.nomatch; // not const-compatible
+
+            /* Allow conversion to void[]
+             */
+            if (from.next.ty != Tvoid && ta.next.ty == Tvoid)
+            {
+                return MATCH.convert;
+            }
+
+            MATCH m = from.next.constConv(ta.next);
+            if (m > MATCH.nomatch)
+            {
+                if (m == MATCH.exact && from.mod != to.mod)
+                    m = MATCH.constant;
+                return m;
+            }
+        }
+
+        return visitType(from);
+    }
+
+    MATCH visitAArray(TypeAArray from)
+    {
+        //printf("TypeAArray::implicitConvTo(to = %s) this = %s\n", to.toChars(), from.toChars());
+        if (from.equals(to))
+            return MATCH.exact;
+
+        if (auto ta = to.isTypeAArray())
+        {
+            if (!MODimplicitConv(from.next.mod, ta.next.mod))
+                return MATCH.nomatch; // not const-compatible
+
+            if (!MODimplicitConv(from.index.mod, ta.index.mod))
+                return MATCH.nomatch; // not const-compatible
+
+            MATCH m = from.next.constConv(ta.next);
+            MATCH mi = from.index.constConv(ta.index);
+            if (m > MATCH.nomatch && mi > MATCH.nomatch)
+            {
+                return MODimplicitConv(from.mod, to.mod) ? MATCH.constant : MATCH.nomatch;
+            }
+        }
+        return visitType(from);
+    }
+
+    /+
+     + Checks whether this function type is convertible to ` to`
+     + when used in a function pointer / delegate.
+     +
+     + Params:
+     +   to = target type
+     +
+     + Returns:
+     +   MATCH.nomatch: `to` is not a covaraint function
+     +   MATCH.convert: `to` is a covaraint function
+     +   MATCH.exact:   `to` is identical to this function
+     +/
+    MATCH implicitPointerConv(TypeFunction tf, Type to)
+    {
+        assert(to);
+
+        if (tf.equals(to))
+            return MATCH.constant;
+
+        if (tf.covariant(to) == Covariant.yes)
+        {
+            Type tret = tf.nextOf();
+            Type toret = to.nextOf();
+            if (tret.ty == Tclass && toret.ty == Tclass)
+            {
+                /* https://issues.dlang.org/show_bug.cgi?id=10219
+                 * Check covariant interface return with offset tweaking.
+                 * interface I {}
+                 * class C : Object, I {}
+                 * I function() dg = function C() {}    // should be error
+                 */
+                int offset = 0;
+                if (toret.isBaseOf(tret, &offset) && offset != 0)
+                    return MATCH.nomatch;
+            }
+            return MATCH.convert;
+        }
+
+        return MATCH.nomatch;
+    }
+
+    MATCH visitPointer(TypePointer from)
+    {
+        //printf("TypePointer::implicitConvTo(to = %s) %s\n", to.toChars(), from.toChars());
+        if (from.equals(to))
+            return MATCH.exact;
+
+        // Only convert between pointers
+        auto tp = to.isTypePointer();
+        if (!tp)
+            return MATCH.nomatch;
+
+        assert(from.next);
+        assert(tp.next);
+
+        // Conversion to void*
+        if (tp.next.ty == Tvoid)
+        {
+            // Function pointer conversion doesn't check constness?
+            if (from.next.ty == Tfunction)
+                return MATCH.convert;
+
+            if (!MODimplicitConv(from.next.mod, tp.next.mod))
+                return MATCH.nomatch; // not const-compatible
+
+            return from.next.ty == Tvoid ? MATCH.constant : MATCH.convert;
+        }
+
+        // Conversion between function pointers
+        if (auto thisTf = from.next.isTypeFunction())
+            return implicitPointerConv(thisTf, tp.next);
+
+        // Default, no implicit conversion between the pointer targets
+        MATCH m = from.next.constConv(tp.next);
+
+        if (m == MATCH.exact && from.mod != to.mod)
+            m = MATCH.constant;
+        return m;
+    }
+
+    MATCH visitDelegate(TypeDelegate from)
+    {
+        //printf("TypeDelegate.implicitConvTo(this=%p, to=%p)\n", from, to);
+        //printf("from: %s\n", from.toChars());
+        //printf("to  : %s\n", to.toChars());
+        if (from.equals(to))
+            return MATCH.exact;
+
+        if (auto toDg = to.isTypeDelegate())
+        {
+            MATCH m = implicitPointerConv(from.next.isTypeFunction(), toDg.next);
+
+            // Retain the old behaviour for this refactoring
+            // Should probably be changed to constant to match function pointers
+            if (m > MATCH.convert)
+                m = MATCH.convert;
+
+            return m;
+        }
+
+        return MATCH.nomatch;
+    }
+
+    MATCH visitStruct(TypeStruct from)
+    {
+        //printf("TypeStruct::implicitConvTo(%s => %s)\n", from.toChars(), to.toChars());
+        MATCH m = from.implicitConvToWithoutAliasThis(to);
+        return m == MATCH.nomatch ? from.implicitConvToThroughAliasThis(to) : m;
+    }
+
+    MATCH visitEnum(TypeEnum from)
+    {
+        import dmd.enumsem : getMemtype;
+
+        MATCH m;
+        //printf("TypeEnum::implicitConvTo() %s to %s\n", from.toChars(), to.toChars());
+        if (from.ty == to.ty && from.sym == (cast(TypeEnum)to).sym)
+            m = (from.mod == to.mod) ? MATCH.exact : MATCH.constant;
+        else if (from.sym.getMemtype(Loc.initial).implicitConvTo(to))
+            m = MATCH.convert; // match with conversions
+        else
+            m = MATCH.nomatch; // no match
+        return m;
+    }
+
+    MATCH visitClass(TypeClass from)
+    {
+        //printf("TypeClass::implicitConvTo(to = '%s') %s\n", to.toChars(), from.toChars());
+        MATCH m = from.implicitConvToWithoutAliasThis(to);
+        return m ? m : from.implicitConvToThroughAliasThis(to);
+    }
+
+    MATCH visitTuple(TypeTuple from)
+    {
+        if (from == to)
+            return MATCH.exact;
+        if (auto tt = to.isTypeTuple())
+        {
+            if (from.arguments.length == tt.arguments.length)
+            {
+                MATCH m = MATCH.exact;
+                for (size_t i = 0; i < tt.arguments.length; i++)
+                {
+                    Parameter arg1 = (*from.arguments)[i];
+                    Parameter arg2 = (*tt.arguments)[i];
+                    MATCH mi = arg1.type.implicitConvTo(arg2.type);
+                    if (mi < m)
+                        m = mi;
+                }
+                return m;
+            }
+        }
+        return MATCH.nomatch;
+    }
+
+    MATCH visitNull(TypeNull from)
+    {
+        //printf("TypeNull::implicitConvTo(this=%p, to=%p)\n", from, to);
+        //printf("from: %s\n", from.toChars());
+        //printf("to  : %s\n", to.toChars());
+        MATCH m = visitType(cast(Type)from);
+        if (m != MATCH.nomatch)
+            return m;
+
+        //NULL implicitly converts to any pointer type or dynamic array
+        //if (type.ty == Tpointer && type.nextOf().ty == Tvoid)
+        {
+            Type tb = to.toBasetype();
+            if (tb.ty == Tnull || tb.ty == Tpointer || tb.ty == Tarray || tb.ty == Taarray || tb.ty == Tclass || tb.ty == Tdelegate)
+                return MATCH.constant;
+        }
+
+        return MATCH.nomatch;
+    }
+
+    MATCH visitNoreturn(TypeNoreturn from)
+    {
+        //printf("TypeNoreturn::implicitConvTo(this=%p, to=%p)\n", from, to);
+        //printf("from: %s\n", from.toChars());
+        //printf("to  : %s\n", to.toChars());
+        if (from.equals(to))
+            return MATCH.exact;
+
+        // Different qualifiers?
+        if (to.ty == Tnoreturn)
+            return MATCH.constant;
+
+        // Implicitly convertible to any type
+        return MATCH.convert;
+    }
+
+    switch(from.ty)
+    {
+        default:             return from.isTypeBasic() ? visitBasic(from.isTypeBasic()) : visitType(from);
+        case Tvector:        return visitVector(from.isTypeVector());
+        case Tsarray:        return visitSArray(from.isTypeSArray());
+        case Tarray:         return visitDArray(from.isTypeDArray());
+        case Taarray:        return visitAArray(from.isTypeAArray());
+        case Tpointer:       return visitPointer(from.isTypePointer());
+        case Tdelegate:      return visitDelegate(from.isTypeDelegate());
+        case Tstruct:        return visitStruct(from.isTypeStruct());
+        case Tenum:          return visitEnum(from.isTypeEnum());
+        case Tclass:         return visitClass(from.isTypeClass());
+        case Ttuple:         return visitTuple(from.isTypeTuple());
+        case Tnull:          return visitNull(from.isTypeNull());
+        case Tnoreturn:      return visitNoreturn(from.isTypeNoreturn());
+    }
+}
+
 /**
  * Same as implicitConvTo(); except follow C11 rules, which are quite a bit
  * more permissive than D.
@@ -1495,12 +1952,12 @@ MATCH cimplicitConvTo(Expression e, Type t)
     if (tb.isTypeVector() || typeb.isTypeVector())
         return implicitConvTo(e, t);    // permissive checking doesn't apply to vectors
 
-    if ((typeb.isintegral() || typeb.isfloating()) &&
-        (tb.isintegral() || tb.isfloating()))
+    if ((typeb.isIntegral() || typeb.isFloating()) &&
+        (tb.isIntegral() || tb.isFloating()))
         return MATCH.convert;
-    if (tb.ty == Tpointer && typeb.isintegral()) // C11 6.3.2.3-5
+    if (tb.ty == Tpointer && typeb.isIntegral()) // C11 6.3.2.3-5
         return MATCH.convert;
-    if (tb.isintegral() && typeb.ty == Tpointer) // C11 6.3.2.3-6
+    if (tb.isIntegral() && typeb.ty == Tpointer) // C11 6.3.2.3-6
         return MATCH.convert;
     if (tb.ty == Tpointer && typeb.ty == Tpointer) // C11 6.3.2.3-7
         return MATCH.convert;
@@ -1601,8 +2058,8 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         const(bool) t1b_isR = (t1b_isFR || t1b.ty == Tpointer || t1b.ty == Taarray || t1b.ty == Tclass);
 
         // Arithmetic types (== valueable basic types)
-        const(bool) tob_isA = ((tob.isintegral() || tob.isfloating()) && tob.ty != Tvector);
-        const(bool) t1b_isA = ((t1b.isintegral() || t1b.isfloating()) && t1b.ty != Tvector);
+        const(bool) tob_isA = ((tob.isIntegral() || tob.isFloating()) && tob.ty != Tvector);
+        const(bool) t1b_isA = ((t1b.isIntegral() || t1b.isFloating()) && t1b.ty != Tvector);
 
         // Try casting the alias this member.
         // Return the expression if it succeeds, null otherwise.
@@ -1688,8 +2145,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         {
             if (hasAliasThis)
             {
-                auto result = tryAliasThisCast();
-                if (result)
+                if (auto result = tryAliasThisCast())
                     return result;
             }
 
@@ -1783,8 +2239,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
              */
             if (hasAliasThis)
             {
-                auto result = tryAliasThisCast();
-                if (result)
+                if (auto result = tryAliasThisCast())
                     return result;
             }
             error(e.loc, "cannot cast expression `%s` of type `%s` to `%s`", e.toChars(), e.type.toChars(), t.toChars());
@@ -1807,7 +2262,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
     {
         if (!e.type.equals(t))
         {
-            if ((e.type.isreal() && t.isreal()) || (e.type.isimaginary() && t.isimaginary()))
+            if ((e.type.isReal() && t.isReal()) || (e.type.isImaginary() && t.isImaginary()))
             {
                 auto result = e.copy();
                 result.type = t;
@@ -1823,7 +2278,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
     {
         if (!e.type.equals(t))
         {
-            if (e.type.iscomplex() && t.iscomplex())
+            if (e.type.isComplex() && t.isComplex())
             {
                 auto result = e.copy();
                 result.type = t;
@@ -1854,7 +2309,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         //printf("StringExp::castTo(t = %s), '%s' committed = %d\n", t.toChars(), e.toChars(), e.committed);
 
         if (!e.committed && t.ty == Tpointer && t.nextOf().ty == Tvoid &&
-            (!sc || !(sc.flags & SCOPE.Cfile)))
+            (!sc || !sc.inCfile))
         {
             error(e.loc, "cannot convert string literal to `void*`");
             return ErrorExp.get();
@@ -1883,6 +2338,19 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
 
         Type tb = t.toBasetype();
         Type typeb = e.type.toBasetype();
+
+        if (e.hexString && !e.committed && tb.nextOf().isIntegral)
+        {
+            const szx = cast(ubyte) tb.nextOf().size();
+            if (szx != se.sz && (e.len % szx) == 0)
+            {
+                import dmd.utils: arrayCastBigEndian;
+                const data = e.peekData();
+                se.setData(arrayCastBigEndian(data, szx).ptr, data.length / szx, szx);
+                se.type = t;
+                return se;
+            }
+        }
 
         //printf("\ttype = %s\n", e.type.toChars());
         if (tb.ty == Tdelegate && typeb.ty != Tdelegate)
@@ -1972,9 +2440,9 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         if (e.committed)
             goto Lcast;
 
-        auto X(T, U)(T tf, U tt)
+        static auto X(T, U)(T tf, U tt)
         {
-            return (cast(int)tf * 256 + cast(int)tt);
+            return cast(int)tf * 256 + cast(int)tt;
         }
 
         {
@@ -2092,7 +2560,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         // See if need to truncate or extend the literal
         if (auto tsa = tb.isTypeSArray())
         {
-            size_t dim2 = cast(size_t)tsa.dim.toInteger();
+            const dim2 = cast(size_t)tsa.dim.toInteger();
             //printf("dim from = %d, to = %d\n", cast(int)se.len, cast(int)dim2);
 
             // Changing dimensions
@@ -2172,8 +2640,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
             tb.ty == Tpointer && tb.nextOf().ty == Tfunction)
         {
             auto ve = e.e1.isVarExp();
-            auto f = ve.var.isFuncDeclaration();
-            if (f)
+            if (auto f = ve.var.isFuncDeclaration())
             {
                 assert(f.isImportedSymbol());
                 f = f.overloadExactMatch(tb.nextOf());
@@ -2250,7 +2717,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         Type tb = t.toBasetype();
         if (tb.ty == Tarray)
         {
-            if (checkArrayLiteralEscape(sc, ae, false))
+            if (checkArrayLiteralEscape(*sc, ae, false))
             {
                 return ErrorExp.get();
             }
@@ -2262,8 +2729,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         }
         Type typeb = e.type.toBasetype();
 
-        if ((tb.ty == Tarray || tb.ty == Tsarray) &&
-            (typeb.ty == Tarray || typeb.ty == Tsarray))
+        if (tb.isStaticOrDynamicArray() && typeb.isStaticOrDynamicArray())
         {
             if (tb.nextOf().toBasetype().ty == Tvoid && typeb.nextOf().toBasetype().ty != Tvoid)
             {
@@ -2278,7 +2744,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
                 if (auto tsa = tb.isTypeSArray())
                 {
                     if (e.elements.length != tsa.dim.toInteger())
-                        goto L1;
+                        return visit(ae);
                 }
 
                 ae = e.copy().isArrayLiteralExp();
@@ -2306,7 +2772,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
                 ae.type = tp;
             }
         }
-        else if (tb.ty == Tvector && (typeb.ty == Tarray || typeb.ty == Tsarray || typeb.ty == Tpointer))
+        else if (tb.ty == Tvector && (typeb.isStaticOrDynamicArray() || typeb.ty == Tpointer))
         {
             // Convert array literal to vector type
             // The Tpointer case comes from C eagerly converting Tsarray to Tpointer
@@ -2316,7 +2782,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
             const edim = e.elements.length;
             const tbasedim = tbase.dim.toInteger();
             if (edim > tbasedim)
-                goto L1;
+                return visit(ae);
 
             ae = e.copy().isArrayLiteralExp();
             ae.type = tbase; // https://issues.dlang.org/show_bug.cgi?id=12642
@@ -2340,7 +2806,6 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
             ev = ev.expressionSemantic(sc);
             return ev;
         }
-    L1:
         return visit(ae);
     }
 
@@ -2373,6 +2838,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
                 (*ae.keys)[i] = ex;
             }
             ae.type = t;
+            semanticTypeInfo(sc, ae.type);
             return ae;
         }
         return visit(e);
@@ -2460,7 +2926,10 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         {
             printf("DelegateExp::castTo(this=%s, type=%s, t=%s)\n", e.toChars(), e.type.toChars(), t.toChars());
         }
-        static immutable msg = "cannot form delegate due to covariant return type";
+        void errorCovariantReturnType()
+        {
+            error(e.loc, "cannot form delegate due to covariant return type");
+        }
 
         Type tb = t.toBasetype();
         Type typeb = e.type.toBasetype();
@@ -2470,7 +2939,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
             int offset;
             e.func.tookAddressOf++;
             if (e.func.tintro && e.func.tintro.nextOf().isBaseOf(e.func.type.nextOf(), &offset) && offset)
-                error(e.loc, "%s", msg.ptr);
+                errorCovariantReturnType();
             auto result = e.copy();
             result.type = t;
             return result;
@@ -2481,12 +2950,11 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         {
             if (e.func)
             {
-                auto f = e.func.overloadExactMatch(tb.nextOf());
-                if (f)
+                if (auto f = e.func.overloadExactMatch(tb.nextOf()))
                 {
                     int offset;
                     if (f.tintro && f.tintro.nextOf().isBaseOf(f.type.nextOf(), &offset) && offset)
-                        error(e.loc, "%s", msg.ptr);
+                        errorCovariantReturnType();
                     if (f != e.func)    // if address not already marked as taken
                         f.tookAddressOf++;
                     auto result = new DelegateExp(e.loc, e.e1, f, false, e.vthis2);
@@ -2494,7 +2962,7 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
                     return result;
                 }
                 if (e.func.tintro)
-                    error(e.loc, "%s", msg.ptr);
+                    errorCovariantReturnType();
             }
         }
 
@@ -2676,7 +3144,7 @@ Expression inferType(Expression e, Type t, int flag = 0)
     Expression visitAle(ArrayLiteralExp ale)
     {
         Type tb = t.toBasetype();
-        if (tb.ty == Tarray || tb.ty == Tsarray)
+        if (tb.isStaticOrDynamicArray())
         {
             Type tn = tb.nextOf();
             if (ale.basis)
@@ -2758,7 +3226,7 @@ Expression scaleFactor(BinExp be, Scope* sc)
     Type t2b = be.e2.type.toBasetype();
     Expression eoff;
 
-    if (t1b.ty == Tpointer && t2b.isintegral())
+    if (t1b.ty == Tpointer && t2b.isIntegral())
     {
         // Need to adjust operator by the stride
         // Replace (ptr + int) with (ptr + (int * stride))
@@ -2772,7 +3240,7 @@ Expression scaleFactor(BinExp be, Scope* sc)
         be.e2.type = t;
         be.type = be.e1.type;
     }
-    else if (t2b.ty == Tpointer && t1b.isintegral())
+    else if (t2b.ty == Tpointer && t1b.isIntegral())
     {
         // Need to adjust operator by the stride
         // Replace (int + ptr) with (ptr + (int * stride))
@@ -2799,7 +3267,7 @@ Expression scaleFactor(BinExp be, Scope* sc)
     if (eoff.op == EXP.int64 && eoff.toInteger() == 0)
     {
     }
-    else if (sc.setUnsafe(false, be.loc, "pointer arithmetic not allowed in @safe functions"))
+    else if (sc.setUnsafe(false, be.loc, "pointer arithmetic"))
     {
         return ErrorExp.get();
     }
@@ -2820,7 +3288,7 @@ private bool isVoidArrayLiteral(Expression e, Type other)
     {
         auto ale = e.isArrayLiteralExp();
         e = ale[0];
-        if (other.ty == Tsarray || other.ty == Tarray)
+        if (other.isStaticOrDynamicArray())
             other = other.nextOf();
         else
             return false;
@@ -2895,16 +3363,16 @@ Type typeMerge(Scope* sc, EXP op, ref Expression pe1, ref Expression pe2)
     Type t1b = e1.type.toBasetype();
     Type t2b = e2.type.toBasetype();
 
-    if (sc && sc.flags & SCOPE.Cfile)
+    if (sc && sc.inCfile)
     {
         // Integral types can be implicitly converted to pointers
         if ((t1b.ty == Tpointer) != (t2b.ty == Tpointer))
         {
-            if (t1b.isintegral())
+            if (t1b.isIntegral())
             {
                 return convert(e1, t2b);
             }
-            else if (t2b.isintegral())
+            else if (t2b.isIntegral())
             {
                 return convert(e2, t1b);
             }
@@ -3026,8 +3494,8 @@ Lagain:
                 d.purity = PURE.impure;
             assert(d.purity != PURE.fwdref);
 
-            d.isnothrow = (tf1.isnothrow && tf2.isnothrow);
-            d.isnogc = (tf1.isnogc && tf2.isnogc);
+            d.isNothrow = (tf1.isNothrow && tf2.isNothrow);
+            d.isNogc = (tf1.isNogc && tf2.isNogc);
 
             if (tf1.trust == tf2.trust)
                 d.trust = tf1.trust;
@@ -3086,7 +3554,7 @@ Lagain:
         return null;
     }
 
-    if ((t1.ty == Tsarray || t1.ty == Tarray) && (e2.op == EXP.null_ && t2.ty == Tpointer && t2.nextOf().ty == Tvoid || e2.op == EXP.arrayLiteral && t2.ty == Tsarray && t2.nextOf().ty == Tvoid && t2.isTypeSArray().dim.toInteger() == 0 || isVoidArrayLiteral(e2, t1)))
+    if (t1.isStaticOrDynamicArray() && (e2.op == EXP.null_ && t2.ty == Tpointer && t2.nextOf().ty == Tvoid || e2.op == EXP.arrayLiteral && t2.ty == Tsarray && t2.nextOf().ty == Tvoid && t2.isTypeSArray().dim.toInteger() == 0 || isVoidArrayLiteral(e2, t1)))
     {
         /*  (T[n] op void*)   => T[]
          *  (T[]  op void*)   => T[]
@@ -3098,7 +3566,9 @@ Lagain:
         return coerce(t1.nextOf().arrayOf());
     }
 
-    if ((t2.ty == Tsarray || t2.ty == Tarray) && (e1.op == EXP.null_ && t1.ty == Tpointer && t1.nextOf().ty == Tvoid || e1.op == EXP.arrayLiteral && t1.ty == Tsarray && t1.nextOf().ty == Tvoid && t1.isTypeSArray().dim.toInteger() == 0 || isVoidArrayLiteral(e1, t2)))
+    if (t2.isStaticOrDynamicArray() &&
+        (e1.op == EXP.null_ && t1.ty == Tpointer && t1.nextOf().ty == Tvoid || e1.op == EXP.arrayLiteral
+        && t1.ty == Tsarray && t1.nextOf().ty == Tvoid && t1.isTypeSArray().dim.toInteger() == 0 || isVoidArrayLiteral(e1, t2)))
     {
         /*  (void*   op T[n]) => T[]
          *  (void*   op T[])  => T[]
@@ -3110,7 +3580,7 @@ Lagain:
         return coerce(t2.nextOf().arrayOf());
     }
 
-    if ((t1.ty == Tsarray || t1.ty == Tarray) && (m = t1.implicitConvTo(t2)) != MATCH.nomatch)
+    if (t1.isStaticOrDynamicArray() && (m = t1.implicitConvTo(t2)) != MATCH.nomatch)
     {
         // https://issues.dlang.org/show_bug.cgi?id=7285
         // Tsarray op [x, y, ...] should to be Tsarray
@@ -3126,7 +3596,7 @@ Lagain:
         return convert(e1, t2);
     }
 
-    if ((t2.ty == Tsarray || t2.ty == Tarray) && t2.implicitConvTo(t1))
+    if (t2.isStaticOrDynamicArray() && t2.implicitConvTo(t1))
     {
         // https://issues.dlang.org/show_bug.cgi?id=7285
         // https://issues.dlang.org/show_bug.cgi?id=14737
@@ -3135,7 +3605,8 @@ Lagain:
         return convert(e2, t1);
     }
 
-    if ((t1.ty == Tsarray || t1.ty == Tarray || t1.ty == Tpointer) && (t2.ty == Tsarray || t2.ty == Tarray || t2.ty == Tpointer) && t1.nextOf().mod != t2.nextOf().mod)
+    if ((t1.isStaticOrDynamicArray() || t1.ty == Tpointer) && (t2.isStaticOrDynamicArray() || t2.ty == Tpointer)
+        && t1.nextOf().mod != t2.nextOf().mod)
     {
         /* If one is mutable and the other immutable, then retry
          * with both of them as const
@@ -3417,7 +3888,7 @@ LmergeClassTypes:
         goto Lagain;
     }
 
-    if (t1.isintegral() && t2.isintegral())
+    if (t1.isIntegral() && t2.isIntegral())
     {
         if (t1.ty != t2.ty)
         {
@@ -3455,7 +3926,7 @@ LmodCompare:
         return convert(e1, t2);
 
     /// Covers array operations for user-defined types
-    Type checkArrayOpType(Expression e1, Expression e2, EXP op, Scope *sc)
+    Type checkArrayOpType(Expression e1, Expression e2, EXP op, Scope* sc)
     {
         // scalar op scalar - we shouldn't be here
         if (e1.type.ty != Tarray && e1.type.ty != Tsarray && e2.type.ty != Tarray && e2.type.ty != Tsarray)
@@ -3674,24 +4145,10 @@ Expression typeCombine(BinExp be, Scope* sc)
 {
     Expression errorReturn()
     {
-        Expression ex = be.incompatibleTypes();
+        Expression ex = be.incompatibleTypes(sc);
         if (ex.op == EXP.error)
             return ex;
         return ErrorExp.get();
-    }
-
-    Type t1 = be.e1.type.toBasetype();
-    Type t2 = be.e2.type.toBasetype();
-
-    if (be.op == EXP.min || be.op == EXP.add)
-    {
-        // struct+struct, and class+class are errors
-        if (t1.ty == Tstruct && t2.ty == Tstruct)
-            return errorReturn();
-        else if (t1.ty == Tclass && t2.ty == Tclass)
-            return errorReturn();
-        else if (t1.ty == Taarray && t2.ty == Taarray)
-            return errorReturn();
     }
 
     if (auto result = typeMerge(sc, be.op, be.e1, be.e2))
@@ -3755,7 +4212,7 @@ Expression integralPromotions(Expression e, Scope* sc)
 
 void fix16997(Scope* sc, UnaExp ue)
 {
-    if (global.params.fix16997 || sc.flags & SCOPE.Cfile)
+    if (global.params.fix16997 || sc.inCfile)
         ue.e1 = integralPromotions(ue.e1, sc);          // desired C-like behavor
     else
     {
@@ -3790,7 +4247,7 @@ extern (D) bool arrayTypeCompatibleWithoutCasting(Type t1, Type t2)
     t1 = t1.toBasetype();
     t2 = t2.toBasetype();
 
-    if ((t1.ty == Tarray || t1.ty == Tsarray || t1.ty == Tpointer) && t2.ty == t1.ty)
+    if ((t1.isStaticOrDynamicArray() || t1.ty == Tpointer) && t2.ty == t1.ty)
     {
         if (t1.nextOf().implicitConvTo(t2.nextOf()) >= MATCH.constant || t2.nextOf().implicitConvTo(t1.nextOf()) >= MATCH.constant)
             return true;
@@ -3937,10 +4394,9 @@ IntRange getIntRange(Expression e)
         VarDeclaration vd = e.var.isVarDeclaration();
         if (vd && vd.range)
             return vd.range._cast(e.type);
-        else if (vd && vd._init && !vd.type.isMutable() && (ie = vd.getConstInitializer()) !is null)
+        if (vd && vd._init && !vd.type.isMutable() && (ie = vd.getConstInitializer()) !is null)
             return getIntRange(ie);
-        else
-            return visit(e);
+        return visit(e);
     }
 
     IntRange visitComma(CommaExp e)

@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -163,7 +163,7 @@ arm_pragma_arm (cpp_reader *)
 /* Implement TARGET_RESOLVE_OVERLOADED_BUILTIN.  */
 tree
 arm_resolve_overloaded_builtin (location_t loc, tree fndecl,
-				void *uncast_arglist)
+				void *uncast_arglist, bool)
 {
   enum resolver_ident resolver = arm_describe_resolver (fndecl);
   if (resolver == arm_cde_resolver)
@@ -247,8 +247,6 @@ arm_cpu_builtins (struct cpp_reader* pfile)
   if (aarch_ra_sign_scope != AARCH_FUNCTION_NONE)
   {
     unsigned int pac = 1;
-
-    gcc_assert (aarch_ra_sign_key == AARCH_KEY_A);
 
     if (aarch_ra_sign_scope == AARCH_FUNCTION_ALL)
       pac |= 0x4;

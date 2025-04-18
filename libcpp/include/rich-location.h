@@ -1,5 +1,5 @@
 /* Bundles of location information used when printing diagnostics.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -22,7 +22,10 @@ along with this program; see the file COPYING3.  If not see
 #ifndef LIBCPP_RICH_LOCATION_H
 #define LIBCPP_RICH_LOCATION_H
 
+#include "label-text.h"
+
 class range_label;
+class label_effects;
 
 /* A hint to diagnostic_show_locus on how to print a source range within a
    rich_location.
@@ -66,6 +69,9 @@ struct location_range
 
   /* If non-NULL, the label for this range.  */
   const range_label *m_label;
+
+  /* If non-null, the name of the color to use for this range.  */
+  const char *m_highlight_color;
 };
 
 /* A partially-embedded vec for use within rich_location for storing
@@ -85,6 +91,7 @@ class semi_embedded_vec
  public:
   semi_embedded_vec ();
   ~semi_embedded_vec ();
+  semi_embedded_vec (const semi_embedded_vec &other);
 
   unsigned int count () const { return m_num; }
   T& operator[] (int idx);
@@ -107,6 +114,21 @@ template <typename T, int NUM_EMBEDDED>
 semi_embedded_vec<T, NUM_EMBEDDED>::semi_embedded_vec ()
 : m_num (0), m_alloc (0), m_extra (NULL)
 {
+}
+
+/* Copy constructor for semi_embedded_vec.  */
+
+template <typename T, int NUM_EMBEDDED>
+semi_embedded_vec<T, NUM_EMBEDDED>::semi_embedded_vec (const semi_embedded_vec &other)
+: m_num (0),
+  m_alloc (other.m_alloc),
+  m_extra (nullptr)
+{
+  if (other.m_extra)
+    m_extra = XNEWVEC (T, m_alloc);
+
+  for (int i = 0; i < other.m_num; i++)
+    push (other[i]);
 }
 
 /* semi_embedded_vec's dtor.  Release any dynamically-allocated memory.  */
@@ -375,30 +397,34 @@ class rich_location
 
   /* Constructing from a location.  */
   rich_location (line_maps *set, location_t loc,
-		 const range_label *label = NULL);
+		 const range_label *label = nullptr,
+		 const char *label_highlight_color = nullptr);
 
   /* Destructor.  */
   ~rich_location ();
 
-  /* The class manages the memory pointed to by the elements of
-     the M_FIXIT_HINTS vector and is not meant to be copied or
-     assigned.  */
-  rich_location (const rich_location &) = delete;
-  void operator= (const rich_location &) = delete;
+  rich_location (const rich_location &);
+  rich_location (rich_location &&) = delete;
+  rich_location &operator= (const rich_location &) = delete;
+  rich_location &operator= (rich_location &&) = delete;
 
   /* Accessors.  */
   location_t get_loc () const { return get_loc (0); }
   location_t get_loc (unsigned int idx) const;
 
+  void set_highlight_color (const char *highlight_color);
+
   void
   add_range (location_t loc,
 	     enum range_display_kind range_display_kind
 	       = SHOW_RANGE_WITHOUT_CARET,
-	     const range_label *label = NULL);
+	     const range_label *label = nullptr,
+	     const char *highlight_color = nullptr);
 
   void
   set_range (unsigned int idx, location_t loc,
-	     enum range_display_kind range_display_kind);
+	     enum range_display_kind range_display_kind,
+	     const char *highlight_color = nullptr);
 
   unsigned int get_num_locations () const { return m_ranges.count (); }
 
@@ -511,6 +537,8 @@ class rich_location
 
   const line_maps *get_line_table () const { return m_line_table; }
 
+  int get_column_override () const { return m_column_override; }
+
 private:
   bool reject_impossible_fixit (location_t where);
   void stop_supporting_fixits ();
@@ -534,87 +562,12 @@ protected:
 
   mutable expanded_location m_expanded_location;
 
+  /* The class manages the memory pointed to by the elements of
+     the m_fixit_hints vector.  */
   static const int MAX_STATIC_FIXIT_HINTS = 2;
   semi_embedded_vec <fixit_hint *, MAX_STATIC_FIXIT_HINTS> m_fixit_hints;
 
   const diagnostic_path *m_path;
-};
-
-/* A struct for the result of range_label::get_text: a NUL-terminated buffer
-   of localized text, and a flag to determine if the caller should "free" the
-   buffer.  */
-
-class label_text
-{
-public:
-  label_text ()
-  : m_buffer (NULL), m_owned (false)
-  {}
-
-  ~label_text ()
-  {
-    if (m_owned)
-      free (m_buffer);
-  }
-
-  /* Move ctor.  */
-  label_text (label_text &&other)
-  : m_buffer (other.m_buffer), m_owned (other.m_owned)
-  {
-    other.release ();
-  }
-
-  /* Move assignment.  */
-  label_text & operator= (label_text &&other)
-  {
-    if (m_owned)
-      free (m_buffer);
-    m_buffer = other.m_buffer;
-    m_owned = other.m_owned;
-    other.release ();
-    return *this;
-  }
-
-  /* Delete the copy ctor and copy-assignment operator.  */
-  label_text (const label_text &) = delete;
-  label_text & operator= (const label_text &) = delete;
-
-  /* Create a label_text instance that borrows BUFFER from a
-     longer-lived owner.  */
-  static label_text borrow (const char *buffer)
-  {
-    return label_text (const_cast <char *> (buffer), false);
-  }
-
-  /* Create a label_text instance that takes ownership of BUFFER.  */
-  static label_text take (char *buffer)
-  {
-    return label_text (buffer, true);
-  }
-
-  void release ()
-  {
-    m_buffer = NULL;
-    m_owned = false;
-  }
-
-  const char *get () const
-  {
-    return m_buffer;
-  }
-
-  bool is_owner () const
-  {
-    return m_owned;
-  }
-
-private:
-  char *m_buffer;
-  bool m_owned;
-
-  label_text (char *buffer, bool owned)
-  : m_buffer (buffer), m_owned (owned)
-  {}
 };
 
 /* Abstract base class for labelling a range within a rich_location
@@ -641,6 +594,12 @@ class range_label
      The RANGE_IDX is provided, allowing for range_label instances to be
      shared by multiple ranges if need be (the "flyweight" design pattern).  */
   virtual label_text get_text (unsigned range_idx) const = 0;
+
+  /* Get any special effects for the label (e.g. links to other labels).  */
+  virtual const label_effects *get_effects (unsigned /*range_idx*/) const
+  {
+    return nullptr;
+  }
 };
 
 /* A fix-it hint: a suggested insertion, replacement, or deletion of text.
@@ -663,7 +622,11 @@ class fixit_hint
   fixit_hint (location_t start,
 	      location_t next_loc,
 	      const char *new_content);
+  fixit_hint (const fixit_hint &other);
+  fixit_hint (fixit_hint &&other) = delete;
   ~fixit_hint () { free (m_bytes); }
+  fixit_hint &operator= (const fixit_hint &) = delete;
+  fixit_hint &operator= (fixit_hint &&) = delete;
 
   bool affects_line_p (const line_maps *set,
 		       const char *file,

@@ -1,5 +1,5 @@
 /* Integrated Register Allocator.  Changing code and generating moves.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -573,7 +573,7 @@ change_loop (ira_loop_tree_node_t node)
   if (node != ira_loop_tree_root)
     {
       ira_assert (current_loops != NULL);
-      
+
       if (node->bb != NULL)
 	{
 	  FOR_BB_INSNS (node->bb, insn)
