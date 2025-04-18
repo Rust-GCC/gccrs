@@ -17,12 +17,14 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-stmt.h"
+#include "rich-location.h"
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-implitem.h"
 #include "rust-hir-type-check-item.h"
 #include "rust-hir-type-check-pattern.h"
 #include "rust-type-util.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Resolver {
@@ -78,6 +80,7 @@ TypeCheckStmt::visit (HIR::LetStmt &stmt)
   auto &stmt_pattern = stmt.get_pattern ();
   TyTy::BaseType *init_expr_ty = nullptr;
   location_t init_expr_locus = UNKNOWN_LOCATION;
+
   if (stmt.has_init_expr ())
     {
       init_expr_locus = stmt.get_init_expr ().get_locus ();
@@ -95,6 +98,22 @@ TypeCheckStmt::visit (HIR::LetStmt &stmt)
     {
       specified_ty = TypeCheckType::Resolve (stmt.get_type ());
       specified_ty_locus = stmt.get_type ().get_locus ();
+    }
+
+  if (stmt.has_else_expr ())
+    {
+      auto &else_expr = stmt.get_else_expr ();
+      auto else_expr_ty = TypeCheckExpr::Resolve (else_expr);
+
+      if (else_expr_ty->get_kind () != TyTy::TypeKind::NEVER)
+	{
+	  rust_error_at (else_expr.get_locus (),
+			 "%<else%> clause of let-else does not diverge");
+	  return;
+	}
+
+      // FIXME: Is that enough? Do we need to do something like
+      // `append_reference` here as well?
     }
 
   // let x:i32 = 123;
