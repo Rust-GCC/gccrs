@@ -22,6 +22,11 @@
 #include "rust-constexpr.h"
 #include "rust-compile-type.h"
 #include "print-tree.h"
+#include "rust-diagnostics.h"
+#include "rust-hir-pattern-abstract.h"
+#include "rust-hir-pattern.h"
+#include "rust-system.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Compile {
@@ -254,34 +259,16 @@ CompilePatternCheckExpr::visit (HIR::StructPattern &pattern)
 	  }
 	  break;
 
-	  case HIR::StructPatternField::ItemType::IDENT_PAT: {
-	    HIR::StructPatternFieldIdentPat &ident
-	      = static_cast<HIR::StructPatternFieldIdentPat &> (*field.get ());
+	case HIR::StructPatternField::ItemType::IDENT_PAT:
+	  // we only support rebinding patterns at the moment, which always
+	  // match - so do nothing
 
-	    size_t offs = 0;
-	    ok = variant->lookup_field (ident.get_identifier ().as_string (),
-					nullptr, &offs);
-	    rust_assert (ok);
-
-	    // we may be offsetting by + 1 here since the first field in the
-	    // record is always the discriminator
-	    offs += adt->is_enum ();
-	    tree field_expr
-	      = Backend::struct_field_expression (match_scrutinee_expr, offs,
-						  ident.get_locus ());
-
-	    tree check_expr_sub
-	      = CompilePatternCheckExpr::Compile (ident.get_pattern (),
-						  field_expr, ctx);
-	    check_expr = Backend::arithmetic_or_logical_expression (
-	      ArithmeticOrLogicalOperator::BITWISE_AND, check_expr,
-	      check_expr_sub, ident.get_pattern ().get_locus ());
-	  }
+	  // this needs to change once we actually check that the field
+	  // matches a certain value, either a literal value or a const one
 	  break;
 
-	  case HIR::StructPatternField::ItemType::IDENT: {
-	    // ident pattern always matches - do nothing
-	  }
+	case HIR::StructPatternField::ItemType::IDENT:
+	  // ident pattern always matches - do nothing
 	  break;
 	}
     }
@@ -504,6 +491,88 @@ CompilePatternBindings::visit (HIR::TupleStructPattern &pattern)
     }
 }
 
+tree
+CompilePatternBindings::make_struct_access (TyTy::ADTType *adt,
+					    TyTy::VariantDef *variant,
+					    Identifier &ident,
+					    int variant_index)
+{
+  size_t offs = 0;
+  auto ok = variant->lookup_field (ident.as_string (), nullptr, &offs);
+  rust_assert (ok);
+
+  if (adt->is_enum ())
+    {
+      tree payload_accessor_union
+	= Backend::struct_field_expression (match_scrutinee_expr, 1,
+					    ident.get_locus ());
+
+      tree variant_accessor
+	= Backend::struct_field_expression (payload_accessor_union,
+					    variant_index, ident.get_locus ());
+
+      return Backend::struct_field_expression (variant_accessor, offs,
+					       ident.get_locus ());
+    }
+  else
+    {
+      tree variant_accessor = match_scrutinee_expr;
+
+      return Backend::struct_field_expression (variant_accessor, offs,
+					       ident.get_locus ());
+    }
+}
+
+void
+CompilePatternBindings::handle_struct_pattern_ident (
+  HIR::StructPatternField &pat, TyTy::ADTType *adt, TyTy::VariantDef *variant,
+  int variant_index)
+{
+  HIR::StructPatternFieldIdent &ident
+    = static_cast<HIR::StructPatternFieldIdent &> (pat);
+
+  auto identifier = ident.get_identifier ();
+  tree binding = make_struct_access (adt, variant, identifier, variant_index);
+
+  ctx->insert_pattern_binding (ident.get_mappings ().get_hirid (), binding);
+}
+
+void
+CompilePatternBindings::handle_struct_pattern_ident_pat (
+  HIR::StructPatternField &pat, TyTy::ADTType *adt, TyTy::VariantDef *variant,
+  int variant_index)
+{
+  auto &pattern = static_cast<HIR::StructPatternFieldIdentPat &> (pat);
+
+  switch (pattern.get_pattern ().get_pattern_type ())
+    {
+      case HIR::Pattern::IDENTIFIER: {
+	auto &id
+	  = static_cast<HIR::IdentifierPattern &> (pattern.get_pattern ());
+
+	CompilePatternBindings::Compile (id, match_scrutinee_expr, ctx);
+      }
+      break;
+    default:
+      rust_sorry_at (pat.get_locus (),
+		     "cannot handle non-identifier struct patterns");
+      return;
+    }
+
+  auto ident = pattern.get_identifier ();
+  tree binding = make_struct_access (adt, variant, ident, variant_index);
+
+  ctx->insert_pattern_binding (
+    pattern.get_pattern ().get_mappings ().get_hirid (), binding);
+}
+
+void
+CompilePatternBindings::handle_struct_pattern_tuple_pat (
+  HIR::StructPatternField &pat)
+{
+  rust_unreachable ();
+}
+
 void
 CompilePatternBindings::visit (HIR::StructPattern &pattern)
 {
@@ -539,54 +608,14 @@ CompilePatternBindings::visit (HIR::StructPattern &pattern)
     {
       switch (field->get_item_type ())
 	{
-	  case HIR::StructPatternField::ItemType::TUPLE_PAT: {
-	    // TODO
-	    rust_unreachable ();
-	  }
+	case HIR::StructPatternField::ItemType::TUPLE_PAT:
+	  handle_struct_pattern_tuple_pat (*field);
 	  break;
-
-	  case HIR::StructPatternField::ItemType::IDENT_PAT: {
-	    // TODO
-	    rust_unreachable ();
-	  }
+	case HIR::StructPatternField::ItemType::IDENT_PAT:
+	  handle_struct_pattern_ident_pat (*field, adt, variant, variant_index);
 	  break;
-
-	  case HIR::StructPatternField::ItemType::IDENT: {
-	    HIR::StructPatternFieldIdent &ident
-	      = static_cast<HIR::StructPatternFieldIdent &> (*field.get ());
-
-	    size_t offs = 0;
-	    ok = variant->lookup_field (ident.get_identifier ().as_string (),
-					nullptr, &offs);
-	    rust_assert (ok);
-
-	    tree binding = error_mark_node;
-	    if (adt->is_enum ())
-	      {
-		tree payload_accessor_union
-		  = Backend::struct_field_expression (match_scrutinee_expr, 1,
-						      ident.get_locus ());
-
-		tree variant_accessor
-		  = Backend::struct_field_expression (payload_accessor_union,
-						      variant_index,
-						      ident.get_locus ());
-
-		binding
-		  = Backend::struct_field_expression (variant_accessor, offs,
-						      ident.get_locus ());
-	      }
-	    else
-	      {
-		tree variant_accessor = match_scrutinee_expr;
-		binding
-		  = Backend::struct_field_expression (variant_accessor, offs,
-						      ident.get_locus ());
-	      }
-
-	    ctx->insert_pattern_binding (ident.get_mappings ().get_hirid (),
-					 binding);
-	  }
+	case HIR::StructPatternField::ItemType::IDENT:
+	  handle_struct_pattern_ident (*field, adt, variant, variant_index);
 	  break;
 	}
     }
