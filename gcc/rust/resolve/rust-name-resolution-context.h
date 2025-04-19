@@ -23,6 +23,7 @@
 #include "rust-forever-stack.h"
 #include "rust-hir-map.h"
 #include "rust-rib.h"
+#include "rust-stacked-contexts.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -156,6 +157,62 @@ public:
   NodeId id;
 };
 
+struct Binding
+{
+  enum class Kind
+  {
+    Product,
+    Or,
+  } kind;
+
+  std::unordered_set<Identifier> set;
+
+  Binding (Binding::Kind kind) : kind (kind) {}
+};
+
+/**
+ * Used to identify the source of a binding, and emit the correct error message.
+ */
+enum class BindingSource
+{
+  Match,
+  Let,
+  For,
+  /* Closure param or function param */
+  Param
+};
+
+class BindingLayer
+{
+  BindingSource source;
+  std::vector<Binding> bindings;
+
+  bool bind_test (Identifier ident, Binding::Kind kind);
+
+public:
+  void push (Binding::Kind kind);
+
+  BindingLayer (BindingSource source);
+
+  /**
+   * Identifies if the identifier has been used in a product binding context.
+   * eg. `let (a, a) = test();`
+   */
+  bool is_and_bound (Identifier ident);
+
+  /**
+   * Identifies if the identifier has been used in a or context.
+   * eg. `let (a, 1) | (a, 2) = test()`
+   */
+  bool is_or_bound (Identifier ident);
+
+  void insert_ident (Identifier ident);
+
+  void merge ();
+
+  BindingSource get_source () const;
+};
+
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
 class NameResolutionContext
 {
@@ -212,6 +269,7 @@ public:
   ForeverStack<Namespace::Labels> labels;
 
   Analysis::Mappings &mappings;
+  StackedContexts<BindingLayer> bindings;
 
   // TODO: Rename
   // TODO: Use newtype pattern for Usage and Definition
