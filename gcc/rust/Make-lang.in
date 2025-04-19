@@ -308,27 +308,38 @@ rust.tags: force
 
 # Build documentation hooks.
 
+RUST_TEXI = \
+	rust/rust.texi
+
 # Build info documentation for the front end, in the build directory. This target is only called by
 # ‘make bootstrap’ if a suitable version of makeinfo is available, so does not need to check for this,
 # and should fail if an error occurs.
 rust.info:
+	if [ x$(BUILD_INFO) = xinfo ]; then \
+	  $(MAKEINFO) $(MAKEINFOFLAGS) -I $(abs_docdir) -I $(abs_docdir)/include -o $@ $<; \
+	else \
+		true; \
+	fi
 
 rust.srcinfo:
 
 # Build DVI documentation for the front end, in the build directory. This should be done using
 # $(TEXI2DVI), with appropriate -I arguments pointing to directories of included files.
-rust.dvi:
+rust.dvi: $(RUST_TEXI)
+	$(TEXI2DVI) -I $(abs_docdir) -I $(abs_docdir)/include -o $@ $<
 
 # Build PDF documentation for the front end, in the build directory. This should be done using
 # $(TEXI2PDF), with appropriate -I arguments pointing to directories of included files.
-rust.pdf:
-
-doc/rust.info:
-doc/rust.dvi:
-doc/rust.pdf:
+rust.pdf: $(RUST_TEXI)
+	$(TEXI2PDF) -I $(abs_docdir) -I $(abs_docdir)/include -o $@ $<
 
 # Build HTML documentation for the front end, in the build directory.
-rust.html:
+rust.html: $(RUST_TEXI)
+	$(TEXI2HTML) -I $(abs_docdir) -I $(abs_docdir)/include -o $@ $<
+
+doc/rust.info: rust.info
+doc/rust.dvi: rust.dvi
+doc/rust.pdf: rust.pdf
 
 # Install hooks.
 
@@ -387,6 +398,25 @@ selftest-rust-valgrind: $(RUST_SELFTEST_DEPS)
 # Install info documentation for the front end, if it is present in the source directory. This target
 # should have dependencies on info files that should be installed.
 rust.install-info:
+
+rust.install-dvi:
+
+rust.install-html: $(build_htmldir)/rust
+	@$(NORMAL_INSTALL)
+	test -z "$(htmldir)" || $(mkinstalldirs) "$(DESTDIR)$(htmldir)"
+	@for p in $(build_htmldir)/rust; do \
+	  if test -f "$$p" || test -d "$$p"; then d=""; else d="$(srcdir)/"; fi; \
+	  f=$(html__strip_dir) \
+	  if test -d "$$d$$p"; then \
+	    echo " $(mkinstalldirs) '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(mkinstalldirs) "$(DESTDIR)$(htmldir)/$$f" || exit 1; \
+	    echo " $(INSTALL_DATA) '$$d$$p'/* '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(INSTALL_DATA) "$$d$$p"/* "$(DESTDIR)$(htmldir)/$$f"; \
+	  else \
+	    echo " $(INSTALL_DATA) '$$d$$p' '$(DESTDIR)$(htmldir)/$$f'"; \
+	    $(INSTALL_DATA) "$$d$$p" "$(DESTDIR)$(htmldir)/$$f"; \
+	  fi; \
+	done
 
 rust.install-pdf:
 
