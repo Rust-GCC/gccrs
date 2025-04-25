@@ -7167,11 +7167,7 @@ package body Sem_Ch3 is
    --  Start of processing for Build_Access_Subprogram_Wrapper
 
    begin
-      if Ekind (Id) in E_Access_Subprogram_Type
-                     | E_Access_Protected_Subprogram_Type
-                     | E_Anonymous_Access_Protected_Subprogram_Type
-                     | E_Anonymous_Access_Subprogram_Type
-      then
+      if Ekind (Id) in Access_Subprogram_Kind then
          null;
 
       else

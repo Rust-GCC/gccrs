@@ -8769,11 +8769,9 @@ package body Exp_Ch4 is
       --  records because there may be padding or undefined fields.
 
       elsif Unnest_Subprogram_Mode
-        and then Ekind (Typl) in E_Class_Wide_Type
-                               | E_Class_Wide_Subtype
+        and then Ekind (Typl) in Access_Protected_Kind
+                               | Class_Wide_Kind
                                | E_Access_Subprogram_Type
-                               | E_Access_Protected_Subprogram_Type
-                               | E_Anonymous_Access_Protected_Subprogram_Type
                                | E_Exception_Type
         and then Present (Equivalent_Type (Typl))
         and then Is_Record_Type (Equivalent_Type (Typl))
@@ -10152,12 +10150,10 @@ package body Exp_Ch4 is
 
       if Is_Elementary_Type (Typ)
         and then Sloc (Entity (N)) = Standard_Location
-        and then not (Ekind (Typ) in E_Class_Wide_Type
-                              | E_Class_Wide_Subtype
-                              | E_Access_Subprogram_Type
-                              | E_Access_Protected_Subprogram_Type
-                              | E_Anonymous_Access_Protected_Subprogram_Type
-                              | E_Exception_Type
+        and then not (Ekind (Typ) in Access_Protected_Kind
+                                   | Class_Wide_Kind
+                                   | E_Access_Subprogram_Type
+                                   | E_Exception_Type
                         and then Present (Equivalent_Type (Typ))
                         and then Is_Record_Type (Equivalent_Type (Typ)))
       then

@@ -11924,11 +11924,8 @@ package body Sem_Attr is
                --  also be accessibility checks on those, this is where the
                --  checks can eventually be centralized ???
 
-               if Ekind (Btyp) in E_Access_Protected_Subprogram_Type
-                                | E_Access_Subprogram_Type
-                                | E_Anonymous_Access_Protected_Subprogram_Type
-                                | E_Anonymous_Access_Subprogram_Type
-               then
+               if Ekind (Btyp) in Access_Subprogram_Kind then
+
                   --  Deal with convention mismatch
 
                   if Convention (Designated_Type (Btyp)) /=
@@ -12214,14 +12211,10 @@ package body Sem_Attr is
             --  default-initialized aggregate component for a self-referential
             --  type the reference is legal.
 
-            if not (Ekind (Btyp) = E_Access_Subprogram_Type
-                     or else Ekind (Btyp) = E_Anonymous_Access_Subprogram_Type
+            if not (Ekind (Btyp) in Access_Subprogram_Kind
                      or else (Is_Record_Type (Btyp)
                                and then
                                  Present (Corresponding_Remote_Type (Btyp)))
-                     or else Ekind (Btyp) = E_Access_Protected_Subprogram_Type
-                     or else Ekind (Btyp)
-                               = E_Anonymous_Access_Protected_Subprogram_Type
                      or else Is_Access_Constant (Btyp)
                      or else Is_Variable (P)
                      or else Attr_Id = Attribute_Unrestricted_Access)
@@ -12456,9 +12449,7 @@ package body Sem_Attr is
                end;
             end if;
 
-            if Ekind (Btyp) in E_Access_Protected_Subprogram_Type
-                             | E_Anonymous_Access_Protected_Subprogram_Type
-            then
+            if Ekind (Btyp) in Access_Protected_Kind then
                if Is_Entity_Name (P)
                  and then not Is_Protected_Type (Scope (Entity (P)))
                then
