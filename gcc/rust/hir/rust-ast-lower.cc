@@ -52,7 +52,8 @@ translate_visibility (const AST::Visibility &vis)
     case AST::Visibility::PUB_SUPER:
     case AST::Visibility::PUB_IN_PATH:
       return Visibility (Visibility::VisType::RESTRICTED,
-			 ASTLoweringSimplePath::translate (vis.get_path ()),
+			 ASTLoweringSimplePath::translate (
+			   vis.get_path_unchecked ()),
 			 vis.get_locus ());
       break;
     }
