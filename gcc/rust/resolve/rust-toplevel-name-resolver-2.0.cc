@@ -94,6 +94,8 @@ TopLevel::go (AST::Crate &crate)
   // they are not used until `Late`. furthermore, we run this visitor multiple
   // times in a row in a fixed-point fashion, so it would make the code
   // responsible for this ugly and perfom a lot of error checking.
+  insert_or_error_out (Identifier ("crate"), UNKNOWN_LOCATION,
+		       crate.get_node_id (), Namespace::Types);
 
   for (auto &item : crate.items)
     item->accept_vis (*this);
