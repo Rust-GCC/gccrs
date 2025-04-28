@@ -756,7 +756,7 @@ void
 DefaultASTVisitor::visit (AST::Visibility &vis)
 {
   if (vis.has_path ())
-    visit (vis.get_path ());
+    visit (vis.get_path_unchecked ());
 }
 
 void

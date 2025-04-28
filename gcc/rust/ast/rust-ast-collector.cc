@@ -245,7 +245,7 @@ TokenCollector::visit (Visibility &vis)
       push (Rust::Token::make (PUB, vis.get_locus ()));
       push (Rust::Token::make (LEFT_PAREN, UNDEF_LOCATION));
       push (Rust::Token::make (IN, UNDEF_LOCATION));
-      visit (vis.get_path ());
+      visit (vis.get_path_unchecked ());
       push (Rust::Token::make (RIGHT_PAREN, UNDEF_LOCATION));
       break;
     case Visibility::PRIV:

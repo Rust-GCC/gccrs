@@ -453,7 +453,8 @@ Visibility::as_string () const
     case PUB_SUPER:
       return std::string ("pub(super)");
     case PUB_IN_PATH:
-      return std::string ("pub(in ") + in_path.as_string () + std::string (")");
+      return std::string ("pub(in ") + get_path_unchecked ().as_string ()
+	     + std::string (")");
     default:
       rust_unreachable ();
     }

@@ -497,27 +497,31 @@ public:
 private:
   VisType vis_type;
   // Only assigned if vis_type is IN_PATH
-  SimplePath in_path;
+  tl::optional<SimplePath> in_path;
   location_t locus;
 
   // should this store location info?
 
-public:
   // Creates a Visibility - TODO make constructor protected or private?
-  Visibility (VisType vis_type, SimplePath in_path, location_t locus)
+  Visibility (VisType vis_type, tl::optional<SimplePath> in_path,
+	      location_t locus)
     : vis_type (vis_type), in_path (std::move (in_path)), locus (locus)
   {}
 
+public:
   VisType get_vis_type () const { return vis_type; }
 
   // Returns whether visibility is in an error state.
   bool is_error () const
   {
-    return vis_type == PUB_IN_PATH && in_path.is_empty ();
+    return vis_type == PUB_IN_PATH && !in_path.has_value ();
   }
 
   // Returns whether a visibility has a path
-  bool has_path () const { return !is_error () && vis_type >= PUB_CRATE; }
+  bool has_path () const
+  {
+    return in_path.has_value () && vis_type >= PUB_CRATE;
+  }
 
   // Returns whether visibility is public or not.
   bool is_public () const { return vis_type != PRIV && !is_error (); }
@@ -591,8 +595,8 @@ public:
   }
 
   std::string as_string () const;
-  const SimplePath &get_path () const { return in_path; }
-  SimplePath &get_path () { return in_path; }
+  const SimplePath &get_path_unchecked () const { return in_path.value (); }
+  SimplePath &get_path_unchecked () { return in_path.value (); }
 
 protected:
   // Clone function implementation - not currently virtual but may be if
