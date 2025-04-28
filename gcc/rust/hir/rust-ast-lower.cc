@@ -34,13 +34,6 @@ using HIR::ClosureParam;
 Visibility
 translate_visibility (const AST::Visibility &vis)
 {
-  // FIXME: How do we create a private visibility here? Is it always private if
-  // the AST vis is an error?
-  // FIXME: We need to add a `create_private()` static function to the
-  // AST::Visibility class and use it when the vis is empty in the parser...
-  if (vis.is_error ())
-    return Visibility::create_error ();
-
   switch (vis.get_vis_type ())
     {
     case AST::Visibility::PUB:
