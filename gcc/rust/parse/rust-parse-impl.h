@@ -2417,7 +2417,7 @@ Parser<ManagedTokenSource>::parse_visibility ()
 	    add_error (std::move (error));
 
 	    // skip after somewhere?
-	    return AST::Visibility::create_error ();
+	    return AST::Visibility::create_private ();
 	  }
 
 	skip_token (RIGHT_PAREN);
@@ -2429,7 +2429,7 @@ Parser<ManagedTokenSource>::parse_visibility ()
 			t->get_token_description ()));
 
       lexer.skip_token ();
-      return AST::Visibility::create_error ();
+      return AST::Visibility::create_private ();
     }
 }
 
