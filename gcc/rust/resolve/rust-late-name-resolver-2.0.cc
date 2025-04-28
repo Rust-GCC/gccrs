@@ -545,11 +545,10 @@ Late::visit (AST::Visibility &vis)
 {
   if (vis.has_path ())
     {
-      auto resolved
-	= ctx.resolve_path (vis.get_path_unchecked (), Namespace::Types);
-
-      ctx.map_usage (Usage (vis.get_path_unchecked ().get_node_id ()),
-		     Definition (resolved->get_node_id ()));
+      if (auto resolved
+	  = ctx.resolve_path (vis.get_path_unchecked (), Namespace::Types))
+	ctx.map_usage (Usage (vis.get_path_unchecked ().get_node_id ()),
+		       Definition (resolved->get_node_id ()));
     }
 }
 
