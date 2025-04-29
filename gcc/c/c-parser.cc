@@ -1072,9 +1072,11 @@ c_parser_error_richloc (c_parser *parser, const char *gmsgid,
       const char *header_hint
 	= get_c_stdlib_header_for_string_macro_name (token_name);
       if (header_hint != NULL)
-	h = name_hint (NULL, new suggest_missing_header (token->location,
-							 token_name,
-							 header_hint));
+	h = name_hint (nullptr,
+		       std::make_unique<suggest_missing_header>
+			 (token->location,
+			  token_name,
+			  header_hint));
     }
 
   c_parse_error (gmsgid,

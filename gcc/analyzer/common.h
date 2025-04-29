@@ -1,4 +1,4 @@
-/* Utility functions for the analyzer.
+/* Base header for the analyzer, plus utility functions.
    Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
@@ -18,9 +18,21 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#ifndef GCC_ANALYZER_ANALYZER_H
-#define GCC_ANALYZER_ANALYZER_H
+#ifndef GCC_ANALYZER_COMMON_H
+#define GCC_ANALYZER_COMMON_H
 
+#include "config.h"
+#define INCLUDE_VECTOR
+#include "system.h"
+#include "coretypes.h"
+#include "tree.h"
+#include "function.h"
+#include "basic-block.h"
+#include "gimple.h"
+#include "options.h"
+#include "bitmap.h"
+#include "diagnostic-core.h"
+#include "diagnostic-path.h"
 #include "rich-location.h"
 #include "function.h"
 #include "json.h"
@@ -37,6 +49,9 @@ class supernode;
 class superedge;
   class cfg_superedge;
     class switch_cfg_superedge;
+    class eh_dispatch_cfg_superedge;
+      class eh_dispatch_try_cfg_superedge;
+      class eh_dispatch_allowed_cfg_superedge;
   class callgraph_superedge;
     class call_superedge;
     class return_superedge;
@@ -350,10 +365,10 @@ public:
 
 /* An enum for describing the direction of an access to memory.  */
 
-enum access_direction
+enum class access_direction
 {
-  DIR_READ,
-  DIR_WRITE
+  read,
+  write
 };
 
 /* Abstract base class for associating custom data with an
@@ -384,6 +399,12 @@ public:
 
   virtual void add_events_to_path (checker_path *emission_path,
 				   const exploded_edge &eedge) const = 0;
+
+  virtual exploded_node *create_enode (exploded_graph &eg,
+				       const program_point &point,
+				       program_state &&state,
+				       exploded_node *enode_for_diag,
+				       region_model_context *ctxt) const;
 };
 
 /* Abstract base class for splitting state.
@@ -447,21 +468,23 @@ extern tree remove_ssa_names (tree expr);
 
 } // namespace ana
 
-extern bool is_special_named_call_p (const gcall *call, const char *funcname,
+extern bool is_special_named_call_p (const gcall &call, const char *funcname,
 				     unsigned int num_args,
 				     bool look_in_std = false);
 extern bool is_named_call_p (const_tree fndecl, const char *funcname);
 extern bool is_named_call_p (const_tree fndecl, const char *funcname,
-			     const gcall *call, unsigned int num_args);
+			     const gcall &call, unsigned int num_args);
 extern bool is_std_function_p (const_tree fndecl);
 extern bool is_std_named_call_p (const_tree fndecl, const char *funcname);
 extern bool is_std_named_call_p (const_tree fndecl, const char *funcname,
-				 const gcall *call, unsigned int num_args);
-extern bool is_setjmp_call_p (const gcall *call);
-extern bool is_longjmp_call_p (const gcall *call);
-extern bool is_placement_new_p (const gcall *call);
+				 const gcall &call, unsigned int num_args);
+extern bool is_setjmp_call_p (const gcall &call);
+extern bool is_longjmp_call_p (const gcall &call);
+extern bool is_placement_new_p (const gcall &call);
+extern bool is_cxa_throw_p (const gcall &call);
+extern bool is_cxa_rethrow_p (const gcall &call);
 
-extern const char *get_user_facing_name (const gcall *call);
+extern const char *get_user_facing_name (const gcall &call);
 
 extern void register_analyzer_pass ();
 
@@ -577,4 +600,4 @@ private:
 extern void sorry_no_analyzer ();
 #endif /* #if !ENABLE_ANALYZER */
 
-#endif /* GCC_ANALYZER_ANALYZER_H */
+#endif /* GCC_ANALYZER_COMMON_H */

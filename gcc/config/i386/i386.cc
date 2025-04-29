@@ -5180,6 +5180,27 @@ ix86_check_movabs (rtx insn, int opnum)
   return volatile_ok || !MEM_VOLATILE_P (mem);
 }
 
+/* Return true if XVECEXP idx of INSN satisfies MOVS arguments.  */
+bool
+ix86_check_movs (rtx insn, int idx)
+{
+  rtx pat = PATTERN (insn);
+  gcc_assert (GET_CODE (pat) == PARALLEL);
+
+  rtx set = XVECEXP (pat, 0, idx);
+  gcc_assert (GET_CODE (set) == SET);
+
+  rtx dst = SET_DEST (set);
+  gcc_assert (MEM_P (dst));
+
+  rtx src = SET_SRC (set);
+  gcc_assert (MEM_P (src));
+
+  return (ADDR_SPACE_GENERIC_P (MEM_ADDR_SPACE (dst))
+	  && (ADDR_SPACE_GENERIC_P (MEM_ADDR_SPACE (src))
+	      || Pmode == word_mode));
+}
+
 /* Return false if INSN contains a MEM with a non-default address space.  */
 bool
 ix86_check_no_addr_space (rtx insn)
@@ -8495,13 +8516,18 @@ ix86_update_stack_alignment (rtx, const_rtx pat, void *data)
   FOR_EACH_SUBRTX (iter, array, pat, ALL)
     {
       auto op = *iter;
-      if (MEM_P (op) && reg_mentioned_p (p->reg, op))
+      if (MEM_P (op))
 	{
-	  unsigned int alignment = MEM_ALIGN (op);
+	  if (reg_mentioned_p (p->reg, XEXP (op, 0)))
+	    {
+	      unsigned int alignment = MEM_ALIGN (op);
 
-	  if (alignment > *p->stack_alignment)
-	    *p->stack_alignment = alignment;
-	  break;
+	      if (alignment > *p->stack_alignment)
+		*p->stack_alignment = alignment;
+	      break;
+	    }
+	  else
+	    iter.skip_subrtxes ();
 	}
     }
 }
@@ -14291,7 +14317,7 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	  return;
 
 	case '^':
-	  if (TARGET_64BIT && Pmode != word_mode)
+	  if (Pmode != word_mode)
 	    fputs ("addr32 ", file);
 	  return;
 
@@ -21493,19 +21519,20 @@ ix86_modes_tieable_p (machine_mode mode1, machine_mode mode2)
     return mode1 == SFmode;
 
   /* If MODE2 is only appropriate for an SSE register, then tie with
-     any other mode acceptable to SSE registers.  */
-  if (GET_MODE_SIZE (mode2) == 64
+     any vector modes or scalar floating point modes acceptable to SSE
+     registers, excluding scalar integer modes with SUBREG:
+	(subreg:QI (reg:TI 99) 0))
+	(subreg:HI (reg:TI 99) 0))
+	(subreg:SI (reg:TI 99) 0))
+	(subreg:DI (reg:TI 99) 0))
+     to avoid unnecessary move from SSE register to integer register.
+   */
+  if (GET_MODE_SIZE (mode2) >= 16
+      && (GET_MODE_SIZE (mode1) == GET_MODE_SIZE (mode2)
+	  || ((VECTOR_MODE_P (mode1) || SCALAR_FLOAT_MODE_P (mode1))
+	      && GET_MODE_SIZE (mode1) <= GET_MODE_SIZE (mode2)))
       && ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode2))
-    return (GET_MODE_SIZE (mode1) == 64
-	    && ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode1));
-  if (GET_MODE_SIZE (mode2) == 32
-      && ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode2))
-    return (GET_MODE_SIZE (mode1) == 32
-	    && ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode1));
-  if (GET_MODE_SIZE (mode2) == 16
-      && ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode2))
-    return (GET_MODE_SIZE (mode1) == 16
-	    && ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode1));
+    return ix86_hard_regno_mode_ok (FIRST_SSE_REG, mode1);
 
   /* If MODE2 is appropriate for an MMX register, then tie
      with any other mode acceptable to MMX registers.  */

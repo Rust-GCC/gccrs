@@ -1850,6 +1850,9 @@ namespace __rb_tree
       size_type
       erase(const key_type& __x);
 
+      size_type
+      _M_erase_unique(const key_type& __x);
+
 #if __cplusplus >= 201103L
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // DR 130. Associative erase should return an iterator.
@@ -2340,8 +2343,11 @@ namespace __rb_tree
 	  constexpr bool __move = !__move_if_noexcept_cond<value_type>::value;
 	  _Alloc_node __an(*this);
 	  _M_root() = _M_copy<__move>(__x, __an);
-	  if _GLIBCXX17_CONSTEXPR (__move)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
+	  if constexpr (__move)
 	    __x.clear();
+#pragma GCC diagnostic pop
 	}
     }
 
@@ -3134,6 +3140,20 @@ namespace __rb_tree
       const size_type __old_size = size();
       _M_erase_aux(__p.first, __p.second);
       return __old_size - size();
+    }
+
+  template<typename _Key, typename _Val, typename _KeyOfValue,
+	   typename _Compare, typename _Alloc>
+    typename _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::size_type
+    _Rb_tree<_Key, _Val, _KeyOfValue, _Compare, _Alloc>::
+    _M_erase_unique(const _Key& __x)
+    {
+      iterator __it = find(__x);
+      if (__it == end())
+	return 0;
+
+      _M_erase_aux(__it);
+      return 1;
     }
 
   template<typename _Key, typename _Val, typename _KeyOfValue,

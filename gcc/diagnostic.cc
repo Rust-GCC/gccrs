@@ -49,7 +49,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "pretty-print-urlifier.h"
 #include "logical-location.h"
 #include "diagnostic-buffer.h"
-#include "make-unique.h"
 
 #ifdef HAVE_TERMIOS_H
 # include <termios.h>
@@ -223,7 +222,7 @@ diagnostic_context::initialize (int n_opts)
 {
   /* Allocate a basic pretty-printer.  Clients will replace this a
      much more elaborated pretty-printer if they wish.  */
-  m_reference_printer = ::make_unique<pretty_printer> ().release ();
+  m_reference_printer = std::make_unique<pretty_printer> ().release ();
 
   m_file_cache = new file_cache ();
   m_diagnostic_counters.clear ();
@@ -1830,8 +1829,7 @@ diagnostic_output_format_init (diagnostic_context &context,
       diagnostic_output_format_init_sarif_stderr (context,
 						  line_table,
 						  main_input_filename_,
-						  json_formatting,
-						  sarif_version::v2_1_0);
+						  json_formatting);
       break;
 
     case DIAGNOSTICS_OUTPUT_FORMAT_SARIF_FILE:
@@ -1839,7 +1837,6 @@ diagnostic_output_format_init (diagnostic_context &context,
 						line_table,
 						main_input_filename_,
 						json_formatting,
-						sarif_version::v2_1_0,
 						base_file_name);
       break;
     }
