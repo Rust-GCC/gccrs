@@ -1,4 +1,5 @@
 /* { dg-additional-options "-fdiagnostics-show-line-numbers -fdiagnostics-path-format=inline-events -fdiagnostics-show-caret -fanalyzer-verbosity=1" } */
+/* { dg-skip-if "requires hosted libstdc++ for stdlib free" { ! hostedlib } } */
 /* { dg-enable-nn-line-numbers "" } */
 
 #include <stdlib.h>
@@ -285,31 +286,27 @@ void test_3 (void *ptr)
    NN |   free (ptr);
       |   ^~~~~~~~~~
   'test_3': events 1-2
-    |
-    |   NN |   free (ptr);
-    |      |   ^~~~~~~~~~
-    |      |   |
-    |      |   (1) first 'free' here
-    |   NN |   called_by_test_3 ();
-    |   NN |   free (ptr);
-    |      |   ~~~~~~~~~~
-    |      |   |
-    |      |   (2) second 'free' here; first 'free' was at (1)
-    |
+   NN |   free (ptr);
+      |   ^~~~~~~~~~
+      |   |
+      |   (1) first 'free' here
+   NN |   called_by_test_3 ();
+   NN |   free (ptr);
+      |   ~~~~~~~~~~
+      |   |
+      |   (2) second 'free' here; first 'free' was at (1)
   { dg-end-multiline-output "" { target c } } */
 /* { dg-begin-multiline-output "" }
    NN |   free (ptr);
       |   ~~~~~^~~~~
   'void test_3(void*)': events 1-2
-    |
-    |   NN |   free (ptr);
-    |      |   ~~~~~^~~~~
-    |      |        |
-    |      |        (1) first 'free' here
-    |   NN |   called_by_test_3 ();
-    |   NN |   free (ptr);
-    |      |   ~~~~~~~~~~
-    |      |        |
-    |      |        (2) second 'free' here; first 'free' was at (1)
-    |
+   NN |   free (ptr);
+      |   ~~~~~^~~~~
+      |        |
+      |        (1) first 'free' here
+   NN |   called_by_test_3 ();
+   NN |   free (ptr);
+      |   ~~~~~~~~~~
+      |        |
+      |        (2) second 'free' here; first 'free' was at (1)
   { dg-end-multiline-output "" { target c++ } } */

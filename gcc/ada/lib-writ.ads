@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -199,6 +199,11 @@ package Lib.Writ is
    --         GP   Set if this compilation was done in GNATprove mode, either
    --              from direct use of GNATprove, or from use of -gnatdF.
 
+   --         ID   Interrupts_System_By_Default pragma applies to this
+   --              partition. No handlers will be installed by default,
+   --              including signal handlers. This is a configuration
+   --              pragma.
+
    --         Lx   A valid Locking_Policy pragma applies to all the units in
    --              this file, where x is the first character (upper case) of
    --              the policy name (e.g. 'C' for Ceiling_Locking).
@@ -223,9 +228,9 @@ package Lib.Writ is
    --         OL   Pragma Default_Scalar_Storage_Order (Low_Order_First) is
    --              present in a configuration pragma file that applies.
 
-   --         Qx   A valid Queueing_Policy pragma applies to all the units
-   --              in this file, where x is the first character (upper case)
-   --              of the policy name (e.g. 'P' for Priority_Queueing).
+   --         Qx   A valid Queuing_Policy pragma applies to all the units in
+   --              this file, where x is the first character (upper case) of
+   --              the policy name (e.g. 'P' for Priority_Queuing).
 
    --         SL   Indicates that the unit is an Interface to a Standalone
    --              Library. Note that this indication is never given by the
@@ -248,10 +253,11 @@ package Lib.Writ is
    --              generated exception tables. If ZX is not present, the
    --              longjmp/setjmp exception scheme is in use.
 
-   --      Note that language defined units never output policy (Lx, Tx, Qx)
-   --      parameters. Language defined units must correctly handle all
-   --      possible cases. These values are checked for consistency by the
-   --      binder and then copied to the generated binder output file.
+   --      Note that library units from the GNAT runtime library should never
+   --      output policy (Lx, Tx, Qx) parameters. They must correctly handle
+   --      all possible cases to be usable in all contexts. These values are
+   --      checked for consistency by the binder and then copied to the
+   --      generated binder output file.
 
    --    Note: The P line must be present. Even in Ignore_Errors mode, Scan_ALI
    --    insists on finding a P line. So if changes are made to the ALI format,
@@ -1059,6 +1065,7 @@ package Lib.Writ is
 
    procedure Add_Preprocessing_Dependency (S : Source_File_Index);
    --  Indicate that there is a dependency to be added on a preprocessing data
-   --  file or on a preprocessing definition file.
+   --  file, on a preprocessing definition file or on a file included through
+   --  External_Initialization.
 
 end Lib.Writ;

@@ -234,7 +234,7 @@ asm(".globl _mcount\n"
     "	ret\n");
 #elif defined __x86_64__
 /* See GLIBC for additional information about this technique.  */
-asm(".globl _mcount\n" 
+asm(".globl _mcount\n"
     "	.type	_mcount, @function\n"
     "_mcount:\n"
     /* The compiler calls _mcount after the prologue, and does not
@@ -289,7 +289,7 @@ asm(".globl _mcount\n"
 	3) if builtin_return_address worked, this could be portable.
    However, it would really have to be optimized for arguments of 0
    and 1 and do something like what we have here in order to avoid the
-   trap per function call performance hit. 
+   trap per function call performance hit.
 	4) the atexit and monsetup calls prevent this from simply
    being a leaf routine that doesn't do a "save" (and would thus have
    access to %o7 and %i7 directly) but the call to write() at the end
@@ -316,29 +316,6 @@ internal_mcount (char *selfpc, unsigned short *frompcindex)
 /* Only necessary without the Solaris CRTs or a proper gcrt1.o, otherwise
    crtpg.o or gcrt1.o take care of that.
 
-   FIXME: What about _init vs. _start on sparc?  */
-#ifndef HAVE_SOLARIS_CRTS
-  if(!already_setup) {
-    extern char etext[];
-
-    already_setup = 1;
-
-#if defined __i386__
-    /* <sys/vmparam.h> USERSTACK.  */
-    monstartup ((char *) 0x8048000, etext);
-#elif defined __x86_64__
-    monstartup (NULL, etext);
-#elif defined __sparc__
-    {
-      extern char _start[];
-      extern char _init[];
-
-      monstartup (_start < _init ? _start : _init, etext);
-    }
-#endif
-    atexit (_mcleanup);
-  }
-#endif /* !HAVE_SOLARIS_CRTS */
   /* Check that we are profiling and that we aren't recursively invoked.  */
   if (profiling) {
     goto out;

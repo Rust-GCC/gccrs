@@ -1,6 +1,6 @@
 // Implementation of std::reference_wrapper -*- C++ -*-
 
-// Copyright (C) 2004-2024 Free Software Foundation, Inc.
+// Copyright (C) 2004-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,13 +30,19 @@
 #ifndef _GLIBCXX_REFWRAP_H
 #define _GLIBCXX_REFWRAP_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus >= 201103L
 
 #include <bits/move.h>
 #include <bits/invoke.h>
 #include <bits/stl_function.h> // for unary_function and binary_function
+
+#if __glibcxx_reference_wrapper >= 202403L // >= C++26
+# include <compare>
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -88,7 +94,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       using __vararg = false_type;					\
     };									\
   template<typename _Res, typename _Class, typename... _ArgTypes>	\
-    struct _Mem_fn_traits<_Res (_Class::*)(_ArgTypes... ...) _CV _REF>	\
+    struct _Mem_fn_traits<_Res (_Class::*)(_ArgTypes..., ...) _CV _REF>	\
     : _Mem_fn_traits_base<_Res, _CV _Class, _ArgTypes...>		\
     {									\
       using __vararg = true_type;					\
@@ -139,7 +145,8 @@ _GLIBCXX_MEM_FN_TRAITS(&& noexcept, false_type, true_type)
 
   /// Retrieve the result type for a varargs function type.
   template<typename _Res, typename... _ArgTypes _GLIBCXX_NOEXCEPT_PARM>
-    struct _Weak_result_type_impl<_Res(_ArgTypes......) _GLIBCXX_NOEXCEPT_QUAL>
+    struct _Weak_result_type_impl<_Res(_ArgTypes...,
+				       ...) _GLIBCXX_NOEXCEPT_QUAL>
     { typedef _Res result_type; };
 
   /// Retrieve the result type for a function pointer.
@@ -150,7 +157,7 @@ _GLIBCXX_MEM_FN_TRAITS(&& noexcept, false_type, true_type)
   /// Retrieve the result type for a varargs function pointer.
   template<typename _Res, typename... _ArgTypes _GLIBCXX_NOEXCEPT_PARM>
     struct
-    _Weak_result_type_impl<_Res(*)(_ArgTypes......) _GLIBCXX_NOEXCEPT_QUAL>
+    _Weak_result_type_impl<_Res(*)(_ArgTypes..., ...) _GLIBCXX_NOEXCEPT_QUAL>
     { typedef _Res result_type; };
 
   // Let _Weak_result_type_impl perform the real work.
@@ -358,6 +365,53 @@ _GLIBCXX_MEM_FN_TRAITS(&& noexcept, false_type, true_type)
 #endif
 	  return std::__invoke(get(), std::forward<_Args>(__args)...);
 	}
+
+#if __glibcxx_reference_wrapper >= 202403L // >= C++26
+      // [refwrap.comparisons], comparisons
+      [[nodiscard]]
+      friend constexpr bool
+      operator==(reference_wrapper __x, reference_wrapper __y)
+      requires requires { { __x.get() == __y.get() } -> convertible_to<bool>; }
+      { return __x.get() == __y.get(); }
+
+      [[nodiscard]]
+      friend constexpr bool
+      operator==(reference_wrapper __x, const _Tp& __y)
+      requires requires { { __x.get() == __y } -> convertible_to<bool>; }
+      { return __x.get() == __y; }
+
+      [[nodiscard]]
+      friend constexpr bool
+      operator==(reference_wrapper __x, reference_wrapper<const _Tp> __y)
+      requires (!is_const_v<_Tp>)
+	&& requires { { __x.get() == __y.get() } -> convertible_to<bool>; }
+      { return __x.get() == __y.get(); }
+
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 4071. reference_wrapper comparisons are not SFINAE-friendly
+
+      [[nodiscard]]
+      friend constexpr auto
+      operator<=>(reference_wrapper __x, reference_wrapper __y)
+      requires requires (const _Tp __t) {
+	{ __t < __t } -> __detail::__boolean_testable;
+      }
+      { return __detail::__synth3way(__x.get(), __y.get()); }
+
+      [[nodiscard]]
+      friend constexpr auto
+      operator<=>(reference_wrapper __x, const _Tp& __y)
+      requires requires { { __y < __y } -> __detail::__boolean_testable; }
+      { return __detail::__synth3way(__x.get(), __y); }
+
+      [[nodiscard]]
+      friend constexpr auto
+      operator<=>(reference_wrapper __x, reference_wrapper<const _Tp> __y)
+      requires (!is_const_v<_Tp>) && requires (const _Tp __t) {
+	{ __t < __t } -> __detail::__boolean_testable;
+      }
+      { return __detail::__synth3way(__x.get(), __y.get()); }
+#endif
     };
 
 #if __cpp_deduction_guides

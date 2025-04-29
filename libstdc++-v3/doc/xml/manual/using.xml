@@ -7,7 +7,7 @@
 
     <para>
       The set of features available in the GNU C++ library is shaped by
-      several <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc-4.3.2/gcc/Invoking-GCC.html">GCC
+      several <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/gcc/Invoking-GCC.html">GCC
       Command Options</link>. Options that impact libstdc++ are
       enumerated and detailed in the table below.
     </para>
@@ -37,35 +37,12 @@
 
   <tbody>
     <row>
-      <entry><literal>-std=c++98</literal> or <literal>-std=c++03</literal>
+      <entry><literal>-std</literal>
       </entry>
-      <entry>Use the 1998 ISO C++ standard plus amendments.</entry>
-    </row>
-
-    <row>
-      <entry><literal>-std=gnu++98</literal> or <literal>-std=gnu++03</literal>
+      <entry>
+	Select the C++ standard, and whether to use the base standard
+	or GNU dialect.
       </entry>
-      <entry>As directly above, with GNU extensions.</entry>
-    </row>
-
-    <row>
-      <entry><literal>-std=c++11</literal></entry>
-      <entry>Use the 2011 ISO C++ standard.</entry>
-    </row>
-
-    <row>
-      <entry><literal>-std=gnu++11</literal></entry>
-      <entry>As directly above, with GNU extensions.</entry>
-    </row>
-
-    <row>
-      <entry><literal>-std=c++14</literal></entry>
-      <entry>Use the 2014 ISO C++ standard.</entry>
-    </row>
-
-    <row>
-      <entry><literal>-std=gnu++14</literal></entry>
-      <entry>As directly above, with GNU extensions.</entry>
     </row>
 
     <row>
@@ -1129,7 +1106,7 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
 <para>The exclamation point to the left of the <code>stdc++.h.gch</code> listing means that the generated PCH file was used.</para>
 <para/>
 
-<para> Detailed information about creating precompiled header files can be found in the GCC <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html">documentation</link>.
+<para>Detailed information about creating precompiled header files can be found in the GCC <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/gcc/Precompiled-Headers.html">documentation</link>.
 </para>
 
     </section>
@@ -1270,9 +1247,19 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
     <varlistentry><term><code>_GLIBCXX_ASSERTIONS</code></term>
     <listitem>
       <para>
-	Undefined by default. When defined, enables extra error checking in
-        the form of precondition assertions, such as bounds checking in
-        strings and null pointer checks when dereferencing smart pointers.
+	Defined by default when compiling with no optimization, undefined
+	by default when compiling with optimization.
+	When defined, enables extra error checking in the form of
+	precondition assertions, such as bounds checking in strings
+	and null pointer checks when dereferencing smart pointers.
+      </para>
+    </listitem></varlistentry>
+    <varlistentry><term><code>_GLIBCXX_NO_ASSERTIONS</code></term>
+    <listitem>
+      <para>
+	Undefined by default.  When defined, prevents the implicit
+	definition of <code>_GLIBCXX_ASSERTIONS</code> when compiling
+	with no optimization.
       </para>
     </listitem></varlistentry>
     <varlistentry><term><code>_GLIBCXX_DEBUG</code></term>
@@ -1341,7 +1328,19 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
         or <classname>malloc_allocator</classname></link>. The annotations
         must be present on all vector operations or none, so this macro must
         be defined to the same value for all translation units that create,
-        destroy or modify vectors.
+        destroy, or modify vectors.
+      </para>
+    </listitem></varlistentry>
+
+    <varlistentry><term><code>_GLIBCXX_NO_FREESTANDING_CHRONO</code></term>
+    <listitem>
+      <para>
+	Undefined by default. When defined, the
+	<filename class="headerfile">&lt;chrono&gt;</filename> header cannot
+	be used with <option>-ffreestanding</option>.
+	When not defined, durations, time points, and calendar types are
+	available for freestanding, but the standard clocks and the time zone
+	database are not (because they require OS support).
       </para>
     </listitem></varlistentry>
     </variablelist>
@@ -1379,7 +1378,7 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
   of the macro is <literal>1</literal> which causes the new ABI to be active,
   so to use the old ABI you must explicitly define the macro to
   <literal>0</literal> before including any library headers.
-  (Be aware that some GNU/Linux distributions configure GCC 5 differently so
+  (Be aware that some GNU/Linux distributions configured GCC 5 differently so
   that the default value of the macro is <literal>0</literal> and users must
   define it to <literal>1</literal> to enable the new ABI.)
 </para>
@@ -1437,6 +1436,30 @@ g++ -Winvalid-pch -I. -include stdc++.h -H -g -O2 hello.cc -o test.exe
   Handlers for <classname>std::exception</classname> will always catch
   iostreams exceptions, because the old and new type both inherit from
   <classname>std::exception</classname>.
+</para>
+
+<para>
+  Some features are not supported when using the old ABI, including:
+  <itemizedlist>
+  <listitem>
+    Using <classname>std::string::const_iterator</classname> for
+    positional arguments to member functions such as
+    <function>std::string::erase</function>.
+  </listitem>
+  <listitem>
+    Allocator propagation in <classname>std::string</classname>.
+  </listitem>
+  <listitem>
+    Using <classname>std::string</classname> at compile-time in
+    <code>constexpr</code> functions.
+  </listitem>
+  <listitem>
+    Class <classname>std::chrono::time_zone</classname> and all related APIs.
+  </listitem>
+  <listitem>
+    The <filename class="headerfile">&lt;syncstream&gt;</filename> header.
+  </listitem>
+  </itemizedlist>
 </para>
 
 <section xml:id="manual.intro.using.abi.trouble" xreflabel="Dual ABI Troubleshooting"><info><title>Troubleshooting</title></info>
@@ -1502,7 +1525,7 @@ details that are not intended for users to refer to directly, these include
 <code>std::__detail</code>, <code>std::__cxx11</code> and <code>std::_V2</code>.
 </para>
 
-<para> A complete list of implementation namespaces (including namespace contents) is available in the generated source <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaces.html">documentation</link>.
+<para>A complete list of implementation namespaces (including namespace contents) is available in the generated source <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaces.html">documentation</link>.
 </para>
 
 
@@ -1745,10 +1768,10 @@ namespace gtk
     </para>
     <para>
 A quick read of the relevant part of the GCC
-      manual, <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc/Invoking-G_002b_002b.html#Invoking-G_002b_002b">Compiling
+      manual, <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/gcc/Invoking-G_002b_002b.html#Invoking-G_002b_002b">Compiling
       C++ Programs</link>, specifies linking against a C++
       library. More details from the
-      GCC <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/faq.html#rpath">FAQ</link>,
+      GCC <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/faq.html#rpath">FAQ</link>,
       which states <emphasis>GCC does not, by default, specify a
       location so that the dynamic linker can find dynamic libraries at
       runtime.</emphasis>
@@ -1965,7 +1988,7 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
 	 and <code>-march=native</code>, although specifics vary
 	 depending on the host environment. See
 	 <link linkend="manual.intro.using.flags">Command Options</link> and
-	 <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html">Machine
+	 <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html">Machine
 	 Dependent Options</link>.
        </para>
        </listitem>
@@ -2044,6 +2067,18 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
          the container the iterator refers to (for example incrementing a
          list iterator must access the pointers between nodes, which are part
          of the container and so conflict with other accesses to the container).
+      </para>
+
+      <para>
+	 The Copy-On-Write <classname>std::string</classname> implementation
+	 used before GCC 5 (and with
+	 <link linkend="manual.intro.using.abi">_GLIBCXX_USE_CXX11_ABI=0</link>)
+	 is not a standard container and does not conform to the data race
+	 avoidance rules described above. For the Copy-On-Write
+	 <classname>std::string</classname>, non-const member functions such as
+	 <function>begin()</function> are considered to be modifying accesses
+	 and so must not be used concurrently with any other accesses to the
+	 same object.
       </para>
 
       <para>Programs which follow the rules above will not encounter data

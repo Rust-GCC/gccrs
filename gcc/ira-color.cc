@@ -1,5 +1,5 @@
 /* IRA allocation based on graph coloring.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -580,7 +580,7 @@ remove_unused_allocno_hard_regs_nodes (allocno_hard_regs_node_t *roots)
 	    {
 	      if (prev == NULL)
 		*roots = node->first;
-	      else 
+	      else
 		prev->next = node->first;
 	      if (next != NULL)
 		next->prev = last;
@@ -725,7 +725,7 @@ form_allocno_hard_regs_nodes_forest (void)
     {
       a = ira_allocnos[i];
       allocno_data = ALLOCNO_COLOR_DATA (a);
-      
+
       if (hard_reg_set_empty_p (allocno_data->profitable_hard_regs))
 	continue;
       hv = (add_allocno_hard_regs
@@ -818,7 +818,7 @@ static void
 finish_allocno_hard_regs_nodes_forest (void)
 {
   allocno_hard_regs_node_t node, next;
-  
+
   ira_free (allocno_hard_regs_subnodes);
   for (node = hard_regs_roots; node != NULL; node = next)
     {
@@ -857,7 +857,7 @@ setup_left_conflict_sizes_p (ira_allocno_t a)
       ira_object_t obj = ALLOCNO_OBJECT (a, k);
       ira_object_t conflict_obj;
       ira_object_conflict_iterator oci;
-      
+
       FOR_EACH_OBJECT_CONFLICT (obj, conflict_obj, oci)
 	{
 	  int size;
@@ -897,7 +897,7 @@ setup_left_conflict_sizes_p (ira_allocno_t a)
   for (i = 0; i < data->hard_regs_subnodes_num; i++)
     {
       allocno_hard_regs_node_t temp_node;
-      
+
       temp_node = allocno_hard_regs_nodes[i + node_preorder_num];
       ira_assert (temp_node->preorder_num == i + node_preorder_num);
       subnodes[i].left_conflict_size = (temp_node->check != node_check_tick
@@ -910,7 +910,7 @@ setup_left_conflict_sizes_p (ira_allocno_t a)
 	  HARD_REG_SET temp_set;
 	  int j, n, hard_regno;
 	  enum reg_class aclass;
-	  
+
 	  temp_set = temp_node->hard_regs->set & profitable_hard_regs;
 	  aclass = ALLOCNO_CLASS (a);
 	  for (n = 0, j = ira_class_hard_regs_num[aclass] - 1; j >= 0; j--)
@@ -928,7 +928,7 @@ setup_left_conflict_sizes_p (ira_allocno_t a)
     {
       int size, parent_i;
       allocno_hard_regs_node_t parent;
-      
+
       size = (subnodes[i].left_conflict_subnodes_size
 	      + MIN (subnodes[i].max_node_impact
 		     - subnodes[i].left_conflict_subnodes_size,
@@ -1008,7 +1008,7 @@ update_left_conflict_sizes_p (ira_allocno_t a,
       subnodes[i].left_conflict_subnodes_size -= diff;
     }
   if (i != 0
-      || (conflict_size 
+      || (conflict_size
 	  + ira_reg_class_max_nregs[ALLOCNO_CLASS (a)][ALLOCNO_MODE (a)]
 	  > data->available_regs_num))
     return false;
@@ -1061,7 +1061,7 @@ setup_profitable_hard_regs (void)
 	  for (k = 0; k < nobj; k++)
 	    {
 	      ira_object_t obj = ALLOCNO_OBJECT (a, k);
-	      
+
 	      data->profitable_hard_regs
 		&= ~OBJECT_TOTAL_CONFLICT_HARD_REGS (obj);
 	    }
@@ -1093,7 +1093,7 @@ setup_profitable_hard_regs (void)
 	      if (nregs == nobj && nregs > 1)
 		{
 		  int num = OBJECT_SUBWORD (conflict_obj);
-		  
+
 		  if (REG_WORDS_BIG_ENDIAN)
 		    CLEAR_HARD_REG_BIT
 		      (ALLOCNO_COLOR_DATA (conflict_a)->profitable_hard_regs,
@@ -1195,9 +1195,15 @@ finish_update_cost_records (void)
   update_cost_record_pool.release ();
 }
 
+/* True if we have allocated memory, or intend to do so.  */
+static bool allocated_memory_p;
+
 /* Array whose element value is TRUE if the corresponding hard
    register was already allocated for an allocno.  */
 static bool allocated_hardreg_p[FIRST_PSEUDO_REGISTER];
+
+/* Which callee-saved hard registers we've decided to save.  */
+static HARD_REG_SET allocated_callee_save_regs;
 
 /* Describes one element in a queue of allocnos whose costs need to be
    updated.  Each allocno in the queue is known to have an allocno
@@ -1537,12 +1543,12 @@ static void
 update_conflict_allocno_hard_prefs (ira_allocno_t allocno)
 {
   int l, nr = ALLOCNO_NUM_OBJECTS (allocno);
-  
+
   for (l = 0; l < nr; l++)
     {
       ira_object_t conflict_obj, obj = ALLOCNO_OBJECT (allocno, l);
       ira_object_conflict_iterator oci;
-      
+
       FOR_EACH_OBJECT_CONFLICT (obj, conflict_obj, oci)
 	{
 	  ira_allocno_t conflict_a = OBJECT_ALLOCNO (conflict_obj);
@@ -1722,7 +1728,7 @@ check_hard_reg_p (ira_allocno_t a, int hard_regno,
     {
       int k;
       int set_to_test_start = 0, set_to_test_end = nwords;
-      
+
       if (nregs == nwords)
 	{
 	  if (REG_WORDS_BIG_ENDIAN)
@@ -1740,6 +1746,20 @@ check_hard_reg_p (ira_allocno_t a, int hard_regno,
   return j == nregs;
 }
 
+/* Record that we have allocated NREGS registers starting at HARD_REGNO.  */
+
+static void
+record_allocation (int hard_regno, int nregs)
+{
+  for (int i = 0; i < nregs; ++i)
+    if (!allocated_hardreg_p[hard_regno + i])
+      {
+	allocated_hardreg_p[hard_regno + i] = true;
+	if (!crtl->abi->clobbers_full_reg_p (hard_regno + i))
+	  SET_HARD_REG_BIT (allocated_callee_save_regs, hard_regno + i);
+      }
+}
+
 /* Return number of registers needed to be saved and restored at
    function prologue/epilogue if we allocate HARD_REGNO to hold value
    of MODE.  */
@@ -1752,6 +1772,7 @@ calculate_saved_nregs (int hard_regno, machine_mode mode)
   ira_assert (hard_regno >= 0);
   for (i = hard_regno_nregs (hard_regno, mode) - 1; i >= 0; i--)
     if (!allocated_hardreg_p[hard_regno + i]
+	&& ira_hard_regno_nrefs[hard_regno + i] == 0
 	&& !crtl->abi->clobbers_full_reg_p (hard_regno + i)
 	&& !LOCAL_REGNO (hard_regno + i))
       nregs++;
@@ -1960,6 +1981,12 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
 #endif
   auto_bitmap allocnos_to_spill;
   HARD_REG_SET soft_conflict_regs = {};
+  int entry_freq = REG_FREQ_FROM_BB (ENTRY_BLOCK_PTR_FOR_FN (cfun));
+  int exit_freq = REG_FREQ_FROM_BB (EXIT_BLOCK_PTR_FOR_FN (cfun));
+  int spill_cost = 0;
+  /* Whether we have spilled pseudos or used caller-saved registers for values
+     that are live across a call.  */
+  bool existing_spills_p = allocated_memory_p || caller_save_needed;
 
   ira_assert (! ALLOCNO_ASSIGNED_P (a));
   get_conflict_and_start_profitable_regs (a, retry_p,
@@ -1977,7 +2004,19 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
   if (! retry_p)
     start_update_cost ();
   mem_cost += ALLOCNO_UPDATED_MEMORY_COST (a);
-  
+
+  if (!existing_spills_p)
+    {
+      auto entry_cost = targetm.frame_allocation_cost
+	(frame_cost_type::ALLOCATION, allocated_callee_save_regs);
+      spill_cost += entry_cost * entry_freq;
+
+      auto exit_cost = targetm.frame_allocation_cost
+	(frame_cost_type::DEALLOCATION, allocated_callee_save_regs);
+      spill_cost += exit_cost * exit_freq;
+    }
+  mem_cost += spill_cost;
+
   ira_allocate_and_copy_costs (&ALLOCNO_UPDATED_HARD_REG_COSTS (a),
 			       aclass, ALLOCNO_HARD_REG_COSTS (a));
   a_costs = ALLOCNO_UPDATED_HARD_REG_COSTS (a);
@@ -2003,7 +2042,7 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
       ira_object_t conflict_obj;
       ira_object_t obj = ALLOCNO_OBJECT (a, word);
       ira_object_conflict_iterator oci;
-      
+
       /* Take preferences of conflicting allocnos into account.  */
       FOR_EACH_OBJECT_CONFLICT (obj, conflict_obj, oci)
         {
@@ -2105,7 +2144,7 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
 		       != curr_allocno_process))
 	    {
 	      int k, *conflict_costs;
-	      
+
 	      ALLOCNO_COLOR_DATA (conflict_a)->last_process
 		= curr_allocno_process;
 	      ira_allocate_and_copy_costs
@@ -2174,14 +2213,36 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
 	  /* We need to save/restore the hard register in
 	     epilogue/prologue.  Therefore we increase the cost.  */
 	  {
+	    int nregs = hard_regno_nregs (hard_regno, mode);
+	    add_cost = 0;
 	    rclass = REGNO_REG_CLASS (hard_regno);
-	    add_cost = ((ira_memory_move_cost[mode][rclass][0]
-		         + ira_memory_move_cost[mode][rclass][1])
-		        * saved_nregs / hard_regno_nregs (hard_regno,
-							  mode) - 1);
+
+	    auto entry_cost = targetm.callee_save_cost
+	      (spill_cost_type::SAVE, hard_regno, mode, saved_nregs,
+	       ira_memory_move_cost[mode][rclass][0] * saved_nregs / nregs,
+	       allocated_callee_save_regs, existing_spills_p);
+	    /* In the event of a tie between caller-save and callee-save,
+	       prefer callee-save.  We apply this to the entry cost rather
+	       than the exit cost since the entry frequency must be at
+	       least as high as the exit frequency.  */
+	    if (entry_cost > 1)
+	      entry_cost -= 1;
+	    add_cost += entry_cost * entry_freq;
+
+	    auto exit_cost = targetm.callee_save_cost
+	      (spill_cost_type::RESTORE, hard_regno, mode, saved_nregs,
+	       ira_memory_move_cost[mode][rclass][1] * saved_nregs / nregs,
+	       allocated_callee_save_regs, existing_spills_p);
+	    add_cost += exit_cost * exit_freq;
+
 	    cost += add_cost;
 	    full_cost += add_cost;
 	  }
+	}
+      if (ira_need_caller_save_p (a, hard_regno))
+	{
+	  cost += spill_cost;
+	  full_cost += spill_cost;
 	}
       if (min_cost > cost)
 	min_cost = cost;
@@ -2209,11 +2270,13 @@ assign_hard_reg (ira_allocno_t a, bool retry_p)
  fail:
   if (best_hard_regno >= 0)
     {
-      for (i = hard_regno_nregs (best_hard_regno, mode) - 1; i >= 0; i--)
-	allocated_hardreg_p[best_hard_regno + i] = true;
+      record_allocation (best_hard_regno,
+			 hard_regno_nregs (best_hard_regno, mode));
       spill_soft_conflicts (a, allocnos_to_spill, soft_conflict_regs,
 			    best_hard_regno);
     }
+  else
+    allocated_memory_p = true;
   if (! retry_p)
     restore_costs_from_copies (a);
   ALLOCNO_HARD_REGNO (a) = best_hard_regno;
@@ -2237,7 +2300,7 @@ static ira_allocno_t
 get_cap_member (ira_allocno_t a)
 {
   ira_allocno_t member;
-  
+
   while ((member = ALLOCNO_CAP_MEMBER (a)) != NULL)
     a = member;
   return a;
@@ -2551,7 +2614,7 @@ bucket_allocno_compare_func (const void *v1p, const void *v2p)
   freq2 = ALLOCNO_COLOR_DATA (t2)->thread_freq;
   if ((diff = freq1 - freq2) != 0)
     return diff;
-  
+
   if ((diff = ALLOCNO_NUM (t2) - ALLOCNO_NUM (t1)) != 0)
     return diff;
 
@@ -2671,7 +2734,7 @@ push_allocno_to_stack (ira_allocno_t a)
   enum reg_class aclass;
   allocno_color_data_t data, conflict_data;
   int size, i, n = ALLOCNO_NUM_OBJECTS (a);
-    
+
   data = ALLOCNO_COLOR_DATA (a);
   data->in_graph_p = false;
   allocno_stack_vec.safe_push (a);
@@ -2690,7 +2753,7 @@ push_allocno_to_stack (ira_allocno_t a)
       ira_object_t obj = ALLOCNO_OBJECT (a, i);
       ira_object_t conflict_obj;
       ira_object_conflict_iterator oci;
-      
+
       FOR_EACH_OBJECT_CONFLICT (obj, conflict_obj, oci)
 	{
 	  ira_allocno_t conflict_a = OBJECT_ALLOCNO (conflict_obj);
@@ -2721,7 +2784,7 @@ push_allocno_to_stack (ira_allocno_t a)
 		  fprintf (ira_dump_file, " colorable\n");
 		}
 	    }
-	  
+
 	}
     }
 }
@@ -3255,7 +3318,7 @@ improve_allocation (void)
 	  ira_object_t conflict_obj;
 	  ira_object_t obj = ALLOCNO_OBJECT (a, word);
 	  ira_object_conflict_iterator oci;
-      
+
 	  FOR_EACH_OBJECT_CONFLICT (obj, conflict_obj, oci)
 	    {
 	      ira_allocno_t conflict_a = OBJECT_ALLOCNO (conflict_obj);
@@ -3342,7 +3405,7 @@ improve_allocation (void)
 	  ira_object_t conflict_obj;
 	  ira_object_t obj = ALLOCNO_OBJECT (a, word);
 	  ira_object_conflict_iterator oci;
-      
+
 	  FOR_EACH_OBJECT_CONFLICT (obj, conflict_obj, oci)
 	    {
 	      ira_allocno_t conflict_a = OBJECT_ALLOCNO (conflict_obj);
@@ -3366,8 +3429,7 @@ improve_allocation (void)
       /* Assign the best chosen hard register to A.  */
       ALLOCNO_HARD_REGNO (a) = best;
 
-      for (j = nregs - 1; j >= 0; j--)
-	allocated_hardreg_p[best + j] = true;
+      record_allocation (best, nregs);
 
       if (internal_flag_ira_verbose > 2 && ira_dump_file != NULL)
 	fprintf (ira_dump_file, "Assigning %d to a%dr%d\n",
@@ -3460,7 +3522,7 @@ color_allocnos (void)
 	    ira_remove_pref (pref);
 	}
     }
-  
+
   if (flag_ira_algorithm == IRA_ALGORITHM_PRIORITY)
     {
       n = 0;
@@ -5197,6 +5259,7 @@ color (void)
 {
   allocno_stack_vec.create (ira_allocnos_num);
   memset (allocated_hardreg_p, 0, sizeof (allocated_hardreg_p));
+  CLEAR_HARD_REG_SET (allocated_callee_save_regs);
   ira_initiate_assign ();
   do_coloring ();
   ira_finish_assign ();
@@ -5325,10 +5388,14 @@ ira_color (void)
   ira_allocno_iterator ai;
 
   /* Setup updated costs.  */
+  allocated_memory_p = false;
   FOR_EACH_ALLOCNO (a, ai)
     {
       ALLOCNO_UPDATED_MEMORY_COST (a) = ALLOCNO_MEMORY_COST (a);
       ALLOCNO_UPDATED_CLASS_COST (a) = ALLOCNO_CLASS_COST (a);
+      if (ALLOCNO_CLASS (a) == NO_REGS
+	  && !ira_equiv_no_lvalue_p (ALLOCNO_REGNO (a)))
+	allocated_memory_p = true;
     }
   if (ira_conflicts_p)
     color ();

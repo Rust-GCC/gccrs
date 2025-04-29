@@ -1,3 +1,362 @@
+2025-03-29  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* libgccjit.exports: Add symbols for ABI 28 to 34.
+
+2025-03-13  Matthias Klose  <doko@ubuntu.com>
+
+	* Make-lang.in (LIBGCCJIT_VERSION_NUM): Move to ../Makefile.in.
+
+2025-02-13  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* dummy-frontend.cc
+	(jit_diagnostic_listener::on_report_diagnostic): Add
+	"final override".
+
+2025-02-07  Richard Biener  <rguenther@suse.de>
+
+	PR jit/118780
+	* jit-playback.cc: Define INCLUDE_DLFCN_H.
+	* jit-result.cc: Likewise.
+
+2025-01-24  David Malcolm  <dmalcolm@redhat.com>
+
+	PR jit/117886
+	* jit-recording.cc (reproducer::get_identifier_as_rvalue): Handle
+	null memento.
+	(reproducer::get_identifier_as_lvalue): Likewise.
+	(reproducer::get_identifier_as_type): Likewise.
+	(recording::ctor::write_reproducer): Use get_identifier_as_rvalue
+	rather than get_identifier when writing out gcc_jit_rvalue *
+	expressions.
+
+2025-01-22  David Malcolm  <dmalcolm@redhat.com>
+
+	* dummy-frontend.cc (tree_type_to_jit_type): For POINTER_TYPE,
+	bail out if the inner call to tree_type_to_jit_type fails.
+	Don't abort on unknown types.
+	(jit_langhook_pushdecl): Replace gcc_unreachable with return of
+	NULL_TREE.
+
+2024-11-22  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR bootstrap/117737
+	* dummy-frontend.cc (INCLUDE_MEMORY): Remove.
+	* jit-playback.cc (INCLUDE_MEMORY): Remove.
+	* jit-recording.cc (INCLUDE_MEMORY): Remove.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_34): New ABI tag.
+	* docs/topics/contexts.rst: Document gcc_jit_context_set_output_ident.
+	* jit-playback.cc (set_output_ident): New method.
+	* jit-playback.h (set_output_ident): New method.
+	* jit-recording.cc (recording::context::set_output_ident,
+	recording::output_ident::output_ident,
+	recording::output_ident::~output_ident,
+	recording::output_ident::replay_into,
+	recording::output_ident::make_debug_string,
+	recording::output_ident::write_reproducer): New methods.
+	* jit-recording.h (class output_ident): New class.
+	* libgccjit.cc (gcc_jit_context_set_output_ident): New function.
+	* libgccjit.h (gcc_jit_context_set_output_ident): New function.
+	* libgccjit.map: New function.
+
+2024-01-18  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_33): New ABI tag.
+	* docs/topics/functions.rst: Document gcc_jit_function_new_temp.
+	* jit-playback.cc (new_local): Add support for temporary
+	variables.
+	* jit-recording.cc (recording::function::new_temp): New method.
+	(recording::local::write_reproducer): Support temporary
+	variables.
+	* jit-recording.h (new_temp): New method.
+	* libgccjit.cc (gcc_jit_function_new_temp): New function.
+	* libgccjit.h (gcc_jit_function_new_temp): New function.
+	* libgccjit.map: New function.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	PR jit/108762
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_32): New ABI tag.
+	* docs/topics/functions.rst: Add documentation for the function
+	gcc_jit_context_get_target_builtin_function.
+	* dummy-frontend.cc: Include headers target.h, jit-recording.h,
+	print-tree.h, unordered_map and string, new variables (target_builtins,
+	target_function_types, and target_builtins_ctxt), new function
+	(tree_type_to_jit_type).
+	* jit-builtins.cc: Specify that the function types are not from
+	target builtins.
+	* jit-playback.cc: New argument is_target_builtin to new_function.
+	* jit-playback.h: New argument is_target_builtin to
+	new_function.
+	* jit-recording.cc: New argument is_target_builtin to
+	new_function_type, function_type constructor and function
+	constructor, new function
+	(get_target_builtin_function).
+	* jit-recording.h: Include headers string and unordered_map, new
+	variable target_function_types, new argument is_target_builtin
+	to new_function_type, function_type and function, new functions
+	(get_target_builtin_function, copy).
+	* libgccjit.cc: New function
+	(gcc_jit_context_get_target_builtin_function).
+	* libgccjit.h: New function
+	(gcc_jit_context_get_target_builtin_function).
+	* libgccjit.map: New functions
+	(gcc_jit_context_get_target_builtin_function).
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	* jit-common.h: Add forward declaration of memento_of_get_aligned.
+	* jit-recording.h (type::is_same_type_as): Compare integer
+	types.
+	(dyn_cast_aligned_type): New method.
+	(type::is_aligned, memento_of_get_aligned::is_same_type_as,
+	memento_of_get_aligned::is_aligned): new methods.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/contexts.rst: Add documentation for new option.
+	* jit-recording.cc (recording::context::get_str_option): New
+	method.
+	* jit-recording.h (get_str_option): New method.
+	* libgccjit.cc (gcc_jit_context_new_function): Allow special
+	characters in function names.
+	* libgccjit.h (enum gcc_jit_str_option): New option.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	PR jit/112602
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_31): New ABI tag.
+	* docs/topics/expressions.rst: Document
+	gcc_jit_context_new_rvalue_vector_perm and
+	gcc_jit_context_new_vector_access.
+	* jit-playback.cc (playback::context::new_rvalue_vector_perm,
+	common_mark_addressable_vec,
+	gnu_vector_type_p,
+	lvalue_p,
+	convert_vector_to_array_for_subscript,
+	new_vector_access): new functions.
+	* jit-playback.h (new_rvalue_vector_perm, new_vector_access):
+	New functions.
+	* jit-recording.cc (recording::context::new_rvalue_vector_perm,
+	recording::context::new_vector_access,
+	memento_of_new_rvalue_vector_perm,
+	recording::memento_of_new_rvalue_vector_perm::replay_into,
+	recording::memento_of_new_rvalue_vector_perm::visit_children,
+	recording::memento_of_new_rvalue_vector_perm::make_debug_string,
+	recording::memento_of_new_rvalue_vector_perm::write_reproducer,
+	recording::vector_access::replay_into,
+	recording::vector_access::visit_children,
+	recording::vector_access::make_debug_string,
+	recording::vector_access::write_reproducer): New methods.
+	* jit-recording.h (class memento_of_new_rvalue_vector_perm,
+	class vector_access): New classes.
+	* libgccjit.cc (gcc_jit_context_new_vector_access,
+	gcc_jit_context_new_rvalue_vector_perm): New functions.
+	* libgccjit.h (gcc_jit_context_new_rvalue_vector_perm,
+	gcc_jit_context_new_vector_access): New functions.
+	* libgccjit.map: New functions.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	PR jit/113343
+	* jit-playback.cc (new_rvalue_from_const): Fix to have the
+	correct value when cross-compiling.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	* libgccjit.cc (RETURN_IF_FAIL_PRINTF3): New macro.
+	(gcc_jit_block_add_assignment_op): Add numeric checks.
+
+2024-11-20  Antoni Boucher  <bouanto@zoho.com>
+
+	* dummy-frontend.cc (jit_langhook_init): Send flag_signed_char
+	argument to build_common_tree_nodes.
+
+2024-11-04  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_30): New ABI tag.
+	* docs/topics/expressions.rst: Document gcc_jit_context_convert_vector.
+	* jit-playback.cc (convert_vector): New method.
+	* jit-playback.h: New method.
+	* jit-recording.cc (recording::context::new_convert_vector,
+	recording::convert_vector::replay_into,
+	recording::convert_vector::visit_children,
+	recording::convert_vector::make_debug_string,
+	recording::convert_vector::write_reproducer): New methods.
+	* jit-recording.h (class convert_vector): New class.
+	(context::new_convert_vector): New method.
+	* libgccjit.cc (gcc_jit_context_convert_vector): New function.
+	* libgccjit.h (gcc_jit_context_convert_vector): New function.
+	* libgccjit.map: New function.
+
+2024-11-04  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_29): New ABI tag.
+	* docs/topics/expressions.rst: Document gcc_jit_global_set_readonly.
+	* jit-playback.cc (global_new_decl, new_global,
+	new_global_initialized): New parameter readonly.
+	* jit-playback.h (global_new_decl, new_global,
+	new_global_initialized): New parameter readonly.
+	* jit-recording.cc (recording::global::replay_into): Use
+	m_readonly.
+	(recording::global::write_reproducer): Dump reproducer for
+	gcc_jit_global_set_readonly.
+	* jit-recording.h (get_readonly, set_readonly): New methods.
+	(m_readonly): New attribute.
+	* libgccjit.cc (gcc_jit_global_set_readonly): New function.
+	(gcc_jit_block_add_assignment): Check that we don't assign to a
+	readonly variable.
+	* libgccjit.h (gcc_jit_global_set_readonly): New function.
+	(LIBGCCJIT_HAVE_gcc_jit_global_set_readonly): New define.
+	* libgccjit.map: New function.
+
+2024-11-04  Antoni Boucher  <bouanto@zoho.com>
+
+	* jit-builtins.cc (ensure_optimization_builtins_exist): Add
+	missing builtins.
+
+2024-10-29  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* dummy-frontend.cc: Include "make-unique.h".
+	(class jit_diagnostic_listener): New.
+	(jit_begin_diagnostic): Update comment.
+	(jit_end_diagnostic): Drop call to add_diagnostic.
+	(jit_langhook_init): Set the output format to a new
+	jit_diagnostic_listener.
+	* jit-playback.cc (playback::context::add_diagnostic): Add "text"
+	param and use that rather than trying to get the text from a
+	pretty_printer.
+	* jit-playback.h (playback::context::add_diagnostic): Add "text"
+	param.
+
+2024-10-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* docs/examples/tut04-toyvm/toyvm.cc: Remove trailing whitespace.
+
+2024-10-24  David Malcolm  <dmalcolm@redhat.com>
+	    Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR other/116613
+	* dummy-frontend.cc: Add #define INCLUDE_MEMORY.
+	* jit-playback.cc: Likewise.
+	* jit-recording.cc: Likewise.
+
+2024-09-20  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* dummy-frontend.cc: Include "diagnostic-format-text.h".
+	(jit_begin_diagnostic): Convert first param from
+	diagnostic_context * to diagnostic_text_output_format &
+	(jit_end_diagnostic): Likewise.  Update accordingly.
+	(jit_langhook_init): Update for renamings.
+
+2024-09-18  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* libgccjit.h: Include <sys/types.h>
+
+2024-09-09  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116613
+	* jit-playback.cc (add_diagnostic): Rename diagnostic_context's
+	"printer" field to "m_printer".
+
+2024-09-02  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* jit-playback.cc (playback::block::add_extended_asm):  Rename
+	ASM_INPUT_P to ASM_BASIC_P.
+
+2024-07-24  David Malcolm  <dmalcolm@redhat.com>
+
+	* jit-playback.cc (jit::playback_context::compile) Add a trailing
+	null to argvec.
+
+2024-07-05  Antoni Boucher  <bouanto@zoho.com>
+
+	* jit-common.h: Add array_type class.
+	* jit-recording.h (type::dyn_cast_array_type,
+	memento_of_get_aligned::dyn_cast_array_type,
+	array_type::dyn_cast_array_type, array_type::is_same_type_as):
+	New methods.
+
+2024-07-05  Antoni Boucher  <bouanto@zoho.com>
+
+	PR jit/112574
+	* docs/topics/types.rst: Document GCC_JIT_TYPE_BFLOAT16.
+	* jit-common.h: Update NUM_GCC_JIT_TYPES.
+	* jit-playback.cc (get_tree_node_for_type): Support bfloat16.
+	* jit-recording.cc (recording::memento_of_get_type::get_size,
+	recording::memento_of_get_type::dereference,
+	recording::memento_of_get_type::is_int,
+	recording::memento_of_get_type::is_signed,
+	recording::memento_of_get_type::is_float,
+	recording::memento_of_get_type::is_bool): Support bfloat16.
+	* libgccjit.h (enum gcc_jit_types): Add GCC_JIT_TYPE_BFLOAT16.
+
+2024-06-29  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* jit-recording.cc
+	(recording::memento_of_typeinfo::make_debug_string): Default the value
+	of ident.
+	(recording::memento_of_typeinfo::write_reproducer): Default the value
+	of type.
+
+2024-06-27  Antoni Boucher  <bouanto@zoho.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_28): New ABI tag.
+	* docs/topics/expressions.rst: Document gcc_jit_context_new_alignof.
+	* jit-playback.cc (new_alignof): New method.
+	* jit-playback.h: New method.
+	* jit-recording.cc (recording::context::new_alignof): New
+	method.
+	(recording::memento_of_sizeof::replay_into,
+	recording::memento_of_typeinfo::replay_into,
+	recording::memento_of_sizeof::make_debug_string,
+	recording::memento_of_typeinfo::make_debug_string,
+	recording::memento_of_sizeof::write_reproducer,
+	recording::memento_of_typeinfo::write_reproducer): Rename.
+	* jit-recording.h (enum type_info_type): New enum.
+	(class memento_of_sizeof class memento_of_typeinfo): Rename.
+	* libgccjit.cc (gcc_jit_context_new_alignof): New function.
+	* libgccjit.h (gcc_jit_context_new_alignof): New function.
+	* libgccjit.map: New function.
+
+2024-06-25  Kewen Lin  <linkw@linux.ibm.com>
+
+	* jit-recording.cc (recording::memento_of_get_type::get_size): Update
+	macros {FLOAT,DOUBLE,LONG_DOUBLE}_TYPE_SIZE by calling
+	targetm.c.mode_for_floating_type with
+	TI_{FLOAT,DOUBLE,LONG_DOUBLE}_TYPE.
+
+2024-06-12  David Malcolm  <dmalcolm@redhat.com>
+
+	* jit-recording.cc (recording::function::dump_to_dot): Update for
+	fields of pretty_printer becoming private.
+
+2024-06-11  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR jit/115442
+	* jit-recording.cc: Define INCLUDE_SSTREAM before including
+	system.h and don't directly incldue sstream.
+
+2024-04-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* docs/topics/expressions.rst (Constructor expressions): Fix
+	duplicated words; have have -> have.
+
+2024-04-02  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* Make-lang.in: Implement exports list, and use a shared
+	libgcc.
+	* libgccjit.exports: New file.
+
+2024-03-29  Guillaume Gomez  <guillaume1.gomez@gmail.com>
+
+	* libgccjit.cc (gcc_jit_type_get_size): Add pointer support
+
 2024-02-10  Jakub Jelinek  <jakub@redhat.com>
 
 	* jit-playback.cc (new_bitcast): Use HOST_WIDE_INT_PRINT_DEC instead
@@ -4270,7 +4629,7 @@
 
 	* Initial creation
 
-Copyright (C) 2013-2024 Free Software Foundation, Inc.
+Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

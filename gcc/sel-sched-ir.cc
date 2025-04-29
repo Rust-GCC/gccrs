@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.  Selective scheduler and pipeliner.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -4894,7 +4894,7 @@ bb_ends_ebb_p (basic_block bb)
   if (e)
     {
       gcc_assert (e->dest == next_bb);
-      
+
       return false;
     }
 

@@ -3,7 +3,7 @@
 
 // 2008-07-03 Chris Fairles <chris.fairles@gmail.com>
 
-// Copyright (C) 2008-2024 Free Software Foundation, Inc.
+// Copyright (C) 2008-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -43,10 +43,11 @@ test02()
 // { dg-error "expected initializer" "" { target *-*-* } 35 }
 // { dg-error "expected initializer" "" { target *-*-* } 37 }
 // { dg-error "overflow in addition" "" { target *-*-* } 0 }
-// { dg-error "overflow in multiplication" "" { target *-*-* } 101 }
 // { dg-error "overflow in multiplication" "" { target *-*-* } 103 }
 // { dg-error "overflow in multiplication" "" { target *-*-* } 105 }
+// { dg-error "overflow in multiplication" "" { target *-*-* } 107 }
 // { dg-error "overflow in constant expression" "" { target *-*-* } 0 }
 // { dg-error "narrowing conversion" "" { target *-*-* } 0 }
+// { dg-error "overflow in expression" "" { target *-*-* } 114 }
 // { dg-prune-output "out of range" }
 // { dg-prune-output "not usable in a constant expression" }

@@ -1,5 +1,5 @@
 /* Vector API for GNU compiler.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Contributed by Nathan Sidwell <nathan@codesourcery.com>
    Re-implemented in C++ by Diego Novillo <dnovillo@google.com>
 
@@ -132,7 +132,7 @@ extern void *ggc_realloc (void *, size_t MEM_STAT_DECL);
    Notes on the different layout strategies
 
    * Embeddable vectors (vec<T, A, vl_embed>)
-   
+
      These vectors are suitable to be embedded in other data
      structures so that they can be pre-allocated in a contiguous
      memory block.
@@ -2020,7 +2020,7 @@ vec<T, va_heap, vl_ptr>::release (void)
 
   if (using_auto_storage ())
     {
-      m_vec->m_vecpfx.m_num = 0;
+      m_vec->truncate (0);
       return;
     }
 
@@ -2395,11 +2395,11 @@ public:
   array_slice (vec<OtherT, A, vl_embed> *v)
     : m_base (v ? v->address () : nullptr), m_size (v ? v->length () : 0) {}
 
-  iterator begin () { return m_base; }
-  iterator end () { return m_base + m_size; }
+  iterator begin () {  gcc_checking_assert (is_valid ()); return m_base; }
+  iterator end () {  gcc_checking_assert (is_valid ()); return m_base + m_size; }
 
-  const_iterator begin () const { return m_base; }
-  const_iterator end () const { return m_base + m_size; }
+  const_iterator begin () const { gcc_checking_assert (is_valid ()); return m_base; }
+  const_iterator end () const { gcc_checking_assert (is_valid ()); return m_base + m_size; }
 
   value_type &front ();
   value_type &back ();
@@ -2409,7 +2409,7 @@ public:
   const value_type &back () const;
   const value_type &operator[] (unsigned int i) const;
 
-  size_t size () const { return m_size; }
+  unsigned size () const { return m_size; }
   size_t size_bytes () const { return m_size * sizeof (T); }
   bool empty () const { return m_size == 0; }
 

@@ -1,5 +1,5 @@
 /* General Solaris system support.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -226,7 +226,7 @@ solaris_elf_asm_comdat_section (const char *name, unsigned int flags, tree decl)
      directive since Sun as treats undeclared sections as @progbits,
      which conflicts with .bss* sections which are @nobits.  */
   targetm.asm_out.named_section (section, flags & ~SECTION_LINKONCE, decl);
-  
+
   /* Sun as separates declaration of a group section and of the group
      itself, using the .group directive and the #comdat flag.  */
   fprintf (asm_out_file, "\t.group\t%s," SECTION_NAME_FORMAT ",#comdat\n",
@@ -290,13 +290,4 @@ solaris_file_end (void)
 
   solaris_comdat_htab->traverse <void *, solaris_define_comdat_signature>
     (NULL);
-}
-
-void
-solaris_override_options (void)
-{
-  /* Older versions of Solaris ld cannot handle CIE version 3 in .eh_frame.
-     Don't emit DWARF3/4 unless specifically selected if so.  */
-  if (!HAVE_LD_EH_FRAME_CIEV3 && !OPTION_SET_P (dwarf_version))
-    dwarf_version = 2;
 }

@@ -1,5 +1,5 @@
 /* DWARF2 EH unwinding support for AMD x86-64 and x86.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,12 +32,6 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    Don't use this at all if inhibit_libc is used.  */
 
 #ifndef inhibit_libc
-
-/* There's no sys/ucontext.h for glibc 2.0, so no
-   signal-turned-exceptions for them.  There's also no configure-run for
-   the target, so we can't check on (e.g.) HAVE_SYS_UCONTEXT_H.  Using the
-   target libc version macro should be enough.  */
-#if defined __GLIBC__ && !(__GLIBC__ == 2 && __GLIBC_MINOR__ == 0)
 
 #include <signal.h>
 #include <sys/ucontext.h>
@@ -199,5 +193,4 @@ x86_frob_update_context (struct _Unwind_Context *context,
 }
 
 #endif /* ifdef __x86_64__  */
-#endif /* not glibc 2.0 */
 #endif /* ifdef inhibit_libc  */

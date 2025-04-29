@@ -1,5 +1,5 @@
 /* PRU target specific pragmas
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
    Contributed by Dimitar Dimitrov <dimitar@dinux.eu>
 
    This file is part of GCC.
@@ -40,7 +40,7 @@
 
    WARNING: Only immediate constant addresses are currently supported.  */
 static void
-pru_pragma_ctable_entry (cpp_reader * reader ATTRIBUTE_UNUSED)
+pru_pragma_ctable_entry (cpp_reader *)
 {
   tree ctable_index, base_addr;
   enum cpp_ttype type;
@@ -58,11 +58,9 @@ pru_pragma_ctable_entry (cpp_reader * reader ATTRIBUTE_UNUSED)
 	  if (type != CPP_EOF)
 	    error ("junk at end of %<#pragma CTABLE_ENTRY%>");
 	  else if (i >= ARRAY_SIZE (pru_ctable))
-	    error ("%<CTABLE_ENTRY%> index %" HOST_WIDE_INT_PRINT "d"
-		   " is not valid", i);
+	    error ("%<CTABLE_ENTRY%> index %wd is not valid", i);
 	  else if (pru_ctable[i].valid && pru_ctable[i].base != base)
-	    error ("redefinition of %<CTABLE_ENTRY "
-		   "%" HOST_WIDE_INT_PRINT "d%>", i);
+	    error ("redefinition of %<CTABLE_ENTRY %wd%>", i);
 	  else
 	    {
 	      if (base & 0xff)

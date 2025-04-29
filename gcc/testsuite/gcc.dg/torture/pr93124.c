@@ -1,5 +1,4 @@
-/* { dg-additional-options "-fno-rerun-cse-after-loop -fno-guess-branch-probability -fno-tree-fre" } */
-/* { dg-require-effective-target alloca } */
+/* { dg-additional-options "-std=gnu17 -fno-rerun-cse-after-loop -fno-guess-branch-probability -fno-tree-fre" } */
 
 int x;
 

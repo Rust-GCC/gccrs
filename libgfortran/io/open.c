@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught
    F2003 I/O support contributed by Jerry DeLisle
 
@@ -909,6 +909,16 @@ st_open (st_parameter_open *opp)
 	    {
 	      generate_error (&opp->common, LIBERROR_BAD_OPTION,
 			      "Bad unit number in OPEN statement");
+	      library_end ();
+	      return;
+	    }
+
+	  if (u->s == NULL)
+	    {
+	      unlock_unit (u);
+	      generate_error (&opp->common, LIBERROR_BAD_OPTION,
+			"Unit number is negative and unit was not already "
+			"opened with OPEN(NEWUNIT=...)");
 	      library_end ();
 	      return;
 	    }

@@ -1,3 +1,70 @@
+2025-04-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* math/expq.c (C): Fix up THREEp96 constant.
+
+2025-04-07  Lulu Cheng  <chenglulu@loongson.cn>
+
+	PR target/119408
+	* configure.ac: When checking for __float128 support, determine
+	whether the current architecture is LoongArch.  If so, return false.
+	* configure: Regenerate.
+	Sigend-off-by: Xi Ruoyao <xry111@xry111.site>
+	Sigend-off-by: Jakub Jelinek <jakub@redhat.com>
+
+2025-04-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* strtod/strtod_l.c (____STRTOF_INTERNAL): Avoid old-style function
+	definitions.
+	* printf/addmul_1.c (mpn_addmul_1): Likewise.
+	* printf/mul_1.c (mpn_mul_1): Likewise.
+	* printf/submul_1.c (mpn_submul_1): Likewise.
+
+2025-01-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* libquadmath.texi: Bump @copying's copyright year.
+
+2024-08-28  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* libquadmath.texi (M_LOG2Eq, M_LOG10Eq, M_1_PIq,
+	M_2_PIq, M_2_SQRTPIq, M_SQRT1_2q): Adjust descriptioni
+	of these constants.
+
+2024-08-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/116007
+	* math/sqrtq.c (TFtype): For PowerPC without __LONG_DOUBLE_IEEE128__
+	define to __float128 before including soft-fp.h and quad.h.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBQUAD_USE_SYMVER_SUN] (quadmath.map-sun): Pass
+	$(libquadmath_la_OBJECTS), $(libquadmath_la_LIBADD) to
+	make_sunver.pl unmodified.
+	* Makefile.in: Regenerate.
+
+2024-04-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* sfp-machine.h (__LITTLE_ENDIAN, __BIG_ENDIAN, __BYTE_ORDER): Define
+	if __BYTE_ORDER isn't defined.
+
+2024-04-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libquadmath/114623
+	* sfp-machine.h: New file.
+	* math/sqrtq.c: Include from libgcc/soft-fp also soft-fp.h and quad.h
+	if possible.
+	(USE_SOFT_FP): Define in that case.
+	(sqrtq): Use soft-fp based implementation for the finite positive
+	arguments if possible.
+
+2024-04-03  Simon Chopin  <simon.chopin@canonical.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR libquadmath/114533
+	* printf/printf_fp.c (__quadmath_printf_fp): Use memcpy to copy
+	__float128 out of args.
+	* printf/printf_fphex.c (__quadmath_printf_fphex): Likewise.
+
 2024-01-03  Jakub Jelinek  <jakub@redhat.com>
 
 	* libquadmath.texi: Bump @copying's copyright year.
@@ -1293,7 +1360,7 @@
 	PR fortran/32049
 	Initial implementation and checkin.
 
-Copyright (C) 2010-2024 Free Software Foundation, Inc.
+Copyright (C) 2010-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

@@ -1,6 +1,6 @@
 // shared_ptr atomic access -*- C++ -*-
 
-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
+// Copyright (C) 2014-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -401,6 +401,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	// Either __shared_count<> or __weak_count<>
 	using __count_type = decltype(_Tp::_M_refcount);
+	using uintptr_t = __UINTPTR_TYPE__;
 
 	// _Sp_counted_base<>*
 	using pointer = decltype(__count_type::_M_pi);

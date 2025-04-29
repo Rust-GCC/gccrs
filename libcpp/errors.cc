@@ -1,5 +1,5 @@
 /* Default error handlers for CPP Library.
-   Copyright (C) 1986-2024 Free Software Foundation, Inc.
+   Copyright (C) 1986-2025 Free Software Foundation, Inc.
    Written by Per Bothner, 1994.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -52,26 +52,38 @@ cpp_diagnostic_get_current_location (cpp_reader *pfile)
     }
 }
 
+/* Sometimes a diagnostic needs to be generated before libcpp has been able
+   to generate a valid location for the current token; in that case, the
+   non-zero location returned by this function is the preferred one to use.  */
+
+location_t
+cpp_get_diagnostic_override_loc (const cpp_reader *pfile)
+{
+  return pfile->diagnostic_override_loc;
+}
+
 /* Print a diagnostic at the given location.  */
 
-ATTRIBUTE_FPTR_PRINTF(5,0)
+ATTRIBUTE_CPP_PPDIAG (5, 0)
 static bool
 cpp_diagnostic_at (cpp_reader * pfile, enum cpp_diagnostic_level level,
 		   enum cpp_warning_reason reason, rich_location *richloc,
 		   const char *msgid, va_list *ap)
 {
-  bool ret;
-
   if (!pfile->cb.diagnostic)
     abort ();
-  ret = pfile->cb.diagnostic (pfile, level, reason, richloc, _(msgid), ap);
-
-  return ret;
+  if (pfile->diagnostic_override_loc && level != CPP_DL_NOTE)
+    {
+      rich_location rc2{pfile->line_table, pfile->diagnostic_override_loc};
+      rc2.set_escape_on_output (richloc->escape_on_output_p ());
+      return pfile->cb.diagnostic (pfile, level, reason, &rc2, _(msgid), ap);
+    }
+  return pfile->cb.diagnostic (pfile, level, reason, richloc, _(msgid), ap);
 }
 
 /* Print a diagnostic at the location of the previously lexed token.  */
 
-ATTRIBUTE_FPTR_PRINTF(4,0)
+ATTRIBUTE_CPP_PPDIAG (4, 0)
 static bool
 cpp_diagnostic (cpp_reader * pfile, enum cpp_diagnostic_level level,
 		enum cpp_warning_reason reason,
@@ -190,7 +202,7 @@ cpp_pedwarning_at (cpp_reader * pfile, enum cpp_warning_reason reason,
 
 /* Print a diagnostic at a specific location.  */
 
-ATTRIBUTE_FPTR_PRINTF(6,0)
+ATTRIBUTE_CPP_PPDIAG (6, 0)
 static bool
 cpp_diagnostic_with_line (cpp_reader * pfile, enum cpp_diagnostic_level level,
 			  enum cpp_warning_reason reason,
@@ -198,11 +210,17 @@ cpp_diagnostic_with_line (cpp_reader * pfile, enum cpp_diagnostic_level level,
 			  const char *msgid, va_list *ap)
 {
   bool ret;
-  
+
   if (!pfile->cb.diagnostic)
     abort ();
+  /* Don't override note locations, which will likely make the note
+     more confusing.  */
+  const bool do_loc_override
+    = pfile->diagnostic_override_loc && level != CPP_DL_NOTE;
+  if (do_loc_override)
+    src_loc = pfile->diagnostic_override_loc;
   rich_location richloc (pfile->line_table, src_loc);
-  if (column)
+  if (column && !do_loc_override)
     richloc.override_column (column);
   ret = pfile->cb.diagnostic (pfile, level, reason, &richloc, _(msgid), ap);
 
@@ -349,4 +367,20 @@ cpp_errno_filename (cpp_reader *pfile, enum cpp_diagnostic_level level,
 
   return cpp_error_at (pfile, level, loc, "%s: %s", filename,
 		       xstrerror (errno));
+}
+
+cpp_auto_suppress_diagnostics::cpp_auto_suppress_diagnostics (cpp_reader *pfile)
+  : m_pfile (pfile), m_cb (pfile->cb.diagnostic)
+{
+  m_pfile->cb.diagnostic
+    = [] (cpp_reader *, cpp_diagnostic_level, cpp_warning_reason,
+	  rich_location *, const char *, va_list *)
+    {
+      return true;
+    };
+}
+
+cpp_auto_suppress_diagnostics::~cpp_auto_suppress_diagnostics ()
+{
+  m_pfile->cb.diagnostic = m_cb;
 }

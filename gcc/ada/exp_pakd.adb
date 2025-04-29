@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -95,8 +95,8 @@ package body Exp_Pakd is
    --  This expression includes any required range checks.
 
    function Compute_Number_Components
-      (N   : Node_Id;
-       Typ : Entity_Id) return Node_Id;
+     (N   : Node_Id;
+      Typ : Entity_Id) return Node_Id;
    --  Build an expression that multiplies the length of the dimensions of the
    --  array, used to control array equality checks.
 
@@ -414,8 +414,8 @@ package body Exp_Pakd is
    -------------------------------
 
    function Compute_Number_Components
-      (N   : Node_Id;
-       Typ : Entity_Id) return Node_Id
+     (N   : Node_Id;
+      Typ : Entity_Id) return Node_Id
    is
       Loc      : constant Source_Ptr := Sloc (N);
       Len_Expr : Node_Id;
@@ -541,8 +541,12 @@ package body Exp_Pakd is
 
          if Is_Itype (Typ) then
             Set_Parent (Decl, Associated_Node_For_Itype (Typ));
+            Set_Associated_Node_For_Itype
+              (PAT, Associated_Node_For_Itype (Typ));
          else
             Set_Parent (Decl, Declaration_Node (Typ));
+            Set_Associated_Node_For_Itype
+              (PAT, Declaration_Node (Typ));
          end if;
 
          if Scope (Typ) /= Current_Scope then
@@ -593,6 +597,14 @@ package body Exp_Pakd is
          Set_Parent                    (PAT, Empty);
          Set_Associated_Node_For_Itype (PAT, Typ);
          Set_Original_Array_Type       (PAT, Typ);
+
+         --  In the case of a constrained array type, also set fields on the
+         --  implicit base type built during the analysis of its declaration.
+
+         if Ekind (PAT) = E_Array_Subtype then
+            Set_Is_Packed_Array_Impl_Type (Etype (PAT), True);
+            Set_Original_Array_Type       (Etype (PAT), Base_Type (Typ));
+         end if;
 
          --  Propagate representation aspects
 
@@ -814,7 +826,7 @@ package body Exp_Pakd is
                    Subtype_Marks => Indexes,
                    Component_Definition =>
                      Make_Component_Definition (Loc,
-                       Aliased_Present    => False,
+                       Aliased_Present    => Has_Aliased_Components (Typ),
                        Subtype_Indication =>
                           New_Occurrence_Of (Ctyp, Loc)));
 
@@ -824,7 +836,7 @@ package body Exp_Pakd is
                     Discrete_Subtype_Definitions => Indexes,
                     Component_Definition =>
                       Make_Component_Definition (Loc,
-                        Aliased_Present    => False,
+                        Aliased_Present    => Has_Aliased_Components (Typ),
                         Subtype_Indication =>
                           New_Occurrence_Of (Ctyp, Loc)));
             end if;
@@ -1108,6 +1120,10 @@ package body Exp_Pakd is
 
    begin
       pragma Assert (Is_Bit_Packed_Array (Etype (Prefix (Lhs))));
+
+      if CodePeer_Mode then
+         return;
+      end if;
 
       Obj := Relocate_Node (Prefix (Lhs));
       Convert_To_Actual_Subtype (Obj);
@@ -1495,6 +1511,10 @@ package body Exp_Pakd is
       Offset : Node_Id;
 
    begin
+      if CodePeer_Mode then
+         return;
+      end if;
+
       --  We build an expression that has the form
 
       --    outer_object'Address
@@ -1534,6 +1554,10 @@ package body Exp_Pakd is
       Offset : Node_Id;
 
    begin
+      if CodePeer_Mode then
+         return;
+      end if;
+
       --  We build an expression that has the form
 
       --    (linear-subscript * component_size      for each array reference
@@ -1569,6 +1593,10 @@ package body Exp_Pakd is
       PAT  : Entity_Id;
 
    begin
+      if CodePeer_Mode then
+         return;
+      end if;
+
       Convert_To_Actual_Subtype (L);
       Convert_To_Actual_Subtype (R);
 
@@ -1732,6 +1760,10 @@ package body Exp_Pakd is
       Arg   : Node_Id;
 
    begin
+      if CodePeer_Mode then
+         return;
+      end if;
+
       --  If the node is an actual in a call, the prefix has not been fully
       --  expanded, to account for the additional expansion for in-out actuals
       --  (see expand_actuals for details). If the prefix itself is a packed
@@ -1895,6 +1927,10 @@ package body Exp_Pakd is
       PAT  : Entity_Id;
 
    begin
+      if CodePeer_Mode then
+         return;
+      end if;
+
       Convert_To_Actual_Subtype (L);
       Convert_To_Actual_Subtype (R);
       Ltyp := Underlying_Type (Etype (L));
@@ -1992,6 +2028,10 @@ package body Exp_Pakd is
       Size : Unat;
 
    begin
+      if CodePeer_Mode then
+         return;
+      end if;
+
       Convert_To_Actual_Subtype (Opnd);
       Rtyp := Etype (Opnd);
 

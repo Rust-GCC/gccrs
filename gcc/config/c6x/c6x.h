@@ -1,5 +1,5 @@
 /* Target Definitions for TI C6X.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    Contributed by Andrew Jenner <andrew@codesourcery.com>
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
@@ -444,11 +444,9 @@ struct GTY(()) machine_function
 #define TARG_VEC_PERMUTE_COST        1
 #endif
 
-/* ttype entries (the only interesting data references used) are
-   sb-relative got-indirect (aka .ehtype).  */
+/* .ehtype ttype entries are sb-relative.  */
 #define ASM_PREFERRED_EH_DATA_FORMAT(code, data) \
-  (((code) == 0 && (data) == 1) ? (DW_EH_PE_datarel | DW_EH_PE_indirect) \
-				: DW_EH_PE_absptr)
+  (((code) == 0 && (data) == 1) ? DW_EH_PE_datarel : DW_EH_PE_absptr)
 
 /* This should be the same as the definition in elfos.h, plus the call
    to output special unwinding directives.  */

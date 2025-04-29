@@ -1,3 +1,119 @@
+2025-04-15  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* lto-partition.cc (add_node_references_to_partition): Define.
+	(create_partition): Likewise.
+	(lto_locality_map): Likewise.
+	(lto_promote_cross_file_statics): Add extra dumping.
+	* lto-partition.h (lto_locality_map): Declare prototype.
+	* lto.cc (do_whole_program_analysis): Handle
+	flag_ipa_reorder_for_locality.
+
+2025-02-28  Richard Biener  <rguenther@suse.de>
+
+	PR lto/91299
+	* lto-symtab.cc (lto_symtab_merge_symbols): Set DECL_EXTERNAL
+	only after calling get_availability.
+
+2025-02-11  Martin Jambor  <mjambor@suse.cz>
+
+	PR lto/118125
+	* lto-lang.cc (lto_gnu_attributes): Add an entry for cold attribute.
+	(handle_cold_attribute): New function.
+
+2025-01-14  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* lto-partition.cc (lto_balanced_map): Adjust code referencing
+	deleted declare_variant_alt bit.
+
+2024-12-12  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/113688
+	PR c/114014
+	PR c/114713
+	PR c/117724
+	* lto-common.cc (hash_canonical_type): Add exception.
+
+2024-12-12  Martin Uecker  <uecker@tugraz.at>
+
+	* lto-common.cc (hash_canonical_type): Add exception.
+
+2024-11-22  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR bootstrap/117737
+	* lto-common.cc (INCLUDE_MEMORY): Remove.
+	* lto-dump.cc (INCLUDE_MEMORY): Remove.
+	* lto-partition.cc (INCLUDE_MEMORY): Remove.
+	* lto-symtab.cc (INCLUDE_MEMORY): Remove.
+	* lto.cc (INCLUDE_MEMORY): Remove.
+
+2024-11-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/117024
+	* lto-lang.cc (flag_isoc2y): New variable.
+
+2024-10-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR lto/117201
+	PR lto/117288
+	* lto-common.cc (compare_tree_sccs_1): Handle RAW_DATA_CST.
+
+2024-10-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* lto-object.cc: Remove trailing whitespace.
+	* lto-symtab.cc: Likewise.
+	* lto-partition.cc: Likewise.
+	* lang-specs.h: Likewise.
+	* lto-lang.cc: Likewise.
+
+2024-10-24  David Malcolm  <dmalcolm@redhat.com>
+	    Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR other/116613
+	* lto-common.cc: Add #define INCLUDE_MEMORY.
+	* lto-dump.cc: Likewise.
+	* lto-partition.cc: Likewise.
+	* lto-symtab.cc: Likewise.
+	* lto.cc: Likewise.
+
+2024-09-03  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR lto/116535
+	* lto.cc (stream_out): Update call to
+	ipa_write_optimization_summaries to pass true for first partition.
+
+2024-09-02  Tobias Burnus  <tburnus@baylibre.com>
+
+	* lto.cc: Add missing HAVE_WORKING_FORK.
+
+2024-06-07  Simon Martin  <simon@nasilyan.com>
+
+	* lto-partition.cc: Define INCLUDE_VECTOR to avoid running into
+	poisoned identifiers.
+
+2024-06-07  Michal Jires  <mjires@suse.cz>
+
+	* lto-partition.cc (new_partition): Use new_partition_no_push.
+	(new_partition_no_push): New.
+	(free_ltrans_partition): New.
+	(free_ltrans_partitions): Use free_ltrans_partition.
+	(join_partitions): New.
+	(split_partition_into_nodes): New.
+	(is_partition_reorder): New.
+	(class partition_set): New.
+	(distribute_n_partitions): New.
+	(partition_over_target_split): New.
+	(partition_binary_split): New.
+	(partition_fixed_split): New.
+	(class partitioner_base): New.
+	(class partitioner_default): New.
+	(lto_cache_map): New.
+	* lto-partition.h (lto_cache_map): New.
+	* lto.cc (do_whole_program_analysis): Use lto_cache_map.
+
+2024-06-06  Michal Jires  <mjires@suse.cz>
+
+	* lto-common.cc (lto_section_with_id): Dont load suffix during LTRANS.
+
 2024-02-21  Martin Jambor  <mjambor@suse.cz>
 
 	PR ipa/113476
@@ -6788,7 +6904,7 @@
 	* lto-tree.h: Likewise.
 	* lto-lang.c: Likewise.
 
-Copyright (C) 2006-2024 Free Software Foundation, Inc.
+Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright
