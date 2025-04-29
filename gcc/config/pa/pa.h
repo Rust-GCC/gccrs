@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for the HP Spectrum.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) of Cygnus Support
    and Tim Moore (moore@defmacro.cs.utah.edu) of the Center for
    Software Science at the University of Utah.
@@ -226,7 +226,7 @@ typedef struct GTY(()) machine_function
 } machine_function;
 
 /* Define this macro if it is advisable to hold scalars in registers
-   in a wider mode than that declared by the program.  In such cases, 
+   in a wider mode than that declared by the program.  In such cases,
    the value is constrained to be within the bounds of the declared
    type, but kept valid in the wider mode.  The signedness of the
    extension may differ from that of the type.  */
@@ -260,7 +260,7 @@ typedef struct GTY(()) machine_function
    This needs to be 8 when TARGET_64BIT is true to allow building various
    TImode routines in libgcc.  However, we also need the DImode DIVMOD
    routines because they are not currently implemented in pa.md.
-   
+
    The HP runtime specification doesn't provide the alignment requirements
    and calling conventions for TImode variables.  */
 #ifdef IN_LIBGCC2
@@ -480,6 +480,9 @@ extern rtx hppa_pic_save_rtx (void);
 #define INDEX_REG_CLASS GENERAL_REGS
 #define BASE_REG_CLASS GENERAL_REGS
 
+/* True if register is a general register.  */
+#define GENERAL_REGNO_P(N) ((N) >= 1 && (N) <= 31)
+
 #define FP_REG_CLASS_P(CLASS) \
   ((CLASS) == FP_REGS || (CLASS) == FPUPPER_REGS)
 
@@ -564,13 +567,13 @@ extern rtx hppa_pic_save_rtx (void);
    of arguments scanned so far (including the invisible argument,
    if any, which holds the structure-value-address).  Thus, 4 or
    more means all following args should go on the stack.
-   
+
    The INCOMING field tracks whether this is an "incoming" or
    "outgoing" argument.
-   
+
    The INDIRECT field indicates whether this is an indirect
    call or not.
-   
+
    The NARGS_PROTOTYPE field indicates that an argument does not
    have a prototype when it less than or equal to 0.  */
 
@@ -712,7 +715,7 @@ extern int may_call_alloca;
 #define MIN_CACHELINE_SIZE 32
 
 
-/* Addressing modes, and classification of registers for them. 
+/* Addressing modes, and classification of registers for them.
 
    Using autoincrement addressing modes on PA8000 class machines is
    not profitable.  */
@@ -828,19 +831,8 @@ extern int may_call_alloca;
 
 /* Nonzero if 14-bit offsets can be used for all loads and stores.
    This is not possible when generating PA 1.x code as floating point
-   accesses only support 5-bit offsets.  Note that we do not forbid
-   the use of 14-bit offsets prior to reload.  Instead, we use secondary
-   reloads to fix REG+D memory addresses for floating-point accesses.
-
-   FIXME: the GNU ELF linker clobbers the LSB of the FP register number
-   in PA 2.0 floating-point insns with long displacements.  This is
-   because R_PARISC_DPREL14WR and other relocations like it are not
-   yet supported by GNU ld.  For now, we reject long displacements
-   on this target.  */
-
-#define INT14_OK_STRICT \
-  (TARGET_SOFT_FLOAT                                                   \
-   || (TARGET_PA_20 && !TARGET_ELF32 && !TARGET_ELF64))
+   accesses only support 5-bit offsets.  */
+#define INT14_OK_STRICT (TARGET_SOFT_FLOAT || TARGET_PA_20)
 
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
@@ -981,7 +973,7 @@ do {									     \
 
 /* Higher than the default as we prefer to use simple move insns
    (better scheduling and delay slot filling) and because our
-   built-in block move is really a 2X unrolled loop. 
+   built-in block move is really a 2X unrolled loop.
 
    Believe it or not, this has to be big enough to allow for copying all
    arguments passed in registers to avoid infinite recursion during argument
@@ -1174,7 +1166,7 @@ do {									     \
 #define ASM_OUTPUT_ADDR_VEC_ELT(FILE, VALUE)  \
   fprintf (FILE, "\t.word L$%d\n", VALUE)
 
-/* This is how to output an element of a case-vector that is relative. 
+/* This is how to output an element of a case-vector that is relative.
    Since we always place jump tables in the text section, the difference
    is absolute and requires no relocation.  */
 
@@ -1208,7 +1200,7 @@ do {									     \
 
 #define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN)		\
   pa_asm_output_aligned_bss (FILE, NAME, SIZE, ALIGN)
-  
+
 /* This says how to output an assembler line to define a global common symbol
    with size SIZE (in bytes) and alignment ALIGN (in bits).  */
 
@@ -1222,7 +1214,7 @@ do {									     \
 
 #define ASM_OUTPUT_ALIGNED_LOCAL(FILE, NAME, SIZE, ALIGN)		\
   pa_asm_output_aligned_local (FILE, NAME, SIZE, ALIGN)
-  
+
 /* All HP assemblers use "!" to separate logical lines.  */
 #define IS_ASM_LOGICAL_LINE_SEPARATOR(C, STR) ((C) == '!')
 
@@ -1258,12 +1250,15 @@ do {									     \
 	       reg_names [REGNO (XEXP (addr, 0))]);			\
       break;								\
     case LO_SUM:							\
-      if (!symbolic_operand (XEXP (addr, 1), VOIDmode))			\
+      if (GET_CODE (XEXP (addr, 1)) == UNSPEC				\
+	  && XINT (XEXP (addr, 1), 1) == UNSPEC_DLTIND14R)		\
+	fputs ("RT'", FILE);						\
+      else if (!symbolic_operand (XEXP (addr, 1), VOIDmode))		\
 	fputs ("R'", FILE);						\
       else if (flag_pic == 0)						\
 	fputs ("RR'", FILE);						\
       else								\
-	fputs ("RT'", FILE);						\
+	gcc_unreachable ();						\
       pa_output_global_address (FILE, XEXP (addr, 1), 0);		\
       fputs ("(", FILE);						\
       output_operand (XEXP (addr, 0), 0);				\
@@ -1303,7 +1298,7 @@ do {									     \
    instructions for non-PIC and PIC, respectively.  Import stubs are
    seven and five instructions for HP-UX and ELF targets, respectively.
    The default stub group size for ELF targets is 217856 bytes.
-   FIXME: We need an option to set the maximum offset.  */  
+   FIXME: We need an option to set the maximum offset.  */
 #define MAX_PCREL17F_OFFSET (TARGET_HPUX ? 198164 : 217856)
 
 #define NEED_INDICATE_EXEC_STACK 0
@@ -1314,3 +1309,9 @@ do {									     \
 /* An integer expression for the size in bits of the largest integer machine
    mode that should actually be used.  We allow pairs of registers.  */
 #define MAX_FIXED_MODE_SIZE GET_MODE_BITSIZE (TARGET_64BIT ? TImode : DImode)
+
+/* Define these macros as default for all subtargets, add PA_ prefix
+   as {FLOAT,{,LONG_}DOUBLE}_TYPE_SIZE get poisoned.  */
+#define PA_FLOAT_TYPE_SIZE BITS_PER_WORD
+#define PA_DOUBLE_TYPE_SIZE (BITS_PER_WORD * 2)
+#define PA_LONG_DOUBLE_TYPE_SIZE (BITS_PER_WORD * 2)

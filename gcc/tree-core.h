@@ -1,5 +1,5 @@
 /* Core data structures for the 'tree' type.
-   Copyright (C) 1989-2024 Free Software Foundation, Inc.
+   Copyright (C) 1989-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -241,11 +241,18 @@ enum tree_code_class {
 };
 
 /* OMP_CLAUSE codes.  Do not reorder, as this is used to index into
-   the tables omp_clause_num_ops and omp_clause_code_name.  */
+   the tables omp_clause_num_ops and omp_clause_code_name.
+
+   Note additionally that there are various range checks such as
+   for OMP_CLAUSE_SIZE or OMP_CLAUSE_DECL; clauses having those shall
+   be inside that range, those that have not shall be outside.  */
+
 enum omp_clause_code {
   /* Clause zero is special-cased inside the parser
      (c_parser_omp_variable_list).  */
   OMP_CLAUSE_ERROR = 0,
+
+  /* Range START below for: OMP_CLAUSE_DECL  */
 
   /* OpenACC/OpenMP clause: private (variable_list).  */
   OMP_CLAUSE_PRIVATE,
@@ -258,6 +265,9 @@ enum omp_clause_code {
 
   /* OpenMP clause: lastprivate (variable_list).  */
   OMP_CLAUSE_LASTPRIVATE,
+
+  /* Range START below for: OMP_CLAUSE_REDUCTION_CODE and
+     OMP_CLAUSE_REDUCTION_{INIT,MERGE,{DECL_,}PLACEHOLDER,OMP_ORIG_REF}  */
 
   /* OpenACC/OpenMP clause: reduction (operator:variable_list).
      OMP_CLAUSE_REDUCTION_CODE: The tree_code of the operator.
@@ -276,6 +286,9 @@ enum omp_clause_code {
 
   /* OpenMP clause: in_reduction (operator:variable_list).  */
   OMP_CLAUSE_IN_REDUCTION,
+
+  /* Range END above for: OMP_CLAUSE_REDUCTION_CODE  and
+     OMP_CLAUSE_REDUCTION_{INIT,MERGE,{DECL_,}PLACEHOLDER,OMP_ORIG_REF}  */
 
   /* OpenMP clause: copyin (variable_list).  */
   OMP_CLAUSE_COPYIN,
@@ -330,11 +343,16 @@ enum omp_clause_code {
   /* OpenMP clause: exclusive (variable-list).  */
   OMP_CLAUSE_EXCLUSIVE,
 
+  /* Range START below for: OMP_CLAUSE_SIZE  */
+  /* Range START below for: OMP_CLAUSE_MOTION_PRESENT  */
+
   /* OpenMP clause: from (variable-list).  */
   OMP_CLAUSE_FROM,
 
   /* OpenMP clause: to (variable-list).  */
   OMP_CLAUSE_TO,
+
+  /* Range END above for: OMP_CLAUSE_MOTION_PRESENT  */
 
   /* OpenACC clauses: {copy, copyin, copyout, create, delete, deviceptr,
      device, host (self), present, present_or_copy (pcopy), present_or_copyin
@@ -353,6 +371,24 @@ enum omp_clause_code {
   /* Internal structure to hold OpenACC cache directive's variable-list.
      #pragma acc cache (variable-list).  */
   OMP_CLAUSE__CACHE_,
+
+  /* Range END above for: OMP_CLAUSE_SIZE */
+
+  /* OpenMP clause: destroy (variable-list ).  */
+  OMP_CLAUSE_DESTROY,
+
+  /* Range START below for: OMP_CLAUSE_INIT_PREFER_TYPE  */
+
+  /* OpenMP clause: init ( [modifier-list : ] variable-list ).  */
+  OMP_CLAUSE_INIT,
+
+  /* Range END above for: OMP_CLAUSE_INIT_PREFER_TYPE  */
+
+  /* OpenMP clause: use (variable-list ).  */
+  OMP_CLAUSE_USE,
+
+  /* OpenMP clause: interop (variable-list).  */
+  OMP_CLAUSE_INTEROP,
 
   /* OpenACC clause: gang [(gang-argument-list)].
      Where
@@ -385,6 +421,8 @@ enum omp_clause_code {
 
   /* Internal clause: temporary for inscan reductions.  */
   OMP_CLAUSE__SCANTEMP_,
+
+  /* Range END above for: OMP_CLAUSE_DECL  */
 
   /* OpenACC/OpenMP clause: if (scalar-expression).  */
   OMP_CLAUSE_IF,
@@ -497,6 +535,15 @@ enum omp_clause_code {
   /* OpenMP clause: indirect [(constant-integer-expression)].  */
   OMP_CLAUSE_INDIRECT,
 
+  /* OpenMP clause: partial (constant-integer-expression).  */
+  OMP_CLAUSE_PARTIAL,
+
+  /* OpenMP clause: full.  */
+  OMP_CLAUSE_FULL,
+
+  /* OpenMP clause: sizes (constant-integer-expression-list).  */
+  OMP_CLAUSE_SIZES,
+
   /* Internally used only clause, holding SIMD uid.  */
   OMP_CLAUSE__SIMDUID_,
 
@@ -533,6 +580,13 @@ enum omp_clause_code {
 
   /* OpenACC clause: nohost.  */
   OMP_CLAUSE_NOHOST,
+
+  /* OpenMP clause: novariants (scalar-expression).  */
+  OMP_CLAUSE_NOVARIANTS,
+
+  /* OpenMP clause: nocontext (scalar-expression).  */
+  OMP_CLAUSE_NOCONTEXT,
+
 };
 
 #undef DEFTREESTRUCT
@@ -624,7 +678,7 @@ enum cv_qualifier {
 };
 
 /* Standard named or nameless data types of the C compiler.  */
-enum tree_index {
+enum tree_index : unsigned {
   TI_ERROR_MARK,
   TI_INTQI_TYPE,
   TI_INTHI_TYPE,
@@ -653,7 +707,6 @@ enum tree_index {
 
   TI_INTEGER_ZERO,
   TI_INTEGER_ONE,
-  TI_INTEGER_THREE,
   TI_INTEGER_MINUS_ONE,
   TI_NULL_POINTER,
 
@@ -691,17 +744,18 @@ enum tree_index {
   TI_FLOAT64_TYPE,
   TI_FLOAT128_TYPE,
   TI_FLOATN_TYPE_LAST = TI_FLOAT128_TYPE,
-#define NUM_FLOATN_TYPES (TI_FLOATN_TYPE_LAST - TI_FLOATN_TYPE_FIRST + 1)
+#define NUM_FLOATN_TYPES ((int) (TI_FLOATN_TYPE_LAST		\
+				 - TI_FLOATN_TYPE_FIRST + 1))
   TI_FLOAT32X_TYPE,
   TI_FLOATNX_TYPE_FIRST = TI_FLOAT32X_TYPE,
   TI_FLOAT64X_TYPE,
   TI_FLOAT128X_TYPE,
   TI_FLOATNX_TYPE_LAST = TI_FLOAT128X_TYPE,
   TI_FLOATN_NX_TYPE_LAST = TI_FLOAT128X_TYPE,
-#define NUM_FLOATNX_TYPES (TI_FLOATNX_TYPE_LAST - TI_FLOATNX_TYPE_FIRST + 1)
-#define NUM_FLOATN_NX_TYPES (TI_FLOATN_NX_TYPE_LAST		\
-			     - TI_FLOATN_NX_TYPE_FIRST		\
-			     + 1)
+#define NUM_FLOATNX_TYPES ((int) (TI_FLOATNX_TYPE_LAST		\
+				  - TI_FLOATNX_TYPE_FIRST + 1))
+#define NUM_FLOATN_NX_TYPES ((int) (TI_FLOATN_NX_TYPE_LAST	\
+				  - TI_FLOATN_NX_TYPE_FIRST + 1))
 
   /* Type used by certain backends for __float128, which in C++ should be
      distinct type from _Float128 for backwards compatibility reasons.  */
@@ -750,6 +804,7 @@ enum tree_index {
   TI_DFLOAT32_TYPE,
   TI_DFLOAT64_TYPE,
   TI_DFLOAT128_TYPE,
+  TI_DFLOAT64X_TYPE,
 
   TI_VOID_LIST_NODE,
 
@@ -952,7 +1007,14 @@ enum operand_equal_flag {
   /* In conjunction with OEP_LEXICOGRAPHIC considers names of declarations
      of the same kind.  Used to compare VLA bounds involving parameters
      across redeclarations of the same function.  */
-  OEP_DECL_NAME = 512
+  OEP_DECL_NAME = 512,
+  /* Check if two expressions result in the same bit values while possibly
+     ignoring the sign of the expressions and any differences in undefined
+     behaviour.  The compared expressions must however perform the same
+     operations.  Because this comparison ignores any possible UB it cannot
+     be used blindly without ensuring that the context you are using it in
+     itself doesn't guarantee that there will be no UB.  */
+  OEP_ASSUME_WRAPV = 1024
 };
 
 /* Enum and arrays used for tree allocation stats.
@@ -983,6 +1045,7 @@ enum annot_expr_kind {
   annot_expr_no_vector_kind,
   annot_expr_vector_kind,
   annot_expr_parallel_kind,
+  annot_expr_maybe_infinite_kind,
   annot_expr_kind_last
 };
 
@@ -993,9 +1056,11 @@ enum clobber_kind {
   CLOBBER_UNDEF,
   /* Beginning of storage duration, e.g. malloc.  */
   CLOBBER_STORAGE_BEGIN,
-  /* Beginning of object lifetime, e.g. C++ constructor.  */
+  /* Beginning of object data, e.g. start of C++ constructor.  This differs
+     from C++ 'lifetime', which starts when initialization is complete; a
+     clobber there would discard the initialization.  */
   CLOBBER_OBJECT_BEGIN,
-  /* End of object lifetime, e.g. C++ destructor.  */
+  /* End of object data, e.g. end of C++ destructor.  */
   CLOBBER_OBJECT_END,
   /* End of storage duration, e.g. free.  */
   CLOBBER_STORAGE_END,
@@ -1201,7 +1266,7 @@ struct GTY(()) tree_base {
        TRY_CATCH_IS_CLEANUP in
            TRY_CATCH_EXPR
 
-       ASM_INPUT_P in
+       ASM_BASIC_P in
            ASM_EXPR
 
        TYPE_REF_CAN_ALIAS_ALL in
@@ -1343,6 +1408,12 @@ struct GTY(()) tree_base {
 
        TYPE_READONLY in
            all types
+
+       OMP_CLAUSE_MAP_READONLY in
+           OMP_CLAUSE_MAP
+
+       OMP_CLAUSE__CACHE__READONLY in
+           OMP_CLAUSE__CACHE_
 
    constant_flag:
 
@@ -1495,6 +1566,13 @@ struct GTY(()) tree_string {
   struct tree_typed typed;
   int length;
   char str[1];
+};
+
+struct GTY((user)) tree_raw_data {
+  struct tree_typed typed;
+  tree owner;
+  const char *str;
+  int length;
 };
 
 struct GTY(()) tree_complex {
@@ -1945,7 +2023,7 @@ struct GTY(()) tree_decl_non_common {
 
 /* Classify a special function declaration type.  */
 
-enum function_decl_type
+enum class function_decl_type : unsigned
 {
   NONE,
   OPERATOR_NEW,
@@ -2084,6 +2162,7 @@ union GTY ((ptr_alias (union lang_tree_node),
   struct tree_fixed_cst GTY ((tag ("TS_FIXED_CST"))) fixed_cst;
   struct tree_vector GTY ((tag ("TS_VECTOR"))) vector;
   struct tree_string GTY ((tag ("TS_STRING"))) string;
+  struct tree_raw_data GTY ((tag ("TS_RAW_DATA_CST"))) raw_data_cst;
   struct tree_complex GTY ((tag ("TS_COMPLEX"))) complex;
   struct tree_identifier GTY ((tag ("TS_IDENTIFIER"))) identifier;
   struct tree_decl_minimal GTY((tag ("TS_DECL_MINIMAL"))) decl_minimal;

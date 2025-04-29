@@ -1,4 +1,5 @@
-/* Copyright (C) 2011-2024 Free Software Foundation, Inc.
+/* Overrides for elfos.h for AVR 8-bit microcontrollers.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Georg-Johann Lay (avr@gjlay.de)
 
    This file is part of GCC.
@@ -7,12 +8,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3, or (at your option)
    any later version.
-   
+
    GCC is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
@@ -31,3 +32,7 @@
 /* Be conservative in crtstuff.c.  */
 #undef INIT_SECTION_ASM_OP
 #undef FINI_SECTION_ASM_OP
+
+#undef ASM_DECLARE_FUNCTION_NAME
+#define ASM_DECLARE_FUNCTION_NAME(STREAM, NAME, DECL) \
+	avr_declare_function_name (STREAM, NAME, DECL)

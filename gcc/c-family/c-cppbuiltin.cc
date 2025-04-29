@@ -1,5 +1,5 @@
 /* Define builtin-in macros for the C family front ends.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -357,17 +357,8 @@ builtin_define_decimal_float_constants (const char *name_prefix,
 
   /* Compute the maximum representable value.  */
   sprintf (name, "__%s_MAX__", name_prefix);
-  p = buf;
-  for (digits = fmt->p; digits; digits--)
-    {
-      *p++ = '9';
-      if (digits == fmt->p)
-	*p++ = '.';
-    }
-  *p = 0;
-  /* fmt->p plus 1, to account for the decimal point and fmt->emax
-     minus 1 because the digits are nines, not 1.0.  */
-  sprintf (&buf[fmt->p + 1], "E%d%s", fmt->emax - 1, suffix);
+  get_max_float (fmt, buf, sizeof (buf) - strlen (suffix), false);
+  strcat (buf, suffix);
   builtin_define_with_value (name, buf, 0);
 
   /* Compute epsilon (the difference between 1 and least value greater
@@ -660,7 +651,7 @@ c_cpp_builtins_optimize_pragma (cpp_reader *pfile, tree prev_tree,
 
 /* This function will emit cpp macros to indicate the presence of various lock
    free atomic operations.  */
-   
+
 static void
 cpp_atomic_builtins (cpp_reader *pfile)
 {
@@ -741,26 +732,26 @@ cpp_atomic_builtins (cpp_reader *pfile)
      lock free.  */
 #define SIZEOF_NODE(T) (tree_to_uhwi (TYPE_SIZE_UNIT (T)))
 #define SWAP_INDEX(T) ((SIZEOF_NODE (T) < SWAP_LIMIT) ? SIZEOF_NODE (T) : 0)
-  builtin_define_with_int_value ("__GCC_ATOMIC_BOOL_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_BOOL_LOCK_FREE",
 			(have_swap[SWAP_INDEX (boolean_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_CHAR_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_CHAR_LOCK_FREE",
 			(have_swap[SWAP_INDEX (signed_char_type_node)]? 2 : 1));
   if (flag_char8_t)
     builtin_define_with_int_value ("__GCC_ATOMIC_CHAR8_T_LOCK_FREE",
 			(have_swap[SWAP_INDEX (char8_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_CHAR16_T_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_CHAR16_T_LOCK_FREE",
 			(have_swap[SWAP_INDEX (char16_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_CHAR32_T_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_CHAR32_T_LOCK_FREE",
 			(have_swap[SWAP_INDEX (char32_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_WCHAR_T_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_WCHAR_T_LOCK_FREE",
 			(have_swap[SWAP_INDEX (wchar_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_SHORT_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_SHORT_LOCK_FREE",
 		      (have_swap[SWAP_INDEX (short_integer_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_INT_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_INT_LOCK_FREE",
 			(have_swap[SWAP_INDEX (integer_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_LONG_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_LONG_LOCK_FREE",
 		      (have_swap[SWAP_INDEX (long_integer_type_node)]? 2 : 1));
-  builtin_define_with_int_value ("__GCC_ATOMIC_LLONG_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_LLONG_LOCK_FREE",
 		(have_swap[SWAP_INDEX (long_long_integer_type_node)]? 2 : 1));
 
   /* If we're dealing with a "set" value that doesn't exactly correspond
@@ -787,7 +778,7 @@ cpp_atomic_builtins (cpp_reader *pfile)
   psize = POINTER_SIZE_UNITS;
   if (psize >= SWAP_LIMIT)
     psize = 0;
-  builtin_define_with_int_value ("__GCC_ATOMIC_POINTER_LOCK_FREE", 
+  builtin_define_with_int_value ("__GCC_ATOMIC_POINTER_LOCK_FREE",
 			(have_swap[psize]? 2 : 1));
 }
 
@@ -954,7 +945,10 @@ c_cpp_builtins (cpp_reader *pfile)
 	}
 
       if (cxx_dialect >= cxx11)
-        cpp_define (pfile, "__GXX_EXPERIMENTAL_CXX0X__");
+	{
+	  cpp_define (pfile, "__GXX_EXPERIMENTAL_CXX0X__");
+	  cpp_define (pfile, "__GXX_CONSTEXPR_ASM__");
+	}
 
       /* Binary literals have been allowed in g++ before C++11
 	 and were standardized for C++14.  */
@@ -1031,7 +1025,11 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_fold_expressions=201603L");
 	  if (cxx_dialect <= cxx17)
 	    cpp_define (pfile, "__cpp_nontype_template_args=201411L");
-	  cpp_define (pfile, "__cpp_range_based_for=201603L");
+	  if (!flag_range_for_ext_temps)
+	    cpp_define (pfile, "__cpp_range_based_for=201603L");
+          else
+	    /* This is the C++23 or -std=c++17 -frange-for-ext-temps value.  */
+	    cpp_define (pfile, "__cpp_range_based_for=202211L");
 	  if (cxx_dialect <= cxx17)
 	    cpp_define (pfile, "__cpp_constexpr=201603L");
 	  cpp_define (pfile, "__cpp_if_constexpr=201606L");
@@ -1044,7 +1042,8 @@ c_cpp_builtins (cpp_reader *pfile)
 	  /* Old macro, superseded by
 	     __cpp_nontype_template_parameter_auto.  */
 	  cpp_define (pfile, "__cpp_template_auto=201606L");
-	  cpp_define (pfile, "__cpp_structured_bindings=201606L");
+	  if (cxx_dialect <= cxx23)
+	    cpp_define (pfile, "__cpp_structured_bindings=201606L");
 	  cpp_define (pfile, "__cpp_variadic_using=201611L");
 	  cpp_define (pfile, "__cpp_guaranteed_copy_elision=201606L");
 	  cpp_define (pfile, "__cpp_nontype_template_parameter_auto=201606L");
@@ -1087,17 +1086,17 @@ c_cpp_builtins (cpp_reader *pfile)
       if (cxx_dialect > cxx23)
 	{
 	  /* Set feature test macros for C++26.  */
-	  cpp_define (pfile, "__cpp_constexpr=202306L");
+	  cpp_define (pfile, "__cpp_constexpr=202406L");
 	  cpp_define (pfile, "__cpp_static_assert=202306L");
 	  cpp_define (pfile, "__cpp_placeholder_variables=202306L");
+	  cpp_define (pfile, "__cpp_structured_bindings=202403L");
+	  cpp_define (pfile, "__cpp_deleted_function=202403L");
+	  cpp_define (pfile, "__cpp_variadic_friend=202403L");
+	  cpp_define (pfile, "__cpp_pack_indexing=202311L");
+	  cpp_define (pfile, "__cpp_pp_embed=202502L");
 	}
-      if (flag_concepts)
-        {
-	  if (cxx_dialect >= cxx20 || !flag_concepts_ts)
-	    cpp_define (pfile, "__cpp_concepts=202002L");
-          else
-            cpp_define (pfile, "__cpp_concepts=201507L");
-        }
+      if (flag_concepts && cxx_dialect > cxx14)
+	cpp_define (pfile, "__cpp_concepts=202002L");
       if (flag_contracts)
 	{
 	  cpp_define (pfile, "__cpp_contracts=201906L");
@@ -1317,6 +1316,9 @@ c_cpp_builtins (cpp_reader *pfile)
 					      dfloat64_type_node);
       builtin_define_decimal_float_constants ("DEC128", "DL",
 					      dfloat128_type_node);
+      if (dfloat64x_type_node)
+	builtin_define_decimal_float_constants ("DEC64X", "D64x",
+						dfloat64x_type_node);
     }
 
   /* For fixed-point fibt, ibit, max, min, and epsilon.  */
@@ -1673,6 +1675,19 @@ c_cpp_builtins (cpp_reader *pfile)
     cpp_define (pfile, "__DECIMAL_BID_FORMAT__");
 }
 
+/* Given NAME, return the command-line option that would make it be
+   a builtin define, or 0 if unrecognized.  */
+
+diagnostic_option_id
+get_option_for_builtin_define (const char *name)
+{
+  if (!strcmp (name, "_OPENACC"))
+    return OPT_fopenacc;
+  if (!strcmp (name, "_OPENMP"))
+    return OPT_fopenmp;
+  return 0;
+}
+
 /* Pass an object-like macro.  If it doesn't lie in the user's
    namespace, defines it unconditionally.  Otherwise define a version
    with two leading underscores, and another version with two leading
@@ -1816,7 +1831,7 @@ struct GTY(()) lazy_hex_fp_value_struct
    Each builtin_define_float_constants invocation calls
    builtin_define_with_hex_fp_value 5 times and builtin_define_float_constants
    is called for FLT, DBL, LDBL and up to NUM_FLOATN_NX_TYPES times for
-   FLTNN*.  */ 
+   FLTNN*.  */
 #define LAZY_HEX_FP_VALUES_CNT (5 * (3 + NUM_FLOATN_NX_TYPES))
 static GTY(()) struct lazy_hex_fp_value_struct
   lazy_hex_fp_values[LAZY_HEX_FP_VALUES_CNT];

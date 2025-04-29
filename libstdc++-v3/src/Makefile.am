@@ -1,6 +1,6 @@
 ## Makefile for the C++11 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2024 Free Software Foundation, Inc.
+## Copyright (C) 1997-2025 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -350,9 +350,7 @@ libstdc++-symbols.ver-sun : libstdc++-symbols.ver \
 	CXXFILT="$(CXXFILT)"; export CXXFILT; \
 	perl $(toplevel_srcdir)/contrib/make_sunver.pl \
 	  libstdc++-symbols.ver \
-	  $(libstdc___la_OBJECTS:%.lo=.libs/%.o) \
-	 `echo ' $(libstdc___la_LIBADD) ' | \
-	    sed -e 's,/\([^/.]*\)\.la,/.libs/\1.a,g' -e 's/ -l[^ ]* / /'` \
+	  $(libstdc___la_OBJECTS) $(libstdc___la_LIBADD) \
 	 > $@ || (rm -f $@ ; exit 1)
 endif
 if ENABLE_SYMVERS_DARWIN

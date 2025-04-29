@@ -1,5 +1,5 @@
 /* Configuration for an i386 running MS-DOS with DJGPP.
-   Copyright (C) 1997-2024 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -98,7 +98,7 @@ along with GCC; see the file COPYING3.  If not see
   while (0)
 #endif
 
-/* This is how to tell assembler that a symbol is weak  */ 
+/* This is how to tell assembler that a symbol is weak  */
 #undef ASM_WEAKEN_LABEL
 #define ASM_WEAKEN_LABEL(FILE,NAME) \
   do { fputs ("\t.weak\t", FILE); assemble_name (FILE, NAME); \

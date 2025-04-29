@@ -1,5 +1,5 @@
 /* Rewrite a program in Normal form into SSA.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -101,12 +101,7 @@ static sbitmap interesting_blocks;
    released after we finish updating the SSA web.  */
 bitmap names_to_release;
 
-/* vec of vec of PHIs to rewrite in a basic block.  Element I corresponds
-   the to basic block with index I.  Allocated once per compilation, *not*
-   released between different functions.  */
-static vec< vec<gphi *> > phis_to_rewrite;
-
-/* The bitmap of non-NULL elements of PHIS_TO_REWRITE.  */
+/* The bitmap of blocks with PHIs to rewrite.  */
 static bitmap blocks_with_phis_to_rewrite;
 
 /* Growth factor for NEW_SSA_NAMES and OLD_SSA_NAMES.  These sets need
@@ -200,7 +195,7 @@ var_info_hasher::equal (const value_type &p1, const compare_type &p2)
 }
 
 
-/* Each entry in VAR_INFOS contains an element of type STRUCT 
+/* Each entry in VAR_INFOS contains an element of type STRUCT
    VAR_INFO_D.  */
 static hash_table<var_info_hasher> *var_infos;
 
@@ -805,21 +800,22 @@ prune_unused_phi_nodes (bitmap phis, bitmap kills, bitmap uses)
      locate the nearest dominating def in logarithmic time by binary search.*/
   bitmap_ior (to_remove, kills, phis);
   n_defs = bitmap_count_bits (to_remove);
-  defs = XNEWVEC (struct dom_dfsnum, 2 * n_defs + 1);
+  adef = 2 * n_defs + 1;
+  defs = XNEWVEC (struct dom_dfsnum, adef);
   defs[0].bb_index = 1;
   defs[0].dfs_num = 0;
-  adef = 1;
+  struct dom_dfsnum *head = defs + 1, *tail = defs + adef;
   EXECUTE_IF_SET_IN_BITMAP (to_remove, 0, i, bi)
     {
       def_bb = BASIC_BLOCK_FOR_FN (cfun, i);
-      defs[adef].bb_index = i;
-      defs[adef].dfs_num = bb_dom_dfs_in (CDI_DOMINATORS, def_bb);
-      defs[adef + 1].bb_index = i;
-      defs[adef + 1].dfs_num = bb_dom_dfs_out (CDI_DOMINATORS, def_bb);
-      adef += 2;
+      head->bb_index = i;
+      head->dfs_num = bb_dom_dfs_in (CDI_DOMINATORS, def_bb);
+      head++, tail--;
+      tail->bb_index = i;
+      tail->dfs_num = bb_dom_dfs_out (CDI_DOMINATORS, def_bb);
     }
+  gcc_checking_assert (head == tail);
   BITMAP_FREE (to_remove);
-  gcc_assert (adef == 2 * n_defs + 1);
   qsort (defs, adef, sizeof (struct dom_dfsnum), cmp_dfsnum);
   gcc_assert (defs[0].bb_index == 1);
 
@@ -941,9 +937,6 @@ find_def_blocks_for (tree var)
 static void
 mark_phi_for_rewrite (basic_block bb, gphi *phi)
 {
-  vec<gphi *> phis;
-  unsigned n, idx = bb->index;
-
   if (rewrite_uses_p (phi))
     return;
 
@@ -952,21 +945,7 @@ mark_phi_for_rewrite (basic_block bb, gphi *phi)
   if (!blocks_with_phis_to_rewrite)
     return;
 
-  if (bitmap_set_bit (blocks_with_phis_to_rewrite, idx))
-    {
-      n = (unsigned) last_basic_block_for_fn (cfun) + 1;
-      if (phis_to_rewrite.length () < n)
-	phis_to_rewrite.safe_grow_cleared (n, true);
-
-      phis = phis_to_rewrite[idx];
-      gcc_assert (!phis.exists ());
-      phis.create (10);
-    }
-  else
-    phis = phis_to_rewrite[idx];
-
-  phis.safe_push (phi);
-  phis_to_rewrite[idx] = phis;
+  bitmap_set_bit (blocks_with_phis_to_rewrite, bb->index);
 }
 
 /* Insert PHI nodes for variable VAR using the iterated dominance
@@ -1421,7 +1400,7 @@ rewrite_stmt (gimple_stmt_iterator *si)
 	/* Do not insert debug stmts if the stmt ends the BB.  */
 	if (stmt_ends_bb_p (stmt))
 	  continue;
-	
+
 	tracked_var = target_for_debug_bind (var);
 	if (tracked_var)
 	  {
@@ -2096,18 +2075,17 @@ rewrite_update_phi_arguments (basic_block bb)
 
   FOR_EACH_EDGE (e, ei, bb->succs)
     {
-      vec<gphi *> phis;
-
       if (!bitmap_bit_p (blocks_with_phis_to_rewrite, e->dest->index))
 	continue;
 
-      phis = phis_to_rewrite[e->dest->index];
-      for (gphi *phi : phis)
+      for (auto gsi = gsi_start_phis (e->dest);
+	   !gsi_end_p (gsi); gsi_next(&gsi))
 	{
 	  tree arg, lhs_sym, reaching_def = NULL;
 	  use_operand_p arg_p;
-
-  	  gcc_checking_assert (rewrite_uses_p (phi));
+	  gphi *phi = *gsi;
+	  if (!rewrite_uses_p (*gsi))
+	    continue;
 
 	  arg_p = PHI_ARG_DEF_PTR_FROM_EDGE (phi, e);
 	  arg = USE_FROM_PTR (arg_p);
@@ -3059,10 +3037,6 @@ delete_update_ssa (void)
 
   fini_ssa_renamer ();
 
-  if (blocks_with_phis_to_rewrite)
-    EXECUTE_IF_SET_IN_BITMAP (blocks_with_phis_to_rewrite, 0, i, bi)
-      phis_to_rewrite[i].release ();
-
   BITMAP_FREE (blocks_with_phis_to_rewrite);
   BITMAP_FREE (blocks_to_update);
 
@@ -3233,7 +3207,7 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
 {
   basic_block entry;
   def_blocks *db;
-  bitmap idf, pruned_idf;
+  bitmap pruned_idf;
   bitmap_iterator bi;
   unsigned i;
 
@@ -3250,8 +3224,7 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
     return;
 
   /* Compute the initial iterated dominance frontier.  */
-  idf = compute_idf (db->def_blocks, dfs);
-  pruned_idf = BITMAP_ALLOC (NULL);
+  pruned_idf = compute_idf (db->def_blocks, dfs);
 
   if (TREE_CODE (var) == SSA_NAME)
     {
@@ -3262,27 +3235,32 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
 	     common dominator of all the definition blocks.  */
 	  entry = nearest_common_dominator_for_set (CDI_DOMINATORS,
 						    db->def_blocks);
-	  if (entry != ENTRY_BLOCK_PTR_FOR_FN (cfun))
-	    EXECUTE_IF_SET_IN_BITMAP (idf, 0, i, bi)
-	      if (BASIC_BLOCK_FOR_FN (cfun, i) != entry
-		  && dominated_by_p (CDI_DOMINATORS,
-				     BASIC_BLOCK_FOR_FN (cfun, i), entry))
-		bitmap_set_bit (pruned_idf, i);
+	  if (entry != single_succ (ENTRY_BLOCK_PTR_FOR_FN (cfun)))
+	    {
+	      unsigned to_remove = ~0U;
+	      EXECUTE_IF_SET_IN_BITMAP (pruned_idf, 0, i, bi)
+		{
+		  if (to_remove != ~0U)
+		    {
+		      bitmap_clear_bit (pruned_idf, to_remove);
+		      to_remove = ~0U;
+		    }
+		  if (BASIC_BLOCK_FOR_FN (cfun, i) == entry
+		      || !dominated_by_p (CDI_DOMINATORS,
+					  BASIC_BLOCK_FOR_FN (cfun, i), entry))
+		    to_remove = i;
+		}
+	      if (to_remove != ~0U)
+		bitmap_clear_bit (pruned_idf, to_remove);
+	    }
 	}
       else
-	{
-	  /* Otherwise, do not prune the IDF for VAR.  */
-	  gcc_checking_assert (update_flags == TODO_update_ssa_full_phi);
-	  bitmap_copy (pruned_idf, idf);
-	}
+	/* Otherwise, do not prune the IDF for VAR.  */
+	gcc_checking_assert (update_flags == TODO_update_ssa_full_phi);
     }
-  else
-    {
-      /* Otherwise, VAR is a symbol that needs to be put into SSA form
-	 for the first time, so we need to compute the full IDF for
-	 it.  */
-      bitmap_copy (pruned_idf, idf);
-    }
+  /* Otherwise, VAR is a symbol that needs to be put into SSA form
+     for the first time, so we need to compute the full IDF for
+     it.  */
 
   if (!bitmap_empty_p (pruned_idf))
     {
@@ -3301,7 +3279,7 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
 
 	  mark_block_for_update (bb);
 	  FOR_EACH_EDGE (e, ei, bb->preds)
-	    if (e->src->index >= 0)
+	    if (e->src->index >= NUM_FIXED_BLOCKS)
 	      mark_block_for_update (e->src);
 	}
 
@@ -3309,7 +3287,6 @@ insert_updated_phi_nodes_for (tree var, bitmap_head *dfs,
     }
 
   BITMAP_FREE (pruned_idf);
-  BITMAP_FREE (idf);
 }
 
 /* Sort symbols_to_rename after their DECL_UID.  */
@@ -3466,9 +3443,9 @@ update_ssa (unsigned update_flags)
   gcc_assert (update_ssa_initialized_fn == cfun);
 
   blocks_with_phis_to_rewrite = BITMAP_ALLOC (NULL);
-  if (!phis_to_rewrite.exists ())
-    phis_to_rewrite.create (last_basic_block_for_fn (cfun) + 1);
+  bitmap_tree_view (blocks_with_phis_to_rewrite);
   blocks_to_update = BITMAP_ALLOC (NULL);
+  bitmap_tree_view (blocks_to_update);
 
   insert_phi_p = (update_flags != TODO_update_ssa_no_phi);
 
@@ -3516,6 +3493,8 @@ update_ssa (unsigned update_flags)
 	 placement heuristics.  */
       prepare_block_for_update (start_bb, insert_phi_p);
 
+      bitmap_list_view (blocks_to_update);
+
       tree name;
 
       if (flag_checking)
@@ -3541,6 +3520,8 @@ update_ssa (unsigned update_flags)
     }
   else
     {
+      bitmap_list_view (blocks_to_update);
+
       /* Otherwise, the entry block to the region is the nearest
 	 common dominator for the blocks in BLOCKS.  */
       start_bb = nearest_common_dominator_for_set (CDI_DOMINATORS,

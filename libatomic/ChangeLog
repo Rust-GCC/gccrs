@@ -1,3 +1,180 @@
+2025-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/101075
+	PR libgcc/119796
+	* config/mingw/lock.c (libat_lock_n, libat_unlock_n): Start with
+	computing how many locks will be needed and take into account
+	((uintptr_t)ptr % WATCH_SIZE).  If some locks from the end of the
+	locks array and others from the start of it will be needed, first
+	lock the ones from the start followed by ones from the end.
+
+2025-04-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgcc/101075
+	PR libgcc/119796
+	* config/posix/lock.c (libat_lock_n, libat_unlock_n): Start with
+	computing how many locks will be needed and take into account
+	((uintptr_t)ptr % WATCH_SIZE).  If some locks from the end of the
+	locks array and others from the start of it will be needed, first
+	lock the ones from the start followed by ones from the end.
+
+2025-01-10  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/linux/aarch64/host-config.h (has_lse2): Cleanup.
+	(has_lse128): Likewise.
+	(has_rcpc3): Add early check for LSE2.
+
+2024-12-18  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+
+	Revert:
+	2024-12-18  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+		    Matthew Malcolmson  <mmalcolmson@nvidia.com>
+
+	PR driver/81358
+	* Makefile.am: Pass -fno-link-libatomic.
+	New rule all.
+	* configure.ac: Assert that CFLAGS is set and pass -fno-link-libatomic.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2024-12-18  Prathamesh Kulkarni  <prathameshk@nvidia.com>
+	    Matthew Malcolmson  <mmalcolmson@nvidia.com>
+
+	PR driver/81358
+	* Makefile.am: Pass -fno-link-libatomic.
+	New rule all.
+	* configure.ac: Assert that CFLAGS is set and pass -fno-link-libatomic.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2024-11-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* testsuite/lib/libatomic.exp: Add
+	"load_gcc_lib dg-test-cleanup.exp".
+
+2024-11-14  Szabolcs Nagy  <szabolcs.nagy@arm.com>
+
+	* config/linux/aarch64/atomic_16.S (FEATURE_1_GCS): Define.
+	(GCS_FLAG): Define if GCS is enabled.
+	(GNU_PROPERTY): Add GCS_FLAG.
+
+2024-09-02  Alex Coplan  <alex.coplan@arm.com>
+
+	* testsuite/lib/libatomic.exp: Load scanltrans.exp instead of
+	scanltranstree.exp.
+
+2024-07-18  mayshao  <mayshao-oc@zhaoxin.com>
+
+	PR target/104688
+	* config/x86/init.c (__libat_feat1_init): Don't clear
+	bit_AVX on ZHAOXIN CPUs.
+
+2024-07-18  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/x86/init.c (__libat_feat1_init): Check the result of
+	__get_cpuid and process FEAT1_REGISTER only when __get_cpuid
+	returns success.  Use __cpuid instead of nested __get_cpuid.
+
+2024-06-25  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* config/linux/aarch64/atomic_16.S (libat_load_16): Add LRCPC3
+	variant.
+	(libat_store_16): Likewise.
+	* config/linux/aarch64/host-config.h (HWCAP2_LRCPC3): New.
+	(LSE2_LRCPC3_ATOP): Previously LSE2_ATOP.  New ifuncs guarded
+	under it.
+	(has_rcpc3): New.
+
+2024-06-12  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* config/linux/aarch64/atomic_16.S: Reorganize functions in
+	file.
+	(HAVE_FEAT_LSE2): Delete.
+
+2024-06-12  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* config/linux/aarch64/atomic_16.S: Remove unnecessary
+	aliasing.
+	(LSE): New.
+	(ENTRY_ALIASED): Likewise.
+	* config/linux/aarch64/host-config.h (LSE_ATOP): New.
+	(LSE2_ATOP): Likewise.
+	(LSE128_ATOP): Likewise.
+	(IFUNC_COND_1): Make its definition conditional on above 3
+	macros.
+	(IFUNC_NCOND): Likewise.
+
+2024-06-12  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* cas_n.c (LAT_CAS_N): New.
+	* exch_n.c (LAT_EXCH_N): Likewise.
+	* fadd_n.c (LAT_FADD_N): Likewise.
+	* fand_n.c (LAT_FAND_N): Likewise.
+	* fence.c (LAT_FENCE): Likewise.
+	* fenv.c (LAT_FENV): Likewise.
+	* fior_n.c (LAT_FIOR_N): Likewise.
+	* flag.c (LAT_FLAG): Likewise.
+	* fnand_n.c (LAT_FNAND_N): Likewise.
+	* fop_n.c (LAT_FOP_N): Likewise
+	* fsub_n.c (LAT_FSUB_N): Likewise.
+	* fxor_n.c (LAT_FXOR_N): Likewise.
+	* gcas.c (LAT_GCAS): Likewise.
+	* gexch.c (LAT_GEXCH): Likewise.
+	* glfree.c (LAT_GLFREE): Likewise.
+	* gload.c (LAT_GLOAD): Likewise.
+	* gstore.c (LAT_GSTORE): Likewise.
+	* load_n.c (LAT_LOAD_N): Likewise.
+	* store_n.c (LAT_STORE_N): Likewise.
+	* tas_n.c (LAT_TAS_N): Likewise.
+
+2024-06-12  Victor Do Nascimento  <victor.donascimento@arm.com>
+
+	* acinclude.m4 (LIBAT_TEST_FEAT_AARCH64_LSE128): Delete.
+	* auto-config.h.in (HAVE_FEAT_LSE128): Likewise
+	* config/linux/aarch64/atomic_16.S: Replace all LSE128
+	instructions with equivalent `.inst' directives.
+	(HAVE_FEAT_LSE128): Remove all references.
+	* configure: Regenerate.
+	* configure.ac: Remove call to LIBAT_TEST_FEAT_AARCH64_LSE128.
+
+2024-05-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR testsuite/115294
+	* testsuite/lib/libatomic.exp (libatomic_target_compile): Pass new
+	dg-additional-files-options args.
+
+2024-05-07  Zac Walker  <zacwalker@microsoft.com>
+
+	* configure.tgt: Add aarch64-w64-mingw32 target.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBAT_BUILD_VERSIONED_SHLIB_SUN]
+	(libatomic.map-sun): Pass $(libatomic_la_OBJECTS),
+	$(libatomic_la_LIBADD) to make_sunver.pl unmodified.
+	* Makefile.in: Regenerate.
+
+2024-04-26  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/linux/aarch64/atomic_16.S: Add __libat_ prefix in the
+	LSE2/LSE128/CORE macros, remove elsewhere.  Add ATOMIC macro.
+
+2024-04-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure: Regenerate.
+
+2024-04-04  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	PR target/113986
+	* Makefile.in: Regenerated.
+	* Makefile.am: Make atomic_16.S not depend on HAVE_IFUNC.
+	Remove predefine of HAVE_FEAT_LSE128.
+	* acinclude.m4: Remove ARCH_AARCH64_HAVE_LSE128.
+	* configure: Regenerated.
+	* config/linux/aarch64/atomic_16.S: Add __atomic_ alias if !HAVE_IFUNC.
+	* config/linux/aarch64/host-config.h: Correctly handle !HAVE_IFUNC.
+	Add defines for HWCAP_ATOMICS and HWCAP_CPUID.
+
 2024-02-14  Roger Sayle  <roger@nextmovesoftware.com>
 	    Victor Do Nascimento  <victor.donascimento@arm.com>
 
@@ -856,7 +1033,7 @@
 
 	* Initial commit.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

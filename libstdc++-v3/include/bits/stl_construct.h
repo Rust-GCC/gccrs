@@ -1,6 +1,6 @@
 // nonstandard construct and destroy functions -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -74,7 +74,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-#if __cplusplus >= 201703L
+#if __glibcxx_raw_memory_algorithms // >= C++17
   template <typename _Tp>
     _GLIBCXX20_CONSTEXPR inline void
     destroy_at(_Tp* __location)
@@ -88,13 +88,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	__location->~_Tp();
     }
 
-#if __cplusplus >= 202002L
+#if __cpp_constexpr_dynamic_alloc // >= C++20
   template<typename _Tp, typename... _Args>
-    constexpr auto
+    requires (!is_unbounded_array_v<_Tp>)
+      && requires { ::new((void*)0) _Tp(std::declval<_Args>()...); }
+    constexpr _Tp*
     construct_at(_Tp* __location, _Args&&... __args)
     noexcept(noexcept(::new((void*)0) _Tp(std::declval<_Args>()...)))
-    -> decltype(::new((void*)0) _Tp(std::declval<_Args>()...))
-    { return ::new((void*)__location) _Tp(std::forward<_Args>(__args)...); }
+    {
+      void* __loc = __location;
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 3436. std::construct_at should support arrays
+      if constexpr (is_array_v<_Tp>)
+	{
+	  static_assert(sizeof...(_Args) == 0, "std::construct_at for array "
+		       "types must not use any arguments to initialize the "
+		       "array");
+	  return ::new(__loc) _Tp[1]();
+	}
+      else
+	return ::new(__loc) _Tp(std::forward<_Args>(__args)...);
+    }
 #endif // C++20
 #endif// C++17
 
@@ -108,7 +122,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     inline void
     _Construct(_Tp* __p, _Args&&... __args)
     {
-#if __cplusplus >= 202002L
+#if __cpp_constexpr_dynamic_alloc // >= C++20
       if (std::__is_constant_evaluated())
 	{
 	  // Allow std::_Construct to be used in constant expressions.
@@ -116,7 +130,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  return;
 	}
 #endif
-      ::new((void*)__p) _Tp(std::forward<_Args>(__args)...);
+      ::new(static_cast<void*>(__p)) _Tp(std::forward<_Args>(__args)...);
     }
 #else
   template<typename _T1, typename _T2>
@@ -130,9 +144,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 
   template<typename _T1>
+    _GLIBCXX26_CONSTEXPR
     inline void
     _Construct_novalue(_T1* __p)
-    { ::new((void*)__p) _T1; }
+    { ::new(static_cast<void*>(__p)) _T1; }
 
   template<typename _ForwardIterator>
     _GLIBCXX20_CONSTEXPR void
@@ -145,13 +160,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     _GLIBCXX14_CONSTEXPR inline void
     _Destroy(_Tp* __pointer)
     {
-#if __cplusplus > 201703L
+#if __cpp_constexpr_dynamic_alloc // >= C++20
       std::destroy_at(__pointer);
 #else
       __pointer->~_Tp();
 #endif
     }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // for if-constexpr
+
+#if __cplusplus < 201103L
   template<bool>
     struct _Destroy_aux
     {
@@ -171,6 +190,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         static void
         __destroy(_ForwardIterator, _ForwardIterator) { }
     };
+#endif
 
   /**
    * Destroy a range of objects.  If the value_type of the object has
@@ -187,15 +207,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // A deleted destructor is trivial, this ensures we reject such types:
       static_assert(is_destructible<_Value_type>::value,
 		    "value type is destructible");
+      if constexpr (!__has_trivial_destructor(_Value_type))
+	for (; __first != __last; ++__first)
+	  std::_Destroy(std::__addressof(*__first));
+#if __cpp_constexpr_dynamic_alloc // >= C++20
+      else if (std::__is_constant_evaluated())
+	for (; __first != __last; ++__first)
+	  std::destroy_at(std::__addressof(*__first));
 #endif
-#if __cplusplus >= 202002L
-      if (std::__is_constant_evaluated())
-	return std::_Destroy_aux<false>::__destroy(__first, __last);
-#endif
+#else
       std::_Destroy_aux<__has_trivial_destructor(_Value_type)>::
 	__destroy(__first, __last);
+#endif
     }
 
+#if __cplusplus < 201103L
   template<bool>
     struct _Destroy_n_aux
     {
@@ -220,6 +246,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  return __first;
 	}
     };
+#endif
 
   /**
    * Destroy a range of objects.  If the value_type of the object has
@@ -236,16 +263,25 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // A deleted destructor is trivial, this ensures we reject such types:
       static_assert(is_destructible<_Value_type>::value,
 		    "value type is destructible");
+      if constexpr (!__has_trivial_destructor(_Value_type))
+	for (; __count > 0; (void)++__first, --__count)
+	  std::_Destroy(std::__addressof(*__first));
+#if __cpp_constexpr_dynamic_alloc // >= C++20
+      else if (std::__is_constant_evaluated())
+	for (; __count > 0; (void)++__first, --__count)
+	  std::destroy_at(std::__addressof(*__first));
 #endif
-#if __cplusplus >= 202002L
-      if (std::__is_constant_evaluated())
-	return std::_Destroy_n_aux<false>::__destroy_n(__first, __count);
-#endif
+      else
+	std::advance(__first, __count);
+      return __first;
+#else
       return std::_Destroy_n_aux<__has_trivial_destructor(_Value_type)>::
 	__destroy_n(__first, __count);
+#endif
     }
+#pragma GCC diagnostic pop
 
-#if __cplusplus >= 201703L
+#if __glibcxx_raw_memory_algorithms // >= C++17
   template <typename _ForwardIterator>
     _GLIBCXX20_CONSTEXPR inline void
     destroy(_ForwardIterator __first, _ForwardIterator __last)

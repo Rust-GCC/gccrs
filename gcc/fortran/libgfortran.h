@@ -1,5 +1,5 @@
 /* Header file to the Fortran front-end and runtime library
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,6 +23,9 @@ along with GCC; see the file COPYING3.  If not see
    Nevertheless, some features available in F2018 are prohibited in F2023.
    Please remember to keep those definitions in sync with
    gfortran.texi.  */
+#define GFC_STD_F202Y		(1<<14)	/* Enable proposed F202y features.  */
+#define GFC_STD_UNSIGNED	(1<<14) /* Not really a standard, but
+					   better for error handling.  */
 #define GFC_STD_F2023_DEL	(1<<13)	/* Prohibited in F2023.  */
 #define GFC_STD_F2023		(1<<12)	/* New in F2023.  */
 #define GFC_STD_F2018_DEL	(1<<11)	/* Deleted in F2018.  */
@@ -151,9 +154,17 @@ typedef enum
   GFC_STAT_LOCKED,
   GFC_STAT_LOCKED_OTHER_IMAGE,
   GFC_STAT_STOPPED_IMAGE = 6000, /* See LIBERROR_INQUIRE_INTERNAL_UNIT above. */
-  GFC_STAT_FAILED_IMAGE  = 6001
+  GFC_STAT_FAILED_IMAGE  = 6001,
+  GFC_STAT_UNLOCKED_FAILED_IMAGE = 6002
 }
 libgfortran_stat_codes;
+
+typedef enum
+{
+  GFC_CAF_INITIAL_TEAM = 0,
+  GFC_CAF_PARENT_TEAM,
+  GFC_CAF_CURRENT_TEAM
+} libgfortran_team_levels;
 
 typedef enum
 {
@@ -190,7 +201,7 @@ typedef enum
 typedef enum
 { BT_UNKNOWN = 0, BT_INTEGER, BT_LOGICAL, BT_REAL, BT_COMPLEX,
   BT_DERIVED, BT_CHARACTER, BT_CLASS, BT_PROCEDURE, BT_HOLLERITH, BT_VOID,
-  BT_ASSUMED, BT_UNION, BT_BOZ
+  BT_ASSUMED, BT_UNION, BT_BOZ, BT_UNSIGNED
 }
 bt;
 

@@ -1,5 +1,5 @@
 /* Generate code to initialize optabs from machine description.
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -250,7 +250,7 @@ main (int argc, const char **argv)
   fprintf (h_file, "#define NUM_OPTAB_PATTERNS  %u\n",
 	   (unsigned) patterns.length ());
 
-  fprintf (h_file, 
+  fprintf (h_file,
 	   "typedef enum optab_tag optab;\n"
 	   "typedef enum optab_tag convert_optab;\n"
 	   "typedef enum optab_tag direct_optab;\n"

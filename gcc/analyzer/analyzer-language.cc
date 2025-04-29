@@ -1,5 +1,5 @@
 /* Interface between analyzer and frontends.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -120,7 +119,7 @@ on_finish_translation_unit (const translation_unit &tu)
   log_user the_logger (NULL);
   if (logfile)
     the_logger.set_logger (new logger (logfile, 0, 0,
-				       *global_dc->printer));
+				       *global_dc->get_reference_printer ()));
   stash_named_constants (the_logger.get_logger (), tu);
 
   run_callbacks (the_logger.get_logger (), tu);

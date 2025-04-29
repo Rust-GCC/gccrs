@@ -1,5 +1,6 @@
-/* { dg-do run { target *-*-linux* *-*-gnu* *-*-uclinux* } } */
-/* { dg-options "-O3" } */
+/* { dg-require-effective-target alarm } */
+/* { dg-require-effective-target signal } */
+/* { dg-additional-options "-O3" } */
 #include <limits.h>
 #include "pr101145inf.inc"
 

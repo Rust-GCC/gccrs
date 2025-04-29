@@ -1,4 +1,4 @@
-@c Copyright (C) 2008-2024 Free Software Foundation, Inc.
+@c Copyright (C) 2008-2025 Free Software Foundation, Inc.
 @c Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
@@ -1110,6 +1110,15 @@ Set @code{CLOBBER_OP} to be clobber operand @code{INDEX} in @code{GIMPLE_ASM} @c
 @deftypefn {GIMPLE function} {const char *} gimple_asm_string (const gasm *g)
 Return the string representing the assembly instruction in
 @code{GIMPLE_ASM} @code{G}.
+@end deftypefn
+
+@deftypefn {GIMPLE function} bool gimple_asm_basic_p (const gasm *g)
+Return true if @code{G} is a basic asm rather than an extended asm.
+@end deftypefn
+
+@deftypefn {GIMPLE function} void gimple_asm_set_basic (gasm *g, bool basic_p)
+Mark asm statement @code{G} as a basic asm or an extended asm based on
+@code{BASIC_P}.
 @end deftypefn
 
 @deftypefn {GIMPLE function} bool gimple_asm_volatile_p (const gasm *g)

@@ -1,5 +1,5 @@
 /* Search an insn for pseudo regs that must be in hard regs and are not.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -122,7 +122,7 @@ static inline bool
 small_register_class_p (reg_class_t rclass)
 {
   return (reg_class_size [(int) rclass] == 1
-	  || (reg_class_size [(int) rclass] >= 1 
+	  || (reg_class_size [(int) rclass] >= 1
 	      && targetm.class_likely_spilled_p (rclass)));
 }
 
@@ -1994,7 +1994,7 @@ find_dummy_reload (rtx real_in, rtx real_out, rtx *inloc, rtx *outloc,
 	 However, we only ignore IN in its role as this reload.
 	 If the insn uses IN elsewhere and it contains OUT,
 	 that counts.  We can't be sure it's the "same" operand
-	 so it might not go through this reload.  
+	 so it might not go through this reload.
 
          We also need to avoid using OUT if it, or part of it, is a
          fixed register.  Modifying such registers, even transiently,
@@ -2211,7 +2211,11 @@ operands_match_p (rtx x, rtx y)
       if (code == SUBREG)
 	{
 	  i = REGNO (SUBREG_REG (x));
-	  if (i >= FIRST_PSEUDO_REGISTER)
+	  if (i >= FIRST_PSEUDO_REGISTER
+	      || simplify_subreg_regno (REGNO (SUBREG_REG (x)),
+					 GET_MODE (SUBREG_REG (x)),
+					 SUBREG_BYTE (x),
+					 GET_MODE (x)) == -1)
 	    goto slow;
 	  i += subreg_regno_offset (REGNO (SUBREG_REG (x)),
 				    GET_MODE (SUBREG_REG (x)),
@@ -2224,7 +2228,11 @@ operands_match_p (rtx x, rtx y)
       if (GET_CODE (y) == SUBREG)
 	{
 	  j = REGNO (SUBREG_REG (y));
-	  if (j >= FIRST_PSEUDO_REGISTER)
+	  if (j >= FIRST_PSEUDO_REGISTER
+	      || simplify_subreg_regno (REGNO (SUBREG_REG (y)),
+					 GET_MODE (SUBREG_REG (y)),
+					 SUBREG_BYTE (y),
+					 GET_MODE (y)) == -1)
 	    goto slow;
 	  j += subreg_regno_offset (REGNO (SUBREG_REG (y)),
 				    GET_MODE (SUBREG_REG (y)),
@@ -2321,6 +2329,11 @@ operands_match_p (rtx x, rtx y)
 
 	case 'i':
 	  if (XINT (x, i) != XINT (y, i))
+	    return 0;
+	  break;
+
+	case 'L':
+	  if (XLOC (x, i) != XLOC (y, i))
 	    return 0;
 	  break;
 

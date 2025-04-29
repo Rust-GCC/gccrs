@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -108,12 +108,12 @@ typedef long long unsigned int uint_uk_t;
 /* The Embedded-C paper specifies results only for rounding points
 
        0 < RP < FBIT
-  
+
    As an extension, the following functions work as expected
    with rounding points
 
        -IBIT < RP < FBIT
- 
+
    For example, rounding an accum with a rounding point of -1 will
    result in an even integer value.  */
 

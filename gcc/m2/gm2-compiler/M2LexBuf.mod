@@ -1,6 +1,6 @@
 (* M2LexBuf.mod provides a buffer for m2.lex.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -22,9 +22,10 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 IMPLEMENTATION MODULE M2LexBuf ;
 
 IMPORT m2flex ;
+IMPORT FIO ;
 
 FROM libc IMPORT strlen ;
-FROM SYSTEM IMPORT ADDRESS ;
+FROM SYSTEM IMPORT ADDRESS, ADR ;
 FROM Storage IMPORT ALLOCATE, DEALLOCATE ;
 FROM DynamicStrings IMPORT string, InitString, InitStringCharStar, Equal, Mark, KillString ;
 FROM FormatStrings IMPORT Sprintf1 ;
@@ -33,10 +34,14 @@ FROM M2Reserved IMPORT toktype, tokToTok ;
 FROM M2Printf IMPORT printf0, printf1, printf2, printf3 ;
 FROM M2Debug IMPORT Assert ;
 FROM NameKey IMPORT makekey ;
-FROM m2linemap IMPORT location_t, GetLocationBinary ;
+FROM NumberIO IMPORT CardToStr ;
+FROM gcctypes IMPORT location_t ;
+FROM m2linemap IMPORT GetLocationBinary ;
 FROM M2Emit IMPORT UnknownLocation, BuiltinsLocation ;
 FROM M2Error IMPORT WarnStringAt ;
 FROM M2MetaError IMPORT MetaErrorT0 ;
+FROM M2Options IMPORT GetDebugTraceToken ;
+FROM M2LangDump IMPORT GetDumpFile ;
 
 FROM Indexing IMPORT Index, InitIndex, GetIndice, PutIndice,
                      KillIndex, ForeachIndiceInIndexDo,
@@ -48,6 +53,7 @@ CONST
    Tracing            = FALSE ;
    Debugging          = FALSE ;
    DebugRecover       = FALSE ;
+   BadTokenNo         = 32579 ;
    InitialSourceToken = 2 ;   (* 0 is unknown, 1 is builtin.  *)
 
 TYPE
@@ -79,6 +85,10 @@ VAR
    InsertionIndex   : CARDINAL ;
    SeenEof          : BOOLEAN ;  (* Have we seen eof since the last call
                                     to OpenSource.  *)
+
+
+PROCEDURE stop ;
+END stop ;
 
 
 (*
@@ -654,16 +664,30 @@ END GetTokenFiltered ;
 *)
 
 PROCEDURE GetToken ;
+VAR
+   buf: ARRAY [0..20] OF CHAR ;
 BEGIN
    IF UseBufferedTokens
    THEN
-      UpdateToken (ListOfTokens, CurrentTokNo)
+      UpdateToken (ListOfTokens, CurrentTokNo) ;
+      IF GetDebugTraceToken ()
+      THEN
+         CardToStr (CurrentTokNo, 0, buf) ;
+         FIO.WriteString (GetDumpFile (), 'token: ') ;
+         FIO.WriteString (GetDumpFile (), buf) ;
+         FIO.WriteLine (GetDumpFile ())
+      END
    ELSE
       IF NOT InBounds (ListOfTokens, CurrentTokNo)
       THEN
          GetTokenFiltered (FALSE)
       END ;
-      UpdateToken (ListOfTokens, CurrentTokNo)
+      UpdateToken (ListOfTokens, CurrentTokNo) ;
+      IF GetDebugTraceToken ()
+      THEN
+         CardToStr (CurrentTokNo, 0, buf) ;
+         m2flex.M2Error (ADR (buf))
+      END
    END
 END GetToken ;
 
@@ -1037,6 +1061,8 @@ END isSrcToken ;
                     and exist on the same src line then
                     create and return a new tokenno which is created from
                     tokenno left and right.  Otherwise return caret.
+                    If caret is UnknownTokenNo then it is replaced with left or right
+                    in sequence to avoid an UnknownTokenNo.
 *)
 
 PROCEDURE MakeVirtualTok (caret, left, right: CARDINAL) : CARDINAL ;
@@ -1044,6 +1070,14 @@ VAR
    descLeft, descRight: TokenDesc ;
    lc, ll, lr         : location_t ;
 BEGIN
+   IF caret = UnknownTokenNo
+   THEN
+      caret := left
+   END ;
+   IF caret = UnknownTokenNo
+   THEN
+      caret := right
+   END ;
    IF isSrcToken (caret) AND isSrcToken (left) AND isSrcToken (right)
    THEN
       lc := TokenToLocation (caret) ;
@@ -1060,9 +1094,13 @@ BEGIN
             AddTokToList (virtualrangetok, NulName, 0,
                           descLeft^.line, descLeft^.col, descLeft^.file,
                           GetLocationBinary (lc, ll, lr)) ;
-            RETURN HighIndice (ListOfTokens)
+            caret := HighIndice (ListOfTokens)
          END
       END
+   END ;
+   IF caret = BadTokenNo
+   THEN
+      stop
    END ;
    RETURN caret
 END MakeVirtualTok ;
@@ -1070,12 +1108,20 @@ END MakeVirtualTok ;
 
 (*
    MakeVirtual2Tok - creates and return a new tokenno which is created from
-                     two tokens left and right.
+                     two tokens left and right.  It tries to avoid UnknownTokenNo
+                     and will fall back to left or right if necessary.
 *)
 
 PROCEDURE MakeVirtual2Tok (left, right: CARDINAL) : CARDINAL ;
 BEGIN
-   RETURN MakeVirtualTok (left, left, right)
+   IF left = UnknownTokenNo
+   THEN
+      left := right
+   ELSIF right = UnknownTokenNo
+   THEN
+      right := left
+   END ;
+   RETURN MakeVirtualTok (left, left, right) ;
 END MakeVirtual2Tok ;
 
 

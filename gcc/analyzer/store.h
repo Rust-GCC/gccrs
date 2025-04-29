@@ -1,5 +1,5 @@
 /* Classes for modeling the state of memory.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -20,6 +20,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef GCC_ANALYZER_STORE_H
 #define GCC_ANALYZER_STORE_H
+
+#include "text-art/tree-widget.h"
 
 /* Implementation of the region-based ternary model described in:
      "A Memory Model for Static Analysis of C Programs"
@@ -237,7 +239,7 @@ struct bit_range
   void dump_to_pp (pretty_printer *pp) const;
   void dump () const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
 
   bool empty_p () const
   {
@@ -313,7 +315,7 @@ struct byte_range
   void dump_to_pp (pretty_printer *pp) const;
   void dump () const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
 
   bool empty_p () const
   {
@@ -544,7 +546,10 @@ public:
   void dump_to_pp (pretty_printer *pp, bool simple, bool multiline) const;
   void dump (bool simple) const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
+
+  void add_to_tree_widget (text_art::tree_widget &parent_widget,
+			   const text_art::dump_widget_info &dwi) const;
 
   bool apply_ctor_to_region (const region *parent_reg, tree ctor,
 			     region_model_manager *mgr);
@@ -610,7 +615,11 @@ public:
 
   void validate () const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
+
+  std::unique_ptr<text_art::tree_widget>
+  make_dump_widget (const text_art::dump_widget_info &dwi,
+		    store_manager *mgr) const;
 
   void bind (store_manager *mgr, const region *, const svalue *);
 
@@ -672,6 +681,7 @@ public:
 				     svalue_set *visited,
 				     const region *base_reg,
 				     const svalue *sval,
+				     logger *logger,
 				     auto_vec<path_var> *out_pvs) const;
 
   const svalue *maybe_get_simple_value (store_manager *mgr) const;
@@ -748,7 +758,11 @@ public:
 
   void validate () const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
+
+  std::unique_ptr<text_art::tree_widget>
+  make_dump_widget (const text_art::dump_widget_info &dwi,
+		    store_manager *mgr) const;
 
   const svalue *get_any_binding (store_manager *mgr, const region *reg) const;
 
@@ -793,6 +807,7 @@ public:
   void get_representative_path_vars (const region_model *model,
 				     svalue_set *visited,
 				     const svalue *sval,
+				     logger *logger,
 				     auto_vec<path_var> *out_pvs) const;
 
   cluster_map_t::iterator begin () const { return m_cluster_map.begin (); }

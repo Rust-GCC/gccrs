@@ -81,7 +81,7 @@ define(libcpp_UNLOCKED_FUNCS, clearerr_unlocked feof_unlocked dnl
   fileno_unlocked fprintf_unlocked fputc_unlocked fputs_unlocked dnl
   fread_unlocked fwrite_unlocked getchar_unlocked getc_unlocked dnl
   putchar_unlocked putc_unlocked)
-AC_CHECK_FUNCS(libcpp_UNLOCKED_FUNCS)
+AC_CHECK_FUNCS(libcpp_UNLOCKED_FUNCS setlocale)
 AC_CHECK_DECLS([abort, asprintf, basename(char *), errno, getopt, vasprintf])
 AC_CHECK_DECLS(m4_split(m4_normalize(libcpp_UNLOCKED_FUNCS)))
 
@@ -172,7 +172,7 @@ do
 	esac
 done
 IFS="$ac_save_IFS"
-                
+
 if test x$ac_checking != x ; then
   AC_DEFINE(CHECKING_P, 1,
 [Define to 1 if you want more run-time sanity checks.])
@@ -197,9 +197,9 @@ fi
 
 case $target in
   i?86-* | x86_64-*)
-    AC_TRY_COMPILE([], [asm ("pcmpestri %0, %%xmm0, %%xmm1" : : "i"(0))],
-      [AC_DEFINE([HAVE_SSE4], [1],
-		 [Define to 1 if you can assemble SSE4 insns.])])
+    AC_TRY_COMPILE([], [asm ("pshufb %xmm0, %xmm1")],
+      [AC_DEFINE([HAVE_SSSE3], [1],
+		 [Define to 1 if you can assemble SSSE3 insns.])])
 esac
 
 # Enable --enable-host-shared.

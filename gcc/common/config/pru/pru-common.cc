@@ -1,5 +1,5 @@
 /* Common hooks for TI PRU
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,5 +32,17 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef TARGET_EXCEPT_UNWIND_INFO
 #define TARGET_EXCEPT_UNWIND_INFO sjlj_except_unwind_info
+
+#undef  TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE pru_option_optimization_table
+
+/* Set default optimization options.  */
+static const struct default_options pru_option_optimization_table[] =
+  {
+    /* Enable section anchors by default at -O1 or higher.  */
+    { OPT_LEVELS_1_PLUS, OPT_fsection_anchors, NULL, 1 },
+
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
 
 struct gcc_targetm_common targetm_common = TARGETM_COMMON_INITIALIZER;
