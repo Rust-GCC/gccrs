@@ -545,29 +545,18 @@ private:
 
 class ResolutionError
 {
-  NodeId offending_id;
   location_t offending_location;
   std::vector<Identifier> suggestions;
 
-  ResolutionError (NodeId node_id, location_t loc,
-		   std::vector<Identifier> suggestions)
-    : offending_id (node_id), offending_location (loc),
-      suggestions (suggestions)
+  ResolutionError (location_t loc, std::vector<Identifier> suggestions)
+    : offending_location (loc), suggestions (suggestions)
   {}
 
 public:
-  template <typename T>
-  static ResolutionError make_error (const T &node,
-				     std::vector<Identifier> suggestions = {})
-  {
-    return ResolutionError (node.get_node_id (), node.get_locus (),
-			    suggestions);
-  }
-
   static ResolutionError make_error (location_t loc,
 				     std::vector<Identifier> suggestions = {})
   {
-    return ResolutionError (UNKNOWN_NODEID, loc, suggestions);
+    return ResolutionError (loc, suggestions);
   }
 };
 
