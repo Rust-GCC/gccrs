@@ -82,8 +82,69 @@ BindingLayer::get_source () const
   return source;
 }
 
+Resolver::CanonicalPath
+CanonicalPathRecordRoot::as_path (const NameResolutionContext &)
+{
+  return Resolver::CanonicalPath::create_empty ();
+}
+
+Resolver::CanonicalPath
+CanonicalPathRecordNormal::as_path (const NameResolutionContext &ctx)
+{
+  auto parent_path = get_parent ().as_path (ctx);
+  bool is_crate = parent_path.is_empty ();
+  auto ret = parent_path.append (Resolver::CanonicalPath::new_seg (id, seg));
+  if (is_crate)
+    {
+      auto crate_num = Analysis::Mappings::get ().lookup_crate_num (id);
+      rust_assert (crate_num.has_value ());
+      ret.set_crate_num (*crate_num);
+    }
+  return ret;
+}
+
+Resolver::CanonicalPath
+CanonicalPathRecordLookup::as_path (const NameResolutionContext &ctx)
+{
+  if (!cache)
+    {
+      auto res = ctx.lookup (lookup_id).and_then (
+	[&ctx] (NodeId id) { return ctx.canonical_ctx.get_record_opt (id); });
+
+      if (!res)
+	{
+	  // HACK: use a dummy value
+	  // this should bring us roughly to parity with nr1.0
+	  // since nr1.0 doesn't seem to handle canonical paths for generics
+	  //   quite right anyways
+	  return Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, "XXX");
+	}
+
+      cache = res.value ();
+    }
+  return cache->as_path (ctx);
+}
+
+Resolver::CanonicalPath
+CanonicalPathRecordImpl::as_path (const NameResolutionContext &ctx)
+{
+  auto parent_path = get_parent ().as_path (ctx);
+  return parent_path.append (
+    Resolver::CanonicalPath::inherent_impl_seg (impl_id,
+						type_record.as_path (ctx)));
+}
+
+Resolver::CanonicalPath
+CanonicalPathRecordTraitImpl::as_path (const NameResolutionContext &ctx)
+{
+  auto parent_path = get_parent ().as_path (ctx);
+  return parent_path.append (
+    Resolver::CanonicalPath::trait_impl_projection_seg (
+      impl_id, trait_path_record.as_path (ctx), type_record.as_path (ctx)));
+}
+
 NameResolutionContext::NameResolutionContext ()
-  : mappings (Analysis::Mappings::get ())
+  : mappings (Analysis::Mappings::get ()), canonical_ctx (*this)
 {}
 
 tl::expected<NodeId, DuplicateNameError>
