@@ -99,7 +99,7 @@ ResolveTraitItems::visit (AST::Function &function)
 	    {
 	      // This shouldn't happen the parser should already error for this
 	      rust_assert (!param.get_has_ref ());
-	      ResolveType::go (param.get_type ());
+	      ResolveType::go (param.get_type ().value ());
 	    }
 	  else
 	    {
@@ -505,7 +505,7 @@ ResolveItem::visit (AST::Function &function)
 	{
 	  // This shouldn't happen the parser should already error for this
 	  rust_assert (!self_param.get_has_ref ());
-	  ResolveType::go (self_param.get_type ());
+	  ResolveType::go (self_param.get_type ().value ());
 	}
       else
 	{
@@ -538,7 +538,7 @@ ResolveItem::visit (AST::Function &function)
 	{
 	  auto &param = static_cast<AST::SelfParam &> (*p);
 	  if (param.has_type ())
-	    ResolveType::go (param.get_type ());
+	    ResolveType::go (param.get_type ().value ());
 	}
       else
 	{

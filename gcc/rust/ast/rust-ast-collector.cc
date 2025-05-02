@@ -2039,7 +2039,7 @@ TokenCollector::visit (SelfParam &param)
   if (param.has_type ())
     {
       push (Rust::Token::make (COLON, UNDEF_LOCATION));
-      visit (param.get_type ());
+      visit (param.get_type ().value ());
     }
 }
 
