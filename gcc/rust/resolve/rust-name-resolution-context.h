@@ -213,6 +213,23 @@ public:
   BindingSource get_source () const;
 };
 
+class PathResolutionError
+{
+  tl::optional<ResolutionError> error;
+
+public:
+  enum class Kind
+  {
+    RESOLVE,
+    OTHER,
+  } kind;
+
+  PathResolutionError () : error (tl::nullopt), kind (Kind::OTHER) {}
+
+  PathResolutionError (ResolutionError error)
+    : error (error), kind (Kind::RESOLVE)
+  {}
+};
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
 class NameResolutionContext
 {
@@ -278,7 +295,7 @@ public:
   tl::optional<NodeId> lookup (NodeId usage) const;
 
   template <typename S>
-  tl::optional<Rib::Definition>
+  tl::expected<Rib::Definition, ResolutionError>
   resolve_path (const std::vector<S> &segments,
 		bool has_opening_scope_resolution,
 		std::vector<Error> &collect_errors, Namespace ns)
@@ -309,7 +326,7 @@ public:
   }
 
   template <typename S, typename... Args>
-  tl::optional<Rib::Definition>
+  tl::expected<Rib::Definition, PathResolutionError>
   resolve_path (const std::vector<S> &segments,
 		bool has_opening_scope_resolution,
 		tl::optional<std::vector<Error> &> collect_errors,
@@ -322,7 +339,8 @@ public:
 	std::vector<Error> collect_errors_inner;
 	if (auto ret = resolve_path (segments, has_opening_scope_resolution,
 				     collect_errors_inner, ns))
-	  return ret;
+	  return ret.value ();
+
 	if (!collect_errors_inner.empty ())
 	  {
 	    if (collect_errors.has_value ())
@@ -336,15 +354,15 @@ public:
 		for (auto &e : collect_errors_inner)
 		  e.emit ();
 	      }
-	    return tl::nullopt;
+	    return tl::make_unexpected (PathResolutionError{});
 	  }
       }
 
-    return tl::nullopt;
+    return tl::make_unexpected (PathResolutionError{});
   }
 
   template <typename... Args>
-  tl::optional<Rib::Definition>
+  tl::expected<Rib::Definition, PathResolutionError>
   resolve_path (const AST::SimplePath &path,
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
@@ -355,7 +373,7 @@ public:
   }
 
   template <typename... Args>
-  tl::optional<Rib::Definition>
+  tl::expected<Rib::Definition, PathResolutionError>
   resolve_path (const AST::PathInExpression &path,
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
@@ -365,7 +383,7 @@ public:
   }
 
   template <typename... Args>
-  tl::optional<Rib::Definition>
+  tl::expected<Rib::Definition, PathResolutionError>
   resolve_path (const AST::TypePath &path,
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
@@ -376,14 +394,14 @@ public:
   }
 
   template <typename P, typename... Args>
-  tl::optional<Rib::Definition> resolve_path (const P &path, Namespace ns_first,
-					      Args... ns_args)
+  tl::expected<Rib::Definition, PathResolutionError>
+  resolve_path (const P &path, Namespace ns_first, Args... ns_args)
   {
     return resolve_path (path, tl::nullopt, ns_first, ns_args...);
   }
 
   template <typename P, typename... Args>
-  tl::optional<Rib::Definition>
+  tl::expected<Rib::Definition, PathResolutionError>
   resolve_path (const P &path_segments, bool has_opening_scope_resolution,
 		Namespace ns_first, Args... ns_args)
   {

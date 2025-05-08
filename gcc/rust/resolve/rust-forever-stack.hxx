@@ -417,7 +417,7 @@ check_leading_kw_at_start (std::vector<Error> &collect_errors, const S &segment,
 // correct one or the root.
 template <Namespace N>
 template <typename S>
-tl::optional<typename std::vector<S>::const_iterator>
+tl::expected<typename std::vector<S>::const_iterator, ResolutionError>
 ForeverStack<N>::find_starting_point (
   const std::vector<S> &segments, std::reference_wrapper<Node> &starting_point,
   std::function<void (const S &, NodeId)> insert_segment_resolution,
@@ -441,7 +441,8 @@ ForeverStack<N>::find_starting_point (
       if (check_leading_kw_at_start (collect_errors, seg,
 				     !is_start (iterator, segments)
 				       && is_self_or_crate))
-	return tl::nullopt;
+	return tl::make_unexpected (
+	  ResolutionError::make_error (seg.get_locus ()));
 
       if (seg.is_crate_path_seg ())
 	{
@@ -466,7 +467,8 @@ ForeverStack<N>::find_starting_point (
 	      collect_errors.emplace_back (
 		seg.get_locus (), ErrorCode::E0433,
 		"too many leading %<super%> keywords");
-	      return tl::nullopt;
+	      return tl::make_unexpected (
+		ResolutionError::make_error (seg.get_locus ()));
 	    }
 
 	  starting_point
@@ -487,7 +489,8 @@ ForeverStack<N>::find_starting_point (
 
 template <Namespace N>
 template <typename S>
-tl::optional<typename ForeverStack<N>::Node &>
+tl::expected<std::reference_wrapper<typename ForeverStack<N>::Node>,
+	     ResolutionError>
 ForeverStack<N>::resolve_segments (
   Node &starting_point, const std::vector<S> &segments,
   typename std::vector<S>::const_iterator iterator,
@@ -518,7 +521,8 @@ ForeverStack<N>::resolve_segments (
 				     seg.is_crate_path_seg ()
 				       || seg.is_super_path_seg ()
 				       || seg.is_lower_self_seg ()))
-	return tl::nullopt;
+	return tl::make_unexpected (
+	  ResolutionError::make_error (seg.get_locus ()));
 
       tl::optional<typename ForeverStack<N>::Node &> child = tl::nullopt;
 
@@ -571,7 +575,8 @@ ForeverStack<N>::resolve_segments (
 		{
 		  insert_segment_resolution (outer_seg,
 					     rib_lookup->get_node_id ());
-		  return tl::nullopt;
+		  return tl::make_unexpected (
+		    ResolutionError::make_error (seg.get_locus ()));
 		}
 	    }
 
@@ -586,7 +591,8 @@ ForeverStack<N>::resolve_segments (
 	      || current_node->rib.kind == Rib::Kind::Module
 	      || current_node->is_prelude ())
 	    {
-	      return tl::nullopt;
+	      return tl::make_unexpected (
+		ResolutionError::make_error (seg.get_locus ()));
 	    }
 
 	  current_node = &current_node->parent.value ();
@@ -598,7 +604,8 @@ ForeverStack<N>::resolve_segments (
       insert_segment_resolution (outer_seg, current_node->id);
     }
 
-  return *current_node;
+  return tl::expected<std::reference_wrapper<typename ForeverStack<N>::Node>,
+		      ResolutionError> (std::ref (*current_node));
 }
 
 template <>
@@ -623,7 +630,7 @@ ForeverStack<N>::resolve_final_segment (Node &final_node, std::string &seg_name,
 
 template <Namespace N>
 template <typename S>
-tl::optional<Rib::Definition>
+tl::expected<Rib::Definition, ResolutionError>
 ForeverStack<N>::resolve_path (
   const std::vector<S> &segments, bool has_opening_scope_resolution,
   std::function<void (const S &, NodeId)> insert_segment_resolution,
@@ -659,8 +666,8 @@ ForeverStack<N>::resolve_path (
 	  return Rib::Definition::NonShadowable (seg_id);
 	}
 
-      tl::optional<Rib::Definition> res
-	= get (unwrap_type_segment (segments.back ()).as_string ());
+      auto unwrapped = unwrap_type_segment (segments.back ());
+      tl::optional<Rib::Definition> res = get (unwrapped.as_string ());
 
       if (!res)
 	res = get_lang_prelude (
@@ -669,7 +676,11 @@ ForeverStack<N>::resolve_path (
       if (res && !res->is_ambiguous ())
 	insert_segment_resolution (segments.back (), res->get_node_id ());
       cleanup_current ();
-      return res;
+      if (res)
+	return res.value ();
+      else
+	return tl::make_unexpected (
+	  ResolutionError::make_error (unwrapped.get_locus ()));
     }
 
   std::reference_wrapper<Node> starting_point = cursor ();
@@ -683,28 +694,35 @@ ForeverStack<N>::resolve_path (
 	    return resolve_segments (starting_point.get (), segments, iterator,
 				     insert_segment_resolution, collect_errors);
 	  })
-	.and_then ([this, &segments, &insert_segment_resolution] (
-		     Node &final_node) -> tl::optional<Rib::Definition> {
-	  // leave resolution within impl blocks to type checker
-	  if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
-	    return tl::nullopt;
+	.and_then (
+	  [this, &segments, &insert_segment_resolution] (Node &final_node)
+	    -> tl::expected<Rib::Definition, ResolutionError> {
+	    auto &seg = unwrap_type_segment (segments.back ());
+	    //
+	    // leave resolution within impl blocks to type checker
+	    if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
+	      return tl::make_unexpected (
+		ResolutionError::make_error (seg.get_locus ()));
 
-	  auto &seg = unwrap_type_segment (segments.back ());
-	  std::string seg_name = seg.as_string ();
+	    std::string seg_name = seg.as_string ();
 
-	  // assuming this can't be a lang item segment
-	  tl::optional<Rib::Definition> res
-	    = resolve_final_segment (final_node, seg_name,
-				     seg.is_lower_self_seg ());
-	  // Ok we didn't find it in the rib, Lets try the prelude...
-	  if (!res)
-	    res = get_lang_prelude (seg_name);
+	    // assuming this can't be a lang item segment
+	    tl::optional<Rib::Definition> res
+	      = resolve_final_segment (final_node, seg_name,
+				       seg.is_lower_self_seg ());
+	    // Ok we didn't find it in the rib, Lets try the prelude...
+	    if (!res)
+	      res = get_lang_prelude (seg_name);
 
-	  if (res && !res->is_ambiguous ())
-	    insert_segment_resolution (segments.back (), res->get_node_id ());
+	    if (res && !res->is_ambiguous ())
+	      insert_segment_resolution (segments.back (), res->get_node_id ());
 
-	  return res;
-	});
+	    if (res)
+	      return res.value ();
+	    else
+	      return tl::make_unexpected (
+		ResolutionError::make_error (seg.get_locus ()));
+	  });
   cleanup_current ();
   return res;
 }

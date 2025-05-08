@@ -802,7 +802,7 @@ public:
   // Loaded module constructor, with items
   Module (Identifier name, location_t locus,
 	  std::vector<std::unique_ptr<Item>> items,
-	  Visibility visibility = Visibility::create_error (),
+	  Visibility visibility = Visibility::create_private (),
 	  Unsafety safety = Unsafety::Normal,
 	  std::vector<Attribute> inner_attrs = std::vector<Attribute> (),
 	  std::vector<Attribute> outer_attrs = std::vector<Attribute> ())
@@ -1722,7 +1722,7 @@ public:
   bool has_outer_attributes () const { return !outer_attrs.empty (); }
 
   // Returns whether struct field has a non-private (non-default) visibility.
-  bool has_visibility () const { return !visibility.is_error (); }
+  bool has_visibility () const { return visibility.is_public (); }
 
   StructField (Identifier field_name, std::unique_ptr<Type> field_type,
 	       Visibility vis, location_t locus,
@@ -1776,8 +1776,8 @@ public:
   // Creates an error state struct field.
   static StructField create_error ()
   {
-    return StructField (std::string (""), nullptr, Visibility::create_error (),
-			UNDEF_LOCATION);
+    return StructField (std::string (""), nullptr,
+			Visibility::create_private (), UNDEF_LOCATION);
   }
 
   std::string as_string () const;
@@ -1881,7 +1881,7 @@ public:
 
   /* Returns whether tuple field has a non-default visibility (i.e. a public
    * one) */
-  bool has_visibility () const { return !visibility.is_error (); }
+  bool has_visibility () const { return visibility.is_public (); }
 
   // Complete constructor
   TupleField (std::unique_ptr<Type> field_type, Visibility vis,
@@ -1931,7 +1931,7 @@ public:
   // Creates an error state tuple field.
   static TupleField create_error ()
   {
-    return TupleField (nullptr, Visibility::create_error (), UNDEF_LOCATION);
+    return TupleField (nullptr, Visibility::create_private (), UNDEF_LOCATION);
   }
 
   std::string as_string () const;
@@ -3461,7 +3461,7 @@ public:
   bool has_outer_attrs () const { return !outer_attrs.empty (); }
 
   // Returns whether item has non-default visibility.
-  bool has_visibility () const { return !visibility.is_error (); }
+  bool has_visibility () const { return visibility.is_public (); }
 
   location_t get_locus () const { return locus; }
 
@@ -3553,7 +3553,7 @@ public:
   bool has_outer_attrs () const { return !outer_attrs.empty (); }
 
   // Returns whether item has non-default visibility.
-  bool has_visibility () const { return !visibility.is_error (); }
+  bool has_visibility () const { return visibility.is_public (); }
 
   location_t get_locus () const { return locus; }
 
