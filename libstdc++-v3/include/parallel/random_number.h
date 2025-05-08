@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -38,6 +38,9 @@
 
 namespace __gnu_parallel
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wlong-long" // LL literal
+
   /** @brief Random number generator, based on the Mersenne twister. */
   class _RandomNumber
   {
@@ -53,7 +56,7 @@ namespace __gnu_parallel
 
     // Bit results.
     int __bits_left;
-    
+
     static uint32_t
     __scale_down(uint64_t __x,
 #if _GLIBCXX_SCALE_DOWN_FPU
@@ -119,6 +122,8 @@ namespace __gnu_parallel
       return __res;
     }
 };
+
+#pragma GCC diagnostic pop
 
 } // namespace __gnu_parallel
 

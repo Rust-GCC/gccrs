@@ -1,5 +1,5 @@
 /* SARIF output for diagnostics.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -22,8 +22,60 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_DIAGNOSTIC_FORMAT_SARIF_H
 
 #include "json.h"
+#include "diagnostic-format.h"
+#include "diagnostic-output-file.h"
 
 class logical_location;
+
+extern diagnostic_output_file
+diagnostic_output_format_open_sarif_file (diagnostic_context &context,
+					  line_maps *line_maps,
+					  const char *base_file_name);
+
+extern void
+diagnostic_output_format_init_sarif_stderr (diagnostic_context &context,
+					    const line_maps *line_maps,
+					    const char *main_input_filename_,
+					    bool formatted);
+extern void
+diagnostic_output_format_init_sarif_file (diagnostic_context &context,
+					  line_maps *line_maps,
+					  const char *main_input_filename_,
+					  bool formatted,
+					  const char *base_file_name);
+extern void
+diagnostic_output_format_init_sarif_stream (diagnostic_context &context,
+					    const line_maps *line_maps,
+					    const char *main_input_filename_,
+					    bool formatted,
+					    FILE *stream);
+
+enum class sarif_version
+{
+  v2_1_0,
+  v2_2_prerelease_2024_08_08,
+
+  num_versions
+};
+
+/* A bundle of state for controlling what to put in SARIF output,
+   such as which version of SARIF to generate
+   (as opposed to SARIF *serialization* options, such as formatting).  */
+
+struct sarif_generation_options
+{
+  sarif_generation_options ();
+
+  enum sarif_version m_version;
+};
+
+extern std::unique_ptr<diagnostic_output_format>
+make_sarif_sink (diagnostic_context &context,
+		 const line_maps &line_maps,
+		 const char *main_input_filename_,
+		 bool formatted,
+		 const sarif_generation_options &sarif_gen_opts,
+		 diagnostic_output_file output_file);
 
 /* Concrete subclass of json::object for SARIF property bags
    (SARIF v2.1.0 section 3.8).  */
@@ -44,7 +96,14 @@ public:
   sarif_property_bag &get_or_create_properties ();
 };
 
-extern json::object *
+/* Subclass of sarif_object for SARIF "logicalLocation" objects
+   (SARIF v2.1.0 section 3.33).  */
+
+class sarif_logical_location : public sarif_object
+{
+};
+
+extern std::unique_ptr<sarif_logical_location>
 make_sarif_logical_location_object (const logical_location &logical_loc);
 
 #endif /* ! GCC_DIAGNOSTIC_FORMAT_SARIF_H */

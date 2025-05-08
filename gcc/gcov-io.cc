@@ -1,5 +1,5 @@
 /* File format for coverage information
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    Contributed by Bob Manson <manson@cygnus.com>.
    Completely remangled by Nathan Sidwell <nathan@codesourcery.com>.
 
@@ -85,7 +85,7 @@ gcov_is_error (void)
 GCOV_LINKAGE inline void
 gcov_rewrite (void)
 {
-  gcov_var.mode = -1; 
+  gcov_var.mode = -1;
   gcov_var.error = GCOV_FILE_NO_ERROR;
   fseek (gcov_var.file, 0L, SEEK_SET);
 }

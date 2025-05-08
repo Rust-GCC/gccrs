@@ -1,5 +1,5 @@
 # Process this file with autoreconf to produce a configure script.
-#  Copyright (C) 2012-2024 Free Software Foundation, Inc.
+#  Copyright (C) 2012-2025 Free Software Foundation, Inc.
 #
 #  This file is part of the GNU Atomic Library (libatomic).
 #
@@ -205,9 +205,6 @@ LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_EXCHANGE])
 LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_CAS])
 LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_FETCH_ADD])
 LIBAT_FORALL_MODES([LIBAT_HAVE_ATOMIC_FETCH_OP])
-
-# Check for target-specific assembly-level support for atomic operations.
-LIBAT_TEST_FEAT_AARCH64_LSE128()
 
 AC_C_BIGENDIAN
 # I don't like the default behaviour of WORDS_BIGENDIAN undefined for LE.

@@ -1,5 +1,5 @@
 /* Target definitions for Darwin (macOS) systems.
-   Copyright (C) 1989-2024 Free Software Foundation, Inc.
+   Copyright (C) 1989-2025 Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
 This file is part of GCC.
@@ -45,8 +45,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #define OBJECT_FORMAT_MACHO 1
 
-/* Suppress g++ attempt to link in the math library automatically. */
+/* Suppress language-specific specs attempt to link in libm automatically. */
 #define MATH_LIBRARY ""
+
+/* Likewise libdl.  */
+#define DL_LIBRARY ""
 
 /* We have atexit.  */
 
@@ -264,6 +267,8 @@ extern GTY(()) int darwin_ms_struct;
   "%{weak_reference_mismatches*:\
     -Xlinker -weak_reference_mismatches -Xlinker %*} \
     %<weak_reference_mismatches*",					\
+  "%{weak_framework*: -Xlinker -weak_framework -Xlinker %*} \
+    %<weak_framework*",							\
   "%{whyload:-Xlinker -whyload} %<whyload",				\
   "%{whatsloaded:-Xlinker -whatsloaded} %<whatsloaded",			\
   "%{w:-Xlinker -w}",							\
@@ -282,12 +287,17 @@ extern GTY(()) int darwin_ms_struct;
 #define DARWIN_RDYNAMIC "%{rdynamic:%nrdynamic is not supported}"
 #endif
 
-#if LD64_HAS_PLATFORM_VERSION
-#define DARWIN_PLATFORM_ID \
-  "%{mmacosx-version-min=*: -platform_version macos %* 0.0} "
+#if LD64_HAS_MACOS_VERSION_MIN
+# define DARWIN_PLATFORM_ID \
+  "%{mmacosx-version-min=*:-macos_version_min %*} "
 #else
-#define DARWIN_PLATFORM_ID \
+# if LD64_HAS_PLATFORM_VERSION
+#  define DARWIN_PLATFORM_ID \
+  "%{mmacosx-version-min=*: -platform_version macos %* 0.0} "
+# else
+#  define DARWIN_PLATFORM_ID \
   "%{mmacosx-version-min=*:-macosx_version_min %*} "
+# endif
 #endif
 
 /* Code built with mdynamic-no-pic does not support PIE/PIC, so  we disallow
@@ -406,7 +416,7 @@ extern GTY(()) int darwin_ms_struct;
     %{!r:%{!nostdlib:%{!nodefaultlibs: " DARWIN_WEAK_CRTS "}}} \
     %o \
     %{!r:%{!nostdlib:%{!nodefaultlibs:\
-      %{fprofile-arcs|fprofile-generate*|coverage:-lgcov} \
+      %{fprofile-arcs|fcondition-coverage|fprofile-generate*|coverage:-lgcov} \
       %{fopenacc|fopenmp|%:gt(%{ftree-parallelize-loops=*:%*} 1): \
 	%{static|static-libgcc|static-libstdc++|static-libgfortran: \
 	  libgomp.a%s; : -lgomp }} \
@@ -494,6 +504,7 @@ extern GTY(()) int darwin_ms_struct;
    %{static|static-libgcc|static-libgfortran:%:replace-outfile(-lgfortran libgfortran.a%s)}\
    %{static|static-libgcc|static-libquadmath:%:replace-outfile(-lquadmath libquadmath.a%s)}\
    %{static|static-libgcc|static-libphobos:%:replace-outfile(-lgphobos libgphobos.a%s)}\
+   %{static|static-libgcc|static-libgcobol:%:replace-outfile(-lgcobol libgcobol.a%s)}\
    %{static|static-libgcc|static-libstdc++|static-libgfortran:%:replace-outfile(-lgomp libgomp.a%s)}\
    %{static|static-libgcc|static-libstdc++:%:replace-outfile(-lstdc++ libstdc++.a%s)}\
    %{static|static-libgm2:%:replace-outfile(-lm2pim libm2pim.a%s)}\
@@ -645,6 +656,8 @@ extern GTY(()) int darwin_ms_struct;
    additional options.  Actually, currently these are the same as GAS.  */
 #define ASM_OPTIONS "%{v} %{w:-W} %{I*}"
 #endif
+
+#define AS_NEEDS_DASH_FOR_PIPED_INPUT
 
 /* Default Darwin ASM_SPEC, very simple. */
 #define ASM_SPEC \
@@ -848,7 +861,7 @@ ASM_OPTIONS ASM_MMACOSX_VERSION_MIN_SPEC
 #define TARGET_ASM_DECLARE_CONSTANT_NAME darwin_asm_declare_constant_name
 
 /* Wrap new method names in quotes so the assembler doesn't gag.
-   Make Objective-C internal symbols local and in doing this, we need 
+   Make Objective-C internal symbols local and in doing this, we need
    to accommodate the name mangling done by c++ on file scope locals.  */
 
 int darwin_label_is_anonymous_local_objc_name (const char *name);
@@ -1205,7 +1218,7 @@ void add_framework_path (char *);
 #undef GTM_SELF_SPECS
 #define GTM_SELF_SPECS ""
 
-/* Darwin disables section anchors by default.  
+/* Darwin disables section anchors by default.
    They should be enabled per arch where support exists in that arch.  */
 #define TARGET_ASM_OUTPUT_ANCHOR NULL
 #define DARWIN_SECTION_ANCHORS 0
@@ -1236,7 +1249,7 @@ extern void darwin_driver_init (unsigned int *,struct cl_decoded_option **);
 #undef STACK_CHECK_STATIC_BUILTIN
 #define STACK_CHECK_STATIC_BUILTIN 1
 
-/* When building cross-compilers (and native crosses) we shall default to 
+/* When building cross-compilers (and native crosses) we shall default to
    providing an osx-version-min of this unless overridden by the User.
    10.5 is the only version that fully supports all our archs so that's the
    fall-back default.  */

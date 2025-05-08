@@ -1,5 +1,5 @@
 /* Classes for representing the state of interest at a given path of analysis.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,35 +18,30 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "diagnostic-core.h"
-#include "diagnostic.h"
-#include "analyzer/analyzer.h"
-#include "analyzer/analyzer-logging.h"
-#include "analyzer/sm.h"
+#include "analyzer/common.h"
+
 #include "sbitmap.h"
-#include "bitmap.h"
 #include "ordered-hash-map.h"
 #include "selftest.h"
+#include "cfg.h"
+#include "gimple-iterator.h"
+#include "cgraph.h"
+#include "digraph.h"
+#include "diagnostic-event-id.h"
+
+#include "text-art/tree-widget.h"
+#include "text-art/dump.h"
+
+#include "analyzer/analyzer-logging.h"
+#include "analyzer/sm.h"
 #include "analyzer/call-string.h"
 #include "analyzer/program-point.h"
 #include "analyzer/store.h"
 #include "analyzer/region-model.h"
 #include "analyzer/program-state.h"
 #include "analyzer/constraint-manager.h"
-#include "diagnostic-event-id.h"
 #include "analyzer/pending-diagnostic.h"
 #include "analyzer/diagnostic-manager.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "cgraph.h"
-#include "digraph.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/program-state.h"
 #include "analyzer/exploded-graph.h"
@@ -66,11 +61,10 @@ void
 extrinsic_state::dump_to_pp (pretty_printer *pp) const
 {
   pp_printf (pp, "extrinsic_state: %i checker(s)\n", get_num_checkers ());
-  unsigned i;
-  state_machine *checker;
-  FOR_EACH_VEC_ELT (m_checkers, i, checker)
+  unsigned i = 0;
+  for (auto &checker : m_checkers)
     {
-      pp_printf (pp, "m_checkers[%i]: %qs\n", i, checker->get_name ());
+      pp_printf (pp, "m_checkers[%i]: %qs\n", ++i, checker->get_name ());
       checker->dump_to_pp (pp);
     }
 }
@@ -80,12 +74,8 @@ extrinsic_state::dump_to_pp (pretty_printer *pp) const
 void
 extrinsic_state::dump_to_file (FILE *outf) const
 {
-  pretty_printer pp;
-  if (outf == stderr)
-    pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = outf;
+  tree_dump_pretty_printer pp (outf);
   dump_to_pp (&pp);
-  pp_flush (&pp);
 }
 
 /* Dump a multiline representation of this state to stderr.  */
@@ -99,18 +89,16 @@ extrinsic_state::dump () const
 /* Return a new json::object of the form
    {"checkers"  : array of objects, one for each state_machine}.  */
 
-json::object *
+std::unique_ptr<json::object>
 extrinsic_state::to_json () const
 {
-  json::object *ext_state_obj = new json::object ();
+  auto ext_state_obj = std::make_unique<json::object> ();
 
   {
-    json::array *checkers_arr = new json::array ();
-    unsigned i;
-    state_machine *sm;
-    FOR_EACH_VEC_ELT (m_checkers, i, sm)
+    auto checkers_arr = std::make_unique<json::array> ();
+    for (auto &sm : m_checkers)
       checkers_arr->append (sm->to_json ());
-    ext_state_obj->set ("checkers", checkers_arr);
+    ext_state_obj->set ("checkers", std::move (checkers_arr));
   }
 
   return ext_state_obj;
@@ -134,10 +122,8 @@ extrinsic_state::get_model_manager () const
 bool
 extrinsic_state::get_sm_idx_by_name (const char *name, unsigned *out) const
 {
-  unsigned i;
-  state_machine *sm;
-  FOR_EACH_VEC_ELT (m_checkers, i, sm)
-    if (0 == strcmp (name, sm->get_name ()))
+  for (size_t i = 0; i < m_checkers.size (); ++i)
+    if (0 == strcmp (name, m_checkers[i]->get_name ()))
       {
 	/* Found NAME.  */
 	*out = i;
@@ -268,23 +254,19 @@ sm_state_map::print (const region_model *model,
 DEBUG_FUNCTION void
 sm_state_map::dump (bool simple) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   print (NULL, simple, true, &pp);
   pp_newline (&pp);
-  pp_flush (&pp);
 }
 
 /* Return a new json::object of the form
    {"global"  : (optional) value for global state,
     SVAL_DESC : value for state}.  */
 
-json::object *
+std::unique_ptr<json::object>
 sm_state_map::to_json () const
 {
-  json::object *map_obj = new json::object ();
+  auto map_obj = std::make_unique<json::object> ();
 
   if (m_global_state != m_sm.get_start_state ())
     map_obj->set ("global", m_global_state->to_json ());
@@ -301,6 +283,85 @@ sm_state_map::to_json () const
       /* This doesn't yet JSONify e.m_origin.  */
     }
   return map_obj;
+}
+
+/* Make a text_art::tree_widget describing this sm_state_map,
+   using MODEL if non-null to describe svalues.  */
+
+std::unique_ptr<text_art::tree_widget>
+sm_state_map::make_dump_widget (const text_art::dump_widget_info &dwi,
+				const region_model *model) const
+{
+  using text_art::styled_string;
+  using text_art::tree_widget;
+  std::unique_ptr<tree_widget> state_widget
+    (tree_widget::from_fmt (dwi, nullptr,
+			    "%qs state machine", m_sm.get_name ()));
+
+  if (m_global_state != m_sm.get_start_state ())
+    {
+      pretty_printer the_pp;
+      pretty_printer * const pp = &the_pp;
+      pp_format_decoder (pp) = default_tree_printer;
+      pp_string (pp, "Global State: ");
+      m_global_state->dump_to_pp (pp);
+      state_widget->add_child (tree_widget::make (dwi, pp));
+    }
+
+  auto_vec <const svalue *> keys (m_map.elements ());
+  for (map_t::iterator iter = m_map.begin ();
+       iter != m_map.end ();
+       ++iter)
+    keys.quick_push ((*iter).first);
+  keys.qsort (svalue::cmp_ptr_ptr);
+  unsigned i;
+  const svalue *sval;
+  FOR_EACH_VEC_ELT (keys, i, sval)
+    {
+      pretty_printer the_pp;
+      pretty_printer * const pp = &the_pp;
+      const bool simple = true;
+      pp_format_decoder (pp) = default_tree_printer;
+      if (!flag_dump_noaddr)
+	{
+	  pp_pointer (pp, sval);
+	  pp_string (pp, ": ");
+	}
+      sval->dump_to_pp (pp, simple);
+
+      entry_t e = *const_cast <map_t &> (m_map).get (sval);
+      pp_string (pp, ": ");
+      e.m_state->dump_to_pp (pp);
+      if (model)
+	if (tree rep = model->get_representative_tree (sval))
+	  {
+	    pp_string (pp, " (");
+	    dump_quoted_tree (pp, rep);
+	    pp_character (pp, ')');
+	  }
+      if (e.m_origin)
+	{
+	  pp_string (pp, " (origin: ");
+	  if (!flag_dump_noaddr)
+	    {
+	      pp_pointer (pp, e.m_origin);
+	      pp_string (pp, ": ");
+	    }
+	  e.m_origin->dump_to_pp (pp, simple);
+	  if (model)
+	    if (tree rep = model->get_representative_tree (e.m_origin))
+	      {
+		pp_string (pp, " (");
+		dump_quoted_tree (pp, rep);
+		pp_character (pp, ')');
+	      }
+	  pp_string (pp, ")");
+	}
+
+      state_widget->add_child (tree_widget::make (dwi, pp));
+    }
+
+  return state_widget;
 }
 
 /* Return true if no states have been set within this map
@@ -877,7 +938,7 @@ program_state::program_state (const extrinsic_state &ext_state)
     }
 }
 
-/* Attempt to to use R to replay SUMMARY into this object.
+/* Attempt to use R to replay SUMMARY into this object.
    Return true if it is possible.  */
 
 bool
@@ -1083,13 +1144,8 @@ program_state::dump_to_file (const extrinsic_state &ext_state,
 			     bool summarize, bool multiline,
 			     FILE *outf) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  if (outf == stderr)
-    pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = outf;
+  tree_dump_pretty_printer pp (outf);
   dump_to_pp (ext_state, summarize, multiline, &pp);
-  pp_flush (&pp);
 }
 
 /* Dump a multiline representation of this state to stderr.  */
@@ -1101,6 +1157,14 @@ program_state::dump (const extrinsic_state &ext_state,
   dump_to_file (ext_state, summarize, true, stderr);
 }
 
+/* Dump a tree-like representation of this state to stderr.  */
+
+DEBUG_FUNCTION void
+program_state::dump () const
+{
+  text_art::dump (*this);
+}
+
 /* Return a new json::object of the form
    {"store"  : object for store,
     "constraints" : object for constraint_manager,
@@ -1108,10 +1172,10 @@ program_state::dump (const extrinsic_state &ext_state,
     "checkers" : { STATE_NAME : object per sm_state_map },
     "valid" : true/false}.  */
 
-json::object *
+std::unique_ptr<json::object>
 program_state::to_json (const extrinsic_state &ext_state) const
 {
-  json::object *state_obj = new json::object ();
+  auto state_obj = std::make_unique<json::object> ();
 
   state_obj->set ("store", m_region_model->get_store ()->to_json ());
   state_obj->set ("constraints",
@@ -1122,7 +1186,7 @@ program_state::to_json (const extrinsic_state &ext_state) const
 
   /* Provide m_checker_states as an object, using names as keys.  */
   {
-    json::object *checkers_obj = new json::object ();
+    auto checkers_obj = std::make_unique<json::object> ();
 
     int i;
     sm_state_map *smap;
@@ -1130,12 +1194,34 @@ program_state::to_json (const extrinsic_state &ext_state) const
       if (!smap->is_empty_p ())
 	checkers_obj->set (ext_state.get_name (i), smap->to_json ());
 
-    state_obj->set ("checkers", checkers_obj);
+    state_obj->set ("checkers", std::move (checkers_obj));
   }
 
-  state_obj->set ("valid", new json::literal (m_valid));
+  state_obj->set_bool ("valid", m_valid);
 
   return state_obj;
+}
+
+
+std::unique_ptr<text_art::tree_widget>
+program_state::make_dump_widget (const text_art::dump_widget_info &dwi) const
+{
+  using text_art::tree_widget;
+  std::unique_ptr<tree_widget> state_widget
+    (tree_widget::from_fmt (dwi, nullptr, "State"));
+
+  state_widget->add_child (m_region_model->make_dump_widget (dwi));
+
+  /* Add nodes for any sm_state_maps with state.  */
+  {
+    int i;
+    sm_state_map *smap;
+    FOR_EACH_VEC_ELT (m_checker_states, i, smap)
+      if (!smap->is_empty_p ())
+	state_widget->add_child (smap->make_dump_widget (dwi, m_region_model));
+  }
+
+  return state_widget;
 }
 
 /* Update this program_state to reflect a top-level call to FUN.
@@ -1145,7 +1231,7 @@ void
 program_state::push_frame (const extrinsic_state &ext_state ATTRIBUTE_UNUSED,
 			   const function &fun)
 {
-  m_region_model->push_frame (fun, NULL, NULL);
+  m_region_model->push_frame (fun, nullptr, nullptr, nullptr);
 }
 
 /* Get the current function of this state.  */
@@ -1244,12 +1330,12 @@ program_state::on_edge (exploded_graph &eg,
 
 /* Update this program_state to reflect a call to function
    represented by CALL_STMT.
-   currently used only when the call doesn't have a superedge representing 
+   currently used only when the call doesn't have a superedge representing
    the call ( like call via a function pointer )  */
 void
 program_state::push_call (exploded_graph &eg,
                           exploded_node *enode,
-                          const gcall *call_stmt,
+                          const gcall &call_stmt,
                           uncertainty_t *uncertainty)
 {
   /* Update state.  */
@@ -1267,12 +1353,12 @@ program_state::push_call (exploded_graph &eg,
 
 /* Update this program_state to reflect a return from function
    call to which is represented by CALL_STMT.
-   currently used only when the call doesn't have a superedge representing 
+   currently used only when the call doesn't have a superedge representing
    the return */
 void
 program_state::returning_call (exploded_graph &eg,
                                exploded_node *enode,
-                               const gcall *call_stmt,
+                               const gcall &call_stmt,
                                uncertainty_t *uncertainty)
 {
   /* Update state.  */
@@ -1625,7 +1711,7 @@ program_state::detect_leaks (const program_state &src_state,
 	dest_state.m_region_model->unset_dynamic_extents (reg);
 }
 
-/* Attempt to to use R to replay SUMMARY into this object.
+/* Attempt to use R to replay SUMMARY into this object.
    Return true if it is possible.  */
 
 bool
@@ -1650,7 +1736,7 @@ program_state::replay_call_summary (call_summary_replay &r,
 /* Handle calls to "__analyzer_dump_state".  */
 
 void
-program_state::impl_call_analyzer_dump_state (const gcall *call,
+program_state::impl_call_analyzer_dump_state (const gcall &call,
 					      const extrinsic_state &ext_state,
 					      region_model_context *ctxt)
 {
@@ -1658,13 +1744,13 @@ program_state::impl_call_analyzer_dump_state (const gcall *call,
   const char *sm_name = cd.get_arg_string_literal (0);
   if (!sm_name)
     {
-      error_at (call->location, "cannot determine state machine");
+      error_at (call.location, "cannot determine state machine");
       return;
     }
   unsigned sm_idx;
   if (!ext_state.get_sm_idx_by_name (sm_name, &sm_idx))
     {
-      error_at (call->location, "unrecognized state machine %qs", sm_name);
+      error_at (call.location, "unrecognized state machine %qs", sm_name);
       return;
     }
   const sm_state_map *smap = m_checker_states[sm_idx];
@@ -1676,7 +1762,7 @@ program_state::impl_call_analyzer_dump_state (const gcall *call,
     sval = cast;
 
   state_machine::state_t state = smap->get_state (sval, ext_state);
-  warning_at (call->location, 0, "state: %qs", state->get_name ());
+  warning_at (call.location, 0, "state: %qs", state->get_name ());
 }
 
 #if CHECKING_P
@@ -1692,12 +1778,13 @@ test_sm_state_map ()
   tree y = build_global_decl ("y", integer_type_node);
   tree z = build_global_decl ("z", integer_type_node);
 
-  state_machine *sm = make_malloc_state_machine (NULL);
-  auto_delete_vec <state_machine> checkers;
-  checkers.safe_push (sm);
-  engine eng;
-  extrinsic_state ext_state (checkers, &eng);
+  std::unique_ptr<state_machine> sm = make_malloc_state_machine (NULL);
   state_machine::state_t start = sm->get_start_state ();
+  std::vector<std::unique_ptr<state_machine>> checkers;
+  const state_machine &borrowed_sm = *sm.get ();
+  checkers.push_back (std::move (sm));
+  engine eng;
+  extrinsic_state ext_state (std::move (checkers), &eng);
 
   /* Test setting states on svalue_id instances directly.  */
   {
@@ -1709,7 +1796,7 @@ test_sm_state_map ()
     const svalue *y_sval = model.get_rvalue (y, NULL);
     const svalue *z_sval = model.get_rvalue (z, NULL);
 
-    sm_state_map map (*sm);
+    sm_state_map map (borrowed_sm);
     ASSERT_TRUE (map.is_empty_p ());
     ASSERT_EQ (map.get_state (x_sval, ext_state), start);
 
@@ -1738,7 +1825,7 @@ test_sm_state_map ()
     const svalue *y_sval = model.get_rvalue (y, NULL);
     const svalue *z_sval = model.get_rvalue (z, NULL);
 
-    sm_state_map map (*sm);
+    sm_state_map map (borrowed_sm);
     ASSERT_TRUE (map.is_empty_p ());
     ASSERT_EQ (map.get_state (x_sval, ext_state), start);
     ASSERT_EQ (map.get_state (y_sval, ext_state), start);
@@ -1761,9 +1848,9 @@ test_sm_state_map ()
     const svalue *y_sval = model.get_rvalue (y, NULL);
     const svalue *z_sval = model.get_rvalue (z, NULL);
 
-    sm_state_map map0 (*sm);
-    sm_state_map map1 (*sm);
-    sm_state_map map2 (*sm);
+    sm_state_map map0 (borrowed_sm);
+    sm_state_map map1 (borrowed_sm);
+    sm_state_map map2 (borrowed_sm);
 
     ASSERT_EQ (map0.hash (), map1.hash ());
     ASSERT_EQ (map0, map1);
@@ -1784,9 +1871,9 @@ test_sm_state_map ()
     const state_machine::state_t TEST_STATE_2 = &test_state_2;
     const state_machine::state test_state_3 ("test state 3", 3);
     const state_machine::state_t TEST_STATE_3 = &test_state_3;
-    sm_state_map map0 (*sm);
-    sm_state_map map1 (*sm);
-    sm_state_map map2 (*sm);
+    sm_state_map map0 (borrowed_sm);
+    sm_state_map map1 (borrowed_sm);
+    sm_state_map map2 (borrowed_sm);
 
     ASSERT_EQ (map0.hash (), map1.hash ());
     ASSERT_EQ (map0, map1);
@@ -1821,14 +1908,12 @@ test_program_state_1 ()
      malloc sm-state, pointing to a region on the heap.  */
   tree p = build_global_decl ("p", ptr_type_node);
 
-  state_machine *sm = make_malloc_state_machine (NULL);
+  std::unique_ptr<state_machine> sm = make_malloc_state_machine (NULL);
   const state_machine::state_t UNCHECKED_STATE
     = sm->get_state_by_name ("unchecked");
-  auto_delete_vec <state_machine> checkers;
-  checkers.safe_push (sm);
 
   engine eng;
-  extrinsic_state ext_state (checkers, &eng);
+  extrinsic_state ext_state (std::move (sm), &eng);
   region_model_manager *mgr = eng.get_model_manager ();
   program_state s (ext_state);
   region_model *model = s.m_region_model;
@@ -1856,9 +1941,9 @@ test_program_state_2 ()
 
   tree string_cst_ptr = build_string_literal (4, "foo");
 
-  auto_delete_vec <state_machine> checkers;
+  std::vector<std::unique_ptr<state_machine>> checkers;
   engine eng;
-  extrinsic_state ext_state (checkers, &eng);
+  extrinsic_state ext_state (std::move (checkers), &eng);
 
   program_state s (ext_state);
   region_model *model = s.m_region_model;
@@ -1880,9 +1965,8 @@ test_program_state_merging ()
   engine eng;
   region_model_manager *mgr = eng.get_model_manager ();
   program_point point (program_point::origin (*mgr));
-  auto_delete_vec <state_machine> checkers;
-  checkers.safe_push (make_malloc_state_machine (NULL));
-  extrinsic_state ext_state (checkers, &eng);
+  extrinsic_state ext_state (make_malloc_state_machine (NULL),
+			     &eng);
 
   program_state s0 (ext_state);
   uncertainty_t uncertainty;
@@ -1948,9 +2032,7 @@ test_program_state_merging_2 ()
   engine eng;
   region_model_manager *mgr = eng.get_model_manager ();
   program_point point (program_point::origin (*mgr));
-  auto_delete_vec <state_machine> checkers;
-  checkers.safe_push (make_signal_state_machine (NULL));
-  extrinsic_state ext_state (checkers, &eng);
+  extrinsic_state ext_state (make_signal_state_machine (NULL), &eng);
 
   const state_machine::state test_state_0 ("test state 0", 0);
   const state_machine::state test_state_1 ("test state 1", 1);

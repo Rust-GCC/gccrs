@@ -6,7 +6,7 @@
    C99 6.7.5.3); the precise rules are unclear.  */
 /* Origin: Joseph Myers <jsm@polyomino.org.uk> */
 /* { dg-do compile } */
-/* { dg-options "" } */
+/* { dg-options "-std=gnu17" } */
 
 struct s;
 void f (struct s);
@@ -22,6 +22,6 @@ union u;
 
 void v(union u x) { } /* { dg-error "parameter 1 \\('x'\\) has incomplete type" } */
 
-void p(void x); /* { dg-warning "parameter 1 \\('x'\\) has void type" } */
+void p(void x); /* { dg-error "'void' must be the only parameter and unnamed" } */
 
-void q(const void x); /* { dg-warning "parameter 1 \\('x'\\) has void type" } */
+void q(const void x); /* { dg-error "'void' must be the only parameter and unnamed" } */

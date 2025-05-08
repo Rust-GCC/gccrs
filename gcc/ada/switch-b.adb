@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -366,7 +366,7 @@ package body Switch.B is
 
          when 'G' =>
             Ptr := Ptr + 1;
-            Generate_C_Code := True;
+            CCG_Mode := True;
 
          --  Processing for h switch
 
@@ -672,13 +672,15 @@ package body Switch.B is
                   Opt.RTS_Switch := True;
 
                   declare
+                     RTS_Arg_Path : constant String :=
+                                       Switch_Chars (Ptr + 1 .. Max);
                      Src_Path_Name : constant String_Ptr :=
                                        Get_RTS_Search_Dir
-                                         (Switch_Chars (Ptr + 1 .. Max),
+                                         (RTS_Arg_Path,
                                           Include);
                      Lib_Path_Name : constant String_Ptr :=
                                        Get_RTS_Search_Dir
-                                         (Switch_Chars (Ptr + 1 .. Max),
+                                         (RTS_Arg_Path,
                                           Objects);
 
                   begin
@@ -698,14 +700,17 @@ package body Switch.B is
                        and then Lib_Path_Name = null
                      then
                         Osint.Fail
-                          ("RTS path not valid: missing adainclude and "
+                          ("RTS path """ & RTS_Arg_Path
+                           & """ not valid: missing adainclude and "
                            & "adalib directories");
                      elsif Src_Path_Name = null then
                         Osint.Fail
-                          ("RTS path not valid: missing adainclude directory");
-                     elsif Lib_Path_Name = null then
+                          ("RTS path """ & RTS_Arg_Path
+                           & """ not valid: missing adainclude directory");
+                     else pragma Assert (Lib_Path_Name = null);
                         Osint.Fail
-                          ("RTS path not valid: missing adalib directory");
+                          ("RTS path """ & RTS_Arg_Path
+                           & """ not valid: missing adalib directory");
                      end if;
                   end;
                end if;

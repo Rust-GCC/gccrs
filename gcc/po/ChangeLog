@@ -1,3 +1,165 @@
+2025-04-23  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2025-04-23  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2025-04-09  Joseph Myers  <josmyers@redhat.com>
+
+	* de.po: Update.
+
+2025-04-09  Joseph Myers  <josmyers@redhat.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, hr.po, id.po,
+	ja.po, ka.po, nl.po, ru.po, sr.po, sv.po, tr.po, uk.po, vi.po,
+	zh_CN.po, zh_TW.po: Update.
+
+2025-04-07  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2025-04-04  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2025-03-31  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2025-03-24  Joseph Myers  <josmyers@redhat.com>
+
+	* hr.po, sv.po: Update.
+
+2025-03-21  Joseph Myers  <josmyers@redhat.com>
+
+	* de.po, fr.po: Update.
+
+2025-03-20  Joseph Myers  <josmyers@redhat.com>
+
+	* hr.po: Update.
+
+2025-03-19  Joseph Myers  <josmyers@redhat.com>
+
+	* fr.po: Update.
+
+2025-03-17  Joseph Myers  <josmyers@redhat.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, hr.po, id.po,
+	ja.po, ka.po, nl.po, ru.po, sr.po, sv.po, tr.po, uk.po, vi.po,
+	zh_CN.po, zh_TW.po: Update.
+
+2025-03-14  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2025-03-13  Joseph Myers  <josmyers@redhat.com>
+
+	* de.po: Update.
+
+2025-03-10  Joseph Myers  <josmyers@redhat.com>
+
+	* fr.po, sv.po: Update.
+
+2025-03-03  Joseph Myers  <josmyers@redhat.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, hr.po, id.po,
+	ja.po, ka.po, nl.po, ru.po, sr.po, sv.po, tr.po, uk.po, vi.po,
+	zh_CN.po, zh_TW.po: Update.
+
+2025-02-14  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2025-01-20  Joseph Myers  <josmyers@redhat.com>
+
+	* zh_CN.po: Update.
+
+2024-12-03  Joseph Myers  <josmyers@redhat.com>
+
+	* zh_CN.po: Update.
+
+2024-09-19  Joseph Myers  <josmyers@redhat.com>
+
+	* zh_CN.po: Update.
+
+2024-09-06  Joseph Myers  <josmyers@redhat.com>
+
+	* uk.po: Update.
+
+2024-08-28  Joseph Myers  <josmyers@redhat.com>
+
+	* ka.po: New file.
+
+2024-08-27  Joseph Myers  <josmyers@redhat.com>
+
+	* zh_CN.po: Update.
+
+2024-08-05  Joseph Myers  <josmyers@redhat.com>
+
+	* fr.po: Update.
+
+2024-08-02  Joseph Myers  <josmyers@redhat.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, hr.po, id.po,
+	ja.po, nl.po, ru.po, sr.po, sv.po, tr.po, uk.po, vi.po, zh_CN.po,
+	zh_TW.po: Update.
+
+2024-05-16  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2024-05-13  Joseph Myers  <josmyers@redhat.com>
+
+	* be.po, da.po, de.po, el.po, es.po, fi.po, fr.po, hr.po, id.po,
+	ja.po, nl.po, ru.po, sr.po, sv.po, tr.po, uk.po, vi.po, zh_CN.po,
+	zh_TW.po: Update.
+
+2024-05-02  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2024-04-23  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2024-04-19  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2024-04-10  Joseph Myers  <josmyers@redhat.com>
+
+	* gcc.pot: Regenerate.
+
+2024-04-08  Joseph Myers  <josmyers@redhat.com>
+
+	* fr.po: Update.
+
+2024-04-03  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2024-03-25  Joseph Myers  <josmyers@redhat.com>
+
+	* de.po: Update.
+
+2024-03-25  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
+2024-03-19  Joseph Myers  <josmyers@redhat.com>
+
+	* de.po: Update.
+
+2024-03-18  Joseph Myers  <josmyers@redhat.com>
+
+	* fr.po, sv.po: Update.
+
+2024-03-11  Joseph Myers  <josmyers@redhat.com>
+
+	* sv.po: Update.
+
 2024-03-04  Joseph Myers  <josmyers@redhat.com>
 
 	* sv.po: Update.
@@ -3292,9 +3454,8 @@ Sun Oct 31 17:17:18 1999  Jeffrey A Law  (law@cygnus.com)
 	* POTFILES.in: Remove files which do not exist anymore in egcs.
 	Fix names of those files which are now living in egcs's
 	libiberty/include directories.
-
 
-Copyright (C) 1999-2024 Free Software Foundation, Inc.
+Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

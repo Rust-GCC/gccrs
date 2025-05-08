@@ -1,7 +1,7 @@
 ; -*- buffer-read-only: t -*-
 ; Generated automatically by gen-opt.sh from nvptx-sm.def.
 
-; Copyright (C) 2022-2024 Free Software Foundation, Inc.
+; Copyright (C) 2022-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -20,7 +20,7 @@
 ; <http://www.gnu.org/licenses/>.
 
 Enum
-Name(ptx_isa) Type(int)
+Name(ptx_isa) Type(enum ptx_isa)
 Known PTX ISA target architectures (for use with the -misa= option):
 
 EnumValue
@@ -28,6 +28,12 @@ Enum(ptx_isa) String(sm_30) Value(PTX_ISA_SM30)
 
 EnumValue
 Enum(ptx_isa) String(sm_35) Value(PTX_ISA_SM35)
+
+EnumValue
+Enum(ptx_isa) String(sm_37) Value(PTX_ISA_SM37)
+
+EnumValue
+Enum(ptx_isa) String(sm_52) Value(PTX_ISA_SM52)
 
 EnumValue
 Enum(ptx_isa) String(sm_53) Value(PTX_ISA_SM53)
@@ -40,3 +46,6 @@ Enum(ptx_isa) String(sm_75) Value(PTX_ISA_SM75)
 
 EnumValue
 Enum(ptx_isa) String(sm_80) Value(PTX_ISA_SM80)
+
+EnumValue
+Enum(ptx_isa) String(sm_89) Value(PTX_ISA_SM89)

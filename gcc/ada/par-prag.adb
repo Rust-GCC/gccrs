@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,6 +29,7 @@
 --  which require recognition and either partial or complete processing
 --  during parsing, and this unit performs this required processing.
 
+with Fmap;
 with Fname.UF; use Fname.UF;
 with Osint;    use Osint;
 with Rident;   use Rident;
@@ -74,11 +75,11 @@ function Prag (Pragma_Node : Node_Id; Semi : Source_Ptr) return Node_Id is
    --  is a string literal. If not give error and raise Error_Resync.
 
    procedure Check_Arg_Is_On_Or_Off
-     (Arg : Node_Id; All_OK_Too : Boolean := False);
+     (Arg : Node_Id; All_Extensions_OK_Too : Boolean := False);
    --  Check the expression of the specified argument to make sure that it
    --  is an identifier which is either ON or OFF, and if not, then issue
-   --  an error message and raise Error_Resync. If All_OK_Too is True,
-   --  then an ALL identifer is also acceptable.
+   --  an error message and raise Error_Resync. If All_Extensions_OK_Too is
+   --  True, then an ALL_EXTENSIONS identifer is also acceptable.
 
    procedure Check_No_Identifier (Arg : Node_Id);
    --  Checks that the given argument does not have an identifier. If
@@ -170,21 +171,22 @@ function Prag (Pragma_Node : Node_Id; Semi : Source_Ptr) return Node_Id is
    ----------------------------
 
    procedure Check_Arg_Is_On_Or_Off
-     (Arg : Node_Id; All_OK_Too : Boolean := False)
+     (Arg : Node_Id; All_Extensions_OK_Too : Boolean := False)
    is
       Argx : constant Node_Id := Expression (Arg);
       Error : Boolean := Nkind (Expression (Arg)) /= N_Identifier;
    begin
       if not Error then
          Error := Chars (Argx) not in Name_On | Name_Off
-           and then not (All_OK_Too and Chars (Argx) = Name_All);
+           and then not (All_Extensions_OK_Too
+                          and then Chars (Argx) = Name_All_Extensions);
       end if;
       if Error then
          Error_Msg_Name_2 := Name_On;
          Error_Msg_Name_3 := Name_Off;
 
-         if All_OK_Too then
-            Error_Msg_Name_4 := Name_All;
+         if All_Extensions_OK_Too then
+            Error_Msg_Name_4 := Name_All_Extensions;
             Error_Msg_N ("argument for pragma% must be% or% or%", Argx);
          else
             Error_Msg_N ("argument for pragma% must be% or%", Argx);
@@ -433,11 +435,11 @@ begin
       when Pragma_Extensions_Allowed =>
          Check_Arg_Count (1);
          Check_No_Identifier (Arg1);
-         Check_Arg_Is_On_Or_Off (Arg1, All_OK_Too => True);
+         Check_Arg_Is_On_Or_Off (Arg1, All_Extensions_OK_Too => True);
 
          if Chars (Expression (Arg1)) = Name_On then
             Ada_Version := Ada_With_Core_Extensions;
-         elsif Chars (Expression (Arg1)) = Name_All then
+         elsif Chars (Expression (Arg1)) = Name_All_Extensions then
             Ada_Version := Ada_With_All_Extensions;
          else
             Ada_Version := Ada_Version_Explicit;
@@ -589,6 +591,12 @@ begin
       when Pragma_Source_File_Name
          | Pragma_Source_File_Name_Project
       =>
+         if Debug_Flag_Underscore_MM then
+            --  -gnatd_M is causes the compiler to ignore source file name
+            --  pragmas. It's used for reduced reproducer generation.
+            return Pragma_Node;
+         end if;
+
          Source_File_Name : declare
             Unam  : Unit_Name_Type;
             Expr1 : Node_Id;
@@ -747,15 +755,6 @@ begin
                   and then
                  Nkind (Selector_Name (Expr1)) = N_Identifier)
             then
-               if Nkind (Expr1) = N_Identifier
-                 and then Chars (Expr1) = Name_System
-               then
-                  Error_Msg_N
-                    ("pragma Source_File_Name may not be used for System",
-                     Arg1);
-                  return Error;
-               end if;
-
                --  Process index argument if present
 
                if Arg_Count = 3 then
@@ -785,6 +784,26 @@ begin
                Unam := Get_Unit_Name (Expr1);
 
                Check_Arg_Is_String_Literal (Arg2);
+
+               if Nkind (Expr1) = N_Identifier
+                 and then Chars (Expr1) = Name_System
+               then
+                  --  We allow pragma Source_File_Name on System if it confirms
+                  --  a mapping that already exists in Fmap. The goal is to
+                  --  accommodate GPRbuild, which uses both a map file and
+                  --  a pragma, while at the same time preventing users from
+                  --  using just a pragma. Using just a pragma is a problem
+                  --  because those are not registered yet when
+                  --  Get_Target_Parameters is called.
+                  if Fmap.Mapped_File_Name (Name_To_Unit_Name (Name_System))
+                    /= Get_Fname (Arg2)
+                  then
+                     Error_Msg_N
+                       ("pragma Source_File_Name may not be used for System",
+                        Arg1);
+                     return Error;
+                  end if;
+               end if;
 
                if Chars (Arg2) = Name_Spec_File_Name then
                   Set_File_Name
@@ -1429,18 +1448,21 @@ begin
          | Pragma_Eliminate
          | Pragma_Enable_Atomic_Synchronization
          | Pragma_Exceptional_Cases
+         | Pragma_Exit_Cases
          | Pragma_Export
          | Pragma_Export_Function
          | Pragma_Export_Object
          | Pragma_Export_Procedure
          | Pragma_Export_Valued_Procedure
          | Pragma_Extend_System
+         | Pragma_Extended_Access
          | Pragma_Extensions_Visible
          | Pragma_External
          | Pragma_External_Name_Casing
          | Pragma_Fast_Math
          | Pragma_Favor_Top_Level
          | Pragma_Finalize_Storage_Only
+         | Pragma_First_Controlling_Parameter
          | Pragma_Ghost
          | Pragma_Global
          | Pragma_GNAT_Annotate
@@ -1484,7 +1506,6 @@ begin
          | Pragma_Machine_Attribute
          | Pragma_Main
          | Pragma_Main_Storage
-         | Pragma_Max_Entry_Queue_Depth
          | Pragma_Max_Entry_Queue_Length
          | Pragma_Max_Queue_Length
          | Pragma_Memory_Size
@@ -1494,8 +1515,10 @@ begin
          | Pragma_No_Elaboration_Code_All
          | Pragma_No_Heap_Finalization
          | Pragma_No_Inline
+         | Pragma_No_Raise
          | Pragma_No_Return
          | Pragma_No_Run_Time
+         | Pragma_Interrupts_System_By_Default
          | Pragma_No_Strict_Aliasing
          | Pragma_No_Tagged_Streams
          | Pragma_Normalize_Scalars
@@ -1553,6 +1576,7 @@ begin
          | Pragma_Short_Circuit_And_Or
          | Pragma_Short_Descriptors
          | Pragma_Simple_Storage_Pool_Type
+         | Pragma_Simulate_Internal_Error
          | Pragma_Static_Elaboration_Desired
          | Pragma_Storage_Size
          | Pragma_Storage_Unit

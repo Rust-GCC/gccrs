@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for the pdp-11
-   Copyright (C) 1994-2024 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
    Contributed by Michael K. Gschwind (mike@vlsivie.tuwien.ac.at).
 
 This file is part of GCC.
@@ -69,18 +69,7 @@ along with GCC; see the file COPYING3.  If not see
 #define SHORT_TYPE_SIZE		16
 #define INT_TYPE_SIZE		(TARGET_INT16 ? 16 : 32)
 #define LONG_TYPE_SIZE		32
-#define LONG_LONG_TYPE_SIZE	64     
-
-/* In earlier versions, FLOAT_TYPE_SIZE was selectable as 32 or 64,
-   but that conflicts with Fortran language rules.  Since there is no
-   obvious reason why we should have that feature -- other targets
-   generally don't have float and double the same size -- I've removed
-   it.  Note that it continues to be true (for now) that arithmetic is
-   always done with 64-bit values, i.e., the FPU is always in "double"
-   mode.  */
-#define FLOAT_TYPE_SIZE		32
-#define DOUBLE_TYPE_SIZE	64
-#define LONG_DOUBLE_TYPE_SIZE	64
+#define LONG_LONG_TYPE_SIZE	64
 
 /* machine types from ansi */
 #define SIZE_TYPE "short unsigned int" 	/* definition of size_t */
@@ -104,7 +93,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Define that floats are in VAX order, not high word first as for ints.  */
 #define FLOAT_WORDS_BIG_ENDIAN 0
 
-/* Width of a word, in units (bytes). 
+/* Width of a word, in units (bytes).
 
    UNITS OR BYTES - seems like units */
 #define UNITS_PER_WORD 2
@@ -118,7 +107,7 @@ extern const struct real_format pdp11_f_format;
 extern const struct real_format pdp11_d_format;
 
 /* Maximum sized of reasonable data type -- DImode ...*/
-#define MAX_FIXED_MODE_SIZE 64	
+#define MAX_FIXED_MODE_SIZE 64
 
 /* Allocation boundary (in *bits*) for storing pointers in memory.  */
 #define POINTER_BOUNDARY 16
@@ -155,7 +144,7 @@ extern const struct real_format pdp11_d_format;
    All registers that the compiler knows about must be given numbers,
    even those that are not normally considered general registers.
 
-   we have 8 integer registers, plus 6 float 
+   we have 8 integer registers, plus 6 float
    (don't use scratch float !) */
 
 /* 1 for registers that have pervasive standard uses
@@ -164,7 +153,7 @@ extern const struct real_format pdp11_d_format;
    On the pdp, these are:
    Reg 7	= pc;
    reg 6	= sp;
-   reg 5	= fp;  not necessarily! 
+   reg 5	= fp;  not necessarily!
 */
 
 #define FIXED_REGISTERS  \
@@ -214,7 +203,7 @@ extern const struct real_format pdp11_d_format;
 
    For any two classes, it is very desirable that there be another
    class that represents their union.  */
-   
+
 /* The pdp has a couple of classes:
 
 MUL_REGS are used for odd numbered regs, to use in 16-bit multiplication
@@ -222,7 +211,7 @@ MUL_REGS are used for odd numbered regs, to use in 16-bit multiplication
 GENERAL_REGS is all cpu
 LOAD_FPU_REGS is the first four cpu regs, they are easier to load
 NO_LOAD_FPU_REGS is ac4 and ac5, currently - difficult to load them
-FPU_REGS is all fpu regs 
+FPU_REGS is all fpu regs
 CC_REGS is the condition codes (CPU and FPU)
 */
 
@@ -303,7 +292,7 @@ enum reg_class
 /* Return TRUE if the class is a CPU register.  */
 #define CPU_REG_CLASS(CLASS) \
   (CLASS >= NOTR0_REG && CLASS <= GENERAL_REGS)
-  
+
 /* Return the maximum number of consecutive registers
    needed to represent mode MODE in a register of class CLASS.  */
 #define CLASS_MAX_NREGS(CLASS, MODE)	\
@@ -327,7 +316,7 @@ enum reg_class
 
 #define PUSH_ROUNDING(BYTES) pdp11_push_rounding (BYTES)
 
-/* current_first_parm_offset stores the # of registers pushed on the 
+/* current_first_parm_offset stores the # of registers pushed on the
    stack */
 extern int current_first_parm_offset;
 
@@ -339,7 +328,7 @@ extern int current_first_parm_offset;
    If the precise function being called is known, FUNC is its FUNCTION_DECL;
    otherwise, FUNC is 0.  */
 #define BASE_RETURN_VALUE_REG(MODE) \
- (FLOAT_MODE_P (MODE) ? AC0_REGNUM : RETVAL_REGNUM) 
+ (FLOAT_MODE_P (MODE) ? AC0_REGNUM : RETVAL_REGNUM)
 
 /* 1 if N is a possible register number for function argument passing.
    - not used on pdp */
@@ -473,7 +462,7 @@ extern int current_first_parm_offset;
 #define DEFAULT_SIGNED_CHAR 1
 
 /* Max number of bytes we can move from memory to memory
-   in one reasonably fast instruction.  
+   in one reasonably fast instruction.
 */
 #define MOVE_MAX 2
 

@@ -9059,7 +9059,7 @@ Selector_expression::lower_method_expression(Gogo* gogo)
 
   Named_type* nt = type->named_type();
   Struct_type* st = type->struct_type();
-  bool is_ambiguous;
+  bool is_ambiguous = false;
   Method* method = NULL;
   if (nt != NULL)
     method = nt->method_function(name, &is_ambiguous);
@@ -9079,12 +9079,12 @@ Selector_expression::lower_method_expression(Gogo* gogo)
       if (nt != NULL)
 	{
 	  if (!is_ambiguous)
-	    go_error_at(location, "type %<%s%s%> has no method %<%s%>",
+	    go_error_at(location, "type %<%s%s%> has no method %qs",
 			is_pointer ? "*" : "",
 			nt->message_name().c_str(),
 			Gogo::message_name(name).c_str());
 	  else
-	    go_error_at(location, "method %<%s%s%> is ambiguous in type %<%s%>",
+	    go_error_at(location, "method %<%s%s%> is ambiguous in type %qs",
 			Gogo::message_name(name).c_str(),
 			is_pointer ? "*" : "",
 			nt->message_name().c_str());
@@ -9092,10 +9092,10 @@ Selector_expression::lower_method_expression(Gogo* gogo)
       else
 	{
 	  if (!is_ambiguous)
-	    go_error_at(location, "type has no method %<%s%>",
+	    go_error_at(location, "type has no method %qs",
 			Gogo::message_name(name).c_str());
 	  else
-	    go_error_at(location, "method %<%s%> is ambiguous",
+	    go_error_at(location, "method %qs is ambiguous",
 			Gogo::message_name(name).c_str());
 	}
       return Expression::make_error(location);
@@ -11134,6 +11134,12 @@ Builtin_call_expression::do_determine_type(Gogo* gogo,
     {
     case BUILTIN_MAKE:
       trailing_arg_types = Type::lookup_integer_type("int");
+      is_print = false;
+      break;
+
+    case BUILTIN_PANIC:
+      arg_type =
+	Type::make_empty_interface_type(Linemap::predeclared_location());
       is_print = false;
       break;
 
@@ -18790,7 +18796,7 @@ Composite_literal_expression::lower_array(Type* type)
 
 	  Named_type* ntype = Type::lookup_integer_type("int");
 	  Integer_type* inttype = ntype->integer_type();
-	  if (sizeof(index) <= static_cast<size_t>(inttype->bits() * 8)
+	  if (sizeof(index) >= static_cast<size_t>(inttype->bits() / 8)
 	      && index >> (inttype->bits() - 1) != 0)
 	    {
 	      go_error_at(index_expr->location(), "index value overflow");

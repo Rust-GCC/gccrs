@@ -1,6 +1,6 @@
 /* RTX cost tables for AArch64.
 
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -346,7 +346,7 @@ const struct cpu_cost_table thunderx2t99_extra_costs =
   }
 };
 
-const struct cpu_cost_table thunderx3t110_extra_costs = 
+const struct cpu_cost_table thunderx3t110_extra_costs =
 {
   /* ALU */
   {

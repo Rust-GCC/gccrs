@@ -1,5 +1,5 @@
 /* CPP Library.
-   Copyright (C) 1986-2024 Free Software Foundation, Inc.
+   Copyright (C) 1986-2025 Free Software Foundation, Inc.
    Contributed by Per Bothner, 1994-95.
    Based on CCCP program by Paul Rubin, June 1986
    Adapted to ANSI C, Richard Stallman, Jan 1987
@@ -41,8 +41,8 @@ static void read_original_directory (cpp_reader *);
 static void post_options (cpp_reader *);
 
 /* If we have designated initializers (GCC >2.7) these tables can be
-   initialized, constant data.  Otherwise, they have to be filled in at
-   runtime.  */
+   initialized, constant data.  Similarly for C++14 and later.
+   Otherwise, they have to be filled in at runtime.  */
 #if HAVE_DESIGNATED_INITIALIZERS
 
 #define init_trigraph_map()  /* Nothing.  */
@@ -51,6 +51,15 @@ __extension__ const uchar _cpp_trigraph_map[UCHAR_MAX + 1] = {
 
 #define END };
 #define s(p, v) [p] = v,
+
+#elif __cpp_constexpr >= 201304L
+
+#define init_trigraph_map()  /* Nothing.  */
+#define TRIGRAPH_MAP \
+constexpr _cpp_trigraph_map_s::_cpp_trigraph_map_s () : map {} {
+#define END } \
+constexpr _cpp_trigraph_map_s _cpp_trigraph_map_d;
+#define s(p, v) map[p] = v;
 
 #else
 
@@ -77,59 +86,72 @@ END
    requires.  */
 struct lang_flags
 {
-  char c99;
-  char cplusplus;
-  char extended_numbers;
-  char extended_identifiers;
-  char c11_identifiers;
-  char xid_identifiers;
-  char std;
-  char digraphs;
-  char uliterals;
-  char rliterals;
-  char user_literals;
-  char binary_constants;
-  char digit_separators;
-  char trigraphs;
-  char utf8_char_literals;
-  char va_opt;
-  char scope;
-  char dfp_constants;
-  char size_t_literals;
-  char elifdef;
-  char warning_directive;
-  char delimited_escape_seqs;
-  char true_false;
+  unsigned int c99 : 1;
+  unsigned int cplusplus : 1;
+  unsigned int extended_numbers : 1;
+  unsigned int extended_identifiers : 1;
+  unsigned int c11_identifiers : 1;
+  unsigned int xid_identifiers : 1;
+  unsigned int std : 1;
+  unsigned int digraphs : 1;
+  unsigned int uliterals : 1;
+  unsigned int rliterals : 1;
+  unsigned int user_literals : 1;
+  unsigned int binary_constants : 1;
+  unsigned int digit_separators : 1;
+  unsigned int trigraphs : 1;
+  unsigned int utf8_char_literals : 1;
+  unsigned int va_opt : 1;
+  unsigned int scope : 1;
+  unsigned int dfp_constants : 1;
+  unsigned int size_t_literals : 1;
+  unsigned int elifdef : 1;
+  unsigned int warning_directive : 1;
+  unsigned int delimited_escape_seqs : 1;
+  unsigned int named_uc_escape_seqs : 1;
+  unsigned int octal_constants : 1;
+  unsigned int true_false : 1;
+  unsigned int embed : 1;
+  unsigned int imaginary_constants : 1;
+  unsigned int low_ucns : 1;
 };
 
-static const struct lang_flags lang_defaults[] =
-{ /*              c99 c++ xnum xid c11 xidid std digr ulit rlit udlit bincst digsep trig u8chlit vaopt scope dfp szlit elifdef warndir delim trufal */
-  /* GNUC89   */  { 0,  0,  1,  0,  0,  0,    0,  1,   0,   0,   0,    0,     0,     0,   0,      1,   1,     0,   0,   0,      0,      0,    0 },
-  /* GNUC99   */  { 1,  0,  1,  1,  0,  0,    0,  1,   1,   1,   0,    0,     0,     0,   0,      1,   1,     0,   0,   0,      0,      0,    0 },
-  /* GNUC11   */  { 1,  0,  1,  1,  1,  0,    0,  1,   1,   1,   0,    0,     0,     0,   0,      1,   1,     0,   0,   0,      0,      0,    0 },
-  /* GNUC17   */  { 1,  0,  1,  1,  1,  0,    0,  1,   1,   1,   0,    0,     0,     0,   0,      1,   1,     0,   0,   0,      0,      0,    0 },
-  /* GNUC23   */  { 1,  0,  1,  1,  1,  1,    0,  1,   1,   1,   0,    1,     1,     0,   1,      1,   1,     1,   0,   1,      1,      0,    1 },
-  /* STDC89   */  { 0,  0,  0,  0,  0,  0,    1,  0,   0,   0,   0,    0,     0,     1,   0,      0,   0,     0,   0,   0,      0,      0,    0 },
-  /* STDC94   */  { 0,  0,  0,  0,  0,  0,    1,  1,   0,   0,   0,    0,     0,     1,   0,      0,   0,     0,   0,   0,      0,      0,    0 },
-  /* STDC99   */  { 1,  0,  1,  1,  0,  0,    1,  1,   0,   0,   0,    0,     0,     1,   0,      0,   0,     0,   0,   0,      0,      0,    0 },
-  /* STDC11   */  { 1,  0,  1,  1,  1,  0,    1,  1,   1,   0,   0,    0,     0,     1,   0,      0,   0,     0,   0,   0,      0,      0,    0 },
-  /* STDC17   */  { 1,  0,  1,  1,  1,  0,    1,  1,   1,   0,   0,    0,     0,     1,   0,      0,   0,     0,   0,   0,      0,      0,    0 },
-  /* STDC23   */  { 1,  0,  1,  1,  1,  1,    1,  1,   1,   0,   0,    1,     1,     0,   1,      1,   1,     1,   0,   1,      1,      0,    1 },
-  /* GNUCXX   */  { 0,  1,  1,  1,  0,  1,    0,  1,   0,   0,   0,    0,     0,     0,   0,      1,   1,     0,   0,   0,      0,      0,    1 },
-  /* CXX98    */  { 0,  1,  0,  1,  0,  1,    1,  1,   0,   0,   0,    0,     0,     1,   0,      0,   1,     0,   0,   0,      0,      0,    1 },
-  /* GNUCXX11 */  { 1,  1,  1,  1,  1,  1,    0,  1,   1,   1,   1,    0,     0,     0,   0,      1,   1,     0,   0,   0,      0,      0,    1 },
-  /* CXX11    */  { 1,  1,  0,  1,  1,  1,    1,  1,   1,   1,   1,    0,     0,     1,   0,      0,   1,     0,   0,   0,      0,      0,    1 },
-  /* GNUCXX14 */  { 1,  1,  1,  1,  1,  1,    0,  1,   1,   1,   1,    1,     1,     0,   0,      1,   1,     0,   0,   0,      0,      0,    1 },
-  /* CXX14    */  { 1,  1,  0,  1,  1,  1,    1,  1,   1,   1,   1,    1,     1,     1,   0,      0,   1,     0,   0,   0,      0,      0,    1 },
-  /* GNUCXX17 */  { 1,  1,  1,  1,  1,  1,    0,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   0,   0,      0,      0,    1 },
-  /* CXX17    */  { 1,  1,  1,  1,  1,  1,    1,  1,   1,   1,   1,    1,     1,     0,   1,      0,   1,     0,   0,   0,      0,      0,    1 },
-  /* GNUCXX20 */  { 1,  1,  1,  1,  1,  1,    0,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   0,   0,      0,      0,    1 },
-  /* CXX20    */  { 1,  1,  1,  1,  1,  1,    1,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   0,   0,      0,      0,    1 },
-  /* GNUCXX23 */  { 1,  1,  1,  1,  1,  1,    0,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   1,   1,      1,      1,    1 },
-  /* CXX23    */  { 1,  1,  1,  1,  1,  1,    1,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   1,   1,      1,      1,    1 },
-  /* GNUCXX26 */  { 1,  1,  1,  1,  1,  1,    0,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   1,   1,      1,      1,    1 },
-  /* CXX26    */  { 1,  1,  1,  1,  1,  1,    1,  1,   1,   1,   1,    1,     1,     0,   1,      1,   1,     0,   1,   1,      1,      1,    1 },
-  /* ASM      */  { 0,  0,  1,  0,  0,  0,    0,  0,   0,   0,   0,    0,     0,     0,   0,      0,   0,     0,   0,   0,      0,      0,    0 }
+static const struct lang_flags lang_defaults[] = {
+  /*					       u         e w   n
+					 b d   8         l a   a   t     l
+			     x         u i i   c v s   s i r d m o r e   o
+		       x     i   d u r d n g t h a c   z f n e e c u m i w
+		   c c n x c d s i l l l c s r l o o d l d d l d t f b m u
+		   9 + u i 1 i t g i i i s e i i p p f i e i i u a a e a c
+		   9 + m d 1 d d r t t t t p g t t e p t f r m c l l d g n */
+  /* GNUC89   */ { 0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0 },
+  /* GNUC99   */ { 1,0,1,1,0,0,0,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0 },
+  /* GNUC11   */ { 1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0 },
+  /* GNUC17   */ { 1,0,1,1,1,0,0,1,1,1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0 },
+  /* GNUC23   */ { 1,0,1,1,1,1,0,1,1,1,0,1,1,0,1,1,1,1,0,1,1,0,0,0,1,1,0,1 },
+  /* GNUC2Y   */ { 1,0,1,1,1,1,0,1,1,1,0,1,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1,1 },
+  /* STDC89   */ { 0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+  /* STDC94   */ { 0,0,0,0,0,0,1,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+  /* STDC99   */ { 1,0,1,1,0,0,1,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+  /* STDC11   */ { 1,0,1,1,1,0,1,1,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+  /* STDC17   */ { 1,0,1,1,1,0,1,1,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0 },
+  /* STDC23   */ { 1,0,1,1,1,1,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,0,0,0,1,1,0,1 },
+  /* STDC2Y   */ { 1,0,1,1,1,1,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,1,0,1,1,1,1,1 },
+  /* GNUCXX   */ { 0,1,1,1,0,1,0,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* CXX98    */ { 0,1,0,1,0,1,1,1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* GNUCXX11 */ { 1,1,1,1,1,1,0,1,1,1,1,0,0,0,0,1,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* CXX11    */ { 1,1,0,1,1,1,1,1,1,1,1,0,0,1,0,0,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* GNUCXX14 */ { 1,1,1,1,1,1,0,1,1,1,1,1,1,0,0,1,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* CXX14    */ { 1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,0,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* GNUCXX17 */ { 1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* CXX17    */ { 1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* GNUCXX20 */ { 1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* CXX20    */ { 1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0,0,1,0,0,1 },
+  /* GNUCXX23 */ { 1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,0,0,1 },
+  /* CXX23    */ { 1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,0,0,1 },
+  /* GNUCXX26 */ { 1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,1 },
+  /* CXX26    */ { 1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,1 },
+  /* ASM      */ { 0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 }
 };
 
 /* Sets internal flags correctly for a given language.  */
@@ -162,7 +184,12 @@ cpp_set_lang (cpp_reader *pfile, enum c_lang lang)
   CPP_OPTION (pfile, elifdef)			 = l->elifdef;
   CPP_OPTION (pfile, warning_directive)		 = l->warning_directive;
   CPP_OPTION (pfile, delimited_escape_seqs)	 = l->delimited_escape_seqs;
+  CPP_OPTION (pfile, named_uc_escape_seqs)	 = l->named_uc_escape_seqs;
+  CPP_OPTION (pfile, octal_constants)		 = l->octal_constants;
   CPP_OPTION (pfile, true_false)		 = l->true_false;
+  CPP_OPTION (pfile, embed)			 = l->embed;
+  CPP_OPTION (pfile, imaginary_constants)	 = l->imaginary_constants;
+  CPP_OPTION (pfile, low_ucns)			 = l->low_ucns;
 }
 
 /* Initialize library global state.  */
@@ -211,6 +238,7 @@ cpp_create_reader (enum c_lang lang, cpp_hash_table *table,
   CPP_OPTION (pfile, warn_endif_labels) = 1;
   CPP_OPTION (pfile, cpp_warn_c90_c99_compat) = -1;
   CPP_OPTION (pfile, cpp_warn_c11_c23_compat) = -1;
+  CPP_OPTION (pfile, cpp_warn_c23_c2y_compat) = -1;
   CPP_OPTION (pfile, cpp_warn_cxx11_compat) = 0;
   CPP_OPTION (pfile, cpp_warn_cxx20_compat) = 0;
   CPP_OPTION (pfile, cpp_warn_deprecated) = 1;
@@ -220,6 +248,7 @@ cpp_create_reader (enum c_lang lang, cpp_hash_table *table,
   CPP_OPTION (pfile, warn_variadic_macros) = 1;
   CPP_OPTION (pfile, warn_builtin_macro_redefined) = 1;
   CPP_OPTION (pfile, cpp_warn_implicit_fallthrough) = 0;
+  CPP_OPTION (pfile, warn_header_guard) = 0;
   /* By default, track locations of tokens resulting from macro
      expansion.  The '2' means, track the locations with the highest
      accuracy.  Read the comments for struct
@@ -236,6 +265,7 @@ cpp_create_reader (enum c_lang lang, cpp_hash_table *table,
   CPP_OPTION (pfile, cpp_warn_invalid_utf8) = 0;
   CPP_OPTION (pfile, cpp_warn_unicode) = 1;
   CPP_OPTION (pfile, cpp_input_charset_explicit) = 0;
+  CPP_OPTION (pfile, cpp_tabstop) = 8;
 
   /* Default CPP arithmetic to something sensible for the host for the
      benefit of dumb users like fix-header.  */
@@ -435,6 +465,7 @@ static const struct builtin_macro builtin_array[] =
   B("__has_builtin",	 BT_HAS_BUILTIN,   true),
   B("__has_include",	 BT_HAS_INCLUDE,   true),
   B("__has_include_next",BT_HAS_INCLUDE_NEXT,   true),
+  B("__has_embed",	 BT_HAS_EMBED, true),
   B("__has_feature",	 BT_HAS_FEATURE, true),
   B("__has_extension",	 BT_HAS_EXTENSION, true),
   /* Keep builtins not used for -traditional-cpp at the end, and
@@ -594,7 +625,10 @@ cpp_init_builtins (cpp_reader *pfile, int hosted)
     _cpp_define_builtin (pfile, "__STDC_VERSION__ 199409L");
   else if (CPP_OPTION (pfile, lang) == CLK_STDC23
 	   || CPP_OPTION (pfile, lang) == CLK_GNUC23)
-    _cpp_define_builtin (pfile, "__STDC_VERSION__ 202000L");
+    _cpp_define_builtin (pfile, "__STDC_VERSION__ 202311L");
+  else if (CPP_OPTION (pfile, lang) == CLK_STDC2Y
+	   || CPP_OPTION (pfile, lang) == CLK_GNUC2Y)
+    _cpp_define_builtin (pfile, "__STDC_VERSION__ 202500L");
   else if (CPP_OPTION (pfile, lang) == CLK_STDC17
 	   || CPP_OPTION (pfile, lang) == CLK_GNUC17)
     _cpp_define_builtin (pfile, "__STDC_VERSION__ 201710L");
@@ -618,6 +652,10 @@ cpp_init_builtins (cpp_reader *pfile, int hosted)
   else
     _cpp_define_builtin (pfile, "__STDC_HOSTED__ 0");
 
+  _cpp_define_builtin (pfile, "__STDC_EMBED_NOT_FOUND__ 0");
+  _cpp_define_builtin (pfile, "__STDC_EMBED_FOUND__ 1");
+  _cpp_define_builtin (pfile, "__STDC_EMBED_EMPTY__ 2");
+
   if (CPP_OPTION (pfile, objc))
     _cpp_define_builtin (pfile, "__OBJC__ 1");
 }
@@ -635,7 +673,7 @@ static void sanity_checks (cpp_reader *pfile)
      type precisions made by cpplib.  */
   test--;
   if (test < 1)
-    cpp_error (pfile, CPP_DL_ICE, "cppchar_t must be an unsigned type");
+    cpp_error (pfile, CPP_DL_ICE, "%<cppchar_t%> must be an unsigned type");
 
   if (CPP_OPTION (pfile, precision) > max_precision)
     cpp_error (pfile, CPP_DL_ICE,
@@ -646,18 +684,19 @@ static void sanity_checks (cpp_reader *pfile)
 
   if (CPP_OPTION (pfile, precision) < CPP_OPTION (pfile, int_precision))
     cpp_error (pfile, CPP_DL_ICE,
-	       "CPP arithmetic must be at least as precise as a target int");
+	       "CPP arithmetic must be at least as precise as a target "
+	       "%<int%>");
 
   if (CPP_OPTION (pfile, char_precision) < 8)
-    cpp_error (pfile, CPP_DL_ICE, "target char is less than 8 bits wide");
+    cpp_error (pfile, CPP_DL_ICE, "target %<char%> is less than 8 bits wide");
 
   if (CPP_OPTION (pfile, wchar_precision) < CPP_OPTION (pfile, char_precision))
     cpp_error (pfile, CPP_DL_ICE,
-	       "target wchar_t is narrower than target char");
+	       "target %<wchar_t%> is narrower than target %<char%>");
 
   if (CPP_OPTION (pfile, int_precision) < CPP_OPTION (pfile, char_precision))
     cpp_error (pfile, CPP_DL_ICE,
-	       "target int is narrower than target char");
+	       "target %<int%> is narrower than target %<char%>");
 
   /* This is assumed in eval_token() and could be fixed if necessary.  */
   if (sizeof (cppchar_t) > sizeof (cpp_num_part))
@@ -707,14 +746,12 @@ cpp_read_main_file (cpp_reader *pfile, const char *fname, bool injecting)
     /* Set the default target (if there is none already).  */
     deps_add_default_target (deps, fname);
 
+  auto main_search = CPP_OPTION (pfile, main_search);
+  bool angle = main_search == CMS_system;
+  cpp_dir *start_dir = (main_search < CMS_user ? &pfile->no_search_path
+			: search_path_head (pfile, fname, angle, IT_CMDLINE));
   pfile->main_file
-    = _cpp_find_file (pfile, fname,
-		      CPP_OPTION (pfile, preprocessed) ? &pfile->no_search_path
-		      : CPP_OPTION (pfile, main_search) == CMS_user
-		      ? pfile->quote_include
-		      : CPP_OPTION (pfile, main_search) == CMS_system
-		      ? pfile->bracket_include : &pfile->no_search_path,
-		      /*angle=*/0, _cpp_FFK_NORMAL, 0);
+    = _cpp_find_file (pfile, fname, start_dir, angle, _cpp_FFK_NORMAL, 0);
 
   if (_cpp_find_failed (pfile->main_file))
     return NULL;
@@ -848,7 +885,7 @@ read_original_directory (cpp_reader *pfile)
 	  /* Smash the string directly, it's dead at this point  */
 	  char *smashy = (char *)text;
 	  smashy[len - 3] = 0;
-	  
+
 	  pfile->cb.dir_change (pfile, smashy + 1);
 	}
 

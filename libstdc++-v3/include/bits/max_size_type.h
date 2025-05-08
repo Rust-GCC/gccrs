@@ -1,6 +1,6 @@
 // <max_size_type.h> -*- C++ -*-
 
-// Copyright (C) 2019-2024 Free Software Foundation, Inc.
+// Copyright (C) 2019-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_MAX_SIZE_TYPE_H
 #define _GLIBCXX_MAX_SIZE_TYPE_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus > 201703L && __cpp_lib_concepts
 #include <ext/numeric_traits.h>

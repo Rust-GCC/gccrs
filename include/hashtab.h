@@ -1,5 +1,5 @@
-/* An expandable hash tables datatype.  
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+/* An expandable hash tables datatype.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov (vmakarov@cygnus.com).
 
 This program is free software; you can redistribute it and/or modify
@@ -56,7 +56,7 @@ typedef int (*htab_eq) (const void *, const void *);
 /* Cleanup function called whenever a live element is removed from
    the hash table.  */
 typedef void (*htab_del) (void *);
-  
+
 /* Function called by htab_traverse for each live element.  The first
    arg is the slot of the element (which can be passed to htab_clear_slot
    if desired), the second arg is the auxiliary pointer handed to

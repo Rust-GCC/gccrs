@@ -2,7 +2,7 @@
 ! { dg-require-effective-target vect_double }
 ! { dg-additional-options "-fno-tree-loop-distribute-patterns -finline-matmul-limit=0" }
 ! PR113249
-! { dg-options "-fno-schedule-insns -fno-schedule-insns2" { target { riscv*-*-* } } }
+! { dg-additional-options "-fno-schedule-insns -fno-schedule-insns2" { target { riscv*-*-* } } }
 
 module lfk_prec
  integer, parameter :: dp=kind(1.d0)
@@ -706,7 +706,6 @@ CALL track('KERNEL  ')
 RETURN
 END SUBROUTINE kernel
 
-! { dg-final { scan-tree-dump-times "vectorized 2\[56\] loops" 1 "vect" { target aarch64_sve } } }
-! { dg-final { scan-tree-dump-times "vectorized 2\[45\] loops" 1 "vect" { target { aarch64*-*-* && { ! aarch64_sve } } } } }
-! { dg-final { scan-tree-dump-times "vectorized 2\[234\] loops" 1 "vect" { target { vect_intdouble_cvt && { ! aarch64*-*-* } } } } }
+! { dg-final { scan-tree-dump-times "vectorized 2\[5678\] loops" 1 "vect" { target aarch64*-*-* } } }
+! { dg-final { scan-tree-dump-times "vectorized 2\[345678\] loops" 1 "vect" { target { vect_intdouble_cvt && { ! aarch64*-*-* } } } } }
 ! { dg-final { scan-tree-dump-times "vectorized 17 loops" 1 "vect" { target { { ! vect_intdouble_cvt } && { ! aarch64*-*-* } } } } }

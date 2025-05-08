@@ -1,5 +1,5 @@
 /* Loop unrolling.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -372,7 +372,8 @@ decide_unroll_constant_iterations (class loop *loop, int flags)
     nunroll = targetm.loop_unroll_adjust (nunroll, loop);
 
   /* Skip big loops.  */
-  if (nunroll <= 1)
+  if (nunroll <= 1
+      && !(loop->unroll > 1 && loop->unroll < USHRT_MAX))
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not considering loop, is too big\n");
@@ -409,7 +410,7 @@ decide_unroll_constant_iterations (class loop *loop, int flags)
       return;
     }
 
-  /* Check whether the loop rolls enough to consider.  
+  /* Check whether the loop rolls enough to consider.
      Consult also loop bounds and profile; in the case the loop has more
      than one exit it may well loop less than determined maximal number
      of iterations.  */
@@ -1185,7 +1186,7 @@ decide_unroll_stupid (class loop *loop, int flags)
     }
 
   /* Do not unroll loops with branches inside -- it increases number
-     of mispredicts. 
+     of mispredicts.
      TODO: this heuristic needs tunning; call inside the loop body
      is also relatively good reason to not unroll.  */
   if (num_loop_branches (loop) > 1)

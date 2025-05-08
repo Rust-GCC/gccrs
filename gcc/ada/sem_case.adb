@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -58,9 +58,9 @@ with GNAT.Sets;
 package body Sem_Case is
 
    type Choice_Bounds is record
-     Lo   : Node_Id;
-     Hi   : Node_Id;
-     Node : Node_Id;
+      Lo   : Node_Id;
+      Hi   : Node_Id;
+      Node : Node_Id;
    end record;
    --  Represent one choice bounds entry with Lo and Hi values, Node points
    --  to the choice node itself.
@@ -1550,8 +1550,8 @@ package body Sem_Case is
             return Result;
          end Component_Bounds_Info;
 
-         Component_Bounds : constant Composite_Range_Info
-           := Component_Bounds_Info;
+         Component_Bounds : constant Composite_Range_Info :=
+           Component_Bounds_Info;
 
          package Case_Bindings is
 
@@ -2517,8 +2517,8 @@ package body Sem_Case is
 
                use Uint_Sets;
 
-               Result : constant Representative_Values_Array
-                 := (others => Uint_Sets.Create (Initial_Size => 32));
+               Result : constant Representative_Values_Array :=
+                 (others => Uint_Sets.Create (Initial_Size => 32));
 
                procedure Insert_Representative (Value : Uint; P : Part_Id);
                --  Insert the given Value into the representative values set
@@ -2563,8 +2563,8 @@ package body Sem_Case is
                return Result;
             end Representative_Values_Init;
 
-            Representative_Values : constant Representative_Values_Array
-              := Representative_Values_Init;
+            Representative_Values : constant Representative_Values_Array :=
+              Representative_Values_Init;
             --  We want to avoid looking at every point in the Cartesian
             --  product of all component values. Instead we select, for each
             --  component, a set of representative values and then look only
@@ -2664,8 +2664,8 @@ package body Sem_Case is
                   return Equal;
                else
                   declare
-                     Intersection : constant Value_Index_Set
-                       := Indexed (S1) and Indexed (S2);
+                     Intersection : constant Value_Index_Set :=
+                       Indexed (S1) and Indexed (S2);
                   begin
                      if (for all Flag of Intersection => not Flag) then
                         return Disjoint;
@@ -3590,7 +3590,7 @@ package body Sem_Case is
 
             --  Hold on, maybe it isn't a complete mess after all.
 
-            if Core_Extensions_Allowed and then Subtyp /= Any_Type then
+            if All_Extensions_Allowed and then Subtyp /= Any_Type then
                Check_Composite_Case_Selector;
                Check_Case_Pattern_Choices;
             end if;
@@ -3874,7 +3874,7 @@ package body Sem_Case is
    function Is_Case_Choice_Pattern (Expr : Node_Id) return Boolean is
       E : Node_Id := Expr;
    begin
-      if not Core_Extensions_Allowed then
+      if not All_Extensions_Allowed then
          return False;
       end if;
 

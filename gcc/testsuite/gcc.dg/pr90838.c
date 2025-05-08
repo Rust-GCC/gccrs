@@ -1,4 +1,4 @@
-/* { dg-do compile } */
+/* { dg-do compile { target { ! riscv_abi_e } } } */
 /* { dg-options "-O2 -fdump-tree-forwprop2-details" } */
 /* { dg-additional-options "-mbmi" { target { { i?86-*-* x86_64-*-* } && { ! { ia32 } } } } } */
 /* { dg-additional-options "-march=rv64gc_zbb" { target { rv64 } } } */
@@ -77,7 +77,7 @@ int ctz4 (unsigned long x)
 /* { dg-final { scan-assembler-times "ctz\t"  1 { target { rv64 } } } } */
 /* { dg-final { scan-assembler-times "ctzw\t" 3 { target { rv64 } } } } */
 /* { dg-final { scan-assembler-times "andi\t" 2 { target { rv64 } } } } */
-/* { dg-final { scan-assembler-not "mul" { target { rv64 } } } } */
+/* { dg-final { scan-assembler-not "mul\t" { target { rv64 } } } } */
 
 /* { dg-final { scan-tree-dump-times {= \.CTZ} 3 "forwprop2" { target { rv32 } } } } */
 /* { dg-final { scan-assembler-times "ctz\t" 3 { target { rv32 } } } } */

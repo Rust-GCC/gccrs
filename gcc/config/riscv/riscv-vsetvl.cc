@@ -1,5 +1,5 @@
 /* VSETVL pass for RISC-V 'V' Extension for GNU compiler.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by Juzhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
 
 This file is part of GCC.
@@ -63,6 +63,7 @@ along with GCC; see the file COPYING3.  If not see
 #define IN_TARGET_CODE 1
 #define INCLUDE_ALGORITHM
 #define INCLUDE_FUNCTIONAL
+#define INCLUDE_ARRAY
 
 #include "config.h"
 #include "system.h"
@@ -95,7 +96,7 @@ using namespace riscv_vector;
    It's a bit different from bitmap_union_of_preds in cfganal.cc. This function
    takes into account the case where pred is ENTRY basic block. The main reason
    for this difference is to make it easier to insert some special value into
-   the ENTRY base block. For example, vsetvl_info with a status of UNKNOW.  */
+   the ENTRY base block. For example, vsetvl_info with a status of UNKNOWN.  */
 static void
 bitmap_union_of_preds_with_entry (sbitmap dst, sbitmap *src, basic_block b)
 {
@@ -126,9 +127,9 @@ bitmap_union_of_preds_with_entry (sbitmap dst, sbitmap *src, basic_block b)
       }
 }
 
-/* Compute the reaching defintion in and out based on the gen and KILL
-   informations in each Base Blocks.
-   This function references the compute_avaiable implementation in lcm.cc  */
+/* Compute the reaching definition in and out based on the gen and KILL
+   information's in each Base Blocks.
+   This function references the compute_available implementation in lcm.cc  */
 static void
 compute_reaching_defintion (sbitmap *gen, sbitmap *kill, sbitmap *in,
 			    sbitmap *out)
@@ -221,6 +222,8 @@ enum emit_type
   EMIT_BEFORE,
   EMIT_AFTER,
 };
+
+static const int MAX_LMUL = 8;
 
 /* dump helper functions */
 static const char *
@@ -682,7 +685,7 @@ invalid_opt_bb_p (basic_block cfg_bb)
   /* We only do LCM optimizations on blocks that are post dominated by
      EXIT block, that is, we don't do LCM optimizations on infinite loop.  */
   FOR_EACH_EDGE (e, ei, cfg_bb->succs)
-    if (e->flags & EDGE_FAKE)
+    if ((e->flags & EDGE_FAKE) || (e->flags & EDGE_ABNORMAL))
       return true;
 
   return false;
@@ -719,7 +722,7 @@ get_all_predecessors (basic_block bb)
    require SEW and LMUL to be fixed.
    Therefore, if the former RVV instruction needs DEMAND_RATIO_P and the latter
    instruction needs DEMAND_SEW_LMUL_P and its SEW/LMUL is the same as that of
-   the former instruction, then we can make the minimu demand of the former
+   the former instruction, then we can make the minimum demand of the former
    instruction strict to DEMAND_SEW_LMUL_P, and its required SEW and LMUL are
    the SEW and LMUL of the latter instruction, and the vsetvl instruction
    generated according to the new demand can also be used for the latter
@@ -741,7 +744,7 @@ enum demand_flags : unsigned
 /* We split the demand information into three parts. They are sew and lmul
    related (sew_lmul_demand_type), tail and mask policy related
    (policy_demand_type) and avl related (avl_demand_type). Then we define three
-   interfaces avaiable_with, compatible_p and merge. avaiable_with is
+   interfaces available_p, compatible_p and merge. available_p is
    used to determine whether the two vsetvl infos prev_info and next_info are
    available or not. If prev_info is available for next_info, it means that the
    RVV insn corresponding to next_info on the path from prev_info to next_info
@@ -776,6 +779,36 @@ enum class avl_demand_type : unsigned
   non_zero_avl = demand_flags::DEMAND_NON_ZERO_AVL_P,
   ignore_avl = demand_flags::DEMAND_EMPTY_P,
 };
+
+/* Go through all uses of INSN looking for a single use of register REG.
+   Return true if we find
+    - Uses in a non-RVV insn
+    - More than one use in an RVV insn
+    - A single use in the VL operand of an RVV insn
+   and false otherwise.
+   A single use in the AVL operand does not count as use as we take care of
+   those separately in the pass.  */
+
+static bool
+reg_used (insn_info *insn, rtx reg)
+{
+  unsigned int regno = REGNO (reg);
+  const hash_set<use_info *> vl_uses = get_all_real_uses (insn, regno);
+  for (use_info *use : vl_uses)
+    {
+      gcc_assert (use->insn ()->is_real ());
+      rtx_insn *rinsn = use->insn ()->rtl ();
+      if (!has_vl_op (rinsn)
+	  || count_regno_occurrences (rinsn, regno) != 1)
+	return true;
+
+      rtx avl = ::get_avl (rinsn);
+      if (!avl || !REG_P (avl) || regno != REGNO (avl))
+	return true;
+    }
+  return false;
+}
+
 
 class vsetvl_info
 {
@@ -900,7 +933,8 @@ public:
   bool valid_p () const { return m_state == state_type::VALID; }
   bool unknown_p () const { return m_state == state_type::UNKNOWN; }
   bool empty_p () const { return m_state == state_type::EMPTY; }
-  bool change_vtype_only_p () const { return m_change_vtype_only; }
+  bool change_vtype_only_p () const { return m_change_vtype_only
+					     && !TARGET_XTHEADVECTOR; }
 
   void set_valid () { m_state = state_type::VALID; }
   void set_unknown () { m_state = state_type::UNKNOWN; }
@@ -1001,6 +1035,9 @@ public:
 
   void parse_insn (insn_info *insn)
   {
+    /* The VL dest of the insn */
+    rtx dest_vl = NULL_RTX;
+
     m_insn = insn;
     m_bb = insn->bb ();
     /* Return if it is debug insn for the consistency with optimize == 0.  */
@@ -1034,7 +1071,10 @@ public:
     if (m_avl)
       {
 	if (vsetvl_insn_p (insn->rtl ()) || has_vlmax_avl ())
-	  m_vl = ::get_vl (insn->rtl ());
+	  {
+	    m_vl = ::get_vl (insn->rtl ());
+	    dest_vl = m_vl;
+	  }
 
 	if (has_nonvlmax_reg_avl ())
 	  m_avl_def = find_access (insn->uses (), REGNO (m_avl))->def ();
@@ -1131,28 +1171,8 @@ public:
       }
 
     /* Determine if dest operand(vl) has been used by non-RVV instructions.  */
-    if (has_vl ())
-      {
-	const hash_set<use_info *> vl_uses
-	  = get_all_real_uses (get_insn (), REGNO (get_vl ()));
-	for (use_info *use : vl_uses)
-	  {
-	    gcc_assert (use->insn ()->is_real ());
-	    rtx_insn *rinsn = use->insn ()->rtl ();
-	    if (!has_vl_op (rinsn)
-		|| count_regno_occurrences (rinsn, REGNO (get_vl ())) != 1)
-	      {
-		m_vl_used_by_non_rvv_insn = true;
-		break;
-	      }
-	    rtx avl = ::get_avl (rinsn);
-	    if (!avl || !REG_P (avl) || REGNO (get_vl ()) != REGNO (avl))
-	      {
-		m_vl_used_by_non_rvv_insn = true;
-		break;
-	      }
-	  }
-      }
+    if (dest_vl)
+      m_vl_used_by_non_rvv_insn = reg_used (get_insn (), dest_vl);
 
     /* Collect the read vl insn for the fault-only-first rvv loads.  */
     if (fault_first_load_p (insn->rtl ()))
@@ -1359,19 +1379,48 @@ public:
   void set_empty_info () { global_info.set_empty (); }
 };
 
+/* Same as REG_USED () but looks for a single use in an RVV insn's AVL
+   operand.  */
+static bool
+reg_single_use_in_avl (insn_info *insn, rtx reg)
+{
+  if (!reg)
+    return false;
+  unsigned int regno = REGNO (reg);
+  const hash_set<use_info *> vl_uses = get_all_real_uses (insn, regno);
+  for (use_info *use : vl_uses)
+    {
+      gcc_assert (use->insn ()->is_real ());
+      rtx_insn *rinsn = use->insn ()->rtl ();
+      if (!has_vl_op (rinsn)
+	  || count_regno_occurrences (rinsn, regno) != 1)
+	return false;
+
+      vsetvl_info info = vsetvl_info (use->insn ());
+
+      if (!info.has_nonvlmax_reg_avl ())
+	return false;
+
+      rtx avl = info.get_avl ();
+      if (avl && REG_P (avl) && regno == REGNO (avl))
+	return true;
+    }
+  return false;
+}
+
 /* Demand system is the RVV-based VSETVL info analysis tools wrapper.
    It defines compatible rules for SEW/LMUL, POLICY and AVL.
-   Also, it provides 3 iterfaces avaiable_p, compatible_p and
+   Also, it provides 3 interfaces available_p, compatible_p and
    merge for the VSETVL PASS analysis and optimization.
 
-     - avaiable_p: Determine whether the next info can get the
-       avaiable VSETVL status from previous info.
+     - available_p: Determine whether the next info can get the
+       available VSETVL status from previous info.
        e.g. bb 2 (demand SEW = 32, LMUL = M2) -> bb 3 (demand RATIO = 16).
        Since bb 2 demand info (SEW/LMUL = 32/2 = 16) satisfies the bb 3
        demand, the VSETVL instruction in bb 3 can be elided.
-       avaiable_p (previous, next) is true in such situation.
+       available_p (previous, next) is true in such situation.
      - compatible_p: Determine whether prev_info is compatible with next_info
-       so that we can have a new merged info that is avaiable to both of them.
+       so that we can have a new merged info that is available to both of them.
      - merge: Merge the stricter demand information from
        next_info into prev_info so that prev_info becomes available to
        next_info.  */
@@ -1438,14 +1487,13 @@ private:
   inline bool prev_ratio_valid_for_next_sew_p (const vsetvl_info &prev,
 					       const vsetvl_info &next)
   {
-    return prev.get_ratio () >= (next.get_sew () / 8);
+    return prev.get_ratio () >= (next.get_sew () / MAX_LMUL);
   }
   inline bool next_ratio_valid_for_prev_sew_p (const vsetvl_info &prev,
 					       const vsetvl_info &next)
   {
-    return next.get_ratio () >= (prev.get_sew () / 8);
+    return next.get_ratio () >= (prev.get_sew () / MAX_LMUL);
   }
-
   inline bool sew_ge_and_ratio_eq_p (const vsetvl_info &prev,
 				     const vsetvl_info &next)
   {
@@ -1463,6 +1511,13 @@ private:
     return sew_ge_p (prev, next) && prev_sew_le_next_max_sew_p (prev, next)
 	   && next_ratio_valid_for_prev_sew_p (prev, next);
   }
+  inline bool
+  sew_ge_and_prev_sew_le_next_max_sew_and_ratio_eq_p (
+    const vsetvl_info &prev, const vsetvl_info &next)
+  {
+    return sew_ge_p (prev, next) && prev_sew_le_next_max_sew_p (prev, next)
+	   && ratio_eq_p (prev, next);
+  }
   inline bool sew_le_and_next_sew_le_prev_max_sew_p (const vsetvl_info &prev,
 						     const vsetvl_info &next)
   {
@@ -1472,8 +1527,15 @@ private:
   max_sew_overlap_and_next_ratio_valid_for_prev_sew_p (const vsetvl_info &prev,
 						       const vsetvl_info &next)
   {
-    return next_ratio_valid_for_prev_sew_p (prev, next)
-	   && max_sew_overlap_p (prev, next);
+    if (next_ratio_valid_for_prev_sew_p (prev, next)
+	&& max_sew_overlap_p (prev, next))
+      {
+	if (next.get_sew () < prev.get_sew ()
+	    && (!next.get_ta () || !next.get_ma ()))
+	  return false;
+	return true;
+      }
+    return false;
   }
   inline bool
   sew_le_and_next_sew_le_prev_max_sew_and_ratio_eq_p (const vsetvl_info &prev,
@@ -1706,8 +1768,11 @@ private:
   }
   inline void use_max_sew (vsetvl_info &prev, const vsetvl_info &next)
   {
-    int max_sew = MAX (prev.get_sew (), next.get_sew ());
-    prev.set_sew (max_sew);
+    bool prev_sew_larger = prev.get_sew () >= next.get_sew ();
+    const vsetvl_info from = prev_sew_larger ? prev : next;
+    prev.set_sew (from.get_sew ());
+    prev.set_vlmul (from.get_vlmul ());
+    prev.set_ratio (from.get_ratio ());
     use_min_of_max_sew (prev, next);
   }
   inline void use_next_sew_lmul (vsetvl_info &prev, const vsetvl_info &next)
@@ -1732,7 +1797,8 @@ private:
   inline void use_max_sew_and_lmul_with_next_ratio (vsetvl_info &prev,
 						    const vsetvl_info &next)
   {
-    prev.set_vlmul (calculate_vlmul (prev.get_sew (), next.get_ratio ()));
+    int max_sew = MAX (prev.get_sew (), next.get_sew ());
+    prev.set_vlmul (calculate_vlmul (max_sew, next.get_ratio ()));
     use_max_sew (prev, next);
     prev.set_ratio (next.get_ratio ());
   }
@@ -1873,7 +1939,7 @@ public:
 	for (insn_info *i = next_insn; i != next_insn->bb ()->head_insn ();
 	     i = i->prev_nondebug_insn ())
 	  {
-	    // no def amd use of vl
+	    // no def and use of vl
 	    if (!ignore_vl && modify_or_use_vl_p (i, info))
 	      return false;
 
@@ -1885,7 +1951,7 @@ public:
 	for (insn_info *i = prev_insn->bb ()->end_insn (); i != prev_insn;
 	     i = i->prev_nondebug_insn ())
 	  {
-	    // no def amd use of vl
+	    // no def mad use of vl
 	    if (!ignore_vl && modify_or_use_vl_p (i, info))
 	      return false;
 
@@ -2106,11 +2172,11 @@ private:
   demand_system m_dem;
   auto_vec<vsetvl_block_info> m_vector_block_infos;
 
-  /* data for avl reaching defintion.  */
+  /* data for avl reaching definition.  */
   sbitmap *m_reg_def_loc;
 
-  /* data for vsetvl info reaching defintion.  */
-  vsetvl_info m_unknow_info;
+  /* data for vsetvl info reaching definition.  */
+  vsetvl_info m_unknown_info;
   auto_vec<vsetvl_info *> m_vsetvl_def_exprs;
   sbitmap *m_vsetvl_def_in;
   sbitmap *m_vsetvl_def_out;
@@ -2209,9 +2275,9 @@ private:
 	    auto &new_prob = get_block_info (e->dest).probability;
 	    /* Normally, the edge probability should be initialized.
 	       However, some special testing code which is written in
-	       GIMPLE IR style force the edge probility uninitialized,
+	       GIMPLE IR style force the edge probability uninitialized,
 	       we conservatively set it as never so that it will not
-	       affect PRE (Phase 3 && Phse 4).  */
+	       affect PRE (Phase 3 && Phase 4).  */
 	    if (!e->probability.initialized_p ())
 	      new_prob = profile_probability::never ();
 	    else if (!new_prob.initialized_p ())
@@ -2307,7 +2373,7 @@ private:
 	  continue;
 	else
 	  /* We pick the highest probability among those incompatible VSETVL
-	     infos. When all incompatible VSTEVL infos have same probability, we
+	     infos. When all incompatible VSETVL infos have same probability, we
 	     don't pick any of them.  */
 	  return false;
       }
@@ -2365,7 +2431,7 @@ public:
     crtl->ssa = new function_info (cfun);
     m_vector_block_infos.safe_grow_cleared (last_basic_block_for_fn (cfun));
     compute_probabilities ();
-    m_unknow_info.set_unknown ();
+    m_unknown_info.set_unknown ();
   }
 
   void finish ()
@@ -2414,7 +2480,7 @@ public:
   bool earliest_fuse_vsetvl_info (int iter);
   void pre_global_vsetvl_info ();
   void emit_vsetvl ();
-  void cleaup ();
+  void cleanup ();
   void remove_avl_operand ();
   void remove_unused_dest_operand ();
   void remove_vsetvl_pre_insns ();
@@ -2450,7 +2516,7 @@ void
 pre_vsetvl::compute_vsetvl_def_data ()
 {
   m_vsetvl_def_exprs.truncate (0);
-  add_expr (m_vsetvl_def_exprs, m_unknow_info);
+  add_expr (m_vsetvl_def_exprs, m_unknown_info);
   for (const bb_info *bb : crtl->ssa->bbs ())
     {
       vsetvl_block_info &block_info = get_block_info (bb);
@@ -2495,7 +2561,7 @@ pre_vsetvl::compute_vsetvl_def_data ()
 		  bitmap_set_bit (m_kill[bb->index ()], i);
 		  bitmap_set_bit (def_loc[bb->index ()],
 				  get_expr_index (m_vsetvl_def_exprs,
-						  m_unknow_info));
+						  m_unknown_info));
 		}
 	    }
 	  continue;
@@ -2507,10 +2573,10 @@ pre_vsetvl::compute_vsetvl_def_data ()
 		      get_expr_index (m_vsetvl_def_exprs, footer_info));
     }
 
-  /* Set the def_out of the ENTRY basic block to m_unknow_info expr.  */
+  /* Set the def_out of the ENTRY basic block to m_unknown_info expr.  */
   basic_block entry = ENTRY_BLOCK_PTR_FOR_FN (cfun);
   bitmap_set_bit (m_vsetvl_def_out[entry->index],
-		  get_expr_index (m_vsetvl_def_exprs, m_unknow_info));
+		  get_expr_index (m_vsetvl_def_exprs, m_unknown_info));
 
   compute_reaching_defintion (def_loc, m_kill, m_vsetvl_def_in,
 			      m_vsetvl_def_out);
@@ -2518,7 +2584,7 @@ pre_vsetvl::compute_vsetvl_def_data ()
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file,
-	       "\n  Compute vsetvl info reaching defition data:\n\n");
+	       "\n  Compute vsetvl info reaching definition data:\n\n");
       fprintf (dump_file, "    Expression List (%d):\n",
 	       m_vsetvl_def_exprs.length ());
       for (unsigned i = 0; i < m_vsetvl_def_exprs.length (); i++)
@@ -2632,6 +2698,7 @@ pre_vsetvl::compute_lcm_local_properties ()
   m_avout = sbitmap_vector_alloc (last_basic_block_for_fn (cfun), num_exprs);
 
   bitmap_vector_clear (m_avloc, last_basic_block_for_fn (cfun));
+  bitmap_vector_clear (m_kill, last_basic_block_for_fn (cfun));
   bitmap_vector_clear (m_antloc, last_basic_block_for_fn (cfun));
   bitmap_vector_ones (m_transp, last_basic_block_for_fn (cfun));
 
@@ -2683,6 +2750,10 @@ pre_vsetvl::compute_lcm_local_properties ()
 
       if (invalid_opt_bb_p (bb->cfg_bb ()))
 	{
+	  if (dump_file && (dump_flags & TDF_DETAILS))
+	    fprintf (dump_file, "\n --- skipping bb %u due to weird edge",
+		     bb->index ());
+
 	  bitmap_clear (m_antloc[bb_index]);
 	  bitmap_clear (m_transp[bb_index]);
 	}
@@ -2770,8 +2841,18 @@ pre_vsetvl::fuse_local_vsetvl_info ()
 		     64 into 32.  */
 		  prev_info.set_max_sew (
 		    MIN (prev_info.get_max_sew (), curr_info.get_max_sew ()));
-		  if (!curr_info.vl_used_by_non_rvv_insn_p ()
-		      && vsetvl_insn_p (curr_info.get_insn ()->rtl ()))
+
+		  /* If we fuse and the current, to be deleted vsetvl has uses
+		     of its VL as AVL operand in other vsetvls those will be
+		     orphaned.  Therefore only delete if that's not the case.
+		     */
+		  rtx cur_dest = curr_info.has_vl ()
+		    ? curr_info.get_vl ()
+		    : NULL_RTX;
+
+		  if (vsetvl_insn_p (curr_info.get_insn ()->rtl ())
+		      && !reg_single_use_in_avl (curr_info.get_insn (),
+						 cur_dest))
 		    m_delete_list.safe_push (curr_info);
 
 		  if (curr_info.get_read_vl_insn ())
@@ -2789,6 +2870,9 @@ pre_vsetvl::fuse_local_vsetvl_info ()
 		      curr_info.dump (dump_file, "        ");
 		    }
 		  m_dem.merge (prev_info, curr_info);
+		  if (!curr_info.vl_used_by_non_rvv_insn_p ()
+		      && vsetvl_insn_p (curr_info.get_insn ()->rtl ()))
+		    m_delete_list.safe_push (curr_info);
 		  if (curr_info.get_read_vl_insn ())
 		    prev_info.set_read_vl_insn (curr_info.get_read_vl_insn ());
 		  if (dump_file && (dump_flags & TDF_DETAILS))
@@ -2803,7 +2887,7 @@ pre_vsetvl::fuse_local_vsetvl_info ()
 		  if (dump_file && (dump_flags & TDF_DETAILS))
 		    {
 		      fprintf (dump_file,
-			       "    Cannot fuse uncompatible infos:\n");
+			       "    Cannot fuse incompatible infos:\n");
 		      fprintf (dump_file, "      prev_info: ");
 		      prev_info.dump (dump_file, "       ");
 		      fprintf (dump_file, "      curr_info: ");
@@ -2942,6 +3026,18 @@ pre_vsetvl::earliest_fuse_vsetvl_info (int iter)
 		    }
 		  continue;
 		}
+
+	      /* We cannot lift a vsetvl into the source block if the block is
+		 not transparent WRT to it.
+		 This is too restrictive for blocks where a register's use only
+		 feeds into vsetvls and no regular insns.  One example is the
+		 test rvv/vsetvl/avl_single-68.c which is currently XFAILed for
+		 that reason.
+		 In order to support this case we'd need to check the vsetvl's
+		 AVL operand's uses in the source block and make sure they are
+		 only used in other vsetvls.  */
+	      if (!bitmap_bit_p (m_transp[eg->src->index], expr_index))
+		continue;
 
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		{
@@ -3179,7 +3275,7 @@ pre_vsetvl::pre_global_vsetvl_info ()
 	}
     }
 
-  /* Remove vsetvl infos if all precessors are available to the block.  */
+  /* Remove vsetvl infos if all predecessors are available to the block.  */
   for (const bb_info *bb : crtl->ssa->bbs ())
     {
       vsetvl_block_info &block_info = get_block_info (bb);
@@ -3370,7 +3466,7 @@ pre_vsetvl::emit_vsetvl ()
 }
 
 void
-pre_vsetvl::cleaup ()
+pre_vsetvl::cleanup ()
 {
   remove_avl_operand ();
   remove_unused_dest_operand ();
@@ -3564,10 +3660,10 @@ pass_vsetvl::lazy_vsetvl ()
 	     "\nPhase 4: Insert, modify and remove vsetvl insns.\n\n");
   pre.emit_vsetvl ();
 
-  /* Phase 5: Cleaup */
+  /* Phase 5: Cleanup */
   if (dump_file)
-    fprintf (dump_file, "\nPhase 5: Cleaup\n\n");
-  pre.cleaup ();
+    fprintf (dump_file, "\nPhase 5: Cleanup\n\n");
+  pre.cleanup ();
 
   pre.finish ();
 }

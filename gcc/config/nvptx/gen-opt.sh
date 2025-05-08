@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (C) 2022-2024 Free Software Foundation, Inc.
+# Copyright (C) 2022-2025 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -18,8 +18,12 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-nvptx_sm_def="$1/nvptx-sm.def"
-gen_copyright_sh="$1/gen-copyright.sh"
+
+nvptx_dir=$(dirname "$0")
+
+
+nvptx_sm_def="$nvptx_dir/nvptx-sm.def"
+gen_copyright_sh="$nvptx_dir/gen-copyright.sh"
 
 sms=$(grep ^NVPTX_SM $nvptx_sm_def | sed 's/.*(//;s/,.*//')
 
@@ -38,12 +42,24 @@ echo
 
 . $gen_copyright_sh opt
 
+# Not emitting the following here (in addition to having it in 'nvptx.opt'), as
+# we'll otherwise run into:
+# 
+#     gtyp-input.list:10: file [...]/gcc/config/nvptx/nvptx-opts.h specified more than once for language (all)
+#     make[2]: *** [Makefile:2981: s-gtype] Error 1
+: ||
+cat <<EOF
+
+HeaderInclude
+config/nvptx/nvptx-opts.h
+EOF
+
 # Separator.
 echo
 
 cat <<EOF
 Enum
-Name(ptx_isa) Type(int)
+Name(ptx_isa) Type(enum ptx_isa)
 Known PTX ISA target architectures (for use with the -misa= option):
 EOF
 
