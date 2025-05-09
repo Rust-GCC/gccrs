@@ -279,8 +279,7 @@ public:
 
   template <typename S>
   tl::optional<Rib::Definition>
-  resolve_path (const std::vector<S> &segments,
-		bool has_opening_scope_resolution,
+  resolve_path (const std::vector<S> &segments, ResolutionMode mode,
 		std::vector<Error> &collect_errors, Namespace ns)
   {
     std::function<void (const S &, NodeId)> insert_segment_resolution
@@ -292,17 +291,17 @@ public:
     switch (ns)
       {
       case Namespace::Values:
-	return values.resolve_path (segments, has_opening_scope_resolution,
-				    insert_segment_resolution, collect_errors);
+	return values.resolve_path (segments, mode, insert_segment_resolution,
+				    collect_errors);
       case Namespace::Types:
-	return types.resolve_path (segments, has_opening_scope_resolution,
-				   insert_segment_resolution, collect_errors);
+	return types.resolve_path (segments, mode, insert_segment_resolution,
+				   collect_errors);
       case Namespace::Macros:
-	return macros.resolve_path (segments, has_opening_scope_resolution,
-				    insert_segment_resolution, collect_errors);
+	return macros.resolve_path (segments, mode, insert_segment_resolution,
+				    collect_errors);
       case Namespace::Labels:
-	return labels.resolve_path (segments, has_opening_scope_resolution,
-				    insert_segment_resolution, collect_errors);
+	return labels.resolve_path (segments, mode, insert_segment_resolution,
+				    collect_errors);
       default:
 	rust_unreachable ();
       }
@@ -310,8 +309,7 @@ public:
 
   template <typename S, typename... Args>
   tl::optional<Rib::Definition>
-  resolve_path (const std::vector<S> &segments,
-		bool has_opening_scope_resolution,
+  resolve_path (const std::vector<S> &segments, ResolutionMode mode,
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
   {
@@ -320,8 +318,7 @@ public:
     for (auto ns : namespaces)
       {
 	std::vector<Error> collect_errors_inner;
-	if (auto ret = resolve_path (segments, has_opening_scope_resolution,
-				     collect_errors_inner, ns))
+	if (auto ret = resolve_path (segments, mode, collect_errors_inner, ns))
 	  return ret;
 	if (!collect_errors_inner.empty ())
 	  {
@@ -343,52 +340,68 @@ public:
     return tl::nullopt;
   }
 
-  template <typename... Args>
+  template <typename S, typename... Args>
   tl::optional<Rib::Definition>
-  resolve_path (const AST::SimplePath &path,
+  resolve_path (const std::vector<S> &path_segments,
+		bool has_opening_scope_resolution,
 		tl::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
   {
-    return resolve_path (path.get_segments (),
-			 path.has_opening_scope_resolution (), collect_errors,
-			 ns_first, ns_args...);
+    auto mode = ResolutionMode::Normal;
+    if (has_opening_scope_resolution)
+      {
+	if (get_rust_edition () == Edition::E2015)
+	  mode = ResolutionMode::FromRoot;
+	else
+	  mode = ResolutionMode::FromExtern;
+      }
+    return resolve_path (path_segments, mode, collect_errors, ns_first,
+			 ns_args...);
   }
 
-  template <typename... Args>
+  template <typename S, typename... Args>
   tl::optional<Rib::Definition>
-  resolve_path (const AST::PathInExpression &path,
-		tl::optional<std::vector<Error> &> collect_errors,
-		Namespace ns_first, Args... ns_args)
-  {
-    return resolve_path (path.get_segments (), path.opening_scope_resolution (),
-			 collect_errors, ns_first, ns_args...);
-  }
-
-  template <typename... Args>
-  tl::optional<Rib::Definition>
-  resolve_path (const AST::TypePath &path,
-		tl::optional<std::vector<Error> &> collect_errors,
-		Namespace ns_first, Args... ns_args)
-  {
-    return resolve_path (path.get_segments (),
-			 path.has_opening_scope_resolution_op (),
-			 collect_errors, ns_first, ns_args...);
-  }
-
-  template <typename P, typename... Args>
-  tl::optional<Rib::Definition> resolve_path (const P &path, Namespace ns_first,
-					      Args... ns_args)
-  {
-    return resolve_path (path, tl::nullopt, ns_first, ns_args...);
-  }
-
-  template <typename P, typename... Args>
-  tl::optional<Rib::Definition>
-  resolve_path (const P &path_segments, bool has_opening_scope_resolution,
-		Namespace ns_first, Args... ns_args)
+  resolve_path (const std::vector<S> &path_segments,
+		bool has_opening_scope_resolution, Namespace ns_first,
+		Args... ns_args)
   {
     return resolve_path (path_segments, has_opening_scope_resolution,
 			 tl::nullopt, ns_first, ns_args...);
+  }
+
+  template <typename S, typename... Args>
+  tl::optional<Rib::Definition>
+  resolve_path (const std::vector<S> &path_segments, ResolutionMode mode,
+		Namespace ns_first, Args... ns_args)
+  {
+    return resolve_path (path_segments, mode, tl::nullopt, ns_first,
+			 ns_args...);
+  }
+
+  template <typename... Args>
+  tl::optional<Rib::Definition> resolve_path (const AST::SimplePath &path,
+					      Args &&... args)
+  {
+    return resolve_path (path.get_segments (),
+			 path.has_opening_scope_resolution (),
+			 std::forward<Args> (args)...);
+  }
+
+  template <typename... Args>
+  tl::optional<Rib::Definition> resolve_path (const AST::PathInExpression &path,
+					      Args &&... args)
+  {
+    return resolve_path (path.get_segments (), path.opening_scope_resolution (),
+			 std::forward<Args> (args)...);
+  }
+
+  template <typename... Args>
+  tl::optional<Rib::Definition> resolve_path (const AST::TypePath &path,
+					      Args &&... args)
+  {
+    return resolve_path (path.get_segments (),
+			 path.has_opening_scope_resolution_op (),
+			 std::forward<Args> (args)...);
   }
 
 private:
