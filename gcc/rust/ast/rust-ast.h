@@ -1496,6 +1496,11 @@ public:
 
   NodeId get_node_id () const { return node_id; }
 
+  void reset_node_id ()
+  {
+    node_id = Analysis::Mappings::get ().get_next_node_id ();
+  }
+
 protected:
   Type () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
 
