@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-derive-default.h"
+#include "rust-node-id-fix-visitor.h"
 #include "rust-ast.h"
 #include "rust-diagnostics.h"
 #include "rust-path.h"
@@ -100,6 +101,8 @@ DeriveDefault::visit_struct (StructStruct &item)
       auto name = field.get_field_name ().as_string ();
       auto expr = default_call (field.get_field_type ().clone_type ());
 
+      NodeIdFixVisitor::fix (expr);
+
       cloned_fields.emplace_back (
 	builder.struct_expr_field (std::move (name), std::move (expr)));
     }
@@ -120,6 +123,8 @@ DeriveDefault::visit_tuple (TupleStruct &tuple_item)
   for (auto &field : tuple_item.get_fields ())
     {
       auto type = field.get_field_type ().clone_type ();
+
+      NodeIdFixVisitor::fix (type);
 
       defaulted_fields.emplace_back (default_call (std::move (type)));
     }

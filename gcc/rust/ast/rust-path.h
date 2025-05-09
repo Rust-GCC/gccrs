@@ -887,6 +887,11 @@ public:
 
   NodeId get_node_id () const { return node_id; }
 
+  void reset_node_id ()
+  {
+    node_id = Analysis::Mappings::get ().get_next_node_id ();
+  }
+
   bool is_crate_path_seg () const
   {
     return get_ident_segment ().is_crate_path_seg ();

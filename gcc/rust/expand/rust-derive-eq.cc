@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-derive-eq.h"
+#include "rust-node-id-fix-visitor.h"
 #include "rust-ast.h"
 #include "rust-expr.h"
 #include "rust-item.h"
@@ -33,6 +34,8 @@ std::vector<std::unique_ptr<AST::Item>>
 DeriveEq::go (Item &item)
 {
   item.accept_vis (*this);
+
+  NodeIdFixVisitor::fix (expanded);
 
   return std::move (expanded);
 }
