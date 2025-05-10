@@ -2348,6 +2348,56 @@ FnPtr::clone () const
 }
 
 void
+FnPtr::setup_fn_once_output () const
+{
+  // lookup the lang items
+  auto fn_once_lookup = mappings.lookup_lang_item (LangItem::Kind::FN_ONCE);
+  auto fn_once_output_lookup
+    = mappings.lookup_lang_item (LangItem::Kind::FN_ONCE_OUTPUT);
+  if (!fn_once_lookup)
+    {
+      rust_fatal_error (UNKNOWN_LOCATION,
+			"Missing required %<fn_once%> lang item");
+      return;
+    }
+  if (!fn_once_output_lookup)
+    {
+      rust_fatal_error (UNKNOWN_LOCATION,
+			"Missing required %<fn_once_ouput%> lang item");
+      return;
+    }
+
+  DefId &trait_id = fn_once_lookup.value ();
+  DefId &trait_item_id = fn_once_output_lookup.value ();
+
+  // resolve to the trait
+  HIR::Item *item = mappings.lookup_defid (trait_id).value ();
+  rust_assert (item->get_item_kind () == HIR::Item::ItemKind::Trait);
+  HIR::Trait *trait = static_cast<HIR::Trait *> (item);
+
+  Resolver::TraitReference *trait_ref
+    = Resolver::TraitResolver::Resolve (*trait);
+  rust_assert (!trait_ref->is_error ());
+
+  // resolve to trait item
+  HIR::TraitItem *trait_item
+    = mappings.lookup_trait_item_defid (trait_item_id).value ();
+  rust_assert (trait_item->get_item_kind ()
+	       == HIR::TraitItem::TraitItemKind::TYPE);
+  std::string item_identifier = trait_item->trait_identifier ();
+
+  // setup associated types  #[lang = "fn_once_output"]
+  Resolver::TraitItemReference *item_reference = nullptr;
+  bool found = trait_ref->lookup_trait_item_by_type (
+    item_identifier, Resolver::TraitItemReference::TraitItemType::TYPE,
+    &item_reference);
+  rust_assert (found);
+
+  // setup
+  item_reference->associated_type_set (&get_result_type ());
+}
+
+void
 ClosureType::accept_vis (TyVisitor &vis)
 {
   vis.visit (*this);
