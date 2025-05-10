@@ -1297,7 +1297,8 @@ __remove_elements(__parallel_tag<_IsVector> __tag, _ExecutionPolicy&& __exec, _F
                     [](_ForwardIterator __x, _Tp* __z)
                     {
                         __internal::__invoke_if_else(
-                            std::is_trivial<_Tp>(), [&]() { *__z = std::move(*__x); },
+                            std::conjunction<std::is_trivially_copyable<_Tp>, std::is_trivially_default_constructible<_Tp>>(),
+                            [&]() { *__z = std::move(*__x); },
                             [&]() { ::new (std::addressof(*__z)) _Tp(std::move(*__x)); });
                     },
                     _IsVector{});
@@ -1310,7 +1311,8 @@ __remove_elements(__parallel_tag<_IsVector> __tag, _ExecutionPolicy&& __exec, _F
             [__result, __first](_Tp* __i, _Tp* __j)
             {
                 __invoke_if_else(
-                    std::is_trivial<_Tp>(), [&]() { __brick_move(__i, __j, __first + (__i - __result), _IsVector{}); },
+                    std::conjunction<std::is_trivially_copyable<_Tp>, std::is_trivially_default_constructible<_Tp>>(),
+                    [&]() { __brick_move(__i, __j, __first + (__i - __result), _IsVector{}); },
                     [&]() { __brick_move_destroy()(__i, __j, __first + (__i - __result), _IsVector{}); });
             });
         return __first + __m;
@@ -2794,7 +2796,8 @@ __pattern_inplace_merge(__parallel_tag<_IsVector> __tag, _ExecutionPolicy&& __ex
             auto __move_values = [](_RandomAccessIterator __x, _Tp* __z)
             {
                 __internal::__invoke_if_else(
-                    std::is_trivial<_Tp>(), [&]() { *__z = std::move(*__x); },
+                    std::conjunction<std::is_trivially_copyable<_Tp>, std::is_trivially_default_constructible<_Tp>>(),
+                    [&]() { *__z = std::move(*__x); },
                     [&]() { ::new (std::addressof(*__z)) _Tp(std::move(*__x)); });
             };
 
@@ -2890,7 +2893,7 @@ __pattern_includes(__parallel_tag<_IsVector> __tag, _ExecutionPolicy&& __exec, _
         });
 }
 
-constexpr auto __set_algo_cut_off = 1000;
+inline constexpr auto __set_algo_cut_off = 1000;
 
 template <class _IsVector, class _ExecutionPolicy, class _ForwardIterator1, class _ForwardIterator2,
           class _OutputIterator, class _Compare, class _SizeFunction, class _SetOP>

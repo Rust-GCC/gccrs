@@ -1,5 +1,5 @@
 /* Call stacks at program points.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,23 +18,8 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "pretty-print.h"
-#include "tree.h"
-#include "options.h"
-#include "ordered-hash-map.h"
-#include "options.h"
-#include "cgraph.h"
-#include "function.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "digraph.h"
-#include "analyzer/analyzer.h"
+#include "analyzer/common.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/call-string.h"
 #include "analyzer/supergraph.h"
@@ -103,21 +88,18 @@ call_string::print (pretty_printer *pp) const
      "funcname" : str},
      ...for each element in the callstring].  */
 
-json::value *
+std::unique_ptr<json::value>
 call_string::to_json () const
 {
-  json::array *arr = new json::array ();
+  auto arr = std::make_unique<json::array> ();
 
   for (const call_string::element_t &e : m_elements)
     {
-      json::object *e_obj = new json::object ();
-      e_obj->set ("src_snode_idx",
-		  new json::integer_number (e.m_callee->m_index));
-      e_obj->set ("dst_snode_idx",
-		  new json::integer_number (e.m_caller->m_index));
-      e_obj->set ("funcname",
-		  new json::string (function_name (e.m_caller->m_fun)));
-      arr->append (e_obj);
+      auto e_obj = std::make_unique<json::object> ();
+      e_obj->set_integer ("src_snode_idx", e.m_callee->m_index);
+      e_obj->set_integer ("dst_snode_idx", e.m_caller->m_index);
+      e_obj->set_string ("funcname", function_name (e.m_caller->m_fun));
+      arr->append (std::move (e_obj));
     }
 
   return arr;

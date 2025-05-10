@@ -1,5 +1,5 @@
 # Top level -*- makefile -*- fragment for GNU C - C language.
-# Copyright (C) 1994-2024 Free Software Foundation, Inc.
+# Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -131,8 +131,7 @@ c.all.cross:
 c.start.encap:
 c.rest.encap:
 c.srcinfo:
-c.srcextra: gengtype-lex.cc
-	-cp -p $^ $(srcdir)
+c.srcextra:
 c.tags: force
 	cd $(srcdir)/c; $(ETAGS) -o TAGS.sub *.cc *.h; \
 	$(ETAGS) --include TAGS.sub --include ../TAGS.sub
@@ -150,13 +149,13 @@ C_SELFTEST_DEPS = cc1$(exeext) $(SELFTEST_DEPS)
 
 # Run the C selftests:
 s-selftest-c: $(C_SELFTEST_DEPS)
-	$(GCC_FOR_TARGET) $(C_SELFTEST_FLAGS)
+	$(GCC_FOR_SELFTESTS) $(C_SELFTEST_FLAGS)
 	$(STAMP) $@
 
 # Convenience methods for running C selftests under gdb:
 .PHONY: selftest-c-gdb
 selftest-c-gdb: $(C_SELFTEST_DEPS)
-	$(GCC_FOR_TARGET) $(C_SELFTEST_FLAGS) \
+	$(GCC_FOR_SELFTESTS) $(C_SELFTEST_FLAGS) \
 	  -wrapper gdb,--args
 
 .PHONY: selftest-gdb
@@ -165,7 +164,7 @@ selftest-gdb: selftest-c-gdb
 # Convenience methods for running C selftests under valgrind:
 .PHONY: selftest-c-valgrind
 selftest-c-valgrind: $(C_SELFTEST_DEPS)
-	$(GCC_FOR_TARGET) $(C_SELFTEST_FLAGS) \
+	$(GCC_FOR_SELFTESTS) $(C_SELFTEST_FLAGS) \
 	  -wrapper valgrind,--leak-check=full
 
 .PHONY: selftest-valgrind

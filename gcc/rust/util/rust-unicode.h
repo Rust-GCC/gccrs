@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -59,20 +59,15 @@ public:
   Utf8String nfc_normalize () const;
 };
 
-bool
-is_alphabetic (uint32_t codepoint);
+bool is_alphabetic (uint32_t codepoint);
 
-bool
-is_ascii_only (const std::string &str);
+bool is_ascii_only (const std::string &str);
 
-bool
-is_numeric (uint32_t codepoint);
+bool is_numeric (uint32_t codepoint);
 
-bool
-is_nfc_qc_no (uint32_t codepoint);
+bool is_nfc_qc_no (uint32_t codepoint);
 
-bool
-is_nfc_qc_maybe (uint32_t codepoint);
+bool is_nfc_qc_maybe (uint32_t codepoint);
 
 enum class QuickCheckResult
 {
@@ -81,8 +76,7 @@ enum class QuickCheckResult
   MAYBE
 };
 
-QuickCheckResult
-nfc_quick_check (const std::vector<Codepoint> &s);
+QuickCheckResult nfc_quick_check (const std::vector<Codepoint> &s);
 
 } // namespace Rust
 
@@ -90,14 +84,11 @@ nfc_quick_check (const std::vector<Codepoint> &s);
 
 namespace selftest {
 
-void
-rust_nfc_qc_test ();
+void rust_nfc_qc_test ();
 
-void
-rust_utf8_normalize_test ();
+void rust_utf8_normalize_test ();
 
-void
-rust_utf8_property_test ();
+void rust_utf8_property_test ();
 
 } // namespace selftest
 

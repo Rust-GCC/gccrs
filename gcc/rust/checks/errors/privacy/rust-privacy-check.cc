@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -25,8 +25,7 @@
 #include "rust-pub-restricted-visitor.h"
 #include "rust-privacy-reporter.h"
 
-extern bool
-saw_errors (void);
+extern bool saw_errors (void);
 
 namespace Rust {
 namespace Privacy {

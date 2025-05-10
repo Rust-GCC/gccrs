@@ -1,5 +1,5 @@
 /* { dg-do compile { target { ! ia32 } } } */
-/* { dg-options "-mapxf -march=x86-64 -O2" } */
+/* { dg-options "-mapx-features=egpr,push2pop2,ndd,ppx -march=x86-64 -O2" } */
 /* { dg-final { scan-assembler-not "movl"} } */
 
 #include <stdint.h>
@@ -170,6 +170,12 @@ FOO4 (uint16_t, rol, <<, >>, 1)
 FOO4 (uint32_t, rol, <<, >>, 1)
 FOO4 (uint64_t, rol, <<, >>, 1)
 
+FOO1 (short, imul, *)
+FOO1 (int, imul, *)
+FOO1 (int64_t, imul, *)
+FOO2 (short, imul, *)
+FOO2 (int, imul, *)
+FOO2 (int64_t, imul, *)
 /* { dg-final { scan-assembler-times "add(?:b|l|w|q)\[^\n\r]*1, \\(%(?:r|e)di\\), %(?:|r|e)a(?:x|l)" 4 } } */
 /* { dg-final { scan-assembler-times "lea(?:l|q)\[^\n\r]\\(%r(?:d|s)i,%r(?:d|s)i\\), %(?:|r|e)ax" 4 } } */
 /* { dg-final { scan-assembler-times "add(?:b|l|w|q)\[^\n\r]%(?:|r|e)si(?:|l), \\(%(?:r|e)di\\), %(?:|r|e)a(?:x|l)" 4 } } */
@@ -182,16 +188,13 @@ FOO4 (uint64_t, rol, <<, >>, 1)
 /* { dg-final { scan-assembler-times "not(?:l|w|q)\[^\n\r]%(?:|r|e)di, %(?:|r|e)ax" 4 } } */
 /* { dg-final { scan-assembler-times "andb\[^\n\r]*1, \\(%(?:r|e)di\\), %al" 1 } } */
 /* { dg-final { scan-assembler-times "and(?:l|w|q)\[^\n\r]*1, \\(%(?:r|e)di\\), %(?:|r|e)ax" 3 } } */
-/* { dg-final { scan-assembler-times "and(?:l|w|q)\[^\n\r]%(?:|r|e)di, %(?:|r|e)si, %(?:|r|e)ax" 2 } } */
-/* { dg-final { scan-assembler-times "and(?:l|w|q)\[^\n\r]%(?:|r|e)si, %(?:|r|e)di, %(?:|r|e)ax" 2 } } */
+/* { dg-final { scan-assembler-times "and(?:l|w|q)\[^\n\r]%(?:|r|e)si, %(?:|r|e)di, %(?:|r|e)ax" 4 } } */
 /* { dg-final { scan-assembler-times "orb\[^\n\r]*1, \\(%(?:r|e)di\\), %al" 2} } */
 /* { dg-final { scan-assembler-times "or(?:l|w|q)\[^\n\r]*1, \\(%(?:r|e)di\\), %(?:|r|e)ax" 6 } } */
-/* { dg-final { scan-assembler-times "or(?:l|w|q)\[^\n\r]%(?:|r|e)di, %(?:|r|e)si, %(?:|r|e)ax" 4 } } */
-/* { dg-final { scan-assembler-times "or(?:l|w|q)\[^\n\r]%(?:|r|e)si, %(?:|r|e)di, %(?:|r|e)ax" 4 } } */
+/* { dg-final { scan-assembler-times "or(?:l|w|q)\[^\n\r]%(?:|r|e)si, %(?:|r|e)di, %(?:|r|e)ax" 8 } } */
 /* { dg-final { scan-assembler-times "xorb\[^\n\r]*1, \\(%(?:r|e)di\\), %al" 1 } } */
 /* { dg-final { scan-assembler-times "xor(?:l|w|q)\[^\n\r]*1, \\(%(?:r|e)di\\), %(?:|r|e)ax" 3 } } */
-/* { dg-final { scan-assembler-times "xor(?:l|w|q)\[^\n\r]%(?:|r|e)di, %(?:|r|e)si, %(?:|r|e)ax" 2 } } */
-/* { dg-final { scan-assembler-times "xor(?:l|w|q)\[^\n\r]%(?:|r|e)si, %(?:|r|e)di, %(?:|r|e)ax" 2 } } */
+/* { dg-final { scan-assembler-times "xor(?:l|w|q)\[^\n\r]%(?:|r|e)si, %(?:|r|e)di, %(?:|r|e)ax" 4 } } */
 /* { dg-final { scan-assembler-times "sal(?:b|l|w|q)\[^\n\r]*1, \\(%(?:r|e)di\\), %(?:|r|e)a(?:x|l)" 4 } } */
 /* { dg-final { scan-assembler-times "sal(?:l|w|q)\[^\n\r]*7, %(?:|r|e)di, %(?:|r|e)ax" 4 } } */
 /* { dg-final { scan-assembler-times "sar(?:b|l|w|q)\[^\n\r]*1, \\(%(?:r|e)di\\), %(?:|r|e)a(?:x|l)" 4 } } */
@@ -200,3 +203,5 @@ FOO4 (uint64_t, rol, <<, >>, 1)
 /* { dg-final { scan-assembler-times "shr(?:b|l|w|q)\[^\n\r]*7, %(?:|r|e)di(?:|l), %(?:|r|e)a(?:x|l)" 4 } } */
 /* { dg-final { scan-assembler-times "ror(?:b|l|w|q)\[^\n\r]*1, %(?:|r|e)di(?:|l), %(?:|r|e)a(?:x|l)" 4 } } */
 /* { dg-final { scan-assembler-times "rol(?:b|l|w|q)\[^\n\r]*1, %(?:|r|e)di(?:|l), %(?:|r|e)a(?:x|l)" 4 } } */
+/* { dg-final { scan-assembler-times "imul(?:l|q)\[^\n\r]%(?:|r|e)(?:|s|d)i, %(?:r|e)(?:|s|d)i, %(?:|r|e)ax" 3 } } */
+/* { dg-final { scan-assembler-times "imul(?:l|w|q)\[^\n\r]\\(%(?:r|e)di\\), %(?:|r|e)si, %(?:|r|e)ax" 3 } } */

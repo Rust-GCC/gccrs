@@ -1,7 +1,7 @@
 // { dg-do run { target c++20 } }
 // { dg-add-options no_pch }
 
-// Copyright (C) 2018-2024 Free Software Foundation, Inc.
+// Copyright (C) 2018-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -51,6 +51,28 @@ test02()
   num = std::erase(fl, 20);
   VERIFY( fl == t );
   VERIFY( num == 0 );
+}
+
+// LWG 4135.
+// The helper lambda of std::erase for list should specify return type as bool
+void
+test_lwg4135()
+{
+  struct Bool {
+    Bool() = default;
+    Bool(const Bool&) = delete;
+    operator bool() const { return false; }
+  };
+
+  static Bool b;
+
+  struct Int {
+    Bool& operator==(Int) const { return b; }
+    void operator==(Int) = delete;
+  };
+
+  std::forward_list<Int> l;
+  std::erase(l, Int{});
 }
 
 int

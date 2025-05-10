@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -67,8 +67,7 @@ private:
   location_t loc;
 };
 
-std::ostream &
-operator<< (std::ostream &os, Identifier const &i);
+std::ostream &operator<< (std::ostream &os, Identifier const &i);
 
 namespace AST {
 // foward decl: ast visitor

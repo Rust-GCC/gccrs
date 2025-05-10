@@ -1,5 +1,5 @@
 /* Header for array handling functions
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -22,7 +22,7 @@ along with GCC; see the file COPYING3.  If not see
    se, which should contain an expression for the array descriptor.  */
 bool gfc_array_allocate (gfc_se *, gfc_expr *, tree, tree, tree, tree,
 			 tree, tree *, gfc_expr *, tree, bool,
-			 gfc_omp_namelist *);
+			 gfc_omp_namelist *, bool);
 
 /* Allow the bounds of a loop to be set from a callee's array spec.  */
 void gfc_set_loop_bounds_from_array_spec (gfc_interface_mapping *,
@@ -89,7 +89,8 @@ gfc_ss *gfc_walk_expr (gfc_expr *);
 /* Workhorse for gfc_walk_expr.  */
 gfc_ss *gfc_walk_subexpr (gfc_ss *, gfc_expr *);
 /* Workhorse for gfc_walk_variable_expr.  */
-gfc_ss *gfc_walk_array_ref (gfc_ss *, gfc_expr *, gfc_ref * ref);
+gfc_ss *gfc_walk_array_ref (gfc_ss *, gfc_expr *, gfc_ref *ref,
+			    bool = true);
 /* Walk the arguments of an elemental function.  */
 gfc_ss *gfc_walk_elemental_function_args (gfc_ss *, gfc_actual_arglist *,
 					  gfc_intrinsic_sym *,
@@ -152,8 +153,9 @@ tree gfc_get_array_span (tree, gfc_expr *);
 /* Evaluate an array expression.  */
 void gfc_conv_expr_descriptor (gfc_se *, gfc_expr *);
 /* Convert an array for passing as an actual function parameter.  */
-void gfc_conv_array_parameter (gfc_se *, gfc_expr *, bool,
-			       const gfc_symbol *, const char *, tree *);
+void gfc_conv_array_parameter (gfc_se *, gfc_expr *, bool, const gfc_symbol *,
+			       const char *, tree *, tree * = nullptr,
+			       tree * = nullptr);
 
 /* These work with both descriptors and descriptorless arrays.  */
 tree gfc_conv_array_data (tree);

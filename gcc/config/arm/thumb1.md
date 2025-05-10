@@ -1,5 +1,5 @@
 ;; ARM Thumb-1 Machine Description
-;; Copyright (C) 2007-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2007-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -655,6 +655,42 @@
    (set_attr "pool_range" "*,*,*,*,*,*,1018,*,*")]
 )
 
+
+;; match patterns usable by ldmia/stmia
+(define_peephole2
+  [(set (match_operand:DIDF 0 "low_register_operand" "")
+	(match_operand:DIDF 1 "memory_operand" ""))]
+  "TARGET_THUMB1
+   && low_register_operand (XEXP (operands[1], 0), SImode)
+   && !reg_overlap_mentioned_p (XEXP (operands[1], 0), operands[0])
+   && peep2_reg_dead_p (1, XEXP (operands[1], 0))"
+  [(set (match_dup 0)
+	(match_dup 1))]
+  {
+    operands[1] = change_address (operands[1], VOIDmode,
+				  gen_rtx_POST_INC (SImode,
+						    XEXP (operands[1], 0)));
+  }
+)
+
+(define_peephole2
+  [(set (match_operand:DIDF 0 "memory_operand" "")
+	(match_operand:DIDF 1 "low_register_operand" ""))]
+  "TARGET_THUMB1
+   && low_register_operand (XEXP (operands[0], 0), SImode)
+   && peep2_reg_dead_p (1, XEXP (operands[0], 0))
+   /* The low register in the transfer list may overlap the address,
+      but the second cannot.  */
+   && REGNO (XEXP (operands[0], 0)) != (REGNO (operands[1]) + 1)"
+  [(set (match_dup 0)
+	(match_dup 1))]
+  {
+    operands[0] = change_address (operands[0], VOIDmode,
+				  gen_rtx_POST_INC (SImode,
+						    XEXP (operands[0], 0)));
+  }
+)
+
 (define_insn "*thumb1_movsi_insn"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=l,l,r,l,l,l,>,l, l, m,*l*h*k")
 	(match_operand:SI 1 "general_operand"      "l, I,j,J,K,>,l,i, mi,l,*l*h*k"))]
@@ -1110,8 +1146,8 @@
       switch (get_attr_length (insn))
 	{
 	case 4:  return "b%d0\t%l2";
-	case 6:  return "b%D0\t.LCB%=;b\t%l2\t%@long jump\n.LCB%=:";
-	case 8:  return "b%D0\t.LCB%=;bl\t%l2\t%@far jump\n.LCB%=:";
+	case 6:  return "b%D0\t.LCB%=\;b\t%l2\t%@long jump\n.LCB%=:";
+	case 8:  return "b%D0\t.LCB%=\;bl\t%l2\t%@far jump\n.LCB%=:";
 	default: gcc_unreachable ();
 	}
     }
@@ -1774,6 +1810,34 @@
    (set_attr "type" "multiple")]
 )
 
+;; Re-split an LEU/GEU sequence if combine tries to oversimplify a 3-plus
+;; insn sequence.  Beware of the early-clobber of operand0
+(define_split
+ [(set (match_operand:SI 0 "s_register_operand")
+       (leu:SI (match_operand:SI 1 "s_register_operand")
+	       (match_operand:SI 2 "s_register_operand")))]
+ "TARGET_THUMB1
+  && !reg_overlap_mentioned_p (operands[0], operands[1])
+  && !reg_overlap_mentioned_p (operands[0], operands[2])"
+ [(set (match_dup 0) (const_int 0))
+  (set (match_dup 0) (plus:SI (plus:SI (match_dup 0) (match_dup 0))
+			      (geu:SI (match_dup 2) (match_dup 1))))]
+ {}
+)
+
+(define_split
+ [(set (match_operand:SI 0 "s_register_operand")
+       (geu:SI (match_operand:SI 1 "s_register_operand")
+	       (match_operand:SI 2 "thumb1_cmp_operand")))]
+ "TARGET_THUMB1
+  && !reg_overlap_mentioned_p (operands[0], operands[1])
+  && !reg_overlap_mentioned_p (operands[0], operands[2])"
+ [(set (match_dup 0) (const_int 0))
+  (set (match_dup 0) (plus:SI (plus:SI (match_dup 0) (match_dup 0))
+			      (geu:SI (match_dup 1) (match_dup 2))))]
+ {}
+)
+
 
 (define_insn "*thumb_jump"
   [(set (pc)
@@ -2055,4 +2119,3 @@
    (set_attr "conds" "clob")
    (set_attr "type" "multiple")]
 )
-

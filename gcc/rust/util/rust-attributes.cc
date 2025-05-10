@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -221,7 +221,8 @@ check_doc_attribute (const AST::Attribute &attribute)
       break;
       // FIXME: Handle them as well
 
-      case AST::AttrInput::TOKEN_TREE: {
+    case AST::AttrInput::TOKEN_TREE:
+      {
 	// FIXME: This doesn't check for #[doc(alias(...))]
 	const auto &option = static_cast<const AST::DelimTokenTree &> (
 	  attribute.get_attr_input ());
@@ -687,7 +688,7 @@ AttributeChecker::visit (AST::Function &fun)
 	  if (!attribute.has_attr_input ())
 	    {
 	      rust_error_at (attribute.get_locus (),
-			     "malformed %<%s%> attribute input", name);
+			     "malformed %qs attribute input", name);
 	      rust_inform (
 		attribute.get_locus (),
 		"must be of the form: %<#[proc_macro_derive(TraitName, "

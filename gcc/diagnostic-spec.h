@@ -1,6 +1,6 @@
 /* Language-independent APIs to enable/disable per-location warnings.
 
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    Contributed by Martin Sebor <msebor@redhat.com>
 
    This file is part of GCC.
@@ -55,6 +55,13 @@ public:
   nowarn_spec_t (): m_bits () { }
 
   nowarn_spec_t (opt_code);
+
+  static nowarn_spec_t from_bits (unsigned bits)
+  {
+    nowarn_spec_t spec;
+    spec.m_bits = bits;
+    return spec;
+  }
 
   /* Return the raw bitset.  */
   operator unsigned() const

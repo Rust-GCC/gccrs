@@ -1,6 +1,6 @@
 // -*- C++ -*- C library enhancements header.
 
-// Copyright (C) 2016-2024 Free Software Foundation, Inc.
+// Copyright (C) 2016-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,9 +30,15 @@
 #ifndef _GLIBCXX_BITS_STD_ABS_H
 #define _GLIBCXX_BITS_STD_ABS_H
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic" // include_next
+#pragma GCC diagnostic ignored "-Wlong-long"
 
 #define _GLIBCXX_INCLUDE_NEXT_C_HEADERS
 #include_next <stdlib.h>
@@ -150,5 +156,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 } // extern "C++"
+
+#pragma GCC diagnostic pop
 
 #endif // _GLIBCXX_BITS_STD_ABS_H

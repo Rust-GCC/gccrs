@@ -1,5 +1,5 @@
 /* Data structure definitions for target-specific Rust behavior.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -26,8 +26,7 @@
 #include "rust-target.def"
 
 /* Used by target to add target-related info.  */
-extern void
-rust_add_target_info (const char *, const char *);
+extern void rust_add_target_info (const char *, const char *);
 
 /* Each target can provide their own.  */
 extern struct gcc_targetrustm targetrustm;

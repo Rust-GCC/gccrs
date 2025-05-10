@@ -1,5 +1,5 @@
 /* Classes for representing locations within the program.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,38 +18,25 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "gimple-pretty-print.h"
+#include "analyzer/common.h"
+
+#include "diagnostic-event-id.h"
 #include "gcc-rich-location.h"
-#include "ordered-hash-map.h"
-#include "options.h"
-#include "cgraph.h"
-#include "function.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "digraph.h"
-#include "analyzer/analyzer.h"
+#include "gimple-pretty-print.h"
+#include "sbitmap.h"
+#include "selftest.h"
+#include "shortest-paths.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/call-string.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/program-point.h"
-#include "sbitmap.h"
-#include "bitmap.h"
-#include "selftest.h"
 #include "analyzer/store.h"
 #include "analyzer/region-model.h"
 #include "analyzer/sm.h"
 #include "analyzer/program-state.h"
-#include "diagnostic-event-id.h"
 #include "analyzer/pending-diagnostic.h"
 #include "analyzer/diagnostic-manager.h"
-#include "shortest-paths.h"
 #include "analyzer/exploded-graph.h"
 #include "analyzer/analysis-plan.h"
 #include "analyzer/inlining-iterator.h"
@@ -276,8 +263,10 @@ function_point::print_source_line (pretty_printer *pp) const
   // TODO: monospace font
   debug_diagnostic_context tmp_dc;
   gcc_rich_location richloc (stmt->location);
-  diagnostic_show_locus (&tmp_dc, &richloc, DK_ERROR);
-  pp_string (pp, pp_formatted_text (tmp_dc.printer));
+  diagnostic_source_print_policy source_policy (tmp_dc);
+  gcc_assert (pp);
+  source_policy.print (*pp, richloc, DK_ERROR, nullptr);
+  pp_string (pp, pp_formatted_text (tmp_dc.get_reference_printer ()));
 }
 
 /* class program_point.  */
@@ -299,11 +288,8 @@ program_point::print (pretty_printer *pp, const format &f) const
 DEBUG_FUNCTION void
 program_point::dump () const
 {
-  pretty_printer pp;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   print (&pp, format (true));
-  pp_flush (&pp);
 }
 
 /* Return a new json::object of the form
@@ -313,28 +299,25 @@ program_point::dump () const
     "stmt_idx": int (only for kind=='PK_BEFORE_STMT',
     "call_string": object for the call_string}.  */
 
-json::object *
+std::unique_ptr<json::object>
 program_point::to_json () const
 {
-  json::object *point_obj = new json::object ();
+  auto point_obj = std::make_unique<json::object> ();
 
-  point_obj->set ("kind",
-		  new json::string (point_kind_to_string (get_kind ())));
+  point_obj->set_string ("kind", point_kind_to_string (get_kind ()));
 
   if (get_supernode ())
-    point_obj->set ("snode_idx",
-		    new json::integer_number (get_supernode ()->m_index));
+    point_obj->set_integer ("snode_idx", get_supernode ()->m_index);
 
   switch (get_kind ())
     {
     default: break;
     case PK_BEFORE_SUPERNODE:
       if (const superedge *sedge = get_from_edge ())
-	point_obj->set ("from_edge_snode_idx",
-			new json::integer_number (sedge->m_src->m_index));
+	point_obj->set_integer ("from_edge_snode_idx", sedge->m_src->m_index);
       break;
     case PK_BEFORE_STMT:
-      point_obj->set ("stmt_idx", new json::integer_number (get_stmt_idx ()));
+      point_obj->set_integer ("stmt_idx", get_stmt_idx ());
       break;
     }
 
@@ -345,7 +328,7 @@ program_point::to_json () const
 
 /* Update the callstack to represent a call from caller to callee.
 
-   Generally used to push a custom call to a perticular program point 
+   Generally used to push a custom call to a perticular program point
    where we don't have a superedge representing the call.  */
 void
 program_point::push_to_call_stack (const supernode *caller,

@@ -1,5 +1,5 @@
 /* Generate code from machine description to emit insns as rtl.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,10 +35,11 @@ along with GCC; see the file COPYING3.  If not see
 struct clobber_pat
 {
   struct clobber_ent *insns;
-  rtx pattern;
+  rtvec pattern;
   int first_clobber;
   struct clobber_pat *next;
   int has_hard_reg;
+  rtx_code code;
 } *clobber_list;
 
 /* Records one insn that uses the clobber list.  */
@@ -237,6 +238,10 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used, md_rtx_info *info,
 	  fprintf (file, "%u", XINT (x, i));
 	  break;
 
+	case 'L':
+	  fprintf (file, "%llu", (unsigned long long) XLOC (x, i));
+	  break;
+
 	case 'r':
 	  fprintf (file, "%u", REGNO (x));
 	  break;
@@ -337,19 +342,25 @@ gen_insn (md_rtx_info *info, FILE *file)
   if (XVEC (insn, 1))
     {
       int has_hard_reg = 0;
+      rtvec pattern = XVEC (insn, 1);
 
-      for (i = XVECLEN (insn, 1) - 1; i > 0; i--)
+      /* Look though an explicit parallel. */
+      if (GET_NUM_ELEM (pattern) == 1
+	  && GET_CODE (RTVEC_ELT (pattern, 0)) == PARALLEL)
+	pattern = XVEC (RTVEC_ELT (pattern, 0), 0);
+
+      for (i = GET_NUM_ELEM (pattern) - 1; i > 0; i--)
 	{
-	  if (GET_CODE (XVECEXP (insn, 1, i)) != CLOBBER)
+	  if (GET_CODE (RTVEC_ELT (pattern, i)) != CLOBBER)
 	    break;
 
-	  if (REG_P (XEXP (XVECEXP (insn, 1, i), 0)))
+	  if (REG_P (XEXP (RTVEC_ELT (pattern, i), 0)))
 	    has_hard_reg = 1;
-	  else if (GET_CODE (XEXP (XVECEXP (insn, 1, i), 0)) != MATCH_SCRATCH)
+	  else if (GET_CODE (XEXP (RTVEC_ELT (pattern, i), 0)) != MATCH_SCRATCH)
 	    break;
 	}
 
-      if (i != XVECLEN (insn, 1) - 1)
+      if (i != GET_NUM_ELEM (pattern) - 1)
 	{
 	  struct clobber_pat *p;
 	  struct clobber_ent *link = XNEW (struct clobber_ent);
@@ -363,13 +374,13 @@ gen_insn (md_rtx_info *info, FILE *file)
 	  for (p = clobber_list; p; p = p->next)
 	    {
 	      if (p->first_clobber != i + 1
-		  || XVECLEN (p->pattern, 1) != XVECLEN (insn, 1))
+		  || GET_NUM_ELEM (p->pattern) != GET_NUM_ELEM (pattern))
 		continue;
 
-	      for (j = i + 1; j < XVECLEN (insn, 1); j++)
+	      for (j = i + 1; j < GET_NUM_ELEM (pattern); j++)
 		{
-		  rtx old_rtx = XEXP (XVECEXP (p->pattern, 1, j), 0);
-		  rtx new_rtx = XEXP (XVECEXP (insn, 1, j), 0);
+		  rtx old_rtx = XEXP (RTVEC_ELT (p->pattern, j), 0);
+		  rtx new_rtx = XEXP (RTVEC_ELT (pattern, j), 0);
 
 		  /* OLD and NEW_INSN are the same if both are to be a SCRATCH
 		     of the same mode,
@@ -383,7 +394,7 @@ gen_insn (md_rtx_info *info, FILE *file)
 		    break;
 		}
 
-	      if (j == XVECLEN (insn, 1))
+	      if (j == GET_NUM_ELEM (pattern))
 		break;
 	    }
 
@@ -392,10 +403,11 @@ gen_insn (md_rtx_info *info, FILE *file)
 	      p = XNEW (struct clobber_pat);
 
 	      p->insns = 0;
-	      p->pattern = insn;
+	      p->pattern = pattern;
 	      p->first_clobber = i + 1;
 	      p->next = clobber_list;
 	      p->has_hard_reg = has_hard_reg;
+	      p->code = GET_CODE (insn);
 	      clobber_list = p;
 	    }
 
@@ -662,11 +674,11 @@ output_add_clobbers (md_rtx_info *info, FILE *file)
       for (ent = clobber->insns; ent; ent = ent->next)
 	fprintf (file, "    case %d:\n", ent->code_number);
 
-      for (i = clobber->first_clobber; i < XVECLEN (clobber->pattern, 1); i++)
+      for (i = clobber->first_clobber; i < GET_NUM_ELEM (clobber->pattern); i++)
 	{
 	  fprintf (file, "      XVECEXP (pattern, 0, %d) = ", i);
-	  gen_exp (XVECEXP (clobber->pattern, 1, i),
-		   GET_CODE (clobber->pattern), NULL, info, file);
+	  gen_exp (RTVEC_ELT (clobber->pattern, i),
+		   clobber->code, NULL, info, file);
 	  fprintf (file, ";\n");
 	}
 
@@ -897,14 +909,15 @@ from the machine description file `md'.  */\n\n");
   fprintf (file, "#include \"target.h\"\n\n");
 }
 
-auto_vec<const char *, 10> output_files;
+auto_vec<FILE *, 10> output_files;
 
 static bool
 handle_arg (const char *arg)
 {
   if (arg[1] == 'O')
     {
-      output_files.safe_push (&arg[2]);
+      FILE *file = fopen (&arg[2], "w");
+      output_files.safe_push (file);
       return true;
     }
   return false;
@@ -925,47 +938,21 @@ main (int argc, const char **argv)
   /* Assign sequential codes to all entries in the machine description
      in parallel with the tables in insn-output.cc.  */
 
-  int npatterns = count_patterns ();
   md_rtx_info info;
 
-  bool to_stdout = false;
-  int npatterns_per_file = npatterns;
-  if (!output_files.is_empty ())
-    npatterns_per_file = npatterns / output_files.length () + 1;
-  else
-    to_stdout = true;
+  if (output_files.is_empty ())
+    output_files.safe_push (stdout);
 
-  gcc_assert (npatterns_per_file > 1);
+  for (auto f : output_files)
+    print_header (f);
 
-  /* Reverse so we can pop the first-added element.  */
-  output_files.reverse ();
-
-  int count = 0;
   FILE *file = NULL;
+  unsigned file_idx;
 
   /* Read the machine description.  */
   while (read_md_rtx (&info))
     {
-      if (count == 0 || count == npatterns_per_file)
-	{
-	  bool is_last = !to_stdout && output_files.is_empty ();
-	  if (file && !is_last)
-	    if (fclose (file) != 0)
-	      return FATAL_EXIT_CODE;
-
-	  if (!output_files.is_empty ())
-	    {
-	      const char *const filename = output_files.pop ();
-	      file = fopen (filename, "w");
-	    }
-	  else if (to_stdout)
-	    file = stdout;
-	  else
-	    break;
-
-	  print_header (file);
-	  count = 0;
-	}
+      file = choose_output (output_files, file_idx);
 
       switch (GET_CODE (info.def))
 	{
@@ -991,9 +978,9 @@ main (int argc, const char **argv)
 	default:
 	  break;
 	}
-
-      count++;
     }
+
+  file = choose_output (output_files, file_idx);
 
   /* Write out the routines to add CLOBBERs to a pattern and say whether they
      clobber a hard reg.  */
@@ -1007,5 +994,10 @@ main (int argc, const char **argv)
       handle_overloaded_gen (oname, file);
     }
 
-  return (fclose (file) != 0 ? FATAL_EXIT_CODE : SUCCESS_EXIT_CODE);
+  int ret = SUCCESS_EXIT_CODE;
+  for (FILE *f : output_files)
+    if (fclose (f) != 0)
+      ret = FATAL_EXIT_CODE;
+
+  return ret;
 }

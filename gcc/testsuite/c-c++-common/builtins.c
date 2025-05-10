@@ -2,9 +2,8 @@
    with no prototype do not cause an ICE.
   { dg-do compile }
   { dg-options "-O2 -Wall -Wextra" }
-  { dg-additional-options "-fpermissive" { target c } }
-  { dg-prune-output "warning" }
-  { dg-require-effective-target alloca }  */
+  { dg-additional-options "-std=gnu17 -fpermissive" { target c } }
+  { dg-prune-output "warning" } */
 
 typedef __SIZE_TYPE__ size_t;
 

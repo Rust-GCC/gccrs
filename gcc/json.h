@@ -1,5 +1,5 @@
 /* JSON trees
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -27,8 +27,8 @@ along with GCC; see the file COPYING3.  If not see
    and http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf
    and https://tools.ietf.org/html/rfc7159
 
-   Supports creating a DOM-like tree of json::value *, and then dumping
-   json::value * to text.  */
+   Supports parsing text into a DOM-like tree of json::value *, directly
+   creating such trees, and dumping json::value * to text.  */
 
 /* TODO: `libcpp/mkdeps.cc` wants JSON writing support for p1689r5 output;
    extract this code and move to libiberty.  */
@@ -73,6 +73,49 @@ enum kind
   JSON_NULL
 };
 
+namespace pointer { // json::pointer
+
+/* Implementation of JSON pointer (RFC 6901).  */
+
+/* A token within a JSON pointer, expressing the parent of a particular
+   JSON value, and how it is descended from that parent.
+
+   A JSON pointer can be built as a list of these tokens.  */
+
+struct token
+{
+  enum class kind
+  {
+    root_value,
+    object_member,
+    array_index
+  };
+
+  token ();
+  token (json::object &parent, const char *member);
+  token (json::array &parent, size_t index);
+  token (const token &other) = delete;
+  token (token &&other) = delete;
+
+  ~token ();
+
+  token &
+  operator= (const token &other) = delete;
+
+  token &
+  operator= (token &&other);
+
+  json::value *m_parent;
+  union u
+  {
+    char *u_member;
+    size_t u_index;
+  } m_data;
+  enum kind m_kind;
+};
+
+} // namespace json::pointer
+
 /* Base class of JSON value.  */
 
 class value
@@ -83,6 +126,15 @@ class value
   virtual void print (pretty_printer *pp, bool formatted) const = 0;
 
   void dump (FILE *, bool formatted) const;
+  void DEBUG_FUNCTION dump () const;
+
+  virtual object *dyn_cast_object () { return nullptr; }
+
+  static int compare (const json::value &val_a, const json::value &val_b);
+
+  const pointer::token &get_pointer_token () const { return m_pointer_token; }
+
+  pointer::token m_pointer_token;
 };
 
 /* Subclass of value for objects: a collection of key/value pairs
@@ -99,7 +151,26 @@ class object : public value
   enum kind get_kind () const final override { return JSON_OBJECT; }
   void print (pretty_printer *pp, bool formatted) const final override;
 
+  object *dyn_cast_object () final override { return this; }
+
+  bool is_empty () const { return m_map.is_empty (); }
+
   void set (const char *key, value *v);
+
+  /* Set the property KEY of this object, requiring V
+     to be of a specific json::value subclass.
+
+     This can be used to enforce type-checking, making it easier
+     to comply with a schema, e.g.
+       obj->set<some_subclass> ("property_name", value)
+     leading to a compile-time error if VALUE is not of the
+     appropriate subclass.  */
+  template <typename JsonType>
+  void set (const char *key, std::unique_ptr<JsonType> v)
+  {
+    set (key, v.release ());
+  }
+
   value *get (const char *key) const;
 
   void set_string (const char *key, const char *utf8_value);
@@ -108,6 +179,8 @@ class object : public value
 
   /* Set to literal true/false.  */
   void set_bool (const char *key, bool v);
+
+  static int compare (const json::object &obj_a, const json::object &obj_b);
 
  private:
   typedef hash_map <char *, value *,
@@ -129,6 +202,31 @@ class array : public value
   void print (pretty_printer *pp, bool formatted) const final override;
 
   void append (value *v);
+  void append_string (const char *utf8_value);
+
+  /* Append V to this array, requiring V
+     to be a specific json::value subclass.
+
+     This can be used to enforce type-checking, making it easier
+     to comply with a schema, e.g.
+       arr->append<some_subclass> (value)
+     leading to a compile-time error if VALUE is not of the
+     appropriate subclass.  */
+  template <typename JsonType>
+  void append (std::unique_ptr<JsonType> v)
+  {
+    append (v.release ());
+  }
+
+  size_t size () const { return m_elements.length (); }
+  value *operator[] (size_t i) const { return m_elements[i]; }
+
+  value **begin () { return m_elements.begin (); }
+  value **end () { return m_elements.end (); }
+  const value * const *begin () const { return m_elements.begin (); }
+  const value * const *end () const { return m_elements.end (); }
+  size_t length () const { return m_elements.length (); }
+  value *get (size_t idx) const { return m_elements[idx]; }
 
  private:
   auto_vec<value *> m_elements;
@@ -206,5 +304,116 @@ class literal : public value
 };
 
 } // namespace json
+
+template <>
+template <>
+inline bool
+is_a_helper <json::value *>::test (json::value *)
+{
+  return true;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const json::value *>::test (const json::value *)
+{
+  return true;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <json::object *>::test (json::value *jv)
+{
+  return jv->get_kind () == json::JSON_OBJECT;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const json::object *>::test (const json::value *jv)
+{
+  return jv->get_kind () == json::JSON_OBJECT;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <json::array *>::test (json::value *jv)
+{
+  return jv->get_kind () == json::JSON_ARRAY;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const json::array *>::test (const json::value *jv)
+{
+  return jv->get_kind () == json::JSON_ARRAY;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <json::float_number *>::test (json::value *jv)
+{
+  return jv->get_kind () == json::JSON_FLOAT;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const json::float_number *>::test (const json::value *jv)
+{
+  return jv->get_kind () == json::JSON_FLOAT;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <json::integer_number *>::test (json::value *jv)
+{
+  return jv->get_kind () == json::JSON_INTEGER;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const json::integer_number *>::test (const json::value *jv)
+{
+  return jv->get_kind () == json::JSON_INTEGER;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <json::string *>::test (json::value *jv)
+{
+  return jv->get_kind () == json::JSON_STRING;
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const json::string *>::test (const  json::value *jv)
+{
+  return jv->get_kind () == json::JSON_STRING;
+}
+
+#if CHECKING_P
+
+namespace selftest {
+
+class location;
+
+extern void assert_print_eq (const location &loc,
+			     const json::value &jv,
+			     bool formatted,
+			     const char *expected_json);
+
+} // namespace selftest
+
+#endif /* #if CHECKING_P */
 
 #endif  /* GCC_JSON_H  */

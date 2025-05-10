@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024 Free Software Foundation, Inc.
+// Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -26,8 +26,7 @@
 namespace Rust {
 
 // extracts the owned subdirectory name from a file name
-bool
-get_file_subdir (const std::string &filename, std::string &subdir);
+bool get_file_subdir (const std::string &filename, std::string &subdir);
 
 } // namespace Rust
 

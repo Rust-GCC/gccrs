@@ -1,5 +1,5 @@
 ; Options for the NVPTX port
-; Copyright (C) 2014-2024 Free Software Foundation, Inc.
+; Copyright (C) 2014-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -16,6 +16,9 @@
 ; You should have received a copy of the GNU General Public License
 ; along with GCC; see the file COPYING3.  If not see
 ; <http://www.gnu.org/licenses/>.
+
+HeaderInclude
+config/nvptx/nvptx-opts.h
 
 ; It's not clear whether this was ever build/tested/used, so this is no longer
 ; exposed to the user.
@@ -53,7 +56,7 @@ Target Mask(GOMP)
 Generate code for OpenMP offloading: enables -msoft-stack and -muniform-simt.
 
 misa=
-Target RejectNegative ToLower Joined Enum(ptx_isa) Var(ptx_isa_option)
+Target RejectNegative Negative(misa=) ToLower Joined Enum(ptx_isa) Var(ptx_isa_option) Init(PTX_ISA_unset)
 Specify the PTX ISA target architecture to use.
 
 march=
@@ -70,13 +73,13 @@ march-map=sm_35
 Target RejectNegative Alias(misa=,sm_35)
 
 march-map=sm_37
-Target RejectNegative Alias(misa=,sm_35)
+Target RejectNegative Alias(misa=,sm_37)
 
 march-map=sm_50
-Target RejectNegative Alias(misa=,sm_35)
+Target RejectNegative Alias(misa=,sm_37)
 
 march-map=sm_52
-Target RejectNegative Alias(misa=,sm_35)
+Target RejectNegative Alias(misa=,sm_52)
 
 march-map=sm_53
 Target RejectNegative Alias(misa=,sm_53)
@@ -109,20 +112,26 @@ march-map=sm_87
 Target RejectNegative Alias(misa=,sm_80)
 
 march-map=sm_89
-Target RejectNegative Alias(misa=,sm_80)
+Target RejectNegative Alias(misa=,sm_89)
 
 march-map=sm_90
-Target RejectNegative Alias(misa=,sm_80)
+Target RejectNegative Alias(misa=,sm_89)
 
 march-map=sm_90a
-Target RejectNegative Alias(misa=,sm_80)
+Target RejectNegative Alias(misa=,sm_89)
 
 Enum
-Name(ptx_version) Type(int)
+Name(ptx_version) Type(enum ptx_version)
 Known PTX ISA versions (for use with the -mptx= option):
 
 EnumValue
 Enum(ptx_version) String(3.1) Value(PTX_VERSION_3_1)
+
+EnumValue
+Enum(ptx_version) String(4.1) Value(PTX_VERSION_4_1)
+
+EnumValue
+Enum(ptx_version) String(4.2) Value(PTX_VERSION_4_2)
 
 EnumValue
 Enum(ptx_version) String(6.0) Value(PTX_VERSION_6_0)
@@ -134,10 +143,16 @@ EnumValue
 Enum(ptx_version) String(7.0) Value(PTX_VERSION_7_0)
 
 EnumValue
+Enum(ptx_version) String(7.3) Value(PTX_VERSION_7_3)
+
+EnumValue
+Enum(ptx_version) String(7.8) Value(PTX_VERSION_7_8)
+
+EnumValue
 Enum(ptx_version) String(_) Value(PTX_VERSION_default)
 
 mptx=
-Target RejectNegative ToLower Joined Enum(ptx_version) Var(ptx_version_option)
+Target RejectNegative Negative(mptx=) ToLower Joined Enum(ptx_version) Var(ptx_version_option) Init(PTX_VERSION_unset)
 Specify the PTX ISA version to use.
 
 minit-regs=
@@ -152,3 +167,26 @@ Target Var(nvptx_alias) Init(0) Undocumented
 
 mexperimental
 Target Var(nvptx_experimental) Init(0) Undocumented
+
+mfake-exceptions
+Target Var(fake_exceptions) Init(0) Undocumented
+; With '-mfake-exceptions' enabled, the user-visible behavior in presence of
+; exception handling constructs changes such that the compile-time
+; 'sorry, unimplemented: exception handling not supported' is skipped, code
+; generation proceeds, and instead, exception handling constructs 'abort' at
+; run time.  (..., or don't, if they're in dead code.)
+
+mfake-ptx-alloca
+Target Var(nvptx_fake_ptx_alloca) Init(0) Undocumented
+; With '-mfake-ptx-alloca' enabled, the user-visible behavior changes only
+; for configurations where PTX 'alloca' is not available.  Rather than a
+; compile-time 'sorry, unimplemented: dynamic stack allocation not supported'
+; in presence of dynamic stack allocation, with '-mfake-ptx-alloca' enabled,
+; compilation, assembly, and linking succeeds, as does execution, in case that
+; 'alloca' is not attempted (if only used in error code paths, for example),
+; and a run-time failure only in case that 'alloca' is actually attempted.
+; 
+; This is meant to be used in scenarios where large volumes of code are
+; compiled, a small fraction of which runs into dynamic stack allocation, but
+; these parts are not important for specific use cases, and we'd thus like the
+; build to succeed, and error out just upon actual, very rare use of 'alloca'.

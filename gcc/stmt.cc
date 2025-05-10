@@ -1,5 +1,5 @@
 /* Expands front end tree to back end RTL for GCC
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -268,13 +268,17 @@ parse_output_constraint (const char **constraint_p, int operand_num,
 	case 'E':  case 'F':  case 'G':  case 'H':
 	case 's':  case 'i':  case 'n':
 	case 'I':  case 'J':  case 'K':  case 'L':  case 'M':
-	case 'N':  case 'O':  case 'P':  case ',':
+	case 'N':  case 'O':  case 'P':  case ',':  case '-':
 	  break;
 
 	case '0':  case '1':  case '2':  case '3':  case '4':
 	case '5':  case '6':  case '7':  case '8':  case '9':
 	case '[':
 	  error ("matching constraint not valid in output operand");
+	  return false;
+
+	case ':':
+	  error ("%<:%> constraint used for output operand");
 	  return false;
 
 	case '<':  case '>':
@@ -324,6 +328,7 @@ parse_input_constraint (const char **constraint_p, int input_num,
   size_t c_len = strlen (constraint);
   size_t j;
   bool saw_match = false;
+  bool at_checked = false;
 
   /* Assume the constraint doesn't allow the use of either
      a register or memory.  */
@@ -358,7 +363,22 @@ parse_input_constraint (const char **constraint_p, int input_num,
       case 'E':  case 'F':  case 'G':  case 'H':
       case 's':  case 'i':  case 'n':
       case 'I':  case 'J':  case 'K':  case 'L':  case 'M':
-      case 'N':  case 'O':  case 'P':  case ',':
+      case 'N':  case 'O':  case 'P':  case ',':  case '-':
+	break;
+
+      case ':':
+	/* Verify that if : is used, it is just ":" or say ":,:" but not
+	   mixed with other constraints or say ",:,," etc.  */
+	if (!at_checked)
+	  {
+	    for (size_t k = 0; k < c_len; ++k)
+	      if (constraint[k] != ((k & 1) ? ',' : ':') || (c_len & 1) == 0)
+		{
+		  error ("%<:%> constraint mixed with other constraints");
+		  return false;
+		} 
+	    at_checked = true;
+	  }
 	break;
 
 	/* Whether or not a numeric constraint allows a register is
@@ -736,7 +756,7 @@ conditional_probability (profile_probability target_prob,
    Then, a table with the target labels is emitted.
 
    The process is unaware of the CFG.  The caller has to fix up
-   the CFG itself.  This is done in cfgexpand.cc.  */     
+   the CFG itself.  This is done in cfgexpand.cc.  */
 
 static void
 emit_case_dispatch_table (tree index_expr, tree index_type,
@@ -1026,7 +1046,7 @@ expand_case (gswitch *stmt)
 
    DISPATCH_INDEX is the index expression to switch on.  It should be a
    memory or register operand.
-   
+
    DISPATCH_TABLE is a set of case labels.  The set should be sorted in
    ascending order, be contiguous, starting with value 0, and contain only
    single-valued case labels.  */

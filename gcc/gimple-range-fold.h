@@ -1,5 +1,5 @@
 /* Header file for the GIMPLE fold_using_range interface.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
    and Aldy Hernandez <aldyh@redhat.com>.
 
@@ -43,6 +43,13 @@ bool fold_range (vrange &r, gimple *s, vrange &r1, vrange &r2,
 bool fold_range (vrange &r, gimple *s, unsigned num_elements, vrange **vector,
 		 range_query *q = NULL);
 
+// Calculate op1 on stmt S.
+bool op1_range (vrange &, gimple *s, range_query *q = NULL);
+bool op1_range (vrange &, gimple *s, const vrange &lhs, range_query *q = NULL);
+// Calculate op2 on stmt S.
+bool op2_range (vrange &, gimple *s, range_query *q = NULL);
+bool op2_range (vrange &, gimple *s, const vrange &lhs, range_query *q = NULL);
+
 // This routine will return a relation trio for stmt S.
 relation_trio fold_relations (gimple *s, range_query *q = NULL);
 
@@ -71,7 +78,7 @@ gimple_range_type (const gimple *s)
 	    type = TREE_TYPE (type);
 	}
     }
-  if (type && Value_Range::supports_type_p (type))
+  if (type && value_range::supports_type_p (type))
     return type;
   return NULL_TREE;
 }
@@ -84,7 +91,7 @@ gimple_range_ssa_p (tree exp)
   if (exp && TREE_CODE (exp) == SSA_NAME &&
       !SSA_NAME_IS_VIRTUAL_OPERAND (exp) &&
       !SSA_NAME_OCCURS_IN_ABNORMAL_PHI (exp) &&
-      Value_Range::supports_type_p (TREE_TYPE (exp)))
+      value_range::supports_type_p (TREE_TYPE (exp)))
     return exp;
   return NULL_TREE;
 }
@@ -98,8 +105,11 @@ class fur_source
 {
 public:
   fur_source (range_query *q = NULL);
-  inline range_query *query () { return m_query; }
-  inline class gori_compute *gori () { return m_gori; };
+  inline range_query *query () const { return m_query; }
+  inline gori_map *gori_ssa () const
+    { return (m_depend_p && m_query) ? m_query->gori_ssa () : NULL; }
+  inline class gimple_outgoing_range *gori ()
+    { return m_depend_p ? &(m_query->gori ()) : NULL; }
   virtual bool get_operand (vrange &r, tree expr);
   virtual bool get_phi_operand (vrange &r, tree expr, edge e);
   virtual relation_kind query_relation (tree op1, tree op2);
@@ -110,7 +120,7 @@ public:
   void register_outgoing_edges (gcond *, irange &lhs_range, edge e0, edge e1);
 protected:
   range_query *m_query;
-  gori_compute *m_gori;
+  bool m_depend_p;
 };
 
 // fur_stmt is the specification for drawing an operand from range_query Q
@@ -133,13 +143,25 @@ private:
 class fur_depend : public fur_stmt
 {
 public:
-  fur_depend (gimple *s, gori_compute *gori, range_query *q = NULL);
+  fur_depend (gimple *s, range_query *q = NULL);
   virtual void register_relation (gimple *stmt, relation_kind k, tree op1,
 				  tree op2) override;
   virtual void register_relation (edge e, relation_kind k, tree op1,
 				  tree op2) override;
-protected:
-  relation_oracle *m_oracle;
+};
+
+
+// This version of fur_source will pick a range up off an edge.
+
+class fur_edge : public fur_source
+{
+public:
+  fur_edge (edge e, range_query *q = NULL) : fur_source (q)
+    { m_edge = e; }
+  virtual bool get_operand (vrange &r, tree expr) override;
+  virtual bool get_phi_operand (vrange &r, tree expr, edge e) override;
+private:
+  edge m_edge;
 };
 
 // This class uses ranges to fold a gimple statement producing a range for
@@ -157,11 +179,13 @@ protected:
 			  fur_source &src);
   bool range_of_call (vrange &r, gcall *call, fur_source &src);
   bool range_of_cond_expr (vrange &r, gassign* cond, fur_source &src);
-  bool range_of_address (irange &r, gimple *s, fur_source &src);
+  bool range_of_address (prange &r, gimple *s, fur_source &src);
   bool range_of_phi (vrange &r, gphi *phi, fur_source &src);
   void range_of_ssa_name_with_loop_info (vrange &, tree, class loop *, gphi *,
 					 fur_source &src);
   void relation_fold_and_or (irange& lhs_range, gimple *s, fur_source &src,
 			     vrange &op1, vrange &op2);
+  bool condexpr_adjust (vrange &r1, vrange &r2, gimple *, tree cond, tree op1,
+			tree op2, fur_source &src);
 };
 #endif // GCC_GIMPLE_RANGE_FOLD_H

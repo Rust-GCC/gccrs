@@ -1,5 +1,5 @@
 /* Data structure definitions for a generic GCC target.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -165,6 +165,9 @@ class function_arg_info;
 /* This is defined in function-abi.h.  */
 class predefined_function_abi;
 
+/* This is defined in avoid-store-forwarding.h.  */
+struct store_fwd_info;
+
 /* These are defined in tree-vect-stmts.cc.  */
 extern tree stmt_vectype (class _stmt_vec_info *);
 extern bool stmt_in_inner_loop_p (class vec_info *, class _stmt_vec_info *);
@@ -271,7 +274,24 @@ enum type_context_kind {
   TCTX_EXCEPTIONS,
 
   /* Capturing objects of type T by value in a closure.  */
-  TCTX_CAPTURE_BY_COPY
+  TCTX_CAPTURE_BY_COPY,
+
+  /* Objects of type T appearing in OpenMP map clause.  */
+  TCTX_OMP_MAP,
+
+  /* Objects of type T appearing in OpenMP target region
+     without explicit map.  */
+  TCTX_OMP_MAP_IMP_REF,
+
+  /* Objects of type T appearing in OpenMP private clause.  */
+  TCTX_OMP_PRIVATE,
+
+  /* Objects of type T appearing in OpenMP firstprivate clause.  */
+  TCTX_OMP_FIRSTPRIVATE,
+
+  /* Objects of type T appearing in OpenMP device clauses.  */
+  TCTX_OMP_DEVICE_ADDR
+
 };
 
 enum poly_value_estimate_kind
@@ -279,6 +299,18 @@ enum poly_value_estimate_kind
   POLY_VALUE_MIN,
   POLY_VALUE_MAX,
   POLY_VALUE_LIKELY
+};
+
+enum class spill_cost_type
+{
+  SAVE,
+  RESTORE
+};
+
+enum class frame_cost_type
+{
+  ALLOCATION,
+  DEALLOCATION
 };
 
 typedef void (*emit_support_tinfos_callback) (tree);
@@ -310,6 +342,40 @@ estimated_poly_value (poly_int64 x,
     return x.coeffs[0];
   else
     return targetm.estimated_poly_value (x, kind);
+}
+
+/* Return true when MODE can be used to copy GET_MODE_BITSIZE bits
+   unchanged.  */
+
+inline bool
+mode_can_transfer_bits (machine_mode mode)
+{
+  if (mode == BLKmode)
+    return true;
+  if (maybe_ne (GET_MODE_BITSIZE (mode),
+		GET_MODE_UNIT_PRECISION (mode) * GET_MODE_NUNITS (mode)))
+    return false;
+  if (targetm.mode_can_transfer_bits)
+    return targetm.mode_can_transfer_bits (mode);
+  return true;
+}
+
+/* Return true if OpenMP context types.  */
+
+inline bool
+omp_type_context (type_context_kind context)
+{
+  switch (context)
+    {
+    case TCTX_OMP_MAP:
+    case TCTX_OMP_MAP_IMP_REF:
+    case TCTX_OMP_PRIVATE:
+    case TCTX_OMP_FIRSTPRIVATE:
+    case TCTX_OMP_DEVICE_ADDR:
+      return true;
+    default:
+      return false;
+    }
 }
 
 #ifdef GCC_TM_H

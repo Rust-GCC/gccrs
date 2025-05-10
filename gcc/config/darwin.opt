@@ -1,6 +1,6 @@
 ; Processor-independent options for Darwin.
 
-; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -211,7 +211,7 @@ Driver RejectNegative Separate
 
 init
 Driver RejectNegative Separate
--init <symbol_name>	The symbol <symbol_name> will be used as the first initialiser for a dylib.
+-init <symbol_name>	The symbol <symbol_name> will be used as the first initializer for a dylib.
 
 install_name
 Driver RejectNegative Separate
@@ -260,6 +260,12 @@ Driver RejectNegative Negative(prebind)
 noseglinkedit
 Driver RejectNegative Negative(seglinkedit)
 (Obsolete) This is the default.
+
+ObjC
+Driver RejectNegative
+
+ObjC++
+Driver RejectNegative
 
 object
 Driver RejectNegative
@@ -380,6 +386,10 @@ Driver RejectNegative Separate
 unexported_symbols_list
 Driver RejectNegative Separate
 -unexported_symbols_list <filename>	Do not export the global symbols listed in <filename>.
+
+weak_framework
+Driver RejectNegative Separate
+-weak_framework <framework>	Make a weak link to the specified framework.
 
 weak_reference_mismatches
 Driver RejectNegative Separate
