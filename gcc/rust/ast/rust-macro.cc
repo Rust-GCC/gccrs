@@ -19,7 +19,5 @@
 #include "rust-macro.h"
 
 namespace Rust {
-namespace AST {
-
-} // namespace AST
+namespace AST {} // namespace AST
 } // namespace Rust
