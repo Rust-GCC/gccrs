@@ -54,10 +54,9 @@ namespace Resolver {
 /* The finalizer for our funny ICE.  This prints a custom message instead of
    the default bug reporting instructions, as there is no bug to report.  */
 
-void ATTRIBUTE_NORETURN
-funny_ice_text_finalizer (diagnostic_text_output_format &text_output,
-			  const diagnostic_info *diagnostic,
-			  diagnostic_t diag_kind);
+void ATTRIBUTE_NORETURN funny_ice_text_finalizer (
+  diagnostic_text_output_format &text_output, const diagnostic_info *diagnostic,
+  diagnostic_t diag_kind);
 
 } // namespace Resolver
 } // namespace Rust
