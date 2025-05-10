@@ -211,8 +211,6 @@ public:
 
   void accept_vis (ASTVisitor &vis) override;
 
-  NodeId get_node_id () const override final { return node_id; }
-
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Rest; }
 
 protected:
