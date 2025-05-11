@@ -268,8 +268,8 @@ public:
   {}
 
   WARN_UNUSED_RESULT virtual size_t get_num_params () const = 0;
-  WARN_UNUSED_RESULT virtual BaseType *
-  get_param_type_at (size_t index) const = 0;
+  WARN_UNUSED_RESULT virtual BaseType *get_param_type_at (size_t index) const
+    = 0;
   WARN_UNUSED_RESULT virtual BaseType *get_return_type () const = 0;
 };
 
@@ -441,8 +441,6 @@ public:
   std::string get_name () const override final;
 
   bool is_equal (const BaseType &other) const override;
-
-  OpaqueType *handle_substitions (SubstitutionArgumentMappings &mappings);
 };
 
 class StructFieldType

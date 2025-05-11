@@ -247,6 +247,9 @@ TypeCheckCallExpr::visit (FnType &type)
 
   type.monomorphize ();
   resolved = type.get_return_type ()->clone ();
+
+  rust_debug ("XXXXXXXXXXXXXXXXXXXXX");
+  resolved->debug ();
 }
 
 void
