@@ -52,6 +52,8 @@ public:
   void visit (AST::ForLoopExpr &) override;
   void visit (AST::IfLetExpr &) override;
 
+  void visit (AST::Visibility &vis) override;
+
   // resolutions
   void visit (AST::IdentifierExpr &) override;
   void visit (AST::StructExprFieldIdentifier &) override;

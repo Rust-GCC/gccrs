@@ -1,11 +1,12 @@
 mod orange {
     mod green {
         struct Foo;
-        pub(in orange) struct Bar;
+        pub(in crate::orange) struct Bar;
         pub struct Baz;
     }
 
-    fn brown() {// E0603
+    fn brown() {
+        // E0603
         let _ = green::Foo; // { dg-error "definition is private in this context" }
         let _ = green::Bar;
         let _ = green::Baz;
