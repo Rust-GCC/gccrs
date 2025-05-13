@@ -1,5 +1,5 @@
 /* Definitions for option handling for IA-32.
-   Copyright (C) 1988-2024 Free Software Foundation, Inc.
+   Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -29,7 +29,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 enum stringop_alg
 {
 #undef DEF_ALG
-#define DEF_ALG(alg, name) alg, 
+#define DEF_ALG(alg, name) alg,
 
 #include "stringop.def"
 last_alg
@@ -87,7 +87,8 @@ enum asm_dialect {
 enum ix86_veclibabi {
   ix86_veclibabi_type_none,
   ix86_veclibabi_type_svml,
-  ix86_veclibabi_type_acml
+  ix86_veclibabi_type_acml,
+  ix86_veclibabi_type_aocl
 };
 
 enum stack_protector_guard {
@@ -140,7 +141,11 @@ enum apx_features {
   apx_push2pop2 = 1 << 1,
   apx_ndd = 1 << 2,
   apx_ppx = 1 << 3,
-  apx_all = apx_egpr | apx_push2pop2 | apx_ndd | apx_ppx,
+  apx_nf = 1 << 4,
+  apx_ccmp = 1 << 5,
+  apx_zu = 1 << 6,
+  apx_all = apx_egpr | apx_push2pop2 | apx_ndd
+	    | apx_ppx | apx_nf | apx_ccmp | apx_zu,
 };
 
 #endif

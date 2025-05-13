@@ -1,5 +1,5 @@
 /* Default target hook functions.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -95,6 +95,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-vectorizer.h"
 #include "options.h"
 #include "case-cfn-macros.h"
+#include "avoid-store-forwarding.h"
 
 bool
 default_legitimate_address_p (machine_mode mode ATTRIBUTE_UNUSED,
@@ -298,6 +299,18 @@ default_mode_for_suffix (char suffix ATTRIBUTE_UNUSED)
   return VOIDmode;
 }
 
+/* Return machine mode for a floating type which is indicated
+   by the given enum tree_index.  */
+
+machine_mode
+default_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_FLOAT_TYPE)
+    return SFmode;
+  gcc_assert (ti == TI_DOUBLE_TYPE || ti == TI_LONG_DOUBLE_TYPE);
+  return DFmode;
+}
+
 /* The generic C++ ABI specifies this is a 64-bit value.  */
 tree
 default_cxx_guard_type (void)
@@ -327,6 +340,14 @@ default_cxx_get_cookie_size (tree type)
     cookie_size = type_align;
 
   return cookie_size;
+}
+
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+
+tree
+default_cxx_adjust_cdtor_callabi_fntype (tree fntype)
+{
+  return fntype;
 }
 
 /* Return true if a parameter must be passed by reference.  This version
@@ -441,11 +462,11 @@ default_scalar_mode_supported_p (scalar_mode mode)
       return false;
 
     case MODE_FLOAT:
-      if (precision == FLOAT_TYPE_SIZE)
+      if (mode == targetm.c.mode_for_floating_type (TI_FLOAT_TYPE))
 	return true;
-      if (precision == DOUBLE_TYPE_SIZE)
+      if (mode == targetm.c.mode_for_floating_type (TI_DOUBLE_TYPE))
 	return true;
-      if (precision == LONG_DOUBLE_TYPE_SIZE)
+      if (mode == targetm.c.mode_for_floating_type (TI_LONG_DOUBLE_TYPE))
 	return true;
       return false;
 
@@ -1284,6 +1305,14 @@ default_ira_change_pseudo_allocno_class (int regno ATTRIBUTE_UNUSED,
   return cl;
 }
 
+int
+default_ira_callee_saved_register_cost_scale (int)
+{
+  return (optimize_size
+	  ? 1
+	  : REG_FREQ_FROM_BB (ENTRY_BLOCK_PTR_FOR_FN (cfun)));
+}
+
 extern bool
 default_lra_p (void)
 {
@@ -1589,6 +1618,14 @@ default_get_mask_mode (machine_mode mode)
 /* By default consider masked stores to be expensive.  */
 
 bool
+default_conditional_operation_is_expensive (unsigned ifn)
+{
+  return ifn == IFN_MASK_STORE;
+}
+
+/* By default consider masked stores to be expensive.  */
+
+bool
 default_empty_mask_is_expensive (unsigned ifn)
 {
   return ifn == IFN_MASK_STORE;
@@ -1741,7 +1778,7 @@ void
 default_addr_space_diagnose_usage (addr_space_t, location_t)
 {
 }
-	 
+
 
 /* The default hook for TARGET_ADDR_SPACE_CONVERT. This hook should never be
    called for targets with only a generic address space.  */
@@ -1877,6 +1914,12 @@ bool
 default_have_conditional_execution (void)
 {
   return HAVE_conditional_execution;
+}
+
+bool
+default_have_ccmp (void)
+{
+  return targetm.gen_ccmp_first != NULL;
 }
 
 /* By default we assume that c99 functions are present at the runtime,
@@ -2040,6 +2083,33 @@ default_register_move_cost (machine_mode mode ATTRIBUTE_UNUSED,
 #endif
 }
 
+/* The default implementation of TARGET_CALLEE_SAVE_COST.  */
+
+int
+default_callee_save_cost (spill_cost_type spill_type, unsigned int,
+			  machine_mode, unsigned int, int mem_cost,
+			  const HARD_REG_SET &callee_saved_regs,
+			  bool existing_spills_p)
+{
+  if (!existing_spills_p)
+    {
+      auto frame_type = (spill_type == spill_cost_type::SAVE
+			 ? frame_cost_type::ALLOCATION
+			 : frame_cost_type::DEALLOCATION);
+      mem_cost += targetm.frame_allocation_cost (frame_type,
+						 callee_saved_regs);
+    }
+  return mem_cost;
+}
+
+/* The default implementation of TARGET_FRAME_ALLOCATION_COST.  */
+
+int
+default_frame_allocation_cost (frame_cost_type, const HARD_REG_SET &)
+{
+  return 0;
+}
+
 /* The default implementation of TARGET_SLOW_UNALIGNED_ACCESS.  */
 
 bool
@@ -2198,7 +2268,7 @@ reg_class_t
 default_preferred_reload_class (rtx x ATTRIBUTE_UNUSED,
 			        reg_class_t rclass)
 {
-#ifdef PREFERRED_RELOAD_CLASS 
+#ifdef PREFERRED_RELOAD_CLASS
   return (reg_class_t) PREFERRED_RELOAD_CLASS (x, (enum reg_class) rclass);
 #else
   return rclass;
@@ -2244,6 +2314,32 @@ default_class_max_nregs (reg_class_t rclass ATTRIBUTE_UNUSED,
   unsigned int size = GET_MODE_SIZE (mode).to_constant ();
   return (size + UNITS_PER_WORD - 1) / UNITS_PER_WORD;
 #endif
+}
+
+/* The default implementation of TARGET_AVOID_STORE_FORWARDING_P.  */
+
+bool
+default_avoid_store_forwarding_p (vec<store_fwd_info>, rtx, int total_cost,
+				  bool)
+{
+  /* Use a simple cost heurstic base on param_store_forwarding_max_distance.
+     In general the distance should be somewhat correlated to the store
+     forwarding penalty; if the penalty is large then it is justified to
+     increase the window size.  Use this to reject sequences that are clearly
+     unprofitable.
+     Skip the cost check if param_store_forwarding_max_distance is 0.  */
+  int max_cost = COSTS_N_INSNS (param_store_forwarding_max_distance / 2);
+  const bool unlimited_cost = (param_store_forwarding_max_distance == 0);
+  if (!unlimited_cost && total_cost > max_cost && max_cost)
+    {
+      if (dump_file)
+	fprintf (dump_file, "Not transformed due to cost: %d > %d.\n",
+		 total_cost, max_cost);
+
+      return false;
+    }
+
+  return true;
 }
 
 /* Determine the debugging unwind mechanism for the target.  */

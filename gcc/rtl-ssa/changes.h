@@ -1,5 +1,5 @@
 // RTL SSA classes related to changing instructions                 -*- C++ -*-
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -96,19 +96,6 @@ public:
 private:
   // The value returned by is_deletion ().
   bool m_is_deletion;
-};
-
-// A class that represents a closure of the two-argument form of
-// insn_is_changing.  See the comment above the one-argument form
-// for details.
-class insn_is_changing_closure
-{
-public:
-  insn_is_changing_closure (array_slice<insn_change *const> changes);
-  bool operator() (const insn_info *) const;
-
-private:
-  array_slice<insn_change *const> m_changes;
 };
 
 void pp_insn_change (pretty_printer *, const insn_change &);

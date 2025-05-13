@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2002-2024 Free Software Foundation, Inc.
+// Copyright (C) 2002-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,10 +26,10 @@
  *  This is a Standard C++ Library header.
  */
 
-#include <ctime>
-
 #ifndef _GLIBCXX_TIME_H
 #define _GLIBCXX_TIME_H 1
+
+#include <ctime>
 
 #ifdef _GLIBCXX_NAMESPACE_C
 // Get rid of those macros defined in <time.h> in lieu of real functions.

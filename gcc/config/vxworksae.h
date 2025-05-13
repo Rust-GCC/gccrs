@@ -1,5 +1,5 @@
 /* Common VxWorks AE target definitions for GNU compiler.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -45,7 +45,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef VXWORKS_LINK_SPEC
 #define VXWORKS_LINK_SPEC	\
   "-r %{v:-V}"
- 
+
 #undef VXWORKS_LIBGCC_SPEC
 #define VXWORKS_LIBGCC_SPEC	\
   "-lgcc"

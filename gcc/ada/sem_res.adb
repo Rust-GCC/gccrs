@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -47,6 +47,7 @@ with Itypes;         use Itypes;
 with Lib;            use Lib;
 with Lib.Xref;       use Lib.Xref;
 with Local_Restrict;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Nmake;          use Nmake;
 with Nlists;         use Nlists;
@@ -83,6 +84,7 @@ with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
 with Sinfo.CN;       use Sinfo.CN;
+with Sinput;         use Sinput;
 with Snames;         use Snames;
 with Stand;          use Stand;
 with Stringt;        use Stringt;
@@ -143,10 +145,10 @@ package body Sem_Res is
    --  for restriction No_Direct_Boolean_Operators. This procedure also handles
    --  the style check for Style_Check_Boolean_And_Or.
 
-   function Is_Atomic_Ref_With_Address (N : Node_Id) return Boolean;
-   --  N is either an indexed component or a selected component. This function
-   --  returns true if the prefix denotes an atomic object that has an address
-   --  clause (the case in which we may want to issue a warning).
+   function Is_Atomic_Non_VFA_Ref_With_Address (N : Node_Id) return Boolean;
+   --  N is either an indexed component or a selected component. Return true
+   --  if the prefix denotes an Atomic but not Volatile_Full_Access object that
+   --  has an address clause (the case in which we may want to give a warning).
 
    function Is_Definite_Access_Type (E : N_Entity_Id) return Boolean;
    --  Determine whether E is an access type declared by an access declaration,
@@ -162,16 +164,36 @@ package body Sem_Res is
    --  a call, so such an operator is not treated as predefined by this
    --  predicate.
 
-   procedure Preanalyze_And_Resolve
-     (N             : Node_Id;
-      T             : Entity_Id;
-      With_Freezing : Boolean);
-   --  Subsidiary of public versions of Preanalyze_And_Resolve.
+   function Original_Implementation_Base_Type
+     (Id : Entity_Id) return Entity_Id;
+   --  Like Implementation_Base_Type, but looks at Original_Node.
 
    procedure Replace_Actual_Discriminants (N : Node_Id; Default : Node_Id);
    --  If a default expression in entry call N depends on the discriminants
    --  of the task, it must be replaced with a reference to the discriminant
    --  of the task being called.
+
+   procedure Report_Error_N
+     (Msg         : String;
+      N           : Node_Or_Entity_Id;
+      Report_Errs : Boolean := True);
+   --  If Report_Errs, then calls Errout.Error_Msg_N with its arguments
+
+   procedure Report_Error_NE
+     (Msg         : String;
+      N           : Node_Or_Entity_Id;
+      E           : Node_Or_Entity_Id;
+      Report_Errs : Boolean := True);
+   --  If Report_Errs, then calls Errout.Error_Msg_NE with its arguments
+
+   procedure Report_Interpretation
+     (N   : Node_Id;
+      Nam : Entity_Id;
+      Typ : Entity_Id);
+   --  Report that Nam is an interpretation for node N. When calling a
+   --  standard operator, use the location of the type Typ to report the
+   --  interpretation, as it may be user-defined thus therefore more
+   --  user-friendly.
 
    procedure Resolve_Dependent_Expression
      (N    : Node_Id;
@@ -208,6 +230,7 @@ package body Sem_Res is
    procedure Resolve_Equality_Op               (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Explicit_Dereference      (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Expression_With_Actions   (N : Node_Id; Typ : Entity_Id);
+   procedure Resolve_External_Initializer      (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_If_Expression             (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Generalized_Indexing      (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Indexed_Component         (N : Node_Id; Typ : Entity_Id);
@@ -235,7 +258,6 @@ package body Sem_Res is
    procedure Resolve_Target_Name               (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Type_Conversion           (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Unary_Op                  (N : Node_Id; Typ : Entity_Id);
-   procedure Resolve_Unchecked_Expression      (N : Node_Id; Typ : Entity_Id);
    procedure Resolve_Unchecked_Type_Conversion (N : Node_Id; Typ : Entity_Id);
 
    function Operator_Kind
@@ -293,8 +315,10 @@ package body Sem_Res is
 
    procedure Set_String_Literal_Subtype (N : Node_Id; Typ : Entity_Id);
    --  The String_Literal_Subtype is built for all strings that are not
-   --  operands of a static concatenation operation. If the argument is not
-   --  a N_String_Literal node, then the call has no effect.
+   --  operands of a static concatenation operation. It is also built for
+   --  expressions generated by the expansion of the External_Initialization
+   --  aspect. If the argument is not an N_String_Literal node or an
+   --  N_External_Initializer node, then the call has no effect.
 
    procedure Set_Slice_Subtype (N : Node_Id);
    --  Build subtype of array type, with the range specified by the slice
@@ -462,7 +486,7 @@ package body Sem_Res is
       Literal_Aspect_Map :
         constant array (N_Numeric_Or_String_Literal) of Aspect_Id :=
           (N_Integer_Literal             => Aspect_Integer_Literal,
-           N_Interpolated_String_Literal => No_Aspect,
+           N_Interpolated_String_Literal => Aspect_String_Literal,
            N_Real_Literal                => Aspect_Real_Literal,
            N_String_Literal              => Aspect_String_Literal);
 
@@ -482,6 +506,7 @@ package body Sem_Res is
 
    begin
       if (Nkind (N) in N_Numeric_Or_String_Literal
+                     | N_Interpolated_String_Literal
            and then Present
             (Find_Aspect (Typ, Literal_Aspect_Map (Nkind (N)))))
         or else
@@ -500,11 +525,16 @@ package body Sem_Res is
            Entity (Expression (Find_Aspect (Typ, Lit_Aspect)));
          Name := Make_Identifier (Loc, Chars (Callee));
 
-         if Is_Derived_Type (Typ)
-           and then Base_Type (Etype (Callee)) /= Base_Type (Typ)
-         then
+         --  It seems that we shouldn't need to retrieve the corresponding
+         --  primitive for a derived type at this point, because it should
+         --  have been determined earlier by Inherit_Nonoverridable_Aspects,
+         --  but the wrapper function created for a literal function when the
+         --  type is frozen gets created too late, so we search again at this
+         --  point. Would be nice to find a way to avoid this. ???
+
+         if Is_Derived_Type (Typ) then
             Callee :=
-              Corresponding_Primitive_Op
+              Corresponding_Op_Of_Derived_Type
                 (Ancestor_Op     => Callee,
                  Descendant_Type => Base_Type (Typ));
          end if;
@@ -556,6 +586,10 @@ package body Sem_Res is
 
          elsif Nkind (N) = N_String_Literal then
             Param1 := Make_String_Literal (Loc, Strval (N));
+            Params := New_List (Param1);
+
+         elsif Nkind (N) = N_Interpolated_String_Literal then
+            Param1 := New_Copy_Tree (N);
             Params := New_List (Param1);
 
          else
@@ -1476,28 +1510,42 @@ package body Sem_Res is
       end if;
    end Check_Parameterless_Call;
 
-   --------------------------------
-   -- Is_Atomic_Ref_With_Address --
-   --------------------------------
+   ----------------------------------------
+   -- Is_Atomic_Non_VFA_Ref_With_Address --
+   ----------------------------------------
 
-   function Is_Atomic_Ref_With_Address (N : Node_Id) return Boolean is
+   function Is_Atomic_Non_VFA_Ref_With_Address (N : Node_Id) return Boolean is
       Pref : constant Node_Id := Prefix (N);
 
-   begin
-      if not Is_Entity_Name (Pref) then
-         return False;
+      function Is_Atomic_Non_VFA (E : Entity_Id) return Boolean;
+      --  Return true if E is Atomic but not Volatile_Full_Access
 
-      else
+      -----------------------
+      -- Is_Atomic_Non_VFA --
+      -----------------------
+
+      function Is_Atomic_Non_VFA (E : Entity_Id) return Boolean is
+      begin
+         return Is_Atomic (E) and then not Is_Volatile_Full_Access (E);
+      end Is_Atomic_Non_VFA;
+
+   begin
+      if Is_Entity_Name (Pref) then
          declare
             Pent : constant Entity_Id := Entity (Pref);
             Ptyp : constant Entity_Id := Etype (Pent);
+
          begin
             return not Is_Access_Type (Ptyp)
-              and then (Is_Atomic (Ptyp) or else Is_Atomic (Pent))
+              and then (Is_Atomic_Non_VFA (Ptyp)
+                         or else Is_Atomic_Non_VFA (Pent))
               and then Present (Address_Clause (Pent));
          end;
+
+      else
+         return False;
       end if;
-   end Is_Atomic_Ref_With_Address;
+   end Is_Atomic_Non_VFA_Ref_With_Address;
 
    -----------------------------
    -- Is_Definite_Access_Type --
@@ -1561,7 +1609,7 @@ package body Sem_Res is
       --  expanded name, verify that the operand has an interpretation with a
       --  type defined in the given scope of the operator.
 
-      function Type_In_P (Test : Kind_Test) return Entity_Id;
+      function Type_In_P (Test : not null Kind_Test) return Entity_Id;
       --  Find a type of the given class in package Pack that contains the
       --  operator.
 
@@ -1596,7 +1644,7 @@ package body Sem_Res is
       -- Type_In_P --
       ---------------
 
-      function Type_In_P (Test : Kind_Test) return Entity_Id is
+      function Type_In_P (Test : not null Kind_Test) return Entity_Id is
          E : Entity_Id;
 
          function In_Decl return Boolean;
@@ -1609,11 +1657,9 @@ package body Sem_Res is
 
          function In_Decl return Boolean is
             Decl_Node : constant Node_Id := Parent (E);
-            N2        : Node_Id;
+            Context   : Node_Id;
 
          begin
-            N2 := N;
-
             if Etype (E) = Any_Type then
                return True;
 
@@ -1621,13 +1667,15 @@ package body Sem_Res is
                return False;
 
             else
-               while Present (N2)
-                 and then Nkind (N2) /= N_Compilation_Unit
+               Context := N;
+
+               while Present (Context)
+                 and then Nkind (Context) /= N_Compilation_Unit
                loop
-                  if N2 = Decl_Node then
+                  if Context = Decl_Node then
                      return True;
                   else
-                     N2 := Parent (N2);
+                     Context := Parent (Context);
                   end if;
                end loop;
 
@@ -1884,7 +1932,7 @@ package body Sem_Res is
          end if;
       end if;
 
-      Set_Chars  (Op_Node, Op_Name);
+      Set_Chars (Op_Node, Op_Name);
 
       if not Is_Private_Type (Etype (N)) then
          Set_Etype (Op_Node, Base_Type (Etype (N)));
@@ -2013,27 +2061,47 @@ package body Sem_Res is
       return Kind;
    end Operator_Kind;
 
+   ---------------------------------------
+   -- Original_Implementation_Base_Type --
+   ---------------------------------------
+
+   function Original_Implementation_Base_Type
+     (Id : Entity_Id) return Entity_Id
+   is
+      IBT       : constant Entity_Id := Implementation_Base_Type (Id);
+      IBT_Decl  : constant Node_Id := Parent (IBT);
+      Parent_Id : Node_Id;
+   begin
+      if Nkind (IBT_Decl) = N_Full_Type_Declaration
+        and then Original_Node (IBT_Decl) /= IBT_Decl
+        and then Nkind (Original_Node (IBT_Decl)) =
+                 N_Full_Type_Declaration
+        and then Nkind (Type_Definition (Original_Node (IBT_Decl)))
+                 = N_Derived_Type_Definition
+      then
+         Parent_Id := Subtype_Indication (Type_Definition
+                        (Original_Node (IBT_Decl)));
+
+         if Nkind (Parent_Id) = N_Subtype_Indication then
+            Parent_Id := Subtype_Mark (Parent_Id);
+         end if;
+
+         return Original_Implementation_Base_Type
+                  (Etype (Parent_Id));
+      else
+         return IBT;
+      end if;
+   end Original_Implementation_Base_Type;
+
    ----------------------------
    -- Preanalyze_And_Resolve --
    ----------------------------
 
-   procedure Preanalyze_And_Resolve
-     (N             : Node_Id;
-      T             : Entity_Id;
-      With_Freezing : Boolean)
-   is
-      Save_Full_Analysis     : constant Boolean := Full_Analysis;
-      Save_Must_Not_Freeze   : constant Boolean := Must_Not_Freeze (N);
-      Save_Preanalysis_Count : constant Nat :=
-                                 Inside_Preanalysis_Without_Freezing;
+   procedure Preanalyze_And_Resolve (N : Node_Id; T : Entity_Id) is
+      Save_Full_Analysis : constant Boolean := Full_Analysis;
+
    begin
       pragma Assert (Nkind (N) in N_Subexpr);
-
-      if not With_Freezing then
-         Set_Must_Not_Freeze (N);
-         Inside_Preanalysis_Without_Freezing :=
-           Inside_Preanalysis_Without_Freezing + 1;
-      end if;
 
       Full_Analysis := False;
       Expander_Mode_Save_And_Set (False);
@@ -2067,25 +2135,11 @@ package body Sem_Res is
 
       Expander_Mode_Restore;
       Full_Analysis := Save_Full_Analysis;
-
-      if not With_Freezing then
-         Set_Must_Not_Freeze (N, Save_Must_Not_Freeze);
-         Inside_Preanalysis_Without_Freezing :=
-           Inside_Preanalysis_Without_Freezing - 1;
-      end if;
-
-      pragma Assert
-        (Inside_Preanalysis_Without_Freezing = Save_Preanalysis_Count);
    end Preanalyze_And_Resolve;
 
    ----------------------------
    -- Preanalyze_And_Resolve --
    ----------------------------
-
-   procedure Preanalyze_And_Resolve (N : Node_Id; T : Entity_Id) is
-   begin
-      Preanalyze_And_Resolve (N, T, With_Freezing => False);
-   end Preanalyze_And_Resolve;
 
    --  Version without context type
 
@@ -2102,18 +2156,6 @@ package body Sem_Res is
       Expander_Mode_Restore;
       Full_Analysis := Save_Full_Analysis;
    end Preanalyze_And_Resolve;
-
-   ------------------------------------------
-   -- Preanalyze_With_Freezing_And_Resolve --
-   ------------------------------------------
-
-   procedure Preanalyze_With_Freezing_And_Resolve
-     (N : Node_Id;
-      T : Entity_Id)
-   is
-   begin
-      Preanalyze_And_Resolve (N, T, With_Freezing => True);
-   end Preanalyze_With_Freezing_And_Resolve;
 
    ----------------------------------
    -- Replace_Actual_Discriminants --
@@ -2183,6 +2225,70 @@ package body Sem_Res is
          Replace_Discrs (Default);
       end if;
    end Replace_Actual_Discriminants;
+
+   --------------------
+   -- Report_Error_N --
+   --------------------
+
+   procedure Report_Error_N
+     (Msg         : String;
+      N           : Node_Or_Entity_Id;
+      Report_Errs : Boolean := True) is
+   begin
+      if Report_Errs then
+         Error_Msg_N (Msg, N);
+      end if;
+   end Report_Error_N;
+
+   ---------------------
+   -- Report_Error_NE --
+   ---------------------
+
+   procedure Report_Error_NE
+     (Msg         : String;
+      N           : Node_Or_Entity_Id;
+      E           : Node_Or_Entity_Id;
+      Report_Errs : Boolean := True) is
+   begin
+      if Report_Errs then
+         Error_Msg_NE (Msg, N, E);
+      end if;
+   end Report_Error_NE;
+
+   ---------------------------
+   -- Report_Interpretation --
+   ---------------------------
+
+   procedure Report_Interpretation
+     (N   : Node_Id;
+      Nam : Entity_Id;
+      Typ : Entity_Id)
+   is
+      Insert_Location : constant String := "#";
+      Is_Inherited    : constant Boolean :=
+                          Nkind (Parent (Nam)) = N_Full_Type_Declaration;
+      Text_Base       : constant String := "\\possible interpretation";
+      Text_Inherited  : constant String := " (inherited)";
+      Uncond_Msg      : constant String := "!";
+
+   begin
+      --  If the interpretation involves a standard operator, we use the
+      --  location of the type, which may be user-defined.
+
+      if Sloc (Nam) = Standard_Location then
+         Error_Msg_Sloc := Sloc (Typ);
+      else
+         Error_Msg_Sloc := Sloc (Nam);
+      end if;
+
+      if Is_Inherited then
+         Error_Msg_N
+           (Text_Base & Text_Inherited & Insert_Location & Uncond_Msg, N);
+      else
+         Error_Msg_N -- CODEFIX
+           (Text_Base & Insert_Location & Uncond_Msg, N);
+      end if;
+   end Report_Interpretation;
 
    -------------
    -- Resolve --
@@ -2290,14 +2396,7 @@ package body Sem_Res is
 
             Get_First_Interp (Name (Arg), I, It);
             while Present (It.Nam) loop
-               Error_Msg_Sloc := Sloc (It.Nam);
-
-               if Nkind (Parent (It.Nam)) = N_Full_Type_Declaration then
-                  Error_Msg_N ("interpretation (inherited) #!", Arg);
-               else
-                  Error_Msg_N ("interpretation #!", Arg);
-               end if;
-
+               Report_Interpretation (Arg, It.Nam, It.Typ);
                Get_Next_Interp (I, It);
             end loop;
          end if;
@@ -2501,9 +2600,16 @@ package body Sem_Res is
          if Nkind (N) in N_Op and then No (Entity (N)) then
             pragma Assert (Ada_Version >= Ada_2022);
             Found := False;
+         elsif not Comes_From_Source (N) and then
+            Original_Implementation_Base_Type (Typ) =
+              Original_Implementation_Base_Type (Etype (N))
+         then
+            --  Ignore privacy for streaming or Put_Image routines
+            Found := True;
          else
             Found := Covers (Typ, Etype (N));
          end if;
+
          Expr_Type := Etype (N);
 
       --  In the overloaded case, we must select the interpretation that
@@ -2671,13 +2777,10 @@ package body Sem_Res is
 
                         Ambiguous := True;
 
-                        if Nkind (Parent (Seen)) = N_Full_Type_Declaration then
-                           Error_Msg_N
-                             ("\\possible interpretation (inherited)#!", N);
-                        else
-                           Error_Msg_N -- CODEFIX
-                             ("\\possible interpretation#!", N);
-                        end if;
+                        Report_Interpretation
+                          (N   => N,
+                           Nam => Seen,
+                           Typ => Etype (Seen));
 
                         if Nkind (N) in N_Subprogram_Call
                           and then Present (Parameter_Associations (N))
@@ -2760,8 +2863,8 @@ package body Sem_Res is
                      elsif
                        Nkind (Parent (It.Nam)) = N_Full_Type_Declaration
                      then
-                        Error_Msg_N
-                          ("\\possible interpretation (inherited)#!", N);
+                        Report_Interpretation (N, It.Nam, It.Typ);
+
                      else
                         Error_Msg_N -- CODEFIX
                           ("\\possible interpretation#!", N);
@@ -3351,6 +3454,9 @@ package body Sem_Res is
             when N_Extension_Aggregate =>
                Resolve_Extension_Aggregate       (N, Ctx_Type);
 
+            when N_External_Initializer =>
+               Resolve_External_Initializer      (N, Ctx_Type);
+
             when N_Function_Call =>
                Resolve_Call                      (N, Ctx_Type);
 
@@ -3463,9 +3569,6 @@ package body Sem_Res is
 
             when N_Type_Conversion =>
                Resolve_Type_Conversion           (N, Ctx_Type);
-
-            when N_Unchecked_Expression =>
-               Resolve_Unchecked_Expression      (N, Ctx_Type);
 
             when N_Unchecked_Type_Conversion =>
                Resolve_Unchecked_Type_Conversion (N, Ctx_Type);
@@ -3819,54 +3922,48 @@ package body Sem_Res is
       -------------------------
 
       procedure Check_Prefixed_Call is
-         Act    : constant Node_Id   := First_Actual (N);
-         A_Type : constant Entity_Id := Etype (Act);
-         F_Type : constant Entity_Id := Etype (First_Formal (Nam));
-         Orig   : constant Node_Id := Original_Node (N);
-         New_A  : Node_Id;
+         Actual      : constant Node_Id   := First_Actual (N);
+         Actual_Type : constant Entity_Id := Etype (Actual);
+         Formal_Type : constant Entity_Id := Etype (First_Formal (Nam));
+         New_Actual  : Node_Id;
 
       begin
          --  Check whether the call is a prefixed call, with or without
          --  additional actuals.
 
-         if Nkind (Orig) = N_Selected_Component
-           or else
-             (Nkind (Orig) = N_Indexed_Component
-               and then Nkind (Prefix (Orig)) = N_Selected_Component
-               and then Is_Entity_Name (Prefix (Prefix (Orig)))
-               and then Is_Entity_Name (Act)
-               and then Chars (Act) = Chars (Prefix (Prefix (Orig))))
-         then
-            if Is_Access_Type (A_Type)
-              and then not Is_Access_Type (F_Type)
+         if Is_Expanded_Prefixed_Call (N) then
+
+            --  Introduce dereference on object in prefix
+
+            if Is_Access_Type (Actual_Type)
+              and then not Is_Access_Type (Formal_Type)
             then
-               --  Introduce dereference on object in prefix
+               New_Actual :=
+                 Make_Explicit_Dereference (Sloc (Actual),
+                   Prefix => Relocate_Node (Actual));
+               Rewrite (Actual, New_Actual);
+               Analyze (Actual);
 
-               New_A :=
-                 Make_Explicit_Dereference (Sloc (Act),
-                   Prefix => Relocate_Node (Act));
-               Rewrite (Act, New_A);
-               Analyze (Act);
+            --  Conversely, if the formal is an access parameter and the object
+            --  is not an access type or a reference type (i.e. a type with the
+            --  Implicit_Dereference aspect specified), add an implicit 'Access
+            --  to the prefix. Its analysis will check that the object is
+            --  aliased.
 
-            elsif Is_Access_Type (F_Type)
-              and then not Is_Access_Type (A_Type)
+            elsif Is_Access_Type (Formal_Type)
+              and then not Is_Access_Type (Actual_Type)
+              and then (not Has_Implicit_Dereference (Actual_Type)
+                or else
+                  not Is_Access_Type
+                        (Designated_Type
+                           (Etype (Get_Reference_Discriminant (Actual_Type)))))
             then
-               --  Introduce an implicit 'Access in prefix
-
-               if not Is_Aliased_View (Act) then
-                  Error_Msg_NE
-                    ("object in prefixed call to& must be aliased "
-                     & "(RM 4.1.3 (13 1/2))",
-                    Prefix (Act), Nam);
-               end if;
-
-               Rewrite (Act,
+               Rewrite (Actual,
                  Make_Attribute_Reference (Loc,
                    Attribute_Name => Name_Access,
-                   Prefix         => Relocate_Node (Act)));
+                   Prefix         => Relocate_Node (Actual)));
+               Analyze (Actual);
             end if;
-
-            Analyze (Act);
          end if;
       end Check_Prefixed_Call;
 
@@ -4388,6 +4485,17 @@ package body Sem_Res is
                   Resolve (Expression (A));
                end if;
 
+               --  In GNATprove mode, add a range check flag on scalar
+               --  conversions for IN OUT parameters. The check may be
+               --  needed on entry from the call.
+
+               if GNATprove_Mode
+                 and then Ekind (F) = E_In_Out_Parameter
+                 and then Is_Scalar_Type (Etype (F))
+               then
+                  Set_Do_Range_Check (Expression (A));
+               end if;
+
             --  If the actual is a function call that returns a limited
             --  unconstrained object that needs finalization, create a
             --  transient scope for it, so that it can receive the proper
@@ -4577,14 +4685,65 @@ package body Sem_Res is
             A_Typ := Etype (A);
             F_Typ := Etype (F);
 
-            --  An actual cannot be an untagged formal incomplete type
+            --  If A_Typ is complete and F_Typ is not, then adjust F_Typ
+
+            if Ekind (F_Typ) = E_Incomplete_Type
+              and then Present (Full_View (F_Typ))
+              and then not Is_Incomplete_Type (A_Typ)
+            then
+               F_Typ := Full_View (F_Typ);
+            end if;
+
+            --  An actual cannot be of an untagged incomplete view; the result
+            --  object of a function call cannot be of an incomplete view
+            --  (RM 3.10.1(10)).
 
             if Ekind (A_Typ) = E_Incomplete_Type
-              and then not Is_Tagged_Type (A_Typ)
-              and then Is_Generic_Type (A_Typ)
+              and then (Nkind (A) = N_Function_Call
+                          or else not Is_Tagged_Type (A_Typ))
             then
-               Error_Msg_N
-                 ("invalid use of untagged formal incomplete type", A);
+               --  No error if the call is placed in the initializing
+               --  expression of a component of the full-view of the
+               --  incomplete type. For example:
+
+               --    type T;
+               --    function F (Obj : T) return Integer;
+
+               --    type T is record
+               --       Data : Integer := F (T);
+               --    end record;
+
+               if Present (Full_View (A_Typ))
+                 and then Full_View (A_Typ) = Current_Scope
+                 and then In_Spec_Expression
+                 and then In_Default_Expr
+               then
+                  null;
+
+               --  No error if the call is performed in pre/postconditions, and
+               --  it is an incomplete type of a limited-with clause.
+
+               elsif From_Limited_With (A_Typ)
+                 and then Present (Non_Limited_View (A_Typ))
+                 and then Is_Subprogram (Current_Scope)
+                 and then
+                   (In_Spec_Expression
+                      or else
+                    Present (Class_Preconditions_Subprogram (Current_Scope)))
+               then
+                  null;
+
+               elsif Is_Generic_Type (A_Typ) then
+                  if Is_Tagged_Type (A_Typ) then
+                     Error_Msg_N
+                       ("invalid use of tagged formal incomplete type", A);
+                  else
+                     Error_Msg_N
+                       ("invalid use of untagged formal incomplete type", A);
+                  end if;
+               else
+                  Check_Fully_Declared (A_Typ, A);
+               end if;
             end if;
 
             --  For mode IN, if actual is an entity, and the type of the formal
@@ -4803,6 +4962,31 @@ package body Sem_Res is
                         Reason => CE_Null_Not_Allowed);
                   end if;
                end if;
+
+               --  In a prefixed call, if the prefix is an access type
+               --  it cannot be null.
+
+               if Is_Access_Type (F_Typ)
+                 and then A = First_Actual (N)
+                 and then Is_Expanded_Prefixed_Call (N)
+               then
+                  if not Is_Access_Type (A_Typ)
+                    and then not Is_Aliased_View (A)
+                  then
+                     Error_Msg_NE
+                       ("object in prefixed call to& must be aliased "
+                        & "(RM 4.1.3 (13 1/2))",
+                       A, Nam);
+                  end if;
+
+                  if not Debug_Flag_Underscore_PP
+                    and then
+                      (Is_Controlling_Formal (F)
+                         or else Is_Class_Wide_Type (Designated_Type (F_Typ)))
+                  then
+                     Install_Null_Excluding_Check (A);
+                  end if;
+               end if;
             end if;
 
             --  Checks for OUT parameters and IN OUT parameters
@@ -4980,12 +5164,21 @@ package body Sem_Res is
             --  Skip this check on helpers and indirect-call wrappers built to
             --  support class-wide preconditions.
 
+            --  We make special exception here for mutably tagged types and
+            --  related calls to their initialization procedures.
+
             if (Is_Class_Wide_Type (A_Typ) or else Is_Dynamically_Tagged (A))
               and then not Is_Class_Wide_Type (F_Typ)
               and then not Is_Controlling_Formal (F)
               and then not In_Instance
               and then (not Is_Subprogram (Nam)
                          or else No (Class_Preconditions_Subprogram (Nam)))
+
+              --  Ignore mutably tagged types and their use in calls to init
+              --  procs.
+
+              and then not Is_Mutably_Tagged_CW_Equivalent_Type (A_Typ)
+              and then not Is_Init_Proc (Nam)
             then
                Error_Msg_N ("class-wide argument not allowed here!", A);
 
@@ -5628,13 +5821,13 @@ package body Sem_Res is
               and then Nkind (Associated_Node_For_Itype (Typ)) =
                          N_Discriminant_Specification
             then
+               Check_Restriction (No_Coextensions, N);
+
                declare
                   Discr : constant Entity_Id :=
                     Defining_Identifier (Associated_Node_For_Itype (Typ));
 
                begin
-                  Check_Restriction (No_Coextensions, N);
-
                   --  Ada 2012 AI05-0052: If the designated type of the
                   --  allocator is limited, then the allocator shall not
                   --  be used to define the value of an access discriminant
@@ -7329,11 +7522,12 @@ package body Sem_Res is
                     ("cannot inline & (in while loop condition)?", N, Nam_UA);
 
                --  Do not inline calls which would possibly lead to missing a
-               --  type conversion check on an input parameter.
+               --  type conversion check on an input parameter or a memory leak
+               --  on an output parameter.
 
                elsif not Call_Can_Be_Inlined_In_GNATprove_Mode (N, Nam) then
                   Cannot_Inline
-                    ("cannot inline & (possible check on input parameters)?",
+                    ("cannot inline & (possible check on parameters)?",
                      N, Nam_UA);
 
                --  Otherwise, inline the call, issuing an info message when
@@ -7383,6 +7577,9 @@ package body Sem_Res is
          if Is_Scalar_Type (Alt_Typ) and then Alt_Typ /= Typ then
             Rewrite (Alt_Expr, Convert_To (Typ, Alt_Expr));
             Analyze_And_Resolve (Alt_Expr, Typ);
+
+         elsif Is_Array_Type (Typ) then
+            Apply_Length_Check (Alt_Expr, Typ);
          end if;
 
          Next (Alt);
@@ -7614,7 +7811,6 @@ package body Sem_Res is
    --  Start of processing for Resolve_Declare_Expression
 
    begin
-
       Decl := First (Actions (N));
 
       while Present (Decl) loop
@@ -7951,7 +8147,7 @@ package body Sem_Res is
            and then Comes_From_Source (E)
            and then No (Constant_Value (E))
            and then Is_Frozen (Etype (E))
-           and then not In_Spec_Expression
+           and then not Preanalysis_Active
            and then not Is_Imported (E)
            and then Nkind (Parent (E)) /= N_Object_Renaming_Declaration
          then
@@ -9289,6 +9485,15 @@ package body Sem_Res is
    end Resolve_Expression_With_Actions;
 
    ----------------------------------
+   -- Resolve_External_Initializer --
+   ----------------------------------
+
+   procedure Resolve_External_Initializer (N : Node_Id; Typ : Entity_Id) is
+   begin
+      Set_String_Literal_Subtype (N, Typ);
+   end Resolve_External_Initializer;
+
+   ----------------------------------
    -- Resolve_Generalized_Indexing --
    ----------------------------------
 
@@ -9558,7 +9763,9 @@ package body Sem_Res is
             Resolve (Expr, Etype (Index));
             Check_Unset_Reference (Expr);
 
-            Apply_Scalar_Range_Check (Expr, Etype (Index));
+            if not Kill_Range_Check (N) then
+               Apply_Scalar_Range_Check (Expr, Etype (Index));
+            end if;
 
             Next_Index (Index);
             Next (Expr);
@@ -9586,7 +9793,7 @@ package body Sem_Res is
       --  object, or partial word accesses, both of which may be unexpected.
 
       if Nkind (N) = N_Indexed_Component
-        and then Is_Atomic_Ref_With_Address (N)
+        and then Is_Atomic_Non_VFA_Ref_With_Address (N)
         and then not (Has_Atomic_Components (Array_Type)
                        or else (Is_Entity_Name (Pref)
                                  and then Has_Atomic_Components
@@ -9630,8 +9837,19 @@ package body Sem_Res is
          --  image function because under Ada 2022 all the types have such
          --  function available.
 
-         if Etype (Str_Elem) = Any_String then
+         if Nkind (Str_Elem) = N_String_Literal
+           and then Is_Interpolated_String_Literal (Str_Elem)
+         then
             Resolve (Str_Elem, Typ);
+
+         --  Must have been rejected during analysis
+
+         elsif Nkind (Str_Elem) in N_Character_Literal
+                                 | N_Integer_Literal
+                                 | N_Real_Literal
+                                 | N_String_Literal
+         then
+            pragma Assert (Error_Posted (Str_Elem));
          end if;
 
          Next (Str_Elem);
@@ -9702,11 +9920,30 @@ package body Sem_Res is
          return;
       end if;
 
-      Op := Entity (N);
-      while Scope (Op) /= Standard_Standard loop
-         Op := Homonym (Op);
-         pragma Assert (Present (Op));
-      end loop;
+      case N_Binary_Op'(Nkind (N)) is
+         when N_Op_Add =>
+            Op := Standard_Op_Add;
+         when N_Op_Expon =>
+            Op := Standard_Op_Expon;
+         when N_Op_Subtract =>
+            Op := Standard_Op_Subtract;
+         when N_Op_Divide =>
+            Op := Standard_Op_Divide;
+         when N_Op_Mod =>
+            Op := Standard_Op_Mod;
+         when N_Op_Multiply =>
+            Op := Standard_Op_Multiply;
+         when N_Op_Rem =>
+            Op := Standard_Op_Rem;
+
+         --  Non-arithmetic operators are handled elsewhere
+
+         when N_Op_Boolean
+            | N_Op_Concat
+            | N_Op_Shift
+         =>
+            raise Program_Error;
+      end case;
 
       Set_Entity (N, Op);
       Set_Is_Overloaded (N, False);
@@ -9789,11 +10026,26 @@ package body Sem_Res is
       Arg2 : Node_Id;
 
    begin
-      Op := Entity (N);
-      while Scope (Op) /= Standard_Standard loop
-         Op := Homonym (Op);
-         pragma Assert (Present (Op));
-      end loop;
+      --  We must preserve the original entity in a generic setting, so that
+      --  the legality of the operation can be verified in an instance.
+
+      if not Expander_Active then
+         return;
+      end if;
+
+      case N_Unary_Op'(Nkind (N)) is
+         when N_Op_Abs =>
+            Op := Standard_Op_Abs;
+         when N_Op_Minus =>
+            Op := Standard_Op_Minus;
+         when N_Op_Plus =>
+            Op := Standard_Op_Plus;
+
+         --  Non-arithmetic operators are handled elsewhere
+
+         when N_Op_Not =>
+            raise Program_Error;
+      end case;
 
       Set_Entity (N, Op);
 
@@ -11351,7 +11603,7 @@ package body Sem_Res is
          --  the atomic object, or partial word accesses, both of which may be
          --  unexpected.
 
-         if Is_Atomic_Ref_With_Address (N)
+         if Is_Atomic_Non_VFA_Ref_With_Address (N)
            and then not Is_Atomic (Entity (S))
            and then not Is_Atomic (Etype (Entity (S)))
            and then Ada_Version < Ada_2022
@@ -11406,10 +11658,10 @@ package body Sem_Res is
       --  Ensure all actions associated with the left operand (e.g.
       --  finalization of transient objects) are fully evaluated locally within
       --  an expression with actions. This is particularly helpful for coverage
-      --  analysis. However this should not happen in generics or if option
-      --  Minimize_Expression_With_Actions is set.
+      --  analysis at the object level. However this should not happen in
+      --  generics.
 
-      if Expander_Active and not Minimize_Expression_With_Actions then
+      if Expander_Active then
          declare
             Reloc_L : constant Node_Id := Relocate_Node (L);
          begin
@@ -12137,7 +12389,7 @@ package body Sem_Res is
 
             if Nkind (Rop) = N_Real_Literal
               and then Realval (Rop) /= Ureal_0
-              and then abs (Realval (Rop)) < Delta_Value (Standard_Duration)
+              and then abs Realval (Rop) < Delta_Value (Standard_Duration)
             then
                Error_Msg_N
                  ("??universal real operand can only "
@@ -12441,23 +12693,6 @@ package body Sem_Res is
       then
          Set_Do_Range_Check (Operand);
       end if;
-
-      --  Generating C code a type conversion of an access to constrained
-      --  array type to access to unconstrained array type involves building
-      --  a fat pointer which in general cannot be generated on the fly. We
-      --  remove side effects in order to store the result of the conversion
-      --  into a temporary.
-
-      if Modify_Tree_For_C
-        and then Nkind (N) = N_Type_Conversion
-        and then Nkind (Parent (N)) /= N_Object_Declaration
-        and then Is_Access_Type (Etype (N))
-        and then Is_Array_Type (Designated_Type (Etype (N)))
-        and then not Is_Constrained (Designated_Type (Etype (N)))
-        and then Is_Constrained (Designated_Type (Etype (Expression (N))))
-      then
-         Remove_Side_Effects (N);
-      end if;
    end Resolve_Type_Conversion;
 
    ----------------------
@@ -12670,19 +12905,6 @@ package body Sem_Res is
          end if;
       end;
    end Resolve_Unary_Op;
-
-   ----------------------------------
-   -- Resolve_Unchecked_Expression --
-   ----------------------------------
-
-   procedure Resolve_Unchecked_Expression
-     (N   : Node_Id;
-      Typ : Entity_Id)
-   is
-   begin
-      Resolve (Expression (N), Typ, Suppress => All_Checks);
-      Set_Etype (N, Typ);
-   end Resolve_Unchecked_Expression;
 
    ---------------------------------------
    -- Resolve_Unchecked_Type_Conversion --
@@ -12957,16 +13179,23 @@ package body Sem_Res is
       Loc        : constant Source_Ptr := Sloc (N);
       Low_Bound  : constant Node_Id :=
                      Type_Low_Bound (Etype (First_Index (Typ)));
+      Length     : constant Nat :=
+        (case Nkind (N) is
+          when N_String_Literal => String_Length (Strval (N)),
+          --  Sinput.Source_Last points to an EOF character that's not in the
+          --  original file and we do not include that character.
+          when N_External_Initializer => Nat (
+            Source_Last (File_Index (N)) - Source_First (File_Index (N))),
+          when others => 0);
       Subtype_Id : Entity_Id;
 
    begin
-      if Nkind (N) /= N_String_Literal then
+      if Nkind (N) not in N_String_Literal | N_External_Initializer then
          return;
       end if;
 
       Subtype_Id := Create_Itype (E_String_Literal_Subtype, N);
-      Set_String_Literal_Length (Subtype_Id, UI_From_Int
-                                               (String_Length (Strval (N))));
+      Set_String_Literal_Length (Subtype_Id, UI_From_Int (Length));
       Set_Etype          (Subtype_Id, Base_Type (Typ));
       Set_Is_Constrained (Subtype_Id);
       Set_Etype          (N, Subtype_Id);
@@ -12988,7 +13217,6 @@ package body Sem_Res is
 
       else
          declare
-            Length        : constant Nat := String_Length (Strval (N));
             Index_List    : constant List_Id   := New_List;
             Index_Type    : constant Entity_Id := Etype (First_Index (Typ));
             Array_Subtype : Entity_Id;
@@ -13403,6 +13631,117 @@ package body Sem_Res is
       return T1;
    end Unique_Fixed_Point_Type;
 
+   --------------------------
+   -- Is_Ambiguous_Operand --
+   --------------------------
+
+   function Is_Ambiguous_Operand
+     (Operand        : Node_Id;
+      In_Interp_Expr : Boolean := False;
+      Report_Errors  : Boolean := True) return Boolean
+   is
+      I         : Interp_Index;
+      I1        : Interp_Index;
+      It        : Interp;
+      It1       : Interp;
+      N1        : Entity_Id;
+      Opnd_Type : Entity_Id;
+      T1        : Entity_Id;
+
+   begin
+      pragma Assert (Is_Overloaded (Operand));
+
+      --  Procedure calls are not valid in this context, but were not removed
+      --  by prior type-checking because the context does not impose a specific
+      --  type. Remove them now.
+
+      --  The node may be labelled overloaded, but still contain only one
+      --  interpretation because others were discarded earlier. If this is
+      --  the case, retain the single interpretation if legal.
+
+      Get_First_Interp (Operand, I, It);
+      Opnd_Type := It.Typ;
+      Get_Next_Interp (I, It);
+
+      if Present (It.Typ)
+        and then Opnd_Type /= Standard_Void_Type
+      then
+         --  More than one candidate interpretation is available
+
+         Get_First_Interp (Operand, I, It);
+         while Present (It.Nam) loop
+            if It.Typ = Standard_Void_Type then
+               Remove_Interp (I);
+            end if;
+
+            --  When compiling for a system where Address is of a visible
+            --  integer type, spurious ambiguities can be produced when
+            --  arithmetic operations have a literal operand and return
+            --  System.Address or a descendant of it. These ambiguities
+            --  are usually resolved by the context, but for conversions
+            --  there is no context type and the removal of the spurious
+            --  operations must be done explicitly here.
+
+            if not Address_Is_Private
+              and then Is_Descendant_Of_Address (It.Typ)
+            then
+               Remove_Interp (I);
+            end if;
+
+            Get_Next_Interp (I, It);
+         end loop;
+      end if;
+
+      Get_First_Interp (Operand, I, It);
+
+      if No (It.Nam) then
+         if In_Interp_Expr then
+            Report_Error_N
+              ("illegal expression", Operand, Report_Errors);
+         else
+            Report_Error_N
+              ("illegal operand in conversion", Operand, Report_Errors);
+         end if;
+
+         return True;
+      end if;
+
+      I1  := I;
+      It1 := It;
+
+      --  The node may be labeled overloaded, but still contain only
+      --  one interpretation because others were discarded earlier.
+
+      Get_Next_Interp (I, It);
+
+      if Present (It.Typ) then
+         N1  := It1.Nam;
+         T1  := It1.Typ;
+         It1 := Disambiguate (Operand, I1, I, Any_Type);
+
+         if It1 = No_Interp then
+            if In_Interp_Expr then
+               Report_Error_NE
+                 ("ambiguous call to&", Operand, Entity (Name (Operand)),
+                  Report_Errors);
+            else
+               Report_Error_N
+                 ("ambiguous operand in conversion", Operand, Report_Errors);
+            end if;
+
+            --  Report the first two interpretations
+
+            Report_Interpretation (Operand, It.Nam, It.Typ);
+            Report_Interpretation (Operand, N1, T1);
+
+            return True;
+         end if;
+      end if;
+
+      Set_Etype (Operand, It1.Typ);
+      return False;
+   end Is_Ambiguous_Operand;
+
    ----------------------
    -- Valid_Conversion --
    ----------------------
@@ -13414,22 +13753,13 @@ package body Sem_Res is
       Report_Errs : Boolean := True) return Boolean
    is
       Target_Type  : constant Entity_Id := Base_Type (Target);
-      Opnd_Type    : Entity_Id          := Etype (Operand);
+      Opnd_Type    : Entity_Id;
       Inc_Ancestor : Entity_Id;
 
       function Conversion_Check
         (Valid : Boolean;
          Msg   : String) return Boolean;
       --  Little routine to post Msg if Valid is False, returns Valid value
-
-      procedure Conversion_Error_N (Msg : String; N : Node_Or_Entity_Id);
-      --  If Report_Errs, then calls Errout.Error_Msg_N with its arguments
-
-      procedure Conversion_Error_NE
-        (Msg : String;
-         N   : Node_Or_Entity_Id;
-         E   : Node_Or_Entity_Id);
-      --  If Report_Errs, then calls Errout.Error_Msg_NE with its arguments
 
       function In_Instance_Code return Boolean;
       --  Return True if expression is within an instance but is not in one of
@@ -13480,37 +13810,11 @@ package body Sem_Res is
 
            and then not In_Instance_Code
          then
-            Conversion_Error_N (Msg, Operand);
+            Report_Error_N (Msg, Operand, Report_Errs);
          end if;
 
          return Valid;
       end Conversion_Check;
-
-      ------------------------
-      -- Conversion_Error_N --
-      ------------------------
-
-      procedure Conversion_Error_N (Msg : String; N : Node_Or_Entity_Id) is
-      begin
-         if Report_Errs then
-            Error_Msg_N (Msg, N);
-         end if;
-      end Conversion_Error_N;
-
-      -------------------------
-      -- Conversion_Error_NE --
-      -------------------------
-
-      procedure Conversion_Error_NE
-        (Msg : String;
-         N   : Node_Or_Entity_Id;
-         E   : Node_Or_Entity_Id)
-      is
-      begin
-         if Report_Errs then
-            Error_Msg_NE (Msg, N, E);
-         end if;
-      end Conversion_Error_NE;
 
       ----------------------
       -- In_Instance_Code --
@@ -13643,8 +13947,9 @@ package body Sem_Res is
          if
            Number_Dimensions (Target_Type) /= Number_Dimensions (Opnd_Type)
          then
-            Conversion_Error_N
-              ("incompatible number of dimensions for conversion", Operand);
+            Report_Error_N
+              ("incompatible number of dimensions for conversion", Operand,
+               Report_Errs);
             return False;
 
          --  Number of dimensions matches
@@ -13665,9 +13970,9 @@ package body Sem_Res is
                  and then Root_Type (Target_Index_Type)
                           /= Root_Type (Opnd_Index_Type)
                then
-                  Conversion_Error_N
+                  Report_Error_N
                     ("incompatible index types for array conversion",
-                     Operand);
+                     Operand, Report_Errs);
                   return False;
                end if;
 
@@ -13700,10 +14005,11 @@ package body Sem_Res is
                then
                   if In_Instance_Body then
                      Error_Msg_Warn := SPARK_Mode /= On;
-                     Conversion_Error_N
+                     Report_Error_N
                        ("source array type has deeper accessibility "
-                        & "level than target<<", Operand);
-                     Conversion_Error_N ("\Program_Error [<<", Operand);
+                        & "level than target<<", Operand, Report_Errs);
+                     Report_Error_N
+                       ("\Program_Error [<<", Operand, Report_Errs);
                      Rewrite (N,
                        Make_Raise_Program_Error (Sloc (N),
                          Reason => PE_Accessibility_Check_Failed));
@@ -13713,9 +14019,9 @@ package body Sem_Res is
                   --  Conversion not allowed because of accessibility levels
 
                   else
-                     Conversion_Error_N
+                     Report_Error_N
                        ("source array type has deeper accessibility "
-                        & "level than target", Operand);
+                        & "level than target", Operand, Report_Errs);
                      return False;
                   end if;
 
@@ -13726,9 +14032,9 @@ package body Sem_Res is
             --  All other cases where component base types do not match
 
             else
-               Conversion_Error_N
+               Report_Error_N
                  ("incompatible component types for array conversion",
-                  Operand);
+                  Operand, Report_Errs);
                return False;
             end if;
 
@@ -13740,8 +14046,9 @@ package body Sem_Res is
             if not Subtypes_Statically_Match
                      (Target_Comp_Type, Opnd_Comp_Type)
             then
-               Conversion_Error_N
-                 ("component subtypes must statically match", Operand);
+               Report_Error_N
+                 ("component subtypes must statically match", Operand,
+                  Report_Errs);
                return False;
             end if;
          end if;
@@ -13776,6 +14083,13 @@ package body Sem_Res is
          elsif Covers (Opnd_Type, Target_Type)
            or else Is_Ancestor (Opnd_Type, Target_Type)
          then
+            --  Deal with non-extension derivation involving an
+            --  untagged view of a tagged type.
+
+            if not Is_Tagged_Type (Target_Type) then
+               return True;
+            end if;
+
             return
               Conversion_Check (False,
                 "downward conversion of tagged objects not allowed");
@@ -13804,9 +14118,9 @@ package body Sem_Res is
          then
             Error_Msg_Name_1 := Chars (Etype (Target_Type));
             Error_Msg_Name_2 := Chars (Opnd_Type);
-            Conversion_Error_N
+            Report_Error_N
               ("wrong interface conversion (% is not a progenitor "
-               & "of %)", N);
+               & "of %)", N, Report_Errs);
             return False;
 
          elsif Is_Class_Wide_Type (Opnd_Type)
@@ -13818,9 +14132,9 @@ package body Sem_Res is
          then
             Error_Msg_Name_1 := Chars (Etype (Opnd_Type));
             Error_Msg_Name_2 := Chars (Target_Type);
-            Conversion_Error_N
+            Report_Error_N
               ("wrong interface conversion (% is not a progenitor "
-               & "of %)", N);
+               & "of %)", N, Report_Errs);
 
             --  Search for interface types shared between the target type and
             --  the operand interface type to complete the text of the error
@@ -13853,13 +14167,14 @@ package body Sem_Res is
 
                            if First_Candidate then
                               First_Candidate := False;
-                              Conversion_Error_N
+                              Report_Error_N
                                 ("\must convert to `%''Class` before downward "
-                                 & "conversion", Operand);
+                                 & "conversion", Operand, Report_Errs);
                            else
-                              Conversion_Error_N
+                              Report_Error_N
                                 ("\or must convert to `%''Class` before "
-                                 & "downward conversion", Operand);
+                                 & "downward conversion",
+                                 Operand, Report_Errs);
                            end if;
                         end if;
 
@@ -13876,24 +14191,26 @@ package body Sem_Res is
          elsif not Is_Class_Wide_Type (Target_Type)
            and then Is_Interface (Target_Type)
          then
-            Conversion_Error_N
-              ("wrong use of interface type in tagged conversion", N);
-            Conversion_Error_N
-              ("\add ''Class to the target interface type", N);
+            Report_Error_N
+              ("wrong use of interface type in tagged conversion",
+               N, Report_Errs);
+            Report_Error_N
+              ("\add ''Class to the target interface type",
+               N, Report_Errs);
             return False;
 
          elsif not Is_Class_Wide_Type (Opnd_Type)
            and then Is_Interface (Opnd_Type)
          then
-            Conversion_Error_N
+            Report_Error_N
               ("must convert to class-wide interface type before downward "
-               & "conversion", Operand);
+               & "conversion", Operand, Report_Errs);
             return False;
 
          else
-            Conversion_Error_NE
+            Report_Error_NE
               ("invalid tagged conversion, not compatible with}",
-               N, First_Subtype (Opnd_Type));
+               N, First_Subtype (Opnd_Type), Report_Errs);
             return False;
          end if;
       end Valid_Tagged_Conversion;
@@ -13903,106 +14220,18 @@ package body Sem_Res is
    begin
       Check_Parameterless_Call (Operand);
 
-      if Is_Overloaded (Operand) then
-         declare
-            I   : Interp_Index;
-            I1  : Interp_Index;
-            It  : Interp;
-            It1 : Interp;
-            N1  : Entity_Id;
-            T1  : Entity_Id;
-
-         begin
-            --  Remove procedure calls, which syntactically cannot appear in
-            --  this context, but which cannot be removed by type checking,
-            --  because the context does not impose a type.
-
-            --  The node may be labelled overloaded, but still contain only one
-            --  interpretation because others were discarded earlier. If this
-            --  is the case, retain the single interpretation if legal.
-
-            Get_First_Interp (Operand, I, It);
-            Opnd_Type := It.Typ;
-            Get_Next_Interp (I, It);
-
-            if Present (It.Typ)
-              and then Opnd_Type /= Standard_Void_Type
-            then
-               --  More than one candidate interpretation is available
-
-               Get_First_Interp (Operand, I, It);
-               while Present (It.Typ) loop
-                  if It.Typ = Standard_Void_Type then
-                     Remove_Interp (I);
-                  end if;
-
-                  --  When compiling for a system where Address is of a visible
-                  --  integer type, spurious ambiguities can be produced when
-                  --  arithmetic operations have a literal operand and return
-                  --  System.Address or a descendant of it. These ambiguities
-                  --  are usually resolved by the context, but for conversions
-                  --  there is no context type and the removal of the spurious
-                  --  operations must be done explicitly here.
-
-                  if not Address_Is_Private
-                    and then Is_Descendant_Of_Address (It.Typ)
-                  then
-                     Remove_Interp (I);
-                  end if;
-
-                  Get_Next_Interp (I, It);
-               end loop;
-            end if;
-
-            Get_First_Interp (Operand, I, It);
-            I1  := I;
-            It1 := It;
-
-            if No (It.Typ) then
-               Conversion_Error_N ("illegal operand in conversion", Operand);
-               return False;
-            end if;
-
-            Get_Next_Interp (I, It);
-
-            if Present (It.Typ) then
-               N1  := It1.Nam;
-               T1  := It1.Typ;
-               It1 := Disambiguate (Operand, I1, I, Any_Type);
-
-               if It1 = No_Interp then
-                  Conversion_Error_N
-                    ("ambiguous operand in conversion", Operand);
-
-                  --  If the interpretation involves a standard operator, use
-                  --  the location of the type, which may be user-defined.
-
-                  if Sloc (It.Nam) = Standard_Location then
-                     Error_Msg_Sloc := Sloc (It.Typ);
-                  else
-                     Error_Msg_Sloc := Sloc (It.Nam);
-                  end if;
-
-                  Conversion_Error_N -- CODEFIX
-                    ("\\possible interpretation#!", Operand);
-
-                  if Sloc (N1) = Standard_Location then
-                     Error_Msg_Sloc := Sloc (T1);
-                  else
-                     Error_Msg_Sloc := Sloc (N1);
-                  end if;
-
-                  Conversion_Error_N -- CODEFIX
-                    ("\\possible interpretation#!", Operand);
-
-                  return False;
-               end if;
-            end if;
-
-            Set_Etype (Operand, It1.Typ);
-            Opnd_Type := It1.Typ;
-         end;
+      if Is_Overloaded (Operand)
+        and then Is_Ambiguous_Operand (Operand)
+      then
+         return False;
       end if;
+
+      --  When we encounter a class-wide equivalent type used to represent
+      --  a fully sized mutably tagged type, pretend we are actually looking
+      --  at the class-wide mutably tagged type instead.
+
+      Opnd_Type :=
+        Get_Corresponding_Mutably_Tagged_Type_If_Present (Etype (Operand));
 
       --  Deal with conversion of integer type to address if the pragma
       --  Allow_Integer_Address is in effect. We convert the conversion to
@@ -14063,8 +14292,15 @@ package body Sem_Res is
            or else Opnd_Type = Any_Composite
            or else Opnd_Type = Any_String
          then
-            Conversion_Error_N
-              ("illegal operand for array conversion", Operand);
+            if not Comes_From_Source (N)
+              and then Implementation_Base_Type (Target_Type) =
+                       Implementation_Base_Type (Opnd_Type)
+            then
+               return True;
+            end if;
+
+            Report_Error_N
+              ("illegal operand for array conversion", Operand, Report_Errs);
             return False;
 
          else
@@ -14109,15 +14345,15 @@ package body Sem_Res is
 
                if In_Instance_Body then
                   Error_Msg_Warn := SPARK_Mode /= On;
-                  Conversion_Error_N
+                  Report_Error_N
                     ("cannot convert local pointer to non-local access type<<",
-                     Operand);
-                  Conversion_Error_N ("\Program_Error [<<", Operand);
+                     Operand, Report_Errs);
+                  Report_Error_N ("\Program_Error [<<", Operand, Report_Errs);
 
                else
-                  Conversion_Error_N
+                  Report_Error_N
                     ("cannot convert local pointer to non-local access type",
-                     Operand);
+                     Operand, Report_Errs);
                   return False;
                end if;
 
@@ -14143,17 +14379,18 @@ package body Sem_Res is
 
                   if In_Instance_Body then
                      Error_Msg_Warn := SPARK_Mode /= On;
-                     Conversion_Error_N
+                     Report_Error_N
                        ("cannot convert access discriminant to non-local "
-                        & "access type<<", Operand);
-                     Conversion_Error_N ("\Program_Error [<<", Operand);
+                        & "access type<<", Operand, Report_Errs);
+                     Report_Error_N
+                       ("\Program_Error [<<", Operand, Report_Errs);
 
                   --  Real error if not in instance body
 
                   else
-                     Conversion_Error_N
+                     Report_Error_N
                        ("cannot convert access discriminant to non-local "
-                        & "access type", Operand);
+                        & "access type", Operand, Report_Errs);
                      return False;
                   end if;
                end if;
@@ -14170,9 +14407,9 @@ package body Sem_Res is
                    Ekind (Entity (Operand)) in E_In_Parameter | E_Constant
                  and then Present (Discriminal_Link (Entity (Operand)))
                then
-                  Conversion_Error_N
+                  Report_Error_N
                     ("discriminant has deeper accessibility level than target",
-                     Operand);
+                     Operand, Report_Errs);
                   return False;
                end if;
             end if;
@@ -14196,10 +14433,42 @@ package body Sem_Res is
          if Is_Access_Constant (Opnd_Type)
            and then not Is_Access_Constant (Target_Type)
          then
-            Conversion_Error_N
-              ("access-to-constant operand type not allowed", Operand);
+            Report_Error_N
+              ("access-to-constant operand type not allowed",
+               Operand, Report_Errs);
             return False;
          end if;
+
+         declare
+            Extended_Opnd : constant Boolean :=
+              Is_Extended_Access_Type (Opnd_Type);
+            Extended_Target : constant Boolean :=
+              Is_Extended_Access_Type (Target_Type);
+         begin
+            --  An extended access value may designate objects that are
+            --  impossible to reference using a non-extended type, so
+            --  prohibit conversions that would require being able to
+            --  do the impossible.
+
+            if Extended_Opnd then
+               if not Extended_Target then
+                  Report_Error_N
+                    ("cannot convert extended access value"
+                     & " to non-extended access type",
+                     Operand, Report_Errs);
+                  return False;
+               end if;
+
+            --  Detect bad conversion on copy back for a view conversion
+
+            elsif Extended_Target and then Is_View_Conversion (N) then
+               Report_Error_N
+                 ("cannot convert non-extended value"
+                  & " to extended access type in view conversion",
+                  Operand);
+               return False;
+            end if;
+         end;
 
          --  Check the static accessibility rule of 4.6(17). Note that the
          --  check is not enforced when within an instance body, since the RM
@@ -14247,8 +14516,10 @@ package body Sem_Res is
                      if Type_Access_Level (Opnd_Type)
                           > Deepest_Type_Access_Level (Target_Type)
                      then
-                        Conversion_Error_N
-                          ("operand has deeper level than target", Operand);
+                        Report_Error_N
+                          ("operand has deeper level than target", Operand,
+                           Report_Errs);
+                        return False;
                      end if;
 
                   --  Implicit conversions aren't allowed for objects of an
@@ -14258,9 +14529,9 @@ package body Sem_Res is
                   elsif Nkind (Associated_Node_For_Itype (Opnd_Type))
                           = N_Object_Declaration
                   then
-                     Conversion_Error_N
+                     Report_Error_N
                        ("implicit conversion of stand-alone anonymous "
-                        & "access object not allowed", Operand);
+                        & "access object not allowed", Operand, Report_Errs);
                      return False;
 
                   --  Implicit conversions aren't allowed for anonymous access
@@ -14273,9 +14544,9 @@ package body Sem_Res is
                                N_Procedure_Specification
                     and then Nkind (Parent (N)) not in N_Op_Eq | N_Op_Ne
                   then
-                     Conversion_Error_N
+                     Report_Error_N
                        ("implicit conversion of anonymous access parameter "
-                        & "not allowed", Operand);
+                        & "not allowed", Operand, Report_Errs);
                      return False;
 
                   --  Detect access discriminant values that are illegal
@@ -14283,9 +14554,9 @@ package body Sem_Res is
 
                   elsif Is_Discrim_Of_Bad_Access_Conversion_Argument (Operand)
                   then
-                     Conversion_Error_N
+                     Report_Error_N
                        ("implicit conversion of anonymous access value "
-                        & "not allowed", Operand);
+                        & "not allowed", Operand, Report_Errs);
                      return False;
 
                   --  In other cases, the level of the operand's type must be
@@ -14295,9 +14566,9 @@ package body Sem_Res is
                   elsif Type_Access_Level (Opnd_Type) >
                     Deepest_Type_Access_Level (Target_Type)
                   then
-                     Conversion_Error_N
+                     Report_Error_N
                        ("implicit conversion of anonymous access value "
-                        & "violates accessibility", Operand);
+                        & "violates accessibility", Operand, Report_Errs);
                      return False;
                   end if;
                end if;
@@ -14333,10 +14604,10 @@ package body Sem_Res is
 
                if In_Instance_Body then
                   Error_Msg_Warn := SPARK_Mode /= On;
-                  Conversion_Error_N
+                  Report_Error_N
                     ("cannot convert local pointer to non-local access type<<",
-                     Operand);
-                  Conversion_Error_N ("\Program_Error [<<", Operand);
+                     Operand, Report_Errs);
+                  Report_Error_N ("\Program_Error [<<", Operand, Report_Errs);
 
                --  If not in an instance body, this is a real error
 
@@ -14344,9 +14615,9 @@ package body Sem_Res is
                   --  Avoid generation of spurious error message
 
                   if not Error_Posted (N) then
-                     Conversion_Error_N
+                     Report_Error_N
                       ("cannot convert local pointer to non-local access type",
-                       Operand);
+                       Operand, Report_Errs);
                   end if;
 
                   return False;
@@ -14374,17 +14645,18 @@ package body Sem_Res is
 
                   if In_Instance_Body then
                      Error_Msg_Warn := SPARK_Mode /= On;
-                     Conversion_Error_N
+                     Report_Error_N
                        ("cannot convert access discriminant to non-local "
-                        & "access type<<", Operand);
-                     Conversion_Error_N ("\Program_Error [<<", Operand);
+                        & "access type<<", Operand, Report_Errs);
+                     Report_Error_N
+                       ("\Program_Error [<<", Operand, Report_Errs);
 
                   --  If not in an instance body, this is a real error
 
                   else
-                     Conversion_Error_N
+                     Report_Error_N
                        ("cannot convert access discriminant to non-local "
-                        & "access type", Operand);
+                        & "access type", Operand, Report_Errs);
                      return False;
                   end if;
                end if;
@@ -14400,9 +14672,9 @@ package body Sem_Res is
                    Ekind (Entity (Operand)) in E_In_Parameter | E_Constant
                  and then Present (Discriminal_Link (Entity (Operand)))
                then
-                  Conversion_Error_N
+                  Report_Error_N
                     ("discriminant has deeper accessibility level than target",
-                     Operand);
+                     Operand, Report_Errs);
                   return False;
                end if;
             end if;
@@ -14450,9 +14722,9 @@ package body Sem_Res is
 
             else
                if not Same_Base then
-                  Conversion_Error_NE
+                  Report_Error_NE
                     ("target designated type not compatible with }",
-                     N, Base_Type (Opnd));
+                     N, Base_Type (Opnd), Report_Errs);
                   return False;
 
                --  Ada 2005 AI-384: legality rule is symmetric in both
@@ -14475,12 +14747,12 @@ package body Sem_Res is
                     and then Known_Static_RM_Size (Opnd)
                     and then RM_Size (Target) /= RM_Size (Opnd)
                   then
-                     Conversion_Error_NE
+                     Report_Error_NE
                        ("target designated subtype not compatible with }",
-                        N, Opnd);
-                     Conversion_Error_NE
+                        N, Opnd, Report_Errs);
+                     Report_Error_NE
                        ("\because sizes of the two designated subtypes differ",
-                        N, Opnd);
+                        N, Opnd, Report_Errs);
                      return False;
 
                   --  Normal case where conversion is allowed
@@ -14521,13 +14793,13 @@ package body Sem_Res is
                or else not Is_Entity_Name (Name (Parent (N)))
                or else not Is_Return_Object (Entity (Name (Parent (N)))))
          then
-            Conversion_Error_N
+            Report_Error_N
               ("illegal attempt to store anonymous access to subprogram",
-               Operand);
-            Conversion_Error_N
+               Operand, Report_Errs);
+            Report_Error_N
               ("\value has deeper accessibility than any master "
                & "(RM 3.10.2 (13))",
-               Operand);
+               Operand, Report_Errs);
 
             Error_Msg_NE
              ("\use named access type for& instead of access parameter",
@@ -14545,9 +14817,9 @@ package body Sem_Res is
          if Type_Access_Level (Opnd_Type) >
             Deepest_Type_Access_Level (Target_Type)
          then
-            Conversion_Error_N
+            Report_Error_N
               ("operand type has deeper accessibility level than target",
-               Operand);
+               Operand, Report_Errs);
 
          --  Check that if the operand type is declared in a generic body,
          --  then the target type must be declared within that same body
@@ -14567,9 +14839,9 @@ package body Sem_Res is
                end loop;
 
                if T_Gen /= O_Gen then
-                  Conversion_Error_N
+                  Report_Error_N
                     ("target type must be declared in same generic body "
-                     & "as operand type", N);
+                     & "as operand type", N, Report_Errs);
                end if;
             end;
          end if;
@@ -14621,14 +14893,25 @@ package body Sem_Res is
 
       --  If it was legal in the generic, it's legal in the instance
 
-      elsif In_Instance_Body then
+      elsif In_Instance then
+         return True;
+
+      --  Ignore privacy for streaming or Put_Image routines
+
+      elsif not Comes_From_Source (N)
+        and then Original_Implementation_Base_Type (Target_Type) =
+                 Original_Implementation_Base_Type (Opnd_Type)
+      then
          return True;
 
       --  If both are tagged types, check legality of view conversions
 
-      elsif Is_Tagged_Type (Target_Type)
-              and then
-            Is_Tagged_Type (Opnd_Type)
+      elsif (Is_Tagged_Type (Target_Type) and then Is_Tagged_Type (Opnd_Type))
+         or else (not Comes_From_Source (N)
+                  and then
+                    Is_Tagged_Type (Implementation_Base_Type (Target_Type))
+                  and then
+                    Is_Tagged_Type (Implementation_Base_Type (Opnd_Type)))
       then
          return Valid_Tagged_Conversion (Target_Type, Opnd_Type);
 
@@ -14638,9 +14921,10 @@ package body Sem_Res is
          return True;
 
       --  In an instance or an inlined body, there may be inconsistent views of
-      --  the same type, or of types derived from a common root.
+      --  the same type, or of types derived from a common root. Similarly
+      --  for compiler-generated streaming or Put_Image subprograms.
 
-      elsif (In_Instance or In_Inlined_Body)
+      elsif (In_Instance or In_Inlined_Body or not Comes_From_Source (N))
         and then
           Root_Type (Underlying_Type (Target_Type)) =
           Root_Type (Underlying_Type (Opnd_Type))
@@ -14652,9 +14936,10 @@ package body Sem_Res is
       elsif Ekind (Target_Type) = E_Access_Type
          and then Is_Access_Type (Opnd_Type)
       then
-         Conversion_Error_N ("target type must be general access type!", N);
-         Conversion_Error_NE -- CODEFIX
-            ("\add ALL to }!", N, Target_Type);
+         Report_Error_N
+           ("target type must be general access type!", N, Report_Errs);
+         Report_Error_NE -- CODEFIX
+            ("\add ALL to }!", N, Target_Type, Report_Errs);
          return False;
 
       --  Here we have a real conversion error
@@ -14664,25 +14949,28 @@ package body Sem_Res is
          --  target is available.
 
          if From_Limited_With (Opnd_Type) and then In_Package_Body then
-            Conversion_Error_NE
+            Report_Error_NE
               ("invalid conversion, not compatible with limited view of }",
-               N, Opnd_Type);
-            Conversion_Error_NE
-              ("\add with_clause for& to current unit!", N, Scope (Opnd_Type));
+               N, Opnd_Type, Report_Errs);
+            Report_Error_NE
+              ("\add with_clause for& to current unit!",
+               N, Scope (Opnd_Type), Report_Errs);
 
          elsif Is_Access_Type (Opnd_Type)
            and then From_Limited_With (Designated_Type (Opnd_Type))
            and then In_Package_Body
          then
-            Conversion_Error_NE
-              ("invalid conversion, not compatible with }", N, Opnd_Type);
-            Conversion_Error_NE
+            Report_Error_NE
+              ("invalid conversion, not compatible with }",
+               N, Opnd_Type, Report_Errs);
+            Report_Error_NE
               ("\add with_clause for& to current unit!",
-               N, Scope (Designated_Type (Opnd_Type)));
+               N, Scope (Designated_Type (Opnd_Type)), Report_Errs);
 
          else
-            Conversion_Error_NE
-              ("invalid conversion, not compatible with }", N, Opnd_Type);
+            Report_Error_NE
+              ("invalid conversion, not compatible with }",
+               N, Opnd_Type, Report_Errs);
          end if;
 
          return False;

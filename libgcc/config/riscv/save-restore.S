@@ -1,6 +1,6 @@
 /* Callee-saved register spill and fill routines for RISC-V.
 
-   Copyright (C) 2016-2024 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -137,6 +137,7 @@ FUNC_BEGIN (__riscv_save_2)
   # CFA info is not correct in next 2 instruction since t1's
   # value is depend on how may register really save.
   add sp, sp, t1
+  SET_LPAD
   jr t0
   .cfi_endproc
 FUNC_END (__riscv_save_12)
@@ -162,6 +163,7 @@ FUNC_BEGIN (__riscv_save_0)
   .cfi_offset 8, -16
   sd ra, 8(sp)
   .cfi_offset 1, -8
+  SET_LPAD
   jr t0
   .cfi_endproc
 FUNC_END (__riscv_save_1)
@@ -295,7 +297,7 @@ FUNC_END (__riscv_restore_0)
 
 #else
 
-#ifdef __riscv_32e
+#ifdef __riscv_abi_rve
 FUNC_BEGIN(__riscv_save_2)
 FUNC_BEGIN(__riscv_save_1)
 FUNC_BEGIN(__riscv_save_0)
@@ -309,7 +311,8 @@ FUNC_BEGIN(__riscv_save_0)
   sw s0, 4(sp)
   .cfi_offset 8, -8
   sw ra, 8(sp)
-  .cfi_offset 1, 0
+  .cfi_offset 1, -4
+  SET_LPAD
   jr t0
   .cfi_endproc
 FUNC_END(__riscv_save_2)
@@ -399,6 +402,7 @@ FUNC_BEGIN (__riscv_save_4)
   # CFA info is not correct in next 2 instruction since t1's
   # value is depend on how may register really save.
   sub sp, sp, t1
+  SET_LPAD
   jr t0
   .cfi_endproc
 FUNC_END (__riscv_save_12)
@@ -421,12 +425,14 @@ FUNC_BEGIN (__riscv_save_0)
   addi sp, sp, -16
   .cfi_def_cfa_offset 16
   sw s2, 0(sp)
+  .cfi_offset 18, -16
   sw s1, 4(sp)
-  .cfi_offset 9, -16
+  .cfi_offset 9, -12
   sw s0, 8(sp)
   .cfi_offset 8, -8
   sw ra, 12(sp)
   .cfi_offset 1, -4
+  SET_LPAD
   jr t0
   .cfi_endproc
 FUNC_END (__riscv_save_3)
@@ -529,6 +535,6 @@ FUNC_END (__riscv_restore_2)
 FUNC_END (__riscv_restore_1)
 FUNC_END (__riscv_restore_0)
 
-#endif /* __riscv_32e */
+#endif /* __riscv_abi_rve */
 
 #endif /* __riscv_xlen == 64 */

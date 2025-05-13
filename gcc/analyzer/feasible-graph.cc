@@ -1,5 +1,5 @@
 /* A graph for exploring trees of feasible paths through the egraph.
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,21 +18,13 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "pretty-print.h"
-#include "gcc-rich-location.h"
-#include "gimple-pretty-print.h"
-#include "function.h"
-#include "diagnostic-core.h"
-#include "diagnostic-event-id.h"
-#include "diagnostic-path.h"
-#include "bitmap.h"
-#include "ordered-hash-map.h"
-#include "analyzer/analyzer.h"
+#include "analyzer/common.h"
+
+#include "cfg.h"
+#include "gimple-iterator.h"
+#include "cgraph.h"
+#include "digraph.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/sm.h"
 #include "analyzer/pending-diagnostic.h"
@@ -42,12 +34,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/store.h"
 #include "analyzer/region-model.h"
 #include "analyzer/constraint-manager.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "cgraph.h"
-#include "digraph.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/program-state.h"
 #include "analyzer/exploded-graph.h"
@@ -300,7 +286,7 @@ feasible_graph::dump_feasible_path (const feasible_node &dst_fnode,
   FILE *fp = fopen (filename, "w");
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_feasible_path (dst_fnode, &pp);
   pp_flush (&pp);
   fclose (fp);

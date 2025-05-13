@@ -1,5 +1,5 @@
 /* Language hooks common to C and ObjC front ends.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -74,11 +74,14 @@ extern void c_register_features ();
 #define LANG_HOOKS_EMITS_BEGIN_STMT true
 #undef LANG_HOOKS_FINALIZE_EARLY_DEBUG
 #define LANG_HOOKS_FINALIZE_EARLY_DEBUG c_common_finalize_early_debug
+#undef LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE
+#define LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE c_reconstruct_complex_type
 
 static const scoped_attribute_specs *const c_objc_attribute_table[] =
 {
   &std_attribute_table,
   &c_common_gnu_attribute_table,
+  &c_common_clang_attribute_table,
   &c_common_format_attribute_table
 };
 

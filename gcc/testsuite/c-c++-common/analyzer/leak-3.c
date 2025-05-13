@@ -1,3 +1,6 @@
+/* { dg-skip-if "requires hosted libstdc++ for stdlib malloc" { ! hostedlib } } */
+/* { dg-additional-options "-fno-exceptions" } */
+
 #include <stdlib.h>
 
 /* Reduced from Juliet 1.3's CWE415_Double_Free__malloc_free_char_67a.c

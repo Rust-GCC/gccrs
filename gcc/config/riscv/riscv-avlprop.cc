@@ -1,5 +1,5 @@
 /* AVL propagation pass for RISC-V 'V' Extension for GNU compiler.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by Juzhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
 
 This file is part of GCC.
@@ -38,7 +38,7 @@ along with GCC; see the file COPYING3.  If not see
 	  vadd.vv (use VLMAX)     --- PLUS_EXPR
 	  vse8.v (use avl = r136) --- IFN_MASK_LEN_STORE
 
-	NO AVL propation:
+	NO AVL propagation:
 
 	  vsetvli a5, a4, ta
 	  vle8.v v1
@@ -65,6 +65,7 @@ along with GCC; see the file COPYING3.  If not see
 #define IN_TARGET_CODE 1
 #define INCLUDE_ALGORITHM
 #define INCLUDE_FUNCTIONAL
+#define INCLUDE_ARRAY
 
 #include "config.h"
 #include "system.h"
@@ -135,7 +136,7 @@ avl_can_be_propagated_p (rtx_insn *rinsn)
 	   vcompress v1, v2, v0 with avl = 4, v1 = {0x8, 0x2, 0x3, 0x4}.
 	   vcompress v1, v2, v0 with avl = 2, v1 will be unchanged.
 	   Thus, we cannot propagate avl of vcompress because it may has
-	   senmatics change to the result.  */
+	   semantics change to the result.  */
   return get_attr_type (rinsn) != TYPE_VGATHER
 	 && get_attr_type (rinsn) != TYPE_VSLIDEDOWN
 	 && get_attr_type (rinsn) != TYPE_VISLIDE1DOWN
@@ -295,7 +296,7 @@ pass_avlprop::get_preferred_avl (
   return NULL_RTX;
 }
 
-/* This is a straight forward pattern ALWAYS in paritial auto-vectorization:
+/* This is a straight forward pattern ALWAYS in partial auto-vectorization:
 
      VL = SELECT_AVL (AVL, ...)
      V0 = MASK_LEN_LOAD (..., VL)
@@ -350,7 +351,8 @@ pass_avlprop::get_vlmax_ta_preferred_avl (insn_info *insn) const
 	  if (!use_insn->can_be_optimized () || use_insn->is_asm ()
 	      || use_insn->is_call () || use_insn->has_volatile_refs ()
 	      || use_insn->has_pre_post_modify ()
-	      || !has_vl_op (use_insn->rtl ()))
+	      || !has_vl_op (use_insn->rtl ())
+	      || !avl_can_be_propagated_p (use_insn->rtl ()))
 	    return NULL_RTX;
 
 	  /* We should only propagate non-VLMAX AVL into VLMAX insn when
@@ -393,7 +395,7 @@ pass_avlprop::get_vlmax_ta_preferred_avl (insn_info *insn) const
 	      if (!def1->insn ()->is_real ())
 		return NULL_RTX;
 
-	      /* FIXME: We only all AVL propation within a block which should
+	      /* FIXME: We only all AVL propagation within a block which should
 		 be totally enough for vectorized codes.
 
 		 TODO: We can enhance it here for intrinsic codes in the future
@@ -458,7 +460,7 @@ pass_avlprop::execute (function *fn)
 
 	  /* TODO: We only do AVL propagation for VLMAX AVL with tail
 	     agnostic policy since we have missed-LEN information partial
-	     autovectorization.  We could add more more AVL propagation
+	     autovectorization.  We could add more AVL propagation
 	     for intrinsic codes in the future.  */
 	  if (vlmax_ta_p (insn->rtl ()))
 	    m_candidates.safe_push (std::make_pair (AVLPROP_VLMAX_TA, insn));

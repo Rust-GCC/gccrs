@@ -1,6 +1,6 @@
 (* StdChans.mod implement the ISO StdChans specification.
 
-Copyright (C) 2003-2024 Free Software Foundation, Inc.
+Copyright (C) 2003-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -45,9 +45,9 @@ FROM RTgen IMPORT ChanDev, DeviceType,
 
 
 VAR
-   in,
-   out,
-   err,
+   inch,
+   outch,
+   errch,
    stdin,
    stdout,
    stderr,
@@ -169,21 +169,21 @@ END NullChan ;
 PROCEDURE InChan () : ChanId ;
   (* Returns the identity of the current default input channel. *)
 BEGIN
-   RETURN( in )
+   RETURN( inch )
 END InChan ;
 
 
 PROCEDURE OutChan () : ChanId ;
   (* Returns the identity of the current default output channel. *)
 BEGIN
-   RETURN( out )
+   RETURN( outch )
 END OutChan ;
 
 
 PROCEDURE ErrChan () : ChanId ;
   (* Returns the identity of the current default error message channel. *)
 BEGIN
-   RETURN( err )
+   RETURN( errch )
 END ErrChan ;
 
   (* The following procedures allow for redirection of the default channels *)
@@ -191,21 +191,21 @@ END ErrChan ;
 PROCEDURE SetInChan (cid: ChanId) ;
   (* Sets the current default input channel to that identified by cid. *)
 BEGIN
-   in := cid
+   inch := cid
 END SetInChan ;
 
 
 PROCEDURE SetOutChan (cid: ChanId) ;
   (* Sets the current default output channel to that identified by cid. *)
 BEGIN
-   out := cid
+   outch := cid
 END SetOutChan ;
 
 
 PROCEDURE SetErrChan (cid: ChanId) ;
   (* Sets the current default error channel to that identified by cid. *)
 BEGIN
-   err := cid
+   errch := cid
 END SetErrChan ;
 
 
@@ -303,9 +303,9 @@ END Init ;
 BEGIN
    Init
 FINALLY
-   SafeClose(in) ;
-   SafeClose(out) ;
-   SafeClose(err) ;
+   SafeClose(inch) ;
+   SafeClose(outch) ;
+   SafeClose(errch) ;
    SafeClose(stdin) ;
    SafeClose(stdout) ;
    SafeClose(stderr)

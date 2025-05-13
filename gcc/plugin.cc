@@ -1,5 +1,5 @@
 /* Support for GCC plugin mechanism.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
    APIs described in doc/plugin.texi.  */
 
 #include "config.h"
+#define INCLUDE_DLFCN_H
 #include "system.h"
 #include "coretypes.h"
 #include "options.h"
@@ -276,7 +277,7 @@ parse_plugin_arg_opt (const char *arg)
         }
       else if (*ptr == '=')
         {
-	  if (!key_parsed) 
+	  if (!key_parsed)
 	    {
 	      key_len = len;
 	      len = 0;
@@ -714,7 +715,7 @@ try_init_one_plugin (struct plugin_name_args *plugin)
   /* Check the plugin license.  */
   if (dlsym (dl_handle, str_license) == NULL)
     fatal_error (input_location,
-		 "plugin %s is not licensed under a GPL-compatible license"
+		 "plugin %s is not licensed under a GPL-compatible license:"
 		 " %s", plugin->full_name, dlerror ());
 
   PTR_UNION_AS_VOID_PTR (plugin_init_union)

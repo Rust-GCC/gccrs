@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gcv_zvfhmin -mabi=lp64d -O3 -mrvv-vector-bits=zvl -Wno-psabi" } */
+/* { dg-options "-march=rv64gcv_zvfhmin -mabi=lp64d -O3 -mrvv-vector-bits=zvl" } */
 
 #include <stdint-gcc.h>
 
@@ -119,4 +119,4 @@ merge10 (vnx16df x, vnx16df y, vnx16df *out)
   *(vnx16df*)out = v;
 }
 
-/* dg-final scan-assembler-times {\tvmerge.vvm} 11 */
+/* { dg-final { scan-assembler-times {\tvmerge.vvm} 11 } } */

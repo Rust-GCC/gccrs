@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -135,7 +135,7 @@ const char midi_tbl[1000][3] = {
 };
 
 const UINT64 mod10_18_tbl[9][128] = {
-  // 2^59 = 576460752303423488, A and B breakdown, where data = A*10^18 + B 
+  // 2^59 = 576460752303423488, A and B breakdown, where data = A*10^18 + B
 
   {
    0LL, 0LL, 0LL, 576460752303423488LL,

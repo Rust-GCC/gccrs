@@ -1,5 +1,5 @@
 /* Gimple range edge header file.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
    and Aldy Hernandez <aldyh@redhat.com>.
 
@@ -27,20 +27,40 @@ along with GCC; see the file COPYING3.  If not see
 // For a COND_EXPR, the TRUE edge will return [1,1] and the false edge a [0,0].
 //
 // For SWITCH_EXPR, it is awkward to calculate ranges.  When a request
-// is made, the entire switch is evaluated and the results cached. 
+// is made, the entire switch is evaluated and the results cached.
 // Any future requests to that switch will use the cached value, providing
 // dramatic decrease in computation time.
 //
 // The API is simple, just ask for the range on the edge.
 // The return value is NULL for no range, or the branch statement which the
 // edge gets the range from, along with the range.
+//
+// THe switch_limit is the number of switch edges beyond which the switch
+// is ignored (ie, edge_range_p () will return NULL as if the sitch was not
+// there.  THis value can be adjusted any time via set_switch_limit ().
+// THe default is 0, no switches are precoessed until set_switch_limit () is
+// called, and then the default is INT_MAX.
+//
+// No memory is allocated until an edge for a switch is processed which also
+// falls under the edge limit criteria.
 
 class gimple_outgoing_range
 {
 public:
-  gimple_outgoing_range (int max_sw_edges = INT_MAX);
-  ~gimple_outgoing_range ();
+  gimple_outgoing_range (int max_sw_edges = 0);
+  virtual ~gimple_outgoing_range ();
   gimple *edge_range_p (irange &r, edge e);
+  void set_switch_limit (int max_sw_edges = INT_MAX);
+
+  virtual bool edge_range_p (vrange &, edge, tree, range_query &)
+    { return false; }
+  virtual bool has_edge_range_p (tree, basic_block = NULL) { return false; }
+  virtual bool has_edge_range_p (tree, edge ) { return false; }
+  virtual void dump (FILE *) { }
+  virtual bool compute_operand_range (vrange &, gimple *, const vrange &, tree,
+				      class fur_source &,
+				      class value_relation * = NULL)
+    { return false; }
 private:
   void calc_switch_ranges (gswitch *sw);
   bool switch_edge_range (irange &r, gswitch *sw, edge e);

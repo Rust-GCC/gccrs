@@ -1,5 +1,5 @@
 /* expr.cc -- Lower D frontend expressions to GCC trees.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -295,14 +295,14 @@ public:
 	this->result_ = d_convert (build_ctype (e->type),
 				   build_boolop (code, t1, t2));
       }
-    else if (tb1->isfloating () && tb1->ty != TY::Tvector)
+    else if (tb1->isFloating () && tb1->ty != TY::Tvector)
       {
 	/* For floating-point values, identity is defined as the bits in the
 	   operands being identical.  */
 	tree t1 = d_save_expr (build_expr (e->e1));
 	tree t2 = d_save_expr (build_expr (e->e2));
 
-	if (!tb1->iscomplex ())
+	if (!tb1->isComplex ())
 	  this->result_ = build_float_identity (code, t1, t2);
 	else
 	  {
@@ -388,7 +388,7 @@ public:
 		e1.length == e2.length && memcmp(e1.ptr, e2.ptr, size) == 0;
 	    Or when generating a NE expression:
 		e1.length != e2.length || memcmp(e1.ptr, e2.ptr, size) != 0;  */
-	if ((t1elem->isintegral () || t1elem->ty == TY::Tvoid
+	if ((t1elem->isIntegral () || t1elem->ty == TY::Tvoid
 	     || (t1elem->ty == TY::Tstruct
 		 && !t1elem->isTypeStruct ()->sym->xeq))
 	    && t1elem->ty == t2elem->ty)
@@ -414,7 +414,8 @@ public:
 	    if (t1elem->ty != TY::Tstruct
 		|| identity_compare_p (t1elem->isTypeStruct ()->sym))
 	      {
-		tree size = size_mult_expr (t1len, size_int (t1elem->size ()));
+		tree size =
+		  size_mult_expr (t1len, size_int (dmd::size (t1elem)));
 
 		result = build_memcmp_call (t1ptr, t2ptr, size);
 		result = build_boolop (code, result, integer_zero_node);
@@ -442,7 +443,7 @@ public:
 	       The frontend should have already guaranteed that static arrays
 	       have same size.  */
 	    if (tb1->ty == TY::Tsarray && tb2->ty == TY::Tsarray)
-	      gcc_assert (tb1->size () == tb2->size ());
+	      gcc_assert (dmd::size (tb1) == dmd::size (tb2));
 	    else
 	      {
 		tree tlencmp = build_boolop (code, t1len, t2len);
@@ -620,8 +621,8 @@ public:
       {
       case EXP::add:
       case EXP::min:
-	if ((e->e1->type->isreal () && e->e2->type->isimaginary ())
-	    || (e->e1->type->isimaginary () && e->e2->type->isreal ()))
+	if ((e->e1->type->isReal () && e->e2->type->isImaginary ())
+	    || (e->e1->type->isImaginary () && e->e2->type->isReal ()))
 	  {
 	    /* If the result is complex, then we can shortcut binary_op.
 	       Frontend should have already validated types and sizes.  */
@@ -631,7 +632,7 @@ public:
 	    if (e->op == EXP::min)
 	      t2 = build1 (NEGATE_EXPR, TREE_TYPE (t2), t2);
 
-	    if (e->e1->type->isreal ())
+	    if (e->e1->type->isReal ())
 	      this->result_ = complex_expr (build_ctype (e->type), t1, t2);
 	    else
 	      this->result_ = complex_expr (build_ctype (e->type), t2, t1);
@@ -661,12 +662,12 @@ public:
 	      }
 	  }
 
-	code = e->e1->type->isintegral ()
+	code = e->e1->type->isIntegral ()
 	  ? TRUNC_DIV_EXPR : RDIV_EXPR;
 	break;
 
       case EXP::mod:
-	code = e->e1->type->isfloating ()
+	code = e->e1->type->isFloating ()
 	  ? FLOAT_MOD_EXPR : TRUNC_MOD_EXPR;
 	break;
 
@@ -750,12 +751,12 @@ public:
 	break;
 
       case EXP::divAssign:
-	code = e->e1->type->isintegral ()
+	code = e->e1->type->isIntegral ()
 	  ? TRUNC_DIV_EXPR : RDIV_EXPR;
 	break;
 
       case EXP::modAssign:
-	code = e->e1->type->isfloating ()
+	code = e->e1->type->isFloating ()
 	  ? FLOAT_MOD_EXPR : TRUNC_MOD_EXPR;
 	break;
 
@@ -917,7 +918,7 @@ public:
 	    if (integer_zerop (t2))
 	      {
 		tree size = size_mult_expr (d_array_length (t1),
-					    size_int (etype->size ()));
+					    size_int (dmd::size (etype)));
 		result = build_memset_call (d_array_ptr (t1), size);
 	      }
 	    else
@@ -943,7 +944,8 @@ public:
 		tree t2ptr = d_array_ptr (t2);
 
 		/* Generate: memcpy(to, from, size)  */
-		tree size = size_mult_expr (t1len, size_int (etype->size ()));
+		tree size =
+		  size_mult_expr (t1len, size_int (dmd::size (etype)));
 		tree result = build_memcpy_call (t1ptr, t2ptr, size);
 
 		/* Insert check that array lengths match and do not overlap.  */
@@ -986,7 +988,7 @@ public:
 	      {
 		/* Generate: _d_arraycopy()  */
 		this->result_ = build_libcall (LIBCALL_ARRAYCOPY, e->type, 3,
-					       size_int (etype->size ()),
+					       size_int (dmd::size (etype)),
 					       d_array_convert (e->e2),
 					       d_array_convert (e->e1));
 	      }
@@ -1100,7 +1102,7 @@ public:
 	    || (e->op == EXP::construct && e->e2->op == EXP::arrayLiteral)
 	    || (e->op == EXP::construct && e->e2->op == EXP::call)
 	    || (e->op == EXP::construct && !lvalue && postblit)
-	    || (e->op == EXP::blit || e->e1->type->size () == 0))
+	    || (e->op == EXP::blit || dmd::size (e->e1->type) == 0))
 	  {
 	    tree t1 = build_expr (e->e1);
 	    tree t2 = convert_for_assignment (e->e2, e->e1->type);
@@ -1190,7 +1192,7 @@ public:
 	/* Index the associative array.  */
 	tree result = build_libcall (libcall, dmd::pointerTo (e->type), 4,
 				     ptr, tinfo,
-				     size_int (tb1->nextOf ()->size ()),
+				     size_int (dmd::size (tb1->nextOf ())),
 				     build_address (key));
 
 	if (!e->indexIsInBounds && array_bounds_check ())
@@ -1497,14 +1499,14 @@ public:
   void visit (PtrExp *e) final override
   {
     Type *tnext = NULL;
-    size_t offset;
+    dinteger_t offset;
     tree result;
 
     if (e->e1->op == EXP::add)
       {
 	AddExp *ae = e->e1->isAddExp ();
 	if (ae->e1->op == EXP::address
-	    && ae->e2->isConst () && ae->e2->type->isintegral ())
+	    && ae->e2->isConst () && ae->e2->type->isIntegral ())
 	  {
 	    Expression *ex = ae->e1->isAddrExp ()->e1;
 	    tnext = ex->type->toBasetype ();
@@ -1620,7 +1622,7 @@ public:
 	if (dve->e1->op == EXP::structLiteral)
 	  {
 	    StructLiteralExp *sle = dve->e1->isStructLiteralExp ();
-	    sle->useStaticInit = false;
+	    sle->useStaticInit (false);
 	  }
 
 	FuncDeclaration *fd = dve->var->isFuncDeclaration ();
@@ -1752,7 +1754,7 @@ public:
     if (returnvalue != NULL_TREE)
       exp = compound_expr (exp, returnvalue);
 
-    if (tf->isref ())
+    if (tf->isRef ())
       exp = build_deref (exp);
 
     /* Some library calls are defined to return a generic type.
@@ -1781,7 +1783,7 @@ public:
 
   void visit (DelegateExp *e) final override
   {
-    if (e->func->semanticRun == PASS::semantic3done)
+    if (e->func->semanticRun () == PASS::semantic3done)
       {
 	/* Add the function as nested function if it belongs to this module.
 	   ie: it is a member of this module, or it is a template instance.  */
@@ -2072,7 +2074,7 @@ public:
   void visit (SymOffExp *e) final override
   {
     /* Build the address and offset of the symbol.  */
-    size_t soffset = e->isSymOffExp ()->offset;
+    dinteger_t soffset = e->isSymOffExp ()->offset;
     tree result = get_decl_tree (e->var);
     TREE_USED (result) = 1;
 
@@ -2178,7 +2180,7 @@ public:
 		tree type = build_ctype (e->type);
 		tree length = size_int (sd->dsym->structsize);
 		tree ptr = (sd->dsym->isStructDeclaration ()
-			    && sd->dsym->type->isZeroInit (e->loc))
+			    && dmd::isZeroInit (sd->dsym->type, e->loc))
 		  ? null_pointer_node : build_address (result);
 
 		this->result_ = d_array_value (type, length, ptr);
@@ -2241,18 +2243,24 @@ public:
 	       storage class, then the instance is allocated on the stack
 	       rather than the heap or using the class specific allocator.  */
 	    tree var = build_local_temp (TREE_TYPE (type));
+	    SET_DECL_ALIGN (var, cd->alignsize * BITS_PER_UNIT);
+	    DECL_USER_ALIGN (var) = 1;
 	    new_call = build_nop (type, build_address (var));
 	    setup_exp = modify_expr (var, aggregate_initializer_decl (cd));
 	  }
-	else if (global.params.ehnogc && e->thrownew)
+	else if (e->placement != NULL)
 	  {
-	    /* Allocating a `@nogc' Exception with `_d_newThrowable' has already
-	       been handled by the front-end.  */
-	    gcc_unreachable ();
+	    /* Generate: placement_expr = typeid(class).init  */
+	    tree placement_expr = build_expr (e->placement);
+	    new_call = build_nop (type, build_address (placement_expr));
+	    tree class_init = build_vconvert (TREE_TYPE (placement_expr),
+					      aggregate_initializer_decl (cd));
+	    setup_exp = modify_expr (placement_expr, class_init);
 	  }
 	else
 	  {
-	    /* Generate: _d_newclass()  */
+	    /* Generate: _d_newclass()
+		     or: _d_newThrowable()  */
 	    new_call = build_expr (e->lowering);
 	  }
 
@@ -2321,12 +2329,22 @@ public:
 	    return;
 	  }
 
-	/* This case should have been rewritten to `_d_newitemT' during the
-	   semantic phase.  */
-	gcc_assert (e->lowering);
+	if (e->placement != NULL)
+	  {
+	    /* Generate: &placement_expr  */
+	    tree placement_expr = build_expr (e->placement);
+	    new_call = build_nop (build_ctype (tb),
+				  build_address (placement_expr));
+	  }
+	else
+	  {
+	    /* This case should have been rewritten to `_d_newitemT' during the
+	       semantic phase.  */
+	    gcc_assert (e->lowering);
 
-	/* Generate: _d_newitemT()  */
-	new_call = build_expr (e->lowering);
+	    /* Generate: _d_newitemT()  */
+	    new_call = build_expr (e->lowering);
+	  }
 
 	if (e->member || !e->arguments)
 	  {
@@ -2391,7 +2409,7 @@ public:
 	/* Allocating memory for a new pointer.  */
 	TypePointer *tpointer = tb->isTypePointer ();
 
-	if (tpointer->next->size () == 0)
+	if (dmd::size (tpointer->next) == 0)
 	  {
 	    /* Pointer element size is unknown.  */
 	    this->result_ = d_convert (build_ctype (e->type),
@@ -2399,12 +2417,22 @@ public:
 	    return;
 	  }
 
-	/* This case should have been rewritten to `_d_newitemT' during the
-	   semantic phase.  */
-	gcc_assert (e->lowering);
+	if (e->placement != NULL)
+	  {
+	    /* Generate: &placement_expr  */
+	    tree placement_expr = build_expr (e->placement);
+	    result = build_nop (build_ctype (tb),
+				build_address (placement_expr));
+	  }
+	else
+	  {
+	    /* This case should have been rewritten to `_d_newitemT' during the
+	       semantic phase.  */
+	    gcc_assert (e->lowering);
 
-	/* Generate: _d_newitemT()  */
-	result = build_expr (e->lowering);
+	    /* Generate: _d_newitemT()  */
+	    result = build_expr (e->lowering);
+	  }
 
 	if (e->arguments && e->arguments->length == 1)
 	  {
@@ -2429,7 +2457,7 @@ public:
 	CONSTRUCTOR_APPEND_ELT (ce, TYPE_FIELDS (aatype), mem);
 
 	result = build_nop (build_ctype (e->type),
-			    build_constructor (aatype, ce));
+			    build_padded_constructor (aatype, ce));
       }
     else
       gcc_unreachable ();
@@ -2502,7 +2530,7 @@ public:
 	    CONSTRUCTOR_APPEND_ELT (elms, size_int (i), value);
 	  }
 
-	tree ctor = build_constructor (type, elms);
+	tree ctor = build_padded_constructor (type, elms);
 	TREE_CONSTANT (ctor) = 1;
 	this->result_ = ctor;
 	return;
@@ -2584,8 +2612,10 @@ public:
 	  this->result_ = d_array_value (build_ctype (e->type),
 					 size_int (0), null_pointer_node);
 	else
-	  this->result_ = build_constructor (make_array_type (tb->nextOf (), 0),
-					     NULL);
+	  {
+	    tree arrtype = make_array_type (tb->nextOf (), 0);
+	    this->result_ = build_padded_constructor (arrtype, NULL);
+	  }
 
 	return;
       }
@@ -2626,7 +2656,7 @@ public:
     /* Now return the constructor as the correct type.  For static arrays there
        is nothing else to do.  For dynamic arrays, return a two field struct.
        For pointers, return the address.  */
-    tree ctor = build_constructor (satype, elms);
+    tree ctor = build_padded_constructor (satype, elms);
     tree type = build_ctype (e->type);
 
     /* Nothing else to do for static arrays.  */
@@ -2692,7 +2722,7 @@ public:
 
 	/* Now copy the constructor into memory.  */
 	tree size = size_mult_expr (size_int (e->elements->length),
-				    size_int (tb->nextOf ()->size ()));
+				    size_int (dmd::size (tb->nextOf ())));
 
 	tree result = build_memcpy_call (mem, build_address (ctor), size);
 
@@ -2727,7 +2757,7 @@ public:
     TypeAArray *ta = tb->isTypeAArray ();
     if (e->keys->length == 0)
       {
-	this->result_ = build_constructor (build_ctype (ta), NULL);
+	this->result_ = build_padded_constructor (build_ctype (ta), NULL);
 	return;
       }
 
@@ -2759,7 +2789,7 @@ public:
     CONSTRUCTOR_APPEND_ELT (ce, TYPE_FIELDS (aatype), mem);
 
     tree result = build_nop (build_ctype (e->type),
-			     build_constructor (aatype, ce));
+			     build_padded_constructor (aatype, ce));
     this->result_ = compound_expr (init, result);
   }
 
@@ -2770,13 +2800,13 @@ public:
     /* Handle empty struct literals.  */
     if (e->elements == NULL || e->sd->fields.length == 0)
       {
-	this->result_ = build_constructor (build_ctype (e->type), NULL);
+	this->result_ = build_padded_constructor (build_ctype (e->type), NULL);
 	return;
       }
 
     /* Building sinit trees are delayed until after frontend semantic
        processing has complete.  Build the static initializer now.  */
-    if (e->useStaticInit && !this->constp_ && !e->sd->isCsymbol ())
+    if (e->useStaticInit () && !this->constp_ && !e->sd->isCsymbol ())
       {
 	tree init = aggregate_initializer_decl (e->sd);
 
@@ -2821,7 +2851,7 @@ public:
 	    elem = d_save_expr (elem);
 
 	    if (initializer_zerop (elem))
-	      value = build_constructor (build_ctype (ftype), NULL);
+	      value = build_padded_constructor (build_ctype (ftype), NULL);
 	    else
 	      value = build_array_from_val (ftype, elem);
 	  }
@@ -2844,7 +2874,7 @@ public:
 	tree field = get_symbol_decl (e->sd->vthis);
 	tree value = build_vthis (e->sd);
 	CONSTRUCTOR_APPEND_ELT (ve, field, value);
-	gcc_assert (e->useStaticInit == false);
+	gcc_assert (e->useStaticInit () == false);
       }
 
     /* Build a constructor in the correct shape of the aggregate type.  */
@@ -2920,7 +2950,7 @@ public:
 	if (constant_p)
 	  this->result_ = build_vector_from_ctor (type, elms);
 	else
-	  this->result_ = build_constructor (type, elms);
+	  this->result_ = build_padded_constructor (type, elms);
       }
     else if (e->e1->type->toBasetype ()->ty == TY::Tsarray)
       {
@@ -3060,7 +3090,7 @@ build_return_dtor (Expression *e, Type *type, TypeFunction *tf)
   tree result = build_expr (e);
 
   /* Convert for initializing the DECL_RESULT.  */
-  if (tf->isref ())
+  if (tf->isRef ())
     {
       /* If we are returning a reference, take the address.  */
       result = convert_expr (result, e->type, type);

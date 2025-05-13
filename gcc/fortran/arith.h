@@ -1,5 +1,5 @@
 /* Compiler arithmetic header.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Steven Bosscher
 
 This file is part of GCC.
@@ -63,15 +63,24 @@ gfc_expr *gfc_le (gfc_expr *, gfc_expr *, gfc_intrinsic_op);
 gfc_expr *gfc_int2int (gfc_expr *, int);
 gfc_expr *gfc_int2real (gfc_expr *, int);
 gfc_expr *gfc_int2complex (gfc_expr *, int);
+gfc_expr *gfc_int2uint (gfc_expr *, int);
+gfc_expr *gfc_uint2uint (gfc_expr *, int);
+gfc_expr *gfc_uint2int (gfc_expr *, int);
+gfc_expr *gfc_uint2real (gfc_expr *, int);
+gfc_expr *gfc_uint2complex (gfc_expr *, int);
 gfc_expr *gfc_real2int (gfc_expr *, int);
+gfc_expr *gfc_real2uint (gfc_expr *, int);
 gfc_expr *gfc_real2real (gfc_expr *, int);
 gfc_expr *gfc_real2complex (gfc_expr *, int);
 gfc_expr *gfc_complex2int (gfc_expr *, int);
+gfc_expr *gfc_complex2uint (gfc_expr *, int);
 gfc_expr *gfc_complex2real (gfc_expr *, int);
 gfc_expr *gfc_complex2complex (gfc_expr *, int);
 gfc_expr *gfc_log2log (gfc_expr *, int);
 gfc_expr *gfc_log2int (gfc_expr *, int);
+gfc_expr *gfc_log2uint (gfc_expr *, int);
 gfc_expr *gfc_int2log (gfc_expr *, int);
+gfc_expr *gfc_uint2log (gfc_expr *, int);
 gfc_expr *gfc_hollerith2int (gfc_expr *, int);
 gfc_expr *gfc_hollerith2real (gfc_expr *, int);
 gfc_expr *gfc_hollerith2complex (gfc_expr *, int);

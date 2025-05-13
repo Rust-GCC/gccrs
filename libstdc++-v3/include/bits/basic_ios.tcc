@@ -1,6 +1,6 @@
 // basic_ios member functions -*- C++ -*-
 
-// Copyright (C) 1999-2024 Free Software Foundation, Inc.
+// Copyright (C) 1999-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,12 @@
 #ifndef _BASIC_IOS_TCC
 #define _BASIC_IOS_TCC 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++11-extensions" // extern template
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -138,13 +143,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // return without throwing an exception. Unfortunately,
       // ctype<char_type> is not necessarily a required facet, so
       // streams with char_type != [char, wchar_t] will not have it by
-      // default. Because of this, the correct value for _M_fill is
-      // constructed on the first call of fill(). That way,
+      // default. If the ctype<char_type> facet is available now,
+      // _M_fill is set here, but otherwise no fill character will be
+      // cached and a call to fill() will check for the facet again later
+      // (and will throw if the facet is still not present). This way
       // unformatted input and output with non-required basic_ios
       // instantiations is possible even without imbuing the expected
       // ctype<char_type> facet.
-      _M_fill = _CharT();
-      _M_fill_init = false;
+      if (_M_ctype)
+	{
+	  _M_fill = _M_ctype->widen(' ');
+	  _M_fill_init = true;
+	}
+      else
+	_M_fill_init = false;
 
       _M_tie = 0;
       _M_exception = goodbit;
@@ -174,4 +186,5 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
+#pragma GCC diagnostic pop
 #endif

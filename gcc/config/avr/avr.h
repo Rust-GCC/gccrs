@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
-   for ATMEL AVR at90s8515, ATmega103/103L, ATmega603/603L microcontrollers.
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+   for AVR 8-bit microcontrollers.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    Contributed by Denis Chertykov (chertykov@gmail.com)
 
 This file is part of GCC.
@@ -53,6 +53,7 @@ enum
     ADDR_SPACE_FLASH3,
     ADDR_SPACE_FLASH4,
     ADDR_SPACE_FLASH5,
+    ADDR_SPACE_FLASHX,
     ADDR_SPACE_MEMX,
     /* Sentinel */
     ADDR_SPACE_COUNT
@@ -94,9 +95,9 @@ FIXME: DRIVER_SELF_SPECS has changed.
    there is always __AVR_SP8__ == __AVR_HAVE_8BIT_SP__.  */
 
 #define AVR_HAVE_8BIT_SP                        \
-  (TARGET_TINY_STACK || avr_sp8)
+  (TARGET_TINY_STACK || avropt_sp8)
 
-#define AVR_HAVE_SPH (!avr_sp8)
+#define AVR_HAVE_SPH (!avropt_sp8)
 
 #define AVR_2_BYTE_PC (!AVR_HAVE_EIJMP_EICALL)
 #define AVR_3_BYTE_PC (AVR_HAVE_EIJMP_EICALL)
@@ -143,9 +144,6 @@ FIXME: DRIVER_SELF_SPECS has changed.
 #define SHORT_TYPE_SIZE (INT_TYPE_SIZE == 8 ? INT_TYPE_SIZE : 16)
 #define LONG_TYPE_SIZE (INT_TYPE_SIZE == 8 ? 16 : 32)
 #define LONG_LONG_TYPE_SIZE (INT_TYPE_SIZE == 8 ? 32 : 64)
-#define FLOAT_TYPE_SIZE 32
-#define DOUBLE_TYPE_SIZE (avr_double)
-#define LONG_DOUBLE_TYPE_SIZE (avr_long_double)
 
 #define LONG_LONG_ACCUM_TYPE_SIZE 64
 
@@ -311,18 +309,25 @@ enum reg_class {
 
 #define STATIC_CHAIN_REGNUM ((AVR_TINY) ? 18 :2)
 
-#define ELIMINABLE_REGS {					\
+#define RELOAD_ELIMINABLE_REGS {				\
     { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },               \
     { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },               \
     { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM },             \
     { FRAME_POINTER_REGNUM + 1, STACK_POINTER_REGNUM + 1 } }
+
+#define ELIMINABLE_REGS						\
+  {								\
+    { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },		\
+    { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },		\
+    { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM }		\
+  }
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)			\
   OFFSET = avr_initial_elimination_offset (FROM, TO)
 
 #define RETURN_ADDR_RTX(count, tem) avr_return_addr_rtx (count, tem)
 
-/* Don't use Push rounding. expr.cc: emit_single_push_insn is broken 
+/* Don't use Push rounding. expr.cc: emit_single_push_insn is broken
    for POST_DEC targets (PR27386).  */
 /*#define PUSH_ROUNDING(NPUSHED) (NPUSHED)*/
 
@@ -336,7 +341,7 @@ typedef struct avr_args
 
   /* Whether some of the arguments are passed on the stack,
      and hence an arg pointer is needed.  */
-  int has_stack_args;
+  bool has_stack_args;
 } CUMULATIVE_ARGS;
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
@@ -370,7 +375,7 @@ typedef struct avr_args
    edges instead.  The default branch costs are 0, mainly because otherwise
    do_store_flag might come up with bloated code.  */
 #define BRANCH_COST(speed_p, predictable_p)     \
-  (avr_branch_cost + (reload_completed ? 4 : 0))
+  (avropt_branch_cost + (reload_completed ? 4 : 0))
 
 #define SLOW_BYTE_ACCESS 0
 
@@ -481,7 +486,7 @@ typedef struct avr_args
 
 /* Set MOVE_RATIO to 3 to allow memory moves upto 4 bytes to happen
    by pieces when optimizing for speed, like it did when MOVE_MAX_PIECES
-   was 4. When optimizing for size, allow memory moves upto 2 bytes. 
+   was 4. When optimizing for size, allow memory moves upto 2 bytes.
    Also see avr_use_by_pieces_infrastructure_p. */
 
 #define MOVE_RATIO(speed) ((speed) ? 3 : 2)
@@ -549,53 +554,70 @@ extern const char *avr_no_devlib (int, const char**);
 struct GTY(()) machine_function
 {
   /* 'true' - if current function is a naked function.  */
-  int is_naked;
+  bool is_naked;
 
-  /* 'true' - if current function is an interrupt function 
-     as specified by the "interrupt" attribute.  */
+  /* 0 when no "interrupt" attribute is present.
+     1 when an "interrupt" attribute without arguments is present (and
+	    perhaps also "interrupt" attributes with argument(s)).
+     -1 when "interrupt" attribute(s) with arguments are present but none
+     without argument.  */
   int is_interrupt;
 
-  /* 'true' - if current function is a signal function 
-     as specified by the "signal" attribute.  */
+  /* 0 when no "signal" attribute is present.
+     1 when a "signal" attribute without arguments is present (and
+	    perhaps also "signal" attributes with argument(s)).
+     -1 when "signal" attribute(s) with arguments are present but none
+     without argument.  */
   int is_signal;
-  
-  /* 'true' - if current function is a 'task' function 
-     as specified by the "OS_task" attribute.  */
-  int is_OS_task;
 
-  /* 'true' - if current function is a 'main' function 
+  /* 'true' - if current function is a non-blocking interrupt service
+     routine as specified by the "isr_noblock" attribute.  */
+  bool is_noblock;
+
+  /* 'true' - if current function is a 'task' function
+     as specified by the "OS_task" attribute.  */
+  bool is_OS_task;
+
+  /* 'true' - if current function is a 'main' function
      as specified by the "OS_main" attribute.  */
-  int is_OS_main;
-  
+  bool is_OS_main;
+
   /* Current function stack size.  */
   int stack_usage;
 
   /* 'true' if a callee might be tail called */
-  int sibcall_fails;
+  bool sibcall_fails;
 
   /* 'true' if the above is_foo predicates are sanity-checked to avoid
      multiple diagnose for the same function.  */
-  int attributes_checked_p;
+  bool attributes_checked_p;
 
   /* 'true' - if current function shall not use '__gcc_isr' pseudo
      instructions as specified by the "no_gccisr" attribute.  */
-  int is_no_gccisr;
+  bool is_no_gccisr;
 
   /* Used for `__gcc_isr' pseudo instruction handling of
      non-naked ISR prologue / epilogue(s).  */
   struct
   {
     /* 'true' if this function actually uses "*gasisr" insns. */
-    int yes;
+    bool yes;
     /* 'true' if this function is allowed to use "*gasisr" insns. */
-    int maybe;
+    bool maybe;
     /* The register numer as printed by the Done chunk.  */
     int regno;
   } gasisr;
 
   /* 'true' if this function references .L__stack_usage like with
      __builtin_return_address.  */
-  int use_L__stack_usage;
+  bool use_L__stack_usage;
+
+  /* Counts how many times the execute() method of the avr-fuse-add pass
+     has been invoked.  The count is even increased when the optimization
+     itself is not run.  The purpose of this variable is to provide
+     information about where in the pass sequence we are.
+     It is used in insn / split conditions.  */
+  int n_avr_fuse_add_executed;
 };
 
 /* AVR does not round pushes, but the existence of this macro is

@@ -1,5 +1,5 @@
 /* A self-testing framework, for use by -fself-test.
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -178,13 +178,6 @@ class line_table_test
   ~line_table_test ();
 };
 
-/* Helper function for selftests that need a function decl.  */
-
-extern tree make_fndecl (tree return_type,
-			 const char *name,
-			 vec <tree> &param_types,
-			 bool is_variadic = false);
-
 /* Run TESTCASE multiple times, once for each case in our test matrix.  */
 
 extern void
@@ -227,7 +220,10 @@ extern void attribs_cc_tests ();
 extern void bitmap_cc_tests ();
 extern void cgraph_cc_tests ();
 extern void convert_cc_tests ();
+extern void diagnostic_color_cc_tests ();
 extern void diagnostic_format_json_cc_tests ();
+extern void diagnostic_format_sarif_cc_tests ();
+extern void diagnostic_path_cc_tests ();
 extern void diagnostic_show_locus_cc_tests ();
 extern void digraph_cc_tests ();
 extern void dumpfile_cc_tests ();
@@ -236,6 +232,7 @@ extern void et_forest_cc_tests ();
 extern void fibonacci_heap_cc_tests ();
 extern void fold_const_cc_tests ();
 extern void function_tests_cc_tests ();
+extern void gcc_attribute_urlifier_cc_tests ();
 extern void gcc_urlifier_cc_tests ();
 extern void ggc_tests_cc_tests ();
 extern void gimple_cc_tests ();
@@ -243,9 +240,13 @@ extern void hash_map_tests_cc_tests ();
 extern void hash_set_tests_cc_tests ();
 extern void input_cc_tests ();
 extern void json_cc_tests ();
+extern void lazy_diagnostic_path_cc_tests ();
+extern void json_parser_cc_tests ();
 extern void optinfo_emit_json_cc_tests ();
 extern void opts_cc_tests ();
+extern void opts_diagnostic_cc_tests ();
 extern void ordered_hash_map_tests_cc_tests ();
+extern void path_coverage_cc_tests ();
 extern void predict_cc_tests ();
 extern void pretty_print_cc_tests ();
 extern void range_tests ();
@@ -256,6 +257,7 @@ extern void read_rtl_function_cc_tests ();
 extern void rtl_tests_cc_tests ();
 extern void sbitmap_cc_tests ();
 extern void selftest_cc_tests ();
+extern void simple_diagnostic_path_cc_tests ();
 extern void simplify_rtx_cc_tests ();
 extern void spellcheck_cc_tests ();
 extern void spellcheck_tree_cc_tests ();
@@ -264,7 +266,6 @@ extern void sreal_cc_tests ();
 extern void store_merging_cc_tests ();
 extern void tree_cc_tests ();
 extern void tree_cfg_cc_tests ();
-extern void tree_diagnostic_path_cc_tests ();
 extern void tristate_cc_tests ();
 extern void typed_splay_tree_cc_tests ();
 extern void vec_cc_tests ();
@@ -339,6 +340,26 @@ extern int num_passes;
     ::selftest::fail ((LOC), desc_);			       \
   SELFTEST_END_STMT
 
+/* Evaluate VAL1 and VAL2 and compare them, calling
+   ::selftest::pass if they are within ABS_ERROR of each other,
+   ::selftest::fail if they are not.  */
+
+#define ASSERT_NEAR(VAL1, VAL2, ABS_ERROR)	\
+  ASSERT_NEAR_AT ((SELFTEST_LOCATION), (VAL1), (VAL2), (ABS_ERROR))
+
+/* Like ASSERT_NEAR, but treat LOC as the effective location of the
+   selftest.  */
+
+#define ASSERT_NEAR_AT(LOC, VAL1, VAL2, ABS_ERROR)	       \
+  SELFTEST_BEGIN_STMT					       \
+  const char *desc_ = "ASSERT_NEAR (" #VAL1 ", " #VAL2 ", " #ABS_ERROR ")"; \
+  double error = fabs ((VAL1) - (VAL2));				\
+  if (error < (ABS_ERROR))						\
+    ::selftest::pass ((LOC), desc_);					\
+  else									\
+    ::selftest::fail ((LOC), desc_);					\
+  SELFTEST_END_STMT
+
 /* Evaluate VAL1 and VAL2 and compare them with known_eq, calling
    ::selftest::pass if they are always equal,
    ::selftest::fail if they might be non-equal.  */
@@ -369,6 +390,18 @@ extern int num_passes;
     ::selftest::pass (SELFTEST_LOCATION, desc_);	       \
   else							       \
     ::selftest::fail (SELFTEST_LOCATION, desc_);	       \
+  SELFTEST_END_STMT
+
+/* Like ASSERT_NE, but treat LOC as the effective location of the
+   selftest.  */
+
+#define ASSERT_NE_AT(LOC, VAL1, VAL2)		       \
+  SELFTEST_BEGIN_STMT					       \
+  const char *desc_ = "ASSERT_NE (" #VAL1 ", " #VAL2 ")"; \
+  if ((VAL1) != (VAL2))				       \
+    ::selftest::pass ((LOC), desc_);			       \
+  else							       \
+    ::selftest::fail ((LOC), desc_);			       \
   SELFTEST_END_STMT
 
 /* Evaluate VAL1 and VAL2 and compare them with maybe_ne, calling

@@ -1,4 +1,4 @@
-// Copyright (C) 2000-2024 Free Software Foundation, Inc.
+// Copyright (C) 2000-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,11 +15,11 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// 27.8.1.10 ofstream member functions
-// @require@ %-*.tst
-// @diff@ %-*.tst %-*.txt
+// C++98 27.8.1.10 ofstream member functions
 
 // { dg-require-fileio "" }
+// { dg-additional-files "ofstream_members-1.tst" }
+// { dg-final { file-io-diff "ofstream_members-1" } }
 
 #include <ostream>
 #include <fstream>

@@ -11,6 +11,15 @@ include:
 * No dependency on runtime type information (`TypeInfo`).
 * Compatibility with BetterC.
 
+$(H3 List of examples)
+
+* [Basic usage](#basic-usage)
+* [Matching with an overload set](#matching-with-an-overload-set)
+* [Recursive SumTypes](#recursive-sumtypes)
+* [Memory corruption](#memory-corruption) (why assignment can be `@system`)
+* [Avoiding unintentional matches](#avoiding-unintentional-matches)
+* [Multiple dispatch](#multiple-dispatch)
+
 License: Boost License 1.0
 Authors: Paul Backus
 Source: $(PHOBOSSRC std/sumtype.d)
@@ -77,52 +86,38 @@ version (D_BetterC) {} else
     assert(!isFahrenheit(t3));
 }
 
-/** $(DIVID introspection-based-matching, $(H3 Introspection-based matching))
+/** $(DIVID matching-with-an-overload-set, $(H3 Matching with an overload set))
  *
- * In the `length` and `horiz` functions below, the handlers for `match` do not
- * specify the types of their arguments. Instead, matching is done based on how
- * the argument is used in the body of the handler: any type with `x` and `y`
- * properties will be matched by the `rect` handlers, and any type with `r` and
- * `theta` properties will be matched by the `polar` handlers.
+ * Instead of writing `match` handlers inline as lambdas, you can write them as
+ * overloads of a function. An `alias` can be used to create an additional
+ * overload for the `SumType` itself.
+ *
+ * For example, with this overload set:
+ *
+ * ---
+ * string handle(int n) { return "got an int"; }
+ * string handle(string s) { return "got a string"; }
+ * string handle(double d) { return "got a double"; }
+ * alias handle = match!handle;
+ * ---
+ *
+ * Usage would look like this:
  */
 version (D_BetterC) {} else
 @safe unittest
 {
-    import std.math.operations : isClose;
-    import std.math.trigonometry : cos;
-    import std.math.constants : PI;
-    import std.math.algebraic : sqrt;
+    alias ExampleSumType = SumType!(int, string, double);
 
-    struct Rectangular { double x, y; }
-    struct Polar { double r, theta; }
-    alias Vector = SumType!(Rectangular, Polar);
+    ExampleSumType a = 123;
+    ExampleSumType b = "hello";
+    ExampleSumType c = 3.14;
 
-    double length(Vector v)
-    {
-        return v.match!(
-            rect => sqrt(rect.x^^2 + rect.y^^2),
-            polar => polar.r
-        );
-    }
-
-    double horiz(Vector v)
-    {
-        return v.match!(
-            rect => rect.x,
-            polar => polar.r * cos(polar.theta)
-        );
-    }
-
-    Vector u = Rectangular(1, 1);
-    Vector v = Polar(1, PI/4);
-
-    assert(length(u).isClose(sqrt(2.0)));
-    assert(length(v).isClose(1));
-    assert(horiz(u).isClose(1));
-    assert(horiz(v).isClose(sqrt(0.5)));
+    assert(a.handle == "got an int");
+    assert(b.handle == "got a string");
+    assert(c.handle == "got a double");
 }
 
-/** $(DIVID arithmetic-expression-evaluator, $(H3 Arithmetic expression evaluator))
+/** $(DIVID recursive-sumtypes, $(H3 Recursive SumTypes))
  *
  * This example makes use of the special placeholder type `This` to define a
  * [recursive data type](https://en.wikipedia.org/wiki/Recursive_data_type): an
@@ -227,6 +222,10 @@ version (D_BetterC) {} else
     assert(pprint(*myExpr) == "(a + (2 * b))");
 }
 
+// For the "Matching with an overload set" example above
+// Needs public import to work with `make publictests`
+version (unittest) public import std.internal.test.sumtype_example_overloads;
+
 import std.format.spec : FormatSpec, singleSpec;
 import std.meta : AliasSeq, Filter, IndexOf = staticIndexOf, Map = staticMap;
 import std.meta : NoDuplicates;
@@ -255,6 +254,8 @@ private enum hasPostblit(T) = __traits(hasPostblit, T);
 
 private enum isInout(T) = is(T == inout);
 
+private enum memberName(size_t tid) = "values_" ~ toCtString!tid;
+
 /**
  * A [tagged union](https://en.wikipedia.org/wiki/Tagged_union) that can hold a
  * single value from any of a specified set of types.
@@ -266,8 +267,7 @@ private enum isInout(T) = is(T == inout);
  *
  * The special type `This` can be used as a placeholder to create
  * self-referential types, just like with `Algebraic`. See the
- * ["Arithmetic expression evaluator" example](#arithmetic-expression-evaluator) for
- * usage.
+ * ["Recursive SumTypes" example](#recursive-sumtypes) for usage.
  *
  * A `SumType` is initialized by default to hold the `.init` value of its
  * first member type, just like a regular union. The version identifier
@@ -292,45 +292,45 @@ private:
 
     union Storage
     {
-        // Workaround for https://issues.dlang.org/show_bug.cgi?id=20068
-        template memberName(T)
-        if (IndexOf!(T, Types) >= 0)
-        {
-            enum tid = IndexOf!(T, Types);
-            mixin("enum memberName = `values_", toCtString!tid, "`;");
-        }
 
-        static foreach (T; Types)
+        static foreach (tid, T; Types)
         {
-            mixin("T ", memberName!T, ";");
+            /+
+            Giving these fields individual names makes it possible to use brace
+            initialization for Storage.
+            +/
+            mixin("T ", memberName!tid, ";");
         }
     }
 
     Storage storage;
-    Tag tag;
+    static if (Types.length > 1)
+        Tag tag;
+    else
+        enum Tag tag = 0;
 
-    /* Accesses the value stored in a SumType.
+    /* Accesses the value stored in a SumType by its index.
      *
      * This method is memory-safe, provided that:
      *
      *   1. A SumType's tag is always accurate.
-     *   2. A SumType cannot be assigned to in @safe code if that assignment
-     *      could cause unsafe aliasing.
+     *   2. A SumType's value cannot be unsafely aliased in @safe code.
      *
      * All code that accesses a SumType's tag or storage directly, including
      * @safe code in this module, must be manually checked to ensure that it
      * does not violate either of the above requirements.
      */
     @trusted
-    ref inout(T) get(T)() inout
-    if (IndexOf!(T, Types) >= 0)
+    // Explicit return type omitted
+    // Workaround for https://github.com/dlang/dmd/issues/20549
+    ref getByIndex(size_t tid)() inout
+    if (tid < Types.length)
     {
-        enum tid = IndexOf!(T, Types);
         assert(tag == tid,
-            "This `" ~ SumType.stringof ~
-            "` does not contain a(n) `" ~ T.stringof ~ "`"
+            "This `" ~ SumType.stringof ~ "`" ~
+            "does not contain a(n) `" ~ Types[tid].stringof ~ "`"
         );
-        return __traits(getMember, storage, Storage.memberName!T);
+        return storage.tupleof[tid];
     }
 
 public:
@@ -365,14 +365,15 @@ public:
             static if (isCopyable!T)
             {
                 // Workaround for https://issues.dlang.org/show_bug.cgi?id=21542
-                __traits(getMember, storage, Storage.memberName!T) = __ctfe ? value : forward!value;
+                storage.tupleof[tid] = __ctfe ? value : forward!value;
             }
             else
             {
-                __traits(getMember, storage, Storage.memberName!T) = forward!value;
+                storage.tupleof[tid] = forward!value;
             }
 
-            tag = tid;
+            static if (Types.length > 1)
+                tag = tid;
         }
 
         static if (isCopyable!(const(T)))
@@ -382,8 +383,9 @@ public:
                 /// ditto
                 this(const(T) value) const
                 {
-                    __traits(getMember, storage, Storage.memberName!T) = value;
-                    tag = tid;
+                    storage.tupleof[tid] = value;
+                    static if (Types.length > 1)
+                        tag = tid;
                 }
             }
         }
@@ -399,8 +401,9 @@ public:
                 /// ditto
                 this(immutable(T) value) immutable
                 {
-                    __traits(getMember, storage, Storage.memberName!T) = value;
-                    tag = tid;
+                    storage.tupleof[tid] = value;
+                    static if (Types.length > 1)
+                        tag = tid;
                 }
             }
         }
@@ -417,8 +420,9 @@ public:
                 this(Value)(Value value) inout
                 if (is(Value == DeducedParameterType!(inout(T))))
                 {
-                    __traits(getMember, storage, Storage.memberName!T) = value;
-                    tag = tid;
+                    storage.tupleof[tid] = value;
+                    static if (Types.length > 1)
+                        tag = tid;
                 }
             }
         }
@@ -444,16 +448,16 @@ public:
                 storage = other.match!((ref value) {
                     alias OtherTypes = Map!(InoutOf, Types);
                     enum tid = IndexOf!(typeof(value), OtherTypes);
-                    alias T = Types[tid];
 
                     mixin("inout(Storage) newStorage = { ",
-                        Storage.memberName!T, ": value",
+                        memberName!tid, ": value",
                     " };");
 
                     return newStorage;
                 });
 
-                tag = other.tag;
+                static if (Types.length > 1)
+                    tag = other.tag;
             }
         }
         else
@@ -464,16 +468,17 @@ public:
                 this(ref SumType other)
                 {
                     storage = other.match!((ref value) {
-                        alias T = typeof(value);
+                        enum tid = IndexOf!(typeof(value), Types);
 
                         mixin("Storage newStorage = { ",
-                            Storage.memberName!T, ": value",
+                            memberName!tid, ": value",
                         " };");
 
                         return newStorage;
                     });
 
-                    tag = other.tag;
+                    static if (Types.length > 1)
+                        tag = other.tag;
                 }
             }
             else
@@ -489,16 +494,16 @@ public:
                     storage = other.match!((ref value) {
                         alias OtherTypes = Map!(ConstOf, Types);
                         enum tid = IndexOf!(typeof(value), OtherTypes);
-                        alias T = Types[tid];
 
                         mixin("const(Storage) newStorage = { ",
-                            Storage.memberName!T, ": value",
+                            memberName!tid, ": value",
                         " };");
 
                         return newStorage;
                     });
 
-                    tag = other.tag;
+                    static if (Types.length > 1)
+                        tag = other.tag;
                 }
             }
             else
@@ -514,16 +519,16 @@ public:
                     storage = other.match!((ref value) {
                         alias OtherTypes = Map!(ImmutableOf, Types);
                         enum tid = IndexOf!(typeof(value), OtherTypes);
-                        alias T = Types[tid];
 
                         mixin("immutable(Storage) newStorage = { ",
-                            Storage.memberName!T, ": value",
+                            memberName!tid, ": value",
                         " };");
 
                         return newStorage;
                     });
 
-                    tag = other.tag;
+                    static if (Types.length > 1)
+                        tag = other.tag;
                 }
             }
             else
@@ -639,18 +644,19 @@ public:
                 {
                     // Workaround for https://issues.dlang.org/show_bug.cgi?id=21542
                     mixin("Storage newStorage = { ",
-                        Storage.memberName!T, ": __ctfe ? rhs : forward!rhs",
+                        memberName!tid, ": __ctfe ? rhs : forward!rhs",
                     " };");
                 }
                 else
                 {
                     mixin("Storage newStorage = { ",
-                        Storage.memberName!T, ": forward!rhs",
+                        memberName!tid, ": forward!rhs",
                     " };");
                 }
 
                 storage = newStorage;
-                tag = tid;
+                static if (Types.length > 1)
+                    tag = tid;
 
                 return this;
             }
@@ -1148,7 +1154,7 @@ version (D_BetterC) {} else
     alias MySum = SumType!(ubyte, void*[2]);
 
     MySum x = [null, cast(void*) 0x12345678];
-    void** p = &x.get!(void*[2])[1];
+    void** p = &x.getByIndex!1[1];
     x = ubyte(123);
 
     assert(*p != cast(void*) 0x12345678);
@@ -1180,8 +1186,8 @@ version (D_BetterC) {} else
     catch (Exception e) {}
 
     assert(
-        (x.tag == 0 && x.get!A.value == 123) ||
-        (x.tag == 1 && x.get!B.value == 456)
+        (x.tag == 0 && x.getByIndex!0.value == 123) ||
+        (x.tag == 1 && x.getByIndex!1.value == 456)
     );
 }
 
@@ -1240,8 +1246,8 @@ version (D_BetterC) {} else
     SumType!(S[1]) x = [S(0)];
     SumType!(S[1]) y = x;
 
-    auto xval = x.get!(S[1])[0].n;
-    auto yval = y.get!(S[1])[0].n;
+    auto xval = x.getByIndex!0[0].n;
+    auto yval = y.getByIndex!0[0].n;
 
     assert(xval != yval);
 }
@@ -1326,8 +1332,8 @@ version (D_BetterC) {} else
     SumType!S y;
     y = x;
 
-    auto xval = x.get!S.n;
-    auto yval = y.get!S.n;
+    auto xval = x.getByIndex!0.n;
+    auto yval = y.getByIndex!0.n;
 
     assert(xval != yval);
 }
@@ -1401,8 +1407,8 @@ version (D_BetterC) {} else
     SumType!S x = S();
     SumType!S y = x;
 
-    auto xval = x.get!S.n;
-    auto yval = y.get!S.n;
+    auto xval = x.getByIndex!0.n;
+    auto yval = y.getByIndex!0.n;
 
     assert(xval != yval);
 }
@@ -1564,6 +1570,13 @@ version (D_BetterC) {} else
     enum result = test();
 }
 
+// https://github.com/dlang/phobos/issues/10563
+// Do not waste space for tag if sumtype has only single type
+@safe unittest
+{
+    static assert(SumType!int.sizeof == int.sizeof);
+}
+
 /// True if `T` is an instance of the `SumType` template, otherwise false.
 private enum bool isSumTypeInstance(T) = is(T == SumType!Args, Args...);
 
@@ -1619,9 +1632,9 @@ enum bool isSumType(T) = is(T : SumType!Args, Args...);
  * overloads are considered as potential matches.
  *
  * Templated handlers are also accepted, and will match any type for which they
- * can be [implicitly instantiated](https://dlang.org/glossary.html#ifti). See
- * ["Introspection-based matching"](#introspection-based-matching) for an
- * example of templated handler usage.
+ * can be [implicitly instantiated](https://dlang.org/glossary.html#ifti).
+ * (Remember that a $(DDSUBLINK spec/expression,function_literals, function literal)
+ * without an explicit argument type is considered a template.)
  *
  * If multiple [SumType]s are passed to match, their values are passed to the
  * handlers as separate arguments, and matching is done for each possible
@@ -1817,7 +1830,7 @@ class MatchException : Exception
 template canMatch(alias handler, Ts...)
 if (Ts.length > 0)
 {
-    enum canMatch = is(typeof((ref Ts args) => handler(args)));
+    enum canMatch = is(typeof(auto ref (ref Ts args) => handler(args)));
 }
 
 ///
@@ -1842,6 +1855,21 @@ if (Ts.length > 0)
     assert(canMatch!(OverloadSet.fun, double));
 }
 
+// Allows returning non-copyable types by ref
+// https://github.com/dlang/phobos/issues/10647
+@safe unittest
+{
+    static struct NoCopy
+    {
+        @disable this(this);
+    }
+
+    static NoCopy lvalue;
+    static ref handler(int _) => lvalue;
+
+    assert(canMatch!(handler, int));
+}
+
 // Like aliasSeqOf!(iota(n)), but works in BetterC
 private template Iota(size_t n)
 {
@@ -1862,87 +1890,62 @@ private template Iota(size_t n)
     assert(Iota!3 == AliasSeq!(0, 1, 2));
 }
 
-/* The number that the dim-th argument's tag is multiplied by when
- * converting TagTuples to and from case indices ("caseIds").
- *
- * Named by analogy to the stride that the dim-th index into a
- * multidimensional static array is multiplied by to calculate the
- * offset of a specific element.
- */
-private size_t stride(size_t dim, lengths...)()
-{
-    import core.checkedint : mulu;
-
-    size_t result = 1;
-    bool overflow = false;
-
-    static foreach (i; 0 .. dim)
-    {
-        result = mulu(result, lengths[i], overflow);
-    }
-
-    /* The largest number matchImpl uses, numCases, is calculated with
-     * stride!(SumTypes.length), so as long as this overflow check
-     * passes, we don't need to check for overflow anywhere else.
-     */
-    assert(!overflow, "Integer overflow");
-    return result;
-}
-
 private template matchImpl(Flag!"exhaustive" exhaustive, handlers...)
 {
     auto ref matchImpl(SumTypes...)(auto ref SumTypes args)
     if (allSatisfy!(isSumType, SumTypes) && args.length > 0)
     {
-        alias stride(size_t i) = .stride!(i, Map!(typeCount, SumTypes));
-        alias TagTuple = .TagTuple!(SumTypes);
-
-        /*
-         * A list of arguments to be passed to a handler needed for the case
-         * labeled with `caseId`.
-         */
-        template handlerArgs(size_t caseId)
+        // Single dispatch (fast path)
+        static if (args.length == 1)
         {
-            enum tags = TagTuple.fromCaseId(caseId);
-            enum argsFrom(size_t i : tags.length) = "";
-            enum argsFrom(size_t i) = "args[" ~ toCtString!i ~ "].get!(SumTypes[" ~ toCtString!i ~ "]" ~
-                ".Types[" ~ toCtString!(tags[i]) ~ "])(), " ~ argsFrom!(i + 1);
-            enum handlerArgs = argsFrom!0;
+            /* When there's only one argument, the caseId is just that
+             * argument's tag, so there's no need for TagTuple.
+             */
+            enum handlerArgs(size_t caseId) =
+                "args[0].getByIndex!(" ~ toCtString!caseId ~ ")()";
+
+            alias valueTypes(size_t caseId) =
+                typeof(args[0].getByIndex!(caseId)());
+
+            enum numCases = SumTypes[0].Types.length;
         }
-
-        /* An AliasSeq of the types of the member values in the argument list
-         * returned by `handlerArgs!caseId`.
-         *
-         * Note that these are the actual (that is, qualified) types of the
-         * member values, which may not be the same as the types listed in
-         * the arguments' `.Types` properties.
-         */
-        template valueTypes(size_t caseId)
+        // Multiple dispatch (slow path)
+        else
         {
-            enum tags = TagTuple.fromCaseId(caseId);
+            alias typeCounts = Map!(typeCount, SumTypes);
+            alias stride(size_t i) = .stride!(i, typeCounts);
+            alias TagTuple = .TagTuple!typeCounts;
 
-            template getType(size_t i)
+            alias handlerArgs(size_t caseId) = .handlerArgs!(caseId, typeCounts);
+
+            /* An AliasSeq of the types of the member values in the argument list
+             * returned by `handlerArgs!caseId`.
+             *
+             * Note that these are the actual (that is, qualified) types of the
+             * member values, which may not be the same as the types listed in
+             * the arguments' `.Types` properties.
+             */
+            template valueTypes(size_t caseId)
             {
-                enum tid = tags[i];
-                alias T = SumTypes[i].Types[tid];
-                alias getType = typeof(args[i].get!T());
+                enum tags = TagTuple.fromCaseId(caseId);
+
+                template getType(size_t i)
+                {
+                    alias getType = typeof(args[i].getByIndex!(tags[i])());
+                }
+
+                alias valueTypes = Map!(getType, Iota!(tags.length));
             }
 
-            alias valueTypes = Map!(getType, Iota!(tags.length));
+            /* The total number of cases is
+             *
+             *   Π SumTypes[i].Types.length for 0 ≤ i < SumTypes.length
+             *
+             * Conveniently, this is equal to stride!(SumTypes.length), so we can
+             * use that function to compute it.
+             */
+            enum numCases = stride!(SumTypes.length);
         }
-
-        /* The total number of cases is
-         *
-         *   Π SumTypes[i].Types.length for 0 ≤ i < SumTypes.length
-         *
-         * Or, equivalently,
-         *
-         *   ubyte[SumTypes[0].Types.length]...[SumTypes[$-1].Types.length].sizeof
-         *
-         * Conveniently, this is equal to stride!(SumTypes.length), so we can
-         * use that function to compute it.
-         */
-        enum numCases = stride!(SumTypes.length);
 
         /* Guaranteed to never be a valid handler index, since
          * handlers.length <= size_t.max.
@@ -1988,7 +1991,7 @@ private template matchImpl(Flag!"exhaustive" exhaustive, handlers...)
                     ? "template"
                     : typeof(handler).stringof
                 ) ~ "` " ~
-                "never matches"
+                "never matches. Perhaps the handler failed to compile"
             );
         }
 
@@ -2000,7 +2003,12 @@ private template matchImpl(Flag!"exhaustive" exhaustive, handlers...)
             mixin("alias ", handlerName!hid, " = handler;");
         }
 
-        immutable argsId = TagTuple(args).toCaseId;
+        // Single dispatch (fast path)
+        static if (args.length == 1)
+            immutable argsId = args[0].tag;
+        // Multiple dispatch (slow path)
+        else
+            immutable argsId = TagTuple(args).toCaseId;
 
         final switch (argsId)
         {
@@ -2031,10 +2039,11 @@ private template matchImpl(Flag!"exhaustive" exhaustive, handlers...)
     }
 }
 
+// Predicate for staticMap
 private enum typeCount(SumType) = SumType.Types.length;
 
-/* A TagTuple represents a single possible set of tags that `args`
- * could have at runtime.
+/* A TagTuple represents a single possible set of tags that the arguments to
+ * `matchImpl` could have at runtime.
  *
  * Because D does not allow a struct to be the controlling expression
  * of a switch statement, we cannot dispatch on the TagTuple directly.
@@ -2056,22 +2065,23 @@ private enum typeCount(SumType) = SumType.Types.length;
  * When there is only one argument, the caseId is equal to that
  * argument's tag.
  */
-private struct TagTuple(SumTypes...)
+private struct TagTuple(typeCounts...)
 {
-    size_t[SumTypes.length] tags;
+    size_t[typeCounts.length] tags;
     alias tags this;
 
-    alias stride(size_t i) = .stride!(i, Map!(typeCount, SumTypes));
+    alias stride(size_t i) = .stride!(i, typeCounts);
 
     invariant
     {
         static foreach (i; 0 .. tags.length)
         {
-            assert(tags[i] < SumTypes[i].Types.length, "Invalid tag");
+            assert(tags[i] < typeCounts[i], "Invalid tag");
         }
     }
 
-    this(ref const(SumTypes) args)
+    this(SumTypes...)(ref const SumTypes args)
+    if (allSatisfy!(isSumType, SumTypes) && args.length == typeCounts.length)
     {
         static foreach (i; 0 .. tags.length)
         {
@@ -2103,6 +2113,51 @@ private struct TagTuple(SumTypes...)
         }
 
         return result;
+    }
+}
+
+/* The number that the dim-th argument's tag is multiplied by when
+ * converting TagTuples to and from case indices ("caseIds").
+ *
+ * Named by analogy to the stride that the dim-th index into a
+ * multidimensional static array is multiplied by to calculate the
+ * offset of a specific element.
+ */
+private size_t stride(size_t dim, lengths...)()
+{
+    import core.checkedint : mulu;
+
+    size_t result = 1;
+    bool overflow = false;
+
+    static foreach (i; 0 .. dim)
+    {
+        result = mulu(result, lengths[i], overflow);
+    }
+
+    /* The largest number matchImpl uses, numCases, is calculated with
+     * stride!(SumTypes.length), so as long as this overflow check
+     * passes, we don't need to check for overflow anywhere else.
+     */
+    assert(!overflow, "Integer overflow");
+    return result;
+}
+
+/* A list of arguments to be passed to a handler needed for the case
+ * labeled with `caseId`.
+ */
+private template handlerArgs(size_t caseId, typeCounts...)
+{
+    enum tags = TagTuple!typeCounts.fromCaseId(caseId);
+
+    alias handlerArgs = AliasSeq!();
+
+    static foreach (i; 0 .. tags.length)
+    {
+        handlerArgs = AliasSeq!(
+            handlerArgs,
+            "args[" ~ toCtString!i ~ "].getByIndex!(" ~ toCtString!(tags[i]) ~ ")(), "
+        );
     }
 }
 
@@ -2365,7 +2420,7 @@ version (D_Exceptions)
         (ref double d) { d *= 2; }
     );
 
-    assert(value.get!double.isClose(6.28));
+    assert(value.getByIndex!1.isClose(6.28));
 }
 
 // Unreachable handlers
@@ -2585,6 +2640,417 @@ version (D_Exceptions)
             function int* (return ref int i) => &i,
         );
     }));
+}
+
+/**
+ * Checks whether a `SumType` contains a value of a given type.
+ *
+ * The types must match exactly, without implicit conversions.
+ *
+ * Params:
+ *   T = the type to check for.
+ */
+template has(T)
+{
+    /**
+     * The actual `has` function.
+     *
+     * Params:
+     *   self = the `SumType` to check.
+     *
+     * Returns: true if `self` contains a `T`, otherwise false.
+     */
+    bool has(Self)(auto ref Self self)
+    if (isSumType!Self)
+    {
+        return self.match!checkType;
+    }
+
+    // Helper to avoid redundant template instantiations
+    private bool checkType(Value)(ref Value value)
+    {
+        return is(Value == T);
+    }
+}
+
+/// Basic usage
+@safe unittest
+{
+    SumType!(string, double) example = "hello";
+
+    assert( example.has!string);
+    assert(!example.has!double);
+
+    // If T isn't part of the SumType, has!T will always return false.
+    assert(!example.has!int);
+}
+
+/// With type qualifiers
+@safe unittest
+{
+    alias Example = SumType!(string, double);
+
+    Example m = "mutable";
+    const Example c = "const";
+    immutable Example i = "immutable";
+
+    assert( m.has!string);
+    assert(!m.has!(const(string)));
+    assert(!m.has!(immutable(string)));
+
+    assert(!c.has!string);
+    assert( c.has!(const(string)));
+    assert(!c.has!(immutable(string)));
+
+    assert(!i.has!string);
+    assert(!i.has!(const(string)));
+    assert( i.has!(immutable(string)));
+}
+
+/// As a predicate
+version (D_BetterC) {} else
+@safe unittest
+{
+    import std.algorithm.iteration : filter;
+    import std.algorithm.comparison : equal;
+
+    alias Example = SumType!(string, double);
+
+    auto arr = [
+        Example("foo"),
+        Example(0),
+        Example("bar"),
+        Example(1),
+        Example(2),
+        Example("baz")
+    ];
+
+    auto strings = arr.filter!(has!string);
+    auto nums = arr.filter!(has!double);
+
+    assert(strings.equal([Example("foo"), Example("bar"), Example("baz")]));
+    assert(nums.equal([Example(0), Example(1), Example(2)]));
+}
+
+// Non-copyable types
+@safe unittest
+{
+    static struct NoCopy
+    {
+        @disable this(this);
+    }
+
+    SumType!NoCopy x;
+
+    assert(x.has!NoCopy);
+}
+
+/**
+ * Accesses a `SumType`'s value.
+ *
+ * The value must be of the specified type. Use [has] to check.
+ *
+ * Params:
+ *   T = the type of the value being accessed.
+ */
+template get(T)
+{
+    /**
+     * The actual `get` function.
+     *
+     * Params:
+     *   self = the `SumType` whose value is being accessed.
+     *
+     * Returns: the `SumType`'s value.
+     */
+    auto ref T get(Self)(auto ref Self self)
+    if (isSumType!Self)
+    {
+        import std.typecons : No;
+
+        static if (__traits(isRef, self))
+            return self.match!(getLvalue!(No.try_, T));
+        else
+            return self.match!(getRvalue!(No.try_, T));
+    }
+}
+
+/// Basic usage
+@safe unittest
+{
+    SumType!(string, double) example1 = "hello";
+    SumType!(string, double) example2 = 3.14;
+
+    assert(example1.get!string == "hello");
+    assert(example2.get!double == 3.14);
+}
+
+/// With type qualifiers
+@safe unittest
+{
+    alias Example = SumType!(string, double);
+
+    Example m = "mutable";
+    const(Example) c = "const";
+    immutable(Example) i = "immutable";
+
+    assert(m.get!string == "mutable");
+    assert(c.get!(const(string)) == "const");
+    assert(i.get!(immutable(string)) == "immutable");
+}
+
+/// As a predicate
+version (D_BetterC) {} else
+@safe unittest
+{
+    import std.algorithm.iteration : map;
+    import std.algorithm.comparison : equal;
+
+    alias Example = SumType!(string, double);
+
+    auto arr = [Example(0), Example(1), Example(2)];
+    auto values = arr.map!(get!double);
+
+    assert(values.equal([0, 1, 2]));
+}
+
+// Non-copyable types
+@safe unittest
+{
+    static struct NoCopy
+    {
+        @disable this(this);
+    }
+
+    SumType!NoCopy lvalue;
+    auto rvalue() => SumType!NoCopy();
+
+    assert(lvalue.get!NoCopy == NoCopy());
+    assert(rvalue.get!NoCopy == NoCopy());
+}
+
+// Immovable rvalues
+@safe unittest
+{
+    auto rvalue() => const(SumType!string)("hello");
+
+    assert(rvalue.get!(const(string)) == "hello");
+}
+
+// Nontrivial rvalues at compile time
+@safe unittest
+{
+    static struct ElaborateCopy
+    {
+        this(this) {}
+    }
+
+    enum rvalue = SumType!ElaborateCopy();
+    enum ctResult = rvalue.get!ElaborateCopy;
+
+    assert(ctResult == ElaborateCopy());
+}
+
+/**
+ * Attempt to access a `SumType`'s value.
+ *
+ * If the `SumType` does not contain a value of the specified type, an
+ * exception is thrown.
+ *
+ * Params:
+ *   T = the type of the value being accessed.
+ */
+version (D_Exceptions)
+template tryGet(T)
+{
+    /**
+     * The actual `tryGet` function.
+     *
+     * Params:
+     *   self = the `SumType` whose value is being accessed.
+     *
+     * Throws: `MatchException` if the value does not have the expected type.
+     *
+     * Returns: the `SumType`'s value.
+     */
+    auto ref T tryGet(Self)(auto ref Self self)
+    if (isSumType!Self)
+    {
+        import std.typecons : Yes;
+
+        static if (__traits(isRef, self))
+            return self.match!(getLvalue!(Yes.try_, T));
+        else
+            return self.match!(getRvalue!(Yes.try_, T));
+    }
+}
+
+/// Basic usage
+version (D_Exceptions)
+@safe unittest
+{
+    SumType!(string, double) example = "hello";
+
+    assert(example.tryGet!string == "hello");
+
+    double result = double.nan;
+    try
+        result = example.tryGet!double;
+    catch (MatchException e)
+        result = 0;
+
+    // Exception was thrown
+    assert(result == 0);
+}
+
+/// With type qualifiers
+version (D_Exceptions)
+@safe unittest
+{
+    import std.exception : assertThrown;
+
+    const(SumType!(string, double)) example = "const";
+
+    // Qualifier mismatch; throws exception
+    assertThrown!MatchException(example.tryGet!string);
+    // Qualifier matches; no exception
+    assert(example.tryGet!(const(string)) == "const");
+}
+
+/// As a predicate
+version (D_BetterC) {} else
+@safe unittest
+{
+    import std.algorithm.iteration : map, sum;
+    import std.functional : pipe;
+    import std.exception : assertThrown;
+
+    alias Example = SumType!(string, double);
+
+    auto arr1 = [Example(0), Example(1), Example(2)];
+    auto arr2 = [Example("foo"), Example("bar"), Example("baz")];
+
+    alias trySum = pipe!(map!(tryGet!double), sum);
+
+    assert(trySum(arr1) == 0 + 1 + 2);
+    assertThrown!MatchException(trySum(arr2));
+}
+
+// Throws if requested type is impossible
+version (D_Exceptions)
+@safe unittest
+{
+    import std.exception : assertThrown;
+
+    SumType!int x;
+
+    assertThrown!MatchException(x.tryGet!string);
+}
+
+// Non-copyable types
+version (D_Exceptions)
+@safe unittest
+{
+    static struct NoCopy
+    {
+        @disable this(this);
+    }
+
+    SumType!NoCopy lvalue;
+    auto rvalue() => SumType!NoCopy();
+
+    assert(lvalue.tryGet!NoCopy == NoCopy());
+    assert(rvalue.tryGet!NoCopy == NoCopy());
+}
+
+// Immovable rvalues
+version (D_Exceptions)
+@safe unittest
+{
+    auto rvalue() => const(SumType!string)("hello");
+
+    assert(rvalue.tryGet!(const(string)) == "hello");
+}
+
+// Nontrivial rvalues at compile time
+version (D_Exceptions)
+@safe unittest
+{
+    static struct ElaborateCopy
+    {
+        this(this) {}
+    }
+
+    enum rvalue = SumType!ElaborateCopy();
+    enum ctResult = rvalue.tryGet!ElaborateCopy;
+
+    assert(ctResult == ElaborateCopy());
+}
+
+private template failedGetMessage(Expected, Actual)
+{
+    static if (Expected.stringof == Actual.stringof)
+    {
+        enum expectedStr = __traits(fullyQualifiedName, Expected);
+        enum actualStr = __traits(fullyQualifiedName, Actual);
+    }
+    else
+    {
+        enum expectedStr = Expected.stringof;
+        enum actualStr = Actual.stringof;
+    }
+
+    enum failedGetMessage =
+        "Tried to get `" ~ expectedStr ~ "`" ~
+        " but found `" ~ actualStr ~ "`";
+}
+
+private template getLvalue(Flag!"try_" try_, T)
+{
+    ref T getLvalue(Value)(ref Value value)
+    {
+        static if (is(Value == T))
+        {
+            return value;
+        }
+        else
+        {
+            static if (try_)
+                throw new MatchException(failedGetMessage!(T, Value));
+            else
+                assert(false, failedGetMessage!(T, Value));
+        }
+    }
+}
+
+private template getRvalue(Flag!"try_" try_, T)
+{
+    T getRvalue(Value)(ref Value value)
+    {
+        static if (is(Value == T))
+        {
+            import core.lifetime : move;
+
+            // Move if possible; otherwise fall back to copy
+            static if (is(typeof(move(value))))
+            {
+                static if (isCopyable!Value)
+                    // Workaround for https://issues.dlang.org/show_bug.cgi?id=21542
+                    return __ctfe ? value : move(value);
+                else
+                    return move(value);
+            }
+            else
+                return value;
+        }
+        else
+        {
+            static if (try_)
+                throw new MatchException(failedGetMessage!(T, Value));
+            else
+                assert(false, failedGetMessage!(T, Value));
+        }
+    }
 }
 
 private void destroyIfOwner(T)(ref T value)

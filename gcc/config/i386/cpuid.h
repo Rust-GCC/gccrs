@@ -1,20 +1,20 @@
 /*
- * Copyright (C) 2007-2024 Free Software Foundation, Inc.
+ * Copyright (C) 2007-2025 Free Software Foundation, Inc.
  *
  * This file is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
  * Free Software Foundation; either version 3, or (at your option) any
  * later version.
- * 
+ *
  * This file is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * Under Section 7 of GPL version 3, you are granted additional
  * permissions described in the GCC Runtime Library Exception, version
  * 3.1, as published by the Free Software Foundation.
- * 
+ *
  * You should have received a copy of the GNU General Public License and
  * a copy of the GCC Runtime Library Exception along with this program;
  * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
@@ -88,15 +88,12 @@
 #define bit_AVX512IFMA	(1 << 21)
 #define bit_CLFLUSHOPT	(1 << 23)
 #define bit_CLWB	(1 << 24)
-#define bit_AVX512PF	(1 << 26)
-#define bit_AVX512ER	(1 << 27)
 #define bit_AVX512CD	(1 << 28)
 #define bit_SHA		(1 << 29)
 #define bit_AVX512BW	(1 << 30)
 #define bit_AVX512VL	(1u << 31)
 
 /* %ecx */
-#define bit_PREFETCHWT1	(1 << 0)
 #define bit_AVX512VBMI	(1 << 1)
 #define bit_PKU		(1 << 3)
 #define bit_OSPKE	(1 << 4)
@@ -117,8 +114,6 @@
 #define bit_ENQCMD	(1 << 29)
 
 /* %edx */
-#define bit_AVX5124VNNIW	(1 << 2)
-#define bit_AVX5124FMAPS	(1 << 3)
 #define bit_UINTR	(1 << 5)
 #define bit_AVX512VP2INTERSECT	(1 << 8)
 #define bit_SERIALIZE	(1 << 14)
@@ -143,6 +138,7 @@
 #define bit_AMX_FP16    (1 << 21)
 #define bit_HRESET      (1 << 22)
 #define bit_AVXIFMA     (1 << 23)
+#define bit_MOVRS	(1 << 31)
 
 /* %edx */
 #define bit_AVXVNNIINT8 (1 << 4)
@@ -167,10 +163,13 @@
 #define bit_AESKLE	( 1<<0 )
 #define bit_WIDEKL	( 1<<2 )
 
-/* AVX10 sub leaf (%eax == 0x24) */
-/* %ebx */
-#define bit_AVX10_256	(1 << 17)
-#define bit_AVX10_512	(1 << 18)
+/* AMX sub leaf (%eax == 0x1e, %ecx == 1) */
+/* %eax */
+#define bit_AMX_FP8	(1 << 4)
+#define bit_AMX_TRANSPOSE	(1 << 5)
+#define bit_AMX_TF32	(1 << 6)
+#define bit_AMX_AVX512  (1 << 7)
+#define bit_AMX_MOVRS	(1 << 8)
 
 /* Signatures for different CPU implementations as returned in uses
    of cpuid with level 0.  */

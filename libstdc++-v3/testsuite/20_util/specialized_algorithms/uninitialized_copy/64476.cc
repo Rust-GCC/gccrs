@@ -1,4 +1,4 @@
-// Copyright (C) 2015-2024 Free Software Foundation, Inc.
+// Copyright (C) 2015-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -54,8 +54,10 @@ test01()
 
   std::uninitialized_copy(a, a+10, b);
 
-  VERIFY(constructed == 0);
-  VERIFY(assigned == 10);
+  // In GCC 14 and older std::uninitialized_copy was optimized to std::copy
+  // and so used assignments not construction, but that was non-conforming.
+  VERIFY(constructed == 10);
+  VERIFY(assigned == 0);
 }
 
 int

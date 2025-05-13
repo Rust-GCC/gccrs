@@ -1,3 +1,25 @@
+2025-04-15  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* bootstrap-lto-locality.mk: New file.
+
+2024-11-25  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* mt-nios2-elf: Deleted.
+
+2024-04-16  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* acx.m4 (ACX_PROG_CARGO): Use 'AC_CHECK_PROGS'.
+
+2024-04-15  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* acx.m4: Add a macro to check for rust
+	components.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* lcmessage.m4: Fix duplicated words; can can -> can,
+	package package -> package.
+
 2024-01-11  Mike Frysinger  <vapier@gentoo.org>
 
 	* acinclude.m4 (CYG_AC_PATH_LIBERTY): Delete.

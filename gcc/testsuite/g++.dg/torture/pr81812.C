@@ -1,3 +1,6 @@
+// { dg-xfail-if "PR108277" { arm_thumb1 } }
+// { dg-require-effective-target variadic_mi_thunk }
+
 struct Error {
   virtual void error(... ) const;
 };

@@ -1,5 +1,5 @@
 ;; Predicate definitions for HP PA-RISC.
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -191,6 +191,22 @@
 	  && CONSTANT_P (op) && ! TARGET_PORTABLE_RUNTIME);
 })
 
+;; True iff OP is a SImode r25 register operand.
+
+(define_predicate "r25_operand"
+  (match_code "reg")
+{
+  return mode == SImode && REG_P (op) && REGNO (op) == 25;
+})
+
+;; True iff OP is a SImode r26 register operand.
+
+(define_predicate "r26_operand"
+  (match_code "reg")
+{
+  return mode == SImode && REG_P (op) && REGNO (op) == 26;
+})
+
 ;; True iff OP can be used as the divisor in a div millicode call.
 
 (define_predicate "div_operand"
@@ -285,7 +301,7 @@
       return false;
 
     default:
-      return (INTVAL (op) % GET_MODE_SIZE (mode)) == 0;
+      return (INTVAL (op) & (GET_MODE_SIZE (mode) - 1)) == 0;
     }
 
   return false;
@@ -300,7 +316,7 @@
 (define_predicate "integer_store_memory_operand"
   (match_code "reg,mem")
 {
-  if (reload_in_progress
+  if ((lra_in_progress || reload_in_progress)
       && REG_P (op)
       && REGNO (op) >= FIRST_PSEUDO_REGISTER
       && reg_renumber [REGNO (op)] < 0)
@@ -312,7 +328,7 @@
 	 REG+D instructions in pa_emit_move_sequence.  Further, the Q
 	 constraint is used in more than simple move instructions.  So,
 	 we must return true and let reload handle the reload.  */
-      if (reload_in_progress)
+      if (lra_in_progress || reload_in_progress)
 	return true;
 
       /* Extract CONST_INT operand.  */
@@ -326,22 +342,28 @@
   if (!MEM_P (op))
     return false;
 
-  return ((reload_in_progress || memory_address_p (mode, XEXP (op, 0)))
+  return ((lra_in_progress || reload_in_progress
+	   || memory_address_p (mode, XEXP (op, 0)))
 	  && !IS_LO_SUM_DLT_ADDR_P (XEXP (op, 0))
 	  && !IS_INDEX_ADDR_P (XEXP (op, 0)));
 })
 
-;; True iff the operand OP can be used as the destination operand of
-;; a floating point store.  This also implies the operand could be used as
+;; True iff the operand OP can be used as the destination operand of a
+;; floating point store.  This also implies the operand could be used as
 ;; the source operand of a floating point load.  LO_SUM DLT and indexed
-;; memory operands are not allowed.  Symbolic operands are accepted if
-;; INT14_OK_STRICT is true.  We accept reloading pseudos and other memory
-;; operands.
+;; memory operands are not allowed.  Symbolic operands are accepted for
+;; PA 2.0.  We accept reloading pseudos and other memory operands.
+
+;; NOTE: The GNU ELF32 linker clobbered the least significant bit of
+;; the target floating-point register in PA 2.0 floating-point loads
+;; and stores with long displacements in ld versions prior to 2.42.
+;; The global pointer also was not double-word aligned.  This broke
+;; various DPREL relocations.
 
 (define_predicate "floating_point_store_memory_operand"
   (match_code "reg,mem")
 {
-  if (reload_in_progress
+  if ((lra_in_progress || reload_in_progress)
       && REG_P (op)
       && REGNO (op) >= FIRST_PSEUDO_REGISTER
       && reg_renumber [REGNO (op)] < 0)
@@ -361,7 +383,8 @@
   if (!MEM_P (op))
     return false;
 
-  return ((reload_in_progress || memory_address_p (mode, XEXP (op, 0)))
+  return ((lra_in_progress || reload_in_progress
+	   || memory_address_p (mode, XEXP (op, 0)))
 	  && (INT14_OK_STRICT || !symbolic_memory_operand (op, VOIDmode))
 	  && !IS_LO_SUM_DLT_ADDR_P (XEXP (op, 0))
 	  && !IS_INDEX_ADDR_P (XEXP (op, 0)));
@@ -462,9 +485,9 @@
   return memory_address_p (mode, XEXP (op, 0));
 })
 
-;; True iff OP is not a symbolic memory operand. 
+;; True iff OP is a valid memory operand. 
 
-(define_predicate "nonsymb_mem_operand"
+(define_predicate "mem_operand"
   (match_code "subreg,mem")
 {
   if (GET_CODE (op) == SUBREG)
@@ -483,8 +506,7 @@
       && REG_P (XEXP (XEXP (op, 0), 1)))
     return false;
 
-  return (!symbolic_memory_operand (op, mode)
-	  && memory_address_p (mode, XEXP (op, 0)));
+  return (memory_address_p (mode, XEXP (op, 0)));
 })
 
 ;; True iff OP is anything other than a hard register.
@@ -551,7 +573,7 @@
   if (register_operand (op, mode))
     return true;
 
-  if (!reload_in_progress && !reload_completed)
+  if (!lra_in_progress && !reload_in_progress && !reload_completed)
     return false;
 
   if (! MEM_P (op))
@@ -571,11 +593,11 @@
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "const_0_operand")))
 
-;; True iff OP is either a register, zero, or a non-symbolic memory operand.
+;; True iff OP is either a register, zero, or a memory operand.
 
-(define_predicate "reg_or_0_or_nonsymb_mem_operand"
+(define_predicate "reg_or_0_or_mem_operand"
   (ior (match_operand 0 "reg_or_0_operand")
-       (match_operand 0 "nonsymb_mem_operand")))
+       (match_operand 0 "mem_operand")))
 
 ;; Accept REG and any CONST_INT that can be moved in one instruction
 ;; into a general register.

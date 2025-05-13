@@ -1,6 +1,6 @@
 /* m2decl.cc provides an interface to GCC decl trees.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -152,11 +152,11 @@ m2decl_DeclareKnownConstant (location_t location, tree type, tree value)
 
   decl = build_decl (location, CONST_DECL, id, type);
 
+  value = copy_node (value);
+  TREE_TYPE (value) = type;
   DECL_INITIAL (decl) = value;
   TREE_TYPE (decl) = type;
-
   decl = m2block_global_constant (decl);
-
   return decl;
 }
 
@@ -165,7 +165,7 @@ m2decl_DeclareKnownConstant (location_t location, tree type, tree value)
    param_type_list.  */
 
 tree
-m2decl_BuildParameterDeclaration (location_t location, char *name, tree type,
+m2decl_BuildParameterDeclaration (location_t location, const char *name, tree type,
                                   bool isreference)
 {
   tree parm_decl;

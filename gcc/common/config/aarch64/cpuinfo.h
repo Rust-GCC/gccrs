@@ -1,5 +1,5 @@
 /* CPU feature detection for AArch64 architecture.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -75,13 +75,13 @@ enum CPUFeatures {
   FEAT_MEMTAG2,
   FEAT_MEMTAG3,
   FEAT_SB,
-  FEAT_PREDRES,
+  FEAT_unused1,
   FEAT_SSBS,
   FEAT_SSBS2,
   FEAT_BTI,
-  FEAT_LS64,
-  FEAT_LS64_V,
-  FEAT_LS64_ACCDATA,
+  FEAT_unused2,
+  FEAT_unused3,
+  FEAT_unused4,
   FEAT_WFXT,
   FEAT_SME_F64,
   FEAT_SME_I64,

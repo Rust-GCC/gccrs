@@ -1,5 +1,5 @@
 /* Interprocedural semantic function equality pass
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    Contributed by Jan Hubicka <hubicka@ucw.cz> and Martin Liska <mliska@suse.cz>
 
@@ -308,8 +308,6 @@ private:
 class sem_function: public sem_item
 {
 public:
-  /* Semantic function constructor that uses STACK as bitmap memory stack.  */
-  sem_function (bitmap_obstack *stack);
 
   /*  Constructor based on callgraph node _NODE.
       Bitmap STACK is used for memory allocation.  */
@@ -419,9 +417,6 @@ private:
 class sem_variable: public sem_item
 {
 public:
-  /* Semantic variable constructor that uses STACK as bitmap memory stack.  */
-  sem_variable (bitmap_obstack *stack);
-
   /*  Constructor based on callgraph node _NODE.
       Bitmap STACK is used for memory allocation.  */
 

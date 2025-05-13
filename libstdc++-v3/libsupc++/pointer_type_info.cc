@@ -1,4 +1,4 @@
-// Copyright (C) 1994-2024 Free Software Foundation, Inc.
+// Copyright (C) 1994-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -47,7 +47,7 @@ __pointer_catch (const __pbase_type_info *thrown_type,
       return !thrown_type->__pointee->__is_function_p ();
     }
 #endif
-  
+
   return __pbase_type_info::__pointer_catch (thrown_type, thr_obj, outer);
 }
 
