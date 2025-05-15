@@ -24,6 +24,7 @@
 #include "rust-hir-map.h"
 #include "rust-rib.h"
 #include "rust-stacked-contexts.h"
+#include "rust-item.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -213,6 +214,230 @@ public:
   BindingSource get_source () const;
 };
 
+class NameResolutionContext;
+/*
+ * Used to handle canonical paths
+ * Similar to ForeverStack, but namespace independent and more specialized
+ */
+class CanonicalPathRecord
+{
+public:
+  virtual Resolver::CanonicalPath as_path (const NameResolutionContext &) = 0;
+
+  virtual bool is_root () const = 0;
+
+  virtual ~CanonicalPathRecord () = default;
+};
+
+class CanonicalPathRecordWithParent : public CanonicalPathRecord
+{
+public:
+  CanonicalPathRecordWithParent (CanonicalPathRecord &parent) : parent (&parent)
+  {}
+
+  CanonicalPathRecord &get_parent () { return *parent; }
+
+  bool is_root () const override final { return false; }
+
+private:
+  CanonicalPathRecord *parent;
+};
+
+class CanonicalPathRecordRoot : public CanonicalPathRecord
+{
+public:
+  Resolver::CanonicalPath as_path (const NameResolutionContext &) override;
+
+  bool is_root () const override final { return true; }
+};
+
+class CanonicalPathRecordNormal : public CanonicalPathRecordWithParent
+{
+public:
+  CanonicalPathRecordNormal (CanonicalPathRecord &parent, NodeId id,
+			     std::string seg)
+    : CanonicalPathRecordWithParent (parent), id (id), seg (std::move (seg))
+  {
+    rust_assert (!parent.is_root ()
+		 || Analysis::Mappings::get ().node_is_crate (id));
+  }
+
+  Resolver::CanonicalPath as_path (const NameResolutionContext &) override;
+
+private:
+  NodeId id;
+  std::string seg;
+};
+
+class CanonicalPathRecordLookup : public CanonicalPathRecordRoot
+{
+public:
+  CanonicalPathRecordLookup (NodeId lookup_id)
+    : lookup_id (lookup_id), cache (nullptr)
+  {}
+
+  Resolver::CanonicalPath as_path (const NameResolutionContext &) override;
+
+private:
+  NodeId lookup_id;
+  CanonicalPathRecord *cache;
+};
+
+class CanonicalPathRecordImpl : public CanonicalPathRecordWithParent
+{
+public:
+  CanonicalPathRecordImpl (CanonicalPathRecord &parent, NodeId impl_id,
+			   NodeId type_id)
+    : CanonicalPathRecordWithParent (parent), impl_id (impl_id),
+      type_record (type_id)
+  {}
+
+  Resolver::CanonicalPath as_path (const NameResolutionContext &) override;
+
+private:
+  NodeId impl_id;
+  CanonicalPathRecordLookup type_record;
+};
+
+class CanonicalPathRecordTraitImpl : public CanonicalPathRecordWithParent
+{
+public:
+  CanonicalPathRecordTraitImpl (CanonicalPathRecord &parent, NodeId impl_id,
+				NodeId type_id, NodeId trait_path_id)
+    : CanonicalPathRecordWithParent (parent), impl_id (impl_id),
+      type_record (type_id), trait_path_record (trait_path_id)
+  {}
+
+  Resolver::CanonicalPath as_path (const NameResolutionContext &) override;
+
+private:
+  NodeId impl_id;
+  CanonicalPathRecordLookup type_record;
+  CanonicalPathRecordLookup trait_path_record;
+};
+
+class CanonicalPathCtx
+{
+public:
+  CanonicalPathCtx (const NameResolutionContext &ctx)
+    : root_record (), current_record (&root_record), nr_ctx (&ctx)
+  {}
+
+  Resolver::CanonicalPath get_path (NodeId id) const
+  {
+    return get_record (id).as_path (*nr_ctx);
+  }
+
+  CanonicalPathRecord &get_record (NodeId id) const
+  {
+    auto it = records.find (id);
+    rust_assert (it != records.end ());
+    return *it->second;
+  }
+
+  tl::optional<CanonicalPathRecord *> get_record_opt (NodeId id) const
+  {
+    auto it = records.find (id);
+    if (it == records.end ())
+      return tl::nullopt;
+    else
+      return it->second.get ();
+  }
+
+  void insert_record (NodeId id, const Identifier &ident)
+  {
+    insert_record (id, ident.as_string ());
+  }
+
+  void insert_record (NodeId id, std::string seg)
+  {
+    auto it = records.find (id);
+    if (it == records.end ())
+      {
+	auto record = new CanonicalPathRecordNormal (*current_record, id,
+						     std::move (seg));
+	bool ok
+	  = records.emplace (id, std::unique_ptr<CanonicalPathRecord> (record))
+	      .second;
+	rust_assert (ok);
+      }
+  }
+
+  template <typename F> void scope (NodeId id, const Identifier &ident, F &&f)
+  {
+    scope (id, ident.as_string (), std::forward<F> (f));
+  }
+
+  template <typename F> void scope (NodeId id, std::string seg, F &&f)
+  {
+    scope_inner (id, std::forward<F> (f), [this, id, &seg] () {
+      return new CanonicalPathRecordNormal (*current_record, id,
+					    std::move (seg));
+    });
+  }
+
+  template <typename F> void scope_impl (AST::InherentImpl &impl, F &&f)
+  {
+    NodeId id = impl.get_node_id ();
+    scope_inner (id, std::forward<F> (f), [this, id, &impl] () {
+      return new CanonicalPathRecordImpl (*current_record, id,
+					  impl.get_type ().get_node_id ());
+    });
+  }
+
+  template <typename F> void scope_impl (AST::TraitImpl &impl, F &&f)
+  {
+    NodeId id = impl.get_node_id ();
+    scope_inner (id, std::forward<F> (f), [this, id, &impl] () {
+      return new CanonicalPathRecordTraitImpl (
+	*current_record, id, impl.get_type ().get_node_id (),
+	impl.get_trait_path ().get_node_id ());
+    });
+  }
+
+  template <typename F> void scope_extern_crate (AST::ExternCrate &crate, F &&f)
+  {
+    CanonicalPathRecord *stash_ptr = &root_record;
+    std::swap (stash_ptr, current_record);
+    scope (crate.get_node_id (), crate.get_referenced_crate (),
+	   std::forward<F> (f));
+    std::swap (stash_ptr, current_record);
+  }
+
+private:
+  template <typename FCreate, typename FCallback>
+  void scope_inner (NodeId id, FCallback &&f_callback, FCreate &&f_create)
+  {
+    auto it = records.find (id);
+    if (it == records.end ())
+      {
+	CanonicalPathRecord *record = std::forward<FCreate> (f_create) ();
+	it = records.emplace (id, std::unique_ptr<CanonicalPathRecord> (record))
+	       .first;
+      }
+
+    rust_assert (!it->second->is_root ()
+		 && &static_cast<CanonicalPathRecordWithParent &> (*it->second)
+			.get_parent ()
+		      == current_record);
+
+    current_record = it->second.get ();
+    rust_assert (current_record && !current_record->is_root ());
+
+    std::forward<FCallback> (f_callback) ();
+
+    current_record
+      = &static_cast<CanonicalPathRecordWithParent &> (*current_record)
+	   .get_parent ();
+  }
+
+  std::unordered_map<NodeId, std::unique_ptr<CanonicalPathRecord>> records;
+  CanonicalPathRecordRoot root_record;
+  CanonicalPathRecord *current_record;
+
+  const NameResolutionContext *nr_ctx;
+};
+
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
 class NameResolutionContext
 {
@@ -271,11 +496,18 @@ public:
   Analysis::Mappings &mappings;
   StackedContexts<BindingLayer> bindings;
 
+  CanonicalPathCtx canonical_ctx;
+
   // TODO: Rename
   // TODO: Use newtype pattern for Usage and Definition
   void map_usage (Usage usage, Definition definition);
 
   tl::optional<NodeId> lookup (NodeId usage) const;
+
+  Resolver::CanonicalPath to_canonical_path (NodeId id) const
+  {
+    return canonical_ctx.get_path (id);
+  }
 
   template <typename S>
   tl::optional<Rib::Definition>
