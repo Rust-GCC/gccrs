@@ -1,6 +1,6 @@
 // Namespace std::regex_constants -*- C++ -*-
 
-// Copyright (C) 2010-2024 Free Software Foundation, Inc.
+// Copyright (C) 2010-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -66,7 +66,7 @@ namespace regex_constants
    * elements @c ECMAScript, @c basic, @c extended, @c awk, @c grep, @c egrep
    * %set.
    */
-  enum syntax_option_type : unsigned int
+  enum [[__gnu__::__flag_enum__]] syntax_option_type : unsigned int
   {
     _S_icase		= 1 << 0,
     _S_nosubs		= 1 << 1,

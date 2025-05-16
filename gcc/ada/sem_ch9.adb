@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,6 +28,8 @@ with Aspects;        use Aspects;
 with Atree;          use Atree;
 with Checks;         use Checks;
 with Contracts;      use Contracts;
+with Debug;          use Debug;
+with Diagnostics.Constructors; use Diagnostics.Constructors;
 with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
@@ -68,7 +70,6 @@ with Style;
 with Targparm;       use Targparm;
 with Tbuild;         use Tbuild;
 with Uintp;          use Uintp;
-
 package body Sem_Ch9 is
 
    -----------------------
@@ -2011,8 +2012,9 @@ package body Sem_Ch9 is
          else
             Propagate_Concurrent_Flags (Prot_Typ, Etype (Item_Id));
 
-            if Chars (Item_Id) /= Name_uParent
-              and then Needs_Finalization (Etype (Item_Id))
+            if Has_Controlled_Component (Etype (Item_Id))
+              or else (Chars (Item_Id) /= Name_uParent
+                        and then Is_Controlled (Etype (Item_Id)))
             then
                Set_Has_Controlled_Component (Prot_Typ);
             end if;
@@ -2167,7 +2169,7 @@ package body Sem_Ch9 is
             or else Has_Interrupt_Handler (T)
             or else Has_Attach_Handler (T))
       then
-         Set_Has_Controlled_Component (T, True);
+         Set_Has_Controlled_Component (T);
       end if;
 
       --  The Ekind of components is E_Void during analysis for historical
@@ -2221,10 +2223,18 @@ package body Sem_Ch9 is
                --  Pragma case
 
                else
-                  Error_Msg_Name_1 := Pragma_Name (Prio_Item);
-                  Error_Msg_NE
-                    ("pragma% for & has no effect when Lock_Free given??",
-                     Prio_Item, Id);
+                  if Debug_Flag_Underscore_DD then
+                     Record_Pragma_No_Effect_With_Lock_Free_Warning
+                       (Pragma_Node     => Prio_Item,
+                        Pragma_Name     => Pragma_Name (Prio_Item),
+                        Lock_Free_Node  => Id,
+                        Lock_Free_Range => Parent (Id));
+                  else
+                     Error_Msg_Name_1 := Pragma_Name (Prio_Item);
+                     Error_Msg_NE
+                       ("pragma% for & has no effect when Lock_Free given??",
+                        Prio_Item, Id);
+                  end if;
                end if;
             end if;
          end;
@@ -3646,6 +3656,14 @@ package body Sem_Ch9 is
                --  of an interface type freezes the interface type" RM 13.14.
 
                Freeze_Before (N, Etype (Iface));
+
+               --  Implicit inheritance of attribute
+
+               if not Has_First_Controlling_Parameter_Aspect (T)
+                 and then Has_First_Controlling_Parameter_Aspect (Iface_Typ)
+               then
+                  Set_Has_First_Controlling_Parameter_Aspect (T);
+               end if;
 
                if Nkind (N) = N_Protected_Type_Declaration then
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -1317,7 +1317,8 @@ Lexer::parse_escape (char opening_char)
 
   switch (current_char.value)
     {
-      case 'x': {
+    case 'x':
+      {
 	auto hex_escape_pair = parse_partial_hex_escape ();
 	long hexLong = hex_escape_pair.first;
 	additional_length_offset += hex_escape_pair.second;
@@ -1400,7 +1401,8 @@ Lexer::parse_utf8_escape ()
 
   switch (current_char.value)
     {
-      case 'x': {
+    case 'x':
+      {
 	auto hex_escape_pair = parse_partial_hex_escape ();
 	long hexLong = hex_escape_pair.first;
 	additional_length_offset += hex_escape_pair.second;
@@ -1438,7 +1440,8 @@ Lexer::parse_utf8_escape ()
     case '"':
       output_char = '"';
       break;
-      case 'u': {
+    case 'u':
+      {
 	auto unicode_escape_pair = parse_partial_unicode_escape ();
 	output_char = unicode_escape_pair.first;
 	additional_length_offset += unicode_escape_pair.second;
@@ -1632,7 +1635,7 @@ Lexer::parse_partial_unicode_escape ()
       else
 	{
 	  rust_error_at (get_current_location (),
-			 "invalid character %<%s%> in unicode escape",
+			 "invalid character %qs in unicode escape",
 			 current_char.as_string ().c_str ());
 	  // TODO use utf-8 codepoint to skip whitespaces
 	  while (current_char != '}' && current_char != '{'
@@ -1897,7 +1900,7 @@ Lexer::parse_raw_byte_string (location_t loc)
       else if (current_char.value > 127)
 	{
 	  rust_error_at (get_current_location (),
-			 "character %<%s%> in raw byte string out of range",
+			 "character %qs in raw byte string out of range",
 			 current_char.as_string ().c_str ());
 	  current_char = 0;
 	}

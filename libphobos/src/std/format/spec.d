@@ -127,14 +127,16 @@ if (is(Unqual!Char == Char))
 
        Counting starts with `1`. Set to `0` if not used. Default: `0`.
      */
-    ubyte indexStart;
+    ushort indexStart;
 
     /**
        Index of the last argument for positional parameter ranges.
 
        Counting starts with `1`. Set to `0` if not used. Default: `0`.
+
+       The maximum value of this field is used as a sentinel to indicate the arguments' length.
     */
-    ubyte indexEnd;
+    ushort indexEnd;
 
     version (StdDdoc)
     {
@@ -296,6 +298,8 @@ if (is(Unqual!Char == Char))
         }
 
         width = 0;
+        indexStart = 0;
+        indexEnd = 0;
         precision = UNSPECIFIED;
         nested = null;
         // Parse the spec (we assume we're past '%' already)
@@ -681,7 +685,7 @@ if (is(Unqual!Char == Char))
     auto fmt = "Number: %6.4e\nString: %s";
     auto f = FormatSpec!char(fmt);
 
-    assert(f.writeUpToNextSpec(a) == true);
+    assert(f.writeUpToNextSpec(a));
 
     assert(a.data == "Number: ");
     assert(f.trailing == "\nString: %s");
@@ -689,13 +693,13 @@ if (is(Unqual!Char == Char))
     assert(f.width == 6);
     assert(f.precision == 4);
 
-    assert(f.writeUpToNextSpec(a) == true);
+    assert(f.writeUpToNextSpec(a));
 
     assert(a.data == "Number: \nString: ");
     assert(f.trailing == "");
     assert(f.spec == 's');
 
-    assert(f.writeUpToNextSpec(a) == false);
+    assert(!f.writeUpToNextSpec(a));
 
     assert(a.data == "Number: \nString: ");
 }
@@ -832,6 +836,33 @@ if (is(Unqual!Char == Char))
 
     assert(collectExceptionMsg!FormatException(f.writeUpToNextSpec(w))
            == "$ expected after '*10' in format string");
+}
+
+// https://github.com/dlang/phobos/issues/10713
+@safe pure unittest
+{
+    import std.array : appender;
+    auto f = FormatSpec!char("%3$d%d");
+
+    auto w = appender!(char[])();
+    f.writeUpToNextSpec(w);
+    assert(f.indexStart == 3);
+
+    f.writeUpToNextSpec(w);
+    assert(w.data.length == 0);
+    assert(f.indexStart == 0);
+}
+
+// https://github.com/dlang/phobos/issues/10699
+@safe pure unittest
+{
+    import std.array : appender;
+    auto f = FormatSpec!char("%1:$d");
+    auto w = appender!(char[])();
+
+    f.writeUpToNextSpec(w);
+    assert(f.indexStart == 1);
+    assert(f.indexEnd == ushort.max);
 }
 
 /**

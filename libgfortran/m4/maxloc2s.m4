@@ -1,5 +1,5 @@
 `/* Implementation of the MAXLOC intrinsic
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by Thomas Koenig
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -153,8 +153,8 @@ export_proto(s'name`'rtype_qual`_'atype_code`);
 s'name`'rtype_qual`_'atype_code` ('atype` * const restrict array,
 				 GFC_LOGICAL_4 *mask'back_arg`, gfc_charlen_type len)
 {
-  if (mask)
-    return 'name`'rtype_qual`_'atype_code` (array, len, back);
+  if (mask == NULL || *mask)
+    return 'name`'rtype_qual`_'atype_code` (array, back, len);
   else
     return 0;
 }

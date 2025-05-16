@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Free Software Foundation, Inc.
+// Copyright (C) 2018-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -58,6 +58,17 @@ void test02()
 
   tmp->~test_type();
 }
+
+#ifdef __cpp_lib_constexpr_vector
+constexpr bool
+test03()
+{
+  using alloc_type = default_init_allocator<T>;
+  std::vector<T, alloc_type> v;
+  return v.get_allocator().state == 0;
+}
+static_assert( test03() );
+#endif
 
 int main()
 {

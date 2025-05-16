@@ -1,5 +1,5 @@
 /* Polynomial integer classes.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -353,6 +353,10 @@ struct poly_result<T1, T2, 2>
    wi::int_traits<C>::precision_type == wi::FLEXIBLE_PRECISION \
    ? (void) ((RES).coeffs[I] = VALUE) \
    : (void) ((RES).coeffs[I].~C (), new (&(RES).coeffs[I]) C (VALUE)))
+
+/* Number of bits needed to represent maximum value of
+   NUM_POLY_INT_COEFFS defined by any target.  */
+#define MAX_NUM_POLY_INT_COEFFS_BITS	2
 
 /* poly_int_full and poly_int_hungry are used internally within poly_int
    for delegated initializers.  poly_int_full indicates that a parameter
@@ -1900,6 +1904,25 @@ known_alignment (const poly_int<N, Ca> &a)
   for (unsigned int i = 1; i < N; ++i)
     r |= a.coeffs[i];
   return r & -r;
+}
+
+/* Return true if we can compute A & B at compile time, storing the
+   result in RES if so.  */
+
+template<unsigned int N, typename Ca, typename Cb, typename Cr>
+inline typename if_nonpoly<Cb, bool>::type
+can_and_p (const poly_int<N, Ca> &a, Cb b, Cr *result)
+{
+  /* Coefficients 1 and above must be a multiple of something greater
+     than ~B.  */
+  typedef POLY_INT_TYPE (Ca) int_type;
+  if (N >= 2)
+    for (unsigned int i = 1; i < N; i++)
+      if ((-(a.coeffs[i] & -a.coeffs[i]) & ~b) != int_type (0))
+	return false;
+  *result = a;
+  result->coeffs[0] &= b;
+  return true;
 }
 
 /* Return true if we can compute A | B at compile time, storing the

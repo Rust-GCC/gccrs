@@ -1,5 +1,5 @@
 /* Definitions for the Blackfin port.
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    Contributed by Analog Devices.
 
    This file is part of GCC.
@@ -295,10 +295,10 @@ extern const char *bfin_library_id_string;
 /* Define this if the above stack space is to be considered part of the
  * space allocated by the caller.  */
 #define OUTGOING_REG_PARM_STACK_SPACE(FNTYPE) 1
-	  
+
 /* Define this if the maximum size of all the outgoing args is to be
    accumulated and pushed during the prologue.  The amount can be
-   found in the variable crtl->outgoing_args_size. */ 
+   found in the variable crtl->outgoing_args_size. */
 #define ACCUMULATE_OUTGOING_ARGS 1
 
 /*#define DATA_ALIGNMENT(TYPE, BASIC-ALIGN) for arrays.. */
@@ -862,10 +862,10 @@ typedef struct {
  *  really cause some alignment problem
  */
 
-#define UNITS_PER_FLOAT  ((FLOAT_TYPE_SIZE  + BITS_PER_UNIT - 1) / \
+#define UNITS_PER_FLOAT  ((BFIN_FLOAT_TYPE_SIZE  + BITS_PER_UNIT - 1) / \
 			   BITS_PER_UNIT)
 
-#define UNITS_PER_DOUBLE ((DOUBLE_TYPE_SIZE + BITS_PER_UNIT - 1) / \
+#define UNITS_PER_DOUBLE ((BFIN_DOUBLE_TYPE_SIZE + BITS_PER_UNIT - 1) / \
  			   BITS_PER_UNIT)
 
 
@@ -874,12 +874,13 @@ typedef struct {
 
 /* Define this as 1 if `char' should by default be signed; else as 0.  */
 #define DEFAULT_SIGNED_CHAR 1
-#define FLOAT_TYPE_SIZE BITS_PER_WORD
-#define SHORT_TYPE_SIZE 16 
+/* FLOAT_TYPE_SIZE get poisoned, so add BFIN_ prefix.  */
+#define BFIN_FLOAT_TYPE_SIZE BITS_PER_WORD
+#define SHORT_TYPE_SIZE 16
 #define CHAR_TYPE_SIZE	8
 #define INT_TYPE_SIZE	32
 #define LONG_TYPE_SIZE	32
-#define LONG_LONG_TYPE_SIZE 64 
+#define LONG_LONG_TYPE_SIZE 64
 
 /* Note: Fix this to depend on target switch. -- lev */
 
@@ -890,8 +891,8 @@ typedef struct {
  * #define DOUBLES_ARE_FLOATS 1
  */
 
-#define DOUBLE_TYPE_SIZE	64
-#define LONG_DOUBLE_TYPE_SIZE	64
+/* DOUBLE_TYPE_SIZE get poisoned, so add BFIN_ prefix.  */
+#define BFIN_DOUBLE_TYPE_SIZE	64
 
 /* `PROMOTE_MODE (M, UNSIGNEDP, TYPE)'
      A macro to update M and UNSIGNEDP when an object whose type is
@@ -942,7 +943,7 @@ typedef struct {
 #define JUMP_TABLES_IN_TEXT_SECTION flag_pic
 
 /* Define if operations between registers always perform the operation
-   on the full register even if a narrower mode is specified. 
+   on the full register even if a narrower mode is specified.
 #define WORD_REGISTER_OPERATIONS 1
 */
 
@@ -1094,7 +1095,7 @@ extern rtx bfin_cc_rtx, bfin_rets_rtx;
 #define SET_ASM_OP              ".set "
 
 /* Debugger register number for a given compiler register number */
-#define DEBUGGER_REGNO(REGNO)  (REGNO) 
+#define DEBUGGER_REGNO(REGNO)  (REGNO)
 
 #define SIZE_ASM_OP     "\t.size\t"
 

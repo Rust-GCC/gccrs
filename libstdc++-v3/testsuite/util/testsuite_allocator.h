@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // Testing allocator for the C++ library testsuite.
 //
-// Copyright (C) 2002-2024 Free Software Foundation, Inc.
+// Copyright (C) 2002-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -154,7 +154,7 @@ namespace __gnu_test
       tracker_allocator()
       { }
 
-      tracker_allocator(const tracker_allocator&)
+      tracker_allocator(const tracker_allocator& a) : Alloc(a)
       { }
 
       ~tracker_allocator()
@@ -541,15 +541,16 @@ namespace __gnu_test
       default_init_allocator() = default;
 
       template<typename U>
+	constexpr
         default_init_allocator(const default_init_allocator<U>& a)
 	  : state(a.state)
         { }
 
-      T*
+      constexpr T*
       allocate(std::size_t n)
       { return std::allocator<T>().allocate(n); }
 
-      void
+      constexpr void
       deallocate(T* p, std::size_t n)
       { std::allocator<T>().deallocate(p, n); }
 
@@ -557,15 +558,17 @@ namespace __gnu_test
     };
 
   template<typename T, typename U>
-    bool operator==(const default_init_allocator<T>& t,
-		    const default_init_allocator<U>& u)
+    constexpr bool
+    operator==(const default_init_allocator<T>& t,
+	       const default_init_allocator<U>& u)
     { return t.state == u.state; }
 
   template<typename T, typename U>
-    bool operator!=(const default_init_allocator<T>& t,
-		    const default_init_allocator<U>& u)
+    constexpr bool
+    operator!=(const default_init_allocator<T>& t,
+	       const default_init_allocator<U>& u)
     { return !(t == u); }
-#endif
+#endif // C++11
 
   template<typename Tp>
     struct ExplicitConsAlloc : std::allocator<Tp>

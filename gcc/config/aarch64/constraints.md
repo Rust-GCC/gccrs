@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -76,6 +76,9 @@
 
 (define_register_constraint "Uph" "PR_HI_REGS"
   "SVE predicate registers p8 - p15.")
+
+(define_register_constraint "Umv" "MOVEABLE_SYSREGS"
+  "@internal System Registers suitable for moving rather than requiring an unspec msr")
 
 (define_constraint "c"
  "@internal The condition code register."
@@ -461,21 +464,25 @@
   "@internal
    A constraint that matches vector of immediates for orr."
  (and (match_code "const_vector")
-      (match_test "aarch64_simd_valid_immediate (op, NULL,
-						 AARCH64_CHECK_ORR)")))
+      (match_test "aarch64_simd_valid_orr_imm (op)")))
 
 (define_constraint "Db"
   "@internal
-   A constraint that matches vector of immediates for bic."
+   A constraint that matches vector of immediates for and/bic."
  (and (match_code "const_vector")
-      (match_test "aarch64_simd_valid_immediate (op, NULL,
-						 AARCH64_CHECK_BIC)")))
+      (match_test "aarch64_simd_valid_and_imm (op)")))
+
+(define_constraint "De"
+  "@internal
+   A constraint that matches vector of immediates for xor."
+ (and (match_code "const_vector")
+      (match_test "aarch64_simd_valid_xor_imm (op)")))
 
 (define_constraint "Dn"
   "@internal
  A constraint that matches vector of immediates."
  (and (match_code "const,const_vector")
-      (match_test "aarch64_simd_valid_immediate (op, NULL)")))
+      (match_test "aarch64_simd_valid_mov_imm (op)")))
 
 (define_constraint "Dh"
   "@internal
@@ -553,7 +560,7 @@
   "@internal
  A constraint that matches a vector of immediate minus one."
  (and (match_code "const,const_vector")
-      (match_test "op == CONST1_RTX (GET_MODE (op))")))
+      (match_test "op == CONSTM1_RTX (GET_MODE (op))")))
 
 (define_constraint "Dd"
   "@internal
@@ -663,6 +670,12 @@
    A constraint that matches an immediate operand valid for SVE MUL,
    SMAX and SMIN operations."
  (match_operand 0 "aarch64_sve_vsm_immediate"))
+
+(define_constraint "vs1"
+  "@internal
+ A constraint that matches a vector of immediate one."
+ (and (match_code "const,const_vector")
+      (match_test "op == CONST1_RTX (GET_MODE (op))")))
 
 (define_constraint "vsA"
   "@internal

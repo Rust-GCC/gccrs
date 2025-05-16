@@ -1,6 +1,6 @@
 // <memory> -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,7 +44,9 @@
 #ifndef _GLIBCXX_MEMORY
 #define _GLIBCXX_MEMORY 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 /**
  * @defgroup memory Memory
@@ -95,6 +97,7 @@
 #  include <bits/out_ptr.h>
 #endif
 
+#define __glibcxx_want_addressof_constexpr
 #define __glibcxx_want_allocator_traits_is_always_equal
 #define __glibcxx_want_assume_aligned
 #define __glibcxx_want_atomic_shared_ptr

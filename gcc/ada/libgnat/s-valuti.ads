@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -54,14 +54,16 @@ is
 
    procedure Bad_Value (S : String)
    with
+     Always_Terminates,
      Depends => (null => S),
      Exceptional_Cases => (others => Standard.False);
    pragma No_Return (Bad_Value);
    --  Raises constraint error with message: bad input for 'Value: "xxx"
 
    procedure Normalize_String
-     (S    : in out String;
-      F, L : out Integer)
+     (S             : in out String;
+      F, L          : out Integer;
+      To_Upper_Case : Boolean)
    with
      Post => (if Sp.Only_Space_Ghost (S'Old, S'First, S'Last) then
                 F > L
@@ -76,7 +78,7 @@ is
                     (if L < S'Last then
                       Sp.Only_Space_Ghost (S'Old, L + 1, S'Last))
                   and then
-                    (if S'Old (F) /= ''' then
+                    (if To_Upper_Case and then S'Old (F) /= ''' then
                       (for all J in S'Range =>
                         (if J in F .. L then
                            S (J) = System.Case_Util.To_Upper (S'Old (J))
@@ -84,9 +86,10 @@ is
                            S (J) = S'Old (J)))));
    --  This procedure scans the string S setting F to be the index of the first
    --  non-blank character of S and L to be the index of the last non-blank
-   --  character of S. Any lower case characters present in S will be folded to
-   --  their upper case equivalent except for character literals. If S consists
-   --  of entirely blanks (including when S = "") then we return with F > L.
+   --  character of S. If To_Upper_Case is True and S does not represent a
+   --  character literal, then any lower case characters in S are changed to
+   --  their upper case counterparts. If S consists of only blank characters
+   --  (including when S = "") then we return with F > L.
 
    procedure Scan_Sign
      (Str   : String;
@@ -118,13 +121,12 @@ is
    --  string to be scanned starting at Ptr.all, and Max is the index of the
    --  last character in the string). Scan_Sign first scans out any initial
    --  blanks, raising Constraint_Error if the field is all blank. It then
-   --  checks for and skips an initial plus or minus, requiring a non-blank
-   --  character to follow (Constraint_Error is raised if plus or minus appears
-   --  at the end of the string or with a following blank). Minus is set True
-   --  if a minus sign was skipped, and False otherwise. On exit Ptr.all points
-   --  to the character after the sign, or to the first non-blank character
-   --  if no sign is present. Start is set to the point to the first non-blank
-   --  character (sign or digit after it).
+   --  checks for and skips an initial plus or minus (Constraint_Error is
+   --  raised if plus or minus appears at the end of the string). Minus is set
+   --  True if a minus sign was skipped, and False otherwise. On exit Ptr.all
+   --  points to the character after the sign, or to the first non-blank
+   --  character if no sign is present. Start is set to the point to the first
+   --  non-blank character.
    --
    --  Note: if Str is null, i.e. if Max is less than Ptr, then this is a
    --  special case of an all-blank string, and Ptr is unchanged, and hence

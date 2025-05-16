@@ -1,5 +1,5 @@
 /* Alpha extra machine modes. 
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -16,6 +16,10 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
+
+/* 256-bit integer mode used by "reload_out<mode>_safe_bwa" secondary
+   reload patterns to obtain 4 scratch registers.  */
+INT_MODE (OI, 32);
 
 /* 128-bit floating point.  This gets reset in alpha_option_override
    if VAX float format is in use.  */

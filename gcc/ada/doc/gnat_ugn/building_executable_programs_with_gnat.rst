@@ -1754,7 +1754,7 @@ Alphabetical List of All Switches
 
   ``Maximum_Alignment`` is the maximum alignment that the compiler can choose
   by default for a type or object, which is also the maximum alignment that can
-  be specified in GNAT. It is computed for GCC backends as ``BIGGEST_ALIGNMENT
+  be specified in GNAT. It is computed for GCC back ends as ``BIGGEST_ALIGNMENT
   / BITS_PER_UNIT`` where GCC macro ``BIGGEST_ALIGNMENT`` is documented as
   follows: `Biggest alignment that any data type can require on this machine,
   in bits.`
@@ -2009,7 +2009,7 @@ Alphabetical List of All Switches
 
 :switch:`-gnatn[12]`
   Activate inlining across units for subprograms for which pragma ``Inline``
-  is specified. This inlining is performed by the GCC back-end. An optional
+  is specified. This inlining is performed by the GCC back end. An optional
   digit sets the inlining level: 1 for moderate inlining across units
   or 2 for full inlining across units. If no inlining level is specified,
   the compiler will pick it based on the optimization level.
@@ -3415,7 +3415,7 @@ of the pragma in the :title:`GNAT_Reference_manual`).
 .. index:: -gnatw.l  (gcc)
 
 :switch:`-gnatw.l`
-  *List inherited aspects.*
+  *List inherited aspects as info messages.*
 
   This switch causes the compiler to list inherited invariants,
   preconditions, and postconditions from Type_Invariant'Class, Invariant'Class,
@@ -3425,9 +3425,26 @@ of the pragma in the :title:`GNAT_Reference_manual`).
 .. index:: -gnatw.L  (gcc)
 
 :switch:`-gnatw.L`
-  *Suppress listing of inherited aspects.*
+  *Suppress listing of inherited aspects as info messages.*
 
   This switch suppresses listing of inherited aspects.
+
+
+.. index:: -gnatw_l  (gcc)
+
+:switch:`-gnatw_l`
+  *Activate warnings on implicitly limited types.*
+
+  This switch causes the compiler trigger warnings on record types that do not
+  have a limited keyword but contain a component that is a limited type.
+
+
+.. index:: -gnatw_L  (gcc)
+
+:switch:`-gnatw_L`
+  *Suppress warnings on implicitly limited types.*
+
+  This switch suppresses warnings on implicitly limited types.
 
 
 .. index:: -gnatwm  (gcc)
@@ -3497,7 +3514,7 @@ of the pragma in the :title:`GNAT_Reference_manual`).
 :switch:`-gnatw.n`
   *Activate warnings on atomic synchronization.*
 
-  This switch actives warnings when an access to an atomic variable
+  This switch activates warnings when an access to an atomic variable
   requires the generation of atomic synchronization code. These
   warnings are off by default.
 
@@ -3570,7 +3587,7 @@ of the pragma in the :title:`GNAT_Reference_manual`).
   many reasons for not being able to inline a call, including most
   commonly that the call is too complex to inline. The default is
   that such warnings are not given.
-  Warnings on ineffective inlining by the gcc back-end can be activated
+  Warnings on ineffective inlining by the gcc back end can be activated
   separately, using the gcc switch -Winline.
 
 
@@ -3997,22 +4014,21 @@ of the pragma in the :title:`GNAT_Reference_manual`).
 .. index:: bit order warnings
 
 :switch:`-gnatw.v`
-  *Activate info messages for non-default bit order.*
+  *Activate warnings for non-default bit order.*
 
-  This switch activates messages (labeled "info", they are not warnings,
-  just informational messages) about the effects of non-default bit-order
-  on records to which a component clause is applied. The effect of specifying
-  non-default bit ordering is a bit subtle (and changed with Ada 2005), so
-  these messages, which are given by default, are useful in understanding the
-  exact consequences of using this feature.
+  This switch activates warning messages about the effects of non-default
+  bit-order on records to which a component clause is applied. The effect of
+  specifying non-default bit ordering is a bit subtle
+  (and changed with Ada 2005), so these messages, which are given by default,
+  are useful in understanding the exact consequences of using this feature.
 
 
 .. index:: -gnatw.V  (gcc)
 
 :switch:`-gnatw.V`
-  *Suppress info messages for non-default bit order.*
+  *Suppress warnings for non-default bit order.*
 
-  This switch suppresses information messages for the effects of specifying
+  This switch suppresses warnings for the effects of specifying
   non-default bit order on record components with component clauses.
 
 
@@ -4371,6 +4387,23 @@ When no switch :switch:`-gnatw` is used, this is equivalent to:
   * :switch:`-gnatw.z`
 
 .. _Debugging_and_Assertion_Control:
+
+
+
+Info message Control
+--------------------
+
+In addition to the warning messages, the compiler can also generate info
+messages. In order to control the generation of these messages, the following
+switch is provided:
+
+:switch:`-gnatis`
+  *Suppress all info messages.*
+
+  This switch completely suppresses the output of all info messages from the
+  GNAT front end.
+
+
 
 Debugging and Assertion Control
 -------------------------------
@@ -4750,7 +4783,7 @@ checks to be performed. The following checks are defined:
   then proper indentation is checked, with the digit indicating the
   indentation level required. A value of zero turns off this style check.
   The rule checks that the following constructs start on a column that is
-  a multiple of the alignment level:
+  one plus a multiple of the alignment level:
 
   * beginnings of declarations (except record component declarations)
     and statements;
@@ -4761,10 +4794,10 @@ checks to be performed. The following checks are defined:
     or body or that completes a compound statement.
 
   Full line comments must be
-  aligned with the ``--`` starting on a column that is a multiple of
+  aligned with the ``--`` starting on a column that is one plus a multiple of
   the alignment level, or they may be aligned the same way as the following
   non-blank line (this is useful when full line comments appear in the middle
-  of a statement, or they may be aligned with the source line on the previous
+  of a statement), or they may be aligned with the source line on the previous
   non-blank line.
 
 .. index:: -gnatya   (gcc)
@@ -5346,10 +5379,8 @@ switches refine this default behavior.
   execution if that assumption is wrong.
 
   The checks subject to suppression include all the checks defined by the Ada
-  standard, the additional implementation defined checks ``Alignment_Check``,
-  ``Duplicated_Tag_Check``, ``Predicate_Check``, ``Container_Checks``, ``Tampering_Check``,
-  and ``Validity_Check``, as well as any checks introduced using ``pragma Check_Name``.
-  Note that ``Atomic_Synchronization`` is not automatically suppressed by use of this option.
+  standard, as well as all implementation-defined checks,
+  including any checks introduced using ``pragma Check_Name``.
 
   If the code depends on certain checks being active, you can use
   pragma ``Unsuppress`` either as a configuration pragma or as
@@ -6716,7 +6747,7 @@ be presented in subsequent sections.
   .. index:: -o   (gnatbind)
 
 :switch:`-o {file}`
-  Name the output file ``file`` (default is :file:`b~`xxx`.adb`).
+  Name the output file ``file`` (default is :file:`b~{xxx}.adb`).
   Note that if this option is used, then linking must be done manually,
   gnatlink cannot be used.
 
@@ -7686,7 +7717,7 @@ The following switches are available with the ``gnatlink`` utility:
   command that will be used by ``gnatlink`` will be ``foo -c -x -y``.
   A limitation of this syntax is that the name and path name of the executable
   itself must not include any embedded spaces. If the compiler executable is
-  different from the default one (gcc or <prefix>-gcc), then the back-end
+  different from the default one (gcc or <prefix>-gcc), then the back end
   switches in the ALI file are not used to compile the binder generated source.
   For example, this is the case with ``--GCC="foo -x -y"``. But the back end
   switches will be used for ``--GCC="gcc -gnatv"``. If several
@@ -7988,3 +8019,123 @@ replace colons with semicolons in the assignments to these variables.
 
   all:
           gnatmake main_unit
+
+.. _GNATLLVM:
+
+GNAT with the LLVM Back End
+===========================
+
+This section outlines the usage of the GNAT compiler with the LLVM
+back end and highlights its key limitations. Certain GNAT versions,
+referred to as GNAT LLVM, include an alternative LLVM back end
+alongside the GCC back end, providing access to utilities that operate
+at the LLVM Intermediate Representation (IR) level. This also enhances
+safety by facilitating dissimilar redundancy through diverse code
+generation techniques, allowing for the creation of two distinct
+binaries from the same source code.
+
+Although both GNAT LLVM and the GCC-based GNAT follow most ABI rules,
+there are some cases where there you may encounter an incompatibility
+between the two compilers.  One such case for the 64-bit Intel X86 is
+a difference in parameter passing when a structure that consists of 64
+bits is passed. The native LLVM handling (and hence that of GNAT LLVM)
+and ``clang`` disagree in this case. GCC follows ``clang``. The formal
+ABI agrees with LLVM.
+
+In any case, we don't recommend you link code compiled with GNAT LLVM
+to code compiled by the GCC version of GNAT. This is a specific case
+of the general rule that you should compile all your Ada code with the
+same version of GNAT. Both ``gnatmake`` and ``gprbuild`` ensure this
+is done.
+
+You may, however, run into this incompatibility if you pass such a
+record between C and Ada. In general, we recommend keeping the data
+passed between C and Ada as simple as practical.
+
+GNAT LLVM currently provides limited support for debugging data. It
+provides full line number information for declarations and statements,
+but not sufficient debugging data to display all Ada data
+structures. GNAT LLVM outputs complete debugging data only for types
+with a direct equivalent in C, namely records without discriminants
+and constrained arrays whose dimensions are known at compile time. You
+will not be able to use ``gdb`` print commands to look at objects not
+of those types or to display components of those types. You can use
+low-level ``gdb`` commands that display memory to view such data
+provided you know how they're laid out.  Debugging information may
+also be limited for bitfields (fields whose size and position
+aren't on byte boundaries)
+
+In addition, debugging information may be confusing if you have
+``out`` parameters to subprograms. If you have a procedure with only
+one ``out`` parameter, GNAT LLVM converts that to a function returning
+an object of that type. If you have multiple ``out`` parameters or
+have a function that also has an ``out`` parameter, GNAT LLVM converts
+that subprogram into a function that returns a record where each field
+is either an ``out`` parameter or the function return value, if any.
+The debug information reflects these transformations and not the original
+Ada source code.
+
+GNAT LLVM doesn't fully implement the :switch:`-fcheck-stack` switch.
+When you specify it, the code generated by GNAT LLVM tests for allocating
+overly-large items on the stack, but not all cases of stack overflow.  For
+example, if you have a very deep recursion where each call only uses a
+small amount of stack and the total stack depth exceeds the amount of
+available stack, the program will be terminated by a signal instead of
+raising an Ada exception.
+
+GNAT LLVM doesn't support the ``Scalar_Storage_Order`` pragma except when
+it's used to confirm the chosen storage order. This is because this facility
+is provided by GCC but not by LLVM.
+
+GNAT LLVM doesn't support Convention C++, which provides so-called
+'name mangling' by encoding parameter and return datatypes into a
+function name.
+
+.. only:: PRO
+
+    Unlike the GCC versions of GNAT, GNAT LLVM doesn't include any
+    Ada libraries. You can obtain source packages from GNATtracker and
+    build them with the compiler configuration appropriate for your
+    project. AdaCore internally builds and tests the GNAT Components
+    Collection, XML/Ada, and AUnit libraries to ensure compatibility
+    with GNAT LLVM, but not all options of those libraries are
+    currently supported with all targets of GNAT LLVM. If you need to
+    use any of these libraries, please open a support ticket.
+
+We provide two options that you can use to build code with GNAT LLVM:
+
+* GNAT LLVM includes a version of ``gnatmake`` called
+  ``llvm-gnatmake``, which is equivalent to ``gnatmake`` and has the
+  same switches, except that it uses GNAT LLVM instead of the GCC
+  version of GNAT.
+
+* ``gprbuild`` can detect and use GNAT LLVM when it is installed.
+
+  ``gprbuild`` uses the first applicable compiler on the executable
+  search path, including GNAT LLVM.  An easy way to build with GNAT
+  LLVM is to make it available on the operating system's search path
+  before any other Ada compiler (such as the GCC version of GNAT). To
+  avoid accidentally using a different compiler than the one you want
+  to use, we recommend generating an explicit toolchain configuration
+  file with ``gprconfig`` and using it with ``gprbuild``; see the
+  *GPRbuild and GPR Companion Tools User's Guide* for details. You
+  can determine from the first line of the :file:`.ali` file
+  which version of GNAT built that file because it contains either
+  :code:`GNAT` or :code:`GNAT-LLVM`.
+
+.. only:: PRO
+
+    If your project uses one of the libraries packaged with the GCC
+    version of GNAT, it is important that you use the GPR tools from
+    the GNAT LLVM package when building with GNAT LLVM. Otherwise,
+    ``gprbuild`` would try to use the precompiled libraries shipped with
+    the GCC version of GNAT, mixing those objects with code generated
+    by GNAT LLVM, which is not supported.
+
+GNAT LLVM understands the same target triplets as the GCC version of
+GNAT.
+
+.. only:: PRO
+
+  It provides the same runtimes with the exception that light runtimes
+  are not currently included with the native compilers.

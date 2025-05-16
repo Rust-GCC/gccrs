@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -182,7 +182,8 @@ Dump::visit (const Statement &stmt)
   statement_place = stmt.get_place ();
   switch (stmt.get_kind ())
     {
-      case Statement::Kind::ASSIGNMENT: {
+    case Statement::Kind::ASSIGNMENT:
+      {
 	visit_place (stmt.get_place ());
 	stream << " = ";
 	stmt.get_expr ().accept_vis (*this);

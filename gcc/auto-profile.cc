@@ -1,5 +1,5 @@
 /* Read and annotate call graph profile from the auto profile data file.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Dehao Chen (dehao@google.com)
 
 This file is part of GCC.
@@ -303,6 +303,10 @@ public:
      in INFO and return true; otherwise return false.  */
   bool get_count_info (gimple *stmt, count_info *info) const;
 
+  /* Find count_info for a given gimple location GIMPLE_LOC. If found,
+     store the count_info in INFO and return true; otherwise return false.  */
+  bool get_count_info (location_t gimple_loc, count_info *info) const;
+
   /* Find total count of the callee of EDGE.  */
   gcov_type get_callsite_total_count (struct cgraph_edge *edge) const;
 
@@ -473,7 +477,7 @@ string_table::get_index (const char *name) const
   return iter->second;
 }
 
-/* Return the index of a given function DECL. Return -1 if DECL is not 
+/* Return the index of a given function DECL. Return -1 if DECL is not
    found in string table.  */
 
 int
@@ -724,11 +728,18 @@ autofdo_source_profile::get_function_instance_by_decl (tree decl) const
 bool
 autofdo_source_profile::get_count_info (gimple *stmt, count_info *info) const
 {
-  if (LOCATION_LOCUS (gimple_location (stmt)) == cfun->function_end_locus)
+  return get_count_info (gimple_location (stmt), info);
+}
+
+bool
+autofdo_source_profile::get_count_info (location_t gimple_loc,
+					count_info *info) const
+{
+  if (LOCATION_LOCUS (gimple_loc) == cfun->function_end_locus)
     return false;
 
   inline_stack stack;
-  get_inline_stack (gimple_location (stmt), &stack);
+  get_inline_stack (gimple_loc, &stack);
   if (stack.length () == 0)
     return false;
   function_instance *s = get_function_instance_by_inline_stack (stack);
@@ -837,8 +848,8 @@ autofdo_source_profile::get_callsite_total_count (
 
   function_instance *s = get_function_instance_by_inline_stack (stack);
   if (s == NULL
-      || afdo_string_table->get_index (IDENTIFIER_POINTER (
-             DECL_ASSEMBLER_NAME (edge->callee->decl))) != s->name ())
+      ||(afdo_string_table->get_index_by_decl (edge->callee->decl)
+	 != s->name()))
     return 0;
 
   return s->total_count ();
@@ -1130,7 +1141,36 @@ afdo_set_bb_count (basic_block bb, const stmt_set &promoted)
     }
 
   if (!has_annotated)
-    return false;
+    {
+      /* For an empty BB with all debug stmt which assigne a value with
+	 constant, check successors PHIs corresponding to the block and
+	 use those counts.  */
+      edge tmp_e;
+      edge_iterator tmp_ei;
+      FOR_EACH_EDGE (tmp_e, tmp_ei, bb->succs)
+	{
+	  basic_block bb_succ = tmp_e->dest;
+	  for (gphi_iterator gpi = gsi_start_phis (bb_succ);
+	       !gsi_end_p (gpi);
+	       gsi_next (&gpi))
+	    {
+	      gphi *phi = gpi.phi ();
+	      location_t phi_loc
+		= gimple_phi_arg_location_from_edge (phi, tmp_e);
+	      count_info info;
+	      if (afdo_source_profile->get_count_info (phi_loc, &info)
+		  && info.count != 0)
+		{
+		  if (info.count > max_count)
+		    max_count = info.count;
+		  has_annotated = true;
+		}
+	    }
+	}
+
+      if (!has_annotated)
+	return false;
+    }
 
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
     afdo_source_profile->mark_annotated (gimple_location (gsi_stmt (gsi)));
@@ -1538,8 +1578,6 @@ afdo_annotate_cfg (const stmt_set &promoted_stmts)
 
   if (s == NULL)
     return;
-  cgraph_node::get (current_function_decl)->count
-     = profile_count::from_gcov_type (s->head_count ()).afdo ();
   ENTRY_BLOCK_PTR_FOR_FN (cfun)->count
      = profile_count::from_gcov_type (s->head_count ()).afdo ();
   EXIT_BLOCK_PTR_FOR_FN (cfun)->count = profile_count::zero ().afdo ();
@@ -1578,9 +1616,10 @@ afdo_annotate_cfg (const stmt_set &promoted_stmts)
       /* Calculate, propagate count and probability information on CFG.  */
       afdo_calculate_branch_prob (&annotated_bb);
     }
+  cgraph_node::get(current_function_decl)->count
+      = ENTRY_BLOCK_PTR_FOR_FN(cfun)->count;
   update_max_bb_count ();
   profile_status_for_fn (cfun) = PROFILE_READ;
-  cfun->cfg->full_profile = true;
   if (flag_value_profile_transformations)
     {
       gimple_value_profile_transformations ();

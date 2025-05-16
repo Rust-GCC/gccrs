@@ -1,6 +1,6 @@
 /* LTO IL options.
 
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Simon Baldwin <simonb@google.com>
 
 This file is part of GCC.
@@ -82,31 +82,32 @@ lto_write_options (void)
      subject of merging in lto-wrapper.  */
   if (!OPTION_SET_P (flag_pic) && !OPTION_SET_P (flag_pie))
     {
-       append_to_collect_gcc_options (&temporary_obstack, &first_p,
-				      global_options.x_flag_pic == 2
-				      ? "-fPIC"
-				      : global_options.x_flag_pic == 1
-				      ? "-fpic"
-				      : global_options.x_flag_pie == 2
-				      ? "-fPIE"
-				      : global_options.x_flag_pie == 1
-				      ? "-fpie"
-				      : "-fno-pie");
+      const char *pic = "-fno-pie";
+      if (global_options.x_flag_pie == 2)
+	pic = "-fPIE";
+      else if (global_options.x_flag_pie == 1)
+	pic = "-fpie";
+      else if (global_options.x_flag_pic == 2)
+	pic = "-fPIC";
+      else if (global_options.x_flag_pic == 1)
+	pic = "-fpic";
+      append_to_collect_gcc_options (&temporary_obstack, &first_p, pic);
     }
 
   if (!OPTION_SET_P (flag_cf_protection))
     {
-      append_to_collect_gcc_options (
-	&temporary_obstack, &first_p,
-	global_options.x_flag_cf_protection == CF_NONE
-	? "-fcf-protection=none"
-	: global_options.x_flag_cf_protection == CF_FULL
-	? "-fcf-protection=full"
-	: global_options.x_flag_cf_protection == CF_BRANCH
-	? "-fcf-protection=branch"
-	: global_options.x_flag_cf_protection == CF_RETURN
-	? "-fcf-protection=return"
-	: "");
+      const char *cf_protection = NULL;
+      switch (global_options.x_flag_cf_protection & ~CF_SET)
+	{
+	case CF_NONE: cf_protection = "-fcf-protection=none"; break;
+	case CF_FULL: cf_protection = "-fcf-protection=full"; break;
+	case CF_BRANCH: cf_protection = "-fcf-protection=branch"; break;
+	case CF_RETURN: cf_protection = "-fcf-protection=return"; break;
+	default: break;
+	}
+      if (cf_protection)
+	append_to_collect_gcc_options (&temporary_obstack, &first_p,
+				       cf_protection);
     }
 
   /* If debug info is enabled append -g.  */
@@ -152,6 +153,9 @@ lto_write_options (void)
 	case OPT_fprofile_prefix_map_:
 	case OPT_fcanon_prefix_map:
 	case OPT_fwhole_program:
+	case OPT_fltrans_output_list_:
+	case OPT_flto_incremental_:
+	case OPT_flto_incremental_cache_size_:
 	  continue;
 
 	default:

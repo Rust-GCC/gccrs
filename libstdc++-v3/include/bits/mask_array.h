@@ -1,6 +1,6 @@
 // The template and inlines for the -*- C++ -*- mask_array class.
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,7 +32,9 @@
 #ifndef _MASK_ARRAY_H
 #define _MASK_ARRAY_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -69,7 +71,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       ///  Copy constructor.  Both slices refer to the same underlying array.
       mask_array (const mask_array&);
-      
+
       ///  Assignment operator.  Assigns elements to corresponding elements
       ///  of @a a.
       mask_array& operator=(const mask_array&);

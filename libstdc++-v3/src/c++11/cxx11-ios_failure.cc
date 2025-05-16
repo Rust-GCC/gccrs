@@ -1,6 +1,6 @@
 // Iostreams base classes -*- C++ -*-
 
-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
+// Copyright (C) 2014-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -93,6 +93,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   class __iosfail_type_info : __cxxabiv1::__si_class_type_info
   {
     ~__iosfail_type_info();
+
+    using __si_class_type_info::__do_upcast;
 
     bool
     __do_upcast (const __class_type_info *dst_type,

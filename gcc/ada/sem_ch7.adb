@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1406,7 +1406,7 @@ package body Sem_Ch7 is
 
       begin
          if Id = Cunit_Entity (Main_Unit)
-           or else Parent (Decl) = Library_Unit (Cunit (Main_Unit))
+           or else Parent (Decl) = Other_Comp_Unit (Cunit (Main_Unit))
          then
             Generate_Reference (Id, Scope (Id), 'k', False);
 
@@ -1422,7 +1422,7 @@ package body Sem_Ch7 is
 
             begin
                if Nkind (Main_Spec) = N_Package_Body then
-                  Main_Spec := Unit (Library_Unit (Cunit (Main_Unit)));
+                  Main_Spec := Unit (Other_Comp_Unit (Cunit (Main_Unit)));
                end if;
 
                U := Parent_Spec (Main_Spec);
@@ -1730,6 +1730,14 @@ package body Sem_Ch7 is
            and then not Is_Generic_Actual_Type (E)
          then
             Error_Msg_N ("no declaration in visible part for incomplete}", E);
+         end if;
+
+         --  A type's nonoverridable aspects need to be resolved at the end
+         --  of the enclosing list of declarations, not only at freeze points
+         --  (see 13.1.1 (11/5)). (Perhaps the proc name should be changed???)
+
+         if Is_Type (E) and then Has_Delayed_Aspects (E) then
+            Analyze_Aspects_At_Freeze_Point (E, Nonoverridable_Only => True);
          end if;
 
          Next_Entity (E);
@@ -2400,7 +2408,7 @@ package body Sem_Ch7 is
 
          --  Do not enter implicitly inherited non-overridden subprograms of
          --  a tagged type back into visibility if they have non-conformant
-         --  homographs (Ada RM 8.3 12.3/2).
+         --  homographs (RM 8.3(12.3/2)).
 
          elsif Is_Hidden_Non_Overridden_Subpgm (Id) then
             null;
@@ -2657,7 +2665,7 @@ package body Sem_Ch7 is
       then
          return True;
 
-      elsif not (Is_Derived_Type (Dep))
+      elsif not Is_Derived_Type (Dep)
         and then Is_Derived_Type (Full_View (Dep))
       then
          --  When instantiating a package body, the scope stack is empty, so
@@ -2746,10 +2754,6 @@ package body Sem_Ch7 is
       Set_Is_First_Subtype (Id);
       Reinit_Size_Align (Id);
 
-      Set_Is_Constrained (Id,
-        No (Discriminant_Specifications (N))
-          and then not Unknown_Discriminants_Present (N));
-
       --  Set tagged flag before processing discriminants, to catch illegal
       --  usage.
 
@@ -2765,6 +2769,9 @@ package body Sem_Ch7 is
 
       elsif Unknown_Discriminants_Present (N) then
          Set_Has_Unknown_Discriminants (Id);
+
+      else
+         Set_Is_Constrained (Id);
       end if;
 
       Set_Private_Dependents (Id, New_Elmt_List);
@@ -2828,13 +2835,14 @@ package body Sem_Ch7 is
       --  Otherwise test to see if entity requires a completion. Note that
       --  subprogram entities whose declaration does not come from source are
       --  ignored here on the basis that we assume the expander will provide an
-      --  implicit completion at some point.
+      --  implicit completion at some point. In particular, an inherited
+      --  subprogram of a derived type should not cause us to return True here.
 
       elsif (Is_Overloadable (Id)
               and then Ekind (Id) not in E_Enumeration_Literal | E_Operator
               and then not Is_Abstract_Subprogram (Id)
               and then not Has_Completion (Id)
-              and then Comes_From_Source (Parent (Id)))
+              and then Comes_From_Source (Id))
 
         or else
           (Ekind (Id) = E_Package
@@ -2919,6 +2927,7 @@ package body Sem_Ch7 is
                                      (Priv, Has_Pragma_Unreferenced_Objects
                                                                        (Full));
          Set_Predicates_Ignored      (Priv, Predicates_Ignored         (Full));
+
          if Is_Unchecked_Union (Full) then
             Set_Is_Unchecked_Union (Base_Type (Priv));
          end if;
@@ -2928,14 +2937,8 @@ package body Sem_Ch7 is
          end if;
 
          if Priv_Is_Base_Type then
-            Set_Is_Controlled_Active
-                              (Priv, Is_Controlled_Active     (Full_Base));
-            Set_Finalize_Storage_Only
-                              (Priv, Finalize_Storage_Only    (Full_Base));
-            Set_Has_Controlled_Component
-                              (Priv, Has_Controlled_Component (Full_Base));
-
-            Propagate_Concurrent_Flags (Priv, Base_Type (Full));
+            Propagate_Concurrent_Flags (Priv, Full_Base);
+            Propagate_Controlled_Flags (Priv, Full_Base);
          end if;
 
          --  As explained in Freeze_Entity, private types are required to point
@@ -3379,6 +3382,9 @@ package body Sem_Ch7 is
                   Next_Elmt (Elmt);
                end loop;
             end;
+
+            Set_Is_Hidden (Id);
+            Set_Is_Potentially_Use_Visible (Id, False);
 
          --  For subtypes of private types the frontend generates two entities:
          --  one associated with the partial view and the other associated with

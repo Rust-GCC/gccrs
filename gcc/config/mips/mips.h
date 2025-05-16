@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler.  MIPS version.
-   Copyright (C) 1989-2024 Free Software Foundation, Inc.
+   Copyright (C) 1989-2025 Free Software Foundation, Inc.
    Contributed by A. Lichnewsky (lich@inria.inria.fr).
    Changed by Michael Meissner	(meissner@osf.org).
    64-bit r4000 support by Ian Lance Taylor (ian@cygnus.com) and
@@ -251,7 +251,7 @@ struct mips_cpu_info {
 				     || ISA_HAS_MSA))
 
 /* ISA load/store instructions can handle unaligned address */
-#define ISA_HAS_UNALIGNED_ACCESS (TARGET_UNALIGNED_ACCESS \
+#define ISA_HAS_UNALIGNED_ACCESS (!TARGET_STRICT_ALIGN \
 				 && (mips_isa_rev >= 6))
 
 /* The ISA compression flags that are currently in effect.  */
@@ -694,6 +694,9 @@ struct mips_cpu_info {
 	builtin_define ("__mips_compact_branches_always");		\
       else 								\
 	builtin_define ("__mips_compact_branches_optimal");		\
+									\
+      if (STRICT_ALIGNMENT)						\
+	builtin_define ("__mips_strict_alignment");			\
     }									\
   while (0)
 
@@ -1259,6 +1262,12 @@ struct mips_cpu_info {
 #define ISA_HAS_9BIT_DISPLACEMENT	(mips_isa_rev >= 6		\
 					 || ISA_HAS_MIPS16E2)
 
+#define ISA_HAS_FMIN_FMAX	(mips_isa_rev >= 6)
+
+#define ISA_HAS_FRINT		(mips_isa_rev >= 6)
+
+#define ISA_HAS_FCLASS		(mips_isa_rev >= 6)
+
 /* ISA has data indexed prefetch instructions.  This controls use of
    'prefx', along with TARGET_HARD_FLOAT and TARGET_DOUBLE_FLOAT.
    (prefx is a cop1x instruction, so can only be used if FP is
@@ -1649,7 +1658,7 @@ FP_ASM_SPEC "\
 #define UNITS_PER_FPVALUE			\
   (TARGET_SOFT_FLOAT_ABI ? 0			\
    : TARGET_SINGLE_FLOAT ? UNITS_PER_FPREG	\
-   : LONG_DOUBLE_TYPE_SIZE / BITS_PER_UNIT)
+   : MIPS_LONG_DOUBLE_TYPE_SIZE / BITS_PER_UNIT)
 
 /* The number of bytes in a double.  */
 #define UNITS_PER_DOUBLE (TYPE_PRECISION (double_type_node) / BITS_PER_UNIT)
@@ -1660,9 +1669,8 @@ FP_ASM_SPEC "\
 #define LONG_TYPE_SIZE (TARGET_LONG64 ? 64 : 32)
 #define LONG_LONG_TYPE_SIZE 64
 
-#define FLOAT_TYPE_SIZE 32
-#define DOUBLE_TYPE_SIZE 64
-#define LONG_DOUBLE_TYPE_SIZE (TARGET_NEWABI ? 128 : 64)
+/* LONG_DOUBLE_TYPE_SIZE gets poisoned, so add MIPS_ prefix.  */
+#define MIPS_LONG_DOUBLE_TYPE_SIZE (TARGET_NEWABI ? 128 : 64)
 
 /* Define the sizes of fixed-point types.  */
 #define SHORT_FRACT_TYPE_SIZE 8
@@ -1679,7 +1687,7 @@ FP_ASM_SPEC "\
 
 /* long double is not a fixed mode, but the idea is that, if we
    support long double, we also want a 128-bit integer type.  */
-#define MAX_FIXED_MODE_SIZE LONG_DOUBLE_TYPE_SIZE
+#define MAX_FIXED_MODE_SIZE MIPS_LONG_DOUBLE_TYPE_SIZE
 
 /* Width in bits of a pointer.  */
 #ifndef POINTER_SIZE
@@ -1700,10 +1708,10 @@ FP_ASM_SPEC "\
 #define STRUCTURE_SIZE_BOUNDARY 8
 
 /* There is no point aligning anything to a rounder boundary than
-   LONG_DOUBLE_TYPE_SIZE, unless under MSA the bigggest alignment is
+   MIPS_LONG_DOUBLE_TYPE_SIZE, unless under MSA the bigggest alignment is
    BITS_PER_MSA_REG.  */
 #define BIGGEST_ALIGNMENT \
-  (ISA_HAS_MSA ? BITS_PER_MSA_REG : LONG_DOUBLE_TYPE_SIZE)
+  (ISA_HAS_MSA ? BITS_PER_MSA_REG : MIPS_LONG_DOUBLE_TYPE_SIZE)
 
 /* All accesses must be aligned.  */
 #define STRICT_ALIGNMENT (!ISA_HAS_UNALIGNED_ACCESS)
@@ -1755,7 +1763,7 @@ FP_ASM_SPEC "\
    optimised to use word loads. */
 #define LOCAL_ALIGNMENT(TYPE, ALIGN) \
   DATA_ALIGNMENT (TYPE, ALIGN)
-  
+
 #define PAD_VARARGS_DOWN \
   (targetm.calls.function_arg_padding (TYPE_MODE (type), type) == PAD_DOWNWARD)
 
@@ -1766,7 +1774,7 @@ FP_ASM_SPEC "\
 /* When in 64-bit mode, move insns will sign extend SImode and CCmode
    moves.  All other references are zero extended.  */
 #define LOAD_EXTEND_OP(MODE) \
-  (TARGET_64BIT && ((MODE) == SImode || (MODE) == CCmode) \
+  (TARGET_64BIT && ((MODE) == SImode || (MODE) == CCmode || (MODE) == CCEmode) \
    ? SIGN_EXTEND : ZERO_EXTEND)
 
 /* Define this macro if it is advisable to hold scalars in registers

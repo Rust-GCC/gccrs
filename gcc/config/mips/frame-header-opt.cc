@@ -4,7 +4,7 @@
    targets, if a frame header is required, it is allocated by the callee.
 
 
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -207,7 +207,7 @@ callees_functions_use_frame_header (function *fn)
 	        {
 	          called_fn = DECL_STRUCT_FUNCTION (called_fn_tree);
 		  if (called_fn == NULL
-		      || DECL_WEAK (called_fn_tree) 
+		      || DECL_WEAK (called_fn_tree)
 		      || has_inlined_assembly (called_fn)
 		      || !is_leaf_function (called_fn)
 		      || !called_fn->machine->does_not_use_frame_header)

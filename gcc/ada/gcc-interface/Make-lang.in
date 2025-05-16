@@ -1,5 +1,5 @@
 # Top level -*- makefile -*- fragment for GNU Ada (GNAT).
-# Copyright (C) 2009-2024 Free Software Foundation, Inc.
+# Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -271,8 +271,14 @@ GCC_LINKERFLAGS = $(filter-out -Werror, $(ALL_LINKERFLAGS))
 GCC_LDFLAGS = $(LDFLAGS)
 endif
 
-GCC_LINK=$(LINKER) $(GCC_LINKERFLAGS) $(GCC_LDFLAGS)
+# Do not link with -pie during stage #1 because the base libgnat.a is not PIC
+ifeq ($(STAGE1),True)
+GCC_LINK= $(filter-out -pie, $(LINKER)  $(GCC_LINKERFLAGS) $(GCC_LDFLAGS))
+GCC_LLINK=$(filter-out -pie, $(LLINKER) $(GCC_LINKERFLAGS) $(GCC_LDFLAGS))
+else
+GCC_LINK= $(LINKER)  $(GCC_LINKERFLAGS) $(GCC_LDFLAGS)
 GCC_LLINK=$(LLINKER) $(GCC_LINKERFLAGS) $(GCC_LDFLAGS)
+endif
 
 # Lists of files for various purposes.
 
@@ -309,6 +315,16 @@ GNAT_ADA_OBJS =	\
  ada/cstand.o	\
  ada/debug.o	\
  ada/debug_a.o	\
+ ada/diagnostics-brief_emitter.o      \
+ ada/diagnostics-constructors.o      \
+ ada/diagnostics-converter.o      \
+ ada/diagnostics-json_utils.o      \
+ ada/diagnostics-pretty_emitter.o      \
+ ada/diagnostics-repository.o      \
+ ada/diagnostics-sarif_emitter.o      \
+ ada/diagnostics-switch_repository.o      \
+ ada/diagnostics-utils.o      \
+ ada/diagnostics.o      \
  ada/einfo-entities.o \
  ada/einfo-utils.o \
  ada/einfo.o	\
@@ -355,6 +371,7 @@ GNAT_ADA_OBJS =	\
  ada/fname.o	\
  ada/freeze.o	\
  ada/frontend.o	\
+ ada/generate_minimal_reproducer.o	\
  ada/get_targ.o	\
  ada/ghost.o	\
  ada/gnat_cuda.o \
@@ -376,6 +393,7 @@ GNAT_ADA_OBJS =	\
  ada/namet.o	\
  ada/nlists.o	\
  ada/nmake.o	\
+ ada/mutably_tagged.o	\
  ada/opt.o	\
  ada/osint-c.o	\
  ada/osint.o	\
@@ -481,6 +499,7 @@ GNAT1_C_OBJS+=    \
  ada/errno.o      \
  ada/init.o       \
  ada/initialize.o \
+ ada/mkdir.o      \
  ada/raise.o      \
  ada/raise-gcc.o  \
  ada/rtfinal.o    \
@@ -500,12 +519,15 @@ GNAT_ADA_OBJS+= \
  ada/libgnat/a-numeri.o	\
  ada/libgnat/ada.o	\
  ada/libgnat/g-byorma.o	\
+ ada/libgnat/g-cstyin.o	\
  ada/libgnat/g-heasor.o	\
  ada/libgnat/g-htable.o	\
  ada/libgnat/g-spchge.o	\
  ada/libgnat/g-speche.o	\
  ada/libgnat/g-table.o	\
  ada/libgnat/g-u3spch.o	\
+ ada/libgnat/i-c.o	\
+ ada/libgnat/i-cstrin.o	\
  ada/libgnat/interfac.o	\
  ada/libgnat/s-addope.o	\
  ada/libgnat/s-addima.o \
@@ -528,6 +550,8 @@ GNAT_ADA_OBJS+= \
  ada/libgnat/s-excmac.o	\
  ada/libgnat/s-exctab.o	\
  ada/libgnat/s-htable.o	\
+ ada/libgnat/s-imad32.o	\
+ ada/libgnat/s-imad64.o	\
  ada/libgnat/s-imgint.o	\
  ada/libgnat/s-mastop.o	\
  ada/libgnat/s-memory.o	\
@@ -572,7 +596,6 @@ GNATBIND_OBJS = \
  ada/ali-util.o   \
  ada/ali.o        \
  ada/alloc.o      \
- ada/aspects.o    \
  ada/atree.o      \
  ada/bcheck.o     \
  ada/binde.o      \
@@ -592,6 +615,16 @@ GNATBIND_OBJS = \
  ada/casing.o     \
  ada/csets.o      \
  ada/debug.o      \
+ ada/diagnostics-brief_emitter.o      \
+ ada/diagnostics-constructors.o      \
+ ada/diagnostics-converter.o      \
+ ada/diagnostics-json_utils.o      \
+ ada/diagnostics-pretty_emitter.o      \
+ ada/diagnostics-repository.o      \
+ ada/diagnostics-sarif_emitter.o      \
+ ada/diagnostics-switch_repository.o      \
+ ada/diagnostics-utils.o      \
+ ada/diagnostics.o      \
  ada/einfo-entities.o \
  ada/einfo-utils.o \
  ada/einfo.o      \
@@ -602,12 +635,10 @@ GNATBIND_OBJS = \
  ada/exit.o       \
  ada/final.o      \
  ada/fmap.o       \
- ada/fname-uf.o   \
  ada/fname.o      \
  ada/gnatbind.o   \
  ada/gnatvsn.o    \
  ada/hostparm.o   \
- ada/krunch.o     \
  ada/lib.o        \
  ada/link.o       \
  ada/namet.o      \
@@ -618,7 +649,6 @@ GNATBIND_OBJS = \
  ada/output.o     \
  ada/rident.o     \
  ada/scans.o      \
- ada/scil_ll.o    \
  ada/scng.o       \
  ada/sdefault.o   \
  ada/seinfo.o	  \
@@ -631,7 +661,6 @@ GNATBIND_OBJS = \
  ada/snames.o     \
  ada/stand.o      \
  ada/stringt.o    \
- ada/style.o      \
  ada/styleg.o     \
  ada/stylesw.o    \
  ada/switch-b.o   \
@@ -671,8 +700,11 @@ GNATBIND_OBJS +=  \
  ada/libgnat/a-numeri.o   \
  ada/libgnat/ada.o        \
  ada/libgnat/g-byorma.o   \
+ ada/libgnat/g-cstyin.o   \
  ada/libgnat/g-hesora.o   \
  ada/libgnat/g-htable.o   \
+ ada/libgnat/i-c.o	      \
+ ada/libgnat/i-cstrin.o   \
  ada/libgnat/interfac.o   \
  ada/libgnat/s-addope.o   \
  ada/libgnat/s-assert.o   \
@@ -771,7 +803,7 @@ gnatbind$(exeext): ada/b_gnatb.o $(CONFIG_H) $(GNATBIND_OBJS) $(EXTRA_HOST_OBJS)
 	+$(GCC_LINK) -o $@ $(CFLAGS) ada/b_gnatb.o $(GNATBIND_OBJS) $(EXTRA_HOST_OBJS) ggc-none.o libcommon-target.a $(LIBS) $(SYSLIBS) $(GNATLIB)
 
 # use target-gcc target-gnatmake target-gnatbind target-gnatlink
-gnattools: $(GCC_PARTS) $(CONFIG_H) prefix.o force
+gnattools: $(CONFIG_H) prefix.o force
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools1
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools2
 
@@ -782,6 +814,7 @@ regnattools:
 cross-gnattools: force
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools1-re
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools2
+	$(GNATTOOLS_CROSS_MV)
 
 canadian-gnattools: force
 	$(MAKE) -C ada $(ADA_TOOLS_FLAGS_TO_PASS) gnattools1-re
@@ -797,19 +830,27 @@ gnatlib gnatlib-sjlj gnatlib-zcx gnatlib-shared: force
 	   FORCE_DEBUG_ADAFLAGS="$(FORCE_DEBUG_ADAFLAGS)" \
 	   $@
 
+gnattools-cross-mv:
+	$(GNATTOOLS_CROSS_MV)
+
+# gnatbind$(exeext) is a prerequisite of the ada target and
+# thus needs to be copied instead of moved.
+GNATTOOLS_CROSS_MV=\
+  if [ -f gnatbind$(exeext) ] ; then \
+    $(CP) gnatbind$(exeext) gnatbind-cross$(exeext); \
+  fi; \
+  for tool in $(filter-out gnatbind, $(ADA_TOOLS)) ; do \
+    if [ -f $$tool$(exeext) ] ; then \
+      $(MV) $$tool$(exeext) $$tool-cross$(exeext); \
+    fi; \
+  done
+
 # use only for native compiler
 gnatlib_and_tools: gnatlib gnattools
 
 # Build hooks:
 
 ada.all.cross:
-	for tool in $(ADA_TOOLS) ; do \
-	  if [ -f $$tool$(exeext) ] ; \
-	  then \
-	    $(MV) $$tool$(exeext) $$tool-cross$(exeext); \
-	  fi; \
-	done
-
 ada.start.encap:
 ada.rest.encap:
 ada.man:

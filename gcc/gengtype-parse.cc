@@ -1,5 +1,5 @@
 /* Process source files and output type information.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -139,7 +139,7 @@ parse_error (const char *msg, ...)
 {
   va_list ap;
 
-  fprintf (stderr, "%s:%d: parse error: ", 
+  fprintf (stderr, "%s:%d: parse error: ",
 	   get_input_file_name (lexer_line.file), lexer_line.line);
 
   va_start (ap, msg);

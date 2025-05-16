@@ -1,5 +1,5 @@
 /* Implementation of the FINDLOC intrinsic
-   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    Contributed by Thomas König <tk@tkoenig.net>
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
@@ -49,7 +49,7 @@ findloc2_s4 (gfc_array_s4 * const restrict array, const GFC_UINTEGER_4 * restric
   if (back)
     {
       src = array->base_addr + (extent - 1) * sstride;
-      for (i = extent; i >= 0; i--)
+      for (i = extent; i > 0; i--)
 	{
 	  if (compare_string_char4 (len_array, src, len_value, value) == 0)
 	    return i;
@@ -112,7 +112,7 @@ mfindloc2_s4 (gfc_array_s4 * const restrict array,
     {
       src = array->base_addr + (extent - 1) * sstride;
       mbase += (extent - 1) * mstride;
-      for (i = extent; i >= 0; i--)
+      for (i = extent; i > 0; i--)
 	{
 	  if (*mbase && (compare_string_char4 (len_array, src, len_value, value) == 0))
 	    return i;

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2018-2024, Free Software Foundation, Inc.      --
+--             Copyright (C) 2018-2025, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -332,7 +332,7 @@ package body GNAT.Lists is
 
          --  The list has at least one outstanding iterator
 
-         if L.Iterators > 0 then
+         if Check_Tampering and then L.Iterators > 0 then
             raise Iterated;
          end if;
       end Ensure_Unlocked;

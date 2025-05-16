@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -796,7 +796,8 @@ expand_inline_asm_strings (InlineAsmContext inline_asm_ctx)
 	      auto next_argument = piece.next_argument._0;
 	      switch (piece.next_argument._0.position.tag)
 		{
-		  case Fmt::ffi::Position::Tag::ArgumentImplicitlyIs: {
+		case Fmt::ffi::Position::Tag::ArgumentImplicitlyIs:
+		  {
 		    auto idx = next_argument.position.argument_implicitly_is._0;
 		    /*auto trait = next_argument.format;*/
 		    /*auto arg = arguments.at (idx);*/

@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Free Software Foundation, Inc.
+// Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -85,11 +85,13 @@ expand_format_args (AST::FormatArgs &fmt,
 	  static_pieces.emplace_back (
 	    builder.literal_string (node.string._0.to_string ()));
 	  break;
-	  case ffi::Piece::Tag::NextArgument: {
+	case ffi::Piece::Tag::NextArgument:
+	  {
 	    auto next_argument = node.next_argument._0;
 	    switch (node.next_argument._0.position.tag)
 	      {
-		case ffi::Position::Tag::ArgumentImplicitlyIs: {
+	      case ffi::Position::Tag::ArgumentImplicitlyIs:
+		{
 		  auto idx = next_argument.position.argument_implicitly_is._0;
 		  auto trait = next_argument.format;
 		  auto arg = arguments.at (idx);

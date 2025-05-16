@@ -1,7 +1,7 @@
 // { dg-do compile }
 // { dg-require-normal-namespace "" }
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -73,18 +73,30 @@ namespace std
   template <class T> T* addressof(T&) noexcept;
 #endif
   template <class InputIterator, class ForwardIterator>
+#if __cplusplus >= 202400L
+  constexpr
+#endif
   ForwardIterator
   uninitialized_copy(InputIterator first, InputIterator last,
 		     ForwardIterator result);
 #if __cplusplus >= 201103L
   template <class InputIterator, class Size, class ForwardIterator>
+#if __cplusplus >= 202400L
+  constexpr
+#endif
   ForwardIterator
   uninitialized_copy_n(InputIterator first, Size n, ForwardIterator result);
 #endif
   template <class ForwardIterator, class T>
+#if __cplusplus >= 202400L
+  constexpr
+#endif
   void uninitialized_fill(ForwardIterator first, ForwardIterator last,
 			  const T& x);
   template <class ForwardIterator, class Size, class T>
+#if __cplusplus >= 202400L
+  constexpr
+#endif
   void uninitialized_fill_n(ForwardIterator first, Size n, const T& x);
 
 #if __cplusplus >= 201103L

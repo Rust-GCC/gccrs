@@ -1,5 +1,5 @@
 /* Definitions of Objective-C front-end entry points used for C and C++.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -163,7 +163,7 @@ extern void objc_add_property_declaration (location_t, tree,
 extern tree objc_maybe_build_component_ref (tree, tree);
 extern tree objc_build_class_component_ref (tree, tree);
 extern tree objc_maybe_build_modify_expr (tree, tree);
-extern tree objc_build_incr_expr_for_property_ref (location_t, enum tree_code, 
+extern tree objc_build_incr_expr_for_property_ref (location_t, enum tree_code,
 						   tree, tree);
 extern void objc_add_synthesize_declaration (location_t, tree);
 extern void objc_add_dynamic_declaration (location_t, tree);

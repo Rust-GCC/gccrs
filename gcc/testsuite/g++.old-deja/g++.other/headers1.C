@@ -1,4 +1,5 @@
 // { dg-do run  }
+// { dg-skip-if "requires hosted libstdc++ for cassert" { ! hostedlib } }
 // Copyright (C) 2000 Free Software Foundation, Inc.
 // Contributed by Loren J. Rittle 07 Jun 2000 <ljrittle@acm.org>
 //
@@ -11,7 +12,9 @@
 #include <cctype>
 #include <cerrno>
 #include <cfloat>
+#if __cplusplus < 201703L
 #include <ciso646>
+#endif
 #include <climits>
 #include <clocale>
 #include <cmath>

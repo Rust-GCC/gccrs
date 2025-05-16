@@ -1,4 +1,4 @@
-/* Copyright (C) 1988-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -115,8 +115,6 @@ along with GCC; see the file COPYING3.  If not see
 #define m_HASWELL (HOST_WIDE_INT_1U<<PROCESSOR_HASWELL)
 #define m_BONNELL (HOST_WIDE_INT_1U<<PROCESSOR_BONNELL)
 #define m_SILVERMONT (HOST_WIDE_INT_1U<<PROCESSOR_SILVERMONT)
-#define m_KNL (HOST_WIDE_INT_1U<<PROCESSOR_KNL)
-#define m_KNM (HOST_WIDE_INT_1U<<PROCESSOR_KNM)
 #define m_SKYLAKE (HOST_WIDE_INT_1U<<PROCESSOR_SKYLAKE)
 #define m_SKYLAKE_AVX512 (HOST_WIDE_INT_1U<<PROCESSOR_SKYLAKE_AVX512)
 #define m_CANNONLAKE (HOST_WIDE_INT_1U<<PROCESSOR_CANNONLAKE)
@@ -133,10 +131,12 @@ along with GCC; see the file COPYING3.  If not see
 #define m_ARROWLAKE (HOST_WIDE_INT_1U<<PROCESSOR_ARROWLAKE)
 #define m_ARROWLAKE_S (HOST_WIDE_INT_1U<<PROCESSOR_ARROWLAKE_S)
 #define m_PANTHERLAKE (HOST_WIDE_INT_1U<<PROCESSOR_PANTHERLAKE)
+#define m_DIAMONDRAPIDS (HOST_WIDE_INT_1U<<PROCESSOR_DIAMONDRAPIDS)
 #define m_CORE_AVX512 (m_SKYLAKE_AVX512 | m_CANNONLAKE \
 		       | m_ICELAKE_CLIENT | m_ICELAKE_SERVER | m_CASCADELAKE \
 		       | m_TIGERLAKE | m_COOPERLAKE | m_SAPPHIRERAPIDS \
-		       | m_ROCKETLAKE | m_GRANITERAPIDS | m_GRANITERAPIDS_D)
+		       | m_ROCKETLAKE | m_GRANITERAPIDS | m_GRANITERAPIDS_D \
+		       | m_DIAMONDRAPIDS)
 #define m_CORE_AVX2 (m_HASWELL | m_SKYLAKE | m_CORE_AVX512)
 #define m_CORE_ALL (m_CORE2 | m_NEHALEM  | m_SANDYBRIDGE | m_CORE_AVX2)
 #define m_CORE_HYBRID (m_ALDERLAKE | m_ARROWLAKE | m_ARROWLAKE_S \
@@ -157,7 +157,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #define m_LUJIAZUI (HOST_WIDE_INT_1U<<PROCESSOR_LUJIAZUI)
 #define m_YONGFENG (HOST_WIDE_INT_1U<<PROCESSOR_YONGFENG)
-#define m_ZHAOXIN  (m_LUJIAZUI | m_YONGFENG)
+#define m_SHIJIDADAO (HOST_WIDE_INT_1U<<PROCESSOR_SHIJIDADAO)
+#define m_ZHAOXIN  (m_LUJIAZUI | m_YONGFENG | m_SHIJIDADAO)
 
 #define m_GEODE (HOST_WIDE_INT_1U<<PROCESSOR_GEODE)
 #define m_K6 (HOST_WIDE_INT_1U<<PROCESSOR_K6)
@@ -174,11 +175,12 @@ along with GCC; see the file COPYING3.  If not see
 #define m_ZNVER2 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER2)
 #define m_ZNVER3 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER3)
 #define m_ZNVER4 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER4)
+#define m_ZNVER5 (HOST_WIDE_INT_1U<<PROCESSOR_ZNVER5)
 #define m_BTVER1 (HOST_WIDE_INT_1U<<PROCESSOR_BTVER1)
 #define m_BTVER2 (HOST_WIDE_INT_1U<<PROCESSOR_BTVER2)
 #define m_BDVER	(m_BDVER1 | m_BDVER2 | m_BDVER3 | m_BDVER4)
 #define m_BTVER (m_BTVER1 | m_BTVER2)
-#define m_ZNVER	(m_ZNVER1 | m_ZNVER2 | m_ZNVER3 | m_ZNVER4)
+#define m_ZNVER (m_ZNVER1 | m_ZNVER2 | m_ZNVER3 | m_ZNVER4 | m_ZNVER5)
 #define m_AMD_MULTIPLE (m_ATHLON_K8 | m_AMDFAM10 | m_BDVER | m_BTVER \
 			| m_ZNVER)
 
@@ -223,8 +225,6 @@ static struct ix86_target_opts isa2_opts[] =
   { "-mwbnoinvd",	OPTION_MASK_ISA2_WBNOINVD },
   { "-mavx512vp2intersect", OPTION_MASK_ISA2_AVX512VP2INTERSECT },
   { "-msgx",		OPTION_MASK_ISA2_SGX },
-  { "-mavx5124vnniw",	OPTION_MASK_ISA2_AVX5124VNNIW },
-  { "-mavx5124fmaps",	OPTION_MASK_ISA2_AVX5124FMAPS },
   { "-mhle",		OPTION_MASK_ISA2_HLE },
   { "-mmovbe",		OPTION_MASK_ISA2_MOVBE },
   { "-mclzero",		OPTION_MASK_ISA2_CLZERO },
@@ -262,7 +262,14 @@ static struct ix86_target_opts isa2_opts[] =
   { "-mevex512",	OPTION_MASK_ISA2_EVEX512 },
   { "-musermsr",	OPTION_MASK_ISA2_USER_MSR },
   { "-mavx10.1-256",	OPTION_MASK_ISA2_AVX10_1_256 },
-  { "-mavx10.1-512",	OPTION_MASK_ISA2_AVX10_1_512 }
+  { "-mavx10.1",	OPTION_MASK_ISA2_AVX10_1 },
+  { "-mavx10.2",	OPTION_MASK_ISA2_AVX10_2 },
+  { "-mamx-avx512",	OPTION_MASK_ISA2_AMX_AVX512 },
+  { "-mamx-tf32",	OPTION_MASK_ISA2_AMX_TF32 },
+  { "-mamx-transpose",	OPTION_MASK_ISA2_AMX_TRANSPOSE },
+  { "-mamx-fp8", 	OPTION_MASK_ISA2_AMX_FP8 },
+  { "-mmovrs",		OPTION_MASK_ISA2_MOVRS },
+  { "-mamx-movrs",	OPTION_MASK_ISA2_AMX_MOVRS }
 };
 static struct ix86_target_opts isa_opts[] =
 {
@@ -277,8 +284,6 @@ static struct ix86_target_opts isa_opts[] =
   { "-mavx512vl",	OPTION_MASK_ISA_AVX512VL },
   { "-mavx512bw",	OPTION_MASK_ISA_AVX512BW },
   { "-mavx512dq",	OPTION_MASK_ISA_AVX512DQ },
-  { "-mavx512er",	OPTION_MASK_ISA_AVX512ER },
-  { "-mavx512pf",	OPTION_MASK_ISA_AVX512PF },
   { "-mavx512cd",	OPTION_MASK_ISA_AVX512CD },
   { "-mavx512f",	OPTION_MASK_ISA_AVX512F },
   { "-mavx2",		OPTION_MASK_ISA_AVX2 },
@@ -305,7 +310,6 @@ static struct ix86_target_opts isa_opts[] =
   { "-mprfchw",		OPTION_MASK_ISA_PRFCHW },
   { "-mrdseed",		OPTION_MASK_ISA_RDSEED },
   { "-madx",		OPTION_MASK_ISA_ADX },
-  { "-mprefetchwt1",	OPTION_MASK_ISA_PREFETCHWT1 },
   { "-mclflushopt",	OPTION_MASK_ISA_CLFLUSHOPT },
   { "-mxsaves",		OPTION_MASK_ISA_XSAVES },
   { "-mxsavec",		OPTION_MASK_ISA_XSAVEC },
@@ -757,7 +761,7 @@ static unsigned HOST_WIDE_INT initial_ix86_arch_features[X86_ARCH_LAST] = {
   ~m_386,
 };
 
-/* This table must be in sync with enum processor_type in i386.h.  */ 
+/* This table must be in sync with enum processor_type in i386.h.  */
 static const struct processor_costs *processor_cost_table[] =
 {
   &generic_cost,
@@ -780,8 +784,6 @@ static const struct processor_costs *processor_cost_table[] =
   &alderlake_cost,
   &alderlake_cost,
   &alderlake_cost,
-  &slm_cost,
-  &slm_cost,
   &skylake_cost,
   &skylake_cost,
   &icelake_cost,
@@ -798,9 +800,11 @@ static const struct processor_costs *processor_cost_table[] =
   &alderlake_cost,
   &alderlake_cost,
   &alderlake_cost,
+  &icelake_cost,
   &intel_cost,
   &lujiazui_cost,
   &yongfeng_cost,
+  &shijidadao_cost,
   &geode_cost,
   &k6_cost,
   &athlon_cost,
@@ -815,7 +819,8 @@ static const struct processor_costs *processor_cost_table[] =
   &znver1_cost,
   &znver2_cost,
   &znver3_cost,
-  &znver4_cost
+  &znver4_cost,
+  &znver5_cost
 };
 
 /* Guarantee that the array is aligned with enum processor_type.  */
@@ -1028,8 +1033,6 @@ ix86_valid_target_attribute_inner_p (tree fndecl, tree args, char *p_strings[],
     IX86_ATTR_ISA ("pconfig",	OPT_mpconfig),
     IX86_ATTR_ISA ("wbnoinvd",	OPT_mwbnoinvd),
     IX86_ATTR_ISA ("sgx",	OPT_msgx),
-    IX86_ATTR_ISA ("avx5124fmaps", OPT_mavx5124fmaps),
-    IX86_ATTR_ISA ("avx5124vnniw", OPT_mavx5124vnniw),
     IX86_ATTR_ISA ("avx512vpopcntdq", OPT_mavx512vpopcntdq),
     IX86_ATTR_ISA ("avx512vbmi2", OPT_mavx512vbmi2),
     IX86_ATTR_ISA ("avx512vnni", OPT_mavx512vnni),
@@ -1041,8 +1044,6 @@ ix86_valid_target_attribute_inner_p (tree fndecl, tree args, char *p_strings[],
     IX86_ATTR_ISA ("avx512vl",	OPT_mavx512vl),
     IX86_ATTR_ISA ("avx512bw",	OPT_mavx512bw),
     IX86_ATTR_ISA ("avx512dq",	OPT_mavx512dq),
-    IX86_ATTR_ISA ("avx512er",	OPT_mavx512er),
-    IX86_ATTR_ISA ("avx512pf",	OPT_mavx512pf),
     IX86_ATTR_ISA ("avx512cd",	OPT_mavx512cd),
     IX86_ATTR_ISA ("avx512f",	OPT_mavx512f),
     IX86_ATTR_ISA ("avx2",	OPT_mavx2),
@@ -1069,7 +1070,6 @@ ix86_valid_target_attribute_inner_p (tree fndecl, tree args, char *p_strings[],
     IX86_ATTR_ISA ("prfchw",	OPT_mprfchw),
     IX86_ATTR_ISA ("rdseed",	OPT_mrdseed),
     IX86_ATTR_ISA ("adx",	OPT_madx),
-    IX86_ATTR_ISA ("prefetchwt1", OPT_mprefetchwt1),
     IX86_ATTR_ISA ("clflushopt", OPT_mclflushopt),
     IX86_ATTR_ISA ("xsaves",	OPT_mxsaves),
     IX86_ATTR_ISA ("xsavec",	OPT_mxsavec),
@@ -1133,9 +1133,16 @@ ix86_valid_target_attribute_inner_p (tree fndecl, tree args, char *p_strings[],
     IX86_ATTR_ISA ("apxf", OPT_mapxf),
     IX86_ATTR_ISA ("evex512", OPT_mevex512),
     IX86_ATTR_ISA ("usermsr", OPT_musermsr),
-    IX86_ATTR_ISA ("avx10.1", OPT_mavx10_1_256),
     IX86_ATTR_ISA ("avx10.1-256", OPT_mavx10_1_256),
-    IX86_ATTR_ISA ("avx10.1-512", OPT_mavx10_1_512),
+    IX86_ATTR_ISA ("avx10.1", OPT_mavx10_1),
+    IX86_ATTR_ISA ("avx10.1-512", OPT_mavx10_1),
+    IX86_ATTR_ISA ("avx10.2", OPT_mavx10_2),
+    IX86_ATTR_ISA ("amx-avx512", OPT_mamx_avx512),
+    IX86_ATTR_ISA ("amx-tf32", OPT_mamx_tf32),
+    IX86_ATTR_ISA ("amx-transpose", OPT_mamx_transpose),
+    IX86_ATTR_ISA ("amx-fp8", OPT_mamx_fp8),
+    IX86_ATTR_ISA ("movrs", OPT_mmovrs),
+    IX86_ATTR_ISA ("amx-movrs", OPT_mamx_movrs),
 
     /* enum options */
     IX86_ATTR_ENUM ("fpmath=",	OPT_mfpmath_),
@@ -1429,6 +1436,7 @@ ix86_valid_target_attribute_tree (tree fndecl, tree args,
      scenario.  */
   if ((def->x_ix86_isa_flags2 & OPTION_MASK_ISA2_AVX10_1_256)
       && (opts->x_ix86_isa_flags & OPTION_MASK_ISA_AVX512F)
+      && (opts->x_ix86_isa_flags_explicit & OPTION_MASK_ISA_AVX512F)
       && !(def->x_ix86_isa_flags2_explicit & OPTION_MASK_ISA2_EVEX512)
       && !(opts->x_ix86_isa_flags2_explicit & OPTION_MASK_ISA2_EVEX512))
     opts->x_ix86_isa_flags2 |= OPTION_MASK_ISA2_EVEX512;
@@ -1549,9 +1557,9 @@ ix86_valid_target_attribute_p (tree fndecl,
   tree old_optimize = build_optimization_node (&global_options,
 					       &global_options_set);
 
-  /* Get the optimization options of the current function.  */  
+  /* Get the optimization options of the current function.  */
   tree func_optimize = DECL_FUNCTION_SPECIFIC_OPTIMIZATION (fndecl);
- 
+
   if (!func_optimize)
     func_optimize = old_optimize;
 
@@ -1920,6 +1928,54 @@ ix86_recompute_optlev_based_flags (struct gcc_options *opts,
 	    opts->x_flag_pcc_struct_return = DEFAULT_PCC_STRUCT_RETURN;
 	}
     }
+
+  /* Keep nonleaf frame pointers.  */
+  if (opts->x_flag_omit_frame_pointer)
+    opts->x_target_flags &= ~MASK_OMIT_LEAF_FRAME_POINTER;
+  else if (TARGET_OMIT_LEAF_FRAME_POINTER_P (opts->x_target_flags))
+    opts->x_flag_omit_frame_pointer = 1;
+}
+
+/* Implement part of TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE hook.  */
+
+static void
+ix86_override_options_after_change_1 (struct gcc_options *opts,
+				      struct gcc_options *opts_set)
+{
+#define OPTS_SET_P(OPTION) opts_set->x_ ## OPTION
+#define OPTS(OPTION) opts->x_ ## OPTION
+
+  /* Disable unrolling small loops when there's explicit
+     -f{,no}unroll-loop.  */
+  if ((OPTS_SET_P (flag_unroll_loops))
+     || (OPTS_SET_P (flag_unroll_all_loops)
+	 && OPTS (flag_unroll_all_loops)))
+    {
+      if (!OPTS_SET_P (ix86_unroll_only_small_loops))
+	OPTS (ix86_unroll_only_small_loops) = 0;
+      /* Re-enable -frename-registers and -fweb if funroll-loops
+	 enabled.  */
+      if (!OPTS_SET_P (flag_web))
+	OPTS (flag_web) = OPTS (flag_unroll_loops);
+      if (!OPTS_SET_P (flag_rename_registers))
+	OPTS (flag_rename_registers) = OPTS (flag_unroll_loops);
+      /* -fcunroll-grow-size default follws -f[no]-unroll-loops.  */
+      if (!OPTS_SET_P (flag_cunroll_grow_size))
+	OPTS (flag_cunroll_grow_size)
+	  = (OPTS (flag_unroll_loops)
+	     || OPTS (flag_peel_loops)
+	     || OPTS (optimize) >= 3);
+    }
+  else
+    {
+      if (!OPTS_SET_P (flag_cunroll_grow_size))
+	OPTS (flag_cunroll_grow_size)
+	  = (OPTS (flag_peel_loops)
+	     || OPTS (optimize) >= 3);
+    }
+
+#undef OPTS
+#undef OPTS_SET_P
 }
 
 /* Implement TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE hook.  */
@@ -1927,37 +1983,11 @@ ix86_recompute_optlev_based_flags (struct gcc_options *opts,
 void
 ix86_override_options_after_change (void)
 {
-  /* Default align_* from the processor table.  */
   ix86_default_align (&global_options);
 
   ix86_recompute_optlev_based_flags (&global_options, &global_options_set);
 
-  /* Disable unrolling small loops when there's explicit
-     -f{,no}unroll-loop.  */
-  if ((OPTION_SET_P (flag_unroll_loops))
-     || (OPTION_SET_P (flag_unroll_all_loops)
-	 && flag_unroll_all_loops))
-    {
-      if (!OPTION_SET_P (ix86_unroll_only_small_loops))
-	ix86_unroll_only_small_loops = 0;
-      /* Re-enable -frename-registers and -fweb if funroll-loops
-	 enabled.  */
-      if (!OPTION_SET_P (flag_web))
-	flag_web = flag_unroll_loops;
-      if (!OPTION_SET_P (flag_rename_registers))
-	flag_rename_registers = flag_unroll_loops;
-      /* -fcunroll-grow-size default follws -f[no]-unroll-loops.  */
-      if (!OPTION_SET_P (flag_cunroll_grow_size))
-	flag_cunroll_grow_size = flag_unroll_loops
-				 || flag_peel_loops
-				 || optimize >= 3;
-    }
-  else
-    {
-      if (!OPTION_SET_P (flag_cunroll_grow_size))
-	flag_cunroll_grow_size = flag_peel_loops || optimize >= 3;
-    }
-
+  ix86_override_options_after_change_1 (&global_options, &global_options_set);
 }
 
 /* Clear stack slot assignments remembered from previous functions.
@@ -2100,18 +2130,6 @@ ix86_option_override_internal (bool main_args_p,
 		 : G_("%<target(\"tune=x86-64\")%> is deprecated; use "
 		      "%<target(\"tune=k8\")%> or %<target(\"tune=generic\")%>"
 		      " instead as appropriate"));
-      else if (!strcmp (opts->x_ix86_tune_string, "knl"))
-	warning (OPT_Wdeprecated,
-		 main_args_p
-		 ? G_("%<-mtune=knl%> support will be removed in GCC 15")
-		 : G_("%<target(\"tune=knl\")%> support will be removed in "
-		      "GCC 15"));
-      else if (!strcmp (opts->x_ix86_tune_string, "knm"))
-	warning (OPT_Wdeprecated,
-		 main_args_p
-		 ? G_("%<-mtune=knm%> support will be removed in GCC 15")
-		 : G_("%<target(\"tune=knm\")%> support will be removed in "
-		      "GCC 15"));
     }
   else
     {
@@ -2141,15 +2159,18 @@ ix86_option_override_internal (bool main_args_p,
       opts->x_ix86_stringop_alg = no_stringop;
     }
 
-  if (TARGET_APX_F && !TARGET_64BIT)
+  if (TARGET_APX_F_P (opts->x_ix86_isa_flags2)
+      && !TARGET_64BIT_P (opts->x_ix86_isa_flags))
     error ("%<-mapxf%> is not supported for 32-bit code");
-  else if (opts->x_ix86_apx_features != apx_none && !TARGET_64BIT)
+  else if (opts->x_ix86_apx_features != apx_none
+	   && !TARGET_64BIT_P (opts->x_ix86_isa_flags))
     error ("%<-mapx-features=%> option is not supported for 32-bit code");
 
-  if (TARGET_UINTR && !TARGET_64BIT)
+  if (TARGET_UINTR_P (opts->x_ix86_isa_flags2)
+      && !TARGET_64BIT_P (opts->x_ix86_isa_flags))
     error ("%<-muintr%> not supported for 32-bit code");
 
-  if (ix86_lam_type && !TARGET_LP64)
+  if (ix86_lam_type && !TARGET_LP64_P (opts->x_ix86_isa_flags))
     error ("%<-mlam=%> option: [u48|u57] not supported for 32-bit code");
 
   if (!opts->x_ix86_arch_string)
@@ -2323,19 +2344,6 @@ ix86_option_override_internal (bool main_args_p,
 	    return false;
 	  }
 
-	if (!strcmp (opts->x_ix86_arch_string, "knl"))
-	  warning (OPT_Wdeprecated,
-		   main_args_p
-		   ? G_("%<-march=knl%> support will be removed in GCC 15")
-		   : G_("%<target(\"arch=knl\")%> support will be removed in "
-			"GCC 15"));
-	else if (!strcmp (opts->x_ix86_arch_string, "knm"))
-	  warning (OPT_Wdeprecated,
-		   main_args_p
-		   ? G_("%<-march=knm%> support will be removed in GCC 15")
-		   : G_("%<target(\"arch=knm\")%> support will be removed in "
-			"GCC 15"));
-
 	ix86_schedule = processor_alias_table[i].schedule;
 	ix86_arch = processor_alias_table[i].processor;
 
@@ -2360,7 +2368,8 @@ ix86_option_override_internal (bool main_args_p,
 #define DEF_PTA(NAME) \
 	if (((processor_alias_table[i].flags & PTA_ ## NAME) != 0) \
 	    && PTA_ ## NAME != PTA_64BIT \
-	    && (TARGET_64BIT || PTA_ ## NAME != PTA_UINTR) \
+	    && (TARGET_64BIT || (PTA_ ## NAME != PTA_UINTR \
+				 && PTA_ ## NAME != PTA_APX_F))\
 	    && !TARGET_EXPLICIT_ ## NAME ## _P (opts)) \
 	  SET_TARGET_ ## NAME (opts);
 #include "i386-isa.def"
@@ -2527,7 +2536,9 @@ ix86_option_override_internal (bool main_args_p,
 
   set_ix86_tune_features (opts, ix86_tune, opts->x_ix86_dump_tunes);
 
-  ix86_override_options_after_change ();
+  ix86_recompute_optlev_based_flags (opts, opts_set);
+
+  ix86_override_options_after_change_1 (opts, opts_set);
 
   ix86_tune_cost = processor_cost_table[ix86_tune];
   /* TODO: ix86_cost should be chosen at instruction or function granuality
@@ -2541,7 +2552,8 @@ ix86_option_override_internal (bool main_args_p,
   init_machine_status = ix86_init_machine_status;
 
   /* Override APX flag here if ISA bit is set.  */
-  if (TARGET_APX_F && !OPTION_SET_P (ix86_apx_features))
+  if (TARGET_APX_F_P (opts->x_ix86_isa_flags2)
+      && !OPTION_SET_P (ix86_apx_features))
     opts->x_ix86_apx_features = apx_all;
 
   /* Validate -mregparm= value.  */
@@ -2561,6 +2573,9 @@ ix86_option_override_internal (bool main_args_p,
   if (TARGET_IAMCU_P (opts->x_target_flags)
       || TARGET_64BIT_P (opts->x_ix86_isa_flags))
     opts->x_ix86_regparm = REGPARM_MAX;
+
+  /* Default align_* from the processor table.  */
+  ix86_default_align (&global_options);
 
   /* Provide default for -mbranch-cost= value.  */
   SET_OPTION_IF_UNSET (opts, opts_set, ix86_branch_cost,
@@ -2599,12 +2614,6 @@ ix86_option_override_internal (bool main_args_p,
         opts->x_target_flags |= MASK_NO_RED_ZONE;
     }
 
-  /* Keep nonleaf frame pointers.  */
-  if (opts->x_flag_omit_frame_pointer)
-    opts->x_target_flags &= ~MASK_OMIT_LEAF_FRAME_POINTER;
-  else if (TARGET_OMIT_LEAF_FRAME_POINTER_P (opts->x_target_flags))
-    opts->x_flag_omit_frame_pointer = 1;
-
   /* If we're doing fast math, we don't care about comparison order
      wrt NaNs.  This lets us use a shorter comparison sequence.  */
   if (opts->x_flag_finite_math_only)
@@ -2628,8 +2637,7 @@ ix86_option_override_internal (bool main_args_p,
   /* Enable SSE prefetch.  */
   if (TARGET_SSE_P (opts->x_ix86_isa_flags)
       || (TARGET_PRFCHW_P (opts->x_ix86_isa_flags)
-	  && !TARGET_3DNOW_P (opts->x_ix86_isa_flags))
-      || TARGET_PREFETCHWT1_P (opts->x_ix86_isa_flags))
+	  && !TARGET_3DNOW_P (opts->x_ix86_isa_flags)))
     ix86_prefetch_sse = true;
 
   /* Enable mwait/monitor instructions for -msse3.  */
@@ -2666,7 +2674,7 @@ ix86_option_override_internal (bool main_args_p,
      2. Both AVX10.1-256 and AVX512 w/o 512 bit vector width are enabled with no
 	explicit disable on other AVX512 features.
      3. Both AVX10.1 and AVX512 are disabled.  */
-  if (TARGET_AVX10_1_512_P (opts->x_ix86_isa_flags2))
+  if (TARGET_AVX10_1_P (opts->x_ix86_isa_flags2))
     {
       if (opts->x_ix86_no_avx512_explicit
 	  && (((~(avx512_isa_flags & opts->x_ix86_isa_flags)
@@ -2676,7 +2684,9 @@ ix86_option_override_internal (bool main_args_p,
 		   & ((avx512_isa_flags2 | OPTION_MASK_ISA2_EVEX512)
 		      & opts->x_ix86_isa_flags2_explicit)))))
 	warning (0, "%<-mno-evex512%> or %<-mno-avx512XXX%> cannot disable "
-		    "AVX10 instructions when AVX10.1-512 is available");
+		    "AVX10 instructions when AVX10.1-512 is available in GCC 15, "
+		    "behavior will change to it will disable that part of "
+		    "AVX512 instructions since GCC 16");
     }
   else if (TARGET_AVX10_1_256_P (opts->x_ix86_isa_flags2))
     {
@@ -2700,6 +2710,7 @@ ix86_option_override_internal (bool main_args_p,
 			"using 512 as max vector size");
 	}
       else if (TARGET_AVX512F_P (opts->x_ix86_isa_flags)
+	       && (opts->x_ix86_isa_flags_explicit & OPTION_MASK_ISA_AVX512F)
 	       && !(OPTION_MASK_ISA2_EVEX512
 		    & opts->x_ix86_isa_flags2_explicit))
 	warning (0, "Vector size conflicts between AVX10.1 and AVX512, using "
@@ -2711,18 +2722,21 @@ ix86_option_override_internal (bool main_args_p,
 			& (avx512_isa_flags2
 			   & opts->x_ix86_isa_flags2_explicit)))))
 	warning (0, "%<-mno-avx512XXX%> cannot disable AVX10 instructions "
-		    "when AVX10 is available");
+		    "when AVX10 is available in GCC 15, behavior will change "
+		    "to it will disable that part of AVX512 instructions since "
+		    "GCC 16");
     }
   else if (TARGET_AVX512F_P (opts->x_ix86_isa_flags)
 	   && (OPTION_MASK_ISA_AVX512F & opts->x_ix86_isa_flags_explicit))
     {
       if (opts->x_ix86_no_avx10_1_explicit
-	  && ((OPTION_MASK_ISA2_AVX10_1_256 | OPTION_MASK_ISA2_AVX10_1_512)
+	  && ((OPTION_MASK_ISA2_AVX10_1_256 | OPTION_MASK_ISA2_AVX10_1)
 	      & opts->x_ix86_isa_flags2_explicit))
 	{
-	  warning (0, "%<-mno-avx10.1, -mno-avx10.1-256, -mno-avx10.1-512%> "
-		      "cannot disable AVX512 instructions when "
-		      "%<-mavx512XXX%>");
+	  warning (0, "%<-mno-avx10.1-256, -mno-avx10.1-512%> cannot disable "
+		      "AVX512 instructions when %<-mavx512XXX%> in GCC 15, "
+		      "behavior will change to it will disable all the "
+		      "instructions in GCC 16");
 	  /* Reset those unset AVX512 flags set by AVX10 options when AVX10 is
 	     disabled.  */
 	  if (OPTION_MASK_ISA2_AVX10_1_256 & opts->x_ix86_isa_flags2_explicit)
@@ -2742,7 +2756,7 @@ ix86_option_override_internal (bool main_args_p,
   /* Set EVEX512 if one of the following conditions meets:
      1. AVX512 is enabled while EVEX512 is not explicitly set/unset.
      2. AVX10.1-512 is enabled.  */
-  if (TARGET_AVX10_1_512_P (opts->x_ix86_isa_flags2)
+  if (TARGET_AVX10_1_P (opts->x_ix86_isa_flags2)
       || (TARGET_AVX512F_P (opts->x_ix86_isa_flags)
 	  && !(opts->x_ix86_isa_flags2_explicit & OPTION_MASK_ISA2_EVEX512)))
     opts->x_ix86_isa_flags2 |= OPTION_MASK_ISA2_EVEX512;
@@ -2752,15 +2766,6 @@ ix86_option_override_internal (bool main_args_p,
     {
       opts->x_ix86_isa_flags |= avx512_isa_flags;
       opts->x_ix86_isa_flags2 |= avx512_isa_flags2;
-    }
-
-  /* Disable AVX512{PF,ER,4VNNIW,4FAMPS} for -mno-evex512.  */
-  if (!TARGET_EVEX512_P(opts->x_ix86_isa_flags2))
-    {
-      opts->x_ix86_isa_flags
-	&= ~(OPTION_MASK_ISA_AVX512PF | OPTION_MASK_ISA_AVX512ER);
-      opts->x_ix86_isa_flags2
-	&= ~(OPTION_MASK_ISA2_AVX5124FMAPS | OPTION_MASK_ISA2_AVX5124VNNIW);
     }
 
   /* Validate -mpreferred-stack-boundary= value or default it to
@@ -2816,8 +2821,8 @@ ix86_option_override_internal (bool main_args_p,
   if (flag_nop_mcount)
     error ("%<-mnop-mcount%> is not compatible with this target");
 #endif
-  if (flag_nop_mcount && flag_pic)
-    error ("%<-mnop-mcount%> is not implemented for %<-fPIC%>");
+  if (flag_nop_mcount && flag_pic && !flag_plt)
+    error ("%<-mnop-mcount%> is not implemented for %<-fno-plt%>");
 
   /* Accept -msseregparm only if at least SSE support is enabled.  */
   if (TARGET_SSEREGPARM_P (opts->x_target_flags)
@@ -2849,7 +2854,7 @@ ix86_option_override_internal (bool main_args_p,
   /* For all chips supporting SSE2, -mfpmath=sse performs better than
      fpmath=387.  The second is however default at many targets since the
      extra 80bit precision of temporaries is considered to be part of ABI.
-     Overwrite the default at least for -ffast-math. 
+     Overwrite the default at least for -ffast-math.
      TODO: -mfpmath=both seems to produce same performing code with bit
      smaller binaries.  It is however not clear if register allocation is
      ready for this setting.
@@ -2872,6 +2877,10 @@ ix86_option_override_internal (bool main_args_p,
 
       case ix86_veclibabi_type_acml:
 	ix86_veclib_handler = &ix86_veclibabi_acml;
+	break;
+
+      case ix86_veclibabi_type_aocl:
+	ix86_veclib_handler = &ix86_veclibabi_aocl;
 	break;
 
       default:
@@ -2979,7 +2988,6 @@ ix86_option_override_internal (bool main_args_p,
     sorry ("%<-mcall-ms2sysv-xlogues%> isn%'t currently supported with SEH");
 
   if (!(opts_set->x_target_flags & MASK_VZEROUPPER)
-      && TARGET_EMIT_VZEROUPPER
       && flag_expensive_optimizations
       && !optimize_size)
     opts->x_target_flags |= MASK_VZEROUPPER;
@@ -3037,6 +3045,9 @@ ix86_option_override_internal (bool main_args_p,
 	      if (TARGET_AVX512F_P (opts->x_ix86_isa_flags)
 		  && TARGET_EVEX512_P (opts->x_ix86_isa_flags2))
 		opts->x_ix86_move_max = PVW_AVX512;
+	      /* Align with vectorizer to avoid potential STLF issue.  */
+	      else if (TARGET_AVX_P (opts->x_ix86_isa_flags))
+		opts->x_ix86_move_max = PVW_AVX256;
 	      else
 		opts->x_ix86_move_max = PVW_AVX128;
 	    }
@@ -3061,6 +3072,9 @@ ix86_option_override_internal (bool main_args_p,
 	      if (TARGET_AVX512F_P (opts->x_ix86_isa_flags)
 		  && TARGET_EVEX512_P (opts->x_ix86_isa_flags2))
 		opts->x_ix86_store_max = PVW_AVX512;
+	      /* Align with vectorizer to avoid potential STLF issue.  */
+	      else if (TARGET_AVX_P (opts->x_ix86_isa_flags))
+		opts->x_ix86_store_max = PVW_AVX256;
 	      else
 		opts->x_ix86_store_max = PVW_AVX128;
 	    }
@@ -3240,7 +3254,7 @@ ix86_option_override_internal (bool main_args_p,
      on the command line.  */
   if (opts->x_flag_hardened && cf_okay_p)
     {
-      if (opts->x_flag_cf_protection == CF_NONE)
+      if (!opts_set->x_flag_cf_protection)
 	opts->x_flag_cf_protection = CF_FULL;
       else if (opts->x_flag_cf_protection != CF_FULL)
 	warning_at (UNKNOWN_LOCATION, OPT_Whardened,
@@ -3688,8 +3702,8 @@ char *
 ix86_offload_options (void)
 {
   if (TARGET_LP64)
-    return xstrdup ("-foffload-abi=lp64");
-  return xstrdup ("-foffload-abi=ilp32");
+    return xstrdup ("-foffload-abi=lp64 -foffload-abi-host-opts=-m64");
+  return xstrdup ("-foffload-abi=ilp32 -foffload-abi-host-opts=-m32");
 }
 
 /* Handle "cdecl", "stdcall", "fastcall", "regparm", "thiscall",

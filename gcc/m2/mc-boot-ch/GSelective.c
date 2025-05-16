@@ -1,6 +1,6 @@
 /* GSelective.c provides access to select for Modula-2.
 
-Copyright (C) 2016-2024 Free Software Foundation, Inc.
+Copyright (C) 2016-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -145,7 +145,7 @@ Selective_FdClr (int fd, fd_set *s)
 /* PROCEDURE FdIsSet (fd: INTEGER; SetOfFd) : BOOLEAN ; */
 
 EXTERN
-int
+bool
 Selective_FdIsSet (int fd, fd_set *s)
 {
   return FD_ISSET (fd, s);

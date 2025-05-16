@@ -1,5 +1,5 @@
 ;; Generic ARM Pipeline Description
-;; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -96,14 +96,14 @@
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
 	    (and (eq_attr "type" "load_byte,load_4")
-	         (eq_attr "tune" "xscale,iwmmxt,iwmmxt2"))))
+	         (eq_attr "tune" "xscale"))))
   "core")
 
 (define_insn_reservation "load_ldsched" 2
   (and (eq_attr "generic_sched" "yes")
        (and (eq_attr "ldsched" "yes") 
 	    (and (eq_attr "type" "load_byte,load_4")
-	         (eq_attr "tune" "!xscale,iwmmxt,iwmmxt2"))))
+	         (eq_attr "tune" "!xscale"))))
   "core")
 
 (define_insn_reservation "load_or_store" 2

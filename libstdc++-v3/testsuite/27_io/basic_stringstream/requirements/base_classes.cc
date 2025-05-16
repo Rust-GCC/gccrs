@@ -1,7 +1,7 @@
 // { dg-do compile }
 // 2003-03-26 B enjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,7 +18,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// 27.8.1.1 - Template class basic_filebuf 
+// 27.8.1.1 - Template class basic_stringstream
 
 #include <iostream>
 #include <sstream>
