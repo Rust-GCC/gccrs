@@ -87,7 +87,7 @@ DefaultResolver::visit (AST::InherentImpl &impl)
       visit (generic);
     if (impl.has_where_clause ())
       visit (impl.get_where_clause ());
-    visit (impl.get_type ());
+    visit_impl_type (impl.get_type ());
 
     ctx.scoped (Rib::Kind::TraitOrImpl, impl.get_node_id (), inner_fn_inner);
   };
@@ -113,7 +113,7 @@ DefaultResolver::visit (AST::TraitImpl &impl)
       visit (generic);
     if (impl.has_where_clause ())
       visit (impl.get_where_clause ());
-    visit (impl.get_type ());
+    visit_impl_type (impl.get_type ());
     visit (impl.get_trait_path ());
 
     ctx.scoped (Rib::Kind::TraitOrImpl, impl.get_node_id (), inner_fn_inner);
