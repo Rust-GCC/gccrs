@@ -229,6 +229,8 @@ public:
   PathResolutionError (ResolutionError error)
     : error (error), kind (Kind::RESOLVE)
   {}
+
+  ResolutionError get_error_unchecked () { return error.value (); }
 };
 // Now our resolver, which keeps track of all the `ForeverStack`s we could want
 class NameResolutionContext

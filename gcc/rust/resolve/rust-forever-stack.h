@@ -545,19 +545,33 @@ private:
 
 class ResolutionError
 {
+  std::string name;
   location_t offending_location;
   std::vector<Identifier> suggestions;
+  // Parent scope for name resolution "X not found in Y"
+  tl::optional<std::string> parent;
 
-  ResolutionError (location_t loc, std::vector<Identifier> suggestions)
-    : offending_location (loc), suggestions (suggestions)
+  ResolutionError (std::string name, location_t loc,
+		   std::vector<Identifier> suggestions,
+		   tl::optional<std::string> parent)
+    : name (name), offending_location (loc), suggestions (suggestions),
+      parent (parent)
   {}
 
 public:
-  static ResolutionError make_error (location_t loc,
-				     std::vector<Identifier> suggestions = {})
+  static ResolutionError make_error (std::string name, location_t loc,
+				     std::vector<Identifier> suggestions = {},
+				     tl::optional<std::string> parent
+				     = tl::nullopt)
   {
-    return ResolutionError (loc, suggestions);
+    return ResolutionError (name, loc, suggestions, parent);
   }
+
+  const std::string &get_name () const { return name; }
+
+  location_t get_offending_location () { return offending_location; }
+
+  tl::optional<std::string> get_parent () { return parent; }
 };
 
 template <Namespace N> class ForeverStack
