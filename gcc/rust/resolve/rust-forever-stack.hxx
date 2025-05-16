@@ -442,7 +442,7 @@ ForeverStack<N>::find_starting_point (
 				     !is_start (iterator, segments)
 				       && is_self_or_crate))
 	return tl::make_unexpected (
-	  ResolutionError::make_error (seg.get_locus ()));
+	  ResolutionError::make_error (seg.as_string (), seg.get_locus ()));
 
       if (seg.is_crate_path_seg ())
 	{
@@ -468,7 +468,8 @@ ForeverStack<N>::find_starting_point (
 		seg.get_locus (), ErrorCode::E0433,
 		"too many leading %<super%> keywords");
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg.get_locus ()));
+		ResolutionError::make_error (seg.as_string (),
+					     seg.get_locus ()));
 	    }
 
 	  starting_point
@@ -522,7 +523,7 @@ ForeverStack<N>::resolve_segments (
 				       || seg.is_super_path_seg ()
 				       || seg.is_lower_self_seg ()))
 	return tl::make_unexpected (
-	  ResolutionError::make_error (seg.get_locus ()));
+	  ResolutionError::make_error (seg.as_string (), seg.get_locus ()));
 
       tl::optional<typename ForeverStack<N>::Node &> child = tl::nullopt;
 
@@ -576,7 +577,8 @@ ForeverStack<N>::resolve_segments (
 		  insert_segment_resolution (outer_seg,
 					     rib_lookup->get_node_id ());
 		  return tl::make_unexpected (
-		    ResolutionError::make_error (seg.get_locus ()));
+		    ResolutionError::make_error (seg.as_string (),
+						 seg.get_locus ()));
 		}
 	    }
 
@@ -592,7 +594,8 @@ ForeverStack<N>::resolve_segments (
 	      || current_node->is_prelude ())
 	    {
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg.get_locus ()));
+		ResolutionError::make_error (seg.as_string (),
+					     seg.get_locus ()));
 	    }
 
 	  current_node = &current_node->parent.value ();
@@ -680,7 +683,8 @@ ForeverStack<N>::resolve_path (
 	return res.value ();
       else
 	return tl::make_unexpected (
-	  ResolutionError::make_error (unwrapped.get_locus ()));
+	  ResolutionError::make_error (unwrapped.as_string (),
+				       unwrapped.get_locus ()));
     }
 
   std::reference_wrapper<Node> starting_point = cursor ();
@@ -698,13 +702,13 @@ ForeverStack<N>::resolve_path (
 	  [this, &segments, &insert_segment_resolution] (Node &final_node)
 	    -> tl::expected<Rib::Definition, ResolutionError> {
 	    auto &seg = unwrap_type_segment (segments.back ());
+
+	    std::string seg_name = seg.as_string ();
 	    //
 	    // leave resolution within impl blocks to type checker
 	    if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg.get_locus ()));
-
-	    std::string seg_name = seg.as_string ();
+		ResolutionError::make_error (seg_name, seg.get_locus ()));
 
 	    // assuming this can't be a lang item segment
 	    tl::optional<Rib::Definition> res
@@ -721,7 +725,7 @@ ForeverStack<N>::resolve_path (
 	      return res.value ();
 	    else
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg.get_locus ()));
+		ResolutionError::make_error (seg_name, seg.get_locus ()));
 	  });
   cleanup_current ();
   return res;

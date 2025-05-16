@@ -545,10 +545,27 @@ Late::visit (AST::Visibility &vis)
 {
   if (vis.has_path ())
     {
-      if (auto resolved
-	  = ctx.resolve_path (vis.get_path_unchecked (), Namespace::Types))
+      auto resolved
+	= ctx.resolve_path (vis.get_path_unchecked (), Namespace::Types);
+      if (resolved)
 	ctx.map_usage (Usage (vis.get_path_unchecked ().get_node_id ()),
 		       Definition (resolved->get_node_id ()));
+      else if (resolved.error ().kind == PathResolutionError::Kind::RESOLVE)
+	{
+	  auto error = resolved.error ().get_error_unchecked ();
+	  if (auto parent = error.get_parent ())
+	    rust_error_at (error.get_offending_location (), ErrorCode::E0433,
+			   "Could not resolve %qs in %qs",
+			   error.get_name ().c_str (),
+			   parent.value ().c_str ());
+	  else
+	    rust_error_at (error.get_offending_location (), ErrorCode::E0433,
+			   "Could not resolve %qs", error.get_name ().c_str ());
+	}
+      else
+	{
+	  rust_unreachable ();
+	}
     }
 }
 
