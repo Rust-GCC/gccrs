@@ -18,7 +18,6 @@
 
 #include "rust-ast-builder.h"
 #include "optional.h"
-#include "rust-ast-builder-type.h"
 #include "rust-ast.h"
 #include "rust-common.h"
 #include "rust-expr.h"
@@ -531,13 +530,6 @@ Builder::generic_type_param (
 				      std::vector<Attribute> ());
 }
 
-std::unique_ptr<Type>
-Builder::new_type (Type &type)
-{
-  Type *t = ASTTypeBuilder::build (type);
-  return std::unique_ptr<Type> (t);
-}
-
 std::unique_ptr<GenericParam>
 Builder::new_lifetime_param (LifetimeParam &param)
 {
@@ -565,7 +557,7 @@ Builder::new_type_param (
   std::unique_ptr<Type> type = nullptr;
 
   if (param.has_type ())
-    type = new_type (param.get_type ());
+    type = param.get_type ().reconstruct ();
 
   for (auto &&extra_bound : extra_bounds)
     type_param_bounds.emplace_back (std::move (extra_bound));
@@ -574,8 +566,7 @@ Builder::new_type_param (
     {
       switch (b->get_bound_type ())
 	{
-	case TypeParamBound::TypeParamBoundType::TRAIT:
-	  {
+	  case TypeParamBound::TypeParamBoundType::TRAIT: {
 	    const TraitBound &tb = (const TraitBound &) *b.get ();
 	    const TypePath &path = tb.get_type_path ();
 
@@ -600,8 +591,7 @@ Builder::new_type_param (
 	      {
 		switch (seg->get_type ())
 		  {
-		  case TypePathSegment::REG:
-		    {
+		    case TypePathSegment::REG: {
 		      const TypePathSegment &segment
 			= (const TypePathSegment &) (*seg.get ());
 		      TypePathSegment *s = new TypePathSegment (
@@ -613,8 +603,7 @@ Builder::new_type_param (
 		    }
 		    break;
 
-		  case TypePathSegment::GENERIC:
-		    {
+		    case TypePathSegment::GENERIC: {
 		      TypePathSegmentGeneric &generic
 			= (TypePathSegmentGeneric &) (*seg.get ());
 
@@ -628,8 +617,7 @@ Builder::new_type_param (
 		    }
 		    break;
 
-		  case TypePathSegment::FUNCTION:
-		    {
+		    case TypePathSegment::FUNCTION: {
 		      rust_unreachable ();
 		      // TODO
 		      // const TypePathSegmentFunction &fn
@@ -651,8 +639,7 @@ Builder::new_type_param (
 	  }
 	  break;
 
-	case TypeParamBound::TypeParamBoundType::LIFETIME:
-	  {
+	  case TypeParamBound::TypeParamBoundType::LIFETIME: {
 	    const Lifetime &l = (const Lifetime &) *b.get ();
 
 	    auto bl = new Lifetime (l.get_lifetime_type (),
@@ -695,7 +682,7 @@ Builder::new_generic_args (GenericArgs &args)
   for (auto &binding : args.get_binding_args ())
     {
       Type &t = *binding.get_type_ptr ().get ();
-      std::unique_ptr<Type> ty = new_type (t);
+      std::unique_ptr<Type> ty = t.reconstruct ();
       GenericArgsBinding b (binding.get_identifier (), std::move (ty),
 			    binding.get_locus ());
       binding_args.push_back (std::move (b));
@@ -703,20 +690,25 @@ Builder::new_generic_args (GenericArgs &args)
 
   for (auto &arg : args.get_generic_args ())
     {
+      tl::optional<GenericArg> new_arg = tl::nullopt;
+
       switch (arg.get_kind ())
 	{
 	case GenericArg::Kind::Type:
-	  {
-	    std::unique_ptr<Type> ty = new_type (arg.get_type ());
-	    GenericArg arg = GenericArg::create_type (std::move (ty));
-	  }
+	  new_arg = GenericArg::create_type (arg.get_type ().reconstruct ());
 	  break;
-
-	default:
-	  // FIXME
-	  rust_unreachable ();
+	case GenericArg::Kind::Either:
+	  new_arg
+	    = GenericArg::create_ambiguous (arg.get_path (), arg.get_locus ());
+	  break;
+	case GenericArg::Kind::Const:
+	  new_arg
+	    = GenericArg::create_const (arg.get_expression ().clone_expr ());
+	  // FIXME: Use `reconstruct()` here, not `clone_expr()`
 	  break;
 	}
+
+      generic_args.emplace_back (*new_arg);
     }
 
   return GenericArgs (std::move (lifetime_args), std::move (generic_args),
