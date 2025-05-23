@@ -271,6 +271,7 @@ public:
   WARN_UNUSED_RESULT virtual BaseType *
   get_param_type_at (size_t index) const = 0;
   WARN_UNUSED_RESULT virtual BaseType *get_return_type () const = 0;
+  void setup_fn_once_output() const;
 };
 
 class InferType : public BaseType
@@ -1063,8 +1064,6 @@ public:
   std::vector<TyVar> &get_params () { return params; }
   const std::vector<TyVar> &get_params () const { return params; }
 
-  void setup_fn_once_output () const;
-
 private:
   std::vector<TyVar> params;
   TyVar result_type;
@@ -1146,8 +1145,6 @@ public:
   TyTy::BaseType &get_result_type () const { return *result_type.get_tyty (); }
 
   DefId get_def_id () const { return id; }
-
-  void setup_fn_once_output () const;
 
   const std::set<NodeId> &get_captures () const { return captures; }
 
