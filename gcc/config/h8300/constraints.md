@@ -1,5 +1,5 @@
 ;; Constraint definitions for Renesas H8/300.
-;; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -168,13 +168,9 @@
   (and (match_code "const_int")
        (match_test "!h8300_shift_needs_scratch_p (ival, SImode, CLOBBER)")))
 
-(define_constraint "U"
+(define_memory_constraint "U"
   "An operand valid for a bset destination."
-  (ior (and (match_code "reg")
-	    (match_test "(reload_in_progress || reload_completed)
-			 ? REG_OK_FOR_BASE_STRICT_P (op)
-			 : REG_OK_FOR_BASE_P (op)"))
-       (and (match_code "mem")
+  (ior (and (match_code "mem")
 	    (match_code "reg" "0")
 	    (match_test "(reload_in_progress || reload_completed)
 			 ? REG_OK_FOR_BASE_STRICT_P (XEXP (op, 0))

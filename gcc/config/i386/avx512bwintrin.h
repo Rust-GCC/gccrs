@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -28,9 +28,9 @@
 #ifndef _AVX512BWINTRIN_H_INCLUDED
 #define _AVX512BWINTRIN_H_INCLUDED
 
-#if !defined (__AVX512BW__) || defined (__EVEX512__)
+#if !defined (__AVX512BW__)
 #pragma GCC push_options
-#pragma GCC target("avx512bw,no-evex512")
+#pragma GCC target("avx512bw")
 #define __DISABLE_AVX512BW__
 #endif /* __AVX512BW__ */
 
@@ -199,7 +199,7 @@ _kunpackw_mask32 (__mmask16 __A, __mmask16 __B)
 					      (__mmask32) __B);
 }
 
-#if __OPTIMIZE__
+#ifdef __OPTIMIZE__
 extern __inline __mmask32
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 _kshiftli_mask32 (__mmask32 __A, unsigned int __B)
@@ -345,17 +345,6 @@ _kandn_mask64 (__mmask64 __A, __mmask64 __B)
 {
   return (__mmask64) __builtin_ia32_kandndi ((__mmask64) __A, (__mmask64) __B);
 }
-
-#ifdef __DISABLE_AVX512BW__
-#undef __DISABLE_AVX512BW__
-#pragma GCC pop_options
-#endif /* __DISABLE_AVX512BW__ */
-
-#if !defined (__AVX512BW__) || !defined (__EVEX512__)
-#pragma GCC push_options
-#pragma GCC target("avx512bw,evex512")
-#define __DISABLE_AVX512BW_512__
-#endif /* __AVX512BW_512__ */
 
 /* Internal data types for implementing the intrinsics.  */
 typedef short __v32hi __attribute__ ((__vector_size__ (64)));
@@ -3369,8 +3358,8 @@ _mm512_bsrli_epi128 (__m512i __A, const int __N)
 
 #endif
 
-#ifdef __DISABLE_AVX512BW_512__
-#undef __DISABLE_AVX512BW_512__
+#ifdef __DISABLE_AVX512BW__
+#undef __DISABLE_AVX512BW__
 #pragma GCC pop_options
 #endif /* __DISABLE_AVX512BW_512__ */
 

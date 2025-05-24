@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -24,8 +24,7 @@
 #include "rust-ast-resolve-expr.h"
 #include "rust-ast-resolve-struct-expr-field.h"
 
-extern bool
-saw_errors (void);
+extern bool saw_errors (void);
 
 namespace Rust {
 namespace Resolver {

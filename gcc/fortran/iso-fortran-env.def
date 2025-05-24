@@ -1,4 +1,4 @@
-/* Copyright (C) 2006-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,10 +17,15 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* This file contains the definition of the named integer constants provided
-   by the Fortran 2003 ISO_FORTRAN_ENV intrinsic module.  */
+   by the Fortran 2003 ISO_FORTRAN_ENV intrinsic module.  The ordering of
+   the entries matters for the *.mod backwards compatibility.  */
 
 #ifndef NAMED_INTCST
 # define NAMED_INTCST(a,b,c,d)
+#endif
+
+#ifndef NAMED_UINTCST
+# define NAMED_UINTCST(a,b,c,d)
 #endif
 
 #ifndef NAMED_KINDARRAY
@@ -39,7 +44,7 @@ along with GCC; see the file COPYING3.  If not see
      -- an internal name
      -- the symbol name in the module, as seen by Fortran code
      -- the value it has
-     -- the standard that supports this type  */ 
+     -- the standard that supports this type  */
 
 NAMED_INTCST (ISOFORTRANENV_FILE_ATOMIC_INT_KIND, "atomic_int_kind", \
               gfc_atomic_int_kind, GFC_STD_F2008)
@@ -78,17 +83,23 @@ NAMED_INTCST (ISOFORTRANENV_REAL64, "real64", \
               gfc_get_real_kind_from_width_isofortranenv (64), GFC_STD_F2008)
 NAMED_INTCST (ISOFORTRANENV_REAL128, "real128", \
               gfc_get_real_kind_from_width_isofortranenv (128), GFC_STD_F2008)
-NAMED_INTCST (ISOFORTRANENV_FILE_STAT_LOCKED, "stat_locked", \
+NAMED_INTCST (ISOFORTRANENV_STAT_LOCKED, "stat_locked", \
               GFC_STAT_LOCKED, GFC_STD_F2008)
-NAMED_INTCST (ISOFORTRANENV_FILE_STAT_LOCKED_OTHER_IMAGE, \
+NAMED_INTCST (ISOFORTRANENV_STAT_LOCKED_OTHER_IMAGE, \
               "stat_locked_other_image", \
 	      GFC_STAT_LOCKED_OTHER_IMAGE, GFC_STD_F2008)
-NAMED_INTCST (ISOFORTRANENV_FILE_STAT_STOPPED_IMAGE, "stat_stopped_image", \
-              GFC_STAT_STOPPED_IMAGE, GFC_STD_F2008)
-NAMED_INTCST (ISOFORTRANENV_FILE_STAT_FAILED_IMAGE, "stat_failed_image", \
-              GFC_STAT_FAILED_IMAGE, GFC_STD_F2018)
-NAMED_INTCST (ISOFORTRANENV_FILE_STAT_UNLOCKED, "stat_unlocked", \
-              GFC_STAT_UNLOCKED, GFC_STD_F2008)
+NAMED_INTCST (ISOFORTRANENV_STAT_STOPPED_IMAGE, "stat_stopped_image", \
+	      GFC_STAT_STOPPED_IMAGE, GFC_STD_F2008)
+NAMED_INTCST (ISOFORTRANENV_STAT_FAILED_IMAGE, "stat_failed_image", \
+	      GFC_STAT_FAILED_IMAGE, GFC_STD_F2018)
+NAMED_INTCST (ISOFORTRANENV_STAT_UNLOCKED, "stat_unlocked", \
+	      GFC_STAT_UNLOCKED, GFC_STD_F2008)
+NAMED_INTCST (ISOFORTRANENV_INITIAL_TEAM, "initial_team", \
+	      GFC_CAF_INITIAL_TEAM, GFC_STD_F2018)
+NAMED_INTCST (ISOFORTRANENV_PARENT_TEAM, "parent_team", \
+	      GFC_CAF_PARENT_TEAM, GFC_STD_F2018)
+NAMED_INTCST (ISOFORTRANENV_CURRENT_TEAM, "current_team", \
+	      GFC_CAF_CURRENT_TEAM, GFC_STD_F2018)
 
 
 /* The arguments to NAMED_KINDARRAY are:
@@ -129,11 +140,30 @@ NAMED_DERIVED_TYPE (ISOFORTRAN_EVENT_TYPE, "event_type", \
 		    : gfc_default_integer_kind, GFC_STD_F2018)
 
 NAMED_DERIVED_TYPE (ISOFORTRAN_TEAM_TYPE, "team_type", \
-		    flag_coarray == GFC_FCOARRAY_LIB
-		    ? get_int_kind_from_node (ptr_type_node)
-		    : gfc_default_integer_kind, GFC_STD_F2018)
+		    get_int_kind_from_node (ptr_type_node), GFC_STD_F2018)
+
+NAMED_INTCST (ISOFORTRANENV_LOGICAL8, "logical8", \
+              gfc_get_int_kind_from_width_isofortranenv (8), GFC_STD_F2023)
+NAMED_INTCST (ISOFORTRANENV_LOGICAL16, "logical16", \
+              gfc_get_int_kind_from_width_isofortranenv (16), GFC_STD_F2023)
+NAMED_INTCST (ISOFORTRANENV_LOGICAL32, "logical32", \
+              gfc_get_int_kind_from_width_isofortranenv (32), GFC_STD_F2023)
+NAMED_INTCST (ISOFORTRANENV_LOGICAL64, "logical64", \
+              gfc_get_int_kind_from_width_isofortranenv (64), GFC_STD_F2023)
+NAMED_INTCST (ISOFORTRANENV_REAL16, "real16", \
+              gfc_get_real_kind_from_width_isofortranenv (16), GFC_STD_F2023)
+
+NAMED_UINTCST (ISOFORTRANENV_UINT8, "uint8", \
+	       gfc_get_uint_kind_from_width_isofortranenv (8), GFC_STD_UNSIGNED)
+NAMED_UINTCST (ISOFORTRANENV_UINT16, "uint16", \
+	       gfc_get_uint_kind_from_width_isofortranenv (16), GFC_STD_UNSIGNED)
+NAMED_UINTCST (ISOFORTRANENV_UINT32, "uint32", \
+	       gfc_get_uint_kind_from_width_isofortranenv (32), GFC_STD_UNSIGNED)
+NAMED_UINTCST (ISOFORTRANENV_UINT64, "uint64", \
+	       gfc_get_uint_kind_from_width_isofortranenv (64), GFC_STD_UNSIGNED)
 
 #undef NAMED_INTCST
+#undef NAMED_UINTCST
 #undef NAMED_KINDARRAY
 #undef NAMED_FUNCTION
 #undef NAMED_SUBROUTINE

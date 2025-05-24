@@ -1,5 +1,5 @@
 /* Set up combined include path chain for the preprocessor.
-   Copyright (C) 1986-2024 Free Software Foundation, Inc.
+   Copyright (C) 1986-2025 Free Software Foundation, Inc.
 
    Broken out of cppinit.c and cppfiles.c and rewritten Mar 2003.
 
@@ -260,7 +260,7 @@ remove_duplicates (cpp_reader *pfile, struct cpp_dir *head,
 
       if (HOST_STAT_FOR_64BIT_INODES (cur->name, &st))
 	{
-	  /* Dirs that don't exist or have denied permissions are 
+	  /* Dirs that don't exist or have denied permissions are
 	     silently ignored, unless verbose.  */
 	  if ((errno != ENOENT) && (errno != EPERM))
 	    cpp_errno (pfile, CPP_DL_ERROR, cur->name);
@@ -313,7 +313,7 @@ remove_duplicates (cpp_reader *pfile, struct cpp_dir *head,
 
       /* Remove this entry from the chain.  */
       *pcur = cur->next;
-      free_path (cur, verbose ? reason: REASON_QUIET);
+      free_path (cur, verbose ? reason : REASON_QUIET);
     }
 
   *pcur = join;
@@ -360,6 +360,7 @@ merge_include_chains (const char *sysroot, cpp_reader *pfile, int verbose)
       add_sysroot_to_chain (sysroot, INC_BRACKET);
       add_sysroot_to_chain (sysroot, INC_SYSTEM);
       add_sysroot_to_chain (sysroot, INC_AFTER);
+      add_sysroot_to_chain (sysroot, INC_EMBED);
     }
 
   /* Join the SYSTEM and AFTER chains.  Remove duplicates in the
@@ -383,6 +384,10 @@ merge_include_chains (const char *sysroot, cpp_reader *pfile, int verbose)
     = remove_duplicates (pfile, heads[INC_QUOTE], heads[INC_SYSTEM],
 			 heads[INC_BRACKET], verbose);
 
+  /* Remove duplicates from EMBED that are in itself.  */
+  heads[INC_EMBED]
+    = remove_duplicates (pfile, heads[INC_EMBED], 0, 0, verbose);
+
   /* If verbose, print the list of dirs to search.  */
   if (verbose)
     {
@@ -398,6 +403,13 @@ merge_include_chains (const char *sysroot, cpp_reader *pfile, int verbose)
 	  fprintf (stderr, " %s\n", p->name);
 	}
       fprintf (stderr, _("End of search list.\n"));
+      if (heads[INC_EMBED])
+	{
+	  fprintf (stderr, _("#embed <...> search starts here:\n"));
+	  for (p = heads[INC_EMBED]; p; p = p->next)
+	    fprintf (stderr, " %s\n", p->name);
+	  fprintf (stderr, _("End of #embed search list.\n"));
+	}
     }
 }
 
@@ -483,7 +495,7 @@ register_include_chains (cpp_reader *pfile, const char *sysroot,
     { "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH",
       "OBJC_INCLUDE_PATH", "OBJCPLUS_INCLUDE_PATH" };
   cpp_options *cpp_opts = cpp_get_options (pfile);
-  size_t idx = (cpp_opts->objc ? 2: 0);
+  size_t idx = (cpp_opts->objc ? 2 : 0);
 
   if (cpp_opts->cplusplus)
     idx++;
@@ -506,7 +518,7 @@ register_include_chains (cpp_reader *pfile, const char *sysroot,
   merge_include_chains (sysroot, pfile, verbose);
 
   cpp_set_include_chains (pfile, heads[INC_QUOTE], heads[INC_BRACKET],
-			  quote_ignores_source_dir);
+			  heads[INC_EMBED], quote_ignores_source_dir);
 }
 
 /* Return the current chain of cpp dirs.  */

@@ -1,4 +1,4 @@
-/* Copyright (C) 1988-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -296,9 +296,8 @@ scalar_chain::scalar_chain (enum machine_mode smode_, enum machine_mode vmode_)
   insns_conv = BITMAP_ALLOC (NULL);
   queue = NULL;
 
-  n_sse_to_integer = 0;
-  n_integer_to_sse = 0;
-
+  cost_sse_integer = 0;
+  weighted_cost_sse_integer = 0 ;
   max_visits = x86_stv_max_visits;
 }
 
@@ -337,20 +336,52 @@ scalar_chain::mark_dual_mode_def (df_ref def)
   /* Record the def/insn pair so we can later efficiently iterate over
      the defs to convert on insns not in the chain.  */
   bool reg_new = bitmap_set_bit (defs_conv, DF_REF_REGNO (def));
+  basic_block bb = BLOCK_FOR_INSN (DF_REF_INSN (def));
+  profile_count entry_count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+  bool speed_p = optimize_bb_for_speed_p (bb);
+  int cost = 0;
+
   if (!bitmap_bit_p (insns, DF_REF_INSN_UID (def)))
     {
       if (!bitmap_set_bit (insns_conv, DF_REF_INSN_UID (def))
 	  && !reg_new)
 	return;
-      n_integer_to_sse++;
+
+      /* Cost integer to sse moves.  */
+      if (speed_p)
+	cost = COSTS_N_INSNS (ix86_cost->integer_to_sse) / 2;
+      else if (TARGET_64BIT || smode == SImode)
+	cost = COSTS_N_BYTES (4);
+      /* vmovd (4 bytes) + vpinsrd (6 bytes).  */
+      else if (TARGET_SSE4_1)
+	cost = COSTS_N_BYTES (10);
+      /* movd (4 bytes) + movd (4 bytes) + unpckldq (4 bytes).  */
+      else
+	cost = COSTS_N_BYTES (12);
     }
   else
     {
       if (!reg_new)
 	return;
-      n_sse_to_integer++;
+
+      /* Cost sse to integer moves.  */
+      if (speed_p)
+	cost = COSTS_N_INSNS (ix86_cost->sse_to_integer) / 2;
+      else if (TARGET_64BIT || smode == SImode)
+	cost = COSTS_N_BYTES (4);
+      /* vmovd (4 bytes) + vpextrd (6 bytes).  */
+      else if (TARGET_SSE4_1)
+	cost = COSTS_N_BYTES (10);
+      /* movd (4 bytes) + psrlq (5 bytes) + movd (4 bytes).  */
+      else
+	cost = COSTS_N_BYTES (13);
     }
- 
+
+  if (speed_p)
+    weighted_cost_sse_integer += bb->count.to_sreal_scale (entry_count) * cost;
+
+  cost_sse_integer += cost;
+
   if (dump_file)
     fprintf (dump_file,
 	     "  Mark r%d def in insn %d as requiring both modes in chain #%d\n",
@@ -518,26 +549,28 @@ scalar_chain::build (bitmap candidates, unsigned insn_uid, bitmap disallowed)
    instead of using a scalar one.  */
 
 int
-general_scalar_chain::vector_const_cost (rtx exp)
+general_scalar_chain::vector_const_cost (rtx exp, basic_block bb)
 {
   gcc_assert (CONST_INT_P (exp));
 
   if (standard_sse_constant_p (exp, vmode))
     return ix86_cost->sse_op;
+  if (optimize_bb_for_size_p (bb))
+    return COSTS_N_BYTES (8);
   /* We have separate costs for SImode and DImode, use SImode costs
      for smaller modes.  */
-  return ix86_cost->sse_load[smode == DImode ? 1 : 0];
+  return COSTS_N_INSNS (ix86_cost->sse_load[smode == DImode ? 1 : 0]) / 2;
 }
 
-/* Compute a gain for chain conversion.  */
+/* Return true if it's cost profitable for chain conversion.  */
 
-int
+bool
 general_scalar_chain::compute_convert_gain ()
 {
   bitmap_iterator bi;
   unsigned insn_uid;
   int gain = 0;
-  int cost = 0;
+  sreal weighted_gain = 0;
 
   if (dump_file)
     fprintf (dump_file, "Computing gain for chain #%d...\n", chain_id);
@@ -547,7 +580,7 @@ general_scalar_chain::compute_convert_gain ()
      smaller modes than SImode the int load/store costs need to be
      adjusted as well.  */
   unsigned sse_cost_idx = smode == DImode ? 1 : 0;
-  unsigned m = smode == DImode ? (TARGET_64BIT ? 1 : 2) : 1;
+  int m = smode == DImode ? (TARGET_64BIT ? 1 : 2) : 1;
 
   EXECUTE_IF_SET_IN_BITMAP (insns, 0, insn_uid, bi)
     {
@@ -555,26 +588,58 @@ general_scalar_chain::compute_convert_gain ()
       rtx def_set = single_set (insn);
       rtx src = SET_SRC (def_set);
       rtx dst = SET_DEST (def_set);
+      basic_block bb = BLOCK_FOR_INSN (insn);
       int igain = 0;
+      profile_count entry_count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+      bool speed_p = optimize_bb_for_speed_p (bb);
+      sreal bb_freq = bb->count.to_sreal_scale (entry_count);
 
       if (REG_P (src) && REG_P (dst))
-	igain += 2 * m - ix86_cost->xmm_move;
+	{
+	  if (!speed_p)
+	    /* reg-reg move is 2 bytes, while SSE 3.  */
+	    igain += COSTS_N_BYTES (2 * m - 3);
+	  else
+	    /* Move costs are normalized to reg-reg move having cost 2.  */
+	    igain += COSTS_N_INSNS (2 * m - ix86_cost->xmm_move) / 2;
+	}
       else if (REG_P (src) && MEM_P (dst))
-	igain
-	  += m * ix86_cost->int_store[2] - ix86_cost->sse_store[sse_cost_idx];
+	{
+	  if (!speed_p)
+	    /* Integer load/store is 3+ bytes and SSE 4+.  */
+	    igain += COSTS_N_BYTES (3 * m - 4);
+	  else
+	    igain
+	      += COSTS_N_INSNS (m * ix86_cost->int_store[2]
+				- ix86_cost->sse_store[sse_cost_idx]) / 2;
+	}
       else if (MEM_P (src) && REG_P (dst))
-	igain += m * ix86_cost->int_load[2] - ix86_cost->sse_load[sse_cost_idx];
+	{
+	  if (!speed_p)
+	    igain += COSTS_N_BYTES (3 * m - 4);
+	  else
+	    igain += COSTS_N_INSNS (m * ix86_cost->int_load[2]
+				    - ix86_cost->sse_load[sse_cost_idx]) / 2;
+	}
       else
 	{
 	  /* For operations on memory operands, include the overhead
 	     of explicit load and store instructions.  */
 	  if (MEM_P (dst))
-	    igain += optimize_insn_for_size_p ()
-		     ? -COSTS_N_BYTES (8)
-		     : (m * (ix86_cost->int_load[2]
-			     + ix86_cost->int_store[2])
-			- (ix86_cost->sse_load[sse_cost_idx] +
-			   ix86_cost->sse_store[sse_cost_idx]));
+	    {
+	      if (!speed_p)
+		/* ??? This probably should account size difference
+		   of SSE and integer load rather than full SSE load.  */
+		igain -= COSTS_N_BYTES (8);
+	      else
+		{
+		  int cost = (m * (ix86_cost->int_load[2]
+				   + ix86_cost->int_store[2])
+			     - (ix86_cost->sse_load[sse_cost_idx] +
+				ix86_cost->sse_store[sse_cost_idx]));
+		  igain += COSTS_N_INSNS (cost) / 2;
+		}
+	    }
 
 	  switch (GET_CODE (src))
 	    {
@@ -595,7 +660,7 @@ general_scalar_chain::compute_convert_gain ()
 	      igain += ix86_cost->shift_const - ix86_cost->sse_op;
 
 	      if (CONST_INT_P (XEXP (src, 0)))
-		igain -= vector_const_cost (XEXP (src, 0));
+		igain -= vector_const_cost (XEXP (src, 0), bb);
 	      break;
 
 	    case ROTATE:
@@ -631,16 +696,17 @@ general_scalar_chain::compute_convert_gain ()
 		igain += m * ix86_cost->add;
 
 	      if (CONST_INT_P (XEXP (src, 0)))
-		igain -= vector_const_cost (XEXP (src, 0));
+		igain -= vector_const_cost (XEXP (src, 0), bb);
 	      if (CONST_INT_P (XEXP (src, 1)))
-		igain -= vector_const_cost (XEXP (src, 1));
+		igain -= vector_const_cost (XEXP (src, 1), bb);
 	      if (MEM_P (XEXP (src, 1)))
 		{
-		  if (optimize_insn_for_size_p ())
+		  if (!speed_p)
 		    igain -= COSTS_N_BYTES (m == 2 ? 3 : 5);
 		  else
-		    igain += m * ix86_cost->int_load[2]
-			     - ix86_cost->sse_load[sse_cost_idx];
+		    igain += COSTS_N_INSNS
+			       (m * ix86_cost->int_load[2]
+				 - ix86_cost->sse_load[sse_cost_idx]) / 2;
 		}
 	      break;
 
@@ -698,7 +764,7 @@ general_scalar_chain::compute_convert_gain ()
 	    case CONST_INT:
 	      if (REG_P (dst))
 		{
-		  if (optimize_insn_for_size_p ())
+		  if (!speed_p)
 		    {
 		      /* xor (2 bytes) vs. xorps (3 bytes).  */
 		      if (src == const0_rtx)
@@ -722,14 +788,14 @@ general_scalar_chain::compute_convert_gain ()
 		      /* DImode can be immediate for TARGET_64BIT
 			 and SImode always.  */
 		      igain += m * COSTS_N_INSNS (1);
-		      igain -= vector_const_cost (src);
+		      igain -= vector_const_cost (src, bb);
 		    }
 		}
 	      else if (MEM_P (dst))
 		{
 		  igain += (m * ix86_cost->int_store[2]
 			    - ix86_cost->sse_store[sse_cost_idx]);
-		  igain -= vector_const_cost (src);
+		  igain -= vector_const_cost (src, bb);
 		}
 	      break;
 
@@ -737,13 +803,14 @@ general_scalar_chain::compute_convert_gain ()
 	      if (XVECEXP (XEXP (src, 1), 0, 0) == const0_rtx)
 		{
 		  // movd (4 bytes) replaced with movdqa (4 bytes).
-		  if (!optimize_insn_for_size_p ())
-		    igain += ix86_cost->sse_to_integer - ix86_cost->xmm_move;
+		  if (!!speed_p)
+		    igain += COSTS_N_INSNS (ix86_cost->sse_to_integer
+					    - ix86_cost->xmm_move) / 2;
 		}
 	      else
 		{
 		  // pshufd; movd replaced with pshufd.
-		  if (optimize_insn_for_size_p ())
+		  if (!speed_p)
 		    igain += COSTS_N_BYTES (4);
 		  else
 		    igain += ix86_cost->sse_to_integer;
@@ -755,55 +822,34 @@ general_scalar_chain::compute_convert_gain ()
 	    }
 	}
 
+      if (speed_p)
+	weighted_gain += bb_freq * igain;
+      gain += igain;
+
       if (igain != 0 && dump_file)
 	{
-	  fprintf (dump_file, "  Instruction gain %d for ", igain);
+	  fprintf (dump_file, "  Instruction gain %d with bb_freq %.2f for",
+		   igain, bb_freq.to_double ());
 	  dump_insn_slim (dump_file, insn);
 	}
-      gain += igain;
     }
 
   if (dump_file)
-    fprintf (dump_file, "  Instruction conversion gain: %d\n", gain);
+    {
+      fprintf (dump_file, "  Instruction conversion gain: %d, \n",
+	       gain);
+      fprintf (dump_file, "  Registers conversion cost: %d\n",
+	       cost_sse_integer);
+      fprintf (dump_file, "  Weighted instruction conversion gain: %.2f, \n",
+	       weighted_gain.to_double ());
+      fprintf (dump_file, "  Weighted registers conversion cost: %.2f\n",
+	       weighted_cost_sse_integer.to_double ());
+    }
 
-  /* Cost the integer to sse and sse to integer moves.  */
-  if (!optimize_function_for_size_p (cfun))
-    {
-      cost += n_sse_to_integer * ix86_cost->sse_to_integer;
-      /* ???  integer_to_sse but we only have that in the RA cost table.
-	      Assume sse_to_integer/integer_to_sse are the same which they
-	      are at the moment.  */
-      cost += n_integer_to_sse * ix86_cost->sse_to_integer;
-    }
-  else if (TARGET_64BIT || smode == SImode)
-    {
-      cost += n_sse_to_integer * COSTS_N_BYTES (4);
-      cost += n_integer_to_sse * COSTS_N_BYTES (4);
-    }
-  else if (TARGET_SSE4_1)
-    {
-      /* vmovd (4 bytes) + vpextrd (6 bytes).  */
-      cost += n_sse_to_integer * COSTS_N_BYTES (10);
-      /* vmovd (4 bytes) + vpinsrd (6 bytes).  */
-      cost += n_integer_to_sse * COSTS_N_BYTES (10);
-    }
+  if (weighted_gain != weighted_cost_sse_integer)
+    return weighted_gain > weighted_cost_sse_integer;
   else
-    {
-      /* movd (4 bytes) + psrlq (5 bytes) + movd (4 bytes).  */
-      cost += n_sse_to_integer * COSTS_N_BYTES (13);
-      /* movd (4 bytes) + movd (4 bytes) + unpckldq (4 bytes).  */
-      cost += n_integer_to_sse * COSTS_N_BYTES (12);
-    }
-
-  if (dump_file)
-    fprintf (dump_file, "  Registers conversion cost: %d\n", cost);
-
-  gain -= cost;
-
-  if (dump_file)
-    fprintf (dump_file, "  Total gain: %d\n", gain);
-
-  return gain;
+    return gain > cost_sse_integer;;
 }
 
 /* Insert generated conversion instruction sequence INSNS
@@ -902,8 +948,7 @@ scalar_chain::make_vector_copies (rtx_insn *insn, rtx reg)
   else
     emit_insn (gen_rtx_SET (gen_rtx_SUBREG (vmode, vreg, 0),
 			    gen_gpr_to_xmm_move_src (vmode, reg)));
-  rtx_insn *seq = get_insns ();
-  end_sequence ();
+  rtx_insn *seq = end_sequence ();
   emit_conversion_insns (seq, insn);
 
   if (dump_file)
@@ -970,8 +1015,7 @@ scalar_chain::convert_reg (rtx_insn *insn, rtx dst, rtx src)
   else
     emit_move_insn (dst, src);
 
-  rtx_insn *seq = get_insns ();
-  end_sequence ();
+  rtx_insn *seq = end_sequence ();
   emit_conversion_insns (seq, insn);
 
   if (dump_file)
@@ -980,14 +1024,35 @@ scalar_chain::convert_reg (rtx_insn *insn, rtx dst, rtx src)
 	     REGNO (src), REGNO (dst), INSN_UID (insn));
 }
 
+/* Helper function to convert immediate constant X to vmode.  */
+static rtx
+smode_convert_cst (rtx x, enum machine_mode vmode)
+{
+  /* Prefer all ones vector in case of -1.  */
+  if (constm1_operand (x, GET_MODE (x)))
+    return CONSTM1_RTX (vmode);
+
+  unsigned n = GET_MODE_NUNITS (vmode);
+  rtx *v = XALLOCAVEC (rtx, n);
+  v[0] = x;
+  for (unsigned i = 1; i < n; ++i)
+    v[i] = const0_rtx;
+  return gen_rtx_CONST_VECTOR (vmode, gen_rtvec_v (n, v));
+}
+
 /* Convert operand OP in INSN.  We should handle
    memory operands and uninitialized registers.
    All other register uses are converted during
    registers conversion.  */
 
 void
-general_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
+scalar_chain::convert_op (rtx *op, rtx_insn *insn)
 {
+  rtx tmp;
+
+  if (GET_MODE (*op) == V1TImode)
+    return;
+
   *op = copy_rtx_if_shared (*op);
 
   if (GET_CODE (*op) == NOT
@@ -998,56 +1063,58 @@ general_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
     }
   else if (MEM_P (*op))
     {
-      rtx tmp = gen_reg_rtx (GET_MODE (*op));
+      rtx_insn *movabs = NULL;
 
-      /* Handle movabs.  */
+      /* Emit MOVABS to load from a 64-bit absolute address to a GPR.  */
       if (!memory_operand (*op, GET_MODE (*op)))
 	{
-	  rtx tmp2 = gen_reg_rtx (GET_MODE (*op));
+	  tmp = gen_reg_rtx (GET_MODE (*op));
+	  movabs = emit_insn_before (gen_rtx_SET (tmp, *op), insn);
 
-	  emit_insn_before (gen_rtx_SET (tmp2, *op), insn);
-	  *op = tmp2;
+	  *op = tmp;
 	}
 
-      emit_insn_before (gen_rtx_SET (gen_rtx_SUBREG (vmode, tmp, 0),
-				     gen_gpr_to_xmm_move_src (vmode, *op)),
-			insn);
-      *op = gen_rtx_SUBREG (vmode, tmp, 0);
+      tmp = gen_rtx_SUBREG (vmode, gen_reg_rtx (GET_MODE (*op)), 0);
+
+      rtx_insn *eh_insn
+	= emit_insn_before (gen_rtx_SET (copy_rtx (tmp),
+					 gen_gpr_to_xmm_move_src (vmode, *op)),
+			    insn);
+
+      if (cfun->can_throw_non_call_exceptions)
+	{
+	  /* Handle REG_EH_REGION note.  */
+	  rtx note = find_reg_note (insn, REG_EH_REGION, NULL_RTX);
+	  if (note)
+	    {
+	      if (movabs)
+		eh_insn = movabs;
+	      control_flow_insns.safe_push (eh_insn);
+	      add_reg_note (eh_insn, REG_EH_REGION, XEXP (note, 0));
+	    }
+	}
+
+      *op = tmp;
 
       if (dump_file)
 	fprintf (dump_file, "  Preloading operand for insn %d into r%d\n",
-		 INSN_UID (insn), REGNO (tmp));
+		 INSN_UID (insn), reg_or_subregno (tmp));
     }
   else if (REG_P (*op))
+    *op = gen_rtx_SUBREG (vmode, *op, 0);
+  else if (CONST_SCALAR_INT_P (*op))
     {
-      *op = gen_rtx_SUBREG (vmode, *op, 0);
-    }
-  else if (CONST_INT_P (*op))
-    {
-      rtx vec_cst;
-      rtx tmp = gen_rtx_SUBREG (vmode, gen_reg_rtx (smode), 0);
-
-      /* Prefer all ones vector in case of -1.  */
-      if (constm1_operand (*op, GET_MODE (*op)))
-	vec_cst = CONSTM1_RTX (vmode);
-      else
-	{
-	  unsigned n = GET_MODE_NUNITS (vmode);
-	  rtx *v = XALLOCAVEC (rtx, n);
-	  v[0] = *op;
-	  for (unsigned i = 1; i < n; ++i)
-	    v[i] = const0_rtx;
-	  vec_cst = gen_rtx_CONST_VECTOR (vmode, gen_rtvec_v (n, v));
-	}
+      rtx vec_cst = smode_convert_cst (*op, vmode);
 
       if (!standard_sse_constant_p (vec_cst, vmode))
 	{
 	  start_sequence ();
 	  vec_cst = validize_mem (force_const_mem (vmode, vec_cst));
-	  rtx_insn *seq = get_insns ();
-	  end_sequence ();
+	  rtx_insn *seq = end_sequence ();
 	  emit_insn_before (seq, insn);
 	}
+
+      tmp = gen_rtx_SUBREG (vmode, gen_reg_rtx (smode), 0);
 
       emit_insn_before (gen_move_insn (copy_rtx (tmp), vec_cst), insn);
       *op = tmp;
@@ -1479,21 +1546,39 @@ general_scalar_chain::convert_insn (rtx_insn *insn)
   df_insn_rescan (insn);
 }
 
-/* Compute a gain for chain conversion.  */
+/* Helper function to compute gain for loading an immediate constant.
+   Typically, two movabsq for TImode vs. vmovdqa for V1TImode, but
+   with numerous special cases.  */
 
-int
+static int
+timode_immed_const_gain (rtx cst, basic_block bb)
+{
+  /* movabsq vs. movabsq+vmovq+vunpacklqdq.  */
+  if (CONST_WIDE_INT_P (cst)
+      && CONST_WIDE_INT_NUNITS (cst) == 2
+      && CONST_WIDE_INT_ELT (cst, 0) == CONST_WIDE_INT_ELT (cst, 1))
+    return optimize_bb_for_size_p (bb) ? -COSTS_N_BYTES (9)
+				       : -COSTS_N_INSNS (2);
+  /* 2x movabsq ~ vmovdqa.  */
+  return 0;
+}
+
+/* Return true it's cost profitable for for chain conversion.  */
+
+bool
 timode_scalar_chain::compute_convert_gain ()
 {
   /* Assume that if we have to move TImode values between units,
      then transforming this chain isn't worth it.  */
-  if (n_sse_to_integer || n_integer_to_sse)
-    return -1;
+  if (cost_sse_integer)
+    return false;
 
   bitmap_iterator bi;
   unsigned insn_uid;
 
   /* Split ties to prefer V1TImode when not optimizing for size.  */
   int gain = optimize_size ? 0 : 1;
+  sreal weighted_gain  = 0;
 
   if (dump_file)
     fprintf (dump_file, "Computing gain for chain #%d...\n", chain_id);
@@ -1505,27 +1590,36 @@ timode_scalar_chain::compute_convert_gain ()
       rtx src = SET_SRC (def_set);
       rtx dst = SET_DEST (def_set);
       HOST_WIDE_INT op1val;
+      basic_block bb = BLOCK_FOR_INSN (insn);
       int scost, vcost;
       int igain = 0;
+      profile_count entry_count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+      bool speed_p = optimize_bb_for_speed_p (bb);
+      sreal bb_freq = bb->count.to_sreal_scale (entry_count);
 
       switch (GET_CODE (src))
 	{
 	case REG:
-	  if (optimize_insn_for_size_p ())
+	  if (!speed_p)
 	    igain = MEM_P (dst) ? COSTS_N_BYTES (6) : COSTS_N_BYTES (3);
 	  else
 	    igain = COSTS_N_INSNS (1);
 	  break;
 
 	case MEM:
-	  igain = optimize_insn_for_size_p () ? COSTS_N_BYTES (7)
-					      : COSTS_N_INSNS (1);
+	  igain = !speed_p ? COSTS_N_BYTES (7) : COSTS_N_INSNS (1);
 	  break;
 
 	case CONST_INT:
 	  if (MEM_P (dst)
 	      && standard_sse_constant_p (src, V1TImode))
-	    igain = optimize_insn_for_size_p() ? COSTS_N_BYTES (11) : 1;
+	    igain = !speed_p ? COSTS_N_BYTES (11) : 1;
+	  break;
+
+	case CONST_WIDE_INT:
+	  /* 2 x mov vs. vmovdqa.  */
+	  if (MEM_P (dst))
+	    igain = !speed_p ? COSTS_N_BYTES (3) : COSTS_N_INSNS (1);
 	  break;
 
 	case NOT:
@@ -1538,13 +1632,15 @@ timode_scalar_chain::compute_convert_gain ()
 	case IOR:
 	  if (!MEM_P (dst))
 	    igain = COSTS_N_INSNS (1);
+	  if (CONST_SCALAR_INT_P (XEXP (src, 1)))
+	    igain += timode_immed_const_gain (XEXP (src, 1), bb);
 	  break;
 
 	case ASHIFT:
 	case LSHIFTRT:
 	  /* See ix86_expand_v1ti_shift.  */
 	  op1val = INTVAL (XEXP (src, 1));
-	  if (optimize_insn_for_size_p ())
+	  if (!speed_p)
 	    {
 	      if (op1val == 64 || op1val == 65)
 		scost = COSTS_N_BYTES (5);
@@ -1578,7 +1674,7 @@ timode_scalar_chain::compute_convert_gain ()
 	case ASHIFTRT:
 	  /* See ix86_expand_v1ti_ashiftrt.  */
 	  op1val = INTVAL (XEXP (src, 1));
-	  if (optimize_insn_for_size_p ())
+	  if (!speed_p)
 	    {
 	      if (op1val == 64 || op1val == 127)
 		scost = COSTS_N_BYTES (7);
@@ -1626,23 +1722,28 @@ timode_scalar_chain::compute_convert_gain ()
 	      else if (op1val == 64)
 		vcost = COSTS_N_INSNS (3);
 	      else if (op1val == 96)
-		vcost = COSTS_N_INSNS (4);
+		vcost = COSTS_N_INSNS (3);
 	      else if (op1val >= 111)
 		vcost = COSTS_N_INSNS (3);
-	      else if (TARGET_AVX2 && op1val == 32)
-		vcost = COSTS_N_INSNS (3);
 	      else if (TARGET_SSE4_1 && op1val == 32)
-		vcost = COSTS_N_INSNS (4);
+		vcost = COSTS_N_INSNS (3);
+	      else if (TARGET_SSE4_1
+		       && (op1val == 8 || op1val == 16 || op1val == 24))
+		vcost = COSTS_N_INSNS (3);
 	      else if (op1val >= 96)
-		vcost = COSTS_N_INSNS (5);
+		vcost = COSTS_N_INSNS (4);
+	      else if (TARGET_SSE4_1 && (op1val == 28 || op1val == 80))
+		vcost = COSTS_N_INSNS (4);
 	      else if ((op1val & 7) == 0)
-		vcost = COSTS_N_INSNS (6);
+		vcost = COSTS_N_INSNS (5);
 	      else if (TARGET_AVX2 && op1val < 32)
 		vcost = COSTS_N_INSNS (6);
+	      else if (TARGET_SSE4_1 && op1val < 15)
+		vcost = COSTS_N_INSNS (6);
 	      else if (op1val == 1 || op1val >= 64)
-		vcost = COSTS_N_INSNS (9);
+		vcost = COSTS_N_INSNS (8);
 	      else
-		vcost = COSTS_N_INSNS (10);
+		vcost = COSTS_N_INSNS (9);
 	    }
 	  igain = scost - vcost;
 	  break;
@@ -1651,7 +1752,7 @@ timode_scalar_chain::compute_convert_gain ()
 	case ROTATERT:
 	  /* See ix86_expand_v1ti_rotate.  */
 	  op1val = INTVAL (XEXP (src, 1));
-	  if (optimize_insn_for_size_p ())
+	  if (!speed_p)
 	    {
 	      scost = COSTS_N_BYTES (13);
 	      if ((op1val & 31) == 0)
@@ -1683,34 +1784,40 @@ timode_scalar_chain::compute_convert_gain ()
 	    {
 	      if (GET_CODE (XEXP (src, 0)) == AND)
 		/* and;and;or (9 bytes) vs. ptest (5 bytes).  */
-		igain = optimize_insn_for_size_p() ? COSTS_N_BYTES (4)
-						   : COSTS_N_INSNS (2);
+		igain = !speed_p ? COSTS_N_BYTES (4) : COSTS_N_INSNS (2);
 	      /* or (3 bytes) vs. ptest (5 bytes).  */
-	      else if (optimize_insn_for_size_p ())
+	      else if (!speed_p)
 		igain = -COSTS_N_BYTES (2);
 	    }
 	  else if (XEXP (src, 1) == const1_rtx)
 	    /* and;cmp -1 (7 bytes) vs. pcmpeqd;pxor;ptest (13 bytes).  */
-	    igain = optimize_insn_for_size_p() ? -COSTS_N_BYTES (6)
-					       : -COSTS_N_INSNS (1);
+	    igain = !speed_p ? -COSTS_N_BYTES (6) : -COSTS_N_INSNS (1);
 	  break;
 
 	default:
 	  break;
 	}
 
+      gain += igain;
+      if (speed_p)
+	weighted_gain += bb_freq * igain;
+
       if (igain != 0 && dump_file)
 	{
-	  fprintf (dump_file, "  Instruction gain %d for ", igain);
+	  fprintf (dump_file, "  Instruction gain %d with bb_freq %.2f for ",
+		   igain, bb_freq.to_double ());
 	  dump_insn_slim (dump_file, insn);
 	}
-      gain += igain;
     }
 
   if (dump_file)
-    fprintf (dump_file, "  Total gain: %d\n", gain);
+    fprintf (dump_file, "  Total gain: %d, weighted gain %.2f\n",
+	     gain, weighted_gain.to_double ());
 
-  return gain;
+  if (weighted_gain > (sreal) 0)
+    return true;
+  else
+    return gain > 0;
 }
 
 /* Fix uses of converted REG in debug insns.  */
@@ -1748,67 +1855,6 @@ timode_scalar_chain::fix_debug_reg_uses (rtx reg)
 	  if (changed)
 	    df_insn_rescan (insn);
 	}
-    }
-}
-
-/* Helper function to convert immediate constant X to V1TImode.  */
-static rtx
-timode_convert_cst (rtx x)
-{
-  /* Prefer all ones vector in case of -1.  */
-  if (constm1_operand (x, TImode))
-    return CONSTM1_RTX (V1TImode);
-
-  rtx *v = XALLOCAVEC (rtx, 1);
-  v[0] = x;
-  return gen_rtx_CONST_VECTOR (V1TImode, gen_rtvec_v (1, v));
-}
-
-/* Convert operand OP in INSN from TImode to V1TImode.  */
-
-void
-timode_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
-{
-  if (GET_MODE (*op) == V1TImode)
-    return;
-
-  *op = copy_rtx_if_shared (*op);
-
-  if (REG_P (*op))
-    *op = gen_rtx_SUBREG (V1TImode, *op, 0);
-  else if (MEM_P (*op))
-    {
-      rtx tmp = gen_reg_rtx (V1TImode);
-      emit_insn_before (gen_rtx_SET (tmp,
-				     gen_gpr_to_xmm_move_src (V1TImode, *op)),
-			insn);
-      *op = tmp;
-
-      if (dump_file)
-	fprintf (dump_file, "  Preloading operand for insn %d into r%d\n",
-		 INSN_UID (insn), REGNO (tmp));
-    }
-  else if (CONST_SCALAR_INT_P (*op))
-    {
-      rtx tmp = gen_reg_rtx (V1TImode);
-      rtx vec_cst = timode_convert_cst (*op);
-
-      if (!standard_sse_constant_p (vec_cst, V1TImode))
-	{
-	  start_sequence ();
-	  vec_cst = validize_mem (force_const_mem (V1TImode, vec_cst));
-	  rtx_insn *seq = get_insns ();
-	  end_sequence ();
-	  emit_insn_before (seq, insn);
-	}
-
-      emit_insn_before (gen_move_insn (tmp, vec_cst), insn);
-      *op = tmp;
-    }
-  else
-    {
-      gcc_assert (SUBREG_P (*op));
-      gcc_assert (GET_MODE (*op) == vmode);
     }
 }
 
@@ -1876,12 +1922,11 @@ timode_scalar_chain::convert_insn (rtx_insn *insn)
 	    }
 	  else
 	    {
-	      src = timode_convert_cst (src);
+	      src = smode_convert_cst (src, V1TImode);
 	      src = validize_mem (force_const_mem (V1TImode, src));
 	      use_move = MEM_P (dst);
 	    }
-	  rtx_insn *seq = get_insns ();
-	  end_sequence ();
+	  rtx_insn *seq = end_sequence ();
 	  if (seq)
 	    emit_insn_before (seq, insn);
 	  if (use_move)
@@ -2168,13 +2213,9 @@ general_scalar_to_vector_candidate_p (rtx_insn *insn, enum machine_mode mode)
 
   switch (GET_CODE (src))
     {
-    case ASHIFTRT:
-      if (mode == DImode && !TARGET_AVX512VL)
-	return false;
-      /* FALLTHRU */
-
     case ASHIFT:
     case LSHIFTRT:
+    case ASHIFTRT:
     case ROTATE:
     case ROTATERT:
       if (!CONST_INT_P (XEXP (src, 1))
@@ -2340,14 +2381,16 @@ timode_scalar_to_vector_candidate_p (rtx_insn *insn)
 	      || CONST_SCALAR_INT_P (XEXP (src, 1))
 	      || timode_mem_p (XEXP (src, 1))))
 	return true;
-      return REG_P (XEXP (src, 0))
+      return (REG_P (XEXP (src, 0))
+	      || timode_mem_p (XEXP (src, 0)))
 	     && (REG_P (XEXP (src, 1))
 		 || CONST_SCALAR_INT_P (XEXP (src, 1))
 		 || timode_mem_p (XEXP (src, 1)));
 
     case IOR:
     case XOR:
-      return REG_P (XEXP (src, 0))
+      return (REG_P (XEXP (src, 0))
+	      || timode_mem_p (XEXP (src, 0)))
 	     && (REG_P (XEXP (src, 1))
 		 || CONST_SCALAR_INT_P (XEXP (src, 1))
 		 || timode_mem_p (XEXP (src, 1)));
@@ -2494,6 +2537,7 @@ convert_scalars_to_vector (bool timode_p)
 {
   basic_block bb;
   int converted_insns = 0;
+  auto_vec<rtx_insn *> control_flow_insns;
 
   bitmap_obstack_initialize (NULL);
   const machine_mode cand_mode[3] = { SImode, DImode, TImode };
@@ -2568,12 +2612,17 @@ convert_scalars_to_vector (bool timode_p)
 	     conversions.  */
 	  if (chain->build (&candidates[i], uid, disallowed))
 	    {
-	      if (chain->compute_convert_gain () > 0)
+	      if (chain->compute_convert_gain ())
 		converted_insns += chain->convert ();
 	      else if (dump_file)
 		fprintf (dump_file, "Chain #%d conversion is not profitable\n",
 			 chain->chain_id);
 	    }
+
+	  rtx_insn* iter_insn;
+	  unsigned int ii;
+	  FOR_EACH_VEC_ELT (chain->control_flow_insns, ii, iter_insn)
+	    control_flow_insns.safe_push (iter_insn);
 
 	  delete chain;
 	}
@@ -2643,6 +2692,24 @@ convert_scalars_to_vector (bool timode_p)
 		  DECL_INCOMING_RTL (parm) = gen_rtx_SUBREG (TImode, r, 0);
 	      }
 	  }
+
+      if (!control_flow_insns.is_empty ())
+	{
+	  free_dominance_info (CDI_DOMINATORS);
+
+	  unsigned int i;
+	  rtx_insn* insn;
+	  FOR_EACH_VEC_ELT (control_flow_insns, i, insn)
+	    if (control_flow_insn_p (insn))
+	      {
+		/* Split the block after insn.  There will be a fallthru
+		   edge, which is OK so we keep it.  We have to create
+		   the exception edges ourselves.  */
+		bb = BLOCK_FOR_INSN (insn);
+		split_block (bb, insn);
+		rtl_make_eh_edge (NULL, bb, BB_END (bb));
+	      }
+	}
     }
 
   return 0;
@@ -3008,6 +3075,49 @@ make_pass_insert_endbr_and_patchable_area (gcc::context *ctxt)
   return new pass_insert_endbr_and_patchable_area (ctxt);
 }
 
+bool
+ix86_rpad_gate ()
+{
+  return (TARGET_AVX
+	  && TARGET_SSE_PARTIAL_REG_DEPENDENCY
+	  && TARGET_SSE_MATH
+	  && optimize
+	  && optimize_function_for_speed_p (cfun));
+}
+
+/* Generate a vector set, DEST = SRC, at entry of the nearest dominator
+   for basic block map BBS, which is in the fake loop that contains the
+   whole function, so that there is only a single vector set in the
+   whole function.   */
+
+static void
+ix86_place_single_vector_set (rtx dest, rtx src, bitmap bbs)
+{
+  basic_block bb = nearest_common_dominator_for_set (CDI_DOMINATORS, bbs);
+  while (bb->loop_father->latch
+	 != EXIT_BLOCK_PTR_FOR_FN (cfun))
+    bb = get_immediate_dominator (CDI_DOMINATORS,
+				  bb->loop_father->header);
+
+  rtx set = gen_rtx_SET (dest, src);
+
+  rtx_insn *insn = BB_HEAD (bb);
+  while (insn && !NONDEBUG_INSN_P (insn))
+    {
+      if (insn == BB_END (bb))
+	{
+	  insn = NULL;
+	  break;
+	}
+      insn = NEXT_INSN (insn);
+    }
+
+  if (insn == BB_HEAD (bb))
+    emit_insn_before (set, insn);
+  else
+    emit_insn_after (set, insn ? PREV_INSN (insn) : BB_END (bb));
+}
+
 /* At entry of the nearest common dominator for basic blocks with
    conversions/rcp/sqrt/rsqrt/round, generate a single
 	vxorps %xmmN, %xmmN, %xmmN
@@ -3129,7 +3239,6 @@ remove_partial_avx_dependency (void)
 	  /* Generate an XMM vector SET.  */
 	  set = gen_rtx_SET (vec, src);
 	  set_insn = emit_insn_before (set, insn);
-	  df_insn_rescan (set_insn);
 
 	  if (cfun->can_throw_non_call_exceptions)
 	    {
@@ -3162,35 +3271,10 @@ remove_partial_avx_dependency (void)
       calculate_dominance_info (CDI_DOMINATORS);
       loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
 
-      /* Generate a vxorps at entry of the nearest dominator for basic
-	 blocks with conversions, which is in the fake loop that
-	 contains the whole function, so that there is only a single
-	 vxorps in the whole function.   */
-      bb = nearest_common_dominator_for_set (CDI_DOMINATORS,
-					     convert_bbs);
-      while (bb->loop_father->latch
-	     != EXIT_BLOCK_PTR_FOR_FN (cfun))
-	bb = get_immediate_dominator (CDI_DOMINATORS,
-				      bb->loop_father->header);
+      ix86_place_single_vector_set (v4sf_const0,
+				    CONST0_RTX (V4SFmode),
+				    convert_bbs);
 
-      set = gen_rtx_SET (v4sf_const0, CONST0_RTX (V4SFmode));
-
-      insn = BB_HEAD (bb);
-      while (insn && !NONDEBUG_INSN_P (insn))
-	{
-	  if (insn == BB_END (bb))
-	    {
-	      insn = NULL;
-	      break;
-	    }
-	  insn = NEXT_INSN (insn);
-	}
-      if (insn == BB_HEAD (bb))
-	set_insn = emit_insn_before (set, insn);
-      else
-	set_insn = emit_insn_after (set,
-				    insn ? PREV_INSN (insn) : BB_END (bb));
-      df_insn_rescan (set_insn);
       loop_optimizer_finalize ();
 
       if (!control_flow_insns.is_empty ())
@@ -3245,11 +3329,7 @@ public:
   /* opt_pass methods: */
   bool gate (function *) final override
     {
-      return (TARGET_AVX
-	      && TARGET_SSE_PARTIAL_REG_DEPENDENCY
-	      && TARGET_SSE_MATH
-	      && optimize
-	      && optimize_function_for_speed_p (cfun));
+      return ix86_rpad_gate ();
     }
 
   unsigned int execute (function *) final override
@@ -3264,6 +3344,625 @@ rtl_opt_pass *
 make_pass_remove_partial_avx_dependency (gcc::context *ctxt)
 {
   return new pass_remove_partial_avx_dependency (ctxt);
+}
+
+/* Return a machine mode suitable for vector SIZE.  */
+
+static machine_mode
+ix86_get_vector_load_mode (unsigned int size)
+{
+  machine_mode mode;
+  if (size == 64)
+    mode = V64QImode;
+  else if (size == 32)
+    mode = V32QImode;
+  else if (size == 16)
+    mode = V16QImode;
+  else if (size == 8)
+    mode = V8QImode;
+  else if (size == 4)
+    mode = V4QImode;
+  else if (size == 2)
+    mode = V2QImode;
+  else
+    gcc_unreachable ();
+  return mode;
+}
+
+/* Replace the source operand of instructions in VECTOR_INSNS with
+   VECTOR_CONST in VECTOR_MODE.  */
+
+static void
+replace_vector_const (machine_mode vector_mode, rtx vector_const,
+		      auto_bitmap &vector_insns)
+{
+  bitmap_iterator bi;
+  unsigned int id;
+
+  EXECUTE_IF_SET_IN_BITMAP (vector_insns, 0, id, bi)
+    {
+      rtx_insn *insn = DF_INSN_UID_GET (id)->insn;
+
+      /* Get the single SET instruction.  */
+      rtx set = single_set (insn);
+      rtx src = SET_SRC (set);
+      machine_mode mode = GET_MODE (src);
+
+      rtx replace;
+      /* Replace the source operand with VECTOR_CONST.  */
+      if (SUBREG_P (src) || mode == vector_mode)
+	replace = vector_const;
+      else
+	{
+	  unsigned int size = GET_MODE_SIZE (mode);
+	  if (size < ix86_regmode_natural_size (mode))
+	    {
+	      /* If the mode size is smaller than its natural size,
+		 first insert an extra move with a QI vector SUBREG
+		 of the same size to avoid validate_subreg failure.  */
+	      machine_mode vmode = ix86_get_vector_load_mode (size);
+	      rtx vreg;
+	      if (mode == vmode)
+		vreg = vector_const;
+	      else
+		{
+		  vreg = gen_reg_rtx (vmode);
+		  rtx vsubreg = gen_rtx_SUBREG (vmode, vector_const, 0);
+		  rtx pat = gen_rtx_SET (vreg, vsubreg);
+		  emit_insn_before (pat, insn);
+		}
+	      replace = gen_rtx_SUBREG (mode, vreg, 0);
+	    }
+	  else
+	    replace = gen_rtx_SUBREG (mode, vector_const, 0);
+	}
+
+      SET_SRC (set) = replace;
+      /* Drop possible dead definitions.  */
+      PATTERN (insn) = set;
+      INSN_CODE (insn) = -1;
+      recog_memoized (insn);
+      df_insn_rescan (insn);
+    }
+}
+
+/* At entry of the nearest common dominator for basic blocks with vector
+   CONST0_RTX and integer CONSTM1_RTX uses, generate a single widest
+   vector set instruction for all CONST0_RTX and integer CONSTM1_RTX
+   uses.
+
+   NB: We want to generate only a single widest vector set to cover the
+   whole function.  The LCM algorithm isn't appropriate here since it
+   may place a vector set inside the loop.  */
+
+static unsigned int
+remove_redundant_vector_load (void)
+{
+  timevar_push (TV_MACH_DEP);
+
+  auto_bitmap zero_bbs;
+  auto_bitmap m1_bbs;
+  auto_bitmap zero_insns;
+  auto_bitmap m1_insns;
+
+  basic_block bb;
+  rtx_insn *insn;
+  unsigned HOST_WIDE_INT zero_count = 0;
+  unsigned HOST_WIDE_INT m1_count = 0;
+  unsigned int zero_size = 0;
+  unsigned int m1_size = 0;
+
+  df_set_flags (DF_DEFER_INSN_RESCAN);
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      FOR_BB_INSNS (bb, insn)
+	{
+	  if (!NONDEBUG_INSN_P (insn))
+	    continue;
+
+	  rtx set = single_set (insn);
+	  if (!set)
+	    continue;
+
+	  /* Record single set vector instruction with CONST0_RTX and
+	     CONSTM1_RTX source.  Record basic blocks with CONST0_RTX and
+	     CONSTM1_RTX.  Count CONST0_RTX and CONSTM1_RTX.  Record the
+	     maximum size of CONST0_RTX and CONSTM1_RTX.  */
+
+	  rtx dest = SET_DEST (set);
+	  machine_mode mode = GET_MODE (dest);
+	  /* Skip non-vector instruction.  */
+	  if (!VECTOR_MODE_P (mode))
+	    continue;
+
+	  rtx src = SET_SRC (set);
+	  /* Skip non-vector load instruction.  */
+	  if (!REG_P (dest) && !SUBREG_P (dest))
+	    continue;
+
+	  if (src == CONST0_RTX (mode))
+	    {
+	      /* Record vector instruction with CONST0_RTX.  */
+	      bitmap_set_bit (zero_insns, INSN_UID (insn));
+
+	      /* Record the maximum vector size.  */
+	      if (zero_size < GET_MODE_SIZE (mode))
+		zero_size = GET_MODE_SIZE (mode);
+
+	      /* Record the basic block with CONST0_RTX.  */
+	      bitmap_set_bit (zero_bbs, bb->index);
+	      zero_count++;
+	    }
+	  else if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+		   && src == CONSTM1_RTX (mode))
+	    {
+	      /* Record vector instruction with CONSTM1_RTX.  */
+	      bitmap_set_bit (m1_insns, INSN_UID (insn));
+
+	      /* Record the maximum vector size.  */
+	      if (m1_size < GET_MODE_SIZE (mode))
+		m1_size = GET_MODE_SIZE (mode);
+
+	      /* Record the basic block with CONSTM1_RTX.  */
+	      bitmap_set_bit (m1_bbs, bb->index);
+	      m1_count++;
+	    }
+	}
+    }
+
+  if (zero_count > 1 || m1_count > 1)
+    {
+      machine_mode zero_mode, m1_mode;
+      rtx vector_const0, vector_constm1;
+
+      if (zero_count > 1)
+	{
+	  zero_mode = ix86_get_vector_load_mode (zero_size);
+	  vector_const0 = gen_reg_rtx (zero_mode);
+	  replace_vector_const (zero_mode, vector_const0, zero_insns);
+	}
+      else
+	{
+	  zero_mode = VOIDmode;
+	  vector_const0 = nullptr;
+	}
+
+      if (m1_count > 1)
+	{
+	  m1_mode = ix86_get_vector_load_mode (m1_size);
+	  vector_constm1 = gen_reg_rtx (m1_mode);
+	  replace_vector_const (m1_mode, vector_constm1, m1_insns);
+	}
+      else
+	{
+	  m1_mode = VOIDmode;
+	  vector_constm1 = nullptr;
+	}
+
+      /* (Re-)discover loops so that bb->loop_father can be used in the
+	 analysis below.  */
+      calculate_dominance_info (CDI_DOMINATORS);
+      loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
+
+      if (vector_const0)
+	ix86_place_single_vector_set (vector_const0,
+				      CONST0_RTX (zero_mode),
+				      zero_bbs);
+
+      if (vector_constm1)
+	ix86_place_single_vector_set (vector_constm1,
+				      CONSTM1_RTX (m1_mode),
+				      m1_bbs);
+
+      loop_optimizer_finalize ();
+
+      df_process_deferred_rescans ();
+    }
+
+  df_clear_flags (DF_DEFER_INSN_RESCAN);
+
+  timevar_pop (TV_MACH_DEP);
+  return 0;
+}
+
+namespace {
+
+const pass_data pass_data_remove_redundant_vector_load =
+{
+  RTL_PASS, /* type */
+  "rrvl", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_remove_redundant_vector_load : public rtl_opt_pass
+{
+public:
+  pass_remove_redundant_vector_load (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_remove_redundant_vector_load, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate (function *fun) final override
+    {
+      return (TARGET_SSE2
+	      && optimize
+	      && optimize_function_for_speed_p (fun));
+    }
+
+  unsigned int execute (function *) final override
+    {
+      return remove_redundant_vector_load ();
+    }
+}; // class pass_remove_redundant_vector_load
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_remove_redundant_vector_load (gcc::context *ctxt)
+{
+  return new pass_remove_redundant_vector_load (ctxt);
+}
+
+/* Convert legacy instructions that clobbers EFLAGS to APX_NF
+   instructions when there are no flag set between a flag
+   producer and user.  */
+
+static unsigned int
+ix86_apx_nf_convert (void)
+{
+  timevar_push (TV_MACH_DEP);
+
+  basic_block bb;
+  rtx_insn *insn;
+  hash_map <rtx_insn *, rtx> converting_map;
+  auto_vec <rtx_insn *> current_convert_list;
+
+  bool converting_seq = false;
+  rtx cc = gen_rtx_REG (CCmode, FLAGS_REG);
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      /* Reset conversion for each bb.  */
+      converting_seq = false;
+      FOR_BB_INSNS (bb, insn)
+	{
+	  if (!NONDEBUG_INSN_P (insn))
+	    continue;
+
+	  if (recog_memoized (insn) < 0)
+	    continue;
+
+	  /* Convert candidate insns after cstore, which should
+	     satisify the two conditions:
+	     1. Is not flag user or producer, only clobbers
+	     FLAGS_REG.
+	     2. Have corresponding nf pattern.  */
+
+	  rtx pat = PATTERN (insn);
+
+	  /* Starting convertion at first cstorecc.  */
+	  rtx set = NULL_RTX;
+	  if (!converting_seq
+	      && (set = single_set (insn))
+	      && ix86_comparison_operator (SET_SRC (set), VOIDmode)
+	      && reg_overlap_mentioned_p (cc, SET_SRC (set))
+	      && !reg_overlap_mentioned_p (cc, SET_DEST (set)))
+	    {
+	      converting_seq = true;
+	      current_convert_list.truncate (0);
+	    }
+	  /* Terminate at the next explicit flag set.  */
+	  else if (reg_set_p (cc, pat)
+		   && GET_CODE (set_of (cc, pat)) != CLOBBER)
+	    converting_seq = false;
+
+	  if (!converting_seq)
+	    continue;
+
+	  if (get_attr_has_nf (insn)
+	      && GET_CODE (pat) == PARALLEL)
+	    {
+	      /* Record the insn to candidate map.  */
+	      current_convert_list.safe_push (insn);
+	      converting_map.put (insn, pat);
+	    }
+	  /* If the insn clobbers flags but has no nf_attr,
+	     revoke all previous candidates.  */
+	  else if (!get_attr_has_nf (insn)
+		   && reg_set_p (cc, pat)
+		   && GET_CODE (set_of (cc, pat)) == CLOBBER)
+	    {
+	      for (auto item : current_convert_list)
+		converting_map.remove (item);
+	      converting_seq = false;
+	    }
+	}
+    }
+
+  if (!converting_map.is_empty ())
+    {
+      for (auto iter = converting_map.begin ();
+	   iter != converting_map.end (); ++iter)
+	{
+	  rtx_insn *replace = (*iter).first;
+	  rtx pat = (*iter).second;
+	  int i, n = 0, len = XVECLEN (pat, 0);
+	  rtx *new_elems = XALLOCAVEC (rtx, len);
+	  rtx new_pat;
+	  for (i = 0; i < len; i++)
+	    {
+	      rtx temp = XVECEXP (pat, 0, i);
+	      if (! (GET_CODE (temp) == CLOBBER
+		     && reg_overlap_mentioned_p (cc,
+						 XEXP (temp, 0))))
+		{
+		  new_elems[n] = temp;
+		  n++;
+		}
+	    }
+
+	  if (n == 1)
+	    new_pat = new_elems[0];
+	  else
+	    new_pat =
+	      gen_rtx_PARALLEL (VOIDmode,
+				gen_rtvec_v (n,
+					     new_elems));
+
+	  PATTERN (replace) = new_pat;
+	  INSN_CODE (replace) = -1;
+	  recog_memoized (replace);
+	  df_insn_rescan (replace);
+	}
+    }
+
+  timevar_pop (TV_MACH_DEP);
+  return 0;
+}
+
+
+namespace {
+
+const pass_data pass_data_apx_nf_convert =
+{
+  RTL_PASS, /* type */
+  "apx_nfcvt", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_apx_nf_convert : public rtl_opt_pass
+{
+public:
+  pass_apx_nf_convert (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_apx_nf_convert, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate (function *) final override
+    {
+      return (TARGET_APX_NF
+	      && optimize
+	      && optimize_function_for_speed_p (cfun));
+    }
+
+  unsigned int execute (function *) final override
+    {
+      return ix86_apx_nf_convert ();
+    }
+}; // class pass_apx_nf_convert
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_apx_nf_convert (gcc::context *ctxt)
+{
+  return new pass_apx_nf_convert (ctxt);
+}
+
+/* When a hot loop can be fit into one cacheline,
+   force align the loop without considering the max skip.  */
+static void
+ix86_align_loops ()
+{
+  basic_block bb;
+
+  /* Don't do this when we don't know cache line size.  */
+  if (ix86_cost->prefetch_block == 0)
+    return;
+
+  loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
+  profile_count count_threshold = cfun->cfg->count_max / param_align_threshold;
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx_insn *label = BB_HEAD (bb);
+      bool has_fallthru = 0;
+      edge e;
+      edge_iterator ei;
+
+      if (!LABEL_P (label))
+	continue;
+
+      profile_count fallthru_count = profile_count::zero ();
+      profile_count branch_count = profile_count::zero ();
+
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	{
+	  if (e->flags & EDGE_FALLTHRU)
+	    has_fallthru = 1, fallthru_count += e->count ();
+	  else
+	    branch_count += e->count ();
+	}
+
+      if (!fallthru_count.initialized_p () || !branch_count.initialized_p ())
+	continue;
+
+      if (bb->loop_father
+	  && bb->loop_father->latch != EXIT_BLOCK_PTR_FOR_FN (cfun)
+	  && (has_fallthru
+	      ? (!(single_succ_p (bb)
+		   && single_succ (bb) == EXIT_BLOCK_PTR_FOR_FN (cfun))
+		 && optimize_bb_for_speed_p (bb)
+		 && branch_count + fallthru_count > count_threshold
+		 && (branch_count > fallthru_count * param_align_loop_iterations))
+	      /* In case there'no fallthru for the loop.
+		 Nops inserted won't be executed.  */
+	      : (branch_count > count_threshold
+		 || (bb->count > bb->prev_bb->count * 10
+		     && (bb->prev_bb->count
+			 <= ENTRY_BLOCK_PTR_FOR_FN (cfun)->count / 2)))))
+	{
+	  rtx_insn* insn, *end_insn;
+	  HOST_WIDE_INT size = 0;
+	  bool padding_p = true;
+	  basic_block tbb = bb;
+	  unsigned cond_branch_num = 0;
+	  bool detect_tight_loop_p = false;
+
+	  for (unsigned int i = 0; i != bb->loop_father->num_nodes;
+	       i++, tbb = tbb->next_bb)
+	    {
+	      /* Only handle continuous cfg layout. */
+	      if (bb->loop_father != tbb->loop_father)
+		{
+		  padding_p = false;
+		  break;
+		}
+
+	      FOR_BB_INSNS (tbb, insn)
+		{
+		  if (!NONDEBUG_INSN_P (insn))
+		    continue;
+		  size += ix86_min_insn_size (insn);
+
+		  /* We don't know size of inline asm.
+		     Don't align loop for call.  */
+		  if (asm_noperands (PATTERN (insn)) >= 0
+		      || CALL_P (insn))
+		    {
+		      size = -1;
+		      break;
+		    }
+		}
+
+	      if (size == -1 || size > ix86_cost->prefetch_block)
+		{
+		  padding_p = false;
+		  break;
+		}
+
+	      FOR_EACH_EDGE (e, ei, tbb->succs)
+		{
+		  /* It could be part of the loop.  */
+		  if (e->dest == bb)
+		    {
+		      detect_tight_loop_p = true;
+		      break;
+		    }
+		}
+
+	      if (detect_tight_loop_p)
+		break;
+
+	      end_insn = BB_END (tbb);
+	      if (JUMP_P (end_insn))
+		{
+		  /* For decoded icache:
+		     1. Up to two branches are allowed per Way.
+		     2. A non-conditional branch is the last micro-op in a Way.
+		  */
+		  if (onlyjump_p (end_insn)
+		      && (any_uncondjump_p (end_insn)
+			  || single_succ_p (tbb)))
+		    {
+		      padding_p = false;
+		      break;
+		    }
+		  else if (++cond_branch_num >= 2)
+		    {
+		      padding_p = false;
+		      break;
+		    }
+		}
+
+	    }
+
+	  if (padding_p && detect_tight_loop_p)
+	    {
+	      emit_insn_before (gen_max_skip_align (GEN_INT (ceil_log2 (size)),
+						    GEN_INT (0)), label);
+	      /* End of function.  */
+	      if (!tbb || tbb == EXIT_BLOCK_PTR_FOR_FN (cfun))
+		break;
+	      /* Skip bb which already fits into one cacheline.  */
+	      bb = tbb;
+	    }
+	}
+    }
+
+  loop_optimizer_finalize ();
+  free_dominance_info (CDI_DOMINATORS);
+}
+
+namespace {
+
+const pass_data pass_data_align_tight_loops =
+{
+  RTL_PASS, /* type */
+  "align_tight_loops", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_align_tight_loops : public rtl_opt_pass
+{
+public:
+  pass_align_tight_loops (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_align_tight_loops, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate (function *) final override
+    {
+      return TARGET_ALIGN_TIGHT_LOOPS
+	     && optimize
+	     && optimize_function_for_speed_p (cfun);
+    }
+
+  unsigned int execute (function *) final override
+    {
+      timevar_push (TV_MACH_DEP);
+#ifdef ASM_OUTPUT_MAX_SKIP_ALIGN
+      ix86_align_loops ();
+#endif
+      timevar_pop (TV_MACH_DEP);
+      return 0;
+    }
+}; // class pass_align_tight_loops
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_align_tight_loops (gcc::context *ctxt)
+{
+  return new pass_align_tight_loops (ctxt);
 }
 
 /* This compares the priority of target features in function DECL1
@@ -3282,7 +3981,7 @@ ix86_compare_version_priority (tree decl1, tree decl2)
 
 /* V1 and V2 point to function versions with different priorities
    based on the target ISA.  This function compares their priorities.  */
- 
+
 static int
 feature_compare (const void *v1, const void *v2)
 {
@@ -3331,7 +4030,7 @@ add_condition_to_bb (tree function_decl, tree version_decl,
   convert_expr = build1 (CONVERT_EXPR, ptr_type_node,
 	     		 build_fold_addr_expr (version_decl));
   result_var = create_tmp_var (ptr_type_node);
-  convert_stmt = gimple_build_assign (result_var, convert_expr); 
+  convert_stmt = gimple_build_assign (result_var, convert_expr);
   return_stmt = gimple_build_return (result_var);
 
   if (predicate_chain == NULL_TREE)
@@ -3358,7 +4057,7 @@ add_condition_to_bb (tree function_decl, tree version_decl,
       gimple_seq_add_stmt (&gseq, call_cond_stmt);
 
       predicate_chain = TREE_CHAIN (predicate_chain);
-      
+
       if (and_expr_var == NULL)
 	and_expr_var = cond_var;
       else
@@ -3399,7 +4098,7 @@ add_condition_to_bb (tree function_decl, tree version_decl,
   gimple_set_bb (return_stmt, bb2);
 
   bb3 = e23->dest;
-  make_edge (bb1, bb3, EDGE_FALSE_VALUE); 
+  make_edge (bb1, bb3, EDGE_FALSE_VALUE);
 
   remove_edge (e23);
   make_edge (bb2, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
@@ -3560,7 +4259,7 @@ ix86_mangle_function_version_assembler_name (tree decl, tree id)
   return ret;
 }
 
-tree 
+tree
 ix86_mangle_decl_assembler_name (tree decl, tree id)
 {
   /* For function version, add the target suffix to the assembler name.  */
@@ -3590,7 +4289,7 @@ ix86_get_function_versions_dispatcher (void *decl)
   tree dispatch_decl = NULL;
 
   struct cgraph_function_version_info *default_version_info = NULL;
- 
+
   gcc_assert (fn != NULL && DECL_FUNCTION_VERSIONED (fn));
 
   node = cgraph_node::get (fn);
@@ -3598,7 +4297,7 @@ ix86_get_function_versions_dispatcher (void *decl)
 
   node_v = node->function_version ();
   gcc_assert (node_v != NULL);
- 
+
   if (node_v->dispatcher_resolver != NULL)
     return node_v->dispatcher_resolver;
 
@@ -3754,7 +4453,7 @@ make_resolver_func (const tree default_decl,
    provide the code to dispatch the right function at run-time.  NODE points
    to the dispatcher decl whose body will be created.  */
 
-tree 
+tree
 ix86_generate_version_dispatcher_body (void *node_p)
 {
   tree resolver_decl;

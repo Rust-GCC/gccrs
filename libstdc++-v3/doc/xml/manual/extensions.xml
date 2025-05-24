@@ -77,8 +77,7 @@ extensions, be aware of two things:
       object file.  The checks are also cleaner and easier to read and
       understand.
    </para>
-   <para>They are off by default for all versions of GCC from 3.0 to 3.4 (the
-      latest release at the time of writing).
+   <para>They are off by default for all GCC 3.0 and all later versions.
       They can be enabled at configure time with
       <link linkend="manual.intro.setup.configure"><literal>--enable-concept-checks</literal></link>.
       You can enable them on a per-translation-unit basis with
@@ -89,10 +88,17 @@ extensions, be aware of two things:
    </para>
 
    <para>Please note that the concept checks only validate the requirements
-   of the old C++03 standard. C++11 was expected to have first-class
-   support for template parameter constraints based on concepts in the core
-   language. This would have obviated the need for the library-simulated concept
-   checking described above, but was not part of C++11.
+   of the old C++03 standard and reject some valid code that meets the relaxed
+   requirements of C++11 and later standards.
+   C++11 was expected to have first-class support for template parameter
+   constraints based on concepts in the core language.
+   This would have obviated the need for the library-simulated concept checking
+   described above, but was not part of C++11.
+   C++20 adds a different model of concepts, which is now used to constrain
+   some new parts of the C++20 library, e.g. the
+   <filename>&lt;ranges&gt;</filename> header and the new overloads in the
+   <filename>&lt;algorithm&gt;</filename> header for working with ranges.
+   The old library-simulated concept checks might be removed at a future date.
    </para>
 
 </chapter>
@@ -221,12 +227,12 @@ extensions, be aware of two things:
    </para>
    <para>Each of the associative containers map, multimap, set, and multiset
       have a counterpart which uses a
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/HashFunction.html">hashing
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171230172024/http://www.sgi.com/tech/stl/HashFunction.html">hashing
       function</link> to do the arranging, instead of a strict weak ordering
       function.  The classes take as one of their template parameters a
       function object that will return the hash value; by default, an
       instantiation of
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/hash.html">hash</link>.
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171230172200/http://www.sgi.com/tech/stl/hash.html">hash</link>.
       You should specialize this functor for your class, or define your own,
       before trying to use one of the hashing classes.
    </para>
@@ -388,7 +394,7 @@ get_temporary_buffer(5, (int*)0);
 </para>
 <para>The <code>iota</code> function wins the award for Extension With the
    Coolest Name (the name comes from Ken Iverson's APL language.)  As
-   described in the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/iota.html">SGI
+   described in the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20170201044840/http://www.sgi.com/tech/stl/iota.html">SGI
    documentation</link>, it "assigns sequentially increasing values to a range.
    That is, it assigns <code>value</code> to <code>*first</code>,
    <code>value + 1</code> to<code> *(first + 1)</code> and so on."
@@ -498,7 +504,7 @@ get_temporary_buffer(5, (int*)0);
     <quote>demangling.</quote>
   </para>
   <para>
-    If you have read the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaces.html">source
+    If you have read the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaces.html">source
     documentation for <code>namespace abi</code></link> then you are
     aware of the cross-vendor C++ ABI in use by GCC.  One of the
     exposed functions is used for demangling,

@@ -1,5 +1,5 @@
 /* Classes for saving, deduplicating, and emitting analyzer diagnostics.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,22 +18,19 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "input.h"
-#include "diagnostic-core.h"
-#include "pretty-print.h"
-#include "gcc-rich-location.h"
+#include "analyzer/common.h"
+
+#include "cfg.h"
+#include "basic-block.h"
+#include "gimple.h"
 #include "gimple-pretty-print.h"
-#include "function.h"
-#include "diagnostic-event-id.h"
-#include "diagnostic-path.h"
-#include "bitmap.h"
-#include "ordered-hash-map.h"
-#include "analyzer/analyzer.h"
+#include "gimple-iterator.h"
+#include "inlining-iterator.h"
+#include "cgraph.h"
+#include "digraph.h"
+#include "gcc-rich-location.h"
+#include "diagnostic-format-sarif.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/sm.h"
 #include "analyzer/pending-diagnostic.h"
@@ -43,13 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/store.h"
 #include "analyzer/region-model.h"
 #include "analyzer/constraint-manager.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "inlining-iterator.h"
-#include "cgraph.h"
-#include "digraph.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/program-state.h"
 #include "analyzer/exploded-graph.h"
@@ -57,8 +47,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/feasible-graph.h"
 #include "analyzer/checker-path.h"
 #include "analyzer/reachability.h"
-#include "make-unique.h"
-#include "diagnostic-format-sarif.h"
 
 #if ENABLE_ANALYZER
 
@@ -203,7 +191,7 @@ epath_finder::get_best_epath (const exploded_node *enode,
 	logger->log ("trying to find shortest path ignoring feasibility");
       gcc_assert (m_sep);
       std::unique_ptr<exploded_path> epath
-	= make_unique<exploded_path> (m_sep->get_shortest_path (enode));
+	= std::make_unique<exploded_path> (m_sep->get_shortest_path (enode));
       if (epath->feasible_p (logger, out_problem, m_eg.get_engine (), &m_eg))
 	{
 	  if (logger)
@@ -678,12 +666,12 @@ saved_diagnostic::saved_diagnostic (const state_machine *sm,
   m_stmt (ploc.m_stmt),
   /* stmt_finder could be on-stack; we want our own copy that can
      outlive that.  */
-  m_stmt_finder (ploc.m_finder ? ploc.m_finder->clone () : NULL),
+  m_stmt_finder (ploc.m_finder ? ploc.m_finder->clone () : nullptr),
   m_loc (ploc.m_loc),
   m_var (var), m_sval (sval), m_state (state),
-  m_d (std::move (d)), m_trailing_eedge (NULL),
+  m_d (std::move (d)), m_trailing_eedge (nullptr),
   m_idx (idx),
-  m_best_epath (NULL), m_problem (NULL),
+  m_best_epath (nullptr), m_problem (nullptr),
   m_notes ()
 {
   /* We must have an enode in order to be able to look for paths
@@ -739,23 +727,23 @@ saved_diagnostic::add_event (std::unique_ptr<checker_event> event)
     "pending_diagnostic": str,
     "idx": int}.  */
 
-json::object *
+std::unique_ptr<json::object>
 saved_diagnostic::to_json () const
 {
-  json::object *sd_obj = new json::object ();
+  auto sd_obj = std::make_unique<json::object> ();
 
   if (m_sm)
-    sd_obj->set ("sm", new json::string (m_sm->get_name ()));
-  sd_obj->set ("enode", new json::integer_number (m_enode->m_index));
-  sd_obj->set ("snode", new json::integer_number (m_snode->m_index));
+    sd_obj->set_string ("sm", m_sm->get_name ());
+  sd_obj->set_integer ("enode", m_enode->m_index);
+  sd_obj->set_integer ("snode", m_snode->m_index);
   if (m_sval)
     sd_obj->set ("sval", m_sval->to_json ());
   if (m_state)
     sd_obj->set ("state", m_state->to_json ());
   if (m_best_epath)
-    sd_obj->set ("path_length", new json::integer_number (get_epath_length ()));
-  sd_obj->set ("pending_diagnostic", new json::string (m_d->get_kind ()));
-  sd_obj->set ("idx", new json::integer_number (m_idx));
+    sd_obj->set_integer ("path_length", get_epath_length ());
+  sd_obj->set_string ("pending_diagnostic", m_d->get_kind ());
+  sd_obj->set_integer ("idx", m_idx);
 
   /* We're not yet JSONifying the following fields:
      const gimple *m_stmt;
@@ -1032,12 +1020,36 @@ saved_diagnostic::maybe_add_sarif_properties (sarif_object &result_obj) const
     props.set_string (PROPERTY_PREFIX "sm", m_sm->get_name ());
   props.set_integer (PROPERTY_PREFIX "enode", m_enode->m_index);
   props.set_integer (PROPERTY_PREFIX "snode", m_snode->m_index);
+  if (m_stmt)
+    {
+      pretty_printer pp;
+      pp_gimple_stmt_1 (&pp, m_stmt, 0, (dump_flags_t)0);
+      props.set_string (PROPERTY_PREFIX "stmt", pp_formatted_text (&pp));
+    }
+  if (m_var)
+    props.set (PROPERTY_PREFIX "var", tree_to_json (m_var));
   if (m_sval)
     props.set (PROPERTY_PREFIX "sval", m_sval->to_json ());
   if (m_state)
     props.set (PROPERTY_PREFIX "state", m_state->to_json ());
-  if (m_best_epath)
-  props.set (PROPERTY_PREFIX "idx", new json::integer_number (m_idx));
+  // TODO: m_best_epath
+  props.set_integer (PROPERTY_PREFIX "idx", m_idx);
+  if (m_duplicates.length () > 0)
+    {
+      auto duplicates_arr = std::make_unique<json::array> ();
+      for (auto iter : m_duplicates)
+	{
+	  auto sd_obj = std::make_unique<sarif_object> ();
+	  iter->maybe_add_sarif_properties (*sd_obj);
+	  duplicates_arr->append (std::move (sd_obj));
+	}
+      props.set<json::array> (PROPERTY_PREFIX "duplicates",
+			      std::move (duplicates_arr));
+    }
+#undef PROPERTY_PREFIX
+
+#define PROPERTY_PREFIX "gcc/analyzer/pending_diagnostic/"
+  props.set_string (PROPERTY_PREFIX "kind", m_d->get_kind ());
 #undef PROPERTY_PREFIX
 
   /* Potentially add pending_diagnostic-specific properties.  */
@@ -1215,18 +1227,18 @@ diagnostic_manager::add_event (std::unique_ptr<checker_event> event)
 /* Return a new json::object of the form
    {"diagnostics"  : [obj for saved_diagnostic]}.  */
 
-json::object *
+std::unique_ptr<json::object>
 diagnostic_manager::to_json () const
 {
-  json::object *dm_obj = new json::object ();
+  auto dm_obj = std::make_unique<json::object> ();
 
   {
-    json::array *sd_arr = new json::array ();
+    auto sd_arr = std::make_unique<json::array> ();
     int i;
     saved_diagnostic *sd;
     FOR_EACH_VEC_ELT (m_saved_diagnostics, i, sd)
       sd_arr->append (sd->to_json ());
-    dm_obj->set ("diagnostics", sd_arr);
+    dm_obj->set ("diagnostics", std::move (sd_arr));
   }
 
   return dm_obj;
@@ -1560,8 +1572,6 @@ diagnostic_manager::emit_saved_diagnostic (const exploded_graph &eg,
        sd.get_index (), sd.m_d->get_kind (), sd.m_snode->m_index);
   log ("num dupes: %i", sd.get_num_dupes ());
 
-  pretty_printer *pp = global_dc->printer->clone ();
-
   const exploded_path *epath = sd.get_best_epath ();
   gcc_assert (epath);
 
@@ -1570,7 +1580,8 @@ diagnostic_manager::emit_saved_diagnostic (const exploded_graph &eg,
 
   /* This is the diagnostic_path subclass that will be built for
      the diagnostic.  */
-  checker_path emission_path (get_logger ());
+  checker_path emission_path (get_logical_location_manager (),
+			      get_logger ());
 
   /* Populate emission_path with a full description of EPATH.  */
   build_emission_path (pb, *epath, &emission_path);
@@ -1587,8 +1598,17 @@ diagnostic_manager::emit_saved_diagnostic (const exploded_graph &eg,
      We use the final enode from the epath, which might be different from
      the sd.m_enode, as the dedupe code doesn't care about enodes, just
      snodes.  */
-  sd.m_d->add_final_event (sd.m_sm, epath->get_final_enode (), sd.m_stmt,
-			   sd.m_var, sd.m_state, &emission_path);
+  {
+    const exploded_node *const enode = epath->get_final_enode ();
+    const gimple *stmt = sd.m_stmt;
+    event_loc_info loc_info (get_stmt_location (stmt, enode->get_function ()),
+			     enode->get_function ()->decl,
+			     enode->get_stack_depth ());
+    if (sd.m_stmt_finder)
+      sd.m_stmt_finder->update_event_loc_info (loc_info);
+    sd.m_d->add_final_event (sd.m_sm, enode, loc_info,
+			     sd.m_var, sd.m_state, &emission_path);
+  }
 
   /* The "final" event might not be final; if the saved_diagnostic has a
      trailing eedge stashed, add any events for it.  This is for use
@@ -1635,7 +1655,15 @@ diagnostic_manager::emit_saved_diagnostic (const exploded_graph &eg,
 	  free (filename);
 	}
     }
-  delete pp;
+}
+
+const logical_location_manager &
+diagnostic_manager::get_logical_location_manager () const
+{
+  gcc_assert (global_dc);
+  auto mgr = global_dc->get_logical_location_manager ();
+  gcc_assert (mgr);
+  return *mgr;
 }
 
 /* Emit a "path" of events to EMISSION_PATH describing the exploded path
@@ -1786,16 +1814,16 @@ public:
     int stack_depth = src_stack_depth;
 
     m_emission_path->add_event
-      (make_unique<state_change_event> (supernode,
-					stmt,
-					stack_depth,
-					sm,
-					NULL,
-					src_sm_val,
-					dst_sm_val,
-					NULL,
-					dst_state,
-					src_node));
+      (std::make_unique<state_change_event> (supernode,
+					     stmt,
+					     stack_depth,
+					     sm,
+					     nullptr,
+					     src_sm_val,
+					     dst_sm_val,
+					     nullptr,
+					     dst_state,
+					     src_node));
     return false;
   }
 
@@ -1831,16 +1859,16 @@ public:
       return false;
 
     m_emission_path->add_event
-      (make_unique<state_change_event> (supernode,
-					stmt,
-					stack_depth,
-					sm,
-					sval,
-					src_sm_val,
-					dst_sm_val,
-					dst_origin_sval,
-					dst_state,
-					src_node));
+      (std::make_unique<state_change_event> (supernode,
+					     stmt,
+					     stack_depth,
+					     sm,
+					     sval,
+					     src_sm_val,
+					     dst_sm_val,
+					     dst_origin_sval,
+					     dst_state,
+					     src_node));
     return false;
   }
 
@@ -1933,7 +1961,7 @@ struct null_assignment_sm_context : public sm_context
   {
   }
 
-  tree get_fndecl_for_call (const gcall */*call*/) final override
+  tree get_fndecl_for_call (const gcall &/*call*/) final override
   {
     return NULL_TREE;
   }
@@ -1977,15 +2005,15 @@ struct null_assignment_sm_context : public sm_context
     int stack_depth = m_point->get_stack_depth ();
 
     m_emission_path->add_event
-      (make_unique<state_change_event> (supernode,
-					m_stmt,
-					stack_depth,
-					m_sm,
-					var_new_sval,
-					from, to,
-					NULL,
-					*m_new_state,
-					NULL));
+      (std::make_unique<state_change_event> (supernode,
+					     m_stmt,
+					     stack_depth,
+					     m_sm,
+					     var_new_sval,
+					     from, to,
+					     nullptr,
+					     *m_new_state,
+					     nullptr));
   }
 
   void set_next_state (const gimple *stmt,
@@ -2003,15 +2031,15 @@ struct null_assignment_sm_context : public sm_context
     int stack_depth = m_point->get_stack_depth ();
 
     m_emission_path->add_event
-      (make_unique<state_change_event> (supernode,
-					m_stmt,
-					stack_depth,
-					m_sm,
-					sval,
-					from, to,
-					NULL,
-					*m_new_state,
-					NULL));
+      (std::make_unique<state_change_event> (supernode,
+					     m_stmt,
+					     stack_depth,
+					     m_sm,
+					     sval,
+					     from, to,
+					     nullptr,
+					     *m_new_state,
+					     nullptr));
   }
 
   void warn (const supernode *, const gimple *,
@@ -2190,18 +2218,19 @@ diagnostic_manager::add_events_for_eedge (const path_builder &pb,
       {
 	const gimple *stmt = dst_point.get_stmt ();
 	const gcall *call = dyn_cast <const gcall *> (stmt);
-	if (call && is_setjmp_call_p (call))
+	if (call && is_setjmp_call_p (*call))
 	  emission_path->add_event
-	    (make_unique<setjmp_event> (event_loc_info (stmt->location,
-							dst_point.get_fndecl (),
-							dst_stack_depth),
-					dst_node,
-					call));
+	    (std::make_unique<setjmp_event>
+	       (event_loc_info (stmt->location,
+				dst_point.get_fndecl (),
+				dst_stack_depth),
+		dst_node,
+		*call));
 	else
 	  emission_path->add_event
-	    (make_unique<statement_event> (stmt,
-					   dst_point.get_fndecl (),
-					   dst_stack_depth, dst_state));
+	    (std::make_unique<statement_event> (stmt,
+						dst_point.get_fndecl (),
+						dst_stack_depth, dst_state));
 
 	/* Create state change events for assignment to NULL.
 	   Iterate through the stmts in dst_enode, adding state change
@@ -2229,7 +2258,7 @@ diagnostic_manager::add_events_for_eedge (const path_builder &pb,
 							    &iter_point,
 							    emission_path,
 							    pb.get_ext_state ());
-			sm.on_stmt (&sm_ctxt, dst_point.get_supernode (), stmt);
+			sm.on_stmt (sm_ctxt, dst_point.get_supernode (), stmt);
 			// TODO: what about phi nodes?
 		      }
 		  }
@@ -2294,11 +2323,11 @@ diagnostic_manager::add_events_for_eedge (const path_builder &pb,
 		 " at this edge: ");
       pb.get_feasibility_problem ()->dump_to_pp (&pp);
       emission_path->add_event
-	(make_unique<precanned_custom_event>
-	 (event_loc_info (dst_point.get_location (),
-			  dst_point.get_fndecl (),
-			  dst_stack_depth),
-	  pp_formatted_text (&pp)));
+	(std::make_unique<precanned_custom_event>
+	   (event_loc_info (dst_point.get_location (),
+			    dst_point.get_fndecl (),
+			    dst_stack_depth),
+	    pp_formatted_text (&pp)));
     }
 }
 
@@ -2408,18 +2437,48 @@ diagnostic_manager::add_events_for_superedge (const path_builder &pb,
     {
     case SUPEREDGE_CFG_EDGE:
       {
+	if (auto eh_dispatch_try_sedge
+	      = eedge.m_sedge->dyn_cast_eh_dispatch_try_cfg_superedge ())
+	  {
+	    if (eh_dispatch_try_sedge->get_eh_catch ())
+	      {
+		const region_model *model = src_node->get_state ().m_region_model;
+		auto curr_thrown_exception_node
+		  = model->get_current_thrown_exception ();
+		gcc_assert (curr_thrown_exception_node);
+		tree type = curr_thrown_exception_node->maybe_get_type ();
+		emission_path->add_event
+		  (std::make_unique<catch_cfg_edge_event>
+		   (eedge,
+		    event_loc_info (dst_point.get_supernode ()->get_start_location (),
+				    dst_point.get_fndecl (),
+				    dst_stack_depth),
+		    type));
+		return;
+	      }
+	    else
+	      {
+		/* We have the "uncaught exception" sedge, from eh_dispatch
+		   to a block containing resx.
+		   Don't add any events for this, so that we can consolidate
+		   adjacent stack unwinding events.  */
+		return;
+	      }
+	  }
+
 	emission_path->add_event
-	  (make_unique<start_cfg_edge_event>
-	   (eedge,
-	    event_loc_info (last_stmt ? last_stmt->location : UNKNOWN_LOCATION,
-			    src_point.get_fndecl (),
-			    src_stack_depth)));
+	  (std::make_unique<start_cfg_edge_event>
+	     (eedge,
+	      event_loc_info
+		(last_stmt ? last_stmt->location : UNKNOWN_LOCATION,
+		 src_point.get_fndecl (),
+		 src_stack_depth)));
 	emission_path->add_event
-	  (make_unique<end_cfg_edge_event>
-	    (eedge,
-	     event_loc_info (dst_point.get_supernode ()->get_start_location (),
-			     dst_point.get_fndecl (),
-			     dst_stack_depth)));
+	  (std::make_unique<end_cfg_edge_event>
+	     (eedge,
+	      event_loc_info (dst_point.get_supernode ()->get_start_location (),
+			      dst_point.get_fndecl (),
+			      dst_stack_depth)));
       }
       break;
 
@@ -2432,12 +2491,13 @@ diagnostic_manager::add_events_for_superedge (const path_builder &pb,
 	/* TODO: add a subclass for this, or generate events for the
 	   summary.  */
 	emission_path->add_event
-	  (make_unique<debug_event> (event_loc_info (last_stmt
-						     ? last_stmt->location
-						     : UNKNOWN_LOCATION,
-						     src_point.get_fndecl (),
-						     src_stack_depth),
-				     "call summary"));
+	  (std::make_unique<debug_event>
+	     (event_loc_info (last_stmt
+			      ? last_stmt->location
+			      : UNKNOWN_LOCATION,
+			      src_point.get_fndecl (),
+			      src_stack_depth),
+	      "call summary"));
       }
       break;
 
@@ -2446,14 +2506,13 @@ diagnostic_manager::add_events_for_superedge (const path_builder &pb,
 	const return_superedge *return_edge
 	  = as_a <const return_superedge *> (eedge.m_sedge);
 
-	const gcall *call_stmt = return_edge->get_call_stmt ();
+	const gcall &call_stmt = return_edge->get_call_stmt ();
 	emission_path->add_event
-	  (make_unique<return_event> (eedge,
-				      event_loc_info (call_stmt
-						      ? call_stmt->location
-						      : UNKNOWN_LOCATION,
-						      dst_point.get_fndecl (),
-						      dst_stack_depth)));
+	  (std::make_unique<return_event>
+	     (eedge,
+	      event_loc_info (call_stmt.location,
+			      dst_point.get_fndecl (),
+			      dst_stack_depth)));
       }
       break;
     }
@@ -2482,6 +2541,7 @@ diagnostic_manager::prune_path (checker_path *path,
   if (! flag_analyzer_show_events_in_system_headers)
     prune_system_headers (path);
   consolidate_conditions (path);
+  consolidate_unwind_events (path);
   finish_pruning (path);
   path->maybe_log (get_logger (), "pruned");
 }
@@ -2556,7 +2616,7 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	default:
 	  gcc_unreachable ();
 
-	case EK_DEBUG:
+	case event_kind::debug:
 	  if (m_verbosity < 4)
 	    {
 	      log ("filtering event %i: debug event", idx);
@@ -2564,11 +2624,11 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	    }
 	  break;
 
-	case EK_CUSTOM:
+	case event_kind::custom:
 	  /* Don't filter custom events.  */
 	  break;
 
-	case EK_STMT:
+	case event_kind::stmt:
 	  {
 	    if (m_verbosity < 4)
 	      {
@@ -2578,11 +2638,11 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	  }
 	  break;
 
-	case EK_REGION_CREATION:
+	case event_kind::region_creation:
 	  /* Don't filter these.  */
 	  break;
 
-	case EK_FUNCTION_ENTRY:
+	case event_kind::function_entry:
 	  if (m_verbosity < 1)
 	    {
 	      log ("filtering event %i: function entry", idx);
@@ -2590,7 +2650,7 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	    }
 	  break;
 
-	case EK_STATE_CHANGE:
+	case event_kind::state_change:
 	  {
 	    state_change_event *state_change = (state_change_event *)base_event;
 	    gcc_assert (state_change->m_dst_state.m_region_model);
@@ -2644,7 +2704,7 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	  }
 	  break;
 
-	case EK_START_CFG_EDGE:
+	case event_kind::start_cfg_edge:
 	  {
 	    cfg_edge_event *event = (cfg_edge_event *)base_event;
 
@@ -2657,20 +2717,26 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	      {
 		log ("filtering events %i and %i: CFG edge", idx, idx + 1);
 		path->delete_event (idx);
-		/* Also delete the corresponding EK_END_CFG_EDGE.  */
+		/* Also delete the corresponding event_kind::end_cfg_edge.  */
 		gcc_assert (path->get_checker_event (idx)->m_kind
-			    == EK_END_CFG_EDGE);
+			    == event_kind::end_cfg_edge);
 		path->delete_event (idx);
 	      }
 	  }
 	  break;
 
-	case EK_END_CFG_EDGE:
-	  /* These come in pairs with EK_START_CFG_EDGE events and are
+	case event_kind::end_cfg_edge:
+	  /* These come in pairs with event_kind::start_cfg_edge events and are
 	     filtered when their start event is filtered.  */
 	  break;
 
-	case EK_CALL_EDGE:
+	case event_kind::catch_:
+	case event_kind::throw_:
+	case event_kind::unwind:
+	  /* Don't filter these.  */
+	  break;
+
+	case event_kind::call_edge:
 	  {
 	    call_event *event = (call_event *)base_event;
 	    const region_model *callee_model
@@ -2711,7 +2777,7 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	  }
 	  break;
 
-	case EK_RETURN_EDGE:
+	case event_kind::return_edge:
 	  {
 	    if (sval)
 	      {
@@ -2755,19 +2821,19 @@ diagnostic_manager::prune_for_sm_diagnostic (checker_path *path,
 	  }
 	  break;
 
-	case EK_INLINED_CALL:
+	case event_kind::inlined_call:
 	  /* We don't expect to see these yet, as they're added later.
 	     We'd want to keep them around.  */
 	  break;
 
-	case EK_SETJMP:
+	case event_kind::setjmp_:
 	  /* TODO: only show setjmp_events that matter i.e. those for which
 	     there is a later rewind event using them.  */
-	case EK_REWIND_FROM_LONGJMP:
-	case EK_REWIND_TO_SETJMP:
+	case event_kind::rewind_from_longjmp:
+	case event_kind::rewind_to_setjmp:
 	  break;
 
-	case EK_WARNING:
+	case event_kind::warning:
 	  /* Always show the final "warning" event in the path.  */
 	  break;
 	}
@@ -2826,7 +2892,8 @@ diagnostic_manager::prune_interproc_events (checker_path *path) const
 	      if (get_logger ())
 		{
 		  label_text desc
-		    (path->get_checker_event (idx)->get_desc (false));
+		    (path->get_checker_event (idx)->get_desc
+		       (*global_dc->get_reference_printer ()));
 		  log ("filtering events %i-%i:"
 		       " irrelevant call/entry/return: %s",
 		       idx, idx + 2, desc.get ());
@@ -2848,7 +2915,8 @@ diagnostic_manager::prune_interproc_events (checker_path *path) const
 	      if (get_logger ())
 		{
 		  label_text desc
-		    (path->get_checker_event (idx)->get_desc (false));
+		    (path->get_checker_event (idx)->get_desc
+		     (*global_dc->get_reference_printer ()));
 		  log ("filtering events %i-%i:"
 		       " irrelevant call/return: %s",
 		       idx, idx + 1, desc.get ());
@@ -2945,7 +3013,8 @@ diagnostic_manager::prune_system_headers (checker_path *path) const
 	      {
 		if (get_logger ())
 		  {
-		    label_text desc (event->get_desc (false));
+		    label_text desc
+		      (event->get_desc (*global_dc->get_reference_printer ()));
 		    log ("filtering event %i:"
 			 "system header entry event: %s",
 			 idx, desc.get ());
@@ -3040,7 +3109,7 @@ diagnostic_manager::consolidate_conditions (checker_path *path) const
 	    continue;
 
 	  /* Are we looking for a run of all TRUE edges, or all FALSE edges?  */
-	  gcc_assert (old_start_ev->m_kind == EK_START_CFG_EDGE);
+	  gcc_assert (old_start_ev->m_kind == event_kind::start_cfg_edge);
 	  const start_cfg_edge_event *old_start_cfg_ev
 	    = (const start_cfg_edge_event *)old_start_ev;
 	  const cfg_superedge& first_cfg_sedge
@@ -3063,7 +3132,7 @@ diagnostic_manager::consolidate_conditions (checker_path *path) const
 	    {
 	      const checker_event *iter_ev
 		= path->get_checker_event (next_idx);
-	      gcc_assert (iter_ev->m_kind == EK_START_CFG_EDGE);
+	      gcc_assert (iter_ev->m_kind == event_kind::start_cfg_edge);
 	      const start_cfg_edge_event *iter_cfg_ev
 		= (const start_cfg_edge_event *)iter_ev;
 	      const cfg_superedge& iter_cfg_sedge
@@ -3107,6 +3176,48 @@ diagnostic_manager::consolidate_conditions (checker_path *path) const
     }
 }
 
+/* Consolidate runs of consecutive unwind_event.  */
+
+void
+diagnostic_manager::consolidate_unwind_events (checker_path *path) const
+{
+  /* Don't simplify edges if we're debugging them.  */
+  if (flag_analyzer_verbose_edges)
+    return;
+
+  for (int start_idx = 0;
+       start_idx < (signed)path->num_events () - 1;
+       start_idx++)
+    {
+      /* Find a run of consecutive unwind_event instances.  */
+      if (path->get_checker_event (start_idx)->m_kind != event_kind::unwind)
+	continue;
+      int iter_idx = start_idx + 1;
+      while (iter_idx < (int)path->num_events ())
+	if (path->get_checker_event (iter_idx)->m_kind == event_kind::unwind)
+	  ++iter_idx;
+	else
+	  break;
+
+      /* iter_idx should now be one after the last unwind_event in the run.  */
+      const int last_idx = iter_idx - 1;
+      if (last_idx == start_idx)
+	continue;
+
+      gcc_assert (last_idx > start_idx);
+
+      log ("consolidating unwind events %i-%i into %i",
+	   start_idx, last_idx, start_idx);
+
+      unwind_event *first_event
+	= (unwind_event *)path->get_checker_event (start_idx);
+      const unwind_event *last_event
+	= (const unwind_event *)path->get_checker_event (last_idx);
+      first_event->m_num_frames += last_event->m_num_frames;
+      path->delete_events (start_idx + 1, last_idx - start_idx);
+    }
+}
+
 /* Final pass of diagnostic_manager::prune_path.
 
    If all we're left with is in one function, then filter function entry
@@ -3121,7 +3232,7 @@ diagnostic_manager::finish_pruning (checker_path *path) const
       while (idx >= 0 && idx < (signed)path->num_events ())
 	{
 	  checker_event *base_event = path->get_checker_event (idx);
-	  if (base_event->m_kind == EK_FUNCTION_ENTRY)
+	  if (base_event->m_kind == event_kind::function_entry)
 	    {
 	      log ("filtering event %i:"
 		   " function entry for purely intraprocedural path", idx);

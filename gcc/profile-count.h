@@ -1,5 +1,5 @@
 /* Profile counter container type.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -790,7 +790,7 @@ public:
       if (other.ipa ().nonzero_p ()
 	  && !(ipa () == *this))
 	return false;
-	
+
       return ipa_p () == other.ipa_p ();
     }
 
@@ -910,7 +910,8 @@ public:
 
       profile_count ret;
       gcc_checking_assert (compatible_p (other));
-      ret.m_val = m_val + other.m_val;
+      uint64_t ret_val = m_val + other.m_val;
+      ret.m_val = MIN (ret_val, max_count);
       ret.m_quality = MIN (m_quality, other.m_quality);
       return ret;
     }
@@ -929,7 +930,8 @@ public:
       else
 	{
           gcc_checking_assert (compatible_p (other));
-	  m_val += other.m_val;
+	  uint64_t ret_val = m_val + other.m_val;
+	  m_val = MIN (ret_val, max_count);
 	  m_quality = MIN (m_quality, other.m_quality);
 	}
       return *this;
@@ -957,7 +959,7 @@ public:
       else
 	{
           gcc_checking_assert (compatible_p (other));
-	  m_val = m_val >= other.m_val ? m_val - other.m_val: 0;
+	  m_val = m_val >= other.m_val ? m_val - other.m_val : 0;
 	  m_quality = MIN (m_quality, other.m_quality);
 	}
       return *this;
@@ -1059,6 +1061,9 @@ public:
       return *this;
     }
 
+  profile_count operator* (const sreal &num) const;
+  profile_count operator*= (const sreal &num);
+
   profile_count operator/ (int64_t den) const
     {
       return apply_scale (1, den);
@@ -1070,7 +1075,7 @@ public:
       return *this;
     }
 
-  /* Return true when value is not zero and can be used for scaling. 
+  /* Return true when value is not zero and can be used for scaling.
      This is different from *this > 0 because that requires counter to
      be IPA.  */
   bool nonzero_p () const
@@ -1127,7 +1132,9 @@ public:
       if (!initialized_p ())
 	return uninitialized ();
       profile_count ret;
-      ret.m_val = RDIV (m_val * prob, REG_BR_PROB_BASE);
+      uint64_t tmp;
+      safe_scale_64bit (m_val, prob, REG_BR_PROB_BASE, &tmp);
+      ret.m_val = tmp;
       ret.m_quality = MIN (m_quality, ADJUSTED);
       return ret;
     }

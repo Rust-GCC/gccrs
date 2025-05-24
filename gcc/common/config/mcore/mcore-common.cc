@@ -1,5 +1,5 @@
 /* Common hooks for Motorola MCore.
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -26,7 +26,7 @@
 
 /* What options are we going to default to specific settings when
    -O* happens; the user can subsequently override these settings.
-  
+
    Omitting the frame pointer is a very good idea on the MCore.
    Scheduling isn't worth anything on the current MCore implementation.  */
 

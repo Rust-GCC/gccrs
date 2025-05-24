@@ -1,5 +1,5 @@
 /* Classes for analyzer diagnostics.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,18 +18,18 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "intl.h"
-#include "diagnostic.h"
-#include "analyzer/analyzer.h"
+#include "analyzer/common.h"
+
 #include "diagnostic-event-id.h"
+#include "cpplib.h"
+#include "digraph.h"
+#include "ordered-hash-map.h"
+#include "cfg.h"
+#include "gimple-iterator.h"
+#include "cgraph.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/sm.h"
-#include "diagnostic-event-id.h"
 #include "analyzer/sm.h"
 #include "analyzer/pending-diagnostic.h"
 #include "analyzer/diagnostic-manager.h"
@@ -37,20 +37,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/program-point.h"
 #include "analyzer/store.h"
 #include "analyzer/region-model.h"
-#include "cpplib.h"
-#include "digraph.h"
-#include "ordered-hash-map.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "cgraph.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/program-state.h"
 #include "analyzer/exploded-graph.h"
-#include "diagnostic-path.h"
 #include "analyzer/checker-path.h"
-#include "make-unique.h"
 
 #if ENABLE_ANALYZER
 
@@ -80,33 +70,6 @@ interesting_t::dump_to_pp (pretty_printer *pp, bool simple) const
       reg->dump_to_pp (pp, simple);
     }
   pp_string (pp, "]}");
-}
-
-/* Generate a label_text by printing FMT.
-
-   Use a clone of the global_dc for formatting callbacks.
-
-   Use this evdesc::event_desc's m_colorize flag to control colorization
-   (so that e.g. we can disable it for JSON output).  */
-
-label_text
-evdesc::event_desc::formatted_print (const char *fmt, ...) const
-{
-  pretty_printer *pp = global_dc->printer->clone ();
-
-  pp_show_color (pp) = m_colorize;
-
-  rich_location rich_loc (line_table, UNKNOWN_LOCATION);
-  va_list ap;
-  va_start (ap, fmt);
-  text_info ti (_(fmt), &ap, 0, nullptr, &rich_loc);
-  pp_format (pp, &ti);
-  pp_output_formatted_text (pp);
-  va_end (ap);
-
-  label_text result = label_text::take (xstrdup (pp_formatted_text (pp)));
-  delete pp;
-  return result;
 }
 
 /* class diagnostic_emission_context.  */
@@ -222,7 +185,7 @@ pending_diagnostic::add_function_entry_event (const exploded_edge &eedge,
 {
   const exploded_node *dst_node = eedge.m_dest;
   const program_point &dst_point = dst_node->get_point ();
-  emission_path->add_event (make_unique<function_entry_event> (dst_point));
+  emission_path->add_event (std::make_unique<function_entry_event> (dst_point));
 }
 
 /* Base implementation of pending_diagnostic::add_call_event.
@@ -237,12 +200,12 @@ pending_diagnostic::add_call_event (const exploded_edge &eedge,
   const int src_stack_depth = src_point.get_stack_depth ();
   const gimple *last_stmt = src_point.get_supernode ()->get_last_stmt ();
   emission_path->add_event
-    (make_unique<call_event> (eedge,
-			      event_loc_info (last_stmt
-					      ? last_stmt->location
-					      : UNKNOWN_LOCATION,
-					      src_point.get_fndecl (),
-					      src_stack_depth)));
+    (std::make_unique<call_event> (eedge,
+				   event_loc_info (last_stmt
+						   ? last_stmt->location
+						   : UNKNOWN_LOCATION,
+						   src_point.get_fndecl (),
+						   src_stack_depth)));
 }
 
 /* Base implementation of pending_diagnostic::add_region_creation_events.
@@ -255,12 +218,13 @@ pending_diagnostic::add_region_creation_events (const region *reg,
 						checker_path &emission_path)
 {
   emission_path.add_event
-    (make_unique<region_creation_event_memory_space> (reg->get_memory_space (),
-						      loc_info));
+    (std::make_unique<region_creation_event_memory_space>
+       (reg->get_memory_space (),
+	loc_info));
 
   if (capacity)
     emission_path.add_event
-      (make_unique<region_creation_event_capacity> (capacity, loc_info));
+      (std::make_unique<region_creation_event_capacity> (capacity, loc_info));
 }
 
 /* Base implementation of pending_diagnostic::add_final_event.
@@ -269,15 +233,13 @@ pending_diagnostic::add_region_creation_events (const region *reg,
 void
 pending_diagnostic::add_final_event (const state_machine *sm,
 				     const exploded_node *enode,
-				     const gimple *stmt,
+				     const event_loc_info &loc_info,
 				     tree var, state_machine::state_t state,
 				     checker_path *emission_path)
 {
   emission_path->add_event
-    (make_unique<warning_event>
-     (event_loc_info (get_stmt_location (stmt, enode->get_function ()),
-		      enode->get_function ()->decl,
-		      enode->get_stack_depth ()),
+    (std::make_unique<warning_event>
+     (loc_info,
       enode,
       sm, var, state));
 }

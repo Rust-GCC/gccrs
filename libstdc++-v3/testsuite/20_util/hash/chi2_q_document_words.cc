@@ -2,7 +2,7 @@
 // enough for the test to pass the quality test, so just skip it altogether.
 // { dg-do run { target { c++11 && { ! simulator } } } }
 
-// Copyright (C) 2010-2024 Free Software Foundation, Inc.
+// Copyright (C) 2010-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,6 +18,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
+
+// { dg-additional-files "thirty_years_among_the_dead_preproc.txt" }
 
 #include "chi2_quality.h"
 

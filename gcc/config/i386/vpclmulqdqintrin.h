@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -28,9 +28,9 @@
 #ifndef _VPCLMULQDQINTRIN_H_INCLUDED
 #define _VPCLMULQDQINTRIN_H_INCLUDED
 
-#if !defined(__VPCLMULQDQ__) || !defined(__AVX512F__) || !defined(__EVEX512__)
+#if !defined(__VPCLMULQDQ__) || !defined(__AVX512F__)
 #pragma GCC push_options
-#pragma GCC target("vpclmulqdq,avx512f,evex512")
+#pragma GCC target("vpclmulqdq,avx512f")
 #define __DISABLE_VPCLMULQDQF__
 #endif /* __VPCLMULQDQF__ */
 

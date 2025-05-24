@@ -1,6 +1,6 @@
 // class template tuple -*- C++ -*-
 
-// Copyright (C) 2004-2024 Free Software Foundation, Inc.
+// Copyright (C) 2004-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,7 +32,12 @@
 #ifndef _GLIBCXX_TR1_TUPLE
 #define _GLIBCXX_TR1_TUPLE 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++11-extensions"
 
 #include <bits/requires_hosted.h> // TR1
 
@@ -418,11 +423,12 @@ namespace tr1
   // TODO: Put this in some kind of shared file.
   namespace
   {
-    _Swallow_assign ignore;
-  }; // anonymous namespace
+    _Swallow_assign ignore  __attribute__((__unused__));
+  } // anonymous namespace
 }
 
 _GLIBCXX_END_NAMESPACE_VERSION
 }
 
+#pragma GCC diagnostic pop
 #endif // _GLIBCXX_TR1_TUPLE

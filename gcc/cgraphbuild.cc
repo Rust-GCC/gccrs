@@ -1,5 +1,5 @@
 /* Callgraph construction.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -119,7 +119,7 @@ record_type_list (cgraph_node *node, tree list)
   for (; list; list = TREE_CHAIN (list))
     {
       tree type = TREE_VALUE (list);
-      
+
       if (TYPE_P (type))
 	type = lookup_type_for_runtime (type);
       STRIP_NOPS (type);

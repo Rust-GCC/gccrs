@@ -51,14 +51,14 @@ contains
     type(t), value :: d
   end subroutine
 
-  type(c) function c_init() ! { dg-warning "not set" }
+  type(c) function c_init()
   end function
 
   class(c) function c_init2() ! { dg-warning "not set" }
     allocatable :: c_init2
   end function
 
-  type(c) function d_init(this) ! { dg-warning "not set" }
+  type(c) function d_init(this)
     class(d) :: this
   end function
 
@@ -71,7 +71,7 @@ contains
     allocatable :: t_init
   end function
 
-  type(t) function static_t_init() ! { dg-warning "not set" }
+  type(t) function static_t_init()
   end function
 end module test_pr58586_mod
 
@@ -102,4 +102,3 @@ program test_pr58586
   call add_c(oe%init())
   deallocate(oe)
 end program
-

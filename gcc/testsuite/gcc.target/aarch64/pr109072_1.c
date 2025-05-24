@@ -54,7 +54,7 @@ f32x2_1 (float32_t x)
 
 /*
 ** f32x2_2:
-**	ins	v0\.s\[1\], v1.s\[0\]
+**	uzp1	v0\.2s, v0\.2s, v1\.2s
 **	ret
 */
 float32x2_t
@@ -77,7 +77,8 @@ s16x4_1 (int16_t x)
 }
 
 /*
-** s16x4_2:
+PR target/117092
+** s16x4_2: { xfail *-*-* }
 **	...
 **	fmov	[dsh]0, [wx][0-9]+
 **	ret
@@ -127,7 +128,7 @@ s64x2_1 (int64_t x)
 }
 
 /*
-** s64x2_2: { xfail *-*-* }
+** s64x2_2:
 **	fmov	d0, x0
 **	ret
 */
@@ -165,7 +166,7 @@ f64x2_1 (float64_t x)
 
 /*
 ** f64x2_2:
-**	ins	v0\.d\[1\], v1.d\[0\]
+**	uzp1	v0\.2d, v0\.2d, v1\.2d
 **	ret
 */
 float64x2_t

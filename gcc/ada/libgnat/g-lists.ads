@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---             Copyright (C) 2018-2024, Free Software Foundation, Inc.      --
+--             Copyright (C) 2018-2025, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -63,6 +63,8 @@ package GNAT.Lists is
 
       with procedure Destroy_Element (Elem : in out Element_Type);
       --  Element destructor
+
+      Check_Tampering : Boolean := True;
 
    package Doubly_Linked_Lists is
 

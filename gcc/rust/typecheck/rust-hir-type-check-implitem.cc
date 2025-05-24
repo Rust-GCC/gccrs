@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -266,7 +266,8 @@ TypeCheckImplItem::visit (HIR::Function &function)
 	      self_type = self->clone ();
 	      break;
 
-	      case HIR::SelfParam::IMM_REF: {
+	    case HIR::SelfParam::IMM_REF:
+	      {
 		tl::optional<TyTy::Region> region;
 		if (self_param.has_lifetime ())
 		  {
@@ -290,7 +291,8 @@ TypeCheckImplItem::visit (HIR::Function &function)
 	      }
 	      break;
 
-	      case HIR::SelfParam::MUT_REF: {
+	    case HIR::SelfParam::MUT_REF:
+	      {
 		tl::optional<TyTy::Region> region;
 		if (self_param.has_lifetime ())
 		  {
@@ -494,10 +496,9 @@ TypeCheckImplItemWithTrait::visit (HIR::ConstantItem &constant)
       rich_location r (line_table, constant.get_locus ());
       r.add_range (resolved_trait_item.get_locus ());
 
-      rust_error_at (
-	r, "constant %<%s%> has an incompatible type for trait %<%s%>",
-	constant.get_identifier ().as_string ().c_str (),
-	trait_reference.get_name ().c_str ());
+      rust_error_at (r, "constant %qs has an incompatible type for trait %qs",
+		     constant.get_identifier ().as_string ().c_str (),
+		     trait_reference.get_name ().c_str ());
     }
 }
 
@@ -521,7 +522,7 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
     {
       rich_location r (line_table, type.get_locus ());
       r.add_range (trait_reference.get_locus ());
-      rust_error_at (r, "type alias %<%s%> is not a member of trait %<%s%>",
+      rust_error_at (r, "type alias %qs is not a member of trait %qs",
 		     type.get_new_type_name ().as_string ().c_str (),
 		     trait_reference.get_name ().c_str ());
       return;
@@ -545,10 +546,9 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
       rich_location r (line_table, type.get_locus ());
       r.add_range (resolved_trait_item.get_locus ());
 
-      rust_error_at (
-	r, "type alias %<%s%> has an incompatible type for trait %<%s%>",
-	type.get_new_type_name ().as_string ().c_str (),
-	trait_reference.get_name ().c_str ());
+      rust_error_at (r, "type alias %qs has an incompatible type for trait %qs",
+		     type.get_new_type_name ().as_string ().c_str (),
+		     trait_reference.get_name ().c_str ());
     }
 
   // its actually a projection, since we need a way to actually bind the
@@ -581,7 +581,7 @@ TypeCheckImplItemWithTrait::visit (HIR::Function &function)
     {
       rich_location r (line_table, function.get_locus ());
       r.add_range (trait_reference.get_locus ());
-      rust_error_at (r, "method %<%s%> is not a member of trait %<%s%>",
+      rust_error_at (r, "method %qs is not a member of trait %qs",
 		     function.get_function_name ().as_string ().c_str (),
 		     trait_reference.get_name ().c_str ());
       return;
@@ -606,7 +606,7 @@ TypeCheckImplItemWithTrait::visit (HIR::Function &function)
       r.add_range (resolved_trait_item.get_locus ());
 
       rust_error_at (r, ErrorCode::E0053,
-		     "method %<%s%> has an incompatible type for trait %<%s%>",
+		     "method %qs has an incompatible type for trait %qs",
 		     function.get_function_name ().as_string ().c_str (),
 		     trait_reference.get_name ().c_str ());
     }

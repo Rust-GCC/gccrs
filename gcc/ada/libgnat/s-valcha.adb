@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,7 +43,9 @@ package body System.Val_Char is
       S : String (Str'Range) := Str;
 
    begin
-      Normalize_String (S, F, L);
+      --  The names of control characters use upper case letters
+
+      Normalize_String (S, F, L, To_Upper_Case => True);
 
       --  Accept any single character enclosed in quotes
 

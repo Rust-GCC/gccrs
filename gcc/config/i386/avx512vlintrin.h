@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -28,9 +28,9 @@
 #ifndef _AVX512VLINTRIN_H_INCLUDED
 #define _AVX512VLINTRIN_H_INCLUDED
 
-#if !defined (__AVX512VL__) || defined (__EVEX512__)
+#if !defined (__AVX512VL__)
 #pragma GCC push_options
-#pragma GCC target("avx512vl,no-evex512")
+#pragma GCC target("avx512vl")
 #define __DISABLE_AVX512VL__
 #endif /* __AVX512VL__ */
 
@@ -13404,7 +13404,7 @@ _mm256_permutex_pd (__m256d __X, const int __M)
 
 #define _mm_mask_alignr_epi64(W, U, X, Y, C)                                \
     ((__m128i)__builtin_ia32_alignq128_mask ((__v2di)(__m128i)(X),          \
-        (__v2di)(__m128i)(Y), (int)(C), (__v2di)(__m128i)(X), (__mmask8)-1))
+        (__v2di)(__m128i)(Y), (int)(C), (__v2di)(__m128i)(W), (__mmask8)(U)))
 
 #define _mm_maskz_alignr_epi64(U, X, Y, C)                                  \
     ((__m128i)__builtin_ia32_alignq128_mask ((__v2di)(__m128i)(X),          \
@@ -13650,7 +13650,7 @@ _mm256_permutex_pd (__m256d __X, const int __M)
 
 #if !defined (__AVX512CD__) || !defined (__AVX512VL__)
 #pragma GCC push_options
-#pragma GCC target("avx512vl,avx512cd,no-evex512")
+#pragma GCC target("avx512vl,avx512cd")
 #define __DISABLE_AVX512VLCD__
 #endif
 

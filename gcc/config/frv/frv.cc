@@ -1,4 +1,4 @@
-/* Copyright (C) 1997-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2025 Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
 This file is part of GCC.
@@ -2484,7 +2484,7 @@ frv_print_operand_address (FILE * stream, machine_mode /* mode */, rtx x)
 	 See gcc/testsuite/gcc.dg/asm-4.c for an example.  */
       frv_print_operand_memory_reference (stream, x, 0);
       return;
-      
+
     default:
       break;
     }
@@ -4759,8 +4759,7 @@ frv_split_scc (rtx dest, rtx test, rtx cc_reg, rtx cr_reg, HOST_WIDE_INT value)
 				gen_rtx_SET (dest, const0_rtx)));
 
   /* Finish up, return sequence.  */
-  ret = get_insns ();
-  end_sequence ();
+  ret = end_sequence ();
   return ret;
 }
 
@@ -4931,8 +4930,7 @@ frv_split_cond_move (rtx operands[])
     }
 
   /* Finish up, return sequence.  */
-  ret = get_insns ();
-  end_sequence ();
+  ret = end_sequence ();
   return ret;
 }
 
@@ -5062,8 +5060,7 @@ frv_split_minmax (rtx operands[])
     }
 
   /* Finish up, return sequence.  */
-  ret = get_insns ();
-  end_sequence ();
+  ret = end_sequence ();
   return ret;
 }
 
@@ -5101,8 +5098,7 @@ frv_split_abs (rtx operands[])
 				  gen_rtx_SET (dest, src)));
 
   /* Finish up, return sequence.  */
-  ret = get_insns ();
-  end_sequence ();
+  ret = end_sequence ();
   return ret;
 }
 
@@ -6311,7 +6307,7 @@ frv_secondary_reload_class (enum reg_class rclass,
 /* This hook exists to catch the case where secondary_reload_class() is
    called from init_reg_autoinc() in regclass.c - before the reload optabs
    have been initialised.  */
-   
+
 static reg_class_t
 frv_secondary_reload (bool in_p, rtx x, reg_class_t reload_class_i,
 		      machine_mode reload_mode,
@@ -6682,7 +6678,7 @@ frv_register_move_cost (machine_mode mode ATTRIBUTE_UNUSED,
 	default:
 	  break;
 
-	case QUAD_REGS:	
+	case QUAD_REGS:
 	case GPR_REGS:
 	case GR8_REGS:
 	case GR9_REGS:

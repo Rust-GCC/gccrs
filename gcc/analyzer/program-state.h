@@ -1,5 +1,5 @@
 /* Classes for representing the state of interest at a given path of analysis.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_ANALYZER_PROGRAM_STATE_H
 #define GCC_ANALYZER_PROGRAM_STATE_H
 
+#include "text-art/widget.h"
+
 namespace ana {
 
 /* Data shared by all program_state instances.  */
@@ -28,11 +30,23 @@ namespace ana {
 class extrinsic_state
 {
 public:
-  extrinsic_state (auto_delete_vec <state_machine> &checkers,
+  extrinsic_state (std::vector<std::unique_ptr<state_machine>> &&checkers,
 		   engine *eng,
 		   logger *logger = NULL)
-  : m_checkers (checkers), m_logger (logger), m_engine (eng)
+  : m_checkers (std::move (checkers)),
+    m_logger (logger),
+    m_engine (eng)
   {
+  }
+
+  // For use in selftests that use just one state machine
+  extrinsic_state (std::unique_ptr<state_machine> sm,
+		   engine *eng,
+		   logger *logger = NULL)
+  : m_logger (logger),
+    m_engine (eng)
+  {
+    m_checkers.push_back (std::move (sm));
   }
 
   const state_machine &get_sm (int idx) const
@@ -45,7 +59,7 @@ public:
     return m_checkers[idx]->get_name ();
   }
 
-  unsigned get_num_checkers () const { return m_checkers.length (); }
+  unsigned get_num_checkers () const { return m_checkers.size (); }
 
   logger *get_logger () const { return m_logger; }
 
@@ -53,7 +67,7 @@ public:
   void dump_to_file (FILE *outf) const;
   void dump () const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
 
   engine *get_engine () const { return m_engine; }
   region_model_manager *get_model_manager () const;
@@ -62,7 +76,7 @@ public:
 
 private:
   /* The state machines.  */
-  auto_delete_vec <state_machine> &m_checkers;
+  std::vector<std::unique_ptr<state_machine>> m_checkers;
 
   logger *m_logger;
   engine *m_engine;
@@ -115,7 +129,11 @@ public:
 	      pretty_printer *pp) const;
   void dump (bool simple) const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
+
+  std::unique_ptr<text_art::tree_widget>
+  make_dump_widget (const text_art::dump_widget_info &dwi,
+		    const region_model *model) const;
 
   bool is_empty_p () const;
 
@@ -223,20 +241,25 @@ public:
   void dump_to_file (const extrinsic_state &ext_state, bool simple,
 		     bool multiline, FILE *outf) const;
   void dump (const extrinsic_state &ext_state, bool simple) const;
+  void dump () const;
 
-  json::object *to_json (const extrinsic_state &ext_state) const;
+  std::unique_ptr<json::object>
+  to_json (const extrinsic_state &ext_state) const;
+
+  std::unique_ptr<text_art::tree_widget>
+  make_dump_widget (const text_art::dump_widget_info &dwi) const;
 
   void push_frame (const extrinsic_state &ext_state, const function &fun);
   const function * get_current_function () const;
 
   void push_call (exploded_graph &eg,
 		  exploded_node *enode,
-		  const gcall *call_stmt,
+		  const gcall &call_stmt,
 		  uncertainty_t *uncertainty);
 
   void returning_call (exploded_graph &eg,
 		       exploded_node *enode,
-		       const gcall *call_stmt,
+		       const gcall &call_stmt,
 		       uncertainty_t *uncertainty);
 
 
@@ -287,7 +310,7 @@ public:
   bool replay_call_summary (call_summary_replay &r,
 			    const program_state &summary);
 
-  void impl_call_analyzer_dump_state (const gcall *call,
+  void impl_call_analyzer_dump_state (const gcall &call,
 				      const extrinsic_state &ext_state,
 				      region_model_context *ctxt);
 

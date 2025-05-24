@@ -24,8 +24,7 @@ package(std.format):
 
 void skipData(Range, Char)(ref Range input, scope const ref FormatSpec!Char spec)
 {
-    import std.ascii : isDigit;
-    import std.conv : text;
+    import std.ascii : isDigit, isWhite;
     import std.range.primitives : empty, front, popFront;
 
     switch (spec.spec)
@@ -34,12 +33,14 @@ void skipData(Range, Char)(ref Range input, scope const ref FormatSpec!Char spec
         case 'd':
             if (input.front == '+' || input.front == '-') input.popFront();
             goto case 'u';
+        case 's':
+            while (!input.empty && !isWhite(input.front)) input.popFront();
+            break;
         case 'u':
             while (!input.empty && isDigit(input.front)) input.popFront();
             break;
         default:
-            assert(false,
-                   text("Format specifier not understood: %", spec.spec));
+            assert(0, "Format specifier not understood: %" ~ spec.spec);
     }
 }
 
@@ -161,15 +162,16 @@ if (isInputRange!Range && isSomeChar!T && !is(T == enum) && isSomeChar!(ElementT
     enforceFmt(find(acceptedSpecs!T, spec.spec).length,
                text("Wrong unformat specifier '%", spec.spec , "' for ", T.stringof));
 
-    static if (T.sizeof == 1)
+    enum int size = T.sizeof;
+    static if (size == 1)
         return unformatValue!ubyte(input, spec);
-    else static if (T.sizeof == 2)
+    else static if (size == 2)
         return unformatValue!ushort(input, spec);
-    else static if (T.sizeof == 4)
+    else static if (size == 4)
         return unformatValue!uint(input, spec);
     else
         static assert(false, T.stringof ~ ".sizeof must be 1, 2, or 4 not " ~
-                      to!string(T.sizeof));
+                      size.stringof);
 }
 
 T unformatValueImpl(T, Range, Char)(ref Range input, scope const ref FormatSpec!Char fmt)

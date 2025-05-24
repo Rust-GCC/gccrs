@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -217,7 +217,7 @@ ASTLoweringItem::visit (AST::StructStruct &struct_decl)
 					 field.get_outer_attrs ());
 
       if (struct_field_name_exists (fields, translated_field))
-	continue;
+	break;
 
       fields.push_back (std::move (translated_field));
     }
@@ -495,7 +495,8 @@ ASTLoweringItem::visit (AST::InherentImpl &impl_block)
 	{
 	  switch (generic_param->get_kind ())
 	    {
-	      case HIR::GenericParam::GenericKind::TYPE: {
+	    case HIR::GenericParam::GenericKind::TYPE:
+	      {
 		const HIR::TypeParam &t
 		  = static_cast<const HIR::TypeParam &> (*generic_param);
 
@@ -652,7 +653,8 @@ ASTLoweringItem::visit (AST::TraitImpl &impl_block)
 	{
 	  switch (generic_param->get_kind ())
 	    {
-	      case HIR::GenericParam::GenericKind::TYPE: {
+	    case HIR::GenericParam::GenericKind::TYPE:
+	      {
 		const HIR::TypeParam &t
 		  = static_cast<const HIR::TypeParam &> (*generic_param);
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -84,6 +84,11 @@ package Sem_Ch3 is
 
    procedure Access_Type_Declaration (T : Entity_Id; Def : Node_Id);
    --  Process an access type declaration
+
+   procedure Build_Access_Subprogram_Wrapper (Decl : Node_Id);
+   --  When an access-to-subprogram type has pre/postconditions, we build a
+   --  subprogram that includes these contracts and is invoked by an indirect
+   --  call through the corresponding access type.
 
    procedure Build_Itype_Reference (Ityp : Entity_Id; Nod : Node_Id);
    --  Create a reference to an internal type, for use by Gigi. The back-end
@@ -234,6 +239,11 @@ package Sem_Ch3 is
    procedure Preanalyze_Assert_Expression (N : Node_Id; T : Entity_Id);
    --  Wrapper on Preanalyze_Spec_Expression for assertion expressions, so that
    --  In_Assertion_Expr can be properly adjusted.
+   --
+   --  This routine must not be called when N is the root of a subtree that is
+   --  not in its final place since it freezes static expression entities,
+   --  which would be misplaced in the tree. Preanalyze_And_Resolve must be
+   --  used in such a case to avoid reporting spurious errors.
 
    procedure Preanalyze_Assert_Expression (N : Node_Id);
    --  Similar to the above, but without forcing N to be of a particular type
@@ -247,6 +257,11 @@ package Sem_Ch3 is
    --  details. N is the expression to be analyzed, T is the expected type.
    --  This mechanism is also used for aspect specifications that have an
    --  expression parameter that needs similar preanalysis.
+   --
+   --  This routine must not be called when N is the root of a subtree that is
+   --  not in its final place since it freezes static expression entities,
+   --  which would be misplaced in the tree. Preanalyze_And_Resolve must be
+   --  used in such a case to avoid reporting spurious errors.
 
    procedure Process_Full_View (N : Node_Id; Full_T, Priv_T : Entity_Id);
    --  Process some semantic actions when the full view of a private type is

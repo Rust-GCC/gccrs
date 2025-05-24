@@ -1,5 +1,5 @@
 /* Modeling API uses and misuses via state machines.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,21 +18,11 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "function.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "options.h"
-#include "function.h"
-#include "diagnostic-core.h"
-#include "pretty-print.h"
-#include "diagnostic.h"
+#define INCLUDE_LIST
+#include "analyzer/common.h"
+
 #include "tree-diagnostic.h"
-#include "analyzer/analyzer.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/sm.h"
 #include "analyzer/call-string.h"
@@ -76,13 +66,13 @@ state_machine::state::dump_to_pp (pretty_printer *pp) const
 
 /* Return a new json::string describing the state.  */
 
-json::value *
+std::unique_ptr<json::value>
 state_machine::state::to_json () const
 {
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   dump_to_pp (&pp);
-  return new json::string (pp_formatted_text (&pp));
+  return std::make_unique<json::string> (pp_formatted_text (&pp));
 }
 
 /* class state_machine.  */
@@ -150,19 +140,19 @@ state_machine::dump_to_pp (pretty_printer *pp) const
    {"name" : str,
     "states" : [str]}.  */
 
-json::object *
+std::unique_ptr<json::object>
 state_machine::to_json () const
 {
-  json::object *sm_obj = new json::object ();
+  auto sm_obj = std::make_unique<json::object> ();
 
-  sm_obj->set ("name", new json::string (m_name));
+  sm_obj->set_string ("name", m_name);
   {
-    json::array *states_arr = new json::array ();
+    auto states_arr = std::make_unique<json::array> ();
     unsigned i;
     state *s;
     FOR_EACH_VEC_ELT (m_states, i, s)
       states_arr->append (s->to_json ());
-    sm_obj->set ("states", states_arr);
+    sm_obj->set ("states", std::move (states_arr));
   }
 
   return sm_obj;
@@ -180,35 +170,40 @@ sm_context::get_old_region_model () const
 }
 
 /* Create instances of the various state machines, each using LOGGER,
-   and populate OUT with them.  */
+   returning a vector of them.  */
 
-void
-make_checkers (auto_delete_vec <state_machine> &out, logger *logger)
+std::vector<std::unique_ptr<state_machine>>
+make_checkers (logger *logger)
 {
-  out.safe_push (make_malloc_state_machine (logger));
-  out.safe_push (make_fileptr_state_machine (logger));
-  out.safe_push (make_fd_state_machine (logger));
-  out.safe_push (make_taint_state_machine (logger));
-  out.safe_push (make_sensitive_state_machine (logger));
-  out.safe_push (make_signal_state_machine (logger));
-  out.safe_push (make_va_list_state_machine (logger));
+  /* Start with a list so that we can filter it.  */
+  std::list<std::unique_ptr<state_machine>> out;
+  out.push_back (make_malloc_state_machine (logger));
+  out.push_back (make_fileptr_state_machine (logger));
+  out.push_back (make_fd_state_machine (logger));
+  out.push_back (make_taint_state_machine (logger));
+  out.push_back (make_sensitive_state_machine (logger));
+  out.push_back (make_signal_state_machine (logger));
+  out.push_back (make_va_list_state_machine (logger));
 
   /* We only attempt to run the pattern tests if it might have been manually
      enabled (for DejaGnu purposes).  */
   if (flag_analyzer_checker)
-    out.safe_push (make_pattern_test_state_machine (logger));
+    out.push_back (make_pattern_test_state_machine (logger));
 
   if (flag_analyzer_checker)
     {
-      unsigned read_index, write_index;
-      state_machine **sm;
-
-      /* TODO: this leaks the machines
-	 Would be nice to log the things that were removed.  */
-      VEC_ORDERED_REMOVE_IF (out, read_index, write_index, sm,
-			     0 != strcmp (flag_analyzer_checker,
-					  (*sm)->get_name ()));
+      out.remove_if ([] (auto &sm)
+		     {
+		       return 0 != strcmp (flag_analyzer_checker,
+					   sm->get_name ());
+		     });
     }
+
+  std::vector<std::unique_ptr<state_machine>> out_vec;
+  for (auto &iter: out)
+    out_vec.push_back (std::move (iter));
+
+  return out_vec;
 }
 
 } // namespace ana

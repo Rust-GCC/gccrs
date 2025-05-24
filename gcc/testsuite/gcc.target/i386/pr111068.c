@@ -1,6 +1,6 @@
 /* PR target/111068 */
 /* { dg-do compile } */
-/* { dg-options "-ffloat-store -mavx10.1-512" } */
+/* { dg-options "-ffloat-store -mavx10.1" } */
 
 typedef _Float16 __attribute__((__vector_size__ (8))) V;
 V u, v, w;

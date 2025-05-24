@@ -1,6 +1,6 @@
 
 /* Compiler implementation of the D programming language
- * Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -13,6 +13,7 @@
 #include "root/dcompat.h"
 #include "root/ctfloat.h"
 #include "common/outbuffer.h"
+#include "common/charactertables.h"
 #include "root/filename.h"
 #include "compiler.h"
 
@@ -34,7 +35,8 @@ enum
 enum class MessageStyle : unsigned char
 {
     digitalmars, // file(line,column): message
-    gnu          // file:line:column: message
+    gnu,         // file:line:column: message
+    sarif        // JSON SARIF output, see https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
 };
 
 // The state of array bounds checking
@@ -71,7 +73,8 @@ enum CppStdRevision
     CppStdRevisionCpp11 = 201103,
     CppStdRevisionCpp14 = 201402,
     CppStdRevisionCpp17 = 201703,
-    CppStdRevisionCpp20 = 202002
+    CppStdRevisionCpp20 = 202002,
+    CppStdRevisionCpp23 = 202302,
 };
 
 /// Trivalent boolean to represent the state of a `revert`able change
@@ -80,6 +83,23 @@ enum class FeatureState : unsigned char
     default_ = 0,  /// Not specified by the user
     disabled = 1,  /// Specified as `-revert=`
     enabled  = 2,  /// Specified as `-preview=`
+};
+
+/// Different identifier tables specifiable by CLI
+enum class CLIIdentifierTable : unsigned char
+{
+    default_ = 0, /// Not specified by user
+    C99      = 1, /// Tables from C99 standard
+    C11      = 2, /// Tables from C11 standard
+    UAX31    = 3, /// Tables from the Unicode Standard Annex 31: UNICODE IDENTIFIERS AND SYNTAX
+    All      = 4, /// The least restrictive set of all other tables
+};
+
+/// Specifies the mode for error printing
+enum class ErrorPrintMode : unsigned char
+{
+    simpleError,        // Print errors without squiggles and carets
+    printErrorContext,  // Print errors with the error line and caret
 };
 
 struct Output
@@ -126,20 +146,29 @@ struct Verbose
     d_bool complex = true;     // identify complex/imaginary type usage
     d_bool vin;                // identify 'in' parameters
     d_bool showGaggedErrors;   // print gagged errors anyway
-    d_bool printErrorContext;  // print errors with the error context (the error line in the source file)
     d_bool logo;               // print compiler logo
     d_bool color;              // use ANSI colors in console output
     d_bool cov;                // generate code coverage data
+    ErrorPrintMode errorPrintMode; // enum for error printing mode
     MessageStyle messageStyle; // style of file/line annotations on messages
     unsigned errorLimit;
     unsigned errorSupplementLimit; // Limit the number of supplemental messages for each error (0 means unlimited)
     unsigned errorSupplementCount();
 };
 
+struct ImportPathInfo
+{
+    const char* path;
+
+    ImportPathInfo() : path(NULL) { }
+    ImportPathInfo(const char* p) : path(p) { }
+};
+
 // Put command line switches in here
 struct Param
 {
     d_bool obj;           // write object file
+    d_bool readStdin;     // read source file from stdin
     d_bool multiobj;      // break one object file into multiple ones
     d_bool trace;         // insert profiling hooks
     d_bool tracegc;       // instrument calls to 'new'
@@ -149,7 +178,7 @@ struct Param
     d_bool useInline;     // inline expand functions
     d_bool release;       // build release version
     d_bool preservePaths; // true means don't strip path from source file
-    Diagnostic warnings;
+    Diagnostic useWarnings;
     d_bool cov;           // generate code coverage data
     unsigned char covPercent;   // 0..100 code coverage percentage required
     d_bool ctfe_cov;      // generate coverage data for ctfe
@@ -179,6 +208,9 @@ struct Param
                                  // https://gist.github.com/andralex/e5405a5d773f07f73196c05f8339435a
                                  // https://digitalmars.com/d/archives/digitalmars/D/Binding_rvalues_to_ref_parameters_redux_325087.html
                                  // Implementation: https://github.com/dlang/dmd/pull/9817
+    FeatureState safer;          // safer by default (more @safe checks in unattributed code)
+                                 // https://github.com/WalterBright/documents/blob/38f0a846726b571f8108f6e63e5e217b91421c86/safer.md
+
     FeatureState noSharedAccess; // read/write access to shared memory objects
     d_bool previewIn;              // `in` means `[ref] scope const`, accepts rvalues
     d_bool inclusiveInContracts;   // 'in' contracts of overridden methods must be a superset of parent contract
@@ -200,9 +232,12 @@ struct Param
 
     CHECKACTION checkAction;       // action to take when bounds, asserts or switch defaults are violated
 
+    CLIIdentifierTable dIdentifierTable;
+    CLIIdentifierTable cIdentifierTable;
+
     DString  argv0;    // program name
     Array<const char *> modFileAliasStrings; // array of char*'s of -I module filename alias strings
-    Array<const char *> imppath;     // array of char*'s of where to look for import modules
+    Array<ImportPathInfo> imppath;     // array of import path information of where to look for import modules
     Array<const char *> fileImppath; // array of char*'s of where to look for file import modules
     DString objdir;    // .obj/.lib file output directory
     DString objname;   // .obj file output name
@@ -217,8 +252,7 @@ struct Param
     Output mixinOut;          // write expanded mixins for debugging
     Output moduleDeps;        // Generate `.deps` module dependencies
 
-    unsigned debuglevel;   // debug level
-    unsigned versionlevel; // version level
+    d_bool debugEnabled;   // -debug flag is passed
 
     d_bool run;           // run resulting executable
     Strings runargs;    // arguments for executable
@@ -236,6 +270,10 @@ struct Param
     DString resfile;
     DString exefile;
     DString mapfile;
+    bool fullyQualifiedObjectFiles;
+    bool timeTrace;
+    uint32_t timeTraceGranularityUs;
+    const char* timeTraceFile;
 };
 
 struct structalign_t
@@ -273,7 +311,11 @@ struct CompileEnv
     DString vendor;
     DString timestamp;
     d_bool previewIn;
+    d_bool transitionIn;
     d_bool ddocOutput;
+    d_bool masm;
+    IdentifierCharLookup cCharLookupTable;
+    IdentifierCharLookup dCharLookupTable;
 };
 
 struct Global
@@ -282,14 +324,16 @@ struct Global
 
     const DString copyright;
     const DString written;
-    Array<const char *> path;        // Array of char*'s which form the import lookup path
-    Array<const char *> filePath;    // Array of char*'s which form the file import lookup path
+    Array<ImportPathInfo> path;        // Array of path informations which form the import lookup path
+    Array<const char *> importPaths;   // Array of char*'s which form the import lookup path without metadata
+    Array<const char *> filePath;      // Array of char*'s which form the file import lookup path
 
     char datetime[26];       /// string returned by ctime()
     CompileEnv compileEnv;
 
     Param params;
     unsigned errors;         // number of errors reported so far
+    unsigned deprecations;   // number of deprecations reported so far
     unsigned warnings;       // number of warnings reported so far
     unsigned gag;            // !=0 means gag reporting of errors & warnings
     unsigned gaggedErrors;   // number of errors reported while gagged
@@ -307,7 +351,7 @@ struct Global
     ErrorSink* errorSink;       // where the error messages go
     ErrorSink* errorSinkNull;   // where the error messages disappear
 
-    DArray<unsigned char> (*preprocess)(FileName, const Loc&, OutBuffer&);
+    DArray<unsigned char> (*preprocess)(FileName, Loc, OutBuffer&);
 
     /* Start gagging. Return the current number of gagged errors
      */
@@ -325,6 +369,13 @@ struct Global
     void increaseErrorCount();
 
     void _init();
+
+    /**
+     * Indicate to stateful error sinks that no more errors can be produced.
+     * This is to support error sinks that collect information to produce a
+     * single (say) report.
+     */
+    void plugErrorSinks();
 
     /**
     Returns: the version as the number that would be returned for __VERSION__
@@ -364,43 +415,46 @@ typedef unsigned long long uinteger_t;
 #endif
 
 // file location
+struct SourceLoc
+{
+    DString filename;
+    uint32_t line;
+    uint32_t column;
+    uint32_t fileOffset;
+    DString fileContent;
+};
+
 struct Loc
 {
 private:
-    unsigned _linnum;
-    unsigned _charnum;
-    unsigned fileIndex;
+
+    unsigned int index;
+
+#if MARS && defined(__linux__) && defined(__i386__)
+    unsigned int dummy;
+#endif
+
 public:
     static void set(bool showColumns, MessageStyle messageStyle);
+    static Loc singleFilename(const char* const filename);
 
     static bool showColumns;
     static MessageStyle messageStyle;
 
     Loc()
     {
-        _linnum = 0;
-        _charnum = 0;
-        fileIndex = 0;
-    }
-
-    Loc(const char *filename, unsigned linnum, unsigned charnum)
-    {
-        this->linnum(linnum);
-        this->charnum(charnum);
-        this->filename(filename);
+        index = 0;
     }
 
     uint32_t charnum() const;
-    uint32_t charnum(uint32_t num);
     uint32_t linnum() const;
-    uint32_t linnum(uint32_t num);
     const char *filename() const;
-    void filename(const char *name);
+    SourceLoc toSourceLoc() const;
 
     const char *toChars(
         bool showColumns = Loc::showColumns,
         MessageStyle messageStyle = Loc::messageStyle) const;
-    bool equals(const Loc& loc) const;
+    bool equals(Loc loc) const;
 };
 
 enum class LINK : uint8_t

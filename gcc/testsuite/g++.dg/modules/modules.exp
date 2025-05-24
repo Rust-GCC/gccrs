@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024 Free Software Foundation, Inc.
+# Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,7 +36,6 @@ if ![info exists DEFAULT_CXXFLAGS] then {
     set DEFAULT_CXXFLAGS " -pedantic-errors -Wno-long-long"
 }
 set DEFAULT_MODFLAGS $DEFAULT_CXXFLAGS
-set MOD_STD_LIST { 17 2a 2b }
 
 dg-init
 
@@ -205,9 +204,19 @@ proc module_do_it { do_what testcase std asm_list } {
     if { !$ok } {
 	unresolved "$ident link"
     } else {
+	global target_triplet
 	set out [${tool}_target_compile $asm_list \
 		     $execname executable $options]
 	eval $xfail
+
+	# Do gcc-specific pruning.
+	set out [${tool}-dg-prune $target_triplet $out]
+	# Fix up remaining line-breaks similar to "regular" pruning
+	# calls.  Otherwise, a multi-line message stripped e.g. one
+	# part by the default prune_warnings and one part part by the
+	# gcc prune_gcc_output will have a residual line-break.
+	regsub "^\[\r\n\]+" $out "" out
+
 	if { $out == "" } {
 	    pass "$ident link"
 	} else {
@@ -251,40 +260,16 @@ proc srcdir {} {
     return $testdir
 }
 
-# Return set of std options to iterate over, taken from g++-dg.exp & compat.exp
+# Return set of std options to iterate over.
 proc module-init { src } {
-    set tmp [dg-get-options $src]
-    set option_list {}
-    set have_std 0
-    set std_prefix "-std=c++"
+    set option_list [g++-std-flags $src]
     global extra_tool_flags
     set extra_tool_flags {}
 
-    foreach op $tmp {
-	switch [lindex $op 0] {
-	    "dg-options" {
-		set std_prefix "-std=gnu++"
-		if { [string match "*-std=*" [lindex $op 2]] } {
-		    set have_std 1
-		}
-		eval lappend extra_tool_flags [lindex $op 2]
-	    }
-	    "dg-additional-options" {
-		if { [string match "*-std=*" [lindex $op 2]] } {
-		    set have_std 1
-		}
-		eval lappend extra_tool_flags [lindex $op 2]
-	    }
-	}
-    }
-
-    if { !$have_std } {
-	global MOD_STD_LIST
-	foreach x $MOD_STD_LIST {
-	    lappend option_list "${std_prefix}$x"
-	}
-    } else {
-	lappend option_list ""
+    if { [llength $option_list]
+	 && [string match "*xtreme*" $src] } {
+	# Only run the xtreme tests once.
+	set option_list [lrange [lsort $option_list] end end]
     }
 
     return $option_list

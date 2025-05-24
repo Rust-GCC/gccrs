@@ -1,5 +1,5 @@
 /* Target macros for the FRV port of GCC.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    Contributed by Red Hat Inc.
 
    This file is part of GCC.
@@ -366,9 +366,6 @@
 #define INT_TYPE_SIZE         32
 #define LONG_TYPE_SIZE        32
 #define LONG_LONG_TYPE_SIZE   64
-#define FLOAT_TYPE_SIZE       32
-#define DOUBLE_TYPE_SIZE      64
-#define LONG_DOUBLE_TYPE_SIZE 64
 
 /* An expression whose value is 1 or 0, according to whether the type `char'
    should be signed or unsigned by default.  The user can always override this

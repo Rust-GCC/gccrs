@@ -1,5 +1,5 @@
 /* Basic IPA optimizations based on profile.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
      node corresponding to the target and produce a speculative call.
 
      This call may or may not survive through IPA optimization based on decision
-     of inliner. 
+     of inliner.
    - Finally we propagate the following flags: unlikely executed, executed
      once, executed at startup and executed at exit.  These flags are used to
      control code size/performance threshold and code placement (by producing
@@ -138,7 +138,7 @@ dump_histogram (FILE *file, vec<histogram_entry *> histogram)
   unsigned int i;
   gcov_type overall_time = 0, cumulated_time = 0, cumulated_size = 0,
 	    overall_size = 0;
-  
+
   fprintf (dump_file, "Histogram:\n");
   for (i = 0; i < histogram.length (); i++)
     {
@@ -803,7 +803,7 @@ ipa_profile (void)
 	      cumulated_size += histogram[i]->size;
 	    }
 	  fprintf (dump_file, "Determined min count: %" PRId64
-		   " Time:%3.2f%% Size:%3.2f%%\n", 
+		   " Time:%3.2f%% Size:%3.2f%%\n",
 		   (int64_t)threshold,
 		   cumulated_time * 100.0 / overall_time,
 		   cumulated_size * 100.0 / overall_size);
@@ -881,13 +881,6 @@ ipa_profile (void)
 			    fprintf (dump_file,
 				     "Not speculating: "
 				     "probability is too low.\n");
-			}
-		      else if (!e->maybe_hot_p ())
-			{
-			  nuseless++;
-			  if (dump_file)
-			    fprintf (dump_file,
-				     "Not speculating: call is cold.\n");
 			}
 		      else if (n2->get_availability () <= AVAIL_INTERPOSABLE
 			       && n2->can_be_discarded_p ())

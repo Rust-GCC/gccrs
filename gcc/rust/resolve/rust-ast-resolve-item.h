@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -153,8 +153,7 @@ private:
 #if CHECKING_P
 
 namespace selftest {
-extern void
-rust_simple_path_resolve_test (void);
+extern void rust_simple_path_resolve_test (void);
 } // namespace selftest
 
 #endif // CHECKING_P

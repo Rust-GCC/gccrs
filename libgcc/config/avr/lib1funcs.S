@@ -1,5 +1,5 @@
 /*  -*- Mode: Asm -*-  */
-/* Copyright (C) 1998-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1998-2025 Free Software Foundation, Inc.
    Contributed by Denis Chertykov <chertykov@gmail.com>
 
 This file is free software; you can redistribute it and/or modify it
@@ -80,6 +80,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #endif
 .endm
 
+.macro	mov4  r_dest, r_src
+    wmov \r_dest,   \r_src
+    wmov \r_dest+2, \r_src+2
+.endm
+
 #if defined (__AVR_HAVE_JMP_CALL__)
 #define XCALL call
 #define XJMP  jmp
@@ -95,6 +100,20 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define XICALL icall
 #define XIJMP  ijmp
 #endif
+
+;;; [R]JMP to label \labl when \reg is positive (\reg.7 = 0).
+;;; Otherwise, fallthrough.
+.macro  .branch_plus    reg, labl
+#ifdef __AVR_ERRATA_SKIP_JMP_CALL__
+    ;; Some cores have a problem skipping 2-word instructions
+    tst     \reg
+    brmi    .L..\@
+#else
+    sbrs    \reg, 7
+#endif /* skip erratum */
+    XJMP    \labl
+.L..\@:
+.endm ; .branch_plus
 
 ;; Prologue stuff
 
@@ -376,45 +395,57 @@ ENDF  __mulhi3
 
 #if defined (L_umulhisi3)
 DEFUN __umulhisi3
+#ifdef __AVR_TINY__
+    ;; Save callee saved regs.
+    push    B0
+    push    B1
+#endif /* AVR_TINY */
     wmov    B0, 24
     ;; Zero-extend B
     clr     B2
     clr     B3
     ;; Zero-extend A
     wmov    A2, B2
+#ifdef __AVR_TINY__
+    ;; Clear hi16 of the result so we can use __mulsi3_helper.
+    wmov    CC2, B2
+    XJMP    __mulsi3_helper
+#else
     XJMP    __mulsi3
+#endif /* AVR_TINY? */
 ENDF __umulhisi3
 #endif /* L_umulhisi3 */
 
 #if defined (L_mulhisi3)
 DEFUN __mulhisi3
+#ifdef __AVR_TINY__
+    ;; Save callee saved regs.
+    push    B0
+    push    B1
+#endif /* AVR_TINY */
     wmov    B0, 24
     ;; Sign-extend B
     lsl     r25
     sbc     B2, B2
     mov     B3, B2
-#ifdef __AVR_ERRATA_SKIP_JMP_CALL__
-    ;; Sign-extend A
-    clr     A2
-    sbrc    A1, 7
-    com     A2
-    mov     A3, A2
-    XJMP __mulsi3
-#else /*  no __AVR_ERRATA_SKIP_JMP_CALL__ */
     ;; Zero-extend A and __mulsi3 will run at least twice as fast
     ;; compared to a sign-extended A.
     clr     A2
     clr     A3
+    ;; Clear hi16 of the result so we can use __mulsi3_helper.
+    wmov    CC2, A2
     sbrs    A1, 7
-    XJMP __mulsi3
+#ifdef __AVR_ERRATA_SKIP_JMP_CALL__
+    rjmp 1f
+#else
+    XJMP    __mulsi3_helper
+#endif /* ERRATA_SKIP */
     ;; If  A < 0  then perform the  B * 0xffff.... before the
     ;; very multiplication by initializing the high part of the
     ;; result CC with -B.
-    wmov    CC2, A2
     sub     CC2, B0
     sbc     CC3, B1
-    XJMP __mulsi3_helper
-#endif /*  __AVR_ERRATA_SKIP_JMP_CALL__ */
+1:  XJMP    __mulsi3_helper
 ENDF __mulhisi3
 #endif /* L_mulhisi3 */
 
@@ -562,19 +593,12 @@ DEFUN __umulhisi3
     mul     A1, B1
     movw    C2, r0
     mul     A0, B1
-#ifdef __AVR_HAVE_JMP_CALL__
-    ;; This function is used by many other routines, often multiple times.
-    ;; Therefore, if the flash size is not too limited, avoid the RCALL
-    ;; and inverst 6 Bytes to speed things up.
     add     C1, r0
     adc     C2, r1
     clr     __zero_reg__
     adc     C3, __zero_reg__
-#else
-    rcall   1f
-#endif
     mul     A1, B0
-1:  add     C1, r0
+    add     C1, r0
     adc     C2, r1
     clr     __zero_reg__
     adc     C3, __zero_reg__
@@ -1339,9 +1363,9 @@ ENDF __umulsidi3
 
 #if defined (L_udivmodqi4)
 DEFUN __udivmodqi4
-	sub	r_rem,r_rem	; clear remainder and carry
-	ldi	r_cnt,9		; init loop counter
-	rjmp	__udivmodqi4_ep	; jump to entry point
+	clr	r_rem		; clear remainder
+	ldi	r_cnt,8		; init loop counter
+	lsl	r_arg1		; shift dividend
 __udivmodqi4_loop:
 	rol	r_rem		; shift dividend into remainder
 	cp	r_rem,r_arg2	; compare remainder & divisor
@@ -2591,7 +2615,82 @@ ENDF __load_4
 
 #define HHI8  21
 
-.macro  .xload dest, n
+#if defined (L_xload_1)
+DEFUN __xload_1
+#if defined (__AVR_HAVE_LPMX__) && !defined (__AVR_HAVE_ELPM__)
+    sbrc    HHI8, 7
+    ld      D0, Z
+    sbrs    HHI8, 7
+    lpm     D0, Z
+    ret
+#else
+    .branch_plus HHI8, __fload_1
+    ld      D0, Z
+    ret
+#endif /* LPMx && ! ELPM */
+ENDF __xload_1
+#endif /* L_xload_1 */
+
+#if defined (L_xload_2)
+DEFUN __xload_2
+    .branch_plus HHI8, __fload_2
+    ld      D0, Z+
+    ld      D1, Z+
+    ret
+ENDF __xload_2
+#endif /* L_xload_2 */
+
+#if defined (L_xload_3)
+DEFUN __xload_3
+    .branch_plus HHI8, __fload_3
+    ld      D0, Z+
+    ld      D1, Z+
+    ld      D2, Z+
+    ret
+ENDF __xload_3
+#endif /* L_xload_3 */
+
+#if defined (L_xload_4)
+DEFUN __xload_4
+    .branch_plus HHI8, __fload_4
+    ld      D0, Z+
+    ld      D1, Z+
+    ld      D2, Z+
+    ld      D3, Z+
+    ret
+ENDF __xload_4
+#endif /* L_xload_4 */
+
+#endif /* L_xload_{1|2|3|4} */
+#endif /* if !defined (__AVR_TINY__) */
+
+#if !defined (__AVR_TINY__)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Loading n bytes from Flash;  n = 1,2,3,4
+;; R22... = Flash[R21:Z]
+;; Clobbers: __tmp_reg__, R21, R30, R31
+
+#if (defined (L_fload_1)            \
+     || defined (L_fload_2)         \
+     || defined (L_fload_3)         \
+     || defined (L_fload_4))
+
+;; Destination
+#define D0  22
+#define D1  D0+1
+#define D2  D0+2
+#define D3  D0+3
+
+;; Register containing bits 16+ of the address
+
+#define HHI8  21
+
+.macro  .fload dest, n
+#if defined (__AVR_HAVE_ELPM__)
+.if \dest == D0
+    out     __RAMPZ__, HHI8
+.endif
+#endif /* __AVR_HAVE_ELPM__ */
 #if defined (__AVR_HAVE_ELPMX__)
     elpm    \dest, Z+
 #elif defined (__AVR_HAVE_ELPM__)
@@ -2617,90 +2716,71 @@ ENDF __load_4
     out     __RAMPZ__, __zero_reg__
 .endif
 #endif
-.endm ; .xload
+.endm ; .fload
 
-#if defined (L_xload_1)
-DEFUN __xload_1
+#if defined (L_fload_1)
+DEFUN __fload_1
 #if defined (__AVR_HAVE_LPMX__) && !defined (__AVR_HAVE_ELPM__)
-    sbrc    HHI8, 7
-    ld      D0, Z
-    sbrs    HHI8, 7
     lpm     D0, Z
     ret
 #else
-    sbrc    HHI8, 7
-    rjmp    1f
-#if defined (__AVR_HAVE_ELPM__)
-    out     __RAMPZ__, HHI8
-#endif /* __AVR_HAVE_ELPM__ */
-    .xload  D0, 1
-    ret
-1:  ld      D0, Z
+    .fload  D0, 1
     ret
 #endif /* LPMx && ! ELPM */
-ENDF __xload_1
-#endif /* L_xload_1 */
+ENDF __fload_1
+#endif /* L_fload_1 */
 
-#if defined (L_xload_2)
-DEFUN __xload_2
-    sbrc    HHI8, 7
-    rjmp    1f
-#if defined (__AVR_HAVE_ELPM__)
-    out     __RAMPZ__, HHI8
-#endif /* __AVR_HAVE_ELPM__ */
-    .xload  D0, 2
-    .xload  D1, 2
+#if defined (L_fload_2)
+DEFUN __fload_2
+    .fload  D0, 2
+    .fload  D1, 2
     ret
-1:  ld      D0, Z+
-    ld      D1, Z+
-    ret
-ENDF __xload_2
-#endif /* L_xload_2 */
+ENDF __fload_2
+#endif /* L_fload_2 */
 
-#if defined (L_xload_3)
-DEFUN __xload_3
-    sbrc    HHI8, 7
-    rjmp    1f
-#if defined (__AVR_HAVE_ELPM__)
-    out     __RAMPZ__, HHI8
-#endif /* __AVR_HAVE_ELPM__ */
-    .xload  D0, 3
-    .xload  D1, 3
-    .xload  D2, 3
+#if defined (L_fload_3)
+DEFUN __fload_3
+    .fload  D0, 3
+    .fload  D1, 3
+    .fload  D2, 3
     ret
-1:  ld      D0, Z+
-    ld      D1, Z+
-    ld      D2, Z+
-    ret
-ENDF __xload_3
-#endif /* L_xload_3 */
+ENDF __fload_3
+#endif /* L_fload_3 */
 
-#if defined (L_xload_4)
-DEFUN __xload_4
-    sbrc    HHI8, 7
-    rjmp    1f
-#if defined (__AVR_HAVE_ELPM__)
-    out     __RAMPZ__, HHI8
-#endif /* __AVR_HAVE_ELPM__ */
-    .xload  D0, 4
-    .xload  D1, 4
-    .xload  D2, 4
-    .xload  D3, 4
+#if defined (L_fload_4)
+DEFUN __fload_4
+    .fload  D0, 4
+    .fload  D1, 4
+    .fload  D2, 4
+    .fload  D3, 4
     ret
-1:  ld      D0, Z+
-    ld      D1, Z+
-    ld      D2, Z+
-    ld      D3, Z+
-    ret
-ENDF __xload_4
-#endif /* L_xload_4 */
+ENDF __fload_4
+#endif /* L_fload_4 */
 
-#endif /* L_xload_{1|2|3|4} */
+#endif /* L_fload_{1|2|3|4} */
 #endif /* if !defined (__AVR_TINY__) */
+
+
+#if !defined (__AVR_TINY__)
+#if defined (L_strlen_memx)
+DEFUN __strlen_memx
+#ifdef __AVR_ERRATA_SKIP_JMP_CALL__
+    tst     r24
+    brmi 1f
+#else
+    sbrs    r24, 7
+#endif
+    XJMP    strlen_PF           ; AVR-LibC
+1:  wmov    24, 22
+    XJMP    strlen              ; AVR-LibC
+ENDF __strlen_memx
+#endif /* L_strlen_memx */
+#endif /* if !defined (__AVR_TINY__) */
+
 
 #if !defined (__AVR_TINY__)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; memcopy from Address Space __pgmx to RAM
+;; memcopy from Address Space __memx to RAM
 ;; R23:Z = Source Address
 ;; X     = Destination Address
 ;; Clobbers: __tmp_reg__, R23, R24, R25, X, Z
@@ -2711,7 +2791,7 @@ ENDF __xload_4
 #define LOOP  24
 
 DEFUN __movmemx_qi
-    ;; #Bytes to copy fity in 8 Bits (1..255)
+    ;; #Bytes to copy fits in 8 Bits (1..255)
     ;; Zero-extend Loop Counter
     clr     LOOP+1
     ;; FALLTHRU
@@ -2719,9 +2799,41 @@ ENDF __movmemx_qi
 
 DEFUN __movmemx_hi
 
-;; Read from where?
-    sbrc    HHI8, 7
-    rjmp    1f
+    .branch_plus    HHI8, __movmemf_hi
+
+    ;; Read 1 Byte from RAM...
+1:  ld      r0, Z+
+    ;; and store that Byte to RAM Destination
+    st      X+, r0
+    sbiw    LOOP, 1
+    brne    1b
+    ret
+ENDF __movmemx_hi
+
+#undef HHI8
+#undef LOOP
+
+#endif /* L_movmemx */
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; memcopy from Address Space __flashx to RAM
+;; R23:Z = Source Address
+;; X     = Destination Address
+;; Clobbers: __tmp_reg__, R23, R24, R25, X, Z
+
+#if defined (L_movmemf)
+
+#define HHI8  23
+#define LOOP  24
+
+DEFUN __movmemf_qi
+    ;; #Bytes to copy fits in 8 Bits (1..255)
+    ;; Zero-extend Loop Counter
+    clr     LOOP+1
+    ;; FALLTHRU
+ENDF __movmemf_qi
+
+DEFUN __movmemf_hi
 
 ;; Read from Flash
 
@@ -2754,22 +2866,12 @@ DEFUN __movmemx_hi
     out	__RAMPZ__, __zero_reg__
 #endif /* ELPM && RAMPD */
     ret
-
-;; Read from RAM
-
-1:  ;; Read 1 Byte from RAM...
-    ld      r0, Z+
-    ;; and store that Byte to RAM Destination
-    st      X+, r0
-    sbiw    LOOP, 1
-    brne    1b
-    ret
-ENDF __movmemx_hi
+ENDF __movmemf_hi
 
 #undef HHI8
 #undef LOOP
 
-#endif /* L_movmemx */
+#endif /* L_movmemf */
 #endif /* !defined (__AVR_TINY__) */ 
 
 
@@ -2916,11 +3018,9 @@ DEFUN __clzhi2
     clr  r26
     tst  r25
     brne 1f
-    subi r26, -8
     or   r25, r24
-    brne 1f
-    ldi  r24, 16
-    ret
+    breq 0f
+    subi r26, -8
 1:  cpi  r25, 16
     brsh 3f
     subi r26, -3
@@ -2930,6 +3030,8 @@ DEFUN __clzhi2
     brcc 2b
     mov  r24, r26
     clr  r25
+    ret
+0:  ldi  r24, 16
     ret
 ENDF __clzhi2
 #endif /* defined (L_clzhi2) */
@@ -3050,21 +3152,21 @@ ENDF __popcountdi2
 ;; r24 = popcount8 (r24)
 ;; clobbers: __tmp_reg__
 DEFUN __popcountqi2
-    mov  __tmp_reg__, r24
-    andi r24, 1
-    lsr  __tmp_reg__
-    lsr  __tmp_reg__
-    adc  r24, __zero_reg__
-    lsr  __tmp_reg__
-    adc  r24, __zero_reg__
-    lsr  __tmp_reg__
-    adc  r24, __zero_reg__
-    lsr  __tmp_reg__
-    adc  r24, __zero_reg__
-    lsr  __tmp_reg__
-    adc  r24, __zero_reg__
-    lsr  __tmp_reg__
-    adc  r24, __tmp_reg__
+    mov  __tmp_reg__, r24    ; oeoeoeoe
+    andi r24, 0xAA           ; o0o0o0o0
+    lsr  r24                 ; 0o0o0o0o
+    ;; Four values 0, 1 or 2: # bits set o+e
+    sub  __tmp_reg__, r24    ; 44332211
+    mov  r24, __tmp_reg__    ; 44332211
+    andi r24, 0x33           ; 00330011
+    eor  __tmp_reg__, r24    ; 44002200
+    lsr  __tmp_reg__         ; 04400220
+    lsr  __tmp_reg__         ; 00440022
+    add  r24, __tmp_reg__    ; 04210421
+    mov  __tmp_reg__, r24    ; h421l421
+    swap __tmp_reg__         ; l421h421
+    add  r24, __tmp_reg__    ; 84218421
+    andi r24, 0xf            ; 00008421 /17
     ret
 ENDF __popcountqi2
 #endif /* defined (L_popcountqi2) */
@@ -3311,5 +3413,154 @@ ENDF __fmul
 #undef B1
 #undef C0
 #undef C1
+
+
+
+/**********************************
+ * Floating-Point
+ **********************************/
+
+#if defined (L_powif)
+#ifndef __AVR_TINY__
+
+;; float output and arg #1
+#define A0      22
+#define A1      A0 + 1
+#define A2      A0 + 2
+#define A3      A0 + 3
+
+;; float arg #2
+#define B0      18
+#define B1      B0 + 1
+#define B2      B0 + 2
+#define B3      B0 + 3
+
+;; float X: input and iterated squares
+#define X0      10
+#define X1      X0 + 1
+#define X2      X0 + 2
+#define X3      X0 + 3
+
+;; float Y: expand result
+#define Y0      14
+#define Y1      Y0 + 1
+#define Y2      Y0 + 2
+#define Y3      Y0 + 3
+
+;; .7 = Sign of I.
+;; .0 == 0  =>  Y = 1.0f implicitly.
+#define Flags       R9
+#define Y_set       0
+
+;;;  Integer exponent input.
+#define I0      28
+#define I1      I0+1
+
+#define ONE     0x3f800000
+
+DEFUN __powisf2
+    ;; Save 11 Registers: R9...R17, R28, R29
+    do_prologue_saves 11
+
+    ;; Fill local vars with input parameters.
+    wmov    I0, 20
+    mov4    X0, A0
+    ;; Save sign of exponent for later.
+    mov     Flags,  I1
+    ;; I := abs (I)
+    tst     I1
+    brpl 1f
+    NEG2    I0
+1:
+    ;; Y := (I % 2) ? X : 1.0f
+    ;; (When we come from below, this is like SET, i.e. Flags.Y_set := 1).
+    bst     I0, 0
+    ;; Flags.Y_set = false means that we have to assume Y = 1.0f below.
+    bld     Flags,  Y_set
+2:  ;; We have A == X when we come from above.
+    mov4    Y0, A0
+
+.Loop:
+    ;; while (I >>= 1)
+    lsr     I1
+    ror     I0
+    sbiw    I0, 0
+    breq .Loop_done
+
+    ;; X := X * X
+    mov4    A0, X0
+#ifdef __WITH_AVRLIBC__
+    XCALL   squaref
+#else
+    mov4    B0, X0
+    XCALL   __mulsf3
+#endif /* Have AVR-LibC? */
+    mov4    X0, A0
+
+    ;; if (I % 2 == 1)  Y := Y * X
+    bst     I0, 0
+    brtc .Loop
+    bst     Flags, Y_set
+    ;; When Y is not set  =>  Y := Y * X = 1.0f * X (= A)
+    ;; Plus, we have to set Y_set = 1 (= I0.0)
+    brtc 1b
+    ;; Y is already set: Y := X * Y (= A * Y)
+    mov4    B0, Y0
+    XCALL   __mulsf3
+    rjmp 2b
+
+    ;; End while
+.Loop_done:
+
+    ;; A := 1.0f
+    ldi     A3, hhi8(ONE)
+    ldi     A2, hlo8(ONE)
+    ldi     A1, hi8(ONE)
+    ldi     A0, lo8(ONE)
+
+    ;; When Y is still not set, the result is 1.0f (= A).
+    bst     Flags, Y_set
+    brtc .Lret
+
+    ;; if (I was < 0) Y = 1.0f / Y
+    tst     Flags
+    brmi 1f
+    ;; A := Y
+    mov4    A0, Y0
+    rjmp .Lret
+1:  ;; A := 1 / Y = A / Y
+    mov4    B0, Y0
+    XCALL   __divsf3
+
+.Lret:
+    do_epilogue_restores 11
+ENDF __powisf2
+
+#undef A0
+#undef A1
+#undef A2
+#undef A3
+
+#undef B0
+#undef B1
+#undef B2
+#undef B3
+
+#undef X0
+#undef X1
+#undef X2
+#undef X3
+
+#undef Y0
+#undef Y1
+#undef Y2
+#undef Y3
+
+#undef I0
+#undef I1
+#undef ONE
+
+#endif /* __AVR_TINY__ */
+#endif /* L_powif */
 
 #include "lib1funcs-fixed.S"

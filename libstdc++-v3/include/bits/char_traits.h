@@ -1,6 +1,6 @@
 // Character Traits for use by standard string and iostream -*- C++ -*-
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,7 +34,9 @@
 #ifndef _CHAR_TRAITS_H
 #define _CHAR_TRAITS_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 
@@ -105,7 +107,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *
    *  See https://gcc.gnu.org/onlinedocs/libstdc++/manual/strings.html#strings.string.character_types
    *  for advice on how to make use of this class for @a unusual character
-   *  types. Also, check out include/ext/pod_char_traits.h.  
+   *  types. Also, check out include/ext/pod_char_traits.h.
    */
   template<typename _CharT>
     struct char_traits
@@ -282,7 +284,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 #endif
 
-      if _GLIBCXX17_CONSTEXPR (sizeof(_CharT) == 1 && __is_trivial(_CharT))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
+      if _GLIBCXX_CONSTEXPR (sizeof(_CharT) == 1 && __is_trivial(_CharT))
 	{
 	  if (__n)
 	    {
@@ -296,6 +300,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  for (std::size_t __i = 0; __i < __n; ++__i)
 	    __s[__i] = __a;
 	}
+#pragma GCC diagnostic pop
       return __s;
     }
 
@@ -651,10 +656,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	if (std::__is_constant_evaluated())
 	  return __gnu_cxx::char_traits<char_type>::length(__s);
 #endif
-	size_t __i = 0;
-	while (!eq(__s[__i], char_type()))
-	  ++__i;
-	return __i;
+	return __builtin_strlen((const char*)__s);
       }
 
       static _GLIBCXX17_CONSTEXPR const char_type*
@@ -946,7 +948,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       static _GLIBCXX20_CONSTEXPR char_type*
       copy(char_type* __s1, const char_type* __s2, size_t __n)
-      { 
+      {
 	if (__n == 0)
 	  return __s1;
 #if __cplusplus >= 202002L

@@ -1,6 +1,6 @@
 (* M2GCCDeclare.def declares Modula-2 types to GCC.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -31,7 +31,8 @@ DEFINITION MODULE M2GCCDeclare ;
 *)
 
 FROM SYSTEM IMPORT WORD ;
-FROM m2tree IMPORT Tree ;
+FROM gcctypes IMPORT tree ;
+FROM M2BasicBlock IMPORT BasicBlock ;
 
 TYPE
    WalkAction = PROCEDURE (WORD) ;
@@ -42,7 +43,7 @@ TYPE
    FoldConstants - a wrapper for ResolveConstantExpressions.
 *)
 
-PROCEDURE FoldConstants (start, end: CARDINAL) ;
+PROCEDURE FoldConstants (bb: BasicBlock) ;
 
 
 (*
@@ -89,6 +90,15 @@ PROCEDURE DeclareConstructor (tokenno: CARDINAL; quad: CARDINAL; sym: CARDINAL) 
 *)
 
 PROCEDURE TryDeclareConstant (tokenno: CARDINAL; sym: CARDINAL) ;
+
+
+(*
+   TryDeclareType - try and declare a type.  If sym is a
+                    type try and declare it, if we cannot
+                    then enter it into the to do list.
+*)
+
+PROCEDURE TryDeclareType (type: CARDINAL) ;
 
 
 (*
@@ -158,7 +168,7 @@ PROCEDURE PoisonSymbols (sym: CARDINAL) ;
                           return a string constant.
 *)
 
-PROCEDURE PromoteToString (tokenno: CARDINAL; sym: CARDINAL) : Tree ;
+PROCEDURE PromoteToString (tokenno: CARDINAL; sym: CARDINAL) : tree ;
 
 
 (*
@@ -169,7 +179,7 @@ PROCEDURE PromoteToString (tokenno: CARDINAL; sym: CARDINAL) : Tree ;
                           return a string constant.
 *)
 
-PROCEDURE PromoteToCString (tokenno: CARDINAL; sym: CARDINAL) : Tree ;
+PROCEDURE PromoteToCString (tokenno: CARDINAL; sym: CARDINAL) : tree ;
 
 
 (*
@@ -185,7 +195,7 @@ PROCEDURE CompletelyResolved (sym: CARDINAL) : BOOLEAN ;
    ConstantKnownAndUsed -
 *)
 
-PROCEDURE ConstantKnownAndUsed (sym: CARDINAL; t: Tree) ;
+PROCEDURE ConstantKnownAndUsed (sym: CARDINAL; t: tree) ;
 
 
 (*
@@ -221,6 +231,27 @@ PROCEDURE GetTypeMax (type: CARDINAL) : CARDINAL ;
 *)
 
 PROCEDURE PrintSym (sym: CARDINAL) ;
+
+
+(*
+   IncludeDumpSymbol - include sym into the watch list and all syms dependants.
+*)
+
+PROCEDURE IncludeDumpSymbol (sym: CARDINAL) ;
+
+
+(*
+   DumpFilteredResolver - dumps the gimple or tree representation of all watched symbols.
+*)
+
+PROCEDURE DumpFilteredResolver ;
+
+
+(*
+   DumpFilteredDefinitive - dumps the gimple or tree representation of all watched symbols.
+*)
+
+PROCEDURE DumpFilteredDefinitive ;
 
 
 (*

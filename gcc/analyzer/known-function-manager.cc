@@ -1,5 +1,5 @@
 /* Support for plugin-supplied behaviors of known functions.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,17 +18,12 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "analyzer/analyzer.h"
+#include "analyzer/common.h"
+
 #include "diagnostic-core.h"
-#include "analyzer/analyzer-logging.h"
 #include "stringpool.h"
-#include "basic-block.h"
-#include "gimple.h"
+
+#include "analyzer/analyzer-logging.h"
 #include "analyzer/known-function-manager.h"
 #include "analyzer/region-model.h"
 #include "analyzer/call-details.h"
@@ -50,6 +45,8 @@ known_function_manager::~known_function_manager ()
   /* Delete all owned kfs.  */
   for (auto iter : m_map_id_to_kf)
     delete iter.second;
+  for (auto iter : m_std_ns_map_id_to_kf)
+    delete iter.second;
   for (auto iter : m_combined_fns_arr)
     delete iter;
 }
@@ -61,6 +58,15 @@ known_function_manager::add (const char *name,
   LOG_FUNC_1 (get_logger (), "registering %s", name);
   tree id = get_identifier (name);
   m_map_id_to_kf.put (id, kf.release ());
+}
+
+void
+known_function_manager::add_std_ns (const char *name,
+			     std::unique_ptr<known_function> kf)
+{
+  LOG_FUNC_1 (get_logger (), "registering std::%s", name);
+  tree id = get_identifier (name);
+  m_std_ns_map_id_to_kf.put (id, kf.release ());
 }
 
 void
@@ -97,14 +103,23 @@ known_function_manager::get_match (tree fndecl, const call_details &cd) const
     {
       if (const known_function *candidate
 	  = get_normal_builtin (DECL_FUNCTION_CODE (fndecl)))
-	if (gimple_builtin_call_types_compatible_p (cd.get_call_stmt (),
+	if (gimple_builtin_call_types_compatible_p (&cd.get_call_stmt (),
 						    fndecl))
 	  return candidate;
     }
 
   /* Look for a match by name.  */
 
-  /* Reject fndecls that aren't in the root namespace.  */
+  if (is_std_function_p (fndecl))
+    {
+      if (tree identifier = DECL_NAME (fndecl))
+	if (const known_function *candidate
+	      = get_by_identifier_in_std_ns (identifier))
+	  if (candidate->matches_call_types_p (cd))
+	    return candidate;
+      return nullptr;
+    }
+
   if (DECL_CONTEXT (fndecl)
       && TREE_CODE (DECL_CONTEXT (fndecl)) != TRANSLATION_UNIT_DECL)
     return NULL;
@@ -157,6 +172,22 @@ known_function_manager::get_by_identifier (tree identifier) const
   else
     return NULL;
 }
+
+/* Get any known_function in C++ std:: namespace matching IDENTIFIER, without
+   type-checking.
+   Return nullptr if there isn't one.  */
+
+const known_function *
+known_function_manager::get_by_identifier_in_std_ns (tree identifier) const
+{
+  known_function_manager *mut_this = const_cast<known_function_manager *>(this);
+  known_function **slot = mut_this->m_std_ns_map_id_to_kf.get (identifier);
+  if (slot)
+    return *slot;
+  else
+    return nullptr;
+}
+
 
 } // namespace ana
 

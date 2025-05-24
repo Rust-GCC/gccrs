@@ -1,5 +1,5 @@
 /* RTL dead store elimination.
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
    Contributed by Richard Sandiford <rsandifor@codesourcery.com>
    and Kenneth Zadeck <zadeck@naturalbridge.com>
@@ -814,8 +814,7 @@ emit_inc_dec_insn_before (rtx mem ATTRIBUTE_UNUSED,
     {
       start_sequence ();
       emit_insn (gen_add3_insn (dest, src, srcoff));
-      new_insn = get_insns ();
-      end_sequence ();
+      new_insn = end_sequence ();
     }
   else
     new_insn = gen_move_insn (dest, src);
@@ -1190,7 +1189,10 @@ canon_address (rtx mem,
       address = strip_offset_and_add (address, offset);
 
       if (ADDR_SPACE_GENERIC_P (MEM_ADDR_SPACE (mem))
-	  && const_or_frame_p (address))
+	  && const_or_frame_p (address)
+	  /* Literal addresses can alias any base, avoid creating a
+	     group for them.  */
+	  && ! CONST_SCALAR_INT_P (address))
 	{
 	  group_info *group = get_group_info (address);
 
@@ -1717,12 +1719,12 @@ dump_insn_info (const char * start, insn_info_t insn_info)
    line up, we need to extract the value from lower part of the rhs of
    the store, shift it, and then put it into a form that can be shoved
    into the read_insn.  This function generates a right SHIFT of a
-   value that is at least ACCESS_SIZE bytes wide of READ_MODE.  The
+   value that is at least ACCESS_BYTES bytes wide of READ_MODE.  The
    shift sequence is returned or NULL if we failed to find a
    shift.  */
 
 static rtx
-find_shift_sequence (poly_int64 access_size,
+find_shift_sequence (poly_int64 access_bytes,
 		     store_info *store_info,
 		     machine_mode read_mode,
 		     poly_int64 shift, bool speed, bool require_cst)
@@ -1734,10 +1736,11 @@ find_shift_sequence (poly_int64 access_size,
   /* If a constant was stored into memory, try to simplify it here,
      otherwise the cost of the shift might preclude this optimization
      e.g. at -Os, even when no actual shift will be needed.  */
+  auto access_bits = access_bytes * BITS_PER_UNIT;
   if (store_info->const_rhs
-      && known_le (access_size, GET_MODE_SIZE (MAX_MODE_INT)))
+      && known_le (access_bytes, GET_MODE_SIZE (MAX_MODE_INT))
+      && smallest_int_mode_for_size (access_bits).exists (&new_mode))
     {
-      auto new_mode = smallest_int_mode_for_size (access_size * BITS_PER_UNIT);
       auto byte = subreg_lowpart_offset (new_mode, store_mode);
       rtx ret
 	= simplify_subreg (new_mode, store_info->const_rhs, store_mode, byte);
@@ -1809,7 +1812,7 @@ find_shift_sequence (poly_int64 access_size,
 	    }
 	}
 
-      if (maybe_lt (GET_MODE_SIZE (new_mode), access_size))
+      if (maybe_lt (GET_MODE_SIZE (new_mode), access_bytes))
 	continue;
 
       new_reg = gen_reg_rtx (new_mode);
@@ -1823,8 +1826,7 @@ find_shift_sequence (poly_int64 access_size,
 			     gen_int_shift_amount (new_mode, shift),
 			     new_reg, 1, OPTAB_DIRECT);
 
-      shift_seq = get_insns ();
-      end_sequence ();
+      shift_seq = end_sequence ();
 
       if (target != new_reg || shift_seq == NULL)
 	continue;
@@ -1838,8 +1840,8 @@ find_shift_sequence (poly_int64 access_size,
 	 of the arguments and could be precomputed.  It may
 	 not be worth doing so.  We could precompute if
 	 worthwhile or at least cache the results.  The result
-	 technically depends on both SHIFT and ACCESS_SIZE,
-	 but in practice the answer will depend only on ACCESS_SIZE.  */
+	 technically depends on both SHIFT and ACCESS_BYTES,
+	 but in practice the answer will depend only on ACCESS_BYTES.  */
 
       if (cost > COSTS_N_INSNS (1))
 	continue;
@@ -1946,7 +1948,9 @@ get_stored_val (store_info *store_info, machine_mode read_mode,
 				 copy_rtx (store_info->const_rhs));
   else if (VECTOR_MODE_P (read_mode) && VECTOR_MODE_P (store_mode)
     && known_le (GET_MODE_BITSIZE (read_mode), GET_MODE_BITSIZE (store_mode))
-    && targetm.modes_tieable_p (read_mode, store_mode))
+    && targetm.modes_tieable_p (read_mode, store_mode)
+    && validate_subreg (read_mode, store_mode, copy_rtx (store_info->rhs),
+			subreg_lowpart_offset (read_mode, store_mode)))
     read_reg = gen_lowpart (read_mode, copy_rtx (store_info->rhs));
   else
     read_reg = extract_low_bits (read_mode, store_mode,
@@ -2041,8 +2045,7 @@ replace_read (store_info *store_info, insn_info_t store_insn,
     }
   else
     read_reg = copy_to_mode_reg (read_mode, read_reg);
-  insns = get_insns ();
-  end_sequence ();
+  insns = end_sequence ();
 
   if (insns != NULL_RTX)
     {

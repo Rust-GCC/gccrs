@@ -1,5 +1,5 @@
 /* Optimization information.
-   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -83,10 +83,10 @@ optinfo::~optinfo ()
 /* Add ITEM to this optinfo.  */
 
 void
-optinfo::add_item (optinfo_item *item)
+optinfo::add_item (std::unique_ptr<optinfo_item> item)
 {
-  gcc_assert (item);
-  m_items.safe_push (item);
+  gcc_assert (item.get ());
+  m_items.safe_push (item.release ());
 }
 
 /* Get MSG_* flags corresponding to KIND.  */
@@ -122,7 +122,7 @@ optinfo::emit_for_opt_problem () const
   unsigned i;
   optinfo_item *item;
   FOR_EACH_VEC_ELT (m_items, i, item)
-    dump_context::get ().emit_item (item, dump_kind);
+    dump_context::get ().emit_item (*item, dump_kind);
 
   /* Re-emit to "non-immediate" destinations.  */
   dump_context::get ().emit_optinfo (this);

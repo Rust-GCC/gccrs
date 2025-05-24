@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -26,8 +26,7 @@ namespace Rust {
 /**
  * Get the Base62 representation of an integer
  */
-std::string
-base62_integer (uint64_t value);
+std::string base62_integer (uint64_t value);
 
 } // namespace Rust
 

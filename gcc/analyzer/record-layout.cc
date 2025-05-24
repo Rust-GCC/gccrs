@@ -1,5 +1,5 @@
 /* Implementation of class record_layout.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,18 +18,10 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "function.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "diagnostic-core.h"
-#include "diagnostic.h"
+#include "analyzer/common.h"
+
 #include "tree-diagnostic.h"
-#include "analyzer/analyzer.h"
+
 #include "analyzer/record-layout.h"
 
 #if ENABLE_ANALYZER
@@ -82,11 +74,8 @@ record_layout::dump_to_pp (pretty_printer *pp) const
 void
 record_layout::dump () const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp);
-  pp_flush (&pp);
 }
 
 const record_layout::item *
