@@ -618,10 +618,6 @@ Session::compile_crate (const char *filename)
 
   expansion (parsed_crate, name_resolution_ctx);
 
-  AST::DesugarForLoops ().go (parsed_crate);
-  AST::DesugarQuestionMark ().go (parsed_crate);
-  AST::DesugarApit ().go (parsed_crate);
-
   rust_debug ("\033[0;31mSUCCESSFULLY FINISHED EXPANSION \033[0m");
   if (options.dump_option_enabled (CompileOptions::EXPANSION_DUMP))
     {
@@ -966,6 +962,16 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
 
       if (saw_errors ())
 	break;
+
+      AST::DesugarForLoops ().go (crate);
+      AST::DesugarQuestionMark ().go (crate);
+      AST::DesugarApit ().go (crate);
+
+      // HACK: we may need a final TopLevel pass
+      // however, this should not count towards the recursion limit
+      // and we don't need a full Early pass
+      if (flag_name_resolution_2_0)
+	Resolver2_0::TopLevel (ctx).go (crate);
     }
 
   // Fixed point reached: Emit unresolved macros error
