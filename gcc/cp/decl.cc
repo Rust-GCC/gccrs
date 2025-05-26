@@ -846,11 +846,9 @@ poplevel (int keep, int reverse, int functionbody)
       DECL_INITIAL (current_function_decl) = block ? block : subblocks;
       if (subblocks)
 	{
-	  if (FUNCTION_NEEDS_BODY_BLOCK (current_function_decl))
-	    {
-	      if (BLOCK_SUBBLOCKS (subblocks))
-		BLOCK_OUTER_CURLY_BRACE_P (BLOCK_SUBBLOCKS (subblocks)) = 1;
-	    }
+	  if (FUNCTION_NEEDS_BODY_BLOCK (current_function_decl)
+	      && BLOCK_SUBBLOCKS (subblocks))
+	    BLOCK_OUTER_CURLY_BRACE_P (BLOCK_SUBBLOCKS (subblocks)) = 1;
 	  else
 	    BLOCK_OUTER_CURLY_BRACE_P (subblocks) = 1;
 	}
@@ -8899,6 +8897,9 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	  TREE_TYPE (decl) = error_mark_node;
 	  return;
 	}
+
+      /* Now that we have a type, try these again.  */
+      layout_decl (decl, 0);
       cp_apply_type_quals_to_decl (cp_type_quals (type), decl);
 
       /* Update the type of the corresponding TEMPLATE_DECL to match.  */

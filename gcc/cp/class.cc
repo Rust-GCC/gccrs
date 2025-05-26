@@ -5724,6 +5724,50 @@ type_has_user_provided_constructor (tree t)
   return false;
 }
 
+/* Returns true iff class T has a constructor that accepts a single argument
+   and does not have a single parameter of type reference to T.
+
+   This does not exclude explicit constructors because they are still
+   considered for conversions within { } even though choosing one is
+   ill-formed.  */
+
+bool
+type_has_converting_constructor (tree t)
+{
+  if (!CLASS_TYPE_P (t))
+    return false;
+
+  if (!TYPE_HAS_USER_CONSTRUCTOR (t))
+    return false;
+
+  for (ovl_iterator iter (CLASSTYPE_CONSTRUCTORS (t)); iter; ++iter)
+    {
+      tree fn = *iter;
+      tree parm = FUNCTION_FIRST_USER_PARMTYPE (fn);
+      if (parm == NULL_TREE)
+	/* Varargs.  */
+	return true;
+      if (parm == void_list_node
+	  || !sufficient_parms_p (TREE_CHAIN (parm)))
+	/* Can't accept a single argument, so won't be considered for
+	   conversion.  */
+	continue;
+      if (TREE_CODE (fn) == TEMPLATE_DECL
+	  || TREE_CHAIN (parm) != void_list_node)
+	/* Not a simple single parameter.  */
+	return true;
+      if (TYPE_MAIN_VARIANT (non_reference (TREE_VALUE (parm)))
+	  != DECL_CONTEXT (fn))
+	/* The single parameter has the wrong type.  */
+	return true;
+      if (get_constraints (fn))
+	/* Constrained.  */
+	return true;
+    }
+
+  return false;
+}
+
 /* Returns true iff class T has a user-provided or explicit constructor.  */
 
 bool
@@ -6413,9 +6457,7 @@ check_bases_and_members (tree t)
      Again, other conditions for being an aggregate are checked
      elsewhere.  */
   CLASSTYPE_NON_AGGREGATE (t)
-    |= ((cxx_dialect < cxx20
-	 ? type_has_user_provided_or_explicit_constructor (t)
-	 : TYPE_HAS_USER_CONSTRUCTOR (t))
+    |= (type_has_user_provided_or_explicit_constructor (t)
 	|| TYPE_POLYMORPHIC_P (t));
   /* This is the C++98/03 definition of POD; it changed in C++0x, but we
      retain the old definition internally for ABI reasons.  */
@@ -6435,6 +6477,20 @@ check_bases_and_members (tree t)
 	CLASSTYPE_NON_POD_AGGREGATE (t) = false;
       else if (abi_version_at_least (17))
 	CLASSTYPE_NON_LAYOUT_POD_P (t) = true;
+    }
+
+  /* P1008: Prohibit aggregates with user-declared constructors.  */
+  if (cxx_dialect >= cxx20 && TYPE_HAS_USER_CONSTRUCTOR (t))
+    {
+      CLASSTYPE_NON_AGGREGATE (t) = true;
+      if (!CLASSTYPE_NON_LAYOUT_POD_P (t))
+	{
+	  /* c++/120012: The C++20 aggregate change affected layout.  */
+	  if (!abi_version_at_least (21))
+	    CLASSTYPE_NON_LAYOUT_POD_P (t) = true;
+	  if (abi_version_crosses (21))
+	    CLASSTYPE_NON_AGGREGATE_POD (t) = true;
+	}
     }
 
   /* If the only explicitly declared default constructor is user-provided,
@@ -6809,7 +6865,8 @@ end_of_class (tree t, eoc_mode mode)
 static void
 check_non_pod_aggregate (tree field)
 {
-  if (!abi_version_crosses (17) || cxx_dialect < cxx14)
+  if ((!abi_version_crosses (17) || cxx_dialect < cxx14)
+      && (!abi_version_crosses (21) || cxx_dialect < cxx20))
     return;
   if (TREE_CODE (field) != FIELD_DECL
       || (!DECL_FIELD_IS_BASE (field)
@@ -6822,7 +6879,10 @@ check_non_pod_aggregate (tree field)
   tree type = TREE_TYPE (field);
   if (TYPE_IDENTIFIER (type) == as_base_identifier)
     type = TYPE_CONTEXT (type);
-  if (!CLASS_TYPE_P (type) || !CLASSTYPE_NON_POD_AGGREGATE (type))
+  if (!CLASS_TYPE_P (type)
+      || is_empty_class (type)
+      || (!CLASSTYPE_NON_POD_AGGREGATE (type)
+	  && !CLASSTYPE_NON_AGGREGATE_POD (type)))
     return;
   tree size = end_of_class (type, (DECL_FIELD_IS_BASE (field)
 				   ? eoc_nvsize : eoc_nv_or_dsize));
@@ -6831,13 +6891,31 @@ check_non_pod_aggregate (tree field)
     {
       location_t loc = DECL_SOURCE_LOCATION (next);
       if (DECL_FIELD_IS_BASE (next))
-	warning_at (loc, OPT_Wabi,"offset of %qT base class for "
-		    "%<-std=c++14%> and up changes in "
-		    "%<-fabi-version=17%> (GCC 12)", TREE_TYPE (next));
+	{
+	  if (abi_version_crosses (17)
+	      && CLASSTYPE_NON_POD_AGGREGATE (type))
+	    warning_at (loc, OPT_Wabi,"offset of %qT base class for "
+			"%<-std=c++14%> and up changes in "
+			"%<-fabi-version=17%> (GCC 12)", TREE_TYPE (next));
+	  else if (abi_version_crosses (21)
+		   && CLASSTYPE_NON_AGGREGATE_POD (type))
+	    warning_at (loc, OPT_Wabi,"offset of %qT base class for "
+			"%<-std=c++20%> and up changes in "
+			"%<-fabi-version=21%> (GCC 16)", TREE_TYPE (next));
+	}
       else
-	warning_at (loc, OPT_Wabi, "offset of %qD for "
-		    "%<-std=c++14%> and up changes in "
-		    "%<-fabi-version=17%> (GCC 12)", next);
+	{
+	  if (abi_version_crosses (17)
+	      && CLASSTYPE_NON_POD_AGGREGATE (type))
+	    warning_at (loc, OPT_Wabi, "offset of %qD for "
+			"%<-std=c++14%> and up changes in "
+			"%<-fabi-version=17%> (GCC 12)", next);
+	  else if (abi_version_crosses (21)
+		   && CLASSTYPE_NON_AGGREGATE_POD (type))
+	    warning_at (loc, OPT_Wabi, "offset of %qD for "
+			"%<-std=c++20%> and up changes in "
+			"%<-fabi-version=21%> (GCC 16)", next);
+	}
     }
 }
 

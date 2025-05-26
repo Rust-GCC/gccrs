@@ -679,8 +679,6 @@ ftms = {
   values = {
     v = 201703;
     cxxmin = 17;
-    hosted = yes;
-    gthread = yes;
   };
 };
 
@@ -959,6 +957,7 @@ ftms = {
 
 ftms = {
   name = make_obj_using_allocator;
+  no_stdname = true;
   values = {
     // Not specified by C++20, used internally
     v = 201811;
@@ -995,6 +994,15 @@ ftms = {
     v = 202002;
     cxxmin = 20;
     extra_cond = "__glibcxx_concepts";
+  };
+};
+
+ftms = {
+  name = mdspan;
+  no_stdname = true; // FIXME: remove
+  values = {
+    v = 1; // FIXME: 202207
+    cxxmin = 23;
   };
 };
 
@@ -1735,6 +1743,15 @@ ftms = {
   values = {
     v = 202110;
     cxxmin = 23;
+    hosted = yes;
+  };
+};
+
+ftms = {
+  name = copyable_function;
+  values = {
+    v = 202306;
+    cxxmin = 26;
     hosted = yes;
   };
 };

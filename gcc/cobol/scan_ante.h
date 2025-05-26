@@ -372,7 +372,7 @@ class enter_leave_t {
   enter_leave_t(parser_leave_file_f *leaving)
     : entering(NULL), leaving(leaving), filename(NULL) {}
 
-  void notify() {
+  void notify( unsigned int newlines = 0 ) {
     if( entering ) {
       cobol_filename(filename, 0);
       if( yy_flex_debug ) dbgmsg("starting line %4d of %s",
@@ -382,6 +382,7 @@ class enter_leave_t {
     }
     if( leaving ) {
       auto name = cobol_filename_restore();
+      yylineno += newlines;
       if( yy_flex_debug ) dbgmsg("resuming line %4d of %s",
                                  yylineno, name? name : "<none>");
       leaving();
@@ -392,17 +393,22 @@ class enter_leave_t {
 
 static class input_file_status_t {
   std::queue <enter_leave_t> inputs;
+  unsigned int trailing_newlines = 0;
  public:
   void enter(const char *filename) {
     inputs.push( enter_leave_t(parser_enter_file, filename) );
   }
   void leave() {
+    // Add the number of newlines following the POP to yylineno when it's restored. 
+    trailing_newlines = std::count(yytext, yytext + yyleng, '\n');
+    if( trailing_newlines && yy_flex_debug )
+      dbgmsg("adding %u lines after POP", trailing_newlines);
     inputs.push( parser_leave_file );
   }
   void notify() {
     while( ! inputs.empty() ) {
       auto enter_leave = inputs.front();
-      enter_leave.notify();
+      enter_leave.notify(trailing_newlines);
       inputs.pop();
     }
   }
@@ -438,11 +444,12 @@ trim_location( int nkeep) {
   } rescan = { yytext + nkeep, yytext + yyleng };
 
   auto nline = std::count(rescan.p, rescan.pend, '\n');
-  dbgmsg("%s:%d: yyless(%d), rescan '%.*s' (%zu lines, %d bytes)",
+  dbgmsg("%s:%d: yyless(%d), rescan '%.*s' (" HOST_SIZE_T_PRINT_UNSIGNED
+         " lines, " HOST_SIZE_T_PRINT_UNSIGNED " bytes)",
          __func__, __LINE__,
          nkeep,
          int(rescan.size()), rescan.p,
-         nline, rescan.size());
+         (fmt_size_t)nline, (fmt_size_t)rescan.size());
   if( nline ) {
     gcc_assert( yylloc.first_line + nline <= yylloc.last_line );
     yylloc.last_line =- int(nline);
@@ -497,6 +504,10 @@ update_location_col( const char str[], int correction = 0) {
     result = YY_NULL;                                           \
 }
 
+#define bcomputable(T, C)                               \
+    yylval.computational.type=T,                        \
+    yylval.computational.capacity=C,                    \
+    yylval.computational.signable=true, BINARY_INTEGER
 #define scomputable(T, C)                               \
     yylval.computational.type=T,                        \
     yylval.computational.capacity=C,                    \
@@ -509,6 +520,99 @@ update_location_col( const char str[], int correction = 0) {
 static char *tmpstring = NULL;
 
 #define PROGRAM current_program_index()
+
+// map of alias => canonical
+static std::map <std::string, std::string> keyword_aliases;
+
+const std::string& 
+keyword_alias_add( const std::string& keyword, const std::string& alias ) {
+  auto p = keyword_aliases.find(alias);
+  if( p != keyword_aliases.end() ) return p->second; // error: do not overwrite
+  return keyword_aliases[alias] = keyword;
+}
+
+/*
+ * Because numeric USAGE types don't have distinct tokens and may have aliases,
+ * we keep a table of their canonical names, which we use if we encounter an
+ * alias.
+ */
+struct bint_t {
+  int token;
+  cbl_field_type_t type;
+  uint32_t capacity;
+  bool signable;
+};
+static const std::map <std::string, bint_t > binary_integers {
+  { "COMP-X", { COMPUTATIONAL, FldNumericBin5, 0xFF, false } }, 
+  { "COMP-6", { COMPUTATIONAL, FldPacked, 0, false } }, 
+  { "COMP-5", { COMPUTATIONAL, FldNumericBin5, 0, false } }, 
+  { "COMP-4", { COMPUTATIONAL, FldNumericBinary, 0, true } }, 
+  { "COMP-2", { COMPUTATIONAL, FldFloat, 8, false } }, 
+  { "COMP-1", { COMPUTATIONAL, FldFloat, 4, false } }, 
+  { "COMP", { COMPUTATIONAL, FldNumericBinary, 0, false } }, 
+  { "COMPUTATIONAL-X", { COMPUTATIONAL, FldNumericBin5, 0xFF, false } }, 
+  { "COMPUTATIONAL-6", { COMPUTATIONAL, FldPacked, 0, false } }, 
+  { "COMPUTATIONAL-5", { COMPUTATIONAL, FldNumericBin5, 0, false } }, 
+  { "COMPUTATIONAL-4", { COMPUTATIONAL, FldNumericBinary, 0, true } }, 
+  { "COMPUTATIONAL-2", { COMPUTATIONAL, FldFloat, 8, false } }, 
+  { "COMPUTATIONAL-1", { COMPUTATIONAL, FldFloat, 4, false } }, 
+  { "COMPUTATIONAL", { COMPUTATIONAL, FldNumericBinary, 0, false } }, 
+  { "BINARY", { BINARY_INTEGER, FldNumericBinary, 0, true } }, 
+  { "BINARY-CHAR", { BINARY_INTEGER, FldNumericBin5, 1, true } }, 
+  { "BINARY-SHORT", { BINARY_INTEGER, FldNumericBin5, 2, true } }, 
+  { "BINARY-LONG", { BINARY_INTEGER, FldNumericBin5, 4, true } }, 
+  { "BINARY-DOUBLE", { BINARY_INTEGER, FldNumericBin5, 8, true } }, 
+  { "BINARY-LONG-LONG", { BINARY_INTEGER, FldNumericBin5, 8, true } }, 
+  { "FLOAT-BINARY-32", { COMPUTATIONAL, FldFloat, 4, false } }, 
+  { "FLOAT-BINARY-64", { COMPUTATIONAL, FldFloat, 8, false } }, 
+  { "FLOAT-BINARY-128", { COMPUTATIONAL, FldFloat, 16, false } }, 
+  { "FLOAT-EXTENDED", { COMPUTATIONAL, FldFloat, 16, false } }, 
+  { "FLOAT-LONG", { COMPUTATIONAL, FldFloat, 8, false } }, 
+  { "FLOAT-SHORT", { COMPUTATIONAL, FldFloat, 4, false } }, 
+};
+
+static int
+binary_integer_usage( const char name[]) {
+  cbl_name_t uname = {};
+  std::transform(name, name + strlen(name), uname, ftoupper);
+
+  dbgmsg("%s:%d: checking %s in %zu keyword_aliases",
+	 __func__, __LINE__, uname, keyword_aliases.size() );
+
+  std::string key = uname;
+  auto alias = keyword_aliases.find(key);
+  if( alias != keyword_aliases.end() ) key = alias->second;
+  
+  auto p = binary_integers.find(key);
+  if( p == binary_integers.end() ) return 0;
+  
+  yylval.computational.type = p->second.type;
+  yylval.computational.capacity = p->second.capacity;
+  yylval.computational.signable = p->second.signable;
+  dbgmsg("%s:%d: %s has type %d", __func__, __LINE__,
+	 uname, p->second.type );
+  return p->second.token;
+}
+      
+int
+binary_integer_usage_of( const char name[] ) {
+  cbl_name_t uname = {};
+  std::transform(name, name + strlen(name), uname, ftoupper);
+
+  auto p = binary_integers.find(uname);
+  if( p != binary_integers.end() ) {
+    int token = p->second.token;
+    switch( token ) {
+    case COMPUTATIONAL:
+    case BINARY_INTEGER:
+      return token;
+    default:
+      gcc_unreachable();
+      assert(false);
+    }
+  }
+  return 0;
+}
 
 static uint32_t
 level_of( const char input[] ) {
@@ -633,6 +737,10 @@ typed_name( const char name[] ) {
     {
       auto f = cbl_field_of(e);
       if( is_constant(f) ) {
+	if(  f->data.initial ) {
+	  int token = cbl_figconst_tok(f->data.initial);
+	  if( token ) return token;
+	}
         int token = datetime_format_of(f->data.initial);
         if( token ) {
           yylval.string = xstrdup(f->data.initial);

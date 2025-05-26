@@ -1482,8 +1482,7 @@ xtensa_copy_incoming_a7 (rtx opnd)
   if (mode == DFmode || mode == DImode)
     emit_insn (gen_movsi_internal (gen_rtx_SUBREG (SImode, tmp, 0),
 				   gen_rtx_REG (SImode, A7_REG - 1)));
-  entry_insns = get_insns ();
-  end_sequence ();
+  entry_insns = end_sequence ();
 
   if (cfun->machine->vararg_a7)
     {
@@ -1644,8 +1643,7 @@ xtensa_expand_block_set_libcall (rtx dst_mem,
 		     GEN_INT (value), SImode,
 		     GEN_INT (bytes), SImode);
 
-  seq = get_insns ();
-  end_sequence ();
+  seq = end_sequence ();
 
   return seq;
 }
@@ -1706,8 +1704,7 @@ xtensa_expand_block_set_unrolled_loop (rtx dst_mem,
     }
   while (bytes > 0);
 
-  seq = get_insns ();
-  end_sequence ();
+  seq = end_sequence ();
 
   return seq;
 }
@@ -1788,8 +1785,7 @@ xtensa_expand_block_set_small_loop (rtx dst_mem,
   emit_insn (gen_addsi3 (dst, dst, GEN_INT (align)));
   emit_cmp_and_jump_insns (dst, end, NE, const0_rtx, SImode, true, label);
 
-  seq = get_insns ();
-  end_sequence ();
+  seq = end_sequence ();
 
   return seq;
 }
@@ -2467,8 +2463,7 @@ xtensa_call_tls_desc (rtx sym, rtx *retp)
   emit_move_insn (a_io, arg);
   call_insn = emit_call_insn (gen_tls_call (a_io, fn, sym, const1_rtx));
   use_reg (&CALL_INSN_FUNCTION_USAGE (call_insn), a_io);
-  insns = get_insns ();
-  end_sequence ();
+  insns = end_sequence ();
 
   *retp = a_io;
   return insns;
@@ -4430,17 +4425,27 @@ static int
 xtensa_register_move_cost (machine_mode mode ATTRIBUTE_UNUSED,
 			   reg_class_t from, reg_class_t to)
 {
-  if (from == to && from != BR_REGS && to != BR_REGS)
+  /* If both are equal (except for BR_REGS) or belong to AR_REGS,
+     the cost is 2 (the default value).  */
+  if ((from == to && from != BR_REGS && to != BR_REGS)
+      || (reg_class_subset_p (from, AR_REGS)
+	  && reg_class_subset_p (to, AR_REGS)))
     return 2;
-  else if (reg_class_subset_p (from, AR_REGS)
-	   && reg_class_subset_p (to, AR_REGS))
-    return 2;
-  else if (reg_class_subset_p (from, AR_REGS) && to == ACC_REG)
+
+  /* The cost between AR_REGS and FR_REGS must be <= 8 (2x the default
+     MEMORY_MOVE_COST) to avoid unwanted spills, and > 4 (2x the above
+     case) to avoid excessive register-to-register moves.  */
+  if ((reg_class_subset_p (from, AR_REGS) && to == FP_REGS)
+      || (from == FP_REGS && reg_class_subset_p (to, AR_REGS)))
+    return 5;
+
+  if ((reg_class_subset_p (from, AR_REGS) && to == ACC_REG)
+      || (from == ACC_REG && reg_class_subset_p (to, AR_REGS)))
     return 3;
-  else if (from == ACC_REG && reg_class_subset_p (to, AR_REGS))
-    return 3;
-  else
-    return 10;
+
+  /* Otherwise, spills to stack (because greater than 2x the default
+     MEMORY_MOVE_COST).  */
+  return 10;
 }
 
 /* Compute a (partial) cost for rtx X.  Return true if the complete

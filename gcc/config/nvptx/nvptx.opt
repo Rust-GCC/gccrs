@@ -88,10 +88,10 @@ march-map=sm_60
 Target RejectNegative Alias(misa=,sm_53)
 
 march-map=sm_61
-Target RejectNegative Alias(misa=,sm_53)
+Target RejectNegative Alias(misa=,sm_61)
 
 march-map=sm_62
-Target RejectNegative Alias(misa=,sm_53)
+Target RejectNegative Alias(misa=,sm_61)
 
 march-map=sm_70
 Target RejectNegative Alias(misa=,sm_70)
@@ -132,6 +132,9 @@ Enum(ptx_version) String(4.1) Value(PTX_VERSION_4_1)
 
 EnumValue
 Enum(ptx_version) String(4.2) Value(PTX_VERSION_4_2)
+
+EnumValue
+Enum(ptx_version) String(5.0) Value(PTX_VERSION_5_0)
 
 EnumValue
 Enum(ptx_version) String(6.0) Value(PTX_VERSION_6_0)

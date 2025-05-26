@@ -1,3 +1,56 @@
+2025-05-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/120057
+	* c-typeck.cc (check_constexpr_init): Handle RAW_DATA_CST.
+
+2025-05-02  Florian Weimer  <fweimer@redhat.com>
+
+	PR c/120055
+	* c-typeck.cc (convert_arguments): Check if fundecl is null
+	before checking for builtin function declaration.
+
+2025-05-01  Christopher Bazley  <chris.bazley@arm.com>
+
+	PR c/119317
+	* c-decl.cc (c_get_loop_names): Do not prematurely
+	end the search for a label that names a loop or
+	switch statement upon encountering a DEBUG_BEGIN_STMT.
+	Instead, ignore any instances of DEBUG_BEGIN_STMT.
+
+2025-05-01  Florian Weimer  <fweimer@redhat.com>
+
+	PR c/119950
+	* c-typeck.cc (convert_arguments): Check for built-in
+	function declaration before warning.
+
+2025-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-decl.cc: Drop include of "make-unique.h".
+	Replace uses of ::make_unique with std::make_unique.
+	* c-objc-common.cc: Likewise.
+	* c-parser.cc: Likewise.
+
+2025-04-28  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-decl.cc: Include "make-unique.h".
+	(lookup_name_fuzzy): Use ::make_unique rather than "new" when
+	making suggest_missing_header and suggest_missing_option.
+	* c-parser.cc: Include "make-unique.h"
+	(c_parser_error_richloc): Use ::make_unique rather than "new" when
+	making suggest_missing_header.
+
+2025-04-28  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR c/119432
+	* gimple-parser.cc (gimple_binary_identifier_code): Add
+	__ROTATE_LEFT and __ROTATE_RIGHT.
+
+2025-04-28  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	* gimple-parser.cc (gimple_binary_identifier_code): New variable.
+	(c_parser_gimple_binary_expression): Use gimple_binary_identifier_code
+	instead of doing if statements on the strings.
+
 2025-04-27  H.J. Lu  <hjl.tools@gmail.com>
 
 	PR c/48274

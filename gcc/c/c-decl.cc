@@ -4547,10 +4547,11 @@ lookup_name_fuzzy (tree name, enum lookup_name_fuzzy_kind kind, location_t loc)
     = get_c_stdlib_header_for_name (IDENTIFIER_POINTER (name));
 
   if (header_hint)
-    return name_hint (NULL,
-		      new suggest_missing_header (loc,
-						  IDENTIFIER_POINTER (name),
-						  header_hint));
+    return name_hint
+      (nullptr,
+       std::make_unique<suggest_missing_header> (loc,
+						 IDENTIFIER_POINTER (name),
+						 header_hint));
 
   /* Next, look for exact matches for builtin defines that would have been
      defined if the user had passed a command-line option (e.g. -fopenmp
@@ -4558,10 +4559,11 @@ lookup_name_fuzzy (tree name, enum lookup_name_fuzzy_kind kind, location_t loc)
   diagnostic_option_id option_id
     = get_option_for_builtin_define (IDENTIFIER_POINTER (name));
   if (option_id.m_idx > 0)
-    return name_hint (nullptr,
-		      new suggest_missing_option (loc,
-						  IDENTIFIER_POINTER (name),
-						  option_id));
+    return name_hint
+      (nullptr,
+       std::make_unique<suggest_missing_option> (loc,
+						 IDENTIFIER_POINTER (name),
+						 option_id));
 
   /* Only suggest names reserved for the implementation if NAME begins
      with an underscore.  */
@@ -13859,7 +13861,8 @@ c_get_loop_names (tree before_labels, bool switch_p, tree *last_p)
 	      ++ret;
 	    }
 	}
-      else if (TREE_CODE (stmt) != CASE_LABEL_EXPR)
+      else if (TREE_CODE (stmt) != CASE_LABEL_EXPR
+	       && TREE_CODE (stmt) != DEBUG_BEGIN_STMT)
 	break;
     }
   if (last)

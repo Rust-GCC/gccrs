@@ -28,6 +28,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
 #include <fstream> // Before cobol-system because it uses poisoned functions
 #include "cobol-system.h"
 
@@ -256,43 +257,6 @@ cbl_ffi_arg_t( cbl_ffi_crv_t crv,
  } while(0)
 
 
-cbl_field_t *
-symbol_valid_udf_args( size_t function, std::list<cbl_refer_t> args ) {
-  auto L = cbl_label_of(symbol_at(function));
-  if( ! L->returning ) {
-    dbgmsg("logic error: %s does not define RETURNING", L->name);
-    return NULL;
-  }
-  auto e = std::find_if( symbol_at(function), symbols_end(),
-                         []( auto symbol ) {
-                           if( symbol.type == SymDataSection ) {
-                             auto section(symbol.elem.section);
-                             return section.type == linkage_sect_e;
-                           }
-                           return false;
-                         } );
-  for( auto arg : args ) {
-    size_t iarg(1);
-    e++; // skip over linkage_sect_e, which appears after the function
-    if( e->type != SymField ) {
-      ERROR_FIELD(arg.field,
-                  "FUNCTION %s has no defined parameter matching arg %zu, '%s'",
-                  L->name, iarg, arg.field->name );
-      return NULL;
-    }
-
-    auto tgt = cbl_field_of(e);
-
-    if( ! valid_move(tgt, arg.field) ) {
-      ERROR_FIELD(tgt, "FUNCTION %s arg %zu, '%s' cannot be passed to %s, type %s",
-                L->name, iarg, arg.field->pretty_name(),
-                tgt->pretty_name(), 3 + cbl_field_type_str(tgt->type) );
-      return NULL;
-    }
-  }
-  return cbl_field_of(symbol_at(L->returning));
-}
-
 static const struct cbl_occurs_t nonarray = cbl_occurs_t();
 
 #if 0
@@ -485,9 +449,6 @@ symbol_elem_cmp( const void *K, const void *E )
     break;
   case SymDataSection:
     return k->elem.section.type == e->elem.section.type ? 0 : 1;
-    break;
-  case SymFunction:
-    return strcmp(k->elem.function.name, e->elem.function.name);
     break;
   case SymField:
     if( has_parent(k) && cbl_field_of(k)->parent != cbl_field_of(e)->parent ) {
@@ -814,24 +775,24 @@ cbl_field_t::size() const {
   return field_size(this);
 }
 
-size_t
+uint64_t
 cbl_field_t::set_attr( cbl_field_attr_t attr ) {
   if( attr == signable_e ) {
     if( ! has_attr(attr) && this->var_decl_node != NULL ) {
       parser_field_attr_set(this, attr);
     }
   }
-  return this->attr |= size_t(attr);
+  return this->attr |= uint64_t(attr);
 }
 
-size_t
+uint64_t
 cbl_field_t::clear_attr( cbl_field_attr_t attr ) {
   if( attr == signable_e ) {
     if( this->var_decl_node != nullptr && has_attr(attr) ) {
       parser_field_attr_set(this, attr, false);
     }
   }
-  return this->attr &= ~size_t(attr);
+  return this->attr &= ~uint64_t(attr);
 }
 
 static uint32_t
@@ -1001,8 +962,8 @@ symbol_field_capacity( const cbl_field_t *field ) {
   size_t size = std::accumulate( symbol_at(bog), symbol_at_impl(eog),
                                  0, sym_field_size::capacity );
 
-  if(true) dbgmsg("%s: %02u %s.data.capacity was computed as %zu", __func__,
-                  field->level, field->name, size);
+  if(true) dbgmsg("%s: %02u %s.data.capacity was computed as " HOST_SIZE_T_PRINT_UNSIGNED,
+                  __func__, field->level, field->name, (fmt_size_t)size);
 
   return size;
 }
@@ -1016,14 +977,15 @@ has_odo( const symbol_elem_t& e ) {
 struct cbl_field_t *
 symbol_find_odo_debug( cbl_field_t * field ) {
   size_t bog = field_index(field), eog = end_of_group(bog);
-  dbgmsg("%s: %s is #%zu - #%zu of %zu, ends at %s", __func__,
-        field->name, bog, eog, symbols.nelem,
+  dbgmsg("%s: %s is #" HOST_SIZE_T_PRINT_UNSIGNED " - #" HOST_SIZE_T_PRINT_UNSIGNED
+         " of " HOST_SIZE_T_PRINT_UNSIGNED ", ends at %s", __func__,
+        field->name, (fmt_size_t)bog, (fmt_size_t)eog, (fmt_size_t)symbols.nelem,
         eog == symbols.nelem? "[end]" : cbl_field_of(symbol_at(eog))->name );
 
   auto e = std::find_if( symbol_at(bog), symbol_at_impl(eog, true), has_odo );
   if( e != symbol_at_impl(eog, true) ) {
-    dbgmsg("%s: %s has ODO at #%zu (return '%s')", __func__,
-          field->name, symbol_index(e),
+    dbgmsg("%s: %s has ODO at #" HOST_SIZE_T_PRINT_UNSIGNED " (return '%s')", __func__,
+          field->name, (fmt_size_t)symbol_index(e),
           cbl_field_of(e)->name );
   }
   return e == symbol_at_impl(eog, true)? NULL : cbl_field_of(e);
@@ -1047,8 +1009,8 @@ symbols_dump( size_t first, bool header ) {
   if( !yydebug ) return 0;
 
   if( header ) {
-    fprintf(stderr, "Symbol Table has %zu elements\n",
-            symbols_end() - symbols_begin());
+    fprintf(stderr, "Symbol Table has " HOST_SIZE_T_PRINT_UNSIGNED " elements\n",
+            (fmt_size_t)(symbols_end() - symbols_begin()));
   }
 
   for( struct symbol_elem_t *e = symbols_begin(first); e < symbols_end(); e++ ) {
@@ -1056,25 +1018,22 @@ symbols_dump( size_t first, bool header ) {
 
     switch(e->type) {
     case SymFilename:
-      s = xasprintf("%4zu %-18s %s", e->program,
+      s = xasprintf("%4" GCC_PRISZ "u %-18s %s", (fmt_size_t)e->program,
                     "Filename", e->elem.filename);
       break;
     case SymDataSection:
-      s = xasprintf("%4zu %-18s line %d", e->program,
+      s = xasprintf("%4" GCC_PRISZ "u %-18s line %d", (fmt_size_t)e->program,
                     cbl_section_of(e)->name(), cbl_section_of(e)->line);
-      break;
-    case SymFunction:
-      s = xasprintf("%4zu %-15s %s", e->program,
-                    "Function", e->elem.function.name);
       break;
     case SymField: {
       auto field = cbl_field_of(e);
       char *odo_str = NULL;
       if( field->occurs.depending_on != 0 ) {
-        odo_str = xasprintf("odo %zu", field->occurs.depending_on );
+        odo_str = xasprintf("odo " HOST_SIZE_T_PRINT_UNSIGNED,
+                            (fmt_size_t)field->occurs.depending_on );
       }
       ninvalid += cbl_field_of(e)->type == FldInvalid? 1 : 0;
-      s = xasprintf("%4zu %-18s %s (%s)", e->program,
+      s = xasprintf("%4" GCC_PRISZ "u %-18s %s (%s)", (fmt_size_t)e->program,
                     cbl_field_type_str(cbl_field_of(e)->type) + 3,
                     field_str(cbl_field_of(e)),
                     odo_str? odo_str :
@@ -1082,7 +1041,7 @@ symbols_dump( size_t first, bool header ) {
       }
       break;
     case SymLabel:
-      s = xasprintf("%4zu %-18s %s", e->program,
+      s = xasprintf("%4" GCC_PRISZ "u %-18s %s", (fmt_size_t)e->program,
                     "Labe1l", e->elem.label.str());
       if( LblProgram == cbl_label_of(e)->type ) {
         const auto& L = *cbl_label_of(e);
@@ -1094,31 +1053,35 @@ symbols_dump( size_t first, bool header ) {
       }
       break;
     case SymSpecial:
-      s = xasprintf("%4zu %-18s id=%2d, %s", e->program,
+      s = xasprintf("%4" GCC_PRISZ "u %-18s id=%2d, %s", (fmt_size_t)e->program,
                     "Special", e->elem.special.id, e->elem.special.name);
       break;
     case SymAlphabet:
-      s = xasprintf("%4zu %-18s encoding=%2d, '%s'", e->program, "Alphabet",
+      s = xasprintf("%4" GCC_PRISZ "u %-18s encoding=%2d, '%s'",
+                    (fmt_size_t)e->program, "Alphabet",
                     int(e->elem.alphabet.encoding), e->elem.alphabet.name);
       break;
     case SymFile:
-      s = xasprintf("%4zu %-18s    %-20s", e->program,
+      s = xasprintf("%4" GCC_PRISZ "u %-18s    %-20s", (fmt_size_t)e->program,
                     "File", e->elem.file.name);
       {
         char same_as[26] = "";
         if( cbl_file_of(e)->same_record_as > 0 ) {
-          sprintf(same_as, "s%3zu", cbl_file_of(e)->same_record_as);
+          sprintf(same_as, "s%3" GCC_PRISZ "u",
+                  (fmt_size_t)cbl_file_of(e)->same_record_as);
         }
         const char *type = file_org_str(e->elem.file.org);
         char *part = s;
 
-        s = xasprintf("%s %-4s %s %s %s{%zu-%zu} status=#%zu",
+        s = xasprintf("%s %-4s %s %s %s{" HOST_SIZE_T_PRINT_UNSIGNED "-"
+                      HOST_SIZE_T_PRINT_UNSIGNED "} status=#"
+                      HOST_SIZE_T_PRINT_UNSIGNED,
                       part, same_as, type,
                       e->elem.file.keys_str(),
                       cbl_file_of(e)->varies()? "varies " : "",
-                      cbl_file_of(e)->varying_size.min,
-                      cbl_file_of(e)->varying_size.max,
-                      cbl_file_of(e)->user_status);
+                      (fmt_size_t)cbl_file_of(e)->varying_size.min,
+                      (fmt_size_t)cbl_file_of(e)->varying_size.max,
+                      (fmt_size_t)cbl_file_of(e)->user_status);
         free(part);
       }
       break;
@@ -1126,7 +1089,8 @@ symbols_dump( size_t first, bool header ) {
       dbgmsg("%s: cannot dump symbol type %d", __func__, e->type);
       continue;
     }
-    fprintf(stderr, "%4zu: %s\n", e - symbols_begin(), s);
+    fprintf(stderr, "%4" GCC_PRISZ "u: %s\n",
+            (fmt_size_t)(e - symbols_begin()), s);
     free(s);
   }
   return ninvalid;
@@ -1238,7 +1202,8 @@ static struct symbol_elem_t *
   }
 
   if(yydebug && group->type != FldGroup) {
-    dbgmsg("Field #%zu '%s' is not a group", symbol_index(e), group->name);
+    dbgmsg("Field #" HOST_SIZE_T_PRINT_UNSIGNED " '%s' is not a group",
+           (fmt_size_t)symbol_index(e), group->name);
     symbols_dump(symbols.first_program, true);
   }
   if( group->type == FldInvalid ) return e;
@@ -1493,8 +1458,8 @@ field_str( const cbl_field_t *field ) {
       for( size_t i=0; i < field->occurs.nkey; i++ ) {
         updown[i] = field->occurs.keys[i].ascending? 'A' : 'D';
       }
-      snprintf(name, sizeof(name), "%s[%zu]%s",
-               field->name, field->occurs.ntimes(), updown.data());
+      snprintf(name, sizeof(name), "%s[" HOST_SIZE_T_PRINT_UNSIGNED "]%s",
+               field->name, (fmt_size_t)field->occurs.ntimes(), updown.data());
     }
   }
 
@@ -1503,7 +1468,7 @@ field_str( const cbl_field_t *field ) {
 
   char offset[32] = "";
   if( field->level > 1 ) {
-    sprintf( offset, "off%3zu", field->offset );
+    sprintf( offset, "off%3" GCC_PRISZ "u", (fmt_size_t)field->offset );
   }
 
   char parredef =
@@ -1521,6 +1486,23 @@ field_str( const cbl_field_t *field ) {
       auto n = asprintf(&s, "'%s'", data);
       gcc_assert(n);
       auto eodata = data + field->data.capacity;
+      // It is possible for data.initial to be shorter than capacity.
+      
+      // This whole thing needs to be reexamined.  There is an assumption for
+      // FldAlphanumeric values that the valid data in data.initial be the same
+      // length as data.capacity.  But that does not hold true for other types.
+      // For example, a PIC 9V9 has a capacity of two, but the initial
+      // string provided by the COBOL programmer might be "1.2".  Likewise, a
+      // PIC 999999 (capacity 5) might have a value of "1".
+      
+      for(size_t i = 0; i<field->data.capacity; i++)
+        {
+        if( data[i] == '\0' )
+          {
+          eodata = data + i;
+          break;
+          }
+        }
       if( eodata != std::find_if_not(data, eodata, fisprint) ) {
         char *p = reinterpret_cast<char*>(xrealloc(s, n + 8 + 2 * field->data.capacity));
         if( is_elementary(field->type) &&
@@ -1570,8 +1552,8 @@ field_str( const cbl_field_t *field ) {
   };
 
   pend += snprintf(pend, string + sizeof(string) - pend,
-                   "%c%3zu %-6s %c%c%c %2u{%3u,%u,%d = %s} (%s), line %d",
-                   parredef, field->parent, offset,
+                   "%c%3" GCC_PRISZ "u %-6s %c%c%c %2u{%3u,%u,%d = %s} (%s), line %d",
+                   parredef, (fmt_size_t)field->parent, offset,
                    (field->attr & global_e)? 'G' : 0x20,
                    (field->attr & external_e)? 'E' : 0x20,
                    storage_type,
@@ -1796,18 +1778,19 @@ symbols_update( size_t first, bool parsed_ok ) {
                   field->line, field->level_str(), field->name);
 
         } else {
-          dbgmsg("%s: error: data item %s #%zu '%s' capacity %u rejected",
+          dbgmsg("%s: error: data item %s #" HOST_SIZE_T_PRINT_UNSIGNED
+                 " '%s' capacity %u rejected",
                    __func__,
                    3 + cbl_field_type_str(field->type),
-                   isym, field->name, field->data.capacity);
+                   (fmt_size_t)isym, field->name, field->data.capacity);
         }
       }
       return 0;
     }
 
     if(! (field->data.memsize == 0 || field_size(field) <= field->data.memsize) ) {
-      dbgmsg( "%s:%d: #%zu: invalid: %s", __func__, __LINE__,
-                           symbol_index(p), field_str(cbl_field_of(p)) );
+      dbgmsg( "%s:%d: #" HOST_SIZE_T_PRINT_UNSIGNED ": invalid: %s", __func__, __LINE__,
+              (fmt_size_t)symbol_index(p), field_str(cbl_field_of(p)) );
     }
     assert(field->data.memsize == 0 || field_size(field) <= field_memsize(field));
     assert( !(field->data.memsize > 0 && symbol_explicitly_redefines(field)) );
@@ -1827,6 +1810,15 @@ symbols_update( size_t first, bool parsed_ok ) {
     if( field->level == 0 && field->is_key_name() ) continue;
     if( is_literal(field) && field->var_decl_node != NULL ) continue;
 
+    // If the field is a constant for a figconstant, just use it. 
+    if( field->level != 0 && field->has_attr(constant_e) ) {
+      auto fig = cbl_figconst_field_of(field->data.initial);
+      if( fig ) {
+	field->var_decl_node = fig->var_decl_node;
+	continue;
+      }
+    }
+    
     if( field->is_typedef() ) {
       auto isym = end_of_group( symbol_index(p) );
       p = symbol_at(--isym);
@@ -1925,7 +1917,8 @@ symbol_field_forward( size_t index ) {
   assert( index < symbols.nelem );
   symbol_elem_t *e = symbol_at(index);
   if( (e->type != SymField) ) {
-    dbgmsg("%s: logic error: #%zu is %s", __func__, index, symbol_type_str(e->type));
+    dbgmsg("%s: logic error: #" HOST_SIZE_T_PRINT_UNSIGNED " is %s",
+           __func__, (fmt_size_t)index, symbol_type_str(e->type));
   }
   assert(e->type == SymField);
 
@@ -2266,7 +2259,7 @@ symbol_table_init(void) {
       "FILLER", 0, {}, {1,1,0,0, " "}, NULL },
     { 0, FldAlphanumeric, FldInvalid, signable_e | global_e, 0,0,2, nonarray, 0,
       "DEBUG-CONTENTS", 0, {}, {76,76,0,0, NULL}, NULL },
-};
+  };
 
   // debug registers
   assert(table.nelem + COUNT_OF(debug_registers) < table.capacity);
@@ -2433,9 +2426,9 @@ symbol_alphabet_add( size_t program, struct cbl_alphabet_t *alphabet ) {
   return symbol_add(&sym);
 }
 
-size_t
+uint64_t
 numeric_group_attrs( const cbl_field_t *field ) {
-  static const size_t inherit = signable_e | leading_e | separate_e | big_endian_e;
+  static const uint64_t inherit = signable_e | leading_e | separate_e | big_endian_e;
   static_assert(sizeof(cbl_field_t::type) < sizeof(inherit), "need bigger type");
   assert(field);
   if( field->type == FldNumericDisplay || field->type == FldGroup ) {
@@ -3140,7 +3133,7 @@ using std::deque;
 static deque<cbl_field_t*> stack;
 
 static cbl_field_t *
-new_temporary_impl( enum cbl_field_type_t type )
+new_temporary_impl( enum cbl_field_type_t type, const cbl_name_t name = nullptr )
 {
   extern int yylineno;
   static int nstack, nliteral;
@@ -3217,6 +3210,8 @@ new_temporary_impl( enum cbl_field_type_t type )
     snprintf(f->name, sizeof(f->name), "_stack%d",++nstack);
   }
 
+  f->data.initial = name; // capture e.g. the function name 
+
   return f;
 }
 
@@ -3258,10 +3253,10 @@ new_literal_add( const char initial[], uint32_t len, enum cbl_field_attr_t attr 
 
   static size_t literal_count = 1;
   sprintf(field->name,
-          "%s%c_%zd",
+          "%s%c_" HOST_SIZE_T_PRINT_DEC,
           "_literal",
           field->type == FldLiteralA ? 'a' : 'n',
-          literal_count++);
+          (fmt_size_t)literal_count++);
 
   return parser_symbol_add2(field);
 }
@@ -3290,14 +3285,15 @@ new_literal( uint32_t len, const char initial[], enum cbl_field_attr_t attr ) {
 void
 temporaries_t::dump() const {
   extern int yylineno;
-  char *output  = xasprintf("%4d: %zu Literals", yylineno, literals.size());
+  char *output  = xasprintf("%4d: " HOST_SIZE_T_PRINT_UNSIGNED " Literals",
+                            yylineno, (fmt_size_t)literals.size());
 
   for( const auto& elem : used ) {
     if( ! elem.second.empty() ) {
       char *so_far = output;
-      output = xasprintf("%s, %zu %s",
+      output = xasprintf("%s, " HOST_SIZE_T_PRINT_UNSIGNED " %s",
                          so_far,
-                         elem.second.size(),
+                         (fmt_size_t)elem.second.size(),
                          3 + cbl_field_type_str(elem.first));
       free(so_far);
     }
@@ -3338,11 +3334,11 @@ temporaries_t::reuse( cbl_field_type_t type ) {
 }
 
 cbl_field_t *
-temporaries_t::acquire( cbl_field_type_t type ) {
+temporaries_t::acquire( cbl_field_type_t type, const cbl_name_t name ) {
   cbl_field_t *field = reuse(type);
 
   if( !field ) {
-    field = new_temporary_impl(type);
+    field = new_temporary_impl(type, name);
     add(field);
   }
   return parser_symbol_add2(field); // notify of reuse
@@ -3375,8 +3371,8 @@ symbol_temporaries_free() {
 }
 
 cbl_field_t *
-new_alphanumeric( size_t capacity ) {
-  cbl_field_t * field = new_temporary_impl(FldAlphanumeric);
+new_alphanumeric( size_t capacity, const cbl_name_t name = nullptr ) {
+  cbl_field_t * field = new_temporary_impl(FldAlphanumeric, name);
   field->data.capacity = capacity;
   temporaries.add(field);
   return parser_symbol_add2(field);
@@ -3386,15 +3382,14 @@ cbl_field_t *
 new_temporary( enum cbl_field_type_t type, const char *initial ) {
   if( ! initial ) {
     assert( ! is_literal(type) ); // Literal type must have literal value.
-    return temporaries.acquire(type);
+    return temporaries.acquire(type, initial);
   }
   if( is_literal(type) ) {
     auto field = temporaries.literal(initial,
                                      type == FldLiteralA? quoted_e : none_e);
     return field;
   }
-  cbl_field_t *field = new_temporary_impl(type);
-  field->data.capacity = strlen(field->data.initial = initial);
+  cbl_field_t *field = new_temporary_impl(type, initial);
   temporaries.add(field);
   parser_symbol_add(field);
 
@@ -3580,8 +3575,8 @@ cbl_label_t::str() const {
       buf = xasprintf("%-12s %s top level [%s], line %d",
                       type_str() + 3, name, mangled_name, line);
     } else {
-      buf = xasprintf("%-12s %s OF #%zu '%s' [%s], line %d",
-                      type_str() + 3, name, parent,
+      buf = xasprintf("%-12s %s OF #" HOST_SIZE_T_PRINT_UNSIGNED " '%s' [%s], line %d",
+                      type_str() + 3, name, (fmt_size_t)parent,
                       cbl_label_of(symbol_at(parent))->name,
                       mangled_name, line);
     }
@@ -3695,7 +3690,8 @@ symbol_label_add( size_t program, cbl_label_t *input )
   // Set the program's mangled name, dehyphenated and uniqified by parent index.
   if( input->type == LblProgram ) {
     char *psz = cobol_name_mangler(input->name);
-    input->mangled_name = xasprintf("%s.%zu", psz, input->parent);
+    input->mangled_name = xasprintf("%s." HOST_SIZE_T_PRINT_UNSIGNED,
+                                    psz, (fmt_size_t)input->parent);
     free(psz);
   }
 
@@ -3719,39 +3715,27 @@ symbol_label_add( size_t program, cbl_label_t *input )
 }
 
 /*
- * Under ISO (and not IBM) Declaratives are followed by a Section name.  When
- * the first statement is parsed, verify, if Declaratives were used, that it
+ * Under ISO (and not IBM) Declaratives are followed by a Section name.  If
+ * Declaratives were used, when the first statement is parsed verify that it
  * was preceeded by a Section name.
  */
 bool
-symbol_label_section_exists( size_t program ) {
-  auto pblob = std::find_if( symbols_begin(program), symbols_end(),
-                               []( const auto& sym ) {
-                                 if( sym.type == SymField ) {
-                                   auto& f( sym.elem.field );
-                                   return f.type == FldBlob;
-                                 }
-                                 return false;
-                               } );
-  if( pblob == symbols_end() ) return true; // Section name not required
-
-  bool has_section = std::any_of( ++pblob, symbols_end(),
-                               []( const auto& sym ) {
-                                 if( sym.type == SymLabel ) {
+symbol_label_section_exists( size_t eval_label_index ) {
+  auto eval = symbols_begin(eval_label_index);
+  bool has_section = std::any_of( ++eval, symbols_end(),
+                               [program = eval->program]( const auto& sym ) {
+                                 if( program == sym.program && sym.type == SymLabel ) {
                                    auto& L(sym.elem.label);
-                                   if( L.type == LblSection ) {
-                                     if( L.name[0] != '_' ) { // not implicit
-                                       return true; // Section name exists
-                                     }
-                                   }
+				   // true if the symbol is an explicit label.
+                                   return L.type == LblSection &&  L.name[0] != '_'; 
                                  }
                                  return false;
                                } );
   if( yydebug && ! has_section ) {
-    symbols_dump(program, true);
+    symbols_dump(eval_label_index, true);
   }
-  // Return true if no Declaratives, because the (non-)requirement is met.
-  // Return false if Declaratives exist, because no Section name was found.
+  // Return true if a user-defined SECTION was found after the Declaratives
+  // label section. 
   return has_section;
 }
 
@@ -3764,7 +3748,8 @@ symbol_program_add( size_t program, cbl_label_t *input )
 
   // Set the program's mangled name, dehyphenated and uniqified by parent index.
   char *psz = cobol_name_mangler(input->name);
-  elem.elem.label.mangled_name = xasprintf("%s.%zu", psz, input->parent);
+  elem.elem.label.mangled_name = xasprintf("%s." HOST_SIZE_T_PRINT_UNSIGNED,
+                                           psz, (fmt_size_t)input->parent);
   free(psz);
 
   e = std::find_if( symbols_begin(program), symbols_end(),
@@ -4445,8 +4430,8 @@ symbol_forward_names( size_t ifield ) {
   for( auto sym = symbols_begin(ifield); sym && sym->type == SymField; ) {
     const cbl_field_t *field = cbl_field_of(sym);
     if( !(field->type == FldForward) ) {
-      dbgmsg("%s:%d: logic error, not FldForward: #%zu %s",
-            __func__, __LINE__, symbol_index(sym), field_str(field));
+      dbgmsg("%s:%d: logic error, not FldForward: #" HOST_SIZE_T_PRINT_UNSIGNED " %s",
+            __func__, __LINE__, (fmt_size_t)symbol_index(sym), field_str(field));
     }
     assert(field->type == FldForward);
 
@@ -4469,8 +4454,9 @@ symbol_forward_to( size_t fwd ) {
   if( !elem.second ) {
     const auto& field = *cbl_field_of(symbols_begin(fwd));
     if( yydebug )
-      dbgmsg("%s:%d: no symbol found for #%zu %s %s", __func__, __LINE__,
-               fwd, cbl_field_type_str(field.type), field.name);
+      dbgmsg("%s:%d: no symbol found for #" HOST_SIZE_T_PRINT_UNSIGNED " %s %s",
+               __func__, __LINE__,
+               (fmt_size_t)fwd, cbl_field_type_str(field.type), field.name);
     return fwd;
   }
 
@@ -4491,8 +4477,9 @@ cbl_file_key_t::deforward( size_t ifile ) {
                     const auto field = cbl_field_of(symbol_at(ifield));
 
                     if( is_forward(field) && yydebug ) {
-                      dbgmsg("%s:%d: key %d: #%zu %s of %s is %s", "deforward", __LINE__,
-                            keys[ifile]++, ifield, field->name, file->name,
+                      dbgmsg("%s:%d: key %d: #" HOST_SIZE_T_PRINT_UNSIGNED " %s of %s is %s",
+                            "deforward", __LINE__,
+                            keys[ifile]++, (fmt_size_t)ifield, field->name, file->name,
                             cbl_field_type_str(field->type) + 3);
                     }
 
@@ -4546,7 +4533,7 @@ cbl_file_key_t::str() const {
 
   *p++ = '[';
   for( auto f = fields; f < fields + nfield; f++) {
-    auto n = sprintf(p, "%s%zu", sep, *f);
+    auto n = sprintf(p, "%s" HOST_SIZE_T_PRINT_UNSIGNED, sep, (fmt_size_t)*f);
     p += n;
     sep = ", ";
   }

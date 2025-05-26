@@ -1,3 +1,96 @@
+2025-05-23  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR middle-end/118694
+	* testsuite/libgomp.c-c++-common/metadirective-1.c: xfail when
+	compiling (also) for nvptx offloading as an error is then expected.
+
+2025-05-19  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR lto/120308
+	* testsuite/libgomp.oacc-c-c++-common/abi-struct-1.c: Add empty
+	structure testing.
+
+2025-05-19  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c-c++-common/target-abi-struct-1-O0.c: New.
+	* testsuite/libgomp.oacc-c-c++-common/abi-struct-1.c: Likewise.
+
+2025-05-19  Julian Brown  <julian@codesourcery.com>
+
+	* testsuite/libgomp.oacc-fortran/lib-13.f90: End data region after
+	wait API calls.
+
+2025-05-15  Tobias Burnus  <tburnus@baylibre.com>
+
+	* testsuite/libgomp.fortran/alloc-comp-4.f90: New test.
+
+2025-05-14  Tobias Burnus  <tburnus@baylibre.com>
+
+	* target.c (gomp_attach_pointer): Return bool; accept additional
+	bool to optionally silence the fatal pointee-not-found error.
+	(gomp_map_vars_internal): If the pointee could not be found,
+	check whether it was mapped as GOMP_MAP_ZERO_LEN_ARRAY_SECTION.
+	* libgomp.h (gomp_attach_pointer): Update prototype.
+	* oacc-mem.c (acc_attach_async, goacc_enter_data_internal): Update
+	calls.
+	* testsuite/libgomp.c/target-map-zero-sized.c: New test.
+	* testsuite/libgomp.c/target-map-zero-sized-2.c: New test.
+	* testsuite/libgomp.c/target-map-zero-sized-3.c: New test.
+
+2025-05-12  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR target/119692
+	* testsuite/libgomp.c++/pr119692-1-4.C: '{ dg-timeout 10 }'.
+	* testsuite/libgomp.c++/pr119692-1-5.C: Likewise.
+	* testsuite/libgomp.c++/target-exceptions-bad_cast-1.C: Likewise.
+	* testsuite/libgomp.c++/target-exceptions-bad_cast-2.C: Likewise.
+	* testsuite/libgomp.oacc-c++/exceptions-bad_cast-1.C: Likewise.
+	* testsuite/libgomp.oacc-c++/exceptions-bad_cast-2.C: Likewise.
+
+2025-05-12  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/declare-variant-3-sm61.c: New.
+	* testsuite/libgomp.c/declare-variant-3.h: Adjust.
+
+2025-05-09  Tobias Burnus  <tburnus@baylibre.com>
+
+	* testsuite/libgomp.c/interop-cuda-full.c: Use 'link' instead
+	of 'run' when the default device is "! offload_device_nvptx".
+	* testsuite/libgomp.c/interop-cuda-libonly.c: Likewise.
+	* testsuite/libgomp.c/interop-hip-nvidia-full.c: Likewise.
+	* testsuite/libgomp.c/interop-hip-nvidia-no-headers.c: Likewise.
+	* testsuite/libgomp.c/interop-hip-nvidia-no-hip-header.c: Likewise.
+	* testsuite/libgomp.fortran/interop-hip-nvidia-full.F90: Likewise.
+	* testsuite/libgomp.fortran/interop-hip-nvidia-no-module.F90: Likewise.
+	* testsuite/libgomp.c/interop-hip-amd-full.c: Use 'link' instead
+	of 'run' when the default device is "! offload_device_gcn".
+	* testsuite/libgomp.c/interop-hip-amd-no-hip-header.c: Likewise.
+	* testsuite/libgomp.fortran/interop-hip-amd-full.F90: Likewise.
+	* testsuite/libgomp.fortran/interop-hip-amd-no-module.F90: Likewise.
+
+2025-05-09  David Malcolm  <dmalcolm@redhat.com>
+
+	PR other/116792
+	* testsuite/lib/libgomp.exp: Add load_lib of scanhtml.exp.
+
+2025-05-07  Tobias Burnus  <tburnus@baylibre.com>
+
+	* testsuite/libgomp.fortran/map-alloc-comp-9.f90: Process differently
+	when USE_USM_REQUIREMENT is set.
+	* testsuite/libgomp.fortran/map-alloc-comp-9-usm.f90: New test.
+
+2025-05-06  Tejas Belagod  <tejas.belagod@arm.com>
+
+	* testsuite/libgomp.c-target/aarch64/udr-sve.c: Fix test.
+
+2025-05-05  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* testsuite/libgomp.c/interop-hsa.c: GCN offloading only.
+
+2025-05-01  Tobias Burnus  <tobias@codesourcery.com>
+
+	* testsuite/libgomp.fortran/allocate-8a.f90: New test.
+
 2025-04-25  Andrew Stubbs  <ams@baylibre.com>
 
 	* testsuite/libgomp.c/interop-hsa.c: New test.

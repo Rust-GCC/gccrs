@@ -82,6 +82,8 @@ private:
   const char *parse_single_multiletter_ext (const char *, const char *,
 					    const char *, bool);
 
+  std::string parse_profiles (const char*);
+
   void handle_implied_ext (const char *);
   bool check_implied_ext ();
   void handle_combine_ext ();
@@ -127,6 +129,5 @@ extern bool riscv_minimal_hwprobe_feature_bits (const char *,
 						location_t);
 extern bool
 riscv_ext_is_subset (struct cl_target_option *, struct cl_target_option *);
-extern int riscv_x_target_flags_isa_mask (void);
 
 #endif /* ! GCC_RISCV_SUBSET_H */

@@ -1,3 +1,33 @@
+2025-05-22  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120389
+	* gm2-compiler/M2GenGCC.mod (CodeXIndr): Check to see that
+	the type of left is assignment compatible with the type of
+	right.
+
+2025-05-13  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120253
+	* m2.flex (FIRST_COLUMN): New define.
+	(updatepos): Remove commented code.
+	(consumeLine): Assign column to FIRST_COLUMN.
+	(initLine): Ditto.
+	(m2flex_GetColumnNo): Return FIRST_COLUMN if currentLine is NULL.
+	(m2flex_GetLineNo): Rewrite for positive logic.
+	(m2flex_GetLocation): Ditto.
+
+2025-05-05  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/120117
+	* gm2-compiler/M2GenGCC.mod (FoldBecomes): Remove the call to
+	RemoveQuad since this is performed by TypeCheckBecomes.
+	* gm2-compiler/PCSymBuild.mod (buildConstFunction): Rewrite
+	header comment.
+	Check for a set or a type aliased set and appropriately
+	skip type equivalences and obtain the element type.
+	* gm2-compiler/SymbolTable.mod (PutConst): Add call to
+	CheckBreak.
+
 2025-04-24  Gaius Mulley  <gaiusmod2@gmail.com>
 
 	PR modula2/119915

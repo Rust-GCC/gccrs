@@ -4336,7 +4336,8 @@ convert_arguments (location_t loc, vec<location_t> arg_loc, tree fntype,
 	  builtin_typetail = NULL_TREE;
 	}
 
-      if (!typetail && parmnum == 0 && !TYPE_NO_NAMED_ARGS_STDARG_P (fntype))
+      if (!typetail && parmnum == 0 && !TYPE_NO_NAMED_ARGS_STDARG_P (fntype)
+	  && !(fundecl && fndecl_built_in_p (fundecl)))
 	{
 	  auto_diagnostic_group d;
 	  bool warned;
@@ -9142,8 +9143,24 @@ check_constexpr_init (location_t loc, tree type, tree init,
       /* The initializer must be an integer constant expression,
 	 representable in the target type.  */
       if (!int_const_expr)
-	error_at (loc, "%<constexpr%> integer initializer is not an "
-		  "integer constant expression");
+	{
+	  if (TREE_CODE (init) == RAW_DATA_CST
+	      && TYPE_PRECISION (type) == CHAR_BIT)
+	    {
+	      if (!TYPE_UNSIGNED (type))
+		for (unsigned int i = 0;
+		     i < (unsigned) RAW_DATA_LENGTH (init); ++i)
+		  if (RAW_DATA_SCHAR_ELT (init, i) < 0)
+		    {
+		      error_at (loc, "%<constexpr%> initializer not "
+				"representable in type of object");
+		      break;
+		    }
+	    }
+	  else
+	    error_at (loc, "%<constexpr%> integer initializer is not an "
+		      "integer constant expression");
+	}
       else if (!int_fits_type_p (init, type))
 	error_at (loc, "%<constexpr%> initializer not representable in "
 		  "type of object");

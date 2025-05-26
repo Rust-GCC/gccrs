@@ -1673,3 +1673,43 @@
     DONE;
   }
   [(set_attr "type" "vandn")])
+
+
+;; =============================================================================
+;; Combine vec_duplicate + op.vv to op.vx
+;; Include
+;; - vadd.vx
+;; =============================================================================
+(define_insn_and_split "*<optab>_vx_<mode>"
+ [(set (match_operand:V_VLSI    0 "register_operand")
+       (any_int_binop_no_shift_vx:V_VLSI
+	 (vec_duplicate:V_VLSI
+	   (match_operand:<VEL> 1 "register_operand"))
+	 (match_operand:V_VLSI  2 "<binop_rhs2_predicate>")))]
+  "TARGET_VECTOR && can_create_pseudo_p ()"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+  {
+    riscv_vector::expand_vx_binary_vec_dup_vec (operands[0], operands[2],
+						operands[1], <CODE>,
+						<MODE>mode);
+  }
+  [(set_attr "type" "vialu")])
+
+(define_insn_and_split "*<optab>_vx_<mode>"
+ [(set (match_operand:V_VLSI    0 "register_operand")
+       (any_int_binop_no_shift_vx:V_VLSI
+	 (match_operand:V_VLSI  1 "<binop_rhs2_predicate>")
+	 (vec_duplicate:V_VLSI
+	   (match_operand:<VEL> 2 "register_operand"))))]
+  "TARGET_VECTOR && can_create_pseudo_p ()"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+  {
+    riscv_vector::expand_vx_binary_vec_vec_dup (operands[0], operands[1],
+						operands[2], <CODE>,
+						<MODE>mode);
+  }
+  [(set_attr "type" "vialu")])

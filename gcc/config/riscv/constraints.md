@@ -43,6 +43,10 @@
 (define_register_constraint "cf" "TARGET_HARD_FLOAT ? RVC_FP_REGS : (TARGET_ZFINX ? RVC_GR_REGS : NO_REGS)"
   "RVC floating-point registers (f8-f15), if available, reuse GPR as FPR when use zfinx.")
 
+(define_register_constraint "cR" "RVC_GR_REGS"
+  "Even-odd RVC general purpose register (x8-x15)."
+  "regno % 2 == 0")
+
 ;; General constraints
 
 (define_constraint "I"
@@ -311,3 +315,13 @@
   "Shifting immediate for SIMD shufflei3."
   (and (match_code "const_int")
        (match_test "IN_RANGE (ival, -64, -1)")))
+
+(define_constraint "Ou01"
+  "A 1-bit unsigned immediate."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, 0, 1)")))
+
+(define_constraint "Ou02"
+  "A 2-bit unsigned immediate."
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (ival, 0, 3)")))

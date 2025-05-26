@@ -57,8 +57,6 @@ bool suppress_dest_depends = false;
 std::vector<std::string>current_filename;
 
 tree var_decl_exception_code;         // int         __gg__exception_code;
-tree var_decl_exception_handled;      // int         __gg__exception_handled;
-tree var_decl_exception_file_number;  // int         __gg__exception_file_number;
 tree var_decl_exception_file_status;  // int         __gg__exception_file_status;
 tree var_decl_exception_file_name;    // const char *__gg__exception_file_name;
 tree var_decl_exception_statement;    // const char *__gg__exception_statement;
@@ -70,7 +68,6 @@ tree var_decl_exception_paragraph;    // const char *__gg__exception_paragraph;
 
 tree var_decl_default_compute_error;  // int         __gg__default_compute_error;
 tree var_decl_rdigits;                // int         __gg__rdigits;
-tree var_decl_odo_violation;          // int         __gg__odo_violation;
 tree var_decl_unique_prog_id;         // size_t      __gg__unique_prog_id;
 
 tree var_decl_entry_location;         // This is for managing ENTRY statements
@@ -108,6 +105,18 @@ tree var_decl_treeplet_4s; // SIZE_T_P                , "__gg__treeplet_4s"
 // instruction, I instead gg_assign(var_decl_nop, integer_zero_node)
 tree var_decl_nop;                // int         __gg__nop;
 tree var_decl_main_called;        // int         __gg__main_called;
+
+#if 0
+#define REFER(a)
+#else
+#define REFER(a) do                                \
+  {                                             \
+  if( getenv("REFER") )                         \
+    {                                           \
+    fprintf(stderr, "REFER %s %s\n", __func__, a);    \
+    }                                           \
+  }while(0);
+#endif
 
 int
 get_scaled_rdigits(cbl_field_t *field)
@@ -223,11 +232,17 @@ tree_type_from_digits(size_t digits, int signable)
   }
 
 void
-get_integer_value(tree value,
+get_integer_value(tree value, // We know this is a LONG
                   cbl_field_t *field,
                   tree         offset,
                   bool check_for_fractional_digits)
   {
+  if( field->type == FldLiteralN && field->data.rdigits==0 )
+    {
+    gg_assign(value, gg_cast(LONG, field->data_decl_node));
+    return;
+    }
+
   Analyze();
   // Call this routine when you know the result has to be an integer with no
   // rdigits.  This routine became necessary the first time I saw an
@@ -265,7 +280,7 @@ get_integer_value(tree value,
   }
 
 static
-tree
+tree  // This is a SIZE_T
 get_any_capacity(cbl_field_t *field)
   {
   if( field->attr & (any_length_e | intermediate_e) )
@@ -274,209 +289,250 @@ get_any_capacity(cbl_field_t *field)
     }
   else
     {
-    return build_int_cst_type(LONG, field->data.capacity);
+    return build_int_cst_type(SIZE_T, field->data.capacity);
     }
   }
 
-static tree
-get_data_offset_dest(cbl_refer_t &refer,
-                int *pflags = NULL)
+/*  This routine, used by both get_data_offset and refer_refmod_length,
+    fetches the refmod_from and refmod_length.  If ec-bound-ref-mod checking
+    is enabled, it does those checks and sets the exception condition when they
+    are violated.
+
+    The return value for refstart is the actual offset, that is val(7:3) returns
+    the value 7-1, that is, 6.
+    */
+static
+void
+get_and_check_refstart_and_reflen(  tree         refstart,// LONG returned value
+                                    tree         reflen,  // LONG returned value
+                                    cbl_refer_t &refer)
   {
-  Analyze();
-  // This routine returns a tree which is the size_t offset to the data in the
-  // refer/field
-
-  // Because this is for destination/receiving variables, OCCURS DEPENDING ON
-  // is not checked.
-
-  tree retval = gg_define_variable(SIZE_T);
-  gg_assign(retval, size_t_zero_node);
-
-  // We have a refer.
-  // At the very least, we have an constant offset
-  int all_flags = 0;
-  int all_flag_bit = 1;
-
-  static tree value64 = gg_define_variable(LONG, ".._gdod_value64", vs_file_static);
-
-  if( refer.nsubscript )
+  if( !enabled_exceptions.match(ec_bound_ref_mod_e) )
     {
-    // We have at least one subscript:
-
-    // Figure we have three subscripts, so nsubscript is 3
-    // Figure that the subscripts are {5, 4, 3}
-
-    // We expect that starting from refer.field, that three of our ancestors --
-    // call them A1, A2, and A3 -- have occurs clauses.
-
-    // We need to start with the rightmost subscript, and work our way up through
-    // our parents.  As we find each parent with an OCCURS, we increment qual_data
-    // by (subscript-1)*An->data.capacity
-
-    // Establish the field_t pointer for walking up through our ancestors:
-    cbl_field_t *parent = refer.field;
-
-    // Note the backwards test, because refer->nsubscript is an unsigned value
-    for(size_t i=refer.nsubscript-1; i<refer.nsubscript; i-- )
-      {
-      // We need to search upward for an ancestor with occurs_max:
-      while(parent)
-        {
-        if( parent->occurs.ntimes() )
-          {
-          break;
-          }
-        parent = parent_of(parent);
-        }
-      // we might have an error condition at this point:
-      if( !parent )
-        {
-        cbl_internal_error("Too many subscripts");
-        }
-      // Pick up the integer value of the subscript:
-      static tree subscript  = gg_define_variable(LONG, "..gdod_subscript", vs_file_static);
-
-      get_integer_value(subscript,
-                        refer.subscripts[i].field,
-                        refer_offset_dest(refer.subscripts[i]),
-                        CHECK_FOR_FRACTIONAL_DIGITS);
-      IF( var_decl_rdigits,
-          ne_op,
-          integer_zero_node )
-        {
-        // The subscript isn't an integer
-        set_exception_code(ec_bound_subscript_e);
-        }
-      ELSE
-        {
-        }
-      ENDIF
-
-//      gg_printf("%s(): We have a subscript of %d from %s\n",
-//                  gg_string_literal(__func__),
-//                  subscript,
-//                  gg_string_literal(refer.subscripts[i].field->name),
-//                  NULL_TREE);
-
-      if( (refer.subscripts[i].field->attr & FIGCONST_MASK) == zero_value_e )
-        {
-        // This refer is a figconst ZERO; we treat it as an ALL ZERO
-        // This is our internal representation for ALL, as in TABLE(ALL)
-
-        // Set the subscript to 1
-        gg_assign(subscript,
-                  build_int_cst_type( TREE_TYPE(subscript), 1));
-        // Flag this position as ALL
-        all_flags |= all_flag_bit;
-        }
-      all_flag_bit <<= 1;
-
-      // Subscript is now a one-based integer
-      // Make it zero-based:
-
-      gg_decrement(subscript);
-
-      IF( subscript, lt_op, gg_cast(TREE_TYPE(subscript), integer_zero_node) )
-        {
-        // The subscript is too small
-        set_exception_code(ec_bound_subscript_e);
-        gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 0));
-        }
-      ELSE
-        {
-        // gg_printf("parent->occurs.ntimes() is %d\n", build_int_cst_type(INT, parent->occurs.ntimes()), NULL_TREE);
-        IF( subscript,
-            ge_op,
-            build_int_cst_type(TREE_TYPE(subscript), parent->occurs.ntimes()) )
-          {
-          // The subscript is too large
-          set_exception_code(ec_bound_subscript_e);
-          gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 0));
-          }
-        ELSE
-          {
-          // We have a good subscript:
-          // Check for an ODO violation:
-          if( parent->occurs.depending_on )
-            {
-            cbl_field_t *depending_on = cbl_field_of(symbol_at(parent->occurs.depending_on));
-            get_integer_value(value64, depending_on);
-            IF( subscript, ge_op, value64 )
-              {
-              gg_assign(var_decl_odo_violation, integer_one_node);
-              }
-            ELSE
-              ENDIF
-            }
-
-          tree augment = gg_multiply(subscript, get_any_capacity(parent));
-          gg_assign(retval, gg_add(retval, gg_cast(SIZE_T, augment)));
-          }
-          ENDIF
-        }
-        ENDIF
-      parent = parent_of(parent);
-      }
-    }
-
-  if( refer.refmod.from )
-    {
-    // We have a refmod to deal with
-    static tree refstart = gg_define_variable(LONG, "..gdos_refstart", vs_file_static);
+    // This is normal operation -- no exception checking.  Thus, we won't
+    // be trying to check for boundaries or integerness.  And the programmer
+    // is accepting the responsibility for bad code:  "If you specify
+    // disaster, disaster is what you get."
 
     get_integer_value(refstart,
                       refer.refmod.from->field,
-                      refer_offset_source(*refer.refmod.from),
-                      CHECK_FOR_FRACTIONAL_DIGITS);
-    IF( var_decl_rdigits,
-        ne_op,
-        integer_zero_node )
-      {
-      // refmod offset is not an integer, and has to be
-      set_exception_code(ec_bound_ref_mod_e);
-      }
-    ELSE
-      ENDIF
-
-    // Make refstart zero-based:
+                      refer_offset(*refer.refmod.from));
     gg_decrement(refstart);
 
-    IF( refstart, lt_op, gg_cast(LONG, integer_zero_node) )
+    if( refer.refmod.len )
       {
+      // The length was specified, so that's what we return:
+      get_integer_value(reflen,
+                        refer.refmod.len->field,
+                        refer_offset(*refer.refmod.len));
+      }
+    else
+      {
+      // The length was not specified, so we need to return the distance
+      // between refmod.from and the end of the field:
+      gg_assign(reflen, gg_subtract( get_any_capacity(refer.field), refstart) );
+      }
+    return;
+    }
+
+  // ec_bound_ref_mode_e checking is enabled:
+
+  get_integer_value(refstart,
+                    refer.refmod.from->field,
+                    refer_offset(*refer.refmod.from),
+                    CHECK_FOR_FRACTIONAL_DIGITS);
+
+  IF( var_decl_rdigits,
+      ne_op,
+      integer_zero_node )
+    {
+    // The value for refstart had non-zero decimal places.  This is an
+    // error condition:
+    set_exception_code(ec_bound_ref_mod_e);
+    gg_assign(refstart, gg_cast(LONG, integer_one_node));
+    gg_assign(var_decl_rdigits, integer_zero_node);
+    }
+  ELSE
+    ENDIF
+
+  // Make refstart zero-based:
+  gg_decrement(refstart);
+
+  IF( refstart, lt_op, build_int_cst_type(LONG, 0 ) )
+    {
+    // A negative value for refstart is an error condition:
+    set_exception_code(ec_bound_ref_mod_e);
+    gg_assign(refstart, gg_cast(LONG, integer_zero_node));
+    // Set reflen to one here, because otherwise it won't be established.
+    gg_assign(reflen, gg_cast(TREE_TYPE(reflen), integer_one_node));
+    }
+  ELSE
+    {
+    IF( refstart, gt_op, gg_cast(TREE_TYPE(refstart), get_any_capacity(refer.field)) )
+      {
+      // refstart greater than zero is an error condition:
       set_exception_code(ec_bound_ref_mod_e);
-      gg_assign(refstart, build_int_cst_type(TREE_TYPE(refstart), 0));
+      gg_assign(refstart, gg_cast(LONG, integer_zero_node));
+      // Set reflen to one here, because otherwise it won't be established.
+      gg_assign(reflen, gg_cast(TREE_TYPE(reflen), integer_one_node));
       }
     ELSE
       {
-      tree capacity = get_any_capacity(refer.field);
-      IF( refstart, gt_op, gg_cast(LONG, capacity) )
+      if( refer.refmod.len )
         {
-        set_exception_code(ec_bound_ref_mod_e);
-        gg_assign(refstart, build_int_cst_type(TREE_TYPE(refstart), 0));
+        get_integer_value(reflen,
+                          refer.refmod.len->field,
+                          refer_offset(*refer.refmod.len),
+                          CHECK_FOR_FRACTIONAL_DIGITS);
+        IF( var_decl_rdigits,
+            ne_op,
+            integer_zero_node )
+          {
+          // length is not an integer, which is an error condition
+          set_exception_code(ec_bound_ref_mod_e);
+          gg_assign(reflen, gg_cast(LONG, integer_one_node));
+          gg_assign(var_decl_rdigits, integer_zero_node);
+          }
+        ELSE
+          {
+          // The length is an integer, so we can keep going.
+          IF( reflen, lt_op, gg_cast(LONG, integer_one_node) )
+            {
+            // length is too small, which is an error condition.
+            set_exception_code(ec_bound_ref_mod_e);
+            gg_assign(reflen, gg_cast(LONG, integer_one_node));
+            }
+          ELSE
+            {
+            IF( gg_add(refstart, reflen),
+                gt_op,
+                gg_cast(TREE_TYPE(refstart), get_any_capacity(refer.field)) )
+              {
+              // Start + Length is too large, which yet again is an error
+              // condition
+              set_exception_code(ec_bound_ref_mod_e);
+
+              // Our intentions are honorable.  But at this point, where
+              // we notice that start + length is too long, the
+              // get_data_offset routine has already been run and
+              // it's too late to actually change the refstart.  There are
+              // theoretical solutions to this -- mainly,
+              // get_data_offset needs to check the start + len for
+              // validity.  But I am not going to do it now.  Think of this
+              // as the TODO item.
+              gg_assign(refstart, gg_cast(LONG, integer_zero_node));
+              gg_assign(reflen, gg_cast(LONG, integer_one_node));
+              }
+            ELSE
+              {
+              // There are no problems, so there is no error condition, and
+              // refstart and reflen are correct.
+              }
+              ENDIF
+            }
+            ENDIF
+          }
+          ENDIF
         }
-      ELSE
-        ENDIF
+      else
+        {
+        // There is no refmod length, so we default to the remaining characters
+        gg_assign(reflen, gg_subtract(get_any_capacity(refer.field),
+                                      refstart));
+        }
       }
       ENDIF
-
-    // We have a good refstart
-    gg_assign(retval, gg_add(retval, gg_cast(SIZE_T, refstart)));
     }
-
-  if( pflags )
-    {
-    *pflags = all_flags;
-    }
-
-//  gg_printf("*****>>>>> %s(): returning %p\n",
-//            gg_string_literal(__func__),
-//            retval,
-//            NULL_TREE);
-  return retval;
+    ENDIF
   }
 
-static tree
-get_data_offset_source(cbl_refer_t &refer,
+void
+get_depending_on_value_from_odo(tree retval, cbl_field_t *odo)
+  {
+  /*  This routine, called only when we know there is an OCCURS DEPENDING ON
+      clause, returns the current value of the DEPENDING ON variable.  When
+      ec_bound_odo_e is turned on, and there is any kind of ec-bound-odo
+      error condition, the value returned is occurs.bounds.lower.
+
+      This should ensure that there is no memory violation in the event of a
+      declarative with a RESUME NEXT STATEMENT, or before the default_condition
+      processing can do a controlled exit.
+      */
+  cbl_field_t *depending_on;
+  depending_on = cbl_field_of(symbol_at(odo->occurs.depending_on));
+
+  if( !enabled_exceptions.match(ec_bound_odo_e) )
+    {
+    // With no exception testing, just pick up the value.  If there is a
+    // the programmer will simply have to live with the consequences.
+    get_integer_value(retval,
+                      depending_on,
+                      NULL);
+    return;
+    }
+
+  // Bounds checking is enabled, so we test the DEPENDING ON value to be between
+  // the lower and upper OCCURS limits:
+  get_integer_value(retval,
+                    depending_on,
+                    NULL,
+                    CHECK_FOR_FRACTIONAL_DIGITS);
+
+  IF( var_decl_rdigits, ne_op, integer_zero_node )
+    {
+    // This needs to evaluate to an integer
+    set_exception_code(ec_bound_odo_e);
+    gg_assign(retval, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower));
+    gg_assign(var_decl_rdigits, integer_zero_node);
+    }
+  ELSE
+    ENDIF
+
+  IF( retval, gt_op, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.upper) )
+    {
+    set_exception_code(ec_bound_odo_e);
+    gg_assign(retval, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower));
+    }
+  ELSE
+    {
+    IF( retval, lt_op, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower) )
+      {
+      set_exception_code(ec_bound_odo_e);
+      gg_assign(retval, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower));
+      }
+    ELSE
+      ENDIF
+    IF( retval, lt_op, gg_cast(TREE_TYPE(retval), integer_zero_node) )
+      {
+      set_exception_code(ec_bound_odo_e);
+      gg_assign(retval, gg_cast(TREE_TYPE(retval), integer_zero_node));
+      }
+    ELSE
+      ENDIF
+    }
+    ENDIF
+  }
+
+static
+void
+get_depending_on_value(tree retval, cbl_refer_t &refer)
+  {
+  /*  This routine, called only when we know there is an OCCURS DEPENDING ON
+      clause, returns the current value of the DEPENDING ON variable.  When
+      ec_bound_odo_e is turned on, and there is any kind of ec-bound-odo
+      error condition, the value returned is occurs.bounds.lower.
+
+      This should ensure that there is no memory violation in the event of a
+      declarative with a RESUME NEXT STATEMENT, or before the default_condition
+      processing can do a controlled exit.
+      */
+  cbl_field_t *odo = symbol_find_odo(refer.field);
+  get_depending_on_value_from_odo(retval, odo);
+  }
+
+static
+tree
+get_data_offset(cbl_refer_t &refer,
                 int *pflags = NULL)
   {
   Analyze();
@@ -494,10 +550,9 @@ get_data_offset_source(cbl_refer_t &refer,
   int all_flags = 0;
   int all_flag_bit = 1;
 
-  static tree value64 = gg_define_variable(LONG, ".._gdos_value64", vs_file_static);
-
   if( refer.nsubscript )
     {
+    REFER("subscript");
     // We have at least one subscript:
 
     // Figure we have three subscripts, so nsubscript is 3
@@ -533,28 +588,6 @@ get_data_offset_source(cbl_refer_t &refer,
       // Pick up the integer value of the subscript:
       tree subscript  = gg_define_variable(LONG);
 
-      get_integer_value(subscript,
-                        refer.subscripts[i].field,
-                        refer_offset_source(refer.subscripts[i]),
-                        CHECK_FOR_FRACTIONAL_DIGITS);
-      IF( var_decl_rdigits,
-          ne_op,
-          integer_zero_node )
-        {
-        // The subscript isn't an integer
-        set_exception_code(ec_bound_subscript_e);
-        }
-      ELSE
-        {
-        }
-      ENDIF
-
-      // gg_printf("%s(): We have a subscript of %d from %s\n",
-                  // gg_string_literal(__func__),
-                  // subscript,
-                  // gg_string_literal(refer.subscripts[i].field->name),
-                  // NULL_TREE);
-
       if( (refer.subscripts[i].field->attr & FIGCONST_MASK) == zero_value_e )
         {
         // This refer is a figconst ZERO; we treat it as an ALL ZERO
@@ -566,97 +599,94 @@ get_data_offset_source(cbl_refer_t &refer,
         // Flag this position as ALL
         all_flags |= all_flag_bit;
         }
+      else
+        {
+        if( !enabled_exceptions.match(ec_bound_subscript_e) )
+          {
+          // With no exception testing, just pick up the value
+          get_integer_value(subscript,
+                            refer.subscripts[i].field,
+                            refer_offset(refer.subscripts[i]));
+          }
+        else
+          {
+          get_integer_value(subscript,
+                            refer.subscripts[i].field,
+                            refer_offset(refer.subscripts[i]),
+                            CHECK_FOR_FRACTIONAL_DIGITS);
+          IF( var_decl_rdigits,
+              ne_op,
+              integer_zero_node )
+            {
+            // The subscript isn't an integer
+            set_exception_code(ec_bound_subscript_e);
+            gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 1));
+            gg_assign(var_decl_rdigits, integer_zero_node);
+            }
+          ELSE
+            {
+            IF( subscript, lt_op, gg_cast(TREE_TYPE(subscript), integer_one_node) )
+              {
+              // The subscript is too small
+              set_exception_code(ec_bound_subscript_e);
+              gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 1));
+              }
+            ELSE
+              {
+              IF( subscript,
+                  ge_op,
+                  build_int_cst_type(TREE_TYPE(subscript), parent->occurs.ntimes()) )
+                {
+                // The subscript is too large
+                set_exception_code(ec_bound_subscript_e);
+                gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 1));
+                }
+              ELSE
+                {
+                }
+                ENDIF
+              }
+              ENDIF
+            }
+          ENDIF
+          }
+        }
+
       all_flag_bit <<= 1;
+
+      // Although we strictly don't need to look at the ODO value at this point,
+      // we do want it checked for the purposes of ec-bound-odo
+
+      if( enabled_exceptions.match(ec_bound_odo_e) )
+        {
+        if( parent->occurs.depending_on )
+          {
+          static tree value64 = gg_define_variable(LONG, ".._gdos_value64", vs_file_static);
+          cbl_field_t *odo = symbol_find_odo(parent);
+          get_depending_on_value_from_odo(value64, odo);
+          }
+        }
 
       // Subscript is now a one-based integer
       // Make it zero-based:
 
       gg_decrement(subscript);
-      // gg_printf("process_this_exception is true\n", NULL_TREE);
-      IF( subscript, lt_op, gg_cast(TREE_TYPE(subscript), integer_zero_node) )
-        {
-        // The subscript is too small
-        set_exception_code(ec_bound_subscript_e);
-        gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 0));
-        }
-      ELSE
-        {
-        // gg_printf("parent->occurs.ntimes() is %d\n", build_int_cst_type(INT, parent->occurs.ntimes()), NULL_TREE);
-        IF( subscript,
-            ge_op,
-            build_int_cst_type(TREE_TYPE(subscript), parent->occurs.ntimes()) )
-          {
-          // The subscript is too large
-          set_exception_code(ec_bound_subscript_e);
-          gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 0));
-          }
-        ELSE
-          {
-          // We have a good subscript:
-          // Check for an ODO violation:
-          if( parent->occurs.depending_on )
-            {
-            cbl_field_t *depending_on = cbl_field_of(symbol_at(parent->occurs.depending_on));
-            get_integer_value(value64, depending_on);
-            IF( subscript, ge_op, value64 )
-              {
-              gg_assign(var_decl_odo_violation, integer_one_node);
-              }
-            ELSE
-              ENDIF
-            }
 
-          tree augment = gg_multiply(subscript, get_any_capacity(parent));
-          gg_assign(retval, gg_add(retval, gg_cast(SIZE_T, augment)));
-          }
-          ENDIF
-        }
-        ENDIF
+      tree augment = gg_multiply(subscript, get_any_capacity(parent));
+      gg_assign(retval, gg_add(retval, gg_cast(SIZE_T, augment)));
+
       parent = parent_of(parent);
       }
     }
 
   if( refer.refmod.from )
     {
+    REFER("refmod refstart");
     // We have a refmod to deal with
     static tree refstart = gg_define_variable(LONG, "..gdo_refstart", vs_file_static);
+    static tree reflen   = gg_define_variable(LONG, "..gdo_reflen", vs_file_static);
+    get_and_check_refstart_and_reflen(refstart, reflen, refer);
 
-    get_integer_value(refstart,
-                      refer.refmod.from->field,
-                      refer_offset_source(*refer.refmod.from),
-                      CHECK_FOR_FRACTIONAL_DIGITS);
-    IF( var_decl_rdigits,
-        ne_op,
-        integer_zero_node )
-      {
-      // refmod offset is not an integer, and has to be
-      set_exception_code(ec_bound_ref_mod_e);
-      }
-    ELSE
-      ENDIF
-
-    // Make refstart zero-based:
-    gg_decrement(refstart);
-
-    IF( refstart, lt_op, gg_cast(LONG, integer_zero_node) )
-      {
-      set_exception_code(ec_bound_ref_mod_e);
-      gg_assign(refstart, gg_cast(LONG, integer_zero_node));
-      }
-    ELSE
-      {
-      tree capacity = get_any_capacity(refer.field);
-      IF( refstart, gt_op, gg_cast(LONG, capacity) )
-        {
-        set_exception_code(ec_bound_ref_mod_e);
-        gg_assign(refstart, build_int_cst_type(TREE_TYPE(refstart), 0));
-        }
-      ELSE
-        ENDIF
-      }
-      ENDIF
-
-    // We have a good refstart
     gg_assign(retval, gg_add(retval, gg_cast(SIZE_T, refstart)));
     }
 
@@ -665,11 +695,6 @@ get_data_offset_source(cbl_refer_t &refer,
     *pflags = all_flags;
     }
 
-
-//  gg_printf("*****>>>>> %s(): returning %p\n",
-//            gg_string_literal(__func__),
-//            retval,
-//            NULL_TREE);
   return retval;
   }
 
@@ -710,7 +735,7 @@ get_binary_value( tree value,
       {
       if( SCALAR_FLOAT_TYPE_P(value) )
         {
-        gg_assign(value, gg_cast(TREE_TYPE(value), field->literal_decl_node));
+        cbl_internal_error("Can't get float value from %s", field->name);
         }
       else
         {
@@ -1331,17 +1356,9 @@ scale_by_power_of_ten_N(tree value,
   Analyzer.Message("takes int N");
   if( N == 0 )
     {
-    if( check_for_fractional )
-      {
-      gg_assign(var_decl_rdigits, integer_zero_node);
-      }
     }
   else if( N > 0 )
     {
-    if( check_for_fractional )
-      {
-      gg_assign(var_decl_rdigits, integer_zero_node);
-      }
     tree value_type = TREE_TYPE(value);
     FIXED_WIDE_INT(128) power_of_ten = get_power_of_ten(N);
     gg_assign(value, gg_multiply(value, wide_int_to_tree( value_type,
@@ -1361,7 +1378,6 @@ scale_by_power_of_ten_N(tree value,
         gg_assign(var_decl_rdigits, integer_one_node);
         }
       ELSE
-        gg_assign(var_decl_rdigits, integer_zero_node);
         ENDIF
       }
     gg_assign(value, gg_divide(value, wide_int_to_tree( value_type,
@@ -1758,7 +1774,7 @@ build_array_of_treeplets( int ngroup,
                     refers[i].field ? gg_get_address_of(refers[i].field->var_decl_node)
                                     : gg_cast(cblc_field_p_type_node, null_pointer_node));
           gg_assign(gg_array_value(var_decl_treeplet_1o, i),
-                    refer_offset_source(refers[i]));
+                    refer_offset(refers[i]));
           gg_assign(gg_array_value(var_decl_treeplet_1s, i),
                     refer_size_source(refers[i]));
           }
@@ -1770,7 +1786,7 @@ build_array_of_treeplets( int ngroup,
                     refers[i].field ? gg_get_address_of(refers[i].field->var_decl_node)
                                     : gg_cast(cblc_field_p_type_node, null_pointer_node));
           gg_assign(gg_array_value(var_decl_treeplet_2o, i),
-                    refer_offset_source(refers[i]));
+                    refer_offset(refers[i]));
           gg_assign(gg_array_value(var_decl_treeplet_2s, i),
                     refer_size_source(refers[i]));
           }
@@ -1782,7 +1798,7 @@ build_array_of_treeplets( int ngroup,
                     refers[i].field ? gg_get_address_of(refers[i].field->var_decl_node)
                                     : gg_cast(cblc_field_p_type_node, null_pointer_node));
           gg_assign(gg_array_value(var_decl_treeplet_3o, i),
-                    refer_offset_source(refers[i]));
+                    refer_offset(refers[i]));
           gg_assign(gg_array_value(var_decl_treeplet_3s, i),
                     refer_size_source(refers[i]));
           }
@@ -1794,7 +1810,7 @@ build_array_of_treeplets( int ngroup,
                     refers[i].field ? gg_get_address_of(refers[i].field->var_decl_node)
                                     : gg_cast(cblc_field_p_type_node, null_pointer_node));
           gg_assign(gg_array_value(var_decl_treeplet_4o, i),
-                    refer_offset_source(refers[i]));
+                    refer_offset(refers[i]));
           gg_assign(gg_array_value(var_decl_treeplet_4s, i),
                     refer_size_source(refers[i]));
           }
@@ -1839,7 +1855,7 @@ build_array_of_fourplets( int ngroup,
       gg_assign(gg_array_value(var_decl_treeplet_1f, i),
                 gg_get_address_of(refers[i].field->var_decl_node));
       gg_assign(gg_array_value(var_decl_treeplet_1o, i),
-                refer_offset_source(refers[i], &flag_bits));
+                refer_offset(refers[i], &flag_bits));
       gg_assign(gg_array_value(var_decl_treeplet_1s, i),
                 refer_size_source(refers[i]));
       gg_assign(gg_array_value(var_decl_fourplet_flags, i),
@@ -1914,11 +1930,14 @@ get_literal_string(cbl_field_t *field)
 bool
 refer_is_clean(cbl_refer_t &refer)
   {
-  if( !refer.field )
+  if( !refer.field || refer.field->type == FldLiteralN )
     {
     // It is routine for a refer to have no field.  It happens when the parser
-    // passes us a refer for an optional parameter that has been ommitted, for
+    // passes us a refer for an optional parameter that has been omitted, for
     // example.
+
+    // It is also the case that a FldLiteralN will never have suscripts, or the
+    // like.
     return true;
     }
 
@@ -1931,216 +1950,43 @@ refer_is_clean(cbl_refer_t &refer)
           ;
   }
 
-void
-REFER_CHECK(const char *func,
-            int         line,
-            cbl_refer_t &refer
-            )
-  {
-  static int counter=1;
 
-  if( counter == 5 )
-    {
-    fprintf(stderr, "DING! %d\n", counter);
-    }
+/*  This routine returns the length portion of a refmod(start:length) reference.
+    It extracts both the start and the length so that it can add them together
+    to make sure that result falls within refer.capacity.
 
-
-  fprintf(stderr,
-          "ct REFER_CHECK(%d): %s():%d %s\n",
-          counter,
-          func,
-          line,
-          refer.field->name);
-
-  gg_printf("rt REFER_CHECK(%d): %s():%d %s (%s)\n",
-            build_int_cst_type(INT, counter),
-            gg_string_literal(func),
-            build_int_cst_type(INT, line),
-            gg_string_literal(refer.field->name),
-            gg_string_literal(cbl_field_type_str(refer.field->type)),
-            NULL_TREE);
-  counter+=1;
-  }
-
+    This routine shouldn't be called unless there is refmod involved.
+    */
 static
 tree  // size_t
 refer_refmod_length(cbl_refer_t &refer)
   {
   Analyze();
-  if( refer.refmod.from || refer.refmod.len )
-    {
-    // First, check for compile-time errors
-    static tree refstart = gg_define_variable(LONG, "..rrl_refstart", vs_file_static);
-    static tree reflen   = gg_define_variable(LONG, "..rrl_reflen", vs_file_static);
+  REFER("refstart and reflen");
+  static tree refstart = gg_define_variable(LONG, "..rrl_refstart", vs_file_static);
+  static tree reflen   = gg_define_variable(LONG, "..rrl_reflen", vs_file_static);
 
-    tree rt_capacity = get_any_capacity(refer.field);
+  get_and_check_refstart_and_reflen( refstart, reflen, refer);
 
-    gg_assign(reflen, gg_cast(TREE_TYPE(reflen), integer_one_node));
+  // Arrive here with a valid value for reflen:
 
-    get_integer_value(refstart,
-                      refer.refmod.from->field,
-                      refer_offset_source(*refer.refmod.from),
-                      CHECK_FOR_FRACTIONAL_DIGITS);
-    IF( var_decl_rdigits,
-        ne_op,
-        integer_zero_node )
-      {
-      set_exception_code(ec_bound_ref_mod_e);
-      gg_assign(refstart, gg_cast(LONG, integer_one_node));
-      }
-    ELSE
-      ENDIF
-
-    // Make refstart zero-based:
-    gg_decrement(refstart);
-
-    IF( refstart, lt_op, build_int_cst_type(LONG, 0 ) )
-      {
-      set_exception_code(ec_bound_ref_mod_e);
-      gg_assign(refstart, gg_cast(LONG, integer_zero_node));
-      }
-    ELSE
-      {
-      IF( refstart, gt_op, gg_cast(TREE_TYPE(refstart), rt_capacity) )
-        {
-        set_exception_code(ec_bound_ref_mod_e);
-        gg_assign(refstart, gg_cast(LONG, integer_zero_node));
-        }
-      ELSE
-        {
-        if( refer.refmod.len )
-          {
-          get_integer_value(reflen,
-                            refer.refmod.len->field,
-                            refer_offset_source(*refer.refmod.len),
-                            CHECK_FOR_FRACTIONAL_DIGITS);
-          IF( var_decl_rdigits,
-              ne_op,
-              integer_zero_node )
-            {
-            // length is not an integer
-            set_exception_code(ec_bound_ref_mod_e);
-            gg_assign(reflen, gg_cast(LONG, integer_one_node));
-            }
-          ELSE
-            {
-            }
-          ENDIF
-
-          IF( reflen, lt_op, gg_cast(LONG, integer_one_node) )
-            {
-            // length is too small
-            set_exception_code(ec_bound_ref_mod_e);
-            gg_assign(reflen, gg_cast(LONG, integer_one_node));
-            }
-          ELSE
-            {
-            IF( gg_add(refstart, reflen),
-                gt_op,
-                gg_cast(TREE_TYPE(refstart), rt_capacity) )
-              {
-              // Start + Length is too large
-              set_exception_code(ec_bound_ref_mod_e);
-
-              // Our intentions are honorable.  But at this point, where
-              // we notice that start + length is too long, the
-              // get_data_offset_source routine has already been run and
-              // it's too late to actually change the refstart.  There are
-              // theoretical solutions to this -- mainly,
-              // get_data_offset_source needs to check the start + len for
-              // validity.  But I am not going to do it now.  Think of this
-              // as the TODO item.
-              gg_assign(refstart, gg_cast(LONG, integer_zero_node));
-              gg_assign(reflen, gg_cast(LONG, integer_one_node));
-              }
-            ELSE
-              ENDIF
-            }
-            ENDIF
-          }
-        else
-          {
-          // There is no refmod length, so we default to the remaining characters
-          tree subtract_expr = gg_subtract( rt_capacity,
-                                            refstart);
-          gg_assign(reflen, subtract_expr);
-          }
-        }
-        ENDIF
-      }
-      ENDIF
-
-    // Arrive here with valid values for refstart and reflen:
-
-    return gg_cast(SIZE_T, reflen);
-    }
-  else
-    {
-    return size_t_zero_node;
-    }
+  return gg_cast(SIZE_T, reflen);
   }
 
 static
 tree // size_t
 refer_fill_depends(cbl_refer_t &refer)
   {
+  REFER("");
   // This returns a positive number which is the amount a depends-limited
   // capacity needs to be reduced.
   Analyze();
   cbl_field_t *odo = symbol_find_odo(refer.field);
-  cbl_field_t *depending_on;
-  depending_on = cbl_field_of(symbol_at(odo->occurs.depending_on));
-  // refer.field has a relevant DEPENDING ON clause
-
-  // gg_printf("var is %s type is %s\n",
-            // gg_string_literal(refer.field->name),
-            // gg_string_literal(cbl_field_type_str(refer.field->type)),
-            // NULL_TREE);
-  // gg_printf("   odo is %s\n", gg_string_literal(odo->name), NULL_TREE);
-
-  // gg_printf("      depending_on is %s\n", gg_string_literal(depending_on->name), NULL_TREE);
-  // fprintf(stderr,
-          // "symbol_find_odo found %s, with depending_on %s\n",
-          // odo->name,
-          // depending_on->name);
 
   static tree value64 = gg_define_variable(LONG, "..rfd_value64", vs_file_static);
-  get_integer_value(value64,
-                    depending_on,
-                    NULL,
-                    CHECK_FOR_FRACTIONAL_DIGITS);
-  IF( var_decl_rdigits, ne_op, integer_zero_node )
-    {
-    // This needs to evaluate to an integer
-    set_exception_code(ec_bound_odo_e);
-    gg_assign(value64, build_int_cst_type(TREE_TYPE(value64), odo->occurs.bounds.upper));
-    }
-  ELSE
-    ENDIF
 
-  IF( value64, gt_op, build_int_cst_type(TREE_TYPE(value64), odo->occurs.bounds.upper) )
-    {
-    set_exception_code(ec_bound_odo_e);
-    gg_assign(value64, build_int_cst_type(TREE_TYPE(value64), odo->occurs.bounds.upper));
-    }
-  ELSE
-    {
-    IF( value64, lt_op, build_int_cst_type(TREE_TYPE(value64), odo->occurs.bounds.lower) )
-      {
-      set_exception_code(ec_bound_odo_e);
-      gg_assign(value64, build_int_cst_type(TREE_TYPE(value64), odo->occurs.bounds.lower));
-      }
-    ELSE
-      ENDIF
-    IF( value64, lt_op, gg_cast(TREE_TYPE(value64), integer_zero_node) )
-      {
-      set_exception_code(ec_bound_odo_e);
-      gg_assign(value64, gg_cast(TREE_TYPE(value64), integer_zero_node));
-      }
-    ELSE
-      ENDIF
-    }
-    ENDIF
+  get_depending_on_value(value64, refer);
+
   // value64 is >= zero and < bounds.upper
 
   // We multiply the ODO value by the size of the data capacity to get the
@@ -2156,186 +2002,120 @@ refer_fill_depends(cbl_refer_t &refer)
   }
 
 tree  // size_t
-refer_offset_dest(cbl_refer_t &refer)
+refer_offset(cbl_refer_t &refer,
+                    int *pflags)
+  {
+  // This routine calculates the effect of a refer offset on the
+  // refer.field->data location.  When there are subscripts, the data location
+  // gets augmented by the (subscript-1)*element_size calculation.  And when
+  // there is a refmod, the data location additionally gets augmented by
+  // (refmod.from-1)
+
+  if( !refer.field )
+    {
+    // It's common for the field to be missing.  It generally means that an
+    // optional parameter wasn't supplied.
+    return size_t_zero_node;
+    }
+
+  if( refer.field->type == FldLiteralN || refer.field->type == FldLiteralA )
+    {
+    // We know that literals have no offset
+    return size_t_zero_node;
+    }
+
+  tree retval = get_data_offset(refer, pflags);
+  return retval;
+  }
+
+static
+tree   // size_t
+refer_size(cbl_refer_t &refer, refer_type_t refer_type)
   {
   Analyze();
-  // This has to be on the stack, because there are places where this routine
-  // is called twice before the results are used.
+  static tree retval = gg_define_variable(SIZE_T, "..rs_retval", vs_file_static);
 
   if( !refer.field )
     {
     return size_t_zero_node;
     }
 
-  if( !refer.nsubscript )
+  if( refer_is_clean(refer) )
     {
-    return get_data_offset_dest(refer);
+    return get_any_capacity(refer.field);
     }
 
-  gg_assign(var_decl_odo_violation, integer_zero_node);
+  // Step the first:  Get the actual full length:
 
-  tree retval = gg_define_variable(SIZE_T);
-  gg_assign(retval, get_data_offset_dest(refer));
-  IF( var_decl_odo_violation, ne_op, integer_zero_node )
+  if( refer_has_depends(refer, refer_type) )
     {
-    set_exception_code(ec_bound_odo_e);
+    // Because there is a depends, we might have to change the length:
+    gg_assign(retval, refer_fill_depends(refer));
     }
-  ELSE
-    ENDIF
+  else
+    {
+    gg_assign(retval, get_any_capacity(refer.field));
+    }
+
+  if( refer.refmod.from || refer.refmod.len )
+    {
+    tree refmod = refer_refmod_length(refer);
+    // retval is the ODO based total length.
+    // refmod is the length resulting from refmod(from:len)
+    // We have to reduce retval by the effect of refmod:
+    tree diff = gg_subtract(get_any_capacity(refer.field),
+                            refmod);
+    gg_assign(retval, gg_subtract(retval, diff));
+    }
   return retval;
   }
 
 tree  // size_t
 refer_size_dest(cbl_refer_t &refer)
   {
-  Analyze();
-  //static tree retval = gg_define_variable(SIZE_T, "..rsd_retval", vs_file_static);
-  tree retval = gg_define_variable(SIZE_T);
-
-  if( !refer.field )
-    {
-    return size_t_zero_node;
-    }
-  if( refer_is_clean(refer) )
-    {
-    // When the refer has no modifications, we return zero, which is interpreted
-    // as "use the original length"
-    return get_any_capacity(refer.field);
-    }
-
-  // Step the first:  Get the actual full length:
-  if( refer.field->attr & (intermediate_e | any_length_e) )
-    {
-    // This is an intermediate; use the length that might have changed
-    // because of a FUNCTION TRIM, or whatnot.
-
-    // We also pick up capacity for variables that were specified in
-    // linkage as ANY LENGTH
-    gg_assign(retval, member(refer.field->var_decl_node, "capacity"));
-    }
-
-  if( refer_has_depends(refer, refer_dest) )
-    {
-    // Because there is a depends, we might have to change the length:
-    gg_assign(retval, refer_fill_depends(refer));
-    }
-  else
-    {
-    // Use the compile-time value
-    gg_assign(retval, build_int_cst_type(SIZE_T, refer.field->data.capacity));
-    }
-
-  if( refer.refmod.from || refer.refmod.len )
-    {
-    tree refmod = refer_refmod_length(refer);
-    // retval is the ODO based total length.
-    // refmod is the length resulting from refmod(from:len)
-    // We have to reduce retval by the effect of refmod:
-    tree diff = gg_subtract(build_int_cst_type(SIZE_T, refer.field->data.capacity),
-                            refmod);
-    gg_assign(retval, gg_subtract(retval, diff));
-    }
-  return retval;
-  }
-
-tree  // size_t
-refer_offset_source(cbl_refer_t &refer,
-                    int *pflags)
-  {
-  if( !refer.field )
-    {
-    return size_t_zero_node;
-    }
-  if( !refer.nsubscript )
-    {
-    return get_data_offset_source(refer);
-    }
-
-  Analyze();
-
-  tree retval = gg_define_variable(SIZE_T);
-  gg_assign(var_decl_odo_violation, integer_zero_node);
-
-  gg_assign(retval, get_data_offset_source(refer, pflags));
-  IF( var_decl_odo_violation, ne_op, integer_zero_node )
-    {
-    set_exception_code(ec_bound_odo_e);
-    }
-  ELSE
-    ENDIF
-  return retval;
+  return refer_size(refer, refer_dest);
   }
 
 tree  // size_t
 refer_size_source(cbl_refer_t &refer)
   {
+  /*  There are oddities involved with refer_size_source and refer_size_dest.
+      See the comments in refer_has_depends for some explanation.  There are
+      other considerations, as well.  For example, consider a move, where you
+      have both a source and a dest.  Given that refer_size returns a static,
+      there are ways that the source and dest can trip over each other.
+
+      The logic here avoids all known cases where they might trip over each
+      other.  But there conceivably might be others,.
+
+      You have been warned.
+
+      */
+
+  // This test has to be here, otherwise there are failures in regression
+  // testing.
   if( !refer.field )
     {
     return size_t_zero_node;
     }
+
+  // This test has to be here, otherwise there are failures in regression
+  // testing.
   if( refer_is_clean(refer) )
     {
-    // When the refer has no modifications, we return zero, which is interpreted
-    // as "use the original length"
-    if( refer.field->attr & (intermediate_e | any_length_e) )
-      {
-      return member(refer.field->var_decl_node, "capacity");
-      }
-    else
-      {
-      return build_int_cst_type(SIZE_T, refer.field->data.capacity);
-      }
+    return get_any_capacity(refer.field);
     }
 
-  Analyze();
-
-  // Step the first:  Get the actual full length:
+  // This assignment has to be here. Simply returning refer_size() results
+  // in regression testing errors.
   static tree retval = gg_define_variable(SIZE_T, "..rss_retval", vs_file_static);
-  if( refer.field->attr & (intermediate_e | any_length_e) )
-    {
-    // This is an intermediate; use the length that might have changed
-    // because of a FUNCTION TRIM, or whatnot.
-
-    // We also pick up capacity for variables that were specified in
-    // linkage as ANY LENGTH
-    gg_assign(retval,
-              member(refer.field->var_decl_node, "capacity"));
-    }
-
-  if( refer_has_depends(refer, refer_source) )
-    {
-    // Because there is a depends, we might have to change the length:
-    gg_assign(retval, refer_fill_depends(refer));
-    }
-  else
-    {
-    // Use the compile-time value
-    gg_assign(retval, build_int_cst_type(SIZE_T, refer.field->data.capacity));
-    }
-
-  if( refer.refmod.from || refer.refmod.len )
-    {
-    tree refmod = refer_refmod_length(refer);
-    // retval is the ODO based total length.
-    // refmod is the length resulting from refmod(from:len)
-    // We have to reduce retval by the effect of refmod:
-    tree diff = gg_subtract(build_int_cst_type(SIZE_T, refer.field->data.capacity),
-                            refmod);
-    gg_assign(retval, gg_subtract(retval, diff));
-    }
+  gg_assign(retval, refer_size(refer, refer_source));
   return retval;
   }
 
 tree
-qualified_data_source(cbl_refer_t &refer)
+qualified_data_location(cbl_refer_t &refer)
   {
   return gg_add(member(refer.field->var_decl_node, "data"),
-                refer_offset_source(refer));
-  }
-
-tree
-qualified_data_dest(cbl_refer_t &refer)
-  {
-  return gg_add(member(refer.field->var_decl_node, "data"),
-                refer_offset_dest(refer));
+                refer_offset(refer));
   }

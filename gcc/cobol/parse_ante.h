@@ -28,9 +28,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <assert.h>
-#include <string.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstring>
+#include <cstdio>
 
 #include <algorithm>
 #include <list>
@@ -46,9 +46,6 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-
-extern void declarative_runtime_match(cbl_field_t *declaratives,
-                                      cbl_label_t *lave );
 
 extern YYLTYPE yylloc;
 
@@ -73,42 +70,46 @@ void apply_declaratives();
 const char * keyword_str( int token );
 void labels_dump();
 
-cbl_dialect_t cbl_dialect;
+unsigned int cbl_dialects;
 size_t cbl_gcobol_features;
 
+static enum cbl_division_t current_division;
 static size_t nparse_error = 0;
 
-size_t parse_error_inc() { return ++nparse_error; }
+size_t parse_error_inc() {
+  mode_syntax_only(current_division);
+  return ++nparse_error;
+}
 size_t parse_error_count() { return nparse_error; }
 void input_file_status_notify();
 
-#define YYLLOC_DEFAULT(Current, Rhs, N)					\
-  do {									\
-      if (N)								\
-        {								\
-          (Current).first_line   = YYRHSLOC (Rhs, 1).first_line;	\
-          (Current).first_column = YYRHSLOC (Rhs, 1).first_column;	\
-          (Current).last_line    = YYRHSLOC (Rhs, N).last_line;		\
-          (Current).last_column  = YYRHSLOC (Rhs, N).last_column;	\
-          location_dump("parse.c", N,					\
-                        "rhs N  ", YYRHSLOC (Rhs, N));			\
-        }								\
-      else								\
-        {								\
-          (Current).first_line   =					\
-          (Current).last_line    = YYRHSLOC (Rhs, 0).last_line;		\
-          (Current).first_column =					\
-          (Current).last_column  = YYRHSLOC (Rhs, 0).last_column;	\
-        }								\
-      location_dump("parse.c", __LINE__, "current", (Current));		\
-      gcc_location_set( location_set(Current) );			\
-      input_file_status_notify();					\
+#define YYLLOC_DEFAULT(Current, Rhs, N)                                 \
+  do {                                                                  \
+      if (N)                                                            \
+        {                                                               \
+          (Current).first_line   = YYRHSLOC (Rhs, 1).first_line;        \
+          (Current).first_column = YYRHSLOC (Rhs, 1).first_column;      \
+          (Current).last_line    = YYRHSLOC (Rhs, N).last_line;         \
+          (Current).last_column  = YYRHSLOC (Rhs, N).last_column;       \
+          location_dump("parse.c", N,                                   \
+                        "rhs N  ", YYRHSLOC (Rhs, N));                  \
+        }                                                               \
+      else                                                              \
+        {                                                               \
+          (Current).first_line   =                                      \
+          (Current).last_line    = YYRHSLOC (Rhs, 0).last_line;         \
+          (Current).first_column =                                      \
+          (Current).last_column  = YYRHSLOC (Rhs, 0).last_column;       \
+        }                                                               \
+      location_dump("parse.c", __LINE__, "current", (Current));         \
+      gcc_location_set( location_set(Current) );                        \
+      input_file_status_notify();                                       \
   } while (0)
 
 int yylex(void);
 extern int yydebug;
 
-#include <stdarg.h>
+#include <cstdarg>
 
 const char *
 consistent_encoding_check( const YYLTYPE& loc, const char input[] ) {
@@ -131,8 +132,6 @@ const char * original_picture();
 
 static const relop_t invalid_relop = static_cast<relop_t>(-1);
 
-static enum cbl_division_t current_division;
-
 static cbl_refer_t null_reference;
 static cbl_field_t *literally_one, *literally_zero;
 
@@ -142,7 +141,8 @@ literal_of( size_t value ) {
     case 0: return literally_zero;
     case 1: return literally_one;
   }
-  cbl_err("logic error: %s: %zu not supported", __func__, value);
+  cbl_err("logic error: %s: " HOST_SIZE_T_PRINT_UNSIGNED " not supported",
+          __func__, (fmt_size_t)value);
   return NULL;
 }
 
@@ -180,21 +180,23 @@ has_clause( int data_clauses, data_clause_t clause ) {
   return clause == (data_clauses & clause);
 }
 
+
 static bool
-is_cobol_word( const char name[] ) {
+is_cobol_charset( const char name[] ) {
   auto eoname = name + strlen(name);
-  auto p = std::find_if( name, eoname,
+  auto ok = std::all_of( name, eoname,
                          []( char ch ) {
                            switch(ch) {
                            case '-':
                            case '_':
-                             return false;
+                             return true;
                            case '$': // maybe one day (IBM allows)
+                             return false;
                              break;
                            }
-                           return !ISALNUM(ch);
+                           return 0 != ISALNUM(ch);
                          } );
-  return p == eoname;
+  return ok;
 }
 
 bool
@@ -221,7 +223,13 @@ namcpy(const YYLTYPE& loc, cbl_name_t tgt, const char *src ) {
 }
 
 cbl_field_t *
-new_alphanumeric( size_t capacity = MAXIMUM_ALPHA_LENGTH );
+new_alphanumeric( size_t capacity = MAXIMUM_ALPHA_LENGTH,
+		  const cbl_name_t name = nullptr );
+
+static inline cbl_field_t *
+new_alphanumeric( const cbl_name_t name ) {
+  return new_alphanumeric(MAXIMUM_ALPHA_LENGTH, name);
+}
 
 static inline cbl_refer_t *
 new_reference( enum cbl_field_type_t type, const char *initial ) {
@@ -238,7 +246,7 @@ new_reference_like( const cbl_field_t& skel ) {
 
 static void reject_refmod( YYLTYPE loc, cbl_refer_t );
 static bool require_pointer( YYLTYPE loc, cbl_refer_t );
-static bool require_numeric( YYLTYPE loc, cbl_refer_t );
+static bool require_integer( YYLTYPE loc, cbl_refer_t );
 
 struct cbl_field_t * constant_of( size_t isym );
 
@@ -312,7 +320,9 @@ struct evaluate_elem_t {
   case_iter pcase;
 
   void dump() const {
-    dbgmsg( "nother=%zu label '%s', %zu cases", nother, label.name, cases.size() );
+    dbgmsg( "nother=" HOST_SIZE_T_PRINT_UNSIGNED " label '%s', "
+            HOST_SIZE_T_PRINT_UNSIGNED " cases",
+            (fmt_size_t)nother, label.name, (fmt_size_t)cases.size() );
     std::for_each( cases.begin(), cases.end(), case_t::Dump );
   }
 
@@ -456,11 +466,12 @@ static class file_start_args_t {
   cbl_file_t *file;
 public:
   file_start_args_t() : file(NULL) {}
-  void init( YYLTYPE loc, cbl_file_t *file ) {
+  cbl_file_t * init( YYLTYPE loc, cbl_file_t *file ) {
     this->file = file;
     if( is_sequential(file) ) {
       error_msg(loc, "START invalid with sequential file %s", file->name);
     }
+    return file;
   }
   bool ready() const { return file != NULL; }
   void call_parser_file_start() {
@@ -542,8 +553,10 @@ struct arith_t {
     res.refer.field = cbl_field_of(symbol_at(tgt));
     tgts.push_back( res );
 
-    dbgmsg("%s:%d: SRC: %3zu %s", __func__, __LINE__, src, a.str());
-    dbgmsg("%s:%d:   to %3zu %s", __func__, __LINE__, tgt, res.refer.str());
+    dbgmsg("%s:%d: SRC: %3" GCC_PRISZ "u %s",
+           __func__, __LINE__, (fmt_size_t)src, a.str());
+    dbgmsg("%s:%d:   to %3" GCC_PRISZ "u %s",
+           __func__, __LINE__, (fmt_size_t)tgt, res.refer.str());
   }
   void operator()( const corresponding_fields_t::const_reference elem ) {
     another_pair( elem.first, elem.second );
@@ -918,55 +931,78 @@ teed_up_names() {
 }
 
 class tokenset_t {
-  std::vector<const char *>token_names;
-  std::map <std::string, int> tokens;
-  std::set<std::string> cobol_words;
-
+  // token_names is initialized from a generated header file. 
+  std::vector<const char *>token_names;  // position indicates token value
+  std::map <std::string, int> tokens;    // aliases
+  std::set<std::string> cobol_words;  // Anything in COBOL-WORDS may appear only once. 
+ public:
   static std::string
   lowercase( const cbl_name_t name ) {
     cbl_name_t lname;
     std::transform(name, name + strlen(name) + 1, lname, ftolower);
     return lname;
   }
+  static std::string
+  uppercase( const cbl_name_t name ) {
+    cbl_name_t uname;
+    std::transform(name, name + strlen(name) + 1, uname, ftoupper);
+    return uname;
+  }
 
  public:
   tokenset_t();
   int find( const cbl_name_t name, bool include_intrinsics );
 
-  bool equate( const YYLTYPE& loc, int token, const cbl_name_t name ) {
+  bool equate( const YYLTYPE& loc, int token,
+	       const cbl_name_t name, const cbl_name_t verb = "EQUATE") {
     auto lname( lowercase(name) );
     auto cw = cobol_words.insert(lname);
     if( ! cw.second ) {
-      error_msg(loc, "COBOL-WORDS EQUATE: %s may appear but once", name);
+      error_msg(loc, "COBOL-WORDS %s: %s may appear but once", verb, name);
       return false;
     }
     auto p = tokens.find(lowercase(name));
     bool fOK = p == tokens.end();
     if( fOK ) { // name not already in use
       tokens[lname] = token;
+      dbgmsg("%s:%d: %d has alias %s", __func__, __LINE__, token, name);
     } else {
-      error_msg(loc, "EQUATE: %s already defined as a token", name);
+      error_msg(loc, "%s: %s already defined as a token", verb, name);
     }
     return fOK;
   }
-  bool undefine( const YYLTYPE& loc, const cbl_name_t name ) {
+  bool undefine( const YYLTYPE& loc,
+		 const cbl_name_t name, const cbl_name_t verb = "UNDEFINE" ) {
     auto lname( lowercase(name) );
     auto cw = cobol_words.insert(lname);
     if( ! cw.second ) {
-      error_msg(loc, "COBOL-WORDS UNDEFINE: %s may appear but once", name);
+      error_msg(loc, "COBOL-WORDS %s: %s may appear but once", verb, name);
       return false;
     }
+
+    // Do not erase generic, multi-type tokens COMPUTATIONAL and BINARY_INTEGER.
+    if( binary_integer_usage_of(name) ) {
+      dbgmsg("%s:%d: generic %s remains valid as a token", __func__, __LINE__, name);
+      return true;
+    }
+
     auto p = tokens.find(lname);
     bool fOK = p != tokens.end();
     if( fOK ) { // name in use
       tokens.erase(p);
     } else {
-      error_msg(loc, "UNDEFINE: %s not defined as a token", name);
+      error_msg(loc, "%s: %s not defined as a token", verb, name);
     }
+    dbgmsg("%s:%d: %s removed as a valid token name", __func__, __LINE__, name);
     return fOK;
   }
-  bool substitute( const YYLTYPE& loc, const cbl_name_t extant, int token, const cbl_name_t name ) {
-    return equate( loc, token, name ) && undefine( loc, extant );
+  
+  bool substitute( const YYLTYPE& loc,
+		   const cbl_name_t extant, int token, const cbl_name_t name ) {
+    return
+      equate( loc, token, name, "SUBSTITUTE" )
+      &&
+      undefine( loc, extant, "SUBSTITUTE" );
   }
   bool reserve( const YYLTYPE& loc, const cbl_name_t name ) {
     auto lname( lowercase(name) );
@@ -1002,24 +1038,42 @@ class current_tokens_t {
   int find( const cbl_name_t name, bool include_intrinsics ) {
     return tokens.find(name, include_intrinsics);
   }
-  bool equate( const YYLTYPE& loc, cbl_name_t keyword, const cbl_name_t name ) {
-    int token = keyword_tok(keyword);
-    if( 0 == token ) {
-      error_msg(loc, "EQUATE %s: not a valid token", keyword);
-      return false;
+  bool equate( const YYLTYPE& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
+    int token; 
+    if( 0 == (token = binary_integer_usage_of(keyword)) ) {
+      if( 0 == (token = keyword_tok(keyword)) ) {
+	error_msg(loc, "EQUATE %s: not a valid token", keyword);
+	return false;
+      }
     }
-    return tokens.equate(loc, token, name);
+    auto name = keyword_alias_add(tokens.uppercase(keyword),
+				  tokens.uppercase(alias));
+    if( name != keyword ) {
+      error_msg(loc, "EQUATE: %s is already an alias for %s", alias, name.c_str());
+      return false;
+    } 
+    return tokens.equate(loc, token, alias);
   }
   bool undefine( const YYLTYPE& loc, cbl_name_t keyword ) {
     return tokens.undefine(loc, keyword);
   }
-  bool substitute( const YYLTYPE& loc, cbl_name_t keyword, const cbl_name_t name ) {
-    int token = keyword_tok(keyword);
-    if( 0 == token ) {
-      error_msg(loc, "SUBSTITUTE %s: not a valid token", keyword);
-      return false;
+  bool substitute( const YYLTYPE& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
+    int token; 
+    if( 0 == (token = binary_integer_usage_of(keyword)) ) {
+      if( 0 == (token = keyword_tok(keyword)) ) {
+	error_msg(loc, "SUBSTITUTE %s: not a valid token", keyword);
+	return false;
+      }
     }
-    return tokens.substitute(loc, keyword, token, name);
+    auto name = keyword_alias_add(tokens.uppercase(keyword),
+				  tokens.uppercase(alias));
+    if( name != keyword ) {
+      error_msg(loc, "SUBSTITUTE: %s is already an alias for %s", alias, name.c_str());
+      return false;
+    } 
+
+    dbgmsg("%s:%d: %s (%d) will have alias %s", __func__, __LINE__, keyword, token, alias);
+    return tokens.substitute(loc, keyword, token, alias);
   }
   bool reserve( const YYLTYPE& loc, const cbl_name_t name ) {
     return tokens.reserve(loc, name);
@@ -1425,7 +1479,7 @@ class prog_descr_t {
   std::set<std::string> call_targets, subprograms;
  public:
   std::set<function_descr_t> function_repository;
-  size_t program_index, declaratives_index;
+  size_t program_index;
   cbl_label_t *declaratives_eval, *paragraph, *section;
   const char *collating_sequence;
   struct locale_t {
@@ -1443,7 +1497,6 @@ class prog_descr_t {
 
   prog_descr_t( size_t isymbol )
     : program_index(isymbol)
-    , declaratives_index(0)
     , declaratives_eval(NULL)
     , paragraph(NULL)
     , section(NULL)
@@ -1706,18 +1759,11 @@ static class current_t {
   int first_statement;
   bool in_declaratives;
   // from command line or early TURN
-  std::list<cbl_exception_files_t> cobol_exceptions;
+  std::list<exception_turn_t> exception_turns;
 
   error_labels_t error_labels;
 
   static void declarative_execute( cbl_label_t *eval ) {
-    if( !eval ) {
-      if( !enabled_exceptions.empty() ) {
-        auto index = new_temporary(FldNumericBin5);
-        parser_match_exception(index, NULL);
-      }
-      return;
-    }
     assert(eval);
     auto iprog = symbol_elem_of(eval)->program;
     if( iprog  == current_program_index() ) {
@@ -1820,6 +1866,11 @@ static class current_t {
     };
     std::set<file_exception_t> file_exceptions;
    public:
+    // current compiled data for enabled ECs and Declaratives, used by library.
+    struct runtime_t {
+      tree ena, dcl;
+    } runtime;
+    
     bool empty() const {
       return declaratives_list_t::empty();
     }
@@ -1849,14 +1900,44 @@ static class current_t {
       declaratives_list_t::push_back(declarative);
       return true;
     }
+
+    uint32_t status() const {
+      uint32_t status_word = 0;
+      for( auto dcl : *this ) {
+        status_word |= (EC_ALL_E & dcl.type );
+      }
+      return status_word;
+    }
+
+    bool has_format_1() const {
+      return std::any_of( begin(), end(),
+                          []( const cbl_declarative_t& dcl ) {
+                            return dcl.is_format_1();
+                          } );
+    }
+
+    std::vector<uint64_t> 
+    encode() const {
+      std::vector<uint64_t> encoded;
+      auto p = std::back_inserter(encoded);
+      for( const auto& dcl : *this ) {
+        *p++ = dcl.section;
+        *p++ = dcl.global;
+        *p++ = dcl.type;
+        *p++ = dcl.nfile;
+        p = std::copy(dcl.files, std::end(dcl.files), p);
+        *p++ = dcl.mode;
+      }
+      return encoded;
+    }
+
   } declaratives;
 
   void exception_add( ec_type_t ec,  bool enabled = true) {
-    std::set<size_t> files;
-    enabled_exceptions.turn_on_off(enabled,
-                                   false,  // for now
-                                   ec, files);
-    if( yydebug) enabled_exceptions.dump();
+    exception_turns.push_back(exception_turn_t(ec, enabled));
+  }
+  std::list<exception_turn_t>& pending_exceptions() {
+    return exception_turns;
   }
 
   bool typedef_add( const cbl_field_t *field ) {
@@ -2022,10 +2103,6 @@ static class current_t {
     assert(!programs.empty());
     return programs.top().program_index;
   }
-  size_t  program_declaratives(void) const {
-    if( programs.empty() ) return 0;
-    return programs.top().declaratives_index;
-  }
   const cbl_label_t * program(void) {
     return programs.empty()?
                 NULL : cbl_label_of(symbol_at(programs.top().program_index));
@@ -2039,12 +2116,16 @@ static class current_t {
 
   bool is_first_statement( const YYLTYPE& loc )  {
     if( ! in_declaratives && first_statement == 0 ) {
-      if( ! symbol_label_section_exists(program_index()) ) {
-        if( ! dialect_ibm() ) {
-          error_msg(loc,
-                    "Per ISO a program with DECLARATIVES must begin with a SECTION, "
-                    "requires -dialect ibm");
-        }
+      auto eval = programs.top().declaratives_eval;
+      if( eval ) {
+	size_t ilabel = symbol_index(symbol_elem_of(eval));
+	if( ! symbol_label_section_exists(ilabel) ) {
+	  if( ! dialect_ibm() ) {
+	    error_msg(loc,
+		      "Per ISO a program with DECLARATIVES must begin with a SECTION, "
+		      "requires -dialect ibm");
+	  }
+	}
       }
       first_statement = loc.first_line;
       return true;
@@ -2061,7 +2142,7 @@ static class current_t {
    */
   std::set<std::string>  end_program() {
     if( enabled_exceptions.size() ) {
-      declaratives_evaluate(ec_none_e);
+      declaratives_evaluate();
     }
 
     assert(!programs.empty());
@@ -2089,8 +2170,10 @@ static class current_t {
           size_t n =
             parser_call_target_update(caller, called->name, mangled_name);
           // Zero is not an error
-          dbgmsg("updated %zu calls from #%-3zu (%s) s/%s/%s/",
-                 n, caller, caller_name, called->name, mangled_name);
+          dbgmsg("updated " HOST_SIZE_T_PRINT_UNSIGNED
+                 " calls from #%-3" GCC_PRISZ "u (%s) s/%s/%s/",
+                 (fmt_size_t)n, (fmt_size_t)caller, caller_name,
+                 called->name, mangled_name);
         }
       }
       if( yydebug ) parser_call_targets_dump();
@@ -2121,7 +2204,7 @@ static class current_t {
     return symbol_index(symbol_elem_of(section));
   }
 
-  cbl_label_t *doing_declaratives( bool begin ) {
+  cbl_label_t * doing_declaratives( bool begin ) {
     if( begin ) {
       in_declaratives = true;
       return NULL;
@@ -2131,24 +2214,27 @@ static class current_t {
     if( declaratives.empty() ) return NULL;
     assert(!declaratives.empty());
 
-    size_t idcl = symbol_declaratives_add(program_index(), declaratives.as_list());
-    programs.top().declaratives_index = idcl;
+    declaratives.runtime.dcl = parser_compile_dcls(declaratives.encode());
 
     // Create section to evaluate declaratives.  Given them unique names so
     // that we can figure out what is going on in a trace or looking at the
     // assembly language.
-    static int eval_count=1;
-    char eval[32];
-    char lave[32];
+    static int eval_count = 1;
+    char eval[32], lave[32];
+    
     sprintf(eval, "_DECLARATIVES_EVAL%d", eval_count);
-    sprintf(lave, "_DECLARATIVES_LAVE%d", eval_count);
-    eval_count +=1 ;
+    sprintf(lave, "_DECLARATIVES_LAVE%d", eval_count++);
 
     struct cbl_label_t*& eval_label = programs.top().declaratives_eval;
     eval_label = label_add(LblSection, eval, yylineno);
     struct cbl_label_t * lave_label = label_add(LblSection, lave, yylineno);
+
     ast_enter_section(eval_label);
-    declarative_runtime_match(cbl_field_of(symbol_at(idcl)), lave_label);
+
+    declarative_runtime_match(declaratives.as_list(), lave_label);
+    
+    parser_label_label(lave_label);
+    
     return lave_label;
   }
 
@@ -2156,14 +2242,32 @@ static class current_t {
     std::swap( programs.top().section, section );
     return section;
   }
+  
+  ec_type_t ec_type_of( file_status_t status ) {
+    static std::vector<ec_type_t> ec_by_status {
+      /* 0 */ ec_none_e, // ec_io_warning_e if low byte is nonzero
+      /* 1 */ ec_io_at_end_e, 
+      /* 2 */ ec_io_invalid_key_e,
+      /* 3 */ ec_io_permanent_error_e,
+      /* 4 */ ec_io_logic_error_e,
+      /* 5 */ ec_io_record_operation_e,
+      /* 6 */ ec_io_file_sharing_e,
+      /* 7 */ ec_io_record_content_e,
+      /* 8 */ ec_io_imp_e, // unused, not defined by ISO
+      /* 9 */ ec_io_imp_e,
+    };
+    int status10 = static_cast<unsigned int>(status) / 10;
+    gcc_assert(ec_by_status.size() == 10);
+    gcc_assert(0 <= status10 && status10 < 10 && status10 != 8);
+    return ec_by_status[status10];
+  }
 
   /*
    * END DECLARATIVES causes:
-   *   1. Add DECLARATIVES symbol, containing criteria blob.
-   *   2. Create section _DECLARATIVES_EVAL
+   *   1. Create section _DECLARATIVES_EVAL
    *      and exit label _DECLARATIVES_LAVE
-   *   3. declarative_runtime_match generates runtime evaluation "ladder".
-   *   4. After a declarative is executed, control branches to the exit label.
+   *   2. declarative_runtime_match generates runtime evaluation "ladder".
+   *   3. After a declarative is executed, control branches to the exit label.
    *
    * After each verb, we call declaratives_evaluate,
    * which PERFORMs _DECLARATIVES_EVAL.
@@ -2173,18 +2277,8 @@ static class current_t {
    * alternative entry point (TODO).
    */
   void
-  declaratives_evaluate( cbl_file_t *file,
-                         file_status_t status = FsSuccess ) {
-    // The exception file number is assumed to be zero at all times unless
-    // it has been set to non-zero, at which point whoever picks it up and takes
-    // action on it is charged with setting it back to zero.
-    if( file )
-      {
-      parser_set_file_number((int)symbol_index(symbol_elem_of(file)));
-      }
-    // parser_set_file_number(file ? (int)symbol_index(symbol_elem_of(file)) : 0);
-    parser_set_handled((ec_type_t)status);
-
+  declaratives_evaluate( cbl_file_t *file ) {
+    gcc_assert(file);
     parser_file_stash(file);
 
     cbl_label_t *eval = programs.first_declarative();
@@ -2212,7 +2306,7 @@ static class current_t {
    * To indicate to the runtime-match function that we want to evaluate
    * only the exception condition, unrelated to a file, we set the
    * file register to 0 and the handled-exception register to the
-   * handled exception condition (not file status).
+   * handled exception condition. 
    *
    * declaratives_execute performs the "declarative ladder" produced
    * by declaratives_runtime_match.  That section CALLs the
@@ -2223,16 +2317,9 @@ static class current_t {
    * index, per usual.
    */
   void
-  declaratives_evaluate( ec_type_t handled = ec_none_e ) {
-    // The exception file number  is assumed to be zero unless it has been
-    // changed to a non-zero value.  The program picking it up and referencing
-    // it is charged with setting it back to zero.
-    // parser_set_file_number(0);
-
-    parser_set_handled(handled);
-
+  declaratives_evaluate() {
     cbl_label_t *eval = programs.first_declarative();
-    declarative_execute(eval);
+    if( eval ) declarative_execute(eval);
   }
 
   cbl_label_t * new_paragraph( cbl_label_t *para ) {
@@ -2275,6 +2362,10 @@ static class current_t {
   cbl_label_t * compute_not_error() { return error_labels.not_error; }
   cbl_label_t * compute_label() { return error_labels.compute_error; }
 } current;
+
+void current_enabled_ecs( tree ena ) {
+  current.declaratives.runtime.ena = ena;
+}
 
 #define PROGRAM current.program_index()
 
@@ -2354,10 +2445,14 @@ char *
 normalize_picture( char picture[] );
 
 static inline cbl_field_t *
-new_tempnumeric(void) { return new_temporary(FldNumericBin5); }
+new_tempnumeric(const cbl_name_t name = nullptr) {
+  return new_temporary(FldNumericBin5, name);
+}
 
 static inline cbl_field_t *
-new_tempnumeric_float(void) { return new_temporary(FldFloat); }
+new_tempnumeric_float(const cbl_name_t name = nullptr) {
+  return new_temporary(FldFloat, name);
+}
 
 uint32_t
 type_capacity( enum cbl_field_type_t type, uint32_t digits );
@@ -2375,11 +2470,27 @@ literal_refmod_valid( YYLTYPE loc, const cbl_refer_t& r );
 
 static bool
 is_integer_literal( const cbl_field_t *field ) {
-  if( is_literal(field) ) {
-    int v, n;
+  if( field->type == FldLiteralN ) {
     const char *initial = field->data.initial;
 
-    return 1 == sscanf(initial, "%d%n", &v, &n) && n == (int)strlen(initial);
+    switch( *initial ) {
+    case '-': case '+': ++initial;
+    }
+
+    const char *eos = initial + strlen(initial);
+    auto p = std::find_if_not( initial, eos, fisdigit );
+    if( p == eos ) return true;
+    
+    if( *p++ == symbol_decimal_point() ) {
+      switch( *p++ ) {
+      case 'E': case 'e':
+	switch( *p++ ) {
+	case '+': case '-':
+	  return std::all_of(p, eos, []( char ch ) { return ch == '0'; } );
+	  break;
+	}
+      }
+    }
   }
   return false;
 }
@@ -3006,8 +3117,8 @@ file_add( YYLTYPE loc, cbl_file_t *file ) {
   }
   file = cbl_file_of(e);
   snprintf(field->name, sizeof(field->name),
-           "%s%zu_%s",
-           record_area_name_stem, symbol_index(e), file->name);
+           "%s" HOST_SIZE_T_PRINT_UNSIGNED "_%s",
+           record_area_name_stem, (fmt_size_t)symbol_index(e), file->name);
   if( file->attr & external_e ) {
     snprintf(field->name, sizeof(field->name),
              "%s%s", record_area_name_stem, file->name);
@@ -3037,6 +3148,17 @@ current_field(cbl_field_t * field = NULL) {
   return local;
 }
 
+static void
+set_real_from_capacity( const YYLTYPE& loc,
+			cbl_field_t *field,
+			REAL_VALUE_TYPE *r ) {
+  if( field == current_field() ) {
+    error_msg(loc, "cannot define %s via self-reference", field->name);
+    return;
+  }
+  field->data.set_real_from_capacity(r);
+}
+
 static struct cbl_special_name_t *
 special_of( const char F[], int L, const char name[] ) {
   struct symbol_elem_t *e = symbol_special(PROGRAM, name);
@@ -3047,6 +3169,21 @@ special_of( const char F[], int L, const char name[] ) {
   return cbl_special_name_of(e);
 }
 #define special_of( F ) special_of(__func__, __LINE__, (F))
+
+static const special_name_t *
+cmd_or_env_special_of( std::string name ) {
+  static const std::map< std::string, special_name_t > fujitsus
+    { // Fujitsu calls these "function names", not device names
+      { "ARGUMENT-NUMBER", ARG_NUM_e },
+      { "ARGUMENT-VALUE", ARG_VALUE_e } ,
+      { "ENVIRONMENT-NAME", ENV_NAME_e },
+      { "ENVIRONMENT-VALUE", ENV_VALUE_e },
+    };
+
+  std::transform(name.begin(), name.end(), name.begin(), ::toupper);
+  auto p = fujitsus.find(name.c_str());
+  return p != fujitsus.end()? &p->second : nullptr;
+}
 
 static inline void
 parser_add2( struct cbl_num_result_t& to,
@@ -3153,7 +3290,8 @@ static cbl_label_t *
 implicit_paragraph()
 {
   cbl_name_t name;
-  sprintf(name, "_implicit_paragraph_%zu", symbol_index());
+  sprintf(name, "_implicit_paragraph_" HOST_SIZE_T_PRINT_UNSIGNED,
+          (fmt_size_t)symbol_index());
   // Programs have to start with an implicit paragraph
   return label_add(LblParagraph, name, yylineno);
 }
@@ -3161,7 +3299,8 @@ static cbl_label_t *
 implicit_section()
 {
   cbl_name_t name;
-  sprintf(name, "_implicit_section_%zu", symbol_index());
+  sprintf(name, "_implicit_section_" HOST_SIZE_T_PRINT_UNSIGNED,
+          (fmt_size_t)symbol_index());
   // Programs have to start with an implicit section
   return label_add(LblSection, name, yylineno);
 }
@@ -3236,7 +3375,8 @@ data_division_ready() {
   }
 
   if( nsymbol == 0 || nparse_error > 0 ) {
-    dbgmsg( "%d errors in DATA DIVISION, compilation ceases", nparse_error );
+    dbgmsg( HOST_SIZE_T_PRINT_DEC " errors in DATA DIVISION, compilation ceases",
+            (fmt_size_t)nparse_error );
     return false;
   }
 
@@ -3302,6 +3442,13 @@ procedure_division_ready( YYLTYPE loc, cbl_field_t *returning, ffi_args_t *ffi_a
     }
   }
 
+  // Apply ECs from the command line
+  std::list<exception_turn_t>& exception_turns = current.pending_exceptions();
+  for( const auto& exception_turn : exception_turns) {
+    apply_cdf_turn(exception_turn);
+  }
+  exception_turns.clear();
+  
   // Start the Procedure Division.
   size_t narg = ffi_args? ffi_args->elems.size() : 0;
   std::vector <cbl_ffi_arg_t> args(narg);
@@ -3534,6 +3681,11 @@ goodnight_gracie() {
   return true;
 }
 
+// false after USE statement, to enter Declarative with EC intact. 
+static bool statement_cleanup = true;
+
+static void statement_epilog( int token );
+
 const char * keyword_str( int token );
 
 static YYLTYPE current_location;
@@ -3545,9 +3697,7 @@ location_set( const YYLTYPE& loc ) {
   return current_location = loc;
 }
 
-static int prior_statement;
-
-static size_t statement_begin( const YYLTYPE& loc, int token );
+static void statement_begin( const YYLTYPE& loc, int token );
 
 static void ast_first_statement( const YYLTYPE& loc ) {
   if( current.is_first_statement( loc ) ) {

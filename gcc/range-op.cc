@@ -164,6 +164,8 @@ dispatch_trio (unsigned lhs, unsigned op1, unsigned op2)
 // These are the supported dispatch patterns. These map to the parameter list
 // of the routines in range_operator.  Note the last 3 characters are
 // shorthand for the LHS, OP1, and OP2 range discriminator class.
+// Reminder, single operand instructions use the LHS type for op2, even if
+// unused. so FLOAT = INT would be RO_FIF.
 
 const unsigned RO_III =	dispatch_trio (VR_IRANGE, VR_IRANGE, VR_IRANGE);
 const unsigned RO_IFI = dispatch_trio (VR_IRANGE, VR_FRANGE, VR_IRANGE);
@@ -246,6 +248,10 @@ range_op_handler::fold_range (vrange &r, tree type,
 	return m_operator->fold_range (as_a <frange> (r), type,
 				       as_a <irange> (lh),
 				       as_a <irange> (rh), rel);
+      case RO_FIF:
+	return m_operator->fold_range (as_a <frange> (r), type,
+				       as_a <irange> (lh),
+				       as_a <frange> (rh), rel);
       case RO_PPP:
 	return m_operator->fold_range (as_a <prange> (r), type,
 				       as_a <prange> (lh),
@@ -292,6 +298,10 @@ range_op_handler::op1_range (vrange &r, tree type,
 	return m_operator->op1_range (as_a <irange> (r), type,
 				      as_a <irange> (lhs),
 				      as_a <irange> (op2), rel);
+      case RO_IFF:
+	return m_operator->op1_range (as_a <irange> (r), type,
+				      as_a <frange> (lhs),
+				      as_a <frange> (op2), rel);
       case RO_PPP:
 	return m_operator->op1_range (as_a <prange> (r), type,
 				      as_a <prange> (lhs),
@@ -312,6 +322,10 @@ range_op_handler::op1_range (vrange &r, tree type,
 	return m_operator->op1_range (as_a <frange> (r), type,
 				      as_a <irange> (lhs),
 				      as_a <frange> (op2), rel);
+      case RO_FII:
+	return m_operator->op1_range (as_a <frange> (r), type,
+				      as_a <irange> (lhs),
+				      as_a <irange> (op2), rel);
       case RO_FFF:
 	return m_operator->op1_range (as_a <frange> (r), type,
 				      as_a <frange> (lhs),
@@ -389,6 +403,10 @@ range_op_handler::lhs_op1_relation (const vrange &lhs,
       case RO_PII:
 	return m_operator->lhs_op1_relation (as_a <prange> (lhs),
 					     as_a <irange> (op1),
+					     as_a <irange> (op2), rel);
+      case RO_PPI:
+	return m_operator->lhs_op1_relation (as_a <prange> (lhs),
+					     as_a <prange> (op1),
 					     as_a <irange> (op2), rel);
       case RO_IFF:
 	return m_operator->lhs_op1_relation (as_a <irange> (lhs),
@@ -756,6 +774,30 @@ range_operator::fold_range (irange &r, tree type,
   update_bitmask (r, lh, rh);
   return true;
 }
+
+
+bool
+range_operator::fold_range (frange &, tree, const irange &,
+			   const frange &, relation_trio) const
+{
+  return false;
+}
+
+bool
+range_operator::op1_range (irange &, tree, const frange &,
+			  const frange &, relation_trio) const
+{
+  return false;
+}
+
+bool
+range_operator::op1_range (frange &, tree, const irange &,
+			  const irange &, relation_trio) const
+{
+  return false;
+}
+
+
 
 // The default for op1_range is to return false.
 
@@ -2415,8 +2457,11 @@ operator_widen_mult_unsigned::wi_fold (irange &r, tree type,
 class operator_div : public cross_product_operator
 {
   using range_operator::update_bitmask;
+  using range_operator::op2_range;
 public:
   operator_div (tree_code div_kind) { m_code = div_kind; }
+  bool op2_range (irange &r, tree type, const irange &lhs, const irange &,
+		  relation_trio) const;
   virtual void wi_fold (irange &r, tree type,
 		        const wide_int &lh_lb,
 		        const wide_int &lh_ub,
@@ -2435,6 +2480,19 @@ static operator_div op_trunc_div (TRUNC_DIV_EXPR);
 static operator_div op_floor_div (FLOOR_DIV_EXPR);
 static operator_div op_round_div (ROUND_DIV_EXPR);
 static operator_div op_ceil_div (CEIL_DIV_EXPR);
+
+// Set OP2 to non-zero if the LHS isn't UNDEFINED.
+bool
+operator_div::op2_range (irange &r, tree type, const irange &lhs,
+			 const irange &, relation_trio) const
+{
+  if (!lhs.undefined_p ())
+    {
+      r.set_nonzero (type);
+      return true;
+    }
+  return false;
+}
 
 bool
 operator_div::wi_op_overflows (wide_int &res, tree type,
@@ -3658,14 +3716,34 @@ operator_bitwise_and::op1_range (irange &r, tree type,
       return true;
     }
 
+  if (!op2.singleton_p (mask))
+    return true;
+
   // For 0 = op1 & MASK, op1 is ~MASK.
-  if (lhs.zero_p () && op2.singleton_p ())
+  if (lhs.zero_p ())
     {
       wide_int nz = wi::bit_not (op2.get_nonzero_bits ());
       int_range<2> tmp (type);
       tmp.set_nonzero_bits (nz);
       r.intersect (tmp);
     }
+
+  irange_bitmask lhs_bm = lhs.get_bitmask ();
+  // given   [5,7]  mask 0x3 value 0x4 =  N &  [7, 7] mask 0x0 value 0x7
+  // Nothing is known about the bits not specified in the mask value (op2),
+  //  Start with the mask, 1's will occur where values were masked.
+  wide_int op1_mask = ~mask;
+  // Any bits that are unknown on the LHS are also unknown in op1,
+  // so union the current mask with the LHS mask.
+  op1_mask |= lhs_bm.mask ();
+  // The resulting zeros correspond to known bits in the LHS mask, and
+  // the LHS value should tell us what they are.  Mask off any
+  // extraneous values thats are not convered by the mask.
+  wide_int op1_value = lhs_bm.value () & ~op1_mask;
+  irange_bitmask op1_bm (op1_value, op1_mask);
+  // INtersect this mask with anything already known about the value.
+  op1_bm.intersect (r.get_bitmask ());
+  r.update_bitmask (op1_bm);
   return true;
 }
 

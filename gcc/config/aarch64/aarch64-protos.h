@@ -290,8 +290,8 @@ struct sve_vec_cost : simd_vec_cost
 
   /* The cost of a gather load instruction.  The x32 value is for loads
      of 32-bit elements and the x64 value is for loads of 64-bit elements.  */
-  const int gather_load_x32_cost;
-  const int gather_load_x64_cost;
+  const unsigned int gather_load_x32_cost;
+  const unsigned int gather_load_x64_cost;
 
   /* Additional loop initialization cost of using a gather load instruction.  The x32
      value is for loads of 32-bit elements and the x64 value is for loads of
@@ -933,6 +933,7 @@ char *aarch64_output_simd_mov_imm (rtx, unsigned);
 char *aarch64_output_simd_orr_imm (rtx, unsigned);
 char *aarch64_output_simd_and_imm (rtx, unsigned);
 char *aarch64_output_simd_xor_imm (rtx, unsigned);
+char *aarch64_output_fmov (rtx);
 
 char *aarch64_output_sve_mov_immediate (rtx);
 char *aarch64_output_sve_ptrues (rtx);
@@ -948,6 +949,7 @@ bool aarch64_simd_scalar_immediate_valid_for_move (rtx, scalar_int_mode);
 bool aarch64_simd_shift_imm_p (rtx, machine_mode, bool);
 bool aarch64_sve_ptrue_svpattern_p (rtx, struct simd_immediate_info *);
 bool aarch64_simd_valid_and_imm (rtx);
+bool aarch64_simd_valid_and_imm_fmov (rtx, unsigned int * = NULL);
 bool aarch64_simd_valid_mov_imm (rtx);
 bool aarch64_simd_valid_orr_imm (rtx);
 bool aarch64_simd_valid_xor_imm (rtx);
@@ -1026,6 +1028,8 @@ rtx aarch64_ptrue_reg (machine_mode, unsigned int);
 rtx aarch64_ptrue_reg (machine_mode, machine_mode);
 rtx aarch64_pfalse_reg (machine_mode);
 bool aarch64_sve_same_pred_for_ptest_p (rtx *, rtx *);
+void aarch64_emit_load_store_through_mode (rtx, rtx, machine_mode);
+bool aarch64_expand_maskloadstore (rtx *, machine_mode);
 void aarch64_emit_sve_pred_move (rtx, rtx, rtx);
 void aarch64_expand_sve_mem_move (rtx, rtx, machine_mode);
 bool aarch64_maybe_expand_sve_subreg_move (rtx, rtx);
@@ -1053,6 +1057,7 @@ void aarch64_subvti_scratch_regs (rtx, rtx, rtx *,
 				  rtx *, rtx *, rtx *);
 void aarch64_expand_subvti (rtx, rtx, rtx,
 			    rtx, rtx, rtx, rtx, bool);
+int aarch64_exact_log2_inverse (unsigned int, rtx);
 
 
 /* Initialize builtins for SIMD intrinsics.  */

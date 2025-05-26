@@ -894,155 +894,6 @@ size_must_be_zero_p (tree size)
   return vr.zero_p ();
 }
 
-/* Optimize
-   a = {};
-   b = a;
-   into
-   a = {};
-   b = {};
-   Similarly for memset (&a, ..., sizeof (a)); instead of a = {};
-   and/or memcpy (&b, &a, sizeof (a)); instead of b = a;  */
-
-static bool
-optimize_memcpy_to_memset (gimple_stmt_iterator *gsip, tree dest, tree src, tree len)
-{
-  ao_ref read;
-  gimple *stmt = gsi_stmt (*gsip);
-  if (gimple_has_volatile_ops (stmt))
-    return false;
-
-
-  tree src2 = NULL_TREE, len2 = NULL_TREE;
-  poly_int64 offset, offset2;
-  tree val = integer_zero_node;
-  bool len_was_null = len == NULL_TREE;
-  if (len == NULL_TREE)
-    len = (TREE_CODE (src) == COMPONENT_REF
-	   ? DECL_SIZE_UNIT (TREE_OPERAND (src, 1))
-	   : TYPE_SIZE_UNIT (TREE_TYPE (src)));
-  if (len == NULL_TREE
-      || !poly_int_tree_p (len))
-    return false;
-
-  ao_ref_init (&read, src);
-  tree vuse = gimple_vuse (stmt);
-  gimple *defstmt;
-  do {
-    if (vuse == NULL || TREE_CODE (vuse) != SSA_NAME)
-      return false;
-    defstmt = SSA_NAME_DEF_STMT (vuse);
-    if (is_a <gphi*>(defstmt))
-      return false;
-
-    /* If the len was null, then we can use TBBA. */
-    if (stmt_may_clobber_ref_p_1 (defstmt, &read,
-				  /* tbaa_p = */ len_was_null))
-      break;
-    vuse = gimple_vuse (defstmt);
-  } while (true);
-
-  if (gimple_store_p (defstmt)
-      && gimple_assign_single_p (defstmt)
-      && TREE_CODE (gimple_assign_rhs1 (defstmt)) == STRING_CST
-      && !gimple_clobber_p (defstmt))
-    {
-      tree str = gimple_assign_rhs1 (defstmt);
-      src2 = gimple_assign_lhs (defstmt);
-      /* The string must contain all null char's for now.  */
-      for (int i = 0; i < TREE_STRING_LENGTH (str); i++)
-	{
-	  if (TREE_STRING_POINTER (str)[i] != 0)
-	    {
-	      src2 = NULL_TREE;
-	      break;
-	    }
-	}
-    }
-  else if (gimple_store_p (defstmt)
-      && gimple_assign_single_p (defstmt)
-      && TREE_CODE (gimple_assign_rhs1 (defstmt)) == CONSTRUCTOR
-      && !gimple_clobber_p (defstmt))
-    src2 = gimple_assign_lhs (defstmt);
-  else if (gimple_call_builtin_p (defstmt, BUILT_IN_MEMSET)
-	   && TREE_CODE (gimple_call_arg (defstmt, 0)) == ADDR_EXPR
-	   && TREE_CODE (gimple_call_arg (defstmt, 1)) == INTEGER_CST)
-    {
-      src2 = TREE_OPERAND (gimple_call_arg (defstmt, 0), 0);
-      len2 = gimple_call_arg (defstmt, 2);
-      val = gimple_call_arg (defstmt, 1);
-      /* For non-0 val, we'd have to transform stmt from assignment
-	 into memset (only if dest is addressable).  */
-      if (!integer_zerop (val) && is_gimple_assign (stmt))
-	src2 = NULL_TREE;
-    }
-
-  if (src2 == NULL_TREE)
-    return false;
-
-  if (len2 == NULL_TREE)
-    len2 = (TREE_CODE (src2) == COMPONENT_REF
-	    ? DECL_SIZE_UNIT (TREE_OPERAND (src2, 1))
-	    : TYPE_SIZE_UNIT (TREE_TYPE (src2)));
-  if (len2 == NULL_TREE
-      || !poly_int_tree_p (len2))
-    return false;
-
-  src = get_addr_base_and_unit_offset (src, &offset);
-  src2 = get_addr_base_and_unit_offset (src2, &offset2);
-  if (src == NULL_TREE
-      || src2 == NULL_TREE
-      || maybe_lt (offset, offset2))
-    return false;
-
-  if (!operand_equal_p (src, src2, 0))
-    return false;
-
-  /* [ src + offset2, src + offset2 + len2 - 1 ] is set to val.
-     Make sure that
-     [ src + offset, src + offset + len - 1 ] is a subset of that.  */
-  if (maybe_gt (wi::to_poly_offset (len) + (offset - offset2),
-		wi::to_poly_offset (len2)))
-    return false;
-
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    {
-      fprintf (dump_file, "Simplified\n  ");
-      print_gimple_stmt (dump_file, stmt, 0, dump_flags);
-      fprintf (dump_file, "after previous\n  ");
-      print_gimple_stmt (dump_file, defstmt, 0, dump_flags);
-    }
-
-  /* For simplicity, don't change the kind of the stmt,
-     turn dest = src; into dest = {}; and memcpy (&dest, &src, len);
-     into memset (&dest, val, len);
-     In theory we could change dest = src into memset if dest
-     is addressable (maybe beneficial if val is not 0), or
-     memcpy (&dest, &src, len) into dest = {} if len is the size
-     of dest, dest isn't volatile.  */
-  if (is_gimple_assign (stmt))
-    {
-      tree ctor = build_constructor (TREE_TYPE (dest), NULL);
-      gimple_assign_set_rhs_from_tree (gsip, ctor);
-      update_stmt (stmt);
-    }
-  else /* If stmt is memcpy, transform it into memset.  */
-    {
-      gcall *call = as_a <gcall *> (stmt);
-      tree fndecl = builtin_decl_implicit (BUILT_IN_MEMSET);
-      gimple_call_set_fndecl (call, fndecl);
-      gimple_call_set_fntype (call, TREE_TYPE (fndecl));
-      gimple_call_set_arg (call, 1, val);
-      update_stmt (stmt);
-    }
-
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    {
-      fprintf (dump_file, "into\n  ");
-      print_gimple_stmt (dump_file, stmt, 0, dump_flags);
-    }
-  return true;
-}
-
 /* Fold function call to builtin mem{{,p}cpy,move}.  Try to detect and
    diagnose (otherwise undefined) overlapping copies without preventing
    folding.  When folded, GCC guarantees that overlapping memcpy has
@@ -1321,15 +1172,6 @@ gimple_fold_builtin_memory_op (gimple_stmt_iterator *gsi,
 
 	  return false;
 	}
-
-     /* Try to optimize the memcpy to memset if src and dest are addresses. */
-     if (code != BUILT_IN_MEMPCPY
-	 && TREE_CODE (dest) == ADDR_EXPR
-	 && TREE_CODE (src) == ADDR_EXPR
-	 && TREE_CODE (len) == INTEGER_CST
-	 && optimize_memcpy_to_memset (gsi, TREE_OPERAND (dest, 0),
-				       TREE_OPERAND (src, 0), len))
-	return true;
 
       if (!tree_fits_shwi_p (len))
 	return false;
@@ -6178,7 +6020,7 @@ has_use_on_stmt (tree name, gimple *stmt)
 
 /* Add the lhs of each statement of SEQ to DCE_WORKLIST. */
 
-static void
+void
 mark_lhs_in_seq_for_dce (bitmap dce_worklist, gimple_seq seq)
 {
   if (!dce_worklist)
@@ -6239,24 +6081,71 @@ replace_stmt_with_simplification (gimple_stmt_iterator *gsi,
       auto code = tree_code (res_op->code);
       if (TREE_CODE_CLASS (code) == tcc_comparison
 	  /* GIMPLE_CONDs condition may not throw.  */
-	  && (!flag_exceptions
-	      || !cfun->can_throw_non_call_exceptions
+	  && ((cfun
+	       && (!flag_exceptions
+		   || !cfun->can_throw_non_call_exceptions))
 	      || !operation_could_trap_p (code,
 					  FLOAT_TYPE_P (TREE_TYPE (ops[0])),
 					  false, NULL_TREE)))
 	gimple_cond_set_condition (cond_stmt, code, ops[0], ops[1]);
       else if (code == SSA_NAME)
-	gimple_cond_set_condition (cond_stmt, NE_EXPR, ops[0],
-				   build_zero_cst (TREE_TYPE (ops[0])));
+	{
+	  /* If setting the gimple cond to the same thing,
+	     return false as nothing changed.  */
+	  if (gimple_cond_code (cond_stmt) == NE_EXPR
+	      && operand_equal_p (gimple_cond_lhs (cond_stmt), ops[0])
+	      && integer_zerop (gimple_cond_rhs (cond_stmt)))
+	    return false;
+	  gimple_cond_set_condition (cond_stmt, NE_EXPR, ops[0],
+				     build_zero_cst (TREE_TYPE (ops[0])));
+	}
       else if (code == INTEGER_CST)
 	{
+	  /* Make into the canonical form `1 != 0` and `0 != 0`.
+	     If already in the canonical form return false
+	     saying nothing has been done.  */
 	  if (integer_zerop (ops[0]))
-	    gimple_cond_make_false (cond_stmt);
+	    {
+	      if (gimple_cond_false_canonical_p (cond_stmt))
+		return false;
+	      gimple_cond_make_false (cond_stmt);
+	    }
 	  else
-	    gimple_cond_make_true (cond_stmt);
+	    {
+	      if (gimple_cond_true_canonical_p (cond_stmt))
+		return false;
+	      gimple_cond_make_true (cond_stmt);
+	    }
 	}
       else if (!inplace)
 	{
+	  /* For throwing comparisons, see if the GIMPLE_COND is the same as
+	     the comparison would be.
+	     This can happen due to the match pattern for
+	     `(ne (cmp @0 @1) integer_zerop)` which creates a new expression
+	     for the comparison.  */
+	  if (TREE_CODE_CLASS (code) == tcc_comparison
+	      && (!cfun
+		  || (flag_exceptions
+		      && cfun->can_throw_non_call_exceptions))
+	      && operation_could_trap_p (code,
+					 FLOAT_TYPE_P (TREE_TYPE (ops[0])),
+					 false, NULL_TREE))
+	    {
+	      tree lhs = gimple_cond_lhs (cond_stmt);
+	      if (gimple_cond_code (cond_stmt) == NE_EXPR
+		  && TREE_CODE (lhs) == SSA_NAME
+		  && INTEGRAL_TYPE_P (TREE_TYPE (lhs))
+		  && integer_zerop (gimple_cond_rhs (cond_stmt)))
+		{
+		  gimple *s = SSA_NAME_DEF_STMT (lhs);
+		  if (is_gimple_assign (s)
+		      && gimple_assign_rhs_code (s) == code
+		      && operand_equal_p (gimple_assign_rhs1 (s), ops[0])
+		      && operand_equal_p (gimple_assign_rhs2 (s), ops[1]))
+		    return false;
+		}
+	    }
 	  tree res = maybe_push_res_to_seq (res_op, seq);
 	  if (!res)
 	    return false;
@@ -6687,16 +6576,6 @@ fold_stmt_1 (gimple_stmt_iterator *gsi, bool inplace, tree (*valueize) (tree),
     {
     case GIMPLE_ASSIGN:
       {
-	if (gimple_assign_load_p (stmt) && gimple_store_p (stmt))
-	  {
-	    if (optimize_memcpy_to_memset (gsi, gimple_assign_lhs (stmt),
-					   gimple_assign_rhs1 (stmt),
-					   /* len = */NULL_TREE))
-	      {
-		changed = true;
-		break;
-	      }
-	  }
 	/* Try to canonicalize for boolean-typed X the comparisons
 	   X == 0, X == 1, X != 0, and X != 1.  */
 	if (gimple_assign_rhs_code (stmt) == EQ_EXPR
@@ -8334,6 +8213,8 @@ fold_truth_andor_for_ifcombine (enum tree_code code, tree truth_type,
 	ll_and_mask &= sign;
       if (l_xor)
 	{
+	  if (ll_bitsize != lr_bitsize)
+	    return 0;
 	  if (!lr_and_mask.get_precision ())
 	    lr_and_mask = sign;
 	  else
@@ -8355,6 +8236,8 @@ fold_truth_andor_for_ifcombine (enum tree_code code, tree truth_type,
 	rl_and_mask &= sign;
       if (r_xor)
 	{
+	  if (rl_bitsize != rr_bitsize)
+	    return 0;
 	  if (!rr_and_mask.get_precision ())
 	    rr_and_mask = sign;
 	  else
@@ -8762,7 +8645,7 @@ fold_truth_andor_for_ifcombine (enum tree_code code, tree truth_type,
       wide_int lr_mask, rr_mask;
       if (lr_and_mask.get_precision ())
 	lr_mask = wi::lshift (wide_int::from (lr_and_mask, rnprec, UNSIGNED),
-			  xlr_bitpos);
+			      xlr_bitpos);
       else
 	lr_mask = wi::shifted_mask (xlr_bitpos, lr_bitsize, false, rnprec);
       if (rr_and_mask.get_precision ())
@@ -10569,7 +10452,7 @@ gimple_fold_indirect_ref (tree t)
    integer types involves undefined behavior on overflow and the
    operation can be expressed with unsigned arithmetic.  */
 
-bool
+static bool
 arith_code_with_undefined_signed_overflow (tree_code code)
 {
   switch (code)
@@ -10586,6 +10469,42 @@ arith_code_with_undefined_signed_overflow (tree_code code)
     }
 }
 
+/* Return true if STMT has an operation that operates on a signed
+   integer types involves undefined behavior on overflow and the
+   operation can be expressed with unsigned arithmetic.
+   Also returns true if STMT is a VCE that needs to be rewritten
+   if moved to be executed unconditionally.   */
+
+bool
+gimple_needing_rewrite_undefined (gimple *stmt)
+{
+  if (!is_gimple_assign (stmt))
+    return false;
+  tree lhs = gimple_assign_lhs (stmt);
+  if (!lhs)
+    return false;
+  tree lhs_type = TREE_TYPE (lhs);
+  if (!INTEGRAL_TYPE_P (lhs_type)
+      && !POINTER_TYPE_P (lhs_type))
+    return false;
+  tree rhs = gimple_assign_rhs1 (stmt);
+  /* VCE from integral types to a integral types but with
+     a smaller precision need to be changed into casts
+     to be well defined. */
+  if (gimple_assign_rhs_code (stmt) == VIEW_CONVERT_EXPR
+      && INTEGRAL_TYPE_P (TREE_TYPE (TREE_OPERAND (rhs, 0)))
+      && is_gimple_val (TREE_OPERAND (rhs, 0))
+      && TYPE_PRECISION (lhs_type)
+	  < TYPE_PRECISION (TREE_TYPE (TREE_OPERAND (rhs, 0))))
+    return true;
+  if (!TYPE_OVERFLOW_UNDEFINED (lhs_type))
+    return false;
+  if (!arith_code_with_undefined_signed_overflow
+	(gimple_assign_rhs_code (stmt)))
+    return false;
+  return true;
+}
+
 /* Rewrite STMT, an assignment with a signed integer or pointer arithmetic
    operation that can be transformed to unsigned arithmetic by converting
    its operand, carrying out the operation in the corresponding unsigned
@@ -10597,19 +10516,39 @@ arith_code_with_undefined_signed_overflow (tree_code code)
    contain a modified form of STMT itself.  */
 
 static gimple_seq
-rewrite_to_defined_overflow (gimple_stmt_iterator *gsi, gimple *stmt,
-			     bool in_place)
+rewrite_to_defined_unconditional (gimple_stmt_iterator *gsi, gimple *stmt,
+				  bool in_place)
 {
+  gcc_assert (gimple_needing_rewrite_undefined (stmt));
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
-      fprintf (dump_file, "rewriting stmt with undefined signed "
-	       "overflow ");
+      fprintf (dump_file, "rewriting stmt for being uncondtional defined");
       print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
-
+  gimple_seq stmts = NULL;
+  /* VCE from integral types to another integral types but with
+     smaller precisions need to be changed into casts
+     to be well defined. */
+  if (gimple_assign_rhs_code (stmt) == VIEW_CONVERT_EXPR)
+    {
+      tree rhs = gimple_assign_rhs1 (stmt);
+      tree new_rhs = TREE_OPERAND (rhs, 0);
+      gcc_assert (TYPE_PRECISION (TREE_TYPE (rhs))
+		  < TYPE_PRECISION (TREE_TYPE (new_rhs)));
+      gcc_assert (is_gimple_val (new_rhs));
+      gimple_assign_set_rhs_code (stmt, NOP_EXPR);
+      gimple_assign_set_rhs1 (stmt, new_rhs);
+      if (in_place)
+	  update_stmt (stmt);
+      else
+	{
+	  gimple_set_modified (stmt, true);
+	  gimple_seq_add_stmt (&stmts, stmt);
+	}
+      return stmts;
+    }
   tree lhs = gimple_assign_lhs (stmt);
   tree type = unsigned_type_for (TREE_TYPE (lhs));
-  gimple_seq stmts = NULL;
   if (gimple_assign_rhs_code (stmt) == ABS_EXPR)
     gimple_assign_set_rhs_code (stmt, ABSU_EXPR);
   else
@@ -10644,15 +10583,15 @@ rewrite_to_defined_overflow (gimple_stmt_iterator *gsi, gimple *stmt,
 }
 
 void
-rewrite_to_defined_overflow (gimple_stmt_iterator *gsi)
+rewrite_to_defined_unconditional (gimple_stmt_iterator *gsi)
 {
-  rewrite_to_defined_overflow (gsi, gsi_stmt (*gsi), true);
+  rewrite_to_defined_unconditional (gsi, gsi_stmt (*gsi), true);
 }
 
 gimple_seq
-rewrite_to_defined_overflow (gimple *stmt)
+rewrite_to_defined_unconditional (gimple *stmt)
 {
-  return rewrite_to_defined_overflow (nullptr, stmt, false);
+  return rewrite_to_defined_unconditional (nullptr, stmt, false);
 }
 
 /* The valueization hook we use for the gimple_build API simplification.

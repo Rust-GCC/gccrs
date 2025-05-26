@@ -72,10 +72,10 @@ enum diagnostics_output_format
   /* JSON-based output, to a file.  */
   DIAGNOSTICS_OUTPUT_FORMAT_JSON_FILE,
 
-  /* SARIF-based output, to stderr.  */
+  /* SARIF-based output, as JSON to stderr.  */
   DIAGNOSTICS_OUTPUT_FORMAT_SARIF_STDERR,
 
-  /* SARIF-based output, to a file.  */
+  /* SARIF-based output, to a JSON file.  */
   DIAGNOSTICS_OUTPUT_FORMAT_SARIF_FILE
 };
 
@@ -217,7 +217,7 @@ public:
 
 class edit_context;
 class diagnostic_client_data_hooks;
-class logical_location;
+class logical_location_manager;
 class diagnostic_diagram;
 class diagnostic_source_effect_info;
 class diagnostic_output_format;
@@ -671,6 +671,9 @@ public:
     return m_client_data_hooks;
   }
 
+  const logical_location_manager *
+  get_logical_location_manager () const;
+
   const urlifier *get_urlifier () const;
 
   text_art::theme *get_diagram_theme () const { return m_diagrams.m_theme; }
@@ -772,6 +775,13 @@ public:
 
   bool supports_fnotice_on_stderr_p () const;
 
+  /* Raise SIGABRT on any diagnostic of severity DK_ERROR or higher.  */
+  void
+  set_abort_on_error (bool val)
+  {
+    m_abort_on_error = val;
+  }
+
 private:
   void error_recursion () ATTRIBUTE_NORETURN;
 
@@ -828,10 +838,10 @@ private:
      each diagnostic, if known.  */
   bool m_show_option_requested;
 
-public:
   /* True if we should raise a SIGABRT on errors.  */
   bool m_abort_on_error;
 
+public:
   /* True if we should show the column number on diagnostics.  */
   bool m_show_column;
 
@@ -841,9 +851,9 @@ public:
   /* True if permerrors are warnings.  */
   bool m_permissive;
 
-  /* The index of the option to associate with turning permerrors into
-     warnings.  */
-  int m_opt_permissive;
+  /* The option to associate with turning permerrors into warnings,
+     if any.  */
+  diagnostic_option_id m_opt_permissive;
 
   /* True if errors are fatal.  */
   bool m_fatal_errors;
@@ -959,7 +969,13 @@ private:
     /* How many diagnostics have been emitted since the bottommost
        diagnostic_group was pushed.  */
     int m_emission_count;
+
+    /* The "group+diagnostic" nesting depth from which to inhibit notes.  */
+    int m_inhibiting_notes_from;
   } m_diagnostic_groups;
+
+  void inhibit_notes_in_group (bool inhibit = true);
+  bool notes_inhibited_in_group () const;
 
   /* The various sinks to which diagnostics are to be outputted
      (text vs structured formats such as SARIF).
@@ -1041,13 +1057,6 @@ diagnostic_text_finalizer (diagnostic_context *context)
 /* Extension hooks for client.  */
 #define diagnostic_context_auxiliary_data(DC) (DC)->m_client_aux_data
 #define diagnostic_info_auxiliary_data(DI) (DI)->x_data
-
-/* Raise SIGABRT on any diagnostic of severity DK_ERROR or higher.  */
-inline void
-diagnostic_abort_on_error (diagnostic_context *context)
-{
-  context->m_abort_on_error = true;
-}
 
 /* This diagnostic_context is used by front-ends that directly output
    diagnostic messages without going through `error', `warning',

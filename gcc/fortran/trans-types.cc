@@ -1140,11 +1140,6 @@ gfc_init_types (void)
     }
   gfc_character1_type_node = gfc_character_types[0];
 
-  /* The middle end only recognizes a single unsigned type.  For
-     compatibility of existing test cases, let's just use the
-     character type.  The reader of tree dumps is expected to be able
-     to deal with this.  */
-
   if (flag_unsigned)
     {
       for (index = 0; gfc_unsigned_kinds[index].kind != 0;++index)
@@ -1159,18 +1154,26 @@ gfc_init_types (void)
 		  break;
 		}
 	    }
-	  if (index_char > 0)
+	  if (index_char > -1)
 	    {
-	      gfc_unsigned_types[index] = gfc_character_types[index_char];
+	      type = gfc_character_types[index_char];
+	      if (TYPE_STRING_FLAG (type))
+		{
+		  type = build_distinct_type_copy (type);
+		  TYPE_CANONICAL (type)
+		    = TYPE_CANONICAL (gfc_character_types[index_char]);
+		}
+	      else
+		type = build_variant_type_copy (type);
+	      TYPE_NAME (type) = NULL_TREE;
+	      TYPE_STRING_FLAG (type) = 0;
 	    }
 	  else
-	    {
-	      type = gfc_build_unsigned_type (&gfc_unsigned_kinds[index]);
-	      gfc_unsigned_types[index] = type;
-	      snprintf (name_buf, sizeof(name_buf), "unsigned(kind=%d)",
-			gfc_integer_kinds[index].kind);
-	      PUSH_TYPE (name_buf, type);
-	    }
+	    type = gfc_build_unsigned_type (&gfc_unsigned_kinds[index]);
+	  gfc_unsigned_types[index] = type;
+	  snprintf (name_buf, sizeof(name_buf), "unsigned(kind=%d)",
+		    gfc_integer_kinds[index].kind);
+	  PUSH_TYPE (name_buf, type);
 	}
     }
 
@@ -3228,13 +3231,14 @@ gfc_return_by_reference (gfc_symbol * sym)
 
   /* Possibly return complex numbers by reference for g77 compatibility.
      We don't do this for calls to intrinsics (as the library uses the
-     -fno-f2c calling convention), nor for calls to functions which always
+     -fno-f2c calling convention) except for calls to specific wrappers
+     (_gfortran_f2c_specific_*), nor for calls to functions which always
      require an explicit interface, as no compatibility problems can
      arise there.  */
   if (flag_f2c && sym->ts.type == BT_COMPLEX
       && !sym->attr.pointer
       && !sym->attr.allocatable
-      && !sym->attr.intrinsic && !sym->attr.always_explicit)
+      && !sym->attr.always_explicit)
     return 1;
 
   return 0;

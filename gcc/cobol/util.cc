@@ -100,8 +100,6 @@ symbol_type_str( enum symbol_type_t type )
     switch(type) {
     case SymFilename:
         return "SymFilename";
-    case SymFunction:
-        return "SymFunction";
     case SymField:
         return "SymField";
     case SymLabel:
@@ -324,8 +322,9 @@ is_numeric_edited( const char picture[] ) {
       break;
     default:
       numed_message = xasprintf("invalid PICTURE character "
-                                "'%c' at offset %zu in '%s'",
-                                *p, p - picture, picture);
+                                "'%c' at offset " HOST_SIZE_T_PRINT_UNSIGNED
+                                " in '%s'",
+                                *p, (fmt_size_t)(p - picture), picture);
       break;
     }
 
@@ -370,10 +369,12 @@ normalize_picture( char picture[] )
         assert(pmatch[2].rm_so == pmatch[1].rm_eo + 1); // character paren number
         p = picture + pmatch[2].rm_so;
         len = 0;
-        if( 1 != sscanf(p, "%zu", &len) ) {
+        fmt_size_t lenf = 0;
+        if( 1 != sscanf(p, "%" GCC_PRISZ "u", &lenf) ) {
             dbgmsg("%s:%d: no number found in '%s'", __func__, __LINE__, p);
             goto irregular;
         }
+        len = lenf;
         if( len == 0 ) {
             dbgmsg("%s:%d: ZERO length found in '%s'", __func__, __LINE__, p);
             goto irregular;
@@ -985,7 +986,8 @@ cbl_refer_t::subscripts_set( const std::list<cbl_refer_t>& subs ) {
 const char *
 cbl_refer_t::str() const {
   static char subscripts[64];
-  sprintf(subscripts, "(%u of %zu dimensions)", nsubscript, dimensions(field));
+  sprintf(subscripts, "(%u of " HOST_SIZE_T_PRINT_UNSIGNED " dimensions)",
+          nsubscript, (fmt_size_t)dimensions(field));
   char *output = xasprintf("%s %s %s",
                            field? field_str(field) : "(none)",
                            0 < dimensions(field)? subscripts : "",
@@ -1031,10 +1033,10 @@ struct move_corresponding_field {
     tgt.field = cbl_field_of(symbol_at(elem.second));
 
     if( yydebug ) {
-      dbgmsg("move_corresponding:%d: SRC: %3zu %s", __LINE__,
-            elem.first, src.str());
-      dbgmsg("move_corresponding:%d:   to %3zu %s", __LINE__,
-            elem.second, tgt.str());
+      dbgmsg("move_corresponding:%d: SRC: %3" GCC_PRISZ "u %s", __LINE__,
+            (fmt_size_t)elem.first, src.str());
+      dbgmsg("move_corresponding:%d:   to %3" GCC_PRISZ "u %s", __LINE__,
+            (fmt_size_t)elem.second, tgt.str());
     }
 
     parser_move(tgt, src);
@@ -1138,8 +1140,9 @@ valid_move( const struct cbl_field_t *tgt, const struct cbl_field_t *src )
         if( yydebug && ! retval ) {
           auto bad = std::find_if( p, pend,
                                    []( char ch ) { return ! ISDIGIT(ch); } );
-          dbgmsg("%s:%d: offending character '%c' at position %zu",
-                __func__, __LINE__, *bad, bad - p);
+          dbgmsg("%s:%d: offending character '%c' at position "
+                 HOST_SIZE_T_PRINT_UNSIGNED,
+                 __func__, __LINE__, *bad, (fmt_size_t)(bad - p));
         }
       }
       break;
@@ -1498,9 +1501,10 @@ ambiguous_reference( size_t program ) {
                                is_unique(program, proc.first) );
     if( proc.second.end() != ambiguous ) {
       if( yydebug ) {
-        dbgmsg("%s: %s of '%s' has %zu potential matches", __func__,
+        dbgmsg("%s: %s of '%s' has " HOST_SIZE_T_PRINT_UNSIGNED
+              "potential matches", __func__,
               ambiguous->paragraph(), ambiguous->section(),
-              procedures.count(*ambiguous));
+              (fmt_size_t)procedures.count(*ambiguous));
       }
       return new procref_t(*ambiguous);
     }
@@ -1543,9 +1547,9 @@ parent_names( const symbol_elem_t *elem,
 
   if( is_filler(cbl_field_of(elem)) ) return;
 
-  // dbgmsg("%s: asked about %s of %s (%zu away)", __func__,
+  // dbgmsg("%s: asked about %s of %s (" HOST_SIZE_T_PRINT_UNSIGNED " away)", __func__,
   //       cbl_field_of(elem)->name,
-  //       cbl_field_of(group)->name, elem - group);
+  //       cbl_field_of(group)->name, (fmt_size_t)(elem - group));
 
   for( const symbol_elem_t *e=elem; e && group < e; e = symbol_parent(e) ) {
     names.push_front( cbl_field_of(e)->name );
@@ -1564,9 +1568,11 @@ public:
                       symbol_elem_t *rgroup, type_t type )
     : lgroup(lgroup), rgroup(rgroup), type(type)
   {
-    dbgmsg( "%s:%d: for #%zu %s and #%zu %s on line %d", __func__, __LINE__,
-             symbol_index(lgroup), cbl_field_of(lgroup)->name,
-             symbol_index(rgroup), cbl_field_of(rgroup)->name, yylineno );
+    dbgmsg( "%s:%d: for #" HOST_SIZE_T_PRINT_UNSIGNED
+            " %s and #" HOST_SIZE_T_PRINT_UNSIGNED " %s on line %d",
+            __func__, __LINE__,
+            (fmt_size_t)symbol_index(lgroup), cbl_field_of(lgroup)->name,
+            (fmt_size_t)symbol_index(rgroup), cbl_field_of(rgroup)->name, yylineno );
   }
 
   static bool
@@ -1643,8 +1649,9 @@ corresponding_fields( cbl_field_t *lhs, cbl_field_t *rhs,
   lhsg.a = symbols_begin(field_index(lhs));
   lhsg.z = std::find_if( lhsg.a, symbols_end(), next_group(lhsg.a) );
 
-  dbgmsg("%s:%d: examining %zu symbols after %s", __func__, __LINE__,
-          lhsg.z - lhsg.a, lhs->name);
+  dbgmsg("%s:%d: examining " HOST_SIZE_T_PRINT_UNSIGNED " symbols after %s",
+          __func__, __LINE__,
+          (fmt_size_t)(lhsg.z - lhsg.a), lhs->name);
 
   find_corresponding finder( symbol_at(field_index(lhs)),
                              symbol_at(field_index(rhs)), type );
@@ -1652,8 +1659,9 @@ corresponding_fields( cbl_field_t *lhs, cbl_field_t *rhs,
 
   output.erase(0);
 
-  dbgmsg( "%s:%d: %s and %s have %zu corresponding fields",
-          __func__, __LINE__, lhs->name, rhs->name, output.size() );
+  dbgmsg( "%s:%d: %s and %s have " HOST_SIZE_T_PRINT_UNSIGNED
+          " corresponding fields",
+          __func__, __LINE__, lhs->name, rhs->name, (fmt_size_t)output.size() );
 
   return output;
 }
@@ -1754,7 +1762,21 @@ struct input_file_t {
 
 class unique_stack : public std::stack<input_file_t>
 {
+  friend void cobol_set_pp_option(int opt);
+  bool option_m;
+  std::set<std::string> all_names;
+  
+  const char *
+  no_wd( const char *wd, const char *name ) {
+    int i;
+    for( i=0; wd[i] == name[i]; i++ ) i++;
+    if( wd[i] == '\0' && name[i] == '/' ) i++;
+    return yydebug? name : name + i;
+  }
+
  public:
+  unique_stack() : option_m(false) {}
+  
   bool push( const value_type& value ) {
     auto ok = std::none_of( c.cbegin(), c.cend(),
                             [value]( auto& that ) {
@@ -1762,6 +1784,7 @@ class unique_stack : public std::stack<input_file_t>
                                 } );
     if( ok ) {
       std::stack<input_file_t>::push(value);
+      all_names.insert(value.name);
       return true;
     }
     size_t n = c.size();
@@ -1772,7 +1795,8 @@ class unique_stack : public std::stack<input_file_t>
                 "----- ---- --------"
                 "----------------------------------------");
         for( const auto& v : c ) {
-          dbgmsg( " %4zu %4d %s", c.size() - --n, v.lineno, no_wd(wd, v.name) );
+          dbgmsg( " %4" GCC_PRISZ "u %4d %s",
+                  (fmt_size_t)(c.size() - --n), v.lineno, no_wd(wd, v.name) );
         }
       } else {
         dbgmsg("unable to get current working directory: %m");
@@ -1781,12 +1805,23 @@ class unique_stack : public std::stack<input_file_t>
     }
     return false;
   }
-  const char *
-  no_wd( const char *wd, const char *name ) {
-    int i;
-    for( i=0; wd[i] == name[i]; i++ ) i++;
-    if( wd[i] == '\0' && name[i] == '/' ) i++;
-    return yydebug? name : name + i;
+  
+  void option( int opt ) { // capture other preprocessor options eventually
+    assert(opt == 'M');
+    option_m = true;
+  }
+  int option() const {
+    return option_m?  'M' : 0;
+  }
+
+  void print() const {
+    std::string input( top().name );
+    printf( "%s: ", input.c_str() );
+    for( auto name : all_names ) {
+      if( name != input ) 
+	printf( "\\\n\t%s ", name.c_str() );
+    }
+    printf("\n");
   }
 };
 
@@ -1795,6 +1830,12 @@ static unique_stack input_filenames;
 static std::map<std::string, ino_t> old_filenames;
 static const unsigned int sysp = 0;  // not a C header file, cf. line-map.h
 
+void cobol_set_pp_option(int opt) {
+  // capture other preprocessor options eventually
+  assert(opt == 'M');
+  input_filenames.option_m = true;
+}
+				  
 /*
  * Maintain a stack of input filenames.  Ensure the files are unique (by
  * inode), to prevent copybook cycles. Before pushing a new name, Record the
@@ -1810,7 +1851,8 @@ bool cobol_filename( const char *name, ino_t inode ) {
     auto p = old_filenames.find(name);
     if( p == old_filenames.end() ) {
       for( auto& elem : old_filenames ) {
-        dbgmsg("%6zu %-30s", elem.second, elem.first.c_str());
+        dbgmsg("%6" GCC_PRISZ "u %-30s",
+               (fmt_size_t)elem.second, elem.first.c_str());
       }
       cbl_errx( "logic error: missing inode for %s", name);
     }
@@ -2125,6 +2167,11 @@ parse_file( const char filename[] )
 
   parser_enter_file(filename);
 
+  if( input_filenames.option() == 'M' ) {
+    input_filenames.print();
+    return 0;
+  }
+
   cbl_timespec start;
 
   int erc = yyparse();
@@ -2202,6 +2249,7 @@ cbl_message(int fd, const char *format_string, ...)
   char *ostring = xvasprintf(format_string, ap);
   va_end(ap);
   write(fd, ostring, strlen(ostring));
+  write(fd, "\n", 1);
   free(ostring);
   }
 
@@ -2307,7 +2355,616 @@ int  ftolower(int c)
   {
   return TOLOWER(c);
   }
+int  ftoupper(int c)
+  {
+  return TOUPPER(c);
+  }
 bool fisprint(int c)
   {
   return ISPRINT(c);
   };
+
+// 8.9 Reserved words
+static const std::set<std::string> reserved_words = {
+  // GCC COBOL keywords
+  "COMMAND-LINE",
+  "COMMAND-LINE-COUNT",
+
+  // GCC device names
+  "C01",
+  "C02",
+  "C03",
+  "C04",
+  "C05",
+  "C06",
+  "C07",
+  "C08",
+  "C09",
+  "C10",
+  "C11",
+  "C12",
+  "CONSOLE",
+  "S01",
+  "S02",
+  "S03",
+  "S04",
+  "S05",
+  "STDERR",
+  "STDIN",
+  "STDOUT",
+  "SYSIN",
+  "SYSIPT",
+  "SYSLIST",
+  "SYSLST",
+  "SYSOUT",
+  "SYSPCH",
+  "SYSPUNCH",
+  "UPSI",
+
+  // IBM keywords that GCC recognizes
+  "BASIS",
+  "CBL",
+  "ENTER",
+  "READY",
+  "TITLE",
+  "TRACE",
+  "ALTER",
+  "COBOL",
+  "DATE-COMPILED",
+  "DATE-WRITTEN",
+  "DBCS",
+  "DEBUGGING",
+  "EGCS",
+  "ENTRY",
+  "EVERY",
+  "INSTALLATION",
+  "I-O-CONTROL",
+  "KANJI",
+  "LABEL",
+  "NULLS",
+  "PADDING",
+  "PROCEDURES",
+  "PROCEED",
+  "RECORDING",
+  "RERUN",
+  "REVERSED",
+  "SECURITY",
+  "TALLY",
+  "VOLATILE",
+  "XML",
+  "END-START",
+  
+  // ISO 2023 keywords
+  "ACCEPT",
+  "ACCESS",
+  "ACTIVE-CLASS",
+  "ADD",
+  "ADDRESS",
+  "ADVANCING",
+  "AFTER",
+  "ALIGNED",
+  "ALL",
+  "ALLOCATE",
+  "ALPHABET",
+  "ALPHABETIC",
+  "ALPHABETIC-LOWER",
+  "ALPHABETIC-UPPER",
+  "ALPHANUMERIC",
+  "ALPHANUMERIC-EDITED",
+  "ALSO",
+  "ALTERNATE",
+  "AND",
+  "ANY",
+  "ANYCASE",
+  "ARE",
+  "AREA",
+  "AREAS",
+  "AS",
+  "ASCENDING",
+  "ASSIGN",
+  "AT",
+  "B-AND",
+  "B-NOT",
+  "B-OR",
+  "B-SHIFT-L",
+  "B-SHIFT-LC",
+  "B-SHIFT-R",
+  "B-SHIFT-RC",
+  "B-XOR",
+  "BASED",
+  "BEFORE",
+  "BINARY",
+  "BINARY-CHAR",
+  "BINARY-DOUBLE",
+  "BINARY-LONG",
+  "BINARY-SHORT",
+  "BIT",
+  "BLANK",
+  "BLOCK",
+  "BOOLEAN",
+  "BOTTOM",
+  "BY",
+  "CALL",
+  "CANCEL",
+  "CF",
+  "CH",
+  "CHARACTER",
+  "CHARACTERS",
+  "CLASS",
+  "CLASS-ID",
+  "CLOSE",
+  "CODE",
+  "CODE-SET",
+  "COL",
+  "COLLATING",
+  "COLS",
+  "COLUMN",
+  "COLUMNS",
+  "COMMA",
+  "COMMIT",
+  "COMMON",
+  "COMP",
+  "COMPUTATIONAL",
+  "COMPUTE",
+  "CONDITION",
+  "CONFIGURATION",
+  "CONSTANT",
+  "CONTAINS",
+  "CONTENT",
+  "CONTINUE",
+  "CONTROL",
+  "CONTROLS",
+  "CONVERTING",
+  "COPY",
+  "CORR",
+  "CORRESPONDING",
+  "COUNT",
+  "CRT",
+  "CURRENCY",
+  "CURSOR",
+  "DATA",
+  "DATA-POINTER",
+  "DATE",
+  "DAY",
+  "DAY-OF-WEEK",
+  "DE",
+  "DECIMAL-POINT",
+  "DECLARATIVES",
+  "DEFAULT",
+  "DELETE",
+  "DELIMITED",
+  "DELIMITER",
+  "DEPENDING",
+  "DESCENDING",
+  "DESTINATION",
+  "DETAIL",
+  "DISPLAY",
+  "DIVIDE",
+  "DIVISION",
+  "DOWN",
+  "DUPLICATES",
+  "DYNAMIC",
+  "EC",
+  "EDITING",
+  "ELSE",
+  "EMD-START",
+  "END",
+  "END-ACCEPT",
+  "END-ADD",
+  "END-CALL",
+  "END-COMPUTE",
+  "END-DELETE",
+  "END-DISPLAY",
+  "END-DIVIDE",
+  "END-EVALUATE",
+  "END-IF",
+  "END-MULTIPLY",
+  "END-OF-PAGE",
+  "END-PERFORM",
+  "END-READ",
+  "END-RECEIVE",
+  "END-RETURN",
+  "END-REWRITE",
+  "END-SEARCH",
+  "END-SEND",
+  "END-STRING",
+  "END-SUBTRACT",
+  "END-UNSTRING",
+  "END-WRITE",
+  "ENVIRONMENT",
+  "EO",
+  "EOP",
+  "EQUAL",
+  "ERROR",
+  "EVALUATE",
+  "EXCEPTION",
+  "EXCEPTION-OBJECT",
+  "EXCLUSIVE-OR",
+  "EXIT",
+  "EXTEND",
+  "EXTERNAL",
+  "FACTORY",
+  "FALSE",
+  "FARTHEST-FROM-ZERO",
+  "FD",
+  "FILE",
+  "FILE-CONTROL",
+  "FILLER",
+  "FINAL",
+  "FINALLY",
+  "FIRST",
+  "FLOAT-BINARY-128",
+  "FLOAT-BINARY-32",
+  "FLOAT-BINARY-64",
+  "FLOAT-DECIMAL-16",
+  "FLOAT-DECIMAL-34",
+  "FLOAT-EXTENDED",
+  "FLOAT-INFINITY",
+  "FLOAT-LONG",
+  "FLOAT-NOT-A-NUMBER-",
+  "FLOAT-SHORT",
+  "FOOTING",
+  "FOR",
+  "FORMAT",
+  "FREE",
+  "FROM",
+  "FUNCTION",
+  "FUNCTION-ID",
+  "FUNCTION-POINTER",
+  "GENERATE",
+  "GET",
+  "GIVING",
+  "GLOBAL",
+  "GO",
+  "GOBACK",
+  "GREATER",
+  "GROUP",
+  "GROUP-USAGE",
+  "HEADING",
+  "HIGH-VALUE",
+  "HIGH-VALUES",
+  "I-O",
+  "I-OICONTROL",
+  "IDENTIFICATION",
+  "IF",
+  "IN",
+  "IN-ARITHMETIC-RANGE",
+  "INDEX",
+  "INDEXED",
+  "INDICATE",
+  "INHERITS",
+  "INITIAL",
+  "INITIALIZE",
+  "INITIATE",
+  "INPUT",
+  "INPUT-OUTPUT",
+  "INSPECT",
+  "INTERFACE",
+  "INTERFACE-ID",
+  "INTO",
+  "INVALID",
+  "INVOKE",
+  "IS",
+  "JUST",
+  "JUSTIFIED",
+  "KEY",
+  "LAST",
+  "LEADING",
+  "LEFT",
+  "LENGTH",
+  "LESS",
+  "LIMIT",
+  "LIMITS",
+  "LINAGE",
+  "LINAGE-COUNTER",
+  "LINE",
+  "LINE-COUNTER",
+  "LINES",
+  "LINKAGE",
+  "LOCAL-STORAGE",
+  "LOCALE",
+  "LOCATION",
+  "LOCK",
+  "LOW-VALUE",
+  "LOW-VALUES",
+  "MERGE",
+  "MESSAGE-TAG",
+  "METHOD-ID",
+  "MINUS",
+  "MODE",
+  "MOVE",
+  "MULTIPLY",
+  "NATIONAL",
+  "NATIONAL-EDITED",
+  "NATIVE",
+  "NEAREST-TO-ZERO",
+  "NEGATIVE",
+  "NESTED",
+  "NEXT",
+  "NO",
+  "NOT",
+  "NULL",
+  "NUMBER",
+  "NUMERIC",
+  "NUMERIC-EDITED",
+  "OBJECT",
+  "OBJECT-COMPUTER",
+  "OBJECT-REFERENCE",
+  "OCCURS",
+  "OF",
+  "OFF",
+  "OMITTED",
+  "ON",
+  "OPEN",
+  "OPTIONAL",
+  "OPTIONS",
+  "OR",
+  "ORDER",
+  "ORGANIZATION",
+  "OTHER",
+  "OUTPUT",
+  "OVERFLOW",
+  "OVERRIDE",
+  "PACKED-DECIMAL",
+  "PAGE",
+  "PAGE-COUNTER",
+  "PERFORM",
+  "PF",
+  "PH",
+  "PIC",
+  "PICTURE",
+  "PLUS",
+  "POINTER",
+  "POSITIVE",
+  "PRESENT",
+  "PRINTING",
+  "PROCEDURE",
+  "PROGRAM",
+  "PROGRAM-ID",
+  "PROGRAM-POINTER",
+  "PROPERTY",
+  "PROTOTYPE",
+  "QUIET",
+  "QUOTE",
+  "QUOTES",
+  "RAISE",
+  "RAISING",
+  "RANDOM",
+  "RD",
+  "READ",
+  "RECEIVE",
+  "RECORD",
+  "RECORDS",
+  "REDEFINES",
+  "REEL",
+  "REFERENCE",
+  "RELATIVE",
+  "RELEASE",
+  "REMAINDER",
+  "REMOVAL",
+  "RENAMES",
+  "REPLACE",
+  "REPLACING",
+  "REPORT",
+  "REPORTING",
+  "REPORTS",
+  "REPOSITORY",
+  "RESERVE",
+  "RESET",
+  "RESUME",
+  "RETRY",
+  "RETURN",
+  "RETURNING",
+  "REWIND",
+  "REWRITE",
+  "RF",
+  "RH",
+  "RIGHT",
+  "ROLLBACK",
+  "ROUNDED",
+  "RUN",
+  "SAME",
+  "SCREEN",
+  "SD",
+  "SEARCH",
+  "SECTION",
+  "SELECT",
+  "SELF",
+  "SEND",
+  "SENTENCE",
+  "SEPARATE",
+  "SEQUENCE",
+  "SEQUENTIAL",
+  "SET",
+  "SHARING",
+  "SIGN",
+  "SIGNALING",
+  "SIZE",
+  "SORT",
+  "SORT-MERGE",
+  "SOURCE",
+  "SOURCE-COMPUTER",
+  "SOURCES",
+  "SPACE",
+  "SPACES",
+  "SPECIAL-NAMES",
+  "STANDARD",
+  "STANDARD-1",
+  "STANDARD-2",
+  "START",
+  "STATUS",
+  "STOP",
+  "STRING",
+  "SUBTRACT",
+  "SUM",
+  "SUPER",
+  "SUPPRESS",
+  "SYMBOLIC",
+  "SYNC",
+  "SYNCHRONIZED",
+  "SYSTEM-DEFAULT",
+  "TABLE",
+  "TALLYING",
+  "TERMINATE",
+  "TEST",
+  "THAN",
+  "THEN",
+  "THROUGH",
+  "THRU",
+  "TIME",
+  "TIMES",
+  "TO",
+  "TOP",
+  "TRAILING",
+  "TRUE",
+  "TYPE",
+  "TYPEDEF",
+  "UNIT",
+  "UNIVERSAL",
+  "UNLOCK",
+  "UNSTRING",
+  "UNTIL",
+  "UP",
+  "UPON",
+  "USAGE",
+  "USE",
+  "USER-DEFAULT",
+  "USING",
+  "VAL-STATUS",
+  "VALID",
+  "VALIDATE",
+  "VALIDATE-STATUS",
+  "VALUE",
+  "VALUES",
+  "VARYING",
+  "WHEN",
+  "WITH",
+  "WORKING-STORAGE",
+  "WRITE",
+  "XOR",
+  "ZERO",
+  "ZEROES",
+  "ZEROS",
+  "+",
+  "-",
+  "*",
+  "/",
+  "**",
+  "<",
+  "<=",
+  "<>",
+  "=",
+  ">",
+  ">=",
+  "&",
+  "*>",
+  "::",
+  ">>",
+};
+
+// 8.10 Context-sensitive words
+static const std::set<std::string> context_sensitive_words = {
+  "ACTIVATING",              // MODULE-NAME intrinsic function
+  "ANUM",                    // CONVERT intrinsic function
+  "APPLY",                   // I-O-CONTROL paragraph
+  "ARITHMETIC",              // OPTIONS paragraph
+  "ATTRIBUTE",               // SET statement
+  "AUTO",                    // screen description entry
+  "AUTOMATIC",               // LOCK MODE clause
+  "AWAY-FROM-ZERO",          // ROUNDED phrase
+  "BACKGROUND-COLOR",        // screen description entry
+  "BACKWARD",                // INSPECT statement
+  "BELL",                    // screen description entry and SET attribute statement
+  "BINARY-ENCODING",         // USAGE clause and FLOAT-DECIMAL clause
+  "BLINK",                   // screen description entry and SET attribute statement
+  "BYTE",                    // CONVERT intrinsic function
+  "BYTES",                   // RECORD clause
+  "BYTE-LENGTH",             // constant entry
+  "CAPACITY",                // OCCURS clause
+  "CENTER",                  // COLUMN clause
+  "CLASSIFICATION",          // OBJECT-COMPUTER paragraph
+  "CURRENT",                 // MODULE-NAME intrinsic function
+  "CYCLE",                   // EXIT statement
+  "DECIMAL-ENCODING",        // USAGE clause and FLOAT-DECIMAL clause
+  "EOL",                     // ERASE clause in a screen description entry
+  "EOS",                     // ERASE clause in a screen description entry
+  "ENTRY-CONVENTION",        // OPTIONS paragraph
+  "ERASE",                   // screen description entry
+  "EXPANDS",                 // class-specifier and interface-specifier of the REPOSITORY paragraph
+  "FLOAT-BINARY",            // OPTIONS paragraph
+  "FLOAT-DECIMAL",           // OPTIONS paragraph
+  "FOREGROUND-COLOR",        // screen description entry
+  "FOREVER",                 // RETRY phrase
+  "FULL",                    // screen description entry
+  "HEX",                     // CONVERT intrinsic function
+  "HIGH-ORDER-LEFT",         // FLOAT-BINARY clause, FLOAT-DECIMAL clause, and USAGE clause
+  "HIGH-ORDER-RIGHT",        // FLOAT-BINARY clause, FLOAT-DECIMAL clause, and USAGE clause
+  "HIGHLIGHT",               // screen description entry and SET attribute statement
+  "IGNORING",                // READ statement
+  "IMPLEMENTS",              // FACTORY paragraph and OBJECT paragraph
+  "INITIALIZED",             // ALLOCATE statement and OCCURS clause
+  "INTERMEDIATE",            // OPTIONS paragraph
+  "INTRINSIC",               // function-specifier of the REPOSITORY paragraph
+  "LC_ALL",                  // SET statement
+  "LC_COLLATE",              // SET statement
+  "LC_CTYPE",                // SET statement
+  "LC_MESSAGES",             // SET statement
+  "LC_MONETARY",             // SET statement
+  "LC_NUMERIC",              // SET statement
+  "LC_TIME",                 // SET statement
+  "LOWLIGHT",                // screen description entry and SET attribute statement
+  "MANUAL",                  // LOCK MODE clause
+  "MULTIPLE",                // LOCK ON phrase
+  "NAT",                     // CONVERT intrinsic function
+  "NEAREST-AWAY-FROM-ZERO",  // INTERMEDIATE ROUNDING clause and ROUNDED phrase
+  "NEAREST-EVEN",            // INTERMEDIATE ROUNDING clause and ROUNDED phrase
+  "NEAREST-TOWARD-ZERO",     // INTERMEDIATE ROUNDING clause and ROUNDED phrase
+  "NONE",                    // DEFAULT clause
+  "NORMAL",                  // STOP statement
+  "NUMBERS",                 // COLUMN clause and LINE clause
+  "ONLY",                    // Object-view, SHARING clause, SHARING phrase, and USAGE clause
+  "PARAGRAPH",               // EXIT statement
+  "PREFIXED",                // DYNAMIC LENGTH STRUCTURE clause
+  "PREVIOUS",                // READ statement
+  "PROHIBITED",              // INTERMEDIATE ROUNDING clause and ROUNDED phrase
+  "RECURSIVE",               // PROGRAM-ID paragraph
+  "RELATION",                // VALIDATE-STATUS clause
+  "REQUIRED",                // screen description entry
+  "REVERSE-VIDEO",           // screen description entry and SET attribute statement
+  "ROUNDING",                // OPTIONS paragraph
+  "SECONDS",                 // RETRY phrase, CONTINUE statement
+  "SECURE",                  // screen description entry
+  "SHORT",                   // DYNAMIC LENGTH STRUCTURE clause
+  "SIGNED",                  // DYNAMIC LENGTH STRUCTURE clause and USAGE clause
+  "STACK",                   // MODULE-NAME intrinsic function
+  "STANDARD-BINARY",         // ARITHMETIC clause
+  "STANDARD-DECIMAL",        // ARITHMETIC clause
+  "STATEMENT",               // RESUME statement
+  "STEP",                    // OCCURS clause
+  "STRONG",                  // TYPEDEF clause
+  "STRUCTURE",               // DYNAMIC LENGTH STRUCTURE clause
+  "SYMBOL",                  // CURRENCY clause
+  "TOP-LEVEL",               // MODULE-NAME intrinsic function
+  "TOWARD-GREATER",          // ROUNDED phrase
+  "TOWARD-LESSER",           // ROUNDED phrase
+  "TRUNCATION",              // INTERMEDIATE ROUNDING clause and ROUNDED phrase
+  "UCS-4",                   // ALPHABET clause
+  "UNDERLINE",               // screen description entry and SET attribute statement
+  "UNSIGNED",                // USAGE clause
+  "UTF-8",                   // ALPHABET clause
+  "UTF-16",                  // ALPHABET clause
+  "YYYYDDD",                 // ACCEPT statement
+  "YYYYMMDD",                // ACCEPT statement
+};
+
+// Is the input a COBOL word, per ISO/IEC 1989:2023 (E) ?
+// We add a few GCC-specific keywords, and our supported IBM keywords.
+bool
+iso_cobol_word( const std::string& name, bool include_context ) {
+  auto ok = 1 == reserved_words.count(name);
+  if( include_context && !ok ) {
+    ok = 1 == context_sensitive_words.count(name);
+  }
+  return ok;
+}
+

@@ -220,6 +220,8 @@ first_ptx_version_supporting_sm (enum ptx_isa sm)
       return PTX_VERSION_4_1;
     case PTX_ISA_SM53:
       return PTX_VERSION_4_2;
+    case PTX_ISA_SM61:
+      return PTX_VERSION_5_0;
     case PTX_ISA_SM70:
       return PTX_VERSION_6_0;
     case PTX_ISA_SM75:
@@ -268,6 +270,8 @@ ptx_version_to_string (enum ptx_version v)
       return "4.1";
     case PTX_VERSION_4_2:
       return "4.2";
+    case PTX_VERSION_5_0:
+      return "5.0";
     case PTX_VERSION_6_0:
       return "6.0";
     case PTX_VERSION_6_3:
@@ -294,6 +298,8 @@ ptx_version_to_number (enum ptx_version v, bool major_p)
       return major_p ? 4 : 1;
     case PTX_VERSION_4_2:
       return major_p ? 4 : 2;
+    case PTX_VERSION_5_0:
+      return major_p ? 5 : 0;
     case PTX_VERSION_6_0:
       return major_p ? 6 : 0;
     case PTX_VERSION_6_3:
@@ -2039,8 +2045,7 @@ nvptx_gen_shuffle (rtx dst, rtx src, rtx idx, nvptx_shuffle_kind kind)
 	  start_sequence ();
 	  emit_insn (nvptx_gen_shuffle (dst_real, src_real, idx, kind));
 	  emit_insn (nvptx_gen_shuffle (dst_imag, src_imag, idx, kind));
-	  res = get_insns ();
-	  end_sequence ();
+	  res = end_sequence ();
 	}
 	break;
     case E_SImode:
@@ -2060,8 +2065,7 @@ nvptx_gen_shuffle (rtx dst, rtx src, rtx idx, nvptx_shuffle_kind kind)
 	emit_insn (nvptx_gen_shuffle (tmp0, tmp0, idx, kind));
 	emit_insn (nvptx_gen_shuffle (tmp1, tmp1, idx, kind));
 	emit_insn (nvptx_gen_pack (dst, tmp0, tmp1));
-	res = get_insns ();
-	end_sequence ();
+	res = end_sequence ();
       }
       break;
     case E_V2SImode:
@@ -2079,8 +2083,7 @@ nvptx_gen_shuffle (rtx dst, rtx src, rtx idx, nvptx_shuffle_kind kind)
 	emit_insn (nvptx_gen_shuffle (tmp1, tmp1, idx, kind));
 	emit_insn (gen_movsi (dst0, tmp0));
 	emit_insn (gen_movsi (dst1, tmp1));
-	res = get_insns ();
-	end_sequence ();
+	res = end_sequence ();
       }
       break;
     case E_V2DImode:
@@ -2098,8 +2101,7 @@ nvptx_gen_shuffle (rtx dst, rtx src, rtx idx, nvptx_shuffle_kind kind)
 	emit_insn (nvptx_gen_shuffle (tmp1, tmp1, idx, kind));
 	emit_insn (gen_movdi (dst0, tmp0));
 	emit_insn (gen_movdi (dst1, tmp1));
-	res = get_insns ();
-	end_sequence ();
+	res = end_sequence ();
       }
       break;
     case E_BImode:
@@ -2110,8 +2112,7 @@ nvptx_gen_shuffle (rtx dst, rtx src, rtx idx, nvptx_shuffle_kind kind)
 	emit_insn (gen_sel_truesi (tmp, src, GEN_INT (1), const0_rtx));
 	emit_insn (nvptx_gen_shuffle (tmp, tmp, idx, kind));
 	emit_insn (gen_rtx_SET (dst, gen_rtx_NE (BImode, tmp, const0_rtx)));
-	res = get_insns ();
-	end_sequence ();
+	res = end_sequence ();
       }
       break;
     case E_QImode:
@@ -2124,8 +2125,7 @@ nvptx_gen_shuffle (rtx dst, rtx src, rtx idx, nvptx_shuffle_kind kind)
 	emit_insn (nvptx_gen_shuffle (tmp, tmp, idx, kind));
 	emit_insn (gen_rtx_SET (dst, gen_rtx_fmt_e (TRUNCATE, GET_MODE (dst),
 						    tmp)));
-	res = get_insns ();
-	end_sequence ();
+	res = end_sequence ();
       }
       break;
 
@@ -2188,8 +2188,7 @@ nvptx_gen_shared_bcast (rtx reg, propagate_mask pm, unsigned rep,
 	emit_insn (nvptx_gen_shared_bcast (tmp, pm, rep, data, vector));
 	if (pm & PM_write)
 	  emit_insn (gen_rtx_SET (reg, gen_rtx_NE (BImode, tmp, const0_rtx)));
-	res = get_insns ();
-	end_sequence ();
+	res = end_sequence ();
       }
       break;
 
@@ -2225,8 +2224,7 @@ nvptx_gen_shared_bcast (rtx reg, propagate_mask pm, unsigned rep,
 	    emit_insn (res);
 	    emit_insn (gen_adddi3 (data->ptr, data->ptr,
 				   GEN_INT (GET_MODE_SIZE (GET_MODE (reg)))));
-	    res = get_insns ();
-	    end_sequence ();
+	    res = end_sequence ();
 	  }
 	else
 	  rep = 1;
@@ -4597,8 +4595,7 @@ nvptx_propagate (bool is_call, basic_block block, rtx_insn *insn,
 	}
       emit_insn (gen_rtx_CLOBBER (GET_MODE (tmp), tmp));
       emit_insn (gen_rtx_CLOBBER (GET_MODE (ptr), ptr));
-      rtx cpy = get_insns ();
-      end_sequence ();
+      rtx cpy = end_sequence ();
       insn = emit_insn_after (cpy, insn);
     }
 
@@ -5603,8 +5600,7 @@ workaround_uninit_method_1 (void)
       if (nvptx_comment && first != NULL)
 	emit_insn (gen_comment ("Start: Added by -minit-regs=1"));
       emit_move_insn (reg, CONST0_RTX (GET_MODE (reg)));
-      rtx_insn *inits = get_insns ();
-      end_sequence ();
+      rtx_insn *inits = end_sequence ();
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	for (rtx_insn *init = inits; init != NULL; init = NEXT_INSN (init))
@@ -5660,8 +5656,7 @@ workaround_uninit_method_2 (void)
       if (nvptx_comment && first != NULL)
 	emit_insn (gen_comment ("Start: Added by -minit-regs=2:"));
       emit_move_insn (reg, CONST0_RTX (GET_MODE (reg)));
-      rtx_insn *inits = get_insns ();
-      end_sequence ();
+      rtx_insn *inits = end_sequence ();
 
       if (dump_file && (dump_flags & TDF_DETAILS))
 	for (rtx_insn *init = inits; init != NULL; init = NEXT_INSN (init))
@@ -5731,8 +5726,7 @@ workaround_uninit_method_3 (void)
 
 	      start_sequence ();
 	      emit_move_insn (reg, CONST0_RTX (GET_MODE (reg)));
-	      rtx_insn *inits = get_insns ();
-	      end_sequence ();
+	      rtx_insn *inits = end_sequence ();
 
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		for (rtx_insn *init = inits; init != NULL;
@@ -5763,8 +5757,7 @@ workaround_uninit_method_3 (void)
 	    emit_insn (gen_comment ("Start: Added by -minit-regs=3:"));
 	    emit_insn (e->insns.r);
 	    emit_insn (gen_comment ("End: Added by -minit-regs=3:"));
-	    e->insns.r = get_insns ();
-	    end_sequence ();
+	    e->insns.r = end_sequence ();
 	  }
       }
 

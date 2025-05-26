@@ -155,75 +155,14 @@ void input_file_status_notify();
 static char *display_msg;
 const char * keyword_str( int token );
 
-static class exception_turns_t {
-  typedef std::list<size_t> filelist_t;
-  typedef std::map<ec_type_t, filelist_t> ec_filemap_t;
-  ec_filemap_t exceptions;
- public:
-  bool enabled, location;
-
-  exception_turns_t() : enabled(false), location(false) {};
-
-  const ec_filemap_t& exception_files() const { return exceptions; }
-
-  struct args_t {
-    size_t nexception;
-    cbl_exception_files_t *exceptions;
-  };
-
-  bool add_exception( ec_type_t type, const filelist_t files = filelist_t() ) {
-    ec_disposition_t disposition = ec_type_disposition(type);
-    if( disposition != ec_implemented(disposition) ) {
-	cbl_unimplementedw("CDF: exception '%s'", ec_type_str(type));
-    }
-    auto elem = exceptions.find(type);
-    if( elem != exceptions.end() ) return false; // cannot add twice
-
-    exceptions[type] = files;
-    return true;
-  }
-
-  args_t args() const {
-    args_t args;
-    args.nexception = exceptions.size();
-    args.exceptions = NULL;
-    if( args.nexception ) {
-      args.exceptions = new cbl_exception_files_t[args.nexception];
-    }
-    std::transform( exceptions.begin(), exceptions.end(), args.exceptions,
-                    []( auto& input ) {
-                      cbl_exception_files_t output;
-                      output.type = input.first;
-                      output.nfile = input.second.size();
-                      output.files = NULL;
-                      if( output.nfile ) {
-                        output.files = new size_t[output.nfile];
-                        std::copy(input.second.begin(),
-                                       input.second.end(),
-                                       output.files );
-                      }
-                      return output;
-                    } );
-    return args;
-  }
-
-  void clear() {
-    for( auto& ex : exceptions ) {
-      ex.second.clear();
-    }
-    exceptions.clear();
-    enabled = location = false;
-  }
-
-} exception_turns;
-
-
-static bool
-apply_cdf_turn( exception_turns_t& turns ) {
-  for( auto elem : turns.exception_files() ) {
+exception_turn_t exception_turn;
+			
+bool
+apply_cdf_turn( const exception_turn_t& turn ) {
+  for( auto elem : turn.exception_files() ) {
     std::set<size_t> files(elem.second.begin(), elem.second.end());
-    enabled_exceptions.turn_on_off(turns.enabled,
-                                   turns.location,
+    enabled_exceptions.turn_on_off(turn.enabled,
+                                   turn.location,
                                    elem.first, files);
   }
   if( getenv("GCOBOL_SHOW") ) enabled_exceptions.dump();
@@ -241,70 +180,71 @@ apply_cdf_turn( exception_turns_t& turns ) {
     std::set<size_t> *files;
 }
 
+%printer { fprintf(yyo, "'%s'", $$? "true" : "false" ); } <boolean>
 %printer { fprintf(yyo, "'%s'", $$ ); } <string>
 %printer { fprintf(yyo, "%s '%s'",
 		   keyword_str($$.token),
 		   $$.string? $$.string : "<nil>" ); } <cdfarg>
-%printer { fprintf(yyo, "%ld '%s'",
-		   $$.number, $$.string? $$.string : "" ); } <cdfval>
+%printer { fprintf(yyo, HOST_SIZE_T_PRINT_DEC " '%s'",
+		   (fmt_size_t)$$.number, $$.string? $$.string : "" ); } <cdfval>
 
 %type	<string>	NAME NUMSTR LITERAL PSEUDOTEXT
 %type	<string>	LSUB RSUB SUBSCRIPT
 %type	<cdfarg>	namelit name_any name_one
 %type	<string>	name subscript subscripts inof
 %token <boolean>  BOOL
-%token <number>  FEATURE 363  NUMBER 302  EXCEPTION_NAME 280    "EXCEPTION NAME"
+%token <number>  FEATURE 365  NUMBER 303  EXCEPTION_NAME 280    "EXCEPTION NAME"
 
 %type	<cdfval>	cdf_expr
 %type	<cdfval>	cdf_relexpr cdf_reloper cdf_and cdf_bool_expr
 %type	<cdfval>	cdf_factor
-%type	<boolean>	cdf_cond_expr override
+%type	<boolean>	cdf_cond_expr override except_check
 
 %type   <file>		filename
 %type   <files>         filenames
 
-%token BY 476
-%token COPY 360
-%token CDF_DISPLAY 382    ">>DISPLAY"
-%token IN 595
+%token BY 478
+%token COPY 362
+%token CDF_DISPLAY 384    ">>DISPLAY"
+%token IN 597
 %token NAME 286
-%token NUMSTR 304    "numeric literal"
-%token OF 676
-%token PSEUDOTEXT 711
-%token REPLACING 733
-%token LITERAL 297
-%token SUPPRESS 374
+%token NUMSTR 305    "numeric literal"
+%token OF 678
+%token PSEUDOTEXT 713
+%token REPLACING 735
+%token LITERAL 298
+%token SUPPRESS 376
 
-%token LSUB 365    "("
-%token SUBSCRIPT 373  RSUB 370    ")"
+%token LSUB 367    "("
+%token SUBSCRIPT 375  RSUB 372    ")"
 
-%token CDF_DEFINE 381    ">>DEFINE"
-%token CDF_IF 383    ">>IF"
-%token CDF_ELSE 384    ">>ELSE"
-%token CDF_END_IF 385    ">>END-IF"
-%token CDF_EVALUATE 386    ">>EVALUATE"
-%token CDF_WHEN 387    ">>WHEN"
-%token CDF_END_EVALUATE 388    ">>END-EVALUATE"
+%token CDF_DEFINE 383    ">>DEFINE"
+%token CDF_IF 385    ">>IF"
+%token CDF_ELSE 386    ">>ELSE"
+%token CDF_END_IF 387    ">>END-IF"
+%token CDF_EVALUATE 388    ">>EVALUATE"
+%token CDF_WHEN 389    ">>WHEN"
+%token CDF_END_EVALUATE 390    ">>END-EVALUATE"
 
-%token AS 458  CONSTANT 359  DEFINED 361
+%token AS 460  CONSTANT 361  DEFINED 363
 %type	<boolean>	     DEFINED
-%token OTHER 688  PARAMETER_kw 366    "PARAMETER"
-%token OFF 677  OVERRIDE 367
-%token THRU 929
-%token TRUE_kw 803    "True"
+%token OTHER 690  PARAMETER_kw 368    "PARAMETER"
+%token OFF 679  OVERRIDE 369
+%token THRU 931
+%token TRUE_kw 805    "True"
 
-%token CALL_COBOL 389    "CALL"
-%token CALL_VERBATIM 390    "CALL (as C)"
+%token CALL_COBOL 391    "CALL"
+%token CALL_VERBATIM 392    "CALL (as C)"
 
-%token TURN 805  CHECKING 486  LOCATION 639  ON 679  WITH 831
+%token TURN 807  CHECKING 488  LOCATION 641  ON 681  WITH 833
 
-%left OR 930
-%left AND 931
-%right NOT 932
-%left '<'  '>'  '='  NE 933  LE 934  GE 935
+%left OR 932
+%left AND 933
+%right NOT 934
+%left '<'  '>'  '='  NE 935  LE 936  GE 937
 %left '-'  '+'
 %left '*'  '/'
-%right NEG 937
+%right NEG 939
 
 %define api.prefix {ydf}
 %define api.token.prefix{YDF_}
@@ -443,8 +383,8 @@ override:	%empty   { $$ = false; }
 
 cdf_turn:	TURN except_names except_check
 		{
-		  apply_cdf_turn(exception_turns);
-		  exception_turns.clear();
+		  apply_cdf_turn(exception_turn);
+		  exception_turn.clear();
 		}
 		;
 
@@ -463,22 +403,20 @@ except_names: 	except_name
 		;
 except_name:	EXCEPTION_NAME[ec] {
 		  assert($ec != ec_none_e);
-		  exception_turns.add_exception(ec_type_t($ec));
+		  exception_turn.add_exception(ec_type_t($ec));
 		}
 	|	EXCEPTION_NAME[ec] filenames {
 		  assert($ec != ec_none_e);
-		  std::list<size_t> files;
-		  std::copy( $filenames->begin(), $filenames->end(),
-		                  std::back_inserter(files) );
-		  exception_turns.add_exception(ec_type_t($ec), files);
+		  std::list<size_t> files($filenames->begin(), $filenames->end());
+		  exception_turn.add_exception(ec_type_t($ec), files);
 		}
 		;
 
-except_check:	CHECKING on  { exception_turns.enabled = true; }
-	|	CHECKING OFF { exception_turns.enabled = false; }
+except_check:	CHECKING on  { $$ = exception_turn.enable(true); }
+	|	CHECKING OFF { $$ = exception_turn.enable(false); }
 	|	CHECKING on with LOCATION
 		{
-		  exception_turns.enabled = exception_turns.location = true;
+		  $$ = exception_turn.enable(true, true);
 		}
 		;
 
@@ -510,7 +448,6 @@ cdf_if:		CDF_IF cdf_cond_expr {
 		  scanner_parsing(YDF_CDF_IF, $2);
 		}
 	|	CDF_IF error {
-		  ////if( scanner_parsing() ) yyerrok;
 		} CDF_END_IF { // not pushed, don't pop
 		  if( ! scanner_parsing() ) YYACCEPT;
 		}
@@ -529,18 +466,17 @@ cdf_eval_obj:	cdf_cond_expr
         ;
 
 cdf_cond_expr:	BOOL
-	|	NAME DEFINED[maybe]
+	|	NAME DEFINED
 		{
 		  auto p = dictionary.find($1);
 		  bool found = p != dictionary.end();
-		  if( !$maybe ) found = ! found;
-		  if( ! found ) {
-		    $$ = !$2;
-		    dbgmsg("CDF: %s not found in dictionary (result %s)",
+		  if( !$DEFINED ) found = ! found;
+		  $$ = found;
+		  if( found ) {
+		    dbgmsg("CDF: %s found in dictionary (result %s)",
 			   $1, $$? "true" : "false");
 		  } else {
-		    $$ = $2;
-		    dbgmsg("CDF: %s found in dictionary (result %s)",
+		    dbgmsg("CDF: %s not found in dictionary (result %s)",
 			   $1, $$? "true" : "false");
 		  }
 		}
@@ -828,7 +764,8 @@ defined_cmd( const char arg[] )
 
   if( yydebug ) {
     if( cdf_name->second.is_numeric() ) {
-      dbgmsg("%s: added -D %s = %ld", __func__, name, cdf_name->second.as_number());
+      dbgmsg("%s: added -D %s = " HOST_SIZE_T_PRINT_DEC,
+             __func__, name, (fmt_size_t)cdf_name->second.as_number());
     } else {
       dbgmsg("%s: added -D %s = \"%s\"", __func__, name, cdf_name->second.string);
     }
