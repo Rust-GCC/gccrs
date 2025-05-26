@@ -1,5 +1,5 @@
 /* IPA function body analysis.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -45,7 +45,7 @@ enum ipa_hints_vals {
      it.  Set by simple_edge_hints in ipa-inline-analysis.cc.  */
   INLINE_HINT_declared_inline = 32,
   /* Programs are usually still organized for non-LTO compilation and thus
-     if functions are in different modules, inlining may not be so important. 
+     if functions are in different modules, inlining may not be so important.
      Set by simple_edge_hints in ipa-inline-analysis.cc.   */
   INLINE_HINT_cross_module = 64,
   /* We know that the callee is hot by profile.  */
@@ -85,7 +85,7 @@ public:
   sreal time;
 };
 
-/* Summary about function and stack frame sizes.  We keep this info 
+/* Summary about function and stack frame sizes.  We keep this info
    for inline clones and also for WPA streaming. For this reason this is not
    part of ipa_fn_summary which exists only for offline functions.  */
 class ipa_size_summary

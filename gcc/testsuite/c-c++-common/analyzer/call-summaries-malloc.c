@@ -1,4 +1,5 @@
 /* { dg-additional-options "-fanalyzer-call-summaries --param analyzer-min-snodes-for-call-summary=0" } */
+/* { dg-skip-if "requires hosted libstdc++ for stdlib malloc" { ! hostedlib } } */
 
 /* There need to be at least two calls to a function for the
    call-summarization code to be used.
@@ -66,7 +67,7 @@ void test_use_after_free (void)
 void test_use_without_check (size_t sz)
 {
   char *buf = (char *) wrapped_malloc (sz); /* { dg-message "this call could return NULL" } */
-  memset (buf, 'x', sz); /* { dg-warning "use of possibly-NULL 'buf' where non-null expected" } */
+  memset (buf, 'x', 4); /* { dg-warning "use of possibly-NULL 'buf' where non-null expected" } */
   wrapped_free (buf);
 }
 

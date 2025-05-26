@@ -1,6 +1,6 @@
 // Pair implementation -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -101,6 +101,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<size_t...>
     struct _Index_tuple;
 
+  template<typename _Tp>
+    class complex;
+
   template<size_t _Int, class _Tp1, class _Tp2>
     constexpr typename tuple_element<_Int, pair<_Tp1, _Tp2>>::type&
     get(pair<_Tp1, _Tp2>& __in) noexcept;
@@ -148,6 +151,21 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<size_t _Int, typename _Tp, size_t _Nm>
     constexpr const _Tp&&
     get(const array<_Tp, _Nm>&&) noexcept;
+
+#if __glibcxx_tuple_like >= 202311 // >= C++26
+  template<size_t _Int, typename _Tp>
+    constexpr _Tp&
+    get(complex<_Tp>&) noexcept;
+  template<size_t _Int, typename _Tp>
+    constexpr _Tp&&
+    get(complex<_Tp>&&) noexcept;
+  template<size_t _Int, typename _Tp>
+    constexpr const _Tp&
+    get(const complex<_Tp>&) noexcept;
+  template<size_t _Int, typename _Tp>
+    constexpr const _Tp&&
+    get(const complex<_Tp>&&) noexcept;
+#endif
 
 #if ! __cpp_lib_concepts
   // Concept utility functions, reused in conditionally-explicit
@@ -344,6 +362,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       explicit(__not_<__and_<__is_implicitly_default_constructible<_T1>,
 			     __is_implicitly_default_constructible<_T2>>>())
       pair()
+      noexcept(is_nothrow_default_constructible_v<_T1>
+		&& is_nothrow_default_constructible_v<_T2>)
       requires is_default_constructible_v<_T1>
 	       && is_default_constructible_v<_T2>
       : first(), second()
@@ -1000,23 +1020,46 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _T1, typename _T2> pair(_T1, _T2) -> pair<_T1, _T2>;
 #endif
 
-  /// Two pairs of the same type are equal iff their members are equal.
-  template<typename _T1, typename _T2>
-    inline _GLIBCXX_CONSTEXPR bool
-    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+#if __cpp_lib_three_way_comparison
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3865. Sorting a range of pairs
+
+  /// Two pairs are equal iff their members are equal.
+  template<typename _T1, typename _T2, typename _U1, typename _U2>
+    [[nodiscard]]
+    constexpr bool
+    operator==(const pair<_T1, _T2>& __x, const pair<_U1, _U2>& __y)
+    requires requires {
+      { __x.first == __y.first } -> __detail::__boolean_testable;
+      { __x.second == __y.second } -> __detail::__boolean_testable;
+    }
     { return __x.first == __y.first && __x.second == __y.second; }
 
-#if __cpp_lib_three_way_comparison && __cpp_lib_concepts
-  template<typename _T1, typename _T2>
-    constexpr common_comparison_category_t<__detail::__synth3way_t<_T1>,
-					   __detail::__synth3way_t<_T2>>
-    operator<=>(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+  /** Defines a lexicographical order for pairs.
+   *
+   * For two pairs of comparable types, `P` is ordered before `Q` if
+   * `P.first` is less than `Q.first`, or if `P.first` and `Q.first`
+   * are equivalent (neither is less than the other) and `P.second` is
+   * less than `Q.second`.
+  */
+  template<typename _T1, typename _T2, typename _U1, typename _U2>
+    [[nodiscard]]
+    constexpr common_comparison_category_t<__detail::__synth3way_t<_T1, _U1>,
+					   __detail::__synth3way_t<_T2, _U2>>
+    operator<=>(const pair<_T1, _T2>& __x, const pair<_U1, _U2>& __y)
     {
       if (auto __c = __detail::__synth3way(__x.first, __y.first); __c != 0)
 	return __c;
       return __detail::__synth3way(__x.second, __y.second);
     }
 #else
+  /// Two pairs of the same type are equal iff their members are equal.
+  template<typename _T1, typename _T2>
+    _GLIBCXX_NODISCARD
+    inline _GLIBCXX_CONSTEXPR bool
+    operator==(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
+    { return __x.first == __y.first && __x.second == __y.second; }
+
   /** Defines a lexicographical order for pairs.
    *
    * For two pairs of the same type, `P` is ordered before `Q` if
@@ -1025,6 +1068,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    * than `Q.second`.
   */
   template<typename _T1, typename _T2>
+    _GLIBCXX_NODISCARD
     inline _GLIBCXX_CONSTEXPR bool
     operator<(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
     { return __x.first < __y.first
@@ -1032,24 +1076,28 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /// Uses @c operator== to find the result.
   template<typename _T1, typename _T2>
+    _GLIBCXX_NODISCARD
     inline _GLIBCXX_CONSTEXPR bool
     operator!=(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
     { return !(__x == __y); }
 
   /// Uses @c operator< to find the result.
   template<typename _T1, typename _T2>
+    _GLIBCXX_NODISCARD
     inline _GLIBCXX_CONSTEXPR bool
     operator>(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
     { return __y < __x; }
 
   /// Uses @c operator< to find the result.
   template<typename _T1, typename _T2>
+    _GLIBCXX_NODISCARD
     inline _GLIBCXX_CONSTEXPR bool
     operator<=(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
     { return !(__y < __x); }
 
   /// Uses @c operator< to find the result.
   template<typename _T1, typename _T2>
+    _GLIBCXX_NODISCARD
     inline _GLIBCXX_CONSTEXPR bool
     operator>=(const pair<_T1, _T2>& __x, const pair<_T1, _T2>& __y)
     { return !(__x < __y); }
@@ -1153,23 +1201,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct tuple_element<1, pair<_Tp1, _Tp2>>
     { typedef _Tp2 type; };
 
-  // Forward declare the partial specialization for std::tuple
-  // to work around modules bug PR c++/113814.
-  template<size_t __i, typename... _Types>
-    struct tuple_element<__i, tuple<_Types...>>;
-
 #if __cplusplus >= 201703L
   template<typename _Tp1, typename _Tp2>
     inline constexpr size_t tuple_size_v<pair<_Tp1, _Tp2>> = 2;
 
   template<typename _Tp1, typename _Tp2>
     inline constexpr size_t tuple_size_v<const pair<_Tp1, _Tp2>> = 2;
+#endif
 
+#if __cplusplus >= 201103L
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++14-extensions" // variable templates
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // inline variables
   template<typename _Tp>
     inline constexpr bool __is_pair = false;
 
   template<typename _Tp, typename _Up>
     inline constexpr bool __is_pair<pair<_Tp, _Up>> = true;
+#pragma GCC diagnostic pop
 #endif
 
   /// @cond undocumented

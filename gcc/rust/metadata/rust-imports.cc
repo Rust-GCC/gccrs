@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -178,7 +178,7 @@ Import::try_package_in_directory (const std::string &filename,
 		   "%s exists but does not contain any Rust export data",
 		   found_filename.c_str ());
 
-  return std::make_pair (NULL, macros);
+  return std::make_pair (nullptr, macros);
 }
 
 // Given import "*PFILENAME", where *PFILENAME does not exist, try

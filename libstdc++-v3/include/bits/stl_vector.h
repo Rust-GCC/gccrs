@@ -1,6 +1,6 @@
 // Vector implementation -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -64,6 +64,13 @@
 #endif
 #if __cplusplus >= 202002L
 # include <compare>
+#endif
+#if __glibcxx_concepts // C++ >= C++20
+# include <bits/ranges_base.h>          // ranges::distance
+#endif
+#if __glibcxx_containers_ranges // C++ >= 23
+# include <bits/ranges_algobase.h>      // ranges::copy
+# include <bits/ranges_util.h>          // ranges::subrange
 #endif
 
 #include <debug/assertions.h>
@@ -135,6 +142,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_GLIBCXX20_CONSTEXPR
 	_Vector_impl() _GLIBCXX_NOEXCEPT_IF(
 	    is_nothrow_default_constructible<_Tp_alloc_type>::value)
+#if __cpp_lib_concepts
+	requires is_default_constructible_v<_Tp_alloc_type>
+#endif
 	: _Tp_alloc_type()
 	{ }
 
@@ -396,6 +406,29 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	this->_M_impl._M_finish = this->_M_impl._M_start;
 	this->_M_impl._M_end_of_storage = this->_M_impl._M_start + __n;
       }
+
+#if __glibcxx_containers_ranges // C++ >= 23
+      // Called by insert_range, and indirectly by assign_range, append_range.
+      // Initializes new elements in storage at __ptr and updates __ptr to
+      // point after the last new element.
+      // Provides strong exception safety guarantee.
+      // Requires [ptr, ptr+distance(rg)) is a valid range.
+      template<ranges::input_range _Rg>
+	constexpr void
+	_M_append_range_to(_Rg&& __rg, pointer& __ptr)
+	{
+	  __ptr = std::__uninitialized_copy_a(ranges::begin(__rg),
+					      ranges::end(__rg),
+					      __ptr, _M_get_Tp_allocator());
+	}
+
+      // Called by assign_range, append_range, insert_range.
+      // Requires capacity() >= size()+distance(rg).
+      template<ranges::input_range _Rg>
+	constexpr void
+	_M_append_range(_Rg&& __rg)
+	{ _M_append_range_to(std::forward<_Rg>(__rg), _M_impl._M_finish); }
+#endif
     };
 
   /**
@@ -676,8 +709,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	     const allocator_type& __a = allocator_type())
       : _Base(__a)
       {
-	_M_range_initialize(__l.begin(), __l.end(),
-			    random_access_iterator_tag());
+	_M_range_initialize_n(__l.begin(), __l.end(), __l.size());
       }
 #endif
 
@@ -705,6 +737,17 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	       const allocator_type& __a = allocator_type())
 	: _Base(__a)
 	{
+#if __glibcxx_concepts // C++ >= C++20
+	  if constexpr (sized_sentinel_for<_InputIterator, _InputIterator>
+			  || forward_iterator<_InputIterator>)
+	    {
+	      const auto __n
+		= static_cast<size_type>(ranges::distance(__first, __last));
+	      _M_range_initialize_n(__first, __last, __n);
+	      return;
+	    }
+	  else
+#endif
 	  _M_range_initialize(__first, __last,
 			      std::__iterator_category(__first));
 	}
@@ -717,6 +760,33 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  // Check whether it's an integral type.  If so, it's not an iterator.
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_initialize_dispatch(__first, __last, _Integral());
+	}
+#endif
+
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Construct a vector from a range.
+       * @param __rg A range of values that are convertible to `bool`.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_Tp> _Rg>
+	constexpr
+	vector(from_range_t, _Rg&& __rg, const _Alloc& __a = _Alloc())
+	: vector(__a)
+	{
+	  if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
+	    {
+	      const auto __n = static_cast<size_type>(ranges::distance(__rg));
+	      _M_range_initialize_n(ranges::begin(__rg), ranges::end(__rg),
+				    __n);
+	    }
+	  else
+	    {
+	      auto __first = ranges::begin(__rg);
+	      const auto __last = ranges::end(__rg);
+	      for (; __first != __last; ++__first)
+		emplace_back(*__first);
+	    }
 	}
 #endif
 
@@ -856,6 +926,64 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 #endif
 
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Assign a range to the vector.
+       * @param __rg A range of values that are convertible to `value_type`.
+       * @pre `__rg` and `*this` do not overlap.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_Tp> _Rg>
+	constexpr void
+	assign_range(_Rg&& __rg)
+	{
+	  static_assert(assignable_from<_Tp&, ranges::range_reference_t<_Rg>>);
+
+	  if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
+	    {
+	      const auto __n = size_type(ranges::distance(__rg));
+	      if (__n <= size())
+		{
+		  auto __res = ranges::copy(__rg, this->_M_impl._M_start);
+		  _M_erase_at_end(__res.out);
+		  return;
+		}
+
+	      reserve(__n);
+	      auto __first = ranges::copy_n(ranges::begin(__rg), size(),
+					    this->_M_impl._M_start).in;
+	      [[maybe_unused]] const auto __diff = __n - size();
+	      _GLIBCXX_ASAN_ANNOTATE_GROW(__diff);
+	      _Base::_M_append_range(ranges::subrange(std::move(__first),
+						      ranges::end(__rg)));
+	      _GLIBCXX_ASAN_ANNOTATE_GREW(__diff);
+	    }
+	  else // input_range<_Rg> && !sized_range<_Rg>
+	    {
+	      auto __first = ranges::begin(__rg);
+	      const auto __last = ranges::end(__rg);
+	      pointer __ptr = this->_M_impl._M_start;
+	      pointer const __end = this->_M_impl._M_finish;
+
+	      while (__ptr < __end && __first != __last)
+		{
+		  *__ptr = *__first;
+		  ++__ptr;
+		  ++__first;
+		}
+
+	      if (__first == __last)
+		_M_erase_at_end(__ptr);
+	      else
+		{
+		  do
+		    emplace_back(*__first);
+		  while (++__first != __last);
+		}
+	    }
+	}
+#endif // containers_ranges
+
       /// Get a copy of the memory allocation object.
       using _Base::get_allocator;
 
@@ -987,7 +1115,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
       size_type
       size() const _GLIBCXX_NOEXCEPT
-      { return size_type(this->_M_impl._M_finish - this->_M_impl._M_start); }
+      {
+	ptrdiff_t __dif = this->_M_impl._M_finish - this->_M_impl._M_start;
+	if (__dif < 0)
+	   __builtin_unreachable ();
+	return size_type(__dif);
+      }
 
       /**  Returns the size() of the largest possible %vector.  */
       _GLIBCXX_NODISCARD _GLIBCXX20_CONSTEXPR
@@ -1074,8 +1207,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       size_type
       capacity() const _GLIBCXX_NOEXCEPT
       {
-	return size_type(this->_M_impl._M_end_of_storage
-			   - this->_M_impl._M_start);
+	ptrdiff_t __dif = this->_M_impl._M_end_of_storage
+			  - this->_M_impl._M_start;
+	if (__dif < 0)
+	   __builtin_unreachable ();
+	return size_type(__dif);
       }
 
       /**
@@ -1512,6 +1648,129 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	}
 #endif
 
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Insert a range into the vector.
+       * @param __rg A range of values that are convertible to `value_type`.
+       * @return An iterator that points to the first new element inserted,
+       *         or to `__pos` if `__rg` is an empty range.
+       * @pre `__rg` and `*this` do not overlap.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_Tp> _Rg>
+	constexpr iterator
+	insert_range(const_iterator __pos, _Rg&& __rg);
+
+      /**
+       * @brief Append a range at the end of the vector.
+       * @param __rg A range of values that are convertible to `value_type`.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_Tp> _Rg>
+	constexpr void
+	append_range(_Rg&& __rg)
+	{
+	  // N.B. __rg may overlap with *this, so we must copy from __rg before
+	  // existing elements or iterators referring to *this are invalidated.
+	  // e.g. in v.append_range(views::concat(v, foo)) rg overlaps v.
+	  if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
+	    {
+	      const auto __n = size_type(ranges::distance(__rg));
+
+	      // If there is no existing storage, there are no iterators that
+	      // can be referring to our storage, so it's safe to allocate now.
+	      if (capacity() == 0)
+		reserve(__n);
+
+	      const auto __sz = size();
+	      const auto __capacity = capacity();
+	      if ((__capacity - __sz) >= __n)
+		{
+		  _GLIBCXX_ASAN_ANNOTATE_GROW(__n);
+		  _Base::_M_append_range(__rg);
+		  _GLIBCXX_ASAN_ANNOTATE_GREW(__n);
+		  return;
+		}
+
+	      const size_type __len = _M_check_len(__n, "vector::append_range");
+
+	      pointer __old_start = this->_M_impl._M_start;
+	      pointer __old_finish = this->_M_impl._M_finish;
+
+	      allocator_type& __a = _M_get_Tp_allocator();
+	      const pointer __start = this->_M_allocate(__len);
+	      const pointer __mid = __start + __sz;
+	      const pointer __back = __mid + __n;
+	      _Guard_alloc __guard(__start, __len, *this);
+	      std::__uninitialized_copy_a(ranges::begin(__rg),
+					  ranges::end(__rg),
+					  __mid, __a);
+
+	      if constexpr (_S_use_relocate())
+		_S_relocate(__old_start, __old_finish, __start, __a);
+	      else
+		{
+		  // RAII type to destroy initialized elements.
+		  struct _Guard_elts
+		  {
+		    pointer _M_first, _M_last;  // Elements to destroy
+		    _Tp_alloc_type& _M_alloc;
+
+		    constexpr
+		    _Guard_elts(pointer __f, pointer __l, _Tp_alloc_type& __a)
+		    : _M_first(__f), _M_last(__l), _M_alloc(__a)
+		    { }
+
+		    constexpr
+		    ~_Guard_elts()
+		    { std::_Destroy(_M_first, _M_last, _M_alloc); }
+
+		    _Guard_elts(_Guard_elts&&) = delete;
+		  };
+		  _Guard_elts __guard_elts{__mid, __back, __a};
+
+		  std::__uninitialized_move_a(__old_start, __old_finish,
+					      __start, __a);
+
+		  // Let old elements get destroyed by __guard_elts:
+		  __guard_elts._M_first = __old_start;
+		  __guard_elts._M_last = __old_finish;
+		}
+
+	      // Now give ownership of old storage to __guard:
+	      __guard._M_storage = __old_start;
+	      __guard._M_len = __capacity;
+	      // Finally, take ownership of new storage:
+	      this->_M_impl._M_start = __start;
+	      this->_M_impl._M_finish = __back;
+	      this->_M_impl._M_end_of_storage = __start + __len;
+	    }
+	  else
+	    {
+	      auto __first = ranges::begin(__rg);
+	      const auto __last = ranges::end(__rg);
+
+	      // Fill up to the end of current capacity.
+	      for (auto __free = capacity() - size();
+		   __first != __last && __free > 0;
+		   ++__first, (void) --__free)
+		emplace_back(*__first);
+
+	      if (__first == __last)
+		return;
+
+	      // Copy the rest of the range to a new vector.
+	      vector __tmp(_M_get_Tp_allocator());
+	      for (; __first != __last; ++__first)
+		__tmp.emplace_back(*__first);
+	      reserve(_M_check_len(__tmp.size(), "vector::append_range"));
+	      ranges::subrange __r(std::make_move_iterator(__tmp.begin()),
+				   std::make_move_iterator(__tmp.end()));
+	      append_range(__r); // This will take the fast path above.
+	    }
+	}
+#endif // containers_ranges
+
       /**
        *  @brief  Remove element at given position.
        *  @param  __position  Iterator pointing to element to be erased.
@@ -1604,6 +1863,39 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       clear() _GLIBCXX_NOEXCEPT
       { _M_erase_at_end(this->_M_impl._M_start); }
 
+    private:
+      // RAII guard for allocated storage.
+      struct _Guard_alloc
+      {
+	pointer _M_storage;	    // Storage to deallocate
+	size_type _M_len;
+	_Base& _M_vect;
+
+	_GLIBCXX20_CONSTEXPR
+	_Guard_alloc(pointer __s, size_type __l, _Base& __vect)
+	: _M_storage(__s), _M_len(__l), _M_vect(__vect)
+	{ }
+
+	_GLIBCXX20_CONSTEXPR
+	~_Guard_alloc()
+	{
+	  if (_M_storage)
+	    _M_vect._M_deallocate(_M_storage, _M_len);
+	}
+
+	_GLIBCXX20_CONSTEXPR
+	pointer
+	_M_release()
+	{
+	  pointer __res = _M_storage;
+	  _M_storage = pointer();
+	  return __res;
+	}
+
+      private:
+	_Guard_alloc(const _Guard_alloc&);
+      };
+
     protected:
       /**
        *  Memory expansion handler.  Uses the member allocation function to
@@ -1615,18 +1907,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_M_allocate_and_copy(size_type __n,
 			     _ForwardIterator __first, _ForwardIterator __last)
 	{
-	  pointer __result = this->_M_allocate(__n);
-	  __try
-	    {
-	      std::__uninitialized_copy_a(__first, __last, __result,
-					  _M_get_Tp_allocator());
-	      return __result;
-	    }
-	  __catch(...)
-	    {
-	      _M_deallocate(__result, __n);
-	      __throw_exception_again;
-	    }
+	  _Guard_alloc __guard(this->_M_allocate(__n), __n, *this);
+	  std::__uninitialized_copy_a
+	    (__first, __last, __guard._M_storage, _M_get_Tp_allocator());
+	  return __guard._M_release();
 	}
 
 
@@ -1639,13 +1923,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       // 438. Ambiguity in the "do the right thing" clause
       template<typename _Integer>
 	void
-	_M_initialize_dispatch(_Integer __n, _Integer __value, __true_type)
+	_M_initialize_dispatch(_Integer __int_n, _Integer __value, __true_type)
 	{
-	  this->_M_impl._M_start = _M_allocate(_S_check_init_len(
-		static_cast<size_type>(__n), _M_get_Tp_allocator()));
-	  this->_M_impl._M_end_of_storage =
-	    this->_M_impl._M_start + static_cast<size_type>(__n);
-	  _M_fill_initialize(static_cast<size_type>(__n), __value);
+	  const size_type __n = static_cast<size_type>(__int_n);
+	  pointer __start =
+	    _M_allocate(_S_check_init_len(__n, _M_get_Tp_allocator()));
+	  this->_M_impl._M_start = __start;
+	  this->_M_impl._M_end_of_storage = __start + __n;
+	  _M_fill_initialize(__n, __value);
 	}
 
       // Called by the range constructor to implement [23.1.1]/9
@@ -1686,14 +1971,22 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_M_range_initialize(_ForwardIterator __first, _ForwardIterator __last,
 			    std::forward_iterator_tag)
 	{
-	  const size_type __n = std::distance(__first, __last);
-	  this->_M_impl._M_start
-	    = this->_M_allocate(_S_check_init_len(__n, _M_get_Tp_allocator()));
-	  this->_M_impl._M_end_of_storage = this->_M_impl._M_start + __n;
-	  this->_M_impl._M_finish =
-	    std::__uninitialized_copy_a(__first, __last,
-					this->_M_impl._M_start,
-					_M_get_Tp_allocator());
+	  _M_range_initialize_n(__first, __last,
+				std::distance(__first, __last));
+	}
+
+      template<typename _Iterator, typename _Sentinel>
+	_GLIBCXX20_CONSTEXPR
+	void
+	_M_range_initialize_n(_Iterator __first, _Sentinel __last,
+			      size_type __n)
+	{
+	  pointer __start = this->_M_impl._M_start =
+	    this->_M_allocate(_S_check_init_len(__n, _M_get_Tp_allocator()));
+	  this->_M_impl._M_end_of_storage = __start + __n;
+	  this->_M_impl._M_finish
+	      = std::__uninitialized_copy_a(_GLIBCXX_MOVE(__first), __last,
+					    __start, _M_get_Tp_allocator());
 	}
 
       // Called by the first initialize_dispatch above and by the
@@ -2004,20 +2297,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	_M_data_ptr(_Ptr __ptr) const
 	{ return empty() ? nullptr : std::__to_address(__ptr); }
 #else
-      template<typename _Up>
-	_Up*
-	_M_data_ptr(_Up* __ptr) _GLIBCXX_NOEXCEPT
-	{ return __ptr; }
-
       template<typename _Ptr>
 	value_type*
-	_M_data_ptr(_Ptr __ptr)
-	{ return empty() ? (value_type*)0 : __ptr.operator->(); }
-
-      template<typename _Ptr>
-	const value_type*
 	_M_data_ptr(_Ptr __ptr) const
-	{ return empty() ? (const value_type*)0 : __ptr.operator->(); }
+	{ return empty() ? (value_type*)0 : __ptr.operator->(); }
 #endif
     };
 
@@ -2029,6 +2312,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	   typename = _RequireAllocator<_Allocator>>
     vector(_InputIterator, _InputIterator, _Allocator = _Allocator())
       -> vector<_ValT, _Allocator>;
+
+#if __glibcxx_containers_ranges // C++ >= 23
+  template<ranges::input_range _Rg,
+	   typename _Alloc = allocator<ranges::range_value_t<_Rg>>>
+    vector(from_range_t, _Rg&&, _Alloc = _Alloc())
+      -> vector<ranges::range_value_t<_Rg>, _Alloc>;
+#endif
 #endif
 
   /**
@@ -2048,7 +2338,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     { return (__x.size() == __y.size()
 	      && std::equal(__x.begin(), __x.end(), __y.begin())); }
 
-#if __cpp_lib_three_way_comparison
+#if __cpp_lib_three_way_comparison // >= C++20
   /**
    *  @brief  Vector ordering relation.
    *  @param  __x  A `vector`.
@@ -2061,8 +2351,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
    *  `<` and `>=` etc.
   */
   template<typename _Tp, typename _Alloc>
-    [[nodiscard]] _GLIBCXX20_CONSTEXPR
-    inline __detail::__synth3way_t<_Tp>
+    [[nodiscard]]
+    constexpr __detail::__synth3way_t<_Tp>
     operator<=>(const vector<_Tp, _Alloc>& __x, const vector<_Tp, _Alloc>& __y)
     {
       return std::lexicographical_compare_three_way(__x.begin(), __x.end(),

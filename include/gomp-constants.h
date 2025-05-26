@@ -1,6 +1,6 @@
 /* Communication between GCC and libgomp.
 
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded.
 
@@ -280,10 +280,14 @@ enum gomp_map_kind
    omp_invalid_device) to -3 (so that for dev_num >= -2U we can
    subtract 1).  -4 is then what we use for omp_invalid_device,
    which unlike the other non-conforming device numbers results
-   in fatal error regardless of OMP_TARGET_OFFLOAD.  */
+   in fatal error regardless of OMP_TARGET_OFFLOAD.
+   Furthermore, OpenMP 6.1 exposes the default device to the user; hence,
+   GOMP_DEVICE_DEFAULT_OMP_61 can be used for it,
+   with and without remapped device numbers.  */
 #define GOMP_DEVICE_ICV			-1
 #define GOMP_DEVICE_HOST_FALLBACK	-2
 #define GOMP_DEVICE_INVALID		-4
+#define GOMP_DEVICE_DEFAULT_OMP_61	-5
 
 /* GOMP_task/GOMP_taskloop* flags argument.  */
 #define GOMP_TASK_FLAG_UNTIED		(1 << 0)
@@ -382,11 +386,36 @@ enum gomp_map_kind
 #define GOMP_DEPEND_MUTEXINOUTSET	4
 #define GOMP_DEPEND_INOUTSET		5
 
+/* Predefined allocator value ranges.  */
+#define GOMP_OMP_PREDEF_ALLOC_MAX	8
+#define GOMP_OMPX_PREDEF_ALLOC_MIN	200
+#define GOMP_OMPX_PREDEF_ALLOC_MAX	200
+
+/* Predefined allocator with access == thread.  */
+#define GOMP_OMP_PREDEF_ALLOC_THREADS	8
+
 /* Flag values for OpenMP 'requires' directive features.  */
+// compiler use only: OMP_REQUIRES_ATOMIC_DEFAULT_MEM_ORDER  0xf
 #define GOMP_REQUIRES_UNIFIED_ADDRESS       0x10
 #define GOMP_REQUIRES_UNIFIED_SHARED_MEMORY 0x20
+// compiler use only: OMP_REQUIRES_DYNAMIC_ALLOCATORS 0x40
 #define GOMP_REQUIRES_REVERSE_OFFLOAD       0x80
+// compiler use only: OMP_REQUIRES_ATOMIC_DEFAULT_MEM_ORDER_USED 0x100
 #define GOMP_REQUIRES_TARGET_USED           0x200
+#define GOMP_REQUIRES_SELF_MAPS             0x400
+
+/* Interop foreign-runtime data;
+   OpenMP defines positive values; reserve 0 and negative for GCC.  */
+#define GOMP_INTEROP_IFR_LAST	7
+#define GOMP_INTEROP_IFR_SEPARATOR ((char)(-__INT8_MAX__-1))
+#define GOMP_INTEROP_IFR_UNKNOWN ((char)(-__INT8_MAX__))
+
+/* GOMP_interop target_targetsync argument.  */
+#define GOMP_INTEROP_TARGET	(1 << 0)
+#define GOMP_INTEROP_TARGETSYNC	(1 << 1)
+
+/* GOMP_interop flags argument.  */
+#define GOMP_INTEROP_FLAG_NOWAIT	(1 << 0)
 
 /* HSA specific data structures.  */
 

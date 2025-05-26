@@ -1,6 +1,6 @@
 // TR2 <dynamic_bitset> -*- C++ -*-
 
-// Copyright (C) 2009-2024 Free Software Foundation, Inc.
+// Copyright (C) 2009-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,7 +29,9 @@
 #ifndef _GLIBCXX_TR2_DYNAMIC_BITSET
 #define _GLIBCXX_TR2_DYNAMIC_BITSET 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <limits>
 #include <vector>
@@ -304,7 +306,7 @@ namespace tr2
       bool
       _M_is_proper_subset_of(const __dynamic_bitset_base& __b) const noexcept
       {
-	if (this->is_subset_of(__b))
+	if (this->_M_is_subset_of(__b))
 	  {
 	    if (*this == __b)
 	      return false;
@@ -815,10 +817,7 @@ namespace tr2
       operator>>=(size_type __pos)
       {
 	if (__builtin_expect(__pos < this->_M_Nb, 1))
-	  {
-	    this->_M_do_right_shift(__pos);
-	    this->_M_do_sanitize();
-	  }
+	  this->_M_do_right_shift(__pos);
 	else
 	  this->_M_do_reset();
 	return *this;

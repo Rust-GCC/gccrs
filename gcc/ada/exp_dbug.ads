@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -444,21 +444,6 @@ package Exp_Dbug is
    --  proper external name is not available in this case.
 
    --  WARNING: There is a matching C declaration of this subprogram in fe.h
-
-   -------------------------------------
-   -- Encoding for translation into C --
-   -------------------------------------
-
-   --  In Modify_Tree_For_C mode we must add encodings to dismabiguate cases
-   --  where Ada block structure cannot be directly translated. These cases
-   --  are as follows:
-
-   --    a)  A loop variable may hide a homonym in an enclosing block
-   --    b)  A block-local variable may hide a homonym in an enclosing block
-
-   --  In C these constructs are not scopes and we must distinguish the names
-   --  explicitly. In the first case we create a qualified name with the suffix
-   --  'L', in the second case with a suffix 'B'.
 
    --------------------------------------------
    -- Subprograms for Handling Qualification --

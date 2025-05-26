@@ -1,6 +1,6 @@
 ; Options for the language- and target-independent parts of the compiler.
 
-; Copyright (C) 2003-2024 Free Software Foundation, Inc.
+; Copyright (C) 2003-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -52,12 +52,6 @@ bool in_lto_p = false
 ; and output to LTO object file.
 Variable
 enum incremental_link flag_incremental_link = INCREMENTAL_LINK_NONE
-
-; 0 means straightforward implementation of complex divide acceptable.
-; 1 means wide ranges of inputs must work for complex divide.
-; 2 means C99-like requirements for complex multiply and divide.
-Variable
-int flag_complex_method = 1
 
 Variable
 int flag_default_complex_method = 1
@@ -422,6 +416,12 @@ Display target specific command line options (including assembler and linker opt
 -time
 Driver Alias(time)
 
+;; Truncate the file specified after linking.
+;; This option is used by lto-wrapper to reduce the peak disk-usage when
+;; linking with many .LTRANS units.
+truncate
+Driver Separate Undocumented MissingArgError(missing filename after %qs)
+
 -verbose
 Driver Alias(v)
 
@@ -608,11 +608,11 @@ Warn when an optimization pass is disabled.
 
 Werror
 Common Var(warnings_are_errors)
-Treat all warnings as errors.
+Turn all warnings into errors.
 
 Werror=
 Common Joined
-Treat specified warning as error.
+Turn the specified warning into an error.
 
 Wextra
 Common Var(extra_warnings) Warning
@@ -686,6 +686,14 @@ Does nothing. Preserved for backward compatibility.
 
 Wmissing-noreturn
 Common Warning Alias(Wsuggest-attribute=noreturn)
+
+Wmusttail-local-addr
+Common Var(warn_musttail_local_addr) Init(1) Warning
+Warn about passing a pointer/reference to a local or temporary variable to a musttail call argument.
+
+Wmaybe-musttail-local-addr
+Common Var(warn_maybe_musttail_local_addr) Warning EnabledBy(Wextra)
+Warn about pointer/reference to a local or temporary variable possibly escaping to a musttail call.
 
 Wodr
 Common Var(warn_odr_violations) Init(1) Warning
@@ -806,6 +814,10 @@ Wsystem-headers
 Common Var(warn_system_headers) Warning
 Do not suppress warnings from system headers.
 
+Wtautological-compare
+Common Var(warn_tautological_compare) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
+Warn if a comparison always evaluates to true or false.
+
 Wtrampolines
 Common Var(warn_trampolines) Warning
 Warn whenever a trampoline is generated.
@@ -869,6 +881,23 @@ Warn in case profiles in -fprofile-use do not match.
 Wcoverage-invalid-line-number
 Common Var(warn_coverage_invalid_linenum) Init(1) Warning
 Warn in case a function ends earlier than it begins due to an invalid linenum macros.
+
+Wcoverage-too-many-conditions
+Common Var(warn_too_many_conditions) Init(1) Warning
+Warn when a conditional has too many terms and condition coverage profiling
+gives up instrumenting the expression.
+
+fpath-coverage-limit=
+Common RejectNegative Joined UInteger Var(path_coverage_limit) Init(250000)
+-fpath-coverage-limit=<number> Don't instrument functions path count exceeding
+<number>.
+
+Wcoverage-too-many-paths
+Common Var(warn_too_many_paths) Init(1) Warning
+Warn if a function exceeds the number of paths (controlled by
+-fpath-coverage-limit) and path coverage give up instrumenting the function.
+The limit is approximate and conservative and coverage might give up even if
+the actual number is slightly below the limit.
 
 Wmissing-profile
 Common Var(warn_missing_profile) Init(1) Warning
@@ -1019,9 +1048,15 @@ Driver Undocumented
 ;     Default in G++ 13.
 ;
 ; 19: Emits ABI tags if needed in structured binding mangled names.
-;     Ignores cv-quals on [[no_unique_object]] members.
+;     Ignores cv-quals on [[no_unique_address]] members.
 ;     Mangles constraints on function templates.
 ;     Default in G++ 14.
+;
+; 20: Fix mangling of lambdas in static data member initializers.
+;     Default in G++ 15.
+;
+; 21:
+;     Default in G++ 16.
 ;
 ; Additional positive integers will be assigned as new versions of
 ; the ABI become the default version of the ABI.
@@ -1274,12 +1309,30 @@ fcse-skip-blocks
 Common Ignore
 Does nothing.  Preserved for backward compatibility.
 
+fcx-method=
+Common Joined RejectNegative Enum(complex_method) Var(flag_complex_method) Optimization SetByCombined
+
+Enum
+Name(complex_method) Type(int)
+
+; straightforward implementation of complex divide acceptable.
+EnumValue
+Enum(complex_method) String(limited-range) Value(0)
+
+; wide ranges of inputs must work for complex divide.
+EnumValue
+Enum(complex_method) String(fortran) Value(1)
+
+; C99-like requirements for complex multiply and divide.
+EnumValue
+Enum(complex_method) String(stdc) Value(2)
+
 fcx-limited-range
-Common Var(flag_cx_limited_range) Optimization SetByCombined
+Common Alias(fcx-method=,limited-range,stdc)
 Omit range reduction step when performing complex division.
 
 fcx-fortran-rules
-Common Var(flag_cx_fortran_rules) Optimization
+Common Alias(fcx-method=,fortran,stdc)
 Complex multiplication and division follow Fortran rules.
 
 fdata-sections
@@ -1357,6 +1410,10 @@ fdiagnostics-show-caret
 Common Var(flag_diagnostics_show_caret) Init(1)
 Show the source line with a caret indicating the column.
 
+fdiagnostics-show-event-links
+Common Var(flag_diagnostics_show_event_links) Init(1)
+Show lines linking related events in diagnostic paths.
+
 fdiagnostics-show-labels
 Common Var(flag_diagnostics_show_labels) Init(1)
 Show labels annotating ranges of source code when showing source.
@@ -1425,6 +1482,14 @@ fdiagnostics-format=
 Common Joined RejectNegative Enum(diagnostics_output_format)
 -fdiagnostics-format=[text|sarif-stderr|sarif-file|json|json-stderr|json-file]	Select output format.
 
+fdiagnostics-add-output=
+Common Joined RejectNegative
+Add output format.
+
+fdiagnostics-set-output=
+Common Joined RejectNegative
+Set output format.
+
 fdiagnostics-escape-format=
 Common Joined RejectNegative Enum(diagnostics_escape_format)
 -fdiagnostics-escape-format=[unicode|bytes]	Select how to escape non-printable-ASCII bytes in the source for diagnostics that suggest it.
@@ -1491,6 +1556,10 @@ Print CWE identifiers for diagnostic messages, where available.
 fdiagnostics-show-rules
 Common Var(flag_diagnostics_show_rules) Init(1)
 Print any rules associated with diagnostic messages.
+
+fdiagnostics-show-highlight-colors
+Common Var(flag_diagnostics_show_highlight_colors) Init(1)
+Use color within diagnostic messages to highlight pertinent information.
 
 fdiagnostics-path-format=
 Common Joined RejectNegative Var(flag_diagnostics_path_format) Enum(diagnostic_path_format) Init(DPF_INLINE_EVENTS)
@@ -1732,6 +1801,10 @@ fgcse-sm
 Common Var(flag_gcse_sm) Init(0) Optimization
 Perform store motion after global common subexpression elimination.
 
+favoid-store-forwarding
+Common Var(flag_avoid_store_forwarding) Init(0) Optimization
+Try to avoid store forwarding.
+
 fgcse-las
 Common Var(flag_gcse_las) Init(0) Optimization
 Perform redundant load after store elimination in global common subexpression
@@ -1777,9 +1850,13 @@ Common Undocumented Var(flag_keep_gc_roots_live) Optimization
 ; Always keep a pointer to a live memory block
 
 flarge-source-files
-Common Var(flag_large_source_files) Init(0)
-Improve GCC's ability to track column numbers in large source files,
-at the expense of slower compilation.
+Common Ignore
+Does nothing.  Preserved for backward compatibility.
+
+flate-combine-instructions
+Common Var(flag_late_combine_instructions) Optimization Init(0)
+Run two instruction combination passes late in the pass pipeline;
+one before register allocation and one after.
 
 floop-parallelize-all
 Common Var(flag_loop_parallelize_all) Optimization
@@ -1993,6 +2070,7 @@ Enum(ilsop_fn) String(memset) Value(ILSOP_MEMSET) Set(4)
 
 fcf-protection
 Common RejectNegative Alias(fcf-protection=,full)
+Equivalent to -fcf-protection=full.
 
 fcf-protection=
 Common Joined RejectNegative Enum(cf_protection_level) EnumSet Var(flag_cf_protection) Init(CF_NONE)
@@ -2052,6 +2130,10 @@ Perform interprocedural bitwise constant propagation.
 fipa-modref
 Common Var(flag_ipa_modref) Optimization
 Perform interprocedural modref analysis.
+
+fipa-reorder-for-locality
+Common Var(flag_ipa_reorder_for_locality) Init(0) Optimization
+Perform reordering and cloning of functions to maximize locality.
 
 fipa-profile
 Common Var(flag_ipa_profile) Init(0) Optimization
@@ -2161,11 +2243,11 @@ Common Var(flag_ivopts) Init(1) Optimization
 Optimize induction variables on trees.
 
 fjump-tables
-Common Var(flag_jump_tables) Init(1) Optimization
+Common Var(flag_jump_tables) Init(0) Optimization
 Use jump tables for sufficiently large switch statements.
 
 fbit-tests
-Common Var(flag_bit_tests) Init(1) Optimization
+Common Var(flag_bit_tests) Init(0) Optimization
 Use bit tests for sufficiently large switch statements.
 
 fkeep-inline-functions
@@ -2200,6 +2282,14 @@ flto=
 Common RejectNegative Joined Var(flag_lto)
 Link-time optimization with number of parallel jobs or jobserver.
 
+flto-incremental=
+Common Joined Var(flag_lto_incremental)
+Enable incremental LTO, with its cache in given directory.
+
+flto-incremental-cache-size=
+Common Joined RejectNegative UInteger Var(flag_lto_incremental_cache_size) Init(2048)
+Number of cache entries in incremental LTO after which to prune old entries.
+
 Enum
 Name(lto_partition_model) Type(enum lto_partition_model) UnknownError(unknown LTO partitioning model %qs)
 
@@ -2217,6 +2307,9 @@ Enum(lto_partition_model) String(1to1) Value(LTO_PARTITION_1TO1)
 
 EnumValue
 Enum(lto_partition_model) String(max) Value(LTO_PARTITION_MAX)
+
+EnumValue
+Enum(lto_partition_model) String(cache) Value(LTO_PARTITION_CACHE)
 
 flto-partition=
 Common Joined RejectNegative Enum(lto_partition_model) Var(flag_lto_partition) Init(LTO_PARTITION_BALANCED)
@@ -2246,6 +2339,13 @@ Set errno after built-in math functions.
 fmax-errors=
 Common Joined RejectNegative UInteger Var(flag_max_errors)
 -fmax-errors=<number>	Maximum number of errors to report.
+
+fmalloc-dce
+Common Var(flag_malloc_dce,2) Init(2) Optimization
+Allow removal of malloc and free pairs when allocated block is unused.
+
+fmalloc-dce=
+Common Joined RejectNegative UInteger Var(flag_malloc_dse) Optimization IntegerRange(0, 2)
 
 fmem-report
 Common Var(mem_report)
@@ -2295,7 +2395,7 @@ Common Var(flag_move_loop_stores) Optimization
 Move stores out of loops.
 
 fmultiflags
-Common Driver
+Common Driver RejectNegative
 Building block for specs-based multilib-aware TFLAGS.
 
 fdce
@@ -2333,6 +2433,10 @@ Enum(offload_abi) String(ilp32) Value(OFFLOAD_ABI_ILP32)
 
 EnumValue
 Enum(offload_abi) String(lp64) Value(OFFLOAD_ABI_LP64)
+
+foffload-abi-host-opts=
+Common Joined MissingArgError(option missing after %qs)
+-foffload-abi-host-opts=<options>	Specify host ABI options.
 
 fomit-frame-pointer
 Common Var(flag_omit_frame_pointer) Optimization
@@ -2372,6 +2476,16 @@ fsave-optimization-record
 Common Var(flag_save_optimization_record) Optimization
 Write a SRCFILE.opt-record.json file detailing what optimizations were performed.
 
+foptimize-crc
+Common Var(flag_optimize_crc) Optimization
+Detect loops calculating CRC and replace with faster implementation.
+If the target supports CRC instruction and the CRC loop uses the same
+polynomial as the one used in the CRC instruction, directly replace with the
+corresponding CRC instruction.
+Otherwise, if the target supports carry-less-multiplication instruction,
+generate CRC using it.
+If neither case applies, generate table-based CRC.
+
 foptimize-register-move
 Common Ignore
 Does nothing. Preserved for backward compatibility.
@@ -2379,6 +2493,10 @@ Does nothing. Preserved for backward compatibility.
 foptimize-sibling-calls
 Common Var(flag_optimize_sibling_calls) Optimization
 Optimize sibling and tail recursive calls.
+
+fpath-coverage
+Common Var(path_coverage_flag)
+Insert path profiling code.
 
 fpartial-inlining
 Common Var(flag_partial_inlining) Optimization
@@ -2401,7 +2519,7 @@ Common RejectNegative Joined UInteger Optimization
 -fpack-struct=<number>	Set initial maximum structure member alignment.
 
 fpcc-struct-return
-Common Var(flag_pcc_struct_return,1) Init(DEFAULT_PCC_STRUCT_RETURN)
+Common Var(flag_pcc_struct_return,1) Init(DEFAULT_PCC_STRUCT_RETURN) Optimization
 Return small aggregates in memory, not registers.
 
 fpeel-loops
@@ -2463,6 +2581,10 @@ Generate absolute source path names for gcov.
 fprofile-arcs
 Common Var(profile_arc_flag)
 Insert arc-based program profiling code.
+
+fcondition-coverage
+Common Var(condition_coverage_flag)
+Insert condition coverage profiling code.
 
 fprofile-dir=
 Common Joined RejectNegative Var(profile_data_prefix)
@@ -2587,7 +2709,7 @@ Common Var(flag_record_gcc_switches)
 Record gcc command line switches in the object file.
 
 freg-struct-return
-Common Var(flag_pcc_struct_return,0) Optimization
+Common NegativeAlias Alias(fpcc_struct_return) Optimization
 Return small aggregates in registers.
 
 fregmove
@@ -3466,6 +3588,22 @@ fzero-call-used-regs=
 Common RejectNegative Joined
 Clear call-used registers upon function return.
 
+fzero-init-padding-bits=
+Common Joined RejectNegative Enum(zero_init_padding_bits_kind) Var(flag_zero_init_padding_bits) Init(ZERO_INIT_PADDING_BITS_STANDARD)
+-fzero-init-padding-bits=[standard|unions|all]	Zero padding bits in initializers.
+
+Enum
+Name(zero_init_padding_bits_kind) Type(enum zero_init_padding_bits_kind) UnknownError(unrecognized zero init padding bits kind %qs)
+
+EnumValue
+Enum(zero_init_padding_bits_kind) String(standard) Value(ZERO_INIT_PADDING_BITS_STANDARD)
+
+EnumValue
+Enum(zero_init_padding_bits_kind) String(unions) Value(ZERO_INIT_PADDING_BITS_UNIONS)
+
+EnumValue
+Enum(zero_init_padding_bits_kind) String(all) Value(ZERO_INIT_PADDING_BITS_ALL)
+
 g
 Common Driver RejectNegative JoinedOrMissing
 Generate debug information in default format.
@@ -3511,6 +3649,10 @@ Generate CTF debug information at default level.
 gbtf
 Common Driver RejectNegative JoinedOrMissing
 Generate BTF debug information at default level.
+
+gprune-btf
+Common Driver Var(debug_prune_btf) Init(0)
+Generate pruned BTF when emitting BTF info.
 
 gdwarf
 Common Driver JoinedOrMissing RejectNegative
@@ -3683,7 +3825,7 @@ Common Alias(Wpedantic)
 
 pedantic-errors
 Common Var(flag_pedantic_errors)
-Like -pedantic but issue them as errors.
+Like -pedantic but issue errors instead of warnings.
 
 pg
 Driver
@@ -3794,6 +3936,10 @@ static-libgfortran
 Driver
 ; Documented for Fortran, but always accepted by driver.
 
+static-libgcobol
+Driver
+; Documented for COBOL, but always accepted by driver.
+
 static-libgm2
 Driver
 ; Documented for Modula-2, but always accepted by driver.
@@ -3849,5 +3995,9 @@ Driver Joined Separate
 fipa-ra
 Common Var(flag_ipa_ra) Optimization
 Use caller save register across calls if possible.
+
+fext-dce
+Common Var(flag_ext_dce, 1) Optimization Init(0)
+Perform dead code elimination on zero and sign extensions with special dataflow analysis.
 
 ; This comment is to ensure we retain the blank line above.

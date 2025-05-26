@@ -1,6 +1,6 @@
 // 1999-08-11 bkoz
 
-// Copyright (C) 1999-2024 Free Software Foundation, Inc.
+// Copyright (C) 1999-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,12 +21,11 @@
 // causes "in_avail" to return an incorrect value.
 // { dg-do run { xfail arm*-*-elf arm*-*-eabi } }
 
-// 27.6.1.3 unformatted input functions
-// @require@ %-*.tst %-*.txt
-// @diff@ %-*.tst %-*.txt
+// C++98 27.6.1.3 unformatted input functions
 
 // { dg-require-fileio "" }
 // { dg-require-binary-io "" }
+// { dg-additional-files "istream_unformatted-1.tst" }
 
 #include <istream>
 #include <fstream>

@@ -1,5 +1,5 @@
 ;; Constraint definitions for Renesas RX.
-;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2025 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -80,7 +80,8 @@
        (ior (match_code "reg" "0")
 	    (and (match_code "plus" "0")
 	         (and (match_code "reg,subreg" "00")
-		      (match_code "const_int" "01")
+		      (and (match_code "const_int" "01")
+		           (match_test "rx_is_restricted_memory_address (XEXP (op, 0), mode)"))
 		 )
 	    )
        )

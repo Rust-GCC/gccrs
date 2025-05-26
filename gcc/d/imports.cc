@@ -1,5 +1,5 @@
 /* imports.cc -- Build imported modules/declarations.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -77,7 +77,7 @@ public:
   void visit (Module *m) final override
   {
     Loc loc = (m->md != NULL) ? m->md->loc
-      : Loc (m->srcfile.toChars (), 1, 0);
+      : Loc::singleFilename (m->srcfile.toChars ());
 
     this->result_ = build_decl (make_location_t (loc), NAMESPACE_DECL,
 				get_identifier (m->toPrettyChars ()),
@@ -130,7 +130,7 @@ public:
   void visit (VarDeclaration *d) final override
   {
     /* Not all kinds of manifest constants create a CONST_DECL.  */
-    if (!d->canTakeAddressOf () && !d->type->isscalar ())
+    if (!d->canTakeAddressOf () && !d->type->isScalar ())
       return;
 
     visit ((Declaration *) d);
@@ -182,7 +182,11 @@ public:
     vec_alloc (tset, d->a.length);
 
     for (size_t i = 0; i < d->a.length; i++)
-      vec_safe_push (tset, build_import_decl (d->a[i]));
+      {
+	tree overload = build_import_decl (d->a[i]);
+	if (overload != NULL_TREE)
+	  vec_safe_push (tset, overload);
+      }
 
     this->result_ = build_tree_list_vec (tset);
     tset->truncate (0);

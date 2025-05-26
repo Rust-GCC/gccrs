@@ -1,6 +1,6 @@
 // Implementation of std::function -*- C++ -*-
 
-// Copyright (C) 2004-2024 Free Software Foundation, Inc.
+// Copyright (C) 2004-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_STD_FUNCTION_H
 #define _GLIBCXX_STD_FUNCTION_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus < 201103L
 # include <bits/c++0x_warning.h>
@@ -698,6 +700,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     { using type = _Res(_Args...); };
 
 #if __cpp_explicit_this_parameter >= 202110L
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3617. function/packaged_task deduction guides and deducing this
   template<typename _Res, typename _Tp, bool _Nx, typename... _Args>
     struct __function_guide_helper<_Res (*) (_Tp, _Args...) noexcept(_Nx)>
     { using type = _Res(_Args...); };

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -2980,8 +2980,6 @@ extern location_t rs_expr_location (const_tree);
 
 extern int
 is_empty_class (tree type);
-
-extern tree array_type_nelts_top (tree);
 
 extern bool
 is_really_empty_class (tree, bool);

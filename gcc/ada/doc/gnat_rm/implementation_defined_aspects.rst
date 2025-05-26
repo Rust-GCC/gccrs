@@ -243,6 +243,30 @@ Aspect Effective_Writes
 
 This aspect is equivalent to :ref:`pragma Effective_Writes<Pragma-Effective_Writes>`.
 
+Aspect Exceptional_Cases
+========================
+.. index:: Exceptional_Cases
+
+This aspect may be specified for procedures and functions with side effects;
+it can be used to list exceptions that might be propagated by the subprogram
+with side effects in the context of its precondition, and associate them
+with a specific postcondition.
+
+For the syntax and semantics of this aspect, see the SPARK 2014 Reference
+Manual, section 6.1.9.
+
+Aspect Exit_Cases
+=================
+.. index:: Exit_Cases
+
+This aspect may be specified for procedures and functions with side effects;
+it can be used to partition the input state into a list of cases and specify,
+for each case, how the subprogram is allowed to terminate (i.e. return normally
+or propagate an exception).
+
+For the syntax and semantics of this aspect, see the SPARK 2014 Reference
+Manual, section 6.1.10.
+
 Aspect Extensions_Visible
 =========================
 .. index:: Extensions_Visible
@@ -461,6 +485,12 @@ Aspect No_Inline
 
 This boolean aspect is equivalent to :ref:`pragma No_Inline<Pragma-No_Inline>`.
 
+Aspect No_Raise
+===============
+.. index:: No_Raise
+
+This boolean aspect is equivalent to :ref:`pragma No_Raise<Pragma-No_Raise>`.
+
 Aspect No_Tagged_Streams
 ========================
 .. index:: No_Tagged_Streams
@@ -562,19 +592,18 @@ Aspect Remote_Access_Type
 
 This aspect is equivalent to :ref:`pragma Remote_Access_Type<Pragma-Remote_Access_Type>`.
 
+Aspect Scalar_Storage_Order
+===========================
+.. index:: Scalar_Storage_Order
+
+This aspect is equivalent to a :ref:`attribute Scalar_Storage_Order<Attribute-Scalar_Storage_Order>`.
+
 Aspect Secondary_Stack_Size
 ===========================
 
 .. index:: Secondary_Stack_Size
 
 This aspect is equivalent to :ref:`pragma Secondary_Stack_Size<Pragma-Secondary_Stack_Size>`.
-
-
-Aspect Scalar_Storage_Order
-===========================
-.. index:: Scalar_Storage_Order
-
-This aspect is equivalent to a :ref:`attribute Scalar_Storage_Order<Attribute-Scalar_Storage_Order>`.
 
 Aspect Shared
 =============
@@ -608,6 +637,13 @@ Aspect SPARK_Mode
 This aspect is equivalent to :ref:`pragma SPARK_Mode<Pragma-SPARK_Mode>` and
 may be specified for either or both of the specification and body
 of a subprogram or package.
+
+Aspect Subprogram_Variant
+=========================
+.. index:: Subprogram_Variant
+
+For the syntax and semantics of this aspect, see the SPARK 2014 Reference
+Manual, section 6.1.8.
 
 Aspect Suppress_Debug_Info
 ==========================

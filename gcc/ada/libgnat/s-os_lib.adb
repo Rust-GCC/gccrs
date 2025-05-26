@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1995-2024, AdaCore                     --
+--                     Copyright (C) 1995-2025, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,6 +34,7 @@ with Ada.Unchecked_Deallocation;
 with System.Case_Util;
 with System.CRTL;
 with System.Soft_Links;
+with Interfaces.C;
 
 package body System.OS_Lib is
 
@@ -1641,9 +1642,12 @@ package body System.OS_Lib is
    -------------------------
 
    function Locate_Exec_On_Path
-     (Exec_Name : String) return String_Access
+     (Exec_Name : String;
+      Current_Dir_On_Win : Boolean := False) return String_Access
    is
-      function Locate_Exec_On_Path (C_Exec_Name : Address) return Address;
+      function Locate_Exec_On_Path
+        (C_Exec_Name        : Address;
+         Current_Dir_On_Win : Interfaces.C.int) return Address;
       pragma Import (C, Locate_Exec_On_Path, "__gnat_locate_exec_on_path");
 
       C_Exec_Name  : String (1 .. Exec_Name'Length + 1);
@@ -1655,7 +1659,8 @@ package body System.OS_Lib is
       C_Exec_Name (1 .. Exec_Name'Length)   := Exec_Name;
       C_Exec_Name (C_Exec_Name'Last)        := ASCII.NUL;
 
-      Path_Addr := Locate_Exec_On_Path (C_Exec_Name'Address);
+      Path_Addr := Locate_Exec_On_Path
+        (C_Exec_Name'Address, (if Current_Dir_On_Win then 1 else 0));
       Path_Len  := C_String_Length (Path_Addr);
 
       if Path_Len = 0 then
@@ -2089,8 +2094,10 @@ package body System.OS_Lib is
       --  Returns True only if the Name is including a drive
       --  letter at start.
 
-      function Missed_Drive_Letter (Name : String) return Boolean;
-      --  Missed drive letter at start of the normalized pathname
+      function Drive_Letter_Omitted (Name : String) return Boolean;
+      --  Name must be an absolute path. Returns True if and only if
+      --  Name doesn't start with a drive letter and Name is not a
+      --  UNC path.
 
       -------------------
       -- Is_With_Drive --
@@ -2104,11 +2111,11 @@ package body System.OS_Lib is
                      or else Name (Name'First) in 'A' .. 'Z');
       end Is_With_Drive;
 
-      -------------------------
-      -- Missed_Drive_Letter --
-      -------------------------
+      --------------------------
+      -- Drive_Letter_Omitted --
+      --------------------------
 
-      function Missed_Drive_Letter (Name : String) return Boolean is
+      function Drive_Letter_Omitted (Name : String) return Boolean is
       begin
          return On_Windows
            and then not Is_With_Drive (Name)
@@ -2117,7 +2124,7 @@ package body System.OS_Lib is
                              /= Directory_Separator
                      or else Name (Name'First + 1)
                              /= Directory_Separator);
-      end Missed_Drive_Letter;
+      end Drive_Letter_Omitted;
 
       -----------------
       -- Final_Value --
@@ -2174,7 +2181,7 @@ package body System.OS_Lib is
 
          elsif Directory = ""
            or else not Is_Absolute_Path (Directory)
-           or else Missed_Drive_Letter (Directory)
+           or else Drive_Letter_Omitted (Directory)
          then
             --  Directory name not given or it is not absolute or without drive
             --  letter on Windows, get current directory.
@@ -2251,7 +2258,7 @@ package body System.OS_Lib is
       end if;
 
       if Is_Absolute_Path (Name) then
-         if Missed_Drive_Letter (Name) then
+         if Drive_Letter_Omitted (Name) then
             Fill_Directory (Drive_Only => True);
 
             --  Take only drive letter part with colon
@@ -2285,8 +2292,6 @@ package body System.OS_Lib is
          end loop;
 
          --  Ensure drive letter is upper-case
-
-         pragma Assert (Path_Buffer (2) = ':');
 
          if Path_Buffer (1) in 'a' .. 'z' then
             System.Case_Util.To_Upper (Path_Buffer (1 .. 1));

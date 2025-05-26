@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -997,7 +997,7 @@ TypeCheckExpr::visit (HIR::ArrayIndexExpr &expr)
   r.add_range (expr.get_array_expr ().get_locus ());
   r.add_range (expr.get_index_expr ().get_locus ());
   rust_error_at (r, ErrorCode::E0277,
-		 "the type %<%s%> cannot be indexed by %<%s%>",
+		 "the type %qs cannot be indexed by %qs",
 		 array_expr_ty->get_name ().c_str (),
 		 index_expr_ty->get_name ().c_str ());
 }
@@ -1793,7 +1793,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
       // FIXME
       // we need to have a unified way or error'ing when we are missing lang
       // items that is useful
-      rust_fatal_error (expr.get_locus (), "unable to find lang item: %<%s%>",
+      rust_fatal_error (expr.get_locus (), "unable to find lang item: %qs",
 			LangItem::ToString (lang_item_type).c_str ());
     }
   DefId &respective_lang_item_id = lang_item_defined.value ();
@@ -2124,7 +2124,7 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
 	r.add_range (c.candidate.locus);
 
       rust_error_at (
-	r, "multiple candidates found for function trait method call %<%s%>",
+	r, "multiple candidates found for function trait method call %qs",
 	method_name.as_string ().c_str ());
       return false;
     }

@@ -63,7 +63,41 @@ unittest
     class C2 { char c; }
     static assert(stateSize!C2 == 4 * size_t.sizeof);
     static class C3 { char c; }
-    static assert(stateSize!C3 == 2 * size_t.sizeof + char.sizeof);
+    // Uncomment test after dmd issue closed https://github.com/dlang/dmd/issues/21065
+    //static assert(stateSize!C3 == 3 * size_t.sizeof);
+}
+
+/**
+State of an allocator `A`.
+
+`AllocatorState!(A).sizeof` is zero for `A` being `NullAllocator`, `Mallocator`,
+`GCAllocator`, and `MMapAllocator` and typically non-zero for the other.
+ */
+mixin template AllocatorState(A)
+if (isAllocator!A)
+{
+    static if (stateSize!A == 0)
+        alias allocator = A.instance;
+    else
+        A allocator;
+}
+
+///
+@safe @nogc nothrow pure
+unittest
+{
+    import std.experimental.allocator.building_blocks.null_allocator : NullAllocator;
+    import std.experimental.allocator.mallocator : Mallocator;
+    import std.experimental.allocator.gc_allocator : GCAllocator;
+    import std.experimental.allocator.mmap_allocator : MmapAllocator;
+    struct S
+    {
+        mixin AllocatorState!NullAllocator n;
+        mixin AllocatorState!GCAllocator g;
+        mixin AllocatorState!Mallocator m;
+        mixin AllocatorState!MmapAllocator p;
+    }
+    static assert(S.sizeof == 1);
 }
 
 /**

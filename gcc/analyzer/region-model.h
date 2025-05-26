@@ -1,5 +1,5 @@
 /* Classes for modeling the state of memory.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -35,6 +35,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/known-function-manager.h"
 #include "analyzer/region-model-manager.h"
 #include "analyzer/pending-diagnostic.h"
+#include "text-art/widget.h"
+#include "text-art/dump.h"
 
 using namespace ana;
 
@@ -121,7 +123,7 @@ DEBUG_FUNCTION inline void
 one_way_id_map<T>::dump () const
 {
   pretty_printer pp;
-  pp.buffer->stream = stderr;
+  pp.set_output_stream (stderr);
   dump_to_pp (&pp);
   pp_flush (&pp);
 }
@@ -175,7 +177,10 @@ public:
   void dump_to_pp (pretty_printer *pp, bool simple, bool multiline) const;
   void dump (bool simple) const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
+
+  std::unique_ptr<text_art::tree_widget>
+  make_dump_widget (const text_art::dump_widget_info &dwi) const;
 
   bool can_merge_with_p (const region_to_value_map &other,
 			 region_to_value_map *out) const;
@@ -277,10 +282,14 @@ class region_model
   void dump_to_pp (pretty_printer *pp, bool simple, bool multiline) const;
   void dump (FILE *fp, bool simple, bool multiline) const;
   void dump (bool simple) const;
+  void dump () const;
 
   void debug () const;
 
-  json::object *to_json () const;
+  std::unique_ptr<json::object> to_json () const;
+
+  std::unique_ptr<text_art::tree_widget>
+  make_dump_widget (const text_art::dump_widget_info &dwi) const;
 
   void validate () const;
 
@@ -343,7 +352,7 @@ class region_model
   void update_for_gcall (const gcall *call_stmt,
                          region_model_context *ctxt,
                          function *callee = NULL);
-  
+
   void update_for_return_gcall (const gcall *call_stmt,
                                 region_model_context *ctxt);
 
@@ -354,6 +363,7 @@ class region_model
   void pop_frame (tree result_lvalue,
 		  const svalue **out_result,
 		  region_model_context *ctxt,
+		  const gcall *call_stmt,
 		  bool eval_return_svalue = true);
   int get_stack_depth () const;
   const frame_region *get_frame_at_index (int index) const;
@@ -425,14 +435,18 @@ class region_model
 					  region_model_context *ctxt);
   void get_referenced_base_regions (auto_bitmap &out_ids) const;
 
-  tree get_representative_tree (const svalue *sval) const;
-  tree get_representative_tree (const region *reg) const;
+  tree get_representative_tree (const svalue *sval,
+				logger *logger = nullptr) const;
+  tree get_representative_tree (const region *reg,
+				logger *logger = nullptr) const;
   path_var
   get_representative_path_var (const svalue *sval,
-			       svalue_set *visited) const;
+			       svalue_set *visited,
+			       logger *logger) const;
   path_var
   get_representative_path_var (const region *reg,
-			       svalue_set *visited) const;
+			       svalue_set *visited,
+			       logger *logger) const;
 
   /* For selftests.  */
   constraint_manager *get_constraints ()
@@ -575,10 +589,12 @@ private:
 
   path_var
   get_representative_path_var_1 (const svalue *sval,
-				 svalue_set *visited) const;
+				 svalue_set *visited,
+				 logger *logger) const;
   path_var
   get_representative_path_var_1 (const region *reg,
-				 svalue_set *visited) const;
+				 svalue_set *visited,
+				 logger *logger) const;
 
   const known_function *get_known_function (tree fndecl,
 					    const call_details &cd) const;

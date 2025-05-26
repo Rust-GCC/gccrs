@@ -1,3 +1,40 @@
+2025-01-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* libitm.texi: Bump @copying's copyright year.
+
+2024-11-18  David Malcolm  <dmalcolm@redhat.com>
+
+	* testsuite/lib/libitm.exp: Add
+	"load_gcc_lib dg-test-cleanup.exp".
+
+2024-09-23  Matthieu Longo  <matthieu.longo@arm.com>
+
+	* config/aarch64/sjlj.S: Replace SPARC CFI directive by
+	AArch64 one.
+
+2024-09-02  Alex Coplan  <alex.coplan@arm.com>
+
+	* testsuite/lib/libitm.exp: Load scanltrans.exp instead of
+	scanltranstree.exp.
+
+2024-05-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR testsuite/115294
+	* testsuite/lib/libitm.exp (libitm_target_compile): Pass new
+	dg-additional-files-options args.
+
+2024-05-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* Makefile.am [LIBITM_BUILD_VERSIONED_SHLIB_SUN] (libitm.map-sun):
+	Pass $(libitm_la_OBJECTS), $(libitm_la_LIBADD) to make_sunver.pl
+	unmodified.
+	* Makefile.in: Regenerate.
+
+2024-04-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* beginend.cc (GTM::gtm_thread::begin_transaction): Fix duplicated
+	words in comment; not not -> not to.
+
 2024-02-05  Marek Polacek  <polacek@redhat.com>
 
 	* containers.h (vector): Remove the template-id in constructors.
@@ -2634,7 +2671,7 @@
 
 	* Initial commit.
 
-Copyright (C) 2008-2024 Free Software Foundation, Inc.
+Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

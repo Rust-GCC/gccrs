@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 2019-2024, Free Software Foundation, Inc.      --
+--             Copyright (C) 2019-2025, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -69,7 +69,8 @@ package body Ada.Numerics.Big_Numbers.Big_Integers is
    package Bignums is new System.Generic_Bignums
      (Bignum, Allocate_Bignum, Free_Bignum, To_Bignum);
 
-   use Bignums, System;
+   use System, Bignums;
+   subtype Bignum is Bignums.Bignum;
 
    function Get_Bignum (Arg : Big_Integer) return Bignum is
      (if Arg.Value.C = System.Null_Address

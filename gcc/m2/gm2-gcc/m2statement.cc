@@ -1,6 +1,6 @@
 /* m2statement.cc provides an interface to GCC statement trees.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -36,6 +36,8 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 #include "m2treelib.h"
 #include "m2type.h"
 #include "m2convert.h"
+#include "m2builtins.h"
+#include "m2pp.h"
 
 static GTY (()) tree param_list = NULL_TREE; /* Ready for the next time we
                                                 call/define a function.  */
@@ -102,11 +104,15 @@ m2statement_BuildEndFunctionCode (location_t location, tree fndecl, bool nested)
   m2block_finishFunctionCode (fndecl);
   m2statement_SetEndLocation (location);
 
+  m2pp_dump_gimple (M2PP_DUMP_PRE_GENERICIZE, fndecl);
   gm2_genericize (fndecl);
   if (nested)
     (void)cgraph_node::get_create (fndecl);
   else
-    cgraph_node::finalize_function (fndecl, false);
+    {
+      m2pp_dump_gimple (M2PP_DUMP_POST_GENERICIZE, fndecl);
+      cgraph_node::finalize_function (fndecl, false);
+    }
 
   m2block_popFunctionScope ();
 
@@ -147,6 +153,120 @@ m2statement_SetEndLocation (location_t location)
 {
   if (cfun != NULL)
     cfun->function_end_locus = location;
+}
+
+/* copy_record_fields copy each record field from right to left.  */
+
+static
+void
+copy_record_fields (location_t location, tree left, tree right)
+{
+  unsigned int i;
+  tree right_value;
+  tree left_type = TREE_TYPE (left);
+  vec<constructor_elt, va_gc> *values = CONSTRUCTOR_ELTS (right);
+  FOR_EACH_CONSTRUCTOR_VALUE (values, i, right_value)
+    {
+      tree left_field = m2treelib_get_field_no (left_type, NULL_TREE, false, i);
+      tree left_ref = m2expr_BuildComponentRef (location, left, left_field);
+      m2statement_CopyByField (location, left_ref, right_value);
+    }
+}
+
+/* copy_array copy each element of an array from array right to array left.  */
+
+static
+void
+copy_array (location_t location, tree left, tree right)
+{
+  unsigned int i;
+  tree value;
+  vec<constructor_elt, va_gc> *values = CONSTRUCTOR_ELTS (right);
+  tree array_type = TREE_TYPE (left);
+  tree index_type = TYPE_DOMAIN (array_type);
+  tree elt_type = TREE_TYPE (array_type);
+  tree low_indice = TYPE_MIN_VALUE (index_type);
+  low_indice
+      = m2convert_BuildConvert (location, index_type, low_indice, false);
+  FOR_EACH_CONSTRUCTOR_VALUE (values, i, value)
+    {
+      tree idx = m2decl_BuildIntegerConstant (i);
+      idx = m2convert_BuildConvert (location, index_type, idx, false);
+      tree array_ref = build4_loc (location, ARRAY_REF, elt_type, left,
+				   idx, low_indice, NULL_TREE);
+      m2statement_CopyByField (location, array_ref, value);      
+    }
+}
+
+/* copy_array cst into left using strncpy.  */
+
+static
+void
+copy_strncpy (location_t location, tree left, tree cst)
+{
+  tree result = m2builtins_BuiltinStrNCopy (location,
+					    m2expr_BuildAddr (location, left, false),
+					    m2expr_BuildAddr (location, cst, false),
+					    m2decl_BuildIntegerConstant (m2expr_StringLength (cst)));
+  TREE_SIDE_EFFECTS (result) = true;
+  TREE_USED (left) = true;
+  TREE_USED (cst) = true;
+  add_stmt (location, result);
+}
+
+/* copy_memcpy copy right into left using builtin_memcpy.  */
+
+static
+void
+copy_memcpy (location_t location, tree left, tree right)
+{
+  tree result = m2builtins_BuiltinMemCopy (location,
+					   m2expr_BuildAddr (location, left, false),
+					   m2expr_BuildAddr (location, right, false),
+					   m2expr_GetSizeOf (location, left));
+  TREE_SIDE_EFFECTS (result) = true;
+  TREE_USED (left) = true;
+  TREE_USED (right) = true;
+  add_stmt (location, result);
+}
+
+/* CopyByField_Lower copy right to left using memcpy for unions,
+   strncpy for string cst, field assignment for records,
+   array element assignment for array constructors.  For all
+   other types it uses BuildAssignmentStatement.  */
+
+static
+void
+CopyByField_Lower (location_t location,
+		   tree left, tree right)
+{
+  tree left_type = TREE_TYPE (left);
+  enum tree_code right_code = TREE_CODE (right);
+  enum tree_code left_code = TREE_CODE (left_type);
+
+  if (left_code == RECORD_TYPE && right_code == CONSTRUCTOR)
+    copy_record_fields (location, left, right);
+  else if (left_code == ARRAY_TYPE && right_code == CONSTRUCTOR)
+    copy_array (location, left, right);
+  else if (left_code == UNION_TYPE && right_code == CONSTRUCTOR)
+    copy_memcpy (location, left, right);
+  else if (right_code == STRING_CST)
+    copy_strncpy (location, left, right);
+  else
+    m2statement_BuildAssignmentStatement (location, left, right);    
+}
+
+/* CopyByField recursively checks each field to ensure GCC
+   type equivalence and if so it uses assignment.
+   Otherwise use strncpy or memcpy depending upon type.  */
+
+void
+m2statement_CopyByField (location_t location, tree des, tree expr)
+{
+  if (m2type_IsGccStrictTypeEquivalent (des, expr))
+    m2statement_BuildAssignmentStatement (location, des, expr);
+  else
+    CopyByField_Lower (location, des, expr);
 }
 
 /* BuildAssignmentTree builds the assignment of, des, and, expr.
@@ -356,7 +476,7 @@ m2statement_BuildIndirectProcedureCallTree (location_t location,
 /* BuildBuiltinCallTree calls the builtin procedure.  */
 
 tree
-m2statement_BuildBuiltinCallTree (location_t location, tree func)
+m2statement_BuildBuiltinCallTree (tree func)
 {
   TREE_USED (func) = true;
   TREE_SIDE_EFFECTS (func) = true;
@@ -514,7 +634,7 @@ m2statement_BuildAsm (location_t location, tree instr, bool isVolatile,
 
   /* ASM statements without outputs, including simple ones, are treated
      as volatile.  */
-  ASM_INPUT_P (args) = isSimple;
+  ASM_BASIC_P (args) = isSimple;
   ASM_VOLATILE_P (args) = isVolatile;
 
   add_stmt (location, args);

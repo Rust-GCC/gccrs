@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -24,7 +24,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "bid_conf.h"
 #include "bid_functions.h"
 #include "bid_gcc_intrinsics.h"
- 
+
 _Decimal64
 __bid_trunctddd2 (_Decimal128 x) {
   union decimal128 ux;

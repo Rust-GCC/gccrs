@@ -1,5 +1,5 @@
 /* The analysis "engine".
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "make-unique.h"
@@ -68,6 +68,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-dfa.h"
 #include "analyzer/known-function-manager.h"
 #include "analyzer/call-summary.h"
+#include "text-art/dump.h"
 
 /* For an overview, see gcc/doc/analyzer.texi.  */
 
@@ -261,6 +262,26 @@ setjmp_svalue::dump_to_pp (pretty_printer *pp, bool simple) const
     pp_printf (pp, "SETJMP(EN: %i)", get_enode_index ());
   else
     pp_printf (pp, "setjmp_svalue(EN%i)", get_enode_index ());
+}
+
+/* Implementation of svalue::print_dump_widget_label vfunc for
+   setjmp_svalue.  */
+
+void
+setjmp_svalue::print_dump_widget_label (pretty_printer *pp) const
+{
+  pp_printf (pp, "setjmp_svalue(EN: %i)", get_enode_index ());
+}
+
+/* Implementation of svalue::add_dump_widget_children vfunc for
+   setjmp_svalue.  */
+
+void
+setjmp_svalue::
+add_dump_widget_children (text_art::tree_widget &,
+			  const text_art::dump_widget_info &) const
+{
+  /* No children.  */
 }
 
 /* Get the index of the stored exploded_node.  */
@@ -659,6 +680,11 @@ public:
     return NULL;
   }
 
+  void update_event_loc_info (event_loc_info &) final override
+  {
+    /* No-op.  */
+  }
+
 private:
   const exploded_graph &m_eg;
   tree m_var;
@@ -876,7 +902,8 @@ impl_region_model_context::on_state_leak (const state_machine &sm,
   svalue_set visited;
   path_var leaked_pv
     = m_old_state->m_region_model->get_representative_path_var (sval,
-								&visited);
+								&visited,
+								nullptr);
 
   /* Strip off top-level casts  */
   if (leaked_pv.m_tree && TREE_CODE (leaked_pv.m_tree) == NOP_EXPR)
@@ -941,7 +968,7 @@ impl_region_model_context::on_condition (const svalue *lhs,
 			       m_old_state->m_checker_states[sm_idx],
 			       m_new_state->m_checker_states[sm_idx],
 			       m_path_ctxt);
-      sm.on_condition (&sm_ctxt,
+      sm.on_condition (sm_ctxt,
 		       (m_enode_for_diag
 			? m_enode_for_diag->get_supernode ()
 			: NULL),
@@ -968,7 +995,7 @@ impl_region_model_context::on_bounded_ranges (const svalue &sval,
 			       m_old_state->m_checker_states[sm_idx],
 			       m_new_state->m_checker_states[sm_idx],
 			       m_path_ctxt);
-      sm.on_bounded_ranges (&sm_ctxt,
+      sm.on_bounded_ranges (sm_ctxt,
 			    (m_enode_for_diag
 			     ? m_enode_for_diag->get_supernode ()
 			     : NULL),
@@ -1009,7 +1036,7 @@ impl_region_model_context::on_phi (const gphi *phi, tree rhs)
 			       m_old_state->m_checker_states[sm_idx],
 			       m_new_state->m_checker_states[sm_idx],
 			       m_path_ctxt);
-      sm.on_phi (&sm_ctxt, m_enode_for_diag->get_supernode (), phi, rhs);
+      sm.on_phi (sm_ctxt, m_enode_for_diag->get_supernode (), phi, rhs);
     }
 }
 
@@ -1391,12 +1418,8 @@ void
 exploded_node::dump (FILE *fp,
 		     const extrinsic_state &ext_state) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  tree_dump_pretty_printer pp (fp);
   dump_to_pp (&pp, ext_state);
-  pp_flush (&pp);
 }
 
 /* Dump a multiline representation of this node to stderr.  */
@@ -1414,17 +1437,16 @@ exploded_node::dump (const extrinsic_state &ext_state) const
     "idx"    : int,
     "processed_stmts" : int}.  */
 
-json::object *
+std::unique_ptr<json::object>
 exploded_node::to_json (const extrinsic_state &ext_state) const
 {
-  json::object *enode_obj = new json::object ();
+  auto enode_obj = ::make_unique<json::object> ();
 
   enode_obj->set ("point", get_point ().to_json ());
   enode_obj->set ("state", get_state ().to_json (ext_state));
-  enode_obj->set ("status", new json::string (status_to_str (m_status)));
-  enode_obj->set ("idx", new json::integer_number (m_index));
-  enode_obj->set ("processed_stmts",
-		  new json::integer_number (m_num_processed_stmts));
+  enode_obj->set_string ("status", status_to_str (m_status));
+  enode_obj->set_integer ("idx", m_index);
+  enode_obj->set_integer ("processed_stmts", m_num_processed_stmts);
 
   return enode_obj;
 }
@@ -1531,7 +1553,7 @@ exploded_node::on_stmt (exploded_graph &eg,
 			       unknown_side_effects);
 
       /* Allow the state_machine to handle the stmt.  */
-      if (sm.on_stmt (&sm_ctxt, snode, stmt))
+      if (sm.on_stmt (sm_ctxt, snode, stmt))
 	unknown_side_effects = false;
     }
 
@@ -1645,9 +1667,9 @@ public:
     return true;
   }
 
-  label_text get_desc (bool /*can_colorize*/) const final override
+  void print_desc (pretty_printer &pp) const final override
   {
-    return m_summary->get_desc ();
+    pp_string (&pp, m_summary->get_desc ().get ());
   }
 
 private:
@@ -1861,19 +1883,22 @@ public:
     return false;
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_stack_pop_event)
-      return ev.formatted_print
-	("%qs called after enclosing function of %qs returned at %@",
-	 get_user_facing_name (m_longjmp_call),
-	 get_user_facing_name (m_setjmp_call),
-	 m_stack_pop_event->get_id_ptr ());
+      pp_printf (&pp,
+		 "%qs called after enclosing function of %qs returned at %@",
+		 get_user_facing_name (m_longjmp_call),
+		 get_user_facing_name (m_setjmp_call),
+		 m_stack_pop_event->get_id_ptr ());
     else
-      return ev.formatted_print
-	("%qs called after enclosing function of %qs has returned",
-	 get_user_facing_name (m_longjmp_call),
-	 get_user_facing_name (m_setjmp_call));;
+      pp_printf (&pp,
+		 "%qs called after enclosing function of %qs has returned",
+		 get_user_facing_name (m_longjmp_call),
+		 get_user_facing_name (m_setjmp_call));
+    return true;
   }
 
 
@@ -2034,7 +2059,7 @@ exploded_node::detect_leaks (exploded_graph &eg)
 				  &old_state, &new_state, &uncertainty, NULL,
 				  get_stmt ());
   const svalue *result = NULL;
-  new_state.m_region_model->pop_frame (NULL, &result, &ctxt);
+  new_state.m_region_model->pop_frame (NULL, &result, &ctxt, nullptr);
   program_state::detect_leaks (old_state, new_state, result,
 			       eg.get_ext_state (), &ctxt);
 }
@@ -2266,12 +2291,12 @@ exploded_edge::dump_dot_label (pretty_printer *pp) const
     "sedge": (optional) object for the superedge, if any,
     "custom": (optional) str, a description, if this is a custom edge}.  */
 
-json::object *
+std::unique_ptr<json::object>
 exploded_edge::to_json () const
 {
-  json::object *eedge_obj = new json::object ();
-  eedge_obj->set ("src_idx", new json::integer_number (m_src->m_index));
-  eedge_obj->set ("dst_idx", new json::integer_number (m_dest->m_index));
+  auto eedge_obj = ::make_unique<json::object> ();
+  eedge_obj->set_integer ("src_idx", m_src->m_index);
+  eedge_obj->set_integer ("dst_idx", m_dest->m_index);
   if (m_sedge)
     eedge_obj->set ("sedge", m_sedge->to_json ());
   if (m_custom_info)
@@ -2279,7 +2304,7 @@ exploded_edge::to_json () const
       pretty_printer pp;
       pp_format_decoder (&pp) = default_tree_printer;
       m_custom_info->print (&pp);
-      eedge_obj->set ("custom", new json::string (pp_formatted_text (&pp)));
+      eedge_obj->set_string ("custom", pp_formatted_text (&pp));
     }
   return eedge_obj;
 }
@@ -2392,12 +2417,12 @@ strongly_connected_components::dump () const
 
 /* Return a new json::array of per-snode SCC ids.  */
 
-json::array *
+std::unique_ptr<json::array>
 strongly_connected_components::to_json () const
 {
-  json::array *scc_arr = new json::array ();
+  auto scc_arr = ::make_unique<json::array> ();
   for (int i = 0; i < m_sg.num_nodes (); i++)
-    scc_arr->append (new json::integer_number (get_scc_id (i)));
+    scc_arr->append (::make_unique<json::integer_number> (get_scc_id (i)));
   return scc_arr;
 }
 
@@ -2613,10 +2638,10 @@ worklist::key_t::cmp (const worklist::key_t &ka, const worklist::key_t &kb)
 /* Return a new json::object of the form
    {"scc" : [per-snode-IDs]},  */
 
-json::object *
+std::unique_ptr<json::object>
 worklist::to_json () const
 {
-  json::object *worklist_obj = new json::object ();
+  auto worklist_obj = ::make_unique<json::object> ();
 
   worklist_obj->set ("scc", m_scc.to_json ());
 
@@ -2727,12 +2752,12 @@ public:
   {
   }
 
-  label_text get_desc (bool can_colorize) const final override
+  void
+  print_desc (pretty_printer &pp) const final override
   {
-    return make_label_text
-      (can_colorize,
-       "function %qE marked with %<__attribute__((tainted_args))%>",
-       m_fndecl);
+    pp_printf (&pp,
+	       "function %qE marked with %<__attribute__((tainted_args))%>",
+	       m_fndecl);
   }
 
 private:
@@ -3146,12 +3171,12 @@ public:
   {
   }
 
-  label_text get_desc (bool can_colorize) const final override
+  void print_desc (pretty_printer &pp) const final override
   {
-    return make_label_text (can_colorize,
-			    "field %qE of %qT"
-			    " is marked with %<__attribute__((tainted_args))%>",
-			    m_field, DECL_CONTEXT (m_field));
+    pp_printf (&pp,
+	       "field %qE of %qT"
+	       " is marked with %<__attribute__((tainted_args))%>",
+	       m_field, DECL_CONTEXT (m_field));
   }
 
 private:
@@ -3172,12 +3197,12 @@ public:
   {
   }
 
-  label_text get_desc (bool can_colorize) const final override
+  void print_desc (pretty_printer &pp) const final override
   {
-    return make_label_text (can_colorize,
-			    "function %qE used as initializer for field %qE"
-			    " marked with %<__attribute__((tainted_args))%>",
-			    get_fndecl (), m_field);
+    pp_printf (&pp,
+	       "function %qE used as initializer for field %qE"
+	       " marked with %<__attribute__((tainted_args))%>",
+	       get_fndecl (), m_field);
   }
 
 private:
@@ -3768,7 +3793,7 @@ stmt_requires_new_enode_p (const gimple *stmt,
 	 regular next state, which defeats the "detect state change" logic
 	 in process_node.  Work around this via special-casing, to ensure
 	 we split the enode immediately before any "signal" call.  */
-      if (is_special_named_call_p (call, "signal", 2))
+      if (is_special_named_call_p (call, "signal", 2, true))
 	return true;
     }
 
@@ -3991,9 +4016,11 @@ public:
     return ctxt.warn ("jump through null pointer");
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool describe_final_event (pretty_printer &pp,
+			     const evdesc::final_event &) final override
   {
-    return ev.formatted_print ("jump through null pointer here");
+    pp_string (&pp, "jump through null pointer here");
+    return true;
   }
 
 private:
@@ -4630,29 +4657,29 @@ exploded_graph::dump_states_for_supernode (FILE *out,
     "ext_state": object for extrinsic_state,
     "diagnostic_manager": object for diagnostic_manager}.  */
 
-json::object *
+std::unique_ptr<json::object>
 exploded_graph::to_json () const
 {
-  json::object *egraph_obj = new json::object ();
+  auto egraph_obj = ::make_unique<json::object> ();
 
   /* Nodes.  */
   {
-    json::array *nodes_arr = new json::array ();
+    auto nodes_arr = ::make_unique<json::array> ();
     unsigned i;
     exploded_node *n;
     FOR_EACH_VEC_ELT (m_nodes, i, n)
       nodes_arr->append (n->to_json (m_ext_state));
-    egraph_obj->set ("nodes", nodes_arr);
+    egraph_obj->set ("nodes", std::move (nodes_arr));
   }
 
   /* Edges.  */
   {
-    json::array *edges_arr = new json::array ();
+    auto edges_arr = ::make_unique<json::array> ();
     unsigned i;
     exploded_edge *n;
     FOR_EACH_VEC_ELT (m_edges, i, n)
       edges_arr->append (n->to_json ());
-    egraph_obj->set ("edges", edges_arr);
+    egraph_obj->set ("edges", std::move (edges_arr));
   }
 
   /* m_sg is JSONified at the top-level.  */
@@ -4801,12 +4828,8 @@ exploded_path::dump_to_pp (pretty_printer *pp,
 void
 exploded_path::dump (FILE *fp, const extrinsic_state *ext_state) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  tree_dump_pretty_printer pp (fp);
   dump_to_pp (&pp, ext_state);
-  pp_flush (&pp);
 }
 
 /* Dump this path in multiline form to stderr.  */
@@ -4828,7 +4851,7 @@ exploded_path::dump_to_file (const char *filename,
     return;
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
-  pp.buffer->stream = fp;
+  pp.set_output_stream (fp);
   dump_to_pp (&pp, &ext_state);
   pp_flush (&pp);
   fclose (fp);
@@ -5420,7 +5443,7 @@ exploded_graph::dump_exploded_nodes () const
 	  pretty_printer pp;
 	  enode->get_point ().print (&pp, format (true));
 	  fprintf (outf, "%s\n", pp_formatted_text (&pp));
-	  enode->get_state ().dump_to_file (m_ext_state, false, true, outf);
+	  text_art::dump_to_file (enode->get_state (), outf);
 	}
 
       fclose (outf);
@@ -5439,7 +5462,8 @@ exploded_graph::dump_exploded_nodes () const
 	    = xasprintf ("%s.en-%i.txt", dump_base_name, i);
 	  FILE *outf = fopen (filename, "w");
 	  if (!outf)
-	    error_at (UNKNOWN_LOCATION, "unable to open %qs for writing", filename);
+	    error_at (UNKNOWN_LOCATION, "unable to open %qs for writing",
+		      filename);
 	  free (filename);
 
 	  fprintf (outf, "EN %i:\n", enode->m_index);
@@ -5447,7 +5471,7 @@ exploded_graph::dump_exploded_nodes () const
 	  pretty_printer pp;
 	  enode->get_point ().print (&pp, format (true));
 	  fprintf (outf, "%s\n", pp_formatted_text (&pp));
-	  enode->get_state ().dump_to_file (m_ext_state, false, true, outf);
+	  text_art::dump_to_file (enode->get_state (), outf);
 
 	  fclose (outf);
 	}
@@ -6070,15 +6094,13 @@ dump_analyzer_json (const supergraph &sg,
       return;
     }
 
-  json::object *toplev_obj = new json::object ();
+  auto toplev_obj = ::make_unique<json::object> ();
   toplev_obj->set ("sgraph", sg.to_json ());
   toplev_obj->set ("egraph", eg.to_json ());
 
   pretty_printer pp;
   toplev_obj->print (&pp, flag_diagnostics_json_formatting);
   pp_formatted_text (&pp);
-
-  delete toplev_obj;
 
   if (gzputs (output, pp_formatted_text (&pp)) == EOF
       || gzclose (output))
@@ -6251,6 +6273,13 @@ impl_run_checkers (logger *logger)
     eng.get_model_manager ()->dump_untracked_regions ();
 
   delete purge_map;
+
+  /* Free up any dominance info that we may have created.  */
+  FOR_EACH_FUNCTION_WITH_GIMPLE_BODY (node)
+    {
+      function *fun = node->get_fun ();
+      free_dominance_info (fun, CDI_DOMINATORS);
+    }
 }
 
 /* Handle -fdump-analyzer and -fdump-analyzer-stderr.  */
@@ -6295,7 +6324,7 @@ run_checkers ()
     get_or_create_any_logfile ();
     if (dump_fout)
       the_logger.set_logger (new logger (dump_fout, 0, 0,
-					 *global_dc->printer));
+					 *global_dc->get_reference_printer ()));
     LOG_SCOPE (the_logger.get_logger ());
 
     impl_run_checkers (the_logger.get_logger ());

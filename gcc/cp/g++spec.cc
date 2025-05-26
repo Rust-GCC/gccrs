@@ -1,5 +1,5 @@
 /* Specific flags and argument handling of the C++ front end.
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -200,7 +200,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 		  || strcmp (arg, "objective-c++") == 0
 		  || strcmp (arg, "objective-c++-cpp-output") == 0))
 	    library = 1;
-		
+
 	  saw_speclang = 1;
 	  break;
 

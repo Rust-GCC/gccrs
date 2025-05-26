@@ -1,6 +1,6 @@
 ; Options for the HP PA-RISC port of the compiler.
 
-; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -85,6 +85,10 @@ Enable linker optimizations.
 mlong-calls
 Target Mask(LONG_CALLS)
 Always generate long calls.
+
+mlra
+Target Var(pa_lra_p) Init(0)
+Use LRA instead of reload (transitional).
 
 mlong-load-store
 Target Mask(LONG_LOAD_STORE)

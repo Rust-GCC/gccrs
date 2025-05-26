@@ -1,5 +1,5 @@
 /* Internal functions.
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -56,6 +56,7 @@ along with GCC; see the file COPYING3.  If not see
    - mask_load_lanes: currently just vec_mask_load_lanes
    - mask_len_load_lanes: currently just vec_mask_len_load_lanes
    - gather_load: used for {mask_,mask_len_,}gather_load
+   - strided_load: currently just mask_len_strided_load
    - len_load: currently just len_load
    - mask_len_load: currently just mask_len_load
 
@@ -64,6 +65,7 @@ along with GCC; see the file COPYING3.  If not see
    - mask_store_lanes: currently just vec_mask_store_lanes
    - mask_len_store_lanes: currently just vec_mask_len_store_lanes
    - scatter_store: used for {mask_,mask_len_,}scatter_store
+   - strided_store: currently just mask_len_strided_store
    - len_store: currently just len_store
    - mask_len_store: currently just mask_len_store
 
@@ -200,6 +202,8 @@ along with GCC; see the file COPYING3.  If not see
 				cond_len_##UNSIGNED_OPTAB, cond_len_##TYPE)
 #endif
 
+DEF_INTERNAL_OPTAB_FN (CRC, ECF_CONST | ECF_NOTHROW, crc, crc)
+DEF_INTERNAL_OPTAB_FN (CRC_REV, ECF_CONST | ECF_NOTHROW, crc_rev, crc)
 DEF_INTERNAL_OPTAB_FN (MASK_LOAD, ECF_PURE, maskload, mask_load)
 DEF_INTERNAL_OPTAB_FN (LOAD_LANES, ECF_CONST, vec_load_lanes, load_lanes)
 DEF_INTERNAL_OPTAB_FN (MASK_LOAD_LANES, ECF_PURE,
@@ -212,6 +216,8 @@ DEF_INTERNAL_OPTAB_FN (MASK_GATHER_LOAD, ECF_PURE,
 		       mask_gather_load, gather_load)
 DEF_INTERNAL_OPTAB_FN (MASK_LEN_GATHER_LOAD, ECF_PURE,
 		       mask_len_gather_load, gather_load)
+DEF_INTERNAL_OPTAB_FN (MASK_LEN_STRIDED_LOAD, ECF_PURE,
+		       mask_len_strided_load, strided_load)
 
 DEF_INTERNAL_OPTAB_FN (LEN_LOAD, ECF_PURE, len_load, len_load)
 DEF_INTERNAL_OPTAB_FN (MASK_LEN_LOAD, ECF_PURE, mask_len_load, mask_len_load)
@@ -221,6 +227,8 @@ DEF_INTERNAL_OPTAB_FN (MASK_SCATTER_STORE, 0,
 		       mask_scatter_store, scatter_store)
 DEF_INTERNAL_OPTAB_FN (MASK_LEN_SCATTER_STORE, 0,
 		       mask_len_scatter_store, scatter_store)
+DEF_INTERNAL_OPTAB_FN (MASK_LEN_STRIDED_STORE, 0,
+		       mask_len_strided_store, strided_store)
 
 DEF_INTERNAL_OPTAB_FN (MASK_STORE, 0, maskstore, mask_store)
 DEF_INTERNAL_OPTAB_FN (STORE_LANES, ECF_CONST, vec_store_lanes, store_lanes)
@@ -229,9 +237,6 @@ DEF_INTERNAL_OPTAB_FN (MASK_STORE_LANES, 0,
 DEF_INTERNAL_OPTAB_FN (MASK_LEN_STORE_LANES, 0,
 		       vec_mask_len_store_lanes, mask_store_lanes)
 
-DEF_INTERNAL_OPTAB_FN (VCOND, ECF_CONST | ECF_NOTHROW, vcond, vec_cond)
-DEF_INTERNAL_OPTAB_FN (VCONDU, ECF_CONST | ECF_NOTHROW, vcondu, vec_cond)
-DEF_INTERNAL_OPTAB_FN (VCONDEQ, ECF_CONST | ECF_NOTHROW, vcondeq, vec_cond)
 DEF_INTERNAL_OPTAB_FN (VCOND_MASK, ECF_CONST | ECF_NOTHROW,
 		       vcond_mask, vec_cond_mask)
 DEF_INTERNAL_OPTAB_FN (VCOND_MASK_LEN, ECF_CONST | ECF_NOTHROW,
@@ -274,6 +279,11 @@ DEF_INTERNAL_SIGNED_OPTAB_FN (MULHS, ECF_CONST | ECF_NOTHROW, first,
 			      smulhs, umulhs, binary)
 DEF_INTERNAL_SIGNED_OPTAB_FN (MULHRS, ECF_CONST | ECF_NOTHROW, first,
 			      smulhrs, umulhrs, binary)
+
+DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_ADD, ECF_CONST, first, ssadd, usadd, binary)
+DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_SUB, ECF_CONST, first, sssub, ussub, binary)
+
+DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_TRUNC, ECF_CONST, first, sstrunc, ustrunc, unary_convert)
 
 DEF_INTERNAL_COND_FN (ADD, ECF_CONST, add, binary)
 DEF_INTERNAL_COND_FN (SUB, ECF_CONST, sub, binary)
@@ -430,7 +440,7 @@ DEF_INTERNAL_OPTAB_FN (VEC_FMADDSUB, ECF_CONST, vec_fmaddsub, ternary)
 DEF_INTERNAL_OPTAB_FN (VEC_FMSUBADD, ECF_CONST, vec_fmsubadd, ternary)
 
 /* FP scales.  */
-DEF_INTERNAL_FLT_FN (LDEXP, ECF_CONST, ldexp, binary)
+DEF_INTERNAL_FLT_FLOATN_FN (LDEXP, ECF_CONST, ldexp, binary)
 
 /* Ternary math functions.  */
 DEF_INTERNAL_FLT_FLOATN_FN (FMA, ECF_CONST, fma, ternary)
@@ -454,6 +464,7 @@ DEF_INTERNAL_FN (GOMP_SIMT_ENTER_ALLOC, ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMT_EXIT, ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMT_LANE, ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMT_VF, ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
+DEF_INTERNAL_FN (GOMP_MAX_VF, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMT_LAST_LANE, ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMT_ORDERED_PRED, ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMT_VOTE_ANY, ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
@@ -464,6 +475,7 @@ DEF_INTERNAL_FN (GOMP_SIMD_VF, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMD_LAST_LANE, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMD_ORDERED_START, ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (GOMP_SIMD_ORDERED_END, ECF_LEAF | ECF_NOTHROW, NULL)
+DEF_INTERNAL_FN (GOMP_DISPATCH, ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (LOOP_VECTORIZED, ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (LOOP_DIST_ALIAS, ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (ANNOTATE,  ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
@@ -509,6 +521,11 @@ DEF_INTERNAL_FN (PHI, 0, NULL)
 /* A function to represent an artifical initialization to an uninitialized
    automatic variable.  */
 DEF_INTERNAL_FN (DEFERRED_INIT, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
+
+/* A function to associate the access size and access mode information
+   with the corresponding reference to an object.  It only reads from the
+   2nd argument.  */
+DEF_INTERNAL_FN (ACCESS_WITH_SIZE, ECF_PURE | ECF_LEAF | ECF_NOTHROW, NULL)
 
 /* DIM_SIZE and DIM_POS return the size of a particular compute
    dimension and the executing thread's position within that
@@ -559,7 +576,7 @@ DEF_INTERNAL_FN (DIVMOD, ECF_CONST | ECF_LEAF, NULL)
 
 /* For coroutines.  */
 DEF_INTERNAL_FN (CO_ACTOR, ECF_NOTHROW | ECF_LEAF, NULL)
-DEF_INTERNAL_FN (CO_YIELD, ECF_NOTHROW, NULL)
+DEF_INTERNAL_FN (CO_YIELD, ECF_NOTHROW | ECF_LEAF, NULL)
 DEF_INTERNAL_FN (CO_SUSPN, ECF_NOTHROW, NULL)
 DEF_INTERNAL_FN (CO_FRAME, ECF_PURE | ECF_NOTHROW | ECF_LEAF, NULL)
 
@@ -584,6 +601,10 @@ DEF_INTERNAL_FN (MULBITINT, ECF_LEAF | ECF_NOTHROW, ". O . R . R . ")
 DEF_INTERNAL_FN (DIVMODBITINT, ECF_LEAF, ". O . O . R . R . ")
 DEF_INTERNAL_FN (FLOATTOBITINT, ECF_LEAF | ECF_NOTHROW, ". O . . ")
 DEF_INTERNAL_FN (BITINTTOFLOAT, ECF_PURE | ECF_LEAF, ". R . ")
+
+/* Bitwise functions.  */
+DEF_INTERNAL_OPTAB_FN (BIT_ANDN, ECF_CONST, andn, binary)
+DEF_INTERNAL_OPTAB_FN (BIT_IORN, ECF_CONST, iorn, binary)
 
 #undef DEF_INTERNAL_WIDENING_OPTAB_FN
 #undef DEF_INTERNAL_SIGNED_COND_FN

@@ -1,5 +1,5 @@
 /* Coalesce spilled pseudos.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -226,7 +226,7 @@ lra_coalesce (void)
   int coalesced_moves;
   int max_regno = max_reg_num ();
   bitmap_head involved_insns_bitmap;
-  
+
   timevar_push (TV_LRA_COALESCE);
 
   if (lra_dump_file != NULL)
