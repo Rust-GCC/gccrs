@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # RISC-V multilib list generator.
-# Copyright (C) 2011-2024 Free Software Foundation, Inc.
+# Copyright (C) 2011-2025 Free Software Foundation, Inc.
 # Contributed by Andrew Waterman (andrew@sifive.com).
 # 
 # This file is part of GCC.
@@ -159,8 +159,8 @@ for cmodel in cmodels:
              "e.g. rv32imafd-ilp32--" % cfg)
       sys.exit(1)
 
-    # Compact code model only support rv64.
-    if cmodel == "compact" and arch.startswith("rv32"):
+    # Large code model only support rv64.
+    if cmodel == "large" and arch.startswith("rv32"):
       continue
 
     arch = arch_canonicalize (arch, args.misa_spec)

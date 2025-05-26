@@ -42,12 +42,13 @@ load_gcc_lib scanasm.exp
 load_gcc_lib scandump.exp
 load_gcc_lib scanrtl.exp
 load_gcc_lib scantree.exp
-load_gcc_lib scanltranstree.exp
+load_gcc_lib scanltrans.exp
 load_gcc_lib scanipa.exp
 load_gcc_lib scanwpaipa.exp
 load_gcc_lib timeout-dg.exp
 load_gcc_lib torture-options.exp
 load_gcc_lib fortran-modules.exp
+load_gcc_lib dg-test-cleanup.exp
 
 set dg-do-what-default run
 
@@ -212,7 +213,7 @@ proc libvtv_target_compile { source dest type options } {
 	set options [concat "$ALWAYS_CFLAGS" $options]
     }
 
-    set options [dg-additional-files-options $options $source]
+    set options [dg-additional-files-options $options $source $dest $type]
 
     set result [target_compile $source $dest $type $options]
 

@@ -1,5 +1,5 @@
 /* Separate lexical analyzer for GNU C++.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -23,7 +23,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 /* For use with name_hint.  */
-#define INCLUDE_MEMORY
 #include "system.h"
 #include "coretypes.h"
 #include "cp-tree.h"
@@ -83,7 +82,7 @@ cxx_finish (void)
   c_common_finish ();
 }
 
-ovl_op_info_t ovl_op_info[2][OVL_OP_MAX] = 
+ovl_op_info_t ovl_op_info[2][OVL_OP_MAX] =
   {
     {
       {NULL_TREE, NULL, NULL, ERROR_MARK, OVL_OP_ERROR_MARK, 0},
@@ -496,7 +495,7 @@ struct module_token_filter
 	    state = module_end;
 	    goto header_unit;
 	  }
-	
+
 	if (type == CPP_PADDING || type == CPP_COMMENT)
 	  break;
 
@@ -750,6 +749,9 @@ unqualified_name_lookup_error (tree name, location_t loc)
 
   if (IDENTIFIER_ANY_OP_P (name))
     error_at (loc, "%qD not defined", name);
+  else if (!flag_concepts && name == ridpointers[(int)RID_REQUIRES])
+    error_at (loc, "%<requires%> only available with %<-std=c++20%> or "
+	      "%<-fconcepts%>");
   else
     {
       if (!objc_diagnose_private_ivar (name))
@@ -807,6 +809,7 @@ unqualified_fn_lookup_error (cp_expr name_expr)
 	 Note that we have the exact wording of the following message in
 	 the manual (trouble.texi, node "Name lookup"), so they need to
 	 be kept in synch.  */
+      auto_diagnostic_group d;
       permerror (loc, "there are no arguments to %qD that depend on a template "
 		 "parameter, so a declaration of %qD must be available",
 		 name, name);
@@ -1110,7 +1113,7 @@ maybe_add_lang_type_raw (tree t)
 {
   if (!RECORD_OR_UNION_CODE_P (TREE_CODE (t)))
     return false;
-  
+
   auto *lt = (struct lang_type *) (ggc_internal_cleared_alloc
 				   (sizeof (struct lang_type)));
   TYPE_LANG_SPECIFIC (t) = lt;

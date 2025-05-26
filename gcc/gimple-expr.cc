@@ -1,6 +1,6 @@
 /* Gimple decl, type, and expression support functions.
 
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -406,14 +406,12 @@ remove_suffix (char *name, int len)
 {
   int i;
 
-  for (i = 2;  i < 7 && len > i;  i++)
-    {
-      if (name[len - i] == '.')
-	{
-	  name[len - i] = '\0';
-	  break;
-	}
-    }
+  for (i = 2; i < 7 && len > i; i++)
+    if (name[len - i] == '.')
+      {
+	name[len - i] = '\0';
+	break;
+      }
 }
 
 /* Create a new temporary name with PREFIX.  Return an identifier.  */
@@ -430,8 +428,6 @@ create_tmp_var_name (const char *prefix)
       char *preftmp = ASTRDUP (prefix);
 
       remove_suffix (preftmp, strlen (preftmp));
-      clean_symbol_name (preftmp);
-
       prefix = preftmp;
     }
 
@@ -845,6 +841,11 @@ is_gimple_val (tree t)
       && !is_gimple_reg (t))
     return false;
 
+  /* These eventually expand into constants, so treat them like that.  */
+  if (TREE_CODE (t) == OMP_NEXT_VARIANT
+      || TREE_CODE (t) == OMP_TARGET_DEVICE_MATCHES)
+    return true;
+
   return (is_gimple_variable (t) || is_gimple_min_invariant (t));
 }
 
@@ -883,7 +884,7 @@ bool
 is_gimple_mem_ref_addr (tree t)
 {
   return (is_gimple_reg (t)
-	  || TREE_CODE (t) == INTEGER_CST
+	  || poly_int_tree_p (t)
 	  || (TREE_CODE (t) == ADDR_EXPR
 	      && (CONSTANT_CLASS_P (TREE_OPERAND (t, 0))
 		  || decl_address_invariant_p (TREE_OPERAND (t, 0)))));

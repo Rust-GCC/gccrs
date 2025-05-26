@@ -1,4 +1,5 @@
-/* Copyright (C) 1998-2024 Free Software Foundation, Inc.
+/* Build device-specs for AVR 8-bit microcontrollers.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    Contributed by Joern Rennecke
 
    This file is part of GCC.
@@ -7,12 +8,12 @@
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 3, or (at your option)
    any later version.
-   
+
    GCC is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
@@ -73,7 +74,7 @@ static const char help_copy_paste[] =
   "# for a new device spec file, make sure you are copying from a specs file\n"
   "# for a device from the same or compatible:\n"
   "#     compiler version, compiler vendor, core architecture, SP width,\n"
-  "#     short-calls and FLMAP.\n"
+  "#     short-calls, features like CVT and FLMAP.\n"
   "# Otherwise, errors and wrong or sub-optimal code may likely occur.\n"
   "# See <" WIKI_URL ">\n"
   "# and <" SPECFILE_USAGE_URL "> for a description\n"
@@ -135,7 +136,7 @@ struct McuInfo
   const avr_arch_t *arch;
   bool is_arch, is_device;
   bool flmap, have_flmap2, have_flmap4, have_flmap;
-  bool rodata_in_flash;
+  bool rodata_in_flash, have_cvt;
   // Device name as used by the vendor, extracted from "__AVR_<Name>__".
   char mcu_Name[50] = { 0 };
 
@@ -148,7 +149,8 @@ struct McuInfo
       have_flmap (flmap && (have_flmap2 || have_flmap4)),
       rodata_in_flash (arch_id == ARCH_AVRTINY
 		       || (arch_id == ARCH_AVRXMEGA3
-			   && have_avrxmega3_rodata_in_flash))
+			   && have_avrxmega3_rodata_in_flash)),
+      have_cvt (mcu->dev_attribute & AVR_CVT)
   {
     if (is_device)
       snprintf (mcu_Name, 1 + strlen (mcu->macro) - strlen ("__AVR_" "__"),
@@ -258,8 +260,9 @@ print_mcu (const avr_mcu_t *mcu, const McuInfo &mi)
   if (mi.is_arch)
     fprintf (f, "core architecture %s\n", mi.arch->name);
   else
-    fprintf (f, "device %s (core %s, %d-bit SP%s%s)\n", mi.mcu_Name,
+    fprintf (f, "device %s (core %s, %d-bit SP%s%s%s)\n", mi.mcu_Name,
 	     mi.arch->name, sp8 ? 8 : 16, rcall ? ", short-calls" : "",
+	     mi.have_cvt ? ", CVT" : "",
 	     mi.have_flmap ? ", FLMAP" : "");
   fprintf (f, "%s\n", header);
 
@@ -272,7 +275,12 @@ print_mcu (const avr_mcu_t *mcu, const McuInfo &mi)
   if (mi.is_device)
     {
       fprintf (f, "*avrlibc_startfile:\n");
-      fprintf (f, "\tcrt%s.o%%s", mcu->name);
+      fprintf (f, "\t%%{!mcvt:crt%s.o%%s}", mcu->name);
+      if (mi.have_cvt)
+	fprintf (f, " %%{mcvt:crt%s-cvt.o%%s}", mcu->name);
+      else
+	fprintf (f, " %%{mcvt:%%e%s does not support a compact vector"
+		 " table (-mcvt)}", mi.mcu_Name);
       fprintf (f, "\n\n");
 
       fprintf (f, "*avrlibc_devicelib:\n");

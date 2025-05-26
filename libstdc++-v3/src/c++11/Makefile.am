@@ -1,6 +1,6 @@
 ## Makefile for the C++11 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2024 Free Software Foundation, Inc.
+## Copyright (C) 1997-2025 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -69,6 +69,7 @@ sources = \
 	codecvt.cc \
 	condition_variable.cc \
 	cow-stdexcept.cc \
+	cow-system_error.cc \
 	ctype.cc \
 	debug.cc \
 	functexcept.cc \
@@ -167,7 +168,15 @@ localename.lo: localename.cc
 localename.o: localename.cc
 	$(CXXCOMPILE) -fchar8_t -c $<
 
+wstring-inst.lo: wstring-inst.cc string-inst.cc
+wstring-inst.o: wstring-inst.cc string-inst.cc
+
 if ENABLE_DUAL_ABI
+cow-string-inst.lo: cow-string-inst.cc string-inst.cc
+cow-string-inst.o: cow-string-inst.cc string-inst.cc
+cow-wstring-inst.lo: cow-wstring-inst.cc string-inst.cc
+cow-wstring-inst.o: cow-wstring-inst.cc string-inst.cc
+
 # Rewrite the type info for __ios_failure.
 rewrite_ios_failure_typeinfo = sed -e '/^_*_ZTISt13__ios_failure:/,/_ZTVN10__cxxabiv120__si_class_type_infoE/s/_ZTVN10__cxxabiv120__si_class_type_infoE/_ZTVSt19__iosfail_type_info/'
 

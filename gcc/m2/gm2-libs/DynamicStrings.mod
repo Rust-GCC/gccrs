@@ -1,6 +1,6 @@
 (* DynamicStrings.mod provides a dynamic string type and procedures.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -1354,8 +1354,8 @@ END Mult ;
 
 PROCEDURE Slice (s: String; low, high: INTEGER) : String ;
 VAR
-   d, t         : String ;
-   start, end, o: INTEGER ;
+   d, t          : String ;
+   start, stop, o: INTEGER ;
 BEGIN
    IF PoisonOn
    THEN
@@ -1390,7 +1390,7 @@ BEGIN
             ELSE
                start := low - o
             END ;
-            end := Max (Min (MaxBuf, high - o), 0) ;
+            stop := Max (Min (MaxBuf, high - o), 0) ;
             WHILE t^.contents.len = MaxBuf DO
                IF t^.contents.next = NIL
                THEN
@@ -1408,7 +1408,7 @@ BEGIN
                t := t^.contents.next
             END ;
             ConcatContentsAddress (t^.contents,
-                                   ADR (s^.contents.buf[start]), end - start) ;
+                                   ADR (s^.contents.buf[start]), stop - start) ;
             INC (o, s^.contents.len) ;
             s := s^.contents.next
          END
@@ -1466,8 +1466,9 @@ END Index ;
 
 (*
    RIndex - returns the indice of the last occurance of, ch,
-            in String, s. The search starts at position, o.
-            -1 is returned if, ch, is not found.
+            in String, s.  The search starts at position, o.
+            -1 is returned if, ch, is not found.  The search
+            is performed left to right.
 *)
 
 PROCEDURE RIndex (s: String; ch: CHAR; o: CARDINAL) : INTEGER ;
@@ -1507,6 +1508,47 @@ BEGIN
    END ;
    RETURN j
 END RIndex ;
+
+
+(*
+   ReverseIndex - returns the indice of the last occurance of ch
+                  in String s.  The search starts at position o
+                  and searches from right to left.  The start position
+                  may be indexed negatively from the right (-1 is the
+                  last index).
+                  The return value if ch is found will always be positive.
+                  -1 is returned if ch is not found.
+*)
+
+PROCEDURE ReverseIndex (s: String; ch: CHAR; o: INTEGER) : INTEGER ;
+VAR
+   c: CARDINAL ;
+BEGIN
+   IF PoisonOn
+   THEN
+      s := CheckPoisoned (s)
+   END ;
+   IF o < 0
+   THEN
+      o := VAL (INTEGER, Length (s)) + o ;
+      IF o < 0
+      THEN
+         RETURN -1
+      END
+   END ;
+   IF VAL (CARDINAL, o) < Length (s)
+   THEN
+      WHILE o >= 0 DO
+         IF char (s, o) = ch
+         THEN
+            RETURN o
+         ELSE
+            DEC (o)
+         END
+      END
+   END ;
+   RETURN -1
+END ReverseIndex ;
 
 
 (*

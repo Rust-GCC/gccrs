@@ -1,6 +1,6 @@
 /* Definitions of taret machine for GNU compiler.
    Matsushita AM33/2.0
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva <aoliva@redhat.com>
 
    This file is part of GCC.
@@ -18,7 +18,7 @@
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
-   
+
 #undef  PREFERRED_DEBUGGING_TYPE
 #define PREFERRED_DEBUGGING_TYPE DWARF2_DEBUG
 
@@ -77,7 +77,7 @@ extern int mn10300_protect_label;
         asm_fprintf (FILE, "+");		\
       asm_fprintf (FILE, "%U%s", real_name);	\
     }						\
-  while (0)           
+  while (0)
 
 #undef SIZE_TYPE
 #undef PTRDIFF_TYPE

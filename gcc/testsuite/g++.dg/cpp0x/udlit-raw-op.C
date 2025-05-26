@@ -1,10 +1,11 @@
 // { dg-do run { target c++11 } }
+// { dg-skip-if "requires hosted libstdc++ for cassert" { ! hostedlib } }
 
 #include <cassert>
 #include <cstring>
 
 int
-operator"" _raw_umber(const char * str)
+operator ""_raw_umber(const char * str)
 {
   return strlen(str);
 }

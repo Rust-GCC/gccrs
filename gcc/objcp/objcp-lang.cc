@@ -1,5 +1,5 @@
 /* Language-dependent hooks for Objective-C++.
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    Contributed by Ziemowit Laski  <zlaski@apple.com>
 
 This file is part of GCC.
@@ -38,7 +38,7 @@ static void objcxx_init_ts (void);
 #define LANG_HOOKS_NAME "GNU Objective-C++"
 #undef LANG_HOOKS_INIT
 #define LANG_HOOKS_INIT objc_init
-#undef LANG_HOOKS_GIMPLIFY_EXPR 
+#undef LANG_HOOKS_GIMPLIFY_EXPR
 #define LANG_HOOKS_GIMPLIFY_EXPR objc_gimplify_expr
 #undef LANG_HOOKS_INIT_TS
 #define LANG_HOOKS_INIT_TS objcxx_init_ts

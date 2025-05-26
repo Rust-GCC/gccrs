@@ -1,5 +1,5 @@
 /* Function summary pass.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -33,7 +33,7 @@ along with GCC; see the file COPYING3.  If not see
    present in the callgraph).
 
    We provide access to the ipa_fn_summary data structure and
-   basic logic updating the parameters when inlining is performed. 
+   basic logic updating the parameters when inlining is performed.
 
    The summaries are context sensitive.  Context means
      1) partial assignment of known constant values of operands
@@ -254,6 +254,9 @@ redirect_to_unreachable (struct cgraph_edge *e)
   struct cgraph_node *callee = !e->inline_failed ? e->callee : NULL;
   struct cgraph_node *target
     = cgraph_node::get_create (builtin_decl_unreachable ());
+
+  gcc_checking_assert (lookup_attribute ("cold",
+					 DECL_ATTRIBUTES (target->decl)));
 
   if (e->speculative)
     e = cgraph_edge::resolve_speculation (e, target->decl);
@@ -489,7 +492,7 @@ evaluate_conditions_for_known_args (struct cgraph_node *node,
 	  && !c->agg_contents
 	  && (!val || TREE_CODE (val) != INTEGER_CST))
 	{
-	  Value_Range vr (avals->m_known_value_ranges[c->operand_num]);
+	  value_range vr (avals->m_known_value_ranges[c->operand_num]);
 	  if (!vr.undefined_p ()
 	      && !vr.varying_p ()
 	      && (TYPE_SIZE (c->type) == TYPE_SIZE (vr.type ())))
@@ -502,10 +505,10 @@ evaluate_conditions_for_known_args (struct cgraph_node *node,
 		  if (vr.varying_p () || vr.undefined_p ())
 		    break;
 
-		  Value_Range res (op->type);
+		  value_range res (op->type);
 		  if (!op->val[0])
 		    {
-		      Value_Range varying (op->type);
+		      value_range varying (op->type);
 		      varying.set_varying (op->type);
 		      range_op_handler handler (op->code);
 		      if (!handler
@@ -515,10 +518,10 @@ evaluate_conditions_for_known_args (struct cgraph_node *node,
 		    }
 		  else if (!op->val[1])
 		    {
-		      Value_Range op0 (op->type);
+		      value_range op0 (TREE_TYPE (op->val[0]));
 		      range_op_handler handler (op->code);
 
-		      ipa_range_set_and_normalize (op0, op->val[0]);
+		      ipa_get_range_from_ip_invariant (op0, op->val[0], node);
 
 		      if (!handler
 			  || !res.supports_type_p (op->type)
@@ -534,10 +537,10 @@ evaluate_conditions_for_known_args (struct cgraph_node *node,
 	      if (!vr.varying_p () && !vr.undefined_p ())
 		{
 		  int_range<2> res;
-		  Value_Range val_vr (TREE_TYPE (c->val));
+		  value_range val_vr (TREE_TYPE (c->val));
 		  range_op_handler handler (c->code);
 
-		  ipa_range_set_and_normalize (val_vr, c->val);
+		  ipa_get_range_from_ip_invariant (val_vr, c->val, node);
 
 		  if (!handler
 		      || !val_vr.supports_type_p (TREE_TYPE (c->val))
@@ -675,14 +678,18 @@ evaluate_properties_for_edge (struct cgraph_edge *e, bool inline_p,
 		    && vrp_will_run_p (caller)
 		    && ipa_is_param_used_by_ipa_predicates (callee_pi, i))
 		  {
-		    Value_Range vr (type);
+		    value_range vr (type);
 
 		    ipa_value_range_from_jfunc (vr, caller_parms_info, e, jf, type);
 		    if (!vr.undefined_p () && !vr.varying_p ())
 		      {
 			if (!avals->m_known_value_ranges.length ())
-			  avals->m_known_value_ranges.safe_grow_cleared (count,
-									 true);
+			  {
+			    avals->m_known_value_ranges.safe_grow_cleared (count,
+									   true);
+			    for (int i = 0; i < count; ++i)
+			      avals->m_known_value_ranges[i].set_type (void_type_node);
+			  }
 			avals->m_known_value_ranges[i] = vr;
 		      }
 		  }
@@ -1418,7 +1425,7 @@ eliminated_by_inlining_prob (ipa_func_body_info *fbi, gimple *stmt)
 	    lhs_free = true;
 
 	  /* Writes to parameters, parameters passed by value and return value
-	     (either directly or passed via invisible reference) are free.  
+	     (either directly or passed via invisible reference) are free.
 
 	     TODO: We ought to handle testcase like
 	     struct a {int a,b;};
@@ -2257,7 +2264,7 @@ record_modified (ao_ref *ao ATTRIBUTE_UNUSED, tree vdef, void *data)
 }
 
 /* Return probability (based on REG_BR_PROB_BASE) that I-th parameter of STMT
-   will change since last invocation of STMT. 
+   will change since last invocation of STMT.
 
    Value 0 is reserved for compile time invariants.
    For common parameters it is REG_BR_PROB_BASE.  For loop invariants it
@@ -2280,7 +2287,7 @@ param_change_prob (ipa_func_body_info *fbi, gimple *stmt, int i)
 
   /* We would have to do non-trivial analysis to really work out what
      is the probability of value to change (i.e. when init statement
-     is in a sibling loop of the call). 
+     is in a sibling loop of the call).
 
      We do an conservative estimate: when call is executed N times more often
      than the statement defining value, we take the frequency 1/N.  */
@@ -2352,12 +2359,12 @@ param_change_prob (ipa_func_body_info *fbi, gimple *stmt, int i)
 	max = max.max (BASIC_BLOCK_FOR_FN (cfun, index)->count);
       if (dump_file)
 	{
-          fprintf (dump_file, "     Set with count ");	
+          fprintf (dump_file, "     Set with count ");
 	  max.dump (dump_file);
-          fprintf (dump_file, " and used with count ");	
+          fprintf (dump_file, " and used with count ");
 	  bb->count.dump (dump_file);
           fprintf (dump_file, " freq %f\n",
-		   max.to_sreal_scale (bb->count).to_double ());	
+		   max.to_sreal_scale (bb->count).to_double ());
 	}
 
       BITMAP_FREE (info.bb_set);
@@ -2536,7 +2543,7 @@ find_foldable_builtin_expect (basic_block bb)
 /* Return true when the basic blocks contains only clobbers followed by RESX.
    Such BBs are kept around to make removal of dead stores possible with
    presence of EH and will be optimized out by optimize_clobbers later in the
-   game. 
+   game.
 
    NEED_EH is used to recurse in case the clobber has non-EH predecessors
    that can be clobber only, too.. When it is false, the RESX is not necessary
@@ -2644,7 +2651,9 @@ points_to_local_or_readonly_memory_p (tree t)
 	return true;
       return !ptr_deref_may_alias_global_p (t, false);
     }
-  if (TREE_CODE (t) == ADDR_EXPR)
+  if (TREE_CODE (t) == ADDR_EXPR
+      && (TREE_CODE (TREE_OPERAND (t, 0)) != TARGET_MEM_REF
+	  || TREE_CODE (TREE_OPERAND (TREE_OPERAND (t, 0), 0)) != INTEGER_CST))
     return refs_local_or_readonly_memory_p (TREE_OPERAND (t, 0));
   return false;
 }
@@ -2665,6 +2674,170 @@ points_to_possible_sra_candidate_p (tree t)
       && auto_var_in_fn_p (t, current_function_decl))
     return true;
   return false;
+}
+
+/* Return true if BB only calls builtin_unreachable.
+   We skip empty basic blocks, debug statements, clobbers and predicts.
+   CACHE is used to memoize already analyzed blocks.  */
+
+static bool
+builtin_unreachable_bb_p (basic_block bb, vec<unsigned char> &cache)
+{
+  if (cache[bb->index])
+    return cache[bb->index] - 1;
+  gimple_stmt_iterator si;
+  auto_vec <basic_block, 4> visited_bbs;
+  bool ret = false;
+  while (true)
+    {
+      bool empty_bb = true;
+      visited_bbs.safe_push (bb);
+      cache[bb->index] = 3;
+      for (si = gsi_start_nondebug_bb (bb);
+	   !gsi_end_p (si) && empty_bb;
+	   gsi_next_nondebug (&si))
+	{
+	  if (gimple_code (gsi_stmt (si)) != GIMPLE_PREDICT
+	      && !gimple_clobber_p (gsi_stmt (si))
+	      && !gimple_nop_p (gsi_stmt (si)))
+	    {
+	      empty_bb = false;
+	      break;
+	    }
+	}
+      if (!empty_bb)
+	break;
+      else
+	bb = single_succ_edge (bb)->dest;
+      if (cache[bb->index])
+	{
+	  ret = cache[bb->index] == 3 ? false : cache[bb->index] - 1;
+	  goto done;
+	}
+    }
+  if (gimple_call_builtin_p (gsi_stmt (si), BUILT_IN_UNREACHABLE)
+      || gimple_call_builtin_p (gsi_stmt (si), BUILT_IN_UNREACHABLE_TRAP))
+    ret = true;
+done:
+  for (basic_block vbb:visited_bbs)
+    cache[vbb->index] = (unsigned char)ret + 1;
+  return ret;
+}
+
+static bool
+guards_builtin_unreachable (basic_block bb, vec<unsigned char> &cache)
+{
+  edge_iterator ei;
+  edge e;
+  FOR_EACH_EDGE (e, ei, bb->succs)
+    if (builtin_unreachable_bb_p (e->dest, cache))
+      {
+	if (dump_file && (dump_flags & TDF_DETAILS))
+	  fprintf (dump_file,
+		   "BB %i ends with conditional guarding __builtin_unreachable;"
+		   " conditinal is unnecesary\n", bb->index);
+	return true;
+      }
+  return false;
+}
+
+#define STMT_NECESSARY GF_PLF_1
+
+/* If STMT is not already marked necessary, mark it, and add it to the
+   worklist if ADD_TO_WORKLIST is true.  */
+
+static inline void
+mark_stmt_necessary (gimple *stmt, auto_vec<gimple *> &worklist)
+{
+  gcc_assert (stmt);
+
+  if (gimple_plf (stmt, STMT_NECESSARY))
+    return;
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "Marking useful stmt: ");
+      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
+      fprintf (dump_file, "\n");
+    }
+
+  gimple_set_plf (stmt, STMT_NECESSARY, true);
+  worklist.safe_push (stmt);
+}
+
+/* Mark the statement defining operand OP as necessary.  */
+
+static inline void
+mark_operand_necessary (tree op, auto_vec<gimple *> &worklist)
+{
+  gimple *stmt = SSA_NAME_DEF_STMT (op);
+  if (gimple_nop_p (stmt))
+    return;
+  mark_stmt_necessary (stmt, worklist);
+}
+
+/* Mark all statements that will remain in the body after optimizing out
+   conditionals guarding __builtin_unreachable which we keep to preserve
+   value ranges.  */
+
+static void
+find_necessary_statements (struct cgraph_node *node)
+{
+  struct function *my_function = DECL_STRUCT_FUNCTION (node->decl);
+  auto_vec<unsigned char, 10> cache;
+  basic_block bb;
+  auto_vec<gimple *> worklist;
+
+  cache.safe_grow_cleared (last_basic_block_for_fn (cfun));
+  /* Mark all obviously necessary statements.  */
+  FOR_EACH_BB_FN (bb, my_function)
+    {
+      for (gimple_stmt_iterator gsi = gsi_start_phis (bb);
+	   !gsi_end_p (gsi); gsi_next (&gsi))
+	gimple_set_plf (gsi_stmt (gsi), STMT_NECESSARY, false);
+
+      for (gimple_stmt_iterator bsi = gsi_start_bb (bb); !gsi_end_p (bsi);
+	   gsi_next_nondebug (&bsi))
+	{
+	  gimple *stmt = gsi_stmt (bsi);
+
+	  gimple_set_plf (stmt, STMT_NECESSARY, false);
+	  if (gimple_has_side_effects (stmt)
+	      || (is_ctrl_stmt (stmt)
+		  && (gimple_code (stmt) != GIMPLE_COND
+		      || !guards_builtin_unreachable (bb, cache)))
+	      || gimple_store_p (stmt)
+	      || gimple_code (stmt) == GIMPLE_ASM)
+	    mark_stmt_necessary (stmt, worklist);
+	}
+    }
+  while (worklist.length () > 0)
+    {
+      gimple *stmt = worklist.pop ();
+
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	{
+	  fprintf (dump_file, "processing: ");
+	  print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
+	  fprintf (dump_file, "\n");
+	}
+      if (gimple_code (stmt) == GIMPLE_PHI)
+	for (unsigned int k = 0; k < gimple_phi_num_args (stmt); k++)
+	  {
+	    tree arg = PHI_ARG_DEF (stmt, k);
+
+	    if (TREE_CODE (arg) == SSA_NAME)
+	      mark_operand_necessary (arg, worklist);
+	  }
+      else
+	{
+	  ssa_op_iter iter;
+	  tree use;
+
+	  FOR_EACH_SSA_TREE_OPERAND (use, stmt, iter, SSA_OP_USE)
+	    mark_operand_necessary (use, worklist);
+	}
+    }
 }
 
 /* Analyze function body for NODE.
@@ -2705,13 +2878,13 @@ analyze_function_body (struct cgraph_node *node, bool early)
 
      When optimizing and analyzing for early inliner, initialize node params
      so we can produce correct BB predicates.  */
-     
+
   if (opt_for_fn (node->decl, optimize))
     {
       calculate_dominance_info (CDI_DOMINATORS);
       calculate_dominance_info (CDI_POST_DOMINATORS);
       if (!early)
-        loop_optimizer_init (LOOPS_NORMAL | LOOPS_HAVE_RECORDED_EXITS);
+	loop_optimizer_init (LOOPS_NORMAL | LOOPS_HAVE_RECORDED_EXITS);
       else
 	{
 	  ipa_check_create_node_params ();
@@ -2758,6 +2931,7 @@ analyze_function_body (struct cgraph_node *node, bool early)
 
   if (fbi.info)
     compute_bb_predicates (&fbi, node, info, params_summary);
+  find_necessary_statements (node);
   const profile_count entry_count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
   order = XNEWVEC (int, n_basic_blocks_for_fn (cfun));
   nblocks = pre_and_rev_post_order_compute (NULL, order, false);
@@ -2823,6 +2997,21 @@ analyze_function_body (struct cgraph_node *node, bool early)
 	   !gsi_end_p (bsi); gsi_next_nondebug (&bsi))
 	{
 	  gimple *stmt = gsi_stmt (bsi);
+	  if (!gimple_plf (stmt, STMT_NECESSARY))
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		{
+		  fprintf (dump_file, "  skipping unnecesary stmt ");
+		  print_gimple_stmt (dump_file, stmt, 0);
+		}
+	      /* TODO: const calls used only to produce values for
+		 builtion_unreachable guards should not be accounted.  However
+		 we still want to inline them and this does does not work well
+		 with the cost model.  For now account them as usual.  */
+	      if (!is_gimple_call (stmt)
+		  || gimple_call_internal_p (stmt))
+		continue;
+	    }
 	  int this_size = estimate_num_insns (stmt, &eni_size_weights);
 	  int this_time = estimate_num_insns (stmt, &eni_time_weights);
 	  int prob;
@@ -3922,7 +4111,7 @@ ipa_call_context::estimate_size_and_time (ipa_call_estimates *estimates,
 	    }
 	  else
 	    {
-	      int prob = e->nonconst_predicate.probability 
+	      int prob = e->nonconst_predicate.probability
 					       (info->conds, m_possible_truths,
 					        m_inline_param_summary);
 	      gcc_checking_assert (prob >= 0);
@@ -4494,9 +4683,9 @@ read_ipa_call_summary (class lto_input_block *ib, struct cgraph_edge *e,
 
   bitpack_d bp = streamer_read_bitpack (ib);
   if (es)
-    es->is_return_callee_uncaptured = bp_unpack_value (&bp, 1);	
+    es->is_return_callee_uncaptured = bp_unpack_value (&bp, 1);
   else
-    bp_unpack_value (&bp, 1);	
+    bp_unpack_value (&bp, 1);
 
   p.stream_in (ib);
   if (es)
@@ -4514,9 +4703,9 @@ read_ipa_call_summary (class lto_input_block *ib, struct cgraph_edge *e,
 	  es->param[i].change_prob = streamer_read_uhwi (ib);
 	  bitpack_d bp = streamer_read_bitpack (ib);
 	  es->param[i].points_to_local_or_readonly_memory
-	    = bp_unpack_value (&bp, 1);	
+	    = bp_unpack_value (&bp, 1);
 	  es->param[i].points_to_possible_sra_candidate
-	    = bp_unpack_value (&bp, 1);	
+	    = bp_unpack_value (&bp, 1);
 	}
     }
   else
@@ -4905,7 +5094,7 @@ ipa_fn_summary_write (void)
 	}
     }
   streamer_write_char_stream (ob->main_stream, 0);
-  produce_asm (ob, NULL);
+  produce_asm (ob);
   destroy_output_block (ob);
 
   ipa_prop_write_jump_functions ();

@@ -1,5 +1,5 @@
 /* Generic routines for manipulating SSA_NAME expressions
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "tree-pass.h"
 #include "ssa.h"
+#include "gimple-pretty-print.h"
 #include "gimple-iterator.h"
 #include "stor-layout.h"
 #include "tree-into-ssa.h"
@@ -425,23 +426,34 @@ set_range_info (tree name, const vrange &r)
       struct ptr_info_def *pi = get_ptr_info (name);
       // If R is nonnull and pi is not, set nonnull.
       if (r.nonzero_p () && (!pi || pi->pt.null))
-	{
-	  set_ptr_nonnull (name);
-	  return true;
-	}
-      return false;
+	set_ptr_nonnull (name);
+      else
+	return false;
     }
-
-  Value_Range tmp (type);
-  if (range_info_p (name))
-    range_info_get_range (name, tmp);
   else
-    tmp.set_varying (type);
-  // If the result doesn't change, or is undefined, return false.
-  if (!tmp.intersect (r) || tmp.undefined_p ())
-    return false;
-
-  return range_info_set_range (name, tmp);
+    {
+      value_range tmp (type);
+      if (range_info_p (name))
+	range_info_get_range (name, tmp);
+      else
+	tmp.set_varying (type);
+      // If the result doesn't change, or is undefined, return false.
+      if (!tmp.intersect (r) || tmp.undefined_p ())
+	return false;
+      if (!range_info_set_range (name, tmp))
+	return false;
+    }
+  if (dump_file)
+    {
+      value_range tmp (type);
+      fprintf (dump_file, "Global Exported: ");
+      print_generic_expr (dump_file, name, TDF_SLIM);
+      fprintf (dump_file, " = ");
+      gimple_range_global (tmp, name);
+      tmp.dump (dump_file);
+      fputc ('\n', dump_file);
+    }
+  return true;
 }
 
 /* Set nonnull attribute to pointer NAME.  */
@@ -481,18 +493,24 @@ set_bitmask (tree name, const wide_int &value, const wide_int &mask)
   set_range_info (name, r);
 }
 
-/* Return a widest_int with potentially non-zero bits in SSA_NAME
+/* Return a wide_int with potentially non-zero bits in SSA_NAME
    NAME, the constant for INTEGER_CST, or -1 if unknown.  */
 
-wide_int
-get_nonzero_bits (const_tree name)
+static wide_int
+get_nonzero_bits_1 (const_tree name)
 {
   if (TREE_CODE (name) == INTEGER_CST)
     return wi::to_wide (name);
 
+  if (POLY_INT_CST_P (name))
+    return -known_alignment (wi::to_poly_wide (name));
+
   /* Use element_precision instead of TYPE_PRECISION so complex and
      vector types get a non-zero precision.  */
   unsigned int precision = element_precision (TREE_TYPE (name));
+  if (TREE_CODE (name) != SSA_NAME)
+    return wi::shwi (-1, precision);
+
   if (POINTER_TYPE_P (TREE_TYPE (name)))
     {
       struct ptr_info_def *pi = SSA_NAME_PTR_INFO (name);
@@ -508,6 +526,81 @@ get_nonzero_bits (const_tree name)
   int_range_max tmp;
   range_info_get_range (name, tmp);
   return tmp.get_nonzero_bits ();
+}
+
+/* Return a wide_int with potentially non-zero bits in SSA_NAME
+   NAME, the constant for INTEGER_CST, or -1 if unknown.
+   In addition to what get_nonzero_bits_1 handles, this handles one
+   level of BIT_AND_EXPR, either as a def_stmt or tree directly.  */
+
+wide_int
+get_nonzero_bits (const_tree name)
+{
+  if (TREE_CODE (name) == BIT_AND_EXPR)
+    return (get_nonzero_bits_1 (TREE_OPERAND (name, 0))
+	    & get_nonzero_bits_1 (TREE_OPERAND (name, 1)));
+  if (TREE_CODE (name) == SSA_NAME)
+    {
+      gimple *g = SSA_NAME_DEF_STMT (name);
+      if (g
+	  && is_gimple_assign (g)
+	  && gimple_assign_rhs_code (g) == BIT_AND_EXPR)
+	return (get_nonzero_bits_1 (name)
+		& get_nonzero_bits_1 (gimple_assign_rhs1 (g))
+		& get_nonzero_bits_1 (gimple_assign_rhs2 (g)));
+    }
+  return get_nonzero_bits_1 (name);
+}
+
+/* Return a wide_int with known non-zero bits in SSA_NAME
+   NAME (bits whose values aren't known are also clear), the constant
+   for INTEGER_CST, or 0 if unknown.  */
+
+static wide_int
+get_known_nonzero_bits_1 (const_tree name)
+{
+  if (TREE_CODE (name) == INTEGER_CST)
+    return wi::to_wide (name);
+
+  /* Use element_precision instead of TYPE_PRECISION so complex and
+     vector types get a non-zero precision.  */
+  unsigned int precision = element_precision (TREE_TYPE (name));
+  if (TREE_CODE (name) != SSA_NAME || POINTER_TYPE_P (TREE_TYPE (name)))
+    return wi::shwi (0, precision);
+
+  if (!range_info_p (name) || !irange::supports_p (TREE_TYPE (name)))
+    return wi::shwi (0, precision);
+
+  int_range_max tmp;
+  range_info_get_range (name, tmp);
+  if (tmp.undefined_p ())
+    return wi::shwi (0, precision);
+  irange_bitmask bm = tmp.get_bitmask ();
+  return bm.value () & ~bm.mask ();
+}
+
+/* Return a wide_int with known non-zero bits in SSA_NAME
+   NAME, the constant for INTEGER_CST, or -1 if unknown.
+   In addition to what get_known_nonzero_bits_1 handles, this handles one
+   level of BIT_IOR_EXPR, either as a def_stmt or tree directly.  */
+
+wide_int
+get_known_nonzero_bits (const_tree name)
+{
+  if (TREE_CODE (name) == BIT_IOR_EXPR)
+    return (get_known_nonzero_bits_1 (TREE_OPERAND (name, 0))
+	    | get_known_nonzero_bits_1 (TREE_OPERAND (name, 1)));
+  if (TREE_CODE (name) == SSA_NAME)
+    {
+      gimple *g = SSA_NAME_DEF_STMT (name);
+      if (g
+	  && is_gimple_assign (g)
+	  && gimple_assign_rhs_code (g) == BIT_IOR_EXPR)
+	return (get_known_nonzero_bits_1 (name)
+		| get_known_nonzero_bits_1 (gimple_assign_rhs1 (g))
+		| get_known_nonzero_bits_1 (gimple_assign_rhs2 (g)));
+    }
+  return get_known_nonzero_bits_1 (name);
 }
 
 /* Return TRUE is OP, an SSA_NAME has a range of values [0..1], false
@@ -751,10 +844,32 @@ duplicate_ssa_name_range_info (tree name, tree src)
 
   if (range_info_p (src))
     {
-      Value_Range src_range (TREE_TYPE (src));
+      value_range src_range (TREE_TYPE (src));
       range_info_get_range (src, src_range);
       range_info_set_range (name, src_range);
     }
+}
+
+/* For a SSA copy DEST = SRC duplicate SSA info present on DEST to SRC
+   to preserve it in case DEST is eliminated to SRC.  */
+
+void
+maybe_duplicate_ssa_info_at_copy (tree dest, tree src)
+{
+  /* While points-to info is flow-insensitive we have to avoid copying
+     info from not executed regions invoking UB to dominating defs.  */
+  if (gimple_bb (SSA_NAME_DEF_STMT (src))
+      != gimple_bb (SSA_NAME_DEF_STMT (dest)))
+    return;
+
+  if (POINTER_TYPE_P (TREE_TYPE (dest))
+      && SSA_NAME_PTR_INFO (dest)
+      && ! SSA_NAME_PTR_INFO (src))
+    duplicate_ssa_name_ptr_info (src, SSA_NAME_PTR_INFO (dest));
+  else if (INTEGRAL_TYPE_P (TREE_TYPE (dest))
+	   && SSA_NAME_RANGE_INFO (dest)
+	   && ! SSA_NAME_RANGE_INFO (src))
+    duplicate_ssa_name_range_info (src, dest);
 }
 
 

@@ -1,5 +1,5 @@
 /* Handling for the known behavior of various specific functions.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -116,39 +116,54 @@ kf_alloca::impl_call_pre (const call_details &cd) const
   cd.maybe_set_lhs (ptr_sval);
 }
 
-/* Handler for:
-   void __atomic_exchange (type *ptr, type *val, type *ret, int memorder).  */
+/* Handler for __atomic_exchange.
+   Although the user-facing documentation specifies it as having this
+   signature:
+     void __atomic_exchange (type *ptr, type *val, type *ret, int memorder)
+
+   by the time the C/C++ frontends have acted on it, any calls that
+   can't be mapped to a _N variation end up with this signature:
+
+     void
+     __atomic_exchange (size_t sz, void *ptr, void *val, void *ret,
+			int memorder)
+
+   as seen in the gimple seen by the analyzer, and as specified
+   in sync-builtins.def.  */
 
 class kf_atomic_exchange : public internal_known_function
 {
 public:
   /* This is effectively:
-       *RET = *PTR;
-       *PTR = *VAL;
+       tmpA = *PTR;
+       tmpB = *VAL;
+       *PTR = tmpB;
+       *RET = tmpA;
   */
   void impl_call_pre (const call_details &cd) const final override
   {
-    const svalue *ptr_ptr_sval = cd.get_arg_svalue (0);
-    tree ptr_ptr_tree = cd.get_arg_tree (0);
-    const svalue *val_ptr_sval = cd.get_arg_svalue (1);
-    tree val_ptr_tree = cd.get_arg_tree (1);
-    const svalue *ret_ptr_sval = cd.get_arg_svalue (2);
-    tree ret_ptr_tree = cd.get_arg_tree (2);
+    const svalue *num_bytes_sval = cd.get_arg_svalue (0);
+    const svalue *ptr_sval = cd.get_arg_svalue (1);
+    tree ptr_tree = cd.get_arg_tree (1);
+    const svalue *val_sval = cd.get_arg_svalue (2);
+    tree val_tree = cd.get_arg_tree (2);
+    const svalue *ret_sval = cd.get_arg_svalue (3);
+    tree ret_tree = cd.get_arg_tree (3);
     /* Ignore the memorder param.  */
 
     region_model *model = cd.get_model ();
     region_model_context *ctxt = cd.get_ctxt ();
 
-    const region *val_region
-      = model->deref_rvalue (val_ptr_sval, val_ptr_tree, ctxt);
-    const svalue *star_val_sval = model->get_store_value (val_region, ctxt);
-    const region *ptr_region
-      = model->deref_rvalue (ptr_ptr_sval, ptr_ptr_tree, ctxt);
-    const svalue *star_ptr_sval = model->get_store_value (ptr_region, ctxt);
-    const region *ret_region
-      = model->deref_rvalue (ret_ptr_sval, ret_ptr_tree, ctxt);
-    model->set_value (ptr_region, star_val_sval, ctxt);
-    model->set_value (ret_region, star_ptr_sval, ctxt);
+    const region *ptr_reg = model->deref_rvalue (ptr_sval, ptr_tree, ctxt);
+    const region *val_reg = model->deref_rvalue (val_sval, val_tree, ctxt);
+    const region *ret_reg = model->deref_rvalue (ret_sval, ret_tree, ctxt);
+
+    const svalue *tmp_a_sval
+      = model->read_bytes (ptr_reg, ptr_tree, num_bytes_sval, ctxt);
+    const svalue *tmp_b_sval
+      = model->read_bytes (val_reg, val_tree, num_bytes_sval, ctxt);
+    model->write_bytes (ptr_reg, num_bytes_sval, tmp_b_sval, ctxt);
+    model->write_bytes (ret_reg, num_bytes_sval, tmp_a_sval, ctxt);
   }
 };
 
@@ -265,32 +280,85 @@ private:
   enum tree_code m_op;
 };
 
-/* Handler for:
-   void __atomic_load (type *ptr, type *ret, int memorder).  */
+/* Handler for __atomic_load.
+   Although the user-facing documentation specifies it as having this
+   signature:
+
+      void __atomic_load (type *ptr, type *ret, int memorder)
+
+   by the time the C/C++ frontends have acted on it, any calls that
+   can't be mapped to a _N variation end up with this signature:
+
+      void __atomic_load (size_t sz, const void *src, void *dst, int memorder);
+
+   as seen in the gimple seen by the analyzer, and as specified
+   in sync-builtins.def.  */
 
 class kf_atomic_load : public internal_known_function
 {
 public:
   /* This is effectively:
-       *RET = *PTR;
+       memmove (dst, src, sz);
   */
   void impl_call_pre (const call_details &cd) const final override
   {
-    const svalue *ptr_ptr_sval = cd.get_arg_svalue (0);
-    tree ptr_ptr_tree = cd.get_arg_tree (0);
-    const svalue *ret_ptr_sval = cd.get_arg_svalue (1);
-    tree ret_ptr_tree = cd.get_arg_tree (1);
+    const svalue *num_bytes_sval = cd.get_arg_svalue (0);
+    const svalue *src_sval = cd.get_arg_svalue (1);
+    tree src_tree = cd.get_arg_tree (1);
+    const svalue *dst_sval = cd.get_arg_svalue (2);
+    tree dst_tree = cd.get_arg_tree (2);
     /* Ignore the memorder param.  */
 
     region_model *model = cd.get_model ();
     region_model_context *ctxt = cd.get_ctxt ();
 
-    const region *ptr_region
-      = model->deref_rvalue (ptr_ptr_sval, ptr_ptr_tree, ctxt);
-    const svalue *star_ptr_sval = model->get_store_value (ptr_region, ctxt);
-    const region *ret_region
-      = model->deref_rvalue (ret_ptr_sval, ret_ptr_tree, ctxt);
-    model->set_value (ret_region, star_ptr_sval, ctxt);
+    const region *dst_reg = model->deref_rvalue (dst_sval, dst_tree, ctxt);
+    const region *src_reg = model->deref_rvalue (src_sval, src_tree, ctxt);
+
+    const svalue *data_sval
+      = model->read_bytes (src_reg, src_tree, num_bytes_sval, ctxt);
+    model->write_bytes (dst_reg, num_bytes_sval, data_sval, ctxt);
+  }
+};
+
+/* Handler for __atomic_store.
+   Although the user-facing documentation specifies it as having this
+   signature:
+
+      void __atomic_store (type *ptr, type *val, int memorder)
+
+   by the time the C/C++ frontends have acted on it, any calls that
+   can't be mapped to a _N variation end up with this signature:
+
+      void __atomic_store (size_t sz, type *dst, type *src, int memorder)
+
+   as seen in the gimple seen by the analyzer, and as specified
+   in sync-builtins.def.  */
+
+class kf_atomic_store : public internal_known_function
+{
+public:
+  /* This is effectively:
+       memmove (dst, src, sz);
+  */
+  void impl_call_pre (const call_details &cd) const final override
+  {
+    const svalue *num_bytes_sval = cd.get_arg_svalue (0);
+    const svalue *dst_sval = cd.get_arg_svalue (1);
+    tree dst_tree = cd.get_arg_tree (1);
+    const svalue *src_sval = cd.get_arg_svalue (2);
+    tree src_tree = cd.get_arg_tree (2);
+    /* Ignore the memorder param.  */
+
+    region_model *model = cd.get_model ();
+    region_model_context *ctxt = cd.get_ctxt ();
+
+    const region *dst_reg = model->deref_rvalue (dst_sval, dst_tree, ctxt);
+    const region *src_reg = model->deref_rvalue (src_sval, src_tree, ctxt);
+
+    const svalue *data_sval
+      = model->read_bytes (src_reg, src_tree, num_bytes_sval, ctxt);
+    model->write_bytes (dst_reg, num_bytes_sval, data_sval, ctxt);
   }
 };
 
@@ -748,14 +816,19 @@ public:
     return warned;
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     if (m_var_decl)
-      return ev.formatted_print ("%qE on a pointer to automatic variable %qE",
-				 m_fndecl, m_var_decl);
+      pp_printf  (&pp,
+		  "%qE on a pointer to automatic variable %qE",
+		  m_fndecl, m_var_decl);
     else
-      return ev.formatted_print ("%qE on a pointer to an on-stack buffer",
-				 m_fndecl);
+      pp_printf  (&pp,
+		  "%qE on a pointer to an on-stack buffer",
+		  m_fndecl);
+    return true;
   }
 
   void mark_interesting_stuff (interesting_t *interest) final override
@@ -900,11 +973,11 @@ kf_realloc::impl_call_post (const call_details &cd) const
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
-      return make_label_text (can_colorize,
-			      "when %qE succeeds, without moving buffer",
-			      get_fndecl ());
+      pp_printf (&pp,
+		 "when %qE succeeds, without moving buffer",
+		 get_fndecl ());
     }
 
     bool update_model (region_model *model,
@@ -953,11 +1026,11 @@ kf_realloc::impl_call_post (const call_details &cd) const
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
-      return make_label_text (can_colorize,
-			      "when %qE succeeds, moving buffer",
-			      get_fndecl ());
+      pp_printf (&pp,
+		 "when %qE succeeds, moving buffer",
+		 get_fndecl ());
     }
     bool update_model (region_model *model,
 		       const exploded_edge *,
@@ -1095,16 +1168,16 @@ kf_strchr::impl_call_post (const call_details &cd) const
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
       if (m_found)
-	return make_label_text (can_colorize,
-				"when %qE returns non-NULL",
-				get_fndecl ());
+	pp_printf (&pp,
+		   "when %qE returns non-NULL",
+		   get_fndecl ());
       else
-	return make_label_text (can_colorize,
-				"when %qE returns NULL",
-				get_fndecl ());
+	pp_printf (&pp,
+		   "when %qE returns NULL",
+		   get_fndecl ());
     }
 
     bool update_model (region_model *model,
@@ -1451,16 +1524,16 @@ kf_strncpy::impl_call_post (const call_details &cd) const
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
       if (m_truncated_read)
-	return make_label_text (can_colorize,
-				"when %qE truncates the source string",
-				get_fndecl ());
+	pp_printf (&pp,
+		   "when %qE truncates the source string",
+		   get_fndecl ());
       else
-	return make_label_text (can_colorize,
-				"when %qE copies the full source string",
-				get_fndecl ());
+	pp_printf (&pp,
+		   "when %qE copies the full source string",
+		   get_fndecl ());
     }
 
     bool update_model (region_model *model,
@@ -1652,16 +1725,16 @@ kf_strstr::impl_call_post (const call_details &cd) const
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
       if (m_found)
-	return make_label_text (can_colorize,
-				"when %qE returns non-NULL",
-				get_fndecl ());
+	pp_printf (&pp,
+		   "when %qE returns non-NULL",
+		   get_fndecl ());
       else
-	return make_label_text (can_colorize,
-				"when %qE returns NULL",
-				get_fndecl ());
+	pp_printf (&pp,
+		   "when %qE returns NULL",
+		   get_fndecl ());
     }
 
     bool update_model (region_model *model,
@@ -1746,13 +1819,15 @@ public:
       return false;
     }
 
-    label_text describe_final_event (const evdesc::final_event &ev)
-      final override
+    bool
+    describe_final_event (pretty_printer &pp,
+			  const evdesc::final_event &) final override
     {
-      return ev.formatted_print
-	("calling %qD for first time with NULL as argument 1"
-	 " has undefined behavior",
-	 get_callee_fndecl ());
+      pp_printf (&pp,
+		 "calling %qD for first time with NULL as argument 1"
+		 " has undefined behavior",
+		 get_callee_fndecl ());
+      return true;
     }
   };
 
@@ -1776,33 +1851,30 @@ public:
     {
     }
 
-    label_text get_desc (bool can_colorize) const final override
+    void print_desc (pretty_printer &pp) const final override
     {
       if (m_nonnull_str)
 	{
 	  if (m_found)
-	    return make_label_text
-	      (can_colorize,
-	       "when %qE on non-NULL string returns non-NULL",
-	       get_fndecl ());
+	    pp_printf (&pp,
+		       "when %qE on non-NULL string returns non-NULL",
+		       get_fndecl ());
 	  else
-	    return make_label_text
-	      (can_colorize,
-	       "when %qE on non-NULL string returns NULL",
-	       get_fndecl ());
+	    pp_printf (&pp,
+		       "when %qE on non-NULL string returns NULL",
+		       get_fndecl ());
 	}
       else
 	{
 	  if (m_found)
-	    return make_label_text
-	      (can_colorize,
-	       "when %qE with NULL string (using prior) returns non-NULL",
-	       get_fndecl ());
+	    pp_printf (&pp,
+		       "when %qE with NULL string (using prior) returns"
+		       " non-NULL",
+		       get_fndecl ());
 	  else
-	    return make_label_text
-	      (can_colorize,
-	       "when %qE with NULL string (using prior) returns NULL",
-	       get_fndecl ());
+	    pp_printf (&pp,
+		       "when %qE with NULL string (using prior) returns NULL",
+		       get_fndecl ());
 	}
     }
 
@@ -1989,11 +2061,6 @@ private:
   const private_region m_private_reg;
 };
 
-class kf_ubsan_bounds : public internal_known_function
-{
-  /* Empty.  */
-};
-
 /* Handle calls to functions referenced by
    __attribute__((malloc(FOO))).  */
 
@@ -2021,6 +2088,7 @@ register_atomic_builtins (known_function_manager &kfm)
   kfm.add (BUILT_IN_ATOMIC_LOAD_4, make_unique<kf_atomic_load_n> ());
   kfm.add (BUILT_IN_ATOMIC_LOAD_8, make_unique<kf_atomic_load_n> ());
   kfm.add (BUILT_IN_ATOMIC_LOAD_16, make_unique<kf_atomic_load_n> ());
+  kfm.add (BUILT_IN_ATOMIC_STORE, make_unique<kf_atomic_store> ());
   kfm.add (BUILT_IN_ATOMIC_STORE_N, make_unique<kf_atomic_store_n> ());
   kfm.add (BUILT_IN_ATOMIC_STORE_1, make_unique<kf_atomic_store_n> ());
   kfm.add (BUILT_IN_ATOMIC_STORE_2, make_unique<kf_atomic_store_n> ());
@@ -2129,6 +2197,43 @@ register_atomic_builtins (known_function_manager &kfm)
 	   make_unique<kf_atomic_fetch_op> (BIT_IOR_EXPR));
 }
 
+/* Handle calls to the various IFN_UBSAN_* with no return value.
+   For now, treat these as no-ops.  */
+
+class kf_ubsan_noop : public internal_known_function
+{
+};
+
+/* Handle calls to the various __builtin___ubsan_handle_*.
+   These can return, but continuing after such a return
+   isn't likely to be interesting to the user of the analyzer.
+   Hence we terminate the analysis path at one of these calls.  */
+
+class kf_ubsan_handler : public internal_known_function
+{
+  void impl_call_post (const call_details &cd) const final override
+  {
+    if (cd.get_ctxt ())
+      cd.get_ctxt ()->terminate_path ();
+  }
+};
+
+static void
+register_sanitizer_builtins (known_function_manager &kfm)
+{
+  /* Handle calls to the various IFN_UBSAN_* with no return value.
+     For now, treat these as no-ops.  */
+  kfm.add (IFN_UBSAN_NULL,
+	   make_unique<kf_ubsan_noop> ());
+  kfm.add (IFN_UBSAN_BOUNDS,
+	   make_unique<kf_ubsan_noop> ());
+  kfm.add (IFN_UBSAN_PTR,
+	   make_unique<kf_ubsan_noop> ());
+
+  kfm.add (BUILT_IN_UBSAN_HANDLE_NONNULL_ARG,
+	   make_unique<kf_ubsan_handler> ());
+}
+
 /* Populate KFM with instances of known functions supported by the core of the
    analyzer (as opposed to plugins).  */
 
@@ -2142,7 +2247,6 @@ register_known_functions (known_function_manager &kfm,
   /* Internal fns the analyzer has known_functions for.  */
   {
     kfm.add (IFN_BUILTIN_EXPECT, make_unique<kf_expect> ());
-    kfm.add (IFN_UBSAN_BOUNDS, make_unique<kf_ubsan_bounds> ());
   }
 
   /* GCC built-ins that do not correspond to a function
@@ -2155,6 +2259,7 @@ register_known_functions (known_function_manager &kfm,
     kfm.add (BUILT_IN_STACK_SAVE, make_unique<kf_stack_save> ());
 
     register_atomic_builtins (kfm);
+    register_sanitizer_builtins (kfm);
     register_varargs_builtins (kfm);
   }
 
@@ -2233,6 +2338,10 @@ register_known_functions (known_function_manager &kfm,
     kfm.add ("__errno_location", make_unique<kf_errno_location> ());
     kfm.add ("error", make_unique<kf_error> (3));
     kfm.add ("error_at_line", make_unique<kf_error> (5));
+    /* Variants of "error" and "error_at_line" seen by the
+       analyzer at -O0 (PR analyzer/115724).  */
+    kfm.add ("__error_alias", make_unique<kf_error> (3));
+    kfm.add ("__error_at_line_alias", make_unique<kf_error> (5));
   }
 
   /* Other implementations of C standard library.  */
@@ -2253,6 +2362,28 @@ register_known_functions (known_function_manager &kfm,
 
   /* Language-specific support functions.  */
   register_known_functions_lang_cp (kfm);
+
+  /* Some C++ implementations use the std:: copies of these functions
+     from <cstdlib> etc for the C spellings of these headers (e.g. <stdlib.h>),
+     so we must match against these too.  */
+  {
+    kfm.add_std_ns ("malloc", make_unique<kf_malloc> ());
+    kfm.add_std_ns ("free", make_unique<kf_free> ());
+    kfm.add_std_ns ("realloc", make_unique<kf_realloc> ());
+    kfm.add_std_ns ("calloc", make_unique<kf_calloc> ());
+    kfm.add_std_ns
+      ("memcpy",
+       make_unique<kf_memcpy_memmove> (kf_memcpy_memmove::KF_MEMCPY));
+    kfm.add_std_ns
+      ("memmove",
+       make_unique<kf_memcpy_memmove> (kf_memcpy_memmove::KF_MEMMOVE));
+    kfm.add_std_ns ("memset", make_unique<kf_memset> (false));
+    kfm.add_std_ns ("strcat", make_unique<kf_strcat> (2, false));
+    kfm.add_std_ns ("strcpy", make_unique<kf_strcpy> (2, false));
+    kfm.add_std_ns ("strlen", make_unique<kf_strlen> ());
+    kfm.add_std_ns ("strncpy", make_unique<kf_strncpy> ());
+    kfm.add_std_ns ("strtok", make_unique<kf_strtok> (rmm));
+  }
 }
 
 } // namespace ana

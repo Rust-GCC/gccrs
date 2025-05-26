@@ -1,7 +1,7 @@
 --
 -- m2-c.bnf grammar and associated actions for pass C.
 --
--- Copyright (C) 2001-2024 Free Software Foundation, Inc.
+-- Copyright (C) 2001-2025 Free Software Foundation, Inc.
 -- Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 --
 -- This file is part of GNU Modula-2.
@@ -23,7 +23,7 @@
 (* output from m2-c.bnf, automatically generated do not edit if these
    are the top two lines in the file.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -47,7 +47,7 @@ IMPLEMENTATION MODULE PCBuild ;
 FROM M2LexBuf IMPORT currentstring, currenttoken, GetToken, InsertToken,
                      InsertTokenAndRewind, GetTokenNo, MakeVirtualTok ;
 
-FROM M2Error IMPORT ErrorStringAt, WriteFormat1, WriteFormat2 ;
+FROM M2MetaError IMPORT MetaErrorStringT0 ;
 FROM NameKey IMPORT NulName, Name, makekey ;
 FROM DynamicStrings IMPORT String, InitString, KillString, Mark, ConCat, ConCatChar ;
 FROM M2Printf IMPORT printf0 ;
@@ -61,12 +61,15 @@ FROM M2Reserved IMPORT tokToTok, toktype,
                        OrTok, TimesTok, DivTok, DivideTok, ModTok, RemTok,
                        AndTok, AmbersandTok, PeriodPeriodTok, ByTok ;
 
-FROM M2Quads IMPORT Top, PushT, PopT, PushTF, PopTF, PopNothing, OperandT, PushTFA,
+FROM M2Quads IMPORT Top, PushT, PopT, PushTF, PopTF, PopNothing, OperandT, OperandTok,
+                    PushTFA,
                     PushTFn, PopTFn, PushTFtok, PopTtok, PopTFtok, PushTtok, PushTFntok,
                     PushT, PushTF, IsAutoPushOn, PushAutoOff, PushAutoOn, PopAuto,
+                    DupFrame,
                     BuildTypeForConstructor, BuildConstructor, BuildConstructorEnd,
                     PopConstructor,
-                    NextConstructorField, SilentBuildConstructor ;
+                    NextConstructorField, SilentBuildConstructor,
+                    PushInConstExpression, PopInConstExpression ;
 
 FROM P3SymBuild IMPORT CheckCanBeImported ;
 
@@ -85,6 +88,7 @@ FROM PCSymBuild IMPORT PCStartBuildProgModule,
                        PCStartBuildProcedure,
                        PCBuildProcedureHeading,
                        PCEndBuildProcedure,
+                       PCEndBuildForward,
                        PCBuildImportOuterModule,
                        PCBuildImportInnerModule,
                        StartDesConst,
@@ -101,7 +105,8 @@ FROM PCSymBuild IMPORT PCStartBuildProgModule,
                        PushConstType,
                        PushConstAttributeType,
                        PushConstAttributePairType,
-                       PushRType ;
+                       PushRType,
+                       CheckNotVar ;
 
 FROM SymbolTable IMPORT MakeGnuAsm, PutGnuAsmVolatile, PutGnuAsm, PutGnuAsmInput,
                         PutGnuAsmOutput, PutGnuAsmTrash, PutGnuAsmVolatile,
@@ -118,6 +123,11 @@ FROM SymbolTable IMPORT MakeGnuAsm, PutGnuAsmVolatile, PutGnuAsm, PutGnuAsmInput
 
 FROM M2Batch IMPORT IsModuleKnown ;
 
+FROM M2StateCheck IMPORT StateCheck,
+                         InitState, PushState, PopState, InclConst, ExclConst,
+                         InclConstructor, ExclConstructor,
+                         InclConstFunc, CheckQualident ;
+
 IMPORT M2Error ;
 
 
@@ -126,13 +136,14 @@ CONST
    Pass1     = FALSE ;
 
 VAR
-   WasNoError  : BOOLEAN ;
+   BlockState: StateCheck ;
+   seenError : BOOLEAN ;
 
 
 PROCEDURE ErrorString (s: String) ;
 BEGIN
-   ErrorStringAt (s, GetTokenNo ()) ;
-   WasNoError := FALSE
+   MetaErrorStringT0 (GetTokenNo (), s) ;
+   seenError := TRUE
 END ErrorString ;
 
 
@@ -144,7 +155,7 @@ END ErrorArray ;
 
 PROCEDURE ErrorArrayAt (a: ARRAY OF CHAR; tok: CARDINAL) ;
 BEGIN
-   ErrorStringAt (InitString(a), tok)
+   MetaErrorStringT0 (tok, InitString (a))
 END ErrorArrayAt ;
 
 
@@ -219,7 +230,7 @@ BEGIN
    str := DescribeStop(s0, s1, s2) ;
 
    str := ConCat(InitString('syntax error,'), Mark(str)) ;
-   ErrorStringAt(str, GetTokenNo())
+   MetaErrorStringT0 (GetTokenNo (), str)
 END WarnMissingToken ;
 
 
@@ -337,9 +348,9 @@ END Expect ;
 
 PROCEDURE CompilationUnit () : BOOLEAN ;
 BEGIN
-   WasNoError := TRUE ;
+   seenError := FALSE ;
    FileUnit(SetOfStop0{eoftok}, SetOfStop1{}, SetOfStop2{}) ;
-   RETURN( WasNoError )
+   RETURN NOT seenError
 END CompilationUnit ;
 
 
@@ -402,6 +413,8 @@ BEGIN
 END Real ;
 
 % module PCBuild end
+BEGIN
+   BlockState := InitState ()
 END PCBuild.
 % rules
 error       'ErrorArray' 'ErrorString'
@@ -455,6 +468,7 @@ token   'EXIT'            exittok
 token   'EXPORT'          exporttok
 token   'FINALLY'         finallytok
 token   'FOR'             fortok
+token   'FORWARD'         forwardtok
 token   'FROM'            fromtok
 token   'IF'              iftok
 token   'IMPLEMENTATION'  implementationtok
@@ -590,6 +604,7 @@ Qualident :=                                                               % VAR
            =:
 
 ConstantDeclaration :=                                                     % VAR top: CARDINAL ; %
+                                                                           % InclConst (BlockState) %
                                                                            % top := Top() %
                                                                            % PushAutoOn %
                        ( Ident "="                                         % StartDesConst %
@@ -599,13 +614,16 @@ ConstantDeclaration :=                                                     % VAR
                                                                            % EndDesConst %
                                                                            % PopAuto %
                                                                            % Assert(top=Top()) %
+                                                                           % ExclConst (BlockState) %
                      =:
 
 ConstExpression :=                                                         % VAR top: CARDINAL ; %
                                                                            % top := Top() %
+                                                                           % PushInConstExpression %
                                                                            % PushAutoOff %
                    SimpleConstExpr [ Relation SimpleConstExpr              % BuildRelationConst %
                                    ]                                       % PopAuto %
+                                                                           % PopInConstExpression %
                                                                            % Assert(top=Top()) %
                 =:
 
@@ -686,11 +704,14 @@ ComponentValue := ComponentElement [ 'BY' ConstExpression ] =:
 ArraySetRecordValue := ComponentValue { ','                                % NextConstructorField %
                                             ComponentValue } =:
 
-Constructor := '{'                                                         % PushConstructorCastType %
+Constructor := '{'                                                         % InclConstructor (BlockState) %
+                                                                           % CheckQualident (OperandTok (1), BlockState, OperandT (1)) %
+                                                                           % PushConstructorCastType %
                                                                            % PushInConstructor %
                                                                            % BuildConstructor (GetTokenNo ()-1) %
                   [ ArraySetRecordValue ]                                  % PopConstructor %
                '}'                                                         % PopInConstructor %
+                                                                           % ExclConstructor (BlockState) %
                    =:
 
 ConstructorOrConstActualParameters := Constructor | ConstActualParameters  % PushConstFunctionType %
@@ -700,17 +721,25 @@ ConstructorOrConstActualParameters := Constructor | ConstActualParameters  % Pus
 -- the entry to Constructor
 
 ConstSetOrQualidentOrFunction :=                                           % PushAutoOff %
+                                                                           % VAR tokpos: CARDINAL ; %
+                                                                           % tokpos := GetTokenNo () %
                                  (
                                    PushQualident
-                                   ( ConstructorOrConstActualParameters |  % PushConstType %
+                                   ( ConstructorOrConstActualParameters |  % CheckQualident (OperandTok (1), BlockState, OperandT (1)) %
+                                                                           % PushConstType %
                                                                            % PopNothing %
                                                                           )
-                                   |                                       % BuildTypeForConstructor %
+                                   |                                       % BuildTypeForConstructor (tokpos) %
                                      Constructor )                         % PopAuto %
                                =:
 
-ConstActualParameters :=                                                   % PushT(0) %
-                         "(" [ ConstExpList ] ")" =:
+ConstActualParameters :=                                                   % PushState (BlockState) %
+                                                                           % InclConstFunc (BlockState) %
+                                                                           % CheckQualident (OperandTok (1), BlockState, OperandT (1)) %
+                                                                           % PushT(0) %
+                         "(" [ ConstExpList ] ")"
+                                                                           % PopState (BlockState) %
+                         =:
 
 ConstExpList :=                                                            % VAR n: CARDINAL ; %
                 ConstExpression                                            % PopT(n) %
@@ -1002,13 +1031,15 @@ ConstructorOrSimpleDes := Constructor |                                    % Pop
                                           SimpleDes [ ActualParameters ]
                         =:
 
-SetOrDesignatorOrFunction :=                                              % PushAutoOff %
+SetOrDesignatorOrFunction :=                                              % VAR tokpos: CARDINAL ; %
+                                                                          % tokpos := GetTokenNo () %
+                                                                          % PushAutoOff %
                              (
                                PushQualident
                                ( ConstructorOrSimpleDes |                 % PopNothing %
                                                           )
                                 |
-                                                                          % BuildTypeForConstructor %
+                                                                          % BuildTypeForConstructor (tokpos) %
                                   Constructor
                              )                                            % PopAuto %
                           =:
@@ -1089,11 +1120,20 @@ WithStatement := "WITH" Designator "DO"
                  "END"
                =:
 
-ProcedureDeclaration := ProcedureHeading ";"                               % PushAutoOff %
-                                             ProcedureBlock                % PopAuto ; PushAutoOn %
-                        Ident                                              % PCEndBuildProcedure ;
-                                                                             PopAuto %
-                      =:
+ProcedureDeclaration :=                                                    % VAR top: CARDINAL ; %
+                                                                           % top := Top () %
+                        ProcedureHeading ";" PostProcedureHeading          % Assert (top = Top ()) %
+                                                                  =:
+
+PostProcedureHeading := ProperProcedure | ForwardDeclaration =:
+
+ForwardDeclaration := "FORWARD"                                            % PCEndBuildForward %
+                    =:
+
+ProperProcedure := ProcedureBlock                                          % PushAutoOn %
+                                  Ident                                    % PCEndBuildProcedure %
+                                                                           % PopAuto %
+                                         =:
 
 DefineBuiltinProcedure := [ "__ATTRIBUTE__" "__BUILTIN__"
                             "(" "("                                        % PushAutoOff %
@@ -1105,11 +1145,11 @@ ProcedureHeading := "PROCEDURE"                                            % M2E
                                                                            % PushAutoOn %
                      DefineBuiltinProcedure
                      ( Ident
-                                                                           % PCStartBuildProcedure ;
-                                                                             PushAutoOff %
+                                                                           % PCStartBuildProcedure %
+                                                                           % PushAutoOff %
                        [ FormalParameters ] AttributeNoReturn
-                                                                           % PCBuildProcedureHeading ;
-                                                                             PopAuto %
+                                                                           % PCBuildProcedureHeading %
+                                                                           % PopAuto %
                      )                                                     % PopAuto %
                      =:
 
@@ -1119,11 +1159,11 @@ DefProcedureHeading := "PROCEDURE"                                         % M2E
                                                                            % PushAutoOn %
                         Builtin
                         ( Ident
-                                                                           % PCStartBuildProcedure ;
-                                                                             PushAutoOff %
+                                                                           % PCStartBuildProcedure %
+                                                                           % PushAutoOff %
                           [ DefFormalParameters ] AttributeNoReturn
-                                                                           % PCBuildProcedureHeading ;
-                                                                             PopAuto %
+                                                                           % PCBuildProcedureHeading %
+                                                                           % PopAuto %
                         )                                                  % PopAuto %
                                                                            % M2Error.LeaveErrorScope %
                      =:
@@ -1252,7 +1292,7 @@ NamedOperand := '[' Ident ']' =:
 
 AsmOperandName := [ NamedOperand ] =:
 
-AsmOperands  := ConstExpression ':' AsmList [ ':' AsmList [ ':' TrashList ] ]
+AsmOperands  := ConstExpression [ ':' AsmList [ ':' AsmList [ ':' TrashList ] ] ]
               =:
 
 AsmList      := [ AsmElement ] { ',' AsmElement } =:

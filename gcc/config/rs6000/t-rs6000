@@ -1,6 +1,6 @@
 # General rules that all rs6000/ targets must have.
 #
-# Copyright (C) 1995-2024 Free Software Foundation, Inc.
+# Copyright (C) 1995-2025 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -19,7 +19,6 @@
 # <http://www.gnu.org/licenses/>.
 
 TM_H += $(srcdir)/config/rs6000/rs6000-cpus.def
-TM_H += $(srcdir)/config/rs6000/rs6000-modes.h
 PASSES_EXTRA += $(srcdir)/config/rs6000/rs6000-passes.def
 EXTRA_GTYPE_DEPS += rs6000-builtins.h
 

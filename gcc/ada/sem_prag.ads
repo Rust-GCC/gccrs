@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -62,8 +62,10 @@ package Sem_Prag is
       Pragma_Elaborate_Body               => True,
       Pragma_Exceptional_Cases            => True,
       Pragma_Export                       => True,
+      Pragma_Extended_Access              => True,
       Pragma_Extensions_Visible           => True,
       Pragma_Favor_Top_Level              => True,
+      Pragma_First_Controlling_Parameter  => True,
       Pragma_Ghost                        => True,
       Pragma_Global                       => True,
       Pragma_GNAT_Annotate                => True,
@@ -216,6 +218,7 @@ package Sem_Prag is
       Pragma_Contract_Cases      => True,
       Pragma_Depends             => True,
       Pragma_Exceptional_Cases   => True,
+      Pragma_Extensions_Visible  => True,
       Pragma_Ghost               => True,
       Pragma_Global              => True,
       Pragma_Inline              => True,
@@ -237,6 +240,15 @@ package Sem_Prag is
       Pragma_Volatile            => True,
       Pragma_Volatile_Function   => True,
       others                     => False);
+
+   --  The following table lists all pragmas which are relevant to the analysis
+   --  of subprogram bodies and should be analyzed first, because the analysis
+   --  of other pragmas relevant to subprogram bodies depend on them.
+
+   Pragma_Significant_To_Subprograms_Analyzed_First :
+     constant array (Pragma_Id) of Boolean :=
+     (Pragma_Extensions_Visible => True,
+      others                    => False);
 
    -----------------
    -- Subprograms --
@@ -272,6 +284,13 @@ package Sem_Prag is
       Freeze_Id : Entity_Id := Empty);
    --  Perform full analysis of delayed pragma Exceptional_Cases. Freeze_Id is
    --  the entity of [generic] package body or [generic] subprogram body which
+   --  caused "freezing" of the related contract where the pragma resides.
+
+   procedure Analyze_Exit_Cases_In_Decl_Part
+     (N         : Node_Id;
+      Freeze_Id : Entity_Id := Empty);
+   --  Perform full analysis of delayed pragma Exit_Cases. Freeze_Id is the
+   --  entity of [generic] package body or [generic] subprogram body which
    --  caused "freezing" of the related contract where the pragma resides.
 
    procedure Analyze_External_Property_In_Decl_Part
@@ -467,7 +486,6 @@ package Sem_Prag is
    --    Extensions_Visible
    --    Global
    --    Initializes
-   --    Max_Entry_Queue_Depth
    --    Max_Entry_Queue_Length
    --    Max_Queue_Length
    --    Post

@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -3355,7 +3355,7 @@ extern __inline __m512h
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 _mm512_conj_pch (__m512h __A)
 {
-  return (__m512h) _mm512_xor_epi32 ((__m512i) __A, _mm512_set1_epi32 (1<<31));
+  return (__m512h) _mm512_xor_epi32 ((__m512i) __A, _mm512_set1_epi32 (1U<<31));
 }
 
 extern __inline __m512h
@@ -3961,11 +3961,11 @@ _mm512_fpclass_ph_mask (__m512h __A, const int __imm)
 #else
 #define _mm512_mask_fpclass_ph_mask(u, x, c)				\
   ((__mmask32) __builtin_ia32_fpclassph512_mask ((__v32hf) (__m512h) (x), \
-						 (int) (c),(__mmask8)(u)))
+						 (int) (c),(__mmask32)(u)))
 
 #define _mm512_fpclass_ph_mask(x, c)                                    \
   ((__mmask32) __builtin_ia32_fpclassph512_mask ((__v32hf) (__m512h) (x), \
-						 (int) (c),(__mmask8)-1))
+						 (int) (c),(__mmask32)-1))
 #endif /* __OPIMTIZE__ */
 
 /* Intrinsics vgetexpph.  */

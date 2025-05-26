@@ -1,5 +1,5 @@
 /* Utility functions for the analyzer.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -140,6 +140,7 @@ class known_function;
 extern void dump_tree (pretty_printer *pp, tree t);
 extern void dump_quoted_tree (pretty_printer *pp, tree t);
 extern void print_quoted_type (pretty_printer *pp, tree t);
+extern void print_expr_for_user (pretty_printer *pp, tree t);
 extern int readability_comparator (const void *p1, const void *p2);
 extern int tree_cmp (const void *p1, const void *p2);
 extern tree fixup_tree_for_diagnostic (tree);
@@ -236,7 +237,7 @@ public:
     return m_sym_offset;
   }
 
-  tree calc_symbolic_bit_offset (const region_model &model) const;
+  const svalue &calc_symbolic_bit_offset (region_model_manager *mgr) const;
   const svalue *calc_symbolic_byte_offset (region_model_manager *mgr) const;
 
   bool operator== (const region_offset &other) const
@@ -415,16 +416,16 @@ extern void log_stashed_constants (logger *logger);
 
 extern FILE *get_or_create_any_logfile ();
 
-extern json::value *
+extern std::unique_ptr<json::value>
 tree_to_json (tree node);
 
-extern json::value *
+extern std::unique_ptr<json::value>
 diagnostic_event_id_to_json (const diagnostic_event_id_t &);
 
-extern json::value *
+extern std::unique_ptr<json::value>
 bit_offset_to_json (const bit_offset_t &offset);
 
-extern json::value *
+extern std::unique_ptr<json::value>
 byte_offset_to_json (const byte_offset_t &offset);
 
 extern tristate
@@ -436,13 +437,23 @@ get_string_cst_size (const_tree string_cst);
 extern tree
 get_ssa_default_def (const function &fun, tree var);
 
+extern const svalue *
+strip_types (const svalue *sval, region_model_manager &mgr);
+
+extern region_offset
+strip_types (const region_offset &offset, region_model_manager &mgr);
+
+extern tree remove_ssa_names (tree expr);
+
 } // namespace ana
 
 extern bool is_special_named_call_p (const gcall *call, const char *funcname,
-				     unsigned int num_args);
+				     unsigned int num_args,
+				     bool look_in_std = false);
 extern bool is_named_call_p (const_tree fndecl, const char *funcname);
 extern bool is_named_call_p (const_tree fndecl, const char *funcname,
 			     const gcall *call, unsigned int num_args);
+extern bool is_std_function_p (const_tree fndecl);
 extern bool is_std_named_call_p (const_tree fndecl, const char *funcname);
 extern bool is_std_named_call_p (const_tree fndecl, const char *funcname,
 				 const gcall *call, unsigned int num_args);
