@@ -1,5 +1,5 @@
 /* Machine mode definitions for GCC; included by rtl.h and tree.h.
-   Copyright (C) 1991-2024 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -268,6 +268,8 @@ public:
   ALWAYS_INLINE CONSTEXPR opt_mode (const T &m) : m_mode (m) {}
   template<typename U>
   ALWAYS_INLINE CONSTEXPR opt_mode (const U &m) : m_mode (T (m)) {}
+  template<typename U>
+  ALWAYS_INLINE CONSTEXPR opt_mode (const opt_mode<U> &);
   ALWAYS_INLINE CONSTEXPR opt_mode (from_int m) : m_mode (machine_mode (m)) {}
 
   machine_mode else_void () const;
@@ -284,6 +286,14 @@ public:
 private:
   machine_mode m_mode;
 };
+
+template<typename T>
+template<typename U>
+ALWAYS_INLINE CONSTEXPR
+opt_mode<T>::opt_mode (const opt_mode<U> &m)
+  : m_mode (m.exists () ? T (m.require ()) : E_VOIDmode)
+{
+}
 
 /* If the object contains a T, return its enum value, otherwise return
    E_VOIDmode.  */
@@ -905,15 +915,15 @@ decimal_float_mode_for_size (unsigned int size)
     (mode_for_size (size, MODE_DECIMAL_FLOAT, 0));
 }
 
-extern machine_mode smallest_mode_for_size (poly_uint64, enum mode_class);
+extern opt_machine_mode smallest_mode_for_size (poly_uint64, enum mode_class);
 
-/* Find the narrowest integer mode that contains at least SIZE bits.
-   Such a mode must exist.  */
+/* Find the narrowest integer mode that contains at least SIZE bits,
+   if such a mode exists.  */
 
-inline scalar_int_mode
+inline opt_scalar_int_mode
 smallest_int_mode_for_size (poly_uint64 size)
 {
-  return as_a <scalar_int_mode> (smallest_mode_for_size (size, MODE_INT));
+  return dyn_cast <scalar_int_mode> (smallest_mode_for_size (size, MODE_INT));
 }
 
 extern opt_scalar_int_mode int_mode_for_mode (machine_mode);

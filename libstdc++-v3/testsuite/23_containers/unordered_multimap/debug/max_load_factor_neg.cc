@@ -1,4 +1,4 @@
-// Copyright (C) 2012-2024 Free Software Foundation, Inc.
+// Copyright (C) 2012-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,7 +22,7 @@
 
 void test01()
 {
-  std::unordered_map<int, int> um;
+  std::unordered_multimap<int, int> um;
   um.max_load_factor(-1.0f);
 }
 

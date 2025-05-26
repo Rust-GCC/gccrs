@@ -1,5 +1,5 @@
 /* d-lang.cc -- Language-dependent hooks for D.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -302,7 +302,7 @@ d_init_options (unsigned int, cl_decoded_option *decoded_options)
 
   /* Warnings and deprecations are disabled by default.  */
   global.params.useDeprecated = DIAGNOSTICinform;
-  global.params.warnings = DIAGNOSTICoff;
+  global.params.useWarnings = DIAGNOSTICoff;
   global.params.v.errorLimit = flag_max_errors;
   global.params.v.messageStyle = MessageStyle::gnu;
 
@@ -450,7 +450,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
       break;
 
     case OPT_fdebug:
-      global.params.debuglevel = value ? 1 : 0;
+      global.params.debugEnabled = value ? true : false;
       break;
 
     case OPT_fdebug_:
@@ -460,7 +460,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 	  break;
 	}
 
-      error ("bad argument for %<-fdebug%>: %qs", arg);
+      error ("bad argument for %<-fdebug=%>: %qs", arg);
       break;
 
     case OPT_fdoc:
@@ -510,6 +510,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 	case CppStdRevisionCpp14:
 	case CppStdRevisionCpp17:
 	case CppStdRevisionCpp20:
+	case CppStdRevisionCpp23:
 	  global.params.cplusplus = (CppStdRevision) value;
 	  break;
 
@@ -520,6 +521,10 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 
     case OPT_fignore_unknown_pragmas:
       global.params.ignoreUnsupportedPragmas = value;
+      break;
+
+    case OPT_finclude_imports:
+      includeImports = true;
       break;
 
     case OPT_finvariants:
@@ -533,7 +538,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
     case OPT_fmodule_file_:
       global.params.modFileAliasStrings.push (arg);
       if (!strchr (arg, '='))
-	error ("bad argument for %<-fmodule-file%>: %qs", arg);
+	error ("bad argument for %<-fmodule-file=%>: %qs", arg);
       break;
 
     case OPT_fmoduleinfo:
@@ -563,6 +568,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
       global.params.previewIn = value;
       global.params.fix16997 = value;
       global.params.noSharedAccess = FeatureState::enabled;
+      global.params.safer = FeatureState::enabled;
       global.params.rvalueRefParam = FeatureState::enabled;
       global.params.inclusiveInContracts = value;
       global.params.systemVariables = FeatureState::enabled;
@@ -611,6 +617,10 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 
     case OPT_fpreview_nosharedaccess:
       global.params.noSharedAccess = FeatureState::enabled;
+      break;
+
+    case OPT_fpreview_safer:
+      global.params.safer = FeatureState::enabled;
       break;
 
     case OPT_fpreview_rvaluerefparam:
@@ -695,7 +705,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 	  break;
 	}
 
-      error ("bad argument for %<-fversion%>: %qs", arg);
+      error ("bad argument for %<-fversion=%>: %qs", arg);
       break;
 
     case OPT_H:
@@ -772,7 +782,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 
     case OPT_Wall:
       if (value)
-	global.params.warnings = DIAGNOSTICinform;
+	global.params.useWarnings = DIAGNOSTICinform;
       break;
 
     case OPT_Wdeprecated:
@@ -781,7 +791,7 @@ d_handle_option (size_t scode, const char *arg, HOST_WIDE_INT value,
 
     case OPT_Werror:
       if (value)
-	global.params.warnings = DIAGNOSTICerror;
+	global.params.useWarnings = DIAGNOSTICerror;
       break;
 
     case OPT_Wspeculative:
@@ -907,7 +917,7 @@ d_post_options (const char ** fn)
 
   /* Error about use of deprecated features.  */
   if (global.params.useDeprecated == DIAGNOSTICinform
-      && global.params.warnings == DIAGNOSTICerror)
+      && global.params.useWarnings == DIAGNOSTICerror)
     global.params.useDeprecated = DIAGNOSTICerror;
 
   if (flag_excess_precision == EXCESS_PRECISION_DEFAULT)
@@ -920,7 +930,8 @@ d_post_options (const char ** fn)
     global.params.v.errorLimit = flag_max_errors;
 
   global.params.v.showColumns = flag_show_column;
-  global.params.v.printErrorContext = flag_diagnostics_show_caret;
+  global.params.v.errorPrintMode = flag_diagnostics_show_caret
+    ? ErrorPrintMode::printErrorContext : ErrorPrintMode::simpleError;
 
   /* Keep the front-end location type in sync with params.  */
   Loc::set (global.params.v.showColumns, global.params.v.messageStyle);
@@ -933,7 +944,12 @@ d_post_options (const char ** fn)
   /* The front-end parser only has access to `compileEnv', synchronize its
      fields with params.  */
   global.compileEnv.previewIn = global.params.previewIn;
+  global.compileEnv.transitionIn = global.params.v.vin;
   global.compileEnv.ddocOutput = global.params.ddoc.doOutput;
+  global.compileEnv.cCharLookupTable =
+    IdentifierCharLookup::forTable (IdentifierTable::C11);
+  global.compileEnv.dCharLookupTable =
+    IdentifierCharLookup::forTable (IdentifierTable::LR);
 
   if (warn_return_type == -1)
     warn_return_type = 0;
@@ -1073,9 +1089,9 @@ d_parse_file (void)
   /* Buffer for contents of .ddoc files.  */
   OutBuffer ddocbuf;
 
-  /* In this mode, the first file name is supposed to be a duplicate
-     of one of the input files.  */
-  if (d_option.fonly && strcmp (d_option.fonly, main_input_filename) != 0)
+  /* In this mode, the main input file is supposed to be the same as the one
+     given by -fonly=.  */
+  if (d_option.fonly && !endswith (main_input_filename, d_option.fonly))
     error ("%<-fonly=%> argument is different from first input file name");
 
   for (size_t i = 0; i < num_in_fnames; i++)
@@ -1102,7 +1118,7 @@ d_parse_file (void)
 
 	  if (count < 0)
 	    {
-	      error (Loc ("stdin", 0, 0), "%s", xstrerror (errno));
+	      error (Loc::singleFilename ("stdin"), "%s", xstrerror (errno));
 	      free (buffer);
 	      continue;
 	    }
@@ -1295,6 +1311,21 @@ d_parse_file (void)
 	message ("semantic3 %s", m->toChars ());
 
       dmd::semantic3 (m, NULL);
+    }
+
+  if (includeImports)
+    {
+      for (size_t i = 0; i < compiledImports.length; i++)
+	{
+	  Module *m = compiledImports[i];
+	  gcc_assert (m->isRoot ());
+
+	  if (global.params.v.verbose)
+	    message ("semantic3 %s", m->toChars ());
+
+	  dmd::semantic3 (m, NULL);
+	  modules.push (m);
+	}
     }
 
   Module::runDeferredSemantic3 ();
@@ -1705,8 +1736,8 @@ d_types_compatible_p (tree x, tree y)
 	return true;
 
       /* Type system allows implicit conversion between.  */
-      if (tx->implicitConvTo (ty) != MATCH::nomatch
-	  || ty->implicitConvTo (tx) != MATCH::nomatch)
+      if (dmd::implicitConvTo (tx, ty) != MATCH::nomatch
+	  || dmd::implicitConvTo (ty, tx) != MATCH::nomatch)
 	return true;
     }
 

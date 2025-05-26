@@ -1,6 +1,6 @@
 // 2003-05-01 Petur Runolfsson <peturr02@ru.is>
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,6 +18,7 @@
 // <http://www.gnu.org/licenses/>.
 
 // { dg-require-fileio "" }
+// { dg-additional-files "cin_unget-1.txt" }
 
 #include <ext/stdio_sync_filebuf.h>
 #include <testsuite_hooks.h>

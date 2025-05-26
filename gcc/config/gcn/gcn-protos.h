@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -18,6 +18,8 @@
 #define _GCN_PROTOS_
 
 extern void gcn_asm_output_symbol_ref (FILE *file, rtx x);
+extern void gcn_asm_weaken_decl (FILE *stream, tree decl, const char *name,
+				 const char *value);
 extern tree gcn_builtin_decl (unsigned code, bool initialize_p);
 extern bool gcn_can_split_p (machine_mode, rtx);
 extern bool gcn_constant64_p (rtx);

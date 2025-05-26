@@ -1,5 +1,5 @@
 /* Copy propagation on hard registers for the GNU compiler.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -249,7 +249,7 @@ struct kill_set_value_data
   struct value_data *vd;
   rtx ignore_set_reg;
 };
-  
+
 /* Called through note_stores.  If X is set, not clobbered, kill its
    current value and install it as the root of its own value list.  */
 
@@ -331,6 +331,10 @@ copy_value (rtx dest, rtx src, struct value_data *vd)
      or somesuch.  */
   if (vd->e[sr].mode == VOIDmode)
     set_value_regno (sr, vd->e[dr].mode, vd);
+
+  else if (!ordered_p (GET_MODE_PRECISION (vd->e[sr].mode),
+		       GET_MODE_PRECISION (GET_MODE (src))))
+    return;
 
   /* If we are narrowing the input to a smaller number of hard regs,
      and it is in big endian, we are really extracting a high part.
@@ -831,7 +835,7 @@ copyprop_hardreg_forward_1 (basic_block bb, struct value_data *vd)
 	    break;
 	  continue;
 	}
-	 
+
 
       extract_constrain_insn (insn);
       preprocess_constraints (insn);

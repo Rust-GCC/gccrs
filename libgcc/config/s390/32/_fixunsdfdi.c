@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for IBM S/390
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    Contributed by Hartmut Penner (hpenner@de.ibm.com) and
                   Ulrich Weigand (uweigand@de.ibm.com).
 
@@ -74,7 +74,7 @@ __fixunsdfdi (double a1)
 
     /* Negative.  */
     if (SIGN (dl1))
-      { 
+      {
 	/* Value is <= -1.0
 	   C99 Annex F.4 requires an "invalid" exception to be thrown.  */
 	if (EXPD (dl1) >= EXPONENT_BIAS)

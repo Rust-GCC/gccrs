@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -1615,7 +1615,7 @@ CompileExpr::compile_integer_literal (const HIR::LiteralExpr &expr,
   if (mpz_cmp (ival, type_min) < 0 || mpz_cmp (ival, type_max) > 0)
     {
       rust_error_at (expr.get_locus (),
-		     "integer overflows the respective type %<%s%>",
+		     "integer overflows the respective type %qs",
 		     tyty->get_name ().c_str ());
       return error_mark_node;
     }
@@ -1695,7 +1695,7 @@ CompileExpr::compile_float_literal (const HIR::LiteralExpr &expr,
   if (TREE_OVERFLOW (real_value) || real_value_overflow)
     {
       rust_error_at (expr.get_locus (),
-		     "decimal overflows the respective type %<%s%>",
+		     "decimal overflows the respective type %qs",
 		     tyty->get_name ().c_str ());
       return error_mark_node;
     }
@@ -1883,7 +1883,8 @@ CompileExpr::visit (HIR::ArrayExpr &expr)
   HIR::ArrayElems &elements = expr.get_internal_elements ();
   switch (elements.get_array_expr_type ())
     {
-      case HIR::ArrayElems::ArrayExprType::VALUES: {
+    case HIR::ArrayElems::ArrayExprType::VALUES:
+      {
 	HIR::ArrayElemsValues &elems
 	  = static_cast<HIR::ArrayElemsValues &> (elements);
 	translated
@@ -2032,7 +2033,8 @@ HIRCompileBase::resolve_adjustements (
 	  return error_mark_node;
 
 	case Resolver::Adjustment::AdjustmentType::IMM_REF:
-	  case Resolver::Adjustment::AdjustmentType::MUT_REF: {
+	case Resolver::Adjustment::AdjustmentType::MUT_REF:
+	  {
 	    if (!RS_DST_FLAG (TREE_TYPE (e)))
 	      {
 		e = address_expression (e, locus);

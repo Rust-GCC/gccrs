@@ -1,5 +1,5 @@
 /* List implementation of a partition of consecutive integers.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
    This file is part of GCC.
@@ -56,7 +56,7 @@ struct partition_elem
   unsigned class_count;
 };
 
-typedef struct partition_def 
+typedef struct partition_def
 {
   /* The number of elements in this partition.  */
   int num_elements;

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -21,13 +21,10 @@
 
 #include "rust-system.h"
 
-extern unsigned int
-rust_field_alignment (tree t);
+extern unsigned int rust_field_alignment (tree t);
 
-extern const char *
-rust_read_export_data (int fd, off_t offset, char **pbuf, size_t *plen,
-		       int *perr);
-extern void
-rust_write_export_data (const char *bytes, unsigned int size);
+extern const char *rust_read_export_data (int fd, off_t offset, char **pbuf,
+					  size_t *plen, int *perr);
+extern void rust_write_export_data (const char *bytes, unsigned int size);
 
 #endif // RUST_OBJECT_EXPORT_H

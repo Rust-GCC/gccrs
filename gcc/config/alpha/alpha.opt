@@ -1,6 +1,6 @@
 ; Options for the DEC Alpha port of the compiler
 ;
-; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -68,6 +68,14 @@ Emit code for the fp move and sqrt ISA extension.
 mcix
 Target Mask(CIX)
 Emit code for the counting ISA extension.
+
+msafe-bwa
+Target Mask(SAFE_BWA)
+Emit multi-thread and async-signal safe code for byte and word memory accesses.
+
+msafe-partial
+Target Mask(SAFE_PARTIAL)
+Emit multi-thread and async-signal safe code for partial memory accesses.
 
 mexplicit-relocs
 Target Mask(EXPLICIT_RELOCS)

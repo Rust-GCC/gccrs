@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -451,6 +451,7 @@ static const struct asm_name asm_names[] = {
   { "power8",	"-mpwr8" },
   { "power9",	"-mpwr9" },
   { "power10",	"-mpwr10" },
+  { "power11",	"-mpwr11" },
   { "powerpc",	"-mppc" },
   { "rs64",	"-mppc" },
   { "603",	"-m603" },
@@ -479,6 +480,7 @@ static const struct asm_name asm_names[] = {
   { "power8",	"-mpower8" },
   { "power9",	"-mpower9" },
   { "power10",	"-mpower10" },
+  { "power11",	"-mpower11" },
   { "a2",	"-ma2" },
   { "powerpc",	"-mppc" },
   { "powerpc64", "-mppc64" },
@@ -626,7 +628,7 @@ host_detect_local_cpu (int argc, const char **argv)
   arch = strcmp (argv[0], "cpu") == 0;
   if (!arch && strcmp (argv[0], "tune"))
     return NULL;
-  
+
   if (arch)
     cpu = "powerpc";
 

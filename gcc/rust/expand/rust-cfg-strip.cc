@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -289,7 +289,8 @@ CfgStrip::maybe_strip_generic_args (AST::GenericArgs &args)
     {
       switch (arg.get_kind ())
 	{
-	  case AST::GenericArg::Kind::Type: {
+	case AST::GenericArg::Kind::Type:
+	  {
 	    auto &type = arg.get_type ();
 	    type.accept_vis (*this);
 
@@ -298,7 +299,8 @@ CfgStrip::maybe_strip_generic_args (AST::GenericArgs &args)
 			     "cannot strip type in this position");
 	    break;
 	  }
-	  case AST::GenericArg::Kind::Const: {
+	case AST::GenericArg::Kind::Const:
+	  {
 	    auto &expr = arg.get_expression ();
 	    expr.accept_vis (*this);
 

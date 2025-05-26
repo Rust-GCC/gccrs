@@ -1,6 +1,6 @@
 // Support for atomic operations -*- C++ -*-
 
-// Copyright (C) 2004-2024 Free Software Foundation, Inc.
+// Copyright (C) 2004-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,7 +29,9 @@
 #ifndef _GLIBCXX_ATOMICITY_H
 #define _GLIBCXX_ATOMICITY_H	1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 #include <bits/gthr.h>
@@ -59,7 +61,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // To abstract locking primitives across all thread policies, use:
   // __exchange_and_add_dispatch
   // __atomic_add_dispatch
-#ifdef _GLIBCXX_ATOMIC_BUILTINS
+#ifdef _GLIBCXX_ATOMIC_WORD_BUILTINS
   inline _Atomic_word
   __attribute__((__always_inline__))
   __exchange_and_add(volatile _Atomic_word* __mem, int __val)
@@ -69,7 +71,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   __attribute__((__always_inline__))
   __atomic_add(volatile _Atomic_word* __mem, int __val)
   { __atomic_fetch_add(__mem, __val, __ATOMIC_ACQ_REL); }
-#else
+#else // Defined in config/cpu/.../atomicity.h
   _Atomic_word
   __exchange_and_add(volatile _Atomic_word*, int) _GLIBCXX_NOTHROW;
 
@@ -124,4 +126,4 @@ _GLIBCXX_END_NAMESPACE_VERSION
 #define _GLIBCXX_WRITE_MEM_BARRIER __atomic_thread_fence (__ATOMIC_RELEASE)
 #endif
 
-#endif 
+#endif

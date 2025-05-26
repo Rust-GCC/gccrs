@@ -1,4 +1,4 @@
-# Copyright (C) 2008-2024 Free Software Foundation, Inc.
+# Copyright (C) 2008-2025 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -229,10 +229,16 @@ GCC_13.0.0 {
 
 %inherit GCC_14.0.0 GCC_13.0.0
 GCC_14.0.0 {
+  __mulbitint3
+  __divmodbitint4
+  __fixsfbitint
+  __fixdfbitint
   __fixxfbitint
   __fixtfbitint
   __floatbitintbf
   __floatbitinthf
+  __floatbitintsf
+  __floatbitintdf
   __floatbitintxf
   __floatbitinttf
 }

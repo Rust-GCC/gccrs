@@ -1,10 +1,10 @@
 /* { dg-do run } */
 
-#define NI __attribute__((noinline, noclone))
+#define NI __attribute__((noipa))
 
 typedef __INT8_TYPE__ s8;
 typedef __INT16_TYPE__ s16;
-typedef __int24 s24;
+__extension__ typedef __int24 s24;
 typedef __INT32_TYPE__ s32;
 
 static const s8 arr8[] = { 12, 23, 34 };

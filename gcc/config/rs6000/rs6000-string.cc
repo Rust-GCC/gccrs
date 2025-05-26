@@ -1,6 +1,6 @@
 /* Subroutines used to expand string and block move, clear,
    compare and other operations for PowerPC.
-   Copyright (C) 1991-2024 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -743,7 +743,7 @@ expand_cmp_vec_sequence (unsigned HOST_WIDE_INT bytes_to_compare,
 	      rtx cmp_combined = gen_reg_rtx (load_mode);
 	      emit_insn (gen_altivec_eqv16qi (cmp_res, s1data, s2data));
 	      emit_insn (gen_altivec_eqv16qi (cmp_zero, s1data, zero_reg));
-	      emit_insn (gen_orcv16qi3 (vec_result, cmp_zero, cmp_res));
+	      emit_insn (gen_iornv16qi3 (vec_result, cmp_zero, cmp_res));
 	      emit_insn (gen_altivec_vcmpequb_p (cmp_combined, vec_result, zero_reg));
 	    }
 	}
@@ -964,6 +964,7 @@ expand_compare_loop (rtx operands[])
       break;
     case PROCESSOR_POWER9:
     case PROCESSOR_POWER10:
+    case PROCESSOR_POWER11:
       if (bytes_is_const)
 	max_bytes = 191;
       else
@@ -1336,7 +1337,7 @@ expand_compare_loop (rtx operands[])
 	{
 	  /* If remainder length < word length, branch to final
 	     cleanup compare.  */
-	  
+
 	  if (!bytes_is_const)
 	    {
 	      do_ifelse (CCmode, LT, cmp_rem, GEN_INT (load_mode_size),
@@ -2694,7 +2695,7 @@ gen_lvx_v4si_move (rtx dest, rtx src)
 
   if (MEM_P (dest))
     return gen_altivec_stvx_v4si_internal (dest, src);
-  else 
+  else
     return gen_altivec_lvx_v4si_internal (dest, src);
 }
 
@@ -2917,7 +2918,7 @@ expand_block_move (rtx operands[], bool might_overlap)
 	    emit_insn (stores[i]);
 	  num_reg = 0;
 	}
-	
+
     }
 
   return 1;

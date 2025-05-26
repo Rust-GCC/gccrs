@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2024 Free Software Foundation, Inc.
+// Copyright (C) 2005-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -303,6 +303,9 @@ namespace __gnu_pbds
 
       inline void
       rotate_parent(node_pointer);
+
+      inline void
+      update_subtree_size(node_pointer);
 
       inline void
       apply_update(node_pointer, null_node_update_pointer);

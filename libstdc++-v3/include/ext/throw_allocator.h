@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2024 Free Software Foundation, Inc.
+// Copyright (C) 2005-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -400,7 +400,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       auto beg = __b.map_construct().begin();
       auto end = __b.map_construct().end();
       for (; beg != end; ++beg)
-	__b.log_to_string(error, *beg);      
+	__b.log_to_string(error, *beg);
     }
 #endif
     return os << error;
@@ -868,7 +868,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 
       template<typename _Up>
-        void 
+        void
         destroy(_Up* __p)
         {
 	  erase_construct(__p);

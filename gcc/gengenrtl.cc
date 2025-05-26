@@ -1,5 +1,5 @@
 /* Generate code to allocate RTL structures.
-   Copyright (C) 1997-2024 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -51,6 +51,9 @@ type_from_format (int c)
     case 'i':
       return "int ";
 
+    case 'L':
+      return "location_t ";
+
     case 'w':
       return "HOST_WIDE_INT ";
 
@@ -83,6 +86,9 @@ accessor_from_format (int c)
     {
     case 'i':
       return "XINT";
+
+    case 'L':
+      return "XLOC";
 
     case 'w':
       return "XWINT";
@@ -130,7 +136,10 @@ always_void_p (int idx)
 
 /* Return nonzero if the RTL code given by index IDX is one that we should
    generate a gen_rtx_raw_FOO macro for, not gen_rtx_FOO (because gen_rtx_FOO
-   is a wrapper in emit-rtl.cc).  */
+   is a wrapper in emit-rtl.cc).
+
+   This list of codes needs to be kept in sync with the switch statement
+   in emit-rtl.cc:rtx_expander::get_rtx.  */
 
 static int
 special_rtx (int idx)
@@ -150,7 +159,10 @@ special_rtx (int idx)
 
 /* Return nonzero if the RTL code given by index IDX is one that we should
    generate no macro for at all (because gen_rtx_FOO is never used or
-   cannot have the obvious interface).  */
+   cannot have the obvious interface).
+
+   This list of codes needs to be kept in sync with the switch statement
+   in emit-rtl.cc:rtx_expander::get_rtx.  */
 
 static int
 excluded_rtx (int idx)

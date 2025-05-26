@@ -1,6 +1,6 @@
 /* dtoa.c provide floating point string conversion routines.
 
-Copyright (C) 2009-2024 Free Software Foundation, Inc.
+Copyright (C) 2009-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -194,8 +194,8 @@ _M2_dtoa_dep (void)
 extern "C" void __attribute__((__constructor__))
 _M2_dtoa_ctor (void)
 {
-  M2RTS_RegisterModule ("dtoa", LIBNAME, _M2_dtoa_init, _M2_dtoa_finish,
-			_M2_dtoa_dep);
+  M2RTS_RegisterModule_Cstr ("dtoa", LIBNAME, _M2_dtoa_init,
+			     _M2_dtoa_finish, _M2_dtoa_dep);
 }
 
 #else

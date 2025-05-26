@@ -1,6 +1,6 @@
 // wstring_convert implementation -*- C++ -*-
 
-// Copyright (C) 2015-2024 Free Software Foundation, Inc.
+// Copyright (C) 2015-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -85,16 +85,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  return false;
 	}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
       // The codecvt facet will only return noconv when the types are
       // the same, so avoid instantiating basic_string::assign otherwise
-      if _GLIBCXX17_CONSTEXPR (is_same<typename _Codecvt::intern_type,
-				       typename _Codecvt::extern_type>())
+      if constexpr (is_same<typename _Codecvt::intern_type,
+			    typename _Codecvt::extern_type>::value)
 	if (__result == codecvt_base::noconv)
 	  {
 	    __outstr.assign(__first, __last);
 	    __count = __last - __first;
 	    return true;
 	  }
+#pragma GCC diagnostic pop
 
       __outstr.resize(__outchars);
       __count = __next - __first;
@@ -259,7 +262,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
   template<typename _Codecvt, typename _Elem = wchar_t,
 	   typename _Wide_alloc = allocator<_Elem>,
 	   typename _Byte_alloc = allocator<char>>
-    class wstring_convert
+    class _GLIBCXX17_DEPRECATED wstring_convert
     {
     public:
       typedef basic_string<char, char_traits<char>, _Byte_alloc>   byte_string;
@@ -289,7 +292,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CXX11
        * The object's conversion state will persist between conversions.
        */
       wstring_convert(_Codecvt* __pcvt, state_type __state)
-      : _M_cvt(__pcvt, "wstring_convert"),
+      : _M_cvt(__pcvt, "std::wstring_convert"),
 	_M_state(__state), _M_with_cvtstate(true)
       { }
 
@@ -406,7 +409,8 @@ _GLIBCXX_END_NAMESPACE_CXX11
   /// Buffer conversions
   template<typename _Codecvt, typename _Elem = wchar_t,
 	   typename _Tr = char_traits<_Elem>>
-    class wbuffer_convert : public basic_streambuf<_Elem, _Tr>
+    class _GLIBCXX17_DEPRECATED wbuffer_convert
+    : public basic_streambuf<_Elem, _Tr>
     {
       typedef basic_streambuf<_Elem, _Tr> _Wide_streambuf;
 
@@ -427,7 +431,7 @@ _GLIBCXX_END_NAMESPACE_CXX11
       explicit
       wbuffer_convert(streambuf* __bytebuf, _Codecvt* __pcvt = new _Codecvt,
 		      state_type __state = state_type())
-      : _M_buf(__bytebuf), _M_cvt(__pcvt, "wbuffer_convert"),
+      : _M_buf(__bytebuf), _M_cvt(__pcvt, "std::wbuffer_convert"),
 	_M_state(__state), _M_always_noconv(_M_cvt->always_noconv())
       {
 	if (_M_buf)

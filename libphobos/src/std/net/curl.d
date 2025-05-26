@@ -1063,7 +1063,7 @@ private auto _basicHTTP(T)(const(char)[] url, const(void)[] sendData, HTTP clien
         {
             size_t minLen = min(buf.length, remainingData.length);
             if (minLen == 0) return 0;
-            buf[0 .. minLen] = remainingData[0 .. minLen];
+            buf[0 .. minLen] = cast(void[]) remainingData[0 .. minLen];
             remainingData = remainingData[minLen..$];
             return minLen;
         };
@@ -1202,7 +1202,7 @@ private auto _basicFTP(T)(const(char)[] url, const(void)[] sendData, FTP client)
         {
             size_t minLen = min(buf.length, sendData.length);
             if (minLen == 0) return 0;
-            buf[0 .. minLen] = sendData[0 .. minLen];
+            buf[0 .. minLen] = cast(void[]) sendData[0 .. minLen];
             sendData = sendData[minLen..$];
             return minLen;
         };
@@ -2422,6 +2422,7 @@ struct HTTP
             import std.algorithm.searching : findSplit, startsWith;
             import std.string : indexOf, chomp;
             import std.uni : toLower;
+            import std.exception : assumeUnique;
 
             // Wrap incoming callback in order to separate http status line from
             // http headers.  On redirected requests there may be several such
@@ -2448,7 +2449,9 @@ struct HTTP
                     }
 
                     auto m = header.findSplit(": ");
-                    auto fieldName = m[0].toLower();
+                    const(char)[] lowerFieldName = m[0].toLower();
+                    ///Fixes https://issues.dlang.org/show_bug.cgi?id=24458
+                    string fieldName = lowerFieldName is m[0] ? lowerFieldName.idup : assumeUnique(lowerFieldName);
                     auto fieldContent = m[2].chomp;
                     if (fieldName == "content-type")
                     {

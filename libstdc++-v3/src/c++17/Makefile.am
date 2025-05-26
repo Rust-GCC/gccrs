@@ -1,6 +1,6 @@
 ## Makefile for the C++17 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2024 Free Software Foundation, Inc.
+## Copyright (C) 1997-2025 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -64,6 +64,14 @@ if GLIBCXX_HOSTED
 libc__17convenience_la_SOURCES = $(sources)  $(inst_sources)
 else
 libc__17convenience_la_SOURCES =
+endif
+
+if ENABLE_DUAL_ABI
+# These files should be rebuilt if the .cc prerequisite changes.
+cow-string-inst.lo cow-string-inst.o: string-inst.cc
+cow-fs_dir.lo cow-fs_dir.o: fs_dir.cc
+cow-fs_ops.lo cow-fs_ops.o: fs_ops.cc
+cow-fs_path.lo cow-fs_path.o: fs_path.cc
 endif
 
 if GLIBCXX_LDBL_ALT128_COMPAT

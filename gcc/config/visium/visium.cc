@@ -1,5 +1,5 @@
 /* Output routines for Visium.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by C.Nettleton, J.P.Parkes and P.Garbett.
 
    This file is part of GCC.
@@ -372,6 +372,9 @@ static HOST_WIDE_INT visium_constant_alignment (const_tree, HOST_WIDE_INT);
 
 #undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
 #define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
+
+#undef TARGET_DOCUMENTATION_NAME
+#define TARGET_DOCUMENTATION_NAME "Visium"
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -1482,7 +1485,8 @@ visium_setup_incoming_varargs (cumulative_args_t pcum_v,
   /* The caller has advanced ARGS_SO_FAR up to, but not beyond, the last named
      argument.  Advance a local copy of ARGS_SO_FAR past the last "real" named
      argument, to find out how many registers are left over.  */
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     TARGET_FUNCTION_ARG_ADVANCE (local_args_so_far, arg);
 
   /* Find how many registers we need to save.  */

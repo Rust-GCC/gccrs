@@ -1,5 +1,5 @@
 /* Simple bitmaps.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -96,7 +96,7 @@ struct simple_bitmap_def
 /* Return the number of bits in BITMAP.  */
 #define SBITMAP_SIZE(BITMAP) ((BITMAP)->n_bits)
 
-/* Verify that access at INDEX in bitmap MAP is valid.  */ 
+/* Verify that access at INDEX in bitmap MAP is valid.  */
 
 inline void
 bitmap_check_index (const_sbitmap map, int index)
@@ -105,7 +105,7 @@ bitmap_check_index (const_sbitmap map, int index)
   gcc_checking_assert ((unsigned int)index < map->n_bits);
 }
 
-/* Verify that bitmaps A and B have same size.  */ 
+/* Verify that bitmaps A and B have same size.  */
 
 inline void
 bitmap_check_sizes (const_sbitmap a, const_sbitmap b)

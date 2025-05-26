@@ -1,5 +1,7 @@
 /* Reduced from coreutils's sum.c: bsd_sum_stream */
 
+/* { dg-additional-options "-fno-exceptions" } */
+
 typedef __SIZE_TYPE__ size_t;
 typedef unsigned char __uint8_t;
 typedef unsigned long int __uintmax_t;
@@ -35,7 +37,7 @@ bsd_sum_stream(FILE* stream, void* resstream, uintmax_t* length)
   int checksum = 0;
   uintmax_t total_bytes = 0;
   static const size_t buffer_length = 32768;
-  uint8_t* buffer = (uint8_t *) malloc(buffer_length);
+  uint8_t* buffer = (uint8_t *) malloc(buffer_length); /* { dg-warning "argument 1 value '32768' exceeds maximum object size 32767" "" { target { c++ && { ! size20plus } } } } */
 
   if (!buffer)
     return -1;
