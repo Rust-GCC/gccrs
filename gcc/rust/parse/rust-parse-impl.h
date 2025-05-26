@@ -877,7 +877,10 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 	return attr_input_lit;
       }
       break;
+    case RIGHT_PAREN:
     case RIGHT_SQUARE:
+    case RIGHT_CURLY:
+    case END_OF_FILE:
       // means AttrInput is missing, which is allowed
       return nullptr;
     default:
@@ -9117,14 +9120,8 @@ Parser<ManagedTokenSource>::parse_type (bool save_errors)
 	  t = lexer.peek_token ();
 	  if (t->get_id () != PLUS)
 	    {
-	      // convert trait bound to value object
-	      AST::TraitBound value_bound (*initial_bound);
-
-	      // DEBUG: removed as unique ptr, so should auto-delete
-	      // delete initial_bound;
-
 	      return std::unique_ptr<AST::ImplTraitTypeOneBound> (
-		new AST::ImplTraitTypeOneBound (std::move (value_bound),
+		new AST::ImplTraitTypeOneBound (std::move (initial_bound),
 						locus));
 	    }
 
@@ -9955,11 +9952,8 @@ Parser<ManagedTokenSource>::parse_type_no_bounds ()
 	      return nullptr;
 	    }
 
-	  // convert trait bound to value object
-	  AST::TraitBound value_bound (*initial_bound);
-
 	  return std::unique_ptr<AST::ImplTraitTypeOneBound> (
-	    new AST::ImplTraitTypeOneBound (std::move (value_bound), locus));
+	    new AST::ImplTraitTypeOneBound (std::move (initial_bound), locus));
 	}
     case DYN:
       case QUESTION_MARK: {
@@ -11920,7 +11914,7 @@ Parser<ManagedTokenSource>::skip_after_end_attribute ()
 {
   const_TokenPtr t = lexer.peek_token ();
 
-  while (t->get_id () != RIGHT_SQUARE)
+  while (t->get_id () != RIGHT_SQUARE && t->get_id () != END_OF_FILE)
     {
       lexer.skip_token ();
       t = lexer.peek_token ();
