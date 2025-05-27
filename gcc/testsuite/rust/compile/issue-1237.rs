@@ -10,12 +10,14 @@ mod intrinsics {
     }
 }
 
+#[lang = "const_ptr"]
 impl<T> *const T {
     pub unsafe fn offset(self, count: isize) -> *const T {
         unsafe { intrinsics::offset(self, count) }
     }
 }
 
+#[lang = "slice"]
 impl<T> [T] {
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         unsafe { &*(self as *const [T] as *const T).offset(index as isize) }
