@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -127,7 +127,8 @@ VisibilityResolver::resolve_visibility (const HIR::Visibility &visibility,
     case HIR::Visibility::PUBLIC:
       to_resolve = ModuleVisibility::create_public ();
       return true;
-      case HIR::Visibility::RESTRICTED: {
+    case HIR::Visibility::RESTRICTED:
+      {
 	// FIXME: We also need to handle 2015 vs 2018 edition conflicts
 	auto id = UNKNOWN_DEFID;
 	auto result = resolve_module_path (visibility.get_path (), id);

@@ -1,13 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -march=x86-64 -mavx10.1" } */
+/* { dg-options "-march=x86-64 -mavx512f -mno-avx10.1" } */
+/* { dg-final { scan-assembler "%zmm" } } */
 
-#include <immintrin.h>
-
-long long
-foo (long long c)
-{
-  register long long a __asm ("k7") = c;
-  long long b = foo (a);
-  asm volatile ("" : "+k" (b));
-  return b;
-}
+#include "avx10_1-2.c"

@@ -1,5 +1,6 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-sra" } */
+/* { dg-options "-O2 -fdump-tree-sra -fdump-tree-optimized" } */
+/* { dg-skip-if "requires hosted libstdc++ for vector" { ! hostedlib } } */
 
 #include <vector>
 typedef unsigned int uint32_t;
@@ -29,3 +30,4 @@ main()
 }
 
 /* { dg-final { scan-tree-dump "Created a replacement for stack offset" "sra"} } */
+/* { dg-final { scan-tree-dump-not "cur = MEM" "optimized"} } */

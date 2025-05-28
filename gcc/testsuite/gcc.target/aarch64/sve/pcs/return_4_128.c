@@ -11,96 +11,91 @@
 
 /*
 ** callee_s8:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1b	z0\.b, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (s8, __SVInt8_t)
 
 /*
 ** callee_u8:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1b	z0\.b, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (u8, __SVUint8_t)
 
 /*
+** callee_mf8:
+**	ldr	q0, \[x0\]
+**	ret
+*/
+CALLEE (mf8, __SVMfloat8_t)
+
+/*
 ** callee_s16:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1h	z0\.h, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (s16, __SVInt16_t)
 
 /*
 ** callee_u16:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1h	z0\.h, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (u16, __SVUint16_t)
 
 /*
 ** callee_f16:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1h	z0\.h, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (f16, __SVFloat16_t)
 
 /*
 ** callee_bf16:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1h	z0\.h, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (bf16, __SVBfloat16_t)
 
 /*
 ** callee_s32:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1w	z0\.s, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (s32, __SVInt32_t)
 
 /*
 ** callee_u32:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1w	z0\.s, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (u32, __SVUint32_t)
 
 /*
 ** callee_f32:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1w	z0\.s, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (f32, __SVFloat32_t)
 
 /*
 ** callee_s64:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1d	z0\.d, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (s64, __SVInt64_t)
 
 /*
 ** callee_u64:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1d	z0\.d, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (u64, __SVUint64_t)
 
 /*
 ** callee_f64:
-**	ptrue	(p[0-7])\.b, vl16
-**	ld1d	z0\.d, \1/z, \[x0\]
+**	ldr	q0, \[x0\]
 **	ret
 */
 CALLEE (f64, __SVFloat64_t)
@@ -115,7 +110,7 @@ CALLEE (f64, __SVFloat64_t)
     return svaddv (svptrue_b8 (), callee_##SUFFIX (ptr1));	\
   }
 
-#define CALLER_BF16(SUFFIX, TYPE)				\
+#define CALLER_NON_NUMERIC(SUFFIX, TYPE)				\
   typeof (svlasta (svptrue_b8 (), *(TYPE *) 0))			\
   __attribute__((noipa))					\
   caller_##SUFFIX (TYPE *ptr1)					\
@@ -146,6 +141,15 @@ CALLER (s8, __SVInt8_t)
 **	ret
 */
 CALLER (u8, __SVUint8_t)
+
+/*
+** caller_mf8:
+**	...
+**	bl	callee_mf8
+**	ldp	x29, x30, \[sp\], 16
+**	ret
+*/
+CALLER_NON_NUMERIC (mf8, __SVMfloat8_t)
 
 /*
 ** caller_s16:
@@ -189,7 +193,7 @@ CALLER (f16, __SVFloat16_t)
 **	ldp	x29, x30, \[sp\], 16
 **	ret
 */
-CALLER_BF16 (bf16, __SVBfloat16_t)
+CALLER_NON_NUMERIC (bf16, __SVBfloat16_t)
 
 /*
 ** caller_s32:

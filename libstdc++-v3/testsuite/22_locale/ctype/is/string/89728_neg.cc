@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2021-2024 Free Software Foundation, Inc.
+// Copyright (C) 2021-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,7 +18,6 @@
 // <http://www.gnu.org/licenses/>.
 
 // { dg-error "invalid use of incomplete type" "" { target *-*-* } 0 }
-// { dg-error "invalid 'static_cast'" "" { target c++98_only } 0 }
 
 #include <locale>
 

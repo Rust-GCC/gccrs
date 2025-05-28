@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.  Selective scheduler and pipeliner.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -4894,7 +4894,7 @@ bb_ends_ebb_p (basic_block bb)
   if (e)
     {
       gcc_assert (e->dest == next_bb);
-      
+
       return false;
     }
 
@@ -5862,8 +5862,7 @@ setup_nop_and_exit_insns (void)
 
   start_sequence ();
   emit_insn (nop_pattern);
-  exit_insn = get_insns ();
-  end_sequence ();
+  exit_insn = end_sequence ();
   set_block_for_insn (exit_insn, EXIT_BLOCK_PTR_FOR_FN (cfun));
 }
 

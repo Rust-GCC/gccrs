@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.  Vxworks Aarch 64bit
    version.
-   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    Contributed by Douglas B Rupp
 
 This file is part of GCC.
@@ -66,9 +66,8 @@ along with GCC; see the file COPYING3.  If not see
 #define VXWORKS_PERSONALITY "llvm"
 
 /* VxWorks uses R18 as a TCB pointer.  We must pick something else as
-   the static chain and R18 needs to be claimed "fixed".  Until we
-   arrange to override the common parts of the port family to
-   acknowledge the latter, configure --with-specs="-ffixed-r18".  */
+   the static chain and R18 needs to be claimed "fixed" (TARGET_OS_USES_R18
+   does that in aarch64_conditional_register_usage).  */
 #undef  STATIC_CHAIN_REGNUM
 #define STATIC_CHAIN_REGNUM 9
-
+#define TARGET_OS_USES_R18

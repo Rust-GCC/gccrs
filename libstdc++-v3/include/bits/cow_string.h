@@ -1,6 +1,6 @@
 // Definition of gcc4-compatible Copy-on-Write basic_string -*- C++ -*-
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -423,7 +423,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	_S_copy_chars(_CharT* __p, _Iterator __k1, _Iterator __k2)
 	{
 	  for (; __k1 != __k2; ++__k1, (void)++__p)
-	    traits_type::assign(*__p, *__k1); // These types are off.
+	    traits_type::assign(*__p, static_cast<_CharT>(*__k1));
 	}
 
       static void
@@ -467,7 +467,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _S_empty_rep() _GLIBCXX_NOEXCEPT
       { return _Rep::_S_empty_rep(); }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       // A helper type for avoiding boiler-plate.
       typedef basic_string_view<_CharT, _Traits> __sv_type;
 
@@ -515,6 +515,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       basic_string()
 #if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
       _GLIBCXX_NOEXCEPT
+#endif
+#if __cpp_concepts && __glibcxx_type_trait_variable_templates
+      requires is_default_constructible_v<_Alloc>
+#endif
+#if _GLIBCXX_FULLY_DYNAMIC_STRING == 0
       : _M_dataplus(_S_empty_rep()._M_refdata(), _Alloc())
 #else
       : _M_dataplus(_S_construct(size_type(), _CharT(), _Alloc()), _Alloc())
@@ -634,6 +639,48 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
       }
 
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Construct a string from a range.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_CharT> _Rg>
+	basic_string(from_range_t, _Rg&& __rg, const _Alloc& __a = _Alloc())
+	: basic_string(__a)
+	{
+	  if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
+	    {
+	      const auto __n = static_cast<size_type>(ranges::distance(__rg));
+	      if (__n == 0)
+		return;
+
+	      reserve(__n);
+	      pointer __p = _M_data();
+	      if constexpr (requires {
+			      requires ranges::contiguous_range<_Rg>;
+			      { ranges::data(std::forward<_Rg>(__rg)) }
+				-> convertible_to<const _CharT*>;
+			    })
+		_M_copy(__p, ranges::data(std::forward<_Rg>(__rg)), __n);
+	      else
+		{
+		  auto __first = ranges::begin(__rg);
+		  const auto __last = ranges::end(__rg);
+		  for (; __first != __last; ++__first)
+		    traits_type::assign(*__p++, static_cast<_CharT>(*__first));
+		}
+	      _M_rep()->_M_set_length_and_sharable(__n);
+	    }
+	  else
+	    {
+	      auto __first = ranges::begin(__rg);
+	      const auto __last = ranges::end(__rg);
+	      for (; __first != __last; ++__first)
+		push_back(*__first);
+	    }
+	}
+#endif
+
       /**
        *  @brief  Construct string from an initializer %list.
        *  @param  __l  std::initializer_list of characters.
@@ -680,7 +727,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	: _M_dataplus(_S_construct(__beg, __end, __a), __a)
 	{ }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Construct string from a substring of a string_view.
        *  @param  __t   Source object convertible to string view.
@@ -770,7 +817,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
 #endif // C++11
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Set value to string constructed from a string_view.
        *  @param  __svt An object convertible to  string_view.
@@ -1241,7 +1288,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return this->append(__l.begin(), __l.size()); }
 #endif // C++11
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Append a string_view.
        *  @param __svt The object convertible to string_view to be appended.
@@ -1309,6 +1356,22 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       basic_string&
       append(size_type __n, _CharT __c);
 
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Append a range to the string.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_CharT> _Rg>
+	basic_string&
+	append_range(_Rg&& __rg)
+	{
+	  basic_string __s(from_range, std::forward<_Rg>(__rg),
+			   get_allocator());
+	  append(__s);
+	  return *this;
+	}
+#endif
+
 #if __cplusplus >= 201103L
       /**
        *  @brief  Append an initializer_list of characters.
@@ -1333,7 +1396,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	append(_InputIterator __first, _InputIterator __last)
 	{ return this->replace(_M_iend(), _M_iend(), __first, __last); }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Append a string_view.
        *  @param __svt The object convertible to string_view to be appended.
@@ -1480,6 +1543,22 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	assign(_InputIterator __first, _InputIterator __last)
 	{ return this->replace(_M_ibegin(), _M_iend(), __first, __last); }
 
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief  Set value to a range of characters.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_CharT> _Rg>
+	basic_string&
+	assign_range(_Rg&& __rg)
+	{
+	  basic_string __s(from_range, std::forward<_Rg>(__rg),
+			   get_allocator());
+	  assign(std::move(__s));
+	  return *this;
+	}
+#endif
+
 #if __cplusplus >= 201103L
       /**
        *  @brief  Set value to an initializer_list of characters.
@@ -1491,7 +1570,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return this->assign(__l.begin(), __l.size()); }
 #endif // C++11
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Set value from a string_view.
        *  @param __svt The source object convertible to string_view.
@@ -1556,6 +1635,33 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	void
 	insert(iterator __p, _InputIterator __beg, _InputIterator __end)
 	{ this->replace(__p, __p, __beg, __end); }
+
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Insert a range into the string.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_CharT> _Rg>
+	iterator
+	insert_range(const_iterator __p, _Rg&& __rg)
+	{
+	  auto __pos = __p - cbegin();
+
+	  if constexpr (ranges::forward_range<_Rg>)
+	    if (ranges::empty(__rg))
+	      return begin() + __pos;
+
+	  if (__p == cend())
+	    append_range(std::forward<_Rg>(__rg));
+	  else
+	    {
+	      basic_string __s(from_range, std::forward<_Rg>(__rg),
+			       get_allocator());
+	      insert(__pos, __s);
+	    }
+	  return begin() + __pos;
+	}
+#endif
 
 #if __cplusplus >= 201103L
       /**
@@ -1698,7 +1804,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return iterator(_M_data() + __pos);
       }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Insert a string_view.
        *  @param __pos  Position in string to insert at.
@@ -2067,6 +2173,27 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 			     __k1.base(), __k2 - __k1);
       }
 
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Replace part of the string with a range.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_CharT> _Rg>
+	basic_string&
+	replace_with_range(const_iterator __i1, const_iterator __i2, _Rg&& __rg)
+	{
+	  if (__i1 == cend())
+	    append_range(std::forward<_Rg>(__rg));
+	  else
+	    {
+	      basic_string __s(from_range, std::forward<_Rg>(__rg),
+			       get_allocator());
+	      replace(__i1 - cbegin(), __i2 - __i1, __s);
+	    }
+	  return *this;
+	}
+#endif
+
 #if __cplusplus >= 201103L
       /**
        *  @brief  Replace range of characters with initializer_list.
@@ -2087,7 +2214,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return this->replace(__i1, __i2, __l.begin(), __l.end()); }
 #endif // C++11
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Replace range of characters with string_view.
        *  @param __pos  The position to replace at.
@@ -2267,9 +2394,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
        *
        *  This is a pointer to the character sequence held by the string.
        *  Modifying the characters in the sequence is allowed.
+       *
+       *  The standard requires this function to be `noexcept` but for the
+       *  Copy-On-Write string implementation it can throw.  This function
+       *  allows modifying the string contents directly, which means we
+       *  must copy-on-write to unshare it, which requires allocating memory.
       */
       _CharT*
-      data() noexcept
+      data() noexcept(false)
       {
 	_M_leak();
 	return _M_data();
@@ -2344,7 +2476,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_type
       find(_CharT __c, size_type __pos = 0) const _GLIBCXX_NOEXCEPT;
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Find position of a string_view.
        *  @param __svt  The object convertible to string_view to locate.
@@ -2422,7 +2554,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       size_type
       rfind(_CharT __c, size_type __pos = npos) const _GLIBCXX_NOEXCEPT;
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Find last position of a string_view.
        *  @param __svt  The object convertible to string_view to locate.
@@ -2505,7 +2637,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       find_first_of(_CharT __c, size_type __pos = 0) const _GLIBCXX_NOEXCEPT
       { return this->find(__c, __pos); }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Find position of a character of a string_view.
        *  @param __svt  An object convertible to string_view containing
@@ -2589,7 +2721,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       find_last_of(_CharT __c, size_type __pos = npos) const _GLIBCXX_NOEXCEPT
       { return this->rfind(__c, __pos); }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Find last position of a character of string.
        *  @param __svt  An object convertible to string_view containing
@@ -2670,7 +2802,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       find_first_not_of(_CharT __c, size_type __pos = 0) const
       _GLIBCXX_NOEXCEPT;
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Find position of a character not in a string_view.
        *  @param __svt  An object convertible to string_view containing
@@ -2752,7 +2884,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       find_last_not_of(_CharT __c, size_type __pos = npos) const
       _GLIBCXX_NOEXCEPT;
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Find last position of a character not in a string_view.
        *  @param __svt  An object convertible to string_view containing
@@ -2814,7 +2946,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	return __r;
       }
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_string_view // >= C++17
       /**
        *  @brief  Compare to a string_view.
        *  @param __svt An object convertible to string_view to compare against.
@@ -3755,7 +3887,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _CharT, typename _Traits, typename _Alloc>
   template<typename _Operation>
     [[__gnu__::__always_inline__]]
-    void
+    inline void
     basic_string<_CharT, _Traits, _Alloc>::
     __resize_and_overwrite(const size_type __n, _Operation __op)
     { resize_and_overwrite<_Operation&>(__n, __op); }
@@ -3790,7 +3922,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static_assert(__gnu_cxx::__is_integer_nonstrict<decltype(__r)>::__value,
 		    "resize_and_overwrite operation must return an integer");
 #endif
-      _GLIBCXX_DEBUG_ASSERT(__r >= 0 && __r <= __n);
+      _GLIBCXX_DEBUG_ASSERT(__r >= 0 && size_type(__r) <= __n);
       __term._M_r = size_type(__r);
       if (__term._M_r > __n)
 	__builtin_unreachable();

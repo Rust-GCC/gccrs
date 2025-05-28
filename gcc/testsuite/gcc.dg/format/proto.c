@@ -4,7 +4,7 @@
    without a prototype.  If it's decided that it shouldn't be the tests
    here will need to be adjusted.
    { dg-do compile }
-   { dg-options "-Wall" } */
+   { dg-options "-std=gnu17 -Wall" } */
 
 #define FMT(n1, n2) __attribute__((__format__(__printf__, n1, n2)))
 
@@ -18,7 +18,7 @@ FMT (3, 4) void print3 ();
 FMT (3, 4) void print3 ();
 
 FMT (1, 2) void print4 ();
-           void print4 (void);              // { dg-warning "'format' attribute cannot be applied to a function that does not take variable arguments" }
+           void print4 (void);              // { dg-warning "'format' attribute can only be applied to variadic functions" }
 
            void print5 ();
 FMT (1, 2) void print5 (void);              // { dg-warning "\\\[-Wattributes" }
@@ -59,7 +59,7 @@ FMT (3, 4) void (*pfprint3)();
 FMT (3, 4) void (*pfprint3)();
 
 FMT (1, 2) void (*pfprint4)();
-           void (*pfprint4)(void);              // { dg-warning "'format' attribute cannot be applied to a function that does not take variable arguments" }
+           void (*pfprint4)(void);              // { dg-warning "'format' attribute can only be applied to variadic functions" }
 
            void (*pfprint5)();
 FMT (1, 2) void (*pfprint5)(void);              // { dg-warning "\\\[-Wattributes" }

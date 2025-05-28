@@ -1,7 +1,7 @@
 %{
 /* m2.flex implements lexical analysis for Modula-2.
 
-Copyright (C) 2004-2024 Free Software Foundation, Inc.
+Copyright (C) 2004-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -26,6 +26,7 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 #include "GM2LexBuf.h"
 #include "input.h"
 #include "m2options.h"
+#include "Gm2linemap.h"
 
 static int cpreprocessor = 0;  /* Replace this with correct getter.  */
 
@@ -46,6 +47,8 @@ static int cpreprocessor = 0;  /* Replace this with correct getter.  */
 #ifdef __cplusplus
 #define EXTERN extern "C"
 #endif
+
+#define FIRST_COLUMN 1
 
   /* m2.flex provides a lexical analyser for GNU Modula-2.  */
 
@@ -160,8 +163,14 @@ extern  void  yylex                   (void);
 <COMMENTC>.                { updatepos(); skippos(); }
 <COMMENTC>\n.*             { consumeLine(); }
 <COMMENTC>"*/"             { endOfCComment(); }
-^\#.*                      { consumeLine(); /* printf("found: %s\n", currentLine->linebuf); */ BEGIN LINE0; }
-\n\#.*                     { consumeLine(); /* printf("found: %s\n", currentLine->linebuf); */ BEGIN LINE0; }
+^\#.*                      { consumeLine(); /* printf("found: %s\n", currentLine->linebuf); */
+                             if (M2Options_GetLineDirectives ())
+			        BEGIN LINE0;
+		           }
+\n\#.*                     { consumeLine(); /* printf("found: %s\n", currentLine->linebuf); */
+                             if (M2Options_GetLineDirectives ())
+			        BEGIN LINE0;
+			   }
 <LINE0>\#[ \t]*            { updatepos(); }
 <LINE0>[0-9]+[ \t]*\"      { updatepos(); lineno=atoi(yytext); BEGIN LINE1; }
 <LINE0>\n                  { m2flex_M2Error("missing initial quote after #line directive"); resetpos(); BEGIN INITIAL; }
@@ -188,12 +197,14 @@ extern  void  yylex                   (void);
 \"[^\"\n]*\"               { updatepos(); M2LexBuf_AddTokCharStar(M2Reserved_stringtok, yytext); return; }
 \"[^\"\n]*$                { updatepos();
                              m2flex_M2Error("missing terminating quote, \"");
+			     M2LexBuf_AddTokCharStar(M2Reserved_stringtok, yytext);
                              resetpos(); return;
                            }
 
 '[^'\n]*'                  { updatepos(); M2LexBuf_AddTokCharStar(M2Reserved_stringtok, yytext); return; }
 '[^'\n]*$                  { updatepos();
                              m2flex_M2Error("missing terminating quote, '");
+			     M2LexBuf_AddTokCharStar(M2Reserved_stringtok, yytext);
                              resetpos(); return;
                            }
 
@@ -255,6 +266,7 @@ EXIT                       { updatepos(); M2LexBuf_AddTok(M2Reserved_exittok); r
 EXPORT                     { updatepos(); M2LexBuf_AddTok(M2Reserved_exporttok); return; }
 FINALLY                    { updatepos(); M2LexBuf_AddTok(M2Reserved_finallytok); return; }
 FOR                        { updatepos(); M2LexBuf_AddTok(M2Reserved_fortok); return; }
+FORWARD                    { updatepos(); M2LexBuf_AddTok(M2Reserved_forwardtok); return; }
 FROM                       { updatepos(); M2LexBuf_AddTok(M2Reserved_fromtok); return; }
 IF                         { updatepos(); M2LexBuf_AddTok(M2Reserved_iftok); return; }
 IMPLEMENTATION             { updatepos(); M2LexBuf_AddTok(M2Reserved_implementationtok); return; }
@@ -483,7 +495,10 @@ EXTERN void m2flex_M2Error (const char *s)
     }
     putchar('\n');
   }
-  printf("%s:%d:%s\n", filename, currentLine->lineno, s);
+  if (s == NULL)
+    printf("%s:%d\n", filename, currentLine->lineno);
+  else
+    printf("%s:%d:%s\n", filename, currentLine->lineno, s);
 }
 
 static void poperrorskip (const char *s)
@@ -497,6 +512,35 @@ static void poperrorskip (const char *s)
     currentLine->nextpos  = nextpos;
     currentLine->tokenpos = tokenpos;
   }
+}
+
+/* skipnewline skips all '\n' at the start of the line and returns
+   the new position.  */
+
+static
+char *
+skipnewline (char *line)
+{
+  while (((*line) != (char)0) && ((*line) == '\n'))
+    line++;
+  return line;
+}
+
+/* traceLine display the source line providing -fdebug-trace-line was
+   enabled.  */
+
+static
+void
+traceLine (void)
+{
+  if (M2Options_GetDebugTraceLine ())
+    {
+      char *line = skipnewline (currentLine->linebuf);
+      if (filename == NULL)
+	printf("<stdin>:%d:%s\n", currentLine->lineno, line);
+      else
+	printf("%s:%d:%s\n", filename, currentLine->lineno, line);
+    }
 }
 
 /*
@@ -516,9 +560,10 @@ static void consumeLine (void)
   currentLine->lineno = lineno;
   currentLine->tokenpos=0;
   currentLine->nextpos=0;
-  currentLine->column=0;
+  currentLine->column=FIRST_COLUMN;
   START_LINE (lineno, yyleng);
   yyless(1);                  /* push back all but the \n */
+  traceLine ();
 }
 
 static void assert_location (location_t location ATTRIBUTE_UNUSED)
@@ -578,7 +623,6 @@ static void updatepos (void)
   seenModuleStart      = false;
   currentLine->nextpos = currentLine->tokenpos+yyleng;
   currentLine->toklen  = yyleng;
-  /* if (currentLine->column == 0) */
   currentLine->column = currentLine->tokenpos+1;
   currentLine->location =
     M2Options_OverrideLocation (GET_LOCATION (currentLine->column,
@@ -634,7 +678,7 @@ static void initLine (void)
   currentLine->toklen     = 0;
   currentLine->nextpos    = 0;
   currentLine->lineno = lineno;
-  currentLine->column     = 0;
+  currentLine->column     = FIRST_COLUMN;
   currentLine->inuse      = true;
   currentLine->next       = NULL;
 }
@@ -769,10 +813,10 @@ EXTERN bool m2flex_OpenSource (char *s)
 
 EXTERN int m2flex_GetLineNo (void)
 {
-  if (currentLine != NULL)
-    return currentLine->lineno;
-  else
+  if (currentLine == NULL)
     return 0;
+  else
+    return currentLine->lineno;
 }
 
 /*
@@ -782,10 +826,10 @@ EXTERN int m2flex_GetLineNo (void)
 
 EXTERN int m2flex_GetColumnNo (void)
 {
-  if (currentLine != NULL)
-    return currentLine->column;
+  if (currentLine == NULL)
+    return FIRST_COLUMN;
   else
-    return 0;
+    return currentLine->column;
 }
 
 /*
@@ -794,10 +838,10 @@ EXTERN int m2flex_GetColumnNo (void)
 
 EXTERN location_t m2flex_GetLocation (void)
 {
-  if (currentLine != NULL)
-    return currentLine->location;
-  else
+  if (currentLine == NULL)
     return 0;
+  else
+    return currentLine->location;
 }
 
 /*

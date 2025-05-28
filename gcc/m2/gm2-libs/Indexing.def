@@ -1,6 +1,6 @@
 (* Indexing.def provides a dynamic indexing mechanism for CARDINAL.
 
-Copyright (C) 2003-2024 Free Software Foundation, Inc.
+Copyright (C) 2003-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -142,6 +142,14 @@ PROCEDURE ForeachIndiceInIndexDo (i: Index; p: IndexProcedure) ;
 *)
 
 PROCEDURE IsEmpty (i: Index) : BOOLEAN ;
+
+
+(*
+   FindIndice - returns the indice containing a.
+                It returns zero if a is not found in array i.
+*)
+
+PROCEDURE FindIndice (i: Index; a: ADDRESS) : CARDINAL ;
 
 
 END Indexing.

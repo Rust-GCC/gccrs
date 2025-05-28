@@ -1,6 +1,6 @@
 /* A simple stack-based virtual machine to demonstrate
    JIT-compilation.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -776,7 +776,7 @@ compilation_state::create_function (const char *funcname)
             ctxt.new_cast (x, bool_type, loc),
 	    op_blocks[op->op_operand], /* on_true */
 	    next_block, /* on_false */
-            loc); 
+            loc);
 	  break;
 
 	default:

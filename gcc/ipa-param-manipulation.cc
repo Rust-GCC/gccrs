@@ -1,6 +1,6 @@
 /* Manipulation of formal and actual parameters of functions and function
    calls.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -740,6 +740,12 @@ ipa_param_adjustments::modify_call (cgraph_edge *cs,
 	  }
       if (repl)
 	{
+	  if (!useless_type_conversion_p(apm->type, repl->typed.type))
+	    {
+	      repl = force_value_to_type (apm->type, repl);
+	      repl = force_gimple_operand_gsi (&gsi, repl,
+					       true, NULL, true, GSI_SAME_STMT);
+	    }
 	  vargs.quick_push (repl);
 	  continue;
 	}
@@ -1524,6 +1530,22 @@ ipa_param_body_adjustments::common_initialization (tree old_fndecl,
 		     by reference) or do the split but initialize the
 		     replacement with a constant (for split aggregates passed
 		     by value).  */
+
+		  if (split[parm_num])
+		    {
+		      /* We must be careful not to add a duplicate
+			 replacement. */
+		      sort_replacements ();
+		      ipa_param_body_replacement *pbr
+			= lookup_replacement_1 (m_oparms[parm_num],
+						av.unit_offset);
+		      if (pbr)
+			{
+			  /* Otherwise IPA-SRA should have bailed out.  */
+			  gcc_assert (AGGREGATE_TYPE_P (TREE_TYPE (pbr->repl)));
+			  continue;
+			}
+		    }
 
 		  tree repl;
 		  if (av.by_ref)

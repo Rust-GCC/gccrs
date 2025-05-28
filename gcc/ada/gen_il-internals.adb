@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2020-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2020-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -279,6 +279,8 @@ package body Gen_IL.Internals is
             return "DT_Position";
          when Forwards_OK =>
             return "Forwards_OK";
+         when Has_First_Controlling_Parameter_Aspect =>
+            return "Has_First_Controlling_Parameter_Aspect";
          when Has_Inherited_DIC =>
             return "Has_Inherited_DIC";
          when Has_Own_DIC =>
@@ -339,8 +341,6 @@ package body Gen_IL.Internals is
             return "SPARK_Pragma";
          when SPARK_Pragma_Inherited =>
             return "SPARK_Pragma_Inherited";
-         when Split_PPC =>
-            return "Split_PPC";
          when SSO_Set_High_By_Default =>
             return "SSO_Set_High_By_Default";
          when SSO_Set_Low_By_Default =>

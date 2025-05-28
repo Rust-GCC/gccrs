@@ -1,5 +1,5 @@
 /* Detection of infinite recursion.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -18,28 +18,14 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_MEMORY
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "fold-const.h"
-#include "gcc-rich-location.h"
-#include "alloc-pool.h"
-#include "fibonacci_heap.h"
-#include "shortest-paths.h"
-#include "diagnostic-core.h"
-#include "diagnostic-event-id.h"
-#include "diagnostic-path.h"
-#include "function.h"
-#include "pretty-print.h"
-#include "sbitmap.h"
-#include "bitmap.h"
-#include "tristate.h"
-#include "ordered-hash-map.h"
-#include "selftest.h"
-#include "json.h"
-#include "analyzer/analyzer.h"
+#include "analyzer/common.h"
+
+#include "cfg.h"
+#include "gimple-iterator.h"
+#include "gimple-pretty-print.h"
+#include "cgraph.h"
+#include "digraph.h"
+
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/call-string.h"
 #include "analyzer/program-point.h"
@@ -49,19 +35,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/sm.h"
 #include "analyzer/pending-diagnostic.h"
 #include "analyzer/diagnostic-manager.h"
-#include "cfg.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "gimple-pretty-print.h"
-#include "cgraph.h"
-#include "digraph.h"
 #include "analyzer/supergraph.h"
 #include "analyzer/program-state.h"
 #include "analyzer/exploded-graph.h"
-#include "make-unique.h"
 #include "analyzer/checker-path.h"
 #include "analyzer/feasible-graph.h"
+#include "diagnostic-format-sarif.h"
 
 /* A subclass of pending_diagnostic for complaining about suspected
    infinite recursion.  */
@@ -101,17 +80,20 @@ public:
     return ctxt.warn ("infinite recursion");
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     const int frames_consumed = (m_new_entry_enode->get_stack_depth ()
 				 - m_prev_entry_enode->get_stack_depth ());
     if (frames_consumed > 1)
-      return ev.formatted_print
-	("apparently infinite chain of mutually-recursive function calls,"
-	 " consuming %i stack frames per recursion",
-	 frames_consumed);
+      pp_printf (&pp,
+		 "apparently infinite chain of mutually-recursive function"
+		 " calls, consuming %i stack frames per recursion",
+		 frames_consumed);
     else
-      return ev.formatted_print ("apparently infinite recursion");
+      pp_string (&pp, "apparently infinite recursion");
+    return true;
   }
 
   void
@@ -134,25 +116,26 @@ public:
       {
       }
 
-      label_text
-      get_desc (bool can_colorize) const final override
+      void
+      print_desc (pretty_printer &pp) const final override
       {
 	if (m_topmost)
 	  {
 	    if (m_pd.m_prev_entry_event
 		&& m_pd.m_prev_entry_event->get_id_ptr ()->known_p ())
-	      return make_label_text
-		(can_colorize,
-		 "recursive entry to %qE; previously entered at %@",
-		 m_effective_fndecl,
-		 m_pd.m_prev_entry_event->get_id_ptr ());
+	      pp_printf (&pp,
+			 "recursive entry to %qE; previously entered at %@",
+			 m_effective_fndecl,
+			 m_pd.m_prev_entry_event->get_id_ptr ());
 	    else
-	      return make_label_text (can_colorize, "recursive entry to %qE",
-				      m_effective_fndecl);
+	      pp_printf (&pp,
+			 "recursive entry to %qE",
+			 m_effective_fndecl);
 	  }
 	else
-	  return make_label_text (can_colorize, "initial entry to %qE",
-				  m_effective_fndecl);
+	  pp_printf (&pp,
+		     "initial entry to %qE",
+		     m_effective_fndecl);
       }
 
     private:
@@ -165,14 +148,15 @@ public:
       {
 	gcc_assert (m_prev_entry_event == NULL);
 	std::unique_ptr<checker_event> prev_entry_event
-	  = make_unique <recursive_function_entry_event> (dst_point,
-							  *this, false);
+	  = std::make_unique <recursive_function_entry_event> (dst_point,
+							       *this, false);
 	m_prev_entry_event = prev_entry_event.get ();
 	emission_path->add_event (std::move (prev_entry_event));
       }
     else if (eedge.m_dest == m_new_entry_enode)
       emission_path->add_event
-	(make_unique<recursive_function_entry_event> (dst_point, *this, true));
+	(std::make_unique<recursive_function_entry_event>
+	   (dst_point, *this, true));
     else
       pending_diagnostic::add_function_entry_event (eedge, emission_path);
   }
@@ -181,20 +165,20 @@ public:
      it at the topmost entrypoint to the function.  */
   void add_final_event (const state_machine *,
 			const exploded_node *enode,
-			const gimple *,
+			const event_loc_info &,
 			tree,
 			state_machine::state_t,
 			checker_path *emission_path) final override
   {
     gcc_assert (m_new_entry_enode);
     emission_path->add_event
-      (make_unique<warning_event>
+      (std::make_unique<warning_event>
        (event_loc_info (m_new_entry_enode->get_supernode
 			  ()->get_start_location (),
 			m_callee_fndecl,
 			m_new_entry_enode->get_stack_depth ()),
 	enode,
-	NULL, NULL, NULL));
+	nullptr, nullptr, nullptr));
   }
 
   /* Reject paths in which conjured svalues have affected control flow
@@ -234,6 +218,18 @@ public:
     /* We shouldn't get here; if we do, reject the diagnostic.  */
     gcc_unreachable ();
     return false;
+  }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/infinite_recursion_diagnostic/"
+    props.set_integer (PROPERTY_PREFIX "prev_entry_enode",
+		       m_prev_entry_enode->m_index);
+    props.set_integer (PROPERTY_PREFIX "new_entry_enode",
+		       m_new_entry_enode->m_index);
+#undef PROPERTY_PREFIX
   }
 
 private:
@@ -628,7 +624,7 @@ exploded_graph::detect_infinite_recursion (exploded_node *enode)
 			 nullptr);
   get_diagnostic_manager ().add_diagnostic
     (ploc,
-     make_unique<infinite_recursion_diagnostic> (prev_entry_enode,
-						 enode,
-						 fndecl));
+     std::make_unique<infinite_recursion_diagnostic> (prev_entry_enode,
+						      enode,
+						      fndecl));
 }

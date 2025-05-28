@@ -1,5 +1,5 @@
 /* Read and annotate call graph profile from the auto profile data file.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Dehao Chen (dehao@google.com)
 
 This file is part of GCC.
@@ -151,7 +151,6 @@ public:
      Each inline stack should only be used to annotate IR once.
      This will be enforced when instruction-level discriminator
      is supported.  */
-  bool annotated;
 };
 
 /* operator< for "const char *".  */
@@ -242,9 +241,6 @@ public:
      MAP, return the total count for all inlined indirect calls.  */
   gcov_type find_icall_target_map (gcall *stmt, icall_target_map *map) const;
 
-  /* Sum of counts that is used during annotation.  */
-  gcov_type total_annotated_count () const;
-
   /* Mark LOC as annotated.  */
   void mark_annotated (location_t loc);
 
@@ -303,15 +299,16 @@ public:
      in INFO and return true; otherwise return false.  */
   bool get_count_info (gimple *stmt, count_info *info) const;
 
+  /* Find count_info for a given gimple location GIMPLE_LOC. If found,
+     store the count_info in INFO and return true; otherwise return false.  */
+  bool get_count_info (location_t gimple_loc, count_info *info) const;
+
   /* Find total count of the callee of EDGE.  */
   gcov_type get_callsite_total_count (struct cgraph_edge *edge) const;
 
   /* Update value profile INFO for STMT from the inlined indirect callsite.
      Return true if INFO is updated.  */
   bool update_inlined_ind_target (gcall *stmt, count_info *info);
-
-  /* Mark LOC as annotated.  */
-  void mark_annotated (location_t loc);
 
 private:
   /* Map from function_instance name index (in string_table) to
@@ -473,7 +470,7 @@ string_table::get_index (const char *name) const
   return iter->second;
 }
 
-/* Return the index of a given function DECL. Return -1 if DECL is not 
+/* Return the index of a given function DECL. Return -1 if DECL is not
    found in string table.  */
 
 int
@@ -574,17 +571,6 @@ function_instance::get_count_info (location_t loc, count_info *info) const
   return true;
 }
 
-/* Mark LOC as annotated.  */
-
-void
-function_instance::mark_annotated (location_t loc)
-{
-  position_count_map::iterator iter = pos_counts.find (loc);
-  if (iter == pos_counts.end ())
-    return;
-  iter->second.annotated = true;
-}
-
 /* Read the inlined indirect call target profile for STMT and store it in
    MAP, return the total count for all inlined indirect calls.  */
 
@@ -681,22 +667,6 @@ function_instance::read_function_instance (function_instance_stack *stack,
   return s;
 }
 
-/* Sum of counts that is used during annotation.  */
-
-gcov_type
-function_instance::total_annotated_count () const
-{
-  gcov_type ret = 0;
-  for (callsite_map::const_iterator iter = callsites.begin ();
-       iter != callsites.end (); ++iter)
-    ret += iter->second->total_annotated_count ();
-  for (position_count_map::const_iterator iter = pos_counts.begin ();
-       iter != pos_counts.end (); ++iter)
-    if (iter->second.annotated)
-      ret += iter->second.count;
-  return ret;
-}
-
 /* Member functions for autofdo_source_profile.  */
 
 autofdo_source_profile::~autofdo_source_profile ()
@@ -724,32 +694,24 @@ autofdo_source_profile::get_function_instance_by_decl (tree decl) const
 bool
 autofdo_source_profile::get_count_info (gimple *stmt, count_info *info) const
 {
-  if (LOCATION_LOCUS (gimple_location (stmt)) == cfun->function_end_locus)
+  return get_count_info (gimple_location (stmt), info);
+}
+
+bool
+autofdo_source_profile::get_count_info (location_t gimple_loc,
+					count_info *info) const
+{
+  if (LOCATION_LOCUS (gimple_loc) == cfun->function_end_locus)
     return false;
 
   inline_stack stack;
-  get_inline_stack (gimple_location (stmt), &stack);
+  get_inline_stack (gimple_loc, &stack);
   if (stack.length () == 0)
     return false;
   function_instance *s = get_function_instance_by_inline_stack (stack);
   if (s == NULL)
     return false;
   return s->get_count_info (stack[0].second, info);
-}
-
-/* Mark LOC as annotated.  */
-
-void
-autofdo_source_profile::mark_annotated (location_t loc)
-{
-  inline_stack stack;
-  get_inline_stack (loc, &stack);
-  if (stack.length () == 0)
-    return;
-  function_instance *s = get_function_instance_by_inline_stack (stack);
-  if (s == NULL)
-    return;
-  s->mark_annotated (stack[0].second);
 }
 
 /* Update value profile INFO for STMT from the inlined indirect callsite.
@@ -837,8 +799,8 @@ autofdo_source_profile::get_callsite_total_count (
 
   function_instance *s = get_function_instance_by_inline_stack (stack);
   if (s == NULL
-      || afdo_string_table->get_index (IDENTIFIER_POINTER (
-             DECL_ASSEMBLER_NAME (edge->callee->decl))) != s->name ())
+      ||(afdo_string_table->get_index_by_decl (edge->callee->decl)
+	 != s->name()))
     return 0;
 
   return s->total_count ();
@@ -1107,8 +1069,6 @@ static bool
 afdo_set_bb_count (basic_block bb, const stmt_set &promoted)
 {
   gimple_stmt_iterator gsi;
-  edge e;
-  edge_iterator ei;
   gcov_type max_count = 0;
   bool has_annotated = false;
 
@@ -1130,21 +1090,36 @@ afdo_set_bb_count (basic_block bb, const stmt_set &promoted)
     }
 
   if (!has_annotated)
-    return false;
-
-  for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
-    afdo_source_profile->mark_annotated (gimple_location (gsi_stmt (gsi)));
-  for (gphi_iterator gpi = gsi_start_phis (bb);
-       !gsi_end_p (gpi);
-       gsi_next (&gpi))
     {
-      gphi *phi = gpi.phi ();
-      size_t i;
-      for (i = 0; i < gimple_phi_num_args (phi); i++)
-        afdo_source_profile->mark_annotated (gimple_phi_arg_location (phi, i));
+      /* For an empty BB with all debug stmt which assigne a value with
+	 constant, check successors PHIs corresponding to the block and
+	 use those counts.  */
+      edge tmp_e;
+      edge_iterator tmp_ei;
+      FOR_EACH_EDGE (tmp_e, tmp_ei, bb->succs)
+	{
+	  basic_block bb_succ = tmp_e->dest;
+	  for (gphi_iterator gpi = gsi_start_phis (bb_succ);
+	       !gsi_end_p (gpi);
+	       gsi_next (&gpi))
+	    {
+	      gphi *phi = gpi.phi ();
+	      location_t phi_loc
+		= gimple_phi_arg_location_from_edge (phi, tmp_e);
+	      count_info info;
+	      if (afdo_source_profile->get_count_info (phi_loc, &info)
+		  && info.count != 0)
+		{
+		  if (info.count > max_count)
+		    max_count = info.count;
+		  has_annotated = true;
+		}
+	    }
+	}
+
+      if (!has_annotated)
+	return false;
     }
-  FOR_EACH_EDGE (e, ei, bb->succs)
-  afdo_source_profile->mark_annotated (e->goto_locus);
 
   bb->count = profile_count::from_gcov_type (max_count).afdo ();
   return true;
@@ -1538,8 +1513,6 @@ afdo_annotate_cfg (const stmt_set &promoted_stmts)
 
   if (s == NULL)
     return;
-  cgraph_node::get (current_function_decl)->count
-     = profile_count::from_gcov_type (s->head_count ()).afdo ();
   ENTRY_BLOCK_PTR_FOR_FN (cfun)->count
      = profile_count::from_gcov_type (s->head_count ()).afdo ();
   EXIT_BLOCK_PTR_FOR_FN (cfun)->count = profile_count::zero ().afdo ();
@@ -1569,18 +1542,15 @@ afdo_annotate_cfg (const stmt_set &promoted_stmts)
           = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
       set_bb_annotated (EXIT_BLOCK_PTR_FOR_FN (cfun)->prev_bb, &annotated_bb);
     }
-  afdo_source_profile->mark_annotated (
-      DECL_SOURCE_LOCATION (current_function_decl));
-  afdo_source_profile->mark_annotated (cfun->function_start_locus);
-  afdo_source_profile->mark_annotated (cfun->function_end_locus);
   if (max_count.nonzero_p())
     {
       /* Calculate, propagate count and probability information on CFG.  */
       afdo_calculate_branch_prob (&annotated_bb);
     }
+  cgraph_node::get(current_function_decl)->count
+      = ENTRY_BLOCK_PTR_FOR_FN(cfun)->count;
   update_max_bb_count ();
   profile_status_for_fn (cfun) = PROFILE_READ;
-  cfun->cfg->full_profile = true;
   if (flag_value_profile_transformations)
     {
       gimple_value_profile_transformations ();

@@ -1,5 +1,5 @@
 /* Scanning of rtl for dataflow analysis.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    Originally contributed by Michael P. Hayes
              (m.hayes@elec.canterbury.ac.nz, mhayes@redhat.com)
    Major rewrite contributed by Danny Berlin (dberlin@dberlin.org)
@@ -78,7 +78,6 @@ static void df_get_eh_block_artificial_uses (bitmap);
 
 static void df_record_entry_block_defs (bitmap);
 static void df_record_exit_block_uses (bitmap);
-static void df_get_exit_block_use_set (bitmap);
 static void df_get_entry_block_def_set (bitmap);
 static void df_grow_ref_info (struct df_ref_info *, unsigned int);
 static void df_ref_chain_delete_du_chain (df_ref);
@@ -3642,7 +3641,7 @@ df_epilogue_uses_p (unsigned int regno)
 
 /* Set the bit for regs that are considered being used at the exit. */
 
-static void
+void
 df_get_exit_block_use_set (bitmap exit_block_uses)
 {
   unsigned int i;
@@ -3702,13 +3701,7 @@ df_get_exit_block_use_set (bitmap exit_block_uses)
 
   /* Mark the registers that will contain data for the handler.  */
   if (reload_completed && crtl->calls_eh_return)
-    for (i = 0; ; ++i)
-      {
-	unsigned regno = EH_RETURN_DATA_REGNO (i);
-	if (regno == INVALID_REGNUM)
-	  break;
-	bitmap_set_bit (exit_block_uses, regno);
-      }
+    IOR_REG_SET_HRS (exit_block_uses, eh_return_data_regs);
 
 #ifdef EH_RETURN_STACKADJ_RTX
   if ((!targetm.have_epilogue () || ! epilogue_completed)

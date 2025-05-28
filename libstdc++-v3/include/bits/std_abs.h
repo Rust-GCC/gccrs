@@ -1,6 +1,6 @@
 // -*- C++ -*- C library enhancements header.
 
-// Copyright (C) 2016-2024 Free Software Foundation, Inc.
+// Copyright (C) 2016-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,9 +30,15 @@
 #ifndef _GLIBCXX_BITS_STD_ABS_H
 #define _GLIBCXX_BITS_STD_ABS_H
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic" // include_next
+#pragma GCC diagnostic ignored "-Wlong-long"
 
 #define _GLIBCXX_INCLUDE_NEXT_C_HEADERS
 #include_next <stdlib.h>
@@ -97,6 +103,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   abs(__GLIBCXX_TYPE_INT_N_3 __x) { return __x >= 0 ? __x : -__x; }
 #endif
 
+#if defined __STRICT_ANSI__ && defined __SIZEOF_INT128__
+  // In strict modes __GLIBCXX_TYPE_INT_N_0 is not defined for __int128,
+  // but we want to always define std::abs(__int128).
+  __extension__ inline _GLIBCXX_CONSTEXPR __int128
+  abs(__int128 __x) { return __x >= 0 ? __x : -__x; }
+#endif
+
 #if defined(__STDCPP_FLOAT16_T__) && defined(_GLIBCXX_FLOAT_IS_IEEE_BINARY32)
   constexpr _Float16
   abs(_Float16 __x)
@@ -131,7 +144,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   { return __gnu_cxx::__bfloat16_t(__builtin_fabsf(__x)); }
 #endif
 
-#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_FLOAT128)
+#if defined(_GLIBCXX_USE_FLOAT128)
   __extension__ inline _GLIBCXX_CONSTEXPR
   __float128
   abs(__float128 __x)
@@ -150,5 +163,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 } // extern "C++"
+
+#pragma GCC diagnostic pop
 
 #endif // _GLIBCXX_BITS_STD_ABS_H

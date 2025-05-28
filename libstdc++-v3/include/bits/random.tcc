@@ -1,6 +1,6 @@
 // random number generation (out of line) -*- C++ -*-
 
-// Copyright (C) 2009-2024 Free Software Foundation, Inc.
+// Copyright (C) 2009-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -849,11 +849,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       constexpr result_type __range = max() - min();
       size_t __j = __k;
       const result_type __y = _M_y - min();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
       // Avoid using slower long double arithmetic if possible.
-      if _GLIBCXX17_CONSTEXPR (__detail::__p1_representable_as_double(__range))
+      if constexpr (__detail::__p1_representable_as_double(__range))
 	__j *= __y / (__range + 1.0);
       else
 	__j *= __y / (__range + 1.0L);
+#pragma GCC diagnostic pop
       _M_y = _M_v[__j];
       _M_v[__j] = _M_b();
 
@@ -1503,7 +1506,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  // sqrt(pi / 2)
 	  const double __spi_2 = 1.2533141373155002512078826424055226L;
 	  _M_s1 = std::sqrt(__np * __1p) * (1 + _M_d1 / (4 * __np));
-	  _M_s2 = std::sqrt(__np * __1p) * (1 + _M_d2 / (4 * _M_t * __1p));
+	  _M_s2 = std::sqrt(__np * __1p) * (1 + _M_d2 / (4 * (_M_t * __1p)));
 	  _M_c = 2 * _M_d1 / __np;
 	  _M_a1 = std::exp(_M_c) * _M_s1 * __spi_2;
 	  const double __a12 = _M_a1 + _M_s2 * __spi_2;
@@ -3244,8 +3247,11 @@ namespace __detail
   template<typename _InputIterator>
     seed_seq::seed_seq(_InputIterator __begin, _InputIterator __end)
     {
-      if _GLIBCXX17_CONSTEXPR (__is_random_access_iter<_InputIterator>::value)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
+      if constexpr (__is_random_access_iter<_InputIterator>::value)
 	_M_v.reserve(std::distance(__begin, __end));
+#pragma GCC diagnostic pop
 
       for (_InputIterator __iter = __begin; __iter != __end; ++__iter)
 	_M_v.push_back(__detail::__mod<result_type,

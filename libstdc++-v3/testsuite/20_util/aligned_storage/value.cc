@@ -1,7 +1,7 @@
 // { dg-do compile { target c++11 } }
 // 2007-09-17  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -21,14 +21,14 @@
 #include <type_traits>
 #include <testsuite_tr1.h>
 
-struct MSAlignType { } __attribute__((__aligned__));  
+struct MSAlignType { } __attribute__((__aligned__));
 
 void test01()
 {
   using std::aligned_storage;
   using std::alignment_of;
   using namespace __gnu_test;
-  
+
   const std::size_t align_c = alignment_of<char>::value;
   static_assert(sizeof(aligned_storage<4, align_c>::type) >= 4, "");
   static_assert(__alignof__(aligned_storage<4, align_c>::type) == align_c, "");
@@ -55,9 +55,11 @@ void test01()
   static_assert(__alignof__(aligned_storage<11, align_ct>::type) == align_ct,
 		"");
 
+#if !_GLIBCXX_INLINE_VERSION
   const std::size_t align_msa = alignment_of<MSAlignType>::value;
   static_assert(sizeof(aligned_storage<5>::type) >= 5, "");
   static_assert(__alignof__(aligned_storage<5>::type) == align_msa, "");
+#endif
 }
 
 // { dg-warning "deprecated" "" { target c++23 } 0 }

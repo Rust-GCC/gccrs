@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -151,6 +151,11 @@ package Exp_Tss is
 
    function Is_Init_Proc (E : Entity_Id) return Boolean;
    --  Version for init procs, same as Is_TSS (E, TSS_Init_Proc);
+
+   --  WARNING: There is a matching C declaration of this subprogram in fe.h
+
+   function Is_Rep_To_Pos (E : Entity_Id) return Boolean;
+   --  Version for Rep to Pos conversions, same as Is_TSS (E, TSS_Rep_To_Pos);
 
    --  WARNING: There is a matching C declaration of this subprogram in fe.h
 

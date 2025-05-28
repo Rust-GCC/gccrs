@@ -1,6 +1,6 @@
 // TR1 hashtable.h header -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -31,7 +31,9 @@
 #ifndef _GLIBCXX_TR1_HASHTABLE_H
 #define _GLIBCXX_TR1_HASHTABLE_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <tr1/hashtable_policy.h>
 #include <ext/alloc_traits.h>

@@ -1,6 +1,6 @@
 // Multiset implementation -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -59,6 +59,9 @@
 #include <bits/concept_check.h>
 #if __cplusplus >= 201103L
 #include <initializer_list>
+#endif
+#if __glibcxx_containers_ranges // C++ >= 23
+# include <bits/ranges_base.h> // ranges::begin, ranges::distance etc.
 #endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
@@ -151,7 +154,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       typedef typename _Rep_type::size_type		 size_type;
       typedef typename _Rep_type::difference_type	 difference_type;
 
-#if __cplusplus > 201402L
+#ifdef __glibcxx_node_extract // >= C++17
       using node_type = typename _Rep_type::node_type;
 #endif
 
@@ -270,6 +273,25 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 		 const allocator_type& __a)
 	: _M_t(_Key_alloc_type(__a))
 	{ _M_t._M_insert_range_equal(__first, __last); }
+
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Builds a %multiset from a range.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<_Key> _Rg>
+	multiset(from_range_t, _Rg&& __rg,
+		 const _Compare& __comp,
+		 const _Alloc& __a = _Alloc())
+	: _M_t(__comp, _Key_alloc_type(__a))
+	{ insert_range(std::forward<_Rg>(__rg)); }
+
+      /// Allocator-extended range constructor.
+      template<__detail::__container_compatible_range<_Key> _Rg>
+	multiset(from_range_t, _Rg&& __rg, const _Alloc& __a = _Alloc())
+	: _M_t(_Key_alloc_type(__a))
+	{ insert_range(std::forward<_Rg>(__rg)); }
+#endif
 
       /**
        *  The dtor only erases the elements, and note that if the elements
@@ -566,7 +588,26 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { this->insert(__l.begin(), __l.end()); }
 #endif
 
-#if __cplusplus > 201402L
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       *  @brief Inserts a range of elements.
+       *  @since C++23
+       *  @param  __rg An input range of elements that can be converted to
+       *               the set's value type.
+       */
+      template<__detail::__container_compatible_range<_Key> _Rg>
+	void
+	insert_range(_Rg&& __rg)
+	{
+	  auto __first = ranges::begin(__rg);
+	  const auto __last = ranges::end(__rg);
+	  for (; __first != __last; ++__first)
+	    _M_t._M_emplace_equal(*__first);
+	}
+#endif
+
+
+#ifdef __glibcxx_node_extract // >= C++17
       /// Extract a node.
       node_type
       extract(const_iterator __pos)
@@ -955,6 +996,17 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     multiset(initializer_list<_Key>, _Allocator)
     -> multiset<_Key, less<_Key>, _Allocator>;
 
+#if __glibcxx_containers_ranges // C++ >= 23
+  template<ranges::input_range _Rg,
+	   __not_allocator_like _Compare = less<ranges::range_value_t<_Rg>>,
+	   __allocator_like _Alloc = std::allocator<ranges::range_value_t<_Rg>>>
+    multiset(from_range_t, _Rg&&, _Compare = _Compare(), _Alloc = _Alloc())
+      -> multiset<ranges::range_value_t<_Rg>, _Compare, _Alloc>;
+
+  template<ranges::input_range _Rg, __allocator_like _Alloc>
+    multiset(from_range_t, _Rg&&, _Alloc)
+      -> multiset<ranges::range_value_t<_Rg>, less<ranges::range_value_t<_Rg>>, _Alloc>;
+#endif
 #endif // deduction guides
 
   /**

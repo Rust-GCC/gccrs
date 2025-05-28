@@ -52,7 +52,7 @@
   g++ command line options may change the ABI as a side-effect of
   use. Such flags include <code>-fpack-struct</code> and
   <code>-fno-exceptions</code>, but include others: see the complete
-  list in the GCC manual under the heading <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html#Code%20Gen%20Options">Options
+  list in the GCC manual under the heading <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html#Code%20Gen%20Options">Options
   for Code Generation Conventions</link>.
 </para>
 
@@ -281,7 +281,7 @@ compatible.
     <listitem><para>GCC 12.1.0: libstdc++.so.6.0.30</para></listitem>
     <listitem><para>GCC 13.1.0: libstdc++.so.6.0.31</para></listitem>
     <listitem><para>GCC 13.2.0: libstdc++.so.6.0.32</para></listitem>
-    <listitem><para>GCC &lt;next&gt;: libstdc++.so.6.0.33</para></listitem>
+    <listitem><para>GCC 14.1.0: libstdc++.so.6.0.33</para></listitem>
     </itemizedlist>
     <para>
       Note 1: Error should be libstdc++.so.3.0.3.
@@ -360,6 +360,7 @@ compatible.
     <listitem><para>GCC 12.1.0: GLIBCXX_3.4.30, CXXABI_1.3.13</para></listitem>
     <listitem><para>GCC 13.1.0: GLIBCXX_3.4.31, CXXABI_1.3.14</para></listitem>
     <listitem><para>GCC 13.2.0: GLIBCXX_3.4.32, CXXABI_1.3.14</para></listitem>
+    <listitem><para>GCC 14.1.0: GLIBCXX_3.4.33, CXXABI_1.3.15</para></listitem>
 
     </itemizedlist>
     </listitem>

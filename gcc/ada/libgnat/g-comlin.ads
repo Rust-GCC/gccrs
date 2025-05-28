@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 1999-2024, AdaCore                     --
+--                     Copyright (C) 1999-2025, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1045,7 +1045,7 @@ private
 
    type Depth is range 1 .. Max_Depth;
 
-   type Level is record
+   type Level is limited record
       Name_Last : Natural := 0;
       Dir       : GNAT.Directory_Operations.Dir_Type;
    end record;
@@ -1087,7 +1087,7 @@ private
       --  separators in the pattern.
    end record;
 
-   type Opt_Parser_Data (Arg_Count : Natural) is record
+   type Opt_Parser_Data (Arg_Count : Natural) is limited record
       Arguments : GNAT.OS_Lib.Argument_List_Access;
       --  null if reading from the command line
 

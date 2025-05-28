@@ -1,5 +1,5 @@
 /* mingw32 host-specific hook definitions.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -47,7 +47,7 @@ static inline void w32_error(const char*, const char*, int, const char*);
 /* Granularity for reserving address space.  */
 static size_t va_granularity = 0x10000;
 
-/* Print out the GetLastError() translation.  */ 
+/* Print out the GetLastError() translation.  */
 static inline void
 w32_error (const char* function, const char* file, int line,
 	   const char* my_msg)
@@ -93,7 +93,7 @@ mingw32_gt_pch_get_address (size_t size, int)
      for NT system dlls is in 0x70000000 to 0x78000000 range.
      If we allocate at bottom we need to reserve the address as early
      as possible and at the same point in each invocation. */
- 
+
   res = VirtualAlloc (NULL, size,
 		      MEM_RESERVE | MEM_TOP_DOWN,
 		      PAGE_NOACCESS);
@@ -103,11 +103,11 @@ mingw32_gt_pch_get_address (size_t size, int)
     /* We do not need the address space for now, so free it.  */
     VirtualFree (res, 0, MEM_RELEASE);
 
-  return res; 
+  return res;
 }
 
 /* ADDR is an address returned by gt_pch_get_address.  Attempt to allocate
-   SIZE bytes at the same address and load it with the data from FD at 
+   SIZE bytes at the same address and load it with the data from FD at
    OFFSET.  Return -1 if we couldn't allocate memory at ADDR, return 0
    if the memory is allocated but the data not loaded, return 1 if done.  */
 
@@ -117,10 +117,10 @@ mingw32_gt_pch_use_address (void *&addr, size_t size, int fd,
 {
   void * mmap_addr;
   HANDLE mmap_handle;
- 
+
   /* Apparently, MS Vista puts unnamed file mapping objects into Global
      namespace when running an application in a Terminal Server
-     session.  This causes failure since, by default, applications 
+     session.  This causes failure since, by default, applications
      don't get SeCreateGlobalPrivilege. We don't need global
      memory sharing so explicitly put object into Local namespace.
 
@@ -135,15 +135,14 @@ mingw32_gt_pch_use_address (void *&addr, size_t size, int fd,
      and earlier, backslashes are invalid in object name.  So, we need
      to check if we are on Windows2000 or higher.  */
   OSVERSIONINFO version_info;
-  int r;
 
   version_info.dwOSVersionInfoSize = sizeof (version_info);
 
   if (size == 0)
-    return 0; 
+    return 0;
 
   /* Offset must be also be a multiple of allocation granularity for
-     this to work.  We can't change the offset. */ 
+     this to work.  We can't change the offset. */
   if ((offset & (va_granularity - 1)) != 0)
     return -1;
 
@@ -166,28 +165,27 @@ mingw32_gt_pch_use_address (void *&addr, size_t size, int fd,
   if (mmap_handle == NULL)
     {
       w32_error (__FUNCTION__,  __FILE__, __LINE__, "CreateFileMapping");
-      return -1; 
+      return -1;
     }
 
-  /* Retry five times, as here might occure a race with multiple gcc's
-     instances at same time.  */
-  for (r = 0; r < 5; r++)
-   {
-      mmap_addr = MapViewOfFileEx (mmap_handle, FILE_MAP_COPY, 0, offset,
-				   size, addr);
-      if (mmap_addr == addr)
-	break;
-      if (r != 4)
-        Sleep (500);
-   }
-      
-  if (mmap_addr != addr)
+  /* Try mapping the file at `addr`.  */
+  mmap_addr = MapViewOfFileEx (mmap_handle, FILE_MAP_COPY, 0, offset,
+			       size, addr);
+  if (mmap_addr == NULL)
     {
-      w32_error (__FUNCTION__, __FILE__, __LINE__, "MapViewOfFileEx");
-      CloseHandle(mmap_handle);
-      return  -1;
+      /* We could not map the file at its original address, so let the
+	 system choose a different one. The PCH can be relocated later.  */
+      mmap_addr = MapViewOfFileEx (mmap_handle, FILE_MAP_COPY, 0, offset,
+				   size, NULL);
+      if (mmap_addr == NULL)
+	{
+	  w32_error (__FUNCTION__, __FILE__, __LINE__, "MapViewOfFileEx");
+	  CloseHandle(mmap_handle);
+	  return  -1;
+	}
     }
 
+  addr = mmap_addr;
   return 1;
 }
 

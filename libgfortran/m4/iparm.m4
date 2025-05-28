@@ -4,7 +4,7 @@ dnl This file is part of the GNU Fortran 95 Runtime Library (libgfortran)
 dnl Distributed under the GNU GPL with exception.  See COPYING for details.
 dnl M4 macro file to get type names from filenames
 define(get_typename2, `GFC_$1_$2')dnl
-define(get_typename, `get_typename2(ifelse($1,i,INTEGER,ifelse($1,r,REAL,ifelse($1,l,LOGICAL,ifelse($1,c,COMPLEX,ifelse($1,s,UINTEGER,unknown))))),`$2')')dnl
+define(get_typename, `get_typename2(ifelse($1,i,INTEGER,ifelse($1,r,REAL,ifelse($1,l,LOGICAL,ifelse($1,c,COMPLEX,ifelse($1,m,UINTEGER,ifelse($1,s,UINTEGER,unknown)))))),`$2')')dnl
 define(get_arraytype, `gfc_array_$1$2')dnl
 define(define_type, `dnl
 ifelse(regexp($2,`^[0-9]'),-1,`dnl
@@ -28,7 +28,7 @@ define_type(rtype, rtype_tmp)dnl
 define(rtype_qual,`_'rtype_kind)dnl
 ')dnl
 define(atype_max, atype_name`_HUGE')dnl
-define(atype_min,ifelse(regexp(file, `_\(.\)[0-9]*\.c$', `\1'),`i',`(-'atype_max`-1)',`-'atype_max))dnl
+define(atype_min,ifelse(index(atype_name,`GFC_UINTEGER'),0,`0',ifelse(regexp(file, `_\(.\)[0-9]*\.c$', `\1'),`i',`(-'atype_max`-1)',`-'atype_max)))dnl
 define(atype_inf, atype_name`_INFINITY')dnl
 define(atype_nan, atype_name`_QUIET_NAN')dnl
 define(name, regexp(regexp(file, `[^/]*$', `\&'), `^\([^_]*\)_', `\1'))dnl

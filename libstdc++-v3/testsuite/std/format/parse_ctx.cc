@@ -3,6 +3,91 @@
 #include <format>
 #include <testsuite_hooks.h>
 
+static_assert(std::is_constructible_v<std::format_parse_context,
+				      std::string_view>);
+static_assert(std::is_constructible_v<std::wformat_parse_context,
+				      std::wstring_view>);
+
+#if __cpp_lib_format < 202305
+constexpr bool construct_with_num_args = true;
+#else
+constexpr bool construct_with_num_args = false;
+#endif
+
+static_assert(std::is_constructible_v<std::format_parse_context,
+				      std::string_view, std::size_t>
+				      == construct_with_num_args);
+static_assert(std::is_constructible_v<std::wformat_parse_context,
+				      std::wstring_view, std::size_t>
+				      == construct_with_num_args);
+
+static_assert( ! std::is_constructible_v<std::format_parse_context,
+					 std::wstring_view>);
+static_assert( ! std::is_constructible_v<std::wformat_parse_context,
+					 std::string_view>);
+
+static_assert( ! std::is_convertible_v<std::string_view,
+				       std::format_parse_context> );
+static_assert( ! std::is_convertible_v<std::wstring_view,
+				       std::wformat_parse_context> );
+
+static_assert( ! std::is_default_constructible_v<std::format_parse_context> );
+static_assert( ! std::is_copy_constructible_v<std::format_parse_context> );
+static_assert( ! std::is_move_constructible_v<std::format_parse_context> );
+static_assert( ! std::is_copy_assignable_v<std::format_parse_context> );
+static_assert( ! std::is_move_assignable_v<std::format_parse_context> );
+
+// This concept is satisfied if the next_arg_id() call is a constant expression
+template<typename Ch, typename PC = std::basic_format_parse_context<Ch>>
+concept arg_id_available = requires {
+  typename std::integral_constant<std::size_t,
+				  PC({}).next_arg_id()>::type;
+};
+
+void
+test_members()
+{
+  std::string_view s = "spec string";
+
+  std::format_parse_context pc(s);
+
+  VERIFY( pc.begin() == s.begin() );
+  VERIFY( pc.end() == s.end() );
+  pc.advance_to(s.begin() + 5);
+  VERIFY( pc.begin() == s.begin() + 5 );
+
+  // Runtime calls to these do not check for the correct number of args.
+  VERIFY( pc.next_arg_id() == 0 );
+  VERIFY( pc.next_arg_id() == 1 );
+  VERIFY( pc.next_arg_id() == 2 );
+  try
+  {
+    // Cannot mix manual and automatic indexing.
+    pc.check_arg_id(0);
+    VERIFY( false );
+  }
+  catch (const std::format_error&)
+  {
+  }
+  // But they do check during constant evaluation:
+  VERIFY( ! arg_id_available<char> );
+  VERIFY( ! arg_id_available<wchar_t> );
+
+  std::format_parse_context pc2("");
+  pc2.check_arg_id(2);
+  pc2.check_arg_id(1);
+  pc2.check_arg_id(3);
+  try
+  {
+    // Cannot mix manual and automatic indexing.
+    (void) pc2.next_arg_id();
+    VERIFY( false );
+  }
+  catch (const std::format_error&)
+  {
+  }
+}
+
 template<typename T, bool auto_indexing = true>
 bool
 is_std_format_spec_for(std::string_view spec)
@@ -266,8 +351,8 @@ test_pointer()
   VERIFY( ! is_std_format_spec_for<void*>("G") );
   VERIFY( ! is_std_format_spec_for<void*>("+p") );
 
-#if __cplusplus > 202302L || ! defined __STRICT_ANSI__
-  // As an extension, we support P2510R3 Formatting pointers
+#if __cpp_lib_format >= 202304L
+  // P2510R3 Formatting pointers
   VERIFY( is_std_format_spec_for<void*>("P") );
   VERIFY( is_std_format_spec_for<void*>("0p") );
   VERIFY( is_std_format_spec_for<void*>("0P") );
@@ -357,6 +442,126 @@ test_custom()
   VERIFY( ! is_std_format_spec_for<S>("") );
 }
 
+#if __cpp_lib_format >= 202305
+#include <stdfloat>
+
+struct X { };
+
+template<>
+struct std::formatter<X, char>
+{
+  constexpr std::format_parse_context::iterator
+  parse(std::format_parse_context& pc)
+  {
+    std::string_view spec(pc.begin(), pc.end());
+    auto p = spec.find('}');
+    if (p != std::string_view::npos)
+      spec = spec.substr(0, p); // truncate to closing brace
+    if (spec == "int")
+    {
+      pc.check_dynamic_spec_integral(pc.next_arg_id());
+      type = Type::integral;
+    }
+    else if (spec == "str")
+    {
+      pc.check_dynamic_spec_string(pc.next_arg_id());
+      type = Type::string;
+    }
+    else if (spec == "float")
+    {
+      pc.check_dynamic_spec<float, double, long double>(pc.next_arg_id());
+      type = Type::floating;
+    }
+    else if (spec == "other")
+      type = Type::other;
+    else
+      throw std::format_error("invalid format-spec");
+    return pc.begin() + spec.size();
+  }
+
+  std::format_context::iterator
+  format(X, std::format_context& c) const
+  {
+    std::visit_format_arg([this]<typename T>(T) { // { dg-warning "deprecated" "" { target c++26 } }
+      constexpr bool is_handle
+	= std::is_same_v<std::basic_format_arg<std::format_context>::handle, T>;
+      constexpr bool is_integral
+	= std::is_same_v<int, T> || std::is_same_v<unsigned int, T>
+	    || is_same_v<long long, T> || std::is_same_v<unsigned long long, T>;
+      constexpr bool is_string
+	= std::is_same_v<const char*, T> || std::is_same_v<std::string_view, T>;
+      constexpr bool is_floating
+	= std::is_same_v<float, T> || std::is_same_v<double, T>
+	    || std::is_same_v<long double, T>;
+      switch (this->type)
+      {
+	case Type::other:
+	  if (is_handle) return;
+	  break;
+	case Type::integral:
+	  if (is_integral) return;
+	  break;
+	case Type::string:
+	  if (is_string) return;
+	  break;
+	case Type::floating:
+	  if (is_floating) return;
+	  break;
+      }
+      throw std::format_error("invalid argument type");
+    }, c.arg(1));
+    return c.out();
+  }
+private:
+  enum class Type
+  {
+    other,
+    integral,
+    string,
+    floating,
+  };
+  Type type = Type::other;
+};
+#endif
+
+void
+test_dynamic_type_check()
+{
+#if __cpp_lib_format >= 202305
+  std::format_parse_context pc("{1}.{2}");
+
+  // None of these calls should do anything at runtime, only during consteval:
+  pc.check_dynamic_spec<int, const char*>(0);
+  pc.check_dynamic_spec_integral(0);
+  pc.check_dynamic_spec_string(0);
+
+  (void) std::format("{:int}", X{}, 42L);
+  (void) std::format("{:str}", X{}, "H2G2");
+  (void) std::format("{:float}", X{}, 10.0);
+
+#ifdef __STDCPP_BFLOAT16_T__
+  if constexpr (std::formattable<std::bfloat16_t, char>)
+    (void) std::format("{:other}", X{}, 10.0bf16);
+#endif
+#ifdef __STDCPP_FLOAT16_T__
+  if constexpr (std::formattable<std::float16_t, char>)
+    (void) std::format("{:other}", X{}, 10.0f16);
+#endif
+#ifdef __STDCPP_FLOAT32_T__
+  if constexpr (std::formattable<std::float32_t, char>)
+    (void) std::format("{:other}", X{}, 10.0f32);
+#endif
+#ifdef __STDCPP_FLOAT64_T__
+  if constexpr (std::formattable<std::float64_t, char>)
+    (void) std::format("{:other}", X{}, 10.0f64);
+#endif
+#ifdef __STDCPP_FLOAT128_T__
+  if constexpr (std::formattable<std::float128_t, char>)
+    (void) std::format("{:other}", X{}, 10.0f128);
+#endif
+#endif
+}
+
 int main()
 {
   test_char();
@@ -366,4 +571,5 @@ int main()
   test_string();
   test_pointer();
   test_custom();
+  test_dynamic_type_check();
 }

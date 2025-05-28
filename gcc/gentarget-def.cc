@@ -1,5 +1,5 @@
 /* Generate insn-target-def.h, an automatically-generated part of targetm.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -191,7 +191,7 @@ def_target_insn (const char *name, const char *prototype)
 	      printf ("target_have_%s (void)\n", name);
 	      printf ("{\n");
 	      printf ("  return ");
-	      rtx_reader_ptr->print_c_condition (test);
+	      rtx_reader_ptr->print_c_condition (stdout, test);
 	      printf (";\n");
 	      printf ("}\n");
 	    }
@@ -319,9 +319,7 @@ main (int argc, const char **argv)
   printf ("    return insn;\n");
   printf ("  start_sequence ();\n");
   printf ("  emit (x, false);\n");
-  printf ("  rtx_insn *res = get_insns ();\n");
-  printf ("  end_sequence ();\n");
-  printf ("  return res;\n");
+  printf ("  return end_sequence ();\n");
   printf ("}\n");
 
 #define DEF_TARGET_INSN(INSN, ARGS) \

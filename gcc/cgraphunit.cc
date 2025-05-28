@@ -1,5 +1,5 @@
 /* Driver of optimization process
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -92,7 +92,7 @@ along with GCC; see the file COPYING3.  If not see
 	      Interprocedural passes differ from small interprocedural
 	      passes by their ability to operate across whole program
 	      at linktime.  Their analysis stage is performed early to
-	      both reduce linking times and linktime memory usage by	
+	      both reduce linking times and linktime memory usage by
 	      not having to represent whole program in memory.
 
 	   d) LTO streaming.  When doing LTO, everything important gets
@@ -142,7 +142,7 @@ along with GCC; see the file COPYING3.  If not see
 	    out and thus all variables are output to the file.
 
 	    Note that with -fno-toplevel-reorder passes 5 and 6
-	    are combined together in cgraph_output_in_order.  
+	    are combined together in cgraph_output_in_order.
 
    Finally there are functions to manipulate the callgraph from
    backend.
@@ -279,7 +279,7 @@ symtab_node::needed_p (void)
 static symtab_node symtab_terminator (SYMTAB_SYMBOL);
 static symtab_node *queued_nodes = &symtab_terminator;
 
-/* Add NODE to queue starting at QUEUED_NODES. 
+/* Add NODE to queue starting at QUEUED_NODES.
    The queue is linked via AUX pointers and terminated by pointer to 1.  */
 
 static void
@@ -311,6 +311,7 @@ symbol_table::process_new_functions (void)
     {
       cgraph_node *node = cgraph_new_nodes[i];
       fndecl = node->decl;
+      bitmap_obstack_initialize (NULL);
       switch (state)
 	{
 	case CONSTRUCTION:
@@ -367,6 +368,7 @@ symbol_table::process_new_functions (void)
 	  gcc_unreachable ();
 	  break;
 	}
+      bitmap_obstack_release (NULL);
     }
 
   cgraph_new_nodes.release ();
@@ -983,6 +985,18 @@ varpool_node::finalize_decl (tree decl)
 	  && !DECL_ARTIFICIAL (node->decl)))
     node->force_output = true;
 
+  if (flag_openmp)
+    {
+      tree attr = lookup_attribute ("omp allocate", DECL_ATTRIBUTES (decl));
+      if (attr)
+	{
+	  tree align = TREE_VALUE (TREE_VALUE (attr));
+	  if (align)
+	    SET_DECL_ALIGN (decl, MAX (tree_to_uhwi (align) * BITS_PER_UNIT,
+				       DECL_ALIGN (decl)));
+	}
+    }
+
   if (symtab->state == CONSTRUCTION
       && (node->needed_p () || node->referred_to_p ()))
     enqueue_node (node);
@@ -997,7 +1011,7 @@ varpool_node::finalize_decl (tree decl)
 }
 
 /* EDGE is an polymorphic call.  Mark all possible targets as reachable
-   and if there is only one target, perform trivial devirtualization. 
+   and if there is only one target, perform trivial devirtualization.
    REACHABLE_CALL_TARGETS collects target lists we already walked to
    avoid duplicate work.  */
 
@@ -1015,7 +1029,7 @@ walk_polymorphic_call_targets (hash_set<void *> *reachable_call_targets,
   if (cache_token != NULL && !reachable_call_targets->add (cache_token))
     {
       if (symtab->dump_file)
-	dump_possible_polymorphic_call_targets 
+	dump_possible_polymorphic_call_targets
 	  (symtab->dump_file, edge);
 
       for (i = 0; i < targets.length (); i++)
@@ -1701,7 +1715,7 @@ mark_functions_to_output (void)
 
 /* DECL is FUNCTION_DECL.  Initialize datastructures so DECL is a function
    in lowered gimple form.  IN_SSA is true if the gimple is in SSA.
-   
+
    Set current_function_decl and cfun to newly constructed empty function body.
    return basic block in the function body.  */
 
@@ -2317,6 +2331,8 @@ symbol_table::compile (void)
 
   symtab_node::checking_verify_symtab_nodes ();
 
+  symtab_node::check_ifunc_callee_symtab_nodes ();
+
   timevar_push (TV_CGRAPHOPT);
   if (pre_ipa_mem_report)
     dump_memory_report ("Memory consumption before IPA");
@@ -2572,6 +2588,8 @@ symbol_table::finalize_compilation_unit (void)
 
   if (!seen_error ())
     {
+      timevar_push (TV_SYMOUT);
+
       /* Give the frontends the chance to emit early debug based on
 	 what is still reachable in the TU.  */
       (*lang_hooks.finalize_early_debug) ();
@@ -2581,6 +2599,8 @@ symbol_table::finalize_compilation_unit (void)
       debuginfo_early_start ();
       (*debug_hooks->early_finish) (main_input_filename);
       debuginfo_early_stop ();
+
+      timevar_pop (TV_SYMOUT);
     }
 
   /* Finally drive the pass manager.  */

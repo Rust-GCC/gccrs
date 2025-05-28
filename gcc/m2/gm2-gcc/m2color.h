@@ -1,6 +1,6 @@
 /* m2color.h interface to gcc colorization.
 
-Copyright (C) 2019-2024 Free Software Foundation, Inc.
+Copyright (C) 2019-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -37,7 +37,7 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 
 
 EXTERN char *
-m2color_colorize_start (bool show_color, char *name, unsigned int name_len);
+m2color_colorize_start (bool show_color, void *name, unsigned int name_len);
 
 EXTERN char *m2color_colorize_stop (bool show_color);
 

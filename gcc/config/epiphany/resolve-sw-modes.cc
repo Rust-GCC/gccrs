@@ -1,5 +1,5 @@
 /* Mode switching cleanup pass for the EPIPHANY cpu.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Embecosm on behalf of Adapteva, Inc.
 
 This file is part of GCC.
@@ -169,8 +169,7 @@ pass_resolve_sw_modes::execute (function *fun)
 	  emit_set_fp_mode (EPIPHANY_MSW_ENTITY_ROUND_UNKNOWN,
 			    jilted_mode, FP_MODE_NONE,
 			    reg_class_contents[NO_REGS]);
-	  seq = get_insns ();
-	  end_sequence ();
+	  seq = end_sequence ();
 	  need_commit = true;
 	  insert_insn_on_edge (seq, e);
 	}

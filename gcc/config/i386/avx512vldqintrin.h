@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -28,9 +28,9 @@
 #ifndef _AVX512VLDQINTRIN_H_INCLUDED
 #define _AVX512VLDQINTRIN_H_INCLUDED
 
-#if !defined(__AVX512VL__) || !defined(__AVX512DQ__) || defined (__EVEX512__)
+#if !defined(__AVX512VL__) || !defined(__AVX512DQ__)
 #pragma GCC push_options
-#pragma GCC target("avx512vl,avx512dq,no-evex512")
+#pragma GCC target("avx512vl,avx512dq")
 #define __DISABLE_AVX512VLDQ__
 #endif /* __AVX512VLDQ__ */
 

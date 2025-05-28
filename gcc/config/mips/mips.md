@@ -1,5 +1,5 @@
 ;;  Mips.md	     Machine Description for MIPS based processors
-;;  Copyright (C) 1989-2024 Free Software Foundation, Inc.
+;;  Copyright (C) 1989-2025 Free Software Foundation, Inc.
 ;;  Contributed by   A. Lichnewsky, lich@inria.inria.fr
 ;;  Changes by       Michael Meissner, meissner@osf.org
 ;;  64-bit r4000 support by Ian Lance Taylor, ian@cygnus.com, and
@@ -96,6 +96,12 @@
   ;; Floating-point environment.
   UNSPEC_GET_FCSR
   UNSPEC_SET_FCSR
+
+  ;; Floating-point unspecs.
+  UNSPEC_FMIN
+  UNSPEC_FMAX
+  UNSPEC_FRINT
+  UNSPEC_FCLASS
 
   ;; HI/LO moves.
   UNSPEC_MFHI
@@ -370,6 +376,9 @@
 ;; frsqrt       floating point reciprocal square root
 ;; frsqrt1      floating point reciprocal square root step1
 ;; frsqrt2      floating point reciprocal square root step2
+;; fminmax      floating point min/max
+;; frint        floating point round to integral
+;; fclass       floating point class mask
 ;; dspmac       DSP MAC instructions not saturating the accumulator
 ;; dspmacsat    DSP MAC instructions that saturate the accumulator
 ;; accext       DSP accumulator extract instructions
@@ -387,8 +396,8 @@
    prefetch,prefetchx,condmove,mtc,mfc,mthi,mtlo,mfhi,mflo,const,arith,logical,
    shift,slt,signext,clz,pop,trap,imul,imul3,imul3nc,imadd,idiv,idiv3,move,
    fmove,fadd,fmul,fmadd,fdiv,frdiv,frdiv1,frdiv2,fabs,fneg,fcmp,fcvt,fsqrt,
-   frsqrt,frsqrt1,frsqrt2,dspmac,dspmacsat,accext,accmod,dspalu,dspalusat,
-   multi,atomic,syncloop,nop,ghost,multimem,
+   frsqrt,frsqrt1,frsqrt2,fminmax,frint,fclass,dspmac,dspmacsat,accext,
+   accmod,dspalu,dspalusat,multi,atomic,syncloop,nop,ghost,multimem,
    simd_div,simd_fclass,simd_flog2,simd_fadd,simd_fcvt,simd_fmul,simd_fmadd,
    simd_fdiv,simd_bitins,simd_bitmov,simd_insert,simd_sld,simd_mul,simd_fcmp,
    simd_fexp2,simd_int_arith,simd_bit,simd_shift,simd_splat,simd_fill,
@@ -827,11 +836,14 @@
 (define_mode_iterator MOVECC [SI (DI "TARGET_64BIT")
                               (CC "TARGET_HARD_FLOAT
 				   && !TARGET_LOONGSON_2EF
+				   && !TARGET_MIPS5900")
+                              (CCE "TARGET_HARD_FLOAT
+				   && !TARGET_LOONGSON_2EF
 				   && !TARGET_MIPS5900")])
 
 ;; This mode iterator allows :FPCC to be used anywhere that an FP condition
 ;; is needed.
-(define_mode_iterator FPCC [(CC "!ISA_HAS_CCF")
+(define_mode_iterator FPCC [(CC "!ISA_HAS_CCF") (CCE "!ISA_HAS_CCF")
 			    (CCF "ISA_HAS_CCF")])
 
 ;; 32-bit integer moves for which we provide move patterns.
@@ -923,7 +935,7 @@
 
 ;; This attribute gives the best constraint to use for registers of
 ;; a given mode.
-(define_mode_attr reg [(SI "d") (DI "d") (CC "z") (CCF "f")])
+(define_mode_attr reg [(SI "d") (DI "d") (CC "z") (CCE "z") (CCF "f")])
 
 ;; This attribute gives the format suffix for floating-point operations.
 (define_mode_attr fmt [(SF "s") (DF "d") (V2SF "ps")])
@@ -971,7 +983,7 @@
   [(SF "!ISA_MIPS1") (DF "!ISA_MIPS1") (V2SF "TARGET_SB1")])
 
 ;; This attribute provides the correct mnemonic for each FP condition mode.
-(define_mode_attr fpcmp [(CC "c") (CCF "cmp")])
+(define_mode_attr fpcmp [(CC "c") (CCE "c") (CCF "cmp")])
 
 ;; This code iterator allows signed and unsigned widening multiplications
 ;; to use the same template.
@@ -984,6 +996,10 @@
 ;; This code iterator allows the three shift instructions to be generated
 ;; from the same template.
 (define_code_iterator any_shift [ashift ashiftrt lshiftrt])
+
+;; This code iterator allows the three bitwise instructions to be generated
+;; from the same template.
+(define_code_iterator any_bitwise [and ior xor])
 
 ;; This code iterator allows unsigned and signed division to be generated
 ;; from the same template.
@@ -1077,7 +1093,7 @@
 			 (lt "lt")
 			 (le "le")
 			 (ordered "or")
-			 (ltgt "ne")
+			 (ltgt "sne")
 			 (ne "une")])
 
 ;; Similar, but for swapped conditions.
@@ -1237,7 +1253,7 @@
 				 (match_operand:GPR 2 "reg_or_0_operand" "dJ")])
 	    (const_int 0))]
   "ISA_HAS_COND_TRAP && !ISA_HAS_COND_TRAPI"
-  "t%C0\t%z1,%2"
+  "t%C0\t%z1,%z2"
   [(set_attr "type" "trap")])
 
 (define_insn "*conditional_trap<mode>"
@@ -1776,13 +1792,7 @@
    (set_attr "mode"	"SI")
    (set_attr "insn_count" "1,1,2")
    (set (attr "enabled")
-        (cond [(and (eq_attr "alternative" "0")
-                    (match_test "!mips_lra_flag"))
-                  (const_string "yes")
-               (and (eq_attr "alternative" "1")
-                    (match_test "mips_lra_flag"))
-                  (const_string "yes")
-               (eq_attr "alternative" "2")
+        (cond [(eq_attr "alternative" "1,2")
                   (const_string "yes")]
               (const_string "no")))])
 
@@ -1806,13 +1816,7 @@
    (set_attr "mode"	"SI")
    (set_attr "insn_count" "1,1,1,2")
    (set (attr "enabled")
-        (cond [(and (eq_attr "alternative" "0")
-                    (match_test "!mips_lra_flag"))
-                  (const_string "yes")
-               (and (eq_attr "alternative" "1")
-                    (match_test "mips_lra_flag"))
-                  (const_string "yes")
-               (eq_attr "alternative" "2,3")
+        (cond [(eq_attr "alternative" "1,2,3")
                   (const_string "yes")]
               (const_string "no")))])
 
@@ -2034,13 +2038,7 @@
    (set_attr "mode"     "SI")
    (set_attr "insn_count" "1,1,2")
    (set (attr "enabled")
-        (cond [(and (eq_attr "alternative" "0")
-                    (match_test "!mips_lra_flag"))
-                  (const_string "yes")
-               (and (eq_attr "alternative" "1")
-                    (match_test "mips_lra_flag"))
-                  (const_string "yes")
-               (eq_attr "alternative" "2")
+        (cond [(eq_attr "alternative" "1,2")
                   (const_string "yes")]
               (const_string "no")))])
 
@@ -6423,7 +6421,9 @@
 	(fcond:FPCC (match_operand:SCALARF 1 "register_operand" "f")
 		    (match_operand:SCALARF 2 "register_operand" "f")))]
   ""
-  "<fpcmp>.<fcond>.<fmt>\t%Z0%1,%2"
+  {
+    return mips_output_compare ("<fpcmp>", "<fcond>", "<fmt>", "<FPCC:mode>", false);
+  }
   [(set_attr "type" "fcmp")
    (set_attr "mode" "FPSW")])
 
@@ -6432,7 +6432,9 @@
 	(swapped_fcond:FPCC (match_operand:SCALARF 1 "register_operand" "f")
 			    (match_operand:SCALARF 2 "register_operand" "f")))]
   ""
-  "<fpcmp>.<swapped_fcond>.<fmt>\t%Z0%2,%1"
+  {
+    return mips_output_compare ("<fpcmp>", "<swapped_fcond>", "<fmt>", "<FPCC:mode>", true);
+  }
   [(set_attr "type" "fcmp")
    (set_attr "mode" "FPSW")])
 
@@ -7397,6 +7399,8 @@
       else
 	return "lw\t$0,%a0";
     }
+  if (operands[1] == const2_rtx)
+    operands[1] = const0_rtx;
   /* Loongson ext2 implementation pref instructions.  */
   if (TARGET_LOONGSON_EXT2)
     {
@@ -7465,7 +7469,7 @@
 
 ;; MIPS4 Conditional move instructions.
 
-(define_insn "*mov<GPR:mode>_on_<MOVECC:mode>"
+(define_insn "mov<GPR:mode>_on_<MOVECC:mode>"
   [(set (match_operand:GPR 0 "register_operand" "=d,d")
 	(if_then_else:GPR
 	 (match_operator 4 "equality_operator"
@@ -7480,7 +7484,7 @@
   [(set_attr "type" "condmove")
    (set_attr "mode" "<GPR:MODE>")])
 
-(define_insn "*mov<GPR:mode>_on_<MOVECC:mode>_mips16e2"
+(define_insn "mov<GPR:mode>_on_<MOVECC:mode>_mips16e2"
   [(set (match_operand:GPR 0 "register_operand" "=d,d,d,d")
 	(if_then_else:GPR
 	 (match_operator 4 "equality_operator"
@@ -7498,7 +7502,7 @@
    (set_attr "mode" "<GPR:MODE>")
    (set_attr "extended_mips16" "yes")])
 
-(define_insn "*mov<GPR:mode>_on_<GPR2:mode>_ne"
+(define_insn "mov<GPR:mode>_on_<GPR2:mode>_ne"
   [(set (match_operand:GPR 0 "register_operand" "=d,d")
        (if_then_else:GPR
         (match_operand:GPR2 1 "register_operand" "<GPR2:reg>,<GPR2:reg>")
@@ -7511,7 +7515,7 @@
   [(set_attr "type" "condmove")
    (set_attr "mode" "<GPR:MODE>")])
 
-(define_insn "*mov<GPR:mode>_on_<GPR2:mode>_ne_mips16e2"
+(define_insn "mov<GPR:mode>_on_<GPR2:mode>_ne_mips16e2"
   [(set (match_operand:GPR 0 "register_operand" "=d,d,d,d")
 	   (if_then_else:GPR
 		(match_operand:GPR2 1 "register_operand" "<GPR2:reg>,<GPR2:reg>,t,t")
@@ -7971,6 +7975,91 @@
   [(set_attr "move_type" "load")
    (set_attr "insn_count" "2")])
 
+;;
+;;  Float point MIN/MAX
+;;
+
+(define_insn "smin<mode>3"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+	(smin:SCALARF (match_operand:SCALARF 1 "register_operand" "f")
+		      (match_operand:SCALARF 2 "register_operand" "f")))]
+  "ISA_HAS_FMIN_FMAX"
+  "min.<fmt>\t%0,%1,%2"
+  [(set_attr "type" "fminmax")
+   (set_attr "mode" "<UNITMODE>")])
+
+(define_insn "smax<mode>3"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+	(smax:SCALARF (match_operand:SCALARF 1 "register_operand" "f")
+		      (match_operand:SCALARF 2 "register_operand" "f")))]
+  "ISA_HAS_FMIN_FMAX"
+  "max.<fmt>\t%0,%1,%2"
+  [(set_attr "type" "fminmax")
+  (set_attr "mode" "<UNITMODE>")])
+
+(define_insn "fmin<mode>3"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+	(unspec:SCALARF [(use (match_operand:SCALARF 1 "register_operand" "f"))
+			 (use (match_operand:SCALARF 2 "register_operand" "f"))]
+			UNSPEC_FMIN))]
+  "ISA_HAS_FMIN_FMAX"
+  "min.<fmt>\t%0,%1,%2"
+  [(set_attr "type" "fminmax")
+   (set_attr "mode" "<UNITMODE>")])
+
+(define_insn "fmax<mode>3"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+	(unspec:SCALARF [(use (match_operand:SCALARF 1 "register_operand" "f"))
+			 (use (match_operand:SCALARF 2 "register_operand" "f"))]
+			UNSPEC_FMAX))]
+  "ISA_HAS_FMIN_FMAX"
+  "max.<fmt>\t%0,%1,%2"
+  [(set_attr "type" "fminmax")
+  (set_attr "mode" "<UNITMODE>")])
+
+(define_insn "fmin_a_<mode>"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+    (if_then_else
+       (lt (abs:SCALARF (match_operand:SCALARF 1 "register_operand" "f"))
+           (abs:SCALARF (match_operand:SCALARF 2 "register_operand" "f")))
+       (match_dup 1)
+       (match_dup 2)))]
+  "ISA_HAS_FMIN_FMAX"
+  "mina.<fmt>\t%0,%1,%2"
+  [(set_attr "type" "fminmax")
+   (set_attr "mode" "<UNITMODE>")])
+
+(define_insn "fmax_a_<mode>"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+    (if_then_else
+       (gt (abs:SCALARF (match_operand:SCALARF 1 "register_operand" "f"))
+           (abs:SCALARF (match_operand:SCALARF 2 "register_operand" "f")))
+       (match_dup 1)
+       (match_dup 2)))]
+  "ISA_HAS_FMIN_FMAX"
+  "maxa.<fmt>\t%0,%1,%2"
+  [(set_attr "type" "fminmax")
+   (set_attr "mode" "<UNITMODE>")])
+
+;;Float point round to integral
+(define_insn "rint<mode>2"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+	(unspec:SCALARF [(match_operand:SCALARF 1 "register_operand" "f")]
+			UNSPEC_FRINT))]
+  "ISA_HAS_FRINT"
+  "rint.<fmt>\t%0,%1"
+  [(set_attr "type" "frint")
+   (set_attr "mode" "<UNITMODE>")])
+
+;;Float point class mask
+(define_insn "fclass_<mode>"
+  [(set (match_operand:SCALARF 0 "register_operand" "=f")
+	(unspec:SCALARF [(match_operand:SCALARF 1 "register_operand" "f")]
+			UNSPEC_FCLASS))]
+  "ISA_HAS_FCLASS"
+  "class.<fmt>\t%0,%1"
+  [(set_attr "type" "fclass")
+   (set_attr "mode" "<UNITMODE>")])
 
 ;; 2 HI loads are joined.
 (define_peephole2

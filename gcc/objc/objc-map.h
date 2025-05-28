@@ -1,5 +1,5 @@
 /* objc-map.h -- Implementation of map data structures for ObjC compiler
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Written by Nicola Pero <nicola.pero@meta-innovation.com>
 
 This program is free software; you can redistribute it and/or modify it
@@ -146,14 +146,14 @@ objc_map_get (objc_map_t map, /* struct tree_identifier * */tree key)
 
   if (map->slots[i] == key)
     return map->values[i];
-  
+
   while (1)
     {
       i = (i + j) & map->mask;
-      
+
       if (map->slots[i] == OBJC_MAP_PRIVATE_EMPTY_SLOT)
 	return OBJC_MAP_NOT_FOUND;
-      
+
       if (map->slots[i] == key)
 	return map->values[i];
 
@@ -180,7 +180,7 @@ void objc_map_put (objc_map_t map, /*struct tree_identifier * */tree key, tree v
     objc_map_private_grow (map);
 
   i = hash & map->mask;
-    
+
   while (1)
     {
       if (map->slots[i] == OBJC_MAP_PRIVATE_EMPTY_SLOT)
@@ -272,7 +272,7 @@ objc_map_iterator_move_to_next (objc_map_t map, objc_map_iterator_t *i)
       void *slot;
       if (*i == map->number_of_slots)
 	return OBJC_MAP_FAILURE;
-      
+
       slot = map->slots[*i];
       *i = *i + 1;
       if (slot != OBJC_MAP_PRIVATE_EMPTY_SLOT)

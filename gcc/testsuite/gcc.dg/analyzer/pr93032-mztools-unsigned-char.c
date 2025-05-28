@@ -4,7 +4,8 @@
    removed.  */
 
 /* { dg-do "compile" } */
-/* { dg-additional-options "-funsigned-char" } */
+/* { dg-additional-options "-Wno-old-style-definition -funsigned-char" } */
+/* { dg-require-effective-target int32plus } */
 
 /* TODO (PR analyzer/112528): remove need for this.  */
 /* { dg-additional-options "--param analyzer-max-enodes-per-program-point=40 --param analyzer-bb-explosion-factor=10" } */

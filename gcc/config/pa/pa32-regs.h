@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -187,10 +187,9 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    that includes the incoming arguments and the return value.  We specify a
    set with no overlaps so that we don't have to specify that the destination
    register is an early clobber in patterns using this mode.  Except for the
-   return value, the starting registers are odd.  For 128 and 256 bit modes,
-   we similarly specify non-overlapping sets of cpu registers.  However,
-   there aren't any patterns defined for modes larger than 64 bits at the
-   moment.
+   return value, the starting registers are odd.  Except for complex modes,
+   we don't allow modes larger than 64 bits in the general registers as there
+   are issues with copies, spills and SUBREG support.
 
    We limit the modes allowed in the floating point registers to the
    set of modes used in the machine definition.  In addition, we allow
@@ -217,15 +216,13 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
      ? (VALID_FP_MODE_P (MODE)						\
 	&& (GET_MODE_SIZE (MODE) <= 4					\
 	    || (GET_MODE_SIZE (MODE) == 8 && ((REGNO) & 1) == 0)	\
-	    || (GET_MODE_SIZE (MODE) == 16 && ((REGNO) & 3) == 0)	\
-	    || (GET_MODE_SIZE (MODE) == 32 && ((REGNO) & 7) == 0)))	\
+	    || (GET_MODE_SIZE (MODE) == 16 && ((REGNO) & 3) == 0)))	\
    : (GET_MODE_SIZE (MODE) <= UNITS_PER_WORD				\
       || (GET_MODE_SIZE (MODE) == 2 * UNITS_PER_WORD			\
 	  && ((((REGNO) & 1) == 1 && (REGNO) <= 25) || (REGNO) == 28))	\
       || (GET_MODE_SIZE (MODE) == 4 * UNITS_PER_WORD			\
-	  && ((REGNO) & 3) == 3 && (REGNO) <= 23)			\
-      || (GET_MODE_SIZE (MODE) == 8 * UNITS_PER_WORD			\
-	  && ((REGNO) & 7) == 3 && (REGNO) <= 19)))
+	  && COMPLEX_MODE_P (MODE)					\
+	  && ((REGNO) & 3) == 3 && (REGNO) <= 23)))
 
 /* How to renumber registers for gdb.
 
@@ -318,7 +315,7 @@ enum reg_class { NO_REGS, R1_REGS, GENERAL_REGS, FPUPPER_REGS, FP_REGS,
 /* 1 if N is a possible register number for function argument passing.  */
 
 #define FUNCTION_ARG_REGNO_P(N) \
-  (((N) >= 23 && (N) <= 26) || (! TARGET_SOFT_FLOAT && (N) >= 32 && (N) <= 39)) 
+  (((N) >= 23 && (N) <= 26) || (! TARGET_SOFT_FLOAT && (N) >= 32 && (N) <= 39))
 
 /* How to refer to registers in assembler output.
    This sequence is indexed by compiler's hard-register-number (see above).  */
@@ -344,7 +341,7 @@ enum reg_class { NO_REGS, R1_REGS, GENERAL_REGS, FPUPPER_REGS, FP_REGS,
  {"%fr16L",56}, {"%fr17L",58}, {"%fr18L",60}, {"%fr19L",62},		\
  {"%fr20L",64}, {"%fr21L",66}, {"%fr22L",68}, {"%fr23L",70},		\
  {"%fr24L",72}, {"%fr25L",74}, {"%fr26L",76}, {"%fr27L",78},		\
- {"%fr28L",80}, {"%fr29L",82}, {"%fr30L",84}, {"%fr31R",86},		\
+ {"%fr28L",80}, {"%fr29L",82}, {"%fr30L",84}, {"%fr31L",86},		\
  {"%cr11",88}}
 
 #define FP_SAVED_REG_LAST 66

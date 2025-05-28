@@ -1,6 +1,6 @@
 // Primitive numeric conversions (to_chars and from_chars) -*- C++ -*-
 
-// Copyright (C) 2017-2024 Free Software Foundation, Inc.
+// Copyright (C) 2017-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,7 +29,13 @@
 #ifndef _GLIBCXX_CHARCONV
 #define _GLIBCXX_CHARCONV 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic" // __int128
+#pragma GCC diagnostic ignored "-Wc++17-extensions" // if constexpr
 
 #include <bits/requires_hosted.h> // for error codes
 
@@ -126,7 +132,7 @@ namespace __detail
 
       const unsigned __len = __to_chars_len(__val, __base);
 
-      if (__builtin_expect((__last - __first) < __len, 0))
+      if (__builtin_expect(size_t(__last - __first) < __len, 0))
 	{
 	  __res.ptr = __last;
 	  __res.ec = errc::value_too_large;
@@ -166,7 +172,7 @@ namespace __detail
 
       const unsigned __len = (__to_chars_len_2(__val) + 3) / 4;
 
-      if (__builtin_expect((__last - __first) < __len, 0))
+      if (__builtin_expect(size_t(__last - __first) < __len, 0))
 	{
 	  __res.ptr = __last;
 	  __res.ec = errc::value_too_large;
@@ -212,7 +218,7 @@ namespace __detail
 
       const unsigned __len = __to_chars_len(__val, 10);
 
-      if (__builtin_expect((__last - __first) < __len, 0))
+      if (__builtin_expect(size_t(__last - __first) < __len, 0))
 	{
 	  __res.ptr = __last;
 	  __res.ec = errc::value_too_large;
@@ -234,7 +240,7 @@ namespace __detail
       to_chars_result __res;
       unsigned __len = 0;
 
-      if _GLIBCXX17_CONSTEXPR (__gnu_cxx::__int_traits<_Tp>::__digits <= 16)
+      if constexpr (__gnu_cxx::__int_traits<_Tp>::__digits <= 16)
 	{
 	  __len = __val > 077777u ? 6u
 	    : __val > 07777u ? 5u
@@ -246,7 +252,7 @@ namespace __detail
       else
 	__len = (__to_chars_len_2(__val) + 2) / 3;
 
-      if (__builtin_expect((__last - __first) < __len, 0))
+      if (__builtin_expect(size_t(__last - __first) < __len, 0))
 	{
 	  __res.ptr = __last;
 	  __res.ec = errc::value_too_large;
@@ -288,7 +294,7 @@ namespace __detail
 
       const unsigned __len = __to_chars_len_2(__val);
 
-      if (__builtin_expect((__last - __first) < __len, 0))
+      if (__builtin_expect(size_t(__last - __first) < __len, 0))
 	{
 	  __res.ptr = __last;
 	  __res.ec = errc::value_too_large;
@@ -323,7 +329,7 @@ namespace __detail
       using _Up = __detail::__unsigned_least_t<_Tp>;
       _Up __unsigned_val = __value;
 
-      if (__first == __last) [[__unlikely__]]
+      if (__first >= __last) [[__unlikely__]]
 	return { __last, errc::value_too_large };
 
       if (__value == 0)
@@ -331,7 +337,7 @@ namespace __detail
 	  *__first = '0';
 	  return { __first + 1, errc{} };
 	}
-      else if _GLIBCXX17_CONSTEXPR (std::is_signed<_Tp>::value)
+      else if constexpr (std::is_signed<_Tp>::value)
 	if (__value < 0)
 	  {
 	    *__first++ = '-';
@@ -447,7 +453,7 @@ namespace __detail
     _GLIBCXX20_CONSTEXPR unsigned char
     __from_chars_alnum_to_val(unsigned char __c)
     {
-      if _GLIBCXX17_CONSTEXPR (_DecOnly)
+      if constexpr (_DecOnly)
 	return static_cast<unsigned char>(__c - '0');
       else
 	return __from_chars_alnum_to_val_table<_DecOnly>::value.__data[__c];
@@ -557,7 +563,7 @@ namespace __detail
       from_chars_result __res{__first, {}};
 
       int __sign = 1;
-      if _GLIBCXX17_CONSTEXPR (std::is_signed<_Tp>::value)
+      if constexpr (std::is_signed<_Tp>::value)
 	if (__first != __last && *__first == '-')
 	  {
 	    __sign = -1;
@@ -590,7 +596,7 @@ namespace __detail
 	    __res.ec = errc::result_out_of_range;
 	  else
 	    {
-	      if _GLIBCXX17_CONSTEXPR (std::is_signed<_Tp>::value)
+	      if constexpr (std::is_signed<_Tp>::value)
 		{
 		  _Tp __tmp;
 		  if (__builtin_mul_overflow(__val, __sign, &__tmp))
@@ -600,8 +606,8 @@ namespace __detail
 		}
 	      else
 		{
-		  if _GLIBCXX17_CONSTEXPR (__gnu_cxx::__int_traits<_Up>::__max
-		      > __gnu_cxx::__int_traits<_Tp>::__max)
+		  if constexpr (__gnu_cxx::__int_traits<_Up>::__max
+				 > __gnu_cxx::__int_traits<_Tp>::__max)
 		    {
 		      if (__val > __gnu_cxx::__int_traits<_Tp>::__max)
 			__res.ec = errc::result_out_of_range;
@@ -932,4 +938,5 @@ namespace __detail
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 #endif // C++14
+#pragma GCC diagnostic pop
 #endif // _GLIBCXX_CHARCONV

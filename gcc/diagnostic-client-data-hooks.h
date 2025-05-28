@@ -1,5 +1,5 @@
 /* Additional metadata about a client for a diagnostic context.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>
 
 This file is part of GCC.
@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_DIAGNOSTIC_CLIENT_DATA_HOOKS_H
 #define GCC_DIAGNOSTIC_CLIENT_DATA_HOOKS_H
 
+#include "logical-location.h"
+
 class sarif_object;
 class client_version_info;
 
@@ -35,8 +37,13 @@ class diagnostic_client_data_hooks
   /* Get version info for this client, or NULL.  */
   virtual const client_version_info *get_any_version_info () const = 0;
 
-  /* Get the current logical_location for this client, or NULL.  */
-  virtual const logical_location *get_current_logical_location () const = 0;
+  /* Get the current logical_location_manager for this client, or NULL.  */
+  virtual const logical_location_manager *get_logical_location_manager () const = 0;
+
+  /* Get the current logical_location, or null.
+     If this returns a non-null logical_location, then
+     get_logical_location_manager must return non-NULL.  */
+  virtual logical_location get_current_logical_location () const = 0;
 
   /* Get a sourceLanguage value for FILENAME, or return NULL.
      See SARIF v2.1.0 Appendix J for suggested values.  */
@@ -53,7 +60,7 @@ class diagnostic_client_data_hooks
    for use in the compiler (i.e. with knowledge of "tree", access to
    langhooks, etc).  */
 
-extern diagnostic_client_data_hooks *make_compiler_data_hooks ();
+extern std::unique_ptr<diagnostic_client_data_hooks> make_compiler_data_hooks ();
 
 class diagnostic_client_plugin_info;
 

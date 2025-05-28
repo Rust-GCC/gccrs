@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -129,7 +129,7 @@ ResolveExpr::visit (AST::IdentifierExpr &expr)
 	 resolve.  Emit a funny ICE.  We set the finalizer to our custom one,
 	 and use the lower-level emit_diagnostic () instead of the more common
 	 internal_error_no_backtrace () in order to pass our locus.  */
-      diagnostic_finalizer (global_dc) = funny_ice_finalizer;
+      diagnostic_text_finalizer (global_dc) = funny_ice_text_finalizer;
       emit_diagnostic (DK_ICE_NOBT, expr.get_locus (), -1,
 		       "are you trying to break %s? how dare you?",
 		       expr.as_string ().c_str ());
@@ -336,39 +336,46 @@ translate_operand (AST::InlineAsm &expr, const CanonicalPath &prefix,
     {
       switch (operand.get_register_type ())
 	{
-	  case RegisterType::In: {
+	case RegisterType::In:
+	  {
 	    auto in = operand.get_in ();
 	    ResolveExpr::go (*in.expr, prefix, canonical_prefix);
 	    break;
 	  }
-	  case RegisterType::Out: {
+	case RegisterType::Out:
+	  {
 	    auto out = operand.get_out ();
 	    ResolveExpr::go (*out.expr, prefix, canonical_prefix);
 	    break;
 	  }
-	  case RegisterType::InOut: {
+	case RegisterType::InOut:
+	  {
 	    auto in_out = operand.get_in_out ();
 	    ResolveExpr::go (*in_out.expr, prefix, canonical_prefix);
 	    break;
 	  }
-	  case RegisterType::SplitInOut: {
+	case RegisterType::SplitInOut:
+	  {
 	    auto split_in_out = operand.get_split_in_out ();
 	    ResolveExpr::go (*split_in_out.in_expr, prefix, canonical_prefix);
 	    ResolveExpr::go (*split_in_out.out_expr, prefix, canonical_prefix);
 	    break;
 	  }
-	  case RegisterType::Const: {
+	case RegisterType::Const:
+	  {
 	    auto anon_const = operand.get_const ().anon_const;
 	    ResolveExpr::go (anon_const.get_inner_expr (), prefix,
 			     canonical_prefix);
 	    break;
 	  }
-	  case RegisterType::Sym: {
+	case RegisterType::Sym:
+	  {
 	    auto sym = operand.get_sym ();
 	    ResolveExpr::go (*sym.expr, prefix, canonical_prefix);
 	    break;
 	  }
-	  case RegisterType::Label: {
+	case RegisterType::Label:
+	  {
 	    auto label = operand.get_label ();
 	    ResolveExpr::go (*label.expr, prefix, canonical_prefix);
 	    break;
