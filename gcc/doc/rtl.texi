@@ -1917,7 +1917,7 @@ of relocation operator.  @var{m} should be a valid address mode.
 
 @findex high
 @item (high:@var{m} @var{exp})
-Represents the high-order bits of @var{exp}.  
+Represents the high-order bits of @var{exp}.
 The number of bits is machine-dependent and is
 normally the number of bits specified in an instruction that initializes
 the high order bits of a register.  It is used with @code{lo_sum} to
@@ -2620,7 +2620,7 @@ integers.
 @cindex bitwise complement
 @item (not:@var{m} @var{x})
 Represents the bitwise complement of the value represented by @var{x},
-carried out in mode @var{m}, which must be a fixed-point machine mode.
+carried out in mode @var{m}, which must be an integral machine mode.
 
 @findex and
 @cindex logical-and, bitwise
@@ -2628,23 +2628,23 @@ carried out in mode @var{m}, which must be a fixed-point machine mode.
 @item (and:@var{m} @var{x} @var{y})
 Represents the bitwise logical-and of the values represented by
 @var{x} and @var{y}, carried out in machine mode @var{m}, which must be
-a fixed-point machine mode.
+an integral machine mode.
 
 @findex ior
 @cindex inclusive-or, bitwise
 @cindex bitwise inclusive-or
 @item (ior:@var{m} @var{x} @var{y})
 Represents the bitwise inclusive-or of the values represented by @var{x}
-and @var{y}, carried out in machine mode @var{m}, which must be a
-fixed-point mode.
+and @var{y}, carried out in machine mode @var{m}, which must be an
+integral machine mode.
 
 @findex xor
 @cindex exclusive-or, bitwise
 @cindex bitwise exclusive-or
 @item (xor:@var{m} @var{x} @var{y})
 Represents the bitwise exclusive-or of the values represented by @var{x}
-and @var{y}, carried out in machine mode @var{m}, which must be a
-fixed-point mode.
+and @var{y}, carried out in machine mode @var{m}, which must be an
+integral machine mode.
 
 @findex ashift
 @findex ss_ashift
@@ -2664,8 +2664,8 @@ in case of a change in the sign bit; @code{ss_ashift} and @code{us_ashift}
 saturates to the minimum or maximum representable value if any of the bits
 shifted out differs from the final sign bit.
 
-@var{x} have mode @var{m}, a fixed-point machine mode.  @var{c}
-be a fixed-point mode or be a constant with mode @code{VOIDmode}; which
+@var{x} has mode @var{m}, an integral machine mode.  @var{c}
+be an integral mode or be a constant with mode @code{VOIDmode}; which
 mode is determined by the mode called for in the machine description
 entry for the left-shift instruction.  For example, on the VAX, the mode
 of @var{c} is @code{QImode} regardless of @var{m}.
@@ -2751,13 +2751,13 @@ integer of mode @var{m}.  The mode of @var{x} must be @var{m} or
 @findex bswap
 @item (bswap:@var{m} @var{x})
 Represents the value @var{x} with the order of bytes reversed, carried out
-in mode @var{m}, which must be a fixed-point machine mode.
+in mode @var{m}, which must be an integral machine mode.
 The mode of @var{x} must be @var{m} or @code{VOIDmode}.
 
 @findex bitreverse
 @item (bitreverse:@var{m} @var{x})
 Represents the value @var{x} with the order of bits reversed, carried out
-in mode @var{m}, which must be a fixed-point machine mode.
+in mode @var{m}, which must be an integral machine mode.
 The mode of @var{x} must be @var{m} or @code{VOIDmode}.
 
 @findex copysign
@@ -2826,13 +2826,13 @@ are not equal, otherwise 0.
 @cindex greater than
 @item (gt:@var{m} @var{x} @var{y})
 @code{STORE_FLAG_VALUE} if the @var{x} is greater than @var{y}.  If they
-are fixed-point, the comparison is done in a signed sense.
+are integral, the comparison is done in a signed sense.
 
 @findex gtu
 @cindex greater than
 @cindex unsigned greater than
 @item (gtu:@var{m} @var{x} @var{y})
-Like @code{gt} but does unsigned comparison, on fixed-point numbers only.
+Like @code{gt} but does unsigned comparison, on integral modes only.
 
 @findex lt
 @cindex less than
@@ -3003,14 +3003,14 @@ must be placed into a register.
 @findex sign_extend
 @item (sign_extend:@var{m} @var{x})
 Represents the result of sign-extending the value @var{x}
-to machine mode @var{m}.  @var{m} must be a fixed-point mode
-and @var{x} a fixed-point value of a mode narrower than @var{m}.
+to machine mode @var{m}.  @var{m} must be an integral mode
+and @var{x} an integral value of a mode narrower than @var{m}.
 
 @findex zero_extend
 @item (zero_extend:@var{m} @var{x})
 Represents the result of zero-extending the value @var{x}
-to machine mode @var{m}.  @var{m} must be a fixed-point mode
-and @var{x} a fixed-point value of a mode narrower than @var{m}.
+to machine mode @var{m}.  @var{m} must be an integral mode
+and @var{x} an integral value of a mode narrower than @var{m}.
 
 @findex float_extend
 @item (float_extend:@var{m} @var{x})
@@ -3021,21 +3021,21 @@ and @var{x} a floating point value of a mode narrower than @var{m}.
 @findex truncate
 @item (truncate:@var{m} @var{x})
 Represents the result of truncating the value @var{x}
-to machine mode @var{m}.  @var{m} must be a fixed-point mode
-and @var{x} a fixed-point value of a mode wider than @var{m}.
+to machine mode @var{m}.  @var{m} must be an integral mode
+and @var{x} an integral value of a mode wider than @var{m}.
 
 @findex ss_truncate
 @item (ss_truncate:@var{m} @var{x})
 Represents the result of truncating the value @var{x}
 to machine mode @var{m}, using signed saturation in the case of
-overflow.  Both @var{m} and the mode of @var{x} must be fixed-point
+overflow.  Both @var{m} and the mode of @var{x} must be integral
 modes.
 
 @findex us_truncate
 @item (us_truncate:@var{m} @var{x})
 Represents the result of truncating the value @var{x}
 to machine mode @var{m}, using unsigned saturation in the case of
-overflow.  Both @var{m} and the mode of @var{x} must be fixed-point
+overflow.  Both @var{m} and the mode of @var{x} must be integral
 modes.
 
 @findex float_truncate
@@ -3046,12 +3046,12 @@ and @var{x} a floating point value of a mode wider than @var{m}.
 
 @findex float
 @item (float:@var{m} @var{x})
-Represents the result of converting fixed point value @var{x},
+Represents the result of converting integral value @var{x},
 regarded as signed, to floating point mode @var{m}.
 
 @findex unsigned_float
 @item (unsigned_float:@var{m} @var{x})
-Represents the result of converting fixed point value @var{x},
+Represents the result of converting integral value @var{x},
 regarded as unsigned, to floating point mode @var{m}.
 
 @findex fix
