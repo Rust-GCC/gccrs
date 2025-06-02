@@ -543,6 +543,37 @@ private:
   Node root;
 };
 
+class ResolutionError
+{
+  std::string name;
+  location_t offending_location;
+  std::vector<Identifier> suggestions;
+  // Parent scope for name resolution "X not found in Y"
+  tl::optional<std::string> parent;
+
+  ResolutionError (std::string name, location_t loc,
+		   std::vector<Identifier> suggestions,
+		   tl::optional<std::string> parent)
+    : name (name), offending_location (loc), suggestions (suggestions),
+      parent (parent)
+  {}
+
+public:
+  static ResolutionError make_error (std::string name, location_t loc,
+				     std::vector<Identifier> suggestions = {},
+				     tl::optional<std::string> parent
+				     = tl::nullopt)
+  {
+    return ResolutionError (name, loc, suggestions, parent);
+  }
+
+  const std::string &get_name () const { return name; }
+
+  location_t get_offending_location () { return offending_location; }
+
+  tl::optional<std::string> get_parent () { return parent; }
+};
+
 template <Namespace N> class ForeverStack
 {
 public:
@@ -671,7 +702,7 @@ public:
    *         current map, an empty one otherwise.
    */
   template <typename S>
-  tl::optional<Rib::Definition> resolve_path (
+  tl::expected<Rib::Definition, ResolutionError> resolve_path (
     const std::vector<S> &segments, bool has_opening_scope_resolution,
     std::function<void (const S &, NodeId)> insert_segment_resolution,
     std::vector<Error> &collect_errors);
@@ -790,14 +821,14 @@ private:
   Node &find_closest_module (Node &starting_point);
 
   template <typename S>
-  tl::optional<SegIterator<S>> find_starting_point (
+  tl::expected<SegIterator<S>, ResolutionError> find_starting_point (
     const std::vector<S> &segments,
     std::reference_wrapper<Node> &starting_point,
     std::function<void (const S &, NodeId)> insert_segment_resolution,
     std::vector<Error> &collect_errors);
 
   template <typename S>
-  tl::optional<Node &> resolve_segments (
+  tl::expected<std::reference_wrapper<Node>, ResolutionError> resolve_segments (
     Node &starting_point, const std::vector<S> &segments,
     SegIterator<S> iterator,
     std::function<void (const S &, NodeId)> insert_segment_resolution,

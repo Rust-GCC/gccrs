@@ -30,7 +30,7 @@ ResolverBase::resolve_visibility (const AST::Visibility &vis)
 {
   if (vis.has_path ())
     {
-      auto path = vis.get_path ();
+      auto path = vis.get_path_unchecked ();
       ResolvePath::go (path);
 
       // Do we need to lookup something here?
