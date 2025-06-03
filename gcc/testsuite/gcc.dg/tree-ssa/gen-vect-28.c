@@ -9,7 +9,8 @@
 
 /* unaligned store.  */
 
-int main_1 (int off)
+int __attribute__((noipa))
+main_1 (int off)
 {
   int i;
   char ia[N+OFF];
@@ -20,6 +21,7 @@ int main_1 (int off)
     }
 
   /* check results:  */
+#pragma GCC novector
   for (i = 0; i < N; i++)
     {
       if (ia[i+off] != 5)

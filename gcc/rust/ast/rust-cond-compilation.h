@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -42,8 +42,8 @@ public:
 
 protected:
   // Clone function impl to be overriden in base classes
-  virtual ConfigurationPredicate *
-  clone_configuration_predicate_impl () const = 0;
+  virtual ConfigurationPredicate *clone_configuration_predicate_impl () const
+    = 0;
 };
 
 // A configuration option - true if option is set, false if option is not set.

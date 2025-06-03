@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # Generate Intel taken branches Linux perf event script for autofdo profiling.
 
-# Copyright (C) 2016-2024 Free Software Foundation, Inc.
+# Copyright (C) 2016-2025 Free Software Foundation, Inc.
 #
 # GCC is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free
@@ -112,7 +112,7 @@ for j in u:
 u.close()
 
 if args.script:
-    print('''#!/bin/sh
+    print(r'''#!/bin/sh
 # Profile workload for gcc profile feedback (autofdo) using Linux perf.
 # Auto generated. To regenerate for new CPUs run
 # contrib/gen_autofdo_event.py --script --all in gcc source
@@ -138,8 +138,16 @@ if [ "$1" = "--all" ] ; then
   shift
 fi
 
-if ! grep -q Intel /proc/cpuinfo ; then
-  echo >&2 "Only Intel CPUs supported"
+if grep -q AuthenticAMD /proc/cpuinfo ; then
+  vendor=AMD
+  if ! grep -q " brs" /proc/cpuinfo && ! grep -q amd_lbr_v2 /proc/cpuinfo ; then
+    echo >&2 "AMD CPU with brs (Zen 3) or amd_lbr_v2 (Zen 4+) feature is required"
+    exit 1
+  fi
+elif grep -q Intel /proc/cpuinfo ; then
+  vendor=Intel
+else
+  echo >&2 "Only AMD and Intel CPUs supported"
   exit 1
 fi
 
@@ -147,27 +155,36 @@ if grep -q hypervisor /proc/cpuinfo ; then
   echo >&2 "Warning: branch profiling may not be functional in VMs"
 fi
 
-case `grep -E -q "^cpu family\s*: 6" /proc/cpuinfo &&
+case `test $vendor = Intel && grep -E -q "^cpu family\s*: 6" /proc/cpuinfo &&
   grep -E "^model\s*:" /proc/cpuinfo | head -n1` in''')
     for event, mod in eventmap.items():
         for m in mod[:-1]:
             print("model*:\ %s|\\" % m)
-        print('model*:\ %s) E="%s$FLAGS" ;;' % (mod[-1], event))
-    print('''*)
-echo >&2 "Unknown CPU. Run contrib/gen_autofdo_event.py --all --script to update script."
-	exit 1 ;;''')
-    print("esac")
-    print("set -x")
-    print('if ! perf record -e $E -b "$@" ; then')
-    print('  # PEBS may not actually be working even if the processor supports it')
-    print('  # (e.g., in a virtual machine). Trying to run without /p.')
-    print('  set +x')
-    print('  echo >&2 "Retrying without /p."')
-    print('  E="$(echo "${E}" | sed -e \'s/\/p/\//\')"')
-    print('  set -x')
-    print('  exec perf record -e $E -b "$@"')
-    print(' set +x')
-    print('fi')
+        print(r'model*:\ %s) E="%s$FLAGS" ;;' % (mod[-1], event))
+    print(r'''*)
+        if perf list br_inst_retired | grep -q br_inst_retired.near_taken ; then
+            E=br_inst_retired.near_taken:p
+        elif perf list ex_ret_brn_tkn | grep -q ex_ret_brn_tkn ; then
+            E=ex_ret_brn_tkn:P$FLAGS
+        elif $vendor = Intel ; then
+echo >&2 "Unknown Intel CPU. Run contrib/gen_autofdo_event.py --all --script to update script."
+	  exit 1
+        else
+echo >&2 "AMD CPU without support for ex_ret_brn_tkn event"
+	  exit 1
+        fi ;;''')
+    print(r"esac")
+    print(r"set -x")
+    print(r'if ! perf record -e $E -b "$@" ; then')
+    print(r'  # PEBS may not actually be working even if the processor supports it')
+    print(r'  # (e.g., in a virtual machine). Trying to run without /p.')
+    print(r'  set +x')
+    print(r'  echo >&2 "Retrying without /p."')
+    print(r'  E="$(echo "${E}" | sed -e \'s/\/p/\//\ -e s/:p//)"')
+    print(r'  set -x')
+    print(r'  exec perf record -e $E -b "$@"')
+    print(r' set +x')
+    print(r'fi')
 
 if cpufound == 0 and not args.all:
     sys.exit('CPU %s not found' % cpu)

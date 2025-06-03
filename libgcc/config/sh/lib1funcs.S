@@ -1,4 +1,4 @@
-/* Copyright (C) 1994-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 This file is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -115,7 +115,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 	HIDDEN_FUNC(GLOBAL(ashiftrt_r4_31))
 	HIDDEN_FUNC(GLOBAL(ashiftrt_r4_32))
 
-	.align	1
+	.align	4
 GLOBAL(ashiftrt_r4_32):
 GLOBAL(ashiftrt_r4_31):
 	rotcl	r4
@@ -764,6 +764,7 @@ LOCAL(movmem_loop): /* Reached with rts */
 	bt	GLOBAL(movmemSI52)
 ! done all the large groups, do the remainder
 ! jump to movmem+
+	.balign	4
 	mova	GLOBAL(movmemSI4)+4,r0
 	add	r6,r0
 	jmp	@r0

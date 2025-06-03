@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2024 Free Software Foundation, Inc.
+# Copyright (C) 2010-2025 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -144,10 +144,16 @@ GCC_14.0.0 {
   __truncxfbf2
   __trunchfbf2
   # Added to GCC_14.0.0 in i386/libgcc-glibc.ver.
+  __mulbitint3
+  __divmodbitint4
+  __fixsfbitint
+  __fixdfbitint
   __fixxfbitint
   __fixtfbitint
   __floatbitintbf
   __floatbitinthf
+  __floatbitintsf
+  __floatbitintdf
   __floatbitintxf
   __floatbitinttf
 }

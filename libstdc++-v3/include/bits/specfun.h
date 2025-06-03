@@ -1,6 +1,6 @@
 // Mathematical Special Functions for -*- C++ -*-
 
-// Copyright (C) 2006-2024 Free Software Foundation, Inc.
+// Copyright (C) 2006-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -157,7 +157,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    * @f]
    * is generally found to be within 10<sup>-15</sup> for 64-bit double on
    * linux-x86_64 systems over most of the ranges of validity.
-   * 
+   *
    * @todo Provide accuracy comparisons on a per-function basis for a small
    *       number of targets.
    *

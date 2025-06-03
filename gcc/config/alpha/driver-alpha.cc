@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Arthur Loiret <aloiret@debian.org>
 
 This file is part of GCC.
@@ -33,7 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Bit defines for amask instruction.  */
 #define AMASK_BWX          0x1          /* byte/word extension.  */
-#define AMASK_FIX          0x2          /* sqrt and f <-> i conversions 
+#define AMASK_FIX          0x2          /* sqrt and f <-> i conversions
 					   extension.  */
 #define AMASK_CIX          0x4          /* count extension.  */
 #define AMASK_MVI          0x100        /* multimedia extension.  */

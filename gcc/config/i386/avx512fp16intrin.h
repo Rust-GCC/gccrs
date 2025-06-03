@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -28,9 +28,9 @@
 #ifndef _AVX512FP16INTRIN_H_INCLUDED
 #define _AVX512FP16INTRIN_H_INCLUDED
 
-#if !defined (__AVX512FP16__) || defined (__EVEX512__)
+#if !defined (__AVX512FP16__)
 #pragma GCC push_options
-#pragma GCC target("avx512fp16,no-evex512")
+#pragma GCC target("avx512fp16")
 #define __DISABLE_AVX512FP16__
 #endif /* __AVX512FP16__ */
 
@@ -2852,17 +2852,6 @@ _mm_maskz_fmul_round_sch (__mmask8 __A, __m128h __B, __m128h __C, const int __E)
 #define _mm_maskz_cmul_round_sch(U, A, B, R)			      \
   _mm_maskz_fcmul_round_sch ((U), (A), (B), (R))
 
-#ifdef __DISABLE_AVX512FP16__
-#undef __DISABLE_AVX512FP16__
-#pragma GCC pop_options
-#endif /* __DISABLE_AVX512FP16__ */
-
-#if !defined (__AVX512FP16__) || !defined (__EVEX512__)
-#pragma GCC push_options
-#pragma GCC target("avx512fp16,evex512")
-#define __DISABLE_AVX512FP16_512__
-#endif /* __AVX512FP16_512__ */
-
 typedef _Float16 __v32hf __attribute__ ((__vector_size__ (64)));
 typedef _Float16 __m512h __attribute__ ((__vector_size__ (64), __may_alias__));
 typedef _Float16 __m512h_u __attribute__ ((__vector_size__ (64),	\
@@ -3355,7 +3344,7 @@ extern __inline __m512h
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 _mm512_conj_pch (__m512h __A)
 {
-  return (__m512h) _mm512_xor_epi32 ((__m512i) __A, _mm512_set1_epi32 (1<<31));
+  return (__m512h) _mm512_xor_epi32 ((__m512i) __A, _mm512_set1_epi32 (1U<<31));
 }
 
 extern __inline __m512h
@@ -3961,11 +3950,11 @@ _mm512_fpclass_ph_mask (__m512h __A, const int __imm)
 #else
 #define _mm512_mask_fpclass_ph_mask(u, x, c)				\
   ((__mmask32) __builtin_ia32_fpclassph512_mask ((__v32hf) (__m512h) (x), \
-						 (int) (c),(__mmask8)(u)))
+						 (int) (c),(__mmask32)(u)))
 
 #define _mm512_fpclass_ph_mask(x, c)                                    \
   ((__mmask32) __builtin_ia32_fpclassph512_mask ((__v32hf) (__m512h) (x), \
-						 (int) (c),(__mmask8)-1))
+						 (int) (c),(__mmask32)-1))
 #endif /* __OPIMTIZE__ */
 
 /* Intrinsics vgetexpph.  */
@@ -7238,9 +7227,9 @@ _mm512_set1_pch (_Float16 _Complex __A)
 #define _mm512_maskz_cmul_round_pch(U, A, B, R)			      \
   _mm512_maskz_fcmul_round_pch ((U), (A), (B), (R))
 
-#ifdef __DISABLE_AVX512FP16_512__
-#undef __DISABLE_AVX512FP16_512__
+#ifdef __DISABLE_AVX512FP16__
+#undef __DISABLE_AVX512FP16__
 #pragma GCC pop_options
-#endif /* __DISABLE_AVX512FP16_512__ */
+#endif /* __DISABLE_AVX512FP16__ */
 
 #endif /* _AVX512FP16INTRIN_H_INCLUDED */

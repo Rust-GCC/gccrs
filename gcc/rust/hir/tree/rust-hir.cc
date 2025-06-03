@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -577,7 +577,8 @@ UseTreeGlob::as_string () const
       return "*";
     case GLOBAL:
       return "::*";
-      case PATH_PREFIXED: {
+    case PATH_PREFIXED:
+      {
 	std::string path_str = path.as_string ();
 	return path_str + "::*";
       }
@@ -600,7 +601,8 @@ UseTreeList::as_string () const
     case GLOBAL:
       path_str = "::{";
       break;
-      case PATH_PREFIXED: {
+    case PATH_PREFIXED:
+      {
 	path_str = path.as_string () + "::{";
 	break;
       }

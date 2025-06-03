@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 --param=riscv-autovec-lmul=m8 -fdump-tree-optimized" } */
+/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 -mrvv-max-lmul=m8 -fdump-tree-optimized" } */
 
 #include "def.h"
 
@@ -25,9 +25,8 @@ DEF_AVG_FLOOR (uint8_t, uint16_t, 512)
 DEF_AVG_FLOOR (uint8_t, uint16_t, 1024)
 DEF_AVG_FLOOR (uint8_t, uint16_t, 2048)
 
-/* { dg-final { scan-assembler-times {vwadd\.vv} 10 } } */
-/* { dg-final { scan-assembler-times {csrwi\s*vxrm,\s*2} 10 } } */
-/* { dg-final { scan-assembler-times {vnsra\.wi} 10 } } */
+/* { dg-final { scan-assembler-times {csrwi\s*vxrm,\s*2} 20 } } */
+/* { dg-final { scan-assembler-times {vaadd\.vv} 10 } } */
 /* { dg-final { scan-assembler-times {vaaddu\.vv} 10 } } */
 /* { dg-final { scan-assembler-not {csrr} } } */
 /* { dg-final { scan-tree-dump-not "1,1" "optimized" } } */

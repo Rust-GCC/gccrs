@@ -1,5 +1,5 @@
 /* Rich optional information on why an optimization wasn't possible.
-   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -70,7 +70,8 @@ opt_problem::opt_problem (const dump_location_t &loc,
 
     /* Phase 3: dump the items to the "immediate" dump destinations,
        and storing them into m_optinfo for later retrieval.  */
-    pp.emit_items (&m_optinfo);
+    pp.set_optinfo (&m_optinfo);
+    pp_output_formatted_text (&pp, nullptr);
   }
 }
 

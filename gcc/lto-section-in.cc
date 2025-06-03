@@ -1,6 +1,6 @@
 /* Input functions for reading LTO sections.
 
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -428,7 +428,7 @@ lto_free_function_in_decl_state (struct lto_in_decl_state *state)
   ggc_free (state);
 }
 
-/* Free decl_states associated with NODE.  This makes it possible to furhter
+/* Free decl_states associated with NODE.  This makes it possible to further
    release trees needed by the NODE's body.  */
 
 void

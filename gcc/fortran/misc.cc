@@ -1,5 +1,5 @@
 /* Miscellaneous stuff that doesn't fit anywhere else.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -69,6 +69,9 @@ gfc_basic_typename (bt type)
     {
     case BT_INTEGER:
       p = "INTEGER";
+      break;
+    case BT_UNSIGNED:
+      p = "UNSIGNED";
       break;
     case BT_REAL:
       p = "REAL";
@@ -145,6 +148,9 @@ gfc_typename (gfc_typespec *ts, bool for_hash)
       else
 	sprintf (buffer, "INTEGER(%d)", ts->kind);
       break;
+    case BT_UNSIGNED:
+      sprintf (buffer, "UNSIGNED(%d)", ts->kind);
+      break;
     case BT_REAL:
       sprintf (buffer, "REAL(%d)", ts->kind);
       break;
@@ -207,6 +213,9 @@ gfc_typename (gfc_typespec *ts, bool for_hash)
       break;
     case BT_UNKNOWN:
       strcpy (buffer, "UNKNOWN");
+      break;
+    case BT_VOID:
+      strcpy (buffer, "VOID");
       break;
     default:
       gfc_internal_error ("gfc_typename(): Undefined type");

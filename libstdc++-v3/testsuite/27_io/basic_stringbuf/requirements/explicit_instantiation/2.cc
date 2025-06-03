@@ -1,7 +1,7 @@
 // { dg-do compile }
-// 1999-01-17 bkoz test functionality of basic_filebuf for char_type == char
+// 1999-01-17 bkoz test functionality of basic_stringbuf for char_type == char
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,7 +19,7 @@
 // <http://www.gnu.org/licenses/>.
 
 // 27.7.1 - Template class basic_stringbuf
-// NB: This file is for testing basic_filebuf with NO OTHER INCLUDES.
+// NB: This file is for testing basic_stringbuf with NO OTHER INCLUDES.
 
 #include <sstream>
 #include <testsuite_hooks.h>
@@ -37,12 +37,4 @@ namespace std
 } // std
 
 // more surf!!!
-
-
-
-
-
-
-
-
 

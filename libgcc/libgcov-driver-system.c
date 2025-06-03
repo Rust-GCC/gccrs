@@ -1,6 +1,6 @@
 /* Routines required for instrumenting a program.  */
 /* Compile this one with gcc.  */
-/* Copyright (C) 1989-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1989-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -232,7 +232,7 @@ allocate_filename_struct (struct gcov_filename *gf)
   /* Get file name relocation prefix.  Non-absolute values are ignored. */
   gcov_prefix = getenv("GCOV_PREFIX");
   prefix_length = gcov_prefix ? strlen (gcov_prefix) : 0;
-  
+
   /* Remove an unnecessary trailing '/' */
   if (prefix_length && IS_DIR_SEPARATOR (gcov_prefix[prefix_length - 1]))
     prefix_length--;

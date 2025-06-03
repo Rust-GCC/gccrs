@@ -1,5 +1,5 @@
 /* crtend object for windows32 targets.
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
    Contributed by Danny Smith <dannysmith@users.sourceforge.net>
 
@@ -28,7 +28,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define IN_LIBGCC2
 
 /* auto-host.h is needed by cygming.h for HAVE_GAS_WEAK and here
-   for HAVE_LD_RO_RW_SECTION_MIXING.  */  
+   for HAVE_LD_RO_RW_SECTION_MIXING.  */
 #include "auto-host.h"
 #include "tconfig.h"
 #include "tsystem.h"
@@ -53,7 +53,7 @@ static EH_FRAME_SECTION_CONST int __FRAME_END__[]
   = { 0 };
 #endif
 
-extern void __gcc_register_frame (void); 
+extern void __gcc_register_frame (void);
 extern void __gcc_deregister_frame (void);
 
 #pragma GCC diagnostic push

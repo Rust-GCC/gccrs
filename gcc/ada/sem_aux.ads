@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -100,14 +100,13 @@ package Sem_Aux is
    --  entity is declared or Standard_Standard for library-level entities.
 
    function First_Discriminant (Typ : Entity_Id) return Entity_Id;
-   --  Typ is a type with discriminants. The discriminants are the first
-   --  entities declared in the type, so normally this is equivalent to
-   --  First_Entity. The exception arises for tagged types, where the tag
-   --  itself is prepended to the front of the entity chain, so the
-   --  First_Discriminant function steps past the tag if it is present.
-   --  The caller is responsible for checking that the type has discriminants.
-   --  When called on a private type with unknown discriminants, the function
-   --  always returns Empty.
+   --  Typ is a type with discriminants or unknown discriminants. The
+   --  discriminants are the first entities declared in the type, so normally
+   --  this is equivalent to First_Entity. The exception arises for tagged
+   --  types, where the tag itself is prepended to the front of the entity
+   --  chain, so the First_Discriminant function steps past the tag if it is
+   --  present.  When called on a private type with unknown discriminants, the
+   --  function always returns Empty.
 
    --  WARNING: There is a matching C declaration of this subprogram in fe.h
 
@@ -261,10 +260,6 @@ package Sem_Aux is
    --  could have added that propagation, but it would have been an annoying
    --  irregularity compared to other representation aspects, and the cost of
    --  looking up the aspect when needed is small.
-
-   function Has_Unconstrained_Elements (T : Entity_Id) return Boolean;
-   --  True if T has discriminants and is unconstrained, or is an array type
-   --  whose element type Has_Unconstrained_Elements.
 
    function Has_Variant_Part (Typ : Entity_Id) return Boolean;
    --  Return True if the first subtype of Typ is a discriminated record type

@@ -3,7 +3,7 @@
 // { dg-add-options libatomic }
 // { dg-additional-options "-pthread" { target pthread } }
 
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,12 +33,16 @@ template<typename Tp>
     std::atomic<Tp> a{ Tp(1) };
     VERIFY( a.load() == Tp(1) );
     a.wait( Tp(0) );
+    std::atomic<bool> b{false};
     std::thread t([&]
       {
-        a.store(Tp(0));
-        a.notify_one();
+	b.store(true, std::memory_order_relaxed);
+	a.store(Tp(0));
+	a.notify_one();
       });
     a.wait(Tp(1));
+    // Ensure we actually waited until a.store(0) happened:
+    VERIFY( b.load(std::memory_order_relaxed) );
     t.join();
   }
 
@@ -59,7 +63,9 @@ main ()
   check<unsigned long long>();
 
   check<wchar_t>();
+#if __cpp_char8_t
   check<char8_t>();
+#endif
   check<char16_t>();
   check<char32_t>();
 

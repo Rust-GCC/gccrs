@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -263,8 +263,7 @@ private:
 #if CHECKING_P
 
 namespace selftest {
-void
-rust_input_source_test ();
+void rust_input_source_test ();
 
 } // namespace selftest
 

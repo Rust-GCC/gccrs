@@ -1,5 +1,5 @@
 /* Control flow redundancy hardening.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva <oliva@adacore.com>.
 
 This file is part of GCC.
@@ -1549,8 +1549,7 @@ pass_harden_control_flow_redundancy::execute (function *fun)
 
   return
     TODO_update_ssa
-    | TODO_cleanup_cfg
-    | TODO_verify_il;
+    | TODO_cleanup_cfg;
 }
 
 /* Instantiate a hardcfr pass.  */

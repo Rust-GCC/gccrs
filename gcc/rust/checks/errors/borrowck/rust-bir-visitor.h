@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -51,7 +51,7 @@ template <typename BASE, typename T> class VisitableImpl : public BASE
 {
 public:
   template <typename... Args>
-  explicit VisitableImpl (Args &&... args) : BASE (std::forward<Args> (args)...)
+  explicit VisitableImpl (Args &&...args) : BASE (std::forward<Args> (args)...)
   {}
 
   void accept_vis (Visitor &visitor) override

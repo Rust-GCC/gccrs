@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -42,6 +42,15 @@ package body Uname is
    --  True if Prefix is at the beginning of X. For example,
    --  Has_Prefix("a-filename.ads", Prefix => "a-") is True.
 
+   function Encoded_Library_Unit_Name (N : Unit_Name_Type) return String;
+   --  Returns the name of the library unit N as a string without a %s or %b
+   --  suffix.
+
+   function Is_Predefined_Unit_Name
+     (Name : String; Renamings_Included : Boolean := True) return Boolean;
+   --  Same as Fname.Is_Predefined_File_Name, except it works with the name of
+   --  the unit, rather than the file name.
+
    -------------------
    -- Get_Body_Name --
    -------------------
@@ -50,16 +59,20 @@ package body Uname is
       Buffer : Bounded_String;
    begin
       Append (Buffer, N);
-
-      pragma Assert
-        (Buffer.Length > 2
-         and then Buffer.Chars (Buffer.Length - 1) = '%'
-         and then Buffer.Chars (Buffer.Length) = 's');
-
+      pragma Assert (Is_Spec_Name (N));
       Buffer.Chars (Buffer.Length) := 'b';
-
       return Name_Find (Buffer);
    end Get_Body_Name;
+
+   -------------------------------
+   -- Encoded_Library_Unit_Name --
+   -------------------------------
+
+   function Encoded_Library_Unit_Name (N : Unit_Name_Type) return String is
+      S : constant String := Get_Name_String (N);
+   begin
+      return S (S'First .. S'Last - 2);
+   end Encoded_Library_Unit_Name;
 
    -----------------------------------
    -- Get_External_Unit_Name_String --
@@ -70,10 +83,8 @@ package body Uname is
       Newlen : Natural;
 
    begin
-      --  Get unit name and eliminate trailing %s or %b
-
-      Get_Name_String (N);
-      Name_Len := Name_Len - 2;
+      Name_Len := 0;
+      Add_Str_To_Name_Buffer (Encoded_Library_Unit_Name (N));
 
       --  Find number of components
 
@@ -160,14 +171,8 @@ package body Uname is
       Buffer : Bounded_String;
    begin
       Append (Buffer, N);
-
-      pragma Assert
-        (Buffer.Length > 2
-         and then Buffer.Chars (Buffer.Length - 1) = '%'
-         and then Buffer.Chars (Buffer.Length) = 'b');
-
+      pragma Assert (Is_Body_Name (N));
       Buffer.Chars (Buffer.Length) := 's';
-
       return Name_Find (Buffer);
    end Get_Spec_Name;
 
@@ -418,23 +423,19 @@ package body Uname is
    begin
       Buf.Length := 0;
       Append_Decoded (Buf, N);
+      pragma Assert (Buf.Chars (1) /= '"');
+      pragma Assert (Is_Body_Name (N) or else Is_Spec_Name (N));
 
       --  Buf always ends with "%s" or "%b", which we either remove, or replace
       --  with " (spec)" or " (body)". Set_Casing of Buf after checking for
       --  (lower case) 's'/'b', and before appending (lower case) "spec" or
       --  "body".
 
-      pragma Assert (Buf.Length >= 3);
-      pragma Assert (Buf.Chars (1) /= '"');
-      pragma Assert (Buf.Chars (Buf.Length) in 's' | 'b');
-
       declare
          S : constant String :=
            (if Buf.Chars (Buf.Length) = 's' then " (spec)" else " (body)");
       begin
-         Buf.Length := Buf.Length - 1; -- remove 's' or 'b'
-         pragma Assert (Buf.Chars (Buf.Length) = '%');
-         Buf.Length := Buf.Length - 1; -- remove '%'
+         Buf.Length := Buf.Length - 2; -- remove "%s" or "%b"
          Set_Casing (Buf, Identifier_Casing (Source_Index (Main_Unit)));
 
          if Suffix then
@@ -474,9 +475,9 @@ package body Uname is
       Buffer : Bounded_String;
    begin
       Append (Buffer, N);
-      return Buffer.Length > 2
-        and then Buffer.Chars (Buffer.Length - 1) = '%'
-        and then Buffer.Chars (Buffer.Length) = 'b';
+      pragma Assert
+        (Buffer.Length > 2 and then Buffer.Chars (Buffer.Length - 1) = '%');
+      return Buffer.Chars (Buffer.Length) = 'b';
    end Is_Body_Name;
 
    -------------------
@@ -505,21 +506,22 @@ package body Uname is
    ---------------------------
 
    function Is_Internal_Unit_Name
-     (Name               : String;
-      Renamings_Included : Boolean := True) return Boolean
+     (Name : Unit_Name_Type; Renamings_Included : Boolean := True)
+      return Boolean
    is
       Gnat : constant String := "gnat";
 
+      Lib_Unit_Name : constant String := Encoded_Library_Unit_Name (Name);
    begin
-      if Name = Gnat then
+      if Lib_Unit_Name = Gnat then
          return True;
       end if;
 
-      if Has_Prefix (Name, Prefix => Gnat & ".") then
+      if Has_Prefix (Lib_Unit_Name, Prefix => Gnat & ".") then
          return True;
       end if;
 
-      return Is_Predefined_Unit_Name (Name, Renamings_Included);
+      return Is_Predefined_Unit_Name (Lib_Unit_Name, Renamings_Included);
    end Is_Internal_Unit_Name;
 
    -----------------------------
@@ -527,18 +529,22 @@ package body Uname is
    -----------------------------
 
    function Is_Predefined_Unit_Name
-     (Name               : String;
-      Renamings_Included : Boolean := True) return Boolean
+     (Name : Unit_Name_Type; Renamings_Included : Boolean := True)
+      return Boolean is
+   begin
+      return
+        Is_Predefined_Unit_Name
+          (Encoded_Library_Unit_Name (Name), Renamings_Included);
+   end Is_Predefined_Unit_Name;
+
+   function Is_Predefined_Unit_Name
+     (Name : String; Renamings_Included : Boolean := True) return Boolean
    is
       Ada        : constant String := "ada";
       Interfaces : constant String := "interfaces";
       System     : constant String := "system";
-
    begin
-      if Name = Ada
-        or else Name = Interfaces
-        or else Name = System
-      then
+      if Name in Ada | Interfaces | System then
          return True;
       end if;
 
@@ -556,14 +562,15 @@ package body Uname is
       --  The following are the predefined renamings
 
       return
-        Name = "calendar"
-          or else Name = "machine_code"
-          or else Name = "unchecked_conversion"
-          or else Name = "unchecked_deallocation"
-          or else Name = "direct_io"
-          or else Name = "io_exceptions"
-          or else Name = "sequential_io"
-          or else Name = "text_io";
+        Name in
+          "calendar"
+          | "machine_code"
+          | "unchecked_conversion"
+          | "unchecked_deallocation"
+          | "direct_io"
+          | "io_exceptions"
+          | "sequential_io"
+          | "text_io";
    end Is_Predefined_Unit_Name;
 
    ------------------
@@ -574,9 +581,9 @@ package body Uname is
       Buffer : Bounded_String;
    begin
       Append (Buffer, N);
-      return Buffer.Length > 2
-        and then Buffer.Chars (Buffer.Length - 1) = '%'
-        and then Buffer.Chars (Buffer.Length) = 's';
+      pragma Assert
+        (Buffer.Length > 2 and then Buffer.Chars (Buffer.Length - 1) = '%');
+      return Buffer.Chars (Buffer.Length) = 's';
    end Is_Spec_Name;
 
    -----------------------

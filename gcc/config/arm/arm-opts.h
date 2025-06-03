@@ -1,5 +1,5 @@
 /* Definitions for option handling for ARM.
-   Copyright (C) 1991-2024 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -46,7 +46,6 @@ enum arm_abi_type
   ARM_ABI_APCS,
   ARM_ABI_ATPCS,
   ARM_ABI_AAPCS,
-  ARM_ABI_IWMMXT,
   ARM_ABI_AAPCS_LINUX
 };
 

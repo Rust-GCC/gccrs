@@ -1,5 +1,5 @@
 # Configure script for c++tools
-#   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+#   Copyright (C) 2020-2025 Free Software Foundation, Inc.
 #   Written by Nathan Sidwell <nathan@acm.org> while at FaceBook
 #
 # This file is free software; you can redistribute it and/or modify it
@@ -22,7 +22,6 @@
 # By default g++ uses an in-process mapper.
 
 sinclude(../config/acx.m4)
-sinclude(../config/ax_lib_socket_nsl.m4)
 
 AC_INIT(c++tools)
 
@@ -97,12 +96,6 @@ if test x$ac_assert_checking != x ; then
   AC_DEFINE(ENABLE_ASSERT_CHECKING, 1,
 [Define if you want assertions enabled.  This is a cheap check.])
 fi
-
-# Check whether --enable-default-pie was given.
-AC_ARG_ENABLE(default-pie,
-[AS_HELP_STRING([--enable-default-pie],
-		  [enable Position Independent Executable as default])],
-[PICFLAG=-fPIE], [PICFLAG=])
 
 # Enable --enable-host-pie
 AC_ARG_ENABLE(host-pie,
@@ -263,15 +256,6 @@ fi
 
 # Determine what GCC version number to use in filesystem paths.
 GCC_BASE_VER
-
-# Solaris needs libsocket and libnsl for socket functions before 11.4.
-# libcody uses those.
-save_LIBS="$LIBS"
-LIBS=
-AX_LIB_SOCKET_NSL
-NETLIBS="$LIBS"
-LIBS="$save_LIBS"
-AC_SUBST(NETLIBS)
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])

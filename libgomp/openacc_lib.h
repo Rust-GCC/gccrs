@@ -1,6 +1,6 @@
 !  OpenACC Runtime Library Definitions.			-*- mode: fortran -*-
 
-!  Copyright (C) 2014-2024 Free Software Foundation, Inc.
+!  Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 !  Contributed by Tobias Burnus <burnus@net-b.de>
 !              and Mentor Embedded.
@@ -527,6 +527,30 @@
           integer(acc_handle_kind), value :: async_arg
         end subroutine
       end interface
+
+      interface
+        subroutine acc_memcpy_device(data_dev_dest, data_dev_src,       &
+     &                               bytes) bind(C)
+          use iso_c_binding, only: c_ptr, c_size_t
+          type(c_ptr), value :: data_dev_dest
+          type(c_ptr), value :: data_dev_src
+          integer(c_size_t), value :: bytes
+        end subroutine
+      end interface
+
+      interface
+        subroutine acc_memcpy_device_async(data_dev_dest,               &
+     &                                     data_dev_src, bytes,         &
+     &                                     async_arg) bind(C)
+          use iso_c_binding, only: c_ptr, c_size_t
+          import :: acc_handle_kind
+          type(c_ptr), value :: data_dev_dest
+          type(c_ptr), value :: data_dev_src
+          integer(c_size_t), value :: bytes
+          integer(acc_handle_kind), value :: async_arg
+        end subroutine
+      end interface
+
 
       interface acc_copyin_async
         subroutine acc_copyin_async_32_h (a, len, async)

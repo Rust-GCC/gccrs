@@ -1,6 +1,6 @@
 (* M2Reserved.mod determines is a token is a reserved word.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -196,6 +196,9 @@ BEGIN
 
    ForTok := MakeKey('FOR') ;
    AddKeyword(ForTok, fortok) ;
+
+   ForwardTok := MakeKey('FORWARD') ;
+   AddKeyword(ForwardTok, forwardtok) ;
 
    FromTok := MakeKey('FROM') ;
    AddKeyword(FromTok, fromtok) ;

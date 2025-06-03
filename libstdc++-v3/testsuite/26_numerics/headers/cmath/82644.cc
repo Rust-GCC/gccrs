@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Free Software Foundation, Inc.
+// Copyright (C) 2017-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,8 +15,9 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-options "-D__STDCPP_WANT_MATH_SPEC_FUNCS__ -D__STRICT_ANSI__" }
+// { dg-options "-D__STDCPP_WANT_MATH_SPEC_FUNCS__" }
 // { dg-do compile { target c++11 } }
+// // { dg-add-options strict_std }
 
 #define conf_hyperg 1
 #define conf_hypergf 2

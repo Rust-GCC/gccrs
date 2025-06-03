@@ -1,5 +1,5 @@
 ;; Machine description for Loongson MultiMedia extensions Instructions (MMI).
-;; Copyright (C) 2008-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2008-2025 Free Software Foundation, Inc.
 ;; Contributed by CodeSourcery.
 ;;
 ;; This file is part of GCC.
@@ -394,7 +394,7 @@
   "pmaddhw\t%0,%1,%2"
   [(set_attr "type" "fmul")])
 
-(define_expand "sdot_prodv4hi"
+(define_expand "sdot_prodv2siv4hi"
   [(match_operand:V2SI 0 "register_operand" "")
    (match_operand:V4HI 1 "register_operand" "")
    (match_operand:V4HI 2 "register_operand" "")

@@ -1,5 +1,5 @@
 /* Instruction scheduling pass.  Selective scheduler and pipeliner.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1200,7 +1200,7 @@ mark_unavailable_hard_regs (def_t def, struct reg_rename *reg_rename_p,
 			   Pmode, FRAME_POINTER_REGNUM);
 
       if (!HARD_FRAME_POINTER_IS_FRAME_POINTER)
-        add_to_hard_reg_set (&reg_rename_p->unavailable_hard_regs, 
+        add_to_hard_reg_set (&reg_rename_p->unavailable_hard_regs,
 			     Pmode, HARD_FRAME_POINTER_REGNUM);
     }
 

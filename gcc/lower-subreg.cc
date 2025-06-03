@@ -1,5 +1,5 @@
 /* Decompose multiword subregs.
-   Copyright (C) 2007-2024 Free Software Foundation, Inc.
+   Copyright (C) 2007-2025 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>
 		  Ian Lance Taylor <iant@google.com>
 
@@ -933,7 +933,7 @@ resolve_simple_move (rtx set, rtx_insn *insn)
 	      if (reg_overlap_mentioned_p (XVECEXP (dest, 0, 0),
 					   XVECEXP (src, 0, 1)))
 		{
-		  /* If there is overlap betwee the first half of the
+		  /* If there is overlap between the first half of the
 		     destination and what will be stored to the second one,
 		     use a temporary pseudo.  See PR114211.  */
 		  rtx tem = gen_reg_rtx (GET_MODE (XVECEXP (src, 0, 1)));
@@ -1101,6 +1101,9 @@ resolve_simple_move (rtx set, rtx_insn *insn)
     {
       unsigned int i;
 
+      if (REG_P (dest) && !HARD_REGISTER_NUM_P (REGNO (dest)))
+	emit_clobber (dest);
+
       for (i = 0; i < words; ++i)
 	{
 	  rtx t = simplify_gen_subreg_concatn (word_mode, dest,
@@ -1144,8 +1147,7 @@ resolve_simple_move (rtx set, rtx_insn *insn)
       resolve_simple_move (smove, minsn);
     }
 
-  insns = get_insns ();
-  end_sequence ();
+  insns = end_sequence ();
 
   copy_reg_eh_region_note_forward (insn, insns, NULL_RTX);
 
@@ -1415,9 +1417,7 @@ resolve_shift_zext (rtx_insn *insn, bool speed_p)
 	emit_move_insn (dest_upper, upper_src);
     }
 
-  insns = get_insns ();
-
-  end_sequence ();
+  insns = end_sequence ();
 
   emit_insn_before (insns, insn);
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Free Software Foundation, Inc.
+// Copyright (C) 2017-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -84,15 +84,17 @@
 #define n (
 #endif
 #define o (
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || defined(_GLIBCXX_PARALLEL)
 // <random> defines member functions called p()
+// (and <tr1/random> defines them too, which is included by Parallel Mode).
 #else
 #define p (
 #endif
 #define q (
 #define r (
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || defined(_GLIBCXX_PARALLEL)
 // <random> defines member functions called s() and t()
+// (and <tr1/random> defines them too, which is included by Parallel Mode).
 // <chrono> and <string> define operator ""s in C++14
 #else
 #define s (
@@ -136,6 +138,12 @@
 // <charconv> defines to_chars_result::ptr and to_chars_result::ec
 #define ec (
 #define ptr (
+// <map> and <unordered_map> define try_emplace
+#define try_emplace (
+#endif
+
+#if __cplusplus < 202002L
+#define ranges (
 #endif
 
 // These clash with newlib so don't use them.
@@ -240,6 +248,10 @@
 #undef r
 #undef x
 #undef y
+// <stdlib.h> defines drand48_data::a
+#undef a
+// <sys/localedef.h> defines _LC_weight_t::n
+#undef n
 // <sys/poll.h> defines pollfd_ext::u on AIX 7.3
 #undef u
 // <sys/var.h> defines vario::v
@@ -270,8 +282,20 @@
 #undef u
 #endif
 
+#if defined (__linux__) && defined (__s390__)
+// <sys/ucontext.h> defines fpreg_t::d and fpreg_t::f
+#undef d
+#undef f
+#endif
+
 #if defined (__linux__) && defined (__sparc__)
 #undef y
+#endif
+
+#if defined (__linux__) && defined (__ia64__)
+// <bits/sigcontext.h> defines __ia64_fpreg::u
+// <sys/ucontext.h> defines __ia64_fpreg_mcontext::u
+#undef u
 #endif
 
 #if defined (__linux__) || defined (__gnu_hurd__)
@@ -303,6 +327,7 @@
 
 #ifdef __sun__
 // <fenv.h> defines these as members of fex_numeric_t
+#undef i
 #undef l
 #undef f
 #undef d
@@ -312,8 +337,11 @@
 #undef ptr
 // <sys/timespec_util.h> uses this as parameter
 #undef r
-// <stdlib.h> uses this as member of drand48_data
+// <stdlib.h> uses these as members of drand48_data
+#undef a
 #undef x
+// <string.h> defines this as a parameter of timingsafe_memcmp
+#undef n
 #endif
 
 #ifdef __VXWORKS__
@@ -367,6 +395,13 @@
 #undef x
 // <math.h> defines _complex::x and _complex::y
 #undef y
+#endif
+
+#if defined __GLIBC_PREREQ && defined _FORTIFY_SOURCE
+# if ! __GLIBC_PREREQ(2,41)
+// https://sourceware.org/bugzilla/show_bug.cgi?id=32052
+#  undef sz
+# endif
 #endif
 
 #include <bits/stdc++.h>

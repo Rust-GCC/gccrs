@@ -1,5 +1,5 @@
 /* Definition of data structure of RISC-V subset for GNU compiler.
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Andrew Waterman (andrew@sifive.com).
    Based on MIPS target for GNU compiler.
 
@@ -21,6 +21,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #ifndef GCC_RISCV_SUBSET_H
 #define GCC_RISCV_SUBSET_H
+
+#include "riscv-feature-bits.h"
 
 #define RISCV_DONT_CARE_VERSION -1
 
@@ -62,6 +64,12 @@ private:
   /* X-len of m_arch. */
   unsigned m_xlen;
 
+  /* Number of subsets. */
+  unsigned m_subset_num;
+
+  /* Allow adding the same extension more than once.  */
+  bool m_allow_adding_dup;
+
   riscv_subset_list (const char *, location_t);
 
   const char *parsing_subset_version (const char *, const char *, unsigned *,
@@ -73,6 +81,8 @@ private:
 
   const char *parse_single_multiletter_ext (const char *, const char *,
 					    const char *, bool);
+
+  std::string parse_profiles (const char*);
 
   void handle_implied_ext (const char *);
   bool check_implied_ext ();
@@ -99,16 +109,81 @@ public:
   static riscv_subset_list *parse (const char *, location_t);
   const char *parse_single_ext (const char *, bool exact_single_p = true);
 
-  const riscv_subset_t *begin () const {return m_head;};
-  const riscv_subset_t *end () const {return NULL;};
-
   int match_score (riscv_subset_list *) const;
 
   void set_loc (location_t);
+
+  void set_allow_adding_dup (bool v) { m_allow_adding_dup = v; }
+
+  void finalize ();
+
+  class iterator
+  {
+  public:
+    explicit iterator(riscv_subset_t *node) : m_node(node) {}
+
+    riscv_subset_t &operator*() const { return *m_node; }
+    riscv_subset_t *operator->() const { return m_node; }
+
+    iterator &operator++()
+    {
+      if (m_node)
+	m_node = m_node->next;
+      return *this;
+    }
+
+    bool operator!=(const iterator &other) const
+    {
+      return m_node != other.m_node;
+    }
+
+    bool operator==(const iterator &other) const
+    {
+      return m_node == other.m_node;
+    }
+
+  private:
+    riscv_subset_t *m_node;
+  };
+
+  iterator begin() { return iterator(m_head); }
+  iterator end()   { return iterator(nullptr); }
+
+  class const_iterator
+  {
+  public:
+    explicit const_iterator(const riscv_subset_t *node) : m_node(node) {}
+
+    const riscv_subset_t &operator*() const { return *m_node; }
+    const riscv_subset_t *operator->() const { return m_node; }
+
+    const_iterator &operator++()
+    {
+      if (m_node)
+	m_node = m_node->next;
+      return *this;
+    }
+
+    bool operator!=(const const_iterator &other) const
+    {
+      return m_node != other.m_node;
+    }
+
+  private:
+    const riscv_subset_t *m_node;
+  };
+
+  const_iterator begin() const { return const_iterator(m_head); }
+  const_iterator end() const   { return const_iterator(nullptr); }
 };
 
-extern const riscv_subset_list *riscv_current_subset_list (void);
+extern const riscv_subset_list *riscv_cmdline_subset_list (void);
 extern void
 riscv_set_arch_by_subset_list (riscv_subset_list *, struct gcc_options *);
+extern bool riscv_minimal_hwprobe_feature_bits (const char *,
+						struct riscv_feature_bits *,
+						location_t);
+extern bool
+riscv_ext_is_subset (struct cl_target_option *, struct cl_target_option *);
 
 #endif /* ! GCC_RISCV_SUBSET_H */

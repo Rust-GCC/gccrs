@@ -302,6 +302,9 @@
 /* Define if openat is available in <fcntl.h>. */
 #undef HAVE_OPENAT
 
+/* Define if O_NONBLOCK is defined in <fcntl.h> */
+#undef HAVE_O_NONBLOCK
+
 /* Define if poll is available in <poll.h>. */
 #undef HAVE_POLL
 
@@ -310,10 +313,6 @@
 
 /* Define to 1 if you have the `posix_memalign' function. */
 #undef HAVE_POSIX_MEMALIGN
-
-/* Define to 1 if POSIX Semaphores with sem_timedwait are available in
-   <semaphore.h>. */
-#undef HAVE_POSIX_SEMAPHORE
 
 /* Define to 1 if you have the `powf' function. */
 #undef HAVE_POWF
@@ -490,6 +489,9 @@
 /* Define to 1 if you have the `timespec_get' function. */
 #undef HAVE_TIMESPEC_GET
 
+/* Define to 1 if you have the <tlhelp32.h> header file. */
+#undef HAVE_TLHELP32_H
+
 /* Define to 1 if the target supports thread-local storage. */
 #undef HAVE_TLS
 
@@ -637,8 +639,8 @@
    <cwchar> in namespace std for C++98. */
 #undef _GLIBCXX98_USE_C99_WCHAR
 
-/* Define if the compiler supports C++11 atomics. */
-#undef _GLIBCXX_ATOMIC_BUILTINS
+/* Define if the compiler supports native atomics for _Atomic_word. */
+#undef _GLIBCXX_ATOMIC_WORD_BUILTINS
 
 /* Define if global objects can be aligned to
    std::hardware_destructive_interference_size. */
@@ -881,6 +883,9 @@
 
 /* Define to restrict std::__basic_file<> to stdio APIs. */
 #undef _GLIBCXX_USE_STDIO_PURE
+
+/* Define if struct tm has a tm_zone member. */
+#undef _GLIBCXX_USE_STRUCT_TM_TM_ZONE
 
 /* Define if struct stat has timespec members. */
 #undef _GLIBCXX_USE_ST_MTIM

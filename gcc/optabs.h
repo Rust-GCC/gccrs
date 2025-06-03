@@ -1,5 +1,5 @@
 /* Definitions for code generation pass of GNU compiler.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -182,7 +182,7 @@ enum optab_methods
   OPTAB_MUST_WIDEN
 };
 
-extern rtx expand_widen_pattern_expr (struct separate_ops *, rtx , rtx , rtx,
+extern rtx expand_widen_pattern_expr (const struct separate_ops *, rtx , rtx , rtx,
                                       rtx, int);
 extern rtx expand_ternary_op (machine_mode mode, optab ternary_optab,
 			      rtx op0, rtx op1, rtx op2, rtx target,
@@ -244,11 +244,10 @@ extern void emit_unop_insn (enum insn_code, rtx, rtx, enum rtx_code);
 extern void emit_libcall_block (rtx_insn *, rtx, rtx, rtx);
 
 /* The various uses that a comparison can have; used by can_compare_p:
-   jumps, conditional moves, store flag operations.  */
+   jumps, store flag operations.  */
 enum can_compare_purpose
 {
   ccp_jump,
-  ccp_cmov,
   ccp_store_flag
 };
 
@@ -261,11 +260,6 @@ extern bool can_compare_p (enum rtx_code, machine_mode,
    for code CODE, comparing operands of mode VALUE_MODE and producing a result
    with MASK_MODE.  */
 extern bool can_vec_cmp_compare_p (enum rtx_code, machine_mode, machine_mode);
-
-/* Return whether the backend can emit a vector comparison (vcond/vcondu) for
-   code CODE, comparing operands of mode CMP_OP_MODE and producing a result
-   with VALUE_MODE.  */
-extern bool can_vcond_compare_p (enum rtx_code, machine_mode, machine_mode);
 
 /* Return whether the backend can emit vector set instructions for inserting
    element into vector at variable index position.  */
@@ -340,6 +334,10 @@ extern bool have_insn_for (enum rtx_code, machine_mode);
 /* Generate a conditional trap instruction.  */
 extern rtx_insn *gen_cond_trap (enum rtx_code, rtx, rtx, rtx);
 
+/* Check whether the vec_perm can be interpreted as an and operation.  */
+extern rtx vec_perm_and_mask (machine_mode mode, const vec_perm_indices &sel,
+			      bool zero_op0_p);
+
 /* Generate code for VEC_PERM_EXPR.  */
 extern rtx expand_vec_perm_var (machine_mode, rtx, rtx, rtx, rtx);
 extern rtx expand_vec_perm_const (machine_mode, rtx, rtx,
@@ -365,7 +363,7 @@ extern void expand_mem_signal_fence (enum memmodel);
 
 rtx expand_atomic_load (rtx, rtx, enum memmodel);
 rtx expand_atomic_store (rtx, rtx, enum memmodel, bool);
-rtx expand_atomic_fetch_op (rtx, rtx, rtx, enum rtx_code, enum memmodel, 
+rtx expand_atomic_fetch_op (rtx, rtx, rtx, enum rtx_code, enum memmodel,
 			      bool);
 
 extern void expand_asm_reg_clobber_mem_blockage (HARD_REG_SET);

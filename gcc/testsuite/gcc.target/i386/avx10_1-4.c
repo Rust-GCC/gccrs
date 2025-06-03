@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -march=x86-64 -mavx10.1-512" } */
+/* { dg-options "-O2 -march=x86-64 -mavx10.1" } */
 
 #include <immintrin.h>
 

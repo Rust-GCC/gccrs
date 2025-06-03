@@ -1,6 +1,6 @@
 /* Generic streaming support for basic data types.
 
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -27,6 +27,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "cgraph.h"
 #include "data-streamer.h"
+
+/* For offloading -- While streaming-out, host NUM_POLY_INT_COEFFS is
+   stored at beginning of mode_table.  While streaming-in, the value is read
+   in host_num_poly_int_coeffs.  */
+
+#ifdef ACCEL_COMPILER
+unsigned host_num_poly_int_coeffs = 0;
+#endif
 
 /* Pack WORK into BP in a variant of uleb format.  */
 

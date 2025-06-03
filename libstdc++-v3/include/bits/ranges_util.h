@@ -1,6 +1,6 @@
 // Utilities for representing and manipulating ranges -*- C++ -*-
 
-// Copyright (C) 2019-2024 Free Software Foundation, Inc.
+// Copyright (C) 2019-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,6 +34,10 @@
 # include <bits/ranges_base.h>
 # include <bits/utility.h>
 # include <bits/invoke.h>
+# include <bits/cpp_type_traits.h> // __can_use_memchr_for_find
+#if __glibcxx_tuple_like // >= C++23
+# include <bits/stl_pair.h> // __pair_like, __is_tuple_like_v
+#endif
 
 #ifdef __glibcxx_ranges
 namespace std _GLIBCXX_VISIBILITY(default)
@@ -50,9 +54,12 @@ namespace ranges
 	&& same_as<iterator_t<_Range>, iterator_t<const _Range>>
 	&& same_as<sentinel_t<_Range>, sentinel_t<const _Range>>;
 
+    // _GLIBCXX_RESOLVE_LIB_DEFECTS
+    // 4112. has-arrow should required operator->() to be const-qualified
     template<typename _It>
       concept __has_arrow = input_iterator<_It>
-	&& (is_pointer_v<_It> || requires(_It __it) { __it.operator->(); });
+	&& (is_pointer_v<_It>
+	      || requires(const _It __it) { __it.operator->(); });
 
     using std::__detail::__different_from;
   } // namespace __detail
@@ -243,7 +250,7 @@ namespace ranges
 
     template<typename _Tp, typename _Up, typename _Vp>
       concept __pair_like_convertible_from
-	= !range<_Tp> && !is_reference_v<_Vp> && __pair_like<_Tp>
+	= !range<_Tp> && !is_reference_v<_Tp> && __pair_like<_Tp>
 	&& constructible_from<_Tp, _Up, _Vp>
 	&& __convertible_to_non_slicing<_Up, tuple_element_t<0, _Tp>>
 	&& convertible_to<_Vp, tuple_element_t<1, _Tp>>;
@@ -438,8 +445,11 @@ namespace ranges
 	     __detail::__make_unsigned_like_t<range_difference_t<_Rng>>)
       -> subrange<iterator_t<_Rng>, sentinel_t<_Rng>, subrange_kind::sized>;
 
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3589. The const lvalue reference overload of get for subrange does not
+  // constrain I to be copyable when N == 0
   template<size_t _Num, class _It, class _Sent, subrange_kind _Kind>
-    requires (_Num < 2)
+    requires ((_Num == 0 && copyable<_It>) || _Num == 1)
     constexpr auto
     get(const subrange<_It, _Sent, _Kind>& __r)
     {
@@ -486,21 +496,44 @@ namespace ranges
 {
   struct __find_fn
   {
-    template<input_iterator _Iter, sentinel_for<_Iter> _Sent, typename _Tp,
-	     typename _Proj = identity>
+    template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<_Iter, _Proj>, const _Tp*>
       constexpr _Iter
       operator()(_Iter __first, _Sent __last,
 		 const _Tp& __value, _Proj __proj = {}) const
       {
+	if constexpr (is_same_v<_Proj, identity>)
+	  if constexpr(__can_use_memchr_for_find<iter_value_t<_Iter>, _Tp>)
+	    if constexpr (sized_sentinel_for<_Sent, _Iter>)
+	      if constexpr (contiguous_iterator<_Iter>)
+		if (!is_constant_evaluated())
+		  {
+		    using _Vt = iter_value_t<_Iter>;
+		    auto __n = __last - __first;
+		    if (static_cast<_Vt>(__value) == __value) [[likely]]
+		      if (__n > 0)
+			{
+			  const size_t __nu = static_cast<size_t>(__n);
+			  const int __ival = static_cast<int>(__value);
+			  const void* __p0 = std::to_address(__first);
+			  if (auto __p1 = __builtin_memchr(__p0, __ival, __nu))
+			    __n = (const char*)__p1 - (const char*)__p0;
+			}
+		    return __first + __n;
+		  }
+
 	while (__first != __last
 	    && !(std::__invoke(__proj, *__first) == __value))
 	  ++__first;
 	return __first;
       }
 
-    template<input_range _Range, typename _Tp, typename _Proj = identity>
+    template<input_range _Range, typename _Proj = identity,
+	     typename _Tp
+	     _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<iterator_t<_Range>, _Proj>,
 					 const _Tp*>
@@ -730,11 +763,11 @@ namespace ranges
 	auto __result = *__first;
 	while (++__first != __last)
 	  {
-	    auto __tmp = *__first;
+	    auto&& __tmp = *__first;
 	    if (std::__invoke(__comp,
 			      std::__invoke(__proj, __tmp),
 			      std::__invoke(__proj, __result)))
-	      __result = std::move(__tmp);
+	      __result = std::forward<decltype(__tmp)>(__tmp);
 	  }
 	return __result;
       }

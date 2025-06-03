@@ -1,5 +1,5 @@
 /* Register Transfer Language (RTL) definitions for GCC
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -204,6 +204,7 @@ union rtunion
 {
   int rt_int;
   unsigned int rt_uint;
+  location_t rt_loc;
   poly_uint16 rt_subreg;
   const char *rt_str;
   rtx rt_rtx;
@@ -584,7 +585,7 @@ struct GTY(()) rtx_debug_insn : public rtx_insn
      i.e. an annotation for tracking variable assignments.
 
      This is an instance of:
-       DEF_RTL_EXPR(DEBUG_INSN, "debug_insn", "uuBeiie", RTX_INSN)
+       DEF_RTL_EXPR(DEBUG_INSN, "debug_insn", "uuBeLie", RTX_INSN)
      from rtl.def.  */
 };
 
@@ -595,7 +596,7 @@ struct GTY(()) rtx_nonjump_insn : public rtx_insn
      i.e an instruction that cannot jump.
 
      This is an instance of:
-       DEF_RTL_EXPR(INSN, "insn", "uuBeiie", RTX_INSN)
+       DEF_RTL_EXPR(INSN, "insn", "uuBeLie", RTX_INSN)
      from rtl.def.  */
 };
 
@@ -607,7 +608,7 @@ public:
      i.e. an instruction that can possibly jump.
 
      This is an instance of:
-       DEF_RTL_EXPR(JUMP_INSN, "jump_insn", "uuBeiie0", RTX_INSN)
+       DEF_RTL_EXPR(JUMP_INSN, "jump_insn", "uuBeLie0", RTX_INSN)
      from rtl.def.  */
 
   /* Returns jump target of this instruction.  The returned value is not
@@ -635,7 +636,7 @@ struct GTY(()) rtx_call_insn : public rtx_insn
      in the current function.
 
      This is an instance of:
-       DEF_RTL_EXPR(CALL_INSN, "call_insn", "uuBeiiee", RTX_INSN)
+       DEF_RTL_EXPR(CALL_INSN, "call_insn", "uuBeLiee", RTX_INSN)
      from rtl.def.  */
 };
 
@@ -952,6 +953,14 @@ template <>
 template <>
 inline bool
 is_a_helper <rtx_call_insn *>::test (rtx_insn *insn)
+{
+  return CALL_P (insn);
+}
+
+template <>
+template <>
+inline bool
+is_a_helper <const rtx_call_insn *>::test (const rtx_insn *insn)
 {
   return CALL_P (insn);
 }
@@ -1347,6 +1356,7 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 
 #define XINT(RTX, N)	(RTL_CHECK2 (RTX, N, 'i', 'n').rt_int)
 #define XUINT(RTX, N)   (RTL_CHECK2 (RTX, N, 'i', 'n').rt_uint)
+#define XLOC(RTX, N)    (RTL_CHECK1 (RTX, N, 'L').rt_loc)
 #define XSTR(RTX, N)	(RTL_CHECK2 (RTX, N, 's', 'S').rt_str)
 #define XEXP(RTX, N)	(RTL_CHECK2 (RTX, N, 'e', 'u').rt_rtx)
 #define XVEC(RTX, N)	(RTL_CHECK2 (RTX, N, 'E', 'V').rt_rtvec)
@@ -1364,6 +1374,7 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 
 #define X0INT(RTX, N)	   (RTL_CHECK1 (RTX, N, '0').rt_int)
 #define X0UINT(RTX, N)	   (RTL_CHECK1 (RTX, N, '0').rt_uint)
+#define X0LOC(RTX, N)	   (RTL_CHECK1 (RTX, N, '0').rt_loc)
 #define X0STR(RTX, N)	   (RTL_CHECK1 (RTX, N, '0').rt_str)
 #define X0EXP(RTX, N)	   (RTL_CHECK1 (RTX, N, '0').rt_rtx)
 #define X0VEC(RTX, N)	   (RTL_CHECK1 (RTX, N, '0').rt_rtvec)
@@ -1380,6 +1391,7 @@ extern void rtl_check_failed_flag (const char *, const_rtx, const char *,
 
 #define XCINT(RTX, N, C)      (RTL_CHECKC1 (RTX, N, C).rt_int)
 #define XCUINT(RTX, N, C)     (RTL_CHECKC1 (RTX, N, C).rt_uint)
+#define XCLOC(RTX, N, C)      (RTL_CHECKC1 (RTX, N, C).rt_loc)
 #define XCSUBREG(RTX, N, C)   (RTL_CHECKC1 (RTX, N, C).rt_subreg)
 #define XCSTR(RTX, N, C)      (RTL_CHECKC1 (RTX, N, C).rt_str)
 #define XCEXP(RTX, N, C)      (RTL_CHECKC1 (RTX, N, C).rt_rtx)
@@ -1511,14 +1523,14 @@ inline rtx& PATTERN (rtx insn)
   return XEXP (insn, 3);
 }
 
-inline unsigned int INSN_LOCATION (const rtx_insn *insn)
+inline location_t INSN_LOCATION (const rtx_insn *insn)
 {
-  return XUINT (insn, 4);
+  return XLOC (insn, 4);
 }
 
-inline unsigned int& INSN_LOCATION (rtx_insn *insn)
+inline location_t& INSN_LOCATION (rtx_insn *insn)
 {
-  return XUINT (insn, 4);
+  return XLOC (insn, 4);
 }
 
 inline bool INSN_HAS_LOCATION (const rtx_insn *insn)
@@ -1676,7 +1688,7 @@ extern const char * const reg_note_name[];
 #define NOTE_EH_HANDLER(INSN)	XCINT (INSN, 3, NOTE)
 #define NOTE_BASIC_BLOCK(INSN)	XCBBDEF (INSN, 3, NOTE)
 #define NOTE_VAR_LOCATION(INSN)	XCEXP (INSN, 3, NOTE)
-#define NOTE_MARKER_LOCATION(INSN) XCUINT (INSN, 3, NOTE)
+#define NOTE_MARKER_LOCATION(INSN) XCLOC (INSN, 3, NOTE)
 #define NOTE_CFI(INSN)		XCCFI (INSN, 3, NOTE)
 #define NOTE_LABEL_NUMBER(INSN)	XCINT (INSN, 3, NOTE)
 
@@ -2070,7 +2082,17 @@ const_vector_encoded_nelts (const_rtx x)
 inline bool
 always_void_p (enum rtx_code code)
 {
-  return code == SET;
+  switch (code)
+    {
+    case SET:
+    case PC:
+    case RETURN:
+    case SIMPLE_RETURN:
+      return true;
+
+    default:
+      return false;
+    }
 }
 
 /* A structure to hold all available cost information about an rtl
@@ -2225,11 +2247,21 @@ struct address_info {
        reloading.
 
      - *BASE is a variable expression representing a base address.
-       It contains exactly one REG, SUBREG or MEM, pointed to by BASE_TERM.
+       It contains exactly one "term", pointed to by BASE_TERM.
+       This term can be one of the following:
+
+       (1) a REG, or a SUBREG of a REG
+       (2) an eliminated REG (a PLUS of (1) and a constant)
+       (3) a MEM, or a SUBREG of a MEM
+       (4) a SCRATCH
+
+       This term is the one that base_reg_class constrains.
 
      - *INDEX is a variable expression representing an index value.
        It may be a scaled expression, such as a MULT.  It has exactly
-       one REG, SUBREG or MEM, pointed to by INDEX_TERM.
+       one "term", pointed to by INDEX_TERM.  The possible terms are
+       the same as for BASE.  This term is the one that index_reg_class
+       constrains.
 
      - *DISP is a constant, possibly mutated.  DISP_TERM points to the
        unmutated RTX_CONST_OBJ.  */
@@ -2429,6 +2461,8 @@ extern void get_full_rtx_cost (rtx, machine_mode, enum rtx_code, int,
 			       struct full_rtx_costs *);
 extern bool native_encode_rtx (machine_mode, rtx, vec<target_unit> &,
 			       unsigned int, unsigned int);
+extern wide_int native_decode_int (const vec<target_unit> &, unsigned int,
+				   unsigned int, unsigned int);
 extern rtx native_decode_rtx (machine_mode, const vec<target_unit> &,
 			      unsigned int);
 extern rtx native_decode_vector_rtx (machine_mode, const vec<target_unit> &,
@@ -2600,8 +2634,8 @@ do {								        \
 #define ASM_OPERANDS_LABEL_VEC(RTX) XCVEC (RTX, 5, ASM_OPERANDS)
 #define ASM_OPERANDS_LABEL_LENGTH(RTX) XCVECLEN (RTX, 5, ASM_OPERANDS)
 #define ASM_OPERANDS_LABEL(RTX, N) XCVECEXP (RTX, 5, N, ASM_OPERANDS)
-#define ASM_OPERANDS_SOURCE_LOCATION(RTX) XCUINT (RTX, 6, ASM_OPERANDS)
-#define ASM_INPUT_SOURCE_LOCATION(RTX) XCUINT (RTX, 1, ASM_INPUT)
+#define ASM_OPERANDS_SOURCE_LOCATION(RTX) XCLOC (RTX, 6, ASM_OPERANDS)
+#define ASM_INPUT_SOURCE_LOCATION(RTX) XCLOC (RTX, 1, ASM_INPUT)
 
 /* 1 if RTX is a mem that is statically allocated in read-only memory.  */
 #define MEM_READONLY_P(RTX) \
@@ -3004,6 +3038,36 @@ extern enum rtx_code classify_insn (rtx);
 extern void dump_rtx_statistics (void);
 
 /* In emit-rtl.cc */
+
+/* Opcodes used in the bytecode generated by genemit.cc.  */
+enum class expand_opcode {
+  /* NULL_RTX.  */
+  NO_RTX,
+
+  /* A (match_operand N) or (match_dup N).  Followed by the operand number.  */
+  MATCH_OPERAND,
+
+  /* A (match_operator N) or (match_op_dup N) that preserves the original mode.
+     Followed by the operand number.  */
+  MATCH_OPERATOR,
+
+  /* A (match_operator N) or (match_op_dup N) that overrides the original mode.
+     Followed by the new mode and by the operand number.  */
+  MATCH_OPERATOR_WITH_MODE,
+
+  /* A (match_parallel N) or (match_par_dup N).  Followed by the operand
+     number.  */
+  MATCH_PARALLEL,
+
+  /* A (clobber (reg:M R)).  Followed by M and R.  */
+  CLOBBER_REG,
+
+  /* FIRST_CODE + X represents a normal rtx with code X.  */
+  FIRST_CODE
+};
+
+extern rtx expand_rtx (const uint8_t *, rtx *);
+extern rtx_insn *complete_seq (const uint8_t *, rtx *);
 extern rtx copy_rtx_if_shared (rtx);
 
 /* In rtl.cc */
@@ -3290,7 +3354,7 @@ extern rtx_insn *get_last_nonnote_insn (void);
 extern void start_sequence (void);
 extern void push_to_sequence (rtx_insn *);
 extern void push_to_sequence2 (rtx_insn *, rtx_insn *);
-extern void end_sequence (void);
+extern rtx_insn *end_sequence (void);
 #if TARGET_SUPPORTS_WIDE_INT == 0
 extern double_int rtx_to_double_int (const_rtx);
 #endif
@@ -3464,7 +3528,8 @@ private:
   rtx simplify_byte_swapping_operation (rtx_code, machine_mode, rtx, rtx);
   rtx simplify_associative_operation (rtx_code, machine_mode, rtx, rtx);
   rtx simplify_distributive_operation (rtx_code, machine_mode, rtx, rtx);
-  rtx simplify_logical_relational_operation (rtx_code, machine_mode, rtx, rtx);
+  rtx simplify_logical_relational_operation (rtx_code, machine_mode, rtx, rtx,
+					     bool = false);
   rtx simplify_binary_operation_series (rtx_code, machine_mode, rtx, rtx);
   rtx simplify_distribute_over_subregs (rtx_code, machine_mode, rtx, rtx);
   rtx simplify_shift_const_int (rtx_code, machine_mode, rtx, unsigned int);
@@ -3625,7 +3690,6 @@ extern bool nonzero_address_p (const_rtx);
 extern bool rtx_unstable_p (const_rtx);
 extern bool rtx_varies_p (const_rtx, bool);
 extern bool rtx_addr_varies_p (const_rtx, bool);
-extern rtx get_call_rtx_from (const rtx_insn *);
 extern tree get_call_fndecl (const rtx_insn *);
 extern HOST_WIDE_INT get_integer_term (const_rtx);
 extern rtx get_related_value (const_rtx);
@@ -3973,9 +4037,9 @@ get_mem_attrs (const_rtx x)
 #include "genrtl.h"
 #undef gen_rtx_ASM_INPUT
 #define gen_rtx_ASM_INPUT(MODE, ARG0)				\
-  gen_rtx_fmt_si (ASM_INPUT, (MODE), (ARG0), 0)
+  gen_rtx_fmt_sL (ASM_INPUT, (MODE), (ARG0), 0)
 #define gen_rtx_ASM_INPUT_loc(MODE, ARG0, LOC)			\
-  gen_rtx_fmt_si (ASM_INPUT, (MODE), (ARG0), (LOC))
+  gen_rtx_fmt_sL (ASM_INPUT, (MODE), (ARG0), (LOC))
 #endif
 
 /* There are some RTL codes that require special attention; the
@@ -3986,7 +4050,7 @@ extern rtx_expr_list *gen_rtx_EXPR_LIST (machine_mode, rtx, rtx);
 extern rtx_insn_list *gen_rtx_INSN_LIST (machine_mode, rtx, rtx);
 extern rtx_insn *
 gen_rtx_INSN (machine_mode mode, rtx_insn *prev_insn, rtx_insn *next_insn,
-	      basic_block bb, rtx pattern, int location, int code,
+	      basic_block bb, rtx pattern, location_t location, int code,
 	      rtx reg_notes);
 extern rtx gen_rtx_CONST_INT (machine_mode, HOST_WIDE_INT);
 extern rtx gen_rtx_CONST_VECTOR (machine_mode, rtvec);
@@ -4515,6 +4579,7 @@ extern void simplify_using_condition (rtx, rtx *, bitmap);
 extern void compute_alignments (void);
 extern void update_alignments (vec<rtx> &);
 extern int asm_str_count (const char *templ);
+extern rtx get_call_rtx_from (const rtx_insn *);
 
 struct rtl_hooks
 {
@@ -4612,7 +4677,7 @@ word_register_operation_p (const_rtx x)
     case SIGN_EXTRACT:
     case ZERO_EXTRACT:
       return false;
-    
+
     default:
       return true;
     }

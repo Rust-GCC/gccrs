@@ -1,5 +1,10 @@
 /* { dg-do compile } */
-/* { dg-options "-march=x86-64 -mavx10.1-512 -mavx512f" } */
-/* { dg-final { scan-assembler "%zmm" } } */
+/* { dg-options "-O2 -march=x86-64-v3 -mavx512f" } */
+/* { dg-require-ifunc "" } */
 
-#include "avx10_1-2.c"
+#include <immintrin.h>
+__attribute__((target_clones ("default","avx10.1")))
+__m512d foo(__m512d a, __m512d b)
+{
+  return a + b;
+}

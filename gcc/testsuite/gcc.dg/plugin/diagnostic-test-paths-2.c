@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-fdiagnostics-show-caret -fdiagnostics-show-line-numbers -fdiagnostics-path-format=inline-events" } */
+/* { dg-options "-fdiagnostics-show-caret -fdiagnostics-show-line-numbers -fdiagnostics-path-format=inline-events -fdiagnostics-add-output=experimental-html:javascript=no" } */
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -36,21 +36,23 @@ make_a_list_of_random_ints_badly(PyObject *self,
    29 |     PyList_Append(list, item);
       |     ^~~~~~~~~~~~~~~~~~~~~~~~~
   'make_a_list_of_random_ints_badly': events 1-3
-    |
-    |   25 |   list = PyList_New(0);
-    |      |          ^~~~~~~~~~~~~
-    |      |          |
-    |      |          (1) when 'PyList_New' fails, returning NULL
-    |   26 | 
-    |   27 |   for (i = 0; i < count; i++) {
-    |      |               ~~~~~~~~~
-    |      |                 |
-    |      |                 (2) when 'i < count'
-    |   28 |     item = PyLong_FromLong(random());
-    |   29 |     PyList_Append(list, item);
-    |      |     ~~~~~~~~~~~~~~~~~~~~~~~~~
-    |      |     |
-    |      |     (3) when calling 'PyList_Append', passing NULL from (1) as argument 1
-    |
+   25 |   list = PyList_New(0);
+      |          ^~~~~~~~~~~~~
+      |          |
+      |          (1) when 'PyList_New' fails, returning NULL
+   26 | 
+   27 |   for (i = 0; i < count; i++) {
+      |               ~~~~~~~~~
+      |                 |
+      |                 (2) when 'i < count'
+   28 |     item = PyLong_FromLong(random());
+   29 |     PyList_Append(list, item);
+      |     ~~~~~~~~~~~~~~~~~~~~~~~~~
+      |     |
+      |     (3) when calling 'PyList_Append', passing NULL from (1) as argument 1
      { dg-end-multiline-output "" } */
 }
+
+/* Use a Python script to verify various properties about the generated
+   HTML file:
+   { dg-final { run-html-pytest diagnostic-test-paths-2.c "diagnostic-test-paths-2.py" } } */
