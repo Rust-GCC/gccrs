@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -416,7 +416,7 @@ do {				\
 
 
 static inline void
-__int_memcpy (void *__restrict s1, const void *__restrict s2, size_t n) 
+__int_memcpy (void *__restrict s1, const void *__restrict s2, size_t n)
 {
   int value = n;
   int loop_var;
@@ -556,7 +556,7 @@ __int_memcpy (void *__restrict s1, const void *__restrict s2, size_t n)
 }
 
 static inline void
-__shrt_int_memcpy (void *__restrict s1, const void *__restrict s2, size_t n) 
+__shrt_int_memcpy (void *__restrict s1, const void *__restrict s2, size_t n)
 {
   int value = n;
   int loop_var;
@@ -697,7 +697,7 @@ __shrt_int_memcpy (void *__restrict s1, const void *__restrict s2, size_t n)
 
 
 static inline void
-__byte_memcpy (void *__restrict s1, const void *__restrict s2, size_t n) 
+__byte_memcpy (void *__restrict s1, const void *__restrict s2, size_t n)
 {
   int value = n;
   int loop_var;

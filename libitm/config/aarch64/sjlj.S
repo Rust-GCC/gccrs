@@ -1,4 +1,4 @@
-/* Copyright (C) 2014-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
@@ -31,20 +31,20 @@
 #define AUTIBSP	hint	31
 
 #if defined(HAVE_AS_CFI_PSEUDO_OP) && defined(__GCC_HAVE_DWARF2_CFI_ASM)
-# define cfi_window_save .cfi_window_save
-# define cfi_b_key_frame .cfi_b_key_frame
+# define cfi_negate_ra_state .cfi_negate_ra_state
+# define cfi_b_key_frame     .cfi_b_key_frame
 #else
-# define cfi_window_save
+# define cfi_negate_ra_state
 # define cfi_b_key_frame
 #endif
 
 #if __ARM_FEATURE_PAC_DEFAULT & 1
-# define CFI_PAC_TOGGLE	cfi_window_save
+# define CFI_PAC_TOGGLE	cfi_negate_ra_state
 # define CFI_PAC_KEY
 # define PAC_AND_BTI	PACIASP
 # define AUT	AUTIASP
 #elif __ARM_FEATURE_PAC_DEFAULT & 2
-# define CFI_PAC_TOGGLE	cfi_window_save
+# define CFI_PAC_TOGGLE	cfi_negate_ra_state
 # define CFI_PAC_KEY	cfi_b_key_frame
 # define PAC_AND_BTI	PACIBSP
 # define AUT	AUTIBSP

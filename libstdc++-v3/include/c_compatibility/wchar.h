@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2002-2024 Free Software Foundation, Inc.
+// Copyright (C) 2002-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,10 +26,10 @@
  *  This is a Standard C++ Library header.
  */
 
-#include <cwchar>
-
 #ifndef _GLIBCXX_WCHAR_H
 #define _GLIBCXX_WCHAR_H 1
+
+#include <cwchar>
 
 #ifdef _GLIBCXX_NAMESPACE_C
 using std::mbstate_t;
@@ -39,7 +39,6 @@ using std::wint_t;
 
 using std::btowc;
 using std::wctob;
-using std::fgetwc;
 using std::fgetwc;
 using std::fgetws;
 using std::fputwc;
@@ -111,6 +110,6 @@ using std::wcstoull;
 
 #endif  //_GLIBCXX_USE_WCHAR_T
 
-#endif 
+#endif
 
 #endif

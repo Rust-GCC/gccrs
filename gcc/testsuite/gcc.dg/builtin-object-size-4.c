@@ -1,6 +1,6 @@
 /* { dg-do run } */
 /* { dg-options "-O2 -Wno-stringop-overread" } */
-/* { dg-require-effective-target alloca } */
+/* { dg-additional-options "-DSKIP_STRNDUP" { target { ! strndup } } } */
 
 #include "builtin-object-size-common.h"
 
@@ -481,7 +481,7 @@ test8 (unsigned cond)
   if (__builtin_object_size (&p[-4], 3) != (cond ? 6 : 10))
     FAIL ();
 #else
-  if (__builtin_object_size (&p[-4], 3) != 0)
+  if (__builtin_object_size (&p[-4], 3) != 6)
     FAIL ();
 #endif
 
@@ -492,7 +492,7 @@ test8 (unsigned cond)
   if (__builtin_object_size (p, 3) != ((cond ? 2 : 6) + cond))
     FAIL ();
 #else
-  if (__builtin_object_size (p, 3) != 0)
+  if (__builtin_object_size (p, 3) != 2)
     FAIL ();
 #endif
 
@@ -504,12 +504,12 @@ test8 (unsigned cond)
   if (__builtin_object_size (p, 3) != sizeof (y.c) - 8 + cond)
     FAIL ();
 #else
-  if (__builtin_object_size (p, 3) != 0)
+  if (__builtin_object_size (p, 3) != sizeof (y.c) - 8)
     FAIL ();
 #endif
 }
 
-#if !defined(__AVR__) && !defined(__hpux__) /* avr and hpux have no strndup */
+#ifndef SKIP_STRNDUP
 /* Tests for strdup/strndup.  */
 size_t
 __attribute__ ((noinline))
@@ -597,7 +597,7 @@ test9 (void)
     FAIL ();
   free (res);
 }
-#endif /* avr */
+#endif
 
 int
 main (void)
@@ -612,7 +612,7 @@ main (void)
   test6 ();
   test7 ();
   test8 (1);
-#if !defined(__AVR__) && !defined(__hpux__) /* avr and hpux have no strndup */
+#ifndef SKIP_STRNDUP
   test9 ();
 #endif
   DONE ();

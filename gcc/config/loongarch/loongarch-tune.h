@@ -1,5 +1,5 @@
 /* Definitions for microarchitecture-related data structures.
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    Contributed by Loongson Ltd.
 
 This file is part of GCC.
@@ -38,6 +38,7 @@ struct loongarch_rtx_cost_data
   unsigned short movcf2gr;
   unsigned short movgr2cf;
   unsigned short branch_cost;
+  unsigned short addr_reg_reg_cost;
   unsigned short memory_latency;
 
   /* Default RTX cost initializer, implemented in loongarch-def.cc.  */
@@ -115,6 +116,12 @@ struct loongarch_rtx_cost_data
     return *this;
   }
 
+  loongarch_rtx_cost_data addr_reg_reg_cost_ (unsigned short _addr_reg_reg_cost)
+  {
+    addr_reg_reg_cost = _addr_reg_reg_cost;
+    return *this;
+  }
+
   loongarch_rtx_cost_data memory_latency_ (unsigned short _memory_latency)
   {
     memory_latency = _memory_latency;
@@ -162,18 +169,33 @@ struct loongarch_cache {
   }
 };
 
-/* Alignment for functions and labels for best performance.  For new uarchs
-   the value should be measured via benchmarking.  See the documentation for
-   -falign-functions and -falign-labels in invoke.texi for the format.  */
+/* Alignment for functions loops and jumps for best performance.  For new
+   uarchs the value should be measured via benchmarking.  See the
+   documentation for -falign-functions, -falign-loops, and -falign-jumps in
+   invoke.texi for the format.  */
 struct loongarch_align {
   const char *function;	/* default value for -falign-functions */
+  const char *loop;	/* default value for -falign-loops */
+  const char *jump;	/* default value for -falign-jumps */
   const char *label;	/* default value for -falign-labels */
 
-  loongarch_align () : function (nullptr), label (nullptr) {}
+  loongarch_align () : function (nullptr), loop (nullptr), jump (nullptr), label (nullptr) {}
 
   loongarch_align function_ (const char *_function)
   {
     function = _function;
+    return *this;
+  }
+
+  loongarch_align loop_ (const char *_loop)
+  {
+    loop = _loop;
+    return *this;
+  }
+
+  loongarch_align jump_ (const char *_jump)
+  {
+    jump = _jump;
     return *this;
   }
 

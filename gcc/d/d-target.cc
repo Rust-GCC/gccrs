@@ -1,5 +1,5 @@
 /* d-target.cc -- Target interface for the D front end.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -163,7 +163,7 @@ Target::_init (const Param &)
   this->c.intsize = (INT_TYPE_SIZE / BITS_PER_UNIT);
   this->c.longsize = (LONG_TYPE_SIZE / BITS_PER_UNIT);
   this->c.long_longsize = (LONG_LONG_TYPE_SIZE / BITS_PER_UNIT);
-  this->c.long_doublesize = (LONG_DOUBLE_TYPE_SIZE / BITS_PER_UNIT);
+  this->c.long_doublesize = int_size_in_bytes (long_double_type_node);
   this->c.wchar_tsize = (WCHAR_TYPE_SIZE / BITS_PER_UNIT);
 
   this->c.bitFieldStyle = targetm.ms_bitfield_layout_p (unknown_type_node)
@@ -241,7 +241,7 @@ Target::fieldalign (Type *type)
 /* Returns a Type for the va_list type of the target.  */
 
 Type *
-Target::va_listType (const Loc &, Scope *)
+Target::va_listType (Loc, Scope *)
 {
   if (this->tvalist)
     return this->tvalist;
@@ -274,13 +274,13 @@ Target::isVectorTypeSupported (int sz, Type *type)
     type = Type::tuns8;
 
   /* No support for non-trivial types, complex types, or booleans.  */
-  if (!type->isTypeBasic () || type->iscomplex () || type->ty == TY::Tbool)
+  if (!type->isTypeBasic () || type->isComplex () || type->ty == TY::Tbool)
     return 2;
 
   /* In [simd/vector extensions], which vector types are supported depends on
      the target.  The implementation is expected to only support the vector
      types that are implemented in the target's hardware.  */
-  unsigned HOST_WIDE_INT nunits = sz / type->size ();
+  unsigned HOST_WIDE_INT nunits = sz / dmd::size (type);
   tree ctype = build_vector_type (build_ctype (type), nunits);
 
   if (!targetm.vector_mode_supported_p (TYPE_MODE (ctype)))
@@ -300,7 +300,7 @@ Target::isVectorOpSupported (Type *type, EXP op, Type *)
     return true;
 
   /* Don't support if type is non-scalar, such as __vector(void[]).  */
-  if (!type->isscalar ())
+  if (!type->isScalar ())
     return false;
 
   /* Don't support if expression cannot be represented.  */
@@ -314,7 +314,7 @@ Target::isVectorOpSupported (Type *type, EXP op, Type *)
     case EXP::mod:
     case EXP::modAssign:
       /* fmod() is lowered as a function call.  */
-      if (type->isfloating ())
+      if (type->isFloating ())
 	return false;
       break;
 
@@ -449,11 +449,11 @@ Target::isReturnOnStack (TypeFunction *tf, bool)
   /* Need the back-end type to determine this, but this is called from the
      frontend before semantic processing is finished.  An accurate value
      is not currently needed anyway.  */
-  if (tf->isref ())
+  if (tf->isRef ())
     return false;
 
   Type *tn = tf->next->toBasetype ();
-  if (tn->size () == SIZE_INVALID)
+  if (dmd::size (tn) == SIZE_INVALID)
     return false;
 
   return (tn->ty == TY::Tstruct || tn->ty == TY::Tsarray);
@@ -517,7 +517,7 @@ d_handle_target_object_format (void)
    LOC is the location to use for the returned expression.  */
 
 Expression *
-Target::getTargetInfo (const char *key, const Loc &loc)
+Target::getTargetInfo (const char *key, Loc loc)
 {
   unsigned ix;
   d_target_info_spec *spec;
@@ -575,31 +575,36 @@ Target::supportsLinkerDirective (void) const
 }
 
 /* Decides whether an `in' parameter of the specified POD type PARAM_TYPE is to
-   be passed by reference or by valie.  This is used only when compiling with
+   be passed by reference or by value.  This is used only when compiling with
    `-fpreview=in' enabled.  */
 
 bool
 Target::preferPassByRef (Type *param_type)
 {
-  if (param_type->size () == SIZE_INVALID)
+  /* See note in Target::isReturnOnStack.  */
+  Type *tb = param_type->toBasetype ();
+  if (dmd::size (tb) == SIZE_INVALID)
     return false;
 
-  tree type = build_ctype (param_type);
+  return (tb->ty == TY::Tstruct || tb->ty == TY::Tsarray);
+}
 
-  /* Prefer a `ref' if the type is an aggregate, and its size is greater than
-     its alignment.  */
-  if (AGGREGATE_TYPE_P (type)
-      && (!valid_constant_size_p (TYPE_SIZE_UNIT (type))
-	  || compare_tree_int (TYPE_SIZE_UNIT (type), TYPE_ALIGN (type)) > 0))
+/* Returns true if the specified bit-field FIELD contributes to the alignment
+   of the containing aggregate.  */
+
+bool
+TargetC::contributesToAggregateAlignment(BitFieldDeclaration *field)
+{
+  if (this->bitFieldStyle == TargetC::BitFieldStyle::MS)
     return true;
 
-  /* If the back-end is always going to pass this by invisible reference.  */
-  if (pass_by_reference (NULL, function_arg_info (type, true)))
-    return true;
-
-  /* If returning the parameter means the caller will do RVO.  */
-  if (targetm.calls.return_in_memory (type, NULL_TREE))
-    return true;
+  if (PCC_BITFIELD_TYPE_MATTERS)
+    {
+      /* Named bit-fields contribute to alignment. Some targets also apply the
+	 same rules to unnamed bit-fields too.  */
+      if (!field->isAnonymous () || targetm.align_anon_bitfield ())
+	return true;
+    }
 
   return false;
 }

@@ -1,5 +1,5 @@
 /* Single entry single exit control flow regions.
-   Copyright (C) 2008-2024 Free Software Foundation, Inc.
+   Copyright (C) 2008-2025 Free Software Foundation, Inc.
    Contributed by Jan Sjodin <jan.sjodin@amd.com> and
    Sebastian Pop <sebastian.pop@amd.com>.
 
@@ -454,7 +454,7 @@ scalar_evolution_in_region (const sese_l &region, loop_p loop, tree t)
 
 bool
 sese_trivially_empty_bb_p (basic_block bb)
-{         
+{
   gimple_stmt_iterator gsi;
 
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -489,6 +489,7 @@ DEBUG_FUNCTION void
 debug_edge (const_edge e)
 {
   print_edge (stderr, e);
+  fprintf (stderr, "\n");
 }
 
 /* Pretty print sese S to STDERR.  */

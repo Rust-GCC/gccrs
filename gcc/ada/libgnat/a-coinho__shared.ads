@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2013-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2013-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -109,7 +109,7 @@ private
 
    type Holder_Access is access all Holder;
 
-   type Shared_Holder is record
+   type Shared_Holder is limited record
       Counter : System.Atomic_Counters.Atomic_Counter;
       Element : Element_Access;
    end record;

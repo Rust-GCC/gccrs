@@ -24,7 +24,7 @@ mdiv
 UrlSuffix(gcc/RISC-V-Options.html#index-mdiv-3)
 
 march=
-UrlSuffix(gcc/RISC-V-Options.html#index-march-14)
+UrlSuffix(gcc/RISC-V-Options.html#index-march-13)
 
 mtune=
 UrlSuffix(gcc/RISC-V-Options.html#index-mtune-12)
@@ -33,7 +33,7 @@ mcpu=
 UrlSuffix(gcc/RISC-V-Options.html#index-mcpu-8)
 
 msmall-data-limit=
-UrlSuffix(gcc/RISC-V-Options.html#index-msmall-data-limit-1)
+UrlSuffix(gcc/RISC-V-Options.html#index-msmall-data-limit)
 
 msave-restore
 UrlSuffix(gcc/RISC-V-Options.html#index-msave-restore)
@@ -41,15 +41,22 @@ UrlSuffix(gcc/RISC-V-Options.html#index-msave-restore)
 mshorten-memrefs
 UrlSuffix(gcc/RISC-V-Options.html#index-mshorten-memrefs)
 
-; skipping UrlSuffix for 'mcmodel=' due to finding no URLs
+mcmodel=
+UrlSuffix(gcc/RISC-V-Options.html#index-mcmodel_003d-4)
 
 mstrict-align
-UrlSuffix(gcc/RISC-V-Options.html#index-mstrict-align-3)
+UrlSuffix(gcc/RISC-V-Options.html#index-mstrict-align-4)
+
+mscalar-strict-align
+UrlSuffix(gcc/RISC-V-Options.html#index-mscalar-strict-align)
+
+mvector-strict-align
+UrlSuffix(gcc/RISC-V-Options.html#index-mvector-strict-align)
 
 ; skipping UrlSuffix for 'mexplicit-relocs' due to finding no URLs
 
 mrelax
-UrlSuffix(gcc/RISC-V-Options.html#index-mrelax-5)
+UrlSuffix(gcc/RISC-V-Options.html#index-mrelax-6)
 
 mcsr-check
 UrlSuffix(gcc/RISC-V-Options.html#index-mcsr-check)
@@ -88,4 +95,9 @@ UrlSuffix(gcc/RISC-V-Options.html#index-minline-strncmp)
 
 minline-strlen
 UrlSuffix(gcc/RISC-V-Options.html#index-minline-strlen)
+
+; skipping UrlSuffix for 'mtls-dialect=' due to finding no URLs
+
+mfence-tso
+UrlSuffix(gcc/RISC-V-Options.html#index-mfence-tso)
 

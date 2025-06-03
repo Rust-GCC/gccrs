@@ -1,7 +1,7 @@
 # configure.host
 #
 # This shell script handles all host based configuration for libstdc++.
-# It sets various shell variables based on the the host and the
+# It sets various shell variables based on the host and the
 # configuration options.  You can modify this shell script without needing
 # to rerun autoconf/aclocal/etc.  This file is "sourced" not executed.
 #
@@ -60,6 +60,10 @@
 #                          defaults to os/generic.
 #
 # It possibly modifies the following variables:
+#
+#   EXTRA_CFLAGS           extra flags to pass when compiling C code
+#
+#   EXTRA_CXX_FLAGS        extra flags to pass when compiling C++ code
 #
 #   OPT_LDFLAGS            extra flags to pass when linking the library, of
 #                          the form '-Wl,blah'
@@ -143,8 +147,14 @@ cpu_include_dir=cpu/${try_cpu}
 # Set specific CPU overrides for cpu_defines_dir. Most can just use generic.
 # THIS TABLE IS SORTED.  KEEP IT THAT WAY.
 case "${host_cpu}" in
+  amdgcn)
+    cpu_defines_dir=cpu/gcn
+    ;;
   arm*)
     cpu_defines_dir=cpu/arm
+    ;;
+  nvptx)
+    cpu_defines_dir=cpu/nvptx
     ;;
   powerpc* | rs6000)
     cpu_defines_dir=cpu/powerpc
@@ -360,9 +370,25 @@ case "${host}" in
 	;;
     esac
     ;;
+  amdgcn-*-amdhsa)
+    # To avoid greater pain elsewhere, force use of '__atomic' builtins,
+    # regardless of the outcome of 'configure' checks; see PR119645
+    # "GCN, nvptx: libstdc++ 'checking for atomic builtins [...]... no'".
+    atomicity_dir=cpu/generic/atomicity_builtins
+    ;;
   arm*-*-freebsd*)
      port_specific_symbol_files="\$(srcdir)/../config/os/gnu-linux/arm-eabi-extra.ver"
      ;;
+  nvptx-*-none)
+    # To avoid greater pain elsewhere, force use of '__atomic' builtins,
+    # regardless of the outcome of 'configure' checks; see PR119645
+    # "GCN, nvptx: libstdc++ 'checking for atomic builtins [...]... no'".
+    atomicity_dir=cpu/generic/atomicity_builtins
+
+    # For 'make all-target-libstdc++-v3', re 'alloca'/VLA usage:
+    EXTRA_CFLAGS="${EXTRA_CFLAGS} -mfake-ptx-alloca"
+    OPTIMIZE_CXXFLAGS="${OPTIMIZE_CXXFLAGS} -mfake-ptx-alloca"
+    ;;
   powerpc*-*-darwin*)
     port_specific_symbol_files="\$(srcdir)/../config/os/bsd/darwin/ppc-extra.ver"
     ;;
@@ -377,5 +403,29 @@ case "${host}" in
 	    ;;
     esac
     abi_baseline_subdir_switch=--print-multi-os-directory
+    ;;
+esac
+
+
+# Dumb down libstdc++ for certain configurations.
+# THIS TABLE IS SORTED.  KEEP IT THAT WAY.
+case "${host}" in
+  amdgcn-*-amdhsa \
+  | nvptx-*-none )
+    # For 'make all-target-libstdc++-v3' and 'make check-target-libstdc++-v3',
+    # exception handling is not supported: in case that exception handling
+    # constructs survive compiler optimizations, the back ends error out:
+    #     sorry, unimplemented: exception handling not supported
+    EXTRA_CXX_FLAGS="${EXTRA_CXX_FLAGS} -fno-exceptions"
+
+    # For 'make all-target-libstdc++-v3' and 'make check-target-libstdc++-v3',
+    # RTTI is not supported.
+    EXTRA_CXX_FLAGS="${EXTRA_CXX_FLAGS} -fno-rtti"
+
+    # Cannot '#include' all newlib header files without explosion, for example:
+    #     error: 'jmp_buf' was not declared in this scope
+    # Just disable generation of PCH files here, instead of attempting to care
+    # for such special cases in some more complex way.
+    enable_libstdcxx_pch=no
     ;;
 esac

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -537,7 +537,8 @@ package body Stylesw is
                Style_Check_Layout                 := False;
 
             when 'L' =>
-               Style_Max_Nesting_Level := 0;
+               Style_Max_Nesting_Level            := 0;
+               Style_Check_Max_Nesting_Level      := False;
 
             when 'm' =>
                Style_Check_Max_Line_Length        := False;

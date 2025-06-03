@@ -1,5 +1,5 @@
 ;; Machine description for AArch64 architecture.
-;; Copyright (C) 2009-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 ;;
 ;; This file is part of GCC.
@@ -118,14 +118,17 @@
 (define_predicate "aarch64_reg_or_orr_imm"
    (ior (match_operand 0 "register_operand")
 	(and (match_code "const_vector")
-	     (match_test "aarch64_simd_valid_immediate (op, NULL,
-							AARCH64_CHECK_ORR)"))))
+	     (match_test "aarch64_simd_valid_orr_imm (op)"))))
 
-(define_predicate "aarch64_reg_or_bic_imm"
+(define_predicate "aarch64_reg_or_and_imm"
    (ior (match_operand 0 "register_operand")
 	(and (match_code "const_vector")
-	     (match_test "aarch64_simd_valid_immediate (op, NULL,
-							AARCH64_CHECK_BIC)"))))
+	     (match_test "aarch64_simd_valid_and_imm (op)"))))
+
+(define_predicate "aarch64_reg_or_xor_imm"
+   (ior (match_operand 0 "register_operand")
+        (and (match_code "const_vector")
+             (match_test "aarch64_simd_valid_xor_imm (op)"))))
 
 (define_predicate "aarch64_fp_compare_operand"
   (ior (match_operand 0 "register_operand")
@@ -518,7 +521,7 @@
 })
 
 (define_predicate "aarch64_rcpc_memory_operand"
-  (if_then_else (match_test "AARCH64_ISA_RCPC8_4")
+  (if_then_else (match_test "TARGET_RCPC2")
     (match_operand 0 "aarch64_9bit_offset_memory_operand")
     (match_operand 0 "aarch64_sync_memory_operand")))
 
@@ -920,6 +923,7 @@
 
 (define_predicate "aarch64_sve_float_maxmin_immediate"
   (and (match_code "const_vector")
+       (match_test "GET_MODE_INNER (GET_MODE (op)) != BFmode")
        (ior (match_test "op == CONST0_RTX (GET_MODE (op))")
 	    (match_test "op == CONST1_RTX (GET_MODE (op))"))))
 
@@ -944,11 +948,6 @@
 (define_predicate "aarch64_sve_logical_operand"
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "aarch64_sve_logical_immediate")))
-
-(define_predicate "aarch64_orr_imm_sve_advsimd"
-  (ior (match_operand 0 "aarch64_reg_or_orr_imm")
-       (and (match_test "TARGET_SVE")
-	    (match_operand 0 "aarch64_sve_logical_operand"))))
 
 (define_predicate "aarch64_sve_gather_offset_b"
   (ior (match_operand 0 "register_operand")
@@ -1069,3 +1068,7 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op),  -4096, 4080)
 		    && !(INTVAL (op) & 0xf)")))
+
+(define_predicate "aarch64_maskload_else_operand"
+  (and (match_code "const_int,const_vector")
+       (match_test "op == CONST0_RTX (GET_MODE (op))")))

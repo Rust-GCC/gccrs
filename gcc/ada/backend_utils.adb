@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2021-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2021-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -38,7 +38,6 @@ package body Backend_Utils is
       First : constant Positive := Switch_Chars'First + 1;
       Last  : constant Natural  := Switch_Last (Switch_Chars);
    begin
-
       --  Recognize -gxxx switches
 
       if Switch_Chars (First) = 'g' then
@@ -65,6 +64,21 @@ package body Backend_Utils is
 
       elsif Switch_Chars (First .. Last) = "fdiagnostics-format=json" then
          Opt.JSON_Output := True;
+
+      --  Back end switch -fdiagnostics-format=sarif-file tells the frontend
+      --  to output its error and warning messages in the sarif format. The
+      --  messages from gnat are written to a file <source_file>.gnat.sarif.
+
+      elsif Switch_Chars (First .. Last) = "fdiagnostics-format=sarif-file"
+      then
+         Opt.SARIF_File := True;
+
+      --  Back end switch -fdiagnostics-format=sarif-stderr tells the frontend
+      --  to output its error and warning messages in the sarif format.
+
+      elsif Switch_Chars (First .. Last) = "fdiagnostics-format=sarif-stderr"
+      then
+         Opt.SARIF_Output := True;
 
       --  Back-end switch -fno-inline also sets the front end flags to entirely
       --  inhibit all inlining. So we store it and set the appropriate

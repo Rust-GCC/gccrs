@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -60,15 +60,15 @@ namespace __gnu_parallel
     void
     __parallel_sort(_RAIter __begin, _RAIter __end,
 		    _Compare __comp, _Parallelism __parallelism);
-        
-  /** 
+
+  /**
    *  @brief Choose multiway mergesort, splitting variant at run-time,
    *  for parallel sorting.
    *  @param __begin Begin iterator of input sequence.
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
   template<bool __stable, typename _RAIter, typename _Compare>
     inline void
@@ -85,14 +85,14 @@ namespace __gnu_parallel
 	  (__begin, __end, __comp, __parallelism.__get_num_threads());
     }
 
-  /** 
+  /**
    *  @brief Choose multiway mergesort with exact splitting,
    *  for parallel sorting.
    *  @param __begin Begin iterator of input sequence.
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
   template<bool __stable, typename _RAIter, typename _Compare>
     inline void
@@ -106,14 +106,14 @@ namespace __gnu_parallel
         (__begin, __end, __comp, __parallelism.__get_num_threads());
     }
 
-  /** 
+  /**
    *  @brief Choose multiway mergesort with splitting by sampling,
    *  for parallel sorting.
    *  @param __begin Begin iterator of input sequence.
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
   template<bool __stable, typename _RAIter, typename _Compare>
     inline void
@@ -133,7 +133,7 @@ namespace __gnu_parallel
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
   template<bool __stable, typename _RAIter, typename _Compare>
     inline void
@@ -154,7 +154,7 @@ namespace __gnu_parallel
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
    template<bool __stable, typename _RAIter, typename _Compare>
      inline void
@@ -169,14 +169,14 @@ namespace __gnu_parallel
 			   __parallelism.__get_num_threads());
      }
 
-  /** 
+  /**
    *  @brief Choose multiway mergesort with exact splitting,
    *  for parallel sorting.
    *  @param __begin Begin iterator of input sequence.
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
   template<bool __stable, typename _RAIter, typename _Compare>
     inline void
@@ -196,7 +196,7 @@ namespace __gnu_parallel
    *  @param __end End iterator of input sequence.
    *  @param __comp Comparator.
    *  @tparam __stable Sort stable.
-   *  @callgraph 
+   *  @callgraph
    */
   template<bool __stable, typename _RAIter, typename _Compare>
     inline void

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -271,8 +271,7 @@ package body Lib.Util is
 
    procedure Write_Info_Str (Val : String) is
    begin
-      Info_Buffer (Info_Buffer_Len + 1 .. Info_Buffer_Len + Val'Length)
-                                                                  := Val;
+      Info_Buffer (Info_Buffer_Len + 1 .. Info_Buffer_Len + Val'Length) := Val;
       Info_Buffer_Len := Info_Buffer_Len + Val'Length;
       Info_Buffer_Col := Info_Buffer_Col + Val'Length;
    end Write_Info_Str;

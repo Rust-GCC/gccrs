@@ -1,5 +1,5 @@
 /* Set up combined include path for the preprocessor.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -24,6 +24,7 @@ enum incpath_kind {
   INC_BRACKET,   /* include <foo> */
   INC_SYSTEM,    /* sys-include */
   INC_AFTER,	 /* post-sysinclude  */
+  INC_EMBED,     /* embed <foo> */
   INC_MAX
 };
 

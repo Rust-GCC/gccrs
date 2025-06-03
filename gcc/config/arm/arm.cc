@@ -1,5 +1,5 @@
 /* Output routines for GCC for ARM.
-   Copyright (C) 1991-2024 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
    and Martin Simmons (@harleqn.co.uk).
    More major hacks by Richard Earnshaw (rearnsha@arm.com).
@@ -75,6 +75,8 @@
 #include "opts.h"
 #include "aarch-common.h"
 #include "aarch-common-protos.h"
+#include "machmode.h"
+#include "arm-builtins.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -117,7 +119,6 @@ static bool arm_assemble_integer (rtx, unsigned int, int);
 static void arm_print_operand (FILE *, rtx, int);
 static void arm_print_operand_address (FILE *, machine_mode, rtx);
 static bool arm_print_operand_punct_valid_p (unsigned char code);
-static const char *fp_const_from_val (REAL_VALUE_TYPE *);
 static arm_cc get_arm_condition_code (rtx);
 static bool arm_fixed_condition_code_regs (unsigned int *, unsigned int *);
 static const char *output_multi_immediate (rtx *, const char *, const char *,
@@ -209,9 +210,7 @@ static int aapcs_select_return_coproc (const_tree, const_tree);
 static void arm_elf_asm_constructor (rtx, int) ATTRIBUTE_UNUSED;
 static void arm_elf_asm_destructor (rtx, int) ATTRIBUTE_UNUSED;
 #endif
-#ifndef ARM_PE
 static void arm_encode_section_info (tree, rtx, int);
-#endif
 
 static void arm_file_end (void);
 static void arm_file_start (void);
@@ -280,6 +279,7 @@ static rtx_insn *arm_pic_static_addr (rtx orig, rtx reg);
 static bool cortex_a9_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int *);
 static bool xscale_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int *);
 static bool fa726te_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int *);
+static opt_machine_mode arm_array_mode (machine_mode, unsigned HOST_WIDE_INT);
 static bool arm_array_mode_supported_p (machine_mode,
 					unsigned HOST_WIDE_INT);
 static machine_mode arm_preferred_simd_mode (scalar_mode);
@@ -353,21 +353,7 @@ static const attribute_spec arm_gnu_attributes[] =
     NULL },
   { "naked",        0, 0, true,  false, false, false,
     arm_handle_fndecl_attribute, NULL },
-#ifdef ARM_PE
-  /* ARM/PE has three new attributes:
-     interfacearm - ?
-     dllexport - for exporting a function/variable that will live in a dll
-     dllimport - for importing a function/variable from a dll
-
-     Microsoft allows multiple declspecs in one __declspec, separating
-     them with spaces.  We do NOT support this.  Instead, use __declspec
-     multiple times.
-  */
-  { "dllimport",    0, 0, true,  false, false, false, NULL, NULL },
-  { "dllexport",    0, 0, true,  false, false, false, NULL, NULL },
-  { "interfacearm", 0, 0, true,  false, false, false,
-    arm_handle_fndecl_attribute, NULL },
-#elif TARGET_DLLIMPORT_DECL_ATTRIBUTES
+#if TARGET_DLLIMPORT_DECL_ATTRIBUTES
   { "dllimport",    0, 0, false, false, false, false, handle_dll_attribute,
     NULL },
   { "dllexport",    0, 0, false, false, false, false, handle_dll_attribute,
@@ -489,11 +475,7 @@ static const scoped_attribute_specs *const arm_attribute_table[] =
 #define TARGET_MEMORY_MOVE_COST arm_memory_move_cost
 
 #undef TARGET_ENCODE_SECTION_INFO
-#ifdef ARM_PE
-#define TARGET_ENCODE_SECTION_INFO  arm_pe_encode_section_info
-#else
 #define TARGET_ENCODE_SECTION_INFO  arm_encode_section_info
-#endif
 
 #undef  TARGET_STRIP_NAME_ENCODING
 #define TARGET_STRIP_NAME_ENCODING arm_strip_name_encoding
@@ -535,6 +517,8 @@ static const scoped_attribute_specs *const arm_attribute_table[] =
 #define TARGET_SHIFT_TRUNCATION_MASK arm_shift_truncation_mask
 #undef TARGET_VECTOR_MODE_SUPPORTED_P
 #define TARGET_VECTOR_MODE_SUPPORTED_P arm_vector_mode_supported_p
+#undef TARGET_ARRAY_MODE
+#define TARGET_ARRAY_MODE arm_array_mode
 #undef TARGET_ARRAY_MODE_SUPPORTED_P
 #define TARGET_ARRAY_MODE_SUPPORTED_P arm_array_mode_supported_p
 #undef TARGET_VECTORIZE_PREFERRED_SIMD_MODE
@@ -667,6 +651,12 @@ static const scoped_attribute_specs *const arm_attribute_table[] =
 
 #undef TARGET_HAVE_CONDITIONAL_EXECUTION
 #define TARGET_HAVE_CONDITIONAL_EXECUTION arm_have_conditional_execution
+
+#undef TARGET_LOOP_UNROLL_ADJUST
+#define TARGET_LOOP_UNROLL_ADJUST arm_loop_unroll_adjust
+
+#undef TARGET_PREDICT_DOLOOP_P
+#define TARGET_PREDICT_DOLOOP_P arm_predict_doloop_p
 
 #undef TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P arm_legitimate_constant_p
@@ -828,6 +818,9 @@ static const scoped_attribute_specs *const arm_attribute_table[] =
 
 #undef TARGET_MODES_TIEABLE_P
 #define TARGET_MODES_TIEABLE_P arm_modes_tieable_p
+
+#undef TARGET_NOCE_CONVERSION_PROFITABLE_P
+#define TARGET_NOCE_CONVERSION_PROFITABLE_P arm_noce_conversion_profitable_p
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS arm_can_change_mode_class
@@ -2867,7 +2860,9 @@ arm_gimple_fold_builtin (gimple_stmt_iterator *gsi)
   switch (code & ARM_BUILTIN_CLASS)
     {
     case ARM_BUILTIN_GENERAL:
+      new_stmt = arm_general_gimple_fold_builtin (subcode, stmt);
       break;
+
     case ARM_BUILTIN_MVE:
       new_stmt = arm_mve::gimple_fold_builtin (subcode, stmt);
     }
@@ -2914,6 +2909,7 @@ arm_build_builtin_va_list (void)
 			     get_identifier ("__va_list"),
 			     va_list_type);
   DECL_ARTIFICIAL (va_list_name) = 1;
+  TREE_PUBLIC (va_list_name) = 1;
   TYPE_NAME (va_list_type) = va_list_name;
   TYPE_STUB_DECL (va_list_type) = va_list_name;
   /* Create the __ap field.  */
@@ -3023,17 +3019,17 @@ arm_option_check_internal (struct gcc_options *opts)
       /* We only support -mslow-flash-data on M-profile targets with
 	 MOVT.  */
       if (target_slow_flash_data && (!TARGET_HAVE_MOVT || common_unsupported_modes))
-	error ("%s only supports non-pic code on M-profile targets with the "
+	error ("%qs only supports non-pic code on M-profile targets with the "
 	       "MOVT instruction", flag);
 
       /* We only support -mpure-code on M-profile targets.  */
       if (target_pure_code && common_unsupported_modes)
-	error ("%s only supports non-pic code on M-profile targets", flag);
+	error ("%qs only supports non-pic code on M-profile targets", flag);
 
       /* Cannot load addresses: -mslow-flash-data forbids literal pool and
 	 -mword-relocations forbids relocation of MOVT/MOVW.  */
       if (target_word_relocations)
-	error ("%s incompatible with %<-mword-relocations%>", flag);
+	error ("%qs is incompatible with %<-mword-relocations%>", flag);
     }
 }
 
@@ -3259,6 +3255,52 @@ static sbitmap isa_all_fpubits_internal;
 static sbitmap isa_all_fpbits;
 static sbitmap isa_quirkbits;
 
+static void
+arm_handle_no_branch_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NONE;
+  aarch_enable_bti = 0;
+}
+
+static void
+arm_handle_standard_branch_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NON_LEAF;
+  aarch_enable_bti = 1;
+}
+
+static void
+arm_handle_pac_ret_protection (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_NON_LEAF;
+}
+
+static void
+arm_handle_pac_ret_leaf (void)
+{
+  aarch_ra_sign_scope = AARCH_FUNCTION_ALL;
+}
+
+static void
+arm_handle_bti_protection (void)
+{
+  aarch_enable_bti = 1;
+}
+
+static const struct aarch_branch_protect_type arm_pac_ret_subtypes[] = {
+  { "leaf", false, arm_handle_pac_ret_leaf, NULL, 0 },
+  { NULL, false, NULL, NULL, 0 }
+};
+
+static const struct aarch_branch_protect_type arm_branch_protect_types[] = {
+  { "none", true, arm_handle_no_branch_protection, NULL, 0 },
+  { "standard", true, arm_handle_standard_branch_protection, NULL, 0 },
+  { "pac-ret", false, arm_handle_pac_ret_protection, arm_pac_ret_subtypes,
+    ARRAY_SIZE (arm_pac_ret_subtypes) },
+  { "bti", false, arm_handle_bti_protection, NULL, 0 },
+  { NULL, false, NULL, NULL, 0 }
+};
+
 /* Configure a build target TARGET from the user-specified options OPTS and
    OPTS_SET.  If WARN_COMPATIBLE, emit a diagnostic if both the CPU and
    architecture have been specified, but the two are not identical.  */
@@ -3306,14 +3348,9 @@ arm_configure_build_target (struct arm_build_target *target,
 
   if (opts->x_arm_branch_protection_string)
     {
-      aarch_validate_mbranch_protection (opts->x_arm_branch_protection_string,
+      aarch_validate_mbranch_protection (arm_branch_protect_types,
+					 opts->x_arm_branch_protection_string,
 					 "-mbranch-protection=");
-
-      if (aarch_ra_sign_key != AARCH_KEY_A)
-	{
-	  warning (0, "invalid key type for %<-mbranch-protection=%>");
-	  aarch_ra_sign_key = AARCH_KEY_A;
-	}
     }
 
   if (arm_selected_arch)
@@ -7980,10 +8017,11 @@ arm_function_ok_for_sibcall (tree decl, tree exp)
       && DECL_WEAK (decl))
     return false;
 
-  /* We cannot tailcall an indirect call by descriptor if all the call-clobbered
-     general registers are live (r0-r3 and ip).  This can happen when:
-      - IP contains the static chain, or
-      - IP is needed for validating the PAC signature.  */
+  /* Indirect tailcalls need a call-clobbered register to hold the function
+     address.  But we only have r0-r3 and ip in that class.  If r0-r3 all hold
+     function arguments, then we can only use IP.  But IP may be needed in the
+     epilogue (for PAC validation), or for passing the static chain.  We have
+     to disable the tail call if nothing is available.  */
   if (!decl
       && ((CALL_EXPR_BY_DESCRIPTOR (exp) && !flag_trampolines)
 	  || arm_current_function_pac_enabled_p()))
@@ -7995,18 +8033,33 @@ arm_function_ok_for_sibcall (tree decl, tree exp)
       arm_init_cumulative_args (&cum, fntype, NULL_RTX, NULL_TREE);
       cum_v = pack_cumulative_args (&cum);
 
-      for (tree t = TYPE_ARG_TYPES (fntype); t; t = TREE_CHAIN (t))
+      tree arg;
+      call_expr_arg_iterator iter;
+      unsigned used_regs = 0;
+
+      /* Layout each actual argument in turn.  If it is allocated to
+	 core regs, note which regs have been allocated.  */
+      FOR_EACH_CALL_EXPR_ARG (arg, iter, exp)
 	{
-	  tree type = TREE_VALUE (t);
-	  if (!VOID_TYPE_P (type))
+	  tree type = TREE_TYPE (arg);
+	  function_arg_info arg_info (type, /*named=*/true);
+	  rtx reg = arm_function_arg (cum_v, arg_info);
+	  if (reg && REG_P (reg)
+	      && REGNO (reg) <= LAST_ARG_REGNUM)
 	    {
-	      function_arg_info arg (type, /*named=*/true);
-	      arm_function_arg_advance (cum_v, arg);
+	      /* Avoid any chance of UB here.  We don't care if TYPE
+		 is very large since it will use up all the argument regs.  */
+	      unsigned nregs = MIN (ARM_NUM_REGS2 (GET_MODE (reg), type),
+				    LAST_ARG_REGNUM + 1);
+	      used_regs |= ((1 << nregs) - 1) << REGNO (reg);
 	    }
+	  arm_function_arg_advance (cum_v, arg_info);
 	}
 
-      function_arg_info arg (integer_type_node, /*named=*/true);
-      if (!arm_function_arg (cum_v, arg))
+      /* We've used all the argument regs, and we know IP is live during the
+	 epilogue for some reason, so we can't tailcall.  */
+      if ((used_regs & ((1 << (LAST_ARG_REGNUM + 1)) - 1))
+	  == ((1 << (LAST_ARG_REGNUM + 1)) - 1))
 	return false;
     }
 
@@ -8033,8 +8086,8 @@ legitimate_pic_operand_p (rtx x)
 
 /* Record that the current function needs a PIC register.  If PIC_REG is null,
    a new pseudo is allocated as PIC register, otherwise PIC_REG is used.  In
-   both case cfun->machine->pic_reg is initialized if we have not already done
-   so.  COMPUTE_NOW decide whether and where to set the PIC register.  If true,
+   both cases cfun->machine->pic_reg is initialized if we have not already done
+   so.  COMPUTE_NOW decides whether and where to set the PIC register.  If true,
    PIC register is reloaded in the current position of the instruction stream
    irregardless of whether it was loaded before.  Otherwise, it is only loaded
    if not already done so (crtl->uses_pic_offset_table is null).  Note that
@@ -8054,6 +8107,7 @@ require_pic_register (rtx pic_reg, bool compute_now)
   if (!crtl->uses_pic_offset_table || compute_now)
     {
       gcc_assert (can_create_pseudo_p ()
+		  || (arm_pic_register != INVALID_REGNUM)
 		  || (pic_reg != NULL_RTX
 		      && REG_P (pic_reg)
 		      && GET_MODE (pic_reg) == Pmode));
@@ -8811,35 +8865,11 @@ arm_legitimate_index_p (machine_mode mode, rtx index, RTX_CODE outer,
 	    && INTVAL (index) > -1024
 	    && (INTVAL (index) & 3) == 0);
 
-  /* For quad modes, we restrict the constant offset to be slightly less
-     than what the instruction format permits.  We do this because for
-     quad mode moves, we will actually decompose them into two separate
-     double-mode reads or writes.  INDEX must therefore be a valid
-     (double-mode) offset and so should INDEX+8.  */
-  if (TARGET_NEON && VALID_NEON_QREG_MODE (mode))
-    return (code == CONST_INT
-	    && INTVAL (index) < 1016
-	    && INTVAL (index) > -1024
-	    && (INTVAL (index) & 3) == 0);
-
-  /* We have no such constraint on double mode offsets, so we permit the
-     full range of the instruction format.  */
-  if (TARGET_NEON && VALID_NEON_DREG_MODE (mode))
-    return (code == CONST_INT
-	    && INTVAL (index) < 1024
-	    && INTVAL (index) > -1024
-	    && (INTVAL (index) & 3) == 0);
-
-  if (TARGET_REALLY_IWMMXT && VALID_IWMMXT_REG_MODE (mode))
-    return (code == CONST_INT
-	    && INTVAL (index) < 1024
-	    && INTVAL (index) > -1024
-	    && (INTVAL (index) & 3) == 0);
-
   if (arm_address_register_rtx_p (index, strict_p)
       && (GET_MODE_SIZE (mode) <= 4))
     return 1;
 
+  /* This handles DFmode only if !TARGET_HARD_FLOAT.  */
   if (mode == DImode || mode == DFmode)
     {
       if (code == CONST_INT)
@@ -8856,6 +8886,31 @@ arm_legitimate_index_p (machine_mode mode, rtx index, RTX_CODE outer,
 
       return TARGET_LDRD && arm_address_register_rtx_p (index, strict_p);
     }
+
+  /* For quad modes, we restrict the constant offset to be slightly less
+     than what the instruction format permits.  We do this because for
+     quad mode moves, we will actually decompose them into two separate
+     double-mode reads or writes.  INDEX must therefore be a valid
+     (double-mode) offset and so should INDEX+8.  */
+  if (TARGET_NEON && VALID_NEON_QREG_MODE (mode))
+    return (code == CONST_INT
+	    && INTVAL (index) < 1016
+	    && INTVAL (index) > -1024
+	    && (INTVAL (index) & 3) == 0);
+
+  /* We have no such constraint on double mode offsets, so we permit the
+     full range of the instruction format.  Note DImode is included here.  */
+  if (TARGET_NEON && VALID_NEON_DREG_MODE (mode))
+    return (code == CONST_INT
+	    && INTVAL (index) < 1024
+	    && INTVAL (index) > -1024
+	    && (INTVAL (index) & 3) == 0);
+
+  if (TARGET_REALLY_IWMMXT && VALID_IWMMXT_REG_MODE (mode))
+    return (code == CONST_INT
+	    && INTVAL (index) < 1024
+	    && INTVAL (index) > -1024
+	    && (INTVAL (index) & 3) == 0);
 
   if (GET_MODE_SIZE (mode) <= 4
       && ! (arm_arch4
@@ -8959,7 +9014,7 @@ thumb2_legitimate_index_p (machine_mode mode, rtx index, int strict_p)
 	    && (INTVAL (index) & 3) == 0);
 
   /* We have no such constraint on double mode offsets, so we permit the
-     full range of the instruction format.  */
+     full range of the instruction format.  Note DImode is included here.  */
   if (TARGET_NEON && VALID_NEON_DREG_MODE (mode))
     return (code == CONST_INT
 	    && INTVAL (index) < 1024
@@ -8970,6 +9025,7 @@ thumb2_legitimate_index_p (machine_mode mode, rtx index, int strict_p)
       && (GET_MODE_SIZE (mode) <= 4))
     return 1;
 
+  /* This handles DImode if !TARGET_NEON, and DFmode if !TARGET_VFP_BASE.  */
   if (mode == DImode || mode == DFmode)
     {
       if (code == CONST_INT)
@@ -11863,7 +11919,7 @@ arm_rtx_costs_internal (rtx x, enum rtx_code code, enum rtx_code outer_code,
 
     case CONST_DOUBLE:
       if (TARGET_HARD_FLOAT && GET_MODE_CLASS (mode) == MODE_FLOAT
-	  && (mode == SFmode || !TARGET_VFP_SINGLE))
+	  && (mode == SFmode || mode == HFmode || !TARGET_VFP_SINGLE))
 	{
 	  if (vfp3_const_double_rtx (x))
 	    {
@@ -11888,12 +11944,18 @@ arm_rtx_costs_internal (rtx x, enum rtx_code code, enum rtx_code outer_code,
       return true;
 
     case CONST_VECTOR:
-      /* Fixme.  */
       if (((TARGET_NEON && TARGET_HARD_FLOAT
 	    && (VALID_NEON_DREG_MODE (mode) || VALID_NEON_QREG_MODE (mode)))
 	   || TARGET_HAVE_MVE)
 	  && simd_immediate_valid_for_move (x, mode, NULL, NULL))
 	*cost = COSTS_N_INSNS (1);
+      else if (TARGET_HAVE_MVE)
+	{
+	  /* 128-bit vector requires two vldr.64 on MVE.  */
+	  *cost = COSTS_N_INSNS (2);
+	  if (speed_p)
+	    *cost += extra_cost->ldst.loadd * 2;
+	}
       else
 	*cost = COSTS_N_INSNS (4);
       return true;
@@ -12773,37 +12835,12 @@ arm_cortex_m7_branch_cost (bool speed_p, bool predictable_p)
   return speed_p ? 0 : arm_default_branch_cost (speed_p, predictable_p);
 }
 
-static bool fp_consts_inited = false;
-
-static REAL_VALUE_TYPE value_fp0;
-
-static void
-init_fp_table (void)
-{
-  REAL_VALUE_TYPE r;
-
-  r = REAL_VALUE_ATOF ("0", DFmode);
-  value_fp0 = r;
-  fp_consts_inited = true;
-}
-
 /* Return TRUE if rtx X is a valid immediate FP constant.  */
 int
 arm_const_double_rtx (rtx x)
 {
-  const REAL_VALUE_TYPE *r;
-
-  if (!fp_consts_inited)
-    init_fp_table ();
-
-  r = CONST_DOUBLE_REAL_VALUE (x);
-  if (REAL_VALUE_MINUS_ZERO (*r))
-    return 0;
-
-  if (real_equal (r, &value_fp0))
-    return 1;
-
-  return 0;
+  return (GET_MODE_CLASS (GET_MODE (x)) == MODE_FLOAT
+	  && x == CONST0_RTX (GET_MODE (x)));
 }
 
 /* VFPv3 has a fairly wide range of representable immediates, formed from
@@ -14234,6 +14271,30 @@ adjacent_mem_locations (rtx a, rtx b)
   return 0;
 }
 
+/* Helper routine for ldm_stm_operation_p.  Decompose a simple offset
+   address into the base register and the offset.  Return false iff
+   it is more complex than this.  */
+static inline bool
+decompose_addr_for_ldm_stm (rtx addr, rtx *base, HOST_WIDE_INT *offset)
+{
+  if (REG_P (addr))
+    {
+      *base = addr;
+      *offset = 0;
+      return true;
+    }
+  else if (GET_CODE (addr) == PLUS
+      && REG_P (XEXP (addr, 0))
+      && CONST_INT_P (XEXP (addr, 1)))
+    {
+      *base = XEXP (addr, 0);
+      *offset = INTVAL (XEXP (addr, 1));
+      return true;
+    }
+
+  return false;
+}
+
 /* Return true if OP is a valid load or store multiple operation.  LOAD is true
    for load operations, false for store operations.  CONSECUTIVE is true
    if the register numbers in the operation must be consecutive in the register
@@ -14249,23 +14310,25 @@ adjacent_mem_locations (rtx a, rtx b)
      1.  If offset is 0, first insn should be (SET (R_d0) (MEM (src_addr))).
      2.  REGNO (R_d0) < REGNO (R_d1) < ... < REGNO (R_dn).
      3.  If consecutive is TRUE, then for kth register being loaded,
-         REGNO (R_dk) = REGNO (R_d0) + k.
+	 REGNO (R_dk) = REGNO (R_d0) + k.
    The pattern for store is similar.  */
 bool
 ldm_stm_operation_p (rtx op, bool load, machine_mode mode,
-                     bool consecutive, bool return_pc)
+		     bool consecutive, bool return_pc)
 {
-  HOST_WIDE_INT count = XVECLEN (op, 0);
-  rtx reg, mem, addr;
-  unsigned regno;
-  unsigned first_regno;
-  HOST_WIDE_INT i = 1, base = 0, offset = 0;
+  int count = XVECLEN (op, 0);
+  rtx reg, mem;
+  rtx addr_base;
+  int reg_loc, mem_loc;
+  unsigned prev_regno;
+  HOST_WIDE_INT addr_offset;
   rtx elt;
   bool addr_reg_in_reglist = false;
   bool update = false;
-  int reg_increment;
-  int offset_adj;
-  int regs_per_val;
+  int reg_bytes;
+  int words_per_reg;  /* How many words in memory a register takes.  */
+  int elt_num = 0;
+  int base_elt_num;  /* Element number of the first transfer operation.  */
 
   /* If not in SImode, then registers must be consecutive
      (e.g., VLDM instructions for DFmode).  */
@@ -14273,138 +14336,140 @@ ldm_stm_operation_p (rtx op, bool load, machine_mode mode,
   /* Setting return_pc for stores is illegal.  */
   gcc_assert (!return_pc || load);
 
-  /* Set up the increments and the regs per val based on the mode.  */
-  reg_increment = GET_MODE_SIZE (mode);
-  regs_per_val = reg_increment / 4;
-  offset_adj = return_pc ? 1 : 0;
+  /* Set up the increments and sizes for the mode.  */
+  reg_bytes = GET_MODE_SIZE (mode);
+  words_per_reg = ARM_NUM_REGS (mode);
 
-  if (count <= 1
-      || GET_CODE (XVECEXP (op, 0, offset_adj)) != SET
-      || (load && !REG_P (SET_DEST (XVECEXP (op, 0, offset_adj)))))
+  /* If this is a return, then the first element in the par must be
+     (return).  */
+  if (return_pc)
+    {
+      if (GET_CODE (XVECEXP (op, 0, 0)) != RETURN)
+	return false;
+      elt_num++;
+    }
+
+  if (elt_num >= count)
     return false;
 
   /* Check if this is a write-back.  */
-  elt = XVECEXP (op, 0, offset_adj);
+  elt = XVECEXP (op, 0, elt_num);
+  if (GET_CODE (elt) != SET)
+    return false;
   if (GET_CODE (SET_SRC (elt)) == PLUS)
     {
-      i++;
-      base = 1;
+      elt_num++;
       update = true;
 
       /* The offset adjustment must be the number of registers being
-         popped times the size of a single register.  */
+	 popped times the size of a single register.  */
       if (!REG_P (SET_DEST (elt))
-          || !REG_P (XEXP (SET_SRC (elt), 0))
-          || (REGNO (SET_DEST (elt)) != REGNO (XEXP (SET_SRC (elt), 0)))
-          || !CONST_INT_P (XEXP (SET_SRC (elt), 1))
-          || INTVAL (XEXP (SET_SRC (elt), 1)) !=
-             ((count - 1 - offset_adj) * reg_increment))
-        return false;
+	  || !REG_P (XEXP (SET_SRC (elt), 0))
+	  || (REGNO (SET_DEST (elt)) != REGNO (XEXP (SET_SRC (elt), 0)))
+	  || !CONST_INT_P (XEXP (SET_SRC (elt), 1))
+	  /* ??? Can't this be negative for a PUSH?  */
+	  || (INTVAL (XEXP (SET_SRC (elt), 1)) !=
+	      ((count - elt_num) * reg_bytes)))
+	return false;
     }
 
-  i = i + offset_adj;
-  base = base + offset_adj;
-  /* Perform a quick check so we don't blow up below. If only one reg is loaded,
-     success depends on the type: VLDM can do just one reg,
-     LDM must do at least two.  */
-  if ((count <= i) && (mode == SImode))
-      return false;
+  base_elt_num = elt_num;
+  /* There must be at least one register to transfer.  */
+  if (base_elt_num >= count)
+    return false;
 
-  elt = XVECEXP (op, 0, i - 1);
+  elt = XVECEXP (op, 0, elt_num);
   if (GET_CODE (elt) != SET)
     return false;
 
+  /* Where to look for the register and memory elements.  These save us
+     needing to check LOAD multiple times in the loop.  */
   if (load)
     {
-      reg = SET_DEST (elt);
-      mem = SET_SRC (elt);
+      reg_loc = 0;  /* SET_DEST.  */
+      mem_loc = 1;  /* SET_SRC.  */
     }
   else
     {
-      reg = SET_SRC (elt);
-      mem = SET_DEST (elt);
+      mem_loc = 0;  /* SET_DEST.  */
+      reg_loc = 1;  /* SET_SRC.  */
     }
+
+  reg = XEXP (elt, reg_loc);
+  mem = XEXP (elt, mem_loc);
 
   if (!REG_P (reg) || !MEM_P (mem))
     return false;
 
-  regno = REGNO (reg);
-  first_regno = regno;
-  addr = XEXP (mem, 0);
-  if (GET_CODE (addr) == PLUS)
+  prev_regno = REGNO (reg);
+  if (!decompose_addr_for_ldm_stm (XEXP (mem, 0), &addr_base, &addr_offset))
+    return false;
+
+  /* Don't allow SP to be loaded unless it is also the base register.
+     Otherwise SP will not be correctly restored if an LDM instruction is
+     interrupted (low latency interrupt or address fault), which can result in
+     stack corruption.  */
+  if (load && (REGNO (reg) == SP_REGNUM) && (REGNO (addr_base) != SP_REGNUM))
+    return false;
+
+  addr_reg_in_reglist = (prev_regno == REGNO (addr_base));
+
+  for (elt_num++; elt_num < count; elt_num++)
     {
-      if (!CONST_INT_P (XEXP (addr, 1)))
+      rtx elt_base;
+      HOST_WIDE_INT elt_offset;
+
+      elt = XVECEXP (op, 0, elt_num);
+      if (GET_CODE (elt) != SET)
 	return false;
 
-      offset = INTVAL (XEXP (addr, 1));
-      addr = XEXP (addr, 0);
-    }
-
-  if (!REG_P (addr))
-    return false;
-
-  /* Don't allow SP to be loaded unless it is also the base register. It
-     guarantees that SP is reset correctly when an LDM instruction
-     is interrupted. Otherwise, we might end up with a corrupt stack.  */
-  if (load && (REGNO (reg) == SP_REGNUM) && (REGNO (addr) != SP_REGNUM))
-    return false;
-
-  if (regno == REGNO (addr))
-    addr_reg_in_reglist = true;
-
-  for (; i < count; i++)
-    {
-      elt = XVECEXP (op, 0, i);
-      if (GET_CODE (elt) != SET)
-        return false;
-
-      if (load)
-        {
-          reg = SET_DEST (elt);
-          mem = SET_SRC (elt);
-        }
-      else
-        {
-          reg = SET_SRC (elt);
-          mem = SET_DEST (elt);
-        }
+      reg = XEXP (elt, reg_loc);
+      mem = XEXP (elt, mem_loc);
 
       if (!REG_P (reg)
-          || GET_MODE (reg) != mode
-          || REGNO (reg) <= regno
-          || (consecutive
-              && (REGNO (reg) !=
-                  (unsigned int) (first_regno + regs_per_val * (i - base))))
-          /* Don't allow SP to be loaded unless it is also the base register. It
-             guarantees that SP is reset correctly when an LDM instruction
-             is interrupted. Otherwise, we might end up with a corrupt stack.  */
-          || (load && (REGNO (reg) == SP_REGNUM) && (REGNO (addr) != SP_REGNUM))
-          || !MEM_P (mem)
-          || GET_MODE (mem) != mode
-          || ((GET_CODE (XEXP (mem, 0)) != PLUS
-	       || !rtx_equal_p (XEXP (XEXP (mem, 0), 0), addr)
-	       || !CONST_INT_P (XEXP (XEXP (mem, 0), 1))
-	       || (INTVAL (XEXP (XEXP (mem, 0), 1)) !=
-                   offset + (i - base) * reg_increment))
-	      && (!REG_P (XEXP (mem, 0))
-		  || offset + (i - base) * reg_increment != 0)))
-        return false;
+	  || GET_MODE (reg) != mode
+	  || REGNO (reg) <= prev_regno
+	  || (consecutive
+	      && REGNO (reg) != prev_regno + words_per_reg)
+	  /* Don't allow SP to be loaded unless it is also the base register
+	     (see similar comment above).  */
+	  || (load
+	      && (REGNO (reg) == SP_REGNUM)
+	      && (REGNO (addr_base) != SP_REGNUM))
+	  || !MEM_P (mem)
+	  || GET_MODE (mem) != mode
+	  || !decompose_addr_for_ldm_stm (XEXP (mem, 0), &elt_base,
+					  &elt_offset)
+	  || REGNO (addr_base) != REGNO (elt_base)
+	  || addr_offset + (elt_num - base_elt_num) * reg_bytes != elt_offset)
+	return false;
 
-      regno = REGNO (reg);
-      if (regno == REGNO (addr))
-        addr_reg_in_reglist = true;
+      prev_regno = REGNO (reg);
+      if (prev_regno == REGNO (addr_base))
+	{
+	  /* Storing the base register is unpredictable if it is not the first
+	     transfer register and the base register is being modified.  */
+	  if (update && !load)
+	    return false;
+	  addr_reg_in_reglist = true;
+	}
     }
 
   if (load)
     {
       if (update && addr_reg_in_reglist)
-        return false;
+	return false;
 
-      /* For Thumb-1, address register is always modified - either by write-back
-         or by explicit load.  If the pattern does not describe an update,
-         then the address register must be in the list of loaded registers.  */
+      /* A return instruction must load PC last.  */
+      if (return_pc && prev_regno != PC_REGNUM)
+	return false;
+
+      /* For Thumb-1, address register is always modified - either by
+	 write-back or by explicit load.  If the pattern does not describe an
+	 update, then the address register must be in the list of loaded
+	 registers.  */
       if (TARGET_THUMB1)
-        return update || addr_reg_in_reglist;
+	return update || addr_reg_in_reglist;
     }
 
   return true;
@@ -15338,9 +15403,9 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
   HOST_WIDE_INT srcoffset, dstoffset;
   HOST_WIDE_INT src_autoinc, dst_autoinc;
   rtx mem, addr;
-  
+
   gcc_assert (interleave_factor >= 1 && interleave_factor <= 4);
-  
+
   /* Use hard registers if we have aligned source or destination so we can use
      load/store multiple with contiguous registers.  */
   if (dst_aligned || src_aligned)
@@ -15354,7 +15419,7 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
   src = copy_addr_to_reg (XEXP (srcbase, 0));
 
   srcoffset = dstoffset = 0;
-  
+
   /* Calls to arm_gen_load_multiple and arm_gen_store_multiple update SRC/DST.
      For copying the last bytes we want to subtract this offset again.  */
   src_autoinc = dst_autoinc = 0;
@@ -15408,14 +15473,14 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
 
       remaining -= block_size_bytes;
     }
-  
+
   /* Copy any whole words left (note these aren't interleaved with any
      subsequent halfword/byte load/stores in the interests of simplicity).  */
-  
+
   words = remaining / UNITS_PER_WORD;
 
   gcc_assert (words < interleave_factor);
-  
+
   if (src_aligned && words > 1)
     {
       emit_insn (arm_gen_load_multiple (regnos, words, src, TRUE, srcbase,
@@ -15461,11 +15526,11 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
     }
 
   remaining -= words * UNITS_PER_WORD;
-  
+
   gcc_assert (remaining < 4);
-  
+
   /* Copy a halfword if necessary.  */
-  
+
   if (remaining >= 2)
     {
       halfword_tmp = gen_reg_rtx (SImode);
@@ -15489,11 +15554,11 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
       remaining -= 2;
       srcoffset += 2;
     }
-  
+
   gcc_assert (remaining < 2);
-  
+
   /* Copy last byte.  */
-  
+
   if ((remaining & 1) != 0)
     {
       byte_tmp = gen_reg_rtx (SImode);
@@ -15514,9 +15579,9 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
       remaining--;
       srcoffset++;
     }
-  
+
   /* Store last halfword if we haven't done so already.  */
-  
+
   if (halfword_tmp)
     {
       addr = plus_constant (Pmode, dst, dstoffset - dst_autoinc);
@@ -15535,7 +15600,7 @@ arm_block_move_unaligned_straight (rtx dstbase, rtx srcbase,
       emit_move_insn (mem, gen_lowpart (QImode, byte_tmp));
       dstoffset++;
     }
-  
+
   gcc_assert (remaining == 0 && srcoffset == dstoffset);
 }
 
@@ -15554,7 +15619,7 @@ arm_adjust_block_mem (rtx mem, HOST_WIDE_INT length, rtx *loop_reg,
 		      rtx *loop_mem)
 {
   *loop_reg = copy_addr_to_reg (XEXP (mem, 0));
-  
+
   /* Although the new mem does not refer to a known location,
      it does keep up to LENGTH bytes of alignment.  */
   *loop_mem = change_address (mem, BLKmode, *loop_reg);
@@ -15574,14 +15639,14 @@ arm_block_move_unaligned_loop (rtx dest, rtx src, HOST_WIDE_INT length,
 {
   rtx src_reg, dest_reg, final_src, test;
   HOST_WIDE_INT leftover;
-  
+
   leftover = length % bytes_per_iter;
   length -= leftover;
-  
+
   /* Create registers and memory references for use within the loop.  */
   arm_adjust_block_mem (src, bytes_per_iter, &src_reg, &src);
   arm_adjust_block_mem (dest, bytes_per_iter, &dest_reg, &dest);
-  
+
   /* Calculate the value that SRC_REG should have after the last iteration of
      the loop.  */
   final_src = expand_simple_binop (Pmode, PLUS, src_reg, GEN_INT (length),
@@ -15590,7 +15655,7 @@ arm_block_move_unaligned_loop (rtx dest, rtx src, HOST_WIDE_INT length,
   /* Emit the start of the loop.  */
   rtx_code_label *label = gen_label_rtx ();
   emit_label (label);
-  
+
   /* Emit the loop body.  */
   arm_block_move_unaligned_straight (dest, src, bytes_per_iter,
 				     interleave_factor);
@@ -15598,11 +15663,11 @@ arm_block_move_unaligned_loop (rtx dest, rtx src, HOST_WIDE_INT length,
   /* Move on to the next block.  */
   emit_move_insn (src_reg, plus_constant (Pmode, src_reg, bytes_per_iter));
   emit_move_insn (dest_reg, plus_constant (Pmode, dest_reg, bytes_per_iter));
-  
+
   /* Emit the loop condition.  */
   test = gen_rtx_NE (VOIDmode, src_reg, final_src);
   emit_jump_insn (gen_cbranchsi4 (test, src_reg, final_src, label));
-  
+
   /* Mop up any left-over bytes.  */
   if (leftover)
     arm_block_move_unaligned_straight (dest, src, leftover, interleave_factor);
@@ -15616,7 +15681,7 @@ static int
 arm_cpymemqi_unaligned (rtx *operands)
 {
   HOST_WIDE_INT length = INTVAL (operands[2]);
-  
+
   if (optimize_size)
     {
       bool src_aligned = MEM_ALIGN (operands[1]) >= BITS_PER_WORD;
@@ -15627,7 +15692,7 @@ arm_cpymemqi_unaligned (rtx *operands)
 	 resulting code can be smaller.  */
       unsigned int interleave_factor = (src_aligned || dst_aligned) ? 2 : 1;
       HOST_WIDE_INT bytes_per_iter = (src_aligned || dst_aligned) ? 8 : 4;
-      
+
       if (length > 12)
 	arm_block_move_unaligned_loop (operands[0], operands[1], length,
 				       interleave_factor, bytes_per_iter);
@@ -15645,7 +15710,7 @@ arm_cpymemqi_unaligned (rtx *operands)
       else
 	arm_block_move_unaligned_straight (operands[0], operands[1], length, 4);
     }
-  
+
   return 1;
 }
 
@@ -19169,6 +19234,38 @@ cmse_nonsecure_call_inline_register_clear (void)
 	  end_sequence ();
 	  emit_insn_before (seq, insn);
 
+	  /* The AAPCS requires the callee to widen integral types narrower
+	     than 32 bits to the full width of the register; but when handling
+	     calls to non-secure space, we cannot trust the callee to have
+	     correctly done so.  So forcibly re-widen the result here.  */
+	  tree ret_type = TREE_TYPE (fntype);
+	  if ((TREE_CODE (ret_type) == INTEGER_TYPE
+	      || TREE_CODE (ret_type) == ENUMERAL_TYPE
+	      || TREE_CODE (ret_type) == BOOLEAN_TYPE)
+	      && known_lt (GET_MODE_SIZE (TYPE_MODE (ret_type)), 4))
+	    {
+	      rtx ret_reg = gen_rtx_REG (TYPE_MODE (ret_type), R0_REGNUM);
+	      rtx si_reg = gen_rtx_REG (SImode, R0_REGNUM);
+	      rtx extend;
+	      if (TYPE_UNSIGNED (ret_type))
+		extend = gen_rtx_SET (si_reg, gen_rtx_ZERO_EXTEND (SImode,
+								   ret_reg));
+	      else
+		{
+		  /* Signed-extension is a special case because of
+		     thumb1_extendhisi2.  */
+		  if (TARGET_THUMB1
+		      && known_eq (GET_MODE_SIZE (TYPE_MODE (ret_type)), 2))
+		    extend = gen_thumb1_extendhisi2 (si_reg, ret_reg);
+		  else
+		    extend = gen_rtx_SET (si_reg,
+					  gen_rtx_SIGN_EXTEND (SImode,
+							       ret_reg));
+		}
+	      emit_insn_after (extend, insn);
+	    }
+
+
 	  if (TARGET_HAVE_FPCXT_CMSE)
 	    {
 	      rtx_insn *last, *pop_insn, *after = insn;
@@ -19711,17 +19808,6 @@ arm_reorg (void)
 }
 
 /* Routines to output assembly language.  */
-
-/* Return string representation of passed in real value.  */
-static const char *
-fp_const_from_val (REAL_VALUE_TYPE *r)
-{
-  if (!fp_consts_inited)
-    init_fp_table ();
-
-  gcc_assert (real_equal (r, &value_fp0));
-  return "0";
-}
 
 /* OPERANDS[0] is the entire list of insns that constitute pop,
    OPERANDS[1] is the base register, RETURN_PC is true iff return insn
@@ -20722,9 +20808,13 @@ output_move_neon (rtx *operands)
   nregs = REG_NREGS (reg) / 2;
   gcc_assert (VFP_REGNO_OK_FOR_DOUBLE (regno)
 	      || NEON_REGNO_OK_FOR_QUAD (regno));
-  gcc_assert (VALID_NEON_DREG_MODE (mode)
-	      || VALID_NEON_QREG_MODE (mode)
-	      || VALID_NEON_STRUCT_MODE (mode));
+  gcc_assert ((TARGET_NEON
+	       && (VALID_NEON_DREG_MODE (mode)
+		   || VALID_NEON_QREG_MODE (mode)
+		   || VALID_NEON_STRUCT_MODE (mode)))
+	      || (TARGET_HAVE_MVE
+		  && (VALID_MVE_MODE (mode)
+		      || VALID_MVE_STRUCT_MODE (mode))));
   gcc_assert (MEM_P (mem));
 
   addr = XEXP (mem, 0);
@@ -20786,10 +20876,9 @@ output_move_neon (rtx *operands)
 	int overlap = -1;
 	for (i = 0; i < nregs; i++)
 	  {
-	    /* We're only using DImode here because it's a convenient
-	       size.  */
-	    ops[0] = gen_rtx_REG (DImode, REGNO (reg) + 2 * i);
-	    ops[1] = adjust_address (mem, DImode, 8 * i);
+	    /* Use DFmode for vldr/vstr.  */
+	    ops[0] = gen_rtx_REG (DFmode, REGNO (reg) + 2 * i);
+	    ops[1] = adjust_address_nv (mem, DFmode, 8 * i);
 	    if (reg_overlap_mentioned_p (ops[0], mem))
 	      {
 		gcc_assert (overlap == -1);
@@ -20806,8 +20895,8 @@ output_move_neon (rtx *operands)
 	  }
 	if (overlap != -1)
 	  {
-	    ops[0] = gen_rtx_REG (DImode, REGNO (reg) + 2 * overlap);
-	    ops[1] = adjust_address (mem, SImode, 8 * overlap);
+	    ops[0] = gen_rtx_REG (DFmode, REGNO (reg) + 2 * overlap);
+	    ops[1] = adjust_address_nv (mem, DFmode, 8 * overlap);
 	    if (TARGET_HAVE_MVE && LABEL_REF_P (addr))
 	      sprintf (buff, "v%sr.32\t%%P0, %%1", load ? "ld" : "st");
 	    else
@@ -20828,8 +20917,9 @@ output_move_neon (rtx *operands)
   return "";
 }
 
-/* Compute and return the length of neon_mov<mode>, where <mode> is
-   one of VSTRUCT modes: EI, OI, CI or XI.  */
+/* Compute and return the length of neon_mov<mode>, where <mode> is one of
+   VSTRUCT modes: EI, OI, CI or XI for Neon, and V2x16QI, V2x8HI, V2x4SI,
+   V2x8HF, V2x4SF, V2x16QI, V2x8HI, V2x4SI, V2x8HF, V2x4SF for MVE.  */
 int
 arm_attr_length_move_neon (rtx_insn *insn)
 {
@@ -20846,10 +20936,20 @@ arm_attr_length_move_neon (rtx_insn *insn)
 	{
 	case E_EImode:
 	case E_OImode:
+	case E_V2x16QImode:
+	case E_V2x8HImode:
+	case E_V2x4SImode:
+	case E_V2x8HFmode:
+	case E_V2x4SFmode:
 	  return 8;
 	case E_CImode:
 	  return 12;
 	case E_XImode:
+	case E_V4x16QImode:
+	case E_V4x8HImode:
+	case E_V4x4SImode:
+	case E_V4x8HFmode:
+	case E_V4x4SFmode:
 	  return 16;
 	default:
 	  gcc_unreachable ();
@@ -22447,27 +22547,54 @@ static void
 arm_emit_multi_reg_pop (unsigned long saved_regs_mask)
 {
   int num_regs = 0;
-  int i, j;
   rtx par;
   rtx dwarf = NULL_RTX;
   rtx tmp, reg;
   bool return_in_pc = saved_regs_mask & (1 << PC_REGNUM);
   int offset_adj;
   int emit_update;
+  unsigned long reg_bits;
 
   offset_adj = return_in_pc ? 1 : 0;
-  for (i = 0; i <= LAST_ARM_REGNUM; i++)
-    if (saved_regs_mask & (1 << i))
-      num_regs++;
+  for (reg_bits = saved_regs_mask; reg_bits;
+       reg_bits &= ~(reg_bits & -reg_bits))
+    num_regs++;
 
   gcc_assert (num_regs && num_regs <= 16);
 
   /* If SP is in reglist, then we don't emit SP update insn.  */
   emit_update = (saved_regs_mask & (1 << SP_REGNUM)) ? 0 : 1;
 
+  /* If popping just one register, use LDR reg, [SP], #4, unless
+     we're generating Thumb code and reg is a low reg.  */
+  if (num_regs == 1
+      && emit_update
+      && !return_in_pc
+      && (TARGET_ARM
+	  /* For Thumb we want to use POP for a single low register.  */
+	  || (saved_regs_mask & ~0xff)))
+    {
+      int i = exact_log2 (saved_regs_mask);
+
+      rtx dwarf_reg = reg = gen_rtx_REG (SImode, i);
+      if (arm_current_function_pac_enabled_p () && i == IP_REGNUM)
+	dwarf_reg = gen_rtx_REG (SImode, RA_AUTH_CODE);
+      /* Emit single load with writeback.	 */
+      tmp = gen_frame_mem (SImode,
+			   gen_rtx_POST_INC (Pmode,
+					     stack_pointer_rtx));
+      tmp = emit_insn (gen_rtx_SET (reg, tmp));
+      REG_NOTES (tmp) = alloc_reg_note (REG_CFA_RESTORE, dwarf_reg,
+					dwarf);
+      arm_add_cfa_adjust_cfa_note (tmp, UNITS_PER_WORD,
+				   stack_pointer_rtx, stack_pointer_rtx);
+      return;
+    }
+
   /* The parallel needs to hold num_regs SETs
      and one SET for the stack update.  */
-  par = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (num_regs + emit_update + offset_adj));
+  par = gen_rtx_PARALLEL (VOIDmode,
+			  rtvec_alloc (num_regs + emit_update + offset_adj));
 
   if (return_in_pc)
     XVECEXP (par, 0, 0) = ret_rtx;
@@ -22475,58 +22602,49 @@ arm_emit_multi_reg_pop (unsigned long saved_regs_mask)
   if (emit_update)
     {
       /* Increment the stack pointer, based on there being
-         num_regs 4-byte registers to restore.  */
+	 num_regs 4-byte registers to restore.	*/
       tmp = gen_rtx_SET (stack_pointer_rtx,
-                         plus_constant (Pmode,
-                                        stack_pointer_rtx,
-                                        4 * num_regs));
+			 plus_constant (Pmode,
+					stack_pointer_rtx,
+					4 * num_regs));
       RTX_FRAME_RELATED_P (tmp) = 1;
       XVECEXP (par, 0, offset_adj) = tmp;
     }
 
   /* Now restore every reg, which may include PC.  */
-  for (j = 0, i = 0; j < num_regs; i++)
-    if (saved_regs_mask & (1 << i))
-      {
-	rtx dwarf_reg = reg = gen_rtx_REG (SImode, i);
-	if (arm_current_function_pac_enabled_p () && i == IP_REGNUM)
-	  dwarf_reg = gen_rtx_REG (SImode, RA_AUTH_CODE);
-        if ((num_regs == 1) && emit_update && !return_in_pc)
-          {
-            /* Emit single load with writeback.  */
-            tmp = gen_frame_mem (SImode,
-                                 gen_rtx_POST_INC (Pmode,
-                                                   stack_pointer_rtx));
-            tmp = emit_insn (gen_rtx_SET (reg, tmp));
-	    REG_NOTES (tmp) = alloc_reg_note (REG_CFA_RESTORE, dwarf_reg,
-					      dwarf);
-            return;
-          }
+  int j = 0;
+  int elt = emit_update + offset_adj;
+  for (reg_bits = saved_regs_mask; reg_bits;
+       reg_bits &= ~(reg_bits & -reg_bits))
+    {
+      int i = exact_log2 (reg_bits & -reg_bits);
+      rtx dwarf_reg = reg = gen_rtx_REG (SImode, i);
 
-        tmp = gen_rtx_SET (reg,
-                           gen_frame_mem
-                           (SImode,
-                            plus_constant (Pmode, stack_pointer_rtx, 4 * j)));
-        RTX_FRAME_RELATED_P (tmp) = 1;
-        XVECEXP (par, 0, j + emit_update + offset_adj) = tmp;
+      if (i == IP_REGNUM && arm_current_function_pac_enabled_p ())
+	dwarf_reg = gen_rtx_REG (SImode, RA_AUTH_CODE);
+      tmp = gen_rtx_SET (reg,
+			 gen_frame_mem
+			 (SImode,
+			  plus_constant (Pmode, stack_pointer_rtx, 4 * j)));
+      RTX_FRAME_RELATED_P (tmp) = 1;
+      XVECEXP (par, 0, elt) = tmp;
 
-        /* We need to maintain a sequence for DWARF info too.  As dwarf info
-           should not have PC, skip PC.  */
-        if (i != PC_REGNUM)
-	  dwarf = alloc_reg_note (REG_CFA_RESTORE, dwarf_reg, dwarf);
+      /* We need to maintain a sequence for DWARF info too.  As dwarf info
+	 should not have PC, skip PC.	 */
+      if (i != PC_REGNUM)
+	dwarf = alloc_reg_note (REG_CFA_RESTORE, dwarf_reg, dwarf);
+      j++;
+      elt++;
+    }
 
-        j++;
-      }
-
-  if (return_in_pc)
-    par = emit_jump_insn (par);
-  else
-    par = emit_insn (par);
-
+  par = return_in_pc ? emit_jump_insn (par) : emit_insn (par);
   REG_NOTES (par) = dwarf;
-  if (!return_in_pc)
+
+  if (!return_in_pc && emit_update)
     arm_add_cfa_adjust_cfa_note (par, UNITS_PER_WORD * num_regs,
 				 stack_pointer_rtx, stack_pointer_rtx);
+  else if (!return_in_pc)
+    RTX_FRAME_RELATED_P (par) = 1;
 }
 
 /* Generate and emit an insn pattern that we will recognize as a pop_multi
@@ -23611,6 +23729,51 @@ arm_expand_prologue (void)
 
   ip_rtx = gen_rtx_REG (SImode, IP_REGNUM);
 
+  /* The AAPCS requires the callee to widen integral types narrower
+     than 32 bits to the full width of the register; but when handling
+     calls to non-secure space, we cannot trust the callee to have
+     correctly done so.  So forcibly re-widen the result here.  */
+  if (IS_CMSE_ENTRY (func_type))
+    {
+      function_args_iterator args_iter;
+      CUMULATIVE_ARGS args_so_far_v;
+      cumulative_args_t args_so_far;
+      bool first_param = true;
+      tree arg_type;
+      tree fndecl = current_function_decl;
+      tree fntype = TREE_TYPE (fndecl);
+      arm_init_cumulative_args (&args_so_far_v, fntype, NULL_RTX, fndecl);
+      args_so_far = pack_cumulative_args (&args_so_far_v);
+      FOREACH_FUNCTION_ARGS (fntype, arg_type, args_iter)
+	{
+	  rtx arg_rtx;
+
+	  if (VOID_TYPE_P (arg_type))
+	    break;
+
+	  function_arg_info arg (arg_type, /*named=*/true);
+	  if (!first_param)
+	    /* We should advance after processing the argument and pass
+	       the argument we're advancing past.  */
+	    arm_function_arg_advance (args_so_far, arg);
+	  first_param = false;
+	  arg_rtx = arm_function_arg (args_so_far, arg);
+	  gcc_assert (REG_P (arg_rtx));
+	  if ((TREE_CODE (arg_type) == INTEGER_TYPE
+	      || TREE_CODE (arg_type) == ENUMERAL_TYPE
+	      || TREE_CODE (arg_type) == BOOLEAN_TYPE)
+	      && known_lt (GET_MODE_SIZE (GET_MODE (arg_rtx)), 4))
+	    {
+	      if (TYPE_UNSIGNED (arg_type))
+		emit_set_insn (gen_rtx_REG (SImode, REGNO (arg_rtx)),
+			       gen_rtx_ZERO_EXTEND (SImode, arg_rtx));
+	      else
+		emit_set_insn (gen_rtx_REG (SImode, REGNO (arg_rtx)),
+			       gen_rtx_SIGN_EXTEND (SImode, arg_rtx));
+	    }
+	}
+    }
+
   if (IS_STACKALIGN (func_type))
     {
       rtx r0, r1;
@@ -24035,8 +24198,8 @@ arm_print_condition (FILE *stream)
 /* Globally reserved letters: acln
    Puncutation letters currently used: @_|?().!#
    Lower case letters currently used: bcdefhimpqtvwxyz
-   Upper case letters currently used: ABCDEFGHIJKLMNOPQRSTUV
-   Letters previously used, but now deprecated/obsolete: sWXYZ.
+   Upper case letters currently used: ABCDEFGHIJKLMOPQRSTUV
+   Letters previously used, but now deprecated/obsolete: sNWXYZ.
 
    Note that the global reservation for 'c' is only for CONSTANT_ADDRESS_P.
 
@@ -24049,8 +24212,6 @@ arm_print_condition (FILE *stream)
    in these cases the instruction pattern will take care to make sure that
    an instruction containing %d will follow, thereby undoing the effects of
    doing this instruction unconditionally.
-   If CODE is 'N' then X is a floating point operand that must be negated
-   before output.
    If CODE is 'B' then output a bitwise inverted value of X (a const int).
    If X is a REG and CODE is `M', output a ldm/stm style multi-reg.
    If CODE is 'V', then the operand must be a CONST_INT representing
@@ -24099,14 +24260,6 @@ arm_print_operand (FILE *stream, rtx x, int code)
        of further digits which we don't want to be part of the operand
        number.  */
     case '#':
-      return;
-
-    case 'N':
-      {
-	REAL_VALUE_TYPE r;
-	r = real_value_negate (CONST_DOUBLE_REAL_VALUE (x));
-	fprintf (stream, "%s", fp_const_from_val (&r));
-      }
       return;
 
     /* An integer or symbol address without a preceding # sign.  */
@@ -24385,6 +24538,12 @@ arm_print_operand (FILE *stream, rtx x, int code)
       }
       return;
 
+    case 'N':
+      /* Former FPA support, effectively unused after GCC-4.7, but not
+	 removed until gcc-15.  */
+      output_operand_lossage ("obsolete FPA format code '%c'", code);
+      return;
+
     case 's':
     case 'W':
     case 'X':
@@ -24646,11 +24805,11 @@ arm_print_operand (FILE *stream, rtx x, int code)
 	    asm_fprintf (stream, "[%r", REGNO (XEXP (addr, 0)));
 	    inc_val = GET_MODE_SIZE (GET_MODE (x));
 	    if (code == POST_INC || code == POST_DEC)
-	      asm_fprintf (stream, "], #%s%d",(code == POST_INC)
-					      ? "": "-", inc_val);
+	      asm_fprintf (stream, "], #%s%d", (code == POST_INC)
+					       ? "" : "-", inc_val);
 	    else
-	      asm_fprintf (stream, ", #%s%d]!",(code == PRE_INC)
-					       ? "": "-", inc_val);
+	      asm_fprintf (stream, ", #%s%d]!", (code == PRE_INC)
+						? "" : "-", inc_val);
 	  }
 	else if (code == POST_MODIFY || code == PRE_MODIFY)
 	  {
@@ -24659,9 +24818,9 @@ arm_print_operand (FILE *stream, rtx x, int code)
 	    if (postinc_reg && CONST_INT_P (postinc_reg))
 	      {
 		if (code == POST_MODIFY)
-		  asm_fprintf (stream, "], #%wd",INTVAL (postinc_reg));
+		  asm_fprintf (stream, "], #%wd", INTVAL (postinc_reg));
 		else
-		  asm_fprintf (stream, ", #%wd]!",INTVAL (postinc_reg));
+		  asm_fprintf (stream, ", #%wd]!", INTVAL (postinc_reg));
 	      }
 	  }
 	else if (code == PLUS)
@@ -24859,7 +25018,8 @@ arm_print_operand_address (FILE *stream, machine_mode mode, rtx x)
 			 REGNO (XEXP (x, 0)),
 			 GET_CODE (x) == PRE_DEC ? "-" : "",
 			 GET_MODE_SIZE (mode));
-	  else if (TARGET_HAVE_MVE && (mode == OImode || mode == XImode))
+	  else if (TARGET_HAVE_MVE
+		   && VALID_MVE_STRUCT_MODE (mode))
 	    asm_fprintf (stream, "[%r]!", REGNO (XEXP (x,0)));
 	  else
 	    asm_fprintf (stream, "[%r], #%s%d", REGNO (XEXP (x, 0)),
@@ -25749,7 +25909,17 @@ arm_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
      if (TARGET_HAVE_MVE)
        return ((VALID_MVE_MODE (mode) && NEON_REGNO_OK_FOR_QUAD (regno))
 	       || (mode == OImode && NEON_REGNO_OK_FOR_NREGS (regno, 4))
-	       || (mode == XImode && NEON_REGNO_OK_FOR_NREGS (regno, 8)));
+	       || (mode == V2x16QImode && NEON_REGNO_OK_FOR_NREGS (regno, 4))
+	       || (mode == V2x8HImode && NEON_REGNO_OK_FOR_NREGS (regno, 4))
+	       || (mode == V2x4SImode && NEON_REGNO_OK_FOR_NREGS (regno, 4))
+	       || (mode == V2x8HFmode && NEON_REGNO_OK_FOR_NREGS (regno, 4))
+	       || (mode == V2x4SFmode && NEON_REGNO_OK_FOR_NREGS (regno, 4))
+	       || (mode == XImode && NEON_REGNO_OK_FOR_NREGS (regno, 8))
+	       || (mode == V4x16QImode && NEON_REGNO_OK_FOR_NREGS (regno, 8))
+	       || (mode == V4x8HImode && NEON_REGNO_OK_FOR_NREGS (regno, 8))
+	       || (mode == V4x4SImode && NEON_REGNO_OK_FOR_NREGS (regno, 8))
+	       || (mode == V4x8HFmode && NEON_REGNO_OK_FOR_NREGS (regno, 8))
+	       || (mode == V4x4SFmode && NEON_REGNO_OK_FOR_NREGS (regno, 8)));
 
       return false;
     }
@@ -26737,11 +26907,7 @@ is_called_in_ARM_mode (tree func)
   if (TARGET_CALLEE_INTERWORKING && TREE_PUBLIC (func))
     return true;
 
-#ifdef ARM_PE
-  return lookup_attribute ("interfacearm", DECL_ATTRIBUTES (func)) != NULL_TREE;
-#else
   return false;
-#endif
 }
 
 /* Given the stack offsets and register mask in OFFSETS, decide how
@@ -27139,6 +27305,58 @@ thumb1_expand_prologue (void)
   offsets = arm_get_frame_offsets ();
   live_regs_mask = offsets->saved_regs_mask;
   lr_needs_saving = live_regs_mask & (1 << LR_REGNUM);
+
+  /* The AAPCS requires the callee to widen integral types narrower
+     than 32 bits to the full width of the register; but when handling
+     calls to non-secure space, we cannot trust the callee to have
+     correctly done so.  So forcibly re-widen the result here.  */
+  if (IS_CMSE_ENTRY (func_type))
+    {
+      function_args_iterator args_iter;
+      CUMULATIVE_ARGS args_so_far_v;
+      cumulative_args_t args_so_far;
+      bool first_param = true;
+      tree arg_type;
+      tree fndecl = current_function_decl;
+      tree fntype = TREE_TYPE (fndecl);
+      arm_init_cumulative_args (&args_so_far_v, fntype, NULL_RTX, fndecl);
+      args_so_far = pack_cumulative_args (&args_so_far_v);
+      FOREACH_FUNCTION_ARGS (fntype, arg_type, args_iter)
+	{
+	  rtx arg_rtx;
+
+	  if (VOID_TYPE_P (arg_type))
+	    break;
+
+	  function_arg_info arg (arg_type, /*named=*/true);
+	  if (!first_param)
+	    /* We should advance after processing the argument and pass
+	       the argument we're advancing past.  */
+	    arm_function_arg_advance (args_so_far, arg);
+	  first_param = false;
+	  arg_rtx = arm_function_arg (args_so_far, arg);
+	  gcc_assert (REG_P (arg_rtx));
+	  if ((TREE_CODE (arg_type) == INTEGER_TYPE
+	      || TREE_CODE (arg_type) == ENUMERAL_TYPE
+	      || TREE_CODE (arg_type) == BOOLEAN_TYPE)
+	      && known_lt (GET_MODE_SIZE (GET_MODE (arg_rtx)), 4))
+	    {
+	      rtx res_reg = gen_rtx_REG (SImode, REGNO (arg_rtx));
+	      if (TYPE_UNSIGNED (arg_type))
+		emit_set_insn (res_reg, gen_rtx_ZERO_EXTEND (SImode, arg_rtx));
+	      else
+		{
+		  /* Signed-extension is a special case because of
+		     thumb1_extendhisi2.  */
+		  if (known_eq (GET_MODE_SIZE (GET_MODE (arg_rtx)), 2))
+		    emit_insn (gen_thumb1_extendhisi2 (res_reg, arg_rtx));
+		  else
+		    emit_set_insn (res_reg,
+				   gen_rtx_SIGN_EXTEND (SImode, arg_rtx));
+		}
+	    }
+	}
+    }
 
   /* Extract a mask of the ones we can give to the Thumb's push instruction.  */
   l_mask = live_regs_mask & 0x40ff;
@@ -27566,35 +27784,40 @@ thumb2_expand_return (bool simple_return)
       /* TODO: Verify that this path is never taken for cmse_nonsecure_entry
 	 functions or adapt code to handle according to ACLE.  This path should
 	 not be reachable for cmse_nonsecure_entry functions though we prefer
-	 to assert it for now to ensure that future code changes do not silently
-	 change this behavior.  */
+	 to assert it for now to ensure that future code changes do not
+	 silently change this behavior.  */
       gcc_assert (!IS_CMSE_ENTRY (arm_current_func_type ()));
       if (arm_current_function_pac_enabled_p ())
-        {
-          gcc_assert (!(saved_regs_mask & (1 << PC_REGNUM)));
-          arm_emit_multi_reg_pop (saved_regs_mask);
-          emit_insn (gen_aut_nop ());
-          emit_jump_insn (simple_return_rtx);
-        }
-      else if (num_regs == 1)
-        {
-          rtx par = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (2));
-          rtx reg = gen_rtx_REG (SImode, PC_REGNUM);
-          rtx addr = gen_rtx_MEM (SImode,
-                                  gen_rtx_POST_INC (SImode,
-                                                    stack_pointer_rtx));
-          set_mem_alias_set (addr, get_frame_alias_set ());
-          XVECEXP (par, 0, 0) = ret_rtx;
-          XVECEXP (par, 0, 1) = gen_rtx_SET (reg, addr);
-          RTX_FRAME_RELATED_P (XVECEXP (par, 0, 1)) = 1;
-          emit_jump_insn (par);
-        }
+	{
+	  gcc_assert (!(saved_regs_mask & (1 << PC_REGNUM)));
+	  arm_emit_multi_reg_pop (saved_regs_mask);
+	  emit_insn (gen_aut_nop ());
+	  emit_jump_insn (simple_return_rtx);
+	}
+      /* Use LDR PC, [sp], #4.  Only do this if not optimizing for size and
+	 there's a known performance benefit (we don't know this exactly, but
+	 preferring LDRD/STRD over LDM/STM is a reasonable proxy).  */
+      else if (num_regs == 1
+	       && !optimize_size
+	       && current_tune->prefer_ldrd_strd)
+	{
+	  rtx par = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (2));
+	  rtx reg = gen_rtx_REG (SImode, PC_REGNUM);
+	  rtx addr = gen_rtx_MEM (SImode,
+				  gen_rtx_POST_INC (SImode,
+						    stack_pointer_rtx));
+	  set_mem_alias_set (addr, get_frame_alias_set ());
+	  XVECEXP (par, 0, 0) = ret_rtx;
+	  XVECEXP (par, 0, 1) = gen_rtx_SET (reg, addr);
+	  RTX_FRAME_RELATED_P (XVECEXP (par, 0, 1)) = 1;
+	  emit_jump_insn (par);
+	}
       else
-        {
-          saved_regs_mask &= ~ (1 << LR_REGNUM);
-          saved_regs_mask |=   (1 << PC_REGNUM);
-          arm_emit_multi_reg_pop (saved_regs_mask);
-        }
+	{
+	  saved_regs_mask &= ~ (1 << LR_REGNUM);
+	  saved_regs_mask |=   (1 << PC_REGNUM);
+	  arm_emit_multi_reg_pop (saved_regs_mask);
+	}
     }
   else
     {
@@ -28008,7 +28231,10 @@ arm_expand_epilogue (bool really_return)
           return_in_pc = true;
         }
 
-      if (num_regs == 1 && (!IS_INTERRUPT (func_type) || !return_in_pc))
+      if (num_regs == 1
+	  && !optimize_size
+	  && current_tune->prefer_ldrd_strd
+	  && !(IS_INTERRUPT (func_type) && return_in_pc))
         {
           for (i = 0; i <= LAST_ARM_REGNUM; i++)
             if (saved_regs_mask & (1 << i))
@@ -28165,10 +28391,6 @@ thumb1_output_interwork (void)
 #define STUB_NAME ".real_start_of"
 
   fprintf (f, "\t.code\t16\n");
-#ifdef ARM_PE
-  if (arm_dllexport_name_p (name))
-    name = arm_strip_name_encoding (name);
-#endif
   asm_fprintf (f, "\t.globl %s%U%s\n", STUB_NAME, name);
   fprintf (f, "\t.thumb_func\n");
   asm_fprintf (f, "%s%U%s:\n", STUB_NAME, name);
@@ -28198,15 +28420,11 @@ thumb_load_double_from_address (rtx *operands)
   switch (GET_CODE (addr))
     {
     case REG:
-      operands[2] = adjust_address (operands[1], SImode, 4);
-
-      if (REGNO (operands[0]) == REGNO (addr))
-	{
-	  output_asm_insn ("ldr\t%H0, %2", operands);
-	  output_asm_insn ("ldr\t%0, %1", operands);
-	}
+      if (reg_overlap_mentioned_p (addr, operands[0]))
+	output_asm_insn ("ldmia\t%m1, {%0, %H0}", operands);
       else
 	{
+	  operands[2] = adjust_address (operands[1], SImode, 4);
 	  output_asm_insn ("ldr\t%0, %1", operands);
 	  output_asm_insn ("ldr\t%H0, %2", operands);
 	}
@@ -28761,7 +28979,6 @@ arm_file_end (void)
     }
 }
 
-#ifndef ARM_PE
 /* Symbols in the text segment can be accessed without indirecting via the
    constant pool; it may take an extra binary operation, but this is still
    faster than indirecting via memory.  Don't do this when not optimizing,
@@ -28776,7 +28993,6 @@ arm_encode_section_info (tree decl, rtx rtl, int first)
 
   default_encode_section_info (decl, rtl, first);
 }
-#endif /* !ARM_PE */
 
 static void
 arm_internal_label (FILE *stream, const char *prefix, unsigned long labelno)
@@ -29655,6 +29871,27 @@ arm_vector_mode_supported_p (machine_mode mode)
     return true;
 
   return false;
+}
+
+/* Implements target hook array_mode.  */
+static opt_machine_mode
+arm_array_mode (machine_mode mode, unsigned HOST_WIDE_INT nelems)
+{
+  if (TARGET_HAVE_MVE
+      /* MVE accepts only tuples of 2 or 4 vectors.  */
+      && (nelems == 2
+	  || nelems == 4))
+    {
+      machine_mode struct_mode;
+      FOR_EACH_MODE_IN_CLASS (struct_mode, GET_MODE_CLASS (mode))
+	{
+	  if (GET_MODE_INNER (struct_mode) == GET_MODE_INNER (mode)
+	      && known_eq (GET_MODE_NUNITS (struct_mode),
+			   GET_MODE_NUNITS (mode) * nelems))
+	    return struct_mode;
+	}
+    }
+  return opt_machine_mode ();
 }
 
 /* Implements target hook array_mode_supported_p.  */
@@ -31037,10 +31274,10 @@ int
 vfp3_const_double_for_fract_bits (rtx operand)
 {
   REAL_VALUE_TYPE r0;
-  
+
   if (!CONST_DOUBLE_P (operand))
     return 0;
-  
+
   r0 = *CONST_DOUBLE_REAL_VALUE (operand);
   if (exact_real_inverse (DFmode, &r0)
       && !REAL_VALUE_NEGATIVE (r0))
@@ -31675,50 +31912,6 @@ arm_expand_vector_compare (rtx target, rtx_code code, rtx op0, rtx op1,
     }
 }
 
-/* Expand a vcond or vcondu pattern with operands OPERANDS.
-   CMP_RESULT_MODE is the mode of the comparison result.  */
-
-void
-arm_expand_vcond (rtx *operands, machine_mode cmp_result_mode)
-{
-  /* When expanding for MVE, we do not want to emit a (useless) vpsel in
-     arm_expand_vector_compare, and another one here.  */
-  rtx mask;
-
-  if (TARGET_HAVE_MVE)
-    mask = gen_reg_rtx (arm_mode_to_pred_mode (cmp_result_mode).require ());
-  else
-    mask = gen_reg_rtx (cmp_result_mode);
-
-  bool inverted = arm_expand_vector_compare (mask, GET_CODE (operands[3]),
-					     operands[4], operands[5], true);
-  if (inverted)
-    std::swap (operands[1], operands[2]);
-  if (TARGET_NEON)
-  emit_insn (gen_neon_vbsl (GET_MODE (operands[0]), operands[0],
-			    mask, operands[1], operands[2]));
-  else
-    {
-      machine_mode cmp_mode = GET_MODE (operands[0]);
-
-      switch (GET_MODE_CLASS (cmp_mode))
-	{
-	case MODE_VECTOR_INT:
-	  emit_insn (gen_mve_q (VPSELQ_S, VPSELQ_S, cmp_mode, operands[0],
-				operands[1], operands[2], mask));
-	  break;
-	case MODE_VECTOR_FLOAT:
-	  if (TARGET_HAVE_MVE_FLOAT)
-	    emit_insn (gen_mve_q_f (VPSELQ_F, cmp_mode, operands[0],
-				    operands[1], operands[2], mask));
-	  else
-	    gcc_unreachable ();
-	  break;
-	default:
-	  gcc_unreachable ();
-	}
-    }
-}
 
 #define MAX_VECT_LEN 16
 
@@ -32302,7 +32495,7 @@ arm_autoinc_modes_ok_p (machine_mode mode, enum arm_auto_incmodes code)
 	  else
 	    return false;
 	}
-      
+
       return true;
 
     case ARM_POST_DEC:
@@ -32319,10 +32512,10 @@ arm_autoinc_modes_ok_p (machine_mode mode, enum arm_auto_incmodes code)
 	return false;
 
       return true;
-     
+
     default:
       return false;
-      
+
     }
 
   return false;
@@ -32333,7 +32526,7 @@ arm_autoinc_modes_ok_p (machine_mode mode, enum arm_auto_incmodes code)
    Additionally, the default expansion code is not available or suitable
    for post-reload insn splits (this can occur when the register allocator
    chooses not to do a shift in NEON).
-   
+
    This function is used in both initial expand and post-reload splits, and
    handles all kinds of 64-bit shifts.
 
@@ -33363,6 +33556,15 @@ aarch_gen_bti_j (void)
   return gen_bti_nop ();
 }
 
+/* For AArch32, we always return false because indirect_return attribute
+   is only supported on AArch64 targets.  */
+
+bool
+aarch_fun_is_indirect_return (rtx_insn *)
+{
+  return false;
+}
+
 /* Implement TARGET_SCHED_CAN_SPECULATE_INSN.  Return true if INSN can be
    scheduled for speculative execution.  Reject the long-running division
    and square-root instructions.  */
@@ -33403,7 +33605,7 @@ arm_asan_shadow_offset (void)
 
 /* This is a temporary fix for PR60655.  Ideally we need
    to handle most of these cases in the generic part but
-   currently we reject minus (..) (sym_ref).  We try to 
+   currently we reject minus (..) (sym_ref).  We try to
    ameliorate the case with minus (sym_ref1) (sym_ref2)
    where they are in the same section.  */
 
@@ -33726,7 +33928,7 @@ arm_valid_target_attribute_tree (tree args, struct gcc_options *opts,
   return build_target_option_node (opts, opts_set);
 }
 
-static void 
+static void
 add_attribute (const char * mode, tree *attributes)
 {
   size_t len = strlen (mode);
@@ -33757,7 +33959,7 @@ arm_insert_attributes (tree fndecl, tree * attributes)
   /* Nested definitions must inherit mode.  */
   if (current_function_decl)
    {
-     mode = TARGET_THUMB ? "thumb" : "arm";      
+     mode = TARGET_THUMB ? "thumb" : "arm";
      add_attribute (mode, attributes);
      return;
    }
@@ -34230,7 +34432,7 @@ arm_expand_divmod_libfunc (rtx libfunc, machine_mode mode,
     gcc_assert (!TARGET_IDIV);
 
   scalar_int_mode libval_mode
-    = smallest_int_mode_for_size (2 * GET_MODE_BITSIZE (mode));
+    = smallest_int_mode_for_size (2 * GET_MODE_BITSIZE (mode)).require ();
 
   rtx libval = emit_library_call_value (libfunc, NULL_RTX, LCT_CONST,
 					libval_mode, op0, mode, op1, mode);
@@ -34350,6 +34552,30 @@ arm_coproc_ldc_stc_legitimate_address (rtx op)
 	gcc_unreachable ();
     }
   return false;
+}
+
+/* Return true if OP is a valid memory operand for LDRD/STRD without any
+   register overlap restrictions.  Allow [base] and [base, imm] for now.  */
+bool
+arm_ldrd_legitimate_address (rtx op)
+{
+  if (!MEM_P (op))
+    return false;
+
+  op = XEXP (op, 0);
+  if (REG_P (op))
+    return true;
+
+  if (GET_CODE (op) != PLUS)
+    return false;
+  if (!REG_P (XEXP (op, 0)) || !CONST_INT_P (XEXP (op, 1)))
+    return false;
+
+  HOST_WIDE_INT val = INTVAL (XEXP (op, 1));
+
+  if (TARGET_ARM)
+    return IN_RANGE (val, -255, 255);
+  return IN_RANGE (val, -1020, 1020) && (val & 3) == 0;
 }
 
 /* Return the diagnostic message string if conversion from FROMTYPE to
@@ -34489,19 +34715,1269 @@ arm_invalid_within_doloop (const rtx_insn *insn)
 }
 
 bool
-arm_target_insn_ok_for_lob (rtx insn)
+arm_target_bb_ok_for_lob (basic_block bb)
 {
-  basic_block bb = BLOCK_FOR_INSN (insn);
-  /* Make sure the basic block of the target insn is a simple latch
-     having as single predecessor and successor the body of the loop
-     itself.  Only simple loops with a single basic block as body are
-     supported for 'low over head loop' making sure that LE target is
-     above LE itself in the generated code.  */
+  /* Make sure the basic block is a simple latch having as the single
+     predecessor and successor the body of the loop itself.
+     Only simple loops with a single basic block as body are supported for
+     low over head loops, making sure that LE target is above LE instruction
+     in the generated code.  */
+  return (single_succ_p (bb)
+	  && single_pred_p (bb)
+	  && single_succ_edge (bb)->dest == single_pred_edge (bb)->src);
+}
 
-  return single_succ_p (bb)
-    && single_pred_p (bb)
-    && single_succ_edge (bb)->dest == single_pred_edge (bb)->src
-    && contains_no_active_insn_p (bb);
+/* Utility fuction: Given a VCTP or a VCTP_M insn, return the number of MVE
+   lanes based on the machine mode being used.  */
+
+static int
+arm_mve_get_vctp_lanes (rtx_insn *insn)
+{
+  rtx insn_set = single_set (insn);
+  if (insn_set
+      && GET_CODE (SET_SRC (insn_set)) == UNSPEC
+      && (XINT (SET_SRC (insn_set), 1) == VCTP
+	  || XINT (SET_SRC (insn_set), 1) == VCTP_M))
+    {
+      machine_mode mode = GET_MODE (SET_SRC (insn_set));
+      return ((VECTOR_MODE_P (mode) && VALID_MVE_PRED_MODE (mode))
+	      ? GET_MODE_NUNITS (mode) : 0);
+    }
+  return 0;
+}
+
+enum arm_dl_usage_type { DL_USAGE_ANY = 0,
+			 DL_USAGE_READ = 1,
+			 DL_USAGE_WRITE = 2 };
+
+/* Check if INSN requires the use of the VPR reg, if it does, return the
+   sub-rtx of the VPR reg.  The TYPE argument controls whether
+   this function should:
+   * For TYPE == DL_USAGE_ANY, check all operands, including the OUT operands,
+     and return the first occurrence of the VPR reg.
+   * For TYPE == DL_USAGE_READ, only check the input operands.
+   * For TYPE == DL_USAGE_WRITE, only check the output operands.
+   (INOUT operands are considered both as input and output operands)
+*/
+static rtx
+arm_get_required_vpr_reg (rtx_insn *insn,
+			  arm_dl_usage_type type = DL_USAGE_ANY)
+{
+  gcc_assert (type < 3);
+  if (!NONJUMP_INSN_P (insn))
+    return NULL_RTX;
+
+  bool requires_vpr;
+  extract_constrain_insn (insn);
+  int n_operands = recog_data.n_operands;
+  if (recog_data.n_alternatives == 0)
+    return NULL_RTX;
+
+  /* Fill in recog_op_alt with information about the constraints of
+     this insn.  */
+  preprocess_constraints (insn);
+
+  for (int op = 0; op < n_operands; op++)
+    {
+      requires_vpr = true;
+      if (type == DL_USAGE_READ
+	  && recog_data.operand_type[op] == OP_OUT)
+	continue;
+      else if (type == DL_USAGE_WRITE
+	       && recog_data.operand_type[op] == OP_IN)
+	continue;
+
+      /* Iterate through alternatives of operand "op" in recog_op_alt and
+	 identify if the operand is required to be the VPR.  */
+      for (int alt = 0; alt < recog_data.n_alternatives; alt++)
+	{
+	  const operand_alternative *op_alt
+	      = &recog_op_alt[alt * n_operands];
+	  /* Fetch the reg_class for each entry and check it against the
+	     VPR_REG reg_class.  */
+	  if (alternative_class (op_alt, op) != VPR_REG)
+	    requires_vpr = false;
+	}
+      /* If all alternatives of the insn require the VPR reg for this operand,
+	 it means that either this is VPR-generating instruction, like a vctp,
+	 vcmp, etc., or it is a VPT-predicated insruction.  Return the subrtx
+	 of the VPR reg operand.  */
+      if (requires_vpr)
+	return recog_data.operand[op];
+    }
+  return NULL_RTX;
+}
+
+/* Wrapper function of arm_get_required_vpr_reg with TYPE == DL_USAGE_READ,
+   so return the VPR only if it is an input operand to the insn.  */
+
+static rtx
+arm_get_required_vpr_reg_param (rtx_insn *insn)
+{
+  return arm_get_required_vpr_reg (insn, DL_USAGE_READ);
+}
+
+/* Wrapper function of arm_get_required_vpr_reg with TYPE == DL_USAGE_WRITE,
+   so return the VPR only if it is the return value, an output of, or is
+   clobbered by the insn.  */
+
+static rtx
+arm_get_required_vpr_reg_ret_val (rtx_insn *insn)
+{
+  return arm_get_required_vpr_reg (insn, DL_USAGE_WRITE);
+}
+
+/* Return the first VCTP instruction in BB, if it exists, or NULL otherwise.  */
+
+static rtx_insn *
+arm_mve_get_loop_vctp (basic_block bb)
+{
+  rtx_insn *insn = BB_HEAD (bb);
+
+  /* Now scan through all the instruction patterns and pick out the VCTP
+     instruction.  We require arm_get_required_vpr_reg_param to be false
+     to make sure we pick up a VCTP, rather than a VCTP_M.  */
+  FOR_BB_INSNS (bb, insn)
+    if (NONDEBUG_INSN_P (insn))
+      if (arm_get_required_vpr_reg_ret_val (insn)
+	  && (arm_mve_get_vctp_lanes (insn) != 0)
+	  && !arm_get_required_vpr_reg_param (insn))
+	return insn;
+  return NULL;
+}
+
+/* Return true if INSN is a MVE instruction that is VPT-predicable and is
+   predicated on VPR_REG.  */
+
+static bool
+arm_mve_insn_predicated_by (rtx_insn *insn, rtx vpr_reg)
+{
+  rtx insn_vpr_reg_operand = (MVE_VPT_PREDICATED_INSN_P (insn)
+			      ? arm_get_required_vpr_reg_param (insn)
+			      : NULL_RTX);
+  return (insn_vpr_reg_operand
+	  && rtx_equal_p (vpr_reg, insn_vpr_reg_operand));
+}
+
+/* Utility function to identify if INSN is an MVE instruction that performs
+   some across lane operation (and as a result does not align with normal
+   lane predication rules).  All such instructions give one only scalar
+   output, except for vshlcq which gives a PARALLEL of a vector and a scalar
+   (one vector result and one carry output).  */
+
+static bool
+arm_mve_across_lane_insn_p (rtx_insn* insn)
+{
+  df_ref insn_defs = NULL;
+  if (!MVE_VPT_PREDICABLE_INSN_P (insn))
+    return false;
+
+  FOR_EACH_INSN_DEF (insn_defs, insn)
+    if (!VALID_MVE_MODE (GET_MODE (DF_REF_REG (insn_defs)))
+	&& !arm_get_required_vpr_reg_ret_val (insn))
+      return true;
+
+  return false;
+}
+
+/* Utility function to identify if INSN is an MVE load or store instruction.
+   * For TYPE == DL_USAGE_ANY, check all operands.  If the function returns
+     true, INSN is a load or a store insn.
+   * For TYPE == DL_USAGE_READ, only check the input operands.  If the
+     function returns true, INSN is a load insn.
+   * For TYPE == DL_USAGE_WRITE, only check the output operands.  If the
+     function returns true, INSN is a store insn.  */
+
+static bool
+arm_mve_load_store_insn_p (rtx_insn* insn,
+			   arm_dl_usage_type type = DL_USAGE_ANY)
+{
+  gcc_assert (type < 3);
+  int n_operands = recog_data.n_operands;
+  extract_insn (insn);
+
+  for (int op = 0; op < n_operands; op++)
+    {
+      if (type == DL_USAGE_READ && recog_data.operand_type[op] == OP_OUT)
+	continue;
+      else if (type == DL_USAGE_WRITE && recog_data.operand_type[op] == OP_IN)
+	continue;
+      if (mve_memory_operand (recog_data.operand[op],
+			      GET_MODE (recog_data.operand[op])))
+	return true;
+    }
+  return false;
+}
+
+/* Return TRUE if INSN is validated for implicit predication by how its outputs
+   are used.
+
+   If INSN is a MVE operation across lanes that is not predicated by
+   VCTP_VPR_GENERATED it can not be validated by the use of its ouputs.
+
+   Any other INSN is safe to implicit predicate if we don't use its outputs
+   outside the loop.  The instructions that use this INSN's outputs will be
+   validated as we go through the analysis.  */
+
+static bool
+arm_mve_impl_pred_on_outputs_p (rtx_insn *insn, rtx vctp_vpr_generated)
+{
+  /* Reject any unpredicated across lane operation.  */
+  if (!arm_mve_insn_predicated_by (insn, vctp_vpr_generated)
+      && arm_mve_across_lane_insn_p (insn))
+    return false;
+
+  /* Next, scan forward to the various USEs of the DEFs in this insn.  */
+  df_ref insn_def = NULL;
+  basic_block insn_bb = BLOCK_FOR_INSN (insn);
+  FOR_EACH_INSN_DEF (insn_def, insn)
+    {
+      for (df_ref use = DF_REG_USE_CHAIN (DF_REF_REGNO (insn_def));
+	   use;
+	   use = DF_REF_NEXT_REG (use))
+	{
+	  rtx_insn *next_use_insn = DF_REF_INSN (use);
+	  if (!INSN_P (next_use_insn) || DEBUG_INSN_P (next_use_insn))
+	    continue;
+
+	  if (insn_bb != BLOCK_FOR_INSN (next_use_insn))
+	    return false;
+	}
+    }
+  return true;
+}
+
+
+/* Returns the prevailing definition of OP before CUR_INSN in the same
+   basic block as CUR_INSN, if one exists, returns NULL otherwise.  */
+
+static rtx_insn*
+arm_last_vect_def_insn (rtx op, rtx_insn *cur_insn)
+{
+  if (!REG_P (op)
+      || !BLOCK_FOR_INSN (cur_insn))
+    return NULL;
+
+  df_ref def_insns;
+  rtx_insn *last_def = NULL;
+  for (def_insns = DF_REG_DEF_CHAIN (REGNO (op));
+       def_insns;
+       def_insns = DF_REF_NEXT_REG (def_insns))
+    {
+      rtx_insn *def_insn = DF_REF_INSN (def_insns);
+      /* Definition not in the loop body or after the current insn.  */
+      if (DF_REF_BB (def_insns) != BLOCK_FOR_INSN (cur_insn)
+	  || INSN_UID (def_insn) >= INSN_UID (cur_insn))
+	continue;
+
+      if (!last_def || INSN_UID (def_insn) > INSN_UID (last_def))
+	last_def = def_insn;
+    }
+  return last_def;
+}
+
+
+/* This function returns TRUE if we can validate the implicit predication of
+   INSN_IN with VCTP_VPR_GENERATED based on the definition of the instruction's
+   input operands.
+
+   If INSN_IN is a MVE operation across lanes then all of its MVE vector
+   operands must have its tail-predicated lanes be zeroes.  We keep track of any
+   instructions that define vector operands for which this is true in
+   PROPS_ZERO_SET.
+
+   For any other INSN_IN, the definition of all its operands must be defined
+   inside the loop body by an instruction that comes before INSN_IN and not be
+   a MVE load predicated by a different VPR.  These instructions have all been
+   validated for explicit or implicit predication.
+ */
+
+static bool
+arm_mve_impl_pred_on_inputs_p (vec <rtx_insn *> *props_zero_set,
+			       rtx_insn *insn_in, rtx vctp_vpr_generated)
+{
+  /* If all inputs come from instructions that are explicitly or
+     implicitly predicated by the same predicate then it is safe to
+     implicitly predicate this instruction.  */
+  df_ref insn_uses = NULL;
+  bool across_lane = arm_mve_across_lane_insn_p (insn_in);
+  FOR_EACH_INSN_USE (insn_uses, insn_in)
+  {
+    rtx op = DF_REF_REG (insn_uses);
+    rtx_insn *def_insn = arm_last_vect_def_insn (op, insn_in);
+    if (across_lane)
+      {
+	if (!VALID_MVE_MODE (GET_MODE (op)))
+	  continue;
+	if (!def_insn || !props_zero_set->contains (def_insn))
+	  return false;
+
+	continue;
+      }
+
+    if (!def_insn
+	|| (!arm_mve_insn_predicated_by (def_insn, vctp_vpr_generated)
+	    && arm_mve_load_store_insn_p (def_insn, DL_USAGE_READ)))
+      return false;
+  }
+
+  return true;
+}
+
+
+/* Determine whether INSN_IN is safe to implicitly predicate based on the type
+   of instruction and where needed the definition of its inputs and the uses of
+   its outputs.
+   Return TRUE if it is safe to implicitly predicate and FALSE otherwise.
+
+   * If INSN_IN is a store, then it is always unsafe to implicitly predicate it.
+   * If INSN_IN is a load, only reject implicit predication if its uses
+     directly invalidate it.
+   * If INSN_IN operates across vector lanes and does not have the
+     "mve_safe_imp_xlane_pred" attribute, then it is always unsafe to implicitly
+     predicate.
+   * If INSN_IN operates on Floating Point elements and we are not compiling
+     with -Ofast, then it is unsafe to implicitly predicate it as we may be
+     changing exception and cumulative bits behaviour.
+   * If INSN_IN is a VCTP instruction, then it is safe to implicitly predicate,
+     but instructions that use this predicate will need to be checked
+     just like any other UNPREDICATED MVE instruction.
+   * Otherwise check if INSN_IN's inputs or uses of outputs can validate its
+     implicit predication.
+
+   * If all inputs come from instructions that are explicitly or implicitly
+     predicated by the same predicate then it is safe to implicitly predicate
+     this instruction.
+   * If INSN_IN is an operation across lanes with the "mve_safe_imp_xlane_pred"
+     attribute, then all it's operands must have zeroed falsely predicated tail
+     lanes.
+
+   * Otherwise, check if the implicit predication of INSN_IN can be validated
+     based on its inputs, and if not check whether it can be validated based on
+     how its outputs are used.  */
+
+static bool
+arm_mve_impl_predicated_p (vec <rtx_insn *> *props_zero_set,
+			   rtx_insn *insn_in, rtx vctp_vpr_generated)
+{
+
+  /* If INSN_IN is a store, then it is always unsafe to implicitly
+     predicate it.  */
+  if (arm_mve_load_store_insn_p (insn_in, DL_USAGE_WRITE))
+    return false;
+
+  /* If INSN_IN is a load, only reject implicit predication if its uses
+     directly invalidate it.  */
+  if (arm_mve_load_store_insn_p (insn_in, DL_USAGE_READ))
+    {
+      if (!arm_mve_impl_pred_on_outputs_p (insn_in, vctp_vpr_generated))
+	return false;
+      return true;
+    }
+
+  /* If INSN_IN operates across vector lanes and does not have the
+     "mve_safe_imp_xlane_pred" attribute, then it is always unsafe to implicitly
+     predicate.  */
+  if (arm_mve_across_lane_insn_p (insn_in)
+      && (get_attr_mve_safe_imp_xlane_pred (insn_in)
+	  != MVE_SAFE_IMP_XLANE_PRED_YES))
+    return false;
+
+  /* If INSN_IN operates on Floating Point elements and we are not compiling
+     with -Ofast, then it is unsafe to implicitly predicate it as we may be
+     changing exception and cumulative bits behaviour.  */
+  if (!flag_unsafe_math_optimizations
+      && flag_trapping_math
+      && MVE_VPT_UNPREDICATED_INSN_P (insn_in))
+    {
+      df_ref def;
+      FOR_EACH_INSN_DEF (def, insn_in)
+	if (DF_REF_TYPE (def) == DF_REF_REG_DEF
+	    && FLOAT_MODE_P (GET_MODE (DF_REF_REG (def))))
+	  return false;
+      FOR_EACH_INSN_USE (def, insn_in)
+	if (DF_REF_TYPE (def) == DF_REF_REG_DEF
+	    && FLOAT_MODE_P (GET_MODE (DF_REF_REG (def))))
+	  return false;
+    }
+
+  /* If INSN_IN is a VCTP instruction, then it is safe to implicitly predicate,
+     but instructions that use this predicate will need to be checked
+     just like any other UNPREDICATED MVE instruction.  */
+  if (arm_get_required_vpr_reg_ret_val (insn_in)
+      && (arm_mve_get_vctp_lanes (insn_in) != 0))
+    return true;
+
+  /* Otherwise, check if the implicit predication of INSN_IN can be validated
+     based on its inputs, and if not check whether it can be validated based on
+     how its outputs are used.  */
+  return (arm_mve_impl_pred_on_inputs_p (props_zero_set, insn_in, vctp_vpr_generated)
+	  || arm_mve_impl_pred_on_outputs_p (insn_in, vctp_vpr_generated));
+}
+
+/* Helper function to `arm_mve_dlstp_check_inc_counter` and to
+   `arm_mve_dlstp_check_dec_counter`.  In the situations where the loop counter
+   is incrementing by 1 or decrementing by 1 in each iteration, ensure that the
+   number of iterations, the value of REG, going into the loop, was calculated
+   as:
+    REG = (N + [1, VCTP_STEP - 1]) / VCTP_STEP
+
+  where N is equivalent to the VCTP_REG.
+*/
+
+static bool
+arm_mve_check_reg_origin_is_num_elems (loop *loop, rtx reg, rtx vctp_step,
+				       rtx vctp_reg)
+{
+  df_ref counter_max_last_def = NULL;
+
+  /* More than one reaching definition.  */
+  if (DF_REG_DEF_COUNT (REGNO (reg)) > 2)
+    return false;
+
+  /* Look for a single defition of REG going into the loop.  The DEF_CHAIN will
+     have at least two values, as this is a loop induction variable that is
+     defined outside the loop.  */
+  for (df_ref def = DF_REG_DEF_CHAIN (REGNO (reg));
+       def;
+       def = DF_REF_NEXT_REG (def))
+    {
+      /* Skip the update inside the loop, this has already been checked by the
+	 iv_analyze call earlier.  */
+      if (DF_REF_BB (def) == loop->header)
+	continue;
+
+      counter_max_last_def = def;
+      break;
+    }
+
+  if (!counter_max_last_def)
+    return false;
+
+  rtx counter_max_last_set = single_set (DF_REF_INSN (counter_max_last_def));
+
+  if (!counter_max_last_set)
+    return false;
+
+  /* If we encounter a simple SET from a REG, follow it through.  */
+  if (REG_P (SET_SRC (counter_max_last_set)))
+    {
+      if (DF_REG_DEF_COUNT (REGNO (SET_SRC (counter_max_last_set))) != 1)
+	return false;
+
+      counter_max_last_def
+	= DF_REG_DEF_CHAIN (REGNO (SET_SRC (counter_max_last_set)));
+      counter_max_last_set
+	= single_set (DF_REF_INSN (counter_max_last_def));
+
+      if (!counter_max_last_set)
+	return false;
+    }
+
+  /* We are looking for:
+      COUNTER_MAX_LAST_SET = (N + VCTP_STEP - 1) / VCTP_STEP.
+     We currently only support the unsigned VCTP_OP case.  */
+  rtx division = SET_SRC (counter_max_last_set);
+  if (GET_CODE (division) != LSHIFTRT)
+    return false;
+
+  /* Now check that we are dividing by VCTP_STEP, i.e. the number of lanes.  */
+  rtx divisor = XEXP (division, 1);
+  unsigned vctp_step_cst = abs_hwi (INTVAL (vctp_step));
+  if (!CONST_INT_P (divisor)
+      || (1U << INTVAL (divisor) != vctp_step_cst))
+    return false;
+
+  rtx dividend = XEXP (division, 0);
+  if (!REG_P (dividend))
+    /* Subreg? */
+    return false;
+
+  /* For now only support the simple case, this only works for unsigned N, any
+     signed N will have further computations to deal with overflow.  */
+  if (DF_REG_DEF_COUNT (REGNO (dividend)) != 1)
+    return false;
+
+  rtx_insn *dividend_insn = DF_REF_INSN (DF_REG_DEF_CHAIN (REGNO (dividend)));
+  rtx dividend_op = single_set (dividend_insn);
+  if (!dividend_op
+      && GET_CODE (SET_SRC (dividend_op)) != PLUS)
+    return false;
+
+  /* Check if PLUS_OP is (VCTP_OP + VAL), where VAL = [1, VCTP_STEP - 1].  */
+  rtx plus_op = SET_SRC (dividend_op);
+  if (!REG_P (XEXP (plus_op, 0))
+      || !CONST_INT_P (XEXP (plus_op, 1))
+      || !IN_RANGE (INTVAL (XEXP (plus_op, 1)), 1, vctp_step_cst - 1))
+    return false;
+
+  /* VCTP_REG may have been copied before entering the loop, let's see if we can
+     trace such a copy back.  If we have more than one reaching definition then
+     bail out as analysis will be too difficult.  */
+  if (DF_REG_DEF_COUNT (REGNO (vctp_reg)) > 2)
+    return false;
+
+  /* Look for the definition of N. */
+  for (df_ref def = DF_REG_DEF_CHAIN (REGNO (vctp_reg));
+       def;
+       def = DF_REF_NEXT_REG (def))
+    {
+      if (DF_REF_BB (def) == loop->header)
+       continue;
+      rtx set = single_set (DF_REF_INSN (def));
+      if (set
+	  && REG_P (SET_SRC (set))
+	  && !HARD_REGISTER_P (SET_SRC (set)))
+	vctp_reg = SET_SRC (set);
+    }
+
+  return rtx_equal_p (vctp_reg, XEXP (plus_op, 0));
+}
+
+/* If we have identified the loop to have an incrementing counter, we need to
+   make sure that it increments by 1 and that the loop is structured correctly:
+    * The counter starts from 0
+    * The counter terminates at (num_of_elem + num_of_lanes - 1) / num_of_lanes
+    * The vctp insn uses a reg that decrements appropriately in each iteration.
+*/
+
+static rtx_insn*
+arm_mve_dlstp_check_inc_counter (loop *loop, rtx_insn* vctp_insn,
+				 rtx condconst, rtx condcount)
+{
+  rtx vctp_reg = XVECEXP (XEXP (PATTERN (vctp_insn), 1), 0, 0);
+  /* The loop latch has to be empty.  When compiling all the known MVE LoLs in
+     user applications, none of those with incrementing counters had any real
+     insns in the loop latch.  As such, this function has only been tested with
+     an empty latch and may misbehave or ICE if we somehow get here with an
+     increment in the latch, so, for correctness, error out early.  */
+  if (!empty_block_p (loop->latch))
+    return NULL;
+
+  class rtx_iv vctp_reg_iv;
+  /* For loops of DLSTP_TYPE_B, the loop counter is independent of the decrement
+     of the reg used in the vctp_insn. So run iv analysis on that reg.  This
+     has to succeed for such loops to be supported.  */
+  if (!iv_analyze (vctp_insn, as_a<scalar_int_mode> (GET_MODE (vctp_reg)),
+      vctp_reg, &vctp_reg_iv))
+    return NULL;
+
+  /* Extract the decrementnum of the vctp reg from the iv.  This decrementnum
+     is the number of lanes/elements it decrements from the remaining number of
+     lanes/elements to process in the loop, for this reason this is always a
+     negative number, but to simplify later checks we use it's absolute value.  */
+  HOST_WIDE_INT decrementnum = INTVAL (vctp_reg_iv.step);
+  if (decrementnum >= 0)
+    return NULL;
+  decrementnum = abs_hwi (decrementnum);
+
+  /* Find where both of those are modified in the loop header bb.  */
+  df_ref condcount_reg_set_df = df_bb_regno_only_def_find (loop->header,
+							   REGNO (condcount));
+  df_ref vctp_reg_set_df = df_bb_regno_only_def_find (loop->header,
+						      REGNO (vctp_reg));
+  if (!condcount_reg_set_df || !vctp_reg_set_df)
+    return NULL;
+  rtx condcount_reg_set = single_set (DF_REF_INSN (condcount_reg_set_df));
+  rtx vctp_reg_set = single_set (DF_REF_INSN (vctp_reg_set_df));
+  if (!condcount_reg_set || !vctp_reg_set)
+    return NULL;
+
+  /* Ensure the modification of the vctp reg from df is consistent with
+     the iv and the number of lanes on the vctp insn.  */
+  if (GET_CODE (SET_SRC (vctp_reg_set)) != PLUS
+      || !REG_P (SET_DEST (vctp_reg_set))
+      || !REG_P (XEXP (SET_SRC (vctp_reg_set), 0))
+      || REGNO (SET_DEST (vctp_reg_set))
+	  != REGNO (XEXP (SET_SRC (vctp_reg_set), 0))
+      || !CONST_INT_P (XEXP (SET_SRC (vctp_reg_set), 1))
+      || INTVAL (XEXP (SET_SRC (vctp_reg_set), 1)) >= 0
+      || decrementnum != abs_hwi (INTVAL (XEXP (SET_SRC (vctp_reg_set), 1)))
+      || decrementnum != arm_mve_get_vctp_lanes (vctp_insn))
+    return NULL;
+
+  if (REG_P (condcount) && REG_P (condconst))
+    {
+      /* First we need to prove that the loop is going 0..condconst with an
+	 inc of 1 in each iteration.  */
+      if (GET_CODE (SET_SRC (condcount_reg_set)) == PLUS
+	  && CONST_INT_P (XEXP (SET_SRC (condcount_reg_set), 1))
+	  && INTVAL (XEXP (SET_SRC (condcount_reg_set), 1)) == 1)
+	{
+	    rtx counter_reg = SET_DEST (condcount_reg_set);
+	    /* Check that the counter did indeed start from zero.  */
+	    df_ref this_set = DF_REG_DEF_CHAIN (REGNO (counter_reg));
+	    if (!this_set)
+	      return NULL;
+	    df_ref last_set_def = DF_REF_NEXT_REG (this_set);
+	    if (!last_set_def)
+	      return NULL;
+	    rtx_insn* last_set_insn = DF_REF_INSN (last_set_def);
+	    rtx last_set = single_set (last_set_insn);
+	    if (!last_set)
+	      return NULL;
+	    rtx counter_orig_set;
+	    counter_orig_set = SET_SRC (last_set);
+	    if (!CONST_INT_P (counter_orig_set)
+		|| (INTVAL (counter_orig_set) != 0))
+	      return NULL;
+	    /* And finally check that the target value of the counter,
+	       condconst, is of the correct shape.  */
+	    if (!arm_mve_check_reg_origin_is_num_elems (loop, condconst,
+							vctp_reg_iv.step,
+							vctp_reg))
+	      return NULL;
+	}
+      else
+	return NULL;
+    }
+  else
+    return NULL;
+
+  /* Everything looks valid.  */
+  return vctp_insn;
+}
+
+/* Helper function to 'arm_mve_dlstp_check_dec_counter' to make sure DEC_INSN
+   is of the expected form:
+   (set (reg a) (plus (reg a) (const_int)))
+   where (reg a) is the same as CONDCOUNT.
+   Return a rtx with the set if it is in the right format or NULL_RTX
+   otherwise.  */
+
+static rtx
+check_dec_insn (rtx_insn *dec_insn, rtx condcount)
+{
+  if (!NONDEBUG_INSN_P (dec_insn))
+    return NULL_RTX;
+  rtx dec_set = single_set (dec_insn);
+  if (!dec_set
+      || !REG_P (SET_DEST (dec_set))
+      || GET_CODE (SET_SRC (dec_set)) != PLUS
+      || !REG_P (XEXP (SET_SRC (dec_set), 0))
+      || !CONST_INT_P (XEXP (SET_SRC (dec_set), 1))
+      || REGNO (SET_DEST (dec_set))
+	  != REGNO (XEXP (SET_SRC (dec_set), 0))
+      || REGNO (SET_DEST (dec_set)) != REGNO (condcount))
+    return NULL_RTX;
+
+  return dec_set;
+}
+
+/* Helper function to `arm_mve_loop_valid_for_dlstp`.  In the case of a
+   counter that is decrementing, ensure that it is decrementing by the
+   right amount in each iteration and that the target condition is what
+   we expect.  */
+
+static rtx_insn*
+arm_mve_dlstp_check_dec_counter (loop *loop, rtx_insn* vctp_insn,
+				 rtx condconst, rtx condcount)
+{
+  rtx vctp_reg = XVECEXP (XEXP (PATTERN (vctp_insn), 1), 0, 0);
+  class rtx_iv vctp_reg_iv;
+  HOST_WIDE_INT decrementnum;
+  /* For decrementing loops of DLSTP_TYPE_A, the counter is usually present in the
+     loop latch.  Here we simply need to verify that this counter is the same
+     reg that is also used in the vctp_insn and that it is not otherwise
+     modified.  */
+  rtx dec_set = check_dec_insn (BB_END (loop->latch), condcount);
+  /* If not in the loop latch, try to find the decrement in the loop header.  */
+  if (dec_set == NULL_RTX)
+  {
+    df_ref temp = df_bb_regno_only_def_find (loop->header, REGNO (condcount));
+    /* If we haven't been able to find the decrement, bail out.  */
+    if (!temp)
+      return NULL;
+    dec_set = check_dec_insn (DF_REF_INSN (temp), condcount);
+
+    if (dec_set == NULL_RTX)
+      return NULL;
+  }
+
+  decrementnum = INTVAL (XEXP (SET_SRC (dec_set), 1));
+
+  /* This decrementnum is the number of lanes/elements it decrements from the
+     remaining number of lanes/elements to process in the loop, for this reason
+     this is always a negative number, but to simplify later checks we use its
+     absolute value.  */
+  if (decrementnum >= 0)
+    return NULL;
+  decrementnum = -decrementnum;
+
+  /* If the decrementnum is a 1, then we need to look at the loop vctp_reg and
+     verify that it also decrements correctly.
+     Then, we need to establish that the starting value of the loop decrement
+     originates from the starting value of the vctp decrement.  */
+  if (decrementnum == 1)
+    {
+      class rtx_iv vctp_reg_iv, condcount_reg_iv;
+      /* The loop counter is found to be independent of the decrement
+	 of the reg used in the vctp_insn, again.  Ensure that IV analysis
+	 succeeds and check the step.  */
+      if (!iv_analyze (vctp_insn, as_a<scalar_int_mode> (GET_MODE (vctp_reg)),
+		       vctp_reg, &vctp_reg_iv))
+	return NULL;
+      /* Ensure it matches the number of lanes of the vctp instruction.  */
+      if (abs (INTVAL (vctp_reg_iv.step))
+	  != arm_mve_get_vctp_lanes (vctp_insn))
+	return NULL;
+
+      if (!arm_mve_check_reg_origin_is_num_elems (loop, condcount,
+						  vctp_reg_iv.step,
+						  vctp_reg))
+	return NULL;
+    }
+  /* If the decrements are the same, then the situation is simple: either they
+     are also the same reg, which is safe, or they are different registers, in
+     which case makse sure that there is a only simple SET from one to the
+     other inside the loop.*/
+  else if (decrementnum == arm_mve_get_vctp_lanes (vctp_insn))
+    {
+      if (REGNO (condcount) != REGNO (vctp_reg))
+	{
+	  /* It wasn't the same reg, but it could be behild a
+	     (set (vctp_reg) (condcount)), so instead find where
+	     the VCTP insn is DEF'd inside the loop.  */
+	  rtx_insn *vctp_reg_insn
+	    = DF_REF_INSN (df_bb_regno_only_def_find (loop->header,
+						      REGNO (vctp_reg)));
+	  rtx vctp_reg_set = single_set (vctp_reg_insn);
+	  /* This must just be a simple SET from the condcount.  */
+	  if (!vctp_reg_set
+	      || !REG_P (SET_DEST (vctp_reg_set))
+	      || !REG_P (SET_SRC (vctp_reg_set))
+	      || REGNO (SET_SRC (vctp_reg_set)) != REGNO (condcount))
+	    return NULL;
+	}
+    }
+  else
+    return NULL;
+
+  /* We now only need to find out that the loop terminates with a LE
+     zero condition.  If condconst is a const_int, then this is easy.
+     If its a REG, look at the last condition+jump in a bb before
+     the loop, because that usually will have a branch jumping over
+     the loop header.  */
+  rtx_insn *jump_insn = BB_END (loop->header);
+  if (CONST_INT_P (condconst)
+      && !(INTVAL (condconst) == 0 && JUMP_P (jump_insn)
+	   && GET_CODE (XEXP (PATTERN (jump_insn), 1)) == IF_THEN_ELSE
+	   && (GET_CODE (XEXP (XEXP (PATTERN (jump_insn), 1), 0)) == NE
+	       ||GET_CODE (XEXP (XEXP (PATTERN (jump_insn), 1), 0)) == GT)))
+    return NULL;
+  else if (REG_P (condconst))
+    {
+      basic_block preheader_b = loop_preheader_edge (loop)->src;
+      if (!single_pred_p (preheader_b))
+	return NULL;
+      basic_block pre_loop_bb = single_pred (preheader_b);
+
+      rtx initial_compare = NULL_RTX;
+      if (!(prev_nonnote_nondebug_insn_bb (BB_END (pre_loop_bb))
+	    && INSN_P (prev_nonnote_nondebug_insn_bb (BB_END (pre_loop_bb)))))
+	return NULL;
+      else
+	initial_compare
+	    = single_set (prev_nonnote_nondebug_insn_bb (BB_END (pre_loop_bb)));
+      if (!(initial_compare
+	    && cc_register (SET_DEST (initial_compare), VOIDmode)
+	    && GET_CODE (SET_SRC (initial_compare)) == COMPARE
+	    && CONST_INT_P (XEXP (SET_SRC (initial_compare), 1))
+	    && INTVAL (XEXP (SET_SRC (initial_compare), 1)) == 0))
+	return NULL;
+
+      /* Usually this is a LE condition, but it can also just be a GT or an EQ
+	 condition (if the value is unsigned or the compiler knows its not negative)  */
+      rtx_insn *loop_jumpover = BB_END (pre_loop_bb);
+      if (!(JUMP_P (loop_jumpover)
+	    && GET_CODE (XEXP (PATTERN (loop_jumpover), 1)) == IF_THEN_ELSE
+	    && (GET_CODE (XEXP (XEXP (PATTERN (loop_jumpover), 1), 0)) == LE
+		|| GET_CODE (XEXP (XEXP (PATTERN (loop_jumpover), 1), 0)) == GT
+		|| GET_CODE (XEXP (XEXP (PATTERN (loop_jumpover), 1), 0)) == EQ)))
+	return NULL;
+    }
+
+  /* Everything looks valid.  */
+  return vctp_insn;
+}
+
+/* Function to check a loop's structure to see if it is a valid candidate for
+   an MVE Tail Predicated Low-Overhead Loop.  Returns the loop's VCTP_INSN if
+   it is valid, or NULL if it isn't.  */
+
+static rtx_insn*
+arm_mve_loop_valid_for_dlstp (loop *loop)
+{
+  /* Doloop can only be done "elementwise" with predicated dlstp/letp if it
+     contains a VCTP on the number of elements processed by the loop.
+     Find the VCTP predicate generation inside the loop body BB.  */
+  rtx_insn *vctp_insn = arm_mve_get_loop_vctp (loop->header);
+  if (!vctp_insn)
+    return NULL;
+
+  /* We only support two loop forms for tail predication:
+      DLSTP_TYPE_A) Loops of the form:
+	  int num_of_lanes = 128 / elem_size;
+	  while (num_of_elem > 0)
+	    {
+	      p = vctp<size> (num_of_elem);
+	      num_of_elem -= num_of_lanes;
+	    }
+      DLSTP_TYPE_B) Loops of the form:
+	  int num_of_lanes = 128 / elem_size;
+	  int num_of_iters = (num_of_elem + num_of_lanes - 1) / num_of_lanes;
+	  for (i = 0; i < num_of_iters; i++)
+	    {
+	      p = vctp<size> (num_of_elem);
+	      num_of_elem -= num_of_lanes;
+	    }
+
+    Then, depending on the type of loop above we need will need to do
+    different sets of checks.  */
+  iv_analysis_loop_init (loop);
+
+  /* In order to find out if the loop is of DLSTP_TYPE_A or DLSTP_TYPE_B above
+     look for the loop counter: it will either be incrementing by one per
+     iteration or it will be decrementing by num_of_lanes.  We can find the
+     loop counter in the condition at the end of the loop.  */
+  rtx_insn *loop_cond = prev_nonnote_nondebug_insn_bb (BB_END (loop->header));
+  if (!(cc_register (XEXP (PATTERN (loop_cond), 0), VOIDmode)
+	&& GET_CODE (XEXP (PATTERN (loop_cond), 1)) == COMPARE))
+    return NULL;
+
+  /* The operands in the condition:  Try to identify which one is the
+     constant and which is the counter and run IV analysis on the latter.  */
+  rtx cond_arg_1 = XEXP (XEXP (PATTERN (loop_cond), 1), 0);
+  rtx cond_arg_2 = XEXP (XEXP (PATTERN (loop_cond), 1), 1);
+
+  rtx loop_cond_constant;
+  rtx loop_counter;
+  class rtx_iv cond_counter_iv, cond_temp_iv;
+
+  if (CONST_INT_P (cond_arg_1))
+    {
+      /* cond_arg_1 is the constant and cond_arg_2 is the counter.  */
+      loop_cond_constant = cond_arg_1;
+      loop_counter = cond_arg_2;
+      iv_analyze (loop_cond, as_a<scalar_int_mode> (GET_MODE (cond_arg_2)),
+		  cond_arg_2, &cond_counter_iv);
+    }
+  else if (CONST_INT_P (cond_arg_2))
+    {
+      /* cond_arg_2 is the constant and cond_arg_1 is the counter.  */
+      loop_cond_constant = cond_arg_2;
+      loop_counter = cond_arg_1;
+      iv_analyze (loop_cond, as_a<scalar_int_mode> (GET_MODE (cond_arg_1)),
+		  cond_arg_1, &cond_counter_iv);
+    }
+  else if (REG_P (cond_arg_1) && REG_P (cond_arg_2))
+    {
+      /* If both operands to the compare are REGs, we can safely
+	 run IV analysis on both and then determine which is the
+	 constant by looking at the step.
+	 First assume cond_arg_1 is the counter.  */
+      loop_counter = cond_arg_1;
+      loop_cond_constant = cond_arg_2;
+      iv_analyze (loop_cond, as_a<scalar_int_mode> (GET_MODE (cond_arg_1)),
+		  cond_arg_1, &cond_counter_iv);
+      iv_analyze (loop_cond, as_a<scalar_int_mode> (GET_MODE (cond_arg_2)),
+		  cond_arg_2, &cond_temp_iv);
+
+      /* Look at the steps and swap around the rtx's if needed.  Error out if
+	 one of them cannot be identified as constant.  */
+      if (!CONST_INT_P (cond_counter_iv.step) || !CONST_INT_P (cond_temp_iv.step))
+	return NULL;
+      if (INTVAL (cond_counter_iv.step) != 0 && INTVAL (cond_temp_iv.step) != 0)
+	return NULL;
+      if (INTVAL (cond_counter_iv.step) == 0 && INTVAL (cond_temp_iv.step) != 0)
+	{
+	  loop_counter = cond_arg_2;
+	  loop_cond_constant = cond_arg_1;
+	  cond_counter_iv = cond_temp_iv;
+	}
+    }
+  else
+    return NULL;
+
+  if (!REG_P (loop_counter))
+    return NULL;
+  if (!(REG_P (loop_cond_constant) || CONST_INT_P (loop_cond_constant)))
+    return NULL;
+
+  /* Now we have extracted the IV step of the loop counter, call the
+     appropriate checking function.  */
+  if (INTVAL (cond_counter_iv.step) > 0)
+    return arm_mve_dlstp_check_inc_counter (loop, vctp_insn,
+					    loop_cond_constant, loop_counter);
+  else if (INTVAL (cond_counter_iv.step) < 0)
+    return arm_mve_dlstp_check_dec_counter (loop, vctp_insn,
+					    loop_cond_constant, loop_counter);
+  else
+    return NULL;
+}
+
+/* Predict whether the given loop in gimple will be transformed in the RTL
+   doloop_optimize pass.  It could be argued that turning large enough loops
+   into low-overhead loops would not show a signficant performance boost.
+   However, in the case of tail predication we would still avoid using VPT/VPST
+   instructions inside the loop, and in either case using low-overhead loops
+   would not be detrimental, so we decided to not consider size, avoiding the
+   need of a heuristic to determine what an appropriate size boundary is.  */
+
+static bool
+arm_predict_doloop_p (struct loop *loop)
+{
+  gcc_assert (loop);
+  /* On arm, targetm.can_use_doloop_p is actually
+     can_use_doloop_if_innermost.  Ensure the loop is innermost,
+     it is valid and as per arm_target_bb_ok_for_lob and the
+     correct architecture flags are enabled.  */
+  if (!(TARGET_HAVE_LOB && optimize > 0))
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	fprintf (dump_file, "Predict doloop failure due to"
+			    " target architecture or optimisation flags.\n");
+      return false;
+    }
+  else if (loop->inner != NULL)
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	fprintf (dump_file, "Predict doloop failure due to"
+			    " loop nesting.\n");
+      return false;
+    }
+  else if (!arm_target_bb_ok_for_lob (loop->header->next_bb))
+    {
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	fprintf (dump_file, "Predict doloop failure due to"
+			    " loop bb complexity.\n");
+      return false;
+    }
+  else
+    {
+      gimple_stmt_iterator gsi = gsi_after_labels (loop->header);
+      while (!gsi_end_p (gsi))
+	{
+	  if (is_gimple_call (gsi_stmt (gsi))
+	      && !gimple_call_builtin_p (gsi_stmt (gsi)))
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		fprintf (dump_file, "Predict doloop failure due to"
+				    " call in loop.\n");
+	      return false;
+	    }
+	  gsi_next (&gsi);
+	}
+    }
+
+  return true;
+}
+
+/* Implement targetm.loop_unroll_adjust.  Use this to block unrolling of loops
+   that may later be turned into MVE Tail Predicated Low Overhead Loops.  The
+   performance benefit of an MVE LoL is likely to be much higher than that of
+   the unrolling.  */
+
+unsigned
+arm_loop_unroll_adjust (unsigned nunroll, struct loop *loop)
+{
+  if (TARGET_HAVE_MVE
+      && arm_target_bb_ok_for_lob (loop->latch)
+      && arm_mve_loop_valid_for_dlstp (loop))
+    return 0;
+  else
+    return nunroll;
+}
+
+/* Function to hadle emitting a VPT-unpredicated version of a VPT-predicated
+   insn to a sequence.  */
+
+static bool
+arm_emit_mve_unpredicated_insn_to_seq (rtx_insn* insn)
+{
+  rtx insn_vpr_reg_operand = arm_get_required_vpr_reg_param (insn);
+  int new_icode = get_attr_mve_unpredicated_insn (insn);
+  if (!in_sequence_p ()
+      || !MVE_VPT_PREDICATED_INSN_P (insn)
+      || (!insn_vpr_reg_operand)
+      || (!new_icode))
+    return false;
+
+  extract_insn (insn);
+  rtx arr[8];
+  int j = 0;
+
+  /* When transforming a VPT-predicated instruction into its unpredicated
+     equivalent we need to drop the VPR operand and we may need to also drop a
+     merge "vuninit" input operand, depending on the instruction pattern.  Here
+     ensure that we have at most a two-operand difference between the two
+     instrunctions.  */
+  int n_operands_diff
+      = recog_data.n_operands - insn_data[new_icode].n_operands;
+  if (!(n_operands_diff > 0 && n_operands_diff <= 2))
+    return false;
+
+  rtx move = NULL_RTX;
+  /* Then, loop through the operands of the predicated
+     instruction, and retain the ones that map to the
+     unpredicated instruction.  */
+  for (int i = 0; i < recog_data.n_operands; i++)
+    {
+      /* Ignore the VPR and, if needed, the vuninit
+	 operand.  */
+      if (insn_vpr_reg_operand == recog_data.operand[i])
+	continue;
+      if (n_operands_diff == 2
+	  && !strcmp (recog_data.constraints[i], "0"))
+	{
+	  move = gen_rtx_SET (arr[0], recog_data.operand[i]);
+	  arr[0] = recog_data.operand[i];
+	}
+      else
+	arr[j++] = recog_data.operand[i];
+    }
+
+  /* Finally, emit the upredicated instruction.  */
+  rtx_insn *new_insn;
+  switch (j)
+    {
+      case 1:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0]));
+	break;
+      case 2:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0], arr[1]));
+	break;
+      case 3:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0], arr[1], arr[2]));
+	break;
+      case 4:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0], arr[1], arr[2],
+						   arr[3]));
+	break;
+      case 5:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0], arr[1], arr[2],
+						   arr[3], arr[4]));
+	break;
+      case 6:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0], arr[1], arr[2],
+						   arr[3], arr[4], arr[5]));
+	break;
+      case 7:
+	new_insn = emit_insn (GEN_FCN (new_icode) (arr[0], arr[1], arr[2],
+						   arr[3], arr[4], arr[5],
+						   arr[6]));
+	break;
+      default:
+	gcc_unreachable ();
+    }
+  INSN_LOCATION (new_insn) = INSN_LOCATION (insn);
+  if (move)
+    {
+      new_insn = emit_insn (move);
+      INSN_LOCATION (new_insn) = INSN_LOCATION (insn);
+    }
+  return true;
+}
+
+/* Return TRUE if INSN defines a MVE vector operand that has zeroed
+   tail-predicated lanes.  This is either true if:
+   * INSN is predicated by VCTP_VPR_GENERATED and the 'invalid lanes' operand
+     is in the PROPS_ZERO_SET,
+   * all MVE vector operands are in the PROPS_ZERO_SET
+*/
+
+static bool
+arm_mve_propagate_zero_pred_p (vec <rtx_insn *> *props_zero_set,
+			       rtx_insn *insn, rtx vctp_vpr_generated)
+{
+  if (arm_mve_load_store_insn_p (insn, DL_USAGE_READ))
+    return true;
+  if (arm_mve_load_store_insn_p (insn, DL_USAGE_WRITE))
+    return false;
+
+  int inactive_idx = -1;
+
+  extract_insn (insn);
+  /* If INSN is predicated by VCTP_VPR_GENERATED, then all tail-predicated
+     lanes will keep the value that is in the 'invalid lanes' register which we
+     identify by the "0" constraint, to ensure it is the same as the 'result'
+     register of this instruction.  */
+  if (arm_mve_insn_predicated_by (insn, vctp_vpr_generated))
+    {
+      for (int i = 0; i < recog_data.n_operands; i++)
+	{
+	  if (strcmp (recog_data.constraints[i], "0") == 0
+	      && VALID_MVE_MODE (GET_MODE (recog_data.operand[i])))
+	    {
+	      inactive_idx = i;
+	      break;
+	    }
+	}
+    }
+
+  if (inactive_idx > 0)
+    {
+      rtx op = recog_data.operand[inactive_idx];
+      rtx_insn *def_insn =  arm_last_vect_def_insn (op, insn);
+      return def_insn != NULL_RTX && props_zero_set->contains (def_insn);
+    }
+
+  /* If this instruction is not predicated by VCTP_VPR_GENERATED, then we must
+     check that all vector operands have zeroed tail-predicated lanes, and that
+     it has at least one vector operand.  */
+  bool at_least_one_vector = false;
+  df_ref insn_uses;
+  FOR_EACH_INSN_USE (insn_uses, insn)
+    {
+      rtx reg = DF_REF_REG (insn_uses);
+      if (!VALID_MVE_MODE (GET_MODE (reg)))
+	continue;
+
+      rtx_insn *def_insn = arm_last_vect_def_insn (reg, insn);
+      if (def_insn && props_zero_set->contains (def_insn))
+	at_least_one_vector |= true;
+      else
+	return false;
+
+    }
+  return at_least_one_vector;
+}
+
+
+/* Attempt to transform the loop contents of loop basic block from VPT
+   predicated insns into unpredicated insns for a dlstp/letp loop.  Returns
+   the number to decrement from the total number of elements each iteration.
+   Returns 1 if tail predication can not be performed and fallback to scalar
+   low-overhead loops.  */
+
+int
+arm_attempt_dlstp_transform (rtx label)
+{
+  if (!dlstp_enabled)
+    return 1;
+
+  basic_block body = single_succ (BLOCK_FOR_INSN (label));
+
+  /* Ensure that the bb is within a loop that has all required metadata.  */
+  if (!body->loop_father || !body->loop_father->header
+      || !body->loop_father->simple_loop_desc)
+    return 1;
+
+  loop *loop = body->loop_father;
+  /* Instruction that sets the predicate mask depending on how many elements
+     are left to process.  */
+  rtx_insn *vctp_insn = arm_mve_loop_valid_for_dlstp (loop);
+  if (!vctp_insn)
+    return 1;
+
+  gcc_assert (single_set (vctp_insn));
+
+  rtx vctp_vpr_generated = single_set (vctp_insn);
+  if (!vctp_vpr_generated)
+    return 1;
+
+  vctp_vpr_generated = SET_DEST (vctp_vpr_generated);
+
+  if (!vctp_vpr_generated || !REG_P (vctp_vpr_generated)
+      || !VALID_MVE_PRED_MODE (GET_MODE (vctp_vpr_generated)))
+    return 1;
+
+  /* decrementunum is already known to be valid at this point.  */
+  int decrementnum = arm_mve_get_vctp_lanes (vctp_insn);
+
+  rtx_insn *insn = 0;
+  rtx_insn *cur_insn = 0;
+  rtx_insn *seq;
+  auto_vec <rtx_insn *> props_zero_set;
+
+  /* Scan through the insns in the loop bb and emit the transformed bb
+     insns to a sequence.  */
+  start_sequence ();
+  FOR_BB_INSNS (body, insn)
+    {
+      if (GET_CODE (insn) == CODE_LABEL || NOTE_INSN_BASIC_BLOCK_P (insn))
+	continue;
+      else if (NOTE_P (insn))
+	emit_note ((enum insn_note)NOTE_KIND (insn));
+      else if (DEBUG_INSN_P (insn))
+	emit_debug_insn (PATTERN (insn));
+      else if (!INSN_P (insn))
+	{
+	  end_sequence ();
+	  return 1;
+	}
+      /* If the transformation is successful we no longer need the vctp
+	 instruction.  */
+      else if (insn == vctp_insn)
+	continue;
+      /* If the insn pattern requires the use of the VPR value from the
+	 vctp as an input parameter for predication.  */
+      else if (arm_mve_insn_predicated_by (insn, vctp_vpr_generated))
+	{
+	  /* Check whether this INSN propagates the zeroed tail-predication
+	     lanes.  */
+	  if (arm_mve_propagate_zero_pred_p (&props_zero_set, insn,
+					     vctp_vpr_generated))
+	    props_zero_set.safe_push (insn);
+	  bool success = arm_emit_mve_unpredicated_insn_to_seq (insn);
+	  if (!success)
+	    {
+	      end_sequence ();
+	      return 1;
+	    }
+	}
+      /* If the insn isn't VPT predicated on vctp_vpr_generated, we need to
+	 make sure that it is still valid within the dlstp/letp loop.  */
+      else
+	{
+	  /* If this instruction USE-s the vctp_vpr_generated other than for
+	     predication, this blocks the transformation as we are not allowed
+	     to optimise the VPR value away.  */
+	  df_ref insn_uses = NULL;
+	  FOR_EACH_INSN_USE (insn_uses, insn)
+	  {
+	    if (reg_overlap_mentioned_p (vctp_vpr_generated,
+					 DF_REF_REG (insn_uses)))
+	      {
+		end_sequence ();
+		return 1;
+	      }
+	  }
+	  /* If within the loop we have an MVE vector instruction that is
+	     unpredicated, the dlstp/letp looping will add implicit
+	     predication to it.  This will result in a change in behaviour
+	     of the instruction, so we need to find out if any instructions
+	     that feed into the current instruction were implicitly
+	     predicated.  */
+	  if (MVE_VPT_PREDICABLE_INSN_P (insn)
+	      && !arm_mve_impl_predicated_p (&props_zero_set, insn,
+					     vctp_vpr_generated))
+	    {
+	      end_sequence ();
+	      return 1;
+	    }
+	  emit_insn (PATTERN (insn));
+	}
+    }
+  seq = get_insns ();
+  end_sequence ();
+
+  /* Re-write the entire BB contents with the transformed
+     sequence.  */
+  FOR_BB_INSNS_SAFE (body, insn, cur_insn)
+    if (!(GET_CODE (insn) == CODE_LABEL || NOTE_INSN_BASIC_BLOCK_P (insn)))
+      delete_insn (insn);
+
+  emit_insn_after (seq, BB_END (body));
+
+  /* The transformation has succeeded, so now modify the "count"
+     (a.k.a. niter_expr) for the middle-end.  Also set noloop_assumptions
+     to NULL to stop the middle-end from making assumptions about the
+     number of iterations.  */
+  simple_loop_desc (body->loop_father)->niter_expr
+    = XVECEXP (SET_SRC (PATTERN (vctp_insn)), 0, 0);
+  simple_loop_desc (body->loop_father)->noloop_assumptions = NULL_RTX;
+  return decrementnum;
 }
 
 #if CHECKING_P
@@ -34709,6 +36185,9 @@ arm_mode_base_reg_class (machine_mode mode)
   return MODE_BASE_REG_REG_CLASS (mode);
 }
 
+#undef TARGET_DOCUMENTATION_NAME
+#define TARGET_DOCUMENTATION_NAME "ARM"
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 /* Implement TARGET_VECTORIZE_GET_MASK_MODE.  */
@@ -34720,6 +36199,143 @@ arm_get_mask_mode (machine_mode mode)
     return arm_mode_to_pred_mode (mode);
 
   return default_get_mask_mode (mode);
+}
+
+/* Helper function to determine whether SEQ represents a sequence of
+   instructions representing the vsel<cond> floating point instructions.
+   This is an heuristic to check whether the proposed optimisation is desired,
+   the choice has no consequence for correctness.  */
+static bool
+arm_is_vsel_fp_insn (rtx_insn *seq)
+{
+  rtx_insn *curr_insn = seq;
+  rtx set = NULL_RTX;
+  /* The pattern may start with a simple set with register operands.  Skip
+     through any of those.  */
+  while (curr_insn)
+    {
+      set = single_set (curr_insn);
+      if (!set
+	  || !REG_P (SET_DEST (set)))
+	return false;
+
+      if (!REG_P (SET_SRC (set)))
+	break;
+      curr_insn = NEXT_INSN (curr_insn);
+    }
+
+  if (!set)
+    return false;
+
+  /* The next instruction should be a compare.  */
+  if (!REG_P (SET_DEST (set))
+      || GET_CODE (SET_SRC (set)) != COMPARE)
+    return false;
+
+  curr_insn = NEXT_INSN (curr_insn);
+  if (!curr_insn)
+    return false;
+
+  /* And the last instruction should be an IF_THEN_ELSE.  */
+  set = single_set (curr_insn);
+  if (!set
+      || !REG_P (SET_DEST (set))
+      || GET_CODE (SET_SRC (set)) != IF_THEN_ELSE)
+    return false;
+
+  return !NEXT_INSN (curr_insn);
+}
+
+
+/* Helper function to determine whether SEQ represents a sequence of
+   instructions representing the Armv8.1-M Mainline conditional arithmetic
+   instructions: csinc, csneg and csinv. The cinc instruction is generated
+   using a different mechanism.
+   This is an heuristic to check whether the proposed optimisation is desired,
+   the choice has no consequence for correctness.  */
+
+static bool
+arm_is_v81m_cond_insn (rtx_insn *seq)
+{
+  rtx_insn *curr_insn = seq;
+  rtx set = NULL_RTX;
+  /* The pattern may start with a simple set with register operands.  Skip
+     through any of those.  */
+  while (curr_insn)
+    {
+      set = single_set (curr_insn);
+      if (!set
+	  || !REG_P (SET_DEST (set)))
+	return false;
+
+      if (!REG_P (SET_SRC (set)))
+	break;
+      curr_insn = NEXT_INSN (curr_insn);
+    }
+
+  if (!set)
+    return false;
+
+  /* The next instruction should be one of:
+     NEG: for csneg,
+     PLUS: for csinc,
+     NOT: for csinv.  */
+  if (GET_CODE (SET_SRC (set)) != NEG
+      && GET_CODE (SET_SRC (set)) != PLUS
+      && GET_CODE (SET_SRC (set)) != NOT)
+    return false;
+
+  curr_insn = NEXT_INSN (curr_insn);
+  if (!curr_insn)
+    return false;
+
+  /* The next instruction should be a COMPARE.  */
+  set = single_set (curr_insn);
+  if (!set
+      || !REG_P (SET_DEST (set))
+      || GET_CODE (SET_SRC (set)) != COMPARE)
+    return false;
+
+  curr_insn = NEXT_INSN (curr_insn);
+  if (!curr_insn)
+    return false;
+
+  /* And the last instruction should be an IF_THEN_ELSE.  */
+  set = single_set (curr_insn);
+  if (!set
+      || !REG_P (SET_DEST (set))
+      || GET_CODE (SET_SRC (set)) != IF_THEN_ELSE)
+    return false;
+
+  return !NEXT_INSN (curr_insn);
+}
+
+/* For Armv8.1-M Mainline we have both conditional execution through IT blocks,
+   as well as conditional arithmetic instructions controlled by
+   TARGET_COND_ARITH.  To generate the latter we rely on a special part of the
+   "ce" pass that generates code for targets that don't support conditional
+   execution of general instructions known as "noce".  These transformations
+   happen before 'reload_completed'.  However, "noce" also triggers for some
+   unwanted patterns [PR 116444] that prevent "ce" optimisations after reload.
+   To make sure we can get both we use the TARGET_NOCE_CONVERSION_PROFITABLE_P
+   hook to only allow "noce" to generate the patterns that are profitable.  */
+
+bool
+arm_noce_conversion_profitable_p (rtx_insn *seq, struct noce_if_info *if_info)
+{
+  if (!TARGET_COND_ARITH
+      || reload_completed)
+    return default_noce_conversion_profitable_p (seq, if_info);
+
+  if (arm_is_v81m_cond_insn (seq))
+    return true;
+
+  /* Look for vsel<cond> opportunities as we still want to codegen these for
+     Armv8.1-M Mainline targets.  */
+  if (arm_is_vsel_fp_insn (seq))
+    return true;
+
+  return false;
 }
 
 /* Output assembly to read the thread pointer from the appropriate TPIDR
@@ -34750,6 +36366,20 @@ arm_output_load_tpidr (rtx dst, bool pred_p)
 	    pred_p ? "%?" : "", tpidr_coproc_num);
   output_asm_insn (buf, &dst);
   return "";
+}
+
+/* Return the MVE vector mode that has NUNITS elements of mode INNER_MODE.  */
+opt_machine_mode
+arm_mve_data_mode (scalar_mode inner_mode, poly_uint64 nunits)
+{
+  enum mode_class mclass
+    = (SCALAR_FLOAT_MODE_P (inner_mode) ? MODE_VECTOR_FLOAT : MODE_VECTOR_INT);
+  machine_mode mode;
+  FOR_EACH_MODE_IN_CLASS (mode, mclass)
+    if (inner_mode == GET_MODE_INNER (mode)
+	&& known_eq (nunits, GET_MODE_NUNITS (mode)))
+      return mode;
+  return opt_machine_mode ();
 }
 
 #include "gt-arm.h"

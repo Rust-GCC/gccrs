@@ -346,31 +346,6 @@ mips*-*-*)
     [libgcc_cv_mips_hard_float=no])])
 esac
 
-case ${host} in
-*-*-solaris2*)
-  # Check for system-provided CRTs on Solaris 11.4.
-  AC_CACHE_CHECK([system-provided CRTs on Solaris],
-    		 [libgcc_cv_solaris_crts],
-    [libgcc_cv_solaris_crts=no
-     libgcc_sysroot="`${CC} -print-sysroot`"
-     libgcc_libdir="$libgcc_sysroot/usr/lib"
-     # At the time they were added, gcrt1.o became a symlink for backwards
-     # compatibility on x86, while crt1.o was added on sparc, so check for that.
-     case ${host} in
-       i?86-*-solaris2* | x86_64-*-solaris2*)
-         if test -h "$libgcc_libdir/gcrt1.o"; then libgcc_cv_solaris_crts=yes; fi
-	 ;;
-       sparc*-*-solaris2*)
-         if test -f "$libgcc_libdir/crt1.o"; then libgcc_cv_solaris_crts=yes; fi
-	 ;;
-     esac])
-  if test $libgcc_cv_solaris_crts = yes; then
-    AC_DEFINE(HAVE_SOLARIS_CRTS, 1,
-      [Define if the system-provided CRTs are present on Solaris.])
-  fi
-  ;;
-esac
-
 # Determine the version of glibc, if any, used on the target.
 AC_MSG_CHECKING([for target glibc version])
 AC_ARG_WITH([glibc-version],
@@ -506,7 +481,8 @@ AC_SUBST(accel_dir_suffix)
 AC_SUBST(real_host_noncanonical)
 
 if test x"$enable_offload_targets" != x; then
-  extra_parts="${extra_parts} crtoffloadbegin.o crtoffloadend.o crtoffloadtable.o"
+  extra_parts="${extra_parts} crtoffloadbegin.o crtoffloadend.o"
+  extra_parts="${extra_parts} crtoffloadtable.o crtoffloadtableS.o"
 fi
 
 # Check if Solaris/x86 linker supports ZERO terminator unwind entries.
@@ -752,6 +728,7 @@ AC_SUBST(extra_parts)
 AC_SUBST(asm_hidden_op)
 AC_SUBST(enable_execute_stack)
 AC_SUBST(unwind_header)
+AC_SUBST(md_unwind_def_header)
 AC_SUBST(md_unwind_header)
 AC_SUBST(sfp_machine_header)
 AC_SUBST(thread_header)

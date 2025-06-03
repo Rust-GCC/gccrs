@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2024, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2025, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,11 +31,13 @@
 
 with Ada.Exceptions;
 
+with System.Soft_Links;
 with System.Tasking;
 with System.Task_Primitives.Operations;
 
 package body Ada.Real_Time.Delays is
 
+   package SSL  renames System.Soft_Links;
    package STPO renames System.Task_Primitives.Operations;
 
    ----------------
@@ -62,7 +64,9 @@ package body Ada.Real_Time.Delays is
          Ada.Exceptions.Raise_Exception
            (Program_Error'Identity, "potentially blocking operation");
       else
+         SSL.Abort_Defer.all;
          STPO.Timed_Delay (Self_Id, To_Duration (T), Absolute_RT);
+         SSL.Abort_Undefer.all;
       end if;
    end Delay_Until;
 

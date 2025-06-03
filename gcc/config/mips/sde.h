@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.
    MIPS SDE version.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -45,7 +45,7 @@ along with GCC; see the file COPYING3.  If not see
   "%{!EB:%{!EL:%(endian_spec)}}",					\
 									\
   /* Configuration-independent MIPS rules.  */				\
-  BASE_DRIVER_SELF_SPECS				
+  BASE_DRIVER_SELF_SPECS
 
 /* Use trap rather than break for all but MIPS I ISA.  Force -no-mips16,
    so that MIPS16 assembler code requires an explicit ".set mips16".

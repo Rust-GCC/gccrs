@@ -1,7 +1,7 @@
 # @configure_input@
 # Makefile for libcpp.  Run 'configure' to generate Makefile from Makefile.in
 
-# Copyright (C) 2004-2024 Free Software Foundation, Inc.
+# Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 #This file is part of libcpp.
 
@@ -263,7 +263,7 @@ po/$(PACKAGE).pot: $(libcpp_a_SOURCES)
 	  --keyword=SYNTAX_ERROR --keyword=SYNTAX_ERROR2 \
 	  --copyright-holder="Free Software Foundation, Inc." \
 	  --msgid-bugs-address="https://gcc.gnu.org/bugs/" \
-	  --language=c -o po/$(PACKAGE).pot.tmp $^
+	  --language=GCC-source -o po/$(PACKAGE).pot.tmp $^
 	sed 's:$(srcdir)/::g' <po/$(PACKAGE).pot.tmp >po/$(PACKAGE).pot
 	rm po/$(PACKAGE).pot.tmp
 
@@ -271,7 +271,7 @@ ETAGS = @ETAGS@
 
 TAGS_SOURCES = $(libcpp_a_SOURCES) internal.h system.h ucnid.h \
     include/cpplib.h include/line-map.h include/mkdeps.h include/symtab.h \
-    include/rich-location.h
+    include/rich-location.h include/label-text.h
 
 
 TAGS: $(TAGS_SOURCES)

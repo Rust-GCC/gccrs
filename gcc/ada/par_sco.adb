@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2009-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2009-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1696,18 +1696,9 @@ package body Par_SCO is
          C1 : Character;
 
       begin
-         if not Has_Aspects (N) then
-            return;
-         end if;
-
          AN := First (Aspect_Specifications (N));
          while Present (AN) loop
             AE := Expression (AN);
-
-            --  SCOs are generated before semantic analysis/expansion:
-            --  PPCs are not split yet.
-
-            pragma Assert (not Split_PPC (AN));
 
             C1 := ASCII.NUL;
 
@@ -2419,7 +2410,9 @@ package body Par_SCO is
                end if;
          end case;
 
-         Traverse_Aspects (N);
+         if Permits_Aspect_Specifications (N) then
+            Traverse_Aspects (N);
+         end if;
       end Traverse_One;
 
    --  Start of processing for Traverse_Declarations_Or_Statements

@@ -1,6 +1,6 @@
 // Deque implementation (out of line) -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -200,8 +200,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    return __tmp;
 	  }
 	else
-	  return _M_insert_aux(__position._M_const_cast(),
-			       std::forward<_Args>(__args)...);
+	  return _M_emplace_aux(__position._M_const_cast(),
+				std::forward<_Args>(__args)...);
       }
 #endif
 
@@ -584,6 +584,51 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     }
 
   template <typename _Tp, typename _Alloc>
+    template <typename _InputIterator, typename _Sentinel>
+      void
+      deque<_Tp, _Alloc>::
+      _M_range_prepend(_InputIterator __first, _Sentinel __last,
+		      size_type __n)
+      {
+	 iterator __new_start = _M_reserve_elements_at_front(__n);
+	 __try
+	   {
+	     std::__uninitialized_copy_a(_GLIBCXX_MOVE(__first), __last,
+					 __new_start, _M_get_Tp_allocator());
+	     this->_M_impl._M_start = __new_start;
+	   }
+	 __catch(...)
+	   {
+	     _M_destroy_nodes(__new_start._M_node,
+			      this->_M_impl._M_start._M_node);
+	     __throw_exception_again;
+	   }
+      }
+
+  template <typename _Tp, typename _Alloc>
+    template <typename _InputIterator, typename _Sentinel>
+      void
+      deque<_Tp, _Alloc>::
+      _M_range_append(_InputIterator __first, _Sentinel __last,
+		      size_type __n)
+     {
+       iterator __new_finish = _M_reserve_elements_at_back(__n);
+       __try
+	{
+	  std::__uninitialized_copy_a(_GLIBCXX_MOVE(__first), __last,
+				      this->_M_impl._M_finish,
+				      _M_get_Tp_allocator());
+	  this->_M_impl._M_finish = __new_finish;
+	}
+      __catch(...)
+	{
+	  _M_destroy_nodes(this->_M_impl._M_finish._M_node + 1,
+			   __new_finish._M_node + 1);
+	  __throw_exception_again;
+	}
+     }
+
+  template <typename _Tp, typename _Alloc>
     template <typename _InputIterator>
       void
       deque<_Tp, _Alloc>::
@@ -601,39 +646,13 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 			  std::forward_iterator_tag)
       {
 	const size_type __n = std::distance(__first, __last);
+	if (__builtin_expect(__n == 0, 0))
+	  return;
+
 	if (__pos._M_cur == this->_M_impl._M_start._M_cur)
-	  {
-	    iterator __new_start = _M_reserve_elements_at_front(__n);
-	    __try
-	      {
-		std::__uninitialized_copy_a(__first, __last, __new_start,
-					    _M_get_Tp_allocator());
-		this->_M_impl._M_start = __new_start;
-	      }
-	    __catch(...)
-	      {
-		_M_destroy_nodes(__new_start._M_node,
-				 this->_M_impl._M_start._M_node);
-		__throw_exception_again;
-	      }
-	  }
+	  _M_range_prepend(__first, __last, __n);
 	else if (__pos._M_cur == this->_M_impl._M_finish._M_cur)
-	  {
-	    iterator __new_finish = _M_reserve_elements_at_back(__n);
-	    __try
-	      {
-		std::__uninitialized_copy_a(__first, __last,
-					    this->_M_impl._M_finish,
-					    _M_get_Tp_allocator());
-		this->_M_impl._M_finish = __new_finish;
-	      }
-	    __catch(...)
-	      {
-		_M_destroy_nodes(this->_M_impl._M_finish._M_node + 1,
-				 __new_finish._M_node + 1);
-		__throw_exception_again;
-	      }
-	  }
+	  _M_range_append(__first, __last, __n);
 	else
 	  _M_insert_aux(__pos, __first, __last, __n);
       }
@@ -643,7 +662,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     template<typename... _Args>
       typename deque<_Tp, _Alloc>::iterator
       deque<_Tp, _Alloc>::
-      _M_insert_aux(iterator __pos, _Args&&... __args)
+      _M_emplace_aux(iterator __pos, _Args&&... __args)
       {
 	value_type __x_copy(std::forward<_Args>(__args)...); // XXX copy
 #else
@@ -854,6 +873,157 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	}
       }
 
+#if __glibcxx_containers_ranges // C++ >= 23
+  template<ranges::forward_range _Rg>
+    auto __advance_dist(_Rg& __rg)
+    {
+      struct _Res
+	{
+	  ranges::iterator_t<_Rg> __last;
+	  ranges::range_difference_t<_Rg> __size;
+	};
+      if constexpr (ranges::common_range<_Rg>)
+	return _Res{ranges::end(__rg), ranges::distance(__rg)};
+      else if constexpr (ranges::sized_range<_Rg>)
+	{
+	  auto const __n = ranges::distance(__rg);
+	  auto __it = ranges::begin(__rg);
+	  if constexpr (ranges::random_access_range<_Rg>)
+	    __it += __n;
+	  else
+	    ranges::advance(__it, ranges::end(__rg));
+	  return _Res{__it, __n};
+	}
+      else
+	{
+	  auto __it = ranges::begin(__rg);
+	  auto const __last = ranges::end(__rg);
+	  ranges::range_difference_t<_Rg> __n(0);
+	  for (; __it != __last; ++__it)
+	    ++__n;
+	  return _Res{__it, __n};
+	}
+    }
+
+  template<typename _Tp, typename _Alloc>
+    template<__detail::__container_compatible_range<_Tp> _Rg>
+      auto
+      deque<_Tp, _Alloc>::
+      insert_range(const_iterator __pos, _Rg&& __rg)
+      -> iterator
+      {
+	if (__pos == cend())
+	  {
+	    const auto __ins_idx = size();
+	    append_range(std::forward<_Rg>(__rg));
+	    return begin() + __ins_idx;
+	  }
+
+	if (__pos == cbegin())
+	  {
+	    prepend_range(std::forward<_Rg>(__rg));
+	    return begin();
+	  }
+
+	const auto __ins_idx = __pos - cbegin();
+	if constexpr (ranges::forward_range<_Rg>)
+	  {
+	    auto [__last, __n] = __advance_dist(__rg);
+	    if (__n != 0) [[likely]]
+	      _M_insert_aux(__pos._M_const_cast(),
+			    ranges::begin(__rg), __last,
+			    __n);
+	  }
+	else
+	  {
+	    auto __first = ranges::begin(__rg);
+	    const auto __last = ranges::end(__rg);
+	    for (auto __it = __pos._M_const_cast(); __first != __last;
+		 (void)++__first, ++__it)
+	      __it = _M_emplace_aux(__it, *__first);
+	  }
+	return begin() + __ins_idx;
+      }
+
+   template<typename _Tp, typename _Alloc>
+     template<__detail::__container_compatible_range<_Tp> _Rg>
+       void
+       deque<_Tp, _Alloc>::
+       prepend_range(_Rg&& __rg)
+       {
+	 if (empty())
+	   append_range(std::forward<_Rg>(__rg));
+	 else if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
+	   {
+	     const size_type __n(ranges::distance(__rg));
+	     if (__n != 0) [[likely]]
+	       _M_range_prepend(ranges::begin(__rg), ranges::end(__rg), __n);
+	   }
+	 else
+	   {
+	     struct _Guard_elts_front
+	       {
+		 deque& __self;
+		 size_type __n = 0;
+
+		 ~_Guard_elts_front()
+		   {
+		     if (__n > 0)
+		       __self._M_erase_at_begin(__self.begin() + __n);
+		   }
+	       };
+
+	     _Guard_elts_front __guard{*this};
+	     auto __first = ranges::begin(__rg);
+	     const auto __last = ranges::end(__rg);
+	     for (; __first != __last; (void)++__first, ++__guard.__n)
+	       emplace_front(*__first);
+
+	     for (auto __fins = begin(), __lins = begin() + __guard.__n;
+		  __fins != __lins && __fins != --__lins; ++__fins)
+	       std::iter_swap(__fins, __lins);
+
+	     __guard.__n = 0;
+	   }
+       }
+
+   template<typename _Tp, typename _Alloc>
+     template<__detail::__container_compatible_range<_Tp> _Rg>
+       void
+       deque<_Tp, _Alloc>::
+       append_range(_Rg&& __rg)
+       {
+	 if constexpr (ranges::forward_range<_Rg> || ranges::sized_range<_Rg>)
+	   {
+	     const size_type __n(ranges::distance(__rg));
+	     if (__n != 0) [[likely]]
+	       _M_range_append(ranges::begin(__rg), ranges::end(__rg), __n);
+	   }
+	 else
+	   {
+	     struct _Guard_elts_back
+	       {
+		 deque& __self;
+		 size_type __n = __self.size();
+
+		 ~_Guard_elts_back()
+		   {
+		     if (__n < __self.size())
+		       __self._M_erase_at_end(__self.begin() + __n);
+		   }
+	       };
+
+	     _Guard_elts_back __guard{*this};
+	     auto __first = ranges::begin(__rg);
+	     const auto __last = ranges::end(__rg);
+	     for (; __first != __last; (void)++__first)
+	       emplace_back(*__first);
+
+	     __guard.__n = size();
+	   }
+	}
+#endif // containers_ranges
+
    template<typename _Tp, typename _Alloc>
      void
      deque<_Tp, _Alloc>::
@@ -955,6 +1125,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  size_type __new_map_size = this->_M_impl._M_map_size
 				     + std::max(this->_M_impl._M_map_size,
 						__nodes_to_add) + 2;
+
+	  const size_t __bufsz = __deque_buf_size(sizeof(_Tp));
+	  if (__new_map_size > ((max_size() + __bufsz - 1) / __bufsz) * 2)
+	    __builtin_unreachable();
 
 	  _Map_pointer __new_map = this->_M_allocate_map(__new_map_size);
 	  __new_nstart = __new_map + (__new_map_size - __new_num_nodes) / 2
@@ -1271,18 +1445,21 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
 	_GLIBCXX_STD_C::_Deque_iterator<_Tp1, _Ref, _Ptr> __last1,
 	const _Tp2* __first2, const _Tp2* __last2)
     {
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__is_pointer)
       const bool __simple =
 	(__is_memcmp_ordered_with<_Tp1, _Tp2>::__value
-	 && __is_pointer<_Ptr>::__value
+	 && __is_pointer(_Ptr)
 #if __cplusplus > 201703L && __cpp_lib_concepts
 	 // For C++20 iterator_traits<volatile T*>::value_type is non-volatile
 	 // so __is_byte<T> could be true, but we can't use memcmp with
 	 // volatile data.
-	 && !is_volatile_v<_Tp1>
-	 && !is_volatile_v<_Tp2>
+	 && !is_volatile_v<_Tp1> && !is_volatile_v<_Tp2>
 #endif
 	 );
       typedef std::__lexicographical_compare<__simple> _Lc;
+#else
+      typedef std::__lexicographical_compare<false> _Lc;
+#endif
 
       while (__first1._M_node != __last1._M_node)
 	{
@@ -1327,19 +1504,21 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
 		_GLIBCXX_STD_C::_Deque_iterator<_Tp2, _Ref2, _Ptr2> __first2,
 		_GLIBCXX_STD_C::_Deque_iterator<_Tp2, _Ref2, _Ptr2> __last2)
     {
+#if _GLIBCXX_USE_BUILTIN_TRAIT(__is_pointer)
       const bool __simple =
 	(__is_memcmp_ordered_with<_Tp1, _Tp2>::__value
-	 && __is_pointer<_Ptr1>::__value
-	 && __is_pointer<_Ptr2>::__value
+	 && __is_pointer(_Ptr1) && __is_pointer(_Ptr2)
 #if __cplusplus > 201703L && __cpp_lib_concepts
 	 // For C++20 iterator_traits<volatile T*>::value_type is non-volatile
 	 // so __is_byte<T> could be true, but we can't use memcmp with
 	 // volatile data.
-	 && !is_volatile_v<_Tp1>
-	 && !is_volatile_v<_Tp2>
+	 && !is_volatile_v<_Tp1> && !is_volatile_v<_Tp2>
 #endif
 	 );
       typedef std::__lexicographical_compare<__simple> _Lc;
+#else
+      typedef std::__lexicographical_compare<false> _Lc;
+#endif
 
       while (__first1 != __last1)
 	{

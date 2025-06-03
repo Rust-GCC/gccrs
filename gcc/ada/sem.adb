@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -248,6 +248,12 @@ package body Sem is
 
          when N_Extension_Aggregate =>
             Analyze_Aggregate (N);
+
+         --  The expansion of the External_Initialization aspect creates fully
+         --  analyzed N_External_Initializer nodes.
+
+         when N_External_Initializer =>
+            null;
 
          when N_Formal_Object_Declaration =>
             Analyze_Formal_Object_Declaration (N);
@@ -607,9 +613,6 @@ package body Sem is
          when N_Type_Conversion =>
             Analyze_Type_Conversion (N);
 
-         when N_Unchecked_Expression =>
-            Analyze_Unchecked_Expression (N);
-
          when N_Unchecked_Type_Conversion =>
             Analyze_Unchecked_Type_Conversion (N);
 
@@ -677,15 +680,6 @@ package body Sem is
          =>
             null;
 
-         --  A quantified expression with a missing "all" or "some" qualifier
-         --  looks identical to an iterated component association. By language
-         --  definition, the latter must be present within array aggregates. If
-         --  this is not the case, then the iterated component association is
-         --  really an illegal quantified expression. Diagnose this scenario.
-
-         when N_Iterated_Component_Association =>
-            Diagnose_Iterated_Component_Association (N);
-
          when N_Iterated_Element_Association =>
             null;   --  May require a more precise error if misplaced.
 
@@ -739,6 +733,7 @@ package body Sem is
             | N_Function_Specification
             | N_Generic_Association
             | N_Index_Or_Discriminant_Constraint
+            | N_Iterated_Component_Association
             | N_Iteration_Scheme
             | N_Mod_Clause
             | N_Modular_Type_Definition
@@ -1343,13 +1338,22 @@ package body Sem is
       Scope_Stack.Locked := True;
    end Lock;
 
+   ---------------------------
+   -- In_Strict_Preanalysis --
+   ---------------------------
+
+   function In_Strict_Preanalysis return Boolean is
+   begin
+      return Preanalysis_Active and then not In_Spec_Expression;
+   end In_Strict_Preanalysis;
+
    ------------------------
    -- Preanalysis_Active --
    ------------------------
 
    function Preanalysis_Active return Boolean is
    begin
-      return not Full_Analysis and not Expander_Active;
+      return not Full_Analysis and then not Expander_Active;
    end Preanalysis_Active;
 
    ----------------
@@ -1524,7 +1528,7 @@ package body Sem is
          Curunit = Main_Unit
            or else
              (Nkind (Unit (Cunit (Main_Unit))) = N_Package_Body
-               and then Library_Unit (Cunit (Main_Unit)) = Cunit (Curunit));
+               and then Spec_Lib_Unit (Cunit (Main_Unit)) = Cunit (Curunit));
       --  Configuration flags have special settings when compiling a predefined
       --  file as a main unit. This applies to its spec as well.
 
@@ -1541,18 +1545,9 @@ package body Sem is
       --  unit. All with'ed units are analyzed with config restrictions reset
       --  and we need to restore these saved values at the end.
 
-      Save_Preanalysis_Counter : constant Nat :=
-                                   Inside_Preanalysis_Without_Freezing;
-      --  Saves the preanalysis nesting-level counter; required since we may
-      --  need to analyze a unit as a consequence of the preanalysis of an
-      --  expression without freezing (and the loaded unit must be fully
-      --  analyzed).
-
    --  Start of processing for Semantics
 
    begin
-      Inside_Preanalysis_Without_Freezing := 0;
-
       if Debug_Unit_Walk then
          if Already_Analyzed then
             Write_Str ("(done)");
@@ -1727,8 +1722,6 @@ package body Sem is
             Unit (Comp_Unit),
             Prefix => "<-- ");
       end if;
-
-      Inside_Preanalysis_Without_Freezing := Save_Preanalysis_Counter;
    end Semantics;
 
    --------
@@ -1835,8 +1828,8 @@ package body Sem is
 
          while Present (CL) loop
             if Nkind (CL) = N_With_Clause
-              and then Library_Unit (CL) = Main_CU
-              and then not Done (Get_Cunit_Unit_Number (Library_Unit (CL)))
+              and then Withed_Lib_Unit (CL) = Main_CU
+              and then not Done (Get_Cunit_Unit_Number (Withed_Lib_Unit (CL)))
             then
                return True;
             end if;
@@ -2019,9 +2012,9 @@ package body Sem is
 
          if Nkind (Unit (Withed_Unit)) = N_Package_Body
            and then Is_Generic_Instance
-                      (Defining_Entity (Unit (Library_Unit (Withed_Unit))))
+                      (Defining_Entity (Unit (Spec_Lib_Unit (Withed_Unit))))
          then
-            Do_Withed_Unit (Library_Unit (Withed_Unit));
+            Do_Withed_Unit (Spec_Lib_Unit (Withed_Unit));
          end if;
       end Do_Withed_Unit;
 
@@ -2056,7 +2049,7 @@ package body Sem is
                else
                   Seen (Unit_Num) := True;
 
-                  if CU = Library_Unit (Main_CU) then
+                  if CU = Spec_Or_Body_Lib_Unit (Main_CU) then
                      Process_Bodies_In_Context (CU);
 
                      --  If main is a child unit, examine parent unit contexts
@@ -2116,28 +2109,33 @@ package body Sem is
          Clause := First (Context_Items (Comp));
          while Present (Clause) loop
             if Nkind (Clause) = N_With_Clause then
-               Spec := Library_Unit (Clause);
-               Body_CU := Library_Unit (Spec);
-
-               --  If we are processing the spec of the main unit, load bodies
-               --  only if the with_clause indicates that it forced the loading
-               --  of the body for a generic instantiation. Note that bodies of
-               --  parents that are instances have been loaded already.
-
-               if Present (Body_CU)
-                 and then Body_CU /= Main_CU
-                 and then Nkind (Unit (Body_CU)) /= N_Subprogram_Body
-                 and then Nkind (Unit (Comp)) /= N_Package_Declaration
+               Spec := Withed_Lib_Unit (Clause);
+               if Unit (Spec) in N_Lib_Unit_Declaration_Id
+                               | N_Lib_Unit_Renaming_Declaration_Id
                then
-                  Body_U := Get_Cunit_Unit_Number (Body_CU);
+                  Body_CU := Body_Lib_Unit (Spec);
 
-                  if not Seen (Body_U)
-                    and then not Depends_On_Main (Body_CU)
+                  --  If we are processing the spec of the main unit, load
+                  --  bodies only if the with_clause indicates that it forced
+                  --  the loading of the body for a generic instantiation.
+                  --  Note that bodies of parents that are instances have been
+                  --  loaded already.
+
+                  if Present (Body_CU)
+                    and then Body_CU /= Main_CU
+                    and then Nkind (Unit (Body_CU)) /= N_Subprogram_Body
+                    and then Nkind (Unit (Comp)) /= N_Package_Declaration
                   then
-                     Seen (Body_U) := True;
-                     Do_Withed_Units (Body_CU, Include_Limited => False);
-                     Do_Action (Body_CU, Unit (Body_CU));
-                     Done (Body_U) := True;
+                     Body_U := Get_Cunit_Unit_Number (Body_CU);
+
+                     if not Seen (Body_U)
+                       and then not Depends_On_Main (Body_CU)
+                     then
+                        Seen (Body_U) := True;
+                        Do_Withed_Units (Body_CU, Include_Limited => False);
+                        Do_Action (Body_CU, Unit (Body_CU));
+                        Done (Body_U) := True;
+                     end if;
                   end if;
                end if;
             end if;
@@ -2177,7 +2175,7 @@ package body Sem is
               and then Is_Generic_Instance (Defining_Entity (N))
             then
                Append_List
-                 (Context_Items (CU), Context_Items (Library_Unit (CU)));
+                 (Context_Items (CU), Context_Items (Spec_Lib_Unit (CU)));
             end if;
 
             Next_Elmt (Cur);
@@ -2227,11 +2225,11 @@ package body Sem is
                   if CU = Main_CU
                     and then Nkind (Original_Node (Unit (Main_CU))) in
                                                   N_Generic_Instantiation
-                    and then Present (Library_Unit (Main_CU))
+                    and then Present (Spec_Lib_Unit (Main_CU))
                   then
                      Do_Unit_And_Dependents
-                       (Library_Unit (Main_CU),
-                        Unit (Library_Unit (Main_CU)));
+                       (Spec_Lib_Unit (Main_CU),
+                        Unit (Spec_Lib_Unit (Main_CU)));
                   end if;
 
                --  It is a spec, process it, and the units it depends on,
@@ -2251,7 +2249,7 @@ package body Sem is
                   --  after all other specs.
 
                   if Nkind (Unit (CU)) = N_Package_Declaration
-                    and then Library_Unit (CU) = Main_CU
+                    and then Body_Lib_Unit (CU) = Main_CU
                     and then CU /= Main_CU
                   then
                      Spec_CU := CU;
@@ -2310,7 +2308,7 @@ package body Sem is
 
             begin
                if Present (U) and then Nkind (Unit (U)) = N_Subunit then
-                  Lib := Library_Unit (U);
+                  Lib := Subunit_Parent (U);
                   return Lib = Main_CU or else Is_Subunit_Of_Main (Lib);
                else
                   return False;
@@ -2340,7 +2338,7 @@ package body Sem is
                while Is_Child_Unit (Child) loop
                   Parent_CU :=
                     Cunit (Get_Cunit_Entity_Unit_Number (Scope (Child)));
-                  Body_CU := Library_Unit (Parent_CU);
+                  Body_CU := Body_Lib_Unit (Parent_CU);
 
                   if Present (Body_CU)
                     and then not Seen (Get_Cunit_Unit_Number (Body_CU))
@@ -2412,7 +2410,7 @@ package body Sem is
       --  and which have context clauses of their own, since these with'ed
       --  units are part of its own dependencies.
 
-      if Nkind (Unit (CU)) in N_Unit_Body then
+      if Nkind (Unit (CU)) in N_Lib_Unit_Body then
          for S in Main_Unit .. Last_Unit loop
 
             --  We are only interested in subunits. For preproc. data and def.
@@ -2425,7 +2423,7 @@ package body Sem is
                   Pnode : Node_Id;
 
                begin
-                  Pnode := Library_Unit (Cunit (S));
+                  Pnode := Subunit_Parent (Cunit (S));
 
                   --  In -gnatc mode, the errors in the subunits will not have
                   --  been recorded, but the analysis of the subunit may have
@@ -2438,7 +2436,7 @@ package body Sem is
                   --  Find ultimate parent of the subunit
 
                   while Nkind (Unit (Pnode)) = N_Subunit loop
-                     Pnode := Library_Unit (Pnode);
+                     Pnode := Subunit_Parent (Pnode);
                   end loop;
 
                   --  See if it belongs to current unit, and if so, include its
@@ -2470,7 +2468,7 @@ package body Sem is
            and then (Include_Limited
                      or else not Limited_Present (Context_Item))
          then
-            Lib_Unit := Library_Unit (Context_Item);
+            Lib_Unit := Withed_Lib_Unit (Context_Item);
             Action (Lib_Unit);
          end if;
 

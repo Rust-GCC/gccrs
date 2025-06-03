@@ -1,5 +1,5 @@
 /* Loop unswitching.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -328,6 +328,7 @@ tree_ssa_unswitch_loops (function *fun)
   bool changed_unswitch = false;
   bool changed_hoist = false;
   auto_edge_flag ignored_edge_flag (fun);
+  mark_ssa_maybe_undefs ();
 
   ranger = enable_ranger (fun);
 
@@ -426,65 +427,7 @@ is_maybe_undefined (const tree name, gimple *stmt, class loop *loop)
   if (gimple_bb (stmt) == loop->header)
     return false;
 
-  auto_bitmap visited_ssa;
-  auto_vec<tree> worklist;
-  worklist.safe_push (name);
-  bitmap_set_bit (visited_ssa, SSA_NAME_VERSION (name));
-  while (!worklist.is_empty ())
-    {
-      tree t = worklist.pop ();
-
-      /* If it's obviously undefined, avoid further computations.  */
-      if (ssa_undefined_value_p (t, true))
-	return true;
-
-      if (ssa_defined_default_def_p (t))
-	continue;
-
-      gimple *def = SSA_NAME_DEF_STMT (t);
-
-      /* Check that all the PHI args are fully defined.  */
-      if (gphi *phi = dyn_cast <gphi *> (def))
-	{
-	  for (unsigned i = 0; i < gimple_phi_num_args (phi); ++i)
-	    {
-	      tree t = gimple_phi_arg_def (phi, i);
-	      /* If an SSA has already been seen, it may be a loop,
-		 but we can continue and ignore this use.  Otherwise,
-		 add the SSA_NAME to the queue and visit it later.  */
-	      if (TREE_CODE (t) == SSA_NAME
-		  && bitmap_set_bit (visited_ssa, SSA_NAME_VERSION (t)))
-		worklist.safe_push (t);
-	    }
-	  continue;
-	}
-
-      /* Uses in stmts always executed when the region header executes
-	 are fine.  */
-      if (dominated_by_p (CDI_DOMINATORS, loop->header, gimple_bb (def)))
-	continue;
-
-      /* Handle calls and memory loads conservatively.  */
-      if (!is_gimple_assign (def)
-	  || (gimple_assign_single_p (def)
-	      && gimple_vuse (def)))
-	return true;
-
-      /* Check that any SSA names used to define NAME are also fully
-	 defined.  */
-      use_operand_p use_p;
-      ssa_op_iter iter;
-      FOR_EACH_SSA_USE_OPERAND (use_p, def, iter, SSA_OP_USE)
-	{
-	  tree t = USE_FROM_PTR (use_p);
-	  /* If an SSA has already been seen, it may be a loop,
-	     but we can continue and ignore this use.  Otherwise,
-	     add the SSA_NAME to the queue and visit it later.  */
-	  if (bitmap_set_bit (visited_ssa, SSA_NAME_VERSION (t)))
-	    worklist.safe_push (t);
-	}
-    }
-  return false;
+  return ssa_name_maybe_undef_p (name);
 }
 
 /* Checks whether we can unswitch LOOP on condition at end of BB -- one of its
@@ -763,8 +706,8 @@ evaluate_control_stmt_using_entry_checks (gimple *stmt,
 	    continue;
 
 	  int_range_max r;
-	  if (!ranger->gori ().outgoing_edge_range_p (r, e, idx,
-						      *get_global_range_query ()))
+	  if (!ranger->gori ().edge_range_p (r, e, idx,
+					     *get_global_range_query ()))
 	    continue;
 	  r.intersect (path_range);
 	  if (r.undefined_p ())
@@ -1312,7 +1255,11 @@ find_loop_guard (class loop *loop, vec<gimple *> &dbg_to_reset)
 	  guard_edge = NULL;
 	  goto end;
 	}
-      if (!empty_bb_without_guard_p (loop, bb, dbg_to_reset))
+      /* If any of the not skipped blocks has side-effects or defs with
+	 uses outside of the loop we cannot hoist the guard.  */
+      if (!dominated_by_p (CDI_DOMINATORS,
+			   bb, guard_edge == te ? fe->dest : te->dest)
+	  && !empty_bb_without_guard_p (loop, bb, dbg_to_reset))
 	{
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_MISSED_OPTIMIZATION, loc,

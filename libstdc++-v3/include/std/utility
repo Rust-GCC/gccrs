@@ -1,6 +1,6 @@
 // <utility> -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -55,7 +55,9 @@
 #ifndef _GLIBCXX_UTILITY
 #define _GLIBCXX_UTILITY 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 /**
  * @defgroup utilities Utilities
@@ -79,6 +81,10 @@
 #include <ext/numeric_traits.h> // __is_standard_integer, __int_traits
 #endif
 
+#if __cplusplus > 202302L
+# include <bits/monostate.h>
+#endif
+
 #define __glibcxx_want_addressof_constexpr
 #define __glibcxx_want_as_const
 #define __glibcxx_want_constexpr_algorithms
@@ -93,6 +99,7 @@
 #define __glibcxx_want_tuples_by_type
 #define __glibcxx_want_unreachable
 #define __glibcxx_want_tuple_like
+#define __glibcxx_want_constrained_equality
 #include <bits/version.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)

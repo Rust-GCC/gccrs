@@ -1,4 +1,4 @@
-/* Copyright (C) 1988-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -36,7 +36,6 @@ struct expand_vec_perm_d
 rtx legitimize_tls_address (rtx x, enum tls_model model, bool for_mov);
 alias_set_type ix86_GOT_alias_set (void);
 rtx legitimize_pic_address (rtx orig, rtx reg);
-rtx legitimize_pe_coff_symbol (rtx addr, bool inreg);
 
 bool insn_defines_reg (unsigned int regno1, unsigned int regno2,
 		       rtx_insn *insn);

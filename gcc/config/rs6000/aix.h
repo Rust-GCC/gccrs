@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -182,7 +182,7 @@
    Don't do this until the fixed IBM assembler is more generally available.
    When this becomes permanently defined, the ASM_OUTPUT_EXTERNAL,
    ASM_OUTPUT_EXTERNAL_LIBCALL, and RS6000_OUTPUT_BASENAME macros will no
-   longer be needed.  Also, the extern declaration of mcount in 
+   longer be needed.  Also, the extern declaration of mcount in
    rs6000_xcoff_file_start will no longer be needed.  */
 
 /* #define ASM_SPEC "-u %(asm_cpu)" */

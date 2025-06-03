@@ -1,5 +1,5 @@
 /* Common hooks for GCN
-   Copyright (C) 2016-2024 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -37,7 +37,7 @@ static const struct default_options gcn_option_optimization_table[] =
 static enum unwind_info_type
 gcn_except_unwind_info (struct gcc_options *opts ATTRIBUTE_UNUSED)
 {
-  return UI_NONE;
+  return UI_TARGET;
 }
 
 #undef  TARGET_EXCEPT_UNWIND_INFO

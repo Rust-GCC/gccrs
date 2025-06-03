@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -38,6 +38,11 @@ package Exp_Intr is
    --  intrinsics declared in GNAT.Source_Info; see g-souinf.ads for
    --  documentation of these intrinsics. Loc is passed to provide location
    --  information where it is needed.
+
+   procedure Expand_Source_Info (N : Node_Id; Nam : Name_Id);
+   --  Rewrite the node as the appropriate string literal or positive constant.
+   --  Nam is the name of one of the intrinsics declared in GNAT.Source_Info;
+   --  see g-souinf.ads for documentation of these intrinsics.
 
    procedure Expand_Intrinsic_Call (N : Node_Id; E : Entity_Id);
    --  N is either a function call node, a procedure call statement node, or

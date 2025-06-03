@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -136,13 +136,11 @@ struct Z
 };
 
 Z* zp;
-// These construct calls should be noexcept, but they are false because
-// they use is_nothrow_constructible which depends on is_nothrow_destructible.
 #if __cplusplus <= 201703L
-static_assert( ! noexcept(a.construct(zp)), "wrong" );
-static_assert( ! noexcept(a.construct(zp, 1)), "wrong" );
-static_assert( ! noexcept(a.destroy(zp)), "" );
+static_assert( noexcept(a.construct(zp)), "" );
+static_assert( noexcept(a.construct(zp, 1)), "" );
+static_assert( ! noexcept(a.destroy(zp)), "~Z is noexcept(false)" );
 #endif
-static_assert( ! noexcept(AT::construct(a, zp)), "" );
-static_assert( ! noexcept(AT::construct(a, zp, 1)), "" );
-static_assert( ! noexcept(AT::destroy(a, zp)), "" );
+static_assert( noexcept(AT::construct(a, zp)), "" );
+static_assert( noexcept(AT::construct(a, zp, 1)), "" );
+static_assert( ! noexcept(AT::destroy(a, zp)), "~Z is noexcept(false)" );

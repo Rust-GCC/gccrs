@@ -1,12 +1,5 @@
 ! { dg-do run }
 
-! PR65181 "Support for alloca in nvptx"
-! { dg-excess-errors "lto1, mkoffload and lto-wrapper fatal errors" { target openacc_nvidia_accel_selected } }
-! Aside from restricting this testcase to non-nvptx offloading, and duplicating
-! it with 'dg-do link' for nvptx offloading, there doesn't seem to be a way to
-! XFAIL the "UNRESOLVED: [...] compilation failed to produce executable", or
-! get rid of it, unfortunately.
-
 ! { dg-additional-options "-fopt-info-note-omp" }
 ! { dg-additional-options "--param=openacc-privatization=noisy" }
 ! { dg-additional-options "-foffload=-fopt-info-note-omp" }
@@ -29,16 +22,10 @@ program main
   implicit none (type, external)
   integer :: j
   integer, allocatable :: A(:)
-  ! { dg-note {'a' declared here} {} { target *-*-* } .-1 }
   character(len=:), allocatable :: my_str
   character(len=15), allocatable :: my_str15
 
   A = [(3*j, j=1, 10)]
-  ! { dg-bogus {'a\.offset' is used uninitialized} {PR77504 etc.} { xfail *-*-* } .-1 }
-  ! { dg-bogus {'a\.dim\[0\]\.lbound' is used uninitialized} {PR77504 etc.} { xfail *-*-* } .-2 }
-  ! { dg-bogus {'a\.dim\[0\]\.ubound' is used uninitialized} {PR77504 etc.} { xfail *-*-* } .-3 }
-  ! { dg-bogus {'a\.dim\[0\]\.lbound' may be used uninitialized} {PR77504 etc.} { xfail { ! __OPTIMIZE__ } } .-4 }
-  ! { dg-bogus {'a\.dim\[0\]\.ubound' may be used uninitialized} {PR77504 etc.} { xfail { ! __OPTIMIZE__ } } .-5 }
   call foo (A, size(A))
   call bar (A)
   my_str = "1234567890"
@@ -65,7 +52,6 @@ contains
     ! { dg-note {variable 'array' in 'private' clause is candidate for adjusting OpenACC privatization level} "" { target *-*-* } l_loop$c_loop }
     ! { dg-note {variable 'array' ought to be adjusted for OpenACC privatization level: 'gang'} "" { target *-*-* } l_loop$c_loop }
     ! { dg-note {variable 'array' adjusted for OpenACC privatization level: 'gang'} "" { target { ! { openacc_host_selected || { openacc_nvidia_accel_selected && __OPTIMIZE__ } } } } l_loop$c_loop }
-    ! { dg-message {sorry, unimplemented: target cannot support alloca} PR65181 { target openacc_nvidia_accel_selected } l_loop$c_loop }
     do i = 1, 10
       array(i) = i
     end do
@@ -97,7 +83,6 @@ contains
     ! { dg-note {variable 'array\.[0-9]+' in 'private' clause is candidate for adjusting OpenACC privatization level} "" { target *-*-* } l_loop$c_loop }
     ! { dg-note {variable 'array\.[0-9]+' ought to be adjusted for OpenACC privatization level: 'gang'} "" { target *-*-* } l_loop$c_loop }
     ! { dg-note {variable 'array\.[0-9]+' adjusted for OpenACC privatization level: 'gang'} "" { target { ! { openacc_host_selected || { openacc_nvidia_accel_selected && __OPTIMIZE__ } } } } l_loop$c_loop }
-    ! { dg-message {sorry, unimplemented: target cannot support alloca} PR65181 { target openacc_nvidia_accel_selected } l_loop$c_loop }
     do i = 1, 10
       array(i) = 9*i
     end do
@@ -123,7 +108,6 @@ contains
     ! { dg-note {variable 'str' ought to be adjusted for OpenACC privatization level: 'gang'} "" { target *-*-* } l_loop$c_loop }
     ! { dg-note {variable 'str' adjusted for OpenACC privatization level: 'gang'} "" { target { ! { openacc_host_selected || { openacc_nvidia_accel_selected && __OPTIMIZE__ } } } } l_loop$c_loop }
     ! { dg-note {variable 'char\.[0-9]+' declared in block isn't candidate for adjusting OpenACC privatization level: artificial} "" { target *-*-* } l_loop$c_loop }
-    ! { dg-message {sorry, unimplemented: target cannot support alloca} PR65181 { target openacc_nvidia_accel_selected } l_loop$c_loop }
     do i = 1, 10
       str(i:i) = achar(ichar('A') + i)
     end do

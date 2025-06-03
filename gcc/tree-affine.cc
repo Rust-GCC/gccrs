@@ -1,5 +1,5 @@
 /* Operations with affine combinations of trees.
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -345,7 +345,7 @@ expr_to_aff_combination (aff_tree *comb, tree_code code, tree type,
 	       for below case:
 		 (T1)(X *+- CST) -> (T1)X *+- (T1)CST
 	       if X *+- CST doesn't overflow by range information.  */
-	    value_range vr;
+	    int_range_max vr;
 	    if (TYPE_UNSIGNED (itype)
 		&& TYPE_OVERFLOW_WRAPS (itype)
 		&& TREE_CODE (op1) == INTEGER_CST
@@ -880,21 +880,24 @@ free_affine_expand_cache (hash_map<tree, name_expansion *> **cache)
   *cache = NULL;
 }
 
-/* If VAL != CST * DIV for any constant CST, returns false.
-   Otherwise, if *MULT_SET is true, additionally compares CST and MULT,
-   and if they are different, returns false.  Finally, if neither of these
-   two cases occur, true is returned, and CST is stored to MULT and MULT_SET
-   is set to true.  */
+/* If VAL == CST * DIV for any constant CST, returns true.
+   and if *MULT_SET is true, additionally compares CST and MULT
+   and if they are different, returns false.  If true is returned, CST is
+   stored to MULT and MULT_SET is set to true unless VAL and DIV are both zero
+   in which case neither MULT nor MULT_SET are updated.  */
 
 static bool
 wide_int_constant_multiple_p (const poly_widest_int &val,
 			      const poly_widest_int &div,
 			      bool *mult_set, poly_widest_int *mult)
 {
-  poly_widest_int rem, cst;
+  poly_widest_int cst;
 
   if (known_eq (val, 0))
     {
+      if (known_eq (div, 0))
+	return true;
+
       if (*mult_set && maybe_ne (*mult, 0))
 	return false;
       *mult_set = true;

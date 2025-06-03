@@ -1,6 +1,6 @@
 (* M2Bitset.mod provides the BITSET type.
 
-Copyright (C) 2003-2024 Free Software Foundation, Inc.
+Copyright (C) 2003-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -23,7 +23,6 @@ IMPLEMENTATION MODULE M2Bitset ;
 
 
 FROM M2Debug IMPORT Assert ;
-FROM m2tree IMPORT Tree ;
 FROM m2linemap IMPORT BuiltinsLocation ;
 FROM m2type IMPORT GetWordType ;
 FROM m2decl IMPORT GetBitsPerBitset ;

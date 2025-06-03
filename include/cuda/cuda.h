@@ -1,5 +1,5 @@
 /* CUDA Driver API description.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -57,6 +57,7 @@ typedef enum {
   CUDA_ERROR_OUT_OF_MEMORY = 2,
   CUDA_ERROR_NOT_INITIALIZED = 3,
   CUDA_ERROR_DEINITIALIZED = 4,
+  CUDA_ERROR_NO_DEVICE = 100,
   CUDA_ERROR_INVALID_CONTEXT = 201,
   CUDA_ERROR_INVALID_HANDLE = 400,
   CUDA_ERROR_NOT_FOUND = 500,
@@ -82,7 +83,8 @@ typedef enum {
   CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR = 39,
   CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT = 40,
   CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING = 41,
-  CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_MULTIPROCESSOR = 82
+  CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_MULTIPROCESSOR = 82,
+  CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS = 88
 } CUdevice_attribute;
 
 enum {
@@ -199,6 +201,10 @@ typedef struct {
   size_t WidthInBytes, Height, Depth;
 } CUDA_MEMCPY3D_PEER;
 
+typedef struct {
+  char bytes[16];
+} CUuuid;
+
 #define cuCtxCreate cuCtxCreate_v2
 CUresult cuCtxCreate (CUcontext *, unsigned, CUdevice);
 #define cuCtxDestroy cuCtxDestroy_v2
@@ -212,6 +218,9 @@ CUresult cuCtxPushCurrent (CUcontext);
 CUresult cuCtxSynchronize (void);
 CUresult cuCtxSetLimit (CUlimit, size_t);
 CUresult cuDeviceGet (CUdevice *, int);
+/* _v2 was added in CUDA 11.4 and 'will supplant' the old one in 12.0.  */
+CUresult cuDeviceGetUuid (CUuuid*, CUdevice);
+CUresult cuDeviceGetUuid_v2 (CUuuid*, CUdevice);
 #define cuDeviceTotalMem cuDeviceTotalMem_v2
 CUresult cuDeviceTotalMem (size_t *, CUdevice);
 CUresult cuDeviceGetAttribute (int *, CUdevice_attribute, CUdevice);

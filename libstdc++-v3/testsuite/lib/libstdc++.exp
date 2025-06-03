@@ -1,6 +1,6 @@
 # libstdc++ "tool init file" for DejaGNU
 
-# Copyright (C) 2001-2024 Free Software Foundation, Inc.
+# Copyright (C) 2001-2025 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -73,6 +73,7 @@ load_gcc_lib timeout.exp
 load_gcc_lib timeout-dg.exp
 load_gcc_lib wrapper.exp
 load_gcc_lib target-utils.exp
+load_gcc_lib dg-test-cleanup.exp
 
 # Useful for debugging.  Pass the name of a variable and the verbosity
 # threshold (number of -v's on the command line).
@@ -157,11 +158,6 @@ proc libstdc++_init { testfile } {
     # By default, we assume we want to run program images.
     global dg-do-what-default
     set dg-do-what-default run
-
-    # Copy all required data files.
-    # TODO: Use dg-additional-files in individual tests instead of doing this.
-    v3-copy-files [glob -nocomplain "$srcdir/data/*.tst"]
-    v3-copy-files [glob -nocomplain "$srcdir/data/*.txt"]
 
     set ld_library_path_tmp ""
 
@@ -615,11 +611,15 @@ proc v3_target_compile { source dest type options } {
 	}
     }
 
+    # For Windows and Darwin we might want to create a temporary file.
+    # Note that it needs deleting.
+    set file_to_delete ""
     # Small adjustment for Windows hosts.
     if { $dest == "/dev/null"
 	  && [info exists ::env(OS)] && [string match "Windows*" $::env(OS)] } {
 	if { $type == "executable" } {
 	    set dest "x.exe"
+	    set file_to_delete ${dest}
 	} else {
 	    # Windows uses special file named "nul" as a substitute for
 	    # /dev/null
@@ -627,17 +627,33 @@ proc v3_target_compile { source dest type options } {
 	}
     }
 
+    # Using /dev/null as the executable name does not work on Darwin when
+    # debug is enabled, since the debug linker does not accept /dev/null as
+    # a valid executable name.
+    if { $dest == "/dev/null" && [istarget *-*-darwin*]
+         && $type == "executable" } {
+	set dest dev-null-[pid].exe
+	set file_to_delete ${dest}
+    }
+
     lappend options "compiler=$cxx_final"
     lappend options "timeout=[timeout_value]"
 
     global v3_additional_files
-    foreach file [split $v3_additional_files " "] {
+    # There will be an empty file at the begining of the list so trim it off.
+    foreach file [split [string trim $v3_additional_files] " "] {
 	global srcdir
 	v3-copy-file "$srcdir/data/$file" $file
     }
+    set v3_additional_files {}
 
     set comp_output [target_compile $source $dest $type $options]
-
+    if { $type == "executable" && $file_to_delete != "" } {
+	file delete $file_to_delete
+	if { [istarget *-*-darwin*] && [file exists $file_to_delete.dSYM] } {
+	    file delete -force $file_to_delete.dSYM
+	}
+    }
     return $comp_output
 }
 
@@ -1017,7 +1033,7 @@ proc check_v3_target_namedlocale { args } {
 	puts $f "    strcpy(result, name);"
 	puts $f "#if defined __FreeBSD__ || defined __DragonFly__ || defined __NetBSD__"
 	puts $f "    /* fall-through */"
-	puts $f "#else"
+	puts $f "#elif defined __GLIBC__"
 	puts $f "    if (strstr(result, \"ISO8859-15\")) {"
 	puts $f "        strcat(result, \"@euro\");"
 	puts $f "    }"
@@ -1114,6 +1130,21 @@ proc v3_check_preprocessor_condition { name cond { inc "" } } {
     set flags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
 
     return [v3_try_preprocess name $code $flags]
+}
+
+# Return 1 if libstdc++ defines macro for the current target, 0 otherwise.
+proc check_v3_target_cpp_feature_test { cond } {
+    global cxxflags
+    set cxxflags_saved $cxxflags
+    # Use the latest standard, so that all feature test macros are defined.
+    # We need to do it here, because this check happens before v3-dg-runtest
+    # runs its loop to test multiple times with different -std options.
+    # This should be updated when a new -std is added.
+    set cxxflags "$cxxflags -std=gnu++26"
+    set inc "#include <version>"
+    set result [v3_check_preprocessor_condition cpp_feature_test "$cond" $inc]
+    set cxxflags $cxxflags_saved
+    return $result
 }
 
 # Return 1 if Debug Mode is active, 0 otherwise.
@@ -1537,14 +1568,6 @@ proc check_effective_target_std_allocator_new { } {
     }]
 }
 
-# Return 1 if libstdc++ was built as --enable-libstdcxx-backtrace
-proc check_effective_target_stacktrace { } {
-    return [check_v3_target_prop_cached et_stacktrace {
-	set cond "_GLIBCXX_HAVE_STACKTRACE && _GLIBCXX_HOSTED"
-	return [v3_check_preprocessor_condition stacktrace $cond]
-    }]
-}
-
 # Return 1 if RTTI is enabled by the current test flags.
 proc check_effective_target_rtti { } {
     return [check_v3_target_prop_cached et_rtti {
@@ -1647,4 +1670,39 @@ if { [info exists env(GCC_RUNTEST_PARALLELIZE_DIR)] \
     proc gcc_parallel_test_enable { val } {
     }
 
+}
+
+# Utility functions, invoked via dg-final.
+
+# Compare output file written by test to expected result.
+# With two arguments the comparison is done via 'diff arg1 arg2'.
+# With one argument the comparison is done via 'diff arg1.tst arg1.txt'.
+proc file-io-diff { args } {
+    set nargs [llength $args]
+    if { $nargs < 1 } {
+	error "too few arguments to file-io-diff"
+    }
+    if { $nargs > 2 } {
+	error "too many arguments to file-io-diff"
+    }
+
+    set testcase [testname-for-summary]
+    set description "$testcase file-io-diff $args"
+
+    if { $nargs == 1 } {
+	set file1 [lindex $args 0]
+	set file2 "${file1}.txt"
+	append file1 ".tst"
+    } else {
+	set file1 [lindex $args 0]
+	set file2 [lindex $args 1]
+    }
+
+    if { [catch { exec diff -u $file1 $file2 } msg] } {
+	fail $description
+	verbose -log "'diff':\n$msg"
+    } else {
+	pass $description
+    }
+    return
 }

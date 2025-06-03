@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -881,7 +881,7 @@ package body Ch3 is
 
       Set_Defining_Identifier (Decl_Node, Ident_Node);
       Set_Discriminant_Specifications (Decl_Node, Discr_List);
-      P_Aspect_Specifications (Decl_Node);
+      P_Aspect_Specifications (Decl_Node, Semicolon => True);
       return Decl_Node;
    end P_Type_Declaration;
 
@@ -930,7 +930,7 @@ package body Ch3 is
 
       Set_Subtype_Indication
         (Decl_Node, P_Subtype_Indication (Not_Null_Present));
-      P_Aspect_Specifications (Decl_Node);
+      P_Aspect_Specifications (Decl_Node, Semicolon => True);
       return Decl_Node;
    end P_Subtype_Declaration;
 
@@ -1195,10 +1195,6 @@ package body Ch3 is
 
       elsif Token = Tok_Left_Paren then
          return P_Index_Or_Discriminant_Constraint;
-
-      elsif Token = Tok_In then
-         Ignore (Tok_In);
-         return P_Constraint_Opt;
 
       --  One more possibility is e.g. 1 .. 10 (i.e. missing RANGE keyword)
 
@@ -3065,7 +3061,16 @@ package body Ch3 is
          Range_Node := New_Node (N_Range, Token_Ptr);
          Set_Low_Bound (Range_Node, Expr_Node);
 
-         if Style_Check then
+         --  If the bound doesn't require parentheses, then emit a style
+         --  check. Parentheses that change an "expression" syntax node into a
+         --  "simple expression" are required; we filter those nodes both here
+         --  and inside Check_Xtra_Parens itself.
+
+         if Style_Check
+           and then Nkind (Expr_Node) not in N_Membership_Test
+                                           | N_Op_Boolean
+                                           | N_Short_Circuit
+         then
             Style.Check_Xtra_Parens (Expr_Node);
          end if;
 
@@ -3074,11 +3079,12 @@ package body Ch3 is
          Check_Simple_Expression (Expr_Node);
          Set_High_Bound (Range_Node, Expr_Node);
 
-         --  If Expr_Node (ignoring parentheses) is not a simple expression
-         --  then emit a style check.
+         --  Check for extra parentheses like for the lower bound
 
          if Style_Check
-           and then Nkind (Expr_Node) not in N_Op_Boolean | N_Subexpr
+           and then Nkind (Expr_Node) not in N_Membership_Test
+                                           | N_Op_Boolean
+                                           | N_Short_Circuit
          then
             Style.Check_Xtra_Parens (Expr_Node);
          end if;
@@ -3270,7 +3276,8 @@ package body Ch3 is
                  (Specification_Node, Init_Expr_Opt (True));
 
                if Token = Tok_With then
-                  P_Aspect_Specifications (Specification_Node, False);
+                  P_Aspect_Specifications
+                    (Specification_Node, Semicolon => False);
                end if;
 
                if Ident > 1 then
@@ -3844,7 +3851,7 @@ package body Ch3 is
                --  end if;
 
                Set_Subtype_Indication (CompDef_Node, Empty);
-               Set_Aliased_Present    (CompDef_Node, False);
+               Set_Aliased_Present    (CompDef_Node, Aliased_Present);
                Set_Access_Definition  (CompDef_Node,
                  P_Access_Definition (Not_Null_Present));
             else
@@ -3873,8 +3880,9 @@ package body Ch3 is
                Set_More_Ids (Decl_Node, True);
             end if;
 
-            Append (Decl_Node, Decls);
+            P_Aspect_Specifications (Decl_Node, Semicolon => True);
 
+            Append (Decl_Node, Decls);
          exception
             when Error_Resync =>
                if Token /= Tok_End then
@@ -3887,8 +3895,6 @@ package body Ch3 is
          Restore_Scan_State (Scan_State);
          T_Colon;
       end loop Ident_Loop;
-
-      P_Aspect_Specifications (Decl_Node);
    end P_Component_Items;
 
    --------------------------------

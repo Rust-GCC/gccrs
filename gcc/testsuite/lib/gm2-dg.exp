@@ -1,4 +1,4 @@
-#   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+#   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
 # <http://www.gnu.org/licenses/>.
 
 load_lib gcc-dg.exp
+load_lib gm2.exp
 
 # Define gm2 callbacks for dg.exp.
 
@@ -59,7 +60,7 @@ proc gm2-dg-runtest { testcases flags default-extra-flags } {
 	    continue
         }
 
-	# look if this is dg-do-run test, in which case
+	# look if this is dg-do run test, in which case
 	# we cycle through the option list, otherwise we don't
 	if [expr [search_for $test "dg-do run"]] {
 	    set option_list $TORTURE_OPTIONS
@@ -75,3 +76,4 @@ proc gm2-dg-runtest { testcases flags default-extra-flags } {
 	}
     }
 }
+

@@ -1,6 +1,6 @@
 /* Collect static initialization info into data structures that can be
    traversed by C++ initialization and finalization routines.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
    Contributed by Chris Smith (csmith@convex.com).
    Heavily modified by Michael Meissner (meissner@cygnus.com),
    Per Bothner (bothner@cygnus.com), and John Gilmore (gnu@cygnus.com).
@@ -1035,9 +1035,10 @@ main (int argc, char **argv)
       lto_mode = LTO_MODE_LTO;
   }
 
-  /* -fno-profile-arcs -fno-test-coverage -fno-branch-probabilities
-     -fno-exceptions -w -fno-whole-program */
-  num_c_args += 6;
+  /* -fno-profile-arcs -fno-condition-coverage -fno-path-coverage
+     -fno-test-coverage
+     -fno-branch-probabilities -fno-exceptions -w -fno-whole-program */
+  num_c_args += 8;
 
   c_argv = XCNEWVEC (char *, num_c_args);
   c_ptr = CONST_CAST2 (const char **, char **, c_argv);
@@ -1233,6 +1234,8 @@ main (int argc, char **argv)
     }
   obstack_free (&temporary_obstack, temporary_firstobj);
   *c_ptr++ = "-fno-profile-arcs";
+  *c_ptr++ = "-fno-condition-coverage";
+  *c_ptr++ = "-fno-path-coverage";
   *c_ptr++ = "-fno-test-coverage";
   *c_ptr++ = "-fno-branch-probabilities";
   *c_ptr++ = "-fno-exceptions";
@@ -3071,7 +3074,7 @@ static void
 post_ld_pass (bool temp_file) {
   if (!(temp_file && flag_idsym) && !flag_dsym)
     return;
-      
+
   do_dsymutil (output_file);
 }
 #else

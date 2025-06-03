@@ -1,10 +1,10 @@
-@c Copyright (C) 1996-2024 Free Software Foundation, Inc.
+@c Copyright (C) 1996-2025 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
 @ignore
 @c man begin COPYRIGHT
-Copyright @copyright{} 1996-2024 Free Software Foundation, Inc.
+Copyright @copyright{} 1996-2025 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or
@@ -124,13 +124,20 @@ gcov [@option{-v}|@option{--version}] [@option{-h}|@option{--help}]
      [@option{-a}|@option{--all-blocks}]
      [@option{-b}|@option{--branch-probabilities}]
      [@option{-c}|@option{--branch-counts}]
+     [@option{-g}|@option{--conditions}]
+     [@option{-e}|@option{--prime-paths}]
+     [@option{--prime-paths-lines[=@var{type}]}]
+     [@option{--prime-paths-source[=@var{type}]}]
      [@option{-d}|@option{--display-progress}]
      [@option{-f}|@option{--function-summaries}]
+     [@option{--include} @var{regex}]
+     [@option{--exclude} @var{regex}]
      [@option{-j}|@option{--json-format}]
      [@option{-H}|@option{--human-readable}]
      [@option{-k}|@option{--use-colors}]
      [@option{-l}|@option{--long-file-names}]
      [@option{-m}|@option{--demangled-names}]
+     [@option{-M}|@option{--filter-on-demangled}]
      [@option{-n}|@option{--no-output}]
      [@option{-o}|@option{--object-directory} @var{directory|file}]
      [@option{-p}|@option{--preserve-paths}]
@@ -169,6 +176,99 @@ be shown, unless the @option{-u} option is given.
 Write branch frequencies as the number of branches taken, rather than
 the percentage of branches taken.
 
+@item -g
+@itemx --conditions
+Write condition coverage to the output file, and write condition summary info
+to the standard output.  This option allows you to see if the conditions in
+your program at least once had an independent effect on the outcome of the
+boolean expression (modified condition/decision coverage).  This requires you
+to compile the source with @option{-fcondition-coverage}.
+
+@item -e
+@itemx --prime-paths
+Write path coverage to the output file, and write path summary info to
+the standard output.  This option allows you to see how many prime paths
+were taken at least once.  A path is a sequence of basic blocks.  A path
+is simple if it has no repeated blocks (no loops) except maybe the first
+and last block, and prime if it is a simple path of maximal length.  For
+the regular output this option only includes the number of paths
+covered.  For more fine grained information on paths you can use
+@option{--prime-paths-lines} or @option{--prime-paths-source}.  With
+@option{--json-format} all path details are included in the output.
+This requires you to compile the
+source with @option{-fpath-coverage}.
+
+@item --prime-paths-lines [=@var{type}]
+Write path coverage to the output file, and write path summary info to
+the standard output.  This option allows you to see how many prime paths
+were taken at least once, and dense report on the covered or uncovered
+paths and how to cover them.  This mode is useful for automated
+reporting and progress tracking. @var{type} may be omitted, or one of:
+@itemize @bullet
+@item
+@var{uncovered}
+- Include the uncovered (not taken) paths.  This is the default.
+@item
+@var{covered}
+- Include the covered (taken) paths.
+@item
+@var{both}
+- Include all paths.  This is equivalent to using both @var{covered} and
+@var{uncovered}.
+@end itemize
+
+This is an example of @option{--prime-paths-lines} output:
+
+@smallexample
+paths covered 12 of 15
+path  2 not covered: lines 8 8(false) 11(true) 11 13(true) 13(true) 14 17
+path  3 not covered: lines 8 8(false) 11(true) 11 13(true) 13(false) 16 17
+path  4 not covered: lines 8 8(false) 11(true) 11 13(false) 16 17
+@end smallexample
+
+This means to cover path 2 you must run lines 8, 11, 13, 14, and 17,
+evaluting the decision at 8 false and the decisions at 11 and 13 to
+@code{false}.
+
+@item --prime-paths-source [=@var{type}]
+Write path coverage to the output file, and write path summary info to
+the standard output.  This option allows you to see how many prime paths
+were taken at least once, and detailed report on the uncovered paths an
+how to cover them.  This mode is useful for understanding paths and
+interactions between sections of your program. @var{type} may be
+omitted, or one of:
+@itemize @bullet
+@item
+@var{uncovered}
+- Include the uncovered (not taken) paths.  This is the default.
+@item
+@var{covered}
+- Include the covered (taken) paths.
+@item
+@var{both}
+- Include all paths.  This is equivalent to using both @var{covered} and
+@var{uncovered}.
+@end itemize
+
+This is an example of @option{--prime-paths-source} output:
+
+@smallexample
+path 10 not covered:
+BB  3:           8:  for (i = 0; i < 10; i++)
+BB  3:           9:    total += i;
+BB  4: (false)   8:  for (i = 0; i < 10; i++)
+BB  5: (true)   11:  int v = total > 100 ? 1 : 2;
+BB  6:          11:  int v = total > 100 ? 1 : 2;
+BB  8: (false)  13:  if (total != 45 && v == 1)
+BB 11:          16:    printf ("Success\n");
+BB 12:          17:  return 0;
+@end smallexample
+
+The first (BB) column is the sequence of basic blocks (see @option{-w}).
+The middle column (true/false) is the decision for that line.  The third
+column is the line number.  The fourth column is the line itself.  These
+lines must be run in this order to cover path 10.
+
 @item -d
 @itemx --display-progress
 Display the progress on the standard output.
@@ -176,6 +276,24 @@ Display the progress on the standard output.
 @item -f
 @itemx --function-summaries
 Output summaries for each function in addition to the file level summary.
+
+@item --include @var{regex}
+Include functions matching @var{regex}.  This option makes
+@command{gcov} only report on functions that match the extended
+regular expression @var{regex}.  This flag can be combined with
+@option{--exclude}.  If a function matches both includes and excludes,
+the last include/exclude applies.  By default @command{gcov} reports
+on all functions, but if a @command{--include} is used then only
+functions matching the include will be reported.
+
+@item --exclude @var{regex}
+Exclude functions matching @var{regex}.  This option makes
+@command{gcov} not report on functions that match the extended regular
+expression @var{regex}.  This flag can be combined with
+@option{--include}.  If a function matches both includes and excludes,
+the last include/exclude applies.  By default @command{gcov} reports
+on all functions, and if @option{--exclude} is used then functions
+matching it will be omitted.
 
 @item -h
 @itemx --help
@@ -301,6 +419,7 @@ Each @var{line} has the following form:
   "branches": ["$branch"],
   "calls": ["$call"],
   "count": 2,
+  "conditions": ["$condition"],
   "line_number": 15,
   "unexecuted_block": false,
   "function_name": "foo",
@@ -384,6 +503,34 @@ to @var{line::count})
 @var{destination_block_id}: ID of the basic block this calls continues after return
 @end itemize
 
+Each @var{condition} has the following form:
+
+@smallexample
+@{
+  "count": 4,
+  "covered": 2,
+  "not_covered_false": [],
+  "not_covered_true": [0, 1],
+@}
+
+@end smallexample
+
+Fields of the @var{condition} element have following semantics:
+
+@itemize @bullet
+@item
+@var{count}: number of condition outcomes in this expression
+
+@item
+@var{covered}: number of covered condition outcomes in this expression
+
+@item
+@var{not_covered_true}: terms, by index, not seen as true in this expression
+
+@item
+@var{not_covered_false}: terms, by index, not seen as false in this expression
+@end itemize
+
 @item -H
 @itemx --human-readable
 Write counts in human readable format (like 24.6k).
@@ -410,6 +557,12 @@ and included file names will be complete path names.
 @itemx --demangled-names
 Display demangled function names in output. The default is to show
 mangled function names.
+
+@item -M
+@itemx --filter-on-demangled
+Make @option{--include} and @option{--exclude} match demangled names.
+This does only affects the matching and does not imply
+@option{--demangled-names}, but it can safely be combined with it.
 
 @item -n
 @itemx --no-output
@@ -852,6 +1005,178 @@ of times the call was executed will be printed.  This will usually be
 100%, but may be less for functions that call @code{exit} or @code{longjmp},
 and thus may not return every time they are called.
 
+When you use the @option{-g} option, your output looks like this:
+
+@smallexample
+$ gcov -t -m -g tmp
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        -:    1:#include <stdio.h>
+        -:    2:
+        -:    3:int
+        1:    4:main (void)
+        -:    5:@{
+        -:    6:  int i, total;
+        1:    7:  total = 0;
+        -:    8:
+       11:    9:  for (i = 0; i < 10; i++)
+condition outcomes covered 2/2
+       10:   10:    total += i;
+        -:   11:
+       1*:   12:  int v = total > 100 ? 1 : 2;
+condition outcomes covered 1/2
+condition  0 not covered (true)
+        -:   13:
+       1*:   14:  if (total != 45 && v == 1)
+condition outcomes covered 1/4
+condition  0 not covered (true)
+condition  1 not covered (true false)
+    #####:   15:    printf ("Failure\n");
+        -:   16:  else
+        1:   17:    printf ("Success\n");
+        1:   18:  return 0;
+        -:   19:@}
+@end smallexample
+
+For every condition the number of taken and total outcomes are
+printed, and if there are uncovered outcomes a line will be printed
+for each condition showing the uncovered outcome in parentheses.
+Conditions are identified by their index -- index 0 is the left-most
+condition.  In @code{a || (b && c)}, @var{a} is condition 0, @var{b}
+condition 1, and @var{c} condition 2.
+
+An outcome is considered covered if it has an independent effect on
+the decision, also known as masking MC/DC (Modified Condition/Decision
+Coverage).  In this example the decision evaluates to true and @var{a}
+is evaluated, but not covered.  This is because @var{a} cannot affect
+the decision independently -- both @var{a} and @var{b} must change
+value for the decision to change.
+
+@smallexample
+$ gcov -t -m -g tmp
+        -:    0:Source:tmp.c
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        -:    1:#include <stdio.h>
+        -:    2:
+        1:    3:int main()
+        -:    4:@{
+        1:    5:  int a = 1;
+        1:    6:  int b = 0;
+        -:    7:
+        1:    8:  if (a && b)
+condition outcomes covered 1/4
+condition  0 not covered (true false)
+condition  1 not covered (true)
+    #####:    9:    printf ("Success!\n");
+        -:   10:  else
+        1:   11:    printf ("Failure!\n");
+        -:   12:@}
+@end smallexample
+
+@anchor {gcov prime paths example}
+When you compile with @option{--coverage -fpath-coverage} and use the
+option @option{-e} your output looks like this:
+
+@smallexample
+$ gcov -t -e tmp
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        -:    1:#include <stdio.h>
+        -:    2:
+paths covered 4 of 15
+        1:    3:int main ()
+        -:    4:@{
+        -:    5:  int i, total;
+        1:    6:  total = 0;
+        -:    7:
+       11:    8:  for (i = 0; i < 10; i++)
+       10:    9:    total += i;
+        -:   10:
+       1*:   11:  int v = total > 100 ? 1 : 2;
+        -:   12:
+       1*:   13:  if (total != 45 && v == 1)
+    #####:   14:    printf ("Failure\n");
+        -:   15:  else
+        1:   16:    printf ("Success\n");
+        1:   17:  return 0;
+        -:   18:@}
+@end smallexample
+
+This output is useful to figure out roughly where coverage is missing
+and testing how different inputs change the coverage.  The
+@option{--prime-paths-source} is a useful tool for understanding paths.
+
+@smallexample
+$ gcov -t --prime-paths-source tmp
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        -:    1:#include <stdio.h>
+        -:    2:
+paths covered 4 of 15
+path 1:
+BB  2:           3:int main ()
+BB  2:           6:  total = 0;
+BB  2:           8:  for (i = 0; i < 10; i++)
+BB  4: (false)   8:  for (i = 0; i < 10; i++)
+BB  5: (true)   11:  int v = total > 100 ? 1 : 2;
+BB  6:          11:  int v = total > 100 ? 1 : 2;
+BB  8: (true)   13:  if (total != 45 && v == 1)
+BB  9: (true)   13:  if (total != 45 && v == 1)
+BB 10:          14:    printf ("Failure\n");
+BB 12:          17:  return 0;
+@end smallexample
+
+In this mode, gcov will print details on the missing paths.  The first
+column lists the sequence of basic blocks (BB).  The second column is
+the decision to take at that line if there is one.  The final columns
+are the line number and the line itself.  This is useful for
+understanding the paths, in particular those that are hard to cover or
+even unreachable.  Lines may be repeated, for example the @code{for}
+loop, if the same line is a part of multiple basic blocks.  This mode is
+intended for humans and good at understanding what code is exercised
+under testing or for given inputs.  This output is quite verbose, and
+for focusing on specific functions it can be combined with the filters
+@option{--include} and @option{--exclude}.
+
+A denser output is available with @option{--prime-paths-lines}, which
+looks like this:
+
+@smallexample
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        -:    1:#include <stdio.h>
+        -:    2:
+paths covered 4 of 15
+path  1 not covered: lines 8 8(false) 11(true) 11 13(true) 13(true) 14 17
+path  2 not covered: lines 8 8(false) 11(true) 11 13(true) 13(false) 16 17
+path  3 not covered: lines 8 8(false) 11(true) 11 13(false) 16 17
+path  4 not covered: lines 8 8(false) 11(false) 11 13(true) 13(true) 14 17
+path  5 not covered: lines 8 8(false) 11(false) 11 13(true) 13(false) 16 17
+path  6 not covered: lines 8 8(false) 11(false) 11 13(false) 16 17
+path  8 not covered: lines 9 8(false) 11(true) 11 13(true) 13(true) 14 17
+path  9 not covered: lines 9 8(false) 11(true) 11 13(true) 13(false) 16 17
+path 10 not covered: lines 9 8(false) 11(true) 11 13(false) 16 17
+path 11 not covered: lines 9 8(false) 11(false) 11 13(true) 13(true) 14 17
+path 12 not covered: lines 9 8(false) 11(false) 11 13(true) 13(false) 16 17
+        1:    3:int main ()
+        -:    4:@{
+@end smallexample
+
+In this mode, every missing path is expanded using the lines and
+decisions like @option{--prime-paths-source} but printed on a single
+line.  This mode provides a good overview over the paths and for
+tracking how different tests and inputs exercises the code.
+
 The execution counts are cumulative.  If the example program were
 executed again without removing the @file{.gcda} file, the count for the
 number of times each line in the source was executed would be added to
@@ -867,6 +1192,92 @@ profiling code first attempts to read in an existing @file{.gcda} file; if
 the file doesn't match the executable (differing number of basic block
 counts) it will ignore the contents of the file.  It then adds in the
 new execution counts and finally writes the data to the file.
+
+You can report on a subset of functions by using @option{--include}
+and @option{--exclude}.  This is very useful when combined with
+@option{--stdout} trying to understand behavior and coverage for a
+particular function by running a test, looking at @command{gcov}
+output, testing another input, and running @command{gcov} again.
+
+@smallexample
+$ gcov -m --stdout --include inc tmp
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+       2*:    8:  void inc () @{ b++; @}
+------------------
+Foo<char>::inc():
+    #####:    8:  void inc () @{ b++; @}
+------------------
+Foo<int>::inc():
+        2:    8:  void inc () @{ b++; @}
+------------------
+@end smallexample
+
+@command{gcov} will match on mangled names by default, which you can
+control with the @option{-M} flag.  Note that matching and reporting
+are independent, so you can match on mangled names while printing
+demangled names, and vice versa.  To report on the @code{int}
+instantiation of @code{Foo} matching on mangled and demangled names:
+
+@smallexample
+$ gcov -t -m -M tmp --include 'Foo<int>'
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        1:    7:  Foo(): b (1000) @{@}
+        2:    8:  void inc () @{ b++; @}
+@end smallexample
+
+@smallexample
+$ gcov -t -m tmp --include 'FooIi'
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        1:    7:  Foo(): b (1000) @{@}
+        2:    8:  void inc () @{ b++; @}
+@end smallexample
+
+The arguments to @option{--include} and @option{--exclude} are
+extended regular expressions (like @command{grep -E}), so the pattern
+@code{in.?} matches both @code{inc} and @code{main}.  If used with
+@option{-M} then all @code{int} instantiations of @code{Foo} would
+match too.  @option{--include} and @option{--exclude} can be used
+multiple times, and if a name matches multiple filters it is the last
+one to match which takes preference.  For example, to match
+@code{main} and the @code{int} instatiation of @code{inc}, while
+omitting the @code{Foo} constructor:
+
+@smallexample
+$ gcov -t -m -M --include in --exclude Foo --include '<int>::inc' tmp
+        -:    0:Source:tmp.cpp
+        -:    0:Graph:tmp.gcno
+        -:    0:Data:tmp.gcda
+        -:    0:Runs:1
+        2:    8:  void inc () @{ b++; @}
+        1:   18:main (void)
+        -:   19:@{
+        -:   20:  int i, total;
+        1:   21:  Foo<int> counter;
+        -:   22:
+        1:   23:  counter.inc();
+        1:   24:  counter.inc();
+        1:   25:  total = 0;
+        -:   26:
+       11:   27:  for (i = 0; i < 10; i++)
+       10:   28:    total += i;
+        -:   29:
+       1*:   30:  int v = total > 100 ? 1 : 2;
+        -:   31:
+        1:   32:  if (total != 45)
+    #####:   33:    printf ("Failure\n");
+        -:   34:  else
+        1:   35:    printf ("Success\n");
+        1:   36:  return 0;
+@end smallexample
 
 @node Gcov and Optimization
 @section Using @command{gcov} with GCC Optimization

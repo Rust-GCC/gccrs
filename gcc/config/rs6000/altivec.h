@@ -1,5 +1,5 @@
 /* PowerPC AltiVec include file.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez (aldyh@redhat.com).
    Rewritten by Paolo Bonzini (bonzini@gnu.org).
 
@@ -35,7 +35,7 @@
 #endif
 
 /* If __APPLE_ALTIVEC__ is defined, the compiler supports 'vector',
-   'pixel' and 'bool' as context-sensitive AltiVec keywords (in 
+   'pixel' and 'bool' as context-sensitive AltiVec keywords (in
    non-AltiVec contexts, they revert to their original meanings,
    if any), so we do not need to define them as macros.  Also,
    avoid defining them as macros for C++ with strict ANSI, as

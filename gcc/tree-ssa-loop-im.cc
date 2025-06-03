@@ -1,5 +1,5 @@
 /* Loop invariant motion.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -142,6 +142,8 @@ public:
 				   reference is {in,}dependent in
 				   different modes.  */
 };
+
+static bool in_loop_pipeline;
 
 /* We use six bits per loop in the ref->dep_loop bitmap to record
    the dep_kind x dep_state combinations.  */
@@ -1239,7 +1241,11 @@ compute_invariantness (basic_block bb)
 		   lim_data->cost);
 	}
 
-      if (lim_data->cost >= LIM_EXPENSIVE)
+      if (lim_data->cost >= LIM_EXPENSIVE
+	  /* When we run before PRE and PRE is active hoist all expressions
+	     since PRE would do so anyway and we can preserve range info
+	     but PRE cannot.  */
+	  || (flag_tree_pre && !in_loop_pipeline))
 	set_profitable_level (stmt);
     }
 }
@@ -1304,11 +1310,22 @@ move_computations_worker (basic_block bb)
 	     edges of COND.  */
 	  extract_true_false_args_from_phi (dom, stmt, &arg0, &arg1);
 	  gcc_assert (arg0 && arg1);
-	  t = make_ssa_name (boolean_type_node);
-	  new_stmt = gimple_build_assign (t, gimple_cond_code (cond),
-					  gimple_cond_lhs (cond),
-					  gimple_cond_rhs (cond));
-	  gsi_insert_on_edge (loop_preheader_edge (level), new_stmt);
+	  /* For `bool_val != 0`, reuse bool_val. */
+	  if (gimple_cond_code (cond) == NE_EXPR
+	      && integer_zerop (gimple_cond_rhs (cond))
+	      && types_compatible_p (TREE_TYPE (gimple_cond_lhs (cond)),
+				     boolean_type_node))
+	    {
+	      t = gimple_cond_lhs (cond);
+	    }
+	  else
+	    {
+	      t = make_ssa_name (boolean_type_node);
+	      new_stmt = gimple_build_assign (t, gimple_cond_code (cond),
+					      gimple_cond_lhs (cond),
+					      gimple_cond_rhs (cond));
+	      gsi_insert_on_edge (loop_preheader_edge (level), new_stmt);
+	    }
 	  new_stmt = gimple_build_assign (gimple_phi_result (stmt),
 					  COND_EXPR, t, arg0, arg1);
 	  todo |= TODO_cleanup_cfg;
@@ -1674,7 +1691,7 @@ gather_mem_refs_stmt (class loop *loop, gimple *stmt)
       aor.max_size = saved_maxsize;
       if (*slot)
 	{
-	  if (!(*slot)->ref_canonical 
+	  if (!(*slot)->ref_canonical
 	      && !operand_equal_p (*mem, (*slot)->mem.ref, 0))
 	    {
 	      /* If we didn't yet canonicalize the hashtable ref (which
@@ -2057,7 +2074,7 @@ first_mem_ref_loc (class loop *loop, im_mem_ref *ref)
        MEM = lsm;	<-- (X)
 
   In case MEM and TMP_VAR are NULL the function will return the then
-  block so the caller can insert (X) and other related stmts. 
+  block so the caller can insert (X) and other related stmts.
 */
 
 static basic_block
@@ -2269,7 +2286,7 @@ struct sm_aux
    temporary variable is put to the preheader of the loop, and assignments
    to the reference from the temporary variable are emitted to exits.  */
 
-static void
+static sm_aux *
 execute_sm (class loop *loop, im_mem_ref *ref,
 	    hash_map<im_mem_ref *, sm_aux *> &aux_map, bool maybe_mt,
 	    bool use_other_flag_var)
@@ -2298,7 +2315,7 @@ execute_sm (class loop *loop, im_mem_ref *ref,
   bool always_stored = ref_always_accessed_p (loop, ref, true);
   if (maybe_mt
       && (bb_in_transaction (loop_preheader_edge (loop)->src)
-	  || (! flag_store_data_races && ! always_stored)))
+	  || (ref_can_have_store_data_races (ref->mem.ref) && ! always_stored)))
     multi_threaded_model_p = true;
 
   if (multi_threaded_model_p && !use_other_flag_var)
@@ -2345,6 +2362,8 @@ execute_sm (class loop *loop, im_mem_ref *ref,
       lim_data->tgt_loop = loop;
       gsi_insert_before (&gsi, load, GSI_SAME_STMT);
     }
+
+  return aux;
 }
 
 /* sm_ord is used for ordinary stores we can retain order with respect
@@ -2366,7 +2385,8 @@ struct seq_entry
 static void
 execute_sm_exit (class loop *loop, edge ex, vec<seq_entry> &seq,
 		 hash_map<im_mem_ref *, sm_aux *> &aux_map, sm_kind kind,
-		 edge &append_cond_position, edge &last_cond_fallthru)
+		 edge &append_cond_position, edge &last_cond_fallthru,
+		 bitmap clobbers_to_prune)
 {
   /* Sink the stores to exit from the loop.  */
   for (unsigned i = seq.length (); i > 0; --i)
@@ -2375,15 +2395,35 @@ execute_sm_exit (class loop *loop, edge ex, vec<seq_entry> &seq,
       if (seq[i-1].second == sm_other)
 	{
 	  gcc_assert (kind == sm_ord && seq[i-1].from != NULL_TREE);
-	  if (dump_file && (dump_flags & TDF_DETAILS))
+	  gassign *store;
+	  if (ref->mem.ref == error_mark_node)
 	    {
-	      fprintf (dump_file, "Re-issueing dependent store of ");
-	      print_generic_expr (dump_file, ref->mem.ref);
-	      fprintf (dump_file, " from loop %d on exit %d -> %d\n",
-		       loop->num, ex->src->index, ex->dest->index);
+	      tree lhs = gimple_assign_lhs (ref->accesses_in_loop[0].stmt);
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		{
+		  fprintf (dump_file, "Re-issueing dependent ");
+		  print_generic_expr (dump_file, unshare_expr (seq[i-1].from));
+		  fprintf (dump_file, " of ");
+		  print_generic_expr (dump_file, lhs);
+		  fprintf (dump_file, " from loop %d on exit %d -> %d\n",
+			   loop->num, ex->src->index, ex->dest->index);
+		}
+	      store = gimple_build_assign (unshare_expr (lhs),
+					   unshare_expr (seq[i-1].from));
+	      bitmap_set_bit (clobbers_to_prune, seq[i-1].first);
 	    }
-	  gassign *store = gimple_build_assign (unshare_expr (ref->mem.ref),
-						seq[i-1].from);
+	  else
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		{
+		  fprintf (dump_file, "Re-issueing dependent store of ");
+		  print_generic_expr (dump_file, ref->mem.ref);
+		  fprintf (dump_file, " from loop %d on exit %d -> %d\n",
+			   loop->num, ex->src->index, ex->dest->index);
+		}
+	      store = gimple_build_assign (unshare_expr (ref->mem.ref),
+					   seq[i-1].from);
+	    }
 	  gsi_insert_on_edge (ex, store);
 	}
       else
@@ -2424,6 +2464,12 @@ sm_seq_push_down (vec<seq_entry> &seq, unsigned ptr, unsigned *at)
 	break;
       /* We may not ignore self-dependences here.  */
       if (new_cand.first == against.first
+	  /* ???  We could actually handle clobbers here, but not easily
+	     with LIMs dependence analysis.  */
+	  || (memory_accesses.refs_list[new_cand.first]->mem.ref
+	      == error_mark_node)
+	  || (memory_accesses.refs_list[against.first]->mem.ref
+	      == error_mark_node)
 	  || !refs_independent_p (memory_accesses.refs_list[new_cand.first],
 				  memory_accesses.refs_list[against.first],
 				  false))
@@ -2654,13 +2700,17 @@ sm_seq_valid_bb (class loop *loop, basic_block bb, tree vdef,
 	  return 1;
 	}
       lim_aux_data *data = get_lim_data (def);
-      gcc_assert (data);
+      im_mem_ref *ref = memory_accesses.refs_list[data->ref];
       if (data->ref == UNANALYZABLE_MEM_ID)
 	return -1;
       /* Stop at memory references which we can't move.  */
-      else if (memory_accesses.refs_list[data->ref]->mem.ref == error_mark_node
-	       || TREE_THIS_VOLATILE
-		    (memory_accesses.refs_list[data->ref]->mem.ref))
+      else if ((ref->mem.ref == error_mark_node
+		/* We can move end-of-storage/object down.  */
+		&& !gimple_clobber_p (ref->accesses_in_loop[0].stmt,
+				      CLOBBER_STORAGE_END)
+		&& !gimple_clobber_p (ref->accesses_in_loop[0].stmt,
+				      CLOBBER_OBJECT_END))
+	       || TREE_THIS_VOLATILE (ref->mem.ref))
 	{
 	  /* Mark refs_not_in_seq as unsupported.  */
 	  bitmap_ior_into (refs_not_supported, refs_not_in_seq);
@@ -2802,22 +2852,21 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
       hash_map<im_mem_ref *, sm_aux *> aux_map;
 
       /* Execute SM but delay the store materialization for ordered
-	 sequences on exit.  */
-      bool first_p = true;
+	 sequences on exit.  Remember a created flag var and make
+	 sure to re-use it.  */
+      sm_aux *flag_var_aux = nullptr;
       EXECUTE_IF_SET_IN_BITMAP (mem_refs, 0, i, bi)
 	{
 	  ref = memory_accesses.refs_list[i];
-	  execute_sm (loop, ref, aux_map, true, !first_p);
-	  first_p = false;
+	  sm_aux *aux = execute_sm (loop, ref, aux_map, true,
+				    flag_var_aux != nullptr);
+	  if (aux->store_flag)
+	    flag_var_aux = aux;
 	}
-
-      /* Get at the single flag variable we eventually produced.  */
-      im_mem_ref *ref
-	= memory_accesses.refs_list[bitmap_first_set_bit (mem_refs)];
-      sm_aux *aux = *aux_map.get (ref);
 
       /* Materialize ordered store sequences on exits.  */
       edge e;
+      auto_bitmap clobbers_to_prune;
       FOR_EACH_VEC_ELT (exits, i, e)
 	{
 	  edge append_cond_position = NULL;
@@ -2826,17 +2875,30 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
 	  /* Construct the single flag variable control flow and insert
 	     the ordered seq of stores in the then block.  With
 	     -fstore-data-races we can do the stores unconditionally.  */
-	  if (aux->store_flag)
+	  if (flag_var_aux)
 	    insert_e
 	      = single_pred_edge
 		  (execute_sm_if_changed (e, NULL_TREE, NULL_TREE,
-					  aux->store_flag,
+					  flag_var_aux->store_flag,
 					  loop_preheader_edge (loop),
-					  &aux->flag_bbs, append_cond_position,
+					  &flag_var_aux->flag_bbs,
+					  append_cond_position,
 					  last_cond_fallthru));
 	  execute_sm_exit (loop, insert_e, seq, aux_map, sm_ord,
-			   append_cond_position, last_cond_fallthru);
+			   append_cond_position, last_cond_fallthru,
+			   clobbers_to_prune);
 	  gsi_commit_one_edge_insert (insert_e, NULL);
+	}
+
+      /* Remove clobbers inside the loop we re-materialized on exits.  */
+      EXECUTE_IF_SET_IN_BITMAP (clobbers_to_prune, 0, i, bi)
+	{
+	  gimple *stmt = memory_accesses.refs_list[i]->accesses_in_loop[0].stmt;
+	  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
+	  unlink_stmt_vdef (stmt);
+	  release_defs (stmt);
+	  gimple_set_vdef (stmt, NULL_TREE);
+	  gsi_remove (&gsi, true);
 	}
 
       for (hash_map<im_mem_ref *, sm_aux *>::iterator iter = aux_map.begin ();
@@ -2989,6 +3051,7 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
     }
 
   /* Materialize ordered store sequences on exits.  */
+  auto_bitmap clobbers_to_prune;
   FOR_EACH_VEC_ELT (exits, i, e)
     {
       edge append_cond_position = NULL;
@@ -2997,15 +3060,28 @@ hoist_memory_references (class loop *loop, bitmap mem_refs,
 	{
 	  gcc_assert (sms[i].first == e);
 	  execute_sm_exit (loop, e, sms[i].second, aux_map, sm_ord,
-			   append_cond_position, last_cond_fallthru);
+			   append_cond_position, last_cond_fallthru,
+			   clobbers_to_prune);
 	  sms[i].second.release ();
 	}
       if (!unord_refs.is_empty ())
 	execute_sm_exit (loop, e, unord_refs, aux_map, sm_unord,
-			 append_cond_position, last_cond_fallthru);
+			 append_cond_position, last_cond_fallthru,
+			 clobbers_to_prune);
       /* Commit edge inserts here to preserve the order of stores
 	 when an exit exits multiple loops.  */
       gsi_commit_one_edge_insert (e, NULL);
+    }
+
+  /* Remove clobbers inside the loop we re-materialized on exits.  */
+  EXECUTE_IF_SET_IN_BITMAP (clobbers_to_prune, 0, i, bi)
+    {
+      gimple *stmt = memory_accesses.refs_list[i]->accesses_in_loop[0].stmt;
+      gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
+      unlink_stmt_vdef (stmt);
+      release_defs (stmt);
+      gimple_set_vdef (stmt, NULL_TREE);
+      gsi_remove (&gsi, true);
     }
 
   for (hash_map<im_mem_ref *, sm_aux *>::iterator iter = aux_map.begin ();
@@ -3689,7 +3765,7 @@ public:
 unsigned int
 pass_lim::execute (function *fun)
 {
-  bool in_loop_pipeline = scev_initialized_p ();
+  in_loop_pipeline = scev_initialized_p ();
   if (!in_loop_pipeline)
     loop_optimizer_init (LOOPS_NORMAL | LOOPS_HAVE_RECORDED_EXITS);
 

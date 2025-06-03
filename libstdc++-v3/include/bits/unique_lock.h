@@ -1,6 +1,6 @@
 // std::unique_lock implementation -*- C++ -*-
 
-// Copyright (C) 2008-2024 Free Software Foundation, Inc.
+// Copyright (C) 2008-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_UNIQUE_LOCK_H
 #define _GLIBCXX_UNIQUE_LOCK_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus < 201103L
 # include <bits/c++0x_warning.h>
@@ -124,14 +126,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       unique_lock& operator=(unique_lock&& __u) noexcept
       {
-	if(_M_owns)
-	  unlock();
-
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4172. unique_lock self-move-assignment is broken
 	unique_lock(std::move(__u)).swap(*this);
-
-	__u._M_device = 0;
-	__u._M_owns = false;
-
 	return *this;
       }
 

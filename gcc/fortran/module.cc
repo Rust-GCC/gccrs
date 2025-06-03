@@ -1,6 +1,6 @@
 /* Handle modules, which amounts to loading and saving symbols and
    their attendant structures.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -84,7 +84,9 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Don't put any single quote (') in MOD_VERSION, if you want it to be
    recognized.  */
-#define MOD_VERSION "15"
+#define MOD_VERSION "16"
+/* Older mod versions we can still parse.  */
+#define COMPAT_MOD_VERSIONS { "15" }
 
 
 /* Structure that describes a position within a module file.  */
@@ -195,7 +197,12 @@ static const char *module_name;
 /* The name of the .smod file that the submodule will write to.  */
 static const char *submodule_name;
 
+/* The list of use statements to apply to the current namespace
+   before parsing the non-use statements.  */
 static gfc_use_list *module_list;
+/* The end of the MODULE_LIST list above at the time the recognition
+   of the current statement started.  */
+static gfc_use_list **old_module_list_tail;
 
 /* If we're reading an intrinsic module, this is its ID.  */
 static intmod_id current_intmod;
@@ -1348,7 +1355,7 @@ parse_integer (int c)
       atom_int = 10 * atom_int + c - '0';
     }
 
-  atom_int *= sign; 
+  atom_int *= sign;
 }
 
 
@@ -2090,7 +2097,7 @@ enum ab_attribute
   AB_OACC_ROUTINE_LOP_GANG, AB_OACC_ROUTINE_LOP_WORKER,
   AB_OACC_ROUTINE_LOP_VECTOR, AB_OACC_ROUTINE_LOP_SEQ,
   AB_OACC_ROUTINE_NOHOST,
-  AB_OMP_REQ_REVERSE_OFFLOAD, AB_OMP_REQ_UNIFIED_ADDRESS,
+  AB_OMP_REQ_REVERSE_OFFLOAD, AB_OMP_REQ_UNIFIED_ADDRESS, AB_OMP_REQ_SELF_MAPS,
   AB_OMP_REQ_UNIFIED_SHARED_MEMORY, AB_OMP_REQ_DYNAMIC_ALLOCATORS,
   AB_OMP_REQ_MEM_ORDER_SEQ_CST, AB_OMP_REQ_MEM_ORDER_ACQ_REL,
   AB_OMP_REQ_MEM_ORDER_ACQUIRE, AB_OMP_REQ_MEM_ORDER_RELEASE,
@@ -2173,6 +2180,7 @@ static const mstring attr_bits[] =
     minit ("OMP_REQ_REVERSE_OFFLOAD", AB_OMP_REQ_REVERSE_OFFLOAD),
     minit ("OMP_REQ_UNIFIED_ADDRESS", AB_OMP_REQ_UNIFIED_ADDRESS),
     minit ("OMP_REQ_UNIFIED_SHARED_MEMORY", AB_OMP_REQ_UNIFIED_SHARED_MEMORY),
+    minit ("OMP_REQ_SELF_MAPS", AB_OMP_REQ_SELF_MAPS),
     minit ("OMP_REQ_DYNAMIC_ALLOCATORS", AB_OMP_REQ_DYNAMIC_ALLOCATORS),
     minit ("OMP_REQ_MEM_ORDER_SEQ_CST", AB_OMP_REQ_MEM_ORDER_SEQ_CST),
     minit ("OMP_REQ_MEM_ORDER_ACQ_REL", AB_OMP_REQ_MEM_ORDER_ACQ_REL),
@@ -2437,6 +2445,8 @@ mio_symbol_attribute (symbol_attribute *attr)
 	    MIO_NAME (ab_attribute) (AB_OMP_REQ_UNIFIED_ADDRESS, attr_bits);
 	  if (gfc_current_ns->omp_requires & OMP_REQ_UNIFIED_SHARED_MEMORY)
 	    MIO_NAME (ab_attribute) (AB_OMP_REQ_UNIFIED_SHARED_MEMORY, attr_bits);
+	  if (gfc_current_ns->omp_requires & OMP_REQ_SELF_MAPS)
+	    MIO_NAME (ab_attribute) (AB_OMP_REQ_SELF_MAPS, attr_bits);
 	  if (gfc_current_ns->omp_requires & OMP_REQ_DYNAMIC_ALLOCATORS)
 	    MIO_NAME (ab_attribute) (AB_OMP_REQ_DYNAMIC_ALLOCATORS, attr_bits);
 	  if ((gfc_current_ns->omp_requires & OMP_REQ_ATOMIC_MEM_ORDER_MASK)
@@ -2717,6 +2727,12 @@ mio_symbol_attribute (symbol_attribute *attr)
 					   &gfc_current_locus,
 					   module_name);
 	      break;
+	    case AB_OMP_REQ_SELF_MAPS:
+	      gfc_omp_requires_add_clause (OMP_REQ_SELF_MAPS,
+					   "self_maps",
+					   &gfc_current_locus,
+					   module_name);
+	      break;
 	    case AB_OMP_REQ_DYNAMIC_ALLOCATORS:
 	      gfc_omp_requires_add_clause (OMP_REQ_DYNAMIC_ALLOCATORS,
 					   "dynamic_allocators",
@@ -2776,6 +2792,7 @@ static const mstring bt_types[] = {
     minit ("UNKNOWN", BT_UNKNOWN),
     minit ("VOID", BT_VOID),
     minit ("ASSUMED", BT_ASSUMED),
+    minit ("UNSIGNED", BT_UNSIGNED),
     minit (NULL, -1)
 };
 
@@ -3909,6 +3926,7 @@ mio_expr (gfc_expr **ep)
       switch (e->ts.type)
 	{
 	case BT_INTEGER:
+	case BT_UNSIGNED:
 	  mio_gmp_integer (&e->value.integer);
 	  break;
 
@@ -4363,75 +4381,58 @@ static const mstring omp_declare_simd_clauses[] =
     minit (NULL, -1)
 };
 
-/* Handle !$omp declare simd.  */
+/* Handle OpenMP's declare-simd clauses.  */
 
 static void
-mio_omp_declare_simd (gfc_namespace *ns, gfc_omp_declare_simd **odsp)
+mio_omp_declare_simd_clauses (gfc_omp_clauses **clausesp)
 {
   if (iomode == IO_OUTPUT)
     {
-      if (*odsp == NULL)
-	return;
-    }
-  else if (peek_atom () != ATOM_LPAREN)
-    return;
+      gfc_omp_clauses *clauses = *clausesp;
+      gfc_omp_namelist *n;
 
-  gfc_omp_declare_simd *ods = *odsp;
-
-  mio_lparen ();
-  if (iomode == IO_OUTPUT)
-    {
       write_atom (ATOM_NAME, "OMP_DECLARE_SIMD");
-      if (ods->clauses)
+      if (clauses->inbranch)
+	mio_name (0, omp_declare_simd_clauses);
+      if (clauses->notinbranch)
+	mio_name (1, omp_declare_simd_clauses);
+      if (clauses->simdlen_expr)
 	{
-	  gfc_omp_namelist *n;
-
-	  if (ods->clauses->inbranch)
-	    mio_name (0, omp_declare_simd_clauses);
-	  if (ods->clauses->notinbranch)
-	    mio_name (1, omp_declare_simd_clauses);
-	  if (ods->clauses->simdlen_expr)
-	    {
-	      mio_name (2, omp_declare_simd_clauses);
-	      mio_expr (&ods->clauses->simdlen_expr);
-	    }
-	  for (n = ods->clauses->lists[OMP_LIST_UNIFORM]; n; n = n->next)
-	    {
-	      mio_name (3, omp_declare_simd_clauses);
-	      mio_symbol_ref (&n->sym);
-	    }
-	  for (n = ods->clauses->lists[OMP_LIST_LINEAR]; n; n = n->next)
-	    {
-	      if (n->u.linear.op == OMP_LINEAR_DEFAULT)
-		mio_name (4, omp_declare_simd_clauses);
-	      else
-		mio_name (32 + n->u.linear.op, omp_declare_simd_clauses);
-	      mio_symbol_ref (&n->sym);
-	      mio_expr (&n->expr);
-	    }
-	  for (n = ods->clauses->lists[OMP_LIST_ALIGNED]; n; n = n->next)
-	    {
-	      mio_name (5, omp_declare_simd_clauses);
-	      mio_symbol_ref (&n->sym);
-	      mio_expr (&n->expr);
-	    }
+	  mio_name (2, omp_declare_simd_clauses);
+	  mio_expr (&clauses->simdlen_expr);
+	}
+      for (n = clauses->lists[OMP_LIST_UNIFORM]; n; n = n->next)
+	{
+	  mio_name (3, omp_declare_simd_clauses);
+	  mio_symbol_ref (&n->sym);
+	}
+      for (n = clauses->lists[OMP_LIST_LINEAR]; n; n = n->next)
+	{
+	  if (n->u.linear.op == OMP_LINEAR_DEFAULT)
+	    mio_name (4, omp_declare_simd_clauses);
+	  else
+	    mio_name (32 + n->u.linear.op, omp_declare_simd_clauses);
+	  mio_symbol_ref (&n->sym);
+	  mio_expr (&n->expr);
+	}
+      for (n = clauses->lists[OMP_LIST_ALIGNED]; n; n = n->next)
+	{
+	  mio_name (5, omp_declare_simd_clauses);
+	  mio_symbol_ref (&n->sym);
+	  mio_expr (&n->expr);
 	}
     }
   else
     {
-      gfc_omp_namelist **ptrs[3] = { NULL, NULL, NULL };
+      if (peek_atom () != ATOM_NAME)
+	return;
 
-      require_atom (ATOM_NAME);
-      *odsp = ods = gfc_get_omp_declare_simd ();
-      ods->where = gfc_current_locus;
-      ods->proc_name = ns->proc_name;
-      if (peek_atom () == ATOM_NAME)
-	{
-	  ods->clauses = gfc_get_omp_clauses ();
-	  ptrs[0] = &ods->clauses->lists[OMP_LIST_UNIFORM];
-	  ptrs[1] = &ods->clauses->lists[OMP_LIST_LINEAR];
-	  ptrs[2] = &ods->clauses->lists[OMP_LIST_ALIGNED];
-	}
+      gfc_omp_namelist **ptrs[3] = { NULL, NULL, NULL };
+      gfc_omp_clauses *clauses = *clausesp = gfc_get_omp_clauses ();
+      ptrs[0] = &clauses->lists[OMP_LIST_UNIFORM];
+      ptrs[1] = &clauses->lists[OMP_LIST_LINEAR];
+      ptrs[2] = &clauses->lists[OMP_LIST_ALIGNED];
+
       while (peek_atom () == ATOM_NAME)
 	{
 	  gfc_omp_namelist *n;
@@ -4439,9 +4440,9 @@ mio_omp_declare_simd (gfc_namespace *ns, gfc_omp_declare_simd **odsp)
 
 	  switch (t)
 	    {
-	    case 0: ods->clauses->inbranch = true; break;
-	    case 1: ods->clauses->notinbranch = true; break;
-	    case 2: mio_expr (&ods->clauses->simdlen_expr); break;
+	    case 0: clauses->inbranch = true; break;
+	    case 1: clauses->notinbranch = true; break;
+	    case 2: mio_expr (&clauses->simdlen_expr); break;
 	    case 3:
 	    case 4:
 	    case 5:
@@ -4463,12 +4464,309 @@ mio_omp_declare_simd (gfc_namespace *ns, gfc_omp_declare_simd **odsp)
 	    }
 	}
     }
+}
+
+
+/* Handle !$omp declare simd.  */
+
+static void
+mio_omp_declare_simd (gfc_namespace *ns, gfc_omp_declare_simd **odsp)
+{
+  if (iomode == IO_OUTPUT)
+    {
+      if (*odsp == NULL)
+	{
+	  if (ns->omp_declare_variant)
+	    {
+	      mio_lparen ();
+	      mio_rparen ();
+	    }
+	  return;
+	}
+    }
+  else if (peek_atom () != ATOM_LPAREN)
+    return;
+
+  gfc_omp_declare_simd *ods = *odsp;
+
+  mio_lparen ();
+  if (iomode == IO_OUTPUT)
+    {
+      if (ods->clauses)
+	mio_omp_declare_simd_clauses (&ods->clauses);
+    }
+  else
+    {
+      if (peek_atom () == ATOM_RPAREN)
+	{
+	  mio_rparen ();
+	  return;
+	}
+
+      require_atom (ATOM_NAME);
+      *odsp = ods = gfc_get_omp_declare_simd ();
+      ods->where = gfc_current_locus;
+      ods->proc_name = ns->proc_name;
+      mio_omp_declare_simd_clauses (&ods->clauses);
+    }
 
   mio_omp_declare_simd (ns, &ods->next);
 
   mio_rparen ();
 }
 
+/* Handle !$omp declare variant.  */
+
+static void
+mio_omp_declare_variant (gfc_namespace *ns, gfc_omp_declare_variant **odvp)
+{
+  if (iomode == IO_OUTPUT)
+    {
+      if (*odvp == NULL)
+	return;
+    }
+  else if (peek_atom () != ATOM_LPAREN)
+    return;
+
+  gfc_omp_declare_variant *odv;
+
+  mio_lparen ();
+  if (iomode == IO_OUTPUT)
+    {
+      odv = *odvp;
+      write_atom (ATOM_NAME, "OMP_DECLARE_VARIANT");
+      gfc_symtree *st;
+      st = (odv->base_proc_symtree
+	    ? odv->base_proc_symtree
+	    : gfc_find_symtree (ns->sym_root, ns->proc_name->name));
+      mio_symtree_ref (&st);
+      st = (st->n.sym->attr.if_source == IFSRC_IFBODY
+	    && st->n.sym->formal_ns == ns
+	    ? gfc_find_symtree (ns->parent->sym_root,
+				odv->variant_proc_symtree->name)
+	    : odv->variant_proc_symtree);
+      mio_symtree_ref (&st);
+
+      mio_lparen ();
+      write_atom (ATOM_NAME, "SEL");
+      for (gfc_omp_set_selector *set = odv->set_selectors; set; set = set->next)
+	{
+	  int set_code = set->code;
+	  mio_integer (&set_code);
+	  mio_lparen ();
+	  for (gfc_omp_selector *sel = set->trait_selectors; sel;
+	       sel = sel->next)
+	    {
+	      int sel_code = sel->code;
+	      mio_integer (&sel_code);
+	      mio_expr (&sel->score);
+	      mio_lparen ();
+	      for (gfc_omp_trait_property *prop = sel->properties; prop;
+		   prop = prop->next)
+		{
+		  int kind = prop->property_kind;
+		  mio_integer (&kind);
+		  int is_name = prop->is_name;
+		  mio_integer (&is_name);
+		  switch (prop->property_kind)
+		    {
+		    case OMP_TRAIT_PROPERTY_DEV_NUM_EXPR:
+		    case OMP_TRAIT_PROPERTY_BOOL_EXPR:
+		      mio_expr (&prop->expr);
+		      break;
+		    case OMP_TRAIT_PROPERTY_ID:
+		      write_atom (ATOM_STRING, prop->name);
+		      break;
+		    case OMP_TRAIT_PROPERTY_NAME_LIST:
+		      if (prop->is_name)
+			write_atom (ATOM_STRING, prop->name);
+		      else
+			mio_expr (&prop->expr);
+		      break;
+		    case OMP_TRAIT_PROPERTY_CLAUSE_LIST:
+		      {
+			/* Currently only declare simd.  */
+			mio_lparen ();
+			mio_omp_declare_simd_clauses (&prop->clauses);
+			mio_rparen ();
+		      }
+		      break;
+		    default:
+		      gcc_unreachable ();
+		    }
+		}
+	      mio_rparen ();
+	    }
+	  mio_rparen ();
+	}
+      mio_rparen ();
+
+      mio_lparen ();
+      write_atom (ATOM_NAME, "ADJ");
+      for (gfc_omp_namelist *arg = odv->adjust_args_list; arg; arg = arg->next)
+	{
+	  int need_ptr = arg->u.adj_args.need_ptr;
+	  int need_addr = arg->u.adj_args.need_addr;
+	  int range_start = arg->u.adj_args.range_start;
+	  int omp_num_args_plus = arg->u.adj_args.omp_num_args_plus;
+	  int omp_num_args_minus = arg->u.adj_args.omp_num_args_minus;
+	  mio_integer (&need_ptr);
+	  mio_integer (&need_addr);
+	  mio_integer (&range_start);
+	  mio_integer (&omp_num_args_plus);
+	  mio_integer (&omp_num_args_minus);
+	  mio_expr (&arg->expr);
+	}
+      mio_rparen ();
+
+      mio_lparen ();
+      write_atom (ATOM_NAME, "APP");
+      for (gfc_omp_namelist *arg = odv->append_args_list; arg; arg = arg->next)
+	{
+	  int target = arg->u.init.target;
+	  int targetsync = arg->u.init.targetsync;
+	  mio_integer (&target);
+	  mio_integer (&targetsync);
+	  mio_integer (&arg->u.init.len);
+	  gfc_char_t *p = XALLOCAVEC (gfc_char_t, arg->u.init.len);
+	  for (int i = 0; i < arg->u.init.len; i++)
+	    p[i] = arg->u2.init_interop[i];
+	  mio_allocated_wide_string (p, arg->u.init.len);
+	}
+      mio_rparen ();
+    }
+  else
+    {
+      if (peek_atom () == ATOM_RPAREN)
+	{
+	  mio_rparen ();
+	  return;
+	}
+
+      require_atom (ATOM_NAME);
+      odv = *odvp = gfc_get_omp_declare_variant ();
+      odv->where = gfc_current_locus;
+
+      mio_symtree_ref (&odv->base_proc_symtree);
+      mio_symtree_ref (&odv->variant_proc_symtree);
+
+      mio_lparen ();
+      require_atom (ATOM_NAME);  /* SEL */
+      gfc_omp_set_selector **set = &odv->set_selectors;
+      while (peek_atom () != ATOM_RPAREN)
+	{
+	  *set = gfc_get_omp_set_selector ();
+	  int set_code;
+	  mio_integer (&set_code);
+	  (*set)->code = (enum omp_tss_code) set_code;
+
+	  mio_lparen ();
+	  gfc_omp_selector **sel = &(*set)->trait_selectors;
+	  while (peek_atom () != ATOM_RPAREN)
+	    {
+	      *sel = gfc_get_omp_selector ();
+	      int sel_code = 0;
+	      mio_integer (&sel_code);
+	      (*sel)->code = (enum omp_ts_code) sel_code;
+	      mio_expr (&(*sel)->score);
+
+	      mio_lparen ();
+	      gfc_omp_trait_property **prop = &(*sel)->properties;
+	      while (peek_atom () != ATOM_RPAREN)
+		{
+		  *prop = gfc_get_omp_trait_property ();
+		  int kind = 0, is_name = 0;
+		  mio_integer (&kind);
+		  mio_integer (&is_name);
+		  (*prop)->property_kind = (enum omp_tp_type) kind;
+		  (*prop)->is_name = is_name;
+		  switch ((*prop)->property_kind)
+		    {
+		    case OMP_TRAIT_PROPERTY_DEV_NUM_EXPR:
+		    case OMP_TRAIT_PROPERTY_BOOL_EXPR:
+		      mio_expr (&(*prop)->expr);
+		      break;
+		    case OMP_TRAIT_PROPERTY_ID:
+		      (*prop)->name = read_string ();
+		      break;
+		    case OMP_TRAIT_PROPERTY_NAME_LIST:
+		      if ((*prop)->is_name)
+			(*prop)->name = read_string ();
+		      else
+			mio_expr (&(*prop)->expr);
+		      break;
+		    case OMP_TRAIT_PROPERTY_CLAUSE_LIST:
+		      {
+			/* Currently only declare simd.  */
+			mio_lparen ();
+			mio_omp_declare_simd_clauses (&(*prop)->clauses);
+			mio_rparen ();
+		      }
+		      break;
+		    default:
+		      gcc_unreachable ();
+		    }
+		  prop = &(*prop)->next;
+		}
+	      mio_rparen ();
+	      sel = &(*sel)->next;
+	    }
+	  mio_rparen ();
+	  set = &(*set)->next;
+	}
+      mio_rparen ();
+
+      mio_lparen ();
+      require_atom (ATOM_NAME);  /* ADJ */
+      gfc_omp_namelist **nl = &odv->adjust_args_list;
+      while (peek_atom () != ATOM_RPAREN)
+	{
+	  *nl = gfc_get_omp_namelist ();
+	  (*nl)->where = gfc_current_locus;
+	  int need_ptr, need_addr, range_start;
+	  int omp_num_args_plus, omp_num_args_minus;
+	  mio_integer (&need_ptr);
+	  mio_integer (&need_addr);
+	  mio_integer (&range_start);
+	  mio_integer (&omp_num_args_plus);
+	  mio_integer (&omp_num_args_minus);
+	  (*nl)->u.adj_args.need_ptr = need_ptr;
+	  (*nl)->u.adj_args.need_addr = need_addr;
+	  (*nl)->u.adj_args.range_start = range_start;
+	  (*nl)->u.adj_args.omp_num_args_plus = omp_num_args_minus;
+	  (*nl)->u.adj_args.omp_num_args_plus = omp_num_args_minus;
+	  mio_expr (&(*nl)->expr);
+	  nl = &(*nl)->next;
+	}
+      mio_rparen ();
+
+      mio_lparen ();
+      require_atom (ATOM_NAME);  /* APP */
+      nl = &odv->append_args_list;
+      while (peek_atom () != ATOM_RPAREN)
+	{
+	  *nl = gfc_get_omp_namelist ();
+	  (*nl)->where = gfc_current_locus;
+	  int target, targetsync;
+	  mio_integer (&target);
+	  mio_integer (&targetsync);
+	  mio_integer (&(*nl)->u.init.len);
+	  (*nl)->u.init.target = target;
+	  (*nl)->u.init.targetsync = targetsync;
+	  const gfc_char_t *p = XALLOCAVEC (gfc_char_t, (*nl)->u.init.len); // FIXME: memory handling?
+	  (*nl)->u2.init_interop = XCNEWVEC (char,  (*nl)->u.init.len);
+	  p = mio_allocated_wide_string (NULL, (*nl)->u.init.len);
+	  for (int i = 0; i < (*nl)->u.init.len; i++)
+	    (*nl)->u2.init_interop[i] = p[i];
+	  nl = &(*nl)->next;
+	}
+      mio_rparen ();
+    }
+
+  mio_omp_declare_variant (ns, &odv->next);
+
+  mio_rparen ();
+}
 
 static const mstring omp_declare_reduction_stmt[] =
 {
@@ -4647,7 +4945,14 @@ mio_symbol (gfc_symbol *sym)
   if (sym->formal_ns
       && sym->formal_ns->proc_name == sym
       && sym->formal_ns->entries == NULL)
-    mio_omp_declare_simd (sym->formal_ns, &sym->formal_ns->omp_declare_simd);
+    {
+      mio_omp_declare_simd (sym->formal_ns, &sym->formal_ns->omp_declare_simd);
+      mio_omp_declare_variant (sym->formal_ns,
+			       &sym->formal_ns->omp_declare_variant);
+    }
+  else if ((iomode == IO_OUTPUT && sym->ns->proc_name == sym)
+	   || (iomode == IO_INPUT && peek_atom () == ATOM_LPAREN))
+    mio_omp_declare_variant (sym->ns, &sym->ns->omp_declare_variant);
 
   mio_rparen ();
 }
@@ -6331,7 +6636,7 @@ write_module (void)
 
   /* Initialize the column counter. */
   module_column = 1;
-  
+
   /* Write the operator interfaces.  */
   mio_lparen ();
 
@@ -6765,7 +7070,12 @@ import_iso_c_binding_module (void)
 		  not_in_std = (gfc_option.allow_std & d) == 0; \
 		  name = b; \
 		  break;
-#define NAMED_REALCST(a,b,c,d) \
+#define NAMED_UINTCST(a,b,c,d) \
+		case a: \
+		  not_in_std = (gfc_option.allow_std & d) == 0; \
+		  name = b; \
+		  break;
+#define NAMED_REALCST(a,b,c,d)			\
 	        case a: \
 		  not_in_std = (gfc_option.allow_std & d) == 0; \
 		  name = b; \
@@ -6852,7 +7162,12 @@ import_iso_c_binding_module (void)
 		if ((gfc_option.allow_std & d) == 0) \
 		  continue; \
 		break;
-#define NAMED_REALCST(a,b,c,d) \
+#define NAMED_UINTCST(a,b,c,d) \
+	      case a: \
+		if ((gfc_option.allow_std & d) == 0) \
+		  continue; \
+		break;
+#define NAMED_REALCST(a,b,c,d)			\
 	      case a: \
 		if ((gfc_option.allow_std & d) == 0) \
 		  continue; \
@@ -7086,6 +7401,7 @@ use_iso_fortran_env_module (void)
 
   intmod_sym symbol[] = {
 #define NAMED_INTCST(a,b,c,d) { a, b, 0, d },
+#define NAMED_UINTCST(a,b,c,d) { a, b, 0, d },
 #define NAMED_KINDARRAY(a,b,c,d) { a, b, 0, d },
 #define NAMED_DERIVED_TYPE(a,b,c,d) { a, b, 0, d },
 #define NAMED_FUNCTION(a,b,c,d) { a, b, c, d },
@@ -7093,9 +7409,22 @@ use_iso_fortran_env_module (void)
 #include "iso-fortran-env.def"
     { ISOFORTRANENV_INVALID, NULL, -1234, 0 } };
 
+  /* We could have used c in the NAMED_{,U}INTCST macros
+     instead of 0, but then current g++ expands the initialization
+     as clearing the whole object followed by explicit stores of
+     all the non-zero elements (over 150), while by using 0s for
+     the non-constant initializers and initializing them afterwards
+     g++ will often copy everything from .rodata and then only override
+     over 30 non-constant ones.  */
   i = 0;
 #define NAMED_INTCST(a,b,c,d) symbol[i++].value = c;
+#define NAMED_UINTCST(a,b,c,d) symbol[i++].value = c;
+#define NAMED_KINDARRAY(a,b,c,d) i++;
+#define NAMED_DERIVED_TYPE(a,b,c,d) i++;
+#define NAMED_FUNCTION(a,b,c,d) i++;
+#define NAMED_SUBROUTINE(a,b,c,d) i++;
 #include "iso-fortran-env.def"
+  gcc_checking_assert (i == (int) ARRAY_SIZE (symbol) - 1);
 
   /* Generate the symbol for the module itself.  */
   mod_symtree = gfc_find_symtree (gfc_current_ns->sym_root, mod);
@@ -7144,6 +7473,15 @@ use_iso_fortran_env_module (void)
 	      switch (symbol[i].id)
 		{
 #define NAMED_INTCST(a,b,c,d) \
+		case a:
+#include "iso-fortran-env.def"
+		  create_int_parameter (u->local_name[0] ? u->local_name
+							 : u->use_name,
+					symbol[i].value, mod,
+					INTMOD_ISO_FORTRAN_ENV, symbol[i].id);
+		  break;
+
+#define NAMED_UINTCST(a,b,c,d) \
 		case a:
 #include "iso-fortran-env.def"
 		  create_int_parameter (u->local_name[0] ? u->local_name
@@ -7217,6 +7555,13 @@ use_iso_fortran_env_module (void)
 				    INTMOD_ISO_FORTRAN_ENV, symbol[i].id);
 	      break;
 
+#define NAMED_UINTCST(a,b,c,d)			\
+	    case a:
+#include "iso-fortran-env.def"
+	      create_int_parameter (symbol[i].name, symbol[i].value, mod,
+				    INTMOD_ISO_FORTRAN_ENV, symbol[i].id);
+	      break;
+
 #define NAMED_KINDARRAY(a,b,KINDS,d) \
 	    case a:\
 	      expr = gfc_get_array_expr (BT_INTEGER, gfc_default_integer_kind, \
@@ -7238,12 +7583,11 @@ use_iso_fortran_env_module (void)
 	    break;
 
 #define NAMED_FUNCTION(a,b,c,d) \
-		case a:
+	  case a:
 #include "iso-fortran-env.def"
-		  create_intrinsic_function (symbol[i].name, symbol[i].id, mod,
-					     INTMOD_ISO_FORTRAN_ENV, false,
-					     NULL);
-		  break;
+	    create_intrinsic_function (symbol[i].name, symbol[i].id, mod,
+				       INTMOD_ISO_FORTRAN_ENV, false, NULL);
+	    break;
 
 	  default:
 	    gcc_unreachable ();
@@ -7405,10 +7749,23 @@ gfc_use_module (gfc_use_list *module)
 			 " module file", module_fullpath);
       if (start == 3)
 	{
+	  bool fatal = false;
 	  if (strcmp (atom_name, " version") != 0
 	      || module_char () != ' '
-	      || parse_atom () != ATOM_STRING
-	      || strcmp (atom_string, MOD_VERSION))
+	      || parse_atom () != ATOM_STRING)
+	    fatal = true;
+	  else if (strcmp (atom_string, MOD_VERSION))
+	    {
+	      static const char *compat_mod_versions[] = COMPAT_MOD_VERSIONS;
+	      fatal = true;
+	      for (unsigned i = 0; i < ARRAY_SIZE (compat_mod_versions); ++i)
+		if (!strcmp (atom_string, compat_mod_versions[i]))
+		  {
+		    fatal = false;
+		    break;
+		  }
+	    }
+	  if (fatal)
 	    gfc_fatal_error ("Cannot read module file %qs opened at %C,"
 			     " because it was created by a different"
 			     " version of GNU Fortran", module_fullpath);
@@ -7561,6 +7918,8 @@ gfc_use_modules (void)
       gfc_use_module (module_list);
       free (module_list);
     }
+  module_list = NULL;
+  old_module_list_tail = &module_list;
   gfc_rename_list = NULL;
 }
 
@@ -7581,6 +7940,30 @@ gfc_free_use_stmts (gfc_use_list *use_stmts)
       next = use_stmts->next;
       free (use_stmts);
     }
+}
+
+
+/* Remember the end of the MODULE_LIST list, so that the list can be restored
+   to its previous state if the current statement is erroneous.  */
+
+void
+gfc_save_module_list ()
+{
+  gfc_use_list **tail = &module_list;
+  while (*tail != NULL)
+    tail = &(*tail)->next;
+  old_module_list_tail = tail;
+}
+
+
+/* Restore the MODULE_LIST list to its previous value and free the use
+   statements that are no longer part of the list.  */
+
+void
+gfc_restore_old_module_list ()
+{
+  gfc_free_use_stmts (*old_module_list_tail);
+  *old_module_list_tail = NULL;
 }
 
 

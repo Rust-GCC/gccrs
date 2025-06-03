@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -127,7 +127,6 @@ package body Ch7 is
          Scopes (Scope.Last).Sloc := Token_Ptr;
          Name_Node := P_Defining_Program_Unit_Name;
          Scopes (Scope.Last).Labl := Name_Node;
-         Current_Node := Name_Node;
 
          if Aspect_Specifications_Present then
             Aspect_Sloc := Token_Ptr;
@@ -173,7 +172,6 @@ package body Ch7 is
          Scopes (Scope.Last).Sloc := Token_Ptr;
          Name_Node := P_Defining_Program_Unit_Name;
          Scopes (Scope.Last).Labl := Name_Node;
-         Current_Node := Name_Node;
 
          --  Case of renaming declaration
 
@@ -233,11 +231,11 @@ package body Ch7 is
                if Aspect_Sloc /= No_Location
                  and then not Aspect_Specifications_Present
                then
-                  Error_Msg_SC ("info: aspect specifications belong here??");
+                  Error_Msg_SC ("info: aspect specifications belong here");
                   Move_Aspects (From => Dummy_Node, To => Package_Node);
                end if;
 
-               P_Aspect_Specifications (Package_Node);
+               P_Aspect_Specifications (Package_Node, Semicolon => True);
                Pop_Scope_Stack;
 
             --  Case of package declaration or package specification

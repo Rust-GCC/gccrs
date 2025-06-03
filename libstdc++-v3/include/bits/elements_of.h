@@ -1,6 +1,6 @@
 // Tag type for yielding ranges rather than values in <generator>  -*- C++ -*-
 
-// Copyright (C) 2023-2024 Free Software Foundation, Inc.
+// Copyright (C) 2023-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -25,7 +25,9 @@
 #ifndef _GLIBCXX_BITS_ELEMENTS_OF
 #define _GLIBCXX_BITS_ELEMENTS_OF
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 

@@ -1,6 +1,6 @@
 // decimal classes -*- C++ -*-
 
-// Copyright (C) 2009-2024 Free Software Foundation, Inc.
+// Copyright (C) 2009-2025 Free Software Foundation, Inc.
 
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,9 @@
 #ifndef _GLIBCXX_DECIMAL_IMPL
 #define _GLIBCXX_DECIMAL_IMPL 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -336,18 +338,18 @@ namespace decimal
   }
 
 #define _DEFINE_DECIMAL_BINARY_OP_WITH_INT(_Op, _T1)		\
-  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, int);			\
-  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, unsigned int);	\
-  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, long);		\
-  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, unsigned long);	\
-  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, long long);		\
-  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, unsigned long long);	\
-  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, int);			\
-  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, unsigned int);	\
-  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, long);		\
-  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, unsigned long);	\
-  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, long long);		\
-  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, unsigned long long);	\
+  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, int)			\
+  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, unsigned int)		\
+  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, long)			\
+  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, unsigned long)	\
+  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, long long)		\
+  _DEFINE_DECIMAL_BINARY_OP_LHS(_Op, _T1, unsigned long long)	\
+  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, int)			\
+  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, unsigned int)		\
+  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, long)			\
+  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, unsigned long)	\
+  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, long long)		\
+  _DEFINE_DECIMAL_BINARY_OP_RHS(_Op, _T1, unsigned long long)
 
   _DEFINE_DECIMAL_BINARY_OP_WITH_DEC(+, decimal32, decimal32, decimal32)
   _DEFINE_DECIMAL_BINARY_OP_WITH_INT(+, decimal32)

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -42,6 +42,7 @@ with Types;
 
 with Ada.Command_Line; use Ada.Command_Line;
 with Ada.Exceptions;   use Ada.Exceptions;
+with Ada.Strings.Fixed;
 
 with System.OS_Lib; use System.OS_Lib;
 with System.CRTL;
@@ -1223,11 +1224,11 @@ procedure Gnatlink is
                   begin
                      Path (1 .. File_Path'Length) := File_Path.all;
 
-                  --  To find the location of the shared version of libgcc, we
-                  --  look for "gcc-lib" in the path of the library. However,
-                  --  this subdirectory is no longer present in recent versions
-                  --  of GCC. So, we look for the last subdirectory "lib" in
-                  --  the path.
+                     --  To find the location of the shared version of libgcc,
+                     --  we look for "gcc-lib" in the path of the
+                     --  library. However, this subdirectory is no longer
+                     --  present in recent versions of GCC. So, we look for the
+                     --  last subdirectory "lib" in the path.
 
                      GCC_Index := Index (Path (1 .. Path_Last), "gcc-lib");
 
@@ -1258,15 +1259,17 @@ procedure Gnatlink is
                                 Value (Libgcc_Subdir_Ptr);
 
                            begin
-                              Path (GCC_Index + 1 .. GCC_Index + Subdir'Length)
-                                := Subdir;
+                              Path
+                                (GCC_Index + 1
+                                 ..
+                                 GCC_Index + Subdir'Length) := Subdir;
                               GCC_Index := GCC_Index + Subdir'Length;
                            end;
                         end if;
                      end if;
 
-                  --  Look for an eventual run_path_option in
-                  --  the linker switches.
+                     --  Look for an eventual run_path_option in
+                     --  the linker switches.
 
                      if Separate_Run_Path_Options then
                         Linker_Options.Increment_Last;
@@ -1697,22 +1700,20 @@ begin
 
       procedure Check_File_Name (S : String) is
       begin
-         for J in 1 .. FN'Length - (S'Length - 1) loop
-            if FN (J .. J + (S'Length - 1)) = S then
-               Error_Msg
-                 ("warning: executable file name """ & Output_File_Name.all
-                  & """ contains substring """ & S & '"');
-               Error_Msg
-                 ("admin privileges may be required to run this file");
-            end if;
-         end loop;
+         if Ada.Strings.Fixed.Index (FN, S) /= 0 then
+            Error_Msg
+              ("warning: executable file name """ & Output_File_Name.all
+               & """ contains substring """ & S & '"');
+            Error_Msg
+              ("admin privileges may be required to run this file");
+         end if;
       end Check_File_Name;
 
    --  Start of processing for Bad_File_Names_On_Windows
 
    begin
       for J in FN'Range loop
-            FN (J) := Csets.Fold_Lower (FN (J));
+         FN (J) := Csets.Fold_Lower (FN (J));
       end loop;
 
       --  For now we detect Windows by its executable suffix of .exe
@@ -1886,6 +1887,24 @@ begin
          Shared_Libgcc_Seen : Boolean := False;
          Static_Libgcc_Seen : Boolean := False;
 
+         function Is_Prefix
+           (Complete_String : String; Prefix : String) return Boolean;
+         --  Returns whether Prefix is a prefix of Complete_String
+
+         ---------------
+         -- Is_Prefix --
+         ---------------
+
+         function Is_Prefix
+           (Complete_String : String; Prefix : String) return Boolean
+         is
+            S : String renames Complete_String;
+            P : String renames Prefix;
+         begin
+            return P'Length <= S'Length
+              and then S (S'First .. S'First + P'Length - 1) = P;
+         end Is_Prefix;
+
       begin
          J := Linker_Options.First;
          while J <= Linker_Options.Last loop
@@ -1937,13 +1956,12 @@ begin
             --  Here we just check for a canonical form that matches the
             --  pragma Linker_Options set in the NT runtime.
 
-            if (Linker_Options.Table (J)'Length > 17
-                and then Linker_Options.Table (J) (1 .. 17) =
-                  "-Xlinker --stack=")
-              or else
-                (Linker_Options.Table (J)'Length > 12
-                 and then Linker_Options.Table (J) (1 .. 12) =
-                       "-Wl,--stack=")
+            if Is_Prefix
+                 (Complete_String => Linker_Options.Table (J).all,
+                  Prefix => "-Xlinker --stack=")
+              or else Is_Prefix
+                        (Complete_String => Linker_Options.Table (J).all,
+                         Prefix => "-Wl,--stack=")
             then
                if Stack_Op then
                   Linker_Options.Table (J .. Linker_Options.Last - 1) :=

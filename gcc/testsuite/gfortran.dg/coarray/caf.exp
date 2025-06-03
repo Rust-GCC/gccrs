@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2024 Free Software Foundation, Inc.
+# Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -78,7 +78,7 @@ foreach test [lsort [glob -nocomplain $srcdir/$subdir/*.\[fF\]{,90,95,03,08} ]] 
     }
 
 # Enable if you want to test several options:
-#    # look if this is dg-do-run test, in which case
+#    # look if this is dg-do run test, in which case
 #    # we cycle through the option list, otherwise we don't
 #    if [expr [search_for $test "dg-do run"]] {
 #	set option_list $torture_with_loops

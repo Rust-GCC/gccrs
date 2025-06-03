@@ -1,6 +1,6 @@
 ; Options for the RISC-V port of the compiler
 ;
-; Copyright (C) 2011-2024 Free Software Foundation, Inc.
+; Copyright (C) 2011-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -34,8 +34,8 @@ Target RejectNegative Joined UInteger Var(riscv_branch_cost)
 -mbranch-cost=N	Set the cost of branches to roughly N instructions.
 
 mplt
-Target Var(TARGET_PLT) Init(1)
-When generating -fpic code, allow the use of PLTs. Ignored for fno-pic.
+Target Alias(fplt)
+This option is deprecated; use -fplt or -fno-plt instead.
 
 mabi=
 Target RejectNegative Joined Enum(abi_type) Var(riscv_abi) Init(ABI_ILP32) Negative(mabi=)
@@ -82,7 +82,7 @@ Target Mask(DIV)
 Use hardware instructions for integer division.
 
 march=
-Target RejectNegative Joined Negative(march=)
+Target RejectNegative Joined Negative(march=) Var(riscv_arch_string) Save
 -march=	Generate code for given RISC-V ISA (e.g. RV64IM).  ISA strings must be
 lower-case.
 
@@ -128,6 +128,14 @@ mstrict-align
 Target Mask(STRICT_ALIGN) Save
 Do not generate unaligned memory accesses.
 
+mscalar-strict-align
+Target Save Alias(mstrict-align)
+Do not generate unaligned scalar memory accesses.
+
+mvector-strict-align
+Target Save Var(rvv_vector_strict_align) Init(1)
+Do not create element-misaligned vector memory accesses.
+
 Enum
 Name(code_model) Type(enum riscv_code_model)
 Known code models (for use with the -mcmodel= option):
@@ -152,7 +160,7 @@ required to materialize symbol addresses.
 
 mcsr-check
 Target Var(riscv_mcsr_check) Init(0)
-Enable the CSR checking for the ISA-dependent CRS and the read-only CSR.
+Enable the CSR checking for the ISA-dependent CSR and the read-only CSR.
 The ISA-dependent CSR are only valid when the specific ISA is set.  The
 read-only CSR can not be written by the CSR instructions.
 
@@ -237,8 +245,6 @@ Mask(ZIHINTPAUSE) Var(riscv_zi_subext)
 
 Mask(ZICOND)      Var(riscv_zi_subext)
 
-Mask(ZIC64B)      Var(riscv_zi_subext)
-
 Mask(ZICCAMOA)    Var(riscv_zi_subext)
 
 Mask(ZICCIF)      Var(riscv_zi_subext)
@@ -247,10 +253,22 @@ Mask(ZICCLSM)     Var(riscv_zi_subext)
 
 Mask(ZICCRSE)     Var(riscv_zi_subext)
 
+Mask(ZICFISS)     Var(riscv_zi_subext)
+
+Mask(ZICFILP)     Var(riscv_zi_subext)
+
 TargetVariable
 int riscv_za_subext
 
-Mask(ZAWRS) Var(riscv_za_subext)
+Mask(ZAWRS)  Var(riscv_za_subext)
+
+Mask(ZAAMO)  Var(riscv_za_subext)
+
+Mask(ZALRSC) Var(riscv_za_subext)
+
+Mask(ZABHA) Var(riscv_za_subext)
+
+Mask(ZACAS) Var(riscv_za_subext)
 
 Mask(ZA64RS)  Var(riscv_za_subext)
 
@@ -390,14 +408,27 @@ Mask(ZICBOM) Var(riscv_zicmo_subext)
 
 Mask(ZICBOP) Var(riscv_zicmo_subext)
 
+Mask(ZIC64B) Var(riscv_zicmo_subext)
+
+TargetVariable
+int riscv_mop_subext
+
+Mask(ZIMOP) Var(riscv_mop_subext)
+
+Mask(ZCMOP) Var(riscv_mop_subext)
+
 TargetVariable
 int riscv_zf_subext
+
+Mask(ZFBFMIN)  Var(riscv_zf_subext)
 
 Mask(ZFHMIN)  Var(riscv_zf_subext)
 
 Mask(ZFH)     Var(riscv_zf_subext)
 
 Mask(ZVFBFMIN) Var(riscv_zf_subext)
+
+Mask(ZVFBFWMA) Var(riscv_zf_subext)
 
 Mask(ZVFHMIN) Var(riscv_zf_subext)
 
@@ -430,12 +461,16 @@ Mask(ZCMP) Var(riscv_zc_subext)
 
 Mask(ZCMT) Var(riscv_zc_subext)
 
+Mask(XCVBI) Var(riscv_xcv_subext)
+
 TargetVariable
 int riscv_sv_subext
 
 Mask(SVINVAL) Var(riscv_sv_subext)
 
 Mask(SVNAPOT) Var(riscv_sv_subext)
+
+Mask(SVVPTC) Var(riscv_sv_subext)
 
 TargetVariable
 int riscv_ztso_subext
@@ -487,6 +522,22 @@ int riscv_xventana_subext
 
 Mask(XVENTANACONDOPS) Var(riscv_xventana_subext)
 
+TargetVariable
+int riscv_sifive_subext
+
+Mask(XSFVCP) Var(riscv_sifive_subext)
+
+Mask(XSFCEASE) Var(riscv_sifive_subext)
+
+Mask(XSFVQMACCQOQ) Var(riscv_sifive_subext)
+
+Mask(XSFVQMACCDOD) Var(riscv_sifive_subext)
+
+Mask(XSFVFNRCLIPXFQF) Var(riscv_sifive_subext)
+
+TargetVariable
+int riscv_fmv_priority = 0
+
 Enum
 Name(isa_spec_class) Type(enum riscv_isa_spec_class)
 Supported ISA specs (for use with the -misa-spec= option):
@@ -513,15 +564,15 @@ Target Var(TARGET_INLINE_SUBWORD_ATOMIC) Init(1)
 Always inline subword atomic operations.
 
 minline-strcmp
-Target Var(riscv_inline_strcmp) Init(0)
+Target Var(riscv_inline_strcmp) Init(1)
 Inline strcmp calls if possible.
 
 minline-strncmp
-Target Var(riscv_inline_strncmp) Init(0)
+Target Var(riscv_inline_strncmp) Init(1)
 Inline strncmp calls if possible.
 
 minline-strlen
-Target Var(riscv_inline_strlen) Init(0)
+Target Var(riscv_inline_strlen) Init(1)
 Inline strlen calls if possible.
 
 -param=riscv-strcmp-inline-limit=
@@ -529,27 +580,27 @@ Target RejectNegative Joined UInteger Var(riscv_strcmp_inline_limit) Init(64)
 Max number of bytes to compare as part of inlined strcmp/strncmp routines (default: 64).
 
 Enum
-Name(riscv_autovec_lmul) Type(enum riscv_autovec_lmul_enum)
-The RVV possible LMUL (-param=riscv-autovec-lmul=):
+Name(rvv_max_lmul) Type(enum rvv_max_lmul_enum)
+The RVV possible LMUL (-mrvv-max-lmul=):
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m1) Value(RVV_M1)
+Enum(rvv_max_lmul) String(m1) Value(RVV_M1)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m2) Value(RVV_M2)
+Enum(rvv_max_lmul) String(m2) Value(RVV_M2)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m4) Value(RVV_M4)
+Enum(rvv_max_lmul) String(m4) Value(RVV_M4)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(m8) Value(RVV_M8)
+Enum(rvv_max_lmul) String(m8) Value(RVV_M8)
 
 EnumValue
-Enum(riscv_autovec_lmul) String(dynamic) Value(RVV_DYNAMIC)
+Enum(rvv_max_lmul) String(dynamic) Value(RVV_DYNAMIC)
 
--param=riscv-autovec-lmul=
-Target RejectNegative Joined Enum(riscv_autovec_lmul) Var(riscv_autovec_lmul) Init(RVV_M1)
--param=riscv-autovec-lmul=<string>	Set the RVV LMUL of auto-vectorization in the RISC-V port.
+mrvv-max-lmul=
+Target RejectNegative Joined Enum(rvv_max_lmul) Var(rvv_max_lmul) Init(RVV_M1)
+-mrvv-max-lmul=<string>	Set the RVV LMUL of auto-vectorization.
 
 madjust-lmul-cost
 Target Var(TARGET_ADJUST_LMUL_COST) Init(0)
@@ -570,6 +621,10 @@ Enum(vsetvl_strategy) String(optim-no-fusion) Value(VSETVL_OPT_NO_FUSION)
 -param=vsetvl-strategy=
 Target Undocumented RejectNegative Joined Enum(vsetvl_strategy) Var(vsetvl_strategy) Init(VSETVL_OPT)
 -param=vsetvl-strategy=<string>	Set the optimization level of VSETVL insert pass.
+
+-param=riscv-two-source-permutes
+Target Undocumented Uinteger Var(riscv_two_source_permutes) Init(0)
+-param=riscv-two-source-permutes Enable permutes with two source vectors.
 
 Enum
 Name(stringop_strategy) Type(enum stringop_strategy_enum)
@@ -604,3 +659,25 @@ Enum(rvv_vector_bits) String(zvl) Value(RVV_VECTOR_BITS_ZVL)
 mrvv-vector-bits=
 Target RejectNegative Joined Enum(rvv_vector_bits) Var(rvv_vector_bits) Init(RVV_VECTOR_BITS_SCALABLE)
 -mrvv-vector-bits=<string>	Set the kind of bits for an RVV vector register.
+
+Enum
+Name(tls_type) Type(enum riscv_tls_type)
+The possible TLS dialects:
+
+EnumValue
+Enum(tls_type) String(trad) Value(TLS_TRADITIONAL)
+
+EnumValue
+Enum(tls_type) String(desc) Value(TLS_DESCRIPTORS)
+
+mtls-dialect=
+Target RejectNegative Joined Enum(tls_type) Var(riscv_tls_dialect) Init(TLS_TRADITIONAL) Save
+Specify TLS dialect.
+
+mfence-tso
+Target Var(TARGET_FENCE_TSO) Init(1)
+Specifies whether the fence.tso instruction should be used.
+
+mautovec-segment
+Target Integer Var(riscv_mautovec_segment) Init(1)
+Enable (default) or disable generation of vector segment load/store instructions.

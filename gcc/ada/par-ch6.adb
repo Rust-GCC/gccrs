@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -344,7 +344,6 @@ package body Ch6 is
       end if;
 
       Scopes (Scope.Last).Labl := Name_Node;
-      Current_Node := Name_Node;
       Ignore (Tok_Colon);
 
       --  Deal with generic instantiation, the one case in which we do not
@@ -371,7 +370,7 @@ package body Ch6 is
 
             Set_Defining_Unit_Name (Inst_Node, Name_Node);
             Set_Generic_Associations (Inst_Node, P_Generic_Actual_Part_Opt);
-            P_Aspect_Specifications (Inst_Node);
+            P_Aspect_Specifications (Inst_Node, Semicolon => True);
             Pop_Scope_Stack; -- Don't need scope stack entry in this case
 
             if Is_Overriding then
@@ -565,7 +564,7 @@ package body Ch6 is
             Scan; -- past RENAMES
             Set_Name (Rename_Node, P_Name);
             Set_Specification (Rename_Node, Specification_Node);
-            P_Aspect_Specifications (Rename_Node);
+            P_Aspect_Specifications (Rename_Node, Semicolon => True);
             TF_Semicolon;
             Pop_Scope_Stack;
             return Rename_Node;
@@ -595,7 +594,7 @@ package body Ch6 is
                Set_Specification (Absdec_Node, Specification_Node);
                Pop_Scope_Stack; -- discard unneeded entry
                Scan; -- past ABSTRACT
-               P_Aspect_Specifications (Absdec_Node);
+               P_Aspect_Specifications (Absdec_Node, Semicolon => True);
                return Absdec_Node;
 
             --  Ada 2005 (AI-248): Parse a null procedure declaration
@@ -884,6 +883,7 @@ package body Ch6 is
 
                      if not (Paren_Count (Expr) /= 0
                               or else Nkind (Expr) in N_Aggregate
+                                                    | N_Delta_Aggregate
                                                     | N_Extension_Aggregate
                                                     | N_Quantified_Expression)
                      then
@@ -895,7 +895,7 @@ package body Ch6 is
 
                   --  Expression functions can carry pre/postconditions
 
-                  P_Aspect_Specifications (Body_Node);
+                  P_Aspect_Specifications (Body_Node, Semicolon => True);
                   Pop_Scope_Stack;
 
                --  Subprogram body case
@@ -1624,7 +1624,7 @@ package body Ch6 is
             Error_Msg_Ada_2022_Feature
               ("aspect on formal parameter", Token_Ptr);
 
-            P_Aspect_Specifications (Specification_Node, False);
+            P_Aspect_Specifications (Specification_Node, Semicolon => False);
 
             --  Set the aspect specifications for previous Ids
 
@@ -1911,7 +1911,6 @@ package body Ch6 is
          Is_Extended : Boolean := False;
 
       begin
-
          if Token = Tok_Identifier then
             Save_Scan_State (Scan_State); -- at identifier
             Scan; -- past identifier
@@ -1956,7 +1955,7 @@ package body Ch6 is
             Set_Return_Object_Declarations (Ret_Node, New_List (Decl));
 
             if Token = Tok_With then
-               P_Aspect_Specifications (Decl, False);
+               P_Aspect_Specifications (Decl, Semicolon => False);
             end if;
 
             if Token = Tok_Do then

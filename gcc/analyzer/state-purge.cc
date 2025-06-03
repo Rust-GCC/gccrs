@@ -1,5 +1,5 @@
 /* Classes for purging state at function_points.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -598,17 +598,17 @@ state_purge_per_ssa_name::process_point (const function_point &point,
 		  superedge *sedge
 		    = map.get_sg ().get_intraprocedural_edge_for_call (cedge);
 		  gcc_assert (sedge);
-		  add_to_worklist 
+		  add_to_worklist
 		    (function_point::after_supernode (sedge->m_src),
 		     worklist, logger);
 	        }
 	      else
 	        {
-	          supernode *callernode 
+	          supernode *callernode
 	            = map.get_sg ().get_supernode_for_stmt (returning_call);
 
 	          gcc_assert (callernode);
-	          add_to_worklist 
+	          add_to_worklist
 	            (function_point::after_supernode (callernode),
 		     worklist, logger);
 	         }

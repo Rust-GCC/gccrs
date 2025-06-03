@@ -31,8 +31,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-Og)
 Oz
 UrlSuffix(gcc/Optimize-Options.html#index-Oz)
 
-Q
-UrlSuffix(gcc/Developer-Options.html#index-Q)
+; skipping UrlSuffix for 'Q' due to multiple URLs:
+;   duplicate: 'gcc/Developer-Options.html#index-Q-1'
+;   duplicate: 'gcc/Overall-Options.html#index-Q'
 
 Qn
 UrlSuffix(gcc/System-V-Options.html#index-Qn)
@@ -106,13 +107,13 @@ Wdisabled-optimization
 UrlSuffix(gcc/Warning-Options.html#index-Wdisabled-optimization)
 
 Werror
-UrlSuffix(gcc/Warning-Options.html#index-Werror) LangUrlSuffix_D(gdc/Warnings.html#index-Werror)
+UrlSuffix(gcc/Warning-Options.html#index-Werror) LangUrlSuffix_D(gdc/Warnings.html#index-Werror) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Werror)
 
 Werror=
-UrlSuffix(gcc/Warning-Options.html#index-Werror) LangUrlSuffix_D(gdc/Warnings.html#index-Werror)
+UrlSuffix(gcc/Warning-Options.html#index-Werror) LangUrlSuffix_D(gdc/Warnings.html#index-Werror) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Werror)
 
 Wextra
-UrlSuffix(gcc/Warning-Options.html#index-Wextra) LangUrlSuffix_D(gdc/Warnings.html#index-Wextra)
+UrlSuffix(gcc/Warning-Options.html#index-Wextra) LangUrlSuffix_D(gdc/Warnings.html#index-Wextra) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wextra)
 
 Wfatal-errors
 UrlSuffix(gcc/Warning-Options.html#index-Wfatal-errors)
@@ -157,6 +158,12 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-unsafe-loop-optimizations)
 Wmissing-noreturn
 UrlSuffix(gcc/Warning-Options.html#index-Wmissing-noreturn)
 
+Wmusttail-local-addr
+UrlSuffix(gcc/Warning-Options.html#index-Wno-musttail-local-addr)
+
+Wmaybe-musttail-local-addr
+UrlSuffix(gcc/Warning-Options.html#index-Wmaybe-musttail-local-addr)
+
 Wodr
 UrlSuffix(gcc/Warning-Options.html#index-Wno-odr)
 
@@ -173,7 +180,7 @@ Wpadded
 UrlSuffix(gcc/Warning-Options.html#index-Wno-padded)
 
 Wpedantic
-UrlSuffix(gcc/Warning-Options.html#index-Wno-pedantic)
+UrlSuffix(gcc/Warning-Options.html#index-Wno-pedantic) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wpedantic)
 
 Wreturn-local-addr
 UrlSuffix(gcc/Warning-Options.html#index-Wno-return-local-addr)
@@ -223,6 +230,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-suggest-attribute_003dnoreturn)
 Wsuggest-attribute=malloc
 UrlSuffix(gcc/Warning-Options.html#index-Wno-suggest-attribute_003dmalloc)
 
+Wsuggest-attribute=returns_nonnull
+UrlSuffix(gcc/Warning-Options.html#index-Wno-suggest-attribute_003dreturns_005fnonnull)
+
 Wsuggest-final-types
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-suggest-final-types)
 
@@ -234,6 +244,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-switch-unreachable)
 
 Wsystem-headers
 UrlSuffix(gcc/Warning-Options.html#index-Wno-system-headers)
+
+Wtautological-compare
+UrlSuffix(gcc/Warning-Options.html#index-Wno-tautological-compare)
 
 Wtrampolines
 UrlSuffix(gcc/Warning-Options.html#index-Wno-trampolines)
@@ -266,7 +279,7 @@ Wunused-label
 UrlSuffix(gcc/Warning-Options.html#index-Wno-unused-label)
 
 Wunused-parameter
-UrlSuffix(gcc/Warning-Options.html#index-Wno-unused-parameter)
+UrlSuffix(gcc/Warning-Options.html#index-Wno-unused-parameter) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wunused-parameter)
 
 Wunused-value
 UrlSuffix(gcc/Warning-Options.html#index-Wno-unused-value)
@@ -279,6 +292,15 @@ UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-mismatch)
 
 Wcoverage-invalid-line-number
 UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-invalid-line-number)
+
+Wcoverage-too-many-conditions
+UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-too-many-conditions)
+
+fpath-coverage-limit=
+UrlSuffix(gcc/Instrumentation-Options.html#index-fpath-coverage-limit)
+
+Wcoverage-too-many-paths
+UrlSuffix(gcc/Warning-Options.html#index-Wcoverage-too-many-paths)
 
 Wmissing-profile
 UrlSuffix(gcc/Warning-Options.html#index-Wmissing-profile)
@@ -412,7 +434,7 @@ fauto-profile=
 UrlSuffix(gcc/Optimize-Options.html#index-fauto-profile)
 
 fbounds-check
-LangUrlSuffix_D(gdc/Runtime-Options.html#index-fbounds-check)
+LangUrlSuffix_D(gdc/Runtime-Options.html#index-fbounds-check) LangUrlSuffix_Fortran(gfortran/Code-Gen-Options.html#index-fbounds-check)
 
 fbranch-count-reg
 UrlSuffix(gcc/Optimize-Options.html#index-fbranch-count-reg)
@@ -531,6 +553,9 @@ UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show
 fdiagnostics-show-caret
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-caret)
 
+fdiagnostics-show-event-links
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-event-links)
+
 fdiagnostics-show-labels
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-labels)
 
@@ -558,6 +583,12 @@ UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-colu
 fdiagnostics-format=
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-format)
 
+fdiagnostics-add-output=
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-add-output)
+
+fdiagnostics-set-output=
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-set-output)
+
 fdiagnostics-escape-format=
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-escape-format)
 
@@ -575,6 +606,9 @@ UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show
 
 fdiagnostics-show-rules
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-rules)
+
+fdiagnostics-show-highlight-colors
+UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-show-highlight-colors)
 
 fdiagnostics-path-format=
 UrlSuffix(gcc/Diagnostic-Message-Formatting-Options.html#index-fdiagnostics-path-format)
@@ -691,6 +725,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-fgcse-lm)
 fgcse-sm
 UrlSuffix(gcc/Optimize-Options.html#index-fgcse-sm)
 
+favoid-store-forwarding
+UrlSuffix(gcc/Optimize-Options.html#index-favoid-store-forwarding)
+
 fgcse-las
 UrlSuffix(gcc/Optimize-Options.html#index-fgcse-las)
 
@@ -703,8 +740,8 @@ UrlSuffix(gcc/Optimize-Options.html#index-fgraphite-identity)
 fhoist-adjacent-loads
 UrlSuffix(gcc/Optimize-Options.html#index-fhoist-adjacent-loads)
 
-flarge-source-files
-UrlSuffix(gcc/Preprocessor-Options.html#index-flarge-source-files)
+flate-combine-instructions
+UrlSuffix(gcc/Optimize-Options.html#index-flate-combine-instructions)
 
 floop-parallelize-all
 UrlSuffix(gcc/Optimize-Options.html#index-floop-parallelize-all)
@@ -832,6 +869,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-fipa-bit-cp)
 fipa-modref
 UrlSuffix(gcc/Optimize-Options.html#index-fipa-modref)
 
+fipa-reorder-for-locality
+UrlSuffix(gcc/Optimize-Options.html#index-fipa-reorder-for-locality)
+
 fipa-profile
 UrlSuffix(gcc/Optimize-Options.html#index-fipa-profile)
 
@@ -911,6 +951,12 @@ UrlSuffix(gcc/Optimize-Options.html#index-flto)
 flto=
 UrlSuffix(gcc/Optimize-Options.html#index-flto)
 
+flto-incremental=
+UrlSuffix(gcc/Optimize-Options.html#index-flto-incremental)
+
+flto-incremental-cache-size=
+UrlSuffix(gcc/Optimize-Options.html#index-flto-incremental-cache-size)
+
 flto-partition=
 UrlSuffix(gcc/Optimize-Options.html#index-flto-partition)
 
@@ -928,6 +974,12 @@ UrlSuffix(gcc/Optimize-Options.html#index-fmath-errno)
 
 fmax-errors=
 UrlSuffix(gcc/Warning-Options.html#index-fmax-errors) LangUrlSuffix_D(gdc/Warnings.html#index-fmax-errors)
+
+fmalloc-dce
+UrlSuffix(gcc/Optimize-Options.html#index-fmalloc-dce)
+
+fmalloc-dce=
+UrlSuffix(gcc/Optimize-Options.html#index-fmalloc-dce)
 
 fmem-report
 UrlSuffix(gcc/Developer-Options.html#index-fmem-report)
@@ -975,19 +1027,19 @@ fnon-call-exceptions
 UrlSuffix(gcc/Code-Gen-Options.html#index-fnon-call-exceptions)
 
 foffload=
-UrlSuffix(gcc/C-Dialect-Options.html#index-foffload)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-foffload)
 
 foffload-options=
-UrlSuffix(gcc/C-Dialect-Options.html#index-foffload-options)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-foffload-options)
 
 fomit-frame-pointer
 UrlSuffix(gcc/Optimize-Options.html#index-fomit-frame-pointer)
 
 fopenmp-target-simd-clone
-UrlSuffix(gcc/C-Dialect-Options.html#index-fopenmp-target-simd-clone)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-fopenmp-target-simd-clone)
 
 fopenmp-target-simd-clone=
-UrlSuffix(gcc/C-Dialect-Options.html#index-fopenmp-target-simd-clone)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-fopenmp-target-simd-clone)
 
 fopt-info
 UrlSuffix(gcc/Developer-Options.html#index-fopt-info)
@@ -995,8 +1047,14 @@ UrlSuffix(gcc/Developer-Options.html#index-fopt-info)
 fsave-optimization-record
 UrlSuffix(gcc/Developer-Options.html#index-fsave-optimization-record)
 
+foptimize-crc
+UrlSuffix(gcc/Optimize-Options.html#index-foptimize-crc)
+
 foptimize-sibling-calls
 UrlSuffix(gcc/Optimize-Options.html#index-foptimize-sibling-calls)
+
+fpath-coverage
+UrlSuffix(gcc/Instrumentation-Options.html#index-fpath-coverage)
 
 fpartial-inlining
 UrlSuffix(gcc/Optimize-Options.html#index-fpartial-inlining)
@@ -1056,6 +1114,9 @@ UrlSuffix(gcc/Instrumentation-Options.html#index-fprofile-abs-path)
 ; skipping UrlSuffix for 'fprofile-arcs' due to multiple URLs:
 ;   duplicate: 'gcc/Instrumentation-Options.html#index-fprofile-arcs'
 ;   duplicate: 'gcc/Other-Builtins.html#index-fprofile-arcs-1'
+
+fcondition-coverage
+UrlSuffix(gcc/Instrumentation-Options.html#index-fcondition-coverage)
 
 fprofile-dir=
 UrlSuffix(gcc/Instrumentation-Options.html#index-fprofile-dir)
@@ -1142,7 +1203,7 @@ flive-patching=
 UrlSuffix(gcc/Optimize-Options.html#index-flive-patching)
 
 fallocation-dce
-UrlSuffix(gcc/Optimize-Options.html#index-fno-allocation-dce)
+UrlSuffix(gcc/Optimize-Options.html#index-fallocation-dce)
 
 flive-range-shrinkage
 UrlSuffix(gcc/Optimize-Options.html#index-flive-range-shrinkage)
@@ -1330,6 +1391,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-fstrict-aliasing)
 fstrict-overflow
 UrlSuffix(gcc/Code-Gen-Options.html#index-fstrict-overflow)
 
+fstrub=disable
+UrlSuffix(gcc/Instrumentation-Options.html#index-fstrub_003ddisable)
+
 fstrub=strict
 UrlSuffix(gcc/Instrumentation-Options.html#index-fstrub_003dstrict)
 
@@ -1349,7 +1413,7 @@ fsync-libcalls
 UrlSuffix(gcc/Code-Gen-Options.html#index-fsync-libcalls)
 
 fsyntax-only
-UrlSuffix(gcc/Warning-Options.html#index-fsyntax-only) LangUrlSuffix_D(gdc/Warnings.html#index-fno-syntax-only)
+UrlSuffix(gcc/Warning-Options.html#index-fsyntax-only) LangUrlSuffix_D(gdc/Warnings.html#index-fno-syntax-only) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-fsyntax-only)
 
 ftest-coverage
 UrlSuffix(gcc/Instrumentation-Options.html#index-ftest-coverage)
@@ -1398,6 +1462,9 @@ UrlSuffix(gcc/Optimize-Options.html#index-ftree-coalesce-vars)
 
 ftree-copy-prop
 UrlSuffix(gcc/Optimize-Options.html#index-ftree-copy-prop)
+
+ftree-cselim
+UrlSuffix(gcc/Optimize-Options.html#index-ftree-cselim)
 
 ftree-switch-conversion
 UrlSuffix(gcc/Optimize-Options.html#index-ftree-switch-conversion)
@@ -1627,6 +1694,9 @@ UrlSuffix(gcc/Debugging-Options.html#index-gctf)
 gbtf
 UrlSuffix(gcc/Debugging-Options.html#index-gbtf)
 
+gprune-btf
+UrlSuffix(gcc/Debugging-Options.html#index-gprune-btf)
+
 gdwarf
 UrlSuffix(gcc/Debugging-Options.html#index-gdwarf)
 
@@ -1723,12 +1793,16 @@ UrlSuffix(gcc/Overall-Options.html#index-pass-exit-codes)
 ;   duplicate: 'gcc/Standards.html#index-pedantic'
 ;   duplicate: 'gcc/Warning-Options.html#index-pedantic-1'
 ;   duplicate: 'gcc/Warnings-and-Errors.html#index-pedantic-4'
+pedantic
+LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-pedantic)
 
 ; skipping UrlSuffix for 'pedantic-errors' due to multiple URLs:
 ;   duplicate: 'gcc/Non-bugs.html#index-pedantic-errors-2'
 ;   duplicate: 'gcc/Standards.html#index-pedantic-errors'
 ;   duplicate: 'gcc/Warning-Options.html#index-pedantic-errors-1'
 ;   duplicate: 'gcc/Warnings-and-Errors.html#index-pedantic-errors-3'
+pedantic-errors
+LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-pedantic-errors)
 
 pg
 UrlSuffix(gcc/Instrumentation-Options.html#index-pg)
@@ -1788,7 +1862,7 @@ u
 UrlSuffix(gcc/Link-Options.html#index-u)
 
 undef
-UrlSuffix(gcc/Preprocessor-Options.html#index-undef)
+UrlSuffix(gcc/Preprocessor-Options.html#index-undef) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-undef)
 
 v
 UrlSuffix(gcc/Overall-Options.html#index-v) LangUrlSuffix_D(gdc/Developer-Options.html#index-v)
@@ -1824,8 +1898,14 @@ UrlSuffix(gcc/Overall-Options.html#index-specs)
 static-libgcc
 UrlSuffix(gcc/Link-Options.html#index-static-libgcc)
 
+static-libgfortran
+LangUrlSuffix_Fortran(gfortran/Link-Options.html#index-static-libgfortran)
+
 static-libphobos
 LangUrlSuffix_D(gdc/Linking.html#index-static-libphobos)
+
+static-libquadmath
+LangUrlSuffix_Fortran(gfortran/Link-Options.html#index-static-libquadmath)
 
 static-libstdc++
 UrlSuffix(gcc/Link-Options.html#index-static-libstdc_002b_002b)

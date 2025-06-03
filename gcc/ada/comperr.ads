@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -46,7 +46,7 @@ package Comperr is
    --  Note that this is only used at the outer level (to handle constraint
    --  errors or assert errors etc.) In the normal logic of the compiler we
    --  always use pragma Assert to check for errors, and if necessary an
-   --  explicit abort is achieved by pragma Assert (False). From_GCC is true
+   --  explicit abort is achieved by raise Program_Error. From_GCC is true
    --  for a GCC abort and false for a front end exception (with a possible
    --  message stored in TSD.Current_Excep).
 

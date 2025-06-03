@@ -1,5 +1,5 @@
 /* Declarations relating to class gcc_rich_location
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,6 +22,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "rich-location.h"
 
+class diagnostic_source_print_policy;
+
 /* A gcc_rich_location is libcpp's rich_location with additional
    helper methods for working with gcc's types.  The class is not
    copyable or assignable because rich_location isn't. */
@@ -32,17 +34,29 @@ class gcc_rich_location : public rich_location
   /* Constructors.  */
 
   /* Constructing from a location.  */
-  explicit gcc_rich_location (location_t loc, const range_label *label = NULL)
-  : rich_location (line_table, loc, label)
+  explicit gcc_rich_location (location_t loc)
+    : rich_location (line_table, loc, nullptr, nullptr)
+  {
+  }
+
+  /* Constructing from a location with a label and a highlight color.  */
+  explicit gcc_rich_location (location_t loc,
+			      const range_label *label,
+			      const char *highlight_color)
+    : rich_location (line_table, loc, label, highlight_color)
   {
   }
 
   /* Methods for adding ranges via gcc entities.  */
   void
-  add_expr (tree expr, range_label *label);
+  add_expr (tree expr,
+	    range_label *label,
+	    const char *highlight_color);
 
   void
-  maybe_add_expr (tree t, range_label *label);
+  maybe_add_expr (tree t,
+		  range_label *label,
+		  const char *highlight_color);
 
   void add_fixit_misspelled_id (location_t misspelled_token_loc,
 				tree hint_id);
@@ -59,14 +73,21 @@ class gcc_rich_location : public rich_location
      printing them via a note otherwise e.g.:
 
 	gcc_rich_location richloc (primary_loc);
-	bool added secondary = richloc.add_location_if_nearby (secondary_loc);
+	bool added secondary = richloc.add_location_if_nearby (*global_dc,
+							       secondary_loc);
 	error_at (&richloc, "main message");
 	if (!added secondary)
 	  inform (secondary_loc, "message for secondary");
 
      Implemented in diagnostic-show-locus.cc.  */
 
-  bool add_location_if_nearby (location_t loc,
+  bool add_location_if_nearby (const diagnostic_source_print_policy &policy,
+			       location_t loc,
+			       bool restrict_to_current_line_spans = true,
+			       const range_label *label = NULL);
+
+  bool add_location_if_nearby (const diagnostic_context &dc,
+			       location_t loc,
 			       bool restrict_to_current_line_spans = true,
 			       const range_label *label = NULL);
 
@@ -105,124 +126,6 @@ class gcc_rich_location : public rich_location
   void add_fixit_insert_formatted (const char *content,
 				   location_t insertion_point,
 				   location_t indent);
-};
-
-/* Concrete subclass of libcpp's range_label.
-   Simple implementation using a string literal.  */
-
-class text_range_label : public range_label
-{
- public:
-  text_range_label (const char *text) : m_text (text) {}
-
-  label_text get_text (unsigned /*range_idx*/) const final override
-  {
-    return label_text::borrow (m_text);
-  }
-
- private:
-  const char *m_text;
-};
-
-/* Concrete subclass of libcpp's range_label for use in
-   diagnostics involving mismatched types.
-
-   Each frontend that uses this should supply its own implementation.
-
-   Generate a label describing LABELLED_TYPE.  The frontend may use
-   OTHER_TYPE where appropriate for highlighting the differences between
-   the two types (analogous to C++'s use of %H and %I with
-   template types).
-
-   Either or both of LABELLED_TYPE and OTHER_TYPE may be NULL_TREE.
-   If LABELLED_TYPE is NULL_TREE, then there is no label.
-
-   For example, this rich_location could use two instances of
-   range_label_for_type_mismatch:
-
-      printf ("arg0: %i  arg1: %s arg2: %i",
-                               ^~
-                               |
-                               const char *
-              100, 101, 102);
-                   ~~~
-                   |
-                   int
-
-   (a) the label for "%s" with LABELLED_TYPE for "const char*" and
-   (b) the label for "101" with LABELLED TYPE for "int"
-   where each one uses the other's type as OTHER_TYPE.  */
-
-class range_label_for_type_mismatch : public range_label
-{
- public:
-  range_label_for_type_mismatch (tree labelled_type, tree other_type)
-  : m_labelled_type (labelled_type), m_other_type (other_type)
-  {
-  }
-
-  label_text get_text (unsigned range_idx) const override;
-
- protected:
-  tree m_labelled_type;
-  tree m_other_type;
-};
-
-/* Subclass of range_label for labelling the type of EXPR when reporting
-   a type mismatch between EXPR and OTHER_EXPR.
-   Either or both of EXPR and OTHER_EXPR could be NULL.  */
-
-class maybe_range_label_for_tree_type_mismatch : public range_label
-{
- public:
-  maybe_range_label_for_tree_type_mismatch (tree expr, tree other_expr)
-  : m_expr (expr), m_other_expr (other_expr)
-  {
-  }
-
-  label_text get_text (unsigned range_idx) const final override;
-
- private:
-  tree m_expr;
-  tree m_other_expr;
-};
-
-class op_location_t;
-
-/* A subclass of rich_location for showing problems with binary operations.
-
-   If enough location information is available, the ctor will make a
-   3-location rich_location of the form:
-
-     arg_0 op arg_1
-     ~~~~~ ^~ ~~~~~
-       |        |
-       |        arg1 type
-       arg0 type
-
-   labelling the types of the arguments if SHOW_TYPES is true.
-
-   Otherwise, it will fall back to a 1-location rich_location using the
-   compound location within LOC:
-
-     arg_0 op arg_1
-     ~~~~~~^~~~~~~~
-
-   for which we can't label the types.  */
-
-class binary_op_rich_location : public gcc_rich_location
-{
- public:
-  binary_op_rich_location (const op_location_t &loc,
-			   tree arg0, tree arg1,
-			   bool show_types);
-
- private:
-  static bool use_operator_loc_p (const op_location_t &loc,
-				  tree arg0, tree arg1);
-
-  maybe_range_label_for_tree_type_mismatch m_label_for_arg0;
-  maybe_range_label_for_tree_type_mismatch m_label_for_arg1;
 };
 
 #endif /* GCC_RICH_LOCATION_H */

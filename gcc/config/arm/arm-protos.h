@@ -1,5 +1,5 @@
 /* Prototypes for exported functions defined in arm.cc and pe.c
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    Contributed by Richard Earnshaw (rearnsha@arm.com)
    Minor hacks by Nick Clifton (nickc@cygnus.com)
 
@@ -31,8 +31,8 @@ extern enum unwind_info_type arm_except_unwind_info (struct gcc_options *);
 extern int use_return_insn (int, rtx);
 extern bool use_simple_return_p (void);
 extern enum reg_class arm_regno_class (int);
-extern bool arm_check_builtin_call (location_t , vec<location_t> , tree,
-				    tree, unsigned int, tree *);
+extern bool arm_check_builtin_call (location_t, vec<location_t>, tree, tree,
+				    unsigned int, tree *, bool);
 extern void arm_load_pic_register (unsigned long, rtx);
 extern int arm_volatile_func (void);
 extern void arm_expand_prologue (void);
@@ -65,8 +65,8 @@ extern void arm_emit_speculation_barrier_function (void);
 extern void arm_decompose_di_binop (rtx, rtx, rtx *, rtx *, rtx *, rtx *);
 extern bool arm_q_bit_access (void);
 extern bool arm_ge_bits_access (void);
-extern bool arm_target_insn_ok_for_lob (rtx);
-
+extern bool arm_target_bb_ok_for_lob (basic_block);
+extern int arm_attempt_dlstp_transform (rtx);
 #ifdef RTX_CODE
 enum reg_class
 arm_mode_base_reg_class (machine_mode);
@@ -202,6 +202,7 @@ extern rtx arm_load_tp (rtx);
 extern bool arm_coproc_builtin_available (enum unspecv);
 extern bool arm_coproc_ldc_stc_legitimate_address (rtx);
 extern rtx arm_stack_protect_tls_canary_mem (bool);
+extern bool arm_ldrd_legitimate_address (rtx);
 
 
 #if defined TREE_CODE
@@ -210,6 +211,7 @@ extern bool arm_pad_reg_upward (machine_mode, tree, int);
 #endif
 extern int arm_apply_result_size (void);
 extern opt_machine_mode arm_get_mask_mode (machine_mode mode);
+extern bool arm_noce_conversion_profitable_p (rtx_insn *,struct noce_if_info *);
 
 #endif /* RTX_CODE */
 
@@ -266,19 +268,7 @@ extern const char *thumb1_output_casesi (rtx *);
 extern const char *thumb2_output_casesi (rtx *);
 #endif
 
-/* Defined in pe.c.  */
-extern int arm_dllexport_name_p (const char *);
-extern int arm_dllimport_name_p (const char *);
-
-#ifdef TREE_CODE
-extern void arm_pe_unique_section (tree, int);
-extern void arm_pe_encode_section_info (tree, rtx, int);
-extern int arm_dllexport_p (tree);
-extern int arm_dllimport_p (tree);
-extern void arm_mark_dllexport (tree);
-extern void arm_mark_dllimport (tree);
 extern bool arm_change_mode_p (tree);
-#endif
 
 extern tree arm_valid_target_attribute_tree (tree, struct gcc_options *,
 					     struct gcc_options *);
@@ -417,7 +407,6 @@ extern bool arm_expand_vector_compare (rtx, rtx_code, rtx, rtx, bool);
 #endif /* RTX_CODE */
 
 extern bool arm_gen_setmem (rtx *);
-extern void arm_expand_vcond (rtx *, machine_mode);
 extern void arm_expand_vec_perm (rtx target, rtx op0, rtx op1, rtx sel);
 
 extern bool arm_autoinc_modes_ok_p (machine_mode, enum arm_auto_incmodes);
@@ -627,4 +616,7 @@ void arm_initialize_isa (sbitmap, const enum isa_feature *);
 const char * arm_gen_far_branch (rtx *, int, const char * , const char *);
 
 bool arm_mve_immediate_check(rtx, machine_mode, bool);
+
+opt_machine_mode arm_mve_data_mode (scalar_mode, poly_uint64);
+
 #endif /* ! GCC_ARM_PROTOS_H */

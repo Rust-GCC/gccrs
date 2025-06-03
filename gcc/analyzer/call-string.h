@@ -1,5 +1,5 @@
 /* Call stacks at program points.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -72,7 +72,7 @@ public:
 
   void print (pretty_printer *pp) const;
 
-  json::value *to_json () const;
+  std::unique_ptr<json::value> to_json () const;
 
   bool empty_p () const { return m_elements.is_empty (); }
 

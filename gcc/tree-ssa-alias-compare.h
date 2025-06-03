@@ -1,5 +1,5 @@
 /* Comparsion of AO ref.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -39,5 +39,7 @@ class ao_compare : public operand_compare
   void hash_ao_ref (ao_ref *ref, bool lto_streaming_safe, bool tbaa,
 		    inchash::hash &hstate);
 };
+
+bool types_equal_for_same_type_for_tbaa_p (tree type1, tree type2);
 
 #endif

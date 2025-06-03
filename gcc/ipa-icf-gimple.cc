@@ -1,5 +1,5 @@
 /* Interprocedural Identical Code Folding pass
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    Contributed by Jan Hubicka <hubicka@ucw.cz> and Martin Liska <mliska@suse.cz>
 
@@ -39,9 +39,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "attribs.h"
 #include "gimple-walk.h"
+#include "tree-sra.h"
 
 #include "tree-ssa-alias-compare.h"
+#include "alloc-pool.h"
+#include "symbol-summary.h"
 #include "ipa-icf-gimple.h"
+#include "sreal.h"
+#include "ipa-cp.h"
+#include "ipa-prop.h"
 
 namespace ipa_icf_gimple {
 
@@ -59,7 +65,8 @@ func_checker::func_checker (tree source_func_decl, tree target_func_decl,
   : m_source_func_decl (source_func_decl), m_target_func_decl (target_func_decl),
     m_ignored_source_nodes (ignored_source_nodes),
     m_ignored_target_nodes (ignored_target_nodes),
-    m_ignore_labels (ignore_labels), m_tbaa (tbaa)
+    m_ignore_labels (ignore_labels), m_tbaa (tbaa),
+    m_total_scalarization_limit_known_p (false)
 {
   function *source_func = DECL_STRUCT_FUNCTION (source_func_decl);
   function *target_func = DECL_STRUCT_FUNCTION (target_func_decl);
@@ -356,6 +363,36 @@ func_checker::operand_equal_p (const_tree t1, const_tree t2,
   return operand_compare::operand_equal_p (t1, t2, flags);
 }
 
+/* Return true if either T1 and T2 cannot be totally scalarized or if doing
+   so would result in copying the same memory.  Otherwise return false.  */
+
+bool
+func_checker::safe_for_total_scalarization_p (tree t1, tree t2)
+{
+  tree type1 = TREE_TYPE (t1);
+  tree type2 = TREE_TYPE (t2);
+
+  if (!AGGREGATE_TYPE_P (type1)
+      || !AGGREGATE_TYPE_P (type2)
+      || !tree_fits_uhwi_p (TYPE_SIZE (type1))
+      || !tree_fits_uhwi_p (TYPE_SIZE (type2)))
+    return true;
+
+  if (!m_total_scalarization_limit_known_p)
+    {
+      push_cfun (DECL_STRUCT_FUNCTION (m_target_func_decl));
+      m_total_scalarization_limit = sra_get_max_scalarization_size ();
+      pop_cfun ();
+      m_total_scalarization_limit_known_p = true;
+    }
+
+  unsigned HOST_WIDE_INT sz = tree_to_uhwi (TYPE_SIZE (type1));
+  gcc_assert (sz == tree_to_uhwi (TYPE_SIZE (type2)));
+  if (sz > m_total_scalarization_limit)
+    return true;
+  return sra_total_scalarization_would_copy_same_data_p (type1, type2);
+}
+
 /* Function responsible for comparison of various operands T1 and T2
    which are accessed as ACCESS.
    If these components, from functions FUNC1 and FUNC2, are equal, true
@@ -377,7 +414,12 @@ func_checker::compare_operand (tree t1, tree t2, operand_access_type access)
 				   lto_streaming_expected_p (), m_tbaa);
 
       if (!flags)
-	return true;
+	{
+	  if (!safe_for_total_scalarization_p (t1, t2))
+	    return return_false_with_msg
+	      ("total scalarization may not be equivalent");
+	  return true;
+	}
       if (flags & SEMANTICS)
 	return return_false_with_msg
 		("compare_ao_refs failed (semantic difference)");
@@ -417,7 +459,9 @@ func_checker::compare_asm_inputs_outputs (tree t1, tree t2,
 	return false;
 
       if (!compare_operand (TREE_VALUE (t1), TREE_VALUE (t2),
-			    get_operand_access_type (map, t1)))
+			    get_operand_access_type (map, t1))
+	  || !types_compatible_p (TREE_TYPE (TREE_VALUE (t1)),
+				  TREE_TYPE (TREE_VALUE (t2))))
 	return return_false ();
 
       tree p1 = TREE_PURPOSE (t1);
@@ -501,6 +545,10 @@ func_checker::compare_loops (basic_block bb1, basic_block bb2)
     return return_false_with_msg ("unroll");
   if (!compare_variable_decl (l1->simduid, l2->simduid))
     return return_false_with_msg ("simduid");
+  if ((l1->any_upper_bound != l2->any_upper_bound)
+      || (l1->any_upper_bound
+	  && (l1->nb_iterations_upper_bound != l2->nb_iterations_upper_bound)))
+    return return_false_with_msg ("nb_iterations_upper_bound");
 
   return true;
 }
@@ -660,29 +708,41 @@ func_checker::compare_gimple_call (gcall *s1, gcall *s2)
       || gimple_call_from_thunk_p (s1) != gimple_call_from_thunk_p (s2)
       || gimple_call_from_new_or_delete (s1) != gimple_call_from_new_or_delete (s2)
       || gimple_call_va_arg_pack_p (s1) != gimple_call_va_arg_pack_p (s2)
-      || gimple_call_alloca_for_var_p (s1) != gimple_call_alloca_for_var_p (s2))
+      || gimple_call_alloca_for_var_p (s1) != gimple_call_alloca_for_var_p (s2)
+      || gimple_call_must_tail_p (s1) != gimple_call_must_tail_p (s2))
     return false;
 
-  if (gimple_call_internal_p (s1)
-      && gimple_call_internal_fn (s1) != gimple_call_internal_fn (s2))
-    return false;
-
-  tree fntype1 = gimple_call_fntype (s1);
-  tree fntype2 = gimple_call_fntype (s2);
-
-  /* For direct calls we verify that types are compatible so if we matched
-     callees, callers must match, too.  For indirect calls however verify
-     function type.  */
-  if (!gimple_call_fndecl (s1))
+  unsigned check_arg_types_from = 0;
+  if (gimple_call_internal_p (s1))
     {
-      if ((fntype1 && !fntype2)
-	  || (!fntype1 && fntype2)
-	  || (fntype1 && !types_compatible_p (fntype1, fntype2)))
-	return return_false_with_msg ("call function types are not compatible");
+      if (gimple_call_internal_fn (s1) != gimple_call_internal_fn (s2))
+	return false;
     }
+  else
+    {
+      tree fntype1 = gimple_call_fntype (s1);
+      tree fntype2 = gimple_call_fntype (s2);
+      if (!types_compatible_p (fntype1, fntype2))
+	return return_false_with_msg ("call function types are not compatible");
 
-  if (fntype1 && fntype2 && comp_type_attributes (fntype1, fntype2) != 1)
-    return return_false_with_msg ("different fntype attributes");
+      if (comp_type_attributes (fntype1, fntype2) != 1)
+	return return_false_with_msg ("different fntype attributes");
+
+      check_arg_types_from = gimple_call_num_args (s1);
+      if (!prototype_p (fntype1) || !prototype_p (fntype2))
+	check_arg_types_from = 0;
+      else if (stdarg_p (fntype1))
+	{
+	  check_arg_types_from = list_length (TYPE_ARG_TYPES (fntype1));
+	  if (stdarg_p (fntype2))
+	    {
+	      unsigned n = list_length (TYPE_ARG_TYPES (fntype2));
+	      check_arg_types_from = MIN (check_arg_types_from, n);
+	    }
+	}
+      else if (stdarg_p (fntype2))
+	check_arg_types_from = list_length (TYPE_ARG_TYPES (fntype2));
+    }
 
   tree chain1 = gimple_call_chain (s1);
   tree chain2 = gimple_call_chain (s2);
@@ -700,6 +760,10 @@ func_checker::compare_gimple_call (gcall *s1, gcall *s2)
 
       if (!compare_operand (t1, t2, get_operand_access_type (&map, t1)))
 	return return_false_with_msg ("GIMPLE call operands are different");
+      if (i >= check_arg_types_from
+	  && !types_compatible_p (TREE_TYPE (t1), TREE_TYPE (t2)))
+	return return_false_with_msg ("GIMPLE call operand types are "
+				      "different");
     }
 
   /* Return value checking.  */
@@ -713,6 +777,31 @@ func_checker::compare_gimple_call (gcall *s1, gcall *s2)
       && t2
       && !compatible_types_p (TREE_TYPE (t1), TREE_TYPE (t2)))
     return return_false_with_msg ("GIMPLE internal call LHS type mismatch");
+
+  if (!gimple_call_internal_p (s1))
+    {
+      cgraph_edge *e1 = cgraph_node::get (m_source_func_decl)->get_edge (s1);
+      cgraph_edge *e2 = cgraph_node::get (m_target_func_decl)->get_edge (s2);
+      class ipa_edge_args *args1 = ipa_edge_args_sum->get (e1);
+      class ipa_edge_args *args2 = ipa_edge_args_sum->get (e2);
+      if ((args1 != nullptr) != (args2 != nullptr))
+	return return_false_with_msg ("ipa_edge_args mismatch");
+      if (args1)
+	{
+	  int n1 = ipa_get_cs_argument_count (args1);
+	  int n2 = ipa_get_cs_argument_count (args2);
+	  if (n1 != n2)
+	    return return_false_with_msg ("ipa_edge_args nargs mismatch");
+	  for (int i = 0; i < n1; i++)
+	    {
+	      struct ipa_jump_func *jf1 = ipa_get_ith_jump_func (args1, i);
+	      struct ipa_jump_func *jf2 = ipa_get_ith_jump_func (args2, i);
+	      if (((jf1 != nullptr) != (jf2 != nullptr))
+		  || (jf1 && !ipa_jump_functions_equivalent_p (jf1, jf2)))
+		return return_false_with_msg ("jump function mismatch");
+	    }
+	}
+    }
 
   return compare_operand (t1, t2, get_operand_access_type (&map, t1));
 }
@@ -915,7 +1004,7 @@ func_checker::compare_gimple_asm (const gasm *g1, const gasm *g2)
   if (gimple_asm_volatile_p (g1) != gimple_asm_volatile_p (g2))
     return false;
 
-  if (gimple_asm_input_p (g1) != gimple_asm_input_p (g2))
+  if (gimple_asm_basic_p (g1) != gimple_asm_basic_p (g2))
     return false;
 
   if (gimple_asm_inline_p (g1) != gimple_asm_inline_p (g2))

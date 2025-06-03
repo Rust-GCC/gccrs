@@ -1,6 +1,7 @@
 // Basic test to ensure that guarded templates correctly serialize and
 // deserialize their contracts through the CMI.
 // { dg-additional-options "-fmodules-ts -fcontracts -fcontract-continuation-mode=on" }
+// { dg-skip-if "requires hosted libstdc++ for cstdio" { ! hostedlib } }
 module;
 #include <cstdio>
 #include <experimental/contract>
@@ -8,7 +9,7 @@ export module foo;
 // { dg-module-cmi foo }
 
 export int violation_count{0};
-extern "C++" export void handle_contract_violation(const std::experimental::contract_violation &violation)
+export extern "C++" void handle_contract_violation(const std::experimental::contract_violation &violation)
 {
   violation_count++;
   printf("violation_count: %d\n", violation_count);

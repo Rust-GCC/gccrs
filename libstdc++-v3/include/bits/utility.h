@@ -1,6 +1,6 @@
 // Utilities used throughout the library -*- C++ -*-
 
-// Copyright (C) 2004-2024 Free Software Foundation, Inc.
+// Copyright (C) 2004-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,9 @@
 #ifndef _GLIBCXX_UTILITY_H
 #define _GLIBCXX_UTILITY_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus >= 201103L
 
@@ -220,8 +222,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Tp>
     inline constexpr bool __is_in_place_type_v<in_place_type_t<_Tp>> = true;
 
-  template<typename _Tp>
-    using __is_in_place_type = bool_constant<__is_in_place_type_v<_Tp>>;
+  template<typename>
+    inline constexpr bool __is_in_place_index_v = false;
+
+  template<size_t _Nm>
+    inline constexpr bool __is_in_place_index_v<in_place_index_t<_Nm>> = true;
 
 #endif // C++17
 
@@ -272,6 +277,43 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     template<typename _Range>
       inline constexpr bool __is_subrange = false;
   } // namespace __detail
+#endif
+
+  // A class (and instance) which can be used in 'tie' when an element
+  // of a tuple is not required.
+  struct _Swallow_assign
+  {
+    template<class _Tp>
+      constexpr const _Swallow_assign&
+      operator=(const _Tp&) const noexcept
+      { return *this; }
+  };
+
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 2773. Making std::ignore constexpr
+  /** Used with `std::tie` to ignore an element of a tuple
+   *
+   * When using `std::tie` to assign the elements of a tuple to variables,
+   * unwanted elements can be ignored by using `std::ignore`. For example:
+   *
+   * ```
+   * int x, y;
+   * std::tie(x, std::ignore, y) = std::make_tuple(1, 2, 3);
+   * ```
+   *
+   * This assignment will perform `x=1; std::ignore=2; y=3;` which results
+   * in the second element being ignored.
+   *
+   * @since C++11
+   */
+  _GLIBCXX17_INLINE constexpr _Swallow_assign ignore{};
+
+#if __glibcxx_flat_map || __glibcxx_flat_set // >= C++23
+  struct sorted_unique_t { explicit sorted_unique_t() = default; };
+  inline constexpr sorted_unique_t sorted_unique{};
+
+  struct sorted_equivalent_t { explicit sorted_equivalent_t() = default; };
+  inline constexpr sorted_equivalent_t sorted_equivalent{};
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION

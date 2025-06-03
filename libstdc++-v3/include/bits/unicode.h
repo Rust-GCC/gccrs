@@ -34,10 +34,12 @@
 #include <array>
 #include <bit>      // bit_width
 #include <charconv> // __detail::__from_chars_alnum_to_val_table
+#include <string_view>
 #include <cstdint>
 #include <bits/stl_algo.h>
 #include <bits/stl_iterator.h>
-#include <bits/ranges_base.h>
+#include <bits/ranges_base.h> // iterator_t, sentinel_t, input_range, etc.
+#include <bits/ranges_util.h> // view_interface
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -147,6 +149,11 @@ namespace __unicode
       constexpr _Iter
       base() const requires forward_iterator<_Iter>
       { return _M_curr(); }
+
+      [[nodiscard]]
+      constexpr iter_difference_t<_Iter> 
+      _M_units() const requires forward_iterator<_Iter>
+      { return _M_to_increment; }
 
       [[nodiscard]]
       constexpr value_type
@@ -261,9 +268,13 @@ namespace __unicode
       {
 	_Guard<_Iter> __g{this, _M_curr()};
 	char32_t __c{};
-	uint8_t __u = *_M_curr()++;
 	const uint8_t __lo_bound = 0x80, __hi_bound = 0xBF;
+	uint8_t __u = *_M_curr()++;
 	uint8_t __to_incr = 1;
+	auto __incr = [&, this] {
+	  ++__to_incr;
+	  return ++_M_curr();
+	};
 
 	if (__u <= 0x7F) [[likely]]      // 0x00 to 0x7F
 	  __c = __u;
@@ -281,8 +292,7 @@ namespace __unicode
 	    else
 	      {
 		__c = (__c << 6) | (__u & 0x3F);
-		++_M_curr();
-		++__to_incr;
+		__incr();
 	      }
 	  }
 	else if (__u <= 0xEF) // 0xE0 to 0xEF
@@ -295,11 +305,10 @@ namespace __unicode
 
 	    if (__u < __lo_bound_2 || __u > __hi_bound_2) [[unlikely]]
 	      __c = _S_error();
-	    else if (++_M_curr() == _M_last) [[unlikely]]
+	    else if (__incr() == _M_last) [[unlikely]]
 	      __c = _S_error();
 	    else
 	      {
-		++__to_incr;
 		__c = (__c << 6) | (__u & 0x3F);
 		__u = *_M_curr();
 
@@ -308,8 +317,7 @@ namespace __unicode
 		else
 		  {
 		    __c = (__c << 6) | (__u & 0x3F);
-		    ++_M_curr();
-		    ++__to_incr;
+		    __incr();
 		  }
 	      }
 	  }
@@ -323,21 +331,19 @@ namespace __unicode
 
 	    if (__u < __lo_bound_2 || __u > __hi_bound_2) [[unlikely]]
 	      __c = _S_error();
-	    else if (++_M_curr() == _M_last) [[unlikely]]
+	    else if (__incr() == _M_last) [[unlikely]]
 	      __c = _S_error();
 	    else
 	      {
-		++__to_incr;
 		__c = (__c << 6) | (__u & 0x3F);
 		__u = *_M_curr();
 
 		if (__u < __lo_bound || __u > __hi_bound) [[unlikely]]
 		  __c = _S_error();
-		else if (++_M_curr() == _M_last) [[unlikely]]
+		else if (__incr() == _M_last) [[unlikely]]
 		  __c = _S_error();
 		else
 		  {
-		    ++__to_incr;
 		    __c = (__c << 6) | (__u & 0x3F);
 		    __u = *_M_curr();
 
@@ -346,8 +352,7 @@ namespace __unicode
 		    else
 		      {
 			__c = (__c << 6) | (__u & 0x3F);
-			++_M_curr();
-			++__to_incr;
+			__incr();
 		      }
 		  }
 	      }
@@ -377,7 +382,7 @@ namespace __unicode
 	      {
 		++_M_curr();
 		__to_incr = 2;
-		uint32_t __x = (__u & 0x3F) << 10 | __u2 & 0x3FF;
+		uint32_t __x = (__u & 0x3F) << 10 | (__u2 & 0x3FF);
 		uint32_t __w = (__u >> 6) & 0x1F;
 		__c = (__w + 1) << 16 | __x;
 	      }
@@ -578,16 +583,21 @@ namespace __unicode
       constexpr bool empty() const { return ranges::empty(_M_base); }
     };
 
+#ifdef __cpp_char8_t
   template<typename _View>
     using _Utf8_view = _Utf_view<char8_t, _View>;
+#else
+  template<typename _View>
+    using _Utf8_view = _Utf_view<char, _View>;
+#endif
   template<typename _View>
     using _Utf16_view = _Utf_view<char16_t, _View>;
   template<typename _View>
     using _Utf32_view = _Utf_view<char32_t, _View>;
 
-inline namespace __v15_1_0
+inline namespace __v16_0_0
 {
-#define _GLIBCXX_GET_UNICODE_DATA 150100
+#define _GLIBCXX_GET_UNICODE_DATA 160000
 #include "unicode-data.h"
 #ifdef _GLIBCXX_GET_UNICODE_DATA
 # error "Invalid unicode data"
@@ -605,6 +615,18 @@ inline namespace __v15_1_0
   }
 
   // @pre c <= 0x10FFFF
+  constexpr bool
+  __should_escape_category(char32_t __c) noexcept
+  {
+    constexpr uint32_t __mask = 0x01;
+    auto* __end = std::end(__escape_edges);
+    auto* __p = std::lower_bound(__escape_edges, __end,
+				 (__c << 1u) + 2);
+    return __p[-1] & __mask;
+  }
+
+
+  // @pre c <= 0x10FFFF
   constexpr _Gcb_property
   __grapheme_cluster_break_property(char32_t __c) noexcept
   {
@@ -620,7 +642,7 @@ inline namespace __v15_1_0
   {
     const auto __end = std::end(__incb_linkers);
     // Array is small enough that linear search is faster than binary search.
-    return std::find(__incb_linkers, __end, __c) != __end;
+    return _GLIBCXX_STD_A::find(__incb_linkers, __end, __c) != __end;
   }
 
   // @pre c <= 0x10FFFF
@@ -799,7 +821,7 @@ inline namespace __v15_1_0
 	operator++(int)
 	{
 	  auto __tmp = *this;
-	  ++this;
+	  ++*this;
 	  return __tmp;
 	}
 
@@ -938,7 +960,7 @@ inline namespace __v15_1_0
       _Iterator _M_begin;
     };
 
-} // namespace __v15_1_0
+} // namespace __v16_0_0
 
   // Return the field width of a string.
   template<typename _CharT>
@@ -991,12 +1013,14 @@ inline namespace __v15_1_0
     consteval bool
     __literal_encoding_is_unicode()
     {
-      if constexpr (is_same_v<_CharT, char8_t>)
-	return true;
-      else if constexpr (is_same_v<_CharT, char16_t>)
+      if constexpr (is_same_v<_CharT, char16_t>)
 	return true;
       else if constexpr (is_same_v<_CharT, char32_t>)
 	  return true;
+#ifdef __cpp_char8_t
+      else if constexpr (is_same_v<_CharT, char8_t>)
+	return true;
+#endif
 
       const char* __enc = "";
 
@@ -1031,6 +1055,8 @@ inline namespace __v15_1_0
 	    {
 	      string_view __s(__enc);
 	      if (__s.ends_with("//"))
+		__s.remove_suffix(2);
+	      if (__s.ends_with("LE") || __s.ends_with("BE"))
 		__s.remove_suffix(2);
 	      return __s == "16" || __s == "32";
 	    }

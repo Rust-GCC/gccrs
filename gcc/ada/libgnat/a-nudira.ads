@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -35,6 +35,8 @@
 
 --  Note: the implementation used in this package is a version of the
 --  Mersenne Twister. See s-rannum.adb for details and references.
+--  It is suitable for simulations, but should not be used as a cryptographic
+--  pseudo-random source.
 
 with System.Random_Numbers;
 

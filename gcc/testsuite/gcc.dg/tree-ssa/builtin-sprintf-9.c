@@ -1,5 +1,6 @@
 /* PR tree-optimization/86274 - SEGFAULT when logging std::to_string(NAN)
    { dg-do compile }
+   { dg-require-effective-target double64 }
    { dg-skip-if "not IEEE float layout" { "pdp11-*-*" } }
    { dg-options "-O2 -Wall -fdump-tree-optimized" }  */
 
@@ -19,7 +20,7 @@ extern int snprintf (char*, size_t, const char*, ...);
 /* Macro to emit a call to funcation named
      call_in_true_branch_not_eliminated_on_line_NNN()
    for each expression that's expected to fold to false but that
-   GCC does not fold.  The dg-final scan-tree-dump-time directive
+   GCC does not fold.  The dg-final scan-tree-dump-times directive
    at the bottom of the test verifies that no such call appears
    in output.  */
 #define ELIM(expr)							\
@@ -28,7 +29,7 @@ extern int snprintf (char*, size_t, const char*, ...);
 /* Macro to emit a call to a function named
      call_made_in_{true,false}_branch_on_line_NNN()
    for each call that's expected to be retained.  The dg-final
-   scan-tree-dump-time directive at the bottom of the test verifies
+   scan-tree-dump-times directive at the bottom of the test verifies
    that the expected number of both kinds of calls appears in output
    (a pair for each line with the invocation of the KEEP() macro.  */
 #define KEEP(expr)				\

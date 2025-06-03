@@ -1,5 +1,5 @@
 /* Callgraph transformations to handle inlining
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -61,7 +61,7 @@ int nfunctions_inlined;
 /* Scale counts of NODE edges by NUM/DEN.  */
 
 static void
-update_noncloned_counts (struct cgraph_node *node, 
+update_noncloned_counts (struct cgraph_node *node,
 			 profile_count num, profile_count den)
 {
   struct cgraph_edge *e;
@@ -391,17 +391,33 @@ inline_call (struct cgraph_edge *e, bool update_original,
       = DECL_FUNCTION_PERSONALITY (callee->decl);
 
   bool reload_optimization_node = false;
-  if (!opt_for_fn (callee->decl, flag_strict_aliasing)
-      && opt_for_fn (to->decl, flag_strict_aliasing))
+  bool remove_strict_aliasing
+    = (!opt_for_fn (callee->decl, flag_strict_aliasing)
+       && opt_for_fn (to->decl, flag_strict_aliasing));
+  bool remove_assume_sane_operators_new_delete
+    = (!opt_for_fn (callee->decl, flag_assume_sane_operators_new_delete)
+       && opt_for_fn (to->decl, flag_assume_sane_operators_new_delete));
+  if (remove_strict_aliasing || remove_assume_sane_operators_new_delete)
     {
       struct gcc_options opts = global_options;
       struct gcc_options opts_set = global_options_set;
 
       cl_optimization_restore (&opts, &opts_set, opts_for_fn (to->decl));
-      opts.x_flag_strict_aliasing = false;
-      if (dump_file)
-	fprintf (dump_file, "Dropping flag_strict_aliasing on %s\n",
-		 to->dump_name ());
+      if (remove_strict_aliasing)
+	{
+	  opts.x_flag_strict_aliasing = false;
+	  if (dump_file)
+	    fprintf (dump_file, "Dropping flag_strict_aliasing on %s\n",
+		     to->dump_name ());
+	}
+      if (remove_assume_sane_operators_new_delete)
+	{
+	  opts.x_flag_assume_sane_operators_new_delete = false;
+	  if (dump_file)
+	    fprintf (dump_file,
+		     "Dropping flag_assume_sane_operators_new_delete on %s\n",
+		     to->dump_name ());
+	}
       DECL_FUNCTION_SPECIFIC_OPTIMIZATION (to->decl)
 	 = build_optimization_node (&opts, &opts_set);
       reload_optimization_node = true;
@@ -422,8 +438,8 @@ inline_call (struct cgraph_edge *e, bool update_original,
 	     != opt_for_fn (to->decl, flag_finite_math_only)
 	  || opt_for_fn (callee->decl, flag_signaling_nans)
 	     != opt_for_fn (to->decl, flag_signaling_nans)
-	  || opt_for_fn (callee->decl, flag_cx_limited_range)
-	     != opt_for_fn (to->decl, flag_cx_limited_range)
+	  || opt_for_fn (callee->decl, flag_complex_method)
+	     != opt_for_fn (to->decl, flag_complex_method)
 	  || opt_for_fn (callee->decl, flag_signed_zeros)
 	     != opt_for_fn (to->decl, flag_signed_zeros)
 	  || opt_for_fn (callee->decl, flag_associative_math)
@@ -449,8 +465,8 @@ inline_call (struct cgraph_edge *e, bool update_original,
 	    = opt_for_fn (callee->decl, flag_finite_math_only);
 	  opts.x_flag_signaling_nans
 	    = opt_for_fn (callee->decl, flag_signaling_nans);
-	  opts.x_flag_cx_limited_range
-	    = opt_for_fn (callee->decl, flag_cx_limited_range);
+	  opts.x_flag_complex_method
+	    = opt_for_fn (callee->decl, flag_complex_method);
 	  opts.x_flag_signed_zeros
 	    = opt_for_fn (callee->decl, flag_signed_zeros);
 	  opts.x_flag_associative_math
@@ -570,7 +586,7 @@ save_inline_function_body (struct cgraph_node *node)
   if (dump_file)
     fprintf (dump_file, "\nSaving body of %s for later reuse\n",
 	     node->dump_name ());
- 
+
   gcc_assert (node == cgraph_node::get (node->decl));
 
   /* first_clone will be turned into real function.  */
@@ -731,7 +747,7 @@ inline_transform (struct cgraph_node *node)
   unsigned int todo = 0;
   struct cgraph_edge *e, *next;
   bool has_inline = false;
- 
+
   /* FIXME: Currently the pass manager is adding inline transform more than
      once to some clones.  This needs revisiting after WPA cleanups.  */
   if (cfun->after_inlining)

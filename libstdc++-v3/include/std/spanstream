@@ -29,7 +29,9 @@
 #ifndef _GLIBCXX_SPANSTREAM
 #define _GLIBCXX_SPANSTREAM 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/requires_hosted.h> // iostreams
 
@@ -108,6 +110,7 @@ template<typename _CharT, typename _Traits>
     }
 
     // [spanbuf.members], member functions
+    [[nodiscard]]
     std::span<_CharT>
     span() const noexcept
     {
@@ -165,7 +168,7 @@ template<typename _CharT, typename _Traits>
 	}
       else
 	{
-	  off_type __base;
+	  off_type __base{};
 	  __which &= (ios_base::in|ios_base::out);
 
 	  if (__which == ios_base::out)
@@ -179,11 +182,13 @@ template<typename _CharT, typename _Traits>
 	    }
 	  else if (__way == ios_base::end)
 	    __base = _M_buf.size();
-
-	  if (__builtin_add_overflow(__base, __off, &__off))
+	  else /* way is not ios::beg, ios::cur, or ios::end */ [[unlikely]]
 	    return __ret;
 
-	  if (__off < 0 || __off > _M_buf.size())
+	  if (__builtin_add_overflow(__base, __off, &__off)) [[unlikely]]
+	    return __ret;
+
+	  if (__off < 0 || __off > _M_buf.size()) [[unlikely]]
 	    return __ret;
 
 	  if (__which & ios_base::in)
@@ -275,12 +280,14 @@ template<typename _CharT, typename _Traits>
     }
 
     // [ispanstream.members], member functions
+    [[nodiscard]]
     basic_spanbuf<_CharT, _Traits>*
     rdbuf() const noexcept
     {
       return const_cast<basic_spanbuf<_CharT, _Traits>*>(std::__addressof(_M_sb));
     }
 
+    [[nodiscard]]
     std::span<const _CharT>
     span() const noexcept
     { return _M_sb.span(); }
@@ -354,12 +361,14 @@ template<typename _CharT, typename _Traits>
     }
 
     // [ospanstream.members], member functions
+    [[nodiscard]]
     basic_spanbuf<_CharT, _Traits>*
     rdbuf() const noexcept
     {
       return const_cast<basic_spanbuf<_CharT, _Traits>*>(std::__addressof(_M_sb));
     }
 
+    [[nodiscard]]
     std::span<_CharT>
     span() const noexcept
     { return _M_sb.span(); }
@@ -422,12 +431,14 @@ template<typename _CharT, typename _Traits>
     }
 
     // [spanstream.members], members
+    [[nodiscard]]
     basic_spanbuf<_CharT, _Traits>*
     rdbuf() const noexcept
     {
       return const_cast<basic_spanbuf<_CharT, _Traits>*>(std::__addressof(_M_sb));
     }
 
+    [[nodiscard]]
     std::span<_CharT>
     span() const noexcept
     { return _M_sb.span(); }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -127,7 +127,7 @@ package Opt is
    --  remains set to Ada_Version_Default). This is used in the rare cases
    --  (notably pragma Obsolescent) where we want the explicit version set.
 
-   Ada_Version_Runtime : Ada_Version_Type := Ada_With_All_Extensions;
+   Ada_Version_Runtime : constant Ada_Version_Type := Ada_With_All_Extensions;
    --  GNAT
    --  Ada version used to compile the runtime. Used to set Ada_Version (but
    --  not Ada_Version_Explicit) when compiling predefined or internal units.
@@ -261,7 +261,9 @@ package Opt is
    --  (switch -B)
 
    CCG_Mode : Boolean := False;
-   --  Set to True when running as CCG (either via -gnatceg or via -emit-c)
+   --  GNAT, GNATBIND
+   --  Set to True when running as CCG (implicitly, via -emit-c, or -G for the
+   --  binder)
 
    Check_Aliasing_Of_Parameters : Boolean := False;
    --  GNAT
@@ -699,10 +701,10 @@ package Opt is
    --  GNAT
    --  True if generating assembly instead of an object file, via the -S switch
 
-   Generate_C_Code : Boolean := False;
-   --  GNAT, GNATBIND
+   Generate_C_Header : Boolean := False;
+   --  GNAT
    --  If True, the Cprint circuitry to generate C code output is activated.
-   --  Set True by use of -gnateg or -gnatd.V for GNAT, and -G for GNATBIND.
+   --  Set True by use of -gnateg for GNAT.
 
    Generate_CodePeer_Messages : Boolean := False;
    --  GNAT
@@ -815,10 +817,6 @@ package Opt is
    --  If set True, then a Size attribute clause on an array is allowed to
    --  cause implicit packing instead of generating an error message. Set by
    --  use of pragma Implicit_Packing.
-
-   Include_Subprogram_In_Messages : Boolean := False;
-   --  GNAT
-   --  Set True to include the enclosing subprogram in compiler messages.
 
    Init_Or_Norm_Scalars : Boolean := False;
    --  GNAT, GNATBIND
@@ -1058,19 +1056,6 @@ package Opt is
    --  GNATMAKE
    --  Set to True if minimal recompilation mode requested
 
-   Minimize_Expression_With_Actions : Boolean := False;
-   --  GNAT
-   --  If True, minimize the use of N_Expression_With_Actions node.
-   --  This can be used in particular on some back-ends where this node is
-   --  difficult to support.
-
-   Modify_Tree_For_C : Boolean := False;
-   --  GNAT
-   --  If this switch is set True (currently it is set only by -gnatd.V), then
-   --  certain meaning-preserving transformations are applied to the tree to
-   --  make it easier to interface with back ends that implement C semantics.
-   --  There is a section in Sinfo which describes the transformations made.
-
    Multiple_Unit_Index : Nat := 0;
    --  GNAT
    --  This is set non-zero if the current unit is being compiled in multiple
@@ -1112,6 +1097,10 @@ package Opt is
    --  GNAT, GNATBIND
    --  This flag is set True if a No_Run_Time pragma is encountered. See spec
    --  of Rtsfind for a full description of handling of this pragma.
+
+   Interrupts_System_By_Default : Boolean := False;
+   --  GNATBIND
+   --  Set True if pragma Interrupts_System_By_Default is seen.
 
    No_Split_Units : Boolean := False;
    --  GPRBUILD
@@ -1351,6 +1340,19 @@ package Opt is
    --  GNATMAKE, GNATLINK
    --  Set to False when no run_path_option should be issued to the linker
 
+   SARIF_File : Boolean := False;
+   --  GNAT
+   --  Output error and warning messages in SARIF format. Set to true when the
+   --  backend option "-fdiagnostics-format=sarif-file" is found on the
+   --  command line. The SARIF file is written to the file named:
+   --  <source_file>.gnat.sarif
+
+   SARIF_Output : Boolean := False;
+   --  GNAT
+   --  Output error and warning messages in SARIF format. Set to true when the
+   --  backend option "-fdiagnostics-format=sarif-stderr" is found on the
+   --  command line.
+
    Search_Directory_Present : Boolean := False;
    --  GNAT
    --  Set to True when argument is -I. Reset to False when next argument, a
@@ -1538,12 +1540,6 @@ package Opt is
    --  Tolerate time stamp and other consistency errors. If this flag is set to
    --  True (-t), then inconsistencies result in warnings rather than errors.
 
-   Transform_Function_Array : Boolean := False;
-   --  GNAT
-   --  If this switch is set True, then functions returning constrained arrays
-   --  are transformed into a procedure with an out parameter, and all calls
-   --  are updated accordingly.
-
    Treat_Categorization_Errors_As_Warnings : Boolean := False;
    --  Normally categorization errors are true illegalities. If this switch
    --  is set, then such errors result in warning messages rather than error
@@ -1670,6 +1666,11 @@ package Opt is
    --  ignored (except for legality checks), unless we are in GNATprove_Mode,
    --  which requires pragma Warnings to be stored for the formal verification
    --  backend.
+
+   Info_Suppressed : Boolean := False;
+   --  GNAT
+   --  Controls whether informational messages are suppressed. Set True by
+   --  -gnatis. If True, informational messages will not be printed.
 
    Wide_Character_Encoding_Method : WC_Encoding_Method := WCEM_Brackets;
    --  GNAT, GNATBIND

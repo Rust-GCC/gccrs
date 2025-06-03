@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -66,12 +66,15 @@ namespace __gnu_parallel
       _ValueType* __samples = static_cast<_ValueType*>
 	(::operator new(__num_samples * sizeof(_ValueType)));
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wlong-long" // LL literal
       for (_DifferenceType __s = 0; __s < __num_samples; ++__s)
         {
           const unsigned long long __index = static_cast<unsigned long long>
 	    (__s) * __n / __num_samples;
           ::new(&(__samples[__s])) _ValueType(__begin[__index]);
         }
+#pragma GCC diagnostic pop
 
       __gnu_sequential::sort(__samples, __samples + __num_samples, __comp);
 

@@ -1,5 +1,5 @@
 /* Definitions for SH running NetBSD using ELF
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Wasabi Systems, Inc.
 
 This file is part of GCC.
@@ -62,7 +62,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Define because we use the label and we do not need them.  */
 #define NO_PROFILE_COUNTERS 1
- 
+
 #undef FUNCTION_PROFILER
 #define FUNCTION_PROFILER(STREAM,LABELNO)				\
 do									\

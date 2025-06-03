@@ -1,6 +1,6 @@
 /* Code to analyze doloop loops in order for targets to perform late
    optimizations converting doloops to other forms of hardware loops.
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -101,7 +101,7 @@ struct GTY (()) hwloop_info_d
 
   /* The following values are collected before calling the target's optimize
      function and are not valid earlier.  */
-  
+
   /* Record information about control flow: whether the loop has calls
      or asm statements, whether it has edges that jump out of the loop,
      or edges that jump within the loop.  */

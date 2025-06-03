@@ -3,7 +3,7 @@
 // { dg-do compile }
 // 1999-05-12 bkoz
 
-// Copyright (C) 1999-2024 Free Software Foundation, Inc.
+// Copyright (C) 1999-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -22,54 +22,5 @@
 
 // 17.4.1.2 Headers
 
-#include <bits/stdc++.h>
-
-// "C" compatibility headers
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#include <float.h>
-#include <iso646.h>
-#include <limits.h>
-#include <locale.h>
-#include <math.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#ifdef _GLIBCXX_HAVE_WCHAR_H
-#include <wchar.h>
-#endif
-#ifdef _GLIBCXX_HAVE_WCTYPE_H
-#include <wctype.h>
-#endif
-
-#include <bits/stdc++.h>
-
-// "C" compatibility headers
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#include <float.h>
-#include <iso646.h>
-#include <limits.h>
-#include <locale.h>
-#include <math.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#ifdef _GLIBCXX_HAVE_WCHAR_H
-#include <wchar.h>
-#endif
-#ifdef _GLIBCXX_HAVE_WCTYPE_H
-#include <wctype.h>
-#endif
+#include "stdc++.cc"
+#include "stdc++.cc"

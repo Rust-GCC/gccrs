@@ -1,6 +1,6 @@
 /* Routines for emitting trees to a file stream.
 
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -71,8 +71,6 @@ write_identifier (struct output_block *ob,
 static inline void
 pack_ts_base_value_fields (struct bitpack_d *bp, tree expr)
 {
-  if (streamer_debugging)
-    bp_pack_value (bp, TREE_CODE (expr), 16);
   if (!TYPE_P (expr))
     {
       bp_pack_value (bp, TREE_SIDE_EFFECTS (expr), 1);
@@ -189,7 +187,18 @@ pack_ts_fixed_cst_value_fields (struct bitpack_d *bp, tree expr)
 static void
 pack_ts_decl_common_value_fields (struct bitpack_d *bp, tree expr)
 {
-  bp_pack_machine_mode (bp, DECL_MODE (expr));
+  /* Similar to TYPE_MODE, avoid streaming out host-specific DECL_MODE
+     for aggregate type with offloading enabled, and while streaming-in
+     recompute appropriate DECL_MODE for accelerator.  */
+  if (lto_stream_offload_p
+      && (VAR_P (expr)
+	  || TREE_CODE (expr) == PARM_DECL
+	  || TREE_CODE (expr) == FIELD_DECL)
+      && (AGGREGATE_TYPE_P (TREE_TYPE (expr))
+	  || VECTOR_TYPE_P (TREE_TYPE (expr))))
+    bp_pack_machine_mode (bp, VOIDmode);
+  else
+    bp_pack_machine_mode (bp, DECL_MODE (expr));
   bp_pack_value (bp, DECL_NONLOCAL (expr), 1);
   bp_pack_value (bp, DECL_VIRTUAL_P (expr), 1);
   bp_pack_value (bp, DECL_IGNORED_P (expr), 1);
@@ -297,7 +306,7 @@ pack_ts_function_decl_value_fields (struct bitpack_d *bp, tree expr)
   bp_pack_value (bp, DECL_IS_NOVOPS (expr), 1);
   bp_pack_value (bp, DECL_IS_RETURNS_TWICE (expr), 1);
   bp_pack_value (bp, DECL_IS_MALLOC (expr), 1);
-  bp_pack_value (bp, FUNCTION_DECL_DECL_TYPE (expr), 2);
+  bp_pack_value (bp, (unsigned)FUNCTION_DECL_DECL_TYPE (expr), 2);
   bp_pack_value (bp, DECL_IS_OPERATOR_DELETE_P (expr), 1);
   bp_pack_value (bp, DECL_DECLARED_INLINE_P (expr), 1);
   bp_pack_value (bp, DECL_STATIC_CHAIN (expr), 1);
@@ -319,10 +328,19 @@ pack_ts_function_decl_value_fields (struct bitpack_d *bp, tree expr)
 static void
 pack_ts_type_common_value_fields (struct bitpack_d *bp, tree expr)
 {
+  /* For offloading, avoid streaming out TYPE_MODE for aggregate type since
+     it may be host-specific. For eg, aarch64 uses OImode for ARRAY_TYPE
+     whose size is 256-bits, which is not representable on accelerator.
+     Instead stream out VOIDmode, and while streaming-in, recompute
+     appropriate TYPE_MODE for accelerator.  */
+  if (lto_stream_offload_p
+      && (AGGREGATE_TYPE_P (expr) || VECTOR_TYPE_P (expr)))
+    bp_pack_machine_mode (bp, VOIDmode);
   /* for VECTOR_TYPE, TYPE_MODE reevaluates the mode using target_flags
      not necessary valid in a global context.
      Use the raw value previously set by layout_type.  */
-  bp_pack_machine_mode (bp, TYPE_MODE_RAW (expr));
+  else
+    bp_pack_machine_mode (bp, TYPE_MODE_RAW (expr));
   /* TYPE_NO_FORCE_BLK is private to stor-layout and need
      no streaming.  */
   bp_pack_value (bp, TYPE_PACKED (expr), 1);
@@ -862,6 +880,19 @@ write_ts_constructor_tree_pointers (struct output_block *ob, tree expr)
 }
 
 
+/* Write all pointer fields in the RAW_DATA_CST/TS_RAW_DATA_CST structure of
+   EXPR to output block OB.  */
+
+static void
+write_ts_raw_data_cst_tree_pointers (struct output_block *ob, tree expr)
+{
+  /* Only write this for non-NULL RAW_DATA_OWNER.  RAW_DATA_CST with
+     NULL RAW_DATA_OWNER is streamed to be read back as STRING_CST.  */
+  if (RAW_DATA_OWNER (expr) != NULL_TREE)
+    stream_write_tree_ref (ob, RAW_DATA_OWNER (expr));
+}
+
+
 /* Write all pointer fields in the TS_OMP_CLAUSE structure of EXPR
    to output block OB.  If REF_P is true, write a reference to EXPR's
    pointer fields.  */
@@ -955,6 +986,9 @@ streamer_write_tree_body (struct output_block *ob, tree expr)
   if (CODE_CONTAINS_STRUCT (code, TS_CONSTRUCTOR))
     write_ts_constructor_tree_pointers (ob, expr);
 
+  if (code == RAW_DATA_CST)
+    write_ts_raw_data_cst_tree_pointers (ob, expr);
+
   if (code == OMP_CLAUSE)
     write_ts_omp_clause_tree_pointers (ob, expr);
 }
@@ -1010,6 +1044,35 @@ streamer_write_tree_header (struct output_block *ob, tree expr)
     streamer_write_uhwi (ob, call_expr_nargs (expr));
   else if (TREE_CODE (expr) == OMP_CLAUSE)
     streamer_write_uhwi (ob, OMP_CLAUSE_CODE (expr));
+  else if (TREE_CODE (expr) == RAW_DATA_CST)
+    {
+      if (RAW_DATA_OWNER (expr) == NULL_TREE)
+	{
+	  /* RAW_DATA_CST with NULL RAW_DATA_OWNER is an owner of other
+	     RAW_DATA_CST's data.  This should be streamed out so that
+	     it can be streamed back in as a STRING_CST instead, but without
+	     the need to duplicate the possibly large data.  */
+	  streamer_write_uhwi (ob, 0);
+	  streamer_write_string_with_length (ob, ob->main_stream,
+					     RAW_DATA_POINTER (expr),
+					     RAW_DATA_LENGTH (expr), true);
+	}
+      else
+	{
+	  streamer_write_uhwi (ob, RAW_DATA_LENGTH (expr));
+	  tree owner = RAW_DATA_OWNER (expr);
+	  unsigned HOST_WIDE_INT off;
+	  if (TREE_CODE (owner) == STRING_CST)
+	    off = RAW_DATA_POINTER (expr) - TREE_STRING_POINTER (owner);
+	  else
+	    {
+	      gcc_checking_assert (TREE_CODE (owner) == RAW_DATA_CST
+				   && RAW_DATA_OWNER (owner) == NULL_TREE);
+	      off = RAW_DATA_POINTER (expr) - RAW_DATA_POINTER (owner);
+	    }
+	  streamer_write_uhwi (ob, off);
+	}
+    }
   else if (CODE_CONTAINS_STRUCT (code, TS_INT_CST))
     {
       gcc_checking_assert (TREE_INT_CST_NUNITS (expr));

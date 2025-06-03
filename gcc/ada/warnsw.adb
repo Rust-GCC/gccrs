@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1999-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -92,12 +92,14 @@ package body Warnsw is
           'z' => X.Warn_On_Size_Alignment),
 
         '_' =>
-         ('b' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' |
+         ('b' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'k' | 'm' |
           'n' | 'o' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' =>
            No_Such_Warning,
 
           'a' => X.Warn_On_Anonymous_Allocators,
           'c' => X.Warn_On_Unknown_Compile_Time_Warning,
+          'j' => X.Warn_On_Non_Dispatching_Primitives,
+          'l' => X.Warn_On_Inherently_Limited_Type,
           'p' => X.Warn_On_Pedantic_Checks,
           'q' => X.Warn_On_Ignored_Equality,
           'r' => X.Warn_On_Component_Order,
@@ -108,6 +110,7 @@ package body Warnsw is
       X.Warning_Doc_Switch |
       X.Warn_On_Ada_2022_Compatibility |
       X.Warn_On_Elab_Access |
+      X.Warn_On_GNAT_Extension_Compatibility |
       X.No_Warn_On_Non_Local_Exception => False,
       others => True);
    --  Warning_Doc_Switch is not really a warning to be enabled, but controls
@@ -190,6 +193,7 @@ package body Warnsw is
       --  These warnings are removed from the -gnatwa set
 
       Implementation_Unit_Warnings        := False;
+      Warn_On_Non_Dispatching_Primitives  := False;
       Warn_On_Non_Local_Exception         := False;
       No_Warn_On_Non_Local_Exception      := True;
       Warn_On_Reverse_Bit_Order           := False;

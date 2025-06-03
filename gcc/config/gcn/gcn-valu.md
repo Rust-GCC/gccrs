@@ -1,4 +1,4 @@
-;; Copyright (C) 2016-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
 ;; This file is free software; you can redistribute it and/or modify it under
 ;; the terms of the GNU General Public License as published by the Free
@@ -452,7 +452,7 @@
   [(set (match_operand:V_1REG 0 "nonimmediate_operand")
 	(match_operand:V_1REG 1 "general_operand"))]
   ""
-  {@ [cons: =0, 1; attrs: type, length, gcn_version]
+  {@ [cons: =0, 1; attrs: type, length, cdna]
   [v  ,vA;vop1     ,4,*    ] v_mov_b32\t%0, %1
   [v  ,B ;vop1     ,8,*    ] ^
   [v  ,a ;vop3p_mai,8,*    ] v_accvgpr_read_b32\t%0, %1
@@ -519,7 +519,7 @@
        return \"v_accvgpr_mov_b32\t%H0, %H1\;v_accvgpr_mov_b32\t%L0, %L1\";"
   [(set_attr "type" "vmult,vmult,vmult,vmult")
    (set_attr "length" "16,16,16,8")
-   (set_attr "gcn_version" "*,*,*,cdna2")])
+   (set_attr "cdna" "*,*,*,cdna2")])
 
 (define_insn "mov<mode>_exec"
   [(set (match_operand:V_2REG 0 "nonimmediate_operand" "= v,   v,   v, v, m")
@@ -565,7 +565,7 @@
   [(set (match_operand:V_4REG 0 "nonimmediate_operand")
 	(match_operand:V_4REG 1 "general_operand"))]
   ""
-  {@ [cons: =0, 1; attrs: type, length, gcn_version]
+  {@ [cons: =0, 1; attrs: type, length, cdna]
   [v ,vDB;vmult,16,*    ]           v_mov_b32\t%L0, %L1\;          v_mov_b32\t%H0, %H1\;          v_mov_b32\t%J0, %J1\;          v_mov_b32\t%K0, %K1
   [v ,a  ;vmult,32,*    ]  v_accvgpr_read_b32\t%L0, %L1\; v_accvgpr_read_b32\t%H0, %H1\; v_accvgpr_read_b32\t%J0, %J1\; v_accvgpr_read_b32\t%K0, %K1
   [$a,v  ;vmult,32,*    ] v_accvgpr_write_b32\t%L0, %L1\;v_accvgpr_write_b32\t%H0, %H1\;v_accvgpr_write_b32\t%J0, %J1\;v_accvgpr_write_b32\t%K0, %K1
@@ -662,7 +662,7 @@
 	  UNSPEC_SGPRBASE))
    (clobber (match_operand:<VnDI> 2 "register_operand"))]
   "lra_in_progress || reload_completed"
-  {@ [cons: =0, 1, =2; attrs: type, length, gcn_version]
+  {@ [cons: =0, 1, =2; attrs: type, length, cdna]
   [v,vA,&v;vop1,4 ,*    ] v_mov_b32\t%0, %1
   [v,vB,&v;vop1,8 ,*    ] ^
   [v,m ,&v;*   ,12,*    ] #
@@ -689,7 +689,7 @@
    #"
   [(set_attr "type" "vmult,*,*,*,*")
    (set_attr "length" "8,12,12,12,12")
-   (set_attr "gcn_version" "*,*,*,cdna2,cdna2")])
+   (set_attr "cdna" "*,*,*,cdna2,cdna2")])
 
 (define_insn "@mov<mode>_sgprbase"
   [(set (match_operand:V_4REG 0 "nonimmediate_operand")
@@ -983,7 +983,7 @@
    (match_operand 2 "immediate_operand")]
   "MODE_VF (<V_MOV_ALT:MODE>mode) < MODE_VF (<V_MOV:MODE>mode)
    && <V_MOV_ALT:SCALAR_MODE>mode == <V_MOV:SCALAR_MODE>mode
-   && (!TARGET_RDNA2_PLUS || MODE_VF (<V_MOV:MODE>mode) <= 32)"
+   && (!TARGET_WAVE64_COMPAT || MODE_VF (<V_MOV:MODE>mode) <= 32)"
   {
     int numlanes = GET_MODE_NUNITS (<V_MOV_ALT:MODE>mode);
     int firstlane = INTVAL (operands[2]) * numlanes;
@@ -1156,23 +1156,16 @@
 	   (mem:BLK (scratch))]
 	  UNSPEC_GATHER))]
   "(AS_FLAT_P (INTVAL (operands[3]))
-    && ((TARGET_GCN3 && INTVAL(operands[2]) == 0)
-	|| ((unsigned HOST_WIDE_INT)INTVAL(operands[2]) < 0x1000)))
-    || (AS_GLOBAL_P (INTVAL (operands[3]))
-	&& (((unsigned HOST_WIDE_INT)INTVAL(operands[2]) + 0x1000) < 0x2000))"
+    && ((unsigned HOST_WIDE_INT)INTVAL(operands[2]) < 0x1000))
+   || (AS_GLOBAL_P (INTVAL (operands[3]))
+       && (((unsigned HOST_WIDE_INT)INTVAL(operands[2]) + 0x1000) < 0x2000))"
   {
     addr_space_t as = INTVAL (operands[3]);
     const char *glc = INTVAL (operands[4]) ? " glc" : "";
 
     static char buf[200];
     if (AS_FLAT_P (as))
-      {
-	if (TARGET_GCN5_PLUS)
-	  sprintf (buf, "flat_load%%o0\t%%0, %%1 offset:%%2%s\;s_waitcnt\t0",
-		   glc);
-	else
-	  sprintf (buf, "flat_load%%o0\t%%0, %%1%s\;s_waitcnt\t0", glc);
-      }
+      sprintf (buf, "flat_load%%o0\t%%0, %%1 offset:%%2%s\;s_waitcnt\t0", glc);
     else if (AS_GLOBAL_P (as))
       sprintf (buf, "global_load%%o0\t%%0, %%1, off offset:%%2%s\;"
 	       "s_waitcnt\tvmcnt(0)", glc);
@@ -1183,7 +1176,7 @@
   }
   [(set_attr "type" "flat")
    (set_attr "length" "12")
-   (set_attr "gcn_version" "*,cdna2,*,cdna2")
+   (set_attr "cdna" "*,cdna2,*,cdna2")
    (set_attr "xnack" "off,off,on,on")])
 
 (define_insn "gather<mode>_insn_1offset_ds<exec>"
@@ -1207,7 +1200,7 @@
   }
   [(set_attr "type" "ds")
    (set_attr "length" "12")
-   (set_attr "gcn_version" "*,cdna2")])
+   (set_attr "cdna" "*,cdna2")])
 
 (define_insn "gather<mode>_insn_2offsets<exec>"
   [(set (match_operand:V_MOV 0 "register_operand"		"=v,a,&v,&a")
@@ -1241,7 +1234,7 @@
   }
   [(set_attr "type" "flat")
    (set_attr "length" "12")
-   (set_attr "gcn_version" "*,cdna2,*,cdna2")
+   (set_attr "cdna" "*,cdna2,*,cdna2")
    (set_attr "xnack" "off,off,on,on")])
 
 (define_expand "scatter_store<mode><vnsi>"
@@ -1290,8 +1283,7 @@
 	  UNSPEC_SCATTER))]
   "(AS_FLAT_P (INTVAL (operands[3]))
     && (INTVAL(operands[1]) == 0
-	|| (TARGET_GCN5_PLUS
-	    && (unsigned HOST_WIDE_INT)INTVAL(operands[1]) < 0x1000)))
+	|| ((unsigned HOST_WIDE_INT)INTVAL(operands[1]) < 0x1000)))
     || (AS_GLOBAL_P (INTVAL (operands[3]))
 	&& (((unsigned HOST_WIDE_INT)INTVAL(operands[1]) + 0x1000) < 0x2000))"
   {
@@ -1300,12 +1292,7 @@
 
     static char buf[200];
     if (AS_FLAT_P (as))
-      {
-	if (TARGET_GCN5_PLUS)
 	  sprintf (buf, "flat_store%%s2\t%%0, %%2 offset:%%1%s", glc);
-	else
-	  sprintf (buf, "flat_store%%s2\t%%0, %%2%s", glc);
-      }
     else if (AS_GLOBAL_P (as))
       sprintf (buf, "global_store%%s2\t%%0, %%2, off offset:%%1%s", glc);
     else
@@ -1315,7 +1302,7 @@
   }
   [(set_attr "type" "flat")
    (set_attr "length" "12")
-   (set_attr "gcn_version" "*,cdna2")])
+   (set_attr "cdna" "*,cdna2")])
 
 (define_insn "scatter<mode>_insn_1offset_ds<exec_scatter>"
   [(set (mem:BLK (scratch))
@@ -1338,7 +1325,7 @@
   }
   [(set_attr "type" "ds")
    (set_attr "length" "12")
-   (set_attr "gcn_version" "*,cdna2")])
+   (set_attr "cdna" "*,cdna2")])
 
 (define_insn "scatter<mode>_insn_2offsets<exec_scatter>"
   [(set (mem:BLK (scratch))
@@ -1370,7 +1357,7 @@
   }
   [(set_attr "type" "flat")
    (set_attr "length" "12")
-   (set_attr "gcn_version" "*,cdna2")])
+   (set_attr "cdna" "*,cdna2")])
 
 ;; }}}
 ;; {{{ Permutations
@@ -1418,7 +1405,7 @@
 	  [(match_operand:V_noHI 1 "register_operand" " v")
 	   (match_operand:SI 2 "const_int_operand"    " n")]
 	  UNSPEC_MOV_DPP_SHR))]
-  "!TARGET_RDNA2_PLUS"
+  "TARGET_DPP_FULL"
   {
     return gcn_expand_dpp_shr_insn (<MODE>mode, "v_mov_b32",
 				    UNSPEC_MOV_DPP_SHR, INTVAL (operands[2]));
@@ -1476,7 +1463,7 @@
    (clobber (reg:DI VCC_REG))]
   ""
   {@ [cons: =0, %1, 2; attrs: type, length]
-  [v,v,vSvA;vop2,4] v_add%^_u32\t%0, vcc, %2, %1
+  [v,v,vSvA;vop2,4] v_add_co_u32\t%0, vcc, %2, %1
   [v,v,vSvB;vop2,8] ^
   })
 
@@ -1489,7 +1476,7 @@
    (clobber (reg:DI VCC_REG))]
   ""
   {@ [cons: =0, 1, 2; attrs: type, length]
-  [v,v,SvA;vop2,4] v_add%^_u32\t%0, vcc, %2, %1
+  [v,v,SvA;vop2,4] v_add_co_u32\t%0, vcc, %2, %1
   [v,v,SvB;vop2,8] ^
   })
 
@@ -1503,7 +1490,7 @@
 		(match_dup 1)))]
   ""
   {@ [cons: =0, %1, 2, =3; attrs: type, length]
-  [v,v,vSvA,cV;vop2 ,4] v_add%^_u32\t%0, %3, %2, %1
+  [v,v,vSvA,cV;vop2 ,4] v_add_co_u32\t%0, %3, %2, %1
   [v,v,vSvB,cV;vop2 ,8] ^
   [v,v,vSvA,Sg;vop3b,8] ^
   })
@@ -1523,7 +1510,7 @@
 		(vec_duplicate:V_SI (match_dup 2))))]
   ""
   {@ [cons: =0, 1, 2, =3; attrs: type, length]
-  [v,SvA,v,cV;vop2 ,4] v_add%^_u32\t%0, %3, %1, %2
+  [v,SvA,v,cV;vop2 ,4] v_add_co_u32\t%0, %3, %1, %2
   [v,SvB,v,cV;vop2 ,8] ^
   [v,SvA,v,Sg;vop3b,8] ^
   })
@@ -1560,7 +1547,7 @@
 			  (match_dup 1))
 			(match_dup 1))))]
   ""
-  "{v_addc%^_u32|v_add_co_ci_u32}\t%0, %4, %2, %1, %3"
+  "{v_addc_co_u32|v_add_co_ci_u32}\t%0, %4, %2, %1, %3"
   [(set_attr "type" "vop2,vop3b")
    (set_attr "length" "4,8")])
 
@@ -1572,8 +1559,8 @@
    (clobber (reg:DI VCC_REG))]
   ""
   "@
-   v_sub%^_u32\t%0, vcc, %1, %2
-   v_subrev%^_u32\t%0, vcc, %2, %1"
+   v_sub_co_u32\t%0, vcc, %1, %2
+   v_subrev_co_u32\t%0, vcc, %2, %1"
   [(set_attr "type" "vop2")
    (set_attr "length" "8,8")])
 
@@ -1587,10 +1574,10 @@
 		(match_dup 1)))]
   ""
   "@
-   v_sub%^_u32\t%0, %3, %1, %2
-   v_sub%^_u32\t%0, %3, %1, %2
-   v_subrev%^_u32\t%0, %3, %2, %1
-   v_subrev%^_u32\t%0, %3, %2, %1"
+   v_sub_co_u32\t%0, %3, %1, %2
+   v_sub_co_u32\t%0, %3, %1, %2
+   v_subrev_co_u32\t%0, %3, %2, %1
+   v_subrev_co_u32\t%0, %3, %2, %1"
   [(set_attr "type" "vop2,vop3b,vop2,vop3b")
    (set_attr "length" "8")])
 
@@ -1625,10 +1612,10 @@
 			(match_dup 1))))]
   ""
   "@
-   {v_subb%^_u32|v_sub_co_ci_u32}\t%0, %4, %1, %2, %3
-   {v_subb%^_u32|v_sub_co_ci_u32}\t%0, %4, %1, %2, %3
-   {v_subbrev%^_u32|v_subrev_co_ci_u32}\t%0, %4, %2, %1, %3
-   {v_subbrev%^_u32|v_subrev_co_ci_u32}\t%0, %4, %2, %1, %3"
+   {v_subb_co_u32|v_sub_co_ci_u32}\t%0, %4, %1, %2, %3
+   {v_subb_co_u32|v_sub_co_ci_u32}\t%0, %4, %1, %2, %3
+   {v_subbrev_co_u32|v_subrev_co_ci_u32}\t%0, %4, %2, %1, %3
+   {v_subbrev_co_u32|v_subrev_co_ci_u32}\t%0, %4, %2, %1, %3"
   [(set_attr "type" "vop2,vop3b,vop2,vop3b")
    (set_attr "length" "4,8,4,8")])
 
@@ -3573,7 +3560,7 @@
   [(set (match_operand:V_INT_1REG 0 "register_operand"      "=v")
         (zero_convert:V_INT_1REG
 	  (match_operand:V_INT_1REG_ALT 1 "gcn_alu_operand" " v")))]
-  "!TARGET_RDNA3"
+  "TARGET_SDWA"
   "v_mov_b32_sdwa\t%0, %1 dst_sel:<V_INT_1REG:sdwa> dst_unused:UNUSED_PAD src0_sel:<V_INT_1REG_ALT:sdwa>"
   [(set_attr "type" "vop_sdwa")
    (set_attr "length" "8")])
@@ -3582,7 +3569,7 @@
   [(set (match_operand:V_INT_1REG 0 "register_operand"	    "=v")
         (sign_extend:V_INT_1REG
 	  (match_operand:V_INT_1REG_ALT 1 "gcn_alu_operand" " v")))]
-  "!TARGET_RDNA3"
+  "TARGET_SDWA"
   "v_mov_b32_sdwa\t%0, sext(%1) src0_sel:<V_INT_1REG_ALT:sdwa>"
   [(set_attr "type" "vop_sdwa")
    (set_attr "length" "8")])
@@ -3591,7 +3578,7 @@
   [(set (match_operand:V_INT_1REG 0 "register_operand"      "=v")
         (all_convert:V_INT_1REG
 	  (match_operand:V_INT_1REG_ALT 1 "gcn_alu_operand" " v")))]
-  "TARGET_RDNA3"
+  "!TARGET_SDWA"
   {
     enum {extend, zero_extend, trunc};
     rtx shiftwidth = (<V_INT_1REG_ALT:SCALAR_MODE>mode == QImode
@@ -4002,7 +3989,8 @@
 (define_expand "maskload<mode>di"
   [(match_operand:V_MOV 0 "register_operand")
    (match_operand:V_MOV 1 "memory_operand")
-   (match_operand 2 "")]
+   (match_operand 2 "")
+   (match_operand:V_MOV 3 "maskload_else_operand")]
   ""
   {
     rtx exec = force_reg (DImode, operands[2]);
@@ -4011,11 +3999,8 @@
     rtx as = gen_rtx_CONST_INT (VOIDmode, MEM_ADDR_SPACE (operands[1]));
     rtx v = gen_rtx_CONST_INT (VOIDmode, MEM_VOLATILE_P (operands[1]));
 
-    /* Masked lanes are required to hold zero.  */
-    emit_move_insn (operands[0], gcn_vec_constant (<MODE>mode, 0));
-
     emit_insn (gen_gather<mode>_expr_exec (operands[0], addr, as, v,
-					   operands[0], exec));
+					   gcn_gen_undef (<MODE>mode), exec));
     DONE;
   })
 
@@ -4040,7 +4025,8 @@
    (match_operand:<VnSI> 2 "register_operand")
    (match_operand 3 "immediate_operand")
    (match_operand:SI 4 "gcn_alu_operand")
-   (match_operand:DI 5 "")]
+   (match_operand:DI 5 "")
+   (match_operand:V_MOV 6 "maskload_else_operand")]
   ""
   {
     rtx exec = force_reg (DImode, operands[5]);
@@ -4049,19 +4035,20 @@
 					  operands[2], operands[4],
 					  INTVAL (operands[3]), exec);
 
-    /* Masked lanes are required to hold zero.  */
-    emit_move_insn (operands[0], gcn_vec_constant (<MODE>mode, 0));
-
     if (GET_MODE (addr) == <VnDI>mode)
       emit_insn (gen_gather<mode>_insn_1offset_exec (operands[0], addr,
 						     const0_rtx, const0_rtx,
-						     const0_rtx, operands[0],
+						     const0_rtx,
+						     gcn_gen_undef
+							(<MODE>mode),
 						     exec));
     else
       emit_insn (gen_gather<mode>_insn_2offsets_exec (operands[0], operands[1],
 						      addr, const0_rtx,
 						      const0_rtx, const0_rtx,
-						      operands[0], exec));
+						      gcn_gen_undef
+							(<MODE>mode),
+						      exec));
     DONE;
   })
 
@@ -4245,7 +4232,7 @@
 	(unspec:<SCALAR_MODE>
 	  [(match_operand:V_ALL 1 "register_operand")]
 	  REDUC_UNSPEC))]
-  "!TARGET_RDNA2_PLUS"
+  "!TARGET_WAVE64_COMPAT"
   {
     rtx tmp = gcn_expand_reduc_scalar (<MODE>mode, operands[1],
 				       <reduc_unspec>);
@@ -4261,7 +4248,7 @@
   [(match_operand:<SCALAR_MODE> 0 "register_operand")
    (fminmaxop:V_FP
      (match_operand:V_FP 1 "register_operand"))]
-  "!TARGET_RDNA2_PLUS"
+  "!TARGET_WAVE64_COMPAT"
   {
     /* fmin/fmax are identical to smin/smax.  */
     emit_insn (gen_reduc_<expander>_scal_<mode> (operands[0], operands[1]));
@@ -4275,7 +4262,7 @@
  [(match_operand:<SCALAR_MODE> 0 "register_operand")
   (match_operand:<SCALAR_MODE> 1 "gcn_alu_operand")
   (match_operand:V_FP 2 "gcn_alu_operand")]
-  "!TARGET_RDNA2_PLUS
+  "!TARGET_WAVE64_COMPAT
    && can_create_pseudo_p ()
    && (flag_openacc || flag_openmp
        || flag_associative_math)"
@@ -4297,10 +4284,7 @@
 	   (match_operand:V_1REG 2 "register_operand" "v")
 	   (match_operand:SI 3 "const_int_operand"        "n")]
 	  REDUC_UNSPEC))]
-  ; GCN3 requires a carry out, GCN5 not
-  "!(TARGET_GCN3 && SCALAR_INT_MODE_P (<SCALAR_MODE>mode)
-     && <reduc_unspec> == UNSPEC_PLUS_DPP_SHR)
-   && !TARGET_RDNA2_PLUS"
+  "TARGET_DPP_FULL"
   {
     return gcn_expand_dpp_shr_insn (<MODE>mode, "<reduc_insn>",
 				    <reduc_unspec>, INTVAL (operands[3]));
@@ -4345,9 +4329,9 @@
 	   (match_operand:SI 3 "const_int_operand"	  "n")]
 	  UNSPEC_PLUS_CARRY_DPP_SHR))
    (clobber (reg:DI VCC_REG))]
-  "!TARGET_RDNA2_PLUS"
+  "TARGET_DPP_FULL"
   {
-    return gcn_expand_dpp_shr_insn (<VnSI>mode, "v_add%^_u32",
+    return gcn_expand_dpp_shr_insn (<VnSI>mode, "v_add_co_u32",
 				    UNSPEC_PLUS_CARRY_DPP_SHR,
 				    INTVAL (operands[3]));
   }
@@ -4363,9 +4347,9 @@
 	   (match_operand:DI 4 "register_operand"   "cV")]
 	  UNSPEC_PLUS_CARRY_IN_DPP_SHR))
    (clobber (reg:DI VCC_REG))]
-  "!TARGET_RDNA2_PLUS"
+  "TARGET_DPP_FULL"
   {
-    return gcn_expand_dpp_shr_insn (<MODE>mode, "v_addc%^_u32",
+    return gcn_expand_dpp_shr_insn (<MODE>mode, "v_addc_co_u32",
 				    UNSPEC_PLUS_CARRY_IN_DPP_SHR,
 				    INTVAL (operands[3]));
   }

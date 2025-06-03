@@ -1,6 +1,6 @@
 /* Instruction scheduling pass.  This file contains definitions used
    internally in the scheduler.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1068,7 +1068,7 @@ inner_loop_header_p (basic_block bb)
 }
 
 /* Return exit edges of LOOP, filtering out edges with the same dest bb.  */
-inline vec<edge> 
+inline vec<edge>
 get_loop_exit_edges_unique_dests (const class loop *loop)
 {
   vec<edge> edges = vNULL;
@@ -1122,7 +1122,7 @@ sel_bb_empty_or_nop_p (basic_block bb)
    traverse all of them and if any of them turns out to be another loop header
    (after skipping empty BBs), add its loop exits to the resulting vector
    as well.  */
-inline vec<edge> 
+inline vec<edge>
 get_all_loop_exits (basic_block bb)
 {
   vec<edge> exits = vNULL;

@@ -1,6 +1,6 @@
 /**
  * 80-bit floating point value implementation if the C/D compiler does not support them natively.
- * Copyright (C) 2021-2024 Free Software Foundation, Inc.
+ * Copyright (C) 2021-2025 Free Software Foundation, Inc.
  *
  * GCC is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ pure:
     extern (D) longdouble opAssign(T)(T r)
         if (is (T : longdouble))
     {
-        this.realvalue = r.realvalue; 
+        this.realvalue = r.realvalue;
         return this;
     }
 

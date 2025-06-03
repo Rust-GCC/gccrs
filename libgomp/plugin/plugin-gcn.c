@@ -1,6 +1,6 @@
 /* Plugin for AMD GCN execution.
 
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
    Contributed by Mentor Embedded
 
@@ -41,7 +41,9 @@
 #include <hsa_ext_amd.h>
 #include <dlfcn.h>
 #include <signal.h>
+#define _LIBGOMP_PLUGIN_INCLUDE 1
 #include "libgomp-plugin.h"
+#undef _LIBGOMP_PLUGIN_INCLUDE
 #include "config/gcn/libgomp-gcn.h"  /* For struct output.  */
 #include "gomp-constants.h"
 #include <elf.h>
@@ -65,6 +67,14 @@
 #define R_AMDGPU_REL32_HI	11	/* (S + A - P) >> 32  */
 #define R_AMDGPU_RELATIVE64	13	/* B + A  */
 #endif
+
+#define ELFABIVERSION_AMDGPU_HSA_V6		4
+
+#define EF_AMDGPU_GENERIC_VERSION_V		0xff000000  /* Mask.  */
+#define EF_AMDGPU_GENERIC_VERSION_OFFSET	24
+
+#define GET_GENERIC_VERSION(VAR) ((VAR & EF_AMDGPU_GENERIC_VERSION_V) \
+				  >> EF_AMDGPU_GENERIC_VERSION_OFFSET)
 
 /* GCN specific definitions for asynchronous queues.  */
 
@@ -182,6 +192,8 @@ struct hsa_runtime_fn_info
   uint64_t (*hsa_queue_add_write_index_release_fn) (const hsa_queue_t *queue,
 						    uint64_t value);
   uint64_t (*hsa_queue_load_read_index_acquire_fn) (const hsa_queue_t *queue);
+  uint64_t (*hsa_queue_load_read_index_relaxed_fn) (const hsa_queue_t *queue);
+  uint64_t (*hsa_queue_load_write_index_relaxed_fn) (const hsa_queue_t *queue);
   void (*hsa_signal_store_relaxed_fn) (hsa_signal_t signal,
 				       hsa_signal_value_t value);
   void (*hsa_signal_store_release_fn) (hsa_signal_t signal,
@@ -206,6 +218,25 @@ struct hsa_runtime_fn_info
      const hsa_dim3_t *range, hsa_agent_t copy_agent,
      hsa_amd_copy_direction_t dir, uint32_t num_dep_signals,
      const hsa_signal_t *dep_signals, hsa_signal_t completion_signal);
+};
+
+/* As an HIP runtime is dlopened, following structure defines function
+   pointers utilized by the interop feature of this plugin.
+   Add suffient type declarations to get this work.  */
+
+typedef int hipError_t;  /* Actually an enum; 0 == success. */
+typedef void* hipCtx_t;
+struct hipStream_s;
+typedef struct hipStream_s* hipStream_t;
+
+struct hip_runtime_fn_info
+{
+  hipError_t (*hipStreamCreate_fn) (hipStream_t *);
+  hipError_t (*hipStreamDestroy_fn) (hipStream_t);
+  hipError_t (*hipStreamSynchronize_fn) (hipStream_t);
+  hipError_t (*hipCtxGetCurrent_fn) (hipCtx_t *ctx);
+  hipError_t (*hipSetDevice_fn) (int deviceId);
+  hipError_t (*hipGetDevice_fn) (int *deviceId);
 };
 
 /* Structure describing the run-time and grid properties of an HSA kernel
@@ -242,7 +273,7 @@ struct kernel_dispatch
 };
 
 /* Structure of the kernargs segment, supporting console output.
- 
+
    This needs to match the definitions in Newlib, and the expectations
    in libgomp target code.  */
 
@@ -379,19 +410,15 @@ struct gcn_image_desc
   const unsigned global_variable_count;
 };
 
-/* This enum mirrors the corresponding LLVM enum's values for all ISAs that we
-   support.
-   See https://llvm.org/docs/AMDGPUUsage.html#amdgpu-ef-amdgpu-mach-table */
+/* Enum values corresponding to the the ELF architecture codes.
+   Only 'special' values are actually referenced in this file, but having them
+   all may aid debugging.  */
 
 typedef enum {
   EF_AMDGPU_MACH_UNSUPPORTED = -1,
-  EF_AMDGPU_MACH_AMDGCN_GFX803 = 0x02a,
-  EF_AMDGPU_MACH_AMDGCN_GFX900 = 0x02c,
-  EF_AMDGPU_MACH_AMDGCN_GFX906 = 0x02f,
-  EF_AMDGPU_MACH_AMDGCN_GFX908 = 0x030,
-  EF_AMDGPU_MACH_AMDGCN_GFX90a = 0x03f,
-  EF_AMDGPU_MACH_AMDGCN_GFX1030 = 0x036,
-  EF_AMDGPU_MACH_AMDGCN_GFX1100 = 0x041
+#define GCN_DEVICE(name, NAME, ELF, ...) \
+  EF_AMDGPU_MACH_AMDGCN_ ## NAME = ELF,
+#include "../../gcc/config/gcn/gcn-devices.def"
 } EF_AMDGPU_MACH;
 
 const static int EF_AMDGPU_MACH_MASK = 0x000000ff;
@@ -549,8 +576,10 @@ struct hsa_context_info
 static struct hsa_context_info hsa_context;
 
 /* HSA runtime functions that are initialized in init_hsa_context.  */
-
 static struct hsa_runtime_fn_info hsa_fns;
+
+/* HIP runtime functions that are initialized in init_hip_runtime_functions.  */
+static struct hip_runtime_fn_info hip_fns;
 
 /* Heap space, allocated target-side, provided for use of newlib malloc.
    Each module should have it's own heap allocated.
@@ -574,10 +603,11 @@ static bool debug;
 
 static bool suppress_host_fallback;
 
-/* Flag to locate HSA runtime shared library that is dlopened
+/* Flag to locate HSA and HIP runtime shared libraries that are dlopened
    by this plug-in.  */
 
 static const char *hsa_runtime_lib;
+static const char *hip_runtime_lib;
 
 /* Flag to decide if the runtime should support also CPU devices (can be
    a simulator).  */
@@ -1064,6 +1094,10 @@ init_environment_variables (void)
   if (hsa_runtime_lib == NULL)
     hsa_runtime_lib = "libhsa-runtime64.so.1";
 
+  hip_runtime_lib = secure_getenv ("HIP_RUNTIME_LIB");
+  if (hip_runtime_lib == NULL)
+    hip_runtime_lib = "libamdhip64.so";
+
   support_cpu_devices = secure_getenv ("GCN_SUPPORT_CPU_DEVICES");
 
   const char *x = secure_getenv ("GCN_NUM_TEAMS");
@@ -1414,6 +1448,8 @@ init_hsa_runtime_functions (void)
   DLSYM_FN (hsa_executable_iterate_symbols)
   DLSYM_FN (hsa_queue_add_write_index_release)
   DLSYM_FN (hsa_queue_load_read_index_acquire)
+  DLSYM_FN (hsa_queue_load_read_index_relaxed)
+  DLSYM_FN (hsa_queue_load_write_index_relaxed)
   DLSYM_FN (hsa_signal_wait_acquire)
   DLSYM_FN (hsa_signal_store_relaxed)
   DLSYM_FN (hsa_signal_store_release)
@@ -1511,10 +1547,12 @@ assign_agent_ids (hsa_agent_t agent, void *data)
 }
 
 /* Initialize hsa_context if it has not already been done.
-   Return TRUE on success.  */
+   If !PROBE: returns TRUE on success.
+   If PROBE: returns TRUE on success or if the plugin/device shall be silently
+   ignored, and otherwise emits an error and returns FALSE.  */
 
 static bool
-init_hsa_context (void)
+init_hsa_context (bool probe)
 {
   hsa_status_t status;
   int agent_index = 0;
@@ -1529,7 +1567,7 @@ init_hsa_context (void)
 	GOMP_PLUGIN_fatal ("%s\n", msg);
       else
 	GCN_WARNING ("%s\n", msg);
-      return false;
+      return probe ? true : false;
     }
   status = hsa_fns.hsa_init_fn ();
   if (status != HSA_STATUS_SUCCESS)
@@ -1670,53 +1708,25 @@ elf_gcn_isa_field (Elf64_Ehdr *image)
   return image->e_flags & EF_AMDGPU_MACH_MASK;
 }
 
-const static char *gcn_gfx803_s = "gfx803";
-const static char *gcn_gfx900_s = "gfx900";
-const static char *gcn_gfx906_s = "gfx906";
-const static char *gcn_gfx908_s = "gfx908";
-const static char *gcn_gfx90a_s = "gfx90a";
-const static char *gcn_gfx1030_s = "gfx1030";
-const static char *gcn_gfx1100_s = "gfx1100";
-const static int gcn_isa_name_len = 7;
+static int
+elf_gcn_isa_is_generic (Elf64_Ehdr *image)
+{
+  return (image->e_ident[8] == ELFABIVERSION_AMDGPU_HSA_V6
+	  && GET_GENERIC_VERSION (image->e_flags));
+}
 
 /* Returns the name that the HSA runtime uses for the ISA or NULL if we do not
    support the ISA. */
 
 static const char*
-isa_hsa_name (int isa) {
+isa_name (int isa) {
   switch(isa)
     {
-    case EF_AMDGPU_MACH_AMDGCN_GFX803:
-      return gcn_gfx803_s;
-    case EF_AMDGPU_MACH_AMDGCN_GFX900:
-      return gcn_gfx900_s;
-    case EF_AMDGPU_MACH_AMDGCN_GFX906:
-      return gcn_gfx906_s;
-    case EF_AMDGPU_MACH_AMDGCN_GFX908:
-      return gcn_gfx908_s;
-    case EF_AMDGPU_MACH_AMDGCN_GFX90a:
-      return gcn_gfx90a_s;
-    case EF_AMDGPU_MACH_AMDGCN_GFX1030:
-      return gcn_gfx1030_s;
-    case EF_AMDGPU_MACH_AMDGCN_GFX1100:
-      return gcn_gfx1100_s;
+#define GCN_DEVICE(name, NAME, ELF, ...) \
+    case ELF: return #name;
+#include "../../gcc/config/gcn/gcn-devices.def"
     }
   return NULL;
-}
-
-/* Returns the user-facing name that GCC uses to identify the architecture (e.g.
-   with -march) or NULL if we do not support the ISA.
-   Keep in sync with /gcc/config/gcn/gcn.{c,opt}.  */
-
-static const char*
-isa_gcc_name (int isa) {
-  switch(isa)
-    {
-    case EF_AMDGPU_MACH_AMDGCN_GFX803:
-      return "fiji";
-    default:
-      return isa_hsa_name (isa);
-    }
 }
 
 /* Returns the code which is used in the GCN object code to identify the ISA with
@@ -1724,26 +1734,9 @@ isa_gcc_name (int isa) {
 
 static gcn_isa
 isa_code(const char *isa) {
-  if (!strncmp (isa, gcn_gfx803_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX803;
-
-  if (!strncmp (isa, gcn_gfx900_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX900;
-
-  if (!strncmp (isa, gcn_gfx906_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX906;
-
-  if (!strncmp (isa, gcn_gfx908_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX908;
-
-  if (!strncmp (isa, gcn_gfx90a_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX90a;
-
-  if (!strncmp (isa, gcn_gfx1030_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX1030;
-
-  if (!strncmp (isa, gcn_gfx1100_s, gcn_isa_name_len))
-    return EF_AMDGPU_MACH_AMDGCN_GFX1100;
+#define GCN_DEVICE(name, NAME, ELF, ...) \
+  if (!strcmp (isa, #name)) return ELF;
+#include "../../gcc/config/gcn/gcn-devices.def"
 
   return EF_AMDGPU_MACH_UNSUPPORTED;
 }
@@ -1755,19 +1748,13 @@ max_isa_vgprs (int isa)
 {
   switch (isa)
     {
-    case EF_AMDGPU_MACH_AMDGCN_GFX803:
-    case EF_AMDGPU_MACH_AMDGCN_GFX900:
-    case EF_AMDGPU_MACH_AMDGCN_GFX906:
-    case EF_AMDGPU_MACH_AMDGCN_GFX908:
-      return 256;
-    case EF_AMDGPU_MACH_AMDGCN_GFX90a:
-      return 512;
-    case EF_AMDGPU_MACH_AMDGCN_GFX1030:
-      return 512;  /* 512 SIMD32 = 256 wavefrontsize64.  */
-    case EF_AMDGPU_MACH_AMDGCN_GFX1100:
-      return 1536; /* 1536 SIMD32 = 768 wavefrontsize64.  */
+#define GCN_DEVICE(name, NAME, ELF, ISA, XNACK, SRAM, WAVE64, CU, \
+		   MAX_ISA_VGPRS, ...) \
+    case ELF: return MAX_ISA_VGPRS;
+#include "../../gcc/config/gcn/gcn-devices.def"
+    default:
+      GOMP_PLUGIN_fatal ("unhandled ISA in max_isa_vgprs");
     }
-  GOMP_PLUGIN_fatal ("unhandled ISA in max_isa_vgprs");
 }
 
 /* }}}  */
@@ -2459,37 +2446,88 @@ init_basic_kernel_info (struct kernel_info *kernel,
   return true;
 }
 
-/* Check that the GCN ISA of the given image matches the ISA of the agent. */
+/* If status is SUCCESS, assume that the code runs if either the ISA of agent
+   and code is the same - or it is generic code.
+   Otherwise, execution failed with the provided status code; try to give
+   some useful diagnostic.  */
 
 static bool
-isa_matches_agent (struct agent_info *agent, Elf64_Ehdr *image)
+isa_matches_agent (struct agent_info *agent, Elf64_Ehdr *image,
+		   hsa_status_t status)
 {
+  /* Generic image - assume that it works and only return to here
+     when it fails, i.e. fatal == true.  */
+  if (status == HSA_STATUS_SUCCESS && elf_gcn_isa_is_generic (image))
+    return true;
+
   int isa_field = elf_gcn_isa_field (image);
-  const char* isa_s = isa_hsa_name (isa_field);
-  if (!isa_s)
+  if (status == HSA_STATUS_SUCCESS && isa_field == agent->device_isa)
+    return true;
+
+  /* If we get here, either the binary is non-generic and has a mismatch of
+     the ISA - or is generic but not handled by the ROCm (e.g. because ROCm
+     is too old).  */
+
+  char msg[340];
+  char agent_isa_xs[8];
+  char device_isa_xs[8];
+  const char *agent_isa_s = isa_name (agent->device_isa);
+  const char *device_isa_s = isa_name (isa_field);
+  if (agent_isa_s == NULL)
     {
-      hsa_error ("Unsupported ISA in GCN code object.", HSA_STATUS_ERROR);
-      return false;
+      snprintf (agent_isa_xs, sizeof agent_isa_xs,
+		"0x%X", agent->device_isa);
+      agent_isa_s = agent_isa_xs;
+    }
+  if (device_isa_s == NULL)
+    {
+      snprintf (device_isa_xs, sizeof device_isa_xs, "0x%X", isa_field);
+      device_isa_s = device_isa_xs;
     }
 
-  if (isa_field != agent->device_isa)
-    {
-      char msg[120];
-      const char *agent_isa_s = isa_hsa_name (agent->device_isa);
-      const char *agent_isa_gcc_s = isa_gcc_name (agent->device_isa);
-      assert (agent_isa_s);
-      assert (agent_isa_gcc_s);
+  /* Some error which should be unrelated to the ISA.  */
+  if (status != HSA_STATUS_SUCCESS
+      && status != HSA_STATUS_ERROR_INVALID_CODE_OBJECT
+      && status != HSA_STATUS_ERROR_INVALID_ISA_NAME
+      && status != HSA_STATUS_ERROR_INCOMPATIBLE_ARGUMENTS)
+    snprintf (msg, sizeof msg,
+	      "Could not load GCN code object with ISA %s on GPU with "
+	      "ISA %s (device %d).\n"
+	      "Consider using ROCR_VISIBLE_DEVICES to disable incompatible "
+	      "devices or run with LOADER_ENABLE_LOGGING=1 for more details.",
+	      device_isa_s, agent_isa_s, agent->device_id);
+  else if (status == HSA_STATUS_ERROR_INVALID_ISA_NAME
+	   && elf_gcn_isa_is_generic (image))
+    snprintf (msg, sizeof msg,
+	      "Unsupported generic ISA %s on GPU with ISA %s (device %d).\n"
+	      "%s%s%s"
+	      "Consider using ROCR_VISIBLE_DEVICES to disable incompatible "
+	      "devices, run with LOADER_ENABLE_LOGGING=1 for more details, "
+	      "or try updating to a ROCm that supports this generic ISA.",
+	      device_isa_s, agent_isa_s, agent->device_id,
+	      agent_isa_s[0] != '0'
+	      ? "Try to recompile with '-foffload-options=-march=" : "",
+	      agent_isa_s[0] != '0' ? agent_isa_s : "",
+	      agent_isa_s[0] != '0' ? ".\n" : "");
+  else if (agent_isa_s[0] == '0')
+    snprintf (msg, sizeof msg,
+	      "GCN code object ISA '%s' is incompatible with GPU ISA '%s' "
+	      "(device %d).\n"
+	      "Consider using ROCR_VISIBLE_DEVICES to disable incompatible "
+	      "devices or run with LOADER_ENABLE_LOGGING=1 for more details.",
+	      device_isa_s, agent_isa_s, agent->device_id);
+  else
+    snprintf (msg, sizeof msg,
+	      "GCN code object ISA '%s' is incompatible with GPU ISA '%s' "
+	      "(device %d).\n"
+	      "Try to recompile with '-foffload-options=-march=%s',\n"
+	      "or use ROCR_VISIBLE_DEVICES to disable incompatible "
+	      "devices.\n",
+	      device_isa_s, agent_isa_s, agent->device_id, agent_isa_s);
 
-      snprintf (msg, sizeof msg,
-		"GCN code object ISA '%s' does not match GPU ISA '%s'.\n"
-		"Try to recompile with '-foffload-options=-march=%s'.\n",
-		isa_s, agent_isa_s, agent_isa_gcc_s);
-
-      hsa_error (msg, HSA_STATUS_ERROR);
-      return false;
-    }
-
-  return true;
+  hsa_error (msg, status != HSA_STATUS_SUCCESS
+		  ? status : HSA_STATUS_ERROR_INVALID_CODE_OBJECT);
+  return false;
 }
 
 /* Create and finalize the program consisting of all loaded modules.  */
@@ -2523,7 +2561,8 @@ create_and_finalize_hsa_program (struct agent_info *agent)
     {
       Elf64_Ehdr *image = (Elf64_Ehdr *)module->image_desc->gcn_image->image;
 
-      if (!isa_matches_agent (agent, image))
+      /* Check the ISA early because older ROCm had unhelpful errors.  */
+      if (!isa_matches_agent (agent, image, HSA_STATUS_SUCCESS))
 	goto fail;
 
       hsa_code_object_t co = { 0 };
@@ -2541,7 +2580,7 @@ create_and_finalize_hsa_program (struct agent_info *agent)
 	(agent->executable, agent->id, co, "");
       if (status != HSA_STATUS_SUCCESS)
 	{
-	  hsa_error ("Could not load GCN code object", status);
+	  isa_matches_agent (agent, image, status);
 	  goto fail;
 	}
 
@@ -3289,6 +3328,28 @@ GOMP_OFFLOAD_get_name (void)
   return "gcn";
 }
 
+/* Return the UID; if not available return NULL.
+   Returns freshly allocated memoy.  */
+
+const char *
+GOMP_OFFLOAD_get_uid (int ord)
+{
+  char *str;
+  hsa_status_t status;
+  struct agent_info *agent = get_agent_info (ord);
+
+  /* HSA documentation states: maximally 21 characters including NUL.  */
+  str = GOMP_PLUGIN_malloc (21 * sizeof (char));
+  status = hsa_fns.hsa_agent_get_info_fn (agent->id, HSA_AMD_AGENT_INFO_UUID,
+					  str);
+  if (status != HSA_STATUS_SUCCESS)
+    {
+      free (str);
+      return NULL;
+    }
+  return str;
+}
+
 /* Return the specific capabilities the HSA accelerator have.  */
 
 unsigned int
@@ -3321,15 +3382,34 @@ GOMP_OFFLOAD_version (void)
 int
 GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
 {
-  if (!init_hsa_context ())
-    return 0;
+  if (!init_hsa_context (true))
+    exit (EXIT_FAILURE);
   /* Return -1 if no omp_requires_mask cannot be fulfilled but
      devices were present.  */
   if (hsa_context.agent_count > 0
       && ((omp_requires_mask
 	   & ~(GOMP_REQUIRES_UNIFIED_ADDRESS
+	       | GOMP_REQUIRES_UNIFIED_SHARED_MEMORY
+	       | GOMP_REQUIRES_SELF_MAPS
 	       | GOMP_REQUIRES_REVERSE_OFFLOAD)) != 0))
     return -1;
+  /* Check whether host page access is supported; this is per system level
+     (all GPUs supported by HSA).  While intrinsically true for APUs, it
+     requires XNACK support for discrete GPUs.  */
+  if (hsa_context.agent_count > 0
+      && (omp_requires_mask
+	  & (GOMP_REQUIRES_UNIFIED_SHARED_MEMORY | GOMP_REQUIRES_SELF_MAPS)))
+    {
+      bool b;
+      hsa_system_info_t type = HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT;
+      hsa_status_t status = hsa_fns.hsa_system_get_info_fn (type, &b);
+      if (status != HSA_STATUS_SUCCESS)
+	GOMP_PLUGIN_error ("HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT "
+			   "failed");
+      if (!b)
+	return -1;
+    }
+
   return hsa_context.agent_count;
 }
 
@@ -3339,7 +3419,7 @@ GOMP_OFFLOAD_get_num_devices (unsigned int omp_requires_mask)
 bool
 GOMP_OFFLOAD_init_device (int n)
 {
-  if (!init_hsa_context ())
+  if (!init_hsa_context (false))
     return false;
   if (n >= hsa_context.agent_count)
     {
@@ -3393,7 +3473,12 @@ GOMP_OFFLOAD_init_device (int n)
 
   agent->device_isa = isa_code (agent->name);
   if (agent->device_isa == EF_AMDGPU_MACH_UNSUPPORTED)
-    return hsa_error ("Unknown GCN agent architecture", HSA_STATUS_ERROR);
+    {
+      char msg[33 + 64 + 1];
+      snprintf (msg, sizeof msg,
+		"Unknown GCN agent architecture '%s'", agent->name);
+      return hsa_error (msg, HSA_STATUS_ERROR);
+    }
 
   status = hsa_fns.hsa_agent_get_info_fn (agent->id, HSA_AGENT_INFO_VENDOR_NAME,
 					  &agent->vendor_name);
@@ -3952,6 +4037,8 @@ GOMP_OFFLOAD_dev2dev (int device, void *dst, const void *src, size_t n)
     {
       struct agent_info *agent = get_agent_info (device);
       maybe_init_omp_async (agent);
+      if (!agent->omp_async_queue)
+	return false;
       queue_push_copy (agent->omp_async_queue, dst, src, n);
       return true;
     }
@@ -4310,6 +4397,434 @@ unlock:
   return retval;
 }
 
+
+static bool
+init_hip_runtime_functions (void)
+{
+  bool inited = false;
+  if (inited)
+    return hip_fns.hipStreamCreate_fn != NULL;
+  inited = true;
+
+  void *handle = dlopen (hip_runtime_lib, RTLD_LAZY);
+  if (handle == NULL)
+    return false;
+
+#define DLSYM_OPT_FN(function) \
+  hip_fns.function##_fn = dlsym (handle, #function)
+
+  DLSYM_OPT_FN (hipStreamCreate);
+  DLSYM_OPT_FN (hipStreamDestroy);
+  DLSYM_OPT_FN (hipStreamSynchronize);
+  DLSYM_OPT_FN (hipCtxGetCurrent);
+  DLSYM_OPT_FN (hipGetDevice);
+  DLSYM_OPT_FN (hipSetDevice);
+#undef DLSYM_OPT_FN
+
+  if (!hip_fns.hipStreamCreate_fn
+      || !hip_fns.hipStreamDestroy_fn
+      || !hip_fns.hipStreamSynchronize_fn
+      || !hip_fns.hipCtxGetCurrent_fn
+      || !hip_fns.hipGetDevice_fn
+      || !hip_fns.hipSetDevice_fn)
+    {
+      hip_fns.hipStreamCreate_fn = NULL;
+      return false;
+    }
+
+  return true;
+}
+
+
+void
+GOMP_OFFLOAD_interop (struct interop_obj_t *obj, int ord,
+		      enum gomp_interop_flag action, bool targetsync,
+		      const char *prefer_type)
+{
+  if ((action == gomp_interop_flag_destroy || action == gomp_interop_flag_use)
+      && !obj->stream)
+    return;
+  if ((action == gomp_interop_flag_destroy || action == gomp_interop_flag_use)
+      && obj->fr == omp_ifr_hsa)
+    {
+      /* Wait until the queue is is empty.   */
+      bool is_empty;
+      uint64_t read_index, write_index;
+      hsa_queue_t *queue = (hsa_queue_t *) obj->stream;
+      do
+	{
+	  read_index = hsa_fns.hsa_queue_load_read_index_relaxed_fn (queue);
+	  write_index = hsa_fns.hsa_queue_load_write_index_relaxed_fn (queue);
+	  is_empty = (read_index == write_index);
+	}
+      while (!is_empty);
+
+      if (action == gomp_interop_flag_destroy)
+	{
+	  hsa_status_t status = hsa_fns.hsa_queue_destroy_fn (queue);
+	  if (status != HSA_STATUS_SUCCESS)
+	    hsa_fatal ("Error destroying interop hsa_queue_t", status);
+	}
+      return;
+    }
+  if (action == gomp_interop_flag_destroy)
+    {
+      hipError_t err = hip_fns.hipStreamDestroy_fn ((hipStream_t) obj->stream);
+      if (err != 0)
+	GOMP_PLUGIN_fatal ("Error destroying interop hipStream_t: %d", err);
+      return;
+    }
+  if (action == gomp_interop_flag_use)
+    {
+      hipError_t err
+	= hip_fns.hipStreamSynchronize_fn ((hipStream_t) obj->stream);
+      if (err != 0)
+	GOMP_PLUGIN_fatal ("Error synchronizing interop hipStream_t: %d", err);
+      return;
+    }
+
+  bool fr_set = false;
+
+  /* Check for the preferred type; cf. parser in C/C++/Fortran or
+     dump_omp_init_prefer_type for the format.
+     Accept the first '{...}' block that specifies a 'fr' that we support.
+     Currently, no 'attr(...)' are supported.  */
+  if (prefer_type)
+    while (prefer_type[0] == (char) GOMP_INTEROP_IFR_SEPARATOR)
+      {
+	/* '{' item block starts.  */
+	prefer_type++;
+	/* 'fr(...)' block  */
+	while (prefer_type[0] != (char) GOMP_INTEROP_IFR_SEPARATOR)
+	  {
+	    omp_interop_fr_t fr = (omp_interop_fr_t) prefer_type[0];
+	    if (fr == omp_ifr_hip)
+	      {
+		obj->fr = omp_ifr_hip;
+		fr_set = true;
+	      }
+	    if (fr == omp_ifr_hsa)
+	      {
+		obj->fr = omp_ifr_hsa;
+		fr_set = true;
+	      }
+	    prefer_type++;
+	  }
+	prefer_type++;
+	/* 'attr(...)' block  */
+	while (prefer_type[0] != '\0')
+	  {
+	    /* const char *attr = prefer_type;  */
+	    prefer_type += strlen (prefer_type) + 1;
+	  }
+	prefer_type++;
+	/* end of '}'.  */
+	if (fr_set)
+	  break;
+      }
+
+  /* Prefer HIP, use HSA as fallback.  The warning is only printed if GCN_DEBUG
+     is set and does not distinguishes between on prefer_type or hip prefer_type
+     nor whether a later/lower preference also specifies 'hsa'.
+     The assumption is that the user code handles HSA gracefully, but likely
+     just by falling back to the host version.  On the other hand, have_hip is
+     likely true if HSA is available.  */
+  if (!fr_set || obj->fr == omp_ifr_hip)
+    {
+      bool have_hip = init_hip_runtime_functions ();
+      if (have_hip)
+	obj->fr = omp_ifr_hip;
+      else
+	{
+	  GCN_WARNING ("interop object requested, using HSA instead of HIP "
+		       "as %s could not be loaded", hip_runtime_lib);
+	  obj->fr = omp_ifr_hsa;
+	}
+    }
+
+  _Static_assert (sizeof (uint64_t) == sizeof (hsa_agent_t),
+		  "sizeof (uint64_t) == sizeof (hsa_agent_t)");
+  struct agent_info *agent = get_agent_info (ord);
+  obj->device_data = agent;
+
+  if (targetsync && obj->fr == omp_ifr_hsa)
+    {
+      hsa_status_t status;
+      /* Queue size must be (for GPUs) a power of 2 >= 40, i.e. at least 64 and
+	 maximally HSA_AGENT_INFO_QUEUE_MAX_SIZE. Arbitrary choice:  */
+      uint32_t queue_size = ASYNC_QUEUE_SIZE;
+      status = hsa_fns.hsa_queue_create_fn (agent->id, queue_size,
+					    HSA_QUEUE_TYPE_MULTI,
+					    NULL, NULL, UINT32_MAX, UINT32_MAX,
+					    (hsa_queue_t **) &obj->stream);
+      if (status != HSA_STATUS_SUCCESS)
+	hsa_fatal ("Error creating interop hsa_queue_t", status);
+    }
+  else if (targetsync)
+    {
+      hipError_t err;
+      int dev_curr;
+      err = hip_fns.hipGetDevice_fn (&dev_curr);
+      if (!err && ord != dev_curr)
+	err = hip_fns.hipSetDevice_fn (ord);
+      if (!err)
+	err = hip_fns.hipStreamCreate_fn ((hipStream_t *) &obj->stream);
+      if (!err && ord != dev_curr)
+	err = hip_fns.hipSetDevice_fn (dev_curr);
+      if (err != 0)
+	GOMP_PLUGIN_fatal ("Error creating interop hipStream_t: %d", err);
+    }
+}
+
+intptr_t
+GOMP_OFFLOAD_get_interop_int (struct interop_obj_t *obj,
+			      omp_interop_property_t property_id,
+			      omp_interop_rc_t *ret_code)
+{
+  if (obj->fr != omp_ifr_hip && obj->fr != omp_ifr_hsa)
+    {
+      if (ret_code)
+	*ret_code = omp_irc_no_value;  /* Hmm. */
+      return 0;
+    }
+  switch (property_id)
+    {
+    case omp_ipr_fr_id:
+      if (ret_code)
+	*ret_code = omp_irc_success;
+      return obj->fr;
+    case omp_ipr_fr_name:
+      if (ret_code)
+	*ret_code = omp_irc_type_str;
+      return 0;
+    case omp_ipr_vendor:
+      if (ret_code)
+	*ret_code = omp_irc_success;
+      return 1; /* amd */
+    case omp_ipr_vendor_name:
+      if (ret_code)
+	*ret_code = omp_irc_type_str;
+      return 0;
+    case omp_ipr_device_num:
+      if (ret_code)
+	*ret_code = omp_irc_success;
+      return obj->device_num;
+    case omp_ipr_platform:
+      if (ret_code)
+	*ret_code = omp_irc_no_value;
+      return 0;
+    case omp_ipr_device:
+      if (obj->fr == omp_ifr_hsa)
+	{
+	  if (ret_code)
+	    *ret_code = omp_irc_type_ptr;
+	  return 0;
+	}
+	if (ret_code)
+	  *ret_code = omp_irc_success;
+	return ((struct agent_info *) obj->device_data)->device_id;
+    case omp_ipr_device_context:
+      if (ret_code && obj->fr == omp_ifr_hsa)
+	*ret_code = omp_irc_no_value;
+      else if (ret_code)
+	*ret_code = omp_irc_type_ptr;
+      return 0;
+    case omp_ipr_targetsync:
+      if (ret_code && !obj->stream)
+	*ret_code = omp_irc_no_value;
+      else if (ret_code)
+	*ret_code = omp_irc_type_ptr;
+      return 0;
+    default:
+      break;
+    }
+  __builtin_unreachable ();
+  return 0;
+}
+
+void *
+GOMP_OFFLOAD_get_interop_ptr (struct interop_obj_t *obj,
+			      omp_interop_property_t property_id,
+			      omp_interop_rc_t *ret_code)
+{
+  if (obj->fr != omp_ifr_hip && obj->fr != omp_ifr_hsa)
+    {
+      if (ret_code)
+	*ret_code = omp_irc_no_value;  /* Hmm. */
+      return 0;
+    }
+  switch (property_id)
+    {
+    case omp_ipr_fr_id:
+      if (ret_code)
+	*ret_code = omp_irc_type_int;
+      return NULL;
+    case omp_ipr_fr_name:
+      if (ret_code)
+	*ret_code = omp_irc_type_str;
+      return NULL;
+    case omp_ipr_vendor:
+      if (ret_code)
+	*ret_code = omp_irc_type_str;
+      return NULL;
+    case omp_ipr_vendor_name:
+      if (ret_code)
+	*ret_code = omp_irc_type_str;
+      return NULL;
+    case omp_ipr_device_num:
+      if (ret_code)
+	*ret_code = omp_irc_type_int;
+      return NULL;
+    case omp_ipr_platform:
+      if (ret_code)
+	*ret_code = omp_irc_no_value;
+      return NULL;
+    case omp_ipr_device:
+      if (obj->fr == omp_ifr_hsa)
+	{
+	  if (ret_code)
+	    *ret_code = omp_irc_success;
+	  /* hsa_agent_t is an struct containing a single uint64_t. */
+	  return &((struct agent_info *) obj->device_data)->id;
+	}
+      else
+	{
+	  if (ret_code)
+	    *ret_code = omp_irc_type_int;
+	  return NULL;
+	}
+    case omp_ipr_device_context:
+      if (obj->fr == omp_ifr_hsa)
+	{
+	  if (ret_code)
+	    *ret_code = omp_irc_no_value;
+	  return NULL;
+	}
+      else
+	{
+	  hipCtx_t ctx;
+	  int dev_curr;
+	  int dev = ((struct agent_info *) obj->device_data)->device_id;
+	  hipError_t err;
+	  err = hip_fns.hipGetDevice_fn (&dev_curr);
+	  if (!err && dev != dev_curr)
+	    err = hip_fns.hipSetDevice_fn (dev);
+	  if (!err)
+	    err = hip_fns.hipCtxGetCurrent_fn (&ctx);
+	  if (!err && dev != dev_curr)
+	    err = hip_fns.hipSetDevice_fn (dev_curr);
+	  if (err)
+	    GOMP_PLUGIN_fatal ("Error obtaining hipCtx_t for device %d: %d",
+			       obj->device_num, err);
+	  if (ret_code)
+	    *ret_code = omp_irc_success;
+	  return ctx;
+	}
+    case omp_ipr_targetsync:
+      if (!obj->stream)
+	{
+	  if (ret_code)
+	    *ret_code = omp_irc_no_value;
+	  return NULL;
+	}
+      if (ret_code)
+	*ret_code = omp_irc_success;
+      return obj->stream;
+    default:
+      break;
+    }
+  __builtin_unreachable ();
+  return NULL;
+}
+
+const char *
+GOMP_OFFLOAD_get_interop_str (struct interop_obj_t *obj,
+			      omp_interop_property_t property_id,
+			      omp_interop_rc_t *ret_code)
+{
+  if (obj->fr != omp_ifr_hip && obj->fr != omp_ifr_hsa)
+    {
+      if (ret_code)
+	*ret_code = omp_irc_no_value;  /* Hmm. */
+      return 0;
+    }
+  switch (property_id)
+    {
+    case omp_ipr_fr_id:
+      if (ret_code)
+	*ret_code = omp_irc_type_int;
+      return NULL;
+    case omp_ipr_fr_name:
+      if (ret_code)
+	*ret_code = omp_irc_success;
+      if (obj->fr == omp_ifr_hip)
+	return "hip";
+      if (obj->fr == omp_ifr_hsa)
+	return "hsa";
+    case omp_ipr_vendor:
+      if (ret_code)
+	*ret_code = omp_irc_type_int;
+      return NULL;
+    case omp_ipr_vendor_name:
+      if (ret_code)
+	*ret_code = omp_irc_success;
+      return "amd";
+    case omp_ipr_device_num:
+      if (ret_code)
+	*ret_code = omp_irc_type_int;
+      return NULL;
+    case omp_ipr_platform:
+      if (ret_code)
+	*ret_code = omp_irc_no_value;
+      return NULL;
+    case omp_ipr_device:
+      if (ret_code && obj->fr == omp_ifr_hsa)
+	*ret_code = omp_irc_type_ptr;
+      else if (ret_code)
+	*ret_code = omp_irc_type_int;
+      return NULL;
+    case omp_ipr_device_context:
+      if (ret_code && obj->fr == omp_ifr_hsa)
+	*ret_code = omp_irc_no_value;
+      else if (ret_code)
+	*ret_code = omp_irc_type_ptr;
+      return NULL;
+    case omp_ipr_targetsync:
+      if (ret_code && !obj->stream)
+	*ret_code = omp_irc_no_value;
+      else if (ret_code)
+	*ret_code = omp_irc_type_ptr;
+      return NULL;
+    default:
+      break;
+    }
+  __builtin_unreachable ();
+  return 0;
+}
+
+const char *
+GOMP_OFFLOAD_get_interop_type_desc (struct interop_obj_t *obj,
+				    omp_interop_property_t property_id)
+{
+  _Static_assert (omp_ipr_targetsync == omp_ipr_first,
+		  "omp_ipr_targetsync == omp_ipr_first");
+  _Static_assert (omp_ipr_platform - omp_ipr_first + 1 == 4,
+		  "omp_ipr_platform - omp_ipr_first + 1 == 4");
+  static const char *desc_hip[] = {"N/A",		/* platform */
+				   "hipDevice_t",	/* device */
+				   "hipCtx_t",		/* device_context */
+				   "hipStream_t"};	/* targetsync */
+  static const char *desc_hsa[] = {"N/A",		/* platform */
+				   "hsa_agent_t *",	/* device */
+				   "N/A",		/* device_context */
+				   "hsa_queue_t *"};	/* targetsync */
+  if (obj->fr == omp_ifr_hip)
+    return desc_hip[omp_ipr_platform - property_id];
+  else
+    return desc_hsa[omp_ipr_platform - property_id];
+  return NULL;
+}
+
 /* }}}  */
 /* {{{ OpenMP Plugin API  */
 
@@ -4363,6 +4878,8 @@ GOMP_OFFLOAD_async_run (int device, void *tgt_fn, void *tgt_vars,
     }
 
   maybe_init_omp_async (agent);
+  if (!agent->omp_async_queue)
+    GOMP_PLUGIN_fatal ("Asynchronous queue initialization failed");
   queue_push_launch (agent->omp_async_queue, kernel, tgt_vars, kla);
   queue_push_callback (agent->omp_async_queue,
 		       GOMP_PLUGIN_target_task_completion, async_data);
@@ -4430,17 +4947,17 @@ GOMP_OFFLOAD_openacc_async_construct (int device)
   if (pthread_mutex_init (&aq->mutex, NULL))
     {
       GOMP_PLUGIN_error ("Failed to initialize a GCN agent queue mutex");
-      return false;
+      return NULL;
     }
   if (pthread_cond_init (&aq->queue_cond_in, NULL))
     {
       GOMP_PLUGIN_error ("Failed to initialize a GCN agent queue cond");
-      return false;
+      return NULL;
     }
   if (pthread_cond_init (&aq->queue_cond_out, NULL))
     {
       GOMP_PLUGIN_error ("Failed to initialize a GCN agent queue cond");
-      return false;
+      return NULL;
     }
 
   hsa_status_t status = hsa_fns.hsa_queue_create_fn (agent->id,

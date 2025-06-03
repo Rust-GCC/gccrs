@@ -1,6 +1,6 @@
 /* init.cc initializes the modules of the GNU Modula-2 front end.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -78,6 +78,7 @@ EXTERN void _M2_SymbolKey_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_FifoQueue_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_M2Reserved_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_M2Const_init (int argc, char *argv[], char *envp[]);
+EXTERN void _M2_M2LangDump_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_P1SymBuild_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_P2SymBuild_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_P3SymBuild_init (int argc, char *argv[], char *envp[]);
@@ -104,6 +105,8 @@ EXTERN void _M2_ldtoa_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_M2Check_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_M2SSA_init (int argc, char *argv[], char *envp[]);
 EXTERN void _M2_M2SymInit_init (int argc, char *argv[], char *envp[]);
+EXTERN void _M2_M2StateCheck_init (int argc, char *argv[], char *envp[]);
+EXTERN void _M2_P3Build_init (int argc, char *argv[], char *envp[]);
 EXTERN void exit (int);
 EXTERN void M2Comp_compile (const char *filename);
 EXTERN void RTExceptions_DefaultErrorCatch (void);
@@ -198,5 +201,8 @@ init_PerCompilationInit (const char *filename)
   _M2_M2SSA_init (0, NULL, NULL);
   _M2_M2SymInit_init (0, NULL, NULL);
   _M2_M2Check_init (0, NULL, NULL);
+  _M2_M2LangDump_init (0, NULL, NULL);
+  _M2_M2StateCheck_init (0, NULL, NULL);
+  _M2_P3Build_init (0, NULL, NULL);
   M2Comp_compile (filename);
 }

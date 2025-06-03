@@ -1,5 +1,5 @@
 /* Common hooks for pdp11.
-   Copyright (C) 1994-2024 Free Software Foundation, Inc.
+   Copyright (C) 1994-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -50,7 +50,7 @@ pdp11_handle_option (struct gcc_options *opts,
       opts->x_target_flags &= ~MASK_40;
       opts->x_target_flags |= MASK_45;
       return true;
-      
+
     case OPT_msoft_float:
       opts->x_target_flags &= ~MASK_AC0;
       return true;

@@ -1,6 +1,6 @@
 ## Makefile for the C++20 sources of the GNU C++ Standard library.
 ##
-## Copyright (C) 1997-2024 Free Software Foundation, Inc.
+## Copyright (C) 1997-2025 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -36,7 +36,7 @@ else
 inst_sources =
 endif
 
-sources = tzdb.cc
+sources = tzdb.cc format.cc
 
 vpath % $(top_srcdir)/src/c++20
 
@@ -52,6 +52,12 @@ tzdb.lo: tzdb.cc tzdata.zi.h
 tzdb.o: tzdb.cc tzdata.zi.h
 	$(CXXCOMPILE) -I. -c $<
 endif
+
+# This needs access to std::text_encoding and to the internals of std::locale.
+format.lo: format.cc
+	$(LTCXXCOMPILE) -std=gnu++26 -fno-access-control -c $<
+format.o: format.cc
+	$(CXXCOMPILE) -std=gnu++26 -fno-access-control -c $<
 
 if GLIBCXX_HOSTED
 libc__20convenience_la_SOURCES = $(sources)  $(inst_sources)

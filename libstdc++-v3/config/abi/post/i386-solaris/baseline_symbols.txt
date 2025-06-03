@@ -488,6 +488,7 @@ FUNC:_ZNKSt11__timepunctIwE7_M_daysEPPKw@@GLIBCXX_3.4
 FUNC:_ZNKSt11__timepunctIwE8_M_am_pmEPPKw@@GLIBCXX_3.4
 FUNC:_ZNKSt11__timepunctIwE9_M_monthsEPPKw@@GLIBCXX_3.4
 FUNC:_ZNKSt11logic_error4whatEv@@GLIBCXX_3.4
+FUNC:_ZNKSt12__basic_fileIcE13native_handleEv@@GLIBCXX_3.4.33
 FUNC:_ZNKSt12__basic_fileIcE7is_openEv@@GLIBCXX_3.4
 FUNC:_ZNKSt12__shared_ptrINSt10filesystem28recursive_directory_iterator10_Dir_stackELN9__gnu_cxx12_Lock_policyE2EEcvbEv@@GLIBCXX_3.4.31
 FUNC:_ZNKSt12__shared_ptrINSt10filesystem4_DirELN9__gnu_cxx12_Lock_policyE2EEcvbEv@@GLIBCXX_3.4.31
@@ -2094,6 +2095,10 @@ FUNC:_ZNSt12__shared_ptrINSt10filesystem7__cxx114_DirELN9__gnu_cxx12_Lock_policy
 FUNC:_ZNSt12__shared_ptrINSt10filesystem7__cxx114_DirELN9__gnu_cxx12_Lock_policyE2EEC2EOS5_@@GLIBCXX_3.4.28
 FUNC:_ZNSt12__shared_ptrINSt10filesystem7__cxx114_DirELN9__gnu_cxx12_Lock_policyE2EEC2Ev@@GLIBCXX_3.4.27
 FUNC:_ZNSt12__shared_ptrINSt10filesystem7__cxx114_DirELN9__gnu_cxx12_Lock_policyE2EEaSEOS5_@@GLIBCXX_3.4.26
+FUNC:_ZNSt12__sso_stringC1Ev@@GLIBCXX_3.4.34
+FUNC:_ZNSt12__sso_stringC2Ev@@GLIBCXX_3.4.34
+FUNC:_ZNSt12__sso_stringD1Ev@@GLIBCXX_3.4.34
+FUNC:_ZNSt12__sso_stringD2Ev@@GLIBCXX_3.4.34
 FUNC:_ZNSt12bad_weak_ptrD0Ev@@GLIBCXX_3.4.15
 FUNC:_ZNSt12bad_weak_ptrD1Ev@@GLIBCXX_3.4.15
 FUNC:_ZNSt12bad_weak_ptrD2Ev@@GLIBCXX_3.4.15
@@ -3175,11 +3180,14 @@ FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_disposeEv@@GLIBCX
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_M_replaceEjjPKcj@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE10_S_compareEjj@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE11_M_capacityEj@@GLIBCXX_3.4.21
+FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE11_S_allocateERS3_j@@GLIBCXX_3.4.32
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_Alloc_hiderC1EPcOS3_@@GLIBCXX_3.4.23
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_Alloc_hiderC1EPcRKS3_@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_Alloc_hiderC2EPcOS3_@@GLIBCXX_3.4.23
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_Alloc_hiderC2EPcRKS3_@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructEjc@@GLIBCXX_3.4.21
+FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructILb0EEEvPKcj@@GLIBCXX_3.4.34
+FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructILb1EEEvPKcj@@GLIBCXX_3.4.34
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIN9__gnu_cxx17__normal_iteratorIPKcS4_EEEEvT_SB_St20forward_iterator_tag@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIN9__gnu_cxx17__normal_iteratorIPcS4_EEEEvT_SA_St20forward_iterator_tag@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag@@GLIBCXX_3.4.21
@@ -3327,11 +3335,14 @@ FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE10_M_disposeEv@@GLIBCX
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE10_M_replaceEjjPKwj@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE10_S_compareEjj@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE11_M_capacityEj@@GLIBCXX_3.4.21
+FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE11_S_allocateERS3_j@@GLIBCXX_3.4.32
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_Alloc_hiderC1EPwOS3_@@GLIBCXX_3.4.23
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_Alloc_hiderC1EPwRKS3_@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_Alloc_hiderC2EPwOS3_@@GLIBCXX_3.4.23
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_Alloc_hiderC2EPwRKS3_@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_M_constructEjw@@GLIBCXX_3.4.21
+FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_M_constructILb0EEEvPKwj@@GLIBCXX_3.4.34
+FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_M_constructILb1EEEvPKwj@@GLIBCXX_3.4.34
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_M_constructIN9__gnu_cxx17__normal_iteratorIPKwS4_EEEEvT_SB_St20forward_iterator_tag@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_M_constructIN9__gnu_cxx17__normal_iteratorIPwS4_EEEEvT_SA_St20forward_iterator_tag@@GLIBCXX_3.4.21
 FUNC:_ZNSt7__cxx1112basic_stringIwSt11char_traitsIwESaIwEE12_M_constructIPKwEEvT_S8_St20forward_iterator_tag@@GLIBCXX_3.4.21
@@ -3899,6 +3910,8 @@ FUNC:_ZNSt8__detail15_List_node_base11_M_transferEPS0_S1_@@GLIBCXX_3.4.15
 FUNC:_ZNSt8__detail15_List_node_base4swapERS0_S1_@@GLIBCXX_3.4.15
 FUNC:_ZNSt8__detail15_List_node_base7_M_hookEPS0_@@GLIBCXX_3.4.15
 FUNC:_ZNSt8__detail15_List_node_base9_M_unhookEv@@GLIBCXX_3.4.15
+FUNC:_ZNSt8__format25__locale_encoding_to_utf8ERKSt6localeSt17basic_string_viewIcSt11char_traitsIcEEPv@@GLIBCXX_3.4.34
+FUNC:_ZNSt8__format26__with_encoding_conversionERKSt6locale@@GLIBCXX_3.4.34
 FUNC:_ZNSt8bad_castD0Ev@@GLIBCXX_3.4
 FUNC:_ZNSt8bad_castD1Ev@@GLIBCXX_3.4
 FUNC:_ZNSt8bad_castD2Ev@@GLIBCXX_3.4
@@ -4485,6 +4498,7 @@ FUNC:__cxa_allocate_exception@@CXXABI_1.3
 FUNC:__cxa_bad_cast@@CXXABI_1.3
 FUNC:__cxa_bad_typeid@@CXXABI_1.3
 FUNC:__cxa_begin_catch@@CXXABI_1.3
+FUNC:__cxa_call_terminate@@CXXABI_1.3.15
 FUNC:__cxa_call_unexpected@@CXXABI_1.3
 FUNC:__cxa_current_exception_type@@CXXABI_1.3
 FUNC:__cxa_deleted_virtual@@CXXABI_1.3.6
@@ -4528,6 +4542,7 @@ OBJECT:0:CXXABI_1.3.11
 OBJECT:0:CXXABI_1.3.12
 OBJECT:0:CXXABI_1.3.13
 OBJECT:0:CXXABI_1.3.14
+OBJECT:0:CXXABI_1.3.15
 OBJECT:0:CXXABI_1.3.2
 OBJECT:0:CXXABI_1.3.3
 OBJECT:0:CXXABI_1.3.4
@@ -4564,6 +4579,9 @@ OBJECT:0:GLIBCXX_3.4.29
 OBJECT:0:GLIBCXX_3.4.3
 OBJECT:0:GLIBCXX_3.4.30
 OBJECT:0:GLIBCXX_3.4.31
+OBJECT:0:GLIBCXX_3.4.32
+OBJECT:0:GLIBCXX_3.4.33
+OBJECT:0:GLIBCXX_3.4.34
 OBJECT:0:GLIBCXX_3.4.4
 OBJECT:0:GLIBCXX_3.4.5
 OBJECT:0:GLIBCXX_3.4.6

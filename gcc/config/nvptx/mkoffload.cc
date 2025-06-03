@@ -1,6 +1,6 @@
 /* Offload image generation tool for PTX.
 
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    Contributed by Nathan Sidwell <nathan@codesourcery.com> and
    Bernd Schmidt <bernds@codesourcery.com>.
@@ -61,6 +61,7 @@ static const char *omp_requires_file;
 static const char *ptx_dumpbase;
 
 enum offload_abi offload_abi = OFFLOAD_ABI_UNSET;
+const char *offload_abi_host_opts = NULL;
 
 /* Delete tempfiles.  */
 
@@ -607,17 +608,10 @@ compile_native (const char *infile, const char *outfile, const char *compiler,
   obstack_ptr_grow (&argv_obstack, ptx_dumpbase);
   obstack_ptr_grow (&argv_obstack, "-dumpbase-ext");
   obstack_ptr_grow (&argv_obstack, ".c");
-  switch (offload_abi)
-    {
-    case OFFLOAD_ABI_LP64:
-      obstack_ptr_grow (&argv_obstack, "-m64");
-      break;
-    case OFFLOAD_ABI_ILP32:
-      obstack_ptr_grow (&argv_obstack, "-m32");
-      break;
-    default:
-      gcc_unreachable ();
-    }
+  if (!offload_abi_host_opts)
+    fatal_error (input_location,
+		 "%<-foffload-abi-host-opts%> not specified.");
+  obstack_ptr_grow (&argv_obstack, offload_abi_host_opts);
   obstack_ptr_grow (&argv_obstack, infile);
   obstack_ptr_grow (&argv_obstack, "-c");
   obstack_ptr_grow (&argv_obstack, "-o");
@@ -638,7 +632,9 @@ main (int argc, char **argv)
   const char *outname = 0;
 
   progname = tool_name;
+  gcc_init_libintl ();
   diagnostic_initialize (global_dc, 0);
+  diagnostic_color_init (global_dc);
 
   if (atexit (mkoffload_cleanup) != 0)
     fatal_error (input_location, "atexit failed");
@@ -719,6 +715,15 @@ main (int argc, char **argv)
 			 "unrecognizable argument of option " STR);
 	}
 #undef STR
+      else if (startswith (argv[i], "-foffload-abi-host-opts="))
+	{
+	  if (offload_abi_host_opts)
+	    fatal_error (input_location,
+			 "%<-foffload-abi-host-opts%> specified "
+			 "multiple times");
+	  offload_abi_host_opts
+	    = argv[i] + strlen ("-foffload-abi-host-opts=");
+	}
       else if (strcmp (argv[i], "-fopenmp") == 0)
 	fopenmp = true;
       else if (strcmp (argv[i], "-fopenacc") == 0)
@@ -736,7 +741,8 @@ main (int argc, char **argv)
 	dumppfx = argv[++i];
       /* Translate host into offloading libraries.  */
       else if (strcmp (argv[i], "-l_GCC_gfortran") == 0
-	       || strcmp (argv[i], "-l_GCC_m") == 0)
+	       || strcmp (argv[i], "-l_GCC_m") == 0
+	       || strcmp (argv[i], "-l_GCC_stdc++") == 0)
 	{
 	  /* Elide '_GCC_'.  */
 	  size_t i_dst = strlen ("-l");
@@ -772,6 +778,9 @@ main (int argc, char **argv)
     }
   if (fopenmp)
     obstack_ptr_grow (&argv_obstack, "-mgomp");
+  /* The host code may contain exception handling constructs.
+     Handle these as good as we can.  */
+  obstack_ptr_grow (&argv_obstack, "-mfake-exceptions");
 
   for (int ix = 1; ix != argc; ix++)
     {

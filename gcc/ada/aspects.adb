@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2010-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2010-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -190,13 +190,19 @@ package body Aspects is
       --  Note that not all aspects are added to the chain of representation
       --  items. In such cases, search the list of aspect specifications. First
       --  find the declaration node where the aspects reside. This is usually
-      --  the parent or the parent of the parent.
+      --  the parent or the parent of the parent, after getting through the
+      --  additional indirection of the N_Defining_Program_Unit_Name if needed.
 
       if No (Parent (Owner)) then
          return Empty;
       end if;
 
       Decl := Parent (Owner);
+
+      if Nkind (Decl) = N_Defining_Program_Unit_Name then
+         Decl := Parent (Decl);
+      end if;
+
       if not Permits_Aspect_Specifications (Decl) then
          Decl := Parent (Decl);
 
@@ -433,7 +439,6 @@ package body Aspects is
    -------------------
 
    procedure Copy_Aspects (From : Node_Id; To : Node_Id) is
-
    begin
       if not Has_Aspects (From) then
          return;
@@ -450,6 +455,7 @@ package body Aspects is
    Has_Aspect_Specifications_Flag : constant array (Node_Kind) of Boolean :=
      (N_Abstract_Subprogram_Declaration        => True,
       N_Component_Declaration                  => True,
+      N_Discriminant_Specification             => True,
       N_Entry_Body                             => True,
       N_Entry_Declaration                      => True,
       N_Exception_Declaration                  => True,
@@ -471,8 +477,8 @@ package body Aspects is
       N_Package_Body_Stub                      => True,
       N_Package_Declaration                    => True,
       N_Package_Instantiation                  => True,
-      N_Package_Specification                  => True,
       N_Package_Renaming_Declaration           => True,
+      N_Package_Specification                  => True,
       N_Parameter_Specification                => True,
       N_Private_Extension_Declaration          => True,
       N_Private_Type_Declaration               => True,

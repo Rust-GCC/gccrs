@@ -302,6 +302,9 @@
 /* Define if openat is available in <fcntl.h>. */
 #undef HAVE_OPENAT
 
+/* Define if O_NONBLOCK is defined in <fcntl.h> */
+#undef HAVE_O_NONBLOCK
+
 /* Define if poll is available in <poll.h>. */
 #undef HAVE_POLL
 
@@ -489,6 +492,9 @@
 
 /* Define to 1 if you have the `timespec_get' function. */
 #undef HAVE_TIMESPEC_GET
+
+/* Define to 1 if you have the <tlhelp32.h> header file. */
+#undef HAVE_TLHELP32_H
 
 /* Define to 1 if the target supports thread-local storage. */
 #undef HAVE_TLS
@@ -881,6 +887,9 @@
 
 /* Define to restrict std::__basic_file<> to stdio APIs. */
 #undef _GLIBCXX_USE_STDIO_PURE
+
+/* Define if struct tm has a tm_zone member. */
+#undef _GLIBCXX_USE_STRUCT_TM_TM_ZONE
 
 /* Define if struct stat has timespec members. */
 #undef _GLIBCXX_USE_ST_MTIM

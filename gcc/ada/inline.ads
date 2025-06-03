@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -146,8 +146,9 @@ package Inline is
     (N    : Node_Id;
      Subp : Entity_Id) return Boolean;
    --  Returns False if the call in node N to subprogram Subp cannot be inlined
-   --  in GNATprove mode, because it may lead to missing a check on type
-   --  conversion of input parameters otherwise. Returns True otherwise.
+   --  in GNATprove mode, because it may otherwise lead to missing a check
+   --  on type conversion of input parameters, or a missing memory leak on
+   --  an output parameter. Returns True otherwise.
 
    function Can_Be_Inlined_In_GNATprove_Mode
      (Spec_Id : Entity_Id;
@@ -164,7 +165,10 @@ package Inline is
       N             : Node_Id;
       Subp          : Entity_Id;
       Is_Serious    : Boolean := False;
-      Suppress_Info : Boolean := False);
+      Suppress_Info : Boolean := False)
+     with
+       Pre => Msg'First <= Msg'Last
+       and then Msg (Msg'Last) = '?';
    --  This procedure is called if the node N, an instance of a call to
    --  subprogram Subp, cannot be inlined. Msg is the message to be issued,
    --  which ends with ? (it does not end with ?p?, this routine takes care of

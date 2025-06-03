@@ -1,6 +1,6 @@
 // Support for concurrent programing -*- C++ -*-
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,13 +29,18 @@
 #ifndef _CONCURRENCE_H
 #define _CONCURRENCE_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <exception>
-#include <bits/gthr.h> 
+#include <bits/gthr.h>
 #include <bits/functexcept.h>
 #include <bits/cpp_type_traits.h>
 #include <ext/type_traits.h>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++11-extensions"
 
 namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
 {
@@ -46,7 +51,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // _S_mutex     multi-threaded code that requires additional support
   //              from gthr.h or abstraction layers in concurrence.h.
   // _S_atomic    multi-threaded code using atomic operations.
-  enum _Lock_policy { _S_single, _S_mutex, _S_atomic }; 
+  enum _Lock_policy { _S_single, _S_mutex, _S_atomic };
 
   // Compile time constant that indicates prefered locking policy in
   // the current configuration.
@@ -111,8 +116,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   __throw_concurrence_wait_error()
   { _GLIBCXX_THROW_OR_ABORT(__concurrence_wait_error()); }
 #endif
- 
-  class __mutex 
+
+  class __mutex
   {
   private:
 #if __GTHREADS && defined __GTHREAD_MUTEX_INIT
@@ -125,8 +130,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __mutex& operator=(const __mutex&);
 
   public:
-    __mutex() 
-    { 
+    __mutex()
+    {
 #if __GTHREADS && ! defined __GTHREAD_MUTEX_INIT
       if (__gthread_active_p())
 	__GTHREAD_MUTEX_INIT_FUNCTION(&_M_mutex);
@@ -134,12 +139,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 
 #if __GTHREADS && ! defined __GTHREAD_MUTEX_INIT
-    ~__mutex() 
-    { 
+    ~__mutex()
+    {
       if (__gthread_active_p())
-	__gthread_mutex_destroy(&_M_mutex); 
+	__gthread_mutex_destroy(&_M_mutex);
     }
-#endif 
+#endif
 
     void lock()
     {
@@ -151,7 +156,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 #endif
     }
-    
+
     void unlock()
     {
 #if __GTHREADS
@@ -167,7 +172,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       { return &_M_mutex; }
   };
 
-  class __recursive_mutex 
+  class __recursive_mutex
   {
   private:
 #if __GTHREADS && defined __GTHREAD_RECURSIVE_MUTEX_INIT
@@ -180,8 +185,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __recursive_mutex& operator=(const __recursive_mutex&);
 
   public:
-    __recursive_mutex() 
-    { 
+    __recursive_mutex()
+    {
 #if __GTHREADS && ! defined __GTHREAD_RECURSIVE_MUTEX_INIT
       if (__gthread_active_p())
 	__GTHREAD_RECURSIVE_MUTEX_INIT_FUNCTION(&_M_mutex);
@@ -197,7 +202,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
 
     void lock()
-    { 
+    {
 #if __GTHREADS
       if (__gthread_active_p())
 	{
@@ -206,9 +211,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	}
 #endif
     }
-    
+
     void unlock()
-    { 
+    {
 #if __GTHREADS
       if (__gthread_active_p())
 	{
@@ -258,8 +263,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     __cond& operator=(const __cond&);
 
   public:
-    __cond() 
-    { 
+    __cond()
+    {
 #if __GTHREADS && ! defined __GTHREAD_COND_INIT
       if (__gthread_active_p())
 	__GTHREAD_COND_INIT_FUNCTION(&_M_cond);
@@ -267,12 +272,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     }
 
 #if __GTHREADS && ! defined __GTHREAD_COND_INIT
-    ~__cond() 
-    { 
+    ~__cond()
+    {
       if (__gthread_active_p())
-	__gthread_cond_destroy(&_M_cond); 
+	__gthread_cond_destroy(&_M_cond);
     }
-#endif 
+#endif
 
     void broadcast()
     {
@@ -311,5 +316,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
+
+#pragma GCC diagnostic pop
 
 #endif

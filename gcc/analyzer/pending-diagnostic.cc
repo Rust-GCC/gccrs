@@ -1,5 +1,5 @@
 /* Classes for analyzer diagnostics.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -80,33 +80,6 @@ interesting_t::dump_to_pp (pretty_printer *pp, bool simple) const
       reg->dump_to_pp (pp, simple);
     }
   pp_string (pp, "]}");
-}
-
-/* Generate a label_text by printing FMT.
-
-   Use a clone of the global_dc for formatting callbacks.
-
-   Use this evdesc::event_desc's m_colorize flag to control colorization
-   (so that e.g. we can disable it for JSON output).  */
-
-label_text
-evdesc::event_desc::formatted_print (const char *fmt, ...) const
-{
-  pretty_printer *pp = global_dc->printer->clone ();
-
-  pp_show_color (pp) = m_colorize;
-
-  rich_location rich_loc (line_table, UNKNOWN_LOCATION);
-  va_list ap;
-  va_start (ap, fmt);
-  text_info ti (_(fmt), &ap, 0, nullptr, &rich_loc);
-  pp_format (pp, &ti);
-  pp_output_formatted_text (pp);
-  va_end (ap);
-
-  label_text result = label_text::take (xstrdup (pp_formatted_text (pp)));
-  delete pp;
-  return result;
 }
 
 /* class diagnostic_emission_context.  */
@@ -269,15 +242,13 @@ pending_diagnostic::add_region_creation_events (const region *reg,
 void
 pending_diagnostic::add_final_event (const state_machine *sm,
 				     const exploded_node *enode,
-				     const gimple *stmt,
+				     const event_loc_info &loc_info,
 				     tree var, state_machine::state_t state,
 				     checker_path *emission_path)
 {
   emission_path->add_event
     (make_unique<warning_event>
-     (event_loc_info (get_stmt_location (stmt, enode->get_function ()),
-		      enode->get_function ()->decl,
-		      enode->get_stack_depth ()),
+     (loc_info,
       enode,
       sm, var, state));
 }

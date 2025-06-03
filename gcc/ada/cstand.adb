@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1334,8 +1334,8 @@ package body CStand is
       --  used internally. They are unsigned types with the same length as
       --  the correspondingly named signed integer types.
 
-      Standard_Short_Short_Unsigned
-        := New_Standard_Entity ("short_short_unsigned");
+      Standard_Short_Short_Unsigned :=
+        New_Standard_Entity ("short_short_unsigned");
       Build_Unsigned_Integer_Type
         (Standard_Short_Short_Unsigned, Standard_Short_Short_Integer_Size);
 

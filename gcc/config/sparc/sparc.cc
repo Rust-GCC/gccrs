@@ -1,5 +1,5 @@
 /* Subroutines for insn-output.cc for SPARC.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
    64-bit SPARC-V9 support by Michael Tiemann, Jim Wilson, and Doug Evans,
    at Cygnus Support.
@@ -61,6 +61,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "builtins.h"
 #include "tree-vector-builder.h"
 #include "opts.h"
+#include "dwarf2out.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -681,6 +682,9 @@ static rtx sparc_libcall_value (machine_mode, const_rtx);
 static bool sparc_function_value_regno_p (const unsigned int);
 static unsigned HOST_WIDE_INT sparc_asan_shadow_offset (void);
 static void sparc_output_dwarf_dtprel (FILE *, int, rtx) ATTRIBUTE_UNUSED;
+static bool sparc_output_cfi_directive (FILE *, dw_cfi_ref);
+static bool sparc_dw_cfi_oprnd1_desc (dwarf_call_frame_info,
+				      dw_cfi_oprnd_type &);
 static void sparc_file_end (void);
 static bool sparc_frame_pointer_required (void);
 static bool sparc_can_eliminate (const int, const int);
@@ -693,7 +697,6 @@ static const char *sparc_mangle_type (const_tree);
 static void sparc_trampoline_init (rtx, tree, rtx);
 static machine_mode sparc_preferred_simd_mode (scalar_mode);
 static reg_class_t sparc_preferred_reload_class (rtx x, reg_class_t rclass);
-static bool sparc_lra_p (void);
 static bool sparc_print_operand_punct_valid_p (unsigned char);
 static void sparc_print_operand (FILE *, rtx, int);
 static void sparc_print_operand_address (FILE *, machine_mode, rtx);
@@ -716,8 +719,10 @@ static HOST_WIDE_INT sparc_constant_alignment (const_tree, HOST_WIDE_INT);
 static bool sparc_vectorize_vec_perm_const (machine_mode, machine_mode,
 					    rtx, rtx, rtx,
 					    const vec_perm_indices &);
+static opt_machine_mode sparc_get_mask_mode (machine_mode);
 static bool sparc_can_follow_jump (const rtx_insn *, const rtx_insn *);
 static HARD_REG_SET sparc_zero_call_used_regs (HARD_REG_SET);
+static machine_mode sparc_c_mode_for_floating_type (enum tree_index);
 
 #ifdef SUBTARGET_ATTRIBUTE_TABLE
 /* Table of valid machine attributes.  */
@@ -877,6 +882,12 @@ char sparc_hard_reg_printed[8];
 #define TARGET_ASM_OUTPUT_DWARF_DTPREL sparc_output_dwarf_dtprel
 #endif
 
+#undef TARGET_OUTPUT_CFI_DIRECTIVE
+#define TARGET_OUTPUT_CFI_DIRECTIVE sparc_output_cfi_directive
+
+#undef TARGET_DW_CFI_OPRND1_DESC
+#define TARGET_DW_CFI_OPRND1_DESC sparc_dw_cfi_oprnd1_desc
+
 #undef TARGET_ASM_FILE_END
 #define TARGET_ASM_FILE_END sparc_file_end
 
@@ -909,9 +920,6 @@ char sparc_hard_reg_printed[8];
 #undef TARGET_MANGLE_TYPE
 #define TARGET_MANGLE_TYPE sparc_mangle_type
 #endif
-
-#undef TARGET_LRA_P
-#define TARGET_LRA_P sparc_lra_p
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P sparc_legitimate_address_p
@@ -965,11 +973,17 @@ char sparc_hard_reg_printed[8];
 #undef TARGET_VECTORIZE_VEC_PERM_CONST
 #define TARGET_VECTORIZE_VEC_PERM_CONST sparc_vectorize_vec_perm_const
 
+#undef TARGET_VECTORIZE_GET_MASK_MODE
+#define TARGET_VECTORIZE_GET_MASK_MODE sparc_get_mask_mode
+
 #undef TARGET_CAN_FOLLOW_JUMP
 #define TARGET_CAN_FOLLOW_JUMP sparc_can_follow_jump
 
 #undef TARGET_ZERO_CALL_USED_REGS
 #define TARGET_ZERO_CALL_USED_REGS sparc_zero_call_used_regs
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE sparc_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -1657,6 +1671,8 @@ dump_target_flag_bits (const int flags)
     fprintf (stderr, "VIS2 ");
   if (flags & MASK_VIS3)
     fprintf (stderr, "VIS3 ");
+  if (flags & MASK_VIS3B)
+    fprintf (stderr, "VIS3B ");
   if (flags & MASK_VIS4)
     fprintf (stderr, "VIS4 ");
   if (flags & MASK_VIS4B)
@@ -1905,19 +1921,23 @@ sparc_option_override (void)
   if (TARGET_VIS3)
     target_flags |= MASK_VIS2 | MASK_VIS;
 
-  /* -mvis4 implies -mvis3, -mvis2 and -mvis.  */
-  if (TARGET_VIS4)
+  /* -mvis3b implies -mvis3, -mvis2 and -mvis.  */
+  if (TARGET_VIS3B)
     target_flags |= MASK_VIS3 | MASK_VIS2 | MASK_VIS;
 
-  /* -mvis4b implies -mvis4, -mvis3, -mvis2 and -mvis */
-  if (TARGET_VIS4B)
-    target_flags |= MASK_VIS4 | MASK_VIS3 | MASK_VIS2 | MASK_VIS;
+  /* -mvis4 implies -mvis3b, -mvis3, -mvis2 and -mvis.  */
+  if (TARGET_VIS4)
+    target_flags |= MASK_VIS3B | MASK_VIS3 | MASK_VIS2 | MASK_VIS;
 
-  /* Don't allow -mvis, -mvis2, -mvis3, -mvis4, -mvis4b, -mfmaf and -mfsmuld if
-     FPU is disabled.  */
+  /* -mvis4b implies -mvis4, -mvis3b, -mvis3, -mvis2 and -mvis */
+  if (TARGET_VIS4B)
+    target_flags |= MASK_VIS4 | MASK_VIS3B | MASK_VIS3 | MASK_VIS2 | MASK_VIS;
+
+  /* Don't allow -mvis, -mvis2, -mvis3, -mvis3b, -mvis4, -mvis4b, -mfmaf and
+     -mfsmuld if FPU is disabled.  */
   if (!TARGET_FPU)
-    target_flags &= ~(MASK_VIS | MASK_VIS2 | MASK_VIS3 | MASK_VIS4
-		      | MASK_VIS4B | MASK_FMAF | MASK_FSMULD);
+    target_flags &= ~(MASK_VIS | MASK_VIS2 | MASK_VIS3 | MASK_VIS3B
+		      | MASK_VIS4 | MASK_VIS4B | MASK_FMAF | MASK_FSMULD);
 
   /* -mvis assumes UltraSPARC+, so we are sure v9 instructions
      are available; -m64 also implies v9.  */
@@ -1942,10 +1962,6 @@ sparc_option_override (void)
   /* Don't use stack biasing in 32-bit mode.  */
   if (TARGET_ARCH32)
     target_flags &= ~MASK_STACK_BIAS;
-
-  /* Use LRA instead of reload, unless otherwise instructed.  */
-  if (!(target_flags_explicit & MASK_LRA))
-    target_flags |= MASK_LRA;
 
   /* Enable applicable errata workarounds for LEON3FT.  */
   if (sparc_fix_ut699 || sparc_fix_ut700 || sparc_fix_gr712rc)
@@ -2164,7 +2180,7 @@ sparc_option_override (void)
 			 || sparc_cpu == PROCESSOR_M8)
 			? 128 : (sparc_cpu == PROCESSOR_NIAGARA7
 				 ? 256 : 512)));
-  
+
 
   /* Disable save slot sharing for call-clobbered registers by default.
      The IRA sharing algorithm works on single registers only and this
@@ -6782,6 +6798,22 @@ sparc_pass_by_reference (cumulative_args_t, const function_arg_info &arg)
 	    || GET_MODE_SIZE (mode) > 16);
 }
 
+/* Return true if TYPE is considered as a floating-point type by the ABI.  */
+
+static bool
+fp_type_for_abi (const_tree type)
+{
+  /* This is the original GCC implementation.  */
+  if (FLOAT_TYPE_P (type) || VECTOR_TYPE_P (type))
+    return true;
+
+  /* This has been introduced in GCC 14 to match the vendor compiler.  */
+  if (SUN_V9_ABI_COMPATIBILITY && TREE_CODE (type) == ARRAY_TYPE)
+    return fp_type_for_abi (TREE_TYPE (type));
+
+  return false;
+}
+
 /* Traverse the record TYPE recursively and call FUNC on its fields.
    NAMED is true if this is for a named parameter.  DATA is passed
    to FUNC for each field.  OFFSET is the starting position and
@@ -6820,8 +6852,7 @@ traverse_record_type (const_tree type, bool named, T *data,
 					 packed);
 	else
 	  {
-	    const bool fp_type
-	      = FLOAT_TYPE_P (field_type) || VECTOR_TYPE_P (field_type);
+	    const bool fp_type = fp_type_for_abi (field_type);
 	    Func (field, bitpos, fp_type && named && !packed && TARGET_FPU,
 		  data);
 	  }
@@ -7072,6 +7103,13 @@ compute_fp_layout (const_tree field, int bitpos, assign_data_t *data,
       mode = TYPE_MODE (TREE_TYPE (TREE_TYPE (field)));
       nregs = 2;
     }
+  else if (TREE_CODE (TREE_TYPE (field)) == ARRAY_TYPE)
+    {
+      tree elt_type = strip_array_types (TREE_TYPE (field));
+      mode = TYPE_MODE (elt_type);
+      nregs
+	= int_size_in_bytes (TREE_TYPE (field)) / int_size_in_bytes (elt_type);
+    }
   else
     nregs = 1;
 
@@ -7137,7 +7175,7 @@ assign_int_registers (int bitpos, assign_data_t *data)
      at the moment but may wish to revisit.  */
   if (intoffset % BITS_PER_WORD != 0)
     mode = smallest_int_mode_for_size (BITS_PER_WORD
-				       - intoffset % BITS_PER_WORD);
+				       - intoffset % BITS_PER_WORD).require ();
   else
     mode = word_mode;
 
@@ -9802,18 +9840,6 @@ sparc_assemble_integer (rtx x, unsigned int size, int aligned_p)
 #define LONG_LONG_TYPE_SIZE (BITS_PER_WORD * 2)
 #endif
 
-#ifndef FLOAT_TYPE_SIZE
-#define FLOAT_TYPE_SIZE BITS_PER_WORD
-#endif
-
-#ifndef DOUBLE_TYPE_SIZE
-#define DOUBLE_TYPE_SIZE (BITS_PER_WORD * 2)
-#endif
-
-#ifndef LONG_DOUBLE_TYPE_SIZE
-#define LONG_DOUBLE_TYPE_SIZE (BITS_PER_WORD * 2)
-#endif
-
 unsigned long
 sparc_type_code (tree type)
 {
@@ -9898,7 +9924,7 @@ sparc_type_code (tree type)
 	  /* Carefully distinguish all the standard types of C,
 	     without messing up if the language is not C.  */
 
-	  if (TYPE_PRECISION (type) == FLOAT_TYPE_SIZE)
+	  if (TYPE_PRECISION (type) == TYPE_PRECISION (float_type_node))
 	    return (qualifiers | 6);
 
 	  else
@@ -10128,7 +10154,7 @@ supersparc_adjust_cost (rtx_insn *insn, int dep_type, rtx_insn *dep_insn,
       if (insn_type == TYPE_IALU || insn_type == TYPE_SHIFT)
 	return 0;
     }
-	
+
   return cost;
 }
 
@@ -10370,7 +10396,7 @@ sparc_branch_cost (bool speed_p, bool predictable_p)
       return cost;
     }
 }
-      
+
 static int
 set_extends (rtx_insn *insn)
 {
@@ -10992,7 +11018,7 @@ enum sparc_builtins
   SPARC_BUILTIN_FPCMPUR16SHL,
   SPARC_BUILTIN_FPCMPUR32SHL,
   SPARC_BUILTIN_LAST_FPCMPSHL = SPARC_BUILTIN_FPCMPUR32SHL,
-  
+
   SPARC_BUILTIN_MAX
 };
 
@@ -11255,40 +11281,40 @@ sparc_vis_init_builtins (void)
   /* Pixel compare.  */
   if (TARGET_ARCH64)
     {
-      def_builtin_const ("__builtin_vis_fcmple16", CODE_FOR_fcmple16di_vis,
+      def_builtin_const ("__builtin_vis_fcmple16", CODE_FOR_fpcmple16di_vis,
 			 SPARC_BUILTIN_FCMPLE16, di_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmple32", CODE_FOR_fcmple32di_vis,
+      def_builtin_const ("__builtin_vis_fcmple32", CODE_FOR_fpcmple32di_vis,
 			 SPARC_BUILTIN_FCMPLE32, di_ftype_v2si_v2si);
-      def_builtin_const ("__builtin_vis_fcmpne16", CODE_FOR_fcmpne16di_vis,
+      def_builtin_const ("__builtin_vis_fcmpne16", CODE_FOR_fpcmpne16di_vis,
 			 SPARC_BUILTIN_FCMPNE16, di_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmpne32", CODE_FOR_fcmpne32di_vis,
+      def_builtin_const ("__builtin_vis_fcmpne32", CODE_FOR_fpcmpne32di_vis,
 			 SPARC_BUILTIN_FCMPNE32, di_ftype_v2si_v2si);
-      def_builtin_const ("__builtin_vis_fcmpgt16", CODE_FOR_fcmpgt16di_vis,
+      def_builtin_const ("__builtin_vis_fcmpgt16", CODE_FOR_fpcmpgt16di_vis,
 			 SPARC_BUILTIN_FCMPGT16, di_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmpgt32", CODE_FOR_fcmpgt32di_vis,
+      def_builtin_const ("__builtin_vis_fcmpgt32", CODE_FOR_fpcmpgt32di_vis,
 			 SPARC_BUILTIN_FCMPGT32, di_ftype_v2si_v2si);
-      def_builtin_const ("__builtin_vis_fcmpeq16", CODE_FOR_fcmpeq16di_vis,
+      def_builtin_const ("__builtin_vis_fcmpeq16", CODE_FOR_fpcmpeq16di_vis,
 			 SPARC_BUILTIN_FCMPEQ16, di_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmpeq32", CODE_FOR_fcmpeq32di_vis,
+      def_builtin_const ("__builtin_vis_fcmpeq32", CODE_FOR_fpcmpeq32di_vis,
 			 SPARC_BUILTIN_FCMPEQ32, di_ftype_v2si_v2si);
     }
   else
     {
-      def_builtin_const ("__builtin_vis_fcmple16", CODE_FOR_fcmple16si_vis,
+      def_builtin_const ("__builtin_vis_fcmple16", CODE_FOR_fpcmple16si_vis,
 			 SPARC_BUILTIN_FCMPLE16, si_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmple32", CODE_FOR_fcmple32si_vis,
+      def_builtin_const ("__builtin_vis_fcmple32", CODE_FOR_fpcmple32si_vis,
 			 SPARC_BUILTIN_FCMPLE32, si_ftype_v2si_v2si);
-      def_builtin_const ("__builtin_vis_fcmpne16", CODE_FOR_fcmpne16si_vis,
+      def_builtin_const ("__builtin_vis_fcmpne16", CODE_FOR_fpcmpne16si_vis,
 			 SPARC_BUILTIN_FCMPNE16, si_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmpne32", CODE_FOR_fcmpne32si_vis,
+      def_builtin_const ("__builtin_vis_fcmpne32", CODE_FOR_fpcmpne32si_vis,
 			 SPARC_BUILTIN_FCMPNE32, si_ftype_v2si_v2si);
-      def_builtin_const ("__builtin_vis_fcmpgt16", CODE_FOR_fcmpgt16si_vis,
+      def_builtin_const ("__builtin_vis_fcmpgt16", CODE_FOR_fpcmpgt16si_vis,
 			 SPARC_BUILTIN_FCMPGT16, si_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmpgt32", CODE_FOR_fcmpgt32si_vis,
+      def_builtin_const ("__builtin_vis_fcmpgt32", CODE_FOR_fpcmpgt32si_vis,
 			 SPARC_BUILTIN_FCMPGT32, si_ftype_v2si_v2si);
-      def_builtin_const ("__builtin_vis_fcmpeq16", CODE_FOR_fcmpeq16si_vis,
+      def_builtin_const ("__builtin_vis_fcmpeq16", CODE_FOR_fpcmpeq16si_vis,
 			 SPARC_BUILTIN_FCMPEQ16, si_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fcmpeq32", CODE_FOR_fcmpeq32si_vis,
+      def_builtin_const ("__builtin_vis_fcmpeq32", CODE_FOR_fpcmpeq32si_vis,
 			 SPARC_BUILTIN_FCMPEQ32, si_ftype_v2si_v2si);
     }
 
@@ -11431,10 +11457,6 @@ sparc_vis_init_builtins (void)
 
       def_builtin_const ("__builtin_vis_fmean16", CODE_FOR_fmean16_vis,
 			 SPARC_BUILTIN_FMEAN16, v4hi_ftype_v4hi_v4hi);
-      def_builtin_const ("__builtin_vis_fpadd64", CODE_FOR_fpadd64_vis,
-			 SPARC_BUILTIN_FPADD64, di_ftype_di_di);
-      def_builtin_const ("__builtin_vis_fpsub64", CODE_FOR_fpsub64_vis,
-			 SPARC_BUILTIN_FPSUB64, di_ftype_di_di);
 
       def_builtin_const ("__builtin_vis_fpadds16", CODE_FOR_ssaddv4hi3,
 			 SPARC_BUILTIN_FPADDS16, v4hi_ftype_v4hi_v4hi);
@@ -11452,29 +11474,6 @@ sparc_vis_init_builtins (void)
 			 SPARC_BUILTIN_FPSUBS32, v2si_ftype_v2si_v2si);
       def_builtin_const ("__builtin_vis_fpsubs32s", CODE_FOR_sssubv1si3,
 			 SPARC_BUILTIN_FPSUBS32S, v1si_ftype_v1si_v1si);
-
-      if (TARGET_ARCH64)
-	{
-	  def_builtin_const ("__builtin_vis_fucmple8", CODE_FOR_fucmple8di_vis,
-			     SPARC_BUILTIN_FUCMPLE8, di_ftype_v8qi_v8qi);
-	  def_builtin_const ("__builtin_vis_fucmpne8", CODE_FOR_fucmpne8di_vis,
-			     SPARC_BUILTIN_FUCMPNE8, di_ftype_v8qi_v8qi);
-	  def_builtin_const ("__builtin_vis_fucmpgt8", CODE_FOR_fucmpgt8di_vis,
-			     SPARC_BUILTIN_FUCMPGT8, di_ftype_v8qi_v8qi);
-	  def_builtin_const ("__builtin_vis_fucmpeq8", CODE_FOR_fucmpeq8di_vis,
-			     SPARC_BUILTIN_FUCMPEQ8, di_ftype_v8qi_v8qi);
-	}
-      else
-	{
-	  def_builtin_const ("__builtin_vis_fucmple8", CODE_FOR_fucmple8si_vis,
-			     SPARC_BUILTIN_FUCMPLE8, si_ftype_v8qi_v8qi);
-	  def_builtin_const ("__builtin_vis_fucmpne8", CODE_FOR_fucmpne8si_vis,
-			     SPARC_BUILTIN_FUCMPNE8, si_ftype_v8qi_v8qi);
-	  def_builtin_const ("__builtin_vis_fucmpgt8", CODE_FOR_fucmpgt8si_vis,
-			     SPARC_BUILTIN_FUCMPGT8, si_ftype_v8qi_v8qi);
-	  def_builtin_const ("__builtin_vis_fucmpeq8", CODE_FOR_fucmpeq8si_vis,
-			     SPARC_BUILTIN_FUCMPEQ8, si_ftype_v8qi_v8qi);
-	}
 
       def_builtin_const ("__builtin_vis_fhadds", CODE_FOR_fhaddsf_vis,
 			 SPARC_BUILTIN_FHADDS, sf_ftype_sf_sf);
@@ -11495,6 +11494,37 @@ sparc_vis_init_builtins (void)
 			 SPARC_BUILTIN_XMULX, di_ftype_di_di);
       def_builtin_const ("__builtin_vis_xmulxhi", CODE_FOR_xmulxhi_vis,
 			 SPARC_BUILTIN_XMULXHI, di_ftype_di_di);
+    }
+
+  if (TARGET_VIS3B)
+    {
+      def_builtin_const ("__builtin_vis_fpadd64", CODE_FOR_fpadd64_vis,
+			 SPARC_BUILTIN_FPADD64, di_ftype_di_di);
+      def_builtin_const ("__builtin_vis_fpsub64", CODE_FOR_fpsub64_vis,
+			 SPARC_BUILTIN_FPSUB64, di_ftype_di_di);
+
+      if (TARGET_ARCH64)
+	{
+	  def_builtin_const ("__builtin_vis_fucmple8", CODE_FOR_fpcmpule8di_vis,
+			     SPARC_BUILTIN_FUCMPLE8, di_ftype_v8qi_v8qi);
+	  def_builtin_const ("__builtin_vis_fucmpne8", CODE_FOR_fpcmpne8di_vis,
+			     SPARC_BUILTIN_FUCMPNE8, di_ftype_v8qi_v8qi);
+	  def_builtin_const ("__builtin_vis_fucmpgt8", CODE_FOR_fpcmpugt8di_vis,
+			     SPARC_BUILTIN_FUCMPGT8, di_ftype_v8qi_v8qi);
+	  def_builtin_const ("__builtin_vis_fucmpeq8", CODE_FOR_fpcmpeq8di_vis,
+			     SPARC_BUILTIN_FUCMPEQ8, di_ftype_v8qi_v8qi);
+	}
+      else
+	{
+	  def_builtin_const ("__builtin_vis_fucmple8", CODE_FOR_fpcmpule8si_vis,
+			     SPARC_BUILTIN_FUCMPLE8, si_ftype_v8qi_v8qi);
+	  def_builtin_const ("__builtin_vis_fucmpne8", CODE_FOR_fpcmpne8si_vis,
+			     SPARC_BUILTIN_FUCMPNE8, si_ftype_v8qi_v8qi);
+	  def_builtin_const ("__builtin_vis_fucmpgt8", CODE_FOR_fpcmpugt8si_vis,
+			     SPARC_BUILTIN_FUCMPGT8, si_ftype_v8qi_v8qi);
+	  def_builtin_const ("__builtin_vis_fucmpeq8", CODE_FOR_fpcmpeq8si_vis,
+			     SPARC_BUILTIN_FUCMPEQ8, si_ftype_v8qi_v8qi);
+	}
     }
 
   if (TARGET_VIS4)
@@ -11539,7 +11569,7 @@ sparc_vis_init_builtins (void)
 	  def_builtin_const ("__builtin_vis_fpcmpugt32", CODE_FOR_fpcmpugt32si_vis,
 			     SPARC_BUILTIN_FPCMPUGT32, di_ftype_v2si_v2si);
 	}
-      
+
       def_builtin_const ("__builtin_vis_fpmax8", CODE_FOR_maxv8qi3,
 			 SPARC_BUILTIN_FPMAX8, v8qi_ftype_v8qi_v8qi);
       def_builtin_const ("__builtin_vis_fpmax16", CODE_FOR_maxv4hi3,
@@ -11594,7 +11624,7 @@ sparc_vis_init_builtins (void)
 	  tree di_ftype_v2si_v2si_si = build_function_type_list (intDI_type_node,
 								 v2si, v2si,
 								 intSI_type_node, 0);
-	  
+
 	  def_builtin_const ("__builtin_vis_fpcmple8shl", CODE_FOR_fpcmple8dishl,
 			     SPARC_BUILTIN_FPCMPLE8SHL, di_ftype_v8qi_v8qi_si);
 	  def_builtin_const ("__builtin_vis_fpcmpgt8shl", CODE_FOR_fpcmpgt8dishl,
@@ -11664,7 +11694,7 @@ sparc_vis_init_builtins (void)
 	  tree si_ftype_v2si_v2si_si = build_function_type_list (intSI_type_node,
 								 v2si, v2si,
 								 intSI_type_node, 0);
-	  
+
 	  def_builtin_const ("__builtin_vis_fpcmple8shl", CODE_FOR_fpcmple8sishl,
 			     SPARC_BUILTIN_FPCMPLE8SHL, si_ftype_v8qi_v8qi_si);
 	  def_builtin_const ("__builtin_vis_fpcmpgt8shl", CODE_FOR_fpcmpgt8sishl,
@@ -12607,6 +12637,31 @@ sparc_output_dwarf_dtprel (FILE *file, int size, rtx x)
   fputs (")", file);
 }
 
+/* Implement TARGET_OUTPUT_CFI_DIRECTIVE.  */
+static bool
+sparc_output_cfi_directive (FILE *f, dw_cfi_ref cfi)
+{
+  if (cfi->dw_cfi_opc == DW_CFA_GNU_window_save)
+    {
+      fprintf (f, "\t.cfi_window_save\n");
+      return true;
+    }
+  return false;
+}
+
+/* Implement TARGET_DW_CFI_OPRND1_DESC.  */
+static bool
+sparc_dw_cfi_oprnd1_desc (dwarf_call_frame_info cfi_opc,
+			  dw_cfi_oprnd_type &oprnd_type)
+{
+  if (cfi_opc == DW_CFA_GNU_window_save)
+    {
+      oprnd_type = dw_cfi_oprnd_unused;
+      return true;
+    }
+  return false;
+}
+
 /* Do whatever processing is required at the end of a file.  */
 
 static void
@@ -12981,7 +13036,7 @@ sparc_expand_vec_perm_bmask (machine_mode vmode, rtx sel)
       t_1 = force_reg (SImode, GEN_INT (0x01010101));
       /* sel = { A*2, A*2+1, B*2, B*2+1, ... } */
       break;
-  
+
     case E_V8QImode:
       /* input = xAxBxCxDxExFxGxH */
       sel = expand_simple_binop (DImode, AND, sel,
@@ -13062,6 +13117,14 @@ sparc_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
   emit_insn (gen_bmasksi_vis (gen_reg_rtx (SImode), mask_rtx, const0_rtx));
   emit_insn (gen_bshufflev8qi_vis (target, op0, op1));
   return true;
+}
+
+/* Implement TARGET_VECTORIZE_GET_MASK_MODE.  */
+
+static opt_machine_mode
+sparc_get_mask_mode (machine_mode)
+{
+  return Pmode;
 }
 
 /* Implement TARGET_FRAME_POINTER_REQUIRED.  */
@@ -13235,14 +13298,6 @@ sparc_preferred_reload_class (rtx x, reg_class_t rclass)
     }
 
   return rclass;
-}
-
-/* Return true if we use LRA instead of reload pass.  */
-
-static bool
-sparc_lra_p (void)
-{
-  return TARGET_LRA;
 }
 
 /* Output a wide multiply instruction in V8+ mode.  INSN is the instruction,
@@ -13646,43 +13701,20 @@ sparc_expand_conditional_move (machine_mode mode, rtx *operands)
 }
 
 /* Emit code to conditionally move a combination of OPERANDS[1] and OPERANDS[2]
-   into OPERANDS[0] in MODE, depending on the outcome of the comparison of
-   OPERANDS[4] and OPERANDS[5].  OPERANDS[3] is the operator of the condition.
-   FCODE is the machine code to be used for OPERANDS[3] and CCODE the machine
-   code to be used for the condition mask.  */
+   into OPERANDS[0] in MODE, depending on the mask in OPERANDS[3].  CODE is the
+   machine code to be used for the cmask instruction.  */
 
 void
-sparc_expand_vcond (machine_mode mode, rtx *operands, int ccode, int fcode)
+sparc_expand_vcond_mask (machine_mode mode, rtx *operands, int code)
 {
-  enum rtx_code code = signed_condition (GET_CODE (operands[3]));
-  rtx mask, cop0, cop1, fcmp, cmask, bshuf, gsr;
-
-  mask = gen_reg_rtx (Pmode);
-  cop0 = operands[4];
-  cop1 = operands[5];
-  if (code == LT || code == GE)
-    {
-      code = swap_condition (code);
-      std::swap (cop0, cop1);
-    }
-
-  gsr = gen_rtx_REG (DImode, SPARC_GSR_REG);
-
-  fcmp = gen_rtx_UNSPEC (Pmode,
-			 gen_rtvec (1, gen_rtx_fmt_ee (code, mode, cop0, cop1)),
-			 fcode);
-
-  cmask = gen_rtx_UNSPEC (DImode,
-			  gen_rtvec (2, mask, gsr),
-			  ccode);
-
-  bshuf = gen_rtx_UNSPEC (mode,
-			  gen_rtvec (3, operands[1], operands[2], gsr),
-			  UNSPEC_BSHUFFLE);
-
-  emit_insn (gen_rtx_SET (mask, fcmp));
+  rtx gsr = gen_rtx_REG (DImode, SPARC_GSR_REG);
+  rtx cmask = gen_rtx_UNSPEC (DImode,
+			      gen_rtvec (2, operands[3], gsr),
+			      code);
+  rtx bshuf = gen_rtx_UNSPEC (mode,
+			      gen_rtvec (3, operands[1], operands[2], gsr),
+			      UNSPEC_BSHUFFLE);
   emit_insn (gen_rtx_SET (gsr, cmask));
-
   emit_insn (gen_rtx_SET (operands[0], bshuf));
 }
 
@@ -13960,6 +13992,17 @@ sparc_zero_call_used_regs (HARD_REG_SET need_zeroed_hardregs)
       }
 
   return need_zeroed_hardregs;
+}
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE and the default for others.  */
+
+static machine_mode
+sparc_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return SPARC_LONG_DOUBLE_TYPE_SIZE == 128 ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
 }
 
 #include "gt-sparc.h"

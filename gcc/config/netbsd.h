@@ -1,5 +1,5 @@
 /* Base configuration file for all NetBSD targets.
-   Copyright (C) 1997-2024 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -131,7 +131,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef TARGET_LIBC_HAS_FUNCTION
 #define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
 
-/* When building shared libraries, the initialization and finalization 
+/* When building shared libraries, the initialization and finalization
    functions for the library are .init and .fini respectively.  */
 
 #define COLLECT_SHARED_INIT_FUNC(STREAM,FUNC)				\

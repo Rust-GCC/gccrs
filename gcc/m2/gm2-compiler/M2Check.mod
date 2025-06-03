@@ -1,6 +1,6 @@
 (* M2Check.mod perform rigerous type checking for fully declared symbols.
 
-Copyright (C) 2020-2024 Free Software Foundation, Inc.
+Copyright (C) 2020-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -36,17 +36,19 @@ FROM M2System IMPORT IsSystemType, IsGenericSystemType, IsSameSize, IsComplexN ;
 FROM M2Base IMPORT IsParameterCompatible, IsAssignmentCompatible, IsExpressionCompatible, IsComparisonCompatible, IsBaseType, IsMathType, ZType, CType, RType, IsComplexType, Char ;
 FROM Indexing IMPORT Index, InitIndex, GetIndice, PutIndice, KillIndex, HighIndice, LowIndice, IncludeIndiceIntoIndex, ForeachIndiceInIndexDo ;
 FROM M2Error IMPORT Error, InternalError, NewError, ErrorString, ChainError ;
-FROM M2MetaError IMPORT MetaErrorStringT2, MetaErrorStringT3, MetaErrorStringT4, MetaString2, MetaString3, MetaString4 ;
+FROM M2MetaError IMPORT MetaErrorStringT2, MetaErrorStringT3, MetaErrorStringT4, MetaString2, MetaString3, MetaString4, MetaError1 ;
 FROM StrLib IMPORT StrEqual ;
 FROM M2Debug IMPORT Assert ;
 
 FROM SymbolTable IMPORT NulSym, IsRecord, IsSet, GetDType, GetSType, IsType,
-                        SkipType, IsProcedure, NoOfParam, IsVarParam, GetNth,
-                        GetNthParam, IsProcType, IsVar, IsEnumeration, IsArray,
-                        GetDeclaredMod, IsSubrange, GetArraySubscript, IsConst,
+                        SkipType, IsProcedure, NoOfParamAny, IsVarParamAny, GetNth,
+                        GetNthParamAny, IsProcType, IsVar, IsEnumeration, IsArray,
+                        IsSubrange, GetArraySubscript, IsConst,
                         IsReallyPointer, IsPointer, IsParameter, ModeOfAddr,
                         GetMode, GetType, IsUnbounded, IsComposite, IsConstructor,
-                        IsParameter, IsConstString, IsConstLitInternal, IsConstLit ;
+                        IsParameter, IsConstString, IsConstLitInternal, IsConstLit,
+                        GetStringLength, GetProcedureProcType, IsHiddenType,
+                        IsHiddenReallyPointer, GetDimension ;
 
 FROM M2GCCDeclare IMPORT GetTypeMin, GetTypeMax ;
 FROM M2System IMPORT Address ;
@@ -258,7 +260,132 @@ END checkSubrange ;
 
 
 (*
-   checkArrayTypeEquivalence -
+   checkUnboundedArray - returns status if unbounded is parameter compatible with array.
+                         It checks all type equivalences of the static array for a
+                         match with the dynamic (unbounded) array.
+*)
+
+PROCEDURE checkUnboundedArray (result: status;
+                               unbounded, array: CARDINAL) : status ;
+VAR
+   dim   : CARDINAL ;
+   ubtype,
+   type  : CARDINAL ;
+BEGIN
+   (* Firstly check to see if we have resolved this as false.  *)
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSE
+      Assert (IsUnbounded (unbounded)) ;
+      Assert (IsArray (array)) ;
+      dim := GetDimension (unbounded) ;
+      ubtype := GetType (unbounded) ;
+      type := array ;
+      REPEAT
+         type := GetType (type) ;
+         DEC (dim) ;
+         (* Check type equivalences.  *)
+         IF checkTypeEquivalence (result, type, ubtype) = true
+         THEN
+            RETURN true
+         END ;
+         type := SkipType (type) ;
+         (* If we have run out of dimensions we conclude false.  *)
+         IF dim = 0
+         THEN
+            RETURN false
+         END ;
+      UNTIL NOT IsArray (type)
+   END ;
+   RETURN false
+END checkUnboundedArray ;
+
+
+(*
+   checkUnboundedUnbounded - check to see if formal and actual are compatible.
+                             Both are unbounded parameters.
+*)
+
+PROCEDURE checkUnboundedUnbounded (result: status;
+                                   tinfo: tInfo;
+                                   formal, actual: CARDINAL) : status ;
+BEGIN
+   (* Firstly check to see if we have resolved this as false.  *)
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSE
+      Assert (IsUnbounded (formal)) ;
+      Assert (IsUnbounded (actual)) ;
+      (* The actual parameter above might be a different symbol to the actual parameter
+         symbol in the tinfo.  So we must compare the original actual parameter against
+         the formal.
+         The actual above maybe a temporary which is created after derefencing an array.
+         For example 'bar[10]' where bar is defined as ARRAY OF ARRAY OF CARDINAL.
+         The GetDimension for 'bar[10]' is 1 indicating that one dimension has been
+         referenced.  We use GetDimension for 'bar' which is 2.  *)
+      IF GetDimension (formal) # GetDimension (tinfo^.actual)
+      THEN
+         RETURN false
+      END ;
+      IF checkTypeEquivalence (result, GetType (formal), GetType (actual)) = true
+      THEN
+         RETURN true
+      END
+   END ;
+   RETURN false
+END checkUnboundedUnbounded ;
+
+
+(*
+   checkUnbounded - check to see if the unbounded is type compatible with right.
+                    This is only allowed during parameter passing.
+*)
+
+PROCEDURE checkUnbounded (result: status;
+                          tinfo: tInfo;
+                          unbounded, right: CARDINAL) : status ;
+BEGIN
+   (* Firstly check to see if we have resolved this as false.  *)
+   IF isFalse (result)
+   THEN
+      RETURN result
+   ELSE
+      Assert (IsUnbounded (unbounded)) ;
+      IF tinfo^.kind = parameter
+      THEN
+         (* Check the unbounded data type against the type of right, SYSTEM types
+            are compared by the caller, so no need to test for them again.  *)
+         IF isSkipEquivalence (GetType (unbounded), right)
+         THEN
+            RETURN true
+         ELSIF IsType (right)
+         THEN
+            IF GetType (right) = NulSym
+            THEN
+               (* Base type check.  *)
+               RETURN checkPair (result, tinfo, GetType (unbounded), right)
+            ELSE
+               (* It is safe to GetType (right) and we check the pair
+                  [unbounded, GetType (right)].  *)
+               RETURN checkPair (result, tinfo, unbounded, GetType (right))
+            END
+         ELSIF IsArray (right)
+         THEN
+            RETURN checkUnboundedArray (result, unbounded, right)
+         ELSIF IsUnbounded (right)
+         THEN
+            RETURN checkUnboundedUnbounded (result, tinfo, unbounded, right)
+         END
+      END
+   END ;
+   RETURN false
+END checkUnbounded ;
+
+
+(*
+   checkArrayTypeEquivalence - check array and unbounded array type equivalence.
 *)
 
 PROCEDURE checkArrayTypeEquivalence (result: status; tinfo: tInfo;
@@ -273,7 +400,7 @@ BEGIN
    THEN
       lSub := GetArraySubscript (left) ;
       rSub := GetArraySubscript (right) ;
-      result := checkPair (result, tinfo, GetType (left), GetType (right)) ;
+      result := checkPair (result, tinfo, GetSType (left), GetSType (right)) ;
       IF (lSub # NulSym) AND (rSub # NulSym)
       THEN
          result := checkSubrange (result, tinfo, getSType (lSub), getSType (rSub))
@@ -284,8 +411,22 @@ BEGIN
       THEN
          RETURN true
       ELSE
-         result := checkPair (result, tinfo, GetType (left), GetType (right))
+         result := checkUnbounded (result, tinfo, left, right)
       END
+   ELSIF IsUnbounded (right) AND (IsArray (left) OR IsUnbounded (left))
+   THEN
+      IF IsGenericSystemType (getSType (right)) OR IsGenericSystemType (getSType (left))
+      THEN
+         RETURN true
+      ELSE
+         result := checkUnbounded (result, tinfo, right, left)
+      END
+   ELSIF IsArray (left) AND IsConst (right)
+   THEN
+      result := checkPair (result, tinfo, GetType (left), GetType (right))
+   ELSIF IsArray (right) AND IsConst (left)
+   THEN
+      result := checkPair (result, tinfo, GetType (left), GetType (right))
    END ;
    RETURN result
 END checkArrayTypeEquivalence ;
@@ -363,10 +504,8 @@ BEGIN
       (* and also generate a sub error containing detail.  *)
       IF (left # tinfo^.left) OR (right # tinfo^.right)
       THEN
-         tinfo^.error := ChainError (tinfo^.token, tinfo^.error) ;
-         s := MetaString2 (InitString ("{%1Ead} and {%2ad} are incompatible as formal and actual procedure parameters"),
-                           left, right) ;
-         ErrorString (tinfo^.error, s)
+         MetaError1 ('formal parameter {%1EDad}', right) ;
+         MetaError1 ('actual parameter {%1EDad}', left)
       END
    END
 END buildError4 ;
@@ -486,7 +625,14 @@ END checkBaseEquivalence ;
 
 
 (*
-   checkPair -
+   checkPair - check whether left and right are type compatible.
+               It will update the visited, unresolved list before
+               calling the docheckPair for the cascaded type checking.
+               Pre-condition: tinfo is initialized.
+                              left and right are modula2 symbols.
+               Post-condition: tinfo visited, resolved, unresolved lists
+                               are updated and the result status is
+                               returned.
 *)
 
 PROCEDURE checkPair (result: status; tinfo: tInfo;
@@ -547,12 +693,12 @@ END checkBaseTypeEquivalence ;
 
 
 (*
-   IsTyped -
+   IsTyped - returns TRUE if sym will have a type.
 *)
 
 PROCEDURE IsTyped (sym: CARDINAL) : BOOLEAN ;
 BEGIN
-   RETURN IsVar (sym) OR IsVar (sym) OR IsParameter (sym) OR
+   RETURN IsVar (sym) OR IsParameter (sym) OR IsConstructor (sym) OR
           (IsConst (sym) AND IsConstructor (sym)) OR IsParameter (sym) OR
           (IsConst (sym) AND (GetType (sym) # NulSym))
 END IsTyped ;
@@ -622,6 +768,7 @@ END checkVarEquivalence ;
 PROCEDURE checkConstMeta (result: status; tinfo: tInfo;
                           left, right: CARDINAL) : status ;
 VAR
+   typeLeft,
    typeRight: CARDINAL ;
 BEGIN
    Assert (IsConst (left)) ;
@@ -630,16 +777,37 @@ BEGIN
       RETURN result
    ELSIF IsConstString (left)
    THEN
-      typeRight := GetDType (right) ;
-      IF typeRight = NulSym
+      IF IsConstString (right)
       THEN
-         RETURN result
-      ELSIF IsSet (typeRight) OR IsEnumeration (typeRight) OR IsProcedure (typeRight) OR
-            IsRecord (typeRight)
+         RETURN true
+      ELSIF IsTyped (right)
+      THEN
+         typeRight := GetDType (right) ;
+         IF typeRight = NulSym
+         THEN
+            RETURN result
+         ELSIF IsSet (typeRight) OR IsEnumeration (typeRight) OR
+               IsProcedure (typeRight) OR IsRecord (typeRight) OR
+               IsReallyPointer (typeRight)
+         THEN
+            RETURN false
+         ELSIF IsArray (typeRight)
+         THEN
+            RETURN doCheckPair (result, tinfo, Char, GetType (typeRight))
+         ELSIF GetStringLength (tinfo^.token, left) = 1
+         THEN
+            RETURN doCheckPair (result, tinfo, Char, typeRight)
+         END
+      END
+   ELSIF IsTyped (left) AND IsTyped (right)
+   THEN
+      typeRight := GetDType (right) ;
+      typeLeft := GetDType (left) ;
+      IF IsZRCType (typeLeft) AND IsUnbounded (typeRight)
       THEN
          RETURN false
       ELSE
-         RETURN doCheckPair (result, tinfo, Char, typeRight)
+         RETURN doCheckPair (result, tinfo, typeLeft, typeRight)
       END
    END ;
    RETURN result
@@ -705,7 +873,19 @@ END checkSubrangeTypeEquivalence ;
 
 
 (*
-   isZRC -
+   IsZRCType - return TRUE if type is a ZType, RType or a CType.
+*)
+
+PROCEDURE IsZRCType (type: CARDINAL) : BOOLEAN ;
+BEGIN
+   RETURN (type = CType) OR (type = ZType) OR (type = RType)
+END IsZRCType ;
+
+
+(*
+   isZRC - return TRUE if zrc is a ZType, RType or a CType
+           and sym is either a complex type when zrc = CType
+           or is not a composite type when zrc is a RType or ZType.
 *)
 
 PROCEDURE isZRC (zrc, sym: CARDINAL) : BOOLEAN ;
@@ -773,7 +953,38 @@ END checkSystemEquivalence ;
 
 
 (*
-   doCheckPair -
+   checkTypeKindViolation - returns false if one operand left or right is
+                            a set, record or array.
+*)
+
+PROCEDURE checkTypeKindViolation (result: status;
+                                  left, right: CARDINAL) : status ;
+BEGIN
+   IF isFalse (result) OR (result = visited)
+   THEN
+      RETURN result
+   ELSE
+      (* We have checked IsSet (left) and IsSet (right) etc in doCheckPair.  *)
+      IF (IsSet (left) OR IsSet (right)) OR
+         (IsRecord (left) OR IsRecord (right)) OR
+         (IsArray (left) OR IsArray (right))
+      THEN
+         RETURN false
+      END
+   END ;
+   RETURN result
+END checkTypeKindViolation ;
+
+
+(*
+   doCheckPair - invoke a series of ordered type checks checking compatibility
+                 between left and right modula2 symbols.
+                 Pre-condition: left and right are modula-2 symbols.
+                                tinfo is configured.
+                 Post-condition: status is returned determining the
+                                 correctness of the type check.
+                                 The tinfo resolved, unresolved, visited
+                                 lists will be updated.
 *)
 
 PROCEDURE doCheckPair (result: status; tinfo: tInfo;
@@ -810,7 +1021,11 @@ BEGIN
                            result := checkGenericTypeEquivalence (result, left, right) ;
                            IF NOT isKnown (result)
                            THEN
-                              result := checkTypeKindEquivalence (result, tinfo, left, right)
+                              result := checkTypeKindEquivalence (result, tinfo, left, right) ;
+                              IF NOT isKnown (result)
+                              THEN
+                                 result := checkTypeKindViolation (result, left, right)
+                              END
                            END
                         END
                      END
@@ -864,7 +1079,7 @@ BEGIN
          result := checkPair (unknown, tinfo, lt, rt)
       END ;
 
-      IF NoOfParam (left) # NoOfParam (right)
+      IF NoOfParamAny (left) # NoOfParamAny (right)
       THEN
          IF tinfo^.format # NIL
          THEN
@@ -873,11 +1088,11 @@ BEGIN
          RETURN return (false, tinfo, left, right)
       END ;
       i := 1 ;
-      n := NoOfParam (left) ;
+      n := NoOfParamAny (left) ;
       WHILE i <= n DO
-         IF IsVarParam (left, i) # IsVarParam (right, i)
+         IF IsVarParamAny (left, i) # IsVarParamAny (right, i)
          THEN
-            IF IsVarParam (left, i)
+            IF IsVarParamAny (left, i)
             THEN
                IF tinfo^.format # NIL
                THEN
@@ -891,7 +1106,7 @@ BEGIN
             END ;
             RETURN return (false, tinfo, left, right)
          END ;
-         result := checkPair (result, tinfo, GetDType (GetNthParam (left, i)), GetDType (GetNthParam (right, i))) ;
+         result := checkPair (result, tinfo, GetDType (GetNthParamAny (left, i)), GetDType (GetNthParamAny (right, i))) ;
          INC (i)
       END
    END ;
@@ -937,7 +1152,7 @@ BEGIN
          result := checkPair (result, tinfo, lt, rt)
       END ;
 
-      IF NoOfParam (left) # NoOfParam (right)
+      IF NoOfParamAny (left) # NoOfParamAny (right)
       THEN
          IF tinfo^.format # NIL
          THEN
@@ -946,11 +1161,11 @@ BEGIN
          RETURN return (false, tinfo, left, right)
       END ;
       i := 1 ;
-      n := NoOfParam (left) ;
+      n := NoOfParamAny (left) ;
       WHILE i <= n DO
-         IF IsVarParam (left, i) # IsVarParam (right, i)
+         IF IsVarParamAny (left, i) # IsVarParamAny (right, i)
          THEN
-            IF IsVarParam (left, i)
+            IF IsVarParamAny (left, i)
             THEN
                IF tinfo^.format # NIL
                THEN
@@ -964,7 +1179,7 @@ BEGIN
             END ;
             RETURN return (false, tinfo, left, right)
          END ;
-         result := checkPair (result, tinfo, GetDType (GetNthParam (left, i)), GetDType (GetNthParam (right, i))) ;
+         result := checkPair (result, tinfo, GetDType (GetNthParamAny (left, i)), GetDType (GetNthParamAny (right, i))) ;
          INC (i)
       END
    END ;
@@ -1316,7 +1531,7 @@ PROCEDURE getType (sym: CARDINAL) : CARDINAL ;
 BEGIN
    IF (sym # NulSym) AND IsProcedure (sym)
    THEN
-      RETURN Address
+      RETURN GetProcedureProcType (sym)
    ELSIF IsTyped (sym)
    THEN
       RETURN GetDType (sym)

@@ -1,6 +1,6 @@
 // -*- C++ -*- forwarding header.
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -36,13 +36,15 @@
 // ISO C++ 14882: 20.5  Date and time
 //
 
+#ifndef _GLIBCXX_CTIME
+#define _GLIBCXX_CTIME 1
+
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 #include <time.h>
-
-#ifndef _GLIBCXX_CTIME
-#define _GLIBCXX_CTIME 1
 
 // Get rid of those macros defined in <time.h> in lieu of real functions.
 #undef clock

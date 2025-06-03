@@ -1,5 +1,5 @@
 /* SSA name expresssons routines
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -61,6 +61,7 @@ extern bool set_range_info (tree, const vrange &);
 extern void set_nonzero_bits (tree, const wide_int &);
 extern void set_bitmask (tree, const wide_int &value, const wide_int &mask);
 extern wide_int get_nonzero_bits (const_tree);
+extern wide_int get_known_nonzero_bits (const_tree);
 extern bool ssa_name_has_boolean_range (tree);
 extern void init_ssanames (struct function *, int);
 extern void fini_ssanames (struct function *);
@@ -79,9 +80,10 @@ extern struct ptr_info_def *get_ptr_info (tree);
 extern void set_ptr_nonnull (tree);
 
 extern tree copy_ssa_name_fn (struct function *, tree, gimple *);
-extern void duplicate_ssa_name_ptr_info (tree, struct ptr_info_def *);
 extern tree duplicate_ssa_name_fn (struct function *, tree, gimple *);
+extern void duplicate_ssa_name_ptr_info (tree, struct ptr_info_def *);
 extern void duplicate_ssa_name_range_info (tree dest, tree src);
+extern void maybe_duplicate_ssa_info_at_copy (tree dest, tree src);
 extern void reset_flow_sensitive_info (tree);
 extern void reset_flow_sensitive_info_in_bb (basic_block);
 extern void release_defs (gimple *);

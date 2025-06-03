@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -161,10 +161,10 @@ namespace std {
 
 #if __cplusplus > 201703L
   template<class M, class N>
-    constexpr common_type_t<M,N> gcd(M m, N n);
+    constexpr common_type_t<M,N> gcd(M m, N n) noexcept;
 
   template<class M, class N>
-    constexpr common_type_t<M,N> lcm(M m, N n);
+    constexpr common_type_t<M,N> lcm(M m, N n) noexcept;
 
   template<class T>
     constexpr T midpoint(T a, T b) noexcept;

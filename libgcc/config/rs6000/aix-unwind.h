@@ -1,5 +1,5 @@
 /* DWARF2 EH unwinding support for AIX.
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -110,7 +110,7 @@ typedef struct {
   uint     pad1 [4];
   vstate_t vstate;
   char     bumper [BUMPER_SIZE];
-  int      mark; 
+  int      mark;
 } extended_context_t;
 
 typedef struct {
@@ -160,7 +160,7 @@ ucontext_for (struct _Unwind_Context *context)
 	  switch (*(ra + 18))
 	    {
 	      /* AIX 5.2 */
-	    case 0x835a0520: /* lwz r26,1312(r26) */ 
+	    case 0x835a0520: /* lwz r26,1312(r26) */
 	      return (ucontext_t *)(context->cfa + 0x70);
 
 	      /* AIX 5.3 */

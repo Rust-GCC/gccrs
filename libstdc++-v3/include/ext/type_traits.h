@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2024 Free Software Foundation, Inc.
+// Copyright (C) 2005-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -29,10 +29,15 @@
 #ifndef _EXT_TYPE_TRAITS
 #define _EXT_TYPE_TRAITS 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 #include <bits/cpp_type_traits.h>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wlong-long"
 
 extern "C++" {
 
@@ -42,7 +47,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Define a nested type if some predicate holds.
   template<bool, typename>
-    struct __enable_if 
+    struct __enable_if
     { };
 
   template<typename _Tp>
@@ -63,12 +68,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Given an integral builtin type, return the corresponding unsigned type.
   template<typename _Tp>
     struct __add_unsigned
-    { 
+    {
     private:
       typedef __enable_if<std::__is_integer<_Tp>::__value, _Tp> __if_type;
-      
+
     public:
-      typedef typename __if_type::__type __type; 
+      typedef typename __if_type::__type __type;
     };
 
   template<>
@@ -106,12 +111,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Given an integral builtin type, return the corresponding signed type.
   template<typename _Tp>
     struct __remove_unsigned
-    { 
+    {
     private:
       typedef __enable_if<std::__is_integer<_Tp>::__value, _Tp> __if_type;
-      
+
     public:
-      typedef typename __if_type::__type __type; 
+      typedef typename __if_type::__type __type;
     };
 
   template<>
@@ -270,4 +275,6 @@ _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 } // extern "C++"
 
-#endif 
+#pragma GCC diagnostic pop
+
+#endif

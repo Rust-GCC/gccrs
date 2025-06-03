@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2023-2024 Free Software Foundation, Inc.
+# Copyright (C) 2023-2025 Free Software Foundation, Inc.
 #
 # Script to regenerate FOO.opt.urls files for each FOO.opt in the
 # source tree.
@@ -248,7 +248,6 @@ TARGET_SPECIFIC_PAGES = {
     'gcc/MicroBlaze-Options.html' : 'gcc/config/microblaze/',
     'gcc/Moxie-Options.html' : 'gcc/config/moxie/',
     'gcc/NDS32-Options.html' : 'gcc/config/nds32/',
-    'gcc/Nios-II-Options.html' : 'gcc/config/nios2/',
     'gcc/Nvidia-PTX-Options.html' : 'gcc/config/nvptx/',
     'gcc/OpenRISC-Options.html' : 'gcc/config/or1k/',
     'gcc/PDP-11-Options.html' : 'gcc/config/pdp11',
@@ -260,8 +259,8 @@ TARGET_SPECIFIC_PAGES = {
     'gcc/SH-Options.html' : 'gcc/config/sh/',
     'gcc/SPARC-Options.html' : 'gcc/config/sparc/',
     'gcc/S_002f390-and-zSeries-Options.html' : 'gcc/config/s390',
-    'gcc/V850-Options.html' : 'gcc/config/vax/',
-    'gcc/VAX-Options.html' : 'gcc/config/v850/',
+    'gcc/V850-Options.html' : 'gcc/config/v850/',
+    'gcc/VAX-Options.html' : 'gcc/config/vax/',
     'gcc/Visium-Options.html' : 'gcc/config/visium/',
     'gcc/Xstormy16-Options.html' : 'gcc/config/stormy16/',
     'gcc/Xtensa-Options.html' : 'gcc/config/xtensa/',

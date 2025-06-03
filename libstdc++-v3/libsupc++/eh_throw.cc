@@ -1,5 +1,5 @@
 // -*- C++ -*- Exception handling routines for throwing.
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -129,7 +129,7 @@ __cxxabiv1::__cxa_rethrow ()
       _Unwind_Resume_or_Rethrow (&header->unwindHeader);
 #endif
 #endif
-  
+
       // Some sort of unwinding error.  Note that terminate is a handler.
       __cxa_begin_catch (&header->unwindHeader);
     }

@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2024 Free Software Foundation, Inc.
+// Copyright (C) 2019-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -116,10 +116,27 @@ test04()
   VERIFY(std::ranges::cbegin(std::move(c)) == std::ranges::begin(c));
 }
 
+void
+test05()
+{
+  // LWG 4027 - possibly-const-range should prefer returning const R&
+  auto r = std::views::single(0)
+    | std::views::transform([](int) { return 0; });
+  using C1 = decltype(std::ranges::cbegin(r));
+  using C1 = decltype(std::cbegin(r));
+
+  [] (auto x) {
+    auto r = std::views::single(x) | std::views::lazy_split(0);
+    static_assert(!requires { (*std::ranges::cbegin(r)).front() = 42; });
+    static_assert(!requires { (*std::cbegin(r)).front() = 42; });
+  }(0);
+}
+
 int
 main()
 {
   test01();
   test03();
   test04();
+  test05();
 }

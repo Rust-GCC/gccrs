@@ -1,6 +1,6 @@
 // Map implementation -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -61,6 +61,9 @@
 #if __cplusplus >= 201103L
 #include <initializer_list>
 #include <tuple>
+#endif
+#if __glibcxx_containers_ranges // C++ >= 23
+# include <bits/ranges_base.h> // ranges::begin, ranges::distance etc.
 #endif
 
 namespace std _GLIBCXX_VISIBILITY(default)
@@ -180,7 +183,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       typedef typename _Rep_type::reverse_iterator	 reverse_iterator;
       typedef typename _Rep_type::const_reverse_iterator const_reverse_iterator;
 
-#if __cplusplus > 201402L
+#ifdef __glibcxx_node_extract // >= C++17
       using node_type = typename _Rep_type::node_type;
       using insert_return_type = typename _Rep_type::insert_return_type;
 #endif
@@ -304,6 +307,26 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    const allocator_type& __a = allocator_type())
 	: _M_t(__comp, _Pair_alloc_type(__a))
 	{ _M_t._M_insert_range_unique(__first, __last); }
+
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       * @brief Builds a %map from a range.
+       * @since C++23
+       */
+      template<__detail::__container_compatible_range<value_type> _Rg>
+	map(from_range_t, _Rg&& __rg,
+	    const _Compare& __comp,
+	    const _Alloc& __a = _Alloc())
+	: _M_t(__comp, _Pair_alloc_type(__a))
+	{ insert_range(std::forward<_Rg>(__rg)); }
+
+      /// Allocator-extended range constructor.
+      template<__detail::__container_compatible_range<value_type> _Rg>
+	map(from_range_t, _Rg&& __rg, const _Alloc& __a = _Alloc())
+	: _M_t(_Pair_alloc_type(__a))
+	{ insert_range(std::forward<_Rg>(__rg)); }
+#endif
+
 
 #if __cplusplus >= 201103L
       /**
@@ -642,7 +665,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	}
 #endif
 
-#if __cplusplus > 201402L
+#ifdef __glibcxx_node_extract // >= C++17
       /// Extract a node.
       node_type
       extract(const_iterator __pos)
@@ -878,6 +901,24 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       void
       insert(std::initializer_list<value_type> __list)
       { insert(__list.begin(), __list.end()); }
+#endif
+
+#if __glibcxx_containers_ranges // C++ >= 23
+      /**
+       *  @brief Inserts a range of elements.
+       *  @since C++23
+       *  @param  __rg An input range of elements that can be converted to
+       *               the map's value type.
+       */
+      template<__detail::__container_compatible_range<value_type> _Rg>
+	void
+	insert_range(_Rg&& __rg)
+	{
+	  auto __first = ranges::begin(__rg);
+	  const auto __last = ranges::end(__rg);
+	  for (; __first != __last; ++__first)
+	    insert(*__first);
+	}
 #endif
 
       /**
@@ -1494,6 +1535,24 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	   typename = _RequireAllocator<_Allocator>>
     map(initializer_list<pair<_Key, _Tp>>, _Allocator)
     -> map<_Key, _Tp, less<_Key>, _Allocator>;
+
+#if __glibcxx_containers_ranges // C++ >= 23
+  template<ranges::input_range _Rg,
+	   __not_allocator_like _Compare = less<__detail::__range_key_type<_Rg>>,
+	   __allocator_like _Alloc =
+	      std::allocator<__detail::__range_to_alloc_type<_Rg>>>
+    map(from_range_t, _Rg&&, _Compare = _Compare(), _Alloc = _Alloc())
+      -> map<__detail::__range_key_type<_Rg>,
+	     __detail::__range_mapped_type<_Rg>,
+	     _Compare, _Alloc>;
+
+  template<ranges::input_range _Rg, __allocator_like _Alloc>
+    map(from_range_t, _Rg&&, _Alloc)
+      -> map<__detail::__range_key_type<_Rg>,
+	     __detail::__range_mapped_type<_Rg>,
+	     less<__detail::__range_key_type<_Rg>>,
+	     _Alloc>;
+#endif
 
 #endif // deduction guides
 

@@ -33,14 +33,15 @@ malign-data=
 UrlSuffix(gcc/x86-Options.html#index-malign-data-1)
 
 march=
-UrlSuffix(gcc/x86-Options.html#index-march-16)
+UrlSuffix(gcc/x86-Options.html#index-march-15)
 
 ; skipping UrlSuffix for 'mbranch-cost=' due to finding no URLs
 
 mlarge-data-threshold=
 UrlSuffix(gcc/x86-Options.html#index-mlarge-data-threshold)
 
-; skipping UrlSuffix for 'mcmodel=' due to finding no URLs
+mcmodel=
+UrlSuffix(gcc/x86-Options.html#index-mcmodel_003d-7)
 
 mcpu=
 UrlSuffix(gcc/x86-Options.html#index-mcpu-14)
@@ -128,7 +129,7 @@ mstackrealign
 UrlSuffix(gcc/x86-Options.html#index-mstackrealign)
 
 mtls-dialect=
-UrlSuffix(gcc/x86-Options.html#index-mtls-dialect-1)
+UrlSuffix(gcc/x86-Options.html#index-mtls-dialect-2)
 
 mtls-direct-seg-refs
 UrlSuffix(gcc/x86-Options.html#index-mtls-direct-seg-refs)
@@ -238,12 +239,6 @@ UrlSuffix(gcc/x86-Options.html#index-mavx2)
 mavx512f
 UrlSuffix(gcc/x86-Options.html#index-mavx512f)
 
-mavx512pf
-UrlSuffix(gcc/x86-Options.html#index-mavx512pf)
-
-mavx512er
-UrlSuffix(gcc/x86-Options.html#index-mavx512er)
-
 mavx512cd
 UrlSuffix(gcc/x86-Options.html#index-mavx512cd)
 
@@ -261,12 +256,6 @@ UrlSuffix(gcc/x86-Options.html#index-mavx512ifma)
 
 mavx512vbmi
 UrlSuffix(gcc/x86-Options.html#index-mavx512vbmi)
-
-mavx5124fmaps
-UrlSuffix(gcc/x86-Options.html#index-mavx5124fmaps)
-
-mavx5124vnniw
-UrlSuffix(gcc/x86-Options.html#index-mavx5124vnniw)
 
 mavx512vpopcntdq
 UrlSuffix(gcc/x86-Options.html#index-mavx512vpopcntdq)
@@ -409,9 +398,6 @@ UrlSuffix(gcc/x86-Options.html#index-mrdrnd)
 mf16c
 UrlSuffix(gcc/x86-Options.html#index-mf16c)
 
-mprefetchwt1
-UrlSuffix(gcc/x86-Options.html#index-mprefetchwt1)
-
 mfentry
 UrlSuffix(gcc/x86-Options.html#index-mfentry)
 
@@ -460,7 +446,8 @@ UrlSuffix(gcc/x86-Options.html#index-mstack-protector-guard-reg-3)
 mstack-protector-guard-offset=
 UrlSuffix(gcc/x86-Options.html#index-mstack-protector-guard-offset-4)
 
-; skipping UrlSuffix for 'mstack-protector-guard-symbol=' due to finding no URLs
+mstack-protector-guard-symbol=
+UrlSuffix(gcc/x86-Options.html#index-mstack-protector-guard-symbol)
 
 mgeneral-regs-only
 UrlSuffix(gcc/x86-Options.html#index-mgeneral-regs-only-2)
@@ -612,9 +599,30 @@ UrlSuffix(gcc/x86-Options.html#index-musermsr)
 mavx10.1-256
 UrlSuffix(gcc/x86-Options.html#index-mavx10_002e1-256)
 
+mavx10.1
+UrlSuffix(gcc/x86-Options.html#index-mavx10_002e1)
+
 mavx10.1-512
 UrlSuffix(gcc/x86-Options.html#index-mavx10_002e1-512)
 
-mavx10.1
-UrlSuffix(gcc/x86-Options.html#index-mavx10_002e1)
+mavx10.2
+UrlSuffix(gcc/x86-Options.html#index-mavx10_002e2)
+
+mamx-avx512
+UrlSuffix(gcc/x86-Options.html#index-mamx-avx512)
+
+mamx-tf32
+UrlSuffix(gcc/x86-Options.html#index-mamx-tf32)
+
+mamx-transpose
+UrlSuffix(gcc/x86-Options.html#index-mamx-transpose)
+
+mamx-fp8
+UrlSuffix(gcc/x86-Options.html#index-mamx-fp8)
+
+mmovrs
+UrlSuffix(gcc/x86-Options.html#index-mmovrs)
+
+mamx-movrs
+UrlSuffix(gcc/x86-Options.html#index-mamx-movrs)
 

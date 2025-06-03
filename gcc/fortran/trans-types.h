@@ -1,5 +1,5 @@
 /* Header for Fortran 95 types backend support.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
    and Steven Bosscher <s.bosscher@student.tudelft.nl>
 
@@ -76,6 +76,7 @@ void gfc_init_c_interop_kinds (void);
 
 tree get_dtype_type_node (void);
 tree gfc_get_int_type (int);
+tree gfc_get_unsigned_type (int);
 tree gfc_get_real_type (int);
 tree gfc_get_complex_type (int);
 tree gfc_get_logical_type (int);

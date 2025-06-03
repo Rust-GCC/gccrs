@@ -1,5 +1,5 @@
 /* Interprocedural constant propagation
-   Copyright (C) 2024 Free Software Foundation, Inc.
+   Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -230,7 +230,7 @@ private:
 class ipcp_vr_lattice
 {
 public:
-  Value_Range m_vr;
+  value_range m_vr;
 
   inline bool bottom_p () const;
   inline bool top_p () const;
@@ -288,5 +288,28 @@ public:
   /* There is a virtual call based on this parameter.  */
   bool virt_call = false;
 };
+
+bool values_equal_for_ipcp_p (tree x, tree y);
+
+/* Return TRUE if IPA supports ranges of TYPE.  */
+
+static inline bool
+ipa_vr_supported_type_p (tree type)
+{
+  return irange::supports_p (type) || prange::supports_p (type);
+}
+
+class ipa_vr;
+
+bool ipa_vr_operation_and_type_effects (vrange &dst_vr,
+					const vrange &src_vr,
+					enum tree_code operation,
+					tree dst_type, tree src_type);
+bool ipa_vr_operation_and_type_effects (vrange &dst_vr,
+					const ipa_vr &src_vr,
+					enum tree_code operation,
+					tree dst_type, tree src_type);
+
+
 
 #endif /* IPA_CP_H */

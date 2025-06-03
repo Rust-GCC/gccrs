@@ -1,5 +1,5 @@
 /* Target hook definitions.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -463,7 +463,7 @@ is emitted.",
 
 /* Return preferred text (sub)section for function DECL.
    Main purpose of this function is to separate cold, normal and hot
-   functions. STARTUP is true when function is known to be used only 
+   functions. STARTUP is true when function is known to be used only
    at startup (from static constructors or it is main()).
    EXIT is true when function is known to be used only at exit
    (from static destructors).
@@ -1645,10 +1645,10 @@ void, (struct cgraph_node *), NULL)
 DEFHOOK
 (usable,
 "This hook should return -1 if SIMD clone @var{node} shouldn't be used\n\
-in vectorized loops in current function, or non-negative number if it is\n\
-usable.  In that case, the smaller the number is, the more desirable it is\n\
-to use it.",
-int, (struct cgraph_node *), NULL)
+in vectorized loops in current function with @var{vector_mode}, or\n\
+non-negative number if it is usable.  In that case, the smaller the number\n\
+is, the more desirable it is to use it.",
+int, (struct cgraph_node *, machine_mode), NULL)
 
 HOOK_VECTOR_END (simd_clone)
 
@@ -2033,6 +2033,18 @@ same size and number of elements as @var{mode}, if such a mode exists.",
  (machine_mode mode),
  default_get_mask_mode)
 
+/* Function to say whether a conditional operation is expensive when
+   compared to non-masked operations.  */
+DEFHOOK
+(conditional_operation_is_expensive,
+ "This hook returns true if masked operation @var{ifn} (really of\n\
+type @code{internal_fn}) should be considered more expensive to use than\n\
+implementing the same operation without masking.  GCC can then try to use\n\
+unconditional operations instead with extra selects.",
+ bool,
+ (unsigned ifn),
+ default_conditional_operation_is_expensive)
+
 /* Function to say whether a masked operation is expensive when the
    mask is all zeros.  */
 DEFHOOK
@@ -2314,10 +2326,10 @@ attribute handlers.  So far this only affects the @var{noinit} and\n\
 DEFHOOK
 (function_attribute_inlinable_p,
  "@cindex inlining\n\
-This target hook returns @code{true} if it is OK to inline @var{fndecl}\n\
-into the current function, despite its having target-specific\n\
-attributes, @code{false} otherwise.  By default, if a function has a\n\
-target specific attribute attached to it, it will not be inlined.",
+This target hook returns @code{false} if the target-specific attributes on\n\
+@var{fndecl} always block it getting inlined, @code{true} otherwise.  By\n\
+default, if a function has a target specific attribute attached to it, it\n\
+will not be inlined.",
  bool, (const_tree fndecl),
  hook_bool_const_tree_false)
 
@@ -2484,8 +2496,11 @@ declaration of the built-in function.  @var{arglist} is the list of\n\
 arguments passed to the built-in function.  The result is a\n\
 complete expression that implements the operation, usually\n\
 another @code{CALL_EXPR}.\n\
-@var{arglist} really has type @samp{VEC(tree,gc)*}",
- tree, (unsigned int /*location_t*/ loc, tree fndecl, void *arglist), NULL)
+@var{arglist} really has type @samp{VEC(tree,gc)*}\n\
+@var{complain} is a boolean indicating whether invalid operations\n\
+should emit errors.  This is set to @code{false} when the C++ templating\n\
+context expects that errors should not be emitted (i.e. SFINAE).",
+ tree, (location_t loc, tree fndecl, void *arglist, bool complain), NULL)
 
 DEFHOOK
 (check_builtin_call,
@@ -2500,9 +2515,11 @@ but after the optional @code{TARGET_RESOLVE_OVERLOADED_BUILTIN}\n\
 step is now to built-in function @var{fndecl}.  @var{loc} is the\n\
 location of the call and @var{args} is an array of function arguments,\n\
 of which there are @var{nargs}.  @var{arg_loc} specifies the location\n\
-of each argument.",
+of each argument.  @var{complain} is a boolean indicating whether invalid\n\
+arguments should emitm errors.  This is set to @code{false} when the C++\n\
+templating context expects that errors should not be emitted (i.e. SFINAE).",
  bool, (location_t loc, vec<location_t> arg_loc, tree fndecl,
-	tree orig_fndecl, unsigned int nargs, tree *args),
+	tree orig_fndecl, unsigned int nargs, tree *args, bool complain),
  NULL)
 
 /* Fold a target-specific builtin to a tree valid for both GIMPLE
@@ -2557,7 +2574,7 @@ DEFHOOK
 function version at run-time for a given set of function versions.\n\
 @var{arg} points to the callgraph node of the dispatcher function whose\n\
 body must be generated.",
- tree, (void *arg), NULL) 
+ tree, (void *arg), NULL)
 
 /* Target hook is used to get the dispatcher function for a set of function
    versions.  The dispatcher function is called to invoke the right function
@@ -2782,6 +2799,16 @@ DEFHOOK
  @var{bit_code} is @code{AND} or @code{IOR}, which is the op on the compares.",
  rtx, (rtx_insn **prep_seq, rtx_insn **gen_seq, rtx prev, rtx_code cmp_code, tree op0, tree op1, rtx_code bit_code),
  NULL)
+
+/* Return true if the target supports conditional compare.  */
+DEFHOOK
+(have_ccmp,
+ "This target hook returns true if the target supports conditional compare.\n\
+This target hook is required only when the ccmp support is conditionally\n\
+enabled, such as in response to command-line flags. The default implementation\n\
+returns true iff @code{TARGET_GEN_CCMP_FIRST} is defined.",
+ bool, (void),
+ default_have_ccmp)
 
 /* Return a new value for loop unroll size.  */
 DEFHOOK
@@ -3341,6 +3368,29 @@ a pointer to int.",
  bool, (ao_ref *ref),
  default_ref_may_alias_errno)
 
+DEFHOOK
+(mode_can_transfer_bits,
+ "Define this to return false if the mode @var{mode} cannot be used\n\
+for memory copying of @code{GET_MODE_SIZE (mode)} units.  This might be\n\
+because a register class allowed for @var{mode} has registers that do\n\
+not transparently transfer every bit pattern or because the load or\n\
+store patterns available for @var{mode} have this issue.\n\
+\n\
+The default is to assume modes with the same precision as size are fine\n\
+to be used.",
+ bool, (machine_mode mode),
+ NULL)
+
+DEFHOOK
+(redzone_clobber,
+ "Define this to return some RTL for the @code{redzone} @code{asm} clobber\n\
+if target has a red zone and wants to support the @code{redzone} clobber\n\
+or return NULL if the clobber should be ignored.\n\
+\n\
+The default is to ignore the @code{redzone} clobber.",
+ rtx, (),
+ NULL)
+
 /* Support for named address spaces.  */
 #undef HOOK_PREFIX
 #define HOOK_PREFIX "TARGET_ADDR_SPACE_"
@@ -3726,6 +3776,81 @@ are the same as to this target hook.",
  default_memory_move_cost)
 
 DEFHOOK
+(callee_save_cost,
+ "Return the one-off cost of saving or restoring callee-saved registers\n\
+(also known as call-preserved registers or non-volatile registers).\n\
+The parameters are as follows:\n\
+\n\
+@itemize\n\
+@item\n\
+@var{cost_type} is @samp{spill_cost_type::SAVE} for saving a register\n\
+and @samp{spill_cost_type::RESTORE} for restoring a register.\n\
+\n\
+@item\n\
+@var{hard_regno} and @var{mode} represent the whole register that\n\
+the register allocator is considering using; of these,\n\
+@var{nregs} registers are fully or partially callee-saved.\n\
+\n\
+@item\n\
+@var{mem_cost} is the normal cost for storing (for saves)\n\
+or loading (for restores) the @var{nregs} registers.\n\
+\n\
+@item\n\
+@var{allocated_callee_regs} is the set of callee-saved registers\n\
+that are already in use.\n\
+\n\
+@item\n\
+@var{existing_spills_p} is true if the register allocator has\n\
+already decided to spill registers to memory.\n\
+@end itemize\n\
+\n\
+If @var{existing_spills_p} is false, the cost of a save should account\n\
+for frame allocations in a way that is consistent with\n\
+@code{TARGET_FRAME_ALLOCATION_COST}'s handling of allocations for spills.\n\
+Similarly, the cost of a restore should then account for frame deallocations\n\
+in a way that is consistent with @code{TARGET_FRAME_ALLOCATION_COST}'s\n\
+handling of deallocations.\n\
+\n\
+Note that this hook should not attempt to apply a frequency scale\n\
+to the cost: it is the caller's responsibility to do that where\n\
+appropriate.\n\
+\n\
+The default implementation returns @var{mem_cost}, plus the allocation\n\
+or deallocation cost returned by @code{TARGET_FRAME_ALLOCATION_COST},\n\
+where appropriate.",
+ int, (spill_cost_type cost_type, unsigned int hard_regno,
+       machine_mode mode, unsigned int nregs, int mem_cost,
+       const HARD_REG_SET &allocated_callee_regs, bool existing_spills_p),
+ default_callee_save_cost)
+
+DEFHOOK
+(frame_allocation_cost,
+ "Return the cost of allocating or deallocating a frame for the sake of\n\
+a spill; @var{cost_type} chooses between allocation and deallocation.\n\
+The term ``spill'' here includes both forcing a pseudo register to memory\n\
+and using caller-saved registers for pseudo registers that are live across\n\
+a call.\n\
+\n\
+This hook is only called if the register allocator has not so far\n\
+decided to spill.  The allocator may have decided to use callee-saved\n\
+registers; if so, @var{allocated_callee_regs} is the set of callee-saved\n\
+registers that the allocator has used.  There might also be other reasons\n\
+why a stack frame is already needed; for example, @samp{get_frame_size ()}\n\
+might be nonzero, or the target might already require a frame for\n\
+target-specific reasons.\n\
+\n\
+When the register allocator uses this hook to cost spills, it also uses\n\
+@code{TARGET_CALLEE_SAVE_COST} to cost new callee-saved registers, passing\n\
+@samp{false} as the @var{existing_spills_p} argument.  The intention is to\n\
+allow the target to apply an apples-for-apples comparison between the\n\
+cost of using callee-saved registers and using spills in cases where the\n\
+allocator has not yet committed to using both strategies.\n\
+\n\
+The default implementation returns 0.",
+ int, (frame_cost_type cost_type, const HARD_REG_SET &allocated_callee_regs),
+ default_frame_allocation_cost)
+
+DEFHOOK
 (use_by_pieces_infrastructure_p,
  "GCC will attempt several strategies when asked to copy between\n\
 two areas of memory, or to set, clear or store to memory, for example\n\
@@ -4015,7 +4140,7 @@ implementation returns the lowest possible value of @var{val}.",
  HOST_WIDE_INT, (poly_int64 val, poly_value_estimate_kind kind),
  default_estimated_poly_value)
 
-/* Permit speculative instructions in delay slots during delayed-branch 
+/* Permit speculative instructions in delay slots during delayed-branch
    scheduling.  */
 DEFHOOK
 (no_speculation_in_delay_slots_p,
@@ -4057,12 +4182,10 @@ allocation.",
    FLAGS has the same meaning as in rtlanal.cc: may_trap_p_1.  */
 DEFHOOK
 (unspec_may_trap_p,
- "This target hook returns nonzero if @var{x}, an @code{unspec} or\n\
-@code{unspec_volatile} operation, might cause a trap.  Targets can use\n\
-this hook to enhance precision of analysis for @code{unspec} and\n\
-@code{unspec_volatile} operations.  You may call @code{may_trap_p_1}\n\
-to analyze inner elements of @var{x} in which case @var{flags} should be\n\
-passed along.",
+ "This target hook returns nonzero if @var{x}, an @code{unspec} might cause\n\
+a trap.  Targets can use this hook to enhance precision of analysis for\n\
+@code{unspec} operations.  You may call @code{may_trap_p_1} to analyze inner\n\
+elements of @var{x} in which case @var{flags} should be passed along.",
  int, (const_rtx x, unsigned flags),
  default_unspec_may_trap_p)
 
@@ -4093,6 +4216,26 @@ used to return a smaller mode than the raw mode to prevent call\n\
 clobbered parts of a register altering the frame register size",
  machine_mode, (int regno),
  default_dwarf_frame_reg_mode)
+
+/* Print out architecture-specific CFI directives to the assembly file.  */
+DEFHOOK
+(output_cfi_directive,
+ "This hook handles architecture-specific CFI directives and prints\n\
+them out to the assembly file @var{f}.\n\
+Return true if a architecture-specific directive was found, false\n\
+otherwise.",
+ bool, (FILE * f, dw_cfi_ref cfi),
+ hook_bool_FILEptr_dwcfiptr_false)
+
+DEFHOOK
+(dw_cfi_oprnd1_desc,
+ "This hook informs the caller what the architecture-specific directives\n\
+takes as a first operand.\n\
+Return true if a architecture-specific directive was found and\n\
+@var{oprnd_type} is set, false otherwise and @var{oprnd_type} is not\n\
+modified.",
+ bool, (dwarf_call_frame_info cfi_opc, dw_cfi_oprnd_type & oprnd_type),
+ hook_bool_dwcfi_dwcfioprndtyperef_false)
 
 /* If expand_builtin_init_dwarf_reg_sizes needs to fill in table
    entries not corresponding directly to registers below
@@ -4503,7 +4646,7 @@ DEFHOOK
  emits a @code{speculation_barrier} instruction if that is defined.",
 rtx, (machine_mode mode, rtx result, rtx val, rtx failval),
  default_speculation_safe_value)
- 
+
 DEFHOOK
 (predict_doloop_p,
  "Return true if we can predict it is possible to use a low-overhead loop\n\
@@ -4647,9 +4790,15 @@ DEFHOOK
  "Return the offset bitwise ored into shifted address to get corresponding\n\
 Address Sanitizer shadow memory address.  NULL if Address Sanitizer is not\n\
 supported by the target.  May return 0 if Address Sanitizer is not supported\n\
-by a subtarget.",
+or using dynamic shadow offset by a subtarget.",
  unsigned HOST_WIDE_INT, (void),
  NULL)
+
+DEFHOOK
+(asan_dynamic_shadow_offset_p,
+ "Return true if asan should use dynamic shadow offset.",
+ bool, (void),
+ hook_bool_void_false)
 
 /* Functions relating to calls - argument passing, returns, etc.  */
 /* Members of struct call have no special macro prefix.  */
@@ -4889,6 +5038,15 @@ the final call to @code{TARGET_FUNCTION_ARG}.\n\
 Most ports do not need to implement anything for this hook.",
  void, (cumulative_args_t complete_args),
  hook_void_CUMULATIVE_ARGS)
+
+DEFHOOK
+(call_offset_return_label,
+ "While generating call-site debug info for a CALL insn, or a SEQUENCE\n\
+insn starting with a CALL, this target hook is invoked to compute the\n\
+offset to be added to the debug label emitted after the call to obtain\n\
+the return address that should be recorded as the return PC.",
+ int, (rtx_insn *call_insn),
+ hook_int_rtx_insn_0)
 
 DEFHOOK
 (push_argument,
@@ -6370,6 +6528,15 @@ are zero or sign extended depending on if it is\n\
  bool, (int n, struct bitint_info *info),
  default_bitint_type_info)
 
+DEFHOOK
+(mode_for_floating_type,
+"Return machine mode for a C floating point type which is indicated by\n\
+ a given @code{enum tree_index} @var{ti}, @var{ti} should be\n\
+ @code{TI_FLOAT_TYPE}, @code{TI_DOUBLE_TYPE} or @code{TI_LONG_DOUBLE_TYPE}.\n\
+ The default implementation returns @code{SFmode} for @code{TI_FLOAT_TYPE},\n\
+ and @code{DFmode} for @code{TI_DOUBLE_TYPE} or @code{TI_LONG_DOUBLE_TYPE}.",
+ machine_mode, (enum tree_index ti), default_mode_for_floating_type)
+
 HOOK_VECTOR_END (c)
 
 /* Functions specific to the C++ frontend.  */
@@ -6498,7 +6665,7 @@ is in effect.  The default is to return false to use @code{__cxa_atexit}.",
  hook_bool_void_false)
 
 /* Returns true if target may use atexit in the same manner as
-   __cxa_atexit  to register static destructors.  */
+   __cxa_atexit to register static destructors.  */
 DEFHOOK
 (use_atexit_for_cxa_atexit,
  "This hook returns true if the target @code{atexit} function can be used\n\
@@ -6508,6 +6675,17 @@ shared libraries are run in the correct order when the libraries are\n\
 unloaded. The default is to return false.",
  bool, (void),
  hook_bool_void_false)
+
+/* Returns modified FUNCTION_TYPE for cdtor callabi.  */
+DEFHOOK
+(adjust_cdtor_callabi_fntype,
+ "This hook returns a possibly modified @code{FUNCTION_TYPE} for arguments\n\
+to @code{__cxa_atexit}, @code{__cxa_thread_atexit} or @code{__cxa_throw}\n\
+function pointers.  ABIs like mingw32 require special attributes to be added\n\
+to function types pointed to by arguments of these functions.\n\
+The default is to return the passed argument unmodified.",
+ tree, (tree fntype),
+ default_cxx_adjust_cdtor_callabi_fntype)
 
 DEFHOOK
 (adjust_class_at_definition,
@@ -6818,7 +6996,7 @@ modifiable by the callee.  The affected registers may be mentioned explicitly\n\
 in the call pattern, or included as clobbers in CALL_INSN_FUNCTION_USAGE.\n\
 The default version of this hook is set to false.  The purpose of this hook\n\
 is to enable the fipa-ra optimization.",
- bool, 
+ bool,
  false)
 
 /* Fill in additional registers set up by prologue into a regset.  */
@@ -6896,6 +7074,16 @@ will be deleted after this call.",
 HOOK_VECTOR_END (shrink_wrap)
 #undef HOOK_PREFIX
 #define HOOK_PREFIX "TARGET_"
+
+DEFHOOK
+(avoid_store_forwarding_p,
+ "Given a list of stores and a load instruction that reads from the location\n\
+of the stores, this hook decides if it's profitable to emit additional code\n\
+to avoid a potential store forwarding stall.  The additional instructions\n\
+needed, the sequence cost and additional relevant information is given in\n\
+the arguments so that the target can make an informed decision.",
+ bool, (vec<store_fwd_info>, rtx, int, bool),
+ default_avoid_store_forwarding_p)
 
 /* Determine the type of unwind info to emit for debugging.  */
 DEFHOOK
@@ -7377,6 +7565,15 @@ DEFHOOKPOD
  "This value is true if the target platform supports\n\
 libatomic.  The default value is false.",
  bool, false)
+
+/* This value represents whether libatomic is available on
+   the target platform.  */
+DEFHOOKPOD
+(documentation_name,
+ "If non-NULL, this value is a string used for locating target-specific\
+ documentation for this target.\n\
+The default value is NULL.",
+ const char *, NULL)
 
 /* Close the 'struct gcc_target' definition.  */
 HOOK_VECTOR_END (C90_EMPTY_HACK)

@@ -1,5 +1,5 @@
 /* Subroutines used for LoongArch code generation.
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    Contributed by Loongson Ltd.
    Based on MIPS and RISC-V target for GNU compiler.
 
@@ -207,9 +207,6 @@ const enum reg_class loongarch_regno_to_class[FIRST_PSEUDO_REGISTER] = {
     FCC_REGS,	FCC_REGS,	FCC_REGS,	FCC_REGS,
     FRAME_REGS,	FRAME_REGS
 };
-
-/* Which cost information to use.  */
-static const struct loongarch_rtx_cost_data *loongarch_cost;
 
 /* Information about a single argument.  */
 struct loongarch_arg_info
@@ -767,7 +764,13 @@ loongarch_setup_incoming_varargs (cumulative_args_t cum,
      argument.  Advance a local copy of CUM past the last "real" named
      argument, to find out how many registers are left over.  */
   local_cum = *get_cumulative_args (cum);
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+
+  /* For a C23 variadic function w/o any named argument, and w/o an
+     artifical argument for large return value, skip advancing args.
+     There is such an artifical argument iff. arg.type is non-NULL
+     (PR 114175).  */
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     loongarch_function_arg_advance (pack_cumulative_args (&local_cum), arg);
 
   /* Found out how many registers we need to save.  */
@@ -1843,6 +1846,28 @@ loongarch_const_vector_shuffle_set_p (rtx op, machine_mode mode)
   return true;
 }
 
+rtx
+loongarch_const_vector_vrepli (rtx x, machine_mode mode)
+{
+  int size = GET_MODE_SIZE (mode);
+
+  if (GET_CODE (x) != CONST_VECTOR
+      || GET_MODE_CLASS (mode) != MODE_VECTOR_INT)
+    return NULL_RTX;
+
+  for (scalar_int_mode elem_mode: {QImode, HImode, SImode, DImode})
+    {
+      machine_mode new_mode =
+	mode_for_vector (elem_mode, size / GET_MODE_SIZE (elem_mode))
+	  .require ();
+      rtx op = lowpart_subreg (new_mode, x, mode);
+      if (loongarch_const_vector_same_int_p (op, new_mode, -512, 511))
+	return op;
+    }
+
+  return NULL_RTX;
+}
+
 /* Return true if rtx constants of mode MODE should be put into a small
    data section.  */
 
@@ -2028,7 +2053,7 @@ loongarch_symbol_insns (enum loongarch_symbol_type type, machine_mode mode)
 
     case SYMBOL_TLSGD:
     case SYMBOL_TLSLDM:
-      return 3;
+      return TARGET_TLS_DESC ? 4 : 3;
 
     case SYMBOL_PCREL64:
       return 5;
@@ -2338,14 +2363,9 @@ loongarch_index_address_p (rtx addr, machine_mode mode ATTRIBUTE_UNUSED)
   return true;
 }
 
-/* Return the number of instructions needed to load or store a value
-   of mode MODE at address X.  Return 0 if X isn't valid for MODE.
-   Assume that multiword moves may need to be split into word moves
-   if MIGHT_SPLIT_P, otherwise assume that a single load or store is
-   enough.  */
-
-int
-loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
+static int
+loongarch_address_insns_1 (rtx x, machine_mode mode, bool might_split_p,
+			   int reg_reg_cost)
 {
   struct loongarch_address_info addr;
   int factor;
@@ -2380,7 +2400,7 @@ loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
 	return factor;
 
       case ADDRESS_REG_REG:
-	return factor;
+	return factor * reg_reg_cost;
 
       case ADDRESS_CONST_INT:
 	return lsx_p ? 0 : factor;
@@ -2393,6 +2413,18 @@ loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
 	  : factor * loongarch_symbol_insns (addr.symbol_type, mode);
       }
   return 0;
+}
+
+/* Return the number of instructions needed to load or store a value
+   of mode MODE at address X.  Return 0 if X isn't valid for MODE.
+   Assume that multiword moves may need to be split into word moves
+   if MIGHT_SPLIT_P, otherwise assume that a single load or store is
+   enough.  */
+
+int
+loongarch_address_insns (rtx x, machine_mode mode, bool might_split_p)
+{
+  return loongarch_address_insns_1 (x, mode, might_split_p, 1);
 }
 
 /* Return true if X fits within an unsigned field of BITS bits that is
@@ -2498,7 +2530,7 @@ loongarch_const_insns (rtx x)
     case CONST_VECTOR:
       if ((LSX_SUPPORTED_MODE_P (GET_MODE (x))
 	   || LASX_SUPPORTED_MODE_P (GET_MODE (x)))
-	  && loongarch_const_vector_same_int_p (x, GET_MODE (x), -512, 511))
+	  && loongarch_const_vector_vrepli (x, GET_MODE (x)))
 	return 1;
       /* Fall through.  */
     case CONST_DOUBLE:
@@ -2930,24 +2962,43 @@ loongarch_call_tls_get_addr (rtx sym, enum loongarch_symbol_type type, rtx v0)
 static rtx
 loongarch_legitimize_tls_address (rtx loc)
 {
-  rtx dest, tp, tmp, tmp1, tmp2, tmp3;
+  rtx dest, tp, tmp, tmp1, tmp2, tmp3, a0;
   enum tls_model model = SYMBOL_REF_TLS_MODEL (loc);
   rtx_insn *insn;
 
   switch (model)
     {
     case TLS_MODEL_LOCAL_DYNAMIC:
-      tmp = gen_rtx_REG (Pmode, GP_RETURN);
-      dest = gen_reg_rtx (Pmode);
-      insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSLDM, tmp);
-      emit_libcall_block (insn, dest, tmp, loc);
-      break;
-
+      if (!TARGET_TLS_DESC)
+	{
+	  tmp = gen_rtx_REG (Pmode, GP_RETURN);
+	  dest = gen_reg_rtx (Pmode);
+	  insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSLDM, tmp);
+	  emit_libcall_block (insn, dest, tmp, loc);
+	  break;
+	}
+      /* Fall through.  */
     case TLS_MODEL_GLOBAL_DYNAMIC:
-      tmp = gen_rtx_REG (Pmode, GP_RETURN);
-      dest = gen_reg_rtx (Pmode);
-      insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSGD, tmp);
-      emit_libcall_block (insn, dest, tmp, loc);
+      if (TARGET_TLS_DESC)
+	{
+	  a0 = gen_rtx_REG (Pmode, GP_ARG_FIRST);
+	  dest = gen_reg_rtx (Pmode);
+	  tp = gen_rtx_REG (Pmode, THREAD_POINTER_REGNUM);
+
+	  if (TARGET_CMODEL_EXTREME)
+	    emit_insn (gen_got_load_tls_desc_off64 (loc, gen_reg_rtx (DImode)));
+	  else
+	    emit_insn (gen_got_load_tls_desc (Pmode, loc));
+
+	  emit_insn (gen_add3_insn (dest, a0, tp));
+	}
+      else
+	{
+	  tmp = gen_rtx_REG (Pmode, GP_RETURN);
+	  dest = gen_reg_rtx (Pmode);
+	  insn = loongarch_call_tls_get_addr (loc, SYMBOL_TLSGD, tmp);
+	  emit_libcall_block (insn, dest, tmp, loc);
+	}
       break;
 
     case TLS_MODEL_INITIAL_EXEC:
@@ -3659,6 +3710,27 @@ loongarch_set_reg_reg_piece_cost (machine_mode mode, unsigned int units)
   return COSTS_N_INSNS ((GET_MODE_SIZE (mode) + units - 1) / units);
 }
 
+static int
+loongarch_use_bstrins_for_ior_with_mask_1 (machine_mode mode,
+					   unsigned HOST_WIDE_INT mask1,
+					   unsigned HOST_WIDE_INT mask2)
+{
+  if (mask1 != ~mask2 || !mask1 || !mask2)
+    return 0;
+
+  /* Try to avoid a right-shift.  */
+  if (low_bitmask_len (mode, mask1) != -1)
+    return -1;
+
+  if (low_bitmask_len (mode, mask2 >> (ffs_hwi (mask2) - 1)) != -1)
+    return 1;
+
+  if (low_bitmask_len (mode, mask1 >> (ffs_hwi (mask1) - 1)) != -1)
+    return -1;
+
+  return 0;
+}
+
 /* Return the cost of moving between two registers of mode MODE.  */
 
 static int
@@ -3679,6 +3751,17 @@ loongarch_set_reg_reg_cost (machine_mode mode)
     default:
       return loongarch_set_reg_reg_piece_cost (mode, UNITS_PER_WORD);
     }
+}
+
+/* Implement TARGET_ADDRESS_COST.  */
+
+static int
+loongarch_address_cost (rtx addr, machine_mode mode,
+			addr_space_t as ATTRIBUTE_UNUSED,
+			bool speed ATTRIBUTE_UNUSED)
+{
+  return loongarch_address_insns_1 (addr, mode, false,
+				    la_addr_reg_reg_cost);
 }
 
 /* Implement TARGET_RTX_COSTS.  */
@@ -3749,7 +3832,7 @@ loongarch_rtx_costs (rtx x, machine_mode mode, int outer_code,
 	  *total = COSTS_N_INSNS (2);
 	  return true;
 	}
-      cost = loongarch_address_insns (addr, mode, true);
+      cost = loongarch_address_cost (addr, mode, true, speed);
       if (cost > 0)
 	{
 	  *total = COSTS_N_INSNS (cost + 1);
@@ -3790,6 +3873,38 @@ loongarch_rtx_costs (rtx x, machine_mode mode, int outer_code,
       /* Fall through.  */
 
     case IOR:
+      {
+	rtx op[2] = {XEXP (x, 0), XEXP (x, 1)};
+	if (GET_CODE (op[0]) == AND && GET_CODE (op[1]) == AND
+	    && (mode == SImode || (TARGET_64BIT && mode == DImode)))
+	  {
+	    rtx rtx_mask0 = XEXP (op[0], 1), rtx_mask1 = XEXP (op[1], 1);
+	    if (CONST_INT_P (rtx_mask0) && CONST_INT_P (rtx_mask1))
+	      {
+		unsigned HOST_WIDE_INT mask0 = UINTVAL (rtx_mask0);
+		unsigned HOST_WIDE_INT mask1 = UINTVAL (rtx_mask1);
+		if (loongarch_use_bstrins_for_ior_with_mask_1 (mode,
+							       mask0,
+							       mask1))
+		  {
+		    /* A bstrins instruction */
+		    *total = COSTS_N_INSNS (1);
+
+		    /* A srai instruction */
+		    if (low_bitmask_len (mode, mask0) == -1
+			&& low_bitmask_len (mode, mask1) == -1)
+		      *total += COSTS_N_INSNS (1);
+
+		    for (int i = 0; i < 2; i++)
+		      *total += set_src_cost (XEXP (op[i], 0), mode, speed);
+
+		    return true;
+		  }
+	      }
+	  }
+      }
+
+      /* Fall through.  */
     case XOR:
       /* Double-word operations use two single-word operations.  */
       *total = loongarch_binary_cost (x, COSTS_N_INSNS (1), COSTS_N_INSNS (2),
@@ -3854,14 +3969,31 @@ loongarch_rtx_costs (rtx x, machine_mode mode, int outer_code,
 
       /* If it's an add + mult (which is equivalent to shift left) and
 	 it's immediate operand satisfies const_immalsl_operand predicate.  */
-      if ((mode == SImode || (TARGET_64BIT && mode == DImode))
-	  && GET_CODE (XEXP (x, 0)) == MULT)
+      if (code == PLUS
+	  && (mode == SImode || (TARGET_64BIT && mode == DImode)))
 	{
-	  rtx op2 = XEXP (XEXP (x, 0), 1);
-	  if (const_immalsl_operand (op2, mode))
+	  HOST_WIDE_INT shamt = -1;
+	  rtx lhs = XEXP (x, 0);
+	  rtx_code code_lhs = GET_CODE (lhs);
+
+	  switch (code_lhs)
+	    {
+	    case ASHIFT:
+	      if (CONST_INT_P (XEXP (lhs, 1)))
+		shamt = INTVAL (XEXP (lhs, 1));
+	      break;
+	    case MULT:
+	      if (CONST_INT_P (XEXP (lhs, 1)))
+		shamt = exact_log2 (INTVAL (XEXP (lhs, 1)));
+	      break;
+	    default:
+	      break;
+	    }
+
+	  if (IN_RANGE (shamt, 1, 4))
 	    {
 	      *total = (COSTS_N_INSNS (1)
-			+ set_src_cost (XEXP (XEXP (x, 0), 0), mode, speed)
+			+ set_src_cost (XEXP (lhs, 0), mode, speed)
 			+ set_src_cost (XEXP (x, 1), mode, speed));
 	      return true;
 	    }
@@ -4052,10 +4184,10 @@ loongarch_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
 
       case vec_construct:
 	elements = TYPE_VECTOR_SUBPARTS (vectype);
-	if (ISA_HAS_LASX)
-	  return elements + 1;
+	if (LASX_SUPPORTED_MODE_P (mode) && !LSX_SUPPORTED_MODE_P (mode))
+	  return elements / 2 + 3;
 	else
-	  return elements;
+	  return elements / 2 + 1;
 
       default:
 	gcc_unreachable ();
@@ -4279,22 +4411,39 @@ void
 loongarch_vector_costs::finish_cost (const vector_costs *scalar_costs)
 {
   loop_vec_info loop_vinfo = dyn_cast<loop_vec_info> (m_vinfo);
+
   if (loop_vinfo)
-    {
-      m_suggested_unroll_factor = determine_suggested_unroll_factor (loop_vinfo);
-    }
+    m_suggested_unroll_factor
+      = determine_suggested_unroll_factor (loop_vinfo);
 
   vector_costs::finish_cost (scalar_costs);
 }
 
-/* Implement TARGET_ADDRESS_COST.  */
+/* Implement TARGET_INSN_COST.  */
 
 static int
-loongarch_address_cost (rtx addr, machine_mode mode,
-			addr_space_t as ATTRIBUTE_UNUSED,
-			bool speed ATTRIBUTE_UNUSED)
+loongarch_insn_cost (rtx_insn *insn, bool speed)
 {
-  return loongarch_address_insns (addr, mode, false);
+  rtx x = PATTERN (insn);
+  int cost = pattern_cost (x, speed);
+
+  /* On LA464, prevent movcf2fr and movfr2gr from merging into movcf2gr.  */
+  if (GET_CODE (x) == SET
+      && GET_MODE (XEXP (x, 0)) == FCCmode)
+    {
+      rtx dest, src;
+      dest = XEXP (x, 0);
+      src = XEXP (x, 1);
+
+      if (REG_P (dest) && REG_P (src))
+	{
+	  if (GP_REG_P (REGNO (dest)) && FCC_REG_P (REGNO (src)))
+	    cost = loongarch_cost->movcf2gr;
+	  else if (FCC_REG_P (REGNO (dest)) && GP_REG_P (REGNO (src)))
+	    cost = loongarch_cost->movgr2cf;
+	}
+    }
+  return cost;
 }
 
 /* Return one word of double-word value OP, taking into account the fixed
@@ -4321,6 +4470,7 @@ loongarch_subword (rtx op, bool high_p)
   return simplify_gen_subreg (word_mode, op, mode, byte);
 }
 
+static bool loongarch_split_vector_move_p (rtx dest, rtx src);
 /* Return true if a move from SRC to DEST should be split into two.
    SPLIT_TYPE describes the split condition.  */
 
@@ -4342,13 +4492,11 @@ loongarch_split_move_p (rtx dest, rtx src)
 	return false;
     }
 
-  /* Check if LSX moves need splitting.  */
-  if (LSX_SUPPORTED_MODE_P (GET_MODE (dest)))
-    return loongarch_split_128bit_move_p (dest, src);
 
-  /* Check if LASX moves need splitting.  */
-  if (LASX_SUPPORTED_MODE_P (GET_MODE (dest)))
-    return loongarch_split_256bit_move_p (dest, src);
+  /* Check if vector moves need splitting.  */
+  if (LSX_SUPPORTED_MODE_P (GET_MODE (dest))
+      || LASX_SUPPORTED_MODE_P (GET_MODE (dest)))
+    return loongarch_split_vector_move_p (dest, src);
 
   /* Otherwise split all multiword moves.  */
   return size > UNITS_PER_WORD;
@@ -4360,42 +4508,12 @@ loongarch_split_move_p (rtx dest, rtx src)
 void
 loongarch_split_move (rtx dest, rtx src)
 {
-  rtx low_dest;
-
   gcc_checking_assert (loongarch_split_move_p (dest, src));
-  if (LSX_SUPPORTED_MODE_P (GET_MODE (dest)))
-    loongarch_split_128bit_move (dest, src);
-  else if (LASX_SUPPORTED_MODE_P (GET_MODE (dest)))
-    loongarch_split_256bit_move (dest, src);
-  else if (FP_REG_RTX_P (dest) || FP_REG_RTX_P (src))
-    {
-      if (!TARGET_64BIT && GET_MODE (dest) == DImode)
-	emit_insn (gen_move_doubleword_fprdi (dest, src));
-      else if (!TARGET_64BIT && GET_MODE (dest) == DFmode)
-	emit_insn (gen_move_doubleword_fprdf (dest, src));
-      else if (TARGET_64BIT && GET_MODE (dest) == TFmode)
-	emit_insn (gen_move_doubleword_fprtf (dest, src));
-      else
-	gcc_unreachable ();
-    }
+  if (LSX_SUPPORTED_MODE_P (GET_MODE (dest))
+      || LASX_SUPPORTED_MODE_P (GET_MODE (dest)))
+    loongarch_split_vector_move (dest, src);
   else
-    {
-      /* The operation can be split into two normal moves.  Decide in
-	 which order to do them.  */
-      low_dest = loongarch_subword (dest, false);
-      if (REG_P (low_dest) && reg_overlap_mentioned_p (low_dest, src))
-	{
-	  loongarch_emit_move (loongarch_subword (dest, true),
-			       loongarch_subword (src, true));
-	  loongarch_emit_move (low_dest, loongarch_subword (src, false));
-	}
-      else
-	{
-	  loongarch_emit_move (low_dest, loongarch_subword (src, false));
-	  loongarch_emit_move (loongarch_subword (dest, true),
-			       loongarch_subword (src, true));
-	}
-    }
+    gcc_unreachable ();
 }
 
 /* Check if adding an integer constant value for a specific mode can be
@@ -4440,6 +4558,49 @@ loongarch_split_plus_constant (rtx *op, machine_mode mode)
   op[1] = gen_int_mode (a, mode);
   v = v - (unsigned HOST_WIDE_INT) a;
   op[2] = gen_int_mode (v, mode);
+}
+
+/* Test if reassociate (a << shamt) [&|^] mask to
+   (a [&|^] (mask >> shamt)) << shamt is possible and beneficial.
+   If true, return (mask >> shamt).  Return NULL_RTX otherwise.  */
+
+rtx
+loongarch_reassoc_shift_bitwise (bool is_and, rtx shamt, rtx mask,
+				 machine_mode mode)
+{
+  gcc_checking_assert (CONST_INT_P (shamt));
+  gcc_checking_assert (CONST_INT_P (mask));
+  gcc_checking_assert (mode == SImode || mode == DImode);
+
+  if (ctz_hwi (INTVAL (mask)) < INTVAL (shamt))
+    return NULL_RTX;
+
+  /* When trying alsl.w, deliberately ignore the high bits.  */
+  mask = gen_int_mode (UINTVAL (mask), mode);
+
+  rtx new_mask = simplify_const_binary_operation (LSHIFTRT, mode, mask,
+						  shamt);
+
+  /* Do an arithmetic shift for checking ins_zero_bitmask_operand or -1:
+     ashiftrt (0xffffffff00000000, 2) is 0xffffffff60000000 which is an
+     ins_zero_bitmask_operand, but lshiftrt will produce
+     0x3fffffff60000000.  */
+  rtx new_mask_1 = simplify_const_binary_operation (ASHIFTRT, mode, mask,
+						    shamt);
+
+  if (is_and && const_m1_operand (new_mask_1, mode))
+    return new_mask_1;
+
+  if (const_uns_arith_operand (new_mask, mode))
+    return new_mask;
+
+  if (!is_and)
+    return NULL_RTX;
+
+  if (low_bitmask_operand (new_mask, mode))
+    return new_mask;
+
+  return ins_zero_bitmask_operand (new_mask_1, mode) ? new_mask_1 : NULL_RTX;
 }
 
 /* Implement TARGET_CONSTANT_ALIGNMENT.  */
@@ -4515,224 +4676,117 @@ loongarch_output_move_index_float (rtx x, machine_mode mode, bool ldr)
 
   return insn[ldr][index-2];
 }
-/* Return true if a 128-bit move from SRC to DEST should be split.  */
+/* Return true if a vector move from SRC to DEST should be split.  */
 
-bool
-loongarch_split_128bit_move_p (rtx dest, rtx src)
+static bool
+loongarch_split_vector_move_p (rtx dest, rtx src)
 {
-  /* LSX-to-LSX moves can be done in a single instruction.  */
+  /* Vector moves can be done in a single instruction.  */
   if (FP_REG_RTX_P (src) && FP_REG_RTX_P (dest))
     return false;
 
-  /* Check for LSX loads and stores.  */
+  /* Check for vector loads and stores.  */
   if (FP_REG_RTX_P (dest) && MEM_P (src))
     return false;
   if (FP_REG_RTX_P (src) && MEM_P (dest))
     return false;
 
-  /* Check for LSX set to an immediate const vector with valid replicated
+  /* Check for vector set to an immediate const vector with valid replicated
      element.  */
   if (FP_REG_RTX_P (dest)
-      && loongarch_const_vector_same_int_p (src, GET_MODE (src), -512, 511))
+      && loongarch_const_vector_vrepli (src, GET_MODE (src)))
     return false;
 
-  /* Check for LSX load zero immediate.  */
+  /* Check for vector load zero immediate.  */
   if (FP_REG_RTX_P (dest) && src == CONST0_RTX (GET_MODE (src)))
     return false;
 
   return true;
 }
 
-/* Return true if a 256-bit move from SRC to DEST should be split.  */
-
-bool
-loongarch_split_256bit_move_p (rtx dest, rtx src)
-{
-  /* LSX-to-LSX moves can be done in a single instruction.  */
-  if (FP_REG_RTX_P (src) && FP_REG_RTX_P (dest))
-    return false;
-
-  /* Check for LSX loads and stores.  */
-  if (FP_REG_RTX_P (dest) && MEM_P (src))
-    return false;
-  if (FP_REG_RTX_P (src) && MEM_P (dest))
-    return false;
-
-  /* Check for LSX set to an immediate const vector with valid replicated
-     element.  */
-  if (FP_REG_RTX_P (dest)
-      && loongarch_const_vector_same_int_p (src, GET_MODE (src), -512, 511))
-    return false;
-
-  /* Check for LSX load zero immediate.  */
-  if (FP_REG_RTX_P (dest) && src == CONST0_RTX (GET_MODE (src)))
-    return false;
-
-  return true;
-}
-
-/* Split a 128-bit move from SRC to DEST.  */
+/* Split a vector move from SRC to DEST.  */
 
 void
-loongarch_split_128bit_move (rtx dest, rtx src)
+loongarch_split_vector_move (rtx dest, rtx src)
 {
   int byte, index;
-  rtx low_dest, low_src, d, s;
+  rtx s, d;
+  machine_mode mode = GET_MODE (dest);
+  bool lsx_p = LSX_SUPPORTED_MODE_P (mode);
 
   if (FP_REG_RTX_P (dest))
     {
       gcc_assert (!MEM_P (src));
 
-      rtx new_dest = dest;
-      if (!TARGET_64BIT)
+      rtx (*gen_vinsgr2vr_d) (rtx, rtx, rtx, rtx);
+
+      if (lsx_p)
 	{
-	  if (GET_MODE (dest) != V4SImode)
-	    new_dest = simplify_gen_subreg (V4SImode, dest, GET_MODE (dest), 0);
+	  mode = V2DImode;
+	  gen_vinsgr2vr_d = gen_lsx_vinsgr2vr_d;
 	}
       else
 	{
-	  if (GET_MODE (dest) != V2DImode)
-	    new_dest = simplify_gen_subreg (V2DImode, dest, GET_MODE (dest), 0);
+	  mode = V4DImode;
+	  gen_vinsgr2vr_d = gen_lasx_xvinsgr2vr_d;
 	}
-
-      for (byte = 0, index = 0; byte < GET_MODE_SIZE (TImode);
-	   byte += UNITS_PER_WORD, index++)
-	{
-	  s = loongarch_subword_at_byte (src, byte);
-	  if (!TARGET_64BIT)
-	    emit_insn (gen_lsx_vinsgr2vr_w (new_dest, s, new_dest,
-					    GEN_INT (1 << index)));
-	  else
-	    emit_insn (gen_lsx_vinsgr2vr_d (new_dest, s, new_dest,
-					    GEN_INT (1 << index)));
-	}
-    }
-  else if (FP_REG_RTX_P (src))
-    {
-      gcc_assert (!MEM_P (dest));
-
-      rtx new_src = src;
-      if (!TARGET_64BIT)
-	{
-	  if (GET_MODE (src) != V4SImode)
-	    new_src = simplify_gen_subreg (V4SImode, src, GET_MODE (src), 0);
-	}
-      else
-	{
-	  if (GET_MODE (src) != V2DImode)
-	    new_src = simplify_gen_subreg (V2DImode, src, GET_MODE (src), 0);
-	}
-
-      for (byte = 0, index = 0; byte < GET_MODE_SIZE (TImode);
-	   byte += UNITS_PER_WORD, index++)
-	{
-	  d = loongarch_subword_at_byte (dest, byte);
-	  if (!TARGET_64BIT)
-	    emit_insn (gen_lsx_vpickve2gr_w (d, new_src, GEN_INT (index)));
-	  else
-	    emit_insn (gen_lsx_vpickve2gr_d (d, new_src, GEN_INT (index)));
-	}
-    }
-  else
-    {
-      low_dest = loongarch_subword_at_byte (dest, 0);
-      low_src = loongarch_subword_at_byte (src, 0);
-      gcc_assert (REG_P (low_dest) && REG_P (low_src));
-      /* Make sure the source register is not written before reading.  */
-      if (REGNO (low_dest) <= REGNO (low_src))
-	{
-	  for (byte = 0; byte < GET_MODE_SIZE (TImode);
-	       byte += UNITS_PER_WORD)
-	    {
-	      d = loongarch_subword_at_byte (dest, byte);
-	      s = loongarch_subword_at_byte (src, byte);
-	      loongarch_emit_move (d, s);
-	    }
-	}
-      else
-	{
-	  for (byte = GET_MODE_SIZE (TImode) - UNITS_PER_WORD; byte >= 0;
-	       byte -= UNITS_PER_WORD)
-	    {
-	      d = loongarch_subword_at_byte (dest, byte);
-	      s = loongarch_subword_at_byte (src, byte);
-	      loongarch_emit_move (d, s);
-	    }
-	}
-    }
-}
-
-/* Split a 256-bit move from SRC to DEST.  */
-
-void
-loongarch_split_256bit_move (rtx dest, rtx src)
-{
-  int byte, index;
-  rtx low_dest, low_src, d, s;
-
-  if (FP_REG_RTX_P (dest))
-    {
-      gcc_assert (!MEM_P (src));
 
       rtx new_dest = dest;
-      if (!TARGET_64BIT)
-	{
-	  if (GET_MODE (dest) != V8SImode)
-	    new_dest = simplify_gen_subreg (V8SImode, dest, GET_MODE (dest), 0);
-	}
-      else
-	{
-	  if (GET_MODE (dest) != V4DImode)
-	    new_dest = simplify_gen_subreg (V4DImode, dest, GET_MODE (dest), 0);
-	}
+
+      if (GET_MODE (dest) != mode)
+	new_dest = simplify_gen_subreg (mode, dest, GET_MODE (dest), 0);
 
       for (byte = 0, index = 0; byte < GET_MODE_SIZE (GET_MODE (dest));
 	   byte += UNITS_PER_WORD, index++)
 	{
 	  s = loongarch_subword_at_byte (src, byte);
-	  if (!TARGET_64BIT)
-	    emit_insn (gen_lasx_xvinsgr2vr_w (new_dest, s, new_dest,
-					      GEN_INT (1 << index)));
-	  else
-	    emit_insn (gen_lasx_xvinsgr2vr_d (new_dest, s, new_dest,
-					      GEN_INT (1 << index)));
+	  emit_insn (gen_vinsgr2vr_d (new_dest, s, new_dest,
+					  GEN_INT (1 << index)));
 	}
     }
   else if (FP_REG_RTX_P (src))
     {
       gcc_assert (!MEM_P (dest));
 
-      rtx new_src = src;
-      if (!TARGET_64BIT)
+      rtx (*gen_vpickve2gr_d) (rtx, rtx, rtx);
+
+      if (lsx_p)
 	{
-	  if (GET_MODE (src) != V8SImode)
-	    new_src = simplify_gen_subreg (V8SImode, src, GET_MODE (src), 0);
+	  mode = V2DImode;
+	  gen_vpickve2gr_d = gen_lsx_vpickve2gr_d;
 	}
       else
 	{
-	  if (GET_MODE (src) != V4DImode)
-	    new_src = simplify_gen_subreg (V4DImode, src, GET_MODE (src), 0);
+	  mode = V4DImode;
+	  gen_vpickve2gr_d = gen_lasx_xvpickve2gr_d;
 	}
+
+      rtx new_src = src;
+      if (GET_MODE (src) != mode)
+	new_src = simplify_gen_subreg (mode, src, GET_MODE (src), 0);
 
       for (byte = 0, index = 0; byte < GET_MODE_SIZE (GET_MODE (src));
 	   byte += UNITS_PER_WORD, index++)
 	{
 	  d = loongarch_subword_at_byte (dest, byte);
-	  if (!TARGET_64BIT)
-	    emit_insn (gen_lsx_vpickve2gr_w (d, new_src, GEN_INT (index)));
-	  else
-	    emit_insn (gen_lsx_vpickve2gr_d (d, new_src, GEN_INT (index)));
+	  emit_insn (gen_vpickve2gr_d (d, new_src, GEN_INT (index)));
 	}
     }
   else
     {
+      /* This part of the code is designed to handle the following situations:
+	 (set (reg:V2DI 4 $r4)
+	      (reg:V2DI 6 $r6))
+	 The trigger test case is lsx-mov-1.c.  */
+      rtx low_dest, low_src;
+
       low_dest = loongarch_subword_at_byte (dest, 0);
       low_src = loongarch_subword_at_byte (src, 0);
       gcc_assert (REG_P (low_dest) && REG_P (low_src));
       /* Make sure the source register is not written before reading.  */
       if (REGNO (low_dest) <= REGNO (low_src))
 	{
-	  for (byte = 0; byte < GET_MODE_SIZE (TImode);
+	  for (byte = 0; byte < GET_MODE_SIZE (GET_MODE (dest));
 	       byte += UNITS_PER_WORD)
 	    {
 	      d = loongarch_subword_at_byte (dest, byte);
@@ -4742,8 +4796,8 @@ loongarch_split_256bit_move (rtx dest, rtx src)
 	}
       else
 	{
-	  for (byte = GET_MODE_SIZE (TImode) - UNITS_PER_WORD; byte >= 0;
-	       byte -= UNITS_PER_WORD)
+	  for (byte = GET_MODE_SIZE (GET_MODE (dest)) - UNITS_PER_WORD;
+	       byte >= 0; byte -= UNITS_PER_WORD)
 	    {
 	      d = loongarch_subword_at_byte (dest, byte);
 	      s = loongarch_subword_at_byte (src, byte);
@@ -4753,88 +4807,14 @@ loongarch_split_256bit_move (rtx dest, rtx src)
     }
 }
 
-
-/* Split a COPY_S.D with operands DEST, SRC and INDEX.  GEN is a function
-   used to generate subregs.  */
-
-void
-loongarch_split_lsx_copy_d (rtx dest, rtx src, rtx index,
-			    rtx (*gen_fn)(rtx, rtx, rtx))
-{
-  gcc_assert ((GET_MODE (src) == V2DImode && GET_MODE (dest) == DImode)
-	      || (GET_MODE (src) == V2DFmode && GET_MODE (dest) == DFmode));
-
-  /* Note that low is always from the lower index, and high is always
-     from the higher index.  */
-  rtx low = loongarch_subword (dest, false);
-  rtx high = loongarch_subword (dest, true);
-  rtx new_src = simplify_gen_subreg (V4SImode, src, GET_MODE (src), 0);
-
-  emit_insn (gen_fn (low, new_src, GEN_INT (INTVAL (index) * 2)));
-  emit_insn (gen_fn (high, new_src, GEN_INT (INTVAL (index) * 2 + 1)));
-}
-
-/* Split a INSERT.D with operand DEST, SRC1.INDEX and SRC2.  */
-
-void
-loongarch_split_lsx_insert_d (rtx dest, rtx src1, rtx index, rtx src2)
-{
-  int i;
-  gcc_assert (GET_MODE (dest) == GET_MODE (src1));
-  gcc_assert ((GET_MODE (dest) == V2DImode
-	       && (GET_MODE (src2) == DImode || src2 == const0_rtx))
-	      || (GET_MODE (dest) == V2DFmode && GET_MODE (src2) == DFmode));
-
-  /* Note that low is always from the lower index, and high is always
-     from the higher index.  */
-  rtx low = loongarch_subword (src2, false);
-  rtx high = loongarch_subword (src2, true);
-  rtx new_dest = simplify_gen_subreg (V4SImode, dest, GET_MODE (dest), 0);
-  rtx new_src1 = simplify_gen_subreg (V4SImode, src1, GET_MODE (src1), 0);
-  i = exact_log2 (INTVAL (index));
-  gcc_assert (i != -1);
-
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, low, new_src1,
-				  GEN_INT (1 << (i * 2))));
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, high, new_dest,
-				  GEN_INT (1 << (i * 2 + 1))));
-}
-
-/* Split FILL.D.  */
-
-void
-loongarch_split_lsx_fill_d (rtx dest, rtx src)
-{
-  gcc_assert ((GET_MODE (dest) == V2DImode
-	       && (GET_MODE (src) == DImode || src == const0_rtx))
-	      || (GET_MODE (dest) == V2DFmode && GET_MODE (src) == DFmode));
-
-  /* Note that low is always from the lower index, and high is always
-     from the higher index.  */
-  rtx low, high;
-  if (src == const0_rtx)
-    {
-      low = src;
-      high = src;
-    }
-  else
-    {
-      low = loongarch_subword (src, false);
-      high = loongarch_subword (src, true);
-    }
-  rtx new_dest = simplify_gen_subreg (V4SImode, dest, GET_MODE (dest), 0);
-  emit_insn (gen_lsx_vreplgr2vr_w (new_dest, low));
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, high, new_dest, GEN_INT (1 << 1)));
-  emit_insn (gen_lsx_vinsgr2vr_w (new_dest, high, new_dest, GEN_INT (1 << 3)));
-}
-
-
 /* Return the appropriate instructions to move SRC into DEST.  Assume
    that SRC is operand 1 and DEST is operand 0.  */
 
 const char *
-loongarch_output_move (rtx dest, rtx src)
+loongarch_output_move (rtx *operands)
 {
+  rtx src = operands[1];
+  rtx dest = operands[0];
   enum rtx_code dest_code = GET_CODE (dest);
   enum rtx_code src_code = GET_CODE (src);
   machine_mode mode = GET_MODE (dest);
@@ -4850,13 +4830,15 @@ loongarch_output_move (rtx dest, rtx src)
       && src_code == CONST_VECTOR
       && CONST_INT_P (CONST_VECTOR_ELT (src, 0)))
     {
-      gcc_assert (loongarch_const_vector_same_int_p (src, mode, -512, 511));
+      operands[1] = loongarch_const_vector_vrepli (src, mode);
+      gcc_assert (operands[1]);
+
       switch (GET_MODE_SIZE (mode))
 	{
 	case 16:
-	  return "vrepli.%v0\t%w0,%E1";
+	  return "vrepli.%v1\t%w0,%E1";
 	case 32:
-	  return "xvrepli.%v0\t%u0,%E1";
+	  return "xvrepli.%v1\t%u0,%E1";
 	default: gcc_unreachable ();
 	}
     }
@@ -4884,6 +4866,8 @@ loongarch_output_move (rtx dest, rtx src)
 		      gcc_unreachable ();
 		    }
 		}
+	      if (ISA_HAS_LSX && src == CONST0_RTX (GET_MODE (src)))
+		return "vxor.v\t%w0,%w0,%w0";
 
 	      return dbl_p ? "movgr2fr.d\t%0,%z1" : "movgr2fr.w\t%0,%z1";
 	    }
@@ -4987,13 +4971,19 @@ loongarch_output_move (rtx dest, rtx src)
       if (src_code == CONST_INT)
 	{
 	  if (LU12I_INT (src))
-	    return "lu12i.w\t%0,%1>>12\t\t\t# %X1";
+	    {
+	      operands[1] = GEN_INT (INTVAL (operands[1]) >> 12);
+	      return "lu12i.w\t%0,%1\t\t\t# %X1";
+	    }
 	  else if (IMM12_INT (src))
 	    return "addi.w\t%0,$r0,%1\t\t\t# %X1";
 	  else if (IMM12_INT_UNSIGNED (src))
 	    return "ori\t%0,$r0,%1\t\t\t# %X1";
 	  else if (LU52I_INT (src))
-	    return "lu52i.d\t%0,$r0,%X1>>52\t\t\t# %1";
+	    {
+	      operands[1] = GEN_INT (INTVAL (operands[1]) >> 52);
+	      return "lu52i.d\t%0,$r0,%X1\t\t\t# %1";
+	    }
 	  else
 	    gcc_unreachable ();
 	}
@@ -5398,6 +5388,7 @@ loongarch_expand_conditional_move (rtx *operands)
   rtx op1_extend = op1;
 
   /* Record whether operands[2] and operands[3] modes are promoted to word_mode.  */
+  bool promote_op[2] = {false, false};
   bool promote_p = false;
   machine_mode mode = GET_MODE (operands[0]);
 
@@ -5405,9 +5396,90 @@ loongarch_expand_conditional_move (rtx *operands)
     loongarch_emit_float_compare (&code, &op0, &op1);
   else
     {
-      if ((REGNO (op0) == REGNO (operands[2])
-	   || (REGNO (op1) == REGNO (operands[3]) && (op1 != const0_rtx)))
-	  && (GET_MODE_SIZE (GET_MODE (op0)) < word_mode))
+      /* Optimize to reduce the number of instructions for ternary operations.
+	 Mainly implemented based on noce_try_cmove_arith.
+	 For dest = (condition) ? value_if_true : value_if_false;
+	 the optimization requires:
+	  a. value_if_false = var;
+	  b. value_if_true = var OP C (a positive integer power of 2).
+
+	 Situations similar to the following:
+	    if (condition)
+	      dest += 1 << imm;
+	 to:
+	    dest += (condition ? 1 : 0) << imm;  */
+
+      rtx_insn *insn;
+      HOST_WIDE_INT val = 0; /* The value of rtx C.  */
+      /* INSN with operands[2] as the output.  */
+      rtx_insn *value_if_true_insn = NULL;
+      /* INSN with operands[3] as the output.  */
+      rtx_insn *value_if_false_insn = NULL;
+      rtx value_if_true_insn_src = NULL_RTX;
+      /* Common operand var in value_if_true and value_if_false.  */
+      rtx comm_var = NULL_RTX;
+      bool can_be_optimized = false;
+
+      /* Search value_if_true_insn and value_if_false_insn.  */
+      struct sequence_stack *seq = get_current_sequence ()->next;
+      for (insn = seq->last; insn; insn = PREV_INSN (insn))
+	{
+	  if (single_set (insn))
+	    {
+	      rtx set_dest = SET_DEST (single_set (insn));
+	      if (rtx_equal_p (set_dest, operands[2]))
+		value_if_true_insn = insn;
+	      else if (rtx_equal_p (set_dest, operands[3]))
+		value_if_false_insn = insn;
+	      if (value_if_true_insn && value_if_false_insn)
+		break;
+	    }
+	}
+
+      /* Check if the optimization conditions are met.  */
+      if (value_if_true_insn
+	  && value_if_false_insn
+	  /* Make sure that value_if_false and var are the same.  */
+	  && BINARY_P (value_if_true_insn_src
+		       = SET_SRC (single_set (value_if_true_insn)))
+	  /* Make sure that both value_if_true and value_if_false
+	     has the same var.  */
+	  && rtx_equal_p (XEXP (value_if_true_insn_src, 0),
+			  SET_SRC (single_set (value_if_false_insn))))
+	{
+	  comm_var = SET_SRC (single_set (value_if_false_insn));
+	  rtx src = XEXP (value_if_true_insn_src, 1);
+	  rtx imm = NULL_RTX;
+	  if (CONST_INT_P (src))
+	    imm = src;
+	  else
+	    for (insn = seq->last; insn; insn = PREV_INSN (insn))
+	      {
+		rtx set = single_set (insn);
+		if (set && rtx_equal_p (SET_DEST (set), src))
+		  {
+		    imm = SET_SRC (set);
+		    break;
+		  }
+	      }
+	  if (imm && CONST_INT_P (imm))
+	    {
+	      val = INTVAL (imm);
+	      /* Make sure that imm is a positive integer power of 2.  */
+	      if (val > 0 && !(val & (val - 1)))
+		can_be_optimized = true;
+	    }
+	}
+
+      if (GET_MODE_SIZE (GET_MODE (op0)) < UNITS_PER_WORD)
+	{
+	  promote_op[0] = (REG_P (op0) && REG_P (operands[2]) &&
+			   REGNO (op0) == REGNO (operands[2]));
+	  promote_op[1] = (REG_P (op1) && REG_P (operands[3]) &&
+			   REGNO (op1) == REGNO (operands[3]));
+	}
+
+      if (promote_op[0] || promote_op[1])
 	{
 	  mode = word_mode;
 	  promote_p = true;
@@ -5419,21 +5491,47 @@ loongarch_expand_conditional_move (rtx *operands)
       op0_extend = op0;
       op1_extend = force_reg (word_mode, op1);
 
+      rtx target = gen_reg_rtx (GET_MODE (op0));
+
       if (code == EQ || code == NE)
 	{
 	  op0 = loongarch_zero_if_equal (op0, op1);
 	  op1 = const0_rtx;
+	  /* For EQ, set target to 1 if op0 and op1 are the same,
+	     otherwise set to 0.
+	     For NE, set target to 0 if op0 and op1 are the same,
+	     otherwise set to 1.  */
+	  if (can_be_optimized)
+	    loongarch_emit_binary (code, target, op0, const0_rtx);
 	}
       else
 	{
 	  /* The comparison needs a separate scc instruction.  Store the
 	     result of the scc in *OP0 and compare it against zero.  */
 	  bool invert = false;
-	  rtx target = gen_reg_rtx (GET_MODE (op0));
 	  loongarch_emit_int_order_test (code, &invert, target, op0, op1);
+	  if (can_be_optimized && invert)
+	    loongarch_emit_binary (EQ, target, target, const0_rtx);
 	  code = invert ? EQ : NE;
 	  op0 = target;
 	  op1 = const0_rtx;
+	}
+
+      if (can_be_optimized)
+	{
+	  /* Perform (condition ? 1 : 0) << log2 (C).  */
+	  loongarch_emit_binary (ASHIFT, target, target,
+				 GEN_INT (exact_log2 (val)));
+	  /* Shift-related insn patterns only support SImode operands[2].  */
+	  enum rtx_code opcode = GET_CODE (value_if_true_insn_src);
+	  if (opcode == ASHIFT || opcode == ASHIFTRT || opcode == LSHIFTRT
+	      || opcode == ROTATE || opcode == ROTATERT)
+	    target = gen_lowpart (SImode, target);
+	  /* Perform target = target OP ((condition ? 1 : 0) << log2 (C)).  */
+	  loongarch_emit_binary (opcode, operands[0],
+				 force_reg (GET_MODE (operands[3]), comm_var),
+				 target);
+	  return;
 	}
     }
 
@@ -5449,7 +5547,7 @@ loongarch_expand_conditional_move (rtx *operands)
 
       if (promote_p)
 	{
-	  if (REGNO (XEXP (operands[1], 0)) == REGNO (operands[2]))
+	  if (promote_op[0])
 	    op2 = op0_extend;
 	  else
 	    {
@@ -5457,7 +5555,7 @@ loongarch_expand_conditional_move (rtx *operands)
 	      op2 = force_reg (mode, op2);
 	    }
 
-	  if (REGNO (XEXP (operands[1], 1)) == REGNO (operands[3]))
+	  if (promote_op[1])
 	    op3 = op1_extend;
 	  else
 	    {
@@ -5843,23 +5941,9 @@ bool loongarch_pre_reload_split (void)
 int
 loongarch_use_bstrins_for_ior_with_mask (machine_mode mode, rtx *op)
 {
-  unsigned HOST_WIDE_INT mask1 = UINTVAL (op[2]);
-  unsigned HOST_WIDE_INT mask2 = UINTVAL (op[4]);
-
-  if (mask1 != ~mask2 || !mask1 || !mask2)
-    return 0;
-
-  /* Try to avoid a right-shift.  */
-  if (low_bitmask_len (mode, mask1) != -1)
-    return -1;
-
-  if (low_bitmask_len (mode, mask2 >> (ffs_hwi (mask2) - 1)) != -1)
-    return 1;
-
-  if (low_bitmask_len (mode, mask1 >> (ffs_hwi (mask1) - 1)) != -1)
-    return -1;
-
-  return 0;
+  return loongarch_use_bstrins_for_ior_with_mask_1 (mode,
+						    UINTVAL (op[2]),
+						    UINTVAL (op[4]));
 }
 
 /* Rewrite a MEM for simple load/store under -mexplicit-relocs=auto
@@ -5903,17 +5987,6 @@ loongarch_print_operand_punctuation (FILE *file, int ch)
       gcc_unreachable ();
       break;
     }
-}
-
-/* Initialize loongarch_print_operand_punct.  */
-
-static void
-loongarch_init_print_operand_punct (void)
-{
-  const char *p;
-
-  for (p = ".$"; *p; p++)
-    loongarch_print_operand_punct[(unsigned char) *p] = true;
 }
 
 /* PRINT_OPERAND prefix LETTER refers to the integer branch instruction
@@ -6144,6 +6217,8 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi64_part,
    'i'	Print i if the operand is not a register.
    'L'  Print the low-part relocation associated with OP.
    'm'	Print one less than CONST_INT OP in decimal.
+   'M'	Print the indices of the lowest enabled bit and the highest
+	enabled bit in a mask (for bstr* instructions).
    'N'	Print the inverse of the integer branch condition for comparison OP.
    'Q'  Print R_LARCH_RELAX for TLS IE.
    'r'  Print address 12-31bit relocation associated with OP.
@@ -6151,21 +6226,13 @@ loongarch_print_operand_reloc (FILE *file, rtx op, bool hi64_part,
    'T'	Print 'f' for (eq:CC ...), 't' for (ne:CC ...),
 	      'z' for (eq:?I ...), 'n' for (ne:?I ...).
    't'	Like 'T', but with the EQ/NE cases reversed
-   'F'	Print the FPU branch condition for comparison OP.
-   'W'	Print the inverse of the FPU branch condition for comparison OP.
-   'w'	Print a LSX register.
    'u'	Print a LASX register.
-   'T'	Print 'f' for (eq:CC ...), 't' for (ne:CC ...),
-	      'z' for (eq:?I ...), 'n' for (ne:?I ...).
-   't'	Like 'T', but with the EQ/NE cases reversed
-   'Y'	Print loongarch_fp_conditions[INTVAL (OP)]
-   'Z'	Print OP and a comma for 8CC, otherwise print nothing.
-   'z'	Print $0 if OP is zero, otherwise print OP normally.
    'v'	Print the insn size suffix b, h, w or d for vector modes V16QI, V8HI,
 	  V4SI, V2SI, and w, d for vector modes V4SF, V2DF respectively.
    'V'	Print exact log2 of CONST_INT OP element 0 of a replicated
 	  CONST_VECTOR in decimal.
    'W'	Print the inverse of the FPU branch condition for comparison OP.
+   'w'	Print a LSX register.
    'X'	Print CONST_INT OP in hexadecimal format.
    'x'	Print the low 16 bits of CONST_INT OP in hexadecimal format.
    'Y'	Print loongarch_fp_conditions[INTVAL (OP)]
@@ -6225,6 +6292,10 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
 	output_operand_lossage ("invalid use of '%%%c'", letter);
       break;
 
+    case 'O':
+      fprintf (file, "%s", INTVAL (XVECEXP (op, 0, 0)) ? "od" : "ev");
+      break;
+
     case 'F':
       loongarch_print_float_branch_condition (file, code, letter);
       break;
@@ -6274,6 +6345,16 @@ loongarch_print_operand (FILE *file, rtx op, int letter)
     case 'm':
       if (CONST_INT_P (op))
 	fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (op) - 1);
+      else
+	output_operand_lossage ("invalid use of '%%%c'", letter);
+      break;
+
+    case 'M':
+      if (CONST_INT_P (op))
+	{
+	  HOST_WIDE_INT mask = INTVAL (op);
+	  fprintf (file, "%d,%d", floor_log2 (mask), ctz_hwi (mask));
+	}
       else
 	output_operand_lossage ("invalid use of '%%%c'", letter);
       break;
@@ -6746,31 +6827,29 @@ loongarch_hard_regno_mode_ok_uncached (unsigned int regno, machine_mode mode)
   size = GET_MODE_SIZE (mode);
   mclass = GET_MODE_CLASS (mode);
 
-  if (GP_REG_P (regno) && !LSX_SUPPORTED_MODE_P (mode)
+  if (GP_REG_P (regno)
+      && !LSX_SUPPORTED_MODE_P (mode)
       && !LASX_SUPPORTED_MODE_P (mode))
     return ((regno - GP_REG_FIRST) & 1) == 0 || size <= UNITS_PER_WORD;
 
-  /* For LSX, allow TImode and 128-bit vector modes in all FPR.  */
-  if (FP_REG_P (regno) && LSX_SUPPORTED_MODE_P (mode))
-    return true;
-
-  /* FIXED ME: For LASX, allow TImode and 256-bit vector modes in all FPR.  */
-  if (FP_REG_P (regno) && LASX_SUPPORTED_MODE_P (mode))
-    return true;
-
   if (FP_REG_P (regno))
     {
+      /* Allow 128-bit or 256-bit vector modes in all FPR.  */
+      if (LSX_SUPPORTED_MODE_P (mode)
+	  || LASX_SUPPORTED_MODE_P (mode))
+	return true;
+
       if (mclass == MODE_FLOAT
 	  || mclass == MODE_COMPLEX_FLOAT
 	  || mclass == MODE_VECTOR_FLOAT)
-	return size <= UNITS_PER_FPVALUE;
+	return size <= UNITS_PER_HWFPVALUE;
 
       /* Allow integer modes that fit into a single register.  We need
 	 to put integers into FPRs when using instructions like CVT
 	 and TRUNC.  There's no point allowing sizes smaller than a word,
 	 because the FPU has no appropriate load/store instructions.  */
       if (mclass == MODE_INT)
-	return size >= MIN_UNITS_PER_WORD && size <= UNITS_PER_FPREG;
+	return size >= MIN_UNITS_PER_WORD && size <= UNITS_PER_FP_REG;
     }
 
   return false;
@@ -6813,7 +6892,7 @@ loongarch_hard_regno_nregs (unsigned int regno, machine_mode mode)
       if (LASX_SUPPORTED_MODE_P (mode))
 	return 1;
 
-      return (GET_MODE_SIZE (mode) + UNITS_PER_FPREG - 1) / UNITS_PER_FPREG;
+      return (GET_MODE_SIZE (mode) + UNITS_PER_FP_REG - 1) / UNITS_PER_FP_REG;
     }
 
   /* All other registers are word-sized.  */
@@ -6848,7 +6927,7 @@ loongarch_class_max_nregs (enum reg_class rclass, machine_mode mode)
 	  else if (LSX_SUPPORTED_MODE_P (mode))
 	    size = MIN (size, UNITS_PER_LSX_REG);
 	  else
-	    size = MIN (size, UNITS_PER_FPREG);
+	    size = MIN (size, UNITS_PER_FP_REG);
 	}
       left &= ~reg_class_contents[FP_REGS];
     }
@@ -7127,6 +7206,40 @@ loongarch_secondary_reload (bool in_p ATTRIBUTE_UNUSED, rtx x,
     return reg_class_subset_p (rclass, GR_REGS) ? NO_REGS : GR_REGS;
 
   return NO_REGS;
+}
+
+/* Implement TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS.
+
+   The register allocator chooses ALL_REGS if FP_REGS and GR_REGS have the
+   same cost - even if ALL_REGS has a much higher cost.  ALL_REGS is also used
+   if the cost of both FP_REGS and GR_REGS is lower than the memory cost (in
+   this case the best class is the lowest cost one).  Using ALL_REGS
+   irrespectively of itself cost results in bad allocations with many redundant
+   int<->FP moves which are expensive on various cores.
+
+   To avoid this we don't allow ALL_REGS as the allocno class, but force a
+   decision between FP_REGS and GR_REGS.  We use the allocno class if it isn't
+   ALL_REGS.  Similarly, use the best class if it isn't ALL_REGS.  Otherwise Set
+   the allocno class depending on the mode.
+
+   This change has a similar effect to increasing the cost of FPR->GPR register
+   moves for integer modes so that they are higher than the cost of memory but
+   changing the allocno class is more reliable.  */
+
+static reg_class_t
+loongarch_ira_change_pseudo_allocno_class (int regno, reg_class_t allocno_class,
+					   reg_class_t best_class)
+{
+  enum machine_mode mode;
+
+  if (allocno_class != ALL_REGS)
+    return allocno_class;
+
+  if (best_class != ALL_REGS)
+    return best_class;
+
+  mode = PSEUDO_REGNO_MODE (regno);
+  return FLOAT_MODE_P (mode) || VECTOR_MODE_P (mode) ? FP_REGS : GR_REGS;
 }
 
 /* Implement TARGET_VALID_POINTER_MODE.  */
@@ -7619,118 +7732,15 @@ loongarch_init_machine_status (void)
 }
 
 static void
-loongarch_cpu_option_override (struct loongarch_target *target,
-			       struct gcc_options *opts,
-			       struct gcc_options *opts_set)
+loongarch_global_init (void)
 {
-  /* alignments */
-  if (opts->x_flag_align_functions && !opts->x_str_align_functions)
-    opts->x_str_align_functions
-      = loongarch_cpu_align[target->cpu_tune].function;
-
-  if (opts->x_flag_align_labels && !opts->x_str_align_labels)
-    opts->x_str_align_labels = loongarch_cpu_align[target->cpu_tune].label;
-
-  /* Set up parameters to be used in prefetching algorithm.  */
-  int simultaneous_prefetches
-    = loongarch_cpu_cache[target->cpu_tune].simultaneous_prefetches;
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_simultaneous_prefetches,
-		       simultaneous_prefetches);
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_l1_cache_line_size,
-		       loongarch_cpu_cache[target->cpu_tune].l1d_line_size);
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_l1_cache_size,
-		       loongarch_cpu_cache[target->cpu_tune].l1d_size);
-
-  SET_OPTION_IF_UNSET (opts, opts_set, param_l2_cache_size,
-		       loongarch_cpu_cache[target->cpu_tune].l2d_size);
-}
-
-static void
-loongarch_option_override_internal (struct gcc_options *opts,
-				    struct gcc_options *opts_set)
-{
-  int i, regno, mode;
-
-  if (flag_pic)
-    g_switch_value = 0;
-
-  loongarch_init_target (&la_target,
-			 la_opt_cpu_arch, la_opt_cpu_tune, la_opt_fpu,
-			 la_opt_simd, la_opt_abi_base, la_opt_abi_ext,
-			 la_opt_cmodel, opts->x_la_isa_evolution,
-			 opts_set->x_la_isa_evolution);
-
-  /* Handle target-specific options: compute defaults/conflicts etc.  */
-  loongarch_config_target (&la_target, NULL, 0);
-
-  loongarch_update_gcc_opt_status (&la_target, opts, opts_set);
-  loongarch_cpu_option_override (&la_target, opts, opts_set);
-
-  if (TARGET_ABI_LP64)
-    flag_pcc_struct_return = 0;
-
-  /* Decide which rtx_costs structure to use.  */
-  if (optimize_size)
-    loongarch_cost = &loongarch_rtx_cost_optimize_size;
-  else
-    loongarch_cost = &loongarch_cpu_rtx_cost_data[la_target.cpu_tune];
-
-  /* If the user hasn't specified a branch cost, use the processor's
-     default.  */
-  if (la_branch_cost == 0)
-    la_branch_cost = loongarch_cost->branch_cost;
-
-  /* Enable sw prefetching at -O3 and higher.  */
-  if (opts->x_flag_prefetch_loop_arrays < 0
-      && (opts->x_optimize >= 3 || opts->x_flag_profile_use)
-      && !opts->x_optimize_size)
-    opts->x_flag_prefetch_loop_arrays = 1;
-
-  if (TARGET_DIRECT_EXTERN_ACCESS && flag_shlib)
-    error ("%qs cannot be used for compiling a shared library",
-	   "-mdirect-extern-access");
-
-  switch (la_target.cmodel)
-    {
-      case CMODEL_EXTREME:
-	if (opts->x_flag_plt)
-	  {
-	    if (global_options_set.x_flag_plt)
-	      error ("code model %qs is not compatible with %s",
-		     "extreme", "-fplt");
-	    opts->x_flag_plt = 0;
-	  }
-	break;
-
-      case CMODEL_TINY_STATIC:
-      case CMODEL_MEDIUM:
-      case CMODEL_NORMAL:
-      case CMODEL_TINY:
-      case CMODEL_LARGE:
-	break;
-
-      default:
-	gcc_unreachable ();
-    }
-
-  /* Validate the guard size.  */
-  int guard_size = param_stack_clash_protection_guard_size;
-
-  /* Enforce that interval is the same size as size so the mid-end does the
-     right thing.  */
-  SET_OPTION_IF_UNSET (opts, &global_options_set,
-		       param_stack_clash_protection_probe_interval,
-		       guard_size);
-
-  loongarch_init_print_operand_punct ();
+  /* Initialize loongarch_print_operand_punct.  */
+  for (const char *p = ".$"; *p; p++)
+    loongarch_print_operand_punct[(unsigned char) *p] = true;
 
   /* Set up array to map GCC register number to debug register number.
      Ignore the special purpose register numbers.  */
-
-  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+  for (int i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     {
       if (GP_REG_P (i) || FP_REG_P (i))
 	loongarch_dwarf_regno[i] = i;
@@ -7738,108 +7748,131 @@ loongarch_option_override_internal (struct gcc_options *opts,
 	loongarch_dwarf_regno[i] = INVALID_REGNUM;
     }
 
-  /* Set up loongarch_hard_regno_mode_ok.  */
-  for (mode = 0; mode < MAX_MACHINE_MODE; mode++)
-    for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
-      loongarch_hard_regno_mode_ok_p[mode][regno]
-	= loongarch_hard_regno_mode_ok_uncached (regno, (machine_mode) mode);
-
   /* Function to allocate machine-dependent function status.  */
   init_machine_status = &loongarch_init_machine_status;
-
-  /* -mrecip options.  */
-  static struct
-    {
-      const char *string;	    /* option name.  */
-      unsigned int mask;	    /* mask bits to set.  */
-    }
-  const recip_options[] = {
-	{ "all",       RECIP_MASK_ALL },
-	{ "none",      RECIP_MASK_NONE },
-	{ "div",       RECIP_MASK_DIV },
-	{ "sqrt",      RECIP_MASK_SQRT },
-	{ "rsqrt",     RECIP_MASK_RSQRT },
-	{ "vec-div",   RECIP_MASK_VEC_DIV },
-	{ "vec-sqrt",  RECIP_MASK_VEC_SQRT },
-	{ "vec-rsqrt", RECIP_MASK_VEC_RSQRT },
-  };
-
-  if (la_recip_name)
-    {
-      char *p = ASTRDUP (la_recip_name);
-      char *q;
-      unsigned int mask, i;
-      bool invert;
-
-      while ((q = strtok (p, ",")) != NULL)
-	{
-	  p = NULL;
-	  if (*q == '!')
-	    {
-	      invert = true;
-	      q++;
-	    }
-	  else
-	    invert = false;
-
-	  if (!strcmp (q, "default"))
-	    mask = RECIP_MASK_ALL;
-	  else
-	    {
-	      for (i = 0; i < ARRAY_SIZE (recip_options); i++)
-		if (!strcmp (q, recip_options[i].string))
-		  {
-		    mask = recip_options[i].mask;
-		    break;
-		  }
-
-	      if (i == ARRAY_SIZE (recip_options))
-		{
-		  error ("unknown option for %<-mrecip=%s%>", q);
-		  invert = false;
-		  mask = RECIP_MASK_NONE;
-		}
-	    }
-
-	  if (invert)
-	    recip_mask &= ~mask;
-	  else
-	    recip_mask |= mask;
-	}
-    }
-  if (la_recip)
-    recip_mask |= RECIP_MASK_ALL;
-  if (!ISA_HAS_FRECIPE)
-    recip_mask = RECIP_MASK_NONE;
-
-#define INIT_TARGET_FLAG(NAME, INIT) \
-  { \
-    if (!(target_flags_explicit & MASK_##NAME)) \
-      { \
-	if (INIT) \
-	  target_flags |= MASK_##NAME; \
-	else \
-	  target_flags &= ~MASK_##NAME; \
-      } \
-  }
-
-  /* Enable conditional moves for int and float by default.  */
-  INIT_TARGET_FLAG (COND_MOVE_INT, 1)
-  INIT_TARGET_FLAG (COND_MOVE_FLOAT, 1)
-
-  /* Set mrelax default.  */
-  INIT_TARGET_FLAG (LINKER_RELAXATION,
-		    HAVE_AS_MRELAX_OPTION && HAVE_AS_COND_BRANCH_RELAXATION)
-
-#undef INIT_TARGET_FLAG
-
-  if (la_opt_explicit_relocs == M_OPT_UNSET)
-    la_opt_explicit_relocs = (HAVE_AS_EXPLICIT_RELOCS
-			      ? (TARGET_LINKER_RELAXATION
-				 ? EXPLICIT_RELOCS_AUTO
-				 : EXPLICIT_RELOCS_ALWAYS)
-			      : EXPLICIT_RELOCS_NONE);
 }
+
+static void
+loongarch_reg_init (void)
+{
+  /* Set up loongarch_hard_regno_mode_ok.  */
+  for (int mode = 0; mode < MAX_MACHINE_MODE; mode++)
+    for (int regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
+      loongarch_hard_regno_mode_ok_p[mode][regno]
+	= loongarch_hard_regno_mode_ok_uncached (regno, (machine_mode) mode);
+}
+
+void
+loongarch_option_override_internal (struct loongarch_target *target,
+				    struct gcc_options *opts,
+				    struct gcc_options *opts_set)
+{
+  /* Handle options not covered by struct loongarch_target.  */
+  loongarch_init_misc_options (opts, opts_set);
+
+  /* Resolve the target struct.  */
+  loongarch_init_target (target,
+			 opts->x_la_opt_cpu_arch,
+			 opts->x_la_opt_cpu_tune,
+			 opts->x_la_opt_fpu,
+			 opts->x_la_opt_simd,
+			 opts->x_la_opt_abi_base,
+			 opts->x_la_opt_abi_ext,
+			 opts->x_la_opt_cmodel,
+			 opts->x_la_opt_tls_dialect,
+			 opts->x_la_isa_evolution,
+			 opts_set->x_la_isa_evolution);
+
+  loongarch_config_target (target, NULL, 0);
+
+  /* Override some options according to the resolved target.  */
+  loongarch_target_option_override (target, opts, opts_set);
+
+  loongarch_reg_init ();
+}
+
+/* Remember the last target of loongarch_set_current_function.  */
+
+static GTY(()) tree loongarch_previous_fndecl;
+
+void
+loongarch_reset_previous_fndecl (void)
+{
+  loongarch_previous_fndecl = NULL;
+}
+
+/* Restore or save the TREE_TARGET_GLOBALS from or to new_tree.
+   Used by loongarch_set_current_function to
+   make sure optab availability predicates are recomputed when necessary.  */
+
+void
+loongarch_save_restore_target_globals (tree new_tree)
+{
+  if (TREE_TARGET_GLOBALS (new_tree))
+    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
+  else if (new_tree == target_option_default_node)
+    restore_target_globals (&default_target_globals);
+  else
+    TREE_TARGET_GLOBALS (new_tree) = save_target_globals_default_opts ();
+}
+
+/* Implement TARGET_SET_CURRENT_FUNCTION.  */
+
+static void
+loongarch_set_current_function (tree fndecl)
+{
+  if (fndecl == loongarch_previous_fndecl)
+    return;
+
+  tree old_tree;
+  if (loongarch_previous_fndecl == NULL_TREE)
+    old_tree = target_option_current_node;
+  else if (DECL_FUNCTION_SPECIFIC_TARGET (loongarch_previous_fndecl))
+    old_tree = DECL_FUNCTION_SPECIFIC_TARGET (loongarch_previous_fndecl);
+  else
+    old_tree = target_option_default_node;
+
+  /* When the function is optimized, the pop_cfun will be called, and
+     the fndecl will be NULL.  */
+  if (fndecl == NULL_TREE)
+    {
+      if (old_tree != target_option_current_node)
+	{
+	  /* When this function is set with special options, we need to
+	     restore the original global optimization options at the end
+	     of function optimization.  */
+	  loongarch_previous_fndecl = NULL_TREE;
+	  cl_target_option_restore (&global_options, &global_options_set,
+				    TREE_TARGET_OPTION
+				    (target_option_current_node));
+	}
+      return;
+    }
+
+  tree new_tree = DECL_FUNCTION_SPECIFIC_TARGET (fndecl);
+
+  /* When no separate compilation parameters are set for the function,
+    new_tree is NULL.  */
+  if (new_tree == NULL_TREE)
+    new_tree = target_option_default_node;
+
+  loongarch_previous_fndecl = fndecl;
+
+  if (new_tree != old_tree)
+    /* According to the settings of the functions attribute and pragma,
+       the options is corrected.  */
+    cl_target_option_restore (&global_options, &global_options_set,
+			      TREE_TARGET_OPTION (new_tree));
+
+
+  /* After correcting the value of options, we need to update the
+     rules for using the hardware registers to ensure that the
+     rules correspond to the options.  */
+  loongarch_reg_init ();
+
+  loongarch_save_restore_target_globals (new_tree);
+}
+
 
 
 /* Implement TARGET_OPTION_OVERRIDE.  */
@@ -7847,7 +7880,19 @@ loongarch_option_override_internal (struct gcc_options *opts,
 static void
 loongarch_option_override (void)
 {
-  loongarch_option_override_internal (&global_options, &global_options_set);
+  /* Global initializations.  */
+  loongarch_global_init ();
+
+  /* Setting up the target configuration.  */
+  loongarch_option_override_internal (&la_target,
+				      &global_options,
+				      &global_options_set);
+
+  /* Save the initial options so that we can restore the initial option
+     settings later when processing attributes and pragmas.  */
+  target_option_default_node = target_option_current_node
+    = build_target_option_node (&global_options, &global_options_set);
+
 }
 
 /* Implement TARGET_OPTION_SAVE.  */
@@ -7873,6 +7918,7 @@ loongarch_option_restore (struct gcc_options *,
   la_target.isa.evolution = ptr->x_la_isa_evolution;
 
   la_target.cmodel = ptr->x_la_opt_cmodel;
+  la_target.tls_dialect = ptr->x_la_opt_tls_dialect;
 }
 
 /* Implement TARGET_CONDITIONAL_REGISTER_USAGE.  */
@@ -8222,7 +8268,7 @@ loongarch_get_separate_components (void)
 	if (IMM12_OPERAND (offset))
 	  bitmap_set_bit (components, regno);
 
-	offset -= UNITS_PER_FPREG;
+	offset -= UNITS_PER_FP_REG;
       }
 
   /* Don't mess with the hard frame pointer.  */
@@ -8301,7 +8347,7 @@ loongarch_process_components (sbitmap components, loongarch_save_restore_fn fn)
 	if (bitmap_bit_p (components, regno))
 	  loongarch_save_restore_reg (mode, regno, offset, fn);
 
-	offset -= UNITS_PER_FPREG;
+	offset -= UNITS_PER_FP_REG;
       }
 }
 
@@ -8328,14 +8374,6 @@ loongarch_set_handled_components (sbitmap components)
       if (bitmap_bit_p (components, regno))
 	cfun->machine->reg_is_wrapped_separately[regno] = true;
 }
-
-/* Initialize the GCC target structure.  */
-#undef TARGET_ASM_ALIGNED_HI_OP
-#define TARGET_ASM_ALIGNED_HI_OP "\t.half\t"
-#undef TARGET_ASM_ALIGNED_SI_OP
-#define TARGET_ASM_ALIGNED_SI_OP "\t.word\t"
-#undef TARGET_ASM_ALIGNED_DI_OP
-#define TARGET_ASM_ALIGNED_DI_OP "\t.dword\t"
 
 /* Use the vshuf instruction to implement all 128-bit constant vector
    permuatation.  */
@@ -9761,9 +9799,10 @@ loongarch_cpu_sched_reassociation_width (struct loongarch_target *target,
 
   switch (target->cpu_tune)
     {
-    case CPU_LOONGARCH64:
-    case CPU_LA464:
-    case CPU_LA664:
+    case TUNE_GENERIC:
+    case TUNE_LOONGARCH64:
+    case TUNE_LA464:
+    case TUNE_LA664:
       /* Vector part.  */
       if (LSX_SUPPORTED_MODE_P (mode) || LASX_SUPPORTED_MODE_P (mode))
 	{
@@ -9959,7 +9998,7 @@ loongarch_expand_vector_reduc (rtx (*fn) (rtx, rtx, rtx), rtx dest, rtx in)
 /* Expand an integral vector unpack operation.  */
 
 void
-loongarch_expand_vec_unpack (rtx operands[2], bool unsigned_p, bool high_p)
+loongarch_expand_vec_unpack (rtx operands[2], bool unsigned_p)
 {
   machine_mode imode = GET_MODE (operands[1]);
   rtx (*unpack) (rtx, rtx, rtx);
@@ -9968,31 +10007,32 @@ loongarch_expand_vec_unpack (rtx operands[2], bool unsigned_p, bool high_p)
   rtx (*swap_hi_lo) (rtx, rtx, rtx, rtx);
   rtx tmp, dest;
 
+  /* In LASX, only vec_unpacks_hi_<mode> requires expander.  */
   if (ISA_HAS_LASX && GET_MODE_SIZE (imode) == 32)
     {
       switch (imode)
 	{
 	case E_V8SImode:
 	  if (unsigned_p)
-	    extend = gen_lasx_vext2xv_du_wu;
+	    extend = gen_vec_unpacku_lo_v8si;
 	  else
-	    extend = gen_lasx_vext2xv_d_w;
+	    extend = gen_vec_unpacks_lo_v8si;
 	  swap_hi_lo = gen_lasx_xvpermi_q_v8si;
 	  break;
 
 	case E_V16HImode:
 	  if (unsigned_p)
-	    extend = gen_lasx_vext2xv_wu_hu;
+	    extend = gen_vec_unpacku_lo_v16hi;
 	  else
-	    extend = gen_lasx_vext2xv_w_h;
+	    extend = gen_vec_unpacks_lo_v16hi;
 	  swap_hi_lo = gen_lasx_xvpermi_q_v16hi;
 	  break;
 
 	case E_V32QImode:
 	  if (unsigned_p)
-	    extend = gen_lasx_vext2xv_hu_bu;
+	    extend = gen_vec_unpacku_lo_v32qi;
 	  else
-	    extend = gen_lasx_vext2xv_h_b;
+	    extend = gen_vec_unpacks_lo_v32qi;
 	  swap_hi_lo = gen_lasx_xvpermi_q_v32qi;
 	  break;
 
@@ -10001,46 +10041,28 @@ loongarch_expand_vec_unpack (rtx operands[2], bool unsigned_p, bool high_p)
 	  break;
 	}
 
-      if (high_p)
-	{
-	  tmp = gen_reg_rtx (imode);
-	  emit_insn (swap_hi_lo (tmp, tmp, operands[1], const1_rtx));
-	  emit_insn (extend (operands[0], tmp));
-	  return;
-	}
-
-      emit_insn (extend (operands[0], operands[1]));
+      tmp = gen_reg_rtx (imode);
+      emit_insn (swap_hi_lo (tmp, tmp, operands[1], const1_rtx));
+      emit_insn (extend (operands[0], tmp));
       return;
-
     }
-  else if (ISA_HAS_LSX)
+  /* In LSX, only vec_unpacks_lo_<mode> requires expander.  */
+  else if (ISA_HAS_LSX && !ISA_HAS_LASX)
     {
       switch (imode)
 	{
 	case E_V4SImode:
-	  if (high_p != 0)
-	    unpack = gen_lsx_vilvh_w;
-	  else
-	    unpack = gen_lsx_vilvl_w;
-
+	  unpack = gen_lsx_vilvl_w;
 	  cmpFunc = gen_lsx_vslt_w;
 	  break;
 
 	case E_V8HImode:
-	  if (high_p != 0)
-	    unpack = gen_lsx_vilvh_h;
-	  else
-	    unpack = gen_lsx_vilvl_h;
-
+	  unpack = gen_lsx_vilvl_h;
 	  cmpFunc = gen_lsx_vslt_h;
 	  break;
 
 	case E_V16QImode:
-	  if (high_p != 0)
-	    unpack = gen_lsx_vilvh_b;
-	  else
-	    unpack = gen_lsx_vilvl_b;
-
+	  unpack = gen_lsx_vilvl_b;
 	  cmpFunc = gen_lsx_vslt_b;
 	  break;
 
@@ -10599,19 +10621,29 @@ loongarch_expand_lsx_cmp (rtx dest, enum rtx_code cond, rtx op0, rtx op1)
       switch (cond)
 	{
 	case NE:
+	  if (!loongarch_const_vector_same_int_p (op1, cmp_mode, -16, 15))
+	    op1 = force_reg (cmp_mode, op1);
 	  cond = reverse_condition (cond);
 	  negate = true;
 	  break;
 	case EQ:
 	case LT:
 	case LE:
+	  if (!loongarch_const_vector_same_int_p (op1, cmp_mode, -16, 15))
+	    op1 = force_reg (cmp_mode, op1);
+	  break;
 	case LTU:
 	case LEU:
+	  if (!loongarch_const_vector_same_int_p (op1, cmp_mode, 0, 31))
+	    op1 = force_reg (cmp_mode, op1);
 	  break;
 	case GE:
 	case GT:
 	case GEU:
 	case GTU:
+	  /* Only supports reg-reg comparison.  */
+	  if (!register_operand (op1, cmp_mode))
+	    op1 = force_reg (cmp_mode, op1);
 	  std::swap (op0, op1);
 	  cond = swap_condition (cond);
 	  break;
@@ -10627,6 +10659,8 @@ loongarch_expand_lsx_cmp (rtx dest, enum rtx_code cond, rtx op0, rtx op1)
     case E_V2DFmode:
     case E_V8SFmode:
     case E_V4DFmode:
+      if (!register_operand (op1, cmp_mode))
+	op1 = force_reg (cmp_mode, op1);
       loongarch_emit_binary (cond, dest, op0, op1);
       break;
 
@@ -10801,30 +10835,12 @@ loongarch_expand_vec_cond_mask_expr (machine_mode mode, machine_mode vimode,
 }
 
 /* Expand integer vector comparison */
-bool
+void
 loongarch_expand_vec_cmp (rtx operands[])
 {
 
   rtx_code code = GET_CODE (operands[1]);
   loongarch_expand_lsx_cmp (operands[0], code, operands[2], operands[3]);
-  return true;
-}
-
-/* Implement TARGET_CASE_VALUES_THRESHOLD.  */
-
-unsigned int
-loongarch_case_values_threshold (void)
-{
-  return default_case_values_threshold ();
-}
-
-/* Implement TARGET_SPILL_CLASS.  */
-
-static reg_class_t
-loongarch_spill_class (reg_class_t rclass ATTRIBUTE_UNUSED,
-		       machine_mode mode ATTRIBUTE_UNUSED)
-{
-  return NO_REGS;
 }
 
 /* Implement TARGET_PROMOTE_FUNCTION_MODE.  */
@@ -11115,6 +11131,30 @@ loongarch_builtin_support_vector_misalignment (machine_mode mode,
 						      is_packed);
 }
 
+/* Return a PARALLEL containing NELTS elements, with element I equal
+   to BASE + I * STEP.  */
+rtx
+loongarch_gen_stepped_int_parallel (unsigned int nelts, int base,
+				    int step)
+{
+  rtvec vec = rtvec_alloc (nelts);
+  for (unsigned int i = 0; i < nelts; i++)
+    RTVEC_ELT (vec, i) = GEN_INT (base + i * step);
+  return gen_rtx_PARALLEL (VOIDmode, vec);
+}
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+loongarch_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return TARGET_64BIT ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
+}
+
 static bool
 use_rsqrt_p (void)
 {
@@ -11150,9 +11190,9 @@ loongarch_asm_code_end (void)
   if (flag_verbose_asm)
     {
       fprintf (asm_out_file, "\n%s CPU: %s\n", ASM_COMMENT_START,
-	       loongarch_cpu_strings [la_target.cpu_arch]);
+	       loongarch_arch_strings[la_target.cpu_arch]);
       fprintf (asm_out_file, "%s Tune: %s\n", ASM_COMMENT_START,
-	       loongarch_cpu_strings [la_target.cpu_tune]);
+	       loongarch_tune_strings[la_target.cpu_tune]);
       fprintf (asm_out_file, "%s Base ISA: %s\n", ASM_COMMENT_START,
 	       loongarch_isa_base_strings [la_target.isa.base]);
       DUMP_FEATURE (ISA_HAS_FRECIPE);
@@ -11164,6 +11204,16 @@ loongarch_asm_code_end (void)
 
   fputs ("\n\n", asm_out_file);
 #undef DUMP_FEATURE
+}
+
+/* Target hook for c_mode_for_suffix.  */
+static machine_mode
+loongarch_c_mode_for_suffix (char suffix)
+{
+  if (suffix == 'q')
+    return TFmode;
+
+  return VOIDmode;
 }
 
 /* Initialize the GCC target structure.  */
@@ -11180,6 +11230,9 @@ loongarch_asm_code_end (void)
 #define TARGET_OPTION_SAVE loongarch_option_save
 #undef TARGET_OPTION_RESTORE
 #define TARGET_OPTION_RESTORE loongarch_option_restore
+
+#undef TARGET_SET_CURRENT_FUNCTION
+#define TARGET_SET_CURRENT_FUNCTION loongarch_set_current_function
 
 #undef TARGET_LEGITIMIZE_ADDRESS
 #define TARGET_LEGITIMIZE_ADDRESS loongarch_legitimize_address
@@ -11221,6 +11274,8 @@ loongarch_asm_code_end (void)
 #define TARGET_RTX_COSTS loongarch_rtx_costs
 #undef TARGET_ADDRESS_COST
 #define TARGET_ADDRESS_COST loongarch_address_cost
+#undef TARGET_INSN_COST
+#define TARGET_INSN_COST loongarch_insn_cost
 #undef TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST
 #define TARGET_VECTORIZE_BUILTIN_VECTORIZATION_COST \
   loongarch_builtin_vectorization_cost
@@ -11280,9 +11335,6 @@ loongarch_asm_code_end (void)
 #define TARGET_FUNCTION_ARG_ADVANCE loongarch_function_arg_advance
 #undef TARGET_FUNCTION_ARG_BOUNDARY
 #define TARGET_FUNCTION_ARG_BOUNDARY loongarch_function_arg_boundary
-
-#undef TARGET_OPTAB_SUPPORTED_P
-#define TARGET_OPTAB_SUPPORTED_P loongarch_optab_supported_p
 
 #undef TARGET_VECTOR_MODE_SUPPORTED_P
 #define TARGET_VECTOR_MODE_SUPPORTED_P loongarch_vector_mode_supported_p
@@ -11353,17 +11405,11 @@ loongarch_asm_code_end (void)
 #undef TARGET_SCHED_REASSOCIATION_WIDTH
 #define TARGET_SCHED_REASSOCIATION_WIDTH loongarch_sched_reassociation_width
 
-#undef TARGET_CASE_VALUES_THRESHOLD
-#define TARGET_CASE_VALUES_THRESHOLD loongarch_case_values_threshold
-
 #undef TARGET_ATOMIC_ASSIGN_EXPAND_FENV
 #define TARGET_ATOMIC_ASSIGN_EXPAND_FENV loongarch_atomic_assign_expand_fenv
 
 #undef TARGET_CALL_FUSAGE_CONTAINS_NON_CALLEE_CLOBBERS
 #define TARGET_CALL_FUSAGE_CONTAINS_NON_CALLEE_CLOBBERS true
-
-#undef TARGET_SPILL_CLASS
-#define TARGET_SPILL_CLASS loongarch_spill_class
 
 #undef TARGET_HARD_REGNO_NREGS
 #define TARGET_HARD_REGNO_NREGS loongarch_hard_regno_nregs
@@ -11391,6 +11437,10 @@ loongarch_asm_code_end (void)
 
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD loongarch_secondary_reload
+
+#undef TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS
+#define TARGET_IRA_CHANGE_PSEUDO_ALLOCNO_CLASS \
+  loongarch_ira_change_pseudo_allocno_class
 
 #undef  TARGET_HAVE_SPECULATION_SAFE_VALUE
 #define TARGET_HAVE_SPECULATION_SAFE_VALUE speculation_safe_value_not_needed
@@ -11430,6 +11480,15 @@ loongarch_asm_code_end (void)
 #undef TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT
 #define TARGET_VECTORIZE_SUPPORT_VECTOR_MISALIGNMENT \
   loongarch_builtin_support_vector_misalignment
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE loongarch_c_mode_for_floating_type
+
+#undef TARGET_OPTION_VALID_ATTRIBUTE_P
+#define TARGET_OPTION_VALID_ATTRIBUTE_P loongarch_option_valid_attribute_p
+
+#undef TARGET_C_MODE_FOR_SUFFIX
+#define TARGET_C_MODE_FOR_SUFFIX loongarch_c_mode_for_suffix
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

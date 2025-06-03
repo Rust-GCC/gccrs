@@ -1,5 +1,5 @@
 /* Redundant Extension Elimination pass for the GNU compiler.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    Contributed by Ilya Enkovich (ilya.enkovich@intel.com)
 
    Based on the Redundant Zero-extension elimination pass contributed by
@@ -891,7 +891,7 @@ combine_reaching_defs (ext_cand *cand, const_rtx set_pat, ext_state *state)
 	 generated more than one insn.
 
          This generates garbage since we throw away the insn when we're
-	 done, only to recreate it later if this test was successful. 
+	 done, only to recreate it later if this test was successful.
 
 	 Make sure to get the mode from the extension (cand->insn).  This
 	 is different than in the code to emit the copy as we have not
@@ -1112,6 +1112,18 @@ add_removable_extension (const_rtx expr, rtx_insn *insn,
       rtx reg = XEXP (src, 0);
       struct df_link *defs, *def;
       ext_cand *cand;
+
+      if (fixed_regs[REGNO (reg)])
+	{
+	  if (dump_file)
+	    {
+	      fprintf (dump_file, "Cannot eliminate extension:\n");
+	      print_rtl_single (dump_file, insn);
+	      fprintf (dump_file, " because extension on fixed register"
+				  " isn't supported.\n");
+	    }
+	  return;
+	}
 
       /* Zero-extension of an undefined value is partly defined (it's
 	 completely undefined for sign-extension, though).  So if there exists

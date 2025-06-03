@@ -1,5 +1,5 @@
 /* Linux host-specific hook definitions.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -105,7 +105,7 @@
 #endif
 
 /* Determine a location where we might be able to reliably allocate SIZE
-   bytes.  FD is the PCH file, though we should return with the file 
+   bytes.  FD is the PCH file, though we should return with the file
    unmapped.  */
 
 static void *

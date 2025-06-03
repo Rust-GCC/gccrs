@@ -1,4 +1,4 @@
-/* Copyright (C) 2023-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>
 
 This file is part of GCC.
@@ -20,7 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_PRETTY_PRINT_URLIFIER_H
 #define GCC_PRETTY_PRINT_URLIFIER_H
 
-/* Abstract base class for optional use in pp_format for adding URLs
+/* Abstract base class for optional use in pretty-printing for adding URLs
    to quoted text strings.  */
 
 class urlifier

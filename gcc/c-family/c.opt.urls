@@ -4,10 +4,10 @@ A
 UrlSuffix(gcc/Preprocessor-Options.html#index-A)
 
 C
-UrlSuffix(gcc/Preprocessor-Options.html#index-C)
+UrlSuffix(gcc/Preprocessor-Options.html#index-C) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-C)
 
 CC
-UrlSuffix(gcc/Preprocessor-Options.html#index-CC)
+UrlSuffix(gcc/Preprocessor-Options.html#index-CC) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-CC)
 
 D
 UrlSuffix(gcc/Preprocessor-Options.html#index-D-1)
@@ -23,7 +23,7 @@ fgimple
 UrlSuffix(gcc/C-Dialect-Options.html#index-fgimple)
 
 H
-UrlSuffix(gcc/Preprocessor-Options.html#index-H) LangUrlSuffix_D(gdc/Code-Generation.html#index-H)
+UrlSuffix(gcc/Preprocessor-Options.html#index-H) LangUrlSuffix_D(gdc/Code-Generation.html#index-H) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-H)
 
 I
 UrlSuffix(gcc/Directory-Options.html#index-I) LangUrlSuffix_D(gdc/Directory-Options.html#index-I)
@@ -68,7 +68,7 @@ fdeps-target=
 UrlSuffix(gcc/C-Dialect-Options.html#index-fdeps-target)
 
 P
-UrlSuffix(gcc/Preprocessor-Options.html#index-P)
+UrlSuffix(gcc/Preprocessor-Options.html#index-P) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-P)
 
 U
 UrlSuffix(gcc/Preprocessor-Options.html#index-U)
@@ -81,6 +81,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wabi)
 
 Wabi-tag
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wabi-tag)
+
+Wpsabi
+UrlSuffix(gcc/Warning-Options.html#index-Wno-psabi)
 
 Wabsolute-value
 UrlSuffix(gcc/Warning-Options.html#index-Wabsolute-value)
@@ -101,7 +104,7 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Waligned-new)
 ;   duplicate: 'gcc/Standard-Libraries.html#index-Wall-1'
 ;   duplicate: 'gcc/Warning-Options.html#index-Wall'
 Wall
-LangUrlSuffix_D(gdc/Warnings.html#index-Wall)
+LangUrlSuffix_D(gdc/Warnings.html#index-Wall) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wall)
 
 Walloca
 UrlSuffix(gcc/Warning-Options.html#index-Walloca) LangUrlSuffix_D(gdc/Warnings.html#index-Walloca)
@@ -160,6 +163,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wbuiltin-macro-redefined)
 Wc11-c23-compat
 UrlSuffix(gcc/Warning-Options.html#index-Wc11-c23-compat)
 
+Wc23-c2y-compat
+UrlSuffix(gcc/Warning-Options.html#index-Wc23-c2y-compat)
+
 Wc90-c99-compat
 UrlSuffix(gcc/Warning-Options.html#index-Wc90-c99-compat)
 
@@ -208,11 +214,17 @@ UrlSuffix(gcc/Warning-Options.html#index-Wcast-function-type)
 Wcast-qual
 UrlSuffix(gcc/Warning-Options.html#index-Wcast-qual)
 
+Wcast-user-defined
+UrlSuffix(gcc/Warning-Options.html#index-Wcast-user-defined)
+
 Wcatch-value
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wcatch-value)
 
 Wcatch-value=
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wcatch-value)
+
+Wchanges-meaning
+UrlSuffix(gcc/Warning-Options.html#index-Wchanges-meaning)
 
 Wchar-subscripts
 UrlSuffix(gcc/Warning-Options.html#index-Wchar-subscripts)
@@ -239,7 +251,7 @@ Wconditionally-supported
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wconditionally-supported)
 
 Wconversion
-UrlSuffix(gcc/Warning-Options.html#index-Wconversion)
+UrlSuffix(gcc/Warning-Options.html#index-Wconversion) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wconversion)
 
 Wconversion-null
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wconversion-null)
@@ -274,6 +286,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wdeclaration-after-statement)
 Wdeclaration-missing-parameter-type
 UrlSuffix(gcc/Warning-Options.html#index-Wdeclaration-missing-parameter-type)
 
+Wdefaulted-function-deleted
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wdefaulted-function-deleted)
+
 Wdelete-incomplete
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wdelete-incomplete)
 
@@ -291,6 +306,15 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wdeprecated-enum-enum-conve
 
 Wdeprecated-enum-float-conversion
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wdeprecated-enum-float-conversion)
+
+Wdeprecated-literal-operator
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wdeprecated-literal-operator)
+
+Wdeprecated-non-prototype
+UrlSuffix(gcc/Warning-Options.html#index-Wdeprecated-non-prototype)
+
+Wdeprecated-variadic-comma-omission
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wdeprecated-variadic-comma-omission)
 
 Wdesignated-init
 UrlSuffix(gcc/Warning-Options.html#index-Wdesignated-init)
@@ -338,7 +362,7 @@ Wenum-int-mismatch
 UrlSuffix(gcc/Warning-Options.html#index-Wenum-int-mismatch)
 
 Werror
-UrlSuffix(gcc/Warning-Options.html#index-Werror) LangUrlSuffix_D(gdc/Warnings.html#index-Werror)
+UrlSuffix(gcc/Warning-Options.html#index-Werror) LangUrlSuffix_D(gdc/Warnings.html#index-Werror) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Werror)
 
 Wexceptions
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wexceptions)
@@ -347,7 +371,7 @@ Wexpansion-to-defined
 UrlSuffix(gcc/Warning-Options.html#index-Wexpansion-to-defined)
 
 Wextra
-UrlSuffix(gcc/Warning-Options.html#index-Wextra) LangUrlSuffix_D(gdc/Warnings.html#index-Wextra)
+UrlSuffix(gcc/Warning-Options.html#index-Wextra) LangUrlSuffix_D(gdc/Warnings.html#index-Wextra) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wextra)
 
 Wextra-semi
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wextra-semi)
@@ -403,8 +427,14 @@ UrlSuffix(gcc/Warning-Options.html#index-Wformat)
 Wframe-address
 UrlSuffix(gcc/Warning-Options.html#index-Wframe-address)
 
+Wfree-labels
+UrlSuffix(gcc/Warning-Options.html#index-Wfree-labels)
+
 Wglobal-module
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wglobal-module)
+
+Wheader-guard
+UrlSuffix(gcc/Warning-Options.html#index-Wheader-guard)
 
 Wif-not-aligned
 UrlSuffix(gcc/Warning-Options.html#index-Wif-not-aligned)
@@ -472,6 +502,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Winvalid-utf8)
 Wjump-misses-init
 UrlSuffix(gcc/Warning-Options.html#index-Wjump-misses-init)
 
+Wleading-whitespace=
+UrlSuffix(gcc/Warning-Options.html#index-Wleading-whitespace_003d)
+
 Wliteral-suffix
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wliteral-suffix)
 
@@ -528,6 +561,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wmissing-format-attribute)
 
 Wmissing-include-dirs
 UrlSuffix(gcc/Warning-Options.html#index-Wmissing-include-dirs)
+
+Wmissing-parameter-name
+UrlSuffix(gcc/Warning-Options.html#index-Wmissing-parameter-name)
 
 Wmissing-parameter-type
 UrlSuffix(gcc/Warning-Options.html#index-Wmissing-parameter-type)
@@ -638,7 +674,7 @@ Wparentheses
 UrlSuffix(gcc/Warning-Options.html#index-Wno-parentheses)
 
 Wpedantic
-UrlSuffix(gcc/Warning-Options.html#index-Wno-pedantic)
+UrlSuffix(gcc/Warning-Options.html#index-Wno-pedantic) LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wpedantic)
 
 Wpessimizing-move
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-pessimizing-move)
@@ -668,6 +704,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-pointer-to-int-cast)
 
 Wpragmas
 UrlSuffix(gcc/Warning-Options.html#index-Wno-pragmas)
+
+Wpragma-once-outside-header
+UrlSuffix(gcc/Warning-Options.html#index-Wno-pragma-once-outside-header)
 
 Wprio-ctor-dtor
 UrlSuffix(gcc/Warning-Options.html#index-Wno-prio-ctor-dtor)
@@ -828,11 +867,14 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-system-headers)
 Wtemplates
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-templates)
 
-Wtautological-compare
-UrlSuffix(gcc/Warning-Options.html#index-Wno-tautological-compare)
+Wtemplate-body
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-template-body)
 
 Wtemplate-id-cdtor
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-template-id-cdtor)
+
+Wtemplate-names-tu-local
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-template-names-tu-local)
 
 Wterminate
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-terminate)
@@ -842,6 +884,12 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-traditional)
 
 Wtraditional-conversion
 UrlSuffix(gcc/Warning-Options.html#index-Wno-traditional-conversion)
+
+Wtrailing-whitespace=
+UrlSuffix(gcc/Warning-Options.html#index-Wno-trailing-whitespace)
+
+Wtrailing-whitespace
+UrlSuffix(gcc/Warning-Options.html#index-Wno-trailing-whitespace)
 
 Wtrigraphs
 UrlSuffix(gcc/Warning-Options.html#index-Wtrigraphs)
@@ -863,6 +911,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-unknown-pragmas) LangUrlSuffix_D(gd
 
 Wunsuffixed-float-constants
 UrlSuffix(gcc/Warning-Options.html#index-Wno-unsuffixed-float-constants)
+
+Wunterminated-string-initialization
+UrlSuffix(gcc/Warning-Options.html#index-Wno-unterminated-string-initialization)
 
 Wunused
 UrlSuffix(gcc/Warning-Options.html#index-Wno-unused)
@@ -928,15 +979,15 @@ Wxor-used-as-pow
 UrlSuffix(gcc/Warning-Options.html#index-Wno-xor-used-as-pow)
 
 Wzero-as-null-pointer-constant
-UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-zero-as-null-pointer-constant)
+UrlSuffix(gcc/Warning-Options.html#index-Wno-zero-as-null-pointer-constant)
 
 Wzero-length-bounds
 UrlSuffix(gcc/Warning-Options.html#index-Wzero-length-bounds)
 
 ; skipping UrlSuffix for 'ansi' due to multiple URLs:
 ;   duplicate: 'gcc/C-Dialect-Options.html#index-ansi-1'
+;   duplicate: 'gcc/Library-Builtins.html#index-ansi-2'
 ;   duplicate: 'gcc/Non-bugs.html#index-ansi-3'
-;   duplicate: 'gcc/Other-Builtins.html#index-ansi-2'
 ;   duplicate: 'gcc/Standards.html#index-ansi'
 
 ; skipping UrlSuffix for 'd' due to multiple URLs:
@@ -961,9 +1012,12 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-faligned-new)
 fasm
 UrlSuffix(gcc/C-Dialect-Options.html#index-fasm)
 
+fassume-sane-operators-new-delete
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fassume-sane-operators-new-delete)
+
 ; skipping UrlSuffix for 'fbuiltin' due to multiple URLs:
 ;   duplicate: 'gcc/C-Dialect-Options.html#index-fbuiltin'
-;   duplicate: 'gcc/Other-Builtins.html#index-fno-builtin-3'
+;   duplicate: 'gcc/Library-Builtins.html#index-fno-builtin-3'
 ;   duplicate: 'gcc/Warning-Options.html#index-fno-builtin-1'
 ; skipping LangUrlSuffix_D for 'fbuiltin' due to multiple URLs:
 ;   duplicate: 'gdc/Other-Builtins.html#index-fno-builtin-1'
@@ -977,9 +1031,6 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fchar8_005ft)
 
 fconcepts
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fconcepts)
-
-fconcepts-ts
-UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fconcepts-ts)
 
 fcond-mismatch
 UrlSuffix(gcc/C-Dialect-Options.html#index-fcond-mismatch)
@@ -1121,8 +1172,8 @@ UrlSuffix(gcc/Optimize-Options.html#index-fkeep-inline-dllexport)
 flax-vector-conversions
 UrlSuffix(gcc/C-Dialect-Options.html#index-flax-vector-conversions)
 
-fmodules-ts
-UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fmodules-ts)
+fmodules
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fmodules)
 
 fmodule-header
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fmodule-header)
@@ -1211,16 +1262,16 @@ fobjc-nilcheck
 UrlSuffix(gcc/Objective-C-and-Objective-C_002b_002b-Dialect-Options.html#index-fobjc-nilcheck)
 
 fopenacc
-UrlSuffix(gcc/C-Dialect-Options.html#index-fopenacc) LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fopenacc)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-fopenacc) LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fopenacc)
 
 fopenacc-dim=
-UrlSuffix(gcc/C-Dialect-Options.html#index-fopenacc-dim)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-fopenacc-dim)
 
 fopenmp
-UrlSuffix(gcc/C-Dialect-Options.html#index-fopenmp) LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fopenmp)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-fopenmp) LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fopenmp)
 
 fopenmp-simd
-UrlSuffix(gcc/C-Dialect-Options.html#index-fopenmp-simd) LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fopenmp-simd)
+UrlSuffix(gcc/OpenMP-and-OpenACC-Options.html#index-fopenmp-simd) LangUrlSuffix_Fortran(gfortran/Fortran-Dialect-Options.html#index-fopenmp-simd)
 
 foperator-names
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fno-operator-names)
@@ -1256,16 +1307,27 @@ UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fno-pretty-templates)
 fprintf-return-value
 UrlSuffix(gcc/Optimize-Options.html#index-fno-printf-return-value)
 
+frange-for-ext-temps
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-frange-for-ext-temps)
+
 freplace-objc-classes
 UrlSuffix(gcc/Objective-C-and-Objective-C_002b_002b-Dialect-Options.html#index-freplace-objc-classes)
 
 frtti
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fno-rtti) LangUrlSuffix_D(gdc/Runtime-Options.html#index-fno-rtti)
 
+fsearch-include-path
+UrlSuffix(gcc/Preprocessor-Options.html#index-fsearch-include-path)
+
+fsearch-include-path=
+UrlSuffix(gcc/Preprocessor-Options.html#index-fsearch-include-path)
+
 ; skipping UrlSuffix for 'fshort-enums' due to multiple URLs:
 ;   duplicate: 'gcc/Code-Gen-Options.html#index-fshort-enums'
 ;   duplicate: 'gcc/Non-bugs.html#index-fshort-enums-3'
 ;   duplicate: 'gcc/Structures-unions-enumerations-and-bit-fields-implementation.html#index-fshort-enums-1'
+fshort-enums
+LangUrlSuffix_Fortran(gfortran/Code-Gen-Options.html#index-fshort-enums)
 
 fshort-wchar
 UrlSuffix(gcc/Code-Gen-Options.html#index-fshort-wchar)
@@ -1339,7 +1401,7 @@ fwide-exec-charset=
 UrlSuffix(gcc/Preprocessor-Options.html#index-fwide-exec-charset)
 
 fworking-directory
-UrlSuffix(gcc/Preprocessor-Options.html#index-fno-working-directory)
+UrlSuffix(gcc/Preprocessor-Options.html#index-fno-working-directory) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-fworking-directory)
 
 fzero-link
 UrlSuffix(gcc/Objective-C-and-Objective-C_002b_002b-Dialect-Options.html#index-fzero-link)
@@ -1360,28 +1422,28 @@ fext-numeric-literals
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-fext-numeric-literals)
 
 idirafter
-UrlSuffix(gcc/Directory-Options.html#index-idirafter)
+UrlSuffix(gcc/Directory-Options.html#index-idirafter) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-idirafter)
 
 imacros
 UrlSuffix(gcc/Preprocessor-Options.html#index-imacros)
 
 imultilib
-UrlSuffix(gcc/Directory-Options.html#index-imultilib) LangUrlSuffix_D(gdc/Directory-Options.html#index-imultilib)
+UrlSuffix(gcc/Directory-Options.html#index-imultilib) LangUrlSuffix_D(gdc/Directory-Options.html#index-imultilib) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-imultilib)
 
 include
 UrlSuffix(gcc/Preprocessor-Options.html#index-include)
 
 iprefix
-UrlSuffix(gcc/Directory-Options.html#index-iprefix) LangUrlSuffix_D(gdc/Directory-Options.html#index-iprefix)
+UrlSuffix(gcc/Directory-Options.html#index-iprefix) LangUrlSuffix_D(gdc/Directory-Options.html#index-iprefix) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-iprefix)
 
 isysroot
-UrlSuffix(gcc/Directory-Options.html#index-isysroot)
+UrlSuffix(gcc/Directory-Options.html#index-isysroot) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-isysroot)
 
 isystem
-UrlSuffix(gcc/Directory-Options.html#index-isystem)
+UrlSuffix(gcc/Directory-Options.html#index-isystem) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-isystem)
 
 iquote
-UrlSuffix(gcc/Directory-Options.html#index-iquote)
+UrlSuffix(gcc/Directory-Options.html#index-iquote) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-iquote)
 
 iwithprefix
 UrlSuffix(gcc/Directory-Options.html#index-iwithprefix)
@@ -1393,7 +1455,7 @@ no-integrated-cpp
 UrlSuffix(gcc/Preprocessor-Options.html#index-no-integrated-cpp)
 
 nostdinc
-UrlSuffix(gcc/Directory-Options.html#index-nostdinc) LangUrlSuffix_D(gdc/Directory-Options.html#index-nostdinc)
+UrlSuffix(gcc/Directory-Options.html#index-nostdinc) LangUrlSuffix_D(gdc/Directory-Options.html#index-nostdinc) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-nostdinc)
 
 ; skipping UrlSuffix for 'nostdinc++' due to multiple URLs:
 ;   duplicate: 'gcc/C_002b_002b-Dialect-Options.html#index-nostdinc_002b_002b'
@@ -1408,6 +1470,8 @@ UrlSuffix(gcc/Overall-Options.html#index-o)
 ;   duplicate: 'gcc/Standards.html#index-pedantic'
 ;   duplicate: 'gcc/Warning-Options.html#index-pedantic-1'
 ;   duplicate: 'gcc/Warnings-and-Errors.html#index-pedantic-4'
+pedantic
+LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-pedantic)
 
 print-objc-runtime-info
 UrlSuffix(gcc/Objective-C-and-Objective-C_002b_002b-Dialect-Options.html#index-print-objc-runtime-info)
@@ -1429,7 +1493,7 @@ trigraphs
 UrlSuffix(gcc/Preprocessor-Options.html#index-trigraphs)
 
 undef
-UrlSuffix(gcc/Preprocessor-Options.html#index-undef)
+UrlSuffix(gcc/Preprocessor-Options.html#index-undef) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-undef)
 
 v
 UrlSuffix(gcc/Overall-Options.html#index-v) LangUrlSuffix_D(gdc/Developer-Options.html#index-v)

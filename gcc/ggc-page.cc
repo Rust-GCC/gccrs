@@ -1,5 +1,5 @@
 /* "Bag-of-pages" garbage collector for the GNU compiler.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1027,7 +1027,7 @@ release_pages (void)
 
   /* First free larger continuous areas to the OS.
      This allows other allocators to grab these areas if needed.
-     This is only done on larger chunks to avoid fragmentation. 
+     This is only done on larger chunks to avoid fragmentation.
      This does not always work because the free_pages list is only
      approximately sorted. */
 
@@ -1068,7 +1068,7 @@ release_pages (void)
       prev = newprev;
    }
 
-  /* Now give back the fragmented pages to the OS, but keep the address 
+  /* Now give back the fragmented pages to the OS, but keep the address
      space to reuse it next time. */
 
   for (p = G.free_pages; p; )
@@ -1088,7 +1088,7 @@ release_pages (void)
           p = p->next;
         }
       /* Give the page back to the kernel, but don't free the mapping.
-         This avoids fragmentation in the virtual memory map of the 
+         This avoids fragmentation in the virtual memory map of the
  	 process. Next time we can reuse it by just touching it. */
       madvise (start, len, MADV_DONTNEED);
       /* Don't count those pages as mapped to not touch the garbage collector
@@ -1247,7 +1247,7 @@ size_t
 ggc_round_alloc_size (size_t requested_size)
 {
   size_t size = 0;
-  
+
   ggc_round_alloc_size_1 (requested_size, NULL, &size);
   return size;
 }
@@ -1273,9 +1273,15 @@ add_finalizer (void *result, void (*f)(void *), size_t s, size_t n)
 
 /* Allocate a chunk of memory of SIZE bytes.  Its contents are undefined.  */
 
+#ifdef HAVE_ATTRIBUTE_ALIAS
+extern "C" void *
+ggc_internal_alloc_ (size_t size, void (*f)(void *), size_t s, size_t n
+		     MEM_STAT_DECL)
+#else
 void *
 ggc_internal_alloc (size_t size, void (*f)(void *), size_t s, size_t n
 		    MEM_STAT_DECL)
+#endif
 {
   size_t order, word, bit, object_offset, object_size;
   struct page_entry *entry;
@@ -1457,6 +1463,27 @@ ggc_internal_alloc (size_t size, void (*f)(void *), size_t s, size_t n
 
   return result;
 }
+
+#ifdef HAVE_ATTRIBUTE_ALIAS
+extern void *
+ggc_internal_alloc (size_t size, void (*f)(void *), size_t s,
+		    size_t n MEM_STAT_DECL)
+     __attribute__((__alias__ ("ggc_internal_alloc_")));
+extern void *
+ggc_internal_alloc_no_dtor (size_t size, void (*f)(void *), size_t s,
+			    size_t n MEM_STAT_DECL)
+     __attribute__((__alias__ ("ggc_internal_alloc_")));
+#else
+#ifdef __GNUC__
+__attribute__ ((__noinline__))
+#endif
+void *
+ggc_internal_alloc_no_dtor (size_t size, void (*f)(void *), size_t s,
+			    size_t n MEM_STAT_DECL)
+{
+  return ggc_internal_alloc (size, f, s, n PASS_MEM_STAT);
+}
+#endif
 
 /* Mark function for strings.  */
 

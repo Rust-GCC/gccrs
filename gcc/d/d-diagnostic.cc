@@ -1,5 +1,5 @@
 /* d-diagnostics.cc -- D frontend interface to gcc diagnostics.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -183,13 +183,14 @@ escape_d_format (const char *format)
    front-end, which does not get translated by the gcc diagnostic routines.  */
 
 static void ATTRIBUTE_GCC_DIAG(3,0)
-d_diagnostic_report_diagnostic (const Loc &loc, int opt, const char *format,
-				va_list ap, diagnostic_t kind, bool verbatim)
+d_diagnostic_report_diagnostic (const SourceLoc &loc, int opt,
+				const char *format, va_list ap,
+				diagnostic_t kind, bool verbatim)
 {
   va_list argp;
   va_copy (argp, ap);
 
-  if (loc.filename () || !verbatim)
+  if (loc.filename.length != 0 || !verbatim)
     {
       rich_location rich_loc (line_table, make_location_t (loc));
       diagnostic_info diagnostic;
@@ -198,7 +199,7 @@ d_diagnostic_report_diagnostic (const Loc &loc, int opt, const char *format,
       diagnostic_set_info_translated (&diagnostic, xformat, &argp,
 				      &rich_loc, kind);
       if (opt != 0)
-	diagnostic.option_index = opt;
+	diagnostic.option_id = opt;
 
       diagnostic_report_diagnostic (global_dc, &diagnostic);
     }
@@ -207,8 +208,9 @@ d_diagnostic_report_diagnostic (const Loc &loc, int opt, const char *format,
       /* Write verbatim messages with no location direct to stream.  */
       text_info text (expand_d_format (format), &argp, errno, nullptr);
 
-      pp_format_verbatim (global_dc->printer, &text);
-      pp_newline_and_flush (global_dc->printer);
+      pretty_printer *const pp = global_dc->get_reference_printer ();
+      pp_format_verbatim (pp, &text);
+      pp_newline_and_flush (pp);
     }
 
   va_end (argp);
@@ -219,8 +221,8 @@ d_diagnostic_report_diagnostic (const Loc &loc, int opt, const char *format,
    error count depending on how KIND is treated.  */
 
 void D_ATTRIBUTE_FORMAT(2,0) ATTRIBUTE_GCC_DIAG(2,0)
-verrorReport (const Loc& loc, const char *format, va_list ap, ErrorKind kind,
-	      const char *prefix1, const char *prefix2)
+verrorReport (const SourceLoc loc, const char *format, va_list ap,
+	      ErrorKind kind, const char *prefix1, const char *prefix2)
 {
   diagnostic_t diag_kind = DK_UNSPECIFIED;
   int opt = 0;
@@ -240,7 +242,7 @@ verrorReport (const Loc& loc, const char *format, va_list ap, ErrorKind kind,
     }
   else if (kind == ErrorKind::warning)
     {
-      if (global.gag || global.params.warnings == DIAGNOSTICoff)
+      if (global.gag || global.params.useWarnings == DIAGNOSTICoff)
 	{
 	  if (global.gag)
 	    global.gaggedWarnings++;
@@ -249,7 +251,7 @@ verrorReport (const Loc& loc, const char *format, va_list ap, ErrorKind kind,
 	}
 
       /* Warnings don't count if not treated as errors.  */
-      if (global.params.warnings == DIAGNOSTICerror)
+      if (global.params.useWarnings == DIAGNOSTICerror)
 	global.warnings++;
 
       diag_kind = DK_WARNING;
@@ -303,7 +305,7 @@ verrorReport (const Loc& loc, const char *format, va_list ap, ErrorKind kind,
    explicit location LOC.  This doesn't increase the global error count.  */
 
 void D_ATTRIBUTE_FORMAT(2,0) ATTRIBUTE_GCC_DIAG(2,0)
-verrorReportSupplemental (const Loc& loc, const char* format, va_list ap,
+verrorReportSupplemental (const SourceLoc loc, const char* format, va_list ap,
 			  ErrorKind kind)
 {
   if (kind == ErrorKind::error)
@@ -313,7 +315,7 @@ verrorReportSupplemental (const Loc& loc, const char* format, va_list ap,
     }
   else if (kind == ErrorKind::warning)
     {
-      if (global.params.warnings == DIAGNOSTICoff || global.gag)
+      if (global.params.useWarnings == DIAGNOSTICoff || global.gag)
 	return;
     }
   else if (kind == ErrorKind::deprecation)

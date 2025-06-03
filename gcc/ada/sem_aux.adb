@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -699,24 +699,6 @@ package body Sem_Aux is
       return Present (Get_Rep_Pragma (E, Nam1, Nam2, Check_Parents));
    end Has_Rep_Pragma;
 
-   --------------------------------
-   -- Has_Unconstrained_Elements --
-   --------------------------------
-
-   function Has_Unconstrained_Elements (T : Entity_Id) return Boolean is
-      U_T : constant Entity_Id := Underlying_Type (T);
-   begin
-      if No (U_T) then
-         return False;
-      elsif Is_Record_Type (U_T) then
-         return Has_Discriminants (U_T) and then not Is_Constrained (U_T);
-      elsif Is_Array_Type (U_T) then
-         return Has_Unconstrained_Elements (Component_Type (U_T));
-      else
-         return False;
-      end if;
-   end Has_Unconstrained_Elements;
-
    ----------------------
    -- Has_Variant_Part --
    ----------------------
@@ -882,7 +864,8 @@ package body Sem_Aux is
          return True;
 
       elsif Is_Record_Type (Btype) then
-         if Is_Limited_Record (Btype)
+         if Is_Controlled (Btype)
+           or else Is_Limited_Record (Btype)
            or else Is_Tagged_Type (Btype)
            or else Is_Volatile (Btype)
          then
@@ -1116,6 +1099,17 @@ package body Sem_Aux is
          return not In_Package_Body (Scope ((Btype)));
 
       elsif Is_Private_Type (Btype) then
+
+         --  If Ent occurs in the completion of a private type, then
+         --  look for the word "limited" in the full view.
+
+         if Nkind (Parent (Ent)) = N_Full_Type_Declaration
+           and then Nkind (Type_Definition (Parent (Ent))) in
+                      N_Record_Definition | N_Derived_Type_Definition
+           and then Limited_Present (Type_Definition (Parent (Ent)))
+         then
+            return True;
+         end if;
 
          --  AI05-0063: A type derived from a limited private formal type is
          --  not immutably limited in a generic body.

@@ -1,6 +1,6 @@
 // <decimal> -*- C++ -*-
 
-// Copyright (C) 2009-2024 Free Software Foundation, Inc.
+// Copyright (C) 2009-2025 Free Software Foundation, Inc.
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
@@ -31,7 +31,12 @@
 #ifndef _GLIBCXX_DECIMAL
 #define _GLIBCXX_DECIMAL 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic" // DF suffix
 
 #include <bits/c++config.h>
 
@@ -491,4 +496,5 @@ _GLIBCXX_END_NAMESPACE_VERSION
 
 #include <decimal/decimal.h>
 
+#pragma GCC diagnostic pop
 #endif /* _GLIBCXX_DECIMAL */

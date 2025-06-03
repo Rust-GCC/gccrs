@@ -1,6 +1,6 @@
 (* FormatStrings.mod provides a pseudo printf capability.
 
-Copyright (C) 2005-2024 Free Software Foundation, Inc.
+Copyright (C) 2005-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -378,7 +378,7 @@ BEGIN
          THEN
             INC (afterperc) ;
             Cast (u, w) ;
-            in := ConCat (in, Slice (fmt, startpos, nextperc)) ;
+            in := Copy (fmt, in, startpos, nextperc) ;
             in := ConCat (in, CardinalToString (u, width, leader, 16, TRUE)) ;
             startpos := afterperc ;
             DSdbExit (NIL) ;
@@ -387,7 +387,7 @@ BEGIN
          THEN
             INC (afterperc) ;
             Cast (u, w) ;
-            in := ConCat (in, Slice (fmt, startpos, nextperc)) ;
+            in := Copy (fmt, in, startpos, nextperc) ;
             in := ConCat (in, CardinalToString (u, width, leader, 10, FALSE)) ;
             startpos := afterperc ;
             DSdbExit (NIL) ;

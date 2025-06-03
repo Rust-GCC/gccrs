@@ -1,5 +1,5 @@
 /* Hash tables for Objective C internal structures
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -222,7 +222,7 @@ objc_hash_next (cache_ptr cache, node_ptr node)
       if (node->next)
 	{
 	  /* There is a node which follows the last node returned.
-	     Step to that node and retun it.  */
+	     Step to that node and return it.  */
 	  return node->next;
 	}
       else

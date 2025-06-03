@@ -1,7 +1,7 @@
 /* Various declarations for language-independent pretty-print
    subroutines that are only for use in the compilers proper and not
    the driver or other programs.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -56,6 +56,6 @@ extern void print_call_name (pretty_printer *, tree, dump_flags_t);
 extern void pp_tree_identifier (pretty_printer *, tree);
 extern void dump_function_header (FILE *, tree, dump_flags_t);
 extern void pp_double_int (pretty_printer *pp, double_int d, bool uns);
-extern void dump_location (pretty_printer *buffer, location_t loc);
+extern void dump_location (pretty_printer *pp, location_t loc);
 
 #endif /* ! GCC_TREE_PRETTY_PRINT_H */

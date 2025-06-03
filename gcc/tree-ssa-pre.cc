@@ -1,5 +1,5 @@
 /* Full and partial redundancy elimination and code hoisting on SSA GIMPLE.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org> and Steven Bosscher
    <stevenb@suse.de>
 
@@ -886,7 +886,7 @@ pre_expr_DFS (pre_expr expr, bitmap_set_t set, bitmap val_visited,
 
 /* Generate an topological-ordered array of bitmap set SET.  */
 
-static vec<pre_expr> 
+static vec<pre_expr>
 sorted_array_from_bitmap_set (bitmap_set_t set)
 {
   unsigned int i;
@@ -1185,41 +1185,6 @@ get_or_alloc_expr_for_constant (tree constant)
   return newexpr;
 }
 
-/* Return the folded version of T if T, when folded, is a gimple
-   min_invariant or an SSA name.  Otherwise, return T.  */
-
-static pre_expr
-fully_constant_expression (pre_expr e)
-{
-  switch (e->kind)
-    {
-    case CONSTANT:
-      return e;
-    case NARY:
-      {
-	vn_nary_op_t nary = PRE_EXPR_NARY (e);
-	tree res = vn_nary_simplify (nary);
-	if (!res)
-	  return e;
-	if (is_gimple_min_invariant (res))
-	  return get_or_alloc_expr_for_constant (res);
-	if (TREE_CODE (res) == SSA_NAME)
-	  return get_or_alloc_expr_for_name (res);
-	return e;
-      }
-    case REFERENCE:
-      {
-	vn_reference_t ref = PRE_EXPR_REFERENCE (e);
-	tree folded;
-	if ((folded = fully_constant_vn_reference_p (ref)))
-	  return get_or_alloc_expr_for_constant (folded);
-	return e;
-      }
-    default:
-      return e;
-    }
-}
-
 /* Translate the VUSE backwards through phi nodes in E->dest, so that
    it has the value it would have in E->src.  Set *SAME_VALID to true
    in case the new vuse doesn't change the value id of the OPERANDS.  */
@@ -1356,7 +1321,7 @@ get_representative_for (const pre_expr e, basic_block b = NULL)
 		/* We have to return either a new representative or one
 		   that can be used for expression simplification and thus
 		   is available in B.  */
-		if (! b 
+		if (! b
 		    || gimple_nop_p (def)
 		    || dominated_by_p (CDI_DOMINATORS, b, gimple_bb (def)))
 		  return name;
@@ -1430,7 +1395,7 @@ phi_translate_1 (bitmap_set_t dest,
 		unsigned int op_val_id = VN_INFO (newnary->op[i])->value_id;
 		leader = find_leader_in_sets (op_val_id, set1, set2);
 		result = phi_translate (dest, leader, set1, set2, e);
-		if (result && result != leader)
+		if (result)
 		  /* If op has a leader in the sets we translate make
 		     sure to use the value of the translated expression.
 		     We might need a new representative for that.  */
@@ -1443,57 +1408,55 @@ phi_translate_1 (bitmap_set_t dest,
 	  }
 	if (changed)
 	  {
-	    pre_expr constant;
 	    unsigned int new_val_id;
 
-	    PRE_EXPR_NARY (expr) = newnary;
-	    constant = fully_constant_expression (expr);
-	    PRE_EXPR_NARY (expr) = nary;
-	    if (constant != expr)
+	    /* Try to simplify the new NARY.  */
+	    tree res = vn_nary_simplify (newnary);
+	    if (res)
 	      {
+		if (is_gimple_min_invariant (res))
+		  return get_or_alloc_expr_for_constant (res);
+
 		/* For non-CONSTANTs we have to make sure we can eventually
 		   insert the expression.  Which means we need to have a
 		   leader for it.  */
-		if (constant->kind != CONSTANT)
+		gcc_assert (TREE_CODE (res) == SSA_NAME);
+
+		/* Do not allow simplifications to non-constants over
+		   backedges as this will likely result in a loop PHI node
+		   to be inserted and increased register pressure.
+		   See PR77498 - this avoids doing predcoms work in
+		   a less efficient way.  */
+		if (e->flags & EDGE_DFS_BACK)
+		  ;
+		else
 		  {
-		    /* Do not allow simplifications to non-constants over
-		       backedges as this will likely result in a loop PHI node
-		       to be inserted and increased register pressure.
-		       See PR77498 - this avoids doing predcoms work in
-		       a less efficient way.  */
-		    if (e->flags & EDGE_DFS_BACK)
-		      ;
-		    else
+		    unsigned value_id = VN_INFO (res)->value_id;
+		    /* We want a leader in ANTIC_OUT or AVAIL_OUT here.
+		       dest has what we computed into ANTIC_OUT sofar
+		       so pick from that - since topological sorting
+		       by sorted_array_from_bitmap_set isn't perfect
+		       we may lose some cases here.  */
+		    pre_expr constant = find_leader_in_sets (value_id, dest,
+							     AVAIL_OUT (pred));
+		    if (constant)
 		      {
-			unsigned value_id = get_expr_value_id (constant);
-			/* We want a leader in ANTIC_OUT or AVAIL_OUT here.
-			   dest has what we computed into ANTIC_OUT sofar
-			   so pick from that - since topological sorting
-			   by sorted_array_from_bitmap_set isn't perfect
-			   we may lose some cases here.  */
-			constant = find_leader_in_sets (value_id, dest,
-							AVAIL_OUT (pred));
-			if (constant)
+			if (dump_file && (dump_flags & TDF_DETAILS))
 			  {
-			    if (dump_file && (dump_flags & TDF_DETAILS))
-			      {
-				fprintf (dump_file, "simplifying ");
-				print_pre_expr (dump_file, expr);
-				fprintf (dump_file, " translated %d -> %d to ",
-					 phiblock->index, pred->index);
-				PRE_EXPR_NARY (expr) = newnary;
-				print_pre_expr (dump_file, expr);
-				PRE_EXPR_NARY (expr) = nary;
-				fprintf (dump_file, " to ");
-				print_pre_expr (dump_file, constant);
-				fprintf (dump_file, "\n");
-			      }
-			    return constant;
+			    fprintf (dump_file, "simplifying ");
+			    print_pre_expr (dump_file, expr);
+			    fprintf (dump_file, " translated %d -> %d to ",
+				     phiblock->index, pred->index);
+			    PRE_EXPR_NARY (expr) = newnary;
+			    print_pre_expr (dump_file, expr);
+			    PRE_EXPR_NARY (expr) = nary;
+			    fprintf (dump_file, " to ");
+			    print_pre_expr (dump_file, constant);
+			    fprintf (dump_file, "\n");
 			  }
+			return constant;
 		      }
 		  }
-		else
-		  return constant;
 	      }
 
 	    tree result = vn_nary_op_lookup_pieces (newnary->length,
@@ -1553,7 +1516,7 @@ phi_translate_1 (bitmap_set_t dest,
 		op_val_id = VN_INFO (op[n])->value_id;
 		leader = find_leader_in_sets (op_val_id, set1, set2);
 		opresult = phi_translate (dest, leader, set1, set2, e);
-		if (opresult && opresult != leader)
+		if (opresult)
 		  {
 		    tree name = get_representative_for (opresult);
 		    changed |= name != op[n];
@@ -2008,10 +1971,11 @@ clean (bitmap_set_t set1, bitmap_set_t set2 = NULL)
 }
 
 /* Clean the set of expressions that are no longer valid in SET because
-   they are clobbered in BLOCK or because they trap and may not be executed.  */
+   they are clobbered in BLOCK or because they trap and may not be executed.
+   When CLEAN_TRAPS is true remove all possibly trapping expressions.  */
 
 static void
-prune_clobbered_mems (bitmap_set_t set, basic_block block)
+prune_clobbered_mems (bitmap_set_t set, basic_block block, bool clean_traps)
 {
   bitmap_iterator bi;
   unsigned i;
@@ -2049,7 +2013,7 @@ prune_clobbered_mems (bitmap_set_t set, basic_block block)
 	     a possible exit point.
 	     ???  This is overly conservative if we translate AVAIL_OUT
 	     as the available expression might be after the exit point.  */
-	  if (BB_MAY_NOTRETURN (block)
+	  if ((BB_MAY_NOTRETURN (block) || clean_traps)
 	      && vn_reference_may_trap (ref))
 	    to_remove = i;
 	}
@@ -2060,7 +2024,7 @@ prune_clobbered_mems (bitmap_set_t set, basic_block block)
 	     a possible exit point.
 	     ???  This is overly conservative if we translate AVAIL_OUT
 	     as the available expression might be after the exit point.  */
-	  if (BB_MAY_NOTRETURN (block)
+	  if ((BB_MAY_NOTRETURN (block) || clean_traps)
 	      && vn_nary_may_trap (nary))
 	    to_remove = i;
 	}
@@ -2114,6 +2078,8 @@ compute_antic_aux (basic_block block, bool block_has_abnormal_pred_edge)
 
   bool was_visited = BB_VISITED (block);
   bool changed = ! BB_VISITED (block);
+  bool any_max_on_edge = false;
+
   BB_VISITED (block) = 1;
   old = ANTIC_OUT = S = NULL;
 
@@ -2158,6 +2124,7 @@ compute_antic_aux (basic_block block, bool block_has_abnormal_pred_edge)
 		 maximal set to arrive at a maximum ANTIC_IN solution.
 		 We can ignore them in the intersection operation and thus
 		 need not explicitely represent that maximum solution.  */
+	      any_max_on_edge = true;
 	      if (dump_file && (dump_flags & TDF_DETAILS))
 		fprintf (dump_file, "ANTIC_IN is MAX on %d->%d\n",
 			 e->src->index, e->dest->index);
@@ -2223,7 +2190,7 @@ compute_antic_aux (basic_block block, bool block_has_abnormal_pred_edge)
 
   /* Prune expressions that are clobbered in block and thus become
      invalid if translated from ANTIC_OUT to ANTIC_IN.  */
-  prune_clobbered_mems (ANTIC_OUT, block);
+  prune_clobbered_mems (ANTIC_OUT, block, any_max_on_edge);
 
   /* Generate ANTIC_OUT - TMP_GEN.  */
   S = bitmap_set_subtract_expressions (ANTIC_OUT, TMP_GEN (block));
@@ -2396,7 +2363,7 @@ compute_partial_antic_aux (basic_block block,
 
   /* Prune expressions that are clobbered in block and thus become
      invalid if translated from PA_OUT to PA_IN.  */
-  prune_clobbered_mems (PA_OUT, block);
+  prune_clobbered_mems (PA_OUT, block, false);
 
   /* PA_IN starts with PA_OUT - TMP_GEN.
      Then we subtract things from ANTIC_IN.  */
@@ -2618,7 +2585,7 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
 							stmts);
 	if (!genop0)
 	  return NULL_TREE;
-	return fold_build1 (currop->opcode, currop->type, genop0);
+	return build1 (currop->opcode, currop->type, genop0);
       }
 
     case WITH_SIZE_EXPR:
@@ -2630,7 +2597,7 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
 	tree genop1 = find_or_generate_expression (block, currop->op0, stmts);
 	if (!genop1)
 	  return NULL_TREE;
-	return fold_build2 (currop->opcode, currop->type, genop0, genop1);
+	return build2 (currop->opcode, currop->type, genop0, genop1);
       }
 
     case BIT_FIELD_REF:
@@ -2643,7 +2610,7 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
 	tree op2 = currop->op1;
 	tree t = build3 (BIT_FIELD_REF, currop->type, genop0, op1, op2);
 	REF_REVERSE_STORAGE_ORDER (t) = currop->reverse;
-	return fold (t);
+	return t;
       }
 
       /* For array ref vn_reference_op's, operand 1 of the array ref
@@ -2685,11 +2652,15 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
 	       here as the element alignment may be not visible.  See
 	       PR43783.  Simply drop the element size for constant
 	       sizes.  */
-	    if (TREE_CODE (genop3) == INTEGER_CST
+	    if ((TREE_CODE (genop3) == INTEGER_CST
 		&& TREE_CODE (TYPE_SIZE_UNIT (elmt_type)) == INTEGER_CST
 		&& wi::eq_p (wi::to_offset (TYPE_SIZE_UNIT (elmt_type)),
-			     (wi::to_offset (genop3)
-			      * vn_ref_op_align_unit (currop))))
+			     (wi::to_offset (genop3) * vn_ref_op_align_unit (currop))))
+	      || (TREE_CODE (genop3) == EXACT_DIV_EXPR
+		&& TREE_CODE (TREE_OPERAND (genop3, 1)) == INTEGER_CST
+		&& operand_equal_p (TREE_OPERAND (genop3, 0), TYPE_SIZE_UNIT (elmt_type))
+		&& wi::eq_p (wi::to_offset (TREE_OPERAND (genop3, 1)),
+			     vn_ref_op_align_unit (currop))))
 	      genop3 = NULL_TREE;
 	    else
 	      {
@@ -2717,7 +2688,7 @@ create_component_ref_by_pieces_1 (basic_block block, vn_reference_t ref,
 	    if (!genop2)
 	      return NULL_TREE;
 	  }
-	return fold_build3 (COMPONENT_REF, TREE_TYPE (op1), op0, op1, genop2);
+	return build3 (COMPONENT_REF, TREE_TYPE (op1), op0, op1, genop2);
       }
 
     case SSA_NAME:
@@ -2858,7 +2829,7 @@ create_expression_by_pieces (basic_block block, pre_expr expr,
 	return folded;
       break;
     case CONSTANT:
-      { 
+      {
 	folded = PRE_EXPR_CONSTANT (expr);
 	tree tem = fold_convert (exprtype, folded);
 	if (is_gimple_min_invariant (tem))
@@ -3247,7 +3218,7 @@ insert_into_preds_of_block (basic_block block, unsigned int exprnum,
 	  >= TYPE_PRECISION (TREE_TYPE (expr->u.nary->op[0])))
       && SSA_NAME_RANGE_INFO (expr->u.nary->op[0]))
     {
-      value_range r;
+      int_range_max r;
       if (get_range_query (cfun)->range_of_expr (r, expr->u.nary->op[0])
 	  && !r.undefined_p ()
 	  && !r.varying_p ()
@@ -3595,8 +3566,8 @@ do_pre_partial_partial_insertion (basic_block block, basic_block dom,
 						  get_expression_id (expr),
 						  avail))
 		    new_stuff = true;
-		}	   
-	    } 
+		}
+	    }
 	}
     }
 

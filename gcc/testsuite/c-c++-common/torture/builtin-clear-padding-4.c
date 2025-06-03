@@ -1,6 +1,5 @@
-/* { dg-require-effective-target alloca } */
-
 /* PR libstdc++/88101 */
+/* { dg-do run } */
 
 struct S { char a; short b; char c; };
 

@@ -1,7 +1,7 @@
 /* Check that GCC generates Armv8.1-M low over head loop instructions
    with some less trivial loops and the result is correct.  */
 /* { dg-do run } */
-/* { dg-require-effective-target arm_v8_1_lob_ok } */
+/* { dg-require-effective-target arm_v8_1m_lob_hw } */
 /* { dg-skip-if "avoid conflicting multilib options" { *-*-* } { "-marm" "-mcpu=*" } } */
 /* { dg-options "-march=armv8.1-m.main -mthumb -O3 --save-temps" } */
 #include <stdlib.h>
@@ -79,14 +79,14 @@ check (void)
 int
 main (void)
 {
-  reset_data (a1, b1, c1);
-  reset_data (a2, b2, c2);
+  reset_data (a1, b1, c1, N);
+  reset_data (a2, b2, c2, N);
   loop1 (a1, b1, c1);
   ref1 (a2, b2, c2);
   check ();
 
-  reset_data (a1, b1, c1);
-  reset_data (a2, b2, c2);
+  reset_data (a1, b1, c1, N);
+  reset_data (a2, b2, c2, N);
   loop2 (a1, b1, c1);
   ref2 (a2, b2, c2);
   check ();

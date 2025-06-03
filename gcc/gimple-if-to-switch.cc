@@ -1,5 +1,5 @@
 /* If-elseif-else to switch conversion pass
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -254,7 +254,7 @@ if_chain::is_beneficial ()
   else
     output.release ();
 
-  output = bit_test_cluster::find_bit_tests (filtered_clusters);
+  output = bit_test_cluster::find_bit_tests (filtered_clusters, 2);
   r = output.length () < filtered_clusters.length ();
   if (r)
     dump_clusters (&output, "BT can be built");

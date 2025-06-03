@@ -42,6 +42,13 @@
 #undef create_code
 #undef verify_code
 
+/* test-alignof.c */
+#define create_code create_code_alignof
+#define verify_code verify_code_alignof
+#include "test-alignof.c"
+#undef create_code
+#undef verify_code
+
 /* test-always_inline-attribute.c: This can't be in the testcases array as it needs
    the `-O0` flag.  */
 
@@ -72,6 +79,9 @@
 #include "test-autovectorize.c"
 #undef create_code
 #undef verify_code
+
+/* test-bfloat16.c: This can't be in the testcases array as it
+   is target-specific.  */
 
 /* test-builtin-memcpy.c */
 #define create_code create_code_builtin_memcpy
@@ -137,6 +147,13 @@
 
 /* test-const-attribute.c: This can't be in the testcases array as it needs
    the `-O3` flag.  */
+
+/* test-convert-vector.c */
+#define create_code create_code_convert_vector
+#define verify_code verify_code_convert_vector
+#include "test-convert-vector.c"
+#undef create_code
+#undef verify_code
 
 /* test-debug-strings.c */
 #define create_code create_code_debug_strings
@@ -266,6 +283,9 @@
 #undef create_code
 #undef verify_code
 
+/* test-output-ident.c: This can't be in the testcases array as it
+   is target-specific.  */
+
 /* test-quadratic.c */
 #define create_code create_code_quadratic
 #define verify_code verify_code_quadratic
@@ -324,6 +344,13 @@
 #undef create_code
 #undef verify_code
 
+/* test-pr117886-write-reproducer.c.  */
+#define create_code create_code_pr117886_write_reproducer
+#define verify_code verify_code_pr117886_write_reproducer
+#include "test-pr117886-write-reproducer.c"
+#undef create_code
+#undef verify_code
+
 /* test-pure-attribute.c: This can't be in the testcases array as it needs
    the `-O3` flag.  */
 
@@ -341,6 +368,9 @@
 #undef create_code
 #undef verify_code
 
+/* test-readonly.c: This can't be in the testcases array as it
+   is target-specific.  */
+
 /* test-restrict.c: This can't be in the testcases array as it needs
    the `-O3` flag.  */
 
@@ -353,12 +383,25 @@
 /* test-setting-alignment.c: This can't be in the testcases array as it
    is target-specific.  */
 
+/* test-signed-char.c */
+#define create_code create_code_signed_char
+#define verify_code verify_code_signed_char
+#include "test-signed-char.c"
+#undef create_code
+#undef verify_code
+
 /* test-sizeof.c */
 #define create_code create_code_sizeof
 #define verify_code verify_code_sizeof
 #include "test-sizeof.c"
 #undef create_code
 #undef verify_code
+
+/* test-target-builtins.c: This can't be in the testcases array as it
+   is target-specific.  */
+
+/* test-temp.c: This can't be in the testcases array as it
+   is target-specific.  */
 
 /* test-string-literal.c */
 #define create_code create_code_string_literal
@@ -428,6 +471,13 @@
 /* test-weak-attribute.c: This can't be in the testcases array as it
    doesn't have a verify_code implementation.  */
 
+/* test-vector-perm.c */
+#define create_code create_code_vector_perm
+#define verify_code verify_code_vector_perm
+#include "test-vector-perm.c"
+#undef create_code
+#undef verify_code
+
 /* Now expose the individual testcases as instances of this struct.  */
 
 struct testcase
@@ -449,6 +499,9 @@ const struct testcase testcases[] = {
   {"accessing_union",
    create_code_accessing_union,
    verify_code_accessing_union},
+  {"alignof",
+   create_code_alignof,
+   verify_code_alignof},
   {"alignment",
    create_code_alignment,
    verify_code_alignment},
@@ -488,6 +541,9 @@ const struct testcase testcases[] = {
   {"constants",
    create_code_constants,
    verify_code_constants},
+  {"convert_vector",
+   create_code_convert_vector,
+   verify_code_convert_vector},
   {"debug_strings",
    create_code_debug_strings,
    verify_code_debug_strings},
@@ -554,12 +610,18 @@ const struct testcase testcases[] = {
   {"pr95314_rvalue_reuse",
    create_code_pr95314_rvalue_reuse,
    verify_code_pr95314_rvalue_reuse},
+  {"pr117886_write_reproducer",
+   create_code_pr117886_write_reproducer,
+   verify_code_pr117886_write_reproducer},
   {"reading_struct ",
    create_code_reading_struct ,
    verify_code_reading_struct },
   {"reflection",
    create_code_reflection ,
    verify_code_reflection },
+  {"signed-char",
+   create_code_signed_char,
+   verify_code_signed_char},
   {"sizeof",
    create_code_sizeof,
    verify_code_sizeof},
@@ -586,7 +648,10 @@ const struct testcase testcases[] = {
    verify_code_version},
   {"volatile",
    create_code_volatile,
-   verify_code_volatile}
+   verify_code_volatile},
+  {"vector_perm",
+   create_code_vector_perm,
+   verify_code_vector_perm},
 };
 
 const int num_testcases = (sizeof (testcases) / sizeof (testcases[0]));

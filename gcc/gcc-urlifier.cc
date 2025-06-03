@@ -1,5 +1,5 @@
 /* Automatic generation of links into GCC's documentation.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -26,7 +26,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "gcc-urlifier.h"
 #include "opts.h"
 #include "options.h"
+#include "diagnostic.h"
 #include "selftest.h"
+#include "make-unique.h"
+
+char *
+make_doc_url (const char *doc_url_suffix)
+{
+  if (!doc_url_suffix)
+    return nullptr;
+
+  return concat (DOCUMENTATION_ROOT_URL, doc_url_suffix, nullptr);
+}
 
 namespace {
 
@@ -48,9 +59,6 @@ public:
 
 private:
   label_text get_url_suffix_for_option (const char *p, size_t sz) const;
-
-  static char *
-  make_doc_url (const char *doc_url_suffix);
 
   unsigned int m_lang_mask;
 };
@@ -202,21 +210,24 @@ gcc_urlifier::get_url_suffix_for_option (const char *p, size_t sz) const
   return get_option_url_suffix (opt, m_lang_mask);
 }
 
-char *
-gcc_urlifier::make_doc_url (const char *doc_url_suffix)
-{
-  if (!doc_url_suffix)
-    return nullptr;
-
-  return concat (DOCUMENTATION_ROOT_URL, doc_url_suffix, nullptr);
-}
-
 } // anonymous namespace
 
-urlifier *
+std::unique_ptr<urlifier>
 make_gcc_urlifier (unsigned int lang_mask)
 {
-  return new gcc_urlifier (lang_mask);
+  return ::make_unique<gcc_urlifier> (lang_mask);
+}
+
+/* class auto_override_urlifier.  */
+
+auto_override_urlifier::auto_override_urlifier (const urlifier &new_urlifier)
+{
+  global_dc->push_borrowed_urlifier (new_urlifier);
+}
+
+auto_override_urlifier::~auto_override_urlifier ()
+{
+  global_dc->pop_urlifier ();
 }
 
 #if CHECKING_P
@@ -225,10 +236,8 @@ namespace selftest {
 
 /* Selftests.  */
 
-/* Run all of the selftests within this file.  */
-
-void
-gcc_urlifier_cc_tests ()
+static void
+test_gcc_urlifier ()
 {
   /* Check that doc_urls.quoted_text is sorted.  */
   for (size_t idx = 1; idx < ARRAY_SIZE (doc_urls); idx++)
@@ -260,6 +269,14 @@ gcc_urlifier_cc_tests ()
   /* Check a "-fno-" variant of an option.  */
   ASSERT_STREQ (u.get_url_suffix_for_quoted_text ("-fno-inline").get (),
 		"gcc/Optimize-Options.html#index-finline");
+}
+
+/* Run all of the selftests within this file.  */
+
+void
+gcc_urlifier_cc_tests ()
+{
+  test_gcc_urlifier ();
 }
 
 } // namespace selftest

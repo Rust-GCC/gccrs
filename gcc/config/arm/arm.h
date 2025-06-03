@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for ARM.
-   Copyright (C) 1991-2024 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
    and Martin Simmons (@harleqn.co.uk).
    More major hacks by Richard Earnshaw (rearnsha@arm.com)
@@ -394,9 +394,11 @@ emission of floating point pcs attributes.  */
    TARGET_MODE_CHECK that also takes into account the selected CPU and
    architecture.  */
 #define OPTION_DEFAULT_SPECS \
-  {"arch", "%{!march=*:%{!mcpu=*:-march=%(VALUE)}}" }, \
-  {"cpu", "%{!march=*:%{!mcpu=*:-mcpu=%(VALUE)}}" }, \
-  {"tune", "%{!mcpu=*:%{!mtune=*:-mtune=%(VALUE)}}" }, \
+  {"arch", "%{!march=*|march=unset:"\
+      "%{!mcpu=*|mcpu=unset:%<march=* %<mcpu=* -march=%(VALUE)}}" }, \
+  {"tune", "%{!mcpu=*|mcpu=unset:%{!mtune=*:-mtune=%(VALUE)}}" }, \
+  {"cpu", "%{!march=*|march=unset:"\
+      "%{!mcpu=*|mcpu=unset:%<march=* %<mcpu=* -mcpu=%(VALUE)}}" }, \
   {"float", "%{!mfloat-abi=*:-mfloat-abi=%(VALUE)}" }, \
   {"fpu", "%{!mfpu=*:-mfpu=%(VALUE)}"}, \
   {"abi", "%{!mabi=*:-mabi=%(VALUE)}"}, \
@@ -1125,8 +1127,20 @@ extern const int arm_arch_cde_coproc_bits[];
   ((MODE) == TImode || (MODE) == EImode || (MODE) == OImode \
    || (MODE) == CImode || (MODE) == XImode)
 
-#define VALID_MVE_STRUCT_MODE(MODE) \
-  ((MODE) == TImode || (MODE) == OImode || (MODE) == XImode)
+#define VALID_MVE_STRUCT_MODE(MODE)			    \
+  ((MODE) == TImode					    \
+   || (MODE) == OImode					    \
+   || (MODE) == XImode					    \
+   || (MODE) == V2x16QImode				    \
+   || (MODE) == V2x8HImode				    \
+   || (MODE) == V2x4SImode				    \
+   || (MODE) == V2x8HFmode				    \
+   || (MODE) == V2x4SFmode				    \
+   || (MODE) == V4x16QImode				    \
+   || (MODE) == V4x8HImode				    \
+   || (MODE) == V4x4SImode				    \
+   || (MODE) == V4x8HFmode				    \
+   || (MODE) == V4x4SFmode)
 
 /* The conditions under which vector modes are supported for general
    arithmetic using Neon.  */
@@ -1424,7 +1438,7 @@ extern const char *fp_sysreg_names[NB_FP_SYSREGS];
    but prevents the compiler from extending the lifetime of these
    registers.  */
 #define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P \
-  arm_small_register_classes_for_mode_p 
+  arm_small_register_classes_for_mode_p
 
 /* Must leave BASE_REGS reloads alone */
 #define THUMB_SECONDARY_INPUT_RELOAD_CLASS(CLASS, MODE, X)		\
@@ -1477,7 +1491,7 @@ extern const char *fp_sysreg_names[NB_FP_SYSREGS];
 
 /* Return the maximum number of consecutive registers
    needed to represent mode MODE in a register of class CLASS.
-   ARM regs are UNITS_PER_WORD bits.  
+   ARM regs are UNITS_PER_WORD bits.
    FIXME: Is this true for iWMMX?  */
 #define CLASS_MAX_NREGS(CLASS, MODE)  \
   (CLASS == VPR_REG)		      \
@@ -1645,14 +1659,14 @@ machine_function;
 #define ARM_Q_BIT_READ (arm_q_bit_access ())
 #define ARM_GE_BITS_READ (arm_ge_bits_access ())
 
-/* As in the machine_function, a global set of call-via labels, for code 
+/* As in the machine_function, a global set of call-via labels, for code
    that is in text_section.  */
 extern GTY(()) rtx thumb_call_via_label[14];
 
 /* The number of potential ways of assigning to a co-processor.  */
 #define ARM_NUM_COPROC_SLOTS 1
 
-/* Enumeration of procedure calling standard variants.  We don't really 
+/* Enumeration of procedure calling standard variants.  We don't really
    support all of these yet.  */
 enum arm_pcs
 {
@@ -2111,8 +2125,8 @@ enum arm_auto_incmodes
       ? (ADDR_DIFF_VEC_FLAGS (body).offset_unsigned = 0, HImode)	\
       : SImode)								\
    : (TARGET_THUMB2							\
-      ? ((min > 0 && max < 0x200) ? QImode				\
-      : (min > 0 && max <= 0x20000) ? HImode				\
+      ? ((min >= 0 && max < 0x200) ? QImode				\
+      : (min >= 0 && max < 0x20000) ? HImode				\
       : SImode)								\
    : ((min >= 0 && max < 1024)						\
       ? (ADDR_DIFF_VEC_FLAGS (body).offset_unsigned = 1, QImode)	\
@@ -2247,8 +2261,8 @@ extern int making_const_table;
 
 #define REVERSE_CONDITION(CODE,MODE) \
   (((MODE) == CCFPmode || (MODE) == CCFPEmode) \
-   ? reverse_condition_maybe_unordered (code) \
-   : reverse_condition (code))
+   ? reverse_condition_maybe_unordered (CODE) \
+   : reverse_condition (CODE))
 
 #define CLZ_DEFINED_VALUE_AT_ZERO(MODE, VALUE) \
   ((VALUE) = GET_MODE_UNIT_BITSIZE (MODE), 2)
@@ -2538,6 +2552,11 @@ const char *arm_be8_option (int argc, const char **argv);
 #define TARGET_MODE_SPECS						\
   " %{!marm:%{!mthumb:%:target_mode_check(%{march=*:arch %*;mcpu=*:cpu %*;:})}}"
 
+/* Cleanup any stray -march=/-mcpu= if either is followed by "unset".  */
+#define ARCH_CPU_CLEANUP_SPECS	\
+  " %{march=unset:%<march=*} "	\
+  " %{mcpu=unset:%<mcpu=*} "
+
 /* Generate a canonical string to represent the architecture selected.  */
 #define ARCH_CANONICAL_SPECS				\
   " -march=%:canon_arch(%{mcpu=*: cpu %*} "		\
@@ -2559,6 +2578,7 @@ const char *arm_be8_option (int argc, const char **argv);
    individual rules so that any option suppression (%<opt...)is
    completed before starting subsequent rules.  */
 #define DRIVER_SELF_SPECS			\
+  ARCH_CPU_CLEANUP_SPECS,			\
   MCPU_MTUNE_NATIVE_SPECS,			\
   TARGET_MODE_SPECS,				\
   MULTILIB_ARCH_CANONICAL_SPECS,		\

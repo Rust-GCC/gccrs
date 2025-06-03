@@ -1,5 +1,5 @@
 /* Tree switch conversion for GNU compiler.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -397,9 +397,27 @@ public:
 	     tree default_label_expr, basic_block default_bb, location_t loc)
      final override;
 
+  /* Find bit tests of given CLUSTERS, where all members of the vector are of
+     type simple_cluster.  Use a fast algorithm that might not find the optimal
+     solution (minimal number of clusters on the output).  New clusters are
+     returned.
+
+     You should call find_bit_tests () instead of calling this function
+     directly.  */
+  static vec<cluster *> find_bit_tests_fast (vec<cluster *> &clusters);
+
+  /* Find bit tests of given CLUSTERS, where all members of the vector
+     are of type simple_cluster.  Use a slow (quadratic) algorithm that always
+     finds the optimal solution (minimal number of clusters on the output).  New
+     clusters are returned.
+
+     You should call find_bit_tests () instead of calling this function
+     directly.  */
+  static vec<cluster *> find_bit_tests_slow (vec<cluster *> &clusters);
+
   /* Find bit tests of given CLUSTERS, where all members of the vector
      are of type simple_cluster.  New clusters are returned.  */
-  static vec<cluster *> find_bit_tests (vec<cluster *> &clusters);
+  static vec<cluster *> find_bit_tests (vec<cluster *> &clusters, int max_c);
 
   /* Return true when RANGE of case values with UNIQ labels
      can build a bit test.  */
@@ -576,8 +594,9 @@ public:
   bool try_switch_expansion (vec<cluster *> &clusters);
   /* Compute the number of case labels that correspond to each outgoing edge of
      switch statement.  Record this information in the aux field of the edge.
+     Returns approx max number of cases per edge.
      */
-  void compute_cases_per_edge ();
+  int compute_cases_per_edge ();
 
   /* Before switch transformation, record all SSA_NAMEs defined in switch BB
      and used in a label basic block.  */
@@ -743,6 +762,19 @@ public:
   /* Collection information about SWTCH statement.  */
   void collect (gswitch *swtch);
 
+  /* Check that the 'exponential index transform' can be applied.
+
+     See the comment at the function definition for more details.  */
+  bool is_exp_index_transform_viable (gswitch *swtch);
+
+  /* Perform the 'exponential index transform'.
+
+     The exponential index transform shrinks the range of case numbers which
+     helps switch conversion convert switches it otherwise could not.
+
+     See the comment at the function definition for more details.  */
+  void exp_index_transform (gswitch *swtch);
+
   /* Checks whether the range given by individual case statements of the switch
      switch statement isn't too big and whether the number of branches actually
      satisfies the size of the new array.  */
@@ -900,6 +932,16 @@ public:
 
   /* True if CFG has been changed.  */
   bool m_cfg_altered;
+
+  /* True if exponential index transform has been applied.  See the comment at
+     the definition of exp_index_transform for details about the
+     transformation.  */
+  bool m_exp_index_transform_applied;
+
+  /* If switch conversion decided exponential index transform is viable, here
+     will be stored the type to which index variable has to be converted
+     before the logarithm operation which is a part of the transform.  */
+  tree m_exp_index_transform_log2_type;
 };
 
 void

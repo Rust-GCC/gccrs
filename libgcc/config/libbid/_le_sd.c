@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,7 +30,7 @@ __bid_lesd2 (_Decimal32 x, _Decimal32 y) {
   CMPtype res;
   UINT64 x64, y64;
   union decimal32 ux, uy;
- 
+
   ux.d = x;
   uy.d = y;
   x64 = __bid32_to_bid64 (ux.i);

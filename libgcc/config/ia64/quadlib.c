@@ -1,5 +1,5 @@
 /* Subroutines for long double support.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -43,7 +43,7 @@ _U_Qfne (long double a, long double b)
 {
   return (_U_Qfcmp (a, b, 4) == 0);
 }
-	
+
 int
 _U_Qfgt (long double a, long double b)
 {

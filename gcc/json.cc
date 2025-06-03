@@ -1,5 +1,5 @@
 /* JSON trees
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "json.h"
 #include "pretty-print.h"
 #include "math.h"
+#include "make-unique.h"
 #include "selftest.h"
 
 using namespace json;
@@ -85,9 +86,19 @@ void
 value::dump (FILE *outf, bool formatted) const
 {
   pretty_printer pp;
-  pp_buffer (&pp)->stream = outf;
+  pp_buffer (&pp)->m_stream = outf;
   print (&pp, formatted);
   pp_flush (&pp);
+}
+
+/* A convenience function for debugging.
+   Dump to stderr with formatting, and a trailing newline. */
+
+void
+value::dump () const
+{
+  dump (stderr, true);
+  fprintf (stderr, "\n");
 }
 
 /* class json::object, a subclass of json::value, representing
@@ -276,6 +287,13 @@ array::append (value *v)
   m_elements.safe_push (v);
 }
 
+void
+array::append_string (const char *utf8_value)
+{
+  gcc_assert (utf8_value);
+  append (new json::string (utf8_value));
+}
+
 /* class json::float_number, a subclass of json::value, wrapping a double.  */
 
 /* Implementation of json::value::print for json::float_number.  */
@@ -364,7 +382,7 @@ namespace selftest {
 
 /* Verify that JV->print () prints EXPECTED_JSON.  */
 
-static void
+void
 assert_print_eq (const location &loc,
 		 const json::value &jv,
 		 bool formatted,
@@ -422,7 +440,7 @@ test_writing_arrays ()
   arr.append (new json::string ("foo"));
   ASSERT_PRINT_EQ (arr, true, "[\"foo\"]");
 
-  arr.append (new json::string ("bar"));
+  arr.append_string ("bar");
   ASSERT_PRINT_EQ (arr, true,
 		   "[\"foo\",\n"
 		   " \"bar\"]");
@@ -482,27 +500,30 @@ test_writing_literals ()
   ASSERT_PRINT_EQ (literal (false), true, "false");
 }
 
-/* Verify that nested values are formatted correctly when written.  */
+/* Verify that nested values are formatted correctly when written.
+
+   Also, make use of array::append(std::unique_ptr<value>) and
+   object::set (const char *key, std::unique_ptr<value> v).*/
 
 static void
 test_formatting ()
 {
   object obj;
   object *child = new object;
-  object *grandchild = new object;
+  std::unique_ptr<object> grandchild = ::make_unique<object> ();
 
   obj.set_string ("str", "bar");
   obj.set ("child", child);
   obj.set_integer ("int", 42);
 
-  child->set ("grandchild", grandchild);
-  child->set_integer ("int", 1776);
-
   array *arr = new array;
   for (int i = 0; i < 3; i++)
-    arr->append (new integer_number (i));
+    arr->append (::make_unique<integer_number> (i));
   grandchild->set ("arr", arr);
   grandchild->set_integer ("int", 1066);
+
+  child->set ("grandchild", std::move (grandchild));
+  child->set_integer ("int", 1776);
 
   /* This test relies on json::object writing out key/value pairs
      in key-insertion order.  */

@@ -1,5 +1,5 @@
 /* Callgraph clones
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -108,7 +108,7 @@ cgraph_edge::clone (cgraph_node *n, gcall *call_stmt, unsigned stmt_uid,
       tree decl;
 
       if (call_stmt && (decl = gimple_call_fndecl (call_stmt))
-	  /* When the call is speculative, we need to resolve it 
+	  /* When the call is speculative, we need to resolve it
 	     via cgraph_resolve_speculation and not here.  */
 	  && !speculative)
 	{
@@ -148,7 +148,7 @@ cgraph_edge::clone (cgraph_node *n, gcall *call_stmt, unsigned stmt_uid,
 
   /* Update IPA profile.  Local profiles need no updating in original.  */
   if (update_original)
-    count = count.combine_with_ipa_count_within (count.ipa () 
+    count = count.combine_with_ipa_count_within (count.ipa ()
 						 - new_edge->count.ipa (),
 						 caller->count);
   symtab->call_edge_duplication_hooks (this, new_edge);
@@ -158,7 +158,7 @@ cgraph_edge::clone (cgraph_node *n, gcall *call_stmt, unsigned stmt_uid,
 /* Set flags of NEW_NODE and its decl.  NEW_NODE is a newly created private
    clone or its thunk.  */
 
-static void
+void
 set_new_clone_decl_and_node_flags (cgraph_node *new_node)
 {
   DECL_EXTERNAL (new_node->decl) = 0;
@@ -352,7 +352,7 @@ localize_profile (cgraph_node *n)
 
    When UPDATE_ORIGINAL is true, the counts are subtracted from the original
    function's profile to reflect the fact that part of execution is handled
-   by node.  
+   by node.
    When CALL_DUPLICATION_HOOK is true, the ipa passes are acknowledged about
    the new clone. Otherwise the caller is responsible for doing so later.
 
@@ -388,7 +388,7 @@ cgraph_node::create_clone (tree new_decl, profile_count prof_count,
   if (!new_inlined_to)
     prof_count = count.combine_with_ipa_count (prof_count);
   new_node->count = prof_count;
-  new_node->calls_declare_variant_alt = this->calls_declare_variant_alt;
+  new_node->has_omp_variant_constructs = this->has_omp_variant_constructs;
 
   /* Update IPA profile.  Local profiles need no updating in original.  */
   if (update_original)
@@ -401,6 +401,7 @@ cgraph_node::create_clone (tree new_decl, profile_count prof_count,
         count = count.combine_with_ipa_count (count.ipa () - prof_count.ipa ());
     }
   new_node->decl = new_decl;
+  new_node->order = order;
   new_node->register_symbol ();
   new_node->lto_file_data = lto_file_data;
   new_node->analyzed = analyzed;
@@ -611,7 +612,7 @@ cgraph_node::create_virtual_clone (const vec<cgraph_edge *> &redirect_callers,
   DECL_STRUCT_FUNCTION (new_decl) = NULL;
   DECL_ARGUMENTS (new_decl) = NULL;
   DECL_INITIAL (new_decl) = NULL;
-  DECL_RESULT (new_decl) = NULL; 
+  DECL_RESULT (new_decl) = NULL;
   /* We cannot do DECL_RESULT (new_decl) = NULL; here because of LTO partitioning
      sometimes storing only clone decl instead of original.  */
 
@@ -670,7 +671,7 @@ cgraph_node::create_virtual_clone (const vec<cgraph_edge *> &redirect_callers,
 }
 
 /* callgraph node being removed from symbol table; see if its entry can be
-   replaced by other inline clone. 
+   replaced by other inline clone.
    INFO is clone info to attach to the new root.  */
 cgraph_node *
 cgraph_node::find_replacement (clone_info *info)
@@ -762,7 +763,7 @@ cgraph_node::find_replacement (clone_info *info)
 }
 
 /* Like cgraph_set_call_stmt but walk the clone tree and update all
-   clones sharing the same function body.  
+   clones sharing the same function body.
    When WHOLE_SPECULATIVE_EDGES is true, all three components of
    speculative edge gets updated.  Otherwise we update only direct
    call.  */
@@ -927,9 +928,9 @@ update_call_expr (cgraph_node *new_version)
    edges which should be redirected to point to
    NEW_VERSION.  ALL the callees edges of the node
    are cloned to the new version node.  Return the new
-   version node. 
+   version node.
 
-   If non-NULL BLOCK_TO_COPY determine what basic blocks 
+   If non-NULL BLOCK_TO_COPY determine what basic blocks
    was copied to prevent duplications of calls that are dead
    in the clone.  */
 

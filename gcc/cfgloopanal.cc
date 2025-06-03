@@ -1,5 +1,5 @@
 /* Natural loop analysis code for GNU compiler.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -383,7 +383,7 @@ expected_loop_iterations_unbounded (const class loop *loop,
 				    bool *read_profile_p)
 {
   gcov_type expected = -1;
-  
+
   if (read_profile_p)
     *read_profile_p = false;
 
@@ -397,7 +397,7 @@ expected_loop_iterations_unbounded (const class loop *loop,
   HOST_WIDE_INT max = get_max_loop_iterations_int (loop);
   if (max != -1 && max < expected)
     return max;
- 
+
   return expected;
 }
 

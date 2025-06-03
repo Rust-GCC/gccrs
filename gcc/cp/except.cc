@@ -1,5 +1,5 @@
 /* Handle exceptional things in C++.
-   Copyright (C) 1989-2024 Free Software Foundation, Inc.
+   Copyright (C) 1989-2025 Free Software Foundation, Inc.
    Contributed by Michael Tiemann <tiemann@cygnus.com>
    Rewritten by Mike Stump <mrs@cygnus.com>, based upon an
    initial re-implementation courtesy Tad Hunt.
@@ -42,6 +42,28 @@ static tree wrap_cleanups_r (tree *, int *, void *);
 static bool is_admissible_throw_operand_or_catch_parameter (tree, bool,
 							    tsubst_flags_t);
 
+/* Initializes the node to std::terminate, which is used in exception
+  handling and contract handling.  */
+
+void
+init_terminate_fn (void)
+{
+  if (terminate_fn)
+    return;
+
+  tree tmp;
+
+  push_nested_namespace (std_node);
+  tmp = build_function_type_list (void_type_node, NULL_TREE);
+  terminate_fn = build_cp_library_fn_ptr ("terminate", tmp,
+					   ECF_NOTHROW | ECF_NORETURN
+					   | ECF_COLD);
+  gcc_checking_assert (TREE_THIS_VOLATILE (terminate_fn)
+		       && TREE_NOTHROW (terminate_fn));
+  pop_nested_namespace (std_node);
+
+}
+
 /* Sets up all the global eh stuff that needs to be initialized at the
    start of compilation.  */
 
@@ -51,14 +73,7 @@ init_exception_processing (void)
   tree tmp;
 
   /* void std::terminate (); */
-  push_nested_namespace (std_node);
-  tmp = build_function_type_list (void_type_node, NULL_TREE);
-  terminate_fn = build_cp_library_fn_ptr ("terminate", tmp,
-					   ECF_NOTHROW | ECF_NORETURN
-					   | ECF_COLD);
-  gcc_checking_assert (TREE_THIS_VOLATILE (terminate_fn)
-		       && TREE_NOTHROW (terminate_fn));
-  pop_nested_namespace (std_node);
+  init_terminate_fn ();
 
   /* void __cxa_call_unexpected(void *); */
   tmp = build_function_type_list (void_type_node, ptr_type_node, NULL_TREE);
@@ -645,11 +660,7 @@ build_throw (location_t loc, tree exp, tsubst_flags_t complain)
 
       /* The CLEANUP_TYPE is the internal type of a destructor.  */
       if (!cleanup_type)
-	{
-	  tree tmp = build_function_type_list (void_type_node,
-					       ptr_type_node, NULL_TREE);
-	  cleanup_type = build_pointer_type (tmp);
-	}
+	cleanup_type = get_cxa_atexit_fn_ptr_type ();
 
       if (!throw_fn)
 	{
@@ -701,7 +712,7 @@ build_throw (location_t loc, tree exp, tsubst_flags_t complain)
       allocate_expr = do_allocate_exception (temp_type);
       if (allocate_expr == error_mark_node)
 	return error_mark_node;
-      allocate_expr = get_target_expr (allocate_expr);
+      allocate_expr = get_internal_target_expr (allocate_expr);
       ptr = TARGET_EXPR_SLOT (allocate_expr);
       TARGET_EXPR_CLEANUP (allocate_expr) = do_free_exception (ptr);
       CLEANUP_EH_ONLY (allocate_expr) = 1;
@@ -725,6 +736,7 @@ build_throw (location_t loc, tree exp, tsubst_flags_t complain)
 	    exp = moved;
 
 	  /* Call the copy constructor.  */
+	  auto_diagnostic_group d;
 	  releasing_vec exp_vec (make_tree_vector_single (exp));
 	  exp = build_special_member_call (object, complete_ctor_identifier,
 					   &exp_vec, TREE_TYPE (object), flags,
@@ -1063,8 +1075,6 @@ check_noexcept_r (tree *tp, int *walk_subtrees, void *)
 
          We could use TREE_NOTHROW (t) for !TREE_PUBLIC fns, though... */
       tree fn = cp_get_callee (t);
-      if (concept_check_p (fn))
-	return NULL_TREE;
       tree type = TREE_TYPE (fn);
       gcc_assert (INDIRECT_TYPE_P (type));
       type = TREE_TYPE (type);

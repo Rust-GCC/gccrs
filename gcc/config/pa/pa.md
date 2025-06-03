@@ -1,5 +1,5 @@
 ;;- Machine description for HP PA-RISC architecture for GCC compiler
-;;   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+;;   Copyright (C) 1992-2025 Free Software Foundation, Inc.
 ;;   Contributed by the Center for Software Science at the University
 ;;   of Utah.
 
@@ -2222,9 +2222,9 @@
 
 (define_insn ""
   [(set (match_operand:SI 0 "move_dest_operand"
-			  "=r,r,r,r,r,r,Q,!*q,!r,!*f,*f,T")
+			  "=r,r,r,r,r,r,Q,!*q,!r,!*f,*f,T,?r,?*f")
 	(match_operand:SI 1 "move_src_operand"
-			  "A,r,J,N,K,RQ,rM,!rM,!*q,!*fM,RT,*f"))]
+			  "A,r,J,N,K,RQ,rM,!rM,!*q,!*fM,RT,*f,*f,r"))]
   "(register_operand (operands[0], SImode)
     || reg_or_0_operand (operands[1], SImode))
    && !TARGET_SOFT_FLOAT
@@ -2241,10 +2241,12 @@
    {mfctl|mfctl,w} %%sar,%0
    fcpy,sgl %f1,%0
    fldw%F1 %1,%0
-   fstw%F0 %1,%0"
-  [(set_attr "type" "load,move,move,move,shift,load,store,move,move,fpalu,fpload,fpstore")
+   fstw%F0 %1,%0
+   fstw %1,-40(%%sp)\n\tldw -40(%%sp),%0
+   stw %1,-40(%%sp)\n\tfldw -40(%%sp),%0"
+  [(set_attr "type" "load,move,move,move,shift,load,store,move,move,fpalu,fpload,fpstore,fpstore_load,store_fpload")
    (set_attr "pa_combine_type" "addmove")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4,4,4,4")])
+   (set_attr "length" "4,4,4,4,4,4,4,4,4,4,4,4,8,8")])
 
 (define_insn ""
   [(set (match_operand:SI 0 "move_dest_operand"
@@ -2279,6 +2281,58 @@
   [(set_attr "type" "fpstore")
    (set_attr "pa_combine_type" "addmove")
    (set_attr "length" "4")])
+
+; Rewrite RTL using a REG+D store.  This will allow the insn that
+; computes the address to be deleted if the register it sets is dead.
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand" "")
+	(plus:SI (match_operand:SI 1 "register_operand" "")
+		 (match_operand:SI 2 "const_int_operand" "")))
+   (set (mem:SI (match_dup 0))
+	(match_operand:SI 3 "register_operand" ""))]
+  "!TARGET_64BIT
+   && !INT14_OK_STRICT
+   && GENERAL_REGNO_P (REGNO (operands[0]))
+   && GENERAL_REGNO_P (REGNO (operands[3]))
+   && REGNO (operands[0]) != REGNO (operands[3])
+   && base14_operand (operands[2], E_SImode)"
+  [(set (mem:SI (plus:SI (match_dup 1) (match_dup 2))) (match_dup 3))
+   (set (match_dup 0) (plus:SI (match_dup 1) (match_dup 2)))]
+  "")
+
+; Rewrite RTL using a REG+D load.  This will allow the insn that
+; computes the address to be deleted if the register it sets is dead.
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand" "")
+	(plus:SI (match_operand:SI 1 "register_operand" "")
+		 (match_operand:SI 2 "const_int_operand" "")))
+   (set (match_operand:SI 3 "register_operand" "")
+	(mem:SI (match_dup 0)))]
+  "!TARGET_64BIT
+   && !INT14_OK_STRICT
+   && GENERAL_REGNO_P (REGNO (operands[0]))
+   && GENERAL_REGNO_P (REGNO (operands[3]))
+   && REGNO (operands[0]) != REGNO (operands[3])
+   && REGNO (operands[1]) != REGNO (operands[3])
+   && base14_operand (operands[2], E_SImode)"
+  [(set (match_dup 3) (mem:SI (plus:SI (match_dup 1) (match_dup 2))))
+   (set (match_dup 0) (plus:SI (match_dup 1) (match_dup 2)))]
+  "")
+
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand" "")
+	(plus:SI (match_operand:SI 1 "register_operand" "")
+		 (match_operand:SI 2 "const_int_operand" "")))
+   (set (match_operand:SI 3 "register_operand" "")
+	(mem:SI (match_dup 0)))]
+  "!TARGET_64BIT
+   && !INT14_OK_STRICT
+   && GENERAL_REGNO_P (REGNO (operands[0]))
+   && GENERAL_REGNO_P (REGNO (operands[3]))
+   && REGNO (operands[0]) == REGNO (operands[3])
+   && base14_operand (operands[2], E_SImode)"
+  [(set (match_dup 3) (mem:SI (plus:SI (match_dup 1) (match_dup 2))))]
+  "")
 
 ; Rewrite RTL using an indexed store.  This will allow the insn that
 ; computes the address to be deleted if the register it sets is dead.
@@ -3866,7 +3920,7 @@
 (define_insn ""
   [(set (match_operand:DF 0 "move_dest_operand"
 			  "=f,*r,T,?o,?Q,f,*r,*r,?*r,?f")
-	(match_operand:DF 1 "reg_or_0_or_nonsymb_mem_operand"
+	(match_operand:DF 1 "reg_or_0_or_mem_operand"
 			  "fG,*rG,f,*r,*r,RT,o,RQ,f,*r"))]
   "(register_operand (operands[0], DFmode)
     || reg_or_0_operand (operands[1], DFmode))
@@ -4040,7 +4094,7 @@
 (define_insn ""
   [(set (match_operand:DF 0 "move_dest_operand"
 			  "=r,?o,?Q,r,r")
-	(match_operand:DF 1 "reg_or_0_or_nonsymb_mem_operand"
+	(match_operand:DF 1 "reg_or_0_or_mem_operand"
 			  "rG,r,r,o,RQ"))]
   "(register_operand (operands[0], DFmode)
     || reg_or_0_operand (operands[1], DFmode))
@@ -4055,9 +4109,9 @@
 
 (define_insn ""
   [(set (match_operand:DF 0 "move_dest_operand"
-			  "=!*r,*r,*r,*r,*r,Q,f,f,T")
+			  "=!*r,*r,*r,*r,*r,Q,f,f,T,?*r,?f")
 	(match_operand:DF 1 "move_src_operand"
-			  "!*rG,J,N,K,RQ,*rG,fG,RT,f"))]
+			  "!*rG,J,N,K,RQ,*rG,fG,RT,f,f,*r"))]
   "(register_operand (operands[0], DFmode)
     || reg_or_0_operand (operands[1], DFmode))
    && !TARGET_SOFT_FLOAT && TARGET_64BIT"
@@ -4070,10 +4124,12 @@
    std%M0 %r1,%0
    fcpy,dbl %f1,%0
    fldd%F1 %1,%0
-   fstd%F0 %1,%0"
-  [(set_attr "type" "move,move,move,shift,load,store,fpalu,fpload,fpstore")
+   fstd%F0 %1,%0
+   fstd %1,-40(%%sp)\n\tldd -40(%%sp),%0
+   std %1,-40(%%sp)\n\tfldd -40(%%sp),%0"
+  [(set_attr "type" "move,move,move,shift,load,store,fpalu,fpload,fpstore,fpstore_load,store_fpload")
    (set_attr "pa_combine_type" "addmove")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4")])
+   (set_attr "length" "4,4,4,4,4,4,4,4,4,8,8")])
 
 (define_insn ""
   [(set (match_operand:DF 0 "move_dest_operand"
@@ -4229,9 +4285,9 @@
 
 (define_insn ""
   [(set (match_operand:DI 0 "move_dest_operand"
-			  "=r,r,r,r,r,r,Q,!*q,!r,!*f,*f,T")
+			  "=r,r,r,r,r,r,Q,!*q,!r,!*f,*f,T,?r,?*f")
 	(match_operand:DI 1 "move_src_operand"
-			  "A,r,J,N,K,RQ,rM,!rM,!*q,!*fM,RT,*f"))]
+			  "A,r,J,N,K,RQ,rM,!rM,!*q,!*fM,RT,*f,*f,r"))]
   "(register_operand (operands[0], DImode)
     || reg_or_0_operand (operands[1], DImode))
    && !TARGET_SOFT_FLOAT && TARGET_64BIT"
@@ -4247,10 +4303,12 @@
    {mfctl|mfctl,w} %%sar,%0
    fcpy,dbl %f1,%0
    fldd%F1 %1,%0
-   fstd%F0 %1,%0"
-  [(set_attr "type" "load,move,move,move,shift,load,store,move,move,fpalu,fpload,fpstore")
+   fstd%F0 %1,%0
+   fstd %1,-40(%%sp)\n\tldd -40(%%sp),%0
+   std %1,-40(%%sp)\n\tfldd -40(%%sp),%0"
+  [(set_attr "type" "load,move,move,move,shift,load,store,move,move,fpalu,fpload,fpstore,fpstore_load,store_fpload")
    (set_attr "pa_combine_type" "addmove")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4,4,4,4")])
+   (set_attr "length" "4,4,4,4,4,4,4,4,4,4,4,4,8,8")])
 
 (define_insn ""
   [(set (match_operand:DI 0 "move_dest_operand"
@@ -4440,7 +4498,7 @@
 (define_insn ""
   [(set (match_operand:SF 0 "move_dest_operand"
 			  "=f,!*r,f,*r,T,Q,?*r,?f")
-	(match_operand:SF 1 "reg_or_0_or_nonsymb_mem_operand"
+	(match_operand:SF 1 "reg_or_0_or_mem_operand"
 			  "fG,!*rG,RT,RQ,f,*rG,f,*r"))]
   "(register_operand (operands[0], SFmode)
     || reg_or_0_operand (operands[1], SFmode))
@@ -4461,9 +4519,9 @@
 
 (define_insn ""
   [(set (match_operand:SF 0 "move_dest_operand"
-			  "=f,!*r,f,*r,T,Q")
-	(match_operand:SF 1 "reg_or_0_or_nonsymb_mem_operand"
-			  "fG,!*rG,RT,RQ,f,*rG"))]
+			  "=f,!*r,f,*r,T,Q,?*r,?f")
+	(match_operand:SF 1 "reg_or_0_or_mem_operand"
+			  "fG,!*rG,RT,RQ,f,*rG,f,*r"))]
   "(register_operand (operands[0], SFmode)
     || reg_or_0_operand (operands[1], SFmode))
    && !TARGET_SOFT_FLOAT
@@ -4474,15 +4532,17 @@
    fldw%F1 %1,%0
    ldw%M1 %1,%0
    fstw%F0 %1,%0
-   stw%M0 %r1,%0"
-  [(set_attr "type" "fpalu,move,fpload,load,fpstore,store")
+   stw%M0 %r1,%0
+   fstw %1,-40(%%sp)\n\tldw -40(%%sp),%0
+   stw %1,-40(%%sp)\n\tfldw -40(%%sp),%0"
+  [(set_attr "type" "fpalu,move,fpload,load,fpstore,store,fpstore_load,store_fpload")
    (set_attr "pa_combine_type" "addmove")
-   (set_attr "length" "4,4,4,4,4,4")])
+   (set_attr "length" "4,4,4,4,4,4,8,8")])
 
 (define_insn ""
   [(set (match_operand:SF 0 "move_dest_operand"
 			  "=!*r,*r,Q")
-	(match_operand:SF 1 "reg_or_0_or_nonsymb_mem_operand"
+	(match_operand:SF 1 "reg_or_0_or_mem_operand"
 			  "!*rG,RQ,*rG"))]
   "(register_operand (operands[0], SFmode)
     || reg_or_0_operand (operands[1], SFmode))
@@ -4506,6 +4566,54 @@
   [(set_attr "type" "fpstore")
    (set_attr "pa_combine_type" "addmove")
    (set_attr "length" "4")])
+
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand" "")
+	(plus:SI (match_operand:SI 1 "register_operand" "")
+		 (match_operand:SI 2 "const_int_operand" "")))
+   (set (mem:SF (match_dup 0))
+	(match_operand:SF 3 "register_operand" ""))]
+  "!TARGET_64BIT
+   && !INT14_OK_STRICT
+   && GENERAL_REGNO_P (REGNO (operands[0]))
+   && GENERAL_REGNO_P (REGNO (operands[3]))
+   && REGNO (operands[0]) != REGNO (operands[3])
+   && base14_operand (operands[2], E_SImode)"
+  [(set (mem:SF (plus:SI (match_dup 1) (match_dup 2))) (match_dup 3))
+   (set (match_dup 0) (plus:SI (match_dup 1) (match_dup 2)))]
+  "")
+
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand" "")
+	(plus:SI (match_operand:SI 1 "register_operand" "")
+		 (match_operand:SI 2 "const_int_operand" "")))
+   (set (match_operand:SF 3 "register_operand" "")
+	(mem:SF (match_dup 0)))]
+  "!TARGET_64BIT
+   && !INT14_OK_STRICT
+   && GENERAL_REGNO_P (REGNO (operands[0]))
+   && GENERAL_REGNO_P (REGNO (operands[3]))
+   && REGNO (operands[0]) != REGNO (operands[3])
+   && REGNO (operands[1]) != REGNO (operands[3])
+   && base14_operand (operands[2], E_SImode)"
+  [(set (match_dup 3) (mem:SF (plus:SI (match_dup 1) (match_dup 2))))
+   (set (match_dup 0) (plus:SI (match_dup 1) (match_dup 2)))]
+  "")
+
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand" "")
+	(plus:SI (match_operand:SI 1 "register_operand" "")
+		 (match_operand:SI 2 "const_int_operand" "")))
+   (set (match_operand:SF 3 "register_operand" "")
+	(mem:SF (match_dup 0)))]
+  "!TARGET_64BIT
+   && !INT14_OK_STRICT
+   && GENERAL_REGNO_P (REGNO (operands[0]))
+   && GENERAL_REGNO_P (REGNO (operands[3]))
+   && REGNO (operands[0]) == REGNO (operands[3])
+   && base14_operand (operands[2], E_SImode)"
+  [(set (match_dup 3) (mem:SF (plus:SI (match_dup 1) (match_dup 2))))]
+  "")
 
 (define_peephole2
   [(set (match_operand:SI 0 "register_operand" "")
@@ -4615,7 +4723,7 @@
 (define_insn ""
   [(set (match_operand:SF 0 "move_dest_operand"
 			  "=r,r,Q")
-	(match_operand:SF 1 "reg_or_0_or_nonsymb_mem_operand"
+	(match_operand:SF 1 "reg_or_0_or_mem_operand"
 			  "rG,RQ,rG"))]
   "(register_operand (operands[0], SFmode)
     || reg_or_0_operand (operands[1], SFmode))
@@ -4918,7 +5026,7 @@
 
 (define_insn "fix_truncsfsi2"
   [(set (match_operand:SI 0 "register_operand" "=f")
-	(fix:SI (fix:SF (match_operand:SF 1 "register_operand" "f"))))]
+	(fix:SI (match_operand:SF 1 "register_operand" "f")))]
   "! TARGET_SOFT_FLOAT"
   "{fcnvfxt,sgl,sgl|fcnv,t,sgl,w} %1,%0"
   [(set_attr "type" "fpalu")
@@ -4926,7 +5034,7 @@
 
 (define_insn "fix_truncdfsi2"
   [(set (match_operand:SI 0 "register_operand" "=f")
-	(fix:SI (fix:DF (match_operand:DF 1 "register_operand" "f"))))]
+	(fix:SI (match_operand:DF 1 "register_operand" "f")))]
   "! TARGET_SOFT_FLOAT"
   "{fcnvfxt,dbl,sgl|fcnv,t,dbl,w} %1,%0"
   [(set_attr "type" "fpalu")
@@ -4934,7 +5042,7 @@
 
 (define_insn "fix_truncsfdi2"
   [(set (match_operand:DI 0 "register_operand" "=f")
-	(fix:DI (fix:SF (match_operand:SF 1 "register_operand" "f"))))]
+	(fix:DI (match_operand:SF 1 "register_operand" "f")))]
   "TARGET_PA_11 && ! TARGET_SOFT_FLOAT"
   "{fcnvfxt,sgl,dbl|fcnv,t,sgl,dw} %1,%0"
   [(set_attr "type" "fpalu")
@@ -4942,7 +5050,7 @@
 
 (define_insn "fix_truncdfdi2"
   [(set (match_operand:DI 0 "register_operand" "=f")
-	(fix:DI (fix:DF (match_operand:DF 1 "register_operand" "f"))))]
+	(fix:DI (match_operand:DF 1 "register_operand" "f")))]
   "TARGET_PA_11 && ! TARGET_SOFT_FLOAT"
   "{fcnvfxt,dbl,dbl|fcnv,t,dbl,dw} %1,%0"
   [(set_attr "type" "fpalu")
@@ -4982,7 +5090,7 @@
 
 (define_insn "fixuns_truncsfsi2"
   [(set (match_operand:SI 0 "register_operand" "=f")
-	(unsigned_fix:SI (fix:SF (match_operand:SF 1 "register_operand" "f"))))]
+	(unsigned_fix:SI (match_operand:SF 1 "register_operand" "f")))]
   "! TARGET_SOFT_FLOAT && TARGET_PA_20"
   "fcnv,t,sgl,uw %1,%0"
   [(set_attr "type" "fpalu")
@@ -4990,7 +5098,7 @@
 
 (define_insn "fixuns_truncdfsi2"
   [(set (match_operand:SI 0 "register_operand" "=f")
-	(unsigned_fix:SI (fix:DF (match_operand:DF 1 "register_operand" "f"))))]
+	(unsigned_fix:SI (match_operand:DF 1 "register_operand" "f")))]
   "! TARGET_SOFT_FLOAT && TARGET_PA_20"
   "fcnv,t,dbl,uw %1,%0"
   [(set_attr "type" "fpalu")
@@ -4998,7 +5106,7 @@
 
 (define_insn "fixuns_truncsfdi2"
   [(set (match_operand:DI 0 "register_operand" "=f")
-	(unsigned_fix:DI (fix:SF (match_operand:SF 1 "register_operand" "f"))))]
+	(unsigned_fix:DI (match_operand:SF 1 "register_operand" "f")))]
   "! TARGET_SOFT_FLOAT && TARGET_PA_20"
   "fcnv,t,sgl,udw %1,%0"
   [(set_attr "type" "fpalu")
@@ -5006,7 +5114,7 @@
 
 (define_insn "fixuns_truncdfdi2"
   [(set (match_operand:DI 0 "register_operand" "=f")
-	(unsigned_fix:DI (fix:DF (match_operand:DF 1 "register_operand" "f"))))]
+	(unsigned_fix:DI (match_operand:DF 1 "register_operand" "f")))]
   "! TARGET_SOFT_FLOAT && TARGET_PA_20"
   "fcnv,t,dbl,udw %1,%0"
   [(set_attr "type" "fpalu")
@@ -5373,18 +5481,20 @@
 
 (define_insn "addti3"
   [(set (match_operand:TI 0 "register_operand" "=r")
-	(plus:TI (match_operand:TI 1 "register_operand" "r")
-		 (match_operand:TI 2 "register_operand" "r")))]
+	(plus:TI (match_operand:TI 1 "register_operand" "%r")
+		 (match_operand:TI 2 "arith11_operand" "rI")))]
   "TARGET_64BIT"
   "*
 {
-  operands[3] = gen_lowpart (DImode, operands[0]);
-  operands[4] = gen_lowpart (DImode, operands[1]);
-  operands[5] = gen_lowpart (DImode, operands[2]);
-  operands[0] = gen_highpart (DImode, operands[0]);
-  operands[1] = gen_highpart (DImode, operands[1]);
-  operands[2] = gen_highpart (DImode, operands[2]);
-  return \"add %4,%5,%3\;add,dc %1,%2,%0\";
+  if (GET_CODE (operands[2]) == CONST_INT)
+    {
+      if (INTVAL (operands[2]) >= 0)
+	return \"addi %2,%R1,%R0\;add,dc %1,%%r0,%0\";
+      else
+	return \"addi %2,%R1,%R0\;sub,db %1,%%r0,%0\";
+    }
+  else
+    return \"add %R2,%R1,%R0\;add,dc %2,%1,%0\";
 }"
   [(set_attr "type" "multi")
    (set_attr "length" "8")])
@@ -5392,7 +5502,7 @@
 (define_insn "addvti3"
   [(set (match_operand:TI 0 "register_operand" "=r")
 	(plus:TI (match_operand:TI 1 "register_operand" "r")
-		 (match_operand:TI 2 "register_operand" "r")))
+		 (match_operand:TI 2 "arith11_operand" "rI")))
    (trap_if (ne (plus:OI (sign_extend:OI (match_dup 1))
 			 (sign_extend:OI (match_dup 2)))
 		(sign_extend:OI (plus:TI (match_dup 1)
@@ -5401,39 +5511,49 @@
   "TARGET_64BIT"
   "*
 {
-  operands[3] = gen_lowpart (DImode, operands[0]);
-  operands[4] = gen_lowpart (DImode, operands[1]);
-  operands[5] = gen_lowpart (DImode, operands[2]);
-  operands[0] = gen_highpart (DImode, operands[0]);
-  operands[1] = gen_highpart (DImode, operands[1]);
-  operands[2] = gen_highpart (DImode, operands[2]);
-  return \"add %4,%5,%3\;add,dc,tsv %1,%2,%0\";
+  if (GET_CODE (operands[2]) == CONST_INT)
+    {
+      if (INTVAL (operands[2]) >= 0)
+	return \"addi %2,%R1,%R0\;add,dc,tsv %1,%%r0,%0\";
+      else
+	return \"addi %2,%R1,%R0\;sub,db,tsv %1,%%r0,%0\";
+    }
+  else
+    return \"add %R2,%R1,%R0\;add,dc,tsv %2,%1,%0\";
 }"
   [(set_attr "type" "multi")
    (set_attr "length" "8")])
 
 (define_insn "subti3"
-  [(set (match_operand:TI 0 "register_operand" "=r")
-	(minus:TI (match_operand:TI 1 "register_operand" "r")
-		  (match_operand:TI 2 "register_operand" "r")))]
+  [(set (match_operand:TI 0 "register_operand" "=r,&r")
+	(minus:TI (match_operand:TI 1 "arith11_operand" "r,I")
+		  (match_operand:TI 2 "reg_or_0_operand" "rM,rM")))]
   "TARGET_64BIT"
   "*
 {
-  operands[3] = gen_lowpart (DImode, operands[0]);
-  operands[4] = gen_lowpart (DImode, operands[1]);
-  operands[5] = gen_lowpart (DImode, operands[2]);
-  operands[0] = gen_highpart (DImode, operands[0]);
-  operands[1] = gen_highpart (DImode, operands[1]);
-  operands[2] = gen_highpart (DImode, operands[2]);
-  return \"sub %4,%5,%3\;sub,db %1,%2,%0\";
+  if (GET_CODE (operands[1]) == CONST_INT)
+    {
+      if (INTVAL (operands[1]) >= 0)
+	return \"subi %1,%R2,%R0\;sub,db %%r0,%2,%0\";
+      else
+	return \"ldi -1,%0\;subi %1,%R2,%R0\;sub,db %0,%2,%0\";
+    }
+  else
+    return \"sub %R1,%R2,%R0\;sub,db %1,%2,%0\";
 }"
   [(set_attr "type" "multi")
-   (set_attr "length" "8")])
+   (set (attr "length")
+	(if_then_else (eq_attr "alternative" "0")
+	  (const_int 8)
+	  (if_then_else (ge (symbol_ref "INTVAL (operands[1])")
+			    (const_int 0))
+	    (const_int 8)
+	    (const_int 12))))])
 
 (define_insn "subvti3"
-  [(set (match_operand:TI 0 "register_operand" "=r")
-	(minus:TI (match_operand:TI 1 "register_operand" "r")
-		  (match_operand:TI 2 "register_operand" "r")))
+  [(set (match_operand:TI 0 "register_operand" "=r,&r")
+	(minus:TI (match_operand:TI 1 "arith11_operand" "r,I")
+		  (match_operand:TI 2 "reg_or_0_operand" "rM,rM")))
    (trap_if (ne (minus:OI (sign_extend:OI (match_dup 1))
 			  (sign_extend:OI (match_dup 2)))
 		(sign_extend:OI (minus:TI (match_dup 1)
@@ -5442,16 +5562,24 @@
   "TARGET_64BIT"
   "*
 {
-  operands[3] = gen_lowpart (DImode, operands[0]);
-  operands[4] = gen_lowpart (DImode, operands[1]);
-  operands[5] = gen_lowpart (DImode, operands[2]);
-  operands[0] = gen_highpart (DImode, operands[0]);
-  operands[1] = gen_highpart (DImode, operands[1]);
-  operands[2] = gen_highpart (DImode, operands[2]);
-  return \"sub %4,%5,%3\;sub,db,tsv %1,%2,%0\";
+  if (GET_CODE (operands[1]) == CONST_INT)
+    {
+      if (INTVAL (operands[1]) >= 0)
+	return \"subi %1,%R2,%R0\;sub,db,tsv %%r0,%2,%0\";
+      else
+	return \"ldi -1,%0\;subi %1,%R2,%R0\;sub,db,tsv %0,%2,%0\";
+    }
+  else
+    return \"sub %R1,%R2,%R0\;sub,db,tsv %1,%2,%0\";
 }"
-  [(set_attr "type" "multi")
-   (set_attr "length" "8")])
+  [(set_attr "type" "multi,multi")
+   (set (attr "length")
+	(if_then_else (eq_attr "alternative" "0")
+	  (const_int 8)
+	  (if_then_else (ge (symbol_ref "INTVAL (operands[1])")
+			    (const_int 0))
+	    (const_int 8)
+	    (const_int 12))))])
 
 ;; Trap instructions.
 
@@ -5504,26 +5632,10 @@
    (set_attr "length" "4")])
 
 (define_insn ""
-  [(set (match_operand:DI 0 "register_operand" "=f")
-	(mult:DI (zero_extend:DI (match_operand:SI 1 "register_operand" "f"))
-		 (match_operand:DI 2 "uint32_operand" "f")))]
-  "TARGET_PA_11 && ! TARGET_SOFT_FLOAT && ! TARGET_SOFT_MULT && !TARGET_64BIT"
-  "xmpyu %1,%R2,%0"
-  [(set_attr "type" "fpmuldbl")
-   (set_attr "length" "4")])
-
-(define_insn ""
-  [(set (match_operand:DI 0 "register_operand" "=f")
-	(mult:DI (zero_extend:DI (match_operand:SI 1 "register_operand" "f"))
-		 (match_operand:DI 2 "uint32_operand" "f")))]
-  "TARGET_PA_11 && ! TARGET_SOFT_FLOAT && ! TARGET_SOFT_MULT && TARGET_64BIT"
-  "xmpyu %1,%2R,%0"
-  [(set_attr "type" "fpmuldbl")
-   (set_attr "length" "4")])
-
-(define_insn ""
-  [(set (reg:SI 29) (mult:SI (reg:SI 26) (reg:SI 25)))
-   (clobber (match_operand:SI 0 "register_operand" "=a"))
+  [(set (reg:SI 29)
+	(mult:SI (match_operand:SI 1 "r26_operand" "")
+		 (match_operand:SI 0 "r25_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 31))]
@@ -5535,8 +5647,10 @@
 	      (symbol_ref "pa_attr_length_millicode_call (insn)")))])
 
 (define_insn ""
-  [(set (reg:SI 29) (mult:SI (reg:SI 26) (reg:SI 25)))
-   (clobber (match_operand:SI 0 "register_operand" "=a"))
+  [(set (reg:SI 29)
+	(mult:SI (match_operand:SI 1 "r26_operand" "")
+		 (match_operand:SI 0 "r25_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 2))]
@@ -5628,35 +5742,24 @@
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
    (set (reg:SI 25) (match_operand:SI 2 "move_src_operand" ""))
    (parallel [(set (reg:SI 29) (div:SI (reg:SI 26) (reg:SI 25)))
-	      (clobber (match_dup 3))
-	      (clobber (match_dup 4))
+	      (clobber (reg:SI 1))
 	      (clobber (reg:SI 26))
 	      (clobber (reg:SI 25))
-	      (clobber (match_dup 5))])
+	      (clobber (match_dup 3))])
    (set (match_operand:SI 0 "move_dest_operand" "") (reg:SI 29))]
   ""
   "
 {
-  operands[3] = gen_reg_rtx (SImode);
-  if (TARGET_64BIT)
-    {
-      operands[5] = gen_rtx_REG (SImode, 2);
-      operands[4] = operands[5];
-    }
-  else
-    {
-      operands[5] = gen_rtx_REG (SImode, 31);
-      operands[4] = gen_reg_rtx (SImode);
-    }
-  if (GET_CODE (operands[2]) == CONST_INT && pa_emit_hpdiv_const (operands, 0))
+  operands[3] = gen_rtx_REG (SImode, TARGET_64BIT ? 2 : 31);
+  if (pa_emit_hpdiv_const (operands, 0))
     DONE;
 }")
 
 (define_insn ""
   [(set (reg:SI 29)
-	(div:SI (reg:SI 26) (match_operand:SI 0 "div_operand" "")))
-   (clobber (match_operand:SI 1 "register_operand" "=a"))
-   (clobber (match_operand:SI 2 "register_operand" "=&r"))
+	(div:SI (match_operand:SI 1 "r26_operand" "")
+		(match_operand:SI 0 "div_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 31))]
@@ -5670,9 +5773,9 @@
 
 (define_insn ""
   [(set (reg:SI 29)
-	(div:SI (reg:SI 26) (match_operand:SI 0 "div_operand" "")))
-   (clobber (match_operand:SI 1 "register_operand" "=a"))
-   (clobber (match_operand:SI 2 "register_operand" "=&r"))
+	(div:SI (match_operand:SI 1 "r26_operand" "")
+		(match_operand:SI 0 "div_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 2))]
@@ -5688,36 +5791,24 @@
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
    (set (reg:SI 25) (match_operand:SI 2 "move_src_operand" ""))
    (parallel [(set (reg:SI 29) (udiv:SI (reg:SI 26) (reg:SI 25)))
-	      (clobber (match_dup 3))
-	      (clobber (match_dup 4))
+	      (clobber (reg:SI 1))
 	      (clobber (reg:SI 26))
 	      (clobber (reg:SI 25))
-	      (clobber (match_dup 5))])
+	      (clobber (match_dup 3))])
    (set (match_operand:SI 0 "move_dest_operand" "") (reg:SI 29))]
   ""
   "
 {
-  operands[3] = gen_reg_rtx (SImode);
-
-  if (TARGET_64BIT)
-    {
-      operands[5] = gen_rtx_REG (SImode, 2);
-      operands[4] = operands[5];
-    }
-  else
-    {
-      operands[5] = gen_rtx_REG (SImode, 31);
-      operands[4] = gen_reg_rtx (SImode);
-    }
-  if (GET_CODE (operands[2]) == CONST_INT && pa_emit_hpdiv_const (operands, 1))
+  operands[3] = gen_rtx_REG (SImode, TARGET_64BIT ? 2 : 31);
+  if (pa_emit_hpdiv_const (operands, 1))
     DONE;
 }")
 
 (define_insn ""
   [(set (reg:SI 29)
-	(udiv:SI (reg:SI 26) (match_operand:SI 0 "div_operand" "")))
-   (clobber (match_operand:SI 1 "register_operand" "=a"))
-   (clobber (match_operand:SI 2 "register_operand" "=&r"))
+	(udiv:SI (match_operand:SI 1 "r26_operand" "")
+		 (match_operand:SI 0 "div_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 31))]
@@ -5731,9 +5822,9 @@
 
 (define_insn ""
   [(set (reg:SI 29)
-	(udiv:SI (reg:SI 26) (match_operand:SI 0 "div_operand" "")))
-   (clobber (match_operand:SI 1 "register_operand" "=a"))
-   (clobber (match_operand:SI 2 "register_operand" "=&r"))
+	(udiv:SI (match_operand:SI 1 "r26_operand" "")
+		 (match_operand:SI 0 "div_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 2))]
@@ -5749,32 +5840,22 @@
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
    (set (reg:SI 25) (match_operand:SI 2 "move_src_operand" ""))
    (parallel [(set (reg:SI 29) (mod:SI (reg:SI 26) (reg:SI 25)))
-	      (clobber (match_dup 3))
-	      (clobber (match_dup 4))
+	      (clobber (reg:SI 1))
 	      (clobber (reg:SI 26))
 	      (clobber (reg:SI 25))
-	      (clobber (match_dup 5))])
+	      (clobber (match_dup 3))])
    (set (match_operand:SI 0 "move_dest_operand" "") (reg:SI 29))]
   ""
   "
 {
-  if (TARGET_64BIT)
-    {
-      operands[5] = gen_rtx_REG (SImode, 2);
-      operands[4] = operands[5];
-    }
-  else
-    {
-      operands[5] = gen_rtx_REG (SImode, 31);
-      operands[4] = gen_reg_rtx (SImode);
-    }
-  operands[3] = gen_reg_rtx (SImode);
+  operands[3] = gen_rtx_REG (SImode, TARGET_64BIT ? 2 : 31);
 }")
 
 (define_insn ""
-  [(set (reg:SI 29) (mod:SI (reg:SI 26) (reg:SI 25)))
-   (clobber (match_operand:SI 0 "register_operand" "=a"))
-   (clobber (match_operand:SI 1 "register_operand" "=&r"))
+  [(set (reg:SI 29)
+	(mod:SI (match_operand:SI 1 "r26_operand" "")
+		(match_operand:SI 0 "r25_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 31))]
@@ -5787,9 +5868,10 @@
 	      (symbol_ref "pa_attr_length_millicode_call (insn)")))])
 
 (define_insn ""
-  [(set (reg:SI 29) (mod:SI (reg:SI 26) (reg:SI 25)))
-   (clobber (match_operand:SI 0 "register_operand" "=a"))
-   (clobber (match_operand:SI 1 "register_operand" "=&r"))
+  [(set (reg:SI 29)
+	(mod:SI (match_operand:SI 1 "r26_operand" "")
+		(match_operand:SI 0 "r25_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 2))]
@@ -5805,32 +5887,22 @@
   [(set (reg:SI 26) (match_operand:SI 1 "move_src_operand" ""))
    (set (reg:SI 25) (match_operand:SI 2 "move_src_operand" ""))
    (parallel [(set (reg:SI 29) (umod:SI (reg:SI 26) (reg:SI 25)))
-	      (clobber (match_dup 3))
-	      (clobber (match_dup 4))
+	      (clobber (reg:SI 1))
 	      (clobber (reg:SI 26))
 	      (clobber (reg:SI 25))
-	      (clobber (match_dup 5))])
+	      (clobber (match_dup 3))])
    (set (match_operand:SI 0 "move_dest_operand" "") (reg:SI 29))]
   ""
   "
 {
-  if (TARGET_64BIT)
-    {
-      operands[5] = gen_rtx_REG (SImode, 2);
-      operands[4] = operands[5];
-    }
-  else
-    {
-      operands[5] = gen_rtx_REG (SImode, 31);
-      operands[4] = gen_reg_rtx (SImode);
-    }
-  operands[3] = gen_reg_rtx (SImode);
+  operands[3] = gen_rtx_REG (SImode, TARGET_64BIT ? 2 : 31);
 }")
 
 (define_insn ""
-  [(set (reg:SI 29) (umod:SI (reg:SI 26) (reg:SI 25)))
-   (clobber (match_operand:SI 0 "register_operand" "=a"))
-   (clobber (match_operand:SI 1 "register_operand" "=&r"))
+  [(set (reg:SI 29)
+	(umod:SI (match_operand:SI 1 "r26_operand" "")
+		 (match_operand:SI 0 "r25_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 31))]
@@ -5843,9 +5915,10 @@
 	      (symbol_ref "pa_attr_length_millicode_call (insn)")))])
 
 (define_insn ""
-  [(set (reg:SI 29) (umod:SI (reg:SI 26) (reg:SI 25)))
-   (clobber (match_operand:SI 0 "register_operand" "=a"))
-   (clobber (match_operand:SI 1 "register_operand" "=&r"))
+  [(set (reg:SI 29)
+	(umod:SI (match_operand:SI 1 "r26_operand" "")
+		 (match_operand:SI 0 "r25_operand" "")))
+   (clobber (match_operand:SI 2 "register_operand" "=a"))
    (clobber (reg:SI 26))
    (clobber (reg:SI 25))
    (clobber (reg:SI 2))]
@@ -6008,14 +6081,7 @@
   [(set (match_operand:TI 0 "register_operand" "=r")
 	(neg:TI (match_operand:TI 1 "register_operand" "r")))]
   "TARGET_64BIT"
-  "*
-{
-  operands[2] = gen_lowpart (DImode, operands[0]);
-  operands[3] = gen_lowpart (DImode, operands[1]);
-  operands[0] = gen_highpart (DImode, operands[0]);
-  operands[1] = gen_highpart (DImode, operands[1]);
-  return \"sub %%r0,%3,%2\;sub,db %%r0,%1,%0\";
-}"
+  "sub %%r0,%R1,%R0\;sub,db %%r0,%1,%0"
   [(set_attr "type" "multi")
    (set_attr "length" "8")])
 
@@ -6057,14 +6123,7 @@
 		(sign_extend:OI (neg:TI (match_dup 1))))
 	    (const_int 0))]
   "TARGET_64BIT"
-  "*
-{
-  operands[2] = gen_lowpart (DImode, operands[0]);
-  operands[3] = gen_lowpart (DImode, operands[1]);
-  operands[0] = gen_highpart (DImode, operands[0]);
-  operands[1] = gen_highpart (DImode, operands[1]);
-  return \"sub %%r0,%3,%2\;sub,db,tsv %%r0,%1,%0\";
-}"
+  "sub %%r0,%R1,%R0\;sub,db,tsv %%r0,%1,%0"
   [(set_attr "type" "multi")
    (set_attr "length" "8")])
 
@@ -7329,7 +7388,6 @@
   /* Ensure the frame pointer move is not optimized.  */
   emit_insn (gen_blockage ());
   emit_clobber (hard_frame_pointer_rtx);
-  emit_clobber (frame_pointer_rtx);
   emit_move_insn (hard_frame_pointer_rtx, fp);
 
   emit_use (hard_frame_pointer_rtx);
@@ -7344,7 +7402,7 @@
 })
 
 (define_insn "indirect_goto"
-  [(unspec [(match_operand 0 "register_operand" "=r")] UNSPEC_GOTO)]
+  [(unspec [(match_operand 0 "register_operand" "r")] UNSPEC_GOTO)]
   "GET_MODE (operands[0]) == word_mode"
   "bv%* %%r0(%0)"
   [(set_attr "type" "branch")
@@ -9120,7 +9178,6 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
   /* Ensure the frame pointer move is not optimized.  */
   emit_insn (gen_blockage ());
   emit_clobber (hard_frame_pointer_rtx);
-  emit_clobber (frame_pointer_rtx);
   emit_move_insn (hard_frame_pointer_rtx, fp);
 
   emit_use (hard_frame_pointer_rtx);
@@ -9479,7 +9536,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
 	  (pc)))
    (set (match_dup 0)
 	(plus:SI (match_dup 0) (match_dup 1)))
-   (clobber (match_scratch:SI 4 "=X,r,r"))]
+   (clobber (match_scratch:SI 4 "=X,r,&r"))]
   ""
   "* return pa_output_dbra (operands, insn, which_alternative); "
 ;; Do not expect to understand this the first time through.
@@ -10260,7 +10317,7 @@ add,l %2,%3,%3\;bv,n %%r0(%3)"
       "ldd 0(%0),%%r0"
     }
   };
-  int read_or_write = INTVAL (operands[1]) == 0 ? 0 : 1;
+  int read_or_write = INTVAL (operands[1]) & 1;
   int locality = INTVAL (operands[2]) == 0 ? 0 : 1;
 
   return instr [locality][read_or_write];

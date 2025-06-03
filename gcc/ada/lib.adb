@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,6 +36,7 @@ with Opt;            use Opt;
 with Output;         use Output;
 with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
+with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
 with Stand;          use Stand;
 with Stringt;        use Stringt;
@@ -173,12 +174,12 @@ package body Lib is
       return Units.Table (U).OA_Setting;
    end OA_Setting;
 
-   function Primary_Stack_Count (U : Unit_Number_Type) return Int is
+   function Primary_Stack_Count (U : Unit_Number_Type) return Nat is
    begin
       return Units.Table (U).Primary_Stack_Count;
    end Primary_Stack_Count;
 
-   function Sec_Stack_Count  (U : Unit_Number_Type) return Int is
+   function Sec_Stack_Count  (U : Unit_Number_Type) return Nat is
    begin
       return Units.Table (U).Sec_Stack_Count;
    end Sec_Stack_Count;
@@ -481,12 +482,12 @@ package body Lib is
          --  earlier.
 
          if Nkind (Unit1) in N_Subprogram_Body | N_Package_Body then
-            if Library_Unit (Cunit (Unum1)) = Cunit (Unum2) then
+            if Spec_Lib_Unit (Cunit (Unum1)) = Cunit (Unum2) then
                return Yes_After;
             end if;
 
          elsif Nkind (Unit2) in N_Subprogram_Body | N_Package_Body then
-            if Library_Unit (Cunit (Unum2)) = Cunit (Unum1) then
+            if Spec_Lib_Unit (Cunit (Unum2)) = Cunit (Unum1) then
                return Yes_Before;
             end if;
          end if;
@@ -779,10 +780,16 @@ package body Lib is
          end if;
       end loop;
 
-      --  If not in the table, must be a spec created for a main unit that is a
-      --  child subprogram body which we have not inserted into the table yet.
+      --  Not in the table. Empty N is some already-detected error; otherwise,
+      --  it must be a spec created for a main unit that is a child subprogram
+      --  body which we have not inserted into the table yet.
 
-      if N = Library_Unit (Cunit (Main_Unit)) then
+      if No (N) then
+         pragma Assert (Serious_Errors_Detected > 0);
+         return Main_Unit;
+      end if;
+
+      if N = Spec_Lib_Unit (Cunit (Main_Unit)) then
          return Main_Unit;
 
       --  If it is anything else, something is seriously wrong, and we really
@@ -1034,8 +1041,8 @@ package body Lib is
    -- Increment_Primary_Stack_Count --
    -----------------------------------
 
-   procedure Increment_Primary_Stack_Count (Increment : Int) is
-      PSC : Int renames Units.Table (Current_Sem_Unit).Primary_Stack_Count;
+   procedure Increment_Primary_Stack_Count (Increment : Nat) is
+      PSC : Nat renames Units.Table (Current_Sem_Unit).Primary_Stack_Count;
    begin
       PSC := PSC + Increment;
    end Increment_Primary_Stack_Count;
@@ -1044,8 +1051,8 @@ package body Lib is
    -- Increment_Sec_Stack_Count --
    -------------------------------
 
-   procedure Increment_Sec_Stack_Count (Increment : Int) is
-      SSC : Int renames Units.Table (Current_Sem_Unit).Sec_Stack_Count;
+   procedure Increment_Sec_Stack_Count (Increment : Nat) is
+      SSC : Nat renames Units.Table (Current_Sem_Unit).Sec_Stack_Count;
    begin
       SSC := SSC + Increment;
    end Increment_Sec_Stack_Count;
@@ -1330,12 +1337,13 @@ package body Lib is
                if Nkind (Context_Item) = N_With_Clause
                  and then not Limited_Present (Context_Item)
                then
-                  pragma Assert (Present (Library_Unit (Context_Item)));
+                  pragma Assert (Present (Withed_Lib_Unit (Context_Item)));
                   Write_Unit_Name
                     (Unit_Name
-                       (Get_Cunit_Unit_Number (Library_Unit (Context_Item))));
+                      (Get_Cunit_Unit_Number
+                        (Withed_Lib_Unit (Context_Item))));
 
-                  if Implicit_With (Context_Item) then
+                  if Is_Implicit_With (Context_Item) then
                      Write_Str (" -- implicit");
                   end if;
 

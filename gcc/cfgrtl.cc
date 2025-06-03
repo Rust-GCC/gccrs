@@ -1,5 +1,5 @@
 /* Control flow graph manipulation code for GNU compiler.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1512,7 +1512,6 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
   edge new_edge;
   int abnormal_edge_flags = 0;
   bool asm_goto_edge = false;
-  int loc;
 
   /* In the case the last instruction is conditional jump to the next
      instruction, first redirect the jump itself and then continue
@@ -1697,7 +1696,7 @@ force_nonfallthru_and_redirect (edge e, basic_block target, rtx jump_label)
   else
     jump_block = e->src;
 
-  loc = e->goto_locus;
+  const location_t loc = e->goto_locus;
   e->flags &= ~EDGE_FALLTHRU;
   if (target == EXIT_BLOCK_PTR_FOR_FN (cfun))
     {
@@ -3214,6 +3213,16 @@ purge_dead_edges (basic_block bb)
 	      && ! may_trap_p (XEXP (eqnote, 0))))
 	remove_note (insn, note);
     }
+  /* A tail call cannot trap either.  The tailc/musttail pass could have
+     allowed a tail call if it could throw internally, but perform no
+     actual statements and then caused the exception to be thrown externally
+     in the hope that it is cleaned up later.  If it is not, just
+     remove REG_EH_REGION note.  While the call maybe can throw, the
+     current function's frame will not be there anymore when it does.  */
+   if (CALL_P (insn)
+       && SIBLING_CALL_P (insn)
+       && (note = find_reg_note (insn, REG_EH_REGION, NULL)))
+     remove_note (insn, note);
 
   /* Cleanup abnormal edges caused by exceptions or non-local gotos.  */
   for (ei = ei_start (bb->succs); (e = ei_safe_edge (ei)); )
@@ -4115,7 +4124,7 @@ fixup_reorder_chain (void)
 	  dest = e_fall->dest;
 	}
 
-      /* We got here if we need to add a new jump insn. 
+      /* We got here if we need to add a new jump insn.
 	 Note force_nonfallthru can delete E_FALL and thus we have to
 	 save E_FALL->src prior to the call to force_nonfallthru.  */
       nb = force_nonfallthru_and_redirect (e_fall, dest, ret_label);
@@ -4432,12 +4441,13 @@ duplicate_insn_chain (rtx_insn *from, rtx_insn *to,
 			   since MEM_EXPR is shared so make a copy and
 			   walk to the subtree again.  */
 			tree new_expr = unshare_expr (MEM_EXPR (*iter));
+			tree orig_new_expr = new_expr;
 			if (TREE_CODE (new_expr) == WITH_SIZE_EXPR)
 			  new_expr = TREE_OPERAND (new_expr, 0);
 			while (handled_component_p (new_expr))
 			  new_expr = TREE_OPERAND (new_expr, 0);
 			MR_DEPENDENCE_CLIQUE (new_expr) = newc;
-			set_mem_expr (const_cast <rtx> (*iter), new_expr);
+			set_mem_expr (const_cast <rtx> (*iter), orig_new_expr);
 		      }
 		  }
 	    }
@@ -4945,7 +4955,7 @@ cfg_layout_merge_blocks (basic_block a, basic_block b)
       else
 	{
 	  rtx_insn *last = BB_HEADER (b);
- 
+
 	  while (NEXT_INSN (last))
 	    last = NEXT_INSN (last);
 	  SET_NEXT_INSN (last) = BB_FOOTER (a);
@@ -5056,10 +5066,10 @@ rtl_split_block_before_cond_jump (basic_block bb)
       last = insn;
     }
 
-  /* Did not find everything.  */ 
+  /* Did not find everything.  */
   if (found_code && split_point)
     return split_block (bb, split_point)->dest;
-  else 
+  else
     return NULL;
 }
 
@@ -5454,7 +5464,7 @@ struct cfg_hooks cfg_layout_rtl_cfg_hooks = {
   rtl_lv_add_condition_to_bb, /* lv_add_condition_to_bb */
   NULL, /* lv_adjust_loop_header_phi*/
   rtl_extract_cond_bb_edges, /* extract_cond_bb_edges */
-  NULL, /* flush_pending_stmts */  
+  NULL, /* flush_pending_stmts */
   rtl_block_empty_p, /* block_empty_p */
   rtl_split_block_before_cond_jump, /* split_block_before_cond_jump */
   rtl_account_profile_record,

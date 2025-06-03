@@ -1,5 +1,5 @@
 /* Flags on basic blocks and edges.
-   Copyright (C) 2012-2024 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -71,7 +71,7 @@ DEF_BASIC_BLOCK_FLAG(DUPLICATED, 7)
 DEF_BASIC_BLOCK_FLAG(NON_LOCAL_GOTO_TARGET, 8)
 
 /* Set on blocks that are in RTL format.  */
-DEF_BASIC_BLOCK_FLAG(RTL, 9) 
+DEF_BASIC_BLOCK_FLAG(RTL, 9)
 
 /* Set on blocks that are forwarder blocks.
    Only used in cfgcleanup.cc.  */

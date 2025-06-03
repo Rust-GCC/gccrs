@@ -1,5 +1,5 @@
 /* Common subexpression elimination library for GNU compiler.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -33,6 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cselib.h"
 #include "function-abi.h"
 #include "alias.h"
+#include "predict.h"
 
 /* A list of cselib_val structures.  */
 struct elt_list
@@ -51,7 +52,7 @@ static void unchain_one_value (cselib_val *);
 static void unchain_one_elt_list (struct elt_list **);
 static void unchain_one_elt_loc_list (struct elt_loc_list **);
 static void remove_useless_values (void);
-static unsigned int cselib_hash_rtx (rtx, int, machine_mode);
+static hashval_t cselib_hash_rtx (rtx, int, machine_mode);
 static cselib_val *new_cselib_val (unsigned int, machine_mode, rtx);
 static void add_mem_for_addr (cselib_val *, cselib_val *, rtx);
 static cselib_val *cselib_lookup_mem (rtx, int);
@@ -248,8 +249,9 @@ static unsigned int *used_regs;
 static unsigned int n_used_regs;
 
 /* We pass this to cselib_invalidate_mem to invalidate all of
-   memory for a non-const call instruction.  */
-static GTY(()) rtx callmem;
+   memory for a non-const call instruction and memory below stack pointer
+   for const/pure calls.  */
+static GTY(()) rtx callmem[2];
 
 /* Set by discard_useless_locs if it deleted the last location of any
    value.  */
@@ -751,6 +753,11 @@ remove_useless_values (void)
       }
   *p = &dummy_val;
 
+  if (cselib_preserve_constants)
+    cselib_preserved_hash_table->traverse <void *,
+					   discard_useless_locs> (NULL);
+  gcc_assert (!values_became_useless);
+
   n_useless_values += n_useless_debug_values;
   n_debug_values -= n_useless_debug_values;
   n_useless_debug_values = 0;
@@ -803,7 +810,7 @@ cselib_preserve_only_values (void)
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     cselib_invalidate_regno (i, reg_raw_mode[i]);
 
-  cselib_invalidate_mem (callmem);
+  cselib_invalidate_mem (callmem[0]);
 
   remove_useless_values ();
 
@@ -1117,6 +1124,11 @@ rtx_equal_for_cselib_1 (rtx x, rtx y, machine_mode memmode, int depth)
 	    return false;
 	  break;
 
+	case 'L':
+	  if (XLOC (x, i) != XLOC (y, i))
+	    return false;
+	  break;
+
 	case 'p':
 	  if (maybe_ne (SUBREG_BYTE (x), SUBREG_BYTE (y)))
 	    return false;
@@ -1244,7 +1256,7 @@ cselib_redundant_set_p (rtx set)
 /* Helper function for cselib_hash_rtx.  Arguments like for cselib_hash_rtx,
    except that it hashes (plus:P x c).  */
 
-static unsigned int
+static hashval_t
 cselib_hash_plus_const_int (rtx x, HOST_WIDE_INT c, int create,
 			    machine_mode memmode)
 {
@@ -1266,14 +1278,13 @@ cselib_hash_plus_const_int (rtx x, HOST_WIDE_INT c, int create,
   if (c == 0)
     return e->hash;
 
-  unsigned hash = (unsigned) PLUS + (unsigned) GET_MODE (x);
-  hash += e->hash;
-  unsigned int tem_hash = (unsigned) CONST_INT + (unsigned) VOIDmode;
-  tem_hash += ((unsigned) CONST_INT << 7) + (unsigned HOST_WIDE_INT) c;
-  if (tem_hash == 0)
-    tem_hash = (unsigned int) CONST_INT;
-  hash += tem_hash;
-  return hash ? hash : 1 + (unsigned int) PLUS;
+  inchash::hash hash;
+  hash.add_int (PLUS);
+  hash.add_int (GET_MODE (x));
+  hash.merge_hash (e->hash);
+  hash.add_hwi (c);
+
+  return hash.end () ? hash.end () : 1 + (unsigned int) PLUS;
 }
 
 /* Hash an rtx.  Return 0 if we couldn't hash the rtx.
@@ -1298,7 +1309,7 @@ cselib_hash_plus_const_int (rtx x, HOST_WIDE_INT c, int create,
    If the mode is important in any context, it must be checked specifically
    in a comparison anyway, since relying on hash differences is unsafe.  */
 
-static unsigned int
+static hashval_t
 cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 {
   cselib_val *e;
@@ -1306,10 +1317,11 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
   int i, j;
   enum rtx_code code;
   const char *fmt;
-  unsigned int hash = 0;
+  inchash::hash hash;
 
   code = GET_CODE (x);
-  hash += (unsigned) code + (unsigned) GET_MODE (x);
+  hash.add_int (code);
+  hash.add_int (GET_MODE (x));
 
   switch (code)
     {
@@ -1326,19 +1338,16 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
       return e->hash;
 
     case DEBUG_EXPR:
-      hash += ((unsigned) DEBUG_EXPR << 7)
-	      + DEBUG_TEMP_UID (DEBUG_EXPR_TREE_DECL (x));
-      return hash ? hash : (unsigned int) DEBUG_EXPR;
+      hash.add_int (DEBUG_TEMP_UID (DEBUG_EXPR_TREE_DECL (x)));
+      return hash.end () ? hash.end() : (unsigned int) DEBUG_EXPR;
 
     case DEBUG_IMPLICIT_PTR:
-      hash += ((unsigned) DEBUG_IMPLICIT_PTR << 7)
-	      + DECL_UID (DEBUG_IMPLICIT_PTR_DECL (x));
-      return hash ? hash : (unsigned int) DEBUG_IMPLICIT_PTR;
+      hash.add_int (DECL_UID (DEBUG_IMPLICIT_PTR_DECL (x)));
+      return hash.end () ? hash.end () : (unsigned int) DEBUG_IMPLICIT_PTR;
 
     case DEBUG_PARAMETER_REF:
-      hash += ((unsigned) DEBUG_PARAMETER_REF << 7)
-	      + DECL_UID (DEBUG_PARAMETER_REF_DECL (x));
-      return hash ? hash : (unsigned int) DEBUG_PARAMETER_REF;
+      hash.add_int (DECL_UID (DEBUG_PARAMETER_REF_DECL (x)));
+      return hash.end () ? hash.end () : (unsigned int) DEBUG_PARAMETER_REF;
 
     case ENTRY_VALUE:
       /* ENTRY_VALUEs are function invariant, thus try to avoid
@@ -1347,51 +1356,49 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 	 ENTRY_VALUE hash would depend on the current value
 	 in some register or memory.  */
       if (REG_P (ENTRY_VALUE_EXP (x)))
-	hash += (unsigned int) REG
-		+ (unsigned int) GET_MODE (ENTRY_VALUE_EXP (x))
-		+ (unsigned int) REGNO (ENTRY_VALUE_EXP (x));
+	hash.add_int ((unsigned int) REG
+		      + (unsigned int) GET_MODE (ENTRY_VALUE_EXP (x))
+		      + (unsigned int) REGNO (ENTRY_VALUE_EXP (x)));
       else if (MEM_P (ENTRY_VALUE_EXP (x))
 	       && REG_P (XEXP (ENTRY_VALUE_EXP (x), 0)))
-	hash += (unsigned int) MEM
-		+ (unsigned int) GET_MODE (XEXP (ENTRY_VALUE_EXP (x), 0))
-		+ (unsigned int) REGNO (XEXP (ENTRY_VALUE_EXP (x), 0));
+	hash.add_int ((unsigned int) MEM
+		      + (unsigned int) GET_MODE (XEXP (ENTRY_VALUE_EXP (x), 0))
+		      + (unsigned int) REGNO (XEXP (ENTRY_VALUE_EXP (x), 0)));
       else
-	hash += cselib_hash_rtx (ENTRY_VALUE_EXP (x), create, memmode);
-      return hash ? hash : (unsigned int) ENTRY_VALUE;
+	hash.add_int (cselib_hash_rtx (ENTRY_VALUE_EXP (x), create, memmode));
+      return hash.end () ? hash.end () : (unsigned int) ENTRY_VALUE;
 
     case CONST_INT:
-      hash += ((unsigned) CONST_INT << 7) + UINTVAL (x);
-      return hash ? hash : (unsigned int) CONST_INT;
+      hash.add_hwi (UINTVAL (x));
+      return hash.end () ? hash.end () : (unsigned int) CONST_INT;
 
     case CONST_WIDE_INT:
       for (i = 0; i < CONST_WIDE_INT_NUNITS (x); i++)
-	hash += CONST_WIDE_INT_ELT (x, i);
-      return hash;
+	hash.add_hwi (CONST_WIDE_INT_ELT (x, i));
+      return hash.end () ? hash.end () : (unsigned int) CONST_WIDE_INT;
 
     case CONST_POLY_INT:
       {
-	inchash::hash h;
-	h.add_int (hash);
 	for (unsigned int i = 0; i < NUM_POLY_INT_COEFFS; ++i)
-	  h.add_wide_int (CONST_POLY_INT_COEFFS (x)[i]);
-	return h.end ();
+	  hash.add_wide_int (CONST_POLY_INT_COEFFS (x)[i]);
+	return hash.end () ? hash.end () : (unsigned int) CONST_POLY_INT;
       }
 
     case CONST_DOUBLE:
       /* This is like the general case, except that it only counts
 	 the integers representing the constant.  */
-      hash += (unsigned) code + (unsigned) GET_MODE (x);
       if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (x) == VOIDmode)
-	hash += ((unsigned) CONST_DOUBLE_LOW (x)
-		 + (unsigned) CONST_DOUBLE_HIGH (x));
+	{
+	  hash.add_hwi (CONST_DOUBLE_LOW (x));
+	  hash.add_hwi (CONST_DOUBLE_HIGH (x));
+	}
       else
-	hash += real_hash (CONST_DOUBLE_REAL_VALUE (x));
-      return hash ? hash : (unsigned int) CONST_DOUBLE;
+	hash.merge_hash (real_hash (CONST_DOUBLE_REAL_VALUE (x)));
+      return hash.end () ? hash.end () : (unsigned int) CONST_DOUBLE;
 
     case CONST_FIXED:
-      hash += (unsigned int) code + (unsigned int) GET_MODE (x);
-      hash += fixed_hash (CONST_FIXED_VALUE (x));
-      return hash ? hash : (unsigned int) CONST_FIXED;
+      hash.merge_hash (fixed_hash (CONST_FIXED_VALUE (x)));
+      return hash.end () ? hash.end () : (unsigned int) CONST_FIXED;
 
     case CONST_VECTOR:
       {
@@ -1403,19 +1410,18 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 	for (i = 0; i < units; ++i)
 	  {
 	    elt = CONST_VECTOR_ENCODED_ELT (x, i);
-	    hash += cselib_hash_rtx (elt, 0, memmode);
+	    hash.merge_hash (cselib_hash_rtx (elt, 0, memmode));
 	  }
 
-	return hash;
+	return hash.end () ? hash.end () : (unsigned int) CONST_VECTOR;
       }
 
       /* Assume there is only one rtx object for any given label.  */
     case LABEL_REF:
       /* We don't hash on the address of the CODE_LABEL to avoid bootstrap
 	 differences and differences between each stage's debugging dumps.  */
-      hash += (((unsigned int) LABEL_REF << 7)
-	       + CODE_LABEL_NUMBER (label_ref_label (x)));
-      return hash ? hash : (unsigned int) LABEL_REF;
+      hash.add_int (CODE_LABEL_NUMBER (label_ref_label (x)));
+      return hash.end () ? hash.end () : (unsigned int) LABEL_REF;
 
     case SYMBOL_REF:
       {
@@ -1424,51 +1430,69 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 	   different orders and thus different registers to be used in the
 	   final assembler.  This also avoids differences in the dump files
 	   between various stages.  */
-	unsigned int h = 0;
-	const unsigned char *p = (const unsigned char *) XSTR (x, 0);
+	const char *p = (const char *) XSTR (x, 0);
 
-	while (*p)
-	  h += (h << 7) + *p++; /* ??? revisit */
+	if (*p)
+	  hash.add (p, strlen (p));
 
-	hash += ((unsigned int) SYMBOL_REF << 7) + h;
-	return hash ? hash : (unsigned int) SYMBOL_REF;
+	return hash.end () ? hash.end () : (unsigned int) SYMBOL_REF;
       }
 
     case PRE_DEC:
     case PRE_INC:
-      /* We can't compute these without knowing the MEM mode.  */
-      gcc_assert (memmode != VOIDmode);
-      offset = GET_MODE_SIZE (memmode);
-      if (code == PRE_DEC)
-	offset = -offset;
-      /* Adjust the hash so that (mem:MEMMODE (pre_* (reg))) hashes
-	 like (mem:MEMMODE (plus (reg) (const_int I))).  */
-      if (GET_MODE (x) == Pmode
-	  && (REG_P (XEXP (x, 0))
-	      || MEM_P (XEXP (x, 0))
-	      || GET_CODE (XEXP (x, 0)) == VALUE))
-	{
-	  HOST_WIDE_INT c;
-	  if (offset.is_constant (&c))
-	    return cselib_hash_plus_const_int (XEXP (x, 0),
-					       trunc_int_for_mode (c, Pmode),
-					       create, memmode);
-	}
-      hash = ((unsigned) PLUS + (unsigned) GET_MODE (x)
-	      + cselib_hash_rtx (XEXP (x, 0), create, memmode)
-	      + cselib_hash_rtx (gen_int_mode (offset, GET_MODE (x)),
-				 create, memmode));
-      return hash ? hash : 1 + (unsigned) PLUS;
+      {
+	/* We can't compute these without knowing the MEM mode.  */
+	gcc_assert (memmode != VOIDmode);
+	offset = GET_MODE_SIZE (memmode);
+	if (code == PRE_DEC)
+	  offset = -offset;
+	/* Adjust the hash so that (mem:MEMMODE (pre_* (reg))) hashes
+	   like (mem:MEMMODE (plus (reg) (const_int I))).  */
+	if (GET_MODE (x) == Pmode
+	    && (REG_P (XEXP (x, 0))
+		|| MEM_P (XEXP (x, 0))
+		|| GET_CODE (XEXP (x, 0)) == VALUE))
+	  {
+	    HOST_WIDE_INT c;
+	    if (offset.is_constant (&c))
+	      return cselib_hash_plus_const_int (XEXP (x, 0),
+						 trunc_int_for_mode (c, Pmode),
+						 create, memmode);
+	  }
+
+	hashval_t tem_hash = cselib_hash_rtx (XEXP (x, 0), create, memmode);
+	if (tem_hash == 0)
+	  return 0;
+	hash.merge_hash (tem_hash);
+	tem_hash = cselib_hash_rtx (gen_int_mode (offset, GET_MODE (x)),
+				    create, memmode);
+	if (tem_hash == 0)
+	  return 0;
+	hash.merge_hash (tem_hash);
+	return hash.end () ? hash.end () : 1 + (unsigned) PLUS;
+      }
 
     case PRE_MODIFY:
-      gcc_assert (memmode != VOIDmode);
-      return cselib_hash_rtx (XEXP (x, 1), create, memmode);
+      {
+	gcc_assert (memmode != VOIDmode);
+	hashval_t tem_hash = cselib_hash_rtx (XEXP (x, 1), create, memmode);
+	if (tem_hash == 0)
+	  return 0;
+	hash.merge_hash (tem_hash);
+	return hash.end () ? hash.end () : 1 + (unsigned) PRE_MODIFY;
+      }
 
     case POST_DEC:
     case POST_INC:
     case POST_MODIFY:
-      gcc_assert (memmode != VOIDmode);
-      return cselib_hash_rtx (XEXP (x, 0), create, memmode);
+      {
+	gcc_assert (memmode != VOIDmode);
+	hashval_t tem_hash = cselib_hash_rtx (XEXP (x, 0), create, memmode);
+	if (tem_hash == 0)
+	  return 0;
+	hash.merge_hash (tem_hash);
+	return hash.end () ? hash.end () : 1 + (unsigned) code;
+      }
 
     case PC:
     case CALL:
@@ -1497,6 +1521,20 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 
   i = GET_RTX_LENGTH (code) - 1;
   fmt = GET_RTX_FORMAT (code);
+
+  if (COMMUTATIVE_P (x))
+    {
+      gcc_assert (i == 1 && fmt[0] == 'e' && fmt[1] == 'e');
+      hashval_t tem1_hash = cselib_hash_rtx (XEXP (x, 1), create, memmode);
+      if (tem1_hash == 0)
+	return 0;
+      hashval_t tem0_hash = cselib_hash_rtx (XEXP (x, 0), create, memmode);
+      if (tem0_hash == 0)
+	return 0;
+      hash.add_commutative (tem0_hash, tem1_hash);
+      return hash.end () ? hash.end () : 1 + (unsigned int) GET_CODE (x);
+    }
+
   for (; i >= 0; i--)
     {
       switch (fmt[i])
@@ -1504,43 +1542,42 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 	case 'e':
 	  {
 	    rtx tem = XEXP (x, i);
-	    unsigned int tem_hash = cselib_hash_rtx (tem, create, memmode);
-
+	    hashval_t tem_hash = cselib_hash_rtx (tem, create, memmode);
 	    if (tem_hash == 0)
 	      return 0;
-
-	    hash += tem_hash;
+	    hash.merge_hash (tem_hash);
 	  }
 	  break;
 	case 'E':
 	  for (j = 0; j < XVECLEN (x, i); j++)
 	    {
-	      unsigned int tem_hash
+	      hashval_t tem_hash
 		= cselib_hash_rtx (XVECEXP (x, i, j), create, memmode);
-
 	      if (tem_hash == 0)
 		return 0;
-
-	      hash += tem_hash;
+	      hash.merge_hash (tem_hash);
 	    }
 	  break;
 
 	case 's':
 	  {
-	    const unsigned char *p = (const unsigned char *) XSTR (x, i);
+	    const char *p = (const char *) XSTR (x, i);
 
-	    if (p)
-	      while (*p)
-		hash += *p++;
+	    if (p && *p)
+	      hash.add (p, strlen (p));
 	    break;
 	  }
 
 	case 'i':
-	  hash += XINT (x, i);
+	  hash.add_hwi (XINT (x, i));
+	  break;
+
+	case 'L':
+	  hash.add_hwi (XLOC (x, i));
 	  break;
 
 	case 'p':
-	  hash += constant_lower_bound (SUBREG_BYTE (x));
+	  hash.add_int (constant_lower_bound (SUBREG_BYTE (x)));
 	  break;
 
 	case '0':
@@ -1553,14 +1590,14 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 	}
     }
 
-  return hash ? hash : 1 + (unsigned int) GET_CODE (x);
+  return hash.end () ? hash.end () : 1 + (unsigned int) GET_CODE (x);
 }
 
 /* Create a new value structure for VALUE and initialize it.  The mode of the
    value is MODE.  */
 
 static inline cselib_val *
-new_cselib_val (unsigned int hash, machine_mode mode, rtx x)
+new_cselib_val (hashval_t hash, machine_mode mode, rtx x)
 {
   cselib_val *e = cselib_val_pool.allocate ();
 
@@ -2053,6 +2090,7 @@ cselib_expand_value_rtx_1 (rtx orig, struct expand_value_data *evd,
       case 't':
       case 'w':
       case 'i':
+      case 'L':
       case 's':
       case 'S':
       case 'T':
@@ -2293,7 +2331,6 @@ cselib_lookup_1 (rtx x, machine_mode mode,
 {
   cselib_val **slot;
   cselib_val *e;
-  unsigned int hashval;
 
   if (GET_MODE (x) != VOIDmode)
     mode = GET_MODE (x);
@@ -2387,7 +2424,7 @@ cselib_lookup_1 (rtx x, machine_mode mode,
   if (MEM_P (x))
     return cselib_lookup_mem (x, create);
 
-  hashval = cselib_hash_rtx (x, create, memmode);
+  hashval_t hashval = cselib_hash_rtx (x, create, memmode);
   /* Can't even create if hashing is not possible.  */
   if (! hashval)
     return 0;
@@ -2595,6 +2632,8 @@ cselib_invalidate_mem (rtx mem_rtx)
       struct elt_loc_list **p = &v->locs;
       bool had_locs = v->locs != NULL;
       rtx_insn *setting_insn = v->locs ? v->locs->setting_insn : NULL;
+      rtx sp_base = NULL_RTX;
+      HOST_WIDE_INT sp_off = 0;
 
       while (*p)
 	{
@@ -2609,6 +2648,114 @@ cselib_invalidate_mem (rtx mem_rtx)
 	      p = &(*p)->next;
 	      continue;
 	    }
+
+	  /* When invalidating memory below the stack pointer for const/pure
+	     calls and alloca/VLAs aren't used, attempt to optimize.  Values
+	     stored into area sometimes below the stack pointer shouldn't be
+	     addressable and should be stored just through stack pointer
+	     derived expressions, so don't invalidate MEMs not using stack
+	     derived addresses, or if the MEMs clearly aren't below the stack
+	     pointer.  This isn't a fully conservative approach, the hope is
+	     that invalidating more MEMs than this isn't actually needed.  */
+	  if (mem_rtx == callmem[1]
+	      && num_mems < param_max_cselib_memory_locations
+	      && GET_CODE (XEXP (x, 0)) == VALUE
+	      && !cfun->calls_alloca)
+	    {
+	      cselib_val *v2 = CSELIB_VAL_PTR (XEXP (x, 0));
+	      rtx x_base = NULL_RTX;
+	      HOST_WIDE_INT x_off = 0;
+	      if (SP_DERIVED_VALUE_P (v2->val_rtx))
+		x_base = v2->val_rtx;
+	      else
+		for (struct elt_loc_list *l = v2->locs; l; l = l->next)
+		  if (GET_CODE (l->loc) == PLUS
+		      && GET_CODE (XEXP (l->loc, 0)) == VALUE
+		      && SP_DERIVED_VALUE_P (XEXP (l->loc, 0))
+		      && CONST_INT_P (XEXP (l->loc, 1)))
+		    {
+		      x_base = XEXP (l->loc, 0);
+		      x_off = INTVAL (XEXP (l->loc, 1));
+		      break;
+		    }
+	      /* If x_base is NULL here, don't invalidate x as its address
+		 isn't derived from sp such that it could be in outgoing
+		 argument area of some call in !ACCUMULATE_OUTGOING_ARGS
+		 function.  */
+	      if (x_base)
+		{
+		  if (sp_base == NULL_RTX)
+		    {
+		      if (cselib_val *v3
+			  = cselib_lookup_1 (stack_pointer_rtx, Pmode, 0,
+					     VOIDmode))
+			{
+			  if (SP_DERIVED_VALUE_P (v3->val_rtx))
+			    sp_base = v3->val_rtx;
+			  else
+			    for (struct elt_loc_list *l = v3->locs;
+				 l; l = l->next)
+			      if (GET_CODE (l->loc) == PLUS
+				  && GET_CODE (XEXP (l->loc, 0)) == VALUE
+				  && SP_DERIVED_VALUE_P (XEXP (l->loc, 0))
+				  && CONST_INT_P (XEXP (l->loc, 1)))
+				{
+				  sp_base = XEXP (l->loc, 0);
+				  sp_off = INTVAL (XEXP (l->loc, 1));
+				  break;
+				}
+			}
+		      if (sp_base == NULL_RTX)
+			sp_base = pc_rtx;
+		    }
+		  /* Otherwise, if x_base and sp_base are the same,
+		     we know that x_base + x_off is the x's address and
+		     sp_base + sp_off is current value of stack pointer,
+		     so try to determine if x is certainly not below stack
+		     pointer.  */
+		  if (sp_base == x_base)
+		    {
+		      if (STACK_GROWS_DOWNWARD)
+			{
+			  HOST_WIDE_INT off = sp_off;
+#ifdef STACK_ADDRESS_OFFSET
+			  /* On SPARC take stack pointer bias into account as
+			     well.  */
+			  off += (STACK_ADDRESS_OFFSET
+				  - FIRST_PARM_OFFSET (current_function_decl));
+#endif
+			  if (x_off >= off)
+			    /* x is at or above the current stack pointer,
+			       no need to invalidate it.  */
+			    x_base = NULL_RTX;
+			}
+		      else
+			{
+			  HOST_WIDE_INT sz;
+			  enum machine_mode mode = GET_MODE (x);
+			  if ((MEM_SIZE_KNOWN_P (x)
+			       && MEM_SIZE (x).is_constant (&sz))
+			      || (mode != BLKmode
+				  && GET_MODE_SIZE (mode).is_constant (&sz)))
+			    if (x_off < sp_off
+				&& ((HOST_WIDE_INT) ((unsigned HOST_WIDE_INT)
+						     x_off + sz) <= sp_off))
+			      /* x's end is below or at the current stack
+				 pointer in !STACK_GROWS_DOWNWARD target,
+				 no need to invalidate it.  */
+			      x_base = NULL_RTX;
+			 }
+		    }
+		}
+	      if (x_base == NULL_RTX)
+		{
+		  has_mem = true;
+		  num_mems++;
+		  p = &(*p)->next;
+		  continue;
+		}
+	    }
+
 	  if (num_mems < param_max_cselib_memory_locations
 	      && ! canon_anti_dependence (x, false, mem_rtx,
 					  GET_MODE (mem_rtx), mem_addr))
@@ -3161,14 +3308,24 @@ cselib_process_insn (rtx_insn *insn)
 	 as if they were regular functions.  */
       if (RTL_LOOPING_CONST_OR_PURE_CALL_P (insn)
 	  || !(RTL_CONST_OR_PURE_CALL_P (insn)))
-	cselib_invalidate_mem (callmem);
+	cselib_invalidate_mem (callmem[0]);
       else
-	/* For const/pure calls, invalidate any argument slots because
-	   they are owned by the callee.  */
-	for (x = CALL_INSN_FUNCTION_USAGE (insn); x; x = XEXP (x, 1))
-	  if (GET_CODE (XEXP (x, 0)) == USE
-	      && MEM_P (XEXP (XEXP (x, 0), 0)))
-	    cselib_invalidate_mem (XEXP (XEXP (x, 0), 0));
+	{
+	  /* For const/pure calls, invalidate any argument slots because
+	     they are owned by the callee.  */
+	  for (x = CALL_INSN_FUNCTION_USAGE (insn); x; x = XEXP (x, 1))
+	    if (GET_CODE (XEXP (x, 0)) == USE
+		&& MEM_P (XEXP (XEXP (x, 0), 0)))
+	      cselib_invalidate_mem (XEXP (XEXP (x, 0), 0));
+	  /* And invalidate memory below the stack (or above for
+	     !STACK_GROWS_DOWNWARD), as even const/pure call can invalidate
+	     that.  Do this only if !ACCUMULATE_OUTGOING_ARGS or if
+	     cfun->calls_alloca, otherwise the stack pointer shouldn't be
+	     changing in the middle of the function and nothing should be
+	     stored below the stack pointer.  */
+	  if (!ACCUMULATE_OUTGOING_ARGS || cfun->calls_alloca)
+	    cselib_invalidate_mem (callmem[1]);
+	}
     }
 
   cselib_record_sets (insn);
@@ -3221,8 +3378,31 @@ cselib_init (int record_what)
 
   /* (mem:BLK (scratch)) is a special mechanism to conflict with everything,
      see canon_true_dependence.  This is only created once.  */
-  if (! callmem)
-    callmem = gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (VOIDmode));
+  if (! callmem[0])
+    callmem[0] = gen_rtx_MEM (BLKmode, gen_rtx_SCRATCH (VOIDmode));
+  /* Similarly create a MEM representing roughly everything below
+     the stack for STACK_GROWS_DOWNWARD targets or everything above
+     it otherwise.  Do this only when !ACCUMULATE_OUTGOING_ARGS or
+     if cfun->calls_alloca, otherwise the stack pointer shouldn't be
+     changing in the middle of the function and nothing should be stored
+     below the stack pointer.  */
+  if (!callmem[1] && (!ACCUMULATE_OUTGOING_ARGS || cfun->calls_alloca))
+    {
+      if (STACK_GROWS_DOWNWARD)
+	{
+	  unsigned HOST_WIDE_INT off = -(GET_MODE_MASK (Pmode) >> 1);
+#ifdef STACK_ADDRESS_OFFSET
+	  /* On SPARC take stack pointer bias into account as well.  */
+	  off += (STACK_ADDRESS_OFFSET
+		  - FIRST_PARM_OFFSET (current_function_decl));
+#endif
+	  callmem[1] = plus_constant (Pmode, stack_pointer_rtx, off);
+	}
+      else
+	callmem[1] = stack_pointer_rtx;
+      callmem[1] = gen_rtx_MEM (BLKmode, callmem[1]);
+      set_mem_size (callmem[1], GET_MODE_MASK (Pmode) >> 1);
+    }
 
   cselib_nregs = max_reg_num ();
 

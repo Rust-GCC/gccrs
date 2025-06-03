@@ -1,6 +1,6 @@
 /* This file contains the definitions and documentation for the
    Address Sanitizer and Thread Sanitizer builtins used in the GNU compiler.
-   Copyright (C) 2012-2024 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -242,12 +242,12 @@ DEF_SANITIZER_BUILTIN(BUILT_IN_HWASAN_TAG_MEM, "__hwasan_tag_memory",
 		      BT_FN_VOID_PTR_UINT8_PTRMODE, ATTR_NOTHROW_LIST)
 
 /* Thread Sanitizer */
-DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_INIT, "__tsan_init", 
+DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_INIT, "__tsan_init",
 		      BT_FN_VOID, ATTR_NOTHROW_LEAF_LIST)
 DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_FUNC_ENTRY, "__tsan_func_entry",
 		      BT_FN_VOID_PTR, ATTR_NOTHROW_LEAF_LIST)
 DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_FUNC_EXIT, "__tsan_func_exit",
-		      BT_FN_VOID_PTR, ATTR_NOTHROW_LEAF_LIST)
+		      BT_FN_VOID, ATTR_NOTHROW_LEAF_LIST)
 DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_VPTR_UPDATE, "__tsan_vptr_update",
 		      BT_FN_VOID_PTR_PTR, ATTR_NOTHROW_LEAF_LIST)
 DEF_SANITIZER_BUILTIN(BUILT_IN_TSAN_READ1, "__tsan_read1",

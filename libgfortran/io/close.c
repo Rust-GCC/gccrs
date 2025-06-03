@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
@@ -84,8 +84,17 @@ st_close (st_parameter_close *clp)
 
   if (u != NULL)
     {
-      if (close_share (u) < 0)
-	generate_error (&clp->common, LIBERROR_OS, "Problem in CLOSE");
+      if (u->s == NULL)
+	{
+	  if (u->unit_number < 0)
+	    generate_error (&clp->common, LIBERROR_BAD_UNIT,
+			    "Unit number is negative with no associated file");
+	  library_end ();
+	  return;
+	}
+      else
+	if (close_share (u) < 0)
+	  generate_error (&clp->common, LIBERROR_OS, "Problem in CLOSE");
       if (u->flags.status == STATUS_SCRATCH)
 	{
 	  if (status == CLOSE_KEEP)

@@ -1,5 +1,5 @@
 /* aarch64-system-regs.def -- AArch64 opcode support.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of the GNU opcodes library.
@@ -521,6 +521,7 @@
   SYSREG ("id_aa64isar0_el1",	CPENC (3,0,0,6,0),	F_REG_READ,		AARCH64_NO_FEATURES)
   SYSREG ("id_aa64isar1_el1",	CPENC (3,0,0,6,1),	F_REG_READ,		AARCH64_NO_FEATURES)
   SYSREG ("id_aa64isar2_el1",	CPENC (3,0,0,6,2),	F_REG_READ,		AARCH64_NO_FEATURES)
+  SYSREG ("id_aa64isar3_el1",	CPENC (3,0,0,6,3),	F_REG_READ,		AARCH64_NO_FEATURES)
   SYSREG ("id_aa64mmfr0_el1",	CPENC (3,0,0,7,0),	F_REG_READ,		AARCH64_NO_FEATURES)
   SYSREG ("id_aa64mmfr1_el1",	CPENC (3,0,0,7,1),	F_REG_READ,		AARCH64_NO_FEATURES)
   SYSREG ("id_aa64mmfr2_el1",	CPENC (3,0,0,7,2),	F_REG_READ,		AARCH64_NO_FEATURES)

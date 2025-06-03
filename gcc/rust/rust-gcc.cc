@@ -1,5 +1,5 @@
 // rust-gcc.cc -- Rust frontend to gcc IR.
-// Copyright (C) 2011-2024 Free Software Foundation, Inc.
+// Copyright (C) 2011-2025 Free Software Foundation, Inc.
 // Contributed by Ian Lance Taylor, Google.
 // forked from gccgo
 
@@ -411,11 +411,11 @@ tree
 float_type (int bits)
 {
   tree type;
-  if (bits == FLOAT_TYPE_SIZE)
+  if (bits == TYPE_PRECISION (float_type_node))
     type = float_type_node;
-  else if (bits == DOUBLE_TYPE_SIZE)
+  else if (bits == TYPE_PRECISION (double_type_node))
     type = double_type_node;
-  else if (bits == LONG_DOUBLE_TYPE_SIZE)
+  else if (bits == TYPE_PRECISION (long_double_type_node))
     type = long_double_type_node;
   else
     {

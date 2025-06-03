@@ -1,8 +1,8 @@
 // { dg-module-do run }
 // { dg-additional-options "-fmodules-ts -fcontracts" }
-module;
+// { dg-skip-if "requires hosted libstdc++ for cstdio" { ! hostedlib } }
+
 #include <cstdio>
-export module baz;
 import foo;
 import bar;
 

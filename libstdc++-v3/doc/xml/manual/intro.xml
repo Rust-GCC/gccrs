@@ -75,7 +75,7 @@
 
     <para>
       There is a license section in the FAQ regarding common <link linkend="faq.license">questions</link>. If you have more
-      questions, ask the FSF or the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/lists.html">gcc mailing list</link>.
+      questions, ask the FSF or the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/lists.html">gcc mailing list</link>.
     </para>
 
     <section xml:id="manual.intro.status.license.gpl" xreflabel="License GPL"><info><title>The Code: GPL</title></info>
@@ -1364,7 +1364,7 @@ requirements of the license of GCC.
   <?dbhtml filename="make.html"?>
 
    <para>If you have never done this before, you should read the basic
-      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/install/">GCC Installation
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/install/">GCC Installation
       Instructions</link> first.  Read <emphasis>all of them</emphasis>.
       <emphasis>Twice.</emphasis>
    </para>

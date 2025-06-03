@@ -1,6 +1,6 @@
 // { dg-add-options ieee }
 
-// Copyright (C) 2005-2024 Free Software Foundation, Inc.
+// Copyright (C) 2005-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -48,7 +48,7 @@ int main()
     For floating points, trapping is a different, more complicated
     story.  If is_iecxxx is true, then division by zero would not trap
     (infinity).  If is_iecxxx is false, we don't know (VAX may trap for
-    0/0 -- I have to check).  For most cases (i.e. IEE-754), trapping
+    0/0 -- I have to check).  For most cases (i.e. IEEE-754), trapping
     for floating points have to do with whether there is a support for
     signaling NaN.
     - Gaby.

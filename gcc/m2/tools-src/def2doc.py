@@ -3,7 +3,7 @@
 # def2doc.py creates texi library documentation for all exported procedures.
 # Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
-# Copyright (C) 2000-2024 Free Software Foundation, Inc.
+# Copyright (C) 2000-2025 Free Software Foundation, Inc.
 # This file is part of GNU Modula-2.
 #
 # GNU Modula-2 is free software; you can redistribute it and/or modify
@@ -17,9 +17,8 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with GNU Modula-2; see the file COPYING.  If not, write to the
-# Free Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-# 02110-1301, USA.
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
 #
 
 import argparse
@@ -483,7 +482,7 @@ def display_modules(up, dir_, build, source):
 
 
 def display_copyright():
-    output.write('@c Copyright (C) 2000-2024 Free Software Foundation, Inc.\n')
+    output.write('@c Copyright (C) 2000-2025 Free Software Foundation, Inc.\n')
     output.write('@c This file is part of GNU Modula-2.\n')
     output.write("""
 @c Permission is granted to copy, distribute and/or modify this document

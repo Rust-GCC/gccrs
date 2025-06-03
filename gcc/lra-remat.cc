@@ -1,5 +1,5 @@
 /* Rematerialize pseudos values.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -456,10 +456,11 @@ create_cands (void)
 	    int dst_regno = REGNO (dstreg);
 	    rtx_insn *insn2 = regno_potential_cand[src_regno].insn;
 
-	    if (insn2 != NULL 
+	    if (insn2 != NULL
 		&& dst_regno >= FIRST_PSEUDO_REGISTER
 		&& reg_renumber[dst_regno] < 0
-		&& BLOCK_FOR_INSN (insn2) == BLOCK_FOR_INSN (insn))
+		&& BLOCK_FOR_INSN (insn2) == BLOCK_FOR_INSN (insn)
+		&& insn2 == prev_nonnote_nondebug_insn (insn))
 	      {
 		create_cand (insn2, regno_potential_cand[src_regno].nop,
 			     dst_regno, insn);
@@ -473,9 +474,10 @@ create_cands (void)
 	    gcc_assert (REG_P (*id->operand_loc[nop]));
 	    int regno = REGNO (*id->operand_loc[nop]);
 	    gcc_assert (regno >= FIRST_PSEUDO_REGISTER);
-	    /* If we're setting an unrenumbered pseudo, make a candidate immediately.
-	       If it's an output reload register, save it for later; the code above
-	       looks for output reload insns later on.  */
+	    /* If we're setting an unrenumbered pseudo, make a candidate
+	       immediately.  If it's a potential output reload register, save
+	       it for later; the code above looks for output reload insns later
+	       on.  */
 	    if (reg_renumber[regno] < 0)
 	      create_cand (insn, nop, regno);
 	    else if (regno >= lra_constraint_new_regno_start)
@@ -787,7 +789,7 @@ calculate_gen_cands (void)
 		  EXECUTE_IF_SET_IN_BITMAP (gen_insns, 0, uid, bi)
 		    {
 		      rtx_insn *insn2 = lra_insn_recog_data[uid]->insn;
-		      
+
 		      cand = insn_to_cand[INSN_UID (insn2)];
 		      gcc_assert (cand != NULL);
 		      /* Ignore the reload insn.  */
@@ -801,14 +803,14 @@ calculate_gen_cands (void)
 			  bitmap_set_bit (&temp_bitmap, uid);
 			}
 		    }
-	    
+
 	    if (CALL_P (insn))
 	      {
 		function_abi callee_abi = insn_callee_abi (insn);
 		EXECUTE_IF_SET_IN_BITMAP (gen_insns, 0, uid, bi)
 		  {
 		    rtx_insn *insn2 = lra_insn_recog_data[uid]->insn;
-		  
+
 		    cand = insn_to_cand[INSN_UID (insn2)];
 		    gcc_assert (cand != NULL);
 		    if (call_used_input_regno_present_p (callee_abi, insn2))
@@ -827,7 +829,7 @@ calculate_gen_cands (void)
 		bitmap_set_bit (gen_insns, INSN_UID (insn));
 	      }
 	  }
-    }  
+    }
 }
 
 
@@ -925,7 +927,7 @@ cand_pav_con_fun_n (edge e)
   basic_block bb = e->dest;
   remat_bb_data_t bb_info;
   bitmap bb_pavin, pred_pavout;
-  
+
   bb_info = get_remat_bb_data (bb);
   bb_pavin = &bb_info->pavin_cands;
   pred_pavout = &get_remat_bb_data (pred)->pavout_cands;
@@ -971,7 +973,7 @@ cand_av_con_fun_n (edge e)
   basic_block bb = e->dest;
   remat_bb_data_t bb_info;
   bitmap bb_avin, pred_avout;
-  
+
   bb_info = get_remat_bb_data (bb);
   bb_avin = &bb_info->avin_cands;
   pred_avout = &get_remat_bb_data (pred)->avout_cands;
@@ -1043,7 +1045,7 @@ update_scratch_ops (rtx_insn *remat_insn)
 				 "scratch pseudo copy");
       ira_register_new_scratch_op (remat_insn, i, id->icode);
     }
-  
+
 }
 
 /* Insert rematerialization insns using the data-flow data calculated
@@ -1128,7 +1130,7 @@ do_remat (void)
 
 	      /* Check clobbers do not kill something living.  */
 	      gcc_assert (REG_P (saved_op));
-	      int ignore_regno = REGNO (saved_op); 
+	      int ignore_regno = REGNO (saved_op);
 
 	      dst_hard_regno = dst_regno < FIRST_PSEUDO_REGISTER
 		? dst_regno : reg_renumber[dst_regno];
@@ -1175,7 +1177,7 @@ do_remat (void)
 		  if (ok_p)
 		    {
 		      rtx remat_pat = copy_insn (PATTERN (cand->insn));
-		      
+
 		      start_sequence ();
 		      emit_insn (remat_pat);
 		      remat_insn = get_insns ();
@@ -1201,7 +1203,7 @@ do_remat (void)
 		EXECUTE_IF_SET_IN_BITMAP (avail_cands, 0, cid, bi)
 		  {
 		    cand = all_cands[cid];
-		    
+
 		    /* Ignore the reload insn.  */
 		    if (src_regno == cand->reload_regno
 			&& dst_regno == cand->regno)
@@ -1217,7 +1219,7 @@ do_remat (void)
 	      EXECUTE_IF_SET_IN_BITMAP (avail_cands, 0, cid, bi)
 		{
 		  cand = all_cands[cid];
-		
+
 		  if (call_used_input_regno_present_p (callee_abi, cand->insn))
 		    bitmap_set_bit (&temp_bitmap, cand->index);
 		}

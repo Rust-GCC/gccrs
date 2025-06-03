@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 --param=riscv-autovec-lmul=m8 -fno-trapping-math -fdump-tree-optimized" } */
+/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 -mrvv-max-lmul=m8 -fno-trapping-math -fdump-tree-optimized" } */
 
 #include "def.h"
 
@@ -38,7 +38,7 @@ DEF_CONVERT (fncvt, double, uint16_t, 256)
 DEF_CONVERT (fncvt, double, uint16_t, 512)
 
 /* { dg-final { scan-assembler-times {vfncvt\.rtz\.x\.f.w} 30 } } */
-/* { dg-final { scan-assembler-times {vncvt\.x\.x\.w} 30 } } */
+/* { dg-final { scan-assembler-times {vnsrl\.wi} 30 } } */
 /* { dg-final { scan-assembler-not {csrr} } } */
 /* { dg-final { scan-tree-dump-not "1,1" "optimized" } } */
 /* { dg-final { scan-tree-dump-not "2,2" "optimized" } } */

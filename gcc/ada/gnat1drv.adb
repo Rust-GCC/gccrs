@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -145,7 +145,6 @@ procedure Gnat1drv is
    --  Start of processing for Adjust_Global_Switches
 
    begin
-
       --  -gnatd_U disables prepending error messages with "error:"
 
       if Debug_Flag_Underscore_UU then
@@ -164,11 +163,10 @@ procedure Gnat1drv is
          Unnest_Subprogram_Mode := True;
       end if;
 
-      --  -gnatd.u enables special C expansion mode
+      --  Force pseudo code generation with -gnatceg
 
-      if Debug_Flag_Dot_U then
-         Modify_Tree_For_C := True;
-         Transform_Function_Array := True;
+      if Generate_C_Header then
+         Operating_Mode := Generate_Code;
       end if;
 
       --  -gnatd_A disables generation of ALI files
@@ -177,41 +175,11 @@ procedure Gnat1drv is
          Disable_ALI_File := True;
       end if;
 
-      --  Set all flags required when generating C code
-
-      if Generate_C_Code then
-         CCG_Mode := True;
-         Modify_Tree_For_C := True;
-         Transform_Function_Array := True;
-         Unnest_Subprogram_Mode := True;
-         Building_Static_Dispatch_Tables := False;
-         Minimize_Expression_With_Actions := True;
-         Expand_Nonbinary_Modular_Ops := True;
-         Back_End_Return_Slot := False;
-
-         --  Set operating mode to Generate_Code to benefit from full front-end
-         --  expansion (e.g. generics).
-
-         Operating_Mode := Generate_Code;
-
-         --  Suppress alignment checks since we do not have access to alignment
-         --  info on the target.
-
-         Suppress_Options.Suppress (Alignment_Check) := False;
-      end if;
-
       --  -gnatd.E sets Error_To_Warning mode, causing selected error messages
       --  to be treated as warnings instead of errors.
 
       if Debug_Flag_Dot_EE then
          Error_To_Warning := True;
-      end if;
-
-      --  -gnatdJ sets Include_Subprogram_In_Messages, adding the related
-      --  subprogram as part of the error and warning messages.
-
-      if Debug_Flag_JJ then
-         Include_Subprogram_In_Messages := True;
       end if;
 
       --  Disable CodePeer_Mode in Check_Syntax, since we need front-end
@@ -245,16 +213,9 @@ procedure Gnat1drv is
 
          Debug_Flag_Dot_PP := True;
 
-         --  Turn off C tree generation, not compatible with CodePeer mode. We
-         --  do not expect this to happen in normal use, since both modes are
-         --  enabled by special tools, but it is useful to turn off these flags
-         --  this way when we are doing CodePeer tests on existing test suites
-         --  that may have -gnateg set, to avoid the need for special casing.
+         --  Turn off front-end unnesting to be safe
 
-         Modify_Tree_For_C        := False;
-         Transform_Function_Array := False;
-         Generate_C_Code          := False;
-         Unnest_Subprogram_Mode   := False;
+         Unnest_Subprogram_Mode := False;
 
          --  Turn off inlining, confuses CodePeer output and gains nothing
 
@@ -357,9 +318,13 @@ procedure Gnat1drv is
 
          Generate_SCIL := True;
 
-         --  Enable assertions, since they give CodePeer valuable extra info
+         --  Enable assertions, since they give CodePeer valuable extra info;
+         --  however, when switch -gnatd_k is active, then keep assertions
+         --  disabled by default and only enable them when explicitly
+         --  requested by pragma Assertion_Policy, just like in ordinary
+         --  compilation.
 
-         Assertions_Enabled := True;
+         Assertions_Enabled := not Debug_Flag_Underscore_K;
 
          --  Set normal RM validity checking and checking of copies (to catch
          --  e.g. wrong values used in unchecked conversions).
@@ -460,16 +425,9 @@ procedure Gnat1drv is
          CodePeer_Mode := False;
          Generate_SCIL := False;
 
-         --  Turn off C tree generation, not compatible with GNATprove mode. We
-         --  do not expect this to happen in normal use, since both modes are
-         --  enabled by special tools, but it is useful to turn off these flags
-         --  this way when we are doing GNATprove tests on existing test suites
-         --  that may have -gnateg set, to avoid the need for special casing.
+         --  Turn off front-end unnesting to be safe
 
-         Modify_Tree_For_C        := False;
-         Transform_Function_Array := False;
-         Generate_C_Code          := False;
-         Unnest_Subprogram_Mode   := False;
+         Unnest_Subprogram_Mode := False;
 
          --  Turn off inlining, which would confuse formal verification output
          --  and gain nothing.
@@ -565,6 +523,8 @@ procedure Gnat1drv is
          Restore_Warnings
            ((Warnings_Package.Elab_Warnings => True,
              Warnings_Package.Warn_On_Suspicious_Contract => True,
+             Warnings_Package.Warning_Doc_Switch =>
+               Warnsw.Warning_Doc_Switch,
              others => False));
 
          --  Suppress the generation of name tables for enumerations, which are
@@ -696,10 +656,7 @@ procedure Gnat1drv is
          end if;
       end if;
 
-      --  Set default for atomic synchronization. As this synchronization
-      --  between atomic accesses can be expensive, and not typically needed
-      --  on some targets, an optional target parameter can turn the option
-      --  off. Note Atomic Synchronization is implemented as check.
+      --  Set default for atomic synchronization
 
       Suppress_Options.Suppress (Atomic_Synchronization) :=
         not Atomic_Sync_Default_On_Target;
@@ -729,29 +686,14 @@ procedure Gnat1drv is
          end if;
       end if;
 
-      --  Treat -gnatn as equivalent to -gnatN for non-GCC targets
-
-      if Inline_Active and not Front_End_Inlining then
-
-         --  We really should have a tag for this, what if we added a new
-         --  back end some day, it would not be true for this test, but it
-         --  would be non-GCC, so this is a bit troublesome ???
-
-         Front_End_Inlining := Generate_C_Code;
-      end if;
-
       --  Set back-end inlining indication
 
       Back_End_Inlining :=
 
-        --  No back-end inlining available on C generation
-
-        not Generate_C_Code
-
         --  No back-end inlining in GNATprove mode, since it just confuses
         --  the formal verification process.
 
-        and then not GNATprove_Mode
+        not GNATprove_Mode
 
         --  No back-end inlining if front-end inlining explicitly enabled.
         --  Done to minimize the output differences to customers still using
@@ -1091,6 +1033,13 @@ begin
       Sem_Eval.Initialize;
       Sem_Type.Init_Interp_Tables;
 
+      --  If there was a -gnatem switch, initialize the mappings of unit names
+      --  to file names and of file names to path names from the mapping file.
+
+      if Mapping_File_Name /= null then
+         Fmap.Initialize (Mapping_File_Name.all);
+      end if;
+
       --  Capture compilation date and time
 
       Opt.Compilation_Time := System.OS_Lib.Current_Time_String;
@@ -1108,9 +1057,12 @@ begin
             N : File_Name_Type;
 
          begin
-            Name_Buffer (1 .. 10) := "system.ads";
-            Name_Len := 10;
-            N := Name_Find;
+            N := Fmap.Mapped_File_Name (Name_To_Unit_Name (Name_System));
+
+            if N = No_File then
+               N := Name_Find ("system.ads");
+            end if;
+
             S := Load_Source_File (N);
 
             --  Failed to read system.ads, fatal error
@@ -1237,8 +1189,7 @@ begin
 
       --  Ditto for old C files before regenerating new ones
 
-      if Generate_C_Code then
-         Delete_C_File;
+      if Generate_C_Header then
          Delete_H_File;
       end if;
 
@@ -1343,20 +1294,10 @@ begin
       elsif CodePeer_Mode then
          Back_End_Mode := Generate_Object;
 
-      --  Differentiate use of -gnatceg to generate a C header from an Ada spec
-      --  to the CCG case (standard.h found) where C code generation should
-      --  only be performed on full units.
+      --  Force pseudo code generation with -gnatceg
 
-      elsif Generate_C_Code then
-         Name_Len := 10;
-         Name_Buffer (1 .. Name_Len) := "standard.h";
-
-         if Find_File (Name_Find, Osint.Source, Full_Name => True) = No_File
-         then
-            Back_End_Mode := Generate_Object;
-         else
-            Back_End_Mode := Skip;
-         end if;
+      elsif Generate_C_Header then
+         Back_End_Mode := Generate_Object;
 
       --  It is not an error to analyze in GNATprove mode a spec which requires
       --  a body, when the body is not available. During frame condition
@@ -1529,6 +1470,8 @@ begin
             Check_Rep_Info;
          end if;
 
+         pragma Annotate (Xcov, Dump_Buffers);
+
          return;
       end if;
 
@@ -1682,6 +1625,8 @@ begin
       Atree.Print_Statistics;
    end if;
 
+   pragma Annotate (Xcov, Dump_Buffers);
+
 --  The outer exception handler handles an unrecoverable error
 
 exception
@@ -1696,6 +1641,9 @@ exception
       Set_Standard_Output;
       Source_Dump;
       Tree_Dump;
+
+      pragma Annotate (Xcov, Dump_Buffers);
+
       Exit_Program (E_Errors);
 
 end Gnat1drv;

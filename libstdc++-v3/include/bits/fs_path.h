@@ -1,6 +1,6 @@
 // Class filesystem::path -*- C++ -*-
 
-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
+// Copyright (C) 2014-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -689,7 +689,7 @@ namespace __detail
       ~_List() = default;
 
       _Type type() const noexcept
-      { return _Type(reinterpret_cast<uintptr_t>(_M_impl.get()) & 0x3); }
+      { return _Type(reinterpret_cast<__UINTPTR_TYPE__>(_M_impl.get()) & 0x3); }
 
       void type(_Type) noexcept;
 

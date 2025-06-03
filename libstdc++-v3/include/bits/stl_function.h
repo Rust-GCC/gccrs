@@ -1,6 +1,6 @@
 // Functor implementations -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -117,10 +117,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct unary_function
     {
       /// @c argument_type is the type of the argument
-      typedef _Arg 	argument_type;   
+      typedef _Arg 	argument_type;
 
       /// @c result_type is the return type
-      typedef _Result 	result_type;  
+      typedef _Result 	result_type;
     } _GLIBCXX11_DEPRECATED;
 
   /**
@@ -131,7 +131,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct binary_function
     {
       /// @c first_argument_type is the type of the first argument
-      typedef _Arg1 	first_argument_type; 
+      typedef _Arg1 	first_argument_type;
 
       /// @c second_argument_type is the type of the second argument
       typedef _Arg2 	second_argument_type;
@@ -1426,6 +1426,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _Func, typename _SfinaeType>
     using __has_is_transparent_t
       = typename __has_is_transparent<_Func, _SfinaeType>::type;
+
+#if __cpp_concepts
+  template<typename _Func>
+    concept __transparent_comparator
+      = requires { typename _Func::is_transparent; };
+#endif
 #endif
 
 _GLIBCXX_END_NAMESPACE_VERSION

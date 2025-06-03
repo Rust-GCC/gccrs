@@ -1,5 +1,5 @@
 /* Print RTL for GCC.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -435,10 +435,10 @@ rtx_writer::print_rtx_operand_codes_E_and_V (const_rtx in_rtx, int idx)
   m_indent -= 2;
 }
 
-/* Subroutine of print_rtx_operand for handling code 'i'.  */
+/* Subroutine of print_rtx_operand for handling code 'L'.  */
 
 void
-rtx_writer::print_rtx_operand_code_i (const_rtx in_rtx, int idx)
+rtx_writer::print_rtx_operand_code_L (const_rtx in_rtx, int idx)
 {
   if (idx == 4 && INSN_P (in_rtx))
     {
@@ -478,7 +478,16 @@ rtx_writer::print_rtx_operand_code_i (const_rtx in_rtx, int idx)
 		 LOCATION_LINE (ASM_INPUT_SOURCE_LOCATION (in_rtx)));
 #endif
     }
-  else if (idx == 5 && NOTE_P (in_rtx))
+  else
+    gcc_unreachable ();
+}
+
+/* Subroutine of print_rtx_operand for handling code 'i'.  */
+
+void
+rtx_writer::print_rtx_operand_code_i (const_rtx in_rtx, int idx)
+{
+  if (idx == 5 && NOTE_P (in_rtx))
     {
       /* This field is only used for NOTE_INSN_DELETED_LABEL, and
 	 other times often contains garbage from INSN->NOTE death.  */
@@ -694,6 +703,10 @@ rtx_writer::print_rtx_operand (const_rtx in_rtx, int idx)
 
     case 'i':
       print_rtx_operand_code_i (in_rtx, idx);
+      break;
+
+    case 'L':
+      print_rtx_operand_code_L (in_rtx, idx);
       break;
 
     case 'p':
@@ -2070,7 +2083,7 @@ void
 dump_value_slim (FILE *f, const_rtx x, int verbose)
 {
   pretty_printer rtl_slim_pp;
-  rtl_slim_pp.buffer->stream = f;
+  rtl_slim_pp.set_output_stream (f);
   print_value (&rtl_slim_pp, x, verbose);
   pp_flush (&rtl_slim_pp);
 }
@@ -2081,7 +2094,7 @@ void
 dump_insn_slim (FILE *f, const rtx_insn *x)
 {
   pretty_printer rtl_slim_pp;
-  rtl_slim_pp.buffer->stream = f;
+  rtl_slim_pp.set_output_stream (f);
   print_insn_with_notes (&rtl_slim_pp, x);
   pp_flush (&rtl_slim_pp);
 }
@@ -2095,7 +2108,7 @@ dump_rtl_slim (FILE *f, const rtx_insn *first, const rtx_insn *last,
 {
   const rtx_insn *insn, *tail;
   pretty_printer rtl_slim_pp;
-  rtl_slim_pp.buffer->stream = f;
+  rtl_slim_pp.set_output_stream (f);
 
   tail = last ? NEXT_INSN (last) : NULL;
   for (insn = first;

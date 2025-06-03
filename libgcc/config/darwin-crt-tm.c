@@ -1,5 +1,5 @@
 /* Provide the runtime infrastructure for the transactional memory lib.
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Iain Sandoe <iains@gcc.gnu.org>
 
    This file is part of GCC.
@@ -47,25 +47,25 @@ extern void _ITM_deregisterTMCloneTable (void *) WEAK;
 static inline void *getTMCloneTable (const void *f, size_t *tmct_siz)
 {
   char *tmct_fixed, *tmct = NULL;
-  unsigned int i, img_count; 
+  unsigned int i, img_count;
   struct mach_header *mh;
   Dl_info info;
-  
+
   if (! dladdr (f, &info) || info.dli_fbase == NULL)
     abort ();
-  
+
   mh = (struct mach_header *) info.dli_fbase;
   tmct_fixed = GET_DATA_TMCT (mh, tmct_siz);
   *tmct_siz /= (sizeof (size_t) * 2);
   /* No tm_clone_table or no clones. */
   if (tmct_fixed == NULL || *tmct_siz == 0)
-    return NULL; 
+    return NULL;
 
   img_count = _dyld_image_count();
   for (i = 0; i < img_count && tmct == NULL; i++)
     {
       if (mh == _dyld_get_image_header(i))
-	tmct = tmct_fixed + (unsigned long)_dyld_get_image_vmaddr_slide(i); 
+	tmct = tmct_fixed + (unsigned long)_dyld_get_image_vmaddr_slide(i);
     }
 
   return tmct;

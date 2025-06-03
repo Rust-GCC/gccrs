@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -191,8 +191,8 @@ namespace __gnu_parallel
 	    // Cannot use volatile variable directly.
 	    _DifferenceType __my_first = __my_job._M_first;
 	    __result = __f(__op, __begin + __my_first);
-	    ++__my_job._M_first;
-	    --__my_job._M_load;
+	    __my_job._M_first += 1;
+	    __my_job._M_load -= 1;
 	  }
 
 	_RAIter __current;

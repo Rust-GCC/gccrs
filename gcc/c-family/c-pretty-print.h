@@ -1,5 +1,5 @@
 /* Various declarations for the C and C++ pretty-printers.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -49,9 +49,11 @@ typedef void (*c_pretty_print_fn) (c_pretty_printer *, tree);
    and cp/cxx-pretty-print.cc for an example of derivation.  */
 class c_pretty_printer : public pretty_printer
 {
+  dump_flags_t dump_flags;
+
 public:
-  c_pretty_printer ();
-  pretty_printer *clone () const override;
+  c_pretty_printer (dump_flags_t = TDF_NONE);
+  std::unique_ptr<pretty_printer> clone () const override;
 
   // Format string, possibly translated.
   void translate_string (const char *);
@@ -137,6 +139,6 @@ void pp_c_identifier (c_pretty_printer *, const char *);
 void pp_c_string_literal (c_pretty_printer *, tree);
 void pp_c_integer_constant (c_pretty_printer *, tree);
 
-void print_c_tree (FILE *file, tree t);
+void print_c_tree (FILE *file, tree t, dump_flags_t);
 
 #endif /* GCC_C_PRETTY_PRINTER */

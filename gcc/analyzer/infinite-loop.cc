@@ -1,5 +1,5 @@
 /* Detection of infinite loops.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,6 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
 #define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
@@ -63,6 +62,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/checker-path.h"
 #include "analyzer/feasible-graph.h"
 #include "make-unique.h"
+#include "diagnostic-format-sarif.h"
 
 /* A bundle of data characterizing a particular infinite loop
    identified within the exploded graph.  */
@@ -105,6 +105,18 @@ struct infinite_loop
 	    && m_loc == other.m_loc);
   }
 
+  std::unique_ptr<json::object>
+  to_json () const
+  {
+    auto loop_obj = ::make_unique<json::object> ();
+    loop_obj->set_integer ("enode", m_enode.m_index);
+    auto edge_arr = ::make_unique<json::array> ();
+    for (auto eedge : m_eedge_vec)
+      edge_arr->append (eedge->to_json ());
+    loop_obj->set ("eedges", std::move (edge_arr));
+    return loop_obj;
+  }
+
   const exploded_node &m_enode;
   location_t m_loc;
   std::vector<const exploded_edge *> m_eedge_vec;
@@ -123,7 +135,7 @@ public:
   {
   }
 
-  label_text get_desc (bool can_colorize) const final override
+  void print_desc (pretty_printer &pp) const final override
   {
     bool user_facing = !flag_analyzer_verbose_edges;
     label_text edge_desc (m_sedge->get_description (user_facing));
@@ -131,21 +143,36 @@ public:
       {
 	if (edge_desc.get () && strlen (edge_desc.get ()) > 0)
 	  {
-	    label_text cond_desc = maybe_describe_condition (can_colorize);
-	    label_text result;
+	    label_text cond_desc
+	      = maybe_describe_condition (pp_show_color (&pp));
 	    if (cond_desc.get ())
-	      return make_label_text
-		(can_colorize,
-		 "%s: always following %qs branch...",
-		 cond_desc.get (), edge_desc.get ());
+	      pp_printf (&pp,
+			 "%s: always following %qs branch...",
+			 cond_desc.get (), edge_desc.get ());
 	    else
-	      return make_label_text
-		(can_colorize,
-		 "if it ever follows %qs branch, it will always do so...",
-		 edge_desc.get ());
+	      pp_printf (&pp,
+			 "if it ever follows %qs branch,"
+			 " it will always do so...",
+			 edge_desc.get ());
 	  }
       }
-    return start_cfg_edge_event::get_desc (can_colorize);
+    else
+      return start_cfg_edge_event::print_desc (pp);
+  }
+};
+
+class looping_back_event : public start_cfg_edge_event
+{
+public:
+  looping_back_event (const exploded_edge &eedge,
+		      const event_loc_info &loc_info)
+  : start_cfg_edge_event (eedge, loc_info)
+  {
+  }
+
+  void print_desc (pretty_printer &pp) const final override
+  {
+    pp_string (&pp, "looping back...");
   }
 };
 
@@ -193,15 +220,18 @@ public:
     return true;
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
-    return ev.formatted_print ("infinite loop here");
+    pp_string (&pp, "infinite loop here");
+    return true;
   }
 
   /* Customize the location where the warning_event appears.  */
   void add_final_event (const state_machine *,
 			const exploded_node *enode,
-			const gimple *,
+			const event_loc_info &,
 			tree,
 			state_machine::state_t,
 			checker_path *emission_path) final override
@@ -212,7 +242,7 @@ public:
 			enode->get_function ()->decl,
 			enode->get_stack_depth ()),
 	enode,
-	NULL, NULL, NULL));
+	nullptr, nullptr, nullptr));
 
     logger *logger = emission_path->get_logger ();
 
@@ -287,14 +317,22 @@ public:
 	else if (cfg_sedge->back_edge_p ())
 	  {
 	    emission_path->add_event
-	      (make_unique<precanned_custom_event>
-	       (loc_info_from, "looping back..."));
+	      (make_unique<looping_back_event> (*eedge, loc_info_from));
 	    emission_path->add_event
 	      (make_unique<end_cfg_edge_event>
 	       (*eedge,
 		loc_info_to));
 	  }
       }
+  }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/infinite_loop_diagnostic/"
+    props.set (PROPERTY_PREFIX "inf_loop", m_inf_loop->to_json ());
+#undef PROPERTY_PREFIX
   }
 
 private:

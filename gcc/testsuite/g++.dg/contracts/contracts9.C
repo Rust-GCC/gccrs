@@ -27,7 +27,7 @@ int main()
 {
   fun1(1, -1);
   fun1(-1, 1.0);
-  fun1(-1, "test");
+  fun1(-1, (const char *)0x1234);
 
   [[ assert: fun1(-1, -5) ]];
   [[ assert: test<int>::fun(10, -6) ]];
@@ -35,6 +35,7 @@ int main()
   // return 0;
 }
 
+// { dg-skip-if "requires hosted libstdc++ for stdc++exp" { ! hostedlib } }
 // { dg-output {contract violation in function fun1<int> at .*:12: \(long long\)b > 0(\n|\r\n|\r)} }
 // { dg-output {\[continue:on\](\n|\r\n|\r)} }
 // { dg-output {contract violation in function fun1<double> at .*:11: a > 0(\n|\r\n|\r)} }

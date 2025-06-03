@@ -1,5 +1,5 @@
 /* Definitions of floating-point access for GNU compiler.
-   Copyright (C) 1989-2024 Free Software Foundation, Inc.
+   Copyright (C) 1989-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -396,7 +396,7 @@ extern const struct real_format arm_bfloat_half_format;
 /* Determine whether a floating-point value X is a NaN.  */
 #define REAL_VALUE_ISNAN(x)		real_isnan (&(x))
 
-/* Determine whether a floating-point value X is a signaling NaN.  */ 
+/* Determine whether a floating-point value X is a signaling NaN.  */
 #define REAL_VALUE_ISSIGNALING_NAN(x)  real_issignaling_nan (&(x))
 
 /* Determine whether a floating-point value X is negative.  */
@@ -406,9 +406,10 @@ extern const struct real_format arm_bfloat_half_format;
 #define REAL_VALUE_MINUS_ZERO(x)	real_isnegzero (&(x))
 
 /* IN is a REAL_VALUE_TYPE.  OUT is an array of longs.  */
-#define REAL_VALUE_TO_TARGET_LONG_DOUBLE(IN, OUT)			\
-  real_to_target (OUT, &(IN),						\
-		  float_mode_for_size (LONG_DOUBLE_TYPE_SIZE).require ())
+#define REAL_VALUE_TO_TARGET_LONG_DOUBLE(IN, OUT)			   \
+  real_to_target (OUT, &(IN),						   \
+		  float_mode_for_size (TYPE_PRECISION			   \
+				       (long_double_type_node)).require ())
 
 #define REAL_VALUE_TO_TARGET_DOUBLE(IN, OUT) \
   real_to_target (OUT, &(IN), float_mode_for_size (64).require ())
@@ -559,6 +560,6 @@ extern void real_from_integer (REAL_VALUE_TYPE *, format_helper,
 
 /* Fills r with the largest value such that 1 + r*r won't overflow.
    This is used in both sin (atan (x)) and cos (atan(x)) optimizations. */
-extern void build_sinatan_real (REAL_VALUE_TYPE *, tree); 
+extern void build_sinatan_real (REAL_VALUE_TYPE *, tree);
 
 #endif /* ! GCC_REAL_H */

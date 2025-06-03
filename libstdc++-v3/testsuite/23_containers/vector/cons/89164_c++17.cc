@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2024 Free Software Foundation, Inc.
+// Copyright (C) 2019-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,8 +32,7 @@ void test03()
   // Can create initializer_list<Y> with C++17 guaranteed copy elision,
   // but shouldn't be able to copy from it with uninitialized_copy:
   std::vector<X> v3{X{}, X{}, X{}};   // { dg-error "here" "" { target c++17_only } }
-  // { dg-error "deleted function .*X::X" "" { target c++20 } 0 }
+  // { dg-error "deleted function .*X::X" "" { target *-*-* } 0 }
 }
 
-// { dg-error "must be constructible from input type" "" { target *-*-* } 0 }
 // { dg-prune-output "construct_at" }

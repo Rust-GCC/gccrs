@@ -1,5 +1,5 @@
 /* Compute different info about registers.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -269,7 +269,7 @@ init_reg_sets_1 (void)
   for (i = 0; i < N_REG_CLASSES; i++)
     {
       bool any_nonfixed = false;
-      for (j = 0; j < FIRST_PSEUDO_REGISTER; j++)	
+      for (j = 0; j < FIRST_PSEUDO_REGISTER; j++)
 	if (TEST_HARD_REG_BIT (reg_class_contents[i], j))
 	  {
 	    reg_class_size[i]++;
@@ -418,6 +418,16 @@ init_reg_sets_1 (void)
 	  SET_HARD_REG_BIT (fixed_reg_set, i);
 	  SET_HARD_REG_BIT (global_reg_set, i);
 	}
+    }
+
+  /* Recalculate eh_return_data_regs.  */
+  CLEAR_HARD_REG_SET (eh_return_data_regs);
+  for (i = 0; ; ++i)
+    {
+      unsigned int regno = EH_RETURN_DATA_REGNO (i);
+      if (regno == INVALID_REGNUM)
+	break;
+      SET_HARD_REG_BIT (eh_return_data_regs, regno);
     }
 
   memset (have_regs_of_mode, 0, sizeof (have_regs_of_mode));
@@ -743,11 +753,11 @@ globalize_reg (tree decl, int i)
   if (global_regs[i])
     {
       auto_diagnostic_group d;
-      warning_at (loc, 0, 
+      warning_at (loc, 0,
 		  "register of %qD used for multiple global register variables",
 		  decl);
       inform (DECL_SOURCE_LOCATION (global_regs_decl[i]),
-	      "conflicts with %qD", global_regs_decl[i]); 
+	      "conflicts with %qD", global_regs_decl[i]);
       return;
     }
 

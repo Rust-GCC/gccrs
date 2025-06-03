@@ -1,5 +1,5 @@
 /* HOST_WIDE_INT definitions for the GNU compiler.
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -51,7 +51,7 @@ extern char sizeof_long_long_must_be_8[sizeof (long long) == 8 ? 1 : -1];
    to be either long or long long.  */
 
 #define HOST_BITS_PER_WIDE_INT 64
-#if INT64_T_IS_LONG   
+#if INT64_T_IS_LONG
 #   define HOST_WIDE_INT long
 #   define HOST_WIDE_INT_C(X) X ## L
 #else
@@ -284,6 +284,7 @@ extern HOST_WIDE_INT gcd (HOST_WIDE_INT, HOST_WIDE_INT);
 extern HOST_WIDE_INT pos_mul_hwi (HOST_WIDE_INT, HOST_WIDE_INT);
 extern HOST_WIDE_INT mul_hwi (HOST_WIDE_INT, HOST_WIDE_INT);
 extern HOST_WIDE_INT least_common_multiple (HOST_WIDE_INT, HOST_WIDE_INT);
+extern unsigned HOST_WIDE_INT reflect_hwi (unsigned HOST_WIDE_INT, unsigned);
 
 /* Like ctz_hwi, except 0 when x == 0.  */
 
@@ -394,6 +395,32 @@ mul_hwi (HOST_WIDE_INT a, HOST_WIDE_INT b, bool *overflow)
   *overflow = __builtin_mul_overflow (a, b, &result);
   return result;
 #endif
+}
+
+/* Compute the saturated sum of signed A and B, i.e. upon overflow clamp
+   the result to the corresponding extremum.  */
+
+inline HOST_WIDE_INT
+add_sat_hwi (HOST_WIDE_INT a, HOST_WIDE_INT b)
+{
+  bool overflow;
+  HOST_WIDE_INT result = add_hwi (a, b, &overflow);
+  if (!overflow)
+    return result;
+  return (a < 0) ? HOST_WIDE_INT_MIN : HOST_WIDE_INT_MAX;
+}
+
+/* Compute the saturated product of signed A and B, i.e. upon overflow clamp
+   the result to the corresponding extremum.  */
+
+inline HOST_WIDE_INT
+mul_sat_hwi (HOST_WIDE_INT a, HOST_WIDE_INT b)
+{
+  bool overflow;
+  HOST_WIDE_INT result = mul_hwi (a, b, &overflow);
+  if (!overflow)
+    return result;
+  return ((a < 0) != (b < 0)) ? HOST_WIDE_INT_MIN : HOST_WIDE_INT_MAX;
 }
 
 #endif /* ! GCC_HWINT_H */

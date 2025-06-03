@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 2011-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2011-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -367,6 +367,7 @@ package body System.Multiprocessors.Dispatching_Domains is
       --  Attach the CPU to the task
 
       T.Common.Base_CPU := CPU;
+      T.Common.CPU_Is_Explicit := True;
 
       --  Change the number of tasks attached to a given task in the system
       --  domain if needed.

@@ -1,4 +1,4 @@
-/* Copyright (C) 1988-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1988-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -350,7 +350,7 @@ scalar_chain::mark_dual_mode_def (df_ref def)
 	return;
       n_sse_to_integer++;
     }
- 
+
   if (dump_file)
     fprintf (dump_file,
 	     "  Mark r%d def in insn %d as requiring both modes in chain #%d\n",
@@ -980,14 +980,35 @@ scalar_chain::convert_reg (rtx_insn *insn, rtx dst, rtx src)
 	     REGNO (src), REGNO (dst), INSN_UID (insn));
 }
 
+/* Helper function to convert immediate constant X to vmode.  */
+static rtx
+smode_convert_cst (rtx x, enum machine_mode vmode)
+{
+  /* Prefer all ones vector in case of -1.  */
+  if (constm1_operand (x, GET_MODE (x)))
+    return CONSTM1_RTX (vmode);
+
+  unsigned n = GET_MODE_NUNITS (vmode);
+  rtx *v = XALLOCAVEC (rtx, n);
+  v[0] = x;
+  for (unsigned i = 1; i < n; ++i)
+    v[i] = const0_rtx;
+  return gen_rtx_CONST_VECTOR (vmode, gen_rtvec_v (n, v));
+}
+
 /* Convert operand OP in INSN.  We should handle
    memory operands and uninitialized registers.
    All other register uses are converted during
    registers conversion.  */
 
 void
-general_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
+scalar_chain::convert_op (rtx *op, rtx_insn *insn)
 {
+  rtx tmp;
+
+  if (GET_MODE (*op) == V1TImode)
+    return;
+
   *op = copy_rtx_if_shared (*op);
 
   if (GET_CODE (*op) == NOT
@@ -998,47 +1019,48 @@ general_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
     }
   else if (MEM_P (*op))
     {
-      rtx tmp = gen_reg_rtx (GET_MODE (*op));
+      rtx_insn *movabs = NULL;
 
-      /* Handle movabs.  */
+      /* Emit MOVABS to load from a 64-bit absolute address to a GPR.  */
       if (!memory_operand (*op, GET_MODE (*op)))
 	{
-	  rtx tmp2 = gen_reg_rtx (GET_MODE (*op));
+	  tmp = gen_reg_rtx (GET_MODE (*op));
+	  movabs = emit_insn_before (gen_rtx_SET (tmp, *op), insn);
 
-	  emit_insn_before (gen_rtx_SET (tmp2, *op), insn);
-	  *op = tmp2;
+	  *op = tmp;
 	}
 
-      emit_insn_before (gen_rtx_SET (gen_rtx_SUBREG (vmode, tmp, 0),
-				     gen_gpr_to_xmm_move_src (vmode, *op)),
-			insn);
-      *op = gen_rtx_SUBREG (vmode, tmp, 0);
+      tmp = gen_rtx_SUBREG (vmode, gen_reg_rtx (GET_MODE (*op)), 0);
+
+      rtx_insn *eh_insn
+	= emit_insn_before (gen_rtx_SET (copy_rtx (tmp),
+					 gen_gpr_to_xmm_move_src (vmode, *op)),
+			    insn);
+
+      if (cfun->can_throw_non_call_exceptions)
+	{
+	  /* Handle REG_EH_REGION note.  */
+	  rtx note = find_reg_note (insn, REG_EH_REGION, NULL_RTX);
+	  if (note)
+	    {
+	      if (movabs)
+		eh_insn = movabs;
+	      control_flow_insns.safe_push (eh_insn);
+	      add_reg_note (eh_insn, REG_EH_REGION, XEXP (note, 0));
+	    }
+	}
+
+      *op = tmp;
 
       if (dump_file)
 	fprintf (dump_file, "  Preloading operand for insn %d into r%d\n",
-		 INSN_UID (insn), REGNO (tmp));
+		 INSN_UID (insn), reg_or_subregno (tmp));
     }
   else if (REG_P (*op))
+    *op = gen_rtx_SUBREG (vmode, *op, 0);
+  else if (CONST_SCALAR_INT_P (*op))
     {
-      *op = gen_rtx_SUBREG (vmode, *op, 0);
-    }
-  else if (CONST_INT_P (*op))
-    {
-      rtx vec_cst;
-      rtx tmp = gen_rtx_SUBREG (vmode, gen_reg_rtx (smode), 0);
-
-      /* Prefer all ones vector in case of -1.  */
-      if (constm1_operand (*op, GET_MODE (*op)))
-	vec_cst = CONSTM1_RTX (vmode);
-      else
-	{
-	  unsigned n = GET_MODE_NUNITS (vmode);
-	  rtx *v = XALLOCAVEC (rtx, n);
-	  v[0] = *op;
-	  for (unsigned i = 1; i < n; ++i)
-	    v[i] = const0_rtx;
-	  vec_cst = gen_rtx_CONST_VECTOR (vmode, gen_rtvec_v (n, v));
-	}
+      rtx vec_cst = smode_convert_cst (*op, vmode);
 
       if (!standard_sse_constant_p (vec_cst, vmode))
 	{
@@ -1048,6 +1070,8 @@ general_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
 	  end_sequence ();
 	  emit_insn_before (seq, insn);
 	}
+
+      tmp = gen_rtx_SUBREG (vmode, gen_reg_rtx (smode), 0);
 
       emit_insn_before (gen_move_insn (copy_rtx (tmp), vec_cst), insn);
       *op = tmp;
@@ -1479,6 +1503,23 @@ general_scalar_chain::convert_insn (rtx_insn *insn)
   df_insn_rescan (insn);
 }
 
+/* Helper function to compute gain for loading an immediate constant.
+   Typically, two movabsq for TImode vs. vmovdqa for V1TImode, but
+   with numerous special cases.  */
+
+static int
+timode_immed_const_gain (rtx cst)
+{
+  /* movabsq vs. movabsq+vmovq+vunpacklqdq.  */
+  if (CONST_WIDE_INT_P (cst)
+      && CONST_WIDE_INT_NUNITS (cst) == 2
+      && CONST_WIDE_INT_ELT (cst, 0) == CONST_WIDE_INT_ELT (cst, 1))
+    return optimize_insn_for_size_p () ? -COSTS_N_BYTES (9)
+				       : -COSTS_N_INSNS (2);
+  /* 2x movabsq ~ vmovdqa.  */
+  return 0;
+}
+
 /* Compute a gain for chain conversion.  */
 
 int
@@ -1525,7 +1566,14 @@ timode_scalar_chain::compute_convert_gain ()
 	case CONST_INT:
 	  if (MEM_P (dst)
 	      && standard_sse_constant_p (src, V1TImode))
-	    igain = optimize_insn_for_size_p() ? COSTS_N_BYTES (11) : 1;
+	    igain = optimize_insn_for_size_p () ? COSTS_N_BYTES (11) : 1;
+	  break;
+
+	case CONST_WIDE_INT:
+	  /* 2 x mov vs. vmovdqa.  */
+	  if (MEM_P (dst))
+	    igain = optimize_insn_for_size_p () ? COSTS_N_BYTES (3)
+						: COSTS_N_INSNS (1);
 	  break;
 
 	case NOT:
@@ -1538,6 +1586,8 @@ timode_scalar_chain::compute_convert_gain ()
 	case IOR:
 	  if (!MEM_P (dst))
 	    igain = COSTS_N_INSNS (1);
+	  if (CONST_SCALAR_INT_P (XEXP (src, 1)))
+	    igain += timode_immed_const_gain (XEXP (src, 1));
 	  break;
 
 	case ASHIFT:
@@ -1626,23 +1676,28 @@ timode_scalar_chain::compute_convert_gain ()
 	      else if (op1val == 64)
 		vcost = COSTS_N_INSNS (3);
 	      else if (op1val == 96)
-		vcost = COSTS_N_INSNS (4);
+		vcost = COSTS_N_INSNS (3);
 	      else if (op1val >= 111)
 		vcost = COSTS_N_INSNS (3);
-	      else if (TARGET_AVX2 && op1val == 32)
-		vcost = COSTS_N_INSNS (3);
 	      else if (TARGET_SSE4_1 && op1val == 32)
-		vcost = COSTS_N_INSNS (4);
+		vcost = COSTS_N_INSNS (3);
+	      else if (TARGET_SSE4_1
+		       && (op1val == 8 || op1val == 16 || op1val == 24))
+		vcost = COSTS_N_INSNS (3);
 	      else if (op1val >= 96)
-		vcost = COSTS_N_INSNS (5);
+		vcost = COSTS_N_INSNS (4);
+	      else if (TARGET_SSE4_1 && (op1val == 28 || op1val == 80))
+		vcost = COSTS_N_INSNS (4);
 	      else if ((op1val & 7) == 0)
-		vcost = COSTS_N_INSNS (6);
+		vcost = COSTS_N_INSNS (5);
 	      else if (TARGET_AVX2 && op1val < 32)
 		vcost = COSTS_N_INSNS (6);
+	      else if (TARGET_SSE4_1 && op1val < 15)
+		vcost = COSTS_N_INSNS (6);
 	      else if (op1val == 1 || op1val >= 64)
-		vcost = COSTS_N_INSNS (9);
+		vcost = COSTS_N_INSNS (8);
 	      else
-		vcost = COSTS_N_INSNS (10);
+		vcost = COSTS_N_INSNS (9);
 	    }
 	  igain = scost - vcost;
 	  break;
@@ -1751,67 +1806,6 @@ timode_scalar_chain::fix_debug_reg_uses (rtx reg)
     }
 }
 
-/* Helper function to convert immediate constant X to V1TImode.  */
-static rtx
-timode_convert_cst (rtx x)
-{
-  /* Prefer all ones vector in case of -1.  */
-  if (constm1_operand (x, TImode))
-    return CONSTM1_RTX (V1TImode);
-
-  rtx *v = XALLOCAVEC (rtx, 1);
-  v[0] = x;
-  return gen_rtx_CONST_VECTOR (V1TImode, gen_rtvec_v (1, v));
-}
-
-/* Convert operand OP in INSN from TImode to V1TImode.  */
-
-void
-timode_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
-{
-  if (GET_MODE (*op) == V1TImode)
-    return;
-
-  *op = copy_rtx_if_shared (*op);
-
-  if (REG_P (*op))
-    *op = gen_rtx_SUBREG (V1TImode, *op, 0);
-  else if (MEM_P (*op))
-    {
-      rtx tmp = gen_reg_rtx (V1TImode);
-      emit_insn_before (gen_rtx_SET (tmp,
-				     gen_gpr_to_xmm_move_src (V1TImode, *op)),
-			insn);
-      *op = tmp;
-
-      if (dump_file)
-	fprintf (dump_file, "  Preloading operand for insn %d into r%d\n",
-		 INSN_UID (insn), REGNO (tmp));
-    }
-  else if (CONST_SCALAR_INT_P (*op))
-    {
-      rtx tmp = gen_reg_rtx (V1TImode);
-      rtx vec_cst = timode_convert_cst (*op);
-
-      if (!standard_sse_constant_p (vec_cst, V1TImode))
-	{
-	  start_sequence ();
-	  vec_cst = validize_mem (force_const_mem (V1TImode, vec_cst));
-	  rtx_insn *seq = get_insns ();
-	  end_sequence ();
-	  emit_insn_before (seq, insn);
-	}
-
-      emit_insn_before (gen_move_insn (tmp, vec_cst), insn);
-      *op = tmp;
-    }
-  else
-    {
-      gcc_assert (SUBREG_P (*op));
-      gcc_assert (GET_MODE (*op) == vmode);
-    }
-}
-
 /* Convert INSN from TImode to V1T1mode.  */
 
 void
@@ -1876,7 +1870,7 @@ timode_scalar_chain::convert_insn (rtx_insn *insn)
 	    }
 	  else
 	    {
-	      src = timode_convert_cst (src);
+	      src = smode_convert_cst (src, V1TImode);
 	      src = validize_mem (force_const_mem (V1TImode, src));
 	      use_move = MEM_P (dst);
 	    }
@@ -2168,13 +2162,9 @@ general_scalar_to_vector_candidate_p (rtx_insn *insn, enum machine_mode mode)
 
   switch (GET_CODE (src))
     {
-    case ASHIFTRT:
-      if (mode == DImode && !TARGET_AVX512VL)
-	return false;
-      /* FALLTHRU */
-
     case ASHIFT:
     case LSHIFTRT:
+    case ASHIFTRT:
     case ROTATE:
     case ROTATERT:
       if (!CONST_INT_P (XEXP (src, 1))
@@ -2340,14 +2330,16 @@ timode_scalar_to_vector_candidate_p (rtx_insn *insn)
 	      || CONST_SCALAR_INT_P (XEXP (src, 1))
 	      || timode_mem_p (XEXP (src, 1))))
 	return true;
-      return REG_P (XEXP (src, 0))
+      return (REG_P (XEXP (src, 0))
+	      || timode_mem_p (XEXP (src, 0)))
 	     && (REG_P (XEXP (src, 1))
 		 || CONST_SCALAR_INT_P (XEXP (src, 1))
 		 || timode_mem_p (XEXP (src, 1)));
 
     case IOR:
     case XOR:
-      return REG_P (XEXP (src, 0))
+      return (REG_P (XEXP (src, 0))
+	      || timode_mem_p (XEXP (src, 0)))
 	     && (REG_P (XEXP (src, 1))
 		 || CONST_SCALAR_INT_P (XEXP (src, 1))
 		 || timode_mem_p (XEXP (src, 1)));
@@ -2494,6 +2486,7 @@ convert_scalars_to_vector (bool timode_p)
 {
   basic_block bb;
   int converted_insns = 0;
+  auto_vec<rtx_insn *> control_flow_insns;
 
   bitmap_obstack_initialize (NULL);
   const machine_mode cand_mode[3] = { SImode, DImode, TImode };
@@ -2575,6 +2568,11 @@ convert_scalars_to_vector (bool timode_p)
 			 chain->chain_id);
 	    }
 
+	  rtx_insn* iter_insn;
+	  unsigned int ii;
+	  FOR_EACH_VEC_ELT (chain->control_flow_insns, ii, iter_insn)
+	    control_flow_insns.safe_push (iter_insn);
+
 	  delete chain;
 	}
     }
@@ -2643,6 +2641,24 @@ convert_scalars_to_vector (bool timode_p)
 		  DECL_INCOMING_RTL (parm) = gen_rtx_SUBREG (TImode, r, 0);
 	      }
 	  }
+
+      if (!control_flow_insns.is_empty ())
+	{
+	  free_dominance_info (CDI_DOMINATORS);
+
+	  unsigned int i;
+	  rtx_insn* insn;
+	  FOR_EACH_VEC_ELT (control_flow_insns, i, insn)
+	    if (control_flow_insn_p (insn))
+	      {
+		/* Split the block after insn.  There will be a fallthru
+		   edge, which is OK so we keep it.  We have to create
+		   the exception edges ourselves.  */
+		bb = BLOCK_FOR_INSN (insn);
+		split_block (bb, insn);
+		rtl_make_eh_edge (NULL, bb, BB_END (bb));
+	      }
+	}
     }
 
   return 0;
@@ -3008,6 +3024,16 @@ make_pass_insert_endbr_and_patchable_area (gcc::context *ctxt)
   return new pass_insert_endbr_and_patchable_area (ctxt);
 }
 
+bool
+ix86_rpad_gate ()
+{
+  return (TARGET_AVX
+	  && TARGET_SSE_PARTIAL_REG_DEPENDENCY
+	  && TARGET_SSE_MATH
+	  && optimize
+	  && optimize_function_for_speed_p (cfun));
+}
+
 /* At entry of the nearest common dominator for basic blocks with
    conversions/rcp/sqrt/rsqrt/round, generate a single
 	vxorps %xmmN, %xmmN, %xmmN
@@ -3245,11 +3271,7 @@ public:
   /* opt_pass methods: */
   bool gate (function *) final override
     {
-      return (TARGET_AVX
-	      && TARGET_SSE_PARTIAL_REG_DEPENDENCY
-	      && TARGET_SSE_MATH
-	      && optimize
-	      && optimize_function_for_speed_p (cfun));
+      return ix86_rpad_gate ();
     }
 
   unsigned int execute (function *) final override
@@ -3264,6 +3286,361 @@ rtl_opt_pass *
 make_pass_remove_partial_avx_dependency (gcc::context *ctxt)
 {
   return new pass_remove_partial_avx_dependency (ctxt);
+}
+
+/* Convert legacy instructions that clobbers EFLAGS to APX_NF
+   instructions when there are no flag set between a flag
+   producer and user.  */
+
+static unsigned int
+ix86_apx_nf_convert (void)
+{
+  timevar_push (TV_MACH_DEP);
+
+  basic_block bb;
+  rtx_insn *insn;
+  hash_map <rtx_insn *, rtx> converting_map;
+  auto_vec <rtx_insn *> current_convert_list;
+
+  bool converting_seq = false;
+  rtx cc = gen_rtx_REG (CCmode, FLAGS_REG);
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      /* Reset conversion for each bb.  */
+      converting_seq = false;
+      FOR_BB_INSNS (bb, insn)
+	{
+	  if (!NONDEBUG_INSN_P (insn))
+	    continue;
+
+	  if (recog_memoized (insn) < 0)
+	    continue;
+
+	  /* Convert candidate insns after cstore, which should
+	     satisify the two conditions:
+	     1. Is not flag user or producer, only clobbers
+	     FLAGS_REG.
+	     2. Have corresponding nf pattern.  */
+
+	  rtx pat = PATTERN (insn);
+
+	  /* Starting convertion at first cstorecc.  */
+	  rtx set = NULL_RTX;
+	  if (!converting_seq
+	      && (set = single_set (insn))
+	      && ix86_comparison_operator (SET_SRC (set), VOIDmode)
+	      && reg_overlap_mentioned_p (cc, SET_SRC (set))
+	      && !reg_overlap_mentioned_p (cc, SET_DEST (set)))
+	    {
+	      converting_seq = true;
+	      current_convert_list.truncate (0);
+	    }
+	  /* Terminate at the next explicit flag set.  */
+	  else if (reg_set_p (cc, pat)
+		   && GET_CODE (set_of (cc, pat)) != CLOBBER)
+	    converting_seq = false;
+
+	  if (!converting_seq)
+	    continue;
+
+	  if (get_attr_has_nf (insn)
+	      && GET_CODE (pat) == PARALLEL)
+	    {
+	      /* Record the insn to candidate map.  */
+	      current_convert_list.safe_push (insn);
+	      converting_map.put (insn, pat);
+	    }
+	  /* If the insn clobbers flags but has no nf_attr,
+	     revoke all previous candidates.  */
+	  else if (!get_attr_has_nf (insn)
+		   && reg_set_p (cc, pat)
+		   && GET_CODE (set_of (cc, pat)) == CLOBBER)
+	    {
+	      for (auto item : current_convert_list)
+		converting_map.remove (item);
+	      converting_seq = false;
+	    }
+	}
+    }
+
+  if (!converting_map.is_empty ())
+    {
+      for (auto iter = converting_map.begin ();
+	   iter != converting_map.end (); ++iter)
+	{
+	  rtx_insn *replace = (*iter).first;
+	  rtx pat = (*iter).second;
+	  int i, n = 0, len = XVECLEN (pat, 0);
+	  rtx *new_elems = XALLOCAVEC (rtx, len);
+	  rtx new_pat;
+	  for (i = 0; i < len; i++)
+	    {
+	      rtx temp = XVECEXP (pat, 0, i);
+	      if (! (GET_CODE (temp) == CLOBBER
+		     && reg_overlap_mentioned_p (cc,
+						 XEXP (temp, 0))))
+		{
+		  new_elems[n] = temp;
+		  n++;
+		}
+	    }
+
+	  if (n == 1)
+	    new_pat = new_elems[0];
+	  else
+	    new_pat =
+	      gen_rtx_PARALLEL (VOIDmode,
+				gen_rtvec_v (n,
+					     new_elems));
+
+	  PATTERN (replace) = new_pat;
+	  INSN_CODE (replace) = -1;
+	  recog_memoized (replace);
+	  df_insn_rescan (replace);
+	}
+    }
+
+  timevar_pop (TV_MACH_DEP);
+  return 0;
+}
+
+
+namespace {
+
+const pass_data pass_data_apx_nf_convert =
+{
+  RTL_PASS, /* type */
+  "apx_nfcvt", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_apx_nf_convert : public rtl_opt_pass
+{
+public:
+  pass_apx_nf_convert (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_apx_nf_convert, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate (function *) final override
+    {
+      return (TARGET_APX_NF
+	      && optimize
+	      && optimize_function_for_speed_p (cfun));
+    }
+
+  unsigned int execute (function *) final override
+    {
+      return ix86_apx_nf_convert ();
+    }
+}; // class pass_apx_nf_convert
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_apx_nf_convert (gcc::context *ctxt)
+{
+  return new pass_apx_nf_convert (ctxt);
+}
+
+/* When a hot loop can be fit into one cacheline,
+   force align the loop without considering the max skip.  */
+static void
+ix86_align_loops ()
+{
+  basic_block bb;
+
+  /* Don't do this when we don't know cache line size.  */
+  if (ix86_cost->prefetch_block == 0)
+    return;
+
+  loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
+  profile_count count_threshold = cfun->cfg->count_max / param_align_threshold;
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx_insn *label = BB_HEAD (bb);
+      bool has_fallthru = 0;
+      edge e;
+      edge_iterator ei;
+
+      if (!LABEL_P (label))
+	continue;
+
+      profile_count fallthru_count = profile_count::zero ();
+      profile_count branch_count = profile_count::zero ();
+
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	{
+	  if (e->flags & EDGE_FALLTHRU)
+	    has_fallthru = 1, fallthru_count += e->count ();
+	  else
+	    branch_count += e->count ();
+	}
+
+      if (!fallthru_count.initialized_p () || !branch_count.initialized_p ())
+	continue;
+
+      if (bb->loop_father
+	  && bb->loop_father->latch != EXIT_BLOCK_PTR_FOR_FN (cfun)
+	  && (has_fallthru
+	      ? (!(single_succ_p (bb)
+		   && single_succ (bb) == EXIT_BLOCK_PTR_FOR_FN (cfun))
+		 && optimize_bb_for_speed_p (bb)
+		 && branch_count + fallthru_count > count_threshold
+		 && (branch_count > fallthru_count * param_align_loop_iterations))
+	      /* In case there'no fallthru for the loop.
+		 Nops inserted won't be executed.  */
+	      : (branch_count > count_threshold
+		 || (bb->count > bb->prev_bb->count * 10
+		     && (bb->prev_bb->count
+			 <= ENTRY_BLOCK_PTR_FOR_FN (cfun)->count / 2)))))
+	{
+	  rtx_insn* insn, *end_insn;
+	  HOST_WIDE_INT size = 0;
+	  bool padding_p = true;
+	  basic_block tbb = bb;
+	  unsigned cond_branch_num = 0;
+	  bool detect_tight_loop_p = false;
+
+	  for (unsigned int i = 0; i != bb->loop_father->num_nodes;
+	       i++, tbb = tbb->next_bb)
+	    {
+	      /* Only handle continuous cfg layout. */
+	      if (bb->loop_father != tbb->loop_father)
+		{
+		  padding_p = false;
+		  break;
+		}
+
+	      FOR_BB_INSNS (tbb, insn)
+		{
+		  if (!NONDEBUG_INSN_P (insn))
+		    continue;
+		  size += ix86_min_insn_size (insn);
+
+		  /* We don't know size of inline asm.
+		     Don't align loop for call.  */
+		  if (asm_noperands (PATTERN (insn)) >= 0
+		      || CALL_P (insn))
+		    {
+		      size = -1;
+		      break;
+		    }
+		}
+
+	      if (size == -1 || size > ix86_cost->prefetch_block)
+		{
+		  padding_p = false;
+		  break;
+		}
+
+	      FOR_EACH_EDGE (e, ei, tbb->succs)
+		{
+		  /* It could be part of the loop.  */
+		  if (e->dest == bb)
+		    {
+		      detect_tight_loop_p = true;
+		      break;
+		    }
+		}
+
+	      if (detect_tight_loop_p)
+		break;
+
+	      end_insn = BB_END (tbb);
+	      if (JUMP_P (end_insn))
+		{
+		  /* For decoded icache:
+		     1. Up to two branches are allowed per Way.
+		     2. A non-conditional branch is the last micro-op in a Way.
+		  */
+		  if (onlyjump_p (end_insn)
+		      && (any_uncondjump_p (end_insn)
+			  || single_succ_p (tbb)))
+		    {
+		      padding_p = false;
+		      break;
+		    }
+		  else if (++cond_branch_num >= 2)
+		    {
+		      padding_p = false;
+		      break;
+		    }
+		}
+
+	    }
+
+	  if (padding_p && detect_tight_loop_p)
+	    {
+	      emit_insn_before (gen_max_skip_align (GEN_INT (ceil_log2 (size)),
+						    GEN_INT (0)), label);
+	      /* End of function.  */
+	      if (!tbb || tbb == EXIT_BLOCK_PTR_FOR_FN (cfun))
+		break;
+	      /* Skip bb which already fits into one cacheline.  */
+	      bb = tbb;
+	    }
+	}
+    }
+
+  loop_optimizer_finalize ();
+  free_dominance_info (CDI_DOMINATORS);
+}
+
+namespace {
+
+const pass_data pass_data_align_tight_loops =
+{
+  RTL_PASS, /* type */
+  "align_tight_loops", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_MACH_DEP, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_align_tight_loops : public rtl_opt_pass
+{
+public:
+  pass_align_tight_loops (gcc::context *ctxt)
+    : rtl_opt_pass (pass_data_align_tight_loops, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate (function *) final override
+    {
+      return TARGET_ALIGN_TIGHT_LOOPS
+	     && optimize
+	     && optimize_function_for_speed_p (cfun);
+    }
+
+  unsigned int execute (function *) final override
+    {
+      timevar_push (TV_MACH_DEP);
+#ifdef ASM_OUTPUT_MAX_SKIP_ALIGN
+      ix86_align_loops ();
+#endif
+      timevar_pop (TV_MACH_DEP);
+      return 0;
+    }
+}; // class pass_align_tight_loops
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_align_tight_loops (gcc::context *ctxt)
+{
+  return new pass_align_tight_loops (ctxt);
 }
 
 /* This compares the priority of target features in function DECL1
@@ -3282,7 +3659,7 @@ ix86_compare_version_priority (tree decl1, tree decl2)
 
 /* V1 and V2 point to function versions with different priorities
    based on the target ISA.  This function compares their priorities.  */
- 
+
 static int
 feature_compare (const void *v1, const void *v2)
 {
@@ -3331,7 +3708,7 @@ add_condition_to_bb (tree function_decl, tree version_decl,
   convert_expr = build1 (CONVERT_EXPR, ptr_type_node,
 	     		 build_fold_addr_expr (version_decl));
   result_var = create_tmp_var (ptr_type_node);
-  convert_stmt = gimple_build_assign (result_var, convert_expr); 
+  convert_stmt = gimple_build_assign (result_var, convert_expr);
   return_stmt = gimple_build_return (result_var);
 
   if (predicate_chain == NULL_TREE)
@@ -3358,7 +3735,7 @@ add_condition_to_bb (tree function_decl, tree version_decl,
       gimple_seq_add_stmt (&gseq, call_cond_stmt);
 
       predicate_chain = TREE_CHAIN (predicate_chain);
-      
+
       if (and_expr_var == NULL)
 	and_expr_var = cond_var;
       else
@@ -3399,7 +3776,7 @@ add_condition_to_bb (tree function_decl, tree version_decl,
   gimple_set_bb (return_stmt, bb2);
 
   bb3 = e23->dest;
-  make_edge (bb1, bb3, EDGE_FALSE_VALUE); 
+  make_edge (bb1, bb3, EDGE_FALSE_VALUE);
 
   remove_edge (e23);
   make_edge (bb2, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
@@ -3560,7 +3937,7 @@ ix86_mangle_function_version_assembler_name (tree decl, tree id)
   return ret;
 }
 
-tree 
+tree
 ix86_mangle_decl_assembler_name (tree decl, tree id)
 {
   /* For function version, add the target suffix to the assembler name.  */
@@ -3590,7 +3967,7 @@ ix86_get_function_versions_dispatcher (void *decl)
   tree dispatch_decl = NULL;
 
   struct cgraph_function_version_info *default_version_info = NULL;
- 
+
   gcc_assert (fn != NULL && DECL_FUNCTION_VERSIONED (fn));
 
   node = cgraph_node::get (fn);
@@ -3598,7 +3975,7 @@ ix86_get_function_versions_dispatcher (void *decl)
 
   node_v = node->function_version ();
   gcc_assert (node_v != NULL);
- 
+
   if (node_v->dispatcher_resolver != NULL)
     return node_v->dispatcher_resolver;
 
@@ -3754,7 +4131,7 @@ make_resolver_func (const tree default_decl,
    provide the code to dispatch the right function at run-time.  NODE points
    to the dispatcher decl whose body will be created.  */
 
-tree 
+tree
 ix86_generate_version_dispatcher_body (void *node_p)
 {
   tree resolver_decl;

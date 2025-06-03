@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1999-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -457,34 +457,7 @@ package body Repinfo is
       Bytes_Big_Endian : Boolean;
       In_Subprogram    : Boolean := False)
    is
-      Body_E : Entity_Id;
-      E      : Entity_Id;
-
-      function Find_Declaration (E : Entity_Id) return Node_Id;
-      --  Utility to retrieve declaration node for entity in the
-      --  case of package bodies and subprograms.
-
-      ----------------------
-      -- Find_Declaration --
-      ----------------------
-
-      function Find_Declaration (E : Entity_Id) return Node_Id is
-         Decl : Node_Id;
-
-      begin
-         Decl := Parent (E);
-         while Present (Decl)
-           and then Nkind (Decl) /= N_Package_Body
-           and then Nkind (Decl) /= N_Subprogram_Declaration
-           and then Nkind (Decl) /= N_Subprogram_Body
-         loop
-            Decl := Parent (Decl);
-         end loop;
-
-         return Decl;
-      end Find_Declaration;
-
-   --  Start of processing for List_Entities
+      E : Entity_Id;
 
    begin
       --  List entity if we have one, and it is not a renaming declaration.
@@ -548,7 +521,11 @@ package body Repinfo is
 
                elsif Is_Record_Type (E) then
                   if List_Representation_Info >= 1 then
-                     List_Record_Info (E, Bytes_Big_Endian);
+                     if Is_Private_Type (E) then
+                        List_Record_Info (Full_View (E), Bytes_Big_Endian);
+                     else
+                        List_Record_Info (E, Bytes_Big_Endian);
+                     end if;
 
                      --  Recurse into entities local to a record type
 
@@ -609,34 +586,6 @@ package body Repinfo is
 
             Next_Entity (E);
          end loop;
-
-         --  For a package body, the entities of the visible subprograms are
-         --  declared in the corresponding spec. Iterate over its entities in
-         --  order to handle properly the subprogram bodies. Skip bodies in
-         --  subunits, which are listed independently.
-
-         if Ekind (Ent) = E_Package_Body
-           and then Present (Corresponding_Spec (Find_Declaration (Ent)))
-         then
-            E := First_Entity (Corresponding_Spec (Find_Declaration (Ent)));
-            while Present (E) loop
-               if Is_Subprogram (E)
-                 and then
-                   Nkind (Find_Declaration (E)) = N_Subprogram_Declaration
-               then
-                  Body_E := Corresponding_Body (Find_Declaration (E));
-
-                  if Present (Body_E)
-                    and then
-                      Nkind (Parent (Find_Declaration (Body_E))) /= N_Subunit
-                  then
-                     List_Entities (Body_E, Bytes_Big_Endian);
-                  end if;
-               end if;
-
-               Next_Entity (E);
-            end loop;
-         end if;
       end if;
    end List_Entities;
 
@@ -734,7 +683,7 @@ package body Repinfo is
                         Print_Expr (Node.Op2);
                         Write_Str (" else ");
                         Print_Expr (Node.Op3);
-                        Write_Str (" end)");
+                        Write_Str (")");
                      end if;
 
                   when Plus_Expr =>
@@ -1491,6 +1440,12 @@ package body Repinfo is
 
                   else
                      Parent_Type := Base_Type (Parent_Type);
+
+                     if Is_Private_Type (Parent_Type) then
+                        Parent_Type := Full_View (Parent_Type);
+                        pragma Assert (Present (Parent_Type));
+                     end if;
+
                      if not In_Extended_Main_Source_Unit (Parent_Type) then
                         raise Not_In_Extended_Main;
                      end if;

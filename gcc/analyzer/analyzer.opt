@@ -1,6 +1,6 @@
 ; analyzer.opt -- Options for the analyzer.
 
-; Copyright (C) 2019-2024 Free Software Foundation, Inc.
+; Copyright (C) 2019-2025 Free Software Foundation, Inc.
 ;
 ; This file is part of GCC.
 ;
@@ -222,9 +222,13 @@ Wanalyzer-tainted-size
 Common Var(warn_analyzer_tainted_size) Init(1) Warning
 Warn about code paths in which an unsanitized value is used as a size.
 
+Wanalyzer-undefined-behavior-ptrdiff
+Common Var(warn_analyzer_undefined_behavior_ptrdiff) Init(1) Warning
+Warn about code paths in which pointer subtraction involves undefined behavior.
+
 Wanalyzer-undefined-behavior-strtok
 Common Var(warn_analyzer_undefined_behavior_strtok) Init(1) Warning
-Warn about code paths in in which a call is made to strtok with undefined behavior.
+Warn about code paths in which a call is made to strtok with undefined behavior.
 
 Wanalyzer-use-after-free
 Common Var(warn_analyzer_use_after_free) Init(1) Warning

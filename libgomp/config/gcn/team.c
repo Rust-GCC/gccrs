@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by Mentor Embedded.
 
    This file is part of the GNU Offloading and Multi Processing Library
@@ -52,13 +52,14 @@ gomp_gcn_enter_kernel (void)
 {
   int threadid = __builtin_gcn_dim_pos (1);
 
-  /* Initialize indirect function support.  */
-  build_indirect_map ();
-
   if (threadid == 0)
     {
       int numthreads = __builtin_gcn_dim_size (1);
       int teamid = __builtin_gcn_dim_pos(0);
+
+      /* Initialize indirect function support.  */
+      if (teamid == 0)
+	build_indirect_map ();
 
       /* Set up the global state.
 	 Every team will do this, but that should be harmless.  */
@@ -66,6 +67,9 @@ gomp_gcn_enter_kernel (void)
       gomp_global_icv.thread_limit_var = numthreads;
       /* Starting additional threads is not supported.  */
       gomp_global_icv.dyn_var = true;
+
+      int __lds *gomp_team_num = (int __lds *) GOMP_TEAM_NUM;
+      *gomp_team_num = 0;
 
       /* Initialize the team arena for optimized memory allocation.
          The arena has been allocated on the host side, and the address

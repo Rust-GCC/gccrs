@@ -1,11 +1,11 @@
 /**
  * Defines enums common to dmd and dmd as parse library.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/astenums.d, _astenums.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/astenums.d, _astenums.d)
  * Documentation:  https://dlang.org/phobos/dmd_astenums.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/astenums.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/astenums.d
  */
 
 module dmd.astenums;
@@ -16,6 +16,15 @@ enum Sizeok : ubyte
     fwd,                /// size of aggregate is ready to compute
     inProcess,          /// in the midst of computing the size
     done,               /// size of aggregate is set correctly
+}
+
+/// D Language version
+enum Edition : ubyte
+{
+    none,
+    legacy,          /// Before the introduction of editions
+    v2024,           /// Experimental first new edition
+    latest = v2024   /// Newest edition that this compiler knows of
 }
 
 enum Baseok : ubyte
@@ -41,7 +50,7 @@ alias MOD = ubyte;
 
 enum STC : ulong  // transfer changes to declaration.h
 {
-    undefined_          = 0,
+    none                = 0,
 
     static_             = 1,   /// `static`
     extern_             = 2,   /// `extern`
@@ -134,6 +143,9 @@ enum STC : ulong  // transfer changes to declaration.h
 
 }
 
+// Alias for C++ interface functions which use plain integer instead of enum class,
+// since C++ enum class doesn't support | & and conversion to bool. Maybe this can
+// be refactored to a struct with operator overloads or bit fields at some point.
 alias StorageClass = ulong;
 
 /********
@@ -293,7 +305,7 @@ enum ThreeState : ubyte
 enum TRUST : ubyte
 {
     default_   = 0,
-    system     = 1,    // @system (same as TRUST.default)
+    system     = 1,    // @system (same as TRUST.default_ unless feature "safer" is enabled)
     trusted    = 2,    // @trusted
     safe       = 3,    // @safe
 }
@@ -439,6 +451,24 @@ enum FileType : ubyte
     dhdr, /// D header file (.di)
     ddoc, /// Ddoc documentation file (.dd)
     c,    /// C source file
+}
+
+/// In which context checks for assertions, contracts, bounds checks etc. are enabled
+enum CHECKENABLE : ubyte
+{
+    _default,     /// initial value
+    off,          /// never do checking
+    on,           /// always do checking
+    safeonly,     /// do checking only in @safe functions
+}
+
+/// What should happend when an assertion fails
+enum CHECKACTION : ubyte
+{
+    D,            /// call D assert on failure
+    C,            /// call C assert on failure
+    halt,         /// cause program halt on failure
+    context,      /// call D assert with the error context on failure
 }
 
 extern (C++) struct structalign_t

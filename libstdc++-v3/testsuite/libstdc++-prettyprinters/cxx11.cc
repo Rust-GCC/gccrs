@@ -1,7 +1,7 @@
 // { dg-do run { target c++11 } }
 // { dg-options "-g -O0" }
 
-// Copyright (C) 2011-2024 Free Software Foundation, Inc.
+// Copyright (C) 2011-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -62,6 +62,11 @@ struct datum
 };
 
 std::unique_ptr<datum> global;
+
+struct custom_cat : std::error_category {
+  const char* name() const noexcept { return "miaow"; }
+  std::string message(int) const { return ""; }
+};
 
 int
 main()
@@ -179,10 +184,7 @@ main()
   std::error_condition ecinval = std::make_error_condition(std::errc::invalid_argument);
   // { dg-final { note-test ecinval {std::error_condition = {"generic": EINVAL}} } }
 
-  struct custom_cat : std::error_category {
-    const char* name() const noexcept { return "miaow"; }
-    std::string message(int) const { return ""; }
-  } cat;
+  custom_cat cat;
   std::error_code emiaow(42, cat);
   // { dg-final { note-test emiaow {std::error_code = {custom_cat: 42}} } }
   std::error_condition ecmiaow(42, cat);

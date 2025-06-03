@@ -1,3 +1,149 @@
+2024-11-14  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	PR libgcc/117537
+	* bid_conf.h (COPY_ARG_REF): Fix initializer.
+	(COPY_ARG_VAL): Likewise.
+
+2024-10-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* _le_td.c: Remove trailing whitespace.
+	* bid128_compare.c: Likewise.
+	* bid_div_macros.h: Likewise.
+	* bid64_to_bid128.c: Likewise.
+	* bid64_to_uint32.c: Likewise.
+	* bid128_to_uint64.c: Likewise.
+	* bid64_div.c: Likewise.
+	* bid128_round_integral.c: Likewise.
+	* bid_binarydecimal.c: Likewise.
+	* bid128_string.c: Likewise.
+	* bid_flag_operations.c: Likewise.
+	* bid128_to_int64.c: Likewise.
+	* _mul_sd.c: Likewise.
+	* bid64_mul.c: Likewise.
+	* bid128_noncomp.c: Likewise.
+	* _gt_dd.c: Likewise.
+	* bid64_add.c: Likewise.
+	* bid64_string.c: Likewise.
+	* bid_from_int.c: Likewise.
+	* bid128.c: Likewise.
+	* _ge_dd.c: Likewise.
+	* _ne_sd.c: Likewise.
+	* _dd_to_td.c: Likewise.
+	* _unord_sd.c: Likewise.
+	* bid64_to_uint64.c: Likewise.
+	* _gt_sd.c: Likewise.
+	* _sd_to_td.c: Likewise.
+	* _addsub_td.c: Likewise.
+	* _ne_td.c: Likewise.
+	* bid_dpd.c: Likewise.
+	* bid128_add.c: Likewise.
+	* bid128_next.c: Likewise.
+	* _lt_sd.c: Likewise.
+	* bid64_next.c: Likewise.
+	* bid128_mul.c: Likewise.
+	* _lt_dd.c: Likewise.
+	* _ge_td.c: Likewise.
+	* _unord_dd.c: Likewise.
+	* bid64_sqrt.c: Likewise.
+	* bid_sqrt_macros.h: Likewise.
+	* bid64_fma.c: Likewise.
+	* _sd_to_dd.c: Likewise.
+	* bid_conf.h: Likewise.
+	* bid64_noncomp.c: Likewise.
+	* bid_gcc_intrinsics.h: Likewise.
+	* _gt_td.c: Likewise.
+	* _ge_sd.c: Likewise.
+	* bid128_minmax.c: Likewise.
+	* bid128_quantize.c: Likewise.
+	* bid32_to_bid64.c: Likewise.
+	* bid_round.c: Likewise.
+	* _td_to_sd.c: Likewise.
+	* bid_inline_add.h: Likewise.
+	* bid128_fma.c: Likewise.
+	* _eq_td.c: Likewise.
+	* bid32_to_bid128.c: Likewise.
+	* bid64_rem.c: Likewise.
+	* bid128_2_str_tables.c: Likewise.
+	* _mul_dd.c: Likewise.
+	* _dd_to_sd.c: Likewise.
+	* bid128_div.c: Likewise.
+	* _lt_td.c: Likewise.
+	* bid64_compare.c: Likewise.
+	* bid64_to_int32.c: Likewise.
+	* _unord_td.c: Likewise.
+	* bid128_rem.c: Likewise.
+	* bid_internal.h: Likewise.
+	* bid64_to_int64.c: Likewise.
+	* _eq_dd.c: Likewise.
+	* _td_to_dd.c: Likewise.
+	* bid128_to_int32.c: Likewise.
+	* bid128_to_uint32.c: Likewise.
+	* _ne_dd.c: Likewise.
+	* bid64_quantize.c: Likewise.
+	* _le_dd.c: Likewise.
+	* bid64_round_integral.c: Likewise.
+	* _le_sd.c: Likewise.
+	* bid64_minmax.c: Likewise.
+
+2024-05-05  liuhongt  <hongtao.liu@intel.com>
+
+	* bid128_fma.c (add_and_round): Fix bug: the result
+	of (+5E+368)*(+10E-34)+(-10E+369) was returning
+	-9999999999999999999999999999999999E+336 instead of expected
+	result -1000000000000000000000000000000000E+337.
+	(bid128_ext_fma): Ditto.
+	(bid64qqq_fma): Ditto.
+	* bid128_noncomp.c: Change return type of bid128_class from
+	int to class_t.
+	* bid128_round_integral.c: Add default case to avoid compiler
+	warning.
+	* bid128_string.c (bid128_to_string): Replace 0x30 with '0'
+	for zero digit.
+	(bid128_from_string): Ditto.
+	* bid32_to_bid128.c (bid128_to_bid32): Fix Bug. In addition
+	to the INEXACT flag, the UNDERFLOW flag needs to be set (and
+	was not) when converting an input such as
+	+6931674235302037148946035460357709E+1857 to +1000000E-101
+	* bid32_to_bid64.c (bid64_to_bid32): fix Bug, In addition to
+	the INEXACT flag, the UNDERFLOW flag needs to be set (and was
+	not) when converting an input such as +9999999000000001E-111
+	to +1000000E-101. Furthermore, significant bits of NaNs are
+	set correctly now. For example,  0x7c00003b9aca0000 was
+	returning 0x7c000002 instead of 0x 7c000100.
+	* bid64_noncomp.c: Change return type of bid64_class from int
+	to class_t.
+	* bid64_round_integral.c (bid64_round_integral_exact): Add
+	default case to avoid compiler warning.
+	* bid64_string.c (bid64_from_string): Fix bug for rounding
+	up. The input string "10000000000000000" was returning
+	+1000000000000001E+1 instead of +1000000000000000E+1.
+	* bid64_to_bid128.c (bid128_to_bid64): Fix bug, in addition to
+	the INEXACT flag, the UNDERFLOW flag needs to be set (and was
+	not) when converting an input such as
+	+9999999999999999999999999999999999E-417 to
+	+1000000000000000E-398.
+	* bid_binarydecimal.c (bid32_to_binary64): Fix bug for
+	conversion between binary and bid types. For example,
+	0x7c0F4240 was returning 0x7FFFA12000000000 instead of
+	expected double precision 0x7FF8000000000000.
+	(binary64_to_bid32): Ditto.
+	(binary80_to_bid32): Ditto.
+	(binary128_to_bid32): Ditto.
+	(binary80_to_bid64): Ditto.
+	(binary128_to_bid64): Ditto.
+	* bid_conf.h (BID_HIGH_128W): New macro.
+	(BID_LOW_128W): Ditto.
+	* bid_functions.h (__ENABLE_BINARY80__): Ditto.
+	(ALIGN): Ditto.
+	* bid_inline_add.h (get_add128): Add default case to avoid compiler
+	warning.
+	* bid_internal.h (get_BID64): Ditto.
+	(fast_get_BID64_check_OF): Ditto.
+	(ALIGN): New macro.
+	Co-authored-by: Anderson, Cristina S <cristina.s.anderson@intel.com>
+	Co-authored-by: Akkas, Ahmet <ahmet.akkas@intel.com>
+	Co-authored-by: Cornea, Marius <marius.cornea@intel.com>
+
 2022-05-20  Christophe Lyon  <christophe.lyon@arm.com>
 
 	* bid_binarydecimal.c (CLZ32_MASK16): Delete.
@@ -462,7 +608,7 @@
 	* inline_bid_add.h: Likewise.
 	* sqrt_macros.h: Likewise.
 
-Copyright (C) 2007-2024 Free Software Foundation, Inc.
+Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

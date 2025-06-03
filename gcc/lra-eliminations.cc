@@ -1,5 +1,5 @@
 /* Code for RTL register eliminations.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -969,7 +969,8 @@ eliminate_regs_in_insn (rtx_insn *insn, bool replace_p, bool first_p,
 	  if (! replace_p)
 	    {
 	      if (known_eq (update_sp_offset, 0))
-		offset += (ep->offset - ep->previous_offset);
+		offset += (!first_p
+			   ? ep->offset - ep->previous_offset : ep->offset);
 	      if (ep->to_rtx == stack_pointer_rtx)
 		{
 		  if (first_p)
@@ -1212,7 +1213,7 @@ update_reg_eliminate (bitmap insns_with_changed_offsets)
 	      if (lra_dump_file != NULL)
 		fprintf (lra_dump_file, "    Using elimination %d to %d now\n",
 			 ep1->from, ep1->to);
-	      lra_assert (known_eq (ep1->previous_offset, 0));
+	      lra_assert (known_eq (ep1->previous_offset, -1));
 	      ep1->previous_offset = ep->offset;
 	    }
 	  else
@@ -1283,7 +1284,7 @@ init_elim_table (void)
   for (ep = reg_eliminate, ep1 = reg_eliminate_1;
        ep < &reg_eliminate[NUM_ELIMINABLE_REGS]; ep++, ep1++)
     {
-      ep->offset = ep->previous_offset = 0;
+      ep->offset = ep->previous_offset = -1;
       ep->from = ep1->from;
       ep->to = ep1->to;
       value_p = (targetm.can_eliminate (ep->from, ep->to)
@@ -1425,6 +1426,25 @@ lra_update_fp2sp_elimination (int *spilled_pseudos)
     if (ep->from == FRAME_POINTER_REGNUM && ep->to == STACK_POINTER_REGNUM)
       setup_can_eliminate (ep, false);
   return n;
+}
+
+/* Return true if we have a pseudo assigned to hard frame pointer.  */
+bool
+lra_fp_pseudo_p (void)
+{
+  HARD_REG_SET set;
+
+  if (frame_pointer_needed)
+    /* At this stage it means we have no pseudos assigned to FP:  */
+    return false;
+  CLEAR_HARD_REG_SET (set);
+  add_to_hard_reg_set (&set, Pmode, HARD_FRAME_POINTER_REGNUM);
+  for (int i = FIRST_PSEUDO_REGISTER; i < max_reg_num (); i++)
+    if (lra_reg_info[i].nrefs != 0 && reg_renumber[i] >= 0
+	&& overlaps_hard_reg_set_p (set, PSEUDO_REGNO_MODE (i),
+				    reg_renumber[i]))
+      return true;
+  return false;
 }
 
 /* Entry function to do final elimination if FINAL_P or to update

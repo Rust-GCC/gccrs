@@ -384,16 +384,6 @@ void test6714()
 }
 
 /***************************************************/
-// https://issues.dlang.org/show_bug.cgi?id=7193
-
-void test7193()
-{
-    static assert(!__traits(compiles, {
-        delete a => a;
-    }));
-}
-
-/***************************************************/
 // https://issues.dlang.org/show_bug.cgi?id=7207
 // on CastExp
 
@@ -1302,6 +1292,17 @@ void test16271()
     T!().auf() = 2;  assert(T!().x == 2);
 }
 
+// https://issues.dlang.org/show_bug.cgi?id=24525
+void test24525()
+{
+    int a;
+    auto ref () {return a;}() = 1;
+    assert(a == 1);
+
+    ref () {return a;}() = 2;
+    assert(a == 2);
+}
+
 /***************************************************/
 
 int main()
@@ -1320,7 +1321,6 @@ int main()
     test11();
     test3235();
     test6714();
-    test7193();
     test7202();
     test7288();
     test7499();
@@ -1361,6 +1361,7 @@ int main()
     test14745();
     test15794();
     test16271();
+    test24525();
 
     printf("Success\n");
     return 0;

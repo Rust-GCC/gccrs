@@ -1,6 +1,6 @@
 /* Implementation of diagnostic_client_data_hooks for the compilers
    (e.g. with knowledge of "tree", lang_hooks, and timevars).
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -31,6 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "plugin.h"
 #include "timevar.h"
+#include "make-unique.h"
 
 /* Concrete class for supplying a diagnostic_context with information
    about a specific plugin within the client, when the client is the
@@ -142,11 +143,11 @@ public:
     const final override
   {
     if (g_timer)
-      if (json::value *timereport_val = g_timer->make_json ())
+      if (auto timereport_val = g_timer->make_json ())
 	{
 	  sarif_property_bag &bag_obj
 	    = invocation_obj.get_or_create_properties ();
-	  bag_obj.set ("gcc/timeReport", timereport_val);
+	  bag_obj.set ("gcc/timeReport", std::move (timereport_val));
 
 	  /* If the user requested SARIF output, then assume they want the
 	     time report data in the SARIF output, and *not* later emitted on
@@ -165,8 +166,8 @@ private:
 /* Create a compiler_data_hooks (so that the class can be local
    to this file).  */
 
-diagnostic_client_data_hooks *
+std::unique_ptr<diagnostic_client_data_hooks>
 make_compiler_data_hooks ()
 {
-  return new compiler_data_hooks ();
+  return ::make_unique<compiler_data_hooks> ();
 }

@@ -1,5 +1,5 @@
 /* Subroutine for function pointer canonicalization on PA-RISC with ELF32.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by John David Anglin (dave.anglin@nrc.ca).
 
 This file is part of GCC.
@@ -67,7 +67,7 @@ _dl_read_access_allowed (unsigned int addr)
 
 /* __canonicalize_funcptr_for_compare must be hidden so that it is not
    placed in the dynamic symbol table.  Like millicode functions, it
-   must be linked into all binaries in order access the got table of 
+   must be linked into all binaries in order access the got table of
    that binary.  However, we don't use the millicode calling convention
    and the routine must be a normal function so that it can be compiled
    as pic code.  */

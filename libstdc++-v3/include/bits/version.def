@@ -1,5 +1,5 @@
 // Feature test macro definitions                                  -*- C++ -*-
-// Copyright (C) 2023-2024 Free Software Foundation, Inc.
+// Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,6 +30,7 @@ AutoGen Definitions version.tpl;
 // ftms = {
 //   name = FTM NAME;
 //   [stdname = FTM STANDARD MACRO NAME;]
+//   [no_stdname = true;]
 //   values = {
 //     v = VALUE FOR FTM IF MATCHING;
 //     [extra_cond = STRING;]
@@ -56,7 +57,8 @@ AutoGen Definitions version.tpl;
 
 // stdname configures the name of the *standard* macro emitted, i.e. it
 // replaces only the __cpp_lib_ macro in the emitted definition.  Defaults to
-// __cpp_lib_${name}
+// __cpp_lib_${name}.  If no_stdname exists (with any value), the stdname
+// define is not emitted.
 
 // N.B This list needs to be in topological sort order, as later entries in
 // this list can and do use the earlier entries.
@@ -209,7 +211,6 @@ ftms = {
   values = {
     v = 201304;
     cxxmin = 14;
-    extra_cond = "!defined(_GLIBCXX_DEBUG)";
   };
 };
 
@@ -276,7 +277,6 @@ ftms = {
   values = {
     v = 201304;
     cxxmin = 14;
-    hosted = yes;
   };
 };
 
@@ -480,6 +480,11 @@ ftms = {
 ftms = {
   name = variant;
   values = {
+    v = 202306;
+    cxxmin = 26;
+    extra_cond = "__cpp_concepts >= 202002L && __cpp_constexpr >= 201811L && __cpp_explicit_this_parameter";
+  };
+  values = {
     v = 202106;
     cxxmin = 20;
     extra_cond = "__cpp_concepts >= 202002L && __cpp_constexpr >= 201811L";
@@ -518,6 +523,11 @@ ftms = {
 
 ftms = {
   name = raw_memory_algorithms;
+  values = {
+    v = 202411;
+    cxxmin = 26;
+    extra_cond = "__cpp_constexpr >= 202406L";
+  };
   values = {
     v = 201606;
     cxxmin = 17;
@@ -575,6 +585,7 @@ ftms = {
     v = 201907;
     cxxmin = 20;
     hosted = yes;
+    cxx11abi = yes; // std::chrono::tzdb requires cxx11 std::string
   };
   values = {
     v = 201611;
@@ -695,6 +706,11 @@ ftms = {
 ftms = {
   name = string_view;
   values = {
+    v = 202403;
+    cxxmin = 26;
+    hosted = yes;
+  };
+  values = {
     v = 201803;
     cxxmin = 17;
     hosted = yes;
@@ -756,6 +772,7 @@ ftms = {
   values = {
     v = 201911;
     cxxmin = 20;
+    extra_cond = "__cpp_concepts >= 201907L";
   };
 };
 
@@ -1067,7 +1084,12 @@ ftms = {
 ftms = {
   name = ranges;
   values = {
-    v = 202211;
+    v = 202406;
+    cxxmin = 26;
+    extra_cond = "__glibcxx_concepts";
+  };
+  values = {
+    v = 202302;
     cxxmin = 23;
     extra_cond = "__glibcxx_concepts";
   };
@@ -1096,6 +1118,10 @@ ftms = {
 
 ftms = {
   name = constexpr_algorithms;
+  values = {
+    v = 202306;
+    cxxmin = 26;
+  };
   values = {
     v = 201806;
     cxxmin = 20;
@@ -1161,16 +1187,22 @@ ftms = {
 };
 
 ftms = {
+  name = format;
+  // 202305 P2757R3 Type checking format args
+  // 202306 P2637R3 Member visit
+  // 202311 P2918R2 Runtime format strings II
+  values = {
+    v = 202311;
+    cxxmin = 26;
+    hosted = yes;
+  };
   // 201907 Text Formatting, Integration of chrono, printf corner cases.
   // 202106 std::format improvements.
   // 202110 Fixing locale handling in chrono formatters, generator-like types.
   // 202207 Encodings in localized formatting of chrono, basic-format-string.
-  // 202207 P2286R8 Formatting Ranges
-  // 202207 P2585R1 Improving default container formatting
-  // TODO: #define __cpp_lib_format_ranges 202207L
-  name = format;
+  // 202304 P2510R3 Formatting pointers
   values = {
-    v = 202110;
+    v = 202304;
     cxxmin = 20;
     hosted = yes;
   };
@@ -1235,6 +1267,20 @@ ftms = {
     v = 201907;
     cxxmin = 20;
     hosted = yes;
+  };
+};
+
+ftms = {
+  name = constrained_equality;
+  values = {
+    v = 202411;
+    cxxmin = 23;
+    extra_cond = "__glibcxx_three_way_comparison";
+  };
+  values = {
+    v = 202403;
+    cxxmin = 20;
+    extra_cond = "__glibcxx_three_way_comparison";
   };
 };
 
@@ -1366,6 +1412,18 @@ ftms = {
 };
 
 ftms = {
+  name = format_ranges;
+  // 202207 P2286R8 Formatting Ranges
+  // 202207 P2585R1 Improving default container formatting
+  // LWG3750 Too many papers bump __cpp_lib_format
+  values = {
+    v = 202207;
+    cxxmin = 23;
+    hosted = yes;
+  };
+};
+
+ftms = {
   name = freestanding_algorithm;
   values = {
     v = 202311;
@@ -1456,14 +1514,14 @@ ftms = {
   };
 };
 
-//ftms = {
-//  name = container_ranges;
-//  values = {
-//    v = 202202;
-//    cxxmin = 23;
-//    hosted = yes;
-//  };
-//};
+ftms = {
+  name = containers_ranges;
+  values = {
+    v = 202202;
+    cxxmin = 23;
+    hosted = yes;
+  };
+};
 
 ftms = {
   name = ranges_to_container;
@@ -1622,6 +1680,22 @@ ftms = {
 };
 
 ftms = {
+  name = flat_map;
+  values = {
+    v = 202207;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
+  name = flat_set;
+  values = {
+    v = 202207;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
   name = formatters;
   values = {
     v = 202302;
@@ -1635,6 +1709,15 @@ ftms = {
   values = {
     v = 202207;
     cxxmin = 23;
+  };
+};
+
+ftms = {
+  name = generator;
+  values = {
+    v = 202207;
+    cxxmin = 23;
+    extra_cond = "__glibcxx_coroutine && __cpp_sized_deallocation";
   };
 };
 
@@ -1720,10 +1803,40 @@ ftms = {
 };
 
 ftms = {
+  name = tuple_like;
+  values = {
+    v = 202311;
+    cxxmin = 26;
+    extra_cond = "__cpp_explicit_this_parameter >= 202110L";
+  };
+  values = {
+    v = 202207;
+    cxxmin = 23;
+  };
+};
+
+ftms = {
   name = unreachable;
   values = {
     v = 202202;
     cxxmin = 23;
+  };
+};
+
+ftms = {
+  name = algorithm_default_value_type;
+  values = {
+    v = 202403;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = constexpr_new;
+  values = {
+    v = 202406;
+    cxxmin = 26;
+    extra_cond = "__cpp_constexpr >= 202406L";
   };
 };
 
@@ -1737,6 +1850,32 @@ ftms = {
 };
 
 ftms = {
+  name = is_virtual_base_of;
+  values = {
+    v = 202406;
+    cxxmin = 26;
+    extra_cond = "__has_builtin(__builtin_is_virtual_base_of)";
+  };
+};
+
+ftms = {
+  name = ranges_cache_latest;
+  values = {
+    v = 202411;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = ranges_concat;
+  values = {
+    v = 202403;
+    cxxmin = 26;
+    extra_cond = "__cpp_pack_indexing";
+  };
+};
+
+ftms = {
   name = ratio;
   values = {
     v = 202306;
@@ -1745,7 +1884,23 @@ ftms = {
 };
 
 ftms = {
+  name = reference_wrapper;
+  values = {
+    v = 202403;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = saturation_arithmetic;
+  values = {
+    v = 202311;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = span_initializer_list;
   values = {
     v = 202311;
     cxxmin = 26;
@@ -1763,6 +1918,14 @@ ftms = {
 };
 
 ftms = {
+  name = ranges_to_input;
+  values = {
+    v = 202502;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = to_string;
   values = {
     v = 202306;
@@ -1773,19 +1936,11 @@ ftms = {
 };
 
 ftms = {
-  name = generator;
+  name = modules;
   values = {
     v = 202207;
-    cxxmin = 23;
-    extra_cond = "__glibcxx_coroutine";
-  };
-};
-
-ftms = {
-  name = tuple_like;
-  values = {
-    v = 202207;
-    cxxmin = 23;
+    cxxmin = 20;
+    extra_cond = "__cpp_modules";
   };
 };
 

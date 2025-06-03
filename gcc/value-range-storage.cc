@@ -1,5 +1,5 @@
 /* Support routines for vrange storage.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>.
 
 This file is part of GCC.
@@ -118,6 +118,8 @@ vrange_allocator::clone_varying (tree type)
 {
   if (irange::supports_p (type))
     return irange_storage::alloc (*m_alloc, int_range <1> (type));
+  if (prange::supports_p (type))
+    return prange_storage::alloc (*m_alloc, prange (type));
   if (frange::supports_p (type))
     return frange_storage::alloc (*m_alloc, frange (type));
   return NULL;
@@ -128,6 +130,8 @@ vrange_allocator::clone_undefined (tree type)
 {
   if (irange::supports_p (type))
     return irange_storage::alloc (*m_alloc, int_range<1> ());
+  if (prange::supports_p (type))
+    return prange_storage::alloc (*m_alloc, prange ());
   if (frange::supports_p (type))
     return frange_storage::alloc  (*m_alloc, frange ());
   return NULL;
@@ -141,6 +145,8 @@ vrange_storage::alloc (vrange_internal_alloc &allocator, const vrange &r)
 {
   if (is_a <irange> (r))
     return irange_storage::alloc (allocator, as_a <irange> (r));
+  if (is_a <prange> (r))
+    return prange_storage::alloc (allocator, as_a <prange> (r));
   if (is_a <frange> (r))
     return frange_storage::alloc (allocator, as_a <frange> (r));
   return NULL;
@@ -157,6 +163,12 @@ vrange_storage::set_vrange (const vrange &r)
       gcc_checking_assert (s->fits_p (as_a <irange> (r)));
       s->set_irange (as_a <irange> (r));
     }
+  else if (is_a <prange> (r))
+    {
+      prange_storage *s = static_cast <prange_storage *> (this);
+      gcc_checking_assert (s->fits_p (as_a <prange> (r)));
+      s->set_prange (as_a <prange> (r));
+    }
   else if (is_a <frange> (r))
     {
       frange_storage *s = static_cast <frange_storage *> (this);
@@ -165,6 +177,19 @@ vrange_storage::set_vrange (const vrange &r)
     }
   else
     gcc_unreachable ();
+
+  // Verify that reading back from the cache didn't drop bits.
+  if (flag_checking
+      // FIXME: Avoid checking frange, as it currently pessimizes some ranges:
+      //
+      // gfortran.dg/pr49472.f90 pessimizes [0.0, 1.0] into [-0.0, 1.0].
+      && !is_a <frange> (r)
+      && !r.undefined_p ())
+    {
+      value_range tmp (r);
+      get_vrange (tmp, r.type ());
+      gcc_checking_assert (tmp == r);
+    }
 }
 
 // Restore R from storage.
@@ -176,6 +201,11 @@ vrange_storage::get_vrange (vrange &r, tree type) const
     {
       const irange_storage *s = static_cast <const irange_storage *> (this);
       s->get_irange (as_a <irange> (r), type);
+    }
+  else if (is_a <prange> (r))
+    {
+      const prange_storage *s = static_cast <const prange_storage *> (this);
+      s->get_prange (as_a <prange> (r), type);
     }
   else if (is_a <frange> (r))
     {
@@ -195,6 +225,11 @@ vrange_storage::fits_p (const vrange &r) const
     {
       const irange_storage *s = static_cast <const irange_storage *> (this);
       return s->fits_p (as_a <irange> (r));
+    }
+  if (is_a <prange> (r))
+    {
+      const prange_storage *s = static_cast <const prange_storage *> (this);
+      return s->fits_p (as_a <prange> (r));
     }
   if (is_a <frange> (r))
     {
@@ -216,6 +251,11 @@ vrange_storage::equal_p (const vrange &r) const
     {
       const irange_storage *s = static_cast <const irange_storage *> (this);
       return s->equal_p (as_a <irange> (r));
+    }
+  if (is_a <prange> (r))
+    {
+      const prange_storage *s = static_cast <const prange_storage *> (this);
+      return s->equal_p (as_a <prange> (r));
     }
   if (is_a <frange> (r))
     {
@@ -306,13 +346,6 @@ irange_storage::set_irange (const irange &r)
   irange_bitmask bm = r.m_bitmask;
   write_wide_int (val, len, bm.value ());
   write_wide_int (val, len, bm.mask ());
-
-  if (flag_checking)
-    {
-      int_range_max tmp;
-      get_irange (tmp, r.type ());
-      gcc_checking_assert (tmp == r);
-    }
 }
 
 static inline void
@@ -553,6 +586,104 @@ frange_storage::fits_p (const frange &) const
   return true;
 }
 
+//============================================================================
+// prange_storage implementation
+//============================================================================
+
+prange_storage *
+prange_storage::alloc (vrange_internal_alloc &allocator, const prange &r)
+{
+  size_t size = sizeof (prange_storage);
+  if (!r.undefined_p ())
+    {
+      unsigned prec = TYPE_PRECISION (r.type ());
+      size += trailing_wide_ints<NINTS>::extra_size (prec);
+    }
+  prange_storage *p = static_cast <prange_storage *> (allocator.alloc (size));
+  new (p) prange_storage (r);
+  return p;
+}
+
+// Initialize the storage with R.
+
+prange_storage::prange_storage (const prange &r)
+{
+  // It is the caller's responsibility to allocate enough space such
+  // that the precision fits.
+  if (r.undefined_p ())
+    // Undefined ranges do not require any extra space for trailing
+    // wide ints.
+    m_trailing_ints.set_precision (0);
+  else
+    m_trailing_ints.set_precision (TYPE_PRECISION (r.type ()));
+
+  set_prange (r);
+}
+
+void
+prange_storage::set_prange (const prange &r)
+{
+  if (r.undefined_p ())
+    m_kind = VR_UNDEFINED;
+  else if (r.varying_p ())
+    m_kind = VR_VARYING;
+  else
+    {
+      m_kind = VR_RANGE;
+      set_low (r.lower_bound ());
+      set_high (r.upper_bound ());
+      irange_bitmask bm = r.m_bitmask;
+      set_value (bm.value ());
+      set_mask (bm.mask ());
+    }
+}
+
+void
+prange_storage::get_prange (prange &r, tree type) const
+{
+  gcc_checking_assert (r.supports_type_p (type));
+
+  if (m_kind == VR_UNDEFINED)
+    r.set_undefined ();
+  else if (m_kind == VR_VARYING)
+    r.set_varying (type);
+  else
+    {
+      gcc_checking_assert (m_kind == VR_RANGE);
+      gcc_checking_assert (TYPE_PRECISION (type) == m_trailing_ints.get_precision ());
+      r.m_kind = VR_RANGE;
+      r.m_type = type;
+      r.m_min = get_low ();
+      r.m_max = get_high ();
+      r.m_bitmask = irange_bitmask (get_value (), get_mask ());
+      if (flag_checking)
+	r.verify_range ();
+    }
+}
+
+bool
+prange_storage::equal_p (const prange &r) const
+{
+  if (r.undefined_p ())
+    return m_kind == VR_UNDEFINED;
+
+  prange tmp;
+  get_prange (tmp, r.type ());
+  return tmp == r;
+}
+
+bool
+prange_storage::fits_p (const prange &r) const
+{
+  // Undefined ranges always fit, because they don't store anything in
+  // the trailing wide ints.
+  if (r.undefined_p ())
+    return true;
+
+  return TYPE_PRECISION (r.type ()) <= m_trailing_ints.get_precision ();
+}
+
+
 static vrange_allocator ggc_vrange_allocator (true);
 
 vrange_storage *ggc_alloc_vrange_storage (tree type)

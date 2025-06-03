@@ -1,5 +1,5 @@
 /* Hierarchical log messages for the analyzer.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -50,12 +50,12 @@ logger::logger (FILE *f_out,
   m_log_refcount_changes (false),
   m_pp (reference_pp.clone ())
 {
-  pp_show_color (m_pp) = 0;
-  pp_buffer (m_pp)->stream = f_out;
+  pp_show_color (m_pp.get ()) = 0;
+  pp_buffer (m_pp.get ())->m_stream = f_out;
 
   /* %qE in logs for SSA_NAMEs should show the ssa names, rather than
      trying to prettify things by showing the underlying var.  */
-  pp_format_decoder (m_pp) = default_tree_printer;
+  pp_format_decoder (m_pp.get ()) = default_tree_printer;
 
   /* Begin the log by writing the GCC version.  */
   print_version (f_out, "", false);
@@ -70,7 +70,6 @@ logger::~logger ()
   /* This should be the last message emitted.  */
   log ("%s", __PRETTY_FUNCTION__);
   gcc_assert (m_refcount == 0);
-  delete m_pp;
 }
 
 /* Increment the reference count of the logger.  */
@@ -145,15 +144,15 @@ void
 logger::log_va_partial (const char *fmt, va_list *ap)
 {
   text_info text (fmt, ap, 0);
-  pp_format (m_pp, &text);
-  pp_output_formatted_text (m_pp);
+  pp_format (m_pp.get (), &text);
+  pp_output_formatted_text (m_pp.get ());
 }
 
 void
 logger::end_log_line ()
 {
-  pp_flush (m_pp);
-  pp_clear_output_area (m_pp);
+  pp_flush (m_pp.get ());
+  pp_clear_output_area (m_pp.get ());
   fprintf (m_f_out, "\n");
   fflush (m_f_out);
 }

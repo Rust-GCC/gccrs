@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <ranges>
 #include <testsuite_hooks.h>
 #include <testsuite_iterators.h>
 
@@ -76,10 +77,22 @@ test03()
   while (std::next_permutation(std::begin(cx), std::end(cx)));
 }
 
+constexpr
+bool
+test04() // PR118160, do not create dangling references
+{
+  int x[] = { 4, 3, 2, 1 };
+  auto y = std::views::iota(1, 5);
+  return ranges::is_permutation(x, y) && ranges::is_permutation(y, x);
+}
+
+static_assert(test04());
+
 int
 main()
 {
   test01();
   test02();
   test03();
+  VERIFY( test04() );
 }

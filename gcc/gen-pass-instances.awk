@@ -1,4 +1,4 @@
-#  Copyright (C) 2013-2024 Free Software Foundation, Inc.
+#  Copyright (C) 2013-2025 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
@@ -16,7 +16,7 @@
 
 # This Awk script takes passes.def and writes pass-instances.def,
 # counting the instances of each kind of pass, adding an instance number
-# to everywhere that NEXT_PASS is used.
+# to everywhere that NEXT_PASS or PUSH_INSERT_PASSES_WITHIN are used.
 # Also handle INSERT_PASS_AFTER, INSERT_PASS_BEFORE and REPLACE_PASS
 # directives.
 #
@@ -100,7 +100,7 @@ function adjust_linenos(above, increment,	p, i)
   lineno += increment;
 }
 
-function insert_remove_pass(line, fnname,	arg3)
+function insert_remove_pass(line, fnname,	arg3, i)
 {
   parse_line($0, fnname);
   pass_name = args[1];
@@ -110,8 +110,13 @@ function insert_remove_pass(line, fnname,	arg3)
   arg3 = args[3];
   sub(/^[ \t]*/, "", arg3);
   new_line = prefix "NEXT_PASS (" arg3;
-  if (args[4])
-    new_line = new_line "," args[4];
+  # Add the optional params back.
+  i = 4;
+  while (args[i])
+    {
+      new_line = new_line "," args[i];
+      i++;
+    }
   new_line = new_line ")" postfix;
   if (!pass_lines[pass_name, pass_num])
     {
@@ -202,7 +207,9 @@ END {
 	{
 	  # Set pass_name argument, an optional with_arg argument
 	  pass_name = args[1];
-	  with_arg = args[2];
+	  num_args = 0;
+	  while (args[num_args + 2])
+	    num_args++;
 
 	  # Set pass_final_counts
 	  if (pass_name in pass_final_counts)
@@ -214,18 +221,52 @@ END {
 
 	  # Print call expression with extra pass_num argument
 	  printf "%s", prefix;
-	  if (with_arg)
-	    printf "NEXT_PASS_WITH_ARG";
+	  if (num_args > 0)
+	    {
+	      printf "NEXT_PASS_WITH_ARG";
+	      if (num_args != 1)
+	        printf "S";
+	    }
 	  else
 	    printf "NEXT_PASS";
 	  printf " (%s, %s", pass_name, pass_num;
-	  if (with_arg)
-	    printf ",%s", with_arg;
+	  for (j = 0; j < num_args; j++)
+	    printf ",%s", args[j+2];
 	  printf ")%s\n", postfix;
+
+	  continue;
 	}
-      else
-	print lines[i];
+
+      ret = parse_line(lines[i], "PUSH_INSERT_PASSES_WITHIN");
+      if (ret)
+	{
+	  pass_name = args[1];
+
+	  pass_num = pass_final_counts[pass_name];
+	  if (!pass_num)
+	    {
+	      print "ERROR: Can't locate instance of the pass mentioned in " pass_name;
+	      exit 1;
+	    }
+
+	  printf "%s", prefix;
+	  printf "PUSH_INSERT_PASSES_WITHIN";
+	  printf " (%s, %s", pass_name, pass_num;
+	  printf ")%s\n", postfix;
+
+	  continue;
+	}
+
+      print lines[i];
     }
+  # print out the #undefs
+  print "#undef INSERT_PASSES_AFTER"
+  print "#undef PUSH_INSERT_PASSES_WITHIN"
+  print "#undef POP_INSERT_PASSES"
+  print "#undef NEXT_PASS"
+  print "#undef NEXT_PASS_WITH_ARG"
+  print "#undef NEXT_PASS_WITH_ARGS"
+  print "#undef TERMINATE_PASS_LIST"
 }
 
 # Local Variables:

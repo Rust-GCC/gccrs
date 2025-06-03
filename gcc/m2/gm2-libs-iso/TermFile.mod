@@ -1,6 +1,6 @@
 (* TermFile.mod implement the ISO TermFile specification.
 
-Copyright (C) 2009-2024 Free Software Foundation, Inc.
+Copyright (C) 2009-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -503,7 +503,7 @@ BEGIN
       THEN
          fd := libc.open(ADR("/dev/tty"), O_WRONLY, 0600B)
       ELSE
-         fd := libc.open(ADR("/dev/tty"), O_RDONLY)
+         fd := libc.open(ADR("/dev/tty"), O_RDONLY, 0)
       END ;
       IF tcgetattr(fd, new)=0
       THEN

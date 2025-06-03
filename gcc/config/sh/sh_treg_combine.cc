@@ -1,6 +1,6 @@
 /* An SH specific RTL pass that tries to combine comparisons and redundant
    condition code register stores across multiple basic blocks.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -634,7 +634,7 @@ sh_treg_combine::sh_treg_combine (gcc::context* ctx, bool split_insns,
   m_split_insns (split_insns),
   m_ccreg (NULL_RTX)
 {
-  // Overwrite default name in pass_data base class. 
+  // Overwrite default name in pass_data base class.
   this->name = name;
 }
 

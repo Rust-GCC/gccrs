@@ -1,7 +1,7 @@
 /* This file contains the definitions for the tree structure
    enumeration used in GCC.
 
-Copyright (C) 2005-2024 Free Software Foundation, Inc.
+Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -39,6 +39,7 @@ DEFTREESTRUCT(TS_REAL_CST, "real cst")
 DEFTREESTRUCT(TS_FIXED_CST, "fixed cst")
 DEFTREESTRUCT(TS_VECTOR, "vector")
 DEFTREESTRUCT(TS_STRING, "string")
+DEFTREESTRUCT(TS_RAW_DATA_CST, "raw data cst")
 DEFTREESTRUCT(TS_COMPLEX, "complex")
 DEFTREESTRUCT(TS_IDENTIFIER, "identifier")
 DEFTREESTRUCT(TS_DECL_MINIMAL, "decl minimal")

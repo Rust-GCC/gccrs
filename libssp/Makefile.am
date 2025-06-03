@@ -1,6 +1,6 @@
 ## Makefile for the toplevel directory of the libssp library.
 ##
-## Copyright (C) 2005-2024 Free Software Foundation, Inc.
+## Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ##
 
 AUTOMAKE_OPTIONS = foreign
@@ -23,9 +23,7 @@ ssp.map-sun : $(srcdir)/ssp.map \
 		$(libssp_la_OBJECTS) $(libssp_la_LIBADD)
 	perl $(top_srcdir)/../contrib/make_sunver.pl \
 	  $(srcdir)/ssp.map \
-	  $(libssp_la_OBJECTS:%.lo=.libs/%.o) \
-	 `echo $(libssp_la_LIBADD) | \
-	    sed 's,/\([^/.]*\)\.la,/.libs/\1.a,g'` \
+	  $(libssp_la_OBJECTS) $(libssp_la_LIBADD) \
 	 > $@ || (rm -f $@ ; exit 1)
 endif
 else

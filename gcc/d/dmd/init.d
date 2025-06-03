@@ -1,12 +1,12 @@
 /**
  * Defines initializers of variables, e.g. the array literal in `int[3] x = [0, 1, 2]`.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/init.d, _init.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/init.d, _init.d)
  * Documentation:  https://dlang.org/phobos/dmd_init.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/init.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/init.d
  */
 
 module dmd.init;
@@ -38,6 +38,7 @@ extern (C++) class Initializer : ASTNode
 {
     Loc loc;
     InitKind kind;
+    bool semanticDone = false; /// initializerSemantic has been run on this
 
     override DYNCAST dyncast() const
     {
@@ -45,44 +46,44 @@ extern (C++) class Initializer : ASTNode
     }
 
 
-    extern (D) this(const ref Loc loc, InitKind kind) @safe
+    extern (D) this(Loc loc, InitKind kind) @safe
     {
         this.loc = loc;
         this.kind = kind;
     }
 
-    final inout(ErrorInitializer) isErrorInitializer() inout @nogc nothrow pure
+    final inout(ErrorInitializer) isErrorInitializer() inout @nogc nothrow pure @trusted
     {
         // Use void* cast to skip dynamic casting call
         return kind == InitKind.error ? cast(inout ErrorInitializer)cast(void*)this : null;
     }
 
-    final inout(VoidInitializer) isVoidInitializer() inout @nogc nothrow pure
+    final inout(VoidInitializer) isVoidInitializer() inout @nogc nothrow pure @trusted
     {
         return kind == InitKind.void_ ? cast(inout VoidInitializer)cast(void*)this : null;
     }
 
-    final inout(DefaultInitializer) isDefaultInitializer() inout @nogc nothrow pure
+    final inout(DefaultInitializer) isDefaultInitializer() inout @nogc nothrow pure @trusted
     {
         return kind == InitKind.default_ ? cast(inout DefaultInitializer)cast(void*)this : null;
     }
 
-    final inout(StructInitializer) isStructInitializer() inout @nogc nothrow pure
+    final inout(StructInitializer) isStructInitializer() inout @nogc nothrow pure @trusted
     {
         return kind == InitKind.struct_ ? cast(inout StructInitializer)cast(void*)this : null;
     }
 
-    final inout(ArrayInitializer) isArrayInitializer() inout @nogc nothrow pure
+    final inout(ArrayInitializer) isArrayInitializer() inout @nogc nothrow pure @trusted
     {
         return kind == InitKind.array ? cast(inout ArrayInitializer)cast(void*)this : null;
     }
 
-    final inout(ExpInitializer) isExpInitializer() inout @nogc nothrow pure
+    final inout(ExpInitializer) isExpInitializer() inout @nogc nothrow pure @trusted
     {
         return kind == InitKind.exp ? cast(inout ExpInitializer)cast(void*)this : null;
     }
 
-    final inout(CInitializer) isCInitializer() inout @nogc nothrow pure
+    final inout(CInitializer) isCInitializer() inout @nogc nothrow pure @trusted
     {
         return kind == InitKind.C_ ? cast(inout CInitializer)cast(void*)this : null;
     }
@@ -99,7 +100,7 @@ extern (C++) final class VoidInitializer : Initializer
 {
     Type type;      // type that this will initialize to
 
-    extern (D) this(const ref Loc loc) @safe
+    extern (D) this(Loc loc) @safe
     {
         super(loc, InitKind.void_);
     }
@@ -117,7 +118,7 @@ extern (C++) final class DefaultInitializer : Initializer
 {
     Type type;      // type that this will initialize to
 
-    extern (D) this(const ref Loc loc) @safe
+    extern (D) this(Loc loc) @safe
     {
         super(loc, InitKind.default_);
     }
@@ -150,7 +151,7 @@ extern (C++) final class StructInitializer : Initializer
     Identifiers field;      // of Identifier *'s
     Initializers value;     // parallel array of Initializer *'s
 
-    extern (D) this(const ref Loc loc)
+    extern (D) this(Loc loc)
     {
         super(loc, InitKind.struct_);
     }
@@ -176,10 +177,9 @@ extern (C++) final class ArrayInitializer : Initializer
     Initializers value;     // of Initializer *'s
     uint dim;               // length of array being initialized
     Type type;              // type that array will be used to initialize
-    bool sem;               // true if semantic() is run
     bool isCarray;          // C array semantics
 
-    extern (D) this(const ref Loc loc)
+    extern (D) this(Loc loc)
     {
         super(loc, InitKind.array);
     }
@@ -215,7 +215,7 @@ extern (C++) final class ExpInitializer : Initializer
     bool expandTuples;
     Expression exp;
 
-    extern (D) this(const ref Loc loc, Expression exp) @safe
+    extern (D) this(Loc loc, Expression exp) @safe
     {
         super(loc, InitKind.exp);
         this.exp = exp;
@@ -256,9 +256,8 @@ extern (C++) final class CInitializer : Initializer
 {
     DesigInits initializerList; /// initializer-list
     Type type;              /// type that array will be used to initialize
-    bool sem;               /// true if semantic() is run
 
-    extern (D) this(const ref Loc loc)
+    extern (D) this(Loc loc)
     {
         super(loc, InitKind.C_);
     }

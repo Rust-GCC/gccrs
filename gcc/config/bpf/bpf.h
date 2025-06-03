@@ -1,5 +1,5 @@
 /* Definition of the eBPF target for GCC.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -23,7 +23,9 @@
 /**** Controlling the Compilation Driver.  */
 
 #define ASM_SPEC "%{mbig-endian:-EB} %{!mbig-endian:-EL} %{mxbpf:-mxbpf} " \
-  "%{masm=pseudoc:-mdialect=pseudoc}"
+  "%{masm=normal:-mdialect=normal} " \
+  "%{masm=pseudoc:-mdialect=pseudoc} " \
+  "%{!masm=normal:%{!masm=pseudoc:-mdialect=pseudoc}}"
 #define LINK_SPEC "%{mbig-endian:-EB} %{!mbig-endian:-EL}"
 #define LIB_SPEC ""
 #define STARTFILE_SPEC ""
@@ -88,9 +90,6 @@
 #define LONG_TYPE_SIZE        64
 #define LONG_LONG_TYPE_SIZE   64
 #define CHAR_TYPE_SIZE         8
-#define FLOAT_TYPE_SIZE       32
-#define DOUBLE_TYPE_SIZE      64
-#define LONG_DOUBLE_TYPE_SIZE 64
 
 #define INTPTR_TYPE	"long int"
 #define UINTPTR_TYPE	"long unsigned int"
@@ -99,7 +98,7 @@
 
 #define SIG_ATOMIC_TYPE "char"
 
-#define INT8_TYPE "char"
+#define INT8_TYPE "signed char"
 #define INT16_TYPE "short int"
 #define INT32_TYPE "int"
 #define INT64_TYPE "long int"
@@ -242,6 +241,11 @@ enum reg_class
 #define REGNO_OK_FOR_INDEX_P(REGNO) false
 
 /**** Debugging Info ****/
+
+/* Use BTF debug info by default.  */
+
+#undef  PREFERRED_DEBUGGING_TYPE
+#define PREFERRED_DEBUGGING_TYPE BTF_DEBUG
 
 /* In eBPF it is not possible to unwind frames. Disable CFA.  */
 

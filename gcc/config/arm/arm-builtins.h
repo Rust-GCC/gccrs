@@ -1,5 +1,5 @@
 /* Declarations for determining resolver for a given builtin.
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -32,6 +32,7 @@ enum resolver_ident {
 };
 enum resolver_ident arm_describe_resolver (tree);
 unsigned arm_cde_end_args (tree);
+gimple *arm_general_gimple_fold_builtin (unsigned int, gcall *);
 
 #define ENTRY(E, M, Q, S, T, G) E,
 enum arm_simd_type

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Free Software Foundation, Inc.
+// Copyright (C) 2017-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,6 +26,5 @@ test01()
 }
 
 // { dg-error "non-const, non-volatile value_type" "" { target *-*-* } 0 }
-// { dg-prune-output "std::allocator<.* has no member named " }
 // { dg-prune-output "must have the same value_type as its allocator" }
 // { dg-prune-output "rebind_alloc" }

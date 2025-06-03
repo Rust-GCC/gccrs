@@ -1,5 +1,5 @@
 /* File format for coverage information
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    Contributed by Bob Manson <manson@cygnus.com>.
    Completely remangled by Nathan Sidwell <nathan@codesourcery.com>.
 
@@ -261,6 +261,12 @@ typedef uint64_t gcov_type_unsigned;
 #define GCOV_TAG_ARCS		 ((gcov_unsigned_t)0x01430000)
 #define GCOV_TAG_ARCS_LENGTH(NUM)  (1 + (NUM) * 2 * GCOV_WORD_SIZE)
 #define GCOV_TAG_ARCS_NUM(LENGTH)  (((LENGTH / GCOV_WORD_SIZE) - 1) / 2)
+#define GCOV_TAG_CONDS		   ((gcov_unsigned_t)0x01470000)
+#define GCOV_TAG_CONDS_LENGTH(NUM) ((NUM) * 2 * GCOV_WORD_SIZE)
+#define GCOV_TAG_CONDS_NUM(LENGTH) (((LENGTH) / GCOV_WORD_SIZE) / 2)
+#define GCOV_TAG_PATHS		   ((gcov_unsigned_t)0x01490000)
+#define GCOV_TAG_PATHS_LENGTH(NUM) ((NUM) * GCOV_WORD_SIZE)
+#define GCOV_TAG_PATHS_NUM(LENGTH) (((LENGTH) / GCOV_WORD_SIZE))
 #define GCOV_TAG_LINES		 ((gcov_unsigned_t)0x01450000)
 #define GCOV_TAG_COUNTER_BASE 	 ((gcov_unsigned_t)0x01a10000)
 #define GCOV_TAG_COUNTER_LENGTH(NUM) ((NUM) * 2 * GCOV_WORD_SIZE)
@@ -334,6 +340,8 @@ GCOV_COUNTERS
 #define GCOV_ARC_ON_TREE 	(1 << 0)
 #define GCOV_ARC_FAKE		(1 << 1)
 #define GCOV_ARC_FALLTHROUGH	(1 << 2)
+#define GCOV_ARC_TRUE		(1 << 3)
+#define GCOV_ARC_FALSE		(1 << 4)
 
 /* Object & program summary record.  */
 
