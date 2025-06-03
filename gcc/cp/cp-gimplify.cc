@@ -2809,6 +2809,12 @@ cxx_omp_finish_clause (tree c, gimple_seq *, bool /* openacc */)
     }
 }
 
+tree
+cxx_omp_finish_mapper_clauses (tree clauses)
+{
+  return finish_omp_clauses (clauses, C_ORT_OMP);
+}
+
 /* Return true if DECL's DECL_VALUE_EXPR (if any) should be
    disregarded in OpenMP construct, because it is going to be
    remapped during OpenMP lowering.  SHARED is true if DECL
@@ -3343,19 +3349,13 @@ cp_fold (tree x, fold_flags_t flags)
 		|| id_equal (DECL_NAME (callee), "addressof")
 		/* This addressof equivalent is used heavily in libstdc++.  */
 		|| id_equal (DECL_NAME (callee), "__addressof")
+		|| id_equal (DECL_NAME (callee), "to_underlying")
 		|| id_equal (DECL_NAME (callee), "as_const")))
 	  {
 	    r = CALL_EXPR_ARG (x, 0);
-	    /* Check that the return and argument types are sane before
-	       folding.  */
-	    if (INDIRECT_TYPE_P (TREE_TYPE (x))
-		&& INDIRECT_TYPE_P (TREE_TYPE (r)))
-	      {
-		if (!same_type_p (TREE_TYPE (x), TREE_TYPE (r)))
-		  r = build_nop (TREE_TYPE (x), r);
-		x = cp_fold (r, flags);
-		break;
-	      }
+	    r = build_nop (TREE_TYPE (x), r);
+	    x = cp_fold (r, flags);
+	    break;
 	  }
 
 	int sv = optimize, nw = sv;
@@ -3447,7 +3447,9 @@ cp_fold (tree x, fold_flags_t flags)
 	   Do constexpr expansion of expressions where the call itself is not
 	   constant, but the call followed by an INDIRECT_REF is.  */
 	if (callee && DECL_DECLARED_CONSTEXPR_P (callee)
-	    && !flag_no_inline)
+	    && (!flag_no_inline
+		|| lookup_attribute ("always_inline",
+				     DECL_ATTRIBUTES (callee))))
 	  {
 	    mce_value manifestly_const_eval = mce_unknown;
 	    if (flags & ff_mce_false)

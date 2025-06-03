@@ -136,6 +136,8 @@ public:
   irange_bitmask () { /* uninitialized */ }
   irange_bitmask (unsigned prec) { set_unknown (prec); }
   irange_bitmask (const wide_int &value, const wide_int &mask);
+  irange_bitmask (tree type, const wide_int &min, const wide_int &max);
+
   wide_int value () const { return m_value; }
   wide_int mask () const { return m_mask; }
   void set_unknown (unsigned prec);
@@ -149,7 +151,6 @@ public:
   void dump (FILE *) const;
 
   bool member_p (const wide_int &val) const;
-  void adjust_range (irange &r) const;
 
   // Convenience functions for nonzero bitmask compatibility.
   wide_int get_nonzero_bits () const;

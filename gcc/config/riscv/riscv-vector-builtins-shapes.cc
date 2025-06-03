@@ -908,6 +908,8 @@ struct vset_def : public build_base
   {
     poly_int64 outer_size = GET_MODE_SIZE (c.arg_mode (0));
     poly_int64 inner_size = GET_MODE_SIZE (c.arg_mode (2));
+    if (maybe_eq (inner_size, 0))
+      return false;
     unsigned int nvecs = exact_div (outer_size, inner_size).to_constant ();
     return c.require_immediate (1, 0, nvecs - 1);
   }
@@ -920,6 +922,8 @@ struct vget_def : public misc_def
   {
     poly_int64 outer_size = GET_MODE_SIZE (c.arg_mode (0));
     poly_int64 inner_size = GET_MODE_SIZE (c.ret_mode ());
+    if (maybe_eq (inner_size, 0))
+      return false;
     unsigned int nvecs = exact_div (outer_size, inner_size).to_constant ();
     return c.require_immediate (1, 0, nvecs - 1);
   }
@@ -1343,6 +1347,52 @@ struct sf_vfnrclip_def : public build_base
   }
 };
 
+/* sf_vcix_se_def class.  */
+struct sf_vcix_se_def : public build_base
+{
+  char *get_name (function_builder &b, const function_instance &instance,
+		  bool overloaded_p) const override
+  {
+    /* Return nullptr if it is overloaded.  */
+    if (overloaded_p)
+      return nullptr;
+
+    b.append_base_name (instance.base_name);
+
+    /* vop --> vop<op>_se_<type>.  */
+    if (!overloaded_p)
+      {
+	b.append_name (operand_suffixes[instance.op_info->op]);
+	b.append_name ("_se");
+	b.append_name (type_suffixes[instance.type.index].vector);
+      }
+    return b.finish_name ();
+  }
+};
+
+/* sf_vcix_def class.  */
+struct sf_vcix_def : public build_base
+{
+  char *get_name (function_builder &b, const function_instance &instance,
+		  bool overloaded_p) const override
+  {
+    /* Return nullptr if it is overloaded.  */
+    if (overloaded_p)
+      return nullptr;
+
+    b.append_base_name (instance.base_name);
+
+    /* vop --> vop_<type>.  */
+    if (!overloaded_p)
+      {
+	b.append_name (operand_suffixes[instance.op_info->op]);
+	b.append_name (type_suffixes[instance.type.index].vector);
+      }
+    return b.finish_name ();
+  }
+};
+
+
 SHAPE(vsetvl, vsetvl)
 SHAPE(vsetvl, vsetvlmax)
 SHAPE(loadstore, loadstore)
@@ -1379,4 +1429,6 @@ SHAPE(crypto_vi, crypto_vi)
 SHAPE(crypto_vv_no_op_type, crypto_vv_no_op_type)
 SHAPE (sf_vqmacc, sf_vqmacc)
 SHAPE (sf_vfnrclip, sf_vfnrclip)
+SHAPE(sf_vcix_se, sf_vcix_se)
+SHAPE(sf_vcix, sf_vcix)
 } // end namespace riscv_vector

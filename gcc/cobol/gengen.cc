@@ -393,13 +393,13 @@ show_type(tree type)
 
     case REAL_TYPE:
       sprintf(ach,
-              "%3ld-bit REAL",
+              "%3" PRId64 "-bit REAL",
               TREE_INT_CST_LOW(TYPE_SIZE(type)));
       break;
 
     case INTEGER_TYPE:
       sprintf(ach,
-              "%3ld-bit %s INT",
+              "%3" PRId64 "-bit %s INT",
               TREE_INT_CST_LOW(TYPE_SIZE(type)),
               (TYPE_UNSIGNED(type) ? "unsigned" : "  signed"));
       break;
@@ -892,7 +892,8 @@ gg_unique_in_function(const char *var_name, gg_variable_scope_t vs_scope)
   char *retval = (char *)xmalloc(strlen(var_name)+32);
   if( (vs_scope == vs_stack || vs_scope == vs_static) )
     {
-    sprintf(retval, "%s.%ld", var_name, current_function->program_id_number);
+    sprintf(retval, "%s." HOST_SIZE_T_PRINT_DEC, var_name,
+            (fmt_size_t)current_function->program_id_number);
     }
   else
     {
@@ -2151,18 +2152,6 @@ gg_printf(const char *format_string, ...)
   int nargs = 0;
   tree args[ARG_LIMIT];
 
-  // Because this routine is intended for debugging, we are sending the
-  // text to STDERR
-
-  // Because we don't actually use stderr ourselves, we just pick it up as a
-  // VOID_P and pass it along to fprintf()
-  tree t_stderr = gg_declare_variable(VOID_P, "stderr",
-                                      NULL_TREE,
-                                      vs_external_reference);
-
-  gg_push_context();
-
-  args[nargs++] = t_stderr;
   args[nargs++] = build_string_literal(strlen(format_string)+1, format_string);
 
   va_list ap;
@@ -2196,7 +2185,7 @@ gg_printf(const char *format_string, ...)
   static tree function = NULL_TREE;
   if( !function )
     {
-    function = gg_get_function_address(INT, "fprintf");
+    function = gg_get_function_address(INT, "__gg__fprintf_stderr");
     }
 
   tree stmt = build_call_array_loc (location_from_lineno(),
@@ -2205,8 +2194,6 @@ gg_printf(const char *format_string, ...)
                                     nargs,
                                     args);
   gg_append_statement(stmt);
-
-  gg_pop_context();
   }
 
 tree

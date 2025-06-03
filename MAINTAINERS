@@ -57,7 +57,6 @@ docs, and the testsuite related to that.
 aarch64 ldp/stp         Alex Coplan             <alex.coplan@arm.com>
 aarch64 port            Richard Earnshaw        <richard.earnshaw@arm.com>
 aarch64 port            Richard Sandiford       <richard.sandiford@arm.com>
-aarch64 port            Marcus Shawcroft        <marcus.shawcroft@arm.com>
 aarch64 port            Kyrylo Tkachov          <ktkachov@nvidia.com>
 alpha port              Richard Henderson       <rth@gcc.gnu.org>
 amdgcn port             Julian Brown            <julian@codesourcery.com>
@@ -330,6 +329,7 @@ from other maintainers or reviewers.
 Name                            BZ account      Email
 
 Soumya AR                       soumyaa         <soumyaa@nvidia.com>
+Spencer Abson                   sabson          <spencer.abson@arm.com>
 Mark G. Adams                   mgadams         <mark.g.adams@sympatico.ca>
 Ajit Kumar Agarwal              aagarwa         <aagarwa1@linux.ibm.com>
 Pedro Alves                     palves          <palves@redhat.com>
@@ -402,6 +402,7 @@ Stephane Carrez                 ciceron         <stcarrez@nerim.fr>
 Gabriel Charette                gchare          <gchare@google.com>
 Arnaud Charlet                  charlet         <charlet@adacore.com>
 Chandra Chavva                  -               <cchavva@redhat.com>
+Dhruv Chawla                    dhruvc          <dhruvc@nvidia.com>
 Dehao Chen                      dehao           <dehao@google.com>
 Fabien Chêne                    fabien          <fabien@gcc.gnu.org>
 Bin Cheng                       amker           <bin.cheng@linux.alibaba.com>
@@ -717,6 +718,7 @@ Maxim Ostapenko                 chefmax         <m.ostapenko@samsung.com>
 Jeevitha Palanisamy             jeevitha        <jeevitha@linux.ibm.com>
 Patrick Palka                   ppalka          <ppalka@gcc.gnu.org>
 Seongbae Park                   spark           <seongbae.park@gmail.com>
+Kishan Parmar                   kishan          <kishan@linux.ibm.com>
 Srinath Parvathaneni            sripar01        <srinath.parvathaneni@arm.com>
 Devang Patel                    dpatel          <dpatel@apple.com>
 Andris Pavenis                  andris          <andris.pavenis@iki.fi>
@@ -792,7 +794,6 @@ Senthil Kumar Selvaraj          saaadhu         <saaadhu@gcc.gnu.org>
 Kostya Serebryany               kcc             <kcc@google.com>
 Thiemo Seufer                   -               <ths@networkno.de>
 Bill Seurer                     seurer          <seurer@linux.vnet.ibm.com>
-Marcus Shawcroft                mshawcroft      <marcus.shawcroft@arm.com>
 Nathaniel Shead                 nshead          <nathanieloshead@gmail.com>
 Tim Shen                        timshen         <timshen@google.com>
 Joel Sherrill                   joel            <joel@oarcorp.com>
@@ -897,7 +898,7 @@ Canqun Yang                     canqun          <canqun@nudt.edu.cn>
 Fei Yang                        fyang           <felix.yang@huawei.com>
 Jeffrey Yasskin                 jyasskin        <jyasskin@google.com>
 Joey Ye                         jye2            <joey.ye@arm.com>
-Kwok Cheung Yeung               -               <kcyeung@baylibre.com>
+Kwok Cheung Yeung               kcy             <kcyeung@baylibre.com>
 Jonathan Yong                   jyong           <10walls@gmail.com>
 Greta Yorsh                     gretay          <greta.yorsh@arm.com>
 Kirill Yukhin                   kyukhin         <kirill.yukhin@gmail.com>
@@ -933,6 +934,7 @@ information.
 
 
 Soumya AR                                       <soumyaa@nvidia.com>
+Dhruv Chawla                                    <dhruvc@nvidia.com>
 Juergen Christ                                  <jchrist@linux.ibm.com>
 Giuseppe D'Angelo                               <giuseppe.dangelo@kdab.com>
 Robin Dapp                                      <rdapp.gcc@gmail.com>

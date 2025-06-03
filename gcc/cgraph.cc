@@ -1879,7 +1879,7 @@ cgraph_node::remove (void)
   clone_info *info, saved_info;
   if (symtab->ipa_clones_dump_file && symtab->cloned_nodes.contains (this))
     fprintf (symtab->ipa_clones_dump_file,
-	     "Callgraph removal;%s;%d;%s;%d;%d\n", asm_name (), order,
+	     "Callgraph removal;%s;%d;%s;%d;%d\n", asm_name (), get_uid (),
 	     DECL_SOURCE_FILE (decl), DECL_SOURCE_LINE (decl),
 	     DECL_SOURCE_COLUMN (decl));
 
@@ -2984,13 +2984,22 @@ cgraph_edge::cannot_lead_to_return_p (void)
     return callee->cannot_return_p ();
 }
 
-/* Return true if the edge may be considered hot.  */
+/* Return true if the edge after scaling it profile by SCALE
+   may be considered hot.  */
 
 bool
-cgraph_edge::maybe_hot_p (void)
+cgraph_edge::maybe_hot_p (sreal scale)
 {
-  if (!maybe_hot_count_p (NULL, count.ipa ()))
+  /* Never consider calls in functions optimized for size hot.  */
+  if (opt_for_fn (caller->decl, optimize_size))
     return false;
+
+  /* If reliable IPA count is available, just use it.  */
+  profile_count c = count.ipa ();
+  if (c.reliable_p ())
+    return maybe_hot_count_p (NULL, c * scale);
+
+  /* See if we can determine hotness using caller frequency.  */
   if (caller->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED
       || (callee
 	  && callee->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED))
@@ -2999,23 +3008,47 @@ cgraph_edge::maybe_hot_p (void)
       && (callee
 	  && callee->frequency <= NODE_FREQUENCY_EXECUTED_ONCE))
     return false;
-  if (opt_for_fn (caller->decl, optimize_size))
-    return false;
+  /* ??? This may make sense for hot functions determined by
+     user attribute, but if function is hot by profile, it may
+     contains non-hot calls.  In most practical cases this case
+     is handled by the reliable ipa count above, but i.e. after
+     inlining function with no profile to function with profile
+     we get here.. */
   if (caller->frequency == NODE_FREQUENCY_HOT)
     return true;
+
+  /* Use IPA count and if it s not available appy local heuristics.  */
+  if (c.initialized_p ())
+    {
+      /* A special case; AFDO zero means that function may quite possibly
+	 be executed few times per execution.  If scale is large, we still
+	 want to consider the call hot.  */
+      if (c.quality () == AFDO)
+	c = c.force_nonzero ();
+      return maybe_hot_count_p (NULL, c * scale);
+    }
   if (!count.initialized_p ())
     return true;
   cgraph_node *where = caller->inlined_to ? caller->inlined_to : caller;
   if (!where->count.initialized_p ())
-    return false;
+    return true;
+  c = count * scale;
   if (caller->frequency == NODE_FREQUENCY_EXECUTED_ONCE)
     {
-      if (count * 2 < where->count * 3)
+      if (c * 2 < where->count * 3)
 	return false;
     }
-  else if (count * param_hot_bb_frequency_fraction < where->count)
+  else if (c * param_hot_bb_frequency_fraction < where->count)
     return false;
   return true;
+}
+
+/* Return true if the edge may be considered hot.  */
+
+bool
+cgraph_edge::maybe_hot_p ()
+{
+  return maybe_hot_p (1);
 }
 
 /* Worker for cgraph_can_remove_if_no_direct_calls_p.  */

@@ -1848,6 +1848,12 @@ scan_expr_access (tree expr, gimple *stmt, isra_scan_context ctx,
   if (!desc || !desc->split_candidate)
     return;
 
+  if (storage_order_barrier_p (expr))
+    {
+      disqualify_split_candidate (desc, "Encountered a storage order barrier.");
+      return;
+    }
+
   if (!poffset.is_constant (&offset)
       || !psize.is_constant (&size)
       || !pmax_size.is_constant (&max_size))
@@ -4644,7 +4650,7 @@ ipa_sra_summarize_function (cgraph_node *node)
 {
   if (dump_file)
     fprintf (dump_file, "Creating summary for %s/%i:\n", node->name (),
-	     node->order);
+	     node->get_uid ());
   gcc_obstack_init (&gensum_obstack);
   loaded_decls = new hash_set<tree>;
 

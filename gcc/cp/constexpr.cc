@@ -1110,17 +1110,14 @@ explain_invalid_constexpr_fn (tree fun)
 	    body = fd->body;
 	  else
 	    body = DECL_SAVED_TREE (fun);
-	  body = massage_constexpr_body (fun, body);
-	  require_potential_rvalue_constant_expression (body);
+	  tree massaged = massage_constexpr_body (fun, body);
+	  require_potential_rvalue_constant_expression (massaged);
 	  if (DECL_CONSTRUCTOR_P (fun))
 	    {
-	      cx_check_missing_mem_inits (DECL_CONTEXT (fun), body, true);
+	      cx_check_missing_mem_inits (DECL_CONTEXT (fun), massaged, true);
 	      if (cxx_dialect > cxx11)
-		{
-		  /* Also check the body, not just the ctor-initializer.  */
-		  body = DECL_SAVED_TREE (fun);
-		  require_potential_rvalue_constant_expression (body);
-		}
+		/* Also check the body, not just the ctor-initializer.  */
+		require_potential_rvalue_constant_expression (body);
 	    }
 	}
     }
@@ -1550,7 +1547,6 @@ static tree cxx_eval_bare_aggregate (const constexpr_ctx *, tree,
 static tree cxx_fold_indirect_ref (const constexpr_ctx *, location_t, tree, tree,
 				   bool * = NULL);
 static tree find_heap_var_refs (tree *, int *, void *);
-static tree find_deleted_heap_var (tree *, int *, void *);
 
 /* Attempt to evaluate T which represents a call to a builtin function.
    We assume here that all builtin functions evaluate to scalar types
@@ -2975,14 +2971,6 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 				     : heap_uninit_identifier,
 				     type);
 	      DECL_ARTIFICIAL (var) = 1;
-	      TREE_STATIC (var) = 1;
-	      // Temporarily register the artificial var in varpool,
-	      // so that comparisons of its address against NULL are folded
-	      // through nonzero_address even with
-	      // -fno-delete-null-pointer-checks or that comparison of
-	      // addresses of different heap artificial vars is folded too.
-	      // See PR98988 and PR99031.
-	      varpool_node::finalize_decl (var);
 	      ctx->global->heap_vars.safe_push (var);
 	      ctx->global->put_value (var, NULL_TREE);
 	      return fold_convert (ptr_type_node, build_address (var));
@@ -3454,11 +3442,6 @@ cxx_eval_call_expression (const constexpr_ctx *ctx, tree t,
 		      cacheable = false;
 		      break;
 		    }
-	      /* And don't cache a ref to a deleted heap variable (119162).  */
-	      if (cacheable
-		  && (cp_walk_tree_without_duplicates
-		      (&result, find_deleted_heap_var, NULL)))
-		cacheable = false;
 	    }
 
 	    /* Rewrite all occurrences of the function's RESULT_DECL with the
@@ -3544,6 +3527,9 @@ reduced_constant_expression_p (tree t)
     {
     case PTRMEM_CST:
       /* Even if we can't lower this yet, it's constant.  */
+      return true;
+
+    case OMP_DECLARE_MAPPER:
       return true;
 
     case CONSTRUCTOR:
@@ -7855,6 +7841,7 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
     case LABEL_EXPR:
     case CASE_LABEL_EXPR:
     case PREDICT_EXPR:
+    case OMP_DECLARE_MAPPER:
       return t;
 
     case PARM_DECL:
@@ -9025,20 +9012,6 @@ find_heap_var_refs (tree *tp, int *walk_subtrees, void */*data*/)
   return NULL_TREE;
 }
 
-/* Look for deleted heap variables in the expression *TP.  */
-
-static tree
-find_deleted_heap_var (tree *tp, int *walk_subtrees, void */*data*/)
-{
-  if (VAR_P (*tp)
-      && DECL_NAME (*tp) == heap_deleted_identifier)
-    return *tp;
-
-  if (TYPE_P (*tp))
-    *walk_subtrees = 0;
-  return NULL_TREE;
-}
-
 /* Find immediate function decls in *TP if any.  */
 
 static tree
@@ -9275,7 +9248,6 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant,
 	      r = t;
 	      non_constant_p = true;
 	    }
-	  varpool_node::get (heap_var)->remove ();
 	}
     }
 
@@ -10564,6 +10536,11 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict, bool now,
 			  "expression", t);
       return false;
 
+    case OMP_DECLARE_MAPPER:
+      /* This can be used to initialize VAR_DECLs: it's treated as a magic
+	 constant.  */
+      return true;
+
     case ASM_EXPR:
       if (flags & tf_error)
 	inline_asm_in_constexpr_error (loc, fundef_p);
@@ -11011,6 +10988,9 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict, bool now,
 	    *jump_target = *target;
 	    return true;
 	  }
+	if (DECL_ARTIFICIAL (*target))
+	  /* The user didn't write this goto, this isn't the problem.  */
+	  return true;
 	if (flags & tf_error)
 	  constexpr_error (loc, fundef_p, "%<goto%> is not a constant "
 			   "expression");

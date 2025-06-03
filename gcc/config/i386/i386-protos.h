@@ -186,6 +186,7 @@ extern void ix86_expand_v2di_ashiftrt (rtx[]);
 extern rtx ix86_replace_reg_with_reg (rtx, rtx, rtx);
 extern rtx ix86_find_base_term (rtx);
 extern bool ix86_check_movabs (rtx, int);
+extern bool ix86_check_movs (rtx, int);
 extern bool ix86_check_no_addr_space (rtx);
 extern void ix86_split_idivmod (machine_mode, rtx[], bool);
 extern bool ix86_hardreg_mov_ok (rtx, rtx);
@@ -198,6 +199,7 @@ extern int ix86_attr_length_vex_default (rtx_insn *, bool, bool);
 extern rtx ix86_libcall_value (machine_mode);
 extern bool ix86_function_arg_regno_p (int);
 extern void ix86_asm_output_function_label (FILE *, const char *, tree);
+extern void ix86_asm_output_labelref (FILE *, const char *, const char *);
 extern void ix86_call_abi_override (const_tree);
 extern int ix86_reg_parm_stack_space (const_tree);
 
@@ -426,6 +428,8 @@ extern rtl_opt_pass *make_pass_stv (gcc::context *);
 extern rtl_opt_pass *make_pass_insert_endbr_and_patchable_area
   (gcc::context *);
 extern rtl_opt_pass *make_pass_remove_partial_avx_dependency
+  (gcc::context *);
+extern rtl_opt_pass *make_pass_remove_redundant_vector_load
   (gcc::context *);
 extern rtl_opt_pass *make_pass_apx_nf_convert (gcc::context *);
 extern rtl_opt_pass *make_pass_align_tight_loops (gcc::context *);

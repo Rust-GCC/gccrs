@@ -36,10 +36,10 @@ along with GCC; see the file COPYING3.  If not see
 
 struct pragma_intrinsic_flags
 {
-  int intrinsic_target_flags;
+  int intrinsic_riscv_isa_flags;
 
   int intrinsic_riscv_vector_elen_flags;
-  int intrinsic_riscv_zvl_flags;
+  int intrinsic_riscv_zvl_subext;
   int intrinsic_riscv_zvb_subext;
   int intrinsic_riscv_zvk_subext;
 };
@@ -47,16 +47,16 @@ struct pragma_intrinsic_flags
 static void
 riscv_pragma_intrinsic_flags_pollute (struct pragma_intrinsic_flags *flags)
 {
-  flags->intrinsic_target_flags = target_flags;
+  flags->intrinsic_riscv_isa_flags = riscv_isa_flags;
   flags->intrinsic_riscv_vector_elen_flags = riscv_vector_elen_flags;
-  flags->intrinsic_riscv_zvl_flags = riscv_zvl_flags;
+  flags->intrinsic_riscv_zvl_subext = riscv_zvl_subext;
   flags->intrinsic_riscv_zvb_subext = riscv_zvb_subext;
   flags->intrinsic_riscv_zvk_subext = riscv_zvk_subext;
 
-  target_flags = target_flags
+  riscv_isa_flags = riscv_isa_flags
     | MASK_VECTOR;
 
-  riscv_zvl_flags = riscv_zvl_flags
+  riscv_zvl_subext = riscv_zvl_subext
     | MASK_ZVL32B
     | MASK_ZVL64B
     | MASK_ZVL128B
@@ -97,10 +97,10 @@ riscv_pragma_intrinsic_flags_pollute (struct pragma_intrinsic_flags *flags)
 static void
 riscv_pragma_intrinsic_flags_restore (struct pragma_intrinsic_flags *flags)
 {
-  target_flags = flags->intrinsic_target_flags;
+  riscv_isa_flags = flags->intrinsic_riscv_isa_flags;
 
   riscv_vector_elen_flags = flags->intrinsic_riscv_vector_elen_flags;
-  riscv_zvl_flags = flags->intrinsic_riscv_zvl_flags;
+  riscv_zvl_subext = flags->intrinsic_riscv_zvl_subext;
   riscv_zvb_subext = flags->intrinsic_riscv_zvb_subext;
   riscv_zvk_subext = flags->intrinsic_riscv_zvk_subext;
 }
@@ -239,26 +239,22 @@ riscv_cpu_cpp_builtins (cpp_reader *pfile)
   size_t max_ext_len = 0;
 
   /* Figure out the max length of extension name for reserving buffer.   */
-  for (const riscv_subset_t *subset = subset_list->begin ();
-       subset != subset_list->end ();
-       subset = subset->next)
-    max_ext_len = MAX (max_ext_len, subset->name.length ());
+  for (auto &subset : *subset_list)
+    max_ext_len = MAX (max_ext_len, subset.name.length ());
 
   char *buf = (char *)alloca (max_ext_len + 10 /* For __riscv_ and '\0'.  */);
 
-  for (const riscv_subset_t *subset = subset_list->begin ();
-       subset != subset_list->end ();
-       subset = subset->next)
+  for (auto &subset : *subset_list)
     {
-      int version_value = riscv_ext_version_value (subset->major_version,
-						   subset->minor_version);
+      int version_value = riscv_ext_version_value (subset.major_version,
+						   subset.minor_version);
       /* Special rule for zicsr and zifencei, it's used for ISA spec 2.2 or
 	 earlier.  */
-      if ((subset->name == "zicsr" || subset->name == "zifencei")
+      if ((subset.name == "zicsr" || subset.name == "zifencei")
 	  && version_value == 0)
 	version_value = riscv_ext_version_value (2, 0);
 
-      sprintf (buf, "__riscv_%s", subset->name.c_str ());
+      sprintf (buf, "__riscv_%s", subset.name.c_str ());
       builtin_define_with_int_value (buf, version_value);
     }
 }
@@ -279,7 +275,8 @@ riscv_pragma_intrinsic (cpp_reader *)
   const char *name = TREE_STRING_POINTER (x);
 
   if (strcmp (name, "vector") == 0
-      || strcmp (name, "xtheadvector") == 0)
+      || strcmp (name, "xtheadvector") == 0
+      || strcmp (name, "xsfvcp") == 0)
     {
       struct pragma_intrinsic_flags backup_flags;
 

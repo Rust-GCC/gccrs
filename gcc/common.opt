@@ -1055,7 +1055,8 @@ Driver Undocumented
 ; 20: Fix mangling of lambdas in static data member initializers.
 ;     Default in G++ 15.
 ;
-; 21:
+; 21: Fix noexcept lambda capture pruning.
+;     Fix C++20 layout of base with all explicitly defaulted constructors.
 ;     Default in G++ 16.
 ;
 ; Additional positive integers will be assigned as new versions of

@@ -1,6 +1,7 @@
 // { dg-options "-fexec-charset=UTF-8 -fwide-exec-charset=UTF-32LE -DUNICODE_ENC" { target le } }
 // { dg-options "-fexec-charset=UTF-8 -fwide-exec-charset=UTF-32BE -DUNICODE_ENC" { target be } }
 // { dg-do run { target c++23 } }
+// { dg-require-effective-target 4byte_wchar_t }
 // { dg-add-options no_pch }
 // { dg-timeout-factor 2 }
 
@@ -596,6 +597,10 @@ void test_padding()
   VERIFY( strip_prefix(resv, 48, '*') );
   VERIFY( resv == inv );
 
+  resv = res = std::format("{:*>300.200s}", in);
+  VERIFY( strip_prefix(resv, 108, '*') );
+  VERIFY( resv == inv );
+
   resv = res = std::format("{:*>240.200s}", in);
   VERIFY( strip_prefix(resv, 48, '*') );
   VERIFY( resv == inv );
@@ -675,6 +680,11 @@ void test_padding()
 
   resv = res = std::format("{:*>240?}", in);
   VERIFY( strip_prefix(resv, 46, '*') );
+  VERIFY( strip_quotes(resv) );
+  VERIFY( resv == inv );
+
+  resv = res = std::format("{:*>300.200?}", in);
+  VERIFY( strip_prefix(resv, 106, '*') );
   VERIFY( strip_quotes(resv) );
   VERIFY( resv == inv );
 

@@ -513,6 +513,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wno-analyzer-tainted-divisor
 -Wno-analyzer-tainted-offset
 -Wno-analyzer-tainted-size
+-Wno-analyzer-throw-of-unexpected-type
 -Wanalyzer-symbol-too-complex
 -Wanalyzer-too-complex
 -Wno-analyzer-undefined-behavior-ptrdiff
@@ -1267,7 +1268,7 @@ See RS/6000 and PowerPC Options.
 -mfence-tso  -mno-fence-tso
 -mdiv  -mno-div
 -misa-spec=@var{ISA-spec-string}
--march=@var{ISA-string}
+-march=@var{ISA-string|Profiles|Profiles_ISA-string|CPU/processor string}
 -mtune=@var{processor-string}
 -mpreferred-stack-boundary=@var{num}
 -msmall-data-limit=@var{N-bytes}
@@ -1495,8 +1496,8 @@ See RS/6000 and PowerPC Options.
 -mamx-tile  -mamx-int8  -mamx-bf16 -muintr -mhreset -mavxvnni -mamx-fp8
 -mavx512fp16 -mavxifma -mavxvnniint8 -mavxneconvert -mcmpccxadd -mamx-fp16
 -mprefetchi -mraoint -mamx-complex -mavxvnniint16 -msm3 -msha512 -msm4 -mapxf
--musermsr -mavx10.1 -mavx10.1-256 -mavx10.1-512 -mevex512 -mavx10.2
--mamx-avx512 -mamx-tf32 -mamx-transpose -mmovrs -mamx-movrs
+-musermsr -mavx10.1 -mavx10.2 -mamx-avx512 -mamx-tf32 -mamx-transpose -mmovrs
+-mamx-movrs
 -mcldemote  -mms-bitfields  -mno-align-stringops  -minline-all-stringops
 -minline-stringops-dynamically  -mstringop-strategy=@var{alg}
 -mkl -mwidekl
@@ -3005,11 +3006,17 @@ in C++14 and up.
 Version 18, which first appeared in G++ 13, fixes manglings of lambdas
 that have additional context.
 
-Version 19, which first appeared in G++ 14, fixes manglings of structured
-bindings to include ABI tags.
+Version 19, which first appeared in G++ 14, fixes manglings of
+structured bindings to include ABI tags, handling of cv-qualified
+[[no_unique_address]] members, and adds mangling of C++20 constraints
+on function templates.
 
 Version 20, which first appeared in G++ 15, fixes manglings of lambdas
 in static data member initializers.
+
+Version 21, which first appeared in G++ 16, fixes unnecessary captures
+in noexcept lambdas (c++/119764) and layout of a base class
+with all explicitly defaulted constructors (c++/120012).
 
 See also @option{-Wabi}.
 
@@ -3290,6 +3297,50 @@ Enable support for the C++ coroutines extension (experimental).
 Permit the C++ front end to note all candidates during overload resolution
 failure, including when a deleted function is selected.
 
+@item -fdump-lang-
+@itemx -fdump-lang-@var{switch}
+@itemx -fdump-lang-@var{switch}-@var{options}
+@itemx -fdump-lang-@var{switch}-@var{options}=@var{filename}
+Control the dumping of C++-specific information.  The @var{options}
+and @var{filename} portions behave as described in the
+@option{-fdump-tree} option.  The following @var{switch} values are
+accepted:
+
+@table @samp
+@item all
+Enable all of the below.
+
+@opindex fdump-lang-class
+@item class
+Dump class hierarchy information.  Virtual table information is emitted
+unless '@option{slim}' is specified.
+
+@opindex fdump-lang-module
+@item module
+Dump module information.  Options @option{lineno} (locations),
+@option{graph} (reachability), @option{blocks} (clusters),
+@option{uid} (serialization), @option{alias} (mergeable),
+@option{asmname} (Elrond), @option{eh} (mapper) & @option{vops}
+(macros) may provide additional information.
+
+@opindex fdump-lang-raw
+@item raw
+Dump the raw internal tree data.
+
+@opindex fdump-lang-tinst
+@item tinst
+Dump the sequence of template instantiations, indented to show the
+depth of recursion.  The @option{lineno} option adds the source
+location where the instantiation was triggered, and the
+@option{details} option also dumps pre-instantiation substitutions
+such as those performed during template argument deduction.
+
+Lines in the .tinst dump start with @samp{I} for an instantiation,
+@samp{S} for another substitution, and @samp{R[IS]} for the reopened
+context of a deferred instantiation.
+
+@end table
+
 @opindex fno-elide-constructors
 @opindex felide-constructors
 @item -fno-elide-constructors
@@ -3341,7 +3392,8 @@ aliases, the default is @option{-fno-extern-tls-init}.
 @item -ffold-simple-inlines
 @itemx -fno-fold-simple-inlines
 Permit the C++ frontend to fold calls to @code{std::move}, @code{std::forward},
-@code{std::addressof} and @code{std::as_const}.  In contrast to inlining, this
+@code{std::addressof}, @code{std::to_underlying}
+and @code{std::as_const}.  In contrast to inlining, this
 means no debug information will be generated for such calls.  Since these
 functions are rarely interesting to debug, this flag is enabled by default
 unless @option{-fno-inline} is active.
@@ -6052,11 +6104,39 @@ Specify the filename to write the SARIF output to, potentially with a
 leading absolute or relative path.  If not specified, it defaults to
 @file{@var{source}.sarif}.
 
+@item serialization=@r{[}json@r{]}
+Specify the serialization format to use when writing out the SARIF.
+Currently this can only be @code{json}, but is present as an
+extension point for experimenting with other serializations.
+
 @item version=@r{[}2.1@r{|}2.2-prerelease@r{]}
 Specify the version of SARIF to use for the output.  If not specified,
 defaults to 2.1.  @code{2.2-prerelease} uses an unofficial draft of the
 future SARIF 2.2 specification and should only be used for experimentation
 in this release.
+
+@end table
+
+@item experimental-html
+Emit diagnostics to a file in HTML format.  This scheme is experimental,
+and may go away in future GCC releases.  The keys and details of the output
+are also subject to change.
+
+Supported keys are:
+
+@table @gcctabopt
+
+@item css=@r{[}yes@r{|}no@r{]}
+Add an embedded <style> to the generated HTML.  Defaults to yes.
+
+@item file=@var{FILENAME}
+Specify the filename to write the HTML output to, potentially with a
+leading absolute or relative path.  If not specified, it defaults to
+@file{@var{source}.html}.
+
+@item javascript=@r{[}yes@r{|}no@r{]}
+Add an embedded <script> to the generated HTML providing a barebones UI
+for viewing results.  Defaults to yes.
 
 @end table
 
@@ -6079,7 +6159,7 @@ In EBNF:
 @var{diagnostics-output-specifier} = @var{diagnostics-output-name}
                                    | @var{diagnostics-output-name}, ":", @var{key-value-pairs};
 
-@var{diagnostics-output-name} = "text" | "sarif";
+@var{diagnostics-output-name} = "text" | "sarif" | "experimental-html";
 
 @var{key-value-pairs} = @var{key-value-pair}
                       | @var{key-value-pair} "," @var{key-value-pairs};
@@ -11008,6 +11088,7 @@ Enabling this option effectively enables the following warnings:
 -Wanalyzer-tainted-divisor
 -Wanalyzer-tainted-offset
 -Wanalyzer-tainted-size
+-Wanalyzer-throw-of-unexpected-type
 -Wanalyzer-undefined-behavior-ptrdiff
 -Wanalyzer-undefined-behavior-strtok
 -Wanalyzer-unsafe-call-within-signal-handler
@@ -11658,6 +11739,17 @@ an operation such as @code{memset} without being sanitized, so that an
 attacker could inject an out-of-bounds access.
 
 See @uref{https://cwe.mitre.org/data/definitions/129.html, CWE-129: Improper Validation of Array Index}.
+
+@opindex Wanalyzer-throw-of-unexpected-type
+@opindex Wno-analyzer-throw-of-unexpected-type
+@item -Wno-analyzer-throw-of-unexpected-type
+This warning requires @option{-fanalyzer} which enables it;
+use @option{-Wno-analyzer-throw-of-unexpected-type} to disable it.
+Dynamic exception specifications are only available in C++14 and earlier.
+
+This diagnostic warns for paths through the code in which a an exception
+is thrown from a function with a dynamic exception specification where
+the exception does not comply with the specification.
 
 @opindex Wanalyzer-undefined-behavior-ptrdiff
 @opindex Wno-analyzer-undefined-behavior-ptrdiff
@@ -12888,17 +12980,19 @@ It turns off @option{-fsemantic-interposition}.
 
 @opindex Og
 @item -Og
-Optimize debugging experience.  @option{-Og} should be the optimization
+Optimize while keeping in mind debugging experience.
+@option{-Og} should be the optimization
 level of choice for the standard edit-compile-debug cycle, offering
-a reasonable level of optimization while maintaining fast compilation
-and a good debugging experience.  It is a better choice than @option{-O0}
-for producing debuggable code because some compiler passes
-that collect debug information are disabled at @option{-O0}.
+a reasonable blend of optimization, fast compilation and debugging experience
+especially for code with a high abstraction penalty.  In contrast to
+@option{-O0}, this enables @option{-fvar-tracking-assignments} and
+@option{-fvar-tracking} which handle debug information in the prologue
+and epilogue of functions better than @option{-O0}.
 
-Like @option{-O0}, @option{-Og} completely disables a number of
+Like @option{-O0}, @option{-Og} completely skips a number of
 optimization passes so that individual options controlling them have
 no effect.  Otherwise @option{-Og} enables all @option{-O1}
-optimization flags except for those that may interfere with debugging:
+optimization flags except for those known to greatly interfere with debugging:
 
 @gccoptlist{-fbranch-count-reg  -fdelayed-branch
 -fdse  -fif-conversion  -fif-conversion2
@@ -20748,6 +20842,93 @@ By default, the dump will contain messages about successful
 optimizations (equivalent to @option{-optimized}) together with
 low-level details about the analysis.
 
+@opindex fdump-ipa-clones
+@item -fdump-ipa-clones
+
+Create a dump file containing information about creation of call graph
+node clones and removals of call graph nodes during inter-procedural
+optimizations and transformations.  Its main intended use is that tools
+that create live-patches can determine the set of functions that need to
+be live-patched to completely replace a particular function (see
+@option{-flive-patching}).  The file name is generated by appending
+suffix @code{ipa-clones} to the source file name, and the file is
+created in the same directory as the output file.  Each entry in the
+file is on a separate line containing semicolon separated fields.
+
+In the case of call graph clone creation, the individual fields are:
+
+@enumerate
+@item
+String @code{Callgraph clone}.
+
+@item
+Name of the function being cloned as it is presented to the assembler.
+
+@item
+A number that uniquely represents the function being cloned in the call
+graph.  Note that the number is unique only within a compilation unit or
+within whole-program analysis but is likely to be different in the two
+phases.
+
+@item
+The file name of the source file where the function is defined.
+
+@item
+The line on which the function definition is located.
+
+@item
+The column where the function definition is located.
+
+@item
+Name of the new function clone as it is presented to the assembler.
+
+@item
+A number that uniquely represents the new function clone in the call
+graph.  Note that the number is unique only within a compilation unit or
+within whole-program analysis but is likely to be different in the two
+phases.
+
+@item
+The file name of the source file where the source code location of the
+new clone points to.
+
+@item
+The line to which the source code location of the new clone points to.
+
+@item
+The column to which the source code location of the new clone points to.
+
+@item
+A string that determines the reason for cloning.
+
+@end enumerate
+
+In the case of call graph clone removal, the individual fields are:
+
+@enumerate
+@item
+String @code{Callgraph removal}.
+
+@item
+Name of the function being removed as it would be presented to the assembler.
+
+@item
+A number that uniquely represents the function being cloned in the call
+graph.  Note that the number is unique only within a compilation unit or
+within whole-program analysis but is likely to be different in the two
+phases.
+
+@item
+The file name of the source file where the function is defined.
+
+@item
+The line on which the function definition is located.
+
+@item
+The column where the function definition is located.
+
+@end enumerate
+
 @opindex fdump-lang
 @item -fdump-lang
 Dump language-specific information.  The file name is made by appending
@@ -20761,30 +20942,10 @@ Dump language-specific information.  The file name is made by appending
 @itemx -fdump-lang-@var{switch}-@var{options}=@var{filename}
 Control the dumping of language-specific information.  The @var{options}
 and @var{filename} portions behave as described in the
-@option{-fdump-tree} option.  The following @var{switch} values are
-accepted:
-
-@table @samp
-@item all
-
-Enable all language-specific dumps.
-
-@item class
-Dump class hierarchy information.  Virtual table information is emitted
-unless '@option{slim}' is specified.  This option is applicable to C++ only.
-
-@item module
-Dump module information.  Options @option{lineno} (locations),
-@option{graph} (reachability), @option{blocks} (clusters),
-@option{uid} (serialization), @option{alias} (mergeable),
-@option{asmname} (Elrond), @option{eh} (mapper) & @option{vops}
-(macros) may provide additional information.  This option is
-applicable to C++ only.
-
-@item raw
-Dump the raw internal tree data.  This option is applicable to C++ only.
-
-@end table
+@option{-fdump-tree} option.  @option{-fdump-tree-all} enables all
+language-specific dumps; other options vary with the language.  For
+instance, see @xref{C++ Dialect Options} for the @option{-fdump-lang}
+flags supported by the C++ front-end.
 
 @opindex fdump-passes
 @item -fdump-passes
@@ -23391,7 +23552,7 @@ These @samp{-m} options are defined for the ARM port:
 @opindex mabi
 @item -mabi=@var{name}
 Generate code for the specified ABI@.  Permissible values are: @samp{apcs-gnu},
-@samp{atpcs}, @samp{aapcs}, @samp{aapcs-linux} and @samp{iwmmxt}.
+@samp{atpcs}, @samp{aapcs} and @samp{aapcs-linux}.
 
 @opindex mapcs-frame
 @item -mapcs-frame
@@ -30569,6 +30730,7 @@ Generate code for the specified PTX ISA target architecture.
 Valid architecture strings are
 @samp{sm_30}, @samp{sm_35}, @samp{sm_37},
 @samp{sm_52}, @samp{sm_53},
+@samp{sm_61},
 @samp{sm_70}, @samp{sm_75},
 @samp{sm_80}, and @samp{sm_89}.
 The default depends on how the compiler has been configured, see
@@ -30595,6 +30757,7 @@ Generate code for the specified PTX ISA version.
 Valid version strings are
 @samp{3.1},
 @samp{4.1}, @samp{4.2},
+@samp{5.0},
 @samp{6.0}, @samp{6.3},
 @samp{7.0}, @samp{7.3}, and @samp{7.8}.
 The default PTX ISA version is the one that added support for the
@@ -30748,12 +30911,13 @@ to store the immediate to a register first.
 @opindex mcmodel=
 @opindex mcmodel=small
 @item -mcmodel=small
-Generate OpenRISC code for the small model: The GOT is limited to 64k. This is
-the default model.
+Generate OpenRISC code for the small model: The GOT is limited to 64k and
+function call jumps are limited to 64M offsets. This is the default model.
 
 @opindex mcmodel=large
 @item -mcmodel=large
-Generate OpenRISC code for the large model: The GOT may grow up to 4G in size.
+Generate OpenRISC code for the large model: The GOT may grow up to 4G in size
+and function call jumps can target the full 4G address space.
 
 
 @end table
@@ -30986,11 +31150,16 @@ The default is @option{-misa-spec=20191213} unless GCC has been configured
 with @option{--with-isa-spec=} specifying a different default version.
 
 @opindex march
-@item -march=@var{ISA-string}
-Generate code for given RISC-V ISA (e.g.@: @samp{rv64im}).  ISA strings must be
-lower-case.  Examples include @samp{rv64i}, @samp{rv32g}, @samp{rv32e}, and
-@samp{rv32imaf}. Additionally, a special value @option{help}
-(@option{-march=help}) is accepted to list all supported extensions.
+@item -march=@var{ISA-string|Profiles|Profile_ISA-string}
+Generate code for given RISC-V ISA or Profiles or a combination of them
+(e.g.@: @samp{rv64im} @samp{rvi20u64} @samp{rvi20u64_zbb}).  ISA strings and
+Profiles must be lower-case.  Examples include @samp{rv64i}, @samp{rv32g},
+@samp{rv32e}, @samp{rv32imaf}, @samp{rva22u64} and @samp{rva23u64}.
+To combine Profiles and optional RISC-V ISA extention, the profile should start
+at the beginning of the option, then use underline connect ISA-string (e.g.@:
+@samp{rvi20u64_zca_zcb} @samp{rva23u64_zacas}).  Additionally, a special value
+@option{help} (@option{-march=help}) is accepted to list all supported
+extensions.
 
 The syntax of the ISA string is defined as follows:
 
@@ -31009,493 +31178,8 @@ syntax @samp{<major>p<minor>} or @samp{<major>}, (e.g.@: @samp{m2p1} or
 @end table
 
 Supported extension are listed below:
-@multitable @columnfractions .10 .10 .80
-@headitem Extension Name @tab Supported Version @tab Description
-@item i
-@tab 2.0, 2.1
-@tab Base integer extension.
 
-@item e
-@tab 2.0
-@tab Reduced base integer extension.
-
-@item g
-@tab -
-@tab General-purpose computing base extension, @samp{g} will expand to
-@samp{i}, @samp{m}, @samp{a}, @samp{f}, @samp{d}, @samp{zicsr} and
-@samp{zifencei}.
-
-@item m
-@tab 2.0
-@tab Integer multiplication and division extension.
-
-@item a
-@tab 2.0, 2.1
-@tab Atomic extension.
-
-@item f
-@tab 2.0, 2.2
-@tab Single-precision floating-point extension.
-
-@item d
-@tab 2.0, 2.2
-@tab Double-precision floating-point extension.
-
-@item c
-@tab 2.0
-@tab Compressed extension.
-
-@item h
-@tab 1.0
-@tab Hypervisor extension.
-
-@item v
-@tab 1.0
-@tab Vector extension.
-
-@item zicsr
-@tab 2.0
-@tab Control and status register access extension.
-
-@item zifencei
-@tab 2.0
-@tab Instruction-fetch fence extension.
-
-@item zicond
-@tab 1.0
-@tab Integer conditional operations extension.
-
-@item za64rs
-@tab 1.0
-@tab Reservation set size of 64 bytes.
-
-@item za128rs
-@tab 1.0
-@tab Reservation set size of 128 bytes.
-
-@item zawrs
-@tab 1.0
-@tab Wait-on-reservation-set extension.
-
-@item zba
-@tab 1.0
-@tab Address calculation extension.
-
-@item zbb
-@tab 1.0
-@tab Basic bit manipulation extension.
-
-@item zbc
-@tab 1.0
-@tab Carry-less multiplication extension.
-
-@item zbs
-@tab 1.0
-@tab Single-bit operation extension.
-
-@item zfinx
-@tab 1.0
-@tab Single-precision floating-point in integer registers extension.
-
-@item zdinx
-@tab 1.0
-@tab Double-precision floating-point in integer registers extension.
-
-@item zhinx
-@tab 1.0
-@tab Half-precision floating-point in integer registers extension.
-
-@item zhinxmin
-@tab 1.0
-@tab Minimal half-precision floating-point in integer registers extension.
-
-@item zbkb
-@tab 1.0
-@tab Cryptography bit-manipulation extension.
-
-@item zbkc
-@tab 1.0
-@tab Cryptography carry-less multiply extension.
-
-@item zbkx
-@tab 1.0
-@tab Cryptography crossbar permutation extension.
-
-@item zkne
-@tab 1.0
-@tab AES Encryption extension.
-
-@item zknd
-@tab 1.0
-@tab AES Decryption extension.
-
-@item zknh
-@tab 1.0
-@tab Hash function extension.
-
-@item zkr
-@tab 1.0
-@tab Entropy source extension.
-
-@item zksed
-@tab 1.0
-@tab SM4 block cipher extension.
-
-@item zksh
-@tab 1.0
-@tab SM3 hash function extension.
-
-@item zkt
-@tab 1.0
-@tab Data independent execution latency extension.
-
-@item zk
-@tab 1.0
-@tab Standard scalar cryptography extension.
-
-@item zkn
-@tab 1.0
-@tab NIST algorithm suite extension.
-
-@item zks
-@tab 1.0
-@tab ShangMi algorithm suite extension.
-
-@item zihintntl
-@tab 1.0
-@tab Non-temporal locality hints extension.
-
-@item zihintpause
-@tab 1.0
-@tab Pause hint extension.
-
-@item zicboz
-@tab 1.0
-@tab Cache-block zero extension.
-
-@item zicbom
-@tab 1.0
-@tab Cache-block management extension.
-
-@item zicbop
-@tab 1.0
-@tab Cache-block prefetch extension.
-
-@item zic64b
-@tab 1.0
-@tab Cache block size isf 64 bytes.
-
-@item ziccamoa
-@tab 1.0
-@tab Main memory supports all atomics in A.
-
-@item ziccif
-@tab 1.0
-@tab Main memory supports instruction fetch with atomicity requirement.
-
-@item zicclsm
-@tab 1.0
-@tab Main memory supports misaligned loads/stores.
-
-@item ziccrse
-@tab 1.0
-@tab Main memory supports forward progress on LR/SC sequences.
-
-@item zicntr
-@tab 2.0
-@tab Standard extension for base counters and timers.
-
-@item zihpm
-@tab 2.0
-@tab Standard extension for hardware performance counters.
-
-@item ztso
-@tab 1.0
-@tab Total store ordering extension.
-
-@item zve32x
-@tab 1.0
-@tab Vector extensions for embedded processors.
-
-@item zve32f
-@tab 1.0
-@tab Vector extensions for embedded processors.
-
-@item zve64x
-@tab 1.0
-@tab Vector extensions for embedded processors.
-
-@item zve64f
-@tab 1.0
-@tab Vector extensions for embedded processors.
-
-@item zve64d
-@tab 1.0
-@tab Vector extensions for embedded processors.
-
-@item zvl32b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl64b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl128b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl256b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl512b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl1024b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl2048b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvl4096b
-@tab 1.0
-@tab Minimum vector length standard extensions
-
-@item zvbb
-@tab 1.0
-@tab Vector basic bit-manipulation extension.
-
-@item zvbc
-@tab 1.0
-@tab Vector carryless multiplication extension.
-
-@item zvkb
-@tab 1.0
-@tab Vector cryptography bit-manipulation extension.
-
-@item zvkg
-@tab 1.0
-@tab Vector GCM/GMAC extension.
-
-@item zvkned
-@tab 1.0
-@tab Vector AES block cipher extension.
-
-@item zvknha
-@tab 1.0
-@tab Vector SHA-2 secure hash extension.
-
-@item zvknhb
-@tab 1.0
-@tab Vector SHA-2 secure hash extension.
-
-@item zvksed
-@tab 1.0
-@tab Vector SM4 Block Cipher extension.
-
-@item zvksh
-@tab 1.0
-@tab Vector SM3 Secure Hash extension.
-
-@item zvkn
-@tab 1.0
-@tab Vector NIST Algorithm Suite extension, @samp{zvkn} will expand to
-@samp{zvkned}, @samp{zvknhb}, @samp{zvkb} and @samp{zvkt}.
-
-@item zvknc
-@tab 1.0
-@tab Vector NIST Algorithm Suite with carryless multiply extension, @samp{zvknc}
-will expand to @samp{zvkn} and @samp{zvbc}.
-
-@item zvkng
-@tab 1.0
-@tab Vector NIST Algorithm Suite with GCM extension, @samp{zvkng} will expand
-to @samp{zvkn} and @samp{zvkg}.
-
-@item zvks
-@tab 1.0
-@tab Vector ShangMi algorithm suite extension, @samp{zvks} will expand
-to @samp{zvksed}, @samp{zvksh}, @samp{zvkb} and @samp{zvkt}.
-
-@item zvksc
-@tab 1.0
-@tab Vector ShangMi algorithm suite with carryless multiplication extension,
-@samp{zvksc} will expand to @samp{zvks} and @samp{zvbc}.
-
-@item zvksg
-@tab 1.0
-@tab Vector ShangMi algorithm suite with GCM extension, @samp{zvksg} will expand
-to @samp{zvks} and @samp{zvkg}.
-
-@item zvkt
-@tab 1.0
-@tab Vector data independent execution latency extension.
-
-@item zfh
-@tab 1.0
-@tab Half-precision floating-point extension.
-
-@item zfhmin
-@tab 1.0
-@tab Minimal half-precision floating-point extension.
-
-@item zvfh
-@tab 1.0
-@tab Vector half-precision floating-point extension.
-
-@item zvfhmin
-@tab 1.0
-@tab Vector minimal half-precision floating-point extension.
-
-@item zvfbfmin
-@tab 1.0
-@tab Vector BF16 converts extension.
-
-@item zfa
-@tab 1.0
-@tab Additional floating-point extension.
-
-@item zmmul
-@tab 1.0
-@tab Integer multiplication extension.
-
-@item zca
-@tab 1.0
-@tab Integer compressed instruction extension.
-
-@item zcf
-@tab 1.0
-@tab Compressed single-precision floating point loads and stores extension.
-
-@item zcd
-@tab 1.0
-@tab Compressed double-precision floating point loads and stores extension.
-
-@item zcb
-@tab 1.0
-@tab Simple compressed instruction extension.
-
-@item zce
-@tab 1.0
-@tab Compressed instruction extensions for embedded processors.
-
-@item zcmp
-@tab 1.0
-@tab Compressed push pop extension.
-
-@item zcmt
-@tab 1.0
-@tab Table jump instruction extension.
-
-@item smaia
-@tab 1.0
-@tab Advanced interrupt architecture extension.
-
-@item smepmp
-@tab 1.0
-@tab PMP Enhancements for memory access and execution prevention on Machine mode.
-
-@item smstateen
-@tab 1.0
-@tab State enable extension.
-
-@item ssaia
-@tab 1.0
-@tab Advanced interrupt architecture extension for supervisor-mode.
-
-@item sscofpmf
-@tab 1.0
-@tab Count overflow & filtering extension.
-
-@item ssstateen
-@tab 1.0
-@tab State-enable extension for supervisor-mode.
-
-@item sstc
-@tab 1.0
-@tab Supervisor-mode timer interrupts extension.
-
-@item svinval
-@tab 1.0
-@tab Fine-grained address-translation cache invalidation extension.
-
-@item svnapot
-@tab 1.0
-@tab NAPOT translation contiguity extension.
-
-@item svpbmt
-@tab 1.0
-@tab Page-based memory types extension.
-
-@item xcvmac
-@tab 1.0
-@tab Core-V multiply-accumulate extension.
-
-@item xcvalu
-@tab 1.0
-@tab Core-V miscellaneous ALU extension.
-
-@item xcvelw
-@tab 1.0
-@tab Core-V event load word extension.
-
-@item xtheadba
-@tab 1.0
-@tab T-head address calculation extension.
-
-@item xtheadbb
-@tab 1.0
-@tab T-head basic bit-manipulation extension.
-
-@item xtheadbs
-@tab 1.0
-@tab T-head single-bit instructions extension.
-
-@item xtheadcmo
-@tab 1.0
-@tab T-head cache management operations extension.
-
-@item xtheadcondmov
-@tab 1.0
-@tab T-head conditional move extension.
-
-@item xtheadfmemidx
-@tab 1.0
-@tab T-head indexed memory operations for floating-point registers extension.
-
-@item xtheadfmv
-@tab 1.0
-@tab T-head double floating-point high-bit data transmission extension.
-
-@item xtheadint
-@tab 1.0
-@tab T-head acceleration interruption extension.
-
-@item xtheadmac
-@tab 1.0
-@tab T-head multiply-accumulate extension.
-
-@item xtheadmemidx
-@tab 1.0
-@tab T-head indexed memory operation extension.
-
-@item xtheadmempair
-@tab 1.0
-@tab T-head two-GPR memory operation extension.
-
-@item xtheadsync
-@tab 1.0
-@tab T-head multi-core synchronization extension.
-
-@item xventanacondops
-@tab 1.0
-@tab Ventana integer conditional operations extension.
-
-@end multitable
+@include riscv-ext.texi
 
 When @option{-march=} is not specified, use the setting from @option{-mcpu}.
 
@@ -31511,12 +31195,12 @@ extension set if they weren't added explicitly.
 @item -mcpu=@var{processor-string}
 Use architecture of and optimize the output for the given processor, specified
 by particular CPU name.
-Permissible values for this option are: @samp{sifive-e20}, @samp{sifive-e21},
-@samp{sifive-e24}, @samp{sifive-e31}, @samp{sifive-e34}, @samp{sifive-e76},
-@samp{sifive-s21}, @samp{sifive-s51}, @samp{sifive-s54}, @samp{sifive-s76},
-@samp{sifive-u54}, @samp{sifive-u74}, @samp{sifive-x280}, @samp{sifive-xp450},
-@samp{sifive-x670}, @samp{thead-c906}, @samp{tt-ascalon-d8}, @samp{xiangshan-nanhu},
-@samp{xt-c908}, @samp{xt-c908v}, @samp{xt-c910}, @samp{xt-c910v2},
+Permissible values for this option are: @samp{mips-p8700}, @samp{sifive-e20},
+@samp{sifive-e21}, @samp{sifive-e24}, @samp{sifive-e31}, @samp{sifive-e34},
+@samp{sifive-e76}, @samp{sifive-s21}, @samp{sifive-s51}, @samp{sifive-s54},
+@samp{sifive-s76}, @samp{sifive-u54}, @samp{sifive-u74}, @samp{sifive-x280},
+@samp{sifive-xp450}, @samp{sifive-x670}, @samp{thead-c906}, @samp{tt-ascalon-d8},
+@samp{xiangshan-nanhu}, @samp{xt-c908}, @samp{xt-c908v}, @samp{xt-c910}, @samp{xt-c910v2},
 @samp{xt-c920}, @samp{xt-c920v2}.
 
 Note that @option{-mcpu} does not override @option{-march} or @option{-mtune}.
@@ -31525,7 +31209,7 @@ Note that @option{-mcpu} does not override @option{-march} or @option{-mtune}.
 @item -mtune=@var{processor-string}
 Optimize the output for the given processor, specified by microarchitecture or
 particular CPU name.  Permissible values for this option are:
-@samp{generic-ooo}, @samp{rocket}, @samp{sifive-3-series},
+@samp{generic-ooo}, @samp{mips-p8700}, @samp{rocket}, @samp{sifive-3-series},
 @samp{sifive-5-series}, @samp{sifive-7-series}, @samp{size},
 @samp{sifive-p400-series}, @samp{sifive-p600-series}, and all valid options for
 @option{-mcpu=}.
@@ -36090,12 +35774,6 @@ preferred alignment to @option{-mpreferred-stack-boundary=2}.
 @opindex mavx10.1
 @itemx -mavx10.1
 @need 200
-@opindex mavx10.1-256
-@itemx -mavx10.1-256
-@need 200
-@opindex mavx10.1-512
-@itemx -mavx10.1-512
-@need 200
 @opindex mavx10.2
 @itemx -mavx10.2
 @need 200
@@ -36883,11 +36561,6 @@ disabled to prevent potential illegal instruction with EGPR occurs.
 To invoke egpr usage in inline asm, use new compiler option
 -mapx-inline-asm-use-gpr32 and user should ensure the instruction
 supports EGPR.
-
-@opindex mevex512
-@item -mevex512
-@itemx -mno-evex512
-Enables/disables 512-bit vector. It will be default on if AVX512F is enabled.
 
 @end table
 

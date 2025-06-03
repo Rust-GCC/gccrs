@@ -140,6 +140,8 @@ extern void riscv_expand_sssub (rtx, rtx, rtx);
 extern void riscv_expand_ustrunc (rtx, rtx);
 extern void riscv_expand_sstrunc (rtx, rtx);
 extern int riscv_register_move_cost (machine_mode, reg_class_t, reg_class_t);
+extern bool synthesize_ior_xor (rtx_code, rtx [3]);
+extern bool synthesize_and (rtx [3]);
 
 #ifdef RTX_CODE
 extern void riscv_expand_int_scc (rtx, enum rtx_code, rtx, rtx, bool *invert_ptr = 0);
@@ -201,6 +203,8 @@ rtl_opt_pass * make_pass_shorten_memrefs (gcc::context *ctxt);
 rtl_opt_pass * make_pass_avlprop (gcc::context *ctxt);
 rtl_opt_pass * make_pass_vsetvl (gcc::context *ctxt);
 rtl_opt_pass * make_pass_insert_landing_pad (gcc::context *ctxt);
+rtl_opt_pass * make_pass_vector_permconst (gcc::context *ctxt);
+
 
 /* Routines implemented in riscv-string.c.  */
 extern bool riscv_expand_block_compare (rtx, rtx, rtx, rtx);
@@ -664,6 +668,8 @@ void expand_vec_oct_ustrunc (rtx, rtx, machine_mode, machine_mode,
 			     machine_mode);
 void expand_vec_oct_sstrunc (rtx, rtx, machine_mode, machine_mode,
 			     machine_mode);
+void expand_vx_binary_vec_dup_vec (rtx, rtx, rtx, rtx_code, machine_mode);
+void expand_vx_binary_vec_vec_dup (rtx, rtx, rtx, rtx_code, machine_mode);
 #endif
 bool sew64_scalar_helper (rtx *, rtx *, rtx, machine_mode,
 			  bool, void (*)(rtx *, rtx), enum avl_type);
@@ -834,6 +840,7 @@ struct riscv_tune_info {
 const struct riscv_tune_info *
 riscv_parse_tune (const char *, bool);
 const cpu_vector_cost *get_vector_costs ();
+int get_gr2vr_cost ();
 
 enum
 {

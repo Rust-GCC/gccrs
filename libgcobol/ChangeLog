@@ -1,3 +1,109 @@
+2025-06-01  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119524
+	* libgcobol.cc (__gg__fprintf_stderr): New function.
+
+2025-05-20  Robert Dubner  <rdubner@symas.com>
+	    James K. Lowden  <jklowden@cobolworx.com>
+
+	* charmaps.cc: Switch to C++ includes.
+	* common-defs.h: Likewise.
+	* constants.cc: Likewise.
+	* ec.h: Remove #include <assert.h>.
+	* gcobolio.h (GCOBOLIO_H_): Switch to C++ includes.
+	* gfileio.cc: Likewise.
+	* gmath.cc: Likewise.
+	* intrinsic.cc: Comment formatting; C++ includes.
+	* io.cc: C++ includes.
+	* libgcobol.cc: (__gg__stash_exceptions): Eliminate.
+	* valconv.cc: Switch to C++ includes.
+
+2025-05-20  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119885
+	* intrinsic.cc: (__gg__sqrt): Change test from <= zero to < zero.
+
+2025-05-16  Robert Dubner  <rdubner@symas.com>
+
+	* common-defs.h (struct cbl_declarative_t): Eliminate blobl.
+	* libgcobol.cc (__gg__set_env_name): Code for ENVIRONMENT-NAME/VALUE.
+	(__gg__set_env_value): Likewise.
+
+2025-05-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* libgcobol.cc [!LOG_PERROR] (LOG_PERROR): Provide fallback.
+
+2025-05-11  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119377
+	* common-defs.h: (struct cbl_declaratives_t): Change "bool global" to
+	"uint32_t global".
+
+2025-05-10  Robert Dubner  <rdubner@symas.com>
+
+	* common-defs.h (ec_cmp): Delete "getenv("match_declarative")" calls.
+	(enabled_exception_match): Delete "getenv("match_declarative")" calls.
+	* libgcobol.cc: Eliminate __gg__odo_violation.
+
+2025-05-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac: Handle --enable-libgcobol.
+	Let it override LIBGCOBOL_SUPPORTED.
+	* configure: Regenerate.
+
+2025-05-06  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* configure.ac: Check for program_invocation_short_name and
+	and getprogname().
+	* libgcobol.cc (default_exception_handler): When the platform
+	has program_invocation_short_name, use it otherwise fall
+	back to using getprogname() or a constant string (if neither
+	interface is available).
+
+2025-05-05  Robert Dubner  <rdubner@symas.com>
+
+	* charmaps.cc: Add #include <vector>.
+	* common-defs.h (COMMON_DEFS_H_): Add #include <stdio.h>.
+	(enum cbl_file_mode_t): Add file_mode_any_e.
+	(enum file_stmt_t): Created.
+	(cbl_file_mode_str): Add case for file_mode_any_e.
+	(ec_cmp): Exceptions.
+	(struct cbl_enabled_exception_t): Likewise.
+	(struct cbl_declarative_t): Likewise.
+	(class cbl_enabled_exceptions_array_t): Likewise.
+	(class cbl_enabled_exceptions_t): Likewise.
+	(struct cbl_enabled_exceptions_array_t): Likewise.
+	(enabled_exception_match): Likewise.
+	* constants.cc: Add #include <vector>.
+	* exceptl.h (struct cbl_exception_t): Removed.
+	(struct cbl_declarative_t): Removed.
+	(class ec_status_t): Removed.
+	* gcobolio.h: Add symbol_table_index to cblc_file_t.
+	* gfileio.cc: Add #include <vector>
+	(establish_status): Comment.
+	(__io__file_init): Handle symbol_table_index.
+	(__io__file_delete): Set file->prior_op.
+	(__io__file_rewrite): Likewise.
+	(__io__file_read): Likewise.
+	(__io__file_open): Likewise.
+	(__io__file_close): Likewise.
+	* gmath.cc: Include #include <vector>.
+	* intrinsic.cc: Include #include <vector>.
+	* libgcobol.cc: Multiple modifications for exceptions.
+	* valconv.cc: #include <vector>.
+
+2025-05-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119364
+	* valconv.cc (__gg__realloc_if_necessary): Use (new_size>>16)>>16;
+	instead of new_size>>32; to avoid warnings on 32-bit hosts.
+	* common-defs.h (enum cbl_field_attr_t): Use uint64_t
+	as underlying type rather than size_t.
+	* gcobolio.h (cblc_field_t): Change attr member type from size_t
+	to unsigned long long.
+
 2025-04-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* configure.ac: Check for struct tm.tm_zone.

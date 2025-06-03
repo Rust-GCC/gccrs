@@ -153,12 +153,13 @@ class scalar_chain
 
   bitmap insns_conv;
   hash_map<rtx, rtx> defs_map;
-  unsigned n_sse_to_integer;
-  unsigned n_integer_to_sse;
+  /* Cost of inserted conversion between ineteger and sse.  */
+  int cost_sse_integer;
+  sreal weighted_cost_sse_integer;
   auto_vec<rtx_insn *> control_flow_insns;
 
   bool build (bitmap candidates, unsigned insn_uid, bitmap disallowed);
-  virtual int compute_convert_gain () = 0;
+  virtual bool compute_convert_gain () = 0;
   int convert ();
 
  protected:
@@ -184,11 +185,11 @@ class general_scalar_chain : public scalar_chain
  public:
   general_scalar_chain (enum machine_mode smode_, enum machine_mode vmode_)
     : scalar_chain (smode_, vmode_) {}
-  int compute_convert_gain () final override;
+  bool compute_convert_gain () final override;
 
  private:
   void convert_insn (rtx_insn *insn) final override;
-  int vector_const_cost (rtx exp);
+  int vector_const_cost (rtx exp, basic_block bb);
   rtx convert_rotate (enum rtx_code, rtx op0, rtx op1, rtx_insn *insn);
 };
 
@@ -196,7 +197,7 @@ class timode_scalar_chain : public scalar_chain
 {
  public:
   timode_scalar_chain () : scalar_chain (TImode, V1TImode) {}
-  int compute_convert_gain () final override;
+  bool compute_convert_gain () final override;
 
  private:
   void fix_debug_reg_uses (rtx reg);

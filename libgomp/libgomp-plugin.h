@@ -177,6 +177,7 @@ extern int GOMP_OFFLOAD_memcpy3d (int, int, size_t, size_t, size_t, void *,
 				  size_t, size_t, size_t, size_t, size_t,
 				  const void *, size_t, size_t, size_t, size_t,
 				  size_t);
+extern bool GOMP_OFFLOAD_memset (int, void *, int, size_t);
 extern bool GOMP_OFFLOAD_can_run (void *);
 extern void GOMP_OFFLOAD_run (int, void *, void *, void **);
 extern void GOMP_OFFLOAD_async_run (int, void *, void *, void **, void *);
@@ -200,6 +201,8 @@ extern bool GOMP_OFFLOAD_openacc_async_dev2host (int, void *, const void *, size
 						 struct goacc_asyncqueue *);
 extern bool GOMP_OFFLOAD_openacc_async_host2dev (int, void *, const void *, size_t,
 						 struct goacc_asyncqueue *);
+extern bool GOMP_OFFLOAD_openacc_async_dev2dev (int, void *, const void *, size_t,
+						struct goacc_asyncqueue *);
 extern void *GOMP_OFFLOAD_openacc_cuda_get_current_device (void);
 extern void *GOMP_OFFLOAD_openacc_cuda_get_current_context (void);
 extern void *GOMP_OFFLOAD_openacc_cuda_get_stream (struct goacc_asyncqueue *);

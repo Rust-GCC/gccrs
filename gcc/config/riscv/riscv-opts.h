@@ -58,7 +58,8 @@ enum riscv_microarchitecture_type {
   sifive_p400,
   sifive_p600,
   xiangshan,
-  generic_ooo
+  generic_ooo,
+  mips_p8700,
 };
 extern enum riscv_microarchitecture_type riscv_microarchitecture;
 
@@ -136,16 +137,16 @@ enum rvv_vector_bits_enum {
 /* Bit of riscv_zvl_flags will set continually, N-1 bit will set if N-bit is
    set, e.g. MASK_ZVL64B has set then MASK_ZVL32B is set, so we can use
    popcount to calculate the minimal VLEN.  */
-#define TARGET_MIN_VLEN \
-  ((riscv_zvl_flags == 0) \
-   ? 0 \
-   : 32 << (__builtin_popcount (riscv_zvl_flags) - 1))
+#define TARGET_MIN_VLEN                                                        \
+  ((riscv_zvl_subext == 0)                                                     \
+     ? 0                                                                       \
+     : 32 << (__builtin_popcount (riscv_zvl_subext) - 1))
 
 /* Same as TARGET_MIN_VLEN, but take an OPTS as gcc_options.  */
 #define TARGET_MIN_VLEN_OPTS(opts)                                             \
-  ((opts->x_riscv_zvl_flags == 0)                                              \
+  ((opts->x_riscv_zvl_subext == 0)                                             \
      ? 0                                                                       \
-     : 32 << (__builtin_popcount (opts->x_riscv_zvl_flags) - 1))
+     : 32 << (__builtin_popcount (opts->x_riscv_zvl_subext) - 1))
 
 /* The maximum LMUL according to user configuration.  */
 #define TARGET_MAX_LMUL                                                        \
@@ -161,5 +162,15 @@ enum riscv_tls_type {
    expensive, so predicate the generation of those instrunctions.  */
 #define TARGET_VECTOR_AUTOVEC_SEGMENT					       \
   (TARGET_VECTOR && riscv_mautovec_segment)
+
+#define GPR2VR_COST_UNPROVIDED -1
+
+/* Extra extension flags, used for carry extra info for a RISC-V extension.  */
+enum
+{
+  EXT_FLAG_MACRO = 1 << 0,
+};
+
+#define BITMASK_NOT_YET_ALLOCATED -1
 
 #endif /* ! GCC_RISCV_OPTS_H */

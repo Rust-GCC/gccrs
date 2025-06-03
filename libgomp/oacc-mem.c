@@ -171,21 +171,22 @@ acc_free (void *d)
 }
 
 static void
-memcpy_tofrom_device (bool from, void *d, void *h, size_t s, int async,
-		      const char *libfnname)
+memcpy_tofrom_device (bool dev_to, bool dev_from, void *dst, void *src,
+		      size_t s, int async, const char *libfnname)
 {
   /* No need to call lazy open here, as the device pointer must have
      been obtained from a routine that did that.  */
   struct goacc_thread *thr = goacc_thread ();
 
   assert (thr && thr->dev);
+  if (s == 0)
+    return;
 
   if (thr->dev->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM)
     {
-      if (from)
-	memmove (h, d, s);
-      else
-	memmove (d, h, s);
+      if (src == dst)
+	return;
+      memcpy (dst, src, s);
       return;
     }
 
@@ -199,10 +200,15 @@ memcpy_tofrom_device (bool from, void *d, void *h, size_t s, int async,
     }
 
   goacc_aq aq = get_goacc_asyncqueue (async);
-  if (from)
-    gomp_copy_dev2host (thr->dev, aq, h, d, s);
+  if (dev_to && dev_from)
+    {
+      if (dst != src)
+	gomp_copy_dev2dev (thr->dev, aq, dst, src, s);
+    }
+  else if (dev_from)
+    gomp_copy_dev2host (thr->dev, aq, dst, src, s);
   else
-    gomp_copy_host2dev (thr->dev, aq, d, h, s, false, /* TODO: cbuf? */ NULL);
+    gomp_copy_host2dev (thr->dev, aq, dst, src, s, false, /* TODO: cbuf? */ NULL);
 
   if (profiling_p)
     {
@@ -214,25 +220,37 @@ memcpy_tofrom_device (bool from, void *d, void *h, size_t s, int async,
 void
 acc_memcpy_to_device (void *d, void *h, size_t s)
 {
-  memcpy_tofrom_device (false, d, h, s, acc_async_sync, __FUNCTION__);
+  memcpy_tofrom_device (true, false, d, h, s, acc_async_sync, __FUNCTION__);
 }
 
 void
 acc_memcpy_to_device_async (void *d, void *h, size_t s, int async)
 {
-  memcpy_tofrom_device (false, d, h, s, async, __FUNCTION__);
+  memcpy_tofrom_device (true, false, d, h, s, async, __FUNCTION__);
 }
 
 void
 acc_memcpy_from_device (void *h, void *d, size_t s)
 {
-  memcpy_tofrom_device (true, d, h, s, acc_async_sync, __FUNCTION__);
+  memcpy_tofrom_device (false, true, h, d, s, acc_async_sync, __FUNCTION__);
 }
 
 void
 acc_memcpy_from_device_async (void *h, void *d, size_t s, int async)
 {
-  memcpy_tofrom_device (true, d, h, s, async, __FUNCTION__);
+  memcpy_tofrom_device (false, true, h, d, s, async, __FUNCTION__);
+}
+
+void
+acc_memcpy_device (void *dst, void *src, size_t s)
+{
+  memcpy_tofrom_device (true, true, dst, src, s, acc_async_sync, __FUNCTION__);
+}
+
+void
+acc_memcpy_device_async (void *dst, void *src, size_t s, int async)
+{
+  memcpy_tofrom_device (true, true, dst, src, s, async, __FUNCTION__);
 }
 
 /* Return the device pointer that corresponds to host data H.  Or NULL
@@ -951,7 +969,7 @@ acc_attach_async (void **hostaddr, int async)
     }
 
   gomp_attach_pointer (acc_dev, aq, &acc_dev->mem_map, n, (uintptr_t) hostaddr,
-		       0, NULL, false);
+		       0, NULL, false, true);
 
   gomp_mutex_unlock (&acc_dev->lock);
 }
@@ -1158,7 +1176,7 @@ goacc_enter_data_internal (struct gomp_device_descr *acc_dev, size_t mapnum,
 	  if ((kinds[i] & 0xff) == GOMP_MAP_ATTACH)
 	    {
 	      gomp_attach_pointer (acc_dev, aq, &acc_dev->mem_map, n,
-				   (uintptr_t) h, s, NULL, false);
+				   (uintptr_t) h, s, NULL, false, true);
 	      /* OpenACC 'attach'/'detach' doesn't affect structured/dynamic
 		 reference counts ('n->refcount', 'n->dynamic_refcount').  */
 	    }
@@ -1176,7 +1194,7 @@ goacc_enter_data_internal (struct gomp_device_descr *acc_dev, size_t mapnum,
 		  = lookup_host (acc_dev, hostaddrs[j], sizeof (void *));
 		gomp_attach_pointer (acc_dev, aq, &acc_dev->mem_map, m,
 				     (uintptr_t) hostaddrs[j], sizes[j], NULL,
-				     false);
+				     false, true);
 	      }
 
 	  bool processed = false;

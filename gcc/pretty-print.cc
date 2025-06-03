@@ -30,7 +30,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-color.h"
 #include "diagnostic-event-id.h"
 #include "diagnostic-highlight-colors.h"
-#include "make-unique.h"
 #include "selftest.h"
 
 #if HAVE_ICONV
@@ -2462,7 +2461,7 @@ pretty_printer::pretty_printer (int maximum_length)
     m_indent_skip (0),
     m_wrapping (),
     m_format_decoder (nullptr),
-    m_format_postprocessor (NULL),
+    m_format_postprocessor (nullptr),
     m_token_printer (nullptr),
     m_emitted_prefix (false),
     m_need_newline (false),
@@ -2488,7 +2487,7 @@ pretty_printer::pretty_printer (const pretty_printer &other)
   m_indent_skip (other.m_indent_skip),
   m_wrapping (other.m_wrapping),
   m_format_decoder (other.m_format_decoder),
-  m_format_postprocessor (NULL),
+  m_format_postprocessor (nullptr),
   m_token_printer (other.m_token_printer),
   m_emitted_prefix (other.m_emitted_prefix),
   m_need_newline (other.m_need_newline),
@@ -2509,8 +2508,6 @@ pretty_printer::pretty_printer (const pretty_printer &other)
 
 pretty_printer::~pretty_printer ()
 {
-  if (m_format_postprocessor)
-    delete m_format_postprocessor;
   m_buffer->~output_buffer ();
   XDELETE (m_buffer);
   free (m_prefix);
@@ -2521,7 +2518,7 @@ pretty_printer::~pretty_printer ()
 std::unique_ptr<pretty_printer>
 pretty_printer::clone () const
 {
-  return ::make_unique<pretty_printer> (*this);
+  return std::make_unique<pretty_printer> (*this);
 }
 
 /* Append a string delimited by START and END to the output area of
@@ -3542,7 +3539,7 @@ test_custom_tokens_1 ()
 
     void add_to_phase_2 (pp_markup::context &ctxt) final override
     {
-      auto val_ptr = make_unique<value> (*this);
+      auto val_ptr = std::make_unique<value> (*this);
       ctxt.m_formatted_token_list->push_back<pp_token_custom_data>
 	(std::move (val_ptr));
     }
@@ -3622,7 +3619,7 @@ test_custom_tokens_2 ()
 
     void add_to_phase_2 (pp_markup::context &ctxt) final override
     {
-      auto val_ptr = make_unique<value> (*this);
+      auto val_ptr = std::make_unique<value> (*this);
       ctxt.m_formatted_token_list->push_back<pp_token_custom_data>
 	(std::move (val_ptr));
     }

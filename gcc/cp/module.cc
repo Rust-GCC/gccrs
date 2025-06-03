@@ -5546,8 +5546,10 @@ trees_in::start (unsigned code)
 
 enum class importer_interface {
   unknown,	  /* The definition may or may not need to be emitted.  */
-  always_import,  /* The definition can always be found in another TU.  */
-  always_emit,	  /* The definition must be emitted in the importer's TU. */
+  external,	  /* The definition can always be found in another TU.  */
+  internal,	  /* The definition should be emitted in the importer's TU.  */
+  always_emit,	  /* The definition must be emitted in the importer's TU,
+		     regardless of if it's used or not. */
 };
 
 /* Returns what kind of interface an importer will have of DECL.  */
@@ -5558,13 +5560,13 @@ get_importer_interface (tree decl)
   /* Internal linkage entities must be emitted in each importer if
      there is a definition available.  */
   if (!TREE_PUBLIC (decl))
-    return importer_interface::always_emit;
+    return importer_interface::internal;
 
-  /* Entities that aren't vague linkage are either not definitions or
-     will be emitted in this TU, so importers can just refer to an
-     external definition.  */
+  /* Other entities that aren't vague linkage are either not definitions
+     or will be publicly emitted in this TU, so importers can just refer
+     to an external definition.  */
   if (!vague_linkage_p (decl))
-    return importer_interface::always_import;
+    return importer_interface::external;
 
   /* For explicit instantiations, importers can always rely on there
      being a definition in another TU, unless this is a definition
@@ -5574,13 +5576,13 @@ get_importer_interface (tree decl)
       && DECL_EXPLICIT_INSTANTIATION (decl))
     return (header_module_p () && !DECL_EXTERNAL (decl)
 	    ? importer_interface::always_emit
-	    : importer_interface::always_import);
+	    : importer_interface::external);
 
   /* A gnu_inline function is never emitted in any TU.  */
   if (TREE_CODE (decl) == FUNCTION_DECL
       && DECL_DECLARED_INLINE_P (decl)
       && lookup_attribute ("gnu_inline", DECL_ATTRIBUTES (decl)))
-    return importer_interface::always_import;
+    return importer_interface::external;
 
   /* Everything else has vague linkage.  */
   return importer_interface::unknown;
@@ -5723,28 +5725,16 @@ trees_out::core_bools (tree t, bits_out& bits)
 	     == that was a lie, it is here  */
 
 	bool is_external = t->decl_common.decl_flag_1;
-	if (!is_external)
-	  /* decl_flag_1 is DECL_EXTERNAL. Things we emit here, might
-	     well be external from the POV of an importer.  */
-	  // FIXME: Do we need to know if this is a TEMPLATE_RESULT --
-	  // a flag from the caller?
-	  switch (code)
-	    {
-	    default:
-	      break;
-
-	    case VAR_DECL:
-	      if (TREE_PUBLIC (t)
-		  && DECL_VTABLE_OR_VTT_P (t))
-		/* We handle vtable linkage specially.  */
-		is_external = true;
-	      gcc_fallthrough ();
-	    case FUNCTION_DECL:
-	      if (get_importer_interface (t)
-		  == importer_interface::always_import)
-		is_external = true;
-	      break;
-	    }
+	/* maybe_emit_vtables relies on vtables being marked as
+	   DECL_EXTERNAL and DECL_NOT_REALLY_EXTERN before processing.  */
+	if (!is_external && VAR_P (t) && DECL_VTABLE_OR_VTT_P (t))
+	  is_external = true;
+	/* Things we emit here might well be external from the POV of an
+	   importer.  */
+	if (!is_external
+	    && VAR_OR_FUNCTION_DECL_P (t)
+	    && get_importer_interface (t) == importer_interface::external)
+	  is_external = true;
 	WB (is_external);
       }
 
@@ -6024,7 +6014,7 @@ trees_out::lang_decl_bools (tree t, bits_out& bits)
       WB (lang->u.fn.has_dependent_explicit_spec_p);
       WB (lang->u.fn.immediate_fn_p);
       WB (lang->u.fn.maybe_deleted);
-      /* We do not stream lang->u.fn.implicit_constexpr.  */
+      WB (lang->u.fn.implicit_constexpr);
       WB (lang->u.fn.escalated_p);
       WB (lang->u.fn.xobj_func);
       goto lds_min;
@@ -6095,7 +6085,7 @@ trees_in::lang_decl_bools (tree t, bits_in& bits)
       RB (lang->u.fn.has_dependent_explicit_spec_p);
       RB (lang->u.fn.immediate_fn_p);
       RB (lang->u.fn.maybe_deleted);
-      /* We do not stream lang->u.fn.implicit_constexpr.  */
+      RB (lang->u.fn.implicit_constexpr);
       RB (lang->u.fn.escalated_p);
       RB (lang->u.fn.xobj_func);
       goto lds_min;
@@ -8097,18 +8087,37 @@ trees_in::install_entity (tree decl)
       gcc_checking_assert (!existed);
       slot = ident;
     }
-  else if (state->is_partition ())
+  else
     {
-      /* The decl is already in the entity map, but we see it again now from a
-	 partition: we want to overwrite if the original decl wasn't also from
-	 a (possibly different) partition.  Otherwise, for things like template
-	 instantiations, make_dependency might not realise that this is also
-	 provided from a partition and should be considered part of this module
-	 (and thus always emitted into the primary interface's CMI).  */
       unsigned *slot = entity_map->get (DECL_UID (decl));
-      module_state *imp = import_entity_module (*slot);
-      if (!imp->is_partition ())
-	*slot = ident;
+
+      /* The entity must be in the entity map already.  However, DECL may
+	 be the DECL_TEMPLATE_RESULT of an existing partial specialisation
+	 if we matched it while streaming another instantiation; in this
+	 case we already registered that TEMPLATE_DECL.  */
+      if (!slot)
+	{
+	  tree type = TREE_TYPE (decl);
+	  gcc_checking_assert (TREE_CODE (decl) == TYPE_DECL
+			       && CLASS_TYPE_P (type)
+			       && CLASSTYPE_TEMPLATE_SPECIALIZATION (type));
+	  slot = entity_map->get (DECL_UID (CLASSTYPE_TI_TEMPLATE (type)));
+	}
+      gcc_checking_assert (slot);
+
+      if (state->is_partition ())
+	{
+	  /* The decl is already in the entity map, but we see it again now
+	     from a partition: we want to overwrite if the original decl
+	     wasn't also from a (possibly different) partition.  Otherwise,
+	     for things like template instantiations, make_dependency might
+	     not realise that this is also provided from a partition and
+	     should be considered part of this module (and thus always
+	     emitted into the primary interface's CMI).  */
+	  module_state *imp = import_entity_module (*slot);
+	  if (!imp->is_partition ())
+	    *slot = ident;
+	}
     }
 
   return true;
@@ -10503,7 +10512,8 @@ trees_in::tree_node (bool is_use)
 	      res = lookup_field_ident (ctx, u ());
 
 	    if (!res
-		|| TREE_CODE (res) != FIELD_DECL
+		|| (TREE_CODE (res) != FIELD_DECL
+		    && TREE_CODE (res) != USING_DECL)
 		|| DECL_CONTEXT (res) != ctx)
 	      res = NULL_TREE;
 	  }
@@ -12193,13 +12203,23 @@ trees_in::is_matching_decl (tree existing, tree decl, bool is_typedef)
 
       /* Similarly if EXISTING has undeduced constexpr, but DECL's
 	 is already deduced.  */
-      if (DECL_MAYBE_DELETED (e_inner) && !DECL_MAYBE_DELETED (d_inner)
-	  && DECL_DECLARED_CONSTEXPR_P (d_inner))
-	DECL_DECLARED_CONSTEXPR_P (e_inner) = true;
-      else if (!DECL_MAYBE_DELETED (e_inner) && DECL_MAYBE_DELETED (d_inner))
-	/* Nothing to do.  */;
+      if (DECL_DECLARED_CONSTEXPR_P (e_inner)
+	  == DECL_DECLARED_CONSTEXPR_P (d_inner))
+	/* Already matches.  */;
+      else if (DECL_DECLARED_CONSTEXPR_P (d_inner)
+	       && (DECL_MAYBE_DELETED (e_inner)
+		   || decl_implicit_constexpr_p (d_inner)))
+	/* DECL was deduced, copy to EXISTING.  */
+	{
+	  DECL_DECLARED_CONSTEXPR_P (e_inner) = true;
+	  if (decl_implicit_constexpr_p (d_inner))
+	    DECL_LANG_SPECIFIC (e_inner)->u.fn.implicit_constexpr = true;
+	}
       else if (DECL_DECLARED_CONSTEXPR_P (e_inner)
-	       != DECL_DECLARED_CONSTEXPR_P (d_inner))
+	       && (DECL_MAYBE_DELETED (d_inner)
+		   || decl_implicit_constexpr_p (e_inner)))
+	/* EXISTING was deduced, leave it alone.  */;
+      else
 	{
 	  mismatch_msg = G_("conflicting %<constexpr%> for imported "
 			    "declaration %#qD");
@@ -12638,7 +12658,11 @@ trees_out::write_function_def (tree decl)
     {
       unsigned flags = 0;
 
-      flags |= 1 * DECL_NOT_REALLY_EXTERN (decl);
+      /* Whether the importer should emit this definition, if used.  */
+      flags |= 1 * (DECL_NOT_REALLY_EXTERN (decl)
+		    && (get_importer_interface (decl)
+			!= importer_interface::external));
+
       if (f)
 	{
 	  flags |= 2;
@@ -14062,9 +14086,10 @@ depset::hash::make_dependency (tree decl, entity_kind ek)
 		     streaming the definition in such cases.  */
 		  dep->clear_flag_bit<DB_DEFN_BIT> ();
 
-		  if (DECL_DECLARED_CONSTEXPR_P (decl))
-		    /* Also, a constexpr variable initialized to a TU-local
-		       value is an exposure.  */
+		  if (DECL_DECLARED_CONSTEXPR_P (decl)
+		      || DECL_INLINE_VAR_P (decl))
+		    /* A constexpr variable initialized to a TU-local value,
+		       or an inline value (PR c++/119996), is an exposure.  */
 		    dep->set_flag_bit<DB_EXPOSURE_BIT> ();
 		}
 	    }
@@ -14822,9 +14847,16 @@ depset::hash::find_dependencies (module_state *module)
 		}
 	      walker.end ();
 
+	      /* If we see either a class template or a deduction guide, make
+		 sure to add all visible deduction guides.  We need to check
+		 both in case they have been added in separate modules, or
+		 one is in the GMF and would have otherwise been discarded.  */
 	      if (!is_key_order ()
 		  && DECL_CLASS_TEMPLATE_P (decl))
 		add_deduction_guides (decl);
+	      if (!is_key_order ()
+		  && deduction_guide_p (decl))
+		add_deduction_guides (TYPE_NAME (TREE_TYPE (TREE_TYPE (decl))));
 
 	      if (!is_key_order ()
 		  && TREE_CODE (decl) == TEMPLATE_DECL
@@ -15025,12 +15057,24 @@ depset::hash::finalize_dependencies ()
 		break;
 	      }
 
-	  if (!explained && VAR_P (decl) && DECL_DECLARED_CONSTEXPR_P (decl))
+	  if (!explained
+	      && VAR_P (decl)
+	      && (DECL_DECLARED_CONSTEXPR_P (decl)
+		  || DECL_INLINE_VAR_P (decl)))
 	    {
 	      auto_diagnostic_group d;
-	      error_at (DECL_SOURCE_LOCATION (decl),
-			"%qD is declared %<constexpr%> and is initialized to "
-			"a TU-local value", decl);
+	      if (DECL_DECLARED_CONSTEXPR_P (decl))
+		error_at (DECL_SOURCE_LOCATION (decl),
+			  "%qD is declared %<constexpr%> and is initialized to "
+			  "a TU-local value", decl);
+	      else
+		{
+		  /* This can only occur with references.  */
+		  gcc_checking_assert (TYPE_REF_P (TREE_TYPE (decl)));
+		  error_at (DECL_SOURCE_LOCATION (decl),
+			    "%qD is a reference declared %<inline%> and is "
+			    "constant-initialized to a TU-local value", decl);
+		}
 	      bool informed = is_tu_local_value (decl, DECL_INITIAL (decl),
 						 /*explain=*/true);
 	      gcc_checking_assert (informed);
@@ -16821,10 +16865,14 @@ module_state::write_namespaces (elf_out *to, vec<depset *> spaces,
   bytes_out sec (to);
   sec.begin ();
 
+  hash_map<tree, unsigned> ns_map;
+
   for (unsigned ix = 0; ix != num; ix++)
     {
       depset *b = spaces[ix];
       tree ns = b->get_entity ();
+
+      ns_map.put (ns, ix);
 
       /* This could be an anonymous namespace even for a named module,
 	 since we can still emit no-linkage decls.  */
@@ -16867,6 +16915,31 @@ module_state::write_namespaces (elf_out *to, vec<depset *> spaces,
 	}
     }
 
+  /* Now write exported using-directives, as a sequence of 1-origin indices in
+     the spaces array (not entity indices): First the using namespace, then the
+     used namespaces.  And then a zero terminating the list.  :: is
+     represented as index -1.  */
+  auto emit_one_ns = [&](unsigned ix, tree ns) {
+    for (auto udir: NAMESPACE_LEVEL (ns)->using_directives)
+      {
+	if (TREE_CODE (udir) != USING_DECL || !DECL_MODULE_EXPORT_P (udir))
+	  continue;
+	tree ns2 = USING_DECL_DECLS (udir);
+	dump() && dump ("Writing using-directive in %N for %N",
+			ns, ns2);
+	sec.u (ix);
+	sec.u (*ns_map.get (ns2) + 1);
+      }
+  };
+  emit_one_ns (-1, global_namespace);
+  for (unsigned ix = 0; ix != num; ix++)
+    {
+      depset *b = spaces[ix];
+      tree ns = b->get_entity ();
+      emit_one_ns (ix + 1, ns);
+    }
+  sec.u (0);
+
   sec.end (to, to->name (MOD_SNAME_PFX ".nms"), crc_p);
   dump.outdent ();
 }
@@ -16884,6 +16957,8 @@ module_state::read_namespaces (unsigned num)
 
   dump () && dump ("Reading namespaces");
   dump.indent ();
+
+  tree *ns_map = XALLOCAVEC (tree, num);
 
   for (unsigned ix = 0; ix != num; ix++)
     {
@@ -16946,6 +17021,8 @@ module_state::read_namespaces (unsigned num)
 	DECL_ATTRIBUTES (inner)
 	  = tree_cons (get_identifier ("abi_tag"), tags, DECL_ATTRIBUTES (inner));
 
+      ns_map[ix] = inner;
+
       /* Install the namespace.  */
       (*entity_ary)[entity_lwm + entity_index] = inner;
       if (DECL_MODULE_IMPORT_P (inner))
@@ -16960,6 +17037,44 @@ module_state::read_namespaces (unsigned num)
 	    *slot = entity_lwm + entity_index;
 	}
     }
+
+  /* Read the exported using-directives.  */
+  while (unsigned ix = sec.u ())
+    {
+      tree ns;
+      if (ix == (unsigned)-1)
+	ns = global_namespace;
+      else
+	{
+	  if (--ix >= num)
+	    {
+	      sec.set_overrun ();
+	      break;
+	    }
+	  ns = ns_map [ix];
+	}
+      unsigned ix2 = sec.u ();
+      if (--ix2 >= num)
+	{
+	  sec.set_overrun ();
+	  break;
+	}
+      tree ns2 = ns_map [ix2];
+      if (directness)
+	{
+	  dump() && dump ("Reading using-directive in %N for %N",
+			  ns, ns2);
+	  /* In an export import this will mark the using-directive as
+	     exported, so it will be emitted again.  */
+	  add_using_namespace (ns, ns2);
+	}
+      else
+	/* Ignore using-directives from indirect imports, we only want them
+	   from our own imports.  */
+	dump() && dump ("Ignoring using-directive in %N for %N",
+			ns, ns2);
+    }
+
   dump.outdent ();
   if (!sec.end (from ()))
     return false;

@@ -253,7 +253,6 @@ gengtype-lex.o-warn = -Wno-error
 libgcov-util.o-warn = -Wno-error
 libgcov-driver-tool.o-warn = -Wno-error
 libgcov-merge-tool.o-warn = -Wno-error
-gimple-match-exports.o-warn = -Wno-unused
 dfp.o-warn = -Wno-strict-aliasing
 
 # All warnings have to be shut off in stage1 if the compiler used then
@@ -481,6 +480,7 @@ USER_H = $(srcdir)/ginclude/float.h \
 	 $(srcdir)/ginclude/stdalign.h \
 	 $(srcdir)/ginclude/stdatomic.h \
 	 $(srcdir)/ginclude/stdckdint.h \
+	 $(srcdir)/ginclude/stdcountof.h \
 	 $(EXTRA_HEADERS)
 
 USER_H_INC_NEXT_PRE = @user_headers_inc_next_pre@
@@ -1850,12 +1850,14 @@ OBJS = \
 # Objects in libcommon.a, potentially used by all host binaries and with
 # no target dependencies.
 OBJS-libcommon = diagnostic-spec.o diagnostic.o diagnostic-color.o \
+	diagnostic-format-html.o \
 	diagnostic-format-json.o \
 	diagnostic-format-sarif.o \
 	diagnostic-format-text.o \
 	diagnostic-global-context.o \
 	diagnostic-macro-unwinding.o \
 	diagnostic-path.o \
+	diagnostic-path-output.o \
 	diagnostic-show-locus.o \
 	edit-context.o \
 	pretty-print.o intl.o \
@@ -3702,7 +3704,7 @@ TEXI_GCC_FILES = gcc.texi gcc-common.texi gcc-vers.texi frontends.texi	\
 	 contribute.texi compat.texi funding.texi gnu.texi gpl_v3.texi	\
 	 fdl.texi contrib.texi cppenv.texi cppopts.texi avr-mmcu.texi	\
 	 implement-c.texi implement-cxx.texi gcov-tool.texi gcov-dump.texi \
-	 lto-dump.texi
+	 lto-dump.texi riscv-ext.texi
 
 # we explicitly use $(srcdir)/doc/tm.texi here to avoid confusion with
 # the generated tm.texi; the latter might have a more recent timestamp,

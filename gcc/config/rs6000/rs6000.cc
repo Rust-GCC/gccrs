@@ -55,7 +55,6 @@
 #include "output.h"
 #include "common/common-target.h"
 #include "langhooks.h"
-#include "reload.h"
 #include "sched-int.h"
 #include "gimplify.h"
 #include "gimple-iterator.h"
@@ -9259,8 +9258,7 @@ rs6000_debug_legitimize_address (rtx x, rtx oldx, machine_mode mode)
 
   start_sequence ();
   ret = rs6000_legitimize_address (x, oldx, mode);
-  insns = get_insns ();
-  end_sequence ();
+  insns = end_sequence ();
 
   if (ret != x)
     {

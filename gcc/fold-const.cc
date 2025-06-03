@@ -5085,6 +5085,11 @@ simple_operand_p (const_tree exp)
 		 #pragma weak, etc).  */
 	      && ! TREE_PUBLIC (exp)
 	      && ! DECL_EXTERNAL (exp)
+	      /* DECL_VALUE_EXPR will expand to something non-simple.  */
+	      && ! ((VAR_P (exp)
+		     || TREE_CODE (exp) == PARM_DECL
+		     || TREE_CODE (exp) == RESULT_DECL)
+		    && DECL_HAS_VALUE_EXPR_P (exp))
 	      /* Weakrefs are not safe to be read, since they can be NULL.
  		 They are !TREE_PUBLIC && !DECL_EXTERNAL but still
 		 have DECL_WEAK flag set.  */
@@ -7246,10 +7251,10 @@ tree_swap_operands_p (const_tree arg0, const_tree arg1)
   if (TREE_CONSTANT (arg0))
     return true;
 
-  /* Put invariant address in arg1. */
-  if (is_gimple_invariant_address (arg1))
+  /* Put addresses in arg1. */
+  if (TREE_CODE (arg1) == ADDR_EXPR)
     return false;
-  if (is_gimple_invariant_address (arg0))
+  if (TREE_CODE (arg0) == ADDR_EXPR)
     return true;
 
   /* It is preferable to swap two SSA_NAME to ensure a canonical form
@@ -9917,22 +9922,29 @@ pointer_may_wrap_p (tree base, tree offset, poly_int64 bitpos)
 static int
 maybe_nonzero_address (tree decl)
 {
+  if (!DECL_P (decl))
+    return -1;
+
   /* Normally, don't do anything for variables and functions before symtab is
      built; it is quite possible that DECL will be declared weak later.
      But if folding_initializer, we need a constant answer now, so create
      the symtab entry and prevent later weak declaration.  */
-  if (DECL_P (decl) && decl_in_symtab_p (decl))
-    if (struct symtab_node *symbol
-	= (folding_initializer
-	   ? symtab_node::get_create (decl)
-	   : symtab_node::get (decl)))
-      return symbol->nonzero_address ();
+  if (decl_in_symtab_p (decl))
+    {
+      if (struct symtab_node *symbol
+	  = (folding_initializer
+	     ? symtab_node::get_create (decl)
+	     : symtab_node::get (decl)))
+	return symbol->nonzero_address ();
+    }
+  else if (folding_cxx_constexpr)
+    /* Anything that doesn't go in the symtab has non-zero address.  */
+    return 1;
 
   /* Function local objects are never NULL.  */
-  if (DECL_P (decl)
-      && (DECL_CONTEXT (decl)
+  if (DECL_CONTEXT (decl)
       && TREE_CODE (DECL_CONTEXT (decl)) == FUNCTION_DECL
-      && auto_var_in_fn_p (decl, DECL_CONTEXT (decl))))
+      && auto_var_in_fn_p (decl, DECL_CONTEXT (decl)))
     return 1;
 
   return -1;

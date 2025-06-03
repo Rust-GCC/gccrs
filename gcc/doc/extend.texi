@@ -31,6 +31,7 @@ extensions, accepted by GCC in C90 mode and in C++.
 * Thread-Local::        Per-thread variables.
 * OpenMP::              Multiprocessing extensions.
 * OpenACC::             Extensions for offloading code to accelerator devices.
+* _Countof::            The number of elements of arrays.
 * Inline::              Defining inline functions (as fast as macros).
 * Volatiles::           What constitutes an access to a volatile object.
 * Using Assembly Language with C:: Instructions and extensions for interfacing C with assembler.
@@ -6684,23 +6685,10 @@ Enable/disable the generation of the USER_MSR instructions.
 Enable/disable the generation of the APX features, including
 EGPR, PUSH2POP2, NDD and PPX.
 
-@cindex @code{target("avx10.1-256")} function attribute, x86
-@item avx10.1-256
-@itemx no-avx10.1-256
-Enable the generation of the AVX10.1 instructions with 256 bit support.
-Disable the generation of the AVX10.1 instructions.
-
 @cindex @code{target("avx10.1")} function attribute, x86
 @item avx10.1
 @itemx no-avx10.1
-Enable the generation of the AVX10.1 instructions with 512 bit support.
-Disable the generation of the AVX10.1 instructions.
-
-@cindex @code{target("avx10.1-512")} function attribute, x86
-@item avx10.1-512
-@itemx no-avx10.1-512
-Enable the generation of the AVX10.1 instructions with 512 bit support.
-Disable the generation of the AVX10.1 instructions.
+Enable/Disable the generation of the AVX10.1 instructions.
 
 @cindex @code{target("avx10.2")} function attribute, x86
 @item avx10.2
@@ -7336,7 +7324,7 @@ truncate the copy without appending the terminating @code{NUL} character.
 Using the attribute makes it possible to suppress the warning.  However,
 when the array is declared with the attribute the call to @code{strlen} is
 diagnosed because when the array doesn't contain a @code{NUL}-terminated
-string the call is undefined.  To copy, compare, of search non-string
+string the call is undefined.  To copy, compare, or search non-string
 character arrays use the @code{memcpy}, @code{memcmp}, @code{memchr},
 and other functions that operate on arrays of bytes.  In addition,
 calling @code{strnlen} and @code{strndup} with such arrays is safe
@@ -10706,6 +10694,36 @@ library.
 @xref{OpenMP and OpenACC Options}, for additional options useful with
 @option{-fopenacc}.
 
+@node _Countof
+@section Determining the Number of Elements of Arrays
+@cindex _Countof
+@cindex number of elements
+
+The keyword @code{_Countof} determines
+the number of elements of an array operand.
+Its syntax is similar to @code{sizeof}.
+The operand must be
+a parenthesized complete array type name
+or an expression of such a type.
+For example:
+
+@smallexample
+int a[n];
+_Countof (a);  // returns n
+_Countof (int [7][3]);  // returns 7
+@end smallexample
+
+The result of this operator is an integer constant expression,
+unless the array has a variable number of elements.
+The operand is only evaluated
+if the array has a variable number of elements.
+For example:
+
+@smallexample
+_Countof (int [7][n++]);  // integer constant expression
+_Countof (int [n++][7]);  // run-time value; n++ is evaluated
+@end smallexample
+
 @node Inline
 @section An Inline Function is As Fast As a Macro
 @cindex inline functions
@@ -12585,6 +12603,7 @@ The list below describes the supported modifiers and their effects for RISC-V.
 @item @code{z} @tab Print ''@code{zero}'' instead of 0 if the operand is an immediate with a value of zero.
 @item @code{i} @tab Print the character ''@code{i}'' if the operand is an immediate.
 @item @code{N} @tab Print the register encoding as integer (0 - 31).
+@item @code{H} @tab Print the name of the next register for integer.
 @end multitable
 
 @anchor{shOperandmodifiers}
@@ -14373,6 +14392,9 @@ a function call results in a compile-time error.
 @findex acoshf
 @findex acoshl
 @findex acosl
+@findex acospi
+@findex acospif
+@findex acospil
 @findex alloca
 @findex asin
 @findex asinf
@@ -14380,15 +14402,24 @@ a function call results in a compile-time error.
 @findex asinhf
 @findex asinhl
 @findex asinl
+@findex asinpi
+@findex asinpif
+@findex asinpil
 @findex atan
 @findex atan2
 @findex atan2f
 @findex atan2l
+@findex atan2pi
+@findex atan2pif
+@findex atan2pil
 @findex atanf
 @findex atanh
 @findex atanhf
 @findex atanhl
 @findex atanl
+@findex atanpi
+@findex atanpif
+@findex atanpil
 @findex bcmp
 @findex bzero
 @findex cabs
@@ -14452,6 +14483,9 @@ a function call results in a compile-time error.
 @findex coshf
 @findex coshl
 @findex cosl
+@findex cospi
+@findex cospif
+@findex cospil
 @findex cpow
 @findex cpowf
 @findex cpowl
@@ -14687,6 +14721,9 @@ a function call results in a compile-time error.
 @findex sinhf
 @findex sinhl
 @findex sinl
+@findex sinpi
+@findex sinpif
+@findex sinpil
 @findex snprintf
 @findex sprintf
 @findex sqrt
@@ -14721,6 +14758,9 @@ a function call results in a compile-time error.
 @findex tanhf
 @findex tanhl
 @findex tanl
+@findex tanpi
+@findex tanpif
+@findex tanpil
 @findex tgamma
 @findex tgammaf
 @findex tgammal
@@ -14763,7 +14803,10 @@ a particular case, a call to the library function is emitted.
 @opindex std
 Outside strict ISO C mode (@option{-ansi}, @option{-std=c90},
 @option{-std=c99} or @option{-std=c11}), the functions
-@code{_exit}, @code{alloca}, @code{bcmp}, @code{bzero},
+@code{_exit}, @code{alloca}, @code{acospi}, @code{acospif}, @code{acospil},
+@code{asinpi}, @code{asinpif}, @code{asinpil}, @code{atan2pi}, @code{atan2pif},
+@code{atan2pil}, @code{atanpi}, @code{atanpif}, @code{atanpil}, @code{bcmp},
+@code{bzero}, @code{cospi}, @code{cospif}, @code{cospil},
 @code{dcgettext}, @code{dgettext}, @code{dremf}, @code{dreml},
 @code{drem}, @code{exp10f}, @code{exp10l}, @code{exp10}, @code{ffsll},
 @code{ffsl}, @code{ffs}, @code{fprintf_unlocked},
@@ -14778,11 +14821,12 @@ Outside strict ISO C mode (@option{-ansi}, @option{-std=c90},
 @code{signbit}, @code{signbitf}, @code{signbitl}, @code{signbitd32},
 @code{signbitd64}, @code{signbitd128}, @code{significandf},
 @code{significandl}, @code{significand}, @code{sincosf},
-@code{sincosl}, @code{sincos}, @code{stpcpy}, @code{stpncpy},
-@code{strcasecmp}, @code{strdup}, @code{strfmon}, @code{strncasecmp},
-@code{strndup}, @code{strnlen}, @code{toascii}, @code{y0f}, @code{y0l},
-@code{y0}, @code{y1f}, @code{y1l}, @code{y1}, @code{ynf}, @code{ynl} and
-@code{yn}
+@code{sincosl}, @code{sincos}, @code{sinpif}, @code{sinpil}, @code{sinpi},
+@code{stpcpy}, @code{stpncpy}, @code{strcasecmp}, @code{strdup},
+@code{strfmon}, @code{strncasecmp}, @code{strndup}, @code{strnlen},
+@code{tanpif}, @code{tanpil}, @code{tanpi}, @code{toascii}, @code{y0f},
+@code{y0l}, @code{y0}, @code{y1f}, @code{y1l}, @code{y1}, @code{ynf},
+@code{ynl} and @code{yn}
 may be handled as built-in functions.
 All these functions have corresponding versions
 prefixed with @code{__builtin_}, which may be used even in strict C90
@@ -17904,7 +17948,6 @@ instructions, but allow the compiler to schedule those calls.
 * Alpha Built-in Functions::
 * ARC Built-in Functions::
 * ARC SIMD Built-in Functions::
-* ARM iWMMXt Built-in Functions::
 * ARM C Language Extensions (ACLE)::
 * ARM Floating Point Status and Control Intrinsics::
 * ARM ARMv8-M Security Extensions::
@@ -18519,160 +18562,6 @@ _v2si __builtin_arc_vsubadd (__v2si, __v2si);
 _v4hi __builtin_arc_vaddsub4h (__v4hi, __v4hi);
 _v4hi __builtin_arc_vsubadd4h (__v4hi, __v4hi);
 @end example
-
-@node ARM iWMMXt Built-in Functions
-@subsection ARM iWMMXt Built-in Functions
-
-These built-in functions are available for the ARM family of
-processors when the @option{-mcpu=iwmmxt} switch is used:
-
-@smallexample
-typedef int v2si __attribute__ ((vector_size (8)));
-typedef short v4hi __attribute__ ((vector_size (8)));
-typedef char v8qi __attribute__ ((vector_size (8)));
-
-int __builtin_arm_getwcgr0 (void);
-void __builtin_arm_setwcgr0 (int);
-int __builtin_arm_getwcgr1 (void);
-void __builtin_arm_setwcgr1 (int);
-int __builtin_arm_getwcgr2 (void);
-void __builtin_arm_setwcgr2 (int);
-int __builtin_arm_getwcgr3 (void);
-void __builtin_arm_setwcgr3 (int);
-int __builtin_arm_textrmsb (v8qi, int);
-int __builtin_arm_textrmsh (v4hi, int);
-int __builtin_arm_textrmsw (v2si, int);
-int __builtin_arm_textrmub (v8qi, int);
-int __builtin_arm_textrmuh (v4hi, int);
-int __builtin_arm_textrmuw (v2si, int);
-v8qi __builtin_arm_tinsrb (v8qi, int, int);
-v4hi __builtin_arm_tinsrh (v4hi, int, int);
-v2si __builtin_arm_tinsrw (v2si, int, int);
-long long __builtin_arm_tmia (long long, int, int);
-long long __builtin_arm_tmiabb (long long, int, int);
-long long __builtin_arm_tmiabt (long long, int, int);
-long long __builtin_arm_tmiaph (long long, int, int);
-long long __builtin_arm_tmiatb (long long, int, int);
-long long __builtin_arm_tmiatt (long long, int, int);
-int __builtin_arm_tmovmskb (v8qi);
-int __builtin_arm_tmovmskh (v4hi);
-int __builtin_arm_tmovmskw (v2si);
-long long __builtin_arm_waccb (v8qi);
-long long __builtin_arm_wacch (v4hi);
-long long __builtin_arm_waccw (v2si);
-v8qi __builtin_arm_waddb (v8qi, v8qi);
-v8qi __builtin_arm_waddbss (v8qi, v8qi);
-v8qi __builtin_arm_waddbus (v8qi, v8qi);
-v4hi __builtin_arm_waddh (v4hi, v4hi);
-v4hi __builtin_arm_waddhss (v4hi, v4hi);
-v4hi __builtin_arm_waddhus (v4hi, v4hi);
-v2si __builtin_arm_waddw (v2si, v2si);
-v2si __builtin_arm_waddwss (v2si, v2si);
-v2si __builtin_arm_waddwus (v2si, v2si);
-v8qi __builtin_arm_walign (v8qi, v8qi, int);
-long long __builtin_arm_wand(long long, long long);
-long long __builtin_arm_wandn (long long, long long);
-v8qi __builtin_arm_wavg2b (v8qi, v8qi);
-v8qi __builtin_arm_wavg2br (v8qi, v8qi);
-v4hi __builtin_arm_wavg2h (v4hi, v4hi);
-v4hi __builtin_arm_wavg2hr (v4hi, v4hi);
-v8qi __builtin_arm_wcmpeqb (v8qi, v8qi);
-v4hi __builtin_arm_wcmpeqh (v4hi, v4hi);
-v2si __builtin_arm_wcmpeqw (v2si, v2si);
-v8qi __builtin_arm_wcmpgtsb (v8qi, v8qi);
-v4hi __builtin_arm_wcmpgtsh (v4hi, v4hi);
-v2si __builtin_arm_wcmpgtsw (v2si, v2si);
-v8qi __builtin_arm_wcmpgtub (v8qi, v8qi);
-v4hi __builtin_arm_wcmpgtuh (v4hi, v4hi);
-v2si __builtin_arm_wcmpgtuw (v2si, v2si);
-long long __builtin_arm_wmacs (long long, v4hi, v4hi);
-long long __builtin_arm_wmacsz (v4hi, v4hi);
-long long __builtin_arm_wmacu (long long, v4hi, v4hi);
-long long __builtin_arm_wmacuz (v4hi, v4hi);
-v4hi __builtin_arm_wmadds (v4hi, v4hi);
-v4hi __builtin_arm_wmaddu (v4hi, v4hi);
-v8qi __builtin_arm_wmaxsb (v8qi, v8qi);
-v4hi __builtin_arm_wmaxsh (v4hi, v4hi);
-v2si __builtin_arm_wmaxsw (v2si, v2si);
-v8qi __builtin_arm_wmaxub (v8qi, v8qi);
-v4hi __builtin_arm_wmaxuh (v4hi, v4hi);
-v2si __builtin_arm_wmaxuw (v2si, v2si);
-v8qi __builtin_arm_wminsb (v8qi, v8qi);
-v4hi __builtin_arm_wminsh (v4hi, v4hi);
-v2si __builtin_arm_wminsw (v2si, v2si);
-v8qi __builtin_arm_wminub (v8qi, v8qi);
-v4hi __builtin_arm_wminuh (v4hi, v4hi);
-v2si __builtin_arm_wminuw (v2si, v2si);
-v4hi __builtin_arm_wmulsm (v4hi, v4hi);
-v4hi __builtin_arm_wmulul (v4hi, v4hi);
-v4hi __builtin_arm_wmulum (v4hi, v4hi);
-long long __builtin_arm_wor (long long, long long);
-v2si __builtin_arm_wpackdss (long long, long long);
-v2si __builtin_arm_wpackdus (long long, long long);
-v8qi __builtin_arm_wpackhss (v4hi, v4hi);
-v8qi __builtin_arm_wpackhus (v4hi, v4hi);
-v4hi __builtin_arm_wpackwss (v2si, v2si);
-v4hi __builtin_arm_wpackwus (v2si, v2si);
-long long __builtin_arm_wrord (long long, long long);
-long long __builtin_arm_wrordi (long long, int);
-v4hi __builtin_arm_wrorh (v4hi, long long);
-v4hi __builtin_arm_wrorhi (v4hi, int);
-v2si __builtin_arm_wrorw (v2si, long long);
-v2si __builtin_arm_wrorwi (v2si, int);
-v2si __builtin_arm_wsadb (v2si, v8qi, v8qi);
-v2si __builtin_arm_wsadbz (v8qi, v8qi);
-v2si __builtin_arm_wsadh (v2si, v4hi, v4hi);
-v2si __builtin_arm_wsadhz (v4hi, v4hi);
-v4hi __builtin_arm_wshufh (v4hi, int);
-long long __builtin_arm_wslld (long long, long long);
-long long __builtin_arm_wslldi (long long, int);
-v4hi __builtin_arm_wsllh (v4hi, long long);
-v4hi __builtin_arm_wsllhi (v4hi, int);
-v2si __builtin_arm_wsllw (v2si, long long);
-v2si __builtin_arm_wsllwi (v2si, int);
-long long __builtin_arm_wsrad (long long, long long);
-long long __builtin_arm_wsradi (long long, int);
-v4hi __builtin_arm_wsrah (v4hi, long long);
-v4hi __builtin_arm_wsrahi (v4hi, int);
-v2si __builtin_arm_wsraw (v2si, long long);
-v2si __builtin_arm_wsrawi (v2si, int);
-long long __builtin_arm_wsrld (long long, long long);
-long long __builtin_arm_wsrldi (long long, int);
-v4hi __builtin_arm_wsrlh (v4hi, long long);
-v4hi __builtin_arm_wsrlhi (v4hi, int);
-v2si __builtin_arm_wsrlw (v2si, long long);
-v2si __builtin_arm_wsrlwi (v2si, int);
-v8qi __builtin_arm_wsubb (v8qi, v8qi);
-v8qi __builtin_arm_wsubbss (v8qi, v8qi);
-v8qi __builtin_arm_wsubbus (v8qi, v8qi);
-v4hi __builtin_arm_wsubh (v4hi, v4hi);
-v4hi __builtin_arm_wsubhss (v4hi, v4hi);
-v4hi __builtin_arm_wsubhus (v4hi, v4hi);
-v2si __builtin_arm_wsubw (v2si, v2si);
-v2si __builtin_arm_wsubwss (v2si, v2si);
-v2si __builtin_arm_wsubwus (v2si, v2si);
-v4hi __builtin_arm_wunpckehsb (v8qi);
-v2si __builtin_arm_wunpckehsh (v4hi);
-long long __builtin_arm_wunpckehsw (v2si);
-v4hi __builtin_arm_wunpckehub (v8qi);
-v2si __builtin_arm_wunpckehuh (v4hi);
-long long __builtin_arm_wunpckehuw (v2si);
-v4hi __builtin_arm_wunpckelsb (v8qi);
-v2si __builtin_arm_wunpckelsh (v4hi);
-long long __builtin_arm_wunpckelsw (v2si);
-v4hi __builtin_arm_wunpckelub (v8qi);
-v2si __builtin_arm_wunpckeluh (v4hi);
-long long __builtin_arm_wunpckeluw (v2si);
-v8qi __builtin_arm_wunpckihb (v8qi, v8qi);
-v4hi __builtin_arm_wunpckihh (v4hi, v4hi);
-v2si __builtin_arm_wunpckihw (v2si, v2si);
-v8qi __builtin_arm_wunpckilb (v8qi, v8qi);
-v4hi __builtin_arm_wunpckilh (v4hi, v4hi);
-v2si __builtin_arm_wunpckilw (v2si, v2si);
-long long __builtin_arm_wxor (long long, long long);
-long long __builtin_arm_wzero ();
-@end smallexample
-
 
 @node ARM C Language Extensions (ACLE)
 @subsection ARM C Language Extensions (ACLE)

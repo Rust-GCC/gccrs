@@ -288,7 +288,7 @@ ipcp_lattice<valtype>::print (FILE * f, bool dump_sources, bool dump_benefits)
 	  else
 	    fprintf (f, " [scc: %i, from:", val->scc_no);
 	  for (s = val->sources; s; s = s->next)
-	    fprintf (f, " %i(%f)", s->cs->caller->order,
+	    fprintf (f, " %i(%f)", s->cs->caller->get_uid (),
 		     s->cs->sreal_frequency ().to_double ());
 	  fprintf (f, "]");
 	}
@@ -544,15 +544,17 @@ cs_interesting_for_ipcp_p (cgraph_edge *e)
   if (e->count.ipa ().nonzero_p ())
     return true;
   /* If local (possibly guseed or adjusted 0 profile) claims edge is
-     not executed, do not propagate.  */
-  if (!e->count.nonzero_p ())
+     not executed, do not propagate.
+     Do not trust AFDO since branch needs to be executed multiple
+     time to count while we want to propagate even call called
+     once during the train run if callee is important.  */
+  if (e->count.initialized_p () && !e->count.nonzero_p ()
+      && e->count.quality () != AFDO)
     return false;
-  /* If IPA profile says edge is executed zero times, but zero
-     is quality is ADJUSTED, still consider it for cloning in
-     case we have partial training.  */
+  /* If we have zero IPA profile, still consider edge for cloning
+     in case we do partial training.  */
   if (e->count.ipa ().initialized_p ()
-      && opt_for_fn (e->callee->decl,flag_profile_partial_training)
-      && e->count.nonzero_p ())
+      && !opt_for_fn (e->callee->decl,flag_profile_partial_training))
     return false;
   return true;
 }
@@ -6364,6 +6366,11 @@ ipcp_store_vr_results (void)
 						     TYPE_PRECISION (type),
 						     TYPE_SIGN (type)));
 		  tmp.update_bitmask (bm);
+		  // Reflecting the bitmask on the ranges can sometime
+		  // produce an UNDEFINED value if the the bitmask update
+		  // was previously deferred.  See PR 120048.
+		  if (tmp.undefined_p ())
+		    tmp.set_varying (type);
 		  ipa_vr vr (tmp);
 		  ts->m_vr->quick_push (vr);
 		}
@@ -6385,6 +6392,11 @@ ipcp_store_vr_results (void)
 						 TYPE_PRECISION (type),
 						 TYPE_SIGN (type)));
 	      tmp.update_bitmask (bm);
+	      // Reflecting the bitmask on the ranges can sometime
+	      // produce an UNDEFINED value if the the bitmask update
+	      // was previously deferred.  See PR 120048.
+	      if (tmp.undefined_p ())
+		tmp.set_varying (type);
 	      ipa_vr vr (tmp);
 	      ts->m_vr->quick_push (vr);
 	    }

@@ -32,11 +32,11 @@
 #else
 #define _SYMBOLS_H_
 
-#include <assert.h>
-#include <limits.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cassert>
+#include <climits>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 #include <algorithm>
 #include <list>
@@ -57,19 +57,22 @@ enum cbl_dialect_t {
   dialect_gnu_e = 0x04,
 };
 
-extern cbl_dialect_t cbl_dialect;
+// Dialects may be combined. 
+extern unsigned int cbl_dialects;
 void cobol_dialect_set( cbl_dialect_t dialect );
-cbl_dialect_t dialect_is();
 
+// GCC dialect means no other dialects
 static inline bool dialect_gcc() {
-  return dialect_gcc_e  == cbl_dialect;
+  return dialect_gcc_e == cbl_dialects;
 }
-
 static inline bool dialect_ibm() {
-  return dialect_ibm_e == (cbl_dialect & dialect_ibm_e);
+  return dialect_ibm_e == (cbl_dialects & dialect_ibm_e);
 }
 static inline bool dialect_mf() {
-  return dialect_mf_e  == (cbl_dialect & dialect_mf_e );
+  return dialect_mf_e  == (cbl_dialects & dialect_mf_e );
+}
+static inline bool dialect_gnu() {
+  return dialect_gnu_e  == (cbl_dialects & dialect_gnu_e );
 }
 
 enum cbl_gcobol_feature_t {
@@ -146,6 +149,7 @@ is_working_storage(uint32_t attr) {
   return 0 == (attr & (linkage_e | local_e));
 }
 
+int cbl_figconst_tok( const char *value );
 enum cbl_figconst_t cbl_figconst_of( const char *value );
 const char * cbl_figconst_str( cbl_figconst_t fig );
 
@@ -215,7 +219,6 @@ bool decimal_is_comma();
 
 enum symbol_type_t {
   SymFilename,
-  SymFunction,
   SymField,
   SymLabel,                     // section, paragraph, or label
   SymSpecial,
@@ -343,9 +346,7 @@ struct cbl_field_data_t {
 
   cbl_field_data_t& valify() {
     assert(initial);
-    const size_t len = strlen(initial);
-    std::string input(len + 1, '\0'); // add a NUL
-    std::copy(initial, initial + len, input.begin()); 
+    std::string input(initial);
     if( decimal_is_comma() ) {
       std::replace(input.begin(), input.end(), ',', '.');
     }
@@ -494,7 +495,7 @@ bool is_elementary( enum cbl_field_type_t type );
 struct cbl_field_t {
   size_t offset;
   enum cbl_field_type_t type, usage;
-  size_t attr;
+  uint64_t attr;
   static_assert(sizeof(attr) == sizeof(cbl_field_attr_t), "wrong attr size");
   size_t parent;    // symbols[] index of our parent
   size_t our_index; // symbols[] index of this field, set in symbol_add()
@@ -513,7 +514,6 @@ struct cbl_field_t {
   tree data_decl_node;  // Reference to the run-time data of the COBOL variable
   //                    // For linkage_e variables, data_decl_node is a pointer
   //                    // to the data, rather than the actual data
-  tree literal_decl_node; // This is a FLOAT128 version of data.value
 
   void set_linkage( cbl_ffi_crv_t crv, bool optional ) {
     linkage.optional = optional;
@@ -597,8 +597,8 @@ struct cbl_field_t {
   bool has_attr( cbl_field_attr_t attr ) const {
     return cbl_field_attr_t(this->attr & attr) == attr;
   }
-  size_t set_attr( cbl_field_attr_t attr );
-  size_t clear_attr( cbl_field_attr_t attr );
+  uint64_t set_attr( cbl_field_attr_t attr );
+  uint64_t clear_attr( cbl_field_attr_t attr );
   const char * attr_str( const std::vector<cbl_field_attr_t>& attrs ) const;
 
   bool is_justifiable() const {
@@ -631,6 +631,8 @@ struct cbl_field_t {
     return level_str(level);
   }
 };
+
+const cbl_field_t * cbl_figconst_field_of( const char *value );
 
 // Necessary forward referencea
 struct cbl_label_t;
@@ -1192,7 +1194,7 @@ class temporaries_t {
 public:
   cbl_field_t * literal( const char value[], uint32_t len, cbl_field_attr_t attr  = none_e );
   cbl_field_t * reuse( cbl_field_type_t type );
-  cbl_field_t * acquire( cbl_field_type_t type );
+  cbl_field_t * acquire( cbl_field_type_t type, const cbl_name_t name = nullptr );
   cbl_field_t *  add( cbl_field_t *field );
   bool keep( cbl_field_t *field ) { return 1 == used[field->type].erase(field); }
   void dump() const;
@@ -1273,7 +1275,8 @@ struct function_descr_t {
   static function_descr_t init( const char name[] ) {
     function_descr_t descr = {};
     if( -1 == snprintf( descr.name, sizeof(descr.name), "%s", name ) ) {
-      dbgmsg("name truncated to '%s' (max %zu characters)", name);
+      dbgmsg("name truncated to '%s' (max " HOST_SIZE_T_PRINT_UNSIGNED
+             " characters)", name, (fmt_size_t)sizeof(descr.name));
     }
     return descr;  // truncation also reported elsewhere ?
   }
@@ -1472,14 +1475,6 @@ struct cbl_alphabet_t {
   }
 };
 
-// a function pointer
-typedef void ( *cbl_function_ptr ) ( void );
-
-struct cbl_function_t {
-  char name[NAME_MAX];
-  cbl_function_ptr func;
-};
-
 static inline const char *
 file_org_str( enum cbl_file_org_t org ) {
   switch ( org ) {
@@ -1635,7 +1630,6 @@ struct symbol_elem_t {
   size_t program;
   union symbol_elem_u {
     char *filename;
-    cbl_function_t     function;
     cbl_field_t        field;
     cbl_label_t        label;
     cbl_special_name_t special;
@@ -1688,9 +1682,6 @@ struct symbol_elem_t {
     switch(type) {
     case SymFilename:
       elem.filename = that.elem.filename;
-      break;
-    case SymFunction:
-      elem.function = that.elem.function;
       break;
     case SymField:
       elem.field = that.elem.field;
@@ -1810,13 +1801,6 @@ symbolset_t symbol_program_callables( size_t program );
 const cbl_label_t * symbol_program_local( const char called[] );
 
 bool redefine_field( cbl_field_t *field );
-
-// Functions to correctly extract the underlying type.
-static inline struct cbl_function_t *
-cbl_function_of( struct symbol_elem_t *e ) {
-  assert(e->type == SymFunction);
-  return &e->elem.function;
-}
 
 static inline struct cbl_section_t *
 cbl_section_of( struct symbol_elem_t *e ) {
@@ -2049,11 +2033,12 @@ struct cbl_perform_tgt_t {
   void dump() const {
     assert(ifrom);
     if( !ito ) {
-      dbgmsg( "%s:%d: #%3zu %s", __PRETTY_FUNCTION__, __LINE__,
-             ifrom, from()->str() );
+      dbgmsg( "%s:%d: #%3" GCC_PRISZ "u %s", __PRETTY_FUNCTION__, __LINE__,
+             (fmt_size_t)ifrom, from()->str() );
     } else {
-      dbgmsg( "%s:%d: #%3zu %s THRU #%3zu %s", __PRETTY_FUNCTION__, __LINE__,
-             ifrom, from()->str(), ito, to()->str() );
+      dbgmsg( "%s:%d: #%3" GCC_PRISZ "u %s THRU #%3" GCC_PRISZ "u %s",
+             __PRETTY_FUNCTION__, __LINE__,
+             (fmt_size_t)ifrom, from()->str(), (fmt_size_t)ito, to()->str() );
     }
   }
 
@@ -2205,6 +2190,10 @@ class name_queue_t : private std::queue<cbl_namelocs_t>
 
 };
 
+const std::string& keyword_alias_add( const std::string& keyword,
+				      const std::string& alias );
+int binary_integer_usage_of( const char name[] );
+  
 void tee_up_empty();
 void tee_up_name( const YYLTYPE& loc, const char name[] );
 cbl_namelist_t teed_up_names();
@@ -2246,7 +2235,7 @@ cbl_file_t * symbol_record_file( const cbl_field_t *f );
 
 struct cbl_field_t * symbol_find_odo( const cbl_field_t * field );
 
-size_t numeric_group_attrs( const cbl_field_t *field );
+uint64_t numeric_group_attrs( const cbl_field_t *field );
 
 static inline struct cbl_field_t *
 field_at( size_t index ) {
@@ -2367,10 +2356,6 @@ symbol_field_same_as( cbl_field_t *tgt, const cbl_field_t *src );
 
 size_t symbol_file_same_record_area( std::list<cbl_file_t*>& files );
 
-cbl_field_t *
-symbol_valid_udf_args( size_t function,
-                       std::list<cbl_refer_t> args = std::list<cbl_refer_t>() );
-
 bool symbol_currency_add( const char symbol[], const char sign[] = NULL );
 const char * symbol_currency( char symbol );
 
@@ -2399,5 +2384,7 @@ void gcc_location_set( const LOC& loc );
 // It's the only entry point in the module, and so it seemed to me wasteful to
 //  create an entire .h module.  So, I stuck it here.
 size_t count_characters(const char *in, size_t length);
+
+void current_enabled_ecs( tree ena );
 
 #endif

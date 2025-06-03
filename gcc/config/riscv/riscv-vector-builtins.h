@@ -130,6 +130,7 @@ enum required_ext
   XSFVQMACCQOQ_EXT,	/* XSFVQMACCQOQ extension */
   XSFVQMACCDOD_EXT,	/* XSFVQMACCDOD extension */
   XSFVFNRCLIPXFQF_EXT,	/* XSFVFNRCLIPXFQF extension */
+  XSFVCP_EXT, /* XSFVCP extension*/
   /* Please update below to isa_name func when add or remove enum type(s).  */
 };
 
@@ -169,6 +170,8 @@ static inline const char * required_ext_to_isa_name (enum required_ext required)
       return "xsfvqmaccdod";
     case XSFVFNRCLIPXFQF_EXT:
       return "xsfvfnrclipxfqf";
+    case XSFVCP_EXT:
+      return "xsfvcp";
     default:
       gcc_unreachable ();
   }
@@ -212,6 +215,8 @@ static inline bool required_extensions_specified (enum required_ext required)
       return TARGET_XSFVQMACCDOD;
     case XSFVFNRCLIPXFQF_EXT:
       return TARGET_XSFVFNRCLIPXFQF;
+    case XSFVCP_EXT:
+      return TARGET_XSFVCP;
     default:
       gcc_unreachable ();
   }
@@ -297,6 +302,7 @@ struct rvv_arg_type_info
   tree get_tree_type (vector_type_index) const;
   tree get_tuple_subpart_type (vector_type_index) const;
   tree get_xfqf_float_type (vector_type_index) const;
+  tree get_scalar_float_type (vector_type_index) const;
 };
 
 /* Static information for each operand.  */
@@ -325,43 +331,7 @@ struct function_group_info
   /* Return true if required extension is enabled */
   bool match (required_ext ext_value) const
   {
-    switch (ext_value)
-    {
-      case VECTOR_EXT:
-        return TARGET_VECTOR;
-      case ZVBB_EXT:
-        return TARGET_ZVBB;
-      case ZVBB_OR_ZVKB_EXT:
-        return (TARGET_ZVBB || TARGET_ZVKB);
-      case ZVBC_EXT:
-        return TARGET_ZVBC;
-      case ZVKG_EXT:
-        return TARGET_ZVKG;
-      case ZVKNED_EXT:
-        return TARGET_ZVKNED;
-      case ZVKNHA_OR_ZVKNHB_EXT:
-        return (TARGET_ZVKNHA || TARGET_ZVKNHB);
-      case ZVKNHB_EXT:
-        return TARGET_ZVKNHB;
-      case ZVKSED_EXT:
-        return TARGET_ZVKSED;
-      case ZVKSH_EXT:
-        return TARGET_ZVKSH;
-      case XTHEADVECTOR_EXT:
-	return TARGET_XTHEADVECTOR;
-      case ZVFBFMIN_EXT:
-	return TARGET_ZVFBFMIN;
-      case ZVFBFWMA_EXT:
-	return TARGET_ZVFBFWMA;
-      case XSFVQMACCQOQ_EXT:
-	return TARGET_XSFVQMACCQOQ;
-      case XSFVQMACCDOD_EXT:
-	return TARGET_XSFVQMACCDOD;
-      case XSFVFNRCLIPXFQF_EXT:
-	return TARGET_XSFVFNRCLIPXFQF;
-      default:
-        gcc_unreachable ();
-    }
+    return required_extensions_specified (ext_value);
   }
   /* The base name, as a string.  */
   const char *base_name;

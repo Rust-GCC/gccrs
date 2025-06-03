@@ -82,6 +82,8 @@ private:
   const char *parse_single_multiletter_ext (const char *, const char *,
 					    const char *, bool);
 
+  std::string parse_profiles (const char*);
+
   void handle_implied_ext (const char *);
   bool check_implied_ext ();
   void handle_combine_ext ();
@@ -107,9 +109,6 @@ public:
   static riscv_subset_list *parse (const char *, location_t);
   const char *parse_single_ext (const char *, bool exact_single_p = true);
 
-  const riscv_subset_t *begin () const {return m_head;};
-  const riscv_subset_t *end () const {return NULL;};
-
   int match_score (riscv_subset_list *) const;
 
   void set_loc (location_t);
@@ -117,6 +116,65 @@ public:
   void set_allow_adding_dup (bool v) { m_allow_adding_dup = v; }
 
   void finalize ();
+
+  class iterator
+  {
+  public:
+    explicit iterator(riscv_subset_t *node) : m_node(node) {}
+
+    riscv_subset_t &operator*() const { return *m_node; }
+    riscv_subset_t *operator->() const { return m_node; }
+
+    iterator &operator++()
+    {
+      if (m_node)
+	m_node = m_node->next;
+      return *this;
+    }
+
+    bool operator!=(const iterator &other) const
+    {
+      return m_node != other.m_node;
+    }
+
+    bool operator==(const iterator &other) const
+    {
+      return m_node == other.m_node;
+    }
+
+  private:
+    riscv_subset_t *m_node;
+  };
+
+  iterator begin() { return iterator(m_head); }
+  iterator end()   { return iterator(nullptr); }
+
+  class const_iterator
+  {
+  public:
+    explicit const_iterator(const riscv_subset_t *node) : m_node(node) {}
+
+    const riscv_subset_t &operator*() const { return *m_node; }
+    const riscv_subset_t *operator->() const { return m_node; }
+
+    const_iterator &operator++()
+    {
+      if (m_node)
+	m_node = m_node->next;
+      return *this;
+    }
+
+    bool operator!=(const const_iterator &other) const
+    {
+      return m_node != other.m_node;
+    }
+
+  private:
+    const riscv_subset_t *m_node;
+  };
+
+  const_iterator begin() const { return const_iterator(m_head); }
+  const_iterator end() const   { return const_iterator(nullptr); }
 };
 
 extern const riscv_subset_list *riscv_cmdline_subset_list (void);
@@ -127,6 +185,5 @@ extern bool riscv_minimal_hwprobe_feature_bits (const char *,
 						location_t);
 extern bool
 riscv_ext_is_subset (struct cl_target_option *, struct cl_target_option *);
-extern int riscv_x_target_flags_isa_mask (void);
 
 #endif /* ! GCC_RISCV_SUBSET_H */

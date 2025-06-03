@@ -3201,8 +3201,7 @@ aarch64_load_symref_appropriately (rtx dest, rtx imm,
 	  aarch64_emit_call_insn (gen_tlsgd_small_si (result, imm));
 	else
 	  aarch64_emit_call_insn (gen_tlsgd_small_di (result, imm));
-	insns = get_insns ();
-	end_sequence ();
+	insns = end_sequence ();
 
 	RTL_CONST_CALL_P (insns) = 1;
 	emit_libcall_block (insns, tmp_reg, result, imm);
@@ -3667,6 +3666,14 @@ aarch64_partial_ptrue_length (rtx_vector_builder &builder,
   if (builder.nelts_per_pattern () == 3)
     return 0;
 
+  /* It is conservatively correct to drop the element size to a lower value,
+     and we must do so if the predicate consists of a leading "foreground"
+     sequence that is smaller than the element size.  Without this,
+     we would test only one bit and so treat everything as either an
+     all-true or an all-false predicate.  */
+  if (builder.nelts_per_pattern () == 2)
+    elt_size = MIN (elt_size, builder.npatterns ());
+
   /* Skip over leading set bits.  */
   unsigned int nelts = builder.encoded_nelts ();
   unsigned int i = 0;
@@ -3696,6 +3703,24 @@ aarch64_partial_ptrue_length (rtx_vector_builder &builder,
       return 0;
 
   return vl;
+}
+
+/* Return:
+
+   * -1 if all bits of PRED are set
+   * N if PRED has N leading set bits followed by all clear bits
+   * 0 if PRED does not have any of these forms.  */
+
+int
+aarch64_partial_ptrue_length (rtx pred)
+{
+  rtx_vector_builder builder;
+  if (!aarch64_get_sve_pred_bits (builder, pred))
+    return 0;
+
+  auto elt_size = vector_element_size (GET_MODE_BITSIZE (GET_MODE (pred)),
+				       GET_MODE_NUNITS (GET_MODE (pred)));
+  return aarch64_partial_ptrue_length (builder, elt_size);
 }
 
 /* See if there is an svpattern that encodes an SVE predicate of mode
@@ -6410,19 +6435,51 @@ aarch64_stack_protect_canary_mem (machine_mode mode, rtx decl_rtl,
   return gen_rtx_MEM (mode, force_reg (Pmode, addr));
 }
 
-/* Emit an SVE predicated move from SRC to DEST.  PRED is a predicate
-   that is known to contain PTRUE.  */
+/* Emit a load/store from a subreg of SRC to a subreg of DEST.
+   The subregs have mode NEW_MODE. Use only for reg<->mem moves.  */
+void
+aarch64_emit_load_store_through_mode (rtx dest, rtx src, machine_mode new_mode)
+{
+  gcc_assert ((MEM_P (dest) && register_operand (src, VOIDmode))
+	      || (MEM_P (src) && register_operand (dest, VOIDmode)));
+  auto mode = GET_MODE (dest);
+  auto int_mode = aarch64_sve_int_mode (mode);
+  if (MEM_P (src))
+    {
+      rtx tmp = force_reg (new_mode, adjust_address (src, new_mode, 0));
+      tmp = force_lowpart_subreg (int_mode, tmp, new_mode);
+      emit_move_insn (dest, force_lowpart_subreg (mode, tmp, int_mode));
+    }
+  else
+    {
+      src = force_lowpart_subreg (int_mode, src, mode);
+      emit_move_insn (adjust_address (dest, new_mode, 0),
+		      force_lowpart_subreg (new_mode, src, int_mode));
+    }
+}
+
+/* PRED is a predicate that is known to contain PTRUE.
+   For 128-bit VLS loads/stores, emit LDR/STR.
+   Else, emit an SVE predicated move from SRC to DEST.  */
 
 void
 aarch64_emit_sve_pred_move (rtx dest, rtx pred, rtx src)
 {
-  expand_operand ops[3];
   machine_mode mode = GET_MODE (dest);
-  create_output_operand (&ops[0], dest, mode);
-  create_input_operand (&ops[1], pred, GET_MODE(pred));
-  create_input_operand (&ops[2], src, mode);
-  temporary_volatile_ok v (true);
-  expand_insn (code_for_aarch64_pred_mov (mode), 3, ops);
+  if ((MEM_P (dest) || MEM_P (src))
+      && known_eq (GET_MODE_SIZE (mode), 16)
+      && aarch64_classify_vector_mode (mode) == VEC_SVE_DATA
+      && !BYTES_BIG_ENDIAN)
+    aarch64_emit_load_store_through_mode (dest, src, V16QImode);
+  else
+    {
+      expand_operand ops[3];
+      create_output_operand (&ops[0], dest, mode);
+      create_input_operand (&ops[1], pred, GET_MODE(pred));
+      create_input_operand (&ops[2], src, mode);
+      temporary_volatile_ok v (true);
+      expand_insn (code_for_aarch64_pred_mov (mode), 3, ops);
+    }
 }
 
 /* Expand a pre-RA SVE data move from SRC to DEST in which at least one
@@ -14521,6 +14578,13 @@ aarch64_rtx_costs (rtx x, machine_mode mode, int outer ATTRIBUTE_UNUSED,
 	 we don't need to consider that here.  */
       if (x == const0_rtx)
 	*cost = 0;
+      /* If the outer is a COMPARE which is used by the middle-end
+	 and the constant fits how the cmp instruction allows, say the cost
+	 is the same as 1 insn.  */
+      else if (outer == COMPARE
+	       && (aarch64_uimm12_shift (INTVAL (x))
+		   || aarch64_uimm12_shift (-UINTVAL (x))))
+	*cost = COSTS_N_INSNS (1);
       else
 	{
 	  /* To an approximation, building any other constant is
@@ -18762,9 +18826,16 @@ aarch64_override_options_internal (struct gcc_options *opts)
       aarch64_stack_protector_guard_offset = offs;
     }
 
-  if ((flag_sanitize & SANITIZE_SHADOW_CALL_STACK)
-      && !fixed_regs[R18_REGNUM])
-    error ("%<-fsanitize=shadow-call-stack%> requires %<-ffixed-x18%>");
+  if ((flag_sanitize & SANITIZE_SHADOW_CALL_STACK))
+    {
+      if (!fixed_regs[R18_REGNUM])
+	error ("%<-fsanitize=shadow-call-stack%> requires %<-ffixed-x18%>");
+#ifdef TARGET_OS_USES_R18
+      else
+	sorry ("%<-fsanitize=shadow-call-stack%> conflicts with the use of"
+	       " register x18 by the target operating system");
+#endif
+    }
 
   aarch64_feature_flags isa_flags = aarch64_get_isa_flags (opts);
   if ((isa_flags & (AARCH64_FL_SM_ON | AARCH64_FL_ZA_ON))
@@ -21982,6 +22053,14 @@ aarch64_conditional_register_usage (void)
       fixed_regs[SPECULATION_SCRATCH_REGNUM] = 1;
       call_used_regs[SPECULATION_SCRATCH_REGNUM] = 1;
     }
+
+#ifdef TARGET_OS_USES_R18
+  /* R18 is the STATIC_CHAIN_REGNUM on most aarch64 ports, but VxWorks
+     uses it as the TCB, so aarch64-vxworks.h overrides
+     STATIC_CHAIN_REGNUM, and here we mark R18 as fixed.  */
+  fixed_regs[R18_REGNUM] = 1;
+  call_used_regs[R18_REGNUM] = 1;
+#endif
 }
 
 /* Implement TARGET_MEMBER_TYPE_FORCES_BLK.  */
@@ -23509,6 +23588,39 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
   return false;
 }
 
+/* Try to optimize the expansion of a maskload or maskstore with
+   the operands in OPERANDS, given that the vector being loaded or
+   stored has mode MODE.  Return true on success or false if the normal
+   expansion should be used.  */
+
+bool
+aarch64_expand_maskloadstore (rtx *operands, machine_mode mode)
+{
+  /* If the predicate in operands[2] is a patterned SVE PTRUE predicate
+     with patterns VL1, VL2, VL4, VL8, or VL16 and at most the bottom
+     128 bits are loaded/stored, emit an ASIMD load/store.  */
+  int vl = aarch64_partial_ptrue_length (operands[2]);
+  int width = vl * GET_MODE_UNIT_BITSIZE (mode);
+  if (width <= 128
+      && pow2p_hwi (vl)
+      && (vl == 1
+	  || (!BYTES_BIG_ENDIAN
+	      && aarch64_classify_vector_mode (mode) == VEC_SVE_DATA)))
+    {
+      machine_mode new_mode;
+      if (known_eq (width, 128))
+	new_mode = V16QImode;
+      else if (known_eq (width, 64))
+	new_mode = V8QImode;
+      else
+	new_mode = int_mode_for_size (width, 0).require ();
+      aarch64_emit_load_store_through_mode (operands[0], operands[1],
+					    new_mode);
+      return true;
+    }
+  return false;
+}
+
 /* Return true if OP is a valid SIMD move immediate for SVE or AdvSIMD.  */
 bool
 aarch64_simd_valid_mov_imm (rtx op)
@@ -23528,6 +23640,36 @@ bool
 aarch64_simd_valid_and_imm (rtx op)
 {
   return aarch64_simd_valid_imm (op, NULL, AARCH64_CHECK_AND);
+}
+
+/* Return true if OP is a valid SIMD and immediate which allows the and to be
+   optimized as fmov.  If ELT_BITSIZE is nonnull, use it to return the number of
+   bits to move.  */
+bool
+aarch64_simd_valid_and_imm_fmov (rtx op, unsigned int *elt_bitsize)
+{
+  machine_mode mode = GET_MODE (op);
+  gcc_assert (!aarch64_sve_mode_p (mode));
+
+  auto_vec<target_unit, 16> buffer;
+  unsigned int n_bytes = GET_MODE_SIZE (mode).to_constant ();
+  buffer.reserve (n_bytes);
+
+  bool ok = native_encode_rtx (mode, op, buffer, 0, n_bytes);
+  gcc_assert (ok);
+
+  auto mask = native_decode_int (buffer, 0, n_bytes, n_bytes * BITS_PER_UNIT);
+  int set_bit = wi::exact_log2 (mask + 1);
+  if ((set_bit == 16 && TARGET_SIMD_F16INST)
+      || set_bit == 32
+      || set_bit == 64)
+    {
+      if (elt_bitsize)
+	*elt_bitsize = set_bit;
+      return true;
+    }
+
+  return false;
 }
 
 /* Return true if OP is a valid SIMD xor immediate for SVE.  */
@@ -23821,6 +23963,16 @@ aarch64_strided_registers_p (rtx *operands, unsigned int num_operands,
     if (REGNO (operands[i]) != REGNO (operands[0]) + i * stride)
       return false;
   return true;
+}
+
+/* Return the base 2 logarithm of the bit inverse of OP masked by the lowest
+   NELTS bits, if OP is a power of 2.  Otherwise, returns -1.  */
+
+int
+aarch64_exact_log2_inverse (unsigned int nelts, rtx op)
+{
+  return exact_log2 ((~INTVAL (op))
+		     & ((HOST_WIDE_INT_1U << nelts) - 1));
 }
 
 /* Bounds-check lanes.  Ensure OPERAND lies between LOW (inclusive) and
@@ -24561,8 +24713,7 @@ aarch64_expand_vector_init (rtx target, rtx vals)
       rtx tmp_reg = gen_reg_rtx (GET_MODE (new_vals));
       aarch64_expand_vector_init (tmp_reg, new_vals);
       halves[i] = gen_rtx_SUBREG (mode, tmp_reg, 0);
-      rtx_insn *rec_seq = get_insns ();
-      end_sequence ();
+      rtx_insn *rec_seq = end_sequence ();
       costs[i] = seq_cost_ignoring_scalar_moves (rec_seq, !optimize_size);
       emit_insn (rec_seq);
     }
@@ -24574,8 +24725,7 @@ aarch64_expand_vector_init (rtx target, rtx vals)
     = (!optimize_size) ? std::max (costs[0], costs[1]) : costs[0] + costs[1];
   seq_total_cost += insn_cost (zip1_insn, !optimize_size);
 
-  rtx_insn *seq = get_insns ();
-  end_sequence ();
+  rtx_insn *seq = end_sequence ();
 
   start_sequence ();
   aarch64_expand_vector_init_fallback (target, vals);
@@ -25656,6 +25806,26 @@ aarch64_float_const_representable_p (rtx x)
   return aarch64_real_float_const_representable_p (r);
 }
 
+/* Returns the string with the fmov instruction which is equivalent to an and
+   instruction with the SIMD immediate CONST_VECTOR.  */
+char*
+aarch64_output_fmov (rtx const_vector)
+{
+  bool is_valid;
+  static char templ[40];
+  char element_char;
+  unsigned int elt_bitsize;
+
+  is_valid = aarch64_simd_valid_and_imm_fmov (const_vector, &elt_bitsize);
+  gcc_assert (is_valid);
+
+  element_char = sizetochar (elt_bitsize);
+  snprintf (templ, sizeof (templ), "fmov\t%%%c0, %%%c1", element_char,
+	    element_char);
+
+  return templ;
+}
+
 /* Returns the string with the instruction for the SIMD immediate
  * CONST_VECTOR of MODE and WIDTH.  WHICH selects a move, and(bic) or orr.  */
 char*
@@ -26205,6 +26375,8 @@ aarch64_evpc_reencode (struct expand_vec_perm_d *d)
   newd.op1 = d->op1 ? gen_lowpart (new_mode, d->op1) : NULL;
   newd.testing_p = d->testing_p;
   newd.one_vector_p = d->one_vector_p;
+  newd.zero_op0_p = d->zero_op0_p;
+  newd.zero_op1_p = d->zero_op1_p;
 
   newd.perm.new_vector (newpermindices.encoding (), newd.one_vector_p ? 1 : 2,
 			newpermindices.nelts_per_input ());
@@ -26788,6 +26960,40 @@ aarch64_evpc_ins (struct expand_vec_perm_d *d)
   return true;
 }
 
+/* Recognize patterns suitable for the AND instructions.  */
+static bool
+aarch64_evpc_and (struct expand_vec_perm_d *d)
+{
+  /* Either d->op0 or d->op1 should be a vector of all zeros.  */
+  if (d->one_vector_p || (!d->zero_op0_p && !d->zero_op1_p))
+    return false;
+
+  machine_mode mode = d->vmode;
+  machine_mode sel_mode;
+  if (!related_int_vector_mode (mode).exists (&sel_mode))
+    return false;
+
+  insn_code and_code = optab_handler (and_optab, sel_mode);
+  rtx and_mask = vec_perm_and_mask (sel_mode, d->perm, d->zero_op0_p);
+  if (and_code == CODE_FOR_nothing || !and_mask)
+    return false;
+
+  if (d->testing_p)
+    return true;
+
+  class expand_operand ops[3];
+  rtx in = d->zero_op0_p ? d->op1 : d->op0;
+  create_output_operand (&ops[0], gen_lowpart (sel_mode, d->target), sel_mode);
+  create_input_operand (&ops[1], gen_lowpart (sel_mode, in), sel_mode);
+  create_input_operand (&ops[2], and_mask, sel_mode);
+  expand_insn (and_code, 3, ops);
+  rtx result = gen_lowpart (mode, ops[0].value);
+  if (!rtx_equal_p (d->target, result))
+    emit_move_insn (d->target, result);
+
+  return true;
+}
+
 static bool
 aarch64_expand_vec_perm_const_1 (struct expand_vec_perm_d *d)
 {
@@ -26822,6 +27028,8 @@ aarch64_expand_vec_perm_const_1 (struct expand_vec_perm_d *d)
 	  else if (aarch64_evpc_zip (d))
 	    return true;
 	  else if (aarch64_evpc_uzp (d))
+	    return true;
+	  else if (aarch64_evpc_and (d))
 	    return true;
 	  else if (aarch64_evpc_trn (d))
 	    return true;
@@ -26883,11 +27091,17 @@ aarch64_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
   d.op_mode = op_mode;
   d.op_vec_flags = aarch64_classify_vector_mode (d.op_mode);
   d.target = target;
-  d.op0 = op0 ? force_reg (op_mode, op0) : NULL_RTX;
+  d.op0 = op0;
+  if (d.op0 && !register_operand (d.op0, op_mode))
+    d.op0 = force_reg (op_mode, d.op0);
   if (op0 && d.one_vector_p)
     d.op1 = copy_rtx (d.op0);
   else
-    d.op1 = op1 ? force_reg (op_mode, op1) : NULL_RTX;
+    {
+      d.op1 = op1;
+      if (d.op1 && !register_operand (d.op1, op_mode))
+       d.op1 = force_reg (op_mode, d.op1);
+    }
   d.testing_p = !target;
 
   if (!d.testing_p)
@@ -27702,8 +27916,7 @@ aarch64_gen_ccmp_first (rtx_insn **prep_seq, rtx_insn **gen_seq,
       end_sequence ();
       return NULL_RTX;
     }
-  *prep_seq = get_insns ();
-  end_sequence ();
+  *prep_seq = end_sequence ();
 
   create_fixed_operand (&ops[0], op0);
   create_fixed_operand (&ops[1], op1);
@@ -27714,8 +27927,7 @@ aarch64_gen_ccmp_first (rtx_insn **prep_seq, rtx_insn **gen_seq,
       end_sequence ();
       return NULL_RTX;
     }
-  *gen_seq = get_insns ();
-  end_sequence ();
+  *gen_seq = end_sequence ();
 
   return gen_rtx_fmt_ee (code, cc_mode,
 			 gen_rtx_REG (cc_mode, CC_REGNUM), const0_rtx);
@@ -27779,8 +27991,7 @@ aarch64_gen_ccmp_next (rtx_insn **prep_seq, rtx_insn **gen_seq, rtx prev,
       end_sequence ();
       return NULL_RTX;
     }
-  *prep_seq = get_insns ();
-  end_sequence ();
+  *prep_seq = end_sequence ();
 
   target = gen_rtx_REG (cc_mode, CC_REGNUM);
   aarch64_cond = aarch64_get_condition_code_1 (cc_mode, cmp_code);
@@ -27819,8 +28030,7 @@ aarch64_gen_ccmp_next (rtx_insn **prep_seq, rtx_insn **gen_seq, rtx prev,
       return NULL_RTX;
     }
 
-  *gen_seq = get_insns ();
-  end_sequence ();
+  *gen_seq = end_sequence ();
 
   return gen_rtx_fmt_ee (cmp_code, VOIDmode, target, const0_rtx);
 }
@@ -30405,8 +30615,7 @@ aarch64_mode_emit (int entity, int mode, int prev_mode, HARD_REG_SET live)
 					 aarch64_local_sme_state (prev_mode));
       break;
     }
-  rtx_insn *seq = get_insns ();
-  end_sequence ();
+  rtx_insn *seq = end_sequence ();
 
   /* Get the set of clobbered registers that are currently live.  */
   HARD_REG_SET clobbers = {};
@@ -30816,8 +31025,7 @@ aarch64_md_asm_adjust (vec<rtx> &outputs, vec<rtx> &inputs,
 	    emit_insn (REGNO (x) == ZA_REGNUM
 		       ? gen_aarch64_asm_update_za (id_rtx)
 		       : gen_aarch64_asm_update_zt0 (id_rtx));
-	    seq = get_insns ();
-	    end_sequence ();
+	    seq = end_sequence ();
 
 	    auto mode = REGNO (x) == ZA_REGNUM ? VNx16QImode : V8DImode;
 	    uses.safe_push (gen_rtx_REG (mode, REGNO (x)));
@@ -30852,8 +31060,7 @@ aarch64_switch_pstate_sm_for_landing_pad (basic_block bb)
   args_switch.emit_epilogue ();
   if (guard_label)
     emit_label (guard_label);
-  auto seq = get_insns ();
-  end_sequence ();
+  auto seq = end_sequence ();
 
   emit_insn_after (seq, bb_note (bb));
   return true;
@@ -30876,8 +31083,7 @@ aarch64_switch_pstate_sm_for_jump (rtx_insn *jump)
   aarch64_switch_pstate_sm (AARCH64_ISA_MODE_SM_ON, AARCH64_ISA_MODE_SM_OFF);
   if (guard_label)
     emit_label (guard_label);
-  auto seq = get_insns ();
-  end_sequence ();
+  auto seq = end_sequence ();
 
   emit_insn_before (seq, jump);
   return true;
@@ -30911,8 +31117,7 @@ aarch64_switch_pstate_sm_for_call (rtx_call_insn *call)
   args_switch.emit_epilogue ();
   if (args_guard_label)
     emit_label (args_guard_label);
-  auto args_seq = get_insns ();
-  end_sequence ();
+  auto args_seq = end_sequence ();
   emit_insn_before (args_seq, call);
 
   if (find_reg_note (call, REG_NORETURN, NULL_RTX))
@@ -30932,8 +31137,7 @@ aarch64_switch_pstate_sm_for_call (rtx_call_insn *call)
   return_switch.emit_epilogue ();
   if (return_guard_label)
     emit_label (return_guard_label);
-  auto result_seq = get_insns ();
-  end_sequence ();
+  auto result_seq = end_sequence ();
   emit_insn_after (result_seq, call);
   return true;
 }

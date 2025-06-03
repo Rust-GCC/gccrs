@@ -495,6 +495,8 @@
 ;; SiFive custom extension instrctions
 ;; sf_vqmacc      vector matrix integer multiply-add instructions
 ;; sf_vfnrclip     vector fp32 to int8 ranged clip instructions
+;; sf_vc vector coprocessor interface without side effect
+;; sf_vc_se vector coprocessor interface with side effect
 (define_attr "type"
   "unknown,branch,jump,jalr,ret,call,load,fpload,store,fpstore,
    mtc,mfc,const,arith,logical,shift,slt,imul,idiv,move,fmove,fadd,fmul,
@@ -516,7 +518,8 @@
    vslideup,vslidedown,vislide1up,vislide1down,vfslide1up,vfslide1down,
    vgather,vcompress,vmov,vector,vandn,vbrev,vbrev8,vrev8,vclz,vctz,vcpop,vrol,vror,vwsll,
    vclmul,vclmulh,vghsh,vgmul,vaesef,vaesem,vaesdf,vaesdm,vaeskf1,vaeskf2,vaesz,
-   vsha2ms,vsha2ch,vsha2cl,vsm4k,vsm4r,vsm3me,vsm3c,vfncvtbf16,vfwcvtbf16,vfwmaccbf16"
+   vsha2ms,vsha2ch,vsha2cl,vsm4k,vsm4r,vsm3me,vsm3c,vfncvtbf16,vfwcvtbf16,vfwmaccbf16,
+   sf_vc,sf_vc_se"
   (cond [(eq_attr "got" "load") (const_string "load")
 
 	 ;; If a doubleword move uses these expensive instructions,
@@ -669,7 +672,7 @@
 ;; Microarchitectures we know how to tune for.
 ;; Keep this in sync with enum riscv_microarchitecture.
 (define_attr "tune"
-  "generic,sifive_7,sifive_p400,sifive_p600,xiangshan,generic_ooo"
+  "generic,sifive_7,sifive_p400,sifive_p600,xiangshan,generic_ooo,mips_p8700"
   (const (symbol_ref "((enum attr_tune) riscv_microarchitecture)")))
 
 ;; Describe a user's asm statement.
@@ -1721,26 +1724,11 @@
 (define_expand "and<mode>3"
   [(set (match_operand:X                0 "register_operand")
         (and:X (match_operand:X 1 "register_operand")
-	       (match_operand:X 2 "arith_or_mode_mask_or_zbs_operand")))]
+	       (match_operand:X 2 "reg_or_const_int_operand")))]
   ""
 {
-  /* If the second operand is a mode mask, emit an extension
-     insn instead.  */
-  if (CONST_INT_P (operands[2]))
-    {
-      enum machine_mode tmode = VOIDmode;
-      if (UINTVAL (operands[2]) == GET_MODE_MASK (HImode))
-	tmode = HImode;
-      else if (UINTVAL (operands[2]) == GET_MODE_MASK (SImode))
-	tmode = SImode;
-
-      if (tmode != VOIDmode)
-	{
-	  rtx tmp = gen_lowpart (tmode, operands[1]);
-	  emit_insn (gen_extend_insn (operands[0], tmp, <MODE>mode, tmode, 1));
-	  DONE;
-	}
-    }
+  if (CONST_INT_P (operands[2]) && synthesize_and (operands))
+    DONE;
 })
 
 (define_insn "*and<mode>3"
@@ -1764,8 +1752,15 @@
 (define_expand "<optab><mode>3"
   [(set (match_operand:X 0 "register_operand")
 	(any_or:X (match_operand:X 1 "register_operand" "")
-		   (match_operand:X 2 "arith_or_zbs_operand" "")))]
-  "")
+		   (match_operand:X 2 "reg_or_const_int_operand" "")))]
+  ""
+
+{
+  /* If synthesis of the logical op is successful, then no further code
+     generation is necessary.  Else just generate code normally.  */
+  if (CONST_INT_P (operands[2]) && synthesize_ior_xor (<OPTAB>, operands))
+    DONE;
+})
 
 (define_insn "*<optab><mode>3"
   [(set (match_operand:X                0 "register_operand" "=r,r")
@@ -2506,8 +2501,8 @@
 })
 
 (define_insn "*movdi_32bit"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r,m,  *f,*f,*r,*f,*m,r")
-	(match_operand:DI 1 "move_operand"         " r,i,m,r,*J*r,*m,*f,*f,*f,vp"))]
+  [(set (match_operand:DI 0 "nonimmediate_operand" "=r,r,r, m,  *f,*f,*r,*f,*m,r")
+	(match_operand:DI 1 "move_operand"         " r,i,m,rJ,*J*r,*m,*f,*f,*f,vp"))]
   "!TARGET_64BIT
    && (register_operand (operands[0], DImode)
        || reg_or_0_operand (operands[1], DImode))"
@@ -2934,7 +2929,7 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "DI")])
 
-(define_insn_and_split "*<optab><GPR:mode>3_mask_1"
+(define_insn "*<optab><GPR:mode>3_mask_1"
   [(set (match_operand:GPR     0 "register_operand" "= r")
 	(any_shift:GPR
 	    (match_operand:GPR 1 "register_operand" "  r")
@@ -2943,12 +2938,14 @@
 	       (match_operand:GPR2 2 "register_operand"  "r")
 	       (match_operand 3 "<GPR:shiftm1>"))])))]
   ""
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(any_shift:GPR (match_dup 1)
-		      (match_dup 2)))]
-  "operands[2] = gen_lowpart (QImode, operands[2]);"
+{
+  /* If the shift mode is not word mode, then it must be the
+     case that we're generating rv64 code, but this is a 32-bit
+     operation.  Thus we need to use the "w" variant.  */
+  if (E_<GPR:MODE>mode != word_mode)
+    return "<insn>w\t%0,%1,%2";
+  return "<insn>\t%0,%1,%2";
+}
   [(set_attr "type" "shift")
    (set_attr "mode" "<GPR:MODE>")])
 
@@ -2967,7 +2964,7 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
 
-(define_insn_and_split "*<optab>si3_extend_mask"
+(define_insn "*<optab>si3_extend_mask"
   [(set (match_operand:DI                   0 "register_operand" "= r")
 	(sign_extend:DI
 	    (any_shift:SI
@@ -2977,13 +2974,7 @@
 	        (match_operand:GPR 2 "register_operand" " r")
 	        (match_operand 3 "const_si_mask_operand"))]))))]
   "TARGET_64BIT"
-  "#"
-  "&& 1"
-  [(set (match_dup 0)
-	(sign_extend:DI
-	 (any_shift:SI (match_dup 1)
-		       (match_dup 2))))]
-  "operands[2] = gen_lowpart (QImode, operands[2]);"
+  "<insn>w\t%0,%1,%2"
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
 
@@ -3181,15 +3172,25 @@
   "#"
   "&& reload_completed"
   [(set (match_dup 4) (lshiftrt:X (subreg:X (match_dup 2) 0) (match_dup 6)))
-   (set (match_dup 4) (and:X (match_dup 4) (match_dup 7)))
+   (set (match_dup 4) (match_dup 8))
    (set (pc) (if_then_else (match_op_dup 1 [(match_dup 4) (const_int 0)])
 			   (label_ref (match_dup 0)) (pc)))]
 {
-	HOST_WIDE_INT mask = INTVAL (operands[3]);
-	int trailing = ctz_hwi (mask);
+  HOST_WIDE_INT mask = INTVAL (operands[3]);
+  int trailing = ctz_hwi (mask);
 
-	operands[6] = GEN_INT (trailing);
-	operands[7] = GEN_INT (mask >> trailing);
+  operands[6] = GEN_INT (trailing);
+  operands[7] = GEN_INT (mask >> trailing);
+
+  /* This splits after reload, so there's little chance to clean things
+     up.  Rather than emit a ton of RTL here, we can just make a new
+     operand for that RHS and use it.  For the case where the AND would
+     have been redundant, we can make it a NOP move, which does get
+     cleaned up.  */
+  if (operands[7] == CONSTM1_RTX (word_mode))
+    operands[8] = operands[4];
+  else
+    operands[8] = gen_rtx_AND (word_mode, operands[4], operands[7]);
 }
 [(set_attr "type" "branch")])
 
@@ -4703,23 +4704,38 @@
 			    (match_operand 2 "const_int_operand" "n"))
 		 (match_operand 3 "const_int_operand" "n")))
    (clobber (match_scratch:DI 4 "=&r"))]
-  "(TARGET_64BIT && riscv_const_insns (operands[3], false) == 1)"
+  "(TARGET_64BIT
+    && riscv_const_insns (operands[3], false) == 1
+    && riscv_const_insns (GEN_INT (INTVAL (operands[3])
+			  << INTVAL (operands[2])), false) != 1)"
   "#"
   "&& reload_completed"
   [(const_int 0)]
   "{
-     rtx x = gen_rtx_ASHIFT (DImode, operands[1], operands[2]);
-     emit_insn (gen_rtx_SET (operands[0], x));
-
-     /* If the constant fits in a simm12, use it directly as we do not
-	get another good chance to optimize things again.  */
-     if (!SMALL_OPERAND (INTVAL (operands[3])))
+     /* Prefer to generate shNadd when we can, even over using an
+	immediate form.  If we're not going to be able to generate
+	a shNadd, then use the constant directly if it fits in a
+	simm12 field since we won't get another chance to optimize this.  */
+     if ((TARGET_ZBA && imm123_operand (operands[2], word_mode))
+	 || !SMALL_OPERAND (INTVAL (operands[3])))
        emit_move_insn (operands[4], operands[3]);
      else
        operands[4] = operands[3];
 
-     x = gen_rtx_PLUS (DImode, operands[0], operands[4]);
-     emit_insn (gen_rtx_SET (operands[0], x));
+     if (TARGET_ZBA && imm123_operand (operands[2], word_mode))
+       {
+	 rtx x = gen_rtx_ASHIFT (DImode, operands[1], operands[2]);
+	 x = gen_rtx_PLUS (DImode, x, operands[4]);
+	 emit_insn (gen_rtx_SET (operands[0], x));
+       }
+     else
+       {
+	 rtx x = gen_rtx_ASHIFT (DImode, operands[1], operands[2]);
+	 emit_insn (gen_rtx_SET (operands[0], x));
+	 x = gen_rtx_PLUS (DImode, operands[0], operands[4]);
+	 emit_insn (gen_rtx_SET (operands[0], x));
+       }
+
      DONE;
    }"
   [(set_attr "type" "arith")])
@@ -4840,3 +4856,4 @@
 (include "zc.md")
 (include "corev.md")
 (include "xiangshan.md")
+(include "mips-p8700.md")

@@ -1,3 +1,123 @@
+2025-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/119856
+	* io/format.c (parse_format_list): Set the fmt->error
+	message for missing comma.
+	(parse_format): Do not cache the parsed format string
+	if a previous error ocurred.
+
+2025-05-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libfortran/120196
+	* m4/ifindloc2.m4 (header1, header2): For back use i > 0 rather than
+	i >= 0 as for condition.
+	* generated/findloc2_s1.c: Regenerate.
+	* generated/findloc2_s4.c: Regenerate.
+
+2025-05-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/120191
+	* m4/ifunction-s.m4 (SCALAR_ARRAY_FUNCTION): Don't multiply
+	GFC_DESCRIPTOR_EXTENT(array,) by string_len.
+	* generated/maxloc1_4_s1.c: Regenerate.
+	* generated/maxloc1_4_s4.c: Regenerate.
+	* generated/maxloc1_8_s1.c: Regenerate.
+	* generated/maxloc1_8_s4.c: Regenerate.
+	* generated/maxloc1_16_s1.c: Regenerate.
+	* generated/maxloc1_16_s4.c: Regenerate.
+	* generated/minloc1_4_s1.c: Regenerate.
+	* generated/minloc1_4_s4.c: Regenerate.
+	* generated/minloc1_8_s1.c: Regenerate.
+	* generated/minloc1_8_s4.c: Regenerate.
+	* generated/minloc1_16_s1.c: Regenerate.
+	* generated/minloc1_16_s4.c: Regenerate.
+
+2025-05-13  Jakub Jelinek  <jakub@redhat.com>
+
+	PR fortran/120191
+	* m4/maxloc2s.m4: For smaxloc2 call maxloc2 if mask is NULL or *mask.
+	Swap back and len arguments.
+	* m4/minloc2s.m4: Likewise.
+	* generated/maxloc2_4_s1.c: Regenerate.
+	* generated/maxloc2_4_s4.c: Regenerate.
+	* generated/maxloc2_8_s1.c: Regenerate.
+	* generated/maxloc2_8_s4.c: Regenerate.
+	* generated/maxloc2_16_s1.c: Regenerate.
+	* generated/maxloc2_16_s4.c: Regenerate.
+	* generated/minloc2_4_s1.c: Regenerate.
+	* generated/minloc2_4_s4.c: Regenerate.
+	* generated/minloc2_8_s1.c: Regenerate.
+	* generated/minloc2_8_s4.c: Regenerate.
+	* generated/minloc2_16_s1.c: Regenerate.
+	* generated/minloc2_16_s4.c: Regenerate.
+
+2025-05-10  Yuao Ma  <c8ef@outlook.com>
+
+	* io/read.c (read_f): Comment typo, explict -> explicit.
+
+2025-05-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libfortran/120158
+	* m4/iparm.m4 (atype_min): For atype_name starting with
+	GFC_UINTEGER define to 0.
+	* generated/maxloc0_16_m1.c: Regenerate.
+	* generated/maxloc0_16_m2.c: Regenerate.
+	* generated/maxloc0_16_m4.c: Regenerate.
+	* generated/maxloc0_16_m8.c: Regenerate.
+	* generated/maxloc0_16_m16.c: Regenerate.
+	* generated/maxloc0_4_m1.c: Regenerate.
+	* generated/maxloc0_4_m2.c: Regenerate.
+	* generated/maxloc0_4_m4.c: Regenerate.
+	* generated/maxloc0_4_m8.c: Regenerate.
+	* generated/maxloc0_4_m16.c: Regenerate.
+	* generated/maxloc0_8_m1.c: Regenerate.
+	* generated/maxloc0_8_m2.c: Regenerate.
+	* generated/maxloc0_8_m4.c: Regenerate.
+	* generated/maxloc0_8_m8.c: Regenerate.
+	* generated/maxloc0_8_m16.c: Regenerate.
+	* generated/maxloc1_16_m1.c: Regenerate.
+	* generated/maxloc1_16_m2.c: Regenerate.
+	* generated/maxloc1_16_m4.c: Regenerate.
+	* generated/maxloc1_16_m8.c: Regenerate.
+	* generated/maxloc1_16_m16.c: Regenerate.
+	* generated/maxloc1_4_m1.c: Regenerate.
+	* generated/maxloc1_4_m2.c: Regenerate.
+	* generated/maxloc1_4_m4.c: Regenerate.
+	* generated/maxloc1_4_m8.c: Regenerate.
+	* generated/maxloc1_4_m16.c: Regenerate.
+	* generated/maxloc1_8_m1.c: Regenerate.
+	* generated/maxloc1_8_m2.c: Regenerate.
+	* generated/maxloc1_8_m4.c: Regenerate.
+	* generated/maxloc1_8_m8.c: Regenerate.
+	* generated/maxloc1_8_m16.c: Regenerate.
+	* generated/maxval_m1.c: Regenerate.
+	* generated/maxval_m2.c: Regenerate.
+	* generated/maxval_m4.c: Regenerate.
+	* generated/maxval_m8.c: Regenerate.
+	* generated/maxval_m16.c: Regenerate.
+
+2025-05-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libfortran/120153
+	* Makefile.am (i_maxloc1_c): Add generated/maxloc1_16_m16.c.
+	* intrinsics/random.c (arandom_m16): Use #ifdef HAVE_GFC_UINTEGER_16
+	guard rather than #ifdef GFC_HAVE_GFC_UINTEGER_16.
+	* gfortran.map (GFORTRAN_15): Remove _gfortran_arandom_m16,
+	_gfortran_maxloc1_16_m16, _gfortran_mmaxloc1_16_m16 and
+	_gfortran_smaxloc1_16_m16.
+	(GFORTRAN_15.2): New symbol version, add those 4 symbols to it.
+	* generated/maxloc1_16_m16.c: New file.
+	* Makefile.in: Regenerate.
+
+2025-05-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libfortran/120152
+	* Makefile.am (i_maxloc1_c): Readd generated/maxloc1_4_i8.c,
+	generated/maxloc1_8_i8.c, generated/maxloc1_16_i8.c,
+	generated/maxloc1_4_i16.c, generated/maxloc1_8_i16.c.  Move
+	generated/maxloc1_16_i16.c entry earlier in the list.
+	* Makefile.in: Regenerated.
+
 2025-04-22  Andre Vehreschild  <vehre@gcc.gnu.org>
 
 	* caf/libcaf.h: Add mapping mode to coarray's register.

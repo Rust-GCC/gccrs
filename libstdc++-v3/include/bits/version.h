@@ -751,7 +751,7 @@
 #undef __glibcxx_want_parallel_algorithm
 
 #if !defined(__cpp_lib_scoped_lock)
-# if (__cplusplus >= 201703L) && defined(_GLIBCXX_HAS_GTHREADS) && _GLIBCXX_HOSTED
+# if (__cplusplus >= 201703L)
 #  define __glibcxx_scoped_lock 201703L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_scoped_lock)
 #   define __cpp_lib_scoped_lock 201703L
@@ -1074,7 +1074,6 @@
 # if (__cplusplus >= 202002L) && (__cpp_concepts)
 #  define __glibcxx_make_obj_using_allocator 201811L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_make_obj_using_allocator)
-#   define __cpp_lib_make_obj_using_allocator 201811L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_make_obj_using_allocator) && defined(__glibcxx_want_make_obj_using_allocator) */
@@ -1114,6 +1113,15 @@
 # endif
 #endif /* !defined(__cpp_lib_span) && defined(__glibcxx_want_span) */
 #undef __glibcxx_want_span
+
+#if !defined(__cpp_lib_mdspan)
+# if (__cplusplus >= 202100L)
+#  define __glibcxx_mdspan 1L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_mdspan)
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_mdspan) && defined(__glibcxx_want_mdspan) */
+#undef __glibcxx_want_mdspan
 
 #if !defined(__cpp_lib_ssize)
 # if (__cplusplus >= 202002L)
@@ -1491,7 +1499,7 @@
 #undef __glibcxx_want_move_iterator_concept
 
 #if !defined(__cpp_lib_semaphore)
-# if (__cplusplus >= 202002L) && _GLIBCXX_HOSTED && (__glibcxx_atomic_wait || _GLIBCXX_HAVE_POSIX_SEMAPHORE)
+# if (__cplusplus >= 202002L) && _GLIBCXX_HOSTED && (__glibcxx_atomic_wait)
 #  define __glibcxx_semaphore 201907L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_semaphore)
 #   define __cpp_lib_semaphore 201907L
@@ -1940,6 +1948,26 @@
 #endif /* !defined(__cpp_lib_move_only_function) && defined(__glibcxx_want_move_only_function) */
 #undef __glibcxx_want_move_only_function
 
+#if !defined(__cpp_lib_copyable_function)
+# if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
+#  define __glibcxx_copyable_function 202306L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_copyable_function)
+#   define __cpp_lib_copyable_function 202306L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_copyable_function) && defined(__glibcxx_want_copyable_function) */
+#undef __glibcxx_want_copyable_function
+
+#if !defined(__cpp_lib_function_ref)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_function_ref 202306L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_function_ref)
+#   define __cpp_lib_function_ref 202306L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_function_ref) && defined(__glibcxx_want_function_ref) */
+#undef __glibcxx_want_function_ref
+
 #if !defined(__cpp_lib_out_ptr)
 # if (__cplusplus >= 202100L)
 #  define __glibcxx_out_ptr 202311L
@@ -2174,5 +2202,25 @@
 # endif
 #endif /* !defined(__cpp_lib_modules) && defined(__glibcxx_want_modules) */
 #undef __glibcxx_want_modules
+
+#if !defined(__cpp_lib_indirect)
+# if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
+#  define __glibcxx_indirect 202502L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_indirect)
+#   define __cpp_lib_indirect 202502L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_indirect) && defined(__glibcxx_want_indirect) */
+#undef __glibcxx_want_indirect
+
+#if !defined(__cpp_lib_polymorphic)
+# if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
+#  define __glibcxx_polymorphic 202502L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_polymorphic)
+#   define __cpp_lib_polymorphic 202502L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_polymorphic) && defined(__glibcxx_want_polymorphic) */
+#undef __glibcxx_want_polymorphic
 
 #undef __glibcxx_want_all

@@ -5589,8 +5589,7 @@ legitimize_tls_address (rtx addr, rtx reg)
 	new_rtx = force_const_mem (Pmode, new_rtx);
 	emit_move_insn (r2, new_rtx);
 	s390_emit_tls_call_insn (r2, tls_call);
-	insn = get_insns ();
-	end_sequence ();
+	insn = end_sequence ();
 
 	new_rtx = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr), UNSPEC_NTPOFF);
 	temp = gen_reg_rtx (Pmode);
@@ -5612,8 +5611,7 @@ legitimize_tls_address (rtx addr, rtx reg)
 	new_rtx = force_const_mem (Pmode, new_rtx);
 	emit_move_insn (r2, new_rtx);
 	s390_emit_tls_call_insn (r2, tls_call);
-	insn = get_insns ();
-	end_sequence ();
+	insn = end_sequence ();
 
 	new_rtx = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, const0_rtx), UNSPEC_TLSLDM_NTPOFF);
 	temp = gen_reg_rtx (Pmode);
@@ -7210,6 +7208,82 @@ s390_expand_mask_and_shift (rtx val, machine_mode mode, rtx count)
 			      NULL_RTX, 1, OPTAB_DIRECT);
 }
 
+/* Expand optab cstoreti4.  */
+
+void
+s390_expand_cstoreti4 (rtx dst, rtx cmp, rtx op1, rtx op2)
+{
+  rtx_code code = GET_CODE (cmp);
+
+  if (TARGET_VXE3)
+    {
+      rtx cond = s390_emit_compare (GET_MODE (cmp), code, op1, op2);
+      emit_insn (gen_movsicc (dst, cond, const1_rtx, const0_rtx));
+      return;
+    }
+
+  /* Prior VXE3 emulate the comparison.  For an (in)equality test exploit
+     VECTOR COMPARE EQUAL.  For a relational test, first compare the high part
+     via VECTOR ELEMENT COMPARE (LOGICAL).  If the high part does not equal,
+     then consume the CC immediatelly by a subsequent LOAD ON CONDITION.
+     Otherweise, if the high part equals, then perform a subsequent VECTOR
+     COMPARE HIGH LOGICAL followed by a LOAD ON CONDITION.  */
+
+  op1 = force_reg (V2DImode, simplify_gen_subreg (V2DImode, op1, TImode, 0));
+  op2 = force_reg (V2DImode, simplify_gen_subreg (V2DImode, op2, TImode, 0));
+
+  if (code == EQ || code == NE)
+    {
+      s390_expand_vec_compare_cc (dst, code, op1, op2, code == EQ);
+      return;
+    }
+
+  /* Normalize code into either GE(U) or GT(U).  */
+  if (code == LT || code == LE || code == LTU || code == LEU)
+    {
+      std::swap (op1, op2);
+      code = swap_condition (code);
+    }
+
+  /* For (un)signed comparisons
+     - high(op1) >= high(op2) instruction VECG op1, op2 sets CC1
+       if the relation does _not_ hold.
+     - high(op1) >  high(op2) instruction VECG op2, op1 sets CC1
+       if the relation holds.  */
+  if (code == GT || code == GTU)
+    std::swap (op1, op2);
+  machine_mode cc_mode = (code == GEU || code == GTU) ? CCUmode : CCSmode;
+  rtx lane0 = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (1, const0_rtx));
+  emit_insn (
+    gen_rtx_SET (gen_rtx_REG (cc_mode, CC_REGNUM),
+		 gen_rtx_COMPARE (cc_mode,
+				  gen_rtx_VEC_SELECT (DImode, op1, lane0),
+				  gen_rtx_VEC_SELECT (DImode, op2, lane0))));
+  rtx ccs_reg = gen_rtx_REG (CCSmode, CC_REGNUM);
+  rtx lab = gen_label_rtx ();
+  s390_emit_jump (lab, gen_rtx_NE (VOIDmode, ccs_reg, const0_rtx));
+  /* At this point we have that high(op1) == high(op2).  Thus, test the low
+     part, now.  For unsigned comparisons
+     - low(op1) >= low(op2) instruction VCHLGS op2, op1 sets CC1
+       if the relation does _not_ hold.
+     - low(op1) >  low(op2) instruction VCHLGS op1, op2 sets CC1
+       if the relation holds.  */
+  std::swap (op1, op2);
+  emit_insn (gen_rtx_PARALLEL (
+    VOIDmode,
+    gen_rtvec (2,
+	       gen_rtx_SET (gen_rtx_REG (CCVIHUmode, CC_REGNUM),
+			    gen_rtx_COMPARE (CCVIHUmode, op1, op2)),
+	       gen_rtx_CLOBBER (VOIDmode, gen_rtx_SCRATCH (V2DImode)))));
+  emit_label (lab);
+  /* For (un)signed comparison >= any CC except CC1 means that the relation
+     holds.  For (un)signed comparison > only CC1 means that the relation
+     holds.  */
+  rtx_code cmp_code = (code == GE || code == GEU) ? UNGE : LT;
+  rtx cond = gen_rtx_fmt_ee (cmp_code, CCSmode, ccs_reg, const0_rtx);
+  emit_insn (gen_movsicc (dst, cond, const1_rtx, const0_rtx));
+}
+
 /* Generate a vector comparison COND of CMP_OP1 and CMP_OP2 and store
    the result in TARGET.  */
 
@@ -7310,9 +7384,9 @@ s390_expand_vec_compare (rtx target, enum rtx_code cond,
 /* Expand the comparison CODE of CMP1 and CMP2 and copy 1 or 0 into
    TARGET if either all (ALL_P is true) or any (ALL_P is false) of the
    elements in CMP1 and CMP2 fulfill the comparison.
-   This function is only used to emit patterns for the vx builtins and
-   therefore only handles comparison codes required by the
-   builtins.  */
+   This function is only used in s390_expand_cstoreti4 and to emit patterns for
+   the vx builtins and therefore only handles comparison codes required by
+   those.  */
 void
 s390_expand_vec_compare_cc (rtx target, enum rtx_code code,
 			    rtx cmp1, rtx cmp2, bool all_p)
@@ -7793,8 +7867,7 @@ s390_two_part_insv (struct alignment_context *ac, rtx *seq1, rtx *seq2,
 			    const0_rtx, ins))
 	{
 	  *seq1 = NULL;
-	  *seq2 = get_insns ();
-	  end_sequence ();
+	  *seq2 = end_sequence ();
 	  return tmp;
 	}
       end_sequence ();
@@ -7803,13 +7876,11 @@ s390_two_part_insv (struct alignment_context *ac, rtx *seq1, rtx *seq2,
   /* Failed to use insv.  Generate a two part shift and mask.  */
   start_sequence ();
   tmp = s390_expand_mask_and_shift (ins, mode, ac->shift);
-  *seq1 = get_insns ();
-  end_sequence ();
+  *seq1 = end_sequence ();
 
   start_sequence ();
   tmp = expand_simple_binop (SImode, IOR, tmp, val, NULL_RTX, 1, OPTAB_DIRECT);
-  *seq2 = get_insns ();
-  end_sequence ();
+  *seq2 = end_sequence ();
 
   return tmp;
 }
@@ -11735,8 +11806,7 @@ s390_load_got (void)
 
   emit_move_insn (got_rtx, s390_got_symbol ());
 
-  insns = get_insns ();
-  end_sequence ();
+  insns = end_sequence ();
   return insns;
 }
 
@@ -13503,8 +13573,7 @@ s390_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
 
       start_sequence ();
       emit_move_insn (reg, gen_rtx_REG (Pmode, 1));
-      seq = get_insns ();
-      end_sequence ();
+      seq = end_sequence ();
 
       push_topmost_sequence ();
       emit_insn_after (seq, entry_of_function ());

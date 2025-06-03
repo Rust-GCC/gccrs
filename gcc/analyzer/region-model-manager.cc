@@ -18,34 +18,16 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#include "config.h"
-#define INCLUDE_VECTOR
-#include "system.h"
-#include "coretypes.h"
-#include "tree.h"
-#include "diagnostic-core.h"
-#include "gimple-pretty-print.h"
-#include "function.h"
-#include "basic-block.h"
-#include "gimple.h"
-#include "gimple-iterator.h"
-#include "diagnostic-core.h"
-#include "graphviz.h"
-#include "options.h"
-#include "cgraph.h"
-#include "tree-dfa.h"
-#include "stringpool.h"
-#include "convert.h"
-#include "target.h"
+#include "analyzer/common.h"
+
 #include "fold-const.h"
-#include "tree-pretty-print.h"
-#include "bitmap.h"
-#include "analyzer/analyzer.h"
-#include "analyzer/analyzer-logging.h"
 #include "ordered-hash-map.h"
 #include "options.h"
 #include "analyzer/supergraph.h"
 #include "sbitmap.h"
+#include "target.h"
+
+#include "analyzer/analyzer-logging.h"
 #include "analyzer/call-string.h"
 #include "analyzer/program-point.h"
 #include "analyzer/store.h"
@@ -325,7 +307,7 @@ region_model_manager::get_or_create_initial_value (const region *reg,
 						   bool check_poisoned)
 {
   if (!reg->can_have_initial_svalue_p () && check_poisoned)
-    return get_or_create_poisoned_svalue (POISON_KIND_UNINIT,
+    return get_or_create_poisoned_svalue (poison_kind::uninit,
 					  reg->get_type ());
 
   /* The initial value of a cast is a cast of the initial value.  */
@@ -961,6 +943,12 @@ region_model_manager::maybe_fold_sub_svalue (tree type,
   /* Subvalues of "unknown"/"poisoned" are unknown.  */
   if (!parent_svalue->can_have_associated_state_p ())
     return get_or_create_unknown_svalue (type);
+
+  /* If we have a subvalue of a zero constant, it's zero.  */
+  if (tree cst = parent_svalue->maybe_get_constant ())
+    if (TREE_CODE (cst) == INTEGER_CST)
+      if (zerop (cst))
+	return get_or_create_cast (type, parent_svalue);
 
   /* If we have a subregion of a zero-fill, it's zero.  */
   if (const unaryop_svalue *unary

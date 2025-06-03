@@ -734,7 +734,6 @@ vect_analyze_early_break_dependences (loop_vec_info loop_vinfo)
 
 	  stmt_vec_info stmt_vinfo
 	    = vect_stmt_to_vectorize (loop_vinfo->lookup_stmt (stmt));
-	  stmt = STMT_VINFO_STMT (stmt_vinfo);
 	  auto dr_ref = STMT_VINFO_DATA_REF (stmt_vinfo);
 	  if (!dr_ref)
 	    continue;
@@ -1202,6 +1201,97 @@ vect_slp_analyze_instance_dependence (vec_info *vinfo, slp_instance instance)
   if (store)
     for (unsigned k = 0; k < SLP_TREE_SCALAR_STMTS (store).length (); ++k)
       gimple_set_visited (SLP_TREE_SCALAR_STMTS (store)[k]->stmt, false);
+
+  /* If this is a SLP instance with a store check if there's a dependent
+     load that cannot be forwarded from a previous iteration of a loop
+     both are in.  This is to avoid situations like that in PR115777.  */
+  if (res && store)
+    {
+      stmt_vec_info store_info
+	= DR_GROUP_FIRST_ELEMENT (SLP_TREE_SCALAR_STMTS (store)[0]);
+      class loop *store_loop = gimple_bb (store_info->stmt)->loop_father;
+      if (! loop_outer (store_loop))
+	return res;
+      vec<loop_p> loop_nest;
+      loop_nest.create (1);
+      loop_nest.quick_push (store_loop);
+      data_reference *drs = nullptr;
+      for (slp_tree &load : SLP_INSTANCE_LOADS (instance))
+	{
+	  if (! STMT_VINFO_GROUPED_ACCESS (SLP_TREE_SCALAR_STMTS (load)[0]))
+	    continue;
+	  stmt_vec_info load_info
+	    = DR_GROUP_FIRST_ELEMENT (SLP_TREE_SCALAR_STMTS (load)[0]);
+	  if (gimple_bb (load_info->stmt)->loop_father != store_loop)
+	    continue;
+
+	  /* For now concern ourselves with write-after-read as we also
+	     only look for re-use of the store within the same SLP instance.
+	     We can still get a RAW here when the instance contais a PHI
+	     with a backedge though, thus this test.  */
+	  if (! vect_stmt_dominates_stmt_p (STMT_VINFO_STMT (load_info),
+					    STMT_VINFO_STMT (store_info)))
+	    continue;
+
+	  if (! drs)
+	    {
+	      drs = create_data_ref (loop_preheader_edge (store_loop),
+				     store_loop,
+				     DR_REF (STMT_VINFO_DATA_REF (store_info)),
+				     store_info->stmt, false, false);
+	      if (! DR_BASE_ADDRESS (drs)
+		  || TREE_CODE (DR_STEP (drs)) != INTEGER_CST)
+		break;
+	    }
+	  data_reference *drl
+	    = create_data_ref (loop_preheader_edge (store_loop),
+			       store_loop,
+			       DR_REF (STMT_VINFO_DATA_REF (load_info)),
+			       load_info->stmt, true, false);
+
+	  /* See whether the DRs have a known constant distance throughout
+	     the containing loop iteration.  */
+	  if (! DR_BASE_ADDRESS (drl)
+	      || ! operand_equal_p (DR_STEP (drs), DR_STEP (drl))
+	      || ! operand_equal_p (DR_BASE_ADDRESS (drs),
+				    DR_BASE_ADDRESS (drl))
+	      || ! operand_equal_p (DR_OFFSET (drs), DR_OFFSET (drl)))
+	    {
+	      free_data_ref (drl);
+	      continue;
+	    }
+
+	  /* If the next iteration load overlaps with a non-power-of-two offset
+	     we are surely failing any STLF attempt.  */
+	  HOST_WIDE_INT step = TREE_INT_CST_LOW (DR_STEP (drl));
+	  unsigned HOST_WIDE_INT sizes
+	    = (TREE_INT_CST_LOW (TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (drs))))
+	       * DR_GROUP_SIZE (store_info));
+	  unsigned HOST_WIDE_INT sizel
+	    = (TREE_INT_CST_LOW (TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (drl))))
+	       * DR_GROUP_SIZE (load_info));
+	  if (ranges_overlap_p (TREE_INT_CST_LOW (DR_INIT (drl)) + step, sizel,
+				TREE_INT_CST_LOW (DR_INIT (drs)), sizes))
+	    {
+	      unsigned HOST_WIDE_INT dist
+		= absu_hwi (TREE_INT_CST_LOW (DR_INIT (drl)) + step
+			    - TREE_INT_CST_LOW (DR_INIT (drs)));
+	      poly_uint64 loadsz = tree_to_poly_uint64
+				     (TYPE_SIZE_UNIT (SLP_TREE_VECTYPE (load)));
+	      poly_uint64 storesz = tree_to_poly_uint64
+				    (TYPE_SIZE_UNIT (SLP_TREE_VECTYPE (store)));
+	      /* When the overlap aligns with vector sizes used for the loads
+		 and the vector stores are larger or equal to the loads
+		 forwarding should work.  */
+	      if (maybe_gt (loadsz, storesz) || ! multiple_p (dist, loadsz))
+		load->avoid_stlf_fail = true;
+	    }
+	  free_data_ref (drl);
+	}
+      if (drs)
+	free_data_ref (drs);
+      loop_nest.release ();
+    }
 
   return res;
 }
@@ -3590,6 +3680,13 @@ vect_analyze_data_ref_accesses (vec_info *vinfo,
 	      if (!DR_IS_READ (dra)
 		  && (((unsigned HOST_WIDE_INT)init_b - init_prev)
 		      != type_size_a))
+		break;
+
+	      /* For datarefs with big gap, it's better to split them into different
+		 groups.
+		 .i.e a[0], a[1], a[2], .. a[7], a[100], a[101],..., a[107]  */
+	      if ((unsigned HOST_WIDE_INT)(init_b - init_prev) * tree_to_uhwi (szb)
+		  > MAX_BITSIZE_MODE_ANY_MODE / BITS_PER_UNIT)
 		break;
 
 	      /* If the step (if not zero or non-constant) is smaller than the

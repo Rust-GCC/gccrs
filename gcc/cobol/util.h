@@ -40,7 +40,10 @@ void cbl_errx(const char *format_string, ...);
 bool fisdigit(int c);
 bool fisspace(int c);
 int  ftolower(int c);
+int  ftoupper(int c);
 bool fisprint(int c);
+
+void cobol_set_pp_option(int opt);
 
 const char * cobol_filename_restore();
 const char * cobol_lineno_save();

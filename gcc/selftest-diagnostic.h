@@ -40,7 +40,7 @@ class test_diagnostic_context : public diagnostic_context
      real filename (to avoid printing the names of tempfiles).  */
   static void
   start_span_cb (const diagnostic_location_print_policy &,
-		 pretty_printer *,
+		 to_text &sink,
 		 expanded_location exploc);
 
   /* Report a diagnostic to this context.  For a selftest, this
@@ -50,7 +50,7 @@ class test_diagnostic_context : public diagnostic_context
   report (diagnostic_t kind,
 	  rich_location &richloc,
 	  const diagnostic_metadata *metadata,
-	  int option,
+	  diagnostic_option_id option,
 	  const char * fmt, ...) ATTRIBUTE_GCC_DIAG(6,7);
 
   const char *test_show_locus (rich_location &richloc);
