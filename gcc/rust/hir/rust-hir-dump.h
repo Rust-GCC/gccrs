@@ -254,7 +254,6 @@ private:
 } // namespace Rust
 
 // In the global namespace to make it easier to call from debugger
-void
-debug (Rust::HIR::FullVisitable &v);
+void debug (Rust::HIR::FullVisitable &v);
 
 #endif // !RUST_HIR_DUMP_H

@@ -1624,7 +1624,8 @@ Dump::visit (UseTreeGlob &e)
     case UseTreeGlob::PathType::GLOBAL:
       glob = "::*";
       break;
-      case UseTreeGlob::PathType::PATH_PREFIXED: {
+    case UseTreeGlob::PathType::PATH_PREFIXED:
+      {
 	path = e.get_path ().as_string ();
 	glob = "::*";
 	break;
@@ -1652,7 +1653,8 @@ Dump::visit (UseTreeList &e)
     case UseTreeList::PathType::GLOBAL:
       path_type = "::*";
       break;
-      case UseTreeList::PathType::PATH_PREFIXED: {
+    case UseTreeList::PathType::PATH_PREFIXED:
+      {
 	path = e.get_path ().as_string ();
 	path_type = "::*";
 	break;
