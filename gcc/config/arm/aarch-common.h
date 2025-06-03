@@ -1,6 +1,6 @@
 /* Types shared between arm and aarch64.
 
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Arm Ltd.
 
    This file is part of GCC.
@@ -43,26 +43,6 @@ enum aarch_function_type {
   AARCH_FUNCTION_NON_LEAF,
   /* All functions.  */
   AARCH_FUNCTION_ALL
-};
-
-/* The key type that -msign-return-address should use.  */
-enum aarch_key_type {
-  AARCH_KEY_A,
-  AARCH_KEY_B
-};
-
-struct aarch_branch_protect_type
-{
-  /* The type's name that the user passes to the branch-protection option
-     string.  */
-  const char* name;
-  /* The type can only appear alone, other types should be rejected.  */
-  int alone;
-  /* Function to handle the protection type and set global variables.  */
-  void (*handler)(void);
-  /* A list of types that can follow this type in the option string.  */
-  const struct aarch_branch_protect_type* subtypes;
-  unsigned int num_subtypes;
 };
 
 #endif /* GCC_AARCH_COMMON_H */

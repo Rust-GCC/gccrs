@@ -1,6 +1,6 @@
 // { dg-do compile { target c++11 } }
 
-// Copyright (C) 2012-2024 Free Software Foundation, Inc.
+// Copyright (C) 2012-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,6 +26,6 @@ int n1 = std::get<1>(a);
 int n2 = std::get<1>(std::move(a));
 int n3 = std::get<1>(ca);
 
-// { dg-error "static assertion failed" "" { target *-*-* } 392 }
-// { dg-error "static assertion failed" "" { target *-*-* } 401 }
-// { dg-error "static assertion failed" "" { target *-*-* } 410 }
+// { dg-error "static assertion failed" "" { target *-*-* } 394 }
+// { dg-error "static assertion failed" "" { target *-*-* } 403 }
+// { dg-error "static assertion failed" "" { target *-*-* } 412 }

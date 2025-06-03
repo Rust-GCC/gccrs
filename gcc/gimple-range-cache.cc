@@ -1,5 +1,5 @@
 /* Gimple ranger SSA cache implementation.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>.
 
 This file is part of GCC.
@@ -61,7 +61,7 @@ void
 ssa_block_ranges::dump (FILE *f)
 {
   basic_block bb;
-  Value_Range r (m_type);
+  value_range r (m_type);
 
   FOR_EACH_BB_FN (bb, cfun)
     if (get_bb_range (r, bb))
@@ -274,10 +274,10 @@ sbr_sparse_bitmap::sbr_sparse_bitmap (tree t, vrange_allocator *allocator,
   // Pre-cache zero and non-zero values for pointers.
   if (POINTER_TYPE_P (t))
     {
-      int_range<2> nonzero;
+      prange nonzero;
       nonzero.set_nonzero (t);
       m_range[1] = m_range_allocator->clone (nonzero);
-      int_range<2> zero;
+      prange zero;
       zero.set_zero (t);
       m_range[2] = m_range_allocator->clone (zero);
     }
@@ -493,7 +493,7 @@ block_range_cache::dump (FILE *f, basic_block bb, bool print_varying)
       if (!gimple_range_ssa_p (ssa_name (x)))
 	continue;
 
-      Value_Range r (TREE_TYPE (ssa_name (x)));
+      value_range r (TREE_TYPE (ssa_name (x)));
       if (m_ssa_ranges[x]->get_bb_range (r, bb))
 	{
 	  if (!print_varying && r.varying_p ())
@@ -519,7 +519,7 @@ block_range_cache::dump (FILE *f, basic_block bb, bool print_varying)
 	  if (!gimple_range_ssa_p (ssa_name (x)))
 	    continue;
 
-	  Value_Range r (TREE_TYPE (ssa_name (x)));
+	  value_range r (TREE_TYPE (ssa_name (x)));
 	  if (m_ssa_ranges[x]->get_bb_range (r, bb))
 	    {
 	      if (r.varying_p ())
@@ -576,7 +576,7 @@ ssa_cache::has_range (tree name) const
   return m_tab[v] != NULL;
 }
 
-// Retrieve the global range of NAME from cache memory if it exists. 
+// Retrieve the global range of NAME from cache memory if it exists.
 // Return the value in R.
 
 bool
@@ -627,7 +627,7 @@ ssa_cache::merge_range (tree name, const vrange &r)
     m_tab[v] = m_range_allocator->clone (r);
   else
     {
-      Value_Range curr (TREE_TYPE (name));
+      value_range curr (TREE_TYPE (name));
       m->get_vrange (curr, TREE_TYPE (name));
       // If there is no change, return false.
       if (!curr.intersect (r))
@@ -670,7 +670,7 @@ ssa_cache::dump (FILE *f)
     {
       if (!gimple_range_ssa_p (ssa_name (x)))
 	continue;
-      Value_Range r (TREE_TYPE (ssa_name (x)));
+      value_range r (TREE_TYPE (ssa_name (x)));
       // Dump all non-varying ranges.
       if (get_range (r, ssa_name (x)) && !r.varying_p ())
 	{
@@ -681,6 +681,32 @@ ssa_cache::dump (FILE *f)
 	}
     }
 
+}
+
+// Construct an ssa_lazy_cache. If OB is specified, us it, otherwise use
+// a local bitmap obstack.
+
+ssa_lazy_cache::ssa_lazy_cache (bitmap_obstack *ob)
+{
+  if (!ob)
+    {
+      bitmap_obstack_initialize (&m_bitmaps);
+      m_ob = &m_bitmaps;
+    }
+  else
+    m_ob = ob;
+  active_p = BITMAP_ALLOC (m_ob);
+}
+
+// Destruct an sa_lazy_cache.  Free the bitmap if it came from a different
+// obstack, or release the obstack if it was a local one.
+
+ssa_lazy_cache::~ssa_lazy_cache ()
+{
+  if (m_ob == &m_bitmaps)
+    bitmap_obstack_release (&m_bitmaps);
+  else
+    BITMAP_FREE (active_p);
 }
 
 // Return true if NAME has an active range in the cache.
@@ -727,6 +753,24 @@ ssa_lazy_cache::merge_range (tree name, const vrange &r)
     m_tab.safe_grow (num_ssa_names + 1);
   m_tab[v] = m_range_allocator->clone (r);
   return true;
+}
+
+// Merge all elements of CACHE with this cache.
+// Any names in CACHE that are not in this one are added.
+// Any names in both are merged via merge_range..
+
+void
+ssa_lazy_cache::merge (const ssa_lazy_cache &cache)
+{
+  unsigned x;
+  bitmap_iterator bi;
+  EXECUTE_IF_SET_IN_BITMAP (cache.active_p, 0, x, bi)
+    {
+      tree name = ssa_name (x);
+      value_range r(TREE_TYPE (name));
+      cache.get_range (r, name);
+      merge_range (ssa_name (x), r);
+    }
 }
 
 // Return TRUE if NAME has a range, and return it in R.
@@ -888,6 +932,7 @@ private:
   vec<int> m_update_list;
   int m_update_head;
   bitmap m_propfail;
+  bitmap_obstack m_bitmaps;
 };
 
 // Create an update list.
@@ -897,7 +942,8 @@ update_list::update_list ()
   m_update_list.create (0);
   m_update_list.safe_grow_cleared (last_basic_block_for_fn (cfun) + 64);
   m_update_head = -1;
-  m_propfail = BITMAP_ALLOC (NULL);
+  bitmap_obstack_initialize (&m_bitmaps);
+  m_propfail = BITMAP_ALLOC (&m_bitmaps);
 }
 
 // Destroy an update list.
@@ -905,7 +951,7 @@ update_list::update_list ()
 update_list::~update_list ()
 {
   m_update_list.release ();
-  BITMAP_FREE (m_propfail);
+  bitmap_obstack_release (&m_bitmaps);
 }
 
 // Add BB to the list of blocks to update, unless it's already in the list.
@@ -950,18 +996,17 @@ update_list::pop ()
 // --------------------------------------------------------------------------
 
 ranger_cache::ranger_cache (int not_executable_flag, bool use_imm_uses)
-						: m_gori (not_executable_flag),
-						  m_exit (use_imm_uses)
 {
-  m_workback.create (0);
-  m_workback.safe_grow_cleared (last_basic_block_for_fn (cfun));
-  m_workback.truncate (0);
+  m_workback = vNULL;
   m_temporal = new temporal_cache;
+
   // If DOM info is available, spawn an oracle as well.
-  if (dom_info_available_p (CDI_DOMINATORS))
-      m_oracle = new dom_oracle ();
-    else
-      m_oracle = NULL;
+  create_relation_oracle ();
+  // Create an infer oracle using this cache as the range query.  The cache
+  // version acts as a read-only query, and will spawn no additional lookups.
+  // It just ues what is already known.
+  create_infer_oracle (this, use_imm_uses);
+  create_gori (not_executable_flag, param_vrp_switch_limit);
 
   unsigned x, lim = last_basic_block_for_fn (cfun);
   // Calculate outgoing range info upfront.  This will fully populate the
@@ -971,7 +1016,7 @@ ranger_cache::ranger_cache (int not_executable_flag, bool use_imm_uses)
     {
       basic_block bb = BASIC_BLOCK_FOR_FN (cfun, x);
       if (bb)
-	m_gori.exports (bb);
+	gori_ssa ()->exports (bb);
     }
   m_update = new update_list ();
 }
@@ -979,8 +1024,8 @@ ranger_cache::ranger_cache (int not_executable_flag, bool use_imm_uses)
 ranger_cache::~ranger_cache ()
 {
   delete m_update;
-  if (m_oracle)
-    delete m_oracle;
+  destroy_infer_oracle ();
+  destroy_relation_oracle ();
   delete m_temporal;
   m_workback.release ();
 }
@@ -1002,10 +1047,9 @@ ranger_cache::dump (FILE *f)
 void
 ranger_cache::dump_bb (FILE *f, basic_block bb)
 {
-  m_gori.gori_map::dump (f, bb, false);
+  gori_ssa ()->dump (f, bb, false);
   m_on_entry.dump (f, bb);
-  if (m_oracle)
-    m_oracle->dump (f, bb);
+  m_relation->dump (f, bb);
 }
 
 // Get the global range for NAME, and return in R.  Return false if the
@@ -1036,8 +1080,8 @@ ranger_cache::get_global_range (vrange &r, tree name, bool &current_p)
   current_p = false;
   if (had_global)
     current_p = r.singleton_p ()
-		|| m_temporal->current_p (name, m_gori.depend1 (name),
-					  m_gori.depend2 (name));
+		|| m_temporal->current_p (name, gori_ssa ()->depend1 (name),
+					  gori_ssa ()->depend2 (name));
   else
     {
       // If no global value has been set and value is VARYING, fold the stmt
@@ -1047,7 +1091,9 @@ ranger_cache::get_global_range (vrange &r, tree name, bool &current_p)
       if (r.varying_p () && !cfun->after_inlining)
 	{
 	  gimple *s = SSA_NAME_DEF_STMT (name);
-	  if (gimple_get_lhs (s) == name)
+	  // Do not process PHIs as SCEV may be in use and it can
+	  // spawn cyclic lookups.
+	  if (gimple_get_lhs (s) == name && !is_a<gphi *> (s))
 	    {
 	      if (!fold_range (r, s, get_global_range_query ()))
 		gimple_range_global (r, name);
@@ -1072,8 +1118,8 @@ ranger_cache::set_global_range (tree name, const vrange &r, bool changed)
   if (!changed)
     {
       // If there are dependencies, make sure this is not out of date.
-      if (!m_temporal->current_p (name, m_gori.depend1 (name),
-				 m_gori.depend2 (name)))
+      if (!m_temporal->current_p (name, gori_ssa ()->depend1 (name),
+				 gori_ssa ()->depend2 (name)))
 	m_temporal->set_timestamp (name);
       return;
     }
@@ -1098,7 +1144,7 @@ ranger_cache::set_global_range (tree name, const vrange &r, bool changed)
 
   if (r.singleton_p ()
       || (POINTER_TYPE_P (TREE_TYPE (name)) && r.nonzero_p ()))
-    m_gori.set_range_invariant (name);
+    gori_ssa ()->set_range_invariant (name);
   m_temporal->set_timestamp (name);
 }
 
@@ -1140,6 +1186,13 @@ ranger_cache::entry_range (vrange &r, tree name, basic_block bb,
       return;
     }
 
+  // If NAME is invariant, simply return the defining range.
+  if (!gori ().has_edge_range_p (name))
+    {
+      range_of_def (r, name);
+      return;
+    }
+
   // Look for the on-entry value of name in BB from the cache.
   // Otherwise pick up the best available global value.
   if (!m_on_entry.get_bb_range (r, name, bb))
@@ -1177,9 +1230,9 @@ ranger_cache::edge_range (vrange &r, edge e, tree name, enum rfd_mode mode)
   exit_range (r, name, e->src, mode);
   // If this is not an abnormal edge, check for inferred ranges on exit.
   if ((e->flags & (EDGE_EH | EDGE_ABNORMAL)) == 0)
-    m_exit.maybe_adjust_range (r, name, e->src);
-  Value_Range er (TREE_TYPE (name));
-  if (m_gori.outgoing_edge_range_p (er, e, name, *this))
+    infer_oracle ().maybe_adjust_range (r, name, e->src);
+  value_range er (TREE_TYPE (name));
+  if (gori ().edge_range_p (er, e, name, *this))
     r.intersect (er);
   return true;
 }
@@ -1231,7 +1284,7 @@ ranger_cache::block_range (vrange &r, basic_block bb, tree name, bool calc)
 
   // If there are no range calculations anywhere in the IL, global range
   // applies everywhere, so don't bother caching it.
-  if (!m_gori.has_edge_range_p (name))
+  if (!gori ().has_edge_range_p (name))
     return false;
 
   if (calc)
@@ -1239,13 +1292,16 @@ ranger_cache::block_range (vrange &r, basic_block bb, tree name, bool calc)
       gimple *def_stmt = SSA_NAME_DEF_STMT (name);
       basic_block def_bb = NULL;
       if (def_stmt)
-	def_bb = gimple_bb (def_stmt);;
+	def_bb = gimple_bb (def_stmt);
       if (!def_bb)
 	{
 	  // If we get to the entry block, this better be a default def
 	  // or range_on_entry was called for a block not dominated by
-	  // the def.  
-	  gcc_checking_assert (SSA_NAME_IS_DEFAULT_DEF (name));
+	  // the def.  But it could be also SSA_NAME defined by a statement
+	  // not yet in the IL (such as queued edge insertion), in that case
+	  // just punt.
+	  if (!SSA_NAME_IS_DEFAULT_DEF (name))
+	    return false;
 	  def_bb = ENTRY_BLOCK_PTR_FOR_FN (cfun);
 	}
 
@@ -1270,9 +1326,9 @@ ranger_cache::propagate_cache (tree name)
   edge_iterator ei;
   edge e;
   tree type = TREE_TYPE (name);
-  Value_Range new_range (type);
-  Value_Range current_range (type);
-  Value_Range e_range (type);
+  value_range new_range (type);
+  value_range current_range (type);
+  value_range e_range (type);
 
   // Process each block by seeing if its calculated range on entry is
   // the same as its cached value. If there is a difference, update
@@ -1318,7 +1374,7 @@ ranger_cache::propagate_cache (tree name)
 	  // If the cache couldn't set the value, mark it as failed.
 	  if (!ok_p)
 	    m_update->propagation_failed (bb);
-	  if (DEBUG_RANGE_CACHE) 
+	  if (DEBUG_RANGE_CACHE)
 	    {
 	      if (!ok_p)
 		{
@@ -1337,11 +1393,11 @@ ranger_cache::propagate_cache (tree name)
 	  FOR_EACH_EDGE (e, ei, bb->succs)
 	    if (m_on_entry.bb_range_p (name, e->dest))
 	      {
-		if (DEBUG_RANGE_CACHE) 
+		if (DEBUG_RANGE_CACHE)
 		  fprintf (dump_file, " bb%d",e->dest->index);
 		m_update->add (e->dest);
 	      }
-	  if (DEBUG_RANGE_CACHE) 
+	  if (DEBUG_RANGE_CACHE)
 	    fprintf (dump_file, "\n");
 	}
     }
@@ -1408,12 +1464,12 @@ ranger_cache::fill_block_cache (tree name, basic_block bb, basic_block def_bb)
   edge_iterator ei;
   edge e;
   tree type = TREE_TYPE (name);
-  Value_Range block_result (type);
-  Value_Range undefined (type);
+  value_range block_result (type);
+  value_range undefined (type);
 
   // At this point we shouldn't be looking at the def, entry block.
   gcc_checking_assert (bb != def_bb && bb != ENTRY_BLOCK_PTR_FOR_FN (cfun));
-  gcc_checking_assert (m_workback.length () == 0);
+  unsigned start_length = m_workback.length ();
 
   // If the block cache is set, then we've already visited this block.
   if (m_on_entry.bb_range_p (name, bb))
@@ -1438,81 +1494,86 @@ ranger_cache::fill_block_cache (tree name, basic_block bb, basic_block def_bb)
       // See if any equivalences can refine it.
       // PR 109462, like 108139 below, a one way equivalence introduced
       // by a PHI node can also be through the definition side.  Disallow it.
-      if (m_oracle)
+      tree equiv_name;
+      relation_kind rel;
+      int prec = TYPE_PRECISION (type);
+      // If there are too many basic blocks, do not attempt to process
+      // equivalencies.
+      if (last_basic_block_for_fn (cfun) > param_vrp_sparse_threshold)
 	{
-	  tree equiv_name;
-	  relation_kind rel;
-	  int prec = TYPE_PRECISION (type);
-	  FOR_EACH_PARTIAL_AND_FULL_EQUIV (m_oracle, bb, name, equiv_name, rel)
+	  m_on_entry.set_bb_range (name, bb, block_result);
+	  gcc_checking_assert (m_workback.length () == start_length);
+	  return;
+	}
+      FOR_EACH_PARTIAL_AND_FULL_EQUIV (m_relation, bb, name, equiv_name, rel)
+	{
+	  basic_block equiv_bb = gimple_bb (SSA_NAME_DEF_STMT (equiv_name));
+
+	  // Ignore partial equivs that are smaller than this object.
+	  if (rel != VREL_EQ && prec > pe_to_bits (rel))
+	    continue;
+
+	  // Check if the equiv has any ranges calculated.
+	  if (!gori ().has_edge_range_p (equiv_name))
+	    continue;
+
+	  // Check if the equiv definition dominates this block
+	  if (equiv_bb == bb ||
+	      (equiv_bb && !dominated_by_p (CDI_DOMINATORS, bb, equiv_bb)))
+	    continue;
+
+	  if (DEBUG_RANGE_CACHE)
 	    {
-	      basic_block equiv_bb = gimple_bb (SSA_NAME_DEF_STMT (equiv_name));
+	      if (rel == VREL_EQ)
+		fprintf (dump_file, "Checking Equivalence (");
+	      else
+		fprintf (dump_file, "Checking Partial equiv (");
+	      print_relation (dump_file, rel);
+	      fprintf (dump_file, ") ");
+	      print_generic_expr (dump_file, equiv_name, TDF_SLIM);
+	      fprintf (dump_file, "\n");
+	    }
+	  value_range equiv_range (TREE_TYPE (equiv_name));
+	  if (range_from_dom (equiv_range, equiv_name, bb, RFD_READ_ONLY))
+	    {
+	      if (rel != VREL_EQ)
+		range_cast (equiv_range, type);
+	      else
+		adjust_equivalence_range (equiv_range);
 
-	      // Ignore partial equivs that are smaller than this object.
-	      if (rel != VREL_EQ && prec > pe_to_bits (rel))
-		continue;
-
-	      // Check if the equiv has any ranges calculated.
-	      if (!m_gori.has_edge_range_p (equiv_name))
-		continue;
-
-	      // Check if the equiv definition dominates this block
-	      if (equiv_bb == bb ||
-		  (equiv_bb && !dominated_by_p (CDI_DOMINATORS, bb, equiv_bb)))
-		continue;
-
-	      if (DEBUG_RANGE_CACHE)
+	      if (block_result.intersect (equiv_range))
 		{
-		  if (rel == VREL_EQ)
-		    fprintf (dump_file, "Checking Equivalence (");
-		  else
-		    fprintf (dump_file, "Checking Partial equiv (");
-		  print_relation (dump_file, rel);
-		  fprintf (dump_file, ") ");
-		  print_generic_expr (dump_file, equiv_name, TDF_SLIM);
-		  fprintf (dump_file, "\n");
-		}
-	      Value_Range equiv_range (TREE_TYPE (equiv_name));
-	      if (range_from_dom (equiv_range, equiv_name, bb, RFD_READ_ONLY))
-		{
-		  if (rel != VREL_EQ)
-		    range_cast (equiv_range, type);
-		  else
-		    adjust_equivalence_range (equiv_range);
-
-		  if (block_result.intersect (equiv_range))
+		  if (DEBUG_RANGE_CACHE)
 		    {
-		      if (DEBUG_RANGE_CACHE)
-			{
-			  if (rel == VREL_EQ)
-			    fprintf (dump_file, "Equivalence update! :  ");
-			  else
-			    fprintf (dump_file, "Partial equiv update! :  ");
-			  print_generic_expr (dump_file, equiv_name, TDF_SLIM);
-			  fprintf (dump_file, " has range  :  ");
-			  equiv_range.dump (dump_file);
-			  fprintf (dump_file, " refining range to :");
-			  block_result.dump (dump_file);
-			  fprintf (dump_file, "\n");
-			}
+		      if (rel == VREL_EQ)
+			fprintf (dump_file, "Equivalence update! :  ");
+		      else
+			fprintf (dump_file, "Partial equiv update! :  ");
+		      print_generic_expr (dump_file, equiv_name, TDF_SLIM);
+		      fprintf (dump_file, " has range  :  ");
+		      equiv_range.dump (dump_file);
+		      fprintf (dump_file, " refining range to :");
+		      block_result.dump (dump_file);
+		      fprintf (dump_file, "\n");
 		    }
 		}
 	    }
 	}
 
       m_on_entry.set_bb_range (name, bb, block_result);
-      gcc_checking_assert (m_workback.length () == 0);
+      gcc_checking_assert (m_workback.length () == start_length);
       return;
     }
 
   // Visit each block back to the DEF.  Initialize each one to UNDEFINED.
   // m_visited at the end will contain all the blocks that we needed to set
   // the range_on_entry cache for.
-  m_workback.quick_push (bb);
+  m_workback.safe_push (bb);
   undefined.set_undefined ();
   m_on_entry.set_bb_range (name, bb, undefined);
   gcc_checking_assert (m_update->empty_p ());
 
-  while (m_workback.length () > 0)
+  while (m_workback.length () > start_length)
     {
       basic_block node = m_workback.pop ();
       if (DEBUG_RANGE_CACHE)
@@ -1525,7 +1586,7 @@ ranger_cache::fill_block_cache (tree name, basic_block bb, basic_block def_bb)
       FOR_EACH_EDGE (e, ei, node->preds)
 	{
 	  basic_block pred = e->src;
-	  Value_Range r (TREE_TYPE (name));
+	  value_range r (TREE_TYPE (name));
 
 	  if (DEBUG_RANGE_CACHE)
 	    fprintf (dump_file, "  %d->%d ",e->src->index, e->dest->index);
@@ -1549,7 +1610,7 @@ ranger_cache::fill_block_cache (tree name, basic_block bb, basic_block def_bb)
 	  // Regardless of whether we have visited pred or not, if the
 	  // pred has inferred ranges, revisit this block.
 	  // Don't search the DOM tree.
-	  if (m_exit.has_range_p (name, pred))
+	  if (infer_oracle ().has_range_p (pred, name))
 	    {
 	      if (DEBUG_RANGE_CACHE)
 		fprintf (dump_file, "Inferred range: update ");
@@ -1566,7 +1627,7 @@ ranger_cache::fill_block_cache (tree name, basic_block bb, basic_block def_bb)
 		  r.dump (dump_file);
 		  fprintf (dump_file, ", ");
 		}
-	      if (!r.undefined_p () || m_gori.has_edge_range_p (name, e))
+	      if (!r.undefined_p () || gori ().has_edge_range_p (name, e))
 		{
 		  m_update->add (node);
 		  if (DEBUG_RANGE_CACHE)
@@ -1581,7 +1642,7 @@ ranger_cache::fill_block_cache (tree name, basic_block bb, basic_block def_bb)
 	  // the list.
 	  gcc_checking_assert (!m_on_entry.bb_range_p (name, pred));
 	  m_on_entry.set_bb_range (name, pred, undefined);
-	  m_workback.quick_push (pred);
+	  m_workback.safe_push (pred);
 	}
     }
 
@@ -1617,7 +1678,7 @@ ranger_cache::resolve_dom (vrange &r, tree name, basic_block bb)
   r.set_undefined ();
   edge e;
   edge_iterator ei;
-  Value_Range er (TREE_TYPE (name));
+  value_range er (TREE_TYPE (name));
   FOR_EACH_EDGE (e, ei, bb->preds)
     {
       // If the predecessor is dominated by this block, then there is a back
@@ -1651,7 +1712,7 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
   basic_block prev_bb = start_bb;
 
   // Track any inferred ranges seen.
-  Value_Range infer (TREE_TYPE (name));
+  value_range infer (TREE_TYPE (name));
   infer.set_varying (TREE_TYPE (name));
 
   // Range on entry to the DEF block should not be queried.
@@ -1672,11 +1733,11 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
   for ( ; bb; prev_bb = bb, bb = get_immediate_dominator (CDI_DOMINATORS, bb))
     {
       // Accumulate any block exit inferred ranges.
-      m_exit.maybe_adjust_range (infer, name, bb);
+      infer_oracle ().maybe_adjust_range (infer, name, bb);
 
       // This block has an outgoing range.
-      if (m_gori.has_edge_range_p (name, bb))
-	m_workback.quick_push (prev_bb);
+      if (gori ().has_edge_range_p (name, bb))
+	m_workback.safe_push (prev_bb);
       else
 	{
 	  // Normally join blocks don't carry any new range information on
@@ -1687,7 +1748,7 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
 	  // If the first pred does not generate a range, then we will be
 	  // using the dominator range anyway, so that's all the check needed.
 	  if (EDGE_COUNT (prev_bb->preds) > 1
-	      && m_gori.has_edge_range_p (name, EDGE_PRED (prev_bb, 0)->src))
+	      && gori ().has_edge_range_p (name, EDGE_PRED (prev_bb, 0)->src))
 	    {
 	      edge e;
 	      edge_iterator ei;
@@ -1700,7 +1761,7 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
 		    break;
 		  }
 	      if (all_dom)
-		m_workback.quick_push (prev_bb);
+		m_workback.safe_push (prev_bb);
 	    }
 	}
 
@@ -1726,7 +1787,7 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
   // Now process any blocks wit incoming edges that nay have adjustments.
   while (m_workback.length () > start_limit)
     {
-      Value_Range er (TREE_TYPE (name));
+      value_range er (TREE_TYPE (name));
       prev_bb = m_workback.pop ();
       if (!single_pred_p (prev_bb))
 	{
@@ -1742,12 +1803,12 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
 
       edge e = single_pred_edge (prev_bb);
       bb = e->src;
-      if (m_gori.outgoing_edge_range_p (er, e, name, *this))
+      if (gori ().edge_range_p (er, e, name, *this))
 	{
 	  r.intersect (er);
 	  // If this is a normal edge, apply any inferred ranges.
 	  if ((e->flags & (EDGE_EH | EDGE_ABNORMAL)) == 0)
-	    m_exit.maybe_adjust_range (r, name, bb);
+	    infer_oracle ().maybe_adjust_range (r, name, bb);
 
 	  if (DEBUG_RANGE_CACHE)
 	    {
@@ -1779,15 +1840,15 @@ void
 ranger_cache::register_inferred_value (const vrange &ir, tree name,
 				       basic_block bb)
 {
-  Value_Range r (TREE_TYPE (name));
+  value_range r (TREE_TYPE (name));
   if (!m_on_entry.get_bb_range (r, name, bb))
     exit_range (r, name, bb, RFD_READ_ONLY);
   if (r.intersect (ir))
     {
       m_on_entry.set_bb_range (name, bb, r);
       // If this range was invariant before, remove invariant.
-      if (!m_gori.has_edge_range_p (name))
-	m_gori.set_range_invariant (name, false);
+      if (!gori ().has_edge_range_p (name))
+	gori_ssa ()->set_range_invariant (name, false);
     }
 }
 
@@ -1816,11 +1877,8 @@ ranger_cache::apply_inferred_ranges (gimple *s)
 	update = false;
     }
 
-  for (unsigned x = 0; x < infer.num (); x++)
-    {
-      tree name = infer.name (x);
-      m_exit.add_range (name, bb, infer.range (x));
-      if (update)
-	register_inferred_value (infer.range (x), name, bb);
-    }
+  infer_oracle ().add_ranges (s, infer);
+  if (update)
+    for (unsigned x = 0; x < infer.num (); x++)
+      register_inferred_value (infer.range (x), infer.name (x), bb);
 }

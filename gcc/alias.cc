@@ -1,5 +1,5 @@
 /* Alias analysis for GNU C
-   Copyright (C) 1997-2024 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
    Contributed by John Carr (jfc@mit.edu).
 
 This file is part of GCC.
@@ -671,7 +671,7 @@ component_uses_parent_alias_set_from (const_tree t)
 
       t = TREE_OPERAND (t, 0);
     }
- 
+
   if (found)
     return TREE_OPERAND (found, 0);
 
@@ -738,7 +738,7 @@ get_deref_alias_set (tree t)
    memory reference tree *T or NULL_TREE in which case *T is
    adjusted to point to the outermost component reference that
    can be used for assigning an alias set.  */
- 
+
 tree
 reference_alias_ptr_type_1 (tree *t)
 {
@@ -770,10 +770,7 @@ reference_alias_ptr_type_1 (tree *t)
   /* If the innermost reference is a MEM_REF that has a
      conversion embedded treat it like a VIEW_CONVERT_EXPR above,
      using the memory access type for determining the alias-set.  */
-  if (TREE_CODE (inner) == MEM_REF
-      && (TYPE_MAIN_VARIANT (TREE_TYPE (inner))
-	  != TYPE_MAIN_VARIANT
-	       (TREE_TYPE (TREE_TYPE (TREE_OPERAND (inner, 1))))))
+  if (view_converted_memref_p (inner))
     {
       tree alias_ptrtype = TREE_TYPE (TREE_OPERAND (inner, 1));
       /* Unless we have the (aggregate) effective type of the access
@@ -1261,12 +1258,12 @@ record_component_aliases (tree type, alias_set_type superset)
     case UNION_TYPE:
     case QUAL_UNION_TYPE:
       {
-	/* LTO non-ODR type merging does not make any difference between 
+	/* LTO non-ODR type merging does not make any difference between
 	   component pointer types.  We may have
 
 	   struct foo {int *a;};
 
-	   as TYPE_CANONICAL of 
+	   as TYPE_CANONICAL of
 
 	   struct bar {float *a;};
 
@@ -1864,6 +1861,11 @@ rtx_equal_for_memref_p (const_rtx x, const_rtx y)
 	    return false;
 	  break;
 
+	case 'L':
+	  if (XLOC (x, i) != XLOC (y, i))
+	    return false;
+	  break;
+
 	case 'p':
 	  if (maybe_ne (SUBREG_BYTE (x), SUBREG_BYTE (y)))
 	    return false;
@@ -2116,7 +2118,7 @@ compare_base_decls (tree base1, tree base2)
   symtab_node *node2 = symtab_node::get (base2);
   if (!node2)
     return 0;
-  
+
   ret = node1->equal_address_to (node2, true);
   return ret;
 }
@@ -2533,19 +2535,39 @@ memrefs_conflict_p (poly_int64 xsize, rtx x, poly_int64 ysize, rtx y,
 	    return memrefs_conflict_p (xsize, x1, ysize, y1, c);
 	  if (poly_int_rtx_p (x1, &cx1))
 	    {
+	      poly_offset_int co = c;
+	      co -= cx1;
 	      if (poly_int_rtx_p (y1, &cy1))
-		return memrefs_conflict_p (xsize, x0, ysize, y0,
-					   c - cx1 + cy1);
+		{
+		  co += cy1;
+		  if (!co.to_shwi (&c))
+		    return -1;
+		  return memrefs_conflict_p (xsize, x0, ysize, y0, c);
+		}
+	      else if (!co.to_shwi (&c))
+		return -1;
 	      else
-		return memrefs_conflict_p (xsize, x0, ysize, y, c - cx1);
+		return memrefs_conflict_p (xsize, x0, ysize, y, c);
 	    }
 	  else if (poly_int_rtx_p (y1, &cy1))
-	    return memrefs_conflict_p (xsize, x, ysize, y0, c + cy1);
+	    {
+	      poly_offset_int co = c;
+	      co += cy1;
+	      if (!co.to_shwi (&c))
+		return -1;
+	      return memrefs_conflict_p (xsize, x, ysize, y0, c);
+	    }
 
 	  return -1;
 	}
       else if (poly_int_rtx_p (x1, &cx1))
-	return memrefs_conflict_p (xsize, x0, ysize, y, c - cx1);
+	{
+	  poly_offset_int co = c;
+	  co -= cx1;
+	  if (!co.to_shwi (&c))
+	    return -1;
+	  return memrefs_conflict_p (xsize, x0, ysize, y, c);
+	}
     }
   else if (GET_CODE (y) == PLUS)
     {
@@ -2561,7 +2583,13 @@ memrefs_conflict_p (poly_int64 xsize, rtx x, poly_int64 ysize, rtx y,
 
       poly_int64 cy1;
       if (poly_int_rtx_p (y1, &cy1))
-	return memrefs_conflict_p (xsize, x, ysize, y0, c + cy1);
+	{
+	  poly_offset_int co = c;
+	  co += cy1;
+	  if (!co.to_shwi (&c))
+	    return -1;
+	  return memrefs_conflict_p (xsize, x, ysize, y0, c);
+	}
       else
 	return -1;
     }
@@ -2614,8 +2642,16 @@ memrefs_conflict_p (poly_int64 xsize, rtx x, poly_int64 ysize, rtx y,
 	  if (maybe_gt (xsize, 0))
 	    xsize = -xsize;
 	  if (maybe_ne (xsize, 0))
-	    xsize += sc + 1;
-	  c -= sc + 1;
+	    {
+	      poly_offset_int xsizeo = xsize;
+	      xsizeo += sc + 1;
+	      if (!xsizeo.to_shwi (&xsize))
+		return -1;
+	    }
+	  poly_offset_int co = c;
+	  co -= sc + 1;
+	  if (!co.to_shwi (&c))
+	    return -1;
 	  return memrefs_conflict_p (xsize, canon_rtx (XEXP (x, 0)),
 				     ysize, y, c);
 	}
@@ -2629,8 +2665,16 @@ memrefs_conflict_p (poly_int64 xsize, rtx x, poly_int64 ysize, rtx y,
 	  if (maybe_gt (ysize, 0))
 	    ysize = -ysize;
 	  if (maybe_ne (ysize, 0))
-	    ysize += sc + 1;
-	  c += sc + 1;
+	    {
+	      poly_offset_int ysizeo = ysize;
+	      ysizeo += sc + 1;
+	      if (!ysizeo.to_shwi (&ysize))
+		return -1;
+	    }
+	  poly_offset_int co = c;
+	  co += sc + 1;
+	  if (!co.to_shwi (&c))
+	    return -1;
 	  return memrefs_conflict_p (xsize, x,
 				     ysize, canon_rtx (XEXP (y, 0)), c);
 	}
@@ -2641,7 +2685,11 @@ memrefs_conflict_p (poly_int64 xsize, rtx x, poly_int64 ysize, rtx y,
       poly_int64 cx, cy;
       if (poly_int_rtx_p (x, &cx) && poly_int_rtx_p (y, &cy))
 	{
-	  c += cy - cx;
+	  poly_offset_int co = c;
+	  co += cy;
+	  co -= cx;
+	  if (!co.to_shwi (&c))
+	    return -1;
 	  return offset_overlap_p (c, xsize, ysize);
 	}
 
@@ -2756,7 +2804,7 @@ adjust_offset_for_component_ref (tree x, bool *known_p,
 }
 
 /* Return true if we can determine the exprs corresponding to memrefs
-   X and Y and they do not overlap. 
+   X and Y and they do not overlap.
    If LOOP_VARIANT is set, skip offset-based disambiguation */
 
 bool

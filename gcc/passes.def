@@ -1,5 +1,5 @@
 /* Description of pass structure
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,14 +17,11 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/*
- Macros that should be defined when using this file:
-   INSERT_PASSES_AFTER (PASS)
-   PUSH_INSERT_PASSES_WITHIN (PASS)
-   POP_INSERT_PASSES ()
-   NEXT_PASS (PASS)
-   TERMINATE_PASS_LIST (PASS)
- */
+/* Note that this file is processed by a simple parser:
+   'gen-pass-instances.awk', so carefully verify the generated
+   'pass-instances.def' if you deviate from the syntax otherwise used in
+   here.  */
+
 
  /* All passes needed to lower the function into shape optimizers can
     operate on.  These passes are always run first on the function, but
@@ -83,7 +80,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_ccp, false /* nonzero_p */);
 	  /* After CCP we rewrite no longer addressed locals into SSA
 	     form if possible.  */
-	  NEXT_PASS (pass_forwprop);
+	  NEXT_PASS (pass_forwprop, /*last=*/false);
           NEXT_PASS (pass_early_thread_jumps, /*first=*/true);
 	  NEXT_PASS (pass_sra_early);
 	  /* pass_build_ealias is a dummy pass that ensures that we
@@ -95,7 +92,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_early_vrp);
 	  NEXT_PASS (pass_merge_phi);
           NEXT_PASS (pass_dse);
-	  NEXT_PASS (pass_cd_dce, false /* update_address_taken_p */);
+	  NEXT_PASS (pass_cd_dce, false /* update_address_taken_p */, true /* remove_unused_locals */);
 	  NEXT_PASS (pass_phiopt, true /* early_p */);
 	  NEXT_PASS (pass_tail_recursion);
 	  NEXT_PASS (pass_if_to_switch);
@@ -160,11 +157,12 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_ipa_profile);
   NEXT_PASS (pass_ipa_icf);
   NEXT_PASS (pass_ipa_devirt);
+  NEXT_PASS (pass_ipa_cdtor_merge);
   NEXT_PASS (pass_ipa_cp);
   NEXT_PASS (pass_ipa_sra);
-  NEXT_PASS (pass_ipa_cdtor_merge);
   NEXT_PASS (pass_ipa_fn_summary);
   NEXT_PASS (pass_ipa_inline);
+  NEXT_PASS (pass_ipa_locality_cloning);
   NEXT_PASS (pass_ipa_pure_const);
   NEXT_PASS (pass_ipa_modref);
   NEXT_PASS (pass_ipa_free_fn_summary, false /* small_p */);
@@ -217,7 +215,7 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_complete_unrolli);
       NEXT_PASS (pass_backprop);
       NEXT_PASS (pass_phiprop);
-      NEXT_PASS (pass_forwprop);
+      NEXT_PASS (pass_forwprop, /*last=*/false);
       /* pass_build_alias is a dummy pass that ensures that we
 	 execute TODO_rebuild_alias at this point.  */
       NEXT_PASS (pass_build_alias);
@@ -226,11 +224,9 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_merge_phi);
       NEXT_PASS (pass_thread_jumps_full, /*first=*/true);
       NEXT_PASS (pass_vrp, false /* final_p*/);
+      NEXT_PASS (pass_array_bounds);
       NEXT_PASS (pass_dse);
-      NEXT_PASS (pass_dce);
-      /* pass_stdarg is always run and at this point we execute
-         TODO_remove_unused_locals to prune CLOBBERs of dead
-	 variables which are otherwise a churn on alias walkings.  */
+      NEXT_PASS (pass_dce, false /* update_address_taken_p */, true /* remove_unused_locals */);
       NEXT_PASS (pass_stdarg);
       NEXT_PASS (pass_call_cdce);
       NEXT_PASS (pass_cselim);
@@ -259,12 +255,12 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_isolate_erroneous_paths);
       NEXT_PASS (pass_reassoc, true /* early_p */);
       NEXT_PASS (pass_dce);
-      NEXT_PASS (pass_forwprop);
+      NEXT_PASS (pass_forwprop, /*last=*/false);
       NEXT_PASS (pass_phiopt, false /* early_p */);
       NEXT_PASS (pass_ccp, true /* nonzero_p */);
       /* After CCP we rewrite no longer addressed locals into SSA
 	 form if possible.  */
-      NEXT_PASS (pass_expand_powcabs);
+      NEXT_PASS (pass_expand_pow);
       NEXT_PASS (pass_optimize_bswap);
       NEXT_PASS (pass_laddress);
       NEXT_PASS (pass_lim);
@@ -275,7 +271,7 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_asan);
       NEXT_PASS (pass_tsan);
       NEXT_PASS (pass_dse, true /* use DR analysis */);
-      NEXT_PASS (pass_dce);
+      NEXT_PASS (pass_dce, false /* update_address_taken_p */, false /* remove_unused_locals */);
       /* Pass group that runs when 1) enabled, 2) there are loops
 	 in the function.  Make sure to run pass_fix_loops before
 	 to discover/remove loops before running the gate function
@@ -296,6 +292,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_cd_dce, false /* update_address_taken_p */);
 	  NEXT_PASS (pass_iv_canon);
 	  NEXT_PASS (pass_loop_distribution);
+	  NEXT_PASS (pass_crc_optimization);
 	  NEXT_PASS (pass_linterchange);
 	  NEXT_PASS (pass_copy_prop);
 	  NEXT_PASS (pass_graphite);
@@ -357,10 +354,10 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_ccp, true /* nonzero_p */);
       NEXT_PASS (pass_warn_restrict);
       NEXT_PASS (pass_dse);
-      NEXT_PASS (pass_dce, true /* update_address_taken_p */);
+      NEXT_PASS (pass_dce, true /* update_address_taken_p */, true /* remove_unused_locals */);
       /* After late DCE we rewrite no longer addressed locals into SSA
 	 form if possible.  */
-      NEXT_PASS (pass_forwprop);
+      NEXT_PASS (pass_forwprop, /*last=*/true);
       NEXT_PASS (pass_sink_code, true /* unsplit edges */);
       NEXT_PASS (pass_phiopt, false /* early_p */);
       NEXT_PASS (pass_fold_builtins);
@@ -443,6 +440,7 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_tsan_O0);
   NEXT_PASS (pass_sanopt);
   NEXT_PASS (pass_cleanup_eh);
+  NEXT_PASS (pass_musttail);
   NEXT_PASS (pass_lower_resx);
   NEXT_PASS (pass_nrv);
   NEXT_PASS (pass_gimple_isel);
@@ -466,6 +464,7 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_rtl_cprop);
       NEXT_PASS (pass_rtl_pre);
       NEXT_PASS (pass_rtl_hoist);
+      NEXT_PASS (pass_hardreg_pre);
       NEXT_PASS (pass_rtl_cprop);
       NEXT_PASS (pass_rtl_store_motion);
       NEXT_PASS (pass_cse_after_global_opts);
@@ -491,7 +490,9 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_inc_dec);
       NEXT_PASS (pass_initialize_regs);
       NEXT_PASS (pass_ud_rtl_dce);
+      NEXT_PASS (pass_ext_dce);
       NEXT_PASS (pass_combine);
+      NEXT_PASS (pass_late_combine);
       NEXT_PASS (pass_if_after_combine);
       NEXT_PASS (pass_jump_after_combine);
       NEXT_PASS (pass_partition_blocks);
@@ -505,12 +506,17 @@ along with GCC; see the file COPYING3.  If not see
       NEXT_PASS (pass_sms);
       NEXT_PASS (pass_live_range_shrinkage);
       NEXT_PASS (pass_sched);
+      NEXT_PASS (pass_rtl_avoid_store_forwarding);
       NEXT_PASS (pass_early_remat);
       NEXT_PASS (pass_ira);
       NEXT_PASS (pass_reload);
+      /* In the following, some passes are tied to 'pass_postreload' and others
+	 to 'pass_late_compilation'.  The difference is that the latter also
+	 run for 'targetm.no_register_allocation' targets.  */
       NEXT_PASS (pass_postreload);
       PUSH_INSERT_PASSES_WITHIN (pass_postreload)
 	  NEXT_PASS (pass_postreload_cse);
+	  NEXT_PASS (pass_late_combine);
 	  NEXT_PASS (pass_gcse2);
 	  NEXT_PASS (pass_split_after_reload);
 	  NEXT_PASS (pass_ree);

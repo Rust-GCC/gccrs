@@ -1,7 +1,7 @@
 // { dg-do compile { target c++11 } }
 // { dg-require-effective-target hosted }
 
-// Copyright (C) 2006-2024 Free Software Foundation, Inc.
+// Copyright (C) 2006-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,3 +28,15 @@ template class std::shared_ptr<int>;
 template class std::shared_ptr<void>;
 template class std::shared_ptr<ClassType>;
 template class std::shared_ptr<IncompleteClass>;
+
+#if __cpp_lib_shared_ptr_arrays >= 201611L
+template class std::shared_ptr<ClassType []>;
+template class std::shared_ptr<ClassType [42]>;
+template class std::shared_ptr<ClassType const []>;
+template class std::shared_ptr<ClassType const [42]>;
+
+template class std::shared_ptr<IncompleteClass []>;
+template class std::shared_ptr<IncompleteClass [42]>;
+template class std::shared_ptr<IncompleteClass const []>;
+template class std::shared_ptr<IncompleteClass const [42]>;
+#endif

@@ -443,37 +443,24 @@ if (fun.length >= 1)
         A range with each fun applied to all the elements. If there is more than one
         fun, the element type will be `Tuple` containing one element for each fun.
      */
-    auto map(Range)(Range r) if (isInputRange!(Unqual!Range))
+    auto map(Range)(Range r)
+    if (isInputRange!(Unqual!Range))
     {
-        import std.meta : AliasSeq, staticMap;
+        import std.meta : staticMap;
+        import std.functional : adjoin;
 
         alias RE = ElementType!(Range);
-        static if (fun.length > 1)
+
+        alias _funs = staticMap!(unaryFun, fun);
+        alias _fun = adjoin!_funs;
+
+        // Once https://issues.dlang.org/show_bug.cgi?id=5710 is fixed
+        // accross all compilers (as of 2020-04, it wasn't fixed in LDC and GDC),
+        // this validation loop can be moved into a template.
+        foreach (f; _funs)
         {
-            import std.functional : adjoin;
-            import std.meta : staticIndexOf;
-
-            alias _funs = staticMap!(unaryFun, fun);
-            alias _fun = adjoin!_funs;
-
-            // Once https://issues.dlang.org/show_bug.cgi?id=5710 is fixed
-            // accross all compilers (as of 2020-04, it wasn't fixed in LDC and GDC),
-            // this validation loop can be moved into a template.
-            foreach (f; _funs)
-            {
-                static assert(!is(typeof(f(RE.init)) == void),
+            static assert(!is(typeof(f(RE.init)) == void),
                     "Mapping function(s) must not return void: " ~ _funs.stringof);
-            }
-        }
-        else
-        {
-            alias _fun = unaryFun!fun;
-            alias _funs = AliasSeq!(_fun);
-
-            // Do the validation separately for single parameters due to
-            // https://issues.dlang.org/show_bug.cgi?id=15777.
-            static assert(!is(typeof(_fun(RE.init)) == void),
-                "Mapping function(s) must not return void: " ~ _funs.stringof);
         }
 
         return MapResult!(_fun, Range)(r);
@@ -1308,7 +1295,8 @@ if (is(typeof(unaryFun!predicate)))
         A range containing only elements `x` in `range` for
         which `predicate(x)` returns `true`.
      */
-    auto filter(Range)(Range range) if (isInputRange!(Unqual!Range))
+    auto filter(Range)(Range range)
+    if (isInputRange!(Unqual!Range))
     {
         return FilterResult!(unaryFun!predicate, Range)(range);
     }
@@ -1545,7 +1533,8 @@ template filterBidirectional(alias pred)
     Returns:
         A range containing only the elements in `r` for which `pred` returns `true`.
      */
-    auto filterBidirectional(Range)(Range r) if (isBidirectionalRange!(Unqual!Range))
+    auto filterBidirectional(Range)(Range r)
+    if (isBidirectionalRange!(Unqual!Range))
     {
         return FilterBidiResult!(unaryFun!pred, Range)(r);
     }

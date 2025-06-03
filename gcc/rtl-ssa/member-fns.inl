@@ -1,5 +1,5 @@
 // Implementation of public inline member functions for RTL SSA     -*- C++ -*-
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -41,7 +41,8 @@ access_array_builder::quick_push (access_info *access)
 inline array_slice<access_info *>
 access_array_builder::finish ()
 {
-  auto num_accesses = obstack_object_size (m_obstack) / sizeof (access_info *);
+  unsigned num_accesses
+    = obstack_object_size (m_obstack) / sizeof (access_info *);
   if (num_accesses == 0)
     return {};
 
@@ -554,7 +555,7 @@ inline insn_info *
 insn_info::prev_nondebug_insn () const
 {
   gcc_checking_assert (!is_debug_insn ());
-  return m_prev_insn_or_last_debug_insn.known_first ();
+  return m_prev_sametype_or_last_debug_insn.known_first ();
 }
 
 inline insn_info *
@@ -570,12 +571,23 @@ insn_info::next_nondebug_insn () const
 inline insn_info *
 insn_info::prev_any_insn () const
 {
-  const insn_info *from = this;
-  if (insn_info *last_debug = m_prev_insn_or_last_debug_insn.second_or_null ())
+  if (auto *last_debug = m_prev_sametype_or_last_debug_insn.second_or_null ())
     // This instruction is the first in a subsequence of debug instructions.
-    // Move to the following nondebug instruction.
-    from = last_debug->m_next_nondebug_or_debug_insn.known_first ();
-  return from->m_prev_insn_or_last_debug_insn.known_first ();
+    // Move to the following nondebug instruction and get the previous one
+    // from there.
+    return (last_debug->m_next_nondebug_or_debug_insn.known_first ()
+	    ->m_prev_sametype_or_last_debug_insn.known_first ());
+  auto *prev = m_prev_sametype_or_last_debug_insn.known_first ();
+  if (prev)
+    {
+      auto *next = prev->next_any_insn ();
+      if (next != this)
+	// This instruction is a non-debug instruction and there are some
+	// debug instructions between it and PREV.  NEXT is the first of
+	// the debug instructions; get the last.
+	return next->m_prev_sametype_or_last_debug_insn.known_second ();
+    }
+  return prev;
 }
 
 inline insn_info *
@@ -663,7 +675,7 @@ insn_info::find_note () const
 inline insn_info *
 insn_info::last_debug_insn () const
 {
-  return m_prev_insn_or_last_debug_insn.known_second ();
+  return m_prev_sametype_or_last_debug_insn.known_second ();
 }
 
 inline insn_range_info::insn_range_info (insn_info *first, insn_info *last)
@@ -870,21 +882,6 @@ inline insn_change::insn_change (insn_info *insn, delete_action)
 {
 }
 
-inline insn_is_changing_closure::
-insn_is_changing_closure (array_slice<insn_change *const> changes)
-  : m_changes (changes)
-{
-}
-
-inline bool
-insn_is_changing_closure::operator() (const insn_info *insn) const
-{
-  for (const insn_change *change : m_changes)
-    if (change->insn () == insn)
-      return true;
-  return false;
-}
-
 inline iterator_range<bb_iterator>
 function_info::bbs () const
 {
@@ -963,11 +960,11 @@ function_info::single_dominating_def (unsigned int regno) const
   return nullptr;
 }
 
-template<typename IgnorePredicate>
+template<typename IgnorePredicates>
 bool
 function_info::add_regno_clobber (obstack_watermark &watermark,
 				  insn_change &change, unsigned int regno,
-				  IgnorePredicate ignore)
+				  IgnorePredicates ignore)
 {
   // Check whether CHANGE already clobbers REGNO.
   if (find_access (change.new_defs, regno))
@@ -1001,6 +998,22 @@ function_info::change_alloc (obstack_watermark &wm, Ts... args)
 		 "too much alignment required");
   void *addr = XOBNEW (wm, T);
   return new (addr) T (std::forward<Ts> (args)...);
+}
+
+inline
+ignore_changing_insns::
+ignore_changing_insns (array_slice<insn_change *const> changes)
+  : m_changes (changes)
+{
+}
+
+inline bool
+ignore_changing_insns::should_ignore_insn (const insn_info *insn)
+{
+  for (const insn_change *change : m_changes)
+    if (change->insn () == insn)
+      return true;
+  return false;
 }
 
 }

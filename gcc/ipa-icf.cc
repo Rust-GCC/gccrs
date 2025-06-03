@@ -1,5 +1,5 @@
 /* Interprocedural Identical Code Folding pass
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    Contributed by Jan Hubicka <hubicka@ucw.cz> and Martin Liska <mliska@suse.cz>
 
@@ -233,16 +233,6 @@ void sem_item::set_hash (hashval_t hash)
 
 hash_map<const_tree, hashval_t> sem_item::m_type_hash_cache;
 
-/* Semantic function constructor that uses STACK as bitmap memory stack.  */
-
-sem_function::sem_function (bitmap_obstack *stack)
-  : sem_item (FUNC, stack), memory_access_types (), m_alias_sets_hash (0),
-    m_checker (NULL), m_compared_func (NULL)
-{
-  bb_sizes.create (0);
-  bb_sorted.create (0);
-}
-
 sem_function::sem_function (cgraph_node *node, bitmap_obstack *stack)
   : sem_item (FUNC, node, stack), memory_access_types (),
     m_alias_sets_hash (0), m_checker (NULL), m_compared_func (NULL)
@@ -304,6 +294,7 @@ sem_function::get_hash (void)
 	   (TREE_OPTIMIZATION (DECL_FUNCTION_SPECIFIC_OPTIMIZATION (decl))));
       hstate.add_flag (DECL_CXX_CONSTRUCTOR_P (decl));
       hstate.add_flag (DECL_CXX_DESTRUCTOR_P (decl));
+      hstate.add_flag (DECL_STATIC_CHAIN (decl));
 
       set_hash (hstate.end ());
     }
@@ -655,7 +646,10 @@ sem_function::equals_wpa (sem_item *item,
     }
 
   if (list1 || list2)
-    return return_false_with_msg ("Mismatched number of parameters");
+    return return_false_with_msg ("mismatched number of parameters");
+
+  if (DECL_STATIC_CHAIN (decl) != DECL_STATIC_CHAIN (item->decl))
+    return return_false_with_msg ("static chain mismatch");
 
   if (node->num_references () != item->node->num_references ())
     return return_false_with_msg ("different number of references");
@@ -876,7 +870,10 @@ sem_function::equals_private (sem_item *item)
         return return_false ();
     }
   if (arg1 || arg2)
-    return return_false_with_msg ("Mismatched number of arguments");
+    return return_false_with_msg ("mismatched number of arguments");
+
+ if (DECL_STATIC_CHAIN (decl) != DECL_STATIC_CHAIN (m_compared_func->decl))
+    return return_false_with_msg ("static chain mismatch");
 
   if (!dyn_cast <cgraph_node *> (node)->has_gimple_body_p ())
     return true;
@@ -951,7 +948,7 @@ set_addressable (varpool_node *node, void *)
   return false;
 }
 
-/* Clear DECL_RTL of NODE. 
+/* Clear DECL_RTL of NODE.
    Helper for call_for_symbol_thunks_and_aliases.  */
 
 static bool
@@ -1360,7 +1357,6 @@ sem_function::init (ipa_icf_gimple::func_checker *checker)
   gcc_assert (SSANAMES (func));
 
   ssa_names_size = SSANAMES (func)->length ();
-  node = node;
 
   decl = fndecl;
   region_tree = func->eh->region_tree;
@@ -1386,6 +1382,23 @@ sem_function::init (ipa_icf_gimple::func_checker *checker)
 	     ei_next (&ei))
 	  cfg_checksum = iterative_hash_host_wide_int (e->flags,
 			 cfg_checksum);
+
+	/* TODO: We should be able to match PHIs with different order of
+	   parameters.  This needs to be also updated in
+	   sem_function::compare_phi_node.  */
+	gphi_iterator si;
+	for (si = gsi_start_nonvirtual_phis (bb); !gsi_end_p (si);
+	     gsi_next_nonvirtual_phi (&si))
+	  {
+	    hstate.add_int (GIMPLE_PHI);
+	    gphi *phi = si.phi ();
+	    m_checker->hash_operand (gimple_phi_result (phi), hstate, 0,
+				     func_checker::OP_NORMAL);
+	    hstate.add_int (gimple_phi_num_args (phi));
+	    for (unsigned int i = 0; i < gimple_phi_num_args (phi); i++)
+	      m_checker->hash_operand (gimple_phi_arg_def (phi, i),
+				       hstate, 0, func_checker::OP_NORMAL);
+	  }
 
 	for (gimple_stmt_iterator gsi = gsi_start_bb (bb); !gsi_end_p (gsi);
 	     gsi_next (&gsi))
@@ -1579,6 +1592,8 @@ sem_function::compare_phi_node (basic_block bb1, basic_block bb2)
       if (size1 != size2)
 	return return_false ();
 
+      /* TODO: We should be able to match PHIs with different order of
+	 parameters.  This needs to be also updated in sem_function::init.  */
       for (i = 0; i < size1; ++i)
 	{
 	  t1 = gimple_phi_arg (phi1, i)->def;
@@ -1619,10 +1634,6 @@ sem_function::bb_dict_test (vec<int> *bb_dict, int source, int target)
     }
   else
     return (*bb_dict)[source] == target;
-}
-
-sem_variable::sem_variable (bitmap_obstack *stack): sem_item (VAR, stack)
-{
 }
 
 sem_variable::sem_variable (varpool_node *node, bitmap_obstack *stack)
@@ -1876,7 +1887,7 @@ sem_variable::equals (tree t1, tree t2)
 	  return false;
 	return true;
       }
-     
+
     case COMPONENT_REF:
     case POINTER_PLUS_EXPR:
     case PLUS_EXPR:
@@ -2190,7 +2201,7 @@ sem_item_optimizer::write_summary (void)
     }
 
   streamer_write_char_stream (ob->main_stream, 0);
-  produce_asm (ob, NULL);
+  produce_asm (ob);
   destroy_output_block (ob);
 }
 
@@ -3384,7 +3395,7 @@ sem_item_optimizer::merge_classes (unsigned int prev_class_count,
       unsigned total = equal_items + non_singular_classes_count;
       fprintf (dump_file, "Totally needed symbols: %u"
 	       ", fraction of loaded symbols: %.2f%%\n\n", total,
-	       loaded_symbols ? 100.0f * total / loaded_symbols: 0.0f);
+	       loaded_symbols ? 100.0f * total / loaded_symbols : 0.0f);
     }
 
   unsigned int l;
@@ -3398,6 +3409,7 @@ sem_item_optimizer::merge_classes (unsigned int prev_class_count,
 	  continue;
 
 	sem_item *source = c->members[0];
+	bool this_merged_p = false;
 
 	if (DECL_NAME (source->decl)
 	    && MAIN_NAME_P (DECL_NAME (source->decl)))
@@ -3445,12 +3457,41 @@ sem_item_optimizer::merge_classes (unsigned int prev_class_count,
 	    if (dbg_cnt (merged_ipa_icf))
 	      {
 		bool merged = source->merge (alias);
-		merged_p |= merged;
+		this_merged_p |= merged;
 
 		if (merged && alias->type == VAR)
 		  {
 		    symtab_pair p = symtab_pair (source->node, alias->node);
 		    m_merged_variables.safe_push (p);
+		  }
+	      }
+	  }
+
+	merged_p |= this_merged_p;
+	if (this_merged_p
+	    && source->type == FUNC
+	    && (!flag_wpa || flag_checking))
+	  {
+	    unsigned i;
+	    tree name;
+	    FOR_EACH_SSA_NAME (i, name, DECL_STRUCT_FUNCTION (source->decl))
+	      {
+		/* We need to either merge or reset SSA_NAME_*_INFO.
+		   For merging we don't preserve the mapping between
+		   original and alias SSA_NAMEs from successful equals
+		   calls.  */
+		if (POINTER_TYPE_P (TREE_TYPE (name)))
+		  {
+		    if (SSA_NAME_PTR_INFO (name))
+		      {
+			gcc_checking_assert (!flag_wpa);
+			SSA_NAME_PTR_INFO (name) = NULL;
+		      }
+		  }
+		else if (SSA_NAME_RANGE_INFO (name))
+		  {
+		    gcc_checking_assert (!flag_wpa);
+		    SSA_NAME_RANGE_INFO (name) = NULL;
 		  }
 	      }
 	  }

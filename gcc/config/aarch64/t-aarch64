@@ -1,5 +1,5 @@
 # Machine description for AArch64 architecture.
-#  Copyright (C) 2009-2024 Free Software Foundation, Inc.
+#  Copyright (C) 2009-2025 Free Software Foundation, Inc.
 #  Contributed by ARM Ltd.
 #
 #  This file is part of GCC.
@@ -50,11 +50,12 @@ endif
 s-mddeps: s-aarch64-tune-md
 
 aarch64-builtins.o: $(srcdir)/config/aarch64/aarch64-builtins.cc $(CONFIG_H) \
-  $(SYSTEM_H) coretypes.h $(TM_H) \
+  $(SYSTEM_H) coretypes.h $(TM_H) $(REGS_H) \
   $(RTL_H) $(TREE_H) expr.h $(TM_P_H) $(RECOG_H) langhooks.h \
   $(DIAGNOSTIC_CORE_H) $(OPTABS_H) \
   $(srcdir)/config/aarch64/aarch64-simd-builtins.def \
   $(srcdir)/config/aarch64/aarch64-simd-builtin-types.def \
+  $(srcdir)/config/aarch64/aarch64-simd-pragma-builtins.def \
   aarch64-builtin-iterators.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-builtins.cc
@@ -68,7 +69,7 @@ aarch64-sve-builtins.o: $(srcdir)/config/aarch64/aarch64-sve-builtins.cc \
   $(TM_P_H) memmodel.h insn-codes.h $(OPTABS_H) $(RECOG_H) $(DIAGNOSTIC_H) \
   $(EXPR_H) $(BASIC_BLOCK_H) $(FUNCTION_H) fold-const.h $(GIMPLE_H) \
   gimple-iterator.h gimplify.h explow.h $(EMIT_RTL_H) tree-vector-builder.h \
-  stor-layout.h $(REG_H) alias.h gimple-fold.h langhooks.h \
+  stor-layout.h alias.h gimple-fold.h langhooks.h \
   stringpool.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins.h \
   $(srcdir)/config/aarch64/aarch64-sve-builtins-shapes.h \
@@ -169,16 +170,6 @@ aarch64-speculation.o: $(srcdir)/config/aarch64/aarch64-speculation.cc \
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_SPPFLAGS) $(INCLUDES) \
 	  $(srcdir)/config/aarch64/aarch64-speculation.cc
 
-falkor-tag-collision-avoidance.o: \
-    $(srcdir)/config/aarch64/falkor-tag-collision-avoidance.cc \
-    $(CONFIG_H) $(SYSTEM_H) $(TM_H) $(REGS_H) insn-config.h $(RTL_BASE_H) \
-    dominance.h cfg.h cfganal.h $(BASIC_BLOCK_H) $(INSN_ATTR_H) $(RECOG_H) \
-    output.h hash-map.h $(DF_H) $(OBSTACK_H) $(TARGET_H) $(RTL_H) \
-    $(CONTEXT_H) $(TREE_PASS_H) regrename.h \
-    $(srcdir)/config/aarch64/aarch64-protos.h
-	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-		$(srcdir)/config/aarch64/falkor-tag-collision-avoidance.cc
-
 aarch-bti-insert.o: $(srcdir)/config/arm/aarch-bti-insert.cc \
     $(CONFIG_H) $(SYSTEM_H) $(TM_H) $(REGS_H) insn-config.h $(RTL_BASE_H) \
     dominance.h cfg.h cfganal.h $(BASIC_BLOCK_H) $(INSN_ATTR_H) $(RECOG_H) \
@@ -201,9 +192,8 @@ aarch64-early-ra.o: $(srcdir)/config/aarch64/aarch64-early-ra.cc \
 		$(srcdir)/config/aarch64/aarch64-early-ra.cc
 
 aarch64-ldp-fusion.o: $(srcdir)/config/aarch64/aarch64-ldp-fusion.cc \
-    $(CONFIG_H) $(SYSTEM_H) $(CORETYPES_H) $(BACKEND_H) $(RTL_H) $(DF_H) \
-    $(RTL_SSA_H) cfgcleanup.h tree-pass.h ordered-hash-map.h tree-dfa.h \
-    fold-const.h tree-hash-traits.h print-tree.h
+    $(CONFIG_H) $(SYSTEM_H) $(CORETYPES_H) $(BACKEND_H) $(RTL_H) \
+    tree-pass.h pair-fusion.h
 	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
 		$(srcdir)/config/aarch64/aarch64-ldp-fusion.cc
 

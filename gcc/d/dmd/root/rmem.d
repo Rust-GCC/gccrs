@@ -1,12 +1,12 @@
 /**
  * Allocate memory using `malloc` or the GC depending on the configuration.
  *
- * Copyright: Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright: Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:   Walter Bright, https://www.digitalmars.com
  * License:   $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:    $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/root/rmem.d, root/_rmem.d)
+ * Source:    $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/root/rmem.d, root/_rmem.d)
  * Documentation:  https://dlang.org/phobos/dmd_root_rmem.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/root/rmem.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/root/rmem.d
  */
 
 module dmd.root.rmem;
@@ -149,6 +149,7 @@ enum CHUNK_SIZE = (256 * 4096 - 64);
 
 __gshared size_t heapleft = 0;
 __gshared void* heapp;
+__gshared size_t heapTotal = 0; // Total amount of memory allocated using malloc
 
 extern (D) void* allocmemoryNoFree(size_t m_size) nothrow @nogc
 {
@@ -167,11 +168,13 @@ extern (D) void* allocmemoryNoFree(size_t m_size) nothrow @nogc
 
     if (m_size > CHUNK_SIZE)
     {
+        heapTotal += m_size;
         return Mem.check(malloc(m_size));
     }
 
     heapleft = CHUNK_SIZE;
     heapp = Mem.check(malloc(CHUNK_SIZE));
+    heapTotal += CHUNK_SIZE;
     goto L1;
 }
 
@@ -318,7 +321,7 @@ Params:
 
 Returns: A null-terminated copy of the input array.
 */
-extern (D) char[] xarraydup(const(char)[] s) pure nothrow
+extern (D) char[] xarraydup(scope const(char)[] s) pure nothrow
 {
     if (!s)
         return null;

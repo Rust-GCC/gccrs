@@ -1,6 +1,6 @@
 // Support for atomic operations -*- C++ -*-
 
-// Copyright (C) 2004-2024 Free Software Foundation, Inc.
+// Copyright (C) 2004-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,7 +29,9 @@
 #ifndef _GLIBCXX_ATOMICITY_H
 #define _GLIBCXX_ATOMICITY_H	1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 #include <bits/gthr.h>
@@ -124,4 +126,4 @@ _GLIBCXX_END_NAMESPACE_VERSION
 #define _GLIBCXX_WRITE_MEM_BARRIER __atomic_thread_fence (__ATOMIC_RELEASE)
 #endif
 
-#endif 
+#endif

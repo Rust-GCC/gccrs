@@ -1,7 +1,7 @@
 /* Functions to enable and disable individual warnings on an expression
    and statement basis.
 
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -255,4 +255,30 @@ copy_warning (gimple *to, const gimple *from)
   if (to == from)
     return;
   copy_warning<gimple *, const gimple *>(to, from);
+}
+
+/* Whether the tree might have a warning spec.  */
+
+bool has_warning_spec (const_tree t)
+{
+  const location_t loc = get_location (t);
+  return !RESERVED_LOCATION_P (loc) && get_no_warning_bit (t);
+}
+
+/* Retrieve warning dispostion bitmap for tree streaming.  */
+
+unsigned
+get_warning_spec (const_tree t)
+{
+  const nowarn_spec_t *spec = get_nowarn_spec (t);
+  return spec ? *spec : 0;
+}
+
+/* Write warning disposition bitmap for streamed-in tree.  */
+
+void
+put_warning_spec (tree t, unsigned bits)
+{
+  const location_t loc = get_location (t);
+  put_warning_spec_at (loc, bits);
 }

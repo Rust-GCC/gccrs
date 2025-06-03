@@ -1,7 +1,7 @@
 /* Check that GCC generates Armv8.1-M low over head loop instructions
    for some simple loops.  */
 /* { dg-do run } */
-/* { dg-require-effective-target arm_v8_1_lob_ok } */
+/* { dg-require-effective-target arm_v8_1m_lob_hw } */
 /* { dg-skip-if "avoid conflicting multilib options" { *-*-* } { "-marm" "-mcpu=*" } } */
 /* { dg-options "-march=armv8.1-m.main -mthumb -O3 --save-temps" } */
 #include <stdlib.h>
@@ -54,29 +54,18 @@ loop3 (int *a, int *b, int *c)
     } while (i < N);
 }
 
-void
-check (int *a, int *b, int *c)
-{
-  for (int i = 0; i < N; i++)
-    {
-      NO_LOB;
-      if (c[i] != a[i] + b[i])
-	abort ();
-    }
-}
-
 int
 main (void)
 {
-  reset_data (a, b, c);
+  reset_data (a, b, c, N);
   loop1 (a, b ,c);
-  check (a, b ,c);
-  reset_data (a, b, c);
+  check_plus (a, b, c, N);
+  reset_data (a, b, c, N);
   loop2 (a, b ,c);
-  check (a, b ,c);
-  reset_data (a, b, c);
+  check_plus (a, b, c, N);
+  reset_data (a, b, c, N);
   loop3 (a, b ,c);
-  check (a, b ,c);
+  check_plus (a, b, c, N);
 
   return 0;
 }

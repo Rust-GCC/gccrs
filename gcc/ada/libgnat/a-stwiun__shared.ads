@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -79,15 +79,18 @@ package Ada.Strings.Wide_Unbounded is
 
    procedure Append
      (Source   : in out Unbounded_Wide_String;
-      New_Item : Unbounded_Wide_String);
+      New_Item : Unbounded_Wide_String)
+   with Inline => True;
 
    procedure Append
      (Source   : in out Unbounded_Wide_String;
-      New_Item : Wide_String);
+      New_Item : Wide_String)
+   with Inline => True;
 
    procedure Append
      (Source   : in out Unbounded_Wide_String;
-      New_Item : Wide_Character);
+      New_Item : Wide_Character)
+   with Inline => True;
 
    function "&"
      (Left  : Unbounded_Wide_String;

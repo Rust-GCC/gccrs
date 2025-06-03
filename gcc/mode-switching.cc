@@ -1,5 +1,5 @@
 /* CPU mode switching
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -585,7 +585,7 @@ forward_transfer (int bb_index)
   return true;
 }
 
-/* A backwards confluence function.  Update the the bb_info single_succ
+/* A backwards confluence function.  Update the bb_info single_succ
    field for E's source block, based on changes to E's destination block.
    At the end of the dataflow problem, single_succ is the single mode
    that all successors require (directly or indirectly), or no_mode
@@ -959,7 +959,7 @@ optimize_mode_switching (void)
 
 	  FOR_BB_INSNS (bb, insn)
 	    {
-	      if (INSN_P (insn))
+	      if (NONDEBUG_INSN_P (insn))
 		{
 		  int mode = targetm.mode_switching.needed (e, insn, live_now);
 		  rtx link;

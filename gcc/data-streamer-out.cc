@@ -1,7 +1,7 @@
 /* Routines for saving various data types to a file stream.  This deals
    with various data types like strings, integers, enums, etc.
 
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -76,7 +76,7 @@ lto_append_block (struct lto_output_stream *obs)
 
 /* Return index used to reference STRING of LEN characters in the string table
    in OB.  The string might or might not include a trailing '\0'.
-   Then put the index onto the INDEX_STREAM.  
+   Then put the index onto the INDEX_STREAM.
    When PERSISTENT is set, the string S is supposed to not change during
    duration of the OB and thus OB can keep pointer into it.  */
 
@@ -126,7 +126,7 @@ streamer_string_index (struct output_block *ob, const char *s, unsigned int len,
 
 /* Output STRING of LEN characters to the string table in OB. The
    string might or might not include a trailing '\0'. Then put the
-   index onto the INDEX_STREAM. 
+   index onto the INDEX_STREAM.
    When PERSISTENT is set, the string S is supposed to not change during
    duration of the OB and thus OB can keep pointer into it.  */
 
@@ -448,6 +448,16 @@ streamer_write_vrange (struct output_block *ob, const vrange &v)
 	  streamer_write_real_value (ob, &lb);
 	  streamer_write_real_value (ob, &ub);
 	}
+      return;
+    }
+  if (is_a <prange> (v))
+    {
+      const prange &r = as_a <prange> (v);
+      streamer_write_wide_int (ob, r.lower_bound ());
+      streamer_write_wide_int (ob, r.upper_bound ());
+      irange_bitmask bm = r.get_bitmask ();
+      streamer_write_wide_int (ob, bm.value ());
+      streamer_write_wide_int (ob, bm.mask ());
       return;
     }
   gcc_unreachable ();

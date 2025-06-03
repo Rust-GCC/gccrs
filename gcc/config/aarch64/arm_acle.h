@@ -1,6 +1,6 @@
 /* AArch64 Non-NEON ACLE intrinsics include file.
 
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -119,7 +119,7 @@ __revl (unsigned long __value)
 }
 
 #pragma GCC push_options
-#pragma GCC target ("arch=armv8.3-a")
+#pragma GCC target ("+nothing+jscvt")
 __extension__ extern __inline int32_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 __jcvt (double __a)
@@ -129,8 +129,22 @@ __jcvt (double __a)
 
 #pragma GCC pop_options
 
+__extension__ extern __inline double
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+__fma (double __x, double __y, double __z)
+{
+  return __builtin_fma (__x, __y, __z);
+}
+
+__extension__ extern __inline float
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+__fmaf (float __x, float __y, float __z)
+{
+  return __builtin_fmaf (__x, __y, __z);
+}
+
 #pragma GCC push_options
-#pragma GCC target ("arch=armv8.5-a")
+#pragma GCC target ("+nothing+frintts")
 __extension__ extern __inline float
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 __rint32zf (float __a)
@@ -190,8 +204,33 @@ __rint64x (double __a)
 
 #pragma GCC pop_options
 
-#pragma GCC push_options
 
+#pragma GCC push_options
+#pragma GCC target ("+nothing")
+
+/* Feature constants for CHKFEAT operation.  */
+#define _CHKFEAT_GCS 1
+
+__extension__ extern __inline uint64_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+__chkfeat (uint64_t __feat)
+{
+  return __builtin_aarch64_chkfeat (__feat) ^ __feat;
+}
+
+#define __gcspr() \
+  __builtin_aarch64_gcspr ()
+
+#define __gcspopm() \
+  __builtin_aarch64_gcspopm ()
+
+#define __gcsss(__stack) \
+  __builtin_aarch64_gcsss (__stack)
+
+#pragma GCC pop_options
+
+
+#pragma GCC push_options
 #pragma GCC target ("+nothing+crc")
 
 __extension__ extern __inline uint32_t
@@ -252,10 +291,7 @@ __crc32d (uint32_t __a, uint64_t __b)
 
 #pragma GCC pop_options
 
-#ifdef __ARM_FEATURE_TME
-#pragma GCC push_options
-#pragma GCC target ("+nothing+tme")
-
+/* Constants for TME failure reason.  */
 #define _TMFAILURE_REASON     0x00007fffu
 #define _TMFAILURE_RTRY       0x00008000u
 #define _TMFAILURE_CNCL       0x00010000u
@@ -268,40 +304,7 @@ __crc32d (uint32_t __a, uint64_t __b)
 #define _TMFAILURE_INT        0x00800000u
 #define _TMFAILURE_TRIVIAL    0x01000000u
 
-__extension__ extern __inline uint64_t
-__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
-__tstart (void)
-{
-  return __builtin_aarch64_tstart ();
-}
-
-__extension__ extern __inline void
-__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
-__tcommit (void)
-{
-  __builtin_aarch64_tcommit ();
-}
-
-__extension__ extern __inline void
-__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
-__tcancel (const uint64_t __reason)
-{
-  __builtin_aarch64_tcancel (__reason);
-}
-
-__extension__ extern __inline uint64_t
-__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
-__ttest (void)
-{
-  return __builtin_aarch64_ttest ();
-}
-
-#pragma GCC pop_options
-#endif
-
-#ifdef __ARM_FEATURE_LS64
 typedef __arm_data512_t data512_t;
-#endif
 
 #pragma GCC push_options
 #pragma GCC target ("+nothing+rng")
@@ -318,29 +321,6 @@ __rndrrs (uint64_t *__res)
 {
   return __builtin_aarch64_rndrrs (__res);
 }
-
-#pragma GCC pop_options
-
-#pragma GCC push_options
-#pragma GCC target ("+nothing+memtag")
-
-#define __arm_mte_create_random_tag(__ptr, __u64_mask) \
-  __builtin_aarch64_memtag_irg(__ptr, __u64_mask)
-
-#define __arm_mte_exclude_tag(__ptr, __u64_excluded) \
-  __builtin_aarch64_memtag_gmi(__ptr, __u64_excluded)
-
-#define __arm_mte_ptrdiff(__ptr_a, __ptr_b) \
-  __builtin_aarch64_memtag_subp(__ptr_a, __ptr_b)
-
-#define __arm_mte_increment_tag(__ptr, __u_offset) \
-  __builtin_aarch64_memtag_inc_tag(__ptr, __u_offset)
-
-#define __arm_mte_set_tag(__tagged_address) \
-  __builtin_aarch64_memtag_set_tag(__tagged_address)
-
-#define __arm_mte_get_tag(__address) \
-  __builtin_aarch64_memtag_get_tag(__address)
 
 #pragma GCC pop_options
 

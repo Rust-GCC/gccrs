@@ -1,5 +1,5 @@
 /* Reassociation for trees.
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
 This file is part of GCC.
@@ -404,7 +404,8 @@ static inline void
 insert_operand_rank (tree e, int64_t rank)
 {
   gcc_assert (rank > 0);
-  gcc_assert (!operand_rank->put (e, rank));
+  bool existed = operand_rank->put (e, rank);
+  gcc_assert (!existed);
 }
 
 /* Given an expression E, return the rank of the expression.  */
@@ -446,7 +447,7 @@ get_rank (tree e)
 
      To obtain this result during reassociation, we bias the rank
      of the phi definition x_1 upward, when it is recognized as an
-     accumulator pattern.  The artificial rank causes it to be 
+     accumulator pattern.  The artificial rank causes it to be
      added last, providing the desired independence.  */
 
   if (TREE_CODE (e) == SSA_NAME)
@@ -927,7 +928,7 @@ eliminate_plus_minus_pair (enum tree_code opcode,
 	}
     }
 
-  /* If CURR->OP is a negate expr without nop conversion in a plus expr: 
+  /* If CURR->OP is a negate expr without nop conversion in a plus expr:
      save it for later inspection in repropagate_negates().  */
   if (negateop != NULL_TREE
       && gimple_assign_rhs_code (SSA_NAME_DEF_STMT (curr->op)) == NEGATE_EXPR)
@@ -1202,7 +1203,7 @@ stmt_is_power_of_op (gimple *stmt, tree op)
     CASE_CFN_POW:
     CASE_CFN_POWI:
       return (operand_equal_p (gimple_call_arg (stmt, 0), op, 0));
-      
+
     default:
       return false;
     }
@@ -3361,7 +3362,7 @@ optimize_range_tests_to_bit_test (enum tree_code opcode, int first, int length,
 	    continue;
 	  highj = ranges[j].high;
 	  if (highj == NULL_TREE)
-	    highj = TYPE_MAX_VALUE (type);
+	    highj = TYPE_MAX_VALUE (TREE_TYPE (lowj));
 	  wide_int mask2;
 	  exp2 = extract_bit_test_mask (ranges[j].exp, prec, lowi, lowj,
 					highj, &mask2, NULL);
@@ -3377,7 +3378,7 @@ optimize_range_tests_to_bit_test (enum tree_code opcode, int first, int length,
 	 case, if we would need otherwise 2 or more comparisons, then use
 	 the bit test; in the other cases, the threshold is 3 comparisons.  */
       bool entry_test_needed;
-      value_range r;
+      int_range_max r;
       if (TREE_CODE (exp) == SSA_NAME
 	  && get_range_query (cfun)->range_of_expr (r, exp)
 	  && !r.undefined_p ()
@@ -3418,7 +3419,8 @@ optimize_range_tests_to_bit_test (enum tree_code opcode, int first, int length,
 	     We can avoid then subtraction of the minimum value, but the
 	     mask constant could be perhaps more expensive.  */
 	  if (compare_tree_int (lowi, 0) > 0
-	      && compare_tree_int (high, prec) < 0)
+	      && compare_tree_int (high, prec) < 0
+	      && (entry_test_needed || wi::ltu_p (r.upper_bound (), prec)))
 	    {
 	      int cost_diff;
 	      HOST_WIDE_INT m = tree_to_uhwi (lowi);
@@ -5508,16 +5510,15 @@ get_reassociation_width (vec<operand_entry *> *ops, int mult_num, tree lhs,
      , it is latency(MULT)*2 + latency(ADD)*2.  Assuming latency(MULT) >=
      latency(ADD), the first variant is preferred.
 
-     Find out if we can get a smaller width considering FMA.  */
-  if (width > 1 && mult_num && param_fully_pipelined_fma)
-    {
-      /* When param_fully_pipelined_fma is set, assume FMUL and FMA use the
-	 same units that can also do FADD.  For other scenarios, such as when
-	 FMUL and FADD are using separated units, the following code may not
-	 appy.  */
-      int width_mult = targetm.sched.reassociation_width (MULT_EXPR, mode);
-      gcc_checking_assert (width_mult <= width);
+     Find out if we can get a smaller width considering FMA.
+     Assume FMUL and FMA use the same units that can also do FADD.
+     For other scenarios, such as when FMUL and FADD are using separated units,
+     the following code may not apply.  */
 
+  int width_mult = targetm.sched.reassociation_width (MULT_EXPR, mode);
+  if (width > 1 && mult_num && param_fully_pipelined_fma
+      && width_mult <= width)
+    {
       /* Latency of MULT_EXPRs.  */
       int lat_mul
 	= get_mult_latency_consider_fma (ops_num, mult_num, width_mult);
@@ -6346,7 +6347,6 @@ static void
 break_up_subtract_bb (basic_block bb)
 {
   gimple_stmt_iterator gsi;
-  basic_block son;
   unsigned int uid = 1;
 
   for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
@@ -6378,10 +6378,6 @@ break_up_subtract_bb (basic_block bb)
 	       && can_reassociate_op_p (gimple_assign_rhs1 (stmt)))
 	plus_negates.safe_push (gimple_assign_lhs (stmt));
     }
-  for (son = first_dom_son (CDI_DOMINATORS, bb);
-       son;
-       son = next_dom_son (CDI_DOMINATORS, son))
-    break_up_subtract_bb (son);
 }
 
 /* Used for repeated factor analysis.  */
@@ -6413,10 +6409,17 @@ compare_repeat_factors (const void *x1, const void *x2)
   const repeat_factor *rf1 = (const repeat_factor *) x1;
   const repeat_factor *rf2 = (const repeat_factor *) x2;
 
-  if (rf1->count != rf2->count)
-    return rf1->count - rf2->count;
+  if (rf1->count < rf2->count)
+    return -1;
+  else if (rf1->count > rf2->count)
+    return 1;
 
-  return rf2->rank - rf1->rank;
+  if (rf1->rank < rf2->rank)
+    return 1;
+  else if (rf1->rank > rf2->rank)
+    return -1;
+
+  return 0;
 }
 
 /* Look for repeated operands in OPS in the multiply tree rooted at
@@ -6508,7 +6511,7 @@ attempt_builtin_powi (gimple *stmt, vec<operand_entry *> *ops)
         result = t5 * y  */
 
   vec_len = repeat_factor_vec.length ();
-  
+
   /* Repeatedly look for opportunities to create a builtin_powi call.  */
   while (true)
     {
@@ -6517,7 +6520,7 @@ attempt_builtin_powi (gimple *stmt, vec<operand_entry *> *ops)
       /* First look for the largest cached product of factors from
 	 preceding iterations.  If found, create a builtin_powi for
 	 it if the minimum occurrence count for its factors is at
-	 least 2, or just use this cached product as our next 
+	 least 2, or just use this cached product as our next
 	 multiplicand if the minimum occurrence count is 1.  */
       FOR_EACH_VEC_ELT (repeat_factor_vec, j, rf1)
 	{
@@ -6725,7 +6728,7 @@ attempt_builtin_powi (gimple *stmt, vec<operand_entry *> *ops)
 
 	  rf1 = &repeat_factor_vec[i];
 	  rf1->count -= power;
-	  
+
 	  FOR_EACH_VEC_ELT_REVERSE (*ops, n, oe)
 	    {
 	      if (oe->op == rf1->factor)
@@ -7000,7 +7003,6 @@ static bool
 reassociate_bb (basic_block bb)
 {
   gimple_stmt_iterator gsi;
-  basic_block son;
   gimple *stmt = last_nondebug_stmt (bb);
   bool cfg_cleanup_needed = false;
 
@@ -7132,7 +7134,7 @@ reassociate_bb (basic_block bb)
 		}
 
 	      tree new_lhs = lhs;
-	      /* If the operand vector is now empty, all operands were 
+	      /* If the operand vector is now empty, all operands were
 		 consumed by the __builtin_powi optimization.  */
 	      if (ops.length () == 0)
 		transform_stmt_to_copy (&gsi, stmt, powi_result);
@@ -7223,7 +7225,7 @@ reassociate_bb (basic_block bb)
 						   len != orig_len);
 		    }
 
-		  /* If we combined some repeated factors into a 
+		  /* If we combined some repeated factors into a
 		     __builtin_powi call, multiply that result by the
 		     reassociated operands.  */
 		  if (powi_result)
@@ -7263,10 +7265,6 @@ reassociate_bb (basic_block bb)
 	    }
 	}
     }
-  for (son = first_dom_son (CDI_POST_DOMINATORS, bb);
-       son;
-       son = next_dom_son (CDI_POST_DOMINATORS, son))
-    cfg_cleanup_needed |= reassociate_bb (son);
 
   return cfg_cleanup_needed;
 }
@@ -7375,10 +7373,39 @@ debug_ops_vector (vec<operand_entry *> ops)
 /* Bubble up return status from reassociate_bb.  */
 
 static bool
-do_reassoc (void)
+do_reassoc ()
 {
-  break_up_subtract_bb (ENTRY_BLOCK_PTR_FOR_FN (cfun));
-  return reassociate_bb (EXIT_BLOCK_PTR_FOR_FN (cfun));
+  bool cfg_cleanup_needed = false;
+  basic_block *worklist = XNEWVEC (basic_block, n_basic_blocks_for_fn (cfun));
+
+  unsigned sp = 0;
+  for (auto son = first_dom_son (CDI_DOMINATORS, ENTRY_BLOCK_PTR_FOR_FN (cfun));
+       son; son = next_dom_son (CDI_DOMINATORS, son))
+    worklist[sp++] = son;
+  while (sp)
+    {
+      basic_block bb = worklist[--sp];
+      break_up_subtract_bb (bb);
+      for (auto son = first_dom_son (CDI_DOMINATORS, bb);
+	   son; son = next_dom_son (CDI_DOMINATORS, son))
+	worklist[sp++] = son;
+    }
+
+  for (auto son = first_dom_son (CDI_POST_DOMINATORS,
+				 EXIT_BLOCK_PTR_FOR_FN (cfun));
+       son; son = next_dom_son (CDI_POST_DOMINATORS, son))
+    worklist[sp++] = son;
+  while (sp)
+    {
+      basic_block bb = worklist[--sp];
+      cfg_cleanup_needed |= reassociate_bb (bb);
+      for (auto son = first_dom_son (CDI_POST_DOMINATORS, bb);
+	   son; son = next_dom_son (CDI_POST_DOMINATORS, son))
+	worklist[sp++] = son;
+    }
+
+  free (worklist);
+  return cfg_cleanup_needed;
 }
 
 /* Initialize the reassociation pass.  */

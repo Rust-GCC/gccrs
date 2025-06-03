@@ -1,5 +1,5 @@
 ;; Predicate definitions for Motorola 68000.
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -237,6 +237,7 @@
 	  || (TARGET_68881
 	      && (!standard_68881_constant_p (op)
 		  || reload_in_progress
+		  || lra_in_progress
 		  || reload_completed)));
 })
 

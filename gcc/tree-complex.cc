@@ -1,5 +1,5 @@
 /* Lower complex number operations to scalar operations.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,6 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "backend.h"
+#include "target.h"
 #include "rtl.h"
 #include "tree.h"
 #include "gimple.h"
@@ -42,7 +43,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfganal.h"
 #include "gimple-fold.h"
 #include "diagnostic-core.h"
-
+#include "case-cfn-macros.h"
+#include "builtins.h"
+#include "optabs-tree.h"
+#include "tree-ssa-dce.h"
 
 /* For each complex ssa name, a lattice value.  We're interested in finding
    out whether a complex number is degenerate in some way, having only real
@@ -84,6 +88,9 @@ static vec<gphi *> phis_to_revisit;
 
 /* BBs that need EH cleanup.  */
 static bitmap need_eh_cleanup;
+
+/* SSA defs we should try to DCE.  */
+static bitmap dce_worklist;
 
 /* Lookup UID in the complex_variable_components hashtable and return the
    associated tree.  */
@@ -238,7 +245,18 @@ init_dont_simulate_again (void)
 	    {
 	    case GIMPLE_CALL:
 	      if (gimple_call_lhs (stmt))
-	        sim_again_p = is_complex_reg (gimple_call_lhs (stmt));
+		{
+		  sim_again_p = is_complex_reg (gimple_call_lhs (stmt));
+		  switch (gimple_call_combined_fn (stmt))
+		    {
+		    CASE_CFN_CABS:
+		      /* Expand cabs only if unsafe math and optimizing. */
+		      if (optimize && flag_unsafe_math_optimizations)
+			saw_a_complex_op = true;
+		      break;
+		    default:;
+		    }
+		}
 	      break;
 
 	    case GIMPLE_ASSIGN:
@@ -281,6 +299,7 @@ init_dont_simulate_again (void)
 
 	      case NEGATE_EXPR:
 	      case CONJ_EXPR:
+	      case PAREN_EXPR:
 		if (TREE_CODE (TREE_TYPE (op0)) == COMPLEX_TYPE)
 		  saw_a_complex_op = true;
 		break;
@@ -391,6 +410,7 @@ complex_propagate::visit_stmt (gimple *stmt, edge *taken_edge_p ATTRIBUTE_UNUSED
       break;
 
     case NEGATE_EXPR:
+    case PAREN_EXPR:
     case CONJ_EXPR:
       new_l = find_lattice_value (gimple_assign_rhs1 (stmt));
       break;
@@ -715,6 +735,8 @@ update_complex_assignment (gimple_stmt_iterator *gsi, tree r, tree i)
   update_stmt (stmt);
   if (maybe_clean_or_replace_eh_stmt (old_stmt, stmt))
     bitmap_set_bit (need_eh_cleanup, gimple_bb (stmt)->index);
+  if (optimize)
+    bitmap_set_bit (dce_worklist, SSA_NAME_VERSION (gimple_assign_lhs (stmt)));
 
   update_complex_components (gsi, gsi_stmt (*gsi), r, i);
 }
@@ -852,8 +874,7 @@ expand_complex_move (gimple_stmt_iterator *gsi, tree type)
 	  update_complex_components_on_edge (e, lhs, r, i);
 	}
       else if (is_gimple_call (stmt)
-	       || gimple_has_side_effects (stmt)
-	       || gimple_assign_rhs_code (stmt) == PAREN_EXPR)
+	       || gimple_has_side_effects (stmt))
 	{
 	  r = build1 (REALPART_EXPR, inner_type, lhs);
 	  i = build1 (IMAGPART_EXPR, inner_type, lhs);
@@ -983,7 +1004,12 @@ expand_complex_addition (gimple_stmt_iterator *gsi, tree inner_type,
     case PAIR (VARYING, VARYING):
     general:
       rr = gimple_build (&stmts, loc, code, inner_type, ar, br);
-      ri = gimple_build (&stmts, loc, code, inner_type, ai, bi);
+      /* (a+ai) + (b+bi) -> (a+b)+(a+b)i
+	  small optimization to remove one new statement. */
+      if (operand_equal_p (ar, ai) && operand_equal_p (br, bi))
+	ri = rr;
+      else
+	ri = gimple_build (&stmts, loc, code, inner_type, ai, bi);
       break;
 
     default:
@@ -1545,6 +1571,25 @@ expand_complex_negation (gimple_stmt_iterator *gsi, tree inner_type,
   update_complex_assignment (gsi, rr, ri);
 }
 
+/* Expand complex paren to scalars:
+	((a)) = ((ar)) + i((ai))
+*/
+
+static void
+expand_complex_paren (gimple_stmt_iterator *gsi, tree inner_type,
+		      tree ar, tree ai)
+{
+  tree rr, ri;
+  gimple_seq stmts = NULL;
+  location_t loc = gimple_location (gsi_stmt (*gsi));
+
+  rr = gimple_build (&stmts, loc, PAREN_EXPR, inner_type, ar);
+  ri = gimple_build (&stmts, loc, PAREN_EXPR, inner_type, ai);
+
+  gsi_insert_seq_before (gsi, stmts, GSI_SAME_STMT);
+  update_complex_assignment (gsi, rr, ri);
+}
+
 /* Expand complex conjugate to scalars:
 	~a = (ar) + i(-ai)
 */
@@ -1583,14 +1628,6 @@ expand_complex_comparison (gimple_stmt_iterator *gsi, tree ar, tree ai,
 
   switch (gimple_code (stmt))
     {
-    case GIMPLE_RETURN:
-      {
-	greturn *return_stmt = as_a <greturn *> (stmt);
-	type = TREE_TYPE (gimple_return_retval (return_stmt));
-	gimple_return_set_retval (return_stmt, fold_convert (type, cc));
-      }
-      break;
-
     case GIMPLE_ASSIGN:
       type = TREE_TYPE (gimple_assign_lhs (stmt));
       gimple_assign_set_rhs_from_tree (gsi, fold_convert (type, cc));
@@ -1661,6 +1698,80 @@ expand_complex_asm (gimple_stmt_iterator *gsi)
     }
 }
 
+
+/* ARG is the argument to a cabs builtin call in GSI from the
+   original OLD_STMT.  Create a sequence of statements prior
+   to GSI that calculates sqrt(R*R + I*I), where R and
+   I are the real and imaginary components of ARG, respectively.  */
+
+static void
+gimple_expand_builtin_cabs (gimple_stmt_iterator *gsi, gimple *old_stmt)
+{
+  tree real_part, imag_part, addend1, addend2, sum;
+  tree arg = gimple_call_arg (old_stmt, 0);
+  tree type = TREE_TYPE (TREE_TYPE (arg));
+  machine_mode mode = TYPE_MODE (type);
+  gimple *new_stmt;
+
+  tree lhs = gimple_call_lhs (old_stmt);
+
+  real_part = extract_component (gsi, arg, false, true);
+  imag_part = extract_component (gsi, arg, true, true);
+  location_t loc = gimple_location (old_stmt);
+
+  gimple_seq stmts = NULL;
+
+  /* cabs(x+0i) -> abs(x).
+     cabs(0+xi) -> abs(x).
+     These 2 can be done even without unsafe math optimizations.  */
+  if (real_zerop (imag_part)
+      || real_zerop (real_part))
+    {
+      tree other = real_zerop (imag_part) ? real_part : imag_part;
+      sum = gimple_build (&stmts, loc, ABS_EXPR, type, other);
+      gsi_insert_seq_before (gsi, stmts, GSI_SAME_STMT);
+      new_stmt = gimple_build_assign (lhs, sum);
+      gimple_set_location (new_stmt, loc);
+      gsi_replace (gsi, new_stmt, true);
+      return;
+    }
+
+  if (!flag_unsafe_math_optimizations)
+    return;
+
+  /* cabs(x+xi) -> fabs(x)*sqrt(2).  */
+  if (operand_equal_p (real_part, imag_part))
+    {
+      tree sqrt2 = build_real_truncate (type, dconst_sqrt2 ());
+      sum = gimple_build (&stmts, loc, ABS_EXPR, type, real_part);
+      sum = gimple_build (&stmts, loc, MULT_EXPR, type, sum, sqrt2);
+      gsi_insert_seq_before (gsi, stmts, GSI_SAME_STMT);
+      new_stmt = gimple_build_assign (lhs, sum);
+      gimple_set_location (new_stmt, loc);
+      gsi_replace (gsi, new_stmt, true);
+      return;
+    }
+
+  /* cabs(a+bi) -> sqrt(a*a+b*b) if sqrt exists on the target
+     and optimizing for speed.  */
+  tree sqrtfn = mathfn_built_in (type, BUILT_IN_SQRT);
+  if (!optimize_bb_for_speed_p (gimple_bb (old_stmt))
+      || !sqrtfn
+      || optab_handler (sqrt_optab, mode) == CODE_FOR_nothing)
+    return;
+
+  addend1 = gimple_build (&stmts, loc, MULT_EXPR, type, real_part, real_part);
+  addend2 = gimple_build (&stmts, loc, MULT_EXPR, type, imag_part, imag_part);
+  sum = gimple_build (&stmts, loc, PLUS_EXPR, type, addend1, addend2);
+  gsi_insert_seq_before (gsi, stmts, GSI_SAME_STMT);
+
+  /* Build the sqrt call. */
+  new_stmt = gimple_build_call (sqrtfn, 1, sum);
+  gimple_set_location (new_stmt, loc);
+  gimple_call_set_lhs (new_stmt, lhs);
+  gsi_replace (gsi, new_stmt, true);
+}
+
 /* Process one statement.  If we identify a complex operation, expand it.  */
 
 static void
@@ -1671,6 +1782,16 @@ expand_complex_operations_1 (gimple_stmt_iterator *gsi)
   tree ac, ar, ai, bc, br, bi;
   complex_lattice_t al, bl;
   enum tree_code code;
+  if (gimple_code (stmt) == GIMPLE_CALL)
+    {
+      switch (gimple_call_combined_fn (stmt))
+	{
+	CASE_CFN_CABS:
+	  gimple_expand_builtin_cabs (gsi, stmt);
+	  return;
+	default:;
+	}
+    }
 
   if (gimple_code (stmt) == GIMPLE_ASM)
     {
@@ -1697,6 +1818,7 @@ expand_complex_operations_1 (gimple_stmt_iterator *gsi)
     case ROUND_DIV_EXPR:
     case RDIV_EXPR:
     case NEGATE_EXPR:
+    case PAREN_EXPR:
     case CONJ_EXPR:
       if (TREE_CODE (type) != COMPLEX_TYPE)
 	return;
@@ -1815,6 +1937,10 @@ expand_complex_operations_1 (gimple_stmt_iterator *gsi)
       expand_complex_comparison (gsi, ar, ai, br, bi, code);
       break;
 
+    case PAREN_EXPR:
+      expand_complex_paren (gsi, inner_type, ar, ai);
+      break;
+
     default:
       gcc_unreachable ();
     }
@@ -1842,6 +1968,8 @@ tree_lower_complex (void)
   complex_propagate.ssa_propagate ();
 
   need_eh_cleanup = BITMAP_ALLOC (NULL);
+  if (optimize)
+    dce_worklist = BITMAP_ALLOC (NULL);
 
   complex_variable_components = new int_tree_htab_type (10);
 
@@ -1887,6 +2015,12 @@ tree_lower_complex (void)
     }
 
   gsi_commit_edge_inserts ();
+
+  if (optimize)
+    {
+      simple_dce_from_worklist (dce_worklist, need_eh_cleanup);
+      BITMAP_FREE (dce_worklist);
+    }
 
   unsigned todo
     = gimple_purge_all_dead_eh_edges (need_eh_cleanup) ? TODO_cleanup_cfg : 0;

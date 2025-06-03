@@ -3,12 +3,12 @@
  *
  * Specification: $(LINK2 https://dlang.org/spec/lex.html, Lexical)
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/lexer.d, _lexer.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/lexer.d, _lexer.d)
  * Documentation:  https://dlang.org/phobos/dmd_lexer.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/lexer.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/lexer.d
  */
 
 module dmd.lexer;
@@ -22,9 +22,11 @@ import dmd.errorsink;
 import dmd.id;
 import dmd.identifier;
 import dmd.location;
+import dmd.common.smallbuffer;
+import dmd.common.outbuffer;
+import dmd.common.charactertables;
 import dmd.root.array;
 import dmd.root.ctfloat;
-import dmd.common.outbuffer;
 import dmd.root.port;
 import dmd.root.rmem;
 import dmd.root.utf;
@@ -32,16 +34,13 @@ import dmd.tokens;
 
 nothrow:
 
-version (DMDLIB)
-{
-    version = LocOffset;
-}
-
 /***********************************************************
  * Values to use for various magic identifiers
  */
 struct CompileEnv
 {
+    import dmd.common.charactertables;
+
     uint versionNumber;      /// __VERSION__
     const(char)[] date;      /// __DATE__
     const(char)[] time;      /// __TIME__
@@ -49,8 +48,13 @@ struct CompileEnv
     const(char)[] timestamp; /// __TIMESTAMP__
 
     bool previewIn;          /// `in` means `[ref] scope const`, accepts rvalues
+    bool transitionIn;       /// `-transition=in` is active, `in` parameters are listed
     bool ddocOutput;         /// collect embedded documentation comments
     bool masm;               /// use MASM inline asm syntax
+
+    // these need a default otherwise tests won't work.
+    IdentifierCharLookup cCharLookupTable; /// C identifier table (set to the lexer by the C parser)
+    IdentifierCharLookup dCharLookupTable; /// D identifier table
 }
 
 /***********************************************************
@@ -59,12 +63,16 @@ class Lexer
 {
     private __gshared OutBuffer stringbuffer;
 
+    BaseLoc* baseLoc;       // Used to generate `scanloc`, which is just an index into this data structure
     Loc scanloc;            // for error messages
     Loc prevloc;            // location of token before current
+    int linnum;             // current line number
 
     const(char)* p;         // current character
 
     Token token;
+
+    IdentifierCharLookup charLookup; /// Character table for identifiers
 
     // For ImportC
     bool Ccompile;              /// true if compiling ImportC
@@ -121,10 +129,11 @@ class Lexer
         ErrorSink errorSink,
         const CompileEnv* compileEnv) scope
     {
-        scanloc = Loc(filename, 1, 1);
         // debug printf("Lexer::Lexer(%p)\n", base);
         // debug printf("lexer.filename = %s\n", filename);
         token = Token.init;
+        this.baseLoc = newBaseLoc(filename, base[0 .. endoffset]);
+        this.linnum = 1;
         this.base = base;
         this.end = base + endoffset;
         p = base + begoffset;
@@ -142,6 +151,8 @@ class Lexer
         {
             this.compileEnv.versionNumber = 1;
             this.compileEnv.vendor = "DLF";
+            this.compileEnv.cCharLookupTable = IdentifierCharLookup.forTable(IdentifierTable.LR);
+            this.compileEnv.dCharLookupTable = IdentifierCharLookup.forTable(IdentifierTable.LR);
         }
         //initKeywords();
         /* If first line starts with '#!', ignore the line
@@ -175,6 +186,11 @@ class Lexer
             }
             endOfLine();
         }
+
+        // setup the identifier table lookup functions
+        // C tables are setup in its parser constructor
+        // Due to us not knowing if we're in C at this point in time.
+        charLookup = this.compileEnv.dCharLookupTable;
     }
 
     /***********************
@@ -207,7 +223,9 @@ class Lexer
         tokenizeNewlines = true;
         inTokenStringConstant = 0;
         lastDocLine = 0;
-        scanloc = Loc("#defines", 1, 1);
+
+        baseLoc = newBaseLoc("#defines", slice);
+        scanloc = baseLoc.getLoc(0);
     }
 
     /**********************************
@@ -301,10 +319,12 @@ class Lexer
      */
     final void scan(Token* t)
     {
-        const lastLine = scanloc.linnum;
+        const lastLine = linnum;
         Loc startLoc;
         t.blockComment = null;
         t.lineComment = null;
+
+        size_t universalCharacterName4, universalCharacterName8;
 
         while (1)
         {
@@ -395,10 +415,35 @@ class Lexer
                 continue; // skip white space
 
             case '\\':
-                if (Ccompile && (p[1] == '\r' || p[1] == '\n'))
+                if (Ccompile)
                 {
-                    ++p; // ignore \ followed by new line, like VC does
-                    continue;
+                    if (p[1] == '\r' || p[1] == '\n')
+                    {
+                        ++p; // ignore \ followed by new line, like VC does
+                        continue;
+                    }
+                    else if (p[1] == 'u')
+                    {
+                        // Universal Character Name (C) 2 byte
+                        // \uXXXX
+                        // let the main case handling for identifiers process this
+
+                        // case_indent will always increment, so subtract to prevent branching on the fast path
+                        p--;
+
+                        goto case_ident;
+                    }
+                    else if (p[1] == 'U')
+                    {
+                        // Universal Character Name (C) 4 byte
+                        // \UXXXXXXXX
+                        // let the main case handling for identifiers process this
+
+                        // case_indent will always increment, so subtract to prevent branching on the fast path
+                        p--;
+
+                        goto case_ident;
+                    }
                 }
                 goto default;
 
@@ -455,7 +500,7 @@ class Lexer
                     clexerCharConstant(*t, c);
                     return;
                 }
-                else if (p[1] == '\"')  // C wide string literal
+                if (p[1] == '\"')  // C wide string literal
                 {
                     const c = *p;
                     ++p;
@@ -465,7 +510,7 @@ class Lexer
                                 'd';
                     return;
                 }
-                else if (p[1] == '8' && p[2] == '\"') // C UTF-8 string literal
+                if (p[1] == '8' && p[2] == '\"') // C UTF-8 string literal
                 {
                     p += 2;
                     escapeStringConstant(t);
@@ -498,14 +543,13 @@ class Lexer
                     delimitedStringConstant(t);
                     return;
                 }
-                else if (p[1] == '{')
+                if (p[1] == '{')
                 {
                     p++;
                     tokenStringConstant(t);
                     return;
                 }
-                else
-                    goto case_ident;
+                goto case_ident;
             case 'i':
                 if (Ccompile)
                     goto case_ident;
@@ -515,20 +559,19 @@ class Lexer
                     escapeStringConstant(t, true);
                     return;
                 }
-                else if (p[1] == '`')
+                if (p[1] == '`')
                 {
                     p++; // skip the i
                     wysiwygStringConstant(t, true);
                     return;
                 }
-                else if (p[1] == 'q' && p[2] == '{')
+                if (p[1] == 'q' && p[2] == '{')
                 {
                     p += 2; // skip the i and q
                     tokenStringConstant(t, true);
                     return;
                 }
-                else
-                    goto case_ident;
+                goto case_ident;
             case '"':
                 escapeStringConstant(t);
                 return;
@@ -586,23 +629,161 @@ class Lexer
             case '_':
             case_ident:
                 {
-                    while (1)
+        IdentLoop: while (1)
                     {
+                        // If this is changed, change the decrement in C's universal character name code above
+                        // For syntax \uXXXX and \UXXXXXXXX
                         const c = *++p;
+
+                        // Is this the first character of the identifier
+                        // For the universal character name this will line up,
+                        //  for the main switch it won't since it wasn't the first,
+                        //  for the default it won't either because a decode increments.
+                        const isStartCharacter = t.ptr is p;
+
                         if (isidchar(c))
                             continue;
-                        else if (c & 0x80)
+                        if (c & 0x80)
                         {
                             const s = p;
                             const u = decodeUTF();
-                            if (isUniAlpha(u))
-                                continue;
-                            error(t.loc, "char 0x%04x not allowed in identifier", u);
+
+                            if (isStartCharacter)
+                            {
+                                if (charLookup.isStart(u))
+                                    continue;
+                                error(t.loc, "character 0x%04x is not allowed as a start character in an identifier", u);
+                            }
+                            else
+                            {
+                                if (charLookup.isContinue(u))
+                                    continue;
+                                error(t.loc, "character 0x%04x is not allowed as a continue character in an identifier", u);
+                            }
+
                             p = s;
+                        }
+                        else if (Ccompile && c == '\\')
+                        {
+                            uint times;
+                            const s = p;
+                            p++;
+
+                            if (*p == 'u')
+                            {
+                                // Universal Character Name (C) 2 byte
+                                // \uXXXX
+                                p++;
+                                times = 4;
+                            }
+                            else if (*p == 'U')
+                            {
+                                // Universal Character Name (C) 4 byte
+                                // \UXXXXXXXX
+                                p++;
+                                times = 8;
+                            }
+                            else
+                            {
+                                error(t.loc, "char 0x%x is not allowed to follow '\\' expecting a C universal character name in format \\uXXXX or \\UXXXXXXXX with hex digits instead of X with invalid u/U", *p);
+                                p = s;
+                                break;
+                            }
+
+                            foreach(_; 0 .. times)
+                            {
+                                const hc = *p;
+                                p++;
+
+                                if ((hc >= '0' && hc <= '9') || (hc >= 'a' && hc <= 'f') || (hc >= 'A' && hc <= 'F'))
+                                    continue;
+
+                                error(t.loc, "char 0x%x is not allowed to follow '\\' expecting a C universal character name in format \\uXXXX or \\UXXXXXXXX with hex digits instead of X with invalid hex digit", hc);
+                                p = s;
+                                break IdentLoop;
+                            }
+
+                            continue;
                         }
                         break;
                     }
-                    Identifier id = Identifier.idPool((cast(char*)t.ptr)[0 .. p - t.ptr], false);
+
+                    Identifier id;
+
+                    if (universalCharacterName4 > 0 || universalCharacterName8 > 0)
+                    {
+                        auto priorValidation = t.ptr[0 .. p - t.ptr];
+                        const(char)* priorVPtr = priorValidation.ptr;
+                        const possibleLength = (
+                            priorValidation.length - (
+                                (universalCharacterName4 * 6) +
+                                (universalCharacterName8 * 10)
+                            )) + (
+                                (universalCharacterName4 * 3) +
+                                (universalCharacterName8 * 4)
+                            );
+
+                        char[64] buffer = void;
+                        SmallBuffer!char sb = SmallBuffer!char(possibleLength, buffer[]);
+
+                        char[] storage = sb.extent;
+                        size_t offset;
+
+                        while(priorVPtr < &priorValidation[$-1] + 1)
+                        {
+                            if (*priorVPtr == '\\')
+                            {
+                                dchar tempDchar = 0;
+                                uint times;
+
+                                // universal character name (C)
+                                if (priorVPtr[1] == 'u')
+                                    times = 4;
+                                else if (priorVPtr[1] == 'U')
+                                    times = 8;
+                                else
+                                    assert(0, "ICE: Universal character name is 2 or 4 bytes only");
+                                priorVPtr += 2;
+
+                                foreach(_; 0 .. times)
+                                {
+                                    char c = *++priorVPtr;
+                                    if (c >= '0' && c <= '9')
+                                        c -= '0';
+                                    else if (c >= 'a' && c <= 'f')
+                                        c -= 'a' - 10;
+                                    else if (c >= 'A' && c <= 'F')
+                                        c -= 'A' - 10;
+
+                                    tempDchar <<= 4;
+                                    tempDchar |= c;
+                                }
+
+                                utf_encodeChar(&storage[offset], tempDchar);
+                                offset += utf_codeLengthChar(tempDchar);
+
+                                // Could be an error instead of a warning,
+                                //  but hey it was written specifically so why worry?
+                                if (priorVPtr is priorValidation.ptr)
+                                {
+                                    if (!charLookup.isStart(tempDchar))
+                                        warning(t.loc, "char 0x%x is not allowed start character for an identifier", tempDchar);
+                                }
+                                else
+                                {
+                                    if (!charLookup.isContinue(tempDchar))
+                                        warning(t.loc, "char 0x%x is not allowed continue character for an identifier", tempDchar);
+                                }
+                            }
+                            else
+                                storage[offset++] = *++priorVPtr;
+                        }
+
+                        id = Identifier.idPool(storage[0 .. offset], false);
+                    }
+                    else
+                        id = Identifier.idPool((cast(char*)t.ptr)[0 .. p - t.ptr], false);
+
                     t.ident = id;
                     t.value = cast(TOK)id.getValue();
 
@@ -686,7 +867,7 @@ class Lexer
                             case 0:
                             case 0x1A:
                                 error(t.loc, "unterminated /* */ comment");
-                                p = end;
+                                //p = end;
                                 t.loc = loc();
                                 t.value = TOK.endOfFile;
                                 return;
@@ -712,11 +893,11 @@ class Lexer
                         t.value = TOK.comment;
                         return;
                     }
-                    else if (doDocComment && t.ptr[2] == '*' && p - 4 != t.ptr)
+                    if (doDocComment && t.ptr[2] == '*' && p - 4 != t.ptr)
                     {
                         // if /** but not /**/
                         getDocComment(t, lastLine == startLoc.linnum, startLoc.linnum - lastDocLine > 1);
-                        lastDocLine = scanloc.linnum;
+                        lastDocLine = linnum;
                     }
                     continue;
                 case '/': // do // style comments
@@ -744,9 +925,9 @@ class Lexer
                             if (doDocComment && t.ptr[2] == '/')
                             {
                                 getDocComment(t, lastLine == startLoc.linnum, startLoc.linnum - lastDocLine > 1);
-                                lastDocLine = scanloc.linnum;
+                                lastDocLine = linnum;
                             }
-                            p = end;
+                            //p = end;
                             t.loc = loc();
                             t.value = TOK.endOfFile;
                             return;
@@ -776,7 +957,7 @@ class Lexer
                     if (doDocComment && t.ptr[2] == '/')
                     {
                         getDocComment(t, lastLine == startLoc.linnum, startLoc.linnum - lastDocLine > 1);
-                        lastDocLine = scanloc.linnum;
+                        lastDocLine = linnum;
                     }
                     p++;
                     endOfLine();
@@ -822,7 +1003,7 @@ class Lexer
                             case 0:
                             case 0x1A:
                                 error(t.loc, "unterminated /+ +/ comment");
-                                p = end;
+                                //p = end;
                                 t.loc = loc();
                                 t.value = TOK.endOfFile;
                                 return;
@@ -848,7 +1029,7 @@ class Lexer
                         {
                             // if /++ but not /++/
                             getDocComment(t, lastLine == startLoc.linnum, startLoc.linnum - lastDocLine > 1);
-                            lastDocLine = scanloc.linnum;
+                            lastDocLine = linnum;
                         }
                         continue;
                     }
@@ -1174,9 +1355,11 @@ class Lexer
                     if (c & 0x80)
                     {
                         c = decodeUTF();
-                        // Check for start of unicode identifier
-                        if (isUniAlpha(c))
+
+                        // Check for start of an identifier
+                        if (charLookup.isStart(c))
                             goto case_ident;
+
                         if (c == PS || c == LS)
                         {
                             endOfLine();
@@ -1281,7 +1464,7 @@ class Lexer
      * Returns:
      *  the escape sequence as a single character
      */
-    private dchar escapeSequence(const ref Loc loc, ref const(char)* sequence, bool Ccompile, out dchar c2)
+    private dchar escapeSequence(Loc loc, ref const(char)* sequence, bool Ccompile, out dchar c2)
     {
         const(char)* p = sequence; // cache sequence reference on stack
         scope(exit) sequence = p;
@@ -1372,6 +1555,8 @@ class Lexer
                     if (ndigits != 2 && !utf_isValidDchar(v))
                     {
                         error(loc, "invalid UTF character \\U%08x", v);
+                        if (v >= 0xD800 && v <= 0xDFFF)
+                            errorSupplemental("The code unit is a UTF-16 surrogate, is the escape UTF-16 not a Unicode code point?");
                         v = '?'; // recover with valid UTF character
                     }
                 }
@@ -1568,7 +1753,6 @@ class Lexer
                     stringbuffer.writeByte(v);
                 }
                 t.setString(stringbuffer);
-                t.postfix = 'h';
                 stringPostfix(t);
                 return TOK.hexadecimalString;
             default:
@@ -1689,7 +1873,7 @@ class Lexer
                     delimright = ']';
                 else if (c == '<')
                     delimright = '>';
-                else if (isalpha(c) || c == '_' || (c >= 0x80 && isUniAlpha(c)))
+                else if (isalpha(c) || c == '_' || (c >= 0x80 && charLookup.isStart(c)))
                 {
                     // Start of identifier; must be a heredoc
                     Token tok;
@@ -1737,7 +1921,9 @@ class Lexer
                 }
                 else if (c == delimright)
                     goto Ldone;
-                if (startline && (isalpha(c) || c == '_' || (c >= 0x80 && isUniAlpha(c))) && hereid)
+
+                // we're looking for a new identifier token
+                if (startline && (isalpha(c) || c == '_' || (c >= 0x80 && charLookup.isStart(c))) && hereid)
                 {
                     Token tok;
                     auto psave = p;
@@ -2385,19 +2571,19 @@ class Lexer
     Ldone:
         if (errorDigit)
         {
-            error(token.loc, "%s digit expected, not `%c`", base == 2 ? "binary".ptr :
+            error(scanloc, "%s digit expected, not `%c`", base == 2 ? "binary".ptr :
                                                  base == 8 ? "octal".ptr :
                                                  "decimal".ptr, errorDigit);
             err = true;
         }
         if (overflow && !err)
         {
-            error("integer overflow");
+            error(scanloc, "integer overflow");
             err = true;
         }
         if ((base == 2 && !anyBinaryDigitsNoSingleUS) ||
             (base == 16 && !anyHexDigitsNoSingleUS))
-            error(token.loc, "`%.*s` isn't a valid integer literal, use `%.*s0` instead", cast(int)(p - start), start, 2, start);
+            error(scanloc, "`%.*s` isn't a valid integer literal, use `%.*s0` instead", cast(int)(p - start), start, 2, start);
 
         t.unsvalue = n;
 
@@ -2426,7 +2612,7 @@ class Lexer
                 goto L1;
             case 'l':
                 f = FLAGS.long_;
-                error("lower case integer suffix 'l' is not allowed. Please use 'L' instead");
+                error(scanloc, "lower case integer suffix 'l' is not allowed. Please use 'L' instead");
                 goto L1;
             case 'L':
                 f = FLAGS.long_;
@@ -2434,7 +2620,7 @@ class Lexer
                 p++;
                 if ((flags & f) && !err)
                 {
-                    error("repeated integer suffix `%c`", p[-1]);
+                    error(scanloc, "repeated integer suffix `%c`", p[-1]);
                     err = true;
                 }
                 flags = cast(FLAGS)(flags | f);
@@ -2448,9 +2634,9 @@ class Lexer
         {
             if (err)
                 // can't translate invalid octal value, just show a generic message
-                error("octal literals larger than 7 are no longer supported");
+                error(scanloc, "octal literals larger than 7 are no longer supported");
             else
-                error(token.loc, "octal literals `0%llo%.*s` are no longer supported, use `std.conv.octal!\"%llo%.*s\"` instead",
+                error(scanloc, "octal literals `0%llo%.*s` are no longer supported, use `std.conv.octal!\"%llo%.*s\"` instead",
                     n, cast(int)(p - psuffix), psuffix, n, cast(int)(p - psuffix), psuffix);
         }
         TOK result;
@@ -2968,9 +3154,7 @@ class Lexer
 
     final Loc loc() @nogc
     {
-        scanloc.charnum = cast(ushort)(1 + p - line);
-        version (LocOffset)
-            scanloc.fileOffset = cast(uint)(p - base);
+        scanloc = baseLoc.getLoc(cast(uint) (p - base));
         return scanloc;
     }
 
@@ -2979,14 +3163,24 @@ class Lexer
         eSink.error(token.loc, format, args);
     }
 
-    void error(T...)(const ref Loc loc, const(char)* format, T args)
+    void error(T...)(Loc loc, const(char)* format, T args)
     {
         eSink.error(loc, format, args);
     }
 
-    void deprecation(T...)(const ref Loc loc, const(char)* format, T args)
+    void errorSupplemental(T...)(const(char)* format, T args)
+    {
+        eSink.errorSupplemental(token.loc, format, args);
+    }
+
+    void deprecation(T...)(Loc loc, const(char)* format, T args)
     {
         eSink.deprecation(loc, format, args);
+    }
+
+    void warning(T...)(Loc loc, const(char)* format, T args)
+    {
+        eSink.warning(loc, format, args);
     }
 
     void deprecation(T...)(const(char)* format, T args)
@@ -3055,7 +3249,6 @@ class Lexer
      */
     final void poundLine(ref Token tok, bool linemarker)
     {
-        auto linnum = this.scanloc.linnum;
         const(char)* filespec = null;
         bool flags;
 
@@ -3092,9 +3285,7 @@ class Lexer
             case TOK.endOfLine:
                 if (!inTokenStringConstant)
                 {
-                    this.scanloc.linnum = linnum;
-                    if (filespec)
-                        this.scanloc.filename = filespec;
+                    baseLoc.addSubstitution(cast(uint) (p - base), filespec, linnum);
                 }
                 return;
             case TOK.file:
@@ -3245,12 +3436,12 @@ class Lexer
             if (*q != ct)
                 break;
         }
-        /* Remove leading spaces until start of the comment
+        /* Remove leading line feed or space
          */
         int linestart = 0;
         if (ct == '/')
         {
-            while (q < qend && (*q == ' ' || *q == '\t'))
+            if (q < qend && *q == ' ')
                 ++q;
         }
         else if (q < qend)
@@ -3392,10 +3583,11 @@ class Lexer
     /**************************
      * `p` should be at start of next line
      */
-    private void endOfLine() @nogc @safe
+    private void endOfLine() @safe
     {
-        scanloc.linnum = scanloc.linnum + 1;
+        linnum += 1;
         line = p;
+        baseLoc.newLine(cast(uint)(p - base));
     }
 
     /****************************
@@ -3415,124 +3607,6 @@ class Lexer
         }
         printf("\n");
     }
-}
-
-
-/******************************* Private *****************************************/
-
-private:
-
-private enum LS = 0x2028;       // UTF line separator
-private enum PS = 0x2029;       // UTF paragraph separator
-
-/********************************************
- * Do our own char maps
- */
-private static immutable cmtable = ()
-{
-    ubyte[256] table;
-    foreach (const c; 0 .. table.length)
-    {
-        if ('0' <= c && c <= '7')
-            table[c] |= CMoctal;
-        if (c_isxdigit(c))
-            table[c] |= CMhex;
-        if (c_isalnum(c) || c == '_')
-            table[c] |= CMidchar;
-
-        switch (c)
-        {
-            case 'x': case 'X':
-            case 'b': case 'B':
-                table[c] |= CMzerosecond;
-                break;
-
-            case '0': .. case '9':
-            case 'e': case 'E':
-            case 'f': case 'F':
-            case 'l': case 'L':
-            case 'p': case 'P':
-            case 'u': case 'U':
-            case 'i':
-            case '.':
-            case '_':
-                table[c] |= CMzerosecond | CMdigitsecond;
-                break;
-
-            default:
-                break;
-        }
-
-        switch (c)
-        {
-            case '\\':
-            case '\n':
-            case '\r':
-            case 0:
-            case 0x1A:
-            case '\'':
-                break;
-            default:
-                if (!(c & 0x80))
-                    table[c] |= CMsinglechar;
-                break;
-        }
-    }
-    return table;
-}();
-
-private
-{
-    enum CMoctal  = 0x1;
-    enum CMhex    = 0x2;
-    enum CMidchar = 0x4;
-    enum CMzerosecond = 0x8;
-    enum CMdigitsecond = 0x10;
-    enum CMsinglechar = 0x20;
-}
-
-private bool isoctal(const char c) pure @nogc @safe
-{
-    return (cmtable[c] & CMoctal) != 0;
-}
-
-private bool ishex(const char c) pure @nogc @safe
-{
-    return (cmtable[c] & CMhex) != 0;
-}
-
-private bool isidchar(const char c) pure @nogc @safe
-{
-    return (cmtable[c] & CMidchar) != 0;
-}
-
-private bool isZeroSecond(const char c) pure @nogc @safe
-{
-    return (cmtable[c] & CMzerosecond) != 0;
-}
-
-private bool isDigitSecond(const char c) pure @nogc @safe
-{
-    return (cmtable[c] & CMdigitsecond) != 0;
-}
-
-private bool issinglechar(const char c) pure @nogc @safe
-{
-    return (cmtable[c] & CMsinglechar) != 0;
-}
-
-private bool c_isxdigit(const int c) pure @nogc @safe
-{
-    return (( c >= '0' && c <= '9') ||
-            ( c >= 'a' && c <= 'f') ||
-            ( c >= 'A' && c <= 'F'));
-}
-
-private bool c_isalnum(const int c) pure @nogc @safe
-{
-    return (( c >= '0' && c <= '9') ||
-            ( c >= 'a' && c <= 'z') ||
-            ( c >= 'A' && c <= 'Z'));
 }
 
 /******************************* Unittest *****************************************/
@@ -3600,25 +3674,35 @@ unittest
         import core.stdc.stdarg;
 
         string expected;
+        string expectedSupplemental;
         bool gotError;
 
-        void error(const ref Loc loc, const(char)* format, ...)
+        void verror(Loc loc, const(char)* format, va_list ap)
         {
             gotError = true;
             char[100] buffer = void;
+            auto actual = buffer[0 .. vsnprintf(buffer.ptr, buffer.length, format, ap)];
+            assert(expected == actual);
+        }
+
+        void errorSupplemental(Loc loc, const(char)* format, ...)
+        {
+            gotError = true;
+            char[128] buffer = void;
             va_list ap;
             va_start(ap, format);
             auto actual = buffer[0 .. vsnprintf(buffer.ptr, buffer.length, format, ap)];
             va_end(ap);
-            assert(expected == actual);
+            assert(expectedSupplemental == actual);
         }
     }
 
     ErrorSinkTest errorSink = new ErrorSinkTest;
 
-    void test(string sequence, string expectedError, dchar expectedReturnValue, uint expectedScanLength, bool Ccompile = false)
+    void test2(string sequence, string[2] expectedError, dchar expectedReturnValue, uint expectedScanLength, bool Ccompile = false)
     {
-        errorSink.expected = expectedError;
+        errorSink.expected = expectedError[0];
+        errorSink.expectedSupplemental = expectedError[1];
         errorSink.gotError = false;
         auto p = cast(const(char)*)sequence.ptr;
         Lexer lexer = new Lexer(errorSink);
@@ -3629,6 +3713,11 @@ unittest
 
         auto actualScanLength = p - sequence.ptr;
         assert(expectedScanLength == actualScanLength);
+    }
+
+    void test(string sequence, string expectedError, dchar expectedReturnValue, uint expectedScanLength, bool Ccompile = false)
+    {
+        test2(sequence, [expectedError, null], expectedReturnValue, expectedScanLength, Ccompile);
     }
 
     test("c", `undefined escape sequence \c`, 'c', 1);
@@ -3649,8 +3738,6 @@ unittest
     test("U0001f6" , `escape hex sequence has 6 hex digits instead of 8`,  0x0001f6, 7);
     test("U0001f60", `escape hex sequence has 7 hex digits instead of 8`, 0x0001f60, 8);
 
-    test("ud800"    , `invalid UTF character \U0000d800`, '?', 5);
-    test("udfff"    , `invalid UTF character \U0000dfff`, '?', 5);
     test("U00110000", `invalid UTF character \U00110000`, '?', 9);
 
     test("xg0"      , `undefined escape hex sequence \xg`, 'g', 2);
@@ -3662,6 +3749,9 @@ unittest
     test("&quot", `unterminated named entity &quot;`, '?', 5);
 
     test("400", `escape octal sequence \400 is larger than \377`, 0x100, 3);
+
+    test2("uD800", [`invalid UTF character \U0000d800`, `The code unit is a UTF-16 surrogate, is the escape UTF-16 not a Unicode code point?`], '?', 5);
+    test2("uDFFF", [`invalid UTF character \U0000dfff`, `The code unit is a UTF-16 surrogate, is the escape UTF-16 not a Unicode code point?`], '?', 5);
 }
 
 unittest

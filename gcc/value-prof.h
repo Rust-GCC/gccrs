@@ -1,5 +1,5 @@
 /* Definitions for transformations based on profile information for values.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -115,6 +115,10 @@ extern void init_branch_prob (void);
 extern void branch_prob (bool);
 extern void read_thunk_profile (struct cgraph_node *);
 extern void end_branch_prob (void);
+
+/* Return true if any cfg coverage/profiling is enabled; -fprofile-arcs
+   -fcondition-coverage -fpath-coverage.  */
+extern bool coverage_instrumentation_p ();
 
 #endif	/* GCC_VALUE_PROF_H */
 

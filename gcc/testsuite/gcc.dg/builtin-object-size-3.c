@@ -1,6 +1,6 @@
 /* { dg-do run } */
 /* { dg-options "-O2 -Wno-stringop-overread" } */
-/* { dg-require-effective-target alloca } */
+/* { dg-additional-options "-DSKIP_STRNDUP" { target { ! strndup } } } */
 
 #include "builtin-object-size-common.h"
 
@@ -573,7 +573,7 @@ test9 (unsigned cond)
   if (__builtin_object_size (&p[-4], 2) != (cond ? 6 : 10))
     FAIL ();
 #else
-  if (__builtin_object_size (&p[-4], 2) != 0)
+  if (__builtin_object_size (&p[-4], 2) != 6)
     FAIL ();
 #endif
 
@@ -584,7 +584,7 @@ test9 (unsigned cond)
   if (__builtin_object_size (p, 2) != ((cond ? 2 : 6) + cond))
     FAIL ();
 #else
-  if (__builtin_object_size (p, 2) != 0)
+  if (__builtin_object_size (p, 2) != 2)
     FAIL ();
 #endif
 
@@ -597,7 +597,7 @@ test9 (unsigned cond)
       != sizeof (y) - __builtin_offsetof (struct A, c) - 8 + cond)
     FAIL ();
 #else
-  if (__builtin_object_size (p, 2) != 0)
+  if (__builtin_object_size (p, 2) != sizeof (y) - __builtin_offsetof (struct A, c) - 8)
     FAIL ();
 #endif
 }
@@ -618,7 +618,7 @@ test10 (void)
 	  if (__builtin_object_size (p - 3, 2) != sizeof (buf) - i + 3)
 	    FAIL ();
 #else
-	  if (__builtin_object_size (p - 3, 2) != 0)
+	  if (__builtin_object_size (p - 3, 2) != 3)
 	    FAIL ();
 #endif
 	  break;
@@ -628,7 +628,7 @@ test10 (void)
     }
 }
 
-#if !defined(__AVR__) && !defined(__hpux__) /* avr and hpux have no strndup */
+#ifndef SKIP_STRNDUP
 /* Tests for strdup/strndup.  */
 size_t
 __attribute__ ((noinline))
@@ -717,7 +717,7 @@ test11 (void)
     FAIL ();
   free (res);
 }
-#endif /* avr */
+#endif
 
 int
 main (void)
@@ -734,7 +734,7 @@ main (void)
   test8 ();
   test9 (1);
   test10 ();
-#if !defined(__AVR__) && !defined(__hpux__) /* avr and hpux have no strndup */
+#ifndef SKIP_STRNDUP
   test11 ();
 #endif
   DONE ();

@@ -1,5 +1,5 @@
 /* Target Definitions for NVPTX.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
    This file is part of GCC.
@@ -75,10 +75,9 @@
 #define INT_TYPE_SIZE 32
 #define LONG_TYPE_SIZE (TARGET_ABI64 ? 64 : 32)
 #define LONG_LONG_TYPE_SIZE 64
-#define FLOAT_TYPE_SIZE 32
-#define DOUBLE_TYPE_SIZE 64
-#define LONG_DOUBLE_TYPE_SIZE 64
 #define TARGET_SUPPORTS_WIDE_INT 1
+
+#define MAX_FIXED_MODE_SIZE 128
 
 #undef SIZE_TYPE
 #define SIZE_TYPE (TARGET_ABI64 ? "long unsigned int" : "unsigned int")
@@ -89,11 +88,24 @@
 #define Pmode (TARGET_ABI64 ? DImode : SImode)
 #define STACK_SIZE_MODE Pmode
 
+/* We always have to maintain the '-msoft-stack' pointer, but the PTX "native"
+   stack pointer is handled implicitly at function level.  */
+#define STACK_SAVEAREA_MODE(LEVEL) \
+  (TARGET_SOFT_STACK ? Pmode \
+   : (LEVEL == SAVE_FUNCTION ? VOIDmode \
+      : Pmode))
+
 #include "nvptx-gen.h"
 
+/* There are no 'TARGET_PTX_3_1' and smaller conditionals: our baseline is
+   PTX ISA Version 3.1.  */
+#define TARGET_PTX_4_1 (ptx_version_option >= PTX_VERSION_4_1)
+#define TARGET_PTX_4_2 (ptx_version_option >= PTX_VERSION_4_2)
 #define TARGET_PTX_6_0 (ptx_version_option >= PTX_VERSION_6_0)
 #define TARGET_PTX_6_3 (ptx_version_option >= PTX_VERSION_6_3)
 #define TARGET_PTX_7_0 (ptx_version_option >= PTX_VERSION_7_0)
+#define TARGET_PTX_7_3 (ptx_version_option >= PTX_VERSION_7_3)
+#define TARGET_PTX_7_8 (ptx_version_option >= PTX_VERSION_7_8)
 
 /* Registers.  Since ptx is a virtual target, we just define a few
    hard registers for special purposes and leave pseudos unallocated.
@@ -263,9 +275,6 @@ struct GTY(()) machine_function
 
 #define DEBUGGER_REGNO(N) N
 
-#define TEXT_SECTION_ASM_OP ""
-#define DATA_SECTION_ASM_OP ""
-
 #undef  ASM_GENERATE_INTERNAL_LABEL
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL, PREFIX, NUM)		\
   do								\
@@ -356,10 +365,34 @@ struct GTY(()) machine_function
 #define MOVE_MAX 8
 #define MOVE_RATIO(SPEED) 4
 #define FUNCTION_MODE QImode
-#define HAS_INIT_SECTION 1
 
-/* The C++ front end insists to link against libstdc++ -- which we don't build.
-   Tell it to instead link against the innocuous libgcc.  */
-#define LIBSTDCXX "gcc"
+/* Implement global constructor, destructor support in a conceptually simpler
+   way than using 'collect2' (the program): implement the respective
+   functionality in the nvptx-tools 'ld'.  This however still requires the
+   compiler-side effects corresponding to 'USE_COLLECT2': the global
+   constructor, destructor support functions need to have external linkage, and
+   therefore names that are "unique across the whole link".  Use
+   '!targetm.have_ctors_dtors' to achieve this (..., and thus don't need to
+   provide 'targetm.asm_out.constructor', 'targetm.asm_out.destructor').  */
+#define TARGET_HAVE_CTORS_DTORS false
+
+/* See 'libgcc/config/nvptx/crt0.c' for wrapping of 'main'.  */
+#define HAS_INIT_SECTION
+
+/* The default doesn't fly ('internal compiler error: in simplify_subreg' when
+   'dw2_assemble_integer' -> 'assemble_integer' attempts to simplify
+   '(minus:DI (symbol_ref:DI ("$LEHB0")) (symbol_ref:DI ("$LFB3")))', for
+   example.  Just emit something; it's not getting used, anyway.  */
+#define ASM_OUTPUT_DWARF_DELTA(STREAM, SIZE, LABEL1, LABEL2) \
+  do \
+    { \
+      fprintf (STREAM, "%s[%d]: ", targetm.asm_out.byte_op, SIZE); \
+      const char *label1 = LABEL1; \
+      assemble_name_raw (STREAM, label1 ? label1 : "*nil"); \
+      fprintf (STREAM, " - "); \
+      const char *label2 = LABEL2; \
+      assemble_name_raw (STREAM, label2 ? label2 : "*nil"); \
+    } \
+  while (0)
 
 #endif /* GCC_NVPTX_H */

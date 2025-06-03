@@ -1,6 +1,6 @@
 /* m2linemap.cc provides an interface to GCC linemaps.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -19,6 +19,7 @@ You should have received a copy of the GNU General Public License
 along with GNU Modula-2; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
+#define INCLUDE_STRING
 #include "gcc-consolidation.h"
 
 /* Utilize some of the C build routines */
@@ -36,7 +37,6 @@ along with GNU Modula-2; see the file COPYING3.  If not see
 #define m2linemap_c
 #include "m2linemap.h"
 #include "m2color.h"
-#include <string>
 
 static int inFile = FALSE;
 
@@ -126,6 +126,7 @@ m2linemap_GetLocationBinary (location_t caret, location_t start, location_t fini
       linemap_add (line_table, LC_ENTER, false, xstrdup (m2linemap_GetFilenameFromLocation (start)), 1);
       gcc_assert (inFile);
       location_t location = make_location (caret, start, finish);
+      linemap_add (line_table, LC_LEAVE, false, NULL, 0);
       return location;
     }
   return caret;

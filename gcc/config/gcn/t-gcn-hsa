@@ -1,4 +1,4 @@
-#  Copyright (C) 2016-2024 Free Software Foundation, Inc.
+#  Copyright (C) 2016-2025 Free Software Foundation, Inc.
 #
 #  This file is free software; you can redistribute it and/or modify it under
 #  the terms of the GNU General Public License as published by the Free
@@ -49,3 +49,10 @@ gcn-tree.o: $(srcdir)/config/gcn/gcn-tree.cc
 	$(COMPILE) $<
 	$(POSTCOMPILE)
 ALL_HOST_OBJS += gcn-tree.o
+
+$(srcdir)/config/gcn/gcn-tables.opt: $(srcdir)/config/gcn/gcn-devices.def $(srcdir)/config/gcn/gen-opt-tables.awk
+	$(AWK) -f $(srcdir)/config/gcn/gen-opt-tables.awk $< > $@
+
+gcn-device-macros.h: $(srcdir)/config/gcn/gcn-devices.def $(srcdir)/config/gcn/gen-gcn-device-macros.awk
+	$(AWK) -f $(srcdir)/config/gcn/gen-gcn-device-macros.awk $< > $@
+generated_files += gcn-device-macros.h

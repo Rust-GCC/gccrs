@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,6 +39,7 @@ with Lib;            use Lib;
 with Lib.Load;       use Lib.Load;
 with Lib.Xref;       use Lib.Xref;
 with Local_Restrict;
+with Mutably_Tagged; use Mutably_Tagged;
 with Namet;          use Namet;
 with Namet.Sp;       use Namet.Sp;
 with Nlists;         use Nlists;
@@ -1511,6 +1512,10 @@ package body Sem_Ch8 is
             if Is_Dependent_Component_Of_Mutable_Object (Nam) then
                Error_Msg_N
                  ("illegal renaming of discriminant-dependent component", Nam);
+            elsif Depends_On_Mutably_Tagged_Ext_Comp (Nam) then
+               Error_Msg_N
+                 ("illegal renaming of mutably tagged dependent component",
+                  Nam);
             end if;
 
             --  If the renaming comes from source and the renamed object is a
@@ -1660,8 +1665,7 @@ package body Sem_Ch8 is
          Set_Etype (New_P, Standard_Void_Type);
 
       elsif Present (Renamed_Entity (Old_P))
-        and then (From_Limited_With (Renamed_Entity (Old_P))
-                    or else Has_Limited_View (Renamed_Entity (Old_P)))
+        and then Renames_Limited_View (Old_P)
         and then not
           Unit_Is_Visible (Cunit (Get_Source_Unit (Renamed_Entity (Old_P))))
       then
@@ -1686,8 +1690,10 @@ package body Sem_Ch8 is
 
          if Present (Renamed_Entity (Old_P)) then
             Set_Renamed_Entity (New_P, Renamed_Entity (Old_P));
+            Set_Renames_Limited_View (New_P, Renames_Limited_View (Old_P));
          else
             Set_Renamed_Entity (New_P, Old_P);
+            Set_Renames_Limited_View (New_P, From_Limited_With (Old_P));
          end if;
 
          --  The package renaming declaration may become Ghost if it renames a
@@ -2094,6 +2100,10 @@ package body Sem_Ch8 is
                   Error_Msg_N
                     ("illegal renaming of discriminant-dependent component",
                      Nam);
+               elsif Depends_On_Mutably_Tagged_Ext_Comp (Nam) then
+                  Error_Msg_N
+                    ("illegal renaming of mutably tagged dependent component",
+                     Nam);
                end if;
             else
                Error_Msg_N ("expect object name in renaming", Nam);
@@ -2332,6 +2342,11 @@ package body Sem_Ch8 is
                      --  freezing actions.
 
                      elsif From_Limited_With (Etype (F)) then
+                        null;
+
+                     --  Incomplete types are never frozen (AI12-0155-1)
+
+                     elsif Is_Incomplete_Type (Etype (F)) then
                         null;
 
                      else
@@ -4907,17 +4922,21 @@ package body Sem_Ch8 is
          then
             null;
 
-         --  Don't replace a non-qualified discriminant in strict preanalysis
-         --  mode since it can lead to errors during full analysis when the
-         --  discriminant gets referenced later.
+         --  Don't replace a non-qualified discriminant in preanalysis mode
+         --  since we may be preanalyzing a subtree that it is still not
+         --  placed in its final position in the tree, and therefore it can
+         --  lead to errors during full analysis when the discriminant gets
+         --  referenced later. We exclude preanalysis of pragma expressions
+         --  because they will not be moved.
 
          --  This can occur in situations where a protected type contains
          --  an expression function which references a non-prefixed
-         --  discriminant.
+         --  discriminant, or a task type sets the size of its secondary
+         --  stack with a value provided in a discriminant.
 
          elsif No (P)
            and then Preanalysis_Active
-           and then Inside_Preanalysis_Without_Freezing = 0
+           and then not In_Pragma_Expression (N)
          then
             null;
 
@@ -6314,7 +6333,9 @@ package body Sem_Ch8 is
                Nvis_Messages;
                goto Done;
 
-            elsif Is_Predefined_Unit (Current_Sem_Unit) then
+            elsif Is_Predefined_Unit (Current_Sem_Unit)
+              and then not Is_Predefined_Unit (Main_Unit)
+            then
                --  A use clause in the body of a system file creates conflict
                --  with some entity in a user scope, while rtsfind is active.
                --  Keep only the entity coming from another predefined unit.
@@ -7057,7 +7078,7 @@ package body Sem_Ch8 is
               ("renaming of limited view of package & not usable in this"
                & " context (RM 8.5.3(3.1/2))", Prefix (N), P_Name);
 
-         elsif Has_Limited_View (P_Name)
+         elsif Renames_Limited_View (Entity (Prefix (N)))
            and then not Unit_Is_Visible (Cunit (Get_Source_Unit (P_Name)))
            and then not Is_Visible_Through_Renamings (P_Name)
          then
@@ -8478,11 +8499,14 @@ package body Sem_Ch8 is
 
             --  It is not an error if the prefix is the current instance of
             --  type name, e.g. the expression of a type aspect, when it is
-            --  analyzed within a generic unit. We still have to verify that a
-            --  component of that name exists, and decorate the node
+            --  analyzed within a generic unit. We still have to verify that
+            --  a component of that name exists, and decorate the node
             --  accordingly.
 
-            elsif Is_Entity_Name (P) and then Is_Current_Instance (P) then
+            elsif Inside_A_Generic
+              and then Is_Entity_Name (P)
+              and then Is_Current_Instance (P)
+            then
                declare
                   Comp : Entity_Id;
 
@@ -8519,7 +8543,7 @@ package body Sem_Ch8 is
                         Current_Entity (Selector_Name (N));
                begin
                   if Present (F)
-                    and then Is_Overloadable (F)
+                    and then Is_Subprogram (F)
                     and then Present (First_Entity (F))
                     and then not Is_Tagged_Type (Etype (First_Entity (F)))
                   then
@@ -8792,6 +8816,16 @@ package body Sem_Ch8 is
             Error_Msg_NE ("\\found & declared#", N, T_Name);
             Set_Entity (N, Any_Type);
 
+         elsif Is_Current_Instance (N) and then Comes_From_Source (N) then
+            if Nkind (Parent (T_Name)) = N_Subtype_Declaration then
+               Error_Msg_N ("reference to current instance of subtype" &
+                            " does not denote a subtype (RM 8.6)", N);
+            else
+               Error_Msg_N ("reference to current instance of type" &
+                            " does not denote a type (RM 8.6)", N);
+            end if;
+            Set_Entity (N, Any_Type);
+
          else
             --  If the type is an incomplete type created to handle
             --  anonymous access components of a record type, then the
@@ -8822,12 +8856,9 @@ package body Sem_Ch8 is
             if In_Open_Scopes (T_Name) then
                if Ekind (Base_Type (T_Name)) = E_Task_Type then
 
-                  --  In Ada 2005, a task name can be used in an access
-                  --  definition within its own body.
+                  --  OK if the "current instance" rule does not apply.
 
-                  if Ada_Version >= Ada_2005
-                    and then Nkind (Parent (N)) = N_Access_Definition
-                  then
+                  if not Is_Current_Instance (N) then
                      Set_Entity (N, T_Name);
                      Set_Etype  (N, T_Name);
                      return;
@@ -8840,12 +8871,9 @@ package body Sem_Ch8 is
 
                elsif Ekind (Base_Type (T_Name)) = E_Protected_Type then
 
-                  --  In Ada 2005, a protected name can be used in an access
-                  --  definition within its own body.
+                  --  OK if the "current instance" rule does not apply.
 
-                  if Ada_Version >= Ada_2005
-                    and then Nkind (Parent (N)) = N_Access_Definition
-                  then
+                  if not Is_Current_Instance (N) then
                      Set_Entity (N, T_Name);
                      Set_Etype  (N, T_Name);
                      return;
@@ -8965,6 +8993,7 @@ package body Sem_Ch8 is
       while Present (Item) loop
          if Nkind (Item) = N_With_Clause
            and then Private_Present (Item)
+           and then Is_Entity_Name (Name (Item))
            and then Entity (Name (Item)) = E
          then
             return True;
@@ -9285,11 +9314,12 @@ package body Sem_Ch8 is
 
             --  If the new type is a renaming of the old one, as is the case
             --  for actuals in instances, retain its name, to simplify later
-            --  disambiguation.
+            --  disambiguation. Beware of Natural and Positive, see Cstand.
 
             if Nkind (Parent (New_T)) = N_Subtype_Declaration
               and then Is_Entity_Name (Subtype_Indication (Parent (New_T)))
               and then Entity (Subtype_Indication (Parent (New_T))) = Old_T
+              and then Scope (New_T) /= Standard_Standard
             then
                null;
             else
@@ -9977,7 +10007,8 @@ package body Sem_Ch8 is
                or else (Nkind (The_Unit) = N_Subprogram_Body
                          and then not Acts_As_Spec (Cunit (Current_Sem_Unit))))
          then
-            With_Sys := Find_System (Library_Unit (Cunit (Current_Sem_Unit)));
+            With_Sys :=
+              Find_System (Spec_Or_Body_Lib_Unit (Cunit (Current_Sem_Unit)));
          end if;
 
          if No (With_Sys) and then Present (N) then
@@ -10033,8 +10064,8 @@ package body Sem_Ch8 is
 
             Set_Corresponding_Spec (Withn, System_Aux_Id);
             Set_First_Name         (Withn);
-            Set_Implicit_With      (Withn);
-            Set_Library_Unit       (Withn, Cunit (Unum));
+            Set_Is_Implicit_With   (Withn);
+            Set_Withed_Lib_Unit    (Withn, Cunit (Unum));
 
             Insert_After (With_Sys, Withn);
             Mark_Rewrite_Insertion (Withn);

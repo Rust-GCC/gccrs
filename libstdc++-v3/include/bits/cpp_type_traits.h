@@ -1,6 +1,6 @@
 // The  -*- C++ -*- type traits classes for internal use in libstdc++
 
-// Copyright (C) 2000-2024 Free Software Foundation, Inc.
+// Copyright (C) 2000-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -24,7 +24,7 @@
 
 /** @file bits/cpp_type_traits.h
  *  This is an internal header file, included by other library headers.
- *  Do not attempt to use it directly. @headername{ext/type_traits}
+ *  Do not attempt to use it directly. @headername{ext/type_traits.h}
  */
 
 // Written by Gabriel Dos Reis <dosreis@cmla.ens-cachan.fr>
@@ -32,9 +32,18 @@
 #ifndef _CPP_TYPE_TRAITS_H
 #define _CPP_TYPE_TRAITS_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
+#include <bits/version.h>
+#if __glibcxx_type_trait_variable_templates
+# include <type_traits> // is_same_v, is_integral_v
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wlong-long"
 
 //
 // This file provides some compile-time information about various types.
@@ -105,21 +114,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef __true_type __type;
     };
 
-  // Holds if the template-argument is a void type.
-  template<typename _Tp>
-    struct __is_void
-    {
-      enum { __value = 0 };
-      typedef __false_type __type;
-    };
-
-  template<>
-    struct __is_void<void>
-    {
-      enum { __value = 1 };
-      typedef __true_type __type;
-    };
-
   //
   // Integer types
   //
@@ -130,10 +124,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef __false_type __type;
     };
 
-  // Thirteen specializations (yes there are eleven standard integer
-  // types; <em>long long</em> and <em>unsigned long long</em> are
-  // supported as extensions).  Up to four target-specific __int<N>
-  // types are supported as well.
+  // Explicit specializations for the standard integer types.
+  // Up to four target-specific __int<N> types are supported as well.
   template<>
     struct __is_integer<bool>
     {
@@ -361,36 +353,11 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
 #endif
 
   //
-  // Pointer types
-  //
-  template<typename _Tp>
-    struct __is_pointer
-    {
-      enum { __value = 0 };
-      typedef __false_type __type;
-    };
-
-  template<typename _Tp>
-    struct __is_pointer<_Tp*>
-    {
-      enum { __value = 1 };
-      typedef __true_type __type;
-    };
-
-  //
   // An arithmetic type is an integer type or a floating point type
   //
   template<typename _Tp>
     struct __is_arithmetic
     : public __traitor<__is_integer<_Tp>, __is_floating<_Tp> >
-    { };
-
-  //
-  // A scalar type is an arithmetic type or a pointer type
-  // 
-  template<typename _Tp>
-    struct __is_scalar
-    : public __traitor<__is_arithmetic<_Tp>, __is_pointer<_Tp> >
     { };
 
   //
@@ -447,7 +414,7 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
       typedef __true_type __type;
     };
 
-#if __cplusplus >= 201703L
+#ifdef __glibcxx_byte // C++ >= 17
   enum class byte : unsigned char;
 
   template<>
@@ -466,8 +433,6 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
       typedef __true_type __type;
     };
 #endif
-
-  template<typename> struct iterator_traits;
 
   // A type that is safe for use with memcpy, memmove, memcmp etc.
   template<typename _Tp>
@@ -492,15 +457,132 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
       enum { __value = 0 };
     };
 
+  // Allow memcpy when source and destination are pointers to the same type.
   template<typename _Tp>
     struct __memcpyable<_Tp*, _Tp*>
     : __is_nonvolatile_trivially_copyable<_Tp>
     { };
 
+  // Source pointer can be const.
   template<typename _Tp>
     struct __memcpyable<_Tp*, const _Tp*>
     : __is_nonvolatile_trivially_copyable<_Tp>
     { };
+
+  template<typename _Tp> struct __memcpyable_integer;
+
+  // For heterogeneous types, allow memcpy between equal-sized integers.
+  // N.B. we cannot do the same for equal-sized enums, they're not assignable.
+  // We cannot do it for pointers, because derived-to-base can adjust offset.
+  template<typename _Tp, typename _Up>
+    struct __memcpyable<_Tp*, _Up*>
+    {
+      enum {
+	__value = __memcpyable_integer<_Tp>::__width != 0
+		    && ((int)__memcpyable_integer<_Tp>::__width
+			  == (int)__memcpyable_integer<_Up>::__width)
+      };
+    };
+
+  // Specialization for const U* because __is_integer<const U> is never true.
+  template<typename _Tp, typename _Up>
+    struct __memcpyable<_Tp*, const _Up*>
+    : __memcpyable<_Tp*, _Up*>
+    { };
+
+  template<typename _Tp>
+    struct __memcpyable_integer
+    {
+      enum {
+	__width = __is_integer<_Tp>::__value ? (sizeof(_Tp) * __CHAR_BIT__) : 0
+      };
+    };
+
+  // Cannot memcpy volatile memory.
+  template<typename _Tp>
+    struct __memcpyable_integer<volatile _Tp>
+    { enum { __width = 0 }; };
+
+  // Specializations for __intNN types with padding bits.
+#if defined __GLIBCXX_TYPE_INT_N_0 && __GLIBCXX_BITSIZE_INT_N_0 % __CHAR_BIT__
+  __extension__
+  template<>
+    struct __memcpyable_integer<__GLIBCXX_TYPE_INT_N_0>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_0 }; };
+  __extension__
+  template<>
+    struct __memcpyable_integer<unsigned __GLIBCXX_TYPE_INT_N_0>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_0 }; };
+#endif
+#if defined __GLIBCXX_TYPE_INT_N_1 && __GLIBCXX_BITSIZE_INT_N_1 % __CHAR_BIT__
+  __extension__
+  template<>
+    struct __memcpyable_integer<__GLIBCXX_TYPE_INT_N_1>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_1 }; };
+  __extension__
+  template<>
+    struct __memcpyable_integer<unsigned __GLIBCXX_TYPE_INT_N_1>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_1 }; };
+#endif
+#if defined __GLIBCXX_TYPE_INT_N_2 && __GLIBCXX_BITSIZE_INT_N_2 % __CHAR_BIT__
+  __extension__
+  template<>
+    struct __memcpyable_integer<__GLIBCXX_TYPE_INT_N_2>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_2 }; };
+  __extension__
+  template<>
+    struct __memcpyable_integer<unsigned __GLIBCXX_TYPE_INT_N_2>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_2 }; };
+#endif
+#if defined __GLIBCXX_TYPE_INT_N_3 && __GLIBCXX_BITSIZE_INT_N_3 % __CHAR_BIT__
+  __extension__
+  template<>
+    struct __memcpyable_integer<__GLIBCXX_TYPE_INT_N_3>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_3 }; };
+  __extension__
+  template<>
+    struct __memcpyable_integer<unsigned __GLIBCXX_TYPE_INT_N_3>
+    { enum { __width = __GLIBCXX_BITSIZE_INT_N_3 }; };
+#endif
+
+#if defined __STRICT_ANSI__ && defined __SIZEOF_INT128__
+  // In strict modes __is_integer<__int128> is false,
+  // but we want to allow memcpy between signed/unsigned __int128.
+  __extension__
+  template<>
+    struct __memcpyable_integer<__int128> { enum { __width = 128 }; };
+  __extension__
+  template<>
+    struct __memcpyable_integer<unsigned __int128> { enum { __width = 128 }; };
+#endif
+
+#if _GLIBCXX_DOUBLE_IS_IEEE_BINARY64 && _GLIBCXX_LDOUBLE_IS_IEEE_BINARY64
+  template<>
+    struct __memcpyable<double*, long double*> { enum { __value = true }; };
+  template<>
+    struct __memcpyable<long double*, double*> { enum { __value = true }; };
+#endif
+
+#if defined(__STDCPP_FLOAT32_T__) && defined(_GLIBCXX_FLOAT_IS_IEEE_BINARY32)
+  template<>
+    struct __memcpyable<_Float32*, float*> { enum { __value = true }; };
+  template<>
+    struct __memcpyable<float*, _Float32*> { enum { __value = true }; };
+#endif
+
+#if defined(__STDCPP_FLOAT64_T__) && defined(_GLIBCXX_DOUBLE_IS_IEEE_BINARY64)
+  template<>
+    struct __memcpyable<_Float64*, double*> { enum { __value = true }; };
+  template<>
+    struct __memcpyable<double*, _Float64*> { enum { __value = true }; };
+#endif
+
+#if defined(__STDCPP_FLOAT128_T__) && defined(_GLIBCXX_LDOUBLE_IS_IEEE_BINARY128)
+  template<>
+    struct __memcpyable<_Float128*, long double*> { enum { __value = true }; };
+  template<>
+    struct __memcpyable<long double*, _Float128*> { enum { __value = true }; };
+#endif
 
   // Whether two iterator types can be used with memcmp.
   // This trait only says it's well-formed to use memcmp, not that it
@@ -589,6 +671,15 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
     { static constexpr bool __value = false; };
 #endif
 
+#if __glibcxx_type_trait_variable_templates
+  template<typename _ValT, typename _Tp>
+    constexpr bool __can_use_memchr_for_find
+    // Can only use memchr to search for narrow characters and std::byte.
+      = __is_byte<_ValT>::__value
+	// And only if the value to find is an integer (or is also std::byte).
+	  && (is_same_v<_Tp, _ValT> || is_integral_v<_Tp>);
+#endif
+
   //
   // Move iterator type
   //
@@ -610,5 +701,7 @@ __INT_N(__GLIBCXX_TYPE_INT_N_3)
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace
 } // extern "C++"
+
+#pragma GCC diagnostic pop
 
 #endif //_CPP_TYPE_TRAITS_H

@@ -16394,10 +16394,11 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
                 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
-    #if defined __riscv
+    #if defined __AMDGCN__ || defined __nvptx__
+    /* Yes, please.  */
+    #elif defined __riscv
     # error "Defaulting to mutex-based locks for ABI compatibility"
-    #endif
-    #if ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
+    #elif ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
     # error "No 2-byte compare-and-swap"
     #elif ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
     # error "No 4-byte compare-and-swap"
@@ -16444,7 +16445,7 @@ $as_echo "mutex" >&6; }
   # unnecessary for this test.
 
     cat > conftest.$ac_ext << EOF
-#line 16447 "configure"
+#line 16448 "configure"
 int main()
 {
   _Decimal32 d1;
@@ -16486,7 +16487,7 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
   # unnecessary for this test.
 
   cat > conftest.$ac_ext << EOF
-#line 16489 "configure"
+#line 16490 "configure"
 template<typename T1, typename T2>
   struct same
   { typedef T2 type; };
@@ -19450,9 +19451,11 @@ fi
 	     as_fn_error $? "compiler flags start with a -" "$LINENO" 5 ;;
       esac
     done
+
+    # Append the additional flags to any that came from 'configure.host'.
+    EXTRA_CXX_FLAGS="$EXTRA_CXX_FLAGS $enable_cxx_flags"
   fi
 
-  EXTRA_CXX_FLAGS="$enable_cxx_flags"
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: $EXTRA_CXX_FLAGS" >&5
 $as_echo "$EXTRA_CXX_FLAGS" >&6; }
 
@@ -28571,7 +28574,31 @@ _ACEOF
 
 
 
-    $as_echo "#define HAVE_ICONV 1" >>confdefs.h
+    # Support for iconv in newlib is configurable.
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <newlib.h>
+int
+main ()
+{
+
+      #ifndef _ICONV_ENABLED
+      #error
+      #endif
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ac_newlib_iconv_enabled=yes
+else
+  ac_newlib_iconv_enabled=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+    if test "$ac_newlib_iconv_enabled" = yes; then
+      $as_echo "#define HAVE_ICONV 1" >>confdefs.h
+
+    fi
 
     $as_echo "#define HAVE_MEMALIGN 1" >>confdefs.h
 
@@ -28610,6 +28637,13 @@ _ACEOF
 
         $as_echo "#define HAVE_USLEEP 1" >>confdefs.h
 
+
+        # These functions are defined in librtemscpu.  We don't use
+        # -qrtems during configure, so we don't link that in, and fail
+        # to find them.
+        glibcxx_cv_chdir=yes
+        glibcxx_cv_chmod=yes
+        glibcxx_cv_mkdir=yes
         ;;
     esac
   elif test "x$with_headers" != "xno"; then
@@ -51033,7 +51067,7 @@ $as_echo "$as_me: WARNING: === Symbol versioning will be disabled." >&2;}
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:33:0
+libtool_VERSION=6:34:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in
@@ -53867,6 +53901,22 @@ fi
 
 done
 
+  for ac_header in tlhelp32.h
+do :
+  ac_fn_c_check_header_compile "$LINENO" "tlhelp32.h" "ac_cv_header_tlhelp32_h" "#ifdef HAVE_WINDOWS_H
+  #  include <windows.h>
+  #endif
+
+"
+if test "x$ac_cv_header_tlhelp32_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_TLHELP32_H 1
+_ACEOF
+
+fi
+
+done
+
 
   # Check for the fcntl function.
   if test -n "${with_target_subdir}"; then
@@ -54084,6 +54134,8 @@ if test "$ac_cv_have_decl_F_GETFL$ac_cv_have_decl_F_SETFL" = yesyes ; then
   ac_fn_c_check_decl "$LINENO" "O_NONBLOCK" "ac_cv_have_decl_O_NONBLOCK" "#include <fcntl.h>
 "
 if test "x$ac_cv_have_decl_O_NONBLOCK" = xyes; then :
+
+$as_echo "#define HAVE_O_NONBLOCK 1" >>confdefs.h
 
 fi
 
@@ -54372,6 +54424,65 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
   fi
+
+
+# For std::chrono formatters to use tm::tm_zone
+
+
+
+  ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
+  ac_save_CXXFLAGS="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS -std=c++20"
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for tm_zone member of struct tm" >&5
+$as_echo_n "checking for tm_zone member of struct tm... " >&6; }
+if ${glibcxx_cv_tm_zone+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <time.h>
+
+int
+main ()
+{
+struct tm t{}; t.tm_zone = (char*)0;
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"; then :
+  glibcxx_cv_tm_zone=yes
+else
+  glibcxx_cv_tm_zone=no
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $glibcxx_cv_tm_zone" >&5
+$as_echo "$glibcxx_cv_tm_zone" >&6; }
+
+  if test $glibcxx_cv_tm_zone = yes; then
+
+$as_echo "#define _GLIBCXX_USE_STRUCT_TM_TM_ZONE 1" >>confdefs.h
+
+  fi
+
+  CXXFLAGS="$ac_save_CXXFLAGS"
+  ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
+
 
 
 # For src/c++11/shared_ptr.cc alignment.
@@ -55671,7 +55782,7 @@ $as_echo "$gxx_include_dir" >&6; }
   # OPTIMIZE_CXXFLAGS = -O3 -fstrict-aliasing -fvtable-gc
 
 
-  WARN_FLAGS="-Wall -Wextra -Wwrite-strings -Wcast-qual -Wabi=2"
+  WARN_FLAGS="-Wall -Wextra -Wwrite-strings -Wcast-qual -Wabi=19"
 
 
 

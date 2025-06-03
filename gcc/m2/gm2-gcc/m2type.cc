@@ -1,6 +1,6 @@
 /* m2type.cc provides an interface to GCC type trees.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -119,6 +119,7 @@ static GTY (()) tree m2_complex96_type_node;
 static GTY (()) tree m2_complex128_type_node;
 static GTY (()) tree m2_packed_boolean_type_node;
 static GTY (()) tree m2_cardinal_address_type_node;
+static GTY (()) tree m2_offt_type_node;
 
 /* gm2_canonicalize_array - returns a unique array node based on
    index_type and type.  */
@@ -824,7 +825,7 @@ m2type_GetIntegerType (void)
   return integer_type_node;
 }
 
-/* GetCSizeTType return a type representing, size_t on this system.  */
+/* GetCSizeTType return a type representing size_t.  */
 
 tree
 m2type_GetCSizeTType (void)
@@ -832,13 +833,20 @@ m2type_GetCSizeTType (void)
   return sizetype;
 }
 
-/* GetCSSizeTType return a type representing, size_t on this
-   system.  */
+/* GetCSSizeTType return a type representing size_t.  */
 
 tree
 m2type_GetCSSizeTType (void)
 {
   return ssizetype;
+}
+
+/* GetCSSizeTType return a type representing off_t.  */
+
+tree
+m2type_GetCOffTType (void)
+{
+  return m2_offt_type_node;
 }
 
 /* GetPackedBooleanType return the packed boolean data type node.  */
@@ -1069,7 +1077,6 @@ build_m2_specific_size_type (location_t location, enum tree_code base,
     {
       if (!float_mode_for_size (TYPE_PRECISION (c)).exists ())
         return NULL;
-      layout_type (c);
     }
   else if (base == SET_TYPE)
     return build_m2_size_set_type (location, precision);
@@ -1088,6 +1095,7 @@ build_m2_specific_size_type (location_t location, enum tree_code base,
           TYPE_UNSIGNED (c) = true;
         }
     }
+  layout_type (c);
   return c;
 }
 
@@ -1373,6 +1381,18 @@ build_m2_iso_byte_node (location_t location, int loc)
   return c;
 }
 
+static tree
+build_m2_offt_type_node (location_t location)
+{
+  m2assert_AssertLocation (location);
+  int offt_size = M2Options_GetFileOffsetBits ();
+
+  if (offt_size == 0)
+    offt_size = TREE_INT_CST_LOW (TYPE_SIZE (ssizetype));
+  return build_m2_specific_size_type (location, INTEGER_TYPE,
+				      offt_size, true);
+}
+
 /* m2type_InitSystemTypes initialise loc and word derivatives.  */
 
 void
@@ -1386,6 +1406,7 @@ m2type_InitSystemTypes (location_t location, int loc)
   m2_word16_type_node = build_m2_word16_type_node (location, loc);
   m2_word32_type_node = build_m2_word32_type_node (location, loc);
   m2_word64_type_node = build_m2_word64_type_node (location, loc);
+  m2_offt_type_node = build_m2_offt_type_node (location);
 }
 
 static tree
@@ -1415,27 +1436,17 @@ build_m2_char_node (void)
 static tree
 build_m2_short_real_node (void)
 {
-  tree c;
-
-  /* Define `REAL'.  */
-
-  c = make_node (REAL_TYPE);
-  TYPE_PRECISION (c) = FLOAT_TYPE_SIZE;
-  layout_type (c);
-  return c;
+  /* Define `SHORTREAL'.  */
+  ASSERT_CONDITION (TYPE_SIZE (float_type_node));
+  return float_type_node;
 }
 
 static tree
 build_m2_real_node (void)
 {
-  tree c;
-
   /* Define `REAL'.  */
-
-  c = make_node (REAL_TYPE);
-  TYPE_PRECISION (c) = DOUBLE_TYPE_SIZE;
-  layout_type (c);
-  return c;
+  ASSERT_CONDITION (TYPE_SIZE (double_type_node));
+  return double_type_node;
 }
 
 static tree
@@ -1444,16 +1455,11 @@ build_m2_long_real_node (void)
   tree longreal;
 
   /* Define `LONGREAL'.  */
-  if (M2Options_GetIBMLongDouble ())
-    {
-      longreal = make_node (REAL_TYPE);
-      TYPE_PRECISION (longreal) = LONG_DOUBLE_TYPE_SIZE;
-    }
-  else if (M2Options_GetIEEELongDouble ())
+  if (M2Options_GetIEEELongDouble ())
     longreal = float128_type_node;
   else
     longreal = long_double_type_node;
-  layout_type (longreal);
+  ASSERT_CONDITION (TYPE_SIZE (longreal));
   return longreal;
 }
 
@@ -1885,6 +1891,22 @@ m2type_GetDefaultType (location_t location, char *name, tree type)
     return id;
 }
 
+/* IsGccRealType return true if type is a GCC realtype.  */
+  
+static
+bool
+IsGccRealType (tree type)
+{
+  return (type == m2_real_type_node || type == m2type_GetRealType () ||
+	  type == m2_long_real_type_node || type == m2type_GetLongRealType () ||
+	  type == m2_short_real_type_node || type == m2type_GetShortRealType () ||
+	  type == m2type_GetM2Real32 () ||
+	  type == m2type_GetM2Real64 () ||
+	  type == m2type_GetM2Real96 () ||
+	  type == m2type_GetM2Real128 ());
+}
+
+static
 tree
 do_min_real (tree type)
 {
@@ -1905,11 +1927,7 @@ m2type_GetMinFrom (location_t location, tree type)
 {
   m2assert_AssertLocation (location);
 
-  if (type == m2_real_type_node || type == m2type_GetRealType ())
-    return do_min_real (type);
-  if (type == m2_long_real_type_node || type == m2type_GetLongRealType ())
-    return do_min_real (type);
-  if (type == m2_short_real_type_node || type == m2type_GetShortRealType ())
+  if (IsGccRealType (type))
     return do_min_real (type);
   if (type == ptr_type_node)
     return m2expr_GetPointerZero (location);
@@ -1917,6 +1935,7 @@ m2type_GetMinFrom (location_t location, tree type)
   return TYPE_MIN_VALUE (m2tree_skip_type_decl (type));
 }
 
+static      
 tree
 do_max_real (tree type)
 {
@@ -1937,11 +1956,7 @@ m2type_GetMaxFrom (location_t location, tree type)
 {
   m2assert_AssertLocation (location);
 
-  if (type == m2_real_type_node || type == m2type_GetRealType ())
-    return do_max_real (type);
-  if (type == m2_long_real_type_node || type == m2type_GetLongRealType ())
-    return do_max_real (type);
-  if (type == m2_short_real_type_node || type == m2type_GetShortRealType ())
+  if (IsGccRealType (type))
     return do_max_real (type);
   if (type == ptr_type_node)
     return fold (m2expr_BuildSub (location, m2expr_GetPointerZero (location),
@@ -3099,10 +3114,68 @@ m2type_gm2_signed_or_unsigned_type (int unsignedp, tree type)
 
 /* IsAddress returns true if the type is an ADDRESS.  */
 
-int
+bool
 m2type_IsAddress (tree type)
 {
   return type == ptr_type_node;
+}
+
+/* check_record_fields return true if all the fields in left and right
+   are GCC equivalent.  */
+
+static
+bool
+check_record_fields (tree left, tree right)
+{
+  unsigned int i;
+  tree right_value;
+  vec<constructor_elt, va_gc> *values = CONSTRUCTOR_ELTS (right);
+  FOR_EACH_CONSTRUCTOR_VALUE (values, i, right_value)
+    {
+      tree left_field = TREE_TYPE (m2treelib_get_field_no (left, NULL_TREE, false, i));
+      if (! m2type_IsGccStrictTypeEquivalent (left_field, right_value))
+	return false;
+    }
+  return true;
+}
+
+/* check_array_types return true if left and right have the same type and right
+   is not a CST_STRING.  */
+
+static
+bool
+check_array_types (tree right)
+{
+  unsigned int i;
+  tree value;
+  vec<constructor_elt, va_gc> *values = CONSTRUCTOR_ELTS (right);
+  FOR_EACH_CONSTRUCTOR_VALUE (values, i, value)
+    {
+      enum tree_code right_code = TREE_CODE (value);
+      if (right_code == STRING_CST)
+	return false;
+    }
+  return true;
+}
+
+bool
+m2type_IsGccStrictTypeEquivalent (tree left, tree right)
+{
+  enum tree_code right_code = TREE_CODE (right);
+  enum tree_code left_code = TREE_CODE (left);
+  if (left_code == VAR_DECL)
+    return m2type_IsGccStrictTypeEquivalent (TREE_TYPE (left), right);
+  if (right_code == VAR_DECL)
+    return m2type_IsGccStrictTypeEquivalent (left, TREE_TYPE (right));
+  if (left_code == RECORD_TYPE && right_code == CONSTRUCTOR)
+    return check_record_fields (left, right);
+  if (left_code == UNION_TYPE && right_code == CONSTRUCTOR)
+    return false;
+  if (left_code == ARRAY_TYPE && right_code == CONSTRUCTOR)
+    return check_array_types (right);
+  if (right_code == STRING_CST)
+    return false;
+  return true;
 }
 
 #include "gt-m2-m2type.h"

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for HPs using the
    64bit runtime model.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,7 +35,7 @@ along with GCC; see the file COPYING3.  If not see
      size_t	8 bytes
      ptrdiff_t	8 bytes
      wchar	4 bytes
-     
+
   Make GCC agree with types.h.  */
 #undef SIZE_TYPE
 #define SIZE_TYPE "long unsigned int"
@@ -58,12 +58,12 @@ along with GCC; see the file COPYING3.  If not see
 #define LONG_TYPE_SIZE 64
 #undef LONG_LONG_TYPE_SIZE
 #define LONG_LONG_TYPE_SIZE 64
-#undef FLOAT_TYPE_SIZE
-#define FLOAT_TYPE_SIZE 32
-#undef DOUBLE_TYPE_SIZE
-#define DOUBLE_TYPE_SIZE 64
-#undef LONG_DOUBLE_TYPE_SIZE
-#define LONG_DOUBLE_TYPE_SIZE 128
+#undef PA_FLOAT_TYPE_SIZE
+#define PA_FLOAT_TYPE_SIZE 32
+#undef PA_DOUBLE_TYPE_SIZE
+#define PA_DOUBLE_TYPE_SIZE 64
+#undef PA_LONG_DOUBLE_TYPE_SIZE
+#define PA_LONG_DOUBLE_TYPE_SIZE 128
 
 /* ?!? This needs to be made compile-time selectable.
 
@@ -91,9 +91,9 @@ along with GCC; see the file COPYING3.  If not see
    the RTL to avoid scheduling related problems.  For example, the
    store and load could be separated by a call to a pure or const
    function which has no frame and this function might also use SP-16.
-   We have 14-bit immediates on the 64-bit port, so we use secondary
-   memory for the copies.  */
-#define PA_SECONDARY_MEMORY_NEEDED(MODE, CLASS1, CLASS2) \
-  (MAYBE_FP_REG_CLASS_P (CLASS1) != FP_REG_CLASS_P (CLASS2)		\
-   || MAYBE_FP_REG_CLASS_P (CLASS2) != FP_REG_CLASS_P (CLASS1))
 
+   On the 64-bit port, I couldn't get SECONDARY_MEMORY_NEEDED to work
+   with LRA, so I modified the move patterns to use SP-40.  The HP
+   compiler also uses this slot in the frame marker for moving data
+   between the general and floating-point registers.  */
+#define PA_SECONDARY_MEMORY_NEEDED(MODE, CLASS1, CLASS2) false

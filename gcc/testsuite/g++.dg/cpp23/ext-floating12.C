@@ -1,6 +1,9 @@
 // P1467R9 - Extended floating-point types and standard names.
 // { dg-do compile { target { c++23 && { i?86-*-linux* x86_64-*-linux* } } } }
 // { dg-options "" }
+// { dg-add-options float16 }
+// { dg-add-options bfloat16 }
+// { dg-skip-if "requires hosted libstdc++ for complex" { ! hostedlib } }
 
 #include <complex>
 #include <stdfloat>

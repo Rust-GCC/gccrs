@@ -1,5 +1,5 @@
 /* Subroutines for the C front end on the NVPTX architecture.
- * Copyright (C) 2021-2024 Free Software Foundation, Inc.
+ * Copyright (C) 2021-2025 Free Software Foundation, Inc.
  *
  * This file is part of GCC.
  *
@@ -51,10 +51,8 @@ nvptx_cpu_cpp_builtins (void)
   cpp_define (parse_in, ptx_sm);
 
   {
-    unsigned major
-      = ptx_version_to_number ((ptx_version)ptx_version_option, true);
-    unsigned minor
-      = ptx_version_to_number ((ptx_version)ptx_version_option, false);
+    unsigned major = ptx_version_to_number (ptx_version_option, true);
+    unsigned minor = ptx_version_to_number (ptx_version_option, false);
     cpp_define_formatted (parse_in, "__PTX_ISA_VERSION_MAJOR__=%u", major);
     cpp_define_formatted (parse_in, "__PTX_ISA_VERSION_MINOR__=%u", minor);
   }

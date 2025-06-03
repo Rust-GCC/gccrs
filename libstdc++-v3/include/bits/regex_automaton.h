@@ -1,6 +1,6 @@
 // class template regex -*- C++ -*-
 
-// Copyright (C) 2013-2024 Free Software Foundation, Inc.
+// Copyright (C) 2013-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -32,6 +32,9 @@
 #ifndef _GLIBCXX_REGEX_STATE_LIMIT
 #define _GLIBCXX_REGEX_STATE_LIMIT 100000
 #endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic" // anon struct
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -396,5 +399,7 @@ namespace __detail
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
+
+#pragma GCC diagnostic pop
 
 #include <bits/regex_automaton.tcc>

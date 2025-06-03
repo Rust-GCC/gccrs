@@ -1,5 +1,5 @@
 /* Functions to determine/estimate number of iterations of a loop.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -41,6 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-scalar-evolution.h"
+#include "tree-data-ref.h"
 #include "tree-dfa.h"
 #include "internal-fn.h"
 #include "gimple-range.h"
@@ -214,7 +215,7 @@ refine_value_range_using_guard (tree type, tree var,
   get_type_static_bounds (type, mint, maxt);
   mpz_init (minc1);
   mpz_init (maxc1);
-  Value_Range r (TREE_TYPE (varc1));
+  int_range_max r (TREE_TYPE (varc1));
   /* Setup range information for varc1.  */
   if (integer_zerop (varc1))
     {
@@ -368,7 +369,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
       gphi_iterator gsi;
 
       /* Either for VAR itself...  */
-      Value_Range var_range (TREE_TYPE (var));
+      int_range_max var_range (TREE_TYPE (var));
       get_range_query (cfun)->range_of_expr (var_range, var);
       if (var_range.varying_p () || var_range.undefined_p ())
 	rtype = VR_VARYING;
@@ -382,7 +383,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 
       /* Or for PHI results in loop->header where VAR is used as
 	 PHI argument from the loop preheader edge.  */
-      Value_Range phi_range (TREE_TYPE (var));
+      int_range_max phi_range (TREE_TYPE (var));
       for (gsi = gsi_start_phis (loop->header); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
 	  gphi *phi = gsi.phi ();
@@ -408,7 +409,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 		     involved.  */
 		  if (wi::gt_p (minv, maxv, sgn))
 		    {
-		      Value_Range vr (TREE_TYPE (var));
+		      int_range_max vr (TREE_TYPE (var));
 		      get_range_query (cfun)->range_of_expr (vr, var);
 		      if (vr.varying_p () || vr.undefined_p ())
 			rtype = VR_VARYING;
@@ -887,8 +888,8 @@ inverse (tree x, tree mask)
    condition S * i <> C.  If NO_OVERFLOW is true, then the control variable of
    the loop does not overflow.  EXIT_MUST_BE_TAKEN is true if we are guaranteed
    that the loop ends through this exit, i.e., the induction variable ever
-   reaches the value of C.  
-   
+   reaches the value of C.
+
    The value C is equal to final - base, where final and base are the final and
    initial value of the actual induction variable in the analysed loop.  BNDS
    bounds the value of this difference when computed in signed type with
@@ -1199,17 +1200,6 @@ number_of_iterations_lt_to_ne (tree type, affine_iv *iv0, affine_iv *iv1,
 	  if (integer_zerop (assumption))
 	    return false;
 	}
-      if (mpz_cmp (mmod, bnds->below) < 0)
-	noloop = boolean_false_node;
-      else if (POINTER_TYPE_P (type))
-	noloop = fold_build2 (GT_EXPR, boolean_type_node,
-			      iv0->base,
-			      fold_build_pointer_plus (iv1->base, tmod));
-      else
-	noloop = fold_build2 (GT_EXPR, boolean_type_node,
-			      iv0->base,
-			      fold_build2 (PLUS_EXPR, type1,
-					   iv1->base, tmod));
     }
   else
     {
@@ -1225,20 +1215,14 @@ number_of_iterations_lt_to_ne (tree type, affine_iv *iv0, affine_iv *iv1,
 	  if (integer_zerop (assumption))
 	    return false;
 	}
-      if (mpz_cmp (mmod, bnds->below) < 0)
-	noloop = boolean_false_node;
-      else if (POINTER_TYPE_P (type))
-	noloop = fold_build2 (GT_EXPR, boolean_type_node,
-			      fold_build_pointer_plus (iv0->base,
-						       fold_build1 (NEGATE_EXPR,
-								    type1, tmod)),
-			      iv1->base);
-      else
-	noloop = fold_build2 (GT_EXPR, boolean_type_node,
-			      fold_build2 (MINUS_EXPR, type1,
-					   iv0->base, tmod),
-			      iv1->base);
     }
+
+  /* IV0 < IV1 does not loop if IV0->base >= IV1->base.  */
+  if (mpz_cmp (mmod, bnds->below) < 0)
+    noloop = boolean_false_node;
+  else
+    noloop = fold_build2 (GE_EXPR, boolean_type_node,
+			  iv0->base, iv1->base);
 
   if (!integer_nonzerop (assumption))
     niter->assumptions = fold_build2 (TRUTH_AND_EXPR, boolean_type_node,
@@ -1809,7 +1793,7 @@ number_of_iterations_cond (class loop *loop,
   bounds bnds;
 
   /* If the test is not executed every iteration, wrapping may make the test
-     to pass again. 
+     to pass again.
      TODO: the overflow case can be still used as unreliable estimate of upper
      bound.  But we have no API to pass it down to number of iterations code
      and, at present, it will not use it anyway.  */
@@ -2254,6 +2238,8 @@ build_cltz_expr (tree src, bool leading, bool define_at_zero)
 			      build_int_cst (integer_type_node, prec));
 	}
     }
+  else if (fn == NULL_TREE)
+    return NULL_TREE;
   else if (prec == 2 * lli_prec)
     {
       tree src1 = fold_convert (long_long_unsigned_type_node,
@@ -2301,6 +2287,38 @@ build_cltz_expr (tree src, bool leading, bool define_at_zero)
     }
 
   return call;
+}
+
+/* Returns true if STMT is equivalent to x << 1.  */
+
+static bool
+is_lshift_by_1 (gassign *stmt)
+{
+  if (gimple_assign_rhs_code (stmt) == LSHIFT_EXPR
+      && integer_onep (gimple_assign_rhs2 (stmt)))
+    return true;
+  if (gimple_assign_rhs_code (stmt) == MULT_EXPR
+      && tree_fits_shwi_p (gimple_assign_rhs2 (stmt))
+      && tree_to_shwi (gimple_assign_rhs2 (stmt)) == 2)
+    return true;
+  return false;
+}
+
+/* Returns true if STMT is equivalent to x >> 1.  */
+
+static bool
+is_rshift_by_1 (gassign *stmt)
+{
+  if (!TYPE_UNSIGNED (TREE_TYPE (gimple_assign_lhs (stmt))))
+    return false;
+  if (gimple_assign_rhs_code (stmt) == RSHIFT_EXPR
+      && integer_onep (gimple_assign_rhs2 (stmt)))
+    return true;
+  if (trunc_or_exact_div_p (gimple_assign_rhs_code (stmt))
+      && tree_fits_shwi_p (gimple_assign_rhs2 (stmt))
+      && tree_to_shwi (gimple_assign_rhs2 (stmt)) == 2)
+    return true;
+  return false;
 }
 
 /* See comment below for number_of_iterations_bitcount.
@@ -2400,14 +2418,12 @@ number_of_iterations_cltz (loop_p loop, edge exit,
 
   /* Make sure iv_2_stmt is a logical shift by one stmt:
      iv_2 = iv_1 {<<|>>} 1  */
-  if (!is_gimple_assign (iv_2_stmt)
-      || (gimple_assign_rhs_code (iv_2_stmt) != LSHIFT_EXPR
-	  && (gimple_assign_rhs_code (iv_2_stmt) != RSHIFT_EXPR
-	      || !TYPE_UNSIGNED (TREE_TYPE (gimple_assign_lhs (iv_2_stmt)))))
-      || !integer_onep (gimple_assign_rhs2 (iv_2_stmt)))
+  if (!is_gimple_assign (iv_2_stmt))
     return false;
-
-  bool left_shift = (gimple_assign_rhs_code (iv_2_stmt) == LSHIFT_EXPR);
+  bool left_shift = false;
+  if (!((left_shift = is_lshift_by_1 (as_a <gassign *> (iv_2_stmt)))
+	|| is_rshift_by_1 (as_a <gassign *> (iv_2_stmt))))
+    return false;
 
   tree iv_1 = gimple_assign_rhs1 (iv_2_stmt);
 
@@ -2516,14 +2532,12 @@ number_of_iterations_cltz_complement (loop_p loop, edge exit,
 
   /* Make sure iv_2_stmt is a logical shift by one stmt:
      iv_2 = iv_1 {>>|<<} 1  */
-  if (!is_gimple_assign (iv_2_stmt)
-      || (gimple_assign_rhs_code (iv_2_stmt) != LSHIFT_EXPR
-	  && (gimple_assign_rhs_code (iv_2_stmt) != RSHIFT_EXPR
-	      || !TYPE_UNSIGNED (TREE_TYPE (gimple_assign_lhs (iv_2_stmt)))))
-      || !integer_onep (gimple_assign_rhs2 (iv_2_stmt)))
+  if (!is_gimple_assign (iv_2_stmt))
     return false;
-
-  bool left_shift = (gimple_assign_rhs_code (iv_2_stmt) == LSHIFT_EXPR);
+  bool left_shift = false;
+  if (!((left_shift = is_lshift_by_1 (as_a <gassign *> (iv_2_stmt)))
+	|| is_rshift_by_1 (as_a <gassign *> (iv_2_stmt))))
+    return false;
 
   tree iv_1 = gimple_assign_rhs1 (iv_2_stmt);
 
@@ -3583,7 +3597,51 @@ loop_niter_by_eval (class loop *loop, edge exit)
 	{
 	  phi = get_base_for (loop, op[j]);
 	  if (!phi)
-	    return chrec_dont_know;
+	    {
+	      gassign *def;
+	      if (j == 0
+		  && (cmp == NE_EXPR || cmp == EQ_EXPR)
+		  && TREE_CODE (op[0]) == SSA_NAME
+		  && TREE_CODE (op[1]) == INTEGER_CST
+		  && (def = dyn_cast <gassign *> (SSA_NAME_DEF_STMT (op[0])))
+		  && gimple_assign_rhs_code (def) == MEM_REF)
+		{
+		  tree mem = gimple_assign_rhs1 (def);
+		  affine_iv iv;
+		  if (TYPE_MODE (TREE_TYPE (mem)) == TYPE_MODE (char_type_node)
+		      && simple_iv (loop, loop,
+				    TREE_OPERAND (mem, 0), &iv, false)
+		      && tree_fits_uhwi_p (TREE_OPERAND (mem, 1))
+		      && tree_fits_uhwi_p (iv.step))
+		    {
+		      tree str, off;
+		      /* iv.base can be &"Foo" but also (char *)&"Foo" + 1.  */
+		      split_constant_offset (iv.base, &str, &off);
+		      STRIP_NOPS (str);
+		      if (TREE_CODE (str) == ADDR_EXPR
+			  && TREE_CODE (TREE_OPERAND (str, 0)) == STRING_CST
+			  && tree_fits_uhwi_p (off))
+			{
+			  str = TREE_OPERAND (str, 0);
+			  unsigned i = 0;
+			  for (unsigned HOST_WIDE_INT idx
+			       = (tree_to_uhwi (TREE_OPERAND (mem, 1))
+				  + tree_to_uhwi (off));
+			       idx < (unsigned)TREE_STRING_LENGTH (str)
+			       && i < MAX_ITERATIONS_TO_TRACK;
+			       idx += tree_to_uhwi (iv.step), ++i)
+			    {
+			      int res = compare_tree_int
+				(op[1], TREE_STRING_POINTER (str)[idx]);
+			      if ((cmp == NE_EXPR && res == 0)
+				  || (cmp == EQ_EXPR && res != 0))
+				return build_int_cst (unsigned_type_node, i);
+			    }
+			}
+		    }
+		}
+	      return chrec_dont_know;
+	    }
 	  val[j] = PHI_ARG_DEF_FROM_EDGE (phi, loop_preheader_edge (loop));
 	  next[j] = PHI_ARG_DEF_FROM_EDGE (phi, loop_latch_edge (loop));
 	}
@@ -4064,10 +4122,10 @@ record_nonwrapping_iv (class loop *loop, tree base, tree step, gimple *stmt,
   if (tree_int_cst_sign_bit (step))
     {
       wide_int max;
-      Value_Range base_range (TREE_TYPE (orig_base));
+      value_range base_range (TREE_TYPE (orig_base));
       if (get_range_query (cfun)->range_of_expr (base_range, orig_base)
 	  && !base_range.undefined_p ())
-	max = base_range.upper_bound ();
+	max = wi::to_wide (base_range.ubound ());
       extreme = fold_convert (unsigned_type, low);
       if (TREE_CODE (orig_base) == SSA_NAME
 	  && TREE_CODE (high) == INTEGER_CST
@@ -4087,10 +4145,10 @@ record_nonwrapping_iv (class loop *loop, tree base, tree step, gimple *stmt,
   else
     {
       wide_int min;
-      Value_Range base_range (TREE_TYPE (orig_base));
+      value_range base_range (TREE_TYPE (orig_base));
       if (get_range_query (cfun)->range_of_expr (base_range, orig_base)
 	  && !base_range.undefined_p ())
-	min = base_range.lower_bound ();
+	min = wi::to_wide (base_range.lbound ());
       extreme = fold_convert (unsigned_type, high);
       if (TREE_CODE (orig_base) == SSA_NAME
 	  && TREE_CODE (low) == INTEGER_CST
@@ -4138,7 +4196,7 @@ idx_infer_loop_bounds (tree base, tree *idx, void *dta)
     return true;
 
   /* For arrays that might have flexible sizes, it is not guaranteed that they
-     do not really extend over their declared size.  */ 
+     do not really extend over their declared size.  */
   if (array_ref_flexible_size_p (base))
     {
       has_flexible_size = true;
@@ -4367,7 +4425,7 @@ infer_loop_bounds_from_signedness (class loop *loop, gimple *stmt)
 
   low = lower_bound_in_type (type, type);
   high = upper_bound_in_type (type, type);
-  Value_Range r (TREE_TYPE (def));
+  int_range_max r (TREE_TYPE (def));
   get_range_query (cfun)->range_of_expr (r, def);
   if (!r.varying_p () && !r.undefined_p ())
     {
@@ -4402,7 +4460,7 @@ infer_loop_bounds_from_undefined (class loop *loop, basic_block *bbs)
 
       /* If BB is not executed in each iteration of the loop, we cannot
 	 use the operations in it to infer reliable upper bound on the
-	 # of iterations of the loop.  However, we can use it as a guess. 
+	 # of iterations of the loop.  However, we can use it as a guess.
 	 Reliable guesses come only from array bounds.  */
       reliable = dominated_by_p (CDI_DOMINATORS, loop->latch, bb);
 
@@ -4600,7 +4658,7 @@ discover_iteration_bound_by_body_walk (class loop *loop)
 		      insert = true;
 		      *entry = bound_index;
 		    }
-		    
+
 		  if (insert)
 		    queues[bound_index].safe_push (e->dest);
 		}
@@ -4639,7 +4697,7 @@ maybe_lower_iteration_bound (class loop *loop)
   bitmap visited;
 
   /* Collect all statements with interesting (i.e. lower than
-     nb_iterations_upper_bound) bound on them. 
+     nb_iterations_upper_bound) bound on them.
 
      TODO: Due to the way record_estimate choose estimates to store, the bounds
      will be always nb_iterations_upper_bound-1.  We can change this to record
@@ -4701,7 +4759,14 @@ maybe_lower_iteration_bound (class loop *loop)
           FOR_EACH_EDGE (e, ei, bb->succs)
 	    {
 	      if (loop_exit_edge_p (loop, e)
-		  || e == loop_latch_edge (loop))
+		  || e == loop_latch_edge (loop)
+		  /* When exiting an inner loop, verify it is finite.  */
+		  || (!flow_bb_inside_loop_p (bb->loop_father, e->dest)
+		      && !finite_loop_p (bb->loop_father))
+		  /* When we enter an irreducible region and the entry
+		     does not contain a bounding stmt assume it might be
+		     infinite.  */
+		  || (bb->flags & BB_IRREDUCIBLE_LOOP))
 		{
 		  found_exit = true;
 		  break;
@@ -4716,7 +4781,7 @@ maybe_lower_iteration_bound (class loop *loop)
   /* If every path through the loop reach bounding statement before exit,
      then we know the last iteration of the loop will have undefined effect
      and we can decrease number of iterations.  */
-    
+
   if (!found_exit)
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
@@ -5155,7 +5220,7 @@ n_of_executions_at_most (gimple *stmt,
 
      -- If NITER_BOUND->is_exit is false, then if we can prove that when STMT
 	is executed, then NITER_BOUND->stmt is executed as well in the same
-	iteration then STMT is executed at most NITER_BOUND->bound + 1 times. 
+	iteration then STMT is executed at most NITER_BOUND->bound + 1 times.
 
 	If we can determine that NITER_BOUND->stmt is always executed
 	after STMT, then STMT is executed at most NITER_BOUND->bound + 2 times.
@@ -5426,7 +5491,7 @@ scev_var_range_cant_overflow (tree var, tree step, class loop *loop)
   if (!def_bb || !dominated_by_p (CDI_DOMINATORS, loop->latch, def_bb))
     return false;
 
-  Value_Range r (TREE_TYPE (var));
+  int_range_max r (TREE_TYPE (var));
   get_range_query (cfun)->range_of_expr (r, var);
   if (r.varying_p () || r.undefined_p ())
     return false;

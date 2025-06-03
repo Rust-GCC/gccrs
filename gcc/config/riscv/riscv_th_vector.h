@@ -1,5 +1,5 @@
 /* RISC-V 'XTheadVector' Extension intrinsics include file.
-   Copyright (C) 2024 Free Software Foundation, Inc.
+   Copyright (C) 2024-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -46,4 +46,4 @@ extern "C" {
 }
 #endif // __cplusplus
 #endif // __riscv_xtheadvector
-#endif // __RISCV_TH_ECTOR_H
+#endif // __RISCV_TH_VECTOR_H

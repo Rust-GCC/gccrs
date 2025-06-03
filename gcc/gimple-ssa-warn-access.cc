@@ -1,7 +1,7 @@
 /* Pass to detect and issue warnings for invalid accesses, including
    invalid or mismatched allocation/deallocation calls.
 
-   Copyright (C) 2020-2024 Free Software Foundation, Inc.
+   Copyright (C) 2020-2025 Free Software Foundation, Inc.
    Contributed by Martin Sebor <msebor@redhat.com>.
 
    This file is part of GCC.
@@ -55,6 +55,8 @@
 #include "demangle.h"
 #include "attr-fnspec.h"
 #include "pointer-query.h"
+#include "pretty-print-markup.h"
+#include "gcc-urlifier.h"
 
 /* Return true if tree node X has an associated location.  */
 
@@ -330,7 +332,7 @@ check_nul_terminated_array (GimpleOrTree expr, tree src, tree bound)
   wide_int bndrng[2];
   if (bound)
     {
-      Value_Range r (TREE_TYPE (bound));
+      int_range_max r (TREE_TYPE (bound));
 
       get_range_query (cfun)->range_of_expr (r, bound);
 
@@ -600,13 +602,18 @@ maybe_warn_nonstring_arg (tree fndecl, GimpleOrTree exp)
       bool known_size = false;
       tree type = TREE_TYPE (decl);
 
+      while (TREE_CODE (type) == ARRAY_TYPE
+	     && TREE_CODE (TREE_TYPE (type)) == ARRAY_TYPE)
+	type = TREE_TYPE (type);
+
       /* Determine the array size.  For arrays of unknown bound and
 	 pointers reset BOUND to trigger the appropriate warning.  */
       if (TREE_CODE (type) == ARRAY_TYPE)
 	{
 	  if (tree arrbnd = TYPE_DOMAIN (type))
 	    {
-	      if ((arrbnd = TYPE_MAX_VALUE (arrbnd)))
+	      if ((arrbnd = TYPE_MAX_VALUE (arrbnd))
+		  && TREE_CODE (arrbnd) == INTEGER_CST)
 		{
 		  asize = wi::to_offset (arrbnd) + 1;
 		  known_size = true;
@@ -1762,7 +1769,23 @@ new_delete_mismatch_p (tree new_decl, tree delete_decl)
   void *np = NULL, *dp = NULL;
   demangle_component *ndc = cplus_demangle_v3_components (new_str, 0, &np);
   demangle_component *ddc = cplus_demangle_v3_components (del_str, 0, &dp);
-  bool mismatch = new_delete_mismatch_p (*ndc, *ddc);
+
+  /* Sometimes, notably quite often with coroutines, 'operator new' is
+     templated.  However, template arguments can't change whether a given
+     new/delete is a singleton or array one, nor what it is a member of, so
+     the template arguments can be safely ignored for the purposes of checking
+     for mismatches.   */
+
+  auto strip_dc_template = [] (demangle_component* dc)
+  {
+    if (dc->type == DEMANGLE_COMPONENT_TEMPLATE)
+      dc = dc->u.s_binary.left;
+    return dc;
+  };
+
+  bool mismatch = (ndc && ddc
+		   && new_delete_mismatch_p (*strip_dc_template (ndc),
+					     *strip_dc_template (ddc)));
   free (np);
   free (dp);
   return mismatch;
@@ -1932,52 +1955,49 @@ matching_alloc_calls_p (tree alloc_decl, tree dealloc_decl)
      headers.
      With AMATS set to the Allocator's Malloc ATtributes,
      and  RMATS set to Reallocator's Malloc ATtributes...  */
-  for (tree amats = DECL_ATTRIBUTES (alloc_decl),
-	 rmats = DECL_ATTRIBUTES (dealloc_decl);
-       (amats = lookup_attribute ("malloc", amats))
-	 || (rmats = lookup_attribute ("malloc", rmats));
-       amats = amats ? TREE_CHAIN (amats) : NULL_TREE,
-	 rmats = rmats ? TREE_CHAIN (rmats) : NULL_TREE)
-    {
-      if (tree args = amats ? TREE_VALUE (amats) : NULL_TREE)
-	if (tree adealloc = TREE_VALUE (args))
-	  {
-	    if (DECL_P (adealloc)
-		&& fndecl_built_in_p (adealloc, BUILT_IN_NORMAL))
-	      {
-		built_in_function fncode = DECL_FUNCTION_CODE (adealloc);
-		if (fncode == BUILT_IN_FREE || fncode == BUILT_IN_REALLOC)
-		  {
-		    if (realloc_kind == alloc_kind_t::builtin)
-		      return true;
-		    alloc_dealloc_kind = alloc_kind_t::builtin;
-		  }
-		continue;
-	      }
+  for (tree amats = DECL_ATTRIBUTES (alloc_decl);
+       (amats = lookup_attribute ("malloc", amats));
+       amats = amats ? TREE_CHAIN (amats) : NULL_TREE)
+    if (tree args = amats ? TREE_VALUE (amats) : NULL_TREE)
+      if (tree adealloc = TREE_VALUE (args))
+	{
+	  if (DECL_P (adealloc)
+	      && fndecl_built_in_p (adealloc, BUILT_IN_NORMAL))
+	    {
+	      built_in_function fncode = DECL_FUNCTION_CODE (adealloc);
+	      if (fncode == BUILT_IN_FREE || fncode == BUILT_IN_REALLOC)
+		{
+		  if (realloc_kind == alloc_kind_t::builtin)
+		    return true;
+		  alloc_dealloc_kind = alloc_kind_t::builtin;
+		}
+	      continue;
+	    }
 
-	    common_deallocs.add (adealloc);
-	  }
+	  common_deallocs.add (adealloc);
+	}
+  for (tree rmats = DECL_ATTRIBUTES (dealloc_decl);
+       (rmats = lookup_attribute ("malloc", rmats));
+       rmats = rmats ? TREE_CHAIN (rmats) : NULL_TREE)
+    if (tree args = rmats ? TREE_VALUE (rmats) : NULL_TREE)
+      if (tree ddealloc = TREE_VALUE (args))
+	{
+	  if (DECL_P (ddealloc)
+	      && fndecl_built_in_p (ddealloc, BUILT_IN_NORMAL))
+	    {
+	      built_in_function fncode = DECL_FUNCTION_CODE (ddealloc);
+	      if (fncode == BUILT_IN_FREE || fncode == BUILT_IN_REALLOC)
+		{
+		  if (alloc_dealloc_kind == alloc_kind_t::builtin)
+		    return true;
+		  realloc_dealloc_kind = alloc_kind_t::builtin;
+		}
+	      continue;
+	    }
 
-      if (tree args = rmats ? TREE_VALUE (rmats) : NULL_TREE)
-	if (tree ddealloc = TREE_VALUE (args))
-	  {
-	    if (DECL_P (ddealloc)
-		&& fndecl_built_in_p (ddealloc, BUILT_IN_NORMAL))
-	      {
-		built_in_function fncode = DECL_FUNCTION_CODE (ddealloc);
-		if (fncode == BUILT_IN_FREE || fncode == BUILT_IN_REALLOC)
-		  {
-		    if (alloc_dealloc_kind == alloc_kind_t::builtin)
-		      return true;
-		    realloc_dealloc_kind = alloc_kind_t::builtin;
-		  }
-		continue;
-	      }
-
-	    if (common_deallocs.add (ddealloc))
-	      return true;
-	  }
-    }
+	  if (common_deallocs.contains (ddealloc))
+	    return true;
+	}
 
   /* Succeed only if ALLOC_DECL and the reallocator DEALLOC_DECL share
      a built-in deallocator.  */
@@ -2816,7 +2836,7 @@ memmodel_to_uhwi (tree ord, gimple *stmt, unsigned HOST_WIDE_INT *cstval)
     {
       /* Use the range query to determine constant values in the absence
 	 of constant propagation (such as at -O0).  */
-      Value_Range rng (TREE_TYPE (ord));
+      int_range_max rng (TREE_TYPE (ord));
       if (!get_range_query (cfun)->range_of_expr (rng, ord, stmt)
 	  || !rng.singleton_p (&ord))
 	return false;
@@ -2942,15 +2962,14 @@ pass_waccess::maybe_warn_memmodel (gimple *stmt, tree ord_sucs,
 	return false;
 
       /* Print a note with the valid memory models.  */
-      pretty_printer pp;
-      pp_show_color (&pp) = pp_show_color (global_dc->printer);
+      auto_vec<const char *> strings;
       for (unsigned i = 0; valid[i] != UCHAR_MAX; ++i)
 	{
 	  const char *modname = memory_models[valid[i]].modname;
-	  pp_printf (&pp, "%s%qs", i ? ", " : "", modname);
+	  strings.safe_push (modname);
 	}
-
-      inform (loc, "valid models are %s", pp_formatted_text (&pp));
+      pp_markup::comma_separated_quoted_strings e (strings);
+      inform (loc, "valid models are %e", &e);
       return true;
     }
 
@@ -2992,19 +3011,16 @@ pass_waccess::maybe_warn_memmodel (gimple *stmt, tree ord_sucs,
 
 	/* Print a note with the valid failure memory models which are
 	   those with a value less than or equal to the success mode.  */
-	char buf[120];
-	*buf = '\0';
+	auto_vec<const char *> strings;
 	for (unsigned i = 0;
 	     memory_models[i].modval <= memmodel_base (sucs); ++i)
 	  {
-	    if (*buf)
-	      strcat (buf, ", ");
-
 	    const char *modname = memory_models[valid[i]].modname;
-	    sprintf (buf + strlen (buf), "'%s'", modname);
+	    strings.safe_push (modname);
 	  }
+	pp_markup::comma_separated_quoted_strings e (strings);
 
-	inform (loc, "valid models are %s", buf);
+	inform (loc, "valid models are %e", &e);
 	return true;
       }
 
@@ -3287,7 +3303,7 @@ pass_waccess::check_builtin (gcall *stmt)
 	check_memop_access (stmt, dst, NULL_TREE, len);
 	return true;
       }
-	
+
     default:
       if (check_atomic_builtin (stmt))
 	return true;
@@ -4213,7 +4229,7 @@ pass_waccess::check_pointer_uses (gimple *stmt, tree ptr,
 		 where the realloc call is known to have failed are valid.
 		 Ignore pointers that nothing is known about.  Those could
 		 have escaped along with their nullness.  */
-	      value_range vr;
+	      prange vr;
 	      if (m_ptr_qry.rvals->range_of_expr (vr, realloc_lhs, use_stmt))
 		{
 		  if (vr.zero_p ())
@@ -4750,6 +4766,8 @@ pass_waccess::check_call_dangling (gcall *call)
 unsigned
 pass_waccess::execute (function *fun)
 {
+  auto_urlify_attributes sentinel;
+
   calculate_dominance_info (CDI_DOMINATORS);
   calculate_dominance_info (CDI_POST_DOMINATORS);
 

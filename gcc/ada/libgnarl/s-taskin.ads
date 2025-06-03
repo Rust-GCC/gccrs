@@ -6,7 +6,7 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,9 +70,9 @@ package System.Tasking is
    --         Unlock (Y);
 
    --  Locks with lower (smaller) level number cannot be locked
-   --  while holding a lock with a higher level number. (The level
+   --  while holding a lock with a higher level number.
 
-   --  1. System.Tasking.PO_Simple.Protection.L (any PO lock)
+   --  1. System.Tasking.Protected_Objects.Protection.L (any PO lock)
    --  2. System.Tasking.Initialization.Global_Task_Lock (in body)
    --  3. System.Task_Primitives.Operations.Single_RTS_Lock
    --  4. System.Tasking.Ada_Task_Control_Block.LL.L (any TCB lock)
@@ -517,6 +517,17 @@ package System.Tasking is
       --  via dynamic priorities package.
       --
       --  Protection: Only written by Self, accessed by anyone
+
+      CPU_Is_Explicit : Boolean;
+      --  True if the task is either assigned to a CPU or explicitly not
+      --  assigned to a CPU through Not_A_Specific_CPU being used with the CPU
+      --  Aspect a subprogram in System.Multiprocessors.Dispatching_Domains.
+      --  False otherwise.
+      --  We keep track of this information to make it possible to accomodate
+      --  native affinity inheritance on some platforms when no RM D.16
+      --  features are used. An example of such a platform is Linux, where we
+      --  strive to make the taskset command line tool have the expected effect
+      --  when the program does not use RM D.16 features.
 
       Base_CPU : System.Multiprocessors.CPU_Range;
       --  Base CPU, only changed via dispatching domains package.
@@ -1184,18 +1195,19 @@ package System.Tasking is
    --  System.Tasking.Initialization being present, as was done before.
 
    procedure Initialize_ATCB
-     (Self_ID              : Task_Id;
-      Task_Entry_Point     : Task_Procedure_Access;
-      Task_Arg             : System.Address;
-      Parent               : Task_Id;
-      Elaborated           : Access_Boolean;
-      Base_Priority        : System.Any_Priority;
-      Base_CPU             : System.Multiprocessors.CPU_Range;
-      Domain               : Dispatching_Domain_Access;
-      Task_Info            : System.Task_Info.Task_Info_Type;
-      Stack_Size           : System.Parameters.Size_Type;
-      T                    : Task_Id;
-      Success              : out Boolean);
+     (Self_ID          : Task_Id;
+      Task_Entry_Point : Task_Procedure_Access;
+      Task_Arg         : System.Address;
+      Parent           : Task_Id;
+      Elaborated       : Access_Boolean;
+      Base_Priority    : System.Any_Priority;
+      Base_CPU         : System.Multiprocessors.CPU_Range;
+      CPU_Is_Explicit  : Boolean;
+      Domain           : Dispatching_Domain_Access;
+      Task_Info        : System.Task_Info.Task_Info_Type;
+      Stack_Size       : System.Parameters.Size_Type;
+      T                : Task_Id;
+      Success          : out Boolean);
    --  Initialize fields of the TCB for task T, and link into global TCB
    --  structures. Call this only with abort deferred and holding RTS_Lock.
    --  Self_ID is the calling task (normally the activator of T). Success is

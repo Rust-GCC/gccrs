@@ -1,5 +1,5 @@
 /* If-conversion header file.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -38,6 +38,22 @@ struct ce_if_block
   int num_then_insns;			/* # of insns in THEN block.  */
   int num_else_insns;			/* # of insns in ELSE block.  */
   int pass;				/* Pass number.  */
+};
+
+struct noce_multiple_sets_info
+{
+  /* A list of indices to instructions that we need to rewire into this
+     instruction when we replace them with temporary conditional moves.  */
+  auto_vec<int> rewired_src;
+  /* The true targets for a conditional move.  */
+  rtx target;
+  /* The temporaries introduced to allow us to not consider register
+     overlap.  */
+  rtx temporary;
+  /* The insns we've emitted.  */
+  rtx_insn *unmodified_insn;
+  /* True if a simple move can be used instead of a conditional move.  */
+  bool need_cmov;
 };
 
 /* Used by noce_process_if_block to communicate with its subroutines.

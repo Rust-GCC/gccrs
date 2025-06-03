@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Zack Weinberg <zack@codesourcery.com>
 
 This file is part of GCC.
@@ -58,7 +58,7 @@ __gthread_once (__gthread_once_t * __guard, void (*__func) (void))
 
   /* Busy-wait until we have exclusive access to the state.  Check if
      another thread managed to perform the init call in the interim.  */
-  
+
   while (!__TAS(&__guard->busy))
     {
       if (__guard->done)

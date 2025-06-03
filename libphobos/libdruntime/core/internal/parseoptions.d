@@ -9,12 +9,10 @@
 
 module core.internal.parseoptions;
 
-import core.stdc.stdlib;
-import core.stdc.stdio;
-import core.stdc.ctype;
-import core.stdc.string;
-import core.vararg;
 import core.internal.traits : externDFunc, hasUDA;
+import core.stdc.ctype : isdigit, isspace;
+import core.stdc.stdio : fprintf, snprintf, sscanf, stderr;
+import core.vararg;
 
 
 @nogc nothrow:
@@ -219,13 +217,12 @@ do
                     return overflowedError(optname, str);
 
                 i++;
-                break;
             }
             else // unexpected non-digit character
             {
                 i = 0;
-                break;
             }
+            break;
         }
     }
 
@@ -290,32 +287,8 @@ do
     assert(n > 4 && n < fmt.length);
 
     int nscanned;
-    version (CRuntime_DigitalMars)
-    {
-        /* Older sscanf's in snn.lib can write to its first argument, causing a crash
-        * if the string is in readonly memory. Recent updates to DMD
-        * https://github.com/dlang/dmd/pull/6546
-        * put string literals in readonly memory.
-        * Although sscanf has been fixed,
-        * http://ftp.digitalmars.com/snn.lib
-        * this workaround is here so it still works with the older snn.lib.
-        */
-        // Create mutable copy of str
-        const length = str.length;
-        char* mptr = cast(char*)malloc(length + 1);
-        assert(mptr);
-        memcpy(mptr, str.ptr, length);
-        mptr[length] = 0;
-        const result = sscanf(mptr, fmt.ptr, &res, &nscanned);
-        free(mptr);
-        if (result < 1)
-            return parseError("a float", optname, str, errName);
-    }
-    else
-    {
-        if (sscanf(str.ptr, fmt.ptr, &res, &nscanned) < 1)
-            return parseError("a float", optname, str, errName);
-    }
+    if (sscanf(str.ptr, fmt.ptr, &res, &nscanned) < 1)
+        return parseError("a float", optname, str, errName);
     str = str[nscanned .. $];
     return true;
 }

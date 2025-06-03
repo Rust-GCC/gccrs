@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---             Copyright (C) 2021-2024, Free Software Foundation, Inc.      --
+--             Copyright (C) 2021-2025, Free Software Foundation, Inc.      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,7 @@ package System.Val_Enum_8 is
       Indexes : System.Address;
       Hash    : Impl.Hash_Function_Ptr;
       Num     : Natural;
+      Is_Wide : Boolean;
       Str     : String)
       return    Natural
      renames Impl.Value_Enumeration;
@@ -54,6 +55,7 @@ package System.Val_Enum_8 is
       Indexes : System.Address;
       Hash    : Impl.Hash_Function_Ptr;
       Num     : Natural;
+      Is_Wide : Boolean;
       Str     : String)
       return    Boolean
      renames Impl.Valid_Value_Enumeration;

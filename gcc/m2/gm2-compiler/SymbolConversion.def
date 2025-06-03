@@ -1,6 +1,6 @@
 (* SymbolConversion.def mapping between m2 symbols and gcc symbols.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -29,24 +29,29 @@ DEFINITION MODULE SymbolConversion ;
     Description: mapping between m2 symbols and gcc symbols.
 *)
 
-FROM m2tree IMPORT Tree ;
+FROM gcctypes IMPORT tree ;
 FROM SYSTEM IMPORT WORD ;
-EXPORT QUALIFIED Mod2Gcc, AddModGcc, GccKnowsAbout, AddTemporaryKnown,
-                 RemoveTemporaryKnown, Poison, RemoveMod2Gcc ;
 
 
 (*
    Mod2Gcc - given a modula-2 symbol, sym, return the gcc equivalent.
 *)
 
-PROCEDURE Mod2Gcc (sym: CARDINAL) : Tree ;
+PROCEDURE Mod2Gcc (sym: CARDINAL) : tree ;
+
+
+(*
+   Gcc2Mod - given a gcc tree return the modula-2 symbol.
+*)
+
+PROCEDURE Gcc2Mod (tree: tree) : CARDINAL ;
 
 
 (*
    AddModGcc - adds the tuple [ sym, gcc ] into the database.
 *)
 
-PROCEDURE AddModGcc (sym: CARDINAL; gcc: Tree) ;
+PROCEDURE AddModGcc (sym: CARDINAL; gcc: tree) ;
 
 
 (*

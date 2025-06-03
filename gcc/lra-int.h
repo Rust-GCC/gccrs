@@ -1,5 +1,5 @@
 /* Local Register Allocator (LRA) intercommunication header file.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -252,6 +252,18 @@ typedef class lra_insn_recog_data *lra_insn_recog_data_t;
    for preventing LRA cycling in a bug case.  */
 #define LRA_MAX_ASSIGNMENT_ITERATION_NUMBER 30
 
+/* Maximum allowed number of tries to split hard reg live ranges after failure
+   in assignment of reload pseudos.  Theoretical bound for the value is the
+   number of the insn reload pseudos plus the number of inheritance pseudos
+   generated from the reload pseudos.  This bound can be achieved when all the
+   reload pseudos and the inheritance pseudos require hard reg splitting for
+   their assignment.  This is extremely unlikely event.  */
+#define LRA_MAX_FAILED_SPLITS 10
+
+#if LRA_MAX_FAILED_SPLITS >= LRA_MAX_ASSIGNMENT_ITERATION_NUMBER
+#error wrong LRA_MAX_FAILED_SPLITS value
+#endif
+
 /* The maximal number of inheritance/split passes in LRA.  It should
    be more 1 in order to perform caller saves transformations and much
    less MAX_CONSTRAINT_ITERATION_NUMBER to prevent LRA to do as many
@@ -392,7 +404,7 @@ extern int lra_assignment_iter;
 extern int lra_assignment_iter_after_spill;
 extern void lra_setup_reg_renumber (int, int, bool);
 extern bool lra_assign (bool &);
-extern bool lra_split_hard_reg_for (void);
+extern bool lra_split_hard_reg_for (bool fail_p);
 
 /* lra-coalesce.cc: */
 
@@ -419,6 +431,7 @@ extern rtx lra_eliminate_regs_1 (rtx_insn *, rtx, machine_mode,
 				 bool, bool, poly_int64, bool);
 extern void eliminate_regs_in_insn (rtx_insn *insn, bool, bool, poly_int64);
 extern int lra_update_fp2sp_elimination (int *spilled_pseudos);
+extern bool lra_fp_pseudo_p (void);
 extern void lra_eliminate (bool, bool);
 
 extern poly_int64 lra_update_sp_offset (rtx, poly_int64);

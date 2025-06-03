@@ -1,5 +1,5 @@
 /* Implementation of Fortran 2003 Polymorphism.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Paul Richard Thomas <pault@gcc.gnu.org>
    and Janus Weil <janus@gcc.gnu.org>
 
@@ -264,10 +264,12 @@ void
 gfc_add_class_array_ref (gfc_expr *e)
 {
   int rank = CLASS_DATA (e)->as->rank;
+  int corank = CLASS_DATA (e)->as->corank;
   gfc_array_spec *as = CLASS_DATA (e)->as;
   gfc_ref *ref = NULL;
   gfc_add_data_component (e);
   e->rank = rank;
+  e->corank = corank;
   for (ref = e->ref; ref; ref = ref->next)
     if (!ref->next)
       break;
@@ -377,27 +379,33 @@ gfc_is_class_scalar_expr (gfc_expr *e)
     return false;
 
   /* Is this a class object?  */
-  if (e->symtree
-	&& e->symtree->n.sym->ts.type == BT_CLASS
-	&& CLASS_DATA (e->symtree->n.sym)
-	&& !CLASS_DATA (e->symtree->n.sym)->attr.dimension
-	&& (e->ref == NULL
-	    || (e->ref->type == REF_COMPONENT
-		&& strcmp (e->ref->u.c.component->name, "_data") == 0
-		&& e->ref->next == NULL)))
+  if (e->symtree && e->symtree->n.sym->ts.type == BT_CLASS
+      && CLASS_DATA (e->symtree->n.sym)
+      && !CLASS_DATA (e->symtree->n.sym)->attr.dimension
+      && (e->ref == NULL
+	  || (e->ref->type == REF_COMPONENT
+	      && strcmp (e->ref->u.c.component->name, "_data") == 0
+	      && (e->ref->next == NULL
+		  || (e->ref->next->type == REF_ARRAY
+		      && e->ref->next->u.ar.codimen > 0
+		      && e->ref->next->u.ar.dimen == 0
+		      && e->ref->next->next == NULL)))))
     return true;
 
   /* Or is the final reference BT_CLASS or _data?  */
   for (ref = e->ref; ref; ref = ref->next)
     {
-      if (ref->type == REF_COMPONENT
-	    && ref->u.c.component->ts.type == BT_CLASS
-	    && CLASS_DATA (ref->u.c.component)
-	    && !CLASS_DATA (ref->u.c.component)->attr.dimension
-	    && (ref->next == NULL
-		|| (ref->next->type == REF_COMPONENT
-		    && strcmp (ref->next->u.c.component->name, "_data") == 0
-		    && ref->next->next == NULL)))
+      if (ref->type == REF_COMPONENT && ref->u.c.component->ts.type == BT_CLASS
+	  && CLASS_DATA (ref->u.c.component)
+	  && !CLASS_DATA (ref->u.c.component)->attr.dimension
+	  && (ref->next == NULL
+	      || (ref->next->type == REF_COMPONENT
+		  && strcmp (ref->next->u.c.component->name, "_data") == 0
+		  && (ref->next->next == NULL
+		      || (ref->next->next->type == REF_ARRAY
+			  && ref->next->next->u.ar.codimen > 0
+			  && ref->next->next->u.ar.dimen == 0
+			  && ref->next->next->next == NULL)))))
 	return true;
     }
 
@@ -709,8 +717,12 @@ gfc_build_class_symbol (gfc_typespec *ts, symbol_attribute *attr,
      work on the declared type. All array type other than deferred shape or
      assumed rank are added to the function namespace to ensure that they
      are properly distinguished.  */
-  if (attr->dummy && !attr->codimension && (*as)
-      && !((*as)->type == AS_DEFERRED || (*as)->type == AS_ASSUMED_RANK))
+  if (attr->dummy && (*as)
+      && ((!attr->codimension
+	   && !((*as)->type == AS_DEFERRED || (*as)->type == AS_ASSUMED_RANK))
+	  || (attr->codimension
+	      && !((*as)->cotype == AS_DEFERRED
+		   || (*as)->cotype == AS_ASSUMED_RANK))))
     {
       char *sname;
       ns = gfc_current_ns;
@@ -815,6 +827,56 @@ gfc_build_class_symbol (gfc_typespec *ts, symbol_attribute *attr,
 }
 
 
+/* Change class, using gfc_build_class_symbol. This is needed for associate
+   names, when rank changes or a derived type is produced by resolution.  */
+
+void
+gfc_change_class (gfc_typespec *ts, symbol_attribute *sym_attr,
+		  gfc_array_spec *sym_as, int rank, int corank)
+{
+  symbol_attribute attr;
+  gfc_component *c;
+  gfc_array_spec *as = NULL;
+  gfc_symbol *der = ts->u.derived;
+
+  ts->type = BT_CLASS;
+  attr = *sym_attr;
+  attr.class_ok = 0;
+  attr.associate_var = 1;
+  attr.class_pointer = 1;
+  attr.allocatable = 0;
+  attr.pointer = 1;
+  attr.dimension = rank ? 1 : 0;
+  if (rank)
+    {
+      if (sym_as)
+	as = gfc_copy_array_spec (sym_as);
+      else
+	{
+	  as = gfc_get_array_spec ();
+	  as->rank = rank;
+	  as->type = AS_DEFERRED;
+	  as->corank = corank;
+	}
+    }
+  if (as && as->corank != 0)
+    attr.codimension = 1;
+
+  if (!gfc_build_class_symbol (ts, &attr, &as))
+    gcc_unreachable ();
+
+  gfc_set_sym_referenced (ts->u.derived);
+
+  /* Make sure the _vptr is set.  */
+  c = gfc_find_component (ts->u.derived, "_vptr", true, true, NULL);
+  if (c->ts.u.derived == NULL)
+    c->ts.u.derived = gfc_find_derived_vtab (der);
+  /* _vptr now has the _vtab in it, change it to the _vtype.  */
+  if (c->ts.u.derived->attr.vtab)
+    c->ts.u.derived = c->ts.u.derived->ts.u.derived;
+}
+
+
 /* Add a procedure pointer component to the vtype
    to represent a specific type-bound procedure.  */
 
@@ -822,11 +884,22 @@ static void
 add_proc_comp (gfc_symbol *vtype, const char *name, gfc_typebound_proc *tb)
 {
   gfc_component *c;
-
-  if (tb->non_overridable && !tb->overridden)
-    return;
+  bool is_abstract = false;
 
   c = gfc_find_component (vtype, name, true, true, NULL);
+
+  /* If the present component typebound proc is abstract, the new version
+     should unconditionally be tested if it is a suitable replacement.  */
+  if (c && c->tb && c->tb->u.specific
+      && c->tb->u.specific->n.sym->attr.abstract)
+    is_abstract = true;
+
+  /* Pass on the new tb being not overridable if a component is found and
+     either there is not an overridden specific or the present component
+     tb is abstract. This ensures that possible, viable replacements are
+     loaded.  */
+  if (tb->non_overridable && !tb->overridden && !is_abstract && c)
+    return;
 
   if (c == NULL)
     {
@@ -1007,6 +1080,7 @@ finalize_component (gfc_expr *expr, gfc_symbol *derived, gfc_component *comp,
       ref->next->u.ar.as = comp->ts.type == BT_CLASS ? CLASS_DATA (comp)->as
 							: comp->as;
       e->rank = ref->next->u.ar.as->rank;
+      e->corank = ref->next->u.ar.as->corank;
       ref->next->u.ar.type = e->rank ? AR_FULL : AR_ELEMENT;
     }
 
@@ -1088,8 +1162,9 @@ finalize_component (gfc_expr *expr, gfc_symbol *derived, gfc_component *comp,
 
       gcc_assert (c);
 
-      /* Set scalar argument for storage_size.  */
-      gfc_get_symbol ("comp_byte_stride", sub_ns, &byte_stride);
+      /* Set scalar argument for storage_size. A leading underscore in
+	 the name prevents an unwanted finalization.  */
+      gfc_get_symbol ("_comp_byte_stride", sub_ns, &byte_stride);
       byte_stride->ts = e->ts;
       byte_stride->attr.flavor = FL_VARIABLE;
       byte_stride->attr.value = 1;
@@ -1664,7 +1739,7 @@ generate_finalization_wrapper (gfc_symbol *derived, gfc_namespace *ns,
   gfc_expr *ancestor_wrapper = NULL, *rank;
   gfc_iterator *iter;
 
-  if (derived->attr.unlimited_polymorphic)
+  if (derived->attr.unlimited_polymorphic || derived->error)
     {
       vtab_final->initializer = gfc_get_null_expr (NULL);
       return;
@@ -2423,6 +2498,7 @@ gfc_find_derived_vtab (gfc_symbol *derived)
 	  vtab->attr.save = SAVE_IMPLICIT;
 	  vtab->attr.vtab = 1;
 	  vtab->attr.access = ACCESS_PUBLIC;
+	  vtab->attr.artificial = 1;
 	  gfc_set_sym_referenced (vtab);
 	  free (name);
 	  name = xasprintf ("__vtype_%s", tname);
@@ -2432,20 +2508,6 @@ gfc_find_derived_vtab (gfc_symbol *derived)
 	    {
 	      gfc_component *c;
 	      gfc_symbol *parent = NULL, *parent_vtab = NULL;
-	      bool rdt = false;
-
-	      /* Is this a derived type with recursive allocatable
-		 components?  */
-	      c = (derived->attr.unlimited_polymorphic
-		   || derived->attr.abstract) ?
-		  NULL : derived->components;
-	      for (; c; c= c->next)
-		if (c->ts.type == BT_DERIVED
-		    && c->ts.u.derived == derived)
-		  {
-		    rdt = true;
-		    break;
-		  }
 
 	      gfc_get_symbol (name, ns, &vtype);
 	      if (!gfc_add_flavor (&vtype->attr, FL_DERIVED, NULL,
@@ -2549,6 +2611,7 @@ gfc_find_derived_vtab (gfc_symbol *derived)
 		goto cleanup;
 	      c->attr.proc_pointer = 1;
 	      c->attr.access = ACCESS_PRIVATE;
+	      c->attr.artificial = 1;
 	      c->tb = XCNEW (gfc_typebound_proc);
 	      c->tb->ppc = 1;
 	      if (derived->attr.unlimited_polymorphic
@@ -2626,11 +2689,11 @@ gfc_find_derived_vtab (gfc_symbol *derived)
 		goto cleanup;
 	      c->attr.proc_pointer = 1;
 	      c->attr.access = ACCESS_PRIVATE;
+	      c->attr.artificial = 1;
 	      c->tb = XCNEW (gfc_typebound_proc);
 	      c->tb->ppc = 1;
-	      if (derived->attr.unlimited_polymorphic
-		  || derived->attr.abstract
-		  || !rdt)
+	      if (derived->attr.unlimited_polymorphic || derived->attr.abstract
+		  || !derived->attr.recursive)
 		c->initializer = gfc_get_null_expr (NULL);
 	      else
 		{
@@ -2891,6 +2954,7 @@ find_intrinsic_vtab (gfc_typespec *ts)
 		goto cleanup;
 	      c->attr.proc_pointer = 1;
 	      c->attr.access = ACCESS_PRIVATE;
+	      c->attr.artificial = 1;
 	      c->tb = XCNEW (gfc_typebound_proc);
 	      c->tb->ppc = 1;
 

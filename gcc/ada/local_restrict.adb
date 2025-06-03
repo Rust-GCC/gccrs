@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -90,22 +90,28 @@ package body Local_Restrict is
             return Result;
          end if;
 
-         Scop := Enclosing_Declaration (Scop);
-         if Present (Scop) then
-            Scop := Parent (Scop);
+         declare
+            Saved_Scope : constant Node_Id := Scop;
+         begin
+            Scop := Enclosing_Declaration (Scop);
             if Present (Scop) then
-               --  For a subprogram associated with a type, we don't care
-               --  where the type was frozen; continue from the type.
+               Scop := Parent (Scop);
+               if Present (Scop) then
+                  --  For a subprogram associated with a type, we don't care
+                  --  where the type was frozen; continue from the type.
 
-               if Nkind (Scop) = N_Freeze_Entity then
-                  Scop := Scope (Entity (Scop));
-               elsif Nkind (Parent (Scop)) = N_Freeze_Entity then
-                  Scop := Scope (Entity (Parent (Scop)));
-               else
-                  Scop := Find_Enclosing_Scope (Scop);
+                  if Nkind (Scop) = N_Freeze_Entity then
+                     Scop := Scope (Entity (Scop));
+                  elsif Nkind (Parent (Scop)) = N_Freeze_Entity then
+                     Scop := Scope (Entity (Parent (Scop)));
+                  elsif Present (Scope (Saved_Scope)) then
+                     Scop := Scope (Saved_Scope);
+                  else
+                     Scop := Find_Enclosing_Scope (Scop);
+                  end if;
                end if;
             end if;
-         end if;
+         end;
       end loop;
 
       return Empty;

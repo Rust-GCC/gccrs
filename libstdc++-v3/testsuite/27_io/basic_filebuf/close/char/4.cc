@@ -1,6 +1,6 @@
 // 2003-05-19  Paolo Carlini  <pcarlini@unitus.it>
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,10 +18,9 @@
 // <http://www.gnu.org/licenses/>.
 
 // { dg-require-fileio "" }
+// { dg-additional-files "filebuf_virtuals-1.txt" }
 
-// 27.8.1.3 filebuf member functions
-// @require@ %-*.tst %-*.txt
-// @diff@ %-*.tst %-*.txt
+// C++98 27.8.1.3 filebuf member functions
 
 // Test that upon filebuf::close() 27.8.1.1,3 is enforced.
 

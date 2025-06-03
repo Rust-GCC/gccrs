@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -375,7 +375,7 @@ Late::visit (AST::IdentifierExpr &expr)
     }
   else if (funny_error)
     {
-      diagnostic_finalizer (global_dc) = Resolver::funny_ice_finalizer;
+      diagnostic_text_finalizer (global_dc) = Resolver::funny_ice_text_finalizer;
       emit_diagnostic (DK_ICE_NOBT, expr.get_locus (), -1,
 		       "are you trying to break %s? how dare you?",
 		       expr.as_string ().c_str ());

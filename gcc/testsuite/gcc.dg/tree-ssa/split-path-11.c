@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fsplit-paths -fdump-tree-split-paths-details -w" } */
+/* { dg-options "-O2 -fno-tree-vectorize -fsplit-paths -fdump-tree-split-paths-details -w" } */
 
 void foo(unsigned long long *M)
 {
@@ -11,4 +11,4 @@ void foo(unsigned long long *M)
     }
 }
 
-/* { dg-final { scan-tree-dump-times "join point for if-convertable half-diamond" 1 "split-paths" } } */
+/* { dg-final { scan-tree-dump-times "join point for if-convertable" 1 "split-paths" } } */

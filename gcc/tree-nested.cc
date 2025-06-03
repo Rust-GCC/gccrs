@@ -1,5 +1,5 @@
 /* Nested function decomposition for GIMPLE.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -46,6 +46,7 @@
 #include "tree-nested.h"
 #include "symbol-summary.h"
 #include "symtab-thunks.h"
+#include "attribs.h"
 
 /* Summary of nested functions.  */
 static function_summary <nested_function_info *>
@@ -782,8 +783,8 @@ get_nl_goto_field (struct nesting_info *info)
       else
 	type = lang_hooks.types.type_for_mode (Pmode, 1);
 
-      scalar_int_mode mode
-	= as_a <scalar_int_mode> (STACK_SAVEAREA_MODE (SAVE_NONLOCAL));
+      fixed_size_mode mode
+	= as_a <fixed_size_mode> (STACK_SAVEAREA_MODE (SAVE_NONLOCAL));
       size = GET_MODE_SIZE (mode);
       size = size / GET_MODE_SIZE (Pmode);
       size = size + 1;
@@ -907,7 +908,11 @@ walk_all_functions (walk_stmt_fn callback_stmt, walk_tree_fn callback_op,
    add a VIEW_CONVERT_EXPR to each such operand for each call to the nested
    function.  The former is not practical.  The latter would still require
    detecting this case to know when to add the conversions.  So, for now at
-   least, we don't inline such an enclosing function.
+   least, we don't inline such an enclosing function.  A similar issue
+   applies if the nested function has a variably modified return type, and
+   is not inlined, but the enclosing function is inlined and so the type of
+   the return slot as used in the enclosing function is remapped, so also
+   avoid inlining in that case.
 
    We have to do that check recursively, so here return indicating whether
    FNDECL has such a nested function.  ORIG_FN is the function we were
@@ -928,6 +933,9 @@ check_for_nested_with_variably_modified (tree fndecl, tree orig_fndecl)
   for (cgn = first_nested_function (cgn); cgn;
        cgn = next_nested_function (cgn))
     {
+      if (variably_modified_type_p (TREE_TYPE (TREE_TYPE (cgn->decl)),
+				    orig_fndecl))
+	return true;
       for (arg = DECL_ARGUMENTS (cgn->decl); arg; arg = DECL_CHAIN (arg))
 	if (variably_modified_type_p (TREE_TYPE (arg), orig_fndecl))
 	  return true;
@@ -966,7 +974,13 @@ create_nesting_tree (struct cgraph_node *cgn)
   /* See discussion at check_for_nested_with_variably_modified for a
      discussion of why this has to be here.  */
   if (check_for_nested_with_variably_modified (info->context, info->context))
-    DECL_UNINLINABLE (info->context) = true;
+    {
+      DECL_UNINLINABLE (info->context) = true;
+      tree attrs = DECL_ATTRIBUTES (info->context);
+      if (lookup_attribute ("noclone", attrs) == NULL)
+	DECL_ATTRIBUTES (info->context)
+	  = tree_cons (get_identifier ("noclone"), NULL, attrs);
+    }
 
   return info;
 }
@@ -1047,6 +1061,37 @@ get_frame_field (struct nesting_info *info, tree target_context,
 
 static void note_nonlocal_vla_type (struct nesting_info *info, tree type);
 
+/* Helper for get_nonlocal_debug_decl and get_local_debug_decl.  */
+
+static tree
+get_debug_decl (tree decl)
+{
+  tree new_decl
+    = build_decl (DECL_SOURCE_LOCATION (decl),
+		  VAR_DECL, DECL_NAME (decl), TREE_TYPE (decl));
+  DECL_ARTIFICIAL (new_decl) = DECL_ARTIFICIAL (decl);
+  DECL_IGNORED_P (new_decl) = DECL_IGNORED_P (decl);
+  TREE_THIS_VOLATILE (new_decl) = TREE_THIS_VOLATILE (decl);
+  TREE_SIDE_EFFECTS (new_decl) = TREE_SIDE_EFFECTS (decl);
+  TREE_READONLY (new_decl) = TREE_READONLY (decl);
+  TREE_ADDRESSABLE (new_decl) = TREE_ADDRESSABLE (decl);
+  DECL_SEEN_IN_BIND_EXPR_P (new_decl) = 1;
+  if ((TREE_CODE (decl) == PARM_DECL
+       || TREE_CODE (decl) == RESULT_DECL
+       || VAR_P (decl))
+      && DECL_BY_REFERENCE (decl))
+    DECL_BY_REFERENCE (new_decl) = 1;
+  /* Copy DECL_LANG_SPECIFIC and DECL_LANG_FLAG_* for OpenMP langhook
+     purposes.  */
+  DECL_LANG_SPECIFIC (new_decl) = DECL_LANG_SPECIFIC (decl);
+#define COPY_DLF(n) DECL_LANG_FLAG_##n (new_decl) = DECL_LANG_FLAG_##n (decl)
+  COPY_DLF (0); COPY_DLF (1); COPY_DLF (2); COPY_DLF (3);
+  COPY_DLF (4); COPY_DLF (5); COPY_DLF (6); COPY_DLF (7);
+  COPY_DLF (8);
+#undef COPY_DLF
+  return new_decl;
+}
+
 /* A subroutine of convert_nonlocal_reference_op.  Create a local variable
    in the nested function with DECL_VALUE_EXPR set to reference the true
    variable in the parent function.  This is used both for debug info
@@ -1094,21 +1139,8 @@ get_nonlocal_debug_decl (struct nesting_info *info, tree decl)
     x = build_simple_mem_ref_notrap (x);
 
   /* ??? We should be remapping types as well, surely.  */
-  new_decl = build_decl (DECL_SOURCE_LOCATION (decl),
-			 VAR_DECL, DECL_NAME (decl), TREE_TYPE (decl));
+  new_decl = get_debug_decl (decl);
   DECL_CONTEXT (new_decl) = info->context;
-  DECL_ARTIFICIAL (new_decl) = DECL_ARTIFICIAL (decl);
-  DECL_IGNORED_P (new_decl) = DECL_IGNORED_P (decl);
-  TREE_THIS_VOLATILE (new_decl) = TREE_THIS_VOLATILE (decl);
-  TREE_SIDE_EFFECTS (new_decl) = TREE_SIDE_EFFECTS (decl);
-  TREE_READONLY (new_decl) = TREE_READONLY (decl);
-  TREE_ADDRESSABLE (new_decl) = TREE_ADDRESSABLE (decl);
-  DECL_SEEN_IN_BIND_EXPR_P (new_decl) = 1;
-  if ((TREE_CODE (decl) == PARM_DECL
-       || TREE_CODE (decl) == RESULT_DECL
-       || VAR_P (decl))
-      && DECL_BY_REFERENCE (decl))
-    DECL_BY_REFERENCE (new_decl) = 1;
 
   SET_DECL_VALUE_EXPR (new_decl, x);
   DECL_HAS_VALUE_EXPR_P (new_decl) = 1;
@@ -1892,21 +1924,8 @@ get_local_debug_decl (struct nesting_info *info, tree decl, tree field)
   x = info->frame_decl;
   x = build3 (COMPONENT_REF, TREE_TYPE (field), x, field, NULL_TREE);
 
-  new_decl = build_decl (DECL_SOURCE_LOCATION (decl),
-			 VAR_DECL, DECL_NAME (decl), TREE_TYPE (decl));
+  new_decl = get_debug_decl (decl);
   DECL_CONTEXT (new_decl) = info->context;
-  DECL_ARTIFICIAL (new_decl) = DECL_ARTIFICIAL (decl);
-  DECL_IGNORED_P (new_decl) = DECL_IGNORED_P (decl);
-  TREE_THIS_VOLATILE (new_decl) = TREE_THIS_VOLATILE (decl);
-  TREE_SIDE_EFFECTS (new_decl) = TREE_SIDE_EFFECTS (decl);
-  TREE_READONLY (new_decl) = TREE_READONLY (decl);
-  TREE_ADDRESSABLE (new_decl) = TREE_ADDRESSABLE (decl);
-  DECL_SEEN_IN_BIND_EXPR_P (new_decl) = 1;
-  if ((TREE_CODE (decl) == PARM_DECL
-       || TREE_CODE (decl) == RESULT_DECL
-       || VAR_P (decl))
-      && DECL_BY_REFERENCE (decl))
-    DECL_BY_REFERENCE (new_decl) = 1;
 
   SET_DECL_VALUE_EXPR (new_decl, x);
   DECL_HAS_VALUE_EXPR_P (new_decl) = 1;
@@ -2675,6 +2694,7 @@ convert_nl_goto_reference (gimple_stmt_iterator *gsi, bool *handled_ops_p,
     {
       new_label = create_artificial_label (UNKNOWN_LOCATION);
       DECL_NONLOCAL (new_label) = 1;
+      DECL_CONTEXT (new_label) = target_context;
       *slot = new_label;
     }
   else
@@ -2901,9 +2921,11 @@ convert_tramp_reference_stmt (gimple_stmt_iterator *gsi, bool *handled_ops_p,
 	      continue;
 	    decl = i ? get_chain_decl (info) : info->frame_decl;
 	    /* Don't add CHAIN.* or FRAME.* twice.  */
-	    for (c = gimple_omp_taskreg_clauses (stmt);
-		 c;
-		 c = OMP_CLAUSE_CHAIN (c))
+	    if (gimple_code (stmt) == GIMPLE_OMP_TARGET)
+	      c = gimple_omp_target_clauses (stmt);
+	    else
+	      c = gimple_omp_taskreg_clauses (stmt);
+	    for (; c; c = OMP_CLAUSE_CHAIN (c))
 	      if ((OMP_CLAUSE_CODE (c) == OMP_CLAUSE_FIRSTPRIVATE
 		   || OMP_CLAUSE_CODE (c) == OMP_CLAUSE_SHARED)
 		  && OMP_CLAUSE_DECL (c) == decl)

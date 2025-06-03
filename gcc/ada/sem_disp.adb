@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -89,7 +89,9 @@ package body Sem_Disp is
    --  to the found entity; otherwise return Empty.
    --
    --  This routine does not search for non-hidden primitives since they are
-   --  covered by the normal Ada 2005 rules.
+   --  covered by the normal Ada 2005 rules. Its name was motivated by an
+   --  intermediate version of AI05-0125 where this term was proposed to
+   --  name these entities in the RM.
 
    function Is_Inherited_Public_Operation (Op : Entity_Id) return Boolean;
    --  Check whether a primitive operation is inherited from an operation
@@ -303,7 +305,36 @@ package body Sem_Disp is
 
       Formal := First_Formal (Subp);
       while Present (Formal) loop
-         Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+         Ctrl_Type := Empty;
+
+         --  Common Ada case
+
+         if not Has_First_Controlling_Parameter_Aspect (Typ) then
+            Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+
+         --  Type with the First_Controlling_Parameter aspect: for overriding
+         --  primitives of a parent type that lacks this aspect, we cannot be
+         --  more restrictive than the overridden primitive. This also applies
+         --  to renamings of dispatching primitives. Dispatching operators can
+         --  have one or two controlling parameters, as long as one of them is
+         --  the first one, and none of the parameters have the same type as
+         --  the operator's result type.
+
+         --  Internal subprograms added by the frontend bypass the restrictions
+         --  of First_Controlling_Parameter aspect.
+
+         elsif Formal = First_Formal (Subp)
+           or else Is_Internal (Subp)
+           or else Present (Overridden_Operation (Subp))
+           or else
+             (Present (Alias (Subp))
+                and then Is_Dispatching_Operation (Ultimate_Alias (Subp)))
+           or else
+             (Ekind (Subp) = E_Function
+                and then Is_Operator_Name (Chars (Subp)))
+         then
+            Ctrl_Type := Check_Controlling_Type (Etype (Formal), Subp);
+         end if;
 
          if Present (Ctrl_Type) then
 
@@ -388,7 +419,24 @@ package body Sem_Disp is
          Next_Formal (Formal);
       end loop;
 
-      if Ekind (Subp) in E_Function | E_Generic_Function then
+      --  Functions overriding parent type primitives that lack the aspect
+      --  First_Controlling_Param cannot be more restrictive than the
+      --  overridden function. This also applies to renamings of dispatching
+      --  primitives. Internal subprograms added by the frontend bypass these
+      --  restrictions.
+
+      if Ekind (Subp) in E_Function | E_Generic_Function
+        and then (not Has_First_Controlling_Parameter_Aspect (Typ)
+                    or else Is_Internal (Subp)
+                    or else
+                      (Present (Overridden_Operation (Subp))
+                         and then
+                       Has_Controlling_Result (Overridden_Operation (Subp)))
+                    or else
+                      (Present (Alias (Subp))
+                         and then
+                       Has_Controlling_Result (Ultimate_Alias (Subp))))
+      then
          Ctrl_Type := Check_Controlling_Type (Etype (Subp), Subp);
 
          if Present (Ctrl_Type) then
@@ -1343,8 +1391,10 @@ package body Sem_Disp is
                   Typ := Etype (Subp);
                end if;
 
-               --  The following should be better commented, especially since
-               --  we just added several new conditions here ???
+               --  Report warning on non dispatching primitives of interface
+               --  type Typ; this warning is disabled when the type has the
+               --  aspect First_Controlling_Parameter because we will report
+               --  an error when the interface type is frozen.
 
                if Comes_From_Source (Subp)
                  and then Is_Interface (Typ)
@@ -1352,6 +1402,7 @@ package body Sem_Disp is
                  and then not Is_Derived_Type (Typ)
                  and then not Is_Generic_Type (Typ)
                  and then not In_Instance
+                 and then not Has_First_Controlling_Parameter_Aspect (Typ)
                then
                   Error_Msg_N ("??declaration of& is too late!", Subp);
                   Error_Msg_NE
@@ -1388,10 +1439,13 @@ package body Sem_Disp is
          --  3. Subprograms associated with stream attributes (built by
          --     New_Stream_Subprogram) or with the Put_Image attribute.
 
-         --  4. Wrappers built for inherited operations with inherited class-
-         --     wide conditions, where the conditions include calls to other
-         --     overridden primitives. The wrappers include checks on these
-         --     modified conditions. (AI12-195).
+         --  4. Wrappers built for inherited operations. We have two kinds:
+         --     * Wrappers built for inherited operations with inherited class-
+         --       wide conditions, where the conditions include calls to other
+         --       overridden primitives. The wrappers include checks on these
+         --       modified conditions (AI12-195).
+         --     * Wrappers built for inherited operations that implement
+         --       interface primitives that have class-wide postconditions.
 
          --  5. Declarations built for subprograms without separate specs that
          --     are eligible for inlining in GNATprove (inside
@@ -1404,7 +1458,14 @@ package body Sem_Disp is
             pragma Assert
               ((Ekind (Subp) = E_Function
                  and then Is_Dispatching_Operation (Old_Subp)
+                 and then not Is_Class_Wide_Type (Etype (Subp))
                  and then Is_Null_Extension (Base_Type (Etype (Subp))))
+
+              or else
+               (Ekind (Subp) = E_Function
+                 and then Is_Dispatching_Operation (Old_Subp)
+                 and then Is_Class_Wide_Type (Etype (Subp))
+                 and then Is_Null_Extension (Root_Type (Etype (Subp))))
 
               or else
                (Ekind (Subp) = E_Procedure
@@ -1419,7 +1480,7 @@ package body Sem_Disp is
 
               or else
                (Is_Wrapper (Subp)
-                 and then Present (LSP_Subprogram (Subp)))
+                 and then Is_Dispatch_Table_Wrapper (Subp))
 
               or else GNATprove_Mode);
 
@@ -1514,10 +1575,10 @@ package body Sem_Disp is
                         Subp);
 
                   else
-
                      --  The subprogram body declares a primitive operation.
                      --  We must update its dispatching information here. The
                      --  information is taken from the overridden subprogram.
+                     --  Such a late-overriding body also needs extra formals.
                      --  We must also generate a cross-reference entry because
                      --  references to other primitives were already created
                      --  when type was frozen.
@@ -1527,6 +1588,7 @@ package body Sem_Disp is
                      if Present (DTC_Entity (Old_Subp)) then
                         Set_DTC_Entity (Subp, DTC_Entity (Old_Subp));
                         Set_DT_Position_Value (Subp, DT_Position (Old_Subp));
+                        Create_Extra_Formals (Subp);
 
                         if not Restriction_Active (No_Dispatching_Calls) then
                            if Building_Static_DT (Tagged_Type) then
@@ -1660,13 +1722,14 @@ package body Sem_Disp is
       then
          Ovr_Subp := Find_Hidden_Overridden_Primitive (Subp);
 
-         --  Verify that the proper overriding indicator has been supplied.
+         --  Warn if the proper overriding indicator has not been supplied.
 
          if Present (Ovr_Subp)
            and then
              not Must_Override (Specification (Unit_Declaration_Node (Subp)))
+           and then not In_Instance
          then
-            Error_Msg_NE ("missing overriding indicator for&", Subp, Subp);
+            Error_Msg_NE ("missing overriding indicator for&??", Subp, Subp);
          end if;
       end if;
 
@@ -1765,6 +1828,37 @@ package body Sem_Disp is
       --  cascaded errors.
 
       elsif not Error_Posted (Subp) then
+
+         --  When aspect First_Controlling_Parameter applies, check if the
+         --  subprogram is a primitive. Internal subprograms added by the
+         --  frontend bypass its restrictions.
+
+         if Has_First_Controlling_Parameter_Aspect (Tagged_Type)
+           and then not Is_Internal (Subp)
+           and then not
+             (Present (Overridden_Operation (Subp))
+                and then
+              Is_Dispatching_Operation (Overridden_Operation (Subp)))
+           and then not
+             (Present (Alias (Subp))
+                and then
+              Is_Dispatching_Operation (Ultimate_Alias (Subp)))
+           and then (No (First_Formal (Subp))
+                       or else not
+                     Is_Controlling_Formal (First_Formal (Subp)))
+         then
+            if Warn_On_Non_Dispatching_Primitives then
+               Error_Msg_NE
+                 ("?_j?not a dispatching primitive of tagged type&",
+                  Subp, Tagged_Type);
+               Error_Msg_NE
+                 ("\?_j?disallowed by 'First_'Controlling_'Parameter on &",
+                  Subp, Tagged_Type);
+            end if;
+
+            return;
+         end if;
+
          Add_Dispatching_Operation (Tagged_Type, Subp);
       end if;
 
@@ -1932,19 +2026,17 @@ package body Sem_Disp is
             Asp    : Node_Id;
 
          begin
-            if Present (Aspect_Specifications (W_Decl)) then
-               Asp := First (Aspect_Specifications (W_Decl));
-               while Present (Asp) loop
-                  if Chars (Identifier (Asp)) = Name_Yield then
-                     Error_Msg_Name_1 := Name_Yield;
-                     Error_Msg_N
-                       ("specification of inherited aspect% can only confirm "
-                        & "parent value", Asp);
-                  end if;
+            Asp := First (Aspect_Specifications (W_Decl));
+            while Present (Asp) loop
+               if Chars (Identifier (Asp)) = Name_Yield then
+                  Error_Msg_Name_1 := Name_Yield;
+                  Error_Msg_N
+                    ("specification of inherited aspect% can only confirm "
+                     & "parent value", Asp);
+               end if;
 
-                  Next (Asp);
-               end loop;
-            end if;
+               Next (Asp);
+            end loop;
 
             Set_Has_Yield_Aspect (Wrapped_Entity (Subp));
          end;
@@ -2282,6 +2374,55 @@ package body Sem_Disp is
    ---------------------------
 
    function Find_Dispatching_Type (Subp : Entity_Id) return Entity_Id is
+
+      function Has_Predefined_Dispatching_Operation_Name return Boolean;
+      --  Determines if Subp has the name of a predefined dispatching
+      --  operation.
+
+      -----------------------------------------------
+      -- Has_Predefined_Dispatching_Operation_Name --
+      -----------------------------------------------
+
+      function Has_Predefined_Dispatching_Operation_Name return Boolean is
+         TSS_Name : TSS_Name_Type;
+
+      begin
+         Get_Name_String (Chars (Subp));
+
+         if Name_Len > TSS_Name_Type'Last then
+            TSS_Name :=
+              TSS_Name_Type
+                (Name_Buffer (Name_Len - TSS_Name'Length + 1 .. Name_Len));
+
+            if Chars (Subp) in Name_uAssign
+                             | Name_uSize
+                             | Name_Op_Eq
+              or else TSS_Name = TSS_Deep_Adjust
+              or else TSS_Name = TSS_Deep_Finalize
+              or else TSS_Name = TSS_Stream_Input
+              or else TSS_Name = TSS_Stream_Output
+              or else TSS_Name = TSS_Stream_Read
+              or else TSS_Name = TSS_Stream_Write
+              or else TSS_Name = TSS_Put_Image
+
+               --  Name of predefined interface type primitives
+
+              or else Chars (Subp) in Name_uDisp_Asynchronous_Select
+                                    | Name_uDisp_Conditional_Select
+                                    | Name_uDisp_Get_Prim_Op_Kind
+                                    | Name_uDisp_Get_Task_Id
+                                    | Name_uDisp_Requeue
+                                    | Name_uDisp_Timed_Select
+            then
+               return True;
+            end if;
+         end if;
+
+         return False;
+      end Has_Predefined_Dispatching_Operation_Name;
+
+      --  Local variables
+
       A_Formal  : Entity_Id;
       Formal    : Entity_Id;
       Ctrl_Type : Entity_Id;
@@ -2338,7 +2479,25 @@ package body Sem_Disp is
          --  The subprogram may also be dispatching on result
 
          if Present (Etype (Subp)) then
-            return Check_Controlling_Type (Etype (Subp), Subp);
+            if Is_Tagged_Type (Etype (Subp))
+              and then Has_First_Controlling_Parameter_Aspect (Etype (Subp))
+            then
+               if Present (Overridden_Operation (Subp))
+                 and then Has_Controlling_Result (Overridden_Operation (Subp))
+               then
+                  return Check_Controlling_Type (Etype (Subp), Subp);
+
+               --  Internal subprograms added by the frontend bypass the
+               --  restrictions of First_Controlling_Parameter aspect.
+
+               elsif Is_Internal (Subp)
+                 and then Has_Predefined_Dispatching_Operation_Name
+               then
+                  return Check_Controlling_Type (Etype (Subp), Subp);
+               end if;
+            else
+               return Check_Controlling_Type (Etype (Subp), Subp);
+            end if;
          end if;
       end if;
 
@@ -2401,7 +2560,7 @@ package body Sem_Disp is
                Orig_Prim := Original_Corresponding_Operation (Prim);
 
                if Orig_Prim /= Prim
-                 and then Is_Immediately_Visible (Orig_Prim)
+                 and then not Is_Hidden (Orig_Prim)
                then
                   Vis_Ancestor := First_Elmt (Vis_List);
                   while Present (Vis_Ancestor) loop
@@ -2439,6 +2598,8 @@ package body Sem_Disp is
      (Tagged_Type : Entity_Id;
       Iface_Prim  : Entity_Id) return Entity_Id
    is
+      Is_FCP_Type : constant Boolean :=
+                      Has_First_Controlling_Parameter_Aspect (Tagged_Type);
       E  : Entity_Id;
       El : Elmt_Id;
 
@@ -2457,9 +2618,30 @@ package body Sem_Disp is
       while Present (E) loop
          if Is_Subprogram (E)
            and then Is_Dispatching_Operation (E)
-           and then Is_Interface_Conformant (Tagged_Type, Iface_Prim, E)
          then
-            return E;
+            --  For overriding primitives of parent or interface types that
+            --  do not have the aspect First_Controlling_Parameter, we must
+            --  temporarily unset this attribute to check conformance.
+
+            if Ekind (E) = E_Function
+              and then Is_FCP_Type
+              and then Present (Overridden_Operation (E))
+              and then Has_Controlling_Result (Overridden_Operation (E))
+            then
+               Set_Has_First_Controlling_Parameter_Aspect (Tagged_Type, False);
+
+               if Is_Interface_Conformant (Tagged_Type, Iface_Prim, E) then
+                  Set_Has_First_Controlling_Parameter_Aspect
+                    (Tagged_Type, Is_FCP_Type);
+                  return E;
+               end if;
+
+               Set_Has_First_Controlling_Parameter_Aspect
+                 (Tagged_Type, Is_FCP_Type);
+
+            elsif Is_Interface_Conformant (Tagged_Type, Iface_Prim, E) then
+               return E;
+            end if;
          end if;
 
          E := Homonym (E);
@@ -2496,7 +2678,28 @@ package body Sem_Disp is
             --  Check if E covers the interface primitive (includes case in
             --  which E is an inherited private primitive).
 
-            if Is_Interface_Conformant (Tagged_Type, Iface_Prim, E) then
+            --  For overriding primitives of parent or interface types that
+            --  do not have the aspect First_Controlling_Parameter, we must
+            --  temporarily unset this attribute to check conformance.
+
+            if Present (Overridden_Operation (E))
+              and then Is_FCP_Type
+              and then not
+                Has_First_Controlling_Parameter_Aspect
+                  (Find_Dispatching_Type (Overridden_Operation (E)))
+            then
+               Set_Has_First_Controlling_Parameter_Aspect (Tagged_Type, False);
+
+               if Is_Interface_Conformant (Tagged_Type, Iface_Prim, E) then
+                  Set_Has_First_Controlling_Parameter_Aspect
+                    (Tagged_Type, Is_FCP_Type);
+                  return E;
+               end if;
+
+               Set_Has_First_Controlling_Parameter_Aspect
+                 (Tagged_Type, Is_FCP_Type);
+
+            elsif Is_Interface_Conformant (Tagged_Type, Iface_Prim, E) then
                return E;
             end if;
 

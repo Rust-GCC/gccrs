@@ -1,6 +1,6 @@
 /* Gimple simplify definitions.
 
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Richard Guenther <rguenther@suse.de>
 
 This file is part of GCC.
@@ -136,6 +136,8 @@ public:
 
   /* The operands to CODE.  Only the first NUM_OPS entries are meaningful.  */
   tree ops[MAX_NUM_OPS];
+
+  bool operands_occurs_in_abnormal_phi() const;
 };
 
 inline
@@ -173,7 +175,7 @@ inline
 gimple_match_op::gimple_match_op (const gimple_match_cond &cond_in,
 				  code_helper code_in, tree type_in,
 				  tree op0, tree op1)
-  : cond (cond_in), code (code_in), type (type_in), reverse (false), 
+  : cond (cond_in), code (code_in), type (type_in), reverse (false),
     num_ops (2)
 {
   ops[0] = op0;
@@ -419,6 +421,8 @@ code_helper canonicalize_code (code_helper, tree);
 
 #ifdef GCC_OPTABS_TREE_H
 bool directly_supported_p (code_helper, tree, optab_subtype = optab_default);
+bool directly_supported_p (code_helper, tree, tree,
+			   optab_subtype = optab_default);
 #endif
 
 internal_fn get_conditional_internal_fn (code_helper, tree);

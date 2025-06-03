@@ -1,6 +1,6 @@
 // ABI Support -*- C++ -*-
 
-// Copyright (C) 2016-2024 Free Software Foundation, Inc.
+// Copyright (C) 2016-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -31,7 +31,9 @@
 #ifndef _CXXABI_INIT_EXCEPTION_H
 #define _CXXABI_INIT_EXCEPTION_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #pragma GCC visibility push(default)
 

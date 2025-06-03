@@ -1,4 +1,4 @@
-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
+// Copyright (C) 2014-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -17,8 +17,9 @@
 
 // { dg-do run { target c++11 } }
 // { dg-require-fileio "" }
+// { dg-additional-files "thirty_years_among_the_dead_preproc.txt" }
 
-// 27.9.1.7 basic_ifstream constructors [ifstream.cons]
+// C++11 27.9.1.7 basic_ifstream constructors [ifstream.cons]
 
 #include <fstream>
 #include <sstream>

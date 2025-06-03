@@ -1,5 +1,5 @@
 /* Dependency analysis
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
 This file is part of GCC.
@@ -440,8 +440,40 @@ gfc_dep_compare_expr (gfc_expr *e1, gfc_expr *e2)
 	return mpz_sgn (e2->value.op.op2->value.integer);
     }
 
+
+  if (e1->expr_type == EXPR_COMPCALL)
+    {
+      /* This will have emerged from interface.cc(gfc_check_typebound_override)
+	 via gfc_check_result_characteristics. It is possible that other
+	 variants exist that are 'equal' but play it safe for now by setting
+	 the relationship as 'indeterminate'.  */
+      if (e2->expr_type == EXPR_FUNCTION && e2->ref)
+	{
+	  gfc_ref *ref = e2->ref;
+	  gfc_symbol *s = NULL;
+
+	  if (e1->value.compcall.tbp->u.specific)
+	    s = e1->value.compcall.tbp->u.specific->n.sym;
+
+	  /* Check if the proc ptr points to an interface declaration and the
+	     names are the same; ie. the overriden proc. of an abstract type.
+	     The checking of the arguments will already have been done.  */
+	  for (; ref && s; ref = ref->next)
+	    if (!ref->next && ref->type == REF_COMPONENT
+		&& ref->u.c.component->attr.proc_pointer
+		&& ref->u.c.component->ts.interface
+		&& ref->u.c.component->ts.interface->attr.if_source
+							== IFSRC_IFBODY
+		&& !strcmp (s->name, ref->u.c.component->name))
+	      return 0;
+	}
+
+      /* Assume as default that TKR checking is sufficient.  */
+     return -2;
+  }
+
   if (e1->expr_type != e2->expr_type)
-    return -3;
+    return -2;
 
   switch (e1->expr_type)
     {
@@ -1218,7 +1250,8 @@ check_data_pointer_types (gfc_expr *expr1, gfc_expr *expr2)
   sym2 = expr2->symtree->n.sym;
 
   /* Keep it simple for now.  */
-  if (sym1->ts.type == BT_DERIVED && sym2->ts.type == BT_DERIVED)
+  if (sym1->ts.type == BT_DERIVED && sym2->ts.type == BT_DERIVED
+      && sym1->ts.u.derived == sym2->ts.u.derived)
     return false;
 
   if (sym1->attr.pointer)
@@ -1820,7 +1853,7 @@ contains_forall_index_p (gfc_expr *expr)
     case EXPR_STRUCTURE:
     case EXPR_ARRAY:
       for (c = gfc_constructor_first (expr->value.constructor);
-	   c; gfc_constructor_next (c))
+	   c; c = gfc_constructor_next (c))
 	if (contains_forall_index_p (c->expr))
 	  return true;
       break;
@@ -1841,6 +1874,7 @@ contains_forall_index_p (gfc_expr *expr)
 	break;
 
       case REF_COMPONENT:
+      case REF_INQUIRY:
 	break;
 
       case REF_SUBSTRING:
@@ -1855,6 +1889,88 @@ contains_forall_index_p (gfc_expr *expr)
 
   return false;
 }
+
+
+/* Traverse expr, checking all EXPR_VARIABLE symbols for their
+   implied_index attribute.  Return true if any variable may be
+   used as an implied-do index.  It is safe to pessimistically
+   return true, and assume a dependency.  */
+
+bool
+gfc_contains_implied_index_p (gfc_expr *expr)
+{
+  gfc_actual_arglist *arg;
+  gfc_constructor *c;
+  gfc_ref *ref;
+  int i;
+
+  if (!expr)
+    return false;
+
+  switch (expr->expr_type)
+    {
+    case EXPR_VARIABLE:
+      if (expr->symtree->n.sym->attr.implied_index)
+	return true;
+      break;
+
+    case EXPR_OP:
+      if (gfc_contains_implied_index_p (expr->value.op.op1)
+	  || gfc_contains_implied_index_p (expr->value.op.op2))
+	return true;
+      break;
+
+    case EXPR_FUNCTION:
+      for (arg = expr->value.function.actual; arg; arg = arg->next)
+	if (gfc_contains_implied_index_p (arg->expr))
+	  return true;
+      break;
+
+    case EXPR_CONSTANT:
+    case EXPR_NULL:
+    case EXPR_SUBSTRING:
+      break;
+
+    case EXPR_STRUCTURE:
+    case EXPR_ARRAY:
+      for (c = gfc_constructor_first (expr->value.constructor);
+	   c; c = gfc_constructor_next (c))
+	if (gfc_contains_implied_index_p (c->expr))
+	  return true;
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  for (ref = expr->ref; ref; ref = ref->next)
+    switch (ref->type)
+      {
+      case REF_ARRAY:
+	for (i = 0; i < ref->u.ar.dimen; i++)
+	  if (gfc_contains_implied_index_p (ref->u.ar.start[i])
+	      || gfc_contains_implied_index_p (ref->u.ar.end[i])
+	      || gfc_contains_implied_index_p (ref->u.ar.stride[i]))
+	    return true;
+	break;
+
+      case REF_COMPONENT:
+      case REF_INQUIRY:
+	break;
+
+      case REF_SUBSTRING:
+	if (gfc_contains_implied_index_p (ref->u.ss.start)
+	    || gfc_contains_implied_index_p (ref->u.ss.end))
+	  return true;
+	break;
+
+      default:
+	gcc_unreachable ();
+      }
+
+  return false;
+}
+
 
 /* Determines overlapping for two single element array references.  */
 
@@ -2465,3 +2581,85 @@ gfc_omp_expr_prefix_same (gfc_expr *lexpr, gfc_expr *rexpr)
 
   return true;
 }
+
+
+/* gfc_function_dependency returns true for non-dummy symbols with dependencies
+   on an old-fashioned function result (ie. proc_name = proc_name->result).
+   This is used to ensure that initialization code appears after the function
+   result is treated and that any mutual dependencies between these symbols are
+   respected.  */
+
+static bool
+dependency_fcn (gfc_expr *e, gfc_symbol *sym,
+		 int *f ATTRIBUTE_UNUSED)
+{
+  if (e == NULL)
+    return false;
+
+  if (e && e->expr_type == EXPR_VARIABLE)
+    {
+      if (e->symtree && e->symtree->n.sym == sym)
+	return true;
+      /* Recurse to see if this symbol is dependent on the function result. If
+	 so an indirect dependence exists, which should be handled in the same
+	 way as a direct dependence. The recursion is prevented from being
+	 infinite by statement order.  */
+      else if (e->symtree && e->symtree->n.sym)
+	return gfc_function_dependency (e->symtree->n.sym, sym);
+    }
+
+  return false;
+}
+
+
+bool
+gfc_function_dependency (gfc_symbol *sym, gfc_symbol *proc_name)
+{
+  bool dep = false;
+
+  if (proc_name && proc_name->attr.function
+      && proc_name == proc_name->result
+      && !(sym->attr.dummy || sym->attr.result))
+    {
+      if (sym->fn_result_dep)
+	return true;
+
+      if (sym->as && sym->as->type == AS_EXPLICIT)
+	{
+	  for (int dim = 0; dim < sym->as->rank; dim++)
+	    {
+	      if (sym->as->lower[dim]
+		  && sym->as->lower[dim]->expr_type != EXPR_CONSTANT)
+		dep = gfc_traverse_expr (sym->as->lower[dim], proc_name,
+					 dependency_fcn, 0);
+	      if (dep)
+		{
+		  sym->fn_result_dep = 1;
+		  return true;
+		}
+	      if (sym->as->upper[dim]
+		  && sym->as->upper[dim]->expr_type != EXPR_CONSTANT)
+		dep = gfc_traverse_expr (sym->as->upper[dim], proc_name,
+					 dependency_fcn, 0);
+	      if (dep)
+		{
+		  sym->fn_result_dep = 1;
+		  return true;
+		}
+	    }
+	}
+
+      if (sym->ts.type == BT_CHARACTER
+	  && sym->ts.u.cl && sym->ts.u.cl->length
+	  && sym->ts.u.cl->length->expr_type != EXPR_CONSTANT)
+	dep = gfc_traverse_expr (sym->ts.u.cl->length, proc_name,
+				 dependency_fcn, 0);
+      if (dep)
+	{
+	  sym->fn_result_dep = 1;
+	  return true;
+	}
+    }
+
+  return false;
+ }

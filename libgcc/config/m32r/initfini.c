@@ -1,7 +1,7 @@
 /* .init/.fini section handling + C++ global constructor/destructor handling.
    This file is based on crtstuff.c, sol2-crti.S, sol2-crtn.S.
 
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -50,7 +50,7 @@ static func_ptr __DTOR_LIST__[1]
      = { (func_ptr) (-1) };
 
 /* Run all the global destructors on exit from the program.  */
- 
+
 /* Some systems place the number of pointers in the first word of the
    table.  On SVR4 however, that word is -1.  In all cases, the table is
    null-terminated.  On SVR4, we start from the beginning of the list and

@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -290,17 +290,17 @@ union decimal32 {
   _Decimal32 d;
   UINT32 i;
 };
- 
+
 union decimal64 {
   _Decimal64 d;
   UINT64 i;
 };
- 
+
 union decimal128 {
   _Decimal128 d;
   UINT128 i;
 };
- 
+
 #if BID_HAS_TF_MODE
 union float128 {
   TFtype f;

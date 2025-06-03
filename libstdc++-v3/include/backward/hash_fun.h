@@ -1,6 +1,6 @@
 // 'struct hash' from SGI -*- C++ -*-
 
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -94,7 +94,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<>
     struct hash<char>
-    { 
+    {
       size_t
       operator()(char __x) const
       { return __x; }
@@ -102,7 +102,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<>
     struct hash<unsigned char>
-    { 
+    {
       size_t
       operator()(unsigned char __x) const
       { return __x; }
@@ -134,15 +134,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<>
     struct hash<int>
-    { 
-      size_t 
-      operator()(int __x) const 
+    {
+      size_t
+      operator()(int __x) const
       { return __x; }
     };
 
   template<>
     struct hash<unsigned int>
-    { 
+    {
       size_t
       operator()(unsigned int __x) const
       { return __x; }

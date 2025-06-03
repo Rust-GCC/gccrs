@@ -1,5 +1,5 @@
 ;; Predicate definitions for NEC V850.
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -182,7 +182,7 @@
 
      */
 
-  for (i = 2; i < count - (TARGET_LONG_CALLS ? 2: 1); i++)
+  for (i = 2; i < count - (TARGET_LONG_CALLS ? 2 : 1); i++)
     {
       rtx dest;
       rtx src;

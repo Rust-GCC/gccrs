@@ -1,5 +1,5 @@
 /* Common subexpression elimination for GNU compiler.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -239,7 +239,7 @@ static int next_qty;
    the constant being compared against, or zero if the comparison
    is not against a constant.  `comparison_qty' holds the quantity
    being compared against when the result is known.  If the comparison
-   is not with a register, `comparison_qty' is -1.  */
+   is not with a register, `comparison_qty' is INT_MIN.  */
 
 struct qty_table_elem
 {
@@ -2534,6 +2534,10 @@ hash_rtx (const_rtx x, machine_mode mode,
 	  hash += (unsigned int) XINT (x, i);
 	  break;
 
+	case 'L':
+	  hash += (unsigned int) XLOC (x, i);
+	  break;
+
 	case 'p':
 	  hash += constant_lower_bound (SUBREG_BYTE (x));
 	  break;
@@ -2763,6 +2767,11 @@ exp_equiv_p (const_rtx x, const_rtx y, int validate, bool for_gcse)
 
 	case 'i':
 	  if (XINT (x, i) != XINT (y, i))
+	    return false;
+	  break;
+
+	case 'L':
+	  if (XLOC (x, i) != XLOC (y, i))
 	    return false;
 	  break;
 
@@ -4058,7 +4067,7 @@ record_jump_cond (enum rtx_code code, machine_mode mode, rtx op0, rtx op1)
       else
 	{
 	  ent->comparison_const = op1;
-	  ent->comparison_qty = -1;
+	  ent->comparison_qty = INT_MIN;
 	}
 
       return;
@@ -4103,11 +4112,11 @@ record_jump_cond (enum rtx_code code, machine_mode mode, rtx op0, rtx op1)
    The main function is cse_insn, and between here and that function
    a couple of helper functions is defined to keep the size of cse_insn
    within reasonable proportions.
-   
+
    Data is shared between the main and helper functions via STRUCT SET,
    that contains all data related for every set in the instruction that
    is being processed.
-   
+
    Note that cse_main processes all sets in the instruction.  Most
    passes in GCC only process simple SET insns or single_set insns, but
    CSE processes insns with multiple sets as well.  */
@@ -4159,7 +4168,7 @@ struct set
    Do not make this change if REG1 is a hard register, because it will
    then be used in the sequel and we may be changing a two-operand insn
    into a three-operand insn.
-   
+
    This is the last transformation that cse_insn will try to do.  */
 
 static void
@@ -6620,7 +6629,15 @@ cse_extended_basic_block (struct cse_basic_block_data *ebb_data)
 	  && EDGE_COUNT (bb->succs) == 2
 	  && JUMP_P (insn)
 	  && single_set (insn)
-	  && any_condjump_p (insn))
+	  && any_condjump_p (insn)
+	  /* single_set may return non-NULL even for multiple sets
+	     if there are REG_UNUSED notes.  record_jump_equiv only
+	     looks at pc_set and doesn't consider other sets that
+	     could affect the value, and the recorded equivalence
+	     can extend the lifetime of the compared REG, so use
+	     also !multiple_sets check to verify it is exactly one
+	     set.  */
+	  && !multiple_sets (insn))
 	{
 	  basic_block next_bb = ebb_data->path[path_entry + 1].bb;
 	  bool taken = (next_bb == BRANCH_EDGE (bb)->dest);
@@ -6745,7 +6762,18 @@ cse_main (rtx_insn *f ATTRIBUTE_UNUSED, int nregs)
    modify the liveness of DEST.
    DEST is set to pc_rtx for a trapping insn, or for an insn with side effects.
    We must then count uses of a SET_DEST regardless, because the insn can't be
-   deleted here.  */
+   deleted here.
+   Also count uses of a SET_DEST if it has been used by an earlier insn,
+   but in that case only when incrementing and not when decrementing, effectively
+   making setters of such a pseudo non-eliminable.  This is for cases like
+   (set (reg x) (expr))
+   ...
+   (set (reg y) (expr (reg (x))))
+   ...
+   (set (reg x) (expr (reg (x))))
+   where we can't eliminate the last insn because x is is still used, if y
+   is unused we can eliminate the middle insn and when considering the first insn
+   we used to eliminate it despite it being used in the last insn.  */
 
 static void
 count_reg_usage (rtx x, int *counts, rtx dest, int incr)
@@ -6761,7 +6789,7 @@ count_reg_usage (rtx x, int *counts, rtx dest, int incr)
   switch (code = GET_CODE (x))
     {
     case REG:
-      if (x != dest)
+      if (x != dest || (incr > 0 && counts[REGNO (x)]))
 	counts[REGNO (x)] += incr;
       return;
 

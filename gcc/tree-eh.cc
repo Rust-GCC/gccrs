@@ -1,5 +1,5 @@
 /* Exception handling semantics and decomposition for trees.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -76,7 +76,8 @@ add_stmt_to_eh_lp_fn (struct function *ifun, gimple *t, int num)
   if (!get_eh_throw_stmt_table (ifun))
     set_eh_throw_stmt_table (ifun, hash_map<gimple *, int>::create_ggc (31));
 
-  gcc_assert (!get_eh_throw_stmt_table (ifun)->put (t, num));
+  bool existed = get_eh_throw_stmt_table (ifun)->put (t, num);
+  gcc_assert (!existed);
 }
 
 /* Add statement T in the current function (cfun) to EH landing pad NUM.  */
@@ -950,7 +951,7 @@ static inline geh_else *
 get_eh_else (gimple_seq finally)
 {
   gimple *x = gimple_seq_first_stmt (finally);
-  if (gimple_code (x) == GIMPLE_EH_ELSE)
+  if (x && gimple_code (x) == GIMPLE_EH_ELSE)
     {
       gcc_assert (gimple_seq_singleton_p (finally));
       return as_a <geh_else *> (x);
@@ -1024,8 +1025,9 @@ honor_protect_cleanup_actions (struct leh_state *outer_state,
 	 terminate before we get to it, so strip it away before adding the
 	 MUST_NOT_THROW filter.  */
       gimple_stmt_iterator gsi = gsi_start (finally);
-      gimple *x = gsi_stmt (gsi);
-      if (gimple_code (x) == GIMPLE_TRY
+      gimple *x = !gsi_end_p (gsi) ? gsi_stmt (gsi) : NULL;
+      if (x
+	  && gimple_code (x) == GIMPLE_TRY
 	  && gimple_try_kind (x) == GIMPLE_TRY_CATCH
 	  && gimple_try_catch_is_cleanup (x))
 	{
@@ -2531,6 +2533,8 @@ operation_could_trap_helper_p (enum tree_code op,
 
     case COMPLEX_EXPR:
     case CONSTRUCTOR:
+    case VEC_DUPLICATE_EXPR:
+    case PAREN_EXPR:
       /* Constructing an object cannot trap.  */
       return false;
 
@@ -2642,6 +2646,27 @@ range_in_array_bounds_p (tree ref)
   return true;
 }
 
+/* Return true iff a BIT_FIELD_REF <(TYPE)???, SIZE, OFFSET> would access a bit
+   range that is known to be in bounds for TYPE.  */
+
+bool
+access_in_bounds_of_type_p (tree type, poly_uint64 size, poly_uint64 offset)
+{
+  tree type_size_tree;
+  poly_uint64 type_size_max, min = offset, wid = size, max;
+
+  type_size_tree = TYPE_SIZE (type);
+  if (!type_size_tree || !poly_int_tree_p (type_size_tree, &type_size_max))
+    return false;
+
+  max = min + wid;
+  if (maybe_lt (max, min)
+      || maybe_lt (type_size_max, max))
+    return false;
+
+  return true;
+}
+
 /* Return true if EXPR can trap, as in dereferencing an invalid pointer
    location or floating point arithmetic.  C.f. the rtl version, may_trap_p.
    This routine expects only GIMPLE lhs or rhs input.  */
@@ -2684,10 +2709,17 @@ tree_could_trap_p (tree expr)
  restart:
   switch (code)
     {
+    case BIT_FIELD_REF:
+      if (DECL_P (TREE_OPERAND (expr, 0))
+	  && !access_in_bounds_of_type_p (TREE_TYPE (TREE_OPERAND (expr, 0)),
+					  bit_field_size (expr),
+					  bit_field_offset (expr)))
+	return true;
+      /* Fall through.  */
+
     case COMPONENT_REF:
     case REALPART_EXPR:
     case IMAGPART_EXPR:
-    case BIT_FIELD_REF:
     case VIEW_CONVERT_EXPR:
     case WITH_SIZE_EXPR:
       expr = TREE_OPERAND (expr, 0);
@@ -2731,11 +2763,16 @@ tree_could_trap_p (tree expr)
 	  if (TREE_CODE (base) == STRING_CST)
 	    return maybe_le (TREE_STRING_LENGTH (base), off);
 	  tree size = DECL_SIZE_UNIT (base);
+	  tree refsz = TYPE_SIZE_UNIT (TREE_TYPE (expr));
 	  if (size == NULL_TREE
+	      || refsz == NULL_TREE
 	      || !poly_int_tree_p (size)
-	      || maybe_le (wi::to_poly_offset (size), off))
+	      || !poly_int_tree_p (refsz)
+	      || maybe_le (wi::to_poly_offset (size), off)
+	      || maybe_gt (off + wi::to_poly_offset (refsz),
+			   wi::to_poly_offset (size)))
 	    return true;
-	  /* Now we are sure the first byte of the access is inside
+	  /* Now we are sure the whole base of the access is inside
 	     the object.  */
 	  return false;
 	}
@@ -3765,7 +3802,7 @@ sink_clobbers (basic_block bb,
   return todo;
 }
 
-/* At the end of inlining, we can lower EH_DISPATCH.  Return true when 
+/* At the end of inlining, we can lower EH_DISPATCH.  Return true when
    we have found some duplicate labels and removed some edges.  */
 
 static bool
@@ -3814,10 +3851,10 @@ lower_eh_dispatch (basic_block src, geh_dispatch *stmt)
 	      }
 	    do
 	      {
-		/* Filter out duplicate labels that arise when this handler 
-		   is shadowed by an earlier one.  When no labels are 
-		   attached to the handler anymore, we remove 
-		   the corresponding edge and then we delete unreachable 
+		/* Filter out duplicate labels that arise when this handler
+		   is shadowed by an earlier one.  When no labels are
+		   attached to the handler anymore, we remove
+		   the corresponding edge and then we delete unreachable
 		   blocks at the end of this pass.  */
 		if (! seen_values.contains (TREE_VALUE (flt_node)))
 		  {
@@ -4025,7 +4062,7 @@ make_pass_lower_eh_dispatch (gcc::context *ctxt)
 
 /* Walk statements, see what regions and, optionally, landing pads
    are really referenced.
-   
+
    Returns in R_REACHABLEP an sbitmap with bits set for reachable regions,
    and in LP_REACHABLE an sbitmap with bits set for reachable landing pads.
 

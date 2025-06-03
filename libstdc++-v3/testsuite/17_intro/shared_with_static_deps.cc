@@ -1,10 +1,10 @@
 // { dg-do link }
-// { dg-require-static-libstdcxx }
+// { dg-require-static-libstdcxx "" }
 // { dg-require-sharedlib "" }
 // { dg-require-effective-target fpic }
 // { dg-options "-shared -fPIC -static-libgcc -static-libstdc++" }
 
-// Copyright (C) 2012-2024 Free Software Foundation, Inc.
+// Copyright (C) 2012-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the

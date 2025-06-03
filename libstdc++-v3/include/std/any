@@ -1,6 +1,6 @@
 // <any> -*- C++ -*-
 
-// Copyright (C) 2014-2024 Free Software Foundation, Inc.
+// Copyright (C) 2014-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,7 +29,9 @@
 #ifndef _GLIBCXX_ANY
 #define _GLIBCXX_ANY 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #define __glibcxx_want_any
 #include <bits/version.h>
@@ -41,6 +43,9 @@
 #include <new>
 #include <type_traits>
 #include <bits/utility.h> // in_place_type_t
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations" // aligned_storage
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -90,7 +95,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Storage& operator=(const _Storage&) = delete;
 
       void* _M_ptr;
-      aligned_storage<sizeof(_M_ptr), alignof(void*)>::type _M_buffer;
+      unsigned char _M_buffer[sizeof(_M_ptr)];
     };
 
     template<typename _Tp, typename _Safe = is_nothrow_move_constructible<_Tp>,
@@ -554,6 +559,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _ValueType>
     inline const _ValueType* any_cast(const any* __any) noexcept
     {
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 3305. any_cast<void>
+      static_assert(!is_void_v<_ValueType>);
+
+      // As an optimization, don't bother instantiating __any_caster for
+      // function types, since std::any can only hold objects.
       if constexpr (is_object_v<_ValueType>)
 	if (__any)
 	  return static_cast<_ValueType*>(__any_caster<_ValueType>(__any));
@@ -563,6 +574,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename _ValueType>
     inline _ValueType* any_cast(any* __any) noexcept
     {
+      static_assert(!is_void_v<_ValueType>);
+
       if constexpr (is_object_v<_ValueType>)
 	if (__any)
 	  return static_cast<_ValueType*>(__any_caster<_ValueType>(__any));
@@ -652,6 +665,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
+
+#pragma GCC diagnostic pop
 
 #endif // __cpp_lib_any
 #endif // _GLIBCXX_ANY

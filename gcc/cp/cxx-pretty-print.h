@@ -1,5 +1,5 @@
 /* Interface for the GNU C++ pretty-printer.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -34,7 +34,7 @@ class cxx_pretty_printer : public c_pretty_printer
 public:
   cxx_pretty_printer ();
 
-  pretty_printer *clone () const override;
+  std::unique_ptr<pretty_printer> clone () const override;
 
   void constant (tree) final override;
   void id_expression (tree) final override;

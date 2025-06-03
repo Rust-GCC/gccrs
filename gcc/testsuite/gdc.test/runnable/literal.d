@@ -243,15 +243,19 @@ void test12950()
 
 void testHexstring()
 {
-    static immutable uint[] x = cast(immutable uint[]) x"FFAADDEE";
+    static immutable uint[] x = cast(immutable uint[]) x"FFAADDEE"d;
     static assert(x[0] == 0xFFAADDEE);
     assert(x[0] == 0xFFAADDEE);
 
-    static immutable ulong[] y = cast(immutable ulong[]) x"1122334455667788AABBCCDDEEFF0099";
+    static immutable ulong[] y = x"1122334455667788AABBCCDDEEFF0099";
     static assert(y[0] == 0x1122334455667788);
     static assert(y[1] == 0xAABBCCDDEEFF0099);
     assert(y[0] == 0x1122334455667788);
     assert(y[1] == 0xAABBCCDDEEFF0099);
+
+    immutable long[] c = x"1122334455667788AABBCCDDEEFF0099";
+    assert(c[0] == 0x1122334455667788);
+    assert(c[1] == 0xAABBCCDDEEFF0099);
 
     // Test that mangling of StringExp with size 8 is the same as array literal mangling:
     void f(immutable ulong[] a)() {}
@@ -259,7 +263,7 @@ void testHexstring()
 
     // Test printing StringExp with size 8
     enum toStr(immutable ulong[] v) = v.stringof;
-    static assert(toStr!y == `x"88776655443322119900FFEEDDCCBBAA"`);
+    static assert(toStr!y == `x"1122334455667788AABBCCDDEEFF0099"`);
 
     // Hex string postfixes
     // https://issues.dlang.org/show_bug.cgi?id=24363
@@ -273,7 +277,15 @@ void testHexstring()
     static immutable ulong[] z0 = cast(immutable ulong[]) x"1111 1111 1111 1111 0000 000F 0000 0000";
     static immutable ulong[] z1 = [0x1111_1111_1111_1111, 0x0000_000E_0000_0000];
     static assert(z0 !is z1);
+
+    // https://github.com/dlang/dmd/issues/20635
+    f20635(cast(ubyte[]) x"00");
+    f20635(cast(const ubyte[]) x"00");
+    f20635(cast(immutable ubyte[]) x"00");
 }
+
+void f20635(const ubyte[] value){}
+void f20635(const string value){}
 
 /***************************************************/
 

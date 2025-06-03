@@ -1,5 +1,5 @@
 /* Tracking equivalence classes and constraints at a point on an execution path.
-   Copyright (C) 2019-2024 Free Software Foundation, Inc.
+   Copyright (C) 2019-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -49,6 +49,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/call-summary.h"
 #include "analyzer/analyzer-selftests.h"
 #include "tree-pretty-print.h"
+#include "make-unique.h"
 
 #if ENABLE_ANALYZER
 
@@ -181,13 +182,9 @@ range::dump_to_pp (pretty_printer *pp) const
 DEBUG_FUNCTION void
 range::dump () const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp);
   pp_newline (&pp);
-  pp_flush (&pp);
 }
 
 /* Determine if there is only one possible value for this range.
@@ -444,33 +441,37 @@ bounded_range::dump_to_pp (pretty_printer *pp, bool show_types) const
 void
 bounded_range::dump (bool show_types) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp, show_types);
   pp_newline (&pp);
-  pp_flush (&pp);
 }
 
-json::object *
+std::unique_ptr<json::object>
 bounded_range::to_json () const
 {
-  json::object *range_obj = new json::object ();
-  set_json_attr (range_obj, "lower", m_lower);
-  set_json_attr (range_obj, "upper", m_upper);
+  auto range_obj = ::make_unique<json::object> ();
+  set_json_attr (*range_obj, "lower", m_lower);
+  set_json_attr (*range_obj, "upper", m_upper);
   return range_obj;
+}
+
+std::unique_ptr<text_art::widget>
+bounded_range::make_dump_widget (const text_art::dump_widget_info &dwi) const
+{
+  using text_art::tree_widget;
+  return tree_widget::from_fmt (dwi, default_tree_printer,
+				"%qE ... %qE", m_lower, m_upper);
 }
 
 /* Subroutine of bounded_range::to_json.  */
 
 void
-bounded_range::set_json_attr (json::object *obj, const char *name, tree value)
+bounded_range::set_json_attr (json::object &obj, const char *name, tree value)
 {
   pretty_printer pp;
   pp_format_decoder (&pp) = default_tree_printer;
   pp_printf (&pp, "%E", value);
-  obj->set (name, new json::string (pp_formatted_text (&pp)));
+  obj.set_string (name, pp_formatted_text (&pp));
 }
 
 
@@ -709,24 +710,28 @@ bounded_ranges::dump_to_pp (pretty_printer *pp, bool show_types) const
 DEBUG_FUNCTION void
 bounded_ranges::dump (bool show_types) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp, show_types);
   pp_newline (&pp);
-  pp_flush (&pp);
 }
 
-json::value *
+std::unique_ptr<json::value>
 bounded_ranges::to_json () const
 {
-  json::array *arr_obj = new json::array ();
+  auto arr_obj = ::make_unique<json::array> ();
 
   for (unsigned i = 0; i < m_ranges.length (); ++i)
     arr_obj->append (m_ranges[i].to_json ());
 
   return arr_obj;
+}
+
+void
+bounded_ranges::add_to_dump_widget (text_art::tree_widget &parent,
+				    const text_art::dump_widget_info &dwi) const
+{
+  for (auto &range : m_ranges)
+    parent.add_child (range.make_dump_widget (dwi));
 }
 
 /* Determine whether (X OP RHS_CONST) is known to be true or false
@@ -1108,25 +1113,58 @@ equiv_class::print (pretty_printer *pp) const
    {"svals" : [str],
     "constant" : optional str}.  */
 
-json::object *
+std::unique_ptr<json::object>
 equiv_class::to_json () const
 {
-  json::object *ec_obj = new json::object ();
+  auto ec_obj = ::make_unique<json::object> ();
 
-  json::array *sval_arr = new json::array ();
+  auto sval_arr = ::make_unique<json::array> ();
   for (const svalue *sval : m_vars)
     sval_arr->append (sval->to_json ());
-  ec_obj->set ("svals", sval_arr);
+  ec_obj->set ("svals", std::move (sval_arr));
 
   if (m_constant)
     {
       pretty_printer pp;
       pp_format_decoder (&pp) = default_tree_printer;
       pp_printf (&pp, "%qE", m_constant);
-      ec_obj->set ("constant", new json::string (pp_formatted_text (&pp)));
+      ec_obj->set_string ("constant", pp_formatted_text (&pp));
     }
 
   return ec_obj;
+}
+
+std::unique_ptr<text_art::tree_widget>
+equiv_class::make_dump_widget (const text_art::dump_widget_info &dwi,
+			       unsigned id) const
+{
+  using text_art::tree_widget;
+  std::unique_ptr<tree_widget> ec_widget;
+
+  {
+    pretty_printer pp;
+    pp_string (&pp, "Equivalence class ");
+    equiv_class_id (id).print (&pp);
+    ec_widget = tree_widget::make (dwi, &pp);
+  }
+
+  for (const svalue *sval : m_vars)
+    {
+      pretty_printer pp;
+      pp_format_decoder (&pp) = default_tree_printer;
+      sval->dump_to_pp (&pp, true);
+      ec_widget->add_child (tree_widget::make (dwi, &pp));
+    }
+
+  if (m_constant)
+    {
+      pretty_printer pp;
+      pp_format_decoder (&pp) = default_tree_printer;
+      pp_printf (&pp, "%qE", m_constant);
+      ec_widget->add_child (tree_widget::make (dwi, &pp));
+    }
+
+  return ec_widget;
 }
 
 /* Generate a hash value for this equiv_class.
@@ -1342,16 +1380,27 @@ constraint::print (pretty_printer *pp, const constraint_manager &cm) const
     "op"  : str,
     "rhs" : int, the EC index}.  */
 
-json::object *
+std::unique_ptr<json::object>
 constraint::to_json () const
 {
-  json::object *con_obj = new json::object ();
+  auto con_obj = ::make_unique<json::object> ();
 
-  con_obj->set ("lhs", new json::integer_number (m_lhs.as_int ()));
-  con_obj->set ("op", new json::string (constraint_op_code (m_op)));
-  con_obj->set ("rhs", new json::integer_number (m_rhs.as_int ()));
+  con_obj->set_integer ("lhs", m_lhs.as_int ());
+  con_obj->set_string ("op", constraint_op_code (m_op));
+  con_obj->set_integer ("rhs", m_rhs.as_int ());
 
   return con_obj;
+}
+
+std::unique_ptr<text_art::widget>
+constraint::make_dump_widget (const text_art::dump_widget_info &dwi,
+			      const constraint_manager &cm) const
+{
+  pretty_printer pp;
+  pp_format_decoder (&pp) = default_tree_printer;
+  pp_show_color (&pp) = true;
+  print (&pp, cm);
+  return text_art::tree_widget::make (dwi, &pp);
 }
 
 /* Generate a hash value for this constraint.  */
@@ -1419,15 +1468,27 @@ bounded_ranges_constraint::print (pretty_printer *pp,
   m_ranges->dump_to_pp (pp, true);
 }
 
-json::object *
+std::unique_ptr<json::object>
 bounded_ranges_constraint::to_json () const
 {
-  json::object *con_obj = new json::object ();
+  auto con_obj = ::make_unique<json::object> ();
 
-  con_obj->set ("ec", new json::integer_number (m_ec_id.as_int ()));
+  con_obj->set_integer ("ec", m_ec_id.as_int ());
   con_obj->set ("ranges", m_ranges->to_json ());
 
   return con_obj;
+}
+
+std::unique_ptr<text_art::tree_widget>
+bounded_ranges_constraint::
+make_dump_widget (const text_art::dump_widget_info &dwi) const
+{
+  using text_art::tree_widget;
+  std::unique_ptr<tree_widget> brc_widget
+    (tree_widget::from_fmt (dwi, nullptr,
+			    "ec%i bounded ranges", m_ec_id.as_int ()));
+  m_ranges->add_to_dump_widget (*brc_widget.get (), dwi);
+  return brc_widget;
 }
 
 bool
@@ -1696,12 +1757,8 @@ constraint_manager::dump_to_pp (pretty_printer *pp, bool multiline) const
 void
 constraint_manager::dump (FILE *fp) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = fp;
+  tree_dump_pretty_printer pp (fp);
   dump_to_pp (&pp, true);
-  pp_flush (&pp);
 }
 
 /* Dump a multiline representation of this constraint_manager to stderr.  */
@@ -1724,36 +1781,63 @@ debug (const constraint_manager &cm)
    {"ecs" : array of objects, one per equiv_class
     "constraints" : array of objects, one per constraint}.  */
 
-json::object *
+std::unique_ptr<json::object>
 constraint_manager::to_json () const
 {
-  json::object *cm_obj = new json::object ();
+  auto cm_obj = ::make_unique<json::object> ();
 
   /* Equivalence classes.  */
   {
-    json::array *ec_arr = new json::array ();
+    auto ec_arr = ::make_unique<json::array> ();
     for (const equiv_class *ec : m_equiv_classes)
       ec_arr->append (ec->to_json ());
-    cm_obj->set ("ecs", ec_arr);
+    cm_obj->set ("ecs", std::move (ec_arr));
   }
 
   /* Constraints.  */
   {
-    json::array *con_arr = new json::array ();
+    auto con_arr = ::make_unique<json::array> ();
     for (const constraint &c : m_constraints)
       con_arr->append (c.to_json ());
-    cm_obj->set ("constraints", con_arr);
+    cm_obj->set ("constraints", std::move (con_arr));
   }
 
   /* m_bounded_ranges_constraints.  */
   {
-    json::array *con_arr = new json::array ();
+    auto con_arr = ::make_unique<json::array> ();
     for (const auto &c : m_bounded_ranges_constraints)
       con_arr->append (c.to_json ());
-    cm_obj->set ("bounded_ranges_constraints", con_arr);
+    cm_obj->set ("bounded_ranges_constraints", std::move (con_arr));
   }
 
   return cm_obj;
+}
+
+std::unique_ptr<text_art::tree_widget>
+constraint_manager::make_dump_widget (const text_art::dump_widget_info &dwi) const
+{
+  using text_art::tree_widget;
+  std::unique_ptr<tree_widget> cm_widget
+    (tree_widget::make (dwi, "Constraints"));
+
+  /* Equivalence classes.  */
+  unsigned i;
+  equiv_class *ec;
+  FOR_EACH_VEC_ELT (m_equiv_classes, i, ec)
+    cm_widget->add_child (ec->make_dump_widget (dwi, i));
+
+  /* Constraints.  */
+  for (const constraint &c : m_constraints)
+    cm_widget->add_child (c.make_dump_widget (dwi, *this));
+
+  /* m_bounded_ranges_constraints.  */
+  for (const auto &brc : m_bounded_ranges_constraints)
+    cm_widget->add_child (brc.make_dump_widget (dwi));
+
+  if (cm_widget->get_num_children () == 0)
+    return nullptr;
+
+  return cm_widget;
 }
 
 /* Attempt to add the constraint LHS OP RHS to this constraint_manager.
@@ -3374,8 +3458,8 @@ namespace selftest {
 static void
 test_range ()
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_0 = integer_zero_node;
+  tree int_1 = integer_one_node;
   tree int_2 = build_int_cst (integer_type_node, 2);
   tree int_5 = build_int_cst (integer_type_node, 5);
 
@@ -3419,7 +3503,7 @@ static void
 test_constraint_conditions ()
 {
   tree int_42 = build_int_cst (integer_type_node, 42);
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
 
   tree x = build_global_decl ("x", integer_type_node);
   tree y = build_global_decl ("y", integer_type_node);
@@ -3874,7 +3958,7 @@ test_transitivity ()
 static void
 test_constant_comparisons ()
 {
-  tree int_1 = build_int_cst (integer_type_node, 1);
+  tree int_1 = integer_one_node;
   tree int_3 = build_int_cst (integer_type_node, 3);
   tree int_4 = build_int_cst (integer_type_node, 4);
   tree int_5 = build_int_cst (integer_type_node, 5);
@@ -4058,7 +4142,7 @@ static void
 test_constraint_impl ()
 {
   tree int_42 = build_int_cst (integer_type_node, 42);
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
 
   tree x = build_global_decl ("x", integer_type_node);
   tree y = build_global_decl ("y", integer_type_node);
@@ -4220,7 +4304,7 @@ test_many_constants ()
 static void
 test_purging (void)
 {
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree a = build_global_decl ("a", integer_type_node);
   tree b = build_global_decl ("b", integer_type_node);
 
@@ -4654,7 +4738,7 @@ test_bits (void)
 {
   region_model_manager mgr;
 
-  tree int_0 = build_int_cst (integer_type_node, 0);
+  tree int_0 = integer_zero_node;
   tree int_0x80 = build_int_cst (integer_type_node, 0x80);
   tree int_0xff = build_int_cst (integer_type_node, 0xff);
   tree x = build_global_decl ("x", integer_type_node);

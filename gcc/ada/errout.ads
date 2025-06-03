@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -47,21 +47,6 @@ package Errout is
    --  units other than the main unit. However, if the main unit has a pragma
    --  Source_Reference line, then this is initialized to No_Source_File, to
    --  force an initial reference to the real source file name.
-
-   Raise_Exception_On_Error : Nat renames Err_Vars.Raise_Exception_On_Error;
-   --  If this value is non-zero, then any attempt to generate an error
-   --  message raises the exception Error_Msg_Exception, and the error message
-   --  is not output. This is used for defending against junk resulting from
-   --  illegalities, and also for substitution of more appropriate error
-   --  messages from higher semantic levels. It is a counter so that the
-   --  increment/decrement protocol nests neatly.
-
-   Error_Msg_Exception : exception renames Err_Vars.Error_Msg_Exception;
-   --  Exception raised if Raise_Exception_On_Error is true
-
-   Current_Node : Node_Id := Empty;
-   --  Used by Error_Msg as a default Node_Id.
-   --  Relevant only when Opt.Include_Subprogram_In_Messages is set.
 
    -----------------------------------
    -- Suppression of Error Messages --
@@ -173,12 +158,11 @@ package Errout is
    --      obtained from the Sloc field of the given node or nodes. If no Sloc
    --      is available (happens e.g. for nodes in package Standard), then the
    --      default case (see Scans spec) is used. The nodes to be used are
-   --      stored in Error_Msg_Node_1, Error_Msg_Node_2. No insertion occurs
-   --      for the Empty node, and the Error node results in the insertion of
-   --      the characters <error>. In addition, if the special global variable
-   --      Error_Msg_Qual_Level is non-zero, then the reference will include
-   --      up to the given number of levels of qualification, using the scope
-   --      chain.
+   --      stored in Error_Msg_Node_1, Error_Msg_Node_2, which must not be
+   --      Empty. The Error node results in the insertion of "<error>". In
+   --      addition, if the special global variable Error_Msg_Qual_Level is
+   --      non-zero, then the reference will include up to the given number of
+   --      levels of qualification, using the scope chain.
    --
    --      Note: the special names _xxx (xxx = Pre/Post/Invariant) are changed
    --      to insert the string xxx'Class into the message.
@@ -293,31 +277,31 @@ package Errout is
    --      not necessary to go through any computational effort to include it.
    --
    --      Note: this usage is obsolete; use ?? ?*? ?$? ?x? ?.x? ?_x? to
-   --      specify the string to be added when Warn_Doc_Switch is set to True.
-   --      If this switch is True, then for simple ? messages it has no effect.
-   --      This simple form is to ease transition and may be removed later
-   --      except for GNATprove-specific messages (info and warnings) which are
-   --      not subject to the same GNAT warning switches.
+   --      specify the string to be added when Warning_Doc_Switch is set to
+   --      True. If this switch is True, then for simple ? messages it has no
+   --      effect. This simple form is to ease transition and may be removed
+   --      later except for GNATprove-specific messages (info and warnings)
+   --      which are not subject to the same GNAT warning switches.
 
    --    Insertion character ?? (Two question marks: default warning)
-   --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
+   --      Like ?, but if the flag Warning_Doc_Switch is True, adds the string
    --      "[enabled by default]" at the end of the warning message. For
    --      continuations, use this in each continuation message.
 
    --    Insertion character ?x? ?.x? ?_x? (warning with switch)
    --      "x" is a (lower-case) warning switch character.
-   --      Like ??, but if the flag Warn_Doc_Switch is True, adds the string
+   --      Like ??, but if the flag Warning_Doc_Switch is True, adds the string
    --      "[-gnatwx]", "[-gnatw.x]", "[-gnatw_x]", or "[-gnatyx]" (for style
    --      messages), at the end of the warning message. For continuations, use
    --      this on each continuation message.
 
    --    Insertion character ?*? (restriction warning)
-   --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
+   --      Like ?, but if the flag Warning_Doc_Switch is True, adds the string
    --      "[restriction warning]" at the end of the warning message. For
    --      continuations, use this on each continuation message.
 
    --    Insertion character ?$? (elaboration informational messages)
-   --      Like ?, but if the flag Warn_Doc_Switch is True, adds the string
+   --      Like ?, but if the flag Warning_Doc_Switch is True, adds the string
    --      "[-gnatel]" at the end of the info message. This is used for the
    --      messages generated by the switch -gnatel. For continuations, use
    --      this on each continuation message.
@@ -738,10 +722,11 @@ package Errout is
    procedure Error_Msg
      (Msg                    : String;
       Flag_Location          : Source_Ptr;
+      N                      : Node_Id;
       Is_Compile_Time_Pragma : Boolean);
-   --  Same as Error_Msg (String, Source_Ptr) except Is_Compile_Time_Pragma
-   --  lets the caller specify whether this is a Compile_Time_Warning or
-   --  Compile_Time_Error pragma.
+   --  Same as Error_Msg (String, Source_Ptr, Node_Id) except
+   --  Is_Compile_Time_Pragma lets the caller specify whether this is a
+   --  Compile_Time_Warning or Compile_Time_Error pragma.
 
    procedure Error_Msg_S (Msg : String);
    --  Output a message at current scan pointer location. This routine can be
@@ -884,6 +869,13 @@ package Errout is
    --  ignored. A call with To=False restores the default treatment in which
    --  error calls are treated as usual (and as described in this spec).
 
+   procedure Set_Msg_Text (Text : String; Flag : Source_Ptr);
+   --  Add a sequence of characters to the current message. The characters may
+   --  be one of the special insertion characters (see documentation in spec).
+   --  Flag is the location at which the error is to be posted, which is used
+   --  to determine whether or not the # insertion needs a file name. The
+   --  variables Msg_Buffer are set on return Msglen.
+
    procedure Set_Warnings_Mode_Off (Loc : Source_Ptr; Reason : String_Id)
      renames Erroutc.Set_Warnings_Mode_Off;
    --  Called in response to a pragma Warnings (Off) to record the source
@@ -896,7 +888,7 @@ package Errout is
    --  location from which warnings are to be turned back on.
 
    procedure Set_Specific_Warning_Off
-     (Loc    : Source_Ptr;
+     (Node   : Node_Id;
       Msg    : String;
       Reason : String_Id;
       Config : Boolean;

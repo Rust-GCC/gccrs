@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---           Copyright (C) 2020-2024, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2025, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -183,8 +183,6 @@ package Einfo.Utils is
    function Has_Null_Abstract_State (Id : E) return B;
    function Has_Null_Visible_Refinement (Id : E) return B;
    function Implementation_Base_Type (Id : E) return E;
-   function Is_Base_Type (Id : E) return B with Inline;
-   --  Note that Is_Base_Type returns True for nontypes
    function Is_Boolean_Type (Id : E) return B with Inline;
    function Is_Constant_Object (Id : E) return B with Inline;
    function Is_Controlled (Id : E) return B with Inline;
@@ -192,7 +190,6 @@ package Einfo.Utils is
    function Is_Dynamic_Scope (Id : E) return B;
    function Is_Elaboration_Target (Id : E) return B;
    function Is_External_State (Id : E) return B;
-   function Is_Finalizer (Id : E) return B with Inline;
    function Is_Full_Access (Id : E) return B with Inline;
    function Is_Null_State (Id : E) return B;
    function Is_Package_Or_Generic_Package (Id : E) return B with Inline;
@@ -201,7 +198,6 @@ package Einfo.Utils is
    function Is_Protected_Component (Id : E) return B with Inline;
    function Is_Protected_Interface (Id : E) return B;
    function Is_Protected_Record_Type (Id : E) return B with Inline;
-   function Is_Relaxed_Initialization_State (Id : E) return B;
    function Is_Standard_Character_Type (Id : E) return B;
    function Is_Standard_String_Type (Id : E) return B;
    function Is_String_Type (Id : E) return B with Inline;
@@ -451,6 +447,8 @@ package Einfo.Utils is
    --    Effective_Reads
    --    Effective_Writes
    --    Exceptional_Cases
+   --    Exit_Cases
+   --    Extensions_Visible
    --    Global
    --    Initial_Condition
    --    Initializes
@@ -504,6 +502,12 @@ package Einfo.Utils is
    --  If T is an incomplete type and the full declaration has been seen, or
    --  is the name of a class_wide type whose root is incomplete, return the
    --  corresponding full declaration, else return T itself.
+
+   function Is_Base_Type (Id : E) return B with Inline;
+   --  Return True for a type entity and False for a subtype entity. Note that
+   --  this returns True for nontypes.
+
+   --  WARNING: There is a matching C declaration of this subprogram in fe.h
 
    function Is_Entity_Name (N : Node_Id) return Boolean with Inline;
    --  Test if the node N is the name of an entity (i.e. is an identifier,

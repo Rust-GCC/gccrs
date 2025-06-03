@@ -1,5 +1,5 @@
 /* Callgraph based analysis of static variables.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -913,10 +913,10 @@ propagate (void)
       if (!node->alias && opt_for_fn (node->decl, flag_ipa_reference))
 	{
 	  node_g = &node_info->global;
-	  bool read_all = 
+	  bool read_all =
 		(node_g->statics_read == all_module_statics
 		 || bitmap_equal_p (node_g->statics_read, all_module_statics));
-	  bool written_all = 
+	  bool written_all =
 		(node_g->statics_written == all_module_statics
 		 || bitmap_equal_p (node_g->statics_written,
 				    all_module_statics));

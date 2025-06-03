@@ -1,5 +1,5 @@
 /* Top level of GCC compilers (cc1, cc1plus, etc.)
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -352,7 +352,8 @@ finish_optimization_passes (void)
   gcc::dump_manager *dumps = m_ctxt->get_dumps ();
 
   timevar_push (TV_DUMP);
-  if (profile_arc_flag || flag_test_coverage || flag_branch_probabilities)
+  if (coverage_instrumentation_p () || flag_test_coverage
+      || flag_branch_probabilities)
     {
       dumps->dump_start (pass_profile_1->static_pass_number, NULL);
       end_branch_prob ();
@@ -659,6 +660,10 @@ make_pass_rest_of_compilation (gcc::context *ctxt)
 
 namespace {
 
+/* A container pass (only) for '!targetm.no_register_allocation' targets, for
+   passes to run if reload completed (..., but not run them if it failed, for
+   example for an invalid 'asm').  See also 'pass_late_compilation'.  */
+
 const pass_data pass_data_postreload =
 {
   RTL_PASS, /* type */
@@ -680,7 +685,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate (function *) final override { return reload_completed; }
+  bool gate (function *) final override
+  {
+    if (reload_completed)
+      gcc_checking_assert (!targetm.no_register_allocation);
+    return reload_completed;
+  }
 
 }; // class pass_postreload
 
@@ -693,6 +703,9 @@ make_pass_postreload (gcc::context *ctxt)
 }
 
 namespace {
+
+/* A container pass like 'pass_postreload', but for passes to run also for
+   'targetm.no_register_allocation' targets.  */
 
 const pass_data pass_data_late_compilation =
 {
@@ -1572,18 +1585,13 @@ pass_manager::pass_manager (context *ctxt)
 
   /* Zero-initialize pass members.  */
 #define INSERT_PASSES_AFTER(PASS)
-#define PUSH_INSERT_PASSES_WITHIN(PASS)
+#define PUSH_INSERT_PASSES_WITHIN(PASS, NUM)
 #define POP_INSERT_PASSES()
 #define NEXT_PASS(PASS, NUM) PASS ## _ ## NUM = NULL
 #define NEXT_PASS_WITH_ARG(PASS, NUM, ARG) NEXT_PASS (PASS, NUM)
+#define NEXT_PASS_WITH_ARGS(PASS, NUM, ...) NEXT_PASS (PASS, NUM)
 #define TERMINATE_PASS_LIST(PASS)
 #include "pass-instances.def"
-#undef INSERT_PASSES_AFTER
-#undef PUSH_INSERT_PASSES_WITHIN
-#undef POP_INSERT_PASSES
-#undef NEXT_PASS
-#undef NEXT_PASS_WITH_ARG
-#undef TERMINATE_PASS_LIST
 
   /* Initialize the pass_lists array.  */
 #define DEF_PASS_LIST(LIST) pass_lists[PASS_LIST_NO_##LIST] = &LIST;
@@ -1602,9 +1610,9 @@ pass_manager::pass_manager (context *ctxt)
     *p = NULL;					\
   }
 
-#define PUSH_INSERT_PASSES_WITHIN(PASS) \
+#define PUSH_INSERT_PASSES_WITHIN(PASS, NUM) \
   { \
-    opt_pass **p = &(PASS ## _1)->sub;
+    opt_pass **p = &(PASS ## _ ## NUM)->sub;
 
 #define POP_INSERT_PASSES() \
   }
@@ -1628,14 +1636,19 @@ pass_manager::pass_manager (context *ctxt)
       PASS ## _ ## NUM->set_pass_param (0, ARG);	\
     } while (0)
 
-#include "pass-instances.def"
+#define NEXT_PASS_WITH_ARGS(PASS, NUM, ...)		\
+    do {						\
+      NEXT_PASS (PASS, NUM);				\
+      static constexpr bool values[] = { __VA_ARGS__ };	\
+      unsigned i = 0;					\
+      for (bool value : values)				\
+	{						\
+	  PASS ## _ ## NUM->set_pass_param (i, value);	\
+	  i++;						\
+	}						\
+    } while (0)
 
-#undef INSERT_PASSES_AFTER
-#undef PUSH_INSERT_PASSES_WITHIN
-#undef POP_INSERT_PASSES
-#undef NEXT_PASS
-#undef NEXT_PASS_WITH_ARG
-#undef TERMINATE_PASS_LIST
+#include "pass-instances.def"
 
   /* Register the passes with the tree dump code.  */
   register_dump_files (all_lowering_passes);
@@ -2828,11 +2841,13 @@ ipa_write_summaries_2 (opt_pass *pass, struct lto_out_decl_state *state)
    summaries.  SET is the set of nodes to be written.  */
 
 static void
-ipa_write_summaries_1 (lto_symtab_encoder_t encoder)
+ipa_write_summaries_1 (lto_symtab_encoder_t encoder,
+		       bool output_offload_tables_p)
 {
   pass_manager *passes = g->get_passes ();
   struct lto_out_decl_state *state = lto_new_out_decl_state ();
   state->symtab_node_encoder = encoder;
+  state->output_offload_tables_p = output_offload_tables_p;
 
   lto_output_init_mode_table ();
   lto_push_out_decl_state (state);
@@ -2880,8 +2895,7 @@ ipa_write_summaries (void)
     {
       struct cgraph_node *node = order[i];
 
-      if ((node->definition || node->declare_variant_alt)
-	  && node->need_lto_streaming)
+      if (node->definition && node->need_lto_streaming)
 	{
 	  if (gimple_has_body_p (node->decl))
 	    lto_prepare_function_for_streaming (node);
@@ -2896,7 +2910,8 @@ ipa_write_summaries (void)
     if (vnode->need_lto_streaming)
       lto_set_symtab_encoder_in_partition (encoder, vnode);
 
-  ipa_write_summaries_1 (compute_ltrans_boundary (encoder));
+  ipa_write_summaries_1 (compute_ltrans_boundary (encoder),
+			 flag_generate_offload);
 
   free (order);
   if (streamer_dump_file)
@@ -2951,10 +2966,12 @@ ipa_write_optimization_summaries_1 (opt_pass *pass,
    NULL, write out all summaries of all nodes. */
 
 void
-ipa_write_optimization_summaries (lto_symtab_encoder_t encoder)
+ipa_write_optimization_summaries (lto_symtab_encoder_t encoder,
+				  bool output_offload_tables_p)
 {
   struct lto_out_decl_state *state = lto_new_out_decl_state ();
   state->symtab_node_encoder = encoder;
+  state->output_offload_tables_p = output_offload_tables_p;
 
   lto_output_init_mode_table ();
   lto_push_out_decl_state (state);

@@ -1,5 +1,5 @@
 /* Symbolic offsets and ranges.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -53,6 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "analyzer/constraint-manager.h"
 #include "analyzer/analyzer-selftests.h"
 #include "analyzer/ranges.h"
+#include "make-unique.h"
 
 #if ENABLE_ANALYZER
 
@@ -94,13 +95,15 @@ symbolic_byte_offset::dump_to_pp (pretty_printer *pp, bool simple) const
 void
 symbolic_byte_offset::dump (bool simple) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp, simple);
   pp_newline (&pp);
-  pp_flush (&pp);
+}
+
+std::unique_ptr<json::value>
+symbolic_byte_offset::to_json () const
+{
+  return m_num_bytes_sval->to_json ();
 }
 
 tree
@@ -147,13 +150,18 @@ symbolic_byte_range::dump_to_pp (pretty_printer *pp,
 void
 symbolic_byte_range::dump (bool simple, region_model_manager &mgr) const
 {
-  pretty_printer pp;
-  pp_format_decoder (&pp) = default_tree_printer;
-  pp_show_color (&pp) = pp_show_color (global_dc->printer);
-  pp.buffer->stream = stderr;
+  tree_dump_pretty_printer pp (stderr);
   dump_to_pp (&pp, simple, mgr);
   pp_newline (&pp);
-  pp_flush (&pp);
+}
+
+std::unique_ptr<json::value>
+symbolic_byte_range::to_json () const
+{
+  auto obj = ::make_unique<json::object> ();
+  obj->set ("start", m_start.to_json ());
+  obj->set ("size", m_size.to_json ());
+  return obj;
 }
 
 bool

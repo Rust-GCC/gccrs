@@ -1,5 +1,5 @@
 /* Building internal representation for IRA.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -1760,7 +1760,7 @@ ira_allocno_t *ira_curr_regno_allocno_map;
    IRA_CURR_LOOP_TREE_NODE and IRA_CURR_REGNO_ALLOCNO_MAP.  If BB_P,
    basic block nodes of LOOP_NODE is also processed (before its
    subloop nodes).
-   
+
    If BB_P is set and POSTORDER_FUNC is given, the basic blocks in
    the loop are passed in the *reverse* post-order of the *reverse*
    CFG.  This is only used by ira_create_allocno_live_ranges, which
@@ -1851,14 +1851,15 @@ create_insn_allocnos (rtx x, rtx outer, bool output_p)
 	  ira_allocno_t a;
 
 	  if ((a = ira_curr_regno_allocno_map[regno]) == NULL)
+	    a = ira_create_allocno (regno, false, ira_curr_loop_tree_node);
+
+	  /* This used to only trigger at allocno creation which seems
+	     wrong.  We care about the WMODE propery across all the uses.  */
+	  if (outer != NULL && GET_CODE (outer) == SUBREG)
 	    {
-	      a = ira_create_allocno (regno, false, ira_curr_loop_tree_node);
-	      if (outer != NULL && GET_CODE (outer) == SUBREG)
-		{
-		  machine_mode wmode = GET_MODE (outer);
-		  if (partial_subreg_p (ALLOCNO_WMODE (a), wmode))
-		    ALLOCNO_WMODE (a) = wmode;
-		}
+	      machine_mode wmode = GET_MODE (outer);
+	      if (partial_subreg_p (ALLOCNO_WMODE (a), wmode))
+		ALLOCNO_WMODE (a) = wmode;
 	    }
 
 	  ALLOCNO_NREFS (a)++;

@@ -1,5 +1,5 @@
 /* Hash tables.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -52,7 +52,7 @@ struct ht
   hashnode *entries;
   /* Call back, allocate a node.  */
   hashnode (*alloc_node) (cpp_hash_table *);
-  /* Call back, allocate something that hangs off a node like a cpp_macro.  
+  /* Call back, allocate something that hangs off a node like a cpp_macro.
      NULL means use the usual allocator.  */
   void * (*alloc_subobject) (size_t);
 

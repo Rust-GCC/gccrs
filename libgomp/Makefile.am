@@ -44,9 +44,7 @@ libgomp.ver-sun : libgomp.ver \
 		$(libgomp_la_OBJECTS) $(libgomp_la_LIBADD)
 	perl $(top_srcdir)/../contrib/make_sunver.pl \
 	  libgomp.ver \
-	  $(libgomp_la_OBJECTS:%.lo=.libs/%.o) \
-	 `echo $(libgomp_la_LIBADD) | \
-	    sed 's,/\([^/.]*\)\.la,/.libs/\1.a,g'` \
+	  $(libgomp_la_OBJECTS) $(libgomp_la_LIBADD) \
 	 > $@ || (rm -f $@ ; exit 1)
 endif
 else
@@ -72,7 +70,7 @@ libgomp_la_SOURCES = alloc.c atomic.c barrier.c critical.c env.c error.c \
 	target.c splay-tree.c libgomp-plugin.c oacc-parallel.c oacc-host.c \
 	oacc-init.c oacc-mem.c oacc-async.c oacc-plugin.c oacc-cuda.c \
 	priority_queue.c affinity-fmt.c teams.c allocator.c oacc-profiling.c \
-	oacc-target.c target-indirect.c
+	oacc-target.c target-indirect.c target-cxa-dso-dtor.c
 
 include $(top_srcdir)/plugin/Makefrag.am
 
@@ -99,7 +97,7 @@ openacc_kinds.mod: openacc.mod
 openacc.mod: openacc.lo
 	:
 %.mod: %.f90
-	$(FC) $(FCFLAGS) -cpp -fopenmp -fsyntax-only $<
+	$(FC) $(FCFLAGS) -cpp -fopenmp -fsyntax-only -Wno-c-binding-type $<
 fortran.lo: libgomp_f.h
 fortran.o: libgomp_f.h
 env.lo: libgomp_f.h

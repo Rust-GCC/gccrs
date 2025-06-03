@@ -1,6 +1,6 @@
 (* M2System.mod defines the SYSTEM builtin types.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -50,7 +50,7 @@ FROM SymbolTable IMPORT NulSym,
                         PutProcedureNoReturn,
                         GetSym, GetSymName,
                         GetCurrentModule, SetCurrentModule,
-                        IsLegal,
+                        IsLegal, ProcedureKind,
                         PopValue,
                         PopSize ;
 
@@ -61,7 +61,7 @@ FROM NameKey IMPORT Name, MakeKey, NulName ;
 FROM M2Batch IMPORT MakeDefinitionSource ;
 FROM M2Base IMPORT Cardinal, ZType ;
 FROM M2Size IMPORT Size, MakeSize ;
-FROM M2ALU IMPORT PushCard, PushIntegerTree, DivTrunc ;
+FROM M2ALU IMPORT PushCard, PushIntegerTree, PushRealTree, DivTrunc ;
 FROM M2Error IMPORT InternalError ;
 FROM Lists IMPORT List, InitList, IsItemInList, PutItemIntoList, GetItemFromList, NoOfItemsInList ;
 FROM SymbolKey IMPORT SymbolTree, InitTree, GetSymKey, PutSymKey ;
@@ -73,7 +73,7 @@ FROM M2Base IMPORT Real, Cardinal, Integer, Complex,
                    LongReal, LongCard, LongInt, LongComplex,
                    ShortReal, ShortCard, ShortInt, ShortComplex ;
 
-FROM m2tree IMPORT Tree ;
+FROM gcctypes IMPORT tree ;
 FROM m2linemap IMPORT BuiltinsLocation ;
 FROM m2decl IMPORT GetBitsPerBitset, GetBitsPerUnit ;
 
@@ -86,7 +86,8 @@ FROM m2type IMPORT GetMaxFrom, GetMinFrom,
                    GetM2Real32, GetM2Real64, GetM2Real96, GetM2Real128,
                    GetM2Complex32, GetM2Complex64, GetM2Complex96, GetM2Complex128,
                    GetBitsetType, GetISOByteType, GetISOWordType,
-		   GetCSizeTType, GetCSSizeTType, InitSystemTypes ;
+		   GetCSizeTType, GetCSSizeTType, GetCOffTType,
+                   InitSystemTypes ;
 
 FROM m2expr IMPORT BuildSize, GetSizeOf, AreConstantsEqual ;
 
@@ -113,21 +114,32 @@ END Init ;
 
 
 (*
-   CreateMinMaxFor - creates the min and max values for, type, given gccType.
+   CreateMinMaxFor - creates the min and max values for type given gccType.
 *)
 
-PROCEDURE CreateMinMaxFor (type: CARDINAL; min, max: ARRAY OF CHAR; gccType: Tree) ;
+PROCEDURE CreateMinMaxFor (type: CARDINAL; min, max: ARRAY OF CHAR;
+                           gccType: tree; realtype: BOOLEAN) ;
 VAR
    maxval, minval: CARDINAL ;
 BEGIN
    maxval := MakeConstVar (BuiltinTokenNo, MakeKey(max)) ;
-   PushIntegerTree (GetMaxFrom (BuiltinsLocation (), gccType)) ;
+   IF realtype
+   THEN
+      PushRealTree (GetMaxFrom (BuiltinsLocation (), gccType))
+   ELSE
+      PushIntegerTree (GetMaxFrom (BuiltinsLocation (), gccType))
+   END ;
    PopValue (maxval) ;
    PutVar (maxval, type) ;
    PutSymKey (MaxValues, GetSymName (type), maxval) ;
 
    minval := MakeConstVar (BuiltinTokenNo, MakeKey(min)) ;
-   PushIntegerTree (GetMinFrom (BuiltinsLocation (), gccType)) ;
+   IF realtype
+   THEN
+      PushRealTree (GetMinFrom (BuiltinsLocation (), gccType))
+   ELSE
+      PushIntegerTree (GetMinFrom (BuiltinsLocation (), gccType))
+   END ;
    PopValue (minval) ;
    PutVar (minval, type) ;
    PutSymKey (MinValues, GetSymName (type), minval)
@@ -135,31 +147,32 @@ END CreateMinMaxFor ;
 
 
 (*
-   MapType -
+   MapType - create a mapping of the M2 frontend type to gcctype.
 *)
 
 PROCEDURE MapType (type: CARDINAL;
                    name, min, max: ARRAY OF CHAR;
-                   needsExporting: BOOLEAN; t: Tree) ;
+                   needsExporting: BOOLEAN;
+                   gcctype: tree; realtype: BOOLEAN) ;
 VAR
    n: Name ;
 BEGIN
-   PushIntegerTree(BuildSize(BuiltinsLocation(), t, FALSE)) ;
-   PopSize(type) ;
-   IF IsItemInList(SystemTypes, type)
+   PushIntegerTree (BuildSize (BuiltinsLocation (), gcctype, FALSE)) ;
+   PopSize (type) ;
+   IF IsItemInList (SystemTypes, type)
    THEN
       InternalError ('not expecting system type to already be declared')
    END ;
-   PutItemIntoList(SystemTypes, type) ;
+   PutItemIntoList (SystemTypes, type) ;
 
-   (* create min, max constants if type is ordinal *)
-   IF (NOT StrEqual(min, '')) AND (NOT StrEqual(max, ''))
+   (* Create min, max constants if type is ordinal or a floating point type.  *)
+   IF (NOT StrEqual (min, '')) AND (NOT StrEqual (max, ''))
    THEN
-      CreateMinMaxFor(type, min, max, t)
+      CreateMinMaxFor (type, min, max, gcctype, realtype)
    END ;
    IF needsExporting AND DumpSystemExports
    THEN
-      n := GetSymName(type) ;
+      n := GetSymName (type) ;
       printf1('SYSTEM module creates type: %a\n', n)
    END
 END MapType ;
@@ -170,7 +183,8 @@ END MapType ;
 *)
 
 PROCEDURE CreateType (name, min, max: ARRAY OF CHAR;
-                      needsExporting: BOOLEAN; gccType: Tree) : CARDINAL ;
+                      needsExporting: BOOLEAN; gccType: tree;
+                      realtype: BOOLEAN) : CARDINAL ;
 VAR
    type: CARDINAL ;
 BEGIN
@@ -182,7 +196,7 @@ BEGIN
       (* Create base type.  *)
       type := MakeType (BuiltinTokenNo, MakeKey (name)) ;
       PutType (type, NulSym) ;  (* a Base Type *)
-      MapType (type, name, min, max, needsExporting, gccType) ;
+      MapType (type, name, min, max, needsExporting, gccType, realtype) ;
       RETURN type
    END
 END CreateType ;
@@ -194,9 +208,11 @@ END CreateType ;
 *)
 
 PROCEDURE AttemptToCreateType (name, min, max: ARRAY OF CHAR;
-                               needsExporting: BOOLEAN; gccType: Tree) ;
+                               needsExporting: BOOLEAN; gccType: tree;
+                               realtype: BOOLEAN) ;
 BEGIN
-   Assert (IsLegal (CreateType (name, min, max, needsExporting, gccType)))
+   Assert (IsLegal (CreateType (name, min, max, needsExporting,
+                                gccType, realtype)))
 END AttemptToCreateType ;
 
 
@@ -206,7 +222,7 @@ END AttemptToCreateType ;
 *)
 
 PROCEDURE CreateSetType (name, highBit: ARRAY OF CHAR;
-                         needsExporting: BOOLEAN; gccType: Tree) : CARDINAL ;
+                         needsExporting: BOOLEAN; gccType: tree) : CARDINAL ;
 VAR
    low,
    high,
@@ -225,7 +241,7 @@ BEGIN
       subrange := MakeSubrange (BuiltinTokenNo, NulName) ;
       PutSubrange (subrange, low, high, Cardinal) ;
       PutSet (type, subrange, FALSE) ;
-      MapType (type, name, '', '', needsExporting, gccType) ;
+      MapType (type, name, '', '', needsExporting, gccType, FALSE) ;
       RETURN type
    END
 END CreateSetType ;
@@ -237,7 +253,7 @@ END CreateSetType ;
 *)
 
 PROCEDURE AttemptToCreateSetType (name, highBit: ARRAY OF CHAR;
-                                  needsExporting: BOOLEAN; gccType: Tree) ;
+                                  needsExporting: BOOLEAN; gccType: tree) ;
 BEGIN
    Assert (IsLegal (CreateSetType (name, highBit, needsExporting, gccType)))
 END AttemptToCreateSetType ;
@@ -250,33 +266,33 @@ END AttemptToCreateSetType ;
 
 PROCEDURE MakeFixedSizedTypes ;
 BEGIN
-   AttemptToCreateType ('INTEGER8', 'MinInteger8', 'MaxInteger8', TRUE, GetM2Integer8 ()) ;
-   AttemptToCreateType ('INTEGER16', 'MinInteger16', 'MaxInteger16', TRUE, GetM2Integer16 ()) ;
-   AttemptToCreateType ('INTEGER32', 'MinInteger32', 'MaxInteger32', TRUE, GetM2Integer32 ()) ;
-   AttemptToCreateType ('INTEGER64', 'MinInteger64', 'MaxInteger64', TRUE, GetM2Integer64 ()) ;
+   AttemptToCreateType ('INTEGER8', 'MinInteger8', 'MaxInteger8', TRUE, GetM2Integer8 (), FALSE) ;
+   AttemptToCreateType ('INTEGER16', 'MinInteger16', 'MaxInteger16', TRUE, GetM2Integer16 (), FALSE) ;
+   AttemptToCreateType ('INTEGER32', 'MinInteger32', 'MaxInteger32', TRUE, GetM2Integer32 (), FALSE) ;
+   AttemptToCreateType ('INTEGER64', 'MinInteger64', 'MaxInteger64', TRUE, GetM2Integer64 (), FALSE) ;
 
-   AttemptToCreateType ('CARDINAL8', 'MinCardinal8', 'MaxCardinal8', TRUE, GetM2Cardinal8 ()) ;
-   AttemptToCreateType ('CARDINAL16', 'MinCardinal16', 'MaxCardinal16', TRUE, GetM2Cardinal16 ()) ;
-   AttemptToCreateType ('CARDINAL32', 'MinCardinal32', 'MaxCardinal32', TRUE, GetM2Cardinal32 ()) ;
-   AttemptToCreateType ('CARDINAL64', 'MinCardinal64', 'MaxCardinal64', TRUE, GetM2Cardinal64 ()) ;
+   AttemptToCreateType ('CARDINAL8', 'MinCardinal8', 'MaxCardinal8', TRUE, GetM2Cardinal8 (), FALSE) ;
+   AttemptToCreateType ('CARDINAL16', 'MinCardinal16', 'MaxCardinal16', TRUE, GetM2Cardinal16 (), FALSE) ;
+   AttemptToCreateType ('CARDINAL32', 'MinCardinal32', 'MaxCardinal32', TRUE, GetM2Cardinal32 (), FALSE) ;
+   AttemptToCreateType ('CARDINAL64', 'MinCardinal64', 'MaxCardinal64', TRUE, GetM2Cardinal64 (), FALSE) ;
 
-   AttemptToCreateType ('WORD16', '', '', TRUE, GetM2Word16 ()) ;
-   AttemptToCreateType ('WORD32', '', '', TRUE, GetM2Word32 ()) ;
-   AttemptToCreateType ('WORD64', '', '', TRUE, GetM2Word64 ()) ;
+   AttemptToCreateType ('WORD16', '', '', TRUE, GetM2Word16 (), FALSE) ;
+   AttemptToCreateType ('WORD32', '', '', TRUE, GetM2Word32 (), FALSE) ;
+   AttemptToCreateType ('WORD64', '', '', TRUE, GetM2Word64 (), FALSE) ;
 
    AttemptToCreateSetType ('BITSET8' , '7' , TRUE, GetM2Bitset8 ()) ;
    AttemptToCreateSetType ('BITSET16', '15', TRUE, GetM2Bitset16 ()) ;
    AttemptToCreateSetType ('BITSET32', '31', TRUE, GetM2Bitset32 ()) ;
 
-   AttemptToCreateType ('REAL32', '', '', TRUE, GetM2Real32 ()) ;
-   AttemptToCreateType ('REAL64', '', '', TRUE, GetM2Real64 ()) ;
-   AttemptToCreateType ('REAL96', '', '', TRUE, GetM2Real96 ()) ;
-   AttemptToCreateType ('REAL128', '', '', TRUE, GetM2Real128 ()) ;
+   AttemptToCreateType ('REAL32', 'MinReal32', 'MaxReal32', TRUE, GetM2Real32 (), TRUE) ;
+   AttemptToCreateType ('REAL64', 'MinReal64', 'MaxReal64', TRUE, GetM2Real64 (), TRUE) ;
+   AttemptToCreateType ('REAL96', 'MinReal96', 'MaxReal96', TRUE, GetM2Real96 (), TRUE) ;
+   AttemptToCreateType ('REAL128', 'MinReal128', 'MaxReal128', TRUE, GetM2Real128 (), TRUE) ;
 
-   AttemptToCreateType ('COMPLEX32', '', '', TRUE, GetM2Complex32 ()) ;
-   AttemptToCreateType ('COMPLEX64', '', '', TRUE, GetM2Complex64 ()) ;
-   AttemptToCreateType ('COMPLEX96', '', '', TRUE, GetM2Complex96 ()) ;
-   AttemptToCreateType ('COMPLEX128', '', '', TRUE, GetM2Complex128 ())
+   AttemptToCreateType ('COMPLEX32', '', '', TRUE, GetM2Complex32 (), TRUE) ;
+   AttemptToCreateType ('COMPLEX64', '', '', TRUE, GetM2Complex64 (), TRUE) ;
+   AttemptToCreateType ('COMPLEX96', '', '', TRUE, GetM2Complex96 (), TRUE) ;
+   AttemptToCreateType ('COMPLEX128', '', '', TRUE, GetM2Complex128 (), TRUE)
 END MakeFixedSizedTypes ;
 
 
@@ -286,16 +302,16 @@ END MakeFixedSizedTypes ;
 
 PROCEDURE InitPIMTypes ;
 BEGIN
-   Loc := CreateType ('LOC', '', '', TRUE, GetISOLocType()) ;
+   Loc := CreateType ('LOC', '', '', TRUE, GetISOLocType(), FALSE) ;
    InitSystemTypes(BuiltinsLocation(), Loc) ;
-   Word := CreateType ('WORD', '', '', TRUE, GetWordType()) ;
-   Byte := CreateType ('BYTE', '', '', TRUE, GetByteType()) ;
+   Word := CreateType ('WORD', '', '', TRUE, GetWordType(), FALSE) ;
+   Byte := CreateType ('BYTE', '', '', TRUE, GetByteType(), FALSE) ;
 
    (* ADDRESS = POINTER TO BYTE *)
 
    Address := MakePointer (BuiltinTokenNo, MakeKey('ADDRESS')) ;
    PutPointer (Address, Byte) ;                (* Base Type       *)
-   MapType (Address, 'ADDRESS', '', '', TRUE, GetPointerType())
+   MapType (Address, 'ADDRESS', '', '', TRUE, GetPointerType(), FALSE)
 END InitPIMTypes ;
 
 
@@ -305,17 +321,15 @@ END InitPIMTypes ;
 
 PROCEDURE InitISOTypes ;
 BEGIN
-   Loc := CreateType ('LOC', 'MinLoc', 'MaxLoc', TRUE, GetISOLocType ()) ;
+   Loc := CreateType ('LOC', 'MinLoc', 'MaxLoc', TRUE, GetISOLocType (), FALSE) ;
    InitSystemTypes (BuiltinsLocation (), Loc) ;
 
    Address := MakePointer (BuiltinTokenNo, MakeKey ('ADDRESS')) ;
    PutPointer (Address, Loc) ;                (* Base Type       *)
-   MapType (Address, 'ADDRESS', '', '', TRUE, GetPointerType()) ;
+   MapType (Address, 'ADDRESS', '', '', TRUE, GetPointerType(), FALSE) ;
 
-   Byte := CreateType ('BYTE', '', '', TRUE, GetISOByteType()) ;
-   Word := CreateType ('WORD', '', '', TRUE, GetISOWordType()) ;
-
-   (* CreateMinMaxFor(Loc, 'MinLoc', 'MaxLoc', GetISOLocType()) *)
+   Byte := CreateType ('BYTE', '', '', TRUE, GetISOByteType(), FALSE) ;
+   Word := CreateType ('WORD', '', '', TRUE, GetISOWordType(), FALSE) ;
 END InitISOTypes ;
 
 
@@ -326,8 +340,9 @@ END InitISOTypes ;
 
 PROCEDURE MakeExtraSystemTypes ;
 BEGIN
-   CSizeT  := CreateType ('CSIZE_T' , '', '', TRUE, GetCSizeTType ()) ;
-   CSSizeT := CreateType ('CSSIZE_T', '', '', TRUE, GetCSSizeTType ())
+   CSizeT  := CreateType ('CSIZE_T' , '', '', TRUE, GetCSizeTType (), FALSE) ;
+   CSSizeT := CreateType ('CSSIZE_T', '', '', TRUE, GetCSSizeTType (), FALSE) ;
+   COffT := CreateType ('COFF_T', '', '', TRUE, GetCOffTType (), FALSE)
 END MakeExtraSystemTypes ;
 
 
@@ -372,43 +387,45 @@ BEGIN
       END
    END ;
 
-   (* And now the predefined pseudo functions *)
+   (* The predefined pseudo functions.  *)
 
    Adr := MakeProcedure(BuiltinTokenNo,
                         MakeKey('ADR')) ;           (* Function        *)
-   PutFunction(Adr, Address) ;                      (* Return Type     *)
+   PutFunction (BuiltinTokenNo, Adr, DefProcedure, Address) ;
+                                                    (* Return Type     *)
                                                     (* Address         *)
-
    TSize := MakeProcedure(BuiltinTokenNo,
                           MakeKey('TSIZE')) ;       (* Function        *)
-   PutFunction(TSize, ZType) ;                      (* Return Type     *)
+   PutFunction (BuiltinTokenNo, TSize, DefProcedure, ZType) ;
+                                                    (* Return Type     *)
                                                     (* ZType           *)
-
    TBitSize := MakeProcedure(BuiltinTokenNo,
                              MakeKey('TBITSIZE')) ; (* GNU extension   *)
                                                     (* Function        *)
-   PutFunction(TBitSize, ZType) ;                   (* Return Type     *)
+   PutFunction (BuiltinTokenNo, TBitSize, DefProcedure, ZType) ;
+                                                    (* Return Type     *)
                                                     (* ZType           *)
-   (* and the ISO specific predefined pseudo functions *)
+   (* The ISO specific predefined pseudo functions.  *)
 
    AddAdr := MakeProcedure(BuiltinTokenNo,
                            MakeKey('ADDADR')) ;     (* Function        *)
-   PutFunction(AddAdr, Address) ;                   (* Return Type     *)
-
+   PutFunction (BuiltinTokenNo, AddAdr, DefProcedure, Address) ;
+                                                    (* Return Type     *)
    SubAdr := MakeProcedure(BuiltinTokenNo,
                            MakeKey('SUBADR')) ;     (* Function        *)
-   PutFunction(SubAdr, Address) ;                   (* Return Type     *)
+   PutFunction (BuiltinTokenNo, SubAdr, DefProcedure, Address) ;
+                                                    (* Return Type     *)
+   DifAdr := MakeProcedure (BuiltinTokenNo,
+                            MakeKey ('DIFADR')) ;   (* Function        *)
+   PutFunction (BuiltinTokenNo, DifAdr, DefProcedure, Address) ;
+                                                    (* Return Type     *)
+   MakeAdr := MakeProcedure (BuiltinTokenNo,
+                             MakeKey ('MAKEADR')) ; (* Function        *)
+   PutFunction (BuiltinTokenNo, MakeAdr, DefProcedure, Address) ;
+                                                    (* Return Type     *)
 
-   DifAdr := MakeProcedure(BuiltinTokenNo,
-                           MakeKey('DIFADR')) ;     (* Function        *)
-   PutFunction(DifAdr, Address) ;                   (* Return Type     *)
-
-   MakeAdr := MakeProcedure(BuiltinTokenNo,
-                            MakeKey('MAKEADR')) ;   (* Function        *)
-   PutFunction(MakeAdr, Address) ;                  (* Return Type     *)
-
-   (* the return value for ROTATE, SHIFT and CAST is actually the
-      same as the first parameter, this is faked in M2Quads *)
+   (* The return value for ROTATE, SHIFT and CAST is the
+      same as the first parameter and is faked in M2Quads.  *)
 
    Rotate := MakeProcedure(BuiltinTokenNo,
                            MakeKey('ROTATE')) ;     (* Function        *)
@@ -419,11 +436,11 @@ BEGIN
 
    Throw := MakeProcedure(BuiltinTokenNo,
                           MakeKey('THROW')) ;       (* Procedure       *)
-   PutProcedureNoReturn (Throw, TRUE) ;
+   PutProcedureNoReturn (Throw, DefProcedure, TRUE) ;
 
-   CreateMinMaxFor(Word, 'MinWord', 'MaxWord', GetWordType()) ;
-   CreateMinMaxFor(Address, 'MinAddress', 'MaxAddress', GetPointerType()) ;
-   CreateMinMaxFor(Byte, 'MinByte', 'MaxByte', GetByteType()) ;
+   CreateMinMaxFor(Word, 'MinWord', 'MaxWord', GetWordType(), FALSE) ;
+   CreateMinMaxFor(Address, 'MinAddress', 'MaxAddress', GetPointerType(), FALSE) ;
+   CreateMinMaxFor(Byte, 'MinByte', 'MaxByte', GetByteType(), FALSE) ;
 
    MakeFixedSizedTypes ;
    MakeExtraSystemTypes ;

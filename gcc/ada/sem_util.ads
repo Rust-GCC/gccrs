@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -110,10 +110,9 @@ package Sem_Util is
    --  because those are the only dynamic cases.
 
    procedure Append_Entity_Name (Buf : in out Bounded_String; E : Entity_Id);
-   --  Recursive procedure to construct string for qualified name of enclosing
-   --  program unit. The qualification stops at an enclosing scope has no
-   --  source name (block or loop). If entity is a subprogram instance, skip
-   --  enclosing wrapper package. The name is appended to Buf.
+   --  Construct a user-readable expanded name for E, for printing in messages,
+   --  such as run-time errors for unhandled exceptions. Names created for
+   --  internal use are not included. The name is appended to Buf.
 
    procedure Append_Inherited_Subprogram (S : Entity_Id);
    --  If the parent of the operation is declared in the visible part of
@@ -374,7 +373,7 @@ package Sem_Util is
    --  call C2 (not including the construct N itself), there is no other name
    --  anywhere within a direct constituent of the construct C other than
    --  the one containing C2, that is known to refer to the same object (RM
-   --  6.4.1(6.17/3)).
+   --  6.4.1(6.18-6.19)).
 
    procedure Check_Implicit_Dereference (N : Node_Id; Typ : Entity_Id);
    --  AI05-139-2: Accessors and iterators for containers. This procedure
@@ -599,12 +598,16 @@ package Sem_Util is
    --  attribute, except in the case of formal private and derived types.
    --  Possible optimization???
 
-   function Corresponding_Primitive_Op
+   function Corresponding_Op_Of_Derived_Type
      (Ancestor_Op     : Entity_Id;
       Descendant_Type : Entity_Id) return Entity_Id;
-   --  Given a primitive subprogram of a first type and a (distinct)
-   --  descendant type of that type, find the corresponding primitive
-   --  subprogram of the descendant type.
+   --  Given a subprogram Ancestor_Op associated with an ancestor type,
+   --  and a (distinct) descendant type of that type, find the corresponding
+   --  subprogram entity, if any, of the descendant type and return it.
+   --  Usually this is a primitive subprogram, but if Ancestor_Op is not
+   --  a primitive of the ancestor type (for example, it could be a class-wide
+   --  operation of the ancestor), then this function will simply return
+   --  Ancestor_Op.
 
    function Current_Entity (N : Node_Id) return Entity_Id;
    pragma Inline (Current_Entity);
@@ -705,10 +708,6 @@ package Sem_Util is
    --  Returns True if Name1 and Name2 designate the same unit name; each of
    --  these names is supposed to be a selected component name, an expanded
    --  name, a defining program unit name or an identifier.
-
-   procedure Diagnose_Iterated_Component_Association (N : Node_Id);
-   --  Emit an error if iterated component association N is actually an illegal
-   --  quantified expression lacking a quantifier.
 
    function Discriminated_Size (Comp : Entity_Id) return Boolean;
    --  If a component size is not static then a warning will be emitted
@@ -1461,6 +1460,11 @@ package Sem_Util is
    function Is_Container_Aggregate (Exp : Node_Id) return Boolean;
    --  Is the given expression a container aggregate?
 
+   function Is_Extended_Access_Type (Ent : Entity_Id) return Boolean;
+   --  Ent is any entity. Returns True if Ent is a type (or a subtype thereof)
+   --  for which the Extended_Access aspect has been specified, either
+   --  explicitly or by inheritance.
+
    function Is_Function_With_Side_Effects (Subp : Entity_Id) return Boolean;
    --  Return True if Subp is a function with side effects, ie. it has a
    --  (direct or inherited) pragma Side_Effects with static value True.
@@ -1516,9 +1520,9 @@ package Sem_Util is
 
    function Has_Relaxed_Initialization (E : Entity_Id) return Boolean;
    --  Returns True iff entity E is subject to the Relaxed_Initialization
-   --  aspect. Entity E can be either type, variable, constant, subprogram,
-   --  entry or an abstract state. For private types and deferred constants
-   --  E should be the private view, because aspect can only be attached there.
+   --  aspect. Entity E can be either type, variable, constant, subprogram or
+   --  entry. For private types and deferred constants E should be the private
+   --  view, because aspect can only be attached there.
 
    function Has_Signed_Zeros (E : Entity_Id) return Boolean;
    --  Determines if the floating-point type E supports signed zeros.
@@ -1531,6 +1535,9 @@ package Sem_Util is
 
    function Has_Static_Array_Bounds (Typ : Node_Id) return Boolean;
    --  Return whether an array type has static bounds
+
+   function Has_Static_Empty_Array_Bounds (Typ : Node_Id) return Boolean;
+   --  Return whether array type Typ has static empty bounds
 
    function Has_Static_Non_Empty_Array_Bounds (Typ : Node_Id) return Boolean;
    --  Determine whether array type Typ has static non-empty bounds
@@ -1559,6 +1566,12 @@ package Sem_Util is
      (Typ : Entity_Id) return Boolean;
    --  Given arbitrary type Typ, determine whether it contains at least one
    --  effectively volatile component.
+
+   function Has_Enabled_Aspect (Id : Entity_Id; A : Aspect_Id) return Boolean
+     with Pre => A in Boolean_Aspects;
+   --  Returns True if a Boolean-valued aspect is enabled on entity Id; i.e. it
+   --  is present and either has no aspect definition or its aspect definition
+   --  statically evaluates to True.
 
    function Has_Volatile_Component (Typ : Entity_Id) return Boolean;
    --  Given arbitrary type Typ, determine whether it contains at least one
@@ -1612,8 +1625,11 @@ package Sem_Util is
    function In_Package_Body return Boolean;
    --  Returns True if current scope is within a package body
 
-   function In_Pragma_Expression (N : Node_Id; Nam : Name_Id) return Boolean;
-   --  Returns true if the expression N occurs within a pragma with name Nam
+   function In_Pragma_Expression
+     (N : Node_Id; Nam : Name_Id := No_Name) return Boolean;
+   --  Returns true if the expression N occurs within a pragma. If Name /=
+   --  No_Name returns true if the expression occurs within a pragma with
+   --  the given name.
 
    function In_Pre_Post_Condition
      (N : Node_Id; Class_Wide_Only : Boolean := False) return Boolean;
@@ -1686,6 +1702,16 @@ package Sem_Util is
    --  either the value is not yet known before back-end processing or it is
    --  not known at compile time after back-end processing.
 
+   procedure Inherit_Nonoverridable_Aspects
+     (Typ : Entity_Id; From_Typ : Entity_Id);
+   --  For each nonoverridable aspect of parent type From_Typ, create an
+   --  inherited aspect for Typ and identify the subprograms that are denoted
+   --  by the inherited aspect, which may be the same subprograms of From_Typ,
+   --  or the corresponding inherited or overriding subprograms of Typ (in the
+   --  case where the parent subprogram is primitive), or even other eligible
+   --  subprograms that have been added to the derived type (such as can occur
+   --  in the case of indexing aspects).
+
    procedure Inherit_Predicate_Flags
      (Subt, Par  : Entity_Id;
       Only_Flags : Boolean := False);
@@ -1709,6 +1735,11 @@ package Sem_Util is
    --  In a context that requires a composite or subprogram type and where a
    --  prefix is an access type, rewrite the access type node N (which is the
    --  prefix, e.g. of an indexed component) as an explicit dereference.
+
+   procedure Inspect_Deferred_Constant_Completion (Decl : Node_Id);
+   --  If Decl is a constant object declaration without a default value, check
+   --  whether it has been completed by a full constant declaration or an
+   --  Import pragma. Emit an error message if that is not the case.
 
    procedure Inspect_Deferred_Constant_Completion (Decls : List_Id);
    --  Examine all deferred constants in the declaration list Decls and check
@@ -1755,7 +1786,8 @@ package Sem_Util is
    function Is_Actual_Parameter (N : Node_Id) return Boolean;
    --  Determines if N is an actual parameter in a subprogram or entry call
 
-   function Is_Aliased_View (Obj : Node_Id) return Boolean;
+   function Is_Aliased_View
+     (Obj : Node_Id; For_Extended : Boolean := False) return Boolean;
    --  Determine if Obj is an aliased view, i.e. the name of an object to which
    --  'Access or 'Unchecked_Access can apply. Note that this routine uses the
    --  rules of the language, it does not take into account the restriction
@@ -1763,11 +1795,14 @@ package Sem_Util is
    --  and Obj violates the restriction. The caller is responsible for calling
    --  Restrict.Check_No_Implicit_Aliasing if True is returned, but there is a
    --  requirement for obeying the restriction in the call context.
+   --  If For_Extended is True, then slightly different rules apply (as per
+   --  the definition of the Extended_Access aspect); for example, a slice
+   --  of an aliased array is considered to be aliased.
 
    function Is_Ancestor_Package
      (E1 : Entity_Id;
       E2 : Entity_Id) return Boolean;
-   --  Determine whether package E1 is an ancestor of E2
+   --  True if package E1 is an ancestor of E2 other than E2 itself
 
    function Is_Atomic_Object (N : Node_Id) return Boolean;
    --  Determine whether arbitrary node N denotes a reference to an atomic
@@ -1944,24 +1979,19 @@ package Sem_Util is
    --  . machine_emax = 2**10
    --  . machine_emin = 3 - machine_emax
 
-   function Is_Effectively_Volatile
-     (Id               : Entity_Id;
-      Ignore_Protected : Boolean := False) return Boolean;
+   function Is_Effectively_Volatile (Id : Entity_Id) return Boolean;
    --  Determine whether a type or object denoted by entity Id is effectively
    --  volatile (SPARK RM 7.1.2). To qualify as such, the entity must be either
    --    * Volatile without No_Caching
    --    * An array type subject to aspect Volatile_Components
    --    * An array type whose component type is effectively volatile
+   --    * A record type for which all components have an effectively volatile
+   --      type
    --    * A protected type
    --    * Descendant of type Ada.Synchronous_Task_Control.Suspension_Object
-   --
-   --  If Ignore_Protected is True, then a protected object/type is treated
-   --  like a non-protected record object/type for computing the result of
-   --  this query.
 
    function Is_Effectively_Volatile_For_Reading
-     (Id               : Entity_Id;
-      Ignore_Protected : Boolean := False) return Boolean;
+     (Id : Entity_Id) return Boolean;
    --  Determine whether a type or object denoted by entity Id is effectively
    --  volatile for reading (SPARK RM 7.1.2). To qualify as such, the entity
    --  must be either
@@ -1971,12 +2001,10 @@ package Sem_Util is
    --      Async_Writers and Effective_Reads set to False
    --    * An array type whose component type is effectively volatile for
    --      reading
+   --    * A record type for which at least one component has an effectively
+   --      volatile type for reading
    --    * A protected type
    --    * Descendant of type Ada.Synchronous_Task_Control.Suspension_Object
-   --
-   --  If Ignore_Protected is True, then a protected object/type is treated
-   --  like a non-protected record object/type for computing the result of
-   --  this query.
 
    function Is_Effectively_Volatile_Object
      (N : Node_Id) return Boolean;
@@ -2214,7 +2242,7 @@ package Sem_Util is
    --  type be partially initialized.
 
    function Is_Potentially_Unevaluated (N : Node_Id) return Boolean;
-   --  Predicate to implement definition given in RM 6.1.1 (20/3)
+   --  Predicate to implement definition given in RM 2012 6.1.1 (20/3)
 
    function Is_Potentially_Persistent_Type (T : Entity_Id) return Boolean;
    --  Determines if type T is a potentially persistent type. A potentially
@@ -2340,6 +2368,7 @@ package Sem_Util is
    --    Contract_Cases
    --    Depends
    --    Exceptional_Cases
+   --    Exit_Cases
    --    Extensions_Visible
    --    Global
    --    Post
@@ -2391,6 +2420,11 @@ package Sem_Util is
    function Is_Universal_Numeric_Type (T : Entity_Id) return Boolean;
    pragma Inline (Is_Universal_Numeric_Type);
    --  True if T is Universal_Integer or Universal_Real
+
+   function Is_Unconstrained_Or_Tagged_Item (Item : Entity_Id) return Boolean;
+   --  Subsidiary to Collect_Subprogram_Inputs_Outputs and the analysis of
+   --  pragma Depends. Determine whether the type of dependency item Item is
+   --  tagged, unconstrained array or unconstrained record.
 
    function Is_User_Defined_Equality (Id : Entity_Id) return Boolean;
    --  Determine whether an entity denotes a user-defined equality
@@ -2785,7 +2819,7 @@ package Sem_Util is
    --   2) N is a comparison operator, one of the operands is null, and the
    --      type of the other operand is a descendant of System.Address.
 
-   function Number_Of_Elements_In_Array (T : Entity_Id) return Int;
+   function Number_Of_Elements_In_Array (T : Entity_Id) return Nat;
    --  Returns the number of elements in the array T if the index bounds of T
    --  is known at compile time. If the bounds are not known at compile time,
    --  the function returns the value zero.
@@ -2903,6 +2937,18 @@ package Sem_Util is
    --  are set (recursively) on any composite type that has a component marked
    --  by one of these flags. This procedure can only set flags for Typ, and
    --  never clear them. Comp_Typ is the type of a component or a parent.
+
+   procedure Propagate_Controlled_Flags
+     (Typ      : Entity_Id;
+      From_Typ : Entity_Id;
+      Comp     : Boolean := False;
+      Deriv    : Boolean := False);
+   --  Set Disable_Controlled, Finalize_Storage_Only, Has_Controlled_Component,
+   --  Has_Relaxed_Finalization, and Is_Controlled_Active on Typ when the flags
+   --  are set on From_Typ. If Comp is True, From_Typ is assumed to be the type
+   --  of a component of Typ while, if Deriv is True, From_Typ is assumed to be
+   --  the parent type of Typ. This procedure can only set flags for Typ, and
+   --  never clear them.
 
    procedure Propagate_DIC_Attributes
      (Typ      : Entity_Id;
@@ -3026,8 +3072,8 @@ package Sem_Util is
    --  capture actual value information, but we can capture conditional tests.
 
    function Same_Name (N1, N2 : Node_Id) return Boolean;
-   --  Determine if two (possibly expanded) names are the same name. This is
-   --  a purely syntactic test, and N1 and N2 need not be analyzed.
+   --  True if two identifiers or expanded names are the same name. This
+   --  is a purely syntactic test, and N1 and N2 need not be analyzed.
 
    function Same_Object (Node1, Node2 : Node_Id) return Boolean;
    --  Determine if Node1 and Node2 are known to designate the same object.
@@ -3341,6 +3387,11 @@ package Sem_Util is
    function Within_Scope (E : Entity_Id; S : Entity_Id) return Boolean;
    --  Returns True if entity E is declared within scope S
 
+   function Within_Spec_Static_Expression (N : Node_Id) return Boolean;
+   --  Returns True if we are preanalyzing a default expression, and N is
+   --  within a static expression. See "Handling of Default Expressions"
+   --  in the spec of package Sem for further details.
+
    procedure Warn_On_Hiding_Entity
      (N               : Node_Id;
       Hidden, Visible : Entity_Id;
@@ -3377,6 +3428,9 @@ package Sem_Util is
 
    function Yields_Universal_Type (N : Node_Id) return Boolean;
    --  Determine whether unanalyzed node N yields a universal type
+
+   procedure Preanalyze_And_Resolve_Without_Errors (N : Node_Id);
+   --  Preanalyze and resolve N without reporting errors
 
    procedure Preanalyze_Without_Errors (N : Node_Id);
    --  Preanalyze N without reporting errors

@@ -1,6 +1,6 @@
 // Components for manipulating sequences of characters -*- C++ -*-
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -39,7 +39,12 @@
 #ifndef _BASIC_STRING_TCC
 #define _BASIC_STRING_TCC 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wc++11-extensions"
 
 #include <bits/cxxabi_forced.h>
 
@@ -205,7 +210,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		_M_data(__another);
 		_M_capacity(__capacity);
 	      }
-	    traits_type::assign(_M_data()[__len++], *__beg);
+	    traits_type::assign(_M_data()[__len++],
+				static_cast<_CharT>(*__beg));
 	    ++__beg;
 	  }
 
@@ -269,6 +275,31 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	this->_S_assign(_M_data(), __n, __c);
 
       _M_set_length(__n);
+    }
+
+  // Length of string constructed is easier to propagate inter-procedurally
+  // than difference between iterators.
+  template<typename _CharT, typename _Traits, typename _Alloc>
+    template<bool _Terminated>
+    _GLIBCXX20_CONSTEXPR 
+    void
+    basic_string<_CharT, _Traits, _Alloc>::
+    _M_construct(const _CharT* __str, size_type __n)
+    {
+      if (__n > size_type(_S_local_capacity))
+	{
+	  _M_data(_M_create(__n, size_type(0)));
+	  _M_capacity(__n);
+	}
+      else
+	_M_init_local_buf();
+
+      if (__n || _Terminated)
+	this->_S_copy(_M_data(), __str, __n + _Terminated);
+
+      _M_length(__n);
+      if (!_Terminated)
+	traits_type::assign(_M_data()[__n], _CharT());
     }
 
   template<typename _CharT, typename _Traits, typename _Alloc>
@@ -606,7 +637,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       static_assert(__gnu_cxx::__is_integer_nonstrict<decltype(__r)>::__value,
 		    "resize_and_overwrite operation must return an integer");
 #endif
-      _GLIBCXX_DEBUG_ASSERT(__r >= 0 && __r <= __n);
+      _GLIBCXX_DEBUG_ASSERT(__r >= 0 && size_type(__r) <= __n);
       __term._M_r = size_type(__r);
       if (__term._M_r > __n)
 	__builtin_unreachable();
@@ -1031,4 +1062,5 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace std
 
+#pragma GCC diagnostic pop
 #endif

@@ -1,5 +1,5 @@
 /* Code translation -- generate GCC trees from gfc_code.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -42,22 +42,8 @@ along with GCC; see the file COPYING3.  If not see
 
    gfc_get_*	get a backend tree representation of a decl or type  */
 
-static gfc_file *gfc_current_backend_file;
-
 const char gfc_msg_fault[] = N_("Array reference out of bounds");
 
-
-/* Return a location_t suitable for 'tree' for a gfortran locus.  The way the
-   parser works in gfortran, loc->lb->location contains only the line number
-   and LOCATION_COLUMN is 0; hence, the column has to be added when generating
-   locations for 'tree'.  Cf. error.cc's gfc_format_decoder.  */
-
-location_t
-gfc_get_location (locus *loc)
-{
-  return linemap_position_for_loc_and_offset (line_table, loc->lb->location,
-					      loc->nextc - loc->lb->line);
-}
 
 /* Advance along TREE_CHAIN n times.  */
 
@@ -71,6 +57,14 @@ gfc_advance_chain (tree t, int n)
     }
   return t;
 }
+
+void
+gfc_locus_from_location (locus *where, location_t loc)
+{
+  where->nextc = (gfc_char_t *) -1;
+  where->u.location = loc;
+}
+
 
 static int num_var;
 
@@ -247,6 +241,16 @@ gfc_add_modify (stmtblock_t * pblock, tree lhs, tree rhs)
   gfc_add_modify_loc (input_location, pblock, lhs, rhs);
 }
 
+tree
+gfc_trans_force_lval (stmtblock_t *pblock, tree e)
+{
+  if (VAR_P (e))
+    return e;
+
+  tree v = gfc_create_var (TREE_TYPE (e), NULL);
+  gfc_add_modify (pblock, v, e);
+  return v;
+}
 
 /* Create a new scope/binding level and initialize a block.  Care must be
    taken when translating expressions as any temporaries will be placed in
@@ -398,7 +402,9 @@ get_array_span (tree type, tree decl)
     return gfc_conv_descriptor_span_get (decl);
 
   /* Return the span for deferred character length array references.  */
-  if (type && TREE_CODE (type) == ARRAY_TYPE && TYPE_STRING_FLAG (type))
+  if (type
+      && (TREE_CODE (type) == ARRAY_TYPE || TREE_CODE (type) == INTEGER_TYPE)
+      && TYPE_STRING_FLAG (type))
     {
       if (TREE_CODE (decl) == PARM_DECL)
 	decl = build_fold_indirect_ref_loc (input_location, decl);
@@ -578,7 +584,7 @@ trans_runtime_error_vararg (tree errorfunc, locus* where, const char* msgid,
   tree fntype;
   char *message;
   const char *p;
-  int line, nargs, i;
+  int nargs, i;
   location_t loc;
 
   /* Compute the number of extra arguments from the format string.  */
@@ -595,13 +601,13 @@ trans_runtime_error_vararg (tree errorfunc, locus* where, const char* msgid,
 
   if (where)
     {
-      line = LOCATION_LINE (where->lb->location);
-      message = xasprintf ("At line %d of file %s",  line,
-			   where->lb->file->filename);
+      location_t loc = gfc_get_location (where);
+      message = xasprintf ("At line %d of file %s",  LOCATION_LINE (loc),
+			   LOCATION_FILE (loc));
     }
   else
     message = xasprintf ("In file '%s', around line %d",
-			 gfc_source_file, LOCATION_LINE (input_location) + 1);
+			 gfc_source_file, LOCATION_LINE (input_location));
 
   arg = gfc_build_addr_expr (pchar_type_node,
 			     gfc_build_localized_cstring_const (message));
@@ -702,14 +708,13 @@ gfc_trans_runtime_check (bool error, bool once, tree cond, stmtblock_t * pblock,
     }
   else
     {
+      location_t loc = where ? gfc_get_location (where) : input_location;
       if (once)
-	cond = fold_build2_loc (gfc_get_location (where), TRUTH_AND_EXPR,
-				boolean_type_node, tmpvar,
+	cond = fold_build2_loc (loc, TRUTH_AND_EXPR, boolean_type_node, tmpvar,
 				fold_convert (boolean_type_node, cond));
 
-      tmp = fold_build3_loc (gfc_get_location (where), COND_EXPR, void_type_node,
-			     cond, body,
-			     build_empty_stmt (gfc_get_location (where)));
+      tmp = fold_build3_loc (loc, COND_EXPR, void_type_node, cond, body,
+			     build_empty_stmt (loc));
       gfc_add_expr_to_block (pblock, tmp);
     }
 }
@@ -900,7 +905,7 @@ gfc_allocate_using_caf_lib (stmtblock_t * block, tree pointer, tree size,
     {
       gcc_assert(errlen == NULL_TREE);
       errmsg = null_pointer_node;
-      errlen = build_int_cst (integer_type_node, 0);
+      errlen = integer_zero_node;
     }
 
   size = fold_convert (size_type_node, size);
@@ -1132,6 +1137,9 @@ get_final_proc_ref (gfc_se *se, gfc_expr *expr, tree class_container)
 
   if (POINTER_TYPE_P (TREE_TYPE (se->expr)))
     se->expr = build_fold_indirect_ref_loc (input_location, se->expr);
+
+  if (expr->ts.type != BT_DERIVED && !using_class_container)
+    gfc_free_expr (final_wrapper);
 }
 
 
@@ -1159,6 +1167,7 @@ get_elem_size (gfc_se *se, gfc_expr *expr, tree class_container)
 
       gfc_conv_expr (se, class_size);
       gcc_assert (se->post.head == NULL_TREE);
+      gfc_free_expr (class_size);
     }
 }
 
@@ -1402,11 +1411,12 @@ gfc_add_finalizer_call (stmtblock_t *block, gfc_expr *expr2,
          ref->next = NULL;
        }
 
-  if (expr->ts.type == BT_CLASS
-      && !expr2->rank
-      && !expr2->ref
-      && CLASS_DATA (expr2->symtree->n.sym)->as)
-    expr->rank = CLASS_DATA (expr2->symtree->n.sym)->as->rank;
+  if (expr->ts.type == BT_CLASS && (!expr2->rank || !expr2->corank)
+      && !expr2->ref && CLASS_DATA (expr2->symtree->n.sym)->as)
+    {
+      expr->rank = CLASS_DATA (expr2->symtree->n.sym)->as->rank;
+      expr->corank = CLASS_DATA (expr2->symtree->n.sym)->as->corank;
+    }
 
   stmtblock_t tmp_block;
   gfc_start_block (&tmp_block);
@@ -1470,6 +1480,7 @@ gfc_add_finalizer_call (stmtblock_t *block, gfc_expr *expr2,
 
   gfc_add_expr_to_block (block, tmp);
   gfc_add_block_to_block (block, &final_se.post);
+  gfc_free_expr (expr);
 
   return true;
 }
@@ -1624,7 +1635,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
     }
   else if (derived && gfc_is_finalizable (derived, NULL))
     {
-      if (derived->attr.zero_comp && !rank)
+      if (!derived->components && (!rank || attr.elemental))
 	{
 	  /* Any attempt to assign zero length entities, causes the gimplifier
 	     all manner of problems. Instead, a variable is created to act as
@@ -1675,7 +1686,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
 					      final_fndecl);
   if (!GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (desc)))
     {
-      if (is_class)
+      if (is_class || attr.elemental)
 	desc = gfc_conv_scalar_to_descriptor (se, desc, attr);
       else
 	{
@@ -1685,7 +1696,7 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
 	}
     }
 
-  if (derived && derived->attr.zero_comp)
+  if (derived && !derived->components)
     {
       /* All the conditions below break down for zero length derived types.  */
       tmp = build_call_expr_loc (input_location, final_fndecl, 3,
@@ -1784,11 +1795,11 @@ gfc_finalize_tree_expr (gfc_se *se, gfc_symbol *derived,
    analyzed and set by this routine, and -2 to indicate that a non-coarray is to
    be deallocated.  */
 tree
-gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
-			    tree errlen, tree label_finish,
-			    bool can_fail, gfc_expr* expr,
+gfc_deallocate_with_status (tree pointer, tree status, tree errmsg, tree errlen,
+			    tree label_finish, bool can_fail, gfc_expr *expr,
 			    int coarray_dealloc_mode, tree class_container,
-			    tree add_when_allocated, tree caf_token)
+			    tree add_when_allocated, tree caf_token,
+			    bool unalloc_ok)
 {
   stmtblock_t null, non_null;
   tree cond, tmp, error;
@@ -1838,7 +1849,8 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 	  else
 	    caf_dereg_type = (enum gfc_coarray_deregtype) coarray_dealloc_mode;
 	}
-      else if (flag_coarray == GFC_FCOARRAY_SINGLE)
+      else if (flag_coarray == GFC_FCOARRAY_SINGLE
+	       && GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (pointer)))
 	pointer = gfc_conv_descriptor_data_get (pointer);
     }
   else if (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (pointer)))
@@ -1879,7 +1891,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
       tmp = fold_build2_loc (input_location, MODIFY_EXPR, status_type,
 			     fold_build1_loc (input_location, INDIRECT_REF,
 					      status_type, status),
-			     build_int_cst (status_type, 1));
+			     build_int_cst (status_type, unalloc_ok ? 0 : 1));
       error = fold_build3_loc (input_location, COND_EXPR, void_type_node,
 			       cond2, tmp, error);
     }
@@ -1903,7 +1915,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 	  if (descr)
 	    cond = fold_build2_loc (input_location, EQ_EXPR, boolean_type_node,
 				    gfc_conv_descriptor_version (descr),
-				    build_int_cst (integer_type_node, 1));
+				    integer_one_node);
 	  else
 	    cond = gfc_omp_call_is_alloc (pointer);
 	  omp_tmp = builtin_decl_explicit (BUILT_IN_GOMP_FREE);
@@ -1917,7 +1929,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 							 0));
       if (flag_openmp_allocators && descr)
 	gfc_add_modify (&non_null, gfc_conv_descriptor_version (descr),
-			build_zero_cst (integer_type_node));
+			integer_zero_node);
 
       if (status != NULL_TREE && !integer_zerop (status))
 	{
@@ -1946,7 +1958,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 	{
 	  gcc_assert (errlen == NULL_TREE);
 	  errmsg = null_pointer_node;
-	  errlen = build_zero_cst (integer_type_node);
+	  errlen = integer_zero_node;
 	}
       else
 	{
@@ -1963,10 +1975,10 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 
       token = gfc_build_addr_expr  (NULL_TREE, token);
       gcc_assert (caf_dereg_type > GFC_CAF_COARRAY_ANALYZE);
-      tmp = build_call_expr_loc (input_location,
-				 gfor_fndecl_caf_deregister, 5,
-				 token, build_int_cst (integer_type_node,
-						       caf_dereg_type),
+      tmp = build_call_expr_loc (input_location, gfor_fndecl_caf_deregister, 5,
+				 token,
+				 build_int_cst (integer_type_node,
+						caf_dereg_type),
 				 pstat, errmsg, errlen);
       gfc_add_expr_to_block (&non_null, tmp);
 
@@ -1978,7 +1990,7 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
       ASM_VOLATILE_P (tmp) = 1;
       gfc_add_expr_to_block (&non_null, tmp);
 
-      if (status != NULL_TREE)
+      if (status != NULL_TREE && !integer_zerop (status))
 	{
 	  tree stat = build_fold_indirect_ref_loc (input_location, status);
 	  tree nullify = fold_build2_loc (input_location, MODIFY_EXPR,
@@ -2012,9 +2024,10 @@ gfc_deallocate_with_status (tree pointer, tree status, tree errmsg,
 
 tree
 gfc_deallocate_scalar_with_status (tree pointer, tree status, tree label_finish,
-				   bool can_fail, gfc_expr* expr,
+				   bool can_fail, gfc_expr *expr,
 				   gfc_typespec ts, tree class_container,
-				   bool coarray)
+				   bool coarray, bool unalloc_ok, tree errmsg,
+				   tree errmsg_len)
 {
   stmtblock_t null, non_null;
   tree cond, tmp, error;
@@ -2057,7 +2070,7 @@ gfc_deallocate_scalar_with_status (tree pointer, tree status, tree label_finish,
       tmp = fold_build2_loc (input_location, MODIFY_EXPR, status_type,
 			     fold_build1_loc (input_location, INDIRECT_REF,
 					      status_type, status),
-			     build_int_cst (status_type, 1));
+			     build_int_cst (status_type, unalloc_ok ? 0 : 1));
       error = fold_build3_loc (input_location, COND_EXPR, void_type_node,
 			       cond2, tmp, error);
     }
@@ -2122,7 +2135,8 @@ gfc_deallocate_scalar_with_status (tree pointer, tree status, tree label_finish,
   else
     {
       tree token;
-      tree pstat = null_pointer_node;
+      tree pstat = null_pointer_node, perrmsg = null_pointer_node,
+	   perrlen = size_zero_node;
       gfc_se se;
 
       gfc_init_se (&se, NULL);
@@ -2135,11 +2149,17 @@ gfc_deallocate_scalar_with_status (tree pointer, tree status, tree label_finish,
 	  pstat = status;
 	}
 
-      tmp = build_call_expr_loc (input_location,
-				 gfor_fndecl_caf_deregister, 5,
-				 token, build_int_cst (integer_type_node,
-						       caf_dereg_type),
-				 pstat, null_pointer_node, integer_zero_node);
+      if (errmsg != NULL_TREE)
+	{
+	  perrmsg = errmsg;
+	  perrlen = errmsg_len;
+	}
+
+      tmp = build_call_expr_loc (input_location, gfor_fndecl_caf_deregister, 5,
+				 token,
+				 build_int_cst (integer_type_node,
+						caf_dereg_type),
+				 pstat, perrmsg, perrlen);
       gfc_add_expr_to_block (&non_null, tmp);
 
       /* It guarantees memory consistency within the same segment.  */
@@ -2286,42 +2306,6 @@ gfc_add_block_to_block (stmtblock_t * block, stmtblock_t * append)
 }
 
 
-/* Save the current locus.  The structure may not be complete, and should
-   only be used with gfc_restore_backend_locus.  */
-
-void
-gfc_save_backend_locus (locus * loc)
-{
-  loc->lb = XCNEW (gfc_linebuf);
-  loc->lb->location = input_location;
-  loc->lb->file = gfc_current_backend_file;
-}
-
-
-/* Set the current locus.  */
-
-void
-gfc_set_backend_locus (locus * loc)
-{
-  gfc_current_backend_file = loc->lb->file;
-  input_location = gfc_get_location (loc);
-}
-
-
-/* Restore the saved locus. Only used in conjunction with
-   gfc_save_backend_locus, to free the memory when we are done.  */
-
-void
-gfc_restore_backend_locus (locus * loc)
-{
-  /* This only restores the information captured by gfc_save_backend_locus,
-     intentionally does not use gfc_get_location.  */
-  input_location = loc->lb->location;
-  gfc_current_backend_file = loc->lb->file;
-  free (loc->lb);
-}
-
-
 /* Translate an executable statement. The tree cond is used by gfc_trans_do.
    This static function is wrapped by gfc_trans_code_cond and
    gfc_trans_code.  */
@@ -2347,8 +2331,7 @@ trans_code (gfc_code * code, tree cond)
 	  gfc_add_expr_to_block (&block, res);
 	}
 
-      gfc_current_locus = code->loc;
-      gfc_set_backend_locus (&code->loc);
+      input_location = gfc_get_location (&code->loc);
 
       switch (code->op)
 	{
@@ -2596,21 +2579,24 @@ trans_code (gfc_code * code, tree cond)
 	case EXEC_OMP_CANCELLATION_POINT:
 	case EXEC_OMP_CRITICAL:
 	case EXEC_OMP_DEPOBJ:
+	case EXEC_OMP_DISPATCH:
 	case EXEC_OMP_DISTRIBUTE:
 	case EXEC_OMP_DISTRIBUTE_PARALLEL_DO:
 	case EXEC_OMP_DISTRIBUTE_PARALLEL_DO_SIMD:
 	case EXEC_OMP_DISTRIBUTE_SIMD:
 	case EXEC_OMP_DO:
 	case EXEC_OMP_DO_SIMD:
-	case EXEC_OMP_LOOP:
 	case EXEC_OMP_ERROR:
 	case EXEC_OMP_FLUSH:
+	case EXEC_OMP_INTEROP:
+	case EXEC_OMP_LOOP:
 	case EXEC_OMP_MASKED:
 	case EXEC_OMP_MASKED_TASKLOOP:
 	case EXEC_OMP_MASKED_TASKLOOP_SIMD:
 	case EXEC_OMP_MASTER:
 	case EXEC_OMP_MASTER_TASKLOOP:
 	case EXEC_OMP_MASTER_TASKLOOP_SIMD:
+	case EXEC_OMP_METADIRECTIVE:
 	case EXEC_OMP_ORDERED:
 	case EXEC_OMP_PARALLEL:
 	case EXEC_OMP_PARALLEL_DO:
@@ -2656,6 +2642,8 @@ trans_code (gfc_code * code, tree cond)
 	case EXEC_OMP_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
 	case EXEC_OMP_TEAMS_DISTRIBUTE_SIMD:
 	case EXEC_OMP_TEAMS_LOOP:
+	case EXEC_OMP_TILE:
+	case EXEC_OMP_UNROLL:
 	case EXEC_OMP_WORKSHARE:
 	  res = gfc_trans_omp_directive (code);
 	  break;
@@ -2683,7 +2671,7 @@ trans_code (gfc_code * code, tree cond)
 	  gfc_internal_error ("gfc_trans_code(): Bad statement code");
 	}
 
-      gfc_set_backend_locus (&code->loc);
+      input_location = gfc_get_location (&code->loc);
 
       if (res != NULL_TREE && ! IS_EMPTY_STMT (res))
 	{
@@ -2803,14 +2791,15 @@ gfc_start_wrapped_block (gfc_wrapped_block* block, tree code)
 /* Add a new pair of initializers/clean-up code.  */
 
 void
-gfc_add_init_cleanup (gfc_wrapped_block* block, tree init, tree cleanup)
+gfc_add_init_cleanup (gfc_wrapped_block* block, tree init, tree cleanup,
+		      bool back)
 {
   gcc_assert (block);
 
   /* The new pair of init/cleanup should be "wrapped around" the existing
      block of code, thus the initialization is added to the front and the
      cleanup to the back.  */
-  add_expr_to_chain (&block->init, init, true);
+  add_expr_to_chain (&block->init, init, !back);
   add_expr_to_chain (&block->cleanup, cleanup, false);
 }
 

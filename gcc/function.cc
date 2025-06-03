@@ -1,5 +1,5 @@
 /* Expands front end tree to back end RTL for GCC.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -216,6 +216,7 @@ free_after_compilation (struct function *f)
   f->machine = NULL;
   f->cfg = NULL;
   f->curr_properties &= ~PROP_cfg;
+  delete f->cond_uids;
 
   regno_reg_rtx = NULL;
 }
@@ -2230,6 +2231,7 @@ use_register_for_decl (const_tree decl)
       /* We don't set DECL_IGNORED_P for the function_result_decl.  */
       if (optimize)
 	return true;
+      /* Needed for [[musttail]] which can operate even at -O0 */
       if (cfun->tail_call_marked)
 	return true;
       /* We don't set DECL_REGISTER for the function_result_decl.  */
@@ -2385,7 +2387,7 @@ split_complex_args (vec<tree> *args)
    the hidden struct return argument, and (abi willing) complex args.
    Return the new parameter list.  */
 
-static vec<tree> 
+static vec<tree>
 assign_parms_augmented_arg_list (struct assign_parm_data_all *all)
 {
   tree fndecl = current_function_decl;
@@ -3745,6 +3747,8 @@ assign_parms (tree fndecl)
      now that all parameters have been copied out of hard registers.  */
   emit_insn (all.first_conversion_insn);
 
+  do_pending_stack_adjust ();
+
   /* Estimate reload stack alignment from scalar return mode.  */
   if (SUPPORTS_STACK_ALIGNMENT)
     {
@@ -4703,22 +4707,59 @@ invoke_set_current_function_hook (tree fndecl)
     }
 }
 
+/* Set cfun to NEW_CFUN and switch to the optimization and target options
+   associated with NEW_FNDECL.
+
+   FORCE says whether we should do the switch even if NEW_CFUN is the current
+   function, e.g. because there has been a change in optimization or target
+   options.  */
+
+static void
+set_function_decl (function *new_cfun, tree new_fndecl, bool force)
+{
+  if (cfun != new_cfun || force)
+    {
+      cfun = new_cfun;
+      invoke_set_current_function_hook (new_fndecl);
+      redirect_edge_var_map_empty ();
+    }
+}
+
 /* cfun should never be set directly; use this function.  */
 
 void
 set_cfun (struct function *new_cfun, bool force)
 {
-  if (cfun != new_cfun || force)
-    {
-      cfun = new_cfun;
-      invoke_set_current_function_hook (new_cfun ? new_cfun->decl : NULL_TREE);
-      redirect_edge_var_map_empty ();
-    }
+  set_function_decl (new_cfun, new_cfun ? new_cfun->decl : NULL_TREE, force);
 }
 
 /* Initialized with NOGC, making this poisonous to the garbage collector.  */
 
 static vec<function *> cfun_stack;
+
+/* Push the current cfun onto the stack, then switch to function NEW_CFUN
+   and FUNCTION_DECL NEW_FNDECL.  FORCE is as for set_function_decl.  */
+
+static void
+push_function_decl (function *new_cfun, tree new_fndecl, bool force)
+{
+  gcc_assert ((!cfun && !current_function_decl)
+	      || (cfun && current_function_decl == cfun->decl));
+  cfun_stack.safe_push (cfun);
+  current_function_decl = new_fndecl;
+  set_function_decl (new_cfun, new_fndecl, force);
+}
+
+/* Push the current cfun onto the stack and switch to function declaration
+   NEW_FNDECL, which might or might not have a function body.  FORCE is as for
+   set_function_decl.  */
+
+void
+push_function_decl (tree new_fndecl, bool force)
+{
+  force |= current_function_decl != new_fndecl;
+  push_function_decl (DECL_STRUCT_FUNCTION (new_fndecl), new_fndecl, force);
+}
 
 /* Push the current cfun onto the stack, and set cfun to new_cfun.  Also set
    current_function_decl accordingly.  */
@@ -4726,17 +4767,14 @@ static vec<function *> cfun_stack;
 void
 push_cfun (struct function *new_cfun)
 {
-  gcc_assert ((!cfun && !current_function_decl)
-	      || (cfun && current_function_decl == cfun->decl));
-  cfun_stack.safe_push (cfun);
-  current_function_decl = new_cfun ? new_cfun->decl : NULL_TREE;
-  set_cfun (new_cfun);
+  push_function_decl (new_cfun, new_cfun ? new_cfun->decl : NULL_TREE, false);
 }
 
-/* Pop cfun from the stack.  Also set current_function_decl accordingly.  */
+/* A common subroutine for pop_cfun and pop_function_decl.  FORCE is as
+   for set_function_decl.  */
 
-void
-pop_cfun (void)
+static void
+pop_cfun_1 (bool force)
 {
   struct function *new_cfun = cfun_stack.pop ();
   /* When in_dummy_function, we do have a cfun but current_function_decl is
@@ -4746,8 +4784,28 @@ pop_cfun (void)
   gcc_checking_assert (in_dummy_function
 		       || !cfun
 		       || current_function_decl == cfun->decl);
-  set_cfun (new_cfun);
+  set_cfun (new_cfun, force);
   current_function_decl = new_cfun ? new_cfun->decl : NULL_TREE;
+}
+
+/* Pop cfun from the stack.  Also set current_function_decl accordingly.  */
+
+void
+pop_cfun (void)
+{
+  pop_cfun_1 (false);
+}
+
+/* Undo push_function_decl.  */
+
+void
+pop_function_decl (void)
+{
+  /* If the previous cfun was null, the options should be reset to the
+     global set.  Checking the current cfun against the new (popped) cfun
+     wouldn't catch this if the current function decl has no function
+     struct.  */
+  pop_cfun_1 (!cfun_stack.last ());
 }
 
 /* Return value of funcdef and increase it.  */
@@ -5104,7 +5162,7 @@ expand_function_start (tree subr)
   else if (DECL_MODE (res) == VOIDmode)
     /* If return mode is void, this decl rtl should not be used.  */
     set_parm_rtl (res, NULL_RTX);
-  else 
+  else
     {
       /* Compute the return values into a pseudo reg, which we will copy
 	 into the true return register after the cleanups are done.  */
@@ -6258,8 +6316,11 @@ thread_prologue_and_epilogue_insns (void)
     }
 
   /* Threading the prologue and epilogue changes the artificial refs in the
-     entry and exit blocks, and may invalidate DF info for tail calls.  */
+     entry and exit blocks, and may invalidate DF info for tail calls.
+     This is also needed for [[musttail]] conversion even when not
+     optimizing.  */
   if (optimize
+      || cfun->tail_call_marked
       || flag_optimize_sibling_calls
       || flag_ipa_icf_functions
       || in_lto_p)
@@ -6556,7 +6617,7 @@ rest_of_handle_thread_prologue_and_epilogue (function *fun)
 {
   /* prepare_shrink_wrap is sensitive to the block structure of the control
      flow graph, so clean it up first.  */
-  if (optimize)
+  if (cfun->tail_call_marked || optimize)
     cleanup_cfg (0);
 
   /* On some machines, the prologue and epilogue code, or parts thereof,

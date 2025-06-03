@@ -1,3 +1,46 @@
+2024-11-22  Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR bootstrap/117737
+	* objc-act.cc (INCLUDE_MEMORY): Remove.
+	* objc-encoding.cc (INCLUDE_MEMORY): Remove.
+	* objc-gnu-runtime-abi-01.cc (INCLUDE_MEMORY): Remove.
+	* objc-lang.cc (INCLUDE_MEMORY): Remove.
+	* objc-next-runtime-abi-01.cc (INCLUDE_MEMORY): Remove.
+	* objc-next-runtime-abi-02.cc (INCLUDE_MEMORY): Remove.
+	* objc-runtime-shared-support.cc (INCLUDE_MEMORY): Remove.
+
+2024-10-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-encoding.cc: Remove trailing whitespace.
+	* objc-map.h: Likewise.
+	* objc-next-runtime-abi-01.cc: Likewise.
+	* objc-act.cc: Likewise.
+	* objc-map.cc: Likewise.
+
+2024-10-24  David Malcolm  <dmalcolm@redhat.com>
+	    Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR other/116613
+	* objc-act.cc: Add #define INCLUDE_MEMORY.
+	* objc-encoding.cc: Likewise.
+	* objc-gnu-runtime-abi-01.cc: Likewise.
+	* objc-lang.cc: Likewise.
+	* objc-next-runtime-abi-01.cc: Likewise.
+	* objc-next-runtime-abi-02.cc: Likewise.
+	* objc-runtime-shared-support.cc: Likewise.
+
+2024-05-02  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* objc-next-runtime-abi-02.cc (WEAK_PROTOCOLS_AFTER): New.
+	(next_runtime_abi_02_protocol_decl): Use WEAK_PROTOCOLS_AFTER
+	to determine this ABI change.
+	(build_v2_protocol_list_address_table): Likewise.
+
+2024-03-20  Jakub Jelinek  <jakub@redhat.com>
+
+	* objc-next-runtime-abi-02.cc (build_v2_class_ro_t_initializer): Use
+	integer_zero_node instead of build_int_cst (integer_type_node, 0).
+
 2024-02-24  Jakub Jelinek  <jakub@redhat.com>
 
 	* objc-encoding.cc (encode_array): Use HOST_WIDE_INT_0 macros.
@@ -4330,9 +4373,8 @@
 	LANG_HOOKS_INCOMPLETE_TYPE_ERROR, LANG_HOOKS_TYPE_PROMOTES_TO,
 	LANG_HOOKS_REGISTER_BUILTIN_TYPE, LANG_HOOKS_WRITE_GLOBALS):
 	Move to c-objc-common.h.
-
 
-Copyright (C) 2004-2024 Free Software Foundation, Inc.
+Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

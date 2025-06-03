@@ -1,4 +1,4 @@
-# Copyright (C) 2000-2024 Free Software Foundation, Inc.
+# Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,6 +37,10 @@ proc dump-base { args } {
     # gcc-defs to base compilation dumps only on the source basename.
     set dumpbase $src
     if { [string length $dumpbase_suf] != 0 } {
+	# Accept {} as dump base suffix to drop the source suffix entirely.
+	if { "$dumpbase_suf" == "{}" } {
+	    set dumpbase_suf ""
+	}
 	regsub {[.][^.]*$} $src $dumpbase_suf dumpbase
     }
     return $dumpbase

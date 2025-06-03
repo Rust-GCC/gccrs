@@ -1,4 +1,4 @@
-// Copyright (C) 1994-2024 Free Software Foundation, Inc.
+// Copyright (C) 1994-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -47,7 +47,7 @@ __do_upcast (const __class_type_info *dst_type,
              void **obj_ptr) const
 {
   __upcast_result result (__vmi_class_type_info::__flags_unknown_mask);
-  
+
   __do_upcast (dst_type, *obj_ptr, result);
   if (!contained_public_p (result.part2dst))
     return false;

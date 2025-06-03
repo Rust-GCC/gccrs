@@ -1,5 +1,5 @@
 /* Definitions for the branch prediction routines in the GNU compiler.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -245,4 +245,4 @@ DEF_PREDICTOR (PRED_FORTRAN_LOOP_PREHEADER, "Fortran loop preheader", \
 
 DEF_PREDICTOR (PRED_FORTRAN_CONTIGUOUS, "Fortran contiguous", \
 	       HITRATE (75), 0)
-	
+

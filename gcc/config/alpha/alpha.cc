@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on the DEC Alpha.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
    Contributed by Richard Kenner (kenner@vlsi1.ultra.nyu.edu)
 
 This file is part of GCC.
@@ -460,8 +460,9 @@ alpha_option_override (void)
 	    line_size = cpu_table[i].line_size;
 	    l1_size = cpu_table[i].l1_size;
 	    l2_size = cpu_table[i].l2_size;
-	    target_flags &= ~ (MASK_BWX | MASK_MAX | MASK_FIX | MASK_CIX);
-	    target_flags |= cpu_table[i].flags;
+	    target_flags &= ~((MASK_BWX | MASK_MAX | MASK_FIX | MASK_CIX)
+			      & ~target_flags_explicit);
+	    target_flags |= cpu_table[i].flags & ~target_flags_explicit;
 	    break;
 	  }
       if (i == ct_size)
@@ -1660,8 +1661,10 @@ alpha_secondary_reload (bool in_p, rtx x, reg_class_t rclass_i,
 	      if (!aligned_memory_operand (x, mode))
 		sri->icode = direct_optab_handler (reload_in_optab, mode);
 	    }
-	  else
+	  else if (aligned_memory_operand (x, mode) || !TARGET_SAFE_BWA)
 	    sri->icode = direct_optab_handler (reload_out_optab, mode);
+	  else
+	    sri->icode = code_for_reload_out_safe_bwa (mode);
 	  return NO_REGS;
 	}
     }
@@ -2390,6 +2393,70 @@ alpha_expand_mov_nobwx (machine_mode mode, rtx *operands)
   return false;
 }
 
+/* Expand a multi-thread and async-signal safe QImode or HImode
+   move instruction; return true if all work is done.  */
+
+bool
+alpha_expand_mov_safe_bwa (machine_mode mode, rtx *operands)
+{
+  /* If the output is not a register, the input must be.  */
+  if (MEM_P (operands[0]))
+    operands[1] = force_reg (mode, operands[1]);
+
+  /* If it's a memory load, the sequence is the usual non-BWX one.  */
+  if (any_memory_operand (operands[1], mode))
+    return alpha_expand_mov_nobwx (mode, operands);
+
+  /* Handle memory store cases, unaligned and aligned.  The only case
+     where we can be called during reload is for aligned loads; all
+     other cases require temporaries.  */
+  if (any_memory_operand (operands[0], mode))
+    {
+      if (aligned_memory_operand (operands[0], mode))
+	{
+	  rtx label = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
+	  emit_label (XEXP (label, 0));
+
+	  rtx aligned_mem, bitnum;
+	  rtx status = gen_reg_rtx (SImode);
+	  rtx temp = gen_reg_rtx (SImode);
+	  get_aligned_mem (operands[0], &aligned_mem, &bitnum);
+	  emit_insn (gen_aligned_store_safe_bwa (aligned_mem, operands[1],
+						 bitnum, status, temp));
+
+	  rtx cond = gen_rtx_EQ (DImode,
+				 gen_rtx_SUBREG (DImode, status, 0),
+				 const0_rtx);
+	  alpha_emit_unlikely_jump (cond, label);
+	}
+      else
+	{
+	  rtx addr = gen_reg_rtx (DImode);
+	  emit_insn (gen_rtx_SET (addr, get_unaligned_address (operands[0])));
+
+	  rtx aligned_addr = gen_reg_rtx (DImode);
+	  emit_insn (gen_rtx_SET (aligned_addr,
+				  gen_rtx_AND (DImode, addr, GEN_INT (-8))));
+
+	  rtx label = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
+	  emit_label (XEXP (label, 0));
+
+	  rtx status = gen_reg_rtx (DImode);
+	  rtx temp = gen_reg_rtx (DImode);
+	  rtx seq = gen_unaligned_store_safe_bwa (mode, addr, operands[1],
+						  aligned_addr, status, temp);
+	  alpha_set_memflags (seq, operands[0]);
+	  emit_insn (seq);
+
+	  rtx cond = gen_rtx_EQ (DImode, status, const0_rtx);
+	  alpha_emit_unlikely_jump (cond, label);
+	}
+      return true;
+    }
+
+  return false;
+}
+
 /* Implement the movmisalign patterns.  One of the operands is a memory
    that is not naturally aligned.  Emit instructions to load it.  */
 
@@ -2414,7 +2481,11 @@ alpha_expand_movmisalign (machine_mode mode, rtx *operands)
     {
       if (!reg_or_0_operand (operands[1], mode))
 	operands[1] = force_reg (mode, operands[1]);
-      alpha_expand_unaligned_store (operands[0], operands[1], 8, 0);
+      if (TARGET_SAFE_PARTIAL)
+	alpha_expand_unaligned_store_safe_partial (operands[0], operands[1],
+						   8, 0, BITS_PER_UNIT);
+      else
+	alpha_expand_unaligned_store (operands[0], operands[1], 8, 0);
     }
   else
     gcc_unreachable ();
@@ -3269,7 +3340,7 @@ alpha_emit_xfloating_cvt (enum rtx_code orig_code, rtx operands[])
      set (OP[1] OP[3])
    is valid.  Naturally, output operand ordering is little-endian.
    This is used by *movtf_internal and *movti_internal.  */
-  
+
 void
 alpha_split_tmode_pair (rtx operands[4], machine_mode mode,
 			bool fixup_overlap)
@@ -3606,6 +3677,310 @@ alpha_expand_unaligned_store (rtx dst, rtx src,
   emit_move_insn (meml, dstl);
 }
 
+/* Store data SRC of size SIZE using unaligned methods to location
+   referred by base DST plus offset OFS and of alignment ALIGN.  This is
+   a multi-thread and async-signal safe implementation for all sizes from
+   8 down to 1.
+
+   For BWX targets it is straightforward, we just write data piecemeal,
+   taking any advantage of the alignment known and observing that we
+   shouldn't have been called for alignments of 32 or above in the first
+   place (though adding support for that would be easy).
+
+   For non-BWX targets we need to load data from memory, mask it such as
+   to keep any part outside the area written, insert data to be stored,
+   and write the result back atomically.  For sizes that are not a power
+   of 2 there are no byte mask or insert machine instructions available
+   so the mask required has to be built by hand, however ZAP and ZAPNOT
+   instructions can then be used to apply the mask.  Since LL/SC loops
+   are used, the high and low parts have to be disentangled from each
+   other and handled sequentially except for size 1 where there is only
+   the low part to be written.  */
+
+void
+alpha_expand_unaligned_store_safe_partial (rtx dst, rtx src,
+					   HOST_WIDE_INT size,
+					   HOST_WIDE_INT ofs,
+					   HOST_WIDE_INT align)
+{
+  if (TARGET_BWX)
+    {
+      machine_mode mode = align >= 2 * BITS_PER_UNIT ? HImode : QImode;
+      HOST_WIDE_INT step = mode == HImode ? 2 : 1;
+
+      while (1)
+	{
+	  rtx dstl = src == const0_rtx ? const0_rtx : gen_lowpart (mode, src);
+	  rtx meml = adjust_address (dst, mode, ofs);
+	  emit_move_insn (meml, dstl);
+
+	  ofs += step;
+	  size -= step;
+	  if (size == 0)
+	    return;
+
+	  if (size < step)
+	    {
+	      mode = QImode;
+	      step = 1;
+	    }
+
+	  if (src != const0_rtx)
+	    src = expand_simple_binop (DImode, LSHIFTRT, src,
+				       GEN_INT (step * BITS_PER_UNIT),
+				       NULL, 1, OPTAB_WIDEN);
+	}
+    }
+
+  rtx dsta = XEXP (dst, 0);
+  if (GET_CODE (dsta) == LO_SUM)
+    dsta = force_reg (Pmode, dsta);
+
+  rtx addr = copy_addr_to_reg (plus_constant (Pmode, dsta, ofs));
+
+  rtx byte_mask = NULL_RTX;
+  switch (size)
+    {
+    case 3:
+    case 5:
+    case 6:
+    case 7:
+      /* If size is not a power of 2 we need to build the byte mask from
+	 size by hand.  This is SIZE consecutive bits starting from bit 0.  */
+      byte_mask = force_reg (DImode, GEN_INT (~(HOST_WIDE_INT_M1U << size)));
+
+      /* Unlike with machine INSxx and MSKxx operations there is no
+	 implicit mask applied to addr with corresponding operations
+	 made by hand, so extract the byte index now.  */
+      emit_insn (gen_rtx_SET (addr,
+			      gen_rtx_AND (DImode, addr, GEN_INT (~-8))));
+    }
+
+  /* Must handle high before low for degenerate case of aligned.  */
+  if (size != 1)
+    {
+      rtx addrh = gen_reg_rtx (DImode);
+      rtx aligned_addrh = gen_reg_rtx (DImode);
+      emit_insn (gen_rtx_SET (addrh,
+			      plus_constant (DImode, dsta, ofs + size - 1)));
+      emit_insn (gen_rtx_SET (aligned_addrh,
+			      gen_rtx_AND (DImode, addrh, GEN_INT (-8))));
+
+      /* AND addresses cannot be in any alias set, since they may implicitly
+	 alias surrounding code.  Ideally we'd have some alias set that
+	 covered all types except those with alignment 8 or higher.  */
+      rtx memh = change_address (dst, DImode, aligned_addrh);
+      set_mem_alias_set (memh, 0);
+
+      rtx insh = gen_reg_rtx (DImode);
+      rtx maskh = NULL_RTX;
+      switch (size)
+	{
+	case 1:
+	case 2:
+	case 4:
+	case 8:
+	  if (src != CONST0_RTX (GET_MODE (src)))
+	    emit_insn (gen_insxh (insh, gen_lowpart (DImode, src),
+				  GEN_INT (size * 8), addr));
+	  break;
+	case 3:
+	case 5:
+	case 6:
+	case 7:
+	  {
+	    /* For the high part we shift the byte mask right by 8 minus
+	       the byte index in addr, so we need an extra calculation.  */
+	    rtx shamt = gen_reg_rtx (DImode);
+	    emit_insn (gen_rtx_SET (shamt,
+				    gen_rtx_MINUS (DImode,
+						   force_reg (DImode,
+							      GEN_INT (8)),
+						   addr)));
+
+	    maskh = gen_reg_rtx (DImode);
+	    rtx shift = gen_rtx_LSHIFTRT (DImode, byte_mask, shamt);
+	    emit_insn (gen_rtx_SET (maskh, shift));
+
+	    /* Insert any bytes required by hand, by doing a byte-wise
+	       shift on SRC right by the same number and then zap the
+	       bytes outside the byte mask.  */
+	    if (src != CONST0_RTX (GET_MODE (src)))
+	      {
+		rtx byte_loc = gen_reg_rtx (DImode);
+		emit_insn (gen_rtx_SET (byte_loc,
+					gen_rtx_ASHIFT (DImode,
+							shamt, GEN_INT (3))));
+		rtx bytes = gen_reg_rtx (DImode);
+		emit_insn (gen_rtx_SET (bytes,
+					gen_rtx_LSHIFTRT (DImode,
+							  gen_lowpart (DImode,
+								       src),
+							  byte_loc)));
+
+		rtx zapmask = gen_rtx_NOT (QImode,
+					   gen_rtx_SUBREG (QImode, maskh, 0));
+		rtx zap = gen_rtx_UNSPEC (DImode, gen_rtvec (1, zapmask),
+					  UNSPEC_ZAP);
+		emit_insn (gen_rtx_SET (insh,
+					gen_rtx_AND (DImode, zap, bytes)));
+	      }
+	  }
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+
+      rtx labelh = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
+      emit_label (XEXP (labelh, 0));
+
+      rtx dsth = gen_reg_rtx (DImode);
+      emit_insn (gen_load_locked (DImode, dsth, memh));
+
+      switch (size)
+	{
+	case 1:
+	case 2:
+	case 4:
+	case 8:
+	  emit_insn (gen_mskxh (dsth, dsth, GEN_INT (size * 8), addr));
+	  break;
+	case 3:
+	case 5:
+	case 6:
+	case 7:
+	  {
+	    rtx zapmask = gen_rtx_SUBREG (QImode, maskh, 0);
+	    rtx zap = gen_rtx_UNSPEC (DImode, gen_rtvec (1, zapmask),
+				      UNSPEC_ZAP);
+	    emit_insn (gen_rtx_SET (dsth, gen_rtx_AND (DImode, zap, dsth)));
+	  }
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+
+      if (src != CONST0_RTX (GET_MODE (src)))
+	dsth = expand_simple_binop (DImode, IOR, insh, dsth, dsth, 0,
+				    OPTAB_WIDEN);
+
+      emit_insn (gen_store_conditional (DImode, dsth, memh, dsth));
+
+      alpha_emit_unlikely_jump (gen_rtx_EQ (DImode, dsth, const0_rtx), labelh);
+    }
+
+  /* Now handle low.  */
+  rtx addrl = gen_reg_rtx (DImode);
+  rtx aligned_addrl = gen_reg_rtx (DImode);
+  emit_insn (gen_rtx_SET (addrl, plus_constant (DImode, dsta, ofs)));
+  emit_insn (gen_rtx_SET (aligned_addrl,
+			  gen_rtx_AND (DImode, addrl, GEN_INT (-8))));
+
+  /* AND addresses cannot be in any alias set, since they may implicitly
+     alias surrounding code.  Ideally we'd have some alias set that
+     covered all types except those with alignment 8 or higher.  */
+  rtx meml = change_address (dst, DImode, aligned_addrl);
+  set_mem_alias_set (meml, 0);
+
+  rtx insl = gen_reg_rtx (DImode);
+  rtx maskl;
+  switch (size)
+    {
+    case 1:
+      if (src != CONST0_RTX (GET_MODE (src)))
+	emit_insn (gen_insbl (insl, gen_lowpart (QImode, src), addr));
+      break;
+    case 2:
+      if (src != CONST0_RTX (GET_MODE (src)))
+	emit_insn (gen_inswl (insl, gen_lowpart (HImode, src), addr));
+      break;
+    case 4:
+      if (src != CONST0_RTX (GET_MODE (src)))
+	emit_insn (gen_insll (insl, gen_lowpart (SImode, src), addr));
+      break;
+    case 8:
+      if (src != CONST0_RTX (GET_MODE (src)))
+	emit_insn (gen_insql (insl, gen_lowpart (DImode, src), addr));
+      break;
+    case 3:
+    case 5:
+    case 6:
+    case 7:
+      /* For the low part we shift the byte mask left by the byte index,
+	 which is already in ADDR.  */
+      maskl = gen_reg_rtx (DImode);
+      emit_insn (gen_rtx_SET (maskl,
+			      gen_rtx_ASHIFT (DImode, byte_mask, addr)));
+
+      /* Insert any bytes required by hand, by doing a byte-wise shift
+	 on SRC left by the same number and then zap the bytes outside
+	 the byte mask.  */
+      if (src != CONST0_RTX (GET_MODE (src)))
+	{
+	  rtx byte_loc = gen_reg_rtx (DImode);
+	  emit_insn (gen_rtx_SET (byte_loc,
+				  gen_rtx_ASHIFT (DImode,
+						  force_reg (DImode, addr),
+						  GEN_INT (3))));
+	  rtx bytes = gen_reg_rtx (DImode);
+	  emit_insn (gen_rtx_SET (bytes,
+				  gen_rtx_ASHIFT (DImode,
+						  gen_lowpart (DImode, src),
+						  byte_loc)));
+
+	  rtx zapmask = gen_rtx_NOT (QImode,
+				     gen_rtx_SUBREG (QImode, maskl, 0));
+	  rtx zap = gen_rtx_UNSPEC (DImode, gen_rtvec (1, zapmask),
+				    UNSPEC_ZAP);
+	  emit_insn (gen_rtx_SET (insl, gen_rtx_AND (DImode, zap, bytes)));
+	}
+      break;
+      default:
+	gcc_unreachable ();
+      }
+
+  rtx labell = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
+  emit_label (XEXP (labell, 0));
+
+  rtx dstl = gen_reg_rtx (DImode);
+  emit_insn (gen_load_locked (DImode, dstl, meml));
+
+  switch (size)
+    {
+    case 1:
+      emit_insn (gen_mskbl (dstl, dstl, addr));
+      break;
+    case 2:
+      emit_insn (gen_mskwl (dstl, dstl, addr));
+      break;
+    case 4:
+      emit_insn (gen_mskll (dstl, dstl, addr));
+      break;
+    case 8:
+      emit_insn (gen_mskql (dstl, dstl, addr));
+      break;
+    case 3:
+    case 5:
+    case 6:
+    case 7:
+      {
+	rtx zapmask = gen_rtx_SUBREG (QImode, maskl, 0);
+	rtx zap = gen_rtx_UNSPEC (DImode, gen_rtvec (1, zapmask), UNSPEC_ZAP);
+	emit_insn (gen_rtx_SET (dstl, gen_rtx_AND (DImode, zap, dstl)));
+      }
+      break;
+    default:
+      gcc_unreachable ();
+    }
+
+  if (src != CONST0_RTX (GET_MODE (src)))
+    dstl = expand_simple_binop (DImode, IOR, insl, dstl, dstl, 0, OPTAB_WIDEN);
+
+  emit_insn (gen_store_conditional (DImode, dstl, meml, dstl));
+
+  alpha_emit_unlikely_jump (gen_rtx_EQ (DImode, dstl, const0_rtx), labell);
+}
+
 /* The block move code tries to maximize speed by separating loads and
    stores at the expense of register pressure: we load all of the data
    before we store it back out.  There are two secondary effects worth
@@ -3625,10 +4000,6 @@ alpha_expand_unaligned_load_words (rtx *out_regs, rtx smem,
   rtx sreg, areg, tmp, smema;
   HOST_WIDE_INT i;
 
-  smema = XEXP (smem, 0);
-  if (GET_CODE (smema) == LO_SUM)
-    smema = force_reg (Pmode, smema);
-
   /* Generate all the tmp registers we need.  */
   for (i = 0; i < words; ++i)
     {
@@ -3639,6 +4010,10 @@ alpha_expand_unaligned_load_words (rtx *out_regs, rtx smem,
 
   if (ofs != 0)
     smem = adjust_address (smem, GET_MODE (smem), ofs);
+
+  smema = XEXP (smem, 0);
+  if (GET_CODE (smema) == LO_SUM)
+    smema = force_reg (Pmode, smema);
 
   /* Load up all of the source data.  */
   for (i = 0; i < words; ++i)
@@ -3698,10 +4073,6 @@ alpha_expand_unaligned_store_words (rtx *data_regs, rtx dmem,
   rtx st_addr_1, st_addr_2, dmema;
   HOST_WIDE_INT i;
 
-  dmema = XEXP (dmem, 0);
-  if (GET_CODE (dmema) == LO_SUM)
-    dmema = force_reg (Pmode, dmema);
-
   /* Generate all the tmp registers we need.  */
   if (data_regs != NULL)
     for (i = 0; i < words; ++i)
@@ -3711,6 +4082,10 @@ alpha_expand_unaligned_store_words (rtx *data_regs, rtx dmem,
 
   if (ofs != 0)
     dmem = adjust_address (dmem, GET_MODE (dmem), ofs);
+
+  dmema = XEXP (dmem, 0);
+  if (GET_CODE (dmema) == LO_SUM)
+    dmema = force_reg (Pmode, dmema);
 
   st_addr_2 = change_address (dmem, DImode,
 			      gen_rtx_AND (DImode,
@@ -3771,6 +4146,186 @@ alpha_expand_unaligned_store_words (rtx *data_regs, rtx dmem,
   emit_move_insn (st_addr_1, st_tmp_1);
 }
 
+/* Store an integral number of consecutive unaligned quadwords.  DATA_REGS
+   may be NULL to store zeros.  This is a multi-thread and async-signal
+   safe implementation.  */
+
+static void
+alpha_expand_unaligned_store_words_safe_partial (rtx *data_regs, rtx dmem,
+						HOST_WIDE_INT words,
+						HOST_WIDE_INT ofs,
+						HOST_WIDE_INT align)
+{
+  rtx const im8 = GEN_INT (-8);
+  rtx ins_tmps[MAX_MOVE_WORDS];
+  HOST_WIDE_INT i;
+
+  /* Generate all the tmp registers we need.  */
+  for (i = 0; i < words; i++)
+    ins_tmps[i] = data_regs != NULL ? gen_reg_rtx (DImode) : const0_rtx;
+
+  if (ofs != 0)
+    dmem = adjust_address (dmem, GET_MODE (dmem), ofs);
+
+  /* For BWX store the ends before we start fiddling with data registers
+     to fill the middle.  Also if we have no more than two quadwords,
+     then obviously we're done.  */
+  if (TARGET_BWX)
+    {
+      rtx datan = data_regs ? data_regs[words - 1] : const0_rtx;
+      rtx data0 = data_regs ? data_regs[0] : const0_rtx;
+      HOST_WIDE_INT e = (words - 1) * 8;
+
+      alpha_expand_unaligned_store_safe_partial (dmem, data0, 8, 0, align);
+      alpha_expand_unaligned_store_safe_partial (dmem, datan, 8, e, align);
+      if (words <= 2)
+	return;
+    }
+
+  rtx dmema = XEXP (dmem, 0);
+  if (GET_CODE (dmema) == LO_SUM)
+    dmema = force_reg (Pmode, dmema);
+
+  /* Shift the input data into place.  */
+  rtx dreg = copy_addr_to_reg (dmema);
+  if (data_regs != NULL)
+    {
+      for (i = words - 1; i >= 0; i--)
+	{
+	  emit_insn (gen_insqh (ins_tmps[i], data_regs[i], dreg));
+	  emit_insn (gen_insql (data_regs[i], data_regs[i], dreg));
+	}
+      for (i = words - 1; i > 0; i--)
+	ins_tmps[i - 1] = expand_simple_binop (DImode, IOR, data_regs[i],
+					       ins_tmps[i - 1],
+					       ins_tmps[i - 1],
+					       1, OPTAB_DIRECT);
+    }
+
+  if (!TARGET_BWX)
+    {
+      rtx temp = gen_reg_rtx (DImode);
+      rtx mem = gen_rtx_MEM (DImode,
+			     expand_simple_binop (Pmode, AND, dreg, im8,
+						  NULL_RTX, 1, OPTAB_DIRECT));
+
+      rtx label = gen_rtx_LABEL_REF (VOIDmode, gen_label_rtx ());
+      emit_label (XEXP (label, 0));
+
+      emit_insn (gen_load_locked (DImode, temp, mem));
+      emit_insn (gen_mskql (temp, temp, dreg));
+      if (data_regs != NULL)
+	temp = expand_simple_binop (DImode, IOR, temp, data_regs[0],
+				    temp, 1, OPTAB_DIRECT);
+      emit_insn (gen_store_conditional (DImode, temp, mem, temp));
+
+      alpha_emit_unlikely_jump (gen_rtx_EQ (DImode, temp, const0_rtx), label);
+    }
+
+  for (i = words - 1; i > 0; --i)
+    {
+      rtx temp = change_address (dmem, Pmode,
+				 gen_rtx_AND (Pmode,
+					      plus_constant (Pmode,
+							     dmema, i * 8),
+					      im8));
+      set_mem_alias_set (temp, 0);
+      emit_move_insn (temp, ins_tmps[i - 1]);
+    }
+
+  if (!TARGET_BWX)
+    {
+      rtx temp = gen_reg_rtx (DImode);
+      rtx addr = expand_simple_binop (Pmode, PLUS, dreg,
+				      GEN_INT (words * 8 - 1),
+				      NULL_RTX, 1, OPTAB_DIRECT);
+      rtx mem = gen_rtx_MEM (DImode,
+			     expand_simple_binop (Pmode, AND, addr, im8,
+						  NULL_RTX, 1, OPTAB_DIRECT));
+
+      rtx label = gen_rtx_LABEL_REF (VOIDmode, gen_label_rtx ());
+      emit_label (XEXP (label, 0));
+
+      emit_insn (gen_load_locked (DImode, temp, mem));
+      emit_insn (gen_mskqh (temp, temp, dreg));
+      if (data_regs != NULL)
+	temp = expand_simple_binop (DImode, IOR, temp, ins_tmps[words - 1],
+				    temp, 1, OPTAB_DIRECT);
+      emit_insn (gen_store_conditional (DImode, temp, mem, temp));
+
+      alpha_emit_unlikely_jump (gen_rtx_EQ (DImode, temp, const0_rtx), label);
+    }
+}
+
+/* Get the base alignment and offset of EXPR in A and O respectively.
+   Check for any pseudo register pointer alignment and for any tree
+   node information and return the largest alignment determined and
+   its associated offset.  */
+
+static void
+alpha_get_mem_rtx_alignment_and_offset (rtx expr, int &a, HOST_WIDE_INT &o)
+{
+  HOST_WIDE_INT tree_offset = 0, reg_offset = 0, mem_offset = 0;
+  int tree_align = 0, reg_align = 0, mem_align = MEM_ALIGN (expr);
+
+  gcc_assert (MEM_P (expr));
+
+  rtx addr = XEXP (expr, 0);
+  switch (GET_CODE (addr))
+    {
+    case REG:
+      reg_align = REGNO_POINTER_ALIGN (REGNO (addr));
+      break;
+
+    case PLUS:
+      if (REG_P (XEXP (addr, 0)) && CONST_INT_P (XEXP (addr, 1)))
+	{
+	  reg_offset = INTVAL (XEXP (addr, 1));
+	  reg_align = REGNO_POINTER_ALIGN (REGNO (XEXP (addr, 0)));
+	}
+      break;
+
+    default:
+      break;
+    }
+
+  tree mem = MEM_EXPR (expr);
+  if (mem != NULL_TREE)
+    {
+      HOST_WIDE_INT comp_offset = 0;
+
+      for (; TREE_CODE (mem) == COMPONENT_REF; mem = TREE_OPERAND (mem, 0))
+	{
+	  tree byte_offset = component_ref_field_offset (mem);
+	  tree bit_offset = DECL_FIELD_BIT_OFFSET (TREE_OPERAND (mem, 1));
+	  poly_int64 offset;
+	  if (!byte_offset
+	      || !poly_int_tree_p (byte_offset, &offset)
+	      || !tree_fits_shwi_p (bit_offset))
+	    break;
+	  comp_offset += offset + tree_to_shwi (bit_offset) / BITS_PER_UNIT;
+	}
+
+      if (TREE_CODE (mem) == MEM_REF)
+	{
+	  tree_offset = comp_offset + mem_ref_offset (mem).force_shwi ();
+	  tree_align = get_object_alignment (get_base_address (mem));
+	}
+    }
+
+  if (reg_align > mem_align)
+    {
+      mem_offset = reg_offset;
+      mem_align = reg_align;
+    }
+  if (tree_align > mem_align)
+    {
+      mem_offset = tree_offset;
+      mem_align = tree_align;
+    }
+  o = mem_offset;
+  a = mem_align;
+}
 
 /* Expand string/block move operations.
 
@@ -3799,47 +4354,41 @@ alpha_expand_block_move (rtx operands[])
   else if (orig_bytes > MAX_MOVE_WORDS * UNITS_PER_WORD)
     return 0;
 
-  /* Look for additional alignment information from recorded register info.  */
+  /* Look for stricter alignment.  */
+  HOST_WIDE_INT c;
+  int a;
 
-  tmp = XEXP (orig_src, 0);
-  if (REG_P (tmp))
-    src_align = MAX (src_align, REGNO_POINTER_ALIGN (REGNO (tmp)));
-  else if (GET_CODE (tmp) == PLUS
-	   && REG_P (XEXP (tmp, 0))
-	   && CONST_INT_P (XEXP (tmp, 1)))
+  alpha_get_mem_rtx_alignment_and_offset (orig_src, a, c);
+  if (a > src_align)
     {
-      unsigned HOST_WIDE_INT c = INTVAL (XEXP (tmp, 1));
-      unsigned int a = REGNO_POINTER_ALIGN (REGNO (XEXP (tmp, 0)));
+      if (a >= 64 && c % 8 == 0)
+	src_align = 64;
+      else if (a >= 32 && c % 4 == 0)
+	src_align = 32;
+      else if (a >= 16 && c % 2 == 0)
+	src_align = 16;
 
-      if (a > src_align)
+      if (MEM_P (orig_src) && MEM_ALIGN (orig_src) < src_align)
 	{
-          if (a >= 64 && c % 8 == 0)
-	    src_align = 64;
-          else if (a >= 32 && c % 4 == 0)
-	    src_align = 32;
-          else if (a >= 16 && c % 2 == 0)
-	    src_align = 16;
+	  orig_src = shallow_copy_rtx (orig_src);
+	  set_mem_align (orig_src, src_align);
 	}
     }
 
-  tmp = XEXP (orig_dst, 0);
-  if (REG_P (tmp))
-    dst_align = MAX (dst_align, REGNO_POINTER_ALIGN (REGNO (tmp)));
-  else if (GET_CODE (tmp) == PLUS
-	   && REG_P (XEXP (tmp, 0))
-	   && CONST_INT_P (XEXP (tmp, 1)))
+  alpha_get_mem_rtx_alignment_and_offset (orig_dst, a, c);
+  if (a > dst_align)
     {
-      unsigned HOST_WIDE_INT c = INTVAL (XEXP (tmp, 1));
-      unsigned int a = REGNO_POINTER_ALIGN (REGNO (XEXP (tmp, 0)));
+      if (a >= 64 && c % 8 == 0)
+	dst_align = 64;
+      else if (a >= 32 && c % 4 == 0)
+	dst_align = 32;
+      else if (a >= 16 && c % 2 == 0)
+	dst_align = 16;
 
-      if (a > dst_align)
+      if (MEM_P (orig_dst) && MEM_ALIGN (orig_dst) < dst_align)
 	{
-          if (a >= 64 && c % 8 == 0)
-	    dst_align = 64;
-          else if (a >= 32 && c % 4 == 0)
-	    dst_align = 32;
-          else if (a >= 16 && c % 2 == 0)
-	    dst_align = 16;
+	  orig_dst = shallow_copy_rtx (orig_dst);
+	  set_mem_align (orig_dst, dst_align);
 	}
     }
 
@@ -3864,14 +4413,44 @@ alpha_expand_block_move (rtx operands[])
     {
       words = bytes / 4;
 
-      for (i = 0; i < words; ++i)
-	data_regs[nregs + i] = gen_reg_rtx (SImode);
+      /* Load an even quantity of SImode data pieces only.  */
+      unsigned int hwords = words / 2;
+      for (i = 0; i / 2 < hwords; ++i)
+	{
+	  data_regs[nregs + i] = gen_reg_rtx (SImode);
+	  emit_move_insn (data_regs[nregs + i],
+			  adjust_address (orig_src, SImode, ofs + i * 4));
+	}
 
-      for (i = 0; i < words; ++i)
-	emit_move_insn (data_regs[nregs + i],
-			adjust_address (orig_src, SImode, ofs + i * 4));
+      /* If we'll be using unaligned stores, merge data from pairs
+	 of SImode registers into DImode registers so that we can
+	 store it more efficiently via quadword unaligned stores.  */
+      unsigned int j;
+      if (dst_align < 32)
+	for (i = 0, j = 0; i < words / 2; ++i, j = i * 2)
+	  {
+	    rtx hi = expand_simple_binop (DImode, ASHIFT,
+					  data_regs[nregs + j + 1],
+					  GEN_INT (32), NULL_RTX,
+					  1, OPTAB_WIDEN);
+	    data_regs[nregs + i] = expand_simple_binop (DImode, IOR, hi,
+							data_regs[nregs + j],
+							NULL_RTX,
+							1, OPTAB_WIDEN);
+	  }
+      else
+	j = i;
 
-      nregs += words;
+      /* Take care of any remaining odd trailing SImode data piece.  */
+      if (j < words)
+	{
+	  data_regs[nregs + i] = gen_reg_rtx (SImode);
+	  emit_move_insn (data_regs[nregs + i],
+			  adjust_address (orig_src, SImode, ofs + j * 4));
+	  ++i;
+	}
+
+      nregs += i;
       bytes -= words * 4;
       ofs += words * 4;
     }
@@ -3902,14 +4481,19 @@ alpha_expand_block_move (rtx operands[])
   if (bytes >= 2)
     {
       if (src_align >= 16)
-	{
-	  do {
-	    data_regs[nregs++] = tmp = gen_reg_rtx (HImode);
-	    emit_move_insn (tmp, adjust_address (orig_src, HImode, ofs));
+	do
+	  {
+	    tmp = gen_reg_rtx (DImode);
+	    emit_move_insn (tmp,
+			    expand_simple_unop (DImode, SET,
+						adjust_address (orig_src,
+								HImode, ofs),
+						NULL_RTX, 1));
+	    data_regs[nregs++] = gen_rtx_SUBREG (HImode, tmp, 0);
 	    bytes -= 2;
 	    ofs += 2;
-	  } while (bytes >= 2);
-	}
+	  }
+	while (bytes >= 2);
       else if (! TARGET_BWX)
 	{
 	  data_regs[nregs++] = tmp = gen_reg_rtx (HImode);
@@ -3979,27 +4563,74 @@ alpha_expand_block_move (rtx operands[])
 	if (GET_MODE (data_regs[i + words]) != DImode)
 	  break;
 
-      if (words == 1)
-	alpha_expand_unaligned_store (orig_dst, data_regs[i], 8, ofs);
+      if (TARGET_SAFE_PARTIAL)
+	{
+	  if (words == 1)
+	    alpha_expand_unaligned_store_safe_partial (orig_dst, data_regs[i],
+						       8, ofs, dst_align);
+	  else
+	    alpha_expand_unaligned_store_words_safe_partial (data_regs + i,
+							     orig_dst, words,
+							     ofs, dst_align);
+	}
       else
-        alpha_expand_unaligned_store_words (data_regs + i, orig_dst,
-					    words, ofs);
-
+	{
+	  if (words == 1)
+	    alpha_expand_unaligned_store (orig_dst, data_regs[i], 8, ofs);
+	  else
+	    alpha_expand_unaligned_store_words (data_regs + i, orig_dst,
+						words, ofs);
+	}
       i += words;
       ofs += words * 8;
     }
 
-  /* Due to the above, this won't be aligned.  */
-  /* ??? If we have more than one of these, consider constructing full
-     words in registers and using alpha_expand_unaligned_store_words.  */
-  while (i < nregs && GET_MODE (data_regs[i]) == SImode)
+  /* If we are in the partial memory access safety mode with a non-BWX
+     target, then coalesce data loaded of different widths so as to
+     minimize the number of safe partial stores as they are expensive.  */
+  if (!TARGET_BWX && TARGET_SAFE_PARTIAL)
     {
-      alpha_expand_unaligned_store (orig_dst, data_regs[i], 4, ofs);
-      ofs += 4;
-      i++;
+      HOST_WIDE_INT size = 0;
+      unsigned int n;
+
+      for (n = i; i < nregs; i++)
+	{
+	  if (i != n)
+	    {
+	      /* Don't widen SImode data where obtained by extraction.  */
+	      rtx data = data_regs[n];
+	      if (GET_MODE (data) == SImode && src_align < 32)
+		data = gen_rtx_SUBREG (DImode, data, 0);
+	      rtx field = expand_simple_binop (DImode, ASHIFT, data_regs[i],
+					       GEN_INT (size * BITS_PER_UNIT),
+					       NULL_RTX, 1, OPTAB_DIRECT);
+	      data_regs[n] = expand_simple_binop (DImode, IOR, data, field,
+						  data, 1, OPTAB_WIDEN);
+	    }
+	  size += GET_MODE_SIZE (GET_MODE (data_regs[i]));
+	  gcc_assert (size < 8);
+	}
+      if (size > 0)
+	alpha_expand_unaligned_store_safe_partial (orig_dst, data_regs[n],
+						   size, ofs, dst_align);
+      ofs += size;
     }
 
-  if (dst_align >= 16)
+  /* We've done aligned stores above, this won't be aligned.  */
+  while (i < nregs && GET_MODE (data_regs[i]) == SImode)
+    {
+      gcc_assert (TARGET_BWX || !TARGET_SAFE_PARTIAL);
+      if (TARGET_SAFE_PARTIAL)
+	alpha_expand_unaligned_store_safe_partial (orig_dst, data_regs[i],
+						   4, ofs, dst_align);
+      else
+	alpha_expand_unaligned_store (orig_dst, data_regs[i], 4, ofs);
+      ofs += 4;
+      i++;
+      gcc_assert (i == nregs || GET_MODE (data_regs[i]) != SImode);
+    }
+
+  if (TARGET_BWX && dst_align >= 16)
     while (i < nregs && GET_MODE (data_regs[i]) == HImode)
       {
 	emit_move_insn (adjust_address (orig_dst, HImode, ofs), data_regs[i]);
@@ -4009,7 +4640,12 @@ alpha_expand_block_move (rtx operands[])
   else
     while (i < nregs && GET_MODE (data_regs[i]) == HImode)
       {
-	alpha_expand_unaligned_store (orig_dst, data_regs[i], 2, ofs);
+	gcc_assert (TARGET_BWX || !TARGET_SAFE_PARTIAL);
+	if (TARGET_SAFE_PARTIAL)
+	  alpha_expand_unaligned_store_safe_partial (orig_dst, data_regs[i],
+						     2, ofs, dst_align);
+	else
+	  alpha_expand_unaligned_store (orig_dst, data_regs[i], 2, ofs);
 	i++;
 	ofs += 2;
       }
@@ -4018,12 +4654,34 @@ alpha_expand_block_move (rtx operands[])
   while (i < nregs)
     {
       gcc_assert (GET_MODE (data_regs[i]) == QImode);
+      gcc_assert (TARGET_BWX || !TARGET_SAFE_PARTIAL);
       emit_move_insn (adjust_address (orig_dst, QImode, ofs), data_regs[i]);
       i++;
       ofs += 1;
     }
 
   return 1;
+}
+
+/* Expand a multi-thread and async-signal safe partial clear of a longword
+   or a quadword quantity indicated by MODE at aligned memory location MEM
+   according to MASK.  */
+
+static void
+alpha_expand_clear_safe_partial_nobwx (rtx mem, machine_mode mode,
+				       HOST_WIDE_INT mask)
+{
+  rtx label = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
+  emit_label (XEXP (label, 0));
+
+  rtx temp = gen_reg_rtx (mode);
+  rtx status = mode == DImode ? temp : gen_rtx_SUBREG (DImode, temp, 0);
+
+  emit_insn (gen_load_locked (mode, temp, mem));
+  emit_insn (gen_rtx_SET (temp, gen_rtx_AND (mode, temp, GEN_INT (mask))));
+  emit_insn (gen_store_conditional (mode, status, mem, temp));
+
+  alpha_emit_unlikely_jump (gen_rtx_EQ (DImode, status, const0_rtx), label);
 }
 
 int
@@ -4036,7 +4694,6 @@ alpha_expand_block_clear (rtx operands[])
   HOST_WIDE_INT align = INTVAL (align_rtx) * BITS_PER_UNIT;
   HOST_WIDE_INT alignofs = 0;
   rtx orig_dst = operands[0];
-  rtx tmp;
   int i, words, ofs = 0;
 
   if (orig_bytes <= 0)
@@ -4045,24 +4702,23 @@ alpha_expand_block_clear (rtx operands[])
     return 0;
 
   /* Look for stricter alignment.  */
-  tmp = XEXP (orig_dst, 0);
-  if (REG_P (tmp))
-    align = MAX (align, REGNO_POINTER_ALIGN (REGNO (tmp)));
-  else if (GET_CODE (tmp) == PLUS
-	   && REG_P (XEXP (tmp, 0))
-	   && CONST_INT_P (XEXP (tmp, 1)))
-    {
-      HOST_WIDE_INT c = INTVAL (XEXP (tmp, 1));
-      int a = REGNO_POINTER_ALIGN (REGNO (XEXP (tmp, 0)));
+  HOST_WIDE_INT c;
+  int a;
 
-      if (a > align)
+  alpha_get_mem_rtx_alignment_and_offset (orig_dst, a, c);
+  if (a > align)
+    {
+      if (a >= 64)
+	align = a, alignofs = -c & 7;
+      else if (a >= 32)
+	align = a, alignofs = -c & 3;
+      else if (a >= 16)
+	align = a, alignofs = -c & 1;
+
+      if (MEM_P (orig_dst) && MEM_ALIGN (orig_dst) < align)
 	{
-          if (a >= 64)
-	    align = a, alignofs = 8 - c % 8;
-          else if (a >= 32)
-	    align = a, alignofs = 4 - c % 4;
-          else if (a >= 16)
-	    align = a, alignofs = 2 - c % 2;
+	  orig_dst = shallow_copy_rtx (orig_dst);
+	  set_mem_align (orig_dst, align);
 	}
     }
 
@@ -4072,8 +4728,9 @@ alpha_expand_block_clear (rtx operands[])
     {
       /* Given that alignofs is bounded by align, the only time BWX could
 	 generate three stores is for a 7 byte fill.  Prefer two individual
-	 stores over a load/mask/store sequence.  */
-      if ((!TARGET_BWX || alignofs == 7)
+	 stores over a load/mask/store sequence.  In the partial safety
+	 mode always do individual stores regardless of their count.  */
+      if ((!TARGET_BWX || (!TARGET_SAFE_PARTIAL && alignofs == 7))
 	       && align >= 32
 	       && !(alignofs == 4 && bytes >= 4))
 	{
@@ -4099,10 +4756,15 @@ alpha_expand_block_clear (rtx operands[])
 	    }
 	  alignofs = 0;
 
-	  tmp = expand_binop (mode, and_optab, mem, GEN_INT (mask),
-			      NULL_RTX, 1, OPTAB_WIDEN);
+	  if (TARGET_SAFE_PARTIAL)
+	    alpha_expand_clear_safe_partial_nobwx (mem, mode, mask);
+	  else
+	    {
+	      tmp = expand_binop (mode, and_optab, mem, GEN_INT (mask),
+				  NULL_RTX, 1, OPTAB_WIDEN);
 
-	  emit_move_insn (mem, tmp);
+	      emit_move_insn (mem, tmp);
+	    }
 	}
 
       if (TARGET_BWX && (alignofs & 1) && bytes >= 1)
@@ -4207,7 +4869,11 @@ alpha_expand_block_clear (rtx operands[])
     {
       words = bytes / 8;
 
-      alpha_expand_unaligned_store_words (NULL, orig_dst, words, ofs);
+      if (TARGET_SAFE_PARTIAL)
+	alpha_expand_unaligned_store_words_safe_partial (NULL, orig_dst,
+							 words, ofs, align);
+      else
+	alpha_expand_unaligned_store_words (NULL, orig_dst, words, ofs);
 
       bytes -= words * 8;
       ofs += words * 8;
@@ -4224,47 +4890,58 @@ alpha_expand_block_clear (rtx operands[])
 
   /* If we have appropriate alignment (and it wouldn't take too many
      instructions otherwise), mask out the bytes we need.  */
-  if (TARGET_BWX ? words > 2 : bytes > 0)
+  if ((TARGET_BWX ? !TARGET_SAFE_PARTIAL && words > 2 : bytes > 0)
+      && (align >= 64 || (align >= 32 && bytes < 4)))
     {
-      if (align >= 64)
+      machine_mode mode = (align >= 64 ? DImode : SImode);
+      rtx mem, tmp;
+      HOST_WIDE_INT mask;
+
+      mem = adjust_address (orig_dst, mode, ofs);
+      set_mem_alias_set (mem, 0);
+
+      mask = HOST_WIDE_INT_M1U << (bytes * 8);
+
+      if (TARGET_SAFE_PARTIAL)
+	alpha_expand_clear_safe_partial_nobwx (mem, mode, mask);
+      else
 	{
-	  rtx mem, tmp;
-	  HOST_WIDE_INT mask;
-
-	  mem = adjust_address (orig_dst, DImode, ofs);
-	  set_mem_alias_set (mem, 0);
-
-	  mask = HOST_WIDE_INT_M1U << (bytes * 8);
-
-	  tmp = expand_binop (DImode, and_optab, mem, GEN_INT (mask),
+	  tmp = expand_binop (mode, and_optab, mem, GEN_INT (mask),
 			      NULL_RTX, 1, OPTAB_WIDEN);
 
 	  emit_move_insn (mem, tmp);
-	  return 1;
 	}
-      else if (align >= 32 && bytes < 4)
-	{
-	  rtx mem, tmp;
-	  HOST_WIDE_INT mask;
-
-	  mem = adjust_address (orig_dst, SImode, ofs);
-	  set_mem_alias_set (mem, 0);
-
-	  mask = HOST_WIDE_INT_M1U << (bytes * 8);
-
-	  tmp = expand_binop (SImode, and_optab, mem, GEN_INT (mask),
-			      NULL_RTX, 1, OPTAB_WIDEN);
-
-	  emit_move_insn (mem, tmp);
-	  return 1;
-	}
+      return 1;
     }
 
-  if (!TARGET_BWX && bytes >= 4)
+  if (bytes >= 4)
     {
-      alpha_expand_unaligned_store (orig_dst, const0_rtx, 4, ofs);
-      bytes -= 4;
-      ofs += 4;
+      if (align >= 32)
+	do
+	  {
+	    emit_move_insn (adjust_address (orig_dst, SImode, ofs),
+			    const0_rtx);
+	    bytes -= 4;
+	    ofs += 4;
+	  }
+	while (bytes >= 4);
+      else if (!TARGET_BWX)
+	{
+	  gcc_assert (bytes < 8);
+	  if (TARGET_SAFE_PARTIAL)
+	    {
+	      alpha_expand_unaligned_store_safe_partial (orig_dst, const0_rtx,
+							 bytes, ofs, align);
+	      ofs += bytes;
+	      bytes = 0;
+	    }
+	  else
+	    {
+	      alpha_expand_unaligned_store (orig_dst, const0_rtx, 4, ofs);
+	      bytes -= 4;
+	      ofs += 4;
+	    }
+	}
     }
 
   if (bytes >= 2)
@@ -4280,18 +4957,38 @@ alpha_expand_block_clear (rtx operands[])
 	}
       else if (! TARGET_BWX)
 	{
-	  alpha_expand_unaligned_store (orig_dst, const0_rtx, 2, ofs);
-	  bytes -= 2;
-	  ofs += 2;
+	  gcc_assert (bytes < 4);
+	  if (TARGET_SAFE_PARTIAL)
+	    {
+	      alpha_expand_unaligned_store_safe_partial (orig_dst, const0_rtx,
+							 bytes, ofs, align);
+	      ofs += bytes;
+	      bytes = 0;
+	    }
+	  else
+	    {
+	      alpha_expand_unaligned_store (orig_dst, const0_rtx, 2, ofs);
+	      bytes -= 2;
+	      ofs += 2;
+	    }
 	}
     }
 
   while (bytes > 0)
-    {
-      emit_move_insn (adjust_address (orig_dst, QImode, ofs), const0_rtx);
-      bytes -= 1;
-      ofs += 1;
-    }
+    if (TARGET_BWX || !TARGET_SAFE_PARTIAL)
+      {
+	emit_move_insn (adjust_address (orig_dst, QImode, ofs), const0_rtx);
+	bytes -= 1;
+	ofs += 1;
+      }
+    else
+      {
+	gcc_assert (bytes < 2);
+	alpha_expand_unaligned_store_safe_partial (orig_dst, const0_rtx,
+						   bytes, ofs, align);
+	ofs += bytes;
+	bytes = 0;
+      }
 
   return 1;
 }
@@ -4339,12 +5036,13 @@ alpha_expand_builtin_vector_binop (rtx (*gen) (rtx, rtx, rtx),
 /* A subroutine of the atomic operation splitters.  Jump to LABEL if
    COND is true.  Mark the jump as unlikely to be taken.  */
 
-static void
-emit_unlikely_jump (rtx cond, rtx label)
+rtx
+alpha_emit_unlikely_jump (rtx cond, rtx label)
 {
   rtx x = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, label, pc_rtx);
   rtx_insn *insn = emit_jump_insn (gen_rtx_SET (pc_rtx, x));
   add_reg_br_prob_note (insn, profile_probability::very_unlikely ());
+  return insn;
 }
 
 /* Subroutines of the atomic operation splitters.  Emit barriers
@@ -4398,7 +5096,7 @@ emit_insxl (machine_mode mode, rtx op1, rtx op2)
 }
 
 /* Expand an atomic fetch-and-operate pattern.  CODE is the binary operation
-   to perform.  MEM is the memory on which to operate.  VAL is the second 
+   to perform.  MEM is the memory on which to operate.  VAL is the second
    operand of the binary operator.  BEFORE and AFTER are optional locations to
    return the value of MEM either before of after the operation.  SCRATCH is
    a scratch register.  */
@@ -4436,7 +5134,7 @@ alpha_split_atomic_op (enum rtx_code code, rtx mem, rtx val, rtx before,
   emit_insn (gen_store_conditional (mode, cond, mem, scratch));
 
   x = gen_rtx_EQ (DImode, cond, const0_rtx);
-  emit_unlikely_jump (x, label);
+  alpha_emit_unlikely_jump (x, label);
 
   alpha_post_atomic_barrier (model);
 }
@@ -4486,7 +5184,7 @@ alpha_split_compare_and_swap (rtx operands[])
       emit_insn (gen_rtx_SET (cond, x));
       x = gen_rtx_EQ (DImode, cond, const0_rtx);
     }
-  emit_unlikely_jump (x, label2);
+  alpha_emit_unlikely_jump (x, label2);
 
   emit_move_insn (cond, newval);
   emit_insn (gen_store_conditional
@@ -4495,7 +5193,7 @@ alpha_split_compare_and_swap (rtx operands[])
   if (!is_weak)
     {
       x = gen_rtx_EQ (DImode, cond, const0_rtx);
-      emit_unlikely_jump (x, label1);
+      alpha_emit_unlikely_jump (x, label1);
     }
 
   if (!is_mm_relaxed (mod_f))
@@ -4582,7 +5280,7 @@ alpha_split_compare_and_swap_12 (rtx operands[])
   label2 = gen_rtx_LABEL_REF (DImode, gen_label_rtx ());
 
   emit_insn (gen_load_locked (DImode, scratch, mem));
-  
+
   width = GEN_INT (GET_MODE_BITSIZE (mode));
   mask = GEN_INT (mode == QImode ? 0xff : 0xffff);
   emit_insn (gen_extxl (dest, scratch, width, addr));
@@ -4598,7 +5296,7 @@ alpha_split_compare_and_swap_12 (rtx operands[])
       emit_insn (gen_rtx_SET (cond, x));
       x = gen_rtx_EQ (DImode, cond, const0_rtx);
     }
-  emit_unlikely_jump (x, label2);
+  alpha_emit_unlikely_jump (x, label2);
 
   emit_insn (gen_mskxl (cond, scratch, mask, addr));
 
@@ -4610,7 +5308,7 @@ alpha_split_compare_and_swap_12 (rtx operands[])
   if (!is_weak)
     {
       x = gen_rtx_EQ (DImode, cond, const0_rtx);
-      emit_unlikely_jump (x, label1);
+      alpha_emit_unlikely_jump (x, label1);
     }
 
   if (!is_mm_relaxed (mod_f))
@@ -4650,7 +5348,7 @@ alpha_split_atomic_exchange (rtx operands[])
   emit_insn (gen_store_conditional (mode, cond, mem, scratch));
 
   x = gen_rtx_EQ (DImode, cond, const0_rtx);
-  emit_unlikely_jump (x, label);
+  alpha_emit_unlikely_jump (x, label);
 
   alpha_post_atomic_barrier (model);
 }
@@ -4713,7 +5411,7 @@ alpha_split_atomic_exchange_12 (rtx operands[])
   emit_label (XEXP (label, 0));
 
   emit_insn (gen_load_locked (DImode, scratch, mem));
-  
+
   width = GEN_INT (GET_MODE_BITSIZE (mode));
   mask = GEN_INT (mode == QImode ? 0xff : 0xffff);
   emit_insn (gen_extxl (dest, scratch, width, addr));
@@ -4724,7 +5422,7 @@ alpha_split_atomic_exchange_12 (rtx operands[])
   emit_insn (gen_store_conditional (DImode, scratch, mem, scratch));
 
   x = gen_rtx_EQ (DImode, scratch, const0_rtx);
-  emit_unlikely_jump (x, label);
+  alpha_emit_unlikely_jump (x, label);
 
   alpha_post_atomic_barrier (model);
 }
@@ -5007,7 +5705,7 @@ get_trap_mode_suffix (void)
 	  gcc_unreachable ();
 	}
       break;
-      
+
     default:
       gcc_unreachable ();
     }
@@ -5044,7 +5742,7 @@ get_round_mode_suffix (void)
 
     case ROUND_SUFFIX_C:
       return "c";
-      
+
     default:
       gcc_unreachable ();
     }
@@ -6090,7 +6788,8 @@ alpha_setup_incoming_varargs (cumulative_args_t pcum,
 {
   CUMULATIVE_ARGS cum = *get_cumulative_args (pcum);
 
-  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl)))
+  if (!TYPE_NO_NAMED_ARGS_STDARG_P (TREE_TYPE (current_function_decl))
+      || arg.type != NULL_TREE)
     /* Skip the current argument.  */
     targetm.calls.function_arg_advance (pack_cumulative_args (&cum), arg);
 
@@ -6138,7 +6837,7 @@ alpha_setup_incoming_varargs (cumulative_args_t pcum,
       /* Detect whether integer registers or floating-point registers
 	 are needed by the detected va_arg statements.  See above for
 	 how these values are computed.  Note that the "escape" value
-	 is VA_LIST_MAX_FPR_SIZE, which is 255, which has both of 
+	 is VA_LIST_MAX_FPR_SIZE, which is 255, which has both of
 	 these bits set.  */
       gcc_assert ((VA_LIST_MAX_FPR_SIZE & 3) == 3);
 
@@ -6741,7 +7440,7 @@ alpha_fold_builtin_cmpbge (unsigned HOST_WIDE_INT opint[], long op_const)
   return NULL;
 }
 
-/* Fold the builtin for the ZAPNOT instruction.  This is essentially a 
+/* Fold the builtin for the ZAPNOT instruction.  This is essentially a
    specialized form of an AND operation.  Other byte manipulation instructions
    are defined in terms of this instruction, so this is also used as a
    subroutine for other builtins.
@@ -6808,7 +7507,7 @@ alpha_fold_builtin_extxx (tree op[], unsigned HOST_WIDE_INT opint[],
       else
 	zap_op = op;
     }
-  
+
   opint[1] = bytemask;
   return alpha_fold_builtin_zapnot (zap_op, opint, zap_const);
 }
@@ -7409,7 +8108,7 @@ alpha_vms_can_eliminate (const int from ATTRIBUTE_UNUSED, const int to)
 
 HOST_WIDE_INT
 alpha_vms_initial_elimination_offset (unsigned int from, unsigned int to)
-{ 
+{
   /* The only possible attempts we ever expect are ARG or FRAME_PTR to
      HARD_FRAME or STACK_PTR.  We need the alpha_procedure_type to decide
      on the proper computations and will need the register save area size
@@ -7420,7 +8119,7 @@ alpha_vms_initial_elimination_offset (unsigned int from, unsigned int to)
   /* PT_NULL procedures have no frame of their own and we only allow
      elimination to the stack pointer. This is the argument pointer and we
      resolve the soft frame pointer to that as well.  */
-     
+
   if (alpha_procedure_type == PT_NULL)
     return 0;
 
@@ -7435,13 +8134,13 @@ alpha_vms_initial_elimination_offset (unsigned int from, unsigned int to)
                                    ^         ^              ^               ^
 			      ARG_PTR FRAME_PTR HARD_FRAME_PTR       STACK_PTR
 
-			      
+
      PT_REGISTER procedures are similar in that they may have a frame of their
      own. They have no regs-sa/pv/outgoing-args area.
 
      We first compute offset to HARD_FRAME_PTR, then add what we need to get
      to STACK_PTR if need be.  */
-  
+
   {
     HOST_WIDE_INT offset;
     HOST_WIDE_INT pv_save_size = alpha_procedure_type == PT_STACK ? 8 : 0;
@@ -7460,10 +8159,10 @@ alpha_vms_initial_elimination_offset (unsigned int from, unsigned int to)
       default:
 	gcc_unreachable ();
       }
-    
+
     if (to == STACK_POINTER_REGNUM)
       offset += ALPHA_ROUND (crtl->outgoing_args_size);
-    
+
     return offset;
   }
 }
@@ -8629,6 +9328,7 @@ summarize_insn (rtx x, struct shadow_summary *sum, int set)
 	    break;
 
 	  case 'i':
+	  case 'L':
 	    break;
 
 	  default:
@@ -8815,7 +9515,7 @@ alpha_handle_trap_shadows (void)
    suitably aligned.  This is very processor-specific.  */
 /* There are a number of entries in alphaev4_insn_pipe and alphaev5_insn_pipe
    that are marked "fake".  These instructions do not exist on that target,
-   but it is possible to see these insns with deranged combinations of 
+   but it is possible to see these insns with deranged combinations of
    command-line options, such as "-mtune=ev4 -mmax".  Instead of aborting,
    choose a result at random.  */
 
@@ -9452,7 +10152,7 @@ And in the noreturn case:
      after the insn.  In case trap is the last insn in the function,
      emit NOP to guarantee that PC remains inside function boundaries.
      This workaround is needed to get reliable backtraces.  */
-  
+
   rtx_insn *insn = prev_active_insn (get_last_insn ());
 
   if (insn && NONJUMP_INSN_P (insn))
@@ -9712,7 +10412,7 @@ alpha_write_linkage (FILE *stream, const char *funname)
    the section; 0 if the default should be used.  */
 
 static void
-vms_asm_named_section (const char *name, unsigned int flags, 
+vms_asm_named_section (const char *name, unsigned int flags,
 		       tree decl ATTRIBUTE_UNUSED)
 {
   fputc ('\n', asm_out_file);
@@ -9915,7 +10615,19 @@ alpha_can_change_mode_class (machine_mode from, machine_mode to,
   return (GET_MODE_SIZE (from) == GET_MODE_SIZE (to)
 	  || !reg_classes_intersect_p (FLOAT_REGS, rclass));
 }
-
+
+/* Implement TARGET_C_MODE_FOR_FLOATING_TYPE.  Return TFmode or DFmode
+   for TI_LONG_DOUBLE_TYPE which is for long double type, go with the
+   default one for the others.  */
+
+static machine_mode
+alpha_c_mode_for_floating_type (enum tree_index ti)
+{
+  if (ti == TI_LONG_DOUBLE_TYPE)
+    return TARGET_LONG_DOUBLE_128 ? TFmode : DFmode;
+  return default_mode_for_floating_type (ti);
+}
+
 /* Initialize the GCC target structure.  */
 #if TARGET_ABI_OPEN_VMS
 # undef TARGET_ATTRIBUTE_TABLE
@@ -10121,6 +10833,9 @@ alpha_can_change_mode_class (machine_mode from, machine_mode to,
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS alpha_can_change_mode_class
+
+#undef TARGET_C_MODE_FOR_FLOATING_TYPE
+#define TARGET_C_MODE_FOR_FLOATING_TYPE alpha_c_mode_for_floating_type
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 

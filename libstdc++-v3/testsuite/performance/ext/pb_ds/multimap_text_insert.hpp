@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005-2024 Free Software Foundation, Inc.
+// Copyright (C) 2005-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -28,6 +28,8 @@
 // representation about the suitability of this software for any
 // purpose. It is provided "as is" without express or implied
 // warranty.
+
+// { dg-additional-files "thirty_years_among_the_dead_preproc.txt" }
 
 /**
  * @file multimap_text_insert_timing_test.cpp

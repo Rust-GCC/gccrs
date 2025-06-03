@@ -1,6 +1,6 @@
 (* ppg.mod master source file of the ebnf parser generator.
 
-Copyright (C) 2003-2024 Free Software Foundation, Inc.
+Copyright (C) 2003-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -3678,6 +3678,7 @@ VAR
 BEGIN
    t := code ;
    k := StrLen(code^.codetext)+1 ;
+   j := StrLen(str) ;
    WHILE t#NIL DO
       REPEAT
          WHILE (k>0) AND IsWhite(t^.codetext[k-1]) DO
@@ -4686,7 +4687,7 @@ END EmptyProduction ;
 
 PROCEDURE EmitFDLNotice ;
 BEGIN
-   Output.WriteString('@c Copyright (C) 2000-2024 Free Software Foundation, Inc.') ; Output.WriteLn ;
+   Output.WriteString('@c Copyright (C) 2000-2025 Free Software Foundation, Inc.') ; Output.WriteLn ;
    Output.WriteLn ;
    Output.WriteString('@c This file is part of GCC.') ; Output.WriteLn ;
    Output.WriteString('@c Permission is granted to copy, distribute and/or modify this document') ; Output.WriteLn ;

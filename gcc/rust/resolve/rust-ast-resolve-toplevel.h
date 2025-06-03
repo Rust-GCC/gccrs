@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -444,7 +444,7 @@ public:
 	  = mappings.lookup_crate_name (extern_crate.get_referenced_crate ());
 	if (!cnum)
 	  {
-	    rust_error_at (extern_crate.get_locus (), "unknown crate %<%s%>",
+	    rust_error_at (extern_crate.get_locus (), "unknown crate %qs",
 			   extern_crate.get_referenced_crate ().c_str ());
 	    return;
 	  }

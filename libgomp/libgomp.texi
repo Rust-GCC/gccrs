@@ -7,7 +7,7 @@
 
 
 @copying
-Copyright @copyright{} 2006-2024 Free Software Foundation, Inc.
+Copyright @copyright{} 2006-2025 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or
@@ -169,7 +169,7 @@ See also @ref{OpenMP Implementation Status}.
 * OpenMP 5.0:: Feature completion status to 5.0 specification
 * OpenMP 5.1:: Feature completion status to 5.1 specification
 * OpenMP 5.2:: Feature completion status to 5.2 specification
-* OpenMP Technical Report 12:: Feature completion status to second 6.0 preview
+* OpenMP 6.0:: Feature completion status to 6.0 specification
 @end menu
 
 The @code{_OPENMP} preprocessor macro and Fortran's @code{openmp_version}
@@ -192,14 +192,13 @@ The OpenMP 4.5 specification is fully supported.
 @item Array shaping @tab N @tab
 @item Array sections with non-unit strides in C and C++ @tab N @tab
 @item Iterators @tab Y @tab
-@item @code{metadirective} directive @tab N @tab
-@item @code{declare variant} directive
-      @tab P @tab @emph{simd} traits not handled correctly
+@item @code{metadirective} directive @tab Y @tab
+@item @code{declare variant} directive @tab Y @tab
 @item @var{target-offload-var} ICV and @code{OMP_TARGET_OFFLOAD}
       env variable @tab Y @tab
 @item Nested-parallel changes to @var{max-active-levels-var} ICV @tab Y @tab
-@item @code{requires} directive @tab P
-      @tab complete but no non-host device provides @code{unified_shared_memory}
+@item @code{requires} directive @tab Y
+      @tab See also @ref{Offload-Target Specifics}
 @item @code{teams} construct outside an enclosing target region @tab Y @tab
 @item Non-rectangular loop nests @tab P
       @tab Full support for C/C++, partial for Fortran
@@ -233,9 +232,9 @@ The OpenMP 4.5 specification is fully supported.
       @tab Y @tab See also @ref{Memory allocation}
 @item Memory management routines @tab Y @tab
 @item @code{allocate} directive @tab P
-      @tab Only C for stack/automatic and Fortran for stack/automatic
-      and allocatable/pointer variables
-@item @code{allocate} clause @tab P @tab Initial support
+      @tab C++ unsupported; see also @ref{Memory allocation}
+@item @code{allocate} clause @tab P @tab Clause has no effect on @code{target}
+      (@uref{https://gcc.gnu.org/PR113436,PR113436})
 @item @code{use_device_addr} clause on @code{target data} @tab Y @tab
 @item @code{ancestor} modifier on @code{device} clause @tab Y @tab
 @item Implicit declare target directive @tab Y @tab
@@ -259,7 +258,7 @@ The OpenMP 4.5 specification is fully supported.
       device memory mapped by an array section @tab P @tab
 @item Mapping of Fortran pointer and allocatable variables, including pointer
       and allocatable components of variables
-      @tab P @tab Mapping of vars with allocatable components unsupported
+      @tab Y @tab
 @item @code{defaultmap} extensions @tab Y @tab
 @item @code{declare mapper} directive @tab N @tab
 @item @code{omp_get_supported_active_levels} routine @tab Y @tab
@@ -289,24 +288,24 @@ The OpenMP 4.5 specification is fully supported.
 @headitem Description @tab Status @tab Comments
 @item OpenMP directive as C++ attribute specifiers @tab Y @tab
 @item @code{omp_all_memory} reserved locator @tab Y @tab
-@item @emph{target_device trait} in OpenMP Context @tab N @tab
-@item @code{target_device} selector set in context selectors @tab N @tab
+@item @emph{target_device trait} in OpenMP Context @tab Y
+@item @code{target_device} selector set in context selectors @tab Y @tab
 @item C/C++'s @code{declare variant} directive: elision support of
       preprocessed code @tab N @tab
 @item @code{declare variant}: new clauses @code{adjust_args} and
-      @code{append_args} @tab N @tab
-@item @code{dispatch} construct @tab N @tab
+      @code{append_args} @tab Y @tab
+@item @code{dispatch} construct @tab Y @tab
 @item device-specific ICV settings with environment variables @tab Y @tab
 @item @code{assume} and @code{assumes} directives @tab Y @tab
 @item @code{nothing} directive @tab Y @tab
 @item @code{error} directive @tab Y @tab
 @item @code{masked} construct @tab Y @tab
 @item @code{scope} directive @tab Y @tab
-@item Loop transformation constructs @tab N @tab
+@item Loop transformation constructs @tab Y @tab
 @item @code{strict} modifier in the @code{grainsize} and @code{num_tasks}
       clauses of the @code{taskloop} construct @tab Y @tab
 @item @code{align} clause in @code{allocate} directive @tab P
-      @tab Only C and Fortran (and not for static variables)
+      @tab Only C and Fortran
 @item @code{align} modifier in @code{allocate} clause @tab Y @tab
 @item @code{thread_limit} clause to @code{target} construct @tab Y @tab
 @item @code{has_device_addr} clause to @code{target} construct @tab Y @tab
@@ -314,8 +313,8 @@ The OpenMP 4.5 specification is fully supported.
       clauses @tab N @tab
 @item Indirect calls to the device version of a procedure or function in
       @code{target} regions @tab Y @tab
-@item @code{interop} directive @tab N @tab
-@item @code{omp_interop_t} object support in runtime routines @tab N @tab
+@item @code{interop} directive @tab Y @tab Cf. @ref{Offload-Target Specifics}
+@item @code{omp_interop_t} object support in runtime routines @tab Y @tab
 @item @code{nowait} clause in @code{taskwait} directive @tab Y @tab
 @item Extensions to the @code{atomic} directive @tab Y @tab
 @item @code{seq_cst} clause on a @code{flush} construct @tab Y @tab
@@ -366,6 +365,13 @@ to address of matching mapped list item per 5.1, Sect. 2.21.7.2 @tab N @tab
 @item @code{device_type(nohost)}/@code{device_type(host)} for variables @tab N @tab
 @item @code{present} modifier to the @code{map}, @code{to} and @code{from}
       clauses @tab Y @tab
+@item Changed interaction between @code{declare target} and OpenMP context
+      @tab Y @tab
+@item Dynamic selector support in @code{metadirective} @tab Y @tab
+@item Dynamic selector support in @code{declare variant} @tab P
+      @tab Fortran rejects non-constant expressions in dynamic selectors;
+      C/C++ reject expressions using argument variables.
+      (@uref{https://gcc.gnu.org/PR113904,PR113904})
 @end multitable
 
 
@@ -385,13 +391,13 @@ to address of matching mapped list item per 5.1, Sect. 2.21.7.2 @tab N @tab
       @code{-Wunknown-pragmas} (implied by @code{-Wall}) and @code{-Wattributes}
       (enabled by default), respectively; for Fortran free-source code, there is
       a warning enabled by default and, for fixed-source code, the @code{omx}
-      sentinel is warned for with with @code{-Wsurprising} (enabled by
+      sentinel is warned for with @code{-Wsurprising} (enabled by
       @code{-Wall}).  Unknown clauses are always rejected with an error.}
 @item Clauses on @code{end} directive can be on directive @tab Y @tab
 @item @code{destroy} clause with destroy-var argument on @code{depobj}
       @tab Y @tab
 @item Deprecation of no-argument @code{destroy} clause on @code{depobj}
-      @tab N @tab
+      @tab N/A @tab undeprecated in OpenMP 6
 @item @code{linear} clause syntax changes and @code{step} modifier @tab Y @tab
 @item Deprecation of minus operator for reductions @tab N @tab
 @item Deprecation of separating @code{map} modifiers without comma @tab N @tab
@@ -407,14 +413,16 @@ to address of matching mapped list item per 5.1, Sect. 2.21.7.2 @tab N @tab
 @item New @code{allocators} directive for Fortran @tab Y @tab
 @item Deprecation of @code{allocate} directive for Fortran
       allocatables/pointers @tab N @tab
-@item Optional paired @code{end} directive with @code{dispatch} @tab N @tab
+@item Optional paired @code{end} directive with @code{dispatch} @tab Y @tab
 @item New @code{memspace} and @code{traits} modifiers for @code{uses_allocators}
       @tab N @tab
 @item Deprecation of traits array following the allocator_handle expression in
       @code{uses_allocators} @tab N @tab
 @item New @code{otherwise} clause as alias for @code{default} on metadirectives
-      @tab N @tab
-@item Deprecation of @code{default} clause on metadirectives @tab N @tab
+      @tab Y @tab
+@item Deprecation of @code{default} clause on metadirectives @tab N
+      @tab Both @code{otherwise} and @code{default} are accepted
+      without diagnostics.
 @item Deprecation of delimited form of @code{declare target} @tab N @tab
 @item Reproducible semantics changed for @code{order(concurrent)} @tab N @tab
 @item @code{allocate} and @code{firstprivate} clauses on @code{scope}
@@ -440,108 +448,206 @@ to address of matching mapped list item per 5.1, Sect. 2.21.7.2 @tab N @tab
       @code{OMP_TARGET_OFFLOAD=mandatory} @tab Y @tab
 @item @code{all} as @emph{implicit-behavior} for @code{defaultmap} @tab Y @tab
 @item @emph{interop_types} in any position of the modifier list for the @code{init} clause
-      of the @code{interop} construct @tab N @tab
+      of the @code{interop} construct @tab Y @tab
 @item Invoke virtual member functions of C++ objects created on the host device
       on other devices @tab N @tab
+@item @code{mapper} as map-type modifier in @code{declare mapper} @tab N @tab
 @end multitable
 
 
-@node OpenMP Technical Report 12
-@section OpenMP Technical Report 12
-
-Technical Report (TR) 12 is the second preview for OpenMP 6.0.
+@node OpenMP 6.0
+@section OpenMP 6.0
 
 @unnumberedsubsec New features listed in Appendix B of the OpenMP specification
 @multitable @columnfractions .60 .10 .25
-@item Features deprecated in versions 5.2, 5.1 and 5.0 were removed
+@item Features deprecated in versions 5.0, 5.1 and 5.2 were removed
       @tab N/A @tab Backward compatibility
 @item Full support for C23 was added @tab P @tab
 @item Full support for C++23 was added @tab P @tab
+@item Full support for Fortran 2023 was added @tab P @tab
 @item @code{_ALL} suffix to the device-scope environment variables
       @tab P @tab Host device number wrongly accepted
-@item @code{num_threads} now accepts a list @tab N @tab
+@item @code{num_threads} clause now accepts a list @tab N @tab
+@item Abstract names added for @code{OMP_NUM_THREADS},
+      @code{OMP_THREAD_LIMIT} and @code{OMP_TEAMS_THREAD_LIMIT}
+      @tab N @tab
 @item Supporting increments with abstract names in @code{OMP_PLACES} @tab N @tab
 @item Extension of @code{OMP_DEFAULT_DEVICE} and new
       @code{OMP_AVAILABLE_DEVICES} environment vars @tab N @tab
+@item New @code{uid} trait for target devices and for
+      @code{OMP_AVAILABLE_DEVICES} and @code{OMP_DEFAULT_DEVICE} @tab N @tab
 @item New @code{OMP_THREADS_RESERVE} environment variable @tab N @tab
 @item The @code{decl} attribute was added to the C++ attribute syntax
       @tab Y @tab
-@item The OpenMP directive syntax was extended to include C 23 attribute
+@item The OpenMP directive syntax was extended to include C23 attribute
       specifiers @tab Y @tab
+@item Support for pure directives in Fortran's @code{do concurrent} @tab N @tab
 @item All inarguable clauses take now an optional Boolean argument @tab N @tab
+@item The @code{adjust_args} clause was extended to specify the argument by position
+      and supports variadic arguments @tab N @tab
 @item For Fortran, @emph{locator list} can be also function reference with
       data pointer result @tab N @tab
 @item Concept of @emph{assumed-size arrays} in C and C++
       @tab N @tab
 @item @emph{directive-name-modifier} accepted in all clauses @tab N @tab
+@item Extension of @code{interop} operation of @code{append_args}, allowing
+      all modifiers of the @code{init} clause @tab Y @tab
+@item New argument-free version of @code{depobj} with repeatable clauses and
+      the @code{init} clause @tab N @tab
+@item Undeprecate omitting the argument to the @code{depend} clause of
+      the argument version of the @code{depend} construct @tab Y @tab
 @item For Fortran, atomic with BLOCK construct and, for C/C++, with
       unlimited curly braces supported @tab N @tab
+@item For Fortran, atomic with pointer comparison @tab N @tab
+@item For Fortran, atomic with enum and enumeration types @tab N @tab
 @item For Fortran, atomic compare with storing the comparison result
       @tab N @tab
-@item New @code{looprange} clause @tab N @tab
-@item Ref-count change for @code{use_device_ptr}/@code{use_device_addr}
-      @tab N @tab
+@item Canonical loop sequences and new @code{looprange} clause @tab N @tab
+@item For Fortran, handling polymorphic types in data-sharing-attribute
+      clauses @tab P @tab @code{private} not supported
+@item For Fortran, rejecting polymorphic types in data-mapping clauses
+      @tab N @tab not diagnosed (and mostly unsupported)
+@item New @code{taskgraph} construct including @code{saved} modifier and
+      @code{replayable} clause @tab N @tab
+@item @code{default} clause on the @code{target} directive and accepting
+      variable categories @tab N @tab
+@item Semantic change regarding the reference count update with
+      @code{use_device_ptr} and @code{use_device_addr} @tab N @tab
 @item Support for inductions @tab N @tab
+@item Reduction over private variables with @code{reduction} clause
+      @tab N @tab
 @item Implicit reduction identifiers of C++ classes
       @tab N @tab
+@item New @code{init_complete} clause to the @code{scan} directive
+      @tab N @tab
+@item @code{ref} modifier to the @code{map} clause @tab N @tab
+@item New @code{storage} map-type modifier; context-dependent @code{alloc} and
+      @code{release} are aliases @tab N @tab
 @item Change of the @emph{map-type} property from @emph{ultimate} to
       @emph{default} @tab N @tab
 @item @code{self} modifier to @code{map} and @code{self} as
       @code{defaultmap} argument @tab N @tab
 @item Mapping of @emph{assumed-size arrays} in C, C++ and Fortran
       @tab N @tab
+@item @code{delete} as delete-modifier not as map type @tab N @tab
+@item For Fortran, the @code{automap} modifier to the @code{enter} clause
+      of @code{declare_target} @tab N @tab
 @item @code{groupprivate} directive @tab N @tab
-@item @code{local} clause to @code{declare target} directive @tab N @tab
-@item @code{part_size} allocator trait @tab N @tab
+@item @code{local} clause to @code{declare_target} directive @tab N @tab
+@item @code{part_size} allocator trait for @code{interleaved} allocator
+      partitions @tab N @tab
 @item @code{pin_device}, @code{preferred_device} and @code{target_access}
       allocator traits
       @tab N @tab
 @item @code{access} allocator trait changes @tab N @tab
-@item Extension of @code{interop} operation of @code{append_args}, allowing all
-      modifiers of the @code{init} clause
+@item New @code{partitioner} value to @code{partition} allocator trait
       @tab N @tab
-@item @code{interop} clause to @code{dispatch} @tab N @tab
+@item Semicolon-separated list to @code{uses_allocators} @tab N @tab
+@item New @code{need_device_addr} modifier to @code{adjust_args} clause @tab N @tab
+@item @code{interop} clause to @code{dispatch} @tab Y @tab
+@item Scope requirement changes for @code{declare_target} @tab N @tab
 @item @code{message} and @code{severity} clauses to @code{parallel} directive
       @tab N @tab
-@item @code{self} clause to @code{requires} directive @tab N @tab
+@item @code{self_maps} clause to @code{requires} directive @tab Y @tab
 @item @code{no_openmp_constructs} assumptions clause @tab N @tab
-@item @code{reverse} loop-transformation construct @tab N @tab
-@item @code{interchange} loop-transformation construct @tab N @tab
+@item Restriction for @code{ordered} regarding loop-transforming directives
+      @tab N @tab
+@item @code{apply} clause to loop-transforming constructs @tab N @tab
+@item Non-constant values in the @code{sizes} clause @tab N @tab
 @item @code{fuse} loop-transformation construct @tab N @tab
-@item @code{apply} code to loop-transforming constructs @tab N @tab
-@item @code{omp_curr_progress_width} identifier @tab N @tab
-@item @code{safesync} clause to the @code{parallel} construct @tab N @tab
-@item @code{omp_get_max_progress_width} runtime routine @tab N @tab
+@item @code{interchange} loop-transformation construct @tab N @tab
+@item @code{reverse} loop-transformation construct @tab N @tab
+@item @code{split} loop-transformation construct @tab N @tab
+@item @code{stripe} loop-transformation construct @tab N @tab
+@item @code{tile} permitting association of grid and inter-tile loops @tab N @tab
 @item @code{strict} modifier keyword to @code{num_threads} @tab N @tab
+@item @code{safesync} clause to the @code{parallel} construct @tab N @tab
+@item @code{omp_curr_progress_width} identifier @tab N @tab
+@item @code{omp_get_max_progress_width} runtime routine @tab N @tab
+@item Lifted restrictions on @code{order(concurrent)} and, hence, the
+      @code{loop} construct @tab N @tab
 @item @code{atomic} permitted in a construct with @code{order(concurrent)}
       @tab N @tab
-@item @code{coexecute} directive for Fortran @tab N @tab
-@item Fortran DO CONCURRENT as associated loop in a @code{loop} construct
+@item Lifted restrictions on not-strictly-nested regions with
+      @code{order(concurrent)} @tab N @tab
+@item @code{workdistribute} directive for Fortran @tab N @tab
+@item Fortran @code{DO CONCURRENT} as associated loop in a @code{loop} construct
       @tab N @tab
+@item New @code{task_iteration} directive inside @code{taskloop} @tab N @tab
 @item @code{threadset} clause in task-generating constructs @tab N @tab
+@item New @code{priority} clause to @code{target}, @code{target_enter_data},
+      @code{target_data}, @code{target_exit_data} and @code{target_update}
+      @tab N @tab
+@item New @code{device_type} clause to the @code{target} directive
+      @tab N @tab
+@item @code{target_data} as composite construct @tab N @tab
 @item @code{nowait} clause with reverse-offload @code{target} directives
       @tab N @tab
+@item Extended @emph{prefer-type} modifier to @code{init} clause @tab Y @tab
 @item Boolean argument to @code{nowait} and @code{nogroup} may be non constant
       @tab N @tab
 @item @code{memscope} clause to @code{atomic} and @code{flush} @tab N @tab
+@item New @code{transparent} clause for multi-generational task-dependence graphs
+      @tab N @tab
+@item The @code{cancel} construct now completes tasks with unfulfilled events
+      @tab N @tab
+@item @code{omp_fulfill_event} routine was restricted regarding fulfillment of
+      event variables @tab N @tab
+@item Added rule for compound-directive names, permitting many more combinations
+      @tab N @tab
 @item @code{omp_is_free_agent} and @code{omp_ancestor_is_free_agent} routines
       @tab N @tab
-@item @code{omp_target_memset} and @code{omp_target_memset_rect_async} routines
+@item @code{omp_get_device_from_uid} and @code{omp_get_uid_from_device} routines
+      @tab Y @tab
+@item @code{omp_get_device_num_teams}, @code{omp_set_device_num_teams},
+      @code{omp_get_device_teams_thread_limit}, and
+      @code{omp_set_device_teams_thread_limit} routines @tab N @tab
+@item @code{omp_target_memset} and @code{omp_target_memset_async} routines
       @tab N @tab
+@item Fortran version of the interop runtime routines @tab Y @tab
 @item Routines for obtaining memory spaces/allocators for shared/device memory
       @tab N @tab
 @item @code{omp_get_memspace_num_resources} routine @tab N @tab
+@item @code{omp_get_memspace_pagesize} routine @tab N @tab
 @item @code{omp_get_submemspace} routine @tab N @tab
+@item @code{omp_init_mempartitioner}, @code{omp_destroy_mempartitioner},
+      @code{omp_init_mempartition}, @code{omp_destroy_mempartition},
+      @code{omp_mempartition_set_part}, @code{omp_mempartition_get_user_data}
+      routines @tab N @tab
+@item Deprecation of the @code{target_data_op}, @code{target},
+      @code{target_map} and @code{target_submit} callbacks and as values that
+      @code{set_callback} must return @tab N @tab
 @item @code{ompt_target_data_transfer} and @code{ompt_target_data_transfer_async}
       values in @code{ompt_target_data_op_t} enum @tab N @tab
+@item The values @code{ompt_target_data_transfer_to_device},
+      @code{ompt_target_data_transfer_from_device},
+      @code{ompt_target_data_transfer_to_device_async} and
+      @code{ompt_target_data_transfer_from_device_async} of the @code{target_data_op}
+      OMPT type were deprecated @tab N @tab
 @item @code{ompt_get_buffer_limits} OMPT routine @tab N @tab
 @end multitable
 
-@unnumberedsubsec Other new TR 12 features
+@unnumberedsubsec Deprecated features, unless listed above
 @multitable @columnfractions .60 .10 .25
+@item Deprecation of omitting the optional white space to separate adjacent
+      keywords in the directive-name in Fortran (fixed and free source form)
+      @tab N @tab
+@item Deprecation of the combiner expression in the @code{declare_reduction}
+      argument @tab N @tab
+@item Deprecation of the Fortran include file @code{omp_lib.h}
+      @tab N @tab
+@end multitable
+
+@unnumberedsubsec Other new OpenMP 6.0 features
+@multitable @columnfractions .60 .10 .25
+@item Multi-word directives now use underscore by default @tab N @tab
 @item Relaxed Fortran restrictions to the @code{aligned} clause @tab N @tab
 @item Mapping lambda captures @tab N @tab
 @item New @code{omp_pause_stop_tool} constant for omp_pause_resource @tab N @tab
+@item In Fortran (fixed and free source form), spaces between directive names are mandatory
+      @tab N @tab
+@item Update of the map-type decay for mapping and @code{declare_mapper}
+      @tab N @tab
 @end multitable
 
 
@@ -567,7 +673,7 @@ specification in version 5.2.
 * Lock Routines::
 * Timing Routines::
 * Event Routine::
-@c * Interoperability Routines::
+* Interoperability Routines::
 * Memory Management Routines::
 @c * Tool Control Routine::
 * Environment Display Routine::
@@ -848,7 +954,7 @@ active nested regions to the maximum supported.  Disabling nested parallel
 regions sets the maximum number of active nested regions to one.
 
 Note that the @code{omp_set_nested} API routine was deprecated
-in the OpenMP specification 5.2 in favor of @code{omp_set_max_active_levels}.
+in the OpenMP specification 5.0 in favor of @code{omp_set_max_active_levels}.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -895,7 +1001,7 @@ regions with @code{omp_set_max_active_levels} to one to disable, or
 above one to enable.
 
 Note that the @code{omp_get_nested} API routine was deprecated
-in the OpenMP specification 5.2 in favor of @code{omp_get_max_active_levels}.
+in the OpenMP specification 5.0 in favor of @code{omp_get_max_active_levels}.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -1203,11 +1309,11 @@ They have C linkage and do not throw exceptions.
 
 @menu
 * omp_get_proc_bind::           Whether threads may be moved between CPUs
-@c * omp_get_num_places:: <fixme>
-@c * omp_get_place_num_procs:: <fixme>
-@c * omp_get_place_proc_ids:: <fixme>
-@c * omp_get_place_num:: <fixme>
-@c * omp_get_partition_num_places:: <fixme>
+@c * omp_get_num_places::       Get the number of places available
+@c * omp_get_place_num_procs::  Get the number of processes associated with a place
+@c * omp_get_place_proc_ids::   Get number of processes associated with a place
+@c * omp_get_place_num::        Get place number of the associated task
+@c * omp_get_partition_num_places:: Get number of places of innermost task
 @c * omp_get_partition_place_nums:: <fixme>
 @c * omp_set_affinity_format:: <fixme>
 @c * omp_get_affinity_format:: <fixme>
@@ -1590,8 +1696,14 @@ They have C linkage and do not throw exceptions.
 * omp_get_default_device::      Get the default device for target regions
 * omp_get_num_devices::         Number of target devices
 * omp_get_device_num::          Get device that current thread is running on
+* omp_get_device_from_uid::     Obtain the device number to a unique id
+* omp_get_uid_from_device::     Obtain the unique id of a device
 * omp_is_initial_device::       Whether executing on the host device
 * omp_get_initial_device::      Device number of host device
+@c * omp_get_device_num_teams::  <fixme>/TR13
+@c * omp_set_device_num_teams::  <fixme>/TR13
+@c * omp_get_device_teams_thread_limit::  <fixme>/TR13
+@c * omp_set_device_teams_thread_limit::  <fixme>/TR13
 @end menu
 
 
@@ -1622,8 +1734,12 @@ Returns the number of processors online on that device.
 @subsection @code{omp_set_default_device} -- Set the default device for target regions
 @table @asis
 @item @emph{Description}:
-Set the default device for target regions without device clause.  The argument
-shall be a nonnegative device number.
+Get the value of the @emph{default-device-var} ICV, which is used
+for target regions without a device clause.  The argument
+shall be a nonnegative device number, @code{omp_initial_device},
+or @code{omp_invalid_device}.
+
+The effect of running this routine in a @code{target} region is unspecified.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -1649,7 +1765,14 @@ shall be a nonnegative device number.
 @subsection @code{omp_get_default_device} -- Get the default device for target regions
 @table @asis
 @item @emph{Description}:
-Get the default device for target regions without device clause.
+Get the value of the @emph{default-device-var} ICV, which is used
+for target regions without a device clause. The value is either a
+nonnegative device number, @code{omp_initial_device} or
+@code{omp_invalid_device}. Note that for the host, the ICV can have two values:
+either the value of the named constant @code{omp_initial_device} or the value
+returned by the @code{omp_get_num_devices} routine.
+
+The effect of running this routine in a @code{target} region is unspecified.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -1662,7 +1785,8 @@ Get the default device for target regions without device clause.
 @end multitable
 
 @item @emph{See also}:
-@ref{OMP_DEFAULT_DEVICE}, @ref{omp_set_default_device}
+@ref{OMP_DEFAULT_DEVICE}, @ref{omp_set_default_device},
+@ref{omp_get_initial_device}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.30.
@@ -1674,7 +1798,9 @@ Get the default device for target regions without device clause.
 @subsection @code{omp_get_num_devices} -- Number of target devices
 @table @asis
 @item @emph{Description}:
-Returns the number of target devices.
+Returns the number of available non-host devices.
+
+The effect of running this routine in a @code{target} region is unspecified.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -1697,9 +1823,9 @@ Returns the number of target devices.
 @table @asis
 @item @emph{Description}:
 This function returns a device number that represents the device that the
-current thread is executing on. For OpenMP 5.0, this must be equal to the
-value returned by the @code{omp_get_initial_device} function when called
-from the host.
+current thread is executing on. When called on the host, it returns
+the same value as returned by the @code{omp_get_initial_device} function
+as required since OpenMP 5.0.
 
 @item @emph{C/C++}
 @multitable @columnfractions .20 .80
@@ -1720,6 +1846,71 @@ from the host.
 
 
 
+@node omp_get_device_from_uid
+@subsection @code{omp_get_device_from_uid} -- Obtain the device number to a unique id
+@table @asis
+@item @emph{Description}:
+This function returns the device number associated with the passed
+unique-identifier (UID) string.  If no device with this UID is available, the value
+@code{omp_invalid_device} is returned.  The effect of running this routine in a
+@code{target} region is unspecified.
+
+GCC treats the UID string case sensitive; for the initial device, GCC currently
+only accepts the value @code{OMP_INITIAL_DEVICE} and returns for it the value
+of @code{omp_initial_device}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_device_from_uid(const char *uid);}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_device_from_uid(uid)}
+@item                   @tab @code{character(len=*), intent(in) :: uid}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_uid_from_device}, @ref{Offload-Target Specifics}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 24.7
+@end table
+
+
+
+@node omp_get_uid_from_device
+@subsection @code{omp_get_uid_from_device} -- Obtain the unique id of a device
+@table @asis
+@item @emph{Description}:
+This function returns a pointer to a string that represents a unique identifier
+(UID) for the device specified by @var{device_num}.  It returns a @code{NULL} (C/C++)
+or a disassociated pointer (Fortran) for @code{omp_invalid_device}.  The effect of
+running this routine in a @code{target} region is unspecified.
+
+GCC currently returns for initial device the value @code{OMP_INITIAL_DEVICE}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{const char *omp_get_uid_from_device(int device_num);}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{character(:) function omp_get_uid_from_device(device_num)}
+@item @emph{Interface}: @tab @code{pointer :: omp_get_uid_from_device}
+@item                   @tab @code{integer, intent(in) :: device_num}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_uid_from_device}, @ref{Offload-Target Specifics}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 24.8
+@end table
+
+
+
 @node omp_is_initial_device
 @subsection @code{omp_is_initial_device} -- Whether executing on the host device
 @table @asis
@@ -1727,6 +1918,10 @@ from the host.
 This function returns @code{true} if currently running on the host device,
 @code{false} otherwise.  Here, @code{true} and @code{false} represent
 their language-specific counterparts.
+
+Note that in GCC this function call is already folded to a constant in the
+compiler; compile with @option{-fno-builtin-omp_is_initial_device} if a
+run-time function is desired.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -1749,8 +1944,11 @@ their language-specific counterparts.
 @table @asis
 @item @emph{Description}:
 This function returns a device number that represents the host device.
-For OpenMP 5.1, this must be equal to the value returned by the
-@code{omp_get_num_devices} function.
+Since OpenMP 5.1, this is equal to the value returned by the
+@code{omp_get_num_devices} function; since OpenMP 6.0 it may also return
+the value of @code{omp_initial_device}.
+
+The effect of running this routine in a @code{target} region is unspecified.
 
 @item @emph{C/C++}
 @multitable @columnfractions .20 .80
@@ -1783,8 +1981,8 @@ pointers on devices. They have C linkage and do not throw exceptions.
 * omp_target_is_present:: Check whether storage is mapped
 * omp_target_is_accessible:: Check whether memory is device accessible
 * omp_target_memcpy:: Copy data between devices
-* omp_target_memcpy_rect:: Copy a subvolume of data between devices
 * omp_target_memcpy_async:: Copy data between devices asynchronously
+* omp_target_memcpy_rect:: Copy a subvolume of data between devices
 * omp_target_memcpy_rect_async:: Copy a subvolume of data between devices asynchronously
 @c * omp_target_memset:: <fixme>/TR12
 @c * omp_target_memset_async:: <fixme>/TR12
@@ -2018,8 +2216,9 @@ to the destination device's @var{dst} address shifted by @var{dst_offset}.
 Task dependence is expressed by passing an array of depend objects to
 @var{depobj_list}, where the number of array elements is passed as
 @var{depobj_count}; if the count is zero, the @var{depobj_list} argument is
-ignored.  The routine returns zero if the copying process has successfully
-been started and non-zero otherwise.
+ignored.  In C++ and Fortran, the @var{depobj_list} argument can also be
+omitted in that case.   The routine returns zero if the copying process has
+successfully been started and non-zero otherwise.
 
 Running this routine in a @code{target} region except on the initial device
 is not supported.
@@ -2117,7 +2316,7 @@ the initial device.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_memcpy_rect_async}, @ref{omp_target_memcpy}
+@ref{omp_target_memcpy_rect_async}, @ref{omp_target_memcpy}, @ref{Offload-Target Specifics}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.6
@@ -2139,7 +2338,8 @@ respectively.  The offset per dimension to the first element to be copied is
 given by the @var{dst_offset} and @var{src_offset} arguments.  Task dependence
 is expressed by passing an array of depend objects to @var{depobj_list}, where
 the number of array elements is passed as @var{depobj_count}; if the count is
-zero, the @var{depobj_list} argument is ignored.  The routine
+zero, the @var{depobj_list} argument is ignored.  In C++ and Fortran, the
+@var{depobj_list} argument can also be omitted in that case.  The routine
 returns zero on success and non-zero otherwise.
 
 The OpenMP specification only requires that @var{num_dims} up to three is
@@ -2191,7 +2391,7 @@ the initial device.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_target_memcpy_rect}, @ref{omp_target_memcpy_async}
+@ref{omp_target_memcpy_rect}, @ref{omp_target_memcpy_async}, @ref{Offload-Target Specifics}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.8.8
@@ -2218,7 +2418,7 @@ in the @code{to} and @code{from} clauses of the @code{target update} directive
 to transfer data between the associated pointers. The reference count of such
 associated storage is infinite.  The association can be removed by calling
 @code{omp_target_disassociate_ptr} which should be done before the lifetime
-of either either storage ends.
+of either storage ends.
 
 The routine returns nonzero (@code{EINVAL}) when the @var{device_num} invalid,
 for when the initial device or the associated device shares memory with the
@@ -2357,8 +2557,9 @@ The routines have C linkage and do not throw exceptions.
 @menu
 * omp_init_lock::            Initialize simple lock
 * omp_init_nest_lock::       Initialize nested lock
-@c * omp_init_lock_with_hint:: <fixme>
-@c * omp_init_nest_lock_with_hint:: <fixme>
+@c PR libgomp/109452
+@c * omp_init_lock_with_hint:: Initialize simple lock with sync hint
+@c * omp_init_nest_lock_with_hint:: Initialize nested lock with sync hint
 * omp_destroy_lock::         Destroy simple lock
 * omp_destroy_nest_lock::    Destroy nested lock
 * omp_set_lock::             Wait for and set simple lock
@@ -2767,21 +2968,315 @@ event handle that has already been fulfilled is also undefined.
 
 
 
-@c @node Interoperability Routines
-@c @section Interoperability Routines
-@c
-@c Routines to obtain properties from an @code{omp_interop_t} object.
-@c They have C linkage and do not throw exceptions.
-@c
-@c @menu
-@c * omp_get_num_interop_properties:: <fixme>
-@c * omp_get_interop_int:: <fixme>
-@c * omp_get_interop_ptr:: <fixme>
-@c * omp_get_interop_str:: <fixme>
-@c * omp_get_interop_name:: <fixme>
-@c * omp_get_interop_type_desc:: <fixme>
-@c * omp_get_interop_rc_desc:: <fixme>
-@c @end menu
+@node Interoperability Routines
+@section Interoperability Routines
+
+Routines to obtain properties from an object of OpenMP interop type.
+They have C linkage and do not throw exceptions.
+
+@menu
+* omp_get_num_interop_properties:: Get the number of implementation-specific properties
+* omp_get_interop_int:: Obtain integer-valued interoperability property
+* omp_get_interop_ptr:: Obtain pointer-valued interoperability property
+* omp_get_interop_str:: Obtain string-valued interoperability property
+* omp_get_interop_name:: Obtain the name of an interop_property value as string
+* omp_get_interop_type_desc:: Obtain type and description to an interop_property
+* omp_get_interop_rc_desc:: Obtain error string to an interop_rc error code
+@end menu
+
+
+
+@node omp_get_num_interop_properties
+@subsection @code{omp_get_num_interop_properties} -- Get the number of implementation-specific properties
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_num_interop_properties} function returns the number of
+implementation-defined interoperability properties available for the passed
+@var{interop}, extending the OpenMP-defined properties.  The available OpenMP
+interop_property-type values range from @code{omp_ipr_first} to the value
+returned by @code{omp_get_num_interop_properties} minus one.
+
+No implementation-defined properties are currently defined in GCC.
+
+@c Implementation remark: In GCC, the Fortran interface differs from the one shown
+@c below: the function has C binding, @var{interop} is passed by value and an
+@c integer of @code{c_int} kind is returned, which permits use of the same ABI as
+@c the C function.  This does not affect the usage of the function when GCC's
+@c @code{omp_lib} module or @code{omp_lib.h} header is used.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_num_interop_properties(const omp_interop_t interop)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_num_interop_properties(interop)}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_interop_name}, @ref{omp_get_interop_type_desc}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.1,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.1
+@end table
+
+
+
+@node omp_get_interop_int
+@subsection @code{omp_get_interop_int} -- Obtain integer-valued interoperability property
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_interop_int} function returns the integer value associated
+with the @var{property_id} interoperability property of the passed @var{interop}
+object.  The @var{ret_code} argument is optional, i.e. it can be omitted in C++
+and Fortran or used with @code{NULL} as argument in C and C++.  If successful,
+@var{ret_code} (if present) is set to @code{omp_irc_success}.
+
+In GCC, the effect of running this routine in a @code{target} region that is not
+the initial device is unspecified.
+
+@c Implementation remark: In GCC, the Fortran interface differs from the one shown
+@c below: the function has C binding and @var{interop} and @var{property_id} are
+@c passed by value, which permits use of the same ABI as the C function.  This does
+@c not affect the usage of the function when GCC's @code{omp_lib} module or
+@c @code{omp_lib.h} header is used.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{omp_intptr_t omp_get_interop_int(const omp_interop_t interop,
+                                   omp_interop_property_t property_id, omp_interop_rc_t *ret_code)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer(c_intptr_t) function omp_get_interop_int(interop,
+                                   property_id, ret_code)}
+@item                   @tab @code{use, intrinsic :: iso_c_binding, only : c_intptr_t}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@item                   @tab @code{integer(omp_interop_property_kind) property_id}
+@item                   @tab @code{integer(omp_interop_rc_kind), optional, intent(out) :: ret_code}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_interop_ptr}, @ref{omp_get_interop_str}, @ref{omp_get_interop_rc_desc},
+@ref{Offload-Target Specifics}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.2,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.2
+@end table
+
+
+
+@node omp_get_interop_ptr
+@subsection @code{omp_get_interop_ptr} -- Obtain pointer-valued interoperability property
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_interop_int} function returns the pointer value associated with
+the @var{property_id} interoperability property of the passed @var{interop}
+object.  The @var{ret_code} argument is optional, i.e. it can be omitted in C++
+and Fortran or used with @code{NULL} as argument in C and C++.  If successful,
+@var{ret_code} (if present) is set to @code{omp_irc_success}.
+
+In GCC, the effect of running this routine in a @code{target} region that is not
+the initial device is unspecified.
+
+@c Implementation remark: In GCC, the Fortran interface differs from the one shown
+@c below: the function has C binding and @var{interop} and @var{property_id} are
+@c passed by value, which permits use of the same ABI as the C function.  This does
+@c not affect the usage of the function when GCC's @code{omp_lib} module or
+@c @code{omp_lib.h} header is used.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{void *omp_get_interop_ptr(const omp_interop_t interop,
+                                   omp_interop_property_t property_id, omp_interop_rc_t *ret_code)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{type(c_ptr) function omp_get_interop_int(interop,
+                                   property_id, ret_code)}
+@item                   @tab @code{use, intrinsic :: iso_c_binding, only : c_ptr}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@item                   @tab @code{integer(omp_interop_property_kind) property_id}
+@item                   @tab @code{integer(omp_interop_rc_kind), optional, intent(out) :: ret_code}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_interop_int}, @ref{omp_get_interop_str}, @ref{omp_get_interop_rc_desc},
+@ref{Offload-Target Specifics}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.3,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.3
+@end table
+
+
+
+@node omp_get_interop_str
+@subsection @code{omp_get_interop_str} -- Obtain string-valued interoperability property
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_interop_str} function returns the string value associated with
+the @var{property_id} interoperability property of the passed @var{interop}
+object.  The @var{ret_code} argument is optional, i.e. it can be omitted in C++
+and Fortran or used with @code{NULL} as argument in C and C++.  If successful,
+@var{ret_code} (if present) is set to @code{omp_irc_success}.
+
+In GCC, the effect of running this routine in a @code{target} region that is not
+the initial device is unspecified.
+
+@c Implementation remark: In GCC, the Fortran interface differs from the one shown
+@c below: @var{interop} and @var{property_id} are passed by value.  This does not
+@c affect the usage of the function when GCC's @code{omp_lib} module or
+@c @code{omp_lib.h} header is used.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{const char *omp_get_interop_str(const omp_interop_t interop,
+                                   omp_interop_property_t property_id, omp_interop_rc_t *ret_code)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{character(:) function omp_get_interop_str(interop,
+                                   property_id, ret_code)}
+@item                   @tab @code{pointer :: omp_get_interop_str}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@item                   @tab @code{integer(omp_interop_property_kind) property_id}
+@item                   @tab @code{integer(omp_interop_rc_kind), optional, intent(out) :: ret_code}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_interop_int}, @ref{omp_get_interop_ptr}, @ref{omp_get_interop_rc_desc},
+@ref{Offload-Target Specifics}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.4,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.4
+@end table
+
+
+
+@node omp_get_interop_name
+@subsection @code{omp_get_interop_name} -- Obtain the name of an @code{interop_property} value as string
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_interop_name} function returns the name of the property
+itself as string; for the properties specified by the OpenMP specification,
+the name matches the name of the named constant with the @samp{omp_ipr_}
+prefix removed.
+
+@c Implementation remark: In GCC, the Fortran interface differs from the one shown
+@c below: @var{interop} and @var{property_id} are passed by value.  This does not
+@c affect the usage of the function when GCC's @code{omp_lib} module or
+@c @code{omp_lib.h} header is used.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{const char *omp_get_interop_name(const omp_interop_t interop,
+                                   omp_interop_property_t property_id)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{character(:) function omp_get_interop_name(interop,
+                                   property_id)}
+@item                   @tab @code{pointer :: omp_get_interop_name}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@item                   @tab @code{integer(omp_interop_property_kind) property_id}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_num_interop_properties}, @ref{omp_get_interop_type_desc}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.5,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.5
+@end table
+
+
+
+@node omp_get_interop_type_desc
+@subsection @code{omp_get_interop_type_desc} -- Obtain type and description to an @code{interop_property}
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_interop_type_desc} function returns a string that describes in
+human-readable form the data type associated with the @var{property_id}
+interoperability property of the passed @var{interop} object.
+
+In GCC, this function returns the name of the C/C++ data type for this property
+or @samp{N/A} if this property is not available for the given foreign runtime.
+If @var{interop} is @code{omp_interop_none} or for invalid property values,
+a null pointer is returned. The effect of running this routine in a
+@code{target} region that is not the initial device is unspecified.
+
+@c Implementation remark: In GCC, the Fortran interface differs from the one shown
+@c below: @var{interop} and @var{property_id} are passed by value.  This does not
+@c affect the usage of the function when GCC's @code{omp_lib} module or
+@c @code{omp_lib.h} header is used.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{const char *omp_get_interop_type_desc(const omp_interop_t interop,
+                                   omp_interop_property_t property_id)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{character(:) function omp_get_interop_type_desc(interop,
+                                   property_id)}
+@item                   @tab @code{pointer :: omp_get_interop_type_desc}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@item                   @tab @code{integer(omp_interop_property_kind) property_id}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_num_interop_properties}, @ref{omp_get_interop_name},
+@ref{Offload-Target Specifics}
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.6,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.6
+@end table
+
+
+
+@node omp_get_interop_rc_desc
+@subsection @code{omp_get_interop_rc_desc} -- Obtain error string to an @code{interop_rc} error code
+@table @asis
+@item @emph{Description}:
+The @code{omp_get_interop_rc_desc} function returns a string value describing
+the @var{ret_code} in human-readable form.
+
+The behavior is unspecified if value of @var{ret_code} was not set by an
+interoperability routine invoked for @var{interop}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{const char *omp_get_interop_rc_desc(const omp_interop_t interop,
+                                   omp_interop_rc_t ret_code)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{character(:) function omp_get_interop_rc_desc(interop,
+                                   property_id, ret_code)}
+@item                   @tab @code{pointer :: omp_get_interop_rc_desc}
+@item                   @tab @code{integer(omp_interop_kind), intent(in) :: interop}
+@item                   @tab @code{integer (omp_interop_rc_kind) ret_code}
+@end multitable
+
+@item @emph{Reference}:
+@uref{https://www.openmp.org, OpenMP specification v5.1}, Section 3.12.7,
+@uref{https://www.openmp.org, OpenMP specification v6.0}, Section 26.7
+@end table
+
+
 
 @node Memory Management Routines
 @section Memory Management Routines
@@ -2790,8 +3285,27 @@ Routines to manage and allocate memory on the current device.
 They have C linkage and do not throw exceptions.
 
 @menu
+@c * omp_get_devices_memspace:: <fixme>/TR13
+@c * omp_get_device_memspace:: <fixme>/TR13
+@c * omp_get_devices_and_host_memspace:: <fixme>/TR13
+@c * omp_get_device_and_host_memspace:: <fixme>/TR13
+@c * omp_get_devices_all_memspace:: <fixme>/TR13
+@c * omp_get_memspace_num_resources:: <fixme>/TR11
+@c * omp_get_memspace_pagesize:: <fixme>/TR13
+@c * omp_get_submemspace:: <fixme>/TR11
+@c * omp_init_mempartitioner:: <fixme>/TR13
+@c * omp_destroy_mempartitioner:: <fixme>/TR13
+@c * omp_init_mempartition:: <fixme>/TR13
+@c * omp_destroy_mempartition:: <fixme>/TR13
+@c * omp_mempartition_set_part:: <fixme>/TR13
+@c * omp_mempartition_get_user_data:: <fixme>/TR13
 * omp_init_allocator:: Create an allocator
 * omp_destroy_allocator:: Destroy an allocator
+@c * omp_get_devices_allocator:: <fixme>/TR13
+@c * omp_get_device_allocator:: <fixme>/TR13
+@c * omp_get_devices_and_host_allocator:: <fixme>/TR13
+@c * omp_get_device_and_host_allocator:: <fixme>/TR13
+@c * omp_get_devices_all_allocator:: <fixme>/TR13
 * omp_set_default_allocator:: Set the default allocator
 * omp_get_default_allocator:: Get the default allocator
 * omp_alloc:: Memory allocation with an allocator
@@ -2800,8 +3314,6 @@ They have C linkage and do not throw exceptions.
 * omp_calloc:: Allocate nullified memory with an allocator
 * omp_aligned_calloc:: Allocate nullified aligned memory with an allocator
 * omp_realloc:: Reallocate memory allocated with OpenMP routines
-@c * omp_get_memspace_num_resources:: <fixme>/TR11
-@c * omp_get_submemspace:: <fixme>/TR11
 @end menu
 
 
@@ -2815,7 +3327,7 @@ traits; if an allocator that fulfills the requirements cannot be created,
 @code{omp_null_allocator} is returned.
 
 The predefined memory spaces and available traits can be found at
-@ref{OMP_ALLOCATOR}, where the trait names have to be be prefixed by
+@ref{OMP_ALLOCATOR}, where the trait names have to be prefixed by
 @code{omp_atk_} (e.g. @code{omp_atk_pinned}) and the named trait values by
 @code{omp_atv_} (e.g. @code{omp_atv_true}); additionally, @code{omp_atv_default}
 may be used as trait value to specify that the default value should be used.
@@ -3210,7 +3722,7 @@ The @var{allocator} and @var{free_allocator} arguments must be a predefined
 allocator, an allocator handle or @code{omp_null_allocator}.  If
 @var{free_allocator} is @code{omp_null_allocator}, the implementation
 automatically determines the allocator used for the allocation of @var{ptr}.
-If @var{allocator} is @code{omp_null_allocator} and @var{ptr} is is not a
+If @var{allocator} is @code{omp_null_allocator} and @var{ptr} is not a
 null pointer, the same allocator as @code{free_allocator} is used and
 when @var{ptr} is a null pointer the allocator specified by the
 @var{def-allocator-var} ICV is used.
@@ -3321,13 +3833,13 @@ The effect when invoked from within a @code{target} region is unspecified.
 
 @item @emph{Fortran}:
 @multitable @columnfractions .20 .80
-@item @emph{Interface}: @tab @code{subroutine omp_display_env(vebose)}
+@item @emph{Interface}: @tab @code{subroutine omp_display_env(verbose)}
 @item                   @tab @code{logical, intent(in) :: verbose}
 @end multitable
 
 @item @emph{Example}:
 Note that the GCC-specific ICVs, such as the shown @code{GOMP_SPINCOUNT},
-are only printed when @var{varbose} set to @code{true}.
+are only printed when @var{verbose} set to @code{true}.
 
 @smallexample
 OPENMP DISPLAY ENVIRONMENT BEGIN
@@ -3435,6 +3947,7 @@ value.
 @item omp_cgroup_mem_alloc      @tab omp_low_lat_mem_space (implementation defined)
 @item omp_pteam_mem_alloc       @tab omp_low_lat_mem_space (implementation defined)
 @item omp_thread_mem_alloc      @tab omp_low_lat_mem_space (implementation defined)
+@item ompx_gnu_pinned_mem_alloc @tab omp_default_mem_space (GNU extension)
 @end multitable
 
 The predefined allocators use the default values for the traits,
@@ -3460,7 +3973,7 @@ as listed below.  Except that the last three allocators have the
 @item @code{fb_data}   @tab @emph{unsupported as it needs an allocator handle}
                        @tab (none)
 @item @code{pinned}    @tab @code{true}, @code{false}
-                       @tab @code{false}
+                       @tab See below
 @item @code{partition} @tab @code{environment}, @code{nearest},
                             @code{blocked}, @code{interleaved}
                        @tab @code{environment}
@@ -3468,8 +3981,12 @@ as listed below.  Except that the last three allocators have the
 
 For the @code{fallback} trait, the default value is @code{null_fb} for the
 @code{omp_default_mem_alloc} allocator and any allocator that is associated
-with device memory; for all other other allocators, it is @code{default_mem_fb}
+with device memory; for all other allocators, it is @code{default_mem_fb}
 by default.
+
+For the @code{pinned} trait, the default value is @code{true} for
+predefined allocator @code{ompx_gnu_pinned_mem_alloc} (a GNU extension), and
+@code{false} for all others.
 
 Examples:
 @smallexample
@@ -3730,7 +4247,7 @@ setting.  If both are undefined, nested parallel regions are enabled if
 more than one item, otherwise they are disabled by default.
 
 Note that the @code{OMP_NESTED} environment variable was deprecated in
-the OpenMP specification 5.2 in favor of @code{OMP_MAX_ACTIVE_LEVELS}.
+the OpenMP specification 5.0 in favor of @code{OMP_MAX_ACTIVE_LEVELS}.
 
 @item @emph{See also}:
 @ref{omp_set_max_active_levels}, @ref{omp_set_nested},
@@ -4669,6 +5186,10 @@ returned to indicate the device is executing on the specified device type.
 In Fortran, @code{true} is returned. If the program is not executing
 on the specified device type C/C++ returns zero, while Fortran
 returns @code{false}.
+
+Note that in GCC, depending on @var{devicetype}, the function call might
+be folded to a constant in the compiler; compile with
+@option{-fno-builtin-acc_on_device} if a run-time function is desired.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -6178,9 +6699,10 @@ smaller number.  On non-host devices, the value of the
 @c has to be implemented; cf. also PR target/105640.
 @c For offload devices, add *additionally* gcc/config/*/t-omp-device.
 
-For the host compiler, @code{kind} always matches @code{host}; for the
-offloading architectures AMD GCN and Nvidia PTX, @code{kind} always matches
-@code{gpu}.  For the x86 family of computers, AMD GCN and Nvidia PTX
+For the host compiler, @code{kind} always matches @code{host}, @code{cpu}
+and @code{any}; for the offloading architectures AMD GCN and Nvidia PTX,
+@code{kind} always matches @code{nohost}, @code{gpu} and @code{any}.
+For the x86 family of computers, AMD GCN and Nvidia PTX
 the following traits are supported in addition; while OpenMP is supported
 on more architectures, GCC currently does not match any @code{arch} or
 @code{isa} traits for those.
@@ -6191,8 +6713,7 @@ on more architectures, GCC currently does not match any @code{arch} or
       @code{i586}, @code{i686}, @code{ia32}
       @tab See @code{-m...} flags in ``x86 Options'' (without @code{-m})
 @item @code{amdgcn}, @code{gcn}
-      @tab See @code{-march=} in ``AMD GCN Options''@footnote{Additionally,
-      @code{gfx803} is supported as an alias for @code{fiji}.}
+      @tab See @code{-march=} in ``AMD GCN Options''
 @item @code{nvptx}, @code{nvptx64}
       @tab See @code{-march=} in ``Nvidia PTX Options''
 @end multitable
@@ -6209,26 +6730,33 @@ The description below applies to:
       constant expression with value @code{omp_default_mem_alloc} and no
       @code{align} modifier has been specified. (In that case, the normal
       @code{malloc} allocation is used.)
+@item The @code{allocate} directive for variables in static memory; while
+      the alignment is honored, the normal static memory is used.
 @item Using the @code{allocate} directive for automatic/stack variables, except
       when the @code{allocator} clause is a constant expression with value
       @code{omp_default_mem_alloc} and no @code{align} clause has been
       specified. (In that case, the normal allocation is used: stack allocation
       and, sometimes for Fortran, also @code{malloc} [depending on flags such as
       @option{-fstack-arrays}].)
-@item Using the @code{allocate} directive for variable in static memory is
-      currently not supported (compile time error).
 @item In Fortran, the @code{allocators} directive and the executable
       @code{allocate} directive for Fortran pointers and allocatables is
       supported, but requires that files containing those directives has to be
       compiled with @option{-fopenmp-allocators}.  Additionally, all files that
       might explicitly or implicitly deallocate memory allocated that way must
       also be compiled with that option.
+@item The used alignment is the maximum of the value the @code{align} clause
+      and the alignment of the type after honoring, if present, the
+      @code{aligned} (@code{GNU::aligned}) attribute and C's @code{_Alignas}
+      and C++'s @code{alignas}.  However, the @code{align} clause of the
+      @code{allocate} directive has no effect on the value of C's
+      @code{_Alignof} and C++'s @code{alignof}.
 @end itemize
 
 For the available predefined allocators and, as applicable, their associated
 predefined memory spaces and for the available traits and their default values,
 see @ref{OMP_ALLOCATOR}.  Predefined allocators without an associated memory
-space use the @code{omp_default_mem_space} memory space.
+space use the @code{omp_default_mem_space} memory space.  See additionally
+@ref{Offload-Target Specifics}.
 
 For the memory spaces, the following applies:
 @itemize
@@ -6312,6 +6840,10 @@ The following sections present notes on the offload-target specifics
 @node AMD Radeon
 @section AMD Radeon (GCN)
 
+@menu
+* Foreign-runtime support for AMD GPUs::
+@end menu
+
 On the hardware side, there is the hierarchy (fine to coarse):
 @itemize
 @item work item (thread)
@@ -6349,16 +6881,21 @@ The used sizes are
 
 The implementation remark:
 @itemize
-@item I/O within OpenMP target regions and OpenACC parallel/kernels is supported
+@item I/O within OpenMP target regions and OpenACC compute regions is supported
       using the C library @code{printf} functions and the Fortran
       @code{print}/@code{write} statements.
 @item Reverse offload regions (i.e. @code{target} regions with
       @code{device(ancestor:1)}) are processed serially per @code{target} region
       such that the next reverse offload region is only executed after the previous
       one returned.
-@item OpenMP code that has a @code{requires} directive with
-      @code{unified_shared_memory} will remove any GCN device from the list of
-      available devices (``host fallback'').
+@item OpenMP code that has a @code{requires} directive with @code{self_maps} or
+      @code{unified_shared_memory} is only supported if all AMD GPUs have the
+      @code{HSA_AMD_SYSTEM_INFO_SVM_ACCESSIBLE_BY_DEFAULT} property; for
+      discrete GPUs, this may require setting the @code{HSA_XNACK} environment
+      variable to @samp{1}; for systems with both an APU and a discrete GPU that
+      does not support XNACK, consider using @code{ROCR_VISIBLE_DEVICES} to
+      enable only the APU.  If not supported, all AMD GPU devices are removed
+      from the list of available devices (``host fallback'').
 @item The available stack size can be changed using the @code{GCN_STACK_SIZE}
       environment variable; the default is 32 kiB per thread.
 @item Low-latency memory (@code{omp_low_lat_mem_space}) is supported when the
@@ -6374,12 +6911,90 @@ The implementation remark:
       @code{omp_thread_mem_alloc}, all use low-latency memory as first
       preference, and fall back to main graphics memory when the low-latency
       pool is exhausted.
+@item The OpenMP routines @code{omp_target_memcpy_rect} and
+      @code{omp_target_memcpy_rect_async} and the @code{target update}
+      directive for non-contiguous list items use the 3D memory-copy function
+      of the HSA library.  Higher dimensions call this functions in a loop and
+      are therefore supported.
+@item The unique identifier (UID), used with OpenMP's API UID routines, is the
+      value returned by the HSA runtime library for @code{HSA_AMD_AGENT_INFO_UUID}.
+      For GPUs, it is currently @samp{GPU-} followed by 16 lower-case hex digits,
+      yielding a string like @code{GPU-f914a2142fc3413a}.  The output matches
+      the one used by @code{rocminfo}.
 @end itemize
+
+
+@node Foreign-runtime support for AMD GPUs
+@subsection OpenMP @code{interop} -- Foreign-Runtime Support for AMD GPUs
+
+On AMD GPUs, the foreign runtimes are HIP (C++ Heterogeneous-Compute Interface
+for Portability) and HSA (Heterogeneous System Architecture),
+where HIP is the default.  The interop object is created using OpenMP's
+@code{interop} directive or, implicitly, when invoking a @code{declare variant}
+procedure that has the @code{append_args} clause.  In either case, the
+@code{prefer_type} modifier determines whether HIP or HSA is used.
+
+When specifying the @code{targetsync} modifier: For HIP, a stream is
+created using @code{hipStreamCreate}. For HSA, a queue is created of type
+@code{HSA_QUEUE_TYPE_MULTI} with a queue size of 64.
+
+Invoke the @ref{Interoperability Routines} on an interop object to obtain
+the following properties.  For properties with integral (int), pointer (ptr),
+or string (str) data type, call @code{omp_get_interop_int},
+@code{omp_get_interop_ptr}, or @code{omp_get_interop_str}, respectively.
+Note that @code{device_num} is the OpenMP device number
+while @code{device} is the HIP device number or HSA device handle.
+
+When using HIP with C and C++, the @code{__HIP_PLATFORM_AMD__} preprocessor
+macro must be defined before including the HIP header files.
+
+For the API routine call, add the prefix @code{omp_ipr_} to the property name;
+for instance:
+@smallexample
+omp_interop_rc_t ret;
+int device_num = omp_get_interop_int (my_interop_obj, omp_ipr_device_num, &ret);
+@end smallexample
+
+@noindent
+Available properties for an HIP interop object:
+
+@multitable @columnfractions .20 .35 .20 .20
+@headitem Property          @tab C data type             @tab API routine @tab value (if constant)
+@item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_hip}
+@item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"hip"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{1}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"amd"}
+@item @code{device_num}     @tab @code{int}              @tab int         @tab
+@item @code{platform}       @tab N/A                     @tab             @tab
+@item @code{device}         @tab @code{hipDevice_t}      @tab int         @tab
+@item @code{device_context} @tab @code{hipCtx_t}         @tab ptr         @tab
+@item @code{targetsync}     @tab @code{hipStream_t}      @tab ptr         @tab
+@end multitable
+
+@noindent
+Available properties for an HSA interop object:
+
+@multitable @columnfractions .20 .35 .20 .20
+@headitem Property          @tab C data type             @tab API routine @tab value (if constant)
+@item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_hsa}
+@item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"hsa"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{1}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"amd"}
+@item @code{device_num}     @tab @code{int}              @tab int         @tab
+@item @code{platform}       @tab N/A                     @tab             @tab
+@item @code{device}         @tab @code{hsa_agent *}      @tab ptr         @tab
+@item @code{device_context} @tab N/A                     @tab             @tab
+@item @code{targetsync}     @tab @code{hsa_queue *}      @tab ptr         @tab
+@end multitable
 
 
 
 @node nvptx
 @section nvptx
+
+@menu
+* Foreign-runtime support for Nvidia GPUs::
+@end menu
 
 On the hardware side, there is the hierarchy (fine to coarse):
 @itemize
@@ -6419,9 +7034,11 @@ CUDA version and hardware.
 
 The implementation remark:
 @itemize
-@item I/O within OpenMP target regions and OpenACC parallel/kernels is supported
-      using the C library @code{printf} functions. Note that the Fortran
-      @code{print}/@code{write} statements are not supported, yet.
+@item I/O within OpenMP target regions and OpenACC compute regions is supported
+      using the C library @code{printf} functions.
+      Additionally, the Fortran @code{print}/@code{write} statements are
+      supported within OpenMP target regions, but not yet within OpenACC compute
+      regions.  @c The latter needs 'GOMP_NVPTX_NATIVE_GPU_THREAD_STACK_SIZE'.
 @item Compilation OpenMP code that contains @code{requires reverse_offload}
       requires at least @code{-march=sm_35}, compiling for @code{-march=sm_30}
       is not supported.
@@ -6431,19 +7048,19 @@ The implementation remark:
       Per device, reverse offload regions are processed serially such that
       the next reverse offload region is only executed after the previous
       one returned.
-@item OpenMP code that has a @code{requires} directive with
-      @code{unified_shared_memory} will remove any nvptx device from the
-      list of available devices (``host fallback'').
+@item OpenMP code that has a @code{requires} directive with @code{self_maps} or
+      @code{unified_shared_memory} runs on nvptx devices if and only if
+      all of those support the @code{pageableMemoryAccess} property;@footnote{
+      @uref{https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#um-requirements}}
+      otherwise, all nvptx device are removed from the list of available
+      devices (``host fallback'').
 @item The default per-warp stack size is 128 kiB; see also @code{-msoft-stack}
       in the GCC manual.
-@item The OpenMP routines @code{omp_target_memcpy_rect} and
-      @code{omp_target_memcpy_rect_async} and the @code{target update}
-      directive for non-contiguous list items will use the 2D and 3D
-      memory-copy functions of the CUDA library.  Higher dimensions will
-      call those functions in a loop and are therefore supported.
 @item Low-latency memory (@code{omp_low_lat_mem_space}) is supported when the
-      the @code{access} trait is set to @code{cgroup}, the ISA is at least
-      @code{sm_53}, and the PTX version is at least 4.1.  The default pool size
+      the @code{access} trait is set to @code{cgroup}, and libgomp has
+      been built for PTX ISA version 4.1 or higher (such as in GCC's
+      default configuration).  @c -mptx=4.1
+      The default pool size
       is 8 kiB per team, but may be adjusted at runtime by setting environment
       variable @code{GOMP_NVPTX_LOWLAT_POOL=@var{bytes}}.  The maximum value is
       limited by the available hardware, and care should be taken that the
@@ -6456,7 +7073,101 @@ The implementation remark:
       @code{omp_thread_mem_alloc}, all use low-latency memory as first
       preference, and fall back to main graphics memory when the low-latency
       pool is exhausted.
+@item The OpenMP routines @code{omp_target_memcpy_rect} and
+      @code{omp_target_memcpy_rect_async} and the @code{target update}
+      directive for non-contiguous list items use the 2D and 3D memory-copy
+      functions of the CUDA library.  Higher dimensions call those functions
+      in a loop and are therefore supported.
+@item The unique identifier (UID), used with OpenMP's API UID routines, consists
+      of the @samp{GPU-} prefix followed by the 16-bytes UUID as returned by
+      the CUDA runtime library.  This UUID is output in grouped lower-case
+      hex digits; the grouping of those 32 digits is: 8 digits, hyphen,
+      4 digits, hyphen, 4 digits, hyphen, 16 digits. This leads to a string
+      like @code{GPU-a8081c9e-f03e-18eb-1827-bf5ba95afa5d}.  The output
+      matches the format used by @code{nvidia-smi}.
 @end itemize
+
+
+@node Foreign-runtime support for Nvidia GPUs
+@subsection OpenMP @code{interop} -- Foreign-Runtime Support for Nvidia GPUs
+
+On Nvidia GPUs, the foreign runtimes APIs are the CUDA runtime API, the CUDA
+driver API, and HIP, the C++ Heterogeneous-Compute Interface for Portability
+that is---on CUDA-based systems---a very thin layer on top of the CUDA API. By
+default, CUDA is used.  The interop object is created using OpenMP's
+@code{interop} directive or, implicitly, when invoking a @code{declare variant}
+procedure that has the @code{append_args} clause.  In either case, the
+@code{prefer_type} modifier determines whether CUDA, CUDA driver, or HSA is
+used.
+
+When specifying the @code{targetsync} modifier, a CUDA stream is created using
+the @code{CU_STREAM_DEFAULT} flag.
+
+Invoke the @ref{Interoperability Routines} on an interop object to obtain
+the following properties.  For properties with integral (int), pointer (ptr),
+or string (str) data type, call @code{omp_get_interop_int},
+@code{omp_get_interop_ptr}, or @code{omp_get_interop_str}, respectively.
+Note that @code{device_num} is the OpenMP device number while @code{device}
+is the CUDA, CUDA Driver, or HIP device number.
+
+When using HIP with C and C++, the @code{__HIP_PLATFORM_NVIDIA__} preprocessor
+macro must be defined before including the HIP header files.
+
+For the API routine call, add the prefix @code{omp_ipr_} to the property name;
+for instance:
+@smallexample
+omp_interop_rc_t ret;
+int device_num = omp_get_interop_int (my_interop_obj, omp_ipr_device_num, &ret);
+@end smallexample
+
+@noindent
+Available properties for a CUDA runtime API interop object:
+
+@multitable @columnfractions .20 .35 .20 .20
+@headitem Property          @tab C data type             @tab API routine @tab value (if constant)
+@item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_cuda}
+@item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"cuda"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{11}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"nvidia"}
+@item @code{device_num}     @tab @code{int}              @tab int         @tab
+@item @code{platform}       @tab N/A                     @tab             @tab
+@item @code{device}         @tab @code{int}              @tab int         @tab
+@item @code{device_context} @tab N/A                     @tab             @tab
+@item @code{targetsync}     @tab @code{cudaStream_t}     @tab ptr         @tab
+@end multitable
+
+@noindent
+Available properties for a CUDA driver API interop object:
+
+@multitable @columnfractions .20 .35 .20 .20
+@headitem Property          @tab C data type             @tab API routine @tab value (if constant)
+@item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_cuda_driver}
+@item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"cuda_driver"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{11}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"nvidia"}
+@item @code{device_num}     @tab @code{int}              @tab int         @tab
+@item @code{platform}       @tab N/A                     @tab             @tab
+@item @code{device}         @tab @code{CUdevice}         @tab int         @tab
+@item @code{device_context} @tab @code{CUcontext}        @tab ptr         @tab
+@item @code{targetsync}     @tab @code{CUstream}         @tab ptr         @tab
+@end multitable
+
+@noindent
+Available properties for an HIP interop object:
+
+@multitable @columnfractions .20 .35 .20 .20
+@headitem Property          @tab C data type             @tab API routine @tab value (if constant)
+@item @code{fr_id}          @tab @code{omp_interop_fr_t} @tab int         @tab @code{omp_fr_hip}
+@item @code{fr_name}        @tab @code{const char *}     @tab str         @tab @code{"hip"}
+@item @code{vendor}         @tab @code{int}              @tab int         @tab @code{11}
+@item @code{vendor_name}    @tab @code{const char *}     @tab str         @tab @code{"nvidia"}
+@item @code{device_num}     @tab @code{int}              @tab int         @tab
+@item @code{platform}       @tab N/A                     @tab             @tab
+@item @code{device}         @tab @code{hipDevice_t}      @tab int         @tab
+@item @code{device_context} @tab @code{hipCtx_t}         @tab ptr         @tab
+@item @code{targetsync}     @tab @code{hipStream_t}      @tab ptr         @tab
+@end multitable
+
 
 
 @c ---------------------------------------------------------------------

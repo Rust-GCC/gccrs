@@ -1,5 +1,5 @@
 /* Functions to support general ended bitmaps.
-   Copyright (C) 1997-2024 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -340,7 +340,7 @@ bitmap_list_insert_element_after (bitmap head,
 }
 
 /* Return the element for INDX, or NULL if the element doesn't exist.
-   Update the `current' field even if we can't find an element that  
+   Update the `current' field even if we can't find an element that
    would hold the bitmap's bit to make eventual allocation
    faster.  */
 
@@ -418,7 +418,7 @@ bitmap_list_find_element (bitmap head, unsigned int indx)
    splay tree in Sleator and Tarjan's "Self-adjusting Binary Search Trees".
    It is probably not the most efficient form of splay trees, but it should
    be good enough to experiment with this idea of bitmaps-as-trees.
-   
+
    For all functions below, the variable or function argument "t" is a node
    in the tree, and "e" is a temporary or new node in the tree.  The rest
    is sufficiently straigh-forward (and very well explained in the paper)
@@ -781,7 +781,10 @@ bitmap_alloc (bitmap_obstack *bit_obstack MEM_STAT_DECL)
   bitmap map;
 
   if (!bit_obstack)
-    bit_obstack = &bitmap_default_obstack;
+    {
+      gcc_assert (bitmap_default_obstack_depth > 0);
+      bit_obstack = &bitmap_default_obstack;
+    }
   map = bit_obstack->heads;
   if (map)
     bit_obstack->heads = (class bitmap_head *) map->first;
@@ -966,8 +969,8 @@ bitmap_set_bit (bitmap head, int bit)
   if (ptr != 0)
     {
       bool res = (ptr->bits[word_num] & bit_val) == 0;
-      if (res)
-	ptr->bits[word_num] |= bit_val;
+      /* Write back unconditionally to avoid branch mispredicts.  */
+      ptr->bits[word_num] |= bit_val;
       return res;
     }
 

@@ -1,5 +1,5 @@
 /* Definitions of target machine for gcc for Renesas / SuperH SH using ELF.
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    Contributed by Ian Lance Taylor <ian@cygnus.com>.
 
 This file is part of GCC.
@@ -33,7 +33,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef WCHAR_TYPE
 #define WCHAR_TYPE SH_ELF_WCHAR_TYPE
-   
+
 #undef WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 

@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *            Copyright (C) 2000-2024, Free Software Foundation, Inc.       *
+ *            Copyright (C) 2000-2025, Free Software Foundation, Inc.       *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -564,9 +564,10 @@ is_return_from(void *symbol_addr, void *ret_addr)
 #error Unhandled QNX architecture.
 #endif
 
-/*------------------- aarch64-linux or aarch64-rtems -----------------*/
+/*------------------- aarch64 FreeBSD, Linux, RTEMS -----------------*/
 
-#elif (defined (__aarch64__) && (defined (__linux__) || defined (__rtems__)))
+#elif (defined (__aarch64__) && (defined (__FreeBSD__) || \
+       defined (__linux__) || defined (__rtems__)))
 
 #define USE_GCC_UNWINDER
 #define PC_ADJUST -4

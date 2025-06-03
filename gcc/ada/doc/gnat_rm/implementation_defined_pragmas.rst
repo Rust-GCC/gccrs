@@ -341,7 +341,7 @@ Syntax:
   pragma Always_Terminates [ (boolean_EXPRESSION) ];
 
 For the semantics of this pragma, see the entry for aspect ``Always_Terminates``
-in the SPARK 2014 Reference Manual, section 7.1.2.
+in the SPARK 2014 Reference Manual, section 6.1.11.
 
 .. _Pragma-Annotate:
 
@@ -1662,18 +1662,20 @@ Syntax:
 
   pragma Disable_Atomic_Synchronization [(Entity)];
 
+  pragma Enable_Atomic_Synchronization [(Entity)];
 
 Ada requires that accesses (reads or writes) of an atomic variable be
 regarded as synchronization points in the case of multiple tasks.
 Particularly in the case of multi-processors this may require special
-handling, e.g. the generation of memory barriers. This capability may
-be turned off using this pragma in cases where it is known not to be
-required.
+handling, e.g. the generation of memory barriers. This synchronization
+is performed by default, but can be turned off using pragma
+``Disable_Atomic_Synchronization``.
+The ``Enable_Atomic_Synchronization`` pragma turns it back on.
 
-The placement and scope rules for this pragma are the same as those
-for ``pragma Suppress``. In particular it can be used as a
-configuration  pragma, or in a declaration sequence where it applies
-till the end of the scope. If an ``Entity`` argument is present,
+The placement and scope rules for these pragmas are the same as those
+for ``pragma Suppress``. In particular they can be used as
+configuration pragmas, or in a declaration sequence where they apply
+until the end of the scope. If an ``Entity`` argument is present,
 the action applies only to that entity.
 
 Pragma Dispatching_Domain
@@ -1903,21 +1905,46 @@ Syntax:
 
   pragma Enable_Atomic_Synchronization [(Entity)];
 
+Reenables atomic synchronization; see ``pragma Disable_Atomic_Synchronization``
+for details.
 
-Ada requires that accesses (reads or writes) of an atomic variable be
-regarded as synchronization points in the case of multiple tasks.
-Particularly in the case of multi-processors this may require special
-handling, e.g. the generation of memory barriers. This synchronization
-is performed by default, but can be turned off using
-``pragma Disable_Atomic_Synchronization``. The
-``Enable_Atomic_Synchronization`` pragma can be used to turn
-it back on.
+Pragma Exceptional_Cases
+========================
+.. index:: Exceptional_Cases
 
-The placement and scope rules for this pragma are the same as those
-for ``pragma Unsuppress``. In particular it can be used as a
-configuration  pragma, or in a declaration sequence where it applies
-till the end of the scope. If an ``Entity`` argument is present,
-the action applies only to that entity.
+Syntax:
+
+
+::
+
+  pragma Exceptional_Cases (EXCEPTIONAL_CASE_LIST);
+
+  EXCEPTIONAL_CASE_LIST ::= EXCEPTIONAL_CASE {, EXCEPTIONAL_CASE}
+  EXCEPTIONAL_CASE      ::= exception_choice {'|' exception_choice} => CONSEQUENCE
+  CONSEQUENCE           ::= Boolean_expression
+
+For the semantics of this aspect, see the SPARK 2014 Reference Manual, section
+6.1.9.
+
+Pragma Exit_Cases
+=================
+.. index:: Exit_Cases
+
+Syntax:
+
+::
+
+  pragma Exit_Cases (EXIT_CASE_LIST);
+
+  EXIT_CASE_LIST ::= EXIT_CASE {, EXIT_CASE}
+  EXIT_CASE      ::= GUARD => EXIT_KIND
+  EXIT_KIND      ::= Normal_Return
+                   | Exception_Raised
+		   | (Exception_Raised => exception_name)
+  GUARD          ::= Boolean_expression
+
+For the semantics of this aspect, see the SPARK 2014 Reference Manual, section
+6.1.10.
 
 Pragma Export_Function
 ======================
@@ -2190,19 +2217,19 @@ Syntax:
 
 .. code-block:: ada
 
-  pragma Extensions_Allowed (On | Off | All);
+  pragma Extensions_Allowed (On | Off | All_Extensions);
 
 
-This configuration pragma enables (via the "On" or "All" argument) or disables
-(via the "Off" argument) the implementation extension mode; the pragma takes
-precedence over the ``-gnatX`` and ``-gnatX0`` command switches.
+This configuration pragma enables (via the "On" or "All_Extensions" argument)
+or disables (via the "Off" argument) the implementation extension mode; the
+pragma takes precedence over the ``-gnatX`` and ``-gnatX0`` command switches.
 
 If an argument of ``"On"`` is specified, the latest version of the Ada language
 is implemented (currently Ada 2022) and, in addition, a curated set of GNAT
 specific extensions are recognized. (See the list here
 :ref:`here<Curated_Language_Extensions>`)
 
-An argument of ``"All"`` has the same effect except that some extra
+An argument of ``"All_Extensions"`` has the same effect except that some extra
 experimental extensions are enabled (See the list here
 :ref:`here<Experimental_Language_Extensions>`)
 
@@ -2363,7 +2390,7 @@ Syntax:
 
 .. code-block:: ada
 
-  pragma Favor_Top_Level (type_NAME);
+  pragma Favor_Top_Level (type_LOCAL_NAME);
 
 
 The argument of pragma ``Favor_Top_Level`` must be a named access-to-subprogram
@@ -2820,7 +2847,7 @@ Syntax:
 
 .. code-block:: ada
 
-  pragma Independent (Local_NAME);
+  pragma Independent (component_LOCAL_NAME);
 
 
 This pragma is standard in Ada 2012 mode (which also provides an aspect
@@ -3166,6 +3193,19 @@ declared in the spec of package ``System.OS_Interface``.
 Overriding the default state of signals used by the Ada runtime may interfere
 with an application's runtime behavior in the cases of the synchronous signals,
 and in the case of the signal used to implement the ``abort`` statement.
+
+Pragma Interrupts_System_By_Default
+===================================
+
+Syntax:
+
+
+::
+
+  pragma Interrupts_System_By_Default;
+
+Default all interrupts to the System state as defined above in pragma
+``Interrupt_State``. This is a configuration pragma.
 
 .. _Pragma-Invariant:
 
@@ -3519,6 +3559,11 @@ Pragma Lock_Free
 ================
 
 Syntax:
+
+.. code-block:: ada
+
+  pragma Lock_Free [ (static_boolean_EXPRESSION) ];
+
 This pragma may be specified for protected types or objects. It specifies that
 the implementation of protected operations must be implemented without locks.
 Compilation fails if the compiler cannot generate lock-free code for the
@@ -3748,7 +3793,7 @@ Pragma Max_Queue_Length
 
 Syntax::
 
-   pragma Max_Entry_Queue (static_integer_EXPRESSION);
+   pragma Max_Queue_Length (static_integer_EXPRESSION);
 
 
 This pragma is used to specify the maximum callers per entry queue for
@@ -3832,7 +3877,7 @@ same name) that establishes the restriction ``No_Elaboration_Code`` for
 the current unit and any extended main source units (body and subunits).
 It also has the effect of enforcing a transitive application of this
 aspect, so that if any unit is implicitly or explicitly with'ed by the
-current unit, it must also have the No_Elaboration_Code_All aspect set.
+current unit, it must also have the `No_Elaboration_Code_All` aspect set.
 It may be applied to package or subprogram specs or their generic versions.
 
 Pragma No_Heap_Finalization
@@ -3886,6 +3931,25 @@ results from the use of pragma ``Inline``.  This pragma is always active,
 in particular it is not subject to the use of option *-gnatn* or
 *-gnatN*.  It is illegal to specify both pragma ``No_Inline`` and
 pragma ``Inline_Always`` for the same ``NAME``.
+
+.. _Pragma-No_Raise:
+
+Pragma No_Raise
+===============
+
+Syntax:
+
+
+::
+
+  pragma No_Raise (subprogram_LOCAL_NAME {, subprogram_LOCAL_NAME});
+
+
+Each ``subprogram_LOCAL_NAME`` argument must refer to one or more subprogram
+declarations in the current declarative part.  A subprogram to which this
+pragma is applied may not raise an exception that is not caught within it.
+An implementation-defined check named `Raise_Check` is associated with the
+pragma, and `Program_Error` is raised upon its failure (see RM 11.5(19/5)).
 
 Pragma No_Return
 ================
@@ -4490,7 +4554,7 @@ Syntax:
 
 ::
 
-  pragma Persistent_BSS [(LOCAL_NAME)]
+  pragma Persistent_BSS [(object_LOCAL_NAME)]
 
 
 This pragma allows selected objects to be placed in the ``.persistent_bss``
@@ -5844,7 +5908,7 @@ Syntax:
   pragma Side_Effects [ (static_boolean_EXPRESSION) ];
 
 For the semantics of this pragma, see the entry for aspect
-``Side_Effects`` in the SPARK Reference Manual, section 6.1.11.
+``Side_Effects`` in the SPARK Reference Manual, section 6.1.12.
 
 .. _Pragma-Simple_Storage_Pool_Type:
 
@@ -6273,21 +6337,91 @@ activated.  These are additive, so they apply in addition to any previously
 set style check options.  The codes for the options are the same as those
 used in the *-gnaty* switch to *gcc* or *gnatmake*.
 For example the following two methods can be used to enable
-layout checking:
+layout checking and to change the maximum nesting level value:
 
 *
 
-  ::
+  .. code-block:: ada
 
+    --  switch on layout checks
     pragma Style_Checks ("l");
-
+    --  set the number of maximum allowed nesting levels to 15
+    pragma Style_Checks ("L15");
 
 *
 
   ::
 
-    gcc -c -gnatyl ...
+    gcc -c -gnatyl -gnatyL15 ...
 
+
+The string literal values can be cumulatively switched on and off by prefixing
+the value with ``+`` or ``-``, where:
+
+* ``+`` is equivalent to no prefix. It applies the check referenced by the
+  literal value;
+* ``-`` switches the referenced check off.
+
+
+.. code-block:: ada
+  :linenos:
+  :emphasize-lines: 15
+
+  --  allow misaligned block by disabling layout check
+  pragma Style_Checks ("-l");
+  declare
+      msg : constant String := "Hello";
+  begin
+      Put_Line (msg);
+      end;
+
+  --  enable the layout check again
+  pragma Style_Checks ("l");
+  declare
+      msg : constant String := "Hello";
+  begin
+      Put_Line (msg);
+      end;
+
+The code above contains two layout errors, however, only
+the last line is picked up by the compiler.
+
+Similarly, the switches containing a numeric value can be applied in sequence.
+In the example below, the permitted nesting level is reduced in in the middle
+block and the compiler raises a warning on the highlighted line.
+
+.. code-block:: ada
+  :linenos:
+  :emphasize-lines: 15
+
+  -- Permit 3 levels of nesting
+  pragma Style_Checks ("L3");
+
+  procedure Main is
+  begin
+      if True then
+        if True then
+            null;
+        end if;
+      end if;
+      --  Reduce permitted nesting levels to 2.
+      --  Note that "+L2" and "L2" are equivalent.
+      pragma Style_Checks ("+L2");
+      if True then
+        if True then
+            null;
+        end if;
+      end if;
+      --  Disable checking permitted nesting levels.
+      --  Note that the number after "-L" is insignificant,
+      --  "-L", "-L3" and "-Lx" are all equivalent.
+      pragma Style_Checks ("-L3");
+      if True then
+        if True then
+            null;
+        end if;
+      end if;
+  end Main;
 
 The form ``ALL_CHECKS`` activates all standard checks (its use is equivalent
 to the use of the :switch:`gnaty` switch with no options.
@@ -6300,7 +6434,6 @@ options (i.e. equivalent to :switch:`-gnatyg`).
 The forms with ``Off`` and ``On``
 can be used to temporarily disable style checks
 as shown in the following example:
-
 
 .. code-block:: ada
 
@@ -6323,6 +6456,36 @@ for the specified entity, as shown in the following example:
   Rf1 : Integer := ARG;      -- incorrect, wrong case
   pragma Style_Checks (Off, Arg);
   Rf2 : Integer := ARG;      -- OK, no error
+
+Pragma Subprogram_Variant
+=========================
+.. index:: Subprogram_Variant
+
+Syntax:
+
+
+::
+
+  pragma Subprogram_Variant (SUBPROGRAM_VARIANT_LIST);
+
+  SUBPROGRAM_VARIANT_LIST ::=
+    STRUCTURAL_SUBPROGRAM_VARIANT_ITEM
+  | NUMERIC_SUBPROGRAM_VARIANT_ITEMS
+
+  NUMERIC_SUBPROGRAM_VARIANT_ITEMS ::=
+    NUMERIC_SUBPROGRAM_VARIANT_ITEM {, NUMERIC_SUBPROGRAM_VARIANT_ITEM}
+
+  NUMERIC_SUBPROGRAM_VARIANT_ITEM ::=
+    CHANGE_DIRECTION => EXPRESSION
+
+  STRUCTURAL_SUBPROGRAM_VARIANT_ITEM ::=
+    STRUCTURAL => EXPRESSION
+
+  CHANGE_DIRECTION ::= Increases | Decreases
+
+The ``Subprogram_Variant`` pragma is intended to be an exact replacement for
+the implementation-defined ``Subprogram_Variant`` aspect, and shares its
+restrictions and semantics.
 
 
 Pragma Subtitle
@@ -6482,12 +6645,12 @@ Syntax:
 
 ::
 
-  pragma Suppress_Initialization ([Entity =>] variable_or_subtype_Name);
+  pragma Suppress_Initialization ([Entity =>] variable_or_subtype_LOCAL_NAME);
 
 
-Here variable_or_subtype_Name is the name introduced by a type declaration
-or subtype declaration or the name of a variable introduced by an
-object declaration.
+Here variable_or_subtype_LOCAL_NAME is the name introduced by a type
+declaration or subtype declaration or the name of a variable introduced by
+an object declaration.
 
 In the case of a type or subtype
 this pragma suppresses any implicit or explicit initialization
@@ -6871,22 +7034,24 @@ Syntax:
 
 
 This configuration pragma defines a new aspect, making it available for
-subsequent use in a User_Aspect aspect specification. The first
-identifier is the name of the new aspect. Any subsequent arguments
-specify the names of other aspects. A subsequent name for which no parenthesized
-arguments are given shall denote either a Boolean-valued
-non-representation aspect or an aspect that has been defined by another
-User_Aspect_Definition pragma. A name for which one or more arguments are
-given shall be either Annotate or Local_Restrictions (and the arguments shall
-be appropriate for the named aspect). This pragma, together with the
-User_Aspect aspect, provides a mechanism for
-avoiding textual duplication if some set of aspect specifications is needed
-in multiple places. This is somewhat analogous to how profiles allow avoiding
-duplication of Restrictions pragmas. The visibility rules for an aspect
-defined by a User_Aspect_Definition pragma are the same as for a check name
-introduced by a Check_Name pragma. If multiple
-definitions are visible for some aspect at some point, then the
-definitions must agree. A predefined aspect cannot be redefined.
+subsequent use in a `User_Aspect` aspect specification. The first identifier
+is the name of the new aspect. Any subsequent arguments specify the names
+of other aspects. A subsequent name for which no parenthesized arguments
+are given shall denote either a Boolean-valued non-representation aspect
+or an aspect that has been defined by another `User_Aspect_Definition`
+pragma. A name for which one or more arguments are given shall be either
+`Annotate` or `Local_Restrictions` (and the arguments shall be appropriate
+for the named aspect).
+
+This pragma, together with the `User_Aspect` aspect, provides a mechanism
+for avoiding textual duplication if some set of aspect specifications
+is needed in multiple places. This is somewhat analogous to how profiles
+allow avoiding duplication of `Restrictions` pragmas.
+
+The visibility rules for an aspect defined by a `User_Aspect_Definition`
+pragma are the same as for a check name introduced by a `Check_Name`
+pragma. If multiple definitions are visible for some aspect at some point,
+then the definitions must agree. A predefined aspect cannot be redefined.
 
 
 Pragma Unimplemented_Unit
@@ -6901,9 +7066,9 @@ Syntax:
 
 
 If this pragma occurs in a unit that is processed by the compiler, GNAT
-aborts with the message :samp:`xxx not implemented`, where
-``xxx`` is the name of the current compilation unit.  This pragma is
-intended to allow the compiler to handle unimplemented library units in
+aborts with the message :samp:`xxx is not supported in this configuration`,
+where ``xxx`` is the name of the current compilation unit.  This pragma
+is intended to allow the compiler to handle unimplemented library units in
 a clean manner.
 
 The abort only happens if code is being generated.  Thus you can use
@@ -6924,10 +7089,9 @@ Syntax:
 
 ``type_LOCAL_NAME`` must refer to a type declaration in the current
 declarative part.  The effect is to inhibit strict type-based aliasing
-optimization for the given type.  In other words, the effect is as though
-access types designating this type were subject to pragma No_Strict_Aliasing.
-For a detailed description of the strict aliasing optimization, and the
-situations in which it must be suppressed, see the section on
+optimizations for the given type.  For a detailed description of the
+strict type-based aliasing optimizations and the situations in which
+they need to be suppressed, see the section on
 ``Optimization and Strict Aliasing`` in the :title:`GNAT User's Guide`.
 
 .. _Pragma-Unmodified:

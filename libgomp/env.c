@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2025 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Offloading and Multi Processing Library
@@ -1264,6 +1264,7 @@ parse_allocator (const char *env, const char *val, void *const params[])
   C (omp_cgroup_mem_alloc, false)
   C (omp_pteam_mem_alloc, false)
   C (omp_thread_mem_alloc, false)
+  C (ompx_gnu_pinned_mem_alloc, false)
   C (omp_default_mem_space, true)
   C (omp_large_cap_mem_space, true)
   C (omp_const_mem_space, true)

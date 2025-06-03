@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2007-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -24,7 +24,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include "bid_internal.h"
 
 /*****************************************************************************
- *  BID128_to_int32_rnint 
+ *  BID128_to_int32_rnint
  ****************************************************************************/
 
 BID128_FUNCTION_ARG1_NORND_CUSTOMRESTYPE (int, bid128_to_int32_rnint, x)

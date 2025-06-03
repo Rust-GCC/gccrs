@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -157,10 +157,8 @@ package body Exp_Imgv is
                      High_Bound => Make_Integer_Literal (Loc, UB))),
                  Component_Definition =>
                    Make_Component_Definition (Loc,
-                     Aliased_Present    => False,
                      Subtype_Indication => New_Occurrence_Of (Ctyp, Loc))),
-             Expression          => Make_Aggregate (Loc, Expressions => V,
-                                      Is_Enum_Array_Aggregate => True)));
+             Expression          => Make_Aggregate (Loc, Expressions => V)));
       end Append_Table_To;
 
    --  Start of Build_Enumeration_Image_Tables
@@ -572,7 +570,7 @@ package body Exp_Imgv is
                                 Right_Opnd => New_Occurrence_Of (J, Loc))),
                        Right_Opnd => Make_Integer_Literal (Loc, Int (L1)))));
 
-            --  Generate loop
+               --  Generate loop
 
                Body_Stmts := New_List (
                  Make_Implicit_Loop_Statement (N,
@@ -897,9 +895,7 @@ package body Exp_Imgv is
          --  Apply a validity check, since it is a bit drastic to get a
          --  completely junk image value for an invalid value.
 
-         if not Expr_Known_Valid (Expr) then
-            Insert_Valid_Check (Expr);
-         end if;
+         Insert_Valid_Check (Expr);
 
          --  Generate:
          --    P1 : constant Natural := Typ'Pos (Typ?(Expr));
@@ -1250,9 +1246,7 @@ package body Exp_Imgv is
             --  Apply a validity check, since it is a bit drastic to get a
             --  completely junk image value for an invalid value.
 
-            if not Expr_Known_Valid (Expr) then
-               Insert_Valid_Check (Expr);
-            end if;
+            Insert_Valid_Check (Expr);
 
             Enum_Case := True;
          end if;
@@ -1436,11 +1430,11 @@ package body Exp_Imgv is
 
    procedure Expand_Valid_Value_Attribute (N : Node_Id) is
       Loc   : constant Source_Ptr := Sloc (N);
+      Args  : constant List_Id    := Expressions (N);
       Btyp  : constant Entity_Id  := Base_Type (Entity (Prefix (N)));
       Rtyp  : constant Entity_Id  := Root_Type (Btyp);
       pragma Assert (Is_Enumeration_Type (Rtyp));
 
-      Args  : constant List_Id := Expressions (N);
       Func  : RE_Id;
       Ttyp  : Entity_Id;
 
@@ -1448,7 +1442,7 @@ package body Exp_Imgv is
       --  Generate:
 
       --     Valid_Value_Enumeration_NN
-      --       (typS, typN'Address, typH'Unrestricted_Access, Num, X)
+      --       (typS, typN'Address, typH'Unrestricted_Access, Num, Is_Wide, X)
 
       Ttyp := Component_Type (Etype (Lit_Indexes (Rtyp)));
 
@@ -1459,6 +1453,10 @@ package body Exp_Imgv is
       else
          Func := RE_Valid_Value_Enumeration_32;
       end if;
+
+      --  The Valid_[Wide_]Wide_Value attribute does not exist
+
+      Prepend_To (Args, New_Occurrence_Of (Standard_False, Loc));
 
       Prepend_To (Args,
         Make_Attribute_Reference (Loc,
@@ -1551,7 +1549,7 @@ package body Exp_Imgv is
 
    --    Enum'Val
    --      (Value_Enumeration_NN
-   --        (typS, typN'Address, typH'Unrestricted_Access, Num, X))
+   --        (typS, typN'Address, typH'Unrestricted_Access, Num, Is_Wide, X))
 
    --  where typS, typN and typH are the Lit_Strings, Lit_Indexes and Lit_Hash
    --  entities from T's root type entity, and Num is Enum'Pos (Enum'Last).
@@ -1563,14 +1561,15 @@ package body Exp_Imgv is
 
    procedure Expand_Value_Attribute (N : Node_Id) is
       Loc   : constant Source_Ptr := Sloc (N);
+      Args  : constant List_Id    := Expressions (N);
       Btyp  : constant Entity_Id  := Etype (N);
       pragma Assert (Is_Base_Type (Btyp));
       pragma Assert (Btyp = Base_Type (Entity (Prefix (N))));
       Rtyp  : constant Entity_Id  := Root_Type (Btyp);
 
-      Args  : constant List_Id := Expressions (N);
-      Ttyp  : Entity_Id;
-      Vid   : RE_Id;
+      Is_Wide : Boolean;
+      Ttyp    : Entity_Id;
+      Vid     : RE_Id;
 
    begin
       --  Fall through for all cases except user-defined enumeration type
@@ -1616,9 +1615,9 @@ package body Exp_Imgv is
          end if;
 
       elsif Is_Decimal_Fixed_Point_Type (Rtyp) then
-         if Esize (Rtyp) <= 32 and then abs (Scale_Value (Rtyp)) <= 9 then
+         if Esize (Rtyp) <= 32 and then abs Scale_Value (Rtyp) <= 9 then
             Vid := RE_Value_Decimal32;
-         elsif Esize (Rtyp) <= 64 and then abs (Scale_Value (Rtyp)) <= 18 then
+         elsif Esize (Rtyp) <= 64 and then abs Scale_Value (Rtyp) <= 18 then
             Vid := RE_Value_Decimal64;
          else
             Vid := RE_Value_Decimal128;
@@ -1722,9 +1721,9 @@ package body Exp_Imgv is
 
          --  Normal case where we have enumeration tables, build
 
-         --   T'Val
-         --     (Value_Enumeration_NN
-         --       (typS, typN'Address, typH'Unrestricted_Access, Num, X))
+         --  T'Val
+         --   (Value_Enumeration_NN
+         --    (typS, typN'Address, typH'Unrestricted_Access, Num, Is_Wide, X))
 
          else
             Ttyp := Component_Type (Etype (Lit_Indexes (Rtyp)));
@@ -1736,6 +1735,25 @@ package body Exp_Imgv is
             else
                Vid := RE_Value_Enumeration_32;
             end if;
+
+            if Nkind (First (Args)) = N_Function_Call
+              and then Is_Entity_Name (Name (First (Args)))
+            then
+               declare
+                  E : constant Entity_Id := Entity (Name (First (Args)));
+
+               begin
+                  Is_Wide := Is_RTE (E, RE_Enum_Wide_String_To_String)
+                               or else
+                             Is_RTE (E, RE_Enum_Wide_Wide_String_To_String);
+               end;
+
+            else
+               Is_Wide := False;
+            end if;
+
+            Prepend_To (Args,
+              New_Occurrence_Of (Boolean_Literals (Is_Wide), Loc));
 
             Prepend_To (Args,
               Make_Attribute_Reference (Loc,
@@ -2295,7 +2313,7 @@ package body Exp_Imgv is
          --  in the range of the subtype + 1 for the space at the start. We
          --  build:
 
-         --     Tnn : constant Integer := Rtyp'Pos (Ptyp'Last)
+         --     Tnn : constant Integer := Rtyp'Pos (Ptyp'Last);
 
          --  and replace the expression by
 
@@ -2321,9 +2339,15 @@ package body Exp_Imgv is
             declare
                Tnn   : constant Entity_Id := Make_Temporary (Loc, 'T');
                Cexpr : Node_Id;
-               P     : Int;
-               M     : Int;
-               K     : Int;
+
+               P : constant Nat :=
+                 UI_To_Int (Enumeration_Pos (Entity (Type_High_Bound (Rtyp))));
+               --  The largest value that might need to be represented
+
+               K : Pos;
+               M : Pos;
+               --  K is the number of chars that will fit the image of 0..M-1;
+               --  M is the smallest number that won't fit in K chars.
 
             begin
                Insert_Action (N,
@@ -2343,14 +2367,13 @@ package body Exp_Imgv is
                              Attribute_Name => Name_Last))))));
 
                --  OK, now we need to build the if expression. First get the
-               --  value of M, the largest possible value needed.
+               --  values of K and M for the largest possible value P.
 
-               P := UI_To_Int
-                      (Enumeration_Pos (Entity (Type_High_Bound (Rtyp))));
+               K := 2;
+               M := 10;
+               --  With 2 characters we can represent values in 0..9
 
-               K := 1;
-               M := 1;
-               while M < P loop
+               while P >= M loop
                   M := M * 10;
                   K := K + 1;
                end loop;
@@ -2497,18 +2520,42 @@ package body Exp_Imgv is
       Attr_Name : Name_Id;
       Str_Typ   : Entity_Id)
    is
+      P    : Node_Id;
       Ptyp : Entity_Id;
 
    begin
-      Ptyp := Etype (Pref);
+      P    := Pref;
+      Ptyp := Etype (P);
+
+      --  If the type of the prefix is universal integer, which is a very large
+      --  type, try to compute a narrower type. This may happen when the prefix
+      --  itself is an attribute returning universal integer or a named number.
+
+      if Ptyp = Universal_Integer then
+         if Nkind (P) in N_Type_Conversion | N_Unchecked_Type_Conversion then
+            P    := Expression (P);
+            Ptyp := Etype (P);
+
+         elsif Nkind (P) = N_Integer_Literal then
+            declare
+               Val  : constant Uint := Intval (P);
+               Siz  : constant Nat  := Type_Size_For (Val);
+
+            begin
+               if Siz <= System_Max_Integer_Size then
+                  Ptyp := Integer_Type_For (UI_From_Int (Siz), Val >= Uint_0);
+               end if;
+            end;
+         end if;
+      end if;
 
       --  If the prefix is a component that depends on a discriminant, then
       --  create an actual subtype for it.
 
-      if Nkind (Pref) = N_Selected_Component then
+      if Nkind (P) = N_Selected_Component then
          declare
             Decl : constant Node_Id :=
-                     Build_Actual_Subtype_Of_Component (Ptyp, Pref);
+                     Build_Actual_Subtype_Of_Component (Ptyp, P);
          begin
             if Present (Decl) then
                Insert_Action (N, Decl);
@@ -2521,7 +2568,7 @@ package body Exp_Imgv is
         Make_Attribute_Reference (Sloc (N),
           Prefix         => New_Occurrence_Of (Ptyp, Sloc (N)),
           Attribute_Name => Attr_Name,
-          Expressions    => New_List (Unchecked_Convert_To (Ptyp, Pref))));
+          Expressions    => New_List (Unchecked_Convert_To (Ptyp, P))));
 
       Analyze_And_Resolve (N, Str_Typ);
    end Rewrite_Object_Image;

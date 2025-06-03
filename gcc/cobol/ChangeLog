@@ -1,0 +1,599 @@
+2025-04-24  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc: (initialize_variable_internal): Change TRACE1 formatting.
+	(create_and_call): Repair RETURN-CODE processing.
+	(mh_source_is_group): Repair run-time IF type comparison.
+	(psa_FldLiteralA): Change TRACE1 formatting.
+	(parser_symbol_add): Eliminate unnecessary code.
+	* genutil.cc: Eliminate SET_EXCEPTION_CODE macro.
+	(get_data_offset_dest): Repair set_exception_code logic.
+	(get_data_offset_source): Likewise.
+	(get_binary_value): Likewise.
+	(refer_refmod_length): Likewise.
+	(refer_fill_depends): Likewise.
+	(refer_offset_dest): Likewise.
+	(refer_size_dest): Likewise.
+	(refer_offset_source): Likewise.
+
+2025-04-16  Bob Dubner  <rdubner@symas.com>
+
+	PR cobol/119759
+	* LICENSE: Deleted.
+
+2025-04-15  Richard Biener  <rguenther@suse.de>
+
+	PR cobol/119302
+	* Make-lang.in (GCOBOLIO_INSTALL_NAME): Define.
+	Use $(GCOBOLIO_INSTALL_NAME) for gcobol.3 manpage source
+	upon install.
+
+2025-04-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119776
+	* lang.opt (fmax-errors): Remove.
+	* lang.opt.urls: Regenerate.
+	* cobol1.cc (cobol_langhook_handle_option) <case OPT_fmax_errors>:
+	Remove.
+	* gcobol.1: Document -fmax-errors=nerror rather than
+	-fmax-errors nerror.
+
+2025-04-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119777
+	* lang.opt (include): Remove Var(cobol_include).
+	* cobol1.cc (cobol_langhook_handle_option) <case OPT_include>: Use
+	arg instead of cobol_include.
+
+2025-04-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119777
+	* lang.opt (fsyntax-only): Remove.
+	* lang.opt.urls: Regenerate.
+
+2025-04-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+	    Simon Sobisch  <simonsobisch@gnu.org>
+
+	PR cobol/119217
+	* parse.y: Rename OVERFLOW to OVERFLOW_kw.
+	Specify type name in %token directive.
+	* scan.l: Likewise.
+	* token_names.h: Regenerate.
+
+2025-04-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR cobol/119217
+	* util.cc (class timespec_t): Rename to cbl_timespec.
+
+2025-04-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* genapi.cc: Include target.h.
+	(section_label): Use ASM_COMMENT_START.
+	(paragraph_label): Likewise.
+	(parser_perform): Likewise.
+	(internal_perform_through): Likewise.
+	(hijack_for_development): Likewise.
+
+2025-04-12  Bob Dubner  <rdubner@symas.com>
+
+	PR cobol/119694
+	* cbldiag.h: Eliminate getenv() calls.
+	* cdf.y: Likewise.
+	* cobol1.cc: Likewise.
+	* except.cc: Likewise.
+	* genapi.cc: Likewise.
+	* lexio.cc: Likewise.
+	* parse.y: Likewise.
+	* scan_ante.h: Likewise.
+	* show_parse.h: Likewise.
+	* symbols.cc: Likewise.
+	* symfind.cc: Likewise.
+	* util.cc: Likewise.
+
+2025-04-09  Bob Dubner  <rdubner@symas.com>
+
+	PR cobol/119682
+	* genapi.cc: (cobol_compare): Change the call to __gg__compare().
+
+2025-04-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119364
+	* genapi.cc (function_handle_from_name): Use sizeof_pointer.
+	(parser_file_add): Use int_size_in_bytes(VOID_P) and
+	int_size_in_bytes(int).
+	(inspect_tally): Use int_size_in_bytes(VOID_P).
+	(inspect_replacing): Likewise.
+	(gg_array_of_field_pointers): Likewise.
+	(gg_array_of_file_pointers): Likewise.
+	(parser_set_pointers): Use sizeof_pointer.
+	* cobol1.cc (create_our_type_nodes_init): Use
+	int_size_in_bytes(SIZE_T) and int_size_in_bytes(VOID_P).
+	* gengen.cc (gg_array_of_size_t): Use int_size_in_bytes(SIZE_T).
+	(gg_array_of_bytes): Just use N, don't multiply it by
+	sizeof(unsigned char).
+	* parse.y: Include tree.h.  Use int_size_in_bytes(ptr_type_node).
+
+2025-04-07  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* symbols.cc : Remove trailing // on standard_internal.
+	(cbl_field_t::internalize): Print a warning if we fail to
+	initialise iconv.
+
+2025-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in (cobol/charmaps.cc, cobol/valconv.cc): Use a BRE
+	only sed regex.
+
+2025-04-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR web/119227
+	* Make-lang.in (GCOBOL_HTML_FILES): New variable.
+	(cobol.install-html, cobol.html, cobol.srchtml): Use
+	$(GCOBOL_HTML_FILES) instead of gcobol.html gcobol-io.html.
+	(gcobol.html): Rename goal to ...
+	($(build_htmldir)/gcobol/gcobol.html): ... this.  Run mkinstalldirs.
+	(gcobol-io.html): Rename goal to ...
+	($(build_htmldir)/gcobol/gcobol-io.html): ... this.  Run mkinstalldirs.
+
+2025-04-06  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR cobol/119414
+	* gcobolspec.cc (append_rdynamic,
+	append_allow_multiple_definition, append_fpic): Remove.
+	(lang_specific_driver): Remove platform-specific command
+	line option handling.
+
+2025-04-05  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcobolspec.cc (SPEC_FILE): New.
+	(lang_specific_driver): Make the 'need libgcobol' flag global
+	so that the prelink callback can use it. Libm use is now handled
+	via the library spec.
+	(lang_specific_pre_link): Include libgcobol.spec where needed.
+
+2025-04-04  Bob Dubner  <rdubner@symas.com>
+
+	* cobol1.cc: Eliminate cobol_langhook_post_options.
+	* symbols.cc: Definition of RETURN-CODE special register sets
+	::attr member to signable_e.
+
+2025-04-04  Bob Dubner  <rdubner@symas.com>
+
+	* cobol1.cc: (cobol_langhook_post_options): Implemented in order to set
+	flag_strict_aliasing to zero.
+	* genapi.cc: (set_user_status): Add comment.
+	(parser_intrinsic_subst): Expand SHOW_PARSE information.
+	(psa_global): Change names of return-code and upsi globals,
+	(psa_FldLiteralA): Set DECL_PRESERVE_P for FldLiteralA.
+	* gengen.cc: (show_type): Add POINTER type.
+	(gg_define_function_with_no_parameters): Set DECL_PRESERVE_P for COBOL-
+	style nested programs.  (gg_array_of_bytes): Fix bad cast.
+
+2025-04-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119242
+	* genapi.cc (binary_initial_from_float128): Use
+	native_encode_wide_int.
+
+2025-04-02  Bob Dubner  <rdubner@symas.com>
+
+	PR cobol/119521
+	* genapi.cc: (parser_division): Change comment.
+	(parser_symbol_add): Change intermediate_t handling.
+	* parse.y: Multiple changes to new_alphanumeric() calls.
+	* parse_ante.h: Establish named constant for date function
+	calls.  Change declaration of new_alphanumeric() function.
+	* symbols.cc: (new_temporary_impl): Use named constant
+	for default size of temporary alphanumerics.
+	* symbols.h: Establish MAXIMUM_ALPHA_LENGTH constant.
+
+2025-04-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* symfind.cc (finalize_symbol_map2): Use std::list::remove_if
+	instead of std::remove_if.
+
+2025-04-01  Bob Dubner  <rdubner@symas.com>
+
+	* genapi.cc: (section_label): Use xasprintf() instead of sprintf().
+	(paragraph_label): Likewise.  (leave_procedure): Likewise.
+	(find_procedure): Likewise.  (parser_goto): Likewise.
+	(parser_enter_file): Likewise.
+
+2025-03-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in (cobol/charmaps.cc, cobol/valconv.cc): Used sed -e
+	instead of cp and multiple sed -i commands.  Always prefix libgcobol
+	header names in #include directives with ../../libgcobol/ rather than
+	something depending on $(LIB_SOURCE).
+
+2025-03-28  Bob Dubner  <rdubner@symas.com>
+
+	* Make-lang.in: Eliminate libgcobol.h from gcc/cobol files.
+	* genapi.cc: Eliminate "#include libgcobol.h".
+	(parser_display_internal): Change comment.
+	* genmath.cc: Eliminate "#include libgcobol.h".
+	* genutil.cc: Likewise.
+	(get_power_of_ten): Change comment.
+	* structs.cc: Eliminate cblc_int128_type_node.
+	* structs.h: Likewise.
+	* symbols.h: Receive comment from libgcobol.h
+
+2025-03-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in (cobol.srcextra): Use sed to turn
+	.../gcc/cobol/*.{y,l,h,cc} and cobol/*.{y,l,h,cc} in #line directives
+	into just *.{y,l,h,cc}.
+
+2025-03-28  Richard Biener  <rguenther@suse.de>
+
+	PR bootstrap/119513
+	* Make-lang.in (cobol.srcextra): Use cp instead of ln, ignore
+	errors.
+
+2025-03-28  Bob Dubner  <rdubner@symas.com>
+
+	* genapi.cc: (create_and_call): cast unsigned char to int
+
+2025-03-28  Richard Biener  <rguenther@suse.de>
+
+	* genapi.cc (initial_from_float128): Use native_encode_real.
+
+2025-03-28  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* cobol-system.h: Remove <cmath>.
+
+2025-03-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* except.cc (cbl_enabled_exceptions_t::turn_on_off): Replace
+	quadratic loop with a single pass.
+
+2025-03-26  Bob Dubner  <rdubner@symas.com>
+
+	* genapi.cc: (parser_display_internal): Adjust for E vs e exponent notation.
+	* parse.y: (literal_refmod_valid): Display correct value in error message.
+
+2025-03-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR cobol/119242
+	* genutil.h (get_power_of_ten): Remove #pragma GCC diagnostic
+	around declaration.
+	* genapi.cc (psa_FldLiteralN): Change type of value from
+	__int128 to FIXED_WIDE_INT(128).  Remove #pragma GCC diagnostic
+	around the declaration.  Use wi::min_precision to determine
+	minimum unsigned precision of the value.  Use wi::neg_p instead
+	of value < 0 tests and wi::set_bit_in_zero<FIXED_WIDE_INT(128)>
+	to build sign bit.  Handle field->data.capacity == 16 like
+	1, 2, 4 and 8, use wide_int_to_tree instead of build_int_cst.
+	(mh_source_is_literalN): Remove #pragma GCC diagnostic around
+	the definition.
+	(binary_initial_from_float128): Likewise.
+	* genutil.cc (get_power_of_ten): Remove #pragma GCC diagnostic
+	before the definition.
+
+2025-03-25  Bob Dubner  <rdubner@symas.com>
+	    Richard Biener  <rguenth@suse.de>
+	    Jakub Jelinek  <jakub@redhat.com>
+	    James K. Lowden  <jklowden@cobolworx.com>
+	    Robert Dubner  <rdubher@symas.com>
+
+	PR cobol/119241
+	* cdf.y: (cdfval_base_t::operator()): Return const.
+	* cdfval.h: (struct cdfval_base_t): Add const cdfval_base_t&
+	operator().
+	(struct cdfval_t): Add cdfval_t constructor.  Change cdf_value
+	definitions.
+	* gcobolspec.cc (lang_specific_driver): Formatting fix.
+	* genapi.cc: Include fold-const.h and realmpfr.h.
+	(initialize_variable_internal): Use real_to_decimal instead of
+	strfromf128.
+	(get_binary_value_from_float): Use wide_int_to_tree instead of
+	build_int_cst_type.
+	(psa_FldLiteralN): Use fold_convert instead of strfromf128,
+	real_from_string and build_real.
+	(parser_display_internal): Rewritten to work on REAL_VALUE_TYPE
+	rather than _Float128.
+	(mh_source_is_literalN): Use FIXED_WIDE_INT(128) rather than
+	__int128, wide_int_to_tree rather than build_int_cst_type,
+	fold_convert rather than build_string_literal.
+	(real_powi10): New function.
+	(binary_initial_from_float128): Change type of last argument from
+	_Float128 to REAL_VALUE_TYPE, process it using real.cc and mpfr
+	APIs.
+	(digits_from_float128): Likewise.
+	(initial_from_float128): Make static.  Remove value argument, add
+	local REAL_VALUE_TYPE value variable instead, process it using
+	real.cc and native_encode_expr APIs.
+	(parser_symbol_add): Adjust initial_from_float128 caller.
+	* genapi.h (initial_from_float128): Remove declaration.
+	* genutil.cc (get_power_of_ten): Change return type from __int128
+	to FIXED_WIDE_INT(128), ditto for retval type, change type of pos
+	from __int128 to unsigned long long.
+	(scale_by_power_of_ten_N): Use wide_int_to_tree instead of
+	build_int_cst_type.  Use FIXED_WIDE_INT(128) instead of __int128
+	as power_of_ten variable type.
+	(copy_little_endian_into_place): Likewise.
+	* genutil.h (get_power_of_ten): Change return type from __int128
+	to FIXED_WIDE_INT(128).
+	* parse.y (%union): Change type of float128 from _Float128 to
+	REAL_VALUE_TYPE.
+	(string_of): Change argument type from _Float128 to
+	const REAL_VALUE_TYPE &, use real_to_decimal rather than
+	strfromf128.  Add another overload with tree argument type.
+	(field: cdf): Use real_zerop rather than comparison against 0.0.
+	(occurs_clause, const_value): Use real_to_integer.
+	(value78): Use build_real and real_to_integer.
+	(data_descr1): Use real_to_integer.
+	(count): Use real_to_integer, real_from_integer and real_identical
+	instead of direct comparison.
+	(value_clause): Use real_from_string3 instead of num_str2i.  Use
+	real_identical instead of direct comparison.  Use build_real.
+	(allocate): Use real_isneg and real_iszero instead of <= 0 comparison.
+	(move_tgt): Use real_to_integer, real_value_truncate,
+	real_from_integer and real_identical instead of comparison of casts.
+	(cce_expr): Use real_arithmetic and real_convert or real_value_negate
+	instead of direct arithmetics on _Float128.
+	(cce_factor): Use real_from_string3 instead of numstr2i.
+	(literal_refmod_valid): Use real_to_integer.
+	* symbols.cc (symbol_table_t::registers_t::registers_t): Formatting
+	fix.
+	(ERROR_FIELD): Likewise.
+	(extend_66_capacity): Likewise.
+	(cbl_occurs_t::subscript_ok): Use real_to_integer, real_from_integer
+	and real_identical.
+	* symbols.h (cbl_field_data_t::etc_t::value): Change type from
+	_Float128 to tree.
+	(cbl_field_data_t::etc_t::etc_t): Adjust defaulted argument value.
+	(cbl_field_data_t::cbl_field_data_t): Formatting fix.  Use etc()
+	rather than etc(0).
+	(cbl_field_data_t::value_of): Change return type from _Float128 to
+	tree.
+	(cbl_field_data_t::operator=): Change return and argument type from
+	_Float128 to tree.
+	(cbl_field_data_t::valify): Use real_from_string, real_value_truncate
+	and build_real.
+	(cbl_field_t::same_as): Use build_zero_cst instead of _Float128(0.0).
+
+2025-03-24  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* cdf-copy.cc: Move host include before system.h
+
+2025-03-24  Andreas Schwab  <schwab@suse.de>
+
+	PR cobol/119390
+	* gcobolspec.cc (lang_specific_driver): Use pointer instead of
+	copying into fixed array.
+
+2025-03-21  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcobolspec.cc (lang_specific_driver): Add libstdc++
+	for any link line.
+
+2025-03-21  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcobolspec.cc (add_arg_lib): Fix typo.
+	(lang_specific_driver): Arrange to append both -lgcobol
+	and -static-libgcobol for targets without
+	HAVE_LD_STATIC_DYNAMIC.
+
+2025-03-21  Jakub Jelinek  <jakub@redhat.com>
+
+	* parse.y: Rename COB_BLOCK to BLOCK_kw, COB_SIGNED to SIGNED_kw and
+	COB_UNSIGNED to UNSIGNED_kw.
+	* scan.l: Likewise.
+	* token_names.h: Regenerate.
+
+2025-03-21  Richard Biener  <rguenther@suse.de>
+
+	* symbols.cc (empty_float, empty_comp5, empty_literal,
+	empty_conditional, debug_registers, special_registers): Move
+	global cbl_field_t typed data to ...
+	(symbol_table_init): ... local scope here.
+
+2025-03-21  Richard Biener  <rguenther@suse.de>
+
+	PR cobol/119241
+	* symbols.h: Do not typedef tree.
+	* cdf.y: Include coretypes.h and tree.h.
+	* symbols.cc: Likewise.
+	* symfind.cc: Likewise.
+	* util.cc: Likewise.
+	* parse.y: Include coretypes.h and tree.h where appropriate.
+	Rename BLOCK to COB_BLOCK, SIGNED to COB_SIGNED, UNSIGNED
+	to COB_UNSIGNED.
+	* scan.l: Likewise.
+	* token_names.h: Likewise.
+	* cobol1.cc: Do not define HOWEVER_GCC_DEFINES_TREE.
+	* except.cc: Likewise.
+	* genapi.cc: Likewise.
+	* gengen.cc: Likewise.
+	* genmath.cc: Likewise.
+	* genutil.cc: Likewise.
+	* structs.cc: Likewise.
+
+2025-03-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* cdfval.h (struct cdfval_t): Overload long instead of int64_t.
+
+2025-03-18  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcobolspec.cc (append_rpath): Remove.
+	(lang_specific_driver): Remove hard-wired rpath and library
+	names.
+
+2025-03-18  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR cobol/119301
+	* util.cc: Check for the availability of get_current_dir_name
+	snf fall back to getcwd() if it is not present on the host.
+
+2025-03-18  Richard Biener  <rguenther@suse.de>
+
+	* gengen.cc (gg_finalize_function): Dump to TDI_original.
+
+2025-03-18  Bob Dubner  <rdubner@symas.com>
+
+	* cdf.y: Make compatible with C++14.
+	* copybook.h: Likewise.
+	* dts.h: Likewise.
+	* except.cc: Likewise.
+	* genapi.cc: Likewise.
+	* genutil.cc: Likewise.
+	* genutil.h: Likewise.
+	* lexio.cc: Likewise.
+	* parse.y: Likewise.
+	* parse_ante.h: Likewise.
+	* show_parse.h: Likewise.
+	* symbols.cc: Likewise.
+	* symbols.h: Likewise.
+	* util.cc: Likewise.
+
+2025-03-18  Matthias Klose  <doko@ubuntu.com>
+
+	* Make-lang.in (GCOBC_TARGET_INSTALL_NAME, gcobol-cross): New.
+	(cobol.all.cross): Depend on gcobol-cross.
+	(cobol.install-common): Adjust install for the cross build.
+	(cobol.uninstall): Use *_INSTALL_NAME for uninstall.
+
+2025-03-18  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* util.cc (cbl_field_t::report_invalid_initial_value): Avoid
+	auto here and specify const char *.
+
+2025-03-18  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* cdf-copy.cc (copybook_elem_t::open_file): Use ldirname rather
+	than dirname.
+
+2025-03-18  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* parse.y: Remove c++ header includes appearing after
+	system.h.
+
+2025-03-17  Bob Dubner  <rdubner@symas.com>
+
+	PR cobol/119213
+	* Make-lang.in: Eliminate CPPFLAGS= assignment.
+	* cdf.y: Modify #includes that reference libgcobol.
+	* cobol1.cc: Modify #includes that reference libgcobol.
+	* except.cc: Modify #includes that reference libgcobol.
+	* gcobolspec.cc: Modify #includes that reference libgcobol.
+	* genapi.cc: Modify #includes that reference libgcobol.
+	* gengen.cc: Modify #includes that reference libgcobol.
+	* genmath.cc: Modify #includes that reference libgcobol.
+	* genutil.cc: Modify #includes that reference libgcobol.
+	* parse.y: Modify #includes that reference libgcobol.
+	* scan.l: Modify #includes that reference libgcobol.
+	* structs.cc: Modify #includes that reference libgcobol.
+	* symbols.cc: Modify #includes that reference libgcobol.
+	* symfind.cc: Modify #includes that reference libgcobol.
+	* util.cc: Modify #includes that reference libgcobol.
+
+2025-03-14  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119214
+	* gengen.cc: applies if( !optimize ) test
+
+2025-03-13  Matthias Klose  <doko@ubuntu.com>
+
+	* Make-lang.in (cobol.install-common, cobol.install-man): Honor
+	GCOBOL_INSTALL_NAME.
+
+2025-03-13  Richard Biener  <rguenther@suse.de>
+
+	PR cobol/119229
+	* gengen.cc (gg_declare_variable): Use DECL_EXTERNAL and
+	drop TREE_STATIC for vs_external_reference.
+
+2025-03-12  Mark Wielaard  <mark@klomp.org>
+
+	* lang.opt.urls: Regenerated.
+
+2025-03-12  Simon Martin  <simon@nasilyan.com>
+
+	* Make-lang.in: Remove unnecessary CPPFLAGS update.
+
+2025-03-12  Richard Biener  <rguenther@suse.de>
+
+	* Make-lang.in (lang_checks): Add check-cobol.
+
+2025-03-11  Richard Biener  <rguenther@suse.de>
+
+	* gcobolspec.cc (lang_specific_driver): For OPT_print_* do
+	not error on no input files.
+
+2025-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in: Remove .exe extension from comments.
+	(cobol.serial): Set to cobol1$(exeext).
+	(cobol1$(exeext)): Depend on $(cobol.prev).  Add
+	LINK_PROGRESS calls before/after the link command.
+
+2025-03-11  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in (cobol/parse.c, cobol/cdf.c, cobol/scan.c): Remove.
+	(cobol/parse.cc, cobol/cdf.cc, cobol/scan.cc): New goals.
+	(cobol/cdf.o): Depend on cobol/cdf.cc rather than cobol/cdf.c.
+	(cobol/parse.o): Depend on cobol/parse.cc rather than cobol/parse.c.
+	(cobol/scan.o): Depend on cobol/scan.cc rather than cobol/scan.c,
+	on cobol/cdf.cc rather than cobol/cdf.c and on cobol/parse.cc rather
+	than cobol/parse.c.
+	(cobol.srcextra): Depend on cobol/parse.cc cobol/cdf.cc cobol/scan.cc
+	rather than cobol/parse.c cobol/cdf.c cobol/scan.c.
+
+2025-03-11  James K. Lowden  <jklowden@symas.com>
+
+	* LICENSE: New file.
+	* Make-lang.in: New file.
+	* config-lang.in: New file.
+	* lang.opt: New file.
+	* lang.opt.urls: New file.
+	* cbldiag.h: New file.
+	* cdfval.h: New file.
+	* cobol-system.h: New file.
+	* copybook.h: New file.
+	* dts.h: New file.
+	* exceptg.h: New file.
+	* gengen.h: New file.
+	* genmath.h: New file.
+	* genutil.h: New file.
+	* inspect.h: New file.
+	* lang-specs.h: New file.
+	* lexio.h: New file.
+	* parse_ante.h: New file.
+	* parse_util.h: New file.
+	* scan_ante.h: New file.
+	* scan_post.h: New file.
+	* show_parse.h: New file.
+	* structs.h: New file.
+	* symbols.h: New file.
+	* token_names.h: New file.
+	* util.h: New file.
+	* cdf-copy.cc: New file.
+	* lexio.cc: New file.
+	* scan.l: New file.
+	* parse.y: New file.
+	* genapi.cc: New file.
+	* genapi.h: New file.
+	* gengen.cc: New file.
+	* genmath.cc: New file.
+	* genutil.cc: New file.
+	* cdf.y: New file.
+	* cobol1.cc: New file.
+	* convert.cc: New file.
+	* except.cc: New file.
+	* gcobolspec.cc: New file.
+	* structs.cc: New file.
+	* symbols.cc: New file.
+	* symfind.cc: New file.
+	* util.cc: New file.
+	* gcobc: New file.
+	* gcobol.1: New file.
+	* gcobol.3: New file.
+	* help.gen: New file.
+	* udf/stored-char-length.cbl: New file.
+
+
+Copyright (C) 2025 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

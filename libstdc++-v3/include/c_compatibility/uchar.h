@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2015-2024 Free Software Foundation, Inc.
+// Copyright (C) 2015-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,10 +26,10 @@
  *  This is a Standard C++ Library header.
  */
 
-#include <cuchar>
-
 #ifndef _GLIBCXX_UCHAR_H
 #define _GLIBCXX_UCHAR_H 1
+
+#include <cuchar>
 
 #ifdef _GLIBCXX_NAMESPACE_C
 

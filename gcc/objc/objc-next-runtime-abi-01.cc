@@ -1,5 +1,5 @@
 /* Next Runtime (ABI-0/1) private.
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Iain Sandoe (split from objc-act.cc)
 
 This file is part of GCC.
@@ -2845,7 +2845,7 @@ make_err_class:
   return eh_id;
 }
 
-/* For NeXT ABI 0 and 1, the personality routines are just those of the 
+/* For NeXT ABI 0 and 1, the personality routines are just those of the
    underlying language.  */
 
 static tree

@@ -1,5 +1,5 @@
 /* Subroutines for insn-output.cc for Tensilica's Xtensa architecture.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Bob Wilson (bwilson@tensilica.com) at Tensilica.
 
 This file is part of GCC.
@@ -58,7 +58,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-attr.h"
 #include "tree-pass.h"
 #include "print-rtl.h"
+#include "context.h"
+#include "pass_manager.h"
 #include <math.h>
+#include "opts.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -104,13 +107,14 @@ struct GTY(()) machine_function
      compute_frame_size.  */
   int callee_save_size;
   bool frame_laid_out;
-  bool epilogue_done;
   bool inhibit_logues_a1_adjusts;
   rtx last_logues_a9_content;
   HARD_REG_SET eliminated_callee_saved;
+  hash_map<rtx, int> *litpool_usage;
 };
 
 static void xtensa_option_override (void);
+static void xtensa_option_override_after_change (void);
 static enum internal_test map_test_to_internal_test (enum rtx_code);
 static rtx gen_int_relational (enum rtx_code, rtx, rtx);
 static rtx gen_float_relational (enum rtx_code, rtx, rtx);
@@ -300,6 +304,9 @@ static rtx xtensa_delegitimize_address (rtx);
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE xtensa_option_override
 
+#undef TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE
+#define TARGET_OVERRIDE_OPTIONS_AFTER_CHANGE xtensa_option_override_after_change
+
 #undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
 #define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA xtensa_output_addr_const_extra
 
@@ -355,6 +362,9 @@ static rtx xtensa_delegitimize_address (rtx);
 
 #undef TARGET_MAX_ANCHOR_OFFSET
 #define TARGET_MAX_ANCHOR_OFFSET 1020
+
+#undef TARGET_DIFFERENT_ADDR_DISPLACEMENT_P
+#define TARGET_DIFFERENT_ADDR_DISPLACEMENT_P hook_bool_void_true
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -551,18 +561,18 @@ xtensa_valid_move (machine_mode mode, rtx *operands)
 int
 smalloffset_mem_p (rtx op)
 {
-  if (GET_CODE (op) == MEM)
+  if (MEM_P (op))
     {
       rtx addr = XEXP (op, 0);
-      if (GET_CODE (addr) == REG)
+      if (REG_P (addr))
 	return BASE_REG_P (addr, 0);
       if (GET_CODE (addr) == PLUS)
 	{
 	  rtx offset = XEXP (addr, 0);
 	  HOST_WIDE_INT val;
-	  if (GET_CODE (offset) != CONST_INT)
+	  if (! CONST_INT_P (offset))
 	    offset = XEXP (addr, 1);
-	  if (GET_CODE (offset) != CONST_INT)
+	  if (! CONST_INT_P (offset))
 	    return FALSE;
 
 	  val = INTVAL (offset);
@@ -596,7 +606,7 @@ constantpool_address_p (const_rtx addr)
       sym = XEXP (addr, 0);
     }
 
-  if ((GET_CODE (sym) == SYMBOL_REF)
+  if (SYMBOL_REF_P (sym)
       && CONSTANT_POOL_ADDRESS_P (sym))
     return true;
   return false;
@@ -606,9 +616,9 @@ constantpool_address_p (const_rtx addr)
 int
 constantpool_mem_p (rtx op)
 {
-  if (GET_CODE (op) == SUBREG)
+  if (SUBREG_P (op))
     op = SUBREG_REG (op);
-  if (GET_CODE (op) == MEM)
+  if (MEM_P (op))
     return constantpool_address_p (XEXP (op, 0));
   return FALSE;
 }
@@ -622,7 +632,7 @@ xtensa_tls_symbol_p (rtx x)
   if (! targetm.have_tls)
     return false;
 
-  return GET_CODE (x) == SYMBOL_REF && SYMBOL_REF_TLS_MODEL (x) != 0;
+  return SYMBOL_REF_P (x) && SYMBOL_REF_TLS_MODEL (x) != 0;
 }
 
 
@@ -749,7 +759,7 @@ gen_int_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
     mode = GET_MODE (cmp1);
 
   /* Make sure we can handle any constants given to us.  */
-  if (GET_CODE (cmp1) == CONST_INT)
+  if (CONST_INT_P (cmp1))
     {
       HOST_WIDE_INT value = INTVAL (cmp1);
       unsigned HOST_WIDE_INT uvalue = (unsigned HOST_WIDE_INT)value;
@@ -768,7 +778,7 @@ gen_int_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
 	  cmp1 = force_reg (mode, cmp1);
 	}
     }
-  else if ((GET_CODE (cmp1) != REG) && (GET_CODE (cmp1) != SUBREG))
+  else if (! REG_P (cmp1) && ! SUBREG_P (cmp1))
     {
       cmp1 = force_reg (mode, cmp1);
     }
@@ -780,18 +790,14 @@ gen_int_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
 
   /* Comparison to constants, may involve adding 1 to change a LT into LE.
      Comparison between two registers, may involve switching operands.  */
-  if (GET_CODE (cmp1) == CONST_INT)
+  if (CONST_INT_P (cmp1))
     {
       if (p_info->const_add != 0)
 	cmp1 = GEN_INT (INTVAL (cmp1) + p_info->const_add);
 
     }
   else if (p_info->reverse_regs)
-    {
-      rtx temp = cmp0;
-      cmp0 = cmp1;
-      cmp1 = temp;
-    }
+    std::swap (cmp0, cmp1);
 
   return gen_rtx_fmt_ee (invert ? reverse_condition (p_info->test_code)
 				: p_info->test_code,
@@ -835,11 +841,7 @@ gen_float_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
     }
 
   if (reverse_regs)
-    {
-      rtx temp = cmp0;
-      cmp0 = cmp1;
-      cmp1 = temp;
-    }
+    std::swap (cmp0, cmp1);
 
   brtmp = gen_rtx_REG (CCmode, FPCC_REGNUM);
   emit_insn (gen_fn (brtmp, cmp0, cmp1));
@@ -1105,7 +1107,7 @@ xtensa_split_operand_pair (rtx operands[4], machine_mode mode)
 }
 
 
-/* Try to emit insns to load srcval (that cannot fit into signed 12-bit)
+/* Try to emit insns to load src (either naked or pooled SI/SF constant)
    into dst with synthesizing a such constant value from a sequence of
    load-immediate / arithmetic ones, instead of a L32R instruction
    (plus a constant in litpool).  */
@@ -1191,11 +1193,67 @@ xtensa_constantsynth_rtx_ADDSUBX (rtx reg, HOST_WIDE_INT imm)
 }
 
 int
-xtensa_constantsynth (rtx dst, HOST_WIDE_INT srcval)
+xtensa_constantsynth (rtx dst, rtx src)
 {
+  HOST_WIDE_INT srcval;
+  static opt_pass *pass_rtl_split2;
+  int *pv;
+
+  /* Derefer if src is litpool entry, and get integer constant value.  */
+  src = avoid_constant_pool_reference (src);
+  if (CONST_INT_P (src))
+    srcval = INTVAL (src);
+  else if (CONST_DOUBLE_P (src) && GET_MODE (src) == SFmode)
+    {
+      long l;
+
+      REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (src), l);
+      srcval = (int32_t)l, src = GEN_INT (srcval);
+    }
+  else
+    return 0;
+
+  /* Force dst as SImode.  */
+  gcc_assert (REG_P (dst));
+  if (GET_MODE (dst) != SImode)
+    dst = gen_rtx_REG (SImode, REGNO (dst));
+
+  if (optimize_size)
+    {
+      /* During the first split pass after register allocation (rtl-split2),
+	 record the occurrence of integer src value and do nothing.  */
+      if (!pass_rtl_split2)
+	pass_rtl_split2 = g->get_passes ()->get_pass_by_name ("rtl-split2");
+      if (current_pass == pass_rtl_split2)
+	{
+	  if (!cfun->machine->litpool_usage)
+	    cfun->machine->litpool_usage = hash_map<rtx, int>::create_ggc ();
+	  if ((pv = cfun->machine->litpool_usage->get (src)))
+	    ++*pv;
+	  else
+	    cfun->machine->litpool_usage->put (src, 1);
+	  return 0;
+	}
+
+      /* If two or more identical integer constants appear in the function,
+	 the code size can be reduced by re-emitting a "move" (load from an
+	 either litpool entry or relaxed immediate) instruction in SImode
+	 to increase the chances that the litpool entry will be shared.  */
+      if (cfun->machine->litpool_usage
+	  && (pv = cfun->machine->litpool_usage->get (src))
+	  && *pv > 1)
+	{
+	  emit_move_insn (dst, src);
+	  return 1;
+	}
+    }
+
   /* No need for synthesizing for what fits into MOVI instruction.  */
   if (xtensa_simm12b (srcval))
-    return 0;
+    {
+      emit_move_insn (dst, src);
+      return 1;
+    }
 
   /* 2-insns substitution.  */
   if ((optimize_size || (optimize && xtensa_extra_l32r_costs >= 1))
@@ -1241,9 +1299,6 @@ xtensa_constantsynth (rtx dst, HOST_WIDE_INT srcval)
 		  emit_insn (gen_rotlsi3 (dst, dst, GEN_INT (shift)));
 		  return 1;
 		}
-	    }
-	  for (shift = 1; shift < 12; ++shift)
-	    {
 	      v = (int32_t)(((uint32_t)srcval << shift)
 			    | ((uint32_t)srcval >> (32 - shift)));
 	      if (xtensa_simm12b(v))
@@ -1256,7 +1311,12 @@ xtensa_constantsynth (rtx dst, HOST_WIDE_INT srcval)
 	}
     }
 
-  return 0;
+  /* If cannot synthesize the value and also cannot fit into MOVI instruc-
+     tion, re-emit a "move" (load from an either litpool entry or relaxed
+     immediate) instruction in SImode in order to increase the chances that
+     the litpool entry will be shared.  */
+  emit_move_insn (dst, src);
+  return 1;
 }
 
 
@@ -1271,7 +1331,7 @@ xtensa_emit_move_sequence (rtx *operands, machine_mode mode)
   rtx src = operands[1];
 
   if (CONSTANT_P (src)
-      && (GET_CODE (src) != CONST_INT || ! xtensa_simm12b (INTVAL (src))))
+      && (! CONST_INT_P (src) || ! xtensa_simm12b (INTVAL (src))))
     {
       rtx dst = operands[0];
 
@@ -1368,12 +1428,12 @@ xtensa_copy_incoming_a7 (rtx opnd)
   /* The operand using a7 may come in a later instruction, so just return
      the original operand if it doesn't use a7.  */
   reg = opnd;
-  if (GET_CODE (reg) == SUBREG)
+  if (SUBREG_P (reg))
     {
       gcc_assert (SUBREG_BYTE (reg) == 0);
       reg = SUBREG_REG (reg);
     }
-  if (GET_CODE (reg) != REG
+  if (! REG_P (reg)
       || REGNO (reg) > A7_REG
       || REGNO (reg) + hard_regno_nregs (A7_REG, mode) <= A7_REG)
     return opnd;
@@ -1483,7 +1543,7 @@ xtensa_expand_block_move (rtx *operands)
   rtx x;
 
   /* If this is not a fixed size move, just call memcpy.  */
-  if (!optimize || (GET_CODE (operands[2]) != CONST_INT))
+  if (!optimize || ! CONST_INT_P (operands[2]))
     return 0;
 
   bytes = INTVAL (operands[2]);
@@ -1829,7 +1889,7 @@ xtensa_expand_nonlocal_goto (rtx *operands)
   /* Generate a call to "__xtensa_nonlocal_goto" (in libgcc); the code
      is too big to generate in-line.  */
 
-  if (GET_CODE (containing_fp) != REG)
+  if (! REG_P (containing_fp))
     containing_fp = force_reg (Pmode, containing_fp);
 
   emit_library_call (gen_rtx_SYMBOL_REF (Pmode, "__xtensa_nonlocal_goto"),
@@ -2291,7 +2351,7 @@ xtensa_emit_call (int callop, rtx *operands)
   static char result[64];
   rtx tgt = operands[callop];
 
-  if (GET_CODE (tgt) == CONST_INT)
+  if (CONST_INT_P (tgt))
     sprintf (result, "call%d\t" HOST_WIDE_INT_PRINT_HEX,
 	     WINDOW_SIZE, INTVAL (tgt));
   else if (register_operand (tgt, VOIDmode))
@@ -2330,11 +2390,11 @@ xtensa_legitimate_address_p (machine_mode mode, rtx addr, bool strict,
       && ! xtensa_tls_referenced_p (addr))
     return true;
 
-  while (GET_CODE (addr) == SUBREG)
+  while (SUBREG_P (addr))
     addr = SUBREG_REG (addr);
 
   /* Allow base registers.  */
-  if (GET_CODE (addr) == REG && BASE_REG_P (addr, strict))
+  if (REG_P (addr) && BASE_REG_P (addr, strict))
     return true;
 
   /* Check for "register + offset" addressing.  */
@@ -2345,11 +2405,11 @@ xtensa_legitimate_address_p (machine_mode mode, rtx addr, bool strict,
       enum rtx_code code0;
       enum rtx_code code1;
 
-      while (GET_CODE (xplus0) == SUBREG)
+      while (SUBREG_P (xplus0))
 	xplus0 = SUBREG_REG (xplus0);
       code0 = GET_CODE (xplus0);
 
-      while (GET_CODE (xplus1) == SUBREG)
+      while (SUBREG_P (xplus1))
 	xplus1 = SUBREG_REG (xplus1);
       code1 = GET_CODE (xplus1);
 
@@ -2468,15 +2528,14 @@ xtensa_legitimize_address (rtx x,
       rtx plus0 = XEXP (x, 0);
       rtx plus1 = XEXP (x, 1);
 
-      if (GET_CODE (plus0) != REG && GET_CODE (plus1) == REG)
+      if (! REG_P (plus0) && REG_P (plus1))
 	{
 	  plus0 = XEXP (x, 1);
 	  plus1 = XEXP (x, 0);
 	}
 
       /* Try to split up the offset to use an ADDMI instruction.  */
-      if (GET_CODE (plus0) == REG
-	  && GET_CODE (plus1) == CONST_INT
+      if (REG_P (plus0) && CONST_INT_P (plus1)
 	  && !xtensa_mem_offset (INTVAL (plus1), mode)
 	  && !xtensa_simm8 (INTVAL (plus1))
 	  && xtensa_mem_offset (INTVAL (plus1) & 0xff, mode)
@@ -2522,7 +2581,7 @@ xtensa_tls_referenced_p (rtx x)
   FOR_EACH_SUBRTX (iter, array, x, ALL)
     {
       const_rtx x = *iter;
-      if (GET_CODE (x) == SYMBOL_REF && SYMBOL_REF_TLS_MODEL (x) != 0)
+      if (SYMBOL_REF_P (x) && SYMBOL_REF_TLS_MODEL (x) != 0)
 	return true;
 
       /* Ignore TLS references that have already been legitimized.  */
@@ -2665,16 +2724,6 @@ xtensa_emit_add_imm (rtx dst, rtx src, HOST_WIDE_INT imm, rtx scratch,
     }
 
   return retval;
-}
-
-
-/* Return true if the constants used in the application of smin() following
-   smax() meet the specifications of the CLAMPS machine instruction.  */
-bool
-xtensa_match_CLAMPS_imms_p (rtx cst_max, rtx cst_min)
-{
-  return IN_RANGE (exact_log2 (-INTVAL (cst_max)), 7, 22)
-	 && (INTVAL (cst_max) + INTVAL (cst_min)) == -1;
 }
 
 
@@ -2920,6 +2969,25 @@ xtensa_option_override (void)
       flag_reorder_blocks_and_partition = 0;
       flag_reorder_blocks = 1;
     }
+
+  /* One of the late-combine passes runs after register allocation
+     and can match define_insn_and_splits that were previously used
+     only before register allocation.  Some of those define_insn_and_splits
+     require the split to take place, but have a split condition of
+     can_create_pseudo_p, and so matching after RA will give an
+     unsplittable instruction.  Disable late-combine by default until
+     the define_insn_and_splits are fixed.  */
+  if (!OPTION_SET_P (flag_late_combine_instructions))
+    flag_late_combine_instructions = 0;
+
+  xtensa_option_override_after_change ();
+}
+
+static void
+xtensa_option_override_after_change (void)
+{
+  if (!OPTION_SET_P (flag_late_combine_instructions))
+    flag_late_combine_instructions = 0;
 }
 
 /* Implement TARGET_HARD_REGNO_NREGS.  */
@@ -3009,26 +3077,36 @@ print_operand (FILE *file, rtx x, int letter)
   switch (letter)
     {
     case 'D':
-      if (GET_CODE (x) == REG || GET_CODE (x) == SUBREG)
+      if (REG_P (x) || SUBREG_P (x))
 	fprintf (file, "%s", reg_names[xt_true_regnum (x) + 1]);
       else
 	output_operand_lossage ("invalid %%D value");
       break;
 
     case 'v':
-      if (GET_CODE (x) == MEM)
+      if (MEM_P (x))
 	{
 	  /* For a volatile memory reference, emit a MEMW before the
 	     load or store.  */
 	  if (MEM_VOLATILE_P (x) && TARGET_SERIALIZE_VOLATILE)
-	    fprintf (file, "memw\n\t");
+	    {
+	      rtx_insn *prev_insn
+			= prev_nonnote_nondebug_insn (current_output_insn);
+	      rtx pat, src;
+
+	      if (! (prev_insn && NONJUMP_INSN_P (prev_insn)
+		     && GET_CODE (pat = PATTERN (prev_insn)) == SET
+		     && GET_CODE (src = SET_SRC (pat)) == UNSPEC
+		     && XINT (src, 1) == UNSPEC_MEMW))
+		fprintf (file, "memw\n\t");
+	    }
 	}
       else
 	output_operand_lossage ("invalid %%v value");
       break;
 
     case 'N':
-      if (GET_CODE (x) == MEM
+      if (MEM_P (x)
 	  && (GET_MODE (x) == DFmode || GET_MODE (x) == DImode))
 	{
 	  x = adjust_address (x, GET_MODE (x) == DFmode ? E_SFmode : E_SImode,
@@ -3040,7 +3118,7 @@ print_operand (FILE *file, rtx x, int letter)
       break;
 
     case 'K':
-      if (GET_CODE (x) == CONST_INT)
+      if (CONST_INT_P (x))
 	{
 	  unsigned val = INTVAL (x);
 	  if (!xtensa_mask_immediate (val))
@@ -3053,28 +3131,28 @@ print_operand (FILE *file, rtx x, int letter)
       break;
 
     case 'L':
-      if (GET_CODE (x) == CONST_INT)
+      if (CONST_INT_P (x))
 	fprintf (file, HOST_WIDE_INT_PRINT_DEC, (32 - INTVAL (x)) & 0x1f);
       else
 	output_operand_lossage ("invalid %%L value");
       break;
 
     case 'R':
-      if (GET_CODE (x) == CONST_INT)
+      if (CONST_INT_P (x))
 	fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (x) & 0x1f);
       else
 	output_operand_lossage ("invalid %%R value");
       break;
 
     case 'x':
-      if (GET_CODE (x) == CONST_INT)
+      if (CONST_INT_P (x))
 	printx (file, INTVAL (x));
       else
 	output_operand_lossage ("invalid %%x value");
       break;
 
     case 'd':
-      if (GET_CODE (x) == CONST_INT)
+      if (CONST_INT_P (x))
 	fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (x));
       else
 	output_operand_lossage ("invalid %%d value");
@@ -3082,12 +3160,12 @@ print_operand (FILE *file, rtx x, int letter)
 
     case 't':
     case 'b':
-      if (GET_CODE (x) == CONST_INT)
+      if (CONST_INT_P (x))
 	{
 	  printx (file, INTVAL (x));
 	  fputs (letter == 't' ? "@h" : "@l", file);
 	}
-      else if (GET_CODE (x) == CONST_DOUBLE)
+      else if (CONST_DOUBLE_P (x))
 	{
 	  if (GET_MODE (x) == SFmode)
 	    {
@@ -3103,9 +3181,9 @@ print_operand (FILE *file, rtx x, int letter)
 	  /* X must be a symbolic constant on ELF.  Write an expression
 	     suitable for 'const16' that sets the high or low 16 bits.  */
 	  if (GET_CODE (XEXP (x, 0)) != PLUS
-	      || (GET_CODE (XEXP (XEXP (x, 0), 0)) != SYMBOL_REF
-		  && GET_CODE (XEXP (XEXP (x, 0), 0)) != LABEL_REF)
-	      || GET_CODE (XEXP (XEXP (x, 0), 1)) != CONST_INT)
+	      || (! SYMBOL_REF_P (XEXP (XEXP (x, 0), 0))
+		  && ! LABEL_REF_P (XEXP (XEXP (x, 0), 0)))
+	      || ! CONST_INT_P (XEXP (XEXP (x, 0), 1)))
 	    output_operand_lossage ("invalid %%t/%%b value");
 	  print_operand (file, XEXP (XEXP (x, 0), 0), 0);
 	  fputs (letter == 't' ? "@h" : "@l", file);
@@ -3123,8 +3201,7 @@ print_operand (FILE *file, rtx x, int letter)
       break;
 
     case 'y':
-      if (GET_CODE (x) == CONST_DOUBLE &&
-	  GET_MODE (x) == SFmode)
+      if (CONST_DOUBLE_P (x) && GET_MODE (x) == SFmode)
 	{
 	  long l;
 	  REAL_VALUE_TO_TARGET_SINGLE (*CONST_DOUBLE_REAL_VALUE (x), l);
@@ -3135,11 +3212,11 @@ print_operand (FILE *file, rtx x, int letter)
       /* fall through */
 
     default:
-      if (GET_CODE (x) == REG || GET_CODE (x) == SUBREG)
+      if (REG_P (x) || SUBREG_P (x))
 	fprintf (file, "%s", reg_names[xt_true_regnum (x)]);
-      else if (GET_CODE (x) == MEM)
+      else if (MEM_P (x))
 	output_address (GET_MODE (x), XEXP (x, 0));
-      else if (GET_CODE (x) == CONST_INT)
+      else if (CONST_INT_P (x))
 	fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (x));
       else
 	output_addr_const (file, x);
@@ -3174,12 +3251,12 @@ print_operand_address (FILE *file, rtx addr)
 	rtx arg0 = XEXP (addr, 0);
 	rtx arg1 = XEXP (addr, 1);
 
-	if (GET_CODE (arg0) == REG)
+	if (REG_P (arg0))
 	  {
 	    reg = arg0;
 	    offset = arg1;
 	  }
-	else if (GET_CODE (arg1) == REG)
+	else if (REG_P (arg1))
 	  {
 	    reg = arg1;
 	    offset = arg0;
@@ -3270,7 +3347,7 @@ xtensa_output_literal (FILE *file, rtx x, machine_mode mode, int labelno)
   switch (GET_MODE_CLASS (mode))
     {
     case MODE_FLOAT:
-      gcc_assert (GET_CODE (x) == CONST_DOUBLE);
+      gcc_assert (CONST_DOUBLE_P (x));
 
       switch (mode)
 	{
@@ -3684,7 +3761,7 @@ xtensa_expand_prologue (void)
 }
 
 void
-xtensa_expand_epilogue (bool sibcall_p)
+xtensa_expand_epilogue (void)
 {
   if (!TARGET_WINDOWED_ABI)
     {
@@ -3749,23 +3826,6 @@ xtensa_expand_epilogue (bool sibcall_p)
 				  stack_pointer_rtx,
 				  EH_RETURN_STACKADJ_RTX));
     }
-  cfun->machine->epilogue_done = true;
-  if (sibcall_p)
-    emit_use (gen_rtx_REG (SImode, A0_REG));
-  else
-    emit_jump_insn (gen_return ());
-}
-
-bool
-xtensa_use_return_instruction_p (void)
-{
-  if (!reload_completed)
-    return false;
-  if (TARGET_WINDOWED_ABI)
-    return true;
-  if (compute_frame_size (get_frame_size ()) == 0)
-    return true;
-  return cfun->machine->epilogue_done;
 }
 
 void
@@ -4666,6 +4726,7 @@ xtensa_insn_cost (rtx_insn *insn, bool speed)
 	    case TYPE_ARITH:
 	    case TYPE_MULTI:
 	    case TYPE_NOP:
+	    case TYPE_FARITH:
 	    case TYPE_FSTORE:
 	      return COSTS_N_INSNS (n);
 

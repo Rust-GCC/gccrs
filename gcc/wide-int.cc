@@ -1,5 +1,5 @@
 /* Operations with very long integers.
-   Copyright (C) 2012-2024 Free Software Foundation, Inc.
+   Copyright (C) 2012-2025 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -1313,7 +1313,7 @@ wi_pack (HOST_WIDE_INT *result,
 }
 
 /* Multiply Op1 by Op2.  If HIGH is set, only the upper half of the
-   result is returned.  
+   result is returned.
 
    If HIGH is not set, throw away the upper half after the check is
    made to see if it overflows.  Unfortunately there is no better way
@@ -1574,7 +1574,24 @@ wi::mul_internal (HOST_WIDE_INT *val, const HOST_WIDE_INT *op1val,
 	  top &= mask;
 	}
 
-      for (i = half_blocks_needed; i < half_blocks_needed * 2; i++)
+      unsigned int end = half_blocks_needed * 2;
+      shift = prec % HOST_BITS_PER_WIDE_INT;
+      if (shift)
+	{
+	  /* For overflow checking only look at the first prec bits
+	     starting with r[half_blocks_needed].  */
+	  if (shift <= HOST_BITS_PER_HALF_WIDE_INT)
+	    --end;
+	  shift %= HOST_BITS_PER_HALF_WIDE_INT;
+	  if (shift)
+	    {
+	      if (top)
+		r[end - 1] |= ((~(unsigned HOST_HALF_WIDE_INT) 0) << shift);
+	      else
+		r[end - 1] &= (((unsigned HOST_HALF_WIDE_INT) 1) << shift) - 1;
+	    }
+	}
+      for (i = half_blocks_needed; i < end; i++)
 	if (((HOST_WIDE_INT)(r[i] & mask)) != top)
 	  /* FIXME: Signed overflow type is not implemented yet.  */
 	  *overflow = (sgn == UNSIGNED) ? wi::OVF_OVERFLOW : wi::OVF_UNKNOWN;

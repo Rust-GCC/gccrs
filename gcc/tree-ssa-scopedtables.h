@@ -1,5 +1,5 @@
 /* Header file for SSA dominator optimizations.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -191,7 +191,7 @@ class const_and_copies
   void record_const_or_copy (tree, tree);
 
   /* Special entry point when we want to provide an explicit previous
-     value for the first argument.  Try to get rid of this in the future. 
+     value for the first argument.  Try to get rid of this in the future.
 
      This version may also follow the value chain for the RHS.  */
   void record_const_or_copy (tree, tree, tree);

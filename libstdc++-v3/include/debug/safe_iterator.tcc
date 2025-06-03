@@ -1,6 +1,6 @@
 // Debugging iterator implementation (out of line) -*- C++ -*-
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -86,6 +86,9 @@ namespace __gnu_debug
     _Safe_iterator<_Iterator, _Sequence, _Category>::
     _M_can_advance(difference_type __n, bool __strict) const
     {
+      if (this->_M_value_initialized() && __n == 0)
+	return true;
+
       if (this->_M_singular())
 	return false;
 
@@ -194,6 +197,12 @@ namespace __gnu_debug
 		   std::pair<difference_type, _Distance_precision>& __dist,
 		   bool __check_dereferenceable) const
     {
+      if (_M_value_initialized() && __rhs._M_value_initialized())
+	{
+	  __dist = std::make_pair(0, __dp_exact);
+	  return true;
+	}
+
       if (_M_singular() || __rhs._M_singular() || !_M_can_compare(__rhs))
 	return false;
 
@@ -218,6 +227,12 @@ namespace __gnu_debug
 		   std::pair<difference_type,
 			     _Distance_precision>& __dist) const
     {
+      if (this->_M_value_initialized() && __rhs._M_value_initialized())
+	{
+	  __dist = std::make_pair(0, __dp_exact);
+	  return true;
+	}
+
       if (this->_M_singular() || __rhs._M_singular()
 	  || !this->_M_can_compare(__rhs))
 	return false;

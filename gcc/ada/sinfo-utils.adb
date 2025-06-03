@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2020-2024, Free Software Foundation, Inc.        --
+--           Copyright (C) 2020-2025, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,11 +25,151 @@
 
 with Atree;  use Atree;
 with Debug;  use Debug;
+with GNAT.Lists;
 with Output; use Output;
 with Seinfo;
 with Sinput; use Sinput;
 
 package body Sinfo.Utils is
+
+   function Spec_Lib_Unit
+     (N : N_Compilation_Unit_Id) return Opt_N_Compilation_Unit_Id
+   is
+      pragma Assert (Unit (N) in N_Lib_Unit_Body_Id);
+   begin
+      return Val : constant Opt_N_Compilation_Unit_Id :=
+        Spec_Or_Body_Lib_Unit (N)
+      do
+         pragma Assert
+           (if Present (Val) then
+             Unit (Val) in N_Lib_Unit_Declaration_Id
+              | N_Lib_Unit_Renaming_Declaration_Id -- only in case of error
+             or else (N = Val
+                      and then Unit (N) in N_Subprogram_Body_Id
+                      and then Acts_As_Spec (N)));
+      end return;
+   end Spec_Lib_Unit;
+
+   procedure Set_Spec_Lib_Unit (N, Val : N_Compilation_Unit_Id) is
+      pragma Assert (Unit (N) in N_Lib_Unit_Body_Id);
+      pragma Assert
+        (Unit (Val) in N_Lib_Unit_Declaration_Id
+          | N_Lib_Unit_Renaming_Declaration_Id -- only in case of error
+         or else (N = Val
+                  and then Unit (N) in N_Subprogram_Body_Id
+                  and then Acts_As_Spec (N)));
+   begin
+      Set_Library_Unit (N, Val);
+   end Set_Spec_Lib_Unit;
+
+   function Body_Lib_Unit
+     (N : N_Compilation_Unit_Id) return Opt_N_Compilation_Unit_Id
+   is
+      pragma Assert
+        (Unit (N) in N_Lib_Unit_Declaration_Id
+          | N_Lib_Unit_Renaming_Declaration_Id); -- only in case of error
+   begin
+      return Val : constant Opt_N_Compilation_Unit_Id :=
+        Spec_Or_Body_Lib_Unit (N)
+      do
+         pragma Assert
+           (if Present (Val) then Unit (Val) in N_Lib_Unit_Body_Id);
+      end return;
+   end Body_Lib_Unit;
+
+   procedure Set_Body_Lib_Unit (N, Val : N_Compilation_Unit_Id) is
+      pragma Assert
+        (Unit (N) in N_Lib_Unit_Declaration_Id
+          | N_Lib_Unit_Renaming_Declaration_Id); -- only in case of error
+      pragma Assert (Unit (Val) in N_Lib_Unit_Body_Id);
+   begin
+      Set_Library_Unit (N, Val);
+   end Set_Body_Lib_Unit;
+
+   function Spec_Or_Body_Lib_Unit
+     (N : N_Compilation_Unit_Id) return Opt_N_Compilation_Unit_Id
+   is
+      pragma Assert
+        (Unit (N) in
+          N_Lib_Unit_Declaration_Id | N_Lib_Unit_Body_Id
+          | N_Lib_Unit_Renaming_Declaration_Id);
+   begin
+      return Other_Comp_Unit (N);
+   end Spec_Or_Body_Lib_Unit;
+
+   function Subunit_Parent
+     (N : N_Compilation_Unit_Id) return Opt_N_Compilation_Unit_Id
+   is
+      pragma Assert (Unit (N) in N_Subunit_Id);
+   begin
+      return Val : constant Opt_N_Compilation_Unit_Id := Other_Comp_Unit (N) do
+         pragma Assert
+           (if Present (Val) then
+             Unit (Val) in N_Lib_Unit_Body_Id | N_Subunit_Id);
+      end return;
+   end Subunit_Parent;
+
+   procedure Set_Subunit_Parent (N, Val : N_Compilation_Unit_Id) is
+      pragma Assert (Unit (N) in N_Subunit_Id);
+      pragma Assert (Unit (Val) in N_Lib_Unit_Body_Id | N_Subunit_Id);
+   begin
+      Set_Library_Unit (N, Val);
+   end Set_Subunit_Parent;
+
+   function Other_Comp_Unit
+     (N : N_Compilation_Unit_Id) return Opt_N_Compilation_Unit_Id
+   is
+      pragma Assert (N in N_Compilation_Unit_Id);
+      Val : constant Opt_N_Compilation_Unit_Id := Library_Unit (N);
+   begin
+      if Unit (N) in N_Subunit_Id then
+         pragma Assert
+           (if Present (Val) then
+             Unit (Val) in N_Lib_Unit_Body_Id | N_Subunit_Id);
+      end if;
+
+      return Library_Unit (N);
+   end Other_Comp_Unit;
+
+   function Stub_Subunit
+     (N : N_Body_Stub_Id) return Opt_N_Compilation_Unit_Id is
+   begin
+      return Val : constant Opt_N_Compilation_Unit_Id := Library_Unit (N) do
+         pragma Assert (if Present (Val) then Unit (Val) in N_Subunit_Id);
+      end return;
+   end Stub_Subunit;
+
+   procedure Set_Stub_Subunit
+     (N : N_Body_Stub_Id; Val : N_Compilation_Unit_Id)
+   is
+      pragma Assert (Unit (Val) in N_Subunit_Id);
+   begin
+      Set_Library_Unit (N, Val);
+   end Set_Stub_Subunit;
+
+   function Withed_Lib_Unit
+     (N : N_With_Clause_Id) return Opt_N_Compilation_Unit_Id is
+   begin
+      return Val : constant Opt_N_Compilation_Unit_Id := Library_Unit (N) do
+         pragma Assert
+           (if Present (Val) then
+             Unit (Val) in N_Lib_Unit_Declaration_Id
+             | N_Lib_Unit_Renaming_Declaration_Id
+             | N_Package_Body_Id | N_Subprogram_Body_Id
+             | N_Null_Statement_Id); -- for ignored ghost code
+      end return;
+   end Withed_Lib_Unit;
+
+   procedure Set_Withed_Lib_Unit
+     (N : N_With_Clause_Id; Val : N_Compilation_Unit_Id)
+   is
+      pragma Assert
+        (Unit (Val) in N_Lib_Unit_Declaration_Id
+         | N_Lib_Unit_Renaming_Declaration_Id
+         | N_Package_Body_Id | N_Subprogram_Body_Id);
+   begin
+      Set_Library_Unit (N, Val);
+   end Set_Withed_Lib_Unit;
 
    ---------------
    -- Debugging --
@@ -207,6 +347,73 @@ package body Sinfo.Utils is
       end if;
    end Get_Pragma_Arg;
 
+   procedure Destroy_Element (Elem : in out Union_Id);
+   --  Does not do anything but is used to instantiate
+   --  GNAT.Lists.Doubly_Linked_Lists.
+
+   ---------------------
+   -- Destroy_Element --
+   ---------------------
+
+   procedure Destroy_Element (Elem : in out Union_Id) is
+   begin
+      null;
+   end Destroy_Element;
+
+   package Lists is
+     new GNAT.Lists.Doubly_Linked_Lists
+       (Element_Type => Union_Id, "=" => "=",
+      Destroy_Element => Destroy_Element, Check_Tampering => False);
+
+   ----------------------------
+   -- Lowest_Common_Ancestor --
+   ----------------------------
+
+   function Lowest_Common_Ancestor (N1, N2 : Node_Id) return Union_Id is
+      function Path_From_Root (N : Node_Id) return Lists.Doubly_Linked_List;
+
+      --------------------
+      -- Path_From_Root --
+      --------------------
+
+      function Path_From_Root (N : Node_Id) return Lists.Doubly_Linked_List is
+         L : constant Lists.Doubly_Linked_List := Lists.Create;
+
+         X : Union_Id := Union_Id (N);
+      begin
+         while X /= Union_Id (Empty) loop
+            Lists.Prepend (L, X);
+            X := Parent_Or_List_Containing (X);
+         end loop;
+
+         return L;
+      end Path_From_Root;
+
+      L1 : Lists.Doubly_Linked_List := Path_From_Root (N1);
+      L2 : Lists.Doubly_Linked_List := Path_From_Root (N2);
+
+      X1, X2 : Union_Id;
+
+      Common_Ancestor : Union_Id := Union_Id (Empty);
+   begin
+      while not Lists.Is_Empty (L1) and then not Lists.Is_Empty (L2) loop
+         X1 := Lists.First (L1);
+         Lists.Delete_First (L1);
+
+         X2 := Lists.First (L2);
+         Lists.Delete_First (L2);
+
+         exit when X1 /= X2;
+
+         Common_Ancestor := X1;
+      end loop;
+
+      Lists.Destroy (L1);
+      Lists.Destroy (L2);
+
+      return Common_Ancestor;
+   end Lowest_Common_Ancestor;
+
    ----------------------
    -- Set_End_Location --
    ----------------------
@@ -255,6 +462,7 @@ package body Sinfo.Utils is
        when Flag_Field
           | Node_Kind_Type_Field
           | Entity_Kind_Type_Field
+          | Source_File_Index_Field
           | Source_Ptr_Field
           | Small_Paren_Count_Type_Field
           | Convention_Id_Field

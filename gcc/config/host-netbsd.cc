@@ -1,5 +1,5 @@
 /* NetBSD host-specific hook definitions.
-   Copyright (C) 2004-2024 Free Software Foundation, Inc.
+   Copyright (C) 2004-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -62,7 +62,7 @@ netbsd_gt_pch_get_address (size_t size, int fd)
   return addr;
 }
 
-/* Map SIZE bytes of FD+OFFSET at BASE.  Return 1 if we succeeded at 
+/* Map SIZE bytes of FD+OFFSET at BASE.  Return 1 if we succeeded at
    mapping the data at BASE, -1 if we couldn't.  */
 
 static int

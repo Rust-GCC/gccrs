@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024 Free Software Foundation, Inc.
+# Copyright (C) 2017-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -205,9 +205,19 @@ proc module_do_it { do_what testcase std asm_list } {
     if { !$ok } {
 	unresolved "$ident link"
     } else {
+	global target_triplet
 	set out [${tool}_target_compile $asm_list \
 		     $execname executable $options]
 	eval $xfail
+
+	# Do gcc-specific pruning.
+	set out [${tool}-dg-prune $target_triplet $out]
+	# Fix up remaining line-breaks similar to "regular" pruning
+	# calls.  Otherwise, a multi-line message stripped e.g. one
+	# part by the default prune_warnings and one part part by the
+	# gcc prune_gcc_output will have a residual line-break.
+	regsub "^\[\r\n\]+" $out "" out
+
 	if { $out == "" } {
 	    pass "$ident link"
 	} else {
@@ -259,6 +269,7 @@ proc module-init { src } {
     set std_prefix "-std=c++"
     global extra_tool_flags
     set extra_tool_flags {}
+    global MOD_STD_LIST
 
     foreach op $tmp {
 	switch [lindex $op 0] {
@@ -278,13 +289,16 @@ proc module-init { src } {
 	}
     }
 
-    if { !$have_std } {
-	global MOD_STD_LIST
+    if { $have_std } {
+	lappend option_list ""
+    } elseif { [string match "*xtreme*" $src] } {
+	# Only run the xtreme tests once.
+	set x [lindex $MOD_STD_LIST end]
+	lappend option_list "${std_prefix}$x"
+    } else {
 	foreach x $MOD_STD_LIST {
 	    lappend option_list "${std_prefix}$x"
 	}
-    } else {
-	lappend option_list ""
     }
 
     return $option_list

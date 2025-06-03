@@ -1,6 +1,6 @@
 /* Language specific subroutines used for code generation on IBM S/390
    and zSeries
-   Copyright (C) 2015-2024 Free Software Foundation, Inc.
+   Copyright (C) 2015-2025 Free Software Foundation, Inc.
 
    Contributed by Andreas Krebbel (Andreas.Krebbel@de.ibm.com).
 
@@ -174,6 +174,22 @@ s390_categorize_keyword (const cpp_token *tok)
 }
 
 
+/* Helper function to find out which RID_INT_N_* code is the one for
+   __int128, if any.  Returns RID_MAX+1 if none apply, which is safe
+   (for our purposes, since we always expect to have __int128) to
+   compare against.  */
+static inline int
+rid_int128 (void)
+{
+  for (int i = 0; i < NUM_INT_N_ENTS; ++i)
+    if (int_n_enabled_p[i]
+	&& int_n_data[i].bitsize == 128)
+      return RID_INT_N_0 + i;
+
+  return RID_MAX + 1;
+}
+
+
 /* Called to decide whether a conditional macro should be expanded.
    Since we have exactly one such macro (i.e, 'vector'), we do not
    need to examine the 'tok' parameter.  */
@@ -262,7 +278,8 @@ s390_macro_to_expand (cpp_reader *pfile, const cpp_token *tok)
       || rid_code == RID_SHORT || rid_code == RID_SIGNED
       || rid_code == RID_INT || rid_code == RID_CHAR
       || (rid_code == RID_FLOAT && TARGET_VXE)
-      || rid_code == RID_DOUBLE)
+      || rid_code == RID_DOUBLE
+      || rid_code == rid_int128 ())
     {
       expand_this = C_CPP_HASHNODE (__vector_keyword);
       /* If the next keyword is bool, it will need to be expanded as
@@ -275,7 +292,9 @@ s390_macro_to_expand (cpp_reader *pfile, const cpp_token *tok)
       /* __vector long __bool a; */
       if (ident == C_CPP_HASHNODE (__bool_keyword))
 	expand_bool_p = true;
-      else
+
+      /* If there are more tokens to check.  */
+      else if (ident)
 	{
 	  /* Triggered with: __vector long long __bool a; */
 	  do
@@ -339,7 +358,7 @@ s390_cpu_cpp_builtins_internal (cpp_reader *pfile,
   s390_def_or_undef_macro (pfile, target_flag_set_p (MASK_OPT_VX), old_opts,
 			   opts, "__VX__", "__VX__");
   s390_def_or_undef_macro (pfile, target_flag_set_p (MASK_ZVECTOR), old_opts,
-			   opts, "__VEC__=10304", "__VEC__");
+			   opts, "__VEC__=10305", "__VEC__");
   s390_def_or_undef_macro (pfile, target_flag_set_p (MASK_ZVECTOR), old_opts,
 			   opts, "__vector=__attribute__((vector_size(16)))",
 			   "__vector__");
@@ -498,11 +517,11 @@ s390_expand_overloaded_builtin (location_t loc,
 	/* Build a vector type with the alignment of the source
 	   location in order to enable correct alignment hints to be
 	   generated for vl.  */
-	tree mem_type = build_aligned_type (return_type,
-					    TYPE_ALIGN (TREE_TYPE (TREE_TYPE ((*arglist)[1]))));
+	unsigned align = TYPE_ALIGN (TREE_TYPE (TREE_TYPE ((*arglist)[1])));
+	tree mem_type = build_aligned_type (return_type, align);
 	return build2 (MEM_REF, mem_type,
 		       fold_build_pointer_plus ((*arglist)[1], (*arglist)[0]),
-		       build_int_cst (TREE_TYPE ((*arglist)[1]), 0));
+		       build_int_cst (ptr_type_node, 0));
       }
     case S390_OVERLOADED_BUILTIN_s390_vec_xst:
     case S390_OVERLOADED_BUILTIN_s390_vec_xstd2:
@@ -511,11 +530,13 @@ s390_expand_overloaded_builtin (location_t loc,
 	/* Build a vector type with the alignment of the target
 	   location in order to enable correct alignment hints to be
 	   generated for vst.  */
-	tree mem_type = build_aligned_type (TREE_TYPE((*arglist)[0]),
-					    TYPE_ALIGN (TREE_TYPE (TREE_TYPE ((*arglist)[2]))));
+	unsigned align = TYPE_ALIGN (TREE_TYPE (TREE_TYPE ((*arglist)[2])));
+	tree mem_type = build_aligned_type (TREE_TYPE ((*arglist)[0]), align);
 	return build2 (MODIFY_EXPR, mem_type,
-		       build1 (INDIRECT_REF, mem_type,
-			       fold_build_pointer_plus ((*arglist)[2], (*arglist)[1])),
+		       build2 (MEM_REF, mem_type,
+			       fold_build_pointer_plus ((*arglist)[2],
+							(*arglist)[1]),
+			       build_int_cst (ptr_type_node, 0)),
 		       (*arglist)[0]);
       }
     case S390_OVERLOADED_BUILTIN_s390_vec_load_pair:
@@ -685,6 +706,7 @@ s390_adjust_builtin_arglist (unsigned int ob_fcode, tree decl,
 	case S390_OVERLOADED_BUILTIN_s390_vec_sel:
 	case S390_OVERLOADED_BUILTIN_s390_vec_insert:
 	case S390_OVERLOADED_BUILTIN_s390_vec_load_len:
+	case S390_OVERLOADED_BUILTIN_s390_vec_load_len_r:
 	  /* Swap the first to arguments. It is better to do it here
 	     instead of the header file to avoid operand checking
 	     throwing error messages for a weird operand index.  */
@@ -697,6 +719,7 @@ s390_adjust_builtin_arglist (unsigned int ob_fcode, tree decl,
 	    }
 	  break;
 	case S390_OVERLOADED_BUILTIN_s390_vec_store_len:
+	case S390_OVERLOADED_BUILTIN_s390_vec_store_len_r:
 	  if (dest_arg_index == 1 || dest_arg_index == 2)
 	    {
 	      folded_args->quick_push (fully_fold_convert (TREE_VALUE (arg_chain),
@@ -880,9 +903,8 @@ s390_vec_n_elem (tree fndecl)
 /* Return a tree expression for a call to the overloaded builtin
    function OB_FNDECL at LOC with arguments PASSED_ARGLIST.  */
 tree
-s390_resolve_overloaded_builtin (location_t loc,
-				 tree ob_fndecl,
-				 void *passed_arglist)
+s390_resolve_overloaded_builtin (location_t loc, tree ob_fndecl,
+				 void *passed_arglist, bool)
 {
   vec<tree, va_gc> *arglist = static_cast<vec<tree, va_gc> *> (passed_arglist);
   unsigned int in_args_num = vec_safe_length (arglist);
@@ -935,6 +957,12 @@ s390_resolve_overloaded_builtin (location_t loc,
   if (!TARGET_VXE2 && (ob_flags & B_VXE2))
     {
       error_at (loc, "%qF requires z15 or higher", ob_fndecl);
+      return error_mark_node;
+    }
+
+  if (!TARGET_VXE3 && (ob_flags & B_VXE3))
+    {
+      error_at (loc, "%qF requires z17 or higher", ob_fndecl);
       return error_mark_node;
     }
 
@@ -1021,6 +1049,14 @@ s390_resolve_overloaded_builtin (location_t loc,
       && bflags_overloaded_builtin_var[last_match_index] & B_VXE2)
     {
       error_at (loc, "%qs matching variant requires z15 or higher",
+		IDENTIFIER_POINTER (DECL_NAME (ob_fndecl)));
+      return error_mark_node;
+    }
+
+  if (!TARGET_VXE3
+      && bflags_overloaded_builtin_var[last_match_index] & B_VXE3)
+    {
+      error_at (loc, "%qs matching variant requires z17 or higher",
 		IDENTIFIER_POINTER (DECL_NAME (ob_fndecl)));
       return error_mark_node;
     }

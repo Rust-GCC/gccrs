@@ -1,7 +1,7 @@
 // { dg-do compile }
 // 2003-04-07 bkoz
 
-// Copyright (C) 2003-2024 Free Software Foundation, Inc.
+// Copyright (C) 2003-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -19,7 +19,7 @@
 // <http://www.gnu.org/licenses/>.
 
 // 27.7.1 - Template class basic_stringbuf
-// NB: This file is for testing basic_filebuf with NO OTHER INCLUDES.
+// NB: This file is for testing basic_stringbuf with NO OTHER INCLUDES.
 
 #include <sstream>
 #include <testsuite_hooks.h>

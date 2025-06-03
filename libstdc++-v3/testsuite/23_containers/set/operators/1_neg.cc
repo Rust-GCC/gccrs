@@ -1,6 +1,6 @@
 // { dg-do compile }
 
-// Copyright (C) 2000-2024 Free Software Foundation, Inc.
+// Copyright (C) 2000-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,11 +28,10 @@ void test01()
 {
   std::set<unsigned int> setByIndex;
   std::set<std::string> setByName;
-  
-  std::set<unsigned int>::iterator itr(setByIndex.begin());
-  
-  // NB: it's not setByIndex!!
-  test &= itr != setByName.end(); // { dg-error "no" } 
-  test &= itr == setByName.end(); // { dg-error "no" } 
-}
 
+  std::set<unsigned int>::iterator itr(setByIndex.begin());
+
+  // NB: it's not setByIndex!!
+  itr != setByName.end(); // { dg-error "no match" }
+  itr == setByName.end(); // { dg-error "no match" }
+}

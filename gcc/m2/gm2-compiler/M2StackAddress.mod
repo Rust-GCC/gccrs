@@ -1,6 +1,6 @@
 (* M2StackAddress.mod provides a generic stack for ADDRESS sized objects.
 
-Copyright (C) 2001-2024 Free Software Foundation, Inc.
+Copyright (C) 2001-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -157,9 +157,14 @@ BEGIN
             END ;
             DISPOSE(b)
          END ;
-         WITH s^.tail^ DO
-            DEC(items) ;
-            RETURN( bucket[items] )
+         IF s^.tail = NIL
+         THEN
+            InternalError ('stack underflow')
+         ELSE
+            WITH s^.tail^ DO
+               DEC(items) ;
+               RETURN( bucket[items] )
+            END
          END
       END
    END

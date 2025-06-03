@@ -1,6 +1,6 @@
 // <experimental/io_service> -*- C++ -*-
 
-// Copyright (C) 2015-2024 Free Software Foundation, Inc.
+// Copyright (C) 2015-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_EXPERIMENTAL_IO_SERVICE
 #define _GLIBCXX_EXPERIMENTAL_IO_SERVICE 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/requires_hosted.h> // experimental is currently omitted
 
@@ -148,7 +150,7 @@ inline namespace v1
     io_context() : _M_work_count(0) { }
 
     explicit
-    io_context(int __concurrency_hint) : _M_work_count(0) { }
+    io_context(int /* __concurrency_hint */) : _M_work_count(0) { }
 
     io_context(const io_context&) = delete;
     io_context& operator=(const io_context&) = delete;

@@ -1,6 +1,6 @@
 // <unordered_map> -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,7 +29,9 @@
 #ifndef _GLIBCXX_UNORDERED_MAP
 #define _GLIBCXX_UNORDERED_MAP 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/requires_hosted.h> // container
 
@@ -46,6 +48,8 @@
 # include <debug/unordered_map>
 #endif
 
+#define __glibcxx_want_allocator_traits_is_always_equal
+#define __glibcxx_want_containers_ranges
 #define __glibcxx_want_erase_if
 #define __glibcxx_want_generic_unordered_lookup
 #define __glibcxx_want_node_extract

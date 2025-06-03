@@ -1,5 +1,5 @@
 /* Callgraph handling code.
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -121,10 +121,10 @@ public:
       used_from_other_partition (false), in_other_partition (false),
       address_taken (false), in_init_priority_hash (false),
       need_lto_streaming (false), offloadable (false), ifunc_resolver (false),
-      order (false), next_sharing_asm_name (NULL),
+      order (-1), next_sharing_asm_name (NULL),
       previous_sharing_asm_name (NULL), same_comdat_group (NULL), ref_list (),
       alias_target (NULL), lto_file_data (NULL), aux (NULL),
-      x_comdat_group (NULL_TREE), x_section (NULL)
+      x_comdat_group (NULL_TREE), x_section (NULL), m_uid (-1)
   {}
 
   /* Return name.  */
@@ -431,12 +431,16 @@ public:
   /* Return true if ONE and TWO are part of the same COMDAT group.  */
   inline bool in_same_comdat_group_p (symtab_node *target);
 
+  /* Return true if symbol is known to be nonzero, assume that
+     flag_delete_null_pointer_checks is equal to delete_null_pointer_checks.  */
+  bool nonzero_address (bool delete_null_pointer_checks);
+
   /* Return true if symbol is known to be nonzero.  */
   bool nonzero_address ();
 
   /* Return 0 if symbol is known to have different address than S2,
      Return 1 if symbol is known to have same address as S2,
-     return 2 otherwise. 
+     return 2 otherwise.
 
      If MEMORY_ACCESSED is true, assume that both memory pointer to THIS
      and S2 is going to be accessed.  This eliminates the situations when
@@ -479,11 +483,20 @@ public:
      Return NULL if there's no such node.  */
   static symtab_node *get_for_asmname (const_tree asmname);
 
+  /* Check symbol table for callees of IFUNC resolvers.  */
+  static void check_ifunc_callee_symtab_nodes (void);
+
   /* Verify symbol table for internal consistency.  */
   static DEBUG_FUNCTION void verify_symtab_nodes (void);
 
   /* Perform internal consistency checks, if they are enabled.  */
   static inline void checking_verify_symtab_nodes (void);
+
+  /* Get unique identifier of the node.  */
+  inline int get_uid ()
+  {
+    return m_uid;
+  }
 
   /* Type of the symbol.  */
   ENUM_BITFIELD (symtab_type) type : 8;
@@ -661,6 +674,9 @@ protected:
 				      void *data,
 				      bool include_overwrite);
 private:
+  /* Unique id of the node.  */
+  int m_uid;
+
   /* Workers for set_section.  */
   static bool set_section_from_string (symtab_node *n, void *s);
   static bool set_section_from_node (symtab_node *n, void *o);
@@ -875,7 +891,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
   friend class symbol_table;
 
   /* Constructor.  */
-  explicit cgraph_node (int uid)
+  explicit cgraph_node ()
     : symtab_node (SYMTAB_FUNCTION), callees (NULL), callers (NULL),
       indirect_calls (NULL),
       next_sibling_clone (NULL), prev_sibling_clone (NULL), clones (NULL),
@@ -894,9 +910,9 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
       split_part (false), indirect_call_target (false), local (false),
       versionable (false), can_change_signature (false),
       redefined_extern_inline (false), tm_may_enter_irr (false),
-      ipcp_clone (false), declare_variant_alt (false),
-      calls_declare_variant_alt (false), gc_candidate (false),
-      m_uid (uid), m_summary_id (-1)
+      ipcp_clone (false), gc_candidate (false),
+      called_by_ifunc_resolver (false), has_omp_variant_constructs (false),
+      m_summary_id (-1)
   {}
 
   /* Remove the node from cgraph and all inline clones inlined into it.
@@ -919,7 +935,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
 
   /* Walk the alias chain to return the function cgraph_node is alias of.
      Walk through thunk, too.
-     When AVAILABILITY is non-NULL, get minimal availability in the chain. 
+     When AVAILABILITY is non-NULL, get minimal availability in the chain.
      When REF is non-NULL, assume that reference happens in symbol REF
      when determining the availability.  */
   cgraph_node *function_symbol (enum availability *avail = NULL,
@@ -928,7 +944,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
   /* Walk the alias chain to return the function cgraph_node is alias of.
      Walk through non virtual thunks, too.  Thus we return either a function
      or a virtual thunk node.
-     When AVAILABILITY is non-NULL, get minimal availability in the chain.  
+     When AVAILABILITY is non-NULL, get minimal availability in the chain.
      When REF is non-NULL, assume that reference happens in symbol REF
      when determining the availability.  */
   cgraph_node *function_or_virtual_thunk_symbol
@@ -1093,7 +1109,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
      present.  */
   bool get_untransformed_body ();
 
-  /* Prepare function body.  When doing LTO, read cgraph_node's body from disk 
+  /* Prepare function body.  When doing LTO, read cgraph_node's body from disk
      if it is not already present.  When some IPA transformations are scheduled,
      apply them.  */
   bool get_body ();
@@ -1176,7 +1192,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
 
     When setting the flag be careful about possible interposition and
     do not set the flag for functions that can be interposed and set pure
-    flag for functions that can bind to other definition. 
+    flag for functions that can bind to other definition.
 
     Return true if any change was done. */
 
@@ -1252,7 +1268,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
      all uses of COMDAT function does not make it necessarily disappear from
      the program unless we are compiling whole program or we do LTO.  In this
      case we know we win since dynamic linking will not really discard the
-     linkonce section.  
+     linkonce section.
 
      If WILL_INLINE is true, assume that function will be inlined into all the
      direct calls.  */
@@ -1265,7 +1281,7 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
   bool can_remove_if_no_direct_calls_and_refs_p (void);
 
   /* Return true when function cgraph_node and its aliases can be removed from
-     callgraph if all direct calls are eliminated. 
+     callgraph if all direct calls are eliminated.
      If WILL_INLINE is true, assume that function will be inlined into all the
      direct calls.  */
   bool can_remove_if_no_direct_calls_p (bool will_inline = false);
@@ -1295,12 +1311,6 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
   void debug_cgraph (void)
   {
     dump_cgraph (stderr);
-  }
-
-  /* Get unique identifier of the node.  */
-  inline int get_uid ()
-  {
-    return m_uid;
   }
 
   /* Get summary id of the node.  */
@@ -1486,19 +1496,16 @@ struct GTY((tag ("SYMTAB_FUNCTION"))) cgraph_node : public symtab_node
   unsigned tm_may_enter_irr : 1;
   /* True if this was a clone created by ipa-cp.  */
   unsigned ipcp_clone : 1;
-  /* True if this is the deferred declare variant resolution artificial
-     function.  */
-  unsigned declare_variant_alt : 1;
-  /* True if the function calls declare_variant_alt functions.  */
-  unsigned calls_declare_variant_alt : 1;
   /* True if the function should only be emitted if it is used.  This flag
      is set for local SIMD clones when they are created and cleared if the
      vectorizer uses them.  */
   unsigned gc_candidate : 1;
+  /* Set if the function is called by an IFUNC resolver.  */
+  unsigned called_by_ifunc_resolver : 1;
+  /* True if the function contains unresolved OpenMP metadirectives.  */
+  unsigned has_omp_variant_constructs : 1;
 
 private:
-  /* Unique id of the node.  */
-  int m_uid;
 
   /* Summary id that is recycled.  */
   int m_summary_id;
@@ -2223,7 +2230,7 @@ public:
   friend struct cgraph_node;
   friend struct cgraph_edge;
 
-  symbol_table (): 
+  symbol_table ():
   cgraph_count (0), cgraph_max_uid (1), cgraph_max_summary_id (0),
   edges_count (0), edges_max_uid (1), edges_max_summary_id (0),
   cgraph_released_summary_ids (), edge_released_summary_ids (),
@@ -2620,6 +2627,7 @@ void tree_function_versioning (tree, tree, vec<ipa_replace_map *, va_gc> *,
 void dump_callgraph_transformation (const cgraph_node *original,
 				    const cgraph_node *clone,
 				    const char *suffix);
+void set_new_clone_decl_and_node_flags (cgraph_node *new_node);
 /* In cgraphbuild.cc  */
 int compute_call_stmt_bb_frequency (tree, basic_block bb);
 void record_references_in_initializer (tree, bool);
@@ -2809,7 +2817,10 @@ symbol_table::register_symbol (symtab_node *node)
     nodes->previous = node;
   nodes = node;
 
-  node->order = order++;
+  nodes->m_uid = cgraph_max_uid++;
+
+  if (node->order == -1)
+    node->order = order++;
 }
 
 /* Register a top-level asm statement ASM_STR.  */

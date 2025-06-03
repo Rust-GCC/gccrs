@@ -1,6 +1,6 @@
 /* plugin-api.h -- External linker plugin API.  */
 
-/* Copyright (C) 2009-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Written by Cary Coutant <ccoutant@google.com>.
 
    This file is part of binutils.
@@ -599,7 +599,7 @@ struct ld_plugin_tv
     ld_plugin_get_input_section_contents tv_get_input_section_contents;
     ld_plugin_update_section_order tv_update_section_order;
     ld_plugin_allow_section_ordering tv_allow_section_ordering;
-    ld_plugin_allow_unique_segment_for_sections tv_allow_unique_segment_for_sections; 
+    ld_plugin_allow_unique_segment_for_sections tv_allow_unique_segment_for_sections;
     ld_plugin_unique_segment_for_sections tv_unique_segment_for_sections;
     ld_plugin_get_input_section_alignment tv_get_input_section_alignment;
     ld_plugin_get_input_section_size tv_get_input_section_size;

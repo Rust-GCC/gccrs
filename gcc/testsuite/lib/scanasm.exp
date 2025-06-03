@@ -1,4 +1,4 @@
-# Copyright (C) 2000-2024 Free Software Foundation, Inc.
+# Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -869,15 +869,15 @@ proc configure_check-function-bodies { config } {
     # Regexp for the start of a function definition (name in \1).
     if { [istarget nvptx*-*-*] } {
 	set up_config(start) {
-	    {^// BEGIN(?: GLOBAL|) FUNCTION DEF: ([a-zA-Z_]\S+)$}
+	    {^// BEGIN(?: GLOBAL|) FUNCTION DEF: ([a-zA-Z_]\S*)$}
 	}
     } elseif { [istarget *-*-darwin*] } {
 	set up_config(start) {
-	    {^_([a-zA-Z_]\S+):$}
+	    {^_([a-zA-Z_]\S*):$}
 	    {^LFB[0-9]+:}
 	}
     } else {
-	set up_config(start) {{^([a-zA-Z_]\S+):$}}
+	set up_config(start) {{^([a-zA-Z_]\S*):$}}
     }
 
     # Regexp for the end of a function definition.
@@ -895,7 +895,7 @@ proc configure_check-function-bodies { config } {
 	# example).
 	set up_config(fluff) {^\s*(?://)}
     } elseif { [istarget *-*-darwin*] } {
-	set up_config(fluff) {^\s*(?:\.|//|@)|^L[0-9ACESV]}
+	set up_config(fluff) {^\s*(?:\.|//|@)|^L[0-9ABCESV]}
     } else {
 	# Skip lines beginning with labels ('.L[...]:') or other directives
 	# ('.align', '.cfi_startproc', '.quad [...]', '.text', etc.), '//' or
@@ -952,6 +952,9 @@ proc parse_function_bodies { config filename result } {
 		verbose "parse_function_bodies: $function_name:\n$function_body"
 		set up_result($function_name) $function_body
 		set in_function 0
+	    } elseif { $up_config(matched) ne "" \
+		       && [regexp $up_config(matched) $line] } {
+		append function_body $line "\n"
 	    } elseif { [regexp $up_config(fluff) $line] } {
 		verbose "parse_function_bodies: $function_name: ignoring fluff line: $line"
 	    } else {
@@ -982,7 +985,7 @@ proc check_function_body { functions name body_regexp } {
 
 # Check the implementations of functions against expected output.  Used as:
 #
-# { dg-do { check-function-bodies PREFIX TERMINATOR[ OPTION[ SELECTOR]] } }
+# { dg-final { check-function-bodies PREFIX TERMINATOR[ OPTION[ SELECTOR [MATCHED]]] } }
 #
 # See sourcebuild.texi for details.
 
@@ -990,20 +993,21 @@ proc check-function-bodies { args } {
     if { [llength $args] < 2 } {
 	error "too few arguments to check-function-bodies"
     }
-    if { [llength $args] > 4 } {
+    if { [llength $args] > 5 } {
 	error "too many arguments to check-function-bodies"
+    }
+
+    upvar 2 dg-extra-tool-flags extra_tool_flags
+    set flags $extra_tool_flags
+
+    global torture_current_flags
+    if { [info exists torture_current_flags] } {
+	append flags " " $torture_current_flags
     }
 
     if { [llength $args] >= 3 } {
 	set required_flags [lindex $args 2]
 
-	upvar 2 dg-extra-tool-flags extra_tool_flags
-	set flags $extra_tool_flags
-
-	global torture_current_flags
-	if { [info exists torture_current_flags] } {
-	    append flags " " $torture_current_flags
-	}
 	foreach required_flag $required_flags {
 	    switch -- $required_flag {
 		target -
@@ -1029,13 +1033,25 @@ proc check-function-bodies { args } {
 	}
     }
 
+    set matched ""
+    if { [llength $args] >= 5 } {
+	set matched [lindex $args 4]
+    }
+
     set testcase [testname-for-summary]
     # The name might include a list of options; extract the file name.
     set filename [lindex $testcase 0]
 
     global srcdir
     set input_filename "$srcdir/$filename"
-    set output_filename "[file rootname [file tail $filename]].s"
+    set output_filename "[file rootname [file tail $filename]]"
+    if { [string match "* -flto *" " ${flags} "]
+	 && ![string match "* -fno-use-linker-plugin *" " ${flags} "]
+	 && ![string match "* -ffat-lto-objects *" " ${flags} "] } {
+	append output_filename ".ltrans0.ltrans.s"
+    } else {
+	append output_filename ".s"
+    }
 
     set prefix [lindex $args 0]
     set prefix_len [string length $prefix]
@@ -1048,6 +1064,7 @@ proc check-function-bodies { args } {
     # (name in \1).  This may be different from '$config(start)'.
     set start_expected {^(\S+):$}
 
+    set config(matched) $matched
     configure_check-function-bodies config
     set have_bodies 0
     if { [is_remote host] } {
@@ -1090,6 +1107,8 @@ proc check-function-bodies { args } {
 		append function_regexp ")"
 	    } elseif { [string equal $line "..."] } {
 		append function_regexp ".*"
+	    } elseif { [regexp {^\.L} $line] } {
+		append function_regexp $line "\n"
 	    } else {
 		append function_regexp $config(line_prefix) $line "\n"
 	    }

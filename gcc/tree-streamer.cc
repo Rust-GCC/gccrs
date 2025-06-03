@@ -1,7 +1,7 @@
 /* Miscellaneous utilities for tree streaming.  Things that are used
    in both input and output are here.
 
-   Copyright (C) 2011-2024 Free Software Foundation, Inc.
+   Copyright (C) 2011-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
@@ -60,6 +60,7 @@ streamer_check_handled_ts_structures (void)
   handled_p[TS_FIXED_CST] = true;
   handled_p[TS_VECTOR] = true;
   handled_p[TS_STRING] = true;
+  handled_p[TS_RAW_DATA_CST] = true;
   handled_p[TS_COMPLEX] = true;
   handled_p[TS_IDENTIFIER] = true;
   handled_p[TS_DECL_MINIMAL] = true;

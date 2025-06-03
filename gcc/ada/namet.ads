@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -422,6 +422,9 @@ package Namet is
    procedure Unlock;
    --  Unlocks the name table to allow use of the extra space reserved by the
    --  call to Lock. See gnat1drv for details of the need for this.
+
+   procedure Unlock_If_Locked;
+   --  If the name table is locked, calls Unlock. Otherwise, does nothing.
 
    procedure Write_Name (Id : Valid_Name_Id);
    --  Write_Name writes the characters of the specified name using the

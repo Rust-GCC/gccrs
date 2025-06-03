@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -613,7 +613,7 @@ maybe_warn_nodiscard (tree expr, impl_conv_void implicit)
       if (args)
 	msg.escape (TREE_STRING_POINTER (TREE_VALUE (args)));
       const char *format
-	= (msg ? G_ ("ignoring return value of %qD, that must be used: %<%s%>")
+	= (msg ? G_ ("ignoring return value of %qD, that must be used: %qs")
 	       : G_ ("ignoring return value of %qD, that must be used"));
       const char *raw_msg = msg ? (const char *) msg : "";
       auto_diagnostic_group d;
@@ -630,7 +630,7 @@ maybe_warn_nodiscard (tree expr, impl_conv_void implicit)
 	msg.escape (TREE_STRING_POINTER (TREE_VALUE (args)));
       const char *format
 	= (msg ? G_ (
-	     "ignoring returned value of type %qT, that must be used: %<%s%>")
+	     "ignoring returned value of type %qT, that must be used: %qs")
 	       : G_ ("ignoring returned value of type %qT, that must be used"));
       const char *raw_msg = msg ? (const char *) msg : "";
       auto_diagnostic_group d;
@@ -857,19 +857,6 @@ is_empty_class (tree type)
     return 0;
 
   return CLASSTYPE_EMPTY_P (type);
-}
-
-// forked from gcc/cp/tree.cc array_type_nelts_top
-
-/* Return, as an INTEGER_CST node, the number of elements for TYPE
-   (which is an ARRAY_TYPE).  This counts only elements of the top
-   array.  */
-
-tree
-array_type_nelts_top (tree type)
-{
-  return fold_build2_loc (input_location, PLUS_EXPR, sizetype,
-			  array_type_nelts (type), size_one_node);
 }
 
 // forked from gcc/cp/tree.cc builtin_valid_in_constant_expr_p

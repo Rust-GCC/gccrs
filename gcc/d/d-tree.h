@@ -1,5 +1,5 @@
 /* d-tree.h -- Definitions and declarations for code generation.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -534,7 +534,8 @@ extern Expression *d_eval_constant_expression (const Loc &, tree);
 extern void d_init_versions (void);
 
 /* In d-codegen.cc.  */
-extern location_t make_location_t (const Loc &);
+extern location_t make_location_t (const SourceLoc &);
+extern location_t make_location_t (const Loc);
 extern tree d_decl_context (Dsymbol *);
 extern tree copy_aggregate_type (tree);
 extern bool declaration_reference_p (Declaration *);
@@ -574,6 +575,7 @@ extern tree build_struct_comparison (tree_code, StructDeclaration *,
 extern tree build_array_struct_comparison (tree_code, StructDeclaration *,
 					   tree, tree, tree);
 extern tree build_struct_literal (tree, vec <constructor_elt, va_gc> *);
+extern tree build_padded_constructor (tree, vec <constructor_elt, va_gc> *);
 extern tree component_ref (tree, tree);
 extern tree build_assign (tree_code, tree, tree);
 extern tree modify_expr (tree, tree);
@@ -703,11 +705,10 @@ extern tree get_classinfo_decl (ClassDeclaration *);
 extern void check_typeinfo_type (const Loc &, Scope *, Expression * = NULL);
 extern tree build_typeinfo (const Loc &, Type *, Expression * = NULL);
 extern tree build_typeinfo (Expression *, Type *);
-extern void create_typeinfo (Type *, Module *, bool = true);
+extern void create_typeinfo (Type *, Scope *);
 extern void create_tinfo_types (Module *);
 extern void layout_cpp_typeinfo (ClassDeclaration *);
 extern tree get_cpp_typeinfo_decl (ClassDeclaration *);
-extern bool speculative_type_p (Type *);
 
 /* In toir.cc.  */
 extern void push_binding_level (level_kind);

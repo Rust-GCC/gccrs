@@ -935,7 +935,8 @@ Parameters for the generator.
    `Exception` if the InputRange didn't provide enough elements to seed the generator.
    The number of elements required is the 'n' template parameter of the MersenneTwisterEngine struct.
  */
-    void seed(T)(T range) if (isInputRange!T && is(immutable ElementType!T == immutable UIntType))
+    void seed(T)(T range)
+    if (isInputRange!T && is(immutable ElementType!T == immutable UIntType))
     {
         this.seedImpl(range, this.state);
     }
@@ -945,7 +946,7 @@ Parameters for the generator.
        which can be used with an arbitrary `State` instance
     */
     private static void seedImpl(T)(T range, ref State mtState)
-        if (isInputRange!T && is(immutable ElementType!T == immutable UIntType))
+    if (isInputRange!T && is(immutable ElementType!T == immutable UIntType))
     {
         size_t j;
         for (j = 0; j < n && !range.empty; ++j, range.popFront())
@@ -1771,10 +1772,103 @@ else
     }
 }
 
+version (linux)
+{
+    version (linux_legacy_emulate_getrandom)
+    {
+        /+
+            Emulates `getrandom()` for backwards compatibility
+            with outdated kernels and legacy libc versions.
+
+            `getrandom()` was added to the GNU C Library in v2.25.
+         +/
+        pragma(msg, "`getrandom()` emulation for legacy Linux targets is enabled.");
+
+        /+
+            On modern kernels (5.6+), `/dev/random` would behave more similar
+            to `getrandom()`.
+            However, this emulator was specifically written for systems older
+            than that. Hence, `/dev/urandom` is the CSPRNG of choice.
+
+            <https://web.archive.org/web/20200914181930/https://www.2uo.de/myths-about-urandom/>
+         +/
+        private static immutable _pathLinuxSystemCSPRNG = "/dev/urandom";
+
+        import core.sys.posix.sys.types : ssize_t;
+
+        /+
+            Linux `getrandom()` emulation built upon `/dev/urandom`.
+            The fourth parameter (`uint flags`) is happily ignored.
+         +/
+        private ssize_t getrandom(
+                void* buf,
+                size_t buflen,
+                uint,
+        ) @system nothrow @nogc
+        {
+            import core.stdc.stdio : fclose, fopen, fread;
+
+            auto blockDev = fopen(_pathLinuxSystemCSPRNG.ptr, "r");
+            if (blockDev is null)
+                assert(false, "System CSPRNG unavailable: `fopen(\"" ~ _pathLinuxSystemCSPRNG ~ "\")` failed.");
+            scope (exit) fclose(blockDev);
+
+            const bytesRead = fread(buf, 1, buflen, blockDev);
+            return bytesRead;
+        }
+    }
+    else
+    {
+        // `getrandom()` was introduced in Linux 3.17.
+
+        // Shim for missing bindings in druntime
+        version (none)
+            import core.sys.linux.sys.random : getrandom;
+        else
+        {
+            import core.sys.posix.sys.types : ssize_t;
+            private extern extern(C) ssize_t getrandom(
+                void* buf,
+                size_t buflen,
+                uint flags,
+            ) @system nothrow @nogc;
+        }
+    }
+}
+
+version (Windows)
+{
+    import std.internal.windows.bcrypt : bcryptGenRandom;
+}
+
 /**
 A "good" seed for initializing random number engines. Initializing
 with $(D_PARAM unpredictableSeed) makes engines generate different
 random number sequences every run.
+
+This function utilizes the system $(I cryptographically-secure pseudo-random
+number generator (CSPRNG)) or $(I pseudo-random number generator (PRNG))
+where available and implemented (currently `arc4random` on applicable BSD
+systems, `getrandom` on Linux or `BCryptGenRandom` on Windows) to generate
+“high quality” pseudo-random numbers – if possible.
+As a consequence, calling it may block under certain circumstances (typically
+during early boot when the system's entropy pool has not yet been
+initialized).
+
+On x86 CPU models which support the `RDRAND` instruction, that will be used
+when no more specialized randomness source is implemented.
+
+In the future, further platform-specific PRNGs may be incorporated.
+
+Warning:
+$(B This function must not be used for cryptographic purposes.)
+Despite being implemented for certain targets, there are no guarantees
+that it sources its randomness from a CSPRNG.
+The implementation also includes a fallback option that provides very little
+randomness and is used when no better source of randomness is available or
+integrated on the target system.
+As written earlier, this function only aims to provide randomness for seeding
+ordinary (non-cryptographic) PRNG engines.
 
 Returns:
 A single unsigned integer seed value, different on each successive call
@@ -1787,7 +1881,37 @@ how excellent the source of entropy is.
 */
 @property uint unpredictableSeed() @trusted nothrow @nogc
 {
-    version (AnyARC4Random)
+    version (linux)
+    {
+        uint buffer;
+
+        /*
+            getrandom(2):
+            If the _urandom_ source has been initialized, reads of up to
+            256 bytes will always return as many bytes as requested and
+            will not be interrupted by signals. No such guarantees apply
+            for larger buffer sizes.
+            */
+        static assert(buffer.sizeof <= 256);
+
+        const status = (() @trusted => getrandom(&buffer, buffer.sizeof, 0))();
+        assert(status == buffer.sizeof);
+
+        return buffer;
+    }
+    else version (Windows)
+    {
+        uint result;
+        if (!bcryptGenRandom!uint(result))
+        {
+            version (none)
+                return fallbackSeed();
+            else
+                assert(false, "BCryptGenRandom() failed.");
+        }
+        return result;
+    }
+    else version (AnyARC4Random)
     {
         return arc4random();
     }
@@ -1836,7 +1960,37 @@ if (isUnsigned!UIntType)
         /// ditto
         @property UIntType unpredictableSeed() @nogc nothrow @trusted
         {
-            version (AnyARC4Random)
+            version (linux)
+            {
+                UIntType buffer;
+
+                /*
+                    getrandom(2):
+                    If the _urandom_ source has been initialized, reads of up to
+                    256 bytes will always return as many bytes as requested and
+                    will not be interrupted by signals. No such guarantees apply
+                    for larger buffer sizes.
+                 */
+                static assert(buffer.sizeof <= 256);
+
+                const status = (() @trusted => getrandom(&buffer, buffer.sizeof, 0))();
+                assert(status == buffer.sizeof);
+
+                return buffer;
+            }
+            else version (Windows)
+            {
+                UIntType result;
+                if (!bcryptGenRandom!UIntType(result))
+                {
+                    version (none)
+                        return fallbackSeed();
+                    else
+                        assert(false, "BCryptGenRandom() failed.");
+                }
+                return result;
+            }
+            else version (AnyARC4Random)
             {
                 static if (UIntType.sizeof <= uint.sizeof)
                 {
@@ -2215,6 +2369,7 @@ at least that number won't be represented fairly.
 Hence, our condition to reroll is
 `bucketFront > (UpperType.max - (upperDist - 1))`
 +/
+/// ditto
 auto uniform(string boundaries = "[)", T1, T2, RandomGen)
 (T1 a, T2 b, ref RandomGen rng)
 if ((isIntegral!(CommonType!(T1, T2)) || isSomeChar!(CommonType!(T1, T2))) &&
@@ -2277,9 +2432,14 @@ if ((isIntegral!(CommonType!(T1, T2)) || isSomeChar!(CommonType!(T1, T2))) &&
     return cast(ResultType)(lower + offset);
 }
 
+///
 @safe unittest
 {
     import std.conv : to;
+    import std.meta : AliasSeq;
+    import std.range.primitives : isForwardRange;
+    import std.traits : isIntegral, isSomeChar;
+
     auto gen = Mt19937(123_456_789);
     static assert(isForwardRange!(typeof(gen)));
 
@@ -2290,7 +2450,7 @@ if ((isIntegral!(CommonType!(T1, T2)) || isSomeChar!(CommonType!(T1, T2))) &&
     auto c = uniform(0.0, 1.0);
     assert(0 <= c && c < 1);
 
-    static foreach (T; std.meta.AliasSeq!(char, wchar, dchar, byte, ubyte, short, ushort,
+    static foreach (T; AliasSeq!(char, wchar, dchar, byte, ubyte, short, ushort,
                           int, uint, long, ulong, float, double, real))
     {{
         T lo = 0, hi = 100;
@@ -2344,7 +2504,7 @@ if ((isIntegral!(CommonType!(T1, T2)) || isSomeChar!(CommonType!(T1, T2))) &&
 
     auto reproRng = Xorshift(239842);
 
-    static foreach (T; std.meta.AliasSeq!(char, wchar, dchar, byte, ubyte, short,
+    static foreach (T; AliasSeq!(char, wchar, dchar, byte, ubyte, short,
                           ushort, int, uint, long, ulong))
     {{
         T lo = T.min + 10, hi = T.max - 10;

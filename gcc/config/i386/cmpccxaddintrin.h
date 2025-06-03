@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -72,11 +72,11 @@ _cmpccxadd_epi64 (long long *__A, long long __B, long long __C,
 }
 #else
 #define _cmpccxadd_epi32(A,B,C,D) \
-  __builtin_ia32_cmpccxadd ((int *) (A), (int) (B), (int) (C), \
+  __builtin_ia32_cmpccxadd ((A), (int) (B), (int) (C), \
 			    (_CMPCCX_ENUM) (D))
 #define _cmpccxadd_epi64(A,B,C,D) \
-  __builtin_ia32_cmpccxadd64 ((long long *) (A), (long long) (B), \
-			      (long long) (C), (_CMPCCX_ENUM) (D))
+  __builtin_ia32_cmpccxadd64 ((A), (long long) (B), (long long) (C), \
+			      (_CMPCCX_ENUM) (D))
 #endif
 
 #ifdef __DISABLE_CMPCCXADD__

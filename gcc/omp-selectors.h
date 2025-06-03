@@ -2,7 +2,7 @@
    from omp-general.h so that it may also be used in the Fortran parser
    without reference to tree data structures.
 
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -47,6 +47,7 @@ enum omp_ts_code {
   OMP_TRAIT_IMPLEMENTATION_REQUIRES,
   OMP_TRAIT_IMPLEMENTATION_UNIFIED_ADDRESS,
   OMP_TRAIT_IMPLEMENTATION_UNIFIED_SHARED_MEMORY,
+  OMP_TRAIT_IMPLEMENTATION_SELF_MAPS,
   OMP_TRAIT_IMPLEMENTATION_DYNAMIC_ALLOCATORS,
   OMP_TRAIT_IMPLEMENTATION_REVERSE_OFFLOAD,
   OMP_TRAIT_USER_CONDITION,
@@ -55,6 +56,7 @@ enum omp_ts_code {
   OMP_TRAIT_CONSTRUCT_PARALLEL,
   OMP_TRAIT_CONSTRUCT_FOR,
   OMP_TRAIT_CONSTRUCT_SIMD,
+  OMP_TRAIT_CONSTRUCT_DISPATCH,
   OMP_TRAIT_LAST,
   OMP_TRAIT_INVALID = -1
 };

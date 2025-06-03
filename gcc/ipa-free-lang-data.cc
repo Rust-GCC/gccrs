@@ -1,7 +1,7 @@
 /* Pass to free or clear language-specific data structures from
    the IL before they reach the middle end.
 
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -150,7 +150,12 @@ fld_type_variant (tree first, tree t, class free_lang_data_d *fld,
     return t;
   for (tree v = first; v; v = TYPE_NEXT_VARIANT (v))
     if (fld_type_variant_equal_p (t, v, inner_type))
-      return v;
+      {
+	if (flag_checking)
+	  for (tree v2 = TYPE_NEXT_VARIANT (v); v2; v2 = TYPE_NEXT_VARIANT (v2))
+	    gcc_assert (!fld_type_variant_equal_p (t, v2, inner_type));
+	return v;
+      }
   tree v = build_variant_type_copy (first);
   TYPE_READONLY (v) = TYPE_READONLY (t);
   TYPE_VOLATILE (v) = TYPE_VOLATILE (t);
@@ -234,7 +239,7 @@ fld_decl_context (tree ctx)
   return ctx;
 }
 
-/* For T being aggregate type try to turn it into a incomplete variant.
+/* For T being aggregate type try to turn it into an incomplete variant.
    Return T if no simplification is possible.  */
 
 static tree
@@ -436,9 +441,7 @@ free_lang_data_in_type (tree type, class free_lang_data_d *fld)
 	 different front ends.  */
       for (tree p = TYPE_ARG_TYPES (type); p; p = TREE_CHAIN (p))
 	{
-	  TREE_VALUE (p) = fld_simplified_type (TREE_VALUE (p), fld);
 	  tree arg_type = TREE_VALUE (p);
-
 	  if (TYPE_READONLY (arg_type) || TYPE_VOLATILE (arg_type))
 	    {
 	      int quals = TYPE_QUALS (arg_type)
@@ -448,6 +451,7 @@ free_lang_data_in_type (tree type, class free_lang_data_d *fld)
 	      if (!fld->pset.add (TREE_VALUE (p)))
 		free_lang_data_in_type (TREE_VALUE (p), fld);
 	    }
+	  TREE_VALUE (p) = fld_simplified_type (TREE_VALUE (p), fld);
 	  /* C++ FE uses TREE_PURPOSE to store initial values.  */
 	  TREE_PURPOSE (p) = NULL;
 	}
@@ -575,7 +579,7 @@ free_lang_data_in_decl (tree decl, class free_lang_data_d *fld)
       if (!(node = cgraph_node::get (decl))
 	  || (!node->definition && !node->clones))
 	{
-	  if (node && !node->declare_variant_alt)
+	  if (node)
 	    node->release_body ();
 	  else
 	    {
@@ -841,6 +845,20 @@ find_decls_types_r (tree *tp, int *ws, void *data)
       for (tree tem = BLOCK_SUBBLOCKS (t); tem; tem = BLOCK_CHAIN (tem))
 	fld_worklist_push (tem, fld);
       fld_worklist_push (BLOCK_ABSTRACT_ORIGIN (t), fld);
+    }
+  /* walk_tree does not visit ce->index which can be a FIELD_DECL, pulling
+     in otherwise unused structure fields so handle CTORs explicitly.  */
+  else if (TREE_CODE (t) == CONSTRUCTOR)
+    {
+      unsigned HOST_WIDE_INT idx;
+      constructor_elt *ce;
+      for (idx = 0; vec_safe_iterate (CONSTRUCTOR_ELTS (t), idx, &ce); idx++)
+	{
+	  if (ce->index)
+	    fld_worklist_push (ce->index, fld);
+	  fld_worklist_push (ce->value, fld);
+	}
+      *ws = 0;
     }
 
   if (TREE_CODE (t) != IDENTIFIER_NODE

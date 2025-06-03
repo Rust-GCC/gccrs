@@ -1,5 +1,5 @@
 /* Definitions for SPARC running Linux-based GNU systems with ELF.
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
    Contributed by Eddie C. Dost (ecd@skynet.be)
 
 This file is part of GCC.
@@ -56,13 +56,13 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 
 #undef SIZE_TYPE
 #define SIZE_TYPE "unsigned int"
- 
+
 #undef PTRDIFF_TYPE
 #define PTRDIFF_TYPE "int"
-  
+
 #undef WCHAR_TYPE
 #define WCHAR_TYPE "int"
-   
+
 #undef WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 
@@ -115,7 +115,7 @@ do {									\
 
 /* Define for support of TFmode long double.
    SPARC ABI says that long double is 4 words.  */
-#define LONG_DOUBLE_TYPE_SIZE (TARGET_LONG_DOUBLE_128 ? 128 : 64)
+#define SPARC_LONG_DOUBLE_TYPE_SIZE (TARGET_LONG_DOUBLE_128 ? 128 : 64)
 
 #undef DITF_CONVERSION_LIBFUNCS
 #define DITF_CONVERSION_LIBFUNCS 1

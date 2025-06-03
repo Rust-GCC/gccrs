@@ -1,4 +1,4 @@
-/* Copyright (C) 2011-2024 by The D Language Foundation, All Rights Reserved
+/* Copyright (C) 2011-2025 by The D Language Foundation, All Rights Reserved
  * written by Walter Bright
  * https://www.digitalmars.com
  * Distributed under the Boost Software License, Version 1.0.
@@ -15,7 +15,7 @@ struct BitArray
 {
     BitArray()
       : len(0)
-      , ptr(NULL)
+      , ptr(nullptr)
     {}
 
     ~BitArray()

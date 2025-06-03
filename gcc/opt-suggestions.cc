@@ -1,6 +1,6 @@
 /* Provide option suggestion for --complete option and a misspelled
    used by a user.
-   Copyright (C) 2016-2024 Free Software Foundation, Inc.
+   Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -167,9 +167,9 @@ option_proposer::build_option_suggestions (const char *prefix)
 	    add_misspelling_candidates (m_option_suggestions, option,
 					opt_text);
 
+	    struct cl_option optb;
 	    for (int j = 0; sanitizer_opts[j].name != NULL; ++j)
 	      {
-		struct cl_option optb;
 		/* -fsanitize=all is not valid, only -fno-sanitize=all.
 		   So don't register the positive misspelling candidates
 		   for it.  */

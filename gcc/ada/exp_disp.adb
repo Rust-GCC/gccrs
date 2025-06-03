@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -70,6 +70,7 @@ with Stringt;        use Stringt;
 with Strub;          use Strub;
 with SCIL_LL;        use SCIL_LL;
 with Tbuild;         use Tbuild;
+with Ttypes;         use Ttypes;
 
 package body Exp_Disp is
 
@@ -416,10 +417,10 @@ package body Exp_Disp is
                Build_Dispatch_Tables (Declarations (D));
 
             elsif Nkind (D) = N_Package_Body_Stub
-              and then Present (Library_Unit (D))
+              and then Present (Stub_Subunit (D))
             then
                Build_Dispatch_Tables
-                 (Declarations (Proper_Body (Unit (Library_Unit (D)))));
+                 (Declarations (Proper_Body (Unit (Stub_Subunit (D)))));
 
             --  Handle full type declarations and derivations of library level
             --  tagged types
@@ -1524,10 +1525,8 @@ package body Exp_Disp is
                 Defining_Identifier => Make_Temporary (Loc, 'T'),
                 Type_Definition =>
                   Make_Access_To_Object_Definition (Loc,
-                    All_Present            => True,
-                    Null_Exclusion_Present => False,
-                    Constant_Present       => False,
-                    Subtype_Indication     =>
+                    All_Present        => True,
+                    Subtype_Indication =>
                       New_Occurrence_Of (Desig_Typ, Loc)));
 
             Stats := New_List (
@@ -1973,7 +1972,6 @@ package body Exp_Disp is
                   Make_Access_To_Object_Definition (Loc,
                     All_Present            => True,
                     Null_Exclusion_Present => False,
-                    Constant_Present       => False,
                     Subtype_Indication     =>
                       New_Occurrence_Of (Ftyp, Loc)));
 
@@ -4598,10 +4596,15 @@ package body Exp_Disp is
       --    (2) External_Tag (combined with Internal_Tag) is used for object
       --        streaming and No_Tagged_Streams inhibits the generation of
       --        streams.
+      --  Instead of No_Tagged_Streams, which applies either to a single
+      --  type or to a declarative region, it is possible to use restriction
+      --  No_Streams, which prevents stream objects from being created in the
+      --  entire partition.
 
       Discard_Names : constant Boolean :=
-                        Present (No_Tagged_Streams_Pragma (Typ))
-                          and then
+        (Present (No_Tagged_Streams_Pragma (Typ))
+           or else Restriction_Active (No_Streams))
+          and then
         (Global_Discard_Names or else Einfo.Entities.Discard_Names (Typ));
 
       --  The following name entries are used by Make_DT to generate a number
@@ -4644,7 +4647,6 @@ package body Exp_Disp is
       Name_ITable        : Name_Id;
       Nb_Prim            : Nat := 0;
       New_Node           : Node_Id;
-      Num_Ifaces         : Nat := 0;
       Parent_Typ         : Entity_Id;
       Predef_Prims       : Entity_Id;
       Prim               : Entity_Id;
@@ -4917,7 +4919,7 @@ package body Exp_Disp is
       if not Building_Static_DT (Typ) then
 
          --  Generate:
-         --    DT     : No_Dispatch_Table_Wrapper;
+         --    DT     : aliased No_Dispatch_Table_Wrapper;
          --    DT_Ptr : Tag := !Tag (DT.NDT_Prims_Ptr'Address);
 
          if not Has_DT (Typ) then
@@ -4925,7 +4927,6 @@ package body Exp_Disp is
               Make_Object_Declaration (Loc,
                 Defining_Identifier => DT,
                 Aliased_Present     => True,
-                Constant_Present    => False,
                 Object_Definition   =>
                   New_Occurrence_Of
                     (RTE (RE_No_Dispatch_Table_Wrapper), Loc)));
@@ -4968,7 +4969,7 @@ package body Exp_Disp is
             end if;
 
          --  Generate:
-         --    DT : Dispatch_Table_Wrapper (Nb_Prim);
+         --    DT : aliased Dispatch_Table_Wrapper (Nb_Prim);
          --    DT_Ptr : Tag := !Tag (DT.Prims_Ptr'Address);
 
          else
@@ -4987,7 +4988,6 @@ package body Exp_Disp is
               Make_Object_Declaration (Loc,
                 Defining_Identifier => DT,
                 Aliased_Present     => True,
-                Constant_Present    => False,
                 Object_Definition   =>
                   Make_Subtype_Indication (Loc,
                     Subtype_Mark =>
@@ -5212,8 +5212,10 @@ package body Exp_Disp is
                             Chars => New_External_Name (Tname, 'A'));
             Full_Name : constant String_Id :=
                             Fully_Qualified_Name_String (First_Subtype (Typ));
-            Str1_Id   : String_Id;
-            Str2_Id   : String_Id;
+
+            Address_Image : RE_Id;
+            Str1_Id       : String_Id;
+            Str2_Id       : String_Id;
 
          begin
             --  Generate:
@@ -5235,7 +5237,17 @@ package body Exp_Disp is
             --    Exname : constant String :=
             --               Str1 & Address_Image (Tag) & Str2;
 
-            if RTE_Available (RE_Address_Image) then
+            --  We use Address_Image64 for Morello because Integer_Address
+            --  is 64-bit large even though Address is 128-bit large.
+
+            case System_Address_Size is
+               when 32     => Address_Image := RE_Address_Image32;
+               when 64     => Address_Image := RE_Address_Image64;
+               when 128    => Address_Image := RE_Address_Image64;
+               when others => raise Program_Error;
+            end case;
+
+            if RTE_Available (Address_Image) then
                Append_To (Result,
                  Make_Object_Declaration (Loc,
                    Defining_Identifier => Exname,
@@ -5251,7 +5263,7 @@ package body Exp_Disp is
                              Make_Function_Call (Loc,
                                Name =>
                                  New_Occurrence_Of
-                                   (RTE (RE_Address_Image), Loc),
+                                   (RTE (Address_Image), Loc),
                                Parameter_Associations => New_List (
                                  Unchecked_Convert_To (RTE (RE_Address),
                                    New_Occurrence_Of (DT_Ptr, Loc)))),
@@ -5476,23 +5488,18 @@ package body Exp_Disp is
 
          Collect_Interfaces (Typ, Typ_Ifaces);
 
-         AI := First_Elmt (Typ_Ifaces);
-         while Present (AI) loop
-            Num_Ifaces := Num_Ifaces + 1;
-            Next_Elmt (AI);
-         end loop;
-
-         if Num_Ifaces = 0 then
+         if Is_Empty_Elmt_List (Typ_Ifaces) then
             Iface_Table_Node := Make_Null (Loc);
 
          --  Generate the Interface_Table object
 
          else
             declare
-               TSD_Ifaces_List  : constant List_Id := New_List;
-               Elmt             : Elmt_Id;
-               Offset_To_Top    : Node_Id;
-               Sec_DT_Tag       : Node_Id;
+               Num_Ifaces      : constant Pos := List_Length (Typ_Ifaces);
+               TSD_Ifaces_List : constant List_Id := New_List;
+               Elmt            : Elmt_Id;
+               Offset_To_Top   : Node_Id;
+               Sec_DT_Tag      : Node_Id;
 
                Dummy_Object_Ifaces_List      : Elist_Id := No_Elist;
                Dummy_Object_Ifaces_Comp_List : Elist_Id := No_Elist;
@@ -7560,11 +7567,7 @@ package body Exp_Disp is
             if Chars (Prim) = Name_uSize
               and then RTE_Record_Component_Available (RE_Size_Func)
             then
-               DT_Ptr := Node (First_Elmt (Access_Disp_Table (Tag_Typ)));
-               Append_To (L,
-                 Build_Set_Size_Function (Loc,
-                   Tag_Node  => New_Occurrence_Of (DT_Ptr, Loc),
-                   Size_Func => Prim));
+               Append_To (L, Build_Set_Size_Function (Loc, Tag_Typ, Prim));
             end if;
 
          else
@@ -7863,9 +7866,6 @@ package body Exp_Disp is
       Parent_Typ : constant Entity_Id := Etype (Typ);
       First_Prim : constant Elmt_Id := First_Elmt (Primitive_Operations (Typ));
       The_Tag    : constant Entity_Id := First_Tag_Component (Typ);
-
-      Adjusted  : Boolean := False;
-      Finalized : Boolean := False;
 
       Count_Prim : Nat;
       DT_Length  : Nat;
@@ -8194,14 +8194,6 @@ package body Exp_Disp is
             Validate_Position (Prim);
          end if;
 
-         if Chars (Prim) = Name_Finalize then
-            Finalized := True;
-         end if;
-
-         if Chars (Prim) = Name_Adjust then
-            Adjusted := True;
-         end if;
-
          --  An abstract operation cannot be declared in the private part for a
          --  visible abstract type, because it can't be overridden outside this
          --  package hierarchy. For explicit declarations this is checked at
@@ -8247,19 +8239,6 @@ package body Exp_Disp is
 
          Next_Elmt (Prim_Elmt);
       end loop;
-
-      --  Additional check
-
-      if Is_Controlled (Typ) then
-         if not Finalized then
-            Error_Msg_N
-              ("controlled type has no explicit Finalize method??", Typ);
-
-         elsif not Adjusted then
-            Error_Msg_N
-              ("controlled type has no explicit Adjust method??", Typ);
-         end if;
-      end if;
 
       --  Set the final size of the Dispatch Table
 
@@ -8695,9 +8674,10 @@ package body Exp_Disp is
 
    begin
       --  Protect this procedure against wrong usage. Required because it will
-      --  be used directly from GDB
+      --  be used directly from GDB.
 
-      if not (Typ <= Last_Node_Id)
+      if Typ not in First_Node_Id .. Last_Node_Id
+        or else Nkind (Typ) not in N_Entity
         or else not Is_Tagged_Type (Typ)
       then
          Write_Str ("wrong usage: Write_DT must be used with tagged types");
@@ -8739,6 +8719,10 @@ package body Exp_Disp is
 
          if Is_Predefined_Dispatching_Operation (Prim) then
             Write_Str ("(predefined) ");
+         end if;
+
+         if Is_Wrapper (Prim) then
+            Write_Str ("(wrapper) ");
          end if;
 
          --  Prefix the name of the primitive with its corresponding tagged

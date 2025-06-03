@@ -1,5 +1,5 @@
 /* GIMPLE store merging and byte swapping passes.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -363,7 +363,7 @@ init_symbolic_number (struct symbolic_number *n, tree src)
    the answer. If so, REF is that memory source and the base of the memory area
    accessed and the offset of the access from that base are recorded in N.  */
 
-bool
+static bool
 find_bswap_or_nop_load (gimple *stmt, tree ref, struct symbolic_number *n)
 {
   /* Leaf node is an array or component ref. Memorize its base and
@@ -610,7 +610,9 @@ find_bswap_or_nop_1 (gimple *stmt, struct symbolic_number *n, int limit)
   gimple *rhs1_stmt, *rhs2_stmt, *source_stmt1;
   enum gimple_rhs_class rhs_class;
 
-  if (!limit || !is_gimple_assign (stmt))
+  if (!limit
+      || !is_gimple_assign (stmt)
+      || stmt_can_throw_internal (cfun, stmt))
     return NULL;
 
   rhs1 = gimple_assign_rhs1 (stmt);
@@ -1931,14 +1933,15 @@ encode_tree_to_bitpos (tree expr, unsigned char *ptr, int bitlen, int bitpos,
 		       unsigned int total_bytes)
 {
   unsigned int first_byte = bitpos / BITS_PER_UNIT;
-  bool sub_byte_op_p = ((bitlen % BITS_PER_UNIT)
-			|| (bitpos % BITS_PER_UNIT)
-			|| !int_mode_for_size (bitlen, 0).exists ());
   bool empty_ctor_p
     = (TREE_CODE (expr) == CONSTRUCTOR
        && CONSTRUCTOR_NELTS (expr) == 0
        && TYPE_SIZE_UNIT (TREE_TYPE (expr))
-		       && tree_fits_uhwi_p (TYPE_SIZE_UNIT (TREE_TYPE (expr))));
+       && tree_fits_uhwi_p (TYPE_SIZE_UNIT (TREE_TYPE (expr))));
+  bool sub_byte_op_p = ((bitlen % BITS_PER_UNIT)
+			|| (bitpos % BITS_PER_UNIT)
+			|| (!int_mode_for_size (bitlen, 0).exists ()
+			    && !empty_ctor_p));
 
   if (!sub_byte_op_p)
     {
@@ -3051,7 +3054,10 @@ imm_store_chain_info::try_coalesce_bswap (merged_store_group *merged_store,
 	return false;
       case 64:
 	if (builtin_decl_explicit_p (BUILT_IN_BSWAP64)
-	    && optab_handler (bswap_optab, DImode) != CODE_FOR_nothing)
+	    && (optab_handler (bswap_optab, DImode) != CODE_FOR_nothing
+		|| (word_mode == SImode
+		    && builtin_decl_explicit_p (BUILT_IN_BSWAP32)
+		    && optab_handler (bswap_optab, SImode) != CODE_FOR_nothing)))
 	  break;
 	return false;
       default:
@@ -3239,6 +3245,10 @@ imm_store_chain_info::coalesce_immediate_stores ()
 		      unsigned int min_order = first_order;
 		      unsigned first_nonmergeable_int_order = ~0U;
 		      unsigned HOST_WIDE_INT this_end = end;
+		      unsigned HOST_WIDE_INT this_bitregion_start
+			= new_bitregion_start;
+		      unsigned HOST_WIDE_INT this_bitregion_end
+			= new_bitregion_end;
 		      k = i;
 		      first_nonmergeable_order = ~0U;
 		      for (unsigned int j = i + 1; j < len; ++j)
@@ -3259,6 +3269,19 @@ imm_store_chain_info::coalesce_immediate_stores ()
 				      MEM[(short *)p_5 + 3B] = 1;
 				      MEM[(char *)p_5 + 4B] = _9;
 				      MEM[(char *)p_5 + 2B] = 2;  */
+				  k = 0;
+				  break;
+				}
+			      if (info2->bitregion_start
+				  < this_bitregion_start)
+				this_bitregion_start = info2->bitregion_start;
+			      if (info2->bitregion_end
+				  > this_bitregion_end)
+				this_bitregion_end = info2->bitregion_end;
+			      if (((this_bitregion_end - this_bitregion_start
+				    + 1) / BITS_PER_UNIT)
+				  > (unsigned) param_store_merging_max_size)
+				{
 				  k = 0;
 				  break;
 				}
@@ -4221,7 +4244,7 @@ imm_store_chain_info::output_merged_store (merged_store_group *group)
     {
       clobber_first = true;
       unsigned HOST_WIDE_INT pos = group->start / BITS_PER_UNIT;
-      FOR_EACH_VEC_ELT (split_stores, i, split_store)      
+      FOR_EACH_VEC_ELT (split_stores, i, split_store)
 	if (split_store->bytepos != pos)
 	  {
 	    clobber_first = false;
@@ -5216,7 +5239,7 @@ pass_store_merging::process_store (gimple *stmt)
       else if (handled_load (def_stmt, &ops[0], bitsize, bitpos,
 			     bitregion_start, bitregion_end))
 	rhs_code = MEM_REF;
-      else if (gimple_assign_rhs_code (def_stmt) == BIT_NOT_EXPR) 
+      else if (gimple_assign_rhs_code (def_stmt) == BIT_NOT_EXPR)
 	{
 	  tree rhs1 = gimple_assign_rhs1 (def_stmt);
 	  if (TREE_CODE (rhs1) == SSA_NAME
@@ -5329,7 +5352,9 @@ pass_store_merging::process_store (gimple *stmt)
       || !bitsize.is_constant (&const_bitsize)
       || !bitpos.is_constant (&const_bitpos)
       || !bitregion_start.is_constant (&const_bitregion_start)
-      || !bitregion_end.is_constant (&const_bitregion_end))
+      || !bitregion_end.is_constant (&const_bitregion_end)
+      || ((const_bitregion_end - const_bitregion_start + 1) / BITS_PER_UNIT
+	  > (unsigned) param_store_merging_max_size))
     return terminate_all_aliasing_chains (NULL, stmt);
 
   if (!ins_stmt)

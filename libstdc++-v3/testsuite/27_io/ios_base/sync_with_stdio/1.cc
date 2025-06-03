@@ -2,7 +2,7 @@
 // 2000-05-21 Benjamin Kosnik  <bkoz@redhat.com>
 // 2001-01-17 Loren J. Rittle  <ljrittle@acm.org>
 
-// Copyright (C) 1999-2024 Free Software Foundation, Inc.
+// Copyright (C) 1999-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,8 +20,9 @@
 // <http://www.gnu.org/licenses/>.
 
 // 27.4.2.4 ios_base static members
-// @require@ %-*.tst
-// @diff@ %-*.tst %-*.txt
+
+// { dg-additional-files "ios_base_members_static-1.tst" }
+// { dg-final { file-io-diff "ios_base_members_static-1" } }
 
 #include <cstdio>
 #include <sstream>

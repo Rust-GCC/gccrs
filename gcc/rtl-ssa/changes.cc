@@ -1,5 +1,5 @@
 // RTL SSA routines for changing instructions                       -*- C++ -*-
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -19,6 +19,7 @@
 
 #define INCLUDE_ALGORITHM
 #define INCLUDE_FUNCTIONAL
+#define INCLUDE_ARRAY
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -171,21 +172,41 @@ rtl_ssa::changes_are_worthwhile (array_slice<insn_change *const> changes,
 				 bool strict_p)
 {
   unsigned int old_cost = 0;
-  unsigned int new_cost = 0;
   sreal weighted_old_cost = 0;
-  sreal weighted_new_cost = 0;
   auto entry_count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+  {
+    undo_recog_changes undo (0);
+    for (insn_change *change : changes)
+      {
+	// Count zero for the old cost if the old instruction was a no-op
+	// move or had an unknown cost.  This should reduce the chances of
+	// making an unprofitable change.
+	old_cost += change->old_cost ();
+	basic_block cfg_bb = change->bb ()->cfg_bb ();
+	if (optimize_bb_for_speed_p (cfg_bb))
+	  weighted_old_cost += (cfg_bb->count.to_sreal_scale (entry_count)
+				* change->old_cost ());
+
+      }
+  }
+  unsigned int new_cost = 0;
+  sreal weighted_new_cost = 0;
   for (insn_change *change : changes)
     {
-      old_cost += change->old_cost ();
       basic_block cfg_bb = change->bb ()->cfg_bb ();
       bool for_speed = optimize_bb_for_speed_p (cfg_bb);
-      if (for_speed)
-	weighted_old_cost += (cfg_bb->count.to_sreal_scale (entry_count)
-			      * change->old_cost ());
-      if (!change->is_deletion ())
+      if (!change->is_deletion ()
+	  && INSN_CODE (change->rtl ()) != NOOP_MOVE_INSN_CODE)
 	{
 	  change->new_cost = insn_cost (change->rtl (), for_speed);
+	  /* If the cost is unknown, replacement is not worthwhile.  */
+	  if (!change->new_cost)
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		fprintf (dump_file,
+			 "Reject replacement due to unknown insn cost.\n");
+	      return false;
+	    }
 	  new_cost += change->new_cost;
 	  if (for_speed)
 	    weighted_new_cost += (cfg_bb->count.to_sreal_scale (entry_count)
@@ -215,7 +236,10 @@ rtl_ssa::changes_are_worthwhile (array_slice<insn_change *const> changes,
       for (const insn_change *change : changes)
 	if (!change->is_deletion ())
 	  {
-	    fprintf (dump_file, " %c %d", sep, change->new_cost);
+	    if (INSN_CODE (change->rtl ()) == NOOP_MOVE_INSN_CODE)
+	      fprintf (dump_file, " %c nop", sep);
+	    else
+	      fprintf (dump_file, " %c %d", sep, change->new_cost);
 	    sep = '+';
 	  }
       if (weighted_new_cost != 0)
@@ -862,14 +886,11 @@ function_info::change_insns (array_slice<insn_change *> changes)
 	    }
 	  else
 	    {
-	      // Remove the placeholder first so that we have a wider range of
-	      // program points when inserting INSN.
 	      insn_info *after = placeholder->prev_any_insn ();
 	      if (!insn->is_temporary ())
 		remove_insn (insn);
-	      remove_insn (placeholder);
+	      replace_nondebug_insn (placeholder, insn);
 	      insn->set_bb (after->bb ());
-	      add_insn_after (insn, after);
 	    }
 	}
     }
@@ -933,6 +954,25 @@ add_clobber (insn_change &change, add_regno_clobber_fn add_regno_clobber,
 	return false;
       }
   return true;
+}
+
+// See if PARALLEL pattern PAT clobbers any of the registers in ACCESSES.
+// Return one such access if so, otherwise return null.
+static access_info *
+find_clobbered_access (access_array accesses, rtx pat)
+{
+  rtx subpat;
+  for (int i = 0; i < XVECLEN (pat, 0); ++i)
+    if (GET_CODE (subpat = XVECEXP (pat, 0, i)) == CLOBBER)
+      {
+	rtx x = XEXP (subpat, 0);
+	if (REG_P (x))
+	  for (auto *access : accesses)
+	    if (access->regno () >= REGNO (x)
+		&& access->regno () < END_REGNO (x))
+	      return access;
+      }
+  return nullptr;
 }
 
 // Try to recognize the new form of the insn associated with CHANGE,
@@ -1026,9 +1066,48 @@ recog_level2 (insn_change &change, add_regno_clobber_fn add_regno_clobber)
       pat = newpat;
     }
 
+  INSN_CODE (rtl) = icode;
+  if (recog_data.insn == rtl)
+    recog_data.insn = nullptr;
+
+  // See if the pattern contains any hard-coded clobbers of registers
+  // that are also inputs to the instruction.  The standard rtl semantics
+  // treat such clobbers as earlyclobbers, since there is no way of proving
+  // which clobbers conflict with the inputs and which don't.
+  //
+  // (Non-hard-coded clobbers are handled by constraint satisfaction instead.)
+  rtx subpat;
+  if (GET_CODE (pat) == PARALLEL)
+    for (int i = 0; i < XVECLEN (pat, 0); ++i)
+      if (GET_CODE (subpat = XVECEXP (pat, 0, i)) == CLOBBER
+	  && REG_P (XEXP (subpat, 0)))
+	{
+	  // Stub out all operands, so that we can tell which registers
+	  // are hard-coded.
+	  extract_insn (rtl);
+	  for (int j = 0; j < recog_data.n_operands; ++j)
+	    *recog_data.operand_loc[j] = pc_rtx;
+
+	  auto *use = find_clobbered_access (change.new_uses, pat);
+
+	  // Restore the operands.
+	  for (int j = 0; j < recog_data.n_operands; ++j)
+	    *recog_data.operand_loc[j] = recog_data.operand[j];
+
+	  if (use)
+	    {
+	      if (dump_file && (dump_flags & TDF_DETAILS))
+		{
+		  fprintf (dump_file, "register %d is both clobbered"
+			   " and used as an input:\n", use->regno ());
+		  print_rtl_single (dump_file, pat);
+		}
+	      return false;
+	    }
+	}
+
   // check_asm_operands checks the constraints after RA, so we don't
   // need to do it again.
-  INSN_CODE (rtl) = icode;
   if (reload_completed && !asm_p)
     {
       extract_insn (rtl);

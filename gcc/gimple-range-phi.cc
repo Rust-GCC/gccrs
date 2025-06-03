@@ -1,5 +1,5 @@
 /* Gimple range phi analysis.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>.
 
 This file is part of GCC.
@@ -325,7 +325,7 @@ phi_analyzer::operator[] (tree name)
   return m_tab[v];
 }
 
-// Process phi node PHI to see if it it part of a group.
+// Process phi node PHI to see if it is part of a group.
 
 void
 phi_analyzer::process_phi (gphi *phi)
@@ -483,7 +483,7 @@ phi_analyzer::process_phi (gphi *phi)
 	    }
 	}
     }
-  // If this dpoesn;t form a group, all members are instead simple phis.
+  // If this doesn't form a group, all members are instead simple phis.
   if (!g)
     {
       bitmap_ior_into (m_simple, m_current);

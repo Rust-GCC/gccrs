@@ -1,5 +1,5 @@
 /* Allocation for dataflow support routines.
-   Copyright (C) 1999-2024 Free Software Foundation, Inc.
+   Copyright (C) 1999-2025 Free Software Foundation, Inc.
    Originally contributed by Michael P. Hayes
              (m.hayes@elec.canterbury.ac.nz, mhayes@redhat.com)
    Major rewrite contributed by Danny Berlin (dberlin@dberlin.org)
@@ -806,7 +806,10 @@ rest_of_handle_df_finish (void)
   for (i = 0; i < df->num_problems_defined; i++)
     {
       struct dataflow *dflow = df->problems_in_order[i];
-      dflow->problem->free_fun ();
+      if (dflow->problem->free_fun)
+	dflow->problem->free_fun ();
+      else
+	free (dflow);
     }
 
   free (df->postorder);
@@ -871,7 +874,8 @@ make_pass_df_finish (gcc::context *ctxt)
    Given a BB_INDEX, do the dataflow propagation
    and set bits on for successors in PENDING for earlier
    and WORKLIST for later in bbindex_to_postorder
-   if the out set of the dataflow has changed.
+   if the out set of the dataflow has changed.  When WORKLIST
+   is NULL we are processing all later blocks.
 
    AGE specify time when BB was visited last time.
    AGE of 0 means we are visiting for first time and need to
@@ -903,8 +907,7 @@ df_worklist_propagate_forward (struct dataflow *dataflow,
   if (EDGE_COUNT (bb->preds) > 0)
     FOR_EACH_EDGE (e, ei, bb->preds)
       {
-	if (bbindex_to_postorder[e->src->index] < last_change_age.length ()
-	    && age <= last_change_age[bbindex_to_postorder[e->src->index]]
+	if ((!age || age <= last_change_age[e->src->index])
 	    && bitmap_bit_p (considered, e->src->index))
           changed |= dataflow->problem->con_fun_n (e);
       }
@@ -924,7 +927,10 @@ df_worklist_propagate_forward (struct dataflow *dataflow,
 	    {
 	      if (bbindex_to_postorder[bb_index]
 		  < bbindex_to_postorder[ob_index])
-		bitmap_set_bit (worklist, bbindex_to_postorder[ob_index]);
+		{
+		  if (worklist)
+		    bitmap_set_bit (worklist, bbindex_to_postorder[ob_index]);
+		}
 	      else
 		bitmap_set_bit (pending, bbindex_to_postorder[ob_index]);
 	    }
@@ -957,8 +963,7 @@ df_worklist_propagate_backward (struct dataflow *dataflow,
   if (EDGE_COUNT (bb->succs) > 0)
     FOR_EACH_EDGE (e, ei, bb->succs)
       {
-	if (bbindex_to_postorder[e->dest->index] < last_change_age.length ()
-	    && age <= last_change_age[bbindex_to_postorder[e->dest->index]]
+	if ((!age || age <= last_change_age[e->dest->index])
 	    && bitmap_bit_p (considered, e->dest->index))
           changed |= dataflow->problem->con_fun_n (e);
       }
@@ -978,7 +983,10 @@ df_worklist_propagate_backward (struct dataflow *dataflow,
 	    {
 	      if (bbindex_to_postorder[bb_index]
 		  < bbindex_to_postorder[ob_index])
-		bitmap_set_bit (worklist, bbindex_to_postorder[ob_index]);
+		{
+		  if (worklist)
+		    bitmap_set_bit (worklist, bbindex_to_postorder[ob_index]);
+		}
 	      else
 		bitmap_set_bit (pending, bbindex_to_postorder[ob_index]);
 	    }
@@ -996,7 +1004,7 @@ df_worklist_propagate_backward (struct dataflow *dataflow,
    BBINDEX_TO_POSTORDER is array mapping back BB->index to postorder position.
    PENDING will be freed.
 
-   The worklists are bitmaps indexed by postorder positions.  
+   The worklists are bitmaps indexed by postorder positions.
 
    The function implements standard algorithm for dataflow solving with two
    worklists (we are processing WORKLIST and storing new BBs to visit in
@@ -1009,26 +1017,58 @@ df_worklist_propagate_backward (struct dataflow *dataflow,
 
 static void
 df_worklist_dataflow_doublequeue (struct dataflow *dataflow,
-			  	  bitmap pending,
                                   sbitmap considered,
                                   int *blocks_in_postorder,
 				  unsigned *bbindex_to_postorder,
-				  int n_blocks)
+				  unsigned n_blocks)
 {
   enum df_flow_dir dir = dataflow->problem->dir;
   int dcount = 0;
-  bitmap worklist = BITMAP_ALLOC (&df_bitmap_obstack);
   int age = 0;
   bool changed;
   vec<int> last_visit_age = vNULL;
   vec<int> last_change_age = vNULL;
-  int prev_age;
 
-  last_visit_age.safe_grow_cleared (n_blocks, true);
-  last_change_age.safe_grow_cleared (n_blocks, true);
+  bitmap worklist = BITMAP_ALLOC (&df_bitmap_obstack);
+  bitmap_tree_view (worklist);
 
-  /* Double-queueing. Worklist is for the current iteration,
-     and pending is for the next. */
+  last_visit_age.safe_grow (n_blocks, true);
+  last_change_age.safe_grow (last_basic_block_for_fn (cfun) + 1, true);
+  /* Make last_change_age defined - we can access uninit values for not
+     considered blocks but will make sure they are considered as well.  */
+  VALGRIND_DISCARD (VALGRIND_MAKE_MEM_DEFINED
+		      (last_change_age.address (),
+		       sizeof (int) * last_basic_block_for_fn (cfun)));
+
+  /* We start with processing all blocks, populating pending for the
+     next iteration.  */
+  bitmap pending = BITMAP_ALLOC (&df_bitmap_obstack);
+  bitmap_tree_view (pending);
+  for (unsigned index = 0; index < n_blocks; ++index)
+    {
+      unsigned bb_index = blocks_in_postorder[index];
+      dcount++;
+      if (dir == DF_FORWARD)
+	changed = df_worklist_propagate_forward (dataflow, bb_index,
+						 bbindex_to_postorder,
+						 NULL, pending,
+						 considered,
+						 last_change_age, 0);
+      else
+	changed = df_worklist_propagate_backward (dataflow, bb_index,
+						  bbindex_to_postorder,
+						  NULL, pending,
+						  considered,
+						  last_change_age, 0);
+      last_visit_age[index] = ++age;
+      if (changed)
+	last_change_age[bb_index] = age;
+      else
+	last_change_age[bb_index] = 0;
+    }
+
+  /* Double-queueing.  Worklist is for the current iteration,
+     and pending is for the next.  */
   while (!bitmap_empty_p (pending))
     {
       std::swap (pending, worklist);
@@ -1036,12 +1076,9 @@ df_worklist_dataflow_doublequeue (struct dataflow *dataflow,
       do
 	{
 	  unsigned index = bitmap_clear_first_set_bit (worklist);
-
-	  unsigned bb_index;
+	  unsigned bb_index = blocks_in_postorder[index];
 	  dcount++;
-
-	  bb_index = blocks_in_postorder[index];
-	  prev_age = last_visit_age[index];
+	  int prev_age = last_visit_age[index];
 	  if (dir == DF_FORWARD)
 	    changed = df_worklist_propagate_forward (dataflow, bb_index,
 						     bbindex_to_postorder,
@@ -1058,7 +1095,7 @@ df_worklist_dataflow_doublequeue (struct dataflow *dataflow,
 						      prev_age);
 	  last_visit_age[index] = ++age;
 	  if (changed)
-	    last_change_age[index] = age;
+	    last_change_age[bb_index] = age;
 	}
       while (!bitmap_empty_p (worklist));
     }
@@ -1090,7 +1127,6 @@ df_worklist_dataflow (struct dataflow *dataflow,
                       int *blocks_in_postorder,
                       int n_blocks)
 {
-  bitmap pending = BITMAP_ALLOC (&df_bitmap_obstack);
   bitmap_iterator bi;
   unsigned int *bbindex_to_postorder;
   int i;
@@ -1117,21 +1153,15 @@ df_worklist_dataflow (struct dataflow *dataflow,
 
   /* Initialize the mapping of block index to postorder.  */
   for (i = 0; i < n_blocks; i++)
-    {
-      bbindex_to_postorder[blocks_in_postorder[i]] = i;
-      /* Add all blocks to the worklist.  */
-      bitmap_set_bit (pending, i);
-    }
+    bbindex_to_postorder[blocks_in_postorder[i]] = i;
 
   /* Initialize the problem. */
   if (dataflow->problem->init_fun)
     dataflow->problem->init_fun (blocks_to_consider);
 
   /* Solve it.  */
-  df_worklist_dataflow_doublequeue (dataflow, pending, considered,
-				    blocks_in_postorder,
-				    bbindex_to_postorder,
-				    n_blocks);
+  df_worklist_dataflow_doublequeue (dataflow, considered, blocks_in_postorder,
+				    bbindex_to_postorder, n_blocks);
   free (bbindex_to_postorder);
 }
 
@@ -1962,6 +1992,21 @@ df_bb_regno_last_def_find (basic_block bb, unsigned int regno)
     }
 
   return NULL;
+}
+
+/* Return the one and only def of REGNO within BB.  If there is no def or
+   there are multiple defs, return NULL.  */
+
+df_ref
+df_bb_regno_only_def_find (basic_block bb, unsigned int regno)
+{
+  df_ref temp = df_bb_regno_first_def_find (bb, regno);
+  if (!temp)
+    return NULL;
+  else if (temp == df_bb_regno_last_def_find (bb, regno))
+    return temp;
+  else
+    return NULL;
 }
 
 /* Finds the reference corresponding to the definition of REG in INSN.

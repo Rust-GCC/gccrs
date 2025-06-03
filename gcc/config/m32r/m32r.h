@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Renesas M32R cpu.
-   Copyright (C) 1996-2024 Free Software Foundation, Inc.
+   Copyright (C) 1996-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -222,7 +222,7 @@
 #define UNITS_PER_WORD 4
 
 /* Define this macro if it is advisable to hold scalars in registers
-   in a wider mode than that declared by the program.  In such cases, 
+   in a wider mode than that declared by the program.  In such cases,
    the value is constrained to be within the bounds of the declared
    type, but kept valid in the wider mode.  The signedness of the
    extension may differ from that of the type.  */
@@ -279,9 +279,6 @@
 #define INT_TYPE_SIZE		32
 #define LONG_TYPE_SIZE		32
 #define LONG_LONG_TYPE_SIZE	64
-#define FLOAT_TYPE_SIZE		32
-#define DOUBLE_TYPE_SIZE	64
-#define LONG_DOUBLE_TYPE_SIZE	64
 
 /* Define this as 1 if `char' should by default be signed; else as 0.  */
 #define DEFAULT_SIGNED_CHAR 1
@@ -306,7 +303,7 @@
 #endif
 
 #define FIRST_PSEUDO_REGISTER (M32R_NUM_REGISTERS + SUBTARGET_NUM_REGISTERS)
-	
+
 /* 1 for registers that have pervasive standard uses
    and are not available for the register allocator.
 

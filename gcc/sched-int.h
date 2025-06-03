@@ -1,6 +1,6 @@
 /* Instruction scheduling pass.  This file contains definitions used
    internally in the scheduler.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -471,7 +471,9 @@ public:
   /* An INSN_LIST containing all insns with pending read operations.  */
   rtx_insn_list *pending_read_insns;
 
-  /* An EXPR_LIST containing all MEM rtx's which are pending reads.  */
+  /* An EXPR_LIST containing all MEM rtx's which are pending reads.  The list
+     can contain stack pointer instead of memory.  This is a special case (see
+     sched-deps.cc::sched_analyze_1).  */
   rtx_expr_list *pending_read_mems;
 
   /* An INSN_LIST containing all insns with pending write operations.  */

@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+// Copyright (C) 2007-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
@@ -561,7 +561,7 @@ namespace __gnu_parallel
     };
 
   /** @brief Base class for unguarded _LoserTree implementation.
-   * 
+   *
    * The whole element is copied into the tree structure.
    *
    * No guarding is done, therefore not a single input sequence must

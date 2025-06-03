@@ -1,5 +1,5 @@
 /* d-builtins.cc -- GCC builtins support for D.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -139,8 +139,8 @@ build_frontend_type (tree type)
 	  dtype = Type::basic[i];
 
 	  /* Search for type matching size and signedness.  */
-	  if (unsignedp != dtype->isunsigned ()
-	      || size != dtype->size ())
+	  if (unsignedp != dtype->isUnsigned ()
+	      || size != dmd::size (dtype))
 	    continue;
 
 	  return dmd::addMod (dtype, mod);
@@ -157,7 +157,7 @@ build_frontend_type (tree type)
 	  dtype = Type::basic[i];
 
 	  /* Search for type matching size.  */
-	  if (dtype->size () != size)
+	  if (dmd::size (dtype) != size)
 	    continue;
 
 	  return dmd::addMod (dtype, mod);
@@ -174,7 +174,7 @@ build_frontend_type (tree type)
 	  dtype = Type::basic[i];
 
 	  /* Search for type matching size.  */
-	  if (dtype->size () != size)
+	  if (dmd::size (dtype) != size)
 	    continue;
 
 	  return dmd::addMod (dtype, mod);
@@ -215,7 +215,7 @@ build_frontend_type (tree type)
 	break;
 
       dtype = dmd::addMod (dmd::sarrayOf (dtype, nunits), mod);
-      if (target.isVectorTypeSupported (dtype->size (), dtype->nextOf ()))
+      if (target.isVectorTypeSupported (dmd::size (dtype), dtype->nextOf ()))
 	break;
 
       dtype = dmd::addMod (TypeVector::create (dtype), mod);
@@ -279,7 +279,7 @@ build_frontend_type (tree type)
 						       NULL);
 	  vd->parent = sdecl;
 	  vd->offset = tree_to_uhwi (byte_position (field));
-	  vd->semanticRun = PASS::semanticdone;
+	  vd->semanticRun (PASS::semanticdone);
 	  vd->csym = field;
 	  sdecl->members->push (vd);
 	  sdecl->fields.push (vd);
@@ -522,6 +522,7 @@ d_init_versions (void)
   targetdm.d_cpu_versions ();
   targetdm.d_os_versions ();
 
+  VersionCondition::addPredefinedGlobalIdent ("CppRuntime_GNU");
   VersionCondition::addPredefinedGlobalIdent ("CppRuntime_Gcc");
 }
 
@@ -571,8 +572,8 @@ d_build_builtins_module (Module *m)
       tf->trust = !DECL_ASSEMBLER_NAME_SET_P (decl) ? TRUST::safe
 	: TREE_NOTHROW (decl) ? TRUST::trusted
 	: TRUST::system;
-      tf->isnothrow (true);
-      tf->isnogc (true);
+      tf->isNothrow (true);
+      tf->isNogc (true);
 
       FuncDeclaration *func
 	= FuncDeclaration::create (Loc (), Loc (),
@@ -711,11 +712,11 @@ matches_builtin_type (Type *t1, Type *t2)
 
   if (((tb1->isTypePointer () && tb2->isTypePointer ())
        || (tb1->isTypeVector () && tb2->isTypeVector ()))
-      && tb1->implicitConvTo (tb2) != MATCH::nomatch)
+      && dmd::implicitConvTo (tb1, tb2) != MATCH::nomatch)
     return true;
 
-  if (tb1->isintegral () == tb2->isintegral ()
-      && tb1->size () == tb2->size ())
+  if (tb1->isIntegral () == tb2->isIntegral ()
+      && dmd::size (tb1) == dmd::size (tb2))
     return true;
 
   return false;
@@ -738,7 +739,7 @@ covariant_with_builtin_type_p (Type *t1, Type *t2)
 
   /* Check for obvious reasons why types may be distinct.  */
   if (tf1 == NULL || tf2 == NULL
-      || tf1->isref () != tf2->isref ()
+      || tf1->isRef () != tf2->isRef ()
       || tf1->parameterList.varargs != tf2->parameterList.varargs
       || tf1->parameterList.length () != tf2->parameterList.length ())
     return false;
@@ -776,7 +777,7 @@ maybe_set_builtin_1 (Dsymbol *d)
   if (ad != NULL)
     {
       /* Recursively search through attribute decls.  */
-      Dsymbols *decls = ad->include (NULL);
+      Dsymbols *decls = dmd::include (ad, NULL);
       if (decls && decls->length)
 	{
 	  for (size_t i = 0; i < decls->length; i++)

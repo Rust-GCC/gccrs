@@ -1,3 +1,221 @@
+2025-04-10  John David Anglin  <danglin@gcc.gnu.org>
+
+	* fileline.c (hpux_get_executable_path): New.
+	(fileline_initialize): Add pass to get hpux executable path.
+
+2025-04-09  Richard Biener  <rguenther@suse.de>
+
+	PR bootstrap/119680
+	* configure.ac (--enable-host-pie): Handle by setting PIC_FLAG
+	to -fPIE.
+	* configure: Regenerate.
+
+2025-04-07  Jonathan Wakely  <jwakely@redhat.com>
+
+	* atomic.c (backtrace_atomic_store_int): Use int for old value.
+
+2025-02-10  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_uncompress_lzma_block): Add casts to avoid
+	potentially shifting a value farther than its type size.
+
+2025-01-30  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_fetch_bits): Add casts to avoid potentially shifting
+	a value farther than its type size.
+	(elf_fetch_bits_backward): Likewise.
+	(elf_uncompress_lzma_block): Likewise.
+	(elf_uncompress_lzma): Likewise.
+
+2025-01-28  Richard Earnshaw  <rearnsha@arm.com>
+
+	* configure.ac: Always check if the compiler supports __sync
+	operations.
+	* configure: Regenerated.
+
+2024-12-14  Ian Lance Taylor  <iant@golang.org>
+
+	PR libbacktrace/117812
+	* zstdtest.c (test_large): Use 3 rather than ZSTD_CLEVEL_DEFAULT
+
+2024-11-29  Ian Lance Taylor  <iant@golang.org>
+
+	* fileline.c: Use WIN32_LEAN_AND_MEAN, not WIN32_MEAN_AND_LEAN.
+	* pecoff.c: Likewise.
+
+2024-10-25  Ian Lance Taylor  <iant@golang.org>
+
+	* macho.c (dwarf_section_names): Add __debug_addr and
+	__debug_line_str.
+
+2024-10-18  Ian Lance Taylor  <iant@golang.org>
+
+	* dwarf.c (resolve_unit_addrs_overlap_walk): New static function.
+	(resolve_unit_addrs_overlap): New static function.
+	(build_dwarf_data): Call resolve_unit_addrs_overlap.
+
+2024-08-05  Ian Lance Taylor  <iant@golang.org>
+
+	* configure.ac (ACX_PROG_CC_WARNING_OPTS): Add -Wpointer-arith.
+	* pecoff.c (coff_add): Cast void pointers.
+	* xcoff.c (xcoff_add): Likewise.
+	* configure: Regenerate.
+
+2024-07-30  Ian Lance Taylor  <iant@golang.org>
+
+	* pecoff.c (LDR_DLL_NOTIFICATION): Put function modifier
+	inside parentheses.
+	(LDR_REGISTER_FUNCTION): Likewise.
+
+2024-07-18  Ian Lance Taylor  <iant@golang.org>
+
+	* internal.h: Use __has_attribute to check for fallthrough
+	attribute.
+	* elf.c (elf_zstd_decompress): Use ATTRIBUTE_FALLTHROUGH rather
+	than a FALLTHROUGH comment.
+
+2024-07-18  Ian Lance Taylor  <iant@golang.org>
+
+	* print.c (print_syminfo_callback): Add cast to avoid warning.
+
+2024-07-18  Ian Lance Taylor  <iant@golang.org>
+
+	* print.c (print_syminfo_callback): New static function.
+	(print_callback): Call backtrace_syminfo if there is no function
+	or file name.
+
+2024-07-18  Ian Lance Taylor  <iant@golang.org>
+
+	* README: Add notes about dl_iterate_phdr.
+
+2024-07-17  Ian Lance Taylor  <iant@golang.org>
+
+	* xcoff.c (struct xcoff_fileline_data): Change base_address field
+	to struct libbacktrace_base_address.
+	(xcoff_initialize_syminfo): Change base_address to struct
+	libbacktrace_base_address.  Use libbacktrace_add_base.
+	(xcoff_initialize_fileline): Likewise.
+	(xcoff_lookup_pc): Use libbacktrace_add_base.
+	(xcoff_add): Change base_address to struct
+	libbacktrace_base_address.
+	(xcoff_armem_add, xcoff_add_shared_libs): Likewise.
+	(backtrace_initialize): Likewise.
+	* Makefile.am (xcoff.lo): Remove unused target.
+	(xcoff_32.lo, xcoff_64.lo): New targets.
+	* Makefile.in: Regenerate.
+
+2024-07-16  Ian Lance Taylor  <iant@golang.org>
+
+	* internal.h: If FDPIC, #include <link.h> and/or <sys/link.h>.
+	(libbacktrace_using_fdpic): Define.
+	(struct libbacktrace_base_address): Define.
+	(libbacktrace_add_base): Define.
+	(backtrace_dwarf_add): Change base_address to struct
+	libbacktrace_base_address.
+	* dwarf.c (struct dwarf_data): Change base_address to struct
+	libbacktrace_base_address.
+	(add_ranges, find_address_ranges, build_ddress_map): Likewise.
+	(build_dwarf_data, build_dwarf_add): Likewise.
+	(add_low_high_range): Change base_address to struct
+	libbacktrace_base_address.  Use libbacktrace_add_base.
+	(add_ranges_from_ranges, add_ranges_from_rnglists): Likewise.
+	(add_line): Use libbacktrace_add_base.
+	* elf.c (elf_initialize_syminfo): Change base_address to struct
+	libbacktrace_base_address.  Use libbacktrace_add_base.
+	(elf_add): Change base_address to struct
+	libbacktrace_base_address.
+	(phdr_callback): Likewise.  Initialize base_address.m.
+	(backtrace_initialize): If using FDPIC, don't call elf_add with
+	main executable; always use dl_iterate_phdr.
+	* macho.c (macho_add_symtab): Change base_address to struct
+	libbacktrace_base_address.  Use libbacktrace_add_base.
+	(macho_syminfo): Change base_address to struct
+	libbacktrace_base_address.
+	(macho_add_fat, macho_add_dsym, macho_add): Likewise.
+	(backtrace_initialize): Likewise.  Initialize base_address.m.
+	* pecoff.c (coff_initialize_syminfo): Change base_address to
+	struct libbacktrace_base_address.  Use libbacktrace_add_base.
+	(coff_add): Change base_address to struct
+	libbacktrace_base_address.  Initialize base_address.m.
+
+2024-07-12  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_add): Don't use .gnu_debugdata if we are already
+	reading a debuginfo file.
+	* Makefile.am (m2test_*): New test targets.
+	(CHECK_PROGRAMS): Add m2test.
+	(MAKETESTS): Add m2test_minidebug2.
+	(%_minidebug2): New pattern.
+	(CLEANFILES): Remove minidebug2 files.
+	* Makefile.in: Regenerate.
+
+2024-07-12  Ian Lance Taylor  <iant@golang.org>
+
+	* btest.c (test5): Don't fail if symbol size is 0.
+	* mtest.c (test5): Likewise.
+
+2024-07-12  Ian Lance Taylor  <iant@golang.org>
+
+	* macho.c (MACH_O_N_EXT): Don't define.
+	(MACH_O_N_UNDF): Define.
+	(macho_defined_symbol): Don't discard N_EXT symbols.  Do
+	discard N_UNDF symbols.
+
+2024-07-11  Ian Lance Taylor  <iant@golang.org>
+
+	* btest.c (test1, test3): Add optnone attribute.
+	* edtest.c (test1): Likewise.
+	* mtest.c (test1, test3): Likewise.
+	* configure.ac: Use -Wno-attributes and -Wno-unknown-attributes.
+	* configure: Regenerate.
+
+2024-07-11  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_nodebug): Suggest -g.
+	* macho.c (macho_nodebug): Suggest -g and dsymutil.
+	* pecoff.c (coff_nodebug): Suggest -g.
+
+2024-07-11  Ian Lance Taylor  <iant@golang.org>
+
+	* dwarf.c: Remove trailing whitespace.
+	* macho.c: Likewise.
+
+2024-06-16  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_fetch_bits_backward) Don't fail if no bits are
+	available.
+
+2024-05-03  Ian Lance Taylor  <iant@golang.org>
+
+	* pecoff.c (struct dll_notification_data): Define.
+	(LDR_DLL_NOTIFICATION): New typedef.
+	(LDR_REGISTER_FUNCTION): New typedef.
+	(struct dll_notification_context): Define.
+	(dll_notification): New static function.
+	(backtrace_initialize): Register DLL notification.
+
+2024-04-28  Ian Lance Taylor  <iant@golang.org>
+
+	* configure.ac: Checked for tlhelp32.h
+	* pecoff.c: Include <tlhelp32.h> if available.
+	(backtrace_initialize): Use tlhelp32 api for a snapshot to
+	detect loaded modules.
+	(coff_add): New argument for the module handle of the file,
+	to get the base address.
+	* configure, config.h.in: Regenerate.
+
+2024-04-23  Ian Lance Taylor  <iant@golang.org>
+
+	* configure.ac: Test --compress-debug-sections=zlib-gnu and
+	--compress-debug-sections=zlib-gabi separately, setting new
+	automake conditionals.
+	* Makefile.am (ctestg, ctestg_alloc): Only build if
+	HAVE_COMPRESSED_DEBUG_ZLIB_GNU.
+	(ctesta, ctesta_alloc): Only build if
+	HAVE_COMPRESSED_DEBUG_ZLIB_GABI.
+	(ctestzstd_alloc): New test if HAVE_COMPRESSED_DEBUG_ZSTD.
+	* configure, Makefile.in: Regenerate.
+
 2024-03-08  Ian Lance Taylor  <iant@golang.org>
 
 	* elf.c (elf_uncompress_chdr): Don't assume compressed section is
@@ -2060,7 +2278,7 @@
 
 	* Initial implementation.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

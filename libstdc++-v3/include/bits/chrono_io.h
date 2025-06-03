@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_CHRONO_IO_H
 #define _GLIBCXX_CHRONO_IO_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #if __cplusplus >= 202002L
 
@@ -38,8 +40,10 @@
 #include <iomanip> // setw, setfill
 #include <format>
 #include <charconv> // from_chars
+#include <stdexcept> // __sso_string
 
 #include <bits/streambuf_iterator.h>
+#include <bits/unique_ptr.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -53,21 +57,7 @@ namespace chrono
 /// @cond undocumented
 namespace __detail
 {
-  // STATICALLY-WIDEN, see C++20 [time.general]
-  // It doesn't matter for format strings (which can only be char or wchar_t)
-  // but this returns the narrow string for anything that isn't wchar_t. This
-  // is done because const char* can be inserted into any ostream type, and
-  // will be widened at runtime if necessary.
-  template<typename _CharT>
-    consteval auto
-    _Widen(const char* __narrow, const wchar_t* __wide)
-    {
-      if constexpr (is_same_v<_CharT, wchar_t>)
-	return __wide;
-      else
-	return __narrow;
-    }
-#define _GLIBCXX_WIDEN_(C, S) ::std::chrono::__detail::_Widen<C>(S, L##S)
+#define _GLIBCXX_WIDEN_(C, S) ::std::__format::_Widen<C>(S, L##S)
 #define _GLIBCXX_WIDEN(S) _GLIBCXX_WIDEN_(_CharT, S)
 
   template<typename _Period, typename _CharT>
@@ -146,7 +136,9 @@ namespace __detail
       __s.flags(__os.flags());
       __s.imbue(__os.getloc());
       __s.precision(__os.precision());
-      __s << __d.count();
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 4118. How should duration formatters format custom rep types?
+      __s << +__d.count();
       __detail::__fmt_units_suffix<period, _CharT>(_Out(__s));
       __os << std::move(__s).str();
       return __os;
@@ -156,6 +148,7 @@ namespace __detail
 namespace __detail
 {
   // An unspecified type returned by `chrono::local_time_format`.
+  // This is called `local-time-format-t` in the standard.
   template<typename _Duration>
     struct __local_time_fmt
     {
@@ -164,7 +157,11 @@ namespace __detail
       const seconds* _M_offset_sec;
     };
 
-  struct __local_fmt_t;
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 4124. Cannot format zoned_time with resolution coarser than seconds
+  template<typename _Duration>
+    using __local_time_fmt_for
+      = __local_time_fmt<common_type_t<_Duration, seconds>>;
 }
 /// @endcond
 
@@ -211,6 +208,20 @@ namespace __format
     struct _ChronoSpec : _Spec<_CharT>
     {
       basic_string_view<_CharT> _M_chrono_specs;
+
+      // Use one of the reserved bits in __format::_Spec<C>.
+      // This indicates that a locale-dependent conversion specifier such as
+      // %a is used in the chrono-specs. This is not the same as the
+      // _Spec<C>::_M_localized member which indicates that "L" was present
+      // in the format-spec, e.g. "{:L%a}" is localized and locale-specific,
+      // but "{:L}" is only localized and "{:%a}" is only locale-specific.
+      constexpr bool
+      _M_locale_specific() const noexcept
+      { return this->_M_reserved; }
+
+      constexpr void
+      _M_locale_specific(bool __b) noexcept
+      { this->_M_reserved = __b; }
     };
 
   // Represents the information provided by a chrono type.
@@ -305,11 +316,12 @@ namespace __format
 	  const auto __chrono_specs = __first++; // Skip leading '%'
 	  if (*__chrono_specs != '%')
 	    __throw_format_error("chrono format error: no '%' at start of "
-				     "chrono-specs");
+				 "chrono-specs");
 
 	  _CharT __mod{};
 	  bool __conv = true;
 	  int __needed = 0;
+	  bool __locale_specific = false;
 
 	  while (__first != __last)
 	    {
@@ -322,15 +334,18 @@ namespace __format
 		case 'a':
 		case 'A':
 		  __needed = _Weekday;
+		  __locale_specific = true;
 		  break;
 		case 'b':
 		case 'h':
 		case 'B':
 		  __needed = _Month;
+		  __locale_specific = true;
 		  break;
 		case 'c':
 		  __needed = _DateTime;
 		  __allowed_mods = _Mod_E;
+		  __locale_specific = true;
 		  break;
 		case 'C':
 		  __needed = _Year;
@@ -368,6 +383,8 @@ namespace __format
 		  break;
 		case 'p':
 		case 'r':
+		  __locale_specific = true;
+		  [[fallthrough]];
 		case 'R':
 		case 'T':
 		  __needed = _TimeOfDay;
@@ -393,10 +410,12 @@ namespace __format
 		  break;
 		case 'x':
 		  __needed = _Date;
+		  __locale_specific = true;
 		  __allowed_mods = _Mod_E;
 		  break;
 		case 'X':
 		  __needed = _TimeOfDay;
+		  __locale_specific = true;
 		  __allowed_mods = _Mod_E;
 		  break;
 		case 'y':
@@ -436,6 +455,8 @@ namespace __format
 		    || (__mod == 'O' && !(__allowed_mods & _Mod_O)))
 		__throw_format_error("chrono format error: invalid "
 				     " modifier in chrono-specs");
+	      if (__mod && __c != 'z')
+		__locale_specific = true;
 	      __mod = _CharT();
 
 	      if ((__parts & __needed) != __needed)
@@ -467,6 +488,7 @@ namespace __format
 	  _M_spec = __spec;
 	  _M_spec._M_chrono_specs
 		 = __string_view(__chrono_specs, __first - __chrono_specs);
+	  _M_spec._M_locale_specific(__locale_specific);
 
 	  return __first;
 	}
@@ -485,6 +507,24 @@ namespace __format
 	  const auto __last = _M_spec._M_chrono_specs.end();
 	  if (__first == __last)
 	    return _M_format_to_ostream(__t, __fc, __is_neg);
+
+#if defined _GLIBCXX_USE_NL_LANGINFO_L && __CHAR_BIT__ == 8
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 3565. Handling of encodings in localized formatting
+	  //       of chrono types is underspecified
+	  if constexpr (is_same_v<_CharT, char>)
+	    if constexpr (__unicode::__literal_encoding_is_utf8())
+	      if (_M_spec._M_localized && _M_spec._M_locale_specific())
+		{
+		  extern locale __with_encoding_conversion(const locale&);
+
+		  // Allocate and cache the necessary state to convert strings
+		  // in the locale's encoding to UTF-8.
+		  locale __loc = __fc.locale();
+		  if (__loc != locale::classic())
+		    __fc._M_loc =  __with_encoding_conversion(__loc);
+		}
+#endif
 
 	  _Sink_iter<_CharT> __out;
 	  __format::_Str_sink<_CharT> __sink;
@@ -583,8 +623,10 @@ namespace __format
 		case 'Q':
 		  // %Q The duration's numeric value.
 		  if constexpr (chrono::__is_duration_v<_Tp>)
+		    // _GLIBCXX_RESOLVE_LIB_DEFECTS
+		    // 4118. How should duration formatters format custom rep?
 		    __out = std::format_to(__print_sign(), _S_empty_spec,
-					   __t.count());
+					   +__t.count());
 		  else
 		    __throw_format_error("chrono format error: argument is "
 					 "not a duration");
@@ -695,13 +737,34 @@ namespace __format
 	  using ::std::chrono::__detail::__utc_leap_second;
 	  using ::std::chrono::__detail::__local_time_fmt;
 
+	  basic_ostringstream<_CharT> __os;
+	  __os.imbue(_M_locale(__fc));
+
 	  if constexpr (__is_specialization_of<_Tp, __local_time_fmt>)
-	    return _M_format_to_ostream(__t._M_time, __fc, false);
+	    {
+	      // Format as "{:L%F %T}"
+	      auto __days = chrono::floor<chrono::days>(__t._M_time);
+	      __os << chrono::year_month_day(__days) << ' '
+		   << chrono::hh_mm_ss(__t._M_time - __days);
+
+	      // For __local_time_fmt the __is_neg flags says whether to
+	      // append " %Z" to the result.
+	      if (__is_neg)
+		{
+		  if (!__t._M_abbrev) [[unlikely]]
+		    __format::__no_timezone_available();
+		  else if constexpr (is_same_v<_CharT, char>)
+		    __os << ' ' << *__t._M_abbrev;
+		  else
+		    {
+		      __os << L' ';
+		      for (char __c : *__t._M_abbrev)
+			__os << __c;
+		    }
+		}
+	    }
 	  else
 	    {
-	      basic_ostringstream<_CharT> __os;
-	      __os.imbue(_M_locale(__fc));
-
 	      if constexpr (__is_specialization_of<_Tp, __utc_leap_second>)
 		__os << __t._M_date << ' ' << __t._M_time;
 	      else if constexpr (chrono::__is_time_point_v<_Tp>)
@@ -727,11 +790,11 @@ namespace __format
 		      __os << _S_plus_minus[1];
 		  __os << __t;
 		}
-
-	      auto __str = std::move(__os).str();
-	      return __format::__write_padded_as_spec(__str, __str.size(),
-						      __fc, _M_spec);
 	    }
+
+	  auto __str = std::move(__os).str();
+	  return __format::__write_padded_as_spec(__str, __str.size(),
+						  __fc, _M_spec);
 	}
 
       static constexpr const _CharT* _S_chars
@@ -741,6 +804,29 @@ namespace __format
       static constexpr _CharT _S_slash = _S_chars[13];
       static constexpr _CharT _S_space = _S_chars[14];
       static constexpr const _CharT* _S_empty_spec = _S_chars + 15;
+
+      template<typename _OutIter>
+	_OutIter
+	_M_write(_OutIter __out, const locale& __loc, __string_view __s) const
+	{
+#if defined _GLIBCXX_USE_NL_LANGINFO_L && __CHAR_BIT__ == 8
+	  __sso_string __buf;
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 3565. Handling of encodings in localized formatting
+	  //       of chrono types is underspecified
+	  if constexpr (is_same_v<_CharT, char>)
+	    if constexpr (__unicode::__literal_encoding_is_utf8())
+	      if (_M_spec._M_localized && _M_spec._M_locale_specific()
+		    && __loc != locale::classic())
+		{
+		  extern string_view
+		  __locale_encoding_to_utf8(const locale&, string_view, void*);
+
+		  __s = __locale_encoding_to_utf8(__loc, __s, &__buf);
+		}
+#endif
+	  return __format::__write(std::move(__out), __s);
+	}
 
       template<typename _Tp, typename _FormatContext>
 	typename _FormatContext::iterator
@@ -761,7 +847,7 @@ namespace __format
 	  else
 	    __tp._M_days_abbreviated(__days);
 	  __string_view __str(__days[__wd.c_encoding()]);
-	  return __format::__write(std::move(__out), __str);
+	  return _M_write(std::move(__out), __loc, __str);
 	}
 
       template<typename _Tp, typename _FormatContext>
@@ -782,30 +868,66 @@ namespace __format
 	  else
 	    __tp._M_months_abbreviated(__months);
 	  __string_view __str(__months[(unsigned)__m - 1]);
-	  return __format::__write(std::move(__out), __str);
+	  return _M_write(std::move(__out), __loc, __str);
 	}
 
       template<typename _Tp, typename _FormatContext>
 	typename _FormatContext::iterator
-	_M_c(const _Tp& __tt, typename _FormatContext::iterator __out,
+	_M_c(const _Tp& __t, typename _FormatContext::iterator __out,
 	     _FormatContext& __ctx, bool __mod = false) const
 	{
 	  // %c  Locale's date and time representation.
 	  // %Ec Locale's alternate date and time representation.
 
-	  auto __t = _S_floor_seconds(__tt);
-	  locale __loc = _M_locale(__ctx);
-	  const auto& __tp = use_facet<__timepunct<_CharT>>(__loc);
-	  const _CharT* __formats[2];
-	  __tp._M_date_time_formats(__formats);
-	  const _CharT* __rep = __formats[__mod];
-	  if (!*__rep)
-	    __rep = _GLIBCXX_WIDEN("%a %b %e %H:%M:%S %Y");
-	  basic_string<_CharT> __fmt(_S_empty_spec);
-	  __fmt.insert(1u, 1u, _S_colon);
-	  __fmt.insert(2u, __rep);
-	  return std::vformat_to(std::move(__out), __loc, __fmt,
-				 std::make_format_args<_FormatContext>(__t));
+	  using namespace chrono;
+	  using ::std::chrono::__detail::__utc_leap_second;
+	  using ::std::chrono::__detail::__local_time_fmt;
+
+	  struct tm __tm{};
+
+	  // Some locales use %Z in their %c format but we don't want strftime
+	  // to use the system's local time zone (from /etc/localtime or $TZ)
+	  // as the output for %Z. Setting tm_isdst to -1 says there is no
+	  // time zone info available for the time in __tm.
+	  __tm.tm_isdst = -1;
+
+#ifdef _GLIBCXX_USE_STRUCT_TM_TM_ZONE
+	  // POSIX.1-2024 adds tm.tm_zone which will be used for %Z.
+	  // BSD has had tm_zone since 1987 but as char* so cast away const.
+	  if constexpr (__is_time_point_v<_Tp>)
+	    {
+	      // One of sys_time, utc_time, or local_time.
+	      if constexpr (!is_same_v<typename _Tp::clock, local_t>)
+		__tm.tm_zone = const_cast<char*>("UTC");
+	    }
+	  else if constexpr (__is_specialization_of<_Tp, __local_time_fmt>)
+	    {
+	      // local-time-format-t is used to provide time zone info for
+	      // one of zoned_time, tai_time, gps_time, or local_time.
+	      if (__t._M_abbrev)
+		__tm.tm_zone = const_cast<char*>(__t._M_abbrev->c_str());
+	    }
+	  else
+	    __tm.tm_zone = const_cast<char*>("UTC");
+#endif
+
+	  auto __d = _S_days(__t); // Either sys_days or local_days.
+	  using _TDays = decltype(__d);
+	  const year_month_day __ymd(__d);
+	  const auto __y = __ymd.year();
+	  const auto __hms = _S_hms(__t);
+
+	  __tm.tm_year = (int)__y - 1900;
+	  __tm.tm_yday = (__d - _TDays(__y/January/1)).count();
+	  __tm.tm_mon = (unsigned)__ymd.month() - 1;
+	  __tm.tm_mday = (unsigned)__ymd.day();
+	  __tm.tm_wday = weekday(__d).c_encoding();
+	  __tm.tm_hour = __hms.hours().count();
+	  __tm.tm_min = __hms.minutes().count();
+	  __tm.tm_sec = __hms.seconds().count();
+
+	  return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm, 'c',
+			       __mod ? 'E' : '\0');
 	}
 
       template<typename _Tp, typename _FormatContext>
@@ -823,13 +945,14 @@ namespace __format
 
 	  chrono::year __y = _S_year(__t);
 
-	  if (__mod) [[unlikely]]
-	    {
-	      struct tm __tm{};
-	      __tm.tm_year = (int)__y - 1900;
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   __conv, __mod);
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]]
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		struct tm __tm{};
+		__tm.tm_year = (int)__y - 1900;
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     __conv, __mod);
+	      }
 
 	  basic_string<_CharT> __s;
 	  int __yi = (int)__y;
@@ -891,13 +1014,14 @@ namespace __format
 	  chrono::day __d = _S_day(__t);
 	  unsigned __i = (unsigned)__d;
 
-	  if (__mod) [[unlikely]]
-	    {
-	      struct tm __tm{};
-	      __tm.tm_mday = __i;
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   (char)__conv, 'O');
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]]
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		struct tm __tm{};
+		__tm.tm_mday = __i;
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     (char)__conv, 'O');
+	      }
 
 	  auto __sv = _S_two_digits(__i);
 	  _CharT __buf[2];
@@ -957,13 +1081,14 @@ namespace __format
 	  const auto __hms = _S_hms(__t);
 	  int __i = __hms.hours().count();
 
-	  if (__mod) [[unlikely]]
-	    {
-	      struct tm __tm{};
-	      __tm.tm_hour = __i;
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   (char)__conv, 'O');
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]]
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		struct tm __tm{};
+		__tm.tm_hour = __i;
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     (char)__conv, 'O');
+	      }
 
 	  if (__conv == _CharT('I'))
 	    {
@@ -1015,13 +1140,14 @@ namespace __format
 	  auto __m = _S_month(__t);
 	  auto __i = (unsigned)__m;
 
-	  if (__mod) [[unlikely]] // %Om
-	    {
-	      struct tm __tm{};
-	      __tm.tm_mon = __i - 1;
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   'm', 'O');
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]] // %Om
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		struct tm __tm{};
+		__tm.tm_mon = __i - 1;
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     'm', 'O');
+	      }
 
 	  return __format::__write(std::move(__out), _S_two_digits(__i));
 	}
@@ -1037,13 +1163,14 @@ namespace __format
 	  auto __m = _S_hms(__t).minutes();
 	  auto __i = __m.count();
 
-	  if (__mod) [[unlikely]] // %OM
-	    {
-	      struct tm __tm{};
-	      __tm.tm_min = __i;
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   'M', 'O');
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]] // %OM
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		struct tm __tm{};
+		__tm.tm_min = __i;
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     'M', 'O');
+	      }
 
 	  return __format::__write(std::move(__out), _S_two_digits(__i));
 	}
@@ -1059,8 +1186,8 @@ namespace __format
 	  const auto& __tp = use_facet<__timepunct<_CharT>>(__loc);
 	  const _CharT* __ampm[2];
 	  __tp._M_am_pm(__ampm);
-	  return std::format_to(std::move(__out), _S_empty_spec,
-				__ampm[__hms.hours().count() >= 12]);
+	  return _M_write(std::move(__out), __loc,
+			  __ampm[__hms.hours().count() >= 12]);
 	}
 
       template<typename _Tp, typename _FormatContext>
@@ -1095,8 +1222,9 @@ namespace __format
 	  basic_string<_CharT> __fmt(_S_empty_spec);
 	  __fmt.insert(1u, 1u, _S_colon);
 	  __fmt.insert(2u, __ampm_fmt);
-	  return std::vformat_to(std::move(__out), __fmt,
-				 std::make_format_args<_FormatContext>(__t));
+	  using _FmtStr = _Runtime_format_string<_CharT>;
+	  return _M_write(std::move(__out), __loc,
+			  std::format(__loc, _FmtStr(__fmt), __t));
 	}
 
       template<typename _Tp, typename _FormatContext>
@@ -1131,22 +1259,30 @@ namespace __format
 	  // %S  Seconds as a decimal number.
 	  // %OS The locale's alternative representation.
 	  auto __hms = _S_hms(__t);
+	  auto __s = __hms.seconds();
 
 	  if (__mod) [[unlikely]] // %OS
 	    {
-	      struct tm __tm{};
-	      __tm.tm_sec = (int)__hms.seconds().count();
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   'S', 'O');
+	      if (_M_spec._M_localized)
+		if (auto __loc = __ctx.locale(); __loc != locale::classic())
+		  {
+		    struct tm __tm{};
+		    __tm.tm_sec = (int)__s.count();
+		    return _M_locale_fmt(std::move(__out), __loc, __tm,
+					 'S', 'O');
+		  }
+
+	      // %OS formats don't include subseconds, so just format that:
+	      return __format::__write(std::move(__out),
+				       _S_two_digits(__s.count()));
 	    }
 
 	  if constexpr (__hms.fractional_width == 0)
 	    __out = __format::__write(std::move(__out),
-				      _S_two_digits(__hms.seconds().count()));
+				      _S_two_digits(__s.count()));
 	  else
 	    {
 	      locale __loc = _M_locale(__ctx);
-	      auto __s = __hms.seconds();
 	      auto __ss = __hms.subseconds();
 	      using rep = typename decltype(__ss)::rep;
 	      if constexpr (is_floating_point_v<rep>)
@@ -1196,13 +1332,14 @@ namespace __format
 
 	  chrono::weekday __wd = _S_weekday(__t);
 
-	  if (__mod) [[unlikely]]
-	    {
-	      struct tm __tm{};
-	      __tm.tm_wday = __wd.c_encoding();
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   (char)__conv, 'O');
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]]
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		struct tm __tm{};
+		__tm.tm_wday = __wd.c_encoding();
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     (char)__conv, 'O');
+	      }
 
 	  unsigned __wdi = __conv == 'u' ? __wd.iso_encoding()
 					 : __wd.c_encoding();
@@ -1225,17 +1362,18 @@ namespace __format
 	  auto __d = _S_days(__t);
 	  using _TDays = decltype(__d); // Either sys_days or local_days.
 
-	  if (__mod) [[unlikely]]
-	    {
-	      const year_month_day __ymd(__d);
-	      const year __y = __ymd.year();
-	      struct tm __tm{};
-	      __tm.tm_year = (int)__y - 1900;
-	      __tm.tm_yday = (__d - _TDays(__y/January/1)).count();
-	      __tm.tm_wday = weekday(__d).c_encoding();
-	      return _M_locale_fmt(std::move(__out), _M_locale(__ctx), __tm,
-				   (char)__conv, 'O');
-	    }
+	  if (__mod && _M_spec._M_localized) [[unlikely]]
+	    if (auto __loc = __ctx.locale(); __loc != locale::classic())
+	      {
+		const year_month_day __ymd(__d);
+		const year __y = __ymd.year();
+		struct tm __tm{};
+		__tm.tm_year = (int)__y - 1900;
+		__tm.tm_yday = (__d - _TDays(__y/January/1)).count();
+		__tm.tm_wday = weekday(__d).c_encoding();
+		return _M_locale_fmt(std::move(__out), __loc, __tm,
+				     (char)__conv, 'O');
+	      }
 
 	  _TDays __first; // First day of week 1.
 	  if (__conv == 'V') // W01 begins on Monday before first Thursday.
@@ -1279,8 +1417,9 @@ namespace __format
 	  basic_string<_CharT> __fmt(_S_empty_spec);
 	  __fmt.insert(1u, 1u, _S_colon);
 	  __fmt.insert(2u, __rep);
-	  return std::vformat_to(std::move(__out), __fmt,
-				 std::make_format_args<_FormatContext>(__t));
+	  using _FmtStr = _Runtime_format_string<_CharT>;
+	  return _M_write(std::move(__out), __loc,
+			  std::format(__loc, _FmtStr(__fmt), __t));
 	}
 
       template<typename _Tp, typename _FormatContext>
@@ -1302,8 +1441,9 @@ namespace __format
 	  basic_string<_CharT> __fmt(_S_empty_spec);
 	  __fmt.insert(1u, 1u, _S_colon);
 	  __fmt.insert(2u, __rep);
-	  return std::vformat_to(std::move(__out), __fmt,
-				 std::make_format_args<_FormatContext>(__t));
+	  using _FmtStr = _Runtime_format_string<_CharT>;
+	  return _M_write(std::move(__out), __loc,
+			  std::format(__loc, _FmtStr(__fmt), __t));
 	}
 
       template<typename _Tp, typename _FormatContext>
@@ -1577,10 +1717,11 @@ namespace __format
 		      char __fmt, char __mod) const
 	{
 	  basic_ostringstream<_CharT> __os;
+	  __os.imbue(__loc);
 	  const auto& __tp = use_facet<time_put<_CharT>>(__loc);
 	  __tp.put(__os, __os, _S_space, &__tm, __fmt, __mod);
 	  if (__os)
-	    __out = __format::__write(std::move(__out), __os.view());
+	    __out = _M_write(std::move(__out), __loc, __os.view());
 	  return __out;
 	}
     };
@@ -1589,6 +1730,7 @@ namespace __format
 /// @endcond
 
   template<typename _Rep, typename _Period, typename _CharT>
+    requires __format::__formattable_impl<_Rep, _CharT>
     struct formatter<chrono::duration<_Rep, _Period>, _CharT>
     {
       constexpr typename basic_format_parse_context<_CharT>::iterator
@@ -1607,284 +1749,294 @@ namespace __format
 	format(const chrono::duration<_Rep, _Period>& __d,
 	       basic_format_context<_Out, _CharT>& __fc) const
 	{
-	  return _M_f._M_format(chrono::abs(__d), __fc, __d < __d.zero());
+	  if constexpr (numeric_limits<_Rep>::is_signed)
+	    if (__d < __d.zero()) [[unlikely]]
+	      {
+		if constexpr (is_integral_v<_Rep>)
+		  {
+		    // -d is undefined for the most negative integer.
+		    // Convert duration to corresponding unsigned rep.
+		    using _URep = make_unsigned_t<_Rep>;
+		    auto __ucnt = -static_cast<_URep>(__d.count());
+		    auto __ud = chrono::duration<_URep, _Period>(__ucnt);
+		    return _M_f._M_format(__ud, __fc, true);
+		  }
+		else
+		  return _M_f._M_format(-__d, __fc, true);
+	      }
+	  return _M_f._M_format(__d, __fc, false);
 	}
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::day, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Day); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Day); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::day& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::day& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::month, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Month); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Month); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::month& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::month& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::year, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Year); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Year); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::year& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::year& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::weekday, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Weekday); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Weekday); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::weekday& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::weekday& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::weekday_indexed, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Weekday); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Weekday); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::weekday_indexed& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::weekday_indexed& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::weekday_last, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Weekday); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Weekday); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::weekday_last& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::weekday_last& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::month_day, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Month|__format::_Day); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Month|__format::_Day); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::month_day& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::month_day& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::month_day_last, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Month|__format::_Day); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Month|__format::_Day); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::month_day_last& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::month_day_last& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::month_weekday, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Month|__format::_Weekday); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Month|__format::_Weekday); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::month_weekday& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::month_weekday& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::month_weekday_last, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Month|__format::_Weekday); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Month|__format::_Weekday); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
 	format(const chrono::month_weekday_last& __t,
-	       _FormatContext& __fc) const
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::year_month, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Year|__format::_Month); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Year|__format::_Month); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::year_month& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::year_month& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::year_month_day, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Date); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Date); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::year_month_day& __t, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::year_month_day& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::year_month_day_last, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Date); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Date); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
 	format(const chrono::year_month_day_last& __t,
-	       _FormatContext& __fc) const
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::year_month_weekday, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Date); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Date); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
 	format(const chrono::year_month_weekday& __t,
-	       _FormatContext& __fc) const
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::year_month_weekday_last, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_Date); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_Date); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
 	format(const chrono::year_month_weekday_last& __t,
-	       _FormatContext& __fc) const
-	{ return _M_f._M_format(__t, __fc); }
+	       basic_format_context<_Out, _CharT>& __fc) const
+      	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Rep, typename _Period, typename _CharT>
+  template<typename _Rep, typename _Period, __format::__char _CharT>
     struct formatter<chrono::hh_mm_ss<chrono::duration<_Rep, _Period>>, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_TimeOfDay); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_TimeOfDay); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
 	format(const chrono::hh_mm_ss<chrono::duration<_Rep, _Period>>& __t,
-	       _FormatContext& __fc) const
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__t, __fc); }
 
     private:
@@ -1892,34 +2044,34 @@ namespace __format
     };
 
 #if _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::sys_info, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ChronoParts{}); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ChronoParts{}); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::sys_info& __i, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::sys_info& __i,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__i, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _CharT>
+  template<__format::__char _CharT>
     struct formatter<chrono::local_info, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ChronoParts{}); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ChronoParts{}); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::local_info& __i, _FormatContext& __fc) const
+      template<typename _Out>
+	typename basic_format_context<_Out, _CharT>::iterator
+	format(const chrono::local_info& __i,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return _M_f._M_format(__i, __fc); }
 
     private:
@@ -1927,25 +2079,24 @@ namespace __format
     };
 #endif
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::sys_time<_Duration>, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{
-	  auto __next = _M_f._M_parse(__pc, __format::_ZonedDateTime);
-	  if constexpr (!__stream_insertable)
-	    if (_M_f._M_spec._M_chrono_specs.empty())
-	      __format::__invalid_chrono_spec(); // chrono-specs can't be empty
-	  return __next;
-	}
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      {
+	auto __next = _M_f._M_parse(__pc, __format::_ZonedDateTime);
+	if constexpr (!__stream_insertable)
+	  if (_M_f._M_spec._M_chrono_specs.empty())
+	    __format::__invalid_chrono_spec(); // chrono-specs can't be empty
+	return __next;
+     }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::sys_time<_Duration>& __t,
-	       _FormatContext& __fc) const
-	{ return _M_f._M_format(__t, __fc); }
+     template<typename _Out>
+       typename basic_format_context<_Out, _CharT>::iterator
+       format(const chrono::sys_time<_Duration>& __t,
+	      basic_format_context<_Out, _CharT>& __fc) const
+       { return _M_f._M_format(__t, __fc); }
 
     private:
       static constexpr bool __stream_insertable
@@ -1955,19 +2106,18 @@ namespace __format
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::utc_time<_Duration>, _CharT>
     : __format::__formatter_chrono<_CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::utc_time<_Duration>& __t,
-	       _FormatContext& __fc) const
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::utc_time<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{
 	  // Adjust by removing leap seconds to get equivalent sys_time.
 	  // We can't just use clock_cast because we want to know if the time
@@ -1990,21 +2140,22 @@ namespace __format
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::tai_time<_Duration>, _CharT>
     : __format::__formatter_chrono<_CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::tai_time<_Duration>& __t,
-	       _FormatContext& __fc) const
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::tai_time<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{
 	  // Convert to __local_time_fmt with abbrev "TAI" and offset 0s.
+	  // We use __local_time_fmt and not sys_time (as the standard implies)
+	  // because %Z for sys_time would print "UTC" and we want "TAI" here.
 
 	  // Offset is 1970y/January/1 - 1958y/January/1
 	  constexpr chrono::days __tai_offset = chrono::days(4383);
@@ -2020,21 +2171,22 @@ namespace __format
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::gps_time<_Duration>, _CharT>
     : __format::__formatter_chrono<_CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::gps_time<_Duration>& __t,
-	       _FormatContext& __fc) const
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::gps_time<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{
 	  // Convert to __local_time_fmt with abbrev "GPS" and offset 0s.
+	  // We use __local_time_fmt and not sys_time (as the standard implies)
+	  // because %Z for sys_time would print "UTC" and we want "GPS" here.
 
 	  // Offset is 1980y/January/Sunday[1] - 1970y/January/1
 	  constexpr chrono::days __gps_offset = chrono::days(3657);
@@ -2050,93 +2202,90 @@ namespace __format
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::file_time<_Duration>, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::file_time<_Duration>& __t,
-	       _FormatContext& __ctx) const
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::file_time<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{
 	  using namespace chrono;
-	  return _M_f._M_format(chrono::clock_cast<system_clock>(__t), __ctx);
+	  return _M_f._M_format(chrono::clock_cast<system_clock>(__t), __fc);
 	}
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::local_time<_Duration>, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_DateTime); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      {  return _M_f._M_parse(__pc, __format::_DateTime); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::local_time<_Duration>& __t,
-	       _FormatContext& __ctx) const
-	{ return _M_f._M_format(__t, __ctx); }
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::local_time<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
+	{ return _M_f._M_format(__t, __fc); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::__detail::__local_time_fmt<_Duration>, _CharT>
     {
-      template<typename _ParseContext>
-	constexpr typename _ParseContext::iterator
-	parse(_ParseContext& __pc)
-	{ return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
+      constexpr typename basic_format_parse_context<_CharT>::iterator
+      parse(basic_format_parse_context<_CharT>& __pc)
+      { return _M_f._M_parse(__pc, __format::_ZonedDateTime); }
 
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::__detail::__local_time_fmt<_Duration>& __t,
-	       _FormatContext& __ctx) const
-	{ return _M_f._M_format(__t, __ctx); }
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::__detail::__local_time_fmt<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
+	{ return _M_f._M_format(__t, __fc, /* use %Z for {} */ true); }
 
     private:
       __format::__formatter_chrono<_CharT> _M_f;
     };
 
 #if _GLIBCXX_USE_CXX11_ABI || ! _GLIBCXX_USE_DUAL_ABI
-  template<typename _Duration, typename _TimeZonePtr, typename _CharT>
+  template<typename _Duration, typename _TimeZonePtr, __format::__char _CharT>
     struct formatter<chrono::zoned_time<_Duration, _TimeZonePtr>, _CharT>
-    : formatter<chrono::__detail::__local_time_fmt<_Duration>, _CharT>
+    : formatter<chrono::__detail::__local_time_fmt_for<_Duration>, _CharT>
     {
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::zoned_time<_Duration, _TimeZonePtr>& __tp,
-	       _FormatContext& __ctx) const
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::zoned_time<_Duration, _TimeZonePtr>& __tp,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{
-	  using chrono::__detail::__local_time_fmt;
-	  using _Base = formatter<__local_time_fmt<_Duration>, _CharT>;
+	  using _Ltf = chrono::__detail::__local_time_fmt_for<_Duration>;
+	  using _Base = formatter<_Ltf, _CharT>;
 	  const chrono::sys_info __info = __tp.get_info();
 	  const auto __lf = chrono::local_time_format(__tp.get_local_time(),
 						      &__info.abbrev,
 						      &__info.offset);
-	  return _Base::format(__lf, __ctx);
+	  return _Base::format(__lf, __fc);
 	}
     };
 #endif
 
   // Partial specialization needed for %c formatting of __utc_leap_second.
-  template<typename _Duration, typename _CharT>
+  template<typename _Duration, __format::__char _CharT>
     struct formatter<chrono::__detail::__utc_leap_second<_Duration>, _CharT>
     : formatter<chrono::utc_time<_Duration>, _CharT>
     {
-      template<typename _FormatContext>
-	typename _FormatContext::iterator
-	format(const chrono::__detail::__utc_leap_second<_Duration>& __t,
-	       _FormatContext& __fc) const
+      template<typename _Out>
+        typename basic_format_context<_Out, _CharT>::iterator
+        format(const chrono::__detail::__utc_leap_second<_Duration>& __t,
+	       basic_format_context<_Out, _CharT>& __fc) const
 	{ return this->_M_f._M_format(__t, __fc); }
     };
 
@@ -2274,6 +2423,56 @@ namespace __detail
   template<typename _Duration>
     using _Parser_t = _Parser<common_type_t<_Duration, seconds>>;
 
+  template<typename _Duration>
+    consteval bool
+    __use_floor()
+    {
+      if constexpr (_Duration::period::den == 1)
+	{
+	  switch (_Duration::period::num)
+	  {
+	    case minutes::period::num:
+	    case hours::period::num:
+	    case days::period::num:
+	    case weeks::period::num:
+	    case years::period::num:
+	      return true;
+	  }
+	}
+      return false;
+    }
+
+  // A "do the right thing" rounding function for duration and time_point
+  // values extracted by from_stream. When treat_as_floating_point is true
+  // we don't want to do anything, just a straightforward conversion.
+  // When the destination type has a period of minutes, hours, days, weeks,
+  // or years, we use chrono::floor to truncate towards negative infinity.
+  // This ensures that an extracted timestamp such as 2024-09-05 13:00:00
+  // will produce 2024-09-05 when rounded to days, rather than rounding up
+  // to 2024-09-06 (a different day).
+  // Otherwise, use chrono::round to get the nearest value representable
+  // in the destination type.
+  template<typename _ToDur, typename _Tp>
+    constexpr auto
+    __round(const _Tp& __t)
+    {
+      if constexpr (__is_duration_v<_Tp>)
+	{
+	  if constexpr (treat_as_floating_point_v<typename _Tp::rep>)
+	    return chrono::duration_cast<_ToDur>(__t);
+	  else if constexpr (__detail::__use_floor<_ToDur>())
+	    return chrono::floor<_ToDur>(__t);
+	  else
+	    return chrono::round<_ToDur>(__t);
+	}
+      else
+	{
+	  static_assert(__is_time_point_v<_Tp>);
+	  using _Tpt = time_point<typename _Tp::clock, _ToDur>;
+	  return _Tpt(__detail::__round<_ToDur>(__t.time_since_epoch()));
+	}
+    }
+
 } // namespace __detail
 /// @endcond
 
@@ -2288,7 +2487,7 @@ namespace __detail
       auto __need = __format::_ChronoParts::_TimeOfDay;
       __detail::_Parser_t<duration<_Rep, _Period>> __p(__need);
       if (__p(__is, __fmt, __abbrev, __offset))
-	__d = chrono::duration_cast<duration<_Rep, _Period>>(__p._M_time);
+	__d = __detail::__round<duration<_Rep, _Period>>(__p._M_time);
       return __is;
     }
 
@@ -2749,7 +2948,7 @@ namespace __detail
 	  else
 	    {
 	      auto __st = __p._M_sys_days + __p._M_time - *__offset;
-	      __tp = chrono::time_point_cast<_Duration>(__st);
+	      __tp = __detail::__round<_Duration>(__st);
 	    }
 	}
       return __is;
@@ -2785,7 +2984,7 @@ namespace __detail
 	  // "23:59:60" to correctly produce a time within a leap second.
 	  auto __ut = utc_clock::from_sys(__p._M_sys_days) + __p._M_time
 			- *__offset;
-	  __tp = chrono::time_point_cast<_Duration>(__ut);
+	  __tp = __detail::__round<_Duration>(__ut);
 	}
       return __is;
     }
@@ -2820,9 +3019,10 @@ namespace __detail
 	    __is.setstate(ios_base::failbit);
 	  else
 	    {
-	      auto __st = __p._M_sys_days + __p._M_time - *__offset;
-	      auto __tt = tai_clock::from_utc(utc_clock::from_sys(__st));
-	      __tp = chrono::time_point_cast<_Duration>(__tt);
+	      constexpr sys_days __epoch(-days(4383)); // 1958y/1/1
+	      auto __d = __p._M_sys_days - __epoch + __p._M_time - *__offset;
+	      tai_time<common_type_t<_Duration, seconds>> __tt(__d);
+	      __tp = __detail::__round<_Duration>(__tt);
 	    }
 	}
       return __is;
@@ -2858,9 +3058,10 @@ namespace __detail
 	    __is.setstate(ios_base::failbit);
 	  else
 	    {
-	      auto __st = __p._M_sys_days + __p._M_time - *__offset;
-	      auto __tt = gps_clock::from_utc(utc_clock::from_sys(__st));
-	      __tp = chrono::time_point_cast<_Duration>(__tt);
+	      constexpr sys_days __epoch(days(3657)); // 1980y/1/Sunday[1]
+	      auto __d = __p._M_sys_days - __epoch + __p._M_time - *__offset;
+	      gps_time<common_type_t<_Duration, seconds>> __gt(__d);
+	      __tp = __detail::__round<_Duration>(__gt);
 	    }
 	}
       return __is;
@@ -2885,7 +3086,7 @@ namespace __detail
     {
       sys_time<_Duration> __st;
       if (chrono::from_stream(__is, __fmt, __st, __abbrev, __offset))
-	__tp = chrono::time_point_cast<_Duration>(file_clock::from_sys(__st));
+	__tp = __detail::__round<_Duration>(file_clock::from_sys(__st));
       return __is;
     }
 
@@ -2914,7 +3115,7 @@ namespace __detail
 	{
 	  days __d = __p._M_sys_days.time_since_epoch();
 	  auto __t = local_days(__d) + __p._M_time; // ignore offset
-	  __tp = chrono::time_point_cast<_Duration>(__t);
+	  __tp = __detail::__round<_Duration>(__t);
 	}
       return __is;
     }
@@ -2923,6 +3124,10 @@ namespace __detail
 
 namespace __detail
 {
+  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+  // 3956. chrono::parse uses from_stream as a customization point
+  void from_stream() = delete;
+
   template<typename _Parsable, typename _CharT,
 	   typename _Traits = std::char_traits<_CharT>,
 	   typename... _OptArgs>
@@ -3685,6 +3890,7 @@ namespace __detail
 		      if (!__is_failed(__err)) [[likely]]
 			{
 			  long double __val{};
+#if __cpp_lib_to_chars
 			  string __str = std::move(__buf).str();
 			  auto __first = __str.data();
 			  auto __last = __first + __str.size();
@@ -3694,6 +3900,9 @@ namespace __detail
 			  if ((bool)ec || ptr != __last) [[unlikely]]
 			    __err |= ios_base::failbit;
 			  else
+#else
+			  if (__buf >> __val)
+#endif
 			    {
 			      duration<long double> __fs(__val);
 			      if constexpr (__is_floating)

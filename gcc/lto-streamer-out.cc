@@ -1,6 +1,6 @@
 /* Write the GIMPLE representation to a file stream.
 
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
    Re-implemented by Diego Novillo <dnovillo@google.com>
 
@@ -130,7 +130,7 @@ destroy_output_block (struct output_block *ob)
 /* Wrapper around variably_modified_type_p avoiding type modification
    during WPA streaming.  */
 
-static bool
+bool
 lto_variably_modified_type_p (tree type)
 {
   return (in_lto_p
@@ -459,7 +459,7 @@ get_symbol_initial_value (lto_symtab_encoder_t encoder, tree expr)
 
 
 /* Output reference to tree T to the stream.
-   Assume that T is already in encoder cache. 
+   Assume that T is already in encoder cache.
    This is used to stream tree bodies where we know the DFS walk arranged
    everything to cache.  Must be matched with stream_read_tree_ref.  */
 
@@ -487,8 +487,6 @@ stream_write_tree_ref (struct output_block *ob, tree t)
 	    gcc_checking_assert (tag == LTO_global_stream_ref);
 	  streamer_write_hwi (ob, -(int)(ix * 2 + id + 1));
 	}
-      if (streamer_debugging)
-	streamer_write_uhwi (ob, TREE_CODE (t));
     }
 }
 
@@ -1161,6 +1159,9 @@ DFS::DFS_write_tree_body (struct output_block *ob,
 	}
     }
 
+  if (code == RAW_DATA_CST)
+    DFS_follow_tree_edge (RAW_DATA_OWNER (expr));
+
   if (code == OMP_CLAUSE)
     {
       int i;
@@ -1332,7 +1333,7 @@ hash_tree (struct streamer_tree_cache_d *cache, hash_map<tree, hashval_t> *map, 
       hstate.add_int (DECL_BUILT_IN_CLASS (t));
       hstate.add_flag (DECL_STATIC_CONSTRUCTOR (t));
       hstate.add_flag (DECL_STATIC_DESTRUCTOR (t));
-      hstate.add_flag (FUNCTION_DECL_DECL_TYPE (t));
+      hstate.add_int ((unsigned)FUNCTION_DECL_DECL_TYPE (t));
       hstate.add_flag (DECL_UNINLINABLE (t));
       hstate.add_flag (DECL_POSSIBLY_INLINED (t));
       hstate.add_flag (DECL_IS_NOVOPS (t));
@@ -1839,9 +1840,6 @@ lto_output_tree (struct output_block *ob, tree expr,
 	 will instantiate two different nodes for the same object.  */
       streamer_write_record_start (ob, LTO_tree_pickle_reference);
       streamer_write_uhwi (ob, ix);
-      if (streamer_debugging)
-	streamer_write_enum (ob->main_stream, LTO_tags, LTO_NUM_TAGS,
-			     lto_tree_code_to_tag (TREE_CODE (expr)));
       lto_stats.num_pickle_refs_output++;
     }
   else
@@ -1882,9 +1880,6 @@ lto_output_tree (struct output_block *ob, tree expr,
 	    }
 	  streamer_write_record_start (ob, LTO_tree_pickle_reference);
 	  streamer_write_uhwi (ob, ix);
-	  if (streamer_debugging)
-	    streamer_write_enum (ob->main_stream, LTO_tags, LTO_NUM_TAGS,
-				 lto_tree_code_to_tag (TREE_CODE (expr)));
 	}
       in_dfs_walk = false;
       lto_stats.num_pickle_refs_output++;
@@ -2207,12 +2202,11 @@ output_cfg (struct output_block *ob, struct function *fn)
   ob->main_stream = tmp_stream;
 }
 
-
 /* Create the header in the file using OB.  If the section type is for
    a function, set FN to the decl for that function.  */
 
 void
-produce_asm (struct output_block *ob, tree fn)
+produce_symbol_asm (struct output_block *ob, tree fn, int output_order)
 {
   enum lto_section_type section_type = ob->section_type;
   struct lto_function_header header;
@@ -2222,8 +2216,7 @@ produce_asm (struct output_block *ob, tree fn)
     {
       const char *name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (fn));
       section_name = lto_get_section_name (section_type, name,
-					   symtab_node::get (fn)->order,
-					   NULL);
+					   output_order, NULL);
     }
   else
     section_name = lto_get_section_name (section_type, NULL, 0, NULL);
@@ -2248,6 +2241,14 @@ produce_asm (struct output_block *ob, tree fn)
   lto_write_stream (ob->string_stream);
 
   lto_end_section ();
+}
+
+/* Wrapper for unused arguments.  */
+
+void
+produce_asm (struct output_block *ob)
+{
+  produce_symbol_asm (ob, NULL, -1);
 }
 
 
@@ -2290,6 +2291,8 @@ output_struct_function_base (struct output_block *ob, struct function *fn)
   bp_pack_value (&bp, fn->calls_eh_return, 1);
   bp_pack_value (&bp, fn->has_force_vectorize_loops, 1);
   bp_pack_value (&bp, fn->has_simduid_loops, 1);
+  bp_pack_value (&bp, fn->has_musttail, 1);
+  bp_pack_value (&bp, fn->has_unroll, 1);
   bp_pack_value (&bp, fn->assume_function, 1);
   bp_pack_value (&bp, fn->va_list_fpr_size, 8);
   bp_pack_value (&bp, fn->va_list_gpr_size, 8);
@@ -2405,7 +2408,7 @@ streamer_write_chain (struct output_block *ob, tree t, bool ref_p)
 /* Output the body of function NODE->DECL.  */
 
 static void
-output_function (struct cgraph_node *node)
+output_function (struct cgraph_node *node, int output_order)
 {
   tree function;
   struct function *fn;
@@ -2482,7 +2485,7 @@ output_function (struct cgraph_node *node)
     streamer_write_uhwi (ob, 0);
 
   /* Create a section to hold the pickled output of this function.   */
-  produce_asm (ob, function);
+  produce_symbol_asm (ob, function, output_order);
 
   destroy_output_block (ob);
   if (streamer_dump_file)
@@ -2493,7 +2496,7 @@ output_function (struct cgraph_node *node)
 /* Output the body of function NODE->DECL.  */
 
 static void
-output_constructor (struct varpool_node *node)
+output_constructor (struct varpool_node *node, int output_order)
 {
   tree var = node->decl;
   struct output_block *ob;
@@ -2515,7 +2518,7 @@ output_constructor (struct varpool_node *node)
   stream_write_tree (ob, DECL_INITIAL (var), true);
 
   /* Create a section to hold the pickled output of this function.   */
-  produce_asm (ob, var);
+  produce_symbol_asm (ob, var, output_order);
 
   destroy_output_block (ob);
   if (streamer_dump_file)
@@ -2545,6 +2548,13 @@ lto_output_toplevel_asms (void)
 
   for (can = symtab->first_asm_symbol (); can; can = can->next)
     {
+      if (TREE_CODE (can->asm_str) != STRING_CST)
+	{
+	  sorry_at (EXPR_LOCATION (can->asm_str),
+		    "LTO streaming of toplevel extended %<asm%> "
+		    "unimplemented");
+	  continue;
+	}
       streamer_write_string_cst (ob, ob->main_stream, can->asm_str);
       streamer_write_hwi (ob, can->order);
     }
@@ -2576,7 +2586,7 @@ lto_output_toplevel_asms (void)
 /* Copy the function body or variable constructor of NODE without deserializing. */
 
 static void
-copy_function_or_variable (struct symtab_node *node)
+copy_function_or_variable (struct symtab_node *node, int output_order)
 {
   tree function = node->decl;
   struct lto_file_decl_data *file_data = node->lto_file_data;
@@ -2584,7 +2594,7 @@ copy_function_or_variable (struct symtab_node *node)
   size_t len;
   const char *name = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (function));
   char *section_name =
-    lto_get_section_name (LTO_section_function_body, name, node->order, NULL);
+    lto_get_section_name (LTO_section_function_body, name, output_order, NULL);
   size_t i, j;
   struct lto_in_decl_state *in_state;
   struct lto_out_decl_state *out_state = lto_get_out_decl_state ();
@@ -2729,6 +2739,63 @@ cmp_symbol_files (const void *pn1, const void *pn2, void *id_map_)
   return n1->order - n2->order;
 }
 
+/* Compare ints, callback for qsort.  */
+
+static int
+cmp_int (const void *a, const void *b)
+{
+  int ia = *(int const*) a;
+  int ib = *(int const*) b;
+  return ia - ib;
+}
+
+/* Create order mapping independent on symbols outside of the partition.
+   Results in stable order values for incremental LTO.
+
+   Remapping is not done in place, because symbols can be used
+   by multiple partitions.  */
+
+static void
+create_order_remap (lto_symtab_encoder_t encoder)
+{
+  auto_vec<int> orders;
+  unsigned i;
+  struct asm_node* anode;
+  encoder->order_remap = new hash_map<int_hash<int, -1, -2>, int>;
+  unsigned n_nodes = lto_symtab_encoder_size (encoder);
+
+  for (i = 0; i < n_nodes; i++)
+    orders.safe_push (lto_symtab_encoder_deref (encoder, i)->order);
+
+  if (!asm_nodes_output)
+    {
+      for (anode = symtab->first_asm_symbol (); anode; anode = anode->next)
+	orders.safe_push (anode->order);
+    }
+
+  orders.qsort (cmp_int);
+  int ord = 0;
+  int last_order = -1;
+  for (i = 0; i < orders.length (); i++)
+    {
+      int order = orders[i];
+      if (order != last_order)
+	{
+	  last_order = order;
+	  encoder->order_remap->put (order, ord);
+	  ord++;
+	}
+    }
+
+  /* Asm nodes are currently always output only into first partition.
+     We can remap already here.  */
+  if (!asm_nodes_output)
+    {
+      for (anode = symtab->first_asm_symbol (); anode; anode = anode->next)
+	anode->order = *encoder->order_remap->get (anode->order);
+    }
+}
+
 /* Main entry point from the pass manager.  */
 
 void
@@ -2740,6 +2807,8 @@ lto_output (void)
   unsigned int i, n_nodes;
   lto_symtab_encoder_t encoder = lto_get_out_decl_state ()->symtab_node_encoder;
   auto_vec<symtab_node *> symbols_to_copy;
+
+  create_order_remap (encoder);
 
   prune_offload_funcs ();
 
@@ -2803,6 +2872,8 @@ lto_output (void)
       cgraph_node *cnode;
       varpool_node *vnode;
 
+      int output_order = *encoder->order_remap->get (snode->order);
+
       if (flag_checking)
 	gcc_assert (bitmap_set_bit (output, DECL_UID (snode->decl)));
 
@@ -2815,16 +2886,15 @@ lto_output (void)
 		  && flag_incremental_link != INCREMENTAL_LINK_LTO)
 	      /* Thunks have no body but they may be synthetized
 		 at WPA time.  */
-	      || DECL_ARGUMENTS (cnode->decl)
-	      || cnode->declare_variant_alt))
-	output_function (cnode);
+	      || DECL_ARGUMENTS (cnode->decl)))
+	output_function (cnode, output_order);
       else if ((vnode = dyn_cast <varpool_node *> (snode))
 	       && (DECL_INITIAL (vnode->decl) != error_mark_node
 		   || (!flag_wpa
 		       && flag_incremental_link != INCREMENTAL_LINK_LTO)))
-	output_constructor (vnode);
+	output_constructor (vnode, output_order);
       else
-	copy_function_or_variable (snode);
+	copy_function_or_variable (snode, output_order);
       gcc_assert (lto_get_out_decl_state () == decl_state);
       lto_pop_out_decl_state ();
       lto_record_function_out_decl_state (snode->decl, decl_state);
@@ -2836,7 +2906,8 @@ lto_output (void)
      statements using the statement UIDs.  */
   output_symtab ();
 
-  output_offload_tables ();
+  if (lto_get_out_decl_state ()->output_offload_tables_p)
+    output_offload_tables ();
 
   if (flag_checking)
     {
@@ -3198,6 +3269,9 @@ lto_write_mode_table (void)
   struct output_block *ob;
   ob = create_output_block (LTO_section_mode_table);
   bitpack_d bp = bitpack_create (ob->main_stream);
+
+  if (lto_stream_offload_p)
+    bp_pack_value (&bp, NUM_POLY_INT_COEFFS, MAX_NUM_POLY_INT_COEFFS_BITS);
 
   /* Ensure that for GET_MODE_INNER (m) != m we have
      also the inner mode marked.  */

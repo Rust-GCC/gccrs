@@ -6,6 +6,7 @@
    increment by 2 integers at a time, hence the last load needs s[30-33] and
    the penultimate load needs s[28-31].
    This testcase ensures that we do not crash due to that behaviour.  */
+/* { dg-additional-options "-std=gnu17" } */
 /* { dg-require-effective-target mmap } */
 #include <sys/mman.h>
 #include <stdio.h>
@@ -60,4 +61,4 @@ void intrapred_luma_16x16(int * restrict sp) {
 	mprr_2[VERT_PRED_16][j][15]=sp[j*2];
       }
 }
-/* { dg-final { scan-tree-dump "LOOP VECTORIZED" "vect" {target vect_int } } } */
+/* { dg-final { scan-tree-dump "LOOP VECTORIZED" "vect" {target { vect_int && vect_perm } } } } */

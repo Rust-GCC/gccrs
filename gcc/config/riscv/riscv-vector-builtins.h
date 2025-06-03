@@ -1,5 +1,5 @@
 /* Builtins definitions for RISC-V 'V' Extension for GNU compiler.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by Ju-Zhe Zhong (juzhe.zhong@rivai.ai), RiVAI Technologies Ltd.
 
    This file is part of GCC.
@@ -109,22 +109,115 @@ static const unsigned int CP_WRITE_CSR = 1U << 5;
 #define RVV_REQUIRE_FULL_V (1 << 4) /* Require Full 'V' extension.  */
 #define RVV_REQUIRE_MIN_VLEN_64 (1 << 5)	/* Require TARGET_MIN_VLEN >= 64.  */
 #define RVV_REQUIRE_ELEN_FP_16 (1 << 6) /* Require FP ELEN >= 32.  */
+#define RVV_REQUIRE_ELEN_BF_16 (1 << 7) /* Require BF16.  */
 
 /* Enumerates the required extensions.  */
 enum required_ext
 {
-  VECTOR_EXT,   /* Vector extension */
-  ZVBB_EXT,    /* Cryto vector Zvbb sub-ext */
-  ZVBB_OR_ZVKB_EXT, /* Cryto vector Zvbb or zvkb sub-ext */
-  ZVBC_EXT,    /* Crypto vector Zvbc sub-ext */
-  ZVKG_EXT,    /* Crypto vector Zvkg sub-ext */
-  ZVKNED_EXT,  /* Crypto vector Zvkned sub-ext */
+  VECTOR_EXT,		/* Vector extension */
+  ZVBB_EXT,		/* Crypto vector Zvbb sub-ext */
+  ZVBB_OR_ZVKB_EXT,	/* Crypto vector Zvbb or zvkb sub-ext */
+  ZVBC_EXT,		/* Crypto vector Zvbc sub-ext */
+  ZVKG_EXT,		/* Crypto vector Zvkg sub-ext */
+  ZVKNED_EXT,		/* Crypto vector Zvkned sub-ext */
   ZVKNHA_OR_ZVKNHB_EXT, /* Crypto vector Zvknh[ab] sub-ext */
-  ZVKNHB_EXT,  /* Crypto vector Zvknhb sub-ext */
-  ZVKSED_EXT,  /* Crypto vector Zvksed sub-ext */
-  ZVKSH_EXT,   /* Crypto vector Zvksh sub-ext */
-  XTHEADVECTOR_EXT,   /* XTheadVector extension */
+  ZVKNHB_EXT,		/* Crypto vector Zvknhb sub-ext */
+  ZVKSED_EXT,		/* Crypto vector Zvksed sub-ext */
+  ZVKSH_EXT,		/* Crypto vector Zvksh sub-ext */
+  XTHEADVECTOR_EXT,	/* XTheadVector extension */
+  ZVFBFMIN_EXT,		/* Zvfbfmin extension */
+  ZVFBFWMA_EXT,		/* Zvfbfwma extension */
+  XSFVQMACCQOQ_EXT,	/* XSFVQMACCQOQ extension */
+  XSFVQMACCDOD_EXT,	/* XSFVQMACCDOD extension */
+  XSFVFNRCLIPXFQF_EXT,	/* XSFVFNRCLIPXFQF extension */
+  /* Please update below to isa_name func when add or remove enum type(s).  */
 };
+
+static inline const char * required_ext_to_isa_name (enum required_ext required)
+{
+  switch (required)
+  {
+    case VECTOR_EXT:
+      return "v";
+    case ZVBB_EXT:
+      return "zvbb";
+    case ZVBB_OR_ZVKB_EXT:
+      return "zvbb or zvkb";
+    case ZVBC_EXT:
+      return "zvbc";
+    case ZVKG_EXT:
+      return "zvkg";
+    case ZVKNED_EXT:
+      return "zvkned";
+    case ZVKNHA_OR_ZVKNHB_EXT:
+      return "zvknha or zvknhb";
+    case ZVKNHB_EXT:
+      return "zvknhb";
+    case ZVKSED_EXT:
+      return "zvksed";
+    case ZVKSH_EXT:
+      return "zvksh";
+    case XTHEADVECTOR_EXT:
+      return "xtheadvector";
+    case ZVFBFMIN_EXT:
+      return "zvfbfmin";
+    case ZVFBFWMA_EXT:
+      return "zvfbfwma";
+    case XSFVQMACCQOQ_EXT:
+      return "xsfvqmaccqoq";
+    case XSFVQMACCDOD_EXT:
+      return "xsfvqmaccdod";
+    case XSFVFNRCLIPXFQF_EXT:
+      return "xsfvfnrclipxfqf";
+    default:
+      gcc_unreachable ();
+  }
+
+  gcc_unreachable ();
+}
+
+static inline bool required_extensions_specified (enum required_ext required)
+{
+  switch (required)
+  {
+    case VECTOR_EXT:
+      return TARGET_VECTOR;;
+    case ZVBB_EXT:
+      return TARGET_ZVBB;
+    case ZVBB_OR_ZVKB_EXT:
+      return TARGET_ZVBB || TARGET_ZVKB;
+    case ZVBC_EXT:
+      return TARGET_ZVBC;
+    case ZVKG_EXT:
+      return TARGET_ZVKG;
+    case ZVKNED_EXT:
+      return TARGET_ZVKNED;
+    case ZVKNHA_OR_ZVKNHB_EXT:
+      return TARGET_ZVKNHA || TARGET_ZVKNHB;
+    case ZVKNHB_EXT:
+      return TARGET_ZVKNHB;
+    case ZVKSED_EXT:
+      return TARGET_ZVKSED;
+    case ZVKSH_EXT:
+      return TARGET_ZVKSH;
+    case XTHEADVECTOR_EXT:
+      return TARGET_XTHEADVECTOR;
+    case ZVFBFMIN_EXT:
+      return TARGET_ZVFBFMIN;
+    case ZVFBFWMA_EXT:
+      return TARGET_ZVFBFWMA;
+    case XSFVQMACCQOQ_EXT:
+      return TARGET_XSFVQMACCQOQ;
+    case XSFVQMACCDOD_EXT:
+      return TARGET_XSFVQMACCDOD;
+    case XSFVFNRCLIPXFQF_EXT:
+      return TARGET_XSFVFNRCLIPXFQF;
+    default:
+      gcc_unreachable ();
+  }
+
+  gcc_unreachable ();
+}
 
 /* Enumerates the RVV operand types.  */
 enum operand_type_index
@@ -203,6 +296,7 @@ struct rvv_arg_type_info
   tree get_vector_type (vector_type_index) const;
   tree get_tree_type (vector_type_index) const;
   tree get_tuple_subpart_type (vector_type_index) const;
+  tree get_xfqf_float_type (vector_type_index) const;
 };
 
 /* Static information for each operand.  */
@@ -255,6 +349,16 @@ struct function_group_info
         return TARGET_ZVKSH;
       case XTHEADVECTOR_EXT:
 	return TARGET_XTHEADVECTOR;
+      case ZVFBFMIN_EXT:
+	return TARGET_ZVFBFMIN;
+      case ZVFBFWMA_EXT:
+	return TARGET_ZVFBFWMA;
+      case XSFVQMACCQOQ_EXT:
+	return TARGET_XSFVQMACCQOQ;
+      case XSFVQMACCDOD_EXT:
+	return TARGET_XSFVQMACCDOD;
+      case XSFVFNRCLIPXFQF_EXT:
+	return TARGET_XSFVFNRCLIPXFQF;
       default:
         gcc_unreachable ();
     }
@@ -325,9 +429,10 @@ public:
   void allocate_argument_types (const function_instance &, vec<tree> &) const;
   void apply_predication (const function_instance &, tree, vec<tree> &) const;
   void add_unique_function (const function_instance &, const function_shape *,
-			    tree, vec<tree> &);
+			    tree, vec<tree> &, enum required_ext);
   void add_overloaded_function (const function_instance &,
-				const function_shape *);
+				const function_shape *,
+				enum required_ext);
   void register_function_group (const function_group_info &);
   void append_name (const char *);
   void append_base_name (const char *);
@@ -340,7 +445,8 @@ private:
 
   registered_function &add_function (const function_instance &, const char *,
 				     tree, tree, bool, const char *,
-				     const vec<tree> &, bool);
+				     const vec<tree> &, enum required_ext,
+				     bool);
 
   /* True if we should create a separate decl for each instance of an
      overloaded function, instead of using function_builder.  */

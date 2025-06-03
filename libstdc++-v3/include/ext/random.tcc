@@ -1,6 +1,6 @@
 // Random number extensions -*- C++ -*-
 
-// Copyright (C) 2012-2024 Free Software Foundation, Inc.
+// Copyright (C) 2012-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _EXT_RANDOM_TCC
 #define _EXT_RANDOM_TCC 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/requires_hosted.h> // GNU extensions are currently omitted
 

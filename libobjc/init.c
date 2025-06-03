@@ -1,5 +1,5 @@
 /* GNU Objective C Runtime initialization 
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup
    +load support contributed by Ovidiu Predescu <ovidiu@net-community.com>
 
@@ -63,7 +63,7 @@ static struct objc_list *uninitialized_statics = 0; 	/* !T:MUTEX */
    a class twice, we ignore it the second time.  On some platforms,
    where the order in which modules are loaded is well defined, this
    allows you to replace a class in a shared library by linking in a
-   new implementation which is loaded in in the right order, and which
+   new implementation which is loaded in the right order, and which
    overrides the existing one.
 
    Protected by __objc_runtime_mutex.  */
@@ -851,7 +851,7 @@ __objc_create_classes_tree (struct objc_module *module)
 
   /* Now iterate over "claimed" categories too (ie, categories that
      extend a class that has already been loaded by the runtime), and
-     insert them in the classes tree hiearchy too.  Otherwise, if you
+     insert them in the classes tree hierarchy too.  Otherwise, if you
      add a category, its +load method would not be called if the class
      is already loaded in the runtime.  It the category is
      "unclaimed", ie, we haven't loaded the main class yet, postpone

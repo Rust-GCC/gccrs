@@ -1,6 +1,6 @@
 (* Indexing.mod provides a dynamic indexing mechanism for CARDINAL.
 
-Copyright (C) 2003-2024 Free Software Foundation, Inc.
+Copyright (C) 2003-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -340,6 +340,34 @@ BEGIN
       END
    END
 END IncludeIndiceIntoIndex ;
+
+
+(*
+   FindIndice - returns the indice containing a.
+                It returns zero if a is not found in array i.
+*)
+
+PROCEDURE FindIndice (i: Index; a: ADDRESS) : CARDINAL ;
+VAR
+   j: CARDINAL ;
+   p: PtrToAddress ;
+   b: PtrToByte ;
+BEGIN
+   WITH i^ DO
+      j := Low ;
+      b := ArrayStart ;
+      WHILE j <= High DO
+         p := VAL (PtrToAddress, b) ;
+         INC (b, TSIZE (ADDRESS)) ;
+         IF p^ = a
+         THEN
+            RETURN j
+         END ;
+         INC (j)
+      END
+   END ;
+   RETURN 0
+END FindIndice ;
 
 
 (*

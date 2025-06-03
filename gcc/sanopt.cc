@@ -1,5 +1,5 @@
 /* Optimize and expand sanitizer functions.
-   Copyright (C) 2014-2024 Free Software Foundation, Inc.
+   Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Contributed by Marek Polacek <polacek@redhat.com>
 
 This file is part of GCC.
@@ -1319,6 +1319,10 @@ pass_sanopt::execute (function *fun)
 	      contains_asan_mark = true;
 	  }
     }
+
+  if (asan_num_accesses || contains_asan_mark || asan_sanitize_stack_p ()
+      || hwasan_sanitize_stack_p ())
+    asan_maybe_insert_dynamic_shadow_at_function_entry (fun);
 
   if (contains_asan_mark)
     {

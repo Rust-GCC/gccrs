@@ -1,4 +1,4 @@
-.. Copyright (C) 2014-2024 Free Software Foundation, Inc.
+.. Copyright (C) 2014-2025 Free Software Foundation, Inc.
    Originally contributed by David Malcolm <dmalcolm@redhat.com>
 
    This is free software: you can redistribute it and/or modify it
@@ -140,6 +140,20 @@ Simple expressions
 
      sizeof (type)
 
+.. function:: gcc_jit_rvalue *\
+              gcc_jit_context_new_alignof (gcc_jit_context *ctxt, \
+                                           gcc_jit_type *type)
+
+   Generate an rvalue that is equal to the alignment of ``type``.
+
+   The parameter ``type`` must be non-NULL.
+
+   This is equivalent to this C code:
+
+   .. code-block:: c
+
+     _Alignof (type)
+
 Constructor expressions
 ***********************
 
@@ -238,7 +252,7 @@ Constructor expressions
    The fields in ``fields`` need to be the same objects that were used
    to create the struct.
 
-   Each value has to have have the same unqualified type as the field
+   Each value has to have the same unqualified type as the field
    it is applied to.
 
    A NULL value element  in ``values`` is a shorthand for zero initialization
@@ -308,6 +322,35 @@ Vector expressions
    .. code-block:: c
 
       #ifdef LIBGCCJIT_HAVE_gcc_jit_context_new_rvalue_from_vector
+
+.. function:: gcc_jit_rvalue * \
+              gcc_jit_context_new_rvalue_vector_perm (gcc_jit_context *ctxt, \
+                                                      gcc_jit_location *loc, \
+                                                      gcc_jit_rvalue *elements1, \
+                                                      gcc_jit_rvalue *elements2, \
+                                                      gcc_jit_rvalue *mask);
+
+   Build a permutation of two vectors.
+
+   "elements1" and "elements2" should have the same type.
+   The length of "mask" and "elements1" should be the same.
+   The element type of "mask" should be integral.
+   The size of the element type of "mask" and "elements1" should be the same.
+
+   This entrypoint was added in :ref:`LIBGCCJIT_ABI_31`; you can test for
+   its presence using
+
+   .. code-block:: c
+
+      #ifdef LIBGCCJIT_HAVE_VECTOR_OPERATIONS
+
+    Analogous to:
+
+    .. code-block:: c
+
+       __builtin_shuffle (elements1, elements2, mask)
+
+    in C.
 
 Unary Operations
 ****************
@@ -713,6 +756,25 @@ Type-coercion
 
       #ifdef LIBGCCJIT_HAVE_gcc_jit_context_new_bitcast
 
+.. function:: gcc_jit_rvalue *
+              gcc_jit_context_convert_vector (gcc_jit_context *ctxt, \
+                                              gcc_jit_location *loc, \
+                                              gcc_jit_rvalue *vector, \
+                                              gcc_jit_type *type)
+
+   Given a vector rvalue, cast it to the type ``type``, doing an element-wise
+   conversion.
+
+   The number of elements in ``vector`` and ``type`` must match.
+   The ``type`` must be a vector type.
+
+   This entrypoint was added in :ref:`LIBGCCJIT_ABI_30`; you can test for
+   its presence using
+
+   .. code-block:: c
+
+      #ifdef LIBGCCJIT_HAVE_gcc_jit_context_convert_vector
+
 Lvalues
 -------
 
@@ -975,6 +1037,18 @@ Variables
 
       #ifdef LIBGCCJIT_HAVE_ATTRIBUTES
 
+.. function:: void\
+              gcc_jit_global_set_readonly (gcc_jit_lvalue *global)
+
+   Set the global variable as read-only, meaning you cannot assign to this variable.
+
+   This entrypoint was added in :ref:`LIBGCCJIT_ABI_29`; you can test for its
+   presence using:
+
+   .. code-block:: c
+
+      #ifdef LIBGCCJIT_HAVE_gcc_jit_global_set_readonly
+
 Working with pointers, structs and unions
 -----------------------------------------
 
@@ -1051,3 +1125,27 @@ Field access is provided separately for both lvalues and rvalues.
       PTR[INDEX]
 
    in C (or, indeed, to ``PTR + INDEX``).
+
+.. function:: gcc_jit_lvalue *\
+              gcc_jit_context_new_vector_access (gcc_jit_context *ctxt,\
+                                                 gcc_jit_location *loc,\
+                                                 gcc_jit_rvalue *vector,\
+                                                 gcc_jit_rvalue *index)
+
+   Given an rvalue of vector type ``T __attribute__ ((__vector_size__ (SIZE)))``,
+   get the element `T` at the given index.
+
+   This entrypoint was added in :ref:`LIBGCCJIT_ABI_31`; you can test for
+   its presence using
+
+   .. code-block:: c
+
+      #ifdef LIBGCCJIT_HAVE_VECTOR_OPERATIONS
+
+   Analogous to:
+
+   .. code-block:: c
+
+      VECTOR[INDEX]
+
+   in C.

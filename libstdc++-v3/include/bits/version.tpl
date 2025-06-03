@@ -2,7 +2,7 @@
 h
 (use-modules (srfi srfi-1))
 }*/
-// Copyright (C) 2023-2024 Free Software Foundation, Inc.
+// Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,7 +44,9 @@ h
 // if unwanted, to permit bits and other FTMs to depend on them for condtional
 // computation without exposing extra FTMs to user code.
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 /*{
@@ -141,13 +143,15 @@ h
 
 }*/# /*{(unless (first-for?) "el")}*/if /*{(generate-cond)}*/
 #  define __glibcxx_/*{name}*/ /*{v}*/L
-#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_/*{name}*/)
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_/*{name}*/)/*{
+ IF (not (exist? "no_stdname")) }*/
 #   define /*{
 ;; Compute the name for this FTM based on stdname/name.
 (if (exist? "stdname")
     (get "stdname")
     (format #f "__cpp_lib_~a" (get "name")))
-}*/ /*{v}*/L
+}*/ /*{v}*/L/*{
+ ENDIF no_std_name }*/
 #  endif
 /*{ ENDFOR values
   }*/# endif

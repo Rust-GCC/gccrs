@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2020-2024 Free Software Foundation, Inc.
+# Copyright (C) 2020-2025 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -78,4 +78,5 @@ def parse_git_revisions(repo_path, revisions, ref_name=None):
                                commit_to_info_hook=commit_to_info,
                                ref_name=ref_name)
         parsed_commits.append(git_commit)
+    repo.close()
     return parsed_commits

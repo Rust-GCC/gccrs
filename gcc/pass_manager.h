@@ -1,5 +1,5 @@
 /* pass_manager.h - The pipeline of optimization passes
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -65,7 +65,7 @@ public:
   void execute_early_local_passes ();
   unsigned int execute_pass_mode_switching ();
 
-  /* Various passes are manually cloned by epiphany. */
+  /* Various passes are manually cloned by avr and epiphany. */
   opt_pass *get_pass_split_all_insns () const {
     return pass_split_all_insns_1;
   }
@@ -126,20 +126,14 @@ private:
         opt_pass *pass_copy_prop_8;  */
 
 #define INSERT_PASSES_AFTER(PASS)
-#define PUSH_INSERT_PASSES_WITHIN(PASS)
+#define PUSH_INSERT_PASSES_WITHIN(PASS, NUM)
 #define POP_INSERT_PASSES()
 #define NEXT_PASS(PASS, NUM) opt_pass *PASS ## _ ## NUM
 #define NEXT_PASS_WITH_ARG(PASS, NUM, ARG) NEXT_PASS (PASS, NUM)
+#define NEXT_PASS_WITH_ARGS(PASS, NUM, ...) NEXT_PASS (PASS, NUM)
 #define TERMINATE_PASS_LIST(PASS)
 
 #include "pass-instances.def"
-
-#undef INSERT_PASSES_AFTER
-#undef PUSH_INSERT_PASSES_WITHIN
-#undef POP_INSERT_PASSES
-#undef NEXT_PASS
-#undef NEXT_PASS_WITH_ARG
-#undef TERMINATE_PASS_LIST
 
 }; // class pass_manager
 

@@ -1,5 +1,5 @@
 # Makefile for the D runtime library.
-# Copyright (C) 2012-2024 Free Software Foundation, Inc.
+# Copyright (C) 2012-2025 Free Software Foundation, Inc.
 #
 # GCC is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,8 @@ D_EXTRA_DFLAGS=-fpreview=dip1000 -fpreview=fieldwise -fpreview=dtorfields \
 # D flags for compilation
 AM_DFLAGS= \
 	$(phobos_lt_pic_flag) $(phobos_compiler_shared_flag) \
-	$(WARN_DFLAGS) $(CHECKING_DFLAGS) $(SECTION_FLAGS) $(CET_DFLAGS)
+	$(WARN_DFLAGS) $(CHECKING_DFLAGS) $(SECTION_FLAGS) $(CET_FLAGS) \
+	$(OS_DFLAGS)
 
 # Flags for other kinds of sources
 AM_CFLAGS=$(CET_FLAGS)
@@ -167,7 +168,7 @@ install-data-local:
 	done
 
 # Source file definitions. Boring stuff, auto-generated with
-# https://gist.github.com/jpf91/8ad1dbc9902d6ad876313f134c6527d1
+# libphobos/scripts/gen_druntime_sources.d
 # Can't use wildcards here:
 # https://www.gnu.org/software/automake/manual/html_node/Wildcards.html
 
@@ -188,6 +189,7 @@ DRUNTIME_DSOURCES = core/atomic.d core/attribute.d core/bitop.d \
 	core/internal/container/treap.d core/internal/convert.d \
 	core/internal/dassert.d core/internal/destruction.d \
 	core/internal/entrypoint.d core/internal/gc/bits.d \
+	core/internal/gc/blkcache.d core/internal/gc/blockmeta.d \
 	core/internal/gc/impl/conservative/gc.d \
 	core/internal/gc/impl/manual/gc.d core/internal/gc/impl/proto/gc.d \
 	core/internal/gc/os.d core/internal/gc/pooltable.d \
@@ -209,7 +211,8 @@ DRUNTIME_DSOURCES = core/atomic.d core/attribute.d core/bitop.d \
 	core/sync/barrier.d core/sync/condition.d core/sync/config.d \
 	core/sync/event.d core/sync/exception.d core/sync/mutex.d \
 	core/sync/package.d core/sync/rwmutex.d core/sync/semaphore.d \
-	core/thread/context.d core/thread/fiber.d core/thread/osthread.d \
+	core/thread/context.d core/thread/fiber/base.d \
+	core/thread/fiber/package.d core/thread/osthread.d \
 	core/thread/package.d core/thread/threadbase.d \
 	core/thread/threadgroup.d core/thread/types.d core/time.d \
 	core/vararg.d core/volatile.d etc/valgrind/valgrind.d gcc/attribute.d \
@@ -220,7 +223,7 @@ DRUNTIME_DSOURCES = core/atomic.d core/attribute.d core/bitop.d \
 	gcc/unwind/generic.d gcc/unwind/package.d gcc/unwind/pe.d object.d \
 	rt/aApply.d rt/aApplyR.d rt/aaA.d rt/adi.d rt/arraycat.d rt/cast_.d \
 	rt/config.d rt/critical_.d rt/deh.d rt/dmain2.d rt/ehalloc.d \
-	rt/invariant.d rt/lifetime.d rt/memory.d rt/minfo.d rt/monitor_.d \
+	rt/invariant_.d rt/lifetime.d rt/memory.d rt/minfo.d rt/monitor_.d \
 	rt/profilegc.d rt/sections.d rt/tlsgc.d rt/util/typeinfo.d \
 	rt/util/utility.d
 
@@ -266,17 +269,18 @@ DRUNTIME_DSOURCES_ELF = core/sys/elf/package.d
 DRUNTIME_DSOURCES_FREEBSD = core/sys/freebsd/config.d \
 	core/sys/freebsd/dlfcn.d core/sys/freebsd/err.d \
 	core/sys/freebsd/execinfo.d core/sys/freebsd/ifaddrs.d \
-	core/sys/freebsd/net/if_.d core/sys/freebsd/net/if_dl.d \
-	core/sys/freebsd/netinet/in_.d core/sys/freebsd/pthread_np.d \
-	core/sys/freebsd/stdlib.d core/sys/freebsd/string.d \
-	core/sys/freebsd/sys/_bitset.d core/sys/freebsd/sys/_cpuset.d \
-	core/sys/freebsd/sys/cdefs.d core/sys/freebsd/sys/elf.d \
-	core/sys/freebsd/sys/elf32.d core/sys/freebsd/sys/elf64.d \
-	core/sys/freebsd/sys/elf_common.d core/sys/freebsd/sys/event.d \
-	core/sys/freebsd/sys/link_elf.d core/sys/freebsd/sys/mman.d \
-	core/sys/freebsd/sys/mount.d core/sys/freebsd/sys/socket.d \
-	core/sys/freebsd/sys/sysctl.d core/sys/freebsd/sys/types.d \
-	core/sys/freebsd/time.d core/sys/freebsd/unistd.d
+	core/sys/freebsd/mqueue.d core/sys/freebsd/net/if_.d \
+	core/sys/freebsd/net/if_dl.d core/sys/freebsd/netinet/in_.d \
+	core/sys/freebsd/pthread_np.d core/sys/freebsd/stdlib.d \
+	core/sys/freebsd/string.d core/sys/freebsd/sys/_bitset.d \
+	core/sys/freebsd/sys/_cpuset.d core/sys/freebsd/sys/cdefs.d \
+	core/sys/freebsd/sys/elf.d core/sys/freebsd/sys/elf32.d \
+	core/sys/freebsd/sys/elf64.d core/sys/freebsd/sys/elf_common.d \
+	core/sys/freebsd/sys/event.d core/sys/freebsd/sys/link_elf.d \
+	core/sys/freebsd/sys/mman.d core/sys/freebsd/sys/mount.d \
+	core/sys/freebsd/sys/socket.d core/sys/freebsd/sys/sysctl.d \
+	core/sys/freebsd/sys/types.d core/sys/freebsd/time.d \
+	core/sys/freebsd/unistd.d
 
 DRUNTIME_DSOURCES_LINUX = core/sys/linux/config.d \
 	core/sys/linux/dlfcn.d core/sys/linux/elf.d core/sys/linux/epoll.d \
@@ -290,13 +294,13 @@ DRUNTIME_DSOURCES_LINUX = core/sys/linux/config.d \
 	core/sys/linux/stdio.d core/sys/linux/string.d \
 	core/sys/linux/sys/auxv.d core/sys/linux/sys/eventfd.d \
 	core/sys/linux/sys/file.d core/sys/linux/sys/inotify.d \
-	core/sys/linux/sys/mman.d core/sys/linux/sys/prctl.d \
-	core/sys/linux/sys/procfs.d core/sys/linux/sys/signalfd.d \
-	core/sys/linux/sys/socket.d core/sys/linux/sys/sysinfo.d \
-	core/sys/linux/sys/time.d core/sys/linux/sys/xattr.d \
-	core/sys/linux/termios.d core/sys/linux/time.d \
-	core/sys/linux/timerfd.d core/sys/linux/tipc.d core/sys/linux/uinput.d \
-	core/sys/linux/unistd.d
+	core/sys/linux/sys/mman.d core/sys/linux/sys/mount.d \
+	core/sys/linux/sys/prctl.d core/sys/linux/sys/procfs.d \
+	core/sys/linux/sys/signalfd.d core/sys/linux/sys/socket.d \
+	core/sys/linux/sys/sysinfo.d core/sys/linux/sys/time.d \
+	core/sys/linux/sys/xattr.d core/sys/linux/termios.d \
+	core/sys/linux/time.d core/sys/linux/timerfd.d core/sys/linux/tipc.d \
+	core/sys/linux/uinput.d core/sys/linux/unistd.d
 
 DRUNTIME_DSOURCES_NETBSD = core/sys/netbsd/dlfcn.d \
 	core/sys/netbsd/err.d core/sys/netbsd/execinfo.d \
@@ -358,13 +362,14 @@ DRUNTIME_DSOURCES_SOLARIS = core/sys/solaris/dlfcn.d \
 DRUNTIME_DSOURCES_WINDOWS = core/sys/windows/accctrl.d \
 	core/sys/windows/aclapi.d core/sys/windows/aclui.d \
 	core/sys/windows/basetsd.d core/sys/windows/basetyps.d \
-	core/sys/windows/cderr.d core/sys/windows/cguid.d \
-	core/sys/windows/com.d core/sys/windows/comcat.d \
-	core/sys/windows/commctrl.d core/sys/windows/commdlg.d \
-	core/sys/windows/core.d core/sys/windows/cpl.d \
-	core/sys/windows/cplext.d core/sys/windows/custcntl.d \
-	core/sys/windows/dbghelp.d core/sys/windows/dbghelp_types.d \
-	core/sys/windows/dbt.d core/sys/windows/dde.d core/sys/windows/ddeml.d \
+	core/sys/windows/bcrypt.d core/sys/windows/cderr.d \
+	core/sys/windows/cguid.d core/sys/windows/com.d \
+	core/sys/windows/comcat.d core/sys/windows/commctrl.d \
+	core/sys/windows/commdlg.d core/sys/windows/core.d \
+	core/sys/windows/cpl.d core/sys/windows/cplext.d \
+	core/sys/windows/custcntl.d core/sys/windows/dbghelp.d \
+	core/sys/windows/dbghelp_types.d core/sys/windows/dbt.d \
+	core/sys/windows/dde.d core/sys/windows/ddeml.d \
 	core/sys/windows/dhcpcsdk.d core/sys/windows/dlgs.d \
 	core/sys/windows/dll.d core/sys/windows/docobj.d \
 	core/sys/windows/errorrep.d core/sys/windows/exdisp.d \
@@ -440,4 +445,4 @@ DRUNTIME_DSOURCES_WINDOWS = core/sys/windows/accctrl.d \
 	core/sys/windows/winuser.d core/sys/windows/winver.d \
 	core/sys/windows/wtsapi32.d core/sys/windows/wtypes.d
 
-DRUNTIME_DISOURCES = __builtins.di __main.di
+DRUNTIME_DISOURCES = __importc_builtins.di __main.di

@@ -1,5 +1,5 @@
 ;; Machine description for CORE-V vendor extensions.
-;; Copyright (C) 2023-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 ;; This file is part of GCC.
 
@@ -871,7 +871,7 @@
 	[(set (match_operand:SI 0 "register_operand" "=r,r,r,r")
 		(unspec:SI [(match_operand:SI 1 "register_operand" "r,r,r,r")
 		(match_operand:SI 2 "register_operand" "r,r,r,r")
-		(match_operand:QI 3 "const_int2_operand" "J,c01,c02,c03")]
+		(match_operand:QI 3 "const_int2_operand" "J,k01,k02,k03")]
 	UNSPEC_CV_ADD_H))]
 	"TARGET_XCVSIMD && !TARGET_64BIT"
 	"@
@@ -924,7 +924,7 @@
 	[(set (match_operand:SI 0 "register_operand" "=r,r,r,r")
 		(unspec:SI [(match_operand:SI 1 "register_operand" "r,r,r,r")
 		(match_operand:SI 2 "register_operand" "r,r,r,r")
-		(match_operand:QI 3 "const_int2_operand" "J,c01,c02,c03")]
+		(match_operand:QI 3 "const_int2_operand" "J,k01,k02,k03")]
 	UNSPEC_CV_SUB_H))]
 	"TARGET_XCVSIMD && !TARGET_64BIT"
 	"@
@@ -2561,7 +2561,7 @@
 		(unspec:SI [(match_operand:SI 1 "register_operand" "r,r,r,r")
 		(match_operand:SI 2 "register_operand" "r,r,r,r")
 		(match_operand:SI 3 "register_operand" "0,0,0,0")
-		(match_operand:QI 4 "const_int2_operand" "J,c01,c02,c03")]
+		(match_operand:QI 4 "const_int2_operand" "J,k01,k02,k03")]
 	UNSPEC_CV_CPLXMUL_R))]
 	"TARGET_XCVSIMD && !TARGET_64BIT"
 	"@
@@ -2578,7 +2578,7 @@
 		(unspec:SI [(match_operand:SI 1 "register_operand" "r,r,r,r")
 		(match_operand:SI 2 "register_operand" "r,r,r,r")
 		(match_operand:SI 3 "register_operand" "0,0,0,0")
-		(match_operand:QI 4 "const_int2_operand" "J,c01,c02,c03")]
+		(match_operand:QI 4 "const_int2_operand" "J,k01,k02,k03")]
 	UNSPEC_CV_CPLXMUL_I))]
 	"TARGET_XCVSIMD && !TARGET_64BIT"
 	"@
@@ -2604,7 +2604,7 @@
 	[(set (match_operand:SI 0 "register_operand" "=r,r,r,r")
 		(unspec:SI [(match_operand:SI 1 "register_operand" "r,r,r,r")
 		(match_operand:SI 2 "register_operand" "r,r,r,r")
-		(match_operand:QI 3 "const_int2_operand" "J,c01,c02,c03")]
+		(match_operand:QI 3 "const_int2_operand" "J,k01,k02,k03")]
 	UNSPEC_CV_SUBROTMJ))]
 	"TARGET_XCVSIMD && !TARGET_64BIT"
 	"@
@@ -2614,3 +2614,40 @@
 	 cv.subrotmj.div8\t%0,%1,%2"
 	[(set_attr "type" "arith")
 	(set_attr "mode" "SI")])
+
+;; XCVBI Instructions
+(define_insn "*cv_branch<mode>"
+  [(set (pc)
+	(if_then_else
+	 (match_operator 1 "equality_operator"
+			 [(match_operand:X 2 "register_operand" "r")
+			  (match_operand:X 3 "const_int5s_operand" "CV_bi_sign5")])
+	 (label_ref (match_operand 0 "" ""))
+	 (pc)))]
+  "TARGET_XCVBI"
+{
+  if (get_attr_length (insn) == 12)
+    return "cv.b%r1\t%2,%z3,1f; jump\t%l0,ra; 1:";
+
+  return "cv.b%C1imm\t%2,%3,%0";
+}
+  [(set_attr "type" "branch")
+   (set_attr "mode" "none")])
+
+(define_insn "*branch<mode>"
+  [(set (pc)
+        (if_then_else
+         (match_operator 1 "ordered_comparison_operator"
+                         [(match_operand:X 2 "register_operand" "r")
+                          (match_operand:X 3 "reg_or_0_operand" "rJ")])
+         (label_ref (match_operand 0 "" ""))
+         (pc)))]
+  "TARGET_XCVBI"
+{
+  if (get_attr_length (insn) == 12)
+    return "b%r1\t%2,%z3,1f; jump\t%l0,ra; 1:";
+
+  return "b%C1\t%2,%z3,%l0";
+}
+  [(set_attr "type" "branch")
+   (set_attr "mode" "none")])

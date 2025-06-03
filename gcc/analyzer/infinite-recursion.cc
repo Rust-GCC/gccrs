@@ -1,5 +1,5 @@
 /* Detection of infinite recursion.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -19,7 +19,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
-#define INCLUDE_MEMORY
+#define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
@@ -62,6 +62,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "make-unique.h"
 #include "analyzer/checker-path.h"
 #include "analyzer/feasible-graph.h"
+#include "diagnostic-format-sarif.h"
 
 /* A subclass of pending_diagnostic for complaining about suspected
    infinite recursion.  */
@@ -101,17 +102,20 @@ public:
     return ctxt.warn ("infinite recursion");
   }
 
-  label_text describe_final_event (const evdesc::final_event &ev) final override
+  bool
+  describe_final_event (pretty_printer &pp,
+			const evdesc::final_event &) final override
   {
     const int frames_consumed = (m_new_entry_enode->get_stack_depth ()
 				 - m_prev_entry_enode->get_stack_depth ());
     if (frames_consumed > 1)
-      return ev.formatted_print
-	("apparently infinite chain of mutually-recursive function calls,"
-	 " consuming %i stack frames per recursion",
-	 frames_consumed);
+      pp_printf (&pp,
+		 "apparently infinite chain of mutually-recursive function"
+		 " calls, consuming %i stack frames per recursion",
+		 frames_consumed);
     else
-      return ev.formatted_print ("apparently infinite recursion");
+      pp_string (&pp, "apparently infinite recursion");
+    return true;
   }
 
   void
@@ -134,25 +138,26 @@ public:
       {
       }
 
-      label_text
-      get_desc (bool can_colorize) const final override
+      void
+      print_desc (pretty_printer &pp) const final override
       {
 	if (m_topmost)
 	  {
 	    if (m_pd.m_prev_entry_event
 		&& m_pd.m_prev_entry_event->get_id_ptr ()->known_p ())
-	      return make_label_text
-		(can_colorize,
-		 "recursive entry to %qE; previously entered at %@",
-		 m_effective_fndecl,
-		 m_pd.m_prev_entry_event->get_id_ptr ());
+	      pp_printf (&pp,
+			 "recursive entry to %qE; previously entered at %@",
+			 m_effective_fndecl,
+			 m_pd.m_prev_entry_event->get_id_ptr ());
 	    else
-	      return make_label_text (can_colorize, "recursive entry to %qE",
-				      m_effective_fndecl);
+	      pp_printf (&pp,
+			 "recursive entry to %qE",
+			 m_effective_fndecl);
 	  }
 	else
-	  return make_label_text (can_colorize, "initial entry to %qE",
-				  m_effective_fndecl);
+	  pp_printf (&pp,
+		     "initial entry to %qE",
+		     m_effective_fndecl);
       }
 
     private:
@@ -181,7 +186,7 @@ public:
      it at the topmost entrypoint to the function.  */
   void add_final_event (const state_machine *,
 			const exploded_node *enode,
-			const gimple *,
+			const event_loc_info &,
 			tree,
 			state_machine::state_t,
 			checker_path *emission_path) final override
@@ -194,7 +199,7 @@ public:
 			m_callee_fndecl,
 			m_new_entry_enode->get_stack_depth ()),
 	enode,
-	NULL, NULL, NULL));
+	nullptr, nullptr, nullptr));
   }
 
   /* Reject paths in which conjured svalues have affected control flow
@@ -234,6 +239,18 @@ public:
     /* We shouldn't get here; if we do, reject the diagnostic.  */
     gcc_unreachable ();
     return false;
+  }
+
+  void maybe_add_sarif_properties (sarif_object &result_obj)
+    const final override
+  {
+    sarif_property_bag &props = result_obj.get_or_create_properties ();
+#define PROPERTY_PREFIX "gcc/analyzer/infinite_recursion_diagnostic/"
+    props.set_integer (PROPERTY_PREFIX "prev_entry_enode",
+		       m_prev_entry_enode->m_index);
+    props.set_integer (PROPERTY_PREFIX "new_entry_enode",
+		       m_new_entry_enode->m_index);
+#undef PROPERTY_PREFIX
   }
 
 private:

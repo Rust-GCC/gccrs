@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2024 Free Software Foundation, Inc.
+// Copyright (C) 2009-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -15,7 +15,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// { dg-require-effective-target dfp }
+// { dg-require-effective-target dfprt }
 // { dg-options "-Wno-pedantic" }
 
 // ISO/IEC TR 24733  3.2.5  Initialization from coefficient and exponent.

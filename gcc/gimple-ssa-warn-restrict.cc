@@ -1,6 +1,6 @@
 /* Pass to detect and issue warnings for violations of the restrict
    qualifier.
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by Martin Sebor <msebor@redhat.com>.
 
    This file is part of GCC.
@@ -352,7 +352,7 @@ builtin_memref::extend_offset_range (tree offset)
 	 as signed.  */
       wide_int min, max;
       value_range_kind rng = VR_VARYING;
-      value_range vr;
+      int_range_max vr;
       if (m_ptr_qry.rvals->range_of_expr (vr, offset, stmt))
 	{
 	  tree vr_min, vr_max;

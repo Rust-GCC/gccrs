@@ -1,6 +1,6 @@
 // <locale> Forward declarations -*- C++ -*-
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -34,7 +34,9 @@
 #ifndef _LOCALE_FWD_H
 #define _LOCALE_FWD_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/c++config.h>
 #include <bits/c++locale.h>  // Defines __c_locale, config-specific include
@@ -45,7 +47,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-  /** 
+  /**
    *  @defgroup locales Locales
    *
    *  Classes and functions for internationalization and localization.

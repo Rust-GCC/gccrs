@@ -2,7 +2,7 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_early_break } */
 /* { dg-require-effective-target vect_int } */
-/* { dg-options "-Ofast -fno-vect-cost-model -fdump-tree-vect-details" } */
+/* { dg-additional-options "-Ofast -fno-vect-cost-model -fdump-tree-vect-details" } */
 
 enum a { b };
 
@@ -17,4 +17,4 @@ void f() {
       return;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 0 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */

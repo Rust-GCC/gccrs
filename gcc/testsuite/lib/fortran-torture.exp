@@ -1,4 +1,4 @@
-# Copyright (C) 2003-2024 Free Software Foundation, Inc.
+# Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -332,6 +332,8 @@ proc fortran-torture-execute { src } {
 	    catch { remote_file build delete $executable }
         }
 	$status "$testcase execution, $option"
+
+	fortran-delete-unit-files $src
     }
     cleanup-modules ""
 }

@@ -1,5 +1,5 @@
 /* The lang_hooks data structure.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -313,6 +313,21 @@ struct lang_hooks_for_decls
   /* Do language specific checking on an implicitly determined clause.  */
   void (*omp_finish_clause) (tree clause, gimple_seq *pre_p, bool);
 
+  /* Additional language-specific mappings for a decl; returns true
+     if those may occur.  */
+  bool (*omp_deep_mapping_p) (const gimple *ctx_stmt, tree clause);
+
+  /* Additional language-specific mappings for a decl; returns the
+     number of additional mappings needed.  */
+  tree (*omp_deep_mapping_cnt) (const gimple *ctx_stmt, tree clause,
+				gimple_seq *seq);
+
+  /* Do the actual additional language-specific mappings for a decl. */
+  void (*omp_deep_mapping) (const gimple *stmt, tree clause,
+			    unsigned HOST_WIDE_INT tkind,
+			    tree data, tree sizes, tree kinds,
+			    tree offset_data, tree offset, gimple_seq *seq);
+
   /* Return true if DECL is an allocatable variable (for the purpose of
      implicit mapping).  */
   bool (*omp_allocatable_p) (tree decl);
@@ -514,8 +529,10 @@ struct lang_hooks
      in contexts where erroneously returning 0 causes problems.  */
   int (*types_compatible_p) (tree x, tree y);
 
-  /* Called by report_error_function to print out function name.  */
-  void (*print_error_function) (diagnostic_context *, const char *,
+  /* Called by diagnostic_report_current_function to print out function name
+     for textual diagnostic output.  */
+  void (*print_error_function) (diagnostic_text_output_format &,
+				const char *,
 				const struct diagnostic_info *);
 
   /* Convert a character from the host's to the target's character
@@ -541,7 +558,7 @@ struct lang_hooks
   struct lang_hooks_for_decls decls;
 
   struct lang_hooks_for_types types;
-  
+
   struct lang_hooks_for_lto lto;
 
   /* Returns a TREE_VEC of the generic parameters of an instantiation of

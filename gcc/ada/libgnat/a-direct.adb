@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Calendar;               use Ada.Calendar;
+with Ada.Calendar.Formatting;    use Ada.Calendar;
 with Ada.Characters.Handling;    use Ada.Characters.Handling;
 with Ada.Containers.Vectors;
 with Ada.Directories.Validity;   use Ada.Directories.Validity;
@@ -1292,7 +1292,7 @@ package body Ada.Directories is
       Dir_Pointer      : Dir_Type_Value;
       File_Name_Addr   : Address;
       File_Name_Len    : aliased Integer;
-      Pattern_Regex    : Regexp;
+      Pattern_Regex    : System.Regexp.Regexp;
 
       Call_Result      : Integer;
       pragma Warnings (Off, Call_Result);
@@ -1367,9 +1367,7 @@ package body Ada.Directories is
          --  the Filter add it to our search vector.
 
          declare
-            subtype File_Name_String is String (1 .. File_Name_Len);
-
-            File_Name : constant File_Name_String
+            File_Name : constant String (1 .. File_Name_Len)
               with Import, Address => File_Name_Addr;
 
          begin
@@ -1379,7 +1377,7 @@ package body Ada.Directories is
                              Compose (Directory, File_Name) & ASCII.NUL;
                   Path   : String renames
                              Path_C (Path_C'First .. Path_C'Last - 1);
-                  Attr   : aliased File_Attributes;
+                  Attr   : aliased System.File_Attributes.File_Attributes;
                   Exists : Integer;
                   Error  : Integer;
 
@@ -1394,6 +1392,17 @@ package body Ada.Directories is
                   end record;
 
                   Res : Result := (Found => False);
+
+                  --  This declaration of No_Time copied from GNAT.Calendar
+                  --  because adding a "with GNAT.Calendar;" to this unit
+                  --  results in problems.
+
+                  No_Time : constant Ada.Calendar.Time :=
+                    Ada.Calendar.Formatting.Time_Of
+                      (Ada.Calendar.Year_Number'First,
+                       Ada.Calendar.Month_Number'First,
+                       Ada.Calendar.Day_Number'First,
+                       Time_Zone => 0);
                begin
                   --  Get the file attributes for the directory item
 
@@ -1454,7 +1463,10 @@ package body Ada.Directories is
                               Full_Name         => To_Unbounded_String (Path),
                               Attr_Error_Code   => 0,
                               Kind              => Res.Kind,
-                              Modification_Time => Modification_Time (Path),
+                              Modification_Time =>
+                               (if Res.Kind = Special_File
+                                  then No_Time
+                                  else Modification_Time (Path)),
                               Size              => Res.Size));
                      end if;
                   end if;

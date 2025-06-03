@@ -1,5 +1,5 @@
 /* Generic single linked list to keep various information 
-   Copyright (C) 1993-2024 Free Software Foundation, Inc.
+   Copyright (C) 1993-2025 Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup.
 
 This file is part of GCC.
@@ -62,7 +62,7 @@ list_remove_head (struct objc_list** list)
     }
   else
     {
-      /* Inly one element in list.  */
+      /* Only one element in list.  */
       objc_free (*list);
       (*list) = 0;
     }

@@ -1,5 +1,5 @@
 /* IPA visibility pass
-   Copyright (C) 2003-2024 Free Software Foundation, Inc.
+   Copyright (C) 2003-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* This file implements two related passes: 
+/* This file implements two related passes:
 
      - pass_data_ipa_function_and_variable_visibility run just after
        symbol table, references and callgraph are built
@@ -102,7 +102,9 @@ non_local_p (struct cgraph_node *node, void *data ATTRIBUTE_UNUSED)
 	   && !node->externally_visible
 	   && !node->used_from_other_partition
 	   && !node->in_other_partition
-	   && node->get_availability () >= AVAIL_AVAILABLE);
+	   && node->get_availability () >= AVAIL_AVAILABLE
+	   && !DECL_STATIC_CONSTRUCTOR (node->decl)
+	   && !DECL_STATIC_DESTRUCTOR (node->decl));
 }
 
 /* Return true when function can be marked local.  */
@@ -116,7 +118,6 @@ cgraph_node::local_p (void)
      return n->callees->callee->local_p ();
    return !n->call_for_symbol_thunks_and_aliases (non_local_p,
 						  NULL, true);
-					
 }
 
 /* A helper for comdat_can_be_unshared_p.  */
@@ -157,7 +158,7 @@ comdat_can_be_unshared_p_1 (symtab_node *node)
 
 /* COMDAT functions must be shared only if they have address taken,
    otherwise we can produce our own private implementation with
-   -fwhole-program.  
+   -fwhole-program.
    Return true when turning COMDAT function static cannot lead to wrong
    code when the resulting object links with a library defining same COMDAT.
 
@@ -352,7 +353,7 @@ can_replace_by_local_alias (symtab_node *node)
     node = node->get_alias_target ();
   if (node->weakref)
     return false;
-  
+
   return (node->get_availability () > AVAIL_INTERPOSABLE
 	  && !decl_binds_to_current_def_p (node->decl)
 	  && !node->can_be_discarded_p ());
@@ -389,7 +390,7 @@ update_vtable_references (tree *tp, int *walk_subtrees,
 }
 
 /* In LTO we can remove COMDAT groups and weak symbols.
-   Either turn them into normal symbols or external symbol depending on 
+   Either turn them into normal symbols or external symbol depending on
    resolution info.  */
 
 static void
@@ -768,7 +769,7 @@ function_and_variable_visibility (bool whole_program)
 	 enable more optimization.
 
 	 TODO: We can also update virtual tables.  */
-      if (node->callers 
+      if (node->callers
 	  && can_replace_by_local_alias (node))
 	{
 	  cgraph_node *alias = dyn_cast<cgraph_node *>

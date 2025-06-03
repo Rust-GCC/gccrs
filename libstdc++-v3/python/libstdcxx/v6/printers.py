@@ -1,6 +1,6 @@
 # Pretty-printers for libstdc++.
 
-# Copyright (C) 2008-2024 Free Software Foundation, Inc.
+# Copyright (C) 2008-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -218,6 +218,16 @@ def is_specialization_of(x, template_name):
 def strip_versioned_namespace(typename):
     global _versioned_namespace
     return typename.replace(_versioned_namespace, '')
+
+
+def strip_fundts_namespace(typ):
+    """Remove "fundamentals_vN" inline namespace from qualified type name."""
+    pattern = r'^std::experimental::fundamentals_v\d::'
+    repl = 'std::experimental::'
+    if sys.version_info[0] == 2:
+        return re.sub(pattern, repl, typ, 1)
+    else: # Technically this needs Python 3.1 but nobody should be using 3.0
+        return re.sub(pattern, repl, typ, count=1)
 
 
 def strip_inline_namespaces(type_str):
@@ -613,6 +623,9 @@ class StdBitReferencePrinter(printer_base):
 
     def to_string(self):
         if not self._val['_M_p']:
+            # PR libstdc++/115098 removed the reference default constructor
+            # that this case relates to. New code should never need this,
+            # but we still handle it for compatibility with old binaries.
             return 'invalid std::vector<bool>::reference'
         return bool(self._val['_M_p'].dereference() & (self._val['_M_mask']))
 
@@ -1352,8 +1365,7 @@ class StdExpAnyPrinter(SingleObjContainerPrinter):
 
     def __init__(self, typename, val):
         self._typename = strip_versioned_namespace(typename)
-        self._typename = re.sub(r'^std::experimental::fundamentals_v\d::',
-                                'std::experimental::', self._typename, 1)
+        self._typename = strip_fundts_namespace(self._typename)
         self._val = val
         self._contained_type = None
         contained_value = None
@@ -1446,10 +1458,8 @@ class StdExpOptionalPrinter(SingleObjContainerPrinter):
     """Print a std::optional or std::experimental::optional."""
 
     def __init__(self, typename, val):
-        typename = strip_versioned_namespace(typename)
-        self._typename = re.sub(
-            r'^std::(experimental::|)(fundamentals_v\d::|)(.*)',
-            r'std::\1\3', typename, 1)
+        self._typename = strip_versioned_namespace(typename)
+        self._typename = strip_fundts_namespace(self._typename)
         payload = val['_M_payload']
         if self._typename.startswith('std::experimental'):
             engaged = val['_M_engaged']
@@ -2820,10 +2830,6 @@ def build_libstdcxx_dictionary():
     # vector<bool>
     libstdcxx_printer.add_version('std::', 'locale', StdLocalePrinter)
 
-    libstdcxx_printer.add_version('std::', 'integral_constant',
-                                  StdIntegralConstantPrinter)
-    libstdcxx_printer.add_version('std::', 'text_encoding',
-                                  StdTextEncodingPrinter)
 
     if hasattr(gdb.Value, 'dynamic_type'):
         libstdcxx_printer.add_version('std::', 'error_code',
@@ -2886,6 +2892,8 @@ def build_libstdcxx_dictionary():
                                   StdChronoDurationPrinter)
     libstdcxx_printer.add_version('std::chrono::', 'time_point',
                                   StdChronoTimePointPrinter)
+    libstdcxx_printer.add_version('std::', 'integral_constant',
+                                  StdIntegralConstantPrinter)
 
     # std::regex components
     libstdcxx_printer.add_version('std::__detail::', '_State',
@@ -2961,6 +2969,9 @@ def build_libstdcxx_dictionary():
     # libstdcxx_printer.add_version('std::chrono::(anonymous namespace)', 'Rule',
     #                              StdChronoTimeZoneRulePrinter)
 
+    # C++26 components
+    libstdcxx_printer.add_version('std::', 'text_encoding',
+                                  StdTextEncodingPrinter)
     # Extensions.
     libstdcxx_printer.add_version('__gnu_cxx::', 'slist', StdSlistPrinter)
 

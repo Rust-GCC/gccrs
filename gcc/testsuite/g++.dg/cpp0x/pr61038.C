@@ -1,15 +1,16 @@
 // PR c++/61038
 // { dg-do compile { target c++11 } }
+// { dg-skip-if "requires hosted libstdc++ for cstring" { ! hostedlib } }
 
 #include <cstring>
 #include <cstdlib>
 
 void
-operator "" _s(const char *, size_t)
+operator ""_s(const char *, size_t)
 { }
 
 void
-operator "" _t(const char)
+operator ""_t(const char)
 { }
 
 #define QUOTE(s) #s

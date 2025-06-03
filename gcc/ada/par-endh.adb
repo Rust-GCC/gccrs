@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,6 +28,7 @@ with Stringt;  use Stringt;
 with Uintp;    use Uintp;
 
 with GNAT.Spelling_Checker; use GNAT.Spelling_Checker;
+with Diagnostics.Constructors; use Diagnostics.Constructors;
 
 separate (Par)
 package body Endh is
@@ -412,19 +413,19 @@ package body Endh is
                      Error_Msg_SC
                        ("misplaced aspects for package declaration");
                      Error_Msg
-                       ("info: aspect specifications belong here??", Is_Loc);
-                     P_Aspect_Specifications (Empty);
+                       ("info: aspect specifications belong here", Is_Loc);
+                     P_Aspect_Specifications (Empty, Semicolon => True);
 
                   --  Other cases where aspect specifications are not allowed
 
                   else
-                     P_Aspect_Specifications (Error);
+                     P_Aspect_Specifications (Error, Semicolon => True);
                   end if;
 
                --  Aspect specifications allowed
 
                else
-                  P_Aspect_Specifications (Decl);
+                  P_Aspect_Specifications (Decl, Semicolon => True);
                end if;
 
             --  If no aspect specifications, must have a semicolon
@@ -896,6 +897,8 @@ package body Endh is
    procedure Output_End_Expected (Ins : Boolean) is
       End_Type : SS_End_Type;
 
+      Wrong_End_Start : Source_Ptr;
+      Wrong_End_Finish : Source_Ptr;
    begin
       --  Suppress message if this was a potentially junk entry (e.g. a record
       --  entry where no record keyword was present).
@@ -932,8 +935,32 @@ package body Endh is
 
       elsif End_Type = E_Loop then
          if Error_Msg_Node_1 = Empty then
-            Error_Msg_SC -- CODEFIX
-              ("`END LOOP;` expected@ for LOOP#!");
+
+            if Debug_Flag_Underscore_DD then
+
+               --  TODO: This is a quick hack to get the location of the
+               --  END LOOP for the demonstration.
+
+               Wrong_End_Start := Token_Ptr;
+
+               while Token /= Tok_Semicolon loop
+                  Scan; -- past semicolon
+               end loop;
+
+               Wrong_End_Finish := Token_Ptr;
+
+               Restore_Scan_State (Scan_State);
+
+               Record_End_Loop_Expected_Error
+                 (End_Loc   => To_Span (First => Wrong_End_Start,
+                                        Ptr   => Wrong_End_Start,
+                                        Last  => Wrong_End_Finish),
+                  Start_Loc => Error_Msg_Sloc);
+
+            else
+               Error_Msg_SC -- CODEFIX
+                 ("`END LOOP;` expected@ for LOOP#!");
+            end if;
          else
             Error_Msg_SC -- CODEFIX
               ("`END LOOP &;` expected@!");

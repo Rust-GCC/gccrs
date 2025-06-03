@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -55,9 +55,21 @@ package System.WCh_WtS is
    --  for characters greater than 16#FF#. The lowest index of the returned
    --  String is equal to S'First.
 
+   function Enum_Wide_String_To_String
+     (S  : Wide_String;
+      EM : System.WCh_Con.WC_Encoding_Method) return String;
+   --  Same processing, except that the string is normalized to be usable
+   --  with the Wide_Value attribute of user-defined enumeration types.
+
    function Wide_Wide_String_To_String
      (S  : Wide_Wide_String;
       EM : System.WCh_Con.WC_Encoding_Method) return String;
    --  Same processing, except for Wide_Wide_String
+
+   function Enum_Wide_Wide_String_To_String
+     (S  : Wide_Wide_String;
+      EM : System.WCh_Con.WC_Encoding_Method) return String;
+   --  Same processing, except that the string is normalized to be usable
+   --  with the Wide_Wide_Value attribute of user-defined enumeration types.
 
 end System.WCh_WtS;

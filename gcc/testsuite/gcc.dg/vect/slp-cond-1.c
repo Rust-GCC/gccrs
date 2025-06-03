@@ -125,4 +125,4 @@ main ()
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 3 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 4 "vect" } } */

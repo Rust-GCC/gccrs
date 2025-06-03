@@ -1,5 +1,5 @@
 /* dwarf2out.h - Various declarations for functions found in dwarf2out.cc
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -37,8 +37,7 @@ typedef struct dw_wide_int *dw_wide_int_ptr;
    Information instructions.  The register number, offset
    and address fields are provided as possible operands;
    their use is selected by the opcode field.  */
-
-enum dw_cfi_oprnd_type {
+enum dw_cfi_oprnd_type: int {
   dw_cfi_oprnd_unused,
   dw_cfi_oprnd_reg_num,
   dw_cfi_oprnd_offset,
@@ -235,11 +234,67 @@ struct GTY(()) dw_discr_value {
 
 struct addr_table_entry;
 
+typedef unsigned int var_loc_view;
+
+/* Location lists are ranges + location descriptions for that range,
+   so you can track variables that are in different places over
+   their entire life.  */
+typedef struct GTY(()) dw_loc_list_struct {
+  dw_loc_list_ref dw_loc_next;
+  const char *begin; /* Label and addr_entry for start of range */
+  addr_table_entry *begin_entry;
+  const char *end;  /* Label for end of range */
+  addr_table_entry *end_entry;
+  char *ll_symbol; /* Label for beginning of location list.
+		      Only on head of list.  */
+  char *vl_symbol; /* Label for beginning of view list.  Ditto.  */
+  const char *section; /* Section this loclist is relative to */
+  dw_loc_descr_ref expr;
+  var_loc_view vbegin, vend;
+  hashval_t hash;
+  /* True if all addresses in this and subsequent lists are known to be
+     resolved.  */
+  bool resolved_addr;
+  /* True if this list has been replaced by dw_loc_next.  */
+  bool replaced;
+  /* True if it has been emitted into .debug_loc* / .debug_loclists*
+     section.  */
+  unsigned char emitted : 1;
+  /* True if hash field is index rather than hash value.  */
+  unsigned char num_assigned : 1;
+  /* True if .debug_loclists.dwo offset has been emitted for it already.  */
+  unsigned char offset_emitted : 1;
+  /* True if note_variable_value_in_expr has been called on it.  */
+  unsigned char noted_variable_value : 1;
+  /* True if the range should be emitted even if begin and end
+     are the same.  */
+  bool force;
+} dw_loc_list_node;
+
 /* The dw_val_node describes an attribute's value, as it is
    represented internally.  */
 
 struct GTY(()) dw_val_node {
   enum dw_val_class val_class;
+  /* On 64-bit host, there are 4 bytes of padding between val_class
+     and val_entry.  Reuse the padding for other content of
+     dw_loc_descr_node and dw_attr_struct.  */
+  union dw_val_node_parent
+    {
+      struct dw_val_loc_descr_node
+	{
+	  ENUM_BITFIELD (dwarf_location_atom) dw_loc_opc_v : 8;
+	  /* Used to distinguish DW_OP_addr with a direct symbol relocation
+	     from DW_OP_addr with a dtp-relative symbol relocation.  */
+	  unsigned int dw_loc_dtprel_v : 1;
+	  /* For DW_OP_pick, DW_OP_dup and DW_OP_over operations: true iff.
+	     it targets a DWARF prodecure argument.  In this case, it needs to be
+	     relocated according to the current frame offset.  */
+	  unsigned int dw_loc_frame_offset_rel_v : 1;
+	} u1;
+      int u2;
+      enum dwarf_attribute u3;
+    } GTY((skip)) u;
   struct addr_table_entry * GTY(()) val_entry;
   union dw_val_struct_union
     {
@@ -285,15 +340,15 @@ struct GTY(()) dw_val_node {
 
 struct GTY((chain_next ("%h.dw_loc_next"))) dw_loc_descr_node {
   dw_loc_descr_ref dw_loc_next;
-  ENUM_BITFIELD (dwarf_location_atom) dw_loc_opc : 8;
+#define dw_loc_opc dw_loc_oprnd1.u.u1.dw_loc_opc_v
   /* Used to distinguish DW_OP_addr with a direct symbol relocation
      from DW_OP_addr with a dtp-relative symbol relocation.  */
-  unsigned int dtprel : 1;
+#define dw_loc_dtprel dw_loc_oprnd1.u.u1.dw_loc_dtprel_v
   /* For DW_OP_pick, DW_OP_dup and DW_OP_over operations: true iff.
      it targets a DWARF prodecure argument.  In this case, it needs to be
      relocated according to the current frame offset.  */
-  unsigned int frame_offset_rel : 1;
-  int dw_loc_addr;
+#define dw_loc_frame_offset_rel dw_loc_oprnd1.u.u1.dw_loc_frame_offset_rel_v
+#define dw_loc_addr dw_loc_oprnd2.u.u2
   dw_val_node dw_loc_oprnd1;
   dw_val_node dw_loc_oprnd2;
 };
@@ -368,12 +423,10 @@ extern void output_cfi (dw_cfi_ref, dw_fde_ref, int);
 extern GTY(()) cfi_vec cie_cfi_vec;
 
 /* Interface from dwarf2*.c to the rest of the compiler.  */
-extern enum dw_cfi_oprnd_type dw_cfi_oprnd1_desc
-  (enum dwarf_call_frame_info cfi);
-extern enum dw_cfi_oprnd_type dw_cfi_oprnd2_desc
-  (enum dwarf_call_frame_info cfi);
+extern enum dw_cfi_oprnd_type dw_cfi_oprnd1_desc (dwarf_call_frame_info cfi);
+extern enum dw_cfi_oprnd_type dw_cfi_oprnd2_desc (dwarf_call_frame_info cfi);
 
-extern void output_cfi_directive (FILE *f, struct dw_cfi_node *cfi);
+extern void output_cfi_directive (FILE *f, dw_cfi_ref cfi);
 
 extern void dwarf2out_emit_cfi (dw_cfi_ref cfi);
 
@@ -459,7 +512,7 @@ void dwarf2out_cc_finalize (void);
    Attributes are typically linked below the DIE they modify.  */
 
 typedef struct GTY(()) dw_attr_struct {
-  enum dwarf_attribute dw_attr;
+#define dw_attr dw_attr_val.u.u3
   dw_val_node dw_attr_val;
 }
 dw_attr_node;
@@ -485,6 +538,7 @@ extern dw_die_ref lookup_type_die (tree);
 
 extern dw_die_ref dw_get_die_child (dw_die_ref);
 extern dw_die_ref dw_get_die_sib (dw_die_ref);
+extern dw_die_ref dw_get_die_parent (dw_die_ref);
 extern enum dwarf_tag dw_get_die_tag (dw_die_ref);
 
 /* Data about a single source file.  */

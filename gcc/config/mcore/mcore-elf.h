@@ -1,5 +1,5 @@
-/* Definitions of MCore target. 
-   Copyright (C) 1998-2024 Free Software Foundation, Inc.
+/* Definitions of MCore target.
+   Copyright (C) 1998-2025 Free Software Foundation, Inc.
    Contributed by Cygnus Solutions.
 
 This file is part of GCC.
@@ -78,7 +78,7 @@ along with GCC; see the file COPYING3.  If not see
       ASM_OUTPUT_LABEL(FILE, NAME);				\
     }								\
   while (0)
- 
+
 /* Output the size directive for a decl in rest_of_decl_compilation
    in the case where we did not do so before the initializer.
    Once we find the error_mark_node, we know that the value of
@@ -121,5 +121,5 @@ along with GCC; see the file COPYING3.  If not see
 #define CTORS_SECTION_ASM_OP	"\t.section\t.ctors,\"aw\""
 #undef  DTORS_SECTION_ASM_OP
 #define DTORS_SECTION_ASM_OP	"\t.section\t.dtors,\"aw\""
-     
+
 #endif /* __MCORE_ELF_H__ */

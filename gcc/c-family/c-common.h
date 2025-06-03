@@ -1,5 +1,5 @@
 /* Definitions for c-common.cc.
-   Copyright (C) 1987-2024 Free Software Foundation, Inc.
+   Copyright (C) 1987-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -80,7 +80,7 @@ enum rid
      are keywords only in specific contexts)  */
   RID_IN, RID_OUT, RID_INOUT, RID_BYCOPY, RID_BYREF, RID_ONEWAY,
 
-  /* ObjC ("PATTR" reserved words - they do not appear after a '@' 
+  /* ObjC ("PATTR" reserved words - they do not appear after a '@'
      and are keywords only as property attributes)  */
   RID_GETTER, RID_SETTER,
   RID_READONLY, RID_READWRITE,
@@ -105,12 +105,13 @@ enum rid
 
   /* C extensions */
   RID_ASM,       RID_TYPEOF,   RID_TYPEOF_UNQUAL, RID_ALIGNOF,  RID_ATTRIBUTE,
-  RID_VA_ARG,
+  RID_C23_VA_START, RID_VA_ARG,
   RID_EXTENSION, RID_IMAGPART, RID_REALPART, RID_LABEL,    RID_CHOOSE_EXPR,
   RID_TYPES_COMPATIBLE_P,      RID_BUILTIN_COMPLEX,	   RID_BUILTIN_SHUFFLE,
   RID_BUILTIN_SHUFFLEVECTOR,   RID_BUILTIN_CONVERTVECTOR,  RID_BUILTIN_TGMATH,
   RID_BUILTIN_HAS_ATTRIBUTE,   RID_BUILTIN_ASSOC_BARRIER,  RID_BUILTIN_STDC,
-  RID_DFLOAT32, RID_DFLOAT64, RID_DFLOAT128,
+  RID_BUILTIN_COUNTED_BY_REF,
+  RID_DFLOAT32, RID_DFLOAT64, RID_DFLOAT128, RID_DFLOAT64X,
 
   /* TS 18661-3 keywords, in the same sequence as the TI_* values.  */
   RID_FLOAT16,
@@ -167,6 +168,7 @@ enum rid
   RID_ADDRESSOF,
   RID_BUILTIN_LAUNDER,
   RID_BUILTIN_BIT_CAST,
+  RID_BUILTIN_OPERATOR_NEW, RID_BUILTIN_OPERATOR_DELETE,
 
   /* C++11 */
   RID_CONSTEXPR, RID_DECLTYPE, RID_NOEXCEPT, RID_NULLPTR, RID_STATIC_ASSERT,
@@ -196,7 +198,7 @@ enum rid
   RID_AT_PRIVATE,  RID_AT_PROTECTED, RID_AT_PUBLIC,  RID_AT_PACKAGE,
   RID_AT_PROTOCOL, RID_AT_SELECTOR,
   RID_AT_THROW,	   RID_AT_TRY,       RID_AT_CATCH,
-  RID_AT_FINALLY,  RID_AT_SYNCHRONIZED, 
+  RID_AT_FINALLY,  RID_AT_SYNCHRONIZED,
   RID_AT_OPTIONAL, RID_AT_REQUIRED, RID_AT_PROPERTY,
   RID_AT_SYNTHESIZE, RID_AT_DYNAMIC,
   RID_AT_INTERFACE,
@@ -531,7 +533,7 @@ extern GTY(()) tree c_global_trees[CTI_MAX];
 
 enum c_language_kind
 {
-  clk_c		= 0,		/* C90, C94, C99, C11 or C23 */
+  clk_c		= 0,		/* C without ObjC features.  */
   clk_objc	= 1,		/* clk_c with ObjC features.  */
   clk_cxx	= 2,		/* ANSI/ISO C++ */
   clk_objcxx	= 3		/* clk_cxx with ObjC features.  */
@@ -676,9 +678,13 @@ extern int flag_isoc99;
 
 extern int flag_isoc11;
 
-/* Nonzero means use the ISO C23 dialect of C.  */
+/* Nonzero means use the ISO C23 (or later) dialect of C.  */
 
 extern int flag_isoc23;
+
+/* Nonzero means use the ISO C2Y (or later) dialect of C.  */
+
+extern int flag_isoc2y;
 
 /* Nonzero means that we have builtin functions, and main is an int.  */
 
@@ -817,6 +823,7 @@ extern struct visibility_flags visibility_options;
 
 /* Attribute table common to the C front ends.  */
 extern const struct scoped_attribute_specs c_common_gnu_attribute_table;
+extern const struct scoped_attribute_specs c_common_clang_attribute_table;
 extern const struct scoped_attribute_specs c_common_format_attribute_table;
 
 /* Pointer to function to lazily generate the VAR_DECL for __FUNCTION__ etc.
@@ -834,7 +841,7 @@ extern bool in_late_binary_op;
 extern const char *c_addr_space_name (addr_space_t as);
 extern tree identifier_global_value (tree);
 extern tree identifier_global_tag (tree);
-extern bool names_builtin_p (const char *);
+extern int names_builtin_p (const char *);
 extern tree c_linkage_bindings (tree);
 extern void record_builtin_type (enum rid, const char *, tree);
 extern void start_fname_decls (void);
@@ -844,20 +851,24 @@ extern tree fname_decl (location_t, unsigned, tree);
 
 extern int check_user_alignment (const_tree, bool, bool);
 extern bool check_function_arguments (location_t loc, const_tree, const_tree,
-				      int, tree *, vec<location_t> *);
+				      int, tree *, vec<location_t> *,
+				      bool (*comp_types) (tree, tree));
 extern void check_function_arguments_recurse (void (*)
 					      (void *, tree,
 					       unsigned HOST_WIDE_INT),
 					      void *, tree,
 					      unsigned HOST_WIDE_INT,
 					      opt_code);
-extern bool check_builtin_function_arguments (location_t, vec<location_t>,
-					      tree, tree, int, tree *);
+extern bool check_builtin_function_arguments (location_t, vec<location_t>, tree,
+					      tree, int, tree *, bool = true);
 extern void check_function_format (const_tree, tree, int, tree *,
-				   vec<location_t> *);
+				   vec<location_t> *,
+				   bool (*comp_types) (tree, tree));
 extern bool attribute_fallthrough_p (tree);
 extern tree handle_format_attribute (tree *, tree, tree, int, bool *);
 extern tree handle_format_arg_attribute (tree *, tree, tree, int, bool *);
+extern tree handle_unsequenced_attribute (tree *, tree, tree, int, bool *);
+extern tree handle_reproducible_attribute (tree *, tree, tree, int, bool *);
 extern bool c_common_handle_option (size_t, const char *, HOST_WIDE_INT, int,
 				    location_t,
 				    const struct cl_option_handlers *);
@@ -904,6 +915,7 @@ extern tree fold_for_warn (tree);
 extern tree c_common_get_narrower (tree, int *);
 extern bool get_attribute_operand (tree, unsigned HOST_WIDE_INT *);
 extern void c_common_finalize_early_debug (void);
+extern bool c_flexible_array_member_type_p (const_tree);
 extern unsigned int c_strict_flex_array_level_of (tree);
 extern bool c_option_is_from_cpp_diagnostics (int);
 extern tree c_hardbool_type_attr_1 (tree, tree *, tree *);
@@ -1093,7 +1105,8 @@ extern tree build_function_call_vec (location_t, vec<location_t>, tree,
 				     vec<tree, va_gc> *, vec<tree, va_gc> *,
 				     tree = NULL_TREE);
 
-extern tree resolve_overloaded_builtin (location_t, tree, vec<tree, va_gc> *);
+extern tree resolve_overloaded_builtin (location_t, tree, vec<tree, va_gc> *,
+					bool = true);
 
 extern tree finish_label_address_expr (tree, location_t);
 
@@ -1177,6 +1190,8 @@ extern vec<tree, va_gc> *make_tree_vector (void);
 extern void release_tree_vector (vec<tree, va_gc> *);
 extern vec<tree, va_gc> *make_tree_vector_single (tree);
 extern vec<tree, va_gc> *make_tree_vector_from_list (tree);
+extern vec<tree, va_gc> *append_ctor_to_tree_vector (vec<tree, va_gc> *,
+						     tree);
 extern vec<tree, va_gc> *make_tree_vector_from_ctor (tree);
 extern vec<tree, va_gc> *make_tree_vector_copy (const vec<tree, va_gc> *);
 
@@ -1206,9 +1221,13 @@ extern const char *c_get_substring_location (const substring_loc &substr_loc,
 					     location_t *out_loc);
 
 /* In c-gimplify.cc.  */
+typedef hash_map<tree, tree_pair,
+		 simple_hashmap_traits<tree_decl_hash,
+				       tree_pair>> bc_hash_map_t;
 typedef struct bc_state
 {
   tree bc_label[2];
+  bc_hash_map_t *bc_hash_map;
 } bc_state_t;
 extern void save_bc_state (bc_state_t *);
 extern void restore_bc_state (bc_state_t *);
@@ -1244,6 +1263,7 @@ extern void c_stddef_cpp_builtins (void);
 extern void fe_file_change (const line_map_ordinary *);
 extern void c_parse_error (const char *, enum cpp_ttype, tree, unsigned char,
 			   rich_location *richloc);
+extern diagnostic_option_id get_option_for_builtin_define (const char *macro_name);
 
 /* In c-ppoutput.cc  */
 extern void init_pp_output (FILE *);
@@ -1280,9 +1300,11 @@ enum c_omp_region_type
   C_ORT_DECLARE_SIMD		= 1 << 2,
   C_ORT_TARGET			= 1 << 3,
   C_ORT_EXIT_DATA		= 1 << 4,
+  C_ORT_INTEROP			= 1 << 5,
   C_ORT_OMP_DECLARE_SIMD	= C_ORT_OMP | C_ORT_DECLARE_SIMD,
   C_ORT_OMP_TARGET		= C_ORT_OMP | C_ORT_TARGET,
   C_ORT_OMP_EXIT_DATA		= C_ORT_OMP | C_ORT_EXIT_DATA,
+  C_ORT_OMP_INTEROP		= C_ORT_OMP | C_ORT_INTEROP,
   C_ORT_ACC_TARGET		= C_ORT_ACC | C_ORT_TARGET
 };
 
@@ -1295,6 +1317,7 @@ extern void c_finish_omp_barrier (location_t);
 extern tree c_finish_omp_atomic (location_t, enum tree_code, enum tree_code,
 				 tree, tree, tree, tree, tree, tree, bool,
 				 enum omp_memory_order, bool, bool = false);
+extern bool c_omp_interop_t_p (tree);
 extern bool c_omp_depend_t_p (tree);
 extern void c_finish_omp_depobj (location_t, tree, enum omp_clause_depend_kind,
 				 tree);
@@ -1303,6 +1326,7 @@ extern void c_finish_omp_taskwait (location_t);
 extern void c_finish_omp_taskyield (location_t);
 extern tree c_finish_omp_for (location_t, enum tree_code, tree, tree, tree,
 			      tree, tree, tree, tree, bool);
+extern int c_omp_find_generated_loop (tree &, int, walk_tree_lh);
 extern bool c_omp_check_loop_iv (tree, tree, walk_tree_lh);
 extern bool c_omp_check_loop_iv_exprs (location_t, enum tree_code, tree, int,
 				       tree, tree, tree, walk_tree_lh);
@@ -1391,7 +1415,8 @@ enum c_omp_directive_kind {
   C_OMP_DIR_CONSTRUCT,
   C_OMP_DIR_DECLARATIVE,
   C_OMP_DIR_UTILITY,
-  C_OMP_DIR_INFORMATIONAL
+  C_OMP_DIR_INFORMATIONAL,
+  C_OMP_DIR_META
 };
 
 struct c_omp_directive {
@@ -1405,6 +1430,7 @@ extern const struct c_omp_directive c_omp_directives[];
 extern const struct c_omp_directive *c_omp_categorize_directive (const char *,
 								 const char *,
 								 const char *);
+extern tree c_omp_expand_variant_construct (vec<struct omp_variant> &);
 
 /* Return next tree in the chain for chain_next walking of tree nodes.  */
 inline tree
@@ -1490,29 +1516,46 @@ extern tree build_userdef_literal (tree suffix_id, tree value,
 				   tree num_string);
 
 
-/* WHILE_STMT accessors. These give access to the condition of the
-   while statement and the body of the while statement, respectively.  */
+/* WHILE_STMT accessors.  These give access to the condition of the
+   while statement, the body, and name of the while statement, and
+   condition preparation statements and number of its nested cleanups,
+   respectively.  */
 #define WHILE_COND(NODE)	TREE_OPERAND (WHILE_STMT_CHECK (NODE), 0)
 #define WHILE_BODY(NODE)	TREE_OPERAND (WHILE_STMT_CHECK (NODE), 1)
+#define WHILE_NAME(NODE)	TREE_OPERAND (WHILE_STMT_CHECK (NODE), 2)
+#define WHILE_COND_PREP(NODE)	TREE_OPERAND (WHILE_STMT_CHECK (NODE), 3)
+#define WHILE_COND_CLEANUP(NODE) TREE_OPERAND (WHILE_STMT_CHECK (NODE), 4)
 
-/* DO_STMT accessors. These give access to the condition of the do
-   statement and the body of the do statement, respectively.  */
+/* DO_STMT accessors.  These give access to the condition of the do
+   statement, the body and name of the do statement, respectively.  */
 #define DO_COND(NODE)		TREE_OPERAND (DO_STMT_CHECK (NODE), 0)
 #define DO_BODY(NODE)		TREE_OPERAND (DO_STMT_CHECK (NODE), 1)
+#define DO_NAME(NODE)		TREE_OPERAND (DO_STMT_CHECK (NODE), 2)
 
-/* FOR_STMT accessors. These give access to the init statement,
-   condition, update expression, and body of the for statement,
+/* FOR_STMT accessors.  These give access to the init statement,
+   condition, update expression, body and name of the for statement,
+   and condition preparation statements and number of its nested cleanups,
    respectively.  */
 #define FOR_INIT_STMT(NODE)	TREE_OPERAND (FOR_STMT_CHECK (NODE), 0)
 #define FOR_COND(NODE)		TREE_OPERAND (FOR_STMT_CHECK (NODE), 1)
 #define FOR_EXPR(NODE)		TREE_OPERAND (FOR_STMT_CHECK (NODE), 2)
 #define FOR_BODY(NODE)		TREE_OPERAND (FOR_STMT_CHECK (NODE), 3)
 #define FOR_SCOPE(NODE)		TREE_OPERAND (FOR_STMT_CHECK (NODE), 4)
+#define FOR_NAME(NODE)		TREE_OPERAND (FOR_STMT_CHECK (NODE), 5)
+#define FOR_COND_PREP(NODE)	TREE_OPERAND (FOR_STMT_CHECK (NODE), 6)
+#define FOR_COND_CLEANUP(NODE)	TREE_OPERAND (FOR_STMT_CHECK (NODE), 7)
+
+/* BREAK_STMT accessors.  */
+#define BREAK_NAME(NODE)	TREE_OPERAND (BREAK_STMT_CHECK (NODE), 0)
+
+/* CONTINUE_STMT accessors.  */
+#define CONTINUE_NAME(NODE)	TREE_OPERAND (CONTINUE_STMT_CHECK (NODE), 0)
 
 #define SWITCH_STMT_COND(NODE)	TREE_OPERAND (SWITCH_STMT_CHECK (NODE), 0)
 #define SWITCH_STMT_BODY(NODE)	TREE_OPERAND (SWITCH_STMT_CHECK (NODE), 1)
 #define SWITCH_STMT_TYPE(NODE)	TREE_OPERAND (SWITCH_STMT_CHECK (NODE), 2)
 #define SWITCH_STMT_SCOPE(NODE)	TREE_OPERAND (SWITCH_STMT_CHECK (NODE), 3)
+#define SWITCH_STMT_NAME(NODE)	TREE_OPERAND (SWITCH_STMT_CHECK (NODE), 4)
 /* True if there are case labels for all possible values of switch cond, either
    because there is a default: case label or because the case label ranges cover
    all values.  */
@@ -1634,11 +1677,15 @@ extern int parse_tm_stmt_attr (tree, int);
 extern int tm_attr_to_mask (tree);
 extern tree tm_mask_to_attr (int);
 extern tree find_tm_attribute (tree);
+extern const struct attribute_spec::exclusions attr_aligned_exclusions[];
 extern const struct attribute_spec::exclusions attr_cold_hot_exclusions[];
 extern const struct attribute_spec::exclusions attr_noreturn_exclusions[];
+extern tree handle_aligned_attribute (tree *, tree, tree, int, bool *);
 extern tree handle_noreturn_attribute (tree *, tree, tree, int, bool *);
+extern tree handle_musttail_attribute (tree *, tree, tree, int, bool *);
 extern bool has_attribute (location_t, tree, tree, tree (*)(tree));
 extern tree build_attr_access_from_parms (tree, bool);
+extern void set_musttail_on_return (tree, location_t, bool);
 
 /* In c-format.cc.  */
 extern bool valid_format_string_type_p (tree);
@@ -1665,6 +1712,10 @@ extern void maybe_add_include_fixit (rich_location *, const char *, bool);
 extern void maybe_suggest_missing_token_insertion (rich_location *richloc,
 						   enum cpp_ttype token_type,
 						   location_t prev_token_loc);
+extern void maybe_emit_indirection_note (location_t loc,
+					 tree expr, tree expected_type);
+extern bool compatible_types_for_indirection_note_p (tree type1, tree type2);
+
 extern tree braced_lists_to_strings (tree, tree);
 
 #if CHECKING_P

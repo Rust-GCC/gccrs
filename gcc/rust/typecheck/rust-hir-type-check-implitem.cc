@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -495,7 +495,7 @@ TypeCheckImplItemWithTrait::visit (HIR::ConstantItem &constant)
       r.add_range (resolved_trait_item.get_locus ());
 
       rust_error_at (
-	r, "constant %<%s%> has an incompatible type for trait %<%s%>",
+	r, "constant %qs has an incompatible type for trait %qs",
 	constant.get_identifier ().as_string ().c_str (),
 	trait_reference.get_name ().c_str ());
     }
@@ -521,7 +521,7 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
     {
       rich_location r (line_table, type.get_locus ());
       r.add_range (trait_reference.get_locus ());
-      rust_error_at (r, "type alias %<%s%> is not a member of trait %<%s%>",
+      rust_error_at (r, "type alias %qs is not a member of trait %qs",
 		     type.get_new_type_name ().as_string ().c_str (),
 		     trait_reference.get_name ().c_str ());
       return;
@@ -546,7 +546,7 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
       r.add_range (resolved_trait_item.get_locus ());
 
       rust_error_at (
-	r, "type alias %<%s%> has an incompatible type for trait %<%s%>",
+	r, "type alias %qs has an incompatible type for trait %qs",
 	type.get_new_type_name ().as_string ().c_str (),
 	trait_reference.get_name ().c_str ());
     }
@@ -581,7 +581,7 @@ TypeCheckImplItemWithTrait::visit (HIR::Function &function)
     {
       rich_location r (line_table, function.get_locus ());
       r.add_range (trait_reference.get_locus ());
-      rust_error_at (r, "method %<%s%> is not a member of trait %<%s%>",
+      rust_error_at (r, "method %qs is not a member of trait %qs",
 		     function.get_function_name ().as_string ().c_str (),
 		     trait_reference.get_name ().c_str ());
       return;
@@ -606,7 +606,7 @@ TypeCheckImplItemWithTrait::visit (HIR::Function &function)
       r.add_range (resolved_trait_item.get_locus ());
 
       rust_error_at (r, ErrorCode::E0053,
-		     "method %<%s%> has an incompatible type for trait %<%s%>",
+		     "method %qs has an incompatible type for trait %qs",
 		     function.get_function_name ().as_string ().c_str (),
 		     trait_reference.get_name ().c_str ());
     }

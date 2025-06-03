@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2024, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2025, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -301,8 +301,6 @@ package body Treepr is
             return "SCIL_Target_Prim";
          when F_Shift_Count_OK =>
             return "Shift_Count_OK";
-         when F_Split_PPC =>
-            return "Split_PPC";
          when F_TSS_Elist =>
             return "TSS_Elist";
 

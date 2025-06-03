@@ -1,5 +1,5 @@
 ## Makefile for the Phobos standard library.
-## Copyright (C) 2012-2024 Free Software Foundation, Inc.
+## Copyright (C) 2012-2025 Free Software Foundation, Inc.
 ##
 ## GCC is free software; you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
@@ -26,7 +26,8 @@ D_EXTRA_DFLAGS=-fpreview=dip1000 -fpreview=dtorfields -fpreview=fieldwise \
 # D flags for compilation
 AM_DFLAGS= \
 	$(phobos_lt_pic_flag) $(phobos_compiler_shared_flag) \
-	$(WARN_DFLAGS) $(CHECKING_DFLAGS) $(SECTION_FLAGS) $(CET_DFLAGS)
+	$(WARN_DFLAGS) $(CHECKING_DFLAGS) $(SECTION_FLAGS) $(CET_FLAGS) \
+	$(OS_DFLAGS)
 
 # Flags for other kinds of sources
 AM_CFLAGS=$(CET_FLAGS)
@@ -78,7 +79,7 @@ install-data-local:
 	done
 
 # Source file definitions. Boring stuff, auto-generated with
-# https://gist.github.com/jpf91/8744acebc9dcf1e9d1a35cdff20afbb2
+# libphobos/scripts/gen_phobos_sources.d
 # Can't use wildcards here:
 # https://www.gnu.org/software/automake/manual/html_node/Wildcards.html
 if ENABLE_LIBDRUNTIME_ONLY
@@ -87,13 +88,15 @@ PHOBOS_DSOURCES =
 
 else
 
-PHOBOS_DSOURCES = etc/c/curl.d etc/c/zlib.d std/algorithm/comparison.d \
-	std/algorithm/internal.d std/algorithm/iteration.d \
-	std/algorithm/mutation.d std/algorithm/package.d \
-	std/algorithm/searching.d std/algorithm/setops.d \
-	std/algorithm/sorting.d std/array.d std/ascii.d std/base64.d \
-	std/bigint.d std/bitmanip.d std/checkedint.d std/compiler.d \
-	std/complex.d std/concurrency.d std/container/array.d \
+PHOBOS_DSOURCES = etc/c/curl.d etc/c/odbc/odbc32.d etc/c/odbc/odbc64.d \
+	etc/c/odbc/package.d etc/c/odbc/sql.d etc/c/odbc/sqlext.d \
+	etc/c/odbc/sqltypes.d etc/c/odbc/sqlucode.d etc/c/sqlite3.d \
+	etc/c/zlib.d std/algorithm/comparison.d std/algorithm/internal.d \
+	std/algorithm/iteration.d std/algorithm/mutation.d \
+	std/algorithm/package.d std/algorithm/searching.d \
+	std/algorithm/setops.d std/algorithm/sorting.d std/array.d std/ascii.d \
+	std/base64.d std/bigint.d std/bitmanip.d std/checkedint.d \
+	std/compiler.d std/complex.d std/concurrency.d std/container/array.d \
 	std/container/binaryheap.d std/container/dlist.d \
 	std/container/package.d std/container/rbtree.d std/container/slist.d \
 	std/container/util.d std/conv.d std/csv.d std/datetime/date.d \
@@ -138,10 +141,11 @@ PHOBOS_DSOURCES = etc/c/curl.d etc/c/zlib.d std/algorithm/comparison.d \
 	std/internal/math/errorfunction.d std/internal/math/gammafunction.d \
 	std/internal/memory.d std/internal/scopebuffer.d \
 	std/internal/test/dummyrange.d std/internal/test/range.d \
-	std/internal/test/uda.d std/internal/unicode_comp.d \
-	std/internal/unicode_decomp.d std/internal/unicode_grapheme.d \
-	std/internal/unicode_norm.d std/internal/unicode_tables.d \
-	std/internal/windows/advapi32.d std/json.d std/logger/core.d \
+	std/internal/test/sumtype_example_overloads.d std/internal/test/uda.d \
+	std/internal/unicode_comp.d std/internal/unicode_decomp.d \
+	std/internal/unicode_grapheme.d std/internal/unicode_norm.d \
+	std/internal/unicode_tables.d std/internal/windows/advapi32.d \
+	std/internal/windows/bcrypt.d std/json.d std/logger/core.d \
 	std/logger/filelogger.d std/logger/multilogger.d \
 	std/logger/nulllogger.d std/logger/package.d std/math/algebraic.d \
 	std/math/constants.d std/math/exponential.d std/math/hardware.d \

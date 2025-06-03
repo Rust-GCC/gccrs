@@ -1,5 +1,5 @@
 /* DWARF2 exception handling and frame unwinding for Xtensa.
-   Copyright (C) 1997-2024 Free Software Foundation, Inc.
+   Copyright (C) 1997-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -278,7 +278,7 @@ extract_cie_info (const struct dwarf_cie *cie, struct _Unwind_Context *context,
       else if (aug[0] == 'P')
 	{
 	  _Unwind_Ptr personality;
-	  
+
 	  p = read_encoded_value (context, *p, p + 1, &personality);
 	  fs->personality = (_Unwind_Personality_Fn) personality;
 	  aug += 1;

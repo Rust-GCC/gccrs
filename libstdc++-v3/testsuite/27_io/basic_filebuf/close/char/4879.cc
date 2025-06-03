@@ -1,7 +1,7 @@
 // { dg-require-fork "" }
 // { dg-require-mkfifo "" }
  
-// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+// Copyright (C) 2001-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -18,9 +18,7 @@
 // with this library; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-// 27.8.1.3 filebuf member functions
-// @require@ %-*.tst %-*.txt
-// @diff@ %-*.tst %-*.txt
+// C++98 27.8.1.3 filebuf member functions
 
 // various tests for filebuf::open() and filebuf::close() including
 // the non-portable functionality in the libstdc++-v3 IO library

@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -16,13 +16,28 @@
 
 #include "config/gcn/gcn-opts.h"
 
+extern const struct gcn_device_def {
+  enum processor_type id;
+  const char *name;
+  const char *NAME;
+  enum gcn_isa isa;
+
+  /* Features.  */
+  enum hsaco_attr_type xnack_default;
+  enum hsaco_attr_type sramecc_default;
+  enum hsaco_attr_type wave64_default;
+  enum hsaco_attr_type cumode_default;
+  int max_isa_vgprs;
+  unsigned generic_version;
+  const char *arch_family;
+} gcn_devices[];
+
 #define TARGET_CPU_CPP_BUILTINS()                                              \
   do                                                                           \
     {                                                                          \
+      builtin_define ("__AMDGPU__");                                           \
       builtin_define ("__AMDGCN__");                                           \
-      if (TARGET_GCN3)                                                         \
-	builtin_define ("__GCN3__");                                           \
-      else if (TARGET_GCN5)                                                    \
+      if (TARGET_GCN5)                                                         \
 	builtin_define ("__GCN5__");                                           \
       else if (TARGET_CDNA1)                                                   \
 	builtin_define ("__CDNA1__");                                          \
@@ -34,25 +49,27 @@
 	builtin_define ("__RDNA3__");                                          \
       else                                                                     \
 	gcc_unreachable ();                                                    \
-      if (TARGET_FIJI)                                                         \
-	{                                                                      \
-	  builtin_define ("__fiji__");                                         \
-	  builtin_define ("__gfx803__");                                       \
-	}                                                                      \
-      else if (TARGET_VEGA10)                                                  \
-	builtin_define ("__gfx900__");                                         \
-      else if (TARGET_VEGA20)                                                  \
-	builtin_define ("__gfx906__");                                         \
-      else if (TARGET_GFX908)                                                  \
-	builtin_define ("__gfx908__");                                         \
-      else if (TARGET_GFX90a)                                                  \
-	builtin_define ("__gfx90a__");                                         \
-      else if (TARGET_GFX1030)                                                 \
-	builtin_define ("__gfx1030");                                          \
-      else if (TARGET_GFX1100)                                                 \
-	builtin_define ("__gfx1100__");                                        \
-      else                                                                     \
-	gcc_unreachable ();                                                    \
+      char *name = (char *)xmalloc (strlen (gcn_devices[gcn_arch].name) + 5);  \
+      sprintf (name, "__%s__", gcn_devices[gcn_arch].name);                    \
+      char *p;                                                                 \
+      if (gcn_devices[gcn_arch].generic_version)                               \
+	while ((p = strchr(name, '-')))                                        \
+	  *p = '_';                                                            \
+      builtin_define (name);                                                   \
+      name = (char *)xmalloc (strlen (gcn_devices[gcn_arch].arch_family) + 5); \
+      sprintf (name, "__%s__", gcn_devices[gcn_arch].arch_family);             \
+      builtin_define (name);                                                   \
+      name = (char *)xmalloc (strlen ("__amdgcn_target_id__") +                \
+			      strlen (gcn_devices[gcn_arch].name) + 4);        \
+      sprintf (name, "__amdgcn_target_id__=\"%s\"", gcn_devices[gcn_arch].name); \
+      builtin_define (name);                                                   \
+      name = (char *)xmalloc (strlen ("__amdgcn_processor__") +                \
+			      strlen (gcn_devices[gcn_arch].name) + 4);        \
+      sprintf (name, "__amdgcn_processor__=\"%s\"", gcn_devices[gcn_arch].name); \
+      if (gcn_devices[gcn_arch].generic_version)                               \
+	while ((p = strchr(name, '-')))                                        \
+	  *p = '_';                                                            \
+      builtin_define (name);                                                   \
   } while (0)
 
 #define ASSEMBLER_DIALECT (TARGET_RDNA2_PLUS ? 1 : 0)
@@ -105,9 +122,6 @@
 #define INT_TYPE_SIZE		  32
 #define LONG_TYPE_SIZE		  64
 #define LONG_LONG_TYPE_SIZE	  64
-#define FLOAT_TYPE_SIZE		  32
-#define DOUBLE_TYPE_SIZE	  64
-#define LONG_DOUBLE_TYPE_SIZE	  64
 #define DEFAULT_SIGNED_CHAR	  1
 #define PCC_BITFIELD_TYPE_MATTERS 1
 
@@ -195,7 +209,7 @@ STATIC_ASSERT (LAST_AVGPR_REG + 1 - FIRST_AVGPR_REG == 256);
 #define HARD_FRAME_POINTER_IS_ARG_POINTER   0
 #define HARD_FRAME_POINTER_IS_FRAME_POINTER 0
 
-#define SGPR_REGNO_P(N)		((N) >= FIRST_SGPR_REG && (N) <= LAST_SGPR_REG)
+#define SGPR_REGNO_P(N)		(/*(N) >= FIRST_SGPR_REG &&*/ (N) <= LAST_SGPR_REG)
 #define VGPR_REGNO_P(N)		((N) >= FIRST_VGPR_REG && (N) <= LAST_VGPR_REG)
 #define AVGPR_REGNO_P(N)        ((N) >= FIRST_AVGPR_REG && (N) <= LAST_AVGPR_REG)
 #define SSRC_REGNO_P(N)		((N) <= SCC_REG && (N) != VCCZ_REG)
@@ -578,8 +592,7 @@ enum gcn_address_spaces
   c_register_addr_space ("__global", ADDR_SPACE_GLOBAL);             \
 } while (0);
 
-#define STACK_ADDR_SPACE \
-  (TARGET_GCN5_PLUS ? ADDR_SPACE_GLOBAL : ADDR_SPACE_FLAT)
+#define STACK_ADDR_SPACE ADDR_SPACE_GLOBAL
 #define DEFAULT_ADDR_SPACE \
   ((cfun && cfun->machine && !cfun->machine->use_flat_addressing) \
    ? ADDR_SPACE_GLOBAL : ADDR_SPACE_FLAT)
@@ -828,7 +841,7 @@ enum gcn_builtin_codes
 #define PROFILE_BEFORE_PROLOGUE 0
 
 /* Trampolines */
-#define TRAMPOLINE_SIZE 36
+#define TRAMPOLINE_SIZE 40  /* 36 + 4 padding for alignment.  */
 #define TRAMPOLINE_ALIGNMENT 64
 
 /* MD Optimization.
@@ -854,7 +867,3 @@ enum gcn_builtin_codes
       || M == V2SFmode || M == V2DImode || M == V2DFmode) \
    ? 2 \
    : 1)
-
-/* The C++ front end insists to link against libstdc++ -- which we don't build.
-   Tell it to instead link against the innocuous libgcc.  */
-#define LIBSTDCXX "gcc"

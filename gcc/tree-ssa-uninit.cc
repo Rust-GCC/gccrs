@@ -1,5 +1,5 @@
 /* Predicate aware uninitialized variable warning.
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Xinliang David Li <davidxl@google.com>
 
 This file is part of GCC.
@@ -42,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "domwalk.h"
 #include "tree-ssa-sccvn.h"
 #include "cfganal.h"
+#include "gcc-urlifier.h"
 
 /* This implements the pass that does predicate aware warning on uses of
    possibly uninitialized variables.  The pass first collects the set of
@@ -455,9 +456,10 @@ maybe_warn_read_write_only (tree fndecl, gimple *stmt, tree arg, tree ptr)
       const char* const access_str =
 	TREE_STRING_POINTER (access->to_external_string ());
 
+      auto_urlify_attributes sentinel;
       location_t parmloc = DECL_SOURCE_LOCATION (parm);
       inform (parmloc, "accessing argument %u of a function declared with "
-	      "attribute %<%s%>",
+	      "attribute %qs",
 	      argno + 1, access_str);
 
       break;
@@ -876,18 +878,19 @@ maybe_warn_pass_by_reference (gcall *stmt, wlimits &wlims)
 	  const char* const access_str =
 	    TREE_STRING_POINTER (access->to_external_string ());
 
+	  auto_urlify_attributes sentinel;
 	  if (fndecl)
 	    {
 	      location_t loc = DECL_SOURCE_LOCATION (fndecl);
 	      inform (loc, "in a call to %qD declared with "
-		      "attribute %<%s%> here", fndecl, access_str);
+		      "attribute %qs here", fndecl, access_str);
 	    }
 	  else
 	    {
 	      /* Handle calls through function pointers.  */
 	      location_t loc = gimple_location (stmt);
 	      inform (loc, "in a call to %qT declared with "
-		      "attribute %<%s%>", fntype, access_str);
+		      "attribute %qs", fntype, access_str);
 	    }
 	}
       else

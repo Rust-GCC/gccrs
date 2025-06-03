@@ -1,5 +1,5 @@
 /* Variable tracking routines for the GNU compiler.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -3531,6 +3531,14 @@ loc_cmp (rtx x, rtx y)
 	if (XINT (x, i) == XINT (y, i))
 	  break;
 	else if (XINT (x, i) < XINT (y, i))
+	  return -1;
+	else
+	  return 1;
+
+      case 'L':
+	if (XLOC (x, i) == XLOC (y, i))
+	  break;
+	else if (XLOC (x, i) < XLOC (y, i))
 	  return -1;
 	else
 	  return 1;

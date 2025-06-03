@@ -1,5 +1,5 @@
 /* Late RTL pass to fold memory offsets.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,6 +35,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "df.h"
 #include "tree-pass.h"
 #include "cfgrtl.h"
+#include "diagnostic-core.h"
 
 /* This pass tries to optimize memory offset calculations by moving constants
    from add instructions to the memory instructions (loads / stores).
@@ -100,7 +101,7 @@ const pass_data pass_data_fold_mem =
   RTL_PASS, /* type */
   "fold_mem_offsets", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  TV_NONE, /* tv_id */
+  TV_FOLD_MEM_OFFSETS, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
@@ -491,7 +492,7 @@ fold_offsets (rtx_insn *insn, rtx reg, bool analyze, bitmap foldable_insns)
 {
   rtx_insn *def = get_single_def_in_bb (insn, reg);
 
-  if (!def || GET_CODE (PATTERN (def)) != SET)
+  if (!def || RTX_FRAME_RELATED_P (def) || GET_CODE (PATTERN (def)) != SET)
     return 0;
 
   rtx dest = SET_DEST (PATTERN (def));
@@ -841,6 +842,23 @@ do_commit_insn (rtx_insn *insn)
 unsigned int
 pass_fold_mem_offsets::execute (function *fn)
 {
+  /* Computing UD/DU chains for flow graphs which have a high connectivity
+     will take a long time and is unlikely to be particularly useful.
+
+     In normal circumstances a cfg should have about twice as many
+     edges as blocks.  But we do not want to punish small functions
+     which have a couple switch statements.  Rather than simply
+     threshold the number of blocks, uses something with a more
+     graceful degradation.  */
+  if (n_edges_for_fn (fn) > 20000 + n_basic_blocks_for_fn (fn) * 4)
+    {
+      warning (OPT_Wdisabled_optimization,
+	       "fold-mem-offsets: %d basic blocks and %d edges/basic block",
+	       n_basic_blocks_for_fn (cfun),
+	       n_edges_for_fn (cfun) / n_basic_blocks_for_fn (cfun));
+      return 0;
+    }
+
   df_set_flags (DF_EQ_NOTES + DF_RD_PRUNE_DEAD_DEFS + DF_DEFER_INSN_RESCAN);
   df_chain_add_problem (DF_UD_CHAIN + DF_DU_CHAIN);
   df_analyze ();

@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 --param=riscv-autovec-lmul=m8 -fdump-tree-optimized" } */
+/* { dg-options "-march=rv64gcv_zvfh_zvl4096b -mabi=lp64d -O3 -mrvv-max-lmul=m8 -fdump-tree-optimized" } */
 
 #include "def.h"
 
@@ -45,7 +45,7 @@ DEF_COND_UNOP (cond_neg, 128, v128di, -)
 DEF_COND_UNOP (cond_neg, 256, v256di, -)
 DEF_COND_UNOP (cond_neg, 512, v512di, -)
 
-/* { dg-final { scan-assembler-times {vneg\.v\s+v[0-9]+,\s*v[0-9]+,\s*v0.t} 38 } } */
+/* { dg-final { scan-assembler-times {vrsub\.vi\s+v[0-9]+,\s*v[0-9]+,0,\s*v0.t} 38 } } */
 /* { dg-final { scan-assembler-not {csrr} } } */
 /* { dg-final { scan-assembler-not {vmerge} } } */
 /* { dg-final { scan-tree-dump-not "1,1" "optimized" } } */

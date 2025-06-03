@@ -1,5 +1,5 @@
 /* SSA Dominator optimizations for trees
-   Copyright (C) 2001-2024 Free Software Foundation, Inc.
+   Copyright (C) 2001-2025 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -570,7 +570,7 @@ record_edge_info (basic_block bb)
 
           /* Special case comparing booleans against a constant as we
              know the value of OP0 on both arms of the branch.  i.e., we
-             can record an equivalence for OP0 rather than COND. 
+             can record an equivalence for OP0 rather than COND.
 
 	     However, don't do this if the constant isn't zero or one.
 	     Such conditionals will get optimized more thoroughly during
@@ -1430,15 +1430,14 @@ dom_opt_dom_walker::set_global_ranges_from_unreachable_edges (basic_block bb)
     return;
 
   tree name;
-  gori_compute &gori = m_ranger->gori ();
-  FOR_EACH_GORI_EXPORT_NAME (gori, pred_e->src, name)
+  FOR_EACH_GORI_EXPORT_NAME (m_ranger->gori_ssa (), pred_e->src, name)
     if (all_uses_feed_or_dominated_by_stmt (name, stmt)
 	// The condition must post-dominate the definition point.
 	&& (SSA_NAME_IS_DEFAULT_DEF (name)
 	    || (gimple_bb (SSA_NAME_DEF_STMT (name))
 		== pred_e->src)))
       {
-	Value_Range r (TREE_TYPE (name));
+	value_range r (TREE_TYPE (name));
 
 	if (m_ranger->range_on_edge (r, pred_e, name)
 	    && !r.varying_p ()
@@ -1905,7 +1904,7 @@ eliminate_redundant_computations (gimple_stmt_iterator* gsi,
 
 /* STMT, a GIMPLE_ASSIGN, may create certain equivalences, in either
    the available expressions table or the const_and_copies table.
-   Detect and record those equivalences into AVAIL_EXPRS_STACK. 
+   Detect and record those equivalences into AVAIL_EXPRS_STACK.
 
    We handle only very simple copy equivalences here.  The heavy
    lifing is done by eliminate_redundant_computations.  */
@@ -2033,7 +2032,7 @@ cprop_operand (gimple *stmt, use_operand_p op_p, range_query *query)
   val = SSA_NAME_VALUE (op);
   if (!val)
     {
-      Value_Range r (TREE_TYPE (op));
+      value_range r (TREE_TYPE (op));
       tree single;
       if (query->range_of_expr (r, op, stmt) && r.singleton_p (&single))
 	val = single;
@@ -2455,7 +2454,9 @@ dom_opt_dom_walker::optimize_stmt (basic_block bb, gimple_stmt_iterator *si,
 
       /* Perform simple redundant store elimination.  */
       if (gimple_assign_single_p (stmt)
-	  && TREE_CODE (gimple_assign_lhs (stmt)) != SSA_NAME)
+	  && TREE_CODE (gimple_assign_lhs (stmt)) != SSA_NAME
+	  && (TREE_CODE (gimple_assign_lhs (stmt)) != VAR_DECL
+	      || !DECL_HARD_REGISTER (gimple_assign_lhs (stmt))))
 	{
 	  tree lhs = gimple_assign_lhs (stmt);
 	  tree rhs = gimple_assign_rhs1 (stmt);

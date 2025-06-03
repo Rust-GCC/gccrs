@@ -1,5 +1,5 @@
 /* Types for drawing 2d "text art".
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -23,7 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 
 /* This header uses std::vector, but <vector> can't be directly
    included due to issues with macros.  Hence it must be included from
-   system.h by defining INCLUDE_MEMORY in any source file using it.  */
+   system.h by defining INCLUDE_VECTOR in any source file using it.  */
 
 #ifndef INCLUDE_VECTOR
 # error "You must define INCLUDE_VECTOR before including system.h to use text-art/types.h"
@@ -331,6 +331,8 @@ struct style
   color m_bg_color;
   std::vector<cppchar_t> m_url; // empty = no URL
 };
+
+extern style get_style_from_color_cap_name (const char *name);
 
 /* A class to keep track of all the styles in use in a drawing, so that
    we can refer to them via the compact style::id_t type, rather than

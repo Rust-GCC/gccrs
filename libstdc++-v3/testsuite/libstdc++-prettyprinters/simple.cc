@@ -3,7 +3,7 @@
 // { dg-do run }
 // { dg-options "-g -O0 -std=gnu++98" }
 
-// Copyright (C) 2011-2024 Free Software Foundation, Inc.
+// Copyright (C) 2011-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -152,9 +152,6 @@ main()
 // { dg-final { note-test br4 {false} } }
   std::vector<bool>::reference br5 = *vbIt5;
 // { dg-final { note-test br5 {true} } }
-
- std::vector<bool>::reference br0;
-// { dg-final { note-test br0 {invalid std::vector<bool>::reference} } }
 
   __gnu_cxx::slist<int> sll;
   sll.push_front(23);

@@ -1,5 +1,5 @@
 /* Header file for gimple-lower-bitint.cc exports.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -26,6 +26,7 @@ extern void build_bitint_stmt_ssa_conflicts (gimple *, live_track *,
 					     ssa_conflicts *, bitmap,
 					     void (*) (live_track *, tree,
 						       ssa_conflicts *),
+					     void (*) (live_track *, tree),
 					     void (*) (live_track *, tree));
 
 #endif /* GCC_GIMPLE_LOWER_BITINT_H */

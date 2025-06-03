@@ -1,6 +1,6 @@
 /* UnixArgs.cc record argc, argv as global variables.
 
-Copyright (C) 2009-2024 Free Software Foundation, Inc.
+Copyright (C) 2009-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -88,6 +88,6 @@ struct _M2_UnixArgs_ctor { _M2_UnixArgs_ctor (); } _M2_UnixArgs_ctor;
 
 _M2_UnixArgs_ctor::_M2_UnixArgs_ctor (void)
 {
-  M2RTS_RegisterModule ("UnixArgs", LIBNAME, _M2_UnixArgs_init, _M2_UnixArgs_fini,
-			_M2_UnixArgs_dep);
+  M2RTS_RegisterModule_Cstr ("UnixArgs", LIBNAME, _M2_UnixArgs_init,
+			     _M2_UnixArgs_fini, _M2_UnixArgs_dep);
 }
