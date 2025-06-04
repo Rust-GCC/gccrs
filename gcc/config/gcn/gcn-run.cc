@@ -1,7 +1,7 @@
 /* Run a stand-alone AMD GCN kernel.
 
    Copyright 2017 Mentor Graphics Corporation
-   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+   Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -426,7 +426,7 @@ load_image (const char *filename)
 
   /* Locate the "_init_array" function, and read the kernel's properties.  */
   hsa_executable_symbol_t symbol;
-  XHSA (hsa_fns.hsa_executable_get_symbol_fn (executable, NULL, 
+  XHSA (hsa_fns.hsa_executable_get_symbol_fn (executable, NULL,
 					      "_init_array.kd", device, 0,
 					      &symbol),
 	"Find '_init_array' function");
@@ -755,7 +755,13 @@ main (int argc, char *argv[])
 
   /* Clean shut down.  */
   XHSA (hsa_fns.hsa_memory_free_fn (kernargs),
-	"Clean up device memory");
+	"Clean up device kernargs memory");
+  XHSA (hsa_fns.hsa_memory_free_fn (args),
+	"Clean up device args memory");
+  XHSA (hsa_fns.hsa_memory_free_fn (heap),
+	"Clean up device heap memory");
+  XHSA (hsa_fns.hsa_memory_free_fn (stack),
+	"Clean up device stack memory");
   XHSA (hsa_fns.hsa_executable_destroy_fn (executable),
 	"Clean up GCN executable");
   XHSA (hsa_fns.hsa_queue_destroy_fn (queue),

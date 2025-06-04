@@ -13,7 +13,7 @@ module core.stdcpp.xutility;
 
 @nogc:
 
-version (CppRuntime_Clang)
+version (CppRuntime_LLVM)
 {
     import core.internal.traits : AliasSeq;
     enum StdNamespace = AliasSeq!("std", "__1");
@@ -35,6 +35,7 @@ enum CppStdRevision : uint
     cpp14 = 201402,
     cpp17 = 201703,
     cpp20 = 202002,
+    cpp23 = 202302,
 }
 
 /**
@@ -349,7 +350,7 @@ package:
     void _Xoverflow_error(const(char)* message) nothrow;
     void _Xruntime_error(const(char)* message) nothrow;
 }
-else version (CppRuntime_Clang)
+else version (CppRuntime_LLVM)
 {
     import core.stdcpp.type_traits : is_empty;
 
@@ -379,7 +380,7 @@ extern(C++, "std"):
             @property ref inout(_T2) __value2_() inout nothrow @trusted @nogc { return *__get_base2(); }
     }
 }
-version (CppRuntime_Gcc)
+version (CppRuntime_GNU)
 {
     import core.atomic;
 

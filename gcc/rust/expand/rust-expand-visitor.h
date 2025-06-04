@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -28,14 +28,12 @@ namespace Rust {
 /**
  * Whether or not an attribute is a derive attribute
  */
-bool
-is_derive (AST::Attribute &attr);
+bool is_derive (AST::Attribute &attr);
 
 /**
  * Whether or not an attribute is builtin
  */
-bool
-is_builtin (AST::Attribute &attr);
+bool is_builtin (AST::Attribute &attr);
 
 class ExpandVisitor : public AST::DefaultASTVisitor
 {

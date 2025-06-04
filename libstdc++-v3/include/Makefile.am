@@ -1,6 +1,6 @@
 ## Makefile for the include subdirectory of the GNU C++ Standard library.
 ##
-## Copyright (C) 2001-2024 Free Software Foundation, Inc.
+## Copyright (C) 2001-2025 Free Software Foundation, Inc.
 ##
 ## This file is part of the libstdc++ version 3 distribution.
 ## Process this file with automake to produce Makefile.in.
@@ -38,6 +38,7 @@ std_freestanding = \
 	${std_srcdir}/generator \
 	${std_srcdir}/iterator \
 	${std_srcdir}/limits \
+	${std_srcdir}/mdspan \
 	${std_srcdir}/memory \
 	${std_srcdir}/numbers \
 	${std_srcdir}/numeric \
@@ -70,6 +71,8 @@ std_headers = \
 	${std_srcdir}/deque \
 	${std_srcdir}/execution \
 	${std_srcdir}/filesystem \
+	${std_srcdir}/flat_map \
+	${std_srcdir}/flat_set \
 	${std_srcdir}/format \
 	${std_srcdir}/forward_list \
 	${std_srcdir}/fstream \
@@ -133,7 +136,9 @@ bits_freestanding = \
 	${bits_srcdir}/iterator_concepts.h \
 	${bits_srcdir}/max_size_type.h \
 	${bits_srcdir}/memoryfwd.h \
+	${bits_srcdir}/monostate.h \
 	${bits_srcdir}/move.h \
+	${bits_srcdir}/ostream.h \
 	${bits_srcdir}/out_ptr.h \
 	${bits_srcdir}/predefined_ops.h \
 	${bits_srcdir}/parse_numbers.h \
@@ -189,8 +194,10 @@ bits_headers = \
 	${bits_srcdir}/chrono_io.h \
 	${bits_srcdir}/codecvt.h \
 	${bits_srcdir}/cow_string.h \
+	${bits_srcdir}/cpyfunc_impl.h \
 	${bits_srcdir}/deque.tcc \
 	${bits_srcdir}/erase_if.h \
+	${bits_srcdir}/formatfwd.h \
 	${bits_srcdir}/forward_list.h \
 	${bits_srcdir}/forward_list.tcc \
 	${bits_srcdir}/fs_dir.h \
@@ -198,10 +205,13 @@ bits_headers = \
 	${bits_srcdir}/fs_ops.h \
 	${bits_srcdir}/fs_path.h \
 	${bits_srcdir}/fstream.tcc \
+	${bits_srcdir}/funcref_impl.h \
+	${bits_srcdir}/funcwrap.h \
 	${bits_srcdir}/gslice.h \
 	${bits_srcdir}/gslice_array.h \
 	${bits_srcdir}/hashtable.h \
 	${bits_srcdir}/hashtable_policy.h \
+	${bits_srcdir}/indirect.h \
 	${bits_srcdir}/indirect_array.h \
 	${bits_srcdir}/ios_base.h \
 	${bits_srcdir}/istream.tcc \
@@ -217,7 +227,6 @@ bits_headers = \
 	${bits_srcdir}/mask_array.h \
 	${bits_srcdir}/memory_resource.h \
 	${bits_srcdir}/mofunc_impl.h \
-	${bits_srcdir}/move_only_function.h \
 	${bits_srcdir}/new_allocator.h \
 	${bits_srcdir}/node_handle.h \
 	${bits_srcdir}/ostream.tcc \
@@ -835,6 +844,7 @@ experimental_bits_headers = \
 	${experimental_bits_srcdir}/simd_neon.h \
 	${experimental_bits_srcdir}/simd_ppc.h \
 	${experimental_bits_srcdir}/simd_scalar.h \
+	${experimental_bits_srcdir}/simd_sve.h \
 	${experimental_bits_srcdir}/simd_x86.h \
 	${experimental_bits_srcdir}/simd_x86_conversions.h \
 	${experimental_bits_srcdir}/string_view.tcc \
@@ -906,6 +916,8 @@ c_compatibility_headers = \
 	${c_compatibility_srcdir}/tgmath.h \
 	${c_compatibility_srcdir}/math.h \
 	${c_compatibility_srcdir}/stdatomic.h \
+	${c_compatibility_srcdir}/stdbit.h \
+	${c_compatibility_srcdir}/stdckdint.h \
 	${c_compatibility_srcdir}/stdlib.h
 endif
 
@@ -1479,6 +1491,12 @@ ${pch3_output}: ${pch3_source} ${pch2_output}
 update-version:
 	cd ${bits_srcdir} && \
 	autogen version.def
+
+if MAINTAINER_MODE
+# Regenerate it automatically in maintainer mode.
+${bits_srcdir}/version.h: ${bits_srcdir}/version.def ${bits_srcdir}/version.tpl
+	$(MAKE) update-version
+endif
 
 # The real deal.
 install-data-local: install-headers

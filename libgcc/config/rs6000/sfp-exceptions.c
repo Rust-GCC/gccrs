@@ -1,4 +1,4 @@
-/* Copyright (C) 2016-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2016-2025 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -26,7 +26,7 @@
    emulation routines for IEEE 128-bit floating point on pre-ISA 3.0 machines
    without the IEEE 128-bit floating point support.  */
 
-#ifndef __NO_FPRS__ 
+#ifndef __NO_FPRS__
 
 void
 __sfp_handle_exceptions (int _fex)

@@ -1,5 +1,5 @@
 /* Implements exception handling.
-   Copyright (C) 1989-2024 Free Software Foundation, Inc.
+   Copyright (C) 1989-2025 Free Software Foundation, Inc.
    Contributed by Mike Stump <mrs@cygnus.com>.
 
 This file is part of GCC.
@@ -541,7 +541,8 @@ duplicate_eh_regions_1 (struct duplicate_eh_regions_data *data,
   eh_region new_r;
 
   new_r = gen_eh_region (old_r->type, outer);
-  gcc_assert (!data->eh_map->put (old_r, new_r));
+  bool existed = data->eh_map->put (old_r, new_r);
+  gcc_assert (!existed);
 
   switch (old_r->type)
     {
@@ -586,7 +587,8 @@ duplicate_eh_regions_1 (struct duplicate_eh_regions_data *data,
 	continue;
 
       new_lp = gen_eh_landing_pad (new_r);
-      gcc_assert (!data->eh_map->put (old_lp, new_lp));
+      bool existed = data->eh_map->put (old_lp, new_lp);
+      gcc_assert (!existed);
 
       new_lp->post_landing_pad
 	= data->label_map (old_lp->post_landing_pad, data->label_map_data);
@@ -968,12 +970,26 @@ expand_dw2_landing_pad_for_region (eh_region region)
     { /* Nothing */ }
 
   if (region->exc_ptr_reg)
-    emit_move_insn (region->exc_ptr_reg,
-		    gen_rtx_REG (ptr_mode, EH_RETURN_DATA_REGNO (0)));
+    {
+      rtx exc_ptr_reg;
+      if (EH_RETURN_DATA_REGNO (0) != INVALID_REGNUM)
+	exc_ptr_reg = gen_rtx_REG (ptr_mode, EH_RETURN_DATA_REGNO (0));
+      else
+	/* The target must be doing something special.  Submit a dummy.  */
+	exc_ptr_reg = constm1_rtx;
+      emit_move_insn (region->exc_ptr_reg, exc_ptr_reg);
+    }
   if (region->filter_reg)
-    emit_move_insn (region->filter_reg,
-		    gen_rtx_REG (targetm.eh_return_filter_mode (),
-				 EH_RETURN_DATA_REGNO (1)));
+    {
+      rtx filter_reg;
+      if (EH_RETURN_DATA_REGNO (1) != INVALID_REGNUM)
+	filter_reg = gen_rtx_REG (targetm.eh_return_filter_mode (),
+				  EH_RETURN_DATA_REGNO (1));
+      else
+	/* The target must be doing something special.  Submit a dummy.  */
+	filter_reg = constm1_rtx;
+      emit_move_insn (region->filter_reg, filter_reg);
+    }
 }
 
 /* Expand the extra code needed at landing pads for dwarf2 unwinding.  */
@@ -1008,8 +1024,7 @@ dw2_build_landing_pads (void)
 
       expand_dw2_landing_pad_for_region (lp->region);
 
-      seq = get_insns ();
-      end_sequence ();
+      seq = end_sequence ();
 
       bb = emit_to_new_bb_before (seq, label_rtx (lp->post_landing_pad));
       bb->count = bb->next_bb->count;
@@ -1104,8 +1119,7 @@ sjlj_mark_call_sites (void)
 	  buf_addr = plus_constant (Pmode, XEXP (crtl->eh.sjlj_fc, 0),
 				    sjlj_fc_jbuf_ofs);
 	  expand_builtin_update_setjmp_buf (buf_addr);
-	  p = get_insns ();
-	  end_sequence ();
+	  p = end_sequence ();
 	  emit_insn_before (p, insn);
 	}
 
@@ -1145,8 +1159,7 @@ sjlj_mark_call_sites (void)
       mem = adjust_address (crtl->eh.sjlj_fc, TYPE_MODE (integer_type_node),
 			    sjlj_fc_call_site_ofs);
       emit_move_insn (mem, gen_int_mode (this_call_site, GET_MODE (mem)));
-      p = get_insns ();
-      end_sequence ();
+      p = end_sequence ();
 
       emit_insn_before (p, before);
       last_call_site = this_call_site;
@@ -1212,8 +1225,7 @@ sjlj_emit_function_enter (rtx_code_label *dispatch_label)
   emit_library_call (unwind_sjlj_register_libfunc, LCT_NORMAL, VOIDmode,
 		     XEXP (fc, 0), Pmode);
 
-  seq = get_insns ();
-  end_sequence ();
+  seq = end_sequence ();
 
   /* ??? Instead of doing this at the beginning of the function,
      do this in a block that is at loop level 0 and dominates all
@@ -1228,6 +1240,10 @@ sjlj_emit_function_enter (rtx_code_label *dispatch_label)
 	else if (NOTE_INSN_BASIC_BLOCK_P (fn_begin))
 	  fn_begin_outside_block = false;
       }
+    /* assign_params can indirectly call emit_block_move_via_loop, e.g.
+       for g++.dg/torture/pr85627.C for 16-bit targets.  */
+    else if (JUMP_P (fn_begin))
+      fn_begin_outside_block = true;
 
 #ifdef DONT_USE_BUILTIN_SETJMP
   if (dispatch_label)
@@ -1276,8 +1292,7 @@ sjlj_emit_function_exit (void)
   emit_library_call (unwind_sjlj_unregister_libfunc, LCT_NORMAL, VOIDmode,
 		     XEXP (crtl->eh.sjlj_fc, 0), Pmode);
 
-  seq = get_insns ();
-  end_sequence ();
+  seq = end_sequence ();
 
   /* ??? Really this can be done in any block at loop level 0 that
      post-dominates all can_throw_internal instructions.  This is
@@ -1382,8 +1397,7 @@ sjlj_emit_dispatch_table (rtx_code_label *dispatch_label, int num_dispatch)
 	if (r->filter_reg)
 	  emit_move_insn (r->filter_reg, filter_reg);
 
-	seq2 = get_insns ();
-	end_sequence ();
+	seq2 = end_sequence ();
 
 	rtx_insn *before = label_rtx (lp->post_landing_pad);
 	bb = emit_to_new_bb_before (seq2, before);
@@ -1419,8 +1433,7 @@ sjlj_emit_dispatch_table (rtx_code_label *dispatch_label, int num_dispatch)
       expand_sjlj_dispatch_table (disp, dispatch_labels);
     }
 
-  seq = get_insns ();
-  end_sequence ();
+  seq = end_sequence ();
 
   bb = emit_to_new_bb_before (seq, first_reachable_label);
   if (num_dispatch == 1)
@@ -2929,7 +2942,14 @@ switch_to_exception_section (const char * ARG_UNUSED (fnname))
 {
   section *s;
 
-  if (exception_section)
+  if (exception_section
+  /* Don't use the cached section for comdat if it will be different. */
+#ifdef HAVE_LD_EH_GC_SECTIONS
+      && !(targetm_common.have_named_sections
+	   && DECL_COMDAT_GROUP (current_function_decl)
+	   && HAVE_COMDAT_GROUP)
+#endif
+     )
     s = exception_section;
   else
     {
@@ -3032,7 +3052,7 @@ output_ttype (tree type, int tt_format, int tt_format_size)
    SECTION refers to the table associated with the hot part while value 1
    refers to the table associated with the cold part.  If the function has
    not been partitioned, value 0 refers to the single exception table.  */
- 
+
 static void
 output_one_function_exception_table (int section)
 {
@@ -3222,9 +3242,6 @@ output_one_function_exception_table (int section)
 void
 output_function_exception_table (int section)
 {
-  const char *fnname = get_fnname_from_decl (current_function_decl);
-  rtx personality = get_personality_function (current_function_decl);
-
   /* Not all functions need anything.  */
   if (!crtl->uses_eh_lsda
       || targetm_common.except_unwind_info (&global_options) == UI_NONE)
@@ -3233,6 +3250,9 @@ output_function_exception_table (int section)
   /* No need to emit any boilerplate stuff for the cold part.  */
   if (section == 1 && !crtl->eh.call_site_record_v[1])
     return;
+
+  const char *fnname = get_fnname_from_decl (current_function_decl);
+  rtx personality = get_personality_function (current_function_decl);
 
   if (personality)
     {

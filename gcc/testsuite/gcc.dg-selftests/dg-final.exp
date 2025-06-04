@@ -1,4 +1,4 @@
-#   Copyright (C) 2018-2024 Free Software Foundation, Inc.
+#   Copyright (C) 2018-2025 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ load_lib "scanlang.exp"
 load_lib "lto.exp"
 load_lib "scanasm.exp"
 load_lib "scanwpaipa.exp"
-load_lib "scanltranstree.exp"
+load_lib "scanltrans.exp"
 load_lib "scanoffloadtree.exp"
 load_lib "scanoffloadrtl.exp"
 load_lib "gcc-dg.exp"

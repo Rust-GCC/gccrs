@@ -1,5 +1,5 @@
 /* Internals of libgccjit: classes for playing back recorded API calls.
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -77,6 +77,9 @@ public:
   type *
   get_type (enum gcc_jit_types type);
 
+  void
+  set_output_ident (const char* ident);
+
   type *
   new_array_type (location *loc,
 		  type *element_type,
@@ -121,7 +124,8 @@ public:
 					    std::string>> &string_attributes,
 		const std::vector<std::pair<gcc_jit_fn_attribute,
 					    std::vector<int>>>
-					    &int_array_attributes);
+					    &int_array_attributes,
+		bool is_target_builtin);
 
   lvalue *
   new_global (location *loc,
@@ -130,7 +134,8 @@ public:
 	      const char *name,
 	      enum global_var_flags flags,
 	      const std::vector<std::pair<gcc_jit_variable_attribute,
-					  std::string>> &attributes);
+					  std::string>> &attributes,
+	      bool readonly);
 
   lvalue *
   new_global_initialized (location *loc,
@@ -144,7 +149,8 @@ public:
 			  const std::vector<std::pair<
 					    gcc_jit_variable_attribute,
 					    std::string>>
-					    &attributes);
+					    &attributes,
+			  bool readonly);
 
   rvalue *
   new_ctor (location *log,
@@ -166,12 +172,21 @@ public:
   new_sizeof (type *type);
 
   rvalue *
+  new_alignof (type *type);
+
+  rvalue *
   new_string_literal (const char *value);
 
   rvalue *
   new_rvalue_from_vector (location *loc,
 			  type *type,
 			  const auto_vec<rvalue *> &elements);
+
+  rvalue *
+  new_rvalue_vector_perm (location *loc,
+			  rvalue* elements1,
+			  rvalue* elements2,
+			  rvalue* mask);
 
   rvalue *
   new_unary_op (location *loc,
@@ -216,6 +231,15 @@ public:
   new_array_access (location *loc,
 		    rvalue *ptr,
 		    rvalue *index);
+
+  rvalue *
+  convert_vector (location *loc,
+		  rvalue *vector,
+		  type *type);
+  lvalue *
+  new_vector_access (location *loc,
+		     rvalue *vector,
+		     rvalue *index);
 
   void
   set_str_option (enum gcc_jit_str_option opt,
@@ -273,7 +297,7 @@ public:
   get_first_error () const;
 
   void
-  add_diagnostic (diagnostic_context *context,
+  add_diagnostic (const char *text,
 		  const diagnostic_info &diagnostic);
 
   void
@@ -334,7 +358,8 @@ private:
 		   const char *name,
 		   enum global_var_flags flags,
 		   const std::vector<std::pair<gcc_jit_variable_attribute,
-					       std::string>> &attributes);
+					       std::string>> &attributes,
+		   bool readonly);
   lvalue *
   global_finalize_lvalue (tree inner);
 
@@ -847,5 +872,7 @@ extern playback::context *active_playback_ctxt;
 } // namespace gcc::jit
 
 } // namespace gcc
+
+extern hash_map<nofree_string_hash, tree> target_builtins;
 
 #endif /* JIT_PLAYBACK_H */

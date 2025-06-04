@@ -1,7 +1,7 @@
 /* General types and functions that are uselful for processing of OpenMP,
    OpenACC and similar directivers at various stages of compilation.
 
-   Copyright (C) 2005-2024 Free Software Foundation, Inc.
+   Copyright (C) 2005-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,7 +35,7 @@ enum oacc_loop_flags {
   OLF_GANG_STATIC = 1u << 3,	/* Gang partitioning is static (has op). */
   OLF_TILE	= 1u << 4,	/* Tiled loop. */
   OLF_REDUCTION = 1u << 5,	/* Reduction loop.  */
-  
+
   /* Explicitly specified loop axes.  */
   OLF_DIM_BASE = 6,
   OLF_DIM_GANG   = 1u << (OLF_DIM_BASE + GOMP_DIM_GANG),
@@ -89,6 +89,33 @@ struct omp_for_data
   tree factor; /* (m2 - m1) * outer_step / inner_step.  */
   /* Adjusted n1 of the outer loop in such loop nests (if needed).  */
   tree adjn1;
+};
+
+/* Needs to be a GC-friendly widest_int variant, but precision is
+   desirable to be the same on all targets.  */
+typedef generic_wide_int <fixed_wide_int_storage <1024> > score_wide_int;
+
+/* A structure describing a variant alternative in a metadirective or
+   variant function, used for matching and scoring during resolution.  */
+struct GTY(()) omp_variant
+{
+  /* Context selector.  This is NULL_TREE for the default.  */
+  tree selector;
+  /* For early resolution of "metadirective", contains the nested directive.
+     For early resolution of "declare variant", contains the function decl
+     for this alternative.  For late resolution of both, contains the label
+     that is the branch target for this alternative.  */
+  tree alternative;
+  /* Common body, used for metadirective, null otherwise.  */
+  tree body;
+  /* The score, or the best guess if scorable is false.  */
+  score_wide_int score;
+  /* True if the selector is dynamic.  Filled in during resolution.  */
+  bool dynamic_selector;
+  /* Whether the selector is known to definitely match.  */
+  bool matchable;
+  /* Whether the score for the selector is definitely known.  */
+  bool scorable;
 };
 
 #define OACC_FN_ATTRIB "oacc function"
@@ -150,6 +177,8 @@ extern tree make_trait_set_selector (enum omp_tss_code, tree, tree);
 extern tree make_trait_selector (enum omp_ts_code, tree, tree, tree);
 extern tree make_trait_property (tree, tree, tree);
 
+extern tree make_omp_metadirective_variant (tree, tree, tree);
+
 extern tree omp_find_clause (tree clauses, enum omp_clause_code kind);
 extern bool omp_is_allocatable_or_ptr (tree decl);
 extern tree omp_check_optional_argument (tree decl, bool for_present_check);
@@ -162,19 +191,29 @@ extern void omp_extract_for_data (gomp_for *for_stmt, struct omp_for_data *fd,
 				  struct omp_for_data_loop *loops);
 extern gimple *omp_build_barrier (tree lhs);
 extern tree find_combined_omp_for (tree *, int *, void *);
-extern poly_uint64 omp_max_vf (void);
+extern poly_uint64 omp_max_vf (bool);
 extern int omp_max_simt_vf (void);
 extern const char *omp_context_name_list_prop (tree);
-extern void omp_construct_traits_to_codes (tree, int, enum tree_code *);
-extern tree omp_check_context_selector (location_t loc, tree ctx);
+enum omp_ctx_directive
+  { OMP_CTX_DECLARE_VARIANT,
+    OMP_CTX_BEGIN_DECLARE_VARIANT,
+    OMP_CTX_METADIRECTIVE };
+extern tree omp_check_context_selector (location_t loc, tree ctx,
+					enum omp_ctx_directive directive);
 extern void omp_mark_declare_variant (location_t loc, tree variant,
 				      tree construct);
-extern int omp_context_selector_matches (tree);
-extern int omp_context_selector_set_compare (enum omp_tss_code, tree, tree);
+extern int omp_context_selector_matches (tree, tree, bool);
+extern tree resolve_omp_target_device_matches (tree node);
 extern tree omp_get_context_selector (tree, enum omp_tss_code,
 				      enum omp_ts_code);
 extern tree omp_get_context_selector_list (tree, enum omp_tss_code);
-extern tree omp_resolve_declare_variant (tree);
+extern vec<struct omp_variant> omp_declare_variant_candidates (tree, tree);
+extern vec<struct omp_variant> omp_metadirective_candidates (tree, tree);
+extern vec<struct omp_variant>
+omp_get_dynamic_candidates (vec<struct omp_variant>&, tree);
+extern vec<struct omp_variant> omp_early_resolve_metadirective (tree);
+extern vec<struct omp_variant> omp_resolve_variant_construct (tree, tree);
+extern tree omp_dynamic_cond (tree, tree);
 extern tree oacc_launch_pack (unsigned code, tree device, unsigned op);
 extern tree oacc_replace_fn_attrib_attr (tree attribs, tree dims);
 extern void oacc_replace_fn_attrib (tree fn, tree dims);
@@ -195,6 +234,7 @@ enum omp_requires {
   OMP_REQUIRES_REVERSE_OFFLOAD = GOMP_REQUIRES_REVERSE_OFFLOAD,
   OMP_REQUIRES_ATOMIC_DEFAULT_MEM_ORDER_USED = 0x100,
   OMP_REQUIRES_TARGET_USED = GOMP_REQUIRES_TARGET_USED,
+  OMP_REQUIRES_SELF_MAPS = GOMP_REQUIRES_SELF_MAPS
 };
 
 extern GTY(()) enum omp_requires omp_requires_mask;
@@ -213,6 +253,92 @@ get_openacc_privatization_dump_flags ()
 }
 
 extern tree omp_build_component_ref (tree obj, tree field);
+
+template <typename T>
+struct omp_name_type
+{
+  tree name;
+  T type;
+};
+
+template <>
+struct default_hash_traits <omp_name_type<tree> >
+  : typed_noop_remove <omp_name_type<tree> >
+{
+  GTY((skip)) typedef omp_name_type<tree> value_type;
+  GTY((skip)) typedef omp_name_type<tree> compare_type;
+
+  static hashval_t
+  hash (omp_name_type<tree> p)
+  {
+    return p.name ? iterative_hash_expr (p.name, TYPE_UID (p.type))
+		  : TYPE_UID (p.type);
+  }
+
+  static const bool empty_zero_p = true;
+
+  static bool
+  is_empty (omp_name_type<tree> p)
+  {
+    return p.type == NULL;
+  }
+
+  static bool
+  is_deleted (omp_name_type<tree>)
+  {
+    return false;
+  }
+
+  static bool
+  equal (const omp_name_type<tree> &a, const omp_name_type<tree> &b)
+  {
+    if (a.name == NULL_TREE && b.name == NULL_TREE)
+      return a.type == b.type;
+    else if (a.name == NULL_TREE || b.name == NULL_TREE)
+      return false;
+    else
+      return a.name == b.name && a.type == b.type;
+  }
+
+  static void
+  mark_empty (omp_name_type<tree> &e)
+  {
+    e.type = NULL;
+  }
+};
+
+template <typename T>
+struct omp_mapper_list
+{
+  hash_set<omp_name_type<T>> *seen_types;
+  vec<tree> *mappers;
+
+  omp_mapper_list (hash_set<omp_name_type<T>> *s, vec<tree> *m)
+    : seen_types (s), mappers (m) { }
+
+  void add_mapper (tree name, T type, tree mapperfn)
+  {
+    /* We can't hash a NULL_TREE...  */
+    if (!name)
+      name = void_node;
+
+    omp_name_type<T> n_t = { name, type };
+
+    if (seen_types->contains (n_t))
+      return;
+
+    seen_types->add (n_t);
+    mappers->safe_push (mapperfn);
+  }
+
+  bool contains (tree name, T type)
+  {
+    if (!name)
+      name = void_node;
+
+    return seen_types->contains ({ name, type });
+  }
+};
 
 namespace omp_addr_tokenizer {
 
@@ -282,5 +408,8 @@ extern tree omp_accessed_addr (vec<omp_addr_token *> &, unsigned, tree);
 typedef omp_addr_tokenizer::omp_addr_token omp_addr_token;
 
 extern bool omp_parse_expr (vec<omp_addr_token *> &, tree);
+
+extern tree omp_loop_number_of_iterations (tree, int, tree * = NULL);
+extern void omp_maybe_apply_loop_xforms (tree *, tree);
 
 #endif /* GCC_OMP_GENERAL_H */

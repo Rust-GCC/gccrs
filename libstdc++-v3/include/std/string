@@ -1,6 +1,6 @@
 // Components for manipulating sequences of characters -*- C++ -*-
 
-// Copyright (C) 1997-2024 Free Software Foundation, Inc.
+// Copyright (C) 1997-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -33,7 +33,9 @@
 #ifndef _GLIBCXX_STRING
 #define _GLIBCXX_STRING	1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 #include <bits/requires_hosted.h> // containers
 
@@ -54,8 +56,11 @@
 #include <bits/basic_string.h>
 #include <bits/basic_string.tcc>
 
+#define __glibcxx_want_algorithm_default_value_type
+#define __glibcxx_want_allocator_traits_is_always_equal
 #define __glibcxx_want_constexpr_char_traits
 #define __glibcxx_want_constexpr_string
+#define __glibcxx_want_containers_ranges
 #define __glibcxx_want_erase_if
 #define __glibcxx_want_nonmember_container_access
 #define __glibcxx_want_string_resize_and_overwrite
@@ -104,7 +109,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       return __osz - __cont.size();
     }
 
-  template<typename _CharT, typename _Traits, typename _Alloc, typename _Up>
+  template<typename _CharT, typename _Traits, typename _Alloc,
+	   typename _Up _GLIBCXX26_DEF_VAL_T(_CharT)>
     _GLIBCXX20_CONSTEXPR
     inline typename basic_string<_CharT, _Traits, _Alloc>::size_type
     erase(basic_string<_CharT, _Traits, _Alloc>& __cont, const _Up& __value)

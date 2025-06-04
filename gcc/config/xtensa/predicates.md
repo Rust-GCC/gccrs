@@ -1,5 +1,5 @@
 ;; Predicate definitions for Xtensa.
-;; Copyright (C) 2005-2024 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2025 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -159,6 +159,26 @@
   return real_equal (CONST_DOUBLE_REAL_VALUE (op), &dconst1);
 })
 
+(define_predicate "fix_scaling_operand"
+  (match_code "const_double")
+{
+  REAL_VALUE_TYPE r = *CONST_DOUBLE_REAL_VALUE (op);
+  int exp = REAL_EXP (&r) - 1;
+
+  SET_REAL_EXP (&r, 1);
+  return real_equal (&r, &dconst1) && IN_RANGE (exp, 2, 15);
+})
+
+(define_predicate "float_scaling_operand"
+  (match_code "const_double")
+{
+  REAL_VALUE_TYPE r = *CONST_DOUBLE_REAL_VALUE (op);
+  int exp = REAL_EXP (&r) - 1;
+
+  SET_REAL_EXP (&r, 1);
+  return real_equal (&r, &dconst1) && IN_RANGE (-exp, 1, 15);
+})
+
 (define_predicate "fpmem_offset_operand"
   (and (match_code "const_int")
        (match_test "xtensa_mem_offset (INTVAL (op), SFmode)")))
@@ -199,6 +219,29 @@
 
 (define_predicate "xtensa_bit_join_operator"
   (match_code "plus,ior"))
+
+(define_predicate "subreg_HQI_lowpart_operator"
+  (match_code "subreg")
+{
+  int ofs = SUBREG_BYTE (op), pos = 0;
+  switch (GET_MODE (op))
+    {
+    case QImode:
+      if (BYTES_BIG_ENDIAN)
+	pos = 3;
+      break;
+    case HImode:
+      if (BYTES_BIG_ENDIAN)
+	pos = 2;
+      break;
+    default:
+      return false;
+    }
+  return ofs == pos;
+})
+
+(define_predicate "xtensa_sminmax_operator"
+  (match_code "smin,smax"))
 
 (define_predicate "tls_symbol_operand"
   (and (match_code "symbol_ref")

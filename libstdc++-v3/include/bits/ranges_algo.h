@@ -1,6 +1,6 @@
 // Core algorithmic facilities -*- C++ -*-
 
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -281,7 +281,8 @@ namespace ranges
   struct __count_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity>
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<_Iter, _Proj>,
 					 const _Tp*>
@@ -296,7 +297,9 @@ namespace ranges
 	return __n;
       }
 
-    template<input_range _Range, typename _Tp, typename _Proj = identity>
+    template<input_range _Range, typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<iterator_t<_Range>, _Proj>,
 					 const _Tp*>
@@ -344,8 +347,9 @@ namespace ranges
 
   struct __search_n_fn
   {
-    template<forward_iterator _Iter, sentinel_for<_Iter> _Sent, typename _Tp,
-	     typename _Pred = ranges::equal_to, typename _Proj = identity>
+    template<forward_iterator _Iter, sentinel_for<_Iter> _Sent,
+	     typename _Pred = ranges::equal_to, typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirectly_comparable<_Iter, const _Tp*, _Pred, _Proj>
       constexpr subrange<_Iter>
       operator()(_Iter __first, _Sent __last, iter_difference_t<_Iter> __count,
@@ -416,8 +420,10 @@ namespace ranges
 	  }
       }
 
-    template<forward_range _Range, typename _Tp,
-	     typename _Pred = ranges::equal_to, typename _Proj = identity>
+    template<forward_range _Range,
+	     typename _Pred = ranges::equal_to, typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires indirectly_comparable<iterator_t<_Range>, const _Tp*,
 				     _Pred, _Proj>
       constexpr borrowed_subrange_t<_Range>
@@ -431,6 +437,254 @@ namespace ranges
   };
 
   inline constexpr __search_n_fn search_n{};
+
+#if __glibcxx_ranges_starts_ends_with // C++ >= 23
+  struct __starts_with_fn
+  {
+    template<input_iterator _Iter1, sentinel_for<_Iter1> _Sent1,
+	     input_iterator _Iter2, sentinel_for<_Iter2> _Sent2,
+	     typename _Pred = ranges::equal_to,
+	     typename _Proj1 = identity, typename _Proj2 = identity>
+      requires indirectly_comparable<_Iter1, _Iter2, _Pred, _Proj1, _Proj2>
+      constexpr bool
+      operator()(_Iter1 __first1, _Sent1 __last1,
+		 _Iter2 __first2, _Sent2 __last2, _Pred __pred = {},
+		 _Proj1 __proj1 = {}, _Proj2 __proj2 = {}) const
+      {
+	iter_difference_t<_Iter1> __n1 = -1;
+	iter_difference_t<_Iter2> __n2 = -1;
+	if constexpr (sized_sentinel_for<_Sent1, _Iter1>)
+	  __n1 = __last1 - __first1;
+	if constexpr (sized_sentinel_for<_Sent2, _Iter2>)
+	  __n2 = __last2 - __first2;
+	return _S_impl(std::move(__first1), __last1, __n1,
+		       std::move(__first2), __last2, __n2,
+		       std::move(__pred),
+		       std::move(__proj1), std::move(__proj2));
+      }
+
+    template<input_range _Range1, input_range _Range2,
+	     typename _Pred = ranges::equal_to,
+	     typename _Proj1 = identity, typename _Proj2 = identity>
+      requires indirectly_comparable<iterator_t<_Range1>, iterator_t<_Range2>,
+				     _Pred, _Proj1, _Proj2>
+      constexpr bool
+      operator()(_Range1&& __r1, _Range2&& __r2, _Pred __pred = {},
+		 _Proj1 __proj1 = {}, _Proj2 __proj2 = {}) const
+      {
+	range_difference_t<_Range1> __n1 = -1;
+	range_difference_t<_Range2> __n2 = -1;
+	if constexpr (sized_range<_Range1>)
+	  __n1 = ranges::size(__r1);
+	if constexpr (sized_range<_Range2>)
+	  __n2 = ranges::size(__r2);
+	return _S_impl(ranges::begin(__r1), ranges::end(__r1), __n1,
+		       ranges::begin(__r2), ranges::end(__r2), __n2,
+		       std::move(__pred),
+		       std::move(__proj1), std::move(__proj2));
+      }
+
+  private:
+    template<typename _Iter1, typename _Sent1, typename _Iter2, typename _Sent2,
+	     typename _Pred,
+	     typename _Proj1, typename _Proj2>
+      static constexpr bool
+      _S_impl(_Iter1 __first1, _Sent1 __last1, iter_difference_t<_Iter1> __n1,
+	      _Iter2 __first2, _Sent2 __last2, iter_difference_t<_Iter2> __n2,
+	      _Pred __pred, _Proj1 __proj1, _Proj2 __proj2)
+      {
+	if (__first2 == __last2) [[unlikely]]
+	  return true;
+	else if (__n1 == -1 || __n2 == -1)
+	  return ranges::mismatch(std::move(__first1), __last1,
+				  std::move(__first2), __last2,
+				  std::move(__pred),
+				  std::move(__proj1), std::move(__proj2)).in2 == __last2;
+	else if (__n1 < __n2)
+	  return false;
+	else if constexpr (random_access_iterator<_Iter1>)
+	  return ranges::equal(__first1, __first1 + iter_difference_t<_Iter1>(__n2),
+			       std::move(__first2), __last2,
+			       std::move(__pred),
+			       std::move(__proj1), std::move(__proj2));
+	else
+	  return ranges::equal(counted_iterator(std::move(__first1),
+						iter_difference_t<_Iter1>(__n2)),
+			       default_sentinel,
+			       std::move(__first2), __last2,
+			       std::move(__pred),
+			       std::move(__proj1), std::move(__proj2));
+      }
+
+    friend struct __ends_with_fn;
+  };
+
+  inline constexpr __starts_with_fn starts_with{};
+
+  struct __ends_with_fn
+  {
+    template<input_iterator _Iter1, sentinel_for<_Iter1> _Sent1,
+	     input_iterator _Iter2, sentinel_for<_Iter2> _Sent2,
+	     typename _Pred = ranges::equal_to,
+	     typename _Proj1 = identity, typename _Proj2 = identity>
+      requires (forward_iterator<_Iter1> || sized_sentinel_for<_Sent1, _Iter1>)
+	&& (forward_iterator<_Iter2> || sized_sentinel_for<_Sent2, _Iter2>)
+	&& indirectly_comparable<_Iter1, _Iter2, _Pred, _Proj1, _Proj2>
+      constexpr bool
+      operator()(_Iter1 __first1, _Sent1 __last1,
+		 _Iter2 __first2, _Sent2 __last2, _Pred __pred = {},
+		 _Proj1 __proj1 = {}, _Proj2 __proj2 = {}) const
+      {
+	iter_difference_t<_Iter1> __n1 = -1;
+	iter_difference_t<_Iter2> __n2 = -1;
+	if constexpr (sized_sentinel_for<_Sent1, _Iter1>)
+	  __n1 = __last1 - __first1;
+	if constexpr (sized_sentinel_for<_Sent2, _Iter2>)
+	  __n2 = __last2 - __first2;
+	return _S_impl(std::move(__first1), __last1, __n1,
+		       std::move(__first2), __last2, __n2,
+		       std::move(__pred),
+		       std::move(__proj1), std::move(__proj2));
+      }
+
+    template<input_range _Range1, input_range _Range2,
+	     typename _Pred = ranges::equal_to,
+	     typename _Proj1 = identity, typename _Proj2 = identity>
+      requires (forward_range<_Range1> || sized_range<_Range1>)
+	&& (forward_range<_Range2> || sized_range<_Range2>)
+	&& indirectly_comparable<iterator_t<_Range1>, iterator_t<_Range2>,
+				 _Pred, _Proj1, _Proj2>
+      constexpr bool
+      operator()(_Range1&& __r1, _Range2&& __r2, _Pred __pred = {},
+		 _Proj1 __proj1 = {}, _Proj2 __proj2 = {}) const
+      {
+	range_difference_t<_Range1> __n1 = -1;
+	range_difference_t<_Range2> __n2 = -1;
+	if constexpr (sized_range<_Range1>)
+	  __n1 = ranges::size(__r1);
+	if constexpr (sized_range<_Range2>)
+	  __n2 = ranges::size(__r2);
+	return _S_impl(ranges::begin(__r1), ranges::end(__r1), __n1,
+		       ranges::begin(__r2), ranges::end(__r2), __n2,
+		       std::move(__pred),
+		       std::move(__proj1), std::move(__proj2));
+      }
+
+  private:
+    template<typename _Iter1, typename _Sent1,
+	     typename _Iter2, typename _Sent2,
+	     typename _Pred,
+	     typename _Proj1, typename _Proj2>
+      static constexpr bool
+      _S_impl(_Iter1 __first1, _Sent1 __last1, iter_difference_t<_Iter1> __n1,
+	      _Iter2 __first2, _Sent2 __last2, iter_difference_t<_Iter2> __n2,
+	      _Pred __pred, _Proj1 __proj1, _Proj2 __proj2)
+      {
+	if constexpr (!random_access_iterator<_Iter1>
+		      && bidirectional_iterator<_Iter1> && same_as<_Iter1, _Sent1>
+		      && bidirectional_iterator<_Iter2> && same_as<_Iter2, _Sent2>)
+	  return starts_with._S_impl(std::make_reverse_iterator(__last1),
+				     std::make_reverse_iterator(__first1),
+				     __n1,
+				     std::make_reverse_iterator(__last2),
+				     std::make_reverse_iterator(__first2),
+				     __n2,
+				     std::move(__pred),
+				     std::move(__proj1), std::move(__proj2));
+
+	if (__first2 == __last2) [[unlikely]]
+	  return true;
+
+	if constexpr (forward_iterator<_Iter2>)
+	  if (__n2 == -1)
+	    __n2 = ranges::distance(__first2, __last2);
+
+	// __glibcxx_assert(__n2 != -1);
+
+	if (__n1 != -1)
+	  {
+	    if (__n1 < __n2)
+	      return false;
+	    auto __shift = __n1 - iter_difference_t<_Iter1>(__n2);
+	    if (random_access_iterator<_Iter1>
+		|| !bidirectional_iterator<_Iter1>
+		|| !same_as<_Iter1, _Sent1>
+		|| __shift < __n2)
+	      {
+		ranges::advance(__first1, __shift);
+		return ranges::equal(std::move(__first1), __last1,
+				     std::move(__first2), __last2,
+				     std::move(__pred),
+				     std::move(__proj1), std::move(__proj2));
+	      }
+	  }
+
+	if constexpr (bidirectional_iterator<_Iter1> && same_as<_Iter1, _Sent1>)
+	  {
+	    _Iter1 __it1 = __last1;
+	    if (__n1 != -1)
+	      ranges::advance(__it1, -iter_difference_t<_Iter1>(__n2));
+	    else
+	      {
+		// We can't use ranges::advance if the haystack size is
+		// unknown, since we need to detect and return false if
+		// it's smaller than the needle.
+		iter_difference_t<_Iter2> __m = __n2;
+		while (__m != 0 && __it1 != __first1)
+		  {
+		    --__m;
+		    --__it1;
+		  }
+		if (__m != 0)
+		  return false;
+	      }
+	    return ranges::equal(__it1, __last1,
+				 std::move(__first2), __last2,
+				 std::move(__pred),
+				 std::move(__proj1), std::move(__proj2));
+	  }
+	else if constexpr (forward_iterator<_Iter1>)
+	  {
+	    // __glibcxx_assert(__n1 == -1);
+	    _Iter1 __prev_first1;
+	    __n1 = 0;
+	    while (true)
+	      {
+		iter_difference_t<_Iter2> __m = __n2;
+		_Iter1 __it1 = __first1;
+		while (__m != 0 && __it1 != __last1)
+		  {
+		    ++__n1;
+		    --__m;
+		    ++__it1;
+		  }
+		if (__m != 0)
+		  {
+		    // __glibcxx_assert(__it1 == __last1);
+		    if (__n1 < __n2)
+		      return false;
+		    __first1 = ranges::next(__prev_first1,
+					    iter_difference_t<_Iter1>(__n2 - __m));
+		    break;
+		  }
+		__prev_first1 = __first1;
+		__first1 = __it1;
+	      }
+	    return ranges::equal(__first1, __last1,
+				 std::move(__first2), __last2,
+				 std::move(__pred),
+				 std::move(__proj1), std::move(__proj2));
+	  }
+	else
+	  // If the haystack is non-forward then it must be sized, in which case
+	  // we already returned via the __n1 != 1 case.
+	  __builtin_unreachable();
+      }
+
+  };
+
+  inline constexpr __ends_with_fn ends_with{};
+#endif // __glibcxx_ranges_starts_ends_with
 
   struct __find_end_fn
   {
@@ -561,9 +815,12 @@ namespace ranges
 
 	for (auto __scan = __first1; __scan != __last1; ++__scan)
 	  {
-	    auto&& __proj_scan = std::__invoke(__proj1, *__scan);
+	    auto&& __scan_deref = *__scan;
+	    auto&& __proj_scan =
+	      std::__invoke(__proj1, std::forward<decltype(__scan_deref)>(__scan_deref));
 	    auto __comp_scan = [&] <typename _Tp> (_Tp&& __arg) -> bool {
-	      return std::__invoke(__pred, __proj_scan,
+	      return std::__invoke(__pred,
+				   std::forward<decltype(__proj_scan)>(__proj_scan),
 				   std::forward<_Tp>(__arg));
 	    };
 	    if (__scan != ranges::find_if(__first1, __scan,
@@ -589,6 +846,13 @@ namespace ranges
       operator()(_Range1&& __r1, _Range2&& __r2, _Pred __pred = {},
 		 _Proj1 __proj1 = {}, _Proj2 __proj2 = {}) const
       {
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 3560. ranges::is_permutation should short-circuit for sized_ranges
+	if constexpr (sized_range<_Range1>)
+	  if constexpr (sized_range<_Range2>)
+	    if (ranges::distance(__r1) != ranges::distance(__r2))
+	      return false;
+
 	return (*this)(ranges::begin(__r1), ranges::end(__r1),
 		       ranges::begin(__r2), ranges::end(__r2),
 		       std::move(__pred),
@@ -774,7 +1038,9 @@ namespace ranges
   struct __replace_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp1, typename _Tp2, typename _Proj = identity>
+	     typename _Proj = identity,
+	     typename _Tp1 _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
+	     typename _Tp2 _GLIBCXX26_DEF_VAL_T(_Tp1)>
       requires indirectly_writable<_Iter, const _Tp2&>
 	&& indirect_binary_predicate<ranges::equal_to, projected<_Iter, _Proj>,
 				     const _Tp1*>
@@ -789,8 +1055,10 @@ namespace ranges
 	return __first;
       }
 
-    template<input_range _Range,
-	     typename _Tp1, typename _Tp2, typename _Proj = identity>
+    template<input_range _Range, typename _Proj = identity,
+	     typename _Tp1
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
+	     typename _Tp2 _GLIBCXX26_DEF_VAL_T(_Tp1)>
       requires indirectly_writable<iterator_t<_Range>, const _Tp2&>
 	&& indirect_binary_predicate<ranges::equal_to,
 				     projected<iterator_t<_Range>, _Proj>,
@@ -810,7 +1078,8 @@ namespace ranges
   struct __replace_if_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
 	     indirect_unary_predicate<projected<_Iter, _Proj>> _Pred>
       requires indirectly_writable<_Iter, const _Tp&>
       constexpr _Iter
@@ -823,7 +1092,9 @@ namespace ranges
 	return std::move(__first);
       }
 
-    template<input_range _Range, typename _Tp, typename _Proj = identity,
+    template<input_range _Range, typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
 	     indirect_unary_predicate<projected<iterator_t<_Range>, _Proj>>
 	       _Pred>
       requires indirectly_writable<iterator_t<_Range>, const _Tp&>
@@ -844,11 +1115,13 @@ namespace ranges
   struct __replace_copy_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp1, typename _Tp2, output_iterator<const _Tp2&> _Out,
-	     typename _Proj = identity>
+	     typename _Out, typename _Proj = identity,
+	     typename _Tp1 _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
+	     typename _Tp2 _GLIBCXX26_DEF_VAL_T(iter_value_t<_Out>)>
       requires indirectly_copyable<_Iter, _Out>
 	&& indirect_binary_predicate<ranges::equal_to,
 				     projected<_Iter, _Proj>, const _Tp1*>
+	&& output_iterator<_Out, const _Tp2&>
       constexpr replace_copy_result<_Iter, _Out>
       operator()(_Iter __first, _Sent __last, _Out __result,
 		 const _Tp1& __old_value, const _Tp2& __new_value,
@@ -862,12 +1135,16 @@ namespace ranges
 	return {std::move(__first), std::move(__result)};
       }
 
-    template<input_range _Range, typename _Tp1, typename _Tp2,
-	     output_iterator<const _Tp2&> _Out, typename _Proj = identity>
+    template<input_range _Range, typename _Out,
+	     typename _Proj = identity,
+	     typename _Tp1
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
+	     typename _Tp2 _GLIBCXX26_DEF_VAL_T(iter_value_t<_Out>)>
       requires indirectly_copyable<iterator_t<_Range>, _Out>
 	&& indirect_binary_predicate<ranges::equal_to,
 				     projected<iterator_t<_Range>, _Proj>,
 				     const _Tp1*>
+	&& output_iterator<_Out, const _Tp2&>
       constexpr replace_copy_result<borrowed_iterator_t<_Range>, _Out>
       operator()(_Range&& __r, _Out __result,
 		 const _Tp1& __old_value, const _Tp2& __new_value,
@@ -887,10 +1164,12 @@ namespace ranges
   struct __replace_copy_if_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, output_iterator<const _Tp&> _Out,
+	     typename _Out,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Out>),
 	     typename _Proj = identity,
 	     indirect_unary_predicate<projected<_Iter, _Proj>> _Pred>
       requires indirectly_copyable<_Iter, _Out>
+	&& output_iterator<_Out, const _Tp&>
       constexpr replace_copy_if_result<_Iter, _Out>
       operator()(_Iter __first, _Sent __last, _Out __result,
 		 _Pred __pred, const _Tp& __new_value, _Proj __proj = {}) const
@@ -904,11 +1183,13 @@ namespace ranges
       }
 
     template<input_range _Range,
-	     typename _Tp, output_iterator<const _Tp&> _Out,
+	     typename _Out,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Out>),
 	     typename _Proj = identity,
 	     indirect_unary_predicate<projected<iterator_t<_Range>, _Proj>>
 	       _Pred>
       requires indirectly_copyable<iterator_t<_Range>, _Out>
+	&& output_iterator<_Out, const _Tp&>
       constexpr replace_copy_if_result<borrowed_iterator_t<_Range>, _Out>
       operator()(_Range&& __r, _Out __result,
 		 _Pred __pred, const _Tp& __new_value, _Proj __proj = {}) const
@@ -1004,7 +1285,8 @@ namespace ranges
   struct __remove_fn
   {
     template<permutable _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity>
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<_Iter, _Proj>,
 					 const _Tp*>
@@ -1019,7 +1301,9 @@ namespace ranges
 				 std::move(__pred), std::move(__proj));
       }
 
-    template<forward_range _Range, typename _Tp, typename _Proj = identity>
+    template<forward_range _Range, typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires permutable<iterator_t<_Range>>
 	&& indirect_binary_predicate<ranges::equal_to,
 				     projected<iterator_t<_Range>, _Proj>,
@@ -1079,7 +1363,8 @@ namespace ranges
   struct __remove_copy_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     weakly_incrementable _Out, typename _Tp, typename _Proj = identity>
+	     weakly_incrementable _Out, typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirectly_copyable<_Iter, _Out>
 	&& indirect_binary_predicate<ranges::equal_to,
 				     projected<_Iter, _Proj>,
@@ -1098,7 +1383,9 @@ namespace ranges
       }
 
     template<input_range _Range, weakly_incrementable _Out,
-	     typename _Tp, typename _Proj = identity>
+	     typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires indirectly_copyable<iterator_t<_Range>, _Out>
 	&& indirect_binary_predicate<ranges::equal_to,
 				     projected<iterator_t<_Range>, _Proj>,
@@ -1179,6 +1466,9 @@ namespace ranges
 	if (__first == __last)
 	  return {std::move(__first), std::move(__result)};
 
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4269. unique_copy passes arguments to its predicate backwards
+
 	// TODO: perform a closer comparison with reference implementations
 	if constexpr (forward_iterator<_Iter>)
 	  {
@@ -1211,8 +1501,8 @@ namespace ranges
 	    while (++__first != __last)
 	      {
 		if (!(bool)std::__invoke(__comp,
-					 std::__invoke(__proj, *__first),
-					 std::__invoke(__proj, __value)))
+					 std::__invoke(__proj, __value),
+					 std::__invoke(__proj, *__first)))
 		  {
 		    __value = *__first;
 		    *++__result = __value;
@@ -1803,6 +2093,7 @@ namespace ranges
     template<random_access_iterator _Iter, sentinel_for<_Iter> _Sent,
 	     typename _Comp = ranges::less, typename _Proj = identity>
       requires sortable<_Iter, _Comp, _Proj>
+      _GLIBCXX26_CONSTEXPR
       _Iter
       operator()(_Iter __first, _Sent __last,
 		 _Comp __comp = {}, _Proj __proj = {}) const
@@ -1816,6 +2107,7 @@ namespace ranges
     template<random_access_range _Range,
 	     typename _Comp = ranges::less, typename _Proj = identity>
       requires sortable<iterator_t<_Range>, _Comp, _Proj>
+      _GLIBCXX26_CONSTEXPR
       borrowed_iterator_t<_Range>
       operator()(_Range&& __r, _Comp __comp = {}, _Proj __proj = {}) const
       {
@@ -2047,7 +2339,8 @@ namespace ranges
   struct __lower_bound_fn
   {
     template<forward_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
 	     indirect_strict_weak_order<const _Tp*, projected<_Iter, _Proj>>
 	       _Comp = ranges::less>
       constexpr _Iter
@@ -2073,7 +2366,10 @@ namespace ranges
 	return __first;
       }
 
-    template<forward_range _Range, typename _Tp, typename _Proj = identity,
+    template<forward_range _Range,
+	     typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
 	     indirect_strict_weak_order<const _Tp*,
 					projected<iterator_t<_Range>, _Proj>>
 	       _Comp = ranges::less>
@@ -2091,7 +2387,8 @@ namespace ranges
   struct __upper_bound_fn
   {
     template<forward_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
 	     indirect_strict_weak_order<const _Tp*, projected<_Iter, _Proj>>
 	       _Comp = ranges::less>
       constexpr _Iter
@@ -2117,7 +2414,10 @@ namespace ranges
 	return __first;
       }
 
-    template<forward_range _Range, typename _Tp, typename _Proj = identity,
+    template<forward_range _Range,
+	     typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
 	     indirect_strict_weak_order<const _Tp*,
 					projected<iterator_t<_Range>, _Proj>>
 	       _Comp = ranges::less>
@@ -2135,7 +2435,8 @@ namespace ranges
   struct __equal_range_fn
   {
     template<forward_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
 	     indirect_strict_weak_order<const _Tp*, projected<_Iter, _Proj>>
 	       _Comp = ranges::less>
       constexpr subrange<_Iter>
@@ -2177,7 +2478,9 @@ namespace ranges
       }
 
     template<forward_range _Range,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
 	     indirect_strict_weak_order<const _Tp*,
 					projected<iterator_t<_Range>, _Proj>>
 	       _Comp = ranges::less>
@@ -2195,7 +2498,8 @@ namespace ranges
   struct __binary_search_fn
   {
     template<forward_iterator _Iter, sentinel_for<_Iter> _Sent,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj),
 	     indirect_strict_weak_order<const _Tp*, projected<_Iter, _Proj>>
 	       _Comp = ranges::less>
       constexpr bool
@@ -2210,7 +2514,9 @@ namespace ranges
       }
 
     template<forward_range _Range,
-	     typename _Tp, typename _Proj = identity,
+	     typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj),
 	     indirect_strict_weak_order<const _Tp*,
 					projected<iterator_t<_Range>, _Proj>>
 	       _Comp = ranges::less>
@@ -2334,6 +2640,7 @@ namespace ranges
 	     typename _Proj = identity,
 	     indirect_unary_predicate<projected<_Iter, _Proj>> _Pred>
       requires permutable<_Iter>
+      _GLIBCXX26_CONSTEXPR
       subrange<_Iter>
       operator()(_Iter __first, _Sent __last,
 		 _Pred __pred, _Proj __proj = {}) const
@@ -2349,6 +2656,7 @@ namespace ranges
 	     indirect_unary_predicate<projected<iterator_t<_Range>, _Proj>>
 	       _Pred>
       requires permutable<iterator_t<_Range>>
+      _GLIBCXX26_CONSTEXPR
       borrowed_subrange_t<_Range>
       operator()(_Range&& __r, _Pred __pred, _Proj __proj = {}) const
       {
@@ -2543,6 +2851,7 @@ namespace ranges
 	     typename _Comp = ranges::less,
 	     typename _Proj = identity>
       requires sortable<_Iter, _Comp, _Proj>
+      _GLIBCXX26_CONSTEXPR
       _Iter
       operator()(_Iter __first, _Iter __middle, _Sent __last,
 		 _Comp __comp = {}, _Proj __proj = {}) const
@@ -2556,6 +2865,7 @@ namespace ranges
     template<bidirectional_range _Range,
 	     typename _Comp = ranges::less, typename _Proj = identity>
       requires sortable<iterator_t<_Range>, _Comp, _Proj>
+      _GLIBCXX26_CONSTEXPR
       borrowed_iterator_t<_Range>
       operator()(_Range&& __r, iterator_t<_Range> __middle,
 		 _Comp __comp = {}, _Proj __proj = {}) const
@@ -2902,11 +3212,11 @@ namespace ranges
 	auto __result = *__first;
 	while (++__first != __last)
 	  {
-	    auto __tmp = *__first;
+	    auto&& __tmp = *__first;
 	    if (std::__invoke(__comp,
 			      std::__invoke(__proj, __result),
 			      std::__invoke(__proj, __tmp)))
-	      __result = std::move(__tmp);
+	      __result = std::forward<decltype(__tmp)>(__tmp);
 	  }
 	return __result;
       }
@@ -2938,9 +3248,13 @@ namespace ranges
 					 std::__invoke(__proj, __hi),
 					 std::__invoke(__proj, __lo))));
 	auto&& __proj_val = std::__invoke(__proj, __val);
-	if (std::__invoke(__comp, __proj_val, std::__invoke(__proj, __lo)))
+	if (std::__invoke(__comp,
+			  std::forward<decltype(__proj_val)>(__proj_val),
+			  std::__invoke(__proj, __lo)))
 	  return __lo;
-	else if (std::__invoke(__comp, std::__invoke(__proj, __hi), __proj_val))
+	else if (std::__invoke(__comp,
+			       std::__invoke(__proj, __hi),
+			       std::forward<decltype(__proj_val)>(__proj_val)))
 	  return __hi;
 	else
 	  return __val;
@@ -3469,14 +3783,18 @@ namespace ranges
   struct __contains_fn
   {
     template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
-	    typename _Tp, typename _Proj = identity>
+	    typename _Proj = identity,
+	    typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<_Iter, _Proj>, const _Tp*>
       constexpr bool
       operator()(_Iter __first, _Sent __last, const _Tp& __value, _Proj __proj = {}) const
       { return ranges::find(std::move(__first), __last, __value, std::move(__proj)) != __last; }
 
-    template<input_range _Range, typename _Tp, typename _Proj = identity>
+    template<input_range _Range,
+	    typename _Proj = identity,
+	    typename _Tp
+	      _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to,
 					 projected<iterator_t<_Range>, _Proj>, const _Tp*>
       constexpr bool
@@ -3521,63 +3839,13 @@ namespace ranges
 
 #endif // __glibcxx_ranges_contains
 
-#if __glibcxx_ranges_iota >= 202202L // C++ >= 23
-
-  template<typename _Out, typename _Tp>
-    struct out_value_result
-    {
-      [[no_unique_address]] _Out out;
-      [[no_unique_address]] _Tp value;
-
-      template<typename _Out2, typename _Tp2>
-	requires convertible_to<const _Out&, _Out2>
-	  && convertible_to<const _Tp&, _Tp2>
-	constexpr
-	operator out_value_result<_Out2, _Tp2>() const &
-	{ return {out, value}; }
-
-      template<typename _Out2, typename _Tp2>
-	requires convertible_to<_Out, _Out2>
-	  && convertible_to<_Tp, _Tp2>
-	constexpr
-	operator out_value_result<_Out2, _Tp2>() &&
-	{ return {std::move(out), std::move(value)}; }
-    };
-
-  template<typename _Out, typename _Tp>
-    using iota_result = out_value_result<_Out, _Tp>;
-
-  struct __iota_fn
-  {
-    template<input_or_output_iterator _Out, sentinel_for<_Out> _Sent, weakly_incrementable _Tp>
-      requires indirectly_writable<_Out, const _Tp&>
-      constexpr iota_result<_Out, _Tp>
-      operator()(_Out __first, _Sent __last, _Tp __value) const
-      {
-	while (__first != __last)
-	  {
-	    *__first = static_cast<const _Tp&>(__value);
-	    ++__first;
-	    ++__value;
-	  }
-	return {std::move(__first), std::move(__value)};
-      }
-
-    template<weakly_incrementable _Tp, output_range<const _Tp&> _Range>
-      constexpr iota_result<borrowed_iterator_t<_Range>, _Tp>
-      operator()(_Range&& __r, _Tp __value) const
-      { return (*this)(ranges::begin(__r), ranges::end(__r), std::move(__value)); }
-  };
-
-  inline constexpr __iota_fn iota{};
-
-#endif // __glibcxx_ranges_iota
-
 #if __glibcxx_ranges_find_last >= 202207L // C++ >= 23
 
   struct __find_last_fn
   {
-    template<forward_iterator _Iter, sentinel_for<_Iter> _Sent, typename _Tp, typename _Proj = identity>
+    template<forward_iterator _Iter, sentinel_for<_Iter> _Sent,
+	     typename _Proj = identity,
+	     typename _Tp _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(_Iter, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to, projected<_Iter, _Proj>, const _Tp*>
       constexpr subrange<_Iter>
       operator()(_Iter __first, _Sent __last, const _Tp& __value, _Proj __proj = {}) const
@@ -3608,7 +3876,9 @@ namespace ranges
 	  }
       }
 
-    template<forward_range _Range, typename _Tp, typename _Proj = identity>
+    template<forward_range _Range, typename _Proj = identity,
+	     typename _Tp
+	       _GLIBCXX26_RANGE_ALGO_DEF_VAL_T(iterator_t<_Range>, _Proj)>
       requires indirect_binary_predicate<ranges::equal_to, projected<iterator_t<_Range>, _Proj>, const _Tp*>
       constexpr borrowed_subrange_t<_Range>
       operator()(_Range&& __r, const _Tp& __value, _Proj __proj = {}) const
@@ -3782,7 +4052,8 @@ namespace ranges
 	return _Ret{std::move(__first), std::move(__accum)};
       }
 
-    template<input_iterator _Iter, sentinel_for<_Iter> _Sent, typename _Tp,
+    template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Iter>),
 	     __detail::__indirectly_binary_left_foldable<_Tp, _Iter> _Fp>
       constexpr auto
       operator()(_Iter __first, _Sent __last, _Tp __init, _Fp __f) const
@@ -3792,7 +4063,8 @@ namespace ranges
 				  std::move(__init), std::move(__f));
       }
 
-    template<input_range _Range, typename _Tp,
+    template<input_range _Range,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(range_value_t<_Range>),
 	     __detail::__indirectly_binary_left_foldable<_Tp, iterator_t<_Range>> _Fp>
       constexpr auto
       operator()(_Range&& __r, _Tp __init, _Fp __f) const
@@ -3807,7 +4079,8 @@ namespace ranges
 
   struct __fold_left_fn
   {
-    template<input_iterator _Iter, sentinel_for<_Iter> _Sent, typename _Tp,
+    template<input_iterator _Iter, sentinel_for<_Iter> _Sent,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Iter>),
 	     __detail::__indirectly_binary_left_foldable<_Tp, _Iter> _Fp>
       constexpr auto
       operator()(_Iter __first, _Sent __last, _Tp __init, _Fp __f) const
@@ -3816,7 +4089,8 @@ namespace ranges
 					   std::move(__init), std::move(__f)).value;
       }
 
-    template<input_range _Range, typename _Tp,
+    template<input_range _Range,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(range_value_t<_Range>),
 	     __detail::__indirectly_binary_left_foldable<_Tp, iterator_t<_Range>> _Fp>
       constexpr auto
       operator()(_Range&& __r, _Tp __init, _Fp __f) const
@@ -3894,7 +4168,8 @@ namespace ranges
 
   struct __fold_right_fn
   {
-    template<bidirectional_iterator _Iter, sentinel_for<_Iter> _Sent, typename _Tp,
+    template<bidirectional_iterator _Iter, sentinel_for<_Iter> _Sent,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(iter_value_t<_Iter>),
 	     __detail::__indirectly_binary_right_foldable<_Tp, _Iter> _Fp>
       constexpr auto
       operator()(_Iter __first, _Sent __last, _Tp __init, _Fp __f) const
@@ -3911,7 +4186,8 @@ namespace ranges
 	return __accum;
       }
 
-    template<bidirectional_range _Range, typename _Tp,
+    template<bidirectional_range _Range,
+	     typename _Tp _GLIBCXX26_DEF_VAL_T(range_value_t<_Range>),
 	     __detail::__indirectly_binary_right_foldable<_Tp, iterator_t<_Range>> _Fp>
       constexpr auto
       operator()(_Range&& __r, _Tp __init, _Fp __f) const

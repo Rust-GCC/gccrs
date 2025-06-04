@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for HP-UX.
-   Copyright (C) 1991-2024 Free Software Foundation, Inc.
+   Copyright (C) 1991-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -34,7 +34,8 @@ along with GCC; see the file COPYING3.  If not see
 #define SIZE_TYPE "unsigned int"
 #define PTRDIFF_TYPE "int"
 
-#define LONG_DOUBLE_TYPE_SIZE 128
+#undef PA_LONG_DOUBLE_TYPE_SIZE
+#define PA_LONG_DOUBLE_TYPE_SIZE 128
 #define FLOAT_LIB_COMPARE_RETURNS_BOOL(MODE, COMPARISON) ((MODE) == TFmode)
 
 /* GCC always defines __STDC__.  HP C++ compilers don't define it.  This
@@ -113,3 +114,17 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef TARGET_LIBC_HAS_FUNCTION
 #define TARGET_LIBC_HAS_FUNCTION no_c99_libc_has_function
+
+/* Assume we have libatomic if sync libcalls are disabled.  */
+#undef TARGET_HAVE_LIBATOMIC
+#define TARGET_HAVE_LIBATOMIC (!flag_sync_libcalls)
+
+/* The SYNC operations are implemented as library functions, not
+   INSN patterns.  As a result, the HAVE defines for the patterns are
+   not defined.  We need to define them to generate the corresponding
+   __GCC_HAVE_SYNC_COMPARE_AND_SWAP_* and __GCC_ATOMIC_*_LOCK_FREE
+   defines.  */
+#define HAVE_sync_compare_and_swapqi (flag_sync_libcalls)
+#define HAVE_sync_compare_and_swaphi (flag_sync_libcalls)
+#define HAVE_sync_compare_and_swapsi (flag_sync_libcalls)
+#define HAVE_sync_compare_and_swapdi (flag_sync_libcalls)

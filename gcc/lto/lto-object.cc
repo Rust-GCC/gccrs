@@ -1,5 +1,5 @@
 /* LTO routines to use object files.
-   Copyright (C) 2010-2024 Free Software Foundation, Inc.
+   Copyright (C) 2010-2025 Free Software Foundation, Inc.
    Written by Ian Lance Taylor, Google.
 
 This file is part of GCC.
@@ -148,7 +148,7 @@ fail_errmsg:
     error ("%s: %s", fname, errmsg);
   else
     error ("%s: %s: %s", fname, errmsg, xstrerror (err));
-					 
+
   if (lo->fd != -1)
     lto_obj_file_close ((lto_file *) lo);
   free (lo);

@@ -1,5 +1,5 @@
 /* Floating point range operators.
-   Copyright (C) 2022-2024 Free Software Foundation, Inc.
+   Copyright (C) 2022-2025 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>.
 
 This file is part of GCC.
@@ -51,8 +51,8 @@ along with GCC; see the file COPYING3.  If not see
 
 bool
 range_operator::fold_range (frange &r, tree type,
-				  const frange &op1, const frange &op2,
-				  relation_trio trio) const
+			    const frange &op1, const frange &op2,
+			    relation_trio trio) const
 {
   if (empty_range_varying (r, type, op1, op2))
     return true;
@@ -112,20 +112,20 @@ range_operator::rv_fold (frange &r, tree type,
 
 bool
 range_operator::fold_range (irange &r ATTRIBUTE_UNUSED,
-				  tree type ATTRIBUTE_UNUSED,
-				  const frange &lh ATTRIBUTE_UNUSED,
-				  const irange &rh ATTRIBUTE_UNUSED,
-				  relation_trio) const
+			    tree type ATTRIBUTE_UNUSED,
+			    const frange &lh ATTRIBUTE_UNUSED,
+			    const irange &rh ATTRIBUTE_UNUSED,
+			    relation_trio) const
 {
   return false;
 }
 
 bool
 range_operator::fold_range (irange &r ATTRIBUTE_UNUSED,
-				  tree type ATTRIBUTE_UNUSED,
-				  const frange &lh ATTRIBUTE_UNUSED,
-				  const frange &rh ATTRIBUTE_UNUSED,
-				  relation_trio) const
+			    tree type ATTRIBUTE_UNUSED,
+			    const frange &lh ATTRIBUTE_UNUSED,
+			    const frange &rh ATTRIBUTE_UNUSED,
+			    relation_trio) const
 {
   return false;
 }
@@ -142,10 +142,10 @@ range_operator::fold_range (frange &r ATTRIBUTE_UNUSED,
 
 bool
 range_operator::op1_range (frange &r ATTRIBUTE_UNUSED,
-				 tree type ATTRIBUTE_UNUSED,
-				 const frange &lhs ATTRIBUTE_UNUSED,
-				 const frange &op2 ATTRIBUTE_UNUSED,
-				 relation_trio) const
+			   tree type ATTRIBUTE_UNUSED,
+			   const frange &lhs ATTRIBUTE_UNUSED,
+			   const frange &op2 ATTRIBUTE_UNUSED,
+			   relation_trio) const
 {
   return false;
 }
@@ -162,56 +162,56 @@ range_operator::op1_range (frange &r ATTRIBUTE_UNUSED,
 
 bool
 range_operator::op2_range (frange &r ATTRIBUTE_UNUSED,
-				 tree type ATTRIBUTE_UNUSED,
-				 const frange &lhs ATTRIBUTE_UNUSED,
-				 const frange &op1 ATTRIBUTE_UNUSED,
-				 relation_trio) const
+			   tree type ATTRIBUTE_UNUSED,
+			   const frange &lhs ATTRIBUTE_UNUSED,
+			   const frange &op1 ATTRIBUTE_UNUSED,
+			   relation_trio) const
 {
   return false;
 }
 
 bool
 range_operator::op2_range (frange &r ATTRIBUTE_UNUSED,
-				 tree type ATTRIBUTE_UNUSED,
-				 const irange &lhs ATTRIBUTE_UNUSED,
-				 const frange &op1 ATTRIBUTE_UNUSED,
-				 relation_trio) const
+			   tree type ATTRIBUTE_UNUSED,
+			   const irange &lhs ATTRIBUTE_UNUSED,
+			   const frange &op1 ATTRIBUTE_UNUSED,
+			   relation_trio) const
 {
   return false;
 }
 
 relation_kind
 range_operator::lhs_op1_relation (const frange &lhs ATTRIBUTE_UNUSED,
-					const frange &op1 ATTRIBUTE_UNUSED,
-					const frange &op2 ATTRIBUTE_UNUSED,
-					relation_kind) const
+				  const frange &op1 ATTRIBUTE_UNUSED,
+				  const frange &op2 ATTRIBUTE_UNUSED,
+				  relation_kind) const
 {
   return VREL_VARYING;
 }
 
 relation_kind
 range_operator::lhs_op1_relation (const irange &lhs ATTRIBUTE_UNUSED,
-					const frange &op1 ATTRIBUTE_UNUSED,
-					const frange &op2 ATTRIBUTE_UNUSED,
-					relation_kind) const
+				  const frange &op1 ATTRIBUTE_UNUSED,
+				  const frange &op2 ATTRIBUTE_UNUSED,
+				  relation_kind) const
 {
   return VREL_VARYING;
 }
 
 relation_kind
 range_operator::lhs_op2_relation (const irange &lhs ATTRIBUTE_UNUSED,
-					const frange &op1 ATTRIBUTE_UNUSED,
-					const frange &op2 ATTRIBUTE_UNUSED,
-					relation_kind) const
+				  const frange &op1 ATTRIBUTE_UNUSED,
+				  const frange &op2 ATTRIBUTE_UNUSED,
+				  relation_kind) const
 {
   return VREL_VARYING;
 }
 
 relation_kind
 range_operator::lhs_op2_relation (const frange &lhs ATTRIBUTE_UNUSED,
-					const frange &op1 ATTRIBUTE_UNUSED,
-					const frange &op2 ATTRIBUTE_UNUSED,
-					relation_kind) const
+				  const frange &op1 ATTRIBUTE_UNUSED,
+				  const frange &op2 ATTRIBUTE_UNUSED,
+				  relation_kind) const
 {
   return VREL_VARYING;
 }
@@ -675,9 +675,9 @@ operator_equal::fold_range (irange &r, tree type,
 
 bool
 operator_equal::op1_range (frange &r, tree type,
-			    const irange &lhs,
-			    const frange &op2,
-			    relation_trio trio) const
+			   const irange &lhs,
+			   const frange &op2,
+			   relation_trio trio) const
 {
   relation_kind rel = trio.op1_op2 ();
   switch (get_bool_state (r, lhs, type))
@@ -1871,10 +1871,10 @@ public:
 
 bool
 foperator_unordered_gt::op1_range (frange &r,
-			 tree type,
-			 const irange &lhs,
-			 const frange &op2,
-			 relation_trio) const
+				   tree type,
+				   const irange &lhs,
+				   const frange &op2,
+				   relation_trio) const
 {
   switch (get_bool_state (r, lhs, type))
     {
@@ -2899,6 +2899,158 @@ private:
   }
 } fop_div;
 
+bool
+operator_cast::fold_range (frange &r, tree type, const frange &op1,
+			   const frange &, relation_trio) const
+{
+  REAL_VALUE_TYPE lb, ub;
+  enum machine_mode mode = TYPE_MODE (type);
+  bool mode_composite = MODE_COMPOSITE_P (mode);
+
+  if (empty_range_varying (r, type, op1, op1))
+    return true;
+  if (!MODE_HAS_NANS (mode) && op1.maybe_isnan ())
+    {
+      r.set_varying (type);
+      return true;
+    }
+  if (op1.known_isnan ())
+    {
+      r.set_nan (type);
+      return true;
+    }
+
+  const REAL_VALUE_TYPE &lh_lb = op1.lower_bound ();
+  const REAL_VALUE_TYPE &lh_ub = op1.upper_bound ();
+  real_convert (&lb, mode, &lh_lb);
+  real_convert (&ub, mode, &lh_ub);
+
+  if (flag_rounding_math)
+    {
+      if (real_less (&lh_lb, &lb))
+	{
+	  if (mode_composite
+	      && (real_isdenormal (&lb, mode) || real_iszero (&lb)))
+	    {
+	      // IBM extended denormals only have DFmode precision.
+	      REAL_VALUE_TYPE tmp, tmp2;
+	      real_convert (&tmp2, DFmode, &lh_lb);
+	      real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2,
+			      &dconstninf);
+	      real_convert (&lb, mode, &tmp);
+	    }
+	  else
+	    frange_nextafter (mode, lb, dconstninf);
+	}
+      if (real_less (&ub, &lh_ub))
+	{
+	  if (mode_composite
+	      && (real_isdenormal (&ub, mode) || real_iszero (&ub)))
+	    {
+	      // IBM extended denormals only have DFmode precision.
+	      REAL_VALUE_TYPE tmp, tmp2;
+	      real_convert (&tmp2, DFmode, &lh_ub);
+	      real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2,
+			      &dconstinf);
+	      real_convert (&ub, mode, &tmp);
+	    }
+	  else
+	    frange_nextafter (mode, ub, dconstinf);
+	}
+    }
+
+  r.set (type, lb, ub, op1.get_nan_state ());
+
+  if (flag_trapping_math
+      && MODE_HAS_INFINITIES (TYPE_MODE (type))
+      && r.known_isinf ()
+      && !op1.known_isinf ())
+    {
+      REAL_VALUE_TYPE inf = r.lower_bound ();
+      if (real_isneg (&inf))
+	{
+	  REAL_VALUE_TYPE min = real_min_representable (type);
+	  r.set (type, inf, min);
+	}
+      else
+	{
+	  REAL_VALUE_TYPE max = real_max_representable (type);
+	  r.set (type, max, inf);
+	}
+    }
+
+  r.flush_denormals_to_zero ();
+  return true;
+}
+
+// Implement fold for a cast from float to another float.
+bool
+operator_cast::op1_range (frange &r, tree type, const frange &lhs,
+			  const frange &op2, relation_trio) const
+{
+  if (lhs.undefined_p ())
+    return false;
+  tree lhs_type = lhs.type ();
+  enum machine_mode mode = TYPE_MODE (type);
+  enum machine_mode lhs_mode = TYPE_MODE (lhs_type);
+  frange wlhs;
+  bool rm;
+  if (REAL_MODE_FORMAT (mode)->ieee_bits
+      && REAL_MODE_FORMAT (lhs_mode)->ieee_bits
+      && (REAL_MODE_FORMAT (lhs_mode)->ieee_bits
+	  >= REAL_MODE_FORMAT (mode)->ieee_bits)
+      && pow2p_hwi (REAL_MODE_FORMAT (mode)->ieee_bits))
+    {
+      /* If the cast is widening from IEEE exchange mode to
+	 wider exchange mode or extended mode, no need to extend
+	 the range on reverse operation.  */
+      rm = false;
+      wlhs = lhs;
+    }
+  else
+    {
+      rm = true;
+      wlhs = float_widen_lhs_range (lhs_type, lhs);
+    }
+  auto save_flag_rounding_math = flag_rounding_math;
+  flag_rounding_math = rm;
+  bool ret = float_binary_op_range_finish (fold_range (r, type, wlhs, op2),
+					   r, type, lhs);
+  flag_rounding_math = save_flag_rounding_math;
+  return ret;
+}
+
+// Implement fold for a cast from float to an int.
+bool
+operator_cast::fold_range (irange &, tree, const frange &,
+			   const irange &, relation_trio) const
+{
+  return false;
+}
+
+// Implement op1_range for a cast from float to an int.
+bool
+operator_cast::op1_range (frange &, tree, const irange &,
+			  const irange &, relation_trio) const
+{
+  return false;
+}
+
+// Implement fold for a cast from int to a float.
+bool
+operator_cast::fold_range (frange &, tree, const irange &,
+			   const frange &, relation_trio) const
+{
+  return false;
+}
+
+// Implement op1_range for a cast from int to a float.
+bool
+operator_cast::op1_range (irange &, tree, const frange &,
+			  const frange &, relation_trio) const
+{
+  return false;
+}
 
 // Initialize any float operators to the primary table
 

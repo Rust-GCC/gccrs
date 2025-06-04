@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -273,7 +273,8 @@ SubstituteCtx::substitute_token (size_t token_idx)
       // don't substitute, dollar sign is alone/metavar is unknown
       return {std::vector<std::unique_ptr<AST::Token>> (), 0};
 
-      case LEFT_PAREN: {
+    case LEFT_PAREN:
+      {
 	// We need to parse up until the closing delimiter and expand this
 	// fragment->n times.
 	rust_debug ("expanding repetition");

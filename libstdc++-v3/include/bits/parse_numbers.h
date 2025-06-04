@@ -1,6 +1,6 @@
 // Components for compile-time parsing of numbers -*- C++ -*-
 
-// Copyright (C) 2013-2024 Free Software Foundation, Inc.
+// Copyright (C) 2013-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -30,7 +30,9 @@
 #ifndef _GLIBCXX_PARSE_NUMBERS_H
 #define _GLIBCXX_PARSE_NUMBERS_H 1
 
+#ifdef _GLIBCXX_SYSHDR
 #pragma GCC system_header
+#endif
 
 // From n3642.pdf except I added binary literals and digit separator '\''.
 

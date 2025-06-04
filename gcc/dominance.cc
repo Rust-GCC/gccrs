@@ -1,5 +1,5 @@
 /* Calculate (post)dominators in slightly super-linear time.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
    Contributed by Michael Matz (matz@ifh.de).
 
    This file is part of GCC.
@@ -893,7 +893,7 @@ set_immediate_dominator (enum cdi_direction dir, basic_block bb,
 
 /* Returns the list of basic blocks immediately dominated by BB, in the
    direction DIR.  */
-auto_vec<basic_block> 
+auto_vec<basic_block>
 get_dominated_by (enum cdi_direction dir, basic_block bb)
 {
   unsigned int dir_index = dom_convert_dir_to_idx (dir);
@@ -916,7 +916,7 @@ get_dominated_by (enum cdi_direction dir, basic_block bb)
    direction DIR) by some block between N_REGION ones stored in REGION,
    except for blocks in the REGION itself.  */
 
-auto_vec<basic_block> 
+auto_vec<basic_block>
 get_dominated_by_region (enum cdi_direction dir, basic_block *region,
 			 unsigned n_region)
 {
@@ -943,7 +943,7 @@ get_dominated_by_region (enum cdi_direction dir, basic_block *region,
    produce a vector containing all dominated blocks.  The vector will be sorted
    in preorder.  */
 
-auto_vec<basic_block> 
+auto_vec<basic_block>
 get_dominated_to_depth (enum cdi_direction dir, basic_block bb, int depth)
 {
   auto_vec<basic_block> bbs;
@@ -975,7 +975,7 @@ get_dominated_to_depth (enum cdi_direction dir, basic_block bb, int depth)
 /* Returns the list of basic blocks including BB dominated by BB, in the
    direction DIR.  The vector will be sorted in preorder.  */
 
-auto_vec<basic_block> 
+auto_vec<basic_block>
 get_all_dominated_blocks (enum cdi_direction dir, basic_block bb)
 {
   return get_dominated_to_depth (dir, bb, 0);
@@ -1656,6 +1656,36 @@ debug_dominance_info (enum cdi_direction dir)
   FOR_EACH_BB_FN (bb, cfun)
     if ((bb2 = get_immediate_dominator (dir, bb)))
       fprintf (stderr, "%i %i\n", bb->index, bb2->index);
+}
+
+/* Dump the dominance tree in direction DIR to the file F in dot form.
+   This allows easily visualizing the tree using graphviz.  */
+
+DEBUG_FUNCTION void
+dot_dominance_tree (FILE *f, enum cdi_direction dir)
+{
+  fprintf (f, "digraph {\n");
+  basic_block bb, idom;
+  FOR_EACH_BB_FN (bb, cfun)
+    if ((idom = get_immediate_dominator (dir, bb)))
+      fprintf (f, "%i -> %i;\n", idom->index, bb->index);
+  fprintf (f, "}\n");
+}
+
+/* Convenience wrapper around the above that dumps the dominance tree in
+   direction DIR to the file at path FNAME in dot form.  */
+
+DEBUG_FUNCTION void
+dot_dominance_tree (const char *fname, enum cdi_direction dir)
+{
+  FILE *f = fopen (fname, "w");
+  if (f)
+    {
+      dot_dominance_tree (f, dir);
+      fclose (f);
+    }
+  else
+    fprintf (stderr, "failed to open %s: %s\n", fname, xstrerror (errno));
 }
 
 /* Prints to stderr representation of the dominance tree (for direction DIR)

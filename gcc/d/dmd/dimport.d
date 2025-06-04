@@ -1,12 +1,12 @@
 /**
  * A `Dsymbol` representing a renamed import.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/dimport.d, _dimport.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/dimport.d, _dimport.d)
  * Documentation:  https://dlang.org/phobos/dmd_dimport.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/dimport.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/dimport.d
  */
 
 module dmd.dimport;
@@ -14,7 +14,6 @@ module dmd.dimport;
 import dmd.arraytypes;
 import dmd.dmodule;
 import dmd.dsymbol;
-import dmd.errors;
 import dmd.identifier;
 import dmd.location;
 import dmd.visitor;
@@ -41,7 +40,7 @@ extern (C++) final class Import : Dsymbol
     // corresponding AliasDeclarations for alias=name pairs
     AliasDeclarations aliasdecls;
 
-    extern (D) this(const ref Loc loc, Identifier[] packages, Identifier id, Identifier aliasId, int isstatic)
+    extern (D) this(Loc loc, Identifier[] packages, Identifier id, Identifier aliasId, int isstatic)
     {
         Identifier selectIdent()
         {
@@ -51,19 +50,16 @@ extern (C++) final class Import : Dsymbol
                 // import [aliasId] = std.stdio;
                 return aliasId;
             }
-            else if (packages.length > 0)
+            if (packages.length > 0)
             {
                 // import [std].stdio;
                 return packages[0];
             }
-            else
-            {
-                // import [id];
-                return id;
-            }
+            // import [id];
+            return id;
         }
 
-        super(loc, selectIdent());
+        super(DSYM.import_, loc, selectIdent());
 
         assert(id);
         version (none)
@@ -84,16 +80,6 @@ extern (C++) final class Import : Dsymbol
         this.visibility = Visibility.Kind.private_; // default to private
     }
 
-    extern (D) void addAlias(Identifier name, Identifier _alias)
-    {
-        if (isstatic)
-            .error(loc, "%s `%s` cannot have an import bind list", kind, toPrettyChars);
-        if (!aliasId)
-            this.ident = null; // make it an anonymous import
-        names.push(name);
-        aliases.push(_alias);
-    }
-
     override const(char)* kind() const
     {
         return isstatic ? "static import" : "import";
@@ -110,9 +96,13 @@ extern (C++) final class Import : Dsymbol
         assert(!s);
         auto si = new Import(loc, packages, id, aliasId, isstatic);
         si.comment = comment;
+        assert(!(isstatic && names.length));
+        if (names.length && !si.aliasId)
+            si.ident = null;
         for (size_t i = 0; i < names.length; i++)
         {
-            si.addAlias(names[i], aliases[i]);
+            si.names.push(names[i]);
+            si.aliases.push(aliases[i]);
         }
         return si;
     }
@@ -165,16 +155,10 @@ extern (C++) final class Import : Dsymbol
          * https://issues.dlang.org/show_bug.cgi?id=5412
          */
         assert(ident && ident == s.ident);
-        Import imp;
-        if (!aliasId && (imp = s.isImport()) !is null && !imp.aliasId)
-            return true;
-        else
+        if (aliasId)
             return false;
-    }
-
-    override inout(Import) isImport() inout
-    {
-        return this;
+        const imp = s.isImport();
+        return imp && !imp.aliasId;
     }
 
     override void accept(Visitor v)

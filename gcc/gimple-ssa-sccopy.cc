@@ -1,5 +1,5 @@
 /* Strongly-connected copy propagation pass for the GNU compiler.
-   Copyright (C) 2023-2024 Free Software Foundation, Inc.
+   Copyright (C) 2023-2025 Free Software Foundation, Inc.
    Contributed by Filip Kastl <fkastl@suse.cz>
 
 This file is part of GCC.
@@ -38,6 +38,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "builtins.h"
 #include "tree-ssa-dce.h"
 #include "fold-const.h"
+#include "tree-pretty-print.h"
 
 /* Strongly connected copy propagation pass.
 
@@ -92,11 +93,7 @@ along with GCC; see the file COPYING3.  If not see
      Braun, Buchwald, Hack, Leissa, Mallon, Zwinkau, 2013, LNCS vol. 7791,
      Section 3.2.  */
 
-/* Bitmap tracking statements which were propagated to be removed at the end of
-   the pass.  */
-
 namespace {
-static bitmap dead_stmts;
 
 /* State of vertex during SCC discovery.
 
@@ -458,29 +455,63 @@ get_all_stmt_may_generate_copy (void)
   return result;
 }
 
+/* SCC copy propagation
+
+   'scc_copy_prop::propagate ()' is the main function of this pass.  */
+
+class scc_copy_prop
+{
+public:
+  scc_copy_prop ();
+  ~scc_copy_prop ();
+  bool propagate ();
+
+private:
+  /* Bitmap tracking statements which were propagated so that they can be
+     removed at the end of the pass.  */
+  bitmap dead_stmts;
+
+  void visit_op (tree op, hash_set<tree> &outer_ops,
+				hash_set<gimple *> &scc_set, bool &is_inner,
+				tree &last_outer_op);
+  bool replace_scc_by_value (vec<gimple *> scc, tree val);
+};
+
 /* For each statement from given SCC, replace its usages by value
    VAL.  */
 
-static void
-replace_scc_by_value (vec<gimple *> scc, tree val)
+bool
+scc_copy_prop::replace_scc_by_value (vec<gimple *> scc, tree val)
 {
+  bool didsomething = false;
   for (gimple *stmt : scc)
     {
       tree name = gimple_get_lhs (stmt);
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	{
+	  fprintf (dump_file, "Replacing ");
+	  print_generic_expr (dump_file, name);
+	  fprintf (dump_file, " with ");
+	  print_generic_expr (dump_file, val);
+	  fprintf (dump_file, "\n");
+	  
+	}
       replace_uses_by (name, val);
       bitmap_set_bit (dead_stmts, SSA_NAME_VERSION (name));
+      didsomething = true;
     }
 
   if (dump_file)
     fprintf (dump_file, "Replacing SCC of size %d\n", scc.length ());
+  return didsomething;
 }
 
-/* Part of 'sccopy_propagate ()'.  */
+/* Part of 'scc_copy_prop::propagate ()'.  */
 
-static void
-sccopy_visit_op (tree op, hash_set<tree> &outer_ops,
-		 hash_set<gimple *> &scc_set, bool &is_inner,
-		 tree &last_outer_op)
+void
+scc_copy_prop::visit_op (tree op, hash_set<tree> &outer_ops,
+			 hash_set<gimple *> &scc_set, bool &is_inner,
+			 tree &last_outer_op)
 {
   bool op_in_scc = false;
 
@@ -538,9 +569,10 @@ sccopy_visit_op (tree op, hash_set<tree> &outer_ops,
      Braun, Buchwald, Hack, Leissa, Mallon, Zwinkau, 2013, LNCS vol. 7791,
      Section 3.2.  */
 
-static void
-sccopy_propagate ()
+bool
+scc_copy_prop::propagate ()
 {
+  bool didsomething = false;
   auto_vec<gimple *> useful_stmts = get_all_stmt_may_generate_copy ();
   scc_discovery discovery;
 
@@ -549,6 +581,21 @@ sccopy_propagate ()
   while (!worklist.is_empty ())
     {
       vec<gimple *> scc = worklist.pop ();
+
+      /* When we do 'replace_scc_by_value' it may happen that some EH edges
+	 get removed.  That means parts of CFG get removed.  Those may
+	 contain copy statements.  For that reason we prune SCCs here.  */
+      unsigned i;
+      for (i = 0; i < scc.length ();)
+	if (gimple_bb (scc[i]) == NULL)
+	  scc.unordered_remove (i);
+	else
+	  i++;
+      if (scc.is_empty ())
+	{
+	  scc.release ();
+	  continue;
+	}
 
       auto_vec<gimple *> inner;
       hash_set<tree> outer_ops;
@@ -574,14 +621,12 @@ sccopy_propagate ()
 		for (j = 0; j < gimple_phi_num_args (phi); j++)
 		  {
 		    op = gimple_phi_arg_def (phi, j);
-		    sccopy_visit_op (op, outer_ops, scc_set, is_inner,
-				   last_outer_op);
+		    visit_op (op, outer_ops, scc_set, is_inner, last_outer_op);
 		  }
 		break;
 	      case GIMPLE_ASSIGN:
 		op = gimple_assign_rhs1 (stmt);
-		sccopy_visit_op (op, outer_ops, scc_set, is_inner,
-			       last_outer_op);
+		visit_op (op, outer_ops, scc_set, is_inner, last_outer_op);
 		break;
 	      default:
 		gcc_unreachable ();
@@ -595,7 +640,7 @@ sccopy_propagate ()
 	{
 	  /* The only operand in outer_ops.  */
 	  tree outer_op = last_outer_op;
-	  replace_scc_by_value (scc, outer_op);
+	  didsomething |= replace_scc_by_value (scc, outer_op);
 	}
       else if (outer_ops.elements () > 1)
 	{
@@ -610,21 +655,16 @@ sccopy_propagate ()
 
       scc.release ();
     }
+  return didsomething;
 }
 
-/* Called when pass execution starts.  */
-
-static void
-init_sccopy (void)
+scc_copy_prop::scc_copy_prop ()
 {
   /* For propagated statements.  */
   dead_stmts = BITMAP_ALLOC (NULL);
 }
 
-/* Called before pass execution ends.  */
-
-static void
-finalize_sccopy (void)
+scc_copy_prop::~scc_copy_prop ()
 {
   /* Remove all propagated statements.  */
   simple_dce_from_worklist (dead_stmts);
@@ -648,7 +688,7 @@ const pass_data pass_data_sccopy =
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  TODO_update_ssa | TODO_cleanup_cfg, /* todo_flags_finish */
+  0, /* todo_flags_finish */
 };
 
 class pass_sccopy : public gimple_opt_pass
@@ -667,10 +707,8 @@ public:
 unsigned
 pass_sccopy::execute (function *)
 {
-  init_sccopy ();
-  sccopy_propagate ();
-  finalize_sccopy ();
-  return 0;
+  scc_copy_prop sccopy;
+  return sccopy.propagate () ?  TODO_cleanup_cfg : 0;
 }
 
 } // anon namespace

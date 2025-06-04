@@ -1,6 +1,6 @@
 /* m2decl.h header file for m2decl.cc.
 
-Copyright (C) 2012-2024 Free Software Foundation, Inc.
+Copyright (C) 2012-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius@glam.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -58,7 +58,7 @@ EXTERN tree m2decl_BuildEndFunctionDeclaration (
     tree returntype, bool isexternal, bool isnested, bool ispublic,
     bool isnoreturn);
 EXTERN void m2decl_BuildStartFunctionDeclaration (bool uses_varargs);
-EXTERN tree m2decl_BuildParameterDeclaration (location_t location, char *name,
+EXTERN tree m2decl_BuildParameterDeclaration (location_t location, const char *name,
                                               tree type, bool isreference);
 EXTERN tree m2decl_DeclareKnownConstant (location_t location, tree type,
                                          tree value);

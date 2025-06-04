@@ -1,6 +1,6 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2002-2024 Free Software Foundation, Inc.
+// Copyright (C) 2002-2025 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -26,10 +26,10 @@
  *  This is a Standard C++ Library header.
  */
 
-#include <cstddef>
-
 #ifndef _GLIBCXX_STDDEF_H
 #define _GLIBCXX_STDDEF_H 1
+
+#include <cstddef>
 
 #ifdef _GLIBCXX_NAMESPACE_C
 using std::size_t;

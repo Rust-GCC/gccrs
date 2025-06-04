@@ -1,5 +1,5 @@
 /* Support routines for the various generation passes.
-   Copyright (C) 2000-2024 Free Software Foundation, Inc.
+   Copyright (C) 2000-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -656,7 +656,7 @@ public:
      i.e. if rtx is the relevant match_operand or match_scratch then
      [ns..ns + len) should equal itoa (XINT (rtx, 0)), and if set_attr then
      [ns..ns + len) should equal XSTR (rtx, 0).  */
-  conlist (const char *ns, unsigned int len, bool numeric)
+  conlist (const char *ns, unsigned int len, bool numeric, file_location loc)
   {
     /* Trim leading whitespaces.  */
     while (len > 0 && ISBLANK (*ns))
@@ -670,16 +670,26 @@ public:
       if (!ISBLANK (ns[i]))
 	break;
 
-    /* Parse off any modifiers.  */
-    while (len > 0 && !ISALNUM (*ns))
-      {
-	con += *(ns++);
-	len--;
-      }
+    /* Only numeric values can have modifiers.  */
+    if (numeric)
+      /* Parse off any modifiers.  */
+      while (len > 0 && !ISALNUM (*ns))
+	{
+	  if (*ns != '=' && *ns != '+' && *ns != '%')
+	    error_at (loc, "`%c` is not a valid operand modifier", *ns);
+	  con += *(ns++);
+	  len--;
+	}
 
     name.assign (ns, len);
     if (numeric)
-      idx = strtol (name.c_str (), (char **)NULL, 10);
+      {
+	char *endstr;
+	/* There should only be a numeric value now... */
+	idx = strtol (name.c_str (), &endstr, 10);
+	if (*endstr != '\0')
+	  error_at (loc, "operand number expected, found %s", name.c_str ());
+      }
   }
 
   /* Adds a character to the end of the string.  */
@@ -832,7 +842,7 @@ parse_section_layout (file_location loc, const char **templ, const char *label,
 	  *templ += len;
 	  if (val == ',')
 	    (*templ)++;
-	  list.push_back (conlist (name_start, len, numeric));
+	  list.push_back (conlist (name_start, len, numeric, loc));
 	}
     }
 }
@@ -845,7 +855,8 @@ parse_section_layout (file_location loc, const char **templ, const char *label,
 
 static void
 parse_section (const char **templ, unsigned int n_elems, unsigned int alt_no,
-	       vec_conlist &list, file_location loc, const char *name)
+	       vec_conlist &list, file_location loc, const char *name,
+	       const char *invalid_chars = NULL)
 {
   unsigned int i;
 
@@ -856,6 +867,10 @@ parse_section (const char **templ, unsigned int n_elems, unsigned int alt_no,
       {
 	if (**templ == 0 || **templ == '\n')
 	  fatal_at (loc, "missing ']'");
+	if (invalid_chars
+	    && strchr (invalid_chars, **templ))
+	  error_at (loc, "'%c' is not permitted in an alternative for a %s",
+		    **templ, name);
 	list[i].add (**templ);
 	if (**templ == ',')
 	  {
@@ -981,7 +996,7 @@ convert_syntax (rtx x, file_location loc)
 	  /* Parse the constraint list, then the attribute list.  */
 	  if (tconvec.size () > 0)
 	    parse_section (&templ, tconvec.size (), alt_no, tconvec, loc,
-			   "constraint");
+			   "constraint", "=+%");
 
 	  if (attrvec.size () > 0)
 	    {
@@ -1496,7 +1511,7 @@ subst_pattern_match (rtx x, rtx pt, file_location loc)
 
       switch (fmt[i])
 	{
-	case 'r': case 'p': case 'i': case 'w': case 's':
+	case 'r': case 'p': case 'i': case 'w': case 's': case 'L':
 	  continue;
 
 	case 'e': case 'u':
@@ -1662,6 +1677,7 @@ get_alternatives_number (rtx pattern, int *n_alt, file_location loc)
 
 	case 'r': case 'p': case 'i': case 'w':
 	case '0': case 's': case 'S': case 'T':
+	case 'L':
 	  break;
 
 	default:
@@ -1722,6 +1738,7 @@ collect_insn_data (rtx pattern, int *palt, int *pmax)
 
 	case 'r': case 'p': case 'i': case 'w':
 	case '0': case 's': case 'S': case 'T':
+	case 'L':
 	  break;
 
 	default:
@@ -1806,7 +1823,7 @@ alter_predicate_for_insn (rtx pattern, int alt, int max_op,
 	    }
 	  break;
 
-	case 'r': case 'p': case 'i': case 'w': case '0': case 's':
+	case 'r': case 'p': case 'i': case 'w': case '0': case 's': case 'L':
 	  break;
 
 	default:
@@ -1867,7 +1884,7 @@ alter_constraints (rtx pattern, int n_dup, constraints_handler_t alter)
 	    }
 	  break;
 
-	case 'r': case 'p': case 'i': case 'w': case '0': case 's':
+	case 'r': case 'p': case 'i': case 'w': case '0': case 's': case 'L':
 	  break;
 
 	default:
@@ -2785,6 +2802,7 @@ subst_dup (rtx pattern, int n_alt, int n_subst_alt)
 
 	case 'r': case 'p': case 'i': case 'w':
 	case '0': case 's': case 'S': case 'T':
+	case 'L':
 	  break;
 
 	default:
@@ -3746,16 +3764,6 @@ get_emit_function (rtx x)
     }
 }
 
-/* Return true if we must emit a barrier after pattern X.  */
-
-bool
-needs_barrier_p (rtx x)
-{
-  return (GET_CODE (x) == SET
-	  && GET_CODE (SET_DEST (x)) == PC
-	  && GET_CODE (SET_SRC (x)) == LABEL_REF);
-}
-
 #define NS "NULL"
 #define ZS "'\\0'"
 #define OPTAB_CL(o, p, c, b, l)    { #o, p, #b, ZS, #l, o, c, UNKNOWN, 1 },
@@ -3912,4 +3920,37 @@ find_optab (optab_pattern *p, const char *name)
 	}
     }
   return false;
+}
+
+/* Find the file to write into next.  We try to evenly distribute the contents
+   over the different files.  */
+
+#define SIZED_BASED_CHUNKS 1
+
+FILE *
+choose_output (const vec<FILE *> &parts, unsigned &idx)
+{
+  if (parts.length () == 0)
+    gcc_unreachable ();
+#ifdef SIZED_BASED_CHUNKS
+  FILE *shortest = NULL;
+  long min = 0;
+  idx = 0;
+  for (unsigned i = 0; i < parts.length (); i++)
+    {
+      FILE *part  = parts[i];
+      long len = ftell (part);
+      if (!shortest || min > len)
+	{
+	  shortest = part;
+	  min = len;
+	  idx = i;
+       }
+    }
+  return shortest;
+#else
+  static int current_file;
+  idx = current_file++ % parts.length ();
+  return parts[idx];
+#endif
 }

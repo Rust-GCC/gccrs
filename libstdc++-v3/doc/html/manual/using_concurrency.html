@@ -40,7 +40,7 @@ The standard places requirements on the library to ensure that no data
 races are caused by the library itself or by programs which use the
 library correctly (as described below).
 The C++11 memory model and library requirements are a more formal version
-of the <a class="link" href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI STL</a> definition of thread safety, which the library used
+of the <a class="link" href="https://web.archive.org/web/20171221154911/http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI STL</a> definition of thread safety, which the library used
 prior to the 2011 standard.
 </p><p>The library strives to be thread-safe when all of the following
 	 conditions are met:
@@ -62,7 +62,7 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
 	 and <code class="code">-march=native</code>, although specifics vary
 	 depending on the host environment. See
 	 <a class="link" href="using.html#manual.intro.using.flags" title="Command Options">Command Options</a> and
-	 <a class="link" href="http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html" target="_top">Machine
+	 <a class="link" href="https://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html" target="_top">Machine
 	 Dependent Options</a>.
        </p></li><li class="listitem"><p>
 	   An implementation of the
@@ -126,6 +126,16 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
          the container the iterator refers to (for example incrementing a
          list iterator must access the pointers between nodes, which are part
          of the container and so conflict with other accesses to the container).
+      </p><p>
+	 The Copy-On-Write <code class="classname">std::string</code> implementation
+	 used before GCC 5 (and with
+	 <a class="link" href="using_dual_abi.html" title="Dual ABI">_GLIBCXX_USE_CXX11_ABI=0</a>)
+	 is not a standard container and does not conform to the data race
+	 avoidance rules described above. For the Copy-On-Write
+	 <code class="classname">std::string</code>, non-const member functions such as
+	 <code class="function">begin()</code> are considered to be modifying accesses
+	 and so must not be used concurrently with any other accesses to the
+	 same object.
       </p><p>Programs which follow the rules above will not encounter data
          races in library code, even when using library types which share
          state between distinct objects.  In the example below the
@@ -233,10 +243,10 @@ gcc version 4.1.2 20070925 (Red Hat 4.1.2-33)
       threaded and non-threaded code), see Chapter 17.
    </p><p>Two excellent pages to read when working with the Standard C++
       containers and threads are
-      <a class="link" href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI's
-      https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/thread_safety.html</a> and
-      <a class="link" href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/Allocators.html" target="_top">SGI's
-      https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/Allocators.html</a>.
+      <a class="link" href="https://web.archive.org/web/20171221154911/http://www.sgi.com/tech/stl/thread_safety.html" target="_top">SGI's
+      https://web.archive.org/web/20171221154911/http://www.sgi.com/tech/stl/thread_safety.html</a> and
+      <a class="link" href="https://web.archive.org/web/20171108142526/http://www.sgi.com/tech/stl/Allocators.html" target="_top">SGI's
+      https://web.archive.org/web/20171108142526/http://www.sgi.com/tech/stl/Allocators.html</a>.
    </p><p><span class="emphasis"><em>However, please ignore all discussions about the user-level
       configuration of the lock implementation inside the STL
       container-memory allocator on those pages.  For the sake of this

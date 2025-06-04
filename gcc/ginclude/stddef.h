@@ -1,4 +1,4 @@
-/* Copyright (C) 1989-2024 Free Software Foundation, Inc.
+/* Copyright (C) 1989-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -87,6 +87,21 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
    Just ignore it.  */
 #if defined (__sequent__) && defined (_PTRDIFF_T_)
 #undef _PTRDIFF_T_
+#endif
+
+/* When modular code is enabled with macOS SDKs from version 15, the
+   include guards are set in the includers of this code, rather than as
+   part of it.  This means the we must unset them or the intended code
+   here will be bypassed (resulting in undefined values).  */
+#if defined (__APPLE__)
+# if defined(__has_feature) && __has_feature(modules)
+#  if defined (__need_ptrdiff_t)
+#   undef __PTRDIFF_T
+#  endif
+#  if defined (__need_size_t)
+#   undef __SIZE_T
+#  endif
+# endif
 #endif
 
 /* On VxWorks, <type/vxTypesBase.h> may have defined macros like
@@ -286,7 +301,7 @@ typedef long ssize_t;
    symbols in the _FOO_T_ family, stays defined even after its
    corresponding type is defined).  If we define wchar_t, then we
    must undef _WCHAR_T_; for BSD/386 1.1 (and perhaps others), if
-   we undef _WCHAR_T_, then we must also define rune_t, since 
+   we undef _WCHAR_T_, then we must also define rune_t, since
    headers like runetype.h assume that if machine/ansi.h is included,
    and _BSD_WCHAR_T_ is not defined, then rune_t is available.
    machine/ansi.h says, "Note that _WCHAR_T_ and _RUNE_T_ must be of
@@ -444,18 +459,16 @@ typedef struct {
 #endif
 #endif /* C++11.  */
 
-#if (defined (__STDC_VERSION__) && __STDC_VERSION__ > 201710L)
+#if defined (__STDC_VERSION__) && __STDC_VERSION__ > 201710L
 #ifndef _GCC_NULLPTR_T
 #define _GCC_NULLPTR_T
   typedef __typeof__(nullptr) nullptr_t;
-/* ??? This doesn't define __STDC_VERSION_STDDEF_H__ yet.  */
 #endif
-#endif /* C23.  */
-
-#if defined __STDC_VERSION__ && __STDC_VERSION__ > 201710L
+#ifndef __STDC_VERSION_STDDEF_H__
 #define unreachable() (__builtin_unreachable ())
 #define __STDC_VERSION_STDDEF_H__	202311L
 #endif
+#endif /* C23.  */
 
 #endif /* _STDDEF_H was defined this time */
 

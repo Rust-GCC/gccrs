@@ -1,12 +1,12 @@
 /**
  * Defines an identifier, which is the name of a `Dsymbol`.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/identifier.d, _identifier.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/identifier.d, _identifier.d)
  * Documentation:  https://dlang.org/phobos/dmd_identifier.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/identifier.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/identifier.d
  */
 
 module dmd.identifier;
@@ -108,7 +108,8 @@ nothrow:
         const(char)* p = null;
         if (this == Id.ctor)
             p = "this";
-        else if (this == Id.dtor)
+        else if (this == Id.dtor || this == Id.__xdtor || this == Id.__fieldDtor ||
+            this == Id.__aggrDtor || this == Id.cppdtor || this == Id.ticppdtor)
             p = "~this";
         else if (this == Id.unitTest)
             p = "unittest";
@@ -120,6 +121,8 @@ nothrow:
             p = "result";
         else if (this == Id.returnLabel)
             p = "return";
+        else if (this == Id.postblit)
+            p = "this(this)";
         else
         {
             p = toChars();
@@ -211,19 +214,23 @@ nothrow:
      * Params:
      *      prefix      = first part of the identifier name.
      *      loc         = source location to use in the identifier name.
+     *      parent      = (optional) extra part to be used in uniqueness check,
+     *                    if (prefix1, loc1) == (prefix2, loc2), but
+     *                    parent1 != parent2, no new name will be generated.
      * Returns:
      *      Identifier (inside Identifier.idPool) with deterministic name based
      *      on the source location.
      */
-    extern (D) static Identifier generateIdWithLoc(string prefix, const ref Loc loc)
+    extern (D) static Identifier generateIdWithLoc(string prefix, Loc loc, string parent = "")
     {
         // generate `<prefix>_L<line>_C<col>`
+        auto sl = SourceLoc(loc);
         OutBuffer idBuf;
         idBuf.writestring(prefix);
         idBuf.writestring("_L");
-        idBuf.print(loc.linnum);
+        idBuf.print(sl.line);
         idBuf.writestring("_C");
-        idBuf.print(loc.charnum);
+        idBuf.print(sl.column);
 
         /**
          * Make sure the identifiers are unique per filename, i.e., per module/mixin
@@ -234,14 +241,21 @@ nothrow:
          * https://issues.dlang.org/show_bug.cgi?id=18880
          * https://issues.dlang.org/show_bug.cgi?id=18868
          * https://issues.dlang.org/show_bug.cgi?id=19058
+         *
+         * It is a bit trickier for lambdas/dgliterals: we want them to be unique per
+         * module/mixin + function/template instantiation context. So we use extra parent
+         * argument for that when dealing with lambdas. We could have added it to prefix
+         * directly, but that would unnecessary lengthen symbols names. See issue:
+         * https://issues.dlang.org/show_bug.cgi?id=23722
          */
-        static struct Key { Loc loc; string prefix; }
+        static struct Key { string locKey; string prefix; string parent; }
         __gshared uint[Key] counters;
 
+        string locKey = cast(string) (sl.filename ~ idBuf[]);
         static if (__traits(compiles, counters.update(Key.init, () => 0u, (ref uint a) => 0u)))
         {
             // 2.082+
-            counters.update(Key(loc, prefix),
+            counters.update(Key(locKey, prefix, parent),
                 () => 1u,          // insertion
                 (ref uint counter) // update
                 {
@@ -253,7 +267,7 @@ nothrow:
         }
         else
         {
-            const key = Key(loc, prefix);
+            const key = Key(locKey, prefix, parent);
             if (auto pCounter = key in counters)
             {
                 idBuf.writestring("_");
@@ -269,12 +283,12 @@ nothrow:
     /********************************************
      * Create an identifier in the string table.
      */
-    static Identifier idPool(const(char)* s, uint len)
+    static Identifier idPool(scope const(char)* s, uint len)
     {
         return idPool(s[0 .. len]);
     }
 
-    extern (D) static Identifier idPool(const(char)[] s, bool isAnonymous = false)
+    extern (D) static Identifier idPool(scope const(char)[] s, bool isAnonymous = false)
     {
         auto sv = stringtable.update(s);
         auto id = sv.value;
@@ -292,7 +306,7 @@ nothrow:
      *  s = string for keyword
      *  value = TOK.xxxx for the keyword
      */
-    extern (D) static void idPool(const(char)[] s, TOK value)
+    extern (D) static void idPool(scope const(char)[] s, TOK value)
     {
         auto sv = stringtable.insert(s, null);
         assert(sv);
@@ -315,26 +329,81 @@ nothrow:
     /**********************************
      * ditto
      */
-    extern (D) static bool isValidIdentifier(const(char)[] str) @safe
+    extern (D) static bool isValidIdentifier(const(char)[] str) @trusted
     {
+        import dmd.common.charactertables;
+
         if (str.length == 0 ||
             (str[0] >= '0' && str[0] <= '9')) // beware of isdigit() on signed chars
         {
             return false;
         }
 
-        size_t idx = 0;
-        while (idx < str.length)
+        // In a previous implementation this was implemented quite naively,
+        //  by utilizing the libc.
+        // However we can do better, by copying the lexer approach to identifier validation.
+
+        const(char)* p = &str[0], pEnd = str.ptr + str.length;
+
+        // handle start characters
         {
-            dchar dc;
-            const s = utf_decodeChar(str, idx, dc);
-            if (s ||
-                !((dc >= 0x80 && isUniAlpha(dc)) || isalnum(dc) || dc == '_'))
+            const c = *p;
+
+            if (isidchar(c))
+                p++;
+            else if (c & 0x80)
             {
-                return false;
+                size_t countDecoded;
+                dchar decoded;
+
+                if (utf_decodeChar(p[0 .. pEnd - p], countDecoded, decoded) is null ||
+                    isAnyStart(decoded))
+                    p += countDecoded;
+                else
+                    return false;
             }
+            else
+                return false;
         }
+
+        // handle continue characters
+        while(p !is pEnd)
+        {
+            const c = *p;
+
+            if (isidchar(c)) // handles ASCII subset
+            {
+                p++;
+                continue;
+            }
+            else if (c & 0x80)
+            {
+                size_t countDecoded;
+                dchar decoded;
+
+                if (utf_decodeChar(p[0 .. pEnd - p], countDecoded, decoded) is null ||
+                    isAnyContinue(decoded))
+                {
+                    p += countDecoded;
+                    continue;
+                }
+                else
+                    return false;
+            }
+            else
+                return false;
+        }
+
         return true;
+    }
+
+    ///
+    unittest
+    {
+        assert(Identifier.isValidIdentifier("tes123_t".ptr));
+        assert(!Identifier.isValidIdentifier("tes123_^t".ptr));
+        assert(Identifier.isValidIdentifier("te123s_ğt".ptr));
+        assert(!Identifier.isValidIdentifier("t^e123s_ğt".ptr));
     }
 
     extern (D) static Identifier lookup(const(char)* s, size_t len)

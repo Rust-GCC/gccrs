@@ -1,5 +1,5 @@
 /* Harden conditionals.
-   Copyright (C) 2021-2024 Free Software Foundation, Inc.
+   Copyright (C) 2021-2025 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva <oliva@adacore.com>.
 
 This file is part of GCC.
@@ -61,8 +61,7 @@ const pass_data pass_data_harden_compares = {
   0,	    // properties_destroyed
   0,	    // properties_start
   TODO_update_ssa
-  | TODO_cleanup_cfg
-  | TODO_verify_il, // properties_finish
+  | TODO_cleanup_cfg, // properties_finish
 };
 
 class pass_harden_compares : public gimple_opt_pass
@@ -96,8 +95,7 @@ const pass_data pass_data_harden_conditional_branches = {
   0,	    // properties_destroyed
   0,	    // properties_start
   TODO_update_ssa
-  | TODO_cleanup_cfg
-  | TODO_verify_il, // properties_finish
+  | TODO_cleanup_cfg, // properties_finish
 };
 
 class pass_harden_conditional_branches : public gimple_opt_pass

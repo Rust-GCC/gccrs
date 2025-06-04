@@ -1,6 +1,6 @@
 (* M2Range.mod exports procedures which maintain the range checking.
 
-Copyright (C) 2008-2024 Free Software Foundation, Inc.
+Copyright (C) 2008-2025 Free Software Foundation, Inc.
 Contributed by Gaius Mulley <gaius.mulley@southwales.ac.uk>.
 
 This file is part of GNU Modula-2.
@@ -28,10 +28,12 @@ FROM SymbolTable IMPORT NulSym, GetLowestType, PutReadQuad, RemoveReadQuad,
                         IsRecord, IsPointer, IsArray, IsProcType, IsConstLit,
                         IsAModula2Type, IsUnbounded, IsEnumeration, GetMode,
                         IsConstString, MakeConstLit, SkipType, IsProcedure,
-                        IsParameter, GetDeclaredMod, IsVarParam, GetNthParam,
+                        IsParameter, GetDeclaredMod, IsVarParamAny, GetNthParam,
                         ModeOfAddr ;
 
-FROM m2tree IMPORT Tree, debug_tree ;
+FROM SYSTEM IMPORT ADDRESS ;
+FROM m2tree IMPORT debug_tree ;
+
 FROM m2linemap IMPORT ErrorAt, GetFilenameFromLocation, GetColumnNoFromLocation, GetLineNoFromLocation ;
 
 FROM m2type IMPORT GetMinFrom, GetMaxFrom,
@@ -56,7 +58,7 @@ FROM M2Debug IMPORT Assert ;
 FROM Indexing IMPORT Index, InitIndex, InBounds, PutIndice, GetIndice ;
 FROM Storage IMPORT ALLOCATE ;
 FROM M2ALU IMPORT PushIntegerTree, PushInt, ConvertToInt, Equ, Gre, Less, GreEqu ;
-FROM M2Options IMPORT VariantValueChecking, CaseEnumChecking ;
+FROM M2Options IMPORT VariantValueChecking, CaseEnumChecking, GetPIM, StrictTypeAssignment ;
 
 FROM M2Error IMPORT Error, InternalError, ErrorFormat0, ErrorFormat1, ErrorFormat2, FlushErrors,
                     GetAnnounceScope ;
@@ -73,6 +75,7 @@ FROM M2LexBuf IMPORT UnknownTokenNo, GetTokenNo, FindFileNameFromToken,
                      TokenToLineNo, TokenToColumnNo, TokenToLocation, MakeVirtual2Tok ;
 
 FROM StrIO IMPORT WriteString, WriteLn ;
+FROM NumberIO IMPORT WriteCard ;
 FROM M2GCCDeclare IMPORT TryDeclareConstant, DeclareConstructor ;
 FROM M2Quads IMPORT QuadOperator, PutQuad, SubQuad, WriteOperand ;
 FROM SymbolConversion IMPORT GccKnowsAbout, Mod2Gcc ;
@@ -88,7 +91,6 @@ FROM M2Check IMPORT ParameterTypeCompatible, ExpressionTypeCompatible, Assignmen
 
 FROM M2Base IMPORT Nil, IsRealType, GetBaseTypeMinMax,
                    Cardinal, Integer, ZType, IsComplexType,
-                   IsAssignmentCompatible,
                    IsExpressionCompatible,
                    IsParameterCompatible,
                    ExceptionAssign,
@@ -112,7 +114,9 @@ FROM M2CaseList IMPORT CaseBoundsResolved, OverlappingCaseBounds,
 TYPE
    TypeOfRange = (assignment, returnassignment, subrangeassignment,
                   inc, dec, incl, excl, shift, rotate,
-                  typeexpr, typeassign, typeparam, paramassign,
+                  typeindrx, typeexpr, typeassign, typeparam,
+                  typereturn,
+                  paramassign,
                   staticarraysubscript,
                   dynamicarraysubscript,
                   forloopbegin, forloopto, forloopend,
@@ -143,19 +147,49 @@ TYPE
                          errorReported : BOOLEAN ;  (* error message reported yet? *)
                          strict        : BOOLEAN ;  (* is it a comparison expression?  *)
                          isin          : BOOLEAN ;  (* expression created by IN operator?  *)
+                         cancelled     : BOOLEAN ;  (* Has this range been cancelled?  *)
+                         dependantid   : CARDINAL ;   (* The associated dependant range test.  *)
                       END ;
 
 
 VAR
    TopOfRange: CARDINAL ;
    RangeIndex: Index ;
+   BreakRange: CARDINAL ;
+
+
+PROCEDURE gdbhook ;
+END gdbhook ;
+
+
+(*
+   BreakWhenRangeCreated - to be called interactively by gdb.
+*)
+
+PROCEDURE BreakWhenRangeCreated (r: CARDINAL) ;
+BEGIN
+   BreakRange := r
+END BreakWhenRangeCreated ;
+
+
+(*
+   CheckBreak - if sym = BreakRange then call gdbhook.
+*)
+
+PROCEDURE CheckBreak (r: CARDINAL) ;
+BEGIN
+   IF BreakRange = r
+   THEN
+      gdbhook
+   END
+END CheckBreak ;
 
 
 (*
    OverlapsRange - returns TRUE if a1..a2 overlaps with b1..b2.
 *)
 
-PROCEDURE OverlapsRange (a1, a2, b1, b2: Tree) : BOOLEAN ;
+PROCEDURE OverlapsRange (a1, a2, b1, b2: tree) : BOOLEAN ;
 BEGIN
    (* RETURN( ((a1<=b2) AND (a2>=b1)) ) *)
    RETURN( (CompareTrees(a1, b2)<=0) AND (CompareTrees(a2, b1)>=0) )
@@ -166,7 +200,7 @@ END OverlapsRange ;
    IsGreater - returns TRUE if a>b.
 *)
 
-PROCEDURE IsGreater (a, b: Tree) : BOOLEAN ;
+PROCEDURE IsGreater (a, b: tree) : BOOLEAN ;
 BEGIN
    RETURN( CompareTrees(a, b)>0 )
 END IsGreater ;
@@ -176,7 +210,7 @@ END IsGreater ;
    IsGreaterOrEqual - returns TRUE if a>=b.
 *)
 
-PROCEDURE IsGreaterOrEqual (a, b: Tree) : BOOLEAN ;
+PROCEDURE IsGreaterOrEqual (a, b: tree) : BOOLEAN ;
 BEGIN
    RETURN( CompareTrees(a, b)>=0 )
 END IsGreaterOrEqual ;
@@ -186,7 +220,7 @@ END IsGreaterOrEqual ;
    IsEqual - returns TRUE if a=b.
 *)
 
-PROCEDURE IsEqual (a, b: Tree) : BOOLEAN ;
+PROCEDURE IsEqual (a, b: tree) : BOOLEAN ;
 BEGIN
    RETURN( CompareTrees(a, b)=0 )
 END IsEqual ;
@@ -256,9 +290,10 @@ BEGIN
    excl                 : RETURN( ExceptionExcl ) |
    shift                : RETURN( ExceptionShift ) |
    rotate               : RETURN( ExceptionRotate ) |
-   typeassign           : InternalError ('not expecting this case value') |
-   typeparam            : InternalError ('not expecting this case value') |
-   typeexpr             : InternalError ('not expecting this case value') |
+   typeassign,
+   typeparam,
+   typeexpr,
+   typeindrx            : InternalError ('not expecting this case value') |
    paramassign          : RETURN( ExceptionParameterBounds ) |
    staticarraysubscript : RETURN( ExceptionStaticArray ) |
    dynamicarraysubscript: RETURN( ExceptionDynamicArray ) |
@@ -297,6 +332,7 @@ BEGIN
    THEN
       InternalError ('out of memory error')
    ELSE
+      CheckBreak (r) ;
       WITH p^ DO
          type           := none ;
          des            := NulSym ;
@@ -314,7 +350,9 @@ BEGIN
          expr2tok       := UnknownTokenNo ;
          byconsttok     := UnknownTokenNo ;
          incrementquad  := 0 ;
-         errorReported  := FALSE
+         errorReported  := FALSE ;
+         cancelled      := FALSE ;
+         dependantid    := 0
       END ;
       PutIndice(RangeIndex, r, p)
    END ;
@@ -553,7 +591,8 @@ END PutRangeUnary ;
 *)
 
 PROCEDURE PutRangeParam (tokno: CARDINAL; p: Range; t: TypeOfRange; proc: CARDINAL;
-                         i: CARDINAL; formal, actual: CARDINAL) : Range ;
+                         paramno: CARDINAL; formal, actual: CARDINAL;
+                         depRangeId: CARDINAL) : Range ;
 BEGIN
    WITH p^ DO
       type           := t ;
@@ -562,11 +601,12 @@ BEGIN
       desLowestType  := NulSym ;
       exprLowestType := NulSym ;
       procedure      := proc ;
-      paramNo        := i ;
+      paramNo        := paramno ;
       isLeftValue    := FALSE ;
       tokenNo        := tokno ;
       strict         := FALSE ;
-      isin           := FALSE
+      isin           := FALSE ;
+      dependantid    := depRangeId
    END ;
    RETURN p
 END PutRangeParam ;
@@ -601,16 +641,22 @@ END PutRangeArraySubscript ;
 (*
    InitAssignmentRangeCheck - returns a range check node which
                               remembers the information necessary
-                              so that a range check for d := e
+                              so that a range check for des := expr
                               can be generated later on.
 *)
 
-PROCEDURE InitAssignmentRangeCheck (tokno: CARDINAL; d, e: CARDINAL) : CARDINAL ;
+PROCEDURE InitAssignmentRangeCheck (tokno: CARDINAL;
+                                    des, expr: CARDINAL;
+                                    destok, exprtok: CARDINAL) : CARDINAL ;
 VAR
    r: CARDINAL ;
+   p: Range ;
 BEGIN
    r := InitRange () ;
-   Assert (PutRange (tokno, GetIndice (RangeIndex, r), assignment, d, e) # NIL) ;
+   p := GetIndice (RangeIndex, r) ;
+   Assert (PutRange (tokno, p, assignment, des, expr) # NIL) ;
+   p^.destok := destok ;
+   p^.exprtok := exprtok ;
    RETURN r
 END InitAssignmentRangeCheck ;
 
@@ -778,7 +824,7 @@ END InitRotateCheck ;
 
 
 (*
-   InitTypesAssignmentCheck - checks to see that the types of, d, and, e,
+   InitTypesAssignmentCheck - checks to see that the types of d and e
                               are assignment compatible.
 *)
 
@@ -793,17 +839,52 @@ END InitTypesAssignmentCheck ;
 
 
 (*
-   InitTypesParameterCheck - checks to see that the types of, d,
-                             and, e, are parameter compatible.
+   InitTypesIndrXCheck - checks to see that the types of d and e
+                         are assignment compatible.  The type checking
+                         will dereference *e during the type check.
+                         d = *e.
 *)
 
-PROCEDURE InitTypesParameterCheck (tokno: CARDINAL; proc: CARDINAL; i: CARDINAL;
-                                   formal, actual: CARDINAL) : CARDINAL ;
+PROCEDURE InitTypesIndrXCheck (tokno: CARDINAL; d, e: CARDINAL) : CARDINAL ;
 VAR
    r: CARDINAL ;
 BEGIN
    r := InitRange () ;
-   Assert (PutRangeParam (tokno, GetIndice (RangeIndex, r), typeparam, proc, i, formal, actual) # NIL) ;
+   Assert (PutRangeNoLow (tokno, GetIndice (RangeIndex, r), typeindrx, d, e) # NIL) ;
+   RETURN r
+END InitTypesIndrXCheck ;
+
+
+(*
+   InitTypesReturnTypeCheck - checks to see that the types of des and func
+                              are assignment compatible.
+*)
+
+PROCEDURE InitTypesReturnTypeCheck (tokno: CARDINAL; func, val: CARDINAL) : CARDINAL ;
+VAR
+   r: CARDINAL ;
+BEGIN
+   r := InitRange () ;
+   Assert (PutRangeNoLow (tokno, GetIndice (RangeIndex, r), typereturn, func, val) # NIL) ;
+   RETURN r
+END InitTypesReturnTypeCheck ;
+
+
+(*
+   InitTypesParameterCheck - checks to see that the types of, d,
+                             and, e, are parameter compatible.
+*)
+
+PROCEDURE InitTypesParameterCheck (tokno: CARDINAL;
+                                   proc: CARDINAL; paramno: CARDINAL;
+                                   formal, actual: CARDINAL;
+                                   depRangeId: CARDINAL) : CARDINAL ;
+VAR
+   r: CARDINAL ;
+BEGIN
+   r := InitRange () ;
+   Assert (PutRangeParam (tokno, GetIndice (RangeIndex, r), typeparam, proc,
+                          paramno, formal, actual, depRangeId) # NIL) ;
    RETURN r
 END InitTypesParameterCheck ;
 
@@ -816,7 +897,7 @@ END InitTypesParameterCheck ;
 *)
 
 PROCEDURE PutRangeParamAssign (tokno: CARDINAL; p: Range; t: TypeOfRange; proc: CARDINAL;
-                               i: CARDINAL; formal, actual: CARDINAL) : Range ;
+                               i: CARDINAL; formal, actual: CARDINAL; parentRangeId: CARDINAL) : Range ;
 BEGIN
    WITH p^ DO
       type           := t ;
@@ -828,7 +909,8 @@ BEGIN
       paramNo        := i ;
       dimension      := i ;
       isLeftValue    := FALSE ;
-      tokenNo        := tokno
+      tokenNo        := tokno ;
+      dependantid    := parentRangeId
    END ;
    RETURN( p )
 END PutRangeParamAssign ;
@@ -839,13 +921,14 @@ END PutRangeParamAssign ;
                              are parameter compatible.
 *)
 
-PROCEDURE InitParameterRangeCheck (tokno: CARDINAL; proc: CARDINAL; i: CARDINAL;
-                                   formal, actual: CARDINAL) : CARDINAL ;
+PROCEDURE InitParameterRangeCheck (tokno: CARDINAL; proc: CARDINAL; paramno: CARDINAL;
+                                   formal, actual: CARDINAL; parentRangeId: CARDINAL) : CARDINAL ;
 VAR
    r: CARDINAL ;
 BEGIN
    r := InitRange () ;
-   Assert (PutRangeParamAssign (tokno, GetIndice (RangeIndex, r), paramassign, proc, i, formal, actual) # NIL) ;
+   Assert (PutRangeParamAssign (tokno, GetIndice (RangeIndex, r), paramassign, proc,
+                                paramno, formal, actual, parentRangeId) # NIL) ;
    RETURN r
 END InitParameterRangeCheck ;
 
@@ -1067,7 +1150,7 @@ END FoldNil ;
    GetMinMax - returns TRUE if we know the max and min of m2type.
 *)
 
-PROCEDURE GetMinMax (tokenno: CARDINAL; type: CARDINAL; VAR min, max: Tree) : BOOLEAN ;
+PROCEDURE GetMinMax (tokenno: CARDINAL; type: CARDINAL; VAR min, max: tree) : BOOLEAN ;
 VAR
    minC, maxC: CARDINAL ;
    location  : location_t ;
@@ -1113,9 +1196,9 @@ END GetMinMax ;
 *)
 
 PROCEDURE OutOfRange (tokenno: CARDINAL;
-                      min: Tree;
+                      min: tree;
                       expr: CARDINAL;
-                      max: Tree;
+                      max: tree;
                       type: CARDINAL) : BOOLEAN ;
 BEGIN
    IF TreeOverflow (min)
@@ -1170,9 +1253,11 @@ BEGIN
       excl                 : RETURN( ExceptionExcl#NulSym ) |
       shift                : RETURN( ExceptionShift#NulSym ) |
       rotate               : RETURN( ExceptionRotate#NulSym ) |
-      typeassign           : RETURN( FALSE ) |
-      typeparam            : RETURN( FALSE ) |
-      typeexpr             : RETURN( FALSE ) |
+      typereturn,
+      typeassign,
+      typeparam,
+      typeexpr,
+      typeindrx            : RETURN( FALSE ) |
       paramassign          : RETURN( ExceptionParameterBounds#NulSym ) |
       staticarraysubscript : RETURN( ExceptionStaticArray#NulSym ) |
       dynamicarraysubscript: RETURN( ExceptionDynamicArray#NulSym ) |
@@ -1197,20 +1282,22 @@ END HandlerExists ;
 
 
 (*
-   FoldAssignment -
+   FoldAssignment - attempts to fold the range violation checks.
+                    It does not issue errors on type violations as that
+                    is performed by FoldTypeAssign.
 *)
 
 PROCEDURE FoldAssignment (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice (RangeIndex, r) ;
    WITH p^ DO
-      TryDeclareConstant (tokenNo, expr) ;
+      TryDeclareConstant (exprtok, expr) ;
       IF desLowestType # NulSym
       THEN
-         IF AssignmentTypeCompatible (tokenno, "", des, expr)
+         IF AssignmentTypeCompatible (tokenno, "", des, expr, FALSE)
          THEN
             IF GccKnowsAbout (expr) AND IsConst (expr) AND
                GetMinMax (tokenno, desLowestType, min, max)
@@ -1226,11 +1313,73 @@ BEGIN
                END
             END
          ELSE
+            (* We do not issue an error if these types are incompatible here
+               as this is done by FoldTypeAssign.  *)
             SubQuad (q)
          END
       END
    END
 END FoldAssignment ;
+
+
+(*
+   CheckCancelled - check to see if the range has been cancelled and if so remove quad.
+*)
+
+(*
+PROCEDURE CheckCancelled (range: CARDINAL; quad: CARDINAL) ;
+BEGIN
+   IF IsCancelled (range)
+   THEN
+      SubQuad (quad)
+   END
+END CheckCancelled ;
+*)
+
+
+(*
+   IsCancelled - return the cancelled flag associated with range.
+*)
+
+PROCEDURE IsCancelled (range: CARDINAL) : BOOLEAN ;
+VAR
+   p: Range ;
+BEGIN
+   p := GetIndice (RangeIndex, range) ;
+   WITH p^ DO
+      IF cancelled
+      THEN
+         RETURN TRUE
+      END ;
+      IF (dependantid # 0) AND IsCancelled (dependantid)
+      THEN
+         cancelled := TRUE
+      END ;
+      RETURN cancelled
+   END
+END IsCancelled ;
+
+
+(*
+   Cancel - set the cancelled flag in range.
+*)
+
+PROCEDURE Cancel (range: CARDINAL) ;
+VAR
+   p: Range ;
+BEGIN
+   IF range # 0
+   THEN
+      p := GetIndice (RangeIndex, range) ;
+      WITH p^ DO
+         IF NOT cancelled
+         THEN
+            cancelled := TRUE ;
+            Cancel (dependantid)
+         END
+      END
+   END
+END Cancel ;
 
 
 (*
@@ -1240,7 +1389,7 @@ END FoldAssignment ;
 PROCEDURE FoldParameterAssign (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -1275,7 +1424,7 @@ END FoldParameterAssign ;
 PROCEDURE FoldReturn (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -1307,7 +1456,7 @@ END FoldReturn ;
 PROCEDURE FoldInc (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p          : Range ;
-   t, min, max: Tree ;
+   t, min, max: tree ;
    location   : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -1358,7 +1507,7 @@ END FoldInc ;
 PROCEDURE FoldDec (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p          : Range ;
-   t, min, max: Tree ;
+   t, min, max: tree ;
    location   : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -1475,7 +1624,7 @@ END CheckSet ;
 PROCEDURE FoldIncl (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -1513,7 +1662,7 @@ END FoldIncl ;
 PROCEDURE FoldExcl (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -1554,7 +1703,7 @@ VAR
    p       : Range ;
    shiftMin,
    shiftMax,
-   min, max: Tree ;
+   min, max: tree ;
    location   : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -1605,7 +1754,7 @@ VAR
    p        : Range ;
    rotateMin,
    rotateMax,
-   min, max : Tree ;
+   min, max : tree ;
    location   : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -1648,21 +1797,94 @@ END FoldRotate ;
 
 
 (*
+   FoldTypeReturnFunc - checks to see that val can be returned from func.
+*)
+
+PROCEDURE FoldTypeReturnFunc (q: CARDINAL; tokenNo: CARDINAL; func, val: CARDINAL; r: CARDINAL) ;
+VAR
+   valType,
+   returnType: CARDINAL ;
+BEGIN
+   returnType := GetType (func) ;
+   IF returnType = NulSym
+   THEN
+      IF NOT reportedError (r)
+      THEN
+         MetaErrorsT2 (tokenNo,
+                       'procedure {%1Da} is not a procedure function',
+                       '{%2ad} cannot be returned from {%1Da}',
+                       func, val) ;
+         SubQuad(q)
+      END
+   ELSE
+      valType := val ;
+      IF IsVar (val) AND (GetMode (val) = LeftValue)
+      THEN
+         valType := GetType (val)
+      END ;
+      IF AssignmentTypeCompatible (tokenNo, "", returnType, valType, FALSE)
+      THEN
+         SubQuad (q)
+      ELSE
+         IF NOT reportedError (r)
+         THEN
+            MetaErrorsT2 (tokenNo,
+                          'the return type {%1Etad} used in procedure {%1Da}',
+                          'is incompatible with the returned expression {%1ad}}',
+                          func, val) ;
+            setReported (r) ;
+            FlushErrors
+         END
+      END
+   END
+END FoldTypeReturnFunc ;
+
+
+(*
    FoldTypeAssign -
 *)
 
 PROCEDURE FoldTypeAssign (q: CARDINAL; tokenNo: CARDINAL; des, expr: CARDINAL; r: CARDINAL) ;
+BEGIN
+   IF NOT reportedError (r)
+   THEN
+      IF AssignmentTypeCompatible (tokenNo,
+                                   'assignment designator {%1Ea} {%1ta:of type {%1ta}}' +
+                                   ' cannot be assigned with' +
+                                   ' {%2ad: a {%2td} {%2ad}}{!%2ad: {%2ad} of type {%2tad}}',
+                                   des, expr, TRUE)
+      THEN
+         SubQuad (q)
+      ELSE
+         setReported (r) ;
+         FlushErrors
+      END
+   END
+END FoldTypeAssign ;
+
+
+(*
+   FoldTypeIndrX - check to see that des = *expr is type compatible.
+*)
+
+PROCEDURE FoldTypeIndrX (q: CARDINAL; tokenNo: CARDINAL; des, expr: CARDINAL; r: CARDINAL) ;
 VAR
+   desType,
    exprType: CARDINAL ;
 BEGIN
-   IF IsProcedure(expr)
+   (* Need to skip over a variable or temporary in des and expr so
+      long as expr is not a procedure.  In the case of des = *expr,
+      both expr and des will be variables due to the property of
+      indirection.  *)
+   desType := GetType (des) ;
+   IF IsProcedure (expr)
    THEN
+      (* Must not GetType for a procedure as it gives the return type.  *)
       exprType := expr
    ELSE
-      exprType := GetType(expr)
+      exprType := GetType (expr)
    END ;
-
-   IF IsAssignmentCompatible (GetType(des), exprType)
+   IF AssignmentTypeCompatible (tokenNo, "", GetType (des), GetType (expr), FALSE)
    THEN
       SubQuad(q)
    ELSE
@@ -1676,27 +1898,53 @@ BEGIN
                           des, expr) ;
          ELSE
             MetaErrorT3 (tokenNo,
-                         'assignment designator {%1Ea} {%1ta:of type {%1ta}} {%1d:is a {%1d}} and expression {%2a} {%3ad:of type {%3ad}} are incompatible',
+                         'assignment designator {%1Ea} {%1ta:of type {%1ta}}' +
+                         ' {%1d:is a {%1d}} and expression {%2a} {%3ad:of type' +
+                         ' {%3ad}} are incompatible',
                          des, expr, exprType)
          END ;
          setReported (r) ;
          FlushErrors
       END
    END
-END FoldTypeAssign ;
+END FoldTypeIndrX ;
 
 
 (*
-   FoldTypeParam -
+   FoldTypeParam - performs a parameter check between actual and formal.
+                   The quad is removed if the check succeeds.
 *)
 
-PROCEDURE FoldTypeParam (q: CARDINAL; tokenNo: CARDINAL; formal, actual, procedure: CARDINAL; paramNo: CARDINAL) ;
+PROCEDURE FoldTypeParam (q: CARDINAL; tokenNo: CARDINAL;
+                         formal, actual, procedure: CARDINAL;
+                         paramNo: CARDINAL;
+                         depRangeId: CARDINAL) ;
+VAR
+   compatible: BOOLEAN ;
 BEGIN
-   IF ParameterTypeCompatible (tokenNo,
-                               '{%4EN} parameter type failure between actual parameter type {%3ad} and the formal type {%2ad}',
-                               procedure, formal, actual, paramNo, IsVarParam (procedure, paramNo))
+   compatible := FALSE ;
+   IF IsVarParamAny (procedure, paramNo)
+   THEN
+      (* Expression type compatibility rules for pass by reference parameters.  *)
+      compatible := ParameterTypeCompatible (tokenNo,
+                                             '{%4EN} parameter failure due to expression incompatibility between actual parameter {%3ad} and the {%4N} formal {%2ad} parameter in procedure {%1ad}',
+                                             procedure, formal, actual, paramNo, TRUE)
+   ELSIF GetPIM ()
+   THEN
+      (* Assignment type compatibility rules for pass by value PIM parameters.  *)
+      compatible := ParameterTypeCompatible (tokenNo,
+                                             '{%4EN} parameter failure due to assignment incompatibility between actual parameter {%3ad} and the {%4N} formal {%2ad} parameter in procedure {%1ad}',
+                                             procedure, formal, actual, paramNo, FALSE)
+   ELSE
+      compatible := ParameterTypeCompatible (tokenNo,
+                                             '{%4EN} parameter failure due to parameter incompatibility between actual parameter {%3ad} and the {%4N} formal {%2ad} parameter in procedure {%1ad}',
+                                             procedure, formal, actual, paramNo, FALSE)
+   END ;
+   IF compatible
    THEN
       SubQuad(q)
+   ELSE
+      Cancel (depRangeId)
    END
 END FoldTypeParam ;
 
@@ -1713,7 +1961,8 @@ BEGIN
                                    'expression of type {%1Etad} is incompatible with type {%2tad}',
                                    left, right, strict, isin)
       THEN
-         SubQuad(q) ;
+         SubQuad(q)
+      ELSE
          setReported (r)
       END
    END
@@ -1725,35 +1974,90 @@ END FoldTypeExpr ;
 *)
 
 PROCEDURE CodeTypeAssign (tokenNo: CARDINAL; des, expr: CARDINAL; r: CARDINAL) ;
-VAR
-   exprType: CARDINAL ;
 BEGIN
-   IF IsProcedure(expr)
-   THEN
-      exprType := expr
-   ELSE
-      exprType := GetType(expr)
-   END ;
-   IF NOT IsAssignmentCompatible(GetType(des), exprType)
+   IF NOT AssignmentTypeCompatible (tokenNo, "", des, expr, FALSE)
    THEN
       IF NOT reportedError (r)
       THEN
-         IF IsProcedure(des)
+         MetaErrorT2 (tokenNo,
+                      'assignment designator {%1Ea} {%1ta:of type {%1ta}} {%1d:is a {%1d}} and expression {%2a} {%2tad:of type {%2tad}} are incompatible',
+                      des, expr)
+      END ;
+      setReported (r)
+   END
+END CodeTypeAssign ;
+
+
+(*
+   CodeTypeReturnFunc -
+*)
+
+PROCEDURE CodeTypeReturnFunc (tokenNo: CARDINAL; func, val: CARDINAL; r: CARDINAL) ;
+VAR
+   valType,
+   returnType: CARDINAL ;
+BEGIN
+   returnType := GetType (func) ;
+   IF returnType = NulSym
+   THEN
+      IF NOT reportedError (r)
+      THEN
+         MetaErrorsT2 (tokenNo,
+                       'procedure {%1Da} is not a procedure function',
+                       '{%2ad} cannot be returned from {%1Da}',
+                       func, val) ;
+      END
+   ELSE
+      valType := val ;
+      IF IsVar (val) AND (GetMode (val) = LeftValue)
+      THEN
+         valType := GetType (val)
+      END ;
+      IF NOT AssignmentTypeCompatible (tokenNo, "", returnType, valType, FALSE)
+      THEN
+         IF NOT reportedError (r)
          THEN
-            MetaErrorsT2(tokenNo,
-                         'the return type {%1Etad} declared in procedure {%1Da}',
-                         'is incompatible with the returned expression {%2EUa} {%2tad:of type {%2tad}}',
-                         des, expr) ;
+            MetaErrorsT2 (tokenNo,
+                          'the return type {%1Etad} used in procedure function {%1Da}',
+                          'is incompatible with the returned expression {%2EUa} {%2tad:of type {%2tad}}',
+                          func, val)
+         END
+      END
+   END
+END CodeTypeReturnFunc ;
+
+
+(*
+   CodeTypeIndrX - checks that des = *expr is type compatible and generates an error if they
+                   are not compatible.  It skips over the LValue type so that to allow
+                   the error messages to pick up the source variable name rather than
+                   a temporary name or vague name 'expression'.
+*)
+
+PROCEDURE CodeTypeIndrX (tokenNo: CARDINAL; des, expr: CARDINAL; r: CARDINAL) ;
+BEGIN
+   IF NOT AssignmentTypeCompatible (tokenNo, "", GetType (des), GetType (expr), FALSE)
+   THEN
+      IF NOT reportedError (r)
+      THEN
+         IF IsProcedure (des)
+         THEN
+            MetaErrorsT2 (tokenNo,
+                          'the return type {%1Etad} declared in procedure {%1Da}',
+                          'is incompatible with the returned expression {%2EUa} {%2tad:of type {%2tad}}',
+                          des, expr) ;
          ELSE
-            MetaErrorT2(tokenNo,
-                        'assignment designator {%1Ea} {%1ta:of type {%1ta}} {%1d:is a {%1d}} and expression {%2a} {%2tad:of type {%2tad}} are incompatible',
-                        des, expr)
+            MetaErrorT2 (tokenNo,
+                         'assignment designator {%1Ea} {%1ta:of type {%1ta}}' +
+                         ' {%1d:is a {%1d}} and expression {%2a}' +
+                         ' {%2tad:of type {%2tad}} are incompatible',
+                         des, expr)
          END ;
          setReported (r)
       END
       (* FlushErrors *)
    END
-END CodeTypeAssign ;
+END CodeTypeIndrX ;
 
 
 (*
@@ -1764,7 +2068,7 @@ PROCEDURE CodeTypeParam (tokenNo: CARDINAL; formal, actual, procedure: CARDINAL;
 BEGIN
    IF NOT ParameterTypeCompatible (tokenNo,
                                    '{%4EN} type failure between actual {%3ad} and the formal {%2ad}',
-                                   procedure, formal, actual, paramNo, IsVarParam (procedure, paramNo))
+                                   procedure, formal, actual, paramNo, IsVarParamAny (procedure, paramNo))
    THEN
    END
 END CodeTypeParam ;
@@ -1807,9 +2111,11 @@ BEGIN
       THEN
          CASE type OF
 
-         typeassign:  FoldTypeAssign(q, tokenNo, des, expr, r) |
-         typeparam:   FoldTypeParam(q, tokenNo, des, expr, procedure, paramNo) |
-         typeexpr:    FoldTypeExpr(q, tokenNo, des, expr, strict, isin, r)
+         typeassign:  FoldTypeAssign (q, tokenNo, des, expr, r) |
+         typeparam :  FoldTypeParam (q, tokenNo, des, expr, procedure, paramNo, r) |
+         typeexpr  :  FoldTypeExpr (q, tokenNo, des, expr, strict, isin, r) |
+         typeindrx :  FoldTypeIndrX (q, tokenNo, des, expr, r) |
+         typereturn:  FoldTypeReturnFunc (q, tokenNo, des, expr, r)
 
          ELSE
             InternalError ('not expecting to reach this point')
@@ -1840,9 +2146,11 @@ BEGIN
       THEN
          CASE type OF
 
-         typeassign:  CodeTypeAssign(tokenNo, des, expr, r) |
-         typeparam:   CodeTypeParam(tokenNo, des, expr, procedure, paramNo) |
-         typeexpr:    CodeTypeExpr(tokenNo, des, expr, strict, isin, r)
+         typeassign:  CodeTypeAssign (tokenNo, des, expr, r) |
+         typeparam :  CodeTypeParam (tokenNo, des, expr, procedure, paramNo) |
+         typeexpr  :  CodeTypeExpr (tokenNo, des, expr, strict, isin, r) |
+         typeindrx :  CodeTypeIndrX (tokenNo, des, expr, r) |
+         typereturn:  CodeTypeReturnFunc (tokenNo, des, expr, r)
 
          ELSE
             InternalError ('not expecting to reach this point')
@@ -1871,7 +2179,7 @@ BEGIN
    success := TRUE ;
    WITH p^ DO
       combinedtok := MakeVirtual2Tok (destok, exprtok) ;
-      IF NOT AssignmentTypeCompatible (combinedtok, "", des, expr)
+      IF NOT AssignmentTypeCompatible (combinedtok, "", des, expr, TRUE)
       THEN
          MetaErrorT2 (combinedtok,
                       'type incompatibility between {%1Et} and {%2t} detected during the assignment of the designator {%1a} to the first expression {%2a} in the {%kFOR} loop',
@@ -1911,7 +2219,7 @@ END ForLoopBeginTypeCompatible ;
 PROCEDURE FoldForLoopBegin (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -1946,7 +2254,7 @@ END FoldForLoopBegin ;
 PROCEDURE FoldForLoopTo (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -1978,7 +2286,7 @@ END FoldForLoopTo ;
 PROCEDURE FoldStaticArraySubscript (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
 VAR
    p       : Range ;
-   min, max: Tree ;
+   min, max: tree ;
 BEGIN
    p := GetIndice (RangeIndex, r) ;
    WITH p^ DO
@@ -2243,7 +2551,7 @@ END FoldZeroRem ;
 
 
 (*
-   FoldRangeCheck - attempts to resolve the range check, r.
+   FoldRangeCheck - attempts to resolve the range check.
                     If it evaluates to true then
                        it is replaced by an ErrorOp
                     elsif it evaluates to false then
@@ -2252,47 +2560,65 @@ END FoldZeroRem ;
                        it is left alone
 *)
 
-PROCEDURE FoldRangeCheck (tokenno: CARDINAL; q: CARDINAL; r: CARDINAL) ;
+PROCEDURE FoldRangeCheck (tokenno: CARDINAL; quad: CARDINAL; range: CARDINAL) ;
+BEGIN
+   IF IsCancelled (range)
+   THEN
+      SubQuad (quad)
+   ELSE
+      FoldRangeCheckLower (tokenno, quad, range)
+   END
+END FoldRangeCheck ;
+
+
+(*
+   FoldRangeCheckLower - call the appropriate Fold procedure depending upon the type
+                         of range.
+*)
+
+PROCEDURE FoldRangeCheckLower (tokenno: CARDINAL; quad: CARDINAL; range: CARDINAL) ;
 VAR
    p: Range ;
 BEGIN
-   p := GetIndice(RangeIndex, r) ;
+   p := GetIndice(RangeIndex, range) ;
    WITH p^ DO
       CASE type OF
 
-      assignment           :  FoldAssignment(tokenno, q, r) |
-      returnassignment     :  FoldReturn(tokenno, q, r) |
+      assignment           :  FoldAssignment(tokenno, quad, range) |
+      returnassignment     :  FoldReturn(tokenno, quad, range) |
 (*      subrangeassignment   :  |  unused currently *)
-      inc                  :  FoldInc(tokenno, q, r) |
-      dec                  :  FoldDec(tokenno, q, r) |
-      incl                 :  FoldIncl(tokenno, q, r) |
-      excl                 :  FoldExcl(tokenno, q, r) |
-      shift                :  FoldShift(tokenno, q, r) |
-      rotate               :  FoldRotate(tokenno, q, r) |
-      typeassign           :  FoldTypeCheck(tokenno, q, r) |
-      typeparam            :  FoldTypeCheck(tokenno, q, r) |
-      typeexpr             :  FoldTypeCheck(tokenno, q, r) |
-      paramassign          :  FoldParameterAssign(tokenno, q, r) |
-      staticarraysubscript :  FoldStaticArraySubscript(tokenno, q, r) |
-      dynamicarraysubscript:  FoldDynamicArraySubscript(tokenno, q, r) |
-      forloopbegin         :  FoldForLoopBegin(tokenno, q, r) |
-      forloopto            :  FoldForLoopTo(tokenno, q, r) |
+      inc                  :  FoldInc(tokenno, quad, range) |
+      dec                  :  FoldDec(tokenno, quad, range) |
+      incl                 :  FoldIncl(tokenno, quad, range) |
+      excl                 :  FoldExcl(tokenno, quad, range) |
+      shift                :  FoldShift(tokenno, quad, range) |
+      rotate               :  FoldRotate(tokenno, quad, range) |
+      typereturn,
+      typeassign,
+      typeparam,
+      typeexpr,
+      typeindrx            :  FoldTypeCheck (tokenno, quad, range) |
+      paramassign          :  FoldParameterAssign(tokenno, quad, range) |
+      staticarraysubscript :  FoldStaticArraySubscript(tokenno, quad, range) |
+      dynamicarraysubscript:  FoldDynamicArraySubscript(tokenno, quad, range) |
+      forloopbegin         :  FoldForLoopBegin(tokenno, quad, range) |
+      forloopto            :  FoldForLoopTo(tokenno, quad, range) |
       forloopend           :  RETURN (* unable to fold anything at this point, des, will be variable *) |
-      pointernil           :  FoldNil(tokenno, q, r) |
+      pointernil           :  FoldNil(tokenno, quad, range) |
       noreturn             :  RETURN (* nothing to fold *) |
       noelse               :  RETURN (* nothing to fold *) |
-      casebounds           :  FoldCaseBounds(tokenno, q, r) |
-      wholenonposdiv       :  FoldNonPosDiv(tokenno, q, r) |
-      wholenonposmod       :  FoldNonPosMod(tokenno, q, r) |
-      wholezerodiv         :  FoldZeroDiv(tokenno, q, r) |
-      wholezerorem         :  FoldZeroRem(tokenno, q, r) |
-      none                 :  SubQuad(q)
+      casebounds           :  FoldCaseBounds(tokenno, quad, range) |
+      wholenonposdiv       :  FoldNonPosDiv(tokenno, quad, range) |
+      wholenonposmod       :  FoldNonPosMod(tokenno, quad, range) |
+      wholezerodiv         :  FoldZeroDiv(tokenno, quad, range) |
+      wholezerorem         :  FoldZeroRem(tokenno, quad, range) |
+      none                 :  SubQuad(quad)
 
       ELSE
          InternalError ('unexpected case')
       END
    END
-END FoldRangeCheck ;
+END FoldRangeCheckLower ;
 
 
 (*
@@ -2301,9 +2627,9 @@ END FoldRangeCheck ;
                        is an LValue.
 *)
 
-PROCEDURE DeReferenceLValue (tokenno: CARDINAL; expr: CARDINAL) : Tree ;
+PROCEDURE DeReferenceLValue (tokenno: CARDINAL; expr: CARDINAL) : tree ;
 VAR
-   e       : Tree ;
+   e       : tree ;
    location: location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -2345,13 +2671,13 @@ END BuildStringParamLoc ;
    CodeErrorCheck - returns a Tree calling the approprate exception handler.
 *)
 
-PROCEDURE CodeErrorCheck (r: CARDINAL; function, message: String) : Tree ;
+PROCEDURE CodeErrorCheck (r: CARDINAL; function, message: String) : tree ;
 VAR
    filename: String ;
    line,
    column  : CARDINAL ;
    p       : Range ;
-   f       : Tree ;
+   f       : tree ;
    location: location_t ;
 BEGIN
    IF HandlerExists (r)
@@ -2442,11 +2768,11 @@ END IssueWarning ;
 *)
 
 PROCEDURE CodeErrorCheckLoc (location: location_t;
-                             function, message: ADDRESS; func: CARDINAL) : Tree ;
+                             function, message: ConstCharStar; func: CARDINAL) : tree ;
 VAR
    scope,
    errorMessage: String ;
-   t           : Tree ;
+   t           : tree ;
    filename    : String ;
    line,
    column      : CARDINAL ;
@@ -2492,7 +2818,7 @@ END CodeErrorCheckLoc ;
    IssueWarningLoc -
 *)
 
-PROCEDURE IssueWarningLoc (location: location_t; message: ADDRESS) ;
+PROCEDURE IssueWarningLoc (location: location_t; message: ConstCharStar) ;
 VAR
    s: String ;
 BEGIN
@@ -2507,8 +2833,8 @@ END IssueWarningLoc ;
    BuildIfCallWholeHandlerLoc - return a Tree containing a runtime test whether, condition, is true.
 *)
 
-PROCEDURE BuildIfCallWholeHandlerLoc (location: location_t; condition: Tree;
-                                      scope, message: ADDRESS) : Tree ;
+PROCEDURE BuildIfCallWholeHandlerLoc (location: location_t; condition: tree;
+                                      scope, message: ConstCharStar) : tree ;
 BEGIN
    RETURN BuildIfCallHandlerLoc (location, condition, scope, message, ExceptionWholeValue)
 END BuildIfCallWholeHandlerLoc ;
@@ -2518,8 +2844,8 @@ END BuildIfCallWholeHandlerLoc ;
    BuildIfCallRealHandlerLoc - return a Tree containing a runtime test whether, condition, is true.
 *)
 
-PROCEDURE BuildIfCallRealHandlerLoc (location: location_t; condition: Tree;
-                                     scope, message: ADDRESS) : Tree ;
+PROCEDURE BuildIfCallRealHandlerLoc (location: location_t; condition: tree;
+                                     scope, message: ConstCharStar) : tree ;
 BEGIN
    RETURN BuildIfCallHandlerLoc (location, condition, scope, message, ExceptionRealValue)
 END BuildIfCallRealHandlerLoc ;
@@ -2529,8 +2855,8 @@ END BuildIfCallRealHandlerLoc ;
    BuildIfCallHandlerLoc - return a Tree containing a runtime test whether, condition, is true.
 *)
 
-PROCEDURE BuildIfCallHandlerLoc (location: location_t; condition: Tree;
-                                 scope, message: ADDRESS; func: CARDINAL) : Tree ;
+PROCEDURE BuildIfCallHandlerLoc (location: location_t; condition: tree;
+                                 scope, message: ConstCharStar; func: CARDINAL) : tree ;
 BEGIN
    IF IsTrue (condition)
    THEN
@@ -2544,8 +2870,8 @@ END BuildIfCallHandlerLoc ;
    BuildIfCallHandler -
 *)
 
-PROCEDURE BuildIfCallHandler (condition: Tree; r: CARDINAL;
-                              function, message: String; warning: BOOLEAN) : Tree ;
+PROCEDURE BuildIfCallHandler (condition: tree; r: CARDINAL;
+                              function, message: String; warning: BOOLEAN) : tree ;
 BEGIN
    IF warning AND IsTrue (condition)
    THEN
@@ -2562,7 +2888,7 @@ END BuildIfCallHandler ;
 PROCEDURE RangeCheckReal (p: Range; r: CARDINAL; function, message: String) ;
 VAR
    e,
-   condition: Tree ;
+   condition: tree ;
    location : location_t ;
 BEGIN
    WITH p^ DO
@@ -2584,7 +2910,7 @@ PROCEDURE RangeCheckOrdinal (p: Range; r: CARDINAL; function, message: String) ;
 VAR
    condition,
    desMin, desMax,
-   exprMin, exprMax: Tree ;
+   exprMin, exprMax: tree ;
    location        : location_t ;
 BEGIN
    WITH p^ DO
@@ -2644,7 +2970,7 @@ PROCEDURE DoCodeAssignmentWithoutExprType (p: Range;
                                            r: CARDINAL; function, message: String) ;
 VAR
    condition,
-   desMin, desMax: Tree ;
+   desMin, desMax: tree ;
    location      : location_t ;
 BEGIN
    WITH p^ DO
@@ -2736,10 +3062,10 @@ END CodeReturn ;
    IfOutsideLimitsDo -
 *)
 
-PROCEDURE IfOutsideLimitsDo (tokenno: CARDINAL; min, expr, max: Tree; r: CARDINAL;
+PROCEDURE IfOutsideLimitsDo (tokenno: CARDINAL; min, expr, max: tree; r: CARDINAL;
                              function, message: String) ;
 VAR
-   condition: Tree ;
+   condition: tree ;
    location : location_t ;
 BEGIN
    location := TokenToLocation (tokenno) ;
@@ -2760,7 +3086,7 @@ VAR
    p             : Range ;
    t, condition,
    e,
-   desMin, desMax: Tree ;
+   desMin, desMax: tree ;
    location      : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -2803,7 +3129,7 @@ VAR
    p             : Range ;
    t, condition,
    e,
-   desMin, desMax: Tree ;
+   desMin, desMax: tree ;
    location      : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -2844,7 +3170,7 @@ PROCEDURE CodeInclExcl (tokenno: CARDINAL;
 VAR
    p             : Range ;
    e,
-   desMin, desMax: Tree ;
+   desMin, desMax: tree ;
    location      : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -2890,7 +3216,7 @@ VAR
    p                 : Range ;
    e,
    shiftMin, shiftMax,
-   desMin, desMax    : Tree ;
+   desMin, desMax    : tree ;
    location          : location_t ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
@@ -2932,7 +3258,7 @@ PROCEDURE CodeStaticArraySubscript (tokenno: CARDINAL;
                                     r: CARDINAL; function, message: String) ;
 VAR
    p             : Range ;
-   desMin, desMax: Tree ;
+   desMin, desMax: tree ;
    location      : location_t ;
 BEGIN
    location := TokenToLocation (tokenno) ;
@@ -2965,7 +3291,7 @@ PROCEDURE CodeDynamicArraySubscript (tokenno: CARDINAL;
 VAR
    UnboundedType: CARDINAL ;
    p            : Range ;
-   high, e      : Tree ;
+   high, e      : tree ;
    location     : location_t ;
 BEGIN
    location := TokenToLocation(tokenno) ;
@@ -3083,12 +3409,12 @@ END CodeForLoopTo ;
 *)
 
 PROCEDURE SameTypesCodeForLoopEnd (tokenNo: CARDINAL; r: CARDINAL; function, message: String;
-                                   p: Range; dmax: Tree) ;
+                                   p: Range; dmax: tree) ;
 VAR
    inc,
    room,
    statement,
-   condition: Tree ;
+   condition: tree ;
    location : location_t ;
 BEGIN
    location := TokenToLocation(tokenNo) ;
@@ -3108,7 +3434,7 @@ END SameTypesCodeForLoopEnd ;
 *)
 
 PROCEDURE DiffTypesCodeForLoopEnd (tokenNo: CARDINAL; r: CARDINAL; function, message: String;
-                                   p: Range; dmax, emin, emax: Tree) ;
+                                   p: Range; dmax, emin, emax: tree) ;
 VAR
    location  : location_t ;
    desoftypee,
@@ -3121,7 +3447,7 @@ VAR
    s4, s5, s6,
    s7, s8,
    lg1, lg2,
-   dz, ez    : Tree ;
+   dz, ez    : tree ;
 BEGIN
    location := TokenToLocation(tokenNo) ;
    WITH p^ DO
@@ -3193,7 +3519,7 @@ VAR
    isCard    : BOOLEAN ;
    p         : Range ;
    dmin, dmax,
-   emin, emax: Tree ;
+   emin, emax: tree ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
@@ -3229,7 +3555,7 @@ END CodeForLoopEnd ;
 PROCEDURE CodeNil (r: CARDINAL; function, message: String) ;
 VAR
    p           : Range ;
-   condition, t: Tree ;
+   condition, t: tree ;
    location    : location_t ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
@@ -3261,7 +3587,7 @@ VAR
    zero     : CARDINAL ;
    p        : Range ;
    condition,
-   e        : Tree ;
+   e        : tree ;
    location : location_t ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
@@ -3291,7 +3617,7 @@ VAR
    zero     : CARDINAL ;
    p        : Range ;
    condition,
-   e        : Tree ;
+   e        : tree ;
    location : location_t ;
 BEGIN
    p := GetIndice(RangeIndex, r) ;
@@ -3407,6 +3733,8 @@ BEGIN
       typeassign           :  s := NIL |
       typeparam            :  s := NIL |
       typeexpr             :  s := NIL |
+      typeindrx            :  s := InitString ('assignment between designator {%1ad} and {%2ad} is incompatible') |
+      typereturn           :  s := InitString ('the value {%2ad} returned from procedure function {%1a} is type incompatible, expecting {%1tad} rather than a {%2tad}') |
       paramassign          :  s := InitString('if this call is executed then the actual parameter {%2Wa} will be out of range of the {%3N} formal parameter {%1a}') |
       staticarraysubscript :  s := InitString('if this access to the static array {%1Wa:{%2a:{%1a}[{%2a}]}} is ever made then the index will be out of bounds in the {%3N} array subscript') |
       dynamicarraysubscript:  s := InitString('if this access to the dynamic array {%1Wa:{%2a:{%1a}[{%2a}]}} is ever made then the index will be out of bounds in the {%3N} array subscript') |
@@ -3455,9 +3783,11 @@ BEGIN
       excl                 :  CodeInclExcl (tokenNo, r, function, message) |
       shift,
       rotate               :  CodeShiftRotate (tokenNo, r, function, message) |
-      typeassign           :  CodeTypeCheck (tokenNo, r) |
-      typeparam            :  CodeTypeCheck (tokenNo, r) |
-      typeexpr             :  CodeTypeCheck (tokenNo, r) |
+      typeassign,
+      typeparam,
+      typeexpr,
+      typeindrx,
+      typereturn           :  CodeTypeCheck (tokenNo, r) |
       staticarraysubscript :  CodeStaticArraySubscript (tokenNo, r, function, message) |
       dynamicarraysubscript:  CodeDynamicArraySubscript (tokenNo, r, function, message) |
       forloopbegin         :  CodeForLoopBegin (tokenNo, r, function, message) |
@@ -3567,6 +3897,19 @@ VAR
 BEGIN
    p := GetIndice(RangeIndex, r) ;
    WITH p^ DO
+      WriteString ('range ') ;
+      WriteCard (r, 0) ;
+      WriteString (' ') ;
+      IF cancelled
+      THEN
+         WriteString ('cancelled ')
+      END ;
+      IF dependantid # 0
+      THEN
+         WriteString ('dep ') ;
+         WriteCard (dependantid, 0) ;
+         WriteString (' ')
+      END ;
       CASE type OF
 
       assignment           :  WriteString('assignment (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
@@ -3580,6 +3923,8 @@ BEGIN
       rotate               :  WriteString('rotate(') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
       typeexpr             :  WriteString('expr compatible (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
       typeassign           :  WriteString('assignment compatible (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
+      typeindrx            :  WriteString('indrx compatible (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
+      typereturn           :  WriteString('return compatible (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
       typeparam            :  WriteString('parameter compatible (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
       paramassign          :  WriteString('parameter range (') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
       staticarraysubscript :  WriteString('staticarraysubscript(') ; WriteOperand(des) ; WriteString(', ') ; WriteOperand(expr) |
@@ -3612,7 +3957,19 @@ END WriteRangeCheck ;
 PROCEDURE Init ;
 BEGIN
    TopOfRange := 0 ;
-   RangeIndex := InitIndex(1)
+   RangeIndex := InitIndex(1) ;
+   BreakWhenRangeCreated (0) ;  (* Disable the intereactive range watch.  *)
+   (* To examine the range when it is created run cc1gm2 from gdb
+      and set a break point on gdbhook.
+      (gdb) break gdbhook
+      (gdb) run
+      Now below interactively call BreakWhenRangeCreated with the symbol
+      under investigation.  *)
+   gdbhook ;
+   (* Now is the time to interactively call gdb, for example:
+      (gdb) print BreakWhenRangeCreated (1234)
+      (gdb) cont
+      and you will arrive at gdbhook when this symbol is created.  *)
 END Init ;
 
 

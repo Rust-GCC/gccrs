@@ -1,4 +1,4 @@
-/* Copyright (C) 2002-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -33,6 +33,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 
 #include <taskLib.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define __TIMESPEC_TO_NSEC(timespec) \
   ((long long)timespec.tv_sec * 1000000000 + (long long)timespec.tv_nsec)

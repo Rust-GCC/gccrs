@@ -1,12 +1,15 @@
 // { dg-options "-fexec-charset=UTF-8" }
 // { dg-do run { target c++20 } }
 // { dg-add-options no_pch }
+// { dg-additional-options "-DUNICODE" { target 4byte_wchar_t } }
 
 #include <format>
 
 #ifndef __cpp_lib_format
 # error "Feature test macro for std::format is missing in <format>"
 #elif __cpp_lib_format < 202110L
+# error "Feature test macro for std::format has wrong value in <format>"
+#elif __cplusplus > 202302L && __cpp_lib_format < 202311L
 # error "Feature test macro for std::format has wrong value in <format>"
 #endif
 
@@ -21,6 +24,8 @@
 #ifndef __cpp_lib_format
 # error "Feature test macro for std::format is missing in <version>"
 #elif __cpp_lib_format < 202110L
+# error "Feature test macro for std::format has wrong value in <version>"
+#elif __cplusplus > 202302L && __cpp_lib_format < 202311L
 # error "Feature test macro for std::format has wrong value in <version>"
 #endif
 
@@ -157,6 +162,11 @@ test_std_examples()
 
     // Restore
     std::locale::global(std::locale::classic());
+
+    string s5 = format("{}", -100); // PR libstdc++/114325
+    VERIFY(s5 == "-100");
+    string s6 = format("{:d} {:d}", -123, 999);
+    VERIFY(s6 == "-123 999");
   }
 }
 
@@ -242,6 +252,14 @@ test_locale()
 
   s = std::format(cloc, "{:05L}", -1.0); // PR libstdc++/110968
   VERIFY( s == "-0001" );
+
+  // PR libstdc++/114863 grouping applied to nan and inf
+  double inf = std::numeric_limits<double>::infinity();
+  s = std::format(eloc, "{0:Le} {0:Lf} {0:Lg}", -inf);
+  VERIFY( s == "-inf -inf -inf" );
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  s = std::format(eloc, "{0:Le} {0:Lf} {0:Lg}", -nan);
+  VERIFY( s == "-nan -nan -nan" );
 
   // Restore
   std::locale::global(cloc);
@@ -353,6 +371,18 @@ test_wchar()
   // P2909R4 Fix formatting of code units as integers (Dude, where’s my char?)
   s = std::format(L"{:d} {:d}", wchar_t(-1), char(-1));
   VERIFY( s.find('-') == std::wstring::npos );
+
+  auto ws = std::format(L"{:L}", 0.5);
+  VERIFY( ws == L"0.5" );
+  // The default C locale.
+  std::locale cloc = std::locale::classic();
+  // PR libstdc++/119671 use-after-free formatting floating-point to wstring
+  ws = std::format(cloc, L"{:L}", 0.5);
+  VERIFY( ws == L"0.5" );
+  // A locale with no name, but with the same facets as the C locale.
+  std::locale locx(cloc, &std::use_facet<std::ctype<char>>(cloc));
+  ws = std::format(locx, L"{:L}", 0.5);
+  VERIFY( ws == L"0.5" );
 }
 
 void
@@ -445,7 +475,7 @@ test_pointer()
   s = std::format("{:20} {:20p}", p, pc);
   VERIFY( s == (str_int + ' ' + str_int) );
 
-#if __cplusplus > 202302L || ! defined __STRICT_ANSI__
+#if __cpp_lib_format >= 202304L
   // P2510R3 Formatting pointers
   s = std::format("{:06} {:07P} {:08p}", (void*)0, (const void*)0, nullptr);
   VERIFY( s == "0x0000 0X00000 0x000000" );
@@ -482,11 +512,17 @@ test_bool()
 void
 test_unicode()
 {
+#ifdef UNICODE
   // Similar to sC example in test_std_examples, but not from the standard.
   // Verify that the character "🤡" has estimated field width 2,
-  // rather than estimated field width equal to strlen("🤡"), which would be 4.
+  // rather than estimated field width equal to strlen("🤡"), which would be 4,
+  // or just width 1 for single character.
   std::string sC = std::format("{:*<3}", "🤡");
   VERIFY( sC == "🤡*" );
+  std::wstring wsC = std::format(L"{:*<3}", L"🤡");
+  VERIFY( wsC == L"🤡*" );
+  wsC = std::format(L"{:*<3}", L'🤡');
+  VERIFY( wsC == L"🤡*" );
 
   // Verify that "£" has estimated field width 1, not strlen("£") == 2.
   std::string sL = std::format("{:*<3}", "£");
@@ -530,6 +566,7 @@ test_unicode()
     std::string sA = std::format("{:>5}", input[0]);
     VERIFY( sA == input[1] );
   }
+#endif
 }
 
 int main()

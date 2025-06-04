@@ -1,19 +1,23 @@
 /**
  * Contains C++ interfaces for interacting with DMD as a library.
  *
- * Copyright:   Copyright (C) 1999-2024 by The D Language Foundation, All Rights Reserved
+ * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/cxxfrontend.d, _cxxfrontend.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/cxxfrontend.d, _cxxfrontend.d)
  * Documentation:  https://dlang.org/phobos/dmd_cxxfrontend.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/cxxfrontend.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/cxxfrontend.d
  */
 module dmd.cxxfrontend;
 
 import dmd.aggregate : AggregateDeclaration;
 import dmd.arraytypes;
 import dmd.astenums;
+import dmd.attrib;
 import dmd.common.outbuffer : OutBuffer;
+import dmd.dclass : ClassDeclaration;
+import dmd.declaration : TypeInfoDeclaration;
+import dmd.denum : EnumDeclaration;
 import dmd.dmodule /*: Module*/;
 import dmd.dscope : Scope;
 import dmd.dstruct /*: StructDeclaration*/;
@@ -34,24 +38,33 @@ import dmd.statement : Statement, AsmStatement, GccAsmStatement;
 extern (C++, "dmd"):
 
 /***********************************************************
- * cppmangle.d
+ * atrtibsem.d
+ */
+Expressions* getAttributes(UserAttributeDeclaration a)
+{
+    import dmd.attribsem;
+    return dmd.attribsem.getAttributes(a);
+}
+
+/***********************************************************
+ * mangle/cpp.d
  */
 const(char)* toCppMangleItanium(Dsymbol s)
 {
-    import dmd.cppmangle;
-    return dmd.cppmangle.toCppMangleItanium(s);
+    import dmd.mangle.cpp;
+    return dmd.mangle.cpp.toCppMangleItanium(s);
 }
 
 const(char)* cppTypeInfoMangleItanium(Dsymbol s)
 {
-    import dmd.cppmangle;
-    return dmd.cppmangle.cppTypeInfoMangleItanium(s);
+    import dmd.mangle.cpp;
+    return dmd.mangle.cpp.cppTypeInfoMangleItanium(s);
 }
 
 const(char)* cppThunkMangleItanium(FuncDeclaration fd, int offset)
 {
-    import dmd.cppmangle;
-    return dmd.cppmangle.cppThunkMangleItanium(fd, offset);
+    import dmd.mangle.cpp;
+    return dmd.mangle.cpp.cppThunkMangleItanium(fd, offset);
 }
 
 /***********************************************************
@@ -64,36 +77,36 @@ Expression ctfeInterpret(Expression e)
 }
 
 /***********************************************************
- * dmangle.d
+ * mangle/package.d
  */
 const(char)* mangleExact(FuncDeclaration fd)
 {
-    import dmd.dmangle;
-    return dmd.dmangle.mangleExact(fd);
+    import dmd.mangle;
+    return dmd.mangle.mangleExact(fd);
 }
 
 void mangleToBuffer(Type t, ref OutBuffer buf)
 {
-    import dmd.dmangle;
-    return dmd.dmangle.mangleToBuffer(t, buf);
+    import dmd.mangle;
+    return dmd.mangle.mangleToBuffer(t, buf);
 }
 
 void mangleToBuffer(Expression e, ref OutBuffer buf)
 {
-    import dmd.dmangle;
-    return dmd.dmangle.mangleToBuffer(e, buf);
+    import dmd.mangle;
+    return dmd.mangle.mangleToBuffer(e, buf);
 }
 
 void mangleToBuffer(Dsymbol s, ref OutBuffer buf)
 {
-    import dmd.dmangle;
-    return dmd.dmangle.mangleToBuffer(s, buf);
+    import dmd.mangle;
+    return dmd.mangle.mangleToBuffer(s, buf);
 }
 
 void mangleToBuffer(TemplateInstance ti, ref OutBuffer buf)
 {
-    import dmd.dmangle;
-    return dmd.dmangle.mangleToBuffer(ti, buf);
+    import dmd.mangle;
+    return dmd.mangle.mangleToBuffer(ti, buf);
 }
 
 /***********************************************************
@@ -142,7 +155,7 @@ void addMember(Dsymbol dsym, Scope* sc, ScopeDsymbol sds)
     return dmd.dsymbolsem.addMember(dsym, sc, sds);
 }
 
-Dsymbol search(Dsymbol d, const ref Loc loc, Identifier ident, SearchOptFlags
+Dsymbol search(Dsymbol d, Loc loc, Identifier ident, SearchOptFlags
                flags = SearchOpt.all)
 {
     import dmd.dsymbolsem;
@@ -159,6 +172,24 @@ void importAll(Dsymbol d, Scope* sc)
 {
     import dmd.dsymbolsem;
     return dmd.dsymbolsem.importAll(d, sc);
+}
+
+Dsymbols* include(Dsymbol d, Scope* sc)
+{
+    import dmd.dsymbolsem;
+    return dmd.dsymbolsem.include(d, sc);
+}
+
+bool isFuncHidden(ClassDeclaration cd, FuncDeclaration fd)
+{
+    import dmd.dsymbolsem;
+    return dmd.dsymbolsem.isFuncHidden(cd, fd);
+}
+
+Dsymbol vtblSymbol(ClassDeclaration cd)
+{
+    import dmd.dsymbolsem;
+    return dmd.dsymbolsem.vtblSymbol(cd);
 }
 
 /***********************************************************
@@ -214,6 +245,15 @@ void genCppHdrFiles(ref Modules ms)
 }
 
 /***********************************************************
+ * enumsem.d
+ */
+Expression getDefaultValue(EnumDeclaration ed, Loc loc)
+{
+    import dmd.enumsem;
+    return dmd.enumsem.getDefaultValue(ed, loc);
+}
+
+/***********************************************************
  * expression.d
  */
 void expandTuples(Expressions* exps, Identifiers* names = null)
@@ -230,6 +270,26 @@ Expression expressionSemantic(Expression e, Scope* sc)
     return dmd.expressionsem.expressionSemantic(e, sc);
 }
 
+bool fill(StructDeclaration sd, Loc loc,
+          ref Expressions elements, bool ctorinit)
+{
+    import dmd.expressionsem;
+    return dmd.expressionsem.fill(sd, loc, elements, ctorinit);
+}
+
+/***********************************************************
+ * func.d
+ */
+FuncDeclaration genCfunc(Parameters* fparams, Type treturn, const(char)* name, StorageClass stc = STC.none)
+{
+    return FuncDeclaration.genCfunc(fparams, treturn, name, cast(STC) stc);
+}
+
+FuncDeclaration genCfunc(Parameters* fparams, Type treturn, Identifier id, StorageClass stc = STC.none)
+{
+    return FuncDeclaration.genCfunc(fparams, treturn, id, cast(STC) stc);
+}
+
 /***********************************************************
  * funcsem.d
  */
@@ -243,6 +303,18 @@ bool functionSemantic3(FuncDeclaration fd)
 {
     import dmd.funcsem;
     return dmd.funcsem.functionSemantic3(fd);
+}
+
+MATCH leastAsSpecialized(FuncDeclaration fd, FuncDeclaration g, Identifiers* names)
+{
+    import dmd.funcsem;
+    return dmd.funcsem.leastAsSpecialized(fd, g, names);
+}
+
+PURE isPure(FuncDeclaration fd)
+{
+    import dmd.funcsem;
+    return dmd.funcsem.isPure(fd);
 }
 
 /***********************************************************
@@ -293,13 +365,13 @@ const(char)* parametersTypeToChars(ParameterList pl)
 /***********************************************************
  * iasm.d
  */
-Statement asmSemantic(AsmStatement s, Scope *sc)
+Statement asmSemantic(AsmStatement s, Scope* sc)
 {
     import dmd.iasm;
     return dmd.iasm.asmSemantic(s, sc);
 }
 
-void asmSemantic(CAsmDeclaration d, Scope *sc)
+void asmSemantic(CAsmDeclaration d, Scope* sc)
 {
     import dmd.iasm;
     return dmd.iasm.asmSemantic(d, sc);
@@ -308,13 +380,13 @@ void asmSemantic(CAsmDeclaration d, Scope *sc)
 /***********************************************************
  * iasmgcc.d
  */
-Statement gccAsmSemantic(GccAsmStatement s, Scope *sc)
+Statement gccAsmSemantic(GccAsmStatement s, Scope* sc)
 {
     import dmd.iasmgcc;
     return dmd.iasmgcc.gccAsmSemantic(s, sc);
 }
 
-void gccAsmSemantic(CAsmDeclaration d, Scope *sc)
+void gccAsmSemantic(CAsmDeclaration d, Scope* sc)
 {
     import dmd.iasmgcc;
     return dmd.iasmgcc.gccAsmSemantic(d, sc);
@@ -393,6 +465,11 @@ void semanticTypeInfoMembers(StructDeclaration sd)
     return dmd.semantic3.semanticTypeInfoMembers(sd);
 }
 
+bool checkClosure(FuncDeclaration fd)
+{
+    import dmd.semantic3;
+    return dmd.semantic3.checkClosure(fd);
+}
 /***********************************************************
  * statementsem.d
  */
@@ -420,13 +497,13 @@ bool hasPointers(Type t)
     return dmd.typesem.hasPointers(t);
 }
 
-Type typeSemantic(Type type, const ref Loc loc, Scope* sc)
+Type typeSemantic(Type type, Loc loc, Scope* sc)
 {
     import dmd.typesem;
     return dmd.typesem.typeSemantic(type, loc, sc);
 }
 
-Type trySemantic(Type type, const ref Loc loc, Scope* sc)
+Type trySemantic(Type type, Loc loc, Scope* sc)
 {
     import dmd.typesem;
     return dmd.typesem.trySemantic(type, loc, sc);
@@ -444,7 +521,7 @@ Type merge2(Type type)
     return dmd.typesem.merge2(type);
 }
 
-Expression defaultInit(Type mt, const ref Loc loc, const bool isCfile = false)
+Expression defaultInit(Type mt, Loc loc, const bool isCfile = false)
 {
     import dmd.typesem;
     return dmd.typesem.defaultInit(mt, loc, isCfile);
@@ -460,7 +537,13 @@ Covariant covariant(Type src, Type t, StorageClass* pstc = null, bool
                     cppCovariant = false)
 {
     import dmd.typesem;
-    return dmd.typesem.covariant(src, t, pstc, cppCovariant);
+    return dmd.typesem.covariant(src, t, cast(STC*) pstc, cppCovariant);
+}
+
+bool isZeroInit(Type t, Loc loc)
+{
+    import dmd.typesem;
+    return dmd.typesem.isZeroInit(t, loc);
 }
 
 bool isBaseOf(Type tthis, Type t, int* poffset)
@@ -586,7 +669,7 @@ Type addMod(Type type, MOD mod)
 Type addStorageClass(Type type, StorageClass stc)
 {
     import dmd.typesem;
-    return dmd.typesem.addStorageClass(type, stc);
+    return dmd.typesem.addStorageClass(type, cast(STC) stc);
 }
 
 Type pointerTo(Type type)
@@ -601,10 +684,34 @@ Type referenceTo(Type type)
     return dmd.typesem.referenceTo(type);
 }
 
+uinteger_t size(Type type)
+{
+    import dmd.typesem;
+    return dmd.typesem.size(type);
+}
+
+uinteger_t size(Type type, Loc loc)
+{
+    import dmd.typesem;
+    return dmd.typesem.size(type, loc);
+}
+
+MATCH implicitConvTo(Type from, Type to)
+{
+    import dmd.dcast;
+    return dmd.dcast.implicitConvTo(from, to);
+}
+
+MATCH constConv(Type from, Type to)
+{
+    import dmd.typesem;
+    return dmd.typesem.constConv(from, to);
+}
+
 /***********************************************************
  * typinf.d
  */
-bool genTypeInfo(Expression e, const ref Loc loc, Type torig, Scope* sc)
+bool genTypeInfo(Expression e, Loc loc, Type torig, Scope* sc)
 {
     import dmd.typinf;
     return dmd.typinf.genTypeInfo(e, loc, torig, sc);
@@ -620,6 +727,18 @@ bool builtinTypeInfo(Type t)
 {
     import dmd.typinf;
     return dmd.typinf.builtinTypeInfo(t);
+}
+
+Type makeNakedAssociativeArray(TypeAArray t)
+{
+    import dmd.typinf;
+    return dmd.typinf.makeNakedAssociativeArray(t);
+}
+
+TypeInfoDeclaration getTypeInfoAssocArrayDeclaration(TypeAArray t, Scope* sc)
+{
+    import dmd.typinf;
+    return dmd.typinf.getTypeInfoAssocArrayDeclaration(t, sc);
 }
 
 version (IN_LLVM)

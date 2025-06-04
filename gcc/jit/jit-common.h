@@ -1,5 +1,5 @@
 /* Core of implementation of libgccjit.so
-   Copyright (C) 2013-2024 Free Software Foundation, Inc.
+   Copyright (C) 2013-2025 Free Software Foundation, Inc.
    Contributed by David Malcolm <dmalcolm@redhat.com>.
 
 This file is part of GCC.
@@ -36,7 +36,7 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 #endif
 
-const int NUM_GCC_JIT_TYPES = GCC_JIT_TYPE_INT128_T + 1;
+const int NUM_GCC_JIT_TYPES = GCC_JIT_TYPE_BFLOAT16 + 1;
 
 /* This comment is included by the docs.
 
@@ -118,6 +118,7 @@ namespace recording {
         class struct_;
 	class union_;
       class vector_type;
+      class array_type;
     class field;
       class bitfield;
     class fields;
@@ -133,6 +134,7 @@ namespace recording {
     class statement;
       class extended_asm;
     class case_;
+    class memento_of_get_aligned;
   class top_level_asm;
 
   /* End of recording types. */

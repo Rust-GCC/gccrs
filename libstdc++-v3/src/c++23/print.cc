@@ -43,6 +43,10 @@
 # include <unistd.h>  // isatty
 #endif
 
+#ifdef __VXWORKS__
+#include <ioLib.h>
+#endif
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -67,7 +71,7 @@ namespace
   // This returns intptr_t that is either a Windows HANDLE
   // or 1 + a POSIX file descriptor. A zero return indicates failure.
   void*
-  __open_terminal(FILE* f)
+  __open_terminal([[maybe_unused]] FILE* f)
   {
 #ifndef _GLIBCXX_USE_STDIO_PURE
     if (f)
@@ -75,7 +79,7 @@ namespace
 #ifdef _WIN32
 	if (int fd = ::_fileno(f); fd >= 0)
 	  return check_for_console((void*)_get_osfhandle(fd));
-#elifdef _GLIBCXX_HAVE_UNISTD_H
+#elif defined _GLIBCXX_HAVE_UNISTD_H && ! defined __AVR__
 	if (int fd = (::fileno)(f); fd >= 0 && ::isatty(fd))
 	  return f;
 #endif
@@ -85,9 +89,9 @@ namespace
   }
 
   void*
-  __open_terminal(std::streambuf* sb)
+  __open_terminal([[maybe_unused]] std::streambuf* sb)
   {
-#ifndef _GLIBCXX_USE_STDIO_PURE
+#if ! defined _GLIBCXX_USE_STDIO_PURE && defined __cpp_rtti
     using namespace __gnu_cxx;
 
     if (auto fb = dynamic_cast<stdio_sync_filebuf<char>*>(sb))
@@ -100,7 +104,7 @@ namespace
 #ifdef _WIN32
     if (auto fb = dynamic_cast<filebuf*>(sb))
       return check_for_console(fb->native_handle());
-#elifdef _GLIBCXX_HAVE_UNISTD_H
+#elif defined _GLIBCXX_HAVE_UNISTD_H && ! defined __AVR__
     if (auto fb = dynamic_cast<filebuf*>(sb))
       if (int fd = fb->native_handle(); fd >= 0 && ::isatty(fd))
 	return ::fdopen(::dup(fd), "w"); // Caller must call fclose.

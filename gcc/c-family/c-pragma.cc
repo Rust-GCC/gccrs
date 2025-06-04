@@ -1,5 +1,5 @@
 /* Handle #pragma, system V.4 style.  Supports #pragma weak and #pragma pack.
-   Copyright (C) 1992-2024 Free Software Foundation, Inc.
+   Copyright (C) 1992-2025 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1487,17 +1487,15 @@ handle_pragma_float_const_decimal64 (cpp_reader *)
 
 /* A vector of registered pragma callbacks, which is never freed.   */
 
-static vec<internal_pragma_handler> registered_pragmas;
 
-struct pragma_pp_data
+struct pragma_data
 {
   const char *space;
   const char *name;
-  pragma_handler_1arg early_handler;
+  struct internal_pragma_handler ihandler;
 };
 
-
-static vec<pragma_pp_data> registered_pp_pragmas;
+static vec<pragma_data> registered_pragmas;
 
 struct omp_pragma_def { const char *name; unsigned int id; };
 static const struct omp_pragma_def oacc_pragmas[] = {
@@ -1526,9 +1524,12 @@ static const struct omp_pragma_def omp_pragmas[] = {
   { "cancellation", PRAGMA_OMP_CANCELLATION_POINT },
   { "critical", PRAGMA_OMP_CRITICAL },
   { "depobj", PRAGMA_OMP_DEPOBJ },
+  { "dispatch", PRAGMA_OMP_DISPATCH },
   { "error", PRAGMA_OMP_ERROR },
   { "end", PRAGMA_OMP_END },
   { "flush", PRAGMA_OMP_FLUSH },
+  { "interop", PRAGMA_OMP_INTEROP },
+  { "metadirective", PRAGMA_OMP_METADIRECTIVE },
   { "nothing", PRAGMA_OMP_NOTHING },
   { "requires", PRAGMA_OMP_REQUIRES },
   { "scope", PRAGMA_OMP_SCOPE },
@@ -1556,6 +1557,8 @@ static const struct omp_pragma_def omp_pragmas_simd[] = {
   { "target", PRAGMA_OMP_TARGET },
   { "taskloop", PRAGMA_OMP_TASKLOOP },
   { "teams", PRAGMA_OMP_TEAMS },
+  { "tile", PRAGMA_OMP_TILE },
+  { "unroll", PRAGMA_OMP_UNROLL },
 };
 
 void
@@ -1563,8 +1566,7 @@ c_pp_lookup_pragma (unsigned int id, const char **space, const char **name)
 {
   const int n_oacc_pragmas = ARRAY_SIZE (oacc_pragmas);
   const int n_omp_pragmas = ARRAY_SIZE (omp_pragmas);
-  const int n_omp_pragmas_simd = sizeof (omp_pragmas_simd)
-				 / sizeof (*omp_pragmas);
+  const int n_omp_pragmas_simd = ARRAY_SIZE (omp_pragmas_simd);
   int i;
 
   for (i = 0; i < n_oacc_pragmas; ++i)
@@ -1592,10 +1594,10 @@ c_pp_lookup_pragma (unsigned int id, const char **space, const char **name)
       }
 
   if (id >= PRAGMA_FIRST_EXTERNAL
-      && (id < PRAGMA_FIRST_EXTERNAL + registered_pp_pragmas.length ()))
+      && (id < PRAGMA_FIRST_EXTERNAL + registered_pragmas.length ()))
     {
-      *space = registered_pp_pragmas[id - PRAGMA_FIRST_EXTERNAL].space;
-      *name = registered_pp_pragmas[id - PRAGMA_FIRST_EXTERNAL].name;
+      *space = registered_pragmas[id - PRAGMA_FIRST_EXTERNAL].space;
+      *name = registered_pragmas[id - PRAGMA_FIRST_EXTERNAL].name;
       return;
     }
 
@@ -1611,31 +1613,24 @@ c_register_pragma_1 (const char *space, const char *name,
 {
   unsigned id;
 
-  if (flag_preprocess_only)
-    {
-      if (cpp_get_options (parse_in)->directives_only
-	  || !(allow_expansion || ihandler.early_handler.handler_1arg))
-	return;
+  pragma_data data;
+  data.space = space;
+  data.name = name;
 
-      pragma_pp_data pp_data;
-      pp_data.space = space;
-      pp_data.name = name;
-      pp_data.early_handler = ihandler.early_handler.handler_1arg;
-      registered_pp_pragmas.safe_push (pp_data);
-      id = registered_pp_pragmas.length ();
-      id += PRAGMA_FIRST_EXTERNAL - 1;
-    }
-  else
-    {
-      registered_pragmas.safe_push (ihandler);
-      id = registered_pragmas.length ();
-      id += PRAGMA_FIRST_EXTERNAL - 1;
+  if (flag_preprocess_only
+      && (cpp_get_options (parse_in)->directives_only
+	|| !(allow_expansion || ihandler.early_handler.handler_1arg)))
+    return;
 
-      /* The C front end allocates 8 bits in c_token.  The C++ front end
-	 keeps the pragma kind in the form of INTEGER_CST, so no small
-	 limit applies.  At present this is sufficient.  */
-      gcc_assert (id < 256);
-    }
+  data.ihandler = ihandler;
+  registered_pragmas.safe_push (data);
+  id = registered_pragmas.length ();
+  id += PRAGMA_FIRST_EXTERNAL - 1;
+
+  /* The C front end allocates 8 bits in c_token.  The C++ front end
+     keeps the pragma kind in the form of INTEGER_CST, so no small
+     limit applies.  At present this is sufficient.  */
+  gcc_assert (id < 256);
 
   cpp_register_deferred_pragma (parse_in, space, name, id,
 				allow_expansion, false);
@@ -1729,7 +1724,7 @@ c_invoke_pragma_handler (unsigned int id)
   pragma_handler_2arg handler_2arg;
 
   id -= PRAGMA_FIRST_EXTERNAL;
-  ihandler = &registered_pragmas[id];
+  ihandler = &registered_pragmas[id].ihandler;
   if (ihandler->extra_data)
     {
       handler_2arg = ihandler->handler.handler_2arg;
@@ -1751,7 +1746,7 @@ c_invoke_early_pragma_handler (unsigned int id)
   pragma_handler_2arg handler_2arg;
 
   id -= PRAGMA_FIRST_EXTERNAL;
-  ihandler = &registered_pragmas[id];
+  ihandler = &registered_pragmas[id].ihandler;
   if (ihandler->extra_data)
     {
       handler_2arg = ihandler->early_handler.handler_2arg;
@@ -1769,10 +1764,11 @@ c_invoke_early_pragma_handler (unsigned int id)
 void
 c_pp_invoke_early_pragma_handler (unsigned int id)
 {
-  const auto data = &registered_pp_pragmas[id - PRAGMA_FIRST_EXTERNAL];
-  if (data->early_handler)
+  const auto data = &registered_pragmas[id - PRAGMA_FIRST_EXTERNAL];
+  pragma_handler_1arg handler = data->ihandler.early_handler.handler_1arg;
+  if (handler)
     {
-      data->early_handler (parse_in);
+      handler (parse_in);
       pragma_lex_discard_to_eol ();
     }
 }
@@ -1805,8 +1801,7 @@ init_pragma (void)
 	}
       if (flag_openmp || flag_openmp_simd)
 	{
-	  const int n_omp_pragmas_simd
-	    = sizeof (omp_pragmas_simd) / sizeof (*omp_pragmas);
+	  const int n_omp_pragmas_simd = ARRAY_SIZE (omp_pragmas_simd);
 	  int i;
 
 	  for (i = 0; i < n_omp_pragmas_simd; ++i)
@@ -1879,7 +1874,7 @@ init_pragma (void)
 #endif
 
   global_sso = default_sso;
-  c_register_pragma (0, "scalar_storage_order", 
+  c_register_pragma (0, "scalar_storage_order",
 		     handle_pragma_scalar_storage_order);
 
   /* Allow plugins to register their own pragmas. */

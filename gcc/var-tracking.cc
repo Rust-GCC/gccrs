@@ -1,5 +1,5 @@
 /* Variable tracking routines for the GNU compiler.
-   Copyright (C) 2002-2024 Free Software Foundation, Inc.
+   Copyright (C) 2002-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -3535,6 +3535,14 @@ loc_cmp (rtx x, rtx y)
 	else
 	  return 1;
 
+      case 'L':
+	if (XLOC (x, i) == XLOC (y, i))
+	  break;
+	else if (XLOC (x, i) < XLOC (y, i))
+	  return -1;
+	else
+	  return 1;
+
       case 'p':
 	r = compare_sizes_for_sort (SUBREG_BYTE (x), SUBREG_BYTE (y));
 	if (r != 0)
@@ -6265,7 +6273,7 @@ prepare_call_arguments (basic_block bb, rtx_insn *insn)
 	  if (SYMBOL_REF_DECL (symbol))
 	    fndecl = SYMBOL_REF_DECL (symbol);
 	}
-      if (fndecl == NULL_TREE)
+      if (fndecl == NULL_TREE && MEM_P (XEXP (call, 0)))
 	fndecl = MEM_EXPR (XEXP (call, 0));
       if (fndecl
 	  && TREE_CODE (TREE_TYPE (fndecl)) != FUNCTION_TYPE

@@ -2,6 +2,18 @@
 // { dg-do compile }
 // Verify that __has_builtin gives the correct answer for C++ built-ins.
 
+#if !__has_builtin (__add_lvalue_reference)
+# error "__has_builtin (__add_lvalue_reference) failed"
+#endif
+#if !__has_builtin (__add_pointer)
+# error "__has_builtin (__add_pointer) failed"
+#endif
+#if !__has_builtin (__add_rvalue_reference)
+# error "__has_builtin (__add_rvalue_reference) failed"
+#endif
+#if !__has_builtin (__array_rank)
+# error "__has_builtin (__array_rank) failed"
+#endif
 #if !__has_builtin (__builtin_addressof)
 # error "__has_builtin (__builtin_addressof) failed"
 #endif
@@ -22,6 +34,9 @@
 #endif
 #if !__has_builtin (__builtin_source_location)
 # error "__has_builtin (__builtin_source_location) failed"
+#endif
+#if !__has_builtin (__decay)
+# error "__has_builtin (__decay) failed"
 #endif
 #if !__has_builtin (__has_nothrow_assign)
 # error "__has_builtin (__has_nothrow_assign) failed"
@@ -71,6 +86,9 @@
 #if !__has_builtin (__is_class)
 # error "__has_builtin (__is_class) failed"
 #endif
+#if !__has_builtin (__is_const)
+# error "__has_builtin (__is_const) failed"
+#endif
 #if !__has_builtin (__is_constructible)
 # error "__has_builtin (__is_constructible) failed"
 #endif
@@ -88,6 +106,9 @@
 #endif
 #if !__has_builtin (__is_function)
 # error "__has_builtin (__is_function) failed"
+#endif
+#if !__has_builtin (__is_invocable)
+# error "__has_builtin (__is_invocable) failed"
 #endif
 #if !__has_builtin (__is_layout_compatible)
 # error "__has_builtin (__is_layout_compatible) failed"
@@ -113,14 +134,20 @@
 #if !__has_builtin (__is_nothrow_convertible)
 # error "__has_builtin (__is_nothrow_convertible) failed"
 #endif
+#if !__has_builtin (__is_nothrow_invocable)
+# error "__has_builtin (__is_nothrow_invocable) failed"
+#endif
 #if !__has_builtin (__is_object)
 # error "__has_builtin (__is_object) failed"
 #endif
-#if !__has_builtin (__is_pointer_interconvertible_base_of)
-# error "__has_builtin (__is_pointer_interconvertible_base_of) failed"
-#endif
 #if !__has_builtin (__is_pod)
 # error "__has_builtin (__is_pod) failed"
+#endif
+#if !__has_builtin (__is_pointer)
+# error "__has_builtin (__is_pointer) failed"
+#endif
+#if !__has_builtin (__is_pointer_interconvertible_base_of)
+# error "__has_builtin (__is_pointer_interconvertible_base_of) failed"
 #endif
 #if !__has_builtin (__is_polymorphic)
 # error "__has_builtin (__is_polymorphic) failed"
@@ -152,8 +179,14 @@
 #if !__has_builtin (__is_trivially_copyable)
 # error "__has_builtin (__is_trivially_copyable) failed"
 #endif
+#if !__has_builtin (__is_unbounded_array)
+# error "__has_builtin (__is_unbounded_array) failed"
+#endif
 #if !__has_builtin (__is_union)
 # error "__has_builtin (__is_union) failed"
+#endif
+#if !__has_builtin (__is_volatile)
+# error "__has_builtin (__is_volatile) failed"
 #endif
 #if !__has_builtin (__reference_constructs_from_temporary)
 # error "__has_builtin (__reference_constructs_from_temporary) failed"
@@ -161,11 +194,17 @@
 #if !__has_builtin (__reference_converts_from_temporary)
 # error "__has_builtin (__reference_converts_from_temporary) failed"
 #endif
+#if !__has_builtin (__remove_all_extents)
+# error "__has_builtin (__remove_all_extents) failed"
+#endif
 #if !__has_builtin (__remove_cv)
 # error "__has_builtin (__remove_cv) failed"
 #endif
 #if !__has_builtin (__remove_cvref)
 # error "__has_builtin (__remove_cvref) failed"
+#endif
+#if !__has_builtin (__remove_extent)
+# error "__has_builtin (__remove_extent) failed"
 #endif
 #if !__has_builtin (__remove_pointer)
 # error "__has_builtin (__remove_pointer) failed"

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -31,7 +31,6 @@
 #include "convert.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
-
 #include "selftest.h"
 #include "rust-cfg-parser.h"
 #include "rust-privacy-ctx.h"

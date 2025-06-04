@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2024 Free Software Foundation, Inc.
+/* Copyright (C) 2019-2025 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -28,9 +28,9 @@
 #ifndef __AVX512FP16VLINTRIN_H_INCLUDED
 #define __AVX512FP16VLINTRIN_H_INCLUDED
 
-#if !defined(__AVX512VL__) || !defined(__AVX512FP16__) || defined (__EVEX512__)
+#if !defined(__AVX512VL__) || !defined(__AVX512FP16__)
 #pragma GCC push_options
-#pragma GCC target("avx512fp16,avx512vl,no-evex512")
+#pragma GCC target("avx512fp16,avx512vl")
 #define __DISABLE_AVX512FP16VL__
 #endif /* __AVX512FP16VL__ */
 
@@ -181,7 +181,7 @@ extern __inline __m256h
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 _mm256_conj_pch (__m256h __A)
 {
-  return (__m256h) _mm256_xor_epi32 ((__m256i) __A, _mm256_avx512_set1_epi32 (1<<31));
+  return (__m256h) _mm256_xor_epi32 ((__m256i) __A, _mm256_avx512_set1_epi32 (1U<<31));
 }
 
 extern __inline __m256h
@@ -209,7 +209,7 @@ extern __inline __m128h
 __attribute__ ((__gnu_inline__, __always_inline__, __artificial__))
 _mm_conj_pch (__m128h __A)
 {
-  return (__m128h) _mm_xor_epi32 ((__m128i) __A, _mm_avx512_set1_epi32 (1<<31));
+  return (__m128h) _mm_xor_epi32 ((__m128i) __A, _mm_avx512_set1_epi32 (1U<<31));
 }
 
 extern __inline __m128h

@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -26,8 +26,7 @@
 namespace Rust {
 namespace Resolver {
 
-static bool
-resolve_operator_overload_fn (
+static bool resolve_operator_overload_fn (
   LangItem::Kind lang_item_type, TyTy::BaseType *ty, TyTy::FnType **resolved_fn,
   Adjustment::AdjustmentType *requires_ref_adjustment);
 

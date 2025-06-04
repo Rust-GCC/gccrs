@@ -17,7 +17,7 @@ CompileAsm::tree_codegen_asm (HIR::InlineAsm &expr)
 					  asm_construct_clobber_tree (expr),
 					  asm_construct_label_tree (expr)});
 
-  ASM_INPUT_P (asm_expr) = expr.is_simple_asm ();
+  ASM_BASIC_P (asm_expr) = expr.is_simple_asm ();
   ASM_VOLATILE_P (asm_expr) = false;
   ASM_INLINE_P (asm_expr) = expr.is_inline_asm ();
   /*Backend::debug (asm_expr);*/

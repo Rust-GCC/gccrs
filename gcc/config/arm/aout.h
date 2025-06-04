@@ -1,7 +1,7 @@
 /* Definitions of target machine for GNU compiler, for ARM with a.out
-   Copyright (C) 1995-2024 Free Software Foundation, Inc.
+   Copyright (C) 1995-2025 Free Software Foundation, Inc.
    Contributed by Richard Earnshaw (rearnsha@armltd.co.uk).
-   
+
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it
@@ -69,11 +69,6 @@
   "d20", "?20", "d21", "?21", "d22", "?22", "d23", "?23",	\
   "d24", "?24", "d25", "?25", "d26", "?26", "d27", "?27",	\
   "d28", "?28", "d29", "?29", "d30", "?30", "d31", "?31",	\
-  "wr0",   "wr1",   "wr2",   "wr3",				\
-  "wr4",   "wr5",   "wr6",   "wr7",				\
-  "wr8",   "wr9",   "wr10",  "wr11",				\
-  "wr12",  "wr13",  "wr14",  "wr15",				\
-  "wcgr0", "wcgr1", "wcgr2", "wcgr3",				\
   "cc", "vfpcc", "sfp", "afp", "apsrq", "apsrge", "p0",		\
   "ra_auth_code"						\
 }
@@ -165,7 +160,7 @@
 #define ASM_GENERATE_INTERNAL_LABEL(STRING, PREFIX, NUM)  \
   sprintf (STRING, "*%s%s%u", LOCAL_LABEL_PREFIX, PREFIX, (unsigned int)(NUM))
 #endif
-     
+
 /* Output an element of a dispatch table.  */
 #define ASM_OUTPUT_ADDR_VEC_ELT(STREAM, VALUE)			\
   do								\
@@ -174,7 +169,7 @@
       asm_fprintf (STREAM, "\t.word\t%LL%d\n", VALUE);		\
     }								\
   while (0)
-	  
+
 
 /* Thumb-2 always uses addr_diff_elf so that the Table Branch instructions
    can be used.  For non-pic code where the offsets do not suitable for
@@ -266,7 +261,7 @@
   fprintf (STREAM, "\t.space\t%d\n", (int) (NBYTES))
 
 /* Align output to a power of two.  Horrible /bin/as.  */
-#ifndef ASM_OUTPUT_ALIGN  
+#ifndef ASM_OUTPUT_ALIGN
 #define ASM_OUTPUT_ALIGN(STREAM, POWER)			\
   do							\
     {							\
@@ -292,7 +287,7 @@
     }							\
   while (0)
 #endif
-     
+
 /* Output a local common block.  /bin/as can't do this, so hack a
    `.space' into the bss segment.  Note that this is *bad* practice,
    which is guaranteed NOT to work since it doesn't define STATIC
@@ -308,7 +303,7 @@
     }									\
   while (0)
 #endif
-     
+
 /* Output a zero-initialized block.  */
 #ifndef ASM_OUTPUT_ALIGNED_BSS
 #define ASM_OUTPUT_ALIGNED_BSS(STREAM, DECL, NAME, SIZE, ALIGN) \

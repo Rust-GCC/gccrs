@@ -35,7 +35,7 @@ OPT_IN_LANGUAGES=
 #
 
 LIST = \
-  aarch64-elf aarch64-freebsd13 aarch64-linux-gnu aarch64-rtems \
+  aarch64-elf aarch64-freebsd14 aarch64-linux-gnu aarch64-rtems \
   alpha-linux-gnu alpha-netbsd alpha-openbsd \
   alpha64-dec-vms alpha-dec-vms \
   amdgcn-amdhsa \
@@ -54,18 +54,18 @@ LIST = \
   hppa64-hpux11.3 \
   hppa64-hpux11.0OPT-enable-sjlj-exceptions=yes \
   i686-apple-darwin9 i686-apple-darwin13 i686-apple-darwin17 \
-  i686-freebsd13 i686-kfreebsd-gnu \
+  i686-freebsd14 i686-kfreebsd-gnu \
   i686-netbsdelf9 \
   i686-openbsd i686-elf i686-kopensolaris-gnu i686-gnu \
   i686-pc-linux-gnu i686-pc-msdosdjgpp i686-lynxos i686-nto-qnx \
   i686-rtems i686-solaris2.11 i686-wrs-vxworks \
   i686-wrs-vxworksae \
   i686-cygwinOPT-enable-threads=yes i686-mingw32crt ia64-elfOPT-enable-obsolete \
-  ia64-linuxOPT-enable-obsolete ia64-hpuxOPT-enable-obsolete \
+  ia64-linux ia64-hpuxOPT-enable-obsolete \
   ia64-hp-vmsOPT-enable-obsolete iq2000-elf lm32-elf \
   lm32-rtems lm32-uclinux \
   loongarch64-linux-gnuf64 loongarch64-linux-gnuf32 loongarch64-linux-gnusf \
-  m32c-elf m32r-elf m32rle-elf \
+  m32c-elfOPT-enable-obsolete m32r-elf m32rle-elf \
   m68k-elf m68k-netbsdelf \
   m68k-uclinux m68k-linux m68k-rtems \
   mcore-elf microblaze-linux microblaze-elf \
@@ -78,12 +78,11 @@ LIST = \
   moxie-uclinux moxie-rtems \
   msp430-elf msp430-elfbare \
   nds32le-elf nds32be-elf \
-  nios2-elf nios2-linux-gnu nios2-rtems \
   nvptx-none \
   or1k-elf or1k-linux-uclibc or1k-linux-musl or1k-rtems \
   pdp11-aout \
   powerpc-apple-darwin9 powerpc64-apple-darwin9 powerpc-apple-darwin8 \
-  powerpc-freebsd13 powerpc-netbsd \
+  powerpc-freebsd14 powerpc-netbsd \
   powerpc-eabisimaltivec powerpc-eabisim ppc-elf \
   powerpc-eabialtivec powerpc-xilinx-eabi powerpc-eabi \
   powerpc-rtems \
@@ -106,7 +105,7 @@ LIST = \
   vax-netbsdelf visium-elf \
   x86_64-apple-darwin10 x86_64-apple-darwin15 x86_64-apple-darwin21 \
   x86_64-gnu x86_64-pc-linux-gnuOPT-with-fpmath=avx \
-  x86_64-elfOPT-with-fpmath=sse x86_64-freebsd13 x86_64-netbsd \
+  x86_64-elfOPT-with-fpmath=sse x86_64-freebsd14 x86_64-netbsd \
   x86_64-w64-mingw32 \
   x86_64-mingw32OPT-enable-sjlj-exceptions=yes x86_64-rtems \
   xstormy16-elf xtensa-elf \

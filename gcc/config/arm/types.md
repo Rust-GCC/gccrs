@@ -1,6 +1,6 @@
 ;; Instruction Classification for ARM for GNU compiler.
 
-;; Copyright (C) 1991-2024 Free Software Foundation, Inc.
+;; Copyright (C) 1991-2025 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 
 ;; This file is part of GCC.
@@ -183,70 +183,6 @@
 ; umulls             unsigned multiply long, flag setting.
 ; untyped            insn without type information - default, and error,
 ;                    case.
-;
-; The classification below is for instructions used by the Wireless MMX
-; Technology. Each attribute value is used to classify an instruction of the
-; same name or family.
-;
-; wmmx_tandc
-; wmmx_tbcst
-; wmmx_textrc
-; wmmx_textrm
-; wmmx_tinsr
-; wmmx_tmcr
-; wmmx_tmcrr
-; wmmx_tmia
-; wmmx_tmiaph
-; wmmx_tmiaxy
-; wmmx_tmrc
-; wmmx_tmrrc
-; wmmx_tmovmsk
-; wmmx_torc
-; wmmx_torvsc
-; wmmx_wabs
-; wmmx_wdiff
-; wmmx_wacc
-; wmmx_wadd
-; wmmx_waddbhus
-; wmmx_waddsubhx
-; wmmx_waligni
-; wmmx_walignr
-; wmmx_wand
-; wmmx_wandn
-; wmmx_wavg2
-; wmmx_wavg4
-; wmmx_wcmpeq
-; wmmx_wcmpgt
-; wmmx_wmac
-; wmmx_wmadd
-; wmmx_wmax
-; wmmx_wmerge
-; wmmx_wmiawxy
-; wmmx_wmiaxy
-; wmmx_wmin
-; wmmx_wmov
-; wmmx_wmul
-; wmmx_wmulw
-; wmmx_wldr
-; wmmx_wor
-; wmmx_wpack
-; wmmx_wqmiaxy
-; wmmx_wqmulm
-; wmmx_wqmulwm
-; wmmx_wror
-; wmmx_wsad
-; wmmx_wshufh
-; wmmx_wsll
-; wmmx_wsra
-; wmmx_wsrl
-; wmmx_wstr
-; wmmx_wsub
-; wmmx_wsubaddhx
-; wmmx_wunpckeh
-; wmmx_wunpckel
-; wmmx_wunpckih
-; wmmx_wunpckil
-; wmmx_wxor
 ;
 ; The classification below is for NEON instructions. If a new neon type is
 ; added, please ensure this is added to the is_neon_type attribute below too.
@@ -574,6 +510,7 @@
 ; mve_move
 ; mve_store
 ; mve_load
+; mve_misc
 
 (define_attr "type"
  "adc_imm,\
@@ -713,65 +650,6 @@
   umull,\
   umulls,\
   untyped,\
-  wmmx_tandc,\
-  wmmx_tbcst,\
-  wmmx_textrc,\
-  wmmx_textrm,\
-  wmmx_tinsr,\
-  wmmx_tmcr,\
-  wmmx_tmcrr,\
-  wmmx_tmia,\
-  wmmx_tmiaph,\
-  wmmx_tmiaxy,\
-  wmmx_tmrc,\
-  wmmx_tmrrc,\
-  wmmx_tmovmsk,\
-  wmmx_torc,\
-  wmmx_torvsc,\
-  wmmx_wabs,\
-  wmmx_wabsdiff,\
-  wmmx_wacc,\
-  wmmx_wadd,\
-  wmmx_waddbhus,\
-  wmmx_waddsubhx,\
-  wmmx_waligni,\
-  wmmx_walignr,\
-  wmmx_wand,\
-  wmmx_wandn,\
-  wmmx_wavg2,\
-  wmmx_wavg4,\
-  wmmx_wcmpeq,\
-  wmmx_wcmpgt,\
-  wmmx_wmac,\
-  wmmx_wmadd,\
-  wmmx_wmax,\
-  wmmx_wmerge,\
-  wmmx_wmiawxy,\
-  wmmx_wmiaxy,\
-  wmmx_wmin,\
-  wmmx_wmov,\
-  wmmx_wmul,\
-  wmmx_wmulw,\
-  wmmx_wldr,\
-  wmmx_wor,\
-  wmmx_wpack,\
-  wmmx_wqmiaxy,\
-  wmmx_wqmulm,\
-  wmmx_wqmulwm,\
-  wmmx_wror,\
-  wmmx_wsad,\
-  wmmx_wshufh,\
-  wmmx_wsll,\
-  wmmx_wsra,\
-  wmmx_wsrl,\
-  wmmx_wstr,\
-  wmmx_wsub,\
-  wmmx_wsubaddhx,\
-  wmmx_wunpckeh,\
-  wmmx_wunpckel,\
-  wmmx_wunpckih,\
-  wmmx_wunpckil,\
-  wmmx_wxor,\
 \
   neon_add,\
   neon_add_q,\
@@ -1126,7 +1004,8 @@
   ls64,\
   mve_move,\
   mve_store,\
-  mve_load"
+  mve_load, \
+  mve_misc"
    (cond [(eq_attr "autodetect_type" "alu_shift_lsr_op2,alu_shift_asr_op2")
             (const_string "alu_shift_imm_other")
           (eq_attr "autodetect_type" "alu_shift_lsl_op2")
@@ -1292,7 +1171,7 @@
 ;; No otherwise.
 (define_attr "is_mve_type" "yes,no"
         (if_then_else (eq_attr "type"
-        "mve_move, mve_load, mve_store, mrs")
+        "mve_move, mve_load, mve_store, mrs, mve_misc")
         (const_string "yes")
         (const_string "no")))
 

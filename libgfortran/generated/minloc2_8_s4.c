@@ -1,5 +1,5 @@
 /* Implementation of the MINLOC intrinsic
-   Copyright (C) 2017-2024 Free Software Foundation, Inc.
+   Copyright (C) 2017-2025 Free Software Foundation, Inc.
    Contributed by Thomas Koenig
 
 This file is part of the GNU Fortran runtime library (libgfortran).
@@ -154,8 +154,8 @@ GFC_INTEGER_8
 sminloc2_8_s4 (gfc_array_s4 * const restrict array,
 				 GFC_LOGICAL_4 *mask, GFC_LOGICAL_4 back, gfc_charlen_type len)
 {
-  if (mask)
-    return minloc2_8_s4 (array, len, back);
+  if (mask == NULL || *mask)
+    return minloc2_8_s4 (array, back, len);
   else
     return 0;
 }

@@ -1,5 +1,5 @@
 /* Tuning model description for AArch64 architecture.
-   Copyright (C) 2009-2024 Free Software Foundation, Inc.
+   Copyright (C) 2009-2025 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -105,6 +105,8 @@ static const sve_vec_cost generic_sve_vector_cost =
   2, /* fadda_f64_cost  */
   4, /* gather_load_x32_cost  */
   2, /* gather_load_x64_cost  */
+  0, /* gather_load_x32_init_cost  */
+  0, /* gather_load_x64_init_cost  */
   1 /* scatter_store_elt_cost  */
 };
 
@@ -166,7 +168,7 @@ static const struct tune_params generic_tunings =
     4 /* store_pred.  */
   }, /* memmov_cost.  */
   2, /* issue_rate  */
-  (AARCH64_FUSE_AES_AESMC | AARCH64_FUSE_CMP_BRANCH), /* fusible_ops  */
+  AARCH64_FUSE_BASE, /* fusible_ops  */
   "16:12",	/* function_align.  */
   "4",	/* jump_align.  */
   "8",	/* loop_align.  */

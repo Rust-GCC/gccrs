@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2013-2024, Free Software Foundation, Inc.          --
+--          Copyright (C) 2013-2025, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -114,7 +114,7 @@ package System.Exceptions.Machine is
    end record;
 
    type Cleanup_Cache_Type is record
-     Bitpattern : uint32_t_array (0 .. 3);
+      Bitpattern : uint32_t_array (0 .. 3);
    end record;
 
    type Pr_Cache_Type is record
@@ -154,7 +154,7 @@ package System.Exceptions.Machine is
    --  A GNAT exception object to be dealt with by the personality routine
    --  called by the GCC unwinding runtime.
 
-   type GNAT_GCC_Exception is record
+   type GNAT_GCC_Exception is limited record
       Header : Unwind_Control_Block;
       --  ABI Exception header first
 

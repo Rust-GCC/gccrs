@@ -1,5 +1,5 @@
 // On-the-side RTL SSA representation                               -*- C++ -*-
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
@@ -27,6 +27,7 @@
 // Files that use this one should first have:
 #define INCLUDE_ALGORITHM
 #define INCLUDE_FUNCTIONAL
+#define INCLUDE_ARRAY
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -63,6 +64,7 @@
 #include "rtl-ssa/blocks.h"
 #include "rtl-ssa/changes.h"
 #include "rtl-ssa/functions.h"
+#include "rtl-ssa/predicates.h"
 #include "rtl-ssa/is-a.inl"
 #include "rtl-ssa/access-utils.h"
 #include "rtl-ssa/insn-utils.h"

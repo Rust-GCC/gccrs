@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2024 Free Software Foundation, Inc.
+// Copyright (C) 2020-2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -27,8 +27,7 @@ namespace Rust {
 /* Encode a string as punycode. Returns a string if encoding is successful.
  * Returns nullopt otherwise. Note that a returned string contains only ASCII
  * characters and does not start with `xn--`. */
-tl::optional<std::string>
-encode_punycode (const Utf8String &src);
+tl::optional<std::string> encode_punycode (const Utf8String &src);
 
 } // namespace Rust
 
@@ -36,8 +35,7 @@ encode_punycode (const Utf8String &src);
 
 namespace selftest {
 
-void
-rust_punycode_encode_test ();
+void rust_punycode_encode_test ();
 
 } // namespace selftest
 

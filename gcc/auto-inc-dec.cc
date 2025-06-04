@@ -1,5 +1,5 @@
 /* Discovery of auto-inc and auto-dec instructions.
-   Copyright (C) 2006-2024 Free Software Foundation, Inc.
+   Copyright (C) 2006-2025 Free Software Foundation, Inc.
    Contributed by Kenneth Zadeck <zadeck@naturalbridge.com>
 
 This file is part of GCC.
@@ -493,8 +493,7 @@ attempt_change (rtx new_addr, rtx inc_reg)
     {
       start_sequence ();
       emit_move_insn (inc_insn.reg_res, inc_insn.reg0);
-      mov_insn = get_insns ();
-      end_sequence ();
+      mov_insn = end_sequence ();
       new_cost += seq_cost (mov_insn, speed);
     }
 
