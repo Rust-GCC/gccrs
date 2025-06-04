@@ -2061,8 +2061,7 @@ TokenCollector::visit (ConstantItem &item)
     }
   else
     {
-      auto id = item.get_identifier ();
-      push (Rust::Token::make_identifier (UNDEF_LOCATION, std::move (id)));
+      push (Rust::Token::make_identifier (item.get_identifier ()));
     }
   push (Rust::Token::make (COLON, UNDEF_LOCATION));
   visit (item.get_type ());

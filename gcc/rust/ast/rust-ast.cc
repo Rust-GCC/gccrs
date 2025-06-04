@@ -620,7 +620,7 @@ ConstantItem::as_string () const
 {
   std::string str = VisItem::as_string ();
 
-  str += "const " + identifier;
+  str += "const " + identifier.as_string ();
 
   // DEBUG: null pointer check
   if (type == nullptr)
