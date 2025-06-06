@@ -36,6 +36,25 @@ Early::insert_once (AST::MacroInvocation &invocation, NodeId resolved)
 {
   // TODO: Should we use `ctx.mark_resolved()`?
   auto definition = ctx.mappings.lookup_macro_def (resolved);
+  rust_assert (definition.has_value ());
+
+  // TODO: make sure this is proper
+  // was copied from old early name resolver
+  auto &outer_attrs = definition.value ()->get_outer_attrs ();
+  bool is_builtin
+    = std::any_of (outer_attrs.begin (), outer_attrs.end (),
+		   [] (AST::Attribute attr) {
+		     return attr.get_path ()
+			    == Values::Attributes::RUSTC_BUILTIN_MACRO;
+		   });
+
+  if (is_builtin)
+    {
+      auto builtin_kind
+	= builtin_macro_from_string (definition.value ()->get_rule_name ().as_string ());
+      rust_assert (builtin_kind);
+      invocation.map_to_builtin (*builtin_kind);
+    }
 
   if (!ctx.mappings.lookup_macro_invocation (invocation))
     ctx.mappings.insert_macro_invocation (invocation, definition.value ());
@@ -314,6 +333,20 @@ Early::visit_attributes (std::vector<AST::Attribute> &attrs)
 	  auto traits = attr.get_traits_to_derive ();
 	  for (auto &trait : traits)
 	    {
+	      // HACK: skip resolution of derive macros which look like
+	      // builtins
+	      //
+	      // This does not properly handle code such as
+	      //     use Clone as Foo;
+	      //     #[derive(Foo)]
+	      //     struct S;
+	      //
+	      // Builtin derive macros should probably be handled
+	      // in a fashion more similar to custom derive macros
+	      if (MacroBuiltin::builtins.lookup (trait.get ().as_string ())
+		    .has_value ())
+		continue;
+
 	      auto definition
 		= ctx.resolve_path (trait.get (), Namespace::Macros);
 	      if (!definition.has_value ())
