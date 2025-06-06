@@ -84,6 +84,37 @@ public:
   virtual void accept_vis (ASTVisitor &vis) = 0;
 };
 
+/**
+ * Base function for reconstructing and asserting that the new NodeId is
+ * different from the old NodeId. It then wraps the given pointer into a unique
+ * pointer and returns it.
+ */
+template <typename T>
+std::unique_ptr<T>
+reconstruct_base (const T *instance)
+{
+  auto *reconstructed = instance->reconstruct_impl ();
+
+  rust_assert (reconstructed->get_node_id () != instance->get_node_id ());
+
+  return std::unique_ptr<T> (reconstructed);
+}
+
+/**
+ * Reconstruct multiple items in a vector
+ */
+template <typename T>
+std::vector<std::unique_ptr<T>>
+reconstruct_vec (const std::vector<std::unique_ptr<T>> &to_reconstruct)
+{
+  std::vector<std::unique_ptr<T>> reconstructed;
+
+  for (const auto &elt : to_reconstruct)
+    reconstructed.emplace_back (std::unique_ptr<T> (elt->reconstruct_impl ()));
+
+  return reconstructed;
+}
+
 // Delimiter types - used in macros and whatever.
 enum DelimType
 {
@@ -1481,6 +1512,10 @@ public:
     return std::unique_ptr<Type> (clone_type_impl ());
   }
 
+  // Similar to `clone_type`, but generates a new instance of the node with a
+  // different NodeId
+  std::unique_ptr<Type> reconstruct () const { return reconstruct_base (this); }
+
   // virtual destructor
   virtual ~Type () {}
 
@@ -1499,11 +1534,13 @@ public:
   virtual location_t get_locus () const = 0;
 
   NodeId get_node_id () const { return node_id; }
+  virtual Type *reconstruct_impl () const = 0;
 
 protected:
   Type () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
+  Type (NodeId node_id) : node_id (node_id) {}
 
-  // Clone function implementation as pure virtual method
+  // Clone and reconstruct function implementations as pure virtual methods
   virtual Type *clone_type_impl () const = 0;
 
   NodeId node_id;
@@ -1518,6 +1555,13 @@ public:
   {
     return std::unique_ptr<TypeNoBounds> (clone_type_no_bounds_impl ());
   }
+
+  std::unique_ptr<TypeNoBounds> reconstruct () const
+  {
+    return reconstruct_base (this);
+  }
+
+  virtual TypeNoBounds *reconstruct_impl () const override = 0;
 
 protected:
   // Clone function implementation as pure virtual method
@@ -1553,6 +1597,11 @@ public:
     return std::unique_ptr<TypeParamBound> (clone_type_param_bound_impl ());
   }
 
+  std::unique_ptr<TypeParamBound> reconstruct () const
+  {
+    return reconstruct_base (this);
+  }
+
   virtual std::string as_string () const = 0;
 
   NodeId get_node_id () const { return node_id; }
@@ -1561,10 +1610,14 @@ public:
 
   virtual TypeParamBoundType get_bound_type () const = 0;
 
+  virtual TypeParamBound *reconstruct_impl () const = 0;
+
 protected:
   // Clone function implementation as pure virtual method
   virtual TypeParamBound *clone_type_param_bound_impl () const = 0;
 
+  TypeParamBound () : node_id (Analysis::Mappings::get ().get_next_node_id ())
+  {}
   TypeParamBound (NodeId node_id) : node_id (node_id) {}
 
   NodeId node_id;
@@ -1625,6 +1678,10 @@ protected:
   Lifetime *clone_type_param_bound_impl () const override
   {
     return new Lifetime (node_id, lifetime_type, lifetime_name, locus);
+  }
+  Lifetime *reconstruct_impl () const override
+  {
+    return new Lifetime (lifetime_type, lifetime_name, locus);
   }
 };
 
