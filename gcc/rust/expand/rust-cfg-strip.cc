@@ -2260,7 +2260,7 @@ void
 CfgStrip::visit (AST::IdentifierPattern &pattern)
 {
   // can only strip sub-patterns of the inner pattern to bind
-  if (!pattern.has_pattern_to_bind ())
+  if (!pattern.has_subpattern ())
     return;
 
   AST::DefaultASTVisitor::visit (pattern);
