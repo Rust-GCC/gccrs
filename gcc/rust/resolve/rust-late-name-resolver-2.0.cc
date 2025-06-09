@@ -729,7 +729,7 @@ Late::visit (AST::ClosureExprInnerTyped &closure)
   ctx.bindings.exit ();
 
   visit (closure.get_return_type ());
-  visit (closure.get_definition_block ());
+  visit (closure.get_definition_expr ());
 }
 
 } // namespace Resolver2_0
