@@ -3413,14 +3413,14 @@ Module::process_file_path ()
   bool no_candidates_found = !file_mod_found && !dir_mod_found;
 
   if (multiple_candidates_found)
-    rust_error_at (locus,
+    rust_error_at (get_locus (),
 		   "two candidates found for module %s: %s.rs and %s%smod.rs",
 		   module_name.as_string ().c_str (),
 		   module_name.as_string ().c_str (),
 		   module_name.as_string ().c_str (), file_separator);
 
   if (no_candidates_found)
-    rust_error_at (locus, "no candidate found for module %s",
+    rust_error_at (get_locus (), "no candidate found for module %s",
 		   module_name.as_string ().c_str ());
 
   if (no_candidates_found || multiple_candidates_found)
