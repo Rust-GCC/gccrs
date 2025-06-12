@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2025 Free Software Foundation, Inc.
+// Copyright (C) 2025 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 
@@ -39,32 +39,34 @@ public:
 
 private:
   void scan ()
-
   {
-    std::vector<HIR::ImplBlock *> possible_primitive_impl;
+    std::vector<HIR::ImplBlock *> possible_primitive_impls;
+
     mappings.iterate_impl_blocks ([&] (HirId id, HIR::ImplBlock *impl) -> bool {
       // filtering  trait-impl-blocks
       if (impl->has_trait_ref ())
 	return true;
+
       HirId impl_ty_id = impl->get_type ().get_mappings ().get_hirid ();
+
       TyTy::BaseType *impl_type = nullptr;
       if (!query_type (impl_ty_id, &impl_type))
 	return true;
+
       DefId defid = impl->get_mappings ().get_defid ();
+
       // ignore lang item
       if (mappings.lookup_lang_item (defid))
 	return true;
+
       if (is_primitive_type_kind (impl_type->get_kind ()))
-	{
-	  possible_primitive_impl.push_back (impl);
-	}
+	possible_primitive_impls.push_back (impl);
+
       return true;
     });
 
-    for (auto impl : possible_primitive_impl)
-      {
-	report_error (impl);
-      }
+    for (auto impl : possible_primitive_impls)
+      report_error (impl);
   }
 
   void report_error (HIR::ImplBlock *impl)
@@ -73,8 +75,9 @@ private:
     std::string msg = "consider using an extension trait instead";
     r.add_fixit_replace (impl->get_locus (), msg.c_str ());
     r.add_range (impl->get_locus ());
-    std::string err = "impl";
-    err = "cannot define inherent `" + err + "` for primitive types";
+
+    std::string err = "cannot define inherent impl for primitive types";
+
     rust_error_at (r, ErrorCode::E0390, "%s", err.c_str ());
   }
 };
