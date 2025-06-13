@@ -28,7 +28,6 @@
 #include "rust-pattern.h"
 #include "rust-system.h"
 #include "rust-token.h"
-#include <memory>
 
 namespace Rust {
 namespace AST {
@@ -566,7 +565,8 @@ Builder::new_type_param (
     {
       switch (b->get_bound_type ())
 	{
-	  case TypeParamBound::TypeParamBoundType::TRAIT: {
+	case TypeParamBound::TypeParamBoundType::TRAIT:
+	  {
 	    const TraitBound &tb = (const TraitBound &) *b.get ();
 	    const TypePath &path = tb.get_type_path ();
 
@@ -591,7 +591,8 @@ Builder::new_type_param (
 	      {
 		switch (seg->get_type ())
 		  {
-		    case TypePathSegment::REG: {
+		  case TypePathSegment::REG:
+		    {
 		      const TypePathSegment &segment
 			= (const TypePathSegment &) (*seg.get ());
 		      TypePathSegment *s = new TypePathSegment (
@@ -603,7 +604,8 @@ Builder::new_type_param (
 		    }
 		    break;
 
-		    case TypePathSegment::GENERIC: {
+		  case TypePathSegment::GENERIC:
+		    {
 		      TypePathSegmentGeneric &generic
 			= (TypePathSegmentGeneric &) (*seg.get ());
 
@@ -617,7 +619,8 @@ Builder::new_type_param (
 		    }
 		    break;
 
-		    case TypePathSegment::FUNCTION: {
+		  case TypePathSegment::FUNCTION:
+		    {
 		      rust_unreachable ();
 		      // TODO
 		      // const TypePathSegmentFunction &fn
@@ -639,7 +642,8 @@ Builder::new_type_param (
 	  }
 	  break;
 
-	  case TypeParamBound::TypeParamBoundType::LIFETIME: {
+	case TypeParamBound::TypeParamBoundType::LIFETIME:
+	  {
 	    const Lifetime &l = (const Lifetime &) *b.get ();
 
 	    auto bl = new Lifetime (l.get_lifetime_type (),
