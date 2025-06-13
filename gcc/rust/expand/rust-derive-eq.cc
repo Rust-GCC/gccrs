@@ -18,6 +18,7 @@
 
 #include "rust-derive-eq.h"
 #include "rust-ast.h"
+#include "rust-diagnostics.h"
 #include "rust-expr.h"
 #include "rust-item.h"
 #include "rust-path.h"
@@ -142,10 +143,7 @@ DeriveEq::visit_tuple (TupleStruct &item)
   auto types = std::vector<std::unique_ptr<Type>> ();
 
   for (auto &field : item.get_fields ())
-    {
-      auto type = Builder::new_type (field.get_field_type ());
-      types.emplace_back (std::move (type));
-    }
+    types.emplace_back (field.get_field_type ().reconstruct ());
 
   expanded = eq_impls (assert_receiver_is_total_eq_fn (std::move (types)),
 		       item.get_identifier ().as_string (),
@@ -158,10 +156,7 @@ DeriveEq::visit_struct (StructStruct &item)
   auto types = std::vector<std::unique_ptr<Type>> ();
 
   for (auto &field : item.get_fields ())
-    {
-      auto type = Builder::new_type (field.get_field_type ());
-      types.emplace_back (std::move (type));
-    }
+    types.emplace_back (field.get_field_type ().reconstruct ());
 
   expanded = eq_impls (assert_receiver_is_total_eq_fn (std::move (types)),
 		       item.get_identifier ().as_string (),
@@ -186,10 +181,7 @@ DeriveEq::visit_enum (Enum &item)
 	    auto &tuple = static_cast<EnumItemTuple &> (*variant);
 
 	    for (auto &field : tuple.get_tuple_fields ())
-	      {
-		auto type = Builder::new_type (field.get_field_type ());
-		types.emplace_back (std::move (type));
-	      }
+	      types.emplace_back (field.get_field_type ().reconstruct ());
 	    break;
 	  }
 	case EnumItem::Kind::Struct:
@@ -197,10 +189,7 @@ DeriveEq::visit_enum (Enum &item)
 	    auto &tuple = static_cast<EnumItemStruct &> (*variant);
 
 	    for (auto &field : tuple.get_struct_fields ())
-	      {
-		auto type = Builder::new_type (field.get_field_type ());
-		types.emplace_back (std::move (type));
-	      }
+	      types.emplace_back (field.get_field_type ().reconstruct ());
 
 	    break;
 	  }
@@ -218,10 +207,7 @@ DeriveEq::visit_union (Union &item)
   auto types = std::vector<std::unique_ptr<Type>> ();
 
   for (auto &field : item.get_variants ())
-    {
-      auto type = Builder::new_type (field.get_field_type ());
-      types.emplace_back (std::move (type));
-    }
+    types.emplace_back (field.get_field_type ().reconstruct ());
 
   expanded = eq_impls (assert_receiver_is_total_eq_fn (std::move (types)),
 		       item.get_identifier ().as_string (),

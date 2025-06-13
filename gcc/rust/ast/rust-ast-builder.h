@@ -289,8 +289,6 @@ public:
 		      std::vector<std::unique_ptr<TypeParamBound>> &&bounds,
 		      std::unique_ptr<Type> &&type = nullptr);
 
-  static std::unique_ptr<Type> new_type (Type &type);
-
   static std::unique_ptr<GenericParam>
   new_lifetime_param (LifetimeParam &param);
 
