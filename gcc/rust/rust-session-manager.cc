@@ -936,7 +936,9 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   MacroExpander expander (crate, cfg, *this);
   std::vector<Error> macro_errors;
 
-  while (!fixed_point_reached && iterations < cfg.recursion_limit)
+  bool did_desugar = false;
+
+  while (!fixed_point_reached)
     {
       CfgStrip ().go (crate);
       // Errors might happen during cfg strip pass
@@ -958,8 +960,22 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       ExpandVisitor (expander).go (crate);
 
       fixed_point_reached = !expander.has_changed () && !visitor_dirty;
+
+      if (fixed_point_reached && macro_errors.empty () && !did_desugar)
+	{
+	  AST::DesugarForLoops ().go (crate);
+	  AST::DesugarQuestionMark ().go (crate);
+	  AST::DesugarApit ().go (crate);
+
+	  fixed_point_reached = false;
+	  did_desugar = true;
+	}
+      else
+	{
+	  fixed_point_reached |= (++iterations == cfg.recursion_limit);
+	}
+
       expander.reset_changed_state ();
-      iterations++;
 
       if (saw_errors ())
 	break;
@@ -980,20 +996,6 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       range.add_range (last_def->get_locus ());
 
       rust_error_at (range, "reached recursion limit");
-    }
-
-  // handle AST desugaring
-  if (!saw_errors ())
-    {
-      AST::DesugarForLoops ().go (crate);
-      AST::DesugarQuestionMark ().go (crate);
-      AST::DesugarApit ().go (crate);
-
-      // HACK: we may need a final TopLevel pass
-      // however, this should not count towards the recursion limit
-      // and we don't need a full Early pass
-      if (flag_name_resolution_2_0)
-	Resolver2_0::TopLevel (ctx).go (crate);
     }
 
   // error reporting - check unused macros, get missing fragment specifiers
