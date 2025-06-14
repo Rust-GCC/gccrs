@@ -619,10 +619,6 @@ Session::compile_crate (const char *filename)
 
   expansion (parsed_crate, name_resolution_ctx);
 
-  AST::DesugarForLoops ().go (parsed_crate);
-  AST::DesugarQuestionMark ().go (parsed_crate);
-  AST::DesugarApit ().go (parsed_crate);
-
   rust_debug ("\033[0;31mSUCCESSFULLY FINISHED EXPANSION \033[0m");
   if (options.dump_option_enabled (CompileOptions::EXPANSION_DUMP))
     {
@@ -940,7 +936,9 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   MacroExpander expander (crate, cfg, *this);
   std::vector<Error> macro_errors;
 
-  while (!fixed_point_reached && iterations < cfg.recursion_limit)
+  bool did_desugar = false;
+
+  while (!fixed_point_reached)
     {
       CfgStrip ().go (crate);
       // Errors might happen during cfg strip pass
@@ -962,8 +960,22 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       ExpandVisitor (expander).go (crate);
 
       fixed_point_reached = !expander.has_changed () && !visitor_dirty;
+
+      if (fixed_point_reached && macro_errors.empty () && !did_desugar)
+	{
+	  AST::DesugarForLoops ().go (crate);
+	  AST::DesugarQuestionMark ().go (crate);
+	  AST::DesugarApit ().go (crate);
+
+	  fixed_point_reached = false;
+	  did_desugar = true;
+	}
+      else
+	{
+	  fixed_point_reached |= (++iterations == cfg.recursion_limit);
+	}
+
       expander.reset_changed_state ();
-      iterations++;
 
       if (saw_errors ())
 	break;
