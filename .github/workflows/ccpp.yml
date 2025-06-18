@@ -28,6 +28,7 @@ jobs:
     - name: Install Deps
       run: |
           apt-get update;
+          DEBIAN_FRONTEND=noninteractive \
           apt-get install -y \
                   automake \
                   autoconf \
@@ -117,6 +118,7 @@ jobs:
     - name: Install Deps
       run: |
           apt-get update;
+          DEBIAN_FRONTEND=noninteractive \
           apt-get install -y \
                   automake \
                   autoconf \
@@ -206,6 +208,7 @@ jobs:
     - name: Install Deps
       run: |
           apt-get update;
+          DEBIAN_FRONTEND=noninteractive \
           apt-get install -y \
                   automake \
                   autoconf \
