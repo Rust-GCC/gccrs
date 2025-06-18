@@ -47,6 +47,9 @@ jobs:
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
+    - name: Disable Networking
+      run: iptables -P OUTPUT DROP
+
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
 
@@ -137,6 +140,9 @@ jobs:
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
+    - name: Disable Networking
+      run: iptables -P OUTPUT DROP
+
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
 
@@ -226,6 +232,9 @@ jobs:
                   curl;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+
+    - name: Disable Networking
+      run: iptables -P OUTPUT DROP
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
