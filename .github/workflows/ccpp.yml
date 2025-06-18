@@ -53,6 +53,8 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
@@ -140,6 +142,8 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            export CXXFLAGS="$CXXFLAGS -D_GLIBCXX_ASSERTIONS"
            ../configure \
                --enable-languages=rust \
@@ -227,6 +231,8 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
