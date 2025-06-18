@@ -19,8 +19,8 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
-    container: ubuntu:22.04
+    runs-on: ubuntu-latest
+    container: ubuntu:25.04
 
     steps:
     - uses: actions/checkout@v4
@@ -112,8 +112,8 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
-    container: ubuntu:22.04
+    runs-on: ubuntu-latest
+    container: ubuntu:25.04
 
     steps:
     - uses: actions/checkout@v4
@@ -205,8 +205,8 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
-    container: ubuntu:22.04
+    runs-on: ubuntu-latest
+    container: ubuntu:25.04
 
     steps:
     - uses: actions/checkout@v4
