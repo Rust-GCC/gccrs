@@ -19,19 +19,13 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get upgrade;
-          sudo sed -i 's/Prompt=lts/Prompt=normal/' /etc/update-manager/release-upgrades;
-          sudo do-release-upgrade -f DistUpgradeViewNonInteractive;
-          sudo do-release-upgrade -f DistUpgradeViewNonInteractive;
-          sudo add-apt-repository universe;
           sudo apt-get update;
           sudo apt-get install -y \
                   automake \
@@ -44,7 +38,8 @@ jobs:
                   libmpfr-dev \
                   libmpc-dev \
                   build-essential \
-                  gcc-15 \
+                  gcc-multilib \
+                  g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
@@ -109,19 +104,13 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get upgrade;
-          sudo sed -i 's/Prompt=lts/Prompt=normal/' /etc/update-manager/release-upgrades;
-          sudo do-release-upgrade -f DistUpgradeViewNonInteractive;
-          sudo do-release-upgrade -f DistUpgradeViewNonInteractive;
-          sudo add-apt-repository universe;
           sudo apt-get update;
           sudo apt-get install -y \
                   automake \
@@ -134,7 +123,8 @@ jobs:
                   libmpfr-dev \
                   libmpc-dev \
                   build-essential \
-                  gcc-15 \
+                  gcc-multilib \
+                  g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
@@ -199,19 +189,13 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get upgrade;
-          sudo sed -i 's/Prompt=lts/Prompt=normal/' /etc/update-manager/release-upgrades;
-          sudo do-release-upgrade -f DistUpgradeViewNonInteractive;
-          sudo do-release-upgrade -f DistUpgradeViewNonInteractive;
-          sudo add-apt-repository universe;
           sudo apt-get update;
           sudo apt-get install -y \
                   automake \
@@ -224,7 +208,8 @@ jobs:
                   libmpfr-dev \
                   libmpc-dev \
                   build-essential \
-                  gcc-15 \
+                  gcc-multilib \
+                  g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
