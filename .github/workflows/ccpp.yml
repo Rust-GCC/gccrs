@@ -27,8 +27,8 @@ jobs:
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get install -y \
+          apt-get update;
+          apt-get install -y \
                   automake \
                   autoconf \
                   libtool \
@@ -116,8 +116,8 @@ jobs:
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get install -y \
+          apt-get update;
+          apt-get install -y \
                   automake \
                   autoconf \
                   libtool \
@@ -205,8 +205,8 @@ jobs:
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get install -y \
+          apt-get update;
+          apt-get install -y \
                   automake \
                   autoconf \
                   libtool \
