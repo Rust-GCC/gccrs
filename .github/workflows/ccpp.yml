@@ -38,6 +38,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -123,6 +125,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -208,6 +212,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -291,6 +297,8 @@ jobs:
                   libmpc-dev \
                   build-essential \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -452,6 +460,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
