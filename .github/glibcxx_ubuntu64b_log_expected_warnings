@@ -196,8 +196,8 @@
 ../../libcpp/macro.cc:214:34: warning: format not a string literal and no format arguments [-Wformat-security]
 ../../libcpp/macro.cc:3811:25: warning: format not a string literal and no format arguments [-Wformat-security]
 ../../libcpp/macro.cc:3826:25: warning: format not a string literal and no format arguments [-Wformat-security]
-/home/runner/work/gccrs/gccrs/gccrs-build/x86_64-pc-linux-gnu/32/libssp/../../../../libssp/gets-chk.c:73: warning: the `gets' function is dangerous and should not be used.
-/home/runner/work/gccrs/gccrs/gccrs-build/x86_64-pc-linux-gnu/libssp/../../../libssp/gets-chk.c:73: warning: the `gets' function is dangerous and should not be used.
+/__w/gccrs/gccrs/gccrs-build/x86_64-pc-linux-gnu/32/libssp/../../../../libssp/gets-chk.c:73: warning: the `gets' function is dangerous and should not be used.
+/__w/gccrs/gccrs/gccrs-build/x86_64-pc-linux-gnu/libssp/../../../libssp/gets-chk.c:73: warning: the `gets' function is dangerous and should not be used.
 gengtype-lex.cc:357:15: warning: this statement may fall through [-Wimplicit-fallthrough=]
 gengtype-lex.cc:357:15: warning: this statement may fall through [-Wimplicit-fallthrough=]
 gengtype-lex.cc:357:15: warning: this statement may fall through [-Wimplicit-fallthrough=]

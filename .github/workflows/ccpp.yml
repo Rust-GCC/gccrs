@@ -19,15 +19,17 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container: ubuntu:25.04
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get install -y \
+          apt-get update;
+          DEBIAN_FRONTEND=noninteractive \
+          apt-get install -y \
                   automake \
                   autoconf \
                   libtool \
@@ -40,9 +42,14 @@ jobs:
                   build-essential \
                   gcc-multilib \
                   g++-multilib \
-                  dejagnu;
+                  dejagnu \
+                  curl \
+                  nftables;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+
+    - name: Disable Networking
+      run: nft add rule filter output drop
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -51,6 +58,8 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
@@ -63,7 +72,7 @@ jobs:
            # Add cargo to our path quickly
            . "$HOME/.cargo/env"; \
            # Build without network access
-           unshare --net --ipc -r /bin/bash -c "make -Otarget -j $(nproc) 2>&1 | tee log ; exit \${PIPESTATUS[0]}"
+           make -Otarget -j $(nproc) 2>&1 | tee log
 
     - name: Check for new warnings
       run: |
@@ -104,15 +113,17 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container: ubuntu:25.04
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get install -y \
+          apt-get update;
+          DEBIAN_FRONTEND=noninteractive \
+          apt-get install -y \
                   automake \
                   autoconf \
                   libtool \
@@ -125,9 +136,14 @@ jobs:
                   build-essential \
                   gcc-multilib \
                   g++-multilib \
-                  dejagnu;
+                  dejagnu \
+                  curl \
+                  nftables;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+
+    - name: Disable Networking
+      run: nft add rule filter output drop
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -136,6 +152,8 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            export CXXFLAGS="$CXXFLAGS -D_GLIBCXX_ASSERTIONS"
            ../configure \
                --enable-languages=rust \
@@ -189,15 +207,17 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container: ubuntu:25.04
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Deps
       run: |
-          sudo apt-get update;
-          sudo apt-get install -y \
+          apt-get update;
+          DEBIAN_FRONTEND=noninteractive \
+          apt-get install -y \
                   automake \
                   autoconf \
                   libtool \
@@ -210,9 +230,14 @@ jobs:
                   build-essential \
                   gcc-multilib \
                   g++-multilib \
-                  dejagnu;
+                  dejagnu \
+                  curl \
+                  nftables;
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+
+    - name: Disable Networking
+      run: nft add rule filter output drop
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -221,6 +246,8 @@ jobs:
       run: |
            mkdir -p gccrs-build;
            cd gccrs-build;
+           # Add cargo to our path quickly
+           . "$HOME/.cargo/env";
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
