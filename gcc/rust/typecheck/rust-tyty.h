@@ -270,6 +270,7 @@ public:
   WARN_UNUSED_RESULT virtual BaseType *get_param_type_at (size_t index) const
     = 0;
   WARN_UNUSED_RESULT virtual BaseType *get_return_type () const = 0;
+  void setup_fn_once_output() const;
 };
 
 class InferType : public BaseType
@@ -1010,7 +1011,9 @@ public:
 			     {Resolver::CanonicalPath::create_empty (), locus},
 			     refs),
       params (std::move (params)), result_type (result_type)
-  {}
+  {
+    setup_fn_once_output ();
+  }
 
   FnPtr (HirId ref, HirId ty_ref, location_t locus, std::vector<TyVar> params,
 	 TyVar result_type, std::set<HirId> refs = std::set<HirId> ())
@@ -1018,7 +1021,9 @@ public:
 			     {Resolver::CanonicalPath::create_empty (), locus},
 			     refs),
       params (params), result_type (result_type)
-  {}
+  {
+    setup_fn_once_output ();
+  }
 
   std::string get_name () const override final { return as_string (); }
 
@@ -1039,6 +1044,7 @@ public:
 
   const TyVar &get_var_return_type () const { return result_type; }
 
+  TyTy::BaseType &get_result_type () const { return *result_type.get_tyty (); }
   size_t num_params () const { return params.size (); }
 
   void accept_vis (TyVisitor &vis) override;
@@ -1136,8 +1142,6 @@ public:
   TyTy::BaseType &get_result_type () const { return *result_type.get_tyty (); }
 
   DefId get_def_id () const { return id; }
-
-  void setup_fn_once_output () const;
 
   const std::set<NodeId> &get_captures () const { return captures; }
 
