@@ -105,7 +105,7 @@ TypeBoundsProbe::scan ()
     }
 
   // marker traits...
-  assemble_sized_builtin ();
+  assemble_marker_builtins ();
 
   // add auto trait bounds
   for (auto *auto_trait : mappings.get_auto_traits ())
@@ -113,7 +113,7 @@ TypeBoundsProbe::scan ()
 }
 
 void
-TypeBoundsProbe::assemble_sized_builtin ()
+TypeBoundsProbe::assemble_marker_builtins ()
 {
   const TyTy::BaseType *raw = receiver->destructure ();
 
@@ -132,7 +132,6 @@ TypeBoundsProbe::assemble_sized_builtin ()
     case TyTy::POINTER:
     case TyTy::PARAM:
     case TyTy::FNDEF:
-    case TyTy::FNPTR:
     case TyTy::BOOL:
     case TyTy::CHAR:
     case TyTy::INT:
@@ -140,13 +139,20 @@ TypeBoundsProbe::assemble_sized_builtin ()
     case TyTy::FLOAT:
     case TyTy::USIZE:
     case TyTy::ISIZE:
-    case TyTy::CLOSURE:
     case TyTy::INFER:
     case TyTy::NEVER:
     case TyTy::PLACEHOLDER:
     case TyTy::PROJECTION:
     case TyTy::OPAQUE:
       assemble_builtin_candidate (LangItem::Kind::SIZED);
+      break;
+
+    case TyTy::FNPTR:
+    case TyTy::CLOSURE:
+      assemble_builtin_candidate (LangItem::Kind::SIZED);
+      assemble_builtin_candidate (LangItem::Kind::FN_ONCE);
+      assemble_builtin_candidate (LangItem::Kind::FN);
+      assemble_builtin_candidate (LangItem::Kind::FN_MUT);
       break;
 
       // FIXME str and slice need to be moved and test cases updated
@@ -748,16 +754,34 @@ size_t
 TypeBoundPredicate::get_num_associated_bindings () const
 {
   size_t count = 0;
-  auto trait_ref = get ();
-  for (const auto &trait_item : trait_ref->get_trait_items ())
-    {
-      bool is_associated_type
-	= trait_item.get_trait_item_type ()
-	  == Resolver::TraitItemReference::TraitItemType::TYPE;
-      if (is_associated_type)
-	count++;
-    }
+
+  get_trait_hierachy ([&count] (const Resolver::TraitReference &ref) {
+    for (const auto &trait_item : ref.get_trait_items ())
+      {
+	bool is_associated_type
+	  = trait_item.get_trait_item_type ()
+	    == Resolver::TraitItemReference::TraitItemType::TYPE;
+	if (is_associated_type)
+	  count++;
+      }
+  });
+
   return count;
+}
+
+void
+TypeBoundPredicate::get_trait_hierachy (
+  std::function<void (const Resolver::TraitReference &)> callback) const
+{
+  auto trait_ref = get ();
+  callback (*trait_ref);
+
+  for (auto &super : super_traits)
+    {
+      const auto &super_trait_ref = *super.get ();
+      callback (super_trait_ref);
+      super.get_trait_hierachy (callback);
+    }
 }
 
 TypeBoundPredicateItem
