@@ -76,6 +76,66 @@ namespace AST {
 class ASTVisitor;
 using AttrVec = std::vector<Attribute>;
 
+class Located
+{
+public:
+  virtual location_t get_locus () const = 0;
+};
+
+class LocatedImpl : virtual public Located
+{
+private:
+  location_t locus;
+
+protected:
+  LocatedImpl (location_t locus) : locus (locus) {}
+
+public:
+  location_t get_locus () const override final { return locus; }
+};
+
+class NodeIdStore
+{
+  NodeId node_id;
+
+public:
+  NodeIdStore () : node_id (Analysis::Mappings::get ()->get_next_node_id ()) {}
+
+  NodeId get_node_id () const { return node_id; }
+
+  friend class Expr;
+};
+
+class Located
+{
+public:
+  virtual location_t get_locus () const = 0;
+};
+
+class LocatedImpl : virtual public Located
+{
+private:
+  location_t locus;
+
+protected:
+  LocatedImpl (location_t locus) : locus (locus) {}
+
+public:
+  location_t get_locus () const override final { return locus; }
+};
+
+class NodeIdStore
+{
+  NodeId node_id;
+
+public:
+  NodeIdStore () : node_id (Analysis::Mappings::get ()->get_next_node_id ()) {}
+
+  NodeId get_node_id () const { return node_id; }
+
+  friend class Expr;
+};
+
 class Visitable
 {
 public:
@@ -347,18 +407,16 @@ public:
 };
 
 // A segment of a simple path without generic or type arguments
-class SimplePathSegment : public PathSegment
+class SimplePathSegment : public PathSegment, virtual public NodeIdStore
 {
   std::string segment_name;
   location_t locus;
-  NodeId node_id;
 
   // only allow identifiers, "super", "self", "crate", or "$crate"
 public:
   // TODO: put checks in constructor to enforce this rule?
   SimplePathSegment (std::string segment_name, location_t locus)
-    : segment_name (std::move (segment_name)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+    : segment_name (std::move (segment_name)), locus (locus)
   {}
 
   /* Returns whether simple path segment is in an invalid state (currently, if
@@ -374,7 +432,6 @@ public:
   std::string as_string () const override;
 
   location_t get_locus () const { return locus; }
-  NodeId get_node_id () const { return node_id; }
   const std::string &get_segment_name () const { return segment_name; }
   bool is_super_path_seg () const
   {
@@ -395,12 +452,11 @@ public:
 };
 
 // A simple path without generic or type arguments
-class SimplePath
+class SimplePath : public NodeIdStore
 {
   bool opening_scope_resolution;
   std::vector<SimplePathSegment> segments;
   location_t locus;
-  NodeId node_id;
 
 public:
   // Constructor
@@ -408,15 +464,13 @@ public:
 		       bool has_opening_scope_resolution = false,
 		       location_t locus = UNDEF_LOCATION)
     : opening_scope_resolution (has_opening_scope_resolution),
-      segments (std::move (path_segments)), locus (locus),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      segments (std::move (path_segments)), locus (locus)
   {}
 
   explicit SimplePath (Identifier ident)
     : opening_scope_resolution (false),
       segments ({SimplePathSegment (ident.as_string (), ident.get_locus ())}),
-      locus (ident.get_locus ()),
-      node_id (Analysis::Mappings::get ().get_next_node_id ())
+      locus (ident.get_locus ())
   {}
 
   // Creates an empty SimplePath.
@@ -436,7 +490,6 @@ public:
   }
 
   location_t get_locus () const { return locus; }
-  NodeId get_node_id () const { return node_id; }
 
   // does this need visitor if not polymorphic? probably not
 
@@ -1078,7 +1131,9 @@ class MetaListNameValueStr;
 /* Base statement abstract class. Note that most "statements" are not allowed
  * in top-level module scope - only a subclass of statements called "items"
  * are. */
-class Stmt : public Visitable
+class Stmt : public Visitable,
+	     virtual public Located,
+	     virtual public NodeIdStore
 {
 public:
   enum class Kind
@@ -1100,11 +1155,8 @@ public:
 
   virtual std::string as_string () const = 0;
 
-  virtual location_t get_locus () const = 0;
-
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
-  NodeId get_node_id () const { return node_id; }
 
   virtual Kind get_stmt_kind () = 0;
 
@@ -1115,12 +1167,8 @@ public:
   virtual void add_semicolon () {}
 
 protected:
-  Stmt () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
-
   // Clone function implementation as pure virtual method
   virtual Stmt *clone_stmt_impl () const = 0;
-
-  NodeId node_id;
 };
 
 // Rust "item" AST node (declaration of top-level/module-level allowed stuff)
@@ -1237,7 +1285,9 @@ public:
 class ExprWithoutBlock;
 
 // Base expression AST node - abstract
-class Expr : public Visitable
+class Expr : public Visitable,
+	     virtual public Located,
+	     virtual public NodeIdStore
 {
 public:
   enum class Kind
@@ -1305,8 +1355,6 @@ public:
 
   virtual ~Expr () {}
 
-  virtual location_t get_locus () const = 0;
-
   virtual bool is_literal () const { return false; }
 
   // HACK: strictly not needed, but faster than full downcast clone
@@ -1314,8 +1362,6 @@ public:
 
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
-
-  virtual NodeId get_node_id () const { return node_id; }
 
   virtual void set_node_id (NodeId id) { node_id = id; }
 
@@ -1326,13 +1372,8 @@ public:
   virtual void set_outer_attrs (std::vector<Attribute>) = 0;
 
 protected:
-  // Constructor
-  Expr () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
-
   // Clone function implementation as pure virtual method
   virtual Expr *clone_expr_impl () const = 0;
-
-  NodeId node_id;
 };
 
 // AST node for an expression without an accompanying block - abstract
@@ -1420,7 +1461,9 @@ protected:
 };
 
 // Pattern base AST node
-class Pattern : public Visitable
+class Pattern : public Visitable,
+		virtual public Located,
+		virtual public NodeIdStore
 {
 public:
   enum class Kind
@@ -1459,9 +1502,6 @@ public:
   virtual void mark_for_strip () {}
   virtual bool is_marked_for_strip () const { return false; }
 
-  virtual location_t get_locus () const = 0;
-  virtual NodeId get_node_id () const = 0;
-
 protected:
   // Clone pattern implementation as pure virtual method
   virtual Pattern *clone_pattern_impl () const = 0;
@@ -1471,7 +1511,9 @@ protected:
 class TraitBound;
 
 // Base class for types as represented in AST - abstract
-class Type : public Visitable
+class Type : public Visitable,
+	     virtual public Located,
+	     virtual public NodeIdStore
 {
 public:
   // Unique pointer custom clone function
@@ -1495,17 +1537,9 @@ public:
   virtual void mark_for_strip () {}
   virtual bool is_marked_for_strip () const { return false; }
 
-  virtual location_t get_locus () const = 0;
-
-  NodeId get_node_id () const { return node_id; }
-
 protected:
-  Type () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
-
   // Clone function implementation as pure virtual method
   virtual Type *clone_type_impl () const = 0;
-
-  NodeId node_id;
 };
 
 // A type without parentheses? - abstract
@@ -1718,7 +1752,8 @@ protected:
   }
 };
 
-class AssociatedItem : public Visitable
+// Abstract base class for items used within an impl block
+class AssociatedItem : public Visitable, virtual public Located
 {
 protected:
   // Clone function implementation as pure virtual method
@@ -1727,6 +1762,7 @@ protected:
 public:
   virtual ~AssociatedItem () {}
 
+  // Unique pointer custom clone function
   std::unique_ptr<AssociatedItem> clone_associated_item () const
   {
     return std::unique_ptr<AssociatedItem> (clone_associated_item_impl ());
@@ -1736,50 +1772,12 @@ public:
 
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
-
-  virtual location_t get_locus () const = 0;
-};
-
-// Item used in trait declarations - abstract base class
-class TraitItem : public AssociatedItem
-{
-protected:
-  TraitItem (location_t locus)
-    : node_id (Analysis::Mappings::get ().get_next_node_id ()),
-      vis (Visibility::create_private ()), locus (locus)
-  {}
-
-  TraitItem (Visibility vis, location_t locus)
-    : node_id (Analysis::Mappings::get ().get_next_node_id ()), vis (vis),
-      locus (locus)
-  {}
-
-  // Clone function implementation as pure virtual method
-  virtual TraitItem *clone_associated_item_impl () const override = 0;
-
-  NodeId node_id;
-  Visibility vis;
-  location_t locus;
-
-public:
-  // Unique pointer custom clone function
-  std::unique_ptr<TraitItem> clone_trait_item () const
-  {
-    return std::unique_ptr<TraitItem> (clone_associated_item_impl ());
-  }
-
-  NodeId get_node_id () const { return node_id; }
-  location_t get_locus () const override { return locus; }
 };
 
 // Abstract base class for an item used inside an extern block
-class ExternalItem : public Visitable
+class ExternalItem : public Visitable, virtual public NodeIdStore
 {
 public:
-  ExternalItem () : node_id (Analysis::Mappings::get ().get_next_node_id ()) {}
-
-  ExternalItem (NodeId node_id) : node_id (node_id) {}
-
   virtual ~ExternalItem () {}
 
   // Unique pointer custom clone function
@@ -1793,13 +1791,9 @@ public:
   virtual void mark_for_strip () = 0;
   virtual bool is_marked_for_strip () const = 0;
 
-  virtual NodeId get_node_id () const { return node_id; }
-
 protected:
   // Clone function implementation as pure virtual method
   virtual ExternalItem *clone_external_item_impl () const = 0;
-
-  NodeId node_id;
 };
 
 /* Data structure to store the data used in macro invocations and macro

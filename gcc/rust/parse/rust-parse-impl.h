@@ -5329,7 +5329,7 @@ Parser<ManagedTokenSource>::parse_impl (AST::Visibility vis,
       // parse inner attributes (optional)
       AST::AttrVec inner_attrs = parse_inner_attributes ();
 
-      // parse inherent impl items
+      // parse associated items
       std::vector<std::unique_ptr<AST::AssociatedItem>> impl_items;
 
       const_TokenPtr t = lexer.peek_token ();
