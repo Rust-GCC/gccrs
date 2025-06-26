@@ -9,9 +9,6 @@ on:
     branches: [ master ]
   merge_group:
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
 jobs:
   build-alpine-32bit-and-check-alpine-32bit:
 
@@ -19,7 +16,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -81,7 +78,7 @@ jobs:
       run: |
            cd gccrs-build
            # grep exits with 1 if it doesn't find at least one match
-           < log grep 'warning: ' | ../.github/safe-grep rust | sort > log_warnings
+           < log grep 'warning: ' | ../.github/safe-grep -i rust | sort > log_warnings
            cat log_warnings
       shell: alpine.sh {0}
     - name: Archive warnings logs
