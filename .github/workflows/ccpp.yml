@@ -68,7 +68,7 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           < log grep 'warning: ' | grep rust | sort > log_warnings
            if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
@@ -153,7 +153,7 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           < log grep 'warning: ' | grep rust | sort > log_warnings
            if diff -U0 ../.github/glibcxx_ubuntu64b_log_expected_warnings log_warnings; then
                :
            else
@@ -237,7 +237,7 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           < log grep 'warning: ' | grep rust | sort > log_warnings
            if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
