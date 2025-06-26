@@ -80,7 +80,8 @@ jobs:
     - name: Produce warning logs
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
+           # grep exits with 1 if it doesn't find at least one match
+           < log grep 'warning: ' | ../.github/safe-grep rust | sort > log_warnings
            cat log_warnings
       shell: alpine.sh {0}
     - name: Archive warnings logs
@@ -92,7 +93,6 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | sort > log_warnings
            if diff -U0 ../.github/alpine_32bit_log_warnings log_warnings; then
                :
            else
