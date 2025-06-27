@@ -3879,9 +3879,20 @@ behavior and permissible arguments are the same as for the command-line option
 
 @cindex @code{outline-atomics} function attribute, AArch64
 @item outline-atomics
+@itemx no-outline-atomics
 Enable or disable calls to out-of-line helpers to implement atomic operations.
 This corresponds to the behavior of the command-line options
 @option{-moutline-atomics} and @option{-mno-outline-atomics}.
+
+@cindex @code{max-vectorization} function attribute, AArch64
+@item max-vectorization
+@itemx no-max-vectorization
+@code{max-vectorization} tells GCC's vectorizer to treat all vector
+loops as being more profitable than the original scalar loops when
+optimizing the current function.  @code{no-max-vectorization} disables
+this behavior.
+This corresponds to the behavior of the command-line options
+@option{-mmax-vectorization} and @option{-mno-max-vectorization}.
 
 @cindex @code{indirect_return} function attribute, AArch64
 @item indirect_return
@@ -6118,6 +6129,13 @@ registers. For example, this attribute can be used for a function
 called from the interrupt handler assembly stub which will preserve
 all registers and return from interrupt.
 
+@cindex @code{preserve_none} function attribute, x86
+@item preserve_none
+This attribute is similar to @code{no_callee_saved_registers}, except
+on x86-64, r12, r13, r14, r15, rdi and rsi registers are used for
+integer parameter passing and this calling convention is subject to
+change.
+
 @cindex @code{no_caller_saved_registers} function attribute, x86
 @item no_caller_saved_registers
 Use this attribute to indicate that the specified function has no
@@ -6125,9 +6143,10 @@ caller-saved registers. That is, all registers are callee-saved. For
 example, this attribute can be used for a function called from an
 interrupt handler. The compiler generates proper function entry and
 exit sequences to save and restore any modified registers, except for
-the EFLAGS register.  Since GCC doesn't preserve SSE, MMX nor x87
-states, the GCC option @option{-mgeneral-regs-only} should be used to
-compile functions with @code{no_caller_saved_registers} attribute.
+the EFLAGS register.  Since GCC doesn't preserve YMM nor ZMM registers,
+@code{no_caller_saved_registers} attribute can't be used on functions
+with AVX enabled.  Note that MMX and x87 registers aren't preserved by
+@code{no_caller_saved_registers} attribute.
 
 @cindex @code{interrupt} function attribute, x86
 @item interrupt
@@ -10381,6 +10400,11 @@ loop or a @code{#pragma GCC ivdep}, and applies only to the loop that follows.
 @var{n} is an integer constant expression specifying the unrolling factor.
 The values of @math{0} and @math{1} block any unrolling of the loop.
 
+If the loop was vectorized the unroll factor specified will be used to seed the
+vectorizer unroll factor.  Whether the loop is unrolled or not will be
+determined by target costing.  The resulting vectorized loop may still be
+unrolled more in later passes depending on the target costing.
+
 @end table
 
 @node Thread-Local
@@ -10667,7 +10691,7 @@ and @samp{[[omp::sequence(...)]]} in C and C++,
 GCC needs to be invoked with the @option{-fopenmp} option.
 This option also arranges for automatic linking of the OpenMP
 runtime library.
-@xref{,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
+@xref{Top,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
 
 @xref{OpenMP and OpenACC Options}, for additional options useful with
 @option{-fopenmp}.
@@ -10689,7 +10713,7 @@ To enable the processing of OpenACC directives @samp{#pragma acc}
 in C and C++, GCC needs to be invoked with the @option{-fopenacc} option.
 This option also arranges for automatic linking of the OpenACC runtime
 library.
-@xref{,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
+@xref{Top,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
 
 @xref{OpenMP and OpenACC Options}, for additional options useful with
 @option{-fopenacc}.

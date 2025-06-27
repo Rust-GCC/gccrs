@@ -1,3 +1,86 @@
+2025-06-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	* trans-stmt.cc (gfc_trans_call_acc_attach_detach): New.
+	(gfc_trans_call): Call it.
+
+2025-06-24  Harald Anlauf  <anlauf@gmx.de>
+	    Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/120743
+	* trans-expr.cc (gfc_conv_substring): Substring indices are of
+	type gfc_charlen_type_node.  Convert to size_type_node for
+	pointer arithmetic only after offset adjustments have been made.
+
+2025-06-24  Mikael Morin  <morin-mikael@orange.fr>
+
+	* misc.cc (gfc_var_name_for_select_type_temp): New function.
+	* gfortran.h (gfc_var_name_for_select_type_temp): Declare it.
+	* resolve.cc (resolve_select_type): Pick a discriminating name
+	from the SELECT TYPE variable reference and use it in the name
+	of the temporary variable that is generated.  Truncate name to
+	the buffer size.
+	* match.cc (select_type_set_tmp): Likewise.  Pass the
+	discriminating name...
+	(select_intrinsic_set_tmp): ... to this function.  Use the
+	discriminating name likewise.  Augment the buffer size to match
+	that of select_type_set_tmp and resolve_select_type.
+
+2025-06-23  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (OACC_WAIT_CLAUSES): Add if clause.
+	* trans-openmp.cc (gfc_trans_oacc_wait_directive): Handle it.
+
+2025-06-23  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/120784
+	* interface.cc (gfc_match_end_interface): If a use-associated
+	symbol is renamed, use the local_name for checking.
+
+2025-06-19  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/120713
+	* trans-array.cc (gfc_trans_deferred_array): Statically
+	initialize deferred length variable for SAVEd character arrays.
+
+2025-06-18  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/82480
+	* check.cc (gfc_check_fstat): Extend checks to INTENT(OUT) arguments.
+	(gfc_check_fstat_sub): Likewise.
+	(gfc_check_stat): Likewise.
+	(gfc_check_stat_sub): Likewise.
+	* intrinsic.texi: Adjust documentation.
+
+2025-06-16  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/51961
+	* resolve.cc (conformable_arrays): Use modified rank check when
+	MOLD= expression is given.
+
+2025-06-12  Yuao Ma  <c8ef@outlook.com>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/113152
+	* intrinsic.texi: Document new half-revolution trigonometric
+	functions. Reorder doc for atand.
+
+2025-06-06  Tobias Burnus  <tburnus@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* f95-lang.cc (ATTR_PURE_NOTHROW_LIST): Define.
+	* trans-expr.cc (get_builtin_fn): Handle omp_get_num_devices
+	and omp_get_intrinsic_device.
+	* gfortran.h (gfc_option_t): Add disable_omp_... for them.
+	* options.cc (gfc_handle_option): Handle them with
+	-fno-builtin-.
+
+2025-06-04  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120483
+	* trans-expr.cc (gfc_conv_substring): Use pointer arithmetic on
+	static allocatable char arrays.
+
 2025-06-03  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/99838

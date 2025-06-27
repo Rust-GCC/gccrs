@@ -307,6 +307,9 @@ private:
      diagnostic.  */
   vec<diagnostic_classification_change_t> m_classification_history;
 
+  /* For diagnostic_context::get_classification_history, declared later.  */
+  friend class diagnostic_context;
+
   /* For pragma push/pop.  */
   vec<int> m_push_list;
 };
@@ -830,6 +833,45 @@ public:
     m_abort_on_error = val;
   }
 
+  /* Accessor for use in serialization, e.g. by C++ modules.  */
+  auto &
+  get_classification_history ()
+  {
+    return m_option_classifier.m_classification_history;
+  }
+
+  void set_main_input_filename (const char *filename);
+
+  void
+  set_permissive_option (diagnostic_option_id opt_permissive)
+  {
+    m_opt_permissive = opt_permissive;
+  }
+
+  void
+  set_fatal_errors (bool fatal_errors)
+  {
+    m_fatal_errors = fatal_errors;
+  }
+
+  void
+  set_internal_error_callback (void (*cb) (diagnostic_context *,
+					   const char *,
+					   va_list *))
+  {
+    m_internal_error = cb;
+  }
+
+  void
+  set_adjust_diagnostic_info_callback (void (*cb) (diagnostic_context *,
+						   diagnostic_info *))
+  {
+    m_adjust_diagnostic_info = cb;
+  }
+
+  void
+  inhibit_notes () { m_inhibit_notes_p = true; }
+
 private:
   void error_recursion () ATTRIBUTE_NORETURN;
 
@@ -899,6 +941,7 @@ public:
   /* True if permerrors are warnings.  */
   bool m_permissive;
 
+private:
   /* The option to associate with turning permerrors into warnings,
      if any.  */
   diagnostic_option_id m_opt_permissive;
@@ -906,6 +949,7 @@ public:
   /* True if errors are fatal.  */
   bool m_fatal_errors;
 
+public:
   /* True if all warnings should be disabled.  */
   bool m_inhibit_warnings;
 
@@ -937,7 +981,6 @@ private:
     diagnostic_text_finalizer_fn m_end_diagnostic;
   } m_text_callbacks;
 
-public:
   /* Client hook to report an internal error.  */
   void (*m_internal_error) (diagnostic_context *, const char *, va_list *);
 
@@ -945,7 +988,6 @@ public:
      about to issue, such as its kind.  */
   void (*m_adjust_diagnostic_info)(diagnostic_context *, diagnostic_info *);
 
-private:
   /* Owned by the context; this would be a std::unique_ptr if
      diagnostic_context had a proper ctor.  */
   diagnostic_option_manager *m_option_mgr;
@@ -972,9 +1014,9 @@ public:
 private:
   int m_lock;
 
-public:
   bool m_inhibit_notes_p;
 
+public:
   diagnostic_source_printing_options m_source_printing;
 
 private:
@@ -1070,13 +1112,6 @@ private:
      discarded (if the buffer is cleared).  */
   diagnostic_buffer *m_diagnostic_buffer;
 };
-
-inline void
-diagnostic_inhibit_notes (diagnostic_context * context)
-{
-  context->m_inhibit_notes_p = true;
-}
-
 
 /* Client supplied function to announce a diagnostic
    (for text-based diagnostic output).  */
