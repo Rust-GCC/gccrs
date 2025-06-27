@@ -8607,6 +8607,20 @@ struct stack_access_data
   unsigned int *stack_alignment;
 };
 
+/* Return true if OP references an argument passed on stack.  */
+
+static bool
+ix86_argument_passed_on_stack_p (const_rtx op)
+{
+  tree mem_expr = MEM_EXPR (op);
+  if (mem_expr)
+    {
+      tree var = get_base_address (mem_expr);
+      return TREE_CODE (var) == PARM_DECL;
+    }
+  return false;
+}
+
 /* Update the maximum stack slot alignment from memory alignment in PAT.  */
 
 static void
@@ -8622,7 +8636,11 @@ ix86_update_stack_alignment (rtx, const_rtx pat, void *data)
       auto op = *iter;
       if (MEM_P (op))
 	{
-	  if (reg_mentioned_p (p->reg, XEXP (op, 0)))
+	  /* NB: Ignore arguments passed on stack since caller is
+	     responsible to align the outgoing stack for arguments
+	     passed on stack.  */
+	  if (reg_mentioned_p (p->reg, XEXP (op, 0))
+	      && !ix86_argument_passed_on_stack_p (op))
 	    {
 	      unsigned int alignment = MEM_ALIGN (op);
 
