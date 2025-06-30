@@ -394,22 +394,6 @@ ForeverStack<N>::find_closest_module (Node &starting_point)
   return *closest_module;
 }
 
-/* If a the given condition is met, emit an error about misused leading path
- * segments */
-template <typename S>
-static inline bool
-check_leading_kw_at_start (std::vector<Error> &collect_errors, const S &segment,
-			   bool condition)
-{
-  if (condition)
-    collect_errors.emplace_back (
-      segment.get_locus (), ErrorCode::E0433,
-      "%qs in paths can only be used in start position",
-      segment.as_string ().c_str ());
-
-  return condition;
-}
-
 // we first need to handle the "starting" segments - `super`, `self` or
 // `crate`. we don't need to do anything for `self` and can just skip it. for
 // `crate`, we need to go back to the root of the current stack. for each
@@ -420,8 +404,7 @@ template <typename S>
 tl::expected<typename std::vector<S>::const_iterator, ResolutionError>
 ForeverStack<N>::find_starting_point (
   const std::vector<S> &segments, std::reference_wrapper<Node> &starting_point,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
-  std::vector<Error> &collect_errors)
+  std::function<void (const S &, NodeId)> insert_segment_resolution)
 {
   auto iterator = segments.begin ();
 
@@ -438,11 +421,10 @@ ForeverStack<N>::find_starting_point (
 
       // if we're after the first path segment and meet `self` or `crate`, it's
       // an error - we should only be seeing `super` keywords at this point
-      if (check_leading_kw_at_start (collect_errors, seg,
-				     !is_start (iterator, segments)
-				       && is_self_or_crate))
+      if (!is_start (iterator, segments) && is_self_or_crate)
 	return tl::make_unexpected (
-	  ResolutionError::make_error (seg.as_string (), seg.get_locus ()));
+	  ResolutionError::make_unexpected_leader (seg.as_string (),
+						   seg.get_locus ()));
 
       if (seg.is_crate_path_seg ())
 	{
@@ -463,14 +445,9 @@ ForeverStack<N>::find_starting_point (
 	{
 	  starting_point = find_closest_module (starting_point);
 	  if (starting_point.get ().is_root ())
-	    {
-	      collect_errors.emplace_back (
-		seg.get_locus (), ErrorCode::E0433,
-		"too many leading %<super%> keywords");
-	      return tl::make_unexpected (
-		ResolutionError::make_error (seg.as_string (),
-					     seg.get_locus ()));
-	    }
+	    return tl::make_unexpected (
+	      ResolutionError::make_too_many_super (seg.as_string (),
+						    seg.get_locus ()));
 
 	  starting_point
 	    = find_closest_module (starting_point.get ().parent.value ());
@@ -495,8 +472,7 @@ tl::expected<std::reference_wrapper<typename ForeverStack<N>::Node>,
 ForeverStack<N>::resolve_segments (
   Node &starting_point, const std::vector<S> &segments,
   typename std::vector<S>::const_iterator iterator,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
-  std::vector<Error> &collect_errors)
+  std::function<void (const S &, NodeId)> insert_segment_resolution)
 {
   Node *current_node = &starting_point;
   for (; !is_last (iterator, segments); iterator++)
@@ -518,12 +494,11 @@ ForeverStack<N>::resolve_segments (
       rust_debug ("[ARTHUR]: resolving segment part: %s", str.c_str ());
 
       // check that we don't encounter *any* leading keywords afterwards
-      if (check_leading_kw_at_start (collect_errors, seg,
-				     seg.is_crate_path_seg ()
-				       || seg.is_super_path_seg ()
-				       || seg.is_lower_self_seg ()))
+      if (seg.is_crate_path_seg () || seg.is_super_path_seg ()
+	  || seg.is_lower_self_seg ())
 	return tl::make_unexpected (
-	  ResolutionError::make_error (seg.as_string (), seg.get_locus ()));
+	  ResolutionError::make_unexpected_leader (seg.as_string (),
+						   seg.get_locus ()));
 
       tl::optional<typename ForeverStack<N>::Node &> child = tl::nullopt;
 
@@ -577,8 +552,8 @@ ForeverStack<N>::resolve_segments (
 		  insert_segment_resolution (outer_seg,
 					     rib_lookup->get_node_id ());
 		  return tl::make_unexpected (
-		    ResolutionError::make_error (seg.as_string (),
-						 seg.get_locus ()));
+		    ResolutionError::make_duplicate (seg.as_string (),
+						     seg.get_locus ()));
 		}
 	    }
 
@@ -594,8 +569,8 @@ ForeverStack<N>::resolve_segments (
 	      || current_node->is_prelude ())
 	    {
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg.as_string (),
-					     seg.get_locus ()));
+		ResolutionError::make_not_found (seg.as_string (),
+						 seg.get_locus ()));
 	    }
 
 	  current_node = &current_node->parent.value ();
@@ -636,8 +611,7 @@ template <typename S>
 tl::expected<Rib::Definition, ResolutionError>
 ForeverStack<N>::resolve_path (
   const std::vector<S> &segments, bool has_opening_scope_resolution,
-  std::function<void (const S &, NodeId)> insert_segment_resolution,
-  std::vector<Error> &collect_errors)
+  std::function<void (const S &, NodeId)> insert_segment_resolution)
 {
   rust_assert (!segments.empty ());
 
@@ -683,20 +657,19 @@ ForeverStack<N>::resolve_path (
 	return res.value ();
       else
 	return tl::make_unexpected (
-	  ResolutionError::make_error (unwrapped.as_string (),
-				       unwrapped.get_locus ()));
+	  ResolutionError::make_not_found (unwrapped.as_string (),
+					   unwrapped.get_locus ()));
     }
 
   std::reference_wrapper<Node> starting_point = cursor ();
 
   auto res
-    = find_starting_point (segments, starting_point, insert_segment_resolution,
-			   collect_errors)
+    = find_starting_point (segments, starting_point, insert_segment_resolution)
 	.and_then (
-	  [this, &segments, &starting_point, &insert_segment_resolution,
-	   &collect_errors] (typename std::vector<S>::const_iterator iterator) {
+	  [this, &segments, &starting_point, &insert_segment_resolution] (
+	    typename std::vector<S>::const_iterator iterator) {
 	    return resolve_segments (starting_point.get (), segments, iterator,
-				     insert_segment_resolution, collect_errors);
+				     insert_segment_resolution);
 	  })
 	.and_then (
 	  [this, &segments, &insert_segment_resolution] (Node &final_node)
@@ -708,7 +681,7 @@ ForeverStack<N>::resolve_path (
 	    // leave resolution within impl blocks to type checker
 	    if (final_node.rib.kind == Rib::Kind::TraitOrImpl)
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg_name, seg.get_locus ()));
+		ResolutionError::make_postpone (seg_name, seg.get_locus ()));
 
 	    // assuming this can't be a lang item segment
 	    tl::optional<Rib::Definition> res
@@ -725,7 +698,7 @@ ForeverStack<N>::resolve_path (
 	      return res.value ();
 	    else
 	      return tl::make_unexpected (
-		ResolutionError::make_error (seg_name, seg.get_locus ()));
+		ResolutionError::make_not_found (seg_name, seg.get_locus ()));
 	  });
   cleanup_current ();
   return res;

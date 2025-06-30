@@ -228,21 +228,12 @@ private:
       };
     };
 
-    std::vector<Error> value_errors;
-    std::vector<Error> type_errors;
-    std::vector<Error> macro_errors;
-
-    ctx.resolve_path (path, value_errors, Namespace::Values)
+    ctx.resolve_path (path, Namespace::Values)
       .map (pair_with_ns (Namespace::Values));
-    ctx.resolve_path (path, type_errors, Namespace::Types)
+    ctx.resolve_path (path, Namespace::Types)
       .map (pair_with_ns (Namespace::Types));
-    ctx.resolve_path (path, macro_errors, Namespace::Macros)
+    ctx.resolve_path (path, Namespace::Macros)
       .map (pair_with_ns (Namespace::Macros));
-
-    if (!value_errors.empty () && !type_errors.empty ()
-	&& !macro_errors.empty ())
-      for (auto &ent : value_errors)
-	collect_error (std::move (ent));
 
     return resolved;
   }

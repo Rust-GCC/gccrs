@@ -545,26 +545,60 @@ private:
 
 class ResolutionError
 {
+public:
+  enum class Kind
+  {
+    TOO_MANY_SUPER,
+    UNEXPECTED_LEADER,
+    DUPLICATE,
+    NOT_FOUND,
+    POSTPONE,
+  };
+  Kind kind;
+
+private:
   std::string name;
   location_t offending_location;
   std::vector<Identifier> suggestions;
   // Parent scope for name resolution "X not found in Y"
   tl::optional<std::string> parent;
 
-  ResolutionError (std::string name, location_t loc,
+  ResolutionError (Kind kind, std::string name, location_t loc,
 		   std::vector<Identifier> suggestions,
 		   tl::optional<std::string> parent)
-    : name (name), offending_location (loc), suggestions (suggestions),
-      parent (parent)
+    : kind (kind), name (name), offending_location (loc),
+      suggestions (suggestions), parent (parent)
   {}
 
 public:
-  static ResolutionError make_error (std::string name, location_t loc,
-				     std::vector<Identifier> suggestions = {},
-				     tl::optional<std::string> parent
-				     = tl::nullopt)
+  static ResolutionError make_too_many_super (std::string name, location_t loc)
   {
-    return ResolutionError (name, loc, suggestions, parent);
+    return ResolutionError (Kind::TOO_MANY_SUPER, name, loc, {}, tl::nullopt);
+  }
+
+  static ResolutionError make_unexpected_leader (std::string name,
+						 location_t loc)
+  {
+    return ResolutionError (Kind::UNEXPECTED_LEADER, name, loc, {},
+			    tl::nullopt);
+  }
+
+  static ResolutionError make_duplicate (std::string name, location_t loc)
+  {
+    return ResolutionError (Kind::DUPLICATE, name, loc, {}, tl::nullopt);
+  }
+
+  static ResolutionError make_postpone (std::string name, location_t loc)
+  {
+    return ResolutionError (Kind::POSTPONE, name, loc, {}, tl::nullopt);
+  }
+
+  static ResolutionError
+  make_not_found (std::string name, location_t loc,
+		  std::vector<Identifier> suggestions = {},
+		  tl::optional<std::string> parent = tl::nullopt)
+  {
+    return ResolutionError (Kind::NOT_FOUND, name, loc, suggestions, parent);
   }
 
   const std::string &get_name () const { return name; }
@@ -704,8 +738,7 @@ public:
   template <typename S>
   tl::expected<Rib::Definition, ResolutionError> resolve_path (
     const std::vector<S> &segments, bool has_opening_scope_resolution,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+    std::function<void (const S &, NodeId)> insert_segment_resolution);
 
   // FIXME: Documentation
   tl::optional<Resolver::CanonicalPath> to_canonical_path (NodeId id) const;
@@ -824,15 +857,13 @@ private:
   tl::expected<SegIterator<S>, ResolutionError> find_starting_point (
     const std::vector<S> &segments,
     std::reference_wrapper<Node> &starting_point,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+    std::function<void (const S &, NodeId)> insert_segment_resolution);
 
   template <typename S>
   tl::expected<std::reference_wrapper<Node>, ResolutionError> resolve_segments (
     Node &starting_point, const std::vector<S> &segments,
     SegIterator<S> iterator,
-    std::function<void (const S &, NodeId)> insert_segment_resolution,
-    std::vector<Error> &collect_errors);
+    std::function<void (const S &, NodeId)> insert_segment_resolution);
 
   tl::optional<Rib::Definition> resolve_final_segment (Node &final_node,
 						       std::string &seg_name,

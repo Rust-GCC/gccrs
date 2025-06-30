@@ -269,12 +269,43 @@ Early::visit (AST::MacroInvocation &invoc)
       = textual_scope.get (path.get_final_segment ().as_string ())
 	  .map ([] (NodeId id) { return Rib::Definition::NonShadowable (id); });
 
+  // HERE: breakpoint
+
   // we won't have changed `definition` from `nullopt` if there are more
   // than one segments in our path
   if (!definition.has_value ())
     {
-      if (auto resolved = ctx.resolve_path (path, Namespace::Macros))
+      auto resolved = ctx.resolve_path (path, Namespace::Macros);
+      if (resolved)
 	definition = resolved.value ();
+      else
+	{
+	  auto r_error = resolved.error ().get_error_unchecked ();
+	  switch (r_error.kind)
+	    {
+	    case ResolutionError::Kind::TOO_MANY_SUPER:
+	      collect_error (Error (r_error.get_offending_location (),
+				    ErrorCode::E0433,
+				    "too many leading %<super%> keywords"));
+	      return;
+	    case ResolutionError::Kind::UNEXPECTED_LEADER:
+	      collect_error (
+		Error (r_error.get_offending_location (), ErrorCode::E0433,
+		       "%qs in paths can only be used in start position",
+		       r_error.get_name ().c_str ()));
+	      return;
+
+	    case ResolutionError::Kind::NOT_FOUND:
+
+	      rust_unreachable ();
+	      collect_error (Error (invoc.get_locus (), ErrorCode::E0433,
+				    "could not resolve macro invocation %qs",
+				    path.as_string ().c_str ()));
+	      return;
+	    default:
+	      rust_unreachable ();
+	    }
+	}
     }
 
   // if the definition still does not have a value, then it's an error
