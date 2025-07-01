@@ -583,13 +583,20 @@ ForeverStack<N>::resolve_segments (
 	      break;
 	    }
 
-	  if (N == Namespace::Types)
+	  auto rib_lookup = current_node->rib.get (seg.as_string ());
+	  if (rib_lookup && !rib_lookup->is_ambiguous ())
 	    {
-	      auto rib_lookup = current_node->rib.get (seg.as_string ());
-	      if (rib_lookup && !rib_lookup->is_ambiguous ())
+	      insert_segment_resolution (outer_seg, rib_lookup->get_node_id ());
+	      if (Analysis::Mappings::get ()
+		    .lookup_ast_module (rib_lookup->get_node_id ())
+		    .has_value ())
 		{
-		  insert_segment_resolution (outer_seg,
-					     rib_lookup->get_node_id ());
+		  current_node
+		    = &dfs_node (root, rib_lookup->get_node_id ()).value ();
+		  continue;
+		}
+	      else
+		{
 		  return tl::nullopt;
 		}
 	    }
