@@ -141,8 +141,14 @@ Late::visit (AST::ForLoopExpr &expr)
   ctx.bindings.exit ();
 
   visit (expr.get_iterator_expr ());
-  visit (expr.get_loop_label ());
-  visit (expr.get_loop_block ());
+
+  auto vis_method = [this, &expr] () {
+    if (expr.has_loop_label ())
+      visit (expr.get_loop_label ());
+    visit (expr.get_loop_block ());
+  };
+
+  ctx.scoped (Rib::Kind::Normal, expr.get_node_id (), vis_method);
 }
 
 void
