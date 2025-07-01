@@ -1131,6 +1131,11 @@ parse_llvm_clobbers (LlvmAsmContext &ctx)
 
       parser.maybe_skip_token (COMMA);
       token = parser.peek_current_token ();
+      if (token->get_id () == COMMA)
+	{
+	  parser.skip_token (COMMA);
+	  token = parser.peek_current_token ();
+	}
     }
 }
 
