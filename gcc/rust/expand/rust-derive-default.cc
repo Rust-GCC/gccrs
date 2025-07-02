@@ -42,7 +42,7 @@ DeriveDefault::go (Item &item)
 std::unique_ptr<Expr>
 DeriveDefault::default_call (std::unique_ptr<Type> &&type)
 {
-  auto default_trait = builder.type_path ({"core", "default", "Default"}, true);
+  auto default_trait = builder.type_path_core ({"default", "Default"});
 
   auto default_fn
     = builder.qualified_path_in_expression (std::move (type), default_trait,
@@ -70,7 +70,7 @@ DeriveDefault::default_impl (
   const std::vector<std::unique_ptr<GenericParam>> &type_generics)
 {
   auto default_path = [this] () {
-    return builder.type_path ({"core", "default", "Default"}, true);
+    return builder.type_path_core ({"default", "Default"});
   };
 
   auto trait_items = vec (std::move (default_fn));
