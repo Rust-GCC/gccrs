@@ -276,6 +276,63 @@ Builder::type_path (LangItem::Kind lang_item) const
   return type_path (type_path_segment (lang_item));
 }
 
+TypePath
+Builder::type_path_core (std::vector<std::unique_ptr<TypePathSegment>> &&segments) const
+{
+  bool opening_scope;
+
+  auto &mappings = Analysis::Mappings::get ();
+  if (mappings.get_current_crate_name () == "core")
+    {
+      segments.emplace (segments.cbegin (), type_path_segment ("crate"));
+      opening_scope = false;
+    }
+  else
+    {
+      segments.emplace (segments.cbegin (), type_path_segment ("core"));
+      opening_scope = true;
+    }
+
+  return TypePath (std::move (segments), loc, opening_scope);
+}
+
+TypePath
+Builder::type_path_core (std::vector<std::string> &&segments) const
+{
+  auto type_segments = std::vector<std::unique_ptr<TypePathSegment>> ();
+  type_segments.reserve (segments.size () + 1);
+  bool opening_scope;
+
+  auto &mappings = Analysis::Mappings::get ();
+  if (mappings.get_current_crate_name () == "core")
+    {
+      type_segments.emplace_back (type_path_segment ("crate"));
+      opening_scope = false;
+    }
+  else
+    {
+      type_segments.emplace_back (type_path_segment ("core"));
+      opening_scope = true;
+    }
+
+  for (auto &&seg : segments)
+    type_segments.emplace_back (type_path_segment (seg));
+
+  return TypePath (std::move (type_segments), loc, opening_scope);
+}
+
+TypePath
+Builder::type_path_core (std::initializer_list<const char *> segments) const
+{
+  std::vector<std::string> segments_out;
+  segments_out.reserve (segments.size ());
+
+  for (auto seg : segments)
+    segments_out.emplace_back (seg);
+
+  return type_path_core (std::move (segments_out));
+}
+
 std::unique_ptr<Type>
 Builder::reference_type (std::unique_ptr<TypeNoBounds> &&inner_type,
 			 bool mutability) const
@@ -299,6 +356,31 @@ PathInExpression
 Builder::path_in_expression (LangItem::Kind lang_item) const
 {
   return PathInExpression (lang_item, {}, loc);
+}
+
+PathInExpression
+Builder::path_in_expression_core (std::vector<std::string> &&segments) const
+{
+  auto path_segments = std::vector<PathExprSegment> ();
+  path_segments.reserve (segments.size () + 1);
+  bool opening_scope;
+
+  auto &mappings = Analysis::Mappings::get ();
+  if (mappings.get_current_crate_name () == "core")
+    {
+      path_segments.emplace_back (path_segment ("crate"));
+      opening_scope = false;
+    }
+  else
+    {
+      path_segments.emplace_back (path_segment ("core"));
+      opening_scope = true;
+    }
+
+  for (auto &&seg : segments)
+    path_segments.emplace_back (path_segment (seg));
+
+  return PathInExpression (std::move (path_segments), {}, loc, opening_scope);
 }
 
 PathInExpression
@@ -544,7 +626,7 @@ std::unique_ptr<Stmt>
 Builder::discriminant_value (std::string binding_name, std::string instance)
 {
   auto intrinsic = ptrify (
-    path_in_expression ({"core", "intrinsics", "discriminant_value"}, true));
+    path_in_expression_core ({"intrinsics", "discriminant_value"}));
 
   return let (identifier_pattern (binding_name), nullptr,
 	      call (std::move (intrinsic), identifier (instance)));
