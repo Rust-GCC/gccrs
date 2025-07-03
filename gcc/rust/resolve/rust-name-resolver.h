@@ -118,25 +118,6 @@ private:
   std::vector<Rib *> stack;
 };
 
-class Resolver
-{
-public:
-  static Resolver *get ();
-  ~Resolver () {}
-
-  void insert_resolved_name (NodeId refId, NodeId defId);
-  bool lookup_resolved_name (NodeId refId, NodeId *defId);
-
-  void insert_resolved_type (NodeId refId, NodeId defId);
-  bool lookup_resolved_type (NodeId refId, NodeId *defId);
-
-  void insert_resolved_misc (NodeId refId, NodeId defId);
-  bool lookup_resolved_misc (NodeId refId, NodeId *defId);
-
-private:
-  Resolver ();
-};
-
 } // namespace Resolver
 } // namespace Rust
 
