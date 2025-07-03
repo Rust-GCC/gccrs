@@ -72,7 +72,6 @@ private:
     std::vector<std::unique_ptr<GenericParam>> &param, ConstGenericCtx context);
 
   StackedContexts<HirId> const_context;
-  Resolver::Resolver &resolver;
   Analysis::Mappings &mappings;
 
   virtual void visit (Lifetime &lifetime) override;

@@ -33,8 +33,7 @@ namespace Privacy {
 class VisibilityResolver : public HIR::HIRVisItemVisitor
 {
 public:
-  VisibilityResolver (Analysis::Mappings &mappings,
-		      Rust::Resolver::Resolver &resolver);
+  VisibilityResolver (Analysis::Mappings &mappings);
 
   /**
    * Perform visibility resolving on an entire crate
@@ -93,7 +92,6 @@ public:
 
 private:
   Analysis::Mappings &mappings;
-  Rust::Resolver::Resolver &resolver;
   DefId current_module;
 };
 
