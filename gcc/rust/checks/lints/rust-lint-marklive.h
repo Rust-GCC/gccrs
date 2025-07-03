@@ -277,11 +277,9 @@ private:
   std::set<HirId> liveSymbols;
   std::set<HirId> scannedSymbols;
   Analysis::Mappings &mappings;
-  Resolver::Resolver *resolver;
   Resolver::TypeCheckContext *tyctx;
   MarkLive (std::vector<HirId> worklist)
     : worklist (worklist), mappings (Analysis::Mappings::get ()),
-      resolver (Resolver::Resolver::get ()),
       tyctx (Resolver::TypeCheckContext::get ()){};
 
   void mark_hir_id (HirId);
