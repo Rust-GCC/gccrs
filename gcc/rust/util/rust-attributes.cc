@@ -98,7 +98,8 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTFMT, EXTERNAL},
 
      {Attrs::TEST, CODE_GENERATION},
-     {Attrs::SIMD_TEST, CODE_GENERATION}};
+     {Attrs::SIMD_TEST, CODE_GENERATION},
+};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()

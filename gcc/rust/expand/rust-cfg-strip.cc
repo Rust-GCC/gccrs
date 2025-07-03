@@ -39,6 +39,10 @@ fails_cfg (const AST::AttrVec &attrs)
       if (attr.get_path () == Values::Attributes::CFG
 	  && !attr.check_cfg_predicate (session))
 	return true;
+      // TODO: have testing mode
+      // for now, just remove all #[test] functions
+      if (attr.get_path () == Values::Attributes::TEST)
+        return true;
     }
   return false;
 }
@@ -85,6 +89,10 @@ fails_cfg_with_expand (AST::AttrVec &attrs)
 			  attr.as_string ().c_str ());
 	    }
 	}
+      // TODO: have testing mode
+      // for now, just remove all #[test] functions
+      else if (attr.get_path () == Values::Attributes::TEST)
+        return true;
     }
   return false;
 }
