@@ -85,6 +85,8 @@ public:
   static constexpr auto &NON_EXHAUSTIVE = "non_exhaustive";
 
   static constexpr auto &RUSTFMT = "rustfmt";
+
+  static constexpr auto &TEST = "test";
 };
 } // namespace Values
 } // namespace Rust
