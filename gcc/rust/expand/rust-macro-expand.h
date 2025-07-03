@@ -300,7 +300,6 @@ struct MacroExpander
       sub_stack (SubstitutionScope ()),
       expanded_fragment (AST::Fragment::create_error ()),
       has_changed_flag (false), had_duplicate_error (false),
-      resolver (Resolver::Resolver::get ()),
       mappings (Analysis::Mappings::get ())
   {}
 
@@ -516,7 +515,6 @@ private:
   bool had_duplicate_error;
 
 public:
-  Resolver::Resolver *resolver;
   Analysis::Mappings &mappings;
 };
 
