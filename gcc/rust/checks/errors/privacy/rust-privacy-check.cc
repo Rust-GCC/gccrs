@@ -35,12 +35,11 @@ Resolver::resolve (HIR::Crate &crate)
 {
   PrivacyContext ctx;
   auto &mappings = Analysis::Mappings::get ();
-  auto resolver = Rust::Resolver::Resolver::get ();
   auto ty_ctx = ::Rust::Resolver::TypeCheckContext::get ();
 
-  VisibilityResolver (mappings, *resolver).go (crate);
+  VisibilityResolver (mappings).go (crate);
   PubRestrictedVisitor (mappings).go (crate);
-  PrivacyReporter (mappings, *resolver, *ty_ctx).go (crate);
+  PrivacyReporter (mappings, *ty_ctx).go (crate);
 
   auto visitor = ReachabilityVisitor (ctx, *ty_ctx);
 

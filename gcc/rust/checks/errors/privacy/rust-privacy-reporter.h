@@ -38,7 +38,6 @@ class PrivacyReporter : public HIR::HIRExpressionVisitor,
 {
 public:
   PrivacyReporter (Analysis::Mappings &mappings,
-		   Rust::Resolver::Resolver &resolver,
 		   const Rust::Resolver::TypeCheckContext &ty_ctx);
 
   /**
@@ -157,7 +156,6 @@ types
   virtual void visit (HIR::ExprStmt &stmt);
 
   Analysis::Mappings &mappings;
-  Rust::Resolver::Resolver &resolver;
   const Rust::Resolver::TypeCheckContext &ty_ctx;
 
   // `None` means we're in the root module - the crate
