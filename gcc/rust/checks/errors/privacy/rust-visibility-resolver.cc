@@ -73,6 +73,7 @@ VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
       invalid_path.emit ();
       return false;
     }
+
   // FIXME: Add a hint here if we can find the path in another scope, such as
   // a type or something else
   // TODO: For the hint, can we point to the original item's definition if
