@@ -19,6 +19,7 @@
 #include "rust-hir-type-check.h"
 #include "rust-hir-full.h"
 #include "rust-hir-inherent-impl-overlap.h"
+#include "rust-hir-inherent-impl-check.h"
 #include "rust-hir-pattern.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-item.h"
@@ -73,6 +74,10 @@ TypeResolution::Resolve (HIR::Crate &crate)
   for (auto &it : crate.get_items ())
     TypeCheckItem::Resolve (*it);
 
+  if (saw_errors ())
+    return;
+
+  PrimitiveImplCheck::go ();
   if (saw_errors ())
     return;
 
