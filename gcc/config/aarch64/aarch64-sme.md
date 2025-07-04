@@ -373,6 +373,8 @@
 		    (reg:DI SME_STATE_REGNUM)
 		    (reg:DI TPIDR2_SETUP_REGNUM)
 		    (reg:DI ZA_SAVED_REGNUM)] UNSPEC_RESTORE_ZA))
+   (set (reg:DI SME_STATE_REGNUM)
+	(unspec:DI [(reg:DI SME_STATE_REGNUM)] UNSPEC_TPIDR2_RESTORE))
    (clobber (reg:DI R0_REGNUM))
    (clobber (reg:DI R14_REGNUM))
    (clobber (reg:DI R15_REGNUM))
@@ -389,7 +391,7 @@
     auto label = gen_label_rtx ();
     auto tpidr2 = gen_rtx_REG (DImode, R16_REGNUM);
     emit_insn (gen_aarch64_read_tpidr2 (tpidr2));
-    auto jump = emit_likely_jump_insn (gen_aarch64_cbnedi1 (tpidr2, label));
+    auto jump = emit_likely_jump_insn (gen_aarch64_cbznedi1 (tpidr2, label));
     JUMP_LABEL (jump) = label;
 
     aarch64_restore_za (operands[0]);

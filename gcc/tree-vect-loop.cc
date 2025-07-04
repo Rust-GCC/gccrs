@@ -1069,10 +1069,12 @@ _loop_vec_info::_loop_vec_info (class loop *loop_in, vec_info_shared *shared)
     using_decrementing_iv_p (false),
     using_select_vl_p (false),
     epil_using_partial_vectors_p (false),
+    allow_mutual_alignment (false),
     partial_load_store_bias (0),
     peeling_for_gaps (false),
     peeling_for_niter (false),
     early_breaks (false),
+    user_unroll (false),
     no_data_dependencies (false),
     has_mask_store (false),
     scalar_loop_scaling (profile_probability::uninitialized ()),
@@ -3428,27 +3430,50 @@ vect_analyze_loop_1 (class loop *loop, vec_info_shared *shared,
 		     res ? "succeeded" : "failed",
 		     GET_MODE_NAME (loop_vinfo->vector_mode));
 
-  if (res && !LOOP_VINFO_EPILOGUE_P (loop_vinfo) && suggested_unroll_factor > 1)
+  auto user_unroll = LOOP_VINFO_LOOP (loop_vinfo)->unroll;
+  if (res && !LOOP_VINFO_EPILOGUE_P (loop_vinfo)
+      /* Check to see if the user wants to unroll or if the target wants to.  */
+      && (suggested_unroll_factor > 1 || user_unroll > 1))
     {
-      if (dump_enabled_p ())
-	dump_printf_loc (MSG_NOTE, vect_location,
+      if (suggested_unroll_factor == 1)
+	{
+	  int assumed_vf = vect_vf_for_cost (loop_vinfo);
+	  suggested_unroll_factor = user_unroll / assumed_vf;
+	  if (suggested_unroll_factor > 1)
+	    {
+	      if (dump_enabled_p ())
+		dump_printf_loc (MSG_NOTE, vect_location,
+			 "setting unroll factor to %d based on user requested "
+			 "unroll factor %d and suggested vectorization "
+			 "factor: %d\n",
+			 suggested_unroll_factor, user_unroll, assumed_vf);
+	    }
+	}
+
+	if (suggested_unroll_factor > 1)
+	  {
+	    if (dump_enabled_p ())
+	      dump_printf_loc (MSG_NOTE, vect_location,
 			 "***** Re-trying analysis for unrolling"
 			 " with unroll factor %d and slp %s.\n",
 			 suggested_unroll_factor,
 			 slp_done_for_suggested_uf ? "on" : "off");
-      loop_vec_info unroll_vinfo
-	= vect_create_loop_vinfo (loop, shared, loop_form_info, NULL);
-      unroll_vinfo->vector_mode = vector_mode;
-      unroll_vinfo->suggested_unroll_factor = suggested_unroll_factor;
-      opt_result new_res = vect_analyze_loop_2 (unroll_vinfo, fatal, NULL,
-						slp_done_for_suggested_uf);
-      if (new_res)
-	{
-	  delete loop_vinfo;
-	  loop_vinfo = unroll_vinfo;
-	}
-      else
-	delete unroll_vinfo;
+	    loop_vec_info unroll_vinfo
+		= vect_create_loop_vinfo (loop, shared, loop_form_info, NULL);
+	    unroll_vinfo->vector_mode = vector_mode;
+	    unroll_vinfo->suggested_unroll_factor = suggested_unroll_factor;
+	    opt_result new_res
+		= vect_analyze_loop_2 (unroll_vinfo, fatal, NULL,
+				       slp_done_for_suggested_uf);
+	    if (new_res)
+	      {
+		delete loop_vinfo;
+		loop_vinfo = unroll_vinfo;
+		LOOP_VINFO_USER_UNROLL (loop_vinfo) = user_unroll > 1;
+	      }
+	    else
+	      delete unroll_vinfo;
+	  }
     }
 
   /* Remember the autodetected vector mode.  */
@@ -3469,13 +3494,8 @@ vect_analyze_loop_1 (class loop *loop, vec_info_shared *shared,
       mode_i += 1;
     }
   if (mode_i + 1 < vector_modes.length ()
-      && VECTOR_MODE_P (autodetected_vector_mode)
-      && (related_vector_mode (vector_modes[mode_i + 1],
-			       GET_MODE_INNER (autodetected_vector_mode))
-	  == autodetected_vector_mode)
-      && (related_vector_mode (autodetected_vector_mode,
-			       GET_MODE_INNER (vector_modes[mode_i + 1]))
-	  == vector_modes[mode_i + 1]))
+      && vect_chooses_same_modes_p (autodetected_vector_mode,
+				    vector_modes[mode_i + 1]))
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_NOTE, vect_location,
@@ -3676,8 +3696,15 @@ vect_analyze_loop (class loop *loop, gimple *loop_vectorized_call,
     vector_modes[0] = autodetected_vector_mode;
   mode_i = 0;
 
-  bool supports_partial_vectors =
-    partial_vectors_supported_p () && param_vect_partial_vector_usage != 0;
+  bool supports_partial_vectors = param_vect_partial_vector_usage != 0;
+  machine_mode mask_mode;
+  if (supports_partial_vectors
+      && !partial_vectors_supported_p ()
+      && !(VECTOR_MODE_P (first_loop_vinfo->vector_mode)
+	   && targetm.vectorize.get_mask_mode
+		(first_loop_vinfo->vector_mode).exists (&mask_mode)
+	   && SCALAR_INT_MODE_P (mask_mode)))
+    supports_partial_vectors = false;
   poly_uint64 first_vinfo_vf = LOOP_VINFO_VECT_FACTOR (first_loop_vinfo);
 
   loop_vec_info orig_loop_vinfo = first_loop_vinfo;
@@ -3691,6 +3718,22 @@ vect_analyze_loop (class loop *loop, gimple *loop_vectorized_call,
 	     FIRST_VINFO_VF.  */
 	  if (!supports_partial_vectors
 	      && maybe_ge (cached_vf_per_mode[mode_i], first_vinfo_vf))
+	    {
+	      mode_i++;
+	      if (mode_i == vector_modes.length ())
+		break;
+	      continue;
+	    }
+	  /* We would need an exhaustive search to find all modes we
+	     skipped but that would lead to the same result as the
+	     analysis it was skipped for and where we'd could check
+	     cached_vf_per_mode against.
+	     Check for the autodetected mode, which is the common
+	     situation on x86 which does not perform cost comparison.  */
+	  if (!supports_partial_vectors
+	      && maybe_ge (cached_vf_per_mode[0], first_vinfo_vf)
+	      && vect_chooses_same_modes_p (autodetected_vector_mode,
+					    vector_modes[mode_i]))
 	    {
 	      mode_i++;
 	      if (mode_i == vector_modes.length ())
@@ -3749,6 +3792,7 @@ vect_analyze_loop (class loop *loop, gimple *loop_vectorized_call,
       /* When we selected a first vectorized epilogue, see if the target
 	 suggests to have another one.  */
       if (!unlimited_cost_model (loop)
+	  && !LOOP_VINFO_USING_PARTIAL_VECTORS_P (orig_loop_vinfo)
 	  && (orig_loop_vinfo->vector_costs->suggested_epilogue_mode ()
 	      != VOIDmode))
 	{
@@ -4101,6 +4145,10 @@ pop:
 	  if (op.ops[2] == op.ops[opi])
 	    neg = ! neg;
 	}
+      /* For an FMA the reduction code is the PLUS if the addition chain
+	 is the reduction.  */
+      else if (op.code == IFN_FMA && opi == 2)
+	op.code = PLUS_EXPR;
       if (CONVERT_EXPR_CODE_P (op.code)
 	  && tree_nop_conversion_p (op.type, TREE_TYPE (op.ops[0])))
 	;
@@ -4646,7 +4694,8 @@ vect_estimate_min_profitable_iters (loop_vec_info loop_vinfo,
      TODO: Consider assigning different costs to different scalar
      statements.  */
 
-  scalar_single_iter_cost = loop_vinfo->scalar_costs->total_cost ();
+  scalar_single_iter_cost = (loop_vinfo->scalar_costs->total_cost ()
+			     * param_vect_scalar_cost_multiplier) / 100;
 
   /* Add additional cost for the peeled instructions in prologue and epilogue
      loop.  (For fully-masked loops there will be no peeling.)
@@ -8042,6 +8091,19 @@ vectorizable_reduction (loop_vec_info loop_vinfo,
 	      if (dump_enabled_p ())
 		dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
 				 "in-order reduction chain without SLP.\n");
+	      return false;
+	    }
+	  /* Code generation doesn't support function calls other
+	     than .COND_*.  */
+	  if (!op.code.is_tree_code ()
+	      && !(op.code.is_internal_fn ()
+		   && conditional_internal_fn_code (internal_fn (op.code))
+			!= ERROR_MARK))
+	    {
+	      if (dump_enabled_p ())
+		dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+				 "in-order reduction chain operation not "
+				 "supported.\n");
 	      return false;
 	    }
 	  STMT_VINFO_REDUC_TYPE (reduc_info)
@@ -12040,6 +12102,13 @@ vect_transform_loop (loop_vec_info loop_vinfo, gimple *loop_vectorized_call)
 	dump_printf_loc (MSG_NOTE, vect_location, "Disabling unrolling due to"
 			 " variable-length vectorization factor\n");
     }
+
+  /* When we have unrolled the loop due to a user requested value we should
+     leave it up to the RTL unroll heuristics to determine if it's still worth
+     while to unroll more.  */
+  if (LOOP_VINFO_USER_UNROLL (loop_vinfo))
+    loop->unroll = 0;
+
   /* Free SLP instances here because otherwise stmt reference counting
      won't work.  */
   slp_instance instance;

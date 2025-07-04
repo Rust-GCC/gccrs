@@ -489,7 +489,7 @@ const struct attribute_spec c_common_gnu_attributes[] =
 			      handle_tls_model_attribute, NULL },
   { "nonnull",                0, -1, false, true, true, false,
 			      handle_nonnull_attribute, NULL },
-  { "nonnull_if_nonzero",     2, 2, false, true, true, false,
+  { "nonnull_if_nonzero",     2, 3, false, true, true, false,
 			      handle_nonnull_if_nonzero_attribute, NULL },
   { "nonstring",              0, 0, true, false, false, false,
 			      handle_nonstring_attribute, NULL },
@@ -2906,21 +2906,52 @@ handle_counted_by_attribute (tree *node, tree name,
 		" declaration %q+D", name, decl);
       *no_add_attrs = true;
     }
-  /* This attribute only applies to field with array type.  */
-  else if (TREE_CODE (TREE_TYPE (decl)) != ARRAY_TYPE)
+  /* This attribute only applies to a field with array type or pointer type.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) != ARRAY_TYPE
+	   && TREE_CODE (TREE_TYPE (decl)) != POINTER_TYPE)
     {
       error_at (DECL_SOURCE_LOCATION (decl),
-		"%qE attribute is not allowed for a non-array field",
-		name);
+		"%qE attribute is not allowed for a non-array"
+		" or non-pointer field", name);
       *no_add_attrs = true;
     }
   /* This attribute only applies to a C99 flexible array member type.  */
-  else if (! c_flexible_array_member_type_p (TREE_TYPE (decl)))
+  else if (TREE_CODE (TREE_TYPE (decl)) == ARRAY_TYPE
+	   && !c_flexible_array_member_type_p (TREE_TYPE (decl)))
     {
       error_at (DECL_SOURCE_LOCATION (decl),
 		"%qE attribute is not allowed for a non-flexible"
 		" array member field", name);
       *no_add_attrs = true;
+    }
+  /* This attribute cannot be applied to a pointer to void type.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) == POINTER_TYPE
+	   && TREE_CODE (TREE_TYPE (TREE_TYPE (decl))) == VOID_TYPE)
+    {
+      error_at (DECL_SOURCE_LOCATION (decl),
+		"%qE attribute is not allowed for a pointer to void",
+		name);
+      *no_add_attrs = true;
+    }
+  /* This attribute cannot be applied to a pointer to function type.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) == POINTER_TYPE
+	   && TREE_CODE (TREE_TYPE (TREE_TYPE (decl))) == FUNCTION_TYPE)
+    {
+      error_at (DECL_SOURCE_LOCATION (decl),
+		"%qE attribute is not allowed for a pointer to"
+		" function", name);
+      *no_add_attrs = true;
+    }
+  /* This attribute cannot be applied to a pointer to structure or union
+     with flexible array member.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) == POINTER_TYPE
+	   && RECORD_OR_UNION_TYPE_P (TREE_TYPE (TREE_TYPE (decl)))
+	   && TYPE_INCLUDES_FLEXARRAY (TREE_TYPE (TREE_TYPE (decl))))
+    {
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "%qE attribute is not allowed for a pointer to"
+		  " structure or union with flexible array member", name);
+	*no_add_attrs = true;
     }
   /* The argument should be an identifier.  */
   else if (TREE_CODE (argval) != IDENTIFIER_NODE)
@@ -2930,7 +2961,8 @@ handle_counted_by_attribute (tree *node, tree name,
       *no_add_attrs = true;
     }
   /* Issue error when there is a counted_by attribute with a different
-     field as the argument for the same flexible array member field.  */
+     field as the argument for the same flexible array member or
+     pointer field.  */
   else if (old_counted_by != NULL_TREE)
     {
       tree old_fieldname = TREE_VALUE (TREE_VALUE (old_counted_by));
@@ -5034,12 +5066,21 @@ handle_nonnull_if_nonzero_attribute (tree *node, tree name,
   tree type = *node;
   tree pos = TREE_VALUE (args);
   tree pos2 = TREE_VALUE (TREE_CHAIN (args));
+  tree chain2 = TREE_CHAIN (TREE_CHAIN (args));
+  tree pos3 = NULL_TREE;
+  if (chain2)
+    pos3 = TREE_VALUE (chain2);
   tree val = positional_argument (type, name, pos, POINTER_TYPE, 1);
   tree val2 = positional_argument (type, name, pos2, INTEGER_TYPE, 2);
-  if (val && val2)
+  tree val3 = NULL_TREE;
+  if (chain2)
+    val3 = positional_argument (type, name, pos3, INTEGER_TYPE, 3);
+  if (val && val2 && (!chain2 || val3))
     {
       TREE_VALUE (args) = val;
       TREE_VALUE (TREE_CHAIN (args)) = val2;
+      if (chain2)
+	TREE_VALUE (chain2) = val3;
     }
   else
     *no_add_attrs = true;

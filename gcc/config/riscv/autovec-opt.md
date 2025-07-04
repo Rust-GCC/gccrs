@@ -1682,7 +1682,7 @@
 ;; =============================================================================
 (define_insn_and_split "*<optab>_vx_<mode>"
  [(set (match_operand:V_VLSI    0 "register_operand")
-       (any_int_binop_no_shift_vx:V_VLSI
+       (any_int_binop_no_shift_vdup_v:V_VLSI
 	 (vec_duplicate:V_VLSI
 	   (match_operand:<VEL> 1 "register_operand"))
 	 (match_operand:V_VLSI  2 "<binop_rhs2_predicate>")))]
@@ -1699,7 +1699,7 @@
 
 (define_insn_and_split "*<optab>_vx_<mode>"
  [(set (match_operand:V_VLSI    0 "register_operand")
-       (any_int_binop_no_shift_vx:V_VLSI
+       (any_int_binop_no_shift_v_vdup:V_VLSI
 	 (match_operand:V_VLSI  1 "<binop_rhs2_predicate>")
 	 (vec_duplicate:V_VLSI
 	   (match_operand:<VEL> 2 "register_operand"))))]
@@ -1719,24 +1719,30 @@
 ;; Include
 ;; - vfmadd.vf
 ;; - vfmsub.vf
+;; - vfnmadd.vf
+;; - vfnmsub.vf
+;; - vfmacc.vf
+;; - vfmsac.vf
+;; - vfnmacc.vf
+;; - vfnmsac.vf
 ;; =============================================================================
 
-
+;; vfmadd.vf, vfmsub.vf, vfmacc.vf, vfmsac.vf
 (define_insn_and_split "*<optab>_vf_<mode>"
-  [(set (match_operand:V_VLSF 0 "register_operand"		"=vd")
+  [(set (match_operand:V_VLSF 0 "register_operand")
     (plus_minus:V_VLSF
 	    (mult:V_VLSF
 	      (vec_duplicate:V_VLSF
-		(match_operand:<VEL> 1 "register_operand"	"  f"))
-	      (match_operand:V_VLSF 2 "register_operand"	"  0"))
-	    (match_operand:V_VLSF 3 "register_operand"		" vr")))]
+		(match_operand:<VEL> 1 "register_operand"))
+	      (match_operand:V_VLSF 2 "register_operand"))
+	    (match_operand:V_VLSF 3 "register_operand")))]
   "TARGET_VECTOR && can_create_pseudo_p ()"
   "#"
   "&& 1"
   [(const_int 0)]
   {
     rtx ops[] = {operands[0], operands[1], operands[2], operands[3],
-		 operands[2]};
+		 RVV_VUNDEF(<MODE>mode)};
     riscv_vector::emit_vlmax_insn (code_for_pred_mul_scalar (<CODE>, <MODE>mode),
 				   riscv_vector::TERNARY_OP_FRM_DYN, ops);
     DONE;
@@ -1744,22 +1750,47 @@
   [(set_attr "type" "vfmuladd")]
 )
 
-(define_insn_and_split "*<optab>_vf_<mode>"
-  [(set (match_operand:V_VLSF 0 "register_operand"		"=vd")
-    (plus_minus:V_VLSF
-	    (match_operand:V_VLSF 3 "register_operand"		" vr")
-	    (mult:V_VLSF
-	      (vec_duplicate:V_VLSF
-		(match_operand:<VEL> 1 "register_operand"	"  f"))
-	      (match_operand:V_VLSF 2 "register_operand"	"  0"))))]
+;; vfnmsub.vf, vfnmsac.vf
+(define_insn_and_split "*vfnmsub_<mode>"
+  [(set (match_operand:V_VLSF 0 "register_operand")
+    (minus:V_VLSF
+      (match_operand:V_VLSF 3 "register_operand")
+      (mult:V_VLSF
+	(vec_duplicate:V_VLSF
+	  (match_operand:<VEL> 1 "register_operand"))
+	(match_operand:V_VLSF 2 "register_operand"))))]
   "TARGET_VECTOR && can_create_pseudo_p ()"
   "#"
   "&& 1"
   [(const_int 0)]
   {
     rtx ops[] = {operands[0], operands[1], operands[2], operands[3],
-		 operands[2]};
-    riscv_vector::emit_vlmax_insn (code_for_pred_mul_scalar (<CODE>, <MODE>mode),
+		 RVV_VUNDEF(<MODE>mode)};
+    riscv_vector::emit_vlmax_insn (code_for_pred_mul_neg_scalar (PLUS, <MODE>mode),
+				   riscv_vector::TERNARY_OP_FRM_DYN, ops);
+    DONE;
+  }
+  [(set_attr "type" "vfmuladd")]
+)
+
+;; vfnmadd.vf, vfnmacc.vf
+(define_insn_and_split "*vfnmadd_<mode>"
+  [(set (match_operand:V_VLSF 0 "register_operand")
+    (minus:V_VLSF
+      (mult:V_VLSF
+	(neg:V_VLSF
+	  (match_operand:V_VLSF 2 "register_operand"))
+	(vec_duplicate:V_VLSF
+	  (match_operand:<VEL> 1 "register_operand")))
+      (match_operand:V_VLSF 3 "register_operand")))]
+  "TARGET_VECTOR && can_create_pseudo_p ()"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+  {
+    rtx ops[] = {operands[0], operands[1], operands[2], operands[3],
+		 RVV_VUNDEF(<MODE>mode)};
+    riscv_vector::emit_vlmax_insn (code_for_pred_mul_neg_scalar (MINUS, <MODE>mode),
 				   riscv_vector::TERNARY_OP_FRM_DYN, ops);
     DONE;
   }

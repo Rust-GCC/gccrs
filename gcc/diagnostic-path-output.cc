@@ -114,7 +114,7 @@ class path_label : public range_label
     pp_printf (pp.get (), "%@", &event_id);
     pp_space (pp.get ());
 
-    if (meaning.m_verb == diagnostic_event::VERB_danger
+    if (meaning.m_verb == diagnostic_event::verb::danger
 	&& m_allow_emojis)
       {
 	pp_unicode_character (pp.get (), 0x26A0); /* U+26A0 WARNING SIGN.  */
@@ -135,7 +135,7 @@ class path_label : public range_label
     return result;
   }
 
-  const label_effects *get_effects (unsigned /*range_idx*/) const
+  const label_effects *get_effects (unsigned /*range_idx*/) const final override
   {
     return &m_effects;
   }
@@ -321,7 +321,7 @@ begin_html_stack_frame (xml::printer &xp,
       {
 	xp.push_tag_with_class ("td", "interprocmargin", false);
 	xp.set_attr ("style", "padding-left: 100px");
-	xp.pop_tag ();
+	xp.pop_tag ("td");
       }
       xp.push_tag_with_class ("td", "stack-frame", false);
       label_text funcname
@@ -331,8 +331,8 @@ begin_html_stack_frame (xml::printer &xp,
 	  xp.push_tag_with_class ("div", "frame-funcname", false);
 	  xp.push_tag ("span", true);
 	  xp.add_text (funcname.get ());
-	  xp.pop_tag (); // span
-	  xp.pop_tag (); // div
+	  xp.pop_tag ("span");
+	  xp.pop_tag ("div");
 	}
     }
   return std::make_unique<stack_frame> (std::move (parent),
@@ -350,9 +350,9 @@ end_html_stack_frame (xml::printer &xp,
   auto parent = std::move (frame->m_parent);
   if (frame->m_logical_loc)
     {
-      xp.pop_tag (); // td
-      xp.pop_tag (); // tr
-      xp.pop_tag (); // table
+      xp.pop_tag ("td");
+      xp.pop_tag ("tr");
+      xp.pop_tag ("table");
     }
   return parent;
 }
@@ -689,7 +689,7 @@ struct event_range
 	    iter_event.print_desc (pp);
 	    if (event_label_writer)
 	      event_label_writer->begin_label ();
-	    xp.add_text (pp_formatted_text (&pp));
+	    xp.add_text_from_pp (pp);
 	    if (event_label_writer)
 	      event_label_writer->end_label ();
 	  }
@@ -806,7 +806,7 @@ path_summary::path_summary (const path_print_policy &policy,
 {
   const unsigned num_events = path.num_events ();
 
-  event_range *cur_event_range = NULL;
+  event_range *cur_event_range = nullptr;
   for (unsigned idx = 0; idx < num_events; idx++)
     {
       const diagnostic_event &event = path.get_event (idx);
@@ -1194,7 +1194,7 @@ print_path_summary_as_html (const path_summary &ps,
 		     || this_logical_loc != curr_frame->m_logical_loc)
 		{
 		  curr_frame = end_html_stack_frame (xp, std::move (curr_frame));
-		  if (curr_frame == NULL)
+		  if (curr_frame == nullptr)
 		    {
 		      curr_frame
 			= begin_html_stack_frame (xp,
@@ -1211,7 +1211,7 @@ print_path_summary_as_html (const path_summary &ps,
       else
 	{
 	  curr_frame = begin_html_stack_frame (xp,
-					       NULL,
+					       nullptr,
 					       range->m_logical_loc,
 					       range->m_stack_depth,
 					       logical_loc_mgr);
@@ -1230,7 +1230,7 @@ print_path_summary_as_html (const path_summary &ps,
 	    {
 	      xp.push_tag_with_class ("span", "funcname", true);
 	      xp.add_text (funcname.get ());
-	      xp.pop_tag (); //span
+	      xp.pop_tag ("span");
 	      xp.add_text (": ");
 	    }
 	}
@@ -1243,8 +1243,8 @@ print_path_summary_as_html (const path_summary &ps,
 	else
 	  pp_printf (&pp, "events %i-%i",
 		     range->m_start_idx + 1, range->m_end_idx + 1);
-	xp.add_text (pp_formatted_text (&pp));
-	xp.pop_tag (); // span
+	xp.add_text_from_pp (pp);
+	xp.pop_tag ("span");
       }
       if (show_depths)
 	{
@@ -1252,10 +1252,10 @@ print_path_summary_as_html (const path_summary &ps,
 	  xp.push_tag_with_class ("span", "depth", true);
 	  pretty_printer pp;
 	  pp_printf (&pp, "(depth %i)", range->m_stack_depth);
-	  xp.add_text (pp_formatted_text (&pp));
-	  xp.pop_tag (); //span
+	  xp.add_text_from_pp (pp);
+	  xp.pop_tag ("span");
 	}
-      xp.pop_tag (); // div
+      xp.pop_tag ("div");
 
       /* Print a run of events.  */
       thread_event_printer &tep = thread_event_printers[swimlane_idx];
@@ -1267,16 +1267,16 @@ print_path_summary_as_html (const path_summary &ps,
 						  range, &effect_info);
       last_out_edge_column = effect_info.m_trailing_out_edge_column;
 
-      xp.pop_tag (); // td
-      xp.pop_tag (); // tr
-      xp.pop_tag (); // table
+      xp.pop_tag ("td");
+      xp.pop_tag ("tr");
+      xp.pop_tag ("table");
     }
 
   /* Close outstanding frames.  */
   while (curr_frame)
     curr_frame = end_html_stack_frame (xp, std::move (curr_frame));
 
-  xp.pop_tag (); // div
+  xp.pop_tag ("div");
 }
 
 } /* end of anonymous namespace for path-printing code.  */
@@ -1366,7 +1366,7 @@ diagnostic_text_output_format::print_path (const diagnostic_path &path)
 			      colorize,
 			      show_event_links);
 	char *saved_prefix = pp_take_prefix (pp);
-	pp_set_prefix (pp, NULL);
+	pp_set_prefix (pp, nullptr);
 	print_path_summary_as_text (summary, *this,
 				    get_context ().show_path_depths_p ());
 	pp_flush (pp);

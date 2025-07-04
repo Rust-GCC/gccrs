@@ -1,10 +1,13 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-ipa-icf-optimized-missed -fno-inline -fno-ipa-modref" } */
+/* { dg-options "-O2 -fdump-ipa-icf-optimized-missed -fno-inline -fno-ipa-modref -fno-implicit-constexpr" } */
 
 namespace {
 struct A
 {
   virtual void foo(void) {}
+#if __cpp_constexpr_virtual_inheritance >= 202506L
+  A() {}
+#endif
 };
 struct B: virtual A
 {

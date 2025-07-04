@@ -30,7 +30,7 @@ namespace ana {
 
 /* class record_layout.  */
 
-record_layout::record_layout (tree record_type)
+record_layout::record_layout (const_tree record_type)
 {
   gcc_assert (TREE_CODE (record_type) == RECORD_TYPE);
 
@@ -86,7 +86,7 @@ record_layout::get_item_at (bit_offset_t offset) const
   FOR_EACH_VEC_ELT (m_items, i, it)
     if (it->contains_p (offset))
       return it;
-  return NULL;
+  return nullptr;
 }
 
 /* Subroutine of ctor.  Add padding item to NEXT_OFFSET if necessary.  */

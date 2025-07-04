@@ -41,6 +41,7 @@ with System.Soft_Links;
 with System.CRTL;
 with System.Dwarf_Lines;
 with System.Exception_Traces;
+with System.OS_Lib;
 with System.Standard_Library;
 with System.Traceback_Entries;
 with System.Strings;
@@ -413,6 +414,23 @@ package body System.Traceback.Symbolic is
          return;
       end if;
 
+      --  On some platforms, we use dladdr and the dli_fname field to get the
+      --  pathname, but that pathname might be relative and not point to the
+      --  right thing in our context. That happens when the executable is
+      --  dynamically linked and was started through execvp; dli_fname only
+      --  contains the executable name passed to execvp in that case.
+      --
+      --  Because of this, we might be about to open a file that's in fact not
+      --  a shared object but something completely unrelated. It's hard to
+      --  detect this in general, but we perform a sanity check that
+      --  Module_Name does not designate a directory; if it does, it's
+      --  definitely not a shared object.
+
+      if System.OS_Lib.Is_Directory (Module_Name) then
+         Success := False;
+         return;
+      end if;
+
       Open (Module_Name, Module.C, Success);
 
       --  If a module can't be opened just return now, we just cannot give more
@@ -461,7 +479,7 @@ package body System.Traceback.Symbolic is
 
    exception
       when others =>
-         return;
+         null;
    end Module_Symbolic_Traceback;
 
    -------------------------------------

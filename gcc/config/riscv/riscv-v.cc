@@ -1598,7 +1598,7 @@ expand_const_vector_interleaved_stepped_npatterns (rtx target, rtx src,
 	  shifted_vid = gen_reg_rtx (mode);
 	  rtx shift = gen_int_mode (1, Xmode);
 	  rtx shift_ops[] = {shifted_vid, vid, shift};
-	  emit_vlmax_insn (code_for_pred_scalar (ASHIFT, mode), BINARY_OP,
+	  emit_vlmax_insn (code_for_pred_scalar (LSHIFTRT, mode), BINARY_OP,
 			   shift_ops);
 	}
       else
@@ -4723,7 +4723,7 @@ prepare_ternary_operands (rtx *ops)
 				   ops[4], ops[1], ops[6], ops[7], ops[9]));
       ops[5] = ops[4] = ops[0];
     }
-  else
+  else if (VECTOR_MODE_P (GET_MODE (ops[2])))
     {
       /* Swap the multiplication ops if the fallback value is the
 	 second of the two.  */
@@ -4733,8 +4733,10 @@ prepare_ternary_operands (rtx *ops)
       /* TODO: ??? Maybe we could support splitting FMA (a, 4, b)
 	 into PLUS (ASHIFT (a, 2), b) according to uarchs.  */
     }
-  gcc_assert (rtx_equal_p (ops[5], RVV_VUNDEF (mode))
-	      || rtx_equal_p (ops[5], ops[2]) || rtx_equal_p (ops[5], ops[4]));
+  gcc_assert (
+    rtx_equal_p (ops[5], RVV_VUNDEF (mode)) || rtx_equal_p (ops[5], ops[2])
+    || (!VECTOR_MODE_P (GET_MODE (ops[2])) && rtx_equal_p (ops[5], ops[3]))
+    || rtx_equal_p (ops[5], ops[4]));
 }
 
 /* Expand VEC_MASK_LEN_{LOAD_LANES,STORE_LANES}.  */
@@ -5537,6 +5539,11 @@ expand_vx_binary_vec_dup_vec (rtx op_0, rtx op_1, rtx op_2,
     case IOR:
     case XOR:
     case MULT:
+    case SMAX:
+    case UMAX:
+    case SMIN:
+    case UMIN:
+    case US_PLUS:
       icode = code_for_pred_scalar (code, mode);
       break;
     case MINUS:
@@ -5568,6 +5575,15 @@ expand_vx_binary_vec_vec_dup (rtx op_0, rtx op_1, rtx op_2,
     case XOR:
     case MULT:
     case DIV:
+    case UDIV:
+    case MOD:
+    case UMOD:
+    case SMAX:
+    case UMAX:
+    case SMIN:
+    case UMIN:
+    case US_PLUS:
+    case US_MINUS:
       icode = code_for_pred_scalar (code, mode);
       break;
     default:

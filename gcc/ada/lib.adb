@@ -1062,7 +1062,7 @@ package body Lib is
    -----------------------------
 
    function Increment_Serial_Number return Nat is
-      TSN : Int renames Units.Table (Current_Sem_Unit).Serial_Number;
+      TSN : Nat renames Units.Table (Current_Sem_Unit).Serial_Number;
    begin
       TSN := TSN + 1;
       return TSN;
@@ -1128,15 +1128,6 @@ package body Lib is
       Units.Release;
       Units.Locked := True;
    end Lock;
-
-   ---------------
-   -- Num_Units --
-   ---------------
-
-   function Num_Units return Nat is
-   begin
-      return Int (Units.Last) - Int (Main_Unit) + 1;
-   end Num_Units;
 
    -----------------
    -- Remove_Unit --
@@ -1232,7 +1223,7 @@ package body Lib is
    -------------------------------
 
    procedure Synchronize_Serial_Number (SN : Nat) is
-      TSN : Int renames Units.Table (Current_Sem_Unit).Serial_Number;
+      TSN : Nat renames Units.Table (Current_Sem_Unit).Serial_Number;
    begin
       --  We should not be trying to synchronize downward
 

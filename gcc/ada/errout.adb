@@ -33,11 +33,13 @@ with Atree;          use Atree;
 with Casing;         use Casing;
 with Csets;          use Csets;
 with Debug;          use Debug;
-with Diagnostics.Converter; use Diagnostics.Converter;
 with Einfo;          use Einfo;
 with Einfo.Entities; use Einfo.Entities;
 with Einfo.Utils;    use Einfo.Utils;
 with Erroutc;        use Erroutc;
+with Erroutc.Pretty_Emitter;
+with Erroutc.SARIF_Emitter;
+with Errsw;          use Errsw;
 with Gnatvsn;        use Gnatvsn;
 with Lib;            use Lib;
 with Opt;            use Opt;
@@ -97,10 +99,14 @@ package body Errout is
    -----------------------
 
    procedure Error_Msg_Internal
-     (Msg      : String;
-      Span     : Source_Span;
-      Opan     : Source_Span;
-      Msg_Cont : Boolean);
+     (Msg        : String;
+      Span       : Source_Span;
+      Opan       : Source_Span;
+      Msg_Cont   : Boolean;
+      Error_Code : Diagnostic_Id := No_Diagnostic_Id;
+      Label      : String := "";
+      Spans      : Labeled_Span_Array := No_Locations;
+      Fixes      : Fix_Array := No_Fixes);
    --  This is the low-level routine used to post messages after dealing with
    --  the issue of messages placed on instantiations (which get broken up
    --  into separate calls in Error_Msg). Span is the location on which the
@@ -271,11 +277,7 @@ package body Errout is
          begin
             if not M.Deleted then
                M.Deleted := True;
-               Warnings_Detected := Warnings_Detected - 1;
-
-               if M.Warn_Err then
-                  Warnings_Treated_As_Errors := Warnings_Treated_As_Errors - 1;
-               end if;
+               Decrease_Error_Msg_Count (M);
             end if;
 
             Id := M.Next;
@@ -284,6 +286,115 @@ package body Errout is
          end;
       end loop;
    end Delete_Warning_And_Continuations;
+
+   ------------------
+   -- Labeled_Span --
+   ------------------
+
+   function Labeled_Span
+     (Span       : Source_Span;
+      Label      : String := "";
+      Is_Primary : Boolean := True;
+      Is_Region  : Boolean := False)
+      return Labeled_Span_Type
+   is
+      L : Labeled_Span_Type;
+   begin
+      L.Span := Span;
+      if Label /= "" then
+         L.Label := new String'(Label);
+      end if;
+      L.Is_Primary := Is_Primary;
+      L.Is_Region  := Is_Region;
+      L.Next       := No_Labeled_Span;
+
+      return L;
+   end Labeled_Span;
+
+   --------------------------
+   -- Primary_Labeled_Span --
+   --------------------------
+
+   function Primary_Labeled_Span
+     (Span  : Source_Span;
+      Label : String  := "") return Labeled_Span_Type
+   is
+   begin
+      return Labeled_Span (Span => Span, Label => Label, Is_Primary => True);
+   end Primary_Labeled_Span;
+
+   --------------------------
+   -- Primary_Labeled_Span --
+   --------------------------
+
+   function Primary_Labeled_Span
+     (N     : Node_Or_Entity_Id;
+      Label : String := "") return Labeled_Span_Type
+   is
+   begin
+      return Primary_Labeled_Span (To_Full_Span (N), Label);
+   end Primary_Labeled_Span;
+
+   ----------------------------
+   -- Secondary_Labeled_Span --
+   ----------------------------
+
+   function Secondary_Labeled_Span
+     (Span  : Source_Span;
+      Label : String := "") return Labeled_Span_Type
+   is
+   begin
+      return Labeled_Span (Span => Span, Label => Label, Is_Primary => False);
+   end Secondary_Labeled_Span;
+
+   ----------------------------
+   -- Secondary_Labeled_Span --
+   ----------------------------
+
+   function Secondary_Labeled_Span
+     (N     : Node_Or_Entity_Id;
+      Label : String  := "") return Labeled_Span_Type
+   is
+   begin
+      return Secondary_Labeled_Span (To_Full_Span (N), Label);
+   end Secondary_Labeled_Span;
+
+   ----------
+   -- Edit --
+   ----------
+
+   function Edit (Text : String; Span : Source_Span) return Edit_Type is
+   begin
+      return (Text => new String'(Text), Span => Span, Next => No_Edit);
+   end Edit;
+
+   ---------
+   -- Fix --
+   ---------
+
+   function Fix (Description : String; Edits : Edit_Array) return Fix_Type is
+      First_Edit : Edit_Id  := No_Edit;
+      Last_Edit  : Edit_Id  := No_Edit;
+   begin
+      for I in Edits'Range loop
+         Erroutc.Edits.Append (Edits (I));
+
+         if Last_Edit /= No_Edit then
+            Erroutc.Edits.Table (Last_Edit).Next := Erroutc.Edits.Last;
+         end if;
+         Last_Edit := Erroutc.Edits.Last;
+
+         --  Store the first element in the edit chain
+
+         if First_Edit = No_Edit then
+            First_Edit := Last_Edit;
+         end if;
+      end loop;
+
+      return (Description => new String'(Description),
+              Edits       => First_Edit,
+              Next        => No_Fix);
+   end Fix;
 
    ---------------
    -- Error_Msg --
@@ -328,9 +439,13 @@ package body Errout is
    end Error_Msg;
 
    procedure Error_Msg
-     (Msg       : String;
-      Flag_Span : Source_Span;
-      N         : Node_Id)
+     (Msg        : String;
+      Flag_Span  : Source_Span;
+      N          : Node_Id;
+      Error_Code : Diagnostic_Id := No_Diagnostic_Id;
+      Label      : String := "";
+      Spans      : Labeled_Span_Array := No_Locations;
+      Fixes      : Fix_Array := No_Fixes)
    is
       Flag_Location : constant Source_Ptr := Flag_Span.Ptr;
 
@@ -459,7 +574,15 @@ package body Errout is
       --  Error_Msg_Internal to place the message in the requested location.
 
       if Instantiation (Sindex) = No_Location then
-         Error_Msg_Internal (Msg, Flag_Span, Flag_Span, False);
+         Error_Msg_Internal
+           (Msg        => Msg,
+            Span       => Flag_Span,
+            Opan       => Flag_Span,
+            Msg_Cont   => False,
+            Error_Code => Error_Code,
+            Label      => Label,
+            Spans      => Spans,
+            Fixes      => Fixes);
          return;
       end if;
 
@@ -626,10 +749,14 @@ package body Errout is
          --  Here we output the original message on the outer instantiation
 
          Error_Msg_Internal
-           (Msg      => Msg,
-            Span     => To_Span (Actual_Error_Loc),
-            Opan     => Flag_Span,
-            Msg_Cont => Msg_Cont_Status);
+           (Msg        => Msg,
+            Span       => To_Span (Actual_Error_Loc),
+            Opan       => Flag_Span,
+            Msg_Cont   => Msg_Cont_Status,
+            Error_Code => Error_Code,
+            Label      => Label,
+            Spans      => Spans,
+            Fixes      => Fixes);
       end;
    end Error_Msg;
 
@@ -715,7 +842,7 @@ package body Errout is
       --  error flag in this situation.
 
       S1 := Prev_Token_Ptr;
-      C := Source (S1);
+      C := Sinput.Source (S1);
 
       --  If the previous token is a string literal, we need a special approach
       --  since there may be white space inside the literal and we don't want
@@ -728,10 +855,10 @@ package body Errout is
          loop
             S1 := S1 + 1;
 
-            if Source (S1) = C then
+            if Sinput.Source (S1) = C then
                S1 := S1 + 1;
-               exit when Source (S1) /= C;
-            elsif Source (S1) in Line_Terminator then
+               exit when Sinput.Source (S1) /= C;
+            elsif Sinput.Source (S1) in Line_Terminator then
                exit;
             end if;
          end loop;
@@ -749,10 +876,11 @@ package body Errout is
       --  characters in this context, since this is only for error recovery.
 
       else
-         while Source (S1) not in Line_Terminator
-           and then Source (S1) /= ' '
-           and then Source (S1) /= ASCII.HT
-           and then (Source (S1) /= '-' or else Source (S1 + 1) /= '-')
+         while Sinput.Source (S1) not in Line_Terminator
+           and then Sinput.Source (S1) /= ' '
+           and then Sinput.Source (S1) /= ASCII.HT
+           and then (Sinput.Source (S1) /= '-'
+             or else Sinput.Source (S1 + 1) /= '-')
            and then S1 /= Token_Ptr
          loop
             S1 := S1 + 1;
@@ -785,8 +913,8 @@ package body Errout is
       --  we would really like to place it in the "last" character of the tab
       --  space, but that it too much trouble to worry about).
 
-      elsif Source (Token_Ptr - 1) = ' '
-         or else Source (Token_Ptr - 1) = ASCII.HT
+      elsif Sinput.Source (Token_Ptr - 1) = ' '
+         or else Sinput.Source (Token_Ptr - 1) = ASCII.HT
       then
          Error_Msg (Msg, Token_Ptr - 1);
 
@@ -842,13 +970,8 @@ package body Errout is
    -----------------
 
    procedure Error_Msg_F (Msg : String; N : Node_Id) is
-      Fst, Lst : Node_Id;
    begin
-      First_And_Last_Nodes (N, Fst, Lst);
-      Error_Msg_NEL (Msg, N, N,
-                     To_Span (Ptr   => Sloc (Fst),
-                              First => First_Sloc (Fst),
-                              Last  => Last_Sloc (Lst)));
+      Error_Msg_NEL (Msg, N, N, To_Full_Span_First (N));
    end Error_Msg_F;
 
    ------------------
@@ -860,13 +983,8 @@ package body Errout is
       N   : Node_Id;
       E   : Node_Or_Entity_Id)
    is
-      Fst, Lst : Node_Id;
    begin
-      First_And_Last_Nodes (N, Fst, Lst);
-      Error_Msg_NEL (Msg, N, E,
-                     To_Span (Ptr   => Sloc (Fst),
-                              First => First_Sloc (Fst),
-                              Last  => Last_Sloc (Lst)));
+      Error_Msg_NEL (Msg, N, E, To_Full_Span_First (N));
    end Error_Msg_FE;
 
    ------------------------------
@@ -918,10 +1036,14 @@ package body Errout is
    ------------------------
 
    procedure Error_Msg_Internal
-     (Msg      : String;
-      Span     : Source_Span;
-      Opan     : Source_Span;
-      Msg_Cont : Boolean)
+     (Msg        : String;
+      Span       : Source_Span;
+      Opan       : Source_Span;
+      Msg_Cont   : Boolean;
+      Error_Code : Diagnostic_Id := No_Diagnostic_Id;
+      Label      : String := "";
+      Spans      : Labeled_Span_Array := No_Locations;
+      Fixes      : Fix_Array := No_Fixes)
    is
       Sptr     : constant Source_Ptr := Span.Ptr;
       Optr     : constant Source_Ptr := Opan.Ptr;
@@ -934,8 +1056,11 @@ package body Errout is
 
       Temp_Msg : Error_Msg_Id;
 
-      Warn_Err : Boolean;
-      --  Set if warning to be treated as error
+      First_Fix : Fix_Id := No_Fix;
+      Last_Fix  : Fix_Id := No_Fix;
+
+      Primary_Loc : Labeled_Span_Id := No_Labeled_Span;
+      Last_Loc    : Labeled_Span_Id := No_Labeled_Span;
 
       procedure Handle_Serious_Error;
       --  Internal procedure to do all error message handling for a serious
@@ -1156,11 +1281,15 @@ package body Errout is
 
             --  Remove (style) or info: at start of message
 
-            if Msglen > 8 and then Msg_Buffer (1 .. 8) = "(style) " then
-               M := 9;
+            if Msglen > Style_Prefix'Length
+              and then Msg_Buffer (1 .. Style_Prefix'Length) = Style_Prefix
+            then
+               M := Style_Prefix'Length + 1;
 
-            elsif Msglen > 6 and then Msg_Buffer (1 .. 6) = "info: " then
-               M := 7;
+            elsif Msglen > Info_Prefix'Length
+              and then Msg_Buffer (1 .. Info_Prefix'Length) = Info_Prefix
+            then
+               M := Info_Prefix'Length + 1;
 
             else
                M := 1;
@@ -1226,6 +1355,37 @@ package body Errout is
          return;
       end if;
 
+      if Continuation and then Has_Insertion_Line then
+         Erroutc.Locations.Append
+           (Primary_Labeled_Span (To_Span (Error_Msg_Sloc), Label));
+      else
+         Erroutc.Locations.Append (Primary_Labeled_Span (Span, Label));
+      end if;
+
+      Primary_Loc := Erroutc.Locations.Last;
+
+      Last_Loc := Primary_Loc;
+
+      for Span of Spans loop
+         Erroutc.Locations.Append (Span);
+         Erroutc.Locations.Table (Last_Loc).Next := Erroutc.Locations.Last;
+         Last_Loc := Erroutc.Locations.Last;
+      end loop;
+
+      for Fix of Fixes loop
+         Erroutc.Fixes.Append (Fix);
+         if Last_Fix /= No_Fix then
+            Erroutc.Fixes.Table (Last_Fix).Next := Erroutc.Fixes.Last;
+         end if;
+         Last_Fix := Erroutc.Fixes.Last;
+
+         --  Store the first element in the fix chain
+
+         if First_Fix = No_Fix then
+            First_Fix := Last_Fix;
+         end if;
+      end loop;
+
       --  Here we build a new error object
 
       Errors.Append
@@ -1240,29 +1400,38 @@ package body Errout is
           Line                => Get_Physical_Line_Number (Sptr),
           Col                 => Get_Column_Number (Sptr),
           Compile_Time_Pragma => Is_Compile_Time_Msg,
-          Warn_Err            => False, -- reset below
+          Warn_Err            => None, -- reset below
           Warn_Chr            => Warning_Msg_Char,
           Uncond              => Is_Unconditional_Msg,
           Msg_Cont            => Continuation,
           Deleted             => False,
-          Kind                => Error_Msg_Kind));
+          Kind                => Error_Msg_Kind,
+          Locations           => Primary_Loc,
+          Id                  => Error_Code,
+          Switch              =>
+            Get_Switch_Id (Error_Msg_Kind, Warning_Msg_Char),
+          Fixes               => First_Fix));
       Cur_Msg := Errors.Last;
 
-      --  Test if warning to be treated as error
+      --  Test if a warning is to be treated as error:
+      --  * It is marked by a pragma Warning_As_Error
+      --  * Warning_Mode is Treat_Run_Time_Warnings_As_Errors and we are
+      --    dealing with a runtime warning.
+      --  * Warning_Mode is Warnings_As_Errors and it is not a compile time
+      --    message.
 
-      Warn_Err :=
-        Error_Msg_Kind in Warning | Style
-        and then (Warning_Treated_As_Error (Msg_Buffer (1 .. Msglen))
-                  or else Warning_Treated_As_Error (Get_Warning_Tag (Cur_Msg))
-                  or else Is_Runtime_Raise);
-
-      --  Propagate Warn_Err to this message and preceding continuations.
-
-      for J in reverse 1 .. Errors.Last loop
-         Errors.Table (J).Warn_Err := Warn_Err;
-
-         exit when not Errors.Table (J).Msg_Cont;
-      end loop;
+      if Error_Msg_Kind in Warning | Style then
+         if Warning_Treated_As_Error (Errors.Table (Cur_Msg)) then
+            Errors.Table (Cur_Msg).Warn_Err := From_Pragma;
+         elsif Warning_Mode = Treat_Run_Time_Warnings_As_Errors
+           and then Is_Runtime_Raise_Msg
+         then
+            Errors.Table (Cur_Msg).Warn_Err := From_Run_Time_As_Err;
+         elsif Warning_Mode = Treat_As_Error and then not Is_Compile_Time_Msg
+         then
+            Errors.Table (Cur_Msg).Warn_Err := From_Warn_As_Err;
+         end if;
+      end if;
 
       --  If immediate errors mode set, output error message now. Also output
       --  now if the -d1 debug flag is set (so node number message comes out
@@ -1416,33 +1585,72 @@ package body Errout is
    -- Error_Msg_N --
    -----------------
 
-   procedure Error_Msg_N (Msg : String; N : Node_Or_Entity_Id) is
-      Fst, Lst : Node_Id;
+   procedure Error_Msg_N
+     (Msg        : String;
+      N          : Node_Or_Entity_Id;
+      Error_Code : Diagnostic_Id := No_Diagnostic_Id;
+      Label      : String := "";
+      Spans      : Labeled_Span_Array := No_Locations;
+      Fixes      : Fix_Array := No_Fixes)
+   is
    begin
-      First_And_Last_Nodes (N, Fst, Lst);
-      Error_Msg_NEL (Msg, N, N,
-                     To_Span (Ptr   => Sloc (N),
-                              First => First_Sloc (Fst),
-                              Last  => Last_Sloc (Lst)));
+      Error_Msg_NEL
+        (Msg        => Msg,
+         N          => N,
+         E          => N,
+         Flag_Span  => To_Full_Span (N),
+         Error_Code => Error_Code,
+         Label      => Label,
+         Spans      => Spans,
+         Fixes      => Fixes);
    end Error_Msg_N;
+
+   ----------------------
+   -- Error_Msg_N_Gigi --
+   ----------------------
+
+   procedure Error_Msg_N_Gigi (Msg : String; N : Node_Or_Entity_Id) is
+   begin
+      Error_Msg_N (Msg, N);
+   end Error_Msg_N_Gigi;
 
    ------------------
    -- Error_Msg_NE --
    ------------------
 
    procedure Error_Msg_NE
+     (Msg        : String;
+      N          : Node_Or_Entity_Id;
+      E          : Node_Or_Entity_Id;
+      Error_Code : Diagnostic_Id := No_Diagnostic_Id;
+      Label      : String := "";
+      Spans      : Labeled_Span_Array := No_Locations;
+      Fixes      : Fix_Array := No_Fixes)
+   is
+   begin
+      Error_Msg_NEL
+        (Msg        => Msg,
+         N          => N,
+         E          => E,
+         Flag_Span  => To_Full_Span (N),
+         Error_Code => Error_Code,
+         Label      => Label,
+         Spans      => Spans,
+         Fixes      => Fixes);
+   end Error_Msg_NE;
+
+   -----------------------
+   -- Error_Msg_NE_Gigi --
+   -----------------------
+
+   procedure Error_Msg_NE_Gigi
      (Msg : String;
       N   : Node_Or_Entity_Id;
       E   : Node_Or_Entity_Id)
    is
-      Fst, Lst : Node_Id;
    begin
-      First_And_Last_Nodes (N, Fst, Lst);
-      Error_Msg_NEL (Msg, N, E,
-                     To_Span (Ptr   => Sloc (N),
-                              First => First_Sloc (Fst),
-                              Last  => Last_Sloc (Lst)));
-   end Error_Msg_NE;
+      Error_Msg_NE (Msg, N, E);
+   end Error_Msg_NE_Gigi;
 
    -------------------
    -- Error_Msg_NEL --
@@ -1465,10 +1673,14 @@ package body Errout is
    end Error_Msg_NEL;
 
    procedure Error_Msg_NEL
-     (Msg       : String;
-      N         : Node_Or_Entity_Id;
-      E         : Node_Or_Entity_Id;
-      Flag_Span : Source_Span)
+     (Msg        : String;
+      N          : Node_Or_Entity_Id;
+      E          : Node_Or_Entity_Id;
+      Flag_Span  : Source_Span;
+      Error_Code : Diagnostic_Id := No_Diagnostic_Id;
+      Label      : String := "";
+      Spans      : Labeled_Span_Array := No_Locations;
+      Fixes      : Fix_Array := No_Fixes)
    is
    begin
       if Special_Msg_Delete (Msg, N, E) then
@@ -1502,7 +1714,14 @@ package body Errout is
       then
          Debug_Output (N);
          Error_Msg_Node_1 := E;
-         Error_Msg (Msg, Flag_Span, N);
+         Error_Msg
+           (Msg        => Msg,
+            Flag_Span  => Flag_Span,
+            N          => N,
+            Error_Code => Error_Code,
+            Label      => Label,
+            Spans      => Spans,
+            Fixes      => Fixes);
 
       else
          Last_Killed := True;
@@ -1522,17 +1741,12 @@ package body Errout is
       Msg   : String;
       N     : Node_Or_Entity_Id)
    is
-      Fst, Lst : Node_Id;
    begin
       if Eflag
         and then In_Extended_Main_Source_Unit (N)
         and then Comes_From_Source (N)
       then
-         First_And_Last_Nodes (N, Fst, Lst);
-         Error_Msg_NEL (Msg, N, N,
-                        To_Span (Ptr   => Sloc (N),
-                                 First => First_Sloc (Fst),
-                                 Last  => Last_Sloc (Lst)));
+         Error_Msg_NEL (Msg, N, N, To_Full_Span (N));
       end if;
    end Error_Msg_NW;
 
@@ -1597,7 +1811,7 @@ package body Errout is
       begin
          if not Errors.Table (E).Deleted then
             Errors.Table (E).Deleted := True;
-            Warnings_Detected := Warnings_Detected - 1;
+            Decrease_Error_Msg_Count (Errors.Table (E));
          end if;
       end Delete_Warning;
 
@@ -2425,7 +2639,8 @@ package body Errout is
 
       Write_Str ("{""kind"":");
 
-      if Errors.Table (E).Kind = Warning and then not Errors.Table (E).Warn_Err
+      if Errors.Table (E).Kind = Warning
+        and then Errors.Table (E).Warn_Err = None
       then
          Write_Str ("""warning""");
       elsif Errors.Table (E).Kind in
@@ -2457,9 +2672,13 @@ package body Errout is
          Write_Str (",""option"":""" & Option & """");
       end if;
 
-      --  Print message content
+      --  Print message content and ensure that the removed style prefix is
+      --  still in the message.
 
       Write_Str (",""message"":""");
+      if Errors.Table (E).Kind = Style then
+         Write_JSON_Escaped_String (Style_Prefix);
+      end if;
       Write_JSON_Escaped_String (Errors.Table (E).Text);
       Write_Str ("""");
 
@@ -2488,7 +2707,7 @@ package body Errout is
    -- Output_Messages --
    ---------------------
 
-   procedure Output_Messages is
+   procedure Output_Messages (Exit_Code : Exit_Code_Type) is
 
       --  Local subprograms
 
@@ -2502,109 +2721,21 @@ package body Errout is
       procedure Write_Max_Errors;
       --  Write message if max errors reached
 
-      procedure Write_Source_Code_Lines
-        (Span     : Source_Span;
-         SGR_Span : String);
-      --  Write the source code line corresponding to Span, as follows when
-      --  Span in on one line:
-      --
-      --  line |  actual code line here with Span somewhere
-      --       |                        ~~~~~^~~~
-      --
-      --  where the caret on the line points to location Span.Ptr, and the
-      --  range Span.First..Span.Last is underlined.
-      --
-      --  or when the span is over multiple lines:
-      --
-      --  line |  beginning of the Span on this line
-      --   ... |     ...
-      --  line>|  actual code line here with Span.Ptr somewhere
-      --   ... |     ...
-      --  line |  end of the Span on this line
-      --
-      --  or when the span is a simple location, as follows:
-      --
-      --  line |  actual code line here with Span somewhere
-      --       |                             ^ here
-      --
-      --  where the caret on the line points to location Span.Ptr
-      --
-      --  SGR_Span is the SGR string to start the section of code in the span,
-      --  that should be closed with SGR_Reset.
-
       --------------------
       -- Emit_Error_Msgs --
       ---------------------
 
       procedure Emit_Error_Msgs is
-         Use_Prefix : Boolean;
-         E          : Error_Msg_Id;
+         E : Error_Msg_Id;
       begin
          Set_Standard_Error;
 
          E := First_Error_Msg;
          while E /= No_Error_Msg loop
-
-            --  If -gnatdF is used, separate main messages from previous
-            --  messages with a newline (unless it is an info message) and
-            --  make continuation messages follow the main message with only
-            --  an indentation of two space characters, without repeating
-            --  file:line:col: prefix.
-
-            Use_Prefix :=
-              not (Debug_Flag_FF and then Errors.Table (E).Msg_Cont);
-
             if not Errors.Table (E).Deleted then
-
-               if Debug_Flag_FF then
-                  if Errors.Table (E).Msg_Cont then
-                     Write_Str ("  ");
-                  elsif Errors.Table (E).Kind /= Info then
-                     Write_Eol;
-                  end if;
-               end if;
-
-               if Use_Prefix then
-                  Output_Msg_Location (E);
-               end if;
-
+               Output_Msg_Location (E);
                Output_Msg_Text (E);
                Write_Eol;
-
-               --  If -gnatdF is used, write the source code line
-               --  corresponding to the location of the main message (unless
-               --  it is an info message). Also write the source code line
-               --  corresponding to an insertion location inside
-               --  continuation messages.
-
-               if Debug_Flag_FF
-                 and then Errors.Table (E).Kind /= Info
-               then
-                  if Errors.Table (E).Msg_Cont then
-                     declare
-                        Loc : constant Source_Ptr :=
-                        Errors.Table (E).Insertion_Sloc;
-                     begin
-                        if Loc /= No_Location then
-                           Write_Source_Code_Lines
-                             (To_Span (Loc), SGR_Span => SGR_Note);
-                        end if;
-                     end;
-
-                  else
-                     declare
-                        SGR_Span : constant String :=
-                        (if Errors.Table (E).Kind = Info then SGR_Note
-                           elsif Errors.Table (E).Kind = Warning
-                             and then not Errors.Table (E).Warn_Err
-                           then SGR_Warning
-                           else SGR_Error);
-                     begin
-                        Write_Source_Code_Lines
-                          (Errors.Table (E).Optr, SGR_Span);
-                     end;
-                  end if;
-               end if;
             end if;
 
             E := Errors.Table (E).Next;
@@ -2664,309 +2795,17 @@ package body Errout is
          end if;
       end Write_Max_Errors;
 
-      -----------------------------
-      -- Write_Source_Code_Lines --
-      -----------------------------
-
-      procedure Write_Source_Code_Lines
-        (Span     : Source_Span;
-         SGR_Span : String)
-      is
-         function Get_Line_End
-           (Buf : Source_Buffer_Ptr;
-            Loc : Source_Ptr) return Source_Ptr;
-         --  Get the source location for the end of the line in Buf for Loc. If
-         --  Loc is past the end of Buf already, return Buf'Last.
-
-         function Get_Line_Start
-           (Buf : Source_Buffer_Ptr;
-            Loc : Source_Ptr) return Source_Ptr;
-         --  Get the source location for the start of the line in Buf for Loc
-
-         function Image (X : Positive; Width : Positive) return String;
-         --  Output number X over Width characters, with whitespace padding.
-         --  Only output the low-order Width digits of X, if X is larger than
-         --  Width digits.
-
-         procedure Write_Buffer
-           (Buf   : Source_Buffer_Ptr;
-            First : Source_Ptr;
-            Last  : Source_Ptr);
-         --  Output the characters from First to Last position in Buf, using
-         --  Write_Buffer_Char.
-
-         procedure Write_Buffer_Char
-           (Buf : Source_Buffer_Ptr;
-            Loc : Source_Ptr);
-         --  Output the characters at position Loc in Buf, translating ASCII.HT
-         --  in a suitable number of spaces so that the output is not modified
-         --  by starting in a different column that 1.
-
-         procedure Write_Line_Marker
-           (Num   : Pos;
-            Mark  : Boolean;
-            Width : Positive);
-         --  Output the line number Num over Width characters, with possibly
-         --  a Mark to denote the line with the main location when reporting
-         --  a span over multiple lines.
-
-         ------------------
-         -- Get_Line_End --
-         ------------------
-
-         function Get_Line_End
-           (Buf : Source_Buffer_Ptr;
-            Loc : Source_Ptr) return Source_Ptr
-         is
-            Cur_Loc : Source_Ptr := Source_Ptr'Min (Loc, Buf'Last);
-         begin
-            while Cur_Loc < Buf'Last
-              and then Buf (Cur_Loc) /= ASCII.LF
-            loop
-               Cur_Loc := Cur_Loc + 1;
-            end loop;
-
-            return Cur_Loc;
-         end Get_Line_End;
-
-         --------------------
-         -- Get_Line_Start --
-         --------------------
-
-         function Get_Line_Start
-           (Buf : Source_Buffer_Ptr;
-            Loc : Source_Ptr) return Source_Ptr
-         is
-            Cur_Loc : Source_Ptr := Loc;
-         begin
-            while Cur_Loc > Buf'First
-              and then Buf (Cur_Loc - 1) /= ASCII.LF
-            loop
-               Cur_Loc := Cur_Loc - 1;
-            end loop;
-
-            return Cur_Loc;
-         end Get_Line_Start;
-
-         -----------
-         -- Image --
-         -----------
-
-         function Image (X : Positive; Width : Positive) return String is
-            Str  : String (1 .. Width);
-            Curr : Natural := X;
-         begin
-            for J in reverse 1 .. Width loop
-               if Curr > 0 then
-                  Str (J) := Character'Val (Character'Pos ('0') + Curr mod 10);
-                  Curr := Curr / 10;
-               else
-                  Str (J) := ' ';
-               end if;
-            end loop;
-
-            return Str;
-         end Image;
-
-         ------------------
-         -- Write_Buffer --
-         ------------------
-
-         procedure Write_Buffer
-           (Buf   : Source_Buffer_Ptr;
-            First : Source_Ptr;
-            Last  : Source_Ptr)
-         is
-         begin
-            for Loc in First .. Last loop
-               Write_Buffer_Char (Buf, Loc);
-            end loop;
-         end Write_Buffer;
-
-         -----------------------
-         -- Write_Buffer_Char --
-         -----------------------
-
-         procedure Write_Buffer_Char
-           (Buf : Source_Buffer_Ptr;
-            Loc : Source_Ptr)
-         is
-         begin
-            --  If the character ASCII.HT is not the last one in the file,
-            --  output as many spaces as the character represents in the
-            --  original source file.
-
-            if Buf (Loc) = ASCII.HT
-              and then Loc < Buf'Last
-            then
-               for X in Get_Column_Number (Loc) ..
-                        Get_Column_Number (Loc + 1) - 1
-               loop
-                  Write_Char (' ');
-               end loop;
-
-            --  Otherwise output the character itself
-
-            else
-               Write_Char (Buf (Loc));
-            end if;
-         end Write_Buffer_Char;
-
-         -----------------------
-         -- Write_Line_Marker --
-         -----------------------
-
-         procedure Write_Line_Marker
-           (Num   : Pos;
-            Mark  : Boolean;
-            Width : Positive)
-         is
-         begin
-            Write_Str (Image (Positive (Num), Width => Width));
-            Write_Str ((if Mark then ">" else " ") & "|");
-         end Write_Line_Marker;
-
-         --  Local variables
-
-         Loc     : constant Source_Ptr := Span.Ptr;
-         Line    : constant Pos        := Pos (Get_Physical_Line_Number (Loc));
-
-         Col     : constant Natural    := Natural (Get_Column_Number (Loc));
-
-         Fst      : constant Source_Ptr := Span.First;
-         Line_Fst : constant Pos        :=
-           Pos (Get_Physical_Line_Number (Fst));
-         Col_Fst  : constant Natural    :=
-           Natural (Get_Column_Number (Fst));
-         Lst      : constant Source_Ptr := Span.Last;
-         Line_Lst : constant Pos        :=
-           Pos (Get_Physical_Line_Number (Lst));
-         Col_Lst  : constant Natural    :=
-           Natural (Get_Column_Number (Lst));
-
-         Width    : constant := 5;
-         Buf      : Source_Buffer_Ptr;
-         Cur_Loc  : Source_Ptr := Fst;
-         Cur_Line : Pos := Line_Fst;
-
-      --  Start of processing for Write_Source_Code_Lines
-
-      begin
-         if Loc >= First_Source_Ptr then
-            Buf := Source_Text (Get_Source_File_Index (Loc));
-
-            --  First line of the span with actual source code. We retrieve
-            --  the beginning of the line instead of relying on Col_Fst, as
-            --  ASCII.HT characters change column numbers by possibly more
-            --  than one.
-
-            Write_Line_Marker
-              (Cur_Line,
-               Line_Fst /= Line_Lst and then Cur_Line = Line,
-               Width);
-            Write_Buffer (Buf, Get_Line_Start (Buf, Cur_Loc), Cur_Loc - 1);
-
-            --  Output the first/caret/last lines of the span, as well as
-            --  lines that are directly above/below the caret if they complete
-            --  the gap with first/last lines, otherwise use ... to denote
-            --  intermediate lines.
-
-            --  If the span is on one line and not a simple source location,
-            --  color it appropriately.
-
-            if Line_Fst = Line_Lst
-              and then Col_Fst /= Col_Lst
-            then
-               Write_Str (SGR_Span);
-            end if;
-
-            declare
-               function Do_Write_Line (Cur_Line : Pos) return Boolean is
-                  (Cur_Line in Line_Fst | Line | Line_Lst
-                     or else
-                   (Cur_Line = Line_Fst + 1 and then Cur_Line = Line - 1)
-                     or else
-                   (Cur_Line = Line + 1 and then Cur_Line = Line_Lst - 1));
-            begin
-               while Cur_Loc <= Buf'Last
-                 and then Cur_Loc <= Lst
-               loop
-                  if Do_Write_Line (Cur_Line) then
-                     Write_Buffer_Char (Buf, Cur_Loc);
-                  end if;
-
-                  if Buf (Cur_Loc) = ASCII.LF then
-                     Cur_Line := Cur_Line + 1;
-
-                     --  Output ... for skipped lines
-
-                     if (Cur_Line = Line
-                          and then not Do_Write_Line (Cur_Line - 1))
-                       or else
-                        (Cur_Line = Line + 1
-                          and then not Do_Write_Line (Cur_Line))
-                     then
-                        Write_Str ((1 .. Width - 3 => ' ') & "... | ...");
-                        Write_Eol;
-                     end if;
-
-                     --  Display the line marker if the line should be
-                     --  displayed.
-
-                     if Do_Write_Line (Cur_Line) then
-                        Write_Line_Marker
-                          (Cur_Line,
-                           Line_Fst /= Line_Lst and then Cur_Line = Line,
-                           Width);
-                     end if;
-                  end if;
-
-                  Cur_Loc := Cur_Loc + 1;
-               end loop;
-            end;
-
-            if Line_Fst = Line_Lst
-              and then Col_Fst /= Col_Lst
-            then
-               Write_Str (SGR_Reset);
-            end if;
-
-            --  Output the rest of the last line of the span
-
-            Write_Buffer (Buf, Cur_Loc, Get_Line_End (Buf, Cur_Loc));
-
-            --  If the span is on one line, output a second line with caret
-            --  sign pointing to location Loc
-
-            if Line_Fst = Line_Lst then
-               Write_Str (String'(1 .. Width => ' '));
-               Write_Str (" |");
-               Write_Str (String'(1 .. Col_Fst - 1 => ' '));
-
-               Write_Str (SGR_Span);
-
-               Write_Str (String'(Col_Fst .. Col - 1 => '~'));
-               Write_Str ("^");
-               Write_Str (String'(Col + 1 .. Col_Lst => '~'));
-
-               --  If the span is really just a location, add the word "here"
-               --  to clarify this is the location for the message.
-
-               if Col_Fst = Col_Lst then
-                  Write_Str (" here");
-               end if;
-
-               Write_Str (SGR_Reset);
-
-               Write_Eol;
-            end if;
-         end if;
-      end Write_Source_Code_Lines;
-
       --  Local variables
 
       E          : Error_Msg_Id;
       Err_Flag   : Boolean;
+
+      Sarif_File_Name       : constant String :=
+        Get_First_Main_File_Name & ".gnat.sarif";
+      Switches_File_Name    : constant String := "gnat_switches.json";
+      Diagnostics_File_Name : constant String := "gnat_diagnostics.json";
+
+      Dummy : Boolean;
 
    --  Start of processing for Output_Messages
 
@@ -2976,6 +2815,8 @@ package body Errout is
       if not Finalize_Called then
          raise Program_Error;
       end if;
+
+      Erroutc.Exit_Code := Exit_Code;
 
       --  Reset current error source file if the main unit has a pragma
       --  Source_Reference. This ensures outputting the proper name of
@@ -3039,13 +2880,70 @@ package body Errout is
 
          --  Use updated diagnostic mechanism
 
-         if Debug_Flag_Underscore_DD then
-            Convert_Errors_To_Diagnostics;
+         if Opt.SARIF_Output then
+            Set_Standard_Error;
+            Erroutc.SARIF_Emitter.Print_SARIF_Report;
+            Set_Standard_Output;
 
-            Emit_Diagnostics;
+         elsif Opt.SARIF_File then
+            System.OS_Lib.Delete_File (Sarif_File_Name, Dummy);
+            declare
+               Output_FD :
+                 constant System.OS_Lib.File_Descriptor :=
+                 System.OS_Lib.Create_New_File
+                   (Sarif_File_Name, Fmode => System.OS_Lib.Text);
+
+            begin
+               Set_Output (Output_FD);
+               Erroutc.SARIF_Emitter.Print_SARIF_Report;
+               Set_Standard_Output;
+               System.OS_Lib.Close (Output_FD);
+            end;
+         elsif Debug_Flag_FF then
+            Erroutc.Pretty_Emitter.Print_Error_Messages;
          else
             Emit_Error_Msgs;
          end if;
+      end if;
+
+      if Debug_Flag_Underscore_EE then
+         --  Print the switch repository to a file
+
+         System.OS_Lib.Delete_File (Switches_File_Name, Dummy);
+         declare
+            Output_FD : constant System.OS_Lib.File_Descriptor :=
+              System.OS_Lib.Create_New_File
+                (Switches_File_Name,
+                 Fmode => System.OS_Lib.Text);
+
+         begin
+            Set_Output (Output_FD);
+
+            Print_Switch_Repository;
+
+            Set_Standard_Output;
+
+            System.OS_Lib.Close (Output_FD);
+         end;
+
+         --  Print the diagnostics repository to a file
+
+         System.OS_Lib.Delete_File (Diagnostics_File_Name, Dummy);
+         declare
+            Output_FD : constant System.OS_Lib.File_Descriptor :=
+              System.OS_Lib.Create_New_File
+                (Diagnostics_File_Name,
+                 Fmode => System.OS_Lib.Text);
+
+         begin
+            Set_Output (Output_FD);
+
+            Print_Diagnostic_Repository;
+
+            Set_Standard_Output;
+
+            System.OS_Lib.Close (Output_FD);
+         end;
       end if;
 
       --  Full source listing case
@@ -3241,19 +3139,10 @@ package body Errout is
       end if;
 
       if Warning_Mode = Treat_As_Error then
-         declare
-            Compile_Time_Pragma_Warnings : constant Nat :=
-               Count_Compile_Time_Pragma_Warnings;
-            Total : constant Int := Total_Errors_Detected + Warnings_Detected
-               - Compile_Time_Pragma_Warnings;
-            --  We need to protect against a negative Total here, because
-            --  if a pragma Compile_Time_Warning occurs in dead code, it
-            --  gets counted in Compile_Time_Pragma_Warnings but not in
-            --  Warnings_Detected.
-         begin
-            Total_Errors_Detected := Int'Max (Total, 0);
-            Warnings_Detected := Compile_Time_Pragma_Warnings;
-         end;
+         pragma Assert (Warnings_Detected >= Warnings_Treated_As_Errors);
+         Total_Errors_Detected :=
+           Total_Errors_Detected + Warnings_Treated_As_Errors;
+         Warnings_Detected := Warnings_Detected - Warnings_Treated_As_Errors;
       end if;
    end Output_Messages;
 
@@ -3442,7 +3331,7 @@ package body Errout is
 
                and then not Errors.Table (E).Uncond
             then
-               Warnings_Detected := Warnings_Detected - 1;
+               Decrease_Error_Msg_Count (Errors.Table (E));
 
                return True;
 
@@ -3467,6 +3356,8 @@ package body Errout is
          E := First_Error_Msg;
          while E /= No_Error_Msg loop
             while To_Be_Removed (Errors.Table (E).Next) loop
+               Errors.Table (Errors.Table (E).Next).Deleted := True;
+
                Errors.Table (E).Next :=
                  Errors.Table (Errors.Table (E).Next).Next;
 
@@ -4056,17 +3947,45 @@ package body Errout is
       Msglen := 0;
       Flag_Source := Get_Source_File_Index (Flag);
 
-      --  Skip info: at start, we have recorded this in Error_Msg_Kind, and
-      --  this will be used (Info field in error message object) to put back
-      --  the string when it is printed. We need to do this, or we get confused
+      P := Text'First;
+
+      --  Skip the continuation symbols at the start
+
+      if P <= Text'Last and then Text (P) = '\' then
+         Continuation := True;
+         P := P + 1;
+
+         if P <= Text'Last and then Text (P) = '\' then
+            Continuation_New_Line := True;
+            P := P + 1;
+         end if;
+      end if;
+
+      --  Skip the message kind tokens at start since it is recorded
+      --  in Error_Msg_Kind, and this will be used to put back the string when
+      --  it is printed. We need to do this, or we get confused
       --  with instantiation continuations.
 
-      if Text'Length > 6
-        and then Text (Text'First .. Text'First + 5) = "info: "
+      if Text'Length > P + Info_Prefix'Length - 1
+        and then Text (P .. P + Info_Prefix'Length - 1) = Info_Prefix
       then
-         P := Text'First + 6;
-      else
-         P := Text'First;
+         P := P + Info_Prefix'Length;
+      elsif Text'Length > P + Style_Prefix'Length - 1
+        and then Text (P .. P + Style_Prefix'Length - 1) = Style_Prefix
+      then
+         P := P + Style_Prefix'Length;
+      elsif Text'Length > P + High_Prefix'Length - 1
+        and then Text (P .. P + High_Prefix'Length - 1) = High_Prefix
+      then
+         P := P + High_Prefix'Length;
+      elsif Text'Length > P + Medium_Prefix'Length - 1
+        and then Text (P .. P + Medium_Prefix'Length - 1) = Medium_Prefix
+      then
+         P := P + Medium_Prefix'Length;
+      elsif Text'Length > P + Low_Prefix'Length - 1
+        and then Text (P .. P + Low_Prefix'Length - 1) = Low_Prefix
+      then
+         P := P + Low_Prefix'Length;
       end if;
 
       --  Loop through characters of message
@@ -4108,14 +4027,6 @@ package body Errout is
 
             when '#' =>
                Set_Msg_Insertion_Line_Number (Error_Msg_Sloc, Flag);
-
-            when '\' =>
-               Continuation := True;
-
-               if P <= Text'Last and then Text (P) = '\' then
-                  Continuation_New_Line := True;
-                  P := P + 1;
-               end if;
 
             when '@' =>
                Set_Msg_Insertion_Column;
@@ -4176,15 +4087,7 @@ package body Errout is
                   Set_Msg_Insertion_Code;
 
                else
-                  --  Switch the message from a warning to an error if the flag
-                  --  -gnatwE is specified to treat run-time exception warnings
-                  --  as non-serious errors.
-
-                  if Error_Msg_Kind = Warning
-                    and then Warning_Mode = Treat_Run_Time_Warnings_As_Errors
-                  then
-                     Is_Runtime_Raise := True;
-                  end if;
+                  Is_Runtime_Raise_Msg := True;
 
                   if Error_Msg_Kind = Warning then
                      Set_Msg_Str ("will be raised at run time");
@@ -4371,6 +4274,48 @@ package body Errout is
          Error_Msg_NE (Msg, N, E);
       end if;
    end SPARK_Msg_NE;
+
+   ------------------
+   -- To_Full_Span --
+   ------------------
+
+   function To_Full_Span (N : Node_Id) return Source_Span is
+      Fst, Lst : Node_Id;
+   begin
+      First_And_Last_Nodes (N, Fst, Lst);
+      return To_Span (Ptr   => Sloc (N),
+                      First => First_Sloc (Fst),
+                      Last  => Last_Sloc (Lst));
+   end To_Full_Span;
+
+   ------------------------
+   -- To_Full_Span_First --
+   ------------------------
+
+   function To_Full_Span_First (N : Node_Id) return Source_Span is
+      Fst, Lst : Node_Id;
+   begin
+      First_And_Last_Nodes (N, Fst, Lst);
+      return To_Span (Ptr   => Sloc (Fst),
+                      First => First_Sloc (Fst),
+                      Last  => Last_Sloc (Lst));
+   end To_Full_Span_First;
+
+   -------------
+   -- To_Name --
+   -------------
+
+   function To_Name (E : Entity_Id) return String is
+   begin
+      --  The name of the node operator "&" has many special cases. Reuse the
+      --  node to name conversion implementation from the errout package for
+      --  now.
+
+      Error_Msg_Node_1 := E;
+      Set_Msg_Text ("&", Sloc (E));
+
+      return Msg_Buffer (1 .. Msglen);
+   end To_Name;
 
    --------------------------
    -- Unwind_Internal_Type --

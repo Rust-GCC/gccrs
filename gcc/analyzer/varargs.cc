@@ -205,7 +205,11 @@ public:
   {
     return s != m_started;
   }
-  std::unique_ptr<pending_diagnostic> on_leak (tree var) const final override;
+
+  std::unique_ptr<pending_diagnostic>
+  on_leak (tree var,
+	   const program_state *old_state,
+	   const program_state *new_state) const final override;
 
   /* State for a va_list that is the result of a va_start or va_copy.  */
   state_t m_started;
@@ -294,15 +298,15 @@ get_stateful_arg (sm_context &sm_ctxt, const gcall &call, unsigned arg_idx)
       if (const program_state *new_state = sm_ctxt.get_new_program_state ())
 	{
 	  const region_model *new_model = new_state->m_region_model;
-	  const svalue *ptr_sval = new_model->get_rvalue (ap, NULL);
-	  const region *reg = new_model->deref_rvalue (ptr_sval, ap, NULL);
-	  const svalue *impl_sval = new_model->get_store_value (reg, NULL);
+	  const svalue *ptr_sval = new_model->get_rvalue (ap, nullptr);
+	  const region *reg = new_model->deref_rvalue (ptr_sval, ap, nullptr);
+	  const svalue *impl_sval = new_model->get_store_value (reg, nullptr);
 	  if (const svalue *cast = impl_sval->maybe_undo_cast ())
 	    impl_sval = cast;
 	  return impl_sval;
 	}
     }
-  return NULL;
+  return nullptr;
 }
 
 /* Abstract class for diagnostics relating to va_list_state_machine.  */
@@ -335,11 +339,11 @@ public:
     const final override
   {
     if (change.m_new_state == m_sm.m_started)
-      return diagnostic_event::meaning (diagnostic_event::VERB_acquire,
-					diagnostic_event::NOUN_resource);
+      return diagnostic_event::meaning (diagnostic_event::verb::acquire,
+					diagnostic_event::noun::resource);
     if (change.m_new_state == m_sm.m_ended)
-      return diagnostic_event::meaning (diagnostic_event::VERB_release,
-					diagnostic_event::NOUN_resource);
+      return diagnostic_event::meaning (diagnostic_event::verb::release,
+					diagnostic_event::noun::resource);
     return diagnostic_event::meaning ();
   }
 
@@ -366,7 +370,7 @@ protected:
 		  return "va_end";
 		}
 	  }
-    return NULL;
+    return nullptr;
   }
 
   const va_list_state_machine &m_sm;
@@ -460,10 +464,14 @@ class va_list_leak : public va_list_sm_diagnostic
 {
 public:
   va_list_leak (const va_list_state_machine &sm,
-		const svalue *ap_sval, tree ap_tree)
+		const svalue *ap_sval, tree ap_tree,
+		const program_state *final_state)
   : va_list_sm_diagnostic (sm, ap_sval, ap_tree),
-    m_start_event_fnname (NULL)
+    m_start_event_fnname (nullptr),
+    m_final_state ()
   {
+    if (final_state)
+      m_final_state = std::make_unique<program_state> (*final_state);
   }
 
   int get_controlling_option () const final override
@@ -524,9 +532,16 @@ public:
     return true;
   }
 
+  const program_state *
+  get_final_state () const final override
+  {
+    return m_final_state.get ();
+  }
+
 private:
   diagnostic_event_id_t m_start_event;
   const char *m_start_event_fnname;
+  std::unique_ptr<program_state> m_final_state;
 };
 
 /* Update state machine for a "va_start" call.  */
@@ -562,7 +577,7 @@ va_list_state_machine::check_for_ended_va_list (sm_context &sm_ctxt,
 
 /* Get the svalue with associated va_list_state_machine state for
    ARG_IDX of CALL to va_copy, if SM_CTXT supports this,
-   or NULL otherwise.  */
+   or nullptr otherwise.  */
 
 static const svalue *
 get_stateful_va_copy_arg (sm_context &sm_ctxt,
@@ -572,10 +587,10 @@ get_stateful_va_copy_arg (sm_context &sm_ctxt,
   if (const program_state *new_state = sm_ctxt.get_new_program_state ())
     {
       const region_model *new_model = new_state->m_region_model;
-      const svalue *arg = get_va_copy_arg (new_model, NULL, call, arg_idx);
+      const svalue *arg = get_va_copy_arg (new_model, nullptr, call, arg_idx);
       return arg;
     }
-  return NULL;
+  return nullptr;
 }
 
 /* Update state machine for a "va_copy" call.  */
@@ -633,9 +648,11 @@ va_list_state_machine::on_va_end (sm_context &sm_ctxt,
    (for complaining about leaks of values in state 'started').  */
 
 std::unique_ptr<pending_diagnostic>
-va_list_state_machine::on_leak (tree var) const
+va_list_state_machine::on_leak (tree var,
+				const program_state *,
+				const program_state *new_state) const
 {
-  return std::make_unique<va_list_leak> (*this, nullptr, var);
+  return std::make_unique<va_list_leak> (*this, nullptr, var, new_state);
 }
 
 } // anonymous namespace
@@ -723,7 +740,7 @@ kf_va_copy::impl_call_pre (const call_details &cd) const
   in_va_list
     = model->check_for_poison (in_va_list,
 			       get_va_list_diag_arg (cd.get_arg_tree (1)),
-			       NULL,
+			       nullptr,
 			       cd.get_ctxt ());
 
   const region *out_dst_reg
@@ -1003,14 +1020,14 @@ va_arg_compatible_types_p (tree lhs_type, tree arg_type, const svalue &arg_sval)
 }
 
 /* If AP_SVAL is a pointer to a var_arg_region, return that var_arg_region.
-   Otherwise return NULL.  */
+   Otherwise return nullptr.  */
 
 static const var_arg_region *
 maybe_get_var_arg_region (const svalue *ap_sval)
 {
   if (const region *reg = ap_sval->maybe_get_region ())
     return reg->dyn_cast_var_arg_region ();
-  return NULL;
+  return nullptr;
 }
 
 /* Handler for "__builtin_va_arg".  */

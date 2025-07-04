@@ -49,7 +49,8 @@ package body System.Val_Real is
    Precision_Limit : constant Uns := 2**Num'Machine_Mantissa - 1;
    --  See below for the rationale
 
-   package Impl is new Value_R (Uns, 2, Precision_Limit, Round => False);
+   package Impl is new Value_R (Uns, 2, Precision_Limit);
+   --  We do not use the Extra digits for floating-point types
 
    subtype Base_T is Unsigned range 2 .. 16;
 
@@ -90,7 +91,7 @@ package body System.Val_Real is
         when others => raise Program_Error);
    --  Return the exponent of a power of 2
 
-   function Integer_to_Real
+   function Integer_To_Real
      (Str   : String;
       Val   : Impl.Value_Array;
       Base  : Unsigned;
@@ -105,10 +106,10 @@ package body System.Val_Real is
    --  Return Num'Scaling (5.0**Exp, -S) as a double number where Exp > Maxexp
 
    ---------------------
-   -- Integer_to_Real --
+   -- Integer_To_Real --
    ---------------------
 
-   function Integer_to_Real
+   function Integer_To_Real
      (Str   : String;
       Val   : Impl.Value_Array;
       Base  : Unsigned;
@@ -213,7 +214,7 @@ package body System.Val_Real is
 
       --  Compute the final value by applying the scaling, if any
 
-      if (Val (1) = 0 and then Val (2) = 0) or else S = 0 then
+      if Val (1) = 0 or else S = 0 then
          R_Val := Double_Real.To_Single (D_Val);
 
       else
@@ -313,7 +314,7 @@ package body System.Val_Real is
 
    exception
       when Constraint_Error => Bad_Value (Str);
-   end Integer_to_Real;
+   end Integer_To_Real;
 
    -------------------
    -- Large_Powfive --
@@ -456,7 +457,7 @@ package body System.Val_Real is
    begin
       Val := Impl.Scan_Raw_Real (Str, Ptr, Max, Base, Scale, Extra, Minus);
 
-      return Integer_to_Real (Str, Val, Base, Scale, Minus);
+      return Integer_To_Real (Str, Val, Base, Scale, Minus);
    end Scan_Real;
 
    ----------------
@@ -473,7 +474,7 @@ package body System.Val_Real is
    begin
       Val := Impl.Value_Raw_Real (Str, Base, Scale, Extra, Minus);
 
-      return Integer_to_Real (Str, Val, Base, Scale, Minus);
+      return Integer_To_Real (Str, Val, Base, Scale, Minus);
    end Value_Real;
 
 end System.Val_Real;

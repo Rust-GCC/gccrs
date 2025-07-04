@@ -3024,7 +3024,7 @@ synthesized_method_walk (tree ctype, special_function_kind sfk, bool const_p,
     /* Vbase cdtors are not relevant.  */;
   else
     {
-      if (constexpr_p)
+      if (constexpr_p && cxx_dialect < cxx26)
 	*constexpr_p = false;
 
       FOR_EACH_VEC_ELT (*vbases, i, base_binfo)
@@ -3949,6 +3949,27 @@ num_artificial_parms_for (const_tree fn)
   if (DECL_HAS_VTT_PARM_P (fn))
     count++;
   return count;
+}
+
+/* Return value of the __builtin_type_order trait.  */
+
+tree
+type_order_value (tree type1, tree type2)
+{
+  tree rettype = lookup_comparison_category (cc_strong_ordering);
+  if (rettype == error_mark_node)
+    return rettype;
+  int ret;
+  if (type1 == type2)
+    ret = 0;
+  else
+    {
+      const char *name1 = ASTRDUP (mangle_type_string (type1));
+      const char *name2 = mangle_type_string (type2);
+      ret = strcmp (name1, name2);
+    }
+  return lookup_comparison_result (cc_strong_ordering, rettype,
+				   ret == 0 ? 0 : ret > 0 ? 1 : 2);
 }
 
 
