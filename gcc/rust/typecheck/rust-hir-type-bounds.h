@@ -19,6 +19,7 @@
 #ifndef RUST_HIR_TYPE_BOUNDS_H
 #define RUST_HIR_TYPE_BOUNDS_H
 
+#include "rust-hir-trait-reference.h"
 #include "rust-hir-type-check-base.h"
 #include "rust-hir-full.h"
 #include "rust-tyty.h"
@@ -40,12 +41,30 @@ private:
   void assemble_marker_builtins ();
   void add_trait_bound (HIR::Trait *trait);
   void assemble_builtin_candidate (LangItem::Kind item);
+  bool should_impl_auto_trait (HIR::Trait *trait);
+  bool is_auto_trait_bound_satisfied (const TyTy::BaseType *raw,
+				      HIR::Trait *trait);
 
 private:
   TypeBoundsProbe (const TyTy::BaseType *receiver);
 
   const TyTy::BaseType *receiver;
   std::vector<std::pair<TraitReference *, HIR::ImplBlock *>> trait_references;
+
+  bool bound_cache_lookup (TyTy::BaseType *tyty, TraitReference *trait);
+  void bound_cache_insert (TyTy::BaseType *tyty, TraitReference *trait,
+			   bool satisfied);
+
+  bool impl_cache_lookup (TyTy::BaseType *tyty);
+  void impl_cache_insert (TyTy::BaseType *tyty, bool satisfied);
+
+  // memoization cache (type)->(trait, impl)
+  static std::map<TyTy::BaseType *,
+		  std::vector<std::pair<TraitReference *, HIR::ImplBlock *>>>
+    trait_reference_cache;
+  // memoization cache (type, trait)->(bool)
+  static std::map<std::pair<TyTy::BaseType *, TraitReference *>, bool>
+    type_bound_cache;
 };
 
 } // namespace Resolver

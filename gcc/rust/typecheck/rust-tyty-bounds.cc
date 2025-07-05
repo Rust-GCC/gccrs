@@ -16,12 +16,15 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-diagnostics.h"
 #include "rust-hir-full-decls.h"
+#include "rust-hir-map.h"
 #include "rust-hir-type-bounds.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-substitution-mapper.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-type-util.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Resolver {
@@ -101,15 +104,26 @@ TypeBoundsProbe::scan ()
       TraitReference *trait_ref = TraitResolver::Resolve (*trait_path);
 
       if (!trait_ref->is_error ())
-	trait_references.push_back ({trait_ref, path.second});
+	{
+	  rust_debug ("Added trait: %s to type %s",
+		      trait_ref->get_name ().c_str (),
+		      receiver->get_name ().c_str ());
+	  trait_references.push_back ({trait_ref, path.second});
+	}
     }
 
   // marker traits...
   assemble_marker_builtins ();
 
-  // add auto trait bounds
+  // auto traits
   for (auto *auto_trait : mappings.get_auto_traits ())
-    add_trait_bound (auto_trait);
+    if (should_impl_auto_trait (auto_trait))
+      {
+	rust_debug ("Added auto trait: %s to type %s",
+		    auto_trait->get_name ().as_string ().c_str (),
+		    receiver->get_name ().c_str ());
+	add_trait_bound (auto_trait);
+      }
 }
 
 void
@@ -170,6 +184,140 @@ TypeBoundsProbe::assemble_marker_builtins ()
     }
 }
 
+// Recursively check if the auto trait bound is satisfied for the type
+bool
+TypeBoundsProbe::is_auto_trait_bound_satisfied (const TyTy::BaseType *raw,
+						HIR::Trait *trait)
+{
+  // https://doc.rust-lang.org/reference/special-types-and-traits.html#auto-traits
+  rust_debug ("checking auto trait: %s to type %s",
+	      trait->get_name ().as_string ().c_str (),
+	      raw->get_name ().c_str ());
+
+  // check if the trait is negative impl-ed for the type
+  DefId trait_defid = trait->get_mappings ().get_defid ();
+  for (auto bound : raw->get_specified_bounds ())
+    {
+      rust_debug ("bound: %s", bound.get_name ().c_str ());
+      DefId other_trait_defid = bound.get_id ();
+      if (other_trait_defid != UNKNOWN_DEFID && other_trait_defid == trait_defid
+	  && bound.get_polarity () == BoundPolarity::NegativeBound)
+	{
+	  rust_debug ("negative trait %s for %s", bound.get_name ().c_str (),
+		      raw->get_name ().c_str ());
+	  return false;
+	}
+    }
+
+  switch (raw->get_kind ())
+    {
+    case TyTy::BOOL:
+    case TyTy::CHAR:
+    case TyTy::INT:
+    case TyTy::UINT:
+    case TyTy::FLOAT:
+    case TyTy::USIZE:
+    case TyTy::ISIZE:
+      return true;
+
+      case TyTy::ARRAY: {
+	const TyTy::BaseType *elem
+	  = raw->as<const TyTy::ArrayType> ()->get_element_type ();
+	return is_auto_trait_bound_satisfied (elem, trait);
+      }
+      case TyTy::REF: {
+	const TyTy::BaseType *base
+	  = raw->as<const TyTy::ReferenceType> ()->get_base ();
+	return is_auto_trait_bound_satisfied (base, trait);
+      }
+      break;
+      case TyTy::POINTER: {
+	const TyTy::BaseType *base
+	  = raw->as<const TyTy::PointerType> ()->get_base ();
+	return is_auto_trait_bound_satisfied (base, trait);
+      }
+      break;
+
+      case TyTy::PARAM: {
+	const TyTy::BaseType *param_type = raw->as<const TyTy::ParamType> ();
+	for (const auto &bound : param_type->get_specified_bounds ())
+	  {
+	    DefId trait_defid = trait->get_mappings ().get_defid ();
+	    if (trait_defid != UNKNOWN_DEFID && bound.get_id () == trait_defid)
+	      return true;
+	  }
+	return false;
+      }
+      break;
+    case TyTy::FNDEF:
+    case TyTy::FNPTR:
+    case TyTy::CLOSURE:
+      return true;
+
+    case TyTy::NEVER:
+    case TyTy::INFER:
+      case TyTy::PLACEHOLDER: {
+	// These types must be resolved to some concrete types.
+	rust_unreachable ();
+      }
+      break;
+
+      case TyTy::PROJECTION: {
+	const TyTy::BaseType *base
+	  = raw->as<const TyTy::ProjectionType> ()->get ();
+	return is_auto_trait_bound_satisfied (base, trait);
+      }
+      break;
+      case TyTy::SLICE: {
+	const TyTy::BaseType *elem
+	  = raw->as<const TyTy::SliceType> ()->get_element_type ();
+	return is_auto_trait_bound_satisfied (elem, trait);
+      }
+      break;
+    case TyTy::STR:
+      return true;
+
+      case TyTy::ADT: {
+	const TyTy::ADTType *adt = raw->as<const TyTy::ADTType> ();
+	for (const auto &variant : adt->get_variants ())
+	  {
+	    for (const auto &field : variant->get_fields ())
+	      {
+		const TyTy::BaseType *field_type = field->get_field_type ();
+
+		if (!is_auto_trait_bound_satisfied (field_type, trait))
+		  return false;
+	      }
+	  }
+	return true;
+      }
+      break;
+      case TyTy::TUPLE: {
+	const TyTy::TupleType *tuple = raw->as<const TyTy::TupleType> ();
+	for (const auto &field : tuple->get_fields ())
+	  {
+	    const TyTy::BaseType *field_type = field.get_tyty ();
+	    if (!is_auto_trait_bound_satisfied (field_type, trait))
+	      return false;
+	  }
+	return true;
+      }
+      break;
+    case TyTy::DYNAMIC:
+      return false;
+    case TyTy::ERROR:
+      return false;
+    }
+  return true;
+}
+
+bool
+TypeBoundsProbe::should_impl_auto_trait (HIR::Trait *trait)
+{
+  const TyTy::BaseType *raw = receiver->destructure ();
+  return is_auto_trait_bound_satisfied (raw, trait);
+}
+
 void
 TypeBoundsProbe::add_trait_bound (HIR::Trait *trait)
 {
@@ -200,6 +348,23 @@ TypeBoundsProbe::assemble_builtin_candidate (LangItem::Kind lang_item)
   rust_debug ("Added builtin lang_item: %s for %s",
 	      LangItem::ToString (lang_item).c_str (),
 	      raw->get_name ().c_str ());
+}
+
+bool
+TypeBoundsProbe::bound_cache_lookup (TyTy::BaseType *tyty,
+				     TraitReference *trait)
+{
+  auto it = type_bound_cache.find ({tyty, trait});
+  if (it != type_bound_cache.end ())
+    return it->second;
+  return false;
+}
+
+void
+TypeBoundsProbe::bound_cache_insert (TyTy::BaseType *tyty,
+				     TraitReference *trait, bool satisfied)
+{
+  type_bound_cache.insert ({{tyty, trait}, satisfied});
 }
 
 TraitReference *
