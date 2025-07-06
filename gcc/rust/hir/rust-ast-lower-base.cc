@@ -805,15 +805,18 @@ void
 ASTLoweringBase::handle_doc_item_attribute (const ItemWrapper &,
 					    const AST::Attribute &attr)
 {
-  auto simple_doc_comment = attr.has_attr_input ()
-			    && attr.get_attr_input ().get_attr_input_type ()
-				 == AST::AttrInput::AttrInputType::LITERAL;
+  rust_assert (attr.has_attr_input ());
+  const AST::AttrInput &input = attr.get_attr_input ();
+  const AST::AttrInput::AttrInputType &input_type
+    = input.get_attr_input_type ();
+
+  auto simple_doc_comment
+    = input_type == AST::AttrInput::AttrInputType::LITERAL
+      || input_type == AST::AttrInput::AttrInputType::MACRO;
   if (simple_doc_comment)
     return;
 
-  const AST::AttrInput &input = attr.get_attr_input ();
-  bool is_token_tree
-    = input.get_attr_input_type () == AST::AttrInput::AttrInputType::TOKEN_TREE;
+  bool is_token_tree = input_type == AST::AttrInput::AttrInputType::TOKEN_TREE;
   rust_assert (is_token_tree);
   const auto &option = static_cast<const AST::DelimTokenTree &> (input);
   AST::AttrInputMetaItemContainer *meta_item = option.parse_to_meta_item ();
