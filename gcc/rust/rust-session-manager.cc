@@ -56,6 +56,7 @@
 #include "rust-borrow-checker.h"
 #include "rust-ast-validation.h"
 #include "rust-tyty-variance-analysis.h"
+#include "rust-readonly-check2.h"
 
 #include "input.h"
 #include "selftest.h"
@@ -738,6 +739,7 @@ Session::compile_crate (const char *filename)
       Analysis::ScanDeadcode::Scan (hir);
       Analysis::UnusedVariables::Lint (ctx);
       Analysis::ReadonlyCheck::Lint (ctx);
+      HIR::ReadonlyChecker ().go (hir);
 
       // metadata
       bool specified_emit_metadata
