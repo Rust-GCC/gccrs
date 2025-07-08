@@ -834,8 +834,8 @@ expand_inline_asm_strings (InlineAsmContext inline_asm_ctx)
 		    break;
 		  }
 		case Fmt::ffi::Position::Tag::ArgumentNamed:
-		  rust_sorry_at (inline_asm.get_locus (),
-				 "unhandled argument position specifier");
+		  // rust_sorry_at (inline_asm.get_locus (),
+		  //  "unhandled argument position specifier");
 		  break;
 		}
 	    }

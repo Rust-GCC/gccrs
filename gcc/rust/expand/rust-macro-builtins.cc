@@ -128,10 +128,14 @@ std::unordered_map<std::string, AST::MacroTranscriberFunc>
     {"include", MacroBuiltin::include_handler},
     {"format_args", format_args_maker (AST::FormatArgs::Newline::No)},
     {"format_args_nl", format_args_maker (AST::FormatArgs::Newline::Yes)},
-    {"asm", inline_asm_maker (AST::AsmKind::Inline)},
+    {"asm", MacroBuiltin::sorry},
+    {"llvm_asm", MacroBuiltin::sorry},
+    {"global_asm", MacroBuiltin::sorry},
+
+    // inline_asm_maker (AST::AsmKind::Inline)},
     // FIXME: Is that okay?
-    {"llvm_asm", inline_llvm_asm_maker (AST::AsmKind::Inline)},
-    {"global_asm", inline_asm_maker (AST::AsmKind::Global)},
+    // {"llvm_asm", inline_llvm_asm_maker (AST::AsmKind::Inline)},
+    // {"global_asm", inline_asm_maker (AST::AsmKind::Global)},
     {"option_env", MacroBuiltin::option_env_handler},
     /* Unimplemented macro builtins */
     {"concat_idents", MacroBuiltin::sorry},
@@ -180,8 +184,8 @@ tl::optional<AST::Fragment>
 MacroBuiltin::sorry (location_t invoc_locus, AST::MacroInvocData &invoc,
 		     AST::InvocKind semicolon)
 {
-  rust_sorry_at (invoc_locus, "unimplemented builtin macro: %qs",
-		 invoc.get_path ().as_string ().c_str ());
+  // rust_sorry_at (invoc_locus, "unimplemented builtin macro: %qs",
+  //  invoc.get_path ().as_string ().c_str ());
 
   return AST::Fragment::create_error ();
 }
