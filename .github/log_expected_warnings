@@ -1,1 +1,0 @@
-../../gcc/rust/checks/errors/borrowck/rust-borrow-checker-diagnostics.cc:145:46: warning: narrowing conversion of ‘loan’ from ‘Rust::Polonius::Loan’ {aka ‘long unsigned int’} to ‘uint32_t’ {aka ‘unsigned int’} [-Wnarrowing]
