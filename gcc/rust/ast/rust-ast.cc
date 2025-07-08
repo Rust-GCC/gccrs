@@ -3524,9 +3524,9 @@ std::unique_ptr<MetaItemInner>
 AttributeParser::parse_meta_item_inner ()
 {
   // if first tok not identifier, not a "special" case one
-  if (peek_token ()->get_id () != IDENTIFIER)
+  if (lexer->peek_token ()->get_id () != IDENTIFIER)
     {
-      switch (peek_token ()->get_id ())
+      switch (lexer->peek_token ()->get_id ())
 	{
 	case CHAR_LITERAL:
 	case STRING_LITERAL:
@@ -3547,42 +3547,43 @@ AttributeParser::parse_meta_item_inner ()
 	  return parse_path_meta_item ();
 
 	default:
-	  rust_error_at (peek_token ()->get_locus (),
+	  rust_error_at (lexer->peek_token ()->get_locus (),
 			 "unrecognised token '%s' in meta item",
-			 get_token_description (peek_token ()->get_id ()));
+			 get_token_description (
+			   lexer->peek_token ()->get_id ()));
 	  return nullptr;
 	}
     }
 
   // else, check for path
-  if (peek_token (1)->get_id () == SCOPE_RESOLUTION)
+  if (lexer->peek_token (1)->get_id () == SCOPE_RESOLUTION)
     {
       // path
       return parse_path_meta_item ();
     }
 
-  auto ident = peek_token ()->get_str ();
-  auto ident_locus = peek_token ()->get_locus ();
+  auto ident = lexer->peek_token ()->get_str ();
+  auto ident_locus = lexer->peek_token ()->get_locus ();
 
-  if (is_end_meta_item_tok (peek_token (1)->get_id ()))
+  if (is_end_meta_item_tok (lexer->peek_token (1)->get_id ()))
     {
       // meta word syntax
-      skip_token ();
+      lexer->skip_token ();
       return std::unique_ptr<MetaWord> (new MetaWord (ident, ident_locus));
     }
 
-  if (peek_token (1)->get_id () == EQUAL)
+  if (lexer->peek_token (1)->get_id () == EQUAL)
     {
       // maybe meta name value str syntax - check next 2 tokens
-      if (peek_token (2)->get_id () == STRING_LITERAL
-	  && is_end_meta_item_tok (peek_token (3)->get_id ()))
+      if (lexer->peek_token (2)->get_id () == STRING_LITERAL
+	  && is_end_meta_item_tok (lexer->peek_token (3)->get_id ()))
 	{
 	  // meta name value str syntax
-	  const_TokenPtr value_tok = peek_token (2);
+	  const_TokenPtr value_tok = lexer->peek_token (2);
 	  auto value = value_tok->get_str ();
 	  auto locus = value_tok->get_locus ();
 
-	  skip_token (2);
+	  lexer->skip_token (2);
 
 	  return std::unique_ptr<MetaNameValueStr> (
 	    new MetaNameValueStr (ident, ident_locus, std::move (value),
@@ -3595,16 +3596,16 @@ AttributeParser::parse_meta_item_inner ()
 	}
     }
 
-  if (peek_token (1)->get_id () != LEFT_PAREN)
+  if (lexer->peek_token (1)->get_id () != LEFT_PAREN)
     {
-      rust_error_at (peek_token (1)->get_locus (),
+      rust_error_at (lexer->peek_token (1)->get_locus (),
 		     "unexpected token '%s' after identifier in attribute",
-		     get_token_description (peek_token (1)->get_id ()));
+		     get_token_description (lexer->peek_token (1)->get_id ()));
       return nullptr;
     }
 
   // is it one of those special cases like not?
-  if (peek_token ()->get_id () == IDENTIFIER)
+  if (lexer->peek_token ()->get_id () == IDENTIFIER)
     {
       return parse_path_meta_item ();
     }
@@ -3683,15 +3684,15 @@ AttributeParser::is_end_meta_item_tok (TokenId id) const
 std::unique_ptr<MetaItem>
 AttributeParser::parse_path_meta_item ()
 {
-  SimplePath path = parse_simple_path ();
+  SimplePath path = parser->parse_simple_path ();
   if (path.is_empty ())
     {
-      rust_error_at (peek_token ()->get_locus (),
+      rust_error_at (lexer->peek_token ()->get_locus (),
 		     "failed to parse simple path in attribute");
       return nullptr;
     }
 
-  switch (peek_token ()->get_id ())
+  switch (lexer->peek_token ()->get_id ())
     {
     case LEFT_PAREN:
       {
@@ -3703,31 +3704,26 @@ AttributeParser::parse_path_meta_item ()
       }
     case EQUAL:
       {
-	skip_token ();
+	lexer->skip_token ();
 
-	location_t locus = peek_token ()->get_locus ();
-	Literal lit = parse_literal ();
-	if (lit.is_error ())
-	  {
-	    rust_error_at (peek_token ()->get_locus (),
-			   "failed to parse literal in attribute");
-	    return nullptr;
-	  }
-	LiteralExpr expr (std::move (lit), {}, locus);
-	// stream_pos++;
-	/* shouldn't be required anymore due to parsing literal actually
-	 * skipping the token */
+	std::unique_ptr<LiteralExpr> expr = parser->parse_literal_expr ({});
+
+	// handle error
+	// parse_literal_expr should already emit an error and return nullptr
+	if (!expr)
+	  return nullptr;
+
 	return std::unique_ptr<MetaItemPathLit> (
-	  new MetaItemPathLit (std::move (path), std::move (expr)));
+	  new MetaItemPathLit (std::move (path), std::move (*expr)));
       }
     case COMMA:
       // just simple path
       return std::unique_ptr<MetaItemPath> (
 	new MetaItemPath (std::move (path)));
     default:
-      rust_error_at (peek_token ()->get_locus (),
+      rust_error_at (lexer->peek_token ()->get_locus (),
 		     "unrecognised token '%s' in meta item",
-		     get_token_description (peek_token ()->get_id ()));
+		     get_token_description (lexer->peek_token ()->get_id ()));
       return nullptr;
     }
 }
@@ -3739,39 +3735,39 @@ AttributeParser::parse_meta_item_seq ()
 {
   std::vector<std::unique_ptr<MetaItemInner>> meta_items;
 
-  if (peek_token ()->get_id () != LEFT_PAREN)
+  if (lexer->peek_token ()->get_id () != LEFT_PAREN)
     {
-      rust_error_at (peek_token ()->get_locus (),
+      rust_error_at (lexer->peek_token ()->get_locus (),
 		     "missing left paren in delim token tree");
       return {};
     }
-  skip_token ();
+  lexer->skip_token ();
 
-  while (peek_token ()->get_id () != END_OF_FILE
-	 && peek_token ()->get_id () != RIGHT_PAREN)
+  while (lexer->peek_token ()->get_id () != END_OF_FILE
+	 && lexer->peek_token ()->get_id () != RIGHT_PAREN)
     {
       std::unique_ptr<MetaItemInner> inner = parse_meta_item_inner ();
       if (inner == nullptr)
 	{
-	  rust_error_at (peek_token ()->get_locus (),
+	  rust_error_at (lexer->peek_token ()->get_locus (),
 			 "failed to parse inner meta item in attribute");
 	  return {};
 	}
       meta_items.push_back (std::move (inner));
 
-      if (peek_token ()->get_id () != COMMA)
+      if (lexer->peek_token ()->get_id () != COMMA)
 	break;
 
-      skip_token ();
+      lexer->skip_token ();
     }
 
-  if (peek_token ()->get_id () != RIGHT_PAREN)
+  if (lexer->peek_token ()->get_id () != RIGHT_PAREN)
     {
-      rust_error_at (peek_token ()->get_locus (),
+      rust_error_at (lexer->peek_token ()->get_locus (),
 		     "missing right paren in delim token tree");
       return {};
     }
-  skip_token ();
+  lexer->skip_token ();
 
   return meta_items;
 }
@@ -3794,141 +3790,12 @@ DelimTokenTree::to_token_stream () const
   return tokens;
 }
 
-Literal
-AttributeParser::parse_literal ()
-{
-  const_TokenPtr tok = peek_token ();
-  switch (tok->get_id ())
-    {
-    case CHAR_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::CHAR, tok->get_type_hint ());
-    case STRING_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::STRING, tok->get_type_hint ());
-    case BYTE_CHAR_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::BYTE, tok->get_type_hint ());
-    case BYTE_STRING_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::BYTE_STRING,
-		      tok->get_type_hint ());
-    case RAW_STRING_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::RAW_STRING,
-		      tok->get_type_hint ());
-    case INT_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::INT, tok->get_type_hint ());
-    case FLOAT_LITERAL:
-      skip_token ();
-      return Literal (tok->get_str (), Literal::FLOAT, tok->get_type_hint ());
-    case TRUE_LITERAL:
-      skip_token ();
-      return Literal ("true", Literal::BOOL, tok->get_type_hint ());
-    case FALSE_LITERAL:
-      skip_token ();
-      return Literal ("false", Literal::BOOL, tok->get_type_hint ());
-    default:
-      rust_error_at (tok->get_locus (), "expected literal - found '%s'",
-		     get_token_description (tok->get_id ()));
-      return Literal::create_error ();
-    }
-}
-
-SimplePath
-AttributeParser::parse_simple_path ()
-{
-  bool has_opening_scope_res = false;
-  if (peek_token ()->get_id () == SCOPE_RESOLUTION)
-    {
-      has_opening_scope_res = true;
-      skip_token ();
-    }
-
-  std::vector<SimplePathSegment> segments;
-
-  SimplePathSegment segment = parse_simple_path_segment ();
-  if (segment.is_error ())
-    {
-      rust_error_at (
-	peek_token ()->get_locus (),
-	"failed to parse simple path segment in attribute simple path");
-      return SimplePath::create_empty ();
-    }
-  segments.push_back (std::move (segment));
-
-  while (peek_token ()->get_id () == SCOPE_RESOLUTION)
-    {
-      skip_token ();
-
-      SimplePathSegment segment = parse_simple_path_segment ();
-      if (segment.is_error ())
-	{
-	  rust_error_at (
-	    peek_token ()->get_locus (),
-	    "failed to parse simple path segment in attribute simple path");
-	  return SimplePath::create_empty ();
-	}
-      segments.push_back (std::move (segment));
-    }
-  segments.shrink_to_fit ();
-
-  return SimplePath (std::move (segments), has_opening_scope_res);
-}
-
-SimplePathSegment
-AttributeParser::parse_simple_path_segment ()
-{
-  const_TokenPtr tok = peek_token ();
-  switch (tok->get_id ())
-    {
-    case IDENTIFIER:
-      skip_token ();
-      return SimplePathSegment (tok->get_str (), tok->get_locus ());
-    case SUPER:
-      skip_token ();
-      return SimplePathSegment ("super", tok->get_locus ());
-    case SELF:
-      skip_token ();
-      return SimplePathSegment ("self", tok->get_locus ());
-    case CRATE:
-      skip_token ();
-      return SimplePathSegment ("crate", tok->get_locus ());
-    case DOLLAR_SIGN:
-      if (peek_token (1)->get_id () == CRATE)
-	{
-	  skip_token (1);
-	  return SimplePathSegment ("$crate", tok->get_locus ());
-	}
-      gcc_fallthrough ();
-    default:
-      rust_error_at (tok->get_locus (),
-		     "unexpected token '%s' in simple path segment",
-		     get_token_description (tok->get_id ()));
-      return SimplePathSegment::create_error ();
-    }
-}
-
 std::unique_ptr<MetaItemLitExpr>
 AttributeParser::parse_meta_item_lit ()
 {
-  location_t locus = peek_token ()->get_locus ();
-  LiteralExpr lit_expr (parse_literal (), {}, locus);
+  std::unique_ptr<LiteralExpr> lit_expr = parser->parse_literal_expr ({});
   return std::unique_ptr<MetaItemLitExpr> (
-    new MetaItemLitExpr (std::move (lit_expr)));
-}
-
-const_TokenPtr
-AttributeParser::peek_token (int i)
-{
-  return lexer->peek_token (i);
-}
-
-void
-AttributeParser::skip_token (int i)
-{
-  lexer->skip_token (i);
+    new MetaItemLitExpr (std::move (*lit_expr)));
 }
 
 bool
