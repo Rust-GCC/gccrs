@@ -288,7 +288,7 @@ Attribute::get_traits_to_derive ()
 		      break;
 		    case AST::MetaItem::ItemKind::ListPaths:
 		    case AST::MetaItem::ItemKind::NameValueStr:
-		    case AST::MetaItem::ItemKind::PathLit:
+		    case AST::MetaItem::ItemKind::PathExpr:
 		    case AST::MetaItem::ItemKind::Seq:
 		    case AST::MetaItem::ItemKind::ListNameValueStr:
 		    default:
@@ -3706,15 +3706,15 @@ AttributeParser::parse_path_meta_item ()
       {
 	lexer->skip_token ();
 
-	std::unique_ptr<LiteralExpr> expr = parser->parse_literal_expr ({});
+	std::unique_ptr<Expr> expr = parser->parse_expr ({});
 
 	// handle error
 	// parse_literal_expr should already emit an error and return nullptr
 	if (!expr)
 	  return nullptr;
 
-	return std::unique_ptr<MetaItemPathLit> (
-	  new MetaItemPathLit (std::move (path), std::move (*expr)));
+	return std::unique_ptr<MetaItemPathExpr> (
+	  new MetaItemPathExpr (std::move (path), std::move (expr)));
       }
     case COMMA:
       // just simple path
@@ -4004,10 +4004,12 @@ MetaNameValueStr::check_cfg_predicate (const Session &session) const
 }
 
 bool
-MetaItemPathLit::check_cfg_predicate (const Session &session) const
+MetaItemPathExpr::check_cfg_predicate (const Session &session) const
 {
+  // TODO: proper error
+  rust_assert (expr->is_literal ());
   return session.options.target_data.has_key_value_pair (path.as_string (),
-							 lit.as_string ());
+							 expr->as_string ());
 }
 
 std::vector<std::unique_ptr<Token>>
@@ -4095,10 +4097,12 @@ MetaListNameValueStr::to_attribute () const
 }
 
 Attribute
-MetaItemPathLit::to_attribute () const
+MetaItemPathExpr::to_attribute () const
 {
+  // TODO: make this work in more cases? or add an error
+  rust_assert (expr->is_literal ());
   return Attribute (path, std::unique_ptr<AttrInputLiteral> (
-			    new AttrInputLiteral (lit)));
+			    new AttrInputLiteral (static_cast<LiteralExpr &> (*expr))));
 }
 
 std::vector<Attribute>
@@ -4265,7 +4269,7 @@ MetaItemLitExpr::accept_vis (ASTVisitor &vis)
 }
 
 void
-MetaItemPathLit::accept_vis (ASTVisitor &vis)
+MetaItemPathExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
