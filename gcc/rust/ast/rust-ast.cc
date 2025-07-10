@@ -3709,7 +3709,7 @@ AttributeParser::parse_path_meta_item ()
 	std::unique_ptr<Expr> expr = parser->parse_expr ({});
 
 	// handle error
-	// parse_literal_expr should already emit an error and return nullptr
+	// parse_expr should already emit an error and return nullptr
 	if (!expr)
 	  return nullptr;
 
