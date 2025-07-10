@@ -654,14 +654,17 @@ Parser<ManagedTokenSource>::parse_simple_path ()
   // Parse all other simple path segments
   while (lexer.peek_token ()->get_id () == SCOPE_RESOLUTION)
     {
+      // don't skip scope resolution if parse_simple_path_segment will fail
+      if (!is_simple_path_segment (lexer.peek_token (1)->get_id ()))
+	break;
+
       // Skip scope resolution operator
       lexer.skip_token ();
 
       AST::SimplePathSegment new_segment = parse_simple_path_segment ();
 
-      // Return path as currently constructed if segment in error state.
-      if (new_segment.is_error ())
-	break;
+      // we should have predicted this above
+      rust_assert (!new_segment.is_error ());
 
       segments.push_back (std::move (new_segment));
     }
@@ -2807,11 +2810,69 @@ Parser<ManagedTokenSource>::parse_use_tree ()
     }
   else
     {
-      /* Due to aforementioned implementation issues, the trailing :: token is
-       * consumed by the path, so it can not be used as a disambiguator.
-       * NOPE, not true anymore - TODO what are the consequences of this? */
-
       const_TokenPtr t = lexer.peek_token ();
+
+      switch (t->get_id ())
+	{
+	case AS:
+	  {
+	    // rebind UseTree type
+	    lexer.skip_token ();
+
+	    const_TokenPtr t = lexer.peek_token ();
+	    switch (t->get_id ())
+	      {
+	      case IDENTIFIER:
+		// skip lexer token
+		lexer.skip_token ();
+
+		return std::unique_ptr<AST::UseTreeRebind> (
+		  new AST::UseTreeRebind (AST::UseTreeRebind::IDENTIFIER,
+					  std::move (path), locus, t));
+	      case UNDERSCORE:
+		// skip lexer token
+		lexer.skip_token ();
+
+		return std::unique_ptr<AST::UseTreeRebind> (
+		  new AST::UseTreeRebind (AST::UseTreeRebind::WILDCARD,
+					  std::move (path), locus,
+					  {Values::Keywords::UNDERSCORE,
+					   t->get_locus ()}));
+	      default:
+		add_error (Error (
+		  t->get_locus (),
+		  "unexpected token %qs in use tree with as clause - expected "
+		  "identifier or %<_%>",
+		  t->get_token_description ()));
+
+		skip_after_semicolon ();
+		return nullptr;
+	      }
+	  }
+	case SEMICOLON:
+	  // rebind UseTree type without rebinding - path only
+
+	  // don't skip semicolon - handled in parse_use_tree
+	  // lexer.skip_token();
+	case COMMA:
+	case RIGHT_CURLY:
+	  // this may occur in recursive calls - assume it is ok and ignore it
+	  return std::unique_ptr<AST::UseTreeRebind> (
+	    new AST::UseTreeRebind (AST::UseTreeRebind::NONE, std::move (path),
+				    locus));
+	case SCOPE_RESOLUTION:
+	  // keep going
+	  break;
+	default:
+	  add_error (Error (t->get_locus (),
+			    "unexpected token %qs in use tree with valid path",
+			    t->get_token_description ()));
+	  return nullptr;
+	}
+
+      skip_token ();
+      t = lexer.peek_token ();
+
       switch (t->get_id ())
 	{
 	case ASTERISK:
@@ -2859,56 +2920,6 @@ Parser<ManagedTokenSource>::parse_use_tree ()
 				    std::move (path), std::move (use_trees),
 				    locus));
 	  }
-	case AS:
-	  {
-	    // rebind UseTree type
-	    lexer.skip_token ();
-
-	    const_TokenPtr t = lexer.peek_token ();
-	    switch (t->get_id ())
-	      {
-	      case IDENTIFIER:
-		// skip lexer token
-		lexer.skip_token ();
-
-		return std::unique_ptr<AST::UseTreeRebind> (
-		  new AST::UseTreeRebind (AST::UseTreeRebind::IDENTIFIER,
-					  std::move (path), locus, t));
-	      case UNDERSCORE:
-		// skip lexer token
-		lexer.skip_token ();
-
-		return std::unique_ptr<AST::UseTreeRebind> (
-		  new AST::UseTreeRebind (AST::UseTreeRebind::WILDCARD,
-					  std::move (path), locus,
-					  {Values::Keywords::UNDERSCORE,
-					   t->get_locus ()}));
-	      default:
-		add_error (Error (
-		  t->get_locus (),
-		  "unexpected token %qs in use tree with as clause - expected "
-		  "identifier or %<_%>",
-		  t->get_token_description ()));
-
-		skip_after_semicolon ();
-		return nullptr;
-	      }
-	  }
-	case SEMICOLON:
-	  // rebind UseTree type without rebinding - path only
-
-	  // don't skip semicolon - handled in parse_use_tree
-	  // lexer.skip_token();
-
-	  return std::unique_ptr<AST::UseTreeRebind> (
-	    new AST::UseTreeRebind (AST::UseTreeRebind::NONE, std::move (path),
-				    locus));
-	case COMMA:
-	case RIGHT_CURLY:
-	  // this may occur in recursive calls - assume it is ok and ignore it
-	  return std::unique_ptr<AST::UseTreeRebind> (
-	    new AST::UseTreeRebind (AST::UseTreeRebind::NONE, std::move (path),
-				    locus));
 	default:
 	  add_error (Error (t->get_locus (),
 			    "unexpected token %qs in use tree with valid path",

@@ -27,6 +27,11 @@
 #include "rust-macro-builtins.h"
 
 namespace Rust {
+
+// forward declarations for AttributeParser
+class MacroInvocLexer;
+template <typename ManagedTokenSource> class Parser;
+
 namespace AST {
 
 class MacroFragSpec
@@ -1116,16 +1121,14 @@ struct AttributeParser
 {
 private:
   // TODO: might as well rewrite to use lexer tokens
-  std::vector<std::unique_ptr<Token>> token_stream;
-  int stream_pos;
+  std::unique_ptr<MacroInvocLexer> lexer;
+  std::unique_ptr<Parser<MacroInvocLexer>> parser;
 
 public:
   AttributeParser (std::vector<std::unique_ptr<Token>> token_stream,
-		   int stream_start_pos = 0)
-    : token_stream (std::move (token_stream)), stream_pos (stream_start_pos)
-  {}
+		   int stream_start_pos = 0);
 
-  ~AttributeParser () = default;
+  ~AttributeParser ();
 
   std::vector<std::unique_ptr<MetaItemInner>> parse_meta_item_seq ();
 
@@ -1134,24 +1137,10 @@ private:
   std::unique_ptr<MetaItemInner> parse_meta_item_inner ();
   // Returns whether token can end a meta item.
   bool is_end_meta_item_tok (TokenId id) const;
-  // Parses a simple path.
-  SimplePath parse_simple_path ();
-  // Parses a segment of a simple path (but not scope resolution operator).
-  SimplePathSegment parse_simple_path_segment ();
   // Parses a MetaItemLitExpr.
   std::unique_ptr<MetaItemLitExpr> parse_meta_item_lit ();
-  // Parses a literal.
-  Literal parse_literal ();
   // Parses a meta item that begins with a simple path.
   std::unique_ptr<MetaItem> parse_path_meta_item ();
-
-  // TODO: should this be const?
-  std::unique_ptr<Token> &peek_token (int i = 0)
-  {
-    return token_stream[stream_pos + i];
-  }
-
-  void skip_token (int i = 0) { stream_pos += 1 + i; }
 };
 } // namespace AST
 } // namespace Rust
