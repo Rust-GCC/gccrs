@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-expr.h"
+#include "optional.h"
 #include "rust-operators.h"
 #include "rust-hir-stmt.h"
 
@@ -793,14 +794,22 @@ BlockExpr::operator= (BlockExpr const &other)
 AnonConst::AnonConst (Analysis::NodeMapping mappings,
 		      std::unique_ptr<Expr> &&expr, location_t locus)
   : ExprWithBlock (std::move (mappings), {}), locus (locus),
-    expr (std::move (expr))
+    kind (Kind::Explicit), expr (std::move (expr))
 {
-  rust_assert (this->expr);
+  rust_assert (this->expr.value ());
 }
 
-AnonConst::AnonConst (const AnonConst &other)
-  : ExprWithBlock (other), locus (other.locus), expr (other.expr->clone_expr ())
+AnonConst::AnonConst (Analysis::NodeMapping mappings, location_t locus)
+  : ExprWithBlock (std::move (mappings), {}), locus (locus),
+    kind (Kind::DeferredInference), expr (tl::nullopt)
 {}
+
+AnonConst::AnonConst (const AnonConst &other)
+  : ExprWithBlock (other), locus (other.locus), kind (other.kind)
+{
+  if (other.expr)
+    expr = other.expr.value ()->clone_expr ();
+}
 
 AnonConst
 AnonConst::operator= (const AnonConst &other)
@@ -808,7 +817,10 @@ AnonConst::operator= (const AnonConst &other)
   ExprWithBlock::operator= (other);
 
   locus = other.locus;
-  expr = other.expr->clone_expr ();
+  kind = other.kind;
+
+  if (other.expr)
+    expr = other.expr.value ()->clone_expr ();
 
   return *this;
 }
