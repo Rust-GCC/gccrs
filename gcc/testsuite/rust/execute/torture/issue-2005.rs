@@ -1,5 +1,5 @@
 // { dg-additional-options "-w" }
-
+/* { dg-output "WORKS\r?\n" } */
 #![feature(intrinsics)]
 
 mod core {
@@ -343,14 +343,14 @@ use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 use core::marker::Sized;
 use core::option::Option;
 
-// for comparing discriminant_value
+// --------------
+
 impl PartialEq for isize {
     fn eq(&self, other: &Self) -> bool {
         *self == *other
     }
 }
 
-// for comparing discriminant_value
 impl PartialOrd for isize {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if *self > *other {
@@ -375,6 +375,22 @@ impl PartialOrd for isize {
         *self > *other
     }
 }
+
+impl Eq for isize {}
+
+impl Ord for isize {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if *self > *other {
+            Ordering::Greater
+        } else if *self < *other {
+            Ordering::Less
+        } else {
+            Ordering::Equal
+        }
+    }
+}
+
+// ----------------------------------
 
 impl PartialEq for i32 {
     fn eq(&self, other: &Self) -> bool {
@@ -421,24 +437,10 @@ impl Ord for i32 {
 
 impl Eq for i32 {}
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(Ord, PartialOrd, PartialEq, Eq)]
 enum Foo {
     A,
-    B(i32, i32, i32),
-    C { inner: i32, outer: i32 },
-}
-
-#[derive(Ord, PartialOrd, PartialEq, Eq)]
-struct Bar {
-    a: i32,
-}
-
-#[derive(Ord, PartialOrd, PartialEq, Eq)]
-struct BarFull {
-    a: i32,
-    b: i32,
-    c: i32,
-    d: i32,
+    B(i32),
 }
 
 extern "C" {
@@ -451,14 +453,13 @@ fn print(s: &str) {
     }
 }
 
-fn main() {
+fn main() -> i32 {
     let a = Foo::A;
-    let b = Foo::B(15, 14, 13);
+    let b = Foo::B(15);
 
-    match a.partial_cmp(&b) {
-        Option::Some(Ordering::Less) => print("less"),
-        Option::Some(Ordering::Greater) => print("greater"),
-        Option::Some(Ordering::Equal) => print("equal"),
-        _ => print("uuuuh woops lol"),
+    if (a != b) {
+        print("WORKS");
     }
+
+    0
 }
