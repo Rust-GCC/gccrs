@@ -62,6 +62,8 @@ format_args_parse_arguments (AST::MacroInvocData &invoc)
       ;
     }
 
+  rust_debug_loc (parser.peek_current_token ()->get_locus (), "WE ARE HERE %s", parser.peek_current_token ()->as_string ().c_str ());
+  rust_debug_loc (invoc.get_delim_tok_tree ().get_locus (), "OR HERE");
   rust_assert (format_expr);
 
   // TODO(Arthur): Clean this up - if we haven't parsed a string literal but a
