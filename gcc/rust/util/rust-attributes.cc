@@ -99,7 +99,6 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTFMT, EXTERNAL},
 
      {Attrs::TEST, CODE_GENERATION},
-     {Attrs::SIMD_TEST, CODE_GENERATION},
 
      // TODO: be careful about calling functions marked with this?
      {Attrs::RUSTC_ARGS_REQUIRED_CONST, CODE_GENERATION},
