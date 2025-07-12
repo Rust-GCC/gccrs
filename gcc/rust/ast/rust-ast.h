@@ -1072,7 +1072,7 @@ public:
     Path,
     Word,
     NameValueStr,
-    PathLit,
+    PathExpr,
     Seq,
     ListPaths,
     ListNameValueStr,
@@ -1090,7 +1090,7 @@ public:
 class MetaItemLitExpr;
 
 // Forward decl - defined in rust-expr.h
-class MetaItemPathLit;
+class MetaItemPathExpr;
 
 // Forward decl - defined in rust-macro.h
 class MetaItemPath;

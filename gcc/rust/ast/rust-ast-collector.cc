@@ -839,13 +839,13 @@ TokenCollector::visit (MetaItemLitExpr &item)
 }
 
 void
-TokenCollector::visit (MetaItemPathLit &item)
+TokenCollector::visit (MetaItemPathExpr &item)
 {
   auto path = item.get_path ();
-  auto lit = item.get_literal ();
+  auto &expr = item.get_expr ();
   visit (path);
-  push (Rust::Token::make (COLON, item.get_locus ()));
-  visit (lit);
+  push (Rust::Token::make (EQUAL, item.get_locus ()));
+  visit (expr);
 }
 
 void
