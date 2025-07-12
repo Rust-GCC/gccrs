@@ -47,6 +47,9 @@ along with GCC; see the file COPYING3.  If not see
 
   /* Interprocedural optimization passes.  */
   INSERT_PASSES_AFTER (all_small_ipa_passes)
+  /* auto_profile_offline uses dwarf_name hook that only
+     works before free_lang_data.  */
+  NEXT_PASS (pass_ipa_auto_profile_offline);
   NEXT_PASS (pass_ipa_free_lang_data);
   NEXT_PASS (pass_ipa_function_and_variable_visibility);
   NEXT_PASS (pass_ipa_strub_mode);
@@ -441,9 +444,9 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_lower_switch_O0);
   NEXT_PASS (pass_asan_O0);
   NEXT_PASS (pass_tsan_O0);
+  NEXT_PASS (pass_musttail);
   NEXT_PASS (pass_sanopt);
   NEXT_PASS (pass_cleanup_eh);
-  NEXT_PASS (pass_musttail);
   NEXT_PASS (pass_lower_resx);
   NEXT_PASS (pass_nrv);
   NEXT_PASS (pass_gimple_isel);

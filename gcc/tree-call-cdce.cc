@@ -36,6 +36,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "builtins.h"
 #include "internal-fn.h"
 #include "tree-dfa.h"
+#include "tree-eh.h"
 
 
 /* This pass serves two closely-related purposes:
@@ -296,8 +297,12 @@ can_test_argument_range (gcall *call)
     /* Trig functions.  */
     CASE_FLT_FN (BUILT_IN_ACOS):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOS):
+    CASE_FLT_FN (BUILT_IN_ACOSPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOSPI):
     CASE_FLT_FN (BUILT_IN_ASIN):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ASIN):
+    CASE_FLT_FN (BUILT_IN_ASINPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ASINPI):
     /* Hyperbolic functions.  */
     CASE_FLT_FN (BUILT_IN_ACOSH):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOSH):
@@ -351,15 +356,21 @@ edom_only_function (gcall *call)
     {
     CASE_FLT_FN (BUILT_IN_ACOS):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOS):
+    CASE_FLT_FN (BUILT_IN_ACOSPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOSPI):
     CASE_FLT_FN (BUILT_IN_ASIN):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ASIN):
-    CASE_FLT_FN (BUILT_IN_ATAN):
-    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ATAN):
+    CASE_FLT_FN (BUILT_IN_ASINPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ASINPI):
     CASE_FLT_FN (BUILT_IN_COS):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_COS):
+    CASE_FLT_FN (BUILT_IN_COSPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_COSPI):
     CASE_FLT_FN (BUILT_IN_SIGNIFICAND):
     CASE_FLT_FN (BUILT_IN_SIN):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_SIN):
+    CASE_FLT_FN (BUILT_IN_SINPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_SINPI):
     CASE_FLT_FN (BUILT_IN_SQRT):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_SQRT):
     CASE_FLT_FN (BUILT_IN_FMOD):
@@ -694,8 +705,12 @@ get_no_error_domain (enum built_in_function fnc)
     /* Trig functions: return [-1, +1]  */
     CASE_FLT_FN (BUILT_IN_ACOS):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOS):
+    CASE_FLT_FN (BUILT_IN_ACOSPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ACOSPI):
     CASE_FLT_FN (BUILT_IN_ASIN):
     CASE_FLT_FN_FLOATN_NX (BUILT_IN_ASIN):
+    CASE_FLT_FN (BUILT_IN_ASINPI):
+    CASE_FLT_FN_FLOATN_NX (BUILT_IN_ASINPI):
       return get_domain (-1, true, true,
                          1, true, true);
     /* Hyperbolic functions.  */
@@ -1208,8 +1223,20 @@ use_internal_fn (gcall *call)
     {
       /* Skip the call if LHS == LHS.  If we reach here, EDOM is the only
 	 valid errno value and it is used iff the result is NaN.  */
-      conds.quick_push (gimple_build_cond (EQ_EXPR, lhs, lhs,
-					   NULL_TREE, NULL_TREE));
+      /* In the case of non call exceptions, with signaling NaNs, EQ_EXPR
+	 can throw an exception and that can't be part of the GIMPLE_COND. */
+      if (flag_exceptions
+	  && cfun->can_throw_non_call_exceptions
+	  && operation_could_trap_p (EQ_EXPR, true, false, NULL_TREE))
+	{
+	  tree b = make_ssa_name (boolean_type_node);
+	  conds.quick_push (gimple_build_assign (b, EQ_EXPR, lhs, lhs));
+	  conds.quick_push (gimple_build_cond (NE_EXPR, b, boolean_false_node,
+					       NULL_TREE, NULL_TREE));
+	}
+      else
+	conds.quick_push (gimple_build_cond (EQ_EXPR, lhs, lhs,
+					     NULL_TREE, NULL_TREE));
       nconds++;
 
       /* Try replacing the original call with a direct assignment to

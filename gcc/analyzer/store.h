@@ -222,9 +222,9 @@ public:
   static int cmp (const binding_key *, const binding_key *);
 
   virtual const concrete_binding *dyn_cast_concrete_binding () const
-  { return NULL; }
+  { return nullptr; }
   virtual const symbolic_binding *dyn_cast_symbolic_binding () const
-  { return NULL; }
+  { return nullptr; }
 };
 
 /* A concrete range of bits.  */
@@ -298,6 +298,16 @@ struct bit_range
   static bool from_mask (unsigned HOST_WIDE_INT mask, bit_range *out);
 
   bool as_byte_range (byte_range *out) const;
+
+  bool
+  operator< (const bit_range &other) const
+  {
+    if (m_start_bit_offset < other.m_start_bit_offset)
+      return true;
+    if (m_start_bit_offset > other.m_start_bit_offset)
+      return false;
+    return (m_size_in_bits < other.m_size_in_bits);
+  }
 
   bit_offset_t m_start_bit_offset;
   bit_size_t m_size_in_bits;
@@ -482,10 +492,10 @@ public:
   static int cmp_ptr_ptr (const void *, const void *);
 
   void mark_deleted () { m_region = reinterpret_cast<const region *> (1); }
-  void mark_empty () { m_region = NULL; }
+  void mark_empty () { m_region = nullptr; }
   bool is_deleted () const
   { return m_region == reinterpret_cast<const region *> (1); }
-  bool is_empty () const { return m_region == NULL; }
+  bool is_empty () const { return m_region == nullptr; }
 
 private:
   const region *m_region;
@@ -528,7 +538,7 @@ public:
     if (slot)
       return *slot;
     else
-      return NULL;
+      return nullptr;
   }
   bool put (const binding_key *k, const svalue *v)
   {

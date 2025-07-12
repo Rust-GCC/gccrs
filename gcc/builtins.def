@@ -217,6 +217,8 @@ along with GCC; see the file COPYING3.  If not see
   DEF_BUILTIN (ENUM, "__builtin_" NAME, BUILT_IN_NORMAL, TYPE, TYPE,    \
 	       false, true, true, ATTRS, false, \
 	       flag_openacc)
+/* Set NONANSI_P = false to enable the builtins also with -fno-nonansi-builtins,
+   esp. as -std=c++../c.. imply that flag and -fopenacc should be othogonal.  */
 #undef DEF_GOACC_BUILTIN_COMPILER
 #define DEF_GOACC_BUILTIN_COMPILER(ENUM, NAME, TYPE, ATTRS) \
   DEF_BUILTIN (ENUM, "__builtin_" NAME, BUILT_IN_NORMAL, TYPE, TYPE,    \
@@ -232,10 +234,12 @@ along with GCC; see the file COPYING3.  If not see
 	       (flag_openacc \
 		|| flag_openmp \
 		|| flag_tree_parallelize_loops > 1))
+/* Set NONANSI_P = false to enable the builtins also with -fno-nonansi-builtins,
+   esp. as -std=c++../c.. imply that flag and -fopenmp should be othogonal.  */
 #undef DEF_GOMP_BUILTIN_COMPILER
 #define DEF_GOMP_BUILTIN_COMPILER(ENUM, NAME, TYPE, ATTRS) \
   DEF_BUILTIN (ENUM, "__builtin_" NAME, BUILT_IN_NORMAL, TYPE, TYPE,    \
-               flag_openmp, true, true, ATTRS, false, flag_openmp)
+               flag_openmp, true, false, ATTRS, false, flag_openmp)
 
 /* Builtin used by the implementation of GNU TM.  These
    functions are mapped to the actual implementation of the STM library. */
@@ -920,8 +924,8 @@ DEF_EXT_LIB_BUILTIN    (BUILT_IN_FPUTC_UNLOCKED, "fputc_unlocked", BT_FN_INT_INT
 DEF_LIB_BUILTIN        (BUILT_IN_FPUTS, "fputs", BT_FN_INT_CONST_STRING_FILEPTR, ATTR_NONNULL_LIST)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_FPUTS_UNLOCKED, "fputs_unlocked", BT_FN_INT_CONST_STRING_FILEPTR, ATTR_NONNULL_LIST)
 DEF_LIB_BUILTIN        (BUILT_IN_FSCANF, "fscanf", BT_FN_INT_FILEPTR_CONST_STRING_VAR, ATTR_FORMAT_SCANF_2_3)
-DEF_LIB_BUILTIN        (BUILT_IN_FWRITE, "fwrite", BT_FN_SIZE_CONST_PTR_SIZE_SIZE_FILEPTR, ATTR_NONNULL_LIST)
-DEF_EXT_LIB_BUILTIN    (BUILT_IN_FWRITE_UNLOCKED, "fwrite_unlocked", BT_FN_SIZE_CONST_PTR_SIZE_SIZE_FILEPTR, ATTR_NONNULL_LIST)
+DEF_LIB_BUILTIN        (BUILT_IN_FWRITE, "fwrite", BT_FN_SIZE_CONST_PTR_SIZE_SIZE_FILEPTR, ATTR_NONNULL_4_IF123_LIST)
+DEF_EXT_LIB_BUILTIN    (BUILT_IN_FWRITE_UNLOCKED, "fwrite_unlocked", BT_FN_SIZE_CONST_PTR_SIZE_SIZE_FILEPTR, ATTR_NONNULL_4_IF123_LIST)
 DEF_LIB_BUILTIN        (BUILT_IN_PRINTF, "printf", BT_FN_INT_CONST_STRING_VAR, ATTR_FORMAT_PRINTF_1_2)
 DEF_EXT_LIB_BUILTIN    (BUILT_IN_PRINTF_UNLOCKED, "printf_unlocked", BT_FN_INT_CONST_STRING_VAR, ATTR_NONNULL_1_FORMAT_PRINTF_1_2)
 DEF_LIB_BUILTIN        (BUILT_IN_PUTCHAR, "putchar", BT_FN_INT_INT, ATTR_NULL)

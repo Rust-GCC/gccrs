@@ -545,6 +545,10 @@ Warray-bounds=
 Common Joined RejectNegative UInteger Var(warn_array_bounds) Warning IntegerRange(0, 2)
 Warn if an array is accessed out of bounds.
 
+Wauto-profile
+Common Var(warn_auto_profile) Warning
+Warn about problems with auto-profile data.
+
 Wuse-after-free
 Common Var(warn_use_after_free) Warning
 Warn for uses of pointers to deallocated storage.
@@ -1187,6 +1191,10 @@ Common Joined RejectNegative Var(auto_profile_file)
 Use sample profile information for call graph node weights. The profile
 file is specified in the argument.
 
+fauto-profile-inlining
+Common Var(flag_auto_profile_inlining) Init(1) Optimization
+Perform inlining using auto-profile.
+
 ; -fcheck-bounds causes gcc to generate array bounds checks.
 ; For C, C++ and ObjC: defaults off.
 ; For Java: defaults to on.
@@ -1481,7 +1489,7 @@ Common Joined RejectNegative UInteger
 
 fdiagnostics-format=
 Common Joined RejectNegative Enum(diagnostics_output_format)
--fdiagnostics-format=[text|sarif-stderr|sarif-file|json|json-stderr|json-file]	Select output format.
+-fdiagnostics-format=[text|sarif-stderr|sarif-file]	Select output format.
 
 fdiagnostics-add-output=
 Common Joined RejectNegative
@@ -1522,15 +1530,6 @@ Name(diagnostics_output_format) Type(int)
 
 EnumValue
 Enum(diagnostics_output_format) String(text) Value(DIAGNOSTICS_OUTPUT_FORMAT_TEXT)
-
-EnumValue
-Enum(diagnostics_output_format) String(json) Value(DIAGNOSTICS_OUTPUT_FORMAT_JSON_STDERR)
-
-EnumValue
-Enum(diagnostics_output_format) String(json-stderr) Value(DIAGNOSTICS_OUTPUT_FORMAT_JSON_STDERR)
-
-EnumValue
-Enum(diagnostics_output_format) String(json-file) Value(DIAGNOSTICS_OUTPUT_FORMAT_JSON_FILE)
 
 EnumValue
 Enum(diagnostics_output_format) String(sarif-stderr) Value(DIAGNOSTICS_OUTPUT_FORMAT_SARIF_STDERR)

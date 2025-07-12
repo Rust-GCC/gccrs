@@ -20,12 +20,14 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #define INCLUDE_ALGORITHM
+#define INCLUDE_MAP
 #define INCLUDE_STRING
 #define INCLUDE_VECTOR
 #include "system.h"
 #include "coretypes.h"
 #include "diagnostic.h"
 #include "diagnostic-path.h"
+#include "diagnostic-state-graphs.h"
 
 /* Disable warnings about missing quoting in GCC diagnostics for the print
    calls below.  */
@@ -65,7 +67,7 @@ diagnostic_event::meaning::dump_to_pp (pretty_printer *pp) const
   pp_character (pp, '}');
 }
 
-/* Get a string (or NULL) for V suitable for use within a SARIF
+/* Get a string (or nullptr) for V suitable for use within a SARIF
    threadFlowLocation "kinds" property (SARIF v2.1.0 section 3.38.8).  */
 
 const char *
@@ -75,28 +77,28 @@ diagnostic_event::meaning::maybe_get_verb_str (enum verb v)
     {
     default:
       gcc_unreachable ();
-    case VERB_unknown:
-      return NULL;
-    case VERB_acquire:
+    case verb::unknown:
+      return nullptr;
+    case verb::acquire:
       return "acquire";
-    case VERB_release:
+    case verb::release:
       return "release";
-    case VERB_enter:
+    case verb::enter:
       return "enter";
-    case VERB_exit:
+    case verb::exit:
       return "exit";
-    case VERB_call:
+    case verb::call:
       return "call";
-    case VERB_return:
+    case verb::return_:
       return "return";
-    case VERB_branch:
+    case verb::branch:
       return "branch";
-    case VERB_danger:
+    case verb::danger:
       return "danger";
     }
 }
 
-/* Get a string (or NULL) for N suitable for use within a SARIF
+/* Get a string (or nullptr) for N suitable for use within a SARIF
    threadFlowLocation "kinds" property (SARIF v2.1.0 section 3.38.8).  */
 
 const char *
@@ -106,24 +108,24 @@ diagnostic_event::meaning::maybe_get_noun_str (enum noun n)
     {
     default:
       gcc_unreachable ();
-    case NOUN_unknown:
-      return NULL;
-    case NOUN_taint:
+    case noun::unknown:
+      return nullptr;
+    case noun::taint:
       return "taint";
-    case NOUN_sensitive:
+    case noun::sensitive:
       return "sensitive";
-    case NOUN_function:
+    case noun::function:
       return "function";
-    case NOUN_lock:
+    case noun::lock:
       return "lock";
-    case NOUN_memory:
+    case noun::memory:
       return "memory";
-    case NOUN_resource:
+    case noun::resource:
       return "resource";
     }
 }
 
-/* Get a string (or NULL) for P suitable for use within a SARIF
+/* Get a string (or nullptr) for P suitable for use within a SARIF
    threadFlowLocation "kinds" property (SARIF v2.1.0 section 3.38.8).  */
 
 const char *
@@ -133,11 +135,11 @@ diagnostic_event::meaning::maybe_get_property_str (enum property p)
     {
     default:
       gcc_unreachable ();
-    case PROPERTY_unknown:
-      return NULL;
-    case PROPERTY_true:
+    case property::unknown:
+      return nullptr;
+    case property::true_:
       return "true";
-    case PROPERTY_false:
+    case property::false_:
       return "false";
     }
 }
@@ -152,6 +154,15 @@ diagnostic_event::get_desc (pretty_printer &ref_pp) const
   pp_show_color (pp.get ()) = false;
   print_desc (*pp.get ());
   return label_text::take (xstrdup (pp_formatted_text (pp.get ())));
+}
+
+// Base implementation of diagnostic_event::maybe_make_diagnostic_state_graph
+
+std::unique_ptr<diagnostics::digraphs::digraph>
+diagnostic_event::maybe_make_diagnostic_state_graph (bool) const
+{
+  // Don't attempt to make a state graph:
+  return nullptr;
 }
 
 /* class diagnostic_path.  */

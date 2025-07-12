@@ -69,6 +69,7 @@ with Sem_Res;        use Sem_Res;
 with Sem_SCIL;       use Sem_SCIL;
 with Sem_Type;       use Sem_Type;
 with Sem_Util;       use Sem_Util;
+with Sem_Warn;       use Sem_Warn;
 with Sinfo;          use Sinfo;
 with Sinfo.Nodes;    use Sinfo.Nodes;
 with Sinfo.Utils;    use Sinfo.Utils;
@@ -77,6 +78,7 @@ with Snames;         use Snames;
 with Tbuild;         use Tbuild;
 with Ttypes;         use Ttypes;
 with Validsw;        use Validsw;
+with Warnsw;         use Warnsw;
 
 package body Exp_Ch3 is
 
@@ -340,9 +342,9 @@ package body Exp_Ch3 is
    --     typSO          provides result of 'Output attribute
    --     typPI          provides result of 'Put_Image attribute
    --
-   --  The following entries are additionally present for non-limited tagged
-   --  types, and implement additional dispatching operations for predefined
-   --  operations:
+   --  The following entries implement additional dispatching operations for
+   --  predefined operations. Deep finalization is present on all tagged types;
+   --  the others only on nonlimited tagged types:
    --
    --     _equality      implements "=" operator
    --     _assign        implements assignment operation
@@ -399,7 +401,7 @@ package body Exp_Ch3 is
      (Tag_Typ    : Entity_Id;
       Renamed_Eq : Entity_Id) return List_Id;
    --  Create the bodies of the predefined primitives that are described in
-   --  Predefined_Primitive_Specs. When not empty, Renamed_Eq must denote
+   --  Make_Predefined_Primitive_Specs. When not empty, Renamed_Eq must denote
    --  the defining unit name of the type's predefined equality as returned
    --  by Make_Predefined_Primitive_Specs.
 
@@ -671,7 +673,8 @@ package body Exp_Ch3 is
       --------------------
 
       function Init_Component return List_Id is
-         Comp : Node_Id;
+         Comp   : Node_Id;
+         Result : List_Id;
 
       begin
          Comp :=
@@ -681,7 +684,7 @@ package body Exp_Ch3 is
 
          if Has_Default_Aspect (A_Type) then
             Set_Assignment_OK (Comp);
-            return New_List (
+            Result := New_List (
               Make_Assignment_Statement (Loc,
                 Name       => Comp,
                 Expression =>
@@ -690,7 +693,7 @@ package body Exp_Ch3 is
 
          elsif Comp_Simple_Init then
             Set_Assignment_OK (Comp);
-            return New_List (
+            Result := New_List (
               Make_Assignment_Statement (Loc,
                 Name       => Comp,
                 Expression =>
@@ -701,7 +704,7 @@ package body Exp_Ch3 is
 
          else
             Clean_Task_Names (Comp_Type, Proc_Id);
-            return
+            Result :=
               Build_Initialization_Call
                 (N            => Nod,
                  Id_Ref       => Comp,
@@ -709,6 +712,19 @@ package body Exp_Ch3 is
                  In_Init_Proc => True,
                  Enclos_Type  => A_Type);
          end if;
+
+         --  Raise Program_Error in the init procedure of arrays when the type
+         --  of their components is a mutably tagged abstract class-wide type.
+
+         if Is_Class_Wide_Equivalent_Type (Component_Type (A_Type))
+           and then Is_Abstract_Type (Comp_Type)
+         then
+            Append_To (Result,
+              Make_Raise_Program_Error (Loc,
+                Reason => PE_Abstract_Type_Component));
+         end if;
+
+         return Result;
       end Init_Component;
 
       ------------------------
@@ -2652,11 +2668,9 @@ package body Exp_Ch3 is
                --  may have an incomplete type. In that case, it must also be
                --  replaced by the formal of the Init_Proc.
 
-               if Nkind (Parent (Rec_Type)) = N_Full_Type_Declaration
-                 and then Present (Incomplete_View (Parent (Rec_Type)))
-               then
+               if Present (Incomplete_View (Rec_Type)) then
                   Append_Elmt (
-                    N  => Incomplete_View (Parent (Rec_Type)),
+                    N  => Incomplete_View (Rec_Type),
                     To => Map);
                   Append_Elmt (
                     N  => Defining_Identifier
@@ -2677,9 +2691,10 @@ package body Exp_Ch3 is
 
          Exp_Q := Unqualify (Exp);
 
-         --  Adjust the component if controlled, except if it is an aggregate
-         --  that will be expanded inline (but note that the case of container
-         --  aggregates does require component adjustment), or a function call.
+         --  Adjust the component if controlled, except if the expression is an
+         --  aggregate that will be expanded inline (but note that the case of
+         --  container aggregates does require component adjustment), or else
+         --  a function call whose result is adjusted in the called function.
          --  Note that, when we don't inhibit component adjustment, the tag
          --  will be automatically inserted by Make_Tag_Ctrl_Assignment in the
          --  tagged case. Otherwise, we have to generate a tag assignment here.
@@ -2688,7 +2703,8 @@ package body Exp_Ch3 is
            and then (Nkind (Exp_Q) not in N_Aggregate | N_Extension_Aggregate
                       or else Is_Container_Aggregate (Exp_Q))
            and then not Is_Build_In_Place_Function_Call (Exp)
-           and then Nkind (Exp) /= N_Function_Call
+           and then not (Back_End_Return_Slot
+                          and then Nkind (Exp) = N_Function_Call)
          then
             Set_No_Finalize_Actions (First (Res));
 
@@ -3325,6 +3341,17 @@ package body Exp_Ch3 is
                  Make_Tag_Assignment_From_Type
                    (Loc, Make_Identifier (Loc, Name_uInit), Rec_Type));
 
+               --  Ensure that Program_Error is raised if a mutably class-wide
+               --  abstract tagged type is initialized by default.
+
+               if Is_Abstract_Type (Rec_Type)
+                 and then Is_Mutably_Tagged_Type (Class_Wide_Type (Rec_Type))
+               then
+                  Append_To (Init_Tags_List,
+                    Make_Raise_Program_Error (Loc,
+                      Reason => PE_Abstract_Type_Component));
+               end if;
+
                --  Ada 2005 (AI-251): Initialize the secondary tags components
                --  located at fixed positions (tags whose position depends on
                --  variable size components are initialized later ---see below)
@@ -3746,6 +3773,16 @@ package body Exp_Ch3 is
                --  Explicit initialization
 
                if Present (Expression (Decl)) then
+
+                  --  Ensure that the type of the expression initializing a
+                  --  mutably tagged class-wide type component is frozen.
+
+                  if Nkind (Expression (Decl)) = N_Qualified_Expression
+                    and then Is_Class_Wide_Equivalent_Type (Etype (Id))
+                  then
+                     Freeze_Before (N, Etype (Expression (Decl)));
+                  end if;
+
                   if Is_CPP_Constructor_Call (Expression (Decl)) then
                      Actions :=
                        Build_Initialization_Call
@@ -3764,6 +3801,21 @@ package body Exp_Ch3 is
                   else
                      Actions := Build_Assignment (Id, Expression (Decl));
                   end if;
+
+               --  Expand components with constructors to have the 'Make
+               --  attribute.
+
+               elsif Present (Constructor_Name (Typ))
+                 and then Present (Default_Constructor (Typ))
+               then
+                  Set_Expression (Decl,
+                    Make_Attribute_Reference (Loc,
+                      Attribute_Name => Name_Make,
+                      Prefix         =>
+                        Subtype_Indication
+                          (Component_Definition (Decl))));
+                  Analyze (Expression (Decl));
+                  Actions := Build_Assignment (Id, Expression (Decl));
 
                --  CPU, Dispatching_Domain, Priority, and Secondary_Stack_Size
                --  components are filled in with the corresponding rep-item
@@ -3901,6 +3953,15 @@ package body Exp_Ch3 is
                           Enclos_Type         => Rec_Type,
                           Discr_Map           => Discr_Map,
                           Init_Control_Actual => Init_Control_Actual);
+
+                     if Is_Mutably_Tagged_CW_Equivalent_Type (Etype (Id))
+                       and then not Is_Parent
+                       and then Is_Abstract_Type (Typ)
+                     then
+                        Append_To (Init_Call_Stmts,
+                          Make_Raise_Program_Error (Comp_Loc,
+                            Reason => PE_Abstract_Type_Component));
+                     end if;
 
                      if Is_Parent then
                         --  This is tricky. At first it looks like
@@ -4522,6 +4583,11 @@ package body Exp_Ch3 is
             if Present (Expression (Comp_Decl))
               or else Has_Non_Null_Base_Init_Proc (Typ)
               or else Component_Needs_Simple_Initialization (Typ)
+
+               --  Mutably tagged class-wide types require the init-proc since
+               --  it takes care of their default initialization.
+
+              or else Is_Mutably_Tagged_CW_Equivalent_Type (Typ)
             then
                return True;
             end if;
@@ -5093,6 +5159,32 @@ package body Exp_Ch3 is
          if Is_Library_Level_Entity (Typ) then
             Set_Is_Public (Op);
          end if;
+
+      --  Otherwise, the result is defined in terms of the primitive equals
+      --  operator (RM 4.5.2 (24/3)). Report a warning if some component of
+      --  the untagged record has defined a user-defined "=", because it can
+      --  be surprising that the predefined "=" takes precedence over it.
+      --  This warning is not reported when Build_Eq is True because the
+      --  expansion of the built body will call Expand_Composite_Equality
+      --  that will report it if necessary.
+
+      elsif Warn_On_Ignored_Equality then
+         Comp := First_Component (Typ);
+
+         while Present (Comp) loop
+            if Present (User_Defined_Eq (Etype (Comp)))
+              and then not Is_Record_Type (Etype (Comp))
+              and then not Is_Intrinsic_Subprogram
+                             (User_Defined_Eq (Etype (Comp)))
+            then
+               Warn_On_Ignored_Equality_Operator
+                 (Typ      => Typ,
+                  Comp_Typ => Etype (Comp),
+                  Loc      => Sloc (User_Defined_Eq (Etype (Comp))));
+            end if;
+
+            Next_Component (Comp);
+         end loop;
       end if;
    end Build_Untagged_Record_Equality;
 
@@ -5423,18 +5515,12 @@ package body Exp_Ch3 is
             --  with an initial value, its Init_Proc will never be called. The
             --  initial value itself may have been expanded into assignments,
             --  in which case the declaration has the No_Initialization flag.
-            --  The exception is when the initial value is a 2-pass aggregate,
-            --  because the special expansion used for it creates a temporary
-            --  that needs a fully-fledged initialization.
 
             if Is_Itype (Base)
               and then Nkind (Associated_Node_For_Itype (Base)) =
                                                     N_Object_Declaration
               and then
-                ((Present (Expression (Associated_Node_For_Itype (Base)))
-                    and then not
-                      Is_Two_Pass_Aggregate
-                        (Expression (Associated_Node_For_Itype (Base))))
+                (Present (Expression (Associated_Node_For_Itype (Base)))
                   or else No_Initialization (Associated_Node_For_Itype (Base)))
             then
                null;
@@ -5870,7 +5956,7 @@ package body Exp_Ch3 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_Freeze_Enumeration_Type;
 
    -------------------------------
@@ -6760,11 +6846,12 @@ package body Exp_Ch3 is
    procedure Expand_N_Object_Declaration (N : Node_Id) is
       Loc      : constant Source_Ptr := Sloc (N);
       Def_Id   : constant Entity_Id  := Defining_Identifier (N);
-      Expr     : constant Node_Id    := Expression (N);
       Obj_Def  : constant Node_Id    := Object_Definition (N);
       Typ      : constant Entity_Id  := Etype (Def_Id);
       Base_Typ : constant Entity_Id  := Base_Type (Typ);
       Next_N   : constant Node_Id    := Next (N);
+
+      Expr : Node_Id := Expression (N);
 
       Special_Ret_Obj : constant Boolean := Is_Special_Return_Object (Def_Id);
       --  If this is a special return object, it will be allocated differently
@@ -6821,8 +6908,8 @@ package body Exp_Ch3 is
 
       procedure Count_Default_Sized_Task_Stacks
         (Typ         : Entity_Id;
-         Pri_Stacks  : out Int;
-         Sec_Stacks  : out Int);
+         Pri_Stacks  : out Nat;
+         Sec_Stacks  : out Nat);
       --  Count the number of default-sized primary and secondary task stacks
       --  required for task objects contained within type Typ. If the number of
       --  task objects contained within the type is not known at compile time
@@ -6894,7 +6981,9 @@ package body Exp_Ch3 is
 
          --  Processing for objects that require finalization actions
 
-         if Needs_Finalization (Ret_Typ) then
+         if Needs_Finalization (Ret_Typ)
+           and then not Has_Relaxed_Finalization (Ret_Typ)
+         then
             declare
                Decls       : constant List_Id := New_List;
                Fin_Coll_Id : constant Entity_Id :=
@@ -7097,8 +7186,8 @@ package body Exp_Ch3 is
 
       procedure Count_Default_Sized_Task_Stacks
         (Typ         : Entity_Id;
-         Pri_Stacks  : out Int;
-         Sec_Stacks  : out Int)
+         Pri_Stacks  : out Nat;
+         Sec_Stacks  : out Nat)
       is
          Component : Entity_Id;
 
@@ -7170,8 +7259,8 @@ package body Exp_Ch3 is
 
                while Present (Component) loop
                   declare
-                     P : Int;
-                     S : Int;
+                     P : Nat;
+                     S : Nat;
 
                   begin
                      Count_Default_Sized_Task_Stacks (Etype (Component), P, S);
@@ -7482,7 +7571,11 @@ package body Exp_Ch3 is
       --  Don't do anything for deferred constants. All proper actions will be
       --  expanded during the full declaration.
 
-      if No (Expr) and Constant_Present (N) then
+      if No (Expr)
+        and then Constant_Present (N)
+        and then (No (Constructor_Name (Typ))
+                   or else No (Default_Constructor (Typ)))
+      then
          return;
       end if;
 
@@ -7505,6 +7598,21 @@ package body Exp_Ch3 is
         and then Related_Type (Def_Id) = Implementation_Base_Type (Typ)
       then
          return;
+      end if;
+
+      --  Expand objects with default constructors to have the 'Make
+      --  attribute.
+
+      if Comes_From_Source (N)
+        and then No (Expr)
+        and then Present (Constructor_Name (Typ))
+        and then Present (Default_Constructor (Typ))
+      then
+         Expr := Make_Attribute_Reference (Loc,
+                   Attribute_Name => Name_Make,
+                   Prefix         => Object_Definition (N));
+         Set_Expression (N, Expr);
+         Analyze_And_Resolve (Expr);
       end if;
 
       --  Make shared memory routines for shared passive variable
@@ -7570,7 +7678,7 @@ package body Exp_Ch3 is
         and then not (Is_Array_Type (Typ) and then Has_Init_Expression (N))
       then
          declare
-            PS_Count, SS_Count : Int;
+            PS_Count, SS_Count : Nat;
          begin
             Count_Default_Sized_Task_Stacks (Typ, PS_Count, SS_Count);
             Increment_Primary_Stack_Count (PS_Count);
@@ -8293,12 +8401,15 @@ package body Exp_Ch3 is
             --  where the object has been initialized by a call to a function
             --  returning on the primary stack (see Expand_Ctrl_Function_Call)
             --  since no copy occurred, given that the type is by-reference.
+            --  Likewise if it is initialized by a 2-pass aggregate, since the
+            --  actual initialization will only occur during the second pass.
             --  Similarly, no adjustment is needed if we are going to rewrite
             --  the object declaration into a renaming declaration.
 
             if Needs_Finalization (Typ)
               and then not Is_Inherently_Limited_Type (Typ)
               and then Nkind (Expr_Q) /= N_Function_Call
+              and then not Is_Two_Pass_Aggregate (Expr_Q)
               and then not Rewrite_As_Renaming
             then
                Adj_Call :=
@@ -8711,8 +8822,9 @@ package body Exp_Ch3 is
                   --  be illegal in some cases (such as converting access-
                   --  to-unconstrained to access-to-constrained), but the
                   --  the unchecked conversion will presumably fail to work
-                  --  right in just such cases. It's not clear at all how to
-                  --  handle this.
+                  --  right in just such cases. In order to handle this
+                  --  properly, in the Caller_Allocation case, the callee
+                  --  needs to do the constraint check.
 
                   Alloc_Stmt :=
                     Make_If_Statement (Loc,
@@ -9127,7 +9239,7 @@ package body Exp_Ch3 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_N_Object_Declaration;
 
    ---------------------------------
@@ -9389,7 +9501,7 @@ package body Exp_Ch3 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_Tagged_Root;
 
    ------------------------------

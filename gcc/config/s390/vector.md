@@ -75,7 +75,7 @@
 			   V1DF V2DF
 			   (V1TF "TARGET_VXE") (TF "TARGET_VXE")])
 
-(define_mode_iterator VF [(V2SF "TARGET_VXE") (V4SF "TARGET_VXE") V2DF])
+(define_mode_iterator VF [V2SF V4SF V2DF])
 
 ; All modes present in V_HW1 and VFT.
 (define_mode_iterator V_HW1_FT [V16QI V8HI V4SI V2DI V1TI V1DF
@@ -88,6 +88,13 @@
 ; for instructions which might trigger IEEE exceptions.
 (define_mode_iterator VF_HW [(V4SF "TARGET_VXE") V2DF (V1TF "TARGET_VXE")
 			     (TF "TARGET_VXE")])
+
+; FP scalar and vector modes
+(define_mode_iterator VFT_BFP [SF DF
+			      (V1SF "TARGET_VXE") (V2SF "TARGET_VXE") (V4SF "TARGET_VXE")
+			      V1DF V2DF
+			      (V1TF "TARGET_VXE") (TF "TARGET_VXE")])
+
 
 (define_mode_iterator V_8   [V1QI])
 (define_mode_iterator V_16  [V2QI  V1HI])
@@ -512,7 +519,7 @@
 (define_mode_iterator VEC_SET_NONFLOAT
   [V1QI V2QI V4QI V8QI V16QI V1HI V2HI V4HI V8HI V1SI V2SI V4SI V1DI V2DI V2SF V4SF])
 ; Iterator for single element float vectors
-(define_mode_iterator VEC_SET_SINGLEFLOAT [(V1SF "TARGET_VXE") V1DF (V1TF "TARGET_VXE")])
+(define_mode_iterator VEC_SET_SINGLEFLOAT [V1SF V1DF (V1TF "TARGET_VXE")])
 
 ; FIXME: Support also vector mode operands for 1
 ; FIXME: A target memory operand seems to be useful otherwise we end
@@ -3576,3 +3583,47 @@
 ; vec_unpacks_float_lo
 ; vec_unpacku_float_hi
 ; vec_unpacku_float_lo
+
+(define_expand "avg<mode>3_ceil"
+  [(set (match_operand:VIT_HW_VXE3_T                        0 "register_operand")
+	(unspec:VIT_HW_VXE3_T [(match_operand:VIT_HW_VXE3_T 1 "register_operand")
+			       (match_operand:VIT_HW_VXE3_T 2 "register_operand")]
+			      UNSPEC_VEC_AVG))]
+  "TARGET_VX")
+
+(define_expand "uavg<mode>3_ceil"
+  [(set (match_operand:VIT_HW_VXE3_T                        0 "register_operand")
+	(unspec:VIT_HW_VXE3_T [(match_operand:VIT_HW_VXE3_T 1 "register_operand")
+			       (match_operand:VIT_HW_VXE3_T 2 "register_operand")]
+			      UNSPEC_VEC_AVGU))]
+  "TARGET_VX")
+
+(define_expand "smul<mode>3_highpart"
+  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand")
+	(smul_highpart:VIT_HW_VXE3_DT (match_operand:VIT_HW_VXE3_DT 1 "register_operand")
+				      (match_operand:VIT_HW_VXE3_DT 2 "register_operand")))]
+  "TARGET_VX")
+
+(define_expand "umul<mode>3_highpart"
+  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand")
+	(umul_highpart:VIT_HW_VXE3_DT (match_operand:VIT_HW_VXE3_DT 1 "register_operand")
+				      (match_operand:VIT_HW_VXE3_DT 2 "register_operand")))]
+  "TARGET_VX")
+
+; fmax
+(define_expand "fmax<mode>3"
+  [(set (match_operand:VFT_BFP                  0 "register_operand")
+	(unspec:VFT_BFP [(match_operand:VFT_BFP 1 "register_operand")
+	       (match_operand:VFT_BFP           2 "register_operand")
+	       (const_int 4)]
+	      UNSPEC_FMAX))]
+  "TARGET_VXE")
+
+; fmin
+(define_expand "fmin<mode>3"
+  [(set (match_operand:VFT_BFP                  0 "register_operand")
+	(unspec:VFT_BFP [(match_operand:VFT_BFP 1 "register_operand")
+	       (match_operand:VFT_BFP           2 "register_operand")
+	       (const_int 4)]
+	      UNSPEC_FMIN))]
+  "TARGET_VXE")

@@ -237,10 +237,11 @@
  (and (match_code "const_vector")
       (match_test "rtx_equal_p (op, riscv_vector::gen_scalar_move_mask (GET_MODE (op)))")))
 
-(define_memory_constraint "Wdm"
+(define_constraint "Wdm"
   "Vector duplicate memory operand"
-  (and (match_code "mem")
-       (match_code "reg" "0")))
+  (and (match_test "strided_load_broadcast_p ()")
+       (and (match_code "mem")
+	    (match_code "reg" "0"))))
 
 ;; Vendor ISA extension constraints.
 
@@ -325,3 +326,7 @@
   "A 2-bit unsigned immediate."
   (and (match_code "const_int")
        (match_test "IN_RANGE (ival, 0, 3)")))
+
+(define_constraint "Q"
+  "An address operand that is valid for a prefetch instruction"
+  (match_operand 0 "prefetch_operand"))

@@ -34,7 +34,6 @@ start_condition_str( int sc ) {
   switch(sc) {
   case INITIAL: state = "INITIAL"; break;
   case addr_of: state = "addr_of"; break;
-  case author_state: state = "author_state"; break;
   case basis: state = "basis"; break;
   case bool_state: state = "bool_state"; break;
   case cdf_state: state = "cdf_state"; break;
@@ -116,10 +115,10 @@ datetime_format_of( const char input[] ) {
 
     for( auto p = patterns; p < eopatterns; p++ ) {
       static const int cflags = REG_EXTENDED | REG_ICASE;
-      static char msg[80];
       int erc;
 
       if( 0 != (erc = regcomp(&p->re, p->regex, cflags)) ) {
+        static char msg[80];
         regerror(erc, &p->re, msg, sizeof(msg));
         yywarn("%s:%d: %s: %s", __func__, __LINE__, keyword_str(p->token), msg);
       }
@@ -159,6 +158,8 @@ is_cdf_token( int token ) {
   case CDF_DISPLAY:
   case CDF_IF:       case CDF_ELSE: case CDF_END_IF:
   case CDF_EVALUATE: case CDF_WHEN: case CDF_END_EVALUATE:
+  case CDF_PUSH:
+  case CDF_POP:
     return true;
   case CALL_COBOL:
   case CALL_VERBATIM:
@@ -260,13 +261,12 @@ prelex() {
   while( is_cdf_token(token) ) {
 
     if( ! run_cdf(token) ) {
-      dbgmsg( ">>CDF parser failed" );
-      return NO_CONDITION;
+      dbgmsg( ">>CDF parser failed, ydfchar %d", ydfchar );
     }
     // Return the CDF's discarded lookahead token, if extant.
     token = ydfchar > 0? ydfchar : next_token();
     if( token == NO_CONDITION && parsing.at_eof() ) {
-      return token = YYEOF;
+      return YYEOF;
     }
 
     // Reenter cdf parser only if next token could affect parsing state.
@@ -298,7 +298,7 @@ prelex() {
       token = LEVEL;
       break;
     case YDF_NUMBER:
-      if( yy_flex_debug ) yywarn("final token is YDF_NUMBER");
+      if( yy_flex_debug ) yywarn("final token is %<YDF_NUMBER%>");
       yylval.number = ydflval.number;
       token = LEVEL;
       break;
@@ -375,7 +375,7 @@ yylex(void) {
     token = prelex();
     if( yy_flex_debug ) {
       if( parsing.in_cdf() ) {
-        dbgmsg( "%s:%d: %s routing %s to CDF parser", __func__, __LINE__,
+        dbgmsg( "%s:%d: <%s> routing %s to CDF parser", __func__, __LINE__,
                start_condition_is(), keyword_str(token) );
       } else if( !parsing.on() ) {
         dbgmsg( "eating %s because conditional compilation is FALSE",

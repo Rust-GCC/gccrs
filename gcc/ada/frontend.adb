@@ -368,11 +368,12 @@ begin
       --  If we have restriction No_Exception_Propagation, and we did not have
       --  an explicit switch turning off Warn_On_Non_Local_Exception, then turn
       --  on this warning by default if we have encountered an exception
-      --  handler.
+      --  handler. We do not override the setting of GNATprove.
 
       if Restriction_Check_Required (No_Exception_Propagation)
         and then not No_Warn_On_Non_Local_Exception
         and then Exception_Handler_Encountered
+        and then not GNATprove_Mode
       then
          Warn_On_Non_Local_Exception := True;
       end if;
@@ -506,9 +507,7 @@ begin
 
    --  Verify the validity of the tree
 
-   if Debug_Flag_Underscore_VV then
-      VAST.Check_Tree (Cunit (Main_Unit));
-   end if;
+   VAST.VAST;
 
    --  Validate all the subprogram calls; this work will be done by VAST; in
    --  the meantime it is done to check extra formals and it can be disabled

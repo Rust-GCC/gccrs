@@ -889,6 +889,12 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 			(EXPR_LOCATION (*expr_p), call_expr_nargs (*expr_p),
 			 &CALL_EXPR_ARG (*expr_p, 0));
 		break;
+	      case CP_BUILT_IN_EH_PTR_ADJUST_REF:
+		error_at (EXPR_LOCATION (*expr_p),
+			  "%qs used outside of constant expressions",
+			  "__builtin_eh_ptr_adjust_ref");
+		*expr_p = void_node;
+		break;
 	      default:
 		break;
 	      }
@@ -3887,7 +3893,6 @@ struct source_location_table_entry_hash
 
 static GTY(()) hash_table <source_location_table_entry_hash>
   *source_location_table;
-static GTY(()) unsigned int source_location_id;
 
 /* Fold the __builtin_source_location () call T.  */
 
@@ -3920,9 +3925,7 @@ fold_builtin_source_location (const_tree t)
     var = entryp->var;
   else
     {
-      char tmp_name[32];
-      ASM_GENERATE_INTERNAL_LABEL (tmp_name, "Lsrc_loc", source_location_id++);
-      var = build_decl (loc, VAR_DECL, get_identifier (tmp_name),
+      var = build_decl (loc, VAR_DECL, generate_internal_label ("Lsrc_loc"),
 			source_location_impl);
       TREE_STATIC (var) = 1;
       TREE_PUBLIC (var) = 0;

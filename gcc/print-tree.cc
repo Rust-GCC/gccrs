@@ -1149,6 +1149,12 @@ debug_tree (tree node)
 }
 
 DEBUG_FUNCTION void
+debug (tree node)
+{
+  debug_tree (node);
+}
+
+DEBUG_FUNCTION void
 debug_raw (const tree_node &ref)
 {
   debug_tree (const_cast <tree> (&ref));
@@ -1187,7 +1193,7 @@ DEBUG_FUNCTION void
 debug (const tree_node *ptr)
 {
   if (ptr)
-    debug (*ptr);
+    debug_tree (const_cast <tree> (ptr));
   else
     fprintf (stderr, "<nil>\n");
 }

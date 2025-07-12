@@ -1037,6 +1037,7 @@ package body Einfo.Utils is
                   Id = Pragma_Contract_Cases            or else
                   Id = Pragma_Exceptional_Cases         or else
                   Id = Pragma_Exit_Cases                or else
+                  Id = Pragma_Program_Exit              or else
                   Id = Pragma_Subprogram_Variant        or else
                   Id = Pragma_Test_Case;
 
@@ -2344,6 +2345,25 @@ package body Einfo.Utils is
    begin
       pragma Assert (Is_Type (Id));
 
+      if Nkind (Associated_Node_For_Itype (Id)) = N_Subtype_Declaration then
+         declare
+            Associated_Id : constant Entity_Id :=
+              Defining_Identifier (Associated_Node_For_Itype (Id));
+         begin
+            --  Avoid Itype/predicate problems by looking through Itypes.
+            --  We never introduce new predicates for Itypes, so doing this
+            --  will never cause us to incorrectly overlook a predicate.
+            --  It is not clear whether the FE needs this fix, but
+            --  GNATProve does (note that GNATProve calls Predicate_Function).
+
+            if Id /= Associated_Id
+              and then Base_Type (Id) = Base_Type (Associated_Id)
+            then
+               return Predicate_Function (Associated_Id);
+            end if;
+         end;
+      end if;
+
       --  If type is private and has a completion, predicate may be defined on
       --  the full view.
 
@@ -2375,6 +2395,37 @@ package body Einfo.Utils is
             if Ekind (Subp_Id) = E_Function
               and then Is_Predicate_Function (Subp_Id)
             then
+               --  We may have incorrectly looked through predicate-bearing
+               --  subtypes when going from a private subtype to its full
+               --  view, so compensate for that case. Unfortunately,
+               --  Subp_Id might not be analyzed at this point, so we
+               --  use a crude works-most-of-the-time text-based
+               --  test to detect the case where Id is a subtype (declared by
+               --  a subtype declaration) and no predicate was explicitly
+               --  specified for Id. Ugh. ???
+
+               if Nkind (Parent (Id)) = N_Subtype_Declaration
+                 -- 1st choice ...
+                 --   and then Etype (First_Entity (Subp_Id)) /= Id
+                 -- but that doesn't work if Subp_Id is not analyzed.
+
+                 --  so we settle for 2nd choice, ignoring cases like
+                 --  "subtype Foo is Pkg.Foo;" where distinct subtypes
+                 --  have the same identifier:
+                 --
+                 and then Get_Name_String (Chars (Subp_Id)) /=
+                          Get_Name_String (Chars (Id)) & "Predicate"
+               then
+                  declare
+                     Mark : Node_Id := Subtype_Indication (Parent (Id));
+                  begin
+                     if Nkind (Mark) = N_Subtype_Indication then
+                        Mark := Subtype_Mark (Mark);
+                     end if;
+                     return Predicate_Function (Entity (Mark));
+                  end;
+               end if;
+
                return Subp_Id;
             end if;
 
@@ -2638,14 +2689,7 @@ package body Einfo.Utils is
       --  anonymous protected types, since protected types always have the
       --  default convention.
 
-      if Present (Etype (E))
-        and then (Is_Object (E)
-
-                   --  Allow E_Void (happens for pragma Convention appearing
-                   --  in the middle of a record applying to a component)
-
-                   or else Ekind (E) = E_Void)
-      then
+      if Present (Etype (E)) and then Is_Object (E) then
          declare
             Typ : constant Entity_Id := Etype (E);
 
@@ -2809,7 +2853,6 @@ package body Einfo.Utils is
       end if;
 
       Subp_Elmt := First_Elmt (Subps);
-      Prepend_Elmt (V, Subps);
 
       --  Check for a duplicate predication function
 
@@ -2819,11 +2862,17 @@ package body Einfo.Utils is
          if Ekind (Subp_Id) = E_Function
            and then Is_Predicate_Function (Subp_Id)
          then
-            raise Program_Error;
+            if V = Subp_Id then
+               return;
+            else
+               raise Program_Error;
+            end if;
          end if;
 
          Next_Elmt (Subp_Elmt);
       end loop;
+
+      Prepend_Elmt (V, Subps);
    end Set_Predicate_Function;
 
    -----------------

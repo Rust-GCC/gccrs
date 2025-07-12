@@ -1,3 +1,104 @@
+2025-07-10  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-typeck.cc (build_access_with_size_for_counted_by): Update comments.
+	Adjust the arguments per the new design.
+
+2025-07-10  Qing Zhao  <qing.zhao@oracle.com>
+
+	PR middle-end/121000
+	* c-typeck.cc (build_access_with_size_for_counted_by): Update comments.
+	Pass TYPE_SIZE_UNIT of the element as the 6th argument.
+
+2025-07-07  Qing Zhao  <qing.zhao@oracle.com>
+
+	Revert:
+	2025-07-07  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-decl.cc (verify_counted_by_attribute): Change the 2nd argument
+	to a vector of fields with counted_by attribute. Verify all fields
+	in this vector.
+	(finish_struct): Collect all the fields with counted_by attribute
+	to a vector and pass this vector to verify_counted_by_attribute.
+	* c-typeck.cc (build_counted_by_ref): Handle pointers with counted_by.
+	Add one more argument, issue error when the pointee type is a structure
+	or union including a flexible array member.
+	(build_access_with_size_for_counted_by): Handle pointers with counted_by.
+	(handle_counted_by_for_component_ref): Call build_counted_by_ref
+	with the new prototype.
+
+2025-07-01  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-decl.cc (verify_counted_by_attribute): Change the 2nd argument
+	to a vector of fields with counted_by attribute. Verify all fields
+	in this vector.
+	(finish_struct): Collect all the fields with counted_by attribute
+	to a vector and pass this vector to verify_counted_by_attribute.
+	* c-typeck.cc (build_counted_by_ref): Handle pointers with counted_by.
+	Add one more argument, issue error when the pointee type is a structure
+	or union including a flexible array member.
+	(build_access_with_size_for_counted_by): Handle pointers with counted_by.
+	(handle_counted_by_for_component_ref): Call build_counted_by_ref
+	with the new prototype.
+
+2025-06-23  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-parser.cc (OACC_WAIT_CLAUSE_MASK): Add if clause.
+
+2025-06-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-lang.h (union lang_type::maybe_objc_info): New type.
+	(struct lang_type): Use union maybe_objc_info info member
+	instead of tree objc_info.
+	* c-decl.cc (finish_struct): Allocate struct lang_type using
+	ggc_internal_cleared_alloc instead of ggc_cleared_alloc,
+	and use sizeof (struct lang_type) for ObjC and otherwise
+	offsetof (struct lang_type, info) as size.
+	(finish_enum): Likewise.
+
+2025-06-11  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/120510
+	* c-typeck.cc (composite_type_internal): Activate checking
+	assertions for all types and also inputs.
+	(comptypes_for_composite_check): New helper function.
+	(function_types_compatible_p): Add exception.
+
+2025-06-11  Martin Uecker  <uecker@tugraz.at>
+
+	* c-typeck.cc (function_types_compatible_p): Remove unused
+	variables and return true/false instead of 1/0.
+	(type_lists_compatible_p): Return false instead of 0.
+
+2025-06-11  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/120303
+	* c-parser.cc (c_parser_generic_selection): Handle error
+	condition.
+
+2025-06-09  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/120510
+	* c-typeck.cc (remove_qualifiers): New function.
+	(composite_type_internal): Use it.
+	(comp_target_types): Use it.
+	(type_lists_compatible_p): Use it.
+	(find_anonymous_field_with_type): Use it.
+	(convert_to_anonymous_field): Use it.
+	(convert_for_assignment): Use it.
+
+2025-06-09  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/120510
+	* c-typeck.cc (composite_type_internal): Activate checking
+	assertion for arrays.
+	(common_pointer_type): Remove qualifiers also from arrays.
+
+2025-06-09  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/120510
+	* c-typeck.cc (composite_types_internal): Handle arrays
+	declared with atomic for function arguments.
+
 2025-06-03  Martin Uecker  <uecker@tugraz.at>
 
 	* c-typeck.cc (composite_type_internal,composite_type): Move

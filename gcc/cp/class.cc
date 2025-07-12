@@ -347,9 +347,18 @@ build_base_path (enum tree_code code,
 		 || processing_template_decl
 		 || in_template_context);
 
+  fixed_type_p = resolves_to_fixed_type_p (expr, &nonnull);
+
+  /* Do we need to look in the vtable for the real offset?  */
+  virtual_access = (v_binfo && fixed_type_p <= 0);
+
   /* For a non-pointer simple base reference, express it as a COMPONENT_REF
      without taking its address (and so causing lambda capture, 91933).  */
-  if (code == PLUS_EXPR && !v_binfo && !want_pointer && !has_empty && !uneval)
+  if (code == PLUS_EXPR
+      && !want_pointer
+      && !has_empty
+      && !uneval
+      && !virtual_access)
     return build_simple_base_path (expr, binfo);
 
   if (!want_pointer)
@@ -362,7 +371,6 @@ build_base_path (enum tree_code code,
     expr = mark_rvalue_use (expr);
 
   offset = BINFO_OFFSET (binfo);
-  fixed_type_p = resolves_to_fixed_type_p (expr, &nonnull);
   target_type = code == PLUS_EXPR ? BINFO_TYPE (binfo) : BINFO_TYPE (d_binfo);
   /* TARGET_TYPE has been extracted from BINFO, and, is therefore always
      cv-unqualified.  Extract the cv-qualifiers from EXPR so that the
@@ -370,9 +378,6 @@ build_base_path (enum tree_code code,
   target_type = cp_build_qualified_type
     (target_type, cp_type_quals (TREE_TYPE (TREE_TYPE (expr))));
   ptr_target_type = build_pointer_type (target_type);
-
-  /* Do we need to look in the vtable for the real offset?  */
-  virtual_access = (v_binfo && fixed_type_p <= 0);
 
   /* Don't bother with the calculations inside sizeof; they'll ICE if the
      source type is incomplete and the pointer value doesn't matter.  In a
@@ -6754,9 +6759,11 @@ layout_virtual_bases (record_layout_info rli, splay_tree offsets)
 	{
 	  /* This virtual base is not a primary base of any class in the
 	     hierarchy, so we have to add space for it.  */
-	  next_field = build_base_field (rli, vbase,
-					 access_private_node,
-					 offsets, next_field);
+	  tree access = access_private_node;
+	  if (publicly_virtually_derived_p (BINFO_TYPE (vbase), t))
+	    access = access_public_node;
+	  next_field = build_base_field (rli, vbase, access, offsets,
+					 next_field);
 	}
     }
 }
@@ -7445,7 +7452,7 @@ determine_key_method (tree type)
 	&& ! DECL_DECLARED_INLINE_P (method)
 	&& ! DECL_PURE_VIRTUAL_P (method))
       {
-	CLASSTYPE_KEY_METHOD (type) = method;
+	SET_CLASSTYPE_KEY_METHOD (type, method);
 	break;
       }
 
@@ -7920,6 +7927,17 @@ finish_struct_1 (tree t)
       return;
     }
 
+  if (location_t fcloc = failed_completion_location (t))
+    {
+      auto_diagnostic_group adg;
+      if (warning (OPT_Wsfinae_incomplete_,
+		   "defining %qT, which previously failed to be complete "
+		   "in a SFINAE context", t)
+	  && warn_sfinae_incomplete == 1)
+	inform (fcloc, "here.  Use %qs for a diagnostic at that point",
+		"-Wsfinae-incomplete=2");
+    }
+
   /* If this type was previously laid out as a forward reference,
      make sure we lay it out again.  */
   TYPE_SIZE (t) = NULL_TREE;
@@ -8335,6 +8353,15 @@ fixed_type_or_null (tree instance, int *nonnull, int *cdtorp)
       if (CALL_EXPR_FN (instance)
 	  && TREE_HAS_CONSTRUCTOR (instance))
 	{
+	  if (nonnull)
+	    *nonnull = 1;
+	  return TREE_TYPE (instance);
+	}
+      if (CLASS_TYPE_P (TREE_TYPE (instance)))
+	{
+	  /* We missed a build_cplus_new somewhere, likely due to tf_decltype
+	     mishandling.  */
+	  gcc_checking_assert (false);
 	  if (nonnull)
 	    *nonnull = 1;
 	  return TREE_TYPE (instance);
@@ -10609,7 +10636,7 @@ build_vtbl_initializer (tree binfo,
 	  int i;
 	  if (init == size_zero_node)
 	    for (i = 0; i < TARGET_VTABLE_USES_DESCRIPTORS; ++i)
-	      CONSTRUCTOR_APPEND_ELT (*inits, size_int (jx++), init);
+	      CONSTRUCTOR_APPEND_ELT (*inits, NULL_TREE, init);
 	  else
 	    for (i = 0; i < TARGET_VTABLE_USES_DESCRIPTORS; ++i)
 	      {
@@ -10617,11 +10644,11 @@ build_vtbl_initializer (tree binfo,
 				     fn, build_int_cst (NULL_TREE, i));
 		TREE_CONSTANT (fdesc) = 1;
 
-		CONSTRUCTOR_APPEND_ELT (*inits, size_int (jx++), fdesc);
+		CONSTRUCTOR_APPEND_ELT (*inits, NULL_TREE, fdesc);
 	      }
 	}
       else
-	CONSTRUCTOR_APPEND_ELT (*inits, size_int (jx++), init);
+	CONSTRUCTOR_APPEND_ELT (*inits, NULL_TREE, init);
     }
 }
 
@@ -10956,6 +10983,17 @@ bool
 publicly_uniquely_derived_p (tree parent, tree type)
 {
   tree base = lookup_base (type, parent, ba_ignore_scope | ba_check,
+			   NULL, tf_none);
+  return base && base != error_mark_node;
+}
+
+/* TRUE iff TYPE is publicly & virtually derived from PARENT.  */
+
+bool
+publicly_virtually_derived_p (tree parent, tree type)
+{
+  tree base = lookup_base (type, parent,
+			   ba_ignore_scope | ba_check | ba_require_virtual,
 			   NULL, tf_none);
   return base && base != error_mark_node;
 }

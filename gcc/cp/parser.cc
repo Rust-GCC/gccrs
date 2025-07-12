@@ -2519,7 +2519,7 @@ static cp_expr cp_parser_id_expression
 static cp_expr cp_parser_unqualified_id
   (cp_parser *, bool, bool, bool, bool);
 static tree cp_parser_nested_name_specifier_opt
-  (cp_parser *, bool, bool, bool, bool, bool = false);
+  (cp_parser *, bool, bool, bool, bool, bool = false, bool = false);
 static tree cp_parser_nested_name_specifier
   (cp_parser *, bool, bool, bool, bool);
 static tree cp_parser_qualifying_entity
@@ -3091,8 +3091,8 @@ static cp_token *cp_parser_require_keyword
   (cp_parser *, enum rid, required_token);
 static bool cp_parser_token_starts_function_definition_p
   (cp_token *);
-static bool cp_parser_next_token_starts_class_definition_p
-  (cp_parser *);
+static bool cp_parser_nth_token_starts_class_definition_p
+  (cp_parser *, size_t);
 static bool cp_parser_next_token_ends_template_argument_p
   (cp_parser *);
 static bool cp_parser_nth_token_starts_template_argument_list_p
@@ -6307,7 +6307,10 @@ cp_parser_primary_expression (cp_parser *parser,
 	  /* Recognize the `this' keyword.  */
 	case RID_THIS:
 	  cp_lexer_consume_token (parser->lexer);
-	  if (parser->local_variables_forbidden_p & THIS_FORBIDDEN)
+	  if ((parser->local_variables_forbidden_p & THIS_FORBIDDEN)
+	      /* It's OK to refer to 'this' in an unevaluated operand in a
+		 lambda default argument (lambda-targ16.C).  */
+	      && !cp_unevaluated_operand)
 	    {
 	      error_at (token->location,
 			"%<this%> may not be used in this context");
@@ -7239,18 +7242,22 @@ check_template_keyword_in_nested_name_spec (tree name)
      nested-name-specifier template [opt] simple-template-id ::
 
    PARSER->SCOPE should be set appropriately before this function is
-   called.  TYPENAME_KEYWORD_P is TRUE if the `typename' keyword is in
-   effect.  TYPE_P is TRUE if we non-type bindings should be ignored
-   in name lookups.
+   called.  TYPENAME_KEYWORD_P is true if the `typename' keyword is in
+   effect.  TYPE_P is true if we non-type bindings should be ignored
+   in name lookups.  TEMPLATE_KEYWORD_P is true if the `template' keyword
+   was seen.  GLOBAL_P is true if `::' has already been parsed.
+   TODO: This function doesn't handle the C++14 change to make `::'
+   a nested-name-specifier by itself.  If it did, GLOBAL_P could probably
+   go.
 
    Sets PARSER->SCOPE to the class (TYPE) or namespace
    (NAMESPACE_DECL) specified by the nested-name-specifier, or leaves
    it unchanged if there is no nested-name-specifier.  Returns the new
    scope iff there is a nested-name-specifier, or NULL_TREE otherwise.
 
-   If CHECK_DEPENDENCY_P is FALSE, names are looked up in dependent scopes.
+   If CHECK_DEPENDENCY_P is false, names are looked up in dependent scopes.
 
-   If IS_DECLARATION is TRUE, the nested-name-specifier is known to be
+   If IS_DECLARATION is true, the nested-name-specifier is known to be
    part of a declaration and/or decl-specifier.  */
 
 static tree
@@ -7259,7 +7266,8 @@ cp_parser_nested_name_specifier_opt (cp_parser *parser,
 				     bool check_dependency_p,
 				     bool type_p,
 				     bool is_declaration,
-				     bool template_keyword_p /* = false */)
+				     bool template_keyword_p /* = false */,
+				     bool global_p /* = false */)
 {
   bool success = false;
   cp_token_position start = 0;
@@ -7307,8 +7315,9 @@ cp_parser_nested_name_specifier_opt (cp_parser *parser,
 
       /* Spot cases that cannot be the beginning of a
 	 nested-name-specifier.  On the second and subsequent times
-	 through the loop, we look for the `template' keyword.  */
-      if (success && token->keyword == RID_TEMPLATE)
+	 (or the first, if '::' has already been parsed) through the
+	 loop, we look for the `template' keyword.  */
+      if ((success || global_p) && token->keyword == RID_TEMPLATE)
 	;
       /* A template-id can start a nested-name-specifier.  */
       else if (token->type == CPP_TEMPLATE_ID)
@@ -7356,8 +7365,11 @@ cp_parser_nested_name_specifier_opt (cp_parser *parser,
       cp_parser_parse_tentatively (parser);
 
       /* Look for the optional `template' keyword, if this isn't the
-	 first time through the loop.  */
-      if (success)
+	 first time through the loop, or if we've already parsed '::';
+	 this is then the
+	   nested-name-specifier template [opt] simple-template-id ::
+	 production.  */
+      if (success || global_p)
 	{
 	  template_keyword_p = cp_parser_optional_template_keyword (parser);
 	  /* DR1710: "In a qualified-id used as the name in
@@ -10835,6 +10847,14 @@ cp_parser_binary_expression (cp_parser* parser, bool cast_p,
 	    goto pop;
 	}
 
+      /* If we skipped build_cplus_new in build_cxx_call because of decltype_p,
+	 call it now that we know current.lhs is a subexpression.  */
+      if (decltype_p && !processing_template_decl
+	  && TREE_CODE (current.lhs) == CALL_EXPR
+	  && CLASS_TYPE_P (TREE_TYPE (current.lhs)))
+	current.lhs = build_cplus_new (TREE_TYPE (current.lhs), current.lhs,
+				       tf_warning_or_error);
+
      get_rhs:
       current.tree_type = binops_by_token[token->type].tree_type;
       current.loc = token->location;
@@ -11818,6 +11838,7 @@ cp_parser_lambda_expression (cp_parser* parser)
     bool auto_is_implicit_function_template_parm_p
         = parser->auto_is_implicit_function_template_parm_p;
     bool saved_omp_array_section_p = parser->omp_array_section_p;
+    bool saved_in_targ = parser->in_template_argument_list_p;
 
     parser->num_template_parameter_lists = 0;
     parser->in_statement = 0;
@@ -11827,6 +11848,7 @@ cp_parser_lambda_expression (cp_parser* parser)
     parser->implicit_template_scope = 0;
     parser->auto_is_implicit_function_template_parm_p = false;
     parser->omp_array_section_p = false;
+    parser->in_template_argument_list_p = false;
 
     /* Inside the lambda, outside unevaluated context do not apply.  */
     cp_evaluated ev;
@@ -11881,6 +11903,7 @@ cp_parser_lambda_expression (cp_parser* parser)
     parser->auto_is_implicit_function_template_parm_p
 	= auto_is_implicit_function_template_parm_p;
     parser->omp_array_section_p = saved_omp_array_section_p;
+    parser->in_template_argument_list_p = saved_in_targ;
   }
 
   /* This lambda shouldn't have any proxies left at this point.  */
@@ -16859,7 +16882,11 @@ cp_parser_decomposition_declaration (cp_parser *parser,
 	  decl = error_mark_node;
 	}
       else
-	prev = decl2;
+	{
+	  prev = decl2;
+	  DECL_DECLARED_CONSTEXPR_P (decl2) = DECL_DECLARED_CONSTEXPR_P (decl);
+	  DECL_DECLARED_CONSTINIT_P (decl2) = DECL_DECLARED_CONSTINIT_P (decl);
+	}
       if (elt_pushed_scope)
 	pop_scope (elt_pushed_scope);
     }
@@ -16908,6 +16935,15 @@ cp_parser_decomposition_declaration (cp_parser *parser,
       /* Ensure DECL_VALUE_EXPR is created for all the decls but
 	 the underlying DECL.  */
       cp_finish_decomp (decl, &decomp);
+      if (decl_spec_seq_has_spec_p (decl_specifiers, ds_thread))
+	pedwarn (decl_specifiers->locations[ds_thread],
+		 0, "for-range-declaration cannot be %qs",
+		 decl_specifiers->gnu_thread_keyword_p
+		 ? "__thread" : "thread_local");
+      else if (decl_specifiers->storage_class == sc_static)
+	pedwarn (decl_specifiers->locations[ds_storage_class],
+		 0, "for-range-declaration cannot be %qs",
+		 "static");
     }
 
   if (pushed_scope)
@@ -21001,9 +21037,6 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 			 "only available with "
 			 "%<-std=c++14%> or %<-std=gnu++14%>");
 	    }
-	  else if (parser->in_template_argument_list_p)
-	    error_at (token->location,
-		     "use of %<auto%> in template argument");
 	  else if (!flag_concepts)
 	    pedwarn (token->location, OPT_Wc__20_extensions,
 		     "use of %<auto%> in parameter declaration "
@@ -21013,6 +21046,11 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 		     "use of %<auto%> in parameter declaration "
 		     "only available with "
 		     "%<-std=c++14%> or %<-std=gnu++14%>");
+
+	  if (parser->in_template_argument_list_p)
+	    permerror_opt (token->location,
+			   OPT_Wabbreviated_auto_in_template_arg,
+			   "use of %<auto%> in template argument");
 	}
       else
 	type = make_auto ();
@@ -21141,7 +21179,9 @@ cp_parser_simple_type_specifier (cp_parser* parser,
 						/*typename_keyword_p=*/false,
 						/*check_dependency_p=*/true,
 						/*type_p=*/false,
-						/*is_declaration=*/false)
+						/*is_declaration=*/false,
+						/*template_keyword_p=*/false,
+						global_p)
 	   != NULL_TREE);
       /* If we have seen a nested-name-specifier, and the next token
 	 is `template', then we are using the template-id production.  */
@@ -21459,6 +21499,10 @@ cp_parser_placeholder_type_specifier (cp_parser *parser, location_t loc,
 	  error_at (loc, "cannot declare a parameter with %<decltype(auto)%>");
 	  return error_mark_node;
 	}
+      if (parser->in_template_argument_list_p)
+	permerror_opt (placeholder->location,
+		       OPT_Wabbreviated_auto_in_template_arg,
+		       "use of %<auto%> in template argument");
       tree parm = build_constrained_parameter (con, proto, args);
       return synthesize_implicit_template_parm (parser, parm);
     }
@@ -21987,7 +22031,7 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
 
 	  bool template_p =
 	    (template_parm_lists_apply
-	     && (cp_parser_next_token_starts_class_definition_p (parser)
+	     && (cp_parser_nth_token_starts_class_definition_p (parser, 1)
 		 || cp_lexer_next_token_is (parser->lexer, CPP_SEMICOLON)));
 	  /* An unqualified name was used to reference this type, so
 	     there were no qualifying templates.  */
@@ -24151,7 +24195,26 @@ cp_parser_init_declarator (cp_parser* parser,
 	  && token->type != CPP_SEMICOLON)
 	{
 	  if (maybe_range_for_decl && *maybe_range_for_decl != error_mark_node)
-	    range_for_decl_p = true;
+	    {
+	      range_for_decl_p = true;
+	      if (decl_spec_seq_has_spec_p (decl_specifiers, ds_thread))
+		pedwarn (decl_specifiers->locations[ds_thread],
+			 0, "for-range-declaration cannot be %qs",
+			 decl_specifiers->gnu_thread_keyword_p
+			 ? "__thread" : "thread_local");
+	      else if (decl_specifiers->storage_class == sc_static)
+		pedwarn (decl_specifiers->locations[ds_storage_class],
+			 0, "for-range-declaration cannot be %qs",
+			 "static");
+	      else if (decl_specifiers->storage_class == sc_extern)
+		pedwarn (decl_specifiers->locations[ds_storage_class],
+			 0, "for-range-declaration cannot be %qs",
+			 "extern");
+	      else if (decl_specifiers->storage_class == sc_register)
+		pedwarn (decl_specifiers->locations[ds_storage_class],
+			 0, "for-range-declaration cannot be %qs",
+			 "register");
+	    }
 	  else
 	    {
 	      if (!maybe_range_for_decl)
@@ -28005,6 +28068,98 @@ cp_parser_class_specifier (cp_parser* parser)
   return type;
 }
 
+/* Parse an (optional) class-property-specifier-seq.
+
+   class-property-specifier-seq:
+     class-property-specifier class-property-specifier-seq [opt]
+
+   class-property-specifier:
+     final
+     trivially_relocatable_if_eligible (C++26)
+     replaceable_if_eligible (C++26)
+
+   Returns a bitmask representing the class-property-specifiers.  */
+
+static cp_virt_specifiers
+cp_parser_class_property_specifier_seq_opt (cp_parser *parser)
+{
+  cp_virt_specifiers virt_specifiers = VIRT_SPEC_UNSPECIFIED;
+
+  while (true)
+    {
+      cp_token *token;
+      cp_virt_specifiers virt_specifier;
+
+      /* Peek at the next token.  */
+      token = cp_lexer_peek_token (parser->lexer);
+      /* See if it's a class-property-specifier.  */
+      if (token->type != CPP_NAME)
+	break;
+      if (id_equal (token->u.value, "final"))
+	{
+	  /* For C++98, quietly ignore final in e.g.
+	     struct S final = 24;  */
+	  if (cxx_dialect == cxx98
+	      && virt_specifiers == VIRT_SPEC_UNSPECIFIED
+	      && !cp_parser_nth_token_starts_class_definition_p (parser, 2)
+	      && !cp_lexer_nth_token_is (parser->lexer, 2, CPP_NAME))
+	    break;
+	  maybe_warn_cpp0x (CPP0X_OVERRIDE_CONTROLS);
+	  virt_specifier = VIRT_SPEC_FINAL;
+	}
+      else if (id_equal (token->u.value, "__final"))
+	virt_specifier = VIRT_SPEC_FINAL;
+      else if (id_equal (token->u.value, "trivially_relocatable_if_eligible"))
+	{
+	  if (cxx_dialect < cxx26)
+	    {
+	      /* Warn about the C++26 conditional keyword (but don't parse
+		 it).  */
+	      warning_at (token->location, OPT_Wc__26_compat,
+			  "identifier %qE is a conditional keyword in C++26",
+			  token->u.value);
+	      break;
+	    }
+	  virt_specifier = VIRT_SPEC_TRIVIALLY_RELOCATABLE_IF_ELIGIBLE;
+	}
+      else if (id_equal (token->u.value,
+			 "__trivially_relocatable_if_eligible"))
+	virt_specifier = VIRT_SPEC_TRIVIALLY_RELOCATABLE_IF_ELIGIBLE;
+      else if (id_equal (token->u.value, "replaceable_if_eligible"))
+	{
+	  if (cxx_dialect < cxx26)
+	    {
+	      /* Warn about the C++26 conditional keyword (but don't parse
+		 it).  */
+	      warning_at (token->location, OPT_Wc__26_compat,
+			  "identifier %qE is a conditional keyword in C++26",
+			  token->u.value);
+	      break;
+	    }
+	  virt_specifier = VIRT_SPEC_REPLACEABLE_IF_ELIGIBLE;
+	}
+      else if (id_equal (token->u.value,
+			 "__replaceable_if_eligible"))
+	virt_specifier = VIRT_SPEC_REPLACEABLE_IF_ELIGIBLE;
+      else
+	break;
+
+      if (virt_specifiers & virt_specifier)
+	{
+	  gcc_rich_location richloc (token->location);
+	  richloc.add_fixit_remove ();
+	  error_at (&richloc, "duplicate %qD specifier", token->u.value);
+	  cp_lexer_purge_token (parser->lexer);
+	}
+      else
+	{
+	  cp_lexer_consume_token (parser->lexer);
+	  virt_specifiers |= virt_specifier;
+	}
+    }
+  return virt_specifiers;
+}
+
 /* Parse a class-head.
 
    class-head:
@@ -28195,18 +28350,16 @@ cp_parser_class_head (cp_parser* parser,
   pop_deferring_access_checks ();
 
   if (id)
-    {
-      cp_parser_check_for_invalid_template_id (parser, id,
-					       class_key,
-                                               type_start_token->location);
-    }
-  virt_specifiers = cp_parser_virt_specifier_seq_opt (parser);
+    cp_parser_check_for_invalid_template_id (parser, id,
+					     class_key,
+					     type_start_token->location);
+  virt_specifiers = cp_parser_class_property_specifier_seq_opt (parser);
 
   /* If it's not a `:' or a `{' then we can't really be looking at a
      class-head, since a class-head only appears as part of a
      class-specifier.  We have to detect this situation before calling
      xref_tag, since that has irreversible side-effects.  */
-  if (!cp_parser_next_token_starts_class_definition_p (parser))
+  if (!cp_parser_nth_token_starts_class_definition_p (parser, 1))
     {
       cp_parser_error (parser, "expected %<{%> or %<:%>");
       type = error_mark_node;
@@ -28216,13 +28369,6 @@ cp_parser_class_head (cp_parser* parser,
   /* At this point, we're going ahead with the class-specifier, even
      if some other problem occurs.  */
   cp_parser_commit_to_tentative_parse (parser);
-  if (virt_specifiers & VIRT_SPEC_OVERRIDE)
-    {
-      cp_parser_error (parser,
-                       "cannot specify %<override%> for a class");
-      type = error_mark_node;
-      goto out;
-    }
   /* Issue the error about the overly-qualified name now.  */
   if (qualified_p)
     {
@@ -28550,6 +28696,16 @@ cp_parser_class_head (cp_parser* parser,
     DECL_SOURCE_LOCATION (TYPE_NAME (type)) = type_start_token->location;
   if (type && (virt_specifiers & VIRT_SPEC_FINAL))
     CLASSTYPE_FINAL (type) = 1;
+  if (type && (virt_specifiers & VIRT_SPEC_TRIVIALLY_RELOCATABLE_IF_ELIGIBLE))
+    {
+      gcc_assert (!CLASSTYPE_TRIVIALLY_RELOCATABLE_COMPUTED (type));
+      CLASSTYPE_TRIVIALLY_RELOCATABLE_BIT (type) = 1;
+    }
+  if (type && (virt_specifiers & VIRT_SPEC_REPLACEABLE_IF_ELIGIBLE))
+    {
+      gcc_assert (!CLASSTYPE_REPLACEABLE_COMPUTED (type));
+      CLASSTYPE_REPLACEABLE_BIT (type) = 1;
+    }
  out:
   parser->colon_corrects_to_scope_p = saved_colon_corrects_to_scope_p;
   return type;
@@ -30421,6 +30577,9 @@ cp_parser_asm_operand_list (cp_parser* parser)
       parens.require_open (parser);
       /* Parse the expression.  */
       tree expression = cp_parser_expression (parser);
+      if (check_for_bare_parameter_packs (expression))
+	expression = error_mark_node;
+
       /* Look for the `)'.  */
       parens.require_close (parser);
 
@@ -35588,15 +35747,15 @@ cp_parser_token_starts_function_definition_p (cp_token* token)
 	  || token->keyword == RID_RETURN);
 }
 
-/* Returns TRUE iff the next token is the ":" or "{" beginning a class
+/* Returns TRUE iff the Nth token is the ":" or "{" beginning a class
    definition.  */
 
 static bool
-cp_parser_next_token_starts_class_definition_p (cp_parser *parser)
+cp_parser_nth_token_starts_class_definition_p (cp_parser *parser, size_t n)
 {
   cp_token *token;
 
-  token = cp_lexer_peek_token (parser->lexer);
+  token = cp_lexer_peek_nth_token (parser->lexer, n);
   return (token->type == CPP_OPEN_BRACE
 	  || (token->type == CPP_COLON
 	      && !parser->colon_doesnt_start_class_def_p));
@@ -35876,7 +36035,9 @@ cp_parser_check_class_key (cp_parser *parser, location_t key_loc,
     return;
 
   bool seen_as_union = TREE_CODE (type) == UNION_TYPE;
-  if (seen_as_union != (class_key == union_type))
+  if (class_key != typename_type
+      && TREE_CODE (type) != TYPENAME_TYPE
+      && seen_as_union != (class_key == union_type))
     {
       auto_diagnostic_group d;
       if (permerror (input_location, "%qs tag used in naming %q#T",
@@ -36650,7 +36811,7 @@ static void
 cp_parser_abort_tentative_parse (cp_parser* parser)
 {
   gcc_assert (parser->context->status != CP_PARSER_STATUS_KIND_COMMITTED
-	      || errorcount > 0);
+	      || seen_error ());
   cp_parser_simulate_error (parser);
   /* Now, pretend that we want to see if the construct was
      successfully parsed.  */
@@ -49701,7 +49862,8 @@ cp_parser_oacc_update (cp_parser *parser, cp_token *pragma_tok)
 */
 
 #define OACC_WAIT_CLAUSE_MASK					\
-	( (OMP_CLAUSE_MASK_1 << PRAGMA_OACC_CLAUSE_ASYNC))
+	( (OMP_CLAUSE_MASK_1 << PRAGMA_OACC_CLAUSE_ASYNC)	\
+	| (OMP_CLAUSE_MASK_1 << PRAGMA_OACC_CLAUSE_IF))
 
 static tree
 cp_parser_oacc_wait (cp_parser *parser, cp_token *pragma_tok)

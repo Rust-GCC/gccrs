@@ -40,10 +40,18 @@
 --  contract cases should not be executed at runtime as well, in order not to
 --  slow down the execution of these functions.
 
+--  The portion of this package that does not require use of the secondary
+--  stack (so all the subprograms except functions that return String)
+--  has been moved into a sibling package, Case_Util_NSS. See comments there.
+--  Clients who don't care about avoiding secondary stack usage can
+--  continue to use this package and are unaffected by this reorganization.
+
 pragma Assertion_Policy (Pre            => Ignore,
                          Post           => Ignore,
                          Contract_Cases => Ignore,
                          Ghost          => Ignore);
+
+with System.Case_Util_NSS;
 
 package System.Case_Util
   with Pure, SPARK_Mode
@@ -51,23 +59,11 @@ is
    --  Note: all the following functions handle the full Latin-1 set
 
    function To_Upper (A : Character) return Character
-   with
-     Post => (declare
-                A_Val : constant Natural := Character'Pos (A);
-              begin
-                (if A in 'a' .. 'z'
-                   or else A_Val in 16#E0# .. 16#F6#
-                   or else A_Val in 16#F8# .. 16#FE#
-                 then
-                   To_Upper'Result = Character'Val (A_Val - 16#20#)
-                 else
-                   To_Upper'Result = A));
+     renames Case_Util_NSS.To_Upper;
    --  Converts A to upper case if it is a lower case letter, otherwise
    --  returns the input argument unchanged.
 
-   procedure To_Upper (A : in out String)
-   with
-     Post => (for all J in A'Range => A (J) = To_Upper (A'Old (J)));
+   procedure To_Upper (A : in out String) renames Case_Util_NSS.To_Upper;
 
    function To_Upper (A : String) return String
    with
@@ -78,23 +74,12 @@ is
    --  Folds all characters of string A to upper case
 
    function To_Lower (A : Character) return Character
-   with
-     Post => (declare
-                A_Val : constant Natural := Character'Pos (A);
-              begin
-                (if A in 'A' .. 'Z'
-                   or else A_Val in 16#C0# .. 16#D6#
-                   or else A_Val in 16#D8# .. 16#DE#
-                 then
-                   To_Lower'Result = Character'Val (A_Val + 16#20#)
-                 else
-                   To_Lower'Result = A));
+     renames Case_Util_NSS.To_Lower;
    --  Converts A to lower case if it is an upper case letter, otherwise
    --  returns the input argument unchanged.
 
    procedure To_Lower (A : in out String)
-   with
-     Post => (for all J in A'Range => A (J) = To_Lower (A'Old (J)));
+     renames Case_Util_NSS.To_Lower;
 
    function To_Lower (A : String) return String
    with
@@ -105,15 +90,7 @@ is
    --  Folds all characters of string A to lower case
 
    procedure To_Mixed (A : in out String)
-   with
-     Post =>
-       (for all J in A'Range =>
-          (if J = A'First
-             or else A'Old (J - 1) = '_'
-           then
-             A (J) = To_Upper (A'Old (J))
-           else
-             A (J) = To_Lower (A'Old (J))));
+     renames Case_Util_NSS.To_Mixed;
 
    function To_Mixed (A : String) return String
    with

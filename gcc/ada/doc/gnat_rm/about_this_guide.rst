@@ -14,7 +14,7 @@ GNAT compiler.  It includes information on implementation dependent
 characteristics of GNAT, including all the information required by
 Annex M of the Ada language standard.
 
-GNAT implements Ada 95, Ada 2005 and Ada 2012, and it may also be
+GNAT implements Ada 95, Ada 2005, Ada 2012 and Ada 2022, and it may also be
 invoked in Ada 83 compatibility mode.
 By default, GNAT assumes Ada 2012,
 but you can override with a compiler switch
@@ -93,8 +93,8 @@ This reference manual contains the following chapters:
   to GNAT's implementation of machine code insertions, tasking, and several
   other features.
 
-* :ref:`Implementation_of_Ada_2012_Features`, describes the status of the
-  GNAT implementation of the Ada 2012 language standard.
+* :ref:`Implementation_of_Ada_2022_Features`, describes the status of the
+  GNAT implementation of the Ada 2022 language standard.
 
 * :ref:`Security_Hardening_Features` documents GNAT extensions aimed
   at security hardening.

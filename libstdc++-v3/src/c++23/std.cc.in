@@ -278,10 +278,14 @@ export namespace std
   }
   using std::shift_left;
   namespace ranges
-  {}
+  {
+    using std::ranges::shift_left;
+  }
   using std::shift_right;
   namespace ranges
-  {}
+  {
+    using std::ranges::shift_right;
+  }
   using std::sort;
   namespace ranges
   {
@@ -888,6 +892,10 @@ export namespace std
   using std::partial_order;
   using std::strong_order;
   using std::weak_order;
+#if __glibcxx_type_order >= 202506L
+  using std::type_order;
+  using std::type_order_v;
+#endif
 }
 
 // 28.4 <complex>
@@ -1050,6 +1058,9 @@ export namespace std
   using std::throw_with_nested;
   using std::uncaught_exception;
   using std::uncaught_exceptions;
+#if __cpp_lib_exception_ptr_cast >= 202506L
+  using std::exception_ptr_cast;
+#endif
 }
 
 // 34.4 <execution>
@@ -1729,15 +1740,6 @@ export namespace std
   using std::make_const_sentinel;
 #endif
 }
-// FIXME these should be friends of __normal_iterator to avoid exporting
-// __gnu_cxx.
-export namespace __gnu_cxx
-{
-  using __gnu_cxx::operator==;
-  using __gnu_cxx::operator<=>;
-  using __gnu_cxx::operator+;
-  using __gnu_cxx::operator-;
-}
 
 // <latch>
 export namespace std
@@ -1840,7 +1842,12 @@ export namespace std
 export namespace std
 {
   using std::extents;
-  // FIXME layout_*, default_accessor and mdspan
+  using std::layout_left;
+  using std::layout_right;
+  using std::layout_stride;
+  using std::default_accessor;
+  using std::mdspan;
+  // FIXME layout_left_padded, layout_right_padded, aligned_accessor, mdsubspan
 }
 #endif
 
@@ -1955,6 +1962,14 @@ export namespace std
 #if __cpp_lib_out_ptr
   using std::out_ptr;
   using std::inout_ptr;
+#endif
+#if __cpp_lib_indirect
+  using std::indirect;
+  namespace pmr { using std::pmr::indirect; }
+#endif
+#if __cpp_lib_polymorphic
+  using std::polymorphic;
+  namespace pmr { using std::pmr::polymorphic; }
 #endif
 }
 

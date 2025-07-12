@@ -3236,8 +3236,8 @@ analyze_function_body (struct cgraph_node *node, bool early)
 	  if (!loop->header->aux)
 	    continue;
 
-	  profile_count phdr_count = loop_preheader_edge (loop)->count ();
-	  sreal phdr_freq = phdr_count.to_sreal_scale (entry_count);
+	  profile_count hdr_count = loop->header->count;
+	  sreal hdr_freq = hdr_count.to_sreal_scale (entry_count);
 
 	  bb_predicate = *(ipa_predicate *)loop->header->aux;
 	  auto_vec<edge> exits = get_loop_exit_edges (loop);
@@ -3257,7 +3257,7 @@ analyze_function_body (struct cgraph_node *node, bool early)
 		loop_iterations &= will_be_nonconstant;
 	    }
 	  add_freqcounting_predicate (&s->loop_iterations, loop_iterations,
-				      phdr_freq, max_loop_predicates);
+				      hdr_freq, max_loop_predicates);
 	}
 
       /* To avoid quadratic behavior we analyze stride predicates only
@@ -3268,8 +3268,8 @@ analyze_function_body (struct cgraph_node *node, bool early)
 	{
 	  ipa_predicate loop_stride = true;
 	  basic_block *body = get_loop_body (loop);
-	  profile_count phdr_count = loop_preheader_edge (loop)->count ();
-	  sreal phdr_freq = phdr_count.to_sreal_scale (entry_count);
+	  profile_count hdr_count = loop->header->count;
+	  sreal hdr_freq = hdr_count.to_sreal_scale (entry_count);
 	  for (unsigned i = 0; i < loop->num_nodes; i++)
 	    {
 	      gimple_stmt_iterator gsi;
@@ -3309,7 +3309,7 @@ analyze_function_body (struct cgraph_node *node, bool early)
 		}
 	    }
 	  add_freqcounting_predicate (&s->loop_strides, loop_stride,
-				      phdr_freq, max_loop_predicates);
+				      hdr_freq, max_loop_predicates);
 	  free (body);
 	}
       scev_finalize ();
@@ -3421,6 +3421,21 @@ compute_fn_summary (struct cgraph_node *node, bool early)
 	 info->inlinable = tree_inlinable_function_p (node->decl);
 
        bool no_signature = false;
+
+       /* Don't allow signature changes for functions which have
+	  [[gnu::musttail]] or [[clang::musttail]] calls.  Sometimes
+	  (more often on targets which pass everything on the stack)
+	  signature changes can result in tail calls being impossible
+	  even when without the signature changes they would be ok.
+	  See PR121023.  */
+       if (cfun->has_musttail)
+	 {
+	   if (dump_file)
+	    fprintf (dump_file, "No signature change:"
+		     " function has calls with musttail attribute.\n");
+	   no_signature = true;
+	 }
+
        /* Type attributes can use parameter indices to describe them.
 	  Special case fn spec since we can safely preserve them in
 	  modref summaries.  */

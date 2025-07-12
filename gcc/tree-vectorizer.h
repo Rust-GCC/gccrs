@@ -56,6 +56,14 @@ enum dr_alignment_support {
   dr_aligned
 };
 
+/* Define type of peeling support to indicate how peeling for alignment can help
+   make vectorization supported.  */
+enum peeling_support {
+  peeling_known_supported,
+  peeling_maybe_supported,
+  peeling_unsupported
+};
+
 /* Define type of def-use cross-iteration cycle.  */
 enum vect_def_type {
   vect_uninitialized_def = 0,
@@ -946,6 +954,13 @@ public:
      epilogue of loop.  */
   bool epil_using_partial_vectors_p;
 
+  /* True if we've decided to use peeling with versioning together, which allows
+     unaligned unsupported data refs to be uniformly aligned after a certain
+     amount of peeling (mutual alignment).  Otherwise, we use versioning alone
+     so these data refs must be already aligned to a power-of-two boundary
+     without peeling.  */
+  bool allow_mutual_alignment;
+
   /* The bias for len_load and len_store.  For now, only 0 and -1 are
      supported.  -1 must be used when a backend does not support
      len_load/len_store with a length of zero.  */
@@ -969,6 +984,10 @@ public:
 
   /* Main loop IV cond.  */
   gcond* loop_iv_cond;
+
+  /* True if we have an unroll factor requested by the user through pragma GCC
+     unroll.  */
+  bool user_unroll;
 
   /* True if there are no loop carried data dependencies in the loop.
      If loop->safelen <= 1, then this is always true, either the loop
@@ -1070,6 +1089,7 @@ public:
 #define LOOP_VINFO_USING_SELECT_VL_P(L) (L)->using_select_vl_p
 #define LOOP_VINFO_EPIL_USING_PARTIAL_VECTORS_P(L)                             \
   (L)->epil_using_partial_vectors_p
+#define LOOP_VINFO_ALLOW_MUTUAL_ALIGNMENT(L) (L)->allow_mutual_alignment
 #define LOOP_VINFO_PARTIAL_LOAD_STORE_BIAS(L) (L)->partial_load_store_bias
 #define LOOP_VINFO_VECT_FACTOR(L)          (L)->vectorization_factor
 #define LOOP_VINFO_MAX_VECT_FACTOR(L)      (L)->max_vectorization_factor
@@ -1094,6 +1114,7 @@ public:
 #define LOOP_VINFO_CHECK_UNEQUAL_ADDRS(L)  (L)->check_unequal_addrs
 #define LOOP_VINFO_CHECK_NONZERO(L)        (L)->check_nonzero
 #define LOOP_VINFO_LOWER_BOUNDS(L)         (L)->lower_bounds
+#define LOOP_VINFO_USER_UNROLL(L)          (L)->user_unroll
 #define LOOP_VINFO_GROUPED_STORES(L)       (L)->grouped_stores
 #define LOOP_VINFO_SLP_INSTANCES(L)        (L)->slp_instances
 #define LOOP_VINFO_SLP_UNROLLING_FACTOR(L) (L)->slp_unrolling_factor
@@ -1693,7 +1714,7 @@ public:
   unsigned int outside_cost () const;
   unsigned int total_cost () const;
   unsigned int suggested_unroll_factor () const;
-  machine_mode suggested_epilogue_mode () const;
+  machine_mode suggested_epilogue_mode (int &masked) const;
 
 protected:
   unsigned int record_stmt_cost (stmt_vec_info, vect_cost_model_location,
@@ -1717,8 +1738,13 @@ protected:
   unsigned int m_suggested_unroll_factor;
 
   /* The suggested mode to be used for a vectorized epilogue or VOIDmode,
-     determined at finish_cost.  */
+     determined at finish_cost.  m_masked_epilogue specifies whether the
+     epilogue should use masked vectorization, regardless of the
+     --param vect-partial-vector-usage default.  If -1 then the
+     --param setting takes precedence.  If the user explicitly specified
+     --param vect-partial-vector-usage then that takes precedence.  */
   machine_mode m_suggested_epilogue_mode;
+  int m_masked_epilogue;
 
   /* True if finish_cost has been called.  */
   bool m_finished;
@@ -1734,6 +1760,7 @@ vector_costs::vector_costs (vec_info *vinfo, bool costing_for_scalar)
     m_costs (),
     m_suggested_unroll_factor(1),
     m_suggested_epilogue_mode(VOIDmode),
+    m_masked_epilogue (-1),
     m_finished (false)
 {
 }
@@ -1794,9 +1821,10 @@ vector_costs::suggested_unroll_factor () const
 /* Return the suggested epilogue mode.  */
 
 inline machine_mode
-vector_costs::suggested_epilogue_mode () const
+vector_costs::suggested_epilogue_mode (int &masked_p) const
 {
   gcc_checking_assert (m_finished);
+  masked_p = m_masked_epilogue;
   return m_suggested_epilogue_mode;
 }
 
@@ -2390,6 +2418,7 @@ extern tree get_mask_type_for_scalar_type (vec_info *, tree, unsigned int = 0);
 extern tree get_mask_type_for_scalar_type (vec_info *, tree, slp_tree);
 extern tree get_same_sized_vectype (tree, tree);
 extern bool vect_chooses_same_modes_p (vec_info *, machine_mode);
+extern bool vect_chooses_same_modes_p (machine_mode, machine_mode);
 extern bool vect_get_loop_mask_type (loop_vec_info);
 extern bool vect_is_simple_use (tree, vec_info *, enum vect_def_type *,
 				stmt_vec_info * = NULL, gimple ** = NULL);
@@ -2477,8 +2506,7 @@ extern bool vect_transform_stmt (vec_info *, stmt_vec_info,
 				 slp_tree, slp_instance);
 extern void vect_remove_stores (vec_info *, stmt_vec_info);
 extern bool vect_nop_conversion_p (stmt_vec_info);
-extern opt_result vect_analyze_stmt (vec_info *, stmt_vec_info, bool *,
-				     slp_tree,
+extern opt_result vect_analyze_stmt (vec_info *, slp_tree,
 				     slp_instance, stmt_vector_for_cost *);
 extern void vect_get_load_cost (vec_info *, stmt_vec_info, slp_tree, int,
 				dr_alignment_support, int, bool,
@@ -2660,7 +2688,7 @@ extern bool vect_slp_analyze_operations (vec_info *);
 extern void vect_schedule_slp (vec_info *, const vec<slp_instance> &);
 extern opt_result vect_analyze_slp (vec_info *, unsigned, bool);
 extern bool vect_make_slp_decision (loop_vec_info);
-extern void vect_detect_hybrid_slp (loop_vec_info);
+extern bool vect_detect_hybrid_slp (loop_vec_info);
 extern void vect_optimize_slp (vec_info *);
 extern void vect_gather_slp_loads (vec_info *);
 extern tree vect_get_slp_scalar_def (slp_tree, unsigned);
@@ -2680,7 +2708,7 @@ extern void duplicate_and_interleave (vec_info *, gimple_seq *, tree,
 extern int vect_get_place_in_interleaving_chain (stmt_vec_info, stmt_vec_info);
 extern slp_tree vect_create_new_slp_node (unsigned, tree_code);
 extern void vect_free_slp_tree (slp_tree);
-extern bool compatible_calls_p (gcall *, gcall *);
+extern bool compatible_calls_p (gcall *, gcall *, bool);
 extern int vect_slp_child_index_for_operand (const gimple *, int op, bool);
 
 extern tree prepare_vec_mask (loop_vec_info, tree, tree, tree,

@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "inlining-iterator.h"
 #include "tree-logical-location.h"
 #include "diagnostic-format-sarif.h"
+#include "diagnostic-state-graphs.h"
 
 #include "analyzer/analyzer-logging.h"
 #include "analyzer/sm.h"
@@ -106,12 +107,13 @@ event_kind_to_string (enum event_kind ek)
 
 checker_event::checker_event (enum event_kind kind,
 			      const event_loc_info &loc_info)
-: m_kind (kind), m_loc (loc_info.m_loc),
+: m_path (nullptr),
+  m_kind (kind), m_loc (loc_info.m_loc),
   m_original_fndecl (loc_info.m_fndecl),
   m_effective_fndecl (loc_info.m_fndecl),
   m_original_depth (loc_info.m_depth),
   m_effective_depth (loc_info.m_depth),
-  m_pending_diagnostic (NULL), m_emission_id (),
+  m_pending_diagnostic (nullptr), m_emission_id (),
   m_logical_loc
     (tree_logical_location_manager::key_from_tree (loc_info.m_fndecl))
 {
@@ -211,15 +213,41 @@ checker_event::debug () const
    pertinent data within the sm-state).  */
 
 void
-checker_event::prepare_for_emission (checker_path *,
+checker_event::prepare_for_emission (checker_path *path,
 				     pending_diagnostic *pd,
 				     diagnostic_event_id_t emission_id)
 {
+  m_path = path;
   m_pending_diagnostic = pd;
   m_emission_id = emission_id;
 
   auto pp = global_dc->clone_printer ();
   print_desc (*pp.get ());
+}
+
+std::unique_ptr<diagnostics::digraphs::digraph>
+checker_event::maybe_make_diagnostic_state_graph (bool debug) const
+{
+  const program_state *state = get_program_state ();
+  if (!state)
+    return nullptr;
+
+  gcc_assert (m_path);
+  const extrinsic_state &ext_state = m_path->get_ext_state ();
+
+  auto result = state->make_diagnostic_state_graph (ext_state);
+
+  if (debug)
+    {
+      pretty_printer pp;
+      text_art::theme *theme = global_dc->get_diagram_theme ();
+      text_art::dump_to_pp (*state, theme, &pp);
+      result->set_attr (STATE_GRAPH_PREFIX,
+			"analyzer/program_state/",
+			pp_formatted_text (&pp));
+    }
+
+  return result;
 }
 
 /* class debug_event : public checker_event.  */
@@ -344,12 +372,14 @@ region_creation_event_debug::print_desc (pretty_printer &pp) const
 
 /* class function_entry_event : public checker_event.  */
 
-function_entry_event::function_entry_event (const program_point &dst_point)
+function_entry_event::function_entry_event (const program_point &dst_point,
+					    const program_state &state)
 : checker_event (event_kind::function_entry,
 		 event_loc_info (dst_point.get_supernode
 				   ()->get_start_location (),
 				 dst_point.get_fndecl (),
-				 dst_point.get_stack_depth ()))
+				 dst_point.get_stack_depth ())),
+  m_state (state)
 {
 }
 
@@ -370,7 +400,7 @@ function_entry_event::print_desc (pretty_printer &pp) const
 diagnostic_event::meaning
 function_entry_event::get_meaning () const
 {
-  return meaning (VERB_enter, NOUN_function);
+  return meaning (verb::enter, noun::function);
 }
 
 /* class state_change_event : public checker_event.  */
@@ -470,7 +500,7 @@ state_change_event::print_desc (pretty_printer &pp) const
     }
   else
     {
-      gcc_assert (m_origin == NULL);
+      gcc_assert (m_origin == nullptr);
       pp_printf (&pp,
 		 "global state: %qs -> %qs",
 		 m_from->get_name (),
@@ -557,6 +587,12 @@ superedge_event::should_filter_p (int verbosity) const
   return false;
 }
 
+const program_state *
+superedge_event::get_program_state () const
+{
+  return &m_eedge.m_dest->get_state ();
+}
+
 /* superedge_event's ctor.  */
 
 superedge_event::superedge_event (enum event_kind kind,
@@ -598,9 +634,9 @@ cfg_edge_event::get_meaning () const
 {
   const cfg_superedge& cfg_sedge = get_cfg_superedge ();
   if (cfg_sedge.true_value_p ())
-    return meaning (VERB_branch, PROPERTY_true);
+    return meaning (verb::branch, property::true_);
   else if (cfg_sedge.false_value_p ())
-    return meaning (VERB_branch, PROPERTY_false);
+    return meaning (verb::branch, property::false_);
   else
     return meaning ();
 }
@@ -710,7 +746,7 @@ start_cfg_edge_event::maybe_describe_condition (bool can_colorize) const
 					   lhs, op, rhs);
 	}
     }
-  return label_text::borrow (NULL);
+  return label_text::borrow (nullptr);
 }
 
 /* Subroutine of maybe_describe_condition above.
@@ -747,9 +783,9 @@ start_cfg_edge_event::maybe_describe_condition (bool can_colorize,
 
   /* Only attempt to generate text for sufficiently simple expressions.  */
   if (!should_print_expr_p (lhs))
-    return label_text::borrow (NULL);
+    return label_text::borrow (nullptr);
   if (!should_print_expr_p (rhs))
-    return label_text::borrow (NULL);
+    return label_text::borrow (nullptr);
 
   /* Special cases for pointer comparisons against NULL.  */
   if (POINTER_TYPE_P (TREE_TYPE (lhs))
@@ -846,7 +882,7 @@ call_event::print_desc (pretty_printer &pp) const
 diagnostic_event::meaning
 call_event::get_meaning () const
 {
-  return meaning (VERB_call, NOUN_function);
+  return meaning (verb::call, noun::function);
 }
 
 /* Override of checker_event::is_call_p for calls.  */
@@ -867,6 +903,14 @@ tree
 call_event::get_callee_fndecl () const
 {
   return m_dest_snode->m_fun->decl;
+}
+
+const program_state *
+call_event::get_program_state () const
+{
+  /* Use the state at the source (at the caller),
+     rather than the one at the dest, which has a frame for the callee.  */
+  return &m_eedge.m_src->get_state ();
 }
 
 /* class return_event : public superedge_event.  */
@@ -922,7 +966,7 @@ return_event::print_desc (pretty_printer &pp) const
 diagnostic_event::meaning
 return_event::get_meaning () const
 {
-  return meaning (VERB_return, NOUN_function);
+  return meaning (verb::return_, noun::function);
 }
 
 /* Override of checker_event::is_return_p for returns.  */
@@ -949,8 +993,8 @@ start_consolidated_cfg_edges_event::print_desc (pretty_printer &pp) const
 diagnostic_event::meaning
 start_consolidated_cfg_edges_event::get_meaning () const
 {
-  return meaning (VERB_branch,
-		  (m_edge_sense ? PROPERTY_true : PROPERTY_false));
+  return meaning (verb::branch,
+		  (m_edge_sense ? property::true_ : property::false_));
 }
 
 /* class inlined_call_event : public checker_event.  */
@@ -970,7 +1014,7 @@ inlined_call_event::print_desc (pretty_printer &pp) const
 diagnostic_event::meaning
 inlined_call_event::get_meaning () const
 {
-  return meaning (VERB_call, NOUN_function);
+  return meaning (verb::call, noun::function);
 }
 
 /* class setjmp_event : public checker_event.  */
@@ -1210,7 +1254,16 @@ warning_event::print_desc (pretty_printer &pp) const
 diagnostic_event::meaning
 warning_event::get_meaning () const
 {
-  return meaning (VERB_danger, NOUN_unknown);
+  return meaning (verb::danger, noun::unknown);
+}
+
+const program_state *
+warning_event::get_program_state () const
+{
+  if (m_program_state)
+    return m_program_state.get ();
+  else
+    return &m_enode->get_state ();
 }
 
 } // namespace ana

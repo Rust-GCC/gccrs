@@ -123,6 +123,11 @@ and generics may name types with unknown discriminants without using
 the ``(<>)`` notation.  In addition, some but not all of the additional
 restrictions of Ada 83 are enforced.
 
+Like all configuration pragmas, if the pragma is placed before a library
+level package specification it is not propagated to the corresponding
+package body (see RM 10.1.5(8)); it must be added explicitly to the
+package body.
+
 Ada 83 mode is intended for two purposes.  Firstly, it allows existing
 Ada 83 code to be compiled and adapted to GNAT with less effort.
 Secondly, it aids in keeping code backwards compatible with Ada 83.
@@ -149,6 +154,11 @@ contexts.  This pragma is useful when writing a reusable component that
 itself uses Ada 95 features, but which is intended to be usable from
 either Ada 83 or Ada 95 programs.
 
+Like all configuration pragmas, if the pragma is placed before a library
+level package specification it is not propagated to the corresponding
+package body (see RM 10.1.5(8)); it must be added explicitly to the
+package body.
+
 Pragma Ada_05
 =============
 
@@ -165,6 +175,11 @@ it applies, regardless of the mode set by the command line switches.
 This pragma is useful when writing a reusable component that
 itself uses Ada 2005 features, but which is intended to be usable from
 either Ada 83 or Ada 95 programs.
+
+Like all configuration pragmas, if the pragma is placed before a library
+level package specification it is not propagated to the corresponding
+package body (see RM 10.1.5(8)); it must be added explicitly to the
+package body.
 
 The one argument form (which is not a configuration pragma)
 is used for managing the transition from
@@ -209,6 +224,11 @@ contexts.  This pragma is useful when writing a reusable component that
 itself uses Ada 2012 features, but which is intended to be usable from
 Ada 83, Ada 95, or Ada 2005 programs.
 
+Like all configuration pragmas, if the pragma is placed before a library
+level package specification it is not propagated to the corresponding
+package body (see RM 10.1.5(8)); it must be added explicitly to the
+package body.
+
 The one argument form, which is not a configuration pragma,
 is used for managing the transition from Ada
 2005 to Ada 2012 in the run-time library. If an entity is marked
@@ -251,6 +271,11 @@ packages and their children, so you need not specify it in these
 contexts.  This pragma is useful when writing a reusable component that
 itself uses Ada 2022 features, but which is intended to be usable from
 Ada 83, Ada 95, Ada 2005 or Ada 2012 programs.
+
+Like all configuration pragmas, if the pragma is placed before a library
+level package specification it is not propagated to the corresponding
+package body (see RM 10.1.5(8)); it must be added explicitly to the
+package body.
 
 The one argument form, which is not a configuration pragma,
 is used for managing the transition from Ada
@@ -1940,7 +1965,8 @@ Syntax:
   EXIT_CASE      ::= GUARD => EXIT_KIND
   EXIT_KIND      ::= Normal_Return
                    | Exception_Raised
-		   | (Exception_Raised => exception_name)
+                   | (Exception_Raised => exception_name)
+                   | Program_Exit
   GUARD          ::= Boolean_expression
 
 For the semantics of this aspect, see the SPARK 2014 Reference Manual, section
@@ -5285,6 +5311,20 @@ generating ``Restrictions`` pragmas, it generates
 violations of the profile generate warning messages instead
 of error messages.
 
+.. _Pragma-Program_Exit:
+
+Pragma Program_Exit
+===================
+
+Syntax:
+
+.. code-block:: ada
+
+  pragma Program_Exit [ (boolean_EXPRESSION) ];
+
+For the semantics of this pragma, see the entry for aspect ``Program_Exit``
+in the SPARK 2014 Reference Manual, section 6.1.10.
+
 Pragma Propagate_Exceptions
 ===========================
 .. index:: Interfacing to C++
@@ -5874,13 +5914,33 @@ Syntax:
   pragma Short_Circuit_And_Or;
 
 
-This configuration pragma causes any occurrence of the AND operator applied to
-operands of type Standard.Boolean to be short-circuited (i.e. the AND operator
-is treated as if it were AND THEN). Or is similarly treated as OR ELSE. This
-may be useful in the context of certification protocols requiring the use of
-short-circuited logical operators. If this configuration pragma occurs locally
-within the file being compiled, it applies only to the file being compiled.
+This configuration pragma causes the predefined AND and OR operators of
+type Standard.Boolean to have short-circuit semantics. That is, they
+behave like AND THEN and OR ELSE; the right-hand side is not evaluated
+if the left-hand side determines the result. This may be useful in the
+context of certification protocols requiring the use of short-circuited
+logical operators.
+
 There is no requirement that all units in a partition use this option.
+However, mixing of short-circuit and non-short-circuit semantics can be
+confusing. Therefore, the recommended use is to put the pragma in a
+configuration file that applies to the whole program. Alternatively, if
+you have a legacy library that should not use this pragma, you can put
+it in a separate library project that does not use the pragma.
+In any case, fine-grained mixing of the different semantics is not
+recommended. If pragma ``Short_Circuit_And_Or`` is specified, then it
+is illegal to rename the predefined Boolean AND and OR, or to pass
+them to generic formal functions; this corresponds to the fact that
+AND THEN and OR ELSE cannot be renamed nor passed as generic formal
+functions.
+
+Note that this pragma has no effect on other logical operators --
+predefined operators of modular types, array-of-boolean types and types
+derived from Standard.Boolean, nor user-defined operators.
+
+See also the pragma ``Unevaluated_Use_Of_Old`` and the restriction
+``No_Direct_Boolean_Operators``, which may be useful in conjunction
+with ``Short_Circuit_And_Or``.
 
 Pragma Short_Descriptors
 ========================

@@ -1,3 +1,133 @@
+2025-07-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/119064
+	* c.opt (Wc++26-compat): New option.
+	* c.opt.urls: Regenerate.
+	* c-opts.cc (c_common_post_options): Clear warn_cxx26_compat for
+	C++26 or later.
+	* c-cppbuiltin.cc (c_cpp_builtins): For C++26 predefine
+	__cpp_trivial_relocatability=202502L.
+
+2025-07-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/117785
+	* c-cppbuiltin.cc (c_cpp_builtins): Predefine
+	__cpp_constexpr_exceptions=202411L for C++26.
+
+2025-07-10  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-ubsan.cc (get_bound_from_access_with_size): Adjust the position
+	of the arguments per the new design.
+
+2025-07-07  Qing Zhao  <qing.zhao@oracle.com>
+
+	Revert:
+	2025-07-01  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-attribs.cc (handle_counted_by_attribute): Accept counted_by
+	attribute for pointer fields.
+
+2025-07-07  Qing Zhao  <qing.zhao@oracle.com>
+
+	Revert:
+	2025-07-01  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-gimplify.cc (is_address_with_access_with_size): New function.
+	(ubsan_walk_array_refs_r): Instrument an INDIRECT_REF whose base
+	address is .ACCESS_WITH_SIZE or an address computation whose base
+	address is .ACCESS_WITH_SIZE.
+	* c-ubsan.cc (ubsan_instrument_bounds_pointer_address): New function.
+	(struct factor_t): New structure.
+	(get_factors_from_mul_expr): New function.
+	(get_index_from_offset): New function.
+	(get_index_from_pointer_addr_expr): New function.
+	(is_instrumentable_pointer_array_address): New function.
+	(ubsan_array_ref_instrumented_p): Change prototype.
+	Handle MEM_REF in addtional to ARRAY_REF.
+	(ubsan_maybe_instrument_array_ref): Handle MEM_REF in addtional
+	to ARRAY_REF.
+
+2025-07-07  Jason Merrill  <jason@redhat.com>
+
+	PR c++/120917
+	* c.opt: Add -Wno-abbreviated-auto-in-template-arg.
+	* c.opt.urls: Regenerate.
+
+2025-07-04  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/120837
+	* c-common.cc (pointer_int_sum): Rewrite the intop PLUS_EXPR or
+	MINUS_EXPR optimization into extension of both intop operands,
+	their separate multiplication and then addition/subtraction followed
+	by rest of pointer_int_sum handling after the multiplication.
+
+2025-07-01  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-gimplify.cc (is_address_with_access_with_size): New function.
+	(ubsan_walk_array_refs_r): Instrument an INDIRECT_REF whose base
+	address is .ACCESS_WITH_SIZE or an address computation whose base
+	address is .ACCESS_WITH_SIZE.
+	* c-ubsan.cc (ubsan_instrument_bounds_pointer_address): New function.
+	(struct factor_t): New structure.
+	(get_factors_from_mul_expr): New function.
+	(get_index_from_offset): New function.
+	(get_index_from_pointer_addr_expr): New function.
+	(is_instrumentable_pointer_array_address): New function.
+	(ubsan_array_ref_instrumented_p): Change prototype.
+	Handle MEM_REF in addtional to ARRAY_REF.
+	(ubsan_maybe_instrument_array_ref): Handle MEM_REF in addtional
+	to ARRAY_REF.
+
+2025-07-01  Qing Zhao  <qing.zhao@oracle.com>
+
+	* c-attribs.cc (handle_counted_by_attribute): Accept counted_by
+	attribute for pointer fields.
+
+2025-06-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/120520
+	PR c/117023
+	* c-attribs.cc (c_common_gnu_attributes): Allow 2 or 3 arguments for
+	nonnull_if_nonzero attribute instead of only 2.
+	(handle_nonnull_if_nonzero_attribute): Handle 3 argument
+	nonnull_if_nonzero.
+	* c-common.cc (struct nonnull_arg_ctx): Rename other member to other1,
+	add other2 member.
+	(check_function_nonnull): Clear a if nonnull attribute has an
+	argument.  Adjust for nonnull_arg_ctx changes.  Handle 3 argument
+	nonnull_if_nonzero attribute.
+	(check_nonnull_arg): Adjust for nonnull_arg_ctx changes, emit different
+	diagnostics for 3 argument nonnull_if_nonzero attributes.
+	(check_function_arguments): Adjust ctx var initialization.
+
+2025-06-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/120777
+	* c-cppbuiltin.cc (c_cpp_builtins): Predefine
+	__cpp_constexpr_virtual_inheritance=202506L for C++26.
+
+2025-06-26  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-opts.cc (c_common_diagnostics_set_defaults): Use
+	diagnostic_context::set_permissive_option.
+
+2025-06-23  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-omp.cc (c_finish_oacc_wait): Handle if clause.
+
+2025-06-16  Jason Merrill  <jason@redhat.com>
+
+	* c.opt: Add -Wsfinae-incomplete.
+	* c.opt.urls: Regenerate.
+
+2025-06-12  Gwenole Beauchesne  <gb.devel@gmail.com>
+	    Andrew Pinski  <quic_apinski@quicinc.com>
+
+	PR c++/41201
+	PR c++/48026
+	* c-pragma.cc (init_pragma): Use c_register_pragma_with_early_handler
+	instead of c_register_pragma for `#pragma GCC optimize`.
+
 2025-06-03  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/120078
