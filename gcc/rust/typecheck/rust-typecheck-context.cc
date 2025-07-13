@@ -18,6 +18,7 @@
 
 #include "rust-hir-type-check.h"
 #include "rust-type-util.h"
+#include <utility>
 
 namespace Rust {
 namespace Resolver {
@@ -409,6 +410,38 @@ TypeCheckContext::lookup_operator_overload (HirId id, TyTy::FnType **call)
 }
 
 void
+TypeCheckContext::insert_deferred_operator_overload (
+  DeferredOpOverload deferred)
+{
+  HirId expr_id = deferred.expr_id;
+  deferred_operator_overloads.emplace (std::make_pair (expr_id, deferred));
+}
+
+bool
+TypeCheckContext::lookup_deferred_operator_overload (
+  HirId id, DeferredOpOverload *deferred)
+{
+  auto it = deferred_operator_overloads.find (id);
+  if (it == deferred_operator_overloads.end ())
+    return false;
+
+  *deferred = it->second;
+  return true;
+}
+
+void
+TypeCheckContext::iterate_deferred_operator_overloads (
+  std::function<bool (HirId, DeferredOpOverload &)> cb)
+{
+  for (auto it = deferred_operator_overloads.begin ();
+       it != deferred_operator_overloads.end (); it++)
+    {
+      if (!cb (it->first, it->second))
+	return;
+    }
+}
+
+void
 TypeCheckContext::insert_unconstrained_check_marker (HirId id, bool status)
 {
   unconstrained[id] = status;
@@ -577,6 +610,16 @@ TypeCheckContext::regions_from_generic_args (const HIR::GenericArgs &args) const
 void
 TypeCheckContext::compute_inference_variables (bool emit_error)
 {
+  iterate_deferred_operator_overloads (
+    [&] (HirId id, DeferredOpOverload &op) mutable -> bool {
+      rust_debug ("XXXXXXXXXXXX");
+      rust_debug ("  -> %s", op.predicate.as_string ().c_str ());
+
+      rust_assert (false);
+
+      return true;
+    });
+
   // default inference variables if possible
   iterate ([&] (HirId id, TyTy::BaseType *ty) mutable -> bool {
     return compute_infer_var (id, ty, emit_error);
@@ -599,6 +642,7 @@ TypeCheckContext::compute_infer_var (HirId id, TyTy::BaseType *ty,
   rust_debug_loc (mappings.lookup_location (id),
 		  "trying to default infer-var: %s",
 		  infer_var->as_string ().c_str ());
+  infer_var->debug ();
   bool ok = infer_var->default_type (&default_type);
   if (!ok)
     {

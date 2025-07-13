@@ -20,6 +20,7 @@
 #define RUST_HIR_TYPE_CHECK
 
 #include "rust-hir-map.h"
+#include "rust-mapping-common.h"
 #include "rust-tyty.h"
 #include "rust-hir-trait-reference.h"
 #include "rust-stacked-contexts.h"
@@ -157,6 +158,35 @@ public:
   WARN_UNUSED_RESULT Lifetime next () { return Lifetime (interner_index++); }
 };
 
+struct DeferredOpOverload
+{
+  HirId expr_id;
+  LangItem::Kind lang_item_type;
+  HIR::PathIdentSegment specified_segment;
+  TyTy::TypeBoundPredicate predicate;
+
+  DeferredOpOverload (HirId expr_id, LangItem::Kind lang_item_type,
+		      HIR::PathIdentSegment specified_segment,
+		      TyTy::TypeBoundPredicate &predicate)
+    : expr_id (expr_id), lang_item_type (lang_item_type),
+      specified_segment (specified_segment), predicate (predicate)
+  {}
+
+  DeferredOpOverload (const struct DeferredOpOverload &other)
+    : expr_id (other.expr_id), lang_item_type (other.lang_item_type),
+      specified_segment (other.specified_segment), predicate (other.predicate)
+  {}
+
+  DeferredOpOverload &operator= (struct DeferredOpOverload const &other)
+  {
+    expr_id = other.expr_id;
+    lang_item_type = other.lang_item_type;
+    specified_segment = other.specified_segment;
+
+    return *this;
+  }
+};
+
 class TypeCheckContext
 {
 public:
@@ -237,6 +267,13 @@ public:
   void insert_operator_overload (HirId id, TyTy::FnType *call_site);
   bool lookup_operator_overload (HirId id, TyTy::FnType **call);
 
+  void insert_deferred_operator_overload (DeferredOpOverload deferred);
+  bool lookup_deferred_operator_overload (HirId id,
+					  DeferredOpOverload *deferred);
+
+  void iterate_deferred_operator_overloads (
+    std::function<bool (HirId, DeferredOpOverload &)> cb);
+
   void insert_unconstrained_check_marker (HirId id, bool status);
   bool have_checked_for_unconstrained (HirId id, bool *result);
 
@@ -307,6 +344,9 @@ private:
   // query context lookups
   std::set<HirId> querys_in_progress;
   std::set<DefId> trait_queries_in_progress;
+
+  // deferred operator overload
+  std::map<HirId, DeferredOpOverload> deferred_operator_overloads;
 
   // variance analysis
   TyTy::VarianceAnalysis::CrateCtx variance_analysis_ctx;

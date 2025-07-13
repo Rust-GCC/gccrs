@@ -672,7 +672,7 @@ std::string
 BaseType::debug_str () const
 {
   // return TypeKindFormat::to_string (get_kind ()) + ":" + as_string () + ":"
-  //        + mappings_str () + ":" + bounds_as_string ();
+  // + mappings_str () + ":" + bounds_as_string ();
   return get_name ();
 }
 
@@ -1690,7 +1690,7 @@ VariantDef::clone () const
 
   auto &&discriminant_opt = has_discriminant ()
 			      ? tl::optional<std::unique_ptr<HIR::Expr>> (
-				get_discriminant ().clone_expr ())
+				  get_discriminant ().clone_expr ())
 			      : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
@@ -1706,7 +1706,7 @@ VariantDef::monomorphized_clone () const
 
   auto discriminant_opt = has_discriminant ()
 			    ? tl::optional<std::unique_ptr<HIR::Expr>> (
-			      get_discriminant ().clone_expr ())
+				get_discriminant ().clone_expr ())
 			    : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
