@@ -78,6 +78,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_PROMOTABLE, CODE_GENERATION},
      {Attrs::RUSTC_CONST_STABLE, STATIC_ANALYSIS},
      {Attrs::RUSTC_CONST_UNSTABLE, STATIC_ANALYSIS},
+     {Attrs::RUSTC_ALLOW_CONST_FN_UNSTABLE, STATIC_ANALYSIS},
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION},
      {Attrs::TRACK_CALLER, CODE_GENERATION},
      {Attrs::RUSTC_SPECIALIZATION_TRAIT, TYPE_CHECK},
@@ -97,8 +98,11 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::NON_EXHAUSTIVE, TYPE_CHECK},
      {Attrs::RUSTFMT, EXTERNAL},
 
-     {Attrs::TEST, CODE_GENERATION},
-     {Attrs::SIMD_TEST, CODE_GENERATION}};
+     {Attrs::TEST, EXPANSION},
+
+     // TODO: be careful about calling functions marked with this?
+     {Attrs::RUSTC_ARGS_REQUIRED_CONST, CODE_GENERATION},
+};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
@@ -392,7 +396,7 @@ AttributeChecker::visit (AST::MetaItemLitExpr &)
 {}
 
 void
-AttributeChecker::visit (AST::MetaItemPathLit &)
+AttributeChecker::visit (AST::MetaItemPathExpr &)
 {}
 
 void

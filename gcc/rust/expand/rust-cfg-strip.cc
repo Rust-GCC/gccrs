@@ -39,6 +39,10 @@ fails_cfg (const AST::AttrVec &attrs)
       if (attr.get_path () == Values::Attributes::CFG
 	  && !attr.check_cfg_predicate (session))
 	return true;
+      // TODO: have testing mode
+      // for now, just remove all #[test] functions
+      if (attr.get_path () == Values::Attributes::TEST)
+        return true;
     }
   return false;
 }
@@ -85,6 +89,10 @@ fails_cfg_with_expand (AST::AttrVec &attrs)
 			  attr.as_string ().c_str ());
 	    }
 	}
+      // TODO: have testing mode
+      // for now, just remove all #[test] functions
+      else if (attr.get_path () == Values::Attributes::TEST)
+        return true;
     }
   return false;
 }
@@ -1765,16 +1773,17 @@ CfgStrip::visit (AST::Module &module)
       return;
     }
 
-  // A loaded module might have inner attributes
-  if (module.get_kind () == AST::Module::ModuleKind::LOADED)
+  if (module.get_kind () == AST::Module::UNLOADED)
     {
-      // strip test based on inner attrs
-      expand_cfg_attrs (module.get_inner_attrs ());
-      if (fails_cfg_with_expand (module.get_inner_attrs ()))
-	{
-	  module.mark_for_strip ();
-	  return;
-	}
+      module.load_items ();
+    }
+
+  // strip test based on inner attrs
+  expand_cfg_attrs (module.get_inner_attrs ());
+  if (fails_cfg_with_expand (module.get_inner_attrs ()))
+    {
+      module.mark_for_strip ();
+      return;
     }
 
   // strip items if required
