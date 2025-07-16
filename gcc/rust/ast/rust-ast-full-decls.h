@@ -272,6 +272,7 @@ class BareFunctionType;
 
 // rust-builtin-ast-nodes.h
 class FormatArgs;
+class FormatArgsEager;
 } // namespace AST
 } // namespace Rust
 

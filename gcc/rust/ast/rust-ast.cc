@@ -5054,6 +5054,59 @@ FormatArgs::clone_expr_impl () const
   return new FormatArgs (*this);
 }
 
+void
+FormatArgsEager::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+std::string
+FormatArgsEager::as_string () const
+{
+  // FIXME(Arthur): Improve
+  return "FormatArgsEager";
+}
+
+bool
+FormatArgsEager::is_expr_without_block () const
+{
+  return false;
+}
+
+void
+FormatArgsEager::mark_for_strip ()
+{
+  marked_for_strip = true;
+}
+
+bool
+FormatArgsEager::is_marked_for_strip () const
+{
+  return marked_for_strip;
+}
+
+std::vector<Attribute> &
+FormatArgsEager::get_outer_attrs ()
+{
+  rust_unreachable ();
+}
+
+void
+FormatArgsEager::set_outer_attrs (std::vector<Attribute>)
+{
+  rust_unreachable ();
+}
+
+FormatArgsEager *
+FormatArgsEager::clone_expr_impl () const
+{
+  // based on FormatArgs::clone_expr_impl
+  // TODO: should this be happening?
+  rust_debug_loc (get_locus (), "[ARTHUR/OWEN] cloning FormatArgsEager!");
+
+  return new FormatArgsEager (*this);
+}
+
 std::vector<Attribute> &
 OffsetOf::get_outer_attrs ()
 {

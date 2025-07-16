@@ -24,6 +24,7 @@
 #include "rust-ast.h"
 #include "rust-type.h"
 #include "rust-derive.h"
+#include "rust-expand-format-args.h"
 
 namespace Rust {
 
@@ -1165,6 +1166,20 @@ ExpandVisitor::visit (AST::SelfParam &param)
    * lifetime? */
   if (param.has_type ())
     maybe_expand_type (param.get_type_ptr ());
+}
+
+void
+ExpandVisitor::visit (AST::FormatArgsEager &fmt)
+{
+  maybe_expand_expr (fmt.get_template_ptr ());
+  auto res = Fmt::expand_format_args_eager (fmt);
+  if (res.has_value ())
+    {
+      // TODO: is it alright to have an empty token list?
+      std::vector<std::unique_ptr<AST::Token>> fragment_tokens;
+
+      expander.set_expanded_fragment (AST::Fragment ({AST::SingleASTNode (std::move (*res))}, std::move(fragment_tokens)));
+    }
 }
 
 template <typename T>
