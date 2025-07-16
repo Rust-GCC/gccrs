@@ -1259,6 +1259,7 @@ public:
     LlvmInlineAsm,
     Identifier,
     FormatArgs,
+    FormatArgsEager,
     OffsetOf,
     MacroInvocation,
     Borrow,

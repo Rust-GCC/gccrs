@@ -24,7 +24,7 @@ namespace Rust {
 
 struct FormatArgsInput
 {
-  std::string format_str;
+  std::unique_ptr<AST::Expr> format_expr;
   AST::FormatArguments args;
   // bool is_literal?
 };
@@ -164,67 +164,9 @@ MacroBuiltin::format_args_handler (location_t invoc_locus,
       return tl::nullopt;
     }
 
-  // TODO(Arthur): We need to handle this
-  // // if it is not a literal, it's an eager macro invocation - return it
-  // if (!fmt_expr->is_literal ())
-  //   {
-  //     auto token_tree = invoc.get_delim_tok_tree ();
-  //     return AST::Fragment ({AST::SingleASTNode (std::move (fmt_expr))},
-  // 	    token_tree.to_token_stream ());
-  //   }
+  auto node = AST::SingleASTNode (std::unique_ptr<AST::Expr> (new AST::FormatArgsEager (invoc_locus, std::move (input->format_expr), std::move (input->args), nl)));
 
-  // TODO(Arthur): Handle this as well - raw strings are special for the
-  // format_args parser auto fmt_str = static_cast<AST::LiteralExpr &>
-  // (*fmt_arg.get ()); Switch on the format string to know if the string is raw
-  // or cooked switch (fmt_str.get_lit_type ())
-  //   {
-  //   // case AST::Literal::RAW_STRING:
-  //   case AST::Literal::STRING:
-  //     break;
-  //   case AST::Literal::CHAR:
-  //   case AST::Literal::BYTE:
-  //   case AST::Literal::BYTE_STRING:
-  //   case AST::Literal::INT:
-  //   case AST::Literal::FLOAT:
-  //   case AST::Literal::BOOL:
-  //   case AST::Literal::ERROR:
-  //     rust_unreachable ();
-  //   }
-
-  bool append_newline = nl == AST::FormatArgs::Newline::Yes;
-
-  auto fmt_str = std::move (format_str.value ());
-  if (append_newline)
-    fmt_str += '\n';
-
-  auto pieces = Fmt::Pieces::collect (fmt_str, append_newline,
-				      Fmt::ffi::ParseMode::Format);
-
-  // TODO:
-  // do the transformation into an AST::FormatArgs node
-  // return that
-  // expand it during lowering
-
-  // TODO: we now need to take care of creating `unfinished_literal`? this is
-  // for creating the `template`
-
-  auto fmt_args_node = AST::FormatArgs (invoc_locus, std::move (pieces),
-					std::move (args.value ()));
-
-  auto expanded
-    = Fmt::expand_format_args (fmt_args_node,
-			       invoc.get_delim_tok_tree ().to_token_stream ());
-
-  if (!expanded.has_value ())
-    return AST::Fragment::create_error ();
-
-  return *expanded;
-
-  // auto node = std::unique_ptr<AST::Expr> (fmt_args_node);
-  // auto single_node = AST::SingleASTNode (std::move (node));
-
-  // return AST::Fragment ({std::move (single_node)},
-  // 	invoc.get_delim_tok_tree ().to_token_stream ());
+  return AST::Fragment ({std::move (node)}, invoc.get_delim_tok_tree ().to_token_stream ());
 }
 
 } // namespace Rust
