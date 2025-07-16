@@ -204,10 +204,6 @@ Enum(frust_compile_until) String(compilation) Value(12)
 EnumValue
 Enum(frust_compile_until) String(end) Value(13)
 
-frust-name-resolution-2.0
-Rust Var(flag_name_resolution_2_0) Init(1)
-Use the temporary and experimental name resolution pipeline instead of the stable one
-
 frust-borrowcheck
 Rust Var(flag_borrowcheck)
 Use the WIP borrow checker.

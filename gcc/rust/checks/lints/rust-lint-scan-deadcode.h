@@ -135,12 +135,10 @@ public:
 
 private:
   std::set<HirId> live_symbols;
-  Resolver::Resolver *resolver;
   Analysis::Mappings &mappings;
 
   ScanDeadcode (std::set<HirId> &live_symbols)
-    : live_symbols (live_symbols), resolver (Resolver::Resolver::get ()),
-      mappings (Analysis::Mappings::get ()){};
+    : live_symbols (live_symbols), mappings (Analysis::Mappings::get ()){};
 
   bool should_warn (HirId hirId)
   {
