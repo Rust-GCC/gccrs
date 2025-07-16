@@ -65,9 +65,34 @@ get_trait_name (ffi::FormatSpec format_specifier)
   return it->second;
 }
 
-tl::optional<AST::Fragment>
-expand_format_args (AST::FormatArgs &fmt,
-		    std::vector<std::unique_ptr<AST::Token>> &&tokens)
+tl::expected<std::unique_ptr<AST::Expr>, Error>
+expand_format_args_eager (AST::FormatArgsEager &fmt_eager)
+{
+  if (!fmt_eager.get_template ().is_literal ())
+      return tl::unexpected (Error (fmt_eager.get_locus (), "format argument must be a string literal"));
+
+  auto &literal = static_cast<AST::LiteralExpr &> (fmt_eager.get_template ());
+
+  // TODO: is special handling for RAW_STRING needed?
+  rust_assert (literal.get_lit_type () == AST::Literal::STRING || literal.get_lit_type () == AST::Literal::RAW_STRING);
+
+  // TODO: does this handle escapes in STRING properly?
+  auto fmt_str = literal.get_literal ().as_string ();
+
+  bool append_newline = fmt_eager.get_newline () == AST::FormatArgs::Newline::Yes;
+
+  if (append_newline)
+    fmt_str += '\n';
+
+  auto pieces = Fmt::Pieces::collect (fmt_str, append_newline, Fmt::ffi::ParseMode::Format);
+
+  auto fmt_args_node = AST::FormatArgs (fmt_eager.get_locus (), std::move (pieces), std::move (fmt_eager.get_arguments ()));
+
+  return Fmt::expand_format_args (fmt_args_node); // TODO
+}
+
+std::unique_ptr<Expr>
+expand_format_args (AST::FormatArgs &fmt)
 {
   auto loc = fmt.get_locus ();
   auto builder = AST::Builder (loc);
@@ -131,9 +156,7 @@ expand_format_args (AST::FormatArgs &fmt,
   auto final_call
     = builder.call (std::move (final_path), std::move (final_args));
 
-  auto node = AST::SingleASTNode (std::move (final_call));
-
-  return AST::Fragment ({node}, std::move (tokens));
+  return final_call;
 }
 
 } // namespace Fmt

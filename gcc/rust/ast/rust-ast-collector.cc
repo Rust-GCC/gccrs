@@ -3014,6 +3014,13 @@ TokenCollector::visit (AST::FormatArgs &fmt)
 }
 
 void
+TokenCollector::visit (AST::FormatArgsEager &fmt)
+{
+  rust_sorry_at (fmt.get_locus (), "%s:%u: unimplemented FormatArgsEager visitor",
+		 __FILE__, __LINE__);
+}
+
+void
 TokenCollector::visit (AST::OffsetOf &offset_of)
 {
   auto loc = offset_of.get_locus ();

@@ -405,6 +405,7 @@ public:
   void visit (BareFunctionType &type);
 
   void visit (FormatArgs &fmt);
+  void visit (FormatArgsEager &fmt);
   void visit (OffsetOf &offset_of);
 };
 } // namespace AST

@@ -266,6 +266,7 @@ public:
   virtual void visit (AST::SelfParam &param) override;
 
   virtual void visit (AST::FormatArgs &fmt) override;
+  virtual void visit (AST::FormatArgsEager &fmt) override;
   virtual void visit (AST::OffsetOf &offset_of) override;
 
 protected:
