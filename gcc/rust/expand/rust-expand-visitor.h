@@ -35,7 +35,7 @@ bool is_derive (AST::Attribute &attr);
  */
 bool is_builtin (AST::Attribute &attr);
 
-class ExpandVisitor : public AST::DefaultASTVisitor
+class ExpandVisitor : public AST::ASTVisitor
 {
 public:
   ExpandVisitor (MacroExpander &expander) : expander (expander) {}
@@ -210,28 +210,56 @@ public:
   void visit (AST::AttrInputMacro &) override;
   void visit (AST::MetaItemLitExpr &) override;
   void visit (AST::MetaItemPathExpr &) override;
-  void visit (AST::ErrorPropagationExpr &expr) override;
+  void visit (AST::BorrowExpr &) override;
+  void visit (AST::DereferenceExpr &) override;
+  void visit (AST::ErrorPropagationExpr &) override;
+  void visit (AST::NegationExpr &) override;
   void visit (AST::ArithmeticOrLogicalExpr &expr) override;
   void visit (AST::ComparisonExpr &expr) override;
   void visit (AST::LazyBooleanExpr &expr) override;
+  void visit (AST::TypeCastExpr &expr) override;
   void visit (AST::AssignmentExpr &expr) override;
   void visit (AST::CompoundAssignmentExpr &expr) override;
   void visit (AST::GroupedExpr &expr) override;
+  void visit (AST::ArrayElemsValues &expr) override;
+  void visit (AST::ArrayElemsCopied &expr) override;
+  void visit (AST::ArrayExpr &expr) override;
+  void visit (AST::ArrayIndexExpr &expr) override;
+  void visit (AST::TupleExpr &expr) override;
+  void visit (AST::TupleIndexExpr &expr) override;
   void visit (AST::StructExprStruct &expr) override;
+
+  void visit (AST::StructExprFieldIdentifierValue &expr) override;
+  void visit (AST::StructExprFieldIndexValue &expr) override;
 
   void visit (AST::CallExpr &expr) override;
   void visit (AST::MethodCallExpr &expr) override;
+  void visit (AST::FieldAccessExpr &expr) override;
   void visit (AST::ClosureExprInner &expr) override;
 
   void visit (AST::BlockExpr &expr) override;
+  void visit (AST::AnonConst &expr) override;
+  void visit (AST::ConstBlock &expr) override;
 
   void visit (AST::ClosureExprInnerTyped &expr) override;
   void visit (AST::ContinueExpr &expr) override;
+  void visit (AST::BreakExpr &expr) override;
+  void visit (AST::RangeFromToExpr &expr) override;
+  void visit (AST::RangeFromExpr &expr) override;
+  void visit (AST::RangeToExpr &expr) override;
+  void visit (AST::RangeFromToInclExpr &expr) override;
+  void visit (AST::RangeToInclExpr &expr) override;
+  void visit (AST::ReturnExpr &expr) override;
+  void visit (AST::BoxExpr &expr) override;
+  void visit (AST::WhileLoopExpr &expr) override;
+  void visit (AST::WhileLetLoopExpr &expr) override;
+  void visit (AST::ForLoopExpr &expr) override;
   void visit (AST::IfExpr &expr) override;
   void visit (AST::IfExprConseqElse &expr) override;
   void visit (AST::IfLetExpr &expr) override;
   void visit (AST::IfLetExprConseqElse &expr) override;
   void visit (AST::MatchExpr &expr) override;
+  void visit (AST::AwaitExpr &expr) override;
   void visit (AST::TypeParam &param) override;
   void visit (AST::LifetimeWhereClauseItem &) override;
   void visit (AST::TypeBoundWhereClauseItem &item) override;
