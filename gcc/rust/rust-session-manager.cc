@@ -928,6 +928,8 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   // if not, would at least have to configure recursion_limit
   ExpansionCfg cfg;
 
+  cfg.recursion_limit = 5;
+
   auto fixed_point_reached = false;
   unsigned iterations = 0;
 
