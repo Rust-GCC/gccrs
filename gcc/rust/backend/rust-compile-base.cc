@@ -33,6 +33,7 @@
 #include "rust-compile-implitem.h"
 #include "rust-attribute-values.h"
 #include "rust-immutable-name-resolution-context.h"
+#include "rust-ggc.h"
 
 #include "fold-const.h"
 #include "stringpool.h"
@@ -46,11 +47,59 @@
 namespace Rust {
 namespace Compile {
 
-bool inline should_mangle_item (const tree fndecl)
+tl::optional<GGC::Ident> inline get_unmangled_name (
+  const std::string &function_name, const AST::AttrVec &attrs)
 {
-  return lookup_attribute (Values::Attributes::NO_MANGLE,
-			   DECL_ATTRIBUTES (fndecl))
-	 == NULL_TREE;
+  tl::optional<GGC::Ident> set_name;
+  bool has_no_mangle = false;
+
+  // TODO: unused attribute warning on duplicates
+  for (auto &attr : attrs)
+    {
+      auto name = attr.get_path ().as_string ();
+      if (name == Values::Attributes::NO_MANGLE)
+	{
+	  has_no_mangle = true;
+
+	  if (attr.has_attr_input ())
+	    {
+	      rust_error_at (
+		attr.get_locus (),
+		"attribute %<no_mangle%> does not accept any arguments");
+	    }
+	}
+      else if (name == Values::Attributes::LINK_NAME)
+	{
+	  AST::AttrInput *input;
+	  AST::LiteralExpr *literal;
+
+	  if (!attr.has_attr_input ())
+	    goto err_link_name;
+
+	  input = &attr.get_attr_input ();
+
+	  if (input->get_attr_input_type ()
+	      != AST::AttrInput::AttrInputType::LITERAL)
+	    goto err_link_name;
+
+	  literal
+	    = &static_cast<AST::AttrInputLiteral &> (*input).get_literal ();
+
+	  if (literal->get_lit_type () != AST::Literal::LitType::STRING
+	      && literal->get_lit_type () != AST::Literal::LitType::RAW_STRING)
+	  err_link_name:
+	    rust_error_at (attr.get_locus (),
+			   "malformed %<link_name%> attribute input");
+	  else
+	    // TODO: special handling for STRING/RAW_STRING?
+	    // later attributes do override earlier ones
+	    set_name = literal->as_string ();
+	}
+    }
+
+  if (!set_name.has_value () && has_no_mangle)
+    set_name = function_name;
+  return set_name;
 }
 
 void
@@ -84,8 +133,6 @@ HIRCompileBase::setup_fndecl (tree fndecl, bool is_main_entry_point,
       bool is_cold = attr.get_path ().as_string () == Values::Attributes::COLD;
       bool is_link_section
 	= attr.get_path ().as_string () == Values::Attributes::LINK_SECTION;
-      bool no_mangle
-	= attr.get_path ().as_string () == Values::Attributes::NO_MANGLE;
       bool is_deprecated
 	= attr.get_path ().as_string () == Values::Attributes::DEPRECATED;
       bool is_proc_macro
@@ -115,10 +162,6 @@ HIRCompileBase::setup_fndecl (tree fndecl, bool is_main_entry_point,
       else if (is_deprecated)
 	{
 	  handle_deprecated_attribute_on_fndecl (fndecl, attr);
-	}
-      else if (no_mangle)
-	{
-	  handle_no_mangle_attribute_on_fndecl (fndecl, attr);
 	}
       else if (is_proc_macro)
 	{
@@ -270,22 +313,6 @@ HIRCompileBase::handle_link_section_attribute_on_fndecl (
     }
 
   set_decl_section_name (fndecl, msg_str.c_str ());
-}
-
-void
-HIRCompileBase::handle_no_mangle_attribute_on_fndecl (
-  tree fndecl, const AST::Attribute &attr)
-{
-  if (attr.has_attr_input ())
-    {
-      rust_error_at (attr.get_locus (),
-		     "attribute %<no_mangle%> does not accept any arguments");
-      return;
-    }
-
-  DECL_ATTRIBUTES (fndecl)
-    = tree_cons (get_identifier (Values::Attributes::NO_MANGLE), NULL_TREE,
-		 DECL_ATTRIBUTES (fndecl));
 }
 
 void
@@ -705,7 +732,6 @@ HIRCompileBase::compile_function (
       /* So that 'MAIN_NAME_P' works.  */
       main_identifier_node = get_identifier (ir_symbol_name.c_str ());
     }
-  std::string asm_name = fn_name;
 
   unsigned int flags = 0;
   tree fndecl = Backend::function (compiled_fn_type, ir_symbol_name,
@@ -716,12 +742,12 @@ HIRCompileBase::compile_function (
   setup_abi_options (fndecl, get_abi (outer_attrs, qualifiers));
 
   // conditionally mangle the function name
-  bool should_mangle = should_mangle_item (fndecl);
-  if (!is_main_fn && should_mangle)
-    asm_name = ctx->mangle_item (fntype, canonical_path);
-  SET_DECL_ASSEMBLER_NAME (fndecl,
-			   get_identifier_with_length (asm_name.data (),
-						       asm_name.length ()));
+  auto unmangled
+    = is_main_fn ? "main" : get_unmangled_name (fn_name, outer_attrs);
+  GGC::Ident asm_name
+    = unmangled ? *unmangled : ctx->mangle_item (fntype, canonical_path);
+
+  SET_DECL_ASSEMBLER_NAME (fndecl, asm_name.as_tree ());
 
   // insert into the context
   ctx->insert_function_decl (fntype, fndecl);
