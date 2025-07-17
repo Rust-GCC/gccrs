@@ -643,6 +643,9 @@ Session::compile_crate (const char *filename)
   if (last_step == CompileOptions::CompileStep::NameResolution)
     return;
 
+  if (saw_errors ())
+    return;
+
   // resolution pipeline stage
   if (flag_name_resolution_2_0)
     Resolver2_0::Late (name_resolution_ctx).go (parsed_crate);
