@@ -928,7 +928,7 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   // if not, would at least have to configure recursion_limit
   ExpansionCfg cfg;
 
-  cfg.recursion_limit = 5;
+  cfg.recursion_limit = 40;
 
   auto fixed_point_reached = false;
   unsigned iterations = 0;
@@ -943,7 +943,6 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
     {
       CfgStrip ().go (crate);
       // Errors might happen during cfg strip pass
-      bool visitor_dirty = false;
 
       if (flag_name_resolution_2_0)
 	{
@@ -960,7 +959,10 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
 
       ExpandVisitor (expander).go (crate);
 
-      fixed_point_reached = !expander.has_changed () && !visitor_dirty;
+      std::cout << "# EARLY IS " << (early.is_dirty () ? "" : "NOT ") << "DIRTY" << std::endl;
+      std::cout << "# " << (cfg.recursion_limit - iterations) << "LEFT" << std::endl;
+
+      fixed_point_reached = !expander.has_changed () && !early.is_dirty ();
       expander.reset_changed_state ();
       iterations++;
 

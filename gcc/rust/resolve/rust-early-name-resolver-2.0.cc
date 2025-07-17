@@ -62,6 +62,8 @@ Early::go (AST::Crate &crate)
   // us
 
   dirty = toplevel.is_dirty ();
+
+  std::cout << "# TOPLEVEL IS " << (dirty ? "" : "NOT ") << "DIRTY" << std::endl;
   // We now proceed with resolving macros, which can be nested in almost any
   // items
   textual_scope.push ();

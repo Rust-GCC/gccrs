@@ -23,6 +23,8 @@
 #include "rust-session-manager.h"
 #include "rust-attribute-values.h"
 
+#include "rust-ast-collector.h"
+
 namespace Rust {
 
 /**
@@ -717,9 +719,32 @@ CfgStrip::visit (AST::AssignmentExpr &expr)
 void
 CfgStrip::visit (AST::CompoundAssignmentExpr &expr)
 {
+  //if (expr.get_left_expr ().get_expr_kind () == AST::Expr::Kind::Block)
+  //  rust_error_at (expr.get_left_expr ().get_locus (), "unexpected block expr");
+
+  static int reenter_count = 0;
+  static int hit = 0;
+
+  if (++reenter_count == 5)
+    {rust_error_at (expr.get_locus (), "nested 5x"); hit = 4;}
   /* outer attributes never allowed before these. while cannot strip
    * two direct descendant expressions, can strip ones below that */
   AST::DefaultASTVisitor::visit (expr);
+  --reenter_count;
+
+  if (hit && !--hit)
+    {
+      std::string out;
+      AST::TokenCollector collector;
+      collector.visit (expr);
+      auto tokens = collector.collect_tokens ();
+      for (auto &tok : tokens)
+        {
+          out += " ";
+	  out += tok->as_string ();
+	}
+      rust_error_at (expr.get_locus (), "full: %s", out.c_str ());
+    }
 
   // ensure that they are not marked for strip
   if (expr.get_left_expr ().is_marked_for_strip ())
