@@ -277,6 +277,9 @@ public:
   void visit (AST::FunctionParam &type) override;
   void visit (AST::SelfParam &type) override;
 
+  // expand these if possible
+  void visit (AST::FormatArgsEager &fmt) override;
+
   template <typename T>
   void expand_inner_attribute (T &item, AST::SimplePath &Path);
 

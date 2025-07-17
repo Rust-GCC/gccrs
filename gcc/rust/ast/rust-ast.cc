@@ -5076,7 +5076,9 @@ FormatArgsEager::set_outer_attrs (std::vector<Attribute>)
 FormatArgsEager *
 FormatArgsEager::clone_expr_impl () const
 {
-  std::cerr << "[ARTHUR] cloning FormatArgsEager! " << std::endl;
+  // based on FormatArgs::clone_expr_impl
+  // TODO: should this be happening?
+  rust_debug_loc (get_locus (), "[ARTHUR/OWEN] cloning FormatArgsEager!");
 
   return new FormatArgsEager (*this);
 }

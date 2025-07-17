@@ -256,8 +256,17 @@ public:
   void accept_vis (AST::ASTVisitor &vis) override;
 
   const Expr &get_template () const { return *template_expr; }
+  
+  Expr &get_template () { return *template_expr; }
+  
+  std::unique_ptr<Expr> &get_template_ptr () { return template_expr; }
+  
   const FormatArguments &get_arguments () const { return arguments; }
+  
+  FormatArguments &get_arguments () { return arguments; }
+  
   virtual location_t get_locus () const override { return loc; }
+  
   Newline get_newline () const { return newline; }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::FormatArgsEager; }

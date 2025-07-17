@@ -65,11 +65,15 @@ get_trait_name (ffi::FormatSpec format_specifier)
   return it->second;
 }
 
-tl::expected<std::unique_ptr<AST::Expr>, Error>
+tl::optional<std::unique_ptr<AST::Expr>>
 expand_format_args_eager (AST::FormatArgsEager &fmt_eager)
 {
   if (!fmt_eager.get_template ().is_literal ())
-      return tl::unexpected (Error (fmt_eager.get_locus (), "format argument must be a string literal"));
+    {
+      if (fmt_eager.get_template ().get_expr_kind () != AST::Expr::Kind::MacroInvocation)
+        rust_error_at (fmt_eager.get_locus (), "format argument must be a string literal");
+      return tl::nullopt;
+    }
 
   auto &literal = static_cast<AST::LiteralExpr &> (fmt_eager.get_template ());
 
@@ -88,10 +92,10 @@ expand_format_args_eager (AST::FormatArgsEager &fmt_eager)
 
   auto fmt_args_node = AST::FormatArgs (fmt_eager.get_locus (), std::move (pieces), std::move (fmt_eager.get_arguments ()));
 
-  return Fmt::expand_format_args (fmt_args_node); // TODO
+  return Fmt::expand_format_args (fmt_args_node);
 }
 
-std::unique_ptr<Expr>
+std::unique_ptr<AST::Expr>
 expand_format_args (AST::FormatArgs &fmt)
 {
   auto loc = fmt.get_locus ();

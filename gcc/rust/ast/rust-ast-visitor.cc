@@ -1506,6 +1506,15 @@ DefaultASTVisitor::visit (AST::FormatArgs &)
 }
 
 void
+DefaultASTVisitor::visit (AST::FormatArgsEager &fmt)
+{
+  // FIXME: Do we have anything to do? any subnodes to visit? Probably, right?
+
+  // we need this to resolve/expand macros, at least
+  visit (fmt.get_template ());
+}
+
+void
 DefaultASTVisitor::visit (AST::OffsetOf &offset_of)
 {
   visit (offset_of.get_type ());
