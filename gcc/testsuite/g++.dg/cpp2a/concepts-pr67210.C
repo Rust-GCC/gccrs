@@ -7,4 +7,4 @@ concept C = true;
 template <class T>
 struct A {};
 
-void f(A<C<int> auto >) {} 
+void f(A<C<int> auto >) {} 	// { dg-error "auto" }

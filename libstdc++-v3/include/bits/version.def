@@ -649,7 +649,7 @@ ftms = {
   };
   values = {
     v = 1;
-    /* For when there's no gthread.  */
+    // For when there is no gthread.
     cxxmin = 17;
     hosted = yes;
     gthread = no;
@@ -852,6 +852,14 @@ ftms = {
 };
 
 ftms = {
+  name = optional_range_support;
+  values = {
+    v = 202406;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
   name = destroying_delete;
   values = {
     v = 201806;
@@ -999,9 +1007,8 @@ ftms = {
 
 ftms = {
   name = mdspan;
-  no_stdname = true; // FIXME: remove
   values = {
-    v = 1; // FIXME: 202207
+    v = 202207;
     cxxmin = 23;
   };
 };
@@ -1083,6 +1090,10 @@ ftms = {
 
 ftms = {
   name = shift;
+  values = {
+    v = 202202;
+    cxxmin = 23;
+  };
   values = {
     v = 201806;
     cxxmin = 20;
@@ -1992,6 +2003,59 @@ ftms = {
     v = 202502;
     cxxmin = 26;
     hosted = yes;
+  };
+};
+
+ftms = {
+  name = smart_ptr_owner_equality;
+  values = {
+    v = 202306;
+    cxxmin = 26;
+    hosted = yes;
+  };
+};
+
+ftms = {
+  name = sstream_from_string_view;
+  values = {
+    v = 202306;
+    cxxmin = 26;
+    hosted = yes;
+  };
+};
+
+ftms = {
+  name = type_order;
+  values = {
+    v = 202506;
+    cxxmin = 26;
+    extra_cond = "__has_builtin(__builtin_type_order) "
+    "&& __cpp_lib_three_way_comparison >= 201907L";
+  };
+};
+
+ftms = {
+  name = exception_ptr_cast;
+  values = {
+    v = 202506;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = bitset;  // ...construct from string_view
+  values = {
+    v = 202306;
+    cxxmin = 26;
+  };
+};
+
+ftms = {
+  name = constexpr_exceptions;
+  values = {
+    v = 202411;
+    cxxmin = 26;
+    extra_cond = "__cpp_constexpr_exceptions >= 202411L";
   };
 };
 

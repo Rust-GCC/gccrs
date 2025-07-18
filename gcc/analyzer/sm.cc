@@ -116,9 +116,11 @@ state_machine::get_state_by_name (const char *name) const
 /* Base implementation of state_machine::on_leak.  */
 
 std::unique_ptr<pending_diagnostic>
-state_machine::on_leak (tree var ATTRIBUTE_UNUSED) const
+state_machine::on_leak (tree var ATTRIBUTE_UNUSED,
+			const program_state *old_state ATTRIBUTE_UNUSED,
+			const program_state *new_state ATTRIBUTE_UNUSED) const
 {
-  return NULL;
+  return nullptr;
 }
 
 /* Dump a multiline representation of this state machine to PP.  */
@@ -158,6 +160,21 @@ state_machine::to_json () const
   return sm_obj;
 }
 
+void
+state_machine::add_state_to_state_graph (analyzer_state_graph &out_state_graph,
+					 const svalue &sval,
+					 state_machine::state_t state) const
+{
+  // no-op
+}
+
+void
+state_machine::add_global_state_to_state_graph (analyzer_state_graph &out_state_graph,
+						state_machine::state_t state) const
+{
+  // no-op
+}
+
 /* class sm_context.  */
 
 const region_model *
@@ -166,7 +183,7 @@ sm_context::get_old_region_model () const
   if (const program_state *old_state = get_old_program_state ())
     return old_state->m_region_model;
   else
-    return NULL;
+    return nullptr;
 }
 
 /* Create instances of the various state machines, each using LOGGER,

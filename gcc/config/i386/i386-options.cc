@@ -760,63 +760,63 @@ static unsigned HOST_WIDE_INT initial_ix86_arch_features[X86_ARCH_LAST] = {
 /* This table must be in sync with enum processor_type in i386.h.  */
 static const struct processor_costs *processor_cost_table[] =
 {
-  &generic_cost,
-  &i386_cost,
-  &i486_cost,
-  &pentium_cost,
-  &lakemont_cost,
-  &pentiumpro_cost,
-  &pentium4_cost,
-  &nocona_cost,
-  &core_cost,
-  &core_cost,
-  &core_cost,
-  &core_cost,
-  &atom_cost,
-  &slm_cost,
-  &slm_cost,
-  &slm_cost,
-  &tremont_cost,
-  &alderlake_cost,
-  &alderlake_cost,
-  &alderlake_cost,
-  &skylake_cost,
-  &skylake_cost,
-  &icelake_cost,
-  &icelake_cost,
-  &icelake_cost,
-  &skylake_cost,
-  &icelake_cost,
-  &skylake_cost,
-  &icelake_cost,
-  &alderlake_cost,
-  &icelake_cost,
-  &icelake_cost,
-  &icelake_cost,
-  &alderlake_cost,
-  &alderlake_cost,
-  &alderlake_cost,
-  &icelake_cost,
-  &intel_cost,
-  &lujiazui_cost,
-  &yongfeng_cost,
-  &shijidadao_cost,
-  &geode_cost,
-  &k6_cost,
-  &athlon_cost,
-  &k8_cost,
-  &amdfam10_cost,
-  &bdver_cost,
-  &bdver_cost,
-  &bdver_cost,
-  &bdver_cost,
-  &btver1_cost,
-  &btver2_cost,
-  &znver1_cost,
-  &znver2_cost,
-  &znver3_cost,
-  &znver4_cost,
-  &znver5_cost
+  &generic_cost,	/* PROCESSOR_GENERIC.		*/
+  &i386_cost,		/* PROCESSOR_I386.		*/
+  &i486_cost,		/* PROCESSOR_I486.		*/
+  &pentium_cost,	/* PROCESSOR_PENTIUM.		*/
+  &lakemont_cost,	/* PROCESSOR_LAKEMONT.		*/
+  &pentiumpro_cost,	/* PROCESSOR_PENTIUMPRO.	*/
+  &pentium4_cost,	/* PROCESSOR_PENTIUM4.		*/
+  &nocona_cost,		/* PROCESSOR_NOCONA.		*/
+  &core_cost,		/* PROCESSOR_CORE2.		*/
+  &core_cost,		/* PROCESSOR_NEHALEM.		*/
+  &core_cost,		/* PROCESSOR_SANDYBRIDGE.	*/
+  &core_cost,		/* PROCESSOR_HASWELL.		*/
+  &atom_cost,		/* PROCESSOR_BONNELL.		*/
+  &slm_cost,		/* PROCESSOR_SILVERMONT.	*/
+  &slm_cost,		/* PROCESSOR_GOLDMONT.		*/
+  &slm_cost,		/* PROCESSOR_GOLDMONT_PLUS.	*/
+  &tremont_cost,	/* PROCESSOR_TREMONT.		*/
+  &alderlake_cost,	/* PROCESSOR_SIERRAFOREST.	*/
+  &alderlake_cost,	/* PROCESSOR_GRANDRIDGE.	*/
+  &alderlake_cost,	/* PROCESSOR_CLEARWATERFOREST.	*/
+  &skylake_cost,	/* PROCESSOR_SKYLAKE.	*/
+  &skylake_cost,	/* PROCESSOR_SKYLAKE_AVX512.	*/
+  &icelake_cost,	/* PROCESSOR_CANNONLAKE.	*/
+  &icelake_cost,	/* PROCESSOR_ICELAKE_CLIENT.	*/
+  &icelake_cost,	/* PROCESSOR_ICELAKE_SERVER.	*/
+  &skylake_cost,	/* PROCESSOR_CASCADELAKE.	*/
+  &icelake_cost,	/* PROCESSOR_TIGERLAKE.		*/
+  &skylake_cost,	/* PROCESSOR_COOPERLAKE.	*/
+  &icelake_cost,	/* PROCESSOR_SAPPHIRERAPIDS.	*/
+  &alderlake_cost,	/* PROCESSOR_ALDERLAKE.		*/
+  &icelake_cost,	/* PROCESSOR_ROCKETLAKE.	*/
+  &icelake_cost,	/* PROCESSOR_GRANITERAPIDS.	*/
+  &icelake_cost,	/* PROCESSOR_GRANITERAPIDS_D.	*/
+  &alderlake_cost,	/* PROCESSOR_ARROWLAKE.		*/
+  &alderlake_cost,	/* PROCESSOR_ARROWLAKE_S.	*/
+  &alderlake_cost,	/* PROCESSOR_PANTHERLAKE.	*/
+  &icelake_cost,	/* PROCESSOR_DIAMONDRAPIDS.	*/
+  &alderlake_cost,	/* PROCESSOR_INTEL.		*/
+  &lujiazui_cost,	/* PROCESSOR_LUJIAZUI.		*/
+  &yongfeng_cost,	/* PROCESSOR_YONGFENG.		*/
+  &shijidadao_cost,	/* PROCESSOR_SHIJIDADAO.	*/
+  &geode_cost,		/* PROCESSOR_GEODE.		*/
+  &k6_cost,		/* PROCESSOR_K6.		*/
+  &athlon_cost,		/* PROCESSOR_ATHLON.		*/
+  &k8_cost,		/* PROCESSOR_K8.		*/
+  &amdfam10_cost,	/* PROCESSOR_AMDFAM10.		*/
+  &bdver_cost,		/* PROCESSOR_BDVER1.		*/
+  &bdver_cost,		/* PROCESSOR_BDVER2.		*/
+  &bdver_cost,		/* PROCESSOR_BDVER3.		*/
+  &bdver_cost,		/* PROCESSOR_BDVER4.		*/
+  &btver1_cost,		/* PROCESSOR_BTVER1.		*/
+  &btver2_cost,		/* PROCESSOR_BTVER2.		*/
+  &znver1_cost,		/* PROCESSOR_ZNVER1.		*/
+  &znver2_cost,		/* PROCESSOR_ZNVER2.		*/
+  &znver3_cost,		/* PROCESSOR_ZNVER3.		*/
+  &znver4_cost,		/* PROCESSOR_ZNVER4.		*/
+  &znver5_cost		/* PROCESSOR_ZNVER5.		*/
 };
 
 /* Guarantee that the array is aligned with enum processor_type.  */
@@ -2839,7 +2839,9 @@ ix86_option_override_internal (bool main_args_p,
 
   /* Set the default value for -mfentry.  */
   if (!opts_set->x_flag_fentry)
-    opts->x_flag_fentry = TARGET_SEH;
+    opts->x_flag_fentry = (TARGET_SEH
+			   || (TARGET_64BIT_P (opts->x_ix86_isa_flags)
+			       && ENABLE_X86_64_MFENTRY));
   else
     {
       if (!TARGET_64BIT_P (opts->x_ix86_isa_flags) && opts->x_flag_pic
@@ -2849,6 +2851,13 @@ ix86_option_override_internal (bool main_args_p,
       else if (TARGET_SEH && !opts->x_flag_fentry)
 	sorry ("%<-mno-fentry%> isn%'t compatible with SEH");
     }
+
+  if (!opts->x_flag_fentry
+      && (TARGET_64BIT_P (opts->x_ix86_isa_flags) || !opts->x_flag_pic)
+      && opts->x_flag_shrink_wrap
+      && opts->x_profile_flag)
+    warning (0, "%<-pg%> without %<-mfentry%> may be unreliable with "
+	     "shrink wrapping");
 
   if (TARGET_SEH && TARGET_CALL_MS2SYSV_XLOGUES)
     sorry ("%<-mcall-ms2sysv-xlogues%> isn%'t currently supported with SEH");
@@ -3277,19 +3286,21 @@ ix86_set_func_type (tree fndecl)
      interrupt function in this case.  */
   enum call_saved_registers_type no_callee_saved_registers
     = TYPE_DEFAULT_CALL_SAVED_REGISTERS;
-  if (lookup_attribute ("no_callee_saved_registers",
-			TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
+  if (lookup_attribute ("preserve_none",
+			     TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
+    no_callee_saved_registers = TYPE_PRESERVE_NONE;
+  else if ((lookup_attribute ("no_callee_saved_registers",
+			      TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
+	   || (ix86_noreturn_no_callee_saved_registers
+	       && TREE_THIS_VOLATILE (fndecl)
+	       && optimize
+	       && !optimize_debug
+	       && (TREE_NOTHROW (fndecl) || !flag_exceptions)
+	       && !lookup_attribute ("interrupt",
+				     TYPE_ATTRIBUTES (TREE_TYPE (fndecl)))
+	       && !lookup_attribute ("no_caller_saved_registers",
+				 TYPE_ATTRIBUTES (TREE_TYPE (fndecl)))))
     no_callee_saved_registers = TYPE_NO_CALLEE_SAVED_REGISTERS;
-  else if (ix86_noreturn_no_callee_saved_registers
-	   && TREE_THIS_VOLATILE (fndecl)
-	   && optimize
-	   && !optimize_debug
-	   && (TREE_NOTHROW (fndecl) || !flag_exceptions)
-	   && !lookup_attribute ("interrupt",
-				 TYPE_ATTRIBUTES (TREE_TYPE (fndecl)))
-	   && !lookup_attribute ("no_caller_saved_registers",
-				 TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
-    no_callee_saved_registers = TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP;
 
   if (cfun->machine->func_type == TYPE_UNKNOWN)
     {
@@ -3301,9 +3312,16 @@ ix86_set_func_type (tree fndecl)
 		      "interrupt and naked attributes are not compatible");
 
 	  if (no_callee_saved_registers)
-	    error_at (DECL_SOURCE_LOCATION (fndecl),
-		      "%qs and %qs attributes are not compatible",
-		      "interrupt", "no_callee_saved_registers");
+	    {
+	      const char *attr;
+	      if (no_callee_saved_registers == TYPE_PRESERVE_NONE)
+		attr = "preserve_none";
+	      else
+		attr = "no_callee_saved_registers";
+	      error_at (DECL_SOURCE_LOCATION (fndecl),
+			"%qs and %qs attributes are not compatible",
+			"interrupt", attr);
+	    }
 
 	  int nargs = 0;
 	  for (tree arg = DECL_ARGUMENTS (fndecl);
@@ -3325,21 +3343,13 @@ ix86_set_func_type (tree fndecl)
       else
 	{
 	  cfun->machine->func_type = TYPE_NORMAL;
-	  if (lookup_attribute ("no_caller_saved_registers",
-				TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
+	  if (no_callee_saved_registers)
+	    cfun->machine->call_saved_registers
+	      = no_callee_saved_registers;
+	  else if (lookup_attribute ("no_caller_saved_registers",
+				     TYPE_ATTRIBUTES (TREE_TYPE (fndecl))))
 	    cfun->machine->call_saved_registers
 	      = TYPE_NO_CALLER_SAVED_REGISTERS;
-	  if (no_callee_saved_registers)
-	    {
-	      if (cfun->machine->call_saved_registers
-		  == TYPE_NO_CALLER_SAVED_REGISTERS)
-		error_at (DECL_SOURCE_LOCATION (fndecl),
-			  "%qs and %qs attributes are not compatible",
-			  "no_caller_saved_registers",
-			  "no_callee_saved_registers");
-	      cfun->machine->call_saved_registers
-		= no_callee_saved_registers;
-	    }
 	}
     }
 }
@@ -3528,11 +3538,21 @@ ix86_set_current_function (tree fndecl)
       || (cfun->machine->call_saved_registers
 	  == TYPE_NO_CALLER_SAVED_REGISTERS))
     {
-      /* Don't allow SSE, MMX nor x87 instructions since they
-	 may change processor state.  */
+      /* Don't allow AVX, AVX512, MMX nor x87 instructions since they
+	 may change processor state.  Don't allow SSE instructions in
+	 exception/interrupt service routines.  */
       const char *isa;
       if (TARGET_SSE)
-	isa = "SSE";
+	{
+	  if (TARGET_AVX512F)
+	    isa = "AVX512";
+	  else if (TARGET_AVX)
+	    isa = "AVX";
+	  else if (cfun->machine->func_type != TYPE_NORMAL)
+	    isa = "SSE";
+	  else
+	    isa = NULL;
+	}
       else if (TARGET_MMX)
 	isa = "MMX/3Dnow";
       else if (TARGET_80387)
@@ -3957,9 +3977,50 @@ ix86_handle_fndecl_attribute (tree *node, tree name, tree args, int,
 }
 
 static tree
-ix86_handle_call_saved_registers_attribute (tree *, tree, tree,
+ix86_handle_call_saved_registers_attribute (tree *node, tree name, tree,
 					    int, bool *)
 {
+  const char *attr1 = nullptr;
+  const char *attr2 = nullptr;
+
+  if (is_attribute_p ("no_callee_saved_registers", name))
+    {
+      /* Disallow preserve_none and no_caller_saved_registers
+	 attributes.  */
+      attr1 = "no_callee_saved_registers";
+      if (lookup_attribute ("preserve_none", TYPE_ATTRIBUTES (*node)))
+	attr2 = "preserve_none";
+      else if (lookup_attribute ("no_caller_saved_registers",
+				 TYPE_ATTRIBUTES (*node)))
+	attr2 = "no_caller_saved_registers";
+    }
+  else if (is_attribute_p ("no_caller_saved_registers", name))
+    {
+      /* Disallow preserve_none and no_callee_saved_registers
+	 attributes.  */
+      attr1 = "no_caller_saved_registers";
+      if (lookup_attribute ("preserve_none", TYPE_ATTRIBUTES (*node)))
+	attr2 = "preserve_none";
+      else if (lookup_attribute ("no_callee_saved_registers",
+				 TYPE_ATTRIBUTES (*node)))
+	attr2 = "no_callee_saved_registers";
+    }
+  else if (is_attribute_p ("preserve_none", name))
+    {
+      /* Disallow no_callee_saved_registers and no_caller_saved_registers
+	 attributes.  */
+      attr1 = "preserve_none";
+      if (lookup_attribute ("no_callee_saved_registers",
+			    TYPE_ATTRIBUTES (*node)))
+	attr2 = "no_caller_saved_registers";
+      else if (lookup_attribute ("no_callee_saved_registers",
+				 TYPE_ATTRIBUTES (*node)))
+	attr2 = "no_callee_saved_registers";
+    }
+
+  if (attr2)
+    error ("%qs and %qs attributes are not compatible", attr1, attr2);
+
   return NULL_TREE;
 }
 
@@ -4120,6 +4181,8 @@ static const attribute_spec ix86_gnu_attributes[] =
   { "interrupt", 0, 0, false, true, true, false,
     ix86_handle_interrupt_attribute, NULL },
   { "no_caller_saved_registers", 0, 0, false, true, true, false,
+    ix86_handle_call_saved_registers_attribute, NULL },
+  { "preserve_none", 0, 0, false, true, true, true,
     ix86_handle_call_saved_registers_attribute, NULL },
   { "no_callee_saved_registers", 0, 0, false, true, true, true,
     ix86_handle_call_saved_registers_attribute, NULL },

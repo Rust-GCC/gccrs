@@ -1052,7 +1052,7 @@ conv_caf_func_index (stmtblock_t *block, gfc_namespace *ns, const char *pat,
   index_st->n.sym->value
     = gfc_get_constant_expr (BT_INTEGER, gfc_default_integer_kind,
 			     &gfc_current_locus);
-  mpz_init_set_si (index_st->n.sym->value->value.integer, -1);
+  mpz_set_si (index_st->n.sym->value->value.integer, -1);
   index_st->n.sym->ts.type = BT_INTEGER;
   index_st->n.sym->ts.kind = gfc_default_integer_kind;
   gfc_set_sym_referenced (index_st->n.sym);
@@ -13101,6 +13101,8 @@ conv_intrinsic_move_alloc (gfc_code *code)
     }
   gfc_conv_expr_descriptor (&to_se, to_expr);
   gfc_conv_expr_descriptor (&from_se, from_expr);
+  gfc_add_block_to_block (&block, &to_se.pre);
+  gfc_add_block_to_block (&block, &from_se.pre);
 
   /* For coarrays, call SYNC ALL if TO is already deallocated as MOVE_ALLOC
      is an image control "statement", cf. IR F08/0040 in 12-006A.  */
@@ -13173,6 +13175,9 @@ conv_intrinsic_move_alloc (gfc_code *code)
     }
   if (fin_label)
     gfc_add_expr_to_block (&block, build1_v (LABEL_EXPR, fin_label));
+
+  gfc_add_block_to_block (&block, &to_se.post);
+  gfc_add_block_to_block (&block, &from_se.post);
 
   return gfc_finish_block (&block);
 }

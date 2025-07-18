@@ -47,6 +47,9 @@ TargetVariable
 int riscv_xcv_subext
 
 TargetVariable
+int riscv_xmips_subext
+
+TargetVariable
 int riscv_xsf_subext
 
 TargetVariable
@@ -339,11 +342,15 @@ Mask(SMAIA) Var(riscv_sm_subext)
 
 Mask(SMCNTRPMF) Var(riscv_sm_subext)
 
+Mask(SMCSRIND) Var(riscv_sm_subext)
+
 Mask(SMEPMP) Var(riscv_sm_subext)
 
 Mask(SMMPM) Var(riscv_sm_subext)
 
 Mask(SMNPM) Var(riscv_sm_subext)
+
+Mask(SMRNMI) Var(riscv_sm_subext)
 
 Mask(SMSTATEEN) Var(riscv_sm_subext)
 
@@ -351,7 +358,13 @@ Mask(SMDBLTRP) Var(riscv_sm_subext)
 
 Mask(SSAIA) Var(riscv_ss_subext)
 
+Mask(SSCCPTR) Var(riscv_ss_subext)
+
 Mask(SSCOFPMF) Var(riscv_ss_subext)
+
+Mask(SSCOUNTERENW) Var(riscv_ss_subext)
+
+Mask(SSCSRIND) Var(riscv_ss_subext)
 
 Mask(SSNPM) Var(riscv_ss_subext)
 
@@ -361,9 +374,15 @@ Mask(SSSTATEEN) Var(riscv_ss_subext)
 
 Mask(SSTC) Var(riscv_ss_subext)
 
+Mask(SSTVALA) Var(riscv_ss_subext)
+
+Mask(SSTVECD) Var(riscv_ss_subext)
+
 Mask(SSSTRICT) Var(riscv_ss_subext)
 
 Mask(SSDBLTRP) Var(riscv_ss_subext)
+
+Mask(SSU64XL) Var(riscv_ss_subext)
 
 Mask(SUPM) Var(riscv_su_subext)
 
@@ -429,3 +448,4 @@ Mask(XTHEADVECTOR) Var(riscv_xthead_subext)
 
 Mask(XVENTANACONDOPS) Var(riscv_xventana_subext)
 
+Mask(XMIPSCMOV) Var(riscv_xmips_subext)

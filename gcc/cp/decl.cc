@@ -747,11 +747,11 @@ poplevel (int keep, int reverse, int functionbody)
 	      {
 		if (!DECL_NAME (decl) && DECL_DECOMPOSITION_P (decl))
 		  warning_at (DECL_SOURCE_LOCATION (decl),
-			      OPT_Wunused_but_set_variable, "structured "
+			      OPT_Wunused_but_set_variable_, "structured "
 			      "binding declaration set but not used");
 		else
 		  warning_at (DECL_SOURCE_LOCATION (decl),
-			      OPT_Wunused_but_set_variable,
+			      OPT_Wunused_but_set_variable_,
 			      "variable %qD set but not used", decl);
 		unused_but_set_errorcount = errorcount;
 	      }
@@ -1311,7 +1311,15 @@ maybe_version_functions (tree newdecl, tree olddecl, bool record)
     }
 
   if (record)
-    cgraph_node::record_function_versions (olddecl, newdecl);
+    {
+      /* Add the new version to the function version structure.  */
+      cgraph_node *fn_node = cgraph_node::get_create (olddecl);
+      cgraph_function_version_info *fn_v = fn_node->function_version ();
+      if (!fn_v)
+	fn_v = fn_node->insert_new_function_version ();
+
+      cgraph_node::add_function_version (fn_v, newdecl);
+    }
 
   return true;
 }
@@ -2006,8 +2014,10 @@ duplicate_decls (tree newdecl, tree olddecl, bool hiding, bool was_hidden)
 	    }
 	  /* For function versions, params and types match, but they
 	     are not ambiguous.  */
-	  else if ((!DECL_FUNCTION_VERSIONED (newdecl)
-		    && !DECL_FUNCTION_VERSIONED (olddecl))
+	  else if (((!DECL_FUNCTION_VERSIONED (newdecl)
+		     && !DECL_FUNCTION_VERSIONED (olddecl))
+		    || !same_type_p (fndecl_declared_return_type (newdecl),
+				     fndecl_declared_return_type (olddecl)))
 		   /* Let constrained hidden friends coexist for now, we'll
 		      check satisfaction later.  */
 		   && !member_like_constrained_friend_p (newdecl)
@@ -4360,6 +4370,7 @@ struct typename_info {
   tree template_id;
   bool enum_p;
   bool class_p;
+  bool union_p;
 };
 
 struct typename_hasher : ggc_ptr_hash<tree_node>
@@ -4398,7 +4409,8 @@ struct typename_hasher : ggc_ptr_hash<tree_node>
 	    && TYPE_CONTEXT (t1) == t2->scope
 	    && TYPENAME_TYPE_FULLNAME (t1) == t2->template_id
 	    && TYPENAME_IS_ENUM_P (t1) == t2->enum_p
-	    && TYPENAME_IS_CLASS_P (t1) == t2->class_p);
+	    && TYPENAME_IS_CLASS_P (t1) == t2->class_p
+	    && TYPENAME_IS_UNION_P (t1) == t2->union_p);
   }
 };
 
@@ -4422,9 +4434,8 @@ build_typename_type (tree context, tree name, tree fullname,
   ti.name = name;
   ti.template_id = fullname;
   ti.enum_p = tag_type == enum_type;
-  ti.class_p = (tag_type == class_type
-		|| tag_type == record_type
-		|| tag_type == union_type);
+  ti.class_p = (tag_type == class_type || tag_type == record_type);
+  ti.union_p = tag_type == union_type;
   hashval_t hash = typename_hasher::hash (&ti);
 
   /* See if we already have this type.  */
@@ -4440,6 +4451,7 @@ build_typename_type (tree context, tree name, tree fullname,
       TYPENAME_TYPE_FULLNAME (t) = ti.template_id;
       TYPENAME_IS_ENUM_P (t) = ti.enum_p;
       TYPENAME_IS_CLASS_P (t) = ti.class_p;
+      TYPENAME_IS_UNION_P (t) = ti.union_p;
 
       /* Build the corresponding TYPE_DECL.  */
       tree d = build_decl (input_location, TYPE_DECL, name, t);
@@ -5069,6 +5081,18 @@ cxx_init_decl_processing (void)
 			    CP_BUILT_IN_IS_POINTER_INTERCONVERTIBLE_WITH_CLASS,
 			    BUILT_IN_FRONTEND, NULL, NULL_TREE);
   set_call_expr_flags (decl, ECF_CONST | ECF_NOTHROW | ECF_LEAF);
+
+  if (cxx_dialect >= cxx26)
+    {
+      tree void_ptrintftype
+	= build_function_type_list (void_type_node, ptr_type_node,
+				    integer_type_node, NULL_TREE);
+      decl = add_builtin_function ("__builtin_eh_ptr_adjust_ref",
+				   void_ptrintftype,
+				   CP_BUILT_IN_EH_PTR_ADJUST_REF,
+				   BUILT_IN_FRONTEND, NULL, NULL_TREE);
+      set_call_expr_flags (decl, ECF_NOTHROW | ECF_LEAF);
+    }
 
   integer_two_node = build_int_cst (NULL_TREE, 2);
 
@@ -8915,10 +8939,12 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
       cp_apply_type_quals_to_decl (cp_type_quals (type), decl);
 
       /* Update the type of the corresponding TEMPLATE_DECL to match.  */
-      if (DECL_LANG_SPECIFIC (decl)
-	  && DECL_TEMPLATE_INFO (decl)
-	  && DECL_TEMPLATE_RESULT (DECL_TI_TEMPLATE (decl)) == decl)
-	TREE_TYPE (DECL_TI_TEMPLATE (decl)) = type;
+      if (DECL_LANG_SPECIFIC (decl) && DECL_TEMPLATE_INFO (decl))
+	{
+	  tree tmpl = template_for_substitution (decl);
+	  if (DECL_TEMPLATE_RESULT (tmpl) == decl)
+	    TREE_TYPE (tmpl) = type;
+	}
     }
 
   if (ensure_literal_type_for_constexpr_object (decl) == error_mark_node)
@@ -9162,6 +9188,10 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 
       if (decomp)
 	{
+	  if (DECL_DECLARED_CONSTINIT_P (decl) && cxx_dialect < cxx26)
+	    pedwarn (DECL_SOURCE_LOCATION (decl), OPT_Wc__26_extensions,
+		     "%<constinit%> can be applied to structured binding "
+		     "only with %<-std=c++2c%> or %<-std=gnu++2c%>");
 	  cp_maybe_mangle_decomp (decl, decomp);
 	  if (TREE_STATIC (decl) && !DECL_FUNCTION_SCOPE_P (decl))
 	    {
@@ -11318,11 +11348,16 @@ grokfndecl (tree ctype,
 		  "cannot declare %<::main%> to be %qs", "consteval");
       if (!publicp)
 	error_at (location, "cannot declare %<::main%> to be static");
-      if (current_lang_depth () != 0)
+      if (current_lang_name != lang_name_cplusplus)
 	pedwarn (location, OPT_Wpedantic, "cannot declare %<::main%> with a"
-		 " linkage specification");
+		 " linkage specification other than %<extern \"C++\"%>");
       if (module_attach_p ())
-	error_at (location, "cannot attach %<::main%> to a named module");
+	{
+	  auto_diagnostic_group adg;
+	  error_at (location, "cannot attach %<::main%> to a named module");
+	  inform (location, "use %<extern \"C++\"%> to attach it to the "
+		  "global module instead");
+	}
       inlinep = 0;
       publicp = 1;
     }
@@ -13604,9 +13639,10 @@ grokdeclarator (const cp_declarator *declarator,
       if (typedef_p)
 	error_at (declspecs->locations[ds_typedef],
 		  "structured binding declaration cannot be %qs", "typedef");
-      if (constexpr_p && !concept_p)
-	error_at (declspecs->locations[ds_constexpr], "structured "
-		  "binding declaration cannot be %qs", "constexpr");
+      if (constexpr_p && !concept_p && cxx_dialect < cxx26)
+	pedwarn (declspecs->locations[ds_constexpr], OPT_Wc__26_extensions,
+		 "structured binding declaration can be %qs only with "
+		 "%<-std=c++2c%> or %<-std=gnu++2c%>", "constexpr");
       if (consteval_p)
 	error_at (declspecs->locations[ds_consteval], "structured "
 		  "binding declaration cannot be %qs", "consteval");
@@ -13617,8 +13653,11 @@ grokdeclarator (const cp_declarator *declarator,
 		 declspecs->gnu_thread_keyword_p
 		 ? "__thread" : "thread_local");
       if (concept_p)
-	error_at (declspecs->locations[ds_concept],
-		  "structured binding declaration cannot be %qs", "concept");
+	{
+	  error_at (declspecs->locations[ds_concept],
+		    "structured binding declaration cannot be %qs", "concept");
+	  constexpr_p = 0;
+	}
       /* [dcl.struct.bind] "A cv that includes volatile is deprecated."  */
       if (type_quals & TYPE_QUAL_VOLATILE)
 	warning_at (declspecs->locations[ds_volatile], OPT_Wvolatile,
@@ -13673,7 +13712,6 @@ grokdeclarator (const cp_declarator *declarator,
 		 "%<auto%> type %qT", type);
       inlinep = 0;
       typedef_p = 0;
-      constexpr_p = 0;
       consteval_p = 0;
       concept_p = 0;
       if (storage_class != sc_static)
@@ -17251,7 +17289,7 @@ xref_tag (enum tag_types tag_code, tree name,
       if (IDENTIFIER_LAMBDA_P (name))
 	/* Mark it as a lambda type right now.  Our caller will
 	   correct the value.  */
-	CLASSTYPE_LAMBDA_EXPR (t) = error_mark_node;
+	SET_CLASSTYPE_LAMBDA_EXPR (t, error_mark_node);
       t = pushtag (name, t, how);
     }
   else
@@ -19328,6 +19366,19 @@ finish_function (bool inline_p)
 	}
     }
 
+  if (FNDECL_USED_AUTO (fndecl)
+      && TREE_TYPE (fntype) != DECL_SAVED_AUTO_RETURN_TYPE (fndecl))
+    if (location_t fcloc = failed_completion_location (fndecl))
+      {
+	auto_diagnostic_group adg;
+	if (warning (OPT_Wsfinae_incomplete_,
+		     "defining %qD, which previously failed to be deduced "
+		     "in a SFINAE context", fndecl)
+	    && warn_sfinae_incomplete == 1)
+	  inform (fcloc, "here.  Use %qs for a diagnostic at that point",
+		  "-Wsfinae-incomplete=2");
+      }
+
   /* Remember that we were in class scope.  */
   if (current_class_name)
     ctype = current_class_type;
@@ -19445,14 +19496,14 @@ finish_function (bool inline_p)
 	    && !DECL_READ_P (decl)
 	    && DECL_NAME (decl)
 	    && !DECL_ARTIFICIAL (decl)
-	    && !warning_suppressed_p (decl,OPT_Wunused_but_set_parameter)
+	    && !warning_suppressed_p (decl, OPT_Wunused_but_set_parameter_)
 	    && !DECL_IN_SYSTEM_HEADER (decl)
 	    && TREE_TYPE (decl) != error_mark_node
 	    && !TYPE_REF_P (TREE_TYPE (decl))
 	    && (!CLASS_TYPE_P (TREE_TYPE (decl))
 	        || !TYPE_HAS_NONTRIVIAL_DESTRUCTOR (TREE_TYPE (decl))))
 	  warning_at (DECL_SOURCE_LOCATION (decl),
-		      OPT_Wunused_but_set_parameter,
+		      OPT_Wunused_but_set_parameter_,
 		      "parameter %qD set but not used", decl);
       unused_but_set_errorcount = errorcount;
     }
@@ -19981,7 +20032,7 @@ require_deduced_type (tree decl, tsubst_flags_t complain)
 	/* We probably already complained about deduction failure.  */;
       else if (complain & tf_error)
 	error ("use of %qD before deduction of %<auto%>", decl);
-      note_failed_type_completion_for_satisfaction (decl);
+      note_failed_type_completion (decl, complain);
       return false;
     }
   return true;

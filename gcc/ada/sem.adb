@@ -192,6 +192,9 @@ package body Sem is
          when N_Conditional_Entry_Call =>
             Analyze_Conditional_Entry_Call (N);
 
+         when N_Continue_Statement =>
+            Analyze_Continue_Statement (N);
+
          when N_Delay_Alternative =>
             Analyze_Delay_Alternative (N);
 
@@ -765,12 +768,11 @@ package body Sem is
          E : constant Entity_Id := Defining_Entity_Or_Empty (N);
       begin
          if Present (E) then
-            if Ekind (E) = E_Void
-              and then Nkind (N) = N_Component_Declaration
+            if Nkind (N) = N_Component_Declaration
               and then Present (Scope (E))
               and then Ekind (Scope (E)) = E_Record_Type
             then
-               null; -- Set it later, in Analyze_Component_Declaration
+               null; -- Set it later, in Record_Type_Definition
             elsif not Is_Not_Self_Hidden (E) then
                Set_Is_Not_Self_Hidden (E);
             end if;
@@ -1399,7 +1401,6 @@ package body Sem is
            Prev     => Global_Suppress_Stack_Top,
            Next     => Suppress_Stack_Entries);
       Suppress_Stack_Entries := Global_Suppress_Stack_Top;
-      return;
    end Push_Global_Suppress_Stack_Entry;
 
    -------------------------------------
@@ -1420,8 +1421,6 @@ package body Sem is
            Prev     => Local_Suppress_Stack_Top,
            Next     => Suppress_Stack_Entries);
       Suppress_Stack_Entries := Local_Suppress_Stack_Top;
-
-      return;
    end Push_Local_Suppress_Stack_Entry;
 
    ---------------

@@ -307,6 +307,9 @@ get_and_check_refstart_and_reflen(  tree         refstart,// LONG returned value
                                     tree         reflen,  // LONG returned value
                                     cbl_refer_t &refer)
   {
+  const cbl_enabled_exceptions_t&
+                                enabled_exceptions( cdf_enabled_exceptions() );
+
   if( !enabled_exceptions.match(ec_bound_ref_mod_e) )
     {
     // This is normal operation -- no exception checking.  Thus, we won't
@@ -458,6 +461,8 @@ get_depending_on_value_from_odo(tree retval, cbl_field_t *odo)
       declarative with a RESUME NEXT STATEMENT, or before the default_condition
       processing can do a controlled exit.
       */
+  const cbl_enabled_exceptions_t&
+                                enabled_exceptions( cdf_enabled_exceptions() );
   cbl_field_t *depending_on;
   depending_on = cbl_field_of(symbol_at(odo->occurs.depending_on));
 
@@ -471,8 +476,8 @@ get_depending_on_value_from_odo(tree retval, cbl_field_t *odo)
     return;
     }
 
-  // Bounds checking is enabled, so we test the DEPENDING ON value to be between
-  // the lower and upper OCCURS limits:
+  // Bounds checking is enabled, so we test the DEPENDING ON value to be
+  // between the lower and upper OCCURS limits:
   get_integer_value(retval,
                     depending_on,
                     NULL,
@@ -482,23 +487,28 @@ get_depending_on_value_from_odo(tree retval, cbl_field_t *odo)
     {
     // This needs to evaluate to an integer
     set_exception_code(ec_bound_odo_e);
-    gg_assign(retval, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower));
+    gg_assign(retval, build_int_cst_type( TREE_TYPE(retval),
+                                          odo->occurs.bounds.lower));
     gg_assign(var_decl_rdigits, integer_zero_node);
     }
   ELSE
     ENDIF
 
-  IF( retval, gt_op, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.upper) )
+  IF( retval, gt_op, build_int_cst_type(TREE_TYPE(retval),
+                                        odo->occurs.bounds.upper) )
     {
     set_exception_code(ec_bound_odo_e);
-    gg_assign(retval, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower));
+    gg_assign(retval, build_int_cst_type( TREE_TYPE(retval),
+                                          odo->occurs.bounds.lower));
     }
   ELSE
     {
-    IF( retval, lt_op, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower) )
+    IF( retval, lt_op, build_int_cst_type(TREE_TYPE(retval),
+                                          odo->occurs.bounds.lower) )
       {
       set_exception_code(ec_bound_odo_e);
-      gg_assign(retval, build_int_cst_type(TREE_TYPE(retval), odo->occurs.bounds.lower));
+      gg_assign(retval, build_int_cst_type( TREE_TYPE(retval),
+                                            odo->occurs.bounds.lower));
       }
     ELSE
       ENDIF
@@ -515,7 +525,7 @@ get_depending_on_value_from_odo(tree retval, cbl_field_t *odo)
 
 static
 void
-get_depending_on_value(tree retval, cbl_refer_t &refer)
+get_depending_on_value(tree retval, const cbl_refer_t &refer)
   {
   /*  This routine, called only when we know there is an OCCURS DEPENDING ON
       clause, returns the current value of the DEPENDING ON variable.  When
@@ -548,9 +558,8 @@ get_data_offset(cbl_refer_t &refer,
   // We have a refer.
   // At the very least, we have an constant offset
   int all_flags = 0;
-  int all_flag_bit = 1;
 
-  if( refer.nsubscript )
+  if( refer.nsubscript() )
     {
     REFER("subscript");
     // We have at least one subscript:
@@ -568,8 +577,9 @@ get_data_offset(cbl_refer_t &refer,
     // Establish the field_t pointer for walking up through our ancestors:
     cbl_field_t *parent = refer.field;
 
+    int all_flag_bit = 1;
     // Note the backwards test, because refer->nsubscript is an unsigned value
-    for(size_t i=refer.nsubscript-1; i<refer.nsubscript; i-- )
+    for(size_t i=refer.nsubscript()-1; i<refer.nsubscript(); i-- )
       {
       // We need to search upward for an ancestor with occurs_max:
       while(parent)
@@ -601,6 +611,8 @@ get_data_offset(cbl_refer_t &refer,
         }
       else
         {
+        const cbl_enabled_exceptions_t&
+                                enabled_exceptions( cdf_enabled_exceptions() );
         if( !enabled_exceptions.match(ec_bound_subscript_e) )
           {
           // With no exception testing, just pick up the value
@@ -625,21 +637,25 @@ get_data_offset(cbl_refer_t &refer,
             }
           ELSE
             {
-            IF( subscript, lt_op, gg_cast(TREE_TYPE(subscript), integer_one_node) )
+            IF( subscript, lt_op, gg_cast(TREE_TYPE(subscript),
+                                          integer_one_node) )
               {
               // The subscript is too small
               set_exception_code(ec_bound_subscript_e);
-              gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 1));
+              gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript),
+                                                      1));
               }
             ELSE
               {
               IF( subscript,
                   ge_op,
-                  build_int_cst_type(TREE_TYPE(subscript), parent->occurs.ntimes()) )
+                  build_int_cst_type( TREE_TYPE(subscript),
+                                      parent->occurs.ntimes()) )
                 {
                 // The subscript is too large
                 set_exception_code(ec_bound_subscript_e);
-                gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript), 1));
+                gg_assign(subscript, build_int_cst_type(TREE_TYPE(subscript),
+                                                        1));
                 }
               ELSE
                 {
@@ -654,14 +670,19 @@ get_data_offset(cbl_refer_t &refer,
 
       all_flag_bit <<= 1;
 
-      // Although we strictly don't need to look at the ODO value at this point,
-      // we do want it checked for the purposes of ec-bound-odo
+      // Although we strictly don't need to look at the ODO value at this
+      // point, we do want it checked for the purposes of ec-bound-odo
+
+      const cbl_enabled_exceptions_t&
+                                enabled_exceptions( cdf_enabled_exceptions() );
 
       if( enabled_exceptions.match(ec_bound_odo_e) )
         {
         if( parent->occurs.depending_on )
           {
-          static tree value64 = gg_define_variable(LONG, ".._gdos_value64", vs_file_static);
+          static tree value64 = gg_define_variable( LONG,
+                                                    ".._gdos_value64",
+                                                    vs_file_static);
           cbl_field_t *odo = symbol_find_odo(parent);
           get_depending_on_value_from_odo(value64, odo);
           }
@@ -697,6 +718,8 @@ get_data_offset(cbl_refer_t &refer,
 
   return retval;
   }
+
+static tree tree_type_from_field(const cbl_field_t *field);
 
 void
 get_binary_value( tree value,
@@ -735,7 +758,7 @@ get_binary_value( tree value,
       {
       if( SCALAR_FLOAT_TYPE_P(value) )
         {
-        cbl_internal_error("Can't get float value from %s", field->name);
+        cbl_internal_error("cannot get %<float%> value from %s", field->name);
         }
       else
         {
@@ -1236,20 +1259,15 @@ get_binary_value( tree value,
       break;
       }
 
-    case FldAlphanumeric:
-      {
-
-      }
-
-
     default:
       {
-      fprintf(stderr, "%s(): We know not how to"
-                      " get a binary value from %s\n",
-                      __func__,
-                      cbl_field_type_str(field->type) );
+      char *err = xasprintf("%s(): We know not how to"
+                            " get a binary value from %s\n",
+                            __func__,
+                            cbl_field_type_str(field->type) );
+      cbl_internal_error("%s", err);
       abort();
-      break;
+      // break; // break not needed after abort();
       }
     }
 
@@ -1265,8 +1283,8 @@ get_binary_value( tree value,
     }
   }
 
-tree
-tree_type_from_field(cbl_field_t *field)
+static tree
+tree_type_from_field(const cbl_field_t *field)
   {
   gcc_assert(field);
   return tree_type_from_size(field->data.capacity, field->attr & signable_e);
@@ -1559,7 +1577,7 @@ tree_type_from_size(size_t bytes, int signable)
 
 static
 bool
-refer_has_depends(cbl_refer_t &refer, refer_type_t refer_type)
+refer_has_depends(const cbl_refer_t &refer, refer_type_t refer_type)
   {
   if( suppress_dest_depends )
     {
@@ -1577,7 +1595,7 @@ refer_has_depends(cbl_refer_t &refer, refer_type_t refer_type)
 
   // Check if there there is an occurs with a depending_on in the hierarchy
   bool proceed = false;
-  cbl_field_t *odo = symbol_find_odo(refer.field);
+  const cbl_field_t *odo = symbol_find_odo(refer.field);
   cbl_field_t *depending_on;
   if( odo && odo != refer.field )
     {
@@ -1603,7 +1621,7 @@ refer_has_depends(cbl_refer_t &refer, refer_type_t refer_type)
           {
           parent1 = p;
           }
-        cbl_field_t *parent2 = depending_on;
+        const cbl_field_t *parent2 = depending_on;
         while( (p = parent_of(parent2)) )
           {
           parent2 = p;
@@ -1665,8 +1683,9 @@ set_exception_code_func(ec_type_t ec, int /*line*/, int from_raise_statement)
   }
 
 bool
-process_this_exception(ec_type_t ec)
+process_this_exception(const ec_type_t ec)
   {
+  const cbl_enabled_exceptions_t& enabled_exceptions( cdf_enabled_exceptions() );
   bool retval;
   if( enabled_exceptions.match(ec) || !skip_exception_processing )
     {
@@ -1698,7 +1717,7 @@ copy_little_endian_into_place(cbl_field_t *dest,
                               tree value,
                               int rhs_rdigits,
                               bool check_for_error,
-                              tree &size_error)
+                        const tree &size_error)
   {
   if( check_for_error )
     {
@@ -1912,23 +1931,19 @@ char *
 get_literal_string(cbl_field_t *field)
   {
   assert(field->type == FldLiteralA);
-  char *buffer = NULL;
-  size_t buffer_length = 0;
-  if( buffer_length < field->data.capacity+1 )
-    {
-    buffer_length = field->data.capacity+1;
-    buffer = (char *)xrealloc(buffer, buffer_length);
-    }
+  size_t buffer_length = field->data.capacity+1;
+  char *buffer = static_cast<char *>(xcalloc(1, buffer_length));
+
   for(size_t i=0; i<field->data.capacity; i++)
     {
     buffer[i] = ascii_to_internal(field->data.initial[i]);
     }
-  buffer[field->data.capacity] = '\0';
+
   return buffer;
   }
 
 bool
-refer_is_clean(cbl_refer_t &refer)
+refer_is_clean(const cbl_refer_t &refer)
   {
   if( !refer.field || refer.field->type == FldLiteralN )
     {
@@ -1943,7 +1958,7 @@ refer_is_clean(cbl_refer_t &refer)
 
   return     !refer.all
           && !refer.addr_of
-          && !refer.nsubscript
+          && !refer.nsubscript()
           && !refer.refmod.from
           && !refer.refmod.len
           && !refer_has_depends(refer, refer_source)
@@ -1975,7 +1990,7 @@ refer_refmod_length(cbl_refer_t &refer)
 
 static
 tree // size_t
-refer_fill_depends(cbl_refer_t &refer)
+refer_fill_depends(const cbl_refer_t &refer)
   {
   REFER("");
   // This returns a positive number which is the amount a depends-limited
@@ -2121,7 +2136,7 @@ qualified_data_location(cbl_refer_t &refer)
   }
 
 uint64_t
-get_time_64()
+get_time_nanoseconds()
 {
   // This code was unabashedly stolen from gcc/timevar.cc.
   // It returns the Unix epoch with nine decimal places.

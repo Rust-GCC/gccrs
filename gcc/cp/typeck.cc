@@ -156,7 +156,7 @@ complete_type_or_maybe_complain (tree type, tree value, tsubst_flags_t complain)
     {
       if (complain & tf_error)
 	cxx_incomplete_type_diagnostic (value, type, DK_ERROR);
-      note_failed_type_completion_for_satisfaction (type);
+      note_failed_type_completion (type, complain);
       return NULL_TREE;
     }
   else
@@ -2084,7 +2084,14 @@ cxx_sizeof_or_alignof_type (location_t loc, tree type, enum tree_code op,
 
   bool dependent_p = dependent_type_p (type);
   if (!dependent_p)
-    complete_type (type);
+    {
+      complete_type (type);
+      if (!COMPLETE_TYPE_P (type))
+	/* Call this here because the incompleteness diagnostic comes from
+	   c_sizeof_or_alignof_type instead of
+	   complete_type_or_maybe_complain.  */
+	note_failed_type_completion (type, complain);
+    }
   if (dependent_p
       /* VLA types will have a non-constant size.  In the body of an
 	 uninstantiated template, we don't need to try to compute the
@@ -2106,7 +2113,7 @@ cxx_sizeof_or_alignof_type (location_t loc, tree type, enum tree_code op,
 
   return c_sizeof_or_alignof_type (loc, complete_type (type),
 				   op == SIZEOF_EXPR, std_alignof,
-				   complain);
+				   complain & (tf_warning_or_error));
 }
 
 /* Return the size of the type, without producing any warnings for
@@ -3994,13 +4001,61 @@ cp_build_array_ref (location_t loc, tree array, tree idx,
       }
 
     case COND_EXPR:
-      ret = build_conditional_expr
-	       (loc, TREE_OPERAND (array, 0),
-	       cp_build_array_ref (loc, TREE_OPERAND (array, 1), idx,
-				   complain),
-	       cp_build_array_ref (loc, TREE_OPERAND (array, 2), idx,
-				   complain),
-	       complain);
+      tree op0, op1, op2;
+      op0 = TREE_OPERAND (array, 0);
+      op1 = TREE_OPERAND (array, 1);
+      op2 = TREE_OPERAND (array, 2);
+      if (TREE_SIDE_EFFECTS (idx) || !tree_invariant_p (idx))
+	{
+	  /* If idx could possibly have some SAVE_EXPRs, turning
+	     (op0 ? op1 : op2)[idx] into
+	     op0 ? op1[idx] : op2[idx] can lead into temporaries
+	     initialized in one conditional path and uninitialized
+	     uses of them in the other path.
+	     And if idx is a really large expression, evaluating it
+	     twice is also not optimal.
+	     On the other side, op0 must be sequenced before evaluation
+	     of op1 and op2 and for C++17 op0, op1 and op2 must be
+	     sequenced before idx.
+	     If idx is INTEGER_CST, we can just do the optimization
+	     without any SAVE_EXPRs, if op1 and op2 are both ARRAY_TYPE
+	     VAR_DECLs or COMPONENT_REFs thereof (so their address
+	     is constant or relative to frame), optimize into
+	     (SAVE_EXPR <op0>, SAVE_EXPR <idx>, SAVE_EXPR <op0>)
+	     ? op1[SAVE_EXPR <idx>] : op2[SAVE_EXPR <idx>]
+	     Otherwise avoid this optimization.  */
+	  if (flag_strong_eval_order == 2)
+	    {
+	      if (TREE_CODE (TREE_TYPE (array)) == ARRAY_TYPE)
+		{
+		  if (!address_invariant_p (op1) || !address_invariant_p (op2))
+		    {
+		      /* Force default conversion on array if
+			 we can't optimize this and array is ARRAY_TYPE
+			 COND_EXPR, we can't leave COND_EXPRs with
+			 ARRAY_TYPE in the IL.  */
+		      array = cp_default_conversion (array, complain);
+		      if (error_operand_p (array))
+			return error_mark_node;
+		      break;
+		    }
+		}
+	      else if (!POINTER_TYPE_P (TREE_TYPE (array))
+		       || !tree_invariant_p (op1)
+		       || !tree_invariant_p (op2))
+		break;
+	    }
+	  if (TREE_SIDE_EFFECTS (idx))
+	    {
+	      idx = save_expr (idx);
+	      op0 = save_expr (op0);
+	      tree tem = build_compound_expr (loc, op0, idx);
+	      op0 = build_compound_expr (loc, tem, op0);
+	    }
+	}
+      op1 = cp_build_array_ref (loc, op1, idx, complain);
+      op2 = cp_build_array_ref (loc, op2, idx, complain);
+      ret = build_conditional_expr (loc, op0, op1, op2, complain);
       protected_set_expr_location (ret, loc);
       return ret;
 
@@ -7625,7 +7680,18 @@ cp_build_unary_op (enum tree_code code, tree xarg, bool noconvert,
       if (val != 0)
 	goto return_build_unary_op;
 
-      arg = mark_lvalue_use (arg);
+      tree stripped_arg;
+      stripped_arg = tree_strip_any_location_wrapper (arg);
+      if ((VAR_P (stripped_arg) || TREE_CODE (stripped_arg) == PARM_DECL)
+	  && !DECL_READ_P (stripped_arg)
+	  && (VAR_P (stripped_arg) ? warn_unused_but_set_variable
+				   : warn_unused_but_set_parameter) > 1)
+	{
+	  arg = mark_lvalue_use (arg);
+	  DECL_READ_P (stripped_arg) = 0;
+	}
+      else
+	arg = mark_lvalue_use (arg);
 
       /* Increment or decrement the real part of the value,
 	 and don't change the imaginary part.  */
@@ -9741,7 +9807,22 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	  {
 	    auto_diagnostic_group d;
 	    rhs = stabilize_expr (rhs, &init);
+	    bool clear_decl_read = false;
+	    tree stripped_lhs = tree_strip_any_location_wrapper (lhs);
+	    if ((VAR_P (stripped_lhs) || TREE_CODE (stripped_lhs) == PARM_DECL)
+		&& !DECL_READ_P (stripped_lhs)
+		&& (VAR_P (stripped_lhs) ? warn_unused_but_set_variable
+					 : warn_unused_but_set_parameter) > 2
+		&& !CLASS_TYPE_P (TREE_TYPE (lhs))
+		&& !CLASS_TYPE_P (TREE_TYPE (rhs)))
+	      {
+		mark_exp_read (rhs);
+		if (!DECL_READ_P (stripped_lhs))
+		  clear_decl_read = true;
+	      }
 	    newrhs = cp_build_binary_op (loc, modifycode, lhs, rhs, complain);
+	    if (clear_decl_read)
+	      DECL_READ_P (stripped_lhs) = 0;
 	    if (newrhs == error_mark_node)
 	      {
 		if (complain & tf_error)

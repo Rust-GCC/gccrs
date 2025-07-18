@@ -177,12 +177,6 @@ package body Exp_Ch4 is
    --  integer type. This is a case where top level processing is required to
    --  handle overflow checks in subtrees.
 
-   procedure Fixup_Universal_Fixed_Operation (N : Node_Id);
-   --  N is a N_Op_Divide or N_Op_Multiply node whose result is universal
-   --  fixed. We do not have such a type at runtime, so the purpose of this
-   --  routine is to find the real type by looking up the tree. We also
-   --  determine if the operation must be rounded.
-
    procedure Get_First_Index_Bounds (T : Entity_Id; Lo, Hi : out Uint);
    --  T is an array whose index bounds are all known at compile time. Return
    --  the value of the low and high bounds of the first index of T.
@@ -193,12 +187,12 @@ package body Exp_Ch4 is
 
    procedure Insert_Conditional_Object_Declaration
      (Obj_Id : Entity_Id;
+      Typ    : Entity_Id;
       Expr   : Node_Id;
-      Decl   : Node_Id);
-   --  Expr is the dependent expression of a conditional expression and Decl
-   --  is the declaration of an object whose initialization expression is the
-   --  conditional expression. Insert in the actions of Expr the declaration
-   --  of Obj_Id modeled on Decl and with Expr as initialization expression.
+      Const  : Boolean);
+   --  Expr is the dependent expression of a conditional expression. Insert in
+   --  the actions of Expr the declaration of Obj_Id with type Typ and Expr as
+   --  initialization expression. Const is True when Obj_Id is a constant.
 
    procedure Insert_Dereference_Action (N : Node_Id);
    --  N is an expression whose type is an access. When the type of the
@@ -239,6 +233,10 @@ package body Exp_Ch4 is
    --  and remaining expansion on these nodes. Note that this call back may be
    --  skipped if the operation is done in Bignum mode but that's fine, since
    --  the Bignum call takes care of everything.
+
+   function New_Assign_Copy (N : Node_Id; Expr : Node_Id) return Node_Id;
+   --  N is an assignment statement. Return a copy of N with the same name but
+   --  expression changed to Expr and perform a couple of adjustments.
 
    procedure Narrow_Large_Operation (N : Node_Id);
    --  Try to compute the result of a large operation in a narrower type than
@@ -434,7 +432,7 @@ package body Exp_Ch4 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Build_Boolean_Array_Proc_Call;
 
    ---------------------------------
@@ -727,7 +725,7 @@ package body Exp_Ch4 is
          --  adjust after the assignment but, in either case, we do not
          --  finalize before since the target is newly allocated memory.
 
-         if Nkind (Exp) = N_Function_Call then
+         if Back_End_Return_Slot and then Nkind (Exp) = N_Function_Call then
             Set_No_Ctrl_Actions (Assign);
          else
             Set_No_Finalize_Actions (Assign);
@@ -769,7 +767,6 @@ package body Exp_Ch4 is
       --  Local variables
 
       Aggr_In_Place     : Boolean;
-      Container_Aggr    : Boolean;
       Delayed_Cond_Expr : Boolean;
 
       TagT : Entity_Id := Empty;
@@ -865,13 +862,12 @@ package body Exp_Ch4 is
 
       Aggr_In_Place     := Is_Delayed_Aggregate (Exp);
       Delayed_Cond_Expr := Is_Delayed_Conditional_Expression (Exp);
-      Container_Aggr    := Nkind (Exp) = N_Aggregate
-                             and then Has_Aspect (T, Aspect_Aggregate);
 
-      --  An allocator with a container aggregate as qualified expression must
-      --  be rewritten into the form expected by Expand_Container_Aggregate.
+      --  An allocator with a container aggregate, resp. a 2-pass aggregate,
+      --  as qualified expression must be rewritten into the form expected by
+      --  Expand_Container_Aggregate, resp. Two_Pass_Aggregate_Expansion.
 
-      if Container_Aggr then
+      if Is_Container_Aggregate (Exp) or else Is_Two_Pass_Aggregate (Exp) then
          Temp := Make_Temporary (Loc, 'P', N);
          Set_Analyzed (Exp, False);
          Insert_Action (N,
@@ -1240,7 +1236,7 @@ package body Exp_Ch4 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_Allocator_Expression;
 
    -----------------------------
@@ -2468,21 +2464,20 @@ package body Exp_Ch4 is
 
          declare
             Op : constant Entity_Id := Find_Primitive_Eq (Comp_Type);
+
          begin
-            if Warn_On_Ignored_Equality
-              and then Present (Op)
+            if Present (Op)
               and then not In_Predefined_Unit (Base_Type (Comp_Type))
               and then not Is_Intrinsic_Subprogram (Op)
             then
                pragma Assert
                  (Is_First_Subtype (Outer_Type)
                    or else Is_Generic_Actual_Type (Outer_Type));
-               Error_Msg_Node_2 := Comp_Type;
-               Error_Msg_N
-                 ("?_q?""="" for type & uses predefined ""="" for }",
-                  Outer_Type);
-               Error_Msg_Sloc := Sloc (Op);
-               Error_Msg_N ("\?_q?""="" # is ignored here", Outer_Type);
+
+               Warn_On_Ignored_Equality_Operator
+                 (Typ      => Outer_Type,
+                  Comp_Typ => Comp_Type,
+                  Loc      => Sloc (Op));
             end if;
          end;
 
@@ -4490,6 +4485,15 @@ package body Exp_Ch4 is
          Error_Msg_N ("?_a?use of an anonymous access type allocator", N);
       end if;
 
+      --  Here we set no initialization on types with constructors since we
+      --  generate initialization for the separately.
+
+      if Present (Constructor_Name (Directly_Designated_Type (PtrT)))
+        and then Nkind (Expression (N)) = N_Identifier
+      then
+         Set_No_Initialization (N, False);
+      end if;
+
       --  RM E.2.2(17). We enforce that the expected type of an allocator
       --  shall not be a remote access-to-class-wide-limited-private type.
       --  We probably shouldn't be doing this legality check during expansion,
@@ -5063,7 +5067,7 @@ package body Exp_Ch4 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_N_Allocator;
 
    -----------------------
@@ -5181,6 +5185,8 @@ package body Exp_Ch4 is
       --  expansion until the (immediate) parent is rewritten as a return
       --  statement (or is already the return statement). Likewise if it is
       --  in the context of an object declaration that can be optimized.
+      --  Likewise if it is in the context of a regular agggregate and the
+      --  type should not be copied.
 
       if not Expansion_Delayed (N) then
          declare
@@ -5188,6 +5194,8 @@ package body Exp_Ch4 is
          begin
             if Nkind (Uncond_Par) = N_Simple_Return_Statement
               or else Is_Optimizable_Declaration (Uncond_Par)
+              or else (Parent_Is_Regular_Aggregate (Uncond_Par)
+                        and then not Is_Copy_Type (Typ))
             then
                Delay_Conditional_Expressions_Between (N, Uncond_Par);
             end if;
@@ -5303,7 +5311,7 @@ package body Exp_Ch4 is
       --  'Unrestricted_Access.
 
       --  Generate:
-      --    type Ptr_Typ is not null access all [constant] Typ;
+      --    type Target_Typ is not null access all [constant] Typ;
 
       else
          Target_Typ := Make_Temporary (Loc, 'P');
@@ -5367,17 +5375,7 @@ package body Exp_Ch4 is
             if Optimize_Assignment_Stmt then
                --  We directly copy the parent node to preserve its flags
 
-               Stmts := New_List (New_Copy (Par));
-               Set_Sloc       (First (Stmts), Alt_Loc);
-               Set_Name       (First (Stmts), New_Copy_Tree (Name (Par)));
-               Set_Expression (First (Stmts), Alt_Expr);
-
-               --  If the expression is itself a conditional expression whose
-               --  expansion has been delayed, analyze it again and expand it.
-
-               if Is_Delayed_Conditional_Expression (Alt_Expr) then
-                  Unanalyze_Delayed_Conditional_Expression (Alt_Expr);
-               end if;
+               Stmts := New_List (New_Assign_Copy (Par, Alt_Expr));
 
             --  Generate:
             --    return AX;
@@ -5401,20 +5399,16 @@ package body Exp_Ch4 is
             elsif Optimize_Object_Decl then
                Obj := Make_Temporary (Loc, 'C', Alt_Expr);
 
-               Insert_Conditional_Object_Declaration (Obj, Alt_Expr, Par);
-
-               Alt_Expr :=
-                 Make_Attribute_Reference (Alt_Loc,
-                   Prefix         => New_Occurrence_Of (Obj, Alt_Loc),
-                   Attribute_Name => Name_Unrestricted_Access);
-
-               LHS := New_Occurrence_Of (Target, Loc);
-               Set_Assignment_OK (LHS);
+               Insert_Conditional_Object_Declaration
+                 (Obj, Typ, Alt_Expr, Const => Constant_Present (Par));
 
                Stmts := New_List (
                  Make_Assignment_Statement (Alt_Loc,
-                   Name       => LHS,
-                   Expression => Alt_Expr));
+                   Name       => New_Occurrence_Of (Target, Loc),
+                   Expression =>
+                     Make_Attribute_Reference (Alt_Loc,
+                       Prefix         => New_Occurrence_Of (Obj, Alt_Loc),
+                       Attribute_Name => Name_Unrestricted_Access)));
 
             --  Take the unrestricted access of the expression value for non-
             --  scalar types. This approach avoids big copies and covers the
@@ -5799,8 +5793,9 @@ package body Exp_Ch4 is
       --  expansion until the (immediate) parent is rewritten as a return
       --  statement (or is already the return statement). Likewise if it is
       --  in the context of an object declaration that can be optimized.
-      --  Note that this deals with the case of the elsif part of the if
-      --  expression, if it exists.
+      --  Likewise if it is in the context of a regular agggregate and the
+      --  type should not be copied. Note that this deals with the case of
+      --  the elsif part of the if expression, if it exists.
 
       if not Expansion_Delayed (N) then
          declare
@@ -5808,6 +5803,8 @@ package body Exp_Ch4 is
          begin
             if Nkind (Uncond_Par) = N_Simple_Return_Statement
               or else Is_Optimizable_Declaration (Uncond_Par)
+              or else (Parent_Is_Regular_Aggregate (Uncond_Par)
+                        and then not Is_Copy_Type (Typ))
             then
                Delay_Conditional_Expressions_Between (N, Uncond_Par);
             end if;
@@ -5910,26 +5907,8 @@ package body Exp_Ch4 is
 
          --  We directly copy the parent node to preserve its flags
 
-         New_Then := New_Copy (Par);
-         Set_Sloc       (New_Then, Sloc (Thenx));
-         Set_Name       (New_Then, New_Copy_Tree (Name (Par)));
-         Set_Expression (New_Then, Relocate_Node (Thenx));
-
-         --  If the expression is itself a conditional expression whose
-         --  expansion has been delayed, analyze it again and expand it.
-
-         if Is_Delayed_Conditional_Expression (Expression (New_Then)) then
-            Unanalyze_Delayed_Conditional_Expression (Expression (New_Then));
-         end if;
-
-         New_Else := New_Copy (Par);
-         Set_Sloc       (New_Else, Sloc (Elsex));
-         Set_Name       (New_Else, New_Copy_Tree (Name (Par)));
-         Set_Expression (New_Else, Relocate_Node (Elsex));
-
-         if Is_Delayed_Conditional_Expression (Expression (New_Else)) then
-            Unanalyze_Delayed_Conditional_Expression (Expression (New_Else));
-         end if;
+         New_Then := New_Assign_Copy (Par, Relocate_Node (Thenx));
+         New_Else := New_Assign_Copy (Par, Relocate_Node (Elsex));
 
          If_Stmt :=
            Make_Implicit_If_Statement (N,
@@ -6012,8 +5991,10 @@ package body Exp_Ch4 is
             Target   : constant Entity_Id := Make_Temporary (Loc, 'C', N);
 
          begin
-            Insert_Conditional_Object_Declaration (Then_Obj, Thenx, Par);
-            Insert_Conditional_Object_Declaration (Else_Obj, Elsex, Par);
+            Insert_Conditional_Object_Declaration
+              (Then_Obj, Typ, Thenx, Const => Constant_Present (Par));
+            Insert_Conditional_Object_Declaration
+              (Else_Obj, Typ, Elsex, Const => Constant_Present (Par));
 
             --  Generate:
             --    type Ptr_Typ is not null access all [constant] Typ;
@@ -7777,7 +7758,7 @@ package body Exp_Ch4 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_N_Null;
 
    ---------------------
@@ -9162,7 +9143,7 @@ package body Exp_Ch4 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Expand_N_Op_Expon;
 
    --------------------
@@ -11304,11 +11285,12 @@ package body Exp_Ch4 is
       -----------------------------------
 
       procedure Handle_Changed_Representation is
-         Temp : Entity_Id;
-         Decl : Node_Id;
-         Odef : Node_Id;
-         N_Ix : Node_Id;
          Cons : List_Id;
+         Decl : Node_Id;
+         N_Ix : Node_Id;
+         Odef : Node_Id;
+         Stmt : Node_Id;
+         Temp : Entity_Id;
 
       begin
          --  Nothing else to do if no change of representation
@@ -11451,19 +11433,24 @@ package body Exp_Ch4 is
                 Defining_Identifier => Temp,
                 Object_Definition   => Odef);
 
-            Set_No_Initialization (Decl, True);
+            --  The temporary need not be initialized
+
+            Set_No_Initialization (Decl);
+
+            Stmt :=
+              Make_Assignment_Statement (Loc,
+                Name       => New_Occurrence_Of (Temp, Loc),
+                Expression => Relocate_Node (N));
+
+            --  And, therefore, cannot be finalized
+
+            Set_No_Finalize_Actions (Stmt);
 
             --  Insert required actions. It is essential to suppress checks
             --  since we have suppressed default initialization, which means
             --  that the variable we create may have no discriminants.
 
-            Insert_Actions (N,
-              New_List (
-                Decl,
-                Make_Assignment_Statement (Loc,
-                  Name       => New_Occurrence_Of (Temp, Loc),
-                  Expression => Relocate_Node (N))),
-                Suppress => All_Checks);
+            Insert_Actions (N, New_List (Decl, Stmt), Suppress => All_Checks);
 
             Rewrite (N, New_Occurrence_Of (Temp, Loc));
             return;
@@ -13284,17 +13271,20 @@ package body Exp_Ch4 is
 
    procedure Insert_Conditional_Object_Declaration
      (Obj_Id : Entity_Id;
+      Typ    : Entity_Id;
       Expr   : Node_Id;
-      Decl   : Node_Id)
+      Const  : Boolean)
    is
       Loc      : constant Source_Ptr := Sloc (Expr);
       Obj_Decl : constant Node_Id :=
         Make_Object_Declaration (Loc,
           Defining_Identifier => Obj_Id,
-          Aliased_Present     => Aliased_Present (Decl),
-          Constant_Present    => Constant_Present (Decl),
-          Object_Definition   => New_Copy_Tree (Object_Definition (Decl)),
+          Aliased_Present     => True,
+          Constant_Present    => Const,
+          Object_Definition   => New_Occurrence_Of (Typ, Loc),
           Expression          => Relocate_Node (Expr));
+      --  We make the object unconditionally aliased to avoid dangling bound
+      --  issues when its nominal subtype is an unconstrained array type.
 
       Master_Node_Decl : Node_Id;
       Master_Node_Id   : Entity_Id;
@@ -13308,6 +13298,21 @@ package body Exp_Ch4 is
       end if;
 
       Insert_Action (Expr, Obj_Decl);
+
+      --  The object can never be local to an elaboration routine at library
+      --  level since we will take 'Unrestricted_Access of it. Beware that
+      --  Is_Library_Level_Entity always returns False when called from within
+      --  a transient scope, but the associated block will not be materialized
+      --  when the transient scope is finally closed in the case of an object
+      --  declaration (see Exp.Ch7.Wrap_Transient_Declaration).
+
+      if Scope (Obj_Id) = Current_Scope and then Scope_Is_Transient then
+         Set_Is_Statically_Allocated
+           (Obj_Id, Is_Library_Level_Entity (Scope (Obj_Id)));
+      else
+         Set_Is_Statically_Allocated
+           (Obj_Id, Is_Library_Level_Entity (Obj_Id));
+      end if;
 
       --  If the object needs finalization, we need to insert its Master_Node
       --  manually because 1) the machinery in Exp_Ch7 will not pick it since
@@ -13568,7 +13573,7 @@ package body Exp_Ch4 is
 
    exception
       when RE_Not_Available =>
-         return;
+         null;
    end Insert_Dereference_Action;
 
    --------------------------------
@@ -14196,6 +14201,39 @@ package body Exp_Ch4 is
          Convert_To_And_Rewrite (Typ, N);
       end if;
    end Narrow_Large_Operation;
+
+   ---------------------
+   -- New_Assign_Copy --
+   ---------------------
+
+   function New_Assign_Copy (N : Node_Id; Expr : Node_Id) return Node_Id is
+      New_N : constant Node_Id := New_Copy (N);
+
+   begin
+      Set_Sloc       (New_N, Sloc (Expr));
+      Set_Name       (New_N, New_Copy_Tree (Name (N)));
+      Set_Expression (New_N, Expr);
+
+      --  The result of a function call need not be adjusted if it has
+      --  already been adjusted in the called function.
+
+      if No_Finalize_Actions (New_N)
+        and then Back_End_Return_Slot
+        and then Nkind (Expr) = N_Function_Call
+      then
+         Set_No_Finalize_Actions (New_N, False);
+         Set_No_Ctrl_Actions (New_N);
+      end if;
+
+      --  If the expression is itself a conditional expression whose
+      --  expansion has been delayed, analyze it again and expand it.
+
+      if Is_Delayed_Conditional_Expression (Expr) then
+         Unanalyze_Delayed_Conditional_Expression (Expr);
+      end if;
+
+      return New_N;
+   end New_Assign_Copy;
 
    --------------------------------
    -- Optimize_Length_Comparison --
@@ -15035,10 +15073,11 @@ package body Exp_Ch4 is
 
       --  Handle entities from the limited view
 
-      Orig_Right_Type : constant Entity_Id := Available_View (Etype (Right));
+      Orig_Right_Type : constant Entity_Id :=
+        Base_Type (Available_View (Etype (Right)));
 
       Full_R_Typ   : Entity_Id;
-      Left_Type    : Entity_Id := Available_View (Etype (Left));
+      Left_Type    : Entity_Id := Base_Type (Available_View (Etype (Left)));
       Right_Type   : Entity_Id := Orig_Right_Type;
       Obj_Tag      : Node_Id;
 

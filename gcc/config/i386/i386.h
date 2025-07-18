@@ -1696,6 +1696,8 @@ typedef struct ix86_args {
   int stdarg;                   /* Set to 1 if function is stdarg.  */
   enum calling_abi call_abi;	/* Set to SYSV_ABI for sysv abi. Otherwise
  				   MS_ABI for ms abi.  */
+  bool preserve_none_abi;	/* Set to true if the preserve_none ABI is
+				   used.  */
   tree decl;			/* Callee decl.  */
 } CUMULATIVE_ARGS;
 
@@ -2446,12 +2448,14 @@ constexpr wide_int_bitmask PTA_GOLDMONT_PLUS = PTA_GOLDMONT | PTA_RDPID
   | PTA_SGX | PTA_PTWRITE;
 constexpr wide_int_bitmask PTA_TREMONT = PTA_GOLDMONT_PLUS | PTA_CLWB
   | PTA_GFNI | PTA_MOVDIRI | PTA_MOVDIR64B | PTA_CLDEMOTE | PTA_WAITPKG;
-constexpr wide_int_bitmask PTA_ALDERLAKE = PTA_TREMONT | PTA_ADX | PTA_AVX
+constexpr wide_int_bitmask PTA_ALDERLAKE = PTA_GOLDMONT_PLUS | PTA_CLWB
+  | PTA_GFNI | PTA_MOVDIRI | PTA_MOVDIR64B | PTA_WAITPKG | PTA_ADX | PTA_AVX
   | PTA_AVX2 | PTA_BMI | PTA_BMI2 | PTA_F16C | PTA_FMA | PTA_LZCNT
   | PTA_PCONFIG | PTA_PKU | PTA_VAES | PTA_VPCLMULQDQ | PTA_SERIALIZE
   | PTA_HRESET | PTA_KL | PTA_WIDEKL | PTA_AVXVNNI;
-constexpr wide_int_bitmask PTA_SIERRAFOREST = PTA_ALDERLAKE | PTA_AVXIFMA
-  | PTA_AVXVNNIINT8 | PTA_AVXNECONVERT | PTA_CMPCCXADD | PTA_ENQCMD | PTA_UINTR;
+constexpr wide_int_bitmask PTA_SIERRAFOREST = PTA_ALDERLAKE | PTA_CLDEMOTE
+  | PTA_AVXIFMA | PTA_AVXVNNIINT8 | PTA_AVXNECONVERT | PTA_CMPCCXADD
+  | PTA_ENQCMD | PTA_UINTR;
 constexpr wide_int_bitmask PTA_GRANITERAPIDS = PTA_SAPPHIRERAPIDS | PTA_AMX_FP16
   | PTA_PREFETCHI | PTA_AVX10_1;
 constexpr wide_int_bitmask PTA_GRANITERAPIDS_D = PTA_GRANITERAPIDS
@@ -2461,10 +2465,11 @@ constexpr wide_int_bitmask PTA_ARROWLAKE = PTA_ALDERLAKE | PTA_AVXIFMA
   | PTA_AVXVNNIINT8 | PTA_AVXNECONVERT | PTA_CMPCCXADD | PTA_UINTR;
 constexpr wide_int_bitmask PTA_ARROWLAKE_S = PTA_ARROWLAKE | PTA_AVXVNNIINT16
   | PTA_SHA512 | PTA_SM3 | PTA_SM4;
-constexpr wide_int_bitmask PTA_CLEARWATERFOREST = PTA_SIERRAFOREST
-  | PTA_AVXVNNIINT16 | PTA_SHA512 | PTA_SM3 | PTA_SM4 | PTA_USER_MSR
-  | PTA_PREFETCHI;
-constexpr wide_int_bitmask PTA_PANTHERLAKE = PTA_ARROWLAKE_S | PTA_PREFETCHI;
+constexpr wide_int_bitmask PTA_CLEARWATERFOREST =
+  (PTA_SIERRAFOREST & (~(PTA_KL | PTA_WIDEKL))) | PTA_AVXVNNIINT16 | PTA_SHA512
+  | PTA_SM3 | PTA_SM4 | PTA_USER_MSR | PTA_PREFETCHI;
+constexpr wide_int_bitmask PTA_PANTHERLAKE =
+  (PTA_ARROWLAKE_S & (~(PTA_KL | PTA_WIDEKL))) | PTA_PREFETCHI;
 constexpr wide_int_bitmask PTA_DIAMONDRAPIDS = PTA_GRANITERAPIDS_D
   | PTA_AVXIFMA | PTA_AVXNECONVERT | PTA_AVXVNNIINT16 | PTA_AVXVNNIINT8
   | PTA_CMPCCXADD | PTA_SHA512 | PTA_SM3 | PTA_SM4 | PTA_AVX10_2
@@ -2798,11 +2803,13 @@ enum call_saved_registers_type
      or "no_caller_saved_registers" attribute.  */
   TYPE_NO_CALLER_SAVED_REGISTERS,
   /* The current function is a function specified with the
-     "no_callee_saved_registers" attribute.  */
+     "no_callee_saved_registers" attribute or a function specified with
+     the "noreturn" attribute when compiled with
+     "-mnoreturn-no-callee-saved-registers".  */
   TYPE_NO_CALLEE_SAVED_REGISTERS,
-  /* The current function is a function specified with the "noreturn"
-     attribute.  */
-  TYPE_NO_CALLEE_SAVED_REGISTERS_EXCEPT_BP,
+  /* The current function is a function specified with the
+     "preserve_none" attribute.  */
+  TYPE_PRESERVE_NONE,
 };
 
 enum queued_insn_type
@@ -2820,6 +2827,10 @@ struct GTY(()) machine_function {
 
   /* Cached initial frame layout for the current function.  */
   struct ix86_frame frame;
+
+  /* The components already handled by separate shrink-wrapping, which should
+     not be considered by the prologue and epilogue.  */
+  bool reg_is_wrapped_separately[FIRST_PSEUDO_REGISTER];
 
   /* For -fsplit-stack support: A stack local which holds a pointer to
      the stack arguments for a function with a variable number of
@@ -2875,7 +2886,7 @@ struct GTY(()) machine_function {
   ENUM_BITFIELD(indirect_branch) function_return_type : 3;
 
   /* Call saved registers type.  */
-  ENUM_BITFIELD(call_saved_registers_type) call_saved_registers : 2;
+  ENUM_BITFIELD(call_saved_registers_type) call_saved_registers : 3;
 
   /* If true, there is register available for argument passing.  This
      is used only in ix86_function_ok_for_sibcall by 32-bit to determine
@@ -2919,6 +2930,9 @@ struct GTY(()) machine_function {
 
   /* True if inline asm with redzone clobber has been seen.  */
   BOOL_BITFIELD asm_redzone_clobber_seen : 1;
+
+  /* True if this is a recursive function.  */
+  BOOL_BITFIELD recursive_function : 1;
 
   /* The largest alignment, in bytes, of stack slot actually used.  */
   unsigned int max_used_stack_alignment;

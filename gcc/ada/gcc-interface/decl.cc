@@ -1228,6 +1228,24 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	    gnu_expr = gnat_build_constructor (gnu_type, v);
 	  }
 
+	/* If we are allocating the anonymous object of a small aggregate on
+	   the stack, zero-initialize it so that the entire object is assigned
+	   and the subsequent assignments need not preserve unknown bits, but
+	   do it only when optimization is enabled for the sake of consistency
+	   with the gimplifier which does the same for CONSTRUCTORs.  */
+	else if (definition
+		 && !imported_p
+		 && !static_flag
+		 && !gnu_expr
+		 && TREE_CODE (gnu_type) == RECORD_TYPE
+		 && TREE_CODE (gnu_object_size) == INTEGER_CST
+		 && compare_tree_int (gnu_object_size, MAX_FIXED_MODE_SIZE) <= 0
+		 && Present (Related_Expression (gnat_entity))
+		 && Nkind (Original_Node (Related_Expression (gnat_entity)))
+		    == N_Aggregate
+		 && optimize)
+	    gnu_expr = build_constructor (gnu_type, NULL);
+
 	/* Convert the expression to the type of the object if need be.  */
 	if (gnu_expr && initial_value_needs_conversion (gnu_type, gnu_expr))
 	  gnu_expr = convert (gnu_type, gnu_expr);
@@ -4484,7 +4502,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	  if (Known_Esize (gnat_entity))
 	    gnu_size
 	      = validate_size (Esize (gnat_entity), gnu_type, gnat_entity,
-			       VAR_DECL, false, false, size_s, type_s);
+			       VAR_DECL, false, false, NULL, NULL);
 
 	  /* ??? The test on Has_Size_Clause must be removed when "unknown" is
 	     no longer represented as Uint_0 (i.e. Use_New_Unknown_Rep).  */
@@ -5251,7 +5269,7 @@ inline_status_for_subprog (Entity_Id subprog)
 	  && Is_Record_Type (Etype (First_Formal (subprog)))
 	  && (gnu_type = gnat_to_gnu_type (Etype (First_Formal (subprog))))
 	  && !TYPE_IS_BY_REFERENCE_P (gnu_type)
-	  && tree_fits_uhwi_p (TYPE_SIZE (gnu_type))
+	  && TREE_CODE (TYPE_SIZE (gnu_type)) == INTEGER_CST
 	  && compare_tree_int (TYPE_SIZE (gnu_type), MAX_FIXED_MODE_SIZE) <= 0)
 	return is_prescribed;
 
@@ -5426,7 +5444,7 @@ gnat_to_gnu_component_type (Entity_Id gnat_array, bool definition,
   const bool is_bit_packed = Is_Bit_Packed_Array (gnat_array);
   tree gnu_type = gnat_to_gnu_type (gnat_type);
   tree gnu_comp_size;
-  bool has_packed_components;
+  bool has_packed_component;
   unsigned int max_align;
 
   /* If an alignment is specified, use it as a cap on the component type
@@ -5447,16 +5465,22 @@ gnat_to_gnu_component_type (Entity_Id gnat_array, bool definition,
       && !TYPE_FAT_POINTER_P (gnu_type)
       && tree_fits_uhwi_p (TYPE_SIZE (gnu_type)))
     {
-      gnu_type = make_packable_type (gnu_type, false, max_align);
-      has_packed_components = true;
+      tree gnu_packable_type = make_packable_type (gnu_type, false, max_align);
+      if (gnu_packable_type != gnu_type)
+	{
+	  gnu_type = gnu_packable_type;
+	  has_packed_component = true;
+	}
+      else
+	has_packed_component = false;
     }
   else
-    has_packed_components = is_bit_packed;
+    has_packed_component = is_bit_packed;
 
   /* Get and validate any specified Component_Size.  */
   gnu_comp_size
     = validate_size (Component_Size (gnat_array), gnu_type, gnat_array,
-		     has_packed_components ? TYPE_DECL : VAR_DECL, true,
+		     has_packed_component ? TYPE_DECL : VAR_DECL, true,
 		     Has_Component_Size_Clause (gnat_array), NULL, NULL);
 
   /* If the component type is a RECORD_TYPE that has a self-referential size,
@@ -5998,7 +6022,8 @@ gnat_to_gnu_profile_type (Entity_Id gnat_type)
   return gnu_type;
 }
 
-/* Return true if TYPE contains only integral data, recursively if need be.  */
+/* Return true if TYPE contains only integral data, recursively if need be.
+   (integral data is to be understood as not floating-point data here).  */
 
 static bool
 type_contains_only_integral_data (tree type)
@@ -6018,7 +6043,7 @@ type_contains_only_integral_data (tree type)
       return type_contains_only_integral_data (TREE_TYPE (type));
 
     default:
-      return INTEGRAL_TYPE_P (type);
+      return INTEGRAL_TYPE_P (type) || POINTER_TYPE_P (type);
     }
 
   gcc_unreachable ();
@@ -6396,6 +6421,33 @@ gnat_to_gnu_subprog_type (Entity_Id gnat_subprog, bool definition,
 	 since structures are incomplete for the back-end.  */
       else if (Convention (gnat_subprog) != Convention_Stubbed)
 	{
+	  /* If we have two entries that may be returned in integer registers,
+	     the larger has power-of-2 size and the smaller is integer, then
+	     extend the smaller to this power-of-2 size to get a return type
+	     with power-of-2 size and no holes, again to speed up accesses.  */
+	  if (list_length (gnu_cico_field_list) == 2
+	      && gnu_cico_only_integral_type)
+	    {
+	      tree typ1 = TREE_TYPE (gnu_cico_field_list);
+	      tree typ2 = TREE_TYPE (DECL_CHAIN (gnu_cico_field_list));
+	      if (TREE_CODE (typ1) == INTEGER_TYPE
+		  && integer_pow2p (TYPE_SIZE (typ2))
+		  && compare_tree_int (TYPE_SIZE (typ2),
+				       MAX_FIXED_MODE_SIZE) <= 0
+		  && tree_int_cst_lt (TYPE_SIZE (typ1), TYPE_SIZE (typ2)))
+		TREE_TYPE (gnu_cico_field_list)
+		  = gnat_type_for_size (TREE_INT_CST_LOW (TYPE_SIZE (typ2)),
+					TYPE_UNSIGNED (typ1));
+	      else if (TREE_CODE (typ2) == INTEGER_TYPE
+		       && integer_pow2p (TYPE_SIZE (typ1))
+		       && compare_tree_int (TYPE_SIZE (typ1),
+					    MAX_FIXED_MODE_SIZE) <= 0
+		       && tree_int_cst_lt (TYPE_SIZE (typ2), TYPE_SIZE (typ1)))
+		TREE_TYPE (DECL_CHAIN (gnu_cico_field_list))
+		  = gnat_type_for_size (TREE_INT_CST_LOW (TYPE_SIZE (typ1)),
+					TYPE_UNSIGNED (typ2));
+	    }
+
 	  finish_record_type (gnu_cico_return_type,
 			      nreverse (gnu_cico_field_list),
 			      0, false);
@@ -9669,6 +9721,20 @@ validate_size (Uint uint_size, tree gnu_type, Entity_Id gnat_object,
 
       post_error_ne_tree (s, gnat_error_node, gnat_object, old_size);
 
+      return NULL_TREE;
+    }
+
+  /* The size of stand-alone objects is always a multiple of the alignment,
+     but that's already enforced for elementary types by the front-end.  */
+  if (kind == VAR_DECL
+      && !component_p
+      && RECORD_OR_UNION_TYPE_P (gnu_type)
+      && !TYPE_FAT_POINTER_P (gnu_type)
+      && !integer_zerop (size_binop (TRUNC_MOD_EXPR, size,
+				     bitsize_int (TYPE_ALIGN (gnu_type)))))
+    {
+      post_error_ne_num ("size for& must be multiple of alignment ^",
+			 gnat_error_node, gnat_object, TYPE_ALIGN (gnu_type));
       return NULL_TREE;
     }
 

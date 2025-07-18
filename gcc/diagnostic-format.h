@@ -36,6 +36,10 @@ public:
 
   virtual void dump (FILE *out, int indent) const;
 
+  /* Vfunc for notifying this format what the primary input file is,
+     e.g. for titles of HTML, for SARIF's artifact metadata.  */
+  virtual void set_main_input_filename (const char *) {}
+
   /* Vfunc for making an appropriate diagnostic_per_format_buffer
      subclass for this format.  */
   virtual std::unique_ptr<diagnostic_per_format_buffer>
@@ -68,6 +72,9 @@ public:
      Subclasses should update their m_printer accordingly.  */
   virtual void update_printer () = 0;
 
+  virtual void
+  report_global_digraph (const diagnostics::digraphs::lazy_digraph &) = 0;
+
   diagnostic_context &get_context () const { return m_context; }
   pretty_printer *get_printer () const { return m_printer.get (); }
 
@@ -95,12 +102,5 @@ diagnostic_output_format_init (diagnostic_context &,
 			       const char *base_file_name,
 			       enum diagnostics_output_format,
 			       bool json_formatting);
-extern void
-diagnostic_output_format_init_json_stderr (diagnostic_context &context,
-					   bool formatted);
-extern void
-diagnostic_output_format_init_json_file (diagnostic_context &context,
-					 bool formatted,
-					 const char *base_file_name);
 
 #endif /* ! GCC_DIAGNOSTIC_FORMAT_H */

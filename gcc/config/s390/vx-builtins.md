@@ -982,20 +982,18 @@
 
 ; vmhb, vmhh, vmhf, vmhg, vmhq
 (define_insn "vec_smulh<mode>"
-  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand"                       "=v")
-	(unspec:VIT_HW_VXE3_DT [(match_operand:VIT_HW_VXE3_DT 1 "register_operand" "v")
-				(match_operand:VIT_HW_VXE3_DT 2 "register_operand" "v")]
-			       UNSPEC_VEC_SMULT_HI))]
+  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand"                              "=v")
+	(smul_highpart:VIT_HW_VXE3_DT (match_operand:VIT_HW_VXE3_DT 1 "register_operand" "v")
+				      (match_operand:VIT_HW_VXE3_DT 2 "register_operand" "v")))]
   "TARGET_VX"
   "vmh<bhfgq>\t%v0,%v1,%v2"
   [(set_attr "op_type" "VRR")])
 
 ; vmlhb, vmlhh, vmlhf, vmlhg, vmlhq
 (define_insn "vec_umulh<mode>"
-  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand"                       "=v")
-	(unspec:VIT_HW_VXE3_DT [(match_operand:VIT_HW_VXE3_DT 1 "register_operand" "v")
-				(match_operand:VIT_HW_VXE3_DT 2 "register_operand" "v")]
-			       UNSPEC_VEC_UMULT_HI))]
+  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand"                              "=v")
+	(umul_highpart:VIT_HW_VXE3_DT (match_operand:VIT_HW_VXE3_DT 1 "register_operand" "v")
+				      (match_operand:VIT_HW_VXE3_DT 2 "register_operand" "v")))]
   "TARGET_VX"
   "vmlh<bhfgq>\t%v0,%v1,%v2"
   [(set_attr "op_type" "VRR")])
@@ -2136,23 +2134,22 @@
   "<vw>fche<sdx>bs\t%v2,%v0,%v1"
   [(set_attr "op_type" "VRR")])
 
-
 (define_insn "vfmin<mode>"
-  [(set (match_operand:VF_HW                0 "register_operand"  "=v")
-	(unspec:VF_HW [(match_operand:VF_HW 1 "register_operand"   "v")
-		       (match_operand:VF_HW 2 "register_operand"   "v")
-		       (match_operand:QI    3 "const_mask_operand" "C")]
-		      UNSPEC_VEC_VFMIN))]
+  [(set (match_operand:VFT_BFP                  0 "register_operand"  "=v")
+	(unspec:VFT_BFP [(match_operand:VFT_BFP 1 "register_operand"   "v")
+		         (match_operand:VFT_BFP 2 "register_operand"   "v")
+		         (match_operand:QI      3 "const_mask_operand" "C")]
+		        UNSPEC_FMIN))]
   "TARGET_VXE"
   "<vw>fmin<sdx>b\t%v0,%v1,%v2,%b3"
   [(set_attr "op_type" "VRR")])
 
 (define_insn "vfmax<mode>"
-  [(set (match_operand:VF_HW                0 "register_operand"  "=v")
-	(unspec:VF_HW [(match_operand:VF_HW 1 "register_operand"   "v")
-		       (match_operand:VF_HW 2 "register_operand"   "v")
-		       (match_operand:QI    3 "const_mask_operand" "C")]
-		      UNSPEC_VEC_VFMAX))]
+  [(set (match_operand:VFT_BFP                  0 "register_operand"  "=v")
+	(unspec:VFT_BFP [(match_operand:VFT_BFP 1 "register_operand"   "v")
+		         (match_operand:VFT_BFP 2 "register_operand"   "v")
+		         (match_operand:QI      3 "const_mask_operand" "C")]
+		        UNSPEC_FMAX))]
   "TARGET_VXE"
   "<vw>fmax<sdx>b\t%v0,%v1,%v2,%b3"
   [(set_attr "op_type" "VRR")])

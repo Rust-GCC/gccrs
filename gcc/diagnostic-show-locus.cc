@@ -408,6 +408,12 @@ struct to_text
 {
   friend class layout_printer<to_text>;
 
+  // This is a RAII class for HTML, but is a no-op for text.
+  struct auto_check_tag_nesting
+  {
+    auto_check_tag_nesting (to_text &) {}
+  };
+
   to_text (pretty_printer &pp,
 	   colorizer &colorizer)
   : m_pp (pp),
@@ -446,7 +452,7 @@ struct to_text
   {
     // no-op for text
   }
-  void pop_html_tag (std::string)
+  void pop_html_tag (const char *)
   {
     // no-op for text
   }
@@ -538,6 +544,16 @@ struct to_html
 {
   friend class layout_printer<to_html>;
 
+  // RAII class for ensuring that the tags nested correctly
+  struct auto_check_tag_nesting : public xml::auto_check_tag_nesting
+  {
+  public:
+    auto_check_tag_nesting (to_html &sink)
+    : xml::auto_check_tag_nesting (sink.m_xp)
+    {
+    }
+  };
+
   to_html (xml::printer &xp,
 	   const rich_location *richloc,
 	   html_label_writer *html_label_writer)
@@ -569,9 +585,9 @@ struct to_html
 			      preserve_whitespace);
   }
 
-  void pop_html_tag (std::string /*name*/)
+  void pop_html_tag (const char *expected_name)
   {
-    m_xp.pop_tag ();
+    m_xp.pop_tag (expected_name);
   }
 
   void add_html_tag_with_class (std::string name,
@@ -598,7 +614,7 @@ struct to_html
   {
     pp_clear_output_area (&m_scratch_pp);
     pp_unicode_character (&m_scratch_pp, ch);
-    m_xp.add_text (pp_formatted_text (&m_scratch_pp));
+    m_xp.add_text_from_pp (m_scratch_pp);
   }
 
   void add_utf8_byte (char b)
@@ -728,7 +744,7 @@ default_diagnostic_start_span_fn<to_html> (const diagnostic_location_print_polic
 				       false);
   sink.m_xp.push_tag_with_class ("span", "location", true);
   sink.m_xp.add_text (text.get ());
-  sink.m_xp.pop_tag (); // span
+  sink.m_xp.pop_tag ("span");
 }
 
 namespace {
@@ -1235,9 +1251,9 @@ make_range (file_cache &fc,
 	    int start_line, int start_col, int end_line, int end_col)
 {
   const expanded_location start_exploc
-    = {"", start_line, start_col, NULL, false};
+    = {"", start_line, start_col, nullptr, false};
   const expanded_location finish_exploc
-    = {"", end_line, end_col, NULL, false};
+    = {"", end_line, end_col, nullptr, false};
   return layout_range (exploc_with_display_col (fc,
 						start_exploc, def_policy (),
 						LOCATION_ASPECT_START),
@@ -1248,7 +1264,7 @@ make_range (file_cache &fc,
 		       exploc_with_display_col (fc,
 						start_exploc, def_policy (),
 						LOCATION_ASPECT_CARET),
-		       0, NULL);
+		       0, nullptr);
 }
 
 /* Selftests for layout_range::contains_point and
@@ -2597,7 +2613,7 @@ layout_printer<Sink>::print_annotation_line (linenum_type row,
 struct pod_label_text
 {
   pod_label_text ()
-  : m_buffer (NULL), m_caller_owned (false)
+  : m_buffer (nullptr), m_caller_owned (false)
   {}
 
   pod_label_text (label_text &&other)
@@ -2719,7 +2735,7 @@ layout_printer<to_html>::end_label (int range_idx,
 				    bool is_label_text)
 {
   if (m_sink.get_highlight_color_for_range_idx (range_idx))
-    m_sink.m_xp.pop_tag ();
+    m_sink.m_xp.pop_tag ("span");
 
   if (is_label_text && m_sink.m_html_label_writer)
     m_sink.m_html_label_writer->end_label ();
@@ -2739,7 +2755,7 @@ layout_printer<Sink>::print_any_labels (linenum_type row)
     FOR_EACH_VEC_ELT (m_layout.m_layout_ranges, i, range)
       {
 	/* Most ranges don't have labels, so reject this first.  */
-	if (range->m_label == NULL)
+	if (range->m_label == nullptr)
 	  continue;
 
 	/* The range's caret must be on this line.  */
@@ -2755,10 +2771,10 @@ layout_printer<Sink>::print_any_labels (linenum_type row)
 	label_text text;
 	text = range->m_label->get_text (range->m_original_idx);
 
-	/* Allow for labels that return NULL from their get_text
+	/* Allow for labels that return nullptr from their get_text
 	   implementation (so e.g. such labels can control their own
 	   visibility).  */
-	if (text.get () == NULL)
+	if (text.get () == nullptr)
 	  continue;
 
 	labels.safe_push (line_label (range->m_original_idx,
@@ -3438,6 +3454,8 @@ template<typename Sink>
 void
 layout_printer<Sink>::print_trailing_fixits (linenum_type row)
 {
+  typename Sink::auto_check_tag_nesting sentinel (m_sink);
+
   /* Build a list of correction instances for the line,
      potentially consolidating hints (for the sake of readability).  */
   line_corrections corrections (m_layout.m_file_cache, m_layout.m_char_policy,
@@ -3508,9 +3526,6 @@ layout_printer<Sink>::print_trailing_fixits (linenum_type row)
 	    }
 	}
     }
-
-  if (!corrections.m_corrections.is_empty ())
-    m_sink.pop_html_tag ("td");
 
   /* Add a trailing newline, if necessary.  */
   move_to_column (&column, 1 + m_layout.m_x_offset_display, false);
@@ -3691,6 +3706,8 @@ template<typename Sink>
 void
 layout_printer<Sink>::print_line (linenum_type row)
 {
+  typename Sink::auto_check_tag_nesting sentinel (m_sink);
+
   char_span line
     = m_layout.m_file_cache.get_source_line (m_layout.m_exploc.file, row);
   if (!line)
@@ -3844,7 +3861,7 @@ diagnostic_context::maybe_show_locus (const rich_location &richloc,
   if (loc == m_last_location
       && richloc.get_num_fixit_hints () == 0
       && richloc.get_num_locations () == 1
-      && richloc.get_range (0)->m_label == NULL)
+      && richloc.get_range (0)->m_label == nullptr)
     return;
 
   m_last_location = loc;
@@ -3878,7 +3895,7 @@ diagnostic_context::maybe_show_locus_as_html (const rich_location &richloc,
   if (loc == m_last_location
       && richloc.get_num_fixit_hints () == 0
       && richloc.get_num_locations () == 1
-      && richloc.get_range (0)->m_label == NULL)
+      && richloc.get_range (0)->m_label == nullptr)
     return;
 
   m_last_location = loc;
@@ -3948,6 +3965,7 @@ diagnostic_source_print_policy::print_as_html (xml::printer &xp,
   to_html sink (xp, &richloc, label_writer);
   layout_printer<to_html> lp (sink, layout,
 			      diagnostic_kind == DK_DIAGNOSTIC_PATH);
+  xml::auto_check_tag_nesting sentinel (xp);
   lp.print (*this);
 }
 
@@ -3955,6 +3973,8 @@ template <typename Sink>
 void
 layout_printer<Sink>::print (const diagnostic_source_print_policy &source_policy)
 {
+  typename Sink::auto_check_tag_nesting sentinel (m_sink);
+
   m_sink.push_html_tag_with_class ("table", "locus", false);
 
   if (get_options ().show_ruler_p)
@@ -4376,11 +4396,11 @@ test_layout_x_offset_display_tab (const line_table_case &case_)
       layout_printer<to_text> lp (sink, test_layout, false);
       lp.print (policy);
       const char *out = pp_formatted_text (dc.get_reference_printer ());
-      ASSERT_EQ (NULL, strchr (out, '\t'));
+      ASSERT_EQ (nullptr, strchr (out, '\t'));
       const char *left_quote = strchr (out, '`');
       const char *right_quote = strchr (out, '\'');
-      ASSERT_NE (NULL, left_quote);
-      ASSERT_NE (NULL, right_quote);
+      ASSERT_NE (nullptr, left_quote);
+      ASSERT_NE (nullptr, right_quote);
       ASSERT_EQ (right_quote - left_quote, extra_width[tabstop] + 2);
     }
 
@@ -5041,10 +5061,10 @@ test_one_liner_labels ()
 		  dc.test_show_locus (richloc));
   }
 
-  /* Verify that a NULL result from range_label::get_text is
+  /* Verify that a nullptr result from range_label::get_text is
      handled gracefully.  */
   {
-    text_range_label label (NULL);
+    text_range_label label (nullptr);
     gcc_rich_location richloc (bar, &label, nullptr);
 
     test_diagnostic_context dc;

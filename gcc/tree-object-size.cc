@@ -464,6 +464,93 @@ compute_object_offset (tree expr, const_tree var)
   return size_binop (code, base, off);
 }
 
+/* Return true if CONTAINER has a field of type INNER at OFFSET.  */
+
+static bool
+inner_at_offset (tree container, tree inner, tree offset)
+{
+  gcc_assert (RECORD_OR_UNION_TYPE_P (container));
+
+  for (tree t = TYPE_FIELDS (container); t; t = DECL_CHAIN (t))
+    {
+      if (TREE_CODE (t) != FIELD_DECL)
+	continue;
+
+      /* Skip over fields at bit offsets that are not BITS_PER_UNIT aligned
+	 to avoid an accidental truncated match with BYTE_POSITION below since
+	 the address of such fields cannot be taken.  */
+      if (wi::bit_and (wi::to_offset (DECL_FIELD_BIT_OFFSET (t)),
+		       BITS_PER_UNIT - 1) != 0)
+	continue;
+
+      tree byte_offset = byte_position (t);
+      if (TREE_CODE (byte_offset) != INTEGER_CST
+	  || tree_int_cst_lt (offset, byte_offset))
+	return false;
+
+      /* For an array, check the element type, otherwise the actual type.  This
+	 deliberately does not support the case of jumping from a pointer to
+	 the middle of an array to its containing struct.  */
+      tree t_type = TREE_TYPE (t);
+      if (((TREE_CODE (t_type) == ARRAY_TYPE && TREE_TYPE (t_type) == inner)
+	   || t_type == inner)
+	  && tree_int_cst_equal (byte_offset, offset))
+	return true;
+
+      /* Nested structure or union, adjust the expected offset and dive in.  */
+      if (RECORD_OR_UNION_TYPE_P (TREE_TYPE (t))
+	  && inner_at_offset (TREE_TYPE (t), inner,
+			      fold_build2 (MINUS_EXPR, sizetype, offset,
+					   byte_offset)))
+	return true;
+    }
+
+  return false;
+}
+
+/* For the input MEMREF of type MEMREF_TYPE, look for the presence of a field
+   of BASE_TYPE at OFFSET and return an adjusted WHOLESIZE if found.  */
+
+static tree
+get_wholesize_for_memref (tree memref, tree wholesize)
+{
+  tree base = TREE_OPERAND (memref, 0);
+  tree offset = fold_convert (sizetype, TREE_OPERAND (memref, 1));
+  tree memref_type = TREE_TYPE (memref);
+  tree base_type = TREE_TYPE (base);
+
+  if (POINTER_TYPE_P (base_type))
+    base_type = TREE_TYPE ((base_type));
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "wholesize_for_memref: ");
+      print_generic_expr (dump_file, wholesize, dump_flags);
+      fprintf (dump_file, ", offset: ");
+      print_generic_expr (dump_file, offset, dump_flags);
+      fprintf (dump_file, "\n");
+    }
+
+  if (TREE_CODE (offset) != INTEGER_CST
+      || compare_tree_int (offset, offset_limit) < 0
+      || !RECORD_OR_UNION_TYPE_P (memref_type))
+    return wholesize;
+
+  offset = fold_build1 (NEGATE_EXPR, sizetype, offset);
+
+  if (inner_at_offset (memref_type, base_type, offset))
+    wholesize = size_binop (PLUS_EXPR, wholesize, offset);
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "    new wholesize: ");
+      print_generic_expr (dump_file, wholesize, dump_flags);
+      fprintf (dump_file, "\n");
+    }
+
+  return wholesize;
+}
+
 /* Returns the size of the object designated by DECL considering its
    initializer if it either has one or if it would not affect its size,
    otherwise the size of the object without the initializer when MIN
@@ -536,7 +623,7 @@ addr_object_size (struct object_size_info *osi, const_tree ptr,
 	{
 	  compute_builtin_object_size (TREE_OPERAND (pt_var, 0),
 				       object_size_type & ~OST_SUBOBJECT, &sz);
-	  wholesize = sz;
+	  wholesize = get_wholesize_for_memref (pt_var, sz);
 	}
       else
 	{
@@ -548,6 +635,7 @@ addr_object_size (struct object_size_info *osi, const_tree ptr,
 	    {
 	      sz = object_sizes_get (osi, SSA_NAME_VERSION (var));
 	      wholesize = object_sizes_get (osi, SSA_NAME_VERSION (var), true);
+	      wholesize = get_wholesize_for_memref (pt_var, wholesize);
 	    }
 	  else
 	    sz = wholesize = size_unknown (object_size_type);
@@ -763,37 +851,32 @@ addr_object_size (struct object_size_info *osi, const_tree ptr,
 
 /* Compute __builtin_object_size for a CALL to .ACCESS_WITH_SIZE,
    OBJECT_SIZE_TYPE is the second argument from __builtin_object_size.
-   The 2nd, 3rd, and the 4th parameters of the call determine the size of
+
+   The 2nd, 3rd, and 4th parameters of the call determine the size of
    the CALL:
 
    2nd argument REF_TO_SIZE: The reference to the size of the object,
-   3rd argument CLASS_OF_SIZE: The size referenced by the REF_TO_SIZE represents
-     0: the number of bytes;
-     1: the number of the elements of the object type;
-   4th argument TYPE_OF_SIZE: A constant 0 with its TYPE being the same as the TYPE
-    of the object referenced by REF_TO_SIZE
-   6th argument: A constant 0 with the pointer TYPE to the original flexible
-     array type.
+   3rd argument TYPE_OF_SIZE + ACCESS_MODE: An integer constant with a pointer
+     TYPE.
+     The pointee TYPE of this pointer TYPE is the TYPE of the object referenced
+	by REF_TO_SIZE.
 
-   The size of the element can be retrived from the TYPE of the 6th argument
-   of the call, which is the pointer to the array type.  */
+   4th argument:  The TYPE_SIZE_UNIT of the element TYPE of the array.  */
+
 static tree
 access_with_size_object_size (const gcall *call, int object_size_type)
 {
   /* If not for dynamic object size, return.  */
   if ((object_size_type & OST_DYNAMIC) == 0)
     return size_unknown (object_size_type);
-
   gcc_assert (gimple_call_internal_p (call, IFN_ACCESS_WITH_SIZE));
-  /* The type of the 6th argument type is the pointer TYPE to the original
-     flexible array type.  */
-  tree pointer_to_array_type = TREE_TYPE (gimple_call_arg (call, 5));
-  gcc_assert (POINTER_TYPE_P (pointer_to_array_type));
-  tree element_type = TREE_TYPE (TREE_TYPE (pointer_to_array_type));
-  tree element_size = TYPE_SIZE_UNIT (element_type);
+
   tree ref_to_size = gimple_call_arg (call, 1);
-  unsigned int class_of_size = TREE_INT_CST_LOW (gimple_call_arg (call, 2));
-  tree type = TREE_TYPE (gimple_call_arg (call, 3));
+  tree type = TREE_TYPE (TREE_TYPE (gimple_call_arg (call, 2)));
+
+  /* The 4th argument is the TYPE_SIZE_UNIT for the element of the original
+     flexible array.  */
+  tree element_size = gimple_call_arg (call, 3);
 
   tree size = fold_build2 (MEM_REF, type, ref_to_size,
 			   build_int_cst (ptr_type_node, 0));
@@ -807,12 +890,9 @@ access_with_size_object_size (const gcall *call, int object_size_type)
 			build_zero_cst (type), size);
   }
 
-  if (class_of_size == 1)
-    size = size_binop (MULT_EXPR,
-		       fold_convert (sizetype, size),
-		       fold_convert (sizetype, element_size));
-  else
-    size = fold_convert (sizetype, size);
+  size = size_binop (MULT_EXPR,
+		     fold_convert (sizetype, size),
+		     fold_convert (sizetype, element_size));
 
   if (!todo)
     todo = TODO_update_ssa_only_virtuals;

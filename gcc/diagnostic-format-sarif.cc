@@ -28,6 +28,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "diagnostic.h"
 #include "diagnostic-metadata.h"
+#include "diagnostic-digraphs.h"
+#include "diagnostic-state-graphs.h"
 #include "diagnostic-path.h"
 #include "diagnostic-format.h"
 #include "diagnostic-buffer.h"
@@ -50,6 +52,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "pretty-print-urlifier.h"
 #include "demangle.h"
 #include "backtrace.h"
+#include "xml.h"
 
 /* A json::array where the values are "unique" as per
    SARIF v2.1.0 section 3.7.3 ("Array properties with unique values").  */
@@ -751,7 +754,6 @@ public:
   sarif_builder (diagnostic_context &context,
 		 pretty_printer &printer,
 		 const line_maps *line_maps,
-		 const char *main_input_filename_,
 		 std::unique_ptr<sarif_serialization_format> serialization_format,
 		 const sarif_generation_options &sarif_gen_opts);
   ~sarif_builder ();
@@ -767,11 +769,17 @@ public:
     return m_logical_loc_mgr;
   }
 
+  void
+  set_main_input_filename (const char *name);
+
   void on_report_diagnostic (const diagnostic_info &diagnostic,
 			     diagnostic_t orig_diag_kind,
 			     diagnostic_sarif_format_buffer *buffer);
   void emit_diagram (const diagnostic_diagram &diagram);
   void end_group ();
+
+  void
+  report_global_digraph (const diagnostics::digraphs::lazy_digraph &);
 
   std::unique_ptr<sarif_result> take_current_result ()
   {
@@ -786,7 +794,7 @@ public:
 		      const diagnostic_info &diagnostic,
 		      enum diagnostic_artifact_role role);
   std::unique_ptr<sarif_location>
-  make_location_object (sarif_location_manager &loc_mgr,
+  make_location_object (sarif_location_manager *loc_mgr,
 			const rich_location &rich_loc,
 			logical_location logical_loc,
 			enum diagnostic_artifact_role role);
@@ -970,6 +978,8 @@ private:
   hash_set <int_hash <int, 0, 1> > m_cwe_id_set;
 
   std::unique_ptr<sarif_array_of_unique<sarif_logical_location>> m_cached_logical_locs;
+
+  std::unique_ptr<sarif_array_of_unique<sarif_graph>> m_run_graphs;
 
   int m_tabstop;
 
@@ -1302,7 +1312,7 @@ sarif_result::on_nested_diagnostic (const diagnostic_info &diagnostic,
      sometimes these will related to current_function_decl, but
      often they won't.  */
   auto location_obj
-    = builder.make_location_object (*this, *diagnostic.richloc,
+    = builder.make_location_object (this, *diagnostic.richloc,
 				    logical_location (),
 				    diagnostic_artifact_role::result_file);
   auto message_obj
@@ -1643,7 +1653,6 @@ sarif_thread_flow::add_location ()
 sarif_builder::sarif_builder (diagnostic_context &context,
 			      pretty_printer &printer,
 			      const line_maps *line_maps,
-			      const char *main_input_filename_,
 			      std::unique_ptr<sarif_serialization_format> serialization_format,
 			      const sarif_generation_options &sarif_gen_opts)
 : m_context (context),
@@ -1661,6 +1670,8 @@ sarif_builder::sarif_builder (diagnostic_context &context,
   m_rules_arr (new json::array ()),
   m_cached_logical_locs
     (std::make_unique<sarif_array_of_unique<sarif_logical_location>> ()),
+  m_run_graphs
+    (std::make_unique<sarif_array_of_unique<sarif_graph>> ()),
   m_tabstop (context.m_tabstop),
   m_serialization_format (std::move (serialization_format)),
   m_sarif_gen_opts (sarif_gen_opts),
@@ -1672,17 +1683,6 @@ sarif_builder::sarif_builder (diagnostic_context &context,
 
   if (auto client_data_hooks = context.get_client_data_hooks ())
     m_logical_loc_mgr = client_data_hooks->get_logical_location_manager ();
-
-  /* Mark MAIN_INPUT_FILENAME_ as the artifact that the tool was
-     instructed to scan.
-     Only quote the contents if it gets referenced by physical locations,
-     since otherwise the "no diagnostics" case would quote the main input
-     file, and doing so noticeably bloated the output seen in analyzer
-     integration testing (build directory went from 20G -> 21G).  */
-  if (main_input_filename_)
-    get_or_create_artifact (main_input_filename_,
-			    diagnostic_artifact_role::analysis_target,
-			    false);
 }
 
 sarif_builder::~sarif_builder ()
@@ -1731,12 +1731,12 @@ bt_callback (void *data, uintptr_t pc, const char *filename, int lineno,
 
   /* If we don't have any useful information, don't print
      anything.  */
-  if (filename == NULL && function == NULL)
+  if (filename == nullptr && function == nullptr)
     return 0;
 
   /* Skip functions in diagnostic.cc or diagnostic-global-context.cc.  */
   if (closure->m_frames_arr->size () == 0
-      && filename != NULL
+      && filename != nullptr
       && (strcmp (lbasename (filename), "diagnostic.cc") == 0
 	  || strcmp (lbasename (filename),
 		     "diagnostic-global-context.cc") == 0))
@@ -1750,13 +1750,13 @@ bt_callback (void *data, uintptr_t pc, const char *filename, int lineno,
       return 1;
     }
 
-  char *alc = NULL;
-  if (function != NULL)
+  char *alc = nullptr;
+  if (function != nullptr)
     {
       char *str = cplus_demangle_v3 (function,
 				     (DMGL_VERBOSE | DMGL_ANSI
 				      | DMGL_GNU_V3 | DMGL_PARAMS));
-      if (str != NULL)
+      if (str != nullptr)
 	{
 	  alc = str;
 	  function = str;
@@ -1768,7 +1768,7 @@ bt_callback (void *data, uintptr_t pc, const char *filename, int lineno,
 	  if (strncmp (function, bt_stop[i], len) == 0
 	      && (function[len] == '\0' || function[len] == '('))
 	    {
-	      if (alc != NULL)
+	      if (alc != nullptr)
 		free (alc);
 	      /* Returning a non-zero value stops the backtrace.  */
 	      return 1;
@@ -1790,7 +1790,7 @@ bt_callback (void *data, uintptr_t pc, const char *filename, int lineno,
   frame_obj->set_integer ("lineno", lineno);
   closure->m_frames_arr->append (std::move (frame_obj));
 
-  if (alc != NULL)
+  if (alc != nullptr)
     free (alc);
 
   return 0;
@@ -1818,6 +1818,20 @@ sarif_builder::make_stack_from_backtrace ()
   auto stack = std::make_unique<json::object> ();
   stack->set ("frames", std::move (frames_arr));
   return stack;
+}
+
+void
+sarif_builder::set_main_input_filename (const char *name)
+{
+  /* Mark NAME as the artifact that the tool was instructed to scan.
+     Only quote the contents if it gets referenced by physical locations,
+     since otherwise the "no diagnostics" case would quote the main input
+     file, and doing so noticeably bloated the output seen in analyzer
+     integration testing (build directory went from 20G -> 21G).  */
+  if (name)
+    get_or_create_artifact (name,
+			    diagnostic_artifact_role::analysis_target,
+			    false);
 }
 
 /* Implementation of "on_report_diagnostic" for SARIF output.  */
@@ -1888,6 +1902,17 @@ sarif_builder::end_group ()
       m_cur_group_result->process_worklist (*this);
       m_results_array->append<sarif_result> (std::move (m_cur_group_result));
     }
+}
+
+void
+sarif_builder::
+report_global_digraph (const diagnostics::digraphs::lazy_digraph &ldg)
+{
+  auto &dg = ldg.get_or_create_digraph ();
+
+  /* Presumably the location manager must be nullptr; see
+     https://github.com/oasis-tcs/sarif-spec/issues/712  */
+  m_run_graphs->append (make_sarif_graph (dg, this, nullptr));
 }
 
 /* Create a top-level object, and add it to all the results
@@ -2044,6 +2069,19 @@ sarif_builder::make_result_object (const diagnostic_info &diagnostic,
       result_obj->set<json::array> ("codeFlows", std::move (code_flows_arr));
     }
 
+  // "graphs" property (SARIF v2.1.0 section 3.27.19).  */
+  if (diagnostic.metadata)
+    if (auto ldg = diagnostic.metadata->get_lazy_digraphs ())
+      {
+	auto &digraphs = ldg->get_or_create_digraphs ();
+	auto graphs_arr = std::make_unique<json::array> ();
+	for (auto &iter : digraphs)
+	  graphs_arr->append (make_sarif_graph (*iter, this,
+						result_obj.get ()));
+	if (graphs_arr->size () > 0)
+	  result_obj->set<json::array> ("graphs", std::move (graphs_arr));
+      }
+
   /* The "relatedLocations" property (SARIF v2.1.0 section 3.27.22) is
      set up later, if any nested diagnostics occur within this diagnostic
      group.  */
@@ -2171,7 +2209,7 @@ sarif_builder::make_locations_arr (sarif_location_manager &loc_mgr,
     logical_loc = client_data_hooks->get_current_logical_location ();
 
   auto location_obj
-    = make_location_object (loc_mgr, *diagnostic.richloc, logical_loc, role);
+    = make_location_object (&loc_mgr, *diagnostic.richloc, logical_loc, role);
   /* Don't add entirely empty location objects to the array.  */
   if (!location_obj->is_empty ())
     locations_arr->append<sarif_location> (std::move (location_obj));
@@ -2205,10 +2243,12 @@ set_any_logical_locs_arr (sarif_location &location_obj,
 /* Make a "location" object (SARIF v2.1.0 section 3.28) for RICH_LOC
    and LOGICAL_LOC.
    Use LOC_MGR for any locations that need "id" values, and for
-   any worklist items.  */
+   any worklist items.
+   Note that we might not always have a LOC_MGR; see
+   https://github.com/oasis-tcs/sarif-spec/issues/712  */
 
 std::unique_ptr<sarif_location>
-sarif_builder::make_location_object (sarif_location_manager &loc_mgr,
+sarif_builder::make_location_object (sarif_location_manager *loc_mgr,
 				     const rich_location &rich_loc,
 				     logical_location logical_loc,
 				     enum diagnostic_artifact_role role)
@@ -2304,8 +2344,8 @@ sarif_builder::make_location_object (sarif_location_manager &loc_mgr,
 
 	/* Add related locations for any secondary locations in RICH_LOC
 	   that don't have labels (and thus aren't added to "annotations"). */
-	if (i > 0 && !handled)
-	  loc_mgr.add_relationship_to_worklist
+	if (loc_mgr && i > 0 && !handled)
+	  loc_mgr->add_relationship_to_worklist
 	    (*location_obj.get (),
 	     sarif_location_manager::worklist_item::kind::unlabelled_secondary_location,
 	     range->m_loc);
@@ -2316,7 +2356,8 @@ sarif_builder::make_location_object (sarif_location_manager &loc_mgr,
 				      std::move (annotations_arr));
   }
 
-  add_any_include_chain (loc_mgr, *location_obj.get (), loc);
+  if (loc_mgr)
+    add_any_include_chain (*loc_mgr, *location_obj.get (), loc);
 
   /* A flag for hinting that the diagnostic involves issues at the
      level of character encodings (such as homoglyphs, or misleading
@@ -2731,51 +2772,51 @@ maybe_get_sarif_kind (enum logical_location_kind kind)
     {
     default:
       gcc_unreachable ();
-    case LOGICAL_LOCATION_KIND_UNKNOWN:
+    case logical_location_kind::unknown:
       return nullptr;
 
     /* Kinds within executable code.  */
-    case LOGICAL_LOCATION_KIND_FUNCTION:
+    case logical_location_kind::function:
       return "function";
-    case LOGICAL_LOCATION_KIND_MEMBER:
+    case logical_location_kind::member:
       return "member";
-    case LOGICAL_LOCATION_KIND_MODULE:
+    case logical_location_kind::module_:
       return "module";
-    case LOGICAL_LOCATION_KIND_NAMESPACE:
+    case logical_location_kind::namespace_:
       return "namespace";
-    case LOGICAL_LOCATION_KIND_TYPE:
+    case logical_location_kind::type:
       return "type";
-    case LOGICAL_LOCATION_KIND_RETURN_TYPE:
+    case logical_location_kind::return_type:
       return "returnType";
-    case LOGICAL_LOCATION_KIND_PARAMETER:
+    case logical_location_kind::parameter:
       return "parameter";
-    case LOGICAL_LOCATION_KIND_VARIABLE:
+    case logical_location_kind::variable:
       return "variable";
 
     /* Kinds within XML or HTML documents.  */
-    case LOGICAL_LOCATION_KIND_ELEMENT:
+    case logical_location_kind::element:
       return "element";
-    case LOGICAL_LOCATION_KIND_ATTRIBUTE:
+    case logical_location_kind::attribute:
       return "attribute";
-    case LOGICAL_LOCATION_KIND_TEXT:
+    case logical_location_kind::text:
       return "text";
-    case LOGICAL_LOCATION_KIND_COMMENT:
+    case logical_location_kind::comment:
       return "comment";
-    case LOGICAL_LOCATION_KIND_PROCESSING_INSTRUCTION:
+    case logical_location_kind::processing_instruction:
       return "processingInstruction";
-    case LOGICAL_LOCATION_KIND_DTD:
+    case logical_location_kind::dtd:
       return "dtd";
-    case LOGICAL_LOCATION_KIND_DECLARATION:
+    case logical_location_kind::declaration:
       return "declaration";
 
     /* Kinds within JSON documents.  */
-    case LOGICAL_LOCATION_KIND_OBJECT:
+    case logical_location_kind::object:
       return "object";
-    case LOGICAL_LOCATION_KIND_ARRAY:
+    case logical_location_kind::array:
       return "array";
-    case LOGICAL_LOCATION_KIND_PROPERTY:
+    case logical_location_kind::property:
       return "property";
-    case LOGICAL_LOCATION_KIND_VALUE:
+    case logical_location_kind::value:
       return "value";
     }
 }
@@ -2792,6 +2833,142 @@ sarif_property_bag::set_logical_location (const char *property_name,
   set<sarif_logical_location>
     (property_name,
      builder.make_minimal_sarif_logical_location (logical_loc));
+}
+
+static void
+copy_any_property_bag (const diagnostics::digraphs::object &input_obj,
+		       sarif_object &output_obj)
+{
+  if (input_obj.get_property_bag ())
+    {
+      const json::object &old_bag = *input_obj.get_property_bag ();
+      sarif_property_bag &new_bag = output_obj.get_or_create_properties ();
+      for (size_t i = 0; i < old_bag.get_num_keys (); ++i)
+	{
+	  const char *key = old_bag.get_key (i);
+	  json::value *val = old_bag.get (key);
+	  new_bag.set (key, val->clone ());
+	}
+    }
+}
+
+std::unique_ptr<sarif_graph>
+make_sarif_graph (const diagnostics::digraphs::digraph &g,
+		  sarif_builder *builder,
+		  sarif_location_manager *sarif_location_mgr)
+{
+  auto result = std::make_unique<sarif_graph> ();
+
+  // 3.39.2 description property
+  if (const char *desc = g.get_description ())
+    if (builder)
+      result->set<sarif_message> ("description",
+				  builder->make_message_object (desc));
+
+  copy_any_property_bag (g, *result);
+
+  // 3.39.3 nodes property
+  auto nodes_arr = std::make_unique<json::array> ();
+  const int num_nodes = g.get_num_nodes ();
+  for (int i = 0; i < num_nodes; ++i)
+    nodes_arr->append (make_sarif_node (g.get_node (i),
+					builder,
+					sarif_location_mgr));
+  result->set ("nodes", std::move (nodes_arr));
+
+  // 3.39.4 edges property
+  auto edges_arr = std::make_unique<json::array> ();
+  const int num_edges = g.get_num_edges ();
+  for (int i = 0; i < num_edges; ++i)
+    edges_arr->append (make_sarif_edge (g.get_edge (i), builder));
+  result->set ("edges", std::move (edges_arr));
+
+  return result;
+}
+
+std::unique_ptr<sarif_node>
+make_sarif_node (const diagnostics::digraphs::node &n,
+		 sarif_builder *builder,
+		 sarif_location_manager *sarif_location_mgr)
+{
+  auto result = std::make_unique<sarif_node> ();
+
+  // 3.40.2 id property
+  result->set_string ("id", n.get_id ().c_str ());
+
+  copy_any_property_bag (n, *result);
+
+  // 3.40.3 label property
+  if (const char *label = n.get_label ())
+    if (builder)
+      result->set<sarif_message> ("label",
+				  builder->make_message_object (label));
+
+  // 3.40.4 location property
+  if (n.get_logical_loc ()
+      || n.get_physical_loc () != UNKNOWN_LOCATION)
+    if (builder)
+      {
+	rich_location rich_loc
+	  (line_table, n.get_physical_loc ());
+	auto loc_obj
+	  = builder->make_location_object
+	      (sarif_location_mgr,
+	       rich_loc,
+	       n.get_logical_loc (),
+	       diagnostic_artifact_role::scanned_file);
+	result->set<sarif_location> ("location",
+				     std::move (loc_obj));
+    }
+
+  // 3.40.5 children property
+  if (const int num_children = n.get_num_children ())
+    {
+      auto children_arr = std::make_unique<json::array> ();
+      for (int i = 0; i < num_children; ++i)
+	children_arr->append (make_sarif_node (n.get_child (i),
+					       builder,
+					       sarif_location_mgr));
+      result->set ("children", std::move (children_arr));
+    }
+
+  return result;
+}
+
+std::unique_ptr<sarif_edge>
+make_sarif_edge (const diagnostics::digraphs::edge &e,
+		 sarif_builder *builder)
+{
+  auto result = std::make_unique<sarif_edge> ();
+
+  // 3.41.2 id property
+  result->set_string ("id", e.get_id ().c_str ());
+
+  copy_any_property_bag (e, *result);
+
+  // 3.41.3 label property
+  if (const char *label = e.get_label ())
+    if (builder)
+      result->set<sarif_message> ("label",
+				  builder->make_message_object (label));
+
+  // 3.41.4 sourceNodeId property
+  result->set_string ("sourceNodeId", e.get_src_node ().get_id ().c_str ());
+
+  // 3.41.5 targetNodeId property
+  result->set_string ("targetNodeId", e.get_dst_node ().get_id ().c_str ());
+
+  return result;
+}
+
+void
+sarif_property_bag::set_graph (const char *property_name,
+			       sarif_builder &builder,
+			       sarif_location_manager *sarif_location_mgr,
+			       const diagnostics::digraphs::digraph &g)
+{
+  set<sarif_graph> (property_name,
+		    make_sarif_graph (g, &builder, sarif_location_mgr));
 }
 
 /* Ensure that m_cached_logical_locs has a "logicalLocation" object
@@ -2955,6 +3132,24 @@ populate_thread_flow_location_object (sarif_result &result,
      via a property bag.  */
   ev.maybe_add_sarif_properties (*this, tfl_obj);
 
+  if (get_opts ().m_state_graph)
+    if (auto state_graph = ev.maybe_make_diagnostic_state_graph (true))
+      {
+	sarif_property_bag &props = tfl_obj.get_or_create_properties ();
+
+#define PROPERTY_PREFIX "gcc/diagnostic_event/"
+	props.set_graph (PROPERTY_PREFIX "state_graph",
+			 *this,
+			 /* Use RESULT for any related locations in the graph's
+			    nodes.
+			    It's not clear if this is correct; see:
+			    https://github.com/oasis-tcs/sarif-spec/issues/712
+			 */
+			 &result,
+			 *state_graph);
+#undef PROPERTY_PREFIX
+      }
+
   /* "location" property (SARIF v2.1.0 section 3.38.3).  */
   tfl_obj.set<sarif_location>
     ("location",
@@ -2986,9 +3181,9 @@ populate_thread_flow_location_object (sarif_result &result,
 std::unique_ptr<json::array>
 sarif_builder::maybe_make_kinds_array (diagnostic_event::meaning m) const
 {
-  if (m.m_verb == diagnostic_event::VERB_unknown
-      && m.m_noun == diagnostic_event::NOUN_unknown
-      && m.m_property == diagnostic_event::PROPERTY_unknown)
+  if (m.m_verb == diagnostic_event::verb::unknown
+      && m.m_noun == diagnostic_event::noun::unknown
+      && m.m_property == diagnostic_event::property::unknown)
     return nullptr;
 
   auto kinds_arr = std::make_unique<json::array> ();
@@ -3214,6 +3409,11 @@ make_run_object (std::unique_ptr<sarif_invocation> invocation_obj,
       run_obj->set<json::array> ("logicalLocations",
 				 std::move (m_cached_logical_locs));
     }
+
+  // "graphs" property (SARIF v2.1.0 3.14.20)
+  if (m_run_graphs->size () > 0)
+    run_obj->set<json::array> ("graphs",
+			       std::move (m_run_graphs));
 
   return run_obj;
 }
@@ -3657,6 +3857,12 @@ public:
     diagnostic_output_format::dump (out, indent);
   }
 
+  void
+  set_main_input_filename (const char *name) final override
+  {
+    m_builder.set_main_input_filename (name);
+  }
+
   std::unique_ptr<diagnostic_per_format_buffer>
   make_per_format_buffer () final override
   {
@@ -3714,6 +3920,12 @@ public:
     /* No-op.  */
   }
 
+  void
+  report_global_digraph (const diagnostics::digraphs::lazy_digraph &lazy_digraph) final override
+  {
+    m_builder.report_global_digraph (lazy_digraph);
+  }
+
   sarif_builder &get_builder () { return m_builder; }
 
   size_t num_results () const { return m_builder.num_results (); }
@@ -3722,11 +3934,10 @@ public:
 protected:
   sarif_output_format (diagnostic_context &context,
 		       const line_maps *line_maps,
-		       const char *main_input_filename_,
 		       std::unique_ptr<sarif_serialization_format> serialization_format,
 		       const sarif_generation_options &sarif_gen_opts)
   : diagnostic_output_format (context),
-    m_builder (context, *get_printer (), line_maps, main_input_filename_,
+    m_builder (context, *get_printer (), line_maps,
 	       std::move (serialization_format), sarif_gen_opts),
     m_buffer (nullptr)
   {}
@@ -3740,11 +3951,10 @@ class sarif_stream_output_format : public sarif_output_format
 public:
   sarif_stream_output_format (diagnostic_context &context,
 			      const line_maps *line_maps,
-			      const char *main_input_filename_,
 			      std::unique_ptr<sarif_serialization_format> serialization_format,
 			      const sarif_generation_options &sarif_gen_opts,
 			      FILE *stream)
-  : sarif_output_format (context, line_maps, main_input_filename_,
+  : sarif_output_format (context, line_maps,
 			 std::move (serialization_format), sarif_gen_opts),
     m_stream (stream)
   {
@@ -3766,11 +3976,10 @@ class sarif_file_output_format : public sarif_output_format
 public:
   sarif_file_output_format (diagnostic_context &context,
 			    const line_maps *line_maps,
-			    const char *main_input_filename_,
 			    std::unique_ptr<sarif_serialization_format> serialization_format,
 			    const sarif_generation_options &sarif_gen_opts,
 			    diagnostic_output_file output_file)
-  : sarif_output_format (context, line_maps, main_input_filename_,
+  : sarif_output_format (context, line_maps,
 			 std::move (serialization_format), sarif_gen_opts),
     m_output_file (std::move (output_file))
   {
@@ -3914,34 +4123,39 @@ sarif_builder::sarif_token_printer::print_tokens (pretty_printer *pp,
 }
 
 /* Populate CONTEXT in preparation for SARIF output (either to stderr, or
-   to a file).  */
+   to a file).
+   Return a reference to *FMT.  */
 
-static void
+static diagnostic_output_format &
 diagnostic_output_format_init_sarif (diagnostic_context &context,
 				     std::unique_ptr<sarif_output_format> fmt)
 {
+  gcc_assert (fmt);
+  diagnostic_output_format &out = *fmt;
+
   fmt->update_printer ();
 
   context.set_output_format (std::move (fmt));
+
+  return out;
 }
 
-/* Populate CONTEXT in preparation for SARIF output to stderr.  */
+/* Populate CONTEXT in preparation for SARIF output to stderr.
+   Return a reference to the new sink.  */
 
-void
+diagnostic_output_format &
 diagnostic_output_format_init_sarif_stderr (diagnostic_context &context,
 					    const line_maps *line_maps,
-					    const char *main_input_filename_,
 					    bool formatted)
 {
   gcc_assert (line_maps);
   const sarif_generation_options sarif_gen_opts;
   auto serialization
     = std::make_unique<sarif_serialization_format_json> (formatted);
-  diagnostic_output_format_init_sarif
+  return diagnostic_output_format_init_sarif
     (context,
      std::make_unique<sarif_stream_output_format> (context,
 						   line_maps,
-						   main_input_filename_,
 						   std::move (serialization),
 						   sarif_gen_opts,
 						   stderr));
@@ -4018,12 +4232,12 @@ diagnostic_output_format_open_sarif_file (diagnostic_context &context,
 }
 
 /* Populate CONTEXT in preparation for SARIF output to a file named
-   BASE_FILE_NAME.sarif.  */
+   BASE_FILE_NAME.sarif.
+   Return a reference to the new sink.  */
 
-void
+diagnostic_output_format &
 diagnostic_output_format_init_sarif_file (diagnostic_context &context,
 					  line_maps *line_maps,
-					  const char *main_input_filename_,
 					  bool formatted,
 					  const char *base_file_name)
 {
@@ -4038,22 +4252,21 @@ diagnostic_output_format_init_sarif_file (diagnostic_context &context,
     = std::make_unique<sarif_serialization_format_json> (formatted);
 
   const sarif_generation_options sarif_gen_opts;
-  diagnostic_output_format_init_sarif
+  return diagnostic_output_format_init_sarif
     (context,
      std::make_unique<sarif_file_output_format> (context,
 						 line_maps,
-						 main_input_filename_,
 						 std::move (serialization),
 						 sarif_gen_opts,
 						 std::move (output_file)));
 }
 
-/* Populate CONTEXT in preparation for SARIF output to STREAM.  */
+/* Populate CONTEXT in preparation for SARIF output to STREAM.
+   Return a reference to the new sink.  */
 
-void
+diagnostic_output_format &
 diagnostic_output_format_init_sarif_stream (diagnostic_context &context,
 					    const line_maps *line_maps,
-					    const char *main_input_filename_,
 					    bool formatted,
 					    FILE *stream)
 {
@@ -4061,11 +4274,10 @@ diagnostic_output_format_init_sarif_stream (diagnostic_context &context,
   const sarif_generation_options sarif_gen_opts;
   auto serialization
     = std::make_unique<sarif_serialization_format_json> (formatted);
-  diagnostic_output_format_init_sarif
+  return diagnostic_output_format_init_sarif
     (context,
      std::make_unique<sarif_stream_output_format> (context,
 						   line_maps,
-						   main_input_filename_,
 						   std::move (serialization),
 						   sarif_gen_opts,
 						   stream));
@@ -4074,7 +4286,6 @@ diagnostic_output_format_init_sarif_stream (diagnostic_context &context,
 std::unique_ptr<diagnostic_output_format>
 make_sarif_sink (diagnostic_context &context,
 		 const line_maps &line_maps,
-		 const char *main_input_filename_,
 		 std::unique_ptr<sarif_serialization_format> serialization,
 		 const sarif_generation_options &sarif_gen_opts,
 		 diagnostic_output_file output_file)
@@ -4082,7 +4293,6 @@ make_sarif_sink (diagnostic_context &context,
   auto sink
     = std::make_unique<sarif_file_output_format> (context,
 						  &line_maps,
-						  main_input_filename_,
 						  std::move (serialization),
 						  sarif_gen_opts,
 						  std::move (output_file));
@@ -4093,7 +4303,8 @@ make_sarif_sink (diagnostic_context &context,
 // struct sarif_generation_options
 
 sarif_generation_options::sarif_generation_options ()
-: m_version (sarif_version::v2_1_0)
+: m_version (sarif_version::v2_1_0),
+  m_state_graph (false)
 {
 }
 
@@ -4183,11 +4394,11 @@ public:
   {
     auto format = std::make_unique<buffered_output_format> (*this,
 							    line_table,
-							    main_input_filename,
 							    true,
 							    sarif_gen_opts);
     m_format = format.get (); // borrowed
     diagnostic_output_format_init_sarif (*this, std::move (format));
+    m_format->set_main_input_filename (main_input_filename);
   }
 
   std::unique_ptr<sarif_log> flush_to_object ()
@@ -4204,10 +4415,9 @@ private:
   public:
     buffered_output_format (diagnostic_context &context,
 			    const line_maps *line_maps,
-			    const char *main_input_filename_,
 			    bool formatted,
 			    const sarif_generation_options &sarif_gen_opts)
-    : sarif_output_format (context, line_maps, main_input_filename_,
+    : sarif_output_format (context, line_maps,
 			   std::make_unique<sarif_serialization_format_json>
 			     (formatted),
 			   sarif_gen_opts)
@@ -4243,7 +4453,7 @@ test_make_location_object (const sarif_generation_options &sarif_gen_opts,
   test_diagnostic_context dc;
   pretty_printer pp;
   sarif_builder builder
-    (dc, pp, line_table, "MAIN_INPUT_FILENAME",
+    (dc, pp, line_table,
      std::make_unique<sarif_serialization_format_json> (true),
      sarif_gen_opts);
 
@@ -4276,7 +4486,7 @@ test_make_location_object (const sarif_generation_options &sarif_gen_opts,
 
   std::unique_ptr<sarif_location> location_obj
     = builder.make_location_object
-	(result, richloc, logical_location (),
+	(&result, richloc, logical_location (),
 	 diagnostic_artifact_role::analysis_target);
   ASSERT_NE (location_obj, nullptr);
 

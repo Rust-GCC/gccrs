@@ -124,11 +124,13 @@ class value
   virtual ~value () {}
   virtual enum kind get_kind () const = 0;
   virtual void print (pretty_printer *pp, bool formatted) const = 0;
+  virtual std::unique_ptr<value> clone () const = 0;
 
   void dump (FILE *, bool formatted) const;
   void DEBUG_FUNCTION dump () const;
 
   virtual object *dyn_cast_object () { return nullptr; }
+  virtual string *dyn_cast_string () { return nullptr; }
 
   static int compare (const json::value &val_a, const json::value &val_b);
 
@@ -150,6 +152,7 @@ class object : public value
 
   enum kind get_kind () const final override { return JSON_OBJECT; }
   void print (pretty_printer *pp, bool formatted) const final override;
+  std::unique_ptr<value> clone () const final override;
 
   object *dyn_cast_object () final override { return this; }
 
@@ -182,6 +185,11 @@ class object : public value
 
   static int compare (const json::object &obj_a, const json::object &obj_b);
 
+  size_t get_num_keys () const { return m_keys.length (); }
+  const char *get_key (size_t i) const { return m_keys[i]; }
+
+  std::unique_ptr<object> clone_as_object () const;
+
  private:
   typedef hash_map <char *, value *,
     simple_hashmap_traits<nofree_string_hash, value *> > map_t;
@@ -200,6 +208,7 @@ class array : public value
 
   enum kind get_kind () const final override { return JSON_ARRAY; }
   void print (pretty_printer *pp, bool formatted) const final override;
+  std::unique_ptr<value> clone () const final override;
 
   void append (value *v);
   void append_string (const char *utf8_value);
@@ -241,6 +250,7 @@ class float_number : public value
 
   enum kind get_kind () const final override { return JSON_FLOAT; }
   void print (pretty_printer *pp, bool formatted) const final override;
+  std::unique_ptr<value> clone () const final override;
 
   double get () const { return m_value; }
 
@@ -257,6 +267,7 @@ class integer_number : public value
 
   enum kind get_kind () const final override { return JSON_INTEGER; }
   void print (pretty_printer *pp, bool formatted) const final override;
+  std::unique_ptr<value> clone () const final override;
 
   long get () const { return m_value; }
 
@@ -276,6 +287,8 @@ class string : public value
 
   enum kind get_kind () const final override { return JSON_STRING; }
   void print (pretty_printer *pp, bool formatted) const final override;
+  std::unique_ptr<value> clone () const final override;
+  string *dyn_cast_string () final override { return this; }
 
   const char *get_string () const { return m_utf8; }
   size_t get_length () const { return m_len; }
@@ -298,6 +311,7 @@ class literal : public value
 
   enum kind get_kind () const final override { return m_kind; }
   void print (pretty_printer *pp, bool formatted) const final override;
+  std::unique_ptr<value> clone () const final override;
 
  private:
   enum kind m_kind;

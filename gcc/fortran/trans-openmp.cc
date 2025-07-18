@@ -2792,8 +2792,13 @@ gfc_trans_omp_variable_list (enum omp_clause_code code,
 			     gfc_omp_namelist *namelist, tree list,
 			     bool declare_simd)
 {
+  /* PARAMETER (named constants) are excluded as OpenACC 3.4 permits them now
+     as 'var' but permits compilers to ignore them.  In expressions, it should
+     have been replaced by the value (and this function should not be called
+     anyway) and for var-using clauses, they should just be skipped.  */
   for (; namelist != NULL; namelist = namelist->next)
-    if (namelist->sym->attr.referenced || declare_simd)
+    if ((namelist->sym->attr.referenced || declare_simd)
+	&& namelist->sym->attr.flavor != FL_PARAMETER)
       {
 	tree t = gfc_trans_omp_variable (namelist->sym, declare_simd);
 	if (t != error_mark_node)
@@ -4029,7 +4034,8 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 	case OMP_LIST_MAP:
 	  for (; n != NULL; n = n->next)
 	    {
-	      if (!n->sym->attr.referenced)
+	      if (!n->sym->attr.referenced
+		  || n->sym->attr.flavor == FL_PARAMETER)
 		continue;
 
 	      location_t map_loc = gfc_get_location (&n->where);
@@ -4986,7 +4992,8 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 	case OMP_LIST_CACHE:
 	  for (; n != NULL; n = n->next)
 	    {
-	      if (!n->sym->attr.referenced)
+	      if (!n->sym->attr.referenced
+		  && n->sym->attr.flavor != FL_PARAMETER)
 		continue;
 
 	      switch (list)
@@ -6048,6 +6055,10 @@ gfc_trans_oacc_wait_directive (gfc_code *code)
     args->quick_push (gfc_convert_expr_to_tree (&block, el->expr));
 
   stmt = build_call_expr_loc_vec (loc, stmt, args);
+  if (clauses->if_expr)
+    stmt = build3_loc (input_location, COND_EXPR, void_type_node,
+		       gfc_convert_expr_to_tree (&block, clauses->if_expr),
+		       stmt, NULL_TREE);
   gfc_add_expr_to_block (&block, stmt);
 
   vec_free (args);
@@ -9703,11 +9714,12 @@ gfc_trans_omp_declare_variant (gfc_namespace *ns, gfc_namespace *parent_ns)
 	{
 	  gfc_symtree *proc_st;
 	  gfc_find_sym_tree (variant_proc_name, gfc_current_ns, 1, &proc_st);
-	  variant_proc_sym = proc_st->n.sym;
+	  variant_proc_sym = proc_st ? proc_st->n.sym : NULL;
 	}
       if (variant_proc_sym == NULL)
 	{
-	  gfc_error ("Cannot find symbol %qs", variant_proc_name);
+	  gfc_error ("Cannot find symbol %qs at %L", variant_proc_name,
+						     &odv->where);
 	  continue;
 	}
       set_selectors = omp_check_context_selector

@@ -118,7 +118,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       ~_UninitDestroyGuard()
       {
 	if (__builtin_expect(_M_cur != 0, 0))
+#if __cplusplus == 201703L
+	  // std::uninitialized_{value,default}{,_n} can construct array types,
+	  // but std::_Destroy cannot handle them until C++20 (PR 120397).
+	  _S_destroy(_M_first, *_M_cur);
+#else
 	  std::_Destroy(_M_first, *_M_cur);
+#endif
       }
 
       _GLIBCXX20_CONSTEXPR
@@ -129,6 +135,20 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     private:
       _UninitDestroyGuard(const _UninitDestroyGuard&);
+
+#if __cplusplus == 201703L
+      template<typename _Iter>
+	static void
+	_S_destroy(_Iter __first, _Iter __last)
+	{
+	  using _ValT = typename iterator_traits<_Iter>::value_type;
+	  if constexpr (is_array<_ValT>::value)
+	    for (; __first != __last; ++__first)
+	      _S_destroy(*__first, *__first + extent<_ValT>::value);
+	  else
+	    std::_Destroy(__first, __last);
+	}
+#endif
     };
 
   // This is the default implementation of std::uninitialized_copy.
@@ -357,7 +377,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 			  std::__niter_base(__last),
 			  __x);
 	  else
-	    std::__do_uninit_copy(__first, __last, __x);
+	    std::__do_uninit_fill(__first, __last, __x);
 	}
 
       // Overload for pointers.
@@ -839,7 +859,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         {
 	  _UninitDestroyGuard<_ForwardIterator> __guard(__first);
 	  for (; __first != __last; ++__first)
-	    std::_Construct(std::__addressof(*__first));
+	    std::_Construct(std::addressof(*__first));
 	  __guard.release();
 	}
     };
@@ -856,7 +876,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    return;
 
 	  typename iterator_traits<_ForwardIterator>::value_type* __val
-	    = std::__addressof(*__first);
+	    = std::addressof(*__first);
 	  std::_Construct(__val);
 	  if (++__first != __last)
 	    std::fill(__first, __last, *__val);
@@ -873,7 +893,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         {
 	  _UninitDestroyGuard<_ForwardIterator> __guard(__first);
 	  for (; __n > 0; --__n, (void) ++__first)
-	    std::_Construct(std::__addressof(*__first));
+	    std::_Construct(std::addressof(*__first));
 	  __guard.release();
 	  return __first;
 	}
@@ -890,7 +910,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  if (__n > 0)
 	    {
 	      typename iterator_traits<_ForwardIterator>::value_type* __val
-		= std::__addressof(*__first);
+		= std::addressof(*__first);
 	      std::_Construct(__val);
 	      ++__first;
 	      __first = std::fill_n(__first, __n - 1, *__val);
@@ -902,11 +922,17 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // __uninitialized_default
   // Fills [first, last) with value-initialized value_types.
   template<typename _ForwardIterator>
-    _GLIBCXX26_CONSTEXPR
+    _GLIBCXX20_CONSTEXPR
     inline void
     __uninitialized_default(_ForwardIterator __first,
 			    _ForwardIterator __last)
     {
+#ifdef __cpp_lib_is_constant_evaluated
+      if (std::is_constant_evaluated())
+	return __uninitialized_default_1<false>::
+		 __uninit_default(__first, __last);
+#endif
+
       typedef typename iterator_traits<_ForwardIterator>::value_type
 	_ValueType;
       // trivial types can have deleted assignment
@@ -955,7 +981,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 								__alloc);
       typedef __gnu_cxx::__alloc_traits<_Allocator> __traits;
       for (; __first != __last; ++__first)
-	__traits::construct(__alloc, std::__addressof(*__first));
+	__traits::construct(__alloc, std::addressof(*__first));
       __guard.release();
     }
 
@@ -980,7 +1006,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 								__alloc);
       typedef __gnu_cxx::__alloc_traits<_Allocator> __traits;
       for (; __n > 0; --__n, (void) ++__first)
-	__traits::construct(__alloc, std::__addressof(*__first));
+	__traits::construct(__alloc, std::addressof(*__first));
       __guard.release();
       return __first;
     }
@@ -1007,7 +1033,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  _UninitDestroyGuard<_ForwardIterator> __guard(__first);
 	  for (; __first != __last; ++__first)
-	    std::_Construct_novalue(std::__addressof(*__first));
+	    std::_Construct_novalue(std::addressof(*__first));
 	  __guard.release();
 	}
     };
@@ -1033,7 +1059,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  _UninitDestroyGuard<_ForwardIterator> __guard(__first);
 	  for (; __n > 0; --__n, (void) ++__first)
-	    std::_Construct_novalue(std::__addressof(*__first));
+	    std::_Construct_novalue(std::addressof(*__first));
 	  __guard.release();
 	  return __first;
 	}
@@ -1089,7 +1115,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       _UninitDestroyGuard<_ForwardIterator> __guard(__result);
       for (; __n > 0; --__n, (void) ++__first, ++__result)
-	std::_Construct(std::__addressof(*__result), *__first);
+	std::_Construct(std::addressof(*__result), *__first);
       __guard.release();
       return __result;
     }
@@ -1112,7 +1138,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       _UninitDestroyGuard<_ForwardIterator> __guard(__result);
       for (; __n > 0; --__n, (void) ++__first, ++__result)
-	std::_Construct(std::__addressof(*__result), *__first);
+	std::_Construct(std::addressof(*__result), *__first);
       __guard.release();
       return {__first, __result};
     }
@@ -1276,11 +1302,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     noexcept(noexcept(std::allocator_traits<_Allocator>::construct(__alloc,
 			 __dest, std::move(*__orig)))
 	     && noexcept(std::allocator_traits<_Allocator>::destroy(
-			    __alloc, std::__addressof(*__orig))))
+			    __alloc, std::addressof(*__orig))))
     {
       typedef std::allocator_traits<_Allocator> __traits;
       __traits::construct(__alloc, __dest, std::move(*__orig));
-      __traits::destroy(__alloc, std::__addressof(*__orig));
+      __traits::destroy(__alloc, std::addressof(*__orig));
     }
 
   // This class may be specialized for specific types.
@@ -1308,8 +1334,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  "relocation is only possible for values of the same type");
       _ForwardIterator __cur = __result;
       for (; __first != __last; ++__first, (void)++__cur)
-	std::__relocate_object_a(std::__addressof(*__cur),
-				 std::__addressof(*__first), __alloc);
+	std::__relocate_object_a(std::addressof(*__cur),
+				 std::addressof(*__first), __alloc);
       return __cur;
     }
 

@@ -2357,7 +2357,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 /* ~~x -> x */
 (simplify
   (bit_not (bit_not @0))
-  @0)
+  (non_lvalue @0))
 
 /* zero_one_valued_p will match when a value is known to be either
    0 or 1 including constants 0 or 1.
@@ -3500,7 +3500,18 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
      wide_int c2 = wi::to_wide (@2);
      wide_int sum = wi::add (c1, c2);
     }
-    (if (wi::eq_p (sum, wi::max_value (precision, SIGNED)))))))
+    (if (wi::eq_p (sum, wi::max_value (precision, SIGNED))))))
+
+(match (signed_integer_sat_add @0 @1)
+  /* T SUM = (T)((UT)X + (UT)IMM)
+     SAT_S_ADD = (X ^ SUM) < 0 && (X ^ IMM) >= 0 ? (-(T)(X < 0) ^ MAX) : SUM  */
+   (cond^ (ge (bit_ior:c (bit_xor:c @0 INTEGER_CST@1)
+                       (bit_not (bit_xor:c @0 (nop_convert@2 (plus (nop_convert @0)
+                       INTEGER_CST@3)))))
+                   integer_zerop)
+           (signed_integer_sat_val @0)
+           @2)
+   (if (wi::eq_p (wi::to_wide (@1), wi::to_wide (@3))))))
 
 /* Saturation sub for signed integer.  */
 (if (INTEGRAL_TYPE_P (type) && !TYPE_UNSIGNED (type))
@@ -3571,6 +3582,36 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 	 || (wi::eq_p (int_cst_1, offset) && wi::eq_p (int_cst_2, limit_2))
 	 || (wi::eq_p (int_cst_1, itype_max) && wi::eq_p (int_cst_2, limit_1)))
 	 && wi::eq_p (int_cst_3, otype_max)))))))
+
+/* Saturation mult for unsigned integer.  */
+(if (INTEGRAL_TYPE_P (type) && TYPE_UNSIGNED (type))
+  (match (unsigned_integer_sat_mul @0 @1)
+   /* SAT_U_MUL (X, Y) = {
+	WT x = (WT)a * (WT)b;
+	T max = -1;
+	if (x > (WT)(max))
+	  return max;
+	else
+	  return (T)x;
+      }
+      while WT is uint128_t, T is uint8_t, uint16_t, uint32_t or uint64_t.  */
+   (convert@4 (min (widen_mult:c@3 (convert@5 (convert @0))
+				   (convert@6 (convert @1)))
+		   INTEGER_CST@2))
+   (if (types_match (type, @0, @1) && types_match (type, @4))
+    (with
+     {
+      unsigned prec = TYPE_PRECISION (type);
+      unsigned widen_prec = TYPE_PRECISION (TREE_TYPE (@3));
+      unsigned cvt5_prec = TYPE_PRECISION (TREE_TYPE (@5));
+      unsigned cvt6_prec = TYPE_PRECISION (TREE_TYPE (@6));
+      wide_int c2 = wi::to_wide (@2);
+      wide_int max = wi::mask (prec, false, widen_prec);
+      bool c2_is_max_p = wi::eq_p (c2, max);
+      bool widen_mult_p = cvt5_prec == cvt6_prec && widen_prec == cvt6_prec * 2;
+     }
+     (if (widen_prec > prec && c2_is_max_p && widen_mult_p)))))
+)
 
 /* The boundary condition for case 10: IMM = 1:
    SAT_U_SUB = X >= IMM ? (X - IMM) : 0.
@@ -3674,6 +3715,8 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    (if ((TREE_CODE (@1) == INTEGER_CST
 	 && TREE_CODE (@2) == INTEGER_CST)
 	|| ((INTEGRAL_TYPE_P (TREE_TYPE (@1))
+   || (VECTOR_TYPE_P (TREE_TYPE (@1))
+   && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, code2))
 	     || POINTER_TYPE_P (TREE_TYPE (@1)))
 	    && bitwise_equal_p (@1, @2)))
     (with
@@ -3712,27 +3755,39 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
       (if (code1 == EQ_EXPR && val) @3)
       (if (code1 == EQ_EXPR && !val) { constant_boolean_node (false, type); })
       (if (code1 == NE_EXPR && !val && allbits) @4)
-      (if (code1 == NE_EXPR
+      (if ((code1 == NE_EXPR
            && code2 == GE_EXPR
 	   && cmp == 0
 	   && allbits)
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, GT_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (gt @c0 (convert @1)))
-      (if (code1 == NE_EXPR
+      (if ((code1 == NE_EXPR
            && code2 == LE_EXPR
 	   && cmp == 0
 	   && allbits)
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, LT_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (lt @c0 (convert @1)))
       /* (a != (b+1)) & (a > b) -> a > (b+1) */
-      (if (code1 == NE_EXPR
+      (if ((code1 == NE_EXPR
            && code2 == GT_EXPR
 	   && one_after
 	   && allbits)
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, GT_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (gt @c0 (convert @1)))
       /* (a != (b-1)) & (a < b) -> a < (b-1) */
-      (if (code1 == NE_EXPR
+      (if ((code1 == NE_EXPR
            && code2 == LT_EXPR
 	   && one_before
 	   && allbits)
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, LT_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (lt @c0 (convert @1)))
      )
     )
@@ -3751,6 +3806,8 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (if ((TREE_CODE (@1) == INTEGER_CST
 	&& TREE_CODE (@2) == INTEGER_CST)
        || ((INTEGRAL_TYPE_P (TREE_TYPE (@1))
+       || (VECTOR_TYPE_P (TREE_TYPE (@1))
+       && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, code2))
 	    || POINTER_TYPE_P (TREE_TYPE (@1)))
 	   && operand_equal_p (@1, @2)))
    (with
@@ -3801,6 +3858,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
    (if ((TREE_CODE (@1) == INTEGER_CST
 	 && TREE_CODE (@2) == INTEGER_CST)
 	|| ((INTEGRAL_TYPE_P (TREE_TYPE (@1))
+   || (VECTOR_TYPE_P (TREE_TYPE (@1)))
 	    || POINTER_TYPE_P (TREE_TYPE (@1)))
 	    && bitwise_equal_p (@1, @2)))
     (with
@@ -3842,24 +3900,36 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
       (if (code1 == EQ_EXPR
            && code2 == GT_EXPR
 	   && cmp == 0
-	   && allbits)
+	   && allbits
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, GE_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (ge @c0 @2))
       (if (code1 == EQ_EXPR
            && code2 == LT_EXPR
 	   && cmp == 0
-	   && allbits)
+	   && allbits
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, LE_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (le @c0 @2))
       /* (a == (b-1)) | (a >= b) -> a >= (b-1) */
       (if (code1 == EQ_EXPR
            && code2 == GE_EXPR
 	   && one_before
-	   && allbits)
+	   && allbits
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, GE_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (ge @c0 (convert @1)))
       /* (a == (b+1)) | (a <= b) -> a <= (b-1) */
       (if (code1 == EQ_EXPR
            && code2 == LE_EXPR
 	   && one_after
-	   && allbits)
+	   && allbits
+      && ((VECTOR_BOOLEAN_TYPE_P (type)
+      && expand_vec_cmp_expr_p (TREE_TYPE (@1), type, LE_EXPR))
+      || !VECTOR_TYPE_P (TREE_TYPE (@1))))
        (le @c0 (convert @1)))
      )
     )
@@ -3924,7 +3994,10 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
       rcmp (ne le gt ne lt ge)
   (simplify
    (op:c (cmp1:c @0 @1) (cmp2 @0 @1))
-   (if (INTEGRAL_TYPE_P (TREE_TYPE (@0)) || POINTER_TYPE_P (TREE_TYPE (@0)))
+   (if (INTEGRAL_TYPE_P (TREE_TYPE (@0))
+      || POINTER_TYPE_P (TREE_TYPE (@0))
+      || (VECTOR_TYPE_P (TREE_TYPE (@1))
+      && expand_vec_cmp_expr_p (TREE_TYPE (@0), type, rcmp)))
     (rcmp @0 @1)))))
 
 /* Optimize (a CMP b) == (a CMP b)  */
@@ -3933,7 +4006,10 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
      rcmp (eq gt le eq ge lt)
  (simplify
   (eq:c (cmp1:c @0 @1) (cmp2 @0 @1))
-  (if (INTEGRAL_TYPE_P (TREE_TYPE (@0)) || POINTER_TYPE_P (TREE_TYPE (@0)))
+  (if (INTEGRAL_TYPE_P (TREE_TYPE (@0))
+		|| POINTER_TYPE_P (TREE_TYPE (@0))
+      || (VECTOR_TYPE_P (TREE_TYPE (@0))
+      && expand_vec_cmp_expr_p (TREE_TYPE (@0), type,  rcmp)))
     (rcmp @0 @1))))
 
 /* (type)([0,1]@a != 0) -> (type)a
@@ -4037,7 +4113,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (negate (nop_convert? (negate @1)))
   (if (!TYPE_OVERFLOW_SANITIZED (type)
        && !TYPE_OVERFLOW_SANITIZED (TREE_TYPE (@1)))
-   (view_convert @1)))
+   (non_lvalue (view_convert @1))))
 
  /* We can't reassociate floating-point unless -fassociative-math
     or fixed-point plus or minus because of saturation to +-Inf.  */
@@ -5767,7 +5843,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (simplify
  (conj (convert? (conj @0)))
  (if (tree_nop_conversion_p (TREE_TYPE (@0), type))
-  (convert @0)))
+  (non_lvalue (convert @0))))
 
 /* conj({x,y}) -> {x,-y}  */
 (simplify
@@ -5938,6 +6014,15 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 		  lowering will be able to fixup..  */
 	       && !expand_vec_cond_expr_p (TREE_TYPE (@1), TREE_TYPE (@0)))))
    (vec_cond @0 (op! @1 @3) (op! @2 @4))))
+
+/* (@0 ? @2 : @3) lop (@1 ? @2 : @3)  -->  (@0 lop @1) ? @2 : @3.  */
+(for lop (bit_and bit_ior bit_xor)
+   (simplify
+   (lop
+      (vec_cond @0 integer_minus_onep@2 integer_zerop@3)
+      (vec_cond @1 @2 @3))
+      (if (target_supports_op_p (TREE_TYPE (@0), lop, optab_vector))
+   (vec_cond (lop @0 @1) @2 @3))))
 
 /* (c ? a : b) op d  -->  c ? (a op d) : (b op d) */
  (simplify
@@ -11339,13 +11424,59 @@ and,
 	  (vec_perm @2 @5 { op0; })))))))))))
 
 
-/* Match count trailing zeroes for simplify_count_trailing_zeroes in fwprop.
+/* Match count trailing zeroes for simplify_count_zeroes in forwprop.
    The canonical form is array[((x & -x) * C) >> SHIFT] where C is a magic
    constant which when multiplied by a power of 2 contains a unique value
    in the top 5 or 6 bits.  This is then indexed into a table which maps it
    to the number of trailing zeroes.  */
 (match (ctz_table_index @1 @2 @3)
   (rshift (mult (bit_and:c (negate @1) @1) INTEGER_CST@2) INTEGER_CST@3))
+
+/* Match count leading zeros for simplify_count_zeroes in forwprop.
+   One canonical form is 31 - array[idx] where IDX is computed from X
+   by first setting all bits from the topmost set bits down via a
+   series of shifts and ors to X' and then computing (X' * C) >> SHIFT.  */
+(match (clz_table_index @1 @2 @3)
+  (rshift (mult
+   (bit_ior (rshift
+     (bit_ior@d (rshift
+       (bit_ior@c (rshift
+         (bit_ior@b (rshift
+	   (bit_ior@a (rshift @1 INTEGER_CST@c1) @1)
+	   INTEGER_CST@c2) @a)
+	 INTEGER_CST@c4) @b)
+       INTEGER_CST@c8) @c)
+     INTEGER_CST@c16) @d) INTEGER_CST@2) INTEGER_CST@3)
+  (if (INTEGRAL_TYPE_P (type)
+       && TYPE_UNSIGNED (type)
+       && TYPE_PRECISION (type) == 32
+       && compare_tree_int (@c1, 1) == 0
+       && compare_tree_int (@c2, 2) == 0
+       && compare_tree_int (@c4, 4) == 0
+       && compare_tree_int (@c8, 8) == 0
+       && compare_tree_int (@c16, 16) == 0)))
+(match (clz_table_index @1 @2 @3)
+  (rshift (mult
+   (bit_ior (rshift
+     (bit_ior@e (rshift
+       (bit_ior@d (rshift
+         (bit_ior@c (rshift
+           (bit_ior@b (rshift
+	     (bit_ior@a (rshift @1 INTEGER_CST@c1) @1)
+	     INTEGER_CST@c2) @a)
+	   INTEGER_CST@c4) @b)
+         INTEGER_CST@c8) @c)
+       INTEGER_CST@c16) @d)
+     INTEGER_CST@c32) @e) INTEGER_CST@2) INTEGER_CST@3)
+  (if (INTEGRAL_TYPE_P (type)
+       && TYPE_UNSIGNED (type)
+       && TYPE_PRECISION (type) == 64
+       && compare_tree_int (@c1, 1) == 0
+       && compare_tree_int (@c2, 2) == 0
+       && compare_tree_int (@c4, 4) == 0
+       && compare_tree_int (@c8, 8) == 0
+       && compare_tree_int (@c16, 16) == 0
+       && compare_tree_int (@c32, 32) == 0)))
 
 /* Floatint point/integer comparison and integer->integer
    or floating point -> float point conversion.  */

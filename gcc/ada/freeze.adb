@@ -715,10 +715,11 @@ package body Freeze is
          then
             declare
                O_Ent : Entity_Id;
+               O_Typ : Entity_Id;
                Off   : Boolean;
 
             begin
-               Find_Overlaid_Entity (Addr, O_Ent, Off);
+               Find_Overlaid_Entity (Addr, O_Ent, O_Typ, Off);
 
                if Ekind (O_Ent) = E_Constant
                  and then Etype (O_Ent) = Typ
@@ -763,6 +764,9 @@ package body Freeze is
       --  The test is conservative and doesn't check that the components are
       --  in fact constrained by non-static discriminant values. Could be made
       --  more precise ???
+
+      function Value_Known (Exp : Node_Id) return Boolean;
+      --  Return True if the value of expression Exp is known at compile time
 
       --------------------
       -- Set_Small_Size --
@@ -879,13 +883,13 @@ package body Freeze is
                      High := Type_High_Bound (Etype (Index));
                   end if;
 
-                  if not Compile_Time_Known_Value (Low)
-                    or else not Compile_Time_Known_Value (High)
-                    or else Etype (Index) = Any_Type
-                  then
+                  if Etype (Index) = Any_Type then
                      return False;
 
-                  else
+                  elsif Compile_Time_Known_Value (Low)
+                    and then Compile_Time_Known_Value (High)
+                  then
+
                      Dim := Expr_Value (High) - Expr_Value (Low) + 1;
 
                      if Dim > Uint_0 then
@@ -893,6 +897,12 @@ package body Freeze is
                      else
                         Size := Uint_0;
                      end if;
+
+                  elsif Value_Known (Low) and then Value_Known (High) then
+                     Size := Uint_0;
+
+                  else
+                     return False;
                   end if;
 
                   Next_Index (Index);
@@ -1158,6 +1168,70 @@ package body Freeze is
 
          return True;
       end Static_Discriminated_Components;
+
+      -----------------
+      -- Value_Known --
+      -----------------
+
+      function Value_Known (Exp : Node_Id) return Boolean is
+      begin
+         --  This is the immediate case
+
+         if Compile_Time_Known_Value (Exp) then
+            return True;
+         end if;
+
+         --  The value may be known only to the back end, the typical example
+         --  being the alignment or the various sizes of composite types; in
+         --  the latter case, we may mutually recurse with Size_Known.
+
+         case Nkind (Exp) is
+            when N_Attribute_Reference =>
+               declare
+                  P : constant Node_Id := Prefix (Exp);
+
+               begin
+                  if not Is_Entity_Name (P)
+                    or else not Is_Type (Entity (P))
+                  then
+                     return False;
+                  end if;
+
+                  case Get_Attribute_Id (Attribute_Name (Exp)) is
+                     when Attribute_Alignment =>
+                        return True;
+
+                     when Attribute_Component_Size =>
+                        return Size_Known (Component_Type (Entity (P)));
+
+                     when Attribute_Object_Size
+                        | Attribute_Size
+                        | Attribute_Value_Size
+                     =>
+                        return Size_Known (Entity (P));
+
+                     when others =>
+                        return False;
+                  end case;
+               end;
+
+            when N_Binary_Op =>
+               return Value_Known (Left_Opnd (Exp))
+                 and then Value_Known (Right_Opnd (Exp));
+
+            when N_Qualified_Expression
+               | N_Type_Conversion
+               | N_Unchecked_Type_Conversion
+            =>
+               return Value_Known (Expression (Exp));
+
+            when N_Unary_Op =>
+               return Value_Known (Right_Opnd (Exp));
+
+            when others =>
+               return False;
+         end case;
+      end Value_Known;
 
    --  Start of processing for Check_Compile_Time_Size
 
@@ -1495,12 +1569,13 @@ package body Freeze is
             New_Formal := Defining_Identifier (New_F_Spec);
 
             --  If the controlling argument is inherited, add conversion to
-            --  parent type for the call.
+            --  parent type for the call. We make this an unchecked conversion
+            --  since the formal subtypes of the parent and derived subprograms
+            --  must conform, so checks should not be needed.
 
             if Is_Controlling_Formal (Formal) then
                Append_To (Actuals,
-                 Make_Type_Conversion (Loc,
-                   New_Occurrence_Of (Etype (Formal), Loc),
+                 Unchecked_Convert_To (Etype (Formal),
                    New_Occurrence_Of (New_Formal, Loc)));
             else
                Append_To (Actuals, New_Occurrence_Of (New_Formal, Loc));
@@ -5449,9 +5524,12 @@ package body Freeze is
                      Set_Must_Be_On_Byte_Boundary (Rec);
 
                      --  Check for component clause that is inconsistent with
-                     --  the required byte boundary alignment.
+                     --  the required byte boundary alignment. Do not do this
+                     --  in CodePeer_Mode, as we do not have sufficient info
+                     --  on size and representation clauses.
 
-                     if Present (CC)
+                     if not CodePeer_Mode
+                       and then Present (CC)
                        and then Normalized_First_Bit (Comp) mod
                                   System_Storage_Unit /= 0
                      then
@@ -6869,9 +6947,10 @@ package body Freeze is
                end if;
             end if;
 
-            --  Static objects require special handling
+            --  Statically allocated objects require special handling
 
             if (Ekind (E) = E_Constant or else Ekind (E) = E_Variable)
+              and then No (Renamed_Object (E))
               and then Is_Statically_Allocated (E)
             then
                Freeze_Static_Object (E);
@@ -9389,16 +9468,17 @@ package body Freeze is
       --  pre/postconditions during expansion of the subprogram body, the
       --  subprogram is already installed.
 
-      --  Call Preanalyze_Spec_Expression instead of Preanalyze_And_Resolve
-      --  for the sake of consistency with Analyze_Expression_Function.
+      --  Call Preanalyze_And_Resolve_Spec_Expression instead of Preanalyze_
+      --  And_Resolve for the sake of consistency with Analyze_Expression_
+      --  Function.
 
       if Def_Id /= Current_Scope then
          Push_Scope (Def_Id);
          Install_Formals (Def_Id);
-         Preanalyze_Spec_Expression (Dup_Expr, Typ);
+         Preanalyze_And_Resolve_Spec_Expression (Dup_Expr, Typ);
          End_Scope;
       else
-         Preanalyze_Spec_Expression (Dup_Expr, Typ);
+         Preanalyze_And_Resolve_Spec_Expression (Dup_Expr, Typ);
       end if;
 
       --  Restore certain attributes of Def_Id since the preanalysis may
@@ -10230,10 +10310,16 @@ package body Freeze is
          --  issue an error message saying that this object cannot be imported
          --  or exported. If it has an address clause it is an overlay in the
          --  current partition and the static requirement is not relevant.
-         --  Do not issue any error message when ignoring rep clauses.
+         --  Do not issue any error message when ignoring rep clauses or for
+         --  compiler-generated entities.
 
          if Ignore_Rep_Clauses then
             null;
+
+         elsif not Comes_From_Source (E) then
+            pragma
+              Assert (Nkind (Parent (Declaration_Node (E))) in N_Case_Statement
+                                                             | N_If_Statement);
 
          elsif Is_Imported (E) then
             if No (Address_Clause (E)) then

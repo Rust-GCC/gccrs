@@ -842,6 +842,9 @@ archs4x, archs4xd"
 ; Optab prefix for sign/zero-extending operations
 (define_code_attr su_optab [(sign_extend "") (zero_extend "u")])
 
+;; Code iterator for sign/zero extension
+(define_code_iterator ANY_EXTEND [sign_extend zero_extend])
+
 (define_insn "*<SEZ_prefix>xt<SQH_postfix>_cmp0_noout"
   [(set (match_operand 0 "cc_set_register" "")
 	(compare:CC_ZN (SEZ:SI (match_operand:SQH 1 "register_operand" "r"))
@@ -1068,11 +1071,67 @@ archs4x, archs4xd"
    (set_attr "cond" "set_zn")
    (set_attr "length" "*,4,4,4,8")])
 
-;; The next two patterns are for plos, ior, xor, and, and mult.
+(define_expand "<su_optab>mulvsi4"
+  [(ANY_EXTEND:DI (match_operand:SI 0 "register_operand"))
+   (ANY_EXTEND:DI (match_operand:SI 1 "register_operand"))
+   (ANY_EXTEND:DI (match_operand:SI 2 "register_operand"))
+   (label_ref (match_operand 3 "" ""))]
+  "TARGET_MPY"
+  {
+    emit_insn (gen_<su_optab>mulsi3_Vcmp (operands[0], operands[1],
+					  operands[2]));
+    arc_gen_unlikely_cbranch (NE, CC_Vmode, operands[3]);
+    DONE;
+  })
+
+(define_insn "<su_optab>mulsi3_Vcmp"
+  [(parallel
+    [(set
+      (reg:CC_V CC_REG)
+      (compare:CC_V
+       (mult:DI
+	(ANY_EXTEND:DI (match_operand:SI 1 "register_operand"  "%0,r,r,r"))
+	(ANY_EXTEND:DI (match_operand:SI 2 "nonmemory_operand"  "I,L,r,C32")))
+       (ANY_EXTEND:DI (mult:SI (match_dup 1) (match_dup 2)))))
+     (set (match_operand:SI 0 "register_operand"	       "=r,r,r,r")
+	  (mult:SI (match_dup 1) (match_dup 2)))])]
+  "register_operand (operands[1], SImode)
+   || register_operand (operands[2], SImode)"
+  "mpy<su_optab>.f\\t%0,%1,%2"
+  [(set_attr "length" "4,4,4,8")
+   (set_attr "type"   "multi")])
+
+(define_insn "*mulsi3_cmp0"
+  [(set (reg:CC_Z CC_REG)
+	(compare:CC_Z
+	 (mult:SI
+	  (match_operand:SI 1 "register_operand"  "%r,0,r")
+	  (match_operand:SI 2 "nonmemory_operand" "rL,I,i"))
+	 (const_int 0)))
+   (set (match_operand:SI 0 "register_operand"    "=r,r,r")
+	(mult:SI (match_dup 1) (match_dup 2)))]
+ "TARGET_MPY"
+ "mpy%?.f\\t%0,%1,%2"
+ [(set_attr "length" "4,4,8")
+  (set_attr "type" "multi")])
+
+(define_insn "*mulsi3_cmp0_noout"
+  [(set (reg:CC_Z CC_REG)
+	(compare:CC_Z
+	 (mult:SI
+	  (match_operand:SI 0 "register_operand"   "%r,r,r")
+	  (match_operand:SI 1 "nonmemory_operand"  "rL,I,i"))
+	 (const_int 0)))]
+ "TARGET_MPY"
+ "mpy%?.f\\t0,%0,%1"
+ [(set_attr "length" "4,4,8")
+  (set_attr "type" "multi")])
+
+;; The next two patterns are for plus, ior, xor, and.
 (define_insn "*commutative_binary_cmp0_noout"
   [(set (match_operand 0 "cc_set_register" "")
 	(match_operator 4 "zn_compare_operator"
-	  [(match_operator:SI 3 "commutative_operator"
+	  [(match_operator:SI 3 "commutative_operator_sans_mult"
 	     [(match_operand:SI 1 "register_operand" "%r,r")
 	      (match_operand:SI 2 "nonmemory_operand" "rL,Cal")])
 	   (const_int 0)]))]
@@ -1085,7 +1144,7 @@ archs4x, archs4xd"
 (define_insn "*commutative_binary_cmp0"
   [(set (match_operand 3 "cc_set_register" "")
 	(match_operator 5 "zn_compare_operator"
-	  [(match_operator:SI 4 "commutative_operator"
+	  [(match_operator:SI 4 "commutative_operator_sans_mult"
 	     [(match_operand:SI 1 "register_operand"  "%0, 0,r,r")
 	      (match_operand:SI 2 "nonmemory_operand" "rL,rI,r,Cal")])
 	   (const_int 0)]))
@@ -2734,6 +2793,56 @@ archs4x, archs4xd"
 }
   [(set_attr "length" "8")])
 
+(define_insn "addsi3_v"
+ [(set (match_operand:SI       0 "register_operand"  "=r,r,r,  r")
+       (plus:SI (match_operand:SI 1 "register_operand"   "r,r,0,  r")
+		(match_operand:SI 2 "nonmemory_operand"  "r,L,I,C32")))
+  (set (reg:CC_V CC_REG)
+       (compare:CC_V (sign_extend:DI (plus:SI (match_dup 1)
+					      (match_dup 2)))
+		     (plus:DI (sign_extend:DI (match_dup 1))
+			      (sign_extend:DI (match_dup 2)))))]
+ ""
+ "add.f\\t%0,%1,%2"
+ [(set_attr "cond"   "set")
+  (set_attr "type"   "compare")
+  (set_attr "length" "4,4,4,8")])
+
+(define_expand "addvsi4"
+  [(match_operand:SI 0 "register_operand")
+   (match_operand:SI 1 "register_operand")
+   (match_operand:SI 2 "nonmemory_operand")
+   (label_ref (match_operand 3 "" ""))]
+  ""
+  "emit_insn (gen_addsi3_v (operands[0], operands[1], operands[2]));
+   arc_gen_unlikely_cbranch (NE, CC_Vmode, operands[3]);
+   DONE;")
+
+(define_insn "addsi3_c"
+ [(set (match_operand:SI       0 "register_operand"  "=r,r,r,  r")
+       (plus:SI (match_operand:SI 1 "register_operand"   "r,r,0,  r")
+		(match_operand:SI 2 "nonmemory_operand"  "r,L,I,C32")))
+  (set (reg:CC_C CC_REG)
+       (compare:CC_C (plus:SI (match_dup 1)
+			      (match_dup 2))
+		     (match_dup 1)))]
+ ""
+ "add.f\\t%0,%1,%2"
+ [(set_attr "cond"   "set")
+  (set_attr "type"   "compare")
+  (set_attr "length" "4,4,4,8")])
+
+(define_expand "uaddvsi4"
+  [(match_operand:SI 0 "register_operand")
+   (match_operand:SI 1 "register_operand")
+   (match_operand:SI 2 "nonmemory_operand")
+   (label_ref (match_operand 3 "" ""))]
+  ""
+  "emit_insn (gen_addsi3_c (operands[0], operands[1], operands[2]));
+   arc_gen_unlikely_cbranch (LTU, CC_Cmode, operands[3]);
+   DONE;")
+
+
 (define_insn "add_f"
   [(set (reg:CC_C CC_REG)
 	(compare:CC_C
@@ -2913,6 +3022,54 @@ archs4x, archs4xd"
   (set_attr "cond" "canuse,nocond,canuse,canuse,nocond,nocond,canuse_limm,canuse,nocond,nocond")
   (set_attr "cpu_facility" "*,cd,*,*,*,*,*,*,*,*")
   ])
+
+(define_insn "subsi3_v"
+  [(set (match_operand:SI	 0 "register_operand"  "=r,r,r,  r")
+	(minus:SI (match_operand:SI 1 "register_operand"   "r,r,0,  r")
+		  (match_operand:SI 2 "nonmemory_operand"  "r,L,I,C32")))
+   (set (reg:CC_V CC_REG)
+	(compare:CC_V (sign_extend:DI (minus:SI (match_dup 1)
+						(match_dup 2)))
+		      (minus:DI (sign_extend:DI (match_dup 1))
+				(sign_extend:DI (match_dup 2)))))]
+   ""
+   "sub.f\\t%0,%1,%2"
+   [(set_attr "cond"	"set")
+    (set_attr "type"	"compare")
+    (set_attr "length"	"4,4,4,8")])
+
+(define_expand "subvsi4"
+ [(match_operand:SI 0 "register_operand")
+  (match_operand:SI 1 "register_operand")
+  (match_operand:SI 2 "nonmemory_operand")
+  (label_ref (match_operand 3 "" ""))]
+  ""
+  "emit_insn (gen_subsi3_v (operands[0], operands[1], operands[2]));
+   arc_gen_unlikely_cbranch (NE, CC_Vmode, operands[3]);
+   DONE;")
+
+(define_insn "subsi3_c"
+  [(set (match_operand:SI	 0 "register_operand"	"=r,r,r,  r")
+	(minus:SI (match_operand:SI 1 "register_operand"	 "r,r,0,  r")
+		  (match_operand:SI 2 "nonmemory_operand"	 "r,L,I,C32")))
+   (set (reg:CC_C CC_REG)
+	(compare:CC_C (match_dup 1)
+		      (match_dup 2)))]
+   ""
+   "sub.f\\t%0,%1,%2"
+   [(set_attr "cond"	"set")
+    (set_attr "type"	"compare")
+    (set_attr "length"	"4,4,4,8")])
+
+(define_expand "usubvsi4"
+  [(match_operand:SI 0 "register_operand")
+   (match_operand:SI 1 "register_operand")
+   (match_operand:SI 2 "nonmemory_operand")
+   (label_ref (match_operand 3 "" ""))]
+   ""
+   "emit_insn (gen_subsi3_c (operands[0], operands[1], operands[2]));
+    arc_gen_unlikely_cbranch (LTU, CC_Cmode, operands[3]);
+    DONE;")
 
 (define_expand "subdi3"
   [(set (match_operand:DI 0 "register_operand" "")

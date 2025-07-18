@@ -431,11 +431,6 @@ package Types is
    --  Used to indicate an error in the source program. A node is actually
    --  allocated with this Id value, so that Nkind (Error) = N_Error.
 
-   Empty_Or_Error : constant Node_Id := Error;
-   --  Since Empty and Error are the first two Node_Id values, the test for
-   --  N <= Empty_Or_Error tests to see if N is Empty or Error. This definition
-   --  provides convenient self-documentation for such tests.
-
    First_Node_Id  : constant Node_Id := Node_Low_Bound;
    --  Subscript of first allocated node. Note that Empty and Error are both
    --  allocated nodes, whose Nkind fields can be accessed without error.
@@ -947,7 +942,8 @@ package Types is
       SE_Object_Too_Large,               -- 35
       PE_Stream_Operation_Not_Allowed,   -- 36
       PE_Build_In_Place_Mismatch,        -- 37
-      PE_Raise_Check_Failed);            -- 38
+      PE_Raise_Check_Failed,             -- 38
+      PE_Abstract_Type_Component);       -- 39
    pragma Convention (C, RT_Exception_Code);
 
    Last_Reason_Code : constant :=
@@ -973,6 +969,7 @@ package Types is
               CE_Range_Check_Failed             => CE_Reason,
               CE_Tag_Check_Failed               => CE_Reason,
 
+              PE_Abstract_Type_Component        => PE_Reason,
               PE_Access_Before_Elaboration      => PE_Reason,
               PE_Accessibility_Check_Failed     => PE_Reason,
               PE_Address_Of_Intrinsic           => PE_Reason,

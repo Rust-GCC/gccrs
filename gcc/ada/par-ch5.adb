@@ -32,6 +32,7 @@ package body Ch5 is
 
    function P_Case_Statement                     return Node_Id;
    function P_Case_Statement_Alternative         return Node_Id;
+   function P_Continue_Statement                 return Node_Id;
    function P_Exit_Statement                     return Node_Id;
    function P_Goto_Statement                     return Node_Id;
    function P_If_Statement                       return Node_Id;
@@ -75,6 +76,9 @@ package body Ch5 is
 
    procedure Then_Scan;
    --  Scan past THEN token, testing for illegal junk after it
+
+   procedure Parse_Loop_Flow_Statement (N : N_Loop_Flow_Statement_Id);
+   --  Common processing for Parse_Continue_Statement and Parse_Exit_Statement.
 
    ---------------------------------
    -- 5.1  Sequence of Statements --
@@ -509,6 +513,13 @@ package body Ch5 is
                      Scan; -- past the colon-equal
                      Append_To (Statement_List,
                        P_Assignment_Statement (Id_Node));
+                     Statement_Required := False;
+
+                  elsif Block_Label = Name_Continue
+                    and then Token in Tok_Semicolon | Tok_When | Tok_Identifier
+                  then
+                     Restore_Scan_State (Scan_State_Label); -- to Id
+                     Append_To (Statement_List, P_Continue_Statement);
                      Statement_Required := False;
 
                   --  Check common case of procedure call, another case that
@@ -1899,11 +1910,11 @@ package body Ch5 is
      (Block_Name : Node_Id := Empty)
       return       Node_Id
    is
-      Block_Node   : Node_Id;
+      Block        : Node_Id;
       Created_Name : Node_Id;
 
    begin
-      Block_Node := New_Node (N_Block_Statement, Token_Ptr);
+      Block := New_Node (N_Block_Statement, Token_Ptr);
 
       Push_Scope_Stack;
       Scopes (Scope.Last).Etyp := E_Name;
@@ -1916,18 +1927,18 @@ package body Ch5 is
 
       if No (Block_Name) then
          Created_Name :=
-           Make_Identifier (Sloc (Block_Node), Set_Loop_Block_Name ('B'));
+           Make_Identifier (Sloc (Block), Set_Loop_Block_Name ('B'));
          Set_Comes_From_Source (Created_Name, False);
-         Set_Has_Created_Identifier (Block_Node, True);
-         Set_Identifier (Block_Node, Created_Name);
+         Set_Has_Created_Identifier (Block, True);
+         Set_Identifier (Block, Created_Name);
          Scopes (Scope.Last).Labl := Created_Name;
       else
-         Set_Identifier (Block_Node, Block_Name);
+         Set_Identifier (Block, Block_Name);
       end if;
 
-      Append_Elmt (Block_Node, Label_List);
-      Parse_Decls_Begin_End (Block_Node);
-      return Block_Node;
+      Append_Elmt (Block, Label_List);
+      Parse_Decls_Begin_End (Block);
+      return Block;
    end P_Declare_Statement;
 
    --  P_Begin_Statement
@@ -1942,11 +1953,11 @@ package body Ch5 is
      (Block_Name : Node_Id := Empty)
       return       Node_Id
    is
-      Block_Node   : Node_Id;
+      Block        : Node_Id;
       Created_Name : Node_Id;
 
    begin
-      Block_Node := New_Node (N_Block_Statement, Token_Ptr);
+      Block := New_Node (N_Block_Statement, Token_Ptr);
 
       Push_Scope_Stack;
       Scopes (Scope.Last).Etyp := E_Name;
@@ -1957,24 +1968,24 @@ package body Ch5 is
 
       if No (Block_Name) then
          Created_Name :=
-           Make_Identifier (Sloc (Block_Node), Set_Loop_Block_Name ('B'));
+           Make_Identifier (Sloc (Block), Set_Loop_Block_Name ('B'));
          Set_Comes_From_Source (Created_Name, False);
-         Set_Has_Created_Identifier (Block_Node, True);
-         Set_Identifier (Block_Node, Created_Name);
+         Set_Has_Created_Identifier (Block, True);
+         Set_Identifier (Block, Created_Name);
          Scopes (Scope.Last).Labl := Created_Name;
       else
-         Set_Identifier (Block_Node, Block_Name);
+         Set_Identifier (Block, Block_Name);
       end if;
 
-      Append_Elmt (Block_Node, Label_List);
+      Append_Elmt (Block, Label_List);
 
       Scopes (Scope.Last).Ecol := Start_Column;
       Scopes (Scope.Last).Sloc := Token_Ptr;
       Scan; -- past BEGIN
       Set_Handled_Statement_Sequence
-        (Block_Node, P_Handled_Sequence_Of_Statements);
-      End_Statements (Handled_Statement_Sequence (Block_Node));
-      return Block_Node;
+        (Block, P_Handled_Sequence_Of_Statements);
+      End_Statements (Handled_Statement_Sequence (Block));
+      return Block;
    end P_Begin_Statement;
 
    -------------------------
@@ -1995,46 +2006,24 @@ package body Ch5 is
 
    begin
       Exit_Node := New_Node (N_Exit_Statement, Token_Ptr);
-      Scan; -- past EXIT
 
-      if Token = Tok_Identifier then
-         Set_Name (Exit_Node, P_Qualified_Simple_Name);
+      Parse_Loop_Flow_Statement (Exit_Node);
 
-      elsif Style_Check then
-         --  This EXIT has no name, so check that
-         --  the innermost loop is unnamed too.
-
-         Check_No_Exit_Name :
-         for J in reverse 1 .. Scope.Last loop
-            if Scopes (J).Etyp = E_Loop then
-               if Present (Scopes (J).Labl)
-                 and then Comes_From_Source (Scopes (J).Labl)
-               then
-                  --  Innermost loop in fact had a name, style check fails
-
-                  Style.No_Exit_Name (Scopes (J).Labl);
-               end if;
-
-               exit Check_No_Exit_Name;
-            end if;
-         end loop Check_No_Exit_Name;
-      end if;
-
-      if Token = Tok_When and then not Missing_Semicolon_On_When then
-         Scan; -- past WHEN
-         Set_Condition (Exit_Node, P_Condition);
-
-      --  Allow IF instead of WHEN, giving error message
-
-      elsif Token = Tok_If then
-         T_When;
-         Scan; -- past IF used in place of WHEN
-         Set_Condition (Exit_Node, P_Expression_No_Right_Paren);
-      end if;
-
-      TF_Semicolon;
       return Exit_Node;
    end P_Exit_Statement;
+
+   --------------------------------------
+   -- GNAT-specific Continue Statement --
+   --------------------------------------
+
+   function P_Continue_Statement return Node_Id is
+      Continue_Node : constant Node_Id :=
+        New_Node (N_Continue_Statement, Token_Ptr);
+   begin
+      Parse_Loop_Flow_Statement (Continue_Node);
+
+      return Continue_Node;
+   end P_Continue_Statement;
 
    -------------------------
    -- 5.8  Goto Statement --
@@ -2395,4 +2384,48 @@ package body Ch5 is
       end if;
    end Then_Scan;
 
+   -------------------------------
+   -- Parse_Loop_Flow_Statement --
+   -------------------------------
+
+   procedure Parse_Loop_Flow_Statement (N : N_Loop_Flow_Statement_Id) is
+   begin
+      Scan; -- past EXIT or CONTINUE
+
+      if Token = Tok_Identifier then
+         Set_Name (N, P_Qualified_Simple_Name);
+      elsif Style_Check and then Nkind (N) = N_Exit_Statement then
+         --  This statement has no name, so check that
+         --  the innermost loop is unnamed too.
+
+         Check_No_Exit_Name :
+         for J in reverse 1 .. Scope.Last loop
+            if Scopes (J).Etyp = E_Loop then
+               if Present (Scopes (J).Labl)
+                 and then Comes_From_Source (Scopes (J).Labl)
+               then
+                  --  Innermost loop in fact had a name, style check fails
+
+                  Style.No_Exit_Name (Scopes (J).Labl);
+               end if;
+
+               exit Check_No_Exit_Name;
+            end if;
+         end loop Check_No_Exit_Name;
+      end if;
+
+      if Token = Tok_When and then not Missing_Semicolon_On_When then
+         Scan; -- past WHEN
+         Set_Condition (N, P_Condition);
+
+      --  Allow IF instead of WHEN, giving error message
+
+      elsif Token = Tok_If then
+         T_When;
+         Scan; -- past IF used in place of WHEN
+         Set_Condition (N, P_Expression_No_Right_Paren);
+      end if;
+
+      TF_Semicolon;
+   end Parse_Loop_Flow_Statement;
 end Ch5;

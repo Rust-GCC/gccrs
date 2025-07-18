@@ -25,8 +25,16 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-event-id.h"
 #include "logical-location.h"
 
+namespace xml { class document; }
+
 class sarif_builder;
 class sarif_object;
+
+namespace diagnostics {
+namespace digraphs {
+  class digraph;
+} // namespace digraphs
+} //namespace diagnostics
 
 /* A diagnostic_path is an optional additional piece of metadata associated
    with a diagnostic (via its rich_location).
@@ -73,59 +81,59 @@ class diagnostic_event
  public:
   /* Enums for giving a sense of what this event means.
      Roughly corresponds to SARIF v2.1.0 section 3.38.8.  */
-  enum verb
+  enum class verb
   {
-    VERB_unknown,
+    unknown,
 
-    VERB_acquire,
-    VERB_release,
-    VERB_enter,
-    VERB_exit,
-    VERB_call,
-    VERB_return,
-    VERB_branch,
+    acquire,
+    release,
+    enter,
+    exit,
+    call,
+    return_,
+    branch,
 
-    VERB_danger
+    danger
   };
-  enum noun
+  enum class noun
   {
-    NOUN_unknown,
+    unknown,
 
-    NOUN_taint,
-    NOUN_sensitive, // this one isn't in SARIF v2.1.0; filed as https://github.com/oasis-tcs/sarif-spec/issues/530
-    NOUN_function,
-    NOUN_lock,
-    NOUN_memory,
-    NOUN_resource
+    taint,
+    sensitive, // this one isn't in SARIF v2.1.0; filed as https://github.com/oasis-tcs/sarif-spec/issues/530
+    function,
+    lock,
+    memory,
+    resource
   };
-  enum property
+  enum class property
   {
-    PROPERTY_unknown,
+    unknown,
 
-    PROPERTY_true,
-    PROPERTY_false
+    true_,
+    false_
   };
   /* A bundle of such enums, allowing for descriptions of the meaning of
      an event, such as
-     - "acquire memory": meaning (VERB_acquire, NOUN_memory)
-     - "take true branch"": meaning (VERB_branch, PROPERTY_true)
-     - "return from function": meaning (VERB_return, NOUN_function)
+     - "acquire memory": meaning (verb::acquire, noun::memory)
+     - "take true branch"": meaning (verb::branch, property::true)
+     - "return from function": meaning (verb::return, noun::function)
      etc, as per SARIF's threadFlowLocation "kinds" property
      (SARIF v2.1.0 section 3.38.8).  */
   struct meaning
   {
     meaning ()
-    : m_verb (VERB_unknown),
-      m_noun (NOUN_unknown),
-      m_property (PROPERTY_unknown)
+    : m_verb (verb::unknown),
+      m_noun (noun::unknown),
+      m_property (property::unknown)
     {
     }
     meaning (enum verb verb, enum noun noun)
-    : m_verb (verb), m_noun (noun), m_property (PROPERTY_unknown)
+    : m_verb (verb), m_noun (noun), m_property (property::unknown)
     {
     }
     meaning (enum verb verb, enum property property)
-    : m_verb (verb), m_noun (NOUN_unknown), m_property (property)
+    : m_verb (verb), m_noun (noun::unknown), m_property (property)
     {
     }
 
@@ -169,6 +177,11 @@ class diagnostic_event
 			      sarif_object &/*thread_flow_loc_obj*/) const
   {
   }
+
+  /* Hook for capturing state at this event, potentially for visualizing
+     in HTML output, or for adding to SARIF.  */
+  virtual std::unique_ptr<diagnostics::digraphs::digraph>
+  maybe_make_diagnostic_state_graph (bool debug) const;
 
   label_text get_desc (pretty_printer &ref_pp) const;
 };

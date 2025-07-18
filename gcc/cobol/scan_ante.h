@@ -149,7 +149,7 @@ numstr_of( const char string[], radix_t radix = decimal_e ) {
     }
     auto nx = std::count_if(input, p, fisdigit);
     if( 36 < nx ) {
-      error_msg(yylloc, "significand of %s has more than 36 digits (%zu)", input, nx);
+      error_msg(yylloc, "significand of %s has more than 36 digits (%ld)", input, (long)nx);
       return NO_CONDITION;
     }
 
@@ -159,11 +159,11 @@ numstr_of( const char string[], radix_t radix = decimal_e ) {
     //  exponent is implementor-defined." (We allow 9999.)
     nx = std::count_if(p, eoinput, fisdigit);
     if( 4 < nx ) {
-      error_msg(yylloc, "exponent %s more than 4 digits", ++p);
+      error_msg(yylloc, "exponent %qs more than 4 digits", ++p);
       return NO_CONDITION;
     }
     if( eoinput != std::find(p, eoinput, symbol_decimal_point()) ) {
-      error_msg(yylloc, "exponent includes decimal point", ++p);
+      error_msg(yylloc, "exponent %qs includes decimal point", ++p);
       return NO_CONDITION;
     }
 
@@ -187,7 +187,7 @@ numstr_of( const char string[], radix_t radix = decimal_e ) {
     }
   }
   if( 1 < std::count(input, eoinput, symbol_decimal_point()) ) {
-    error_msg(yylloc, "invalid numeric literal", ++p);
+    error_msg(yylloc, "invalid numeric literal %qs", ++p);
     return NO_CONDITION;
   }
 
@@ -214,7 +214,11 @@ struct cdf_status_t {
   const char *filename;
   int  token;
   bool parsing;
-  cdf_status_t( int token = 0, bool parsing = true )
+  cdf_status_t()
+    : lineno(yylineno), filename(cobol_filename())
+    , token(0), parsing(true)
+  {}
+  cdf_status_t( int token, bool parsing )
     : lineno(yylineno), filename(cobol_filename())
     , token(token), parsing(parsing)
   {}
@@ -291,7 +295,7 @@ static class parsing_status_t : public std::stack<cdf_status_t> {
   void splat() const {
     int i=0;
     for( const auto& status : c ) {
-      yywarn( "%4d\t%s", ++i, status.str() );
+      yywarn( "%d %s", ++i, status.str() );
     }
   }
 } parsing;
@@ -301,7 +305,7 @@ void field_done() { orig_picture[0] = '\0'; parsing.need_level(true); }
 
 static int scanner_token() {
   if( parsing.empty() ) {
-    error_msg(yylloc, ">>ELSE or >>END-IF without >>IF");
+    error_msg(yylloc, "%<>>ELSE%> or %<>>END-IF%> without %<>>IF%>");
     return NO_CONDITION;
   }
   return parsing.top().token;
@@ -313,31 +317,32 @@ bool scanner_normal()  { return parsing.normal(); }
 void scanner_parsing( int token, bool tf ) {
   parsing.push( cdf_status_t(token, tf) );
   if( yydebug ) {
-    yywarn("%10s: parsing now %5s, depth %zu",
+    yywarn("%s: parsing now %s, depth %zu",
             keyword_str(token), boolalpha(parsing.on()), parsing.size());
     parsing.splat();
   }
 }
 void scanner_parsing_toggle() {
   if( parsing.empty() ) {
-    error_msg(yylloc, ">>ELSE without >>IF");
+    error_msg(yylloc, "%<>>ELSE%> without %<>>IF%>");
     return;
   }
   parsing.top().toggle();
   if( yydebug ) {
-    yywarn("%10s: parsing now %5s",
+    yywarn("%s: parsing now %s",
             keyword_str(CDF_ELSE), boolalpha(parsing.on()));
   }
 }
 void scanner_parsing_pop() {
   if( parsing.empty() ) {
-    error_msg(yylloc, ">>END-IF without >>IF");
+    error_msg(yylloc, "%<>>END-IF%> without %<>>IF%>");
     return;
   }
   parsing.pop();
   if( yydebug ) {
-    yywarn("%10s: parsing now %5s, depth %zu",
-            keyword_str(CDF_END_IF), boolalpha(parsing.on()), parsing.size());
+    yywarn("%s: parsing now %s, depth %zu",
+            keyword_str(CDF_END_IF), boolalpha(parsing.on()),
+	   parsing.size());
     parsing.splat();
   }
 }
@@ -351,6 +356,10 @@ static void level_found() {
   if( scanner_normal() ) parsing.need_level(false);
 }
 
+/*
+ * Trim the scanned location by the amount about to re-scanned. 
+ * Must be a macro because it expands yyless. 
+ */
 #define myless(N)				\
   do {						\
     auto n(N);					\
@@ -368,11 +377,12 @@ class enter_leave_t {
  public:
   enter_leave_t() : entering(NULL), leaving(NULL), filename(NULL) {}
   enter_leave_t(  parser_enter_file_f *entering, const char *filename )
-    : entering(entering), leaving(NULL), filename(filename) {}
-  enter_leave_t(parser_leave_file_f *leaving)
+    : entering(entering), leaving(NULL), filename(filename)
+  {}
+  explicit enter_leave_t(parser_leave_file_f *leaving)
     : entering(NULL), leaving(leaving), filename(NULL) {}
 
-  void notify( unsigned int newlines = 0 ) {
+  void notify() {
     if( entering ) {
       cobol_filename(filename, 0);
       if( yy_flex_debug ) dbgmsg("starting line %4d of %s",
@@ -381,10 +391,9 @@ class enter_leave_t {
       gcc_assert(leaving == NULL);
     }
     if( leaving ) {
-      auto name = cobol_filename_restore();
-      yylineno += newlines;
+      cobol_filename_restore();
       if( yy_flex_debug ) dbgmsg("resuming line %4d of %s",
-                                 yylineno, name? name : "<none>");
+                                 yylineno, cobol_filename());
       leaving();
       gcc_assert(entering == NULL);
     }
@@ -393,22 +402,17 @@ class enter_leave_t {
 
 static class input_file_status_t {
   std::queue <enter_leave_t> inputs;
-  unsigned int trailing_newlines = 0;
  public:
   void enter(const char *filename) {
     inputs.push( enter_leave_t(parser_enter_file, filename) );
   }
   void leave() {
-    // Add the number of newlines following the POP to yylineno when it's restored. 
-    trailing_newlines = std::count(yytext, yytext + yyleng, '\n');
-    if( trailing_newlines && yy_flex_debug )
-      dbgmsg("adding %u lines after POP", trailing_newlines);
-    inputs.push( parser_leave_file );
+    inputs.push( enter_leave_t(parser_leave_file) );
   }
   void notify() {
     while( ! inputs.empty() ) {
       auto enter_leave = inputs.front();
-      enter_leave.notify(trailing_newlines);
+      enter_leave.notify();
       inputs.pop();
     }
   }
@@ -416,25 +420,59 @@ static class input_file_status_t {
 
 void input_file_status_notify() { input_file_status.notify(); }
 
-void cdf_location_set(YYLTYPE loc);
+/*
+ * parse.y and cdf.y each define a 4-integer struct to hold a token's location. 
+ * parse.y uses   YYLTYPE  yylloc;
+ * cdf.y   uses YDFLLTYPE ydflloc;
+ * 
+ * The structs have identical definitions with different types and of course
+ * names.  We define "conversion" between them for convenience. 
+ * 
+ * Each parser expects its location value to be updated whenever it calls
+ * yylex().  Therefore, here in the lexer we set both locations as each token
+ * is scanned, so that both parsers see the same location.
+ */
+static YDFLTYPE
+ydfltype_of( const YYLTYPE& loc ) {
+  YDFLTYPE output { 
+    loc.first_line,   loc.first_column,
+    loc.last_line,    loc.last_column };
+  return output;
+}
 
+/*
+ * After the input filename and yylineno are set, update the location of the
+ * scanned token.
+ */
 static void
-update_location() {
+update_location( const YYLTYPE *ploc = nullptr ) {
   YYLTYPE loc = {
     yylloc.last_line, yylloc.last_column,
     yylineno,         yylloc.last_column + yyleng
   };
+  if( ploc ) loc = *ploc;
 
-  auto nline = std::count(yytext, yytext + yyleng, '\n');
-  if( nline ) {
-    char *p = static_cast<char*>(memrchr(yytext, '\n', yyleng));
+  const char *p = static_cast<char*>(memrchr(yytext, '\n', yyleng));
+  if( p ) {
     loc.last_column = (yytext + yyleng) - p;
   }
 
   yylloc = loc;
-  cdf_location_set(loc);
-  location_dump(__func__, __LINE__, "yylloc", yylloc);
+  ydflloc = ydfltype_of(yylloc);
+
+  dbgmsg("  SC: %s location (%d,%d) to (%d,%d)",
+         start_condition_is(),
+         yylloc.first_line, yylloc.first_column,
+         yylloc.last_line,  yylloc.last_column);
 }
+
+static void
+reset_location() {
+  static const YYLTYPE loc { yylineno, 1, yylineno, 1 };
+  update_location(&loc);
+}
+
+#define YY_USER_ACTION update_location();
 
 static void
 trim_location( int nkeep) {
@@ -452,7 +490,8 @@ trim_location( int nkeep) {
          (fmt_size_t)nline, (fmt_size_t)rescan.size());
   if( nline ) {
     gcc_assert( yylloc.first_line + nline <= yylloc.last_line );
-    yylloc.last_line =- int(nline);
+    yylloc.last_line -= int(nline);
+    gcc_assert( yylloc.first_line <= yylloc.last_line );
     char *p = static_cast<char*>(memrchr(rescan.p, '\n', rescan.size()));
     yylloc.last_column = rescan.pend - ++p;
     return;
@@ -480,7 +519,8 @@ update_location_col( const char str[], int correction = 0) {
 
 #define YY_USER_INIT do {			\
     static YYLTYPE ones = {1,1, 1,1};		\
-    yylloc = ones;				\
+    yylloc = ones;                              \
+    ydflloc = ydfltype_of(yylloc);              \
   } while(0)
 
 /*
@@ -489,14 +529,10 @@ update_location_col( const char str[], int correction = 0) {
  * updates neither yylval nor yylloc.  That job is left to the actions.
  *
  * The parser relies on yylex to set yylval and yylloc each time it is
- * called. It apparently maintains a separate copy for each term, and uses
+ * called. It maintains a separate copy for each term, and uses
  * YYLLOC_DEFAULT() to update the location of nonterminals.
  */
 #define YY_DECL int lexer(void)
-
-#define YY_USER_ACTION							\
-  update_location();							\
-  if( yy_flex_debug ) dbgmsg("SC: %s", start_condition_is() );
 
 # define YY_INPUT(buf, result, max_size)                        \
 {                                                               \
@@ -577,7 +613,8 @@ binary_integer_usage( const char name[]) {
   std::transform(name, name + strlen(name), uname, ftoupper);
 
   dbgmsg("%s:%d: checking %s in %zu keyword_aliases",
-	 __func__, __LINE__, uname, keyword_aliases.size() );
+	 __func__, __LINE__, uname,
+	 keyword_aliases.size() );
 
   std::string key = uname;
   auto alias = keyword_aliases.find(key);
@@ -594,6 +631,16 @@ binary_integer_usage( const char name[]) {
   return p->second.token;
 }
       
+static void
+verify_ws( const YYLTYPE& loc, const char input[], char ch ) {
+  if( ! fisspace(ch) ) {
+    if( ! (dialect_mf() || dialect_gnu()) ) {
+      dialect_error(loc, "separator space required in %qs", input);
+    }
+  }
+}
+#define verify_ws(C) verify_ws(yylloc, yytext, C)
+
 int
 binary_integer_usage_of( const char name[] ) {
   cbl_name_t uname = {};
@@ -663,7 +710,7 @@ bool need_nume_set( bool tf ) {
 static int datetime_format_of( const char input[] );
 
 static int symbol_function_token( const char name[] ) {
-  auto e = symbol_function( 0, name );
+  const auto e = symbol_function( 0, name );
   return e ? symbol_index(e) : 0;
 }
 
@@ -751,7 +798,7 @@ typed_name( const char name[] ) {
     __attribute__((fallthrough));
   case FldLiteralN:
     {
-      auto f = cbl_field_of(e);
+      const auto f = cbl_field_of(e);
       if( type == FldLiteralN ) {
         yylval.numstr.radix =
           f->has_attr(hex_encoded_e)? hexadecimal_e : decimal_e;
@@ -785,7 +832,7 @@ typed_name( const char name[] ) {
     return cbl_field_of(e)->level == 88? NAME88 : CLASS_NAME;
     break;
   default:
-    yywarn("%s:%d: invalid symbol type %s for symbol \"%s\"",
+    yywarn("%s:%d: invalid symbol type %s for symbol %qs",
           __func__, __LINE__, cbl_field_type_str(type), name);
     return NAME;
   }
@@ -806,32 +853,6 @@ tmpstring_append( int len ) {
 }
 
 #define pop_return yy_pop_state(); return
-
-static bool
-wait_for_the_child(void) {
-  pid_t pid;
-  int status;
-
-  if( (pid = wait(&status)) == -1 ) {
-    yywarn("internal error: no pending child CDF parser process");
-    return false;
-  }
-
-  if( WIFSIGNALED(status) ) {
-    yywarn( "process %d terminated by %s", pid, strsignal(WTERMSIG(status)) );
-    return false;
-  }
-  if( WIFEXITED(status) ) {
-    if( WEXITSTATUS(status) != 0 ) {
-      yywarn("process %d exited with status %d", pid, status);
-      return false;
-    }
-  }
-  if( yy_flex_debug ) {
-    yywarn("process %d exited with status %d", pid, status);
-  }
-  return true;
-}
 
 static bool is_not = false;
 

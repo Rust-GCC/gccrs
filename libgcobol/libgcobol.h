@@ -47,13 +47,6 @@ extern void __gg__mabort();
 // malloc().
 #define massert(p) if(!p){__gg__mabort();abort();}
 
-// This was part of an exercise to make cppcheck shut up about invalid
-// pointer type conversions.
-// It was also to avoid having reinterpret_cast<> all over the place.
-// So, instead of                 reinterpret_cast<char *>(VALUE)
-// I sometimes use                PTRCAST(char, VALUE)
-#define PTRCAST(TYPE, VALUE) static_cast<TYPE *>(static_cast<void *>(VALUE))
-
 extern "C" __int128 __gg__power_of_ten(int n);
 
 extern "C" __int128 __gg__dirty_to_binary_source( const char *dirty,
@@ -104,7 +97,15 @@ extern "C" char __gg__get_decimal_separator();
 extern "C" char __gg__get_decimal_point();
 extern "C" char * __gg__get_default_currency_string();
 
-extern "C" void __gg__clock_gettime(clockid_t clk_id, struct timespec *tp);
+struct cbl_timespec
+  {
+  /*  You keep using that word "portability".  I do not think it means what
+      you think it means. */
+  time_t  tv_sec;    // Seconds.
+  long    tv_nsec;   // Nanoseconds.
+  } ;
+
+extern "C" void __gg__clock_gettime(struct cbl_timespec *tp);
 
 extern "C" GCOB_FP128 __gg__float128_from_location(
                                         const cblc_field_t *var,

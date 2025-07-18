@@ -102,8 +102,8 @@ void input_file_status_notify();
           (Current).last_column  = YYRHSLOC (Rhs, 0).last_column;       \
         }                                                               \
       location_dump("parse.c", __LINE__, "current", (Current));         \
-      gcc_location_set( location_set(Current) );                        \
       input_file_status_notify();                                       \
+      gcc_location_set( location_set(Current) );                        \
   } while (0)
 
 int yylex(void);
@@ -210,6 +210,9 @@ in_file_section(void) { return current_data_section == file_datasect_e; }
 static cbl_refer_t *
 intrinsic_inconsistent_parameter( size_t n, cbl_refer_t *args );
 
+static int
+intrinsic_token_of( const char name[] );
+
 static inline bool
 namcpy(const YYLTYPE& loc, cbl_name_t tgt, const char *src ) {
   // snprintf(3): writes at most size bytes (including the terminating NUL byte)
@@ -244,9 +247,9 @@ new_reference_like( const cbl_field_t& skel ) {
   return new cbl_refer_t( new_temporary_like(skel) );
 }
 
-static void reject_refmod( YYLTYPE loc, cbl_refer_t );
-static bool require_pointer( YYLTYPE loc, cbl_refer_t );
-static bool require_integer( YYLTYPE loc, cbl_refer_t );
+static void reject_refmod( YYLTYPE loc, const cbl_refer_t& );
+static bool require_pointer( YYLTYPE loc, const cbl_refer_t& );
+static bool require_integer( YYLTYPE loc, const cbl_refer_t& );
 
 struct cbl_field_t * constant_of( size_t isym );
 
@@ -289,7 +292,7 @@ struct evaluate_elem_t {
     relop_t oper;
    public:
     cbl_field_t *subject, *object, *cond;
-    case_t( cbl_field_t * subject )
+    explicit case_t( cbl_field_t * subject )
       : oper(eq_op)
       , subject(subject)
       , object(NULL)
@@ -328,15 +331,14 @@ struct evaluate_elem_t {
 
   explicit evaluate_elem_t( const char skel[] )
     : nother(0)
+    , label{LblEvaluate}
     , result( keep_temporary(FldConditional) )
     , pcase( cases.end() )
   {
-    static const cbl_label_t protolabel = { LblEvaluate };
-    label = protolabel;
     label.line = yylineno;
     if( -1 == snprintf(label.name, sizeof(label.name),
                        "%.*s_%d", (int)sizeof(label.name)-6, skel, yylineno) ) {
-      yyerror("could not create unique label '%s_%d' because it is too long",
+      yyerror("could not create unique label %<%s_%d%> because it is too long",
               skel, yylineno);
     }
   }
@@ -367,13 +369,14 @@ struct evaluate_elem_t {
 static class file_delete_args_t {
   cbl_file_t *file;
 public:
+  file_delete_args_t() : file(nullptr) {}
   void init( cbl_file_t *file ) {
     this->file = file;
   }
-  bool ready() const { return file != NULL; }
+  bool ready() const { return file != nullptr; }
   void call_parser_file_delete( bool sequentially ) {
     parser_file_delete(file, sequentially);
-    file = NULL;
+    file = nullptr;
   }
 } file_delete_args;
 
@@ -389,7 +392,7 @@ static struct file_read_args_t {
 
   void
   init( struct cbl_file_t *file,
-        cbl_refer_t record,
+        const cbl_refer_t& record,
         cbl_refer_t *read_into,
         int where ) {
     this->file = file;
@@ -438,7 +441,7 @@ public:
     this->file = file;
   }
   bool ready() const { return file != NULL; }
-  void call_parser_return_start(cbl_refer_t into = cbl_refer_t() ) {
+  void call_parser_return_start(const cbl_refer_t& into = cbl_refer_t() ) {
     parser_return_start(file, into);
     file = NULL;
   }
@@ -448,17 +451,18 @@ static class file_rewrite_args_t {
   cbl_file_t *file;
   cbl_field_t *record;
 public:
+  file_rewrite_args_t() :  file(nullptr), record(nullptr) {}
   void init( cbl_file_t *file, cbl_field_t *record ) {
     this->file = file;
     this->record = record;
   }
-  bool ready() const { return file != NULL; }
+  bool ready() const { return file != nullptr; }
   void call_parser_file_rewrite( bool sequentially ) {
     sequentially = sequentially || file->access == file_access_seq_e;
     if( file->access == file_access_rnd_e ) sequentially = false;
     parser_file_rewrite(file, record, sequentially);
-    file = NULL;
-    record = NULL;
+    file = nullptr;
+    record = nullptr;
   }
 } file_rewrite_args;
 
@@ -487,21 +491,22 @@ static class file_write_args_t {
   cbl_refer_t *advance;
 public:
   file_write_args_t()
-    : file(NULL)
+    : file(nullptr)
+    , data_source(nullptr)
     , after(false)
-    , advance(NULL)
+    , advance(nullptr)
   {}
   cbl_file_t * init( cbl_file_t *file,
                      cbl_field_t *data_source,
                      bool after,
-                     cbl_refer_t *advance ) {
+                     const cbl_refer_t *advance ) {
     this->file = file;
     this->data_source = data_source;
     this->after = after;
     this->advance = new cbl_refer_t(*advance);
     return this->file;
   }
-  bool ready() const { return file != NULL; }
+  bool ready() const { return file != nullptr; }
   void call_parser_file_write( bool sequentially ) {
     sequentially = sequentially || file->access == file_access_seq_e;
     parser_file_write(file, data_source, after, *advance, sequentially);
@@ -535,7 +540,7 @@ struct arith_t {
   cbl_refer_t remainder;
   cbl_label_t *on_error, *not_error;
 
-  arith_t( cbl_arith_format_t format )
+  explicit arith_t( cbl_arith_format_t format )
     : format(format), on_error(NULL), not_error(NULL)
   {}
   arith_t( cbl_arith_format_t format, refer_list_t * refers );
@@ -619,7 +624,7 @@ class eval_subject_t {
   void new_object_labels();
  public:
   eval_subject_t();
-  void append( cbl_refer_t field ) {
+  void append( const cbl_refer_t& field ) {
     columns.push_back(field);
     pcol = columns.begin();
   }
@@ -750,6 +755,7 @@ public:
 
 
 static void dump_inspect( const cbl_inspect_t& i );
+void dump_inspect_match( const cbl_inspect_match_t& M );
 
 struct perform_t {
   struct cbl_perform_tgt_t tgt;
@@ -789,11 +795,10 @@ struct perform_t {
     cbl_refer_t table;
   } search;
 
-  perform_t( cbl_label_t *from, cbl_label_t *to = NULL )
+  explicit perform_t( cbl_label_t *from, cbl_label_t *to = NULL )
     : tgt( from, to ), before(true)
-  {
-    search = {};
-  }
+    , search()
+  {}
   ~perform_t() { varys.clear(); }
   cbl_field_t * until() {
     assert(!varys.empty());
@@ -892,7 +897,7 @@ static struct cbl_label_t *
 paragraph_reference( const char name[], size_t section );
 
 static inline void
-list_add( list<cbl_num_result_t>& list, cbl_refer_t refer, int round ) {
+list_add( list<cbl_num_result_t>& list, const cbl_refer_t& refer, int round ) {
   struct cbl_num_result_t arg = { static_cast<cbl_round_t>(round), refer };
   list.push_back(arg);
 }
@@ -930,171 +935,17 @@ teed_up_names() {
   return name_queue_t::namelist_of( name_queue.peek() );
 }
 
-class tokenset_t {
-  // token_names is initialized from a generated header file. 
-  std::vector<const char *>token_names;  // position indicates token value
-  std::map <std::string, int> tokens;    // aliases
-  std::set<std::string> cobol_words;  // Anything in COBOL-WORDS may appear only once. 
- public:
-  static std::string
-  lowercase( const cbl_name_t name ) {
-    cbl_name_t lname;
-    std::transform(name, name + strlen(name) + 1, lname, ftolower);
-    return lname;
-  }
-  static std::string
-  uppercase( const cbl_name_t name ) {
-    cbl_name_t uname;
-    std::transform(name, name + strlen(name) + 1, uname, ftoupper);
-    return uname;
-  }
-
- public:
-  tokenset_t();
-  int find( const cbl_name_t name, bool include_intrinsics );
-
-  bool equate( const YYLTYPE& loc, int token,
-	       const cbl_name_t name, const cbl_name_t verb = "EQUATE") {
-    auto lname( lowercase(name) );
-    auto cw = cobol_words.insert(lname);
-    if( ! cw.second ) {
-      error_msg(loc, "COBOL-WORDS %s: %s may appear but once", verb, name);
-      return false;
-    }
-    auto p = tokens.find(lowercase(name));
-    bool fOK = p == tokens.end();
-    if( fOK ) { // name not already in use
-      tokens[lname] = token;
-      dbgmsg("%s:%d: %d has alias %s", __func__, __LINE__, token, name);
-    } else {
-      error_msg(loc, "%s: %s already defined as a token", verb, name);
-    }
-    return fOK;
-  }
-  bool undefine( const YYLTYPE& loc,
-		 const cbl_name_t name, const cbl_name_t verb = "UNDEFINE" ) {
-    auto lname( lowercase(name) );
-    auto cw = cobol_words.insert(lname);
-    if( ! cw.second ) {
-      error_msg(loc, "COBOL-WORDS %s: %s may appear but once", verb, name);
-      return false;
-    }
-
-    // Do not erase generic, multi-type tokens COMPUTATIONAL and BINARY_INTEGER.
-    if( binary_integer_usage_of(name) ) {
-      dbgmsg("%s:%d: generic %s remains valid as a token", __func__, __LINE__, name);
-      return true;
-    }
-
-    auto p = tokens.find(lname);
-    bool fOK = p != tokens.end();
-    if( fOK ) { // name in use
-      tokens.erase(p);
-    } else {
-      error_msg(loc, "%s: %s not defined as a token", verb, name);
-    }
-    dbgmsg("%s:%d: %s removed as a valid token name", __func__, __LINE__, name);
-    return fOK;
-  }
-  
-  bool substitute( const YYLTYPE& loc,
-		   const cbl_name_t extant, int token, const cbl_name_t name ) {
-    return
-      equate( loc, token, name, "SUBSTITUTE" )
-      &&
-      undefine( loc, extant, "SUBSTITUTE" );
-  }
-  bool reserve( const YYLTYPE& loc, const cbl_name_t name ) {
-    auto lname( lowercase(name) );
-    auto cw = cobol_words.insert(lname);
-    if( ! cw.second ) {
-      error_msg(loc, "COBOL-WORDS RESERVE: %s may appear but once", name);
-      return false;
-    }
-    tokens[lname] = -42;
-    return true;
-  }
-  int redefined_as( const cbl_name_t name ) {
-    auto lname( lowercase(name) );
-    if( cobol_words.find(lname) != cobol_words.end() ) {
-      auto p = tokens.find(lname);
-      if( p != tokens.end() ) {
-        return p->second;
-      }
-    }
-    return 0;
-  }
-  const char * name_of( int tok ) const {
-    tok -= (255 + 3);
-    gcc_assert(0 <= tok && size_t(tok) < token_names.size());
-    return token_names[tok];
-  }
-};
-
-class current_tokens_t {
-  tokenset_t tokens;
- public:
-  current_tokens_t() {}
-  int find( const cbl_name_t name, bool include_intrinsics ) {
-    return tokens.find(name, include_intrinsics);
-  }
-  bool equate( const YYLTYPE& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
-    int token; 
-    if( 0 == (token = binary_integer_usage_of(keyword)) ) {
-      if( 0 == (token = keyword_tok(keyword)) ) {
-	error_msg(loc, "EQUATE %s: not a valid token", keyword);
-	return false;
-      }
-    }
-    auto name = keyword_alias_add(tokens.uppercase(keyword),
-				  tokens.uppercase(alias));
-    if( name != keyword ) {
-      error_msg(loc, "EQUATE: %s is already an alias for %s", alias, name.c_str());
-      return false;
-    } 
-    return tokens.equate(loc, token, alias);
-  }
-  bool undefine( const YYLTYPE& loc, cbl_name_t keyword ) {
-    return tokens.undefine(loc, keyword);
-  }
-  bool substitute( const YYLTYPE& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
-    int token; 
-    if( 0 == (token = binary_integer_usage_of(keyword)) ) {
-      if( 0 == (token = keyword_tok(keyword)) ) {
-	error_msg(loc, "SUBSTITUTE %s: not a valid token", keyword);
-	return false;
-      }
-    }
-    auto name = keyword_alias_add(tokens.uppercase(keyword),
-				  tokens.uppercase(alias));
-    if( name != keyword ) {
-      error_msg(loc, "SUBSTITUTE: %s is already an alias for %s", alias, name.c_str());
-      return false;
-    } 
-
-    dbgmsg("%s:%d: %s (%d) will have alias %s", __func__, __LINE__, keyword, token, alias);
-    return tokens.substitute(loc, keyword, token, alias);
-  }
-  bool reserve( const YYLTYPE& loc, const cbl_name_t name ) {
-    return tokens.reserve(loc, name);
-  }
-  int redefined_as( const cbl_name_t name ) {
-    return tokens.redefined_as(name);
-  }
-  const char * name_of( int tok ) const {
-    return tokens.name_of(tok);
-  }
-} tokens;
+#define cdf_tokens cdf_current_tokens()
 
 int
 redefined_token( const cbl_name_t name ) {
-  return tokens.redefined_as(name);
+  return cdf_tokens.redefined_as(name);
 }
 
 struct file_list_t {
   list<cbl_file_t*> files;
   file_list_t() {}
-  file_list_t( cbl_file_t* file ) {
+  explicit file_list_t( cbl_file_t* file ) {
     files.push_back(file);
   }
   file_list_t( file_list_t& that ) : files(that.files.size()) {
@@ -1108,10 +959,15 @@ struct file_list_t {
 
 struct field_list_t {
   list<cbl_field_t*> fields;
-  field_list_t( cbl_field_t *field ) {
+  field_list_t() {}
+  explicit field_list_t( cbl_field_t *field ) {
     fields.push_back(field);
   }
-  explicit field_list_t() {}
+  std::vector<const cbl_field_t*>
+  as_vector() const {
+    std::vector<const cbl_field_t*> output( fields.begin(), fields.end() );
+    return output;
+  }
 };
 
 cbl_field_t **
@@ -1138,7 +994,7 @@ cbl_file_t **
 
 struct refer_list_t {
   list<cbl_refer_t> refers;
-  refer_list_t( cbl_refer_t *refer ) {
+  explicit refer_list_t( cbl_refer_t *refer ) {
     if( refer ) {
       refers.push_back(*refer);
       delete refer;
@@ -1160,13 +1016,20 @@ struct refer_list_t {
     refers.clear();
     return tgt;
   }
+  std::vector<cbl_refer_t>
+  vectorize() {
+    std::vector<cbl_refer_t> tgt(refers.size());
+    std::copy(refers.begin(), refers.end(), tgt.begin());
+    refers.clear();
+    return tgt;
+  }
 };
 
 struct refer_marked_list_t : public refer_list_t {
   cbl_refer_t *marker;
 
   refer_marked_list_t()  : refer_list_t(NULL),  marker(NULL) {}
-  refer_marked_list_t( cbl_refer_t *marker, refer_list_t *refers )
+  refer_marked_list_t( cbl_refer_t *marker, const refer_list_t *refers )
     : refer_list_t(*refers), marker(marker) {}
   refer_marked_list_t( cbl_refer_t *marker, cbl_refer_t *input )
     : refer_list_t(input)
@@ -1186,7 +1049,7 @@ struct refer_marked_list_t : public refer_list_t {
 struct refer_collection_t {
   list<refer_marked_list_t> lists;
 
-  refer_collection_t( const refer_marked_list_t& marked_list )
+  explicit refer_collection_t( const refer_marked_list_t& marked_list )
   {
     lists.push_back( marked_list );
   }
@@ -1212,48 +1075,13 @@ struct refer_collection_t {
   }
 };
 
-struct ast_inspect_oper_t {
-  cbl_inspect_bound_t bound;  // CHARACTERS/ALL/LEADING/FIRST
-  std::list<cbl_inspect_match_t>    matches;
-  std::list<cbl_inspect_replace_t> replaces;
-
-ast_inspect_oper_t( const cbl_inspect_match_t& match,
-                    cbl_inspect_bound_t bound = bound_characters_e )
-    : bound(bound)
-  {
-    matches.push_back(match);
-  }
-  ast_inspect_oper_t( const cbl_inspect_replace_t& replace,
-                    cbl_inspect_bound_t bound = bound_characters_e )
-    : bound(bound)
-  {
-    replaces.push_back(replace);
-  }
-};
-
-struct ast_inspect_t : public std::list<cbl_inspect_oper_t> {
-  cbl_refer_t tally; // field is NULL for REPLACING
-  const std::list<cbl_inspect_oper_t>& opers() const { return *this; }
-};
-
-struct ast_inspect_list_t : public std::list<cbl_inspect_t> {
-  ast_inspect_list_t( const cbl_inspect_t& insp ) {
-    push_back(insp);
-  }
-
-  cbl_inspect_t * as_array() {
-    cbl_inspect_t *output = new cbl_inspect_t[ size() ];
-    std::copy( begin(), end(), output );
-    return output;
-  }
-};
-
-void ast_inspect( cbl_refer_t& input, bool backward, ast_inspect_list_t& inspects );
+void ast_inspect( YYLTYPE loc, cbl_refer_t& input, bool backward,
+                  cbl_inspect_opers_t& inspects );
 
 template <typename E>
 struct elem_list_t {
   list<E*> elems;
-  elem_list_t( E *elem ) {
+  explicit elem_list_t( E *elem ) {
     elems.push_back(elem);
   }
   void clear() {
@@ -1278,7 +1106,7 @@ template <typename L, typename E>
 
 struct unstring_tgt_t {
   cbl_refer_t *tgt, *delimiter, *count;
-  unstring_tgt_t( cbl_refer_t *tgt,
+  explicit unstring_tgt_t( cbl_refer_t *tgt,
                   cbl_refer_t *delimiter = NULL,
                   cbl_refer_t *count = NULL )
     : tgt(tgt), delimiter(delimiter), count(count)
@@ -1302,7 +1130,7 @@ private:
 struct unstring_tgt_list_t {
   list<unstring_tgt_t> unstring_tgts;
 
-  unstring_tgt_list_t( unstring_tgt_t *unstring_tgt ) {
+  explicit unstring_tgt_list_t( unstring_tgt_t *unstring_tgt ) {
     unstring_tgts.push_back(*unstring_tgt);
     delete unstring_tgt;
   }
@@ -1324,7 +1152,7 @@ struct unstring_tgt_list_t {
 
 struct unstring_into_t : public unstring_tgt_list_t {
   cbl_refer_t pointer, tally;
-  unstring_into_t( unstring_tgt_list_t *tgt_list,
+  explicit unstring_into_t( unstring_tgt_list_t *tgt_list,
                    cbl_refer_t *pointer = NULL,
                    cbl_refer_t *tally = NULL )
     : unstring_tgt_list_t(*tgt_list)
@@ -1340,7 +1168,7 @@ struct unstring_into_t : public unstring_tgt_list_t {
 struct ffi_args_t {
   list<cbl_ffi_arg_t> elems;
 
-  ffi_args_t( cbl_ffi_arg_t *arg ) {
+  explicit ffi_args_t( cbl_ffi_arg_t *arg ) {
     this->push_back(arg);
   }
 
@@ -1416,8 +1244,8 @@ struct file_sort_io_t {
   file_list_t file_list;
   cbl_perform_tgt_t tgt;
 
-  file_sort_io_t( file_list_t& files ) : file_list(files) {}
-  file_sort_io_t( cbl_perform_tgt_t& tgt ) : tgt(tgt.from(), tgt.to()) {}
+  explicit file_sort_io_t( file_list_t& files ) : file_list(files) {}
+  explicit file_sort_io_t( cbl_perform_tgt_t& tgt ) : tgt(tgt.from(), tgt.to()) {}
   size_t nfile() const { return file_list.files.size(); }
 };
 
@@ -1432,14 +1260,14 @@ struct merge_t {
   cbl_perform_tgt_t tgt;
   list<cbl_file_t*> outputs;
 
-  merge_t( cbl_file_t *input ) : master(input), type(output_unknown_e) {}
+  explicit merge_t( cbl_file_t *input ) : master(input), type(output_unknown_e) {}
 };
 
 static list<merge_t> merges;
 
 static inline merge_t&
 merge_alloc( cbl_file_t *file ) {
-  merges.push_back(file);
+  merges.push_back(merge_t(file));
   return merges.back();
 }
 
@@ -1460,7 +1288,7 @@ static  list<cbl_refer_t> lhs;
 struct vargs_t {
   std::list<cbl_refer_t> args;
     vargs_t() {}
-    vargs_t( struct cbl_refer_t *p ) { args.push_back(*p); delete p; }
+    explicit vargs_t( struct cbl_refer_t *p ) { args.push_back(*p); delete p; }
     void push_back( cbl_refer_t *p ) { args.push_back(*p); delete p; }
 };
 
@@ -1484,7 +1312,8 @@ class prog_descr_t {
   const char *collating_sequence;
   struct locale_t {
     cbl_name_t name; const char *os_name;
-    locale_t(const cbl_name_t name = NULL, const char *os_name = NULL)
+    locale_t() : name(""), os_name(nullptr) {}
+    locale_t(const cbl_name_t name, const char *os_name)
       : name(""), os_name(os_name) {
       if( name ) {
         bool ok = namcpy(YYLTYPE(), this->name, name);
@@ -1492,18 +1321,15 @@ class prog_descr_t {
       }
     }
   } locale;
-  cbl_call_convention_t call_convention;
   cbl_options_t options;
 
-  prog_descr_t( size_t isymbol )
+  explicit prog_descr_t( size_t isymbol )
     : program_index(isymbol)
     , declaratives_eval(NULL)
     , paragraph(NULL)
     , section(NULL)
     , collating_sequence(NULL)
-  {
-    call_convention = current_call_convention();
-  }
+  {}
 
  std::set<std::string> external_targets() {
    std::set<std::string> externals;
@@ -1592,24 +1418,13 @@ static cbl_label_t *  implicit_section();
 
 class program_stack_t : protected  std::stack<prog_descr_t> {
   struct pending_t {
-    cbl_call_convention_t call_convention;
     bool initial;
-    pending_t()
-      : call_convention(cbl_call_convention_t(0))
-      , initial(false)
-    {}
+    pending_t() : initial(false) {}
   } pending;
  public:
-  cbl_call_convention_t
-  pending_call_convention( cbl_call_convention_t convention ) {
-    return pending.call_convention = convention;
-  }
   bool pending_initial() { return pending.initial = true; }
 
   void push( prog_descr_t descr ) {
-    cbl_call_convention_t current_call_convention = cbl_call_cobol_e;
-    if( !empty() ) current_call_convention = top().call_convention;
-    descr.call_convention = current_call_convention;
     std::stack<prog_descr_t>& me(*this);
     me.push(descr);
   }
@@ -1635,9 +1450,6 @@ class program_stack_t : protected  std::stack<prog_descr_t> {
   }
 
   void apply_pending() {
-    if( size() == 1 && 0 != pending.call_convention ) {
-      top().call_convention = pending.call_convention;
-  }
     if( pending.initial ) {
       auto e = symbol_at(top().program_index);
       auto prog(cbl_label_of(e));
@@ -1645,11 +1457,12 @@ class program_stack_t : protected  std::stack<prog_descr_t> {
     }
   }
 
+  // cppcheck-suppress-begin useStlAlgorithm
   cbl_label_t *first_declarative() {
     auto eval = top().declaratives_eval;
     if( eval ) return eval;
     // scan stack container for declaratives
-    for( auto& prog : c ) {
+    for( const auto& prog : c ) {
       if( prog.declaratives_eval ) {
         eval = prog.declaratives_eval;
         break;
@@ -1657,6 +1470,7 @@ class program_stack_t : protected  std::stack<prog_descr_t> {
     }
     return eval;
   }
+  // cppcheck-suppress-end useStlAlgorithm
 };
 
 struct rel_part_t {
@@ -1664,9 +1478,13 @@ struct rel_part_t {
   bool has_relop, invert;
   relop_t relop;
 
-  rel_part_t( cbl_refer_t *operand = NULL,
-              relop_t relop = relop_t(-1),
-              bool invert = false )
+  rel_part_t()
+    : operand(nullptr),
+      has_relop(false),
+      invert(false),
+      relop(relop_t(-1))
+  {}
+  rel_part_t( cbl_refer_t *operand, relop_t relop, bool invert )
     : operand(operand),
       has_relop(relop != -1),
       invert(invert),
@@ -1700,7 +1518,7 @@ struct rel_part_t {
 class log_expr_t {
   cbl_field_t *orable, *andable;
  public:
-  log_expr_t( cbl_field_t *init ) : orable(NULL), andable(init) {
+  explicit log_expr_t( cbl_field_t *init ) : orable(NULL), andable(init) {
     if( ! is_conditional(init) ) {
       dbgmsg("%s:%d: logic error: %s is not a truth value",
                __func__, __LINE__, name_of(init));
@@ -1859,6 +1677,10 @@ static class current_t {
   class declaratives_t : protected declaratives_list_t {
     struct file_exception_t {
       ec_type_t type; uint32_t file;
+      file_exception_t() : type(ec_none_e), file(0) {}
+      file_exception_t(ec_type_t type, uint32_t file)
+        : type(type), file(file)
+      {}
       bool operator<( const file_exception_t& that ) const {
         if( type == that.type ) return file < that.file;
         return type < that.type;
@@ -1866,9 +1688,11 @@ static class current_t {
     };
     std::set<file_exception_t> file_exceptions;
    public:
+    declaratives_t() {}
     // current compiled data for enabled ECs and Declaratives, used by library.
     struct runtime_t {
       tree ena, dcl;
+      runtime_t() : ena(nullptr), dcl(nullptr) {}
     } runtime;
     
     bool empty() const {
@@ -1888,7 +1712,7 @@ static class current_t {
       }
       for( auto f = declarative.files;
            f && f < declarative.files + declarative.nfile; f++ ) {
-        file_exception_t ex = { declarative.type, *f };
+        file_exception_t ex( declarative.type, *f );
         auto result = file_exceptions.insert(ex);
         if( ! result.second ) {
           yyerror("%s defined twice for %s",
@@ -1901,6 +1725,7 @@ static class current_t {
       return true;
     }
 
+    // cppcheck-suppress-begin useStlAlgorithm
     uint32_t status() const {
       uint32_t status_word = 0;
       for( auto dcl : *this ) {
@@ -1908,6 +1733,7 @@ static class current_t {
       }
       return status_word;
     }
+    // cppcheck-suppress-end useStlAlgorithm
 
     bool has_format_1() const {
       return std::any_of( begin(), end(),
@@ -1946,7 +1772,6 @@ static class current_t {
   }
   const cbl_field_t * has_typedef( const cbl_field_t *field ) {
     auto found = typedefs.find(field);
-    return found == typedefs.end()? NULL : *found;
     return found == typedefs.end()? NULL : *found;
   }
 
@@ -2003,12 +1828,12 @@ static class current_t {
 
   std::list<std::string>& debugging_declaratives(bool all) const {
     const char *para = programs.top().paragraph->name;
-    auto declaratives = debugging_clients.find(all? ":all:" : para);
-    if( declaratives == debugging_clients.end() ) {
+    auto client = debugging_clients.find(all? ":all:" : para);
+    if( client == debugging_clients.end() ) {
       static std::list<std::string> empty;
       return empty;
     }
-    return declaratives->second;
+    return client->second;
   }
 
   bool
@@ -2029,19 +1854,6 @@ static class current_t {
   cbl_round_t rounded_mode() const { return programs.top().options.default_round; }
   cbl_round_t rounded_mode( cbl_round_t mode ) {
     return programs.top().options.default_round = mode;
-  }
-
-  cbl_call_convention_t
-  call_convention() {
-    return programs.empty()? cbl_call_cobol_e : programs.top().call_convention;
-  }
-  cbl_call_convention_t
-  call_convention( cbl_call_convention_t convention) {
-    if( programs.empty() ) {
-      return programs.pending_call_convention(convention);
-    }
-    auto& prog( programs.top() );
-    return prog.call_convention = convention;
   }
 
   const char *
@@ -2079,7 +1891,7 @@ static class current_t {
 
     const cbl_label_t *L;
     if( (L = symbol_program_add(parent, &label)) == NULL ) return false;
-    programs.push( symbol_index(symbol_elem_of(L)));
+    programs.push( prog_descr_t(symbol_index(symbol_elem_of(L))) );
     programs.apply_pending();
 
     bool fOK = symbol_at(programs.top().program_index) + 1 == symbols_end();
@@ -2123,7 +1935,7 @@ static class current_t {
 	  if( ! dialect_ibm() ) {
 	    error_msg(loc,
 		      "Per ISO a program with DECLARATIVES must begin with a SECTION, "
-		      "requires -dialect ibm");
+		      "requires %<-dialect ibm%>");
 	  }
 	}
       }
@@ -2141,13 +1953,14 @@ static class current_t {
    * ISO, in new_program.
    */
   std::set<std::string>  end_program() {
+    cbl_enabled_exceptions_t& enabled_exceptions( cdf_enabled_exceptions() );
     if( enabled_exceptions.size() ) {
       declaratives_evaluate();
     }
 
     assert(!programs.empty());
 
-    procref_t *ref = ambiguous_reference(program_index());
+    const procref_t *ref = ambiguous_reference(program_index());
     std::set<std::string> externals = programs.top().external_targets();
 
     /*
@@ -2158,9 +1971,19 @@ static class current_t {
      * subprograms, and whether or not they are COMMON. PROGRAM may be
      * the caller, or a subprogram could call COMMON sibling.
      */
+
+    static std::unordered_set<size_t> callers_we_have_seen;
     if( programs.size() == 1 ) {
       if( yydebug ) parser_call_targets_dump();
       for( size_t caller : symbol_program_programs() ) {
+        // We are running through the entire growing list of called programs
+        // at the point of each END PROGRAM.  This confuses the name changing
+        // routines, so we use a std::set to avoid doing callers more than
+        // once.
+        if( callers_we_have_seen.find(caller) != callers_we_have_seen.end() )
+          {
+          continue;
+          }
         const char *caller_name = cbl_label_of(symbol_at(caller))->name;
         for( auto callable : symbol_program_callables(caller) ) {
           auto called = cbl_label_of(symbol_at(callable));
@@ -2168,13 +1991,16 @@ static class current_t {
             called->mangled_name? called->mangled_name : called->name;
 
           size_t n =
-            parser_call_target_update(caller, called->name, mangled_name);
+            parser_call_target_update(caller,
+                                      called->name,
+                                      mangled_name);
           // Zero is not an error
           dbgmsg("updated " HOST_SIZE_T_PRINT_UNSIGNED
                  " calls from #%-3" GCC_PRISZ "u (%s) s/%s/%s/",
                  (fmt_size_t)n, (fmt_size_t)caller, caller_name,
                  called->name, mangled_name);
         }
+      callers_we_have_seen.insert(caller);
       }
       if( yydebug ) parser_call_targets_dump();
     }
@@ -2371,11 +2197,12 @@ void current_enabled_ecs( tree ena ) {
 
 static void
 add_debugging_declarative( const cbl_label_t * label ) {
+  // cppcheck-suppress [unreadVariable] obviously not true
   const char *section = current.declarative_section_name();
   if( section ) {
     debugging_clients[label->name].push_back(section);
   }
-};
+}
 
 cbl_options_t current_options() {
   return current.options_paragraph;
@@ -2416,15 +2243,6 @@ current_rounded_mode( cbl_round_t rounded) {
 }
 #endif
 static cbl_round_t current_rounded_mode( int token );
-
-cbl_call_convention_t
-current_call_convention() {
-  return current.call_convention();
-}
-cbl_call_convention_t
-current_call_convention( cbl_call_convention_t convention) {
-  return current.call_convention(convention);
-}
 
 size_t program_level() { return current.program_level(); }
 
@@ -2564,7 +2382,8 @@ is_callable( const cbl_field_t *field ) {
   case FldPointer:
     return true;
   }
-  cbl_internal_error( "%s:%d: invalid symbol_type_t %d", __func__, __LINE__, field->type );
+  cbl_internal_error( "%s:%d: invalid %<symbol_type_t%> %d",
+                      __func__, __LINE__, field->type );
   return false;
 }
 
@@ -2611,8 +2430,8 @@ intrinsic_call_1( cbl_field_t *output, int token,
 }
 
 static bool
-intrinsic_call_2( cbl_field_t *tgt, int token, cbl_refer_t *r1, cbl_refer_t *r2 ) {
-  std::vector<cbl_refer_t> args { *r1, *r2 };
+intrinsic_call_2( cbl_field_t *tgt, int token, const cbl_refer_t *r1, cbl_refer_t *r2 ) {
+  std::vector<cbl_refer_t> args { *r1, r2? *r2 : cbl_refer_t() };
   size_t n = intrinsic_invalid_parameter(token, args);
   if( n < args.size() ) {
     error_msg(args[n].loc, "invalid parameter '%s'", args[n].field->name);
@@ -2689,18 +2508,14 @@ table_primary_index( cbl_field_t *table ) {
     NULL : cbl_field_of(symbol_at(table->occurs.indexes.fields[0]));
 }
 
-static inline const cbl_refer_t  // & // Removed the '&' to stop a weird compiler error
+static inline const cbl_refer_t  // return copy, not element reference
 invalid_key( const cbl_refer_t& ref ) {
   assert(ref.field);
-
-  if( ref.nsubscript == 0 ) return ref;
-
-  for( size_t i=0; i < ref.nsubscript; i++ ) {
-    if( ref.subscripts[i].field->parent != ref.field->parent ) {
-      return ref.subscripts[i];
-    }
-  }
-  return NULL;
+  auto p = std::find_if( ref.subscripts.begin(), ref.subscripts.end(),
+                         [parent = ref.field->parent]( const auto &sub ) {
+                           return sub.field->parent == parent;
+                         } );
+  return p != ref.subscripts.end() ? *p : nullptr;
 }
 
 static inline symbol_elem_t *
@@ -2901,17 +2716,6 @@ group_attr( const cbl_field_t * field ) {
 
   return p->attr;
 }
-
-static struct symbol_elem_t *
-field_of( const char F[], int L, const char name[] ) {
-  struct symbol_elem_t *e = symbol_field(PROGRAM, 0, name);
-  if( !e ) {
-    cbl_internal_error("%s:%d: no symbol '%s' found", F, L, name);
-  }
-  assert( procedure_div_e != current_division  );
-  return e;
-}
-#define field_of( F ) field_of(__func__, __LINE__, (F))
 
 static struct cbl_field_t *
 field_add( const YYLTYPE& loc, cbl_field_t *field ) {
@@ -3186,14 +2990,14 @@ cmd_or_env_special_of( std::string name ) {
 }
 
 static inline void
-parser_add2( struct cbl_num_result_t& to,
-             struct cbl_refer_t from ) {
+parser_add2( const cbl_num_result_t& to,
+             const cbl_refer_t& from ) {
   parser_add(to.refer, to.refer, from, to.rounded);
 }
 
 static inline void
-parser_subtract2( struct cbl_num_result_t to,
-                  struct cbl_refer_t from ) {
+parser_subtract2(  const cbl_num_result_t& to,
+                   const cbl_refer_t& from ) {
   parser_subtract(to.refer, to.refer, from, to.rounded);
 }
 
@@ -3216,6 +3020,11 @@ parser_move_carefully( const char */*F*/, int /*L*/,
       }
     } else {
       if( ! valid_move( tgt.field, src.field ) ) {
+        if( src.field->type == FldPointer &&
+            tgt.field->type == FldPointer ) {
+          if( dialect_mf() || dialect_gnu() ) return true;
+          dialect_error(src.loc, "MOVE POINTER", "mf");
+        }
         if( ! is_index ) {
           char ach[16];
           char stype[32];
@@ -3241,7 +3050,6 @@ parser_move_carefully( const char */*F*/, int /*L*/,
             sprintf(ach, ".%d", tgt.field->data.rdigits);
             strcat(dtype, ach);
             }
-
           error_msg(src.loc,  "cannot MOVE '%s' (%s) to '%s' (%s)",
                     name_of(src.field), stype,
                     name_of(tgt.field), dtype);
@@ -3277,11 +3085,11 @@ ast_set_pointers( const list<cbl_num_result_t>& tgts, cbl_refer_t src ) {
 
 void
 stringify( refer_collection_t *inputs,
-           cbl_refer_t into, cbl_refer_t pointer,
+           const cbl_refer_t& into, const cbl_refer_t& pointer,
            cbl_label_t  *on_error = NULL,
            cbl_label_t *not_error = NULL);
 
-void unstringify( cbl_refer_t& src, refer_list_t *delimited,
+void unstringify( const cbl_refer_t& src, refer_list_t *delimited,
                   unstring_into_t * into,
                   cbl_label_t  *on_error = NULL,
                   cbl_label_t *not_error = NULL );
@@ -3306,6 +3114,7 @@ implicit_section()
 }
 
 static void
+// cppcheck-suppress constParameterPointer
 ast_enter_exit_section( cbl_label_t * section ) {
   auto implicit = section?  implicit_paragraph() : NULL;
 
@@ -3385,7 +3194,7 @@ data_division_ready() {
 
 static
 bool
-anybody_redefines(cbl_field_t *tree)
+anybody_redefines( const cbl_field_t *tree )
   {
   bool retval = false;
   while(tree)
@@ -3395,7 +3204,8 @@ anybody_redefines(cbl_field_t *tree)
       retval = true;
       break;
       }
-    tree = parent_of(tree);
+    // cppcheck-suppress [unreadVariable] obviously not true
+    tree = parent_of(tree);   
     }
   return retval;
   }
@@ -3615,14 +3425,14 @@ file_section_parent_set( cbl_field_t *field ) {
                                                 field->data.capacity);
 
     field->file = file_section_fd;
-    auto redefined = symbol_redefines(record_area);
+    const auto redefined = symbol_redefines(record_area);
     field->parent = redefined? record_area->parent : file->default_record;
   }
   return file_section_fd > 0;
 }
 
 void ast_call(const YYLTYPE& loc, cbl_refer_t name,
-                  cbl_refer_t returning,
+                  const cbl_refer_t& returning,
                   size_t narg, cbl_ffi_arg_t args[],
                   cbl_label_t *except,
                   cbl_label_t *not_except,

@@ -1296,8 +1296,7 @@ package body Atree is
         Node_Offsets.Table (Node_Offsets.First .. Node_Offsets.Last);
 
    begin
-      --  Empty_Or_Error use as described in types.ads
-      if Destination <= Empty_Or_Error or No (Source) then
+      if Destination in Empty | Error or else No (Source) then
          pragma Assert (Serious_Errors_Detected > 0);
          return;
       end if;
@@ -1458,7 +1457,7 @@ package body Atree is
    --  Start of processing for Copy_Separate_Tree
 
    begin
-      if Source <= Empty_Or_Error then
+      if Source in Empty | Error then
          return Source;
 
       elsif Is_Entity (Source) then
@@ -1841,7 +1840,7 @@ package body Atree is
       pragma Debug (Validate_Node (Source));
       S_Size : constant Slot_Count := Size_In_Slots_To_Alloc (Source);
    begin
-      if Source <= Empty_Or_Error then
+      if Source in Empty | Error then
          return Source;
       end if;
 
@@ -2271,10 +2270,10 @@ package body Atree is
       --  Copy substitute node into place, preserving old fields as required
 
       Copy_Node (Source => New_Node, Destination => Old_Node);
-      Set_Error_Posted (Old_Node, Old_Error_Posted);
 
       Set_Check_Actuals (Old_Node, Old_CA);
       Set_Is_Ignored_Ghost_Node (Old_Node, Old_Is_IGN);
+      Set_Error_Posted (Old_Node, Old_Error_Posted);
 
       if Nkind (New_Node) in N_Subexpr then
          Set_Paren_Count     (Old_Node, Old_Paren_Count);
@@ -2702,9 +2701,9 @@ package body Atree is
       --  tail recursive step won't go past the end.
 
       declare
-         Cur_Field : Offset_Array_Index := Traversed_Offset_Array'First;
          Offsets : Traversed_Offset_Array renames
            Traversed_Fields (Nkind (Cur_Node));
+         Cur_Field : Offset_Array_Index := Traversed_Offset_Array'First;
 
       begin
          if Offsets (Traversed_Offset_Array'First) /= No_Field_Offset then

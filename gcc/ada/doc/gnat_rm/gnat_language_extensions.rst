@@ -657,6 +657,22 @@ An exception message can also be added:
         when Imported_C_Func /= 0;
    end;
 
+Implicit With
+-------------
+
+This feature allows a standalone ``use`` clause in the context clause of a
+compilation unit to imply an implicit ``with`` of the same library unit where
+an equivalent ``with`` clause would be allowed.
+
+.. code-block:: ada
+
+   use Ada.Text_IO;
+   procedure Main is
+   begin
+      Put_Line ("Hello");
+   end;
+
+
 Storage Model
 -------------
 
@@ -1334,113 +1350,150 @@ case statement with composite selector type".
 Mutably Tagged Types with Size'Class Aspect
 -------------------------------------------
 
-The ``Size'Class`` aspect can be applied to a tagged type to specify a size
-constraint for the type and its descendants. When this aspect is specified
-on a tagged type, the class-wide type of that type is considered to be a
-"mutably tagged" type - meaning that objects of the class-wide type can have
-their tag changed by assignment from objects with a different tag.
+For a specific tagged nonformal type T that satisfies some conditions
+described later in this section, the universal-integer-valued type-related
+representation aspect ``Size'Class`` may be specified; any such specified
+aspect value shall be static.
+
+Specifying this aspect imposes an upper bound on the sizes of all specific
+descendants of T (including T itself). T'Class (but not T) is then said to be
+a "mutably tagged" type - meaning that T'Class is a definite subtype and that
+the tag of a variable of type T'Class may be modified by assignment in some
+cases described later in this section. An inherited ``Size'Class`` aspect
+value may be overridden, but not with a larger value.
+
+If the ``Size'Class`` aspect is specified for a type T, then every specific
+descendant of T (including T itself)
+
+* shall have a Size that does not exceed the specified value; and
+
+* shall have a (possibly inherited) ``Size'Class`` aspect that does not exceed
+  the specifed value; and
+
+* shall be undiscriminated; and
+
+* shall have no composite subcomponent whose subtype is subject to a nonstatic
+  constraint; and
+
+* shall not have a tagged partial view other than a private extension; and
+
+* shall not be a descendant of an interface type; and
+
+* shall not have a statically deeper accessibility level than that of T.
+
+If the ``Size'Class`` aspect is not specified for a type T (either explicitly
+or by inheritance), then it shall not be specified for any descendant of T.
 
 Example:
 
 .. code-block:: ada
 
-    type Base is tagged null record
-        with Size'Class => 16 * 8;  -- Size in bits (128 bits, or 16 bytes)
+    type Root_Type is tagged null record with Size'Class => 16 * 8;
 
-    type Derived_Type is new Base with record
-       Data_Field : Integer;
+    type Derived_Type is new Root_Type with record
+       Stuff : Some_Type;
     end record;  -- ERROR if Derived_Type exceeds 16 bytes
 
-Class-wide types with a specified ``Size'Class`` can be used as the type of
-array components, record components, and stand-alone objects.
+Because any subtype of a mutably tagged type is definite, it can be used as a
+component subtype for enclosing array or record types, as the subtype of a
+default-initialized stand-alone object, or as the subtype of an uninitialized
+allocator, as in this example:
 
 .. code-block:: ada
 
-    Inst : Base'Class;
-    type Array_of_Base is array (Positive range <>) of Base'Class;
+    Obj : Root_Type'Class;
+    type Array_of_Roots is array (Positive range <>) of Root_Type'Class;
 
-If the ``Size'Class`` aspect is specified for a type ``T``, then every
-specific descendant of ``T`` [redundant: (including ``T``)]
+Default initialization of an object of such a definite subtype proceeds as
+for the corresponding specific type, except that Program_Error is raised if
+the specific type is abstract. In particular, the initial tag of the object
+is that of the corresponding specific type.
 
-- shall have a Size that does not exceed the specified value; and
+There is a general design principle that if a type has a tagged partial view,
+then the type's ``Size'Class`` aspect (or lack thereof) should be determinable
+by looking only at the partial view. That provides the motivation for the
+rules of the next two paragraphs.
 
-- shall be undiscriminated; and
+If a type has a tagged partial view, then a ``Size'Class`` aspect specification
+may be provided only at the point of the partial view declaration (in other
+words, no such aspect specification may be provided when the full view of
+the type is declared). All of the above rules (in particular, the rule that
+an overriding ``Size'Class`` aspect value shall not be larger than the
+overridden inherited value) are also enforced when the full view (which may
+have a different ancestor type than that of the partial view) is declared.
+If a partial view for a type inherits a ``Size'Class`` aspect value and does
+not override that value with an explicit aspect specification, then the
+(static) aspect values inherited by the partial view and by the full view
+shall be equal.
 
-- shall have no composite subcomponent whose subtype is subject to a
-  dynamic constraint; and
+An actual parameter of an instantiation whose corresponding formal parameter
+is a formal tagged private type shall not be either mutably tagged or the
+corresponding specific type of a mutably tagged type.
 
-- shall have no interface progenitors; and
+For the legality rules in this section, the RM 12.3(11) rule about legality
+checking in the visible part and formal part of an instance is extended (in
+the same way that it is extended in many other places in the RM) to include
+the private part of an instance.
 
-- shall not have a tagged partial view other than a private extension; and
+An object (or a view thereof) of a tagged type is defined to be
+"tag-constrained" if it is
 
-- shall not have a statically deeper accessibility level than that of ``T``.
+* an object whose type is not mutably tagged; or
 
-In addition to the places where Legality Rules normally apply (see 12.3),
-these legality rules apply also in the private part and in the body of an
-instance of a generic unit.
+* a constant object; or
 
-For any subtype ``S`` that is a subtype of a descendant of ``T``, ``S'Class'Size`` is
-defined to yield the specified value [redundant:,  although ``S'Class'Size`` is
-not a static expression].
+* a view conversion of a tag-constrained object; or
 
-A class-wide descendant of a type with a specified ``Size'Class`` aspect is
-defined to be a "mutably tagged" type. Any subtype of a mutably tagged type is,
-by definition, a definite subtype (RM 3.3 notwithstanding). Default
-initialization of an object of such a definite subtype proceeds as for the
-corresponding specific type, except that ``Program_Error`` is raised if the
-specific type is abstract. [In particular, the initial tag of the object is
-that of the corresponding specific type.]
+* a view conversion to a type that is not a descendant of the operand's
+  type; or
 
-An object of a tagged type is defined to be "tag-constrained" if it is
+* a formal in out or out parameter whose corresponding actual parameter is
+  tag-constrained; or
 
-- an object whose type is not mutably tagged; or
+* a dereference of an access value.
 
-- a constant object; or
-
-- a view conversion of a tag-constrained object; or
-
-- a formal ``in out`` or ``out`` parameter whose corresponding
-  actual parameter is tag-constrained.
-
-In the case of an assignment to a tagged variable that
-is not tag-constrained, no check is performed that the tag of the value of
-the expression is the same as that of the target (RM 5.2 notwithstanding).
+In the case of an assignment to a tagged variable that is not
+tag-constrained, no check is performed that the tag of the value
+of the expression is the same as that of the target (RM 5.2 notwithstanding).
 Instead, the tag of the target object becomes that of the source object of
-the assignment.
+the assignment. Note that the tag of an object of a mutably tagged type MT
+will always be the tag of some specific type that is a descendant of MT.
 An assignment to a composite object similarly copies the tags of any
-subcomponents of the source object that have a mutably-tagged type.
+subcomponents of the source object that have a mutably tagged type.
 
-The ``Constrained`` attribute is defined for any name denoting an object of a
-mutably tagged type (RM 3.7.2 notwithstanding). In this case, the Constrained
-attribute yields the value True if the object is tag-constrained and False
-otherwise.
+The Constrained attribute is defined for any name denoting an object of a
+mutably tagged type (RM 3.7.2 notwithstanding). In this case, the
+Constrained attribute yields the value True if the object is
+tag-constrained and False otherwise.
 
-Renaming is not allowed (see 8.5.1) for a type conversion having an operand of
-a mutably tagged type ``MT`` and a target type ``TT`` such that ``TT'Class``
-does not cover ``MT``, nor for any part of such an object, nor for any slice
-of such an object. This rule also applies in any context where a name is
-required to be one for which "renaming is allowed" (for example, see RM 12.4).
+Renaming is not allowed (see RM 8.5.1) for a type conversion having an operand
+of a mutably tagged type MT and a target type TT such that TT (or its
+corresponding specific type if TT is class-wide) is not an ancestor of MT
+(this is sometimes called a "downward" conversion), nor for any part of
+such an object, nor for any slice of any part of such an object. This
+rule also applies in any context where a name is required to be one for
+which "renaming is allowed" (for example, see RM 12.4).
+[This is analogous to the way that renaming is not allowed for a
+discriminant-dependent component of an unconstrained variable.]
 
-A name denoting a view of a variable of a mutably tagged type shall not
-occur as an operative constituent of the prefix of a name denoting a
-prefixed view of a callable entity, except as the callee name in a call to
-the callable entity.
-
-For a type conversion between two general access types, either both or neither
-of the designated types shall be mutably tagged. For an ``Access`` (or
-``Unchecked_Access``) attribute reference, the designated type of the type of the
-attribute reference and the type of the prefix of the attribute shall either
-both or neither be mutably tagged.
+A name denoting a view of a variable of a mutably tagged type shall not occur
+as an operative constituent of the prefix of a name denoting a prefixed
+view of a callable entity, except as the callee name in a call to the
+callable entity. This disallows, for example, renaming such a prefixed view,
+passing the prefixed view name as a generic actual parameter, or using the
+prefixed view name as the prefix of an attribute.
 
 The execution of a construct is erroneous if the construct has a constituent
 that is a name denoting a subcomponent of a tagged object and the object's
-tag is changed by this execution between evaluating the name and the last use
-(within this execution) of the subcomponent denoted by the name.
+tag is changed by this execution between evaluating the name and the last
+use (within this execution) of the subcomponent denoted by the name.
+This is analogous to the RM 3.7.2(4) rule about discriminant-dependent
+subcomponents.
 
-If the type of a formal parameter is a specific tagged type then the execution
+If the type of a formal parameter is a specific tagged type, then the execution
 of the call is erroneous if the tag of the actual is changed while the formal
-parameter exists (that is, before leaving the corresponding callable
-construct).
+parameter exists (that is, before leaving the corresponding callable construct).
+This is analogous to the RM 6.4.1(18) rule about discriminated parameters.
 
 Generalized Finalization
 ------------------------
@@ -1453,97 +1506,60 @@ that the record type must be a root type, in other words not a derived type.
 
 The aspect additionally makes it possible to specify relaxed semantics for
 the finalization operations by means of the ``Relaxed_Finalization`` setting.
-
-Example:
+Here is the archetypal example:
 
 .. code-block:: ada
 
-    type Ctrl is record
-      Id : Natural := 0;
+    type T is record
+      ...
     end record
       with Finalizable => (Initialize           => Initialize,
                            Adjust               => Adjust,
                            Finalize             => Finalize,
                            Relaxed_Finalization => True);
 
-    procedure Adjust     (Obj : in out Ctrl);
-    procedure Finalize   (Obj : in out Ctrl);
-    procedure Initialize (Obj : in out Ctrl);
+    procedure Adjust     (Obj : in out T);
+    procedure Finalize   (Obj : in out T);
+    procedure Initialize (Obj : in out T);
 
-The three procedures have the same profile, taking a single ``in out T``
-parameter.
-
-We follow the same dynamic semantics as controlled objects:
+The three procedures have the same profile, with a single ``in out`` parameter,
+and also have the same dynamic semantics as for controlled types:
 
  - ``Initialize`` is called when an object of type ``T`` is declared without
-   default expression.
+   initialization expression.
 
  - ``Adjust`` is called after an object of type ``T`` is assigned a new value.
 
  - ``Finalize`` is called when an object of type ``T`` goes out of scope (for
-   stack-allocated objects) or is explicitly deallocated (for heap-allocated
-   objects). It is also called when on the value being replaced in an
-   assignment.
+   stack-allocated objects) or is deallocated (for heap-allocated objects).
+   It is also called when the value is replaced by an assignment.
 
-However the following differences are enforced by default when compared to the
-current Ada controlled-objects finalization model:
+However, when ``Relaxed_Finalization`` is either ``True`` or not explicitly
+specified, the following differences are implemented relative to the semantics
+of controlled types:
 
-* No automatic finalization of heap allocated objects: ``Finalize`` is only
-  called when an object is implicitly deallocated. As a consequence, no-runtime
-  support is needed for the implicit case, and no header will be maintained for
-  this in heap-allocated controlled objects.
+* The compiler has permission to perform no automatic finalization of
+  heap-allocated objects: ``Finalize`` is only called when such an object
+  is explicitly deallocated, or when the designated object is assigned a new
+  value. As a consequence, no runtime support is needed for performing
+  implicit deallocation. In particular, no per-object header data is needed
+  for heap-allocated objects.
 
-  Heap-allocated objects allocated through a nested access type definition will
-  hence **not** be deallocated either. The result is simply that memory will be
-  leaked in those cases.
+  Heap-allocated objects allocated through a nested access type will therefore
+  **not** be deallocated either. The result is simply that memory will be leaked
+  in this case.
 
-* The ``Finalize`` procedure should have have the :ref:`No_Raise_Aspect` specified.
-  If that's not the case, a compilation error will be raised.
+* The ``Adjust`` and ``Finalize`` procedures are automatically considered as
+  having the :ref:`No_Raise_Aspect` specified for them. In particular, the
+  compiler has permission to enforce none of the guarantees specified by the
+  RM 7.6.1 (14/1) and subsequent subclauses.
 
-Additionally, two other configuration aspects are added,
-``Legacy_Heap_Finalization`` and ``Exceptions_In_Finalize``:
-
-* ``Legacy_Heap_Finalization``: Uses the legacy automatic finalization of
-  heap-allocated objects
-
-* ``Exceptions_In_Finalize``: Allow users to have a finalizer that raises exceptions
-  **NB!** note that using this aspect introduces execution time penalities.
-
-.. _No_Raise_Aspect:
-
-No_Raise aspect
-----------------
-
-The ``No_Raise`` aspect can be applied to a subprogram to declare that this subprogram is not
-expected to raise any exceptions. Should an exception still occur during the execution of
-this subprogram, ``Program_Error`` is raised.
-
-New specification for ``Ada.Finalization.Controlled``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-``Ada.Finalization.Controlled`` is now specified as:
-
-.. code-block:: ada
-
-   type Controlled is abstract tagged null record
-      with Initialize => Initialize,
-         Adjust => Adjust,
-         Finalize => Finalize,
-         Legacy_Heap_Finalization, Exceptions_In_Finalize;
-
-         procedure Initialize (Self : in out Controlled) is abstract;
-         procedure Adjust (Self : in out Controlled) is abstract;
-         procedure Finalize (Self : in out Controlled) is abstract;
-
-
-### Examples
-
-A simple example of a ref-counted type:
+Simple example of ref-counted type:
 
 .. code-block:: ada
 
    type T is record
-      Value : Integer;
+      Value     : Integer;
       Ref_Count : Natural := 0;
    end record;
 
@@ -1555,8 +1571,8 @@ A simple example of a ref-counted type:
    type T_Ref is record
       Value : T_Access;
    end record
-      with Adjust   => Adjust,
-         Finalize => Finalize;
+      with Finalizable => (Adjust   => Adjust,
+                           Finalize => Finalize);
 
    procedure Adjust (Ref : in out T_Ref) is
    begin
@@ -1568,8 +1584,7 @@ A simple example of a ref-counted type:
       Def_Ref (Ref.Value);
    end Finalize;
 
-
-A simple file handle that ensures resources are properly released:
+Simple file handle that ensures resources are properly released:
 
 .. code-block:: ada
 
@@ -1579,51 +1594,47 @@ A simple file handle that ensures resources are properly released:
       function Open (Path : String) return File;
 
       procedure Close (F : in out File);
+
    private
       type File is limited record
          Handle : ...;
       end record
-         with Finalize => Close;
+         with Finalizable (Finalize => Close);
+   end P;
 
+Finalizable tagged types
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-Finalized tagged types
-^^^^^^^^^^^^^^^^^^^^^^^
-
-Aspects are inherited by derived types and optionally overriden by those. The
-compiler-generated calls to the user-defined operations are then
-dispatching whenever it makes sense, i.e. the object in question is of
-class-wide type and the class includes at least one finalized tagged type.
-
-However note that for simplicity, it is forbidden to change the value of any of
-those new aspects in derived types.
+The aspect is inherited by derived types and the primitives may be overridden
+by the derivation. The compiler-generated calls to these operations are then
+dispatching whenever it makes sense, i.e. when the object in question is of a
+class-wide type and the class includes at least one finalizable tagged type.
 
 Composite types
 ^^^^^^^^^^^^^^^
 
-When a finalized type is used as a component of a composite type, the latter
-becomes finalized as well. The three primitives are derived automatically
-in order to call the primitives of their components.
-
-If that composite type was already user-finalized, then the compiler
-calls the primitives of the components so as to stay consistent with today's
-controlled types's behavior.
-
-So, ``Initialize`` and ``Adjust`` are called on components before they
-are called on the composite object, but ``Finalize`` is  called on the composite
-object first.
+When a finalizable type is used as a component of a composite type, the latter
+becomes finalizable as well. The three primitives are derived automatically
+in order to call the primitives of their components. The dynamic semantics is
+the same as for controlled components of composite types.
 
 Interoperability with controlled types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As a consequence of the redefinition of the ``Controlled`` type as a base type
-with the new aspects defined, interoperability with controlled type naturally
-follows the definition of the above rules. In particular:
+Finalizable types are fully interoperable with controlled types, in particular
+it is possible for a finalizable type to have a controlled component and vice
+versa, but the stricter dynamic semantics, in other words that of controlled
+types, is applied in this case.
 
-* It is possible to have a new finalized type have a controlled type
-  component
-* It is possible to have a controlled type have a finalized type
-  component
+.. _No_Raise_Aspect:
 
+No_Raise aspect
+----------------
+
+The ``No_Raise`` aspect can be applied to a subprogram to declare that this
+subprogram is not expected to raise an exception. Should an exception still
+be raised during the execution of the subprogram, it is caught at the end of
+this execution and ``Program_Error`` is propagated to the caller.
 
 Inference of Dependent Types in Generic Instantiations
 ------------------------------------------------------
@@ -1766,3 +1777,19 @@ If an exception is raised in the finally part, it cannot be caught by the ``exce
 Abort/ATC (asynchronous transfer of control) cannot interrupt a finally block, nor prevent its
 execution, that is the finally block must be executed in full even if the containing task is
 aborted, or if the control is transferred out of the block.
+
+Continue statement
+------------------
+
+The ``continue`` keyword makes it possible to stop execution of a loop iteration
+and continue with the next one. A continue statement has the same syntax
+(except "exit" is replaced with "continue"), static semantics, and legality
+rules as an exit statement. The difference is in the dynamic semantics: where an
+exit statement would cause a transfer of control that completes the (implicitly
+or explicitly) specified loop_statement, a continue statement would instead
+cause a transfer of control that completes only the current iteration of that
+loop_statement, like a goto statement targeting a label following the last
+statement in the sequence of statements of the specified loop_statement.
+
+Note that ``continue`` is a keyword but it is not a reserved word. This is a
+configuration that does not exist in standard Ada.

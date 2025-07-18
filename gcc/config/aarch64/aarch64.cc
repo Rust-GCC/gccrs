@@ -83,6 +83,7 @@
 #include "rtlanal.h"
 #include "tree-dfa.h"
 #include "asan.h"
+#include "aarch64-elf-metadata.h"
 #include "aarch64-feature-deps.h"
 #include "config/arm/aarch-common.h"
 #include "config/arm/aarch-common-protos.h"
@@ -107,6 +108,10 @@
 /* Maximum bytes set for an inline memset expansion.  With -Os use 3 STP
    and 1 MOVI/DUP (same size as a call).  */
 #define MAX_SET_SIZE(speed) (speed ? 256 : 96)
+
+#ifndef HAVE_AS_AEABI_BUILD_ATTRIBUTES
+#define HAVE_AS_AEABI_BUILD_ATTRIBUTES 0
+#endif
 
 /* Flags that describe how a function shares certain architectural state
    with its callers.
@@ -952,6 +957,39 @@ svpattern_token (enum aarch64_svpattern pattern)
       break;
     }
   gcc_unreachable ();
+}
+
+/* Return true if RHS is an operand suitable for a CB<cc> (immediate)
+   instruction.  OP_CODE determines the type of the comparison.  */
+bool
+aarch64_cb_rhs (rtx_code op_code, rtx rhs)
+{
+  if (!CONST_INT_P (rhs))
+    return REG_P (rhs);
+
+  HOST_WIDE_INT rhs_val = INTVAL (rhs);
+
+  switch (op_code)
+    {
+    case EQ:
+    case NE:
+    case GT:
+    case GTU:
+    case LT:
+    case LTU:
+      return IN_RANGE (rhs_val, 0, 63);
+
+    case GE:  /* CBGE:   signed greater than or equal */
+    case GEU: /* CBHS: unsigned greater than or equal */
+      return IN_RANGE (rhs_val, 1, 64);
+
+    case LE:  /* CBLE:   signed less than or equal */
+    case LEU: /* CBLS: unsigned less than or equal */
+      return IN_RANGE (rhs_val, -1, 62);
+
+    default:
+      return false;
+    }
 }
 
 /* Return the location of a piece that is known to be passed or returned
@@ -2879,10 +2917,10 @@ aarch64_gen_test_and_branch (rtx_code code, rtx x, int bitnum,
       emit_insn (gen_aarch64_and3nr_compare0 (mode, x, mask));
       rtx cc_reg = gen_rtx_REG (CC_NZVmode, CC_REGNUM);
       rtx x = gen_rtx_fmt_ee (code, CC_NZVmode, cc_reg, const0_rtx);
-      return gen_condjump (x, cc_reg, label);
+      return gen_aarch64_bcond (x, cc_reg, label);
     }
-  return gen_aarch64_tb (code, mode, mode,
-			 x, gen_int_mode (bitnum, mode), label);
+  return gen_aarch64_tbz (code, mode, mode,
+			   x, gen_int_mode (bitnum, mode), label);
 }
 
 /* Consider the operation:
@@ -3853,6 +3891,44 @@ aarch64_sve_same_pred_for_ptest_p (rtx *pred1, rtx *pred2)
   bool ptrue2_p = (pred2[0] == CONSTM1_RTX (mode)
 		   || INTVAL (pred2[1]) == SVE_KNOWN_PTRUE);
   return (ptrue1_p && ptrue2_p) || rtx_equal_p (pred1[0], pred2[0]);
+}
+
+
+/* Generate a predicate to control partial SVE mode DATA_MODE as if it
+   were fully packed, enabling the defined elements only.  */
+rtx
+aarch64_sve_packed_pred (machine_mode data_mode)
+{
+  unsigned int container_bytes
+    = aarch64_sve_container_bits (data_mode) / BITS_PER_UNIT;
+  /* Enable the significand of each container only.  */
+  rtx ptrue = force_reg (VNx16BImode, aarch64_ptrue_all (container_bytes));
+  /* Predicate at the element size.  */
+  machine_mode pmode
+    = aarch64_sve_pred_mode (GET_MODE_UNIT_SIZE (data_mode)).require ();
+  return gen_lowpart (pmode, ptrue);
+}
+
+/* Generate a predicate and strictness value to govern a floating-point
+   operation with SVE mode DATA_MODE.
+
+   If DATA_MODE is a partial vector mode, this pair prevents the operation
+   from interpreting undefined elements - unless we don't need to suppress
+   their trapping behavior.  */
+rtx
+aarch64_sve_fp_pred (machine_mode data_mode, rtx *strictness)
+{
+   unsigned int vec_flags = aarch64_classify_vector_mode (data_mode);
+   if (flag_trapping_math && (vec_flags & VEC_PARTIAL))
+     {
+       if (strictness)
+	 *strictness = gen_int_mode (SVE_STRICT_GP, SImode);
+       return aarch64_sve_packed_pred (data_mode);
+     }
+   if (strictness)
+     *strictness = gen_int_mode (SVE_RELAXED_GP, SImode);
+   /* Use the VPRED mode.  */
+   return aarch64_ptrue_reg (aarch64_sve_pred_mode (data_mode));
 }
 
 /* Emit a comparison CMP between OP0 and OP1, both of which have mode
@@ -8754,6 +8830,13 @@ aarch_bti_j_insn_p (rtx_insn *insn)
 
   rtx pat = PATTERN (insn);
   return GET_CODE (pat) == UNSPEC_VOLATILE && XINT (pat, 1) == UNSPECV_BTI_J;
+}
+
+/* Return TRUE if Pointer Authentication for the return address is enabled.  */
+bool
+aarch64_pacret_enabled (void)
+{
+  return (aarch_ra_sign_scope != AARCH_FUNCTION_NONE);
 }
 
 /* Return TRUE if Guarded Control Stack is enabled.  */
@@ -17849,7 +17932,7 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 
   /* Do one-time initialization based on the vinfo.  */
   loop_vec_info loop_vinfo = dyn_cast<loop_vec_info> (m_vinfo);
-  if (!m_analyzed_vinfo)
+  if (!m_analyzed_vinfo && !m_costing_for_scalar)
     {
       if (loop_vinfo)
 	analyze_loop_vinfo (loop_vinfo);
@@ -18710,6 +18793,8 @@ aarch64_adjust_generic_arch_tuning (struct tune_params &current_tune)
   if (TARGET_SVE2)
     current_tune.extra_tuning_flags
       &= ~AARCH64_EXTRA_TUNE_CSE_SVE_VL_CONSTANTS;
+  if (!AARCH64_HAVE_ISA(V8_8A))
+    aarch64_tune_params.extra_tuning_flags |= AARCH64_EXTRA_TUNE_AVOID_LDAPUR;
 }
 
 static void
@@ -18774,7 +18859,10 @@ aarch64_override_options_internal (struct gcc_options *opts)
   /* Make a copy of the tuning parameters attached to the core, which
      we may later overwrite.  */
   aarch64_tune_params = *(tune->tune);
-  if (tune->tune == &generic_tunings)
+
+  if (tune->tune == &generic_tunings
+      || tune->tune == &generic_armv8_a_tunings
+      || tune->tune == &generic_armv9_a_tunings)
     aarch64_adjust_generic_arch_tuning (aarch64_tune_params);
 
   if (opts->x_aarch64_override_tune_string)
@@ -18985,6 +19073,20 @@ aarch64_override_options_internal (struct gcc_options *opts)
      streaming mode above in this function.  */
   if (TARGET_SME && !TARGET_SVE2)
     sorry ("no support for %qs without %qs", "sme", "sve2");
+
+  /* Set scalar costing to a high value such that we always pick
+     vectorization.  Increase scalar costing by 10000%.  */
+  if (opts->x_flag_aarch64_max_vectorization)
+    SET_OPTION_IF_UNSET (opts, &global_options_set,
+			 param_vect_scalar_cost_multiplier, 10000);
+
+  /* Synchronize the -mautovec-preference and aarch64_autovec_preference using
+     whichever one is not default.  If both are set then prefer the param flag
+     over the parameters.  */
+  if (opts->x_autovec_preference != AARCH64_AUTOVEC_DEFAULT)
+    SET_OPTION_IF_UNSET (opts, &global_options_set,
+			 aarch64_autovec_preference,
+			 opts->x_autovec_preference);
 
   aarch64_override_options_after_change_1 (opts);
 }
@@ -19736,6 +19838,8 @@ static const struct aarch64_attribute_info aarch64_attributes[] =
      OPT_msign_return_address_ },
   { "outline-atomics", aarch64_attr_bool, true, NULL,
      OPT_moutline_atomics},
+  { "max-vectorization", aarch64_attr_bool, false, NULL,
+     OPT_mmax_vectorization},
   { NULL, aarch64_attr_custom, false, NULL, OPT____ }
 };
 
@@ -20862,7 +20966,6 @@ aarch64_get_function_versions_dispatcher (void *decl)
   struct cgraph_node *node = NULL;
   struct cgraph_node *default_node = NULL;
   struct cgraph_function_version_info *node_v = NULL;
-  struct cgraph_function_version_info *first_v = NULL;
 
   tree dispatch_decl = NULL;
 
@@ -20879,36 +20982,15 @@ aarch64_get_function_versions_dispatcher (void *decl)
   if (node_v->dispatcher_resolver != NULL)
     return node_v->dispatcher_resolver;
 
-  /* Find the default version and make it the first node.  */
-  first_v = node_v;
-  /* Go to the beginning of the chain.  */
-  while (first_v->prev != NULL)
-    first_v = first_v->prev;
-  default_version_info = first_v;
-  while (default_version_info != NULL)
-    {
-      if (get_feature_mask_for_version
-	    (default_version_info->this_node->decl) == 0ULL)
-	break;
-      default_version_info = default_version_info->next;
-    }
+  /* The default node is always the beginning of the chain.  */
+  default_version_info = node_v;
+  while (default_version_info->prev)
+    default_version_info = default_version_info->prev;
+  default_node = default_version_info->this_node;
 
   /* If there is no default node, just return NULL.  */
-  if (default_version_info == NULL)
+  if (!is_function_default_version (default_node->decl))
     return NULL;
-
-  /* Make default info the first node.  */
-  if (first_v != default_version_info)
-    {
-      default_version_info->prev->next = default_version_info->next;
-      if (default_version_info->next)
-	default_version_info->next->prev = default_version_info->prev;
-      first_v->prev = default_version_info;
-      default_version_info->next = first_v;
-      default_version_info->prev = NULL;
-    }
-
-  default_node = default_version_info->this_node;
 
   if (targetm.has_ifunc_p ())
     {
@@ -22997,6 +23079,58 @@ aarch64_sve_index_immediate_p (rtx base_or_step)
 	  && IN_RANGE (INTVAL (base_or_step), -16, 15));
 }
 
+/* Return true if SERIES is a constant vector that can be loaded using
+   an immediate SVE INDEX, considering both SVE and Advanced SIMD modes.
+   When returning true, store the base in *BASE_OUT and the step
+   in *STEP_OUT.  */
+
+static bool
+aarch64_sve_index_series_p (rtx series, rtx *base_out, rtx *step_out)
+{
+  rtx base, step;
+  if (!const_vec_series_p (series, &base, &step)
+      || !CONST_INT_P (base)
+      || !CONST_INT_P (step))
+    return false;
+
+  auto mode = GET_MODE (series);
+  auto elt_mode = as_a<scalar_int_mode> (GET_MODE_INNER (mode));
+  unsigned int vec_flags = aarch64_classify_vector_mode (mode);
+  if (BYTES_BIG_ENDIAN && (vec_flags & VEC_ADVSIMD))
+    {
+      /* On big-endian targets, architectural lane 0 holds the last element
+	 for Advanced SIMD and the first element for SVE; see the comment at
+	 the head of aarch64-sve.md for details.  This means that, from an SVE
+	 point of view, an Advanced SIMD series goes from the last element to
+	 the first.  */
+      auto i = GET_MODE_NUNITS (mode).to_constant () - 1;
+      base = gen_int_mode (UINTVAL (base) + i * UINTVAL (step), elt_mode);
+      step = gen_int_mode (-UINTVAL (step), elt_mode);
+    }
+
+  if (!aarch64_sve_index_immediate_p (base)
+      || !aarch64_sve_index_immediate_p (step))
+    return false;
+
+  /* If the mode spans multiple registers, check that each subseries is
+     in range.  */
+  unsigned int nvectors = aarch64_ldn_stn_vectors (mode);
+  if (nvectors != 1)
+    {
+      unsigned int nunits;
+      if (!GET_MODE_NUNITS (mode).is_constant (&nunits))
+	return false;
+      nunits /= nvectors;
+      for (unsigned int i = 1; i < nvectors; ++i)
+	if (!IN_RANGE (INTVAL (base) + i * nunits * INTVAL (step), -16, 15))
+	  return false;
+    }
+
+  *base_out = base;
+  *step_out = step;
+  return true;
+}
+
 /* Return true if X is a valid immediate for the SVE ADD and SUB instructions
    when applied to mode MODE.  Negate X first if NEGATE_P is true.  */
 
@@ -23445,13 +23579,8 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
     n_elts = CONST_VECTOR_NPATTERNS (op);
   else if (which == AARCH64_CHECK_MOV
 	   && TARGET_SVE
-	   && const_vec_series_p (op, &base, &step))
+	   && aarch64_sve_index_series_p (op, &base, &step))
     {
-      gcc_assert (GET_MODE_CLASS (mode) == MODE_VECTOR_INT);
-      if (!aarch64_sve_index_immediate_p (base)
-	  || !aarch64_sve_index_immediate_p (step))
-	return false;
-
       if (info)
 	{
 	  /* Get the corresponding container mode.  E.g. an INDEX on V2SI
@@ -23563,6 +23692,8 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
       long int as_long_ints[2];
       as_long_ints[0] = ival & 0xFFFFFFFF;
       as_long_ints[1] = (ival >> 32) & 0xFFFFFFFF;
+      if (imode == DImode && FLOAT_WORDS_BIG_ENDIAN)
+	std::swap (as_long_ints[0], as_long_ints[1]);
 
       REAL_VALUE_TYPE r;
       real_from_target (&r, as_long_ints, fmode);
@@ -23705,6 +23836,19 @@ aarch64_simd_shift_imm_p (rtx x, machine_mode mode, bool left)
     return IN_RANGE (INTVAL (x), 0, bit_width - 1);
   else
     return IN_RANGE (INTVAL (x), 1, bit_width);
+}
+
+
+/* Check whether X can control SVE mode MODE.  */
+bool
+aarch64_sve_valid_pred_p (rtx x, machine_mode mode)
+{
+  machine_mode pred_mode = GET_MODE (x);
+  if (!aarch64_sve_pred_mode_p (pred_mode))
+    return false;
+
+  return known_ge (GET_MODE_NUNITS (pred_mode),
+		   GET_MODE_NUNITS (mode));
 }
 
 /* Return the bitmask CONST_INT to select the bits required by a zero extract
@@ -24680,6 +24824,28 @@ seq_cost_ignoring_scalar_moves (const rtx_insn *seq, bool speed)
   return cost;
 }
 
+/* *VECTOR is an Advanced SIMD structure mode and *INDEX is a constant index
+   into it.  Narrow *VECTOR and *INDEX so that they reference a single vector
+   of mode SUBVEC_MODE.  IS_DEST is true if *VECTOR is a destination operand,
+   false if it is a source operand.  */
+
+void
+aarch64_decompose_vec_struct_index (machine_mode subvec_mode,
+				    rtx *vector, rtx *index, bool is_dest)
+{
+  auto elts_per_vector = GET_MODE_NUNITS (subvec_mode).to_constant ();
+  auto subvec = UINTVAL (*index) / elts_per_vector;
+  auto subelt = UINTVAL (*index) % elts_per_vector;
+  auto subvec_byte = subvec * GET_MODE_SIZE (subvec_mode);
+  if (is_dest)
+    *vector = simplify_gen_subreg (subvec_mode, *vector, GET_MODE (*vector),
+				   subvec_byte);
+  else
+    *vector = force_subreg (subvec_mode, *vector, GET_MODE (*vector),
+			    subvec_byte);
+  *index = gen_int_mode (subelt, SImode);
+}
+
 /* Expand a vector initialization sequence, such that TARGET is
    initialized to contain VALS.  */
 
@@ -24718,6 +24884,13 @@ aarch64_expand_vector_init (rtx target, rtx vals)
       emit_insn (rec_seq);
     }
 
+  /* The two halves should (by induction) be individually endian-correct.
+     However, in the memory layout provided by VALS, the nth element of
+     HALVES[0] comes immediately before the nth element HALVES[1].
+     This means that, on big-endian targets, the nth element of HALVES[0]
+     is more significant than the nth element HALVES[1].  */
+  if (BYTES_BIG_ENDIAN)
+    std::swap (halves[0], halves[1]);
   rtvec v = gen_rtvec (2, halves[0], halves[1]);
   rtx_insn *zip1_insn
     = emit_set_insn (target, gen_rtx_UNSPEC (mode, v, UNSPEC_ZIP1));
@@ -25355,7 +25528,6 @@ aarch64_start_file (void)
 }
 
 /* Emit load exclusive.  */
-
 static void
 aarch64_emit_load_exclusive (machine_mode mode, rtx rval,
 			     rtx mem, rtx model_rtx)
@@ -26634,7 +26806,6 @@ aarch64_evpc_hvla (struct expand_vec_perm_d *d)
   machine_mode vmode = d->vmode;
   if (!TARGET_SVE2p1
       || !TARGET_NON_STREAMING
-      || BYTES_BIG_ENDIAN
       || d->vec_flags != VEC_SVE_DATA
       || GET_MODE_UNIT_BITSIZE (vmode) > 64)
     return false;
@@ -26794,12 +26965,23 @@ aarch64_evpc_tbl (struct expand_vec_perm_d *d)
 static bool
 aarch64_evpc_sve_tbl (struct expand_vec_perm_d *d)
 {
-  unsigned HOST_WIDE_INT nelt;
+  if (!d->one_vector_p)
+    {
+      /* aarch64_expand_sve_vec_perm does not yet handle variable-length
+	 vectors.  */
+      if (!d->perm.length ().is_constant ())
+	return false;
 
-  /* Permuting two variable-length vectors could overflow the
-     index range.  */
-  if (!d->one_vector_p && !d->perm.length ().is_constant (&nelt))
-    return false;
+      /* This permutation reduces to the vec_perm optab if the elements are
+	 large enough to hold all selector indices.  Do not handle that case
+	 here, since the general TBL+SUB+TBL+ORR sequence is too expensive to
+	 be considered a "native" constant permutation.
+
+	 Not doing this would undermine code that queries can_vec_perm_const_p
+	 with allow_variable_p set to false.  See PR121027.  */
+      if (selector_fits_mode_p (d->vmode, d->perm))
+	return false;
+    }
 
   if (d->testing_p)
     return true;
@@ -27189,7 +27371,7 @@ aarch64_emit_sve_fp_cond (rtx target, rtx_code code, rtx pred,
 			  bool known_ptrue_p, rtx op0, rtx op1)
 {
   rtx flag = gen_int_mode (known_ptrue_p, SImode);
-  rtx unspec = gen_rtx_UNSPEC (GET_MODE (pred),
+  rtx unspec = gen_rtx_UNSPEC (GET_MODE (target),
 			       gen_rtvec (4, pred, flag, op0, op1),
 			       aarch64_unspec_cond_code (code));
   emit_set_insn (target, unspec);
@@ -27208,10 +27390,10 @@ static void
 aarch64_emit_sve_or_fp_conds (rtx target, rtx_code code1, rtx_code code2,
 			      rtx pred, bool known_ptrue_p, rtx op0, rtx op1)
 {
-  machine_mode pred_mode = GET_MODE (pred);
-  rtx tmp1 = gen_reg_rtx (pred_mode);
+  machine_mode target_mode = GET_MODE (target);
+  rtx tmp1 = gen_reg_rtx (target_mode);
   aarch64_emit_sve_fp_cond (tmp1, code1, pred, known_ptrue_p, op0, op1);
-  rtx tmp2 = gen_reg_rtx (pred_mode);
+  rtx tmp2 = gen_reg_rtx (target_mode);
   aarch64_emit_sve_fp_cond (tmp2, code2, pred, known_ptrue_p, op0, op1);
   aarch64_emit_binop (target, ior_optab, tmp1, tmp2);
 }
@@ -27228,8 +27410,7 @@ static void
 aarch64_emit_sve_invert_fp_cond (rtx target, rtx_code code, rtx pred,
 				 bool known_ptrue_p, rtx op0, rtx op1)
 {
-  machine_mode pred_mode = GET_MODE (pred);
-  rtx tmp = gen_reg_rtx (pred_mode);
+  rtx tmp = gen_reg_rtx (GET_MODE (target));
   aarch64_emit_sve_fp_cond (tmp, code, pred, known_ptrue_p, op0, op1);
   aarch64_emit_unop (target, one_cmpl_optab, tmp);
 }
@@ -27241,10 +27422,25 @@ aarch64_emit_sve_invert_fp_cond (rtx target, rtx_code code, rtx pred,
 void
 aarch64_expand_sve_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1)
 {
-  machine_mode pred_mode = GET_MODE (target);
   machine_mode data_mode = GET_MODE (op0);
+  rtx pred = aarch64_sve_fp_pred (data_mode, nullptr);
 
-  rtx ptrue = aarch64_ptrue_reg (pred_mode);
+  /* The governing and destination modes.  */
+  machine_mode pred_mode = GET_MODE (pred);
+  machine_mode target_mode = GET_MODE (target);
+
+  /* For partial vector modes, the choice of predicate mode depends
+     on whether we need to suppress exceptions for inactive elements.
+     If we do need to suppress exceptions, the predicate mode matches
+     the element size rather than the container size and the predicate
+     marks the upper bits in each container as inactive.  The predicate
+     is then a ptrue wrt TARGET_MODE but not wrt PRED_MODE.  It is the
+     latter which matters here.
+
+     If we don't need to suppress exceptions, the predicate mode matches
+     the container size, PRED_MODE == TARGET_MODE, and the predicate is
+     thus a ptrue wrt both TARGET_MODE and PRED_MODE.  */
+  bool known_ptrue_p = pred_mode == target_mode;
   switch (code)
     {
     case UNORDERED:
@@ -27258,12 +27454,13 @@ aarch64_expand_sve_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1)
     case EQ:
     case NE:
       /* There is native support for the comparison.  */
-      aarch64_emit_sve_fp_cond (target, code, ptrue, true, op0, op1);
+      aarch64_emit_sve_fp_cond (target, code, pred, known_ptrue_p, op0, op1);
       return;
 
     case LTGT:
       /* This is a trapping operation (LT or GT).  */
-      aarch64_emit_sve_or_fp_conds (target, LT, GT, ptrue, true, op0, op1);
+      aarch64_emit_sve_or_fp_conds (target, LT, GT,
+				    pred, known_ptrue_p, op0, op1);
       return;
 
     case UNEQ:
@@ -27272,7 +27469,7 @@ aarch64_expand_sve_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1)
 	  /* This would trap for signaling NaNs.  */
 	  op1 = force_reg (data_mode, op1);
 	  aarch64_emit_sve_or_fp_conds (target, UNORDERED, EQ,
-					ptrue, true, op0, op1);
+					pred, known_ptrue_p, op0, op1);
 	  return;
 	}
       /* fall through */
@@ -27282,11 +27479,19 @@ aarch64_expand_sve_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1)
     case UNGE:
       if (flag_trapping_math)
 	{
-	  /* Work out which elements are ordered.  */
-	  rtx ordered = gen_reg_rtx (pred_mode);
 	  op1 = force_reg (data_mode, op1);
-	  aarch64_emit_sve_invert_fp_cond (ordered, UNORDERED,
-					   ptrue, true, op0, op1);
+
+	  /* Work out which elements are unordered.  */
+	  rtx uo_tmp = gen_reg_rtx (target_mode);
+	  aarch64_emit_sve_fp_cond (uo_tmp, UNORDERED,
+				    pred, known_ptrue_p, op0, op1);
+
+	  /* Invert the result.  Governered by PRED so that we only
+	     flip the active bits.  */
+	  rtx ordered = gen_reg_rtx (pred_mode);
+	  uo_tmp = gen_lowpart (pred_mode, uo_tmp);
+	  emit_insn (gen_aarch64_pred_one_cmpl_z (pred_mode, ordered,
+						  pred, uo_tmp));
 
 	  /* Test the opposite condition for the ordered elements,
 	     then invert the result.  */
@@ -27311,7 +27516,8 @@ aarch64_expand_sve_vec_cmp_float (rtx target, rtx_code code, rtx op0, rtx op1)
 
   /* There is native support for the inverse comparison.  */
   code = reverse_condition_maybe_unordered (code);
-  aarch64_emit_sve_invert_fp_cond (target, code, ptrue, true, op0, op1);
+  aarch64_emit_sve_invert_fp_cond (target, code,
+				   pred, known_ptrue_p, op0, op1);
 }
 
 /* Return true if:
@@ -29986,60 +30192,43 @@ aarch64_can_tag_addresses ()
 
 /* Implement TARGET_ASM_FILE_END for AArch64.  This adds the AArch64 GNU NOTE
    section at the end if needed.  */
-#define GNU_PROPERTY_AARCH64_FEATURE_1_AND	0xc0000000
-#define GNU_PROPERTY_AARCH64_FEATURE_1_BTI	(1U << 0)
-#define GNU_PROPERTY_AARCH64_FEATURE_1_PAC	(1U << 1)
-#define GNU_PROPERTY_AARCH64_FEATURE_1_GCS	(1U << 2)
 void
 aarch64_file_end_indicate_exec_stack ()
 {
   file_end_indicate_exec_stack ();
 
-  unsigned feature_1_and = 0;
-  if (aarch_bti_enabled ())
-    feature_1_and |= GNU_PROPERTY_AARCH64_FEATURE_1_BTI;
-
-  if (aarch_ra_sign_scope != AARCH_FUNCTION_NONE)
-    feature_1_and |= GNU_PROPERTY_AARCH64_FEATURE_1_PAC;
-
-  if (aarch64_gcs_enabled ())
-    feature_1_and |= GNU_PROPERTY_AARCH64_FEATURE_1_GCS;
-
-  if (feature_1_and)
+  /* Check whether the current assembler supports AEABI build attributes, if
+     not fallback to .note.gnu.property section.  */
+  if (HAVE_AS_AEABI_BUILD_ATTRIBUTES)
     {
-      /* Generate .note.gnu.property section.  */
-      switch_to_section (get_section (".note.gnu.property",
-				      SECTION_NOTYPE, NULL));
+      using namespace aarch64;
+      aeabi_subsection<BA_TagFeature_t, bool, 3>
+	aeabi_subsec ("aeabi_feature_and_bits", true);
 
-      /* PT_NOTE header: namesz, descsz, type.
-	 namesz = 4 ("GNU\0")
-	 descsz = 16 (Size of the program property array)
-		  [(12 + padding) * Number of array elements]
-	 type   = 5 (NT_GNU_PROPERTY_TYPE_0).  */
-      assemble_align (POINTER_SIZE);
-      assemble_integer (GEN_INT (4), 4, 32, 1);
-      assemble_integer (GEN_INT (ROUND_UP (12, POINTER_BYTES)), 4, 32, 1);
-      assemble_integer (GEN_INT (5), 4, 32, 1);
+      aeabi_subsec.append (
+	make_aeabi_attribute (Tag_Feature_BTI, aarch_bti_enabled ()));
+      aeabi_subsec.append (
+	make_aeabi_attribute (Tag_Feature_PAC, aarch64_pacret_enabled ()));
+      aeabi_subsec.append (
+	make_aeabi_attribute (Tag_Feature_GCS, aarch64_gcs_enabled ()));
 
-      /* PT_NOTE name.  */
-      assemble_string ("GNU", 4);
+      if (!aeabi_subsec.empty ())
+	aeabi_subsec.write (asm_out_file);
+    }
+  else
+    {
+      aarch64::section_note_gnu_property gnu_properties;
 
-      /* PT_NOTE contents for NT_GNU_PROPERTY_TYPE_0:
-	 type   = GNU_PROPERTY_AARCH64_FEATURE_1_AND
-	 datasz = 4
-	 data   = feature_1_and.  */
-      assemble_integer (GEN_INT (GNU_PROPERTY_AARCH64_FEATURE_1_AND), 4, 32, 1);
-      assemble_integer (GEN_INT (4), 4, 32, 1);
-      assemble_integer (GEN_INT (feature_1_and), 4, 32, 1);
+      if (aarch_bti_enabled ())
+	gnu_properties.bti_enabled ();
+      if (aarch64_pacret_enabled ())
+	gnu_properties.pac_enabled ();
+      if (aarch64_gcs_enabled ())
+	gnu_properties.gcs_enabled ();
 
-      /* Pad the size of the note to the required alignment.  */
-      assemble_align (POINTER_SIZE);
+      gnu_properties.write ();
     }
 }
-#undef GNU_PROPERTY_AARCH64_FEATURE_1_GCS
-#undef GNU_PROPERTY_AARCH64_FEATURE_1_PAC
-#undef GNU_PROPERTY_AARCH64_FEATURE_1_BTI
-#undef GNU_PROPERTY_AARCH64_FEATURE_1_AND
 
 /* Helper function for straight line speculation.
    Return what barrier should be emitted for straight line speculation

@@ -202,7 +202,6 @@ static tree for_each_template_parm_r (tree *, int *, void *);
 static tree copy_default_args_to_explicit_spec_1 (tree, tree);
 static void copy_default_args_to_explicit_spec (tree);
 static bool invalid_nontype_parm_type_p (tree, tsubst_flags_t);
-static bool dependent_template_arg_p (tree);
 static bool dependent_type_p_r (tree);
 static tree tsubst_stmt (tree, tree, tsubst_flags_t, tree);
 static tree tsubst_decl (tree, tree, tsubst_flags_t, bool = true);
@@ -10052,14 +10051,19 @@ tsubst_entering_scope (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
    D1 is the PTYPENAME terminal, and ARGLIST is the list of arguments.
 
+   If D1 is an identifier and CONTEXT is non-NULL, then the lookup is
+   carried out in CONTEXT. Currently, only namespaces are supported for
+   CONTEXT.
+
+   If D1 is an identifier and CONTEXT is NULL, the lookup is performed
+   in the innermost non-namespace binding.
+
+   Otherwise CONTEXT is ignored and no lookup is carried out.
+
    IN_DECL, if non-NULL, is the template declaration we are trying to
    instantiate.
 
    Issue error and warning messages under control of COMPLAIN.
-
-   If the template class is really a local class in a template
-   function, then the FUNCTION_CONTEXT is the function in which it is
-   being instantiated.
 
    ??? Note that this function is currently called *twice* for each
    template-id: the first time from the parser, while creating the
@@ -10079,20 +10083,23 @@ lookup_template_class (tree d1, tree arglist, tree in_decl, tree context,
   spec_entry **slot;
   spec_entry *entry;
 
-  if (identifier_p (d1))
+  if (identifier_p (d1) && context)
+    {
+      gcc_checking_assert (TREE_CODE (context) == NAMESPACE_DECL);
+      push_decl_namespace (context);
+      templ = lookup_name (d1, LOOK_where::NAMESPACE, LOOK_want::NORMAL);
+      pop_decl_namespace ();
+    }
+  else if (identifier_p (d1))
     {
       tree value = innermost_non_namespace_value (d1);
       if (value && DECL_TEMPLATE_TEMPLATE_PARM_P (value))
 	templ = value;
       else
-	{
-	  if (context)
-	    push_decl_namespace (context);
+        {
 	  templ = lookup_name (d1);
 	  templ = maybe_get_template_decl_from_type_decl (templ);
-	  if (context)
-	    pop_decl_namespace ();
-	}
+        }
     }
   else if (TREE_CODE (d1) == TYPE_DECL && MAYBE_CLASS_TYPE_P (TREE_TYPE (d1)))
     {
@@ -12692,7 +12699,17 @@ instantiate_class_template (tree type)
       determine_visibility (TYPE_MAIN_DECL (type));
     }
   if (CLASS_TYPE_P (type))
-    CLASSTYPE_FINAL (type) = CLASSTYPE_FINAL (pattern);
+    {
+      CLASSTYPE_FINAL (type) = CLASSTYPE_FINAL (pattern);
+      CLASSTYPE_TRIVIALLY_RELOCATABLE_BIT (type)
+	= CLASSTYPE_TRIVIALLY_RELOCATABLE_BIT (pattern);
+      CLASSTYPE_TRIVIALLY_RELOCATABLE_COMPUTED (type)
+	= CLASSTYPE_TRIVIALLY_RELOCATABLE_COMPUTED (pattern);
+      CLASSTYPE_REPLACEABLE_BIT (type)
+	= CLASSTYPE_REPLACEABLE_BIT (pattern);
+      CLASSTYPE_REPLACEABLE_COMPUTED (type)
+	= CLASSTYPE_REPLACEABLE_COMPUTED (pattern);
+    }
 
   pbinfo = TYPE_BINFO (pattern);
 
@@ -14983,6 +15000,8 @@ tsubst_function_decl (tree t, tree args, tsubst_flags_t complain,
   if (closure && DECL_IOBJ_MEMBER_FUNCTION_P (t))
     parms = DECL_CHAIN (parms);
   parms = tsubst (parms, args, complain, t);
+  if (parms == error_mark_node)
+    return error_mark_node;
   for (tree parm = parms; parm; parm = DECL_CHAIN (parm))
     DECL_CONTEXT (parm) = r;
   if (closure && DECL_IOBJ_MEMBER_FUNCTION_P (t))
@@ -15555,6 +15574,9 @@ tsubst_decl (tree t, tree args, tsubst_flags_t complain,
               /* We're dealing with a normal parameter.  */
               type = tsubst (TREE_TYPE (t), args, complain, in_decl);
 
+	    if (type == error_mark_node && !(complain & tf_error))
+	      RETURN (error_mark_node);
+
             type = type_decays_to (type);
             TREE_TYPE (r) = type;
             cp_apply_type_quals_to_decl (cp_type_quals (type), r);
@@ -15592,8 +15614,13 @@ tsubst_decl (tree t, tree args, tsubst_flags_t complain,
 	/* If cp_unevaluated_operand is set, we're just looking for a
 	   single dummy parameter, so don't keep going.  */
 	if (DECL_CHAIN (t) && !cp_unevaluated_operand)
-	  DECL_CHAIN (r) = tsubst (DECL_CHAIN (t), args,
-				   complain, DECL_CHAIN (t));
+	  {
+	    tree chain = tsubst (DECL_CHAIN (t), args,
+				 complain, DECL_CHAIN (t));
+	    if (chain == error_mark_node)
+	      RETURN (error_mark_node);
+	    DECL_CHAIN (r) = chain;
+	  }
 
         /* FIRST_R contains the start of the chain we've built.  */
         r = first_r;
@@ -17233,13 +17260,14 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	      return error_mark_node;
 	  }
 
-	/* FIXME: TYPENAME_IS_CLASS_P conflates 'class' vs 'struct' vs 'union'
-	   tags.  TYPENAME_TYPE should probably remember the exact tag that
-	   was written.  */
+	/* FIXME: TYPENAME_IS_CLASS_P conflates 'class' vs 'struct' tags.
+	   TYPENAME_TYPE should probably remember the exact tag that
+	   was written for -Wmismatched-tags.  */
 	enum tag_types tag_type
-	  = TYPENAME_IS_CLASS_P (t) ? class_type
-	  : TYPENAME_IS_ENUM_P (t) ? enum_type
-	  : typename_type;
+	  = (TYPENAME_IS_CLASS_P (t) ? class_type
+	     : TYPENAME_IS_UNION_P (t) ? union_type
+	     : TYPENAME_IS_ENUM_P (t) ? enum_type
+	     : typename_type);
 	tsubst_flags_t tcomplain = complain | tf_keep_type_decl;
 	tcomplain |= tst_ok_flag | qualifying_scope_flag;
 	f = make_typename_type (ctx, f, tag_type, tcomplain);
@@ -17261,10 +17289,18 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 		else
 		  return error_mark_node;
 	      }
-	    else if (TYPENAME_IS_CLASS_P (t) && !CLASS_TYPE_P (f))
+	    else if (TYPENAME_IS_CLASS_P (t) && !NON_UNION_CLASS_TYPE_P (f))
 	      {
 		if (complain & tf_error)
-		  error ("%qT resolves to %qT, which is not a class type",
+		  error ("%qT resolves to %qT, which is not a non-union "
+			 "class type", t, f);
+		else
+		  return error_mark_node;
+	      }
+	    else if (TYPENAME_IS_UNION_P (t) && !UNION_TYPE_P (f))
+	      {
+		if (complain & tf_error)
+		  error ("%qT resolves to %qT, which is not a union type",
 			 t, f);
 		else
 		  return error_mark_node;
@@ -20121,7 +20157,14 @@ tsubst_stmt (tree t, tree args, tsubst_flags_t complain, tree in_decl)
       {
 	tree op0 = RECUR (TREE_OPERAND (t, 0));
 	tree cond = RECUR (MUST_NOT_THROW_COND (t));
-	RETURN (build_must_not_throw_expr (op0, cond));
+	stmt = build_must_not_throw_expr (op0, cond);
+	if (stmt && TREE_CODE (stmt) == MUST_NOT_THROW_EXPR)
+	  {
+	    MUST_NOT_THROW_NOEXCEPT_P (stmt) = MUST_NOT_THROW_NOEXCEPT_P (t);
+	    MUST_NOT_THROW_THROW_P (stmt) = MUST_NOT_THROW_THROW_P (t);
+	    MUST_NOT_THROW_CATCH_P (stmt) = MUST_NOT_THROW_CATCH_P (t);
+	  }
+	RETURN (stmt);
       }
 
     case EXPR_PACK_EXPANSION:
@@ -24587,7 +24630,8 @@ resolve_nondeduced_context (tree orig_expr, tsubst_flags_t complain)
 	}
       if (good == 1)
 	{
-	  mark_used (goodfn);
+	  if (!mark_used (goodfn, complain) && !(complain & tf_error))
+	    return error_mark_node;
 	  expr = goodfn;
 	  if (baselink)
 	    expr = build_baselink (BASELINK_BINFO (baselink),
@@ -27519,6 +27563,10 @@ tree
 template_for_substitution (tree decl)
 {
   tree tmpl = DECL_TI_TEMPLATE (decl);
+  if (VAR_P (decl))
+    if (tree partial = most_specialized_partial_spec (decl, tf_none))
+      if (partial != error_mark_node)
+	tmpl = TI_TEMPLATE (partial);
 
   /* Set TMPL to the template whose DECL_TEMPLATE_RESULT is the pattern
      for the instantiation.  This is not always the most general

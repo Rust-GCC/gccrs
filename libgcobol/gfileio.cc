@@ -28,8 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// cppcheck-suppress-file postfixOperator
-
 #include <err.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -106,11 +104,6 @@
                 There is always a preamble
 
     */
-
-/*  cppcheck has its opinions about ++iterator being superior to iterator++.
-    however, can't abide by the prefix notation; it just looks dumb to me.
-    And I have to believe that in the year of our Lord 2025 that the
-    optimizing algorithms in modern compilers have sorted this out by now. */
 
 extern "C"
 void
@@ -1814,7 +1807,7 @@ relative_file_rewrite_varying( cblc_file_t *file, bool is_random )
 done:
   // Per the standard, return the file location pointer back to whence it came:
   fseek(file->file_pointer, starting_position, SEEK_SET);
-  handle_ferror(file, __func__, "fseek() error"); 
+  handle_ferror(file, __func__, "fseek() error");
   file->prior_op = file_op_rewrite;
   establish_status(file, starting_position);
   }
@@ -1915,7 +1908,7 @@ relative_file_rewrite( cblc_file_t *file, size_t length, bool is_random )
 done:
   // Per the standard, return the file location pointer back to whence it came:
   fseek(file->file_pointer, starting_position, SEEK_SET);
-  handle_ferror(file, __func__, "fseek() error"); 
+  handle_ferror(file, __func__, "fseek() error");
   file->prior_op = file_op_rewrite;
   establish_status(file, starting_position);
   }

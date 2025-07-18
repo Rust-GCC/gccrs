@@ -410,6 +410,9 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE ATTRIBUTE_UNUSED
 /* CSSC instructions are enabled through +cssc.  */
 #define TARGET_CSSC AARCH64_HAVE_ISA (CSSC)
 
+/* CB<cc> instructions are enabled through +cmpbr.  */
+#define TARGET_CMPBR AARCH64_HAVE_ISA (CMPBR)
+
 /* Make sure this is always defined so we don't have to check for ifdefs
    but rather use normal ifs.  */
 #ifndef TARGET_FIX_ERR_A53_835769_DEFAULT
@@ -489,6 +492,11 @@ constexpr auto AARCH64_FL_DEFAULT_ISA_MODE ATTRIBUTE_UNUSED
 #define TARGET_CHEAP_FPMR_WRITE \
   (bool (aarch64_tune_params.extra_tuning_flags \
 	 & AARCH64_EXTRA_TUNE_CHEAP_FPMR_WRITE))
+
+/* Enable folding address computation into LDAPUR when RCPC2 is available.  */
+#define TARGET_ENABLE_LDAPUR (TARGET_RCPC2 \
+			      && !(aarch64_tune_params.extra_tuning_flags \
+				   & AARCH64_EXTRA_TUNE_AVOID_LDAPUR))
 
 /* Combinatorial tests.  */
 
