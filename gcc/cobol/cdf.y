@@ -105,14 +105,14 @@ void input_file_status_notify();
 
   using std::map;
 
-  static map<std::string, cdfval_t> dictionary;
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
   static bool
   cdfval_add( const char name[],
 	       const cdfval_t& value, bool override = false )
   {
+    cdf_values_t& dictionary( cdf_dictionary() );
+    
     if( scanner_parsing() ) {
       if( ! override ) {
 	if( dictionary.find(name) != dictionary.end() ) return false;
@@ -123,6 +123,8 @@ void input_file_status_notify();
   }
   static void
   cdfval_off( const char name[] ) {
+    cdf_values_t& dictionary( cdf_dictionary() );
+    
     if( scanner_parsing() ) {
       auto p = dictionary.find(name);
       if( p == dictionary.end() ) {
@@ -159,6 +161,8 @@ exception_turn_t exception_turn;
 			
 bool
 apply_cdf_turn( const exception_turn_t& turn ) {
+  cbl_enabled_exceptions_t& enabled_exceptions( cdf_enabled_exceptions() );
+  
   for( auto elem : turn.exception_files() ) {
     std::set<size_t> files(elem.second.begin(), elem.second.end());
     enabled_exceptions.turn_on_off(turn.enabled,
@@ -185,6 +189,7 @@ apply_cdf_turn( const exception_turn_t& turn ) {
 %printer { fprintf(yyo, "%s '%s'",
 		   keyword_str($$.token),
 		   $$.string? $$.string : "<nil>" ); } <cdfarg>
+/* cppcheck-suppress invalidPrintfArgType_sint */
 %printer { fprintf(yyo, HOST_SIZE_T_PRINT_DEC " '%s'",
 		   (fmt_size_t)$$.number, $$.string? $$.string : "" ); } <cdfval>
 
@@ -203,15 +208,17 @@ apply_cdf_turn( const exception_turn_t& turn ) {
 %type   <file>		filename
 %type   <files>         filenames
 
-%token BY 478
+%type   <number>        cdf_stackable
+
+%token BY 486
 %token COPY 362
 %token CDF_DISPLAY 384    ">>DISPLAY"
-%token IN 597
+%token IN 605
 %token NAME 286
 %token NUMSTR 305    "numeric literal"
-%token OF 678
-%token PSEUDOTEXT 713
-%token REPLACING 735
+%token OF 686
+%token PSEUDOTEXT 721
+%token REPLACING 743
 %token LITERAL 298
 %token SUPPRESS 376
 
@@ -226,25 +233,32 @@ apply_cdf_turn( const exception_turn_t& turn ) {
 %token CDF_WHEN 389    ">>WHEN"
 %token CDF_END_EVALUATE 390    ">>END-EVALUATE"
 
-%token AS 460  CONSTANT 361  DEFINED 363
+%token ALL 450
+%token CALL_CONVENTION 391    ">>CALL-CONVENTION"
+%token COBOL_WORDS 380    ">>COBOL-WORDS"
+%token CDF_PUSH 394    ">>PUSH"
+%token CDF_POP 395    ">>POP"
+%token SOURCE_FORMAT 396    ">>SOURCE FORMAT"
+
+%token AS 468  CONSTANT 361  DEFINED 363
 %type	<boolean>	     DEFINED
-%token OTHER 690  PARAMETER_kw 368    "PARAMETER"
-%token OFF 679  OVERRIDE 369
-%token THRU 931
-%token TRUE_kw 805    "True"
+%token OTHER 698  PARAMETER_kw 368    "PARAMETER"
+%token OFF 687  OVERRIDE 369
+%token THRU 939
+%token TRUE_kw 813    "True"
 
-%token CALL_COBOL 391    "CALL"
-%token CALL_VERBATIM 392    "CALL (as C)"
+%token CALL_COBOL 392    "CALL"
+%token CALL_VERBATIM 393    "CALL (as C)"
 
-%token TURN 807  CHECKING 488  LOCATION 641  ON 681  WITH 833
+%token TURN 815  CHECKING 496  LOCATION 649  ON 689  WITH 841
 
-%left OR 932
-%left AND 933
-%right NOT 934
-%left '<'  '>'  '='  NE 935  LE 936  GE 937
+%left OR 940
+%left AND 941
+%right NOT 942
+%left '<'  '>'  '='  NE 943  LE 944  GE 945
 %left '-'  '+'
 %left '*'  '/'
-%right NEG 939
+%right NEG 947
 
 %define api.prefix {ydf}
 %define api.token.prefix{YDF_}
@@ -262,8 +276,8 @@ top:		partials { YYACCEPT; }
 		  YYACCEPT;
 		}
 	|	copy error {
-		  error_msg(@error, "COPY directive must end in a '.'");
-		  YYACCEPT;
+		  error_msg(@error, "COPY directive must end in a %<.%>");
+		  YYABORT;
 		}
 	|	completes { YYACCEPT; }
 		;
@@ -276,6 +290,8 @@ complete:	cdf_define
 	|	cdf_display
 	|	cdf_turn
         |       cdf_call_convention
+        |       cdf_push
+        |       cdf_pop
 		;
 
 		/*
@@ -327,6 +343,7 @@ cdf_define:	CDF_DEFINE cdf_constant NAME as cdf_expr[value] override
 		  }
 		  if( !cdfval_add( $NAME, cdfval_t($value), $override) ) {
 		    error_msg(@NAME, "name already in dictionary: %s", $NAME);
+                    cdf_values_t& dictionary( cdf_dictionary() );
 		    const cdfval_t& entry = dictionary[$NAME];
 		    if( entry.filename ) {
 		      error_msg(@NAME, "%s previously defined in %s:%d",
@@ -356,7 +373,7 @@ cdf_define:	CDF_DEFINE cdf_constant NAME as cdf_expr[value] override
 		 * available regardless.
 		 */
 		{
-		  if( 0 == dictionary.count($NAME) ) {
+		  if( 0 == cdf_dictionary().count($NAME) ) {
 		    yywarn("CDF: '%s' is defined AS PARAMETER "
 			    "but was not defined", $NAME);
 		  }
@@ -364,13 +381,15 @@ cdf_define:	CDF_DEFINE cdf_constant NAME as cdf_expr[value] override
 	|	CDF_DEFINE FEATURE as ON {
 		  auto feature = cbl_gcobol_feature_t($2);
 		  if( ! cobol_gcobol_feature_set(feature, true) ) {
-		    error_msg(@FEATURE, ">>DEFINE %EBCDIC-MODE is invalid within program body");
+		    error_msg(@FEATURE,
+                              "%<>>DEFINE %%EBCDIC-MODE%> is invalid within program body");
 		  }
 		}
 	|	CDF_DEFINE FEATURE as OFF {
 		  auto feature = cbl_gcobol_feature_t($2);
 		  if( ! cobol_gcobol_feature_set(feature, false) ) {
-		    error_msg(@FEATURE, ">>DEFINE %EBCDIC-MODE is invalid within program body");
+		    error_msg(@FEATURE,
+                              "%<>>DEFINE %%EBCDIC-MODE%> is invalid within program body");
 		  }
 		}
 		;
@@ -397,6 +416,35 @@ cdf_call_convention:
                 }
                 ;
 
+cdf_push:       CDF_PUSH cdf_stackable {
+		  switch( $cdf_stackable ) {
+                  case YDF_ALL: 		cdf_push(); break;
+                  case YDF_CALL_CONVENTION: cdf_push_call_convention(); break;
+                  case YDF_CDF_DEFINE: 	cdf_push_dictionary(); break;
+                  case YDF_COBOL_WORDS: 	cdf_push_current_tokens(); break;
+                  case YDF_SOURCE_FORMAT:	cdf_push_source_format(); break;
+                  default: gcc_unreachable(); 
+                  }
+                }
+                ;
+cdf_pop:        CDF_POP cdf_stackable {
+		  switch( $cdf_stackable ) {
+                  case YDF_ALL: 		cdf_pop(); break;
+                  case YDF_CALL_CONVENTION: cdf_pop_call_convention(); break;
+                  case YDF_CDF_DEFINE: 	cdf_pop_dictionary(); break;
+                  case YDF_COBOL_WORDS: 	cdf_pop_current_tokens(); break;
+                  case YDF_SOURCE_FORMAT:	cdf_pop_source_format(); break; 
+                  default: gcc_unreachable(); 
+                  }
+                }
+                ;
+
+cdf_stackable:  ALL		{ $$ = YDF_ALL; }
+        |       CALL_CONVENTION	{ $$ = YDF_CALL_CONVENTION; }
+        |       COBOL_WORDS	{ $$ = YDF_COBOL_WORDS; }
+        |       CDF_DEFINE	{ $$ = YDF_CDF_DEFINE; }
+        |       SOURCE_FORMAT	{ $$ = YDF_SOURCE_FORMAT; }
+                ;
 
 except_names: 	except_name
 	|	except_names except_name
@@ -429,7 +477,7 @@ filenames:      filename {
 		  auto inserted = $$->insert(symbol_index(symbol_elem_of($2)));
 		  if( ! inserted.second ) {
 		    error_msg(@2, "%s: No file-name shall be specified more than "
-			      " once for one exception condition", $filename->name);
+			      "once for one exception condition", $filename->name);
 		  }
 		}
                 ;
@@ -468,6 +516,7 @@ cdf_eval_obj:	cdf_cond_expr
 cdf_cond_expr:	BOOL
 	|	NAME DEFINED
 		{
+                  cdf_values_t& dictionary( cdf_dictionary() );
 		  auto p = dictionary.find($1);
 		  bool found = p != dictionary.end();
 		  if( !$DEFINED ) found = ! found;
@@ -516,7 +565,7 @@ cdf_relexpr:	cdf_relexpr '<' cdf_expr { $$ = $1(@1) <  $3(@3); }
 		    const char *msg = $1.string?
 		      "incommensurate comparison is FALSE: '%s' = %ld" :
 		      "incommensurate comparison is FALSE: %ld = '%s'" ;
-		    error_msg(@1, msg);
+		    error_msg(@1, "%s", msg);
 		  }
 		}
 	|	cdf_relexpr NE cdf_expr
@@ -530,7 +579,7 @@ cdf_relexpr:	cdf_relexpr '<' cdf_expr { $$ = $1(@1) <  $3(@3); }
 		    const char *msg = $1.string?
 		      "incommensurate comparison is FALSE: '%s' = %ld" :
 		      "incommensurate comparison is FALSE: %ld = '%s'" ;
-		    error_msg(@1, msg);
+		    error_msg(@1, "%s", msg);
 		  }
 		}
 	|	cdf_relexpr GE  cdf_expr { $$ = $1(@1) >= $3(@3); }
@@ -549,6 +598,7 @@ cdf_expr:	cdf_expr '+' cdf_expr { $$ = $1(@1) + $3(@3); }
         ;
 
 cdf_factor:     NAME {
+                  cdf_values_t& dictionary( cdf_dictionary() );
 		  auto that = dictionary.find($1);
 		  if( that != dictionary.end() ) {
 		    $$ = that->second;
@@ -566,7 +616,7 @@ cdf_factor:     NAME {
 	| 	NUMSTR {
 		  auto value = integer_literal($NUMSTR);
 		  if( !value.second ) {
-		    error_msg(@1, "CDF error: parsed %s as %ld",
+		    error_msg(@1, "CDF error: parsed %qs as %lld",
 		             $NUMSTR, value.first);
 		    YYERROR;
 		  }
@@ -584,7 +634,7 @@ copybook_name: 	COPY name_one[src]
 		  if( -1 == copybook.open(@src, $src.string) ) {
 		    error_msg(@src, "could not open copybook file "
 		             "for '%s'", $src.string);
-		    YYERROR;
+		    YYABORT;
 		  }
 		}
 	|	COPY name_one[src] IN name_one[lib]
@@ -592,8 +642,8 @@ copybook_name: 	COPY name_one[src]
 		  copybook.library(@lib, $lib.string);
 		  if( -1 == copybook.open(@src, $src.string) ) {
 		    error_msg(@src, "could not open copybook file "
-		             "for '%s' in '%'s'", $src.string, $lib.string);
-		    YYERROR;
+		             "for %<%s%> in %<%s%>", $src.string, $lib.string);
+		    YYABORT;
 		  }
 		}
 		;
@@ -648,6 +698,7 @@ name_any:	namelit
 
 name_one:	NAME
 		{
+                  cdf_values_t& dictionary( cdf_dictionary() );
 		  cdf_arg_t arg = { YDF_NAME, $1 };
 		  auto p = dictionary.find($1);
 
@@ -662,6 +713,7 @@ name_one:	NAME
 
 namelit:	name
 		{
+                  cdf_values_t& dictionary( cdf_dictionary() );
 		  cdf_arg_t arg = { YDF_NAME, $1 };
 		  auto p = dictionary.find($1);
 
@@ -742,6 +794,7 @@ location_set( const YYLTYPE& loc ) {
 bool // used by cobol1.cc
 defined_cmd( const char arg[] )
 {
+  cdf_values_t& dictionary( cdf_dictionary() );
   cdfval_t value(1);
 
   char *name = xstrdup(arg);
@@ -864,7 +917,8 @@ static int ydflex(void) {
 }
 
 bool
-cdf_value( const char name[], cdfval_t value ) {
+cdf_value( const char name[], const cdfval_t& value ) {
+  cdf_values_t& dictionary( cdf_dictionary() );
   auto p = dictionary.find(name);
 
   if( p != dictionary.end() ) return false;
@@ -875,6 +929,7 @@ cdf_value( const char name[], cdfval_t value ) {
 
 const cdfval_t *
 cdf_value( const char name[] ) {
+  cdf_values_t& dictionary( cdf_dictionary() );
   auto p = dictionary.find(name);
 
   if( p == dictionary.end() ) return NULL;
@@ -894,5 +949,6 @@ verify_integer( const YDFLTYPE& loc, const cdfval_base_t& val ) {
 const cdfval_base_t&
 cdfval_base_t::operator()( const YDFLTYPE& loc ) {
   static cdfval_t zero(0);
+  // cppcheck-suppress returnTempReference
   return verify_integer(loc, *this) ? *this : zero;
 }

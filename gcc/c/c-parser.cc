@@ -10547,15 +10547,31 @@ c_parser_unary_expression (c_parser *parser)
       c_parser_consume_token (parser);
       exp_loc = c_parser_peek_token (parser)->location;
       op = c_parser_cast_expression (parser, NULL);
-
-      op = default_function_array_read_conversion (exp_loc, op);
+      if ((VAR_P (op.value) || TREE_CODE (op.value) == PARM_DECL)
+	  && !DECL_READ_P (op.value)
+	  && (VAR_P (op.value) ? warn_unused_but_set_variable
+			       : warn_unused_but_set_parameter) > 1)
+	{
+	  op = default_function_array_read_conversion (exp_loc, op);
+	  DECL_READ_P (op.value) = 0;
+	}
+      else
+	op = default_function_array_read_conversion (exp_loc, op);
       return parser_build_unary_op (op_loc, PREINCREMENT_EXPR, op);
     case CPP_MINUS_MINUS:
       c_parser_consume_token (parser);
       exp_loc = c_parser_peek_token (parser)->location;
       op = c_parser_cast_expression (parser, NULL);
-
-      op = default_function_array_read_conversion (exp_loc, op);
+      if ((VAR_P (op.value) || TREE_CODE (op.value) == PARM_DECL)
+	  && !DECL_READ_P (op.value)
+	  && (VAR_P (op.value) ? warn_unused_but_set_variable
+			       : warn_unused_but_set_parameter) > 1)
+	{
+	  op = default_function_array_read_conversion (exp_loc, op);
+	  DECL_READ_P (op.value) = 0;
+	}
+      else
+	op = default_function_array_read_conversion (exp_loc, op);
       return parser_build_unary_op (op_loc, PREDECREMENT_EXPR, op);
     case CPP_AND:
       c_parser_consume_token (parser);
@@ -11146,8 +11162,14 @@ c_parser_generic_selection (c_parser *parser)
 		   "ISO C does not support use of type name as %<_Generic%> "
 		   "controlling operand before C2Y");
       struct c_type_name *type = c_parser_type_name (parser);
-      selector_type = groktypename (type, NULL, NULL);
+      if (type)
+	selector_type = groktypename (type, NULL, NULL);
       c_inhibit_evaluation_warnings--;
+      if (!type)
+	{
+	  c_parser_skip_until_found (parser, CPP_CLOSE_PAREN, NULL);
+	  return error_expr;
+	}
     }
   else
     {
@@ -13927,7 +13949,17 @@ c_parser_postfix_expression_after_primary (c_parser *parser,
 	  start = expr.get_start ();
 	  finish = c_parser_peek_token (parser)->get_finish ();
 	  c_parser_consume_token (parser);
-	  expr = default_function_array_read_conversion (expr_loc, expr);
+	  if ((VAR_P (expr.value) || TREE_CODE (expr.value) == PARM_DECL)
+	      && !DECL_READ_P (expr.value)
+	      && (VAR_P (expr.value) ? warn_unused_but_set_variable
+				     : warn_unused_but_set_parameter) > 1
+	      && TREE_CODE (TREE_TYPE (expr.value)) != ARRAY_TYPE)
+	    {
+	      expr = default_function_array_read_conversion (expr_loc, expr);
+	      DECL_READ_P (expr.value) = 0;
+	    }
+	  else
+	    expr = default_function_array_read_conversion (expr_loc, expr);
 	  expr.value = build_unary_op (op_loc, POSTINCREMENT_EXPR,
 				       expr.value, false);
 	  set_c_expr_source_range (&expr, start, finish);
@@ -13939,7 +13971,17 @@ c_parser_postfix_expression_after_primary (c_parser *parser,
 	  start = expr.get_start ();
 	  finish = c_parser_peek_token (parser)->get_finish ();
 	  c_parser_consume_token (parser);
-	  expr = default_function_array_read_conversion (expr_loc, expr);
+	  if ((VAR_P (expr.value) || TREE_CODE (expr.value) == PARM_DECL)
+	      && !DECL_READ_P (expr.value)
+	      && (VAR_P (expr.value) ? warn_unused_but_set_variable
+				     : warn_unused_but_set_parameter) > 1
+	      && TREE_CODE (TREE_TYPE (expr.value)) != ARRAY_TYPE)
+	    {
+	      expr = default_function_array_read_conversion (expr_loc, expr);
+	      DECL_READ_P (expr.value) = 0;
+	    }
+	  else
+	    expr = default_function_array_read_conversion (expr_loc, expr);
 	  expr.value = build_unary_op (op_loc, POSTDECREMENT_EXPR,
 				       expr.value, false);
 	  set_c_expr_source_range (&expr, start, finish);
@@ -22495,7 +22537,8 @@ c_parser_oacc_update (c_parser *parser)
 */
 
 #define OACC_WAIT_CLAUSE_MASK						\
-	( (OMP_CLAUSE_MASK_1 << PRAGMA_OACC_CLAUSE_ASYNC) )
+	( (OMP_CLAUSE_MASK_1 << PRAGMA_OACC_CLAUSE_ASYNC)		\
+	| (OMP_CLAUSE_MASK_1 << PRAGMA_OACC_CLAUSE_IF) )
 
 static tree
 c_parser_oacc_wait (location_t loc, c_parser *parser, char *p_name)

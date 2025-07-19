@@ -2887,13 +2887,18 @@ my_memcpy (void *dest, const void *src, size_t len)
 @cindex @code{nonnull_if_nonzero} function attribute
 @item nonnull_if_nonzero
 @itemx nonnull_if_nonzero (@var{arg-index}, @var{arg2-index})
+@itemx nonnull_if_nonzero (@var{arg-index}, @var{arg2-index}, @var{arg3-index})
 The @code{nonnull_if_nonzero} attribute is a conditional version of the
-@code{nonnull} attribute.  It has two arguments, the first argument
+@code{nonnull} attribute.  It has two or three arguments, the first argument
 shall be argument index of a pointer argument which must be in some
 cases non-null and the second argument shall be argument index of an
 integral argument (other than boolean).  If the integral argument is
 zero, the pointer argument can be null, if it is non-zero, the pointer
-argument must not be null.
+argument must not be null.  If three arguments are provided, the third
+argument shall be argument index of another integral argument (other than
+boolean) and the pointer argument can be null if either of the integral
+arguments are zero and if both are non-zero, the pointer argument must not
+be null.
 
 @smallexample
 extern void *
@@ -2903,12 +2908,21 @@ extern void *
 my_memcpy2 (void *dest, const void *src, size_t len)
         __attribute__((nonnull_if_nonzero (1, 3),
                        nonnull_if_nonzero (2, 3)));
+extern size_t
+my_fread (void *buf, size_t size, size_t count, FILE *stream)
+        __attribute__((nonnull (4),
+                       nonnull_if_nonzero (1, 2, 3)));
 @end smallexample
 
 With these declarations, it is invalid to call
 @code{my_memcpy (NULL, NULL, 0);} or to
-call @code{my_memcpy2 (NULL, NULL, 4);} but it is valid
-to call @code{my_memcpy2 (NULL, NULL, 0);}.  This attribute should be
+call @code{my_memcpy2 (NULL, NULL, 4);} or to call
+@code{my_fread(@var{buf}, 0, 0, NULL);} or to call
+@code{my_fread(NULL, 1, 1, @var{stream});} but it is valid
+to call @code{my_memcpy2 (NULL, NULL, 0);} or
+@code{my_fread(NULL, 0, 0, @var{stream});} or
+@code{my_fread(NULL, 0, 1, @var{stream});} or
+@code{my_fread(NULL, 1, 0, @var{stream});}.  This attribute should be
 used on declarations which have e.g.@: an exception for zero sizes,
 in which case null may be passed.
 
@@ -3879,9 +3893,20 @@ behavior and permissible arguments are the same as for the command-line option
 
 @cindex @code{outline-atomics} function attribute, AArch64
 @item outline-atomics
+@itemx no-outline-atomics
 Enable or disable calls to out-of-line helpers to implement atomic operations.
 This corresponds to the behavior of the command-line options
 @option{-moutline-atomics} and @option{-mno-outline-atomics}.
+
+@cindex @code{max-vectorization} function attribute, AArch64
+@item max-vectorization
+@itemx no-max-vectorization
+@code{max-vectorization} tells GCC's vectorizer to treat all vector
+loops as being more profitable than the original scalar loops when
+optimizing the current function.  @code{no-max-vectorization} disables
+this behavior.
+This corresponds to the behavior of the command-line options
+@option{-mmax-vectorization} and @option{-mno-max-vectorization}.
 
 @cindex @code{indirect_return} function attribute, AArch64
 @item indirect_return
@@ -6113,10 +6138,18 @@ pass arguments, unless it takes a variable number of arguments.
 @cindex @code{no_callee_saved_registers} function attribute, x86
 @item no_callee_saved_registers
 Use this attribute to indicate that the specified function has no
-callee-saved registers. That is, all registers can be used as scratch
-registers. For example, this attribute can be used for a function
-called from the interrupt handler assembly stub which will preserve
-all registers and return from interrupt.
+callee-saved registers. That is, all registers, except for stack and
+frame pointers, can be used as scratch registers. For example, this
+attribute can be used for a function called from the interrupt handler
+assembly stub which will preserve all registers and return from
+interrupt.
+
+@cindex @code{preserve_none} function attribute, x86
+@item preserve_none
+This attribute is similar to @code{no_callee_saved_registers}, except
+on x86-64, r12, r13, r14, r15, rdi and rsi registers are used for
+integer parameter passing and this calling convention is subject to
+change.
 
 @cindex @code{no_caller_saved_registers} function attribute, x86
 @item no_caller_saved_registers
@@ -6125,9 +6158,10 @@ caller-saved registers. That is, all registers are callee-saved. For
 example, this attribute can be used for a function called from an
 interrupt handler. The compiler generates proper function entry and
 exit sequences to save and restore any modified registers, except for
-the EFLAGS register.  Since GCC doesn't preserve SSE, MMX nor x87
-states, the GCC option @option{-mgeneral-regs-only} should be used to
-compile functions with @code{no_caller_saved_registers} attribute.
+the EFLAGS register.  Since GCC doesn't preserve YMM nor ZMM registers,
+@code{no_caller_saved_registers} attribute can't be used on functions
+with AVX enabled.  Note that MMX and x87 registers aren't preserved by
+@code{no_caller_saved_registers} attribute.
 
 @cindex @code{interrupt} function attribute, x86
 @item interrupt
@@ -9176,7 +9210,7 @@ NoError:
 @item unused
 This feature is intended for program-generated code that may contain 
 unused labels, but which is compiled with @option{-Wall}.  It is
-not normally appropriate to use in it human-written code, though it
+not normally appropriate to use it in human-written code, though it
 could be useful in cases where the code that jumps to the label is
 contained within an @code{#ifdef} conditional.
 
@@ -10381,6 +10415,11 @@ loop or a @code{#pragma GCC ivdep}, and applies only to the loop that follows.
 @var{n} is an integer constant expression specifying the unrolling factor.
 The values of @math{0} and @math{1} block any unrolling of the loop.
 
+If the loop was vectorized the unroll factor specified will be used to seed the
+vectorizer unroll factor.  Whether the loop is unrolled or not will be
+determined by target costing.  The resulting vectorized loop may still be
+unrolled more in later passes depending on the target costing.
+
 @end table
 
 @node Thread-Local
@@ -10667,7 +10706,7 @@ and @samp{[[omp::sequence(...)]]} in C and C++,
 GCC needs to be invoked with the @option{-fopenmp} option.
 This option also arranges for automatic linking of the OpenMP
 runtime library.
-@xref{,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
+@xref{Top,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
 
 @xref{OpenMP and OpenACC Options}, for additional options useful with
 @option{-fopenmp}.
@@ -10689,7 +10728,7 @@ To enable the processing of OpenACC directives @samp{#pragma acc}
 in C and C++, GCC needs to be invoked with the @option{-fopenacc} option.
 This option also arranges for automatic linking of the OpenACC runtime
 library.
-@xref{,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
+@xref{Top,,,libgomp,GNU Offloading and Multi Processing Runtime Library}.
 
 @xref{OpenMP and OpenACC Options}, for additional options useful with
 @option{-fopenacc}.
@@ -15483,7 +15522,7 @@ are 128-bit.  Only supported on targets when 128-bit types are supported.
 Returns the calculated 8-bit bit-reversed CRC using the initial CRC (8-bit),
 data (8-bit) and the polynomial (8-bit).
 @var{crc} is the initial CRC, @var{data} is the data and
-@var{poly} is the polynomial without leading 1.
+@var{poly} is the polynomial without leading 1. @var{poly} is required to be a compile-time constant.
 Table-based or clmul-based CRC may be used for the
 calculation, depending on the target architecture.
 @enddefbuiltin
@@ -15538,7 +15577,7 @@ is 32-bit.
 Returns the calculated 8-bit bit-forward CRC using the initial CRC (8-bit),
 data (8-bit) and the polynomial (8-bit).
 @var{crc} is the initial CRC, @var{data} is the data and
-@var{poly} is the polynomial without leading 1.
+@var{poly} is the polynomial without leading 1. @var{poly} is required to be a compile-time constant.
 Table-based or clmul-based CRC may be used for the
 calculation, depending on the target architecture.
 @enddefbuiltin

@@ -1,3 +1,193 @@
+2025-07-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* invoke.texi (-Wsurprising): Note about OpenACC warning
+	related to PARAMATER.
+	* openmp.cc (resolve_omp_clauses, gfc_resolve_oacc_declare):
+	Accept PARAMETER for OpenACC but add surprising warning.
+	* trans-openmp.cc (gfc_trans_omp_variable_list,
+	gfc_trans_omp_clauses): Ignore PARAMETER inside clauses.
+
+2025-07-11  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/106135
+	* decl.cc (build_sym): Emit an error if a symbol associated by
+	an IMPORT, ONLY or IMPORT, all statement is being redeclared.
+	(gfc_match_import): Parse and check the F2018 versions of the
+	IMPORT statement. For scopes other than and interface body, if
+	the symbol cannot be found in the host scope, generate it and
+	set it up such that gfc_fixup_sibling_symbols can transfer its
+	'imported attribute' if it turnes out to be a not yet parsed
+	procedure. Test for violations of C897-8100.
+	* gfortran.h : Add 'import_only' to the gfc_symtree structure.
+	Add the enum, 'importstate', which is used for values the new
+	field 'import_state' in gfc_namespace.
+	* parse.cc (gfc_fixup_sibling_symbols): Transfer the attribute
+	'imported' to the new symbol.
+	* resolve.cc (check_sym_import_status, check_import_status):
+	New functions to test symbols and expressions for violations of
+	F2018:C8102.
+	(resolve_call): Test the 'resolved_sym' against C8102 by a call
+	to 'check_sym_import_status'.
+	(gfc_resolve_expr): If the expression is OK and an IMPORT
+	statement has been registered in the current scope, test C102
+	by calling 'check_import_status'.
+	(resolve_select_type): Test the declared derived type in TYPE
+	IS and CLASS IS statements.
+
+2025-07-08  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120637
+	* class.cc (finalize_component): Return true, when a finalizable
+	component was detect and do not free it.
+
+2025-07-07  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* trans-intrinsic.cc (conv_intrinsic_move_alloc): Add pre and
+	post code for the FROM and TO arguments.
+
+2025-07-04  Martin Jambor  <mjambor@suse.cz>
+
+	* io.cc (format_asterisk): Add a brace around static initialization
+	location part of the field locus.
+
+2025-07-03  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120843
+	* resolve.cc (resolve_operator): Remove conformability check,
+	because it is not in the standard.
+
+2025-07-01  Harald Anlauf  <anlauf@gmx.de>
+
+	* coarray.cc (check_add_new_component): Treat pure and elemental
+	intrinsic functions the same as non-intrinsic ones.
+	(create_caf_add_data_parameter_type): Fix front-end memleaks.
+	* trans-intrinsic.cc (conv_caf_func_index): Likewise.
+
+2025-07-01  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120847
+	* coarray.cc (check_add_new_comp_handle_array): Make the count
+	of components static to be able to create more than one.  Create
+	an array component only for array expressions.
+
+2025-07-01  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120843
+	* resolve.cc (resolve_operator): Report inconsistent coranks
+	only when not referencing this_image.
+	(gfc_op_rank_conformable): Treat coranks as inconformable only
+	when a coindex other then implicit this_image is used.
+
+2025-06-27  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/120784
+	* interface.cc (gfc_match_end_interface): Detect empty local_name.
+
+2025-06-26  Martin Jambor  <mjambor@suse.cz>
+
+	* match.cc (gfc_match_nullify): Initialize p to NULL;
+
+2025-06-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* trans.cc (gfc_allocate_using_malloc): Prevent possible memory
+	leak when allocation was already done.
+
+2025-06-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	* resolve.cc (resolve_fl_derived0): Do not create the token
+	component when not in coarray lib mode.
+	* trans-types.cc: Do not access the token when not in coarray
+	lib mode.
+
+2025-06-26  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120711
+	* trans-array.cc (gfc_trans_array_ctor_element): Store the value
+	of the offset for reuse.
+
+2025-06-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	* trans-stmt.cc (gfc_trans_call_acc_attach_detach): New.
+	(gfc_trans_call): Call it.
+
+2025-06-24  Harald Anlauf  <anlauf@gmx.de>
+	    Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+	    Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/120743
+	* trans-expr.cc (gfc_conv_substring): Substring indices are of
+	type gfc_charlen_type_node.  Convert to size_type_node for
+	pointer arithmetic only after offset adjustments have been made.
+
+2025-06-24  Mikael Morin  <morin-mikael@orange.fr>
+
+	* misc.cc (gfc_var_name_for_select_type_temp): New function.
+	* gfortran.h (gfc_var_name_for_select_type_temp): Declare it.
+	* resolve.cc (resolve_select_type): Pick a discriminating name
+	from the SELECT TYPE variable reference and use it in the name
+	of the temporary variable that is generated.  Truncate name to
+	the buffer size.
+	* match.cc (select_type_set_tmp): Likewise.  Pass the
+	discriminating name...
+	(select_intrinsic_set_tmp): ... to this function.  Use the
+	discriminating name likewise.  Augment the buffer size to match
+	that of select_type_set_tmp and resolve_select_type.
+
+2025-06-23  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (OACC_WAIT_CLAUSES): Add if clause.
+	* trans-openmp.cc (gfc_trans_oacc_wait_directive): Handle it.
+
+2025-06-23  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/120784
+	* interface.cc (gfc_match_end_interface): If a use-associated
+	symbol is renamed, use the local_name for checking.
+
+2025-06-19  Mikael Morin  <mikael@gcc.gnu.org>
+
+	PR fortran/120713
+	* trans-array.cc (gfc_trans_deferred_array): Statically
+	initialize deferred length variable for SAVEd character arrays.
+
+2025-06-18  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/82480
+	* check.cc (gfc_check_fstat): Extend checks to INTENT(OUT) arguments.
+	(gfc_check_fstat_sub): Likewise.
+	(gfc_check_stat): Likewise.
+	(gfc_check_stat_sub): Likewise.
+	* intrinsic.texi: Adjust documentation.
+
+2025-06-16  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/51961
+	* resolve.cc (conformable_arrays): Use modified rank check when
+	MOLD= expression is given.
+
+2025-06-12  Yuao Ma  <c8ef@outlook.com>
+	    Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/113152
+	* intrinsic.texi: Document new half-revolution trigonometric
+	functions. Reorder doc for atand.
+
+2025-06-06  Tobias Burnus  <tburnus@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* f95-lang.cc (ATTR_PURE_NOTHROW_LIST): Define.
+	* trans-expr.cc (get_builtin_fn): Handle omp_get_num_devices
+	and omp_get_intrinsic_device.
+	* gfortran.h (gfc_option_t): Add disable_omp_... for them.
+	* options.cc (gfc_handle_option): Handle them with
+	-fno-builtin-.
+
+2025-06-04  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/120483
+	* trans-expr.cc (gfc_conv_substring): Use pointer arithmetic on
+	static allocatable char arrays.
+
 2025-06-03  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/99838

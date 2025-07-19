@@ -266,7 +266,7 @@ in the following sections.
 -Wnoexcept  -Wnoexcept-type  -Wnon-virtual-dtor
 -Wpessimizing-move  -Wno-placement-new  -Wplacement-new=@var{n}
 -Wrange-loop-construct -Wredundant-move -Wredundant-tags
--Wreorder  -Wregister
+-Wreorder  -Wregister -Wno-sfinae-incomplete
 -Wstrict-null-sentinel  -Wno-subobject-linkage  -Wtemplates
 -Wno-non-template-friend  -Wold-style-cast
 -Woverloaded-virtual  -Wno-pmf-conversions -Wself-move -Wsign-promo
@@ -312,7 +312,7 @@ Objective-C and Objective-C++ Dialects}.
 -fdiagnostics-show-location=@r{[}once@r{|}every-line@r{]}
 -fdiagnostics-color=@r{[}auto@r{|}never@r{|}always@r{]}
 -fdiagnostics-urls=@r{[}auto@r{|}never@r{|}always@r{]}
--fdiagnostics-format=@r{[}text@r{|}sarif-stderr@r{|}sarif-file@r{|}json@r{|}json-stderr@r{|}json-file@r{]}
+-fdiagnostics-format=@r{[}text@r{|}sarif-stderr@r{|}sarif-file@r{]}
 -fdiagnostics-add-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
 -fdiagnostics-set-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
 -fno-diagnostics-json-formatting
@@ -340,7 +340,7 @@ Objective-C and Objective-C++ Dialects}.
 -w  -Wextra  -Wall  -Wabi=@var{n}
 -Waddress  -Wno-address-of-packed-member  -Waggregate-return
 -Walloc-size  -Walloc-size-larger-than=@var{byte-size}  -Walloc-zero
--Walloca  -Walloca-larger-than=@var{byte-size}
+-Walloca  -Walloca-larger-than=@var{byte-size}  -Wauto-profile
 -Wno-aggressive-loop-optimizations
 -Warith-conversion
 -Warray-bounds  -Warray-bounds=@var{n}  -Warray-compare
@@ -353,7 +353,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wno-builtin-macro-redefined  -Wc90-c99-compat  -Wc99-c11-compat
 -Wc11-c23-compat  -Wc23-c2y-compat
 -Wc++-compat  -Wc++11-compat  -Wc++14-compat  -Wc++17-compat
--Wc++20-compat
+-Wc++20-compat  -Wc++26-compat
 -Wno-c++11-extensions  -Wno-c++14-extensions -Wno-c++17-extensions
 -Wno-c++20-extensions  -Wno-c++23-extensions
 -Wcalloc-transposed-args
@@ -433,7 +433,8 @@ Objective-C and Objective-C++ Dialects}.
 -Wunsuffixed-float-constants
 -Wunterminated-string-initialization
 -Wunused
--Wunused-but-set-parameter  -Wunused-but-set-variable
+-Wunused-but-set-parameter  -Wunused-but-set-parameter=@var{n}
+-Wunused-but-set-variable  -Wunused-but-set-variable=@var{n}
 -Wunused-const-variable  -Wunused-const-variable=@var{n}
 -Wunused-function  -Wunused-label  -Wunused-local-typedefs
 -Wunused-macros
@@ -573,7 +574,7 @@ Objective-C and Objective-C++ Dialects}.
 -fmin-function-alignment=[@var{n}]
 -fno-allocation-dce -fallow-store-data-races
 -fassociative-math  -fauto-profile  -fauto-profile[=@var{path}]
--fauto-inc-dec  -fbranch-probabilities
+-fauto-profile-inlining -fauto-inc-dec  -fbranch-probabilities
 -fcaller-saves
 -fcombine-stack-adjustments  -fconserve-stack
 -ffold-mem-offsets
@@ -2440,8 +2441,8 @@ ISO C99.  This standard is substantially completely supported, modulo
 bugs and floating-point issues
 (mainly but not entirely relating to optional C99 features from
 Annexes F and G).  See
-@w{@uref{https://gcc.gnu.org/c99status.html}} for more information.  The
-names @samp{c9x} and @samp{iso9899:199x} are deprecated.
+@w{@uref{https://gcc.gnu.org/projects/c-status.html}} for more information.
+The names @samp{c9x} and @samp{iso9899:199x} are deprecated.
 
 @item c11
 @itemx c1x
@@ -3816,6 +3817,23 @@ Warn when a type with an ABI tag is used in a context that does not
 have that ABI tag.  See @ref{C++ Attributes} for more information
 about ABI tags.
 
+@opindex Wabbreviated-auto-in-template-arg
+@opindex Wno-abbreviated-auto-in-template-arg
+@item -Wno-abbreviated-auto-in-template-arg
+Disable the error for an @code{auto} placeholder type used within a
+template argument list to declare a C++20 abbreviated function
+template, e.g.
+
+@smallexample
+void f(S<auto>);
+@end smallexample
+
+This feature was proposed in the Concepts TS, but was not adopted into
+C++20; in the standard, a placeholder in a parameter declaration must
+appear as a decl-specifier.  The error can also be reduced to a
+warning by @option{-fpermissive} or
+@option{-Wno-error=abbreviated-auto-in-template-arg}.
+
 @opindex Wcomma-subscript
 @opindex Wno-comma-subscript
 @item -Wcomma-subscript @r{(C++ and Objective-C++ only)}
@@ -4447,6 +4465,20 @@ to filter out those warnings.
 @item -Wno-exceptions @r{(C++ and Objective-C++ only)}
 Disable the warning about the case when an exception handler is shadowed by
 another handler, which can point out a wrong ordering of exception handlers.
+
+@opindex Wsfinae-incomplete
+@opindex Wno-sfinae-incomplete
+Warn about a class that is found to be incomplete, or a function with
+auto return type that has not yet been deduced, in a context where
+that causes substitution failure rather than an error, and then the
+class or function is defined later in the translation unit.  This is
+problematic because template instantiations or concept checks could
+have different results if they first occur either before or after the
+definition.
+
+This warning is enabled by default.  @option{-Wsfinae-incomplete=2}
+adds a warning at the point of substitution failure, to make it easier
+to track down problems flagged by the default mode.
 
 @opindex Wstrict-null-sentinel
 @opindex Wno-strict-null-sentinel
@@ -5944,8 +5976,7 @@ column numbers, such as @command{dejagnu}.
 @opindex fdiagnostics-column-unit
 @item -fdiagnostics-column-unit=@var{UNIT}
 Select the units for the column number.  This affects traditional diagnostics
-(in the absence of @option{-fno-show-column}), as well as JSON format
-diagnostics if requested.
+(in the absence of @option{-fno-show-column}).
 
 The default @var{UNIT}, @samp{display}, considers the number of display
 columns occupied by each character.  This may be larger than the number
@@ -6021,8 +6052,7 @@ is set to @samp{C}, in which case the default is @samp{ascii}.
 @opindex fdiagnostics-format
 @item -fdiagnostics-format=@var{FORMAT}
 Select a different format for printing diagnostics.
-@var{FORMAT} is @samp{text}, @samp{sarif-stderr}, @samp{sarif-file},
-@samp{json}, @samp{json-stderr}, or @samp{json-file}.
+@var{FORMAT} is @samp{text}, @samp{sarif-stderr} or @samp{sarif-file}.
 
 Using this option replaces any additional ``output sinks'' added by
 @option{-fdiagnostics-add-output=}, or that set by
@@ -6033,14 +6063,6 @@ The default is @samp{text}.
 The @samp{sarif-stderr} and @samp{sarif-file} formats both emit
 diagnostics in SARIF Version 2.1.0 format, either to stderr, or to a file
 named @file{@var{source}.sarif}, respectively.
-
-The various @samp{json}, @samp{json-stderr}, and @samp{json-file} values
-are deprecated and refer to a legacy JSON-based output format.
-The @samp{json} format is a synonym for @samp{json-stderr}.
-The @samp{json-stderr} and @samp{json-file} formats are identical, apart from
-where the JSON is emitted to.  With @samp{json-stderr}, the JSON is emitted
-to stderr, whereas with @samp{json-file} it is written to
-@file{@var{source}.gcc.json}.
 
 @opindex fdiagnostics-add-output
 @item -fdiagnostics-add-output=@var{DIAGNOSTICS-OUTPUT-SPEC}
@@ -6117,6 +6139,18 @@ in this release.
 
 @end table
 
+There is also this key intended for use by GCC developers, rather than
+end-users, and subject to change or removal without notice:
+
+@table @gcctabopt
+
+@item state-graphs=@r{[}yes@r{|}no@r{]}
+This is a debugging feature and defaults to @code{no}.
+If @code{state-graphs=yes}, then attempt to capture detailed state
+information from @option{-fanalyzer} in the generated SARIF.
+
+@end table
+
 @item experimental-html
 Emit diagnostics to a file in HTML format.  This scheme is experimental,
 and may go away in future GCC releases.  The keys and details of the output
@@ -6137,6 +6171,35 @@ leading absolute or relative path.  If not specified, it defaults to
 @item javascript=@r{[}yes@r{|}no@r{]}
 Add an embedded <script> to the generated HTML providing a barebones UI
 for viewing results.  Defaults to yes.
+
+@end table
+
+There are also these keys intended for use by GCC developers, rather than
+end-users, and subject to change or removal without notice:
+
+@table @gcctabopt
+
+@item show-state-diagrams=@r{[}yes@r{|}no@r{]}
+This is a debugging feature and defaults to @code{no}.
+If @code{show-state-diagrams=yes}, then attempt to use @command{dot} to
+generate SVG diagrams in the generated HTML, visualizing the state at each
+event in a diagnostic path.
+These are visible by pressing ``j'' and ``k'' to single-step forward and
+backward through events.  Enabling this option will slow down
+HTML generation.
+
+@item show-state-diagrams-dot-src=@r{[}yes@r{|}no@r{]}
+This is a debugging feature and defaults to @code{no}.
+If @code{show-state-diagrams-dot-src=yes}
+then if @code{show-state-diagrams=yes},
+the generated state diagrams will also show the .dot source input to
+GraphViz used for the diagram.
+
+@item show-state-diagrams-sarif=@r{[}yes@r{|}no@r{]}
+This is a debugging feature and defaults to @code{no}.
+If @code{show-state-diagrams-sarif=yes}
+then if @code{show-state-diagrams=yes}, the generated state diagrams will
+also show a SARIF representation of the state.
 
 @end table
 
@@ -6183,11 +6246,8 @@ replaces all existing output sinks, such as from @option{-fdiagnostics-format=},
 @opindex fdiagnostics-json-formatting
 @item -fno-diagnostics-json-formatting
 By default, when JSON is emitted for diagnostics (via
-@option{-fdiagnostics-format=sarif-stderr},
-@option{-fdiagnostics-format=sarif-file},
-@option{-fdiagnostics-format=json},
-@option{-fdiagnostics-format=json-stderr},
-@option{-fdiagnostics-format=json-file}),
+@option{-fdiagnostics-format=sarif-stderr} or
+@option{-fdiagnostics-format=sarif-file}),
 GCC will add newlines and indentation to visually emphasize the
 hierarchical structure of the JSON.
 
@@ -6401,6 +6461,7 @@ only by this flag, but it also downgrades some C and C++ diagnostics
 that have their own flag:
 
 @gccoptlist{
+-Wabbreviated-auto-in-template-arg @r{(C++ and Objective-C++ only)}
 -Wdeclaration-missing-parameter-type @r{(C and Objective-C only)}
 -Wimplicit-function-declaration @r{(C and Objective-C only)}
 -Wimplicit-int @r{(C and Objective-C only)}
@@ -7060,14 +7121,14 @@ which is enabled by optimizations in most targets.  The precision of
 the warnings depends on the optimization options used.
 
 @opindex Wno-musttail-local-addr
-@opindex -Wmusttail-local-addr
+@opindex Wmusttail-local-addr
 @item -Wno-musttail-local-addr
 Do not warn about passing a pointer (or in C++, a reference) to a
 local variable or label to argument of a @code{musttail} call.  Those
 variables go out of scope before the tail call instruction.
 
 @opindex Wmaybe-musttail-local-addr
-@opindex -Wno-maybe-musttail-local-addr
+@opindex Wno-maybe-musttail-local-addr
 @item -Wmaybe-musttail-local-addr
 Warn when address of a local variable can escape to a @code{musttail}
 call, unless it goes out of scope already before the @code{musttail}
@@ -7861,27 +7922,89 @@ statement.
 @opindex Wunused-but-set-parameter
 @opindex Wno-unused-but-set-parameter
 @item -Wunused-but-set-parameter
+@option{-Wunused-but-set-parameter} is the same as
+@option{-Wunused-but-set-parameter=3} and
+@option{-Wno-unused-but-set-parameter} is the same as
+@option{-Wunused-but-set-parameter=0}.
+
+@opindex Wunused-but-set-parameter=
+@item -Wunused-but-set-parameter=@var{n}
 Warn whenever a function parameter is assigned to, but otherwise unused
 (aside from its declaration).
 
 To suppress this warning use the @code{unused} attribute
 (@pxref{Variable Attributes}).
 
-This warning is also enabled by @option{-Wunused} together with
-@option{-Wextra}.
+@option{-Wunused-but-set-parameter=0} disables the warning.
+With @option{-Wunused-but-set-parameter=1} all uses except initialization
+and left hand side of assignment which is not further used disable the
+warning.
+With @option{-Wunused-but-set-parameter=2} additionally uses of parameter
+in @code{++} and @code{--} operators don't count as uses.
+And finally with @option{-Wunused-but-set-parameter=3} additionally
+uses in @var{parm} @code{@var{@@}=} @var{rhs} outside of @var{rhs} don't
+count as uses.  See @option{-Wunused-but-set-variable=@var{n}} option for
+examples.
+
+This @option{-Wunused-but-set-parameter=3} warning is also enabled by
+@option{-Wunused} together with @option{-Wextra}.
 
 @opindex Wunused-but-set-variable
 @opindex Wno-unused-but-set-variable
 @item -Wunused-but-set-variable
+@option{-Wunused-but-set-variable} is the same as
+@option{-Wunused-but-set-variable=3} and
+@option{-Wno-unused-but-set-variable} is the same as
+@option{-Wunused-but-set-variable=0}.
+
+@opindex Wunused-but-set-variable=
+@item -Wunused-but-set-variable=@var{n}
 Warn whenever a local variable is assigned to, but otherwise unused
 (aside from its declaration).
-This warning is enabled by @option{-Wall}.
+This @option{-Wunused-but-set-variable=3} warning is enabled by @option{-Wall}.
 
 To suppress this warning use the @code{unused} attribute
 (@pxref{Variable Attributes}).
 
-This warning is also enabled by @option{-Wunused}, which is enabled
-by @option{-Wall}.
+@option{-Wunused-but-set-variable=0} disables the warning.
+With @option{-Wunused-but-set-variable=1} all uses except initialization
+and left hand side of assignment which is not further used disable the
+warning.
+With @option{-Wunused-but-set-variable=2} additionally uses of variable
+in @code{++} and @code{--} operators don't count as uses.
+And finally with @option{-Wunused-but-set-variable=3} additionally
+uses in @var{parm} @code{@var{@@}=} @var{rhs} outside of @var{rhs} don't
+count as uses.
+
+This @option{-Wunused-but-set-variable=3} warning is also enabled by
+@option{-Wunused}, which is enabled by @option{-Wall}.
+
+@smallexample
+void foo (void)
+@{
+  int a = 1; // @option{-Wunused-variable} warning
+  int b = 0; // Warning for @var{n} >= 1
+  b = 1; b = 2;
+  int c = 0; // Warning for @var{n} >= 2
+  ++c; c--; --c; c++;
+  int d = 0; // Warning for @var{n} >= 3
+  d += 4;
+  int e = 0; // No warning, cast to void
+  (void) e;
+  int f = 0; // No warning, f used
+  int g = f = 5;
+  (void) g;
+  int h = 0; // No warning, preincrement used
+  int i = ++h;
+  (void) i;
+  int j = 0; // No warning, postdecrement used
+  int k = j--;
+  (void) k;
+  int l = 0; // No warning, l used
+  int m = l |= 2;
+  (void) m;
+@}
+@end smallexample
 
 @opindex Wunused-function
 @opindex Wno-unused-function
@@ -8672,6 +8795,11 @@ larger.
 @opindex Walloca
 @item -Walloca
 This option warns on all uses of @code{alloca} in the source.
+
+@opindex Wno-auto-profile
+@opindex Wauto-profile
+@item -Wauto-profile
+Output warnings about auto-profile inconsistencies.
 
 @opindex Walloca-larger-than=
 @opindex Wno-alloca-larger-than
@@ -9624,6 +9752,12 @@ and ISO C++ 2017.  This warning is enabled by @option{-Wall}.
 @item -Wc++20-compat @r{(C++ and Objective-C++ only)}
 Warn about C++ constructs whose meaning differs between ISO C++ 2017
 and ISO C++ 2020.  This warning is enabled by @option{-Wall}.
+
+@opindex Wc++26-compat
+@opindex Wno-c++26-compat
+@item -Wc++26-compat @r{(C++ and Objective-C++ only)}
+Warn about C++ constructs whose meaning differs between ISO C++ 2023
+and upcoming ISO C++ 2026.  This warning is enabled by @option{-Wall}.
 
 @opindex Wc++11-extensions
 @opindex Wno-c++11-extensions
@@ -15447,6 +15581,12 @@ E.g.
 create_gcov --binary=your_program.unstripped --profile=perf.data \
     --gcov=profile.afdo
 @end smallexample
+
+@opindex fauto-profile-inlining
+@item -fauto-profile-inlining
+When auto-profile is available inline all relevant functions which was
+inlined in the tran run before reading the profile feedback.  This improves
+context sensitivity of the profile.  Enabled by default.
 @end table
 
 The following options control compiler behavior regarding floating-point
@@ -17325,6 +17465,10 @@ this parameter.  The default value of this parameter is 50.
 @item vect-induction-float
 Enable loop vectorization of floating point inductions.
 
+@item vect-scalar-cost-multiplier
+Apply the given multiplier % to scalar loop costing during vectorization.
+Increasing the cost multiplier will make vector loops more profitable.
+
 @item vrp-block-limit
 Maximum number of basic blocks before VRP switches to a lower memory algorithm.
 
@@ -17401,6 +17545,9 @@ predicate chain.
 
 @item uninit-max-num-chains
 Maximum number of predicates ored in the normalized predicate chain.
+
+@item uninit-max-prune-work
+Maximum amount of work done to prune paths where the variable is always initialized.
 
 @item sched-autopref-queue-depth
 Hardware autoprefetcher scheduler model control flag.
@@ -17565,20 +17712,9 @@ The precision of division is proportional to this param when division
 approximation is enabled.  The default value is 2.
 
 @item aarch64-autovec-preference
-Force an ISA selection strategy for auto-vectorization.
-@table @samp
-@item default
-Use the default heuristics.
-@item asimd-only
-Use only Advanced SIMD for auto-vectorization.
-@item sve-only
-Use only SVE for auto-vectorization.
-@item prefer-asimd
-Use both Advanced SIMD and SVE.  Prefer Advanced SIMD when the costs are
-deemed equal.
-@item prefer-sve
-Use both Advanced SIMD and SVE.  Prefer SVE when the costs are deemed equal.
-@end table
+An old alias for @option{-mautovec-preference}.  If both
+@option{-mautovec-preference} and @option{--param=aarch64-autovec-preference}
+are passed, the @option{--param} value will be used.
 
 @item aarch64-ldp-policy
 Fine-grained policy for load pairs.
@@ -22012,6 +22148,36 @@ used directly.  The same applies when using @option{-mcpu=} when the
 selected cpu supports the @samp{lse} feature.
 This option is on by default.
 
+@item -mmax-vectorization
+@itemx -mno-max-vectorization
+Enable or disable an override to vectorizer cost model making vectorization
+always appear profitable.  This option can be combined with
+@option{-mautovec-preference} allowing precise control over which ISA will be
+used for auto-vectorization.  Unlike @option{-fno-vect-cost-model} or
+@option{-fvect-cost-model=unlimited} this option does not turn off cost
+comparison between different vector modes.
+
+@item -mautovec-preference=@var{name}
+Force an ISA selection strategy for auto-vectorization.  The possible
+values of @var{name} are:
+@table @samp
+@item default
+Use the default heuristics.
+@item asimd-only
+Use only Advanced SIMD for auto-vectorization.
+@item sve-only
+Use only SVE for auto-vectorization.
+@item prefer-asimd
+Use both Advanced SIMD and SVE.  Prefer Advanced SIMD when the costs are
+deemed equal.
+@item prefer-sve
+Use both Advanced SIMD and SVE.  Prefer SVE when the costs are deemed equal.
+@end table
+
+For best performance it is highly recommended to use @option{-mcpu} or
+@option{-mtune} instead.  This parameter should only be used for code
+exploration.
+
 @opindex march
 @item -march=@var{name}
 Specify the name of the target architecture and, optionally, one or
@@ -22098,7 +22264,7 @@ performance of the code.  Permissible values for this option are:
 The values @samp{cortex-a57.cortex-a53}, @samp{cortex-a72.cortex-a53},
 @samp{cortex-a73.cortex-a35}, @samp{cortex-a73.cortex-a53},
 @samp{cortex-a75.cortex-a55}, @samp{cortex-a76.cortex-a55},
-@samp{apple-m1}, @samp{apple-m2}, @samp{apple-m3} specify that GCC
+@samp{apple-m1}, @samp{apple-m2}, @samp{apple-m3}, @samp{gb10} specify that GCC
 should tune for a big.LITTLE system.
 
 The value @samp{neoverse-512tvb} specifies that GCC should tune
@@ -22387,6 +22553,9 @@ Enable the FlagM2 flag conversion instructions.
 Enable the Pointer Authentication Extension.
 @item cssc
 Enable the Common Short Sequence Compression instructions.
+@item cmpbr
+Enable the shorter compare and branch instructions, @code{cbb}, @code{cbh} and
+@code{cb}.
 @item sme
 Enable the Scalable Matrix Extension.  This is only supported when SVE2 is also
 enabled.
@@ -22669,9 +22838,19 @@ Compile for CDNA2 Instinct MI200 series devices (gfx90a).
 @item gfx90c
 Compile for GCN5 Vega 7 devices (gfx90c).
 
+@item gfx942
+Compile for CDNA3 Instinct MI300 series devices (gfx942). (Experimental)
+
+@item gfx950
+Compile for the CDNA3 gfx950 devices. (Experimental)
+
 @item gfx9-generic
 Compile generic code for Vega devices, executable on the following subset of
 GFX9 devices: gfx900, gfx902, gfx904, gfx906, gfx909 and gfx90c. (Experimental)
+
+@item gfx9-4-generic
+Compile generic code for CDNA3 devices, executable on the following subset of
+GFX9 devices: gfx942 and gfx950. (Experimental)
 
 @item gfx1030
 Compile for RDNA2 gfx1030 devices (GFX10 series).
@@ -31200,8 +31379,8 @@ Permissible values for this option are: @samp{mips-p8700}, @samp{sifive-e20},
 @samp{sifive-e76}, @samp{sifive-s21}, @samp{sifive-s51}, @samp{sifive-s54},
 @samp{sifive-s76}, @samp{sifive-u54}, @samp{sifive-u74}, @samp{sifive-x280},
 @samp{sifive-xp450}, @samp{sifive-x670}, @samp{thead-c906}, @samp{tt-ascalon-d8},
-@samp{xiangshan-nanhu}, @samp{xt-c908}, @samp{xt-c908v}, @samp{xt-c910}, @samp{xt-c910v2},
-@samp{xt-c920}, @samp{xt-c920v2}.
+@samp{xiangshan-nanhu}, @samp{xiangshan-kunminghu}, @samp{xt-c908}, @samp{xt-c908v},
+@samp{xt-c910}, @samp{xt-c910v2}, @samp{xt-c920}, @samp{xt-c920v2}.
 
 Note that @option{-mcpu} does not override @option{-march} or @option{-mtune}.
 
@@ -34749,37 +34928,36 @@ VPCLMULQDQ, AVX512BITALG, RDPID and AVX512VPOPCNTDQ instruction set support.
 Intel Alder Lake/Raptor Lake/Meteor Lake/Gracemont CPU with 64-bit extensions,
 MOVBE, MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, POPCNT, AES, PREFETCHW,
 PCLMUL, RDRND, XSAVE, XSAVEC, XSAVES, XSAVEOPT, FSGSBASE, PTWRITE, RDPID, SGX,
-GFNI-SSE, CLWB, MOVDIRI, MOVDIR64B, CLDEMOTE, WAITPKG, ADCX, AVX, AVX2, BMI,
-BMI2, F16C, FMA, LZCNT, PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL,
-WIDEKL and AVX-VNNI instruction set support.
+GFNI-SSE, CLWB, MOVDIRI, MOVDIR64B, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C,
+FMA, LZCNT, PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL and
+AVX-VNNI instruction set support.
 
 @item arrowlake
 Intel Arrow Lake CPU with 64-bit extensions, MOVBE, MMX, SSE, SSE2, SSE3,
 SSSE3, SSE4.1, SSE4.2, POPCNT, AES, PREFETCHW, PCLMUL, RDRND, XSAVE, XSAVEC,
 XSAVES, XSAVEOPT, FSGSBASE, PTWRITE, RDPID, SGX, GFNI-SSE, CLWB, MOVDIRI,
-MOVDIR64B, CLDEMOTE, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA, LZCNT,
-PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL, AVX-VNNI,
-UINTR, AVXIFMA, AVXVNNIINT8, AVXNECONVERT and CMPCCXADD instruction set
-support.
+MOVDIR64B, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA, LZCNT, PCONFIG, PKU,
+VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL, AVX-VNNI, UINTR, AVXIFMA,
+AVXVNNIINT8, AVXNECONVERT and CMPCCXADD instruction set support.
 
 @item arrowlake-s
 @itemx lunarlake
 Intel Arrow Lake S/Lunar Lake CPU with 64-bit extensions, MOVBE, MMX, SSE,
 SSE2, SSE3, SSSE3, SSE4.1, SSE4.2, POPCNT, AES, PREFETCHW, PCLMUL, RDRND,
 XSAVE, XSAVEC, XSAVES, XSAVEOPT, FSGSBASE, PTWRITE, RDPID, SGX, GFNI-SSE, CLWB,
-MOVDIRI, MOVDIR64B, CLDEMOTE, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA,
-LZCNT, PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL, AVX-VNNI,
-UINTR, AVXIFMA, AVXVNNIINT8, AVXNECONVERT, CMPCCXADD, AVXVNNIINT16, SHA512,
-SM3 and SM4 instruction set support.
+MOVDIRI, MOVDIR64B, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA, LZCNT,
+PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL, AVX-VNNI, UINTR,
+AVXIFMA, AVXVNNIINT8, AVXNECONVERT, CMPCCXADD, AVXVNNIINT16, SHA512, SM3 and
+SM4 instruction set support.
 
 @item pantherlake
 Intel Panther Lake CPU with 64-bit extensions, MOVBE, MMX, SSE, SSE2, SSE3,
 SSSE3, SSE4.1, SSE4.2, POPCNT, AES, PREFETCHW, PCLMUL, RDRND, XSAVE, XSAVEC,
 XSAVES, XSAVEOPT, FSGSBASE, PTWRITE, RDPID, SGX, GFNI-SSE, CLWB, MOVDIRI,
-MOVDIR64B, CLDEMOTE, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA, LZCNT,
-PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL, AVX-VNNI,
-UINTR, AVXIFMA, AVXVNNIINT8, AVXNECONVERT, CMPCCXADD, AVXVNNIINT16, SHA512,
-SM3, SM4 and PREFETCHI instruction set support.
+MOVDIR64B, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA, LZCNT, PCONFIG, PKU,
+VAES, VPCLMULQDQ, SERIALIZE, HRESET, AVX-VNNI, UINTR, AVXIFMA, AVXVNNIINT8,
+AVXNECONVERT, CMPCCXADD, AVXVNNIINT16, SHA512, SM3, SM4 and PREFETCHI
+instruction set support.
 
 @item sapphirerapids
 @itemx emeraldrapids
@@ -34882,9 +35060,9 @@ Intel Clearwater Forest CPU with 64-bit extensions, MOVBE, MMX, SSE, SSE2,
 SSE3, SSSE3, SSE4.1, SSE4.2, POPCNT, AES, PREFETCHW, PCLMUL, RDRND, XSAVE,
 XSAVEC, XSAVES, XSAVEOPT, FSGSBASE, PTWRITE, RDPID, SGX, GFNI-SSE, CLWB,
 MOVDIRI, MOVDIR64B, CLDEMOTE, WAITPKG, ADCX, AVX, AVX2, BMI, BMI2, F16C, FMA,
-LZCNT, PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, KL, WIDEKL, AVX-VNNI,
-ENQCMD, UINTR, AVXIFMA, AVXVNNIINT8, AVXNECONVERT, CMPCCXADD, AVXVNNIINT16,
-SHA512, SM3, SM4, USER_MSR and PREFETCHI instruction set support.
+LZCNT, PCONFIG, PKU, VAES, VPCLMULQDQ, SERIALIZE, HRESET, AVX-VNNI, ENQCMD,
+UINTR, AVXIFMA, AVXVNNIINT8, AVXNECONVERT, CMPCCXADD, AVXVNNIINT16, SHA512,
+SM3, SM4, USER_MSR and PREFETCHI instruction set support.
 
 @item k6
 AMD K6 CPU with MMX instruction set support.
@@ -35131,8 +35309,8 @@ Produce code optimized for the most current Intel processors, which are
 Haswell and Silvermont for this version of GCC.  If you know the CPU
 on which your code will run, then you should use the corresponding
 @option{-mtune} or @option{-march} option instead of @option{-mtune=intel}.
-But, if you want your application performs better on both Haswell and
-Silvermont, then you should use this option.
+But, if you want your application performs better on both Diamond Rapids
+and Clearwater Forest, then you should use this option.
 
 As new Intel processors are deployed in the marketplace, the behavior of
 this option will change.  Therefore, if you upgrade to a newer version of

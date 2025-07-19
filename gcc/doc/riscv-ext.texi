@@ -502,6 +502,10 @@
 @tab 1.0
 @tab Cycle and instret privilege mode filtering
 
+@item smcsrind
+@tab 1.0
+@tab Machine-Level Indirect CSR Access
+
 @item smepmp
 @tab 1.0
 @tab PMP Enhancements for memory access and execution prevention on Machine mode
@@ -513,6 +517,10 @@
 @item smnpm
 @tab 1.0
 @tab smnpm extension
+
+@item smrnmi
+@tab 1.0
+@tab Resumable non-maskable interrupts
 
 @item smstateen
 @tab 1.0
@@ -526,9 +534,21 @@
 @tab 1.0
 @tab Advanced interrupt architecture extension for supervisor-mode
 
+@item ssccptr
+@tab 1.0
+@tab Main memory supports page table reads
+
 @item sscofpmf
 @tab 1.0
 @tab Count overflow & filtering extension
+
+@item sscounterenw
+@tab 1.0
+@tab Support writeable enables for any supported counter
+
+@item sscsrind
+@tab 1.0
+@tab Supervisor-Level Indirect CSR Access
 
 @item ssnpm
 @tab 1.0
@@ -546,6 +566,14 @@
 @tab 1.0
 @tab Supervisor-mode timer interrupts extension
 
+@item sstvala
+@tab 1.0
+@tab Stval provides all needed values
+
+@item sstvecd
+@tab 1.0
+@tab Stvec supports Direct mode
+
 @item ssstrict
 @tab 1.0
 @tab ssstrict extension
@@ -553,6 +581,10 @@
 @item ssdbltrp
 @tab 1.0
 @tab Double Trap Extensions
+
+@item ssu64xl
+@tab 1.0
+@tab UXLEN=64 must be supported
 
 @item supm
 @tab 1.0
@@ -681,5 +713,9 @@
 @item xventanacondops
 @tab 1.0
 @tab Ventana integer conditional operations extension
+
+@item xmipscmov
+@tab 1.0
+@tab Mips conditional move extension
 
 @end multitable

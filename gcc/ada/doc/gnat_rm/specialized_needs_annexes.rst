@@ -4,9 +4,7 @@
 Specialized Needs Annexes
 *************************
 
-Ada 95, Ada 2005, and Ada 2012 define a number of Specialized Needs Annexes, which are not
-required in all implementations.  However, as described in this chapter,
-GNAT implements all of these annexes:
+Ada 95, Ada 2005, Ada 2012, and Ada 2022 define a number of Specialized Needs Annexes, which are not required in all implementations.  However, as described in this chapter, GNAT implements all of these annexes:
 
 *Systems Programming (Annex C)*
   The Systems Programming Annex is fully implemented.
@@ -18,9 +16,8 @@ GNAT implements all of these annexes:
 
 *Distributed Systems (Annex E)*
   Stub generation is fully implemented in the GNAT compiler.  In addition,
-  a complete compatible PCS is available as part of the GLADE system,
-  a separate product.  When the two
-  products are used in conjunction, this annex is fully implemented.
+  a complete compatible PCS is available as part of ``PolyORB``,
+  a separate product. Note, that PolyORB is a deprecated product and will be eventually replaced with other technologies such as ``RTI``.
 
 
 *Information Systems (Annex F)*
@@ -34,4 +31,3 @@ GNAT implements all of these annexes:
 *Safety and Security / High-Integrity Systems (Annex H)*
   The Safety and Security Annex (termed the High-Integrity Systems Annex
   in Ada 2005) is fully implemented.
-

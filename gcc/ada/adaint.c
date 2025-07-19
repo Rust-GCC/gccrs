@@ -61,6 +61,11 @@
 #define POSIX
 #include "vxWorks.h"
 #include <sys/time.h>
+#include <ctype.h> /* for isalpha */
+
+#ifndef alloca
+#define alloca(n) __builtin_alloca(n)
+#endif
 
 #if defined (__mips_vxworks)
 #include "cacheLib.h"
@@ -3475,7 +3480,7 @@ __gnat_lwp_self (void)
 }
 #endif
 
-#if defined (__linux__)
+#if defined (__linux__) || defined (__ANDROID__)
 #include <sched.h>
 
 /* glibc versions earlier than 2.7 do not define the routines to handle

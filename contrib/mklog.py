@@ -360,7 +360,7 @@ def skip_line_in_changelog(line):
     return FIRST_LINE_OF_END_RE.match(line) is None
 
 
-if __name__ == '__main__':
+def main():
     extra_args = os.getenv('GCC_MKLOG_ARGS')
     if extra_args:
         sys.argv += json.loads(extra_args)
@@ -389,6 +389,7 @@ if __name__ == '__main__':
     if args.input == '-':
         args.input = None
     if args.directory:
+        global root
         root = args.directory
 
     data = open(args.input, newline='\n') if args.input else sys.stdin
@@ -447,3 +448,6 @@ if __name__ == '__main__':
                 f.write('\n'.join(end))
         else:
             print(output, end='')
+
+if __name__ == '__main__':
+    main()

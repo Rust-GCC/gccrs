@@ -280,11 +280,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Forward declarations
   template<typename>
-    struct is_reference;
-  template<typename>
-    struct is_function;
-  template<typename>
-    struct is_void;
+    struct is_object;
   template<typename>
     struct remove_cv;
   template<typename>
@@ -294,21 +290,30 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename>
     struct __is_array_unknown_bounds;
 
+  // An object type which is not an unbounded array.
+  // It might still be an incomplete type, but if this is false_type
+  // then we can be certain it's not a complete object type.
+  template<typename _Tp>
+    using __maybe_complete_object_type
+      = __and_<is_object<_Tp>, __not_<__is_array_unknown_bounds<_Tp>>>;
+
   // Helper functions that return false_type for incomplete classes,
   // incomplete unions and arrays of known bound from those.
 
-  template <typename _Tp, size_t = sizeof(_Tp)>
-    constexpr true_type __is_complete_or_unbounded(__type_identity<_Tp>)
-    { return {}; }
+  // More specialized overload for complete object types (returning true_type).
+  template<typename _Tp,
+	   typename = __enable_if_t<__maybe_complete_object_type<_Tp>::value>,
+	   size_t = sizeof(_Tp)>
+    constexpr true_type
+    __is_complete_or_unbounded(__type_identity<_Tp>)
+    { return {}; };
 
-  template <typename _TypeIdentity,
-      typename _NestedType = typename _TypeIdentity::type>
-    constexpr typename __or_<
-      is_reference<_NestedType>,
-      is_function<_NestedType>,
-      is_void<_NestedType>,
-      __is_array_unknown_bounds<_NestedType>
-    >::type __is_complete_or_unbounded(_TypeIdentity)
+  // Less specialized overload for reference and unknown-bound array types
+  // (returning true_type), and incomplete types (returning false_type).
+  template<typename _TypeIdentity,
+	   typename _NestedType = typename _TypeIdentity::type>
+    constexpr typename __not_<__maybe_complete_object_type<_NestedType>>::type
+    __is_complete_or_unbounded(_TypeIdentity)
     { return {}; }
 
   // __remove_cv_t (std::remove_cv_t for C++11).
@@ -459,6 +464,19 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __is_integral_helper<unsigned __GLIBCXX_TYPE_INT_N_3>
     : public true_type { };
 #endif
+
+#if defined __SIZEOF_INT128__ && defined __STRICT_ANSI__
+  __extension__
+  template<>
+    struct __is_integral_helper<__int128>
+    : public true_type { };
+
+  __extension__
+  template<>
+    struct __is_integral_helper<unsigned __int128>
+    : public true_type { };
+#endif
+
   /// @endcond
 
   /// is_integral
@@ -514,7 +532,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public true_type { };
 #endif
 
-#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_FLOAT128)
+#ifdef _GLIBCXX_USE_FLOAT128
   template<>
     struct __is_floating_point_helper<__float128>
     : public true_type { };
@@ -1036,6 +1054,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __is_array_unknown_bounds<_Tp[]>
     : public true_type
     { };
+  /// @endcond
 
   // Destructible and constructible type properties.
 
@@ -1046,6 +1065,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : public __bool_constant<__is_destructible(_Tp)>
     { };
 #else
+  /// @cond undocumented
+
   // In N3290 is_destructible does not say anything about function
   // types and abstract types, see LWG 2049. This implementation
   // describes function types as non-destructible and all complete
@@ -1919,6 +1940,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __make_unsigned<__GLIBCXX_TYPE_INT_N_3>
     { using __type = unsigned __GLIBCXX_TYPE_INT_N_3; };
 #endif
+#if defined __SIZEOF_INT128__ && defined __STRICT_ANSI__
+  __extension__
+  template<>
+    struct __make_unsigned<__int128>
+    { using __type = unsigned __int128; };
+#endif
 
   // Select between integral and enum: not possible to be both.
   template<typename _Tp,
@@ -1965,8 +1992,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     : __make_unsigned_selector_base
     {
       // With -fshort-enums, an enum may be as small as a char.
+      __extension__
       using _UInts = _List<unsigned char, unsigned short, unsigned int,
-			   unsigned long, unsigned long long>;
+			   unsigned long, unsigned long long
+#ifdef __SIZEOF_INT128__
+			   , unsigned __int128
+#endif
+			  >;
 
       using __unsigned_type = typename __select<sizeof(_Tp), _UInts>::__type;
 
@@ -2078,6 +2110,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<>
     struct __make_signed<unsigned __GLIBCXX_TYPE_INT_N_3>
     { using __type = __GLIBCXX_TYPE_INT_N_3; };
+#endif
+#if defined __SIZEOF_INT128__ && defined __STRICT_ANSI__
+  __extension__
+  template<>
+    struct __make_signed<unsigned __int128>
+    { using __type = __int128; };
 #endif
 
   // Select between integral and enum: not possible to be both.

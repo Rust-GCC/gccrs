@@ -889,6 +889,12 @@ cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 			(EXPR_LOCATION (*expr_p), call_expr_nargs (*expr_p),
 			 &CALL_EXPR_ARG (*expr_p, 0));
 		break;
+	      case CP_BUILT_IN_EH_PTR_ADJUST_REF:
+		error_at (EXPR_LOCATION (*expr_p),
+			  "%qs used outside of constant expressions",
+			  "__builtin_eh_ptr_adjust_ref");
+		*expr_p = void_node;
+		break;
 	      default:
 		break;
 	      }
@@ -3211,7 +3217,15 @@ cp_fold (tree x, fold_flags_t flags)
 
       loc = EXPR_LOCATION (x);
       op0 = cp_fold_maybe_rvalue (TREE_OPERAND (x, 0), rval_ops, flags);
+      bool clear_decl_read;
+      clear_decl_read = false;
+      if (code == MODIFY_EXPR
+	  && (VAR_P (op0) || TREE_CODE (op0) == PARM_DECL)
+	  && !DECL_READ_P (op0))
+	clear_decl_read = true;
       op1 = cp_fold_rvalue (TREE_OPERAND (x, 1), flags);
+      if (clear_decl_read)
+	DECL_READ_P (op0) = 0;
 
       /* decltype(nullptr) has only one value, so optimize away all comparisons
 	 with that type right away, keeping them in the IL causes troubles for
@@ -3887,7 +3901,6 @@ struct source_location_table_entry_hash
 
 static GTY(()) hash_table <source_location_table_entry_hash>
   *source_location_table;
-static GTY(()) unsigned int source_location_id;
 
 /* Fold the __builtin_source_location () call T.  */
 
@@ -3920,9 +3933,7 @@ fold_builtin_source_location (const_tree t)
     var = entryp->var;
   else
     {
-      char tmp_name[32];
-      ASM_GENERATE_INTERNAL_LABEL (tmp_name, "Lsrc_loc", source_location_id++);
-      var = build_decl (loc, VAR_DECL, get_identifier (tmp_name),
+      var = build_decl (loc, VAR_DECL, generate_internal_label ("Lsrc_loc"),
 			source_location_impl);
       TREE_STATIC (var) = 1;
       TREE_PUBLIC (var) = 0;

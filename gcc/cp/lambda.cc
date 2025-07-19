@@ -150,7 +150,7 @@ begin_lambda_type (tree lambda)
 
   /* Cross-reference the expression and the type.  */
   LAMBDA_EXPR_CLOSURE (lambda) = type;
-  CLASSTYPE_LAMBDA_EXPR (type) = lambda;
+  SET_CLASSTYPE_LAMBDA_EXPR (type, lambda);
 
   /* In C++17, assume the closure is literal; we'll clear the flag later if
      necessary.  */
@@ -823,6 +823,14 @@ lambda_expr_this_capture (tree lambda, int add_capture_p)
   if (cp_unevaluated_operand)
     add_capture_p = false;
 
+  /* If we captured 'this' but don't have a capture proxy yet, look up the
+     captured 'this' again.  */
+  if (this_capture && TREE_CODE (this_capture) == FIELD_DECL)
+    {
+      gcc_assert (!add_capture_p);
+      this_capture = NULL_TREE;
+    }
+
   /* Try to default capture 'this' if we can.  */
   if (!this_capture)
     {
@@ -939,6 +947,9 @@ lambda_expr_this_capture (tree lambda, int add_capture_p)
 	 ensures that the transformed expression is an rvalue. ] */
       result = rvalue (result);
     }
+
+  gcc_checking_assert (!result || result == error_mark_node
+		       || TYPE_PTR_P (TREE_TYPE (result)));
 
   return result;
 }
@@ -1939,7 +1950,7 @@ finish_lambda_function (tree body)
 {
   finish_function_body (body);
 
-  prune_lambda_captures (body);
+  prune_lambda_captures (cur_stmt_list);
 
   /* Finish the function and generate code for it if necessary.  */
   tree fn = finish_function (/*inline_p=*/true);

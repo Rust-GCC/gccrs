@@ -87,7 +87,7 @@ package body Treepr is
    procedure Destroy (Value : in out Nat) is null;
    pragma Annotate (CodePeer, False_Positive, "unassigned parameter",
                     "in out parameter is required to instantiate generic");
-   --  Dummy routine for destroing hashed values
+   --  Dummy routine for destroying hashed values
 
    package Serial_Numbers is new Dynamic_Hash_Tables
      (Key_Type              => Int,
@@ -412,6 +412,34 @@ package body Treepr is
 
    procedure pe (N : Union_Id) renames pn;
 
+   ---------
+   -- pec --
+   ---------
+
+   procedure pec (From : Entity_Id) is
+   begin
+      Push_Output;
+      Set_Standard_Output;
+
+      Print_Entity_Chain (From);
+
+      Pop_Output;
+   end pec;
+
+   ----------
+   -- rpec --
+   ----------
+
+   procedure rpec (From : Entity_Id) is
+   begin
+      Push_Output;
+      Set_Standard_Output;
+
+      Print_Entity_Chain (From, Rev => True);
+
+      Pop_Output;
+   end rpec;
+
    --------
    -- pl --
    --------
@@ -588,6 +616,36 @@ package body Treepr is
          Write_Location (End_Location (N));
       end if;
    end Print_End_Span;
+
+   ------------------------
+   -- Print_Entity_Chain --
+   ------------------------
+
+   procedure Print_Entity_Chain (From : Entity_Id; Rev : Boolean := False) is
+      Ent : Entity_Id := From;
+   begin
+      Printing_Descendants := False;
+      Phase := Printing;
+
+      loop
+         declare
+            Next_Ent : constant Entity_Id :=
+              (if Rev then Prev_Entity (Ent) else Next_Entity (Ent));
+
+            Prefix_Char : constant Character :=
+              (if Present (Next_Ent) then '|' else ' ');
+         begin
+            Print_Node (Ent, "", Prefix_Char);
+
+            exit when No (Next_Ent);
+
+            Ent := Next_Ent;
+
+            Print_Char ('|');
+            Print_Eol;
+         end;
+      end loop;
+   end Print_Entity_Chain;
 
    -----------------------
    -- Print_Entity_Info --
@@ -1144,8 +1202,8 @@ package body Treepr is
       end if;
 
       if not Is_List_Member (N) then
-         Print_Str (Prefix_Str);
-         Print_Str (" Parent = ");
+         Print_Str (Prefix);
+         Print_Str ("Parent = ");
          Print_Node_Ref (Parent (N));
          Print_Eol;
       end if;
@@ -1957,17 +2015,16 @@ package body Treepr is
          --  Case of descendant is a node
 
          if D in Node_Range then
-
-            --  Don't bother about Empty or Error descendants
-
-            if D <= Union_Id (Empty_Or_Error) then
-               return;
-            end if;
-
             declare
                Nod : constant Node_Or_Entity_Id := Node_Or_Entity_Id (D);
 
             begin
+               --  Don't bother about Empty or Error descendants
+
+               if Nod in Empty | Error then
+                  return;
+               end if;
+
                --  Descendants in one of the standardly compiled internal
                --  packages are normally ignored, unless the parent is also
                --  in such a package (happens when Standard itself is output)

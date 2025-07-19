@@ -192,7 +192,7 @@ void
 c_common_diagnostics_set_defaults (diagnostic_context *context)
 {
   diagnostic_text_finalizer (context) = c_diagnostic_text_finalizer;
-  context->m_opt_permissive = OPT_fpermissive;
+  context->set_permissive_option (OPT_fpermissive);
 }
 
 /* Input charset configuration for diagnostics.  */
@@ -1165,6 +1165,9 @@ c_common_post_options (const char **pfilename)
       warn_cxx20_compat = 0;
       cpp_opts->cpp_warn_cxx20_compat = 0;
     }
+  if (cxx_dialect >= cxx26)
+    /* Don't warn about C++26 compatibility changes in C++26 or later.  */
+    warn_cxx26_compat = 0;
 
   /* C++17 has stricter evaluation order requirements; let's use some of them
      for earlier C++ as well, so chaining works as expected.  */
@@ -1222,6 +1225,17 @@ c_common_post_options (const char **pfilename)
   /* Enable lifetime extension of range based for temporaries for C++23.  */
   SET_OPTION_IF_UNSET (&global_options, &global_options_set,
 		       flag_range_for_ext_temps, cxx_dialect >= cxx23);
+
+  /* EnabledBy unfortunately can't specify value to use if set and
+     LangEnabledBy can't specify multiple options with &&.  For -Wunused
+     or -Wunused -Wextra we want these to default to 3 unless user specified
+     some other level explicitly.  */
+  if (warn_unused_but_set_parameter == 1)
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 warn_unused_but_set_parameter, 3);
+  if (warn_unused_but_set_variable == 1)
+    SET_OPTION_IF_UNSET (&global_options, &global_options_set,
+			 warn_unused_but_set_variable, 3);
 
   /* -fimmediate-escalation has no effect when immediate functions are not
      supported.  */

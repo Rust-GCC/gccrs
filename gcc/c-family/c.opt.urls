@@ -139,6 +139,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Warray-parameter)
 Wassign-intercept
 UrlSuffix(gcc/Objective-C-and-Objective-C_002b_002b-Dialect-Options.html#index-Wassign-intercept)
 
+Wabbreviated-auto-in-template-arg
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wabbreviated-auto-in-template-arg)
+
 Wbad-function-cast
 UrlSuffix(gcc/Warning-Options.html#index-Wbad-function-cast)
 
@@ -186,6 +189,9 @@ UrlSuffix(gcc/Warning-Options.html#index-Wc_002b_002b17-compat)
 
 Wc++20-compat
 UrlSuffix(gcc/Warning-Options.html#index-Wc_002b_002b20-compat)
+
+Wc++26-compat
+UrlSuffix(gcc/Warning-Options.html#index-Wc_002b_002b26-compat)
 
 Wc++11-extensions
 UrlSuffix(gcc/Warning-Options.html#index-Wc_002b_002b11-extensions)
@@ -755,6 +761,12 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-self-move)
 
 Wsequence-point
 UrlSuffix(gcc/Warning-Options.html#index-Wno-sequence-point)
+
+Wsfinae-incomplete=
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-sfinae-incomplete)
+
+Wsfinae-incomplete
+UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-sfinae-incomplete)
 
 Wshadow-ivar
 UrlSuffix(gcc/Warning-Options.html#index-Wno-shadow-ivar)

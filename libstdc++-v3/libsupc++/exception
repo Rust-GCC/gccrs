@@ -38,6 +38,8 @@
 #include <bits/exception.h>
 
 #define __glibcxx_want_uncaught_exceptions
+#define __glibcxx_want_constexpr_exceptions
+#define __glibcxx_want_exception_ptr_cast
 #include <bits/version.h>
 
 extern "C++" {
@@ -56,8 +58,16 @@ namespace std _GLIBCXX_VISIBILITY(default)
   class bad_exception : public exception
   {
   public:
-    bad_exception() _GLIBCXX_USE_NOEXCEPT { }
+    _GLIBCXX26_CONSTEXPR bad_exception() _GLIBCXX_USE_NOEXCEPT { }
 
+#if __cplusplus >= 202400L
+    constexpr virtual ~bad_exception() _GLIBCXX_TXN_SAFE_DYN noexcept {}
+
+    constexpr virtual const char* what() const _GLIBCXX_TXN_SAFE_DYN noexcept
+    {
+      return "std::bad_exception";
+    }
+#else
     // This declaration is not useless:
     // http://gcc.gnu.org/onlinedocs/gcc-3.0.2/gcc_6.html#SEC118
     virtual ~bad_exception() _GLIBCXX_TXN_SAFE_DYN _GLIBCXX_USE_NOEXCEPT;
@@ -65,6 +75,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
     // See comment in eh_exception.cc.
     virtual const char*
     what() const _GLIBCXX_TXN_SAFE_DYN _GLIBCXX_USE_NOEXCEPT;
+#endif
   };
 
   /// If you write a replacement %terminate handler, it must be of this type.
@@ -164,9 +175,9 @@ _GLIBCXX_END_NAMESPACE_VERSION
 
 } // extern "C++"
 
-#if (__cplusplus >= 201103L)
-#include <bits/exception_ptr.h>
-#include <bits/nested_exception.h>
+#if __cplusplus >= 201103L
+# include <bits/exception_ptr.h>
+# include <bits/nested_exception.h>
 #endif
 
 #endif

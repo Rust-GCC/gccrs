@@ -6491,6 +6491,23 @@ proc check_effective_target_aarch64_sve2_hw { } {
     }]
 }
 
+# Return true if this is an AArch64 target that can run SVE2.1 code.
+
+proc check_effective_target_aarch64_sve2p1_hw { } {
+    if { ![istarget aarch64*-*-*] } {
+	return 0
+    }
+    return [check_runtime aarch64_sve2p1_hw_available {
+	#pragma GCC target "+sve2p1"
+	int
+	main (void)
+	{
+	  asm volatile ("dupq z0.b, z0.b[0]");
+	  return 0;
+	}
+    }]
+}
+
 # Return true if this is an AArch64 target that can run SVE code and
 # if its SVE vectors have exactly BITS bits.
 
@@ -9944,7 +9961,8 @@ proc check_effective_target_vect_logical_reduc { } {
 		   || [istarget amdgcn-*-*]
 		   || [check_effective_target_riscv_v]
 		   || [check_effective_target_loongarch_sx]
-		   || [check_effective_target_x86]}]
+		   || [check_effective_target_x86]
+		   || [check_effective_target_s390_vx]}]
 }
 
 # Return 1 if the target supports the fold_extract_last optab.
@@ -12442,15 +12460,32 @@ proc check_effective_target_aarch64_tiny { } {
     }
 }
 
+# Return 1 if Gas supports AEABI build attributes on AArch64 target
+proc check_effective_target_aarch64_gas_has_build_attributes { } {
+    if { ![istarget aarch64*-*-*] } {
+	return 0
+    }
+
+    return [check_no_compiler_messages aarch64_gas_has_build_attributes object {
+	/* Assembly */
+	.aeabi_subsection aeabi_feature_and_bits, optional, ULEB128
+	.aeabi_attribute Tag_Feature_BTI, 1
+	.aeabi_attribute Tag_Feature_PAC, 1
+	.aeabi_attribute Tag_Feature_GCS, 1
+    }]
+}
+
 # Create functions to check that the AArch64 assembler supports the
 # various architecture extensions via the .arch_extension pseudo-op.
 
-foreach { aarch64_ext } { "fp" "simd" "crypto" "crc" "lse" "dotprod" "sve"
-			  "i8mm" "f32mm" "f64mm" "bf16" "sb" "sve2" "ls64"
-			  "lut" "sme" "sme-i16i64" "sme2" "sve-b16b16"
-			  "sme-b16b16" "sme-f16f16" "sme2p1" "fp8" "fp8fma"
-			  "ssve-fp8fma" "fp8dot2" "ssve-fp8dot2" "fp8dot4"
-			  "ssve-fp8dot4"} {
+set exts {
+    "bf16" "cmpbr" "crc" "crypto" "dotprod" "f32mm" "f64mm" "fp" "fp8"
+    "fp8dot2" "fp8dot4" "fp8fma" "i8mm" "ls64" "lse" "lut" "sb" "simd"
+    "sme-b16b16" "sme-f16f16" "sme-i16i64" "sme" "sme2" "sme2p1" "ssve-fp8dot2"
+    "ssve-fp8dot4" "ssve-fp8fma" "sve-b16b16" "sve" "sve2"
+}
+
+foreach { aarch64_ext } $exts {
     eval [string map [list FUNC $aarch64_ext] {
 	proc check_effective_target_aarch64_asm_FUNC_ok { } {
 	  if { [istarget aarch64*-*-*] } {
@@ -14478,5 +14513,67 @@ proc check_effective_target_xtensa_atomic { } {
 	#if __XCHAL_HAVE_S32C1I != 1 && __XCHAL_HAVE_EXCLUSIVE != 1
 	#error FOO
 	#endif
+    }]
+}
+
+# Return 1 if pi-based trigonometry function is foldable
+# We should remove this after bumping the minimum mpfr version to 4.2.0.
+proc check_effective_target_foldable_pi_based_trigonometry { } {
+    return [check_runtime foldable_pi_based_trigonometry {
+	int
+	main ()
+	{
+	  if (!__builtin_constant_p (__builtin_acospi (0.5)))
+	    __builtin_abort ();
+	  return 0;
+	}
+    }]
+}
+#
+# Return 1 if the x86-64 target enables -mfentry by default, 0
+# otherwise.  Cache the result.
+
+proc check_effective_target_fentry { } {
+    global tool
+    global GCC_UNDER_TEST
+
+    if { ![check_effective_target_x86] } {
+	return 0
+    }
+
+    # Need auto-host.h to check linker support.
+    if { ![file exists ../../auto-host.h ] } {
+	return 0
+    }
+
+    return [check_cached_effective_target fentry {
+	# Set up and compile to see if ENABLE_X86_64_MFENTRY is
+	# non-zero.  Include the current process ID in the file
+	# names to prevent conflicts with invocations for multiple
+	# testsuites.
+
+	set src pie[pid].c
+	set obj pie[pid].o
+
+	set f [open $src "w"]
+	puts $f "#include \"../../auto-host.h\""
+	puts $f "#if ENABLE_X86_64_MFENTRY == 0 || !defined __x86_64__"
+	puts $f "# error -mfentry is not enabled by default."
+	puts $f "#endif"
+	close $f
+
+	verbose "check_effective_target_fentry compiling testfile $src" 2
+	set lines [${tool}_target_compile $src $obj object ""]
+
+	file delete $src
+	file delete $obj
+
+	if [string match "" $lines] then {
+	    verbose "check_effective_target_fentry testfile compilation passed" 2
+	    return 1
+	} else {
+	    verbose "check_effective_target_fentry testfile compilation failed" 2
+	    return 0
+	}
     }]
 }

@@ -3,7 +3,7 @@
 /* { dg-final { check-function-bodies "**" "" } } */
 /* PR target/113042 */
 
-#pragma GCC target "+nocssc"
+#pragma GCC target "+nocssc+nosve"
 
 /*
 ** h128:

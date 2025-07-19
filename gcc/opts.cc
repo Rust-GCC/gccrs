@@ -1411,11 +1411,14 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
 	opts->x_debug_info_level = DINFO_LEVEL_NONE;
     }
 
+  /* Also enable markers with -fauto-profile even when debug info is disabled,
+     so we assign same discriminators and can read back the profile info.  */
   if (!opts_set->x_debug_nonbind_markers_p)
     opts->x_debug_nonbind_markers_p
       = (opts->x_optimize
-	 && opts->x_debug_info_level >= DINFO_LEVEL_NORMAL
-	 && (dwarf_debuginfo_p (opts) || codeview_debuginfo_p ())
+	 && ((opts->x_debug_info_level >= DINFO_LEVEL_NORMAL
+	      && (dwarf_debuginfo_p (opts) || codeview_debuginfo_p ()))
+	     || opts->x_flag_auto_profile)
 	 && !(opts->x_flag_selective_scheduling
 	      || opts->x_flag_selective_scheduling2));
 
@@ -2080,10 +2083,13 @@ print_specific_help (unsigned int include_flags,
 static void
 enable_fdo_optimizations (struct gcc_options *opts,
 			  struct gcc_options *opts_set,
-			  int value)
+			  int value, bool autofdo)
 {
-  SET_OPTION_IF_UNSET (opts, opts_set, flag_branch_probabilities, value);
-  SET_OPTION_IF_UNSET (opts, opts_set, flag_profile_values, value);
+  if (!autofdo)
+    {
+      SET_OPTION_IF_UNSET (opts, opts_set, flag_branch_probabilities, value);
+      SET_OPTION_IF_UNSET (opts, opts_set, flag_profile_values, value);
+    }
   SET_OPTION_IF_UNSET (opts, opts_set, flag_unroll_loops, value);
   SET_OPTION_IF_UNSET (opts, opts_set, flag_peel_loops, value);
   SET_OPTION_IF_UNSET (opts, opts_set, flag_tracer, value);
@@ -2872,7 +2878,7 @@ common_handle_option (struct gcc_options *opts,
       break;
 
     case OPT_Wfatal_errors:
-      dc->m_fatal_errors = value;
+      dc->set_fatal_errors (value);
       break;
 
     case OPT_Wstack_usage_:
@@ -3124,7 +3130,7 @@ common_handle_option (struct gcc_options *opts,
       /* No break here - do -fprofile-use processing. */
       /* FALLTHRU */
     case OPT_fprofile_use:
-      enable_fdo_optimizations (opts, opts_set, value);
+      enable_fdo_optimizations (opts, opts_set, value, false);
       SET_OPTION_IF_UNSET (opts, opts_set, flag_profile_reorder_functions,
 			   value);
 	/* Indirect call profiling should do all useful transformations
@@ -3141,7 +3147,7 @@ common_handle_option (struct gcc_options *opts,
       /* No break here - do -fauto-profile processing. */
       /* FALLTHRU */
     case OPT_fauto_profile:
-      enable_fdo_optimizations (opts, opts_set, value);
+      enable_fdo_optimizations (opts, opts_set, value, true);
       SET_OPTION_IF_UNSET (opts, opts_set, flag_profile_correction, value);
       break;
 

@@ -67,10 +67,10 @@ package body CStand is
 
    procedure Build_Float_Type
      (E     : Entity_Id;
-      Digs  : Int;
+      Digs  : Pos;
       Rep   : Float_Rep_Kind;
       Siz   : Int;
-      Align : Int);
+      Align : Nat);
    --  Procedure to build standard predefined float base type. The first
    --  parameter is the entity for the type. The second parameter is the
    --  digits value. The third parameter indicates the representation to
@@ -192,10 +192,10 @@ package body CStand is
 
    procedure Build_Float_Type
      (E     : Entity_Id;
-      Digs  : Int;
+      Digs  : Pos;
       Rep   : Float_Rep_Kind;
       Siz   : Int;
-      Align : Int)
+      Align : Nat)
    is
    begin
       Set_Type_Definition (Parent (E),
@@ -612,27 +612,14 @@ package body CStand is
       Set_Is_Pure (Standard_Standard);
       Set_Is_Compilation_Unit (Standard_Standard);
 
-      --  Create type/subtype declaration nodes for standard types
+      --  Create type declaration nodes for standard types
 
       for S in S_Types loop
-
-         --  Subtype declaration case
-
-         if S = S_Natural or else S = S_Positive then
-            Decl := New_Node (N_Subtype_Declaration, Stloc);
-            Set_Subtype_Indication (Decl,
-              New_Occurrence_Of (Standard_Integer, Stloc));
-
-         --  Full type declaration case
-
-         else
+         if S not in S_Natural | S_Positive then
             Decl := New_Node (N_Full_Type_Declaration, Stloc);
+            Set_Defining_Identifier (Decl, Standard_Entity (S));
+            Append (Decl, Decl_S);
          end if;
-
-         Set_Is_Frozen (Standard_Entity (S));
-         Set_Is_Public (Standard_Entity (S));
-         Set_Defining_Identifier (Decl, Standard_Entity (S));
-         Append (Decl, Decl_S);
       end loop;
 
       Create_Back_End_Float_Types;
@@ -1023,6 +1010,14 @@ package body CStand is
         Hb  => Intval (High_Bound (Scalar_Range (Standard_Integer))));
       Set_Is_Constrained (Standard_Natural);
 
+      Append_To
+        (Decl_S,
+         Make_Subtype_Declaration
+           (Stloc,
+            Standard_Natural,
+            Subtype_Indication =>
+              New_Occurrence_Of (Standard_Integer, Stloc)));
+
       --  Setup entity for Positive
 
       Mutate_Ekind (Standard_Positive, E_Signed_Integer_Subtype);
@@ -1039,6 +1034,14 @@ package body CStand is
          Lb  => Uint_1,
          Hb  => Intval (High_Bound (Scalar_Range (Standard_Integer))));
       Set_Is_Constrained   (Standard_Positive);
+
+      Append_To
+        (Decl_S,
+         Make_Subtype_Declaration
+           (Stloc,
+            Standard_Positive,
+            Subtype_Indication =>
+              New_Occurrence_Of (Standard_Integer, Stloc)));
 
       --  Create declaration for package ASCII
 
@@ -1073,7 +1076,6 @@ package body CStand is
             Set_Never_Set_In_Source    (A_Char, True);
             Set_Is_True_Constant       (A_Char, True);
             Set_Etype                  (A_Char, Standard_Character);
-            Set_Scope                  (A_Char, Standard_Entity (S_ASCII));
             Set_Is_Immediately_Visible (A_Char, False);
             Set_Is_Public              (A_Char, True);
             Set_Is_Known_Valid         (A_Char, True);
@@ -1729,7 +1731,6 @@ package body CStand is
    begin
       Mutate_Ekind                  (Id, E_Component);
       Set_Etype                     (Id, Typ);
-      Set_Scope                     (Id, Rec);
       Reinit_Component_Location     (Id);
       Set_Original_Record_Component (Id, Id);
       Set_Is_Aliased                (Id);
@@ -1747,7 +1748,6 @@ package body CStand is
    begin
       Mutate_Ekind  (Formal, E_In_Parameter);
       Set_Mechanism (Formal, Default_Mechanism);
-      Set_Scope     (Formal, Standard_Standard);
       Set_Etype     (Formal, Typ);
 
       return Formal;
@@ -1777,7 +1777,6 @@ package body CStand is
       Set_Is_Pure    (Ident_Node, True);
       Mutate_Ekind   (Ident_Node, E_Operator);
       Set_Etype      (Ident_Node, Typ);
-      Set_Scope      (Ident_Node, Standard_Standard);
       Set_Homonym    (Ident_Node, Get_Name_Entity_Id (Op));
       Set_Convention (Ident_Node, Convention_Intrinsic);
 
@@ -2083,7 +2082,7 @@ package body CStand is
       Set_Defining_Identifier (New_Node (N_Full_Type_Declaration, Stloc), Ent);
       Set_Scope (Ent, Standard_Standard);
       Build_Float_Type
-        (Ent, Pos (Digs), Float_Rep, Int (Size), Int (Alignment / 8));
+        (Ent, Pos (Digs), Float_Rep, Int (Size), Nat (Alignment / 8));
 
       Append_New_Elmt (Ent, Back_End_Float_Types);
    end Register_Float_Type;
@@ -2092,7 +2091,7 @@ package body CStand is
    -- Set_Float_Bounds --
    ----------------------
 
-   procedure Set_Float_Bounds (Id  : Entity_Id) is
+   procedure Set_Float_Bounds (Id : Entity_Id) is
       L : Node_Id;
       H : Node_Id;
       --  Low and high bounds of literal value

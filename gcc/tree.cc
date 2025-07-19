@@ -32,6 +32,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "backend.h"
 #include "target.h"
+#include "memmodel.h"
+#include "tm_p.h"
 #include "tree.h"
 #include "gimple.h"
 #include "tree-pass.h"
@@ -788,6 +790,57 @@ init_ttree (void)
 }
 
 
+/* Mapping from prefix to label number.  */
+
+struct identifier_hash : ggc_ptr_hash <tree_node>
+{
+  static inline hashval_t hash (tree t)
+  {
+    return IDENTIFIER_HASH_VALUE (t);
+  }
+};
+struct identifier_count_traits
+  : simple_hashmap_traits<identifier_hash, long> {};
+typedef hash_map<tree, long, identifier_count_traits> internal_label_map;
+static GTY(()) internal_label_map *internal_label_nums;
+
+/* Generates an identifier intended to be used internally with the
+   given PREFIX.  This is intended to be used by the frontend so that
+   C++ modules can regenerate appropriate (non-clashing) identifiers on
+   stream-in.  */
+
+tree
+generate_internal_label (const char *prefix)
+{
+  tree prefix_id = get_identifier (prefix);
+  if (!internal_label_nums)
+    internal_label_nums = internal_label_map::create_ggc();
+  long &num = internal_label_nums->get_or_insert (prefix_id);
+
+  char tmp[32];
+  ASM_GENERATE_INTERNAL_LABEL (tmp, prefix, num++);
+
+  tree id = get_identifier (tmp);
+  IDENTIFIER_INTERNAL_P (id) = true;
+
+  /* Cache the prefix on the identifier so we can retrieve it later.  */
+  TREE_CHAIN (id) = prefix_id;
+
+  return id;
+}
+
+/* Get the PREFIX we created the internal identifier LABEL with.  */
+
+const char *
+prefix_for_internal_label (tree label)
+{
+  gcc_assert (IDENTIFIER_INTERNAL_P (label)
+	      && !IDENTIFIER_TRANSPARENT_ALIAS (label)
+	      && TREE_CHAIN (label)
+	      && TREE_CODE (TREE_CHAIN (label)) == IDENTIFIER_NODE);
+  return IDENTIFIER_POINTER (TREE_CHAIN (label));
+}
+
 /* The name of the object as the assembler will see it (but before any
    translations made by ASM_OUTPUT_LABELREF).  Often this is the same
    as DECL_NAME.  It is an IDENTIFIER_NODE.  */
@@ -3964,6 +4017,38 @@ decl_address_ip_invariant_p (const_tree op)
   return false;
 }
 
+/* Return true if T is an object with invariant address.  */
+
+bool
+address_invariant_p (tree t)
+{
+  while (handled_component_p (t))
+    {
+      switch (TREE_CODE (t))
+	{
+	case ARRAY_REF:
+	case ARRAY_RANGE_REF:
+	  if (!tree_invariant_p (TREE_OPERAND (t, 1))
+	      || TREE_OPERAND (t, 2) != NULL_TREE
+	      || TREE_OPERAND (t, 3) != NULL_TREE)
+	    return false;
+	  break;
+
+	case COMPONENT_REF:
+	  if (TREE_OPERAND (t, 2) != NULL_TREE)
+	    return false;
+	  break;
+
+	default:
+	  break;
+	}
+      t = TREE_OPERAND (t, 0);
+    }
+
+  STRIP_ANY_LOCATION_WRAPPER (t);
+  return CONSTANT_CLASS_P (t) || decl_address_invariant_p (t);
+}
+
 
 /* Return true if T is function-invariant (internal function, does
    not handle arithmetic; that's handled in skip_simple_arithmetic and
@@ -3972,10 +4057,7 @@ decl_address_ip_invariant_p (const_tree op)
 static bool
 tree_invariant_p_1 (tree t)
 {
-  tree op;
-
-  if (TREE_CONSTANT (t)
-      || (TREE_READONLY (t) && !TREE_SIDE_EFFECTS (t)))
+  if (TREE_CONSTANT (t) || (TREE_READONLY (t) && !TREE_SIDE_EFFECTS (t)))
     return true;
 
   switch (TREE_CODE (t))
@@ -3985,30 +4067,7 @@ tree_invariant_p_1 (tree t)
       return true;
 
     case ADDR_EXPR:
-      op = TREE_OPERAND (t, 0);
-      while (handled_component_p (op))
-	{
-	  switch (TREE_CODE (op))
-	    {
-	    case ARRAY_REF:
-	    case ARRAY_RANGE_REF:
-	      if (!tree_invariant_p (TREE_OPERAND (op, 1))
-		  || TREE_OPERAND (op, 2) != NULL_TREE
-		  || TREE_OPERAND (op, 3) != NULL_TREE)
-		return false;
-	      break;
-
-	    case COMPONENT_REF:
-	      if (TREE_OPERAND (op, 2) != NULL_TREE)
-		return false;
-	      break;
-
-	    default:;
-	    }
-	  op = TREE_OPERAND (op, 0);
-	}
-
-      return CONSTANT_CLASS_P (op) || decl_address_invariant_p (op);
+      return address_invariant_p (TREE_OPERAND (t, 0));
 
     default:
       break;
@@ -14613,10 +14672,11 @@ verify_type (const_tree t)
 
 /* Return 1 if ARG interpreted as signed in its precision is known to be
    always non-negative or 2 if ARG is known to be always negative, or 3 if
-   ARG may be non-negative or negative.  */
+   ARG may be non-negative or negative.  STMT if specified is the statement
+   on which it is being tested.  */
 
 int
-get_range_pos_neg (tree arg)
+get_range_pos_neg (tree arg, gimple *stmt)
 {
   if (arg == error_mark_node)
     return 3;
@@ -14649,7 +14709,7 @@ get_range_pos_neg (tree arg)
   if (TREE_CODE (arg) != SSA_NAME)
     return 3;
   int_range_max r;
-  while (!get_global_range_query ()->range_of_expr (r, arg)
+  while (!get_range_query (cfun)->range_of_expr (r, arg, stmt)
 	 || r.undefined_p () || r.varying_p ())
     {
       gimple *g = SSA_NAME_DEF_STMT (arg);

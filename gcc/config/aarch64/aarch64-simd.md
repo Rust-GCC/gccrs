@@ -1628,6 +1628,24 @@
   }
 )
 
+(define_expand "vec_set<mode>"
+  [(match_operand:VSTRUCT_QD 0 "register_operand")
+   (match_operand:<VEL> 1 "aarch64_simd_nonimmediate_operand")
+   (match_operand:SI 2 "immediate_operand")]
+  "TARGET_SIMD"
+{
+  aarch64_decompose_vec_struct_index (<VSTRUCT_ELT>mode, &operands[0],
+				      &operands[2], true);
+  /* For tuples of 64-bit modes, <vstruct_elt> is the 64-bit scalar mode.
+     Allow gen_vec_set<vstruct_elt> to cope with those cases too.  */
+  auto gen_vec_setdi ATTRIBUTE_UNUSED = [](rtx x0, rtx x1, rtx)
+    {
+      return gen_move_insn (x0, x1);
+    };
+  auto gen_vec_setdf ATTRIBUTE_UNUSED = gen_vec_setdi;
+  emit_insn (gen_vec_set<vstruct_elt> (operands[0], operands[1], operands[2]));
+  DONE;
+})
 
 (define_insn "aarch64_mla<mode><vczle><vczbe>"
  [(set (match_operand:VDQ_BHSI 0 "register_operand" "=w")
@@ -3948,7 +3966,7 @@
 
   rtx cc_reg = aarch64_gen_compare_reg (code, val, const0_rtx);
   rtx cmp_rtx = gen_rtx_fmt_ee (code, DImode, cc_reg, const0_rtx);
-  emit_jump_insn (gen_condjump (cmp_rtx, cc_reg, operands[3]));
+  emit_jump_insn (gen_aarch64_bcond (cmp_rtx, cc_reg, operands[3]));
   DONE;
 })
 
@@ -5027,6 +5045,36 @@
   emit_insn (gen_aarch64_uaddw<Vnarrowq> (operands[0], operands[4], tmp));
   DONE;
 })
+
+;; convert (truncate)(~x >> imm) into (truncate)(((u16)-1 - x) >> imm)
+;; because it will result in the 'not' being replaced with a constant load
+;; which allows for better loop optimization.
+;; We limit this to truncations that take the upper half and shift it to the
+;; lower half as we use subhn (patterns that would have generated an shrn
+;; otherwise).
+;; On some implementations the use of subhn also result in better throughput.
+(define_insn_and_split "*shrn_to_subhn_<mode>"
+  [(set (match_operand:<VNARROWQ> 0 "register_operand" "=&w")
+	(truncate:<VNARROWQ>
+	  (lshiftrt:VQN
+	    (not:VQN (match_operand:VQN 1 "register_operand" "w"))
+	    (match_operand:VQN 2 "aarch64_simd_shift_imm_vec_exact_top"))))]
+  "TARGET_SIMD"
+  "#"
+  "&& true"
+  [(const_int 0)]
+{
+  rtx tmp;
+  if (can_create_pseudo_p ())
+    tmp = gen_reg_rtx (<MODE>mode);
+  else
+    tmp = gen_rtx_REG (<MODE>mode, REGNO (operands[0]));
+  emit_move_insn (tmp, CONSTM1_RTX (<MODE>mode));
+  emit_insn (gen_aarch64_subhn<mode>_insn (operands[0], tmp,
+					   operands[1], operands[2]));
+  DONE;
+})
+
 
 ;; pmul.
 
@@ -8883,6 +8931,26 @@
     DONE;
 })
 
+(define_expand "vec_extract<mode><Vel>"
+  [(match_operand:<VEL> 0 "aarch64_simd_nonimmediate_operand")
+   (match_operand:VSTRUCT_QD 1 "register_operand")
+   (match_operand:SI 2 "immediate_operand")]
+  "TARGET_SIMD"
+{
+  aarch64_decompose_vec_struct_index (<VSTRUCT_ELT>mode, &operands[1],
+				      &operands[2], false);
+  /* For tuples of 64-bit modes, <vstruct_elt> is the 64-bit scalar mode.
+     Allow gen_vec_extract<vstruct_elt><Vel> to cope with those cases too.  */
+  auto gen_vec_extractdidi ATTRIBUTE_UNUSED = [](rtx x0, rtx x1, rtx)
+    {
+      return gen_move_insn (x0, x1);
+    };
+  auto gen_vec_extractdfdf ATTRIBUTE_UNUSED = gen_vec_extractdidi;
+  emit_insn (gen_vec_extract<vstruct_elt><Vel> (operands[0], operands[1],
+						operands[2]));
+  DONE;
+})
+
 ;; Extract a 64-bit vector from one half of a 128-bit vector.
 (define_expand "vec_extract<mode><Vhalf>"
   [(match_operand:<VHALF> 0 "register_operand")
@@ -9112,12 +9180,12 @@
 ;; sha3
 
 (define_insn "eor3q<mode>4"
-  [(set (match_operand:VQ_I 0 "register_operand" "=w")
-	(xor:VQ_I
-	 (xor:VQ_I
-	  (match_operand:VQ_I 2 "register_operand" "w")
-	  (match_operand:VQ_I 3 "register_operand" "w"))
-	 (match_operand:VQ_I 1 "register_operand" "w")))]
+  [(set (match_operand:VDQ_I 0 "register_operand" "=w")
+	(xor:VDQ_I
+	 (xor:VDQ_I
+	  (match_operand:VDQ_I 2 "register_operand" "w")
+	  (match_operand:VDQ_I 3 "register_operand" "w"))
+	 (match_operand:VDQ_I 1 "register_operand" "w")))]
   "TARGET_SHA3"
   "eor3\\t%0.16b, %1.16b, %2.16b, %3.16b"
   [(set_attr "type" "crypto_sha3")]
@@ -9173,15 +9241,44 @@
 )
 
 (define_insn "bcaxq<mode>4"
-  [(set (match_operand:VQ_I 0 "register_operand" "=w")
-	(xor:VQ_I
-	 (and:VQ_I
-	  (not:VQ_I (match_operand:VQ_I 3 "register_operand" "w"))
-	  (match_operand:VQ_I 2 "register_operand" "w"))
-	 (match_operand:VQ_I 1 "register_operand" "w")))]
+  [(set (match_operand:VDQ_I 0 "register_operand" "=w")
+	(xor:VDQ_I
+	 (and:VDQ_I
+	  (not:VDQ_I (match_operand:VDQ_I 3 "register_operand" "w"))
+	  (match_operand:VDQ_I 2 "register_operand" "w"))
+	 (match_operand:VDQ_I 1 "register_operand" "w")))]
   "TARGET_SHA3"
   "bcax\\t%0.16b, %1.16b, %2.16b, %3.16b"
   [(set_attr "type" "crypto_sha3")]
+)
+
+(define_insn_and_split "*bcaxqdi4"
+  [(set (match_operand:DI 0 "register_operand")
+	(xor:DI
+	  (and:DI
+	    (not:DI (match_operand:DI 3 "register_operand"))
+	    (match_operand:DI 2 "register_operand"))
+	  (match_operand:DI 1 "register_operand")))]
+  "TARGET_SHA3"
+  {@ [ cons: =0, 1, 2 , 3  ; attrs: type ]
+     [ w       , w, w , w  ; crypto_sha3 ] bcax\t%0.16b, %1.16b, %2.16b, %3.16b
+     [ &r      , r, r0, r0 ; multiple    ] #
+  }
+  "&& REG_P (operands[0]) && GP_REGNUM_P (REGNO (operands[0]))"
+  [(set (match_dup 4)
+	(and:DI (not:DI (match_dup 3))
+		(match_dup 2)))
+   (set (match_dup 0)
+	(xor:DI (match_dup 4)
+		(match_dup 1)))]
+  {
+    if (reload_completed)
+      operands[4] = operands[0];
+    else if (can_create_pseudo_p ())
+      operands[4] = gen_reg_rtx (DImode);
+    else
+      FAIL;
+  }
 )
 
 ;; SM3

@@ -865,7 +865,7 @@ struct GTY((tag("GSS_ASSUME")))
    tell the runtime that it should begin the transaction in
    serial-irrevocable mode.  */
 #define GTMA_DOES_GO_IRREVOCABLE	(1u << 6)
-/* The transaction contains no instrumentation code whatsover, most
+/* The transaction contains no instrumentation code whatsoever, most
    likely because it is guaranteed to go irrevocable upon entry.  */
 #define GTMA_HAS_NO_INSTRUMENTATION	(1u << 7)
 
@@ -1667,7 +1667,8 @@ extern bool nonfreeing_call_p (gimple *);
 extern bool nonbarrier_call_p (gimple *);
 extern bool infer_nonnull_range (gimple *, tree);
 extern bool infer_nonnull_range_by_dereference (gimple *, tree);
-extern bool infer_nonnull_range_by_attribute (gimple *, tree, tree * = NULL);
+extern bool infer_nonnull_range_by_attribute (gimple *, tree, tree * = NULL,
+					      tree * = NULL);
 extern void sort_case_labels (vec<tree> &);
 extern void preprocess_case_label_vec_for_gimple (vec<tree> &, tree, tree *);
 extern void gimple_seq_set_location (gimple_seq, location_t);

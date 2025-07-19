@@ -52,7 +52,8 @@ set_up_on_exception_label(cbl_label_t *arithmetic_label)
     if( !arithmetic_label->structs.arith_error )
       {
       arithmetic_label->structs.arith_error
-        = (cbl_arith_error_t *)xmalloc(sizeof(struct cbl_arith_error_t) );
+        = static_cast<cbl_arith_error_t *>
+                                  (xmalloc(sizeof(struct cbl_arith_error_t)));
       // Set up the address pairs for this clause
       gg_create_goto_pair(&arithmetic_label->structs.arith_error->over.go_to,
                           &arithmetic_label->structs.arith_error->over.label);
@@ -72,8 +73,8 @@ set_up_compute_error_label(cbl_label_t *compute_label)
     if( !compute_label->structs.compute_error )
       {
       compute_label->structs.compute_error
-        = (cbl_compute_error_t *)
-          xmalloc(sizeof(struct cbl_compute_error_t) );
+        = static_cast<cbl_compute_error_t *>
+          (xmalloc(sizeof(struct cbl_compute_error_t)));
       compute_label->structs.compute_error->compute_error_code
         = gg_define_int(0);
       }
@@ -95,8 +96,8 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
                       size_t nA, cbl_refer_t *A,
                       size_t nB, cbl_refer_t *B,
                       cbl_arith_format_t format,
-                      cbl_label_t *error,
-                      cbl_label_t *not_error,
+                      const cbl_label_t *error,
+                      const cbl_label_t *not_error,
                       tree compute_error, // Pointer to int
                       const char *operation,
                       cbl_refer_t *remainder = NULL)
@@ -112,7 +113,6 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
     {
     TRACE1_HEADER
     TRACE1_TEXT_ABC("calling ", operation, "")
-    TRACE1_END
     for(size_t ii=0; ii<nA; ii++)
       {
       TRACE1_INDENT
@@ -129,7 +129,6 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
                   build_int_cst_type(SIZE_T, ii));
       TRACE1_REFER("", B[ii], "");
       }
-    TRACE1_END
     }
 
   // We need to split up cbl_num_result_t into two arrays, one for the refer_t
@@ -137,7 +136,7 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
 
   // Allocate nC+1 in case this is a divide with a REMAINDER
 
-  cbl_refer_t *results = (cbl_refer_t *)xmalloc((nC+1) * sizeof( cbl_refer_t ));
+  std::vector<cbl_refer_t> results(nC + 1);
   int ncount = 0;
 
   if( nC+1 <= MIN_FIELD_BLOCK_SIZE )
@@ -207,7 +206,7 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
 
   build_array_of_treeplets(1, nA, A);
   build_array_of_treeplets(2, nB, B);
-  build_array_of_treeplets(3, ncount, results);
+  build_array_of_treeplets(3, ncount, results.data());
 
   gg_call(VOID,
           operation,
@@ -223,7 +222,6 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
     {
     for(size_t ii=0; ii<nC; ii++)
       {
-      break;  // Breaks on ADD 1 SUB2 GIVING SUB4 both PIC S9(3) COMP
       TRACE1_INDENT
       gg_fprintf( trace_handle,
                   1, "result: C[%ld]: ",
@@ -253,9 +251,6 @@ arithmetic_operation(size_t nC, cbl_num_result_t *C,
     {
     SHOW_PARSE_END
     }
-
-  // We need to release all of the refers we allocated:
-  free(results);
   }
 
 static void
@@ -307,7 +302,7 @@ arithmetic_error_handler( cbl_label_t *error,
   }
 
 static bool
-is_somebody_float(size_t nA, cbl_refer_t *A)
+is_somebody_float(size_t nA, const cbl_refer_t *A)
   {
   bool retval = false;
   for(size_t i=0; i<nA; i++)
@@ -322,7 +317,7 @@ is_somebody_float(size_t nA, cbl_refer_t *A)
   }
 
 static bool
-is_somebody_float(size_t nC, cbl_num_result_t *C)
+is_somebody_float(size_t nC, const cbl_num_result_t *C)
   {
   bool retval = false;
   for(size_t i=0; i<nC; i++)
@@ -337,7 +332,7 @@ is_somebody_float(size_t nC, cbl_num_result_t *C)
   }
 
 static bool
-all_results_binary(size_t nC, cbl_num_result_t *C)
+all_results_binary(size_t nC, const cbl_num_result_t *C)
   {
   bool retval = true;
 
@@ -581,10 +576,6 @@ fast_multiply(size_t nC, cbl_num_result_t *C,
         {
         // This is a MULTIPLY Format 2
         get_binary_value(valB, NULL, B[0].field, refer_offset(B[0]));
-        }
-
-      if(nB)
-        {
         gg_assign(valA, gg_multiply(valA, valB));
         }
 
@@ -670,8 +661,10 @@ fast_divide(size_t nC, cbl_num_result_t *C,
       // We now either divide into C[n] or assign dividend/divisor to C[n]:
       for(size_t i=0; i<nC; i++ )
         {
-        tree dest_type = tree_type_from_size(C[i].refer.field->data.capacity, 0);
-        tree dest_addr = gg_add(member(C[i].refer.field->var_decl_node, "data"),
+        tree dest_type =
+                       tree_type_from_size(C[i].refer.field->data.capacity, 0);
+        tree dest_addr = gg_add(member( C[i].refer.field->var_decl_node,
+                                        "data"),
                                 refer_offset(C[i].refer));
         tree ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
         if( nB )
@@ -687,16 +680,15 @@ fast_divide(size_t nC, cbl_num_result_t *C,
           }
 
         // This is where we handle any remainder, keeping in mind that for
-        // nB != 0, the actual dividend is in the value we have named "divisor".
-        //
-        // And, yes, I hate comments like that, too.
+        // nB != 0, the actual dividend is in the value we have named
+        // "divisor".
 
         // We calculate the remainder by calculating
         //    dividend minus quotient * divisor
         if( remainder.field )
           {
-          tree dest_addr = gg_add(member(remainder.field->var_decl_node, "data"),
-                                  refer_offset(remainder));
+          dest_addr = gg_add( member(remainder.field->var_decl_node, "data"),
+                              refer_offset(remainder));
           dest_type = tree_type_from_size(remainder.field->data.capacity, 0);
           ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
 
@@ -993,9 +985,9 @@ parser_add( size_t nC, cbl_num_result_t *C,
   }
 
 void
-parser_add( cbl_refer_t cref,
-            cbl_refer_t aref,
-            cbl_refer_t bref,
+parser_add( const cbl_refer_t& cref,
+            const cbl_refer_t& aref,
+            const cbl_refer_t& bref,
             cbl_round_t rounded)
   {
   // This is the simple and innocent C = A + B
@@ -1215,9 +1207,9 @@ parser_divide(  size_t nC, cbl_num_result_t *C,  // C = A / B
   }
 
 void
-parser_multiply(cbl_refer_t cref,
-                cbl_refer_t aref,
-                cbl_refer_t bref,
+parser_multiply(const cbl_refer_t& cref,
+                const cbl_refer_t& aref,
+                const cbl_refer_t& bref,
                 cbl_round_t rounded )
   {
   cbl_num_result_t C[1];
@@ -1238,11 +1230,11 @@ parser_multiply(cbl_refer_t cref,
   }
 
 void
-parser_divide(  cbl_refer_t cref,
-                cbl_refer_t aref,
-                cbl_refer_t bref,
+parser_divide(  const cbl_refer_t& cref,
+                const cbl_refer_t& aref,
+                const cbl_refer_t& bref,
                 cbl_round_t rounded,
-                cbl_refer_t remainder_ref )
+                const cbl_refer_t& remainder_ref )
   {
   cbl_num_result_t C[1];
   C[0].rounded = rounded;
@@ -1390,12 +1382,12 @@ parser_op( struct cbl_refer_t cref,
       break;
       }
     default:
-      cbl_internal_error( "parser_op() doesn't know how to "
-             "evaluate \"%s = %s %c %s\"\n",
-             cref.field->name,
-             aref.field->name,
-             op,
-             bref.field->name);
+      cbl_internal_error( "%<parser_op()%> doesn%'t know how to "
+                          "evaluate %<%s = %s %c %s%>",
+                          cref.field->name,
+                          aref.field->name,
+                          op,
+                          bref.field->name);
       break;
     }
   }
@@ -1704,9 +1696,9 @@ parser_subtract(size_t nC, cbl_num_result_t *C, // C = B - A
   }
 
 void
-parser_subtract(cbl_refer_t cref, // cref = aref - bref
-                cbl_refer_t aref,
-                cbl_refer_t bref,
+parser_subtract(const cbl_refer_t& cref, // cref = aref - bref
+                const cbl_refer_t& aref,
+                const cbl_refer_t& bref,
                 cbl_round_t rounded )
   {
   cbl_num_result_t C[1];

@@ -926,7 +926,10 @@ get_min_precision (tree arg, signop sign)
 	{
 	  if (TYPE_UNSIGNED (TREE_TYPE (arg)))
 	    sign = UNSIGNED;
-	  else if (sign == UNSIGNED && get_range_pos_neg (arg) != 1)
+	  else if (sign == UNSIGNED
+		   && (get_range_pos_neg (arg,
+					  currently_expanding_gimple_stmt)
+		       != 1))
 	    return prec + (orig_sign != sign);
 	  prec = TYPE_PRECISION (TREE_TYPE (arg));
 	}
@@ -946,7 +949,8 @@ get_min_precision (tree arg, signop sign)
   if (TREE_CODE (arg) != SSA_NAME)
     return prec + (orig_sign != sign);
   int_range_max r;
-  while (!get_global_range_query ()->range_of_expr (r, arg)
+  gimple *cg = currently_expanding_gimple_stmt;
+  while (!get_range_query (cfun)->range_of_expr (r, arg, cg)
 	 || r.varying_p ()
 	 || r.undefined_p ())
     {
@@ -963,7 +967,8 @@ get_min_precision (tree arg, signop sign)
 		{
 		  if (TYPE_UNSIGNED (TREE_TYPE (arg)))
 		    sign = UNSIGNED;
-		  else if (sign == UNSIGNED && get_range_pos_neg (arg) != 1)
+		  else if (sign == UNSIGNED
+			   && get_range_pos_neg (arg, g) != 1)
 		    return prec + (orig_sign != sign);
 		  prec = TYPE_PRECISION (TREE_TYPE (arg));
 		}
@@ -1301,7 +1306,7 @@ expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
 	 unsigned.  */
       res = expand_binop (mode, sub_optab, op0, op1, NULL_RTX, false,
 			  OPTAB_LIB_WIDEN);
-      int pos_neg = get_range_pos_neg (arg0);
+      int pos_neg = get_range_pos_neg (arg0, currently_expanding_gimple_stmt);
       if (pos_neg == 2)
 	/* If ARG0 is known to be always negative, this is always overflow.  */
 	emit_jump (do_error);
@@ -1361,10 +1366,11 @@ expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
 	 unsigned.  */
       res = expand_binop (mode, code == PLUS_EXPR ? add_optab : sub_optab,
 			  op0, op1, NULL_RTX, false, OPTAB_LIB_WIDEN);
-      int pos_neg = get_range_pos_neg (arg1);
+      int pos_neg = get_range_pos_neg (arg1, currently_expanding_gimple_stmt);
       if (code == PLUS_EXPR)
 	{
-	  int pos_neg0 = get_range_pos_neg (arg0);
+	  int pos_neg0 = get_range_pos_neg (arg0,
+					    currently_expanding_gimple_stmt);
 	  if (pos_neg0 != 3 && pos_neg == 3)
 	    {
 	      std::swap (op0, op1);
@@ -1462,10 +1468,11 @@ expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
        the second operand, as subtraction is not commutative) is always
        non-negative or always negative, we can do just one comparison
        and conditional jump.  */
-    int pos_neg = get_range_pos_neg (arg1);
+    int pos_neg = get_range_pos_neg (arg1, currently_expanding_gimple_stmt);
     if (code == PLUS_EXPR)
       {
-	int pos_neg0 = get_range_pos_neg (arg0);
+	int pos_neg0 = get_range_pos_neg (arg0,
+					  currently_expanding_gimple_stmt);
 	if (pos_neg0 != 3 && pos_neg == 3)
 	  {
 	    std::swap (op0, op1);
@@ -1757,8 +1764,8 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
       uns1_p = true;
     }
 
-  int pos_neg0 = get_range_pos_neg (arg0);
-  int pos_neg1 = get_range_pos_neg (arg1);
+  int pos_neg0 = get_range_pos_neg (arg0, currently_expanding_gimple_stmt);
+  int pos_neg1 = get_range_pos_neg (arg1, currently_expanding_gimple_stmt);
   /* Unsigned types with smaller than mode precision, even if they have most
      significant bit set, are still zero-extended.  */
   if (uns0_p && TYPE_PRECISION (TREE_TYPE (arg0)) < GET_MODE_PRECISION (mode))
@@ -2763,9 +2770,9 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
   int prec1 = TYPE_PRECISION (TREE_TYPE (arg1));
   int precres = TYPE_PRECISION (type);
   location_t loc = gimple_location (stmt);
-  if (!uns0_p && get_range_pos_neg (arg0) == 1)
+  if (!uns0_p && get_range_pos_neg (arg0, stmt) == 1)
     uns0_p = true;
-  if (!uns1_p && get_range_pos_neg (arg1) == 1)
+  if (!uns1_p && get_range_pos_neg (arg1, stmt) == 1)
     uns1_p = true;
   int pr = get_min_precision (arg0, uns0_p ? UNSIGNED : SIGNED);
   prec0 = MIN (prec0, pr);
@@ -3435,25 +3442,23 @@ expand_DEFERRED_INIT (internal_fn, gcall *stmt)
 }
 
 /* Expand the IFN_ACCESS_WITH_SIZE function:
-   ACCESS_WITH_SIZE (REF_TO_OBJ, REF_TO_SIZE, CLASS_OF_SIZE,
-		     TYPE_OF_SIZE, ACCESS_MODE)
+   ACCESS_WITH_SIZE (REF_TO_OBJ, REF_TO_SIZE,
+		     TYPE_OF_SIZE + ACCESS_MODE, TYPE_SIZE_UNIT for element)
    which returns the REF_TO_OBJ same as the 1st argument;
 
    1st argument REF_TO_OBJ: The reference to the object;
    2nd argument REF_TO_SIZE: The reference to the size of the object,
-   3rd argument CLASS_OF_SIZE: The size referenced by the REF_TO_SIZE represents
-     0: the number of bytes.
-     1: the number of the elements of the object type;
-   4th argument TYPE_OF_SIZE: A constant 0 with its TYPE being the same as the TYPE
-    of the object referenced by REF_TO_SIZE
-   5th argument ACCESS_MODE:
-    -1: Unknown access semantics
-     0: none
-     1: read_only
-     2: write_only
-     3: read_write
-   6th argument: A constant 0 with the pointer TYPE to the original flexible
-     array type.
+   3rd argument TYPE_OF_SIZE + ACCESS_MODE: An integer constant with a pointer
+     TYPE.
+     The pointee TYPE of the pointer TYPE is the TYPE of the object referenced
+	by REF_TO_SIZE.
+     The integer constant value represents the ACCESS_MODE:
+	0: none
+	1: read_only
+	2: write_only
+	3: read_write
+
+   4th argument: The TYPE_SIZE_UNIT of the element TYPE of the array.
 
    Both the return type and the type of the first argument of this
    function have been converted from the incomplete array type to
@@ -4024,9 +4029,14 @@ expand_crc_optab_fn (internal_fn fn, gcall *stmt, convert_optab optab)
   rtx dest = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
   rtx crc = expand_normal (rhs1);
   rtx data = expand_normal (rhs2);
-  gcc_assert (TREE_CODE (rhs3) == INTEGER_CST);
-  rtx polynomial = gen_rtx_CONST_INT (TYPE_MODE (result_type),
-				      TREE_INT_CST_LOW (rhs3));
+  rtx polynomial;
+  if (TREE_CODE (rhs3) != INTEGER_CST)
+    {
+      error ("third argument to %<crc%> builtins must be a constant");
+      polynomial = const0_rtx;
+    }
+  else
+    polynomial = convert_to_mode (TYPE_MODE (result_type), expand_normal (rhs3), 0);
 
   /* Use target specific expansion if it exists.
      Otherwise, generate table-based CRC.  */
@@ -4416,6 +4426,7 @@ commutative_binary_fn_p (internal_fn fn)
     case IFN_ADD_OVERFLOW:
     case IFN_MUL_OVERFLOW:
     case IFN_SAT_ADD:
+    case IFN_SAT_MUL:
     case IFN_VEC_WIDEN_PLUS:
     case IFN_VEC_WIDEN_PLUS_LO:
     case IFN_VEC_WIDEN_PLUS_HI:
@@ -5554,7 +5565,7 @@ expand_POPCOUNT (internal_fn fn, gcall *stmt)
   expand_unary_optab_fn (fn, stmt, popcount_optab);
   rtx_insn *popcount_insns = end_sequence ();
   start_sequence ();
-  rtx plhs = expand_normal (lhs);
+  rtx plhs = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
   rtx pcmp = emit_store_flag (NULL_RTX, EQ, plhs, const1_rtx, lhsmode, 0, 0);
   if (pcmp == NULL_RTX)
     {
@@ -5596,7 +5607,7 @@ expand_POPCOUNT (internal_fn fn, gcall *stmt)
     {
       start_sequence ();
       emit_insn (cmp_insns);
-      plhs = expand_normal (lhs);
+      plhs = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
       if (GET_MODE (cmp) != GET_MODE (plhs))
 	cmp = convert_to_mode (GET_MODE (plhs), cmp, 1);
       /* For `<= 1`, we need to produce `2 - cmp` or `cmp ? 1 : 2` as that

@@ -3919,9 +3919,152 @@ found:
 }
 
 
+
+static bool
+check_sym_import_status (gfc_symbol *sym, gfc_symtree *s, gfc_expr *e,
+			 gfc_code *c, gfc_namespace *ns)
+{
+  locus *here;
+
+  /* If the type has been imported then its vtype functions are OK.  */
+  if (e && e->expr_type == EXPR_FUNCTION && sym->attr.vtype)
+    return true;
+
+  if (e)
+    here = &e->where;
+  else
+    here = &c->loc;
+
+  if (s && !s->import_only)
+    s = gfc_find_symtree (ns->sym_root, sym->name);
+
+  if (ns->import_state == IMPORT_ONLY
+      && sym->ns != ns
+      && (!s || !s->import_only))
+    {
+      gfc_error ("F2018: C8102 %qs at %L is host associated but does not "
+		 "appear in an IMPORT or IMPORT, ONLY list", sym->name, here);
+      return false;
+    }
+  else if (ns->import_state == IMPORT_NONE
+	   && sym->ns != ns)
+    {
+      gfc_error ("F2018: C8102 %qs at %L is host associated in a scope that "
+		 "has IMPORT, NONE", sym->name, here);
+      return false;
+    }
+  return true;
+}
+
+
+static bool
+check_import_status (gfc_expr *e)
+{
+  gfc_symtree *st;
+  gfc_ref *ref;
+  gfc_symbol *sym, *der;
+  gfc_namespace *ns = gfc_current_ns;
+
+  switch (e->expr_type)
+    {
+      case EXPR_VARIABLE:
+      case EXPR_FUNCTION:
+      case EXPR_SUBSTRING:
+	sym = e->symtree ? e->symtree->n.sym : NULL;
+
+	/* Check the symbol itself.  */
+	if (sym
+	    && !(ns->proc_name
+		 && (sym == ns->proc_name))
+	    && !check_sym_import_status (sym, e->symtree, e, NULL, ns))
+	  return false;
+
+	/* Check the declared derived type.  */
+	if (sym->ts.type == BT_DERIVED)
+	  {
+	    der = sym->ts.u.derived;
+	    st = gfc_find_symtree (ns->sym_root, der->name);
+
+	    if (!check_sym_import_status (der, st, e, NULL, ns))
+	      return false;
+	  }
+	else if (sym->ts.type == BT_CLASS && !UNLIMITED_POLY (sym))
+	  {
+	    der = CLASS_DATA (sym) ? CLASS_DATA (sym)->ts.u.derived
+				   : sym->ts.u.derived;
+	    st = gfc_find_symtree (ns->sym_root, der->name);
+
+	    if (!check_sym_import_status (der, st, e, NULL, ns))
+	      return false;
+	  }
+
+	/* Check the declared derived types of component references.  */
+	for (ref = e->ref; ref; ref = ref->next)
+	  if (ref->type == REF_COMPONENT)
+	    {
+	      gfc_component *c = ref->u.c.component;
+	      if (c->ts.type == BT_DERIVED)
+		{
+		  der = c->ts.u.derived;
+		  st = gfc_find_symtree (ns->sym_root, der->name);
+		  if (!check_sym_import_status (der, st, e, NULL, ns))
+		    return false;
+		}
+	      else if (c->ts.type == BT_CLASS && !UNLIMITED_POLY (c))
+		{
+		  der = CLASS_DATA (c) ? CLASS_DATA (c)->ts.u.derived
+				       : c->ts.u.derived;
+		  st = gfc_find_symtree (ns->sym_root, der->name);
+		  if (!check_sym_import_status (der, st, e, NULL, ns))
+		    return false;
+		}
+	    }
+
+	break;
+
+      case EXPR_ARRAY:
+      case EXPR_STRUCTURE:
+	/* Check the declared derived type.  */
+	if (e->ts.type == BT_DERIVED)
+	  {
+	    der = e->ts.u.derived;
+	    st = gfc_find_symtree (ns->sym_root, der->name);
+
+	    if (!check_sym_import_status (der, st, e, NULL, ns))
+	      return false;
+	  }
+	else if (e->ts.type == BT_CLASS && !UNLIMITED_POLY (e))
+	  {
+	    der = CLASS_DATA (e) ? CLASS_DATA (e)->ts.u.derived
+				   : e->ts.u.derived;
+	    st = gfc_find_symtree (ns->sym_root, der->name);
+
+	    if (!check_sym_import_status (der, st, e, NULL, ns))
+	      return false;
+	  }
+
+	break;
+
+/* Either not applicable or resolved away
+      case EXPR_OP:
+      case EXPR_UNKNOWN:
+      case EXPR_CONSTANT:
+      case EXPR_NULL:
+      case EXPR_COMPCALL:
+      case EXPR_PPC: */
+
+      default:
+	break;
+    }
+
+  return true;
+}
+
+
 /* Resolve a subroutine call.  Although it was tempting to use the same code
    for functions, subroutines and functions are stored differently and this
    makes things awkward.  */
+
 
 static bool
 resolve_call (gfc_code *c)
@@ -4079,6 +4222,11 @@ resolve_call (gfc_code *c)
     gfc_warning (OPT_Wdeprecated_declarations,
 		 "Using subroutine %qs at %L is deprecated",
 		 c->resolved_sym->name, &c->loc);
+
+  csym = c->resolved_sym ? c->resolved_sym : csym;
+  if (t && gfc_current_ns->import_state != IMPORT_NOT_SET && !c->resolved_isym
+      && csym != gfc_current_ns->proc_name)
+    return check_sym_import_status (csym, c->symtree, NULL, c, gfc_current_ns);
 
   return t;
 }
@@ -4807,34 +4955,6 @@ resolve_operator (gfc_expr *e)
 	      return false;
 	    }
 	}
-
-      /* coranks have to be equal or one has to be zero to be combinable.  */
-      if (op1->corank == op2->corank || (op1->corank != 0 && op2->corank == 0))
-	{
-	  e->corank = op1->corank;
-	  /* Only do this, when regular array has not set a shape yet.  */
-	  if (e->shape == NULL)
-	    {
-	      if (op1->corank != 0)
-		{
-		  e->shape = gfc_copy_shape (op1->shape, op1->corank);
-		}
-	    }
-	}
-      else if (op1->corank == 0 && op2->corank != 0)
-	{
-	  e->corank = op2->corank;
-	  /* Only do this, when regular array has not set a shape yet.  */
-	  if (e->shape == NULL)
-	    e->shape = gfc_copy_shape (op2->shape, op2->corank);
-	}
-      else
-	{
-	  gfc_error ("Inconsistent coranks for operator at %L and %L",
-		     &op1->where, &op2->where);
-	  return false;
-	}
-
       break;
 
     case INTRINSIC_PARENTHESES:
@@ -6070,8 +6190,8 @@ gfc_op_rank_conformable (gfc_expr *op1, gfc_expr *op2)
     gfc_expression_rank (op2);
 
   return (op1->rank == 0 || op2->rank == 0 || op1->rank == op2->rank)
-	 && (op1->corank == 0 || op2->corank == 0
-	     || op1->corank == op2->corank);
+	 && (op1->corank == 0 || op2->corank == 0 || op1->corank == op2->corank
+	     || (!gfc_is_coindexed (op1) && !gfc_is_coindexed (op2)));
 }
 
 /* Resolve a variable expression.  */
@@ -7820,6 +7940,7 @@ fixup_unique_dummy (gfc_expr *e)
     e->symtree = st;
 }
 
+
 /* Resolve an expression.  That is, make sure that types of operands agree
    with their operators, intrinsic operators are converted to function calls
    for overloaded types and unresolved function references are resolved.  */
@@ -7946,6 +8067,9 @@ gfc_resolve_expr (gfc_expr *e)
       && e->symtree->n.sym->attr.select_rank_temporary
       && UNLIMITED_POLY (e->symtree->n.sym))
     e->do_not_resolve_again = 1;
+
+  if (t && gfc_current_ns->import_state != IMPORT_NOT_SET)
+    t = check_import_status (e);
 
   return t;
 }
@@ -8740,7 +8864,24 @@ static bool
 conformable_arrays (gfc_expr *e1, gfc_expr *e2)
 {
   gfc_ref *tail;
+  bool scalar;
+
   for (tail = e2->ref; tail && tail->next; tail = tail->next);
+
+  /* If MOLD= is present and is not scalar, and the allocate-object has an
+     explicit-shape-spec, the ranks need not agree.  This may be unintended,
+     so let's emit a warning if -Wsurprising is given.  */
+  scalar = !tail || tail->type == REF_COMPONENT;
+  if (e1->mold && e1->rank > 0
+      && (scalar || (tail->type == REF_ARRAY && tail->u.ar.type != AR_FULL)))
+    {
+      if (scalar || (tail->u.ar.as && e1->rank != tail->u.ar.as->rank))
+	gfc_warning (OPT_Wsurprising, "Allocate-object at %L has rank %d "
+		     "but MOLD= expression at %L has rank %d",
+		     &e2->where, scalar ? 0 : tail->u.ar.as->rank,
+		     &e1->where, e1->rank);
+      return true;
+    }
 
   /* First compare rank.  */
   if ((tail && (!tail->u.ar.as || e1->rank != tail->u.ar.as->rank))
@@ -10583,6 +10724,7 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
   int rank = 0, corank = 0;
   gfc_ref* ref = NULL;
   gfc_expr *selector_expr = NULL;
+  gfc_code *old_code = code;
 
   ns = code->ext.block.ns;
   if (code->expr2)
@@ -10802,6 +10944,8 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
 	ref = gfc_copy_ref (ref);
     }
 
+  gfc_expr *orig_expr1 = code->expr1;
+
   /* Add EXEC_SELECT to switch on type.  */
   new_st = gfc_get_code (code->op);
   new_st->expr1 = code->expr1;
@@ -10829,7 +10973,6 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
   for (body = code->block; body; body = body->block)
     {
       gfc_symbol *vtab;
-      gfc_expr *e;
       c = body->ext.block.case_list;
 
       /* Generate an index integer expression for address of the
@@ -10837,6 +10980,7 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
 	 is stored in c->high and is used to resolve intrinsic cases.  */
       if (c->ts.type != BT_UNKNOWN)
 	{
+	  gfc_expr *e;
 	  if (c->ts.type == BT_DERIVED || c->ts.type == BT_CLASS)
 	    {
 	      vtab = gfc_find_derived_vtab (c->ts.u.derived);
@@ -10870,10 +11014,24 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
 	 that does precisely this here (instead of using the
 	 'global' one).  */
 
+      /* First check the derived type import status.  */
+      if (gfc_current_ns->import_state != IMPORT_NOT_SET
+	  && (c->ts.type == BT_DERIVED || c->ts.type == BT_CLASS))
+	{
+	  st = gfc_find_symtree (gfc_current_ns->sym_root,
+				 c->ts.u.derived->name);
+	  if (!check_sym_import_status (c->ts.u.derived, st, NULL, old_code,
+					gfc_current_ns))
+	    error++;
+	}
+
+      const char * var_name = gfc_var_name_for_select_type_temp (orig_expr1);
       if (c->ts.type == BT_CLASS)
-	sprintf (name, "__tmp_class_%s", c->ts.u.derived->name);
+	snprintf (name, sizeof (name), "__tmp_class_%s_%s",
+		  c->ts.u.derived->name, var_name);
       else if (c->ts.type == BT_DERIVED)
-	sprintf (name, "__tmp_type_%s", c->ts.u.derived->name);
+	snprintf (name, sizeof (name), "__tmp_type_%s_%s",
+		  c->ts.u.derived->name, var_name);
       else if (c->ts.type == BT_CHARACTER)
 	{
 	  HOST_WIDE_INT charlen = 0;
@@ -10881,12 +11039,13 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
 	      && c->ts.u.cl->length->expr_type == EXPR_CONSTANT)
 	    charlen = gfc_mpz_get_hwi (c->ts.u.cl->length->value.integer);
 	  snprintf (name, sizeof (name),
-		    "__tmp_%s_" HOST_WIDE_INT_PRINT_DEC "_%d",
-		    gfc_basic_typename (c->ts.type), charlen, c->ts.kind);
+		    "__tmp_%s_" HOST_WIDE_INT_PRINT_DEC "_%d_%s",
+		    gfc_basic_typename (c->ts.type), charlen, c->ts.kind,
+		    var_name);
 	}
       else
-	sprintf (name, "__tmp_%s_%d", gfc_basic_typename (c->ts.type),
-	         c->ts.kind);
+	snprintf (name, sizeof (name), "__tmp_%s_%d_%s",
+		  gfc_basic_typename (c->ts.type), c->ts.kind, var_name);
 
       st = gfc_find_symtree (ns->sym_root, name);
       gcc_assert (st->n.sym->assoc);
@@ -16819,8 +16978,8 @@ resolve_fl_derived0 (gfc_symbol *sym)
     return false;
 
   /* Now add the caf token field, where needed.  */
-  if (flag_coarray != GFC_FCOARRAY_NONE
-      && !sym->attr.is_class && !sym->attr.vtype)
+  if (flag_coarray == GFC_FCOARRAY_LIB && !sym->attr.is_class
+      && !sym->attr.vtype)
     {
       for (c = sym->components; c; c = c->next)
 	if (!c->attr.dimension && !c->attr.codimension

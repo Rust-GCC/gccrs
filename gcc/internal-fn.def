@@ -282,6 +282,7 @@ DEF_INTERNAL_SIGNED_OPTAB_FN (MULHRS, ECF_CONST | ECF_NOTHROW, first,
 
 DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_ADD, ECF_CONST, first, ssadd, usadd, binary)
 DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_SUB, ECF_CONST, first, sssub, ussub, binary)
+DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_MUL, ECF_CONST, first, ssmul, usmul, binary)
 
 DEF_INTERNAL_SIGNED_OPTAB_FN (SAT_TRUNC, ECF_CONST, first, sstrunc, ustrunc, unary_convert)
 
@@ -524,7 +525,7 @@ DEF_INTERNAL_FN (DEFERRED_INIT, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 
 /* A function to associate the access size and access mode information
    with the corresponding reference to an object.  It only reads from the
-   2nd argument.  */
+   2nd and the 4th arguments.  */
 DEF_INTERNAL_FN (ACCESS_WITH_SIZE, ECF_PURE | ECF_LEAF | ECF_NOTHROW, NULL)
 
 /* DIM_SIZE and DIM_POS return the size of a particular compute

@@ -36,7 +36,9 @@
 
 #if __cplusplus > 201703L && __cpp_lib_concepts
 #include <ext/numeric_traits.h>
+#include <bit> // __bit_width
 #include <numbers>
+#include <limits> // __glibcxx_integral_traps
 
 // This header implements unsigned and signed integer-class types (as per
 // [iterator.concept.winc]) that are one bit wider than the widest supported
@@ -63,7 +65,7 @@ namespace ranges
     public:
       __max_size_type() = default;
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	constexpr
 	__max_size_type(_Tp __i) noexcept
 	  : _M_val(__i), _M_msb(__i < 0)
@@ -72,7 +74,7 @@ namespace ranges
       constexpr explicit
       __max_size_type(const __max_diff_type& __d) noexcept;
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	constexpr explicit
 	operator _Tp() const noexcept
 	{ return _M_val; }
@@ -258,52 +260,52 @@ namespace ranges
 	return *this;
       }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator+=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a + __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator-=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a - __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator*=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a * __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator/=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a / __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator%=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a % __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator&=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a & __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator|=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a | __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator^=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a ^ __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator<<=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a << __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator>>=(_Tp& __a, const __max_size_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a >> __b)); }
@@ -425,10 +427,11 @@ namespace ranges
       using __rep = unsigned long long;
 #endif
       static constexpr size_t _S_rep_bits = sizeof(__rep) * __CHAR_BIT__;
-    private:
+
       __rep _M_val = 0;
       unsigned _M_msb:1 = 0;
 
+    private:
       constexpr explicit
       __max_size_type(__rep __val, int __msb) noexcept
 	: _M_val(__val), _M_msb(__msb)
@@ -444,7 +447,7 @@ namespace ranges
     public:
       __max_diff_type() = default;
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	constexpr
 	__max_diff_type(_Tp __i) noexcept
 	  : _M_rep(__i)
@@ -455,7 +458,7 @@ namespace ranges
 	: _M_rep(__d)
       { }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	constexpr explicit
 	operator _Tp() const noexcept
 	{ return static_cast<_Tp>(_M_rep); }
@@ -588,52 +591,52 @@ namespace ranges
 	return *this;
       }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator+=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a + __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator-=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a - __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator*=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a * __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator/=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a / __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator%=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a % __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator&=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a & __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator|=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a | __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator^=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a ^ __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator<<=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a << __b)); }
 
-      template<typename _Tp> requires integral<_Tp> || __is_int128<_Tp>
+      template<typename _Tp> requires integral<_Tp>
 	friend constexpr _Tp&
 	operator>>=(_Tp& __a, const __max_diff_type& __b) noexcept
 	{ return (__a = static_cast<_Tp>(__a >> __b)); }
@@ -752,7 +755,6 @@ namespace ranges
       { return !(__l < __r); }
 #endif
 
-    private:
       __max_size_type _M_rep = 0;
 
       friend class __max_size_type;
@@ -774,10 +776,27 @@ namespace ranges
       static constexpr bool is_signed = false;
       static constexpr bool is_integer = true;
       static constexpr bool is_exact = true;
+      static constexpr bool is_bounded = true;
+      static constexpr bool is_modulo = true;
+      static constexpr bool traps = __glibcxx_integral_traps;
+      static constexpr int radix = 2;
       static constexpr int digits
 	= __gnu_cxx::__int_traits<_Sp::__rep>::__digits + 1;
       static constexpr int digits10
 	= static_cast<int>(digits * numbers::ln2 / numbers::ln10);
+      static constexpr int max_digits10 = 0;
+      static constexpr int min_exponent = 0;
+      static constexpr int min_exponent10 = 0;
+      static constexpr int max_exponent = 0;
+      static constexpr int max_exponent10 = 0;
+      static constexpr bool is_iec559 = false;
+      static constexpr bool has_infinity = false;
+      static constexpr bool has_quiet_NaN = false;
+      static constexpr bool has_signaling_NaN = false;
+      static constexpr bool has_denorm_loss = false;
+      static constexpr bool tinyness_before = false;
+      static constexpr float_denorm_style has_denorm = denorm_absent;
+      static constexpr float_round_style round_style = round_toward_zero;
 
       static constexpr _Sp
       min() noexcept
@@ -790,6 +809,30 @@ namespace ranges
       static constexpr _Sp
       lowest() noexcept
       { return min(); }
+
+      static constexpr _Sp
+      denorm_min() noexcept
+      { return 0; }
+
+      static constexpr _Sp
+      epsilon() noexcept
+      { return 0; }
+
+      static constexpr _Sp
+      round_error() noexcept
+      { return 0; }
+
+      static constexpr _Sp
+      infinity() noexcept
+      { return 0; }
+
+      static constexpr _Sp
+      quiet_NaN() noexcept
+      { return 0; }
+
+      static constexpr _Sp
+      signaling_NaN() noexcept
+      { return 0; }
     };
 
   template<>
@@ -801,9 +844,26 @@ namespace ranges
       static constexpr bool is_signed = true;
       static constexpr bool is_integer = true;
       static constexpr bool is_exact = true;
+      static constexpr bool is_bounded = true;
+      static constexpr bool is_modulo = false;
+      static constexpr bool traps = __glibcxx_integral_traps;
+      static constexpr int radix = 2;
       static constexpr int digits = numeric_limits<_Sp>::digits - 1;
       static constexpr int digits10
 	= static_cast<int>(digits * numbers::ln2 / numbers::ln10);
+      static constexpr int max_digits10 = 0;
+      static constexpr int min_exponent = 0;
+      static constexpr int min_exponent10 = 0;
+      static constexpr int max_exponent = 0;
+      static constexpr int max_exponent10 = 0;
+      static constexpr bool is_iec559 = false;
+      static constexpr bool has_infinity = false;
+      static constexpr bool has_quiet_NaN = false;
+      static constexpr bool has_signaling_NaN = false;
+      static constexpr bool has_denorm_loss = false;
+      static constexpr bool tinyness_before = false;
+      static constexpr float_denorm_style has_denorm = denorm_absent;
+      static constexpr float_round_style round_style = round_toward_zero;
 
       static constexpr _Dp
       min() noexcept
@@ -816,7 +876,41 @@ namespace ranges
       static constexpr _Dp
       lowest() noexcept
       { return min(); }
+
+      static constexpr _Dp
+      denorm_min() noexcept
+      { return 0; }
+
+      static constexpr _Dp
+      epsilon() noexcept
+      { return 0; }
+
+      static constexpr _Dp
+      round_error() noexcept
+      { return 0; }
+
+      static constexpr _Dp
+      infinity() noexcept
+      { return 0; }
+
+      static constexpr _Dp
+      quiet_NaN() noexcept
+      { return 0; }
+
+      static constexpr _Dp
+      signaling_NaN() noexcept
+      { return 0; }
     };
+
+  template<>
+  inline constexpr int
+  __bit_width(ranges::__detail::__max_size_type __x) noexcept
+  {
+    if (__x._M_msb)
+      return numeric_limits<ranges::__detail::__max_size_type>::digits;
+    else
+      return std::__bit_width(__x._M_val);
+  }
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

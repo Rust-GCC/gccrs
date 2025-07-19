@@ -1363,7 +1363,7 @@ pop_scope (void)
 	case VAR_DECL:
 	  /* Warnings for unused variables.  */
 	  if ((!TREE_USED (p) || !DECL_READ_P (p))
-	      && !warning_suppressed_p (p, OPT_Wunused_but_set_variable)
+	      && !warning_suppressed_p (p, OPT_Wunused_but_set_variable_)
 	      && !DECL_IN_SYSTEM_HEADER (p)
 	      && DECL_NAME (p)
 	      && !DECL_ARTIFICIAL (p)
@@ -1377,7 +1377,7 @@ pop_scope (void)
 		}
 	      else if (DECL_CONTEXT (p) == current_function_decl)
 		warning_at (DECL_SOURCE_LOCATION (p),
-			    OPT_Wunused_but_set_variable,
+			    OPT_Wunused_but_set_variable_,
 			    "variable %qD set but not used", p);
 	    }
 
@@ -9790,12 +9790,17 @@ finish_struct (location_t loc, tree t, tree fieldlist, tree attributes,
 	len += list_length (x);
 
 	/* Use the same allocation policy here that make_node uses, to
-	  ensure that this lives as long as the rest of the struct decl.
-	  All decls in an inline function need to be saved.  */
+	   ensure that this lives as long as the rest of the struct decl.
+	   All decls in an inline function need to be saved.  */
 
-	space = ggc_cleared_alloc<struct lang_type> ();
-	space2 = (sorted_fields_type *) ggc_internal_alloc
-	  (sizeof (struct sorted_fields_type) + len * sizeof (tree));
+	space = ((struct lang_type *)
+		 ggc_internal_cleared_alloc (c_dialect_objc ()
+					     ? sizeof (struct lang_type)
+					     : offsetof (struct lang_type,
+							 info)));
+	space2 = ((sorted_fields_type *)
+		  ggc_internal_alloc (sizeof (struct sorted_fields_type)
+				      + len * sizeof (tree)));
 
 	len = 0;
 	space->s = space2;
@@ -10269,7 +10274,10 @@ finish_enum (tree enumtype, tree values, tree attributes)
 
   /* Record the min/max values so that we can warn about bit-field
      enumerations that are too small for the values.  */
-  lt = ggc_cleared_alloc<struct lang_type> ();
+  lt = ((struct lang_type *)
+	ggc_internal_cleared_alloc (c_dialect_objc ()
+				    ? sizeof (struct lang_type)
+				    : offsetof (struct lang_type, info)));
   lt->enum_min = minnode;
   lt->enum_max = maxnode;
   TYPE_LANG_SPECIFIC (enumtype) = lt;
@@ -11457,9 +11465,9 @@ finish_function (location_t end_loc)
 	    && !DECL_READ_P (decl)
 	    && DECL_NAME (decl)
 	    && !DECL_ARTIFICIAL (decl)
-	    && !warning_suppressed_p (decl, OPT_Wunused_but_set_parameter))
+	    && !warning_suppressed_p (decl, OPT_Wunused_but_set_parameter_))
 	  warning_at (DECL_SOURCE_LOCATION (decl),
-		      OPT_Wunused_but_set_parameter,
+		      OPT_Wunused_but_set_parameter_,
 		      "parameter %qD set but not used", decl);
     }
 

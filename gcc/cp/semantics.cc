@@ -3605,11 +3605,13 @@ finish_this_expr (void)
 {
   tree result = NULL_TREE;
 
-  if (current_class_type && LAMBDA_TYPE_P (current_class_type))
+  if (current_class_ref && !LAMBDA_TYPE_P (TREE_TYPE (current_class_ref)))
+    result = current_class_ptr;
+  else if (current_class_type && LAMBDA_TYPE_P (current_class_type))
     result = (lambda_expr_this_capture
 	      (CLASSTYPE_LAMBDA_EXPR (current_class_type), /*add*/true));
-  else if (current_class_ptr)
-    result = current_class_ptr;
+  else
+    gcc_checking_assert (!current_class_ptr);
 
   if (result)
     /* The keyword 'this' is a prvalue expression.  */
@@ -3737,6 +3739,11 @@ finish_unary_op_expr (location_t op_loc, enum tree_code code, cp_expr expr,
     return result;
 
   if (!(complain & tf_warning))
+    return result;
+
+  /* These will never fold into a constant, so no need to check for
+     overflow for them.  */
+  if (code == PREINCREMENT_EXPR || code == PREDECREMENT_EXPR)
     return result;
 
   tree result_ovl = result;
@@ -13359,6 +13366,18 @@ object_type_p (const_tree type)
           && !VOID_TYPE_P (type));
 }
 
+/* [defns.referenceable] True iff TYPE is a referenceable type.  */
+
+static bool
+referenceable_type_p (const_tree type)
+{
+  return (TYPE_REF_P (type)
+	  || object_type_p (type)
+	  || (FUNC_OR_METHOD_TYPE_P (type)
+	      && type_memfn_quals (type) == TYPE_UNQUALIFIED
+	      && type_memfn_rqual (type) == REF_QUAL_NONE));
+}
+
 /* Actually evaluates the trait.  */
 
 static bool
@@ -13528,6 +13547,21 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_NOTHROW_INVOCABLE:
       return expr_noexcept_p (build_invoke (type1, type2, tf_none), tf_none);
 
+    case CPTK_IS_NOTHROW_RELOCATABLE:
+      if (trivially_relocatable_type_p (type1))
+	return true;
+      else
+	{
+	  type1 = strip_array_types (type1);
+	  if (!referenceable_type_p (type1))
+	    return false;
+	  tree arg = make_tree_vec (1);
+	  TREE_VEC_ELT (arg, 0)
+	    = cp_build_reference_type (type1, /*rval=*/true);
+	  return (is_nothrow_xible (INIT_EXPR, type1, arg)
+		  && is_nothrow_xible (BIT_NOT_EXPR, type1, NULL_TREE));
+	}
+
     case CPTK_IS_OBJECT:
       return object_type_p (type1);
 
@@ -13545,6 +13579,9 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
 
     case CPTK_IS_REFERENCE:
       return type_code1 == REFERENCE_TYPE;
+
+    case CPTK_IS_REPLACEABLE:
+      return replaceable_type_p (type1);
 
     case CPTK_IS_SAME:
       return same_type_p (type1, type2);
@@ -13570,6 +13607,9 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_TRIVIALLY_DESTRUCTIBLE:
       return is_trivially_xible (BIT_NOT_EXPR, type1, NULL_TREE);
 
+    case CPTK_IS_TRIVIALLY_RELOCATABLE:
+      return trivially_relocatable_type_p (type1);
+
     case CPTK_IS_UNBOUNDED_ARRAY:
       return array_of_unknown_bound_p (type1);
 
@@ -13593,8 +13633,10 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_DEDUCIBLE:
       return type_targs_deducible_from (type1, type2);
 
-    /* __array_rank is handled in finish_trait_expr. */
+    /* __array_rank and __builtin_type_order are handled in
+       finish_trait_expr.  */
     case CPTK_RANK:
+    case CPTK_TYPE_ORDER:
       gcc_unreachable ();
 
 #define DEFTRAIT_TYPE(CODE, NAME, ARITY) \
@@ -13698,18 +13740,6 @@ same_type_ref_bind_p (cp_trait_kind kind, tree type1, tree type2)
 	      (non_reference (to), non_reference (from))));
 }
 
-/* [defns.referenceable] True iff TYPE is a referenceable type.  */
-
-static bool
-referenceable_type_p (const_tree type)
-{
-  return (TYPE_REF_P (type)
-	  || object_type_p (type)
-	  || (FUNC_OR_METHOD_TYPE_P (type)
-	      && (type_memfn_quals (type) == TYPE_UNQUALIFIED
-		  && type_memfn_rqual (type) == REF_QUAL_NONE)));
-}
-
 /* Process a trait expression.  */
 
 tree
@@ -13724,6 +13754,12 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
       tree trait_expr = make_node (TRAIT_EXPR);
       if (kind == CPTK_RANK)
 	TREE_TYPE (trait_expr) = size_type_node;
+      else if (kind == CPTK_TYPE_ORDER)
+	{
+	  tree val = type_order_value (type1, type1);
+	  if (val != error_mark_node)
+	    TREE_TYPE (trait_expr) = TREE_TYPE (val);
+	}
       else
 	TREE_TYPE (trait_expr) = boolean_type_node;
       TRAIT_EXPR_TYPE1 (trait_expr) = type1;
@@ -13752,8 +13788,11 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_LITERAL_TYPE:
     case CPTK_IS_POD:
     case CPTK_IS_STD_LAYOUT:
+    case CPTK_IS_REPLACEABLE:
+    case CPTK_IS_NOTHROW_RELOCATABLE:
     case CPTK_IS_TRIVIAL:
     case CPTK_IS_TRIVIALLY_COPYABLE:
+    case CPTK_IS_TRIVIALLY_RELOCATABLE:
     case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
       if (!check_trait_type (type1, /* kind = */ 2))
 	return error_mark_node;
@@ -13831,6 +13870,7 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_UNION:
     case CPTK_IS_VOLATILE:
     case CPTK_RANK:
+    case CPTK_TYPE_ORDER:
       break;
 
     case CPTK_IS_LAYOUT_COMPATIBLE:
@@ -13870,6 +13910,8 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
 	++rank;
       val = build_int_cst (size_type_node, rank);
     }
+  else if (kind == CPTK_TYPE_ORDER)
+    val = type_order_value (type1, type2);
   else
     val = (trait_expr_value (kind, type1, type2)
 	   ? boolean_true_node : boolean_false_node);

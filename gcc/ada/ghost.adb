@@ -67,17 +67,6 @@ package body Ghost is
    -- Local subprograms --
    -----------------------
 
-   function Whole_Object_Ref (Ref : Node_Id) return Node_Id;
-   --  For a name that denotes an object, returns a name that denotes the whole
-   --  object, declared by an object declaration, formal parameter declaration,
-   --  etc. For example, for P.X.Comp (J), if P is a package X is a record
-   --  object, this returns P.X.
-
-   function Ghost_Entity (Ref : Node_Id) return Entity_Id;
-   pragma Inline (Ghost_Entity);
-   --  Obtain the entity of a Ghost entity from reference Ref. Return Empty if
-   --  no such entity exists.
-
    procedure Install_Ghost_Mode (Mode : Ghost_Mode_Type);
    pragma Inline (Install_Ghost_Mode);
    --  Install Ghost mode Mode as the Ghost mode in effect
@@ -787,7 +776,7 @@ package body Ghost is
       Formal     : Entity_Id;
       Is_Default : Boolean := False)
    is
-      Actual_Obj : constant Entity_Id := Get_Enclosing_Deep_Object (Actual);
+      Actual_Obj : constant Entity_Id := Get_Enclosing_Ghost_Entity (Actual);
    begin
       if not Is_Ghost_Entity (Formal) then
          return;
@@ -1085,27 +1074,6 @@ package body Ghost is
       end if;
    end Check_Ghost_Type;
 
-   ------------------
-   -- Ghost_Entity --
-   ------------------
-
-   function Ghost_Entity (Ref : Node_Id) return Entity_Id is
-      Obj_Ref : constant Node_Id := Ultimate_Prefix (Ref);
-
-   begin
-      --  When the reference denotes a subcomponent, recover the related whole
-      --  object (SPARK RM 6.9(1)).
-
-      if Is_Entity_Name (Obj_Ref) then
-         return Entity (Obj_Ref);
-
-      --  Otherwise the reference cannot possibly denote a Ghost entity
-
-      else
-         return Empty;
-      end if;
-   end Ghost_Entity;
-
    --------------------------------
    -- Implements_Ghost_Interface --
    --------------------------------
@@ -1197,7 +1165,7 @@ package body Ghost is
       --  entity.
 
       if Nkind (N) = N_Assignment_Statement then
-         Id := Ghost_Entity (Name (N));
+         Id := Get_Enclosing_Ghost_Entity (Name (N));
 
          return Present (Id) and then Is_Ghost_Entity (Id);
       end if;
@@ -1255,7 +1223,7 @@ package body Ghost is
       --  A procedure call is Ghost when it invokes a Ghost procedure
 
       if Nkind (N) = N_Procedure_Call_Statement then
-         Id := Ghost_Entity (Name (N));
+         Id := Get_Enclosing_Ghost_Entity (Name (N));
 
          return Present (Id) and then Is_Ghost_Entity (Id);
       end if;
@@ -1492,29 +1460,23 @@ package body Ghost is
             end if;
 
             declare
-               Whole : constant Node_Id := Whole_Object_Ref (Lhs);
-               Id    : Entity_Id;
+               Id : constant Entity_Id := Get_Enclosing_Ghost_Entity (Lhs);
             begin
-               if Is_Entity_Name (Whole) then
-                  Id := Entity (Whole);
+               if Present (Id) then
+                  --  Left-hand side denotes a Checked ghost entity, so install
+                  --  the region.
 
-                  if Present (Id) then
-                     --  Left-hand side denotes a Checked ghost entity, so
-                     --  install the region.
+                  if Is_Checked_Ghost_Entity (Id) then
+                     Install_Ghost_Region (Check, N);
 
-                     if Is_Checked_Ghost_Entity (Id) then
-                        Install_Ghost_Region (Check, N);
+                  --  Left-hand side denotes an Ignored ghost entity, so
+                  --  install the region, and mark the assignment statement as
+                  --  an ignored ghost assignment, so it will be removed later.
 
-                     --  Left-hand side denotes an Ignored ghost entity, so
-                     --  install the region, and mark the assignment statement
-                     --  as an ignored ghost assignment, so it will be removed
-                     --  later.
-
-                     elsif Is_Ignored_Ghost_Entity (Id) then
-                        Install_Ghost_Region (Ignore, N);
-                        Set_Is_Ignored_Ghost_Node (N);
-                        Record_Ignored_Ghost_Node (N);
-                     end if;
+                  elsif Is_Ignored_Ghost_Entity (Id) then
+                     Install_Ghost_Region (Ignore, N);
+                     Set_Is_Ignored_Ghost_Node (N);
+                     Record_Ignored_Ghost_Node (N);
                   end if;
                end if;
             end;
@@ -1782,7 +1744,7 @@ package body Ghost is
       --  A procedure call becomes Ghost when the procedure being invoked is
       --  Ghost. Install the Ghost mode of the procedure.
 
-      Id := Ghost_Entity (Name (N));
+      Id := Get_Enclosing_Ghost_Entity (Name (N));
 
       if Present (Id) then
          if Is_Checked_Ghost_Entity (Id) then
@@ -2096,7 +2058,7 @@ package body Ghost is
       --  of the target.
 
       if Nkind (N) = N_Assignment_Statement then
-         Id := Ghost_Entity (Name (N));
+         Id := Get_Enclosing_Ghost_Entity (Name (N));
 
          if Present (Id) then
             Set_Ghost_Mode_From_Entity (Id);
@@ -2135,7 +2097,7 @@ package body Ghost is
       --  procedure being invoked.
 
       elsif Nkind (N) = N_Procedure_Call_Statement then
-         Id := Ghost_Entity (Name (N));
+         Id := Get_Enclosing_Ghost_Entity (Name (N));
 
          if Present (Id) then
             Set_Ghost_Mode_From_Entity (Id);
@@ -2156,25 +2118,5 @@ package body Ghost is
          Set_Is_Ignored_Ghost_Entity (Id);
       end if;
    end Set_Is_Ghost_Entity;
-
-   ----------------------
-   -- Whole_Object_Ref --
-   ----------------------
-
-   function Whole_Object_Ref (Ref : Node_Id) return Node_Id is
-   begin
-      if Nkind (Ref) in N_Indexed_Component | N_Slice
-        or else (Nkind (Ref) = N_Selected_Component
-                   and then Is_Object_Reference (Prefix (Ref)))
-      then
-         if Is_Access_Type (Etype (Prefix (Ref))) then
-            return Ref;
-         else
-            return Whole_Object_Ref (Prefix (Ref));
-         end if;
-      else
-         return Ref;
-      end if;
-   end Whole_Object_Ref;
 
 end Ghost;

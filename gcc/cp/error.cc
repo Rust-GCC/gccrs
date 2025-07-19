@@ -308,7 +308,7 @@ cxx_initialize_diagnostics (diagnostic_context *context)
   diagnostic_text_starter (context) = cp_diagnostic_text_starter;
   /* diagnostic_finalizer is already c_diagnostic_text_finalizer.  */
   context->set_format_decoder (cp_printer);
-  context->m_adjust_diagnostic_info = cp_adjust_diagnostic_info;
+  context->set_adjust_diagnostic_info_callback (cp_adjust_diagnostic_info);
 }
 
 /* Dump an '@module' name suffix for DECL, if it's attached to an import.  */
@@ -810,6 +810,7 @@ dump_type (cxx_pretty_printer *pp, tree t, int flags)
       pp_cxx_ws_string (pp,
 			 TYPENAME_IS_ENUM_P (t) ? "enum"
 			 : TYPENAME_IS_CLASS_P (t) ? "class"
+			 : TYPENAME_IS_UNION_P (t) ? "union"
 			 : "typename");
       dump_typename (pp, t, flags);
       break;

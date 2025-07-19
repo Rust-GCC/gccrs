@@ -955,6 +955,16 @@
 #endif /* !defined(__cpp_lib_optional) && defined(__glibcxx_want_optional) */
 #undef __glibcxx_want_optional
 
+#if !defined(__cpp_lib_optional_range_support)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_optional_range_support 202406L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_optional_range_support)
+#   define __cpp_lib_optional_range_support 202406L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_optional_range_support) && defined(__glibcxx_want_optional_range_support) */
+#undef __glibcxx_want_optional_range_support
+
 #if !defined(__cpp_lib_destroying_delete)
 # if (__cplusplus >= 202002L) && (__cpp_impl_destroying_delete)
 #  define __glibcxx_destroying_delete 201806L
@@ -1116,8 +1126,9 @@
 
 #if !defined(__cpp_lib_mdspan)
 # if (__cplusplus >= 202100L)
-#  define __glibcxx_mdspan 1L
+#  define __glibcxx_mdspan 202207L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_mdspan)
+#   define __cpp_lib_mdspan 202207L
 #  endif
 # endif
 #endif /* !defined(__cpp_lib_mdspan) && defined(__glibcxx_want_mdspan) */
@@ -1214,7 +1225,12 @@
 #undef __glibcxx_want_constexpr_utility
 
 #if !defined(__cpp_lib_shift)
-# if (__cplusplus >= 202002L)
+# if (__cplusplus >= 202100L)
+#  define __glibcxx_shift 202202L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_shift)
+#   define __cpp_lib_shift 202202L
+#  endif
+# elif (__cplusplus >= 202002L)
 #  define __glibcxx_shift 201806L
 #  if defined(__glibcxx_want_all) || defined(__glibcxx_want_shift)
 #   define __cpp_lib_shift 201806L
@@ -2232,5 +2248,65 @@
 # endif
 #endif /* !defined(__cpp_lib_polymorphic) && defined(__glibcxx_want_polymorphic) */
 #undef __glibcxx_want_polymorphic
+
+#if !defined(__cpp_lib_smart_ptr_owner_equality)
+# if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
+#  define __glibcxx_smart_ptr_owner_equality 202306L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_smart_ptr_owner_equality)
+#   define __cpp_lib_smart_ptr_owner_equality 202306L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_smart_ptr_owner_equality) && defined(__glibcxx_want_smart_ptr_owner_equality) */
+#undef __glibcxx_want_smart_ptr_owner_equality
+
+#if !defined(__cpp_lib_sstream_from_string_view)
+# if (__cplusplus >  202302L) && _GLIBCXX_HOSTED
+#  define __glibcxx_sstream_from_string_view 202306L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_sstream_from_string_view)
+#   define __cpp_lib_sstream_from_string_view 202306L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_sstream_from_string_view) && defined(__glibcxx_want_sstream_from_string_view) */
+#undef __glibcxx_want_sstream_from_string_view
+
+#if !defined(__cpp_lib_type_order)
+# if (__cplusplus >  202302L) && (__has_builtin(__builtin_type_order) && __cpp_lib_three_way_comparison >= 201907L)
+#  define __glibcxx_type_order 202506L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_type_order)
+#   define __cpp_lib_type_order 202506L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_type_order) && defined(__glibcxx_want_type_order) */
+#undef __glibcxx_want_type_order
+
+#if !defined(__cpp_lib_exception_ptr_cast)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_exception_ptr_cast 202506L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_exception_ptr_cast)
+#   define __cpp_lib_exception_ptr_cast 202506L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_exception_ptr_cast) && defined(__glibcxx_want_exception_ptr_cast) */
+#undef __glibcxx_want_exception_ptr_cast
+
+#if !defined(__cpp_lib_bitset)
+# if (__cplusplus >  202302L)
+#  define __glibcxx_bitset 202306L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_bitset)
+#   define __cpp_lib_bitset 202306L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_bitset) && defined(__glibcxx_want_bitset) */
+#undef __glibcxx_want_bitset
+
+#if !defined(__cpp_lib_constexpr_exceptions)
+# if (__cplusplus >  202302L) && (__cpp_constexpr_exceptions >= 202411L)
+#  define __glibcxx_constexpr_exceptions 202411L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_constexpr_exceptions)
+#   define __cpp_lib_constexpr_exceptions 202411L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_constexpr_exceptions) && defined(__glibcxx_want_constexpr_exceptions) */
+#undef __glibcxx_want_constexpr_exceptions
 
 #undef __glibcxx_want_all

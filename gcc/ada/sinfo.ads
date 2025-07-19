@@ -737,14 +737,6 @@ package Sinfo is
    --  section describes the usage of the semantic fields, which are used to
    --  contain additional information determined during semantic analysis.
 
-   --  Accept_Handler_Records
-   --    This field is present only in an N_Accept_Alternative node. It is used
-   --    to temporarily hold the exception handler records from an accept
-   --    statement in a selective accept. These exception handlers will
-   --    eventually be placed in the Handler_Records list of the procedure
-   --    built for this accept (see Expand_N_Selective_Accept procedure in
-   --    Exp_Ch9 for further details).
-
    --  Access_Types_To_Process
    --    Present in N_Freeze_Entity nodes for Incomplete or private types.
    --    Contains the list of access types which may require specific treatment
@@ -1515,11 +1507,6 @@ package Sinfo is
    --    range is given by the programmer, even if that range is identical to
    --    the range for Float.
 
-   --  Incomplete_View
-   --    Present in full type declarations that are completions of incomplete
-   --    type declarations. Denotes the corresponding incomplete view declared
-   --    by the incomplete declaration.
-
    --  Inherited_Discriminant
    --    This flag is present in N_Component_Association nodes. It indicates
    --    that a given component association in an extension aggregate is the
@@ -1701,6 +1688,7 @@ package Sinfo is
    --      Pre
    --      Pre_Class
    --      Precondition
+   --      Program_Exit
    --      Refined_Depends
    --      Refined_Global
    --      Refined_Post
@@ -2323,6 +2311,15 @@ package Sinfo is
    --    Present in call and variable reference marker nodes. References the
    --    entity of the original entity, operator, or subprogram being invoked,
    --    or the original variable being read or written.
+
+   --  Call_Or_Target_Loop
+   --    Present in continue statements. Set by Analyze_Continue_Statement and
+   --    used by Expand_Continue_Statement. If Analyze_Continue_Statement
+   --    concluded that its input node was in fact a call to a procedure named
+   --    "Continue", it contains the corresponding N_Procedure_Call_Statement
+   --    node. Otherwise it contains the E_Loop_Id of the loop the continue
+   --    statement applies to. Finally, if Analyze_Continue_Statement detects
+   --    an error, this field is set to Empty.
 
    --  Target_Type
    --    Used in an N_Validate_Unchecked_Conversion node to point to the target
@@ -5219,6 +5216,23 @@ package Sinfo is
       --  Condition (set to Empty if no WHEN part present)
       --  Next_Exit_Statement : Next exit on chain
 
+      ------------------------
+      -- Continue Statement --
+      ------------------------
+
+      --  This is a GNAT extension
+
+      --  CONTINUE_STATEMENT ::= continue [loop_NAME] [when CONDITION];
+
+      --  Gigi restriction: The expander ensures that the type of the Condition
+      --  field is always Standard.Boolean, even if the type in the source is
+      --  some non-standard boolean type.
+
+      --  N_Continue_Statement
+      --  Sloc points to CONTINUE
+      --  Name (set to Empty if no loop name present)
+      --  Condition (set to Empty if no WHEN part present)
+
       -------------------------
       -- 5.9  Goto Statement --
       -------------------------
@@ -6381,7 +6395,6 @@ package Sinfo is
       --  Condition from the guard (set to Empty if no guard present)
       --  Statements (set to Empty_List if no statements)
       --  Pragmas_Before pragmas before alt (set to No_List if none)
-      --  Accept_Handler_Records
 
       ------------------------------
       -- 9.7.1  Delay Alternative --
@@ -7966,8 +7979,9 @@ package Sinfo is
       --  operation) are also in this list.
 
       --  Contract_Test_Cases contains a collection of pragmas that correspond
-      --  to aspects/pragmas Contract_Cases, Exceptional_Cases, Test_Case and
-      --  Subprogram_Variant. The ordering in the list is in LIFO fashion.
+      --  to aspects/pragmas Contract_Cases, Exceptional_Cases, Program_Exit,
+      --  Test_Case and Subprogram_Variant. The ordering in the list is in LIFO
+      --  fashion.
 
       --  Classifications contains pragmas that either declare, categorize, or
       --  establish dependencies between subprogram or package inputs and
@@ -8184,7 +8198,7 @@ package Sinfo is
       --  An implicit label declaration is created for every occurrence of a
       --  label on a statement or a label on a block or loop. It is chained
       --  in the declarations of the innermost enclosing block as specified
-      --  in RM section 5.1 (3).
+      --  in RM section 5.1 (12).
 
       --  The Defining_Identifier is the actual identifier for the statement
       --  identifier. Note that the occurrence of the label is a reference, NOT

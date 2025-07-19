@@ -1087,6 +1087,7 @@ c_cpp_builtins (cpp_reader *pfile)
 	{
 	  /* Set feature test macros for C++26.  */
 	  cpp_define (pfile, "__cpp_constexpr=202406L");
+	  cpp_define (pfile, "__cpp_constexpr_exceptions=202411L");
 	  cpp_define (pfile, "__cpp_static_assert=202306L");
 	  cpp_define (pfile, "__cpp_placeholder_variables=202306L");
 	  cpp_define (pfile, "__cpp_structured_bindings=202403L");
@@ -1094,6 +1095,8 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_variadic_friend=202403L");
 	  cpp_define (pfile, "__cpp_pack_indexing=202311L");
 	  cpp_define (pfile, "__cpp_pp_embed=202502L");
+	  cpp_define (pfile, "__cpp_constexpr_virtual_inheritance=202506L");
+	  cpp_define (pfile, "__cpp_trivial_relocatability=202502L");
 	}
       if (flag_concepts && cxx_dialect > cxx14)
 	cpp_define (pfile, "__cpp_concepts=202002L");

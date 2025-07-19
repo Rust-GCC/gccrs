@@ -1046,10 +1046,17 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
   __size_to_integer(unsigned __GLIBCXX_TYPE_INT_N_2 __n) { return __n; }
 #endif
 #if defined(__GLIBCXX_TYPE_INT_N_3)
-  __extension__ inline _GLIBCXX_CONSTEXPR unsigned __GLIBCXX_TYPE_INT_N_3
-  __size_to_integer(__GLIBCXX_TYPE_INT_N_3 __n) { return __n; }
   __extension__ inline _GLIBCXX_CONSTEXPR __GLIBCXX_TYPE_INT_N_3
+  __size_to_integer(__GLIBCXX_TYPE_INT_N_3 __n) { return __n; }
+  __extension__ inline _GLIBCXX_CONSTEXPR unsigned __GLIBCXX_TYPE_INT_N_3
   __size_to_integer(unsigned __GLIBCXX_TYPE_INT_N_3 __n) { return __n; }
+#endif
+
+#if defined(__STRICT_ANSI__) && defined(__SIZEOF_INT128__)
+  __extension__ inline _GLIBCXX_CONSTEXPR __int128
+  __size_to_integer(__int128 __n) { return __n; }
+  __extension__ inline _GLIBCXX_CONSTEXPR unsigned __int128
+  __size_to_integer(unsigned __int128 __n) { return __n; }
 #endif
 
   inline _GLIBCXX_CONSTEXPR long long
@@ -1058,7 +1065,7 @@ _GLIBCXX_END_NAMESPACE_CONTAINER
   __size_to_integer(double __n) { return (long long)__n; }
   inline _GLIBCXX_CONSTEXPR long long
   __size_to_integer(long double __n) { return (long long)__n; }
-#if !defined(__STRICT_ANSI__) && defined(_GLIBCXX_USE_FLOAT128)
+#ifdef _GLIBCXX_USE_FLOAT128
   __extension__ inline _GLIBCXX_CONSTEXPR long long
   __size_to_integer(__float128 __n) { return (long long)__n; }
 #endif

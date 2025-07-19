@@ -408,7 +408,7 @@ emit_vlmax_insn_lra (unsigned icode, unsigned insn_flags, rtx *ops, rtx vl)
   gcc_assert (!can_create_pseudo_p ());
   machine_mode mode = GET_MODE (ops[0]);
 
-  if (imm_avl_p (mode))
+  if (imm_avl_p (mode) && !TARGET_XTHEADVECTOR)
     {
       /* Even though VL is a real hardreg already allocated since
 	 it is post-RA now, we still gain benefits that we emit
@@ -435,6 +435,26 @@ emit_nonvlmax_insn (unsigned icode, unsigned insn_flags, rtx *ops, rtx vl)
   insn_expander<RVV_INSN_OPERANDS_MAX> e (insn_flags, false);
   e.set_vl (vl);
   e.emit_insn ((enum insn_code) icode, ops);
+}
+
+/* Emit either a VLMAX insn or a non-VLMAX insn depending on TYPE.  For a
+   non-VLMAX insn, the length must be specified in VL.  */
+
+void
+emit_avltype_insn (unsigned icode, unsigned insn_flags, rtx *ops,
+		   avl_type type, rtx vl)
+{
+  if (type != avl_type::VLMAX && vl != NULL_RTX)
+    {
+      insn_expander<RVV_INSN_OPERANDS_MAX> e (insn_flags, false);
+      e.set_vl (vl);
+      e.emit_insn ((enum insn_code) icode, ops);
+    }
+  else
+    {
+      insn_expander<RVV_INSN_OPERANDS_MAX> e (insn_flags, true);
+      e.emit_insn ((enum insn_code) icode, ops);
+    }
 }
 
 /* Return true if the vector duplicated by a super element which is the fusion
@@ -1598,7 +1618,7 @@ expand_const_vector_interleaved_stepped_npatterns (rtx target, rtx src,
 	  shifted_vid = gen_reg_rtx (mode);
 	  rtx shift = gen_int_mode (1, Xmode);
 	  rtx shift_ops[] = {shifted_vid, vid, shift};
-	  emit_vlmax_insn (code_for_pred_scalar (ASHIFT, mode), BINARY_OP,
+	  emit_vlmax_insn (code_for_pred_scalar (LSHIFTRT, mode), BINARY_OP,
 			   shift_ops);
 	}
       else
@@ -2144,21 +2164,40 @@ sew64_scalar_helper (rtx *operands, rtx *scalar_op, rtx vl,
       return false;
     }
 
+  bool avoid_strided_broadcast = false;
   if (CONST_INT_P (*scalar_op))
     {
       if (maybe_gt (GET_MODE_SIZE (scalar_mode), GET_MODE_SIZE (Pmode)))
-	*scalar_op = force_const_mem (scalar_mode, *scalar_op);
+	{
+	  if (strided_load_broadcast_p ())
+	    *scalar_op = force_const_mem (scalar_mode, *scalar_op);
+	  else
+	    avoid_strided_broadcast = true;
+	}
       else
 	*scalar_op = force_reg (scalar_mode, *scalar_op);
     }
 
   rtx tmp = gen_reg_rtx (vector_mode);
-  rtx ops[] = {tmp, *scalar_op};
-  if (type == VLMAX)
-    emit_vlmax_insn (code_for_pred_broadcast (vector_mode), UNARY_OP, ops);
+  if (!avoid_strided_broadcast)
+    {
+      rtx ops[] = {tmp, *scalar_op};
+      emit_avltype_insn (code_for_pred_broadcast (vector_mode), UNARY_OP, ops,
+			 type, vl);
+    }
   else
-    emit_nonvlmax_insn (code_for_pred_broadcast (vector_mode), UNARY_OP, ops,
-			vl);
+    {
+      /* Load scalar as V1DI and broadcast via vrgather.vi.  */
+      rtx tmp1 = gen_reg_rtx (V1DImode);
+      emit_move_insn (tmp1, lowpart_subreg (V1DImode, *scalar_op,
+					    scalar_mode));
+      tmp1 = lowpart_subreg (vector_mode, tmp1, V1DImode);
+
+      rtx ops[] = {tmp, tmp1, CONST0_RTX (Pmode)};
+      emit_vlmax_insn (code_for_pred_gather_scalar (vector_mode),
+		       BINARY_OP, ops);
+    }
+
   emit_vector_func (operands, tmp);
 
   return true;
@@ -4723,7 +4762,7 @@ prepare_ternary_operands (rtx *ops)
 				   ops[4], ops[1], ops[6], ops[7], ops[9]));
       ops[5] = ops[4] = ops[0];
     }
-  else
+  else if (VECTOR_MODE_P (GET_MODE (ops[2])))
     {
       /* Swap the multiplication ops if the fallback value is the
 	 second of the two.  */
@@ -4733,8 +4772,10 @@ prepare_ternary_operands (rtx *ops)
       /* TODO: ??? Maybe we could support splitting FMA (a, 4, b)
 	 into PLUS (ASHIFT (a, 2), b) according to uarchs.  */
     }
-  gcc_assert (rtx_equal_p (ops[5], RVV_VUNDEF (mode))
-	      || rtx_equal_p (ops[5], ops[2]) || rtx_equal_p (ops[5], ops[4]));
+  gcc_assert (
+    rtx_equal_p (ops[5], RVV_VUNDEF (mode)) || rtx_equal_p (ops[5], ops[2])
+    || (!VECTOR_MODE_P (GET_MODE (ops[2])) && rtx_equal_p (ops[5], ops[3]))
+    || rtx_equal_p (ops[5], ops[4]));
 }
 
 /* Expand VEC_MASK_LEN_{LOAD_LANES,STORE_LANES}.  */
@@ -5537,6 +5578,12 @@ expand_vx_binary_vec_dup_vec (rtx op_0, rtx op_1, rtx op_2,
     case IOR:
     case XOR:
     case MULT:
+    case SMAX:
+    case UMAX:
+    case SMIN:
+    case UMIN:
+    case US_PLUS:
+    case SS_PLUS:
       icode = code_for_pred_scalar (code, mode);
       break;
     case MINUS:
@@ -5568,6 +5615,17 @@ expand_vx_binary_vec_vec_dup (rtx op_0, rtx op_1, rtx op_2,
     case XOR:
     case MULT:
     case DIV:
+    case UDIV:
+    case MOD:
+    case UMOD:
+    case SMAX:
+    case UMAX:
+    case SMIN:
+    case UMIN:
+    case US_PLUS:
+    case US_MINUS:
+    case SS_PLUS:
+    case SS_MINUS:
       icode = code_for_pred_scalar (code, mode);
       break;
     default:
@@ -5750,9 +5808,9 @@ count_regno_occurrences (rtx_insn *rinsn, unsigned int regno)
   return count;
 }
 
-/* Return true if the OP can be directly broadcasted.  */
+/* Return true if the OP can be directly broadcast.  */
 bool
-can_be_broadcasted_p (rtx op)
+can_be_broadcast_p (rtx op)
 {
   machine_mode mode = GET_MODE (op);
   /* We don't allow RA (register allocation) reload generate
@@ -5764,7 +5822,8 @@ can_be_broadcasted_p (rtx op)
     return false;
 
   if (satisfies_constraint_K (op) || register_operand (op, mode)
-      || satisfies_constraint_Wdm (op) || rtx_equal_p (op, CONST0_RTX (mode)))
+      || (strided_load_broadcast_p () && satisfies_constraint_Wdm (op))
+      || rtx_equal_p (op, CONST0_RTX (mode)))
     return true;
 
   return can_create_pseudo_p () && nonmemory_operand (op, mode);

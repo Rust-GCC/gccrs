@@ -75,7 +75,7 @@
 			   V1DF V2DF
 			   (V1TF "TARGET_VXE") (TF "TARGET_VXE")])
 
-(define_mode_iterator VF [(V2SF "TARGET_VXE") (V4SF "TARGET_VXE") V2DF])
+(define_mode_iterator VF [V2SF V4SF V2DF])
 
 ; All modes present in V_HW1 and VFT.
 (define_mode_iterator V_HW1_FT [V16QI V8HI V4SI V2DI V1TI V1DF
@@ -88,6 +88,13 @@
 ; for instructions which might trigger IEEE exceptions.
 (define_mode_iterator VF_HW [(V4SF "TARGET_VXE") V2DF (V1TF "TARGET_VXE")
 			     (TF "TARGET_VXE")])
+
+; FP scalar and vector modes
+(define_mode_iterator VFT_BFP [SF DF
+			      (V1SF "TARGET_VXE") (V2SF "TARGET_VXE") (V4SF "TARGET_VXE")
+			      V1DF V2DF
+			      (V1TF "TARGET_VXE") (TF "TARGET_VXE")])
+
 
 (define_mode_iterator V_8   [V1QI])
 (define_mode_iterator V_16  [V2QI  V1HI])
@@ -512,7 +519,7 @@
 (define_mode_iterator VEC_SET_NONFLOAT
   [V1QI V2QI V4QI V8QI V16QI V1HI V2HI V4HI V8HI V1SI V2SI V4SI V1DI V2DI V2SF V4SF])
 ; Iterator for single element float vectors
-(define_mode_iterator VEC_SET_SINGLEFLOAT [(V1SF "TARGET_VXE") V1DF (V1TF "TARGET_VXE")])
+(define_mode_iterator VEC_SET_SINGLEFLOAT [V1SF V1DF (V1TF "TARGET_VXE")])
 
 ; FIXME: Support also vector mode operands for 1
 ; FIXME: A target memory operand seems to be useful otherwise we end
@@ -3565,14 +3572,341 @@
   "veval\t%v0,%v1,%v2,%v3,%b4"
   [(set_attr "op_type" "VRI")])
 
-; reduc_smin
-; reduc_smax
-; reduc_umin
-; reduc_umax
-
 ; vec_pack_sfix_trunc: convert + pack ?
 ; vec_pack_ufix_trunc
 ; vec_unpacks_float_hi
 ; vec_unpacks_float_lo
 ; vec_unpacku_float_hi
 ; vec_unpacku_float_lo
+
+(define_expand "avg<mode>3_ceil"
+  [(set (match_operand:VIT_HW_VXE3_T                        0 "register_operand")
+	(unspec:VIT_HW_VXE3_T [(match_operand:VIT_HW_VXE3_T 1 "register_operand")
+			       (match_operand:VIT_HW_VXE3_T 2 "register_operand")]
+			      UNSPEC_VEC_AVG))]
+  "TARGET_VX")
+
+(define_expand "uavg<mode>3_ceil"
+  [(set (match_operand:VIT_HW_VXE3_T                        0 "register_operand")
+	(unspec:VIT_HW_VXE3_T [(match_operand:VIT_HW_VXE3_T 1 "register_operand")
+			       (match_operand:VIT_HW_VXE3_T 2 "register_operand")]
+			      UNSPEC_VEC_AVGU))]
+  "TARGET_VX")
+
+(define_expand "smul<mode>3_highpart"
+  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand")
+	(smul_highpart:VIT_HW_VXE3_DT (match_operand:VIT_HW_VXE3_DT 1 "register_operand")
+				      (match_operand:VIT_HW_VXE3_DT 2 "register_operand")))]
+  "TARGET_VX")
+
+(define_expand "umul<mode>3_highpart"
+  [(set (match_operand:VIT_HW_VXE3_DT 0 "register_operand")
+	(umul_highpart:VIT_HW_VXE3_DT (match_operand:VIT_HW_VXE3_DT 1 "register_operand")
+				      (match_operand:VIT_HW_VXE3_DT 2 "register_operand")))]
+  "TARGET_VX")
+
+; fmax
+(define_expand "fmax<mode>3"
+  [(set (match_operand:VFT_BFP                  0 "register_operand")
+	(unspec:VFT_BFP [(match_operand:VFT_BFP 1 "register_operand")
+	       (match_operand:VFT_BFP           2 "register_operand")
+	       (const_int 4)]
+	      UNSPEC_FMAX))]
+  "TARGET_VXE")
+
+; fmin
+(define_expand "fmin<mode>3"
+  [(set (match_operand:VFT_BFP                  0 "register_operand")
+	(unspec:VFT_BFP [(match_operand:VFT_BFP 1 "register_operand")
+	       (match_operand:VFT_BFP           2 "register_operand")
+	       (const_int 4)]
+	      UNSPEC_FMIN))]
+  "TARGET_VXE")
+
+; reduc_plus
+(define_expand "reduc_plus_scal_<mode>"
+  [(set (match_dup 4)
+	(unspec:V4SI [(match_operand:VI_HW_QH 1 "register_operand")
+		      (match_dup 2)]
+		      UNSPEC_VEC_VSUM))
+   (set (match_dup 5)
+	(unspec:V2DI [(match_dup 4) (match_dup 3)] UNSPEC_VEC_VSUMQ))
+   (set (match_operand:<non_vec> 0 "register_operand")
+	(vec_select:<non_vec> (match_dup 6)
+			      (parallel [(match_dup 7)])))]
+  "TARGET_VX"
+{
+  operands[2] = force_reg (<MODE>mode, CONST0_RTX (<MODE>mode));
+  operands[3] = simplify_gen_subreg (V4SImode, operands[2], <MODE>mode, 0);
+  operands[4] = gen_reg_rtx (V4SImode);
+  operands[5] = gen_reg_rtx (V2DImode);
+  operands[6] = simplify_gen_subreg (<MODE>mode, operands[5], V2DImode, 0);
+  operands[7] = GEN_INT (16 / GET_MODE_SIZE (<non_vec>mode) - 1);
+})
+
+(define_expand "reduc_plus_scal_<mode>"
+  [(set (match_dup 3)
+	(unspec:V2DI [(match_operand:VI_HW_SD 1 "register_operand")
+		      (match_dup 2)]
+		      UNSPEC_VEC_VSUMQ))
+   (set (match_operand:<non_vec> 0 "register_operand")
+	(vec_select:<non_vec> (match_dup 4)
+			      (parallel [(match_dup 5)])))]
+  "TARGET_VX"
+{
+  operands[2] = force_reg (<MODE>mode, CONST0_RTX (<MODE>mode));
+  operands[3] = gen_reg_rtx (V2DImode);
+  operands[4] = simplify_gen_subreg (<MODE>mode, operands[3], V2DImode, 0);
+  operands[5] = GEN_INT (16 / GET_MODE_SIZE (<non_vec>mode) - 1);
+})
+
+(define_expand "reduc_plus_scal_v2df"
+  [(set (match_dup 2)
+	(unspec:V2DF [(match_operand:V2DF 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3) (plus:V2DF (match_dup 1) (match_dup 2)))
+   (set (match_operand:DF 0 "register_operand")
+	(vec_select:DF (match_dup 3) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V2DFmode);
+  operands[3] = gen_reg_rtx (V2DFmode);
+})
+
+(define_expand "reduc_plus_scal_v4sf"
+  [(set (match_dup 2)
+	(unspec:V4SF [(match_operand:V4SF 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 4)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3) (plus:V4SF (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(unspec:V4SF [(match_dup 3) (match_dup 3) (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 5) (plus:V4SF (match_dup 3) (match_dup 4)))
+   (set (match_operand:SF 0 "register_operand")
+	(vec_select:SF (match_dup 5) (parallel [(const_int 0)])))]
+  "TARGET_VXE"
+{
+  operands[2] = gen_reg_rtx (V4SFmode);
+  operands[3] = gen_reg_rtx (V4SFmode);
+  operands[4] = gen_reg_rtx (V4SFmode);
+  operands[5] = gen_reg_rtx (V4SFmode);
+})
+
+; reduc_fmin, reduc_fmax, reduc_smin, reduc_smax
+
+(define_int_iterator REDUC_FMINMAX [UNSPEC_FMAX UNSPEC_FMIN])
+(define_int_attr reduc_fminmax_name [(UNSPEC_FMAX "fmax") (UNSPEC_FMIN "fmin")])
+(define_code_iterator REDUC_MINMAX [smin smax])
+(define_code_attr reduc_minmax_name [(smin "smin") (smax "smax")])
+
+(define_expand "reduc_<reduc_fminmax_name>_scal_v2df"
+  [(set (match_dup 2)
+	(unspec:V2DF [(match_operand:V2DF 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(unspec:V2DF [(match_dup 1) (match_dup 2) (const_int 4)] REDUC_FMINMAX))
+   (set (match_operand:DF 0 "register_operand" "")
+	(vec_select:DF (match_dup 3) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V2DFmode);
+  operands[3] = gen_reg_rtx (V2DFmode);
+})
+
+(define_expand "reduc_<reduc_fminmax_name>_scal_v4sf"
+  [(set (match_dup 2)
+	(unspec:V4SF [(match_operand:V4SF 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 4)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(unspec:V4SF [(match_dup 1) (match_dup 2) (const_int 4)] REDUC_FMINMAX))
+   (set (match_dup 4)
+	(unspec:V4SF [(match_dup 3)
+		      (match_dup 3)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 5)
+	(unspec:V4SF [(match_dup 3) (match_dup 4) (const_int 4)] REDUC_FMINMAX))
+   (set (match_operand:SF 0 "register_operand")
+	(vec_select:SF (match_dup 5) (parallel [(const_int 0)])))]
+   "TARGET_VXE"
+{
+  operands[2] = gen_reg_rtx (V4SFmode);
+  operands[3] = gen_reg_rtx (V4SFmode);
+  operands[4] = gen_reg_rtx (V4SFmode);
+  operands[5] = gen_reg_rtx (V4SFmode);
+})
+
+(define_expand "reduc_<reduc_minmax_name>_scal_v2df"
+  [(set (match_dup 2)
+	(unspec:V2DF [(match_operand:V2DF 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(REDUC_MINMAX:V2DF (match_dup 1) (match_dup 2)))
+   (set (match_operand:DF 0 "register_operand" "")
+	(vec_select:DF (match_dup 3) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V2DFmode);
+  operands[3] = gen_reg_rtx (V2DFmode);
+})
+
+(define_expand "reduc_<reduc_minmax_name>_scal_v4sf"
+  [(set (match_dup 2)
+	(unspec:V4SF [(match_operand:V4SF 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 4)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(REDUC_MINMAX:V4SF (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(unspec:V4SF [(match_dup 3)
+		      (match_dup 3)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 5)
+	(REDUC_MINMAX:V4SF (match_dup 3) (match_dup 4)))
+   (set (match_operand:SF 0 "register_operand" "")
+	(vec_select:SF (match_dup 5) (parallel [(const_int 0)])))]
+   "TARGET_VXE"
+{
+  operands[2] = gen_reg_rtx (V4SFmode);
+  operands[3] = gen_reg_rtx (V4SFmode);
+  operands[4] = gen_reg_rtx (V4SFmode);
+  operands[5] = gen_reg_rtx (V4SFmode);
+})
+
+; reduce_and, reduc_ior, reduc_xor
+; reduc_smin, reduc_smax, reduc_umin, reduc_umax
+
+(define_code_iterator REDUCBIN [and xor ior smin smax umin umax])
+(define_code_attr reduc_bin_insn [(and "and") (xor "xor") (ior "ior")
+				  (smin "smin") (smax "smax")
+				  (umin "umin") (umax "umax")])
+
+(define_expand "reduc_<reduc_bin_insn>_scal_v2di"
+  [(set (match_dup 2)
+	(unspec:V2DI [(match_operand:V2DI 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(REDUCBIN:V2DI (match_dup 1) (match_dup 2)))
+   (set (match_operand:DI 0 "register_operand" "")
+	(vec_select:DI (match_dup 3) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V2DImode);
+  operands[3] = gen_reg_rtx (V2DImode);
+})
+
+(define_expand "reduc_<reduc_bin_insn>_scal_v4si"
+  [(set (match_dup 2)
+	(unspec:V4SI [(match_operand:V4SI 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 4)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(REDUCBIN:V4SI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(unspec:V4SI [(match_dup 3)
+		      (match_dup 3)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 5)
+	(REDUCBIN:V4SI (match_dup 3) (match_dup 4)))
+   (set (match_operand:SI 0 "register_operand" "")
+	(vec_select:SI (match_dup 5) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V4SImode);
+  operands[3] = gen_reg_rtx (V4SImode);
+  operands[4] = gen_reg_rtx (V4SImode);
+  operands[5] = gen_reg_rtx (V4SImode);
+})
+
+(define_expand "reduc_<reduc_bin_insn>_scal_v8hi"
+  [(set (match_dup 2)
+	(unspec:V8HI [(match_operand:V8HI 1 "register_operand")
+		      (match_dup 1)
+		      (const_int 2)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(REDUCBIN:V8HI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(unspec:V8HI [(match_dup 3)
+		      (match_dup 3)
+		      (const_int 4)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 5)
+	(REDUCBIN:V8HI (match_dup 3) (match_dup 4)))
+   (set (match_dup 6)
+	(unspec:V8HI [(match_dup 5)
+		      (match_dup 5)
+		      (const_int 8)]
+		     UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 7)
+	(REDUCBIN:V8HI (match_dup 5) (match_dup 6)))
+   (set (match_operand:HI 0 "register_operand" "")
+	(vec_select:HI (match_dup 7) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V8HImode);
+  operands[3] = gen_reg_rtx (V8HImode);
+  operands[4] = gen_reg_rtx (V8HImode);
+  operands[5] = gen_reg_rtx (V8HImode);
+  operands[6] = gen_reg_rtx (V8HImode);
+  operands[7] = gen_reg_rtx (V8HImode);
+})
+
+(define_expand "reduc_<reduc_bin_insn>_scal_v16qi"
+  [(set (match_dup 2)
+	(unspec:V16QI [(match_operand:V16QI 1 "register_operand")
+		       (match_dup 1)
+		       (const_int 1)]
+		      UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 3)
+	(REDUCBIN:V16QI (match_dup 1) (match_dup 2)))
+   (set (match_dup 4)
+	(unspec:V16QI [(match_dup 3)
+		       (match_dup 3)
+		       (const_int 2)]
+		      UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 5)
+	(REDUCBIN:V16QI (match_dup 3) (match_dup 4)))
+   (set (match_dup 6)
+	(unspec:V16QI [(match_dup 5)
+		       (match_dup 5)
+		       (const_int 4)]
+		      UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 7)
+	(REDUCBIN:V16QI (match_dup 5) (match_dup 6)))
+   (set (match_dup 8)
+	(unspec:V16QI [(match_dup 7)
+		       (match_dup 7)
+		       (const_int 8)]
+		      UNSPEC_VEC_SLDBYTE))
+   (set (match_dup 9)
+	(REDUCBIN:V16QI (match_dup 7) (match_dup 8)))
+   (set (match_operand:QI 0 "register_operand" "")
+	(vec_select:QI (match_dup 9) (parallel [(const_int 0)])))]
+  "TARGET_VX"
+{
+  operands[2] = gen_reg_rtx (V16QImode);
+  operands[3] = gen_reg_rtx (V16QImode);
+  operands[4] = gen_reg_rtx (V16QImode);
+  operands[5] = gen_reg_rtx (V16QImode);
+  operands[6] = gen_reg_rtx (V16QImode);
+  operands[7] = gen_reg_rtx (V16QImode);
+  operands[8] = gen_reg_rtx (V16QImode);
+  operands[9] = gen_reg_rtx (V16QImode);
+})

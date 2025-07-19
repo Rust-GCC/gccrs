@@ -38,29 +38,24 @@
 
 extern int yy_flex_debug;
 
-static struct {
-  bool first_file, explicitly;
-  int column, right_margin;
-  bool inference_pending() {
-    bool tf = first_file && !explicitly;
-    first_file = false;
-    return tf;
+source_format_t& cdf_source_format();
+
+void
+source_format_t::infer( const char *bol, bool want_reference_format ) {
+  if( bol ) {
+    left = 7;
+    if( want_reference_format ) {
+      right = 73;
+    }
   }
-  inline bool is_fixed() const { return column == 7; }
-  inline bool is_reffmt() const { return is_fixed() && right_margin == 73; }
-  inline bool is_free() const { return ! is_fixed(); }
-  
-  const char * description() const {
-    if( is_reffmt() ) return "REFERENCE";
-    if( is_fixed() ) return "FIXED";
-    if( is_free() ) return "FREE";
-    gcc_unreachable();
-  }    
-} indicator = { true, false, 0, 0 };
+  dbgmsg("%s:%d: %s format detected", __func__, __LINE__,
+         description());
+}
+
 
 // public source format test functions
-bool is_fixed_format() { return indicator.is_fixed(); }
-bool is_reference_format() { return indicator.is_reffmt(); }
+bool is_fixed_format() { return cdf_source_format().is_fixed(); }
+bool is_reference_format() { return cdf_source_format().is_reffmt(); }
 
 static bool debug_mode = false;
 
@@ -76,11 +71,10 @@ static bool debug_mode = false;
 */
 
 static inline int left_margin() {
-  return indicator.column == 0? indicator.column : indicator.column - 1;
+  return cdf_source_format().left_margin();
 }
 static inline int right_margin() {
-  return indicator.right_margin == 0?
-    indicator.right_margin : indicator.right_margin - 1;
+  return cdf_source_format().right_margin();
 }
 
 /*
@@ -89,18 +83,9 @@ static inline int right_margin() {
  *   When setting back to 0 (free), the right margin is also reset to 0.
  */
 void
-cobol_set_indicator_column( int column )
-{
-  indicator.explicitly = true;
-  if( column == 0 ) indicator.right_margin = 0;
-  if( column < 0 ) {
-    column = -column;
-    indicator.right_margin = 73;
-  }
-  indicator.column = column;
-}
+cobol_set_indicator_column( int column );
 
-bool include_debug()      { return indicator.column == 7 && debug_mode; }
+bool include_debug()      { return is_fixed_format() && debug_mode; }
 bool set_debug( bool tf ) { return debug_mode = tf && is_fixed_format(); }
 
 static bool nonblank( const char ch ) { return !isblank(ch); }
@@ -114,7 +99,7 @@ start_of_line( char *bol, char *eol ) {
 
 static inline char *
 continues_at( char *bol, char *eol ) {
-  if( indicator.column == 0 ) return NULL;  // cannot continue in free format
+  if( cdf_source_format().is_free() ) return NULL;  // cannot continue in free format
   bol += left_margin();
   if( *bol != '-' ) return NULL; // not a continuation line
   return start_of_line(++bol, eol);
@@ -123,8 +108,8 @@ continues_at( char *bol, char *eol ) {
 // Return pointer to indicator column. Test ch if provided.
 // NULL means no indicator column or tested value not present.
 static inline char *
-indicated( char *bol, char *eol, char ch = '\0' ) {
-  if( indicator.column == 0 && *bol != '*' ) {
+indicated( char *bol, const char *eol, char ch = '\0' ) {
+  if( cdf_source_format().left_margin() == 0 && *bol != '*' ) {
     return NULL;  // no indicator column in free format, except for comments
   }
   gcc_assert(bol != NULL);
@@ -140,10 +125,10 @@ indicated( char *bol, char *eol, char ch = '\0' ) {
 
 static char *
 remove_inline_comment( char *bol, char *eol ) {
-  static char ends = '\0';
   char *nl = std::find(bol, eol, '\n');
 
   if( bol < nl ) {
+    static char ends = '\0';
     std::swap(*nl, ends);
     char *comment = strstr(bol, "*>");
     if( comment ) {
@@ -208,10 +193,10 @@ maybe_add_space(const span_t& pattern, replace_t& recognized) {
   }
 
   if( befter[0] == blank || befter[1] == blank ) {
-    char *s = xasprintf( "%s%.*s%s",
-                         befter[0],
-                         recognized.after.size(), recognized.after.p,
-                         befter[1] );
+    const char *s = xasprintf( "%s%.*s%s",
+                               befter[0],
+                               recognized.after.size(), recognized.after.p,
+                               befter[1] );
     recognized.after = span_t(s, s + strlen(s));
   }
 }
@@ -266,7 +251,9 @@ recognize_replacements( filespan_t mfile, std::list<replace_t>& pending_replacem
 
       span_t found(mfile.eodata, mfile.eodata);
 
-      if( regex_search( mfile.ccur(), (const char *)mfile.eodata, cm, re) ) {
+      if( regex_search( mfile.ccur(),
+                        const_cast<const char *>(mfile.eodata),
+                        cm, re) ) {
         gcc_assert(cm[1].matched);
         found = span_t( cm[1].first, cm[1].second );
         if( yy_flex_debug ) {
@@ -301,7 +288,8 @@ recognize_replacements( filespan_t mfile, std::list<replace_t>& pending_replacem
     bol = next.found.pend;
 
     if( yy_flex_debug ) {
-      size_t n = std::count((const char *)mfile.data, recognized.before.p, '\n');
+      size_t n = std::count(const_cast<const char *>(mfile.data),
+                            recognized.before.p, '\n');
       dbgmsg( "%s:%d: line " HOST_SIZE_T_PRINT_UNSIGNED
               " @ " HOST_SIZE_T_PRINT_UNSIGNED ": '%s'\n/%.*s/%.*s/",
               __func__, __LINE__,
@@ -317,10 +305,11 @@ recognize_replacements( filespan_t mfile, std::list<replace_t>& pending_replacem
     next.found = span_t(mfile.eodata, mfile.eodata);
 
     regex re(next.directive.before.p, extended_icase);
-    if( regex_search(bol, (const char *)mfile.eodata, cm, re) ) {
+    if( regex_search(bol, const_cast<const char *>(mfile.eodata), cm, re) ) {
       gcc_assert(cm[1].matched);
       next.found = span_t( cm[1].first, cm[1].second );
-      size_t n = std::count((const char *)mfile.data, next.found.p, '\n');
+      size_t n = std::count(const_cast<const char *>(mfile.data),
+                            next.found.p, '\n');
       if( false )
         dbgmsg("%s:%d next '%.*s' will be on line " HOST_SIZE_T_PRINT_UNSIGNED
                " (offset " HOST_SIZE_T_PRINT_UNSIGNED ")", __func__, __LINE__,
@@ -332,7 +321,69 @@ recognize_replacements( filespan_t mfile, std::list<replace_t>& pending_replacem
 }
 
 static void
+check_push_pop_directive( filespan_t& mfile ) {
+  char eol = '\0';
+  const char *p = std::find(mfile.cur, mfile.eol, '>');
+  if( ! (p < mfile.eol && p[1] == *p ) ) return;
+
+  const char pattern[] =
+    ">>[[:blank:]]*(push|pop)[[:blank:]]+"
+    "("
+      "all|"
+      "call-convention|"
+      "cobol-words|"
+      "define|"
+      "source[[:blank:]]+format|"
+      "turn"
+    ")";
+  static regex re(pattern, extended_icase);
+
+  // show contents of marked subexpressions within each match
+  cmatch cm;
+
+  std::swap(*mfile.eol, eol); // see implementation for excuses
+  bool ok = regex_search(p, const_cast<const char *>(mfile.eol), cm, re);
+  std::swap(*mfile.eol, eol);
+
+  if( ok ) {
+    gcc_assert(cm.size() > 1);
+    bool push = TOUPPER(cm[1].first[1]) == 'U';
+    switch( TOUPPER(cm[2].first[0]) ) {
+    case 'A': // ALL
+      push? cdf_push() : cdf_pop();
+      break;
+    case 'C':
+      switch( TOUPPER(cm[2].first[1]) ) {
+      case 'A': // CALL-CONVENTION
+        push? cdf_push_call_convention() : cdf_pop_call_convention();
+        break;
+      case 'O': // COBOL-WORDS
+        push? cdf_push_current_tokens() : cdf_pop_current_tokens();
+        break;
+      default:
+        gcc_unreachable();
+      }
+      break;
+    case 'D': // DEFINE
+      push? cdf_push_dictionary() : cdf_pop_dictionary();
+      break;
+    case 'S': // SOURCE FORMAT
+      push? cdf_push_source_format() : cdf_pop_source_format();
+      break;
+    case 'T': // TURN
+      push? cdf_push_enabled_exceptions() : cdf_pop_enabled_exceptions();
+      break;
+    default:
+      gcc_unreachable();
+    }
+    erase_line(const_cast<char*>(cm[0].first),
+               const_cast<char*>(cm[0].second));
+  }
+}
+
+static void
 check_source_format_directive( filespan_t& mfile ) {
+  char eol = '\0';
   const char *p = std::find(mfile.cur, mfile.eol, '>');
   if( ! (p < mfile.eol && p[1] == *p ) ) return;
 
@@ -345,7 +396,12 @@ check_source_format_directive( filespan_t& mfile ) {
 
   // show contents of marked subexpressions within each match
   cmatch cm;
-  if( regex_search(p, (const char *)mfile.eol, cm, re) ) {
+
+  std::swap(*mfile.eol, eol); // see implementation for excuses
+  bool ok = regex_search(p, const_cast<const char *>(mfile.eol), cm, re);
+  std::swap(*mfile.eol, eol);
+
+  if( ok ) {
     gcc_assert(cm.size() > 1);
     switch( cm[3].length() ) {
     case 4:
@@ -361,11 +417,11 @@ check_source_format_directive( filespan_t& mfile ) {
 
     dbgmsg( "%s:%d: %s format set, on line " HOST_SIZE_T_PRINT_UNSIGNED,
             __func__, __LINE__,
-            indicator.column == 7? "FIXED" : "FREE",
+            cdf_source_format().description(),
             (fmt_size_t)mfile.lineno() );
-    char *bol = indicator.is_fixed()? mfile.cur : const_cast<char*>(cm[0].first);
+    char *bol = cdf_source_format().is_fixed()? mfile.cur : const_cast<char*>(cm[0].first);
+    gcc_assert(cm[0].second <= mfile.eol);
     erase_line(bol, const_cast<char*>(cm[0].second));
-    mfile.cur = const_cast<char*>(cm[0].second);
   }
 }
 
@@ -459,9 +515,9 @@ struct replacing_term_t {
   bool matched, done;
   span_t leading_trailing, term, stmt;
 
-  replacing_term_t(const char input[]) : matched(false), done(false) {
-    stmt = span_t(input, input);
-  }
+  explicit replacing_term_t(const char input[])
+    : matched(false), done(false), stmt(span_t(input, input))
+    {}
 };
 
 extern YYLTYPE yylloc;
@@ -531,7 +587,7 @@ update_yylloc( const csub_match& stmt, const csub_match& term ) {
 
 static replacing_term_t
 parse_replacing_term( const char *stmt, const char *estmt ) {
-  gcc_assert(stmt); gcc_assert(estmt); gcc_assert(stmt < estmt);
+  gcc_assert(stmt); gcc_assert(estmt); gcc_assert(stmt <= estmt);
   replacing_term_t output(stmt);
 
   static const char pattern[] =
@@ -741,7 +797,7 @@ parse_replacing_pair( const char *stmt, const char *estmt ) {
       }
     }
     if( pair.stmt.p ) {
-      yywarn("CDF syntax error '%*s'", (int)pair.stmt.size(), pair.stmt.p);
+      yywarn("CDF syntax error '%.*s'", (int)pair.stmt.size(), pair.stmt.p);
     }
     else {
       // This eliminated a compiler warning about "format-overflow"
@@ -809,7 +865,7 @@ parse_replace_pairs( const char *stmt, const char *estmt, bool is_copy_stmt ) {
     }
 
     span_t& before(parsed.replace.before);
-    span_t& after(parsed.replace.after);
+    const span_t& after(parsed.replace.after);
 
     const char *befter[2] = { nonword_ch, nonword_ch };
     gcc_assert(before.p < before.pend);
@@ -877,7 +933,7 @@ struct copy_descr_t {
 };
 
 static YYLTYPE
-location_in( const filespan_t& mfile, const csub_match cm ) {
+location_in( const filespan_t& mfile, const csub_match& cm ) {
   YYLTYPE loc {
     int(mfile.lineno() + 1), int(mfile.colno() + 1),
     int(mfile.lineno() + 1), int(mfile.colno() + 1)
@@ -885,7 +941,7 @@ location_in( const filespan_t& mfile, const csub_match cm ) {
   gcc_assert(mfile.cur <= cm.first && cm.second <= mfile.eodata);
   auto nline = std::count(cm.first, cm.second, '\n');
   if( nline ) {
-    gcc_assert(loc.first_line < nline);
+    gcc_assert(nline < loc.first_line);
     loc.first_line -= nline;
     auto p = static_cast<const char*>(memrchr(cm.first, '\n', cm.length()));
     loc.last_column = (cm.second) - p;
@@ -928,7 +984,7 @@ parse_copy_directive( filespan_t& mfile ) {
     copy_stmt.p = mfile.eodata;
 
     if( regex_search(mfile.ccur(),
-                          (const char *)mfile.eodata, cm, re) ) {
+                     const_cast<const char *>(mfile.eodata), cm, re) ) {
       copy_stmt = span_t( cm[0].first, cm[0].second );
       if( yy_flex_debug ) {
         size_t nnl = 1 + count_newlines(mfile.data, copy_stmt.p);
@@ -981,7 +1037,7 @@ parse_copy_directive( filespan_t& mfile ) {
       std::pair<std::list<replace_t>, char*>
         result = parse_replace_pairs( cm[0].second, mfile.eodata, true );
 
-      std::list<replace_t>& replacements(result.first);
+      const std::list<replace_t>& replacements(result.first);
       outcome.parsed = (outcome.nreplace = replacements.size()) > 0;
       if( outcome.parsed ) {
         replace_directives.push(replacements);
@@ -1008,7 +1064,7 @@ parse_copy_directive( filespan_t& mfile ) {
 }
 
 static char *
-parse_replace_last_off( filespan_t& mfile ) {
+parse_replace_last_off( const filespan_t& mfile ) {
   static const char pattern[] =
     "REPLACE" "[[:space:]]+"
     "(LAST[[:space:]]+)?OFF[[:space:]]*[.]"
@@ -1018,7 +1074,7 @@ parse_replace_last_off( filespan_t& mfile ) {
 
   // REPLACE [LAST] OFF?
   bool found = regex_search(mfile.ccur(),
-                                 (const char *)mfile.eodata, cm, re);
+                            const_cast<const char *>(mfile.eodata), cm, re);
   gcc_assert(found); // caller ensures
 
   gcc_assert(cm.size() == 2);
@@ -1073,7 +1129,7 @@ parse_replace_text( filespan_t& mfile ) {
            (fmt_size_t)current_lineno, len, mfile.cur);
   }
 
-  if( ! regex_search(mfile.ccur(), (const char *)mfile.eodata, cm, re) ) {
+  if( ! regex_search(mfile.ccur(), mfile.eodata, cm, re) ) {
     dbgmsg( "%s:%d: line " HOST_SIZE_T_PRINT_UNSIGNED
             ": not a REPLACE statement:\n'%.*s'",
             __func__, __LINE__, (fmt_size_t)current_lineno,
@@ -1109,7 +1165,7 @@ parse_replace_text( filespan_t& mfile ) {
 
   std::pair<std::list<replace_t>, char*>
         result = parse_replace_pairs(replace_stmt.p, replace_stmt.pend, false);
-  std::list<replace_t>& replacements(result.first);
+  const std::list<replace_t>& replacements(result.first);
   replace_directives.push( replacements );
 
   if( yy_flex_debug ) {
@@ -1147,7 +1203,7 @@ parse_replace_directive( filespan_t& mfile ) {
     next_directive = mfile.eodata;
 
     if( regex_search(mfile.ccur(),
-                          (const char *)mfile.eodata, cm, re) ) {
+                     const_cast<const char *>(mfile.eodata), cm, re) ) {
       gcc_assert(cm[1].matched);
       next_directive = cm[0].first;
 
@@ -1323,13 +1379,13 @@ lexer_input( char buf[], int max_size, FILE *input ) {
   for( auto p = mfile.cur; p < next; *output.pos++ = *p++ ) {
     static bool at_bol = false;
     if( at_bol ) {
-      auto nonblank = std::find_if( p, next,
+      auto nonblank_l = std::find_if( p, next,
                                     []( char ch ) {
                                       return !isblank(ch); } );
-      if( nonblank + 1 < next ) {
-        if( *nonblank == '\r' ) nonblank++; // Windows
-        if( *nonblank == '\n' ) {
-          p = nonblank;
+      if( nonblank_l + 1 < next ) {
+        if( *nonblank_l == '\r' ) nonblank_l++; // Windows
+        if( *nonblank_l == '\n' ) {
+          p = nonblank_l;
           continue;
         }
       }
@@ -1409,7 +1465,7 @@ preprocess_filter_add( const char input[] ) {
 
   auto filename = find_filter(filter.c_str());
   if( !filename ) {
-    yywarn("preprocessor '%s/%s' not found", getcwd(NULL, 0), filter);
+    yywarn("preprocessor '%s/%s' not found", getcwd(NULL, 0), filter.c_str());
     return false;
   }
   preprocessor_filters.push_back( std::make_pair(xstrdup(filename), options) );
@@ -1457,7 +1513,6 @@ cdftext::lex_open( const char filename[] ) {
 
   // Process any files supplied by the -include command-line option.
   for( auto name : included_files ) {
-    int input;
     if( -1 == (input = open(name, O_RDONLY)) ) {
       yyerrorvl(1, "", "cannot open -include file %s", name);
       continue;
@@ -1491,7 +1546,7 @@ cdftext::lex_open( const char filename[] ) {
     argv[0] = filter;
 
     auto last_argv = std::transform( options.begin(), options.end(), argv.begin() + 1,
-                                     []( std::string& opt ) {
+                                     []( const std::string& opt ) {
                                        return xstrdup(opt.c_str());
                                      } );
     *last_argv = NULL;
@@ -1520,11 +1575,11 @@ cdftext::lex_open( const char filename[] ) {
     int status;
     auto kid = wait(&status);
     gcc_assert(pid == kid);
-    if( kid == -1 ) cbl_err( "failed waiting for pid %d", pid);
+    if( kid == -1 ) cbl_err( "failed waiting for pid %ld", static_cast<long>(pid));
 
     if( WIFSIGNALED(status) ) {
-      cbl_errx( "%s pid %d terminated by %s",
-           filter, kid, strsignal(WTERMSIG(status)) );
+      cbl_errx( "%s pid %ld terminated by %s",
+                filter, static_cast<long>(kid), strsignal(WTERMSIG(status)) );
     }
     if( WIFEXITED(status) ) {
       if( (status = WEXITSTATUS(status)) != 0 ) {
@@ -1542,7 +1597,7 @@ int
 cdftext::open_input( const char filename[] ) {
   int fd = open(filename, O_RDONLY);
   if( fd == -1 ) {
-    dbgmsg( "could not open '%s': %m", filename );
+    dbgmsg( "could not open '%s': %s", filename, xstrerror(errno) );
   }
 
   verbose_file_reader = NULL != getenv("GCOBOL_TEMPDIR");
@@ -1556,9 +1611,9 @@ cdftext::open_input( const char filename[] ) {
 int
 cdftext::open_output() {
   char *name = getenv("GCOBOL_TEMPDIR");
-  int fd;
 
   if( name && 0 != strcmp(name, "/") ) {
+    int fd;
     char * stem = xasprintf("%sXXXXXX", name);
     if( -1 == (fd = mkstemp(stem)) ) {
       cbl_err( "could not open temporary file '%s' (%s)",
@@ -1630,7 +1685,7 @@ bool lexio_dialect_mf();
  */
 static const char *
 valid_sequence_area( const char *data, const char *eodata ) {
-  
+
   for( const char *p = data;
        (p = std::find_if(p, eodata, is_p)) != eodata;
        p++ )
@@ -1653,7 +1708,7 @@ valid_sequence_area( const char *data, const char *eodata ) {
       }
     }
   }
-  return nullptr;  
+  return nullptr;
 }
 
 /*
@@ -1685,26 +1740,21 @@ cdftext::free_form_reference_format( int input ) {
     size_t lineno;
     bytespan_t line;
     // construct with length zero
-    current_line_t( char data[] ) : lineno(0), line(data, data) {}
+    explicit current_line_t( char data[] ) : lineno(0), line(data, data) {}
   } current( mfile.data );
 
   /*
-   * Infer source code format. 
+   * Infer source code format.
    */
-  if( indicator.inference_pending()  ) {
+  if( cdf_source_format().inference_pending()  ) {
     const char *bol = valid_sequence_area(mfile.data, mfile.eodata);
     if( bol ) {
-      indicator.column = 7;
-      if( infer_reference_format(bol, mfile.eodata) ) {
-	indicator.right_margin = 73;
-      }
+      cdf_source_format().infer( bol, infer_reference_format(bol, mfile.eodata) );
     }
-
-    dbgmsg("%s:%d: %s format detected", __func__, __LINE__,
-           indicator.description());
   }
 
   while( mfile.next_line() ) {
+    check_push_pop_directive(mfile);
     check_source_format_directive(mfile);
     remove_inline_comment(mfile.cur, mfile.eol);
 
@@ -1825,9 +1875,8 @@ cdftext::free_form_reference_format( int input ) {
 void
 cdftext::process_file( filespan_t mfile, int output, bool second_pass ) {
   static size_t nfiles = 0;
-  std::list<replace_t> replacements;
 
-  __gnu_cxx::stdio_filebuf<char> outbuf(fdopen(output, "w"), std::ios::out);
+  __gnu_cxx::stdio_filebuf<char> outbuf(fdopen(output, "a"), std::ios::out);
   std::ostream out(&outbuf);
   std::ostream_iterator<char> ofs(out);
 
@@ -1854,7 +1903,7 @@ cdftext::process_file( filespan_t mfile, int output, bool second_pass ) {
                    []( char ch ) { return ch == '\n'; } );
       struct { int in, out; filespan_t mfile; } copy;
       dbgmsg("%s:%d: line " HOST_SIZE_T_PRINT_UNSIGNED ", opening %s on fd %d",
-             __func__, __LINE__,mfile.lineno(),
+             __func__, __LINE__, (fmt_size_t)mfile.lineno(),
              copybook.source(), copybook.current()->fd);
       copy.in = copybook.current()->fd;
       copy.mfile = free_form_reference_format( copy.in );
@@ -1890,31 +1939,12 @@ cdftext::process_file( filespan_t mfile, int output, bool second_pass ) {
       continue; // No active REPLACE directive.
     }
 
-    std::list<span_t> segments = segment_line(mfile); // no replace yields
-    //                                                // 1 segment
+    std::list<span_t> segments = segment_line(mfile);
 
     for( const auto& segment : segments ) {
       std::copy(segment.p, segment.pend, ofs);
     }
 
-    if( segments.size() == 2 ) {
-      struct {
-        size_t before, after;
-        int delta() const { return before - after; } } nlines;
-      nlines.before = std::count(segments.front().p,
-                                 segments.front().pend, '\n');
-      nlines.after  = std::count(segments.back().p, segments.back().pend, '\n');
-      if( nlines.delta() < 0 ) {
-        yywarn("line %zu: REPLACED %zu lines with %zu lines, "
-              "line count off by %d", mfile.lineno(),
-              nlines.before, nlines.after, nlines.delta());
-      }
-      int nnl = nlines.delta();
-      while( nnl-- > 0 ) {
-        static const char nl[] = "\n";
-        std::copy(nl, nl + 1, ofs);
-      }
-    }
     out.flush();
   }
   // end of file
@@ -1938,12 +1968,30 @@ cdftext::segment_line( filespan_t& mfile ) {
     return output;
   }
 
+  /*
+   * If the replacement changes the number of lines in the replaced text, we
+   * need to reset the line number, because the next statement is on a
+   * different line in the manipulated text than in the original.  Before each
+   * replacement, set the original line number.  After each replacement, set
+   * the line number after the elided text on the next line.
+   */
   for( const replace_t& segment : pending ) {
     gcc_assert(mfile.cur <= segment.before.p);
     gcc_assert(segment.before.pend <= mfile.eodata);
 
+    struct { unsigned long ante, post; } lineno = {
+      gb4(mfile.lineno()), gb4(mfile.lineno() + segment.after.nlines())
+    };
+    const char *directive = lineno.ante == lineno.post?
+      nullptr : xasprintf("\n#line %lu \"%s\"\n",
+                          lineno.ante, cobol_filename());
+
+    if( directive )
+      output.push_back( span_t(strlen(directive), directive) );
     output.push_back( span_t(mfile.cur, segment.before.p) );
     output.push_back( span_t(segment.after.p, segment.after.pend ) );
+    if( directive )
+      output.push_back( span_t(strlen(directive), directive) );
 
     mfile.cur = const_cast<char*>(segment.before.pend);
   }
@@ -1959,5 +2007,3 @@ cdftext::segment_line( filespan_t& mfile ) {
 
   return output;
 }
-
-//////// End of the cdf_text.h file

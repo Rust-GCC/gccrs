@@ -479,8 +479,9 @@ package Exp_Util is
 
    function Duplicate_Subexpr
      (Exp          : Node_Id;
-      Name_Req     : Boolean := False;
-      Renaming_Req : Boolean := False) return Node_Id;
+      New_Scope    : Entity_Id := Empty;
+      Name_Req     : Boolean   := False;
+      Renaming_Req : Boolean   := False) return Node_Id;
    --  Given the node for a subexpression, this function makes a logical copy
    --  of the subexpression, and returns it. This is intended for use when the
    --  expansion of an expression needs to repeat part of it. For example,
@@ -493,6 +494,9 @@ package Exp_Util is
    --  value. Exp must be analyzed on entry. On return, Exp is analyzed, but
    --  the caller is responsible for analyzing the returned copy after it is
    --  attached to the tree.
+   --
+   --  The New_Scope entity may be used to specify a new scope for all copied
+   --  entities and itypes.
    --
    --  The Name_Req flag is set to ensure that the result is suitable for use
    --  in a context requiring a name (for example, the prefix of an attribute
@@ -509,8 +513,9 @@ package Exp_Util is
 
    function Duplicate_Subexpr_No_Checks
      (Exp          : Node_Id;
-      Name_Req     : Boolean := False;
-      Renaming_Req : Boolean := False) return Node_Id;
+      New_Scope    : Entity_Id := Empty;
+      Name_Req     : Boolean   := False;
+      Renaming_Req : Boolean   := False) return Node_Id;
    --  Identical in effect to Duplicate_Subexpr, except that Remove_Checks is
    --  called on the result, so that the duplicated expression does not include
    --  checks. This is appropriate for use when Exp, the original expression is
@@ -519,8 +524,9 @@ package Exp_Util is
 
    function Duplicate_Subexpr_Move_Checks
      (Exp          : Node_Id;
-      Name_Req     : Boolean := False;
-      Renaming_Req : Boolean := False) return Node_Id;
+      New_Scope    : Entity_Id := Empty;
+      Name_Req     : Boolean   := False;
+      Renaming_Req : Boolean   := False) return Node_Id;
    --  Identical in effect to Duplicate_Subexpr, except that Remove_Checks is
    --  called on Exp after the duplication is complete, so that the original
    --  expression does not include checks. In this case the result returned
@@ -810,6 +816,11 @@ package Exp_Util is
    --    Rnn : constant Ann := Func (...)'reference;
    --    Rnn.all
 
+   function Is_Constr_Array_Subt_Of_Unc_With_Controlled (Typ : Entity_Id)
+     return Boolean;
+   --  Return True if Typ is a constrained subtype of an array type with an
+   --  unconstrained first subtype and a controlled component type.
+
    function Is_Conversion_Or_Reference_To_Formal (N : Node_Id) return Boolean;
    --  Return True if N is a type conversion, or a dereference thereof, or a
    --  reference to a formal parameter.
@@ -818,6 +829,14 @@ package Exp_Util is
       (N : Node_Id) return Boolean;
    --  Determine if N is the expanded code for a class-wide interface type
    --  object declaration.
+
+   function Is_Finalizable_Access (Decl : Node_Id) return Boolean;
+   --  Determine whether declaration Decl denotes an access-to-controlled
+   --  object that must be finalized, i.e. both that the designated object
+   --  is controlled and that it must be finalized through this access, in
+   --  particular that it will not be also finalized directly. That is the
+   --  case only for objects initialized by a reference to a function call
+   --  that meet specific conditions.
 
    function Is_Finalizable_Transient
      (Decl : Node_Id;
@@ -844,9 +863,6 @@ package Exp_Util is
    --  Return True if E is a wrapper built when a subprogram has class-wide
    --  preconditions or postconditions affected by overriding (AI12-0195).
    --  LSP stands for Liskov Substitution Principle.
-
-   function Is_Non_BIP_Func_Call (Expr : Node_Id) return Boolean;
-   --  Determine whether node Expr denotes a non build-in-place function call
 
    function Is_Possibly_Unaligned_Object (N : Node_Id) return Boolean;
    --  Node N is an object reference. This function returns True if it is
@@ -891,10 +907,6 @@ package Exp_Util is
    --
    --  We consider that a (1 .. 2) is a renamed object since it is the prefix
    --  of the name in the renaming declaration.
-
-   function Is_Secondary_Stack_BIP_Func_Call (Expr : Node_Id) return Boolean;
-   --  Determine whether Expr denotes a build-in-place function which returns
-   --  its result on the secondary stack.
 
    function Is_Secondary_Stack_Thunk (Id : Entity_Id) return Boolean;
    --  Determine whether Id denotes a secondary stack thunk

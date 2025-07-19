@@ -1161,7 +1161,7 @@
        && (((unsigned HOST_WIDE_INT)INTVAL(operands[2]) + 0x1000) < 0x2000))"
   {
     addr_space_t as = INTVAL (operands[3]);
-    const char *glc = INTVAL (operands[4]) ? " glc" : "";
+    const char *glc = INTVAL (operands[4]) ? TARGET_GLC_NAME : "";
 
     static char buf[200];
     if (AS_FLAT_P (as))
@@ -1221,7 +1221,7 @@
     && (((unsigned HOST_WIDE_INT)INTVAL(operands[3]) + 0x1000) < 0x2000))"
   {
     addr_space_t as = INTVAL (operands[4]);
-    const char *glc = INTVAL (operands[5]) ? " glc" : "";
+    const char *glc = INTVAL (operands[5]) ? TARGET_GLC_NAME : "";
 
     static char buf[200];
     if (AS_GLOBAL_P (as))
@@ -1288,7 +1288,7 @@
 	&& (((unsigned HOST_WIDE_INT)INTVAL(operands[1]) + 0x1000) < 0x2000))"
   {
     addr_space_t as = INTVAL (operands[3]);
-    const char *glc = INTVAL (operands[4]) ? " glc" : "";
+    const char *glc = INTVAL (operands[4]) ? TARGET_GLC_NAME : "";
 
     static char buf[200];
     if (AS_FLAT_P (as))
@@ -1345,7 +1345,7 @@
     && (((unsigned HOST_WIDE_INT)INTVAL(operands[2]) + 0x1000) < 0x2000))"
   {
     addr_space_t as = INTVAL (operands[4]);
-    const char *glc = INTVAL (operands[5]) ? " glc" : "";
+    const char *glc = INTVAL (operands[5]) ? TARGET_GLC_NAME : "";
 
     static char buf[200];
     if (AS_GLOBAL_P (as))
@@ -1455,28 +1455,26 @@
 ;; }}}
 ;; {{{ ALU special case: add/sub
 
-(define_insn "add<mode>3<exec_clobber>"
+(define_insn "add<mode>3<exec>"
   [(set (match_operand:V_INT_1REG 0 "register_operand")
 	(plus:V_INT_1REG
 	  (match_operand:V_INT_1REG 1 "register_operand")
-	  (match_operand:V_INT_1REG 2 "gcn_alu_operand")))
-   (clobber (reg:DI VCC_REG))]
+	  (match_operand:V_INT_1REG 2 "gcn_alu_operand")))]
   ""
   {@ [cons: =0, %1, 2; attrs: type, length]
-  [v,v,vSvA;vop2,4] v_add_co_u32\t%0, vcc, %2, %1
+  [v,v,vSvA;vop2,4] {v_add_u32|v_add_nc_u32}\t%0, %2, %1
   [v,v,vSvB;vop2,8] ^
   })
 
-(define_insn "add<mode>3_dup<exec_clobber>"
+(define_insn "add<mode>3_dup<exec>"
   [(set (match_operand:V_INT_1REG 0 "register_operand")
 	(plus:V_INT_1REG
 	  (vec_duplicate:V_INT_1REG
 	    (match_operand:<SCALAR_MODE> 2 "gcn_alu_operand"))
-	  (match_operand:V_INT_1REG 1 "register_operand")))
-   (clobber (reg:DI VCC_REG))]
+	  (match_operand:V_INT_1REG 1 "register_operand")))]
   ""
   {@ [cons: =0, 1, 2; attrs: type, length]
-  [v,v,SvA;vop2,4] v_add_co_u32\t%0, vcc, %2, %1
+  [v,v,SvA;vop2,4] {v_add_u32|v_add_nc_u32}\t%0, %2, %1
   [v,v,SvB;vop2,8] ^
   })
 
@@ -1551,16 +1549,15 @@
   [(set_attr "type" "vop2,vop3b")
    (set_attr "length" "4,8")])
 
-(define_insn "sub<mode>3<exec_clobber>"
+(define_insn "sub<mode>3<exec>"
   [(set (match_operand:V_INT_1REG 0 "register_operand"  "=  v,   v")
 	(minus:V_INT_1REG
 	  (match_operand:V_INT_1REG 1 "gcn_alu_operand" "vSvB,   v")
-	  (match_operand:V_INT_1REG 2 "gcn_alu_operand" "   v,vSvB")))
-   (clobber (reg:DI VCC_REG))]
+	  (match_operand:V_INT_1REG 2 "gcn_alu_operand" "   v,vSvB")))]
   ""
   "@
-   v_sub_co_u32\t%0, vcc, %1, %2
-   v_subrev_co_u32\t%0, vcc, %2, %1"
+   {v_sub_u32|v_sub_nc_u32}\t%0, %1, %2
+   {v_subrev_u32|v_subrev_nc_u32}\t%0, %2, %1"
   [(set_attr "type" "vop2")
    (set_attr "length" "8,8")])
 
@@ -3795,9 +3792,9 @@
     /* Unsigned comparisons use the same patterns as signed comparisons,
        except that they use unsigned operators (e.g. LTU vs LT).
        The '%E1' directive then does the Right Thing.  */
-    emit_insn (gen_vec_cmpu<mode>di_exec (operands[0], operands[1],
-					  operands[2], operands[3],
-					  operands[4]));
+    emit_insn (gen_vec_cmp<mode>di_exec (operands[0], operands[1],
+					 operands[2], operands[3],
+					 operands[4]));
     DONE;
   })
 

@@ -80,12 +80,12 @@ public:
   {}
 
   /* opt_pass methods: */
-  virtual bool gate (function *)
+  virtual bool gate (function *) final override
     {
       return flag_avoid_store_forwarding && optimize >= 1;
     }
 
-  virtual unsigned int execute (function *) override;
+  virtual unsigned int execute (function *) final override;
 }; // class pass_rtl_avoid_store_forwarding
 
 /* Handler for finding and avoiding store forwardings.  */
@@ -118,17 +118,6 @@ generate_bit_insert_sequence (store_fwd_info *store_info, rtx dest)
 
   unsigned HOST_WIDE_INT bitsize = store_size * BITS_PER_UNIT;
   unsigned HOST_WIDE_INT start = store_info->offset * BITS_PER_UNIT;
-
-  /* Adjust START for machines with BITS_BIG_ENDIAN != BYTES_BIG_ENDIAN.
-     Given that the bytes will be reversed in this case, we need to
-     calculate the starting position from the end of the destination
-     register.  */
-  if (BITS_BIG_ENDIAN != BYTES_BIG_ENDIAN)
-    {
-      unsigned HOST_WIDE_INT load_mode_bitsize
-	= (GET_MODE_BITSIZE (GET_MODE (dest))).to_constant ();
-      start = load_mode_bitsize - bitsize - start;
-    }
 
   rtx mov_reg = store_info->mov_reg;
   store_bit_field (dest, bitsize, start, 0, 0, GET_MODE (mov_reg), mov_reg,
@@ -248,11 +237,14 @@ process_store_forwarding (vec<store_fwd_info> &stores, rtx_insn *load_insn,
     {
       it->mov_reg = gen_reg_rtx (GET_MODE (it->store_mem));
       rtx_insn *insns = NULL;
-      const bool has_zero_offset = it->offset == 0;
+      const bool has_base_offset
+	= known_eq (poly_uint64 (it->offset),
+		    subreg_size_lowpart_offset (MEM_SIZE (it->store_mem),
+						load_size));
 
       /* If we're eliminating the load then find the store with zero offset
 	 and use it as the base register to avoid a bit insert if possible.  */
-      if (load_elim && has_zero_offset)
+      if (load_elim && has_base_offset)
 	{
 	  start_sequence ();
 

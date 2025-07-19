@@ -219,7 +219,7 @@
 ;	 flags: offen, idxen, glc, lds, slc, tfe
 ;
 ; flat - flat or global memory operations
-;	 flags: glc, slc
+;	 flags: {CDNA3: sc0, nt, sc1 | otherwise: glc, slc, scc}
 ;	 addr: vgpr0-255
 ;	 data: vgpr0-255
 ;	 vdst: vgpr0-255
@@ -1136,14 +1136,13 @@
   [(set (match_operand:SI 0 "register_operand"         "= Sg, Sg, Sg,   v")
         (plus:SI (match_operand:SI 1 "gcn_alu_operand" "%SgA,  0,SgA,   v")
 		 (match_operand:SI 2 "gcn_alu_operand" " SgA,SgJ,  B,vBSv")))
-   (clobber (match_scratch:BI 3			       "= cs, cs, cs,   X"))
-   (clobber (match_scratch:DI 4			       "=  X,  X,  X,  cV"))]
+   (clobber (match_scratch:BI 3			       "= cs, cs, cs,   X"))]
   ""
   "@
    s_add_i32\t%0, %1, %2
    s_addk_i32\t%0, %2
    s_add_i32\t%0, %1, %2
-   v_add_co_u32\t%0, vcc, %2, %1"
+   {v_add_u32|v_add_nc_u32}\t%0, %2, %1"
   [(set_attr "type" "sop2,sopk,sop2,vop2")
    (set_attr "length" "4,4,8,8")])
 
@@ -1151,8 +1150,7 @@
   [(parallel [(set (match_operand:SI 0 "register_operand")
 		   (plus:SI (match_operand:SI 1 "gcn_alu_operand")
 			    (match_operand:SI 2 "gcn_alu_operand")))
-	      (clobber (reg:BI SCC_REG))
-	      (clobber (scratch:DI))])]
+	      (clobber (reg:BI SCC_REG))])]
   ""
   {})
 
@@ -1332,14 +1330,13 @@
   [(set (match_operand:SI 0 "register_operand"          "=Sg, Sg,    v,   v")
 	(minus:SI (match_operand:SI 1 "gcn_alu_operand" "SgA,SgA,    v,vBSv")
 		  (match_operand:SI 2 "gcn_alu_operand" "SgA,  B, vBSv,   v")))
-   (clobber (match_scratch:BI 3				"=cs, cs,    X,   X"))
-   (clobber (match_scratch:DI 4				"= X,  X,   cV,  cV"))]
+   (clobber (match_scratch:BI 3				"=cs, cs,    X,   X"))]
   ""
   "@
    s_sub_i32\t%0, %1, %2
    s_sub_i32\t%0, %1, %2
-   v_subrev_co_u32\t%0, vcc, %2, %1
-   v_sub_co_u32\t%0, vcc, %1, %2"
+   {v_subrev_u32|v_subrev_nc_u32}\t%0, %2, %1
+   {v_sub_u32|v_sub_nc_u32}\t%0, %1, %2"
   [(set_attr "type" "sop2,sop2,vop2,vop2")
    (set_attr "length" "4,8,8,8")])
 
@@ -1569,8 +1566,7 @@
 	(mult:DI (match_operand:DI 1 "register_operand" "%Sg, Sg,  v, v")
 		 (match_operand:DI 2 "nonmemory_operand" "Sg,  i,vSv, A")))
    (clobber (match_scratch:SI 3 "=&Sg,&Sg,&v,&v"))
-   (clobber (match_scratch:BI 4  "=cs, cs, X, X"))
-   (clobber (match_scratch:DI 5   "=X,  X,cV,cV"))]
+   (clobber (match_scratch:BI 4  "=cs, cs, X, X"))]
   ""
   "#"
   "reload_completed"
@@ -1585,15 +1581,13 @@
     emit_insn (gen_umulsidi3 (operands[0], op1lo, op2lo));
     emit_insn (gen_mulsi3 (tmp, op1lo, op2hi));
     rtx add = gen_rtx_SET (dsthi, gen_rtx_PLUS (SImode, dsthi, tmp));
-    rtx clob1 = gen_rtx_CLOBBER (VOIDmode, operands[4]);
-    rtx clob2 = gen_rtx_CLOBBER (VOIDmode, operands[5]);
-    add = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (3, add, clob1, clob2));
+    rtx clob = gen_rtx_CLOBBER (VOIDmode, operands[4]);
+    add = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, add, clob));
     emit_insn (add);
     emit_insn (gen_mulsi3 (tmp, op1hi, op2lo));
     add = gen_rtx_SET (dsthi, gen_rtx_PLUS (SImode, dsthi, tmp));
-    clob1 = gen_rtx_CLOBBER (VOIDmode, operands[4]);
-    clob2 = gen_rtx_CLOBBER (VOIDmode, operands[5]);
-    add = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (3, add, clob1, clob2));
+    clob = gen_rtx_CLOBBER (VOIDmode, operands[4]);
+    add = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, add, clob));
     emit_insn (add);
     DONE;
   })
@@ -1964,6 +1958,14 @@
   [(set_attr "type" "mult")
    (set_attr "length" "8")])
 
+(define_insn "*memory_barrier"
+  [(set (match_operand:BLK 0)
+	(unspec:BLK [(match_dup 0)] UNSPEC_MEMORY_BARRIER))]
+  "TARGET_TARGET_SC_CACHE"
+  "buffer_inv sc1"
+  [(set_attr "type" "mubuf")
+   (set_attr "length" "4")])
+
 ; FIXME: These patterns have been disabled as they do not seem to work
 ; reliably - they can cause hangs or incorrect results.
 ; TODO: flush caches according to memory model
@@ -1980,8 +1982,8 @@
   "0 /* Disabled.  */"
   "@
    s_atomic_<bare_mnemonic><X>\t%0, %1, %2 glc\;s_waitcnt\tlgkmcnt(0)
-   flat_atomic_<bare_mnemonic><X>\t%0, %1, %2 glc\;s_waitcnt\t0
-   global_atomic_<bare_mnemonic><X>\t%0, %A1, %2%O1 glc\;s_waitcnt\tvmcnt(0)"
+   flat_atomic_<bare_mnemonic><X>\t%0, %1, %2 %G2\;s_waitcnt\t0
+   global_atomic_<bare_mnemonic><X>\t%0, %A1, %2%O1 %G2\;s_waitcnt\tvmcnt(0)"
   [(set_attr "type" "smem,flat,flat")
    (set_attr "length" "12")])
 
@@ -2047,8 +2049,8 @@
   ""
   "@
    s_atomic_cmpswap<X>\t%0, %1, %2 glc\;s_waitcnt\tlgkmcnt(0)
-   flat_atomic_cmpswap<X>\t%0, %1, %2 glc\;s_waitcnt\t0
-   global_atomic_cmpswap<X>\t%0, %A1, %2%O1 glc\;s_waitcnt\tvmcnt(0)"
+   flat_atomic_cmpswap<X>\t%0, %1, %2 %G2\;s_waitcnt\t0
+   global_atomic_cmpswap<X>\t%0, %A1, %2%O1 %G2\;s_waitcnt\tvmcnt(0)"
   [(set_attr "type" "smem,flat,flat")
    (set_attr "length" "12")
    (set_attr "delayeduse" "*,yes,yes")])
@@ -2091,12 +2093,12 @@
 	    return "s_load%o0\t%0, %A1 glc\;s_waitcnt\tlgkmcnt(0)";
 	  case 1:
 	    return (TARGET_RDNA2 /* Not GFX11.  */
-		    ? "flat_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\t0"
-		    : "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0");
+		    ? "flat_load%o0\t%0, %A1%O1 %G1 dlc\;s_waitcnt\t0"
+		    : "flat_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\t0");
 	  case 2:
 	    return (TARGET_RDNA2 /* Not GFX11.  */
-		    ? "global_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\tvmcnt(0)"
-		    : "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)");
+		    ? "global_load%o0\t%0, %A1%O1 %G1 dlc\;s_waitcnt\tvmcnt(0)"
+		    : "global_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\tvmcnt(0)");
 	  }
 	break;
       case MEMMODEL_CONSUME:
@@ -2109,21 +2111,27 @@
 		   "s_dcache_wb_vol";
 	  case 1:
 	    return (TARGET_RDNA2
-		    ? "flat_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\t0\;"
+		    ? "flat_load%o0\t%0, %A1%O1 %G1 dlc\;s_waitcnt\t0\;"
 		      "buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_RDNA3
-		    ? "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
+		    ? "flat_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\t0\;"
 		      "buffer_gl1_inv\;buffer_gl0_inv"
-		    : "flat_load%o0\t%0, %A1%O1 glc\;s_waitcnt\t0\;"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "flat_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\t0\;"
+		      "buffer_inv sc1"
+		    : "flat_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\t0\;"
 		      "buffer_wbinvl1_vol");
 	  case 2:
 	    return (TARGET_RDNA2
-		    ? "global_load%o0\t%0, %A1%O1 glc dlc\;s_waitcnt\tvmcnt(0)\;"
+		    ? "global_load%o0\t%0, %A1%O1 %G1 dlc\;s_waitcnt\tvmcnt(0)\;"
 		      "buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_RDNA3
-		    ? "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
+		    ? "global_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\tvmcnt(0)\;"
 		      "buffer_gl1_inv\;buffer_gl0_inv"
-		    : "global_load%o0\t%0, %A1%O1 glc\;s_waitcnt\tvmcnt(0)\;"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "global_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\tvmcnt(0)\;"
+		      "buffer_inv sc1"
+		    : "global_load%o0\t%0, %A1%O1 %G1\;s_waitcnt\tvmcnt(0)\;"
 		      "buffer_wbinvl1_vol");
 	  }
 	break;
@@ -2137,21 +2145,27 @@
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
 	    return (TARGET_RDNA2
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 glc dlc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 %G1 dlc\;"
 		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_RDNA3
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_load%o0\t%0, %A1%O1 %G1\;"
 		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
-		    : "buffer_wbinvl1_vol\;flat_load%o0\t%0, %A1%O1 glc\;"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "buffer_inv sc1\;flat_load%o0\t%0, %A1%O1 %G1\;"
+		      "s_waitcnt\t0\;buffer_inv sc1"
+		    : "buffer_wbinvl1_vol\;flat_load%o0\t%0, %A1%O1 %G1\;"
 		      "s_waitcnt\t0\;buffer_wbinvl1_vol");
 	  case 2:
 	    return (TARGET_RDNA2
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 glc dlc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 %G1 dlc\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_RDNA3
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_load%o0\t%0, %A1%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
-		    : "buffer_wbinvl1_vol\;global_load%o0\t%0, %A1%O1 glc\;"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "buffer_inv sc1\;global_load%o0\t%0, %A1%O1 %G1\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_inv sc1"
+		    : "buffer_wbinvl1_vol\;global_load%o0\t%0, %A1%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol");
 	  }
 	break;
@@ -2178,9 +2192,9 @@
 	  case 0:
 	    return "s_store%o1\t%1, %A0 glc\;s_waitcnt\tlgkmcnt(0)";
 	  case 1:
-	    return "flat_store%o1\t%A0, %1%O0 glc\;s_waitcnt\t0";
+	    return "flat_store%o1\t%A0, %1%O0 %G1\;s_waitcnt\t0";
 	  case 2:
-	    return "global_store%o1\t%A0, %1%O0 glc\;s_waitcnt\tvmcnt(0)";
+	    return "global_store%o1\t%A0, %1%O0 %G1\;s_waitcnt\tvmcnt(0)";
 	  }
 	break;
       case MEMMODEL_RELEASE:
@@ -2191,15 +2205,19 @@
 	    return "s_dcache_wb_vol\;s_store%o1\t%1, %A0 glc";
 	  case 1:
 	    return (TARGET_GLn_CACHE
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 %G1"
 		    : TARGET_WBINVL1_CACHE
-		    ? "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc"
+		    ? "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 %G1"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "buffer_inv sc1\;flat_store%o1\t%A0, %1%O0 %G1"
 		    : "error: cache architectire unspecified");
 	  case 2:
 	    return (TARGET_GLn_CACHE
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 %G1"
 		    : TARGET_WBINVL1_CACHE
-		    ? "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc"
+		    ? "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 %G1"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "buffer_inv sc1\;global_store%o1\t%A0, %1%O0 %G1"
 		    : "error: cache architecture unspecified");
 	  }
 	break;
@@ -2213,19 +2231,25 @@
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
 	    return (TARGET_GLn_CACHE
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_store%o1\t%A0, %1%O0 %G1\;"
 		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_WBINVL1_CACHE
-		    ? "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 glc\;"
+		    ? "buffer_wbinvl1_vol\;flat_store%o1\t%A0, %1%O0 %G1\;"
 		      "s_waitcnt\t0\;buffer_wbinvl1_vol"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "buffer_inv sc1\;flat_store%o1\t%A0, %1%O0 %G1\;"
+		      "s_waitcnt\t0\;buffer_inv sc1"
 		    : "error: cache architecture unspecified");
 	  case 2:
 	    return (TARGET_GLn_CACHE
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;global_store%o1\t%A0, %1%O0 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_WBINVL1_CACHE
-		    ? "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 glc\;"
+		    ? "buffer_wbinvl1_vol\;global_store%o1\t%A0, %1%O0 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol"
+		    : TARGET_TARGET_SC_CACHE
+		    ? "buffer_inv sc1\;global_store%o1\t%A0, %1%O0 %G1\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_inv sc1"
 		    : "error: cache architecture unspecified");
 	  }
 	break;
@@ -2254,9 +2278,9 @@
 	  case 0:
 	    return "s_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\tlgkmcnt(0)";
 	  case 1:
-	    return "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0";
+	    return "flat_atomic_swap<X>\t%0, %1, %2 %G1\;s_waitcnt\t0";
 	  case 2:
-	    return "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+	    return "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		   "s_waitcnt\tvmcnt(0)";
 	  }
 	break;
@@ -2270,19 +2294,25 @@
 		   "s_dcache_wb_vol\;s_dcache_inv_vol";
 	  case 1:
 	    return (TARGET_GLn_CACHE
-		    ? "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
+		    ? "flat_atomic_swap<X>\t%0, %1, %2 %G1\;s_waitcnt\t0\;"
 		      "buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_WBINVL1_CACHE
-            ? "flat_atomic_swap<X>\t%0, %1, %2 glc\;s_waitcnt\t0\;"
+            ? "flat_atomic_swap<X>\t%0, %1, %2 %G1\;s_waitcnt\t0\;"
 		      "buffer_wbinvl1_vol"
+	    : TARGET_TARGET_SC_CACHE
+            ? "flat_atomic_swap<X>\t%0, %1, %2 %G1\;s_waitcnt\t0\;"
+		      "buffer_inv sc1"
             : "error: cache architecture unspecified");
 	  case 2:
 	    return (TARGET_GLn_CACHE
-		    ? "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		    ? "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_WBINVL1_CACHE
-            ? "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+            ? "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol"
+	    : TARGET_TARGET_SC_CACHE
+            ? "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_inv sc1"
             : "error: cache architecture unspecified");
 	  }
 	break;
@@ -2295,20 +2325,27 @@
 		   "s_waitcnt\tlgkmcnt(0)";
 	  case 1:
 	    return (TARGET_GLn_CACHE
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 %G1\;"
 		      "s_waitcnt\t0"
 		    : TARGET_WBINVL1_CACHE
-            ? "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+            ? "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 %G1\;"
+		      "s_waitcnt\t0"
+	    : TARGET_TARGET_SC_CACHE
+            ? "buffer_inv sc1\;flat_atomic_swap<X>\t%0, %1, %2 %G1\;"
 		      "s_waitcnt\t0"
             : "error: cache architecture unspecified");
 	  case 2:
 	    return (TARGET_GLn_CACHE
 		    ? "buffer_gl1_inv\;buffer_gl0_inv\;"
-		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)"
 		    : TARGET_WBINVL1_CACHE
             ? "buffer_wbinvl1_vol\;"
-		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
+		      "s_waitcnt\tvmcnt(0)"
+	    : TARGET_TARGET_SC_CACHE
+            ? "buffer_inv sc1\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)"
             : "error: cache architecture unspecified");
 	  }
@@ -2323,21 +2360,28 @@
 		   "s_waitcnt\tlgkmcnt(0)\;s_dcache_inv_vol";
 	  case 1:
 	    return (TARGET_GLn_CACHE
-		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+		    ? "buffer_gl1_inv\;buffer_gl0_inv\;flat_atomic_swap<X>\t%0, %1, %2 %G1\;"
 		      "s_waitcnt\t0\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_WBINVL1_CACHE
-            ? "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 glc\;"
+            ? "buffer_wbinvl1_vol\;flat_atomic_swap<X>\t%0, %1, %2 %G1\;"
 		      "s_waitcnt\t0\;buffer_wbinvl1_vol"
+	    : TARGET_TARGET_SC_CACHE
+            ? "buffer_inv sc1\;flat_atomic_swap<X>\t%0, %1, %2 %G1\;"
+		      "s_waitcnt\t0\;buffer_inv sc1"
             : "error: cache architecture unspecified");
 	  case 2:
 	    return (TARGET_GLn_CACHE
 		    ? "buffer_gl1_inv\;buffer_gl0_inv\;"
-		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_gl1_inv\;buffer_gl0_inv"
 		    : TARGET_WBINVL1_CACHE
             ? "buffer_wbinvl1_vol\;"
-		      "global_atomic_swap<X>\t%0, %A1, %2%O1 glc\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
 		      "s_waitcnt\tvmcnt(0)\;buffer_wbinvl1_vol"
+	    : TARGET_TARGET_SC_CACHE
+            ? "buffer_inv sc1\;"
+		      "global_atomic_swap<X>\t%0, %A1, %2%O1 %G1\;"
+		      "s_waitcnt\tvmcnt(0)\;buffer_inv sc1"
             : "error: cache architecture unspecified");
 	  }
 	break;

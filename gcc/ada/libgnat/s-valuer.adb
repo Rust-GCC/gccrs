@@ -42,14 +42,6 @@ package body System.Value_R is
    function As_Digit (C : Character) return Char_As_Digit;
    --  Given a character return the digit it represents
 
-   procedure Round_Extra
-     (Digit : Char_As_Digit;
-      Base  : Unsigned;
-      Value : in out Uns;
-      Scale : in out Integer;
-      Extra : in out Char_As_Digit);
-   --  Round the triplet (Value, Scale, Extra) according to Digit in Base
-
    procedure Scan_Decimal_Digits
       (Str            : String;
        Index          : in out Integer;
@@ -59,7 +51,7 @@ package body System.Value_R is
        Value          : in out Value_Array;
        Scale          : in out Scale_Array;
        N              : in out Positive;
-       Extra          : in out Char_As_Digit;
+       Extra2         : in out Unsigned;
        Base_Violation : in out Boolean);
    --  Scan the decimal part of a real (i.e. after decimal separator)
    --
@@ -68,7 +60,8 @@ package body System.Value_R is
    --
    --  For each digit parsed, Value = Value * Base + Digit and Scale is
    --  decremented by 1. If precision limit is reached, remaining digits are
-   --  still parsed but ignored, except for the first which is stored in Extra.
+   --  still parsed but ignored, except for the first two of them which are
+   --  stored in Extra2.
    --
    --  Base_Violation is set to True if a digit found is not part of the Base
    --
@@ -83,7 +76,8 @@ package body System.Value_R is
        Value          : out Value_Array;
        Scale          : out Scale_Array;
        N              : out Positive;
-       Extra          : out Char_As_Digit;
+       Extra2         : out Unsigned;
+       Extra2_Filled  : out Boolean;
        Base_Violation : in out Boolean);
    --  Scan the integral part of a real (i.e. before decimal separator)
    --
@@ -93,7 +87,7 @@ package body System.Value_R is
    --  For each digit parsed, either Value := Value * Base + Digit or Scale
    --  is incremented by 1 if precision limit is reached, in which case the
    --  remaining digits are still parsed but ignored, except for the first
-   --  which is stored in Extra.
+   --  two of them which are stored in Extra2 if Extra2_Filled is True.
    --
    --  Base_Violation is set to True if a digit found is not part of the Base
    --
@@ -119,47 +113,6 @@ package body System.Value_R is
       end case;
    end As_Digit;
 
-   -----------------
-   -- Round_Extra --
-   -----------------
-
-   procedure Round_Extra
-     (Digit : Char_As_Digit;
-      Base  : Unsigned;
-      Value : in out Uns;
-      Scale : in out Integer;
-      Extra : in out Char_As_Digit)
-   is
-      pragma Assert (Base in 2 .. 16);
-
-      B : constant Uns := Uns (Base);
-
-   begin
-      if Digit >= Base / 2 then
-
-         --  If Extra is maximum, round Value
-
-         if Extra = Base - 1 then
-
-            --  If Value is maximum, scale it up
-
-            if Value = Precision_Limit then
-               Extra := Char_As_Digit (Value mod B);
-               Value := Value / B;
-               Scale := Scale + 1;
-               Round_Extra (Digit, Base, Value, Scale, Extra);
-
-            else
-               Extra := 0;
-               Value := Value + 1;
-            end if;
-
-         else
-            Extra := Extra + 1;
-         end if;
-      end if;
-   end Round_Extra;
-
    -------------------------
    -- Scan_Decimal_Digits --
    -------------------------
@@ -173,7 +126,7 @@ package body System.Value_R is
        Value          : in out Value_Array;
        Scale          : in out Scale_Array;
        N              : in out Positive;
-       Extra          : in out Char_As_Digit;
+       Extra2         : in out Unsigned;
        Base_Violation : in out Boolean)
 
    is
@@ -192,8 +145,7 @@ package body System.Value_R is
       --  to Precision_Limit.
 
       Precision_Limit_Just_Reached : Boolean;
-      --  Set to True if Precision_Limit_Reached was just set to True, but only
-      --  used when Round is True.
+      --  Set to True if Precision_Limit_Reached was just set to True
 
       Digit : Char_As_Digit;
       --  The current digit
@@ -205,17 +157,16 @@ package body System.Value_R is
       --  Number of trailing zeros at a given point
 
    begin
-      --  If initial Scale is not 0 then it means that Precision_Limit was
+      --  If initial Scale is not 0, then this means that Precision_Limit was
       --  reached during scanning of the integral part.
 
       if Scale (Data_Index'Last) > 0 then
          Precision_Limit_Reached := True;
-      else
-         Extra := 0;
-         Precision_Limit_Reached := False;
-      end if;
+         Precision_Limit_Just_Reached := True;
 
-      if Round then
+      else
+         Extra2 := 0;
+         Precision_Limit_Reached := False;
          Precision_Limit_Just_Reached := False;
       end if;
 
@@ -229,28 +180,27 @@ package body System.Value_R is
       Digit := As_Digit (Str (Index));
 
       loop
-         --  Check if base is correct. If the base is not specified, the digit
-         --  E or e cannot be considered as a base violation as it can be used
-         --  for exponentiation.
+         --  If the base is not explicitly specified, 'e' or 'E' marks the
+         --  beginning of the exponent part.
+
+         if not Base_Specified and then Digit = E_Digit then
+            return;
+         end if;
+
+         --  Check that Digit is a valid digit with respect to Base
 
          if Digit >= Base then
-            if Base_Specified then
-               Base_Violation := True;
-            elsif Digit = E_Digit then
-               return;
-            else
-               Base_Violation := True;
-            end if;
+            Base_Violation := True;
          end if;
 
          --  If precision limit has been reached, just ignore any remaining
          --  digits for the computation of Value and Scale, but store the
-         --  first in Extra and use the second to round Extra. The scanning
-         --  should continue only to assess the validity of the string.
+         --  first two digits in Extra2. The scanning should continue only
+         --  to assess the validity of the string.
 
          if Precision_Limit_Reached then
-            if Round and then Precision_Limit_Just_Reached then
-               Round_Extra (Digit, Base, Value (N), Scale (N), Extra);
+            if Precision_Limit_Just_Reached then
+               Extra2 := Extra2 + Digit;
                Precision_Limit_Just_Reached := False;
             end if;
 
@@ -273,11 +223,8 @@ package body System.Value_R is
                      Scale (N) := Scale (N - 1) - 1;
 
                   else
-                     Extra := 0;
+                     Extra2 := (if J = Trailing_Zeros then Digit else 0);
                      Precision_Limit_Reached := True;
-                     if Round and then J = Trailing_Zeros then
-                        Round_Extra (Digit, Base, Value (N), Scale (N), Extra);
-                     end if;
 
                      exit;
                   end if;
@@ -316,11 +263,9 @@ package body System.Value_R is
                   Scale (N) := Scale (N - 1) - 1;
 
                else
-                  Extra := Digit;
+                  Extra2 := Digit * Base;
                   Precision_Limit_Reached := True;
-                  if Round then
-                     Precision_Limit_Just_Reached := True;
-                  end if;
+                  Precision_Limit_Just_Reached := True;
                end if;
             end if;
          end if;
@@ -339,10 +284,12 @@ package body System.Value_R is
 
             --  Underscore is only allowed if followed by a digit
 
-            if Digit = Underscore and Index + 1 <= Max then
+            if Digit = Underscore and then Index + 1 <= Max then
 
                Digit := As_Digit (Str (Index + 1));
-               if Digit in Valid_Digit then
+               if Digit in Valid_Digit and then
+                  (Digit /= E_Digit or else Base > E_Digit)
+               then
                   Index := Index + 1;
                else
                   return;
@@ -370,7 +317,8 @@ package body System.Value_R is
        Value          : out Value_Array;
        Scale          : out Scale_Array;
        N              : out Positive;
-       Extra          : out Char_As_Digit;
+       Extra2         : out Unsigned;
+       Extra2_Filled  : out Boolean;
        Base_Violation : in out Boolean)
    is
       pragma Assert (Base in 2 .. 16);
@@ -386,8 +334,7 @@ package body System.Value_R is
       --  to Precision_Limit.
 
       Precision_Limit_Just_Reached : Boolean;
-      --  Set to True if Precision_Limit_Reached was just set to True, but only
-      --  used when Round is True.
+      --  Set to True if Precision_Limit_Reached was just set to True
 
       Digit : Char_As_Digit;
       --  The current digit
@@ -396,18 +343,16 @@ package body System.Value_R is
       --  Temporary
 
    begin
-      --  Initialize N, Value, Scale and Extra
+      --  Initialize N, Value, Scale, Extra2 and Extra2_Filled
 
       N := 1;
       Value := (others => 0);
       Scale := (others => 0);
-      Extra := 0;
+      Extra2 := 0;
+      Extra2_Filled := False;
 
       Precision_Limit_Reached := False;
-
-      if Round then
-         Precision_Limit_Just_Reached := False;
-      end if;
+      Precision_Limit_Just_Reached := False;
 
       pragma Assert (Max <= Str'Last);
 
@@ -417,30 +362,30 @@ package body System.Value_R is
       Digit := As_Digit (Str (Index));
 
       loop
-         --  Check if base is correct. If the base is not specified, the digit
-         --  E or e cannot be considered as a base violation as it can be used
-         --  for exponentiation.
+         --  If the base is not explicitly specified, 'e' or 'E' marks the
+         --  beginning of the exponent part.
+
+         if not Base_Specified and then Digit = E_Digit then
+            return;
+         end if;
+
+         --  Check that Digit is a valid digit with respect to Base
 
          if Digit >= Base then
-            if Base_Specified then
-               Base_Violation := True;
-            elsif Digit = E_Digit then
-               return;
-            else
-               Base_Violation := True;
-            end if;
+            Base_Violation := True;
          end if;
 
          --  If precision limit has been reached, just ignore any remaining
          --  digits for the computation of Value and Scale, but store the
-         --  first in Extra and use the second to round Extra. The scanning
-         --  should continue only to assess the validity of the string.
+         --  first two digits in Extra2. The scanning should continue only
+         --  to assess the validity of the string.
 
          if Precision_Limit_Reached then
             Scale (N) := Scale (N) + 1;
 
-            if Round and then Precision_Limit_Just_Reached then
-               Round_Extra (Digit, Base, Value (N), Scale (N), Extra);
+            if Precision_Limit_Just_Reached then
+               Extra2 := Extra2 + Digit;
+               Extra2_Filled := True;
                Precision_Limit_Just_Reached := False;
             end if;
 
@@ -465,11 +410,9 @@ package body System.Value_R is
                Value (N) := Uns (Digit);
 
             else
-               Extra := Digit;
+               Extra2 := Digit * Base;
                Precision_Limit_Reached := True;
-               if Round then
-                  Precision_Limit_Just_Reached := True;
-               end if;
+               Precision_Limit_Just_Reached := True;
                Scale (N) := Scale (N) + 1;
             end if;
          end if;
@@ -494,9 +437,11 @@ package body System.Value_R is
             --  Next character is not a digit. In that case stop scanning
             --  unless the next chracter is an underscore followed by a digit.
 
-            if Digit = Underscore and Index + 1 <= Max then
+            if Digit = Underscore and then Index + 1 <= Max then
                Digit := As_Digit (Str (Index + 1));
-               if Digit in Valid_Digit then
+               if Digit in Valid_Digit and then
+                  (Digit /= E_Digit or else Base > E_Digit)
+               then
                   Index := Index + 1;
                else
                   return;
@@ -513,13 +458,13 @@ package body System.Value_R is
    -------------------
 
    function Scan_Raw_Real
-     (Str   : String;
-      Ptr   : not null access Integer;
-      Max   : Integer;
-      Base  : out Unsigned;
-      Scale : out Scale_Array;
-      Extra : out Unsigned;
-      Minus : out Boolean) return Value_Array
+     (Str    : String;
+      Ptr    : not null access Integer;
+      Max    : Integer;
+      Base   : out Unsigned;
+      Scale  : out Scale_Array;
+      Extra2 : out Unsigned;
+      Minus  : out Boolean) return Value_Array
    is
       pragma Assert (Max <= Str'Last);
 
@@ -533,6 +478,9 @@ package body System.Value_R is
       Base_Violation : Boolean;
       --  If True some digits where not in the base. The real is still scanned
       --  till the end even if an error will be raised.
+
+      Extra2_Filled : Boolean;
+      --  True if Extra2 has been filled
 
       N : Positive;
       --  Index number of the current part
@@ -578,12 +526,12 @@ package body System.Value_R is
       if Str (Index) in '0' .. '9' then
          After_Point := False;
 
-         --  If this is a digit it can indicates either the float decimal
-         --  part or the base to use.
+         --  If this is a digit it can indicate either the integral part or the
+         --  base to use.
 
          Scan_Integral_Digits
            (Str, Index, Max, Base, False, Value, Scale, N,
-            Char_As_Digit (Extra), Base_Violation);
+            Extra2, Extra2_Filled, Base_Violation);
 
       --  A dot is allowed only if followed by a digit (RM 3.5(39.8))
 
@@ -596,13 +544,15 @@ package body System.Value_R is
          N := 1;
          Value := (others => 0);
          Scale := (others => 0);
-         Extra := 0;
+         Extra2 := 0;
+         Extra2_Filled := False;
 
       else
          Bad_Value (Str);
       end if;
 
-      --  Check if the first number encountered is a base
+      --  Check if the first number encountered is a base. ':' is allowed in
+      --  place of '#' in virtue of RM J.2 (3).
 
       pragma Assert (Index >= Str'First);
 
@@ -611,7 +561,13 @@ package body System.Value_R is
       then
          Base_Char := Str (Index);
 
-         if N = 1 and then Value (1) in 2 .. 16 then
+         --  Functionally, "(Parts = 1 or else N = 1)" in the condition of the
+         --  following if statement could replaced by the simpler "N = 1". The
+         --  reason we use a more complicated expression is to accommodate
+         --  machine-code-based coverage tools: the simple version makes it
+         --  impossible to fully cover generic instances of System.Value_R with
+         --  Parts = 1.
+         if (Parts = 1 or else N = 1) and then Value (1) in 2 .. 16 then
             Base := Unsigned (Value (1));
          else
             Base_Violation := True;
@@ -630,16 +586,16 @@ package body System.Value_R is
          end if;
       end if;
 
-      --  Scan the integral part if still necessary
+      --  Scan the integral part if there was a base and no point right after
 
       if Base_Char /= ASCII.NUL and then not After_Point then
-         if Index > Max or else As_Digit (Str (Index)) not in Valid_Digit then
+         if As_Digit (Str (Index)) not in Valid_Digit then
             Bad_Value (Str);
          end if;
 
          Scan_Integral_Digits
            (Str, Index, Max, Base, Base_Char /= ASCII.NUL, Value, Scale,
-            N, Char_As_Digit (Extra), Base_Violation);
+            N, Extra2, Extra2_Filled, Base_Violation);
       end if;
 
       --  Do we have a dot?
@@ -664,9 +620,22 @@ package body System.Value_R is
       if After_Point then
          pragma Assert (Index <= Max);
 
-         Scan_Decimal_Digits
-           (Str, Index, Max, Base, Base_Char /= ASCII.NUL, Value, Scale,
-            N, Char_As_Digit (Extra), Base_Violation);
+         --  If Extra2 has been filled, we are done with it
+
+         if Extra2_Filled then
+            declare
+               Dummy : Unsigned := 0;
+            begin
+               Scan_Decimal_Digits
+                 (Str, Index, Max, Base, Base_Char /= ASCII.NUL, Value, Scale,
+                  N, Dummy, Base_Violation);
+            end;
+
+         else
+            Scan_Decimal_Digits
+              (Str, Index, Max, Base, Base_Char /= ASCII.NUL, Value, Scale,
+               N, Extra2, Base_Violation);
+         end if;
       end if;
 
       --  If an explicit base was specified ensure that the delimiter is found
@@ -714,11 +683,11 @@ package body System.Value_R is
    --------------------
 
    function Value_Raw_Real
-     (Str   : String;
-      Base  : out Unsigned;
-      Scale : out Scale_Array;
-      Extra : out Unsigned;
-      Minus : out Boolean) return Value_Array
+     (Str    : String;
+      Base   : out Unsigned;
+      Scale  : out Scale_Array;
+      Extra2 : out Unsigned;
+      Minus  : out Boolean) return Value_Array
    is
       P : aliased Integer;
       V : Value_Array;
@@ -732,14 +701,14 @@ package body System.Value_R is
          declare
             subtype NT is String (1 .. Str'Length);
          begin
-            return Value_Raw_Real (NT (Str), Base, Scale, Extra, Minus);
+            return Value_Raw_Real (NT (Str), Base, Scale, Extra2, Minus);
          end;
       end if;
 
       --  Normal case
 
       P := Str'First;
-      V := Scan_Raw_Real (Str, P'Access, Str'Last, Base, Scale, Extra, Minus);
+      V := Scan_Raw_Real (Str, P'Access, Str'Last, Base, Scale, Extra2, Minus);
       Scan_Trailing_Blanks (Str, P);
 
       return V;

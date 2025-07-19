@@ -22,6 +22,9 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_ANALYZER_PROGRAM_STATE_H
 
 #include "text-art/widget.h"
+#include "text-art/tree-widget.h"
+
+#include "analyzer/store.h"
 
 namespace ana {
 
@@ -32,7 +35,7 @@ class extrinsic_state
 public:
   extrinsic_state (std::vector<std::unique_ptr<state_machine>> &&checkers,
 		   engine *eng,
-		   logger *logger = NULL)
+		   logger *logger = nullptr)
   : m_checkers (std::move (checkers)),
     m_logger (logger),
     m_engine (eng)
@@ -42,7 +45,7 @@ public:
   // For use in selftests that use just one state machine
   extrinsic_state (std::unique_ptr<state_machine> sm,
 		   engine *eng,
-		   logger *logger = NULL)
+		   logger *logger = nullptr)
   : m_logger (logger),
     m_engine (eng)
   {
@@ -93,7 +96,7 @@ public:
   {
     /* Default ctor needed by hash_map::empty.  */
     entry_t ()
-    : m_state (0), m_origin (NULL)
+    : m_state (0), m_origin (nullptr)
     {
     }
 
@@ -242,6 +245,15 @@ public:
 		     bool multiline, FILE *outf) const;
   void dump (const extrinsic_state &ext_state, bool simple) const;
   void dump () const;
+
+  std::unique_ptr<diagnostics::digraphs::digraph>
+  make_diagnostic_state_graph (const extrinsic_state &ext_state) const;
+
+  void
+  dump_sarif (const extrinsic_state &ext_state) const;
+
+  void
+  dump_dot (const extrinsic_state &ext_state) const;
 
   std::unique_ptr<json::object>
   to_json (const extrinsic_state &ext_state) const;
