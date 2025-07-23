@@ -65,6 +65,7 @@ jobs:
            ../configure \
                --host=i586-alpine-linux-musl --build=i586-alpine-linux-musl --target=i586-alpine-linux-musl \
                --enable-languages=rust \
+               --enable-checking=yes \
                --disable-bootstrap \
                --disable-multilib # Try to disable multilib on alpine https://github.com/conan-io/conan/issues/14307#issuecomment-1652433132
       shell: alpine.sh {0}
