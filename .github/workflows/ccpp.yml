@@ -375,10 +375,19 @@ jobs:
       CC: clang
       CXX: clang++
 
-    runs-on: macos-13
+    runs-on: macos-15
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Handle ARM64
+      # TODO: update commit as required
+      run: |
+          git remote add arm-ian 'https://github.com/iains/gcc-darwin-arm64.git';
+          git fetch arm-ian;
+          git merge --no-edit a81533316b9b64245d85b352a93e17f302482acd;
 
     - name: Install Deps
       run: |
@@ -397,6 +406,9 @@ jobs:
                --enable-languages=rust \
                --disable-bootstrap \
                --enable-multilib \
+               --with-gmp="$(brew --prefix gmp)" \
+               --with-mpfr="$(brew --prefix mpfr)" \
+               --with-mpc="$(brew --prefix libmpc)" \
                --with-native-system-header-dir=/usr/include \
                --with-sysroot=$(xcrun --show-sdk-path)
 
