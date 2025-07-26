@@ -1,4 +1,3 @@
-// { dg-skip-if "" { *-*-* } { "-m32" } { "" } }
 // { dg-options "-w" }
 // { dg-output "Hash: 0x63d53fd2170bbb8c\r*\n" }
 #![feature(intrinsics)]

@@ -45,6 +45,7 @@
 #include "builtins.h"
 #include "print-tree.h"
 #include "attribs.h"
+#include "target.h"
 
 #include "rust-location.h"
 #include "rust-linemap.h"
@@ -83,6 +84,11 @@ Bvariable::error_variable ()
   return new Bvariable (error_mark_node);
 }
 
+// (u, i) X (8, 16, 32, 64, 128)
+tree rust_int_trees[10];
+const char *rust_int_names[10]
+  = {"u8", "u16", "u32", "u64", "u128", "i8", "i16", "i32", "i64", "i128"};
+
 // This file implements the interface between the Rust frontend proper
 // and the gcc IR.  This implements specific instantiations of
 // abstract classes defined by the Rust frontend proper.  The Rust
@@ -95,9 +101,97 @@ namespace Backend {
 
 // Define the built-in functions that are exposed to GCCRust.
 
+static void
+setup_normal_integers ()
+{
+  // we should have QImode
+  RUST_INT_TREE_U8 = make_unsigned_type (8);
+  RUST_INT_TREE_I8 = make_signed_type (8);
+
+  // look through integer types intended for C
+  const int normal_int_sizes[4]
+    = {INT_TYPE_SIZE, SHORT_TYPE_SIZE, LONG_TYPE_SIZE, LONG_LONG_TYPE_SIZE};
+  const tree normal_int_trees[8]
+    = {unsigned_type_node,	     integer_type_node,
+       short_unsigned_type_node,     short_integer_type_node,
+       long_unsigned_type_node,	     long_integer_type_node,
+       long_long_unsigned_type_node, long_long_integer_type_node};
+
+  for (size_t i = 0; i < 4; i++)
+    {
+      int idx = exact_log2 (normal_int_sizes[i]) - 3;
+
+      // if the size wasn't a power of 2, idx == -4
+
+      if (idx < 0 || idx > 5)
+	continue;
+
+      if (rust_int_trees[idx] != NULL_TREE)
+	continue;
+
+      rust_int_trees[idx] = normal_int_trees[2 * i];
+      rust_int_trees[5 + idx] = normal_int_trees[2 * i + 1];
+    }
+
+  // look through int_n_data for more integer types
+  for (size_t i = 0, j = 0; i < 5 && j < NUM_INT_N_ENTS;)
+    {
+      if (rust_int_trees[i] != NULL_TREE)
+	{
+	  i++;
+	  continue;
+	}
+
+      if (!int_n_enabled_p[j] || int_n_data[j].bitsize < (8u << i))
+	{
+	  j++;
+	}
+      else if (int_n_data[j].bitsize > (8u << i))
+	{
+	  i++;
+	}
+      else
+	{
+	  rust_int_trees[i] = make_unsigned_type (8 << i);
+	  rust_int_trees[5 + i] = make_signed_type (8 << i);
+	  i++;
+	  j++;
+	}
+    }
+
+  // use _BitInt where we have to (and can)
+  for (int i = 0; i < 5; i++)
+    {
+      if (rust_int_trees[i] == NULL_TREE)
+	{
+	  bitint_info b_info;
+	  if (targetm.c.bitint_type_info (8 << i, &b_info))
+	    {
+	      rust_debug ("filling in integer size %u with _BitInt", 8u << i);
+	      rust_int_trees[i] = build_bitint_type (8 << i, true);
+	      rust_int_trees[5 + i] = build_bitint_type (8 << i, false);
+	    }
+	}
+    }
+
+  // TODO: bootleg _BitInt where necessary?
+
+  // not much can be done for now -- fill with error_mark_node
+  for (size_t i = 0; i < 10; i++)
+    if (rust_int_trees[i] == NULL_TREE)
+      rust_int_trees[i] = error_mark_node;
+
+  // name types
+  for (size_t i = 0; i < 10; i++)
+    rust_int_trees[i]
+      = named_type (rust_int_names[i], rust_int_trees[i], BUILTINS_LOCATION);
+}
+
 void
 init ()
 {
+  setup_normal_integers ();
+
   /* We need to define the fetch_and_add functions, since we use them
      for ++ and --.  */
   // tree t = this->integer_type (true, BITS_PER_UNIT)->get_tree ();
