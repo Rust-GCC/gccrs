@@ -364,46 +364,67 @@ HIRCompileBase::handle_inline_attribute_on_fndecl (tree fndecl,
     }
 
   const AST::AttrInput &input = attr.get_attr_input ();
-  bool is_token_tree
-    = input.get_attr_input_type () == AST::AttrInput::AttrInputType::TOKEN_TREE;
-  rust_assert (is_token_tree);
-  const auto &option = static_cast<const AST::DelimTokenTree &> (input);
-  AST::AttrInputMetaItemContainer *meta_item = option.parse_to_meta_item ();
-  if (meta_item->get_items ().size () != 1)
+  auto input_type = input.get_attr_input_type ();
+
+  if (input_type == AST::AttrInput::AttrInputType::LITERAL)
     {
+      // Handle #[inline = "..."] syntax
       rich_location rich_locus (line_table, attr.get_locus ());
-      rich_locus.add_fixit_replace ("expected one argument");
-      rust_error_at (rich_locus, ErrorCode::E0534,
-		     "invalid number of arguments");
+      rich_locus.add_fixit_replace ("#[inline(always)] or #[inline(never)]");
+      rust_error_at (rich_locus, ErrorCode::E0535,
+		     "invalid syntax, %<inline%> attribute does not accept "
+		     "value with %<=%>, use parentheses instead: "
+		     "%<#[inline(always)]%> or %<#[inline(never)]%>");
       return;
     }
-
-  const std::string inline_option
-    = meta_item->get_items ().at (0)->as_string ();
-
-  // we only care about NEVER and ALWAYS else its an error
-  bool is_always = inline_option.compare ("always") == 0;
-  bool is_never = inline_option.compare ("never") == 0;
-
-  // #[inline(never)]
-  if (is_never)
+  else if (input_type == AST::AttrInput::AttrInputType::TOKEN_TREE)
     {
-      DECL_UNINLINABLE (fndecl) = 1;
-    }
-  // #[inline(always)]
-  else if (is_always)
-    {
-      DECL_DECLARED_INLINE_P (fndecl) = 1;
-      DECL_ATTRIBUTES (fndecl) = tree_cons (get_identifier ("always_inline"),
-					    NULL, DECL_ATTRIBUTES (fndecl));
+      const auto &option = static_cast<const AST::DelimTokenTree &> (input);
+      AST::AttrInputMetaItemContainer *meta_item = option.parse_to_meta_item ();
+      if (meta_item->get_items ().size () != 1)
+	{
+	  rich_location rich_locus (line_table, attr.get_locus ());
+	  rich_locus.add_fixit_replace ("expected one argument");
+	  rust_error_at (rich_locus, ErrorCode::E0534,
+			 "invalid number of arguments");
+	  return;
+	}
+
+      const std::string inline_option
+	= meta_item->get_items ().at (0)->as_string ();
+
+      // we only care about NEVER and ALWAYS else its an error
+      bool is_always = inline_option.compare ("always") == 0;
+      bool is_never = inline_option.compare ("never") == 0;
+
+      // #[inline(never)]
+      if (is_never)
+	{
+	  DECL_UNINLINABLE (fndecl) = 1;
+	}
+      // #[inline(always)]
+      else if (is_always)
+	{
+	  DECL_DECLARED_INLINE_P (fndecl) = 1;
+	  DECL_ATTRIBUTES (fndecl)
+	    = tree_cons (get_identifier ("always_inline"), NULL,
+			 DECL_ATTRIBUTES (fndecl));
+	}
+      else
+	{
+	  rich_location rich_locus (line_table, attr.get_locus ());
+	  rich_locus.add_fixit_replace ("unknown inline option");
+	  rust_error_at (rich_locus, ErrorCode::E0535,
+			 "invalid argument, %<inline%> attribute only accepts "
+			 "%<always%> or %<never%>");
+	}
     }
   else
     {
+      // Handle unexpected input type
       rich_location rich_locus (line_table, attr.get_locus ());
-      rich_locus.add_fixit_replace ("unknown inline option");
-      rust_error_at (rich_locus, ErrorCode::E0535,
-		     "invalid argument, %<inline%> attribute only accepts "
-		     "%<always%> or %<never%>");
+      rust_error_at (rich_locus,
+		     "unexpected attribute input type for inline attribute");
     }
 }
 
