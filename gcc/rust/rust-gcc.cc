@@ -1433,6 +1433,7 @@ array_initializer (tree fndecl, tree block, tree array_type, tree length,
 					   length, true, locus, &t);
   tree len = tmp_len->get_tree (locus);
   stmts.push_back (t);
+  delete tmp_len;
 
   // Temporary variable for pointer used to initialize elements.
   tree ptr_type = pointer_type (TREE_TYPE (array_type));
@@ -1443,6 +1444,7 @@ array_initializer (tree fndecl, tree block, tree array_type, tree length,
     = temporary_variable (fndecl, block, ptr_type, ptr_init, false, locus, &t);
   tree ptr = tmp_ptr->get_tree (locus);
   stmts.push_back (t);
+  delete tmp_ptr;
 
   // push statement list for the loop
   std::vector<tree> loop_stmts;
@@ -1479,6 +1481,7 @@ array_initializer (tree fndecl, tree block, tree array_type, tree length,
   // Return the temporary in the provided pointer and the statement list which
   // initializes it.
   *tmp = tmp_array->get_tree (locus);
+  delete tmp_array;
   return statement_list (stmts);
 }
 
