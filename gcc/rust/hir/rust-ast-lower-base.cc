@@ -483,6 +483,12 @@ void
 ASTLoweringBase::visit (AST::GroupedPattern &)
 {}
 void
+ASTLoweringBase::visit (AST::SlicePatternItemsNoRest &)
+{}
+void
+ASTLoweringBase::visit (AST::SlicePatternItemsHasRest &)
+{}
+void
 ASTLoweringBase::visit (AST::SlicePattern &)
 {}
 void
