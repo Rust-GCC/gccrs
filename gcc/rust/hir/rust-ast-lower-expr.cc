@@ -24,6 +24,7 @@
 #include "rust-ast-lower-pattern.h"
 #include "rust-ast-lower-type.h"
 #include "rust-ast.h"
+#include "rust-builtin-ast-nodes.h"
 #include "rust-diagnostics.h"
 #include "rust-hir-map.h"
 #include "rust-system.h"
@@ -1053,6 +1054,21 @@ ASTLoweringExpr::visit (AST::FormatArgs &fmt)
 {
   rust_sorry_at (fmt.get_locus (),
 		 "FormatArgs lowering is not implemented yet");
+}
+
+void
+ASTLoweringExpr::visit (AST::OffsetOf &offset_of)
+{
+  auto type = std::unique_ptr<Type> (
+    ASTLoweringType::translate (offset_of.get_type ()));
+
+  auto crate_num = mappings.get_current_crate ();
+  Analysis::NodeMapping mapping (crate_num, offset_of.get_node_id (),
+				 mappings.get_next_hir_id (crate_num),
+				 mappings.get_next_localdef_id (crate_num));
+
+  translated = new HIR::OffsetOf (std::move (type), offset_of.get_field (),
+				  mapping, offset_of.get_locus ());
 }
 
 } // namespace HIR
