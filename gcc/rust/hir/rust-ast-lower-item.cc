@@ -81,7 +81,7 @@ ASTLoweringItem::visit (AST::Module &module)
 
   translated
     = new HIR::Module (mapping, module.get_name (), module.get_locus (),
-		       std::move (items), std::move (vis),
+		       std::move (items), module.is_derived (), std::move (vis),
 		       std::move (inner_attrs), std::move (outer_attrs));
   mappings.insert_module (static_cast<Module *> (translated));
 }
@@ -117,7 +117,7 @@ ASTLoweringItem::visit (AST::TypeAlias &alias)
 			  std::move (generic_params), std::move (where_clause),
 			  std::unique_ptr<HIR::Type> (existing_type),
 			  std::move (vis), alias.get_outer_attrs (),
-			  alias.get_locus ());
+			  alias.get_locus (), alias.is_derived ());
 }
 
 void
@@ -172,7 +172,8 @@ ASTLoweringItem::visit (AST::TupleStruct &struct_decl)
 				     std::move (generic_params),
 				     std::move (where_clause), vis,
 				     struct_decl.get_outer_attrs (),
-				     struct_decl.get_locus ());
+				     struct_decl.get_locus (),
+				     struct_decl.is_derived ());
 }
 
 void
@@ -232,7 +233,8 @@ ASTLoweringItem::visit (AST::StructStruct &struct_decl)
 				      std::move (generic_params),
 				      std::move (where_clause), is_unit, vis,
 				      struct_decl.get_outer_attrs (),
-				      struct_decl.get_locus ());
+				      struct_decl.get_locus (),
+				      struct_decl.is_derived ());
 }
 
 void
@@ -275,7 +277,7 @@ ASTLoweringItem::visit (AST::Enum &enum_decl)
     = new HIR::Enum (mapping, enum_decl.get_identifier (), vis,
 		     std::move (generic_params), std::move (where_clause),
 		     std::move (items), enum_decl.get_outer_attrs (),
-		     enum_decl.get_locus ());
+		     enum_decl.get_locus (), enum_decl.is_derived ());
   translated = hir_enum;
   for (auto &variant : hir_enum->get_variants ())
     {
@@ -337,7 +339,7 @@ ASTLoweringItem::visit (AST::Union &union_decl)
     = new HIR::Union (mapping, union_decl.get_identifier (), vis,
 		      std::move (generic_params), std::move (where_clause),
 		      std::move (variants), union_decl.get_outer_attrs (),
-		      union_decl.get_locus ());
+		      union_decl.get_locus (), union_decl.is_derived ());
 }
 
 void
@@ -358,7 +360,8 @@ ASTLoweringItem::visit (AST::StaticItem &var)
 						      : Mutability::Imm,
 				    std::unique_ptr<HIR::Type> (type),
 				    std::unique_ptr<HIR::Expr> (expr), vis,
-				    var.get_outer_attrs (), var.get_locus ());
+				    var.get_outer_attrs (), var.get_locus (),
+				    var.is_derived ());
 }
 
 void
@@ -376,11 +379,12 @@ ASTLoweringItem::visit (AST::ConstantItem &constant)
 				 mappings.get_next_hir_id (crate_num),
 				 mappings.get_next_localdef_id (crate_num));
 
-  translated = new HIR::ConstantItem (mapping, constant.get_identifier (), vis,
-				      std::unique_ptr<HIR::Type> (type),
-				      std::unique_ptr<HIR::Expr> (expr),
-				      constant.get_outer_attrs (),
-				      constant.get_locus ());
+  translated
+    = new HIR::ConstantItem (mapping, constant.get_identifier (), vis,
+			     std::unique_ptr<HIR::Type> (type),
+			     std::unique_ptr<HIR::Expr> (expr),
+			     constant.get_outer_attrs (), constant.get_locus (),
+			     constant.is_derived ());
 }
 
 void
@@ -463,7 +467,8 @@ ASTLoweringItem::visit (AST::Function &function)
 			 std::move (function_params), std::move (return_type),
 			 std::move (where_clause), std::move (function_body),
 			 std::move (vis), function.get_outer_attrs (),
-			 tl::nullopt, defaultness, locus);
+			 tl::nullopt, defaultness, locus,
+			 function.is_derived ());
 
   // add the mappings for the function params at the end
   for (auto &param : fn->get_function_params ())
@@ -620,7 +625,8 @@ ASTLoweringItem::visit (AST::Trait &trait)
     = new HIR::Trait (mapping, trait.get_identifier (), trait_unsafety,
 		      std::move (generic_params), std::move (type_param_bounds),
 		      where_clause, std::move (trait_items), vis,
-		      trait.get_outer_attrs (), trait.get_locus ());
+		      trait.get_outer_attrs (), trait.get_locus (),
+		      trait.is_derived ());
 
   if (trait.is_auto ())
     mappings.insert_auto_trait (hir_trait);

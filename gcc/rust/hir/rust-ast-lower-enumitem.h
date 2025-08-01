@@ -64,7 +64,8 @@ public:
 		     "visibility qualifier %qs not allowed on enum item",
 		     item.get_visibility ().as_string ().c_str ());
     translated = new HIR::EnumItem (mapping, item.get_identifier (),
-				    item.get_outer_attrs (), item.get_locus ());
+				    item.get_outer_attrs (), item.get_locus (),
+				    item.is_derived ());
   }
 
   void visit (AST::EnumItemTuple &item) override
@@ -100,7 +101,7 @@ public:
     translated
       = new HIR::EnumItemTuple (mapping, item.get_identifier (),
 				std::move (fields), item.get_outer_attrs (),
-				item.get_locus ());
+				item.get_locus (), item.is_derived ());
   }
 
   void visit (AST::EnumItemStruct &item) override
@@ -141,7 +142,7 @@ public:
     translated
       = new HIR::EnumItemStruct (mapping, item.get_identifier (),
 				 std::move (fields), item.get_outer_attrs (),
-				 item.get_locus ());
+				 item.get_locus (), item.is_derived ());
   }
 
   void visit (AST::EnumItemDiscriminant &item) override
@@ -161,7 +162,7 @@ public:
       = new HIR::EnumItemDiscriminant (mapping, item.get_identifier (),
 				       std::unique_ptr<HIR::Expr> (expr),
 				       item.get_outer_attrs (),
-				       item.get_locus ());
+				       item.get_locus (), item.is_derived ());
   }
 
 private:

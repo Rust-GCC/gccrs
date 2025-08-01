@@ -76,7 +76,7 @@ ASTLowerImplItem::visit (AST::TypeAlias &alias)
 			  std::move (generic_params), std::move (where_clause),
 			  std::unique_ptr<HIR::Type> (existing_type),
 			  std::move (vis), alias.get_outer_attrs (),
-			  alias.get_locus ());
+			  alias.get_locus (), alias.is_derived ());
 
   translated = type_alias;
   item_cast = type_alias;
@@ -99,8 +99,8 @@ ASTLowerImplItem::visit (AST::ConstantItem &constant)
     = new HIR::ConstantItem (mapping, constant.get_identifier (), vis,
 			     std::unique_ptr<HIR::Type> (type),
 			     std::unique_ptr<HIR::Expr> (expr),
-			     constant.get_outer_attrs (),
-			     constant.get_locus ());
+			     constant.get_outer_attrs (), constant.get_locus (),
+			     constant.is_derived ());
 
   translated = translated_constant;
   item_cast = translated_constant;
@@ -188,7 +188,8 @@ ASTLowerImplItem::visit (AST::Function &function)
 			 std::move (function_params), std::move (return_type),
 			 std::move (where_clause), std::move (function_body),
 			 std::move (vis), function.get_outer_attrs (),
-			 std::move (self_param), defaultness, locus);
+			 std::move (self_param), defaultness, locus,
+			 function.is_derived ());
 
   if (fn->is_method ())
     {
