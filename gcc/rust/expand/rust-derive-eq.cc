@@ -120,6 +120,9 @@ DeriveEq::eq_impls (
   auto steq = builder.type_path (LangItem::Kind::STRUCTURAL_TEQ);
 
   auto trait_items = vec (std::move (fn));
+  std::vector<std::unique_ptr<AssociatedItem>> trait_items_clone{};
+  for (auto &trait_item : trait_items)
+    trait_items_clone.emplace_back (trait_item->clone_associated_item ());
 
   auto eq_generics
     = setup_impl_generics (name, type_generics, std::move (eq_bound));
@@ -130,7 +133,7 @@ DeriveEq::eq_impls (
 				     std::move (eq_generics.impl));
   auto steq_impl
     = builder.trait_impl (steq, std::move (steq_generics.self_type),
-			  std::move (trait_items),
+			  std::move (trait_items_clone),
 			  std::move (steq_generics.impl));
 
   return vec (std::move (eq_impl), std::move (steq_impl));
