@@ -588,7 +588,7 @@ ForeverStack<N>::resolve_segments (
 	    {
 	      insert_segment_resolution (outer_seg, rib_lookup->get_node_id ());
 	      if (Analysis::Mappings::get ()
-		    .lookup_ast_module (rib_lookup->get_node_id ())
+		    .lookup_glob_container (rib_lookup->get_node_id ())
 		    .has_value ())
 		{
 		  current_node
