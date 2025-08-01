@@ -210,8 +210,7 @@ public:
   void visit (AST::QualifiedPathInType &path) override;
 
   void visit (AST::LiteralExpr &expr) override;
-  void visit (AST::AttrInputLiteral &) override;
-  void visit (AST::AttrInputMacro &) override;
+  void visit (AST::AttrInputExpr &) override;
   void visit (AST::MetaItemLitExpr &) override;
   void visit (AST::MetaItemPathExpr &) override;
   void visit (AST::BorrowExpr &) override;

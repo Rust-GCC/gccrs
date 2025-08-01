@@ -47,11 +47,16 @@ Attributes::extract_string_literal (const AST::Attribute &attr)
   auto &attr_input = attr.get_attr_input ();
 
   if (attr_input.get_attr_input_type ()
-      != AST::AttrInput::AttrInputType::LITERAL)
+      != AST::AttrInput::AttrInputType::EXPR)
     return tl::nullopt;
 
-  auto &literal_expr
-    = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
+  auto &expr
+    = static_cast<AST::AttrInputExpr &> (attr_input).get_expr ();
+
+  if (!expr.is_literal ())
+    return tl::nullopt;
+
+  auto &literal_expr = static_cast<AST::LiteralExpr &> (expr);
 
   auto lit_type = literal_expr.get_lit_type ();
 
@@ -247,8 +252,7 @@ check_doc_attribute (const AST::Attribute &attribute)
 
   switch (attribute.get_attr_input ().get_attr_input_type ())
     {
-    case AST::AttrInput::LITERAL:
-    case AST::AttrInput::MACRO:
+    case AST::AttrInput::EXPR:
     case AST::AttrInput::META_ITEM:
       break;
       // FIXME: Handle them as well
@@ -409,11 +413,7 @@ AttributeChecker::visit (AST::LiteralExpr &)
 {}
 
 void
-AttributeChecker::visit (AST::AttrInputLiteral &)
-{}
-
-void
-AttributeChecker::visit (AST::AttrInputMacro &)
+AttributeChecker::visit (AST::AttrInputExpr &)
 {}
 
 void

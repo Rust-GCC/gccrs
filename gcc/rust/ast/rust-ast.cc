@@ -322,8 +322,7 @@ Attribute::get_traits_to_derive ()
       }
       break;
     case AST::AttrInput::TOKEN_TREE:
-    case AST::AttrInput::LITERAL:
-    case AST::AttrInput::MACRO:
+    case AST::AttrInput::EXPR:
       rust_unreachable ();
       break;
     }
@@ -3344,9 +3343,9 @@ AttrInputMetaItemContainer::as_string () const
 }
 
 std::string
-AttrInputMacro::as_string () const
+AttrInputExpr::as_string () const
 {
-  return " = " + macro->as_string ();
+  return " = " + expr->as_string ();
 }
 
 /* Override that calls the function recursively on all items contained within
@@ -4056,14 +4055,14 @@ Token::to_token_stream () const
 Attribute
 MetaNameValueStr::to_attribute () const
 {
-  LiteralExpr lit_expr (str, Literal::LitType::STRING,
-			PrimitiveCoreType::CORETYPE_UNKNOWN, {}, str_locus);
+  auto lit_expr = std::make_unique<AST::LiteralExpr> (str, Literal::LitType::STRING,
+			PrimitiveCoreType::CORETYPE_UNKNOWN, std::vector<Attribute> (), str_locus);
   // FIXME: What location do we put here? Is the literal above supposed to have
   // an empty location as well?
   // Should MetaNameValueStr keep a location?
   return Attribute (SimplePath::from_str (ident.as_string (), ident_locus),
-		    std::unique_ptr<AttrInputLiteral> (
-		      new AttrInputLiteral (std::move (lit_expr))));
+		    std::unique_ptr<AttrInputExpr> (
+		      new AttrInputExpr (std::move (lit_expr))));
 }
 
 Attribute
@@ -4129,10 +4128,9 @@ MetaListNameValueStr::to_attribute () const
 Attribute
 MetaItemPathExpr::to_attribute () const
 {
-  rust_assert (expr->is_literal ());
-  auto &lit = static_cast<LiteralExpr &> (*expr);
-  return Attribute (path, std::unique_ptr<AttrInputLiteral> (
-			    new AttrInputLiteral (lit)));
+  // TODO: should we move instead of clone?
+  return Attribute (path, std::unique_ptr<AttrInputExpr> (
+			    new AttrInputExpr (expr->clone_expr ())));
 }
 
 std::vector<Attribute>
@@ -4236,19 +4234,6 @@ BlockExpr::normalize_tail_expr ()
     }
 }
 
-// needed here because "rust-expr.h" doesn't include "rust-macro.h"
-AttrInputMacro::AttrInputMacro (const AttrInputMacro &oth)
-  : macro (oth.macro->clone_macro_invocation_impl ())
-{}
-
-AttrInputMacro &
-AttrInputMacro::operator= (const AttrInputMacro &oth)
-{
-  macro = std::unique_ptr<MacroInvocation> (
-    oth.macro->clone_macro_invocation_impl ());
-  return *this;
-}
-
 /* Visitor implementations - these are short but inlining can't happen anyway
  * due to virtual functions and I didn't want to make the ast header includes
  * any longer than they already are. */
@@ -4290,13 +4275,7 @@ LiteralExpr::accept_vis (ASTVisitor &vis)
 }
 
 void
-AttrInputLiteral::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-AttrInputMacro::accept_vis (ASTVisitor &vis)
+AttrInputExpr::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

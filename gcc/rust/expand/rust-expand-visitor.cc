@@ -581,13 +581,9 @@ ExpandVisitor::visit (AST::LiteralExpr &expr)
 {}
 
 void
-ExpandVisitor::visit (AST::AttrInputLiteral &)
-{}
-
-void
-ExpandVisitor::visit (AST::AttrInputMacro &macro)
+ExpandVisitor::visit (AST::AttrInputExpr &attr_input)
 {
-  rust_sorry_at (UNDEF_LOCATION, "macros in attributes not supported");
+  maybe_expand_expr (attr_input.get_expr_ptr ());
 }
 
 void

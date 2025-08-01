@@ -70,8 +70,7 @@ public:
 
   // rust-expr.h
   virtual void visit (LiteralExpr &expr) = 0;
-  virtual void visit (AttrInputLiteral &attr_input) = 0;
-  virtual void visit (AttrInputMacro &attr_input) = 0;
+  virtual void visit (AttrInputExpr &attr_input) = 0;
   virtual void visit (MetaItemLitExpr &meta_item) = 0;
   virtual void visit (MetaItemPathExpr &meta_item) = 0;
   virtual void visit (BorrowExpr &expr) = 0;
@@ -268,8 +267,7 @@ public:
   virtual void visit (AST::QualifiedPathInExpression &path) override;
   virtual void visit (AST::QualifiedPathInType &path) override;
   virtual void visit (AST::LiteralExpr &expr) override;
-  virtual void visit (AST::AttrInputLiteral &attr_input) override;
-  virtual void visit (AST::AttrInputMacro &attr_input) override;
+  virtual void visit (AST::AttrInputExpr &attr_input) override;
   virtual void visit (AST::MetaItemLitExpr &meta_item) override;
   virtual void visit (AST::MetaItemPathExpr &meta_item) override;
   virtual void visit (AST::BorrowExpr &expr) override;

@@ -103,8 +103,7 @@ public:
 
   // rust-expr.h
   virtual void visit (AST::LiteralExpr &expr) override;
-  virtual void visit (AST::AttrInputLiteral &attr_input) override;
-  virtual void visit (AST::AttrInputMacro &attr_input) override;
+  virtual void visit (AST::AttrInputExpr &attr_input) override;
   virtual void visit (AST::MetaItemLitExpr &meta_item) override;
   virtual void visit (AST::MetaItemPathExpr &meta_item) override;
   virtual void visit (AST::BorrowExpr &expr) override;

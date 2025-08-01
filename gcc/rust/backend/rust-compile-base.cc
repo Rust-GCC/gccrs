@@ -75,8 +75,11 @@ tl::optional<GGC::Ident> inline get_unmangled_name (const std::string &function_
 	  rust_assert (attr.has_attr_input ());
 	  auto &input = attr.get_attr_input ();
 
-	  rust_assert (input.get_attr_input_type () == AST::AttrInput::AttrInputType::LITERAL);
-	  auto &literal = static_cast<AST::AttrInputLiteral &> (input).get_literal ();
+	  rust_assert (input.get_attr_input_type () == AST::AttrInput::AttrInputType::EXPR);
+	  auto &input_expr = static_cast<AST::AttrInputExpr &> (input).get_expr ();
+
+	  rust_assert (input_expr.is_literal ());
+	  auto &literal = static_cast<AST::LiteralExpr &> (input_expr);
 	  
 	  rust_assert (literal.get_lit_type () == AST::Literal::LitType::STRING || literal.get_lit_type () == AST::Literal::LitType::RAW_STRING);
 	  // TODO: special handling for STRING/RAW_STRING?
