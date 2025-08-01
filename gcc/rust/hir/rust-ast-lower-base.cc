@@ -138,10 +138,6 @@ void
 ASTLoweringBase::visit (AST::LiteralExpr &)
 {}
 void
-ASTLoweringBase::visit (AST::AttrInputLiteral &)
-{}
-
-void
 ASTLoweringBase::visit (AST::AttrInputExpr &)
 {}
 void
@@ -816,7 +812,7 @@ ASTLoweringBase::handle_outer_attributes (const ItemWrapper &item)
       bool is_lang_item = str_path == Values::Attributes::LANG
 			  && attr.has_attr_input ()
 			  && attr.get_attr_input ().get_attr_input_type ()
-			       == AST::AttrInput::AttrInputType::LITERAL;
+			       == AST::AttrInput::AttrInputType::EXPR;
 
       bool is_doc_item = str_path == Values::Attributes::DOC;
 
@@ -839,7 +835,7 @@ ASTLoweringBase::handle_doc_item_attribute (const ItemWrapper &,
   rust_assert (attr.has_attr_input ());
 
   auto simple_doc_comment = attr.get_attr_input ().get_attr_input_type ()
-			    == AST::AttrInput::AttrInputType::LITERAL;
+			    == AST::AttrInput::AttrInputType::EXPR;
 
   if (simple_doc_comment)
     return;

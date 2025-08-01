@@ -138,11 +138,16 @@ Attributes::extract_string_literal (const AST::Attribute &attr)
   auto &attr_input = attr.get_attr_input ();
 
   if (attr_input.get_attr_input_type ()
-      != AST::AttrInput::AttrInputType::LITERAL)
+      != AST::AttrInput::AttrInputType::EXPR)
     return tl::nullopt;
 
-  auto &literal_expr
-    = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
+  auto &expr
+    = static_cast<AST::AttrInputExpr &> (attr_input).get_expr ();
+
+  if (!expr.is_literal ())
+    return tl::nullopt;
+
+  auto &literal_expr = static_cast<AST::LiteralExpr &> (expr);
 
   auto lit_type = literal_expr.get_lit_type ();
 

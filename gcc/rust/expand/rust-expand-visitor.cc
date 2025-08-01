@@ -601,10 +601,6 @@ ExpandVisitor::visit (AST::LiteralExpr &expr)
 {}
 
 void
-ExpandVisitor::visit (AST::AttrInputLiteral &)
-{}
-
-void
 ExpandVisitor::visit (AST::AttrInputExpr &attr_input)
 {
   maybe_expand_expr (attr_input.get_expr_ptr ());

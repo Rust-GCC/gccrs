@@ -117,7 +117,6 @@ private:
   virtual void visit (QualifiedPathInExpression &path) override final{};
   virtual void visit (QualifiedPathInType &path) override final{};
   virtual void visit (LiteralExpr &expr) override final{};
-  virtual void visit (AttrInputLiteral &attr_input) override final{};
   virtual void visit (MetaItemLitExpr &meta_item) override final{};
   virtual void visit (MetaItemPathExpr &meta_item) override final{};
   virtual void visit (BorrowExpr &expr) override final{};

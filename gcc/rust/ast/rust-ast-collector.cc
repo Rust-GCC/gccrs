@@ -170,12 +170,6 @@ TokenCollector::visit (Attribute &attrib)
       {
 	switch (attrib.get_attr_input ().get_attr_input_type ())
 	  {
-	  case AST::AttrInput::AttrInputType::LITERAL:
-	    {
-	      visit (
-		static_cast<AttrInputLiteral &> (attrib.get_attr_input ()));
-	      break;
-	    }
 	  case AST::AttrInput::AttrInputType::EXPR:
 	    {
 	      visit (static_cast<AttrInputExpr &> (attrib.get_attr_input ()));
@@ -900,15 +894,6 @@ TokenCollector::visit (LiteralExpr &expr)
   describe_node (std::string ("LiteralExpr"), [this, &expr] () {
     auto lit = expr.get_literal ();
     visit (lit, expr.get_locus ());
-  });
-}
-
-void
-TokenCollector::visit (AttrInputLiteral &literal)
-{
-  describe_node (std::string ("AttrInputLiteral"), [this, &literal] () {
-    push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
-    visit (literal.get_literal ());
   });
 }
 

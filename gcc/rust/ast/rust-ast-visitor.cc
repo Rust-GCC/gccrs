@@ -203,12 +203,6 @@ DefaultASTVisitor::visit (AST::Attribute &attribute)
 }
 
 void
-DefaultASTVisitor::visit (AST::AttrInputLiteral &attr_input)
-{
-  visit (attr_input.get_literal ());
-}
-
-void
 DefaultASTVisitor::visit (AST::AttrInputExpr &attr_input)
 {
   visit (attr_input.get_expr ());

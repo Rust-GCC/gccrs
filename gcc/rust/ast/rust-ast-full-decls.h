@@ -76,7 +76,7 @@ class QualifiedPathInType;
 // rust-expr.h
 class ExprWithBlock;
 class LiteralExpr;
-class AttrInputLiteral;
+class AttrInputExpr;
 class MetaItemLitExpr;
 class MetaItemPathExpr;
 class OperatorExpr;
