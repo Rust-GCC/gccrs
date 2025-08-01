@@ -136,7 +136,7 @@ void
 ASTLoweringBase::visit (AST::MetaItemLitExpr &)
 {}
 void
-ASTLoweringBase::visit (AST::MetaItemPathLit &)
+ASTLoweringBase::visit (AST::MetaItemPathExpr &)
 {}
 void
 ASTLoweringBase::visit (AST::BorrowExpr &)
@@ -576,6 +576,10 @@ ASTLoweringBase::visit (AST::SelfParam &param)
 
 void
 ASTLoweringBase::visit (AST::FormatArgs &fmt)
+{}
+
+void
+ASTLoweringBase::visit (AST::FormatArgsEager &fmt)
 {}
 
 void

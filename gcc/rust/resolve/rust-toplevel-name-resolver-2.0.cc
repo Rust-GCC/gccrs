@@ -45,7 +45,12 @@ TopLevel::check_multiple_insertion_error (
   const location_t &locus, const NodeId node_id)
 {
   if (result)
-    dirty = true;
+    {
+      static int n = 0;
+      if (!dirty && ++n == 38)
+        rust_error_at (locus, "38th dirty : %s", identifier.as_string ().c_str ());
+      dirty = true;
+    }
   else if (result.error ().existing != node_id)
     {
       rich_location rich_loc (line_table, locus);

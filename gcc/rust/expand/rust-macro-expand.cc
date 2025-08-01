@@ -27,7 +27,6 @@
 #include "rust-macro.h"
 #include "rust-parse.h"
 #include "rust-cfg-strip.h"
-#include "rust-early-name-resolver.h"
 #include "rust-proc-macro.h"
 #include "rust-token-tree-desugar.h"
 
@@ -335,9 +334,6 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
 void
 MacroExpander::expand_crate ()
 {
-  NodeId scope_node_id = crate.get_node_id ();
-  resolver->get_macro_scope ().push (scope_node_id);
-
   /* fill macro/decorator map from init list? not sure where init list comes
    * from? */
 
@@ -961,7 +957,8 @@ transcribe_expression (Parser<MacroInvocLexer> &parser)
   auto &lexer = parser.get_token_source ();
   auto start = lexer.get_offs ();
 
-  auto expr = parser.parse_expr ();
+  auto attrs = parser.parse_outer_attributes ();
+  auto expr = parser.parse_expr (std::move (attrs));
   if (expr == nullptr)
     return AST::Fragment::create_error ();
 

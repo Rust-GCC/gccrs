@@ -118,7 +118,7 @@ private:
   virtual void visit (LiteralExpr &expr) override final{};
   virtual void visit (AttrInputLiteral &attr_input) override final{};
   virtual void visit (MetaItemLitExpr &meta_item) override final{};
-  virtual void visit (MetaItemPathLit &meta_item) override final{};
+  virtual void visit (MetaItemPathExpr &meta_item) override final{};
   virtual void visit (BorrowExpr &expr) override final{};
   virtual void visit (DereferenceExpr &expr) override final{};
   virtual void visit (ErrorPropagationExpr &expr) override final{};
@@ -256,6 +256,7 @@ private:
   virtual void visit (FunctionParam &param) override final{};
   virtual void visit (VariadicParam &param) override final{};
   virtual void visit (FormatArgs &param) override final{};
+  virtual void visit (FormatArgsEager &param) override final{};
   virtual void visit (OffsetOf &param) override final{};
 };
 

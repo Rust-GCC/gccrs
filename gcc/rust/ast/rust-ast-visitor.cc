@@ -224,10 +224,10 @@ DefaultASTVisitor::visit (AST::SimplePath &path)
 }
 
 void
-DefaultASTVisitor::visit (AST::MetaItemPathLit &meta_item)
+DefaultASTVisitor::visit (AST::MetaItemPathExpr &meta_item)
 {
   visit (meta_item.get_path ());
-  visit (meta_item.get_literal ());
+  visit (meta_item.get_expr ());
 }
 
 void
@@ -1503,6 +1503,15 @@ void
 DefaultASTVisitor::visit (AST::FormatArgs &)
 {
   // FIXME: Do we have anything to do? any subnodes to visit? Probably, right?
+}
+
+void
+DefaultASTVisitor::visit (AST::FormatArgsEager &fmt)
+{
+  // FIXME: Do we have anything to do? any subnodes to visit? Probably, right?
+
+  // we need this to resolve/expand macros, at least
+  visit (fmt.get_template ());
 }
 
 void

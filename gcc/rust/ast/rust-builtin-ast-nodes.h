@@ -225,6 +225,70 @@ protected:
   virtual Expr *clone_expr_impl () const override;
 };
 
+// a FormatArgs which hasn't had its first argument parsed yet
+// used to handle eager expansion
+class FormatArgsEager final : public Expr
+{
+public:
+  using Newline = FormatArgs::Newline;
+
+  FormatArgsEager (location_t loc, std::unique_ptr<Expr> &&template_expr,
+	      FormatArguments &&arguments, Newline newline)
+    : loc (loc), template_expr (std::move (template_expr)),
+      arguments (std::move (arguments)), newline (newline)
+  {}
+
+  FormatArgsEager (const FormatArgsEager &other): Expr (other), loc (other.loc), template_expr (other.template_expr->clone_expr ()), arguments (other.arguments), newline (other.newline) {}
+
+  FormatArgsEager &operator= (const FormatArgsEager &other)
+  {
+    Expr::operator= (other);
+    loc = other.loc;
+    template_expr = other.template_expr->clone_expr ();
+    arguments = other.arguments;
+    newline = other.newline;
+    return *this;
+  }
+
+  FormatArgsEager (FormatArgsEager &&other) = default;
+  FormatArgsEager &operator= (FormatArgsEager &&other) = default;
+
+  void accept_vis (AST::ASTVisitor &vis) override;
+
+  const Expr &get_template () const { return *template_expr; }
+  
+  Expr &get_template () { return *template_expr; }
+  
+  std::unique_ptr<Expr> &get_template_ptr () { return template_expr; }
+  
+  const FormatArguments &get_arguments () const { return arguments; }
+  
+  FormatArguments &get_arguments () { return arguments; }
+  
+  virtual location_t get_locus () const override { return loc; }
+  
+  Newline get_newline () const { return newline; }
+
+  Expr::Kind get_expr_kind () const override { return Expr::Kind::FormatArgsEager; }
+
+private:
+  location_t loc;
+  std::unique_ptr<Expr> template_expr;
+  FormatArguments arguments;
+  Newline newline;
+
+  bool marked_for_strip = false;
+
+protected:
+  virtual std::string as_string () const override;
+  virtual bool is_expr_without_block () const override;
+  virtual void mark_for_strip () override;
+  virtual bool is_marked_for_strip () const override;
+  virtual std::vector<Attribute> &get_outer_attrs () override;
+  virtual void set_outer_attrs (std::vector<Attribute>) override;
+  virtual FormatArgsEager *clone_expr_impl () const override;
+};
+
 /**
  * The node associated with the builtin offset_of!() macro
  */

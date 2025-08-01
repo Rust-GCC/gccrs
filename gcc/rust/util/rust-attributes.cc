@@ -54,6 +54,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::MUST_USE, STATIC_ANALYSIS},
      {Attrs::LANG, HIR_LOWERING},
      {Attrs::LINK_SECTION, CODE_GENERATION},
+     {Attrs::LINK_NAME, CODE_GENERATION},
      {Attrs::NO_MANGLE, CODE_GENERATION},
      {Attrs::REPR, CODE_GENERATION},
      {Attrs::RUSTC_BUILTIN_MACRO, EXPANSION},
@@ -78,6 +79,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_PROMOTABLE, CODE_GENERATION},
      {Attrs::RUSTC_CONST_STABLE, STATIC_ANALYSIS},
      {Attrs::RUSTC_CONST_UNSTABLE, STATIC_ANALYSIS},
+     {Attrs::RUSTC_ALLOW_CONST_FN_UNSTABLE, STATIC_ANALYSIS},
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION},
      {Attrs::TRACK_CALLER, CODE_GENERATION},
      {Attrs::RUSTC_SPECIALIZATION_TRAIT, TYPE_CHECK},
@@ -98,7 +100,10 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTFMT, EXTERNAL},
 
      {Attrs::TEST, CODE_GENERATION},
-     {Attrs::SIMD_TEST, CODE_GENERATION}};
+
+     // TODO: be careful about calling functions marked with this?
+     {Attrs::RUSTC_ARGS_REQUIRED_CONST, CODE_GENERATION},
+};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()
@@ -392,7 +397,7 @@ AttributeChecker::visit (AST::MetaItemLitExpr &)
 {}
 
 void
-AttributeChecker::visit (AST::MetaItemPathLit &)
+AttributeChecker::visit (AST::MetaItemPathExpr &)
 {}
 
 void

@@ -55,10 +55,10 @@ DeriveDebug::stub_debug_fn ()
   auto self = builder.self_ref_param ();
 
   auto return_type
-    = ptrify (builder.type_path ({"core", "fmt", "Result"}, true));
+    = ptrify (builder.type_path_core ({"fmt", "Result"}));
 
   auto mut_fmt_type_inner
-    = ptrify (builder.type_path ({"core", "fmt", "Formatter"}, true));
+    = ptrify (builder.type_path_core ({"fmt", "Formatter"}));
 
   auto mut_fmt_type
     = builder.reference_type (std::move (mut_fmt_type_inner), true);
@@ -81,7 +81,7 @@ DeriveDebug::stub_derive_impl (
 {
   auto trait_items = vec (stub_debug_fn ());
 
-  auto debug = builder.type_path ({"core", "fmt", "Debug"}, true);
+  auto debug = builder.type_path_core ({"fmt", "Debug"});
   auto generics
     = setup_impl_generics (name, type_generics, builder.trait_bound (debug));
 
