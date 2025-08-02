@@ -260,7 +260,7 @@ public:
 
   void insert_lang_item (LangItem::Kind item_type, DefId id);
   tl::optional<DefId &> lookup_lang_item (LangItem::Kind item_type);
-
+  tl::optional<LangItem::Kind &> lookup_lang_item (DefId id);
   void insert_lang_item_node (LangItem::Kind item_type, NodeId node_id);
   tl::optional<NodeId &> lookup_lang_item_node (LangItem::Kind item_type);
   NodeId get_lang_item_node (LangItem::Kind item_type);
@@ -394,6 +394,7 @@ private:
   // We need to have two maps here, as lang-items need to be used for both AST
   // passes and HIR passes. Thus those two maps are created at different times.
   std::map<LangItem::Kind, DefId> lang_item_mappings;
+  std::map<DefId, LangItem::Kind> rev_lang_item_mappings;
   std::map<LangItem::Kind, NodeId> lang_item_nodes;
 
   std::map<NodeId, Resolver::CanonicalPath> paths;
