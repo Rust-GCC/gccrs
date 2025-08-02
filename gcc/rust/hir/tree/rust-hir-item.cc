@@ -232,9 +232,9 @@ VisItem::VisItem (VisItem const &other)
 
 Module::Module (Analysis::NodeMapping mappings, Identifier module_name,
 		location_t locus, std::vector<std::unique_ptr<Item>> items,
-		Visibility visibility, AST::AttrVec inner_attrs,
-		AST::AttrVec outer_attrs)
-  : VisItem (std::move (mappings), std::move (visibility),
+		bool is_derived, Visibility visibility,
+		AST::AttrVec inner_attrs, AST::AttrVec outer_attrs)
+  : VisItem (std::move (mappings), is_derived, std::move (visibility),
 	     std::move (outer_attrs)),
     WithInnerAttrs (std::move (inner_attrs)), module_name (module_name),
     locus (locus), items (std::move (items))
@@ -268,8 +268,9 @@ Function::Function (Analysis::NodeMapping mappings, Identifier function_name,
 		    std::unique_ptr<Type> return_type, WhereClause where_clause,
 		    std::unique_ptr<BlockExpr> function_body, Visibility vis,
 		    AST::AttrVec outer_attrs, tl::optional<SelfParam> self,
-		    Defaultness defaultness, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+		    Defaultness defaultness, location_t locus, bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     qualifiers (std::move (qualifiers)),
     function_name (std::move (function_name)),
     generic_params (std::move (generic_params)),
@@ -330,8 +331,10 @@ TypeAlias::TypeAlias (Analysis::NodeMapping mappings, Identifier new_type_name,
 		      std::vector<std::unique_ptr<GenericParam>> generic_params,
 		      WhereClause where_clause,
 		      std::unique_ptr<Type> existing_type, Visibility vis,
-		      AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+		      AST::AttrVec outer_attrs, location_t locus,
+		      bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     new_type_name (std::move (new_type_name)),
     generic_params (std::move (generic_params)),
     where_clause (std::move (where_clause)),
@@ -420,34 +423,36 @@ TupleStruct::TupleStruct (
   Identifier struct_name,
   std::vector<std::unique_ptr<GenericParam>> generic_params,
   WhereClause where_clause, Visibility vis, AST::AttrVec outer_attrs,
-  location_t locus)
+  location_t locus, bool is_derived)
   : Struct (std::move (mappings), std::move (struct_name),
 	    std::move (generic_params), std::move (where_clause),
-	    std::move (vis), locus, std::move (outer_attrs)),
+	    std::move (vis), locus, is_derived, std::move (outer_attrs)),
     fields (std::move (fields))
 {}
 
 EnumItem::EnumItem (Analysis::NodeMapping mappings, Identifier variant_name,
-		    AST::AttrVec outer_attrs, location_t locus)
-  : Item (std::move (mappings), std::move (outer_attrs)),
+		    AST::AttrVec outer_attrs, location_t locus, bool is_derived)
+  : Item (std::move (mappings), is_derived, std::move (outer_attrs)),
     variant_name (std::move (variant_name)), locus (locus)
 {}
 
 EnumItemTuple::EnumItemTuple (Analysis::NodeMapping mappings,
 			      Identifier variant_name,
 			      std::vector<TupleField> tuple_fields,
-			      AST::AttrVec outer_attrs, location_t locus)
+			      AST::AttrVec outer_attrs, location_t locus,
+			      bool is_derived)
   : EnumItem (std::move (mappings), std::move (variant_name),
-	      std::move (outer_attrs), locus),
+	      std::move (outer_attrs), locus, is_derived),
     tuple_fields (std::move (tuple_fields))
 {}
 
 EnumItemStruct::EnumItemStruct (Analysis::NodeMapping mappings,
 				Identifier variant_name,
 				std::vector<StructField> struct_fields,
-				AST::AttrVec outer_attrs, location_t locus)
+				AST::AttrVec outer_attrs, location_t locus,
+				bool is_derived)
   : EnumItem (std::move (mappings), std::move (variant_name),
-	      std::move (outer_attrs), locus),
+	      std::move (outer_attrs), locus, is_derived),
     struct_fields (std::move (struct_fields))
 {}
 
@@ -455,9 +460,9 @@ EnumItemDiscriminant::EnumItemDiscriminant (Analysis::NodeMapping mappings,
 					    Identifier variant_name,
 					    std::unique_ptr<Expr> expr,
 					    AST::AttrVec outer_attrs,
-					    location_t locus)
+					    location_t locus, bool is_derived)
   : EnumItem (std::move (mappings), std::move (variant_name),
-	      std::move (outer_attrs), locus),
+	      std::move (outer_attrs), locus, is_derived),
     expression (std::move (expr))
 {}
 
@@ -481,8 +486,9 @@ Enum::Enum (Analysis::NodeMapping mappings, Identifier enum_name,
 	    std::vector<std::unique_ptr<GenericParam>> generic_params,
 	    WhereClause where_clause,
 	    std::vector<std::unique_ptr<EnumItem>> items,
-	    AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+	    AST::AttrVec outer_attrs, location_t locus, bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     enum_name (std::move (enum_name)),
     generic_params (std::move (generic_params)),
     where_clause (std::move (where_clause)), items (std::move (items)),
@@ -525,8 +531,9 @@ Union::Union (Analysis::NodeMapping mappings, Identifier union_name,
 	      Visibility vis,
 	      std::vector<std::unique_ptr<GenericParam>> generic_params,
 	      WhereClause where_clause, std::vector<StructField> variants,
-	      AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+	      AST::AttrVec outer_attrs, location_t locus, bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     union_name (std::move (union_name)),
     generic_params (std::move (generic_params)),
     where_clause (std::move (where_clause)), variants (std::move (variants)),
@@ -562,8 +569,10 @@ Union::operator= (Union const &other)
 ConstantItem::ConstantItem (Analysis::NodeMapping mappings, Identifier ident,
 			    Visibility vis, std::unique_ptr<Type> type,
 			    std::unique_ptr<Expr> const_expr,
-			    AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+			    AST::AttrVec outer_attrs, location_t locus,
+			    bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     identifier (std::move (ident)), type (std::move (type)),
     const_expr (std::move (const_expr)), locus (locus)
 {}
@@ -589,8 +598,10 @@ ConstantItem::operator= (ConstantItem const &other)
 StaticItem::StaticItem (Analysis::NodeMapping mappings, Identifier name,
 			Mutability mut, std::unique_ptr<Type> type,
 			std::unique_ptr<Expr> expr, Visibility vis,
-			AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+			AST::AttrVec outer_attrs, location_t locus,
+			bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     mut (mut), name (std::move (name)), type (std::move (type)),
     expr (std::move (expr)), locus (locus)
 {}
@@ -754,8 +765,10 @@ Trait::Trait (Analysis::NodeMapping mappings, Identifier name,
 	      std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds,
 	      WhereClause where_clause,
 	      std::vector<std::unique_ptr<TraitItem>> trait_items,
-	      Visibility vis, AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+	      Visibility vis, AST::AttrVec outer_attrs, location_t locus,
+	      bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     unsafety (unsafety), name (std::move (name)),
     generic_params (std::move (generic_params)),
     type_param_bounds (std::move (type_param_bounds)),
@@ -811,8 +824,10 @@ ImplBlock::ImplBlock (Analysis::NodeMapping mappings,
 		      std::unique_ptr<TypePath> trait_ref,
 		      WhereClause where_clause, BoundPolarity polarity,
 		      Visibility vis, AST::AttrVec inner_attrs,
-		      AST::AttrVec outer_attrs, location_t locus, bool unsafe)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+		      AST::AttrVec outer_attrs, location_t locus, bool unsafe,
+		      bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     WithInnerAttrs (std::move (inner_attrs)),
     generic_params (std::move (generic_params)),
     impl_type (std::move (impl_type)), trait_ref (std::move (trait_ref)),
@@ -993,8 +1008,10 @@ ExternalTypeItem::ExternalTypeItem (ExternalTypeItem const &other)
 ExternBlock::ExternBlock (
   Analysis::NodeMapping mappings, ABI abi,
   std::vector<std::unique_ptr<ExternalItem>> extern_items, Visibility vis,
-  AST::AttrVec inner_attrs, AST::AttrVec outer_attrs, location_t locus)
-  : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
+  AST::AttrVec inner_attrs, AST::AttrVec outer_attrs, location_t locus,
+  bool is_derived)
+  : VisItem (std::move (mappings), is_derived, std::move (vis),
+	     std::move (outer_attrs)),
     WithInnerAttrs (std::move (inner_attrs)), abi (abi),
     extern_items (std::move (extern_items)), locus (locus)
 {}
