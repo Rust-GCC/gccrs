@@ -9,9 +9,6 @@ on:
     branches: [ master ]
   merge_group:
 
-env:
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-
 jobs:
   build-and-check-ubuntu-64bit:
 
@@ -19,7 +16,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -41,6 +38,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -68,7 +67,7 @@ jobs:
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | grep rust | sort > log_warnings
+           < log grep 'warning: ' | grep -i rust | sort > log_warnings
            if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
@@ -104,7 +103,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -126,6 +125,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -148,12 +149,13 @@ jobs:
            cd gccrs-build; \
            # Add cargo to our path quickly
            . "$HOME/.cargo/env";
-           make -Otarget -j $(nproc) 2>&1 | tee log
+           # Build without network access
+           unshare --net --ipc -r /bin/bash -c "make -Otarget -j $(nproc) 2>&1 | tee log ; exit \${PIPESTATUS[0]}"
 
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | grep rust | sort > log_warnings
+           < log grep 'warning: ' | grep -i rust | sort > log_warnings
            if diff -U0 ../.github/glibcxx_ubuntu64b_log_expected_warnings log_warnings; then
                :
            else
@@ -189,7 +191,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -211,6 +213,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -232,12 +236,13 @@ jobs:
            cd gccrs-build; \
            # Add cargo to our path quickly
            . "$HOME/.cargo/env";
-           make -Otarget -j $(nproc) 2>&1 | tee log
+           # Build without network access
+           unshare --net --ipc -r /bin/bash -c "make -Otarget -j $(nproc) 2>&1 | tee log ; exit \${PIPESTATUS[0]}"
 
     - name: Check for new warnings
       run: |
            cd gccrs-build
-           < log grep 'warning: ' | grep rust | sort > log_warnings
+           < log grep 'warning: ' | grep -i rust | sort > log_warnings
            if diff -U0 ../.github/log_expected_warnings log_warnings; then
                :
            else
@@ -294,6 +299,8 @@ jobs:
                   libmpc-dev \
                   build-essential \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -341,8 +348,8 @@ jobs:
       run: |
            # Add cargo to our path quickly
            . "$HOME/.cargo/env";
-           PATH=$HOME/gcc-5.4.0/bin:$PATH \
-             make -C gccrs-build -j $(nproc)
+           # Build without network access
+           PATH="$HOME/gcc-5.4.0/bin:$PATH" unshare --net --ipc -r /bin/bash -c "make -C gccrs-build -j $(nproc) ; exit \${PIPESTATUS[0]}"
 
     - name: Run Tests
       run: |
@@ -435,7 +442,7 @@ jobs:
       # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
       LC_ALL: C.UTF-8
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
     - uses: actions/checkout@v4
@@ -457,6 +464,8 @@ jobs:
                   gcc-multilib \
                   g++-multilib \
                   dejagnu;
+          # enable unshare
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # install Rust directly using rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
 
@@ -479,19 +488,8 @@ jobs:
            cd gccrs-build; \
            # Add cargo to our path quickly
            . "$HOME/.cargo/env";
-           make -Otarget -j $(nproc) 2>&1 | tee log
-
-# Skip warnings check
-#    - name: Check for new warnings
-#      run: |
-#           cd gccrs-build
-#           < log grep 'warning: ' | sort > log_warnings
-#           if diff -U0 ../.github/log_expected_warnings log_warnings; then
-#               :
-#           else
-#               echo 'See <https://github.com/Rust-GCC/gccrs/pull/1026>.'
-#               exit 1
-#           fi >&2
+           # Build without network access
+           unshare --net --ipc -r /bin/bash -c "make -Otarget -j $(nproc) 2>&1 | tee log ; exit \${PIPESTATUS[0]}"
 
     - name: Run Tests
       run: |
