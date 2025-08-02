@@ -5654,12 +5654,12 @@ You can specify the kind of interrupt to be handled by adding an optional
 parameter to the interrupt attribute like this:
 
 @smallexample
-void f (void) __attribute__ ((interrupt ("user")));
+void f (void) __attribute__ ((interrupt ("supervisor")));
 @end smallexample
 
-Permissible values for this parameter are @code{user}, @code{supervisor},
-and @code{machine}.  If there is no parameter, then it defaults to
-@code{machine}.
+Permissible values for this parameter are @code{supervisor},
+@code{machine}, and @code{rnmi}.  If there is no parameter, then it
+defaults to @code{machine}.
 
 @cindex @code{riscv_vector_cc} function attribute, RISC-V
 @item riscv_vector_cc

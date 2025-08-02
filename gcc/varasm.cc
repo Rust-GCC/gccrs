@@ -871,7 +871,7 @@ mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
   if (HAVE_GAS_SHF_MERGE && flag_merge_constants
       && TREE_CODE (decl) == STRING_CST
       && TREE_CODE (TREE_TYPE (decl)) == ARRAY_TYPE
-      && align <= 256
+      && align <= MAX_ALIGN_MERGABLE
       && (len = int_size_in_bytes (TREE_TYPE (decl))) > 0
       && TREE_STRING_LENGTH (decl) == len)
     {
@@ -885,7 +885,7 @@ mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
 
       mode = SCALAR_INT_TYPE_MODE (TREE_TYPE (TREE_TYPE (decl)));
       modesize = GET_MODE_BITSIZE (mode);
-      if (modesize >= 8 && modesize <= 256
+      if (modesize >= 8 && modesize <= MAX_ALIGN_MERGABLE
 	  && (modesize & (modesize - 1)) == 0)
 	{
 	  if (align < modesize)
@@ -919,16 +919,14 @@ mergeable_string_section (tree decl ATTRIBUTE_UNUSED,
 /* Return the section to use for constant merging.  */
 
 section *
-mergeable_constant_section (machine_mode mode ATTRIBUTE_UNUSED,
-			    unsigned HOST_WIDE_INT align ATTRIBUTE_UNUSED,
-			    unsigned int flags ATTRIBUTE_UNUSED)
+mergeable_constant_section (unsigned HOST_WIDE_INT size_bits,
+			    unsigned HOST_WIDE_INT align,
+			    unsigned int flags)
 {
   if (HAVE_GAS_SHF_MERGE && flag_merge_constants
-      && mode != VOIDmode
-      && mode != BLKmode
-      && known_le (GET_MODE_BITSIZE (mode), align)
+      && size_bits <= align
       && align >= 8
-      && align <= 256
+      && align <= MAX_ALIGN_MERGABLE
       && (align & (align - 1)) == 0)
     {
       const char *prefix = function_mergeable_rodata_prefix ();
@@ -940,6 +938,38 @@ mergeable_constant_section (machine_mode mode ATTRIBUTE_UNUSED,
     }
   return readonly_data_section;
 }
+
+
+/* Return the section to use for constant merging. Like the above
+   but the size stored as a tree.  */
+static section *
+mergeable_constant_section (tree size_bits,
+			    unsigned HOST_WIDE_INT align,
+			    unsigned int flags)
+{
+  if (!size_bits || !tree_fits_uhwi_p (size_bits))
+    return readonly_data_section;
+  return mergeable_constant_section (tree_to_uhwi (size_bits), align, flags);
+}
+
+
+/* Return the section to use for constant merging. Like the above
+   but given a mode rather than the size.  */
+
+section *
+mergeable_constant_section (machine_mode mode,
+			    unsigned HOST_WIDE_INT align,
+			    unsigned int flags)
+{
+  /* If the mode is unknown (BLK or VOID), then return a non mergable section.  */
+  if (mode == BLKmode || mode == VOIDmode)
+    return readonly_data_section;
+  unsigned HOST_WIDE_INT size;
+  if (!GET_MODE_BITSIZE (mode).is_constant (&size))
+    return readonly_data_section;
+  return mergeable_constant_section (size, align, flags);
+}
+
 
 /* Given NAME, a putative register name, discard any customary prefixes.  */
 
@@ -2908,7 +2938,7 @@ assemble_name_resolve (const char *name)
       ultimate_transparent_alias_target (&id);
       if (id != id_orig)
 	name = IDENTIFIER_POINTER (id);
-      gcc_assert (! TREE_CHAIN (id));
+      gcc_assert (!IDENTIFIER_TRANSPARENT_ALIAS (id));
     }
 
   return name;
@@ -7453,7 +7483,7 @@ default_elf_select_section (tree decl, int reloc,
     case SECCAT_RODATA_MERGE_STR_INIT:
       return mergeable_string_section (DECL_INITIAL (decl), align, 0);
     case SECCAT_RODATA_MERGE_CONST:
-      return mergeable_constant_section (DECL_MODE (decl), align, 0);
+      return mergeable_constant_section (DECL_SIZE (decl), align, 0);
     case SECCAT_SRODATA:
       sname = ".sdata2";
       break;

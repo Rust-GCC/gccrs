@@ -97,6 +97,7 @@ bug_components = {
     'd',
     'debug',
     'demangler',
+    'diagnostics',
     'driver',
     'fastjar',
     'fortran',
@@ -152,6 +153,7 @@ ignored_prefixes = {
     'libphobos/libdruntime/',
     'libphobos/src/',
     'libsanitizer/',
+    'zlib/',
     }
 
 wildcard_prefixes = {

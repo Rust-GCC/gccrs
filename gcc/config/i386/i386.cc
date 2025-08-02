@@ -12442,6 +12442,28 @@ static GTY(()) rtx ix86_tls_symbol;
 static rtx
 ix86_tls_get_addr (void)
 {
+  if (cfun->machine->call_saved_registers
+      == TYPE_NO_CALLER_SAVED_REGISTERS)
+    {
+      /* __tls_get_addr doesn't preserve vector registers.  When a
+	 function with no_caller_saved_registers attribute calls
+	 __tls_get_addr, YMM and ZMM registers will be clobbered.
+	 Issue an error and suggest -mtls-dialect=gnu2 in this case.  */
+      if (cfun->machine->func_type == TYPE_NORMAL)
+	error (G_("%<-mtls-dialect=gnu2%> must be used with a function"
+		  " with the %<no_caller_saved_registers%> attribute"));
+      else
+	error (cfun->machine->func_type == TYPE_EXCEPTION
+	       ? G_("%<-mtls-dialect=gnu2%> must be used with an"
+		    " exception service routine")
+	       : G_("%<-mtls-dialect=gnu2%> must be used with an"
+		    " interrupt service routine"));
+      /* Don't issue the same error twice.  */
+      cfun->machine->func_type = TYPE_NORMAL;
+      cfun->machine->call_saved_registers
+	= TYPE_DEFAULT_CALL_SAVED_REGISTERS;
+    }
+
   if (!ix86_tls_symbol)
     {
       const char *sym
@@ -21491,8 +21513,7 @@ ix86_hard_regno_nregs (unsigned int regno, machine_mode mode)
   /* Register pair for mask registers.  */
   if (mode == P2QImode || mode == P2HImode)
     return 2;
-  if (mode == V64SFmode || mode == V64SImode)
-    return 4;
+
   return 1;
 }
 
@@ -26128,23 +26149,15 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
      (AGU and load ports).  Try to account for this by scaling the
      construction cost by the number of elements involved.  */
   if ((kind == vec_construct || kind == vec_to_scalar)
-      && ((stmt_info
-	   && (STMT_VINFO_TYPE (stmt_info) == load_vec_info_type
-	       || STMT_VINFO_TYPE (stmt_info) == store_vec_info_type)
-	   && ((STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info) == VMAT_ELEMENTWISE
-		&& (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF (stmt_info)))
+      && ((node
+	   && (((SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_ELEMENTWISE
+		 || (SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_STRIDED_SLP
+		     && SLP_TREE_LANES (node) == 1))
+		&& (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF
+					(SLP_TREE_REPRESENTATIVE (node))))
 		    != INTEGER_CST))
-	       || (STMT_VINFO_MEMORY_ACCESS_TYPE (stmt_info)
-		   == VMAT_GATHER_SCATTER)))
-	  || (node
-	      && (((SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_ELEMENTWISE
-		    || (SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_STRIDED_SLP
-			&& SLP_TREE_LANES (node) == 1))
-		   && (TREE_CODE (DR_STEP (STMT_VINFO_DATA_REF
-					     (SLP_TREE_REPRESENTATIVE (node))))
-		      != INTEGER_CST))
-		  || (SLP_TREE_MEMORY_ACCESS_TYPE (node)
-		      == VMAT_GATHER_SCATTER)))))
+	       || (SLP_TREE_MEMORY_ACCESS_TYPE (node)
+		   == VMAT_GATHER_SCATTER)))))
     {
       stmt_cost = ix86_builtin_vectorization_cost (kind, vectype, misalign);
       stmt_cost *= (TYPE_VECTOR_SUBPARTS (vectype) + 1);

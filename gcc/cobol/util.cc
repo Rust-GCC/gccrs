@@ -47,15 +47,7 @@
 #include <intl.h>
 #include <backtrace.h>
 #include <diagnostic.h>
-#include <diagnostic-color.h>
-#include <diagnostic-url.h>
-#include <diagnostic-metadata.h>
-#include <diagnostic-path.h>
-#include <edit-context.h>
-#include <selftest.h>
-#include <selftest-diagnostic.h>
 #include <opts.h>
-
 #include "util.h"
 
 #include "cbldiag.h"
@@ -2157,7 +2149,7 @@ verify_format( const char gmsgid[] ) {
 }
 #endif
 
-static const diagnostic_option_id option_zero;
+static const diagnostics::option_id option_zero;
 size_t parse_error_inc();
 
 void gcc_location_dump() {
@@ -2176,7 +2168,8 @@ ydferror( const char gmsgid[], ... ) {
   va_start (ap, gmsgid);
   rich_location richloc (line_table, token_location);
   /*bool ret =*/ global_dc->diagnostic_impl (&richloc, nullptr, option_zero,
-                                             gmsgid, &ap, DK_ERROR);
+                                             gmsgid, &ap,
+                                             diagnostics::kind::error);
   va_end (ap);
 }
 
@@ -2231,7 +2224,8 @@ class temp_loc_t {
   va_start (ap, gmsgid);                                                \
   rich_location richloc (line_table, token_location);                   \
   bool ret = global_dc->diagnostic_impl (&richloc, nullptr, option_zero,        \
-                                         gmsgid, &ap, DK_ERROR);        \
+                                         gmsgid, &ap,                   \
+                                         diagnostics::kind::error);     \
   va_end (ap);                                                          \
   global_dc->end_group();
 
@@ -2255,7 +2249,8 @@ warn_msg( const YYLTYPE& loc, const char gmsgid[], ... ) {
   va_list ap;
   va_start (ap, gmsgid);
   rich_location richloc (line_table, token_location);
-  auto ret = emit_diagnostic_valist( DK_WARNING, token_location,
+  auto ret = emit_diagnostic_valist( diagnostics::kind::warning,
+                                     token_location,
                                      option_zero, gmsgid, &ap );
   va_end (ap);
   return ret;
@@ -2267,7 +2262,8 @@ void error_msg_direct( const char gmsgid[], ... ) {
   auto_diagnostic_group d;
   va_list ap;
   va_start (ap, gmsgid);
-  /*auto ret = */emit_diagnostic_valist( DK_ERROR, token_location,
+  /*auto ret = */emit_diagnostic_valist( diagnostics::kind::error,
+                                         token_location,
                                          option_zero, gmsgid, &ap );
   va_end (ap);
 }
@@ -2285,7 +2281,7 @@ yyerror( const char gmsgid[], ... ) {
                                               nullptr,
                                               option_zero,
                                               gmsgid,
-                                              &ap, DK_ERROR);
+                                              &ap, diagnostics::kind::error);
   va_end (ap);
   global_dc->end_group();
 }
@@ -2296,7 +2292,7 @@ yywarn( const char gmsgid[], ... ) {
   auto_diagnostic_group d;
   va_list ap;
   va_start (ap, gmsgid);
-  auto ret = emit_diagnostic_valist( DK_WARNING, token_location,
+  auto ret = emit_diagnostic_valist( diagnostics::kind::warning, token_location,
                                      option_zero, gmsgid, &ap );
   va_end (ap);
   return ret;
@@ -2494,7 +2490,8 @@ cbl_internal_error(const char *gmsgid, ...) {
   auto_diagnostic_group d;
   va_list ap;
   va_start(ap, gmsgid);
-  emit_diagnostic_valist( DK_ICE, token_location, option_zero, gmsgid, &ap );
+  emit_diagnostic_valist( diagnostics::kind::ice,
+			  token_location, option_zero, gmsgid, &ap );
   va_end(ap);
   abort();  // This unnecessary statement is needed so that [[noreturn]]
   //        // doesn't cause a warning.
@@ -2506,7 +2503,8 @@ cbl_unimplementedw(const char *gmsgid, ...) {
   auto_diagnostic_group d;
   va_list ap;
   va_start(ap, gmsgid);
-  emit_diagnostic_valist( DK_SORRY, token_location, option_zero, gmsgid, &ap );
+  emit_diagnostic_valist( diagnostics::kind::sorry,
+			  token_location, option_zero, gmsgid, &ap );
   va_end(ap);
 }
 
@@ -2516,7 +2514,8 @@ cbl_unimplemented(const char *gmsgid, ...) {
   auto_diagnostic_group d;
   va_list ap;
   va_start(ap, gmsgid);
-  emit_diagnostic_valist( DK_SORRY, token_location, option_zero, gmsgid, &ap );
+  emit_diagnostic_valist( diagnostics::kind::sorry,
+			  token_location, option_zero, gmsgid, &ap );
   va_end(ap);
 }
 
@@ -2527,7 +2526,8 @@ cbl_unimplemented_at( const YYLTYPE& loc, const char *gmsgid, ... ) {
   auto_diagnostic_group d;
   va_list ap;
   va_start(ap, gmsgid);
-  emit_diagnostic_valist( DK_SORRY, token_location, option_zero, gmsgid, &ap );
+  emit_diagnostic_valist( diagnostics::kind::sorry,
+			  token_location, option_zero, gmsgid, &ap );
   va_end(ap);
 }
 
@@ -2544,7 +2544,8 @@ cbl_err(const char *fmt, ...) {
   verify_format(gmsgid);
   va_list ap;
   va_start(ap, fmt);
-  emit_diagnostic_valist( DK_FATAL, token_location, option_zero, gmsgid, &ap );
+  emit_diagnostic_valist( diagnostics::kind::fatal,
+			  token_location, option_zero, gmsgid, &ap );
   va_end(ap);
 }
 #pragma GCC diagnostic pop
@@ -2555,7 +2556,8 @@ cbl_errx(const char *gmsgid, ...) {
   auto_diagnostic_group d;
   va_list ap;
   va_start(ap, gmsgid);
-  emit_diagnostic_valist( DK_FATAL, token_location, option_zero, gmsgid, &ap );
+  emit_diagnostic_valist( diagnostics::kind::fatal,
+			  token_location, option_zero, gmsgid, &ap );
   va_end(ap);
   }
 

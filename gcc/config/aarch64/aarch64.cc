@@ -356,7 +356,8 @@ static int aarch64_address_cost (rtx, machine_mode, addr_space_t, bool);
 static bool aarch64_builtin_support_vector_misalignment (machine_mode mode,
 							 const_tree type,
 							 int misalignment,
-							 bool is_packed);
+							 bool is_packed,
+							 bool is_gather_scatter);
 static machine_mode aarch64_simd_container_mode (scalar_mode, poly_int64);
 static bool aarch64_print_address_internal (FILE*, machine_mode, rtx,
 					    aarch64_addr_query_type);
@@ -429,6 +430,7 @@ static const struct aarch64_flag_desc aarch64_tuning_flags[] =
 #include "tuning_models/neoversev2.h"
 #include "tuning_models/neoversev3.h"
 #include "tuning_models/neoversev3ae.h"
+#include "tuning_models/olympus.h"
 #include "tuning_models/a64fx.h"
 #include "tuning_models/fujitsu_monaka.h"
 
@@ -3929,6 +3931,33 @@ aarch64_sve_fp_pred (machine_mode data_mode, rtx *strictness)
      *strictness = gen_int_mode (SVE_RELAXED_GP, SImode);
    /* Use the VPRED mode.  */
    return aarch64_ptrue_reg (aarch64_sve_pred_mode (data_mode));
+}
+
+/* PRED is a predicate that governs an operation on DATA_MODE.  If DATA_MODE
+   is a partial vector mode, and if exceptions must be suppressed for its
+   undefined elements, convert PRED from a container-level predicate to
+   an element-level predicate and ensure that the undefined elements
+   are inactive.  Make no changes otherwise.
+
+   Return the resultant predicate.  */
+rtx
+aarch64_sve_emit_masked_fp_pred (machine_mode data_mode, rtx pred)
+{
+  unsigned int vec_flags = aarch64_classify_vector_mode (data_mode);
+  if (flag_trapping_math && (vec_flags & VEC_PARTIAL))
+    {
+      /* Generate an element-level mask.  */
+      rtx mask = aarch64_sve_packed_pred (data_mode);
+      machine_mode pmode = GET_MODE (mask);
+
+      /* Apply the existing predicate.  */
+      rtx dst = gen_reg_rtx (pmode);
+      emit_insn (gen_and3 (pmode, dst, mask,
+			   gen_lowpart (pmode, pred)));
+      return dst;
+    }
+
+  return pred;
 }
 
 /* Emit a comparison CMP between OP0 and OP1, both of which have mode
@@ -17719,7 +17748,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
 		{
 		  if (gimple_vuse (SSA_NAME_DEF_STMT (offset)))
 		    {
-		      if (STMT_VINFO_TYPE (stmt_info) == load_vec_info_type)
+		      if (SLP_TREE_TYPE (node) == load_vec_info_type)
 			ops->loads += count - 1;
 		      else
 			  /* Stores want to count both the index to array and data to
@@ -17976,6 +18005,7 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 
       /* Check if we've seen an SVE gather/scatter operation and which size.  */
       if (kind == scalar_load
+	  && vectype
 	  && aarch64_sve_mode_p (TYPE_MODE (vectype))
 	  && vect_mem_access_type (stmt_info, node) == VMAT_GATHER_SCATTER)
 	{
@@ -19965,8 +19995,9 @@ aarch64_process_one_target_attr (char *arg_str)
 	      if (valid)
 		{
 		  set_option (&global_options, NULL, p_attr->opt_num, value,
-			      NULL, DK_UNSPECIFIED, input_location,
-			      global_dc);
+			      NULL,
+			      static_cast<int> (diagnostics::kind::unspecified),
+			      input_location, global_dc);
 		}
 	      else
 		{
@@ -24413,10 +24444,14 @@ aarch64_simd_vector_alignment_reachable (const_tree type, bool is_packed)
 static bool
 aarch64_builtin_support_vector_misalignment (machine_mode mode,
 					     const_tree type, int misalignment,
-					     bool is_packed)
+					     bool is_packed,
+					     bool is_gather_scatter)
 {
   if (TARGET_SIMD && STRICT_ALIGNMENT)
     {
+      if (is_gather_scatter)
+	return true;
+
       /* Return if movmisalign pattern is not supported for this mode.  */
       if (optab_handler (movmisalign_optab, mode) == CODE_FOR_nothing)
         return false;
@@ -24426,7 +24461,8 @@ aarch64_builtin_support_vector_misalignment (machine_mode mode,
 	return false;
     }
   return default_builtin_support_vector_misalignment (mode, type, misalignment,
-						      is_packed);
+						      is_packed,
+						      is_gather_scatter);
 }
 
 /* If VALS is a vector constant that can be loaded into a register
@@ -31955,9 +31991,43 @@ aarch64_test_sysreg_encoding_clashes (void)
 static void
 aarch64_test_sve_folding ()
 {
+  aarch64_target_switcher switcher (AARCH64_FL_SVE);
+
   tree res = fold_unary (BIT_NOT_EXPR, ssizetype,
 			 ssize_int (poly_int64 (1, 1)));
   ASSERT_TRUE (operand_equal_p (res, ssize_int (poly_int64 (-2, -1))));
+
+  auto build_v16bi = [](bool a, bool b)
+    {
+      rtx_vector_builder builder (VNx16BImode, 2, 1);
+      builder.quick_push (a ? const1_rtx : const0_rtx);
+      builder.quick_push (b ? const1_rtx : const0_rtx);
+      return builder.build ();
+    };
+  rtx v16bi_10 = build_v16bi (1, 0);
+  rtx v16bi_01 = build_v16bi (0, 1);
+
+  for (auto mode : { VNx8BImode, VNx4BImode, VNx2BImode })
+    {
+      rtx reg = gen_rtx_REG (mode, LAST_VIRTUAL_REGISTER + 1);
+      rtx subreg = lowpart_subreg (VNx16BImode, reg, mode);
+      rtx and1 = simplify_gen_binary (AND, VNx16BImode, subreg, v16bi_10);
+      ASSERT_EQ (lowpart_subreg (mode, and1, VNx16BImode), reg);
+      rtx and0 = simplify_gen_binary (AND, VNx16BImode, subreg, v16bi_01);
+      ASSERT_EQ (lowpart_subreg (mode, and0, VNx16BImode), CONST0_RTX (mode));
+
+      rtx ior1 = simplify_gen_binary (IOR, VNx16BImode, subreg, v16bi_10);
+      ASSERT_EQ (lowpart_subreg (mode, ior1, VNx16BImode), CONSTM1_RTX (mode));
+      rtx ior0 = simplify_gen_binary (IOR, VNx16BImode, subreg, v16bi_01);
+      ASSERT_EQ (lowpart_subreg (mode, ior0, VNx16BImode), reg);
+
+      rtx xor1 = simplify_gen_binary (XOR, VNx16BImode, subreg, v16bi_10);
+      ASSERT_RTX_EQ (lowpart_subreg (mode, xor1, VNx16BImode),
+		     lowpart_subreg (mode, gen_rtx_NOT (VNx16BImode, subreg),
+				     VNx16BImode));
+      rtx xor0 = simplify_gen_binary (XOR, VNx16BImode, subreg, v16bi_01);
+      ASSERT_EQ (lowpart_subreg (mode, xor0, VNx16BImode), reg);
+    }
 }
 
 /* Run all target-specific selftests.  */

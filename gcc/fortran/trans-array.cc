@@ -3478,6 +3478,29 @@ substitute_subexpr_in_expr (tree target, tree replacement, tree expr)
 }
 
 
+/* Save REF to a fresh variable in all of REPLACEMENT_ROOTS, appending extra
+   code to CODE.  Before returning, add REF to REPLACEMENT_ROOTS and clear
+   REF.  */
+
+static void
+save_ref (tree &code, tree &ref, vec<tree> &replacement_roots)
+{
+  stmtblock_t tmp_block;
+  gfc_init_block (&tmp_block);
+  tree var = gfc_evaluate_now (ref, &tmp_block);
+  gfc_add_expr_to_block (&tmp_block, code);
+  code = gfc_finish_block (&tmp_block);
+
+  unsigned i;
+  tree repl_root;
+  FOR_EACH_VEC_ELT (replacement_roots, i, repl_root)
+    substitute_subexpr_in_expr (ref, var, repl_root);
+
+  replacement_roots.safe_push (ref);
+  ref = NULL_TREE;
+}
+
+
 /* Save the descriptor reference VALUE to storage pointed by DESC_PTR.  Before
    that, try to factor subexpressions of VALUE to variables, adding extra code
    to BLOCK.
@@ -3492,10 +3515,7 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
   /* As the reference is processed from outer to inner, variable definitions
      will be generated in reversed order, so can't be put directly in BLOCK.
      We use TMP_BLOCK instead.  */
-  stmtblock_t tmp_block;
   tree accumulated_code = NULL_TREE;
-
-  gfc_init_block (&tmp_block);
 
   /* The current candidate to factoring.  */
   tree saveable_ref = NULL_TREE;
@@ -3526,8 +3546,18 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
 
 	  if (!maybe_reallocatable)
 	    {
+	      if (saveable_ref != NULL_TREE && saveable_ref != data_ref)
+		{
+		  /* A reference worth saving has been seen, and now the pointer
+		     to the current reference is also worth saving.  If the
+		     previous reference to save wasn't the current one, do save
+		     it now.  Otherwise drop it as we prefer saving the
+		     pointer.  */
+		  save_ref (accumulated_code, saveable_ref, replacement_roots);
+		}
+
 	      /* Don't evaluate the pointer to a variable yet; do it only if the
-	         variable would be significantly more simple than the reference
+		 variable would be significantly more simple than the reference
 		 it replaces.  That is if the reference contains anything
 		 different from NOPs, COMPONENTs and DECLs.  */
 	      saveable_ref = next_ref;
@@ -3552,20 +3582,8 @@ set_factored_descriptor_value (tree *desc_ptr, tree value, stmtblock_t *block)
 	    }
 
 	  if (saveable_ref != NULL_TREE)
-	    {
-	      /* We have seen a reference worth saving.  Do it now.  */
-	      tree var = gfc_evaluate_now (saveable_ref, &tmp_block);
-	      gfc_add_expr_to_block (&tmp_block, accumulated_code);
-	      accumulated_code = gfc_finish_block (&tmp_block);
-
-	      unsigned i;
-	      tree repl_root;
-	      FOR_EACH_VEC_ELT (replacement_roots, i, repl_root)
-		substitute_subexpr_in_expr (saveable_ref, var, repl_root);
-
-	      replacement_roots.safe_push (saveable_ref);
-	      saveable_ref = NULL_TREE;
-	    }
+	    /* We have seen a reference worth saving.  Do it now.  */
+	    save_ref (accumulated_code, saveable_ref, replacement_roots);
 
 	  if (TREE_CODE (data_ref) != ARRAY_REF)
 	    break;
@@ -6278,8 +6296,8 @@ static tree
 gfc_array_init_size (tree descriptor, int rank, int corank, tree * poffset,
 		     gfc_expr ** lower, gfc_expr ** upper, stmtblock_t * pblock,
 		     stmtblock_t * descriptor_block, tree * overflow,
-		     tree expr3_elem_size, tree *nelems, gfc_expr *expr3,
-		     tree expr3_desc, bool e3_has_nodescriptor, gfc_expr *expr,
+		     tree expr3_elem_size, gfc_expr *expr3, tree expr3_desc,
+		     bool e3_has_nodescriptor, gfc_expr *expr,
 		     tree *element_size, bool explicit_ts)
 {
   tree type;
@@ -6555,7 +6573,6 @@ gfc_array_init_size (tree descriptor, int rank, int corank, tree * poffset,
   if (rank == 0)
     return *element_size;
 
-  *nelems = gfc_evaluate_now (stride, pblock);
   stride = fold_convert (size_type_node, stride);
 
   /* First check for overflow. Since an array of type character can
@@ -6644,9 +6661,8 @@ retrieve_last_ref (gfc_ref **ref_in, gfc_ref **prev_ref_in)
 bool
 gfc_array_allocate (gfc_se * se, gfc_expr * expr, tree status, tree errmsg,
 		    tree errlen, tree label_finish, tree expr3_elem_size,
-		    tree *nelems, gfc_expr *expr3, tree e3_arr_desc,
-		    bool e3_has_nodescriptor, gfc_omp_namelist *omp_alloc,
-		    bool explicit_ts)
+		    gfc_expr *expr3, tree e3_arr_desc, bool e3_has_nodescriptor,
+		    gfc_omp_namelist *omp_alloc, bool explicit_ts)
 {
   tree tmp;
   tree pointer;
@@ -6777,7 +6793,7 @@ gfc_array_allocate (gfc_se * se, gfc_expr * expr, tree status, tree errmsg,
 			      coarray ? ref->u.ar.as->corank : 0,
 			      &offset, lower, upper,
 			      &se->pre, &set_descriptor_block, &overflow,
-			      expr3_elem_size, nelems, expr3, e3_arr_desc,
+			      expr3_elem_size, expr3, e3_arr_desc,
 			      e3_has_nodescriptor, expr, &element_size,
 			      explicit_ts);
 

@@ -130,6 +130,8 @@ _slp_tree::_slp_tree ()
   this->failed = NULL;
   this->max_nunits = 1;
   this->lanes = 0;
+  SLP_TREE_TYPE (this) = undef_vec_info_type;
+  this->u.undef = NULL;
 }
 
 /* Tear down a SLP node.  */
@@ -507,19 +509,21 @@ vect_def_types_match (enum vect_def_type dta, enum vect_def_type dtb)
 	      && (dtb == vect_external_def || dtb == vect_constant_def)));
 }
 
+#define GATHER_SCATTER_OFFSET (-3)
+
 static const int no_arg_map[] = { 0 };
 static const int arg0_map[] = { 1, 0 };
-static const int arg1_map[] = { 1, 1 };
+static const int arg2_map[] = { 1, 2 };
 static const int arg2_arg3_map[] = { 2, 2, 3 };
-static const int arg1_arg3_map[] = { 2, 1, 3 };
-static const int arg1_arg4_arg5_map[] = { 3, 1, 4, 5 };
-static const int arg1_arg3_arg4_map[] = { 3, 1, 3, 4 };
+static const int arg2_arg4_map[] = { 2, 2, 4 };
+static const int arg2_arg5_arg6_map[] = { 3, 2, 5, 6 };
+static const int arg2_arg4_arg5_map[] = { 3, 2, 4, 5 };
 static const int arg3_arg2_map[] = { 2, 3, 2 };
 static const int op1_op0_map[] = { 2, 1, 0 };
-static const int off_map[] = { 1, -3 };
-static const int off_op0_map[] = { 2, -3, 0 };
-static const int off_arg2_arg3_map[] = { 3, -3, 2, 3 };
-static const int off_arg3_arg2_map[] = { 3, -3, 3, 2 };
+static const int off_map[] = { 1, GATHER_SCATTER_OFFSET };
+static const int off_op0_map[] = { 2, GATHER_SCATTER_OFFSET, 0 };
+static const int off_arg2_arg3_map[] = { 3, GATHER_SCATTER_OFFSET, 2, 3 };
+static const int off_arg3_arg2_map[] = { 3, GATHER_SCATTER_OFFSET, 3, 2 };
 static const int mask_call_maps[6][7] = {
   { 1, 1, },
   { 2, 1, 2, },
@@ -568,18 +572,18 @@ vect_get_operand_map (const gimple *stmt, bool gather_scatter_p = false,
 	    return gather_scatter_p ? off_arg2_arg3_map : arg2_arg3_map;
 
 	  case IFN_GATHER_LOAD:
-	    return arg1_map;
+	    return arg2_map;
 
 	  case IFN_MASK_GATHER_LOAD:
 	  case IFN_MASK_LEN_GATHER_LOAD:
-	    return arg1_arg4_arg5_map;
+	    return arg2_arg5_arg6_map;
 
 	  case IFN_SCATTER_STORE:
-	    return arg1_arg3_map;
+	    return arg2_arg4_map;
 
 	  case IFN_MASK_SCATTER_STORE:
 	  case IFN_MASK_LEN_SCATTER_STORE:
-	    return arg1_arg3_arg4_map;
+	    return arg2_arg4_arg5_map;
 
 	  case IFN_MASK_STORE:
 	    return gather_scatter_p ? off_arg3_arg2_map : arg3_arg2_map;
@@ -691,7 +695,7 @@ vect_get_and_check_slp_defs (vec_info *vinfo, unsigned char swap,
     {
       oprnd_info = (*oprnds_info)[i];
       int opno = map ? map[i] : int (i);
-      if (opno == -3)
+      if (opno == GATHER_SCATTER_OFFSET)
 	{
 	  gcc_assert (STMT_VINFO_GATHER_SCATTER_P (stmt_info));
 	  if (!is_a <loop_vec_info> (vinfo)
@@ -4946,6 +4950,9 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 						 max_tree_size, &limit,
 						 force_single_lane))
 	  {
+	    if (dump_enabled_p ())
+	      dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
+			       "SLP discovery of reduction chain failed\n");
 	    /* Dissolve reduction chain group.  */
 	    stmt_vec_info vinfo = first_element;
 	    stmt_vec_info last = NULL;
@@ -5239,7 +5246,7 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 		    if (STMT_VINFO_STRIDED_P (stmt_vinfo)
 			|| compare_step_with_zero (vinfo, stmt_vinfo) <= 0
 			|| vect_load_lanes_supported
-			     (STMT_VINFO_VECTYPE (stmt_vinfo),
+			     (SLP_TREE_VECTYPE (load_node),
 			      DR_GROUP_SIZE (stmt_vinfo), masked) == IFN_LAST
 			/* ???  During SLP re-discovery with a single lane
 			   a masked grouped load will appear permuted and
@@ -5260,7 +5267,7 @@ vect_analyze_slp (vec_info *vinfo, unsigned max_tree_size,
 			 || SLP_TREE_LANES (load_node) == group_size
 			 || (vect_slp_prefer_store_lanes_p
 			     (vinfo, stmt_vinfo,
-			      STMT_VINFO_VECTYPE (stmt_vinfo), masked,
+			      SLP_TREE_VECTYPE (load_node), masked,
 			      group_size, SLP_TREE_LANES (load_node))));
 		  }
 
@@ -8257,8 +8264,7 @@ vect_slp_analyze_node_operations (vec_info *vinfo, slp_tree node,
 	      /* Masked loads can have an undefined (default SSA definition)
 		 else operand.  We do not need to cost it.  */
 	      vec<tree> ops = SLP_TREE_SCALAR_OPS (child);
-	      if ((STMT_VINFO_TYPE (SLP_TREE_REPRESENTATIVE (node))
-		   == load_vec_info_type)
+	      if (SLP_TREE_TYPE (node) == load_vec_info_type
 		  && ((ops.length ()
 		       && TREE_CODE (ops[0]) == SSA_NAME
 		       && SSA_NAME_IS_DEFAULT_DEF (ops[0])
@@ -8269,8 +8275,7 @@ vect_slp_analyze_node_operations (vec_info *vinfo, slp_tree node,
 	      /* For shifts with a scalar argument we don't need
 		 to cost or code-generate anything.
 		 ???  Represent this more explicitely.  */
-	      gcc_assert ((STMT_VINFO_TYPE (SLP_TREE_REPRESENTATIVE (node))
-			   == shift_vec_info_type)
+	      gcc_assert (SLP_TREE_TYPE (node) == shift_vec_info_type
 			  && j == 1);
 	      continue;
 	    }
@@ -8648,7 +8653,7 @@ vect_slp_analyze_operations (vec_info *vinfo)
 	  || (SLP_INSTANCE_KIND (instance) == slp_inst_kind_gcond
 	      && !vectorizable_early_exit (vinfo,
 					   SLP_INSTANCE_ROOT_STMTS (instance)[0],
-					   NULL, NULL,
+					   NULL,
 					   SLP_INSTANCE_TREE (instance),
 					   &cost_vec)))
         {
@@ -11306,9 +11311,9 @@ vect_schedule_slp_node (vec_info *vinfo,
       si = gsi_for_stmt (last_stmt_info->stmt);
     }
   else if (SLP_TREE_CODE (node) != VEC_PERM_EXPR
-	   && (STMT_VINFO_TYPE (stmt_info) == cycle_phi_info_type
-	       || STMT_VINFO_TYPE (stmt_info) == induc_vec_info_type
-	       || STMT_VINFO_TYPE (stmt_info) == phi_info_type))
+	   && (SLP_TREE_TYPE (node) == cycle_phi_info_type
+	       || SLP_TREE_TYPE (node) == induc_vec_info_type
+	       || SLP_TREE_TYPE (node) == phi_info_type))
     {
       /* For PHI node vectorization we do not use the insertion iterator.  */
       si = gsi_none ();
@@ -11328,8 +11333,7 @@ vect_schedule_slp_node (vec_info *vinfo,
 	       last scalar def here.  */
 	    if (SLP_TREE_VEC_DEFS (child).is_empty ())
 	      {
-		gcc_assert (STMT_VINFO_TYPE (SLP_TREE_REPRESENTATIVE (child))
-			    == cycle_phi_info_type);
+		gcc_assert (SLP_TREE_TYPE (child) == cycle_phi_info_type);
 		gphi *phi = as_a <gphi *>
 			      (vect_find_last_scalar_stmt_in_slp (child)->stmt);
 		if (!last_stmt)
@@ -11480,7 +11484,7 @@ vect_schedule_slp_node (vec_info *vinfo,
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_NOTE, vect_location,
 			 "------>vectorizing SLP permutation node\n");
-      /* ???  the transform kind is stored to STMT_VINFO_TYPE which might
+      /* ???  the transform kind was stored to STMT_VINFO_TYPE which might
 	 be shared with different SLP nodes (but usually it's the same
 	 operation apart from the case the stmt is only there for denoting
 	 the actual scalar lane defs ...).  So do not call vect_transform_stmt
@@ -11679,10 +11683,9 @@ vectorize_slp_instance_root_stmt (vec_info *vinfo, slp_tree node, slp_instance i
       auto root_stmt_info = instance->root_stmts[0];
       auto last_stmt = STMT_VINFO_STMT (vect_orig_stmt (root_stmt_info));
       gimple_stmt_iterator rgsi = gsi_for_stmt (last_stmt);
-      gimple *vec_stmt = NULL;
       gcc_assert (!SLP_TREE_VEC_DEFS (node).is_empty ());
       bool res = vectorizable_early_exit (vinfo, root_stmt_info, &rgsi,
-					  &vec_stmt, node, NULL);
+					  node, NULL);
       gcc_assert (res);
       return;
     }

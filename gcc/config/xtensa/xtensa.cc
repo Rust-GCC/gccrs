@@ -601,8 +601,8 @@ constantpool_address_p (const_rtx addr)
 
       /* Make sure the address is word aligned.  */
       offset = XEXP (addr, 1);
-      if ((!CONST_INT_P (offset))
-	  || ((INTVAL (offset) & 3) != 0))
+      if (! CONST_INT_P (offset)
+	  || (INTVAL (offset) & 3) != 0)
 	return false;
 
       sym = XEXP (addr, 0);
@@ -611,6 +611,7 @@ constantpool_address_p (const_rtx addr)
   if (SYMBOL_REF_P (sym)
       && CONSTANT_POOL_ADDRESS_P (sym))
     return true;
+
   return false;
 }
 
@@ -4694,29 +4695,56 @@ xtensa_rtx_costs (rtx x, machine_mode mode, int outer_code,
     }
 }
 
+/* Return TRUE if the specified insn corresponds to one or more L32R machine
+   instructions.  */
+
 static bool
 xtensa_is_insn_L32R_p (const rtx_insn *insn)
 {
-  rtx x = PATTERN (insn);
+  rtx pat, dest, src;
+  machine_mode mode;
 
-  if (GET_CODE (x) != SET)
+  /* RTX insns that are not "(set (reg) ...)" cannot become L32R instructions:
+     - it is permitted to apply PATTERN() to the insn without validation.
+       See insn_cost() in gcc/rtlanal.cc.
+     - it is used register_operand() instead of REG() to identify things that
+       don't look like REGs but will eventually become so as well.  */
+  if (GET_CODE (pat = PATTERN (insn)) != SET
+      || ! register_operand (dest = SET_DEST (pat), VOIDmode))
     return false;
 
-  x = XEXP (x, 1);
-  if (MEM_P (x))
-    {
-      x = XEXP (x, 0);
-      return (SYMBOL_REF_P (x) || CONST_INT_P (x))
-	     && CONSTANT_POOL_ADDRESS_P (x);
-    }
-
-  /* relaxed MOVI instructions, that will be converted to L32R by the
-     assembler.  */
-  if (CONST_INT_P (x)
-      && ! xtensa_simm12b (INTVAL (x)))
+  /* If the source is a reference to a literal pool entry, then the insn
+     obviously corresponds to an L32R instruction.  */
+  if (constantpool_mem_p (src = SET_SRC (pat)))
     return true;
 
-  return false;
+  /* Similarly, an insn whose source is not a constant obviously does not
+     correspond to L32R.  */
+  if (! CONSTANT_P (src))
+    return false;
+
+  /* If the source is a CONST_INT whose value fits into signed 12 bits, then
+     the insn corresponds to a MOVI instruction (rather than an L32R one),
+     regardless of the configuration of TARGET_CONST16 or
+     TARGET_AUTOLITPOOLS.  Note that the destination register can be non-
+     SImode.  */
+  if (((mode = GET_MODE (dest)) == SImode
+       || mode == HImode || mode == SFmode)
+      && CONST_INT_P (src) && xtensa_simm12b (INTVAL (src)))
+    return false;
+
+  /* If TARGET_CONST16 is configured, constants of the remaining forms
+     correspond to pairs of CONST16 instructions, not L32R.  */
+  if (TARGET_CONST16)
+    return false;
+
+  /* The last remaining form of constant is one of the following:
+     - CONST_INTs with large values
+     - floating-point constants
+     - symbolic constants
+     and is all handled by a relaxed MOVI instruction, which is later
+     converted to an L32R instruction by the assembler.  */
+  return true;
 }
 
 /* Compute a relative costs of RTL insns.  This is necessary in order to
@@ -4725,7 +4753,7 @@ xtensa_is_insn_L32R_p (const rtx_insn *insn)
 static int
 xtensa_insn_cost (rtx_insn *insn, bool speed)
 {
-  if (!(recog_memoized (insn) < 0))
+  if (! (recog_memoized (insn) < 0))
     {
       int len = get_attr_length (insn);
 
@@ -4738,7 +4766,7 @@ xtensa_insn_cost (rtx_insn *insn, bool speed)
 
 	  /* "L32R" may be particular slow (implementation-dependent).  */
 	  if (xtensa_is_insn_L32R_p (insn))
-	    return COSTS_N_INSNS (1 + xtensa_extra_l32r_costs);
+	    return COSTS_N_INSNS ((1 + xtensa_extra_l32r_costs) * n);
 
 	  /* Cost based on the pipeline model.  */
 	  switch (get_attr_type (insn))
@@ -4783,7 +4811,7 @@ xtensa_insn_cost (rtx_insn *insn, bool speed)
 	    {
 	      /* "L32R" itself plus constant in litpool.  */
 	      if (xtensa_is_insn_L32R_p (insn))
-		len = 3 + 4;
+		len += (len / 3) * 4;
 
 	      /* Consider fractional instruction length (for example, ".n"
 		 short instructions or "L32R" litpool constants.  */

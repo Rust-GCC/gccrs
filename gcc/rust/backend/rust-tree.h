@@ -3108,7 +3108,7 @@ extern bool reject_gcc_builtin (const_tree, location_t = UNKNOWN_LOCATION);
 extern tree resolve_nondeduced_context (tree, tsubst_flags_t);
 
 extern void cxx_incomplete_type_diagnostic (location_t, const_tree, const_tree,
-					    diagnostic_t);
+					    enum diagnostics::kind);
 
 extern void cxx_incomplete_type_error (location_t, const_tree, const_tree);
 
@@ -3389,7 +3389,7 @@ null_node_p (const_tree expr)
 
 inline void
 cxx_incomplete_type_diagnostic (const_tree value, const_tree type,
-				diagnostic_t diag_kind)
+				enum diagnostics::kind diag_kind)
 {
   cxx_incomplete_type_diagnostic (rs_expr_loc_or_input_loc (value), value, type,
 				  diag_kind);
@@ -3398,7 +3398,7 @@ cxx_incomplete_type_diagnostic (const_tree value, const_tree type,
 inline void
 cxx_incomplete_type_error (const_tree value, const_tree type)
 {
-  cxx_incomplete_type_diagnostic (value, type, DK_ERROR);
+  cxx_incomplete_type_diagnostic (value, type, diagnostics::kind::error);
 }
 
 extern location_t location_of (tree t);

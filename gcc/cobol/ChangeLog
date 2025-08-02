@@ -1,3 +1,33 @@
+2025-07-25  David Malcolm  <dmalcolm@redhat.com>
+
+	* util.cc: Update for diagnostic_t becoming
+	enum class diagnostics::kind.
+
+2025-07-25  David Malcolm  <dmalcolm@redhat.com>
+
+	* util.cc: Update for renaming of diagnostic_option_id to
+	diagnostics::option_id.
+
+2025-07-25  David Malcolm  <dmalcolm@redhat.com>
+
+	* util.cc: Remove redundant #includes
+
+2025-07-24  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/119231
+	* gcobolspec.cc: (lang_specific_driver): Pass OPT_static through.
+	Handle -static and -static-libgcobol properly.
+
+2025-07-23  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (leave_procedure): Adjust location_t for PERFORM.
+	(parser_perform_times): Likewise.
+	(internal_perform_through_times): Likewise.
+	(perform_outofline_before_until): Likewise.
+	(perform_outofline_after_until): Likewise.
+	(perform_outofline_testafter_varying): Likewise.
+	(perform_outofline_before_varying): Likewise.
+
 2025-07-21  Robert Dubner  <rdubner@symas.com>
 	    James K. Lowden  <jklowden@cobolworx.com>
 

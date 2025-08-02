@@ -130,7 +130,6 @@ vect_init_pattern_stmt (vec_info *vinfo, gimple *pattern_stmt,
   STMT_VINFO_RELATED_STMT (pattern_stmt_info) = orig_stmt_info;
   STMT_VINFO_DEF_TYPE (pattern_stmt_info)
     = STMT_VINFO_DEF_TYPE (orig_stmt_info);
-  STMT_VINFO_TYPE (pattern_stmt_info) = STMT_VINFO_TYPE (orig_stmt_info);
   if (!STMT_VINFO_VECTYPE (pattern_stmt_info))
     {
       gcc_assert (!vectype
@@ -6042,12 +6041,14 @@ vect_recog_gather_scatter_pattern (vec_info *vinfo,
 
 	  tree vec_els
 	    = vect_get_mask_load_else (elsval, TREE_TYPE (gs_vectype));
-	  pattern_stmt = gimple_build_call_internal (gs_info.ifn, 6, base,
+	  pattern_stmt = gimple_build_call_internal (gs_info.ifn, 7, base,
+						     gs_info.alias_ptr,
 						     offset, scale, zero, mask,
 						     vec_els);
 	}
       else
-	pattern_stmt = gimple_build_call_internal (gs_info.ifn, 4, base,
+	pattern_stmt = gimple_build_call_internal (gs_info.ifn, 5, base,
+						   gs_info.alias_ptr,
 						   offset, scale, zero);
       tree lhs = gimple_get_lhs (stmt_info->stmt);
       tree load_lhs = vect_recog_temp_ssa_var (TREE_TYPE (lhs), NULL);
@@ -6057,12 +6058,13 @@ vect_recog_gather_scatter_pattern (vec_info *vinfo,
     {
       tree rhs = vect_get_store_rhs (stmt_info);
       if (mask != NULL)
-	pattern_stmt = gimple_build_call_internal (gs_info.ifn, 5,
-						   base, offset, scale, rhs,
-						   mask);
+	pattern_stmt = gimple_build_call_internal (gs_info.ifn, 6,
+						   base, gs_info.alias_ptr,
+						   offset, scale, rhs, mask);
       else
-	pattern_stmt = gimple_build_call_internal (gs_info.ifn, 4,
-						   base, offset, scale, rhs);
+	pattern_stmt = gimple_build_call_internal (gs_info.ifn, 5,
+						   base, gs_info.alias_ptr,
+						   offset, scale, rhs);
     }
   gimple_call_set_nothrow (pattern_stmt, true);
 
