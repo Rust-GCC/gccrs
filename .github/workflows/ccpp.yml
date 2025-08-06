@@ -54,7 +54,8 @@ jobs:
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
-               --enable-multilib
+               --enable-multilib \
+               --enable-checking=yes
 
     - name: Build
       shell: bash
@@ -140,7 +141,8 @@ jobs:
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
-               --enable-multilib
+               --enable-multilib \
+               --enable-checking=yes
 
     - name: Build
       shell: bash
@@ -224,7 +226,8 @@ jobs:
            ../configure \
                --enable-languages=rust \
                --disable-bootstrap \
-               --enable-multilib
+               --enable-multilib \
+               --enable-checking=yes
 
     - name: Build
       shell: bash
@@ -334,7 +337,8 @@ jobs:
              ../configure \
                  --enable-languages=rust \
                  --disable-bootstrap \
-                 --enable-multilib
+                 --enable-multilib \
+                 --enable-checking=yes
 
     - name: Build
       shell: bash
@@ -397,6 +401,7 @@ jobs:
                --enable-languages=rust \
                --disable-bootstrap \
                --enable-multilib \
+               --enable-checking=yes \
                --with-native-system-header-dir=/usr/include \
                --with-sysroot=$(xcrun --show-sdk-path)
 
@@ -471,6 +476,7 @@ jobs:
                    --enable-languages=rust \
                    --disable-bootstrap \
                    --enable-multilib \
+                   --enable-checking=yes \
                    --with-build-config=../.github/no-bootstrap-asan
 
     - name: Build
