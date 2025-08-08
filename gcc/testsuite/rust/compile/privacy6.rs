@@ -1,3 +1,13 @@
+
+#[lang = "fn_once"]
+pub trait FnOnce<Args> {
+    #[lang = "fn_once_output"]
+    type Output;
+
+    extern "rust-call" fn call_once(self, args: Args) -> Self::Output;
+}
+
+
 // { dg-additional-options "-w" }
 
 #[lang = "sized"]
