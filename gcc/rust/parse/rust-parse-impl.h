@@ -510,10 +510,10 @@ Parser<ManagedTokenSource>::parse_doc_comment ()
   std::vector<AST::SimplePathSegment> segments;
   segments.push_back (std::move (segment));
   AST::SimplePath attr_path (std::move (segments), false, locus);
-  auto lit_expr = std::make_unique<AST::LiteralExpr> (token->get_str (), AST::Literal::STRING,
-			     PrimitiveCoreType::CORETYPE_STR, std::vector<AST::Attribute> (), locus);
+  AST::LiteralExpr lit_expr (token->get_str (), AST::Literal::STRING,
+			     PrimitiveCoreType::CORETYPE_STR, {}, locus);
   std::unique_ptr<AST::AttrInput> attr_input (
-    new AST::AttrInputExpr (std::move (lit_expr)));
+    new AST::AttrInputLiteral (std::move (lit_expr)));
   lexer.skip_token ();
   return std::make_tuple (std::move (attr_path), std::move (attr_input), locus);
 }
@@ -807,18 +807,81 @@ Parser<ManagedTokenSource>::parse_attr_input ()
       }
     case EQUAL:
       {
-	// = Expr
+	// = LiteralExpr
 	lexer.skip_token ();
 
-	// TODO: verify that attributes can appear here
-	auto outer_attrs = parse_outer_attributes ();
+	t = lexer.peek_token ();
 
-	std::unique_ptr<AST::Expr> expr = parse_expr (std::move (outer_attrs));
+	// attempt to parse macro
+	// TODO: macros may/may not be allowed in attributes
+	// this is needed for "#[doc = include_str!(...)]"
+	if (is_simple_path_segment (t->get_id ()))
+	  {
+	    std::unique_ptr<AST::MacroInvocation> invoke
+	      = parse_macro_invocation ({});
 
-	if (!expr)
-	  return nullptr;
-	
-	return std::make_unique<AST::AttrInputExpr> (std::move (expr));
+	    if (!invoke)
+	      return nullptr;
+
+	    return std::unique_ptr<AST::AttrInput> (
+	      new AST::AttrInputMacro (std::move (invoke)));
+	  }
+
+	/* Ensure token is a "literal expression" (literally only a literal
+	 * token of any type) */
+	if (!t->is_literal ())
+	  {
+	    Error error (
+	      t->get_locus (),
+	      "unknown token %qs in attribute body - literal expected",
+	      t->get_token_description ());
+	    add_error (std::move (error));
+
+	    skip_after_end_attribute ();
+	    return nullptr;
+	  }
+
+	AST::Literal::LitType lit_type = AST::Literal::STRING;
+	// Crappy mapping of token type to literal type
+	switch (t->get_id ())
+	  {
+	  case INT_LITERAL:
+	    lit_type = AST::Literal::INT;
+	    break;
+	  case FLOAT_LITERAL:
+	    lit_type = AST::Literal::FLOAT;
+	    break;
+	  case CHAR_LITERAL:
+	    lit_type = AST::Literal::CHAR;
+	    break;
+	  case BYTE_CHAR_LITERAL:
+	    lit_type = AST::Literal::BYTE;
+	    break;
+	  case BYTE_STRING_LITERAL:
+	    lit_type = AST::Literal::BYTE_STRING;
+	    break;
+	  case RAW_STRING_LITERAL:
+	    lit_type = AST::Literal::RAW_STRING;
+	    break;
+	  case STRING_LITERAL:
+	  default:
+	    lit_type = AST::Literal::STRING;
+	    break; // TODO: raw string? don't eliminate it from lexer?
+	  }
+
+	// create actual LiteralExpr
+	AST::LiteralExpr lit_expr (t->get_str (), lit_type, t->get_type_hint (),
+				   {}, t->get_locus ());
+	lexer.skip_token ();
+
+	std::unique_ptr<AST::AttrInput> attr_input_lit (
+	  new AST::AttrInputLiteral (std::move (lit_expr)));
+
+	// do checks or whatever? none required, really
+
+	// FIXME: shouldn't a skip token be required here?
+
+	return attr_input_lit;
       }
       break;
     case RIGHT_PAREN:

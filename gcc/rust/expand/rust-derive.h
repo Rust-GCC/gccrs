@@ -103,7 +103,7 @@ private:
   virtual void visit (Token &tok) override final{};
   virtual void visit (DelimTokenTree &delim_tok_tree) override final{};
   virtual void visit (AttrInputMetaItemContainer &input) override final{};
-  virtual void visit (AttrInputExpr &attr_input) override final{};
+  virtual void visit (AttrInputMacro &expr) override final{};
   virtual void visit (IdentifierExpr &ident_expr) override final{};
   virtual void visit (Lifetime &lifetime) override final{};
   virtual void visit (LifetimeParam &lifetime_param) override final{};
@@ -116,6 +116,7 @@ private:
   virtual void visit (QualifiedPathInExpression &path) override final{};
   virtual void visit (QualifiedPathInType &path) override final{};
   virtual void visit (LiteralExpr &expr) override final{};
+  virtual void visit (AttrInputLiteral &attr_input) override final{};
   virtual void visit (MetaItemLitExpr &meta_item) override final{};
   virtual void visit (MetaItemPathExpr &meta_item) override final{};
   virtual void visit (BorrowExpr &expr) override final{};

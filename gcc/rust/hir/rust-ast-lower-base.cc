@@ -127,7 +127,10 @@ void
 ASTLoweringBase::visit (AST::LiteralExpr &)
 {}
 void
-ASTLoweringBase::visit (AST::AttrInputExpr &)
+ASTLoweringBase::visit (AST::AttrInputLiteral &)
+{}
+void
+ASTLoweringBase::visit (AST::AttrInputMacro &)
 {}
 void
 ASTLoweringBase::visit (AST::MetaItemLitExpr &)
@@ -804,7 +807,7 @@ ASTLoweringBase::handle_outer_attributes (const ItemWrapper &item)
       bool is_lang_item = str_path == Values::Attributes::LANG
 			  && attr.has_attr_input ()
 			  && attr.get_attr_input ().get_attr_input_type ()
-			       == AST::AttrInput::AttrInputType::EXPR;
+			       == AST::AttrInput::AttrInputType::LITERAL;
 
       bool is_doc_item = str_path == Values::Attributes::DOC;
 
@@ -826,7 +829,7 @@ ASTLoweringBase::handle_doc_item_attribute (const ItemWrapper &,
 {
   auto simple_doc_comment = attr.has_attr_input ()
 			    && attr.get_attr_input ().get_attr_input_type ()
-				 == AST::AttrInput::AttrInputType::EXPR;
+				 == AST::AttrInput::AttrInputType::LITERAL;
   if (simple_doc_comment)
     return;
 

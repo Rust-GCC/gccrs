@@ -363,6 +363,10 @@ public:
   bool is_error () const { return type == ERROR; }
 };
 
+/* Forward decl - definition moved to rust-expr.h as it requires LiteralExpr
+ * to be defined */
+class AttrInputLiteral;
+
 /* TODO: move applicable stuff into here or just don't include it because
  * nothing uses it A segment of a path (maybe) */
 class PathSegment
@@ -789,7 +793,8 @@ class AttrInput : public Visitable
 public:
   enum AttrInputType
   {
-    EXPR,
+    LITERAL,
+    MACRO,
     META_ITEM,
     TOKEN_TREE,
   };
@@ -1054,6 +1059,10 @@ public:
   DelimType get_delim_type () const { return delim_type; }
   location_t get_locus () const { return locus; }
 };
+
+/* Forward decl - definition moved to rust-expr.h as it requires LiteralExpr
+ * to be defined */
+class AttrInputLiteral;
 
 // abstract base meta item class
 class MetaItem : public MetaItemInner

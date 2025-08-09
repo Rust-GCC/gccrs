@@ -131,26 +131,65 @@ protected:
   }
 };
 
-class AttrInputExpr : public AttrInput
+// Literal expression attribute body (non-macro attribute)
+class AttrInputLiteral : public AttrInput
 {
-  std::unique_ptr<Expr> expr;
+  LiteralExpr literal_expr;
 
 public:
-  AttrInputExpr (std::unique_ptr<Expr> expr)
-    : expr (std::move (expr))
+  AttrInputLiteral (LiteralExpr lit_expr) : literal_expr (std::move (lit_expr))
   {}
 
-  AttrInputExpr (const AttrInputExpr &oth) : AttrInput (oth), expr (oth.expr->clone_expr ()) {}
-
-  AttrInputExpr &operator= (const AttrInputExpr &oth)
+  std::string as_string () const override
   {
-    AttrInput::operator= (oth);
-    expr = oth.expr->clone_expr ();
-    return *this;
+    return " = " + literal_expr.as_string ();
   }
 
-  AttrInputExpr (AttrInputExpr &&oth) = default;
-  AttrInputExpr &operator= (AttrInputExpr &&oth) = default;
+  void accept_vis (ASTVisitor &vis) override;
+
+  /* this can never be a cfg predicate - cfg and cfg_attr require a token-tree
+   * cfg */
+  bool check_cfg_predicate (const Session &) const override { return false; }
+
+  bool is_meta_item () const override { return false; }
+
+  LiteralExpr &get_literal () { return literal_expr; }
+
+  AttrInputType get_attr_input_type () const final override
+  {
+    return AttrInput::AttrInputType::LITERAL;
+  }
+
+protected:
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  AttrInputLiteral *clone_attr_input_impl () const override
+  {
+    return new AttrInputLiteral (*this);
+  }
+};
+
+// Like an AttrInputLiteral, but stores a MacroInvocation
+class AttrInputMacro : public AttrInput
+{
+  std::unique_ptr<MacroInvocation> macro;
+
+public:
+  AttrInputMacro (std::unique_ptr<MacroInvocation> macro)
+    : macro (std::move (macro))
+  {}
+
+  AttrInputMacro (const AttrInputMacro &oth);
+
+  AttrInputMacro (AttrInputMacro &&oth) : macro (std::move (oth.macro)) {}
+
+  AttrInputMacro &operator= (const AttrInputMacro &oth);
+
+  AttrInputMacro &operator= (AttrInputMacro &&oth)
+  {
+    macro = std::move (oth.macro);
+    return *this;
+  }
 
   std::string as_string () const override;
 
@@ -162,19 +201,17 @@ public:
   // assuming this is like AttrInputLiteral
   bool is_meta_item () const override { return false; }
 
-  std::unique_ptr<Expr> &get_expr_ptr () { return expr; }
-
-  Expr &get_expr () { return *expr; }
+  std::unique_ptr<MacroInvocation> &get_macro () { return macro; }
 
   AttrInputType get_attr_input_type () const final override
   {
-    return AttrInput::AttrInputType::EXPR;
+    return AttrInput::AttrInputType::MACRO;
   }
 
 protected:
-  AttrInputExpr *clone_attr_input_impl () const override
+  AttrInputMacro *clone_attr_input_impl () const override
   {
-    return new AttrInputExpr (*this);
+    return new AttrInputMacro (*this);
   }
 };
 

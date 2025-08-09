@@ -155,9 +155,14 @@ TokenCollector::visit (Attribute &attrib)
     {
       switch (attrib.get_attr_input ().get_attr_input_type ())
 	{
-	case AST::AttrInput::AttrInputType::EXPR:
+	case AST::AttrInput::AttrInputType::LITERAL:
 	  {
-	    visit (static_cast<AttrInputExpr &> (attrib.get_attr_input ()));
+	    visit (static_cast<AttrInputLiteral &> (attrib.get_attr_input ()));
+	    break;
+	  }
+	case AST::AttrInput::AttrInputType::MACRO:
+	  {
+	    visit (static_cast<AttrInputMacro &> (attrib.get_attr_input ()));
 	    break;
 	  }
 	case AST::AttrInput::AttrInputType::META_ITEM:
@@ -814,10 +819,17 @@ TokenCollector::visit (LiteralExpr &expr)
 }
 
 void
-TokenCollector::visit (AttrInputExpr &attr_input)
+TokenCollector::visit (AttrInputLiteral &literal)
 {
   push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
-  visit (attr_input.get_expr ());
+  visit (literal.get_literal ());
+}
+
+void
+TokenCollector::visit (AttrInputMacro &macro)
+{
+  push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
+  visit (macro.get_macro ());
 }
 
 void
