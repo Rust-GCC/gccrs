@@ -542,9 +542,15 @@ ExpandVisitor::visit (AST::MetaItemPathExpr &)
 {}
 
 void
+ExpandVisitor::visit (AST::BorrowExpr &expr)
+{
+  maybe_expand_expr (expr.get_borrowed_expr_ptr ());
+}
+
+void
 ExpandVisitor::visit (AST::ErrorPropagationExpr &expr)
 {
-  visit (expr.get_propagating_expr ());
+  maybe_expand_expr (expr.get_propagating_expr_ptr ());
 }
 
 void
@@ -589,6 +595,14 @@ ExpandVisitor::visit (AST::GroupedExpr &expr)
 }
 
 void
+ExpandVisitor::visit (AST::TupleExpr &expr)
+{
+  // TODO: expand as multiple expressions?
+  for (auto &elem : expr.get_tuple_elems ())
+    maybe_expand_expr (elem);
+}
+
+void
 ExpandVisitor::visit (AST::StructExprStruct &expr)
 {}
 
@@ -604,7 +618,7 @@ ExpandVisitor::visit (AST::CallExpr &expr)
 void
 ExpandVisitor::visit (AST::MethodCallExpr &expr)
 {
-  visit (expr.get_receiver_expr ());
+  maybe_expand_expr (expr.get_receiver_expr_ptr ());
 
   for (auto &param : expr.get_params ())
     maybe_expand_expr (param);
@@ -679,7 +693,7 @@ ExpandVisitor::visit (AST::IfLetExprConseqElse &expr)
 void
 ExpandVisitor::visit (AST::MatchExpr &expr)
 {
-  visit (expr.get_scrutinee_expr ());
+  maybe_expand_expr (expr.get_scrutinee_expr_ptr ());
 
   for (auto &match_case : expr.get_match_cases ())
     {
