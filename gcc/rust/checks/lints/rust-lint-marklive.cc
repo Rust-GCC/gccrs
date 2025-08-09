@@ -163,21 +163,14 @@ MarkLive::visit_path_segment (HIR::PathExprSegment seg)
   //
   // We should mark them alive all and ignoring other kind of segments.
   // If the segment we dont care then just return false is fine
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      if (auto id = nr_ctx.lookup (ast_node_id))
-	ref_node_id = *id;
-      else
-	return false;
-    }
-  else if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
-    {
-      if (!resolver->lookup_resolved_type (ast_node_id, &ref_node_id))
-	return false;
-    }
+  if (auto id = nr_ctx.lookup (ast_node_id))
+    ref_node_id = *id;
+  else
+    return false;
+
   if (auto hid = mappings.lookup_node_to_hir (ref_node_id))
     {
       mark_hir_id (*hid);
@@ -250,21 +243,13 @@ MarkLive::visit (HIR::TupleIndexExpr &expr)
 void
 MarkLive::visit (HIR::TypeAlias &alias)
 {
-  NodeId ast_node_id = UNKNOWN_NODEID;
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      if (auto id = nr_ctx.lookup (
-	    alias.get_type_aliased ().get_mappings ().get_nodeid ()))
-	ast_node_id = *id;
-    }
-  else
-    {
-      resolver->lookup_resolved_type (
-	alias.get_type_aliased ().get_mappings ().get_nodeid (), &ast_node_id);
-    }
+  NodeId ast_node_id = UNKNOWN_NODEID;
+  if (auto id
+      = nr_ctx.lookup (alias.get_type_aliased ().get_mappings ().get_nodeid ()))
+    ast_node_id = *id;
 
   if (auto hid = mappings.lookup_node_to_hir (ast_node_id))
     mark_hir_id (*hid);
@@ -285,27 +270,13 @@ MarkLive::mark_hir_id (HirId id)
 void
 MarkLive::find_ref_node_id (NodeId ast_node_id, NodeId &ref_node_id)
 {
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      nr_ctx.lookup (ast_node_id).map ([&ref_node_id] (NodeId resolved) {
-	ref_node_id = resolved;
-      });
-    }
+  if (auto res = nr_ctx.lookup (ast_node_id))
+    ref_node_id = *res;
   else
-    {
-      if (!resolver->lookup_resolved_name (ast_node_id, &ref_node_id))
-	{
-	  if (!resolver->lookup_resolved_type (ast_node_id, &ref_node_id))
-	    {
-	      bool ok
-		= resolver->lookup_resolved_misc (ast_node_id, &ref_node_id);
-	      rust_assert (ok);
-	    }
-	}
-    }
+    rust_unreachable ();
 }
 
 } // namespace Analysis
