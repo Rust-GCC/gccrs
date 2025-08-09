@@ -38,7 +38,7 @@ private:
     decrement,
   };
 
-  Resolver::Resolver &resolver;
+  const Resolver2_0::FinalizedNameResolutionContext &resolver;
   Analysis::Mappings &mappings;
   Resolver::TypeCheckContext &context;
   StackedContexts<HirId> mutable_context;
