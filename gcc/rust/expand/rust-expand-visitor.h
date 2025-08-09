@@ -214,6 +214,7 @@ public:
   void visit (AST::AttrInputMacro &) override;
   void visit (AST::MetaItemLitExpr &) override;
   void visit (AST::MetaItemPathExpr &) override;
+  void visit (AST::BorrowExpr &) override;
   void visit (AST::ErrorPropagationExpr &expr) override;
   void visit (AST::ArithmeticOrLogicalExpr &expr) override;
   void visit (AST::ComparisonExpr &expr) override;
@@ -222,6 +223,7 @@ public:
   void visit (AST::AssignmentExpr &expr) override;
   void visit (AST::CompoundAssignmentExpr &expr) override;
   void visit (AST::GroupedExpr &expr) override;
+  void visit (AST::TupleExpr &expr) override;
   void visit (AST::StructExprStruct &expr) override;
 
   void visit (AST::CallExpr &expr) override;
