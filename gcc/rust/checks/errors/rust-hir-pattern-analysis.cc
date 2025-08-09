@@ -28,15 +28,11 @@
 #include "rust-tyty.h"
 #include "rust-immutable-name-resolution-context.h"
 
-// for flag_name_resolution_2_0
-#include "options.h"
-
 namespace Rust {
 namespace Analysis {
 
 PatternChecker::PatternChecker ()
   : tyctx (*Resolver::TypeCheckContext::get ()),
-    resolver (*Resolver::Resolver::get ()),
     mappings (Analysis::Mappings::get ())
 {}
 
@@ -238,17 +234,13 @@ PatternChecker::visit (CallExpr &expr)
 
   NodeId ast_node_id = expr.get_fnexpr ().get_mappings ().get_nodeid ();
   NodeId ref_node_id;
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      if (auto id = nr_ctx.lookup (ast_node_id))
-	ref_node_id = *id;
-      else
-	return;
-    }
-  else if (!resolver.lookup_resolved_name (ast_node_id, &ref_node_id))
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+
+  if (auto id = nr_ctx.lookup (ast_node_id))
+    ref_node_id = *id;
+  else
     return;
 
   if (auto definition_id = mappings.lookup_node_to_hir (ref_node_id))
