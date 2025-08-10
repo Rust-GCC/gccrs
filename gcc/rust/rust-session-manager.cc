@@ -940,8 +940,7 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   MacroExpander expander (crate, cfg, *this);
   std::vector<Error> macro_errors;
 
-  if (flag_name_resolution_2_0)
-    Resolver2_0::Builtins::setup_lang_prelude (ctx);
+  Resolver2_0::Builtins::setup_lang_prelude (ctx);
 
   while (!fixed_point_reached && iterations < cfg.recursion_limit)
     {
