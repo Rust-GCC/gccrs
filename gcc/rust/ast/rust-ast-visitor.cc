@@ -1500,9 +1500,12 @@ DefaultASTVisitor::visit (AST::BareFunctionType &type)
 }
 
 void
-DefaultASTVisitor::visit (AST::FormatArgs &)
+DefaultASTVisitor::visit (AST::FormatArgs &fmt)
 {
   // FIXME: Do we have anything to do? any subnodes to visit? Probably, right?
+  auto &fmt_arg = fmt.get_template_arg ();
+  if (fmt_arg.has_expr ())
+    visit (fmt_arg.get_expr ());
 }
 
 void

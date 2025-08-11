@@ -168,6 +168,141 @@ private:
   std::vector<FormatArgument> args;
 };
 
+enum class FormatArgsNewline
+{
+  Yes,
+  No
+};
+
+// can be either an expression or Fmt::Pieces
+// used to handle `format_args!(some_macro!(...), ...)`
+class FormatArgsPieces final
+{
+public:
+  using Newline = FormatArgsNewline;
+
+  enum class Kind
+  {
+    EXPR,
+    PIECES
+  };
+
+  FormatArgsPieces (std::unique_ptr<Expr> expr, Newline nl)
+    : kind (Kind::EXPR), expr_nl (std::move (expr), nl)
+  {}
+
+  FormatArgsPieces (Fmt::Pieces template_str)
+    : kind (Kind::PIECES), template_str (std::move (template_str))
+  {}
+
+  FormatArgsPieces (const FormatArgsPieces &other) noexcept : kind (other.kind)
+  {
+    switch (kind)
+      {
+      case Kind::EXPR:
+	new (&expr_nl) std::pair<std::unique_ptr<Expr>, Newline> (
+	  other.expr_nl.first->clone_expr (), other.expr_nl.second);
+	break;
+      case Kind::PIECES:
+	new (&template_str) Fmt::Pieces (other.template_str);
+	break;
+      default:
+	rust_unreachable ();
+      }
+  }
+
+  FormatArgsPieces (FormatArgsPieces &&other) noexcept : kind (other.kind)
+  {
+    switch (kind)
+      {
+      case Kind::EXPR:
+	new (&expr_nl) std::pair<std::unique_ptr<Expr>, Newline> (
+	  std::move (other.expr_nl.first), other.expr_nl.second);
+	break;
+      case Kind::PIECES:
+	new (&template_str) Fmt::Pieces (std::move (other.template_str));
+	break;
+      default:
+	rust_unreachable ();
+      }
+  }
+
+  FormatArgsPieces &operator= (const FormatArgsPieces &other)
+  {
+    this->~FormatArgsPieces ();
+    new (this) FormatArgsPieces (other);
+    return *this;
+  }
+
+  FormatArgsPieces &operator= (FormatArgsPieces &&other)
+  {
+    this->~FormatArgsPieces ();
+    new (this) FormatArgsPieces (std::move (other));
+    return *this;
+  }
+
+  bool has_expr () const { return kind == Kind::EXPR; }
+
+  Expr &get_expr ()
+  {
+    rust_assert (has_expr ());
+    return *expr_nl.first;
+  }
+
+  const Expr &get_expr () const
+  {
+    rust_assert (has_expr ());
+    return *expr_nl.first;
+  }
+
+  std::unique_ptr<Expr> &get_expr_ptr ()
+  {
+    rust_assert (has_expr ());
+    return expr_nl.first;
+  }
+
+  bool should_add_newline () const
+  {
+    rust_assert (has_expr ());
+    return expr_nl.second == Newline::Yes;
+  }
+
+  bool has_pieces () const { return kind == Kind::PIECES; }
+
+  const Fmt::Pieces &get_pieces () const
+  {
+    rust_assert (has_pieces ());
+    return template_str;
+  }
+
+  void try_simplify ();
+
+  Kind get_kind () const { return kind; }
+
+  ~FormatArgsPieces ()
+  {
+    switch (kind)
+      {
+      case Kind::EXPR:
+	expr_nl.~pair ();
+	break;
+      case Kind::PIECES:
+	template_str.~Pieces ();
+	break;
+      default:
+	rust_unreachable ();
+      }
+  }
+
+private:
+  Kind kind;
+  union
+  {
+    std::pair<std::unique_ptr<Expr>, Newline> expr_nl;
+    Fmt::Pieces template_str;
+  };
+};
+
 // TODO: Format documentation better
 // Having a separate AST node for `format_args!()` expansion allows some
 // important optimizations which help reduce generated code a lot. For example,
@@ -180,15 +315,11 @@ private:
 class FormatArgs : public Expr
 {
 public:
-  enum class Newline
-  {
-    Yes,
-    No
-  };
+  using Newline = FormatArgsNewline;
 
-  FormatArgs (location_t loc, Fmt::Pieces &&template_str,
+  FormatArgs (location_t loc, FormatArgsPieces template_arg,
 	      FormatArguments &&arguments)
-    : loc (loc), template_pieces (std::move (template_str)),
+    : loc (loc), template_arg (std::move (template_arg)),
       arguments (std::move (arguments))
   {}
 
@@ -198,7 +329,12 @@ public:
 
   void accept_vis (AST::ASTVisitor &vis) override;
 
-  const Fmt::Pieces &get_template () const { return template_pieces; }
+  FormatArgsPieces &get_template_arg () { return template_arg; }
+  const Fmt::Pieces &get_template () const
+  {
+    rust_assert (template_arg.has_pieces ());
+    return template_arg.get_pieces ();
+  }
   const FormatArguments &get_arguments () const { return arguments; }
   virtual location_t get_locus () const override;
 
@@ -210,7 +346,7 @@ private:
   // expansion of format_args!(). There is extra handling associated with it.
   // we can maybe do that in rust-fmt.cc? in collect_pieces()? like do the
   // transformation into something we can handle better
-  Fmt::Pieces template_pieces;
+  FormatArgsPieces template_arg;
   FormatArguments arguments;
 
   bool marked_for_strip = false;

@@ -23,6 +23,7 @@
 #include "rust-ast.h"
 #include "rust-type.h"
 #include "rust-derive.h"
+#include "rust-expand-format-args.h"
 
 namespace Rust {
 
@@ -1059,6 +1060,21 @@ ExpandVisitor::visit (AST::SelfParam &param)
    * lifetime? */
   if (param.has_type ())
     maybe_expand_type (param.get_type_ptr ());
+}
+
+void
+ExpandVisitor::visit (AST::FormatArgs &fmt)
+{
+  if (macro_invoc_expect_id != fmt.get_node_id ())
+    {
+      rust_internal_error_at (fmt.get_locus (),
+			      "attempting to expand FormatArgs node with id %d "
+			      "into position with node id %d",
+			      (int) fmt.get_node_id (),
+			      (int) macro_invoc_expect_id);
+    }
+
+  Fmt::expand_format_args (*this, expander, fmt);
 }
 
 template <typename T>
