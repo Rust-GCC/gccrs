@@ -49,24 +49,26 @@ Pieces::collect (const std::string &to_parse, bool append_newline,
 
 Pieces::~Pieces () { ffi::destroy_pieces (handle); }
 
-Pieces::Pieces (const Pieces &other) : pieces_vector (other.pieces_vector)
+Pieces::Pieces (const Pieces &other) : handle (ffi::clone_pieces (other.handle))
 {
-  handle = ffi::clone_pieces (other.handle);
+  // reconstruct
+  pieces_vector = std::vector<ffi::Piece> (handle.piece_slice.base_ptr,
+					   handle.piece_slice.base_ptr
+					     + handle.piece_slice.len);
 }
 
 Pieces &
 Pieces::operator= (const Pieces &other)
 {
   handle = ffi::clone_pieces (other.handle);
-  pieces_vector = other.pieces_vector;
+
+  // reconstruct
+  pieces_vector = std::vector<ffi::Piece> (handle.piece_slice.base_ptr,
+					   handle.piece_slice.base_ptr
+					     + handle.piece_slice.len);
 
   return *this;
 }
-
-Pieces::Pieces (Pieces &&other)
-  : pieces_vector (std::move (other.pieces_vector)),
-    handle (clone_pieces (other.handle))
-{}
 
 } // namespace Fmt
 } // namespace Rust
