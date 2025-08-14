@@ -282,6 +282,8 @@ public:
 
   Expr &get_expr () { return *expr; }
 
+  std::unique_ptr<Expr> &get_expr_ptr () { return expr; }
+
   std::string as_string () const override
   {
     return path.as_string () + " = " + expr->as_string ();
@@ -414,6 +416,12 @@ public:
     return *main_or_left_expr;
   }
 
+  std::unique_ptr<Expr> &get_borrowed_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
+  }
+
   bool has_borrow_expr () const { return main_or_left_expr != nullptr; }
 
   bool get_is_mut () const { return mutability == Mutability::Mut; }
@@ -455,6 +463,12 @@ public:
     return *main_or_left_expr;
   }
 
+  std::unique_ptr<Expr> &get_dereferenced_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
+  }
+
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Dereference; }
 
 protected:
@@ -486,6 +500,12 @@ public:
   {
     rust_assert (main_or_left_expr != nullptr);
     return *main_or_left_expr;
+  }
+
+  std::unique_ptr<Expr> &get_propagating_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
   }
 
   Expr::Kind get_expr_kind () const override
@@ -534,6 +554,12 @@ public:
   {
     rust_assert (main_or_left_expr != nullptr);
     return *main_or_left_expr;
+  }
+
+  std::unique_ptr<Expr> &get_negated_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
   }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Negation; }
@@ -1294,11 +1320,23 @@ public:
     return *elem_to_copy;
   }
 
+  std::unique_ptr<Expr> &get_elem_to_copy_ptr ()
+  {
+    rust_assert (elem_to_copy != nullptr);
+    return elem_to_copy;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   Expr &get_num_copies ()
   {
     rust_assert (num_copies != nullptr);
     return *num_copies;
+  }
+
+  std::unique_ptr<Expr> &get_num_copies_ptr ()
+  {
+    rust_assert (num_copies != nullptr);
+    return num_copies;
   }
 
 protected:
@@ -1480,11 +1518,23 @@ public:
     return *array_expr;
   }
 
+  std::unique_ptr<Expr> &get_array_expr_ptr ()
+  {
+    rust_assert (array_expr != nullptr);
+    return array_expr;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   Expr &get_index_expr ()
   {
     rust_assert (index_expr != nullptr);
     return *index_expr;
+  }
+
+  std::unique_ptr<Expr> &get_index_expr_ptr ()
+  {
+    rust_assert (index_expr != nullptr);
+    return index_expr;
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
@@ -1671,6 +1721,12 @@ public:
     return *tuple_expr;
   }
 
+  std::unique_ptr<Expr> &get_tuple_expr_ptr ()
+  {
+    rust_assert (tuple_expr != nullptr);
+    return tuple_expr;
+  }
+
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
@@ -1819,6 +1875,12 @@ public:
     rust_assert (base_struct != nullptr);
     return *base_struct;
   }
+
+  std::unique_ptr<Expr> &get_base_struct_ptr ()
+  {
+    rust_assert (base_struct != nullptr);
+    return base_struct;
+  }
 };
 
 /* Base AST node for a single struct expression field (in struct instance
@@ -1934,6 +1996,12 @@ public:
   {
     rust_assert (value != nullptr);
     return *value;
+  }
+
+  std::unique_ptr<Expr> &get_value_ptr ()
+  {
+    rust_assert (value != nullptr);
+    return value;
   }
 };
 
@@ -2305,6 +2373,12 @@ public:
     return *receiver;
   }
 
+  std::unique_ptr<Expr> &get_receiver_expr_ptr ()
+  {
+    rust_assert (receiver != nullptr);
+    return receiver;
+  }
+
   const PathExprSegment &get_method_name () const { return method_name; }
   PathExprSegment &get_method_name () { return method_name; }
 
@@ -2391,6 +2465,12 @@ public:
   {
     rust_assert (receiver != nullptr);
     return *receiver;
+  }
+
+  std::unique_ptr<Expr> &get_receiver_expr_ptr ()
+  {
+    rust_assert (receiver != nullptr);
+    return receiver;
   }
 
   Identifier get_field_name () const { return field; }
@@ -2851,6 +2931,12 @@ public:
     return *expr.value ();
   }
 
+  std::unique_ptr<Expr> &get_inner_expr_ptr ()
+  {
+    rust_assert (expr.has_value ());
+    return expr.value ();
+  }
+
   NodeId get_node_id () const override { return node_id; }
 
   /* FIXME: AnonConst are always "internal" and should not have outer attributes
@@ -3171,6 +3257,12 @@ public:
     return *break_expr;
   }
 
+  std::unique_ptr<Expr> &get_break_expr_ptr ()
+  {
+    rust_assert (has_break_expr ());
+    return break_expr;
+  }
+
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
   std::vector<Attribute> &get_outer_attrs () override { return outer_attrs; }
 
@@ -3298,6 +3390,18 @@ public:
     return *to;
   }
 
+  std::unique_ptr<Expr> &get_from_expr_ptr ()
+  {
+    rust_assert (from != nullptr);
+    return from;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -3357,6 +3461,12 @@ public:
   {
     rust_assert (from != nullptr);
     return *from;
+  }
+
+  std::unique_ptr<Expr> &get_from_expr_ptr ()
+  {
+    rust_assert (from != nullptr);
+    return from;
   }
 
 protected:
@@ -3419,6 +3529,12 @@ public:
   {
     rust_assert (to != nullptr);
     return *to;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
   }
 
 protected:
@@ -3534,6 +3650,18 @@ public:
     return *to;
   }
 
+  std::unique_ptr<Expr> &get_from_expr_ptr ()
+  {
+    rust_assert (from != nullptr);
+    return from;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -3594,6 +3722,12 @@ public:
   {
     rust_assert (to != nullptr);
     return *to;
+  }
+
+  std::unique_ptr<Expr> &get_to_expr_ptr ()
+  {
+    rust_assert (to != nullptr);
+    return to;
   }
 
 protected:
@@ -3667,6 +3801,12 @@ public:
   {
     rust_assert (expr != nullptr);
     return *expr;
+  }
+
+  std::unique_ptr<Expr> &get_boxed_expr_ptr ()
+  {
+    rust_assert (expr != nullptr);
+    return expr;
   }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Box; }
@@ -3748,6 +3888,12 @@ public:
   {
     rust_assert (return_expr != nullptr);
     return *return_expr;
+  }
+
+  std::unique_ptr<Expr> &get_returned_expr_ptr ()
+  {
+    rust_assert (return_expr != nullptr);
+    return return_expr;
   }
 
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
@@ -4102,6 +4248,12 @@ public:
     return *condition;
   }
 
+  std::unique_ptr<Expr> &get_predicate_expr_ptr ()
+  {
+    rust_assert (condition != nullptr);
+    return condition;
+  }
+
   BaseLoopExpr::Kind get_loop_kind () const override
   {
     return BaseLoopExpr::Kind::While;
@@ -4178,6 +4330,12 @@ public:
   {
     rust_assert (scrutinee != nullptr);
     return *scrutinee;
+  }
+
+  std::unique_ptr<Expr> &get_scrutinee_expr_ptr ()
+  {
+    rust_assert (scrutinee != nullptr);
+    return scrutinee;
   }
 
   // TODO: this mutable getter seems really dodgy. Think up better way.
@@ -4257,11 +4415,23 @@ public:
     return *iterator_expr;
   }
 
+  std::unique_ptr<Expr> &get_iterator_expr_ptr ()
+  {
+    rust_assert (iterator_expr != nullptr);
+    return iterator_expr;
+  }
+
   // TODO: is this better? Or is a "vis_block" better?
   Pattern &get_pattern ()
   {
     rust_assert (pattern != nullptr);
     return *pattern;
+  }
+
+  std::unique_ptr<Pattern> &get_pattern_ptr ()
+  {
+    rust_assert (pattern != nullptr);
+    return pattern;
   }
 
   BaseLoopExpr::Kind get_loop_kind () const override
@@ -4914,6 +5084,12 @@ public:
   {
     rust_assert (branch_value != nullptr);
     return *branch_value;
+  }
+
+  std::unique_ptr<Expr> &get_scrutinee_expr_ptr ()
+  {
+    rust_assert (branch_value != nullptr);
+    return branch_value;
   }
 
   const std::vector<MatchCase> &get_match_cases () const { return match_arms; }
