@@ -936,6 +936,9 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   MacroExpander expander (crate, cfg, *this);
   std::vector<Error> macro_errors;
 
+  auto yeast = AST::ExpressionYeast ();
+  auto desugar_apit = AST::DesugarApit ();
+
   while (!fixed_point_reached && iterations < cfg.recursion_limit)
     {
       CfgStrip (cfg).go (crate);
@@ -955,9 +958,15 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       if (saw_errors ())
 	break;
 
+      yeast.go (crate);
+      desugar_apit.go (crate);
+
       ExpandVisitor (expander).go (crate);
 
-      fixed_point_reached = !expander.has_changed () && !visitor_dirty;
+      fixed_point_reached = !expander.has_changed () && !visitor_dirty
+			    && !yeast.has_changed ()
+			    && !desugar_apit.has_changed ();
+
       expander.reset_changed_state ();
       iterations++;
 
@@ -985,10 +994,6 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
   // handle AST desugaring
   if (!saw_errors ())
     {
-      AST::ExpressionYeast ().go (crate);
-
-      AST::DesugarApit ().go (crate);
-
       // HACK: we may need a final TopLevel pass
       // however, this should not count towards the recursion limit
       // and we don't need a full Early pass

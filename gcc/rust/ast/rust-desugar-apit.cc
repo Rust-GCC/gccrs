@@ -489,6 +489,8 @@ DesugarApit::DesugarApit () {}
 void
 DesugarApit::go (AST::Crate &crate)
 {
+  dirty = false;
+
   DefaultASTVisitor::visit (crate);
 }
 
@@ -523,6 +525,7 @@ DesugarApit::visit (AST::Function &function)
       ApitBoundProcessor processor (function.get_where_clause (),
 				    function.get_generic_params ());
       processor.go (implicit_generics);
+      dirty = true;
     }
 }
 

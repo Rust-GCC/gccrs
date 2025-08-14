@@ -32,6 +32,8 @@ namespace AST {
 void
 ExpressionYeast::go (AST::Crate &crate)
 {
+  dirty = false;
+
   DefaultASTVisitor::visit (crate);
 }
 
@@ -69,8 +71,10 @@ ExpressionYeast::dispatch (std::unique_ptr<Expr> &expr)
       break;
 
     default:
-      break;
+      return;
     }
+
+  dirty = true;
 }
 
 void
