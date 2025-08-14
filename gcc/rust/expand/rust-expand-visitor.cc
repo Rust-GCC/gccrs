@@ -18,6 +18,7 @@
 
 #include "rust-expand-visitor.h"
 #include "rust-ast-fragment.h"
+#include "rust-hir-map.h"
 #include "rust-proc-macro.h"
 #include "rust-attributes.h"
 #include "rust-ast.h"
@@ -47,7 +48,10 @@ static std::vector<std::unique_ptr<AST::Item>>
 builtin_derive_item (AST::Item &item, const AST::Attribute &derive,
 		     BuiltinMacro to_derive)
 {
-  return AST::DeriveVisitor::derive (item, derive, to_derive);
+  auto items = AST::DeriveVisitor::derive (item, derive, to_derive);
+  for (auto &item : items)
+    Analysis::Mappings::get ().add_derived_nodes (item->get_node_id ());
+  return items;
 }
 
 static std::vector<std::unique_ptr<AST::Item>>
@@ -63,6 +67,8 @@ derive_item (AST::Item &item, AST::SimplePath &to_derive,
 	  switch (node.get_kind ())
 	    {
 	    case AST::SingleASTNode::ITEM:
+	      Analysis::Mappings::get ().add_derived_nodes (
+		node.get_item ()->get_node_id ());
 	      result.push_back (node.take_item ());
 	      break;
 	    default:
