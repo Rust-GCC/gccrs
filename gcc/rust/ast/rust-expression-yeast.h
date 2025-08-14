@@ -35,6 +35,8 @@ class ExpressionYeast : public AST::DefaultASTVisitor
 public:
   void go (AST::Crate &);
 
+  bool has_changed () const { return dirty; }
+
 private:
   // Dispatch to the proper desugar
   void dispatch (std::unique_ptr<Expr> &expr);
@@ -44,6 +46,8 @@ private:
   void visit (AST::CallExpr &) override;
   void visit (AST::LetStmt &) override;
   void visit (AST::BlockExpr &) override;
+
+  bool dirty = false;
 };
 
 } // namespace AST

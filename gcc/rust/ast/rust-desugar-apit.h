@@ -32,8 +32,12 @@ public:
   DesugarApit ();
   void go (AST::Crate &);
 
+  bool has_changed () const { return dirty; }
+
 private:
   void visit (AST::Function &) override;
+
+  bool dirty = false;
 };
 
 } // namespace AST
