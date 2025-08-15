@@ -33,8 +33,7 @@ namespace HIR {
 static std::set<HirId> already_assigned_variables = {};
 
 ReadonlyChecker::ReadonlyChecker ()
-  : resolver (*Resolver::Resolver::get ()),
-    mappings (Analysis::Mappings::get ()),
+  : mappings (Analysis::Mappings::get ()),
     context (*Resolver::TypeCheckContext::get ())
 {}
 

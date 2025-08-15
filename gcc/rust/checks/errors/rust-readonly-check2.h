@@ -38,7 +38,6 @@ private:
     decrement,
   };
 
-  Resolver::Resolver &resolver;
   Analysis::Mappings &mappings;
   Resolver::TypeCheckContext &context;
   StackedContexts<HirId> mutable_context;
