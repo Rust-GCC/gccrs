@@ -39,6 +39,23 @@
 // The backend representation of a variable.
 class Bvariable;
 
+// rust integer trees
+
+#define RUST_INT_TREE_U8 (rust_int_trees[0])
+#define RUST_INT_TREE_U16 (rust_int_trees[1])
+#define RUST_INT_TREE_U32 (rust_int_trees[2])
+#define RUST_INT_TREE_U64 (rust_int_trees[3])
+#define RUST_INT_TREE_U128 (rust_int_trees[4])
+
+#define RUST_INT_TREE_I8 (rust_int_trees[5])
+#define RUST_INT_TREE_I16 (rust_int_trees[6])
+#define RUST_INT_TREE_I32 (rust_int_trees[7])
+#define RUST_INT_TREE_I64 (rust_int_trees[8])
+#define RUST_INT_TREE_I128 (rust_int_trees[9])
+
+extern GTY (()) tree rust_int_trees[10];
+extern const char *rust_int_names[10];
+
 // The backend interface.  This is a pure abstract class that a
 // specific backend will implement.
 
