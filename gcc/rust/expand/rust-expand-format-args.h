@@ -19,15 +19,20 @@
 #ifndef RUST_EXPAND_FORMAT_ARGS_H
 #define RUST_EXPAND_FORMAT_ARGS_H
 
-#include "optional.h"
+#include "rust-system.h"
 #include "rust-ast-fragment.h"
+#include "optional.h"
 
 namespace Rust {
+
+// forward declare
+class ExpandVisitor;
+struct MacroExpander;
+
 namespace Fmt {
 
-tl::optional<AST::Fragment>
-expand_format_args (AST::FormatArgs &fmt,
-		    std::vector<std::unique_ptr<AST::Token>> &&tokens);
+void expand_format_args (ExpandVisitor &expand_visitor, MacroExpander &expander,
+			 AST::FormatArgs &fmt);
 
 } // namespace Fmt
 } // namespace Rust

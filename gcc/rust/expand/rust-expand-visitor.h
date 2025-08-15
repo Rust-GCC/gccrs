@@ -23,6 +23,7 @@
 #include "rust-item.h"
 #include "rust-macro-expand.h"
 #include "rust-proc-macro.h"
+#include "rust-ast-full-decls.h"
 
 namespace Rust {
 
@@ -290,6 +291,9 @@ public:
   void visit (AST::FunctionParam &param) override;
   void visit (AST::VariadicParam &param) override;
   void visit (AST::SelfParam &type) override;
+
+  // expand these if possible
+  void visit (AST::FormatArgs &fmt) override;
 
   template <typename T>
   void expand_inner_attribute (T &item, AST::SimplePath &Path);

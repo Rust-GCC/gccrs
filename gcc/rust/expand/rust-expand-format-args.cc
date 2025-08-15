@@ -27,6 +27,7 @@
 #include "rust-path.h"
 #include "rust-system.h"
 #include "rust-token.h"
+#include "rust-expand-visitor.h"
 
 namespace Rust {
 namespace Fmt {
@@ -65,10 +66,58 @@ get_trait_name (ffi::FormatSpec format_specifier)
   return it->second;
 }
 
-tl::optional<AST::Fragment>
-expand_format_args (AST::FormatArgs &fmt,
-		    std::vector<std::unique_ptr<AST::Token>> &&tokens)
+static bool
+expand_format_first_arg (ExpandVisitor &expand_visitor,
+			 AST::FormatArgsPieces &fmt_arg)
 {
+  if (fmt_arg.has_pieces ())
+    return true;
+
+  expand_visitor.maybe_expand_expr (fmt_arg.get_expr_ptr ());
+
+  AST::Expr &expr = fmt_arg.get_expr ();
+
+  auto emit_err = [&] () {
+    rust_error_at (expr.get_locus (),
+		   "format argument must be a string literal");
+  };
+
+  if (!expr.is_literal ())
+    {
+      if (expr.get_expr_kind () != AST::Expr::Kind::MacroInvocation)
+	emit_err ();
+      return false;
+    }
+
+  auto &lit_expr = static_cast<AST::LiteralExpr &> (expr);
+
+  if (lit_expr.get_lit_type () != AST::Literal::STRING
+      && lit_expr.get_lit_type () != AST::Literal::RAW_STRING)
+    {
+      emit_err ();
+      return false;
+    }
+
+  auto fmt_str = lit_expr.get_literal ().as_string ();
+
+  // TODO: does Fmt::Pieces::collect do this?
+  if (fmt_arg.should_add_newline ())
+    fmt_str += '\n';
+
+  auto pieces = Fmt::Pieces::collect (fmt_str, fmt_arg.should_add_newline (),
+				      Fmt::ffi::ParseMode::Format);
+
+  fmt_arg = pieces;
+  return true;
+}
+
+void
+expand_format_args (ExpandVisitor &expand_visitor, MacroExpander &expander,
+		    AST::FormatArgs &fmt)
+{
+  if (!expand_format_first_arg (expand_visitor, fmt.get_template_arg ()))
+    return;
+
   auto loc = fmt.get_locus ();
   auto builder = AST::Builder (loc);
   auto &arguments = fmt.get_arguments ();
@@ -131,9 +180,12 @@ expand_format_args (AST::FormatArgs &fmt,
   auto final_call
     = builder.call (std::move (final_path), std::move (final_args));
 
-  auto node = AST::SingleASTNode (std::move (final_call));
+  // TODO: is it alright to have an empty token list?
+  std::vector<std::unique_ptr<AST::Token>> fragment_tokens;
 
-  return AST::Fragment ({node}, std::move (tokens));
+  expander.set_expanded_fragment (
+    AST::Fragment ({AST::SingleASTNode (std::move (final_call))},
+		   std::move (fragment_tokens)));
 }
 
 } // namespace Fmt
