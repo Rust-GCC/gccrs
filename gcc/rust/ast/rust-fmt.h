@@ -286,8 +286,6 @@ struct Pieces
   Pieces (const Pieces &other);
   Pieces &operator= (const Pieces &other);
 
-  Pieces (Pieces &&other);
-
   const std::vector<ffi::Piece> &get_pieces () const { return pieces_vector; }
 
   // {
