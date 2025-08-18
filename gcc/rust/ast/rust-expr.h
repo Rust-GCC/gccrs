@@ -414,6 +414,12 @@ public:
     return *main_or_left_expr;
   }
 
+  std::unique_ptr<Expr> &get_borrowed_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
+  }
+
   bool has_borrow_expr () const { return main_or_left_expr != nullptr; }
 
   bool get_is_mut () const { return mutability == Mutability::Mut; }
@@ -486,6 +492,12 @@ public:
   {
     rust_assert (main_or_left_expr != nullptr);
     return *main_or_left_expr;
+  }
+
+  std::unique_ptr<Expr> &get_propagating_expr_ptr ()
+  {
+    rust_assert (main_or_left_expr != nullptr);
+    return main_or_left_expr;
   }
 
   Expr::Kind get_expr_kind () const override
@@ -2303,6 +2315,12 @@ public:
   {
     rust_assert (receiver != nullptr);
     return *receiver;
+  }
+
+  std::unique_ptr<Expr> &get_receiver_expr_ptr ()
+  {
+    rust_assert (receiver != nullptr);
+    return receiver;
   }
 
   const PathExprSegment &get_method_name () const { return method_name; }
@@ -4914,6 +4932,12 @@ public:
   {
     rust_assert (branch_value != nullptr);
     return *branch_value;
+  }
+
+  std::unique_ptr<Expr> &get_scrutinee_expr_ptr ()
+  {
+    rust_assert (branch_value != nullptr);
+    return branch_value;
   }
 
   const std::vector<MatchCase> &get_match_cases () const { return match_arms; }

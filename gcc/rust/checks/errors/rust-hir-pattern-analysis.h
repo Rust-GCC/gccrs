@@ -46,7 +46,6 @@ public:
 
 private:
   Resolver::TypeCheckContext &tyctx;
-  Resolver::Resolver &resolver;
   Analysis::Mappings &mappings;
 
   virtual void visit (Lifetime &lifetime) override;

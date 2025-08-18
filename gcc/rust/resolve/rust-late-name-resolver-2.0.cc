@@ -24,6 +24,7 @@
 #include "rust-late-name-resolver-2.0.h"
 #include "rust-default-resolver.h"
 #include "rust-name-resolution-context.h"
+#include "rust-resolve-builtins.h"
 #include "rust-path.h"
 #include "rust-system.h"
 #include "rust-tyty.h"
@@ -38,84 +39,10 @@ Late::Late (NameResolutionContext &ctx)
   : DefaultResolver (ctx), funny_error (false), block_big_self (false)
 {}
 
-static NodeId
-next_node_id ()
-{
-  return Analysis::Mappings::get ().get_next_node_id ();
-};
-
-static HirId
-next_hir_id ()
-{
-  return Analysis::Mappings::get ().get_next_hir_id ();
-};
-
-void
-Late::setup_builtin_types ()
-{
-  // access the global type context to setup the TyTys
-  auto &ty_ctx = *Resolver::TypeCheckContext::get ();
-
-  // Late builtin type struct helper
-  struct LType
-  {
-    std::string name;
-    NodeId node_id;
-    NodeId hir_id;
-    TyTy::BaseType *type;
-
-    explicit LType (std::string name, TyTy::BaseType *type)
-      : name (name), node_id (next_node_id ()), hir_id (type->get_ref ()),
-	type (type)
-    {}
-  };
-
-  static const LType builtins[] = {
-    {LType ("bool", new TyTy::BoolType (next_hir_id ()))},
-    {LType ("u8", new TyTy::UintType (next_hir_id (), TyTy::UintType::U8))},
-    {LType ("u16", new TyTy::UintType (next_hir_id (), TyTy::UintType::U16))},
-    {LType ("u32", new TyTy::UintType (next_hir_id (), TyTy::UintType::U32))},
-    {LType ("u64", new TyTy::UintType (next_hir_id (), TyTy::UintType::U64))},
-    {LType ("u128", new TyTy::UintType (next_hir_id (), TyTy::UintType::U128))},
-    {LType ("i8", new TyTy::IntType (next_hir_id (), TyTy::IntType::I8))},
-    {LType ("i16", new TyTy::IntType (next_hir_id (), TyTy::IntType::I16))},
-    {LType ("i32", new TyTy::IntType (next_hir_id (), TyTy::IntType::I32))},
-    {LType ("i64", new TyTy::IntType (next_hir_id (), TyTy::IntType::I64))},
-    {LType ("i128", new TyTy::IntType (next_hir_id (), TyTy::IntType::I128))},
-    {LType ("f32", new TyTy::FloatType (next_hir_id (), TyTy::FloatType::F32))},
-    {LType ("f64", new TyTy::FloatType (next_hir_id (), TyTy::FloatType::F64))},
-    {LType ("usize", new TyTy::USizeType (next_hir_id ()))},
-    {LType ("isize", new TyTy::ISizeType (next_hir_id ()))},
-    {LType ("char", new TyTy::CharType (next_hir_id ()))},
-    {LType ("str", new TyTy::StrType (next_hir_id ()))},
-    {LType ("!", new TyTy::NeverType (next_hir_id ()))},
-
-    // the unit type `()` does not play a part in name-resolution - so we only
-    // insert it in the type context...
-  };
-
-  // There's a special Rib for putting prelude items, since prelude items need
-  // to satisfy certain special rules.
-  ctx.scoped (Rib::Kind::Prelude, 0, [this, &ty_ctx] (void) -> void {
-    for (const auto &builtin : builtins)
-      {
-	auto ok = ctx.types.insert (builtin.name, builtin.node_id);
-	rust_assert (ok);
-
-	ctx.mappings.insert_node_to_hir (builtin.node_id, builtin.hir_id);
-	ty_ctx.insert_builtin (builtin.hir_id, builtin.node_id, builtin.type);
-      }
-  });
-
-  // ...here!
-  auto *unit_type = TyTy::TupleType::get_unit_type ();
-  ty_ctx.insert_builtin (unit_type->get_ref (), next_node_id (), unit_type);
-}
-
 void
 Late::go (AST::Crate &crate)
 {
-  setup_builtin_types ();
+  Builtins::setup_type_ctx ();
 
   visit (crate);
 }
@@ -135,18 +62,22 @@ Late::visit (AST::ForLoopExpr &expr)
 {
   visit_outer_attrs (expr);
 
-  ctx.bindings.enter (BindingSource::For);
-
-  visit (expr.get_pattern ());
-
-  ctx.bindings.exit ();
-
   visit (expr.get_iterator_expr ());
 
-  if (expr.has_loop_label ())
-    visit (expr.get_loop_label ());
+  auto vis_method = [this, &expr] () {
+    ctx.bindings.enter (BindingSource::For);
 
-  visit (expr.get_loop_block ());
+    visit (expr.get_pattern ());
+
+    ctx.bindings.exit ();
+
+    if (expr.has_loop_label ())
+      visit (expr.get_loop_label ());
+
+    visit (expr.get_loop_block ());
+  };
+
+  ctx.scoped (Rib::Kind::Normal, expr.get_node_id (), vis_method);
 }
 
 void
@@ -521,20 +452,22 @@ Late::visit_impl_type (AST::Type &type)
   block_big_self = false;
 }
 
-void
-Late::visit (AST::TypePath &type)
+template <typename P>
+static void
+resolve_type_path_like (NameResolutionContext &ctx, bool block_big_self,
+			P &type)
 {
   // should we add type path resolution in `ForeverStack` directly? Since it's
   // quite more complicated.
   // maybe we can overload `resolve_path<Namespace::Types>` to only do
   // typepath-like path resolution? that sounds good
 
-  DefaultResolver::visit (type);
-
   // prevent "impl Self {}" and similar
   if (type.get_segments ().size () == 1
-      && !type.get_segments ().front ()->is_lang_item ()
-      && type.get_segments ().front ()->is_big_self_seg () && block_big_self)
+      && !unwrap_segment_get_lang_item (type.get_segments ().front ())
+	    .has_value ()
+      && unwrap_type_segment (type.get_segments ().front ()).is_big_self_seg ()
+      && block_big_self)
     {
       rust_error_at (type.get_locus (),
 		     "%<Self%> is not valid in the self type of an impl block");
@@ -547,17 +480,17 @@ Late::visit (AST::TypePath &type)
 
   if (!resolved.has_value ())
     {
-      if (!ctx.lookup (type.get_segments ().front ()->get_node_id ()))
+      if (!ctx.lookup (unwrap_segment_node_id (type.get_segments ().front ())))
 	rust_error_at (type.get_locus (), ErrorCode::E0412,
 		       "could not resolve type path %qs",
-		       type.make_debug_string ().c_str ());
+		       unwrap_segment_error_string (type).c_str ());
       return;
     }
 
   if (resolved->is_ambiguous ())
     {
       rust_error_at (type.get_locus (), ErrorCode::E0659, "%qs is ambiguous",
-		     type.make_debug_string ().c_str ());
+		     unwrap_segment_error_string (type).c_str ());
       return;
     }
 
@@ -571,6 +504,14 @@ Late::visit (AST::TypePath &type)
 
   ctx.map_usage (Usage (type.get_node_id ()),
 		 Definition (resolved->get_node_id ()));
+}
+
+void
+Late::visit (AST::TypePath &type)
+{
+  DefaultResolver::visit (type);
+
+  resolve_type_path_like (ctx, block_big_self, type);
 }
 
 void
@@ -649,10 +590,7 @@ Late::visit (AST::StructExprStruct &s)
   visit_inner_attrs (s);
   DefaultResolver::visit (s.get_struct_name ());
 
-  auto resolved = ctx.resolve_path (s.get_struct_name (), Namespace::Types);
-
-  ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+  resolve_type_path_like (ctx, block_big_self, s.get_struct_name ());
 }
 
 void
@@ -663,10 +601,7 @@ Late::visit (AST::StructExprStructBase &s)
   DefaultResolver::visit (s.get_struct_name ());
   visit (s.get_struct_base ());
 
-  auto resolved = ctx.resolve_path (s.get_struct_name (), Namespace::Types);
-
-  ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+  resolve_type_path_like (ctx, block_big_self, s.get_struct_name ());
 }
 
 void
@@ -680,10 +615,7 @@ Late::visit (AST::StructExprStructFields &s)
   for (auto &field : s.get_fields ())
     visit (field);
 
-  auto resolved = ctx.resolve_path (s.get_struct_name (), Namespace::Types);
-
-  ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
-		 Definition (resolved->get_node_id ()));
+  resolve_type_path_like (ctx, block_big_self, s.get_struct_name ());
 }
 
 // needed because Late::visit (AST::GenericArg &) is non-virtual

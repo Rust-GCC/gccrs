@@ -579,6 +579,10 @@ ASTLoweringBase::visit (AST::FormatArgs &fmt)
 {}
 
 void
+ASTLoweringBase::visit (AST::FormatArgsEager &fmt)
+{}
+
+void
 ASTLoweringBase::visit (AST::OffsetOf &offset_of)
 {}
 

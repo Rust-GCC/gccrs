@@ -24,6 +24,7 @@
 #include "rust-ast.h"
 #include "rust-type.h"
 #include "rust-derive.h"
+#include "rust-expand-format-args.h"
 
 namespace Rust {
 
@@ -598,9 +599,15 @@ ExpandVisitor::visit (AST::MetaItemPathExpr &)
 {}
 
 void
+ExpandVisitor::visit (AST::BorrowExpr &expr)
+{
+  maybe_expand_expr (expr.get_borrowed_expr_ptr ());
+}
+
+void
 ExpandVisitor::visit (AST::ErrorPropagationExpr &expr)
 {
-  visit (expr.get_propagating_expr ());
+  maybe_expand_expr (expr.get_propagating_expr_ptr ());
 }
 
 void
@@ -652,6 +659,14 @@ ExpandVisitor::visit (AST::GroupedExpr &expr)
 }
 
 void
+ExpandVisitor::visit (AST::TupleExpr &expr)
+{
+  // TODO: expand as multiple expressions?
+  for (auto &elem : expr.get_tuple_elems ())
+    maybe_expand_expr (elem);
+}
+
+void
 ExpandVisitor::visit (AST::StructExprStruct &expr)
 {}
 
@@ -667,7 +682,7 @@ ExpandVisitor::visit (AST::CallExpr &expr)
 void
 ExpandVisitor::visit (AST::MethodCallExpr &expr)
 {
-  visit (expr.get_receiver_expr ());
+  maybe_expand_expr (expr.get_receiver_expr_ptr ());
 
   for (auto &param : expr.get_params ())
     maybe_expand_expr (param);
@@ -742,7 +757,7 @@ ExpandVisitor::visit (AST::IfLetExprConseqElse &expr)
 void
 ExpandVisitor::visit (AST::MatchExpr &expr)
 {
-  visit (expr.get_scrutinee_expr ());
+  maybe_expand_expr (expr.get_scrutinee_expr_ptr ());
 
   for (auto &match_case : expr.get_match_cases ())
     {
@@ -1151,6 +1166,20 @@ ExpandVisitor::visit (AST::SelfParam &param)
    * lifetime? */
   if (param.has_type ())
     maybe_expand_type (param.get_type_ptr ());
+}
+
+void
+ExpandVisitor::visit (AST::FormatArgsEager &fmt)
+{
+  maybe_expand_expr (fmt.get_template_ptr ());
+  auto res = Fmt::expand_format_args_eager (fmt);
+  if (res.has_value ())
+    {
+      // TODO: is it alright to have an empty token list?
+      std::vector<std::unique_ptr<AST::Token>> fragment_tokens;
+
+      expander.set_expanded_fragment (AST::Fragment ({AST::SingleASTNode (std::move (*res))}, std::move(fragment_tokens)));
+    }
 }
 
 template <typename T>

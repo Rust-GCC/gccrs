@@ -220,6 +220,14 @@ public:
   TypePath type_path (std::string type) const;
   TypePath type_path (LangItem::Kind lang_item) const;
 
+  /**
+   * Creates a type path relative to libcore
+   * Either `::core...` or `crate...`
+   */
+  TypePath type_path_core (std::vector<std::unique_ptr<TypePathSegment>> &&segments) const;
+  TypePath type_path_core (std::vector<std::string> &&segments) const;
+  TypePath type_path_core (std::initializer_list<const char *> segments) const;
+
   std::unique_ptr<Type>
   reference_type (std::unique_ptr<TypeNoBounds> &&inner_type,
 		  bool mutability = false) const;
@@ -236,6 +244,12 @@ public:
    * Create a path in expression from a lang item.
    */
   PathInExpression path_in_expression (LangItem::Kind lang_item) const;
+
+  /**
+   * Create a path in expression relative to libcore
+   * Either `::core...` or `crate...`
+   */
+  PathInExpression path_in_expression_core (std::vector<std::string> &&segments) const;
 
   /* Create the path to an enum's variant (`Result::Ok`) */
   PathInExpression variant_path (const std::string &enum_path,
@@ -331,11 +345,6 @@ public:
 
   /* Location of the generated AST nodes */
   location_t loc;
-
-private:
-  /* Some constexpr helpers for some of the builders */
-  static constexpr std::initializer_list<const char *> discriminant_value_path
-    = {"core", "intrinsics", "discriminant_value"};
 };
 
 } // namespace AST

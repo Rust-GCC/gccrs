@@ -25,15 +25,11 @@
 #include "rust-system.h"
 #include "rust-immutable-name-resolution-context.h"
 
-// for flag_name_resolution_2_0
-#include "options.h"
-
 namespace Rust {
 namespace HIR {
 
 UnsafeChecker::UnsafeChecker ()
   : context (*Resolver::TypeCheckContext::get ()),
-    resolver (*Resolver::Resolver::get ()),
     mappings (Analysis::Mappings::get ())
 {}
 
@@ -220,23 +216,15 @@ UnsafeChecker::visit (PathInExpression &path)
   NodeId ast_node_id = path.get_mappings ().get_nodeid ();
   NodeId ref_node_id;
 
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      auto resolved = nr_ctx.lookup (ast_node_id);
+  auto resolved = nr_ctx.lookup (ast_node_id);
 
-      if (!resolved.has_value ())
-	return;
+  if (!resolved.has_value ())
+    return;
 
-      ref_node_id = resolved.value ();
-    }
-  else
-    {
-      if (!resolver.lookup_resolved_name (ast_node_id, &ref_node_id))
-	return;
-    }
+  ref_node_id = resolved.value ();
 
   if (auto definition_id = mappings.lookup_node_to_hir (ref_node_id))
     {
@@ -434,26 +422,15 @@ UnsafeChecker::visit (CallExpr &expr)
   NodeId ast_node_id = expr.get_fnexpr ().get_mappings ().get_nodeid ();
   NodeId ref_node_id;
 
-  // There are no unsafe types, and functions are defined in the name resolver.
-  // If we can't find the name, then we're dealing with a type and should return
-  // early.
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      auto resolved = nr_ctx.lookup (ast_node_id);
+  auto resolved = nr_ctx.lookup (ast_node_id);
 
-      if (!resolved.has_value ())
-	return;
+  if (!resolved.has_value ())
+    return;
 
-      ref_node_id = resolved.value ();
-    }
-  else
-    {
-      if (!resolver.lookup_resolved_name (ast_node_id, &ref_node_id))
-	return;
-    }
+  ref_node_id = resolved.value ();
 
   if (auto definition_id = mappings.lookup_node_to_hir (ref_node_id))
     {

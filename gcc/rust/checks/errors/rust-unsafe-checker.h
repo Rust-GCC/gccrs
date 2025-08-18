@@ -54,7 +54,6 @@ private:
   StackedContexts<HirId> unsafe_context;
 
   Resolver::TypeCheckContext &context;
-  Resolver::Resolver &resolver;
   Analysis::Mappings &mappings;
 
   virtual void visit (Lifetime &lifetime) override;

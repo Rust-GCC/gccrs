@@ -79,6 +79,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::MUST_USE, STATIC_ANALYSIS},
      {Attrs::LANG, HIR_LOWERING},
      {Attrs::LINK_SECTION, CODE_GENERATION},
+     {Attrs::LINK_NAME, CODE_GENERATION},
      {Attrs::NO_MANGLE, CODE_GENERATION},
      {Attrs::REPR, CODE_GENERATION},
      {Attrs::RUSTC_BUILTIN_MACRO, EXPANSION},
@@ -103,6 +104,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_PROMOTABLE, CODE_GENERATION},
      {Attrs::RUSTC_CONST_STABLE, STATIC_ANALYSIS},
      {Attrs::RUSTC_CONST_UNSTABLE, STATIC_ANALYSIS},
+     {Attrs::RUSTC_ALLOW_CONST_FN_UNSTABLE, STATIC_ANALYSIS},
      {Attrs::PRELUDE_IMPORT, NAME_RESOLUTION},
      {Attrs::TRACK_CALLER, CODE_GENERATION},
      {Attrs::RUSTC_SPECIALIZATION_TRAIT, TYPE_CHECK},
@@ -125,8 +127,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::NON_EXHAUSTIVE, TYPE_CHECK},
      {Attrs::RUSTFMT, EXTERNAL},
 
-     {Attrs::TEST, CODE_GENERATION},
-     {Attrs::SIMD_TEST, CODE_GENERATION}};
+     {Attrs::TEST, CODE_GENERATION}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()

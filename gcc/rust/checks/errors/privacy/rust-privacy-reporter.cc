@@ -28,10 +28,8 @@ namespace Rust {
 namespace Privacy {
 
 PrivacyReporter::PrivacyReporter (
-  Analysis::Mappings &mappings, Resolver::Resolver &resolver,
-  const Rust::Resolver::TypeCheckContext &ty_ctx)
-  : mappings (mappings), resolver (resolver), ty_ctx (ty_ctx),
-    current_module (tl::nullopt)
+  Analysis::Mappings &mappings, const Rust::Resolver::TypeCheckContext &ty_ctx)
+  : mappings (mappings), ty_ctx (ty_ctx), current_module (tl::nullopt)
 {}
 
 // Find a proc_macro, proc_macro_derive or proc_macro_attribute
@@ -94,30 +92,10 @@ static bool
 is_child_module (Analysis::Mappings &mappings, NodeId parent,
 		 NodeId possible_child)
 {
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      return nr_ctx.values.is_module_descendant (parent, possible_child);
-    }
-
-  auto children = mappings.lookup_module_children (parent);
-
-  if (!children)
-    return false;
-
-  // Visit all toplevel children
-  for (auto &child : *children)
-    if (child == possible_child)
-      return true;
-
-  // Now descend recursively in the child module tree
-  for (auto &child : *children)
-    if (is_child_module (mappings, child, possible_child))
-      return true;
-
-  return false;
+  return nr_ctx.values.is_module_descendant (parent, possible_child);
 }
 
 // FIXME: This function needs a lot of refactoring
@@ -127,17 +105,11 @@ PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
 {
   NodeId ref_node_id = UNKNOWN_NODEID;
 
-  if (flag_name_resolution_2_0)
-    {
-      auto &nr_ctx
-	= Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
+  auto &nr_ctx
+    = Resolver2_0::ImmutableNameResolutionContext::get ().resolver ();
 
-      if (auto id = nr_ctx.lookup (use_id))
-	ref_node_id = *id;
-    }
-  // FIXME: Don't assert here - we might be dealing with a type
-  else if (!resolver.lookup_resolved_name (use_id, &ref_node_id))
-    resolver.lookup_resolved_type (use_id, &ref_node_id);
+  if (auto id = nr_ctx.lookup (use_id))
+    ref_node_id = *id;
 
   // FIXME: Assert here. For now, we return since this causes issues when
   // checking inferred types (#1260)
