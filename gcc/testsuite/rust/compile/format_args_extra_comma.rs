@@ -8,6 +8,14 @@ macro_rules! format_args {
 #[lang = "sized"]
 trait Sized {}
 
+#[lang = "fn_once"]
+pub trait FnOnce<Args> {
+    #[lang = "fn_once_output"]
+    type Output;
+
+    extern "rust-call" fn call_once(self, args: Args) -> Self::Output;
+}
+
 pub mod core {
     pub mod fmt {
         pub struct Formatter;

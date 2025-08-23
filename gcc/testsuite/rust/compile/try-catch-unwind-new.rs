@@ -1,6 +1,17 @@
 // { dg-options "-O2 -w -fdump-tree-optimized" }
 #![feature(intrinsics)]
 
+#[lang = "sized"]
+pub trait Sized {}
+
+#[lang = "fn_once"]
+pub trait FnOnce<Args> {
+    #[lang = "fn_once_output"]
+    type Output;
+
+    extern "rust-call" fn call_once(self, args: Args) -> Self::Output;
+}
+
 extern "rust-intrinsic" {
     // { dg-final { scan-tree-dump-times "__builtin_eh_pointer" 1 "optimized" } }
     fn catch_unwind(try_fn: fn(_: *mut u8), data: *mut u8, catch_fn: fn(_: *mut u8, _: *mut u8));
