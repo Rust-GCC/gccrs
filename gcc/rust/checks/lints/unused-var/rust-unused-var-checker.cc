@@ -27,12 +27,13 @@ UnusedVarChecker::UnusedVarChecker ()
   : nr_context (
     Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
     mappings (Analysis::Mappings::get ()),
-    unused_var_context (*UnusedVarContext::get ())
+    unused_var_context (std::make_unique<UnusedVarContext> ())
 {}
 void
 UnusedVarChecker::go (HIR::Crate &crate)
 {
-  UnusedVarCollector ().go (crate);
+  UnusedVarCollector collector (*unused_var_context);
+  collector.go (crate);
   for (auto &item : crate.get_items ())
     item->accept_vis (*this);
 }
@@ -55,7 +56,7 @@ UnusedVarChecker::visit (HIR::ConstantItem &item)
   std::string var_name = item.get_identifier ().as_string ();
   bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = item.get_mappings ().get_hirid ();
-  if (!unused_var_context.is_variable_used (id) && !starts_with_under_score)
+  if (!unused_var_context->is_variable_used (id) && !starts_with_under_score)
     rust_warning_at (item.get_locus (), OPT_Wunused_variable,
 		     "unused name '%s'",
 		     item.get_identifier ().as_string ().c_str ());
@@ -67,7 +68,7 @@ UnusedVarChecker::visit (HIR::StaticItem &item)
   std::string var_name = item.get_identifier ().as_string ();
   bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = item.get_mappings ().get_hirid ();
-  if (!unused_var_context.is_variable_used (id) && !starts_with_under_score)
+  if (!unused_var_context->is_variable_used (id) && !starts_with_under_score)
     rust_warning_at (item.get_locus (), OPT_Wunused_variable,
 		     "unused name '%s'",
 		     item.get_identifier ().as_string ().c_str ());
@@ -101,7 +102,7 @@ UnusedVarChecker::check_variable_identifier (HIR::IdentifierPattern &pattern)
   std::string var_name = pattern.get_identifier ().as_string ();
   bool starts_with_under_score = var_name.compare (0, 1, "_") == 0;
   auto id = pattern.get_mappings ().get_hirid ();
-  if (!unused_var_context.is_variable_used (id) && var_name != "self"
+  if (!unused_var_context->is_variable_used (id) && var_name != "self"
       && !starts_with_under_score)
     rust_warning_at (pattern.get_locus (), OPT_Wunused_variable,
 		     "unused name '%s'",

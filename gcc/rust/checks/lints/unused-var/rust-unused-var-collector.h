@@ -21,15 +21,15 @@
 #include "rust-hir-path.h"
 #include "rust-hir-visitor.h"
 #include "rust-name-resolution-context.h"
-#include "rust-name-resolver.h"
 #include "rust-unused-var-context.h"
+#include "rust-name-resolver.h"
 
 namespace Rust {
 namespace Analysis {
 class UnusedVarCollector : public HIR::DefaultHIRVisitor
 {
 public:
-  UnusedVarCollector ();
+  UnusedVarCollector (UnusedVarContext &context);
   void go (HIR::Crate &crate);
 
 private:

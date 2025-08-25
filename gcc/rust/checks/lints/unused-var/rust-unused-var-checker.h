@@ -32,7 +32,7 @@ public:
 private:
   const Resolver2_0::NameResolutionContext &nr_context;
   Analysis::Mappings &mappings;
-  UnusedVarContext &unused_var_context;
+  std::unique_ptr<UnusedVarContext> unused_var_context;
 
   using HIR::DefaultHIRVisitor::visit;
   virtual void visit (HIR::LetStmt &stmt) override;

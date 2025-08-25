@@ -21,17 +21,6 @@
 namespace Rust {
 namespace Analysis {
 
-UnusedVarContext *
-UnusedVarContext::get ()
-{
-  static UnusedVarContext *instance;
-  if (instance == nullptr)
-    instance = new UnusedVarContext ();
-  return instance;
-}
-
-UnusedVarContext::~UnusedVarContext () {}
-
 void
 UnusedVarContext::add_variable (HirId id)
 {

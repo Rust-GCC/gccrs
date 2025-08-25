@@ -24,11 +24,10 @@
 
 namespace Rust {
 namespace Analysis {
-UnusedVarCollector::UnusedVarCollector ()
+UnusedVarCollector::UnusedVarCollector (UnusedVarContext &context)
   : nr_context (
     Resolver2_0::ImmutableNameResolutionContext::get ().resolver ()),
-    mappings (Analysis::Mappings::get ()),
-    unused_var_context (*UnusedVarContext::get ())
+    mappings (Analysis::Mappings::get ()), unused_var_context (context)
 {}
 void
 UnusedVarCollector::go (HIR::Crate &crate)

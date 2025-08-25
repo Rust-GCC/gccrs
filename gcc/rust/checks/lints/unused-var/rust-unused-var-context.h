@@ -23,9 +23,6 @@ namespace Analysis {
 class UnusedVarContext
 {
 public:
-  static UnusedVarContext *get ();
-  ~UnusedVarContext ();
-
   void add_variable (HirId id);
   void mark_used (HirId id);
 
@@ -34,7 +31,6 @@ public:
   std::string as_string () const;
 
 private:
-  UnusedVarContext () = default;
   std::map<HirId, bool> is_used;
 };
 } // namespace Analysis
