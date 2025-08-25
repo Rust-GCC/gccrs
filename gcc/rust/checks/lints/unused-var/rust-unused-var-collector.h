@@ -19,6 +19,7 @@
 #include "rust-hir-expr.h"
 #include "rust-hir-item.h"
 #include "rust-hir-path.h"
+#include "rust-hir-pattern.h"
 #include "rust-hir-visitor.h"
 #include "rust-name-resolution-context.h"
 #include "rust-unused-var-context.h"
@@ -38,17 +39,12 @@ private:
   UnusedVarContext &unused_var_context;
 
   using HIR::DefaultHIRVisitor::visit;
-  virtual void visit (HIR::LetStmt &stmt) override;
   virtual void visit (HIR::PathInExpression &expr) override;
   virtual void visit (HIR::StructExprFieldIdentifier &ident) override;
   virtual void visit (HIR::ConstantItem &item) override;
   virtual void visit (HIR::StaticItem &item) override;
+  virtual void visit (HIR::IdentifierPattern &pattern) override;
   virtual void visit (HIR::QualifiedPathInExpression &expr) override;
-  virtual void visit_function_param (HIR::FunctionParam &param) override;
-  virtual void visit_closure_param (HIR::ClosureParam &param) override;
-
-  void collect_variable (HIR::Pattern &pattern);
-  void collect_variable_tuple (HIR::TuplePattern &pattern);
 
   template <typename T> void mark_path_used (T &path_expr)
   {

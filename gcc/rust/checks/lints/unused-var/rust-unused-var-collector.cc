@@ -20,6 +20,7 @@
 #include "rust-hir-full-decls.h"
 #include "rust-hir-item.h"
 #include "rust-hir-path.h"
+#include "rust-hir-pattern.h"
 #include "rust-immutable-name-resolution-context.h"
 
 namespace Rust {
@@ -34,13 +35,6 @@ UnusedVarCollector::go (HIR::Crate &crate)
 {
   for (auto &item : crate.get_items ())
     item->accept_vis (*this);
-}
-void
-UnusedVarCollector::visit (HIR::LetStmt &stmt)
-{
-  HIR::Pattern &pattern = stmt.get_pattern ();
-  collect_variable (pattern);
-  walk (stmt);
 }
 
 void
@@ -58,54 +52,10 @@ UnusedVarCollector::visit (HIR::StaticItem &item)
 }
 
 void
-UnusedVarCollector::visit_function_param (HIR::FunctionParam &param)
+UnusedVarCollector::visit (HIR::IdentifierPattern &pattern)
 {
-  collect_variable (param.get_param_name ());
-}
-
-void
-UnusedVarCollector::visit_closure_param (HIR::ClosureParam &param)
-{
-  collect_variable (param.get_pattern ());
-}
-
-void
-UnusedVarCollector::collect_variable (HIR::Pattern &pattern)
-{
-  switch (pattern.get_pattern_type ())
-    {
-    case HIR::Pattern::PatternType::IDENTIFIER:
-      {
-	auto &identifier = static_cast<HIR::IdentifierPattern &> (pattern);
-	auto id = identifier.get_mappings ().get_hirid ();
-	unused_var_context.add_variable (id);
-      }
-      break;
-    case HIR::Pattern::PatternType::TUPLE:
-      {
-	collect_variable_tuple (static_cast<HIR::TuplePattern &> (pattern));
-      }
-      break;
-    default:
-      break;
-    }
-}
-void
-UnusedVarCollector::collect_variable_tuple (HIR::TuplePattern &pattern)
-{
-  switch (pattern.get_items ().get_item_type ())
-    {
-    case HIR::TuplePatternItems::ItemType::NO_REST:
-      {
-	auto &items
-	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
-	for (auto &sub : items.get_patterns ())
-	  collect_variable (*sub);
-      }
-      break;
-    default:
-      break;
-    }
+  auto id = pattern.get_mappings ().get_hirid ();
+  unused_var_context.add_variable (id);
 }
 
 void

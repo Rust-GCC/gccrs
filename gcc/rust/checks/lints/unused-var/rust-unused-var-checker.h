@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-item.h"
+#include "rust-hir-pattern.h"
 #include "rust-hir-visitor.h"
 #include "rust-immutable-name-resolution-context.h"
 #include "rust-unused-var-collector.h"
@@ -35,14 +36,10 @@ private:
   std::unique_ptr<UnusedVarContext> unused_var_context;
 
   using HIR::DefaultHIRVisitor::visit;
-  virtual void visit (HIR::LetStmt &stmt) override;
-  virtual void visit_function_param (HIR::FunctionParam &param) override;
   virtual void visit (HIR::TraitItemFunc &decl) override;
   virtual void visit (HIR::ConstantItem &item) override;
   virtual void visit (HIR::StaticItem &item) override;
-  void check_variable_identifier (HIR::IdentifierPattern &identifier);
-  void check_variable_tuple (HIR::TuplePattern &pattern);
-  void check_variable (HIR::Pattern &pattern);
+  virtual void visit (HIR::IdentifierPattern &identifier) override;
 };
 } // namespace Analysis
 } // namespace Rust
