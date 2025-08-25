@@ -283,7 +283,8 @@ check_rust_parallelize = 10
 # such as Bison output files which are not version-controlled, but should be included in any release
 # tarballs. This target will be executed during a bootstrap if ‘--enable-generated-files-in-srcdir’
 # was specified as a configure option.
-rust.srcextra:
+rust.srcextra: rust/feature-include/rust-feature-defs.h
+	cp -p rust/feature-include/rust-feature-defs.h $(srcdir)/rust/checks/errors/feature/
 
 rust.all.cross: gccrs$(exeext)
 
@@ -442,9 +443,11 @@ RUST_INCLUDES = -I $(srcdir)/rust \
 	-I $(srcdir)/rust/checks/errors \
 	-I $(srcdir)/rust/checks/errors/privacy \
 	-I $(srcdir)/rust/checks/errors/borrowck \
+	-I $(srcdir)/rust/checks/errors/feature \
 	-I $(srcdir)/rust/util \
         -I $(srcdir)/rust/metadata \
-		-I $(srcdir)/../libgrust
+	-I $(srcdir)/../libgrust \
+	-I rust/feature-include
 
 # add files that require cross-folder includes - currently rust-lang.o, rust-lex.o
 CFLAGS-rust/rust-lang.o += $(RUST_INCLUDES)
@@ -511,6 +514,54 @@ rust/%.o: rust/checks/lints/%.cc
 
 # build rust/checks/errors files in rust folder
 rust/%.o: rust/checks/errors/%.cc
+	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
+	$(POSTCOMPILE)
+
+# build rust/checks/errors/feature files
+# includes some flex/bison usage
+# and some code generation
+
+# heavily based on the definition of COMPILE
+COMPILE_BUILD.base = $(CC_FOR_BUILD) -c $(CFLAGS_FOR_BUILD) -o $@
+ifeq ($(CXXDEPMODE),depmode=gcc3)
+COMPILE_BUILD = $(COMPILE_BUILD.base) -MT $@ -MMD -MP -MF $(@D)/$(DEPDIR)/$(*F).TPo
+else
+COMPILE_BUILD = source='$<' object='$@' libtool=no \
+    DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) $(COMPILE_BUILD.base)
+endif
+
+FEATURE_GEN = rust/checks/errors/feature/rust-feature-gen
+
+build/rust/rust-feature-gen-parse.c: $(FEATURE_GEN).y
+	mkdir -p build/rust
+	mkdir -p rust/feature-include
+	$(BISON) -o $@ \
+		--defines=build/rust/rust-feature-gen-parse.h \
+		$<
+
+build/rust/rust-feature-gen-scan.c: $(FEATURE_GEN).l
+	mkdir -p build/rust
+	$(FLEX) -o $@ -Ca \
+		--header-file=build/rust/rust-feature-gen-scan.h \
+		$<
+
+build/rust/rust-feature-gen-%.o: build/rust/rust-feature-gen-%.c build/rust/rust-feature-gen-parse.c build/rust/rust-feature-gen-scan.c
+	mkdir -p build/rust/.deps
+	$(COMPILE_BUILD) -I build/rust $<
+	$(POSTCOMPILE)
+
+build/rust/feature-gen$(build_exeext): build/rust/rust-feature-gen-scan.o build/rust/rust-feature-gen-parse.o
+	$(LINKER_FOR_BUILD) $(BUILD_LINKERFLAGS) $(BUILD_LDFLAGS) -o $@ $^
+
+RUST_FEATURE_FILES = $(patsubst %,rust/checks/errors/feature/vendor/%.rs,accepted active removed)
+
+rust/feature-include/rust-feature-defs.h: build/rust/feature-gen$(build_exeext) $(RUST_FEATURE_FILES)
+	cat $(patsubst %,$(srcdir)/%,$(RUST_FEATURE_FILES)) | ./$< > $@
+
+rust/feature-include/%.h: rust/checks/errors/feature/%.h
+	cp -p $< $@
+
+rust/%.o: rust/checks/errors/feature/%.cc rust/feature-include/rust-feature-defs.h
 	$(COMPILE) $(RUST_CXXFLAGS) $(RUST_INCLUDES) $<
 	$(POSTCOMPILE)
 

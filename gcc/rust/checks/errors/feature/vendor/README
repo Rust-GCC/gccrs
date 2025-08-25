@@ -1,0 +1,2 @@
+These files have been copied from rustc. The license files are from the
+repository root, while the *.rs files are from compiler/rustc_features/src
