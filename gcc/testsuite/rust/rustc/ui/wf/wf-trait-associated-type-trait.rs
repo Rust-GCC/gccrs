@@ -1,0 +1,17 @@
+// Test that we check associated type default values for WFedness.
+
+#![feature(associated_type_defaults)]
+
+#![allow(dead_code)]
+
+struct IsCopy<T:Copy> { x: T }
+
+trait SomeTrait {
+    type Type1;
+    type Type2 = IsCopy<Self::Type1>;
+// { dg-error ".E0277." "" { target *-*-* } .-1 }
+}
+
+
+fn main() { }
+
