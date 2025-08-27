@@ -21,6 +21,7 @@
 #include "rust-hir-path.h"
 #include "rust-hir-pattern.h"
 #include "rust-hir-visitor.h"
+#include "rust-mapping-common.h"
 #include "rust-name-resolution-context.h"
 #include "rust-unused-var-context.h"
 #include "rust-name-resolver.h"
@@ -49,18 +50,9 @@ private:
   template <typename T> void mark_path_used (T &path_expr)
   {
     NodeId ast_node_id = path_expr.get_mappings ().get_nodeid ();
-    NodeId def_id;
-
-    if (auto id = nr_context.lookup (ast_node_id))
-      def_id = *id;
-    else
-      return;
-
-    auto hir_id = mappings.lookup_node_to_hir (def_id);
-    if (!hir_id)
-      return;
-
-    unused_var_context.mark_used (hir_id.value ());
+    NodeId def_id = nr_context.lookup (ast_node_id).value ();
+    HirId hir_id = mappings.lookup_node_to_hir (def_id).value ();
+    unused_var_context.mark_used (hir_id);
   }
 };
 } // namespace Analysis
