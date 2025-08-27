@@ -270,6 +270,12 @@ coercion_site (HirId id, TyTy::TyWithLocation lhs, TyTy::TyWithLocation rhs,
 		      TyTy::TyWithLocation (receiver, rhs.get_locus ()), locus,
 		      true /*emit_error*/, true /*commit*/, true /*infer*/,
 		      true /*cleanup*/);
+  if (coerced->get_kind () == TyTy::TypeKind::ERROR)
+    {
+      delete coerced;
+      coerced = lhs.get_ty ();
+    }
+
   context->insert_autoderef_mappings (id, std::move (result.adjustments));
   return coerced;
 }
