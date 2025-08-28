@@ -129,7 +129,8 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::SIMD_TEST, CODE_GENERATION},
 
      {Attrs::LINK_NAME, CODE_GENERATION},
-     {Attrs::RUSTC_LEGACY_CONST_GENERICS, TYPE_CHECK}};
+     {Attrs::RUSTC_LEGACY_CONST_GENERICS, TYPE_CHECK},
+     {Attrs::RUSTC_ALLOW_CONST_FN_UNSTABLE, TYPE_CHECK}};
 
 BuiltinAttributeMappings *
 BuiltinAttributeMappings::get ()

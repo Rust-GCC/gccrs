@@ -96,6 +96,8 @@ public:
 
   static constexpr auto &RUSTC_LEGACY_CONST_GENERICS
     = "rustc_legacy_const_generics";
+  static constexpr auto &RUSTC_ALLOW_CONST_FN_UNSTABLE
+    = "rustc_allow_const_fn_unstable";
 };
 } // namespace Values
 } // namespace Rust
