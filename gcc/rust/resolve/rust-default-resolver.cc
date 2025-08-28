@@ -82,10 +82,28 @@ DefaultResolver::visit (AST::Function &function)
 }
 
 void
+DefaultResolver::visit_for_pattern (AST::Pattern &pat)
+{
+  visit (pat);
+}
+
+void
 DefaultResolver::visit (AST::ForLoopExpr &expr)
 {
-  ctx.scoped (Rib::Kind::Normal, expr.get_node_id (),
-	      [this, &expr] () { AST::DefaultASTVisitor::visit (expr); });
+  visit_outer_attrs (expr);
+
+  visit (expr.get_iterator_expr ());
+
+  auto vis_method = [this, &expr] () {
+    visit_for_pattern (expr.get_pattern ());
+
+    if (expr.has_loop_label ())
+      visit (expr.get_loop_label ());
+
+    visit (expr.get_loop_block ());
+  };
+
+  ctx.scoped (Rib::Kind::Normal, expr.get_node_id (), vis_method);
 }
 
 void

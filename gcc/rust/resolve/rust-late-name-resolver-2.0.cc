@@ -58,22 +58,13 @@ Late::new_label (Identifier name, NodeId id)
 }
 
 void
-Late::visit (AST::ForLoopExpr &expr)
+Late::visit_for_pattern (AST::Pattern &pat)
 {
-  visit_outer_attrs (expr);
-
   ctx.bindings.enter (BindingSource::For);
 
-  visit (expr.get_pattern ());
+  visit (pat);
 
   ctx.bindings.exit ();
-
-  visit (expr.get_iterator_expr ());
-
-  if (expr.has_loop_label ())
-    visit (expr.get_loop_label ());
-
-  visit (expr.get_loop_block ());
 }
 
 void

@@ -46,6 +46,7 @@ public:
   void visit (AST::BlockExpr &) override;
   void visit (AST::Module &) override;
   void visit (AST::Function &) override;
+  virtual void visit_for_pattern (AST::Pattern &);
   void visit (AST::ForLoopExpr &expr) override;
   virtual void visit_if_let_patterns (AST::IfLetExpr &expr);
   void visit (AST::IfLetExpr &expr) override;
