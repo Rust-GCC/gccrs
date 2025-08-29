@@ -206,6 +206,16 @@ Late::visit (AST::IdentifierPattern &identifier)
 {
   DefaultResolver::visit (identifier);
 
+  // We need to check if the Identifier resolves to a variant or empty struct
+  auto path = AST::SimplePath (identifier.get_ident ());
+
+  if (auto resolved = ctx.resolve_path (path, Namespace::Types))
+    {
+      ctx.map_usage (Usage (identifier.get_node_id ()),
+		     Definition (resolved->get_node_id ()));
+      return;
+    }
+
   visit_identifier_as_pattern (ctx, identifier.get_ident (),
 			       identifier.get_locus (),
 			       identifier.get_node_id (),
