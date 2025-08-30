@@ -1183,7 +1183,7 @@ ix86_get_callcvt (const_tree type)
       else if (lookup_attribute ("thiscall", attrs))
 	ret |= IX86_CALLCVT_THISCALL;
 
-      /* Regparam isn't allowed for thiscall and fastcall.  */
+      /* Regparm isn't allowed for thiscall and fastcall.  */
       if ((ret & (IX86_CALLCVT_THISCALL | IX86_CALLCVT_FASTCALL)) == 0)
 	{
 	  if (lookup_attribute ("regparm", attrs))
