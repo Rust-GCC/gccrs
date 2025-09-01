@@ -301,8 +301,7 @@ struct MacroExpander
     : cfg (cfg), crate (crate), session (session),
       sub_stack (SubstitutionScope ()),
       expanded_fragment (AST::Fragment::create_error ()),
-      has_changed_flag (false), resolver (Resolver::Resolver::get ()),
-      mappings (Analysis::Mappings::get ())
+      has_changed_flag (false), mappings (Analysis::Mappings::get ())
   {}
 
   ~MacroExpander () = default;
@@ -514,7 +513,6 @@ private:
   tl::optional<AST::MacroInvocation &> last_invoc;
 
 public:
-  Resolver::Resolver *resolver;
   Analysis::Mappings &mappings;
 };
 

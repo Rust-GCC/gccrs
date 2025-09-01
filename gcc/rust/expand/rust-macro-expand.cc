@@ -335,9 +335,6 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
 void
 MacroExpander::expand_crate ()
 {
-  NodeId scope_node_id = crate.get_node_id ();
-  resolver->get_macro_scope ().push (scope_node_id);
-
   /* fill macro/decorator map from init list? not sure where init list comes
    * from? */
 
