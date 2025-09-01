@@ -383,13 +383,16 @@ jobs:
         fetch-depth: 0
 
     - name: Handle ARM64
-      # TODO: update commit as required
+      # TODO: update commit hash as required
+      #       it should be equivalent to the master-wip-apple-si branch
+      #       but, to keep things from breaking unexpectedly, the hash
+      #       is hardcoded.
       run: |
           git remote add arm-ian 'https://github.com/iains/gcc-darwin-arm64.git';
           git fetch arm-ian;
           GIT_AUTHOR_NAME=CI \
           GIT_AUTHOR_EMAIL='ci@invalid' \
-          git merge --no-edit a81533316b9b64245d85b352a93e17f302482acd;
+          git merge --no-edit e110b7b04a6df1275330455aa886a6e283d06e48;
 
     - name: Install Deps
       run: |
