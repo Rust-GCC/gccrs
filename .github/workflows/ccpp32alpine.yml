@@ -44,6 +44,7 @@ jobs:
           libc-dev
           libc++-dev
           cargo
+          gdb
 
     # - name: Install gcc dependency    
     #   run: |
