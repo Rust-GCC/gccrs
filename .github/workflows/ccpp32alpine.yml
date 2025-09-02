@@ -112,6 +112,7 @@ jobs:
       run: |
            cd gccrs-build; \
            gdb --batch -ex run -ex bt --args gcc/crab1 -frust-debug -frust-incomplete-and-experimental-compiler-do-not-use ../gcc/testsuite/rust/execute/torture/issue-1232.rs 1>gcc/testsuite/rust/hack_log_1 2>gcc/testsuite/rust/hack_log_2
+      shell: alpine.sh {0}
 
     - name: Archive check-rust results
       uses: actions/upload-artifact@v4
