@@ -466,6 +466,10 @@
 @tab 1.0
 @tab Minimal half-precision floating-point in integer registers extension
 
+@item @samp{zvabd}
+@tab 0.7
+@tab Vector absolute difference extension.
+
 @item @samp{sdtrig}
 @tab 1.0
 @tab Debug triggers extension

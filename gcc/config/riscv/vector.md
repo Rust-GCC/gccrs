@@ -9230,6 +9230,82 @@
     riscv_vector::prepare_ternary_operands (operands);
   })
 
+;; ------------------------------------
+;; ---- Vector absolute difference extension
+;; ----------------------------------------------------------------
+;; Includes:
+;; - vabs: Vector Single-Width Signed Integer Absolute
+;; - vabd/vabdu: Vector Single-Width Signed Integer Absolute Difference
+;; - vwabda/vwabdau: Vector Widening Signed Integer Absolute
+;;   Difference and Accumulate
+;; ------------------------------------
+
+(define_insn "@pred_abs<mode>"
+  [(set (match_operand:V_VLSI 0 "register_operand"	 "=vd, vd, vr, vr")
+	(if_then_else:V_VLSI
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand" " vm, vm, Wc1, Wc1")
+	     (match_operand 4 "vector_length_operand"	 " rK, rK, rK, rK")
+	     (match_operand 5 "const_int_operand"	 " i, i, i, i")
+	     (match_operand 6 "const_int_operand"	 " i, i, i, i")
+	     (match_operand 7 "const_int_operand"	 " i, i, i, i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (abs:V_VLSI
+	    (match_operand:V_VLSI 3 "register_operand" "vr,vr,vr,vr"))
+	  (match_operand:V_VLSI 2 "vector_merge_operand" "vu,0,vu,0")))]
+  "TARGET_ZVABD"
+  "vabs.v\t%0,%3%p1"
+  [(set_attr "type" "vialu")
+   (set_attr "mode" "<MODE>")
+   (set_attr "vl_op_idx" "4")
+   (set (attr "ta") (symbol_ref "riscv_vector::get_ta (operands[5])"))
+   (set (attr "ma") (symbol_ref "riscv_vector::get_ma (operands[6])"))
+   (set (attr "avl_type_idx") (const_int 7))])
+
+(define_insn "@pred_vabd<su><mode>"
+  [(set (match_operand:V_VLSI 0 "register_operand"	    "=vd, vd, vr, vr")
+	(if_then_else:V_VLSI
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand" " vm, vm, Wc1, Wc1")
+	     (match_operand 5 "vector_length_operand"	 " rK, rK, rK, rK")
+	     (match_operand 6 "const_int_operand"	 " i, i, i, i")
+	     (match_operand 7 "const_int_operand"	 " i, i, i, i")
+	     (match_operand 8 "const_int_operand"	 " i, i, i, i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (unspec:V_VLSI
+	    [(match_operand:V_VLSI 3 "register_operand" "vr,vr,vr,vr")
+	     (match_operand:V_VLSI 4 "register_operand" "vr,vr,vr,vr")]
+	    UNSPEC_VABD)
+	  (match_operand:V_VLSI 2 "vector_merge_operand" "vu,0,vu,0")))]
+  "TARGET_ZVABD"
+  "vabd<u>.vv\t%0,%3,%4%p1"
+  [(set_attr "type" "vialu")
+   (set_attr "mode" "<MODE>")])
+
+(define_insn "@pred_widen_abd_plus<su><mode>"
+  [(set (match_operand:VWEXTI 0 "register_operand"      "+&vd,&vd,&vr,&vr")
+	(if_then_else:VWEXTI
+	  (unspec:<VM>
+	    [(match_operand:<VM> 1 "vector_mask_operand" "vm,vm,Wc1,Wc1")
+	     (match_operand 5 "vector_length_operand"    "rK,rK,rK,rK")
+	     (match_operand 6 "const_int_operand"      "i,i,i,i")
+	     (match_operand 7 "const_int_operand"      "i,i,i,i")
+	     (match_operand 8 "const_int_operand"      "i,i,i,i")
+	     (reg:SI VL_REGNUM)
+	     (reg:SI VTYPE_REGNUM)] UNSPEC_VPREDICATE)
+	  (unspec:VWEXTI
+	    [(match_operand:<V_DOUBLE_TRUNC> 3 "register_operand" "vr,vr,vr,vr")
+	     (match_operand:<V_DOUBLE_TRUNC> 4 "register_operand" "vr,vr,vr,vr")
+	     (match_dup 0)]
+	    UNSPEC_VABDA)
+	  (match_operand:VWEXTI 2 "vector_merge_operand" "vu,0,vu,0")))]
+  "TARGET_ZVABD"
+  "vwabda<u>.vv\t%0,%3,%4%p1"
+  [(set_attr "type" "viwalu")
+   (set_attr "mode" "<V_DOUBLE_TRUNC>")])
+
 (include "autovec.md")
 (include "autovec-opt.md")
 (include "sifive-vector.md")

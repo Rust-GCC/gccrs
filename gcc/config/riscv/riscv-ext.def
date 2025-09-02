@@ -1585,6 +1585,19 @@ DEFINE_RISCV_EXT(
   /* BITMASK_BIT_POSITION*/ BITMASK_NOT_YET_ALLOCATED,
   /* EXTRA_EXTENSION_FLAGS */ 0)
 
+DEFINE_RISCV_EXT (
+  /* NAME.  */ zvabd,
+  /* UPPERCASE_NAME.  */ ZVABD,
+  /* FULL_NAME.  */ "Vector absolute difference extension.",
+  /* DESC.  */ "",
+  /* URL.  */ ,
+  /* DEP_EXTS.  */ ({"v"}),
+  /* SUPPORTED_VERSIONS.  */ ({{0, 7}}),
+  /* FLAG_GROUP.  */ zvabd,
+  /* BITMASK_GROUP_ID.  */ BITMASK_NOT_YET_ALLOCATED,
+  /* BITMASK_BIT_POSITION.  */ BITMASK_NOT_YET_ALLOCATED,
+  /* EXTRA_EXTENSION_FLAGS.  */ 0)
+
 DEFINE_RISCV_EXT(
   /* NAME */ sdtrig,
   /* UPPERCASE_NAME */ SDTRIG,
@@ -2107,6 +2120,7 @@ DEFINE_RISCV_EXT(
   /* BITMASK_GROUP_ID */ BITMASK_NOT_YET_ALLOCATED,
   /* BITMASK_BIT_POSITION*/ BITMASK_NOT_YET_ALLOCATED,
   /* EXTRA_EXTENSION_FLAGS */ 0)
+
 
 #include "riscv-ext-corev.def"
 #include "riscv-ext-sifive.def"

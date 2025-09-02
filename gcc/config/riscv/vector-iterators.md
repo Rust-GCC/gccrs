@@ -122,6 +122,13 @@
   UNSPEC_SF_VFNRCLIP
   UNSPEC_SF_VFNRCLIPU
   UNSPEC_SF_CV
+
+  ;; abd
+  UNSPEC_VSABD
+  UNSPEC_VUABD
+  ;; abda
+  UNSPEC_VSABDA
+  UNSPEC_VUABDA
 ])
 
 (define_c_enum "unspecv" [
@@ -6519,4 +6526,22 @@
   (V1DI "V1HI") (V2DI "V2HI") (V4DI "V4HI") (V8DI "V8HI") (V16DI "V16HI")
   (V32DI "V32HI") (V64DI "V64HI") (V128DI "V128HI") (V256DI "V256HI")
   (V512DI "V512HI")
+])
+
+(define_int_iterator UNSPEC_VABD[
+  UNSPEC_VSABD UNSPEC_VUABD
+])
+
+(define_int_iterator UNSPEC_VABDA[
+  UNSPEC_VSABDA UNSPEC_VUABDA
+])
+
+(define_int_attr su[
+  (UNSPEC_VSABD "s") (UNSPEC_VUABD "u")
+  (UNSPEC_VSABDA "s") (UNSPEC_VUABDA "u")
+])
+
+(define_int_attr u[
+  (UNSPEC_VSABD "") (UNSPEC_VUABD "u")
+  (UNSPEC_VSABDA "") (UNSPEC_VUABDA "u")
 ])
