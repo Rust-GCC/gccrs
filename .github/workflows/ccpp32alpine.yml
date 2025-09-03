@@ -114,7 +114,7 @@ jobs:
     - name: Test Hack
       run: |
            cd gccrs-build; \
-           gdb --batch -ex run -ex bt --args gcc/crab1 -frust-debug -frust-incomplete-and-experimental-compiler-do-not-use -O2 -m32 -lm -fdiagnostics-plain-output ../gcc/testsuite/rust/execute/torture/issue-1232.rs 1>gcc/testsuite/rust/hack_log_1 2>gcc/testsuite/rust/hack_log_2 || true
+           gdb --batch -ex run -ex bt --args gcc/crab1 -frust-debug -frust-incomplete-and-experimental-compiler-do-not-use -O2 -m32 -fdiagnostics-plain-output ../gcc/testsuite/rust/execute/torture/issue-1232.rs 1>gcc/testsuite/rust/hack_log_1 2>gcc/testsuite/rust/hack_log_2 || true
       shell: alpine.sh {0}
 
     - name: Archive check-rust results
