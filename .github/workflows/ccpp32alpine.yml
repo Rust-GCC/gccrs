@@ -127,3 +127,80 @@ jobs:
             fi
       shell: alpine.sh {0}
 
+  build-alpine-32bit-and-check-alpine-32bit-asan:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Alpine Linux (32-bit)
+      uses: jirutka/setup-alpine@v1
+      with:
+        arch: x86
+        packages: >
+          automake
+          autoconf
+          libtool
+          bison
+          flex
+          gmp-dev
+          mpfr-dev
+          mpc1-dev
+          build-base
+          dejagnu
+          curl
+          gcompat
+          libc6-compat
+          libc-dev
+          libc++-dev
+          cargo
+
+    - name: Install dependencies with gcc
+      run: |
+         ./contrib/download_prerequisites
+      shell: alpine.sh {0}
+
+    - name: Configure
+      run: |
+           mkdir -p gccrs-build;
+           cd gccrs-build;
+           ../configure \
+               --host=i586-alpine-linux-musl --build=i586-alpine-linux-musl --target=i586-alpine-linux-musl \
+               --enable-languages=rust \
+               --disable-bootstrap \
+               --with-build-config=../.github/no-bootstrap-asan \
+               --disable-multilib # Try to disable multilib on alpine https://github.com/conan-io/conan/issues/14307#issuecomment-1652433132
+      shell: alpine.sh {0}
+
+    - name: Build
+      run: |
+           cd gccrs-build; \
+           make -Otarget -j $(nproc)
+      shell: alpine.sh {0}
+
+    - name: Run Tests
+      run: |
+           cd gccrs-build; \
+           ASAN_OPTIONS=detect_leaks=0:use_odr_indicator=1 \
+           make check-rust RUNTESTFLAGS="--target_board=unix\{-m32}"
+      shell: alpine.sh {0}
+
+    - name: Archive check-rust results
+      uses: actions/upload-artifact@v4
+      with:
+        name: check-rust-logs
+        path: |
+          gccrs-build/gcc/testsuite/rust/
+
+    - name: Check regressions
+      run: |
+           cd gccrs-build; \
+           if grep -e "unexpected" -e "unresolved" -e "ERROR:" gcc/testsuite/rust/rust.sum;\
+           then \
+              echo "::error title=Regression test failed::some tests are not correct"; \
+              perl -n ../.github/emit_test_errors.pl < gcc/testsuite/rust/rust.sum; \
+              exit 1; \
+            else \
+              exit 0; \
+            fi
+      shell: alpine.sh {0}
