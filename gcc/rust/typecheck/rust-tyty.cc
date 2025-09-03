@@ -1692,8 +1692,7 @@ VariantDef::clone () const
     cloned_fields.push_back ((StructFieldType *) f->clone ());
 
   auto &&discriminant_opt = has_discriminant ()
-			      ? tl::optional<std::unique_ptr<HIR::Expr>> (
-				get_discriminant ().clone_expr ())
+			      ? tl::optional (get_discriminant ().clone_expr ())
 			      : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
@@ -1708,8 +1707,7 @@ VariantDef::monomorphized_clone () const
     cloned_fields.push_back ((StructFieldType *) f->monomorphized_clone ());
 
   auto discriminant_opt = has_discriminant ()
-			    ? tl::optional<std::unique_ptr<HIR::Expr>> (
-			      get_discriminant ().clone_expr ())
+			    ? tl::optional (get_discriminant ().clone_expr ())
 			    : tl::nullopt;
 
   return new VariantDef (id, defid, identifier, ident, type,
