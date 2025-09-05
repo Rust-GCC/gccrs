@@ -24,15 +24,68 @@ verify_code (gcc_jit_context *ctxt, gcc_jit_result *result)
     gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_DOUBLE);
   CHECK_VALUE (gcc_jit_function_get_return_type(builtin_sin), double_type);
   CHECK (!gcc_jit_type_is_integral(double_type));
+  CHECK (gcc_jit_type_is_floating_point (double_type));
+
+  gcc_jit_type *float_type =
+    gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_FLOAT);
+  CHECK (!gcc_jit_type_is_bool (float_type));
+  CHECK (!gcc_jit_type_is_integral (float_type));
+  CHECK (gcc_jit_type_is_floating_point (float_type));
+
+  gcc_jit_target_info *target_info = gcc_jit_context_get_target_info (ctxt);
+  if (target_info != NULL &&
+    gcc_jit_target_info_supports_target_dependent_type (target_info,
+      GCC_JIT_TYPE_FLOAT16))
+  {
+    gcc_jit_type *float16_type
+      = gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_FLOAT16);
+    CHECK (!gcc_jit_type_is_bool (float16_type));
+    CHECK (!gcc_jit_type_is_integral (float16_type));
+    CHECK (gcc_jit_type_is_floating_point (float16_type));
+  }
+
+  if (target_info != NULL &&
+    gcc_jit_target_info_supports_target_dependent_type (target_info,
+      GCC_JIT_TYPE_FLOAT32))
+  {
+    gcc_jit_type *float32_type
+      = gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_FLOAT32);
+    CHECK (!gcc_jit_type_is_bool (float32_type));
+    CHECK (!gcc_jit_type_is_integral (float32_type));
+    CHECK (gcc_jit_type_is_floating_point (float32_type));
+  }
+
+  if (target_info != NULL &&
+    gcc_jit_target_info_supports_target_dependent_type (target_info,
+      GCC_JIT_TYPE_FLOAT64))
+  {
+    gcc_jit_type *float64_type
+      = gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_FLOAT64);
+    CHECK (!gcc_jit_type_is_bool (float64_type));
+    CHECK (!gcc_jit_type_is_integral (float64_type));
+    CHECK (gcc_jit_type_is_floating_point (float64_type));
+  }
+
+  if (target_info != NULL &&
+    gcc_jit_target_info_supports_target_dependent_type (target_info,
+      GCC_JIT_TYPE_FLOAT128))
+  {
+    gcc_jit_type *float128_type
+      = gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_FLOAT128);
+    CHECK (!gcc_jit_type_is_bool (float128_type));
+    CHECK (!gcc_jit_type_is_integral (float128_type));
+    CHECK (gcc_jit_type_is_floating_point (float128_type));
+  }
 
   gcc_jit_type *bool_type =
     gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_BOOL);
-  CHECK (gcc_jit_type_is_bool(bool_type));
-  CHECK (!gcc_jit_type_is_integral(bool_type));
+  CHECK (gcc_jit_type_is_bool (bool_type));
+  CHECK (!gcc_jit_type_is_integral (bool_type));
+  CHECK (!gcc_jit_type_is_floating_point (bool_type));
 
   gcc_jit_type *aligned_bool_type =
     gcc_jit_type_get_aligned(gcc_jit_context_get_type (ctxt, GCC_JIT_TYPE_BOOL), 8);
-  CHECK (gcc_jit_type_is_bool(aligned_bool_type));
+  CHECK (gcc_jit_type_is_bool (aligned_bool_type));
   CHECK (bool_type != aligned_bool_type);
   CHECK_VALUE (gcc_jit_type_unqualified(aligned_bool_type), bool_type);
 
@@ -42,15 +95,19 @@ verify_code (gcc_jit_context *ctxt, gcc_jit_result *result)
   gcc_jit_type *int64 =
     gcc_jit_context_get_int_type(ctxt, 8, 1);
   CHECK (gcc_jit_type_is_integral(int64));
+  CHECK (!gcc_jit_type_is_floating_point(int64));
   gcc_jit_type *uint64 =
     gcc_jit_context_get_int_type(ctxt, 8, 0);
   CHECK (gcc_jit_type_is_integral(uint64));
+  CHECK (!gcc_jit_type_is_floating_point(uint64));
   gcc_jit_type *int8 =
     gcc_jit_context_get_int_type(ctxt, 1, 1);
   CHECK (gcc_jit_type_is_integral(int8));
+  CHECK (!gcc_jit_type_is_floating_point(int8));
   gcc_jit_type *uint8 =
     gcc_jit_context_get_int_type(ctxt, 1, 0);
   CHECK (gcc_jit_type_is_integral(uint8));
+  CHECK (!gcc_jit_type_is_floating_point(uint8));
 
   CHECK (!gcc_jit_type_dyncast_vector(double_type));
   gcc_jit_type *vec_type = gcc_jit_type_get_vector (double_type, 4);

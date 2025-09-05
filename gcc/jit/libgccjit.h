@@ -2094,6 +2094,12 @@ gcc_jit_function_type_get_param_type (gcc_jit_function_type *function_type,
 extern int
 gcc_jit_type_is_integral (gcc_jit_type *type);
 
+/* Return non-zero if the type is floating point.  */
+extern int
+gcc_jit_type_is_floating_point (gcc_jit_type * type);
+
+#define LIBGCCJIT_HAVE_gcc_jit_type_is_floating_point
+
 /* Return the type pointed by the pointer type or NULL if it's not a
  * pointer.  */
 extern gcc_jit_type *

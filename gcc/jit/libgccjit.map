@@ -344,3 +344,8 @@ LIBGCCJIT_ABI_37 {
   global:
     gcc_jit_context_new_array_type_u64;
 } LIBGCCJIT_ABI_36;
+
+LIBGCCJIT_ABI_38 {
+  global:
+    gcc_jit_type_is_floating_point;
+} LIBGCCJIT_ABI_37;

@@ -640,6 +640,23 @@ gcc_jit_type_is_integral (gcc_jit_type *type)
 /* Public entrypoint.  See description in libgccjit.h.
 
    After error-checking, the real work is done by the
+   gcc::jit::recording::type::is_float method, in
+   jit-recording.cc.  */
+
+int
+gcc_jit_type_is_floating_point (gcc_jit_type *type)
+{
+  RETURN_VAL_IF_FAIL (type, FALSE, NULL, NULL, "NULL type");
+
+  if (type->is_vector ())
+    return false;
+
+  return type->is_float ();
+}
+
+/* Public entrypoint.  See description in libgccjit.h.
+
+   After error-checking, the real work is done by the
    gcc::jit::recording::type::is_vector method, in
    jit-recording.cc.  */
 

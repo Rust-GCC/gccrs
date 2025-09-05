@@ -481,3 +481,11 @@ information:
 --------------------
 ``LIBGCCJIT_ABI_37`` covers the addition of
 :func:`gcc_jit_context_new_array_type_u64`
+
+.. _LIBGCCJIT_ABI_38:
+
+``LIBGCCJIT_ABI_38``
+--------------------
+``LIBGCCJIT_ABI_38`` covers the addition of
+
+ * :func:`gcc_jit_type_is_floating_point`
