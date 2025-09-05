@@ -44,6 +44,8 @@ jobs:
           libc-dev
           libc++-dev
           cargo
+          gdb
+          bash
 
     # - name: Install gcc dependency    
     #   run: |
@@ -66,6 +68,8 @@ jobs:
                --host=i586-alpine-linux-musl --build=i586-alpine-linux-musl --target=i586-alpine-linux-musl \
                --enable-languages=rust \
                --disable-bootstrap \
+               CFLAGS="-ggdb -O2" \
+               CXXFLAGS="-ggdb -O2" \
                --disable-multilib # Try to disable multilib on alpine https://github.com/conan-io/conan/issues/14307#issuecomment-1652433132
       shell: alpine.sh {0}
 
@@ -105,6 +109,12 @@ jobs:
       run: |
            cd gccrs-build; \
            make check-rust RUNTESTFLAGS="--target_board=unix\{-m32}"
+      shell: alpine.sh {0}
+
+    - name: Test Hack
+      run: |
+           cd gccrs-build; \
+           gdb --batch -ex run -ex bt --args gcc/crab1 -frust-debug -frust-incomplete-and-experimental-compiler-do-not-use -O2 -m32 -fdiagnostics-plain-output ../gcc/testsuite/rust/execute/torture/issue-1232.rs 1>gcc/testsuite/rust/hack_log_1 2>gcc/testsuite/rust/hack_log_2 || true
       shell: alpine.sh {0}
 
     - name: Archive check-rust results
