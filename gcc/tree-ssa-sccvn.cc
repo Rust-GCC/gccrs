@@ -3573,7 +3573,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	     try finding a match in one of the outer components and continue
 	     stripping there.  This happens when addresses of components get
 	     forwarded into dereferences.  */
-	  if (j > 0)
+	  if (i > 0)
 	    {
 	      int temi = i - 1;
 	      extra_off = vr->operands[i].off;
@@ -3598,7 +3598,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		  temi--;
 		}
 	    }
-	  if (!found && i > 0)
+	  if (!found && j > 0)
 	    {
 	      int temj = j - 1;
 	      extra_off = -lhs_ops[j].off;
@@ -3631,7 +3631,12 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	    {
 	      extra_off = vr->operands[i].off - lhs_ops[j].off;
 	      i--, j--;
+	      found = true;
 	    }
+	  /* If we did find a match we'd eventually append a MEM_REF
+	     as component.  Don't.  */
+	  if (!found)
+	    return (void *)-1;
 	}
       else
 	return (void *)-1;
@@ -3642,6 +3647,17 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 	     && vn_reference_op_eq (&vr->operands[i], &lhs_ops[j]))
 	{
 	  i--;
+	  j--;
+	}
+
+      /* When we still didn't manage to strip off all components from
+	 lhs_op, opportunistically continue for those we can handle
+	 via extra_off.  Note this is an attempt to fixup secondary
+	 copies after we hit the !found && j == 0 case above.  */
+      while (j != -1
+	     && known_ne (lhs_ops[j].off, -1U))
+	{
+	  extra_off += -lhs_ops[j].off;
 	  j--;
 	}
 
@@ -5577,7 +5593,8 @@ visit_nary_op (tree lhs, gassign *stmt)
 			  if (result)
 			    {
 			      bool changed = set_ssa_val_to (lhs, result);
-			      vn_nary_op_insert_stmt (stmt, result);
+			      if (TREE_CODE (result) == SSA_NAME)
+				vn_nary_op_insert_stmt (stmt, result);
 			      return changed;
 			    }
 			}
@@ -5593,7 +5610,8 @@ visit_nary_op (tree lhs, gassign *stmt)
 			  if (result)
 			    {
 			      bool changed = set_ssa_val_to (lhs, result);
-			      vn_nary_op_insert_stmt (stmt, result);
+			      if (TREE_CODE (result) == SSA_NAME)
+				vn_nary_op_insert_stmt (stmt, result);
 			      return changed;
 			    }
 			}
@@ -5633,6 +5651,55 @@ visit_nary_op (tree lhs, gassign *stmt)
 	    }
 	}
       break;
+    case BIT_FIELD_REF:
+      if (TREE_CODE (TREE_OPERAND (rhs1, 0)) == SSA_NAME)
+	{
+	  tree op0 = TREE_OPERAND (rhs1, 0);
+	  gassign *ass = dyn_cast <gassign *> (SSA_NAME_DEF_STMT (op0));
+	  if (ass
+	      && !gimple_has_volatile_ops (ass)
+	      && vn_get_stmt_kind (ass) == VN_REFERENCE)
+	    {
+	      tree last_vuse = gimple_vuse (ass);
+	      tree op = gimple_assign_rhs1 (ass);
+	      /* Avoid building invalid and unexpected refs.  */
+	      if (TREE_CODE (op) != TARGET_MEM_REF
+		  && TREE_CODE (op) != BIT_FIELD_REF
+		  && TREE_CODE (op) != REALPART_EXPR
+		  && TREE_CODE (op) != IMAGPART_EXPR)
+		{
+		  tree op = build3 (BIT_FIELD_REF, TREE_TYPE (rhs1),
+				    gimple_assign_rhs1 (ass),
+				    TREE_OPERAND (rhs1, 1),
+				    TREE_OPERAND (rhs1, 2));
+		  tree result = vn_reference_lookup (op, gimple_vuse (ass),
+						     default_vn_walk_kind,
+						     NULL, true, &last_vuse);
+		  if (result
+		      && useless_type_conversion_p (type, TREE_TYPE (result)))
+		    return set_ssa_val_to (lhs, result);
+		  else if (result
+			   && TYPE_SIZE (type)
+			   && TYPE_SIZE (TREE_TYPE (result))
+			   && operand_equal_p (TYPE_SIZE (type),
+					       TYPE_SIZE (TREE_TYPE (result))))
+		    {
+		      gimple_match_op match_op (gimple_match_cond::UNCOND,
+						VIEW_CONVERT_EXPR,
+						type, result);
+		      result = vn_nary_build_or_lookup (&match_op);
+		      if (result)
+			{
+			  bool changed = set_ssa_val_to (lhs, result);
+			  if (TREE_CODE (result) == SSA_NAME)
+			    vn_nary_op_insert_stmt (stmt, result);
+			  return changed;
+			}
+		    }
+		}
+	    }
+	}
+      break;
     case TRUNC_DIV_EXPR:
       if (TYPE_UNSIGNED (type))
 	break;
@@ -5663,7 +5730,8 @@ visit_nary_op (tree lhs, gassign *stmt)
 		  if (result)
 		    {
 		      bool changed = set_ssa_val_to (lhs, result);
-		      vn_nary_op_insert_stmt (stmt, result);
+		      if (TREE_CODE (result) == SSA_NAME)
+			vn_nary_op_insert_stmt (stmt, result);
 		      return changed;
 		    }
 		}

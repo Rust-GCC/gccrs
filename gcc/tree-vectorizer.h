@@ -204,8 +204,20 @@ enum vect_memory_access_type {
   VMAT_STRIDED_SLP,
 
   /* The access uses gather loads or scatter stores.  */
-  VMAT_GATHER_SCATTER
+  VMAT_GATHER_SCATTER_LEGACY,
+  VMAT_GATHER_SCATTER_IFN,
+  VMAT_GATHER_SCATTER_EMULATED
 };
+
+/* Returns whether MAT is any of the VMAT_GATHER_SCATTER_* kinds.  */
+
+inline bool
+mat_gather_scatter_p (vect_memory_access_type mat)
+{
+  return (mat == VMAT_GATHER_SCATTER_LEGACY
+	  || mat == VMAT_GATHER_SCATTER_IFN
+	  || mat == VMAT_GATHER_SCATTER_EMULATED);
+}
 
 /*-----------------------------------------------------------------*/
 /* Info on vectorized defs.                                        */
@@ -258,6 +270,26 @@ struct vect_simd_clone_data : vect_data {
   auto_vec<tree> simd_clone_info;
 };
 
+/* Analysis data from vectorizable_load and vectorizable_store for
+   load_vec_info_type and store_vec_info_type.  */
+struct vect_load_store_data : vect_data {
+  vect_load_store_data (vect_load_store_data &&other) = default;
+  vect_load_store_data () = default;
+  virtual ~vect_load_store_data () = default;
+
+  vect_memory_access_type memory_access_type;
+  dr_alignment_support alignment_support_scheme;
+  int misalignment;
+  internal_fn lanes_ifn; // VMAT_LOAD_STORE_LANES
+  poly_int64 poffset;
+  union {
+      internal_fn ifn;	// VMAT_GATHER_SCATTER_IFN
+      tree decl;	// VMAT_GATHER_SCATTER_DECL
+  } gs;
+  tree strided_offset_vectype; // VMAT_GATHER_SCATTER_IFN, originally strided
+  auto_vec<int> elsvals;
+};
+
 /* A computation tree of an SLP instance.  Each node corresponds to a group of
    stmts to be packed in a SIMD stmt.  */
 struct _slp_tree {
@@ -306,6 +338,11 @@ struct _slp_tree {
   unsigned int lanes;
   /* The operation of this node.  */
   enum tree_code code;
+  /* For gather/scatter memory operations the scale each offset element
+     should be multiplied by before being added to the base.  */
+  int gs_scale;
+  /* For gather/scatter memory operations the loop-invariant base value.  */
+  tree gs_base;
   /* Whether uses of this load or feeders of this store are suitable
      for load/store-lanes.  */
   bool ldst_lanes;
@@ -314,10 +351,6 @@ struct _slp_tree {
   bool avoid_stlf_fail;
 
   int vertex;
-
-  /* Classifies how the load or store is going to be implemented
-     for loop vectorization.  */
-  vect_memory_access_type memory_access_type;
 
   /* The kind of operation as determined by analysis and optional
      kind specific data.  */
@@ -410,8 +443,19 @@ public:
 #define SLP_TREE_REPRESENTATIVE(S)		 (S)->representative
 #define SLP_TREE_LANES(S)			 (S)->lanes
 #define SLP_TREE_CODE(S)			 (S)->code
-#define SLP_TREE_MEMORY_ACCESS_TYPE(S)		 (S)->memory_access_type
 #define SLP_TREE_TYPE(S)			 (S)->type
+#define SLP_TREE_GS_SCALE(S)			 (S)->gs_scale
+#define SLP_TREE_GS_BASE(S)			 (S)->gs_base
+#define SLP_TREE_PERMUTE_P(S)			 ((S)->code == VEC_PERM_EXPR)
+
+inline vect_memory_access_type
+SLP_TREE_MEMORY_ACCESS_TYPE (slp_tree node)
+{
+  if (SLP_TREE_TYPE (node) == load_vec_info_type
+      || SLP_TREE_TYPE (node) == store_vec_info_type)
+    return static_cast<vect_load_store_data *> (node->data)->memory_access_type;
+  return VMAT_UNINITIALIZED;
+}
 
 enum vect_partial_vector_style {
     vect_partial_vectors_none,
@@ -912,7 +956,10 @@ public:
   int peeling_for_alignment;
 
   /* The mask used to check the alignment of pointers or arrays.  */
-  int ptr_mask;
+  poly_uint64 ptr_mask;
+
+  /* The maximum speculative read amount in VLA modes for runtime check.  */
+  poly_uint64 max_spec_read_amount;
 
   /* Indicates whether the loop has any non-linear IV.  */
   bool nonlinear_iv;
@@ -1148,6 +1195,7 @@ public:
 #define LOOP_VINFO_RGROUP_IV_TYPE(L)       (L)->rgroup_iv_type
 #define LOOP_VINFO_PARTIAL_VECTORS_STYLE(L) (L)->partial_vector_style
 #define LOOP_VINFO_PTR_MASK(L)             (L)->ptr_mask
+#define LOOP_VINFO_MAX_SPEC_READ_AMOUNT(L) (L)->max_spec_read_amount
 #define LOOP_VINFO_LOOP_NEST(L)            (L)->shared->loop_nest
 #define LOOP_VINFO_DATAREFS(L)             (L)->shared->datarefs
 #define LOOP_VINFO_DDRS(L)                 (L)->shared->ddrs
@@ -1202,6 +1250,8 @@ public:
 
 #define LOOP_REQUIRES_VERSIONING_FOR_ALIGNMENT(L)	\
   ((L)->may_misalign_stmts.length () > 0)
+#define LOOP_REQUIRES_VERSIONING_FOR_SPEC_READ(L)	\
+  (maybe_gt ((L)->max_spec_read_amount, 0U))
 #define LOOP_REQUIRES_VERSIONING_FOR_ALIAS(L)		\
   ((L)->comp_alias_ddrs.length () > 0 \
    || (L)->check_unequal_addrs.length () > 0 \
@@ -1212,6 +1262,7 @@ public:
   (LOOP_VINFO_SIMD_IF_COND (L))
 #define LOOP_REQUIRES_VERSIONING(L)			\
   (LOOP_REQUIRES_VERSIONING_FOR_ALIGNMENT (L)		\
+   || LOOP_REQUIRES_VERSIONING_FOR_SPEC_READ (L)	\
    || LOOP_REQUIRES_VERSIONING_FOR_ALIAS (L)		\
    || LOOP_REQUIRES_VERSIONING_FOR_NITERS (L)		\
    || LOOP_REQUIRES_VERSIONING_FOR_SIMD_IF_COND (L))
@@ -1467,9 +1518,6 @@ public:
      corresponding PHI.  */
   stmt_vec_info reduc_def;
 
-  /* The vector input type relevant for reduction vectorization.  */
-  tree reduc_vectype_in;
-
   /* The vector type for performing the actual reduction.  */
   tree reduc_vectype;
 
@@ -1648,13 +1696,6 @@ struct gather_scatter_info {
 
 #define PURE_SLP_STMT(S)                  ((S)->slp_type == pure_slp)
 #define STMT_SLP_TYPE(S)                   (S)->slp_type
-
-#define GATHER_SCATTER_LEGACY_P(info) ((info).decl != NULL_TREE \
-				       && (info).ifn == IFN_LAST)
-#define GATHER_SCATTER_IFN_P(info) ((info).decl == NULL_TREE \
-				    && (info).ifn != IFN_LAST)
-#define GATHER_SCATTER_EMULATED_P(info) ((info).decl == NULL_TREE \
-					 && (info).ifn == IFN_LAST)
 
 
 /* Contains the scalar or vector costs for a vec_info.  */
@@ -2535,7 +2576,7 @@ extern bool ref_within_array_bound (gimple *, tree);
 extern bool vect_can_force_dr_alignment_p (const_tree, poly_uint64);
 extern enum dr_alignment_support vect_supportable_dr_alignment
 				   (vec_info *, dr_vec_info *, tree, int,
-				     gather_scatter_info * = nullptr);
+				    bool = false);
 extern tree vect_get_smallest_scalar_type (stmt_vec_info, tree);
 extern opt_result vect_analyze_data_ref_dependences (loop_vec_info, unsigned int *);
 extern bool vect_slp_analyze_instance_dependence (vec_info *, slp_instance);
@@ -2550,6 +2591,8 @@ extern bool vect_gather_scatter_fn_p (vec_info *, bool, bool, tree, tree,
 extern bool vect_check_gather_scatter (stmt_vec_info, loop_vec_info,
 				       gather_scatter_info *,
 				       vec<int> * = nullptr);
+extern void vect_describe_gather_scatter_call (stmt_vec_info,
+					       gather_scatter_info *);
 extern opt_result vect_find_stmt_data_reference (loop_p, gimple *,
 						 vec<data_reference_p> *,
 						 vec<int> *, int);
@@ -2649,11 +2692,11 @@ extern bool vect_transform_cycle_phi (loop_vec_info, stmt_vec_info,
 				      slp_tree, slp_instance);
 extern bool vectorizable_lc_phi (loop_vec_info, stmt_vec_info, slp_tree);
 extern bool vect_transform_lc_phi (loop_vec_info, stmt_vec_info, slp_tree);
-extern bool vectorizable_phi (vec_info *, stmt_vec_info, slp_tree,
+extern bool vectorizable_phi (bb_vec_info, stmt_vec_info, slp_tree,
 			      stmt_vector_for_cost *);
 extern bool vectorizable_recurr (loop_vec_info, stmt_vec_info,
 				  slp_tree, stmt_vector_for_cost *);
-extern bool vectorizable_early_exit (vec_info *, stmt_vec_info,
+extern bool vectorizable_early_exit (loop_vec_info, stmt_vec_info,
 				     gimple_stmt_iterator *,
 				     slp_tree, stmt_vector_for_cost *);
 extern bool vect_emulated_vector_p (tree);
@@ -2835,14 +2878,18 @@ vect_is_reduction (stmt_vec_info stmt_info)
 /* If STMT_INFO describes a reduction, return the vect_reduction_type
    of the reduction it describes, otherwise return -1.  */
 inline int
-vect_reduc_type (vec_info *vinfo, stmt_vec_info stmt_info)
+vect_reduc_type (vec_info *vinfo, slp_tree node)
 {
   if (loop_vec_info loop_vinfo = dyn_cast<loop_vec_info> (vinfo))
-    if (STMT_VINFO_REDUC_DEF (stmt_info))
-      {
-	stmt_vec_info reduc_info = info_for_reduction (loop_vinfo, stmt_info);
-	return int (STMT_VINFO_REDUC_TYPE (reduc_info));
-      }
+    {
+      stmt_vec_info stmt_info = SLP_TREE_REPRESENTATIVE (node);
+      if (STMT_VINFO_REDUC_DEF (stmt_info))
+	{
+	  stmt_vec_info reduc_info
+	    = info_for_reduction (loop_vinfo, stmt_info);
+	  return int (STMT_VINFO_REDUC_TYPE (reduc_info));
+	}
+    }
   return -1;
 }
 

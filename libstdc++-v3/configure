@@ -21881,7 +21881,7 @@ fi
 $as_echo "$glibcxx_cv_PTHREAD_MUTEX_CLOCKLOCK" >&6; }
   if test $glibcxx_cv_PTHREAD_MUTEX_CLOCKLOCK = yes; then
 
-$as_echo "#define _GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK (_GLIBCXX_TSAN==0)" >>confdefs.h
+$as_echo "#define _GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK 1" >>confdefs.h
 
   fi
 
@@ -26315,6 +26315,7 @@ if test "${enable_rpath+set}" = set; then :
 else
   enable_rpath=yes
 fi
+
 
 
 
@@ -53543,7 +53544,7 @@ $as_echo "$glibcxx_cv_libbacktrace_atomics" >&6; }
     CXXFLAGS='-O0 -S'
 
     cat > conftest.$ac_ext << EOF
-#line 53546 "configure"
+#line 53547 "configure"
 #include <stddef.h>
 int main()
 {

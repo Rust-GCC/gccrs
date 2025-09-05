@@ -1128,11 +1128,16 @@ handle_hardbool_attribute (tree *node, tree name, tree args,
     }
 
   tree orig = *node;
-  *node = build_duplicate_type (orig);
+  /* Drop qualifiers from the base type.  Keep attributes, so that, in the odd
+     chance attributes are applicable and relevant to the base type, if they
+     are specified first, or through a typedef, they wouldn't be dropped on the
+     floor here.  */
+  tree unqual = build_qualified_type (orig, TYPE_UNQUALIFIED);
+  *node = build_distinct_type_copy (unqual);
 
   TREE_SET_CODE (*node, ENUMERAL_TYPE);
-  ENUM_UNDERLYING_TYPE (*node) = orig;
-  TYPE_CANONICAL (*node) = TYPE_CANONICAL (orig);
+  ENUM_UNDERLYING_TYPE (*node) = unqual;
+  SET_TYPE_STRUCTURAL_EQUALITY (*node);
 
   tree false_value;
   if (args)
@@ -1191,7 +1196,13 @@ handle_hardbool_attribute (tree *node, tree name, tree args,
 
   gcc_checking_assert (!TYPE_CACHED_VALUES_P (*node));
   TYPE_VALUES (*node) = values;
-  TYPE_NAME (*node) = orig;
+  TYPE_NAME (*node) = unqual;
+
+  if (TYPE_QUALS (orig) != TYPE_QUALS (*node))
+    {
+      *node = build_qualified_type (*node, TYPE_QUALS (orig));
+      TYPE_NAME (*node) = orig;
+    }
 
   return NULL_TREE;
 }
@@ -1409,23 +1420,24 @@ handle_cold_attribute (tree *node, tree name, tree ARG_UNUSED (args),
 /* Add FLAGS for a function NODE to no_sanitize_flags in DECL_ATTRIBUTES.  */
 
 void
-add_no_sanitize_value (tree node, unsigned int flags)
+add_no_sanitize_value (tree node, sanitize_code_type flags)
 {
   tree attr = lookup_attribute ("no_sanitize", DECL_ATTRIBUTES (node));
   if (attr)
     {
-      unsigned int old_value = tree_to_uhwi (TREE_VALUE (attr));
+      sanitize_code_type old_value =
+	tree_to_sanitize_code_type (TREE_VALUE (attr));
       flags |= old_value;
 
       if (flags == old_value)
 	return;
 
-      TREE_VALUE (attr) = build_int_cst (unsigned_type_node, flags);
+      TREE_VALUE (attr) = build_int_cst (uint64_type_node, flags);
     }
   else
     DECL_ATTRIBUTES (node)
       = tree_cons (get_identifier ("no_sanitize"),
-		   build_int_cst (unsigned_type_node, flags),
+		   build_int_cst (uint64_type_node, flags),
 		   DECL_ATTRIBUTES (node));
 }
 
@@ -1436,7 +1448,7 @@ static tree
 handle_no_sanitize_attribute (tree *node, tree name, tree args, int,
 			      bool *no_add_attrs)
 {
-  unsigned int flags = 0;
+  sanitize_code_type flags = 0;
   *no_add_attrs = true;
   if (TREE_CODE (*node) != FUNCTION_DECL)
     {
@@ -1473,7 +1485,7 @@ handle_no_sanitize_address_attribute (tree *node, tree name, tree, int,
   if (TREE_CODE (*node) != FUNCTION_DECL)
     warning (OPT_Wattributes, "%qE attribute ignored", name);
   else
-    add_no_sanitize_value (*node, SANITIZE_ADDRESS);
+    add_no_sanitize_value (*node, (sanitize_code_type) SANITIZE_ADDRESS);
 
   return NULL_TREE;
 }
@@ -1489,7 +1501,7 @@ handle_no_sanitize_thread_attribute (tree *node, tree name, tree, int,
   if (TREE_CODE (*node) != FUNCTION_DECL)
     warning (OPT_Wattributes, "%qE attribute ignored", name);
   else
-    add_no_sanitize_value (*node, SANITIZE_THREAD);
+    add_no_sanitize_value (*node, (sanitize_code_type) SANITIZE_THREAD);
 
   return NULL_TREE;
 }
@@ -1506,7 +1518,7 @@ handle_no_address_safety_analysis_attribute (tree *node, tree name, tree, int,
   if (TREE_CODE (*node) != FUNCTION_DECL)
     warning (OPT_Wattributes, "%qE attribute ignored", name);
   else
-    add_no_sanitize_value (*node, SANITIZE_ADDRESS);
+    add_no_sanitize_value (*node, (sanitize_code_type) SANITIZE_ADDRESS);
 
   return NULL_TREE;
 }
@@ -2906,21 +2918,52 @@ handle_counted_by_attribute (tree *node, tree name,
 		" declaration %q+D", name, decl);
       *no_add_attrs = true;
     }
-  /* This attribute only applies to field with array type.  */
-  else if (TREE_CODE (TREE_TYPE (decl)) != ARRAY_TYPE)
+  /* This attribute only applies to a field with array type or pointer type.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) != ARRAY_TYPE
+	   && TREE_CODE (TREE_TYPE (decl)) != POINTER_TYPE)
     {
       error_at (DECL_SOURCE_LOCATION (decl),
-		"%qE attribute is not allowed for a non-array field",
-		name);
+		"%qE attribute is not allowed for a non-array"
+		" or non-pointer field", name);
       *no_add_attrs = true;
     }
   /* This attribute only applies to a C99 flexible array member type.  */
-  else if (! c_flexible_array_member_type_p (TREE_TYPE (decl)))
+  else if (TREE_CODE (TREE_TYPE (decl)) == ARRAY_TYPE
+	   && !c_flexible_array_member_type_p (TREE_TYPE (decl)))
     {
       error_at (DECL_SOURCE_LOCATION (decl),
 		"%qE attribute is not allowed for a non-flexible"
 		" array member field", name);
       *no_add_attrs = true;
+    }
+  /* This attribute cannot be applied to a pointer to void type.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) == POINTER_TYPE
+	   && TREE_CODE (TREE_TYPE (TREE_TYPE (decl))) == VOID_TYPE)
+    {
+      error_at (DECL_SOURCE_LOCATION (decl),
+		"%qE attribute is not allowed for a pointer to void",
+		name);
+      *no_add_attrs = true;
+    }
+  /* This attribute cannot be applied to a pointer to function type.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) == POINTER_TYPE
+	   && TREE_CODE (TREE_TYPE (TREE_TYPE (decl))) == FUNCTION_TYPE)
+    {
+      error_at (DECL_SOURCE_LOCATION (decl),
+		"%qE attribute is not allowed for a pointer to"
+		" function", name);
+      *no_add_attrs = true;
+    }
+  /* This attribute cannot be applied to a pointer to structure or union
+     with flexible array member.  */
+  else if (TREE_CODE (TREE_TYPE (decl)) == POINTER_TYPE
+	   && RECORD_OR_UNION_TYPE_P (TREE_TYPE (TREE_TYPE (decl)))
+	   && TYPE_INCLUDES_FLEXARRAY (TREE_TYPE (TREE_TYPE (decl))))
+    {
+	error_at (DECL_SOURCE_LOCATION (decl),
+		  "%qE attribute is not allowed for a pointer to"
+		  " structure or union with flexible array member", name);
+	*no_add_attrs = true;
     }
   /* The argument should be an identifier.  */
   else if (TREE_CODE (argval) != IDENTIFIER_NODE)
@@ -2930,7 +2973,8 @@ handle_counted_by_attribute (tree *node, tree name,
       *no_add_attrs = true;
     }
   /* Issue error when there is a counted_by attribute with a different
-     field as the argument for the same flexible array member field.  */
+     field as the argument for the same flexible array member or
+     pointer field.  */
   else if (old_counted_by != NULL_TREE)
     {
       tree old_fieldname = TREE_VALUE (TREE_VALUE (old_counted_by));

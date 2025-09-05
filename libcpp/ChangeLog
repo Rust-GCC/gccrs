@@ -1,3 +1,47 @@
+2025-08-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/120778
+	PR target/121520
+	* include/cpplib.h (struct cpp_options): Add
+	suppress_builtin_macro_warnings member.
+	(cpp_warn): New inline functions.
+	* init.cc (cpp_create_reader): Clear suppress_builtin_macro_warnings.
+	(cpp_init_builtins): Call cpp_warn on __cplusplus, __STDC__,
+	__STDC_VERSION__, __STDC_MB_MIGHT_NEQ_WC__ and
+	__STDCPP_STRICT_POINTER_SAFETY__ when appropriate.
+	* directives.cc (do_undef): Warn on undefining NODE_WARN macros if
+	not cpp_keyword_p.  Don't emit any NODE_WARN related diagnostics
+	if CPP_OPTION (pfile, suppress_builtin_macro_warnings).
+	(cpp_define, _cpp_define_builtin, cpp_undef): Temporarily set
+	CPP_OPTION (pfile, suppress_builtin_macro_warnings) around
+	run_directive calls.
+	* macro.cc (_cpp_create_definition): Warn on defining NODE_WARN
+	macros if they weren't previously defined and not cpp_keyword_p.
+	Ignore NODE_WARN for diagnostics if
+	CPP_OPTION (pfile, suppress_builtin_macro_warnings).
+
+2025-08-10  H.J. Lu  <hjl.tools@gmail.com>
+
+	* configure: Regenerated.
+
+2025-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/120778
+	* include/cpplib.h (struct cpp_options): Add cpp_warn_keyword_macro.
+	(enum cpp_warning_reason): Add CPP_W_KEYWORD_MACRO enumerator.
+	(cpp_keyword_p): New inline function.
+	* directives.cc (do_undef): Support -Wkeyword-macro diagnostics.
+	* macro.cc (warn_of_redefinition): Ignore NODE_WARN flag on nodes
+	registered for -Wkeyword-macro.
+	(_cpp_create_definition): Support -Wkeyword-macro diagnostics.
+	Formatting fixes.
+
+2025-08-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR preprocessor/120778
+	* macro.cc (paste_tokens): Use %< and %> instead of \" in
+	diagnostics around %.*s.
+
 2025-08-04  Jakub Jelinek  <jakub@redhat.com>
 
 	PR preprocessor/120778

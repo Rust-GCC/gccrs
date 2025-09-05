@@ -677,7 +677,7 @@ do_poplevel (tree stmt_list)
 
 /* Begin a new scope.  */
 
-static tree
+tree
 do_pushlevel (scope_kind sk)
 {
   tree ret = push_stmt_list ();
@@ -1852,6 +1852,21 @@ finish_range_for_decl (tree range_for_stmt, tree decl, tree expr)
   RANGE_FOR_EXPR (range_for_stmt) = expr;
   add_stmt (range_for_stmt);
   RANGE_FOR_BODY (range_for_stmt) = do_pushlevel (sk_block);
+}
+
+/* Begin the scope of an expansion-statement.  */
+
+tree
+begin_template_for_scope (tree *init)
+{
+  tree scope = do_pushlevel (sk_template_for);
+
+  if (processing_template_decl)
+    *init = push_stmt_list ();
+  else
+    *init = NULL_TREE;
+
+  return scope;
 }
 
 /* Finish a break-statement.  */
@@ -4496,6 +4511,17 @@ baselink_for_fns (tree fns)
   return build_baselink (conv_path, access_path, fns, /*optype=*/NULL_TREE);
 }
 
+/* Returns true iff we are currently parsing a lambda-declarator.  */
+
+static bool
+parsing_lambda_declarator ()
+{
+  cp_binding_level *b = current_binding_level;
+  while (b->kind == sk_template_parms || b->kind == sk_function_parms)
+    b = b->level_chain;
+  return b->kind == sk_lambda;
+}
+
 /* Returns true iff DECL is a variable from a function outside
    the current one.  */
 
@@ -4510,7 +4536,15 @@ outer_var_p (tree decl)
 	  /* Don't get confused by temporaries.  */
 	  && DECL_NAME (decl)
 	  && (DECL_CONTEXT (decl) != current_function_decl
-	      || parsing_nsdmi ()));
+	      || parsing_nsdmi ()
+	      /* Also consider captures as outer vars if we are in
+		 decltype in a lambda declarator as in:
+		   auto l = [j=0]() -> decltype((j)) { ... }
+		 for the sake of finish_decltype_type.
+
+		 (Similar issue also affects non-lambdas, but vexing parse
+		 makes it more difficult to handle than lambdas.)  */
+	      || parsing_lambda_declarator ()));
 }
 
 /* As above, but also checks that DECL is automatic.  */
@@ -4556,7 +4590,7 @@ process_outer_var_ref (tree decl, tsubst_flags_t complain, bool odr_use)
   if (!mark_used (decl, complain))
     return error_mark_node;
 
-  if (parsing_nsdmi ())
+  if (parsing_nsdmi () || parsing_lambda_declarator ())
     containing_function = NULL_TREE;
 
   if (containing_function && LAMBDA_FUNCTION_P (containing_function))
@@ -7751,7 +7785,14 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
       /* We've reached the end of a list of expanded nodes.  Reset the group
 	 start pointer.  */
       if (c == grp_sentinel)
-	grp_start_p = NULL;
+	{
+	  if (grp_start_p
+	      && OMP_CLAUSE_HAS_ITERATORS (*grp_start_p))
+	    for (tree gc = *grp_start_p; gc != grp_sentinel;
+		 gc = OMP_CLAUSE_CHAIN (gc))
+	      OMP_CLAUSE_ITERATORS (gc) = OMP_CLAUSE_ITERATORS (*grp_start_p);
+	  grp_start_p = NULL;
+	}
 
       switch (OMP_CLAUSE_CODE (c))
 	{
@@ -9003,6 +9044,13 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	  /* FALLTHRU */
 	case OMP_CLAUSE_TO:
 	case OMP_CLAUSE_FROM:
+	  if (OMP_CLAUSE_ITERATORS (c)
+	      && cp_omp_finish_iterators (OMP_CLAUSE_ITERATORS (c)))
+	    {
+	      t = error_mark_node;
+	      break;
+	    }
+	  /* FALLTHRU */
 	case OMP_CLAUSE__CACHE_:
 	  {
 	    using namespace omp_addr_tokenizer;
@@ -9905,6 +9953,11 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
       else
 	pc = &OMP_CLAUSE_CHAIN (c);
     }
+
+  if (grp_start_p
+      && OMP_CLAUSE_HAS_ITERATORS (*grp_start_p))
+    for (tree gc = *grp_start_p; gc; gc = OMP_CLAUSE_CHAIN (gc))
+      OMP_CLAUSE_ITERATORS (gc) = OMP_CLAUSE_ITERATORS (*grp_start_p);
 
   if (reduction_seen < 0 && (ordered_seen || schedule_seen))
     reduction_seen = -2;
@@ -12907,9 +12960,9 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
     }
   else
     {
-      if (outer_automatic_var_p (STRIP_REFERENCE_REF (expr))
-	  && current_function_decl
-	  && LAMBDA_FUNCTION_P (current_function_decl))
+      tree decl = STRIP_REFERENCE_REF (expr);
+      tree lam = current_lambda_expr ();
+      if (lam && outer_automatic_var_p (decl))
 	{
 	  /* [expr.prim.id.unqual]/3: If naming the entity from outside of an
 	     unevaluated operand within S would refer to an entity captured by
@@ -12926,8 +12979,6 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
 	     local variable inside decltype, not just decltype((x)) (PR83167).
 	     And we don't handle nested lambdas properly, where we need to
 	     consider the outer lambdas as well (PR112926). */
-	  tree decl = STRIP_REFERENCE_REF (expr);
-	  tree lam = CLASSTYPE_LAMBDA_EXPR (DECL_CONTEXT (current_function_decl));
 	  tree cap = lookup_name (DECL_NAME (decl), LOOK_where::BLOCK,
 				  LOOK_want::HIDDEN_LAMBDA);
 
@@ -12943,17 +12994,28 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
 
 	  if (type && !TYPE_REF_P (type))
 	    {
-	      tree obtype = TREE_TYPE (DECL_ARGUMENTS (current_function_decl));
-	      if (WILDCARD_TYPE_P (non_reference (obtype)))
-		/* We don't know what the eventual obtype quals will be.  */
-		goto dependent;
-	      auto direct_type = [](tree t){
-		  if (INDIRECT_TYPE_P (t))
-		    return TREE_TYPE (t);
-		  return t;
-	       };
-	      int const quals = cp_type_quals (type)
-			      | cp_type_quals (direct_type (obtype));
+	      int quals;
+	      if (current_function_decl
+		  && LAMBDA_FUNCTION_P (current_function_decl)
+		  && DECL_XOBJ_MEMBER_FUNCTION_P (current_function_decl))
+		{
+		  tree obtype = TREE_TYPE (DECL_ARGUMENTS (current_function_decl));
+		  if (WILDCARD_TYPE_P (non_reference (obtype)))
+		    /* We don't know what the eventual obtype quals will be.  */
+		    goto dependent;
+		  auto direct_type = [](tree t){
+		      if (INDIRECT_TYPE_P (t))
+			return TREE_TYPE (t);
+		      return t;
+		   };
+		  quals = (cp_type_quals (type)
+			   | cp_type_quals (direct_type (obtype)));
+		}
+	      else
+		/* We are in the parameter clause, trailing return type, or
+		   the requires clause and have no relevant c_f_decl yet.  */
+		quals = (LAMBDA_EXPR_CONST_QUAL_P (lam)
+			 ? TYPE_QUAL_CONST : TYPE_UNQUALIFIED);
 	      type = cp_build_qualified_type (type, quals);
 	      type = build_reference_type (type);
 	    }
@@ -13648,10 +13710,11 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_DEDUCIBLE:
       return type_targs_deducible_from (type1, type2);
 
-    /* __array_rank and __builtin_type_order are handled in
-       finish_trait_expr.  */
+    /* __array_rank, __builtin_type_order and __builtin_structured_binding_size
+       are handled in finish_trait_expr.  */
     case CPTK_RANK:
     case CPTK_TYPE_ORDER:
+    case CPTK_STRUCTURED_BINDING_SIZE:
       gcc_unreachable ();
 
 #define DEFTRAIT_TYPE(CODE, NAME, ARITY) \
@@ -13756,6 +13819,27 @@ same_type_ref_bind_p (cp_trait_kind kind, tree type1, tree type2)
 	      (non_reference (to), non_reference (from))));
 }
 
+/* Helper for finish_trait_expr and tsubst_expr.  Handle
+   CPTK_STRUCTURED_BINDING_SIZE in possibly SFINAE-friendly
+   way.  */
+
+tree
+finish_structured_binding_size (location_t loc, tree type,
+				tsubst_flags_t complain)
+{
+  if (TYPE_REF_P (type))
+    {
+      if (complain & tf_error)
+	error_at (loc, "%qs argument %qT is a reference",
+		  "__builtin_structured_binding_size", type);
+      return error_mark_node;
+    }
+  HOST_WIDE_INT ret = cp_decomp_size (loc, type, complain);
+  if (ret == -1)
+    return error_mark_node;
+  return maybe_wrap_with_location (build_int_cst (size_type_node, ret), loc);
+}
+
 /* Process a trait expression.  */
 
 tree
@@ -13768,7 +13852,7 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
   if (processing_template_decl)
     {
       tree trait_expr = make_node (TRAIT_EXPR);
-      if (kind == CPTK_RANK)
+      if (kind == CPTK_RANK || kind == CPTK_STRUCTURED_BINDING_SIZE)
 	TREE_TYPE (trait_expr) = size_type_node;
       else if (kind == CPTK_TYPE_ORDER)
 	{
@@ -13885,9 +13969,22 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
     case CPTK_IS_UNBOUNDED_ARRAY:
     case CPTK_IS_UNION:
     case CPTK_IS_VOLATILE:
-    case CPTK_RANK:
-    case CPTK_TYPE_ORDER:
       break;
+
+    case CPTK_RANK:
+      {
+	size_t rank = 0;
+	for (; TREE_CODE (type1) == ARRAY_TYPE; type1 = TREE_TYPE (type1))
+	  ++rank;
+	return maybe_wrap_with_location (build_int_cst (size_type_node, rank),
+					 loc);
+      }
+
+    case CPTK_TYPE_ORDER:
+      return maybe_wrap_with_location (type_order_value (type1, type2), loc);
+
+    case CPTK_STRUCTURED_BINDING_SIZE:
+      return finish_structured_binding_size (loc, type1, tf_warning_or_error);
 
     case CPTK_IS_LAYOUT_COMPATIBLE:
       if (!array_of_unknown_bound_p (type1)
@@ -13918,20 +14015,8 @@ finish_trait_expr (location_t loc, cp_trait_kind kind, tree type1, tree type2)
       gcc_unreachable ();
     }
 
-  tree val;
-  if (kind == CPTK_RANK)
-    {
-      size_t rank = 0;
-      for (; TREE_CODE (type1) == ARRAY_TYPE; type1 = TREE_TYPE (type1))
-	++rank;
-      val = build_int_cst (size_type_node, rank);
-    }
-  else if (kind == CPTK_TYPE_ORDER)
-    val = type_order_value (type1, type2);
-  else
-    val = (trait_expr_value (kind, type1, type2)
-	   ? boolean_true_node : boolean_false_node);
-
+  tree val = (trait_expr_value (kind, type1, type2)
+	      ? boolean_true_node : boolean_false_node);
   return maybe_wrap_with_location (val, loc);
 }
 

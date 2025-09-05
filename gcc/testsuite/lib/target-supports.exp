@@ -2254,6 +2254,32 @@ proc check_effective_target_riscv_xtheadvector { } {
 }
 
 
+# Return 1 if we can execute code when using dg-add-options riscv_b
+
+proc check_effective_target_riscv_b_ok { } {
+    # If the target already supports zbb without any added options,
+    # we may assume we can execute just fine.
+    # Technically we should really check for zba/zbs too, but I haven't
+    # seen a design that implements a subset of zba/zbb/zbs yet.
+    if { [check_effective_target_riscv_zbb] } {
+	return 1
+    }
+
+    # check if we can execute bitmanip insns with the given hardware or
+    # simulator
+    set gcc_march [regsub {[[:alnum:]]*} [riscv_get_arch] &b]
+    if { [check_runtime ${gcc_march}_exec {
+	  int main() {  asm("sh2add t0, a0, a1"); return 0; } } "-march=${gcc_march}"] } {
+	return 1
+    }
+
+    # Possible future extensions: If the target is a simulator, dg-add-options
+    # might change its config to make it allow vector insns, or we might use
+    # options to set special elf flags / sections to effect that.
+
+    return 0
+}
+
 # Return 1 if we can execute code when using dg-add-options riscv_v
 
 proc check_effective_target_riscv_v_ok { } {
@@ -2316,7 +2342,7 @@ proc check_effective_target_riscv_zvfh_ok { } {
 
     # check if we can execute vector insns with the given hardware or
     # simulator
-    set gcc_march [regsub {[[:alnum:]]*} [riscv_get_arch] &v]
+    set gcc_march [regsub {[[:alnum:]]*} [riscv_get_arch] &zvfh]
     if { [check_runtime ${gcc_march}_zvfh_exec {
 	int main()
 	{
@@ -2685,10 +2711,6 @@ proc remove_options_for_riscv_ztso { flags } {
     return [remove_options_for_riscv_z_ext ztso $flags]
 }
 
-proc remove_options_for_riscv_zvfh { flags } {
-    return [add_options_for_riscv_z_ext zvfh $flags]
-}
-
 proc add_options_for_riscv_zvbb { flags } {
     return [add_options_for_riscv_z_ext zvbb $flags]
 }
@@ -2702,7 +2724,7 @@ proc add_options_for_riscv_zvfh { flags } {
 }
 
 proc remove_options_for_riscv_zvfh { flags } {
-    return [add_options_for_riscv_z_ext zvfh $flags]
+    return [remove_options_for_riscv_z_ext zvfh $flags]
 }
 
 # Return 1 if the target is ia32 or x86_64.
@@ -6100,6 +6122,7 @@ foreach { armfunc armflag armdefs } {
 	v6z_arm "-march=armv6z+fp -marm" "__ARM_ARCH_6Z__ && !__thumb__"
 	v6z_thumb "-march=armv6z+fp -mthumb -mfloat-abi=softfp" "__ARM_ARCH_6Z__ && __thumb__"
 	v6m "-march=armv6-m -mthumb -mfloat-abi=soft" __ARM_ARCH_6M__
+	v7 "-march=armv7+fp" __ARM_ARCH_7__
 	v7a "-march=armv7-a+fp" __ARM_ARCH_7A__
 	v7a_arm "-march=armv7-a+fp -marm" "__ARM_ARCH_7A__ && !__thumb__"
 	v7a_fp_hard "-march=armv7-a+fp -mfpu=auto -mfloat-abi=hard" __ARM_ARCH_7A__

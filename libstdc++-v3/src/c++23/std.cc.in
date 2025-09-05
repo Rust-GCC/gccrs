@@ -1858,14 +1858,20 @@ export namespace std
 {
   using std::extents;
   using std::dextents;
+#if __glibcxx_mdspan >= 202406L
+  using std::dims;
+#endif
   using std::layout_left;
   using std::layout_right;
   using std::layout_stride;
   using std::default_accessor;
+#if __glibcxx_aligned_accessor
+  using std::aligned_accessor;
+#endif
   using std::mdspan;
-  // FIXME layout_left_padded, layout_right_padded, aligned_accessor,
-  // strided_slice, submdspan_mapping_result, full_extent_t, full_extent,
-  // submdspan_extents, mdsubspan
+  // FIXME layout_left_padded, layout_right_padded, strided_slice,
+  // submdspan_mapping_result, full_extent_t, full_extent, submdspan_extents,
+  // mdsubspan
 }
 #endif
 
@@ -1878,6 +1884,9 @@ export namespace std
   using std::allocator_arg_t;
   using std::allocator_traits;
   using std::assume_aligned;
+#if __glibcxx_is_sufficiently_aligned
+  using std::is_sufficiently_aligned;
+#endif  
   using std::make_obj_using_allocator;
   using std::pointer_traits;
   using std::to_address;

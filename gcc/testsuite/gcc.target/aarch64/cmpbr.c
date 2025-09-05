@@ -1,6 +1,5 @@
 // Test that the instructions added by FEAT_CMPBR are emitted
 // { dg-do compile }
-// { dg-do-if assemble { target aarch64_asm_cmpbr_ok } }
 // { dg-options "-march=armv9.5-a+cmpbr -O2" }
 // { dg-final { check-function-bodies "**" "*/" "" { target *-*-* } {\.L[0-9]+} } }
 
@@ -1274,7 +1273,7 @@ FAR_BRANCH(u64, 42);
 */
 
 /*
-** u32_x0_ult_64:
+** u32_x0_ult_64: { xfail *-*-* }
 **	cbhi	w0, 63, .L([0-9]+)
 **	b	taken
 ** .L\1:
@@ -1309,7 +1308,7 @@ FAR_BRANCH(u64, 42);
 */
 
 /*
-** i32_x0_slt_64:
+** i32_x0_slt_64: { xfail *-*-* }
 **	cbgt	w0, 63, .L([0-9]+)
 **	b	taken
 ** .L\1:
@@ -1362,7 +1361,7 @@ FAR_BRANCH(u64, 42);
 */
 
 /*
-** u64_x0_ult_64:
+** u64_x0_ult_64: { xfail *-*-* }
 **	cbhi	x0, 63, .L([0-9]+)
 **	b	taken
 ** .L\1:
@@ -1397,7 +1396,7 @@ FAR_BRANCH(u64, 42);
 */
 
 /*
-** i64_x0_slt_64:
+** i64_x0_slt_64: { xfail *-*-* }
 **	cbgt	x0, 63, .L([0-9]+)
 **	b	taken
 ** .L\1:

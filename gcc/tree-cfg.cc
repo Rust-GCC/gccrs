@@ -2473,7 +2473,7 @@ find_case_label_for_value (const gswitch *switch_stmt, tree val)
 
       if (CASE_HIGH (t) == NULL)
 	{
-	  /* A singe-valued case label.  */
+	  /* A single-valued case label.  */
 	  if (cmp == 0)
 	    return t;
 	}
@@ -8180,7 +8180,7 @@ dump_default_def (FILE *file, tree def, int spc, dump_flags_t flags)
 static void
 print_no_sanitize_attr_value (FILE *file, tree value)
 {
-  unsigned int flags = tree_to_uhwi (value);
+  sanitize_code_type flags = tree_to_sanitize_code_type (value);
   bool first = true;
   for (int i = 0; sanitizer_opts[i].name != NULL; ++i)
     {

@@ -393,7 +393,7 @@ Note binutils 2.35 or newer is required for LTO to work correctly
 with GNU libtool that includes doing a bootstrap with LTO enabled.
 
 @item gzip version 1.2.4 (or later) or
-@itemx bzip2 version 1.0.2 (or later)
+@itemx xz version 5.0 (or later)
 
 Necessary to uncompress GCC @command{tar} files when source code is
 obtained via HTTPS mirror sites.
@@ -1253,6 +1253,9 @@ For ARM targets, possible values for @var{dialect} are @code{gnu} or
 descriptor-based dialect.
 For RISC-V targets, possible values for @var{dialect} are @code{trad} or
 @code{desc}, which select between the traditional GNU dialect and the GNU TLS
+descriptor-based dialect.
+For i386, x86-64 targets, possible values for @var{dialect} are @code{gnu} or
+@code{gnu2}, which select between the original GNU dialect and the GNU TLS
 descriptor-based dialect.
 
 @item --enable-multiarch

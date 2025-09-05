@@ -10336,8 +10336,8 @@ intrinsic:      function_udf
                   if( p != NULL ) {
 		    auto loc = symbol_field_location(field_index(p->field));
                     error_msg(loc, "FUNCTION %qs has "
-                              "inconsistent parameter type %td (%qs)",
-                              keyword_str($1), p - args.data(), name_of(p->field) );
+                              "inconsistent parameter type %ld (%qs)",
+                              keyword_str($1), (long)(p - args.data()), name_of(p->field) );
                     YYERROR;
                   }
                   $$ = is_numeric(args[0].field)?
@@ -11959,7 +11959,10 @@ current_t::udf_args_valid( const cbl_label_t *L,
     if( arg.field ) { // else omitted
       auto tgt = cbl_field_of(symbol_at(udf.linkage_fields.at(i).isym));
       if( ! valid_move(tgt, arg.field) ) {
-	auto loc = symbol_field_location(field_index(arg.field));
+	auto loc = current_location;
+        if( ! is_temporary(arg.field) ) {
+          loc = symbol_field_location(field_index(arg.field));
+        }
 	error_msg(loc, "FUNCTION %s argument %zu, '%s' cannot be passed to %s, type %s",
 		  L->name, i, arg.field->pretty_name(),
 		  tgt->pretty_name(), 3 + cbl_field_type_str(tgt->type) );

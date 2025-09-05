@@ -543,6 +543,12 @@
 ;; elements.
 (define_mode_iterator SVE_FULL_HSF [VNx8HF VNx4SF])
 
+;; Like SVE_FULL_HSF, but selectively enables those modes that are valid
+;; for the variant of the SVE2 FP8 FDOT instruction associated with that
+;; mode.
+(define_mode_iterator SVE_FULL_HSF_FP8_FDOT [(VNx4SF "TARGET_SSVE_FP8DOT4")
+					     (VNx8HF "TARGET_SSVE_FP8DOT2")])
+
 ;; Partial SVE floating-point vector modes that have 16-bit or 32-bit
 ;; elements.
 (define_mode_iterator SVE_PARTIAL_HSF [VNx2HF VNx4HF VNx2SF])
@@ -2980,19 +2986,15 @@
 
 (define_code_iterator INT_CMP [lt le eq ne ge gt ltu leu geu gtu])
 
+;; Inverse comparisons must have the same constraint so that
+;; branches can be redirected during late compilation.
 (define_code_attr cmpbr_imm_constraint [
-    (eq "Uc0")
-    (ne "Uc0")
-    (gt "Uc0")
-    (gtu "Uc0")
-    (lt "Uc0")
-    (ltu "Uc0")
+    (eq "Uc0") (ne "Uc0")
+    (lt "Uc0") (ge "Uc0")
+    (ltu "Uc0") (geu "Uc0")
 
-    (ge "Uc1")
-    (geu "Uc1")
-
-    (le "Uc2")
-    (leu "Uc2")
+    (gt "Uc1") (le "Uc1")
+    (gtu "Uc1") (leu "Uc1")
 ])
 
 (define_code_attr fix_trunc_optab [(fix "fix_trunc")

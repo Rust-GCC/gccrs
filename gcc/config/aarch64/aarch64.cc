@@ -975,19 +975,24 @@ aarch64_cb_rhs (rtx_code op_code, rtx rhs)
     {
     case EQ:
     case NE:
-    case GT:
-    case GTU:
     case LT:
     case LTU:
+    case GE:
+    case GEU:
+      /* EQ/NE  range is 0 .. 63.
+	 LT/LTU range is 0 .. 63.
+	 GE/GEU range is 1 .. 64 => GT x - 1, but also supports 0 via XZR.
+	 So the intersection is 0 .. 63. */
       return IN_RANGE (rhs_val, 0, 63);
 
-    case GE:  /* CBGE:   signed greater than or equal */
-    case GEU: /* CBHS: unsigned greater than or equal */
-      return IN_RANGE (rhs_val, 1, 64);
-
-    case LE:  /* CBLE:   signed less than or equal */
-    case LEU: /* CBLS: unsigned less than or equal */
-      return IN_RANGE (rhs_val, -1, 62);
+    case GT:
+    case GTU:
+    case LE:
+    case LEU:
+      /* GT/GTU range is  0 .. 63
+	 LE/LEU range is -1 .. 62 => LT x + 1.
+	 So the intersection is 0 .. 62. */
+      return IN_RANGE (rhs_val, 0, 62);
 
     default:
       return false;
@@ -2882,10 +2887,47 @@ aarch64_gen_compare_reg_maybe_ze (RTX_CODE code, rtx x, rtx y,
   return aarch64_gen_compare_reg (code, x, y);
 }
 
+/* Split IMM into two 12-bit halves, producing an EQ/NE comparison vs X.
+   TMP may be a scratch.  This optimizes a sequence from
+	mov	x0, #imm1
+	movk	x0, #imm2, lsl 16  -- x0 contains CST
+	cmp	x1, x0
+   into the shorter:
+	sub	tmp, x1, #(CST & 0xfff000)
+	subs	tmp, tmp, #(CST & 0x000fff)
+*/
+rtx
+aarch64_gen_compare_split_imm24 (rtx x, rtx imm, rtx tmp)
+{
+  HOST_WIDE_INT lo_imm = UINTVAL (imm) & 0xfff;
+  HOST_WIDE_INT hi_imm = UINTVAL (imm) & 0xfff000;
+  enum machine_mode mode = GET_MODE (x);
+
+  if (GET_CODE (tmp) == SCRATCH)
+    tmp = gen_reg_rtx (mode);
+
+  emit_insn (gen_add3_insn (tmp, x, GEN_INT (-hi_imm)));
+  /* TODO: We don't need the gpr result of the second insn. */
+  switch (mode)
+    {
+    case SImode:
+      tmp = gen_addsi3_compare0 (tmp, tmp, GEN_INT (-lo_imm));
+      break;
+    case DImode:
+      tmp = gen_adddi3_compare0 (tmp, tmp, GEN_INT (-lo_imm));
+      break;
+    default:
+      abort ();
+    }
+  emit_insn (tmp);
+
+  return gen_rtx_REG (CC_NZmode, CC_REGNUM);
+}
+
 /* Generate conditional branch to LABEL, comparing X to 0 using CODE.
    Return the jump instruction.  */
 
-static rtx
+rtx
 aarch64_gen_compare_zero_and_branch (rtx_code code, rtx x,
 				     rtx_code_label *label)
 {
@@ -14380,41 +14422,57 @@ aarch64_if_then_else_costs (rtx op0, rtx op1, rtx op2, int *cost, bool speed)
   if (GET_CODE (op1) == PC || GET_CODE (op2) == PC)
     {
       /* Conditional branch.  */
-      if (GET_MODE_CLASS (GET_MODE (inner)) == MODE_CC)
+      enum machine_mode cmpmode = GET_MODE (inner);
+      if (GET_MODE_CLASS (cmpmode) == MODE_CC)
 	return true;
-      else
-	{
-	  if (cmpcode == NE || cmpcode == EQ)
-	    {
-	      if (comparator == const0_rtx)
-		{
-		  /* TBZ/TBNZ/CBZ/CBNZ.  */
-		  if (GET_CODE (inner) == ZERO_EXTRACT)
-		    /* TBZ/TBNZ.  */
-		    *cost += rtx_cost (XEXP (inner, 0), VOIDmode,
-				       ZERO_EXTRACT, 0, speed);
-		  else
-		    /* CBZ/CBNZ.  */
-		    *cost += rtx_cost (inner, VOIDmode, cmpcode, 0, speed);
 
-		  return true;
-		}
-	      if (register_operand (inner, VOIDmode)
-		  && aarch64_imm24 (comparator, VOIDmode))
-		{
-		  /* SUB and SUBS.  */
-		  *cost += COSTS_N_INSNS (2);
-		  if (speed)
-		    *cost += extra_cost->alu.arith * 2;
-		  return true;
-		}
-	    }
-	  else if (cmpcode == LT || cmpcode == GE)
+      if (comparator == const0_rtx)
+	{
+	  switch (cmpcode)
 	    {
-	      /* TBZ/TBNZ.  */
-	      if (comparator == const0_rtx)
-		return true;
+	    case NE:
+	    case EQ:
+	      if (cmpmode != SImode && cmpmode != DImode)
+		break;
+	      if (GET_CODE (inner) == ZERO_EXTRACT)
+		{
+		  /* TBZ/TBNZ.  */
+		  *cost += rtx_cost (XEXP (inner, 0), VOIDmode,
+				     ZERO_EXTRACT, 0, speed);
+		  return true;
+		}
+	      /* FALLTHRU */
+
+	    case LT:
+	    case GE:
+	      /* CBZ/CBNZ/TBZ/TBNZ.  */
+	      *cost += rtx_cost (inner, cmpmode, cmpcode, 0, speed);
+	      return true;
+
+	    default:
+	      break;
 	    }
+	}
+
+      if ((cmpcode == NE || cmpcode == EQ)
+	  && (cmpmode == SImode || cmpmode == DImode)
+	  && aarch64_split_imm24 (comparator, cmpmode))
+	{
+	  /* SUB and SUBS.  */
+	  *cost += rtx_cost (inner, cmpmode, cmpcode, 0, speed);
+	  *cost += COSTS_N_INSNS (2);
+	  if (speed)
+	    *cost += extra_cost->alu.arith * 2;
+	  return true;
+	}
+
+      if (TARGET_CMPBR)
+	{
+	  *cost += rtx_cost (inner, cmpmode, cmpcode, 0, speed);
+	  if ((cmpmode != SImode && cmpmode != DImode)
+	      || !aarch64_cb_rhs (cmpcode, comparator))
+	    *cost += rtx_cost (comparator, cmpmode, cmpcode, 1, speed);
+	  return true;
 	}
     }
   else if (GET_MODE_CLASS (GET_MODE (inner)) == MODE_CC)
@@ -16999,6 +17057,14 @@ private:
      or vector loop.  There is one entry for each tuning option of
      interest.  */
   auto_vec<aarch64_vec_op_count, 2> m_ops;
+
+  /* When doing inner-loop vectorization the constraints on the data-refs in the
+     outer-loop could limit the inner loop references.  i.e. the outerloop can
+     force the inner-loop to do a load and splat which will result in the loop
+     being entirely scalar as all lanes work on a duplicate.  Currently we don't
+     support unrolling of the inner loop independently from the outerloop during
+     outer-loop vectorization which tends to lead to pipeline bubbles.  */
+  bool m_loop_fully_scalar_dup = false;
 };
 
 aarch64_vector_costs::aarch64_vector_costs (vec_info *vinfo,
@@ -17320,13 +17386,14 @@ aarch64_multiply_add_p (vec_info *vinfo, stmt_vec_info stmt_info,
 
 static bool
 aarch64_bool_compound_p (vec_info *vinfo, stmt_vec_info stmt_info,
-			 unsigned int vec_flags)
+			 slp_tree node, unsigned int vec_flags)
 {
   gassign *assign = dyn_cast<gassign *> (stmt_info->stmt);
   if (!assign
+      || !node
       || gimple_assign_rhs_code (assign) != BIT_AND_EXPR
-      || !STMT_VINFO_VECTYPE (stmt_info)
-      || !VECTOR_BOOLEAN_TYPE_P (STMT_VINFO_VECTYPE (stmt_info)))
+      || !SLP_TREE_VECTYPE (node)
+      || !VECTOR_BOOLEAN_TYPE_P (SLP_TREE_VECTYPE (node)))
     return false;
 
   for (int i = 1; i < 3; ++i)
@@ -17361,10 +17428,11 @@ aarch64_bool_compound_p (vec_info *vinfo, stmt_vec_info stmt_info,
    instructions.  */
 static unsigned int
 aarch64_sve_in_loop_reduction_latency (vec_info *vinfo,
+				       slp_tree node,
 				       stmt_vec_info stmt_info,
 				       const sve_vec_cost *sve_costs)
 {
-  switch (vect_reduc_type (vinfo, stmt_info))
+  switch (vect_reduc_type (vinfo, node))
     {
     case EXTRACT_LAST_REDUCTION:
       return sve_costs->clast_cost;
@@ -17404,7 +17472,9 @@ aarch64_sve_in_loop_reduction_latency (vec_info *vinfo,
    - If VEC_FLAGS & VEC_ANY_SVE, return the loop carry latency of the
      SVE implementation.  */
 static unsigned int
-aarch64_in_loop_reduction_latency (vec_info *vinfo, stmt_vec_info stmt_info,
+aarch64_in_loop_reduction_latency (vec_info *vinfo,
+				   slp_tree node,
+				   stmt_vec_info stmt_info,
 				   unsigned int vec_flags)
 {
   const cpu_vector_cost *vec_costs = aarch64_tune_params.vec_costs;
@@ -17417,7 +17487,8 @@ aarch64_in_loop_reduction_latency (vec_info *vinfo, stmt_vec_info stmt_info,
   if (sve_costs)
     {
       unsigned int latency
-	= aarch64_sve_in_loop_reduction_latency (vinfo, stmt_info, sve_costs);
+	= aarch64_sve_in_loop_reduction_latency (vinfo, node,
+						 stmt_info, sve_costs);
       if (latency)
 	return latency;
     }
@@ -17493,7 +17564,7 @@ aarch64_detect_vector_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
   if (kind == scalar_load
       && node
       && sve_costs
-      && SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_GATHER_SCATTER)
+      && mat_gather_scatter_p (SLP_TREE_MEMORY_ACCESS_TYPE (node)))
     {
       unsigned int nunits = vect_nunits_for_cost (vectype);
       /* Test for VNx2 modes, which have 64-bit containers.  */
@@ -17507,7 +17578,7 @@ aarch64_detect_vector_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
   if (kind == scalar_store
       && node
       && sve_costs
-      && SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_GATHER_SCATTER)
+      && mat_gather_scatter_p (SLP_TREE_MEMORY_ACCESS_TYPE (node)))
     return sve_costs->scatter_store_elt_cost;
 
   /* Detect cases in which vec_to_scalar represents an in-loop reduction.  */
@@ -17516,7 +17587,8 @@ aarch64_detect_vector_stmt_subtype (vec_info *vinfo, vect_cost_for_stmt kind,
       && sve_costs)
     {
       unsigned int latency
-	= aarch64_sve_in_loop_reduction_latency (vinfo, stmt_info, sve_costs);
+	= aarch64_sve_in_loop_reduction_latency (vinfo, node,
+						 stmt_info, sve_costs);
       if (latency)
 	return latency;
     }
@@ -17665,7 +17737,7 @@ aarch64_adjust_stmt_cost (vec_info *vinfo, vect_cost_for_stmt kind,
 
 	  /* For vector boolean ANDs with a compare operand we just need
 	     one insn.  */
-	  if (aarch64_bool_compound_p (vinfo, stmt_info, vec_flags))
+	  if (aarch64_bool_compound_p (vinfo, stmt_info, node, vec_flags))
 	    return 0;
 	}
 
@@ -17728,8 +17800,10 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
       && vect_is_reduction (stmt_info))
     {
       unsigned int base
-	= aarch64_in_loop_reduction_latency (m_vinfo, stmt_info, m_vec_flags);
-      if (aarch64_force_single_cycle (m_vinfo, stmt_info))
+	= aarch64_in_loop_reduction_latency (m_vinfo, node,
+					     stmt_info, m_vec_flags);
+      if (m_costing_for_scalar
+	  || aarch64_force_single_cycle (m_vinfo, stmt_info))
 	/* ??? Ideally we'd use a tree to reduce the copies down to 1 vector,
 	   and then accumulate that, but at the moment the loop-carried
 	   dependency includes all copies.  */
@@ -17746,7 +17820,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
 
       /* Assume that bool AND with compare operands will become a single
 	 operation.  */
-      if (aarch64_bool_compound_p (m_vinfo, stmt_info, m_vec_flags))
+      if (aarch64_bool_compound_p (m_vinfo, stmt_info, node, m_vec_flags))
 	return;
     }
 
@@ -17763,7 +17837,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
   if (stmt_info
       && kind == vec_to_scalar
       && (m_vec_flags & VEC_ADVSIMD)
-      && SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_GATHER_SCATTER)
+      && mat_gather_scatter_p (SLP_TREE_MEMORY_ACCESS_TYPE (node)))
     {
       auto dr = STMT_VINFO_DATA_REF (stmt_info);
       tree dr_ref = DR_REF (dr);
@@ -17842,7 +17916,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
      have only accounted for one.  */
   if (stmt_info
       && (kind == vector_stmt || kind == vec_to_scalar)
-      && vect_reduc_type (m_vinfo, stmt_info) == COND_REDUCTION)
+      && vect_reduc_type (m_vinfo, node) == COND_REDUCTION)
     ops->general_ops += count;
 
   /* Count the predicate operations needed by an SVE comparison.  */
@@ -17878,7 +17952,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
   if (stmt_info
       && sve_issue
       && (kind == scalar_load || kind == scalar_store)
-      && SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_GATHER_SCATTER)
+      && mat_gather_scatter_p (SLP_TREE_MEMORY_ACCESS_TYPE (node)))
     {
       unsigned int pairs = CEIL (count, 2);
       ops->pred_ops += sve_issue->gather_scatter_pair_pred_ops * pairs;
@@ -17987,6 +18061,17 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 				     tree vectype, int misalign,
 				     vect_cost_model_location where)
 {
+  /* When costing for scalars, vectype will be NULL; so look up the type via
+     stmt_info's statement.  */
+  if (m_costing_for_scalar && stmt_info)
+    {
+      gcc_assert (!vectype);
+      /* This won't work for e.g. gconds or other statements without a lhs,
+	 but those only work on GPR anyway and this is the best we can do.  */
+      if (tree lhs = gimple_get_lhs (STMT_VINFO_STMT (stmt_info)))
+	vectype = TREE_TYPE (lhs);
+    }
+
   fractional_cost stmt_cost
     = aarch64_builtin_vectorization_cost (kind, vectype, misalign);
 
@@ -18002,6 +18087,28 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 	analyze_loop_vinfo (loop_vinfo);
 
       m_analyzed_vinfo = true;
+      if (in_inner_loop_p)
+	m_loop_fully_scalar_dup = true;
+    }
+
+  /* Detect whether the loop is working on fully duplicated lanes.  This would
+     only be possible with inner loop vectorization since otherwise we wouldn't
+     try to vectorize.  */
+  if (in_inner_loop_p
+      && node
+      && m_loop_fully_scalar_dup
+      && SLP_TREE_LANES (node) == 1
+      && !SLP_TREE_CHILDREN (node).exists ())
+    {
+      /* Check if load is a duplicate.  */
+      if (gimple_vuse (stmt_info->stmt)
+	  && SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_INVARIANT)
+	;
+      else if (SLP_TREE_DEF_TYPE (node) == vect_constant_def
+	       || SLP_TREE_DEF_TYPE (node) == vect_external_def)
+	;
+      else
+	m_loop_fully_scalar_dup = false;
     }
 
   /* Apply the heuristic described above m_stp_sequence_cost.  */
@@ -18036,7 +18143,7 @@ aarch64_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 	  && node
 	  && vectype
 	  && aarch64_sve_mode_p (TYPE_MODE (vectype))
-	  && SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_GATHER_SCATTER)
+	  && mat_gather_scatter_p (SLP_TREE_MEMORY_ACCESS_TYPE (node)))
 	{
 	  const sve_vec_cost *sve_costs = aarch64_tune_params.vec_costs->sve;
 	  if (sve_costs)
@@ -18368,8 +18475,19 @@ adjust_body_cost (loop_vec_info loop_vinfo,
   if (m_vec_flags & VEC_ANY_SVE)
     threshold = CEIL (threshold, aarch64_estimated_sve_vq ());
 
-  if (m_num_vector_iterations >= 1
-      && m_num_vector_iterations < threshold)
+  /* Increase the cost of the vector code if it looks like the vector code has
+     limited throughput due to outer-loop vectorization.  */
+  if (m_loop_fully_scalar_dup)
+    {
+      body_cost *= estimated_vf;
+      if (dump_enabled_p ())
+	dump_printf_loc (MSG_NOTE, vect_location,
+			 "Increasing body cost to %d because vector code has"
+			 " low throughput of per iteration due to splats\n",
+			 body_cost);
+    }
+  else if (m_num_vector_iterations >= 1
+	   && m_num_vector_iterations < threshold)
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_NOTE, vect_location,
@@ -25435,20 +25553,41 @@ aarch64_asm_preferred_eh_data_format (int code ATTRIBUTE_UNUSED, int global)
    return (global ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel | type;
 }
 
+/* Return true if function declaration FNDECL needs to be marked as
+   having a variant PCS.  */
+
+static bool
+aarch64_is_variant_pcs (tree fndecl)
+{
+  /* Check for ABIs that preserve more registers than usual.  */
+  arm_pcs pcs = (arm_pcs) fndecl_abi (fndecl).id ();
+  if (pcs == ARM_PCS_SIMD || pcs == ARM_PCS_SVE)
+    return true;
+
+  /* Check for ABIs that allow PSTATE.SM to be 1 on entry.  */
+  tree fntype = TREE_TYPE (fndecl);
+  if (aarch64_fntype_pstate_sm (fntype) != AARCH64_ISA_MODE_SM_OFF)
+    return true;
+
+  /* Check for ABIs that require PSTATE.ZA to be 1 on entry, either because
+     of ZA or ZT0.  */
+  if (aarch64_fntype_pstate_za (fntype) != 0)
+    return true;
+
+  return false;
+}
+
 /* Output .variant_pcs for aarch64_vector_pcs function symbols.  */
 
 static void
 aarch64_asm_output_variant_pcs (FILE *stream, const tree decl, const char* name)
 {
-  if (TREE_CODE (decl) == FUNCTION_DECL)
+  if (TREE_CODE (decl) == FUNCTION_DECL
+      && aarch64_is_variant_pcs (decl))
     {
-      arm_pcs pcs = (arm_pcs) fndecl_abi (decl).id ();
-      if (pcs == ARM_PCS_SIMD || pcs == ARM_PCS_SVE)
-	{
-	  fprintf (stream, "\t.variant_pcs\t");
-	  assemble_name (stream, name);
-	  fprintf (stream, "\n");
-	}
+      fprintf (stream, "\t.variant_pcs\t");
+      assemble_name (stream, name);
+      fprintf (stream, "\n");
     }
 }
 

@@ -268,7 +268,7 @@ in the following sections.
 -Wrange-loop-construct -Wredundant-move -Wredundant-tags
 -Wreorder  -Wregister -Wno-sfinae-incomplete
 -Wstrict-null-sentinel  -Wno-subobject-linkage  -Wtemplates
--Wno-non-template-friend  -Wold-style-cast
+-Wno-non-c-typedef-for-linkage  -Wno-non-template-friend  -Wold-style-cast
 -Woverloaded-virtual  -Wno-pmf-conversions -Wself-move -Wsign-promo
 -Wsized-deallocation  -Wsuggest-final-methods
 -Wsuggest-final-types  -Wsuggest-override  -Wno-template-body
@@ -322,6 +322,9 @@ Objective-C and Objective-C++ Dialects}.
 -fno-diagnostics-show-cwe
 -fno-diagnostics-show-rules
 -fno-diagnostics-show-highlight-colors
+-fno-diagnostics-show-nesting
+-fno-diagnostics-show-nesting-locations
+-fdiagnostics-show-nesting-levels
 -fdiagnostics-minimum-margin-width=@var{width}
 -fdiagnostics-parseable-fixits  -fdiagnostics-generate-patch
 -fdiagnostics-show-template-tree  -fno-elide-type
@@ -331,7 +334,8 @@ Objective-C and Objective-C++ Dialects}.
 -fdiagnostics-column-unit=@r{[}display@r{|}byte@r{]}
 -fdiagnostics-column-origin=@var{origin}
 -fdiagnostics-escape-format=@r{[}unicode@r{|}bytes@r{]}
--fdiagnostics-text-art-charset=@r{[}none@r{|}ascii@r{|}unicode@r{|}emoji@r{]}}
+-fdiagnostics-text-art-charset=@r{[}none@r{|}ascii@r{|}unicode@r{|}emoji@r{]}
+-fdiagnostics-show-context@r{[}=@var{depth}@r{]}}
 
 @item Warning Options
 @xref{Warning Options,,Options to Request or Suppress Warnings}.
@@ -388,6 +392,7 @@ Objective-C and Objective-C++ Dialects}.
 -Winit-self  -Winline  -Wno-int-conversion  -Wint-in-bool-context
 -Wno-int-to-pointer-cast  -Wno-invalid-memory-model
 -Winvalid-pch  -Winvalid-utf8  -Wno-unicode  -Wjump-misses-init
+-Wkeyword-macro
 -Wlarger-than=@var{byte-size}  -Wleading-whitespace=@var{kind}
 -Wlogical-not-parentheses  -Wlogical-op
 -Wlong-long  -Wno-lto-type-mismatch -Wmain  -Wmaybe-uninitialized
@@ -1098,7 +1103,8 @@ Objective-C and Objective-C++ Dialects}.
 -mcmodel=@var{code-model} -mrelax -mpass-mrelax-to-as
 -mrecip  -mrecip=@var{opt} -mfrecipe -mno-frecipe -mdiv32 -mno-div32
 -mlam-bh -mno-lam-bh -mlamcas -mno-lamcas -mld-seq-sa -mno-ld-seq-sa
--mtls-dialect=@var{opt} -mannotate-tablejump -mno-annotate-tablejump}
+-mscq -mno-scq -mtls-dialect=@var{opt}
+-mannotate-tablejump -mno-annotate-tablejump}
 
 @emph{M32C Options} (@ref{M32C Options})
 @gccoptlist{-mcpu=@var{cpu}  -msim  -memregs=@var{number}}
@@ -1259,7 +1265,7 @@ See RS/6000 and PowerPC Options.
 
 @emph{PRU Options} (@ref{PRU Options})
 @gccoptlist{-mmcu=@var{mcu}  -minrt  -mno-relax  -mloop
--mabi=@var{variant}}
+-mmul -mfillzero -mabi=@var{variant}}
 
 @emph{RISC-V Options} (@ref{RISC-V Options})
 @gccoptlist{-mbranch-cost=@var{N-instruction}
@@ -3016,8 +3022,9 @@ Version 20, which first appeared in G++ 15, fixes manglings of lambdas
 in static data member initializers.
 
 Version 21, which first appeared in G++ 16, fixes unnecessary captures
-in noexcept lambdas (c++/119764) and layout of a base class
-with all explicitly defaulted constructors (c++/120012).
+in noexcept lambdas (c++/119764), layout of a base class with all explicitly
+defaulted constructors (c++/120012), and mangling of class and array
+objects with implicitly zero-initialized non-trailing subobjects (c++/121231).
 
 See also @option{-Wabi}.
 
@@ -4489,6 +4496,28 @@ to @code{__null}.  Although it is a null pointer constant rather than a
 null pointer, it is guaranteed to be of the same size as a pointer.
 But this use is not portable across different compilers.
 
+@opindex Wno-non-c-typedef-for-linkage
+@opindex Wnon-c-typedef-for-linkage
+@item -Wno-non-c-typedef-for-linkage @r{(C++ and Objective-C++ only)}
+Disable pedwarn for unnamed classes with a typedef name for linkage purposes
+containing C++ specific members, base classes, default member initializers
+or lambda expressions, including those on nested member classes.
+
+@smallexample
+typedef struct @{
+  int a; // non-static data members are ok
+  struct T @{ int b; @}; // member classes too
+  enum E @{ E1, E2, E3 @}; // member enumerations as well
+  int c = 42; // default member initializers are not ok
+  struct U : A @{ int c; @}; // classes with base classes are not ok
+  typedef int V; // typedef is not ok
+  using W = int; // using declaration is not ok
+  decltype([]()@{@}) x; // lambda expressions not ok
+@} S;
+@end smallexample
+
+In all these cases, the tag name S should be added after the struct keyword.
+
 @opindex Wno-non-template-friend
 @opindex Wnon-template-friend
 @item -Wno-non-template-friend @r{(C++ and Objective-C++ only)}
@@ -5427,7 +5456,8 @@ options:
 -fdiagnostics-urls=never
 -fdiagnostics-path-format=separate-events
 -fdiagnostics-text-art-charset=none
--fno-diagnostics-show-event-links}
+-fno-diagnostics-show-event-links
+-fno-diagnostics-show-nesting}
 In the future, if GCC changes the default appearance of its diagnostics, the
 corresponding option to disable the new behavior will be added to this list.
 
@@ -5764,6 +5794,22 @@ left margin.
 This option controls the minimum width of the left margin printed by
 @option{-fdiagnostics-show-line-numbers}.  It defaults to 6.
 
+@opindex fdiagnostics-show-context
+@item -fdiagnostics-show-context[=@var{depth}]
+@itemx -fno-diagnostics-show-context
+With this option, the compiler might print the interesting control flow
+chain that guards the basic block of the statement which has the warning.
+@var{depth} is the maximum depth of the control flow chain.
+Currently, The list of the impacted warning options includes:
+@option{-Warray-bounds}, @option{-Wstringop-overflow},
+@option{-Wstringop-overread}, @option{-Wstringop-truncation}.
+and @option{-Wrestrict}.
+More warning options might be added to this list in future releases.
+The forms @option{-fdiagnostics-show-context} and
+@option{-fno-diagnostics-show-context} are aliases for
+@option{-fdiagnostics-show-context=1} and
+@option{-fdiagnostics-show-context=0}, respectively.
+
 @opindex fdiagnostics-parseable-fixits
 @item -fdiagnostics-parseable-fixits
 Emit fix-it hints in a machine-parseable format, suitable for consumption
@@ -6049,6 +6095,40 @@ emoji variant of the character).
 The default is @samp{emoji}, except when the environment variable @env{LANG}
 is set to @samp{C}, in which case the default is @samp{ascii}.
 
+@opindex fno-diagnostics-show-nesting
+@opindex fdiagnostics-show-nesting
+@item -fno-diagnostics-show-nesting
+Some GCC diagnostics have an internal tree-like structure of nested
+sub-diagnostics, such as for problems when instantiating C++ templates.
+
+By default GCC uses indentation and bullet points in its text output to
+show the nesting structure of these diagnostics, moves location
+information to separate lines to make the structure clearer, and
+eliminates redundant repeated information.
+
+Selecting @option{-fno-diagnostics-show-nesting} suppresses this
+indentation, reformatting, and elision, restoring an older `look'' for the
+diagnostics.
+
+@opindex fno-diagnostics-show-nesting-locations
+@opindex fdiagnostics-show-nesting-locations
+@item -fno-diagnostics-show-nesting-locations
+
+When @option{fdiagnostics-show-nesting} is enabled, file names and
+line- and column- numbers are displayed on separate lines from the
+messages.  This location information can be disabled altogether with
+@option{-fno-diagnostics-show-nesting-locations}.
+This option exists for use by GCC developers, for writing DejaGnu test cases.
+
+@opindex fdiagnostics-show-nesting-levels
+@opindex fno-diagnostics-show-nesting-levels
+@item -fdiagnostics-show-nesting-levels
+When @option{fdiagnostics-show-nesting} is enabled, use
+@option{fdiagnostics-show-nesting-levels} to also display numbers
+showing the depth of the nesting.
+This option exists for use by GCC developers for debugging nested
+diagnostics, but may be of use to plugin authors.
+
 @opindex fdiagnostics-format
 @item -fdiagnostics-format=@var{FORMAT}
 Select a different format for printing diagnostics.
@@ -6097,18 +6177,18 @@ Supported keys are:
 Override colorization settings from @option{-fdiagnostics-color} for this
 text output.
 
-@item experimental-nesting=@r{[}yes@r{|}no@r{]}
-Enable an experimental mode that emphasizes hierarchical relationships
-within diagnostics messages, displaying location information on separate
-lines.
+@item show-nesting=@r{[}yes@r{|}no@r{]}
+Enable a mode that emphasizes hierarchical relationships
+within diagnostics messages, as per @option{-fdiagnostics-show-nesting}.
+Defaults to @code{yes}.
 
-@item experimental-nesting-show-locations=@r{[}yes@r{|}no@r{]}
-If @code{experimental-nesting=yes}, then by default locations are
+@item show-nesting-locations=@r{[}yes@r{|}no@r{]}
+If @code{show-nesting=yes}, then by default locations are
 shown; set this key to @code{no} to disable printing such locations.
 This exists for use by GCC developers, for writing DejaGnu test cases.
 
-@item experimental-nesting-show-levels=@r{[}yes@r{|}no@r{]}
-This is a debugging option for use with @code{experimental-nesting=yes}.
+@item show-nesting-levels=@r{[}yes@r{|}no@r{]}
+This is a debugging option for use with @code{show-nesting=yes}.
 Set this key to @code{yes} to print explicit nesting levels in the output.
 This exists for use by GCC developers.
 
@@ -10397,6 +10477,14 @@ void f (void *d)
 Do not warn if certain built-in macros are redefined.  This suppresses
 warnings for redefinition of @code{__TIMESTAMP__}, @code{__TIME__},
 @code{__DATE__}, @code{__FILE__}, and @code{__BASE_FILE__}.
+
+@opindex Wkeyword-macro
+@opindex Wno-keyword-macro
+@item -Wkeyword-macro
+Warn if a keyword is defined as a macro or undefined.
+For C++ identifiers with special meaning or standard attribute identifiers
+are diagnosed as well.  This warning is enabled by default for C++26
+if @code{-Wpedantic} and emits a pedwarn in that case.
 
 @opindex Wfree-labels
 @opindex Wno-free-labels
@@ -28503,6 +28591,14 @@ Whether a same-address load-load barrier (@code{dbar 0x700}) is needed.  When
 build with @option{-march=la664}, it is enabled by default.  The default is
 @option{-mno-ld-seq-sa}, the load-load barrier is needed.
 
+@opindex mscq
+@opindex mno-scq
+@item -mscq
+@item -mno-scq
+Use (do not use) the 16-byte conditional store instruction @code{sc.q}.
+The default is @option{-mscq} if the machine type specified with
+@option{-march=} supports this instruction, @option{-mno-scq} otherwise.
+
 @opindex mtls-dialect
 @item -mtls-dialect=@var{opt}
 This option controls which tls dialect may be used for general dynamic and
@@ -31226,6 +31322,14 @@ instead of the @option{--relax} option.
 @item -mloop
 Allow (or do not allow) GCC to use the LOOP instruction.
 
+@opindex mmul
+@item -mmul
+Allow (or do not allow) GCC to use the PRU multiplier unit.
+
+@opindex mfillzero
+@item -mfillzero
+Allow (or do not allow) GCC to use the FILL and ZERO instructions.
+
 @opindex mabi
 @item -mabi=@var{variant}
 Specify the ABI variant to output code for.  @option{-mabi=ti} selects the
@@ -31336,7 +31440,7 @@ The default is @option{-misa-spec=20191213} unless GCC has been configured
 with @option{--with-isa-spec=} specifying a different default version.
 
 @opindex march
-@item -march=@var{ISA-string|Profiles|Profile_ISA-string}
+@item -march=@var{ISA-string|Profiles|Profile_ISA-string|help|unset}
 Generate code for given RISC-V ISA or Profiles or a combination of them
 (e.g.@: @samp{rv64im} @samp{rvi20u64} @samp{rvi20u64_zbb}).  ISA strings and
 Profiles must be lower-case.  Examples include @samp{rv64i}, @samp{rv32g},
@@ -31346,6 +31450,12 @@ at the beginning of the option, then use underline connect ISA-string (e.g.@:
 @samp{rvi20u64_zca_zcb} @samp{rva23u64_zacas}).  Additionally, a special value
 @option{help} (@option{-march=help}) is accepted to list all supported
 extensions.
+
+@samp{-march=unset} causes the compiler to ignore any @samp{-march=@dots{}} options
+that appear earlier on the command line, behaving as if the option was never
+passed. This is useful for ensuring that the architecture is taken from the
+@samp{-mcpu} option, and it will result in an error if no @samp{-mcpu} option
+is given when @samp{-march=unset} is used.
 
 The syntax of the ISA string is defined as follows:
 

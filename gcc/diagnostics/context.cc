@@ -50,6 +50,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostics/logical-locations.h"
 #include "diagnostics/buffering.h"
 #include "diagnostics/file-cache.h"
+#include "diagnostics/dumping.h"
 
 #ifdef HAVE_TERMIOS_H
 # include <termios.h>
@@ -176,12 +177,18 @@ context::initialize (int n_opts)
   m_client_aux_data = nullptr;
   m_lock = 0;
   m_inhibit_notes_p = false;
+
   m_source_printing.colorize_source_p = false;
   m_source_printing.show_labels_p = false;
   m_source_printing.show_line_numbers_p = false;
   m_source_printing.min_margin_width = 0;
   m_source_printing.show_ruler_p = false;
   m_source_printing.show_event_links_p = false;
+
+  m_column_options.m_column_unit = DIAGNOSTICS_COLUMN_UNIT_DISPLAY;
+  m_column_options.m_column_origin = 1;
+  m_column_options.m_tabstop = 8;
+
   m_report_bug = false;
   m_extra_output_kind = EXTRA_DIAGNOSTIC_OUTPUT_none;
   if (const char *var = getenv ("GCC_EXTRA_DIAGNOSTIC_OUTPUT"))
@@ -192,9 +199,6 @@ context::initialize (int n_opts)
 	m_extra_output_kind = EXTRA_DIAGNOSTIC_OUTPUT_fixits_v2;
       /* Silently ignore unrecognized values.  */
     }
-  m_column_unit = DIAGNOSTICS_COLUMN_UNIT_DISPLAY;
-  m_column_origin = 1;
-  m_tabstop = 8;
   m_escape_format = DIAGNOSTICS_ESCAPE_FORMAT_UNICODE;
   m_fixits_change_set = nullptr;
   m_diagnostic_groups.m_group_nesting_depth = 0;
@@ -284,6 +288,33 @@ context::urls_init (int value)
 	(m_reference_printer->get_url_format ());
 }
 
+void
+context::set_show_nesting (bool val)
+{
+  for (auto sink_ : m_sinks)
+    if (sink_->follows_reference_printer_p ())
+      if (auto text_sink_ = sink_->dyn_cast_text_sink ())
+	text_sink_->set_show_nesting (val);
+}
+
+void
+context::set_show_nesting_locations (bool val)
+{
+  for (auto sink_ : m_sinks)
+    if (sink_->follows_reference_printer_p ())
+      if (auto text_sink_ = sink_->dyn_cast_text_sink ())
+	text_sink_->set_show_locations_in_nesting (val);
+}
+
+void
+context::set_show_nesting_levels (bool val)
+{
+  for (auto sink_ : m_sinks)
+    if (sink_->follows_reference_printer_p ())
+      if (auto text_sink_ = sink_->dyn_cast_text_sink ())
+	text_sink_->set_show_nesting_levels (val);
+}
+
 /* Create the file_cache, if not already created, and tell it how to
    translate files on input.  */
 void
@@ -355,33 +386,40 @@ context::finish ()
 /* Dump state of this diagnostics::context to OUT, for debugging.  */
 
 void
-context::dump (FILE *out) const
+context::dump (FILE *outfile) const
 {
-  fprintf (out, "diagnostics::context:\n");
-  m_diagnostic_counters.dump (out, 2);
-  fprintf (out, "  reference printer:\n");
-  m_reference_printer->dump (out, 4);
-  fprintf (out, "  output sinks:\n");
+  dumping::emit_heading (outfile, 0, "diagnostics::context");
+  m_diagnostic_counters.dump (outfile, 2);
+  dumping::emit_heading (outfile, 2, "reference printer");
+  if (m_reference_printer)
+    m_reference_printer->dump (outfile, 4);
+  else
+    dumping::emit_none (outfile, 4);
+  dumping::emit_heading (outfile, 2, "output sinks");
   if (m_sinks.length () > 0)
     {
       for (unsigned i = 0; i < m_sinks.length (); ++i)
 	{
-	  fprintf (out, "  sink %i:\n", i);
-	  m_sinks[i]->dump (out, 4);
+	  dumping::emit_indent (outfile, 4);
+	  const sink *s = m_sinks[i];
+	  fprintf (outfile, "sink %i (", i);
+	  s->dump_kind (outfile);
+	  fprintf (outfile, "):\n");
+	  s->dump (outfile, 6);
 	}
     }
   else
-    fprintf (out, "    (none):\n");
-  fprintf (out, "  diagnostic buffer:\n");
+    dumping::emit_none (outfile, 4);
+  dumping::emit_heading (outfile, 2, "diagnostic buffer");
   if (m_diagnostic_buffer)
-    m_diagnostic_buffer->dump (out, 4);
+    m_diagnostic_buffer->dump (outfile, 4);
   else
-    fprintf (out, "    (none):\n");
-  fprintf (out, "  file cache:\n");
+    dumping::emit_none (outfile, 4);
+  dumping::emit_heading (outfile, 2, "file cache");
   if (m_file_cache)
-    m_file_cache->dump (out, 4);
+    m_file_cache->dump (outfile, 4);
   else
-    fprintf (out, "    (none):\n");
+    dumping::emit_none (outfile, 4);
 }
 
 /* Return true if sufficiently severe diagnostics have been seen that
@@ -671,11 +709,22 @@ convert_column_unit (file_cache &fc,
     }
 }
 
+/* Given an expanded_location, convert the column (which is in 1-based bytes)
+   to the requested units and origin.  Return -1 if the column is
+   invalid (<= 0).  */
+int
+column_options::convert_column (file_cache &fc,
+				expanded_location s) const
+{
+  int one_based_col = convert_column_unit (fc, m_column_unit, m_tabstop, s);
+  if (one_based_col <= 0)
+    return -1;
+  return one_based_col + (m_column_origin - 1);
+}
+
 column_policy::column_policy (const context &dc)
 : m_file_cache (dc.get_file_cache ()),
-  m_column_unit (dc.m_column_unit),
-  m_column_origin (dc.m_column_origin),
-  m_tabstop (dc.m_tabstop)
+  m_column_options (dc.get_column_options ())
 {
 }
 
@@ -685,11 +734,7 @@ column_policy::column_policy (const context &dc)
 int
 column_policy::converted_column (expanded_location s) const
 {
-  int one_based_col = convert_column_unit (m_file_cache,
-					   m_column_unit, m_tabstop, s);
-  if (one_based_col <= 0)
-    return -1;
-  return one_based_col + (m_column_origin - 1);
+  return m_column_options.convert_column (m_file_cache, s);
 }
 
 /* Return a string describing a location e.g. "foo.c:42:10".  */
@@ -711,7 +756,7 @@ column_policy::get_location_text (const expanded_location &s,
 	col = converted_column (s);
     }
 
-  const char *line_col = maybe_line_and_column (line, col);
+  const char *line_col = text_sink::maybe_line_and_column (line, col);
   return label_text::take (build_message_string ("%s%s%s:%s", locus_cs, file,
 						 line_col, locus_ce));
 }
@@ -1098,7 +1143,7 @@ context::get_any_inlining_info (diagnostic_info *diagnostic)
     /* Retrieve the locations into which the expression about to be
        diagnosed has been inlined, including those of all the callers
        all the way down the inlining stack.  */
-    m_set_locations_cb (this, diagnostic);
+    m_set_locations_cb (*this, diagnostic);
   else
     {
       /* When there's no callback use just the one location provided
@@ -1249,7 +1294,7 @@ context::report_diagnostic (diagnostic_info *diagnostic)
     }
 
   if (m_adjust_diagnostic_info)
-    m_adjust_diagnostic_info (this, diagnostic);
+    m_adjust_diagnostic_info (*this, diagnostic);
 
   if (diagnostic->m_kind == kind::pedwarn)
     {
@@ -1385,6 +1430,8 @@ context::report_diagnostic (diagnostic_info *diagnostic)
       sink_->on_report_diagnostic (*diagnostic, orig_diag_kind);
     }
 
+  const int tabstop = get_column_options ().m_tabstop;
+
   switch (m_extra_output_kind)
     {
     default:
@@ -1393,14 +1440,14 @@ context::report_diagnostic (diagnostic_info *diagnostic)
       print_parseable_fixits (get_file_cache (),
 			      m_reference_printer, diagnostic->m_richloc,
 			      DIAGNOSTICS_COLUMN_UNIT_BYTE,
-			      m_tabstop);
+			      tabstop);
       pp_flush (m_reference_printer);
       break;
     case EXTRA_DIAGNOSTIC_OUTPUT_fixits_v2:
       print_parseable_fixits (get_file_cache (),
 			      m_reference_printer, diagnostic->m_richloc,
 			      DIAGNOSTICS_COLUMN_UNIT_DISPLAY,
-			      m_tabstop);
+			      tabstop);
       pp_flush (m_reference_printer);
       break;
     }
@@ -1690,7 +1737,7 @@ context::set_nesting_level (int new_level)
 void
 sink::dump (FILE *out, int indent) const
 {
-  fprintf (out, "%*sprinter:\n", indent, "");
+  dumping::emit_heading (out, indent, "printer");
   m_printer->dump (out, indent + 2);
 }
 
@@ -1777,19 +1824,19 @@ counters::counters ()
 void
 counters::dump (FILE *out, int indent) const
 {
-  fprintf (out, "%*scounts:\n", indent, "");
+  dumping::emit_heading (out, indent, "counts");
   bool none = true;
   for (int i = 0; i < static_cast<int> (kind::last_diagnostic_kind); i++)
     if (m_count_for_kind[i] > 0)
       {
-	fprintf (out, "%*s%s%i\n",
-		 indent + 2, "",
+	dumping::emit_indent (out, indent + 2);
+	fprintf (out, "%s%i\n",
 		 get_text_for_kind (static_cast<enum kind> (i)),
 		 m_count_for_kind[i]);
 	none = false;
       }
   if (none)
-    fprintf (out, "%*s(none)\n", indent + 2, "");
+    dumping::emit_none (out, indent + 2);
 }
 
 void
@@ -2015,8 +2062,8 @@ assert_location_text (const char *expected_loc_text,
 			= DIAGNOSTICS_COLUMN_UNIT_BYTE)
 {
   diagnostics::selftest::test_context dc;
-  dc.m_column_unit = column_unit;
-  dc.m_column_origin = origin;
+  dc.get_column_options ().m_column_unit = column_unit;
+  dc.get_column_options ().m_column_origin = origin;
 
   expanded_location xloc;
   xloc.file = filename;
@@ -2052,8 +2099,8 @@ test_get_location_text ()
   assert_location_text ("foo.c:42:", "foo.c", 42, 10, false);
   assert_location_text ("foo.c:", "foo.c", 0, 10, false);
 
-  diagnostics::maybe_line_and_column (INT_MAX, INT_MAX);
-  diagnostics::maybe_line_and_column (INT_MIN, INT_MIN);
+  diagnostics::text_sink::maybe_line_and_column (INT_MAX, INT_MAX);
+  diagnostics::text_sink::maybe_line_and_column (INT_MIN, INT_MIN);
 
   {
     /* In order to test display columns vs byte columns, we need to create a
