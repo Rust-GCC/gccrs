@@ -27,12 +27,14 @@ pub union Repr<T> {
     raw: FatPtr<T>,
 }
 
+#[lang = "slice"]
 impl<T> [T] {
     pub const fn len(&self) -> usize {
         unsafe { Repr { rust: self }.raw.len }
     }
 }
 
+#[lang = "str"]
 impl str {
     pub const fn len(&self) -> usize {
         self.as_bytes().len()

@@ -12,6 +12,7 @@ fn foo<T: Deref<Target = i32>>(t: &T) -> i32 {
     t.max(2)
 }
 
+#[lang = "i32"]
 impl i32 {
     fn max(self, other: i32) -> i32 {
         if self > other {
