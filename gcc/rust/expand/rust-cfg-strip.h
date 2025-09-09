@@ -23,14 +23,23 @@
 #include "rust-item.h"
 
 namespace Rust {
+
+// forward declare
+struct ExpansionCfg;
+
 // Visitor used to maybe_strip attributes.
 class CfgStrip : public AST::DefaultASTVisitor
 {
 private:
+  bool fails_cfg (const AST::AttrVec &attrs) const;
+
+  bool fails_cfg_with_expand (AST::AttrVec &attrs) const;
+
 public:
   using DefaultASTVisitor::visit;
 
-  CfgStrip () {}
+  CfgStrip (const ExpansionCfg &expansion_cfg) : expansion_cfg (expansion_cfg)
+  {}
 
   /* Run the AttrVisitor on an entire crate */
   void go (AST::Crate &crate);
@@ -166,11 +175,11 @@ public:
   void visit (AST::StructPatternFieldIdentPat &field) override;
   void visit (AST::StructPatternFieldIdent &field) override;
   void visit (AST::StructPattern &pattern) override;
-  void visit (AST::TupleStructItemsNoRange &tuple_items) override;
-  void visit (AST::TupleStructItemsRange &tuple_items) override;
+  void visit (AST::TupleStructItemsNoRest &tuple_items) override;
+  void visit (AST::TupleStructItemsHasRest &tuple_items) override;
   void visit (AST::TupleStructPattern &pattern) override;
-  void visit (AST::TuplePatternItemsMultiple &tuple_items) override;
-  void visit (AST::TuplePatternItemsRanged &tuple_items) override;
+  void visit (AST::TuplePatternItemsNoRest &tuple_items) override;
+  void visit (AST::TuplePatternItemsHasRest &tuple_items) override;
   void visit (AST::GroupedPattern &pattern) override;
   void visit (AST::SlicePatternItemsNoRest &items) override;
   void visit (AST::SlicePatternItemsHasRest &items) override;
@@ -194,6 +203,9 @@ public:
   {
     DefaultASTVisitor::visit (item);
   }
+
+private:
+  const ExpansionCfg &expansion_cfg;
 };
 } // namespace Rust
 

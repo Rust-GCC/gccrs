@@ -18,6 +18,7 @@
 
 #include "rust-expand-visitor.h"
 #include "rust-ast-fragment.h"
+#include "rust-item.h"
 #include "rust-proc-macro.h"
 #include "rust-attributes.h"
 #include "rust-ast.h"
@@ -62,7 +63,7 @@ derive_item (AST::Item &item, AST::SimplePath &to_derive,
 	{
 	  switch (node.get_kind ())
 	    {
-	    case AST::SingleASTNode::ITEM:
+	    case AST::SingleASTNode::Kind::Item:
 	      result.push_back (node.take_item ());
 	      break;
 	    default:
@@ -85,7 +86,7 @@ expand_item_attribute (AST::Item &item, AST::SimplePath &name,
 	{
 	  switch (node.get_kind ())
 	    {
-	    case AST::SingleASTNode::ITEM:
+	    case AST::SingleASTNode::Kind::Item:
 	      result.push_back (node.take_item ());
 	      break;
 	    default:
@@ -114,7 +115,7 @@ expand_stmt_attribute (T &statement, AST::SimplePath &attribute,
 	{
 	  switch (node.get_kind ())
 	    {
-	    case AST::SingleASTNode::STMT:
+	    case AST::SingleASTNode::Kind::Stmt:
 	      result.push_back (node.take_stmt ());
 	      break;
 	    default:
@@ -329,9 +330,14 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 void
 ExpandVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 {
+  NodeId old_expect = expr->get_node_id ();
+  std::swap (macro_invoc_expect_id, old_expect);
+
   expander.push_context (MacroExpander::ContextType::EXPR);
   expr->accept_vis (*this);
   expander.pop_context ();
+
+  std::swap (macro_invoc_expect_id, old_expect);
 
   auto final_fragment = expander.take_expanded_fragment ();
   if (final_fragment.should_expand ()
@@ -342,14 +348,54 @@ ExpandVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 void
 ExpandVisitor::maybe_expand_type (std::unique_ptr<AST::Type> &type)
 {
-  expander.push_context (MacroExpander::ContextType::TYPE);
+  NodeId old_expect = type->get_node_id ();
+  std::swap (macro_invoc_expect_id, old_expect);
 
+  expander.push_context (MacroExpander::ContextType::TYPE);
   type->accept_vis (*this);
+  expander.pop_context ();
+
+  std::swap (macro_invoc_expect_id, old_expect);
+
   auto final_fragment = expander.take_expanded_fragment ();
   if (final_fragment.should_expand () && final_fragment.is_type_fragment ())
     type = final_fragment.take_type_fragment ();
+}
 
+// HACK: maybe we shouldn't have TypeNoBounds as a base class
+void
+ExpandVisitor::maybe_expand_type (std::unique_ptr<AST::TypeNoBounds> &type)
+{
+  NodeId old_expect = type->get_node_id ();
+  std::swap (macro_invoc_expect_id, old_expect);
+
+  expander.push_context (MacroExpander::ContextType::TYPE);
+  type->accept_vis (*this);
   expander.pop_context ();
+
+  std::swap (macro_invoc_expect_id, old_expect);
+
+  auto final_fragment = expander.take_expanded_fragment ();
+  if (final_fragment.should_expand () && final_fragment.is_type_fragment ())
+    type = std::make_unique<AST::ParenthesisedType> (
+      final_fragment.take_type_fragment (), BUILTINS_LOCATION);
+}
+
+void
+ExpandVisitor::maybe_expand_pattern (std::unique_ptr<AST::Pattern> &pattern)
+{
+  NodeId old_expect = pattern->get_node_id ();
+  std::swap (macro_invoc_expect_id, old_expect);
+
+  expander.push_context (MacroExpander::ContextType::PATTERN);
+  pattern->accept_vis (*this);
+  expander.pop_context ();
+
+  std::swap (macro_invoc_expect_id, old_expect);
+
+  auto final_fragment = expander.take_expanded_fragment ();
+  if (final_fragment.should_expand () && final_fragment.is_pattern_fragment ())
+    pattern = final_fragment.take_pattern_fragment ();
 }
 
 // FIXME: Can this be refactored into a `scoped` method? Which takes a
@@ -424,6 +470,8 @@ ExpandVisitor::expand_closure_params (std::vector<AST::ClosureParam> &params)
 {
   for (auto &param : params)
     {
+      maybe_expand_pattern (param.get_pattern_ptr ());
+
       if (param.has_type_given ())
 	maybe_expand_type (param.get_type_ptr ());
     }
@@ -465,6 +513,14 @@ ExpandVisitor::visit (AST::ConstGenericParam &)
 void
 ExpandVisitor::visit (AST::MacroInvocation &macro_invoc)
 {
+  if (macro_invoc_expect_id != macro_invoc.get_node_id ())
+    {
+      rust_internal_error_at (
+	macro_invoc.get_locus (),
+	"attempting to expand node with id %d into position with node id %d",
+	(int) macro_invoc.get_node_id (), (int) macro_invoc_expect_id);
+    }
+
   // TODO: Can we do the AST fragment replacing here? Probably not, right?
   expander.expand_invoc (macro_invoc, macro_invoc.has_semicolon ()
 					? AST::InvocKind::Semicoloned
@@ -569,6 +625,13 @@ ExpandVisitor::visit (AST::LazyBooleanExpr &expr)
 }
 
 void
+ExpandVisitor::visit (AST::TypeCastExpr &expr)
+{
+  maybe_expand_expr (expr.get_casted_expr_ptr ());
+  maybe_expand_type (expr.get_type_to_cast_to_ptr ());
+}
+
+void
 ExpandVisitor::visit (AST::AssignmentExpr &expr)
 {
   maybe_expand_expr (expr.get_left_expr_ptr ());
@@ -615,7 +678,7 @@ ExpandVisitor::visit (AST::ClosureExprInner &expr)
 {
   expand_closure_params (expr.get_params ());
 
-  visit (expr.get_definition_expr ());
+  maybe_expand_expr (expr.get_definition_expr_ptr ());
 }
 
 void
@@ -686,13 +749,20 @@ ExpandVisitor::visit (AST::MatchExpr &expr)
       auto &arm = match_case.get_arm ();
 
       for (auto &pattern : arm.get_patterns ())
-	visit (pattern);
+	maybe_expand_pattern (pattern);
 
       if (arm.has_match_arm_guard ())
 	maybe_expand_expr (arm.get_guard_expr_ptr ());
 
       maybe_expand_expr (match_case.get_expr_ptr ());
     }
+}
+
+void
+ExpandVisitor::visit (AST::TupleExpr &expr)
+{
+  for (auto &sub : expr.get_tuple_elems ())
+    maybe_expand_expr (sub);
 }
 
 void
@@ -970,13 +1040,70 @@ ExpandVisitor::visit (AST::StructPatternFieldIdent &field)
 void
 ExpandVisitor::visit (AST::GroupedPattern &pattern)
 {
-  visit (pattern.get_pattern_in_parens ());
+  maybe_expand_pattern (pattern.get_pattern_in_parens_ptr ());
+}
+
+void
+ExpandVisitor::visit (AST::SlicePatternItemsNoRest &items)
+{
+  for (auto &sub : items.get_patterns ())
+    maybe_expand_pattern (sub);
+}
+
+void
+ExpandVisitor::visit (AST::SlicePatternItemsHasRest &items)
+{
+  for (auto &sub : items.get_lower_patterns ())
+    maybe_expand_pattern (sub);
+  for (auto &sub : items.get_upper_patterns ())
+    maybe_expand_pattern (sub);
+}
+
+void
+ExpandVisitor::visit (AST::AltPattern &pattern)
+{
+  for (auto &alt : pattern.get_alts ())
+    maybe_expand_pattern (alt);
+}
+
+void
+ExpandVisitor::visit (AST::TupleStructItemsNoRest &tuple_items)
+{
+  for (auto &sub : tuple_items.get_patterns ())
+    maybe_expand_pattern (sub);
+}
+
+void
+ExpandVisitor::visit (AST::TupleStructItemsHasRest &tuple_items)
+{
+  for (auto &sub : tuple_items.get_lower_patterns ())
+    maybe_expand_pattern (sub);
+
+  for (auto &sub : tuple_items.get_upper_patterns ())
+    maybe_expand_pattern (sub);
+}
+
+void
+ExpandVisitor::visit (AST::TuplePatternItemsNoRest &tuple_items)
+{
+  for (auto &sub : tuple_items.get_patterns ())
+    maybe_expand_pattern (sub);
+}
+
+void
+ExpandVisitor::visit (AST::TuplePatternItemsHasRest &tuple_items)
+{
+  for (auto &sub : tuple_items.get_lower_patterns ())
+    maybe_expand_pattern (sub);
+
+  for (auto &sub : tuple_items.get_upper_patterns ())
+    maybe_expand_pattern (sub);
 }
 
 void
 ExpandVisitor::visit (AST::LetStmt &stmt)
 {
-  visit (stmt.get_pattern ());
+  maybe_expand_pattern (stmt.get_pattern_ptr ());
 
   if (stmt.has_type ())
     maybe_expand_type (stmt.get_type_ptr ());
@@ -1006,7 +1133,15 @@ ExpandVisitor::visit (AST::BareFunctionType &type)
 void
 ExpandVisitor::visit (AST::FunctionParam &param)
 {
+  maybe_expand_pattern (param.get_pattern_ptr ());
   maybe_expand_type (param.get_type_ptr ());
+}
+
+void
+ExpandVisitor::visit (AST::VariadicParam &param)
+{
+  if (param.has_pattern ())
+    maybe_expand_pattern (param.get_pattern_ptr ());
 }
 
 void

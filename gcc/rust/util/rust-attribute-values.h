@@ -60,6 +60,8 @@ public:
   static constexpr auto &RUSTC_PROMOTABLE = "rustc_promotable";
   static constexpr auto &RUSTC_CONST_STABLE = "rustc_const_stable";
   static constexpr auto &RUSTC_CONST_UNSTABLE = "rustc_const_unstable";
+  static constexpr auto &RUSTC_ALLOW_CONST_FN_UNSTABLE
+    = "rustc_allow_const_fn_unstable";
 
   static constexpr auto &RUSTC_SPECIALIZATION_TRAIT
     = "rustc_specialization_trait";
@@ -87,8 +89,6 @@ public:
   static constexpr auto &RUSTFMT = "rustfmt";
 
   static constexpr auto &TEST = "test";
-
-  static constexpr auto &SIMD_TEST = "simd_test";
 
   static constexpr auto &RUSTC_ARGS_REQUIRED_CONST
     = "rustc_args_required_const";

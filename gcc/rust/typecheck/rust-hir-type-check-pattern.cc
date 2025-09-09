@@ -200,17 +200,17 @@ TypeCheckPattern::visit (HIR::TupleStructPattern &pattern)
   auto &items = pattern.get_items ();
   switch (items.get_item_type ())
     {
-    case HIR::TupleStructItems::RANGED:
+    case HIR::TupleStructItems::HAS_REST:
       {
 	// TODO
 	rust_unreachable ();
       }
       break;
 
-    case HIR::TupleStructItems::MULTIPLE:
+    case HIR::TupleStructItems::NO_REST:
       {
-	HIR::TupleStructItemsNoRange &items_no_range
-	  = static_cast<HIR::TupleStructItemsNoRange &> (items);
+	HIR::TupleStructItemsNoRest &items_no_range
+	  = static_cast<HIR::TupleStructItemsNoRest &> (items);
 
 	if (items_no_range.get_patterns ().size () != variant->num_fields ())
 	  {
@@ -463,10 +463,10 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 
   switch (pattern.get_items ().get_item_type ())
     {
-    case HIR::TuplePatternItems::ItemType::MULTIPLE:
+    case HIR::TuplePatternItems::ItemType::NO_REST:
       {
-	auto &ref = static_cast<HIR::TuplePatternItemsMultiple &> (
-	  pattern.get_items ());
+	auto &ref
+	  = static_cast<HIR::TuplePatternItemsNoRest &> (pattern.get_items ());
 
 	const auto &patterns = ref.get_patterns ();
 	size_t nitems_to_resolve = patterns.size ();
@@ -486,17 +486,17 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	    TyTy::BaseType *par_type = par.get_field (i);
 
 	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
-	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
+	    pattern_elems.emplace_back (elem->get_ref ());
 	  }
 	infered = new TyTy::TupleType (pattern.get_mappings ().get_hirid (),
 				       pattern.get_locus (), pattern_elems);
       }
       break;
 
-    case HIR::TuplePatternItems::ItemType::RANGED:
+    case HIR::TuplePatternItems::ItemType::HAS_REST:
       {
-	HIR::TuplePatternItemsRanged &ref
-	  = static_cast<HIR::TuplePatternItemsRanged &> (pattern.get_items ());
+	HIR::TuplePatternItemsHasRest &ref
+	  = static_cast<HIR::TuplePatternItemsHasRest &> (pattern.get_items ());
 
 	const auto &lower = ref.get_lower_patterns ();
 	const auto &upper = ref.get_upper_patterns ();
@@ -519,7 +519,7 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	    TyTy::BaseType *par_type = par.get_field (i);
 
 	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
-	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
+	    pattern_elems.emplace_back (elem->get_ref ());
 	  }
 
 	// Pad pattern_elems until needing to resolve upper patterns
@@ -527,7 +527,7 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	for (size_t i = lower.size (); i < rest_end; i++)
 	  {
 	    TyTy::BaseType *par_type = par.get_field (i);
-	    pattern_elems.push_back (TyTy::TyVar (par_type->get_ref ()));
+	    pattern_elems.emplace_back (par_type->get_ref ());
 	  }
 
 	// Resolve upper patterns
@@ -537,7 +537,7 @@ TypeCheckPattern::visit (HIR::TuplePattern &pattern)
 	    TyTy::BaseType *par_type = par.get_field (rest_end + i);
 
 	    TyTy::BaseType *elem = TypeCheckPattern::Resolve (*p, par_type);
-	    pattern_elems.push_back (TyTy::TyVar (elem->get_ref ()));
+	    pattern_elems.emplace_back (elem->get_ref ());
 	  }
 
 	infered = new TyTy::TupleType (pattern.get_mappings ().get_hirid (),
@@ -651,14 +651,44 @@ TypeCheckPattern::visit (HIR::SlicePattern &pattern)
 	    break;
 	  }
 	auto cap_wi = wi::to_wide (cap).to_uhwi ();
-	if (cap_wi != pattern.get_items ().size ())
+
+	// size check during compile time
+	switch (pattern.get_items ().get_item_type ())
 	  {
-	    rust_error_at (pattern.get_locus (), ErrorCode::E0527,
-			   "pattern requires %lu elements but array has %lu",
-			   (unsigned long) pattern.get_items ().size (),
-			   (unsigned long) cap_wi);
+	  case HIR::SlicePatternItems::ItemType::NO_REST:
+	    {
+	      auto &ref = static_cast<HIR::SlicePatternItemsNoRest &> (
+		pattern.get_items ());
+	      if (cap_wi != ref.get_patterns ().size ())
+		{
+		  rust_error_at (
+		    pattern.get_locus (), ErrorCode::E0527,
+		    "pattern requires %lu elements but array has %lu",
+		    (unsigned long) ref.get_patterns ().size (),
+		    (unsigned long) cap_wi);
+		  break;
+		}
+	    }
+	    break;
+	  case HIR::SlicePatternItems::ItemType::HAS_REST:
+	    {
+	      auto &ref = static_cast<HIR::SlicePatternItemsHasRest &> (
+		pattern.get_items ());
+	      auto pattern_min_cap = ref.get_lower_patterns ().size ()
+				     + ref.get_upper_patterns ().size ();
+
+	      if (cap_wi < pattern_min_cap)
+		{
+		  rust_error_at (
+		    pattern.get_locus (), ErrorCode::E0528,
+		    "pattern requires at least %lu elements but array has %lu",
+		    (unsigned long) pattern_min_cap, (unsigned long) cap_wi);
+		  break;
+		}
+	    }
 	    break;
 	  }
+
 	break;
       }
     case TyTy::SLICE:
@@ -694,10 +724,32 @@ TypeCheckPattern::visit (HIR::SlicePattern &pattern)
   infered->set_ref (pattern.get_mappings ().get_hirid ());
 
   // Type check every item in the SlicePattern against parent's element ty
-  // TODO update this after adding support for RestPattern in SlicePattern
-  for (const auto &item : pattern.get_items ())
+  switch (pattern.get_items ().get_item_type ())
     {
-      TypeCheckPattern::Resolve (*item, parent_element_ty);
+    case HIR::SlicePatternItems::ItemType::NO_REST:
+      {
+	auto &ref
+	  = static_cast<HIR::SlicePatternItemsNoRest &> (pattern.get_items ());
+	for (const auto &pattern_member : ref.get_patterns ())
+	  {
+	    TypeCheckPattern::Resolve (*pattern_member, parent_element_ty);
+	  }
+	break;
+      }
+    case HIR::SlicePatternItems::ItemType::HAS_REST:
+      {
+	auto &ref
+	  = static_cast<HIR::SlicePatternItemsHasRest &> (pattern.get_items ());
+	for (const auto &pattern_member : ref.get_lower_patterns ())
+	  {
+	    TypeCheckPattern::Resolve (*pattern_member, parent_element_ty);
+	  }
+	for (const auto &pattern_member : ref.get_upper_patterns ())
+	  {
+	    TypeCheckPattern::Resolve (*pattern_member, parent_element_ty);
+	  }
+	break;
+      }
     }
 }
 
@@ -814,6 +866,11 @@ ClosureParamInfer::visit (HIR::WildcardPattern &pattern)
 void
 ClosureParamInfer::visit (HIR::IdentifierPattern &pattern)
 {
+  if (pattern.has_subpattern ())
+    {
+      ClosureParamInfer::Resolve (pattern.get_subpattern ());
+    }
+
   HirId id = pattern.get_mappings ().get_hirid ();
   infered = new TyTy::InferType (id, TyTy::InferType::InferTypeKind::GENERAL,
 				 TyTy::InferType::TypeHint::Default (),

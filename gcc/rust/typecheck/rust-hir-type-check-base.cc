@@ -56,13 +56,92 @@ walk_types_to_constrain (std::set<HirId> &constrained_symbols,
       if (arg != nullptr)
 	{
 	  const auto p = arg->get_root ();
+	  constrained_symbols.insert (p->get_ref ());
 	  constrained_symbols.insert (p->get_ty_ref ());
+
 	  if (p->has_substitutions_defined ())
 	    {
 	      walk_types_to_constrain (constrained_symbols,
 				       p->get_subst_argument_mappings ());
 	    }
 	}
+    }
+}
+
+static void
+walk_type_to_constrain (std::set<HirId> &constrained_symbols, TyTy::BaseType &r)
+{
+  switch (r.get_kind ())
+    {
+    case TyTy::TypeKind::POINTER:
+      {
+	auto &p = static_cast<TyTy::PointerType &> (r);
+	walk_type_to_constrain (constrained_symbols, *p.get_base ());
+      }
+      break;
+    case TyTy::TypeKind::REF:
+      {
+	auto &ref = static_cast<TyTy::ReferenceType &> (r);
+	walk_type_to_constrain (constrained_symbols, *ref.get_base ());
+      }
+      break;
+    case TyTy::TypeKind::ARRAY:
+      {
+	auto &arr = static_cast<TyTy::ArrayType &> (r);
+	walk_type_to_constrain (constrained_symbols, *arr.get_element_type ());
+      }
+      break;
+    case TyTy::TypeKind::FNDEF:
+      {
+	auto &fn = static_cast<TyTy::FnType &> (r);
+	for (auto &param : fn.get_params ())
+	  walk_type_to_constrain (constrained_symbols, *param.get_type ());
+	walk_type_to_constrain (constrained_symbols, *fn.get_return_type ());
+      }
+      break;
+    case TyTy::TypeKind::PARAM:
+      {
+	auto &param = static_cast<TyTy::ParamType &> (r);
+	constrained_symbols.insert (param.get_ty_ref ());
+      }
+      break;
+    case TyTy::SLICE:
+      {
+	auto &slice = static_cast<TyTy::SliceType &> (r);
+	walk_type_to_constrain (constrained_symbols,
+				*slice.get_element_type ());
+      }
+      break;
+    case TyTy::FNPTR:
+      {
+	auto &ptr = static_cast<TyTy::FnPtr &> (r);
+	for (auto &param : ptr.get_params ())
+	  walk_type_to_constrain (constrained_symbols, *param.get_tyty ());
+	walk_type_to_constrain (constrained_symbols, *ptr.get_return_type ());
+      }
+      break;
+    case TyTy::TUPLE:
+      {
+	auto &tuple = static_cast<TyTy::TupleType &> (r);
+	for (auto &ty : tuple.get_fields ())
+	  walk_type_to_constrain (constrained_symbols, *ty.get_tyty ());
+      }
+      break;
+    case TyTy::DYNAMIC:
+      {
+	auto &dyn = static_cast<TyTy::DynamicObjectType &> (r);
+	constrained_symbols.insert (dyn.get_ty_ref ());
+      }
+      break;
+    case TyTy::CLOSURE:
+      {
+	auto &clos = static_cast<TyTy::ClosureType &> (r);
+	walk_type_to_constrain (constrained_symbols, clos.get_parameters ());
+	walk_type_to_constrain (constrained_symbols, *clos.get_return_type ());
+      }
+      break;
+    default:
+      break;
     }
 }
 
@@ -87,21 +166,13 @@ TypeCheckBase::check_for_unconstrained (
       HirId ref = p.get_param_ty ()->get_ref ();
       symbols_to_constrain.insert (ref);
       symbol_to_location.insert ({ref, p.get_param_locus ()});
-
-      rust_debug_loc (p.get_param_locus (), "XX constrain THIS");
     }
 
   // set up the set of constrained symbols
   std::set<HirId> constrained_symbols;
   walk_types_to_constrain (constrained_symbols, constraint_a);
   walk_types_to_constrain (constrained_symbols, constraint_b);
-
-  const auto root = reference->get_root ();
-  if (root->get_kind () == TyTy::TypeKind::PARAM)
-    {
-      const TyTy::ParamType *p = static_cast<const TyTy::ParamType *> (root);
-      constrained_symbols.insert (p->get_ty_ref ());
-    }
+  walk_type_to_constrain (constrained_symbols, *reference);
 
   // check for unconstrained
   bool unconstrained = false;

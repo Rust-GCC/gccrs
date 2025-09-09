@@ -76,13 +76,13 @@ TokenCollector::trailing_comma ()
 void
 TokenCollector::newline ()
 {
-  tokens.push_back ({CollectItem::Kind::Newline});
+  tokens.emplace_back (CollectItem::Kind::Newline);
 }
 
 void
 TokenCollector::indentation ()
 {
-  tokens.push_back ({indent_level});
+  tokens.emplace_back (indent_level);
 }
 
 void
@@ -101,7 +101,7 @@ TokenCollector::decrement_indentation ()
 void
 TokenCollector::comment (std::string comment)
 {
-  tokens.push_back ({comment});
+  tokens.emplace_back (comment);
 }
 
 void
@@ -355,7 +355,8 @@ TokenCollector::visit (MaybeNamedParam &param)
 void
 TokenCollector::visit (Token &tok)
 {
-  std::string data = tok.get_tok_ptr ()->has_str () ? tok.get_str () : "";
+  std::string data
+    = tok.get_tok_ptr ()->should_have_str () ? tok.get_str () : "";
   switch (tok.get_id ())
     {
     case IDENTIFIER:
@@ -2649,13 +2650,13 @@ TokenCollector::visit (StructPattern &pattern)
 // void TokenCollector::visit(TupleStructItems& ){}
 
 void
-TokenCollector::visit (TupleStructItemsNoRange &pattern)
+TokenCollector::visit (TupleStructItemsNoRest &pattern)
 {
   visit_items_joined_by_separator (pattern.get_patterns ());
 }
 
 void
-TokenCollector::visit (TupleStructItemsRange &pattern)
+TokenCollector::visit (TupleStructItemsHasRest &pattern)
 {
   for (auto &lower : pattern.get_lower_patterns ())
     {
@@ -2682,13 +2683,13 @@ TokenCollector::visit (TupleStructPattern &pattern)
 // {}
 
 void
-TokenCollector::visit (TuplePatternItemsMultiple &pattern)
+TokenCollector::visit (TuplePatternItemsNoRest &pattern)
 {
   visit_items_joined_by_separator (pattern.get_patterns (), COMMA);
 }
 
 void
-TokenCollector::visit (TuplePatternItemsRanged &pattern)
+TokenCollector::visit (TuplePatternItemsHasRest &pattern)
 {
   for (auto &lower : pattern.get_lower_patterns ())
     {

@@ -16,29 +16,23 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-system.h"
 #include "rust-tyty.h"
-
-#include "optional.h"
 #include "rust-tyty-subst.h"
 #include "rust-tyty-visitor.h"
 #include "rust-hir-map.h"
 #include "rust-location.h"
-#include "rust-linemap.h"
-
+#include "rust-type-util.h"
+#include "rust-hir-type-bounds.h"
 #include "rust-substitution-mapper.h"
 #include "rust-hir-trait-reference.h"
 #include "rust-hir-trait-resolve.h"
-#include "rust-tyty-cmp.h"
-#include "rust-type-util.h"
-#include "rust-hir-type-bounds.h"
-#include "print-tree.h"
 #include "tree-pretty-print.h"
 
+#include "optional.h"
 #include "options.h"
-#include "rust-system.h"
 #include "tree.h"
 #include "fold-const.h"
-#include <string>
 
 namespace Rust {
 namespace TyTy {
@@ -295,8 +289,7 @@ BaseType::get_locus () const
 
 // FIXME this is missing locus
 bool
-BaseType::satisfies_bound (const TypeBoundPredicate &predicate,
-			   bool emit_error) const
+BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
 {
   const Resolver::TraitReference *query = predicate.get ();
   for (const auto &bound : specified_bounds)
@@ -351,41 +344,20 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate,
 	    return false;
 
 	  std::string item_name = item->get_impl_item_name ();
-	  TypeBoundPredicateItem lookup
+	  tl::optional<TypeBoundPredicateItem> lookup
 	    = predicate.lookup_associated_item (item_name);
-	  if (lookup.is_error ())
+	  if (!lookup.has_value ())
 	    return false;
 
-	  const auto *item_ref = lookup.get_raw_item ();
+	  const auto *item_ref = lookup->get_raw_item ();
 	  TyTy::BaseType *bound_ty = item_ref->get_tyty ();
 
-	  // compare the types
-	  if (!bound_ty->can_eq (impl_item_ty, false))
-	    {
-	      if (!impl_item_ty->can_eq (bound_ty, false))
-		{
-		  if (emit_error)
-		    {
-		      rich_location r (line_table,
-				       mappings.lookup_location (get_ref ()));
-		      r.add_range (predicate.get_locus ());
-		      r.add_range (mappings.lookup_location (i.get_hirid ()));
-
-		      std::string rich_msg
-			= "expected " + bound_ty->destructure ()->get_name ()
-			  + ", found "
-			  + impl_item_ty->destructure ()->get_name ();
-		      r.add_fixit_replace (rich_msg.c_str ());
-
-		      rust_error_at (
-			r, ErrorCode::E0271,
-			"type mismatch, expected %qs but got %qs",
-			bound_ty->destructure ()->get_name ().c_str (),
-			impl_item_ty->destructure ()->get_name ().c_str ());
-		    }
-		  return false;
-		}
-	    }
+	  if (!Resolver::types_compatable (
+		TyTy::TyWithLocation (bound_ty, predicate.get_locus ()),
+		TyTy::TyWithLocation (impl_item_ty, item->get_locus ()),
+		mappings.lookup_location (get_ref ()), false /*emit-error*/,
+		false /*check-bounds*/))
+	    return false;
 	}
 
       return true;
@@ -395,8 +367,7 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate,
 }
 
 bool
-BaseType::bounds_compatible (const BaseType &other, location_t locus,
-			     bool emit_error) const
+BaseType::bounds_compatible (BaseType &other, location_t locus, bool emit_error)
 {
   std::vector<std::reference_wrapper<const TypeBoundPredicate>>
     unsatisfied_bounds;
@@ -637,8 +608,8 @@ BaseType::monomorphized_clone () const
 
       TyVar retty = fn->get_var_return_type ().monomorphized_clone ();
       return new FnPtr (fn->get_ref (), fn->get_ty_ref (), ident.locus,
-			std::move (cloned_params), retty,
-			fn->get_combined_refs ());
+			std::move (cloned_params), retty, fn->get_abi (),
+			fn->get_unsafety (), fn->get_combined_refs ());
     }
   else if (auto adt = x->try_as<const ADTType> ())
     {
@@ -1113,13 +1084,6 @@ InferType::as_string () const
   return "<infer::error>";
 }
 
-bool
-InferType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  InferCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 InferType::clone () const
 {
@@ -1408,12 +1372,6 @@ std::string
 ErrorType::as_string () const
 {
   return "<tyty::error>";
-}
-
-bool
-ErrorType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  return get_kind () == other->get_kind ();
 }
 
 BaseType *
@@ -1800,13 +1758,6 @@ ADTType::as_string () const
 }
 
 bool
-ADTType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ADTCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
-bool
 ADTType::is_equal (const BaseType &other) const
 {
   if (get_kind () != other.get_kind ())
@@ -2037,13 +1988,6 @@ TupleType::get_field (size_t index) const
 }
 
 bool
-TupleType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  TupleCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
-bool
 TupleType::is_equal (const BaseType &other) const
 {
   if (get_kind () != other.get_kind ())
@@ -2123,13 +2067,6 @@ FnType::as_string () const
 
   std::string ret_str = type->as_string ();
   return "fn" + subst_as_string () + " (" + params_str + ") -> " + ret_str;
-}
-
-bool
-FnType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  FnCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 bool
@@ -2331,14 +2268,13 @@ FnPtr::as_string () const
       params_str += p.get_tyty ()->as_string () + " ,";
     }
 
-  return "fnptr (" + params_str + ") -> " + get_return_type ()->as_string ();
-}
+  std::string unsafety = "";
+  if (get_unsafety () == Unsafety::Unsafe)
+    unsafety = "unsafe ";
 
-bool
-FnPtr::can_eq (const BaseType *other, bool emit_errors) const
-{
-  FnptrCmp r (this, emit_errors);
-  return r.can_eq (other);
+  std::string abi = get_string_from_abi (get_abi ());
+  return unsafety + "abi:" + abi + " " + "fnptr (" + params_str + ") -> "
+	 + get_return_type ()->as_string ();
 }
 
 bool
@@ -2368,12 +2304,14 @@ BaseType *
 FnPtr::clone () const
 {
   std::vector<TyVar> cloned_params;
+  cloned_params.reserve (params.size ());
+
   for (auto &p : params)
-    cloned_params.push_back (TyVar (p.get_ref ()));
+    cloned_params.emplace_back (p.get_ref ());
 
   return new FnPtr (get_ref (), get_ty_ref (), ident.locus,
-		    std::move (cloned_params), result_type,
-		    get_combined_refs ());
+		    std::move (cloned_params), result_type, get_abi (),
+		    get_unsafety (), get_combined_refs ());
 }
 
 void
@@ -2393,13 +2331,6 @@ ClosureType::as_string () const
 {
   std::string params_buf = parameters->as_string ();
   return "|" + params_buf + "| {" + result_type.get_tyty ()->as_string () + "}";
-}
-
-bool
-ClosureType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ClosureCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 bool
@@ -2504,13 +2435,6 @@ ArrayType::as_string () const
 }
 
 bool
-ArrayType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ArrayCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
-bool
 ArrayType::is_equal (const BaseType &other) const
 {
   if (get_kind () != other.get_kind ())
@@ -2582,13 +2506,6 @@ std::string
 SliceType::as_string () const
 {
   return "[" + get_element_type ()->as_string () + "]";
-}
-
-bool
-SliceType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  SliceCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 bool
@@ -2678,13 +2595,6 @@ BoolType::as_string () const
   return "bool";
 }
 
-bool
-BoolType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  BoolCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 BoolType::clone () const
 {
@@ -2749,13 +2659,6 @@ IntType::as_string () const
     }
   rust_unreachable ();
   return "__unknown_int_type";
-}
-
-bool
-IntType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  IntCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 BaseType *
@@ -2836,13 +2739,6 @@ UintType::as_string () const
   return "__unknown_uint_type";
 }
 
-bool
-UintType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  UintCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 UintType::clone () const
 {
@@ -2915,13 +2811,6 @@ FloatType::as_string () const
   return "__unknown_float_type";
 }
 
-bool
-FloatType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  FloatCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 FloatType::clone () const
 {
@@ -2977,13 +2866,6 @@ USizeType::as_string () const
   return "usize";
 }
 
-bool
-USizeType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  USizeCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 USizeType::clone () const
 {
@@ -3028,13 +2910,6 @@ ISizeType::as_string () const
   return "isize";
 }
 
-bool
-ISizeType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ISizeCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 ISizeType::clone () const
 {
@@ -3077,13 +2952,6 @@ std::string
 CharType::as_string () const
 {
   return "char";
-}
-
-bool
-CharType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  CharCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 BaseType *
@@ -3197,13 +3065,6 @@ ReferenceType::get_name () const
 {
   return std::string ("&") + (is_mutable () ? "mut" : "") + " "
 	 + get_base ()->get_name ();
-}
-
-bool
-ReferenceType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ReferenceCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 bool
@@ -3362,13 +3223,6 @@ PointerType::get_name () const
 }
 
 bool
-PointerType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  PointerCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
-bool
 PointerType::is_equal (const BaseType &other) const
 {
   if (get_kind () != other.get_kind ())
@@ -3478,13 +3332,6 @@ ParamType::get_name () const
   return destructure ()->get_name ();
 }
 
-bool
-ParamType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ParamCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 ParamType::clone () const
 {
@@ -3543,7 +3390,9 @@ ParamType::is_equal (const BaseType &other) const
     return false;
 
   if (can_resolve ())
-    return resolve ()->can_eq (other2.resolve (), false);
+    return Resolver::types_compatable (TyTy::TyWithLocation (resolve ()),
+				       TyTy::TyWithLocation (other2.resolve ()),
+				       UNKNOWN_LOCATION, false, false);
 
   return get_symbol ().compare (other2.get_symbol ()) == 0;
 }
@@ -3564,7 +3413,7 @@ ParamType::handle_substitions (SubstitutionArgumentMappings &subst_mappings)
     {
       const ParamType &pp = *static_cast<const ParamType *> (resolved);
       if (pp.can_resolve ())
-	resolved = pp.resolve ();
+	pp.resolve ();
     }
 
   // this is the new subst that this needs to pass
@@ -3625,13 +3474,6 @@ std::string
 ConstType::as_string () const
 {
   return get_name ();
-}
-
-bool
-ConstType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  ConstCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 BaseType *
@@ -3787,13 +3629,6 @@ OpaqueType::get_name () const
   return "impl " + raw_bounds_as_name ();
 }
 
-bool
-OpaqueType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  OpaqueCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 OpaqueType::clone () const
 {
@@ -3815,7 +3650,24 @@ OpaqueType::is_equal (const BaseType &other) const
   if (can_resolve () != other2.can_resolve ())
     return false;
 
-  return bounds_compatible (other, UNDEF_LOCATION, false);
+  if (num_specified_bounds () != other.num_specified_bounds ())
+    return false;
+
+  for (const auto &pred : specified_bounds)
+    {
+      bool found = false;
+      for (const auto &opred : other.get_specified_bounds ())
+	{
+	  found = pred.is_equal (opred);
+	  if (found)
+	    break;
+	}
+
+      if (!found)
+	return false;
+    }
+
+  return true;
 }
 
 // StrType
@@ -3863,13 +3715,6 @@ StrType::as_string () const
 }
 
 bool
-StrType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  StrCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
-bool
 StrType::is_equal (const BaseType &other) const
 {
   return get_kind () == other.get_kind ();
@@ -3911,13 +3756,6 @@ std::string
 NeverType::as_string () const
 {
   return "!";
-}
-
-bool
-NeverType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  NeverCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 BaseType *
@@ -3973,13 +3811,6 @@ PlaceholderType::as_string () const
 {
   return "<placeholder:" + (can_resolve () ? resolve ()->as_string () : "")
 	 + ">";
-}
-
-bool
-PlaceholderType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  PlaceholderCmp r (this, emit_errors);
-  return r.can_eq (other);
 }
 
 BaseType *
@@ -4118,12 +3949,6 @@ ProjectionType::as_string () const
   return "<Projection=" + subst_as_string () + "::" + base->as_string () + ">";
 }
 
-bool
-ProjectionType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  return base->can_eq (other, emit_errors);
-}
-
 BaseType *
 ProjectionType::clone () const
 {
@@ -4237,13 +4062,6 @@ DynamicObjectType::as_string () const
   return "dyn [" + raw_bounds_as_string () + "]";
 }
 
-bool
-DynamicObjectType::can_eq (const BaseType *other, bool emit_errors) const
-{
-  DynamicCmp r (this, emit_errors);
-  return r.can_eq (other);
-}
-
 BaseType *
 DynamicObjectType::clone () const
 {
@@ -4266,7 +4084,21 @@ DynamicObjectType::is_equal (const BaseType &other) const
   if (num_specified_bounds () != other.num_specified_bounds ())
     return false;
 
-  return bounds_compatible (other, UNDEF_LOCATION, false);
+  for (const auto &pred : specified_bounds)
+    {
+      bool found = false;
+      for (const auto &opred : other.get_specified_bounds ())
+	{
+	  found = pred.is_equal (opred);
+	  if (found)
+	    break;
+	}
+
+      if (!found)
+	return false;
+    }
+
+  return true;
 }
 
 const std::vector<
@@ -4287,7 +4119,7 @@ DynamicObjectType::get_object_items () const
 	  if (item->get_trait_item_type ()
 		== Resolver::TraitItemReference::TraitItemType::FN
 	      && item->is_object_safe ())
-	    items.push_back ({item, &bound});
+	    items.emplace_back (item, &bound);
 	}
     }
   return items;

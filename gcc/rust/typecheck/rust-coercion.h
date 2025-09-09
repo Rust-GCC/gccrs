@@ -21,6 +21,7 @@
 
 #include "rust-autoderef.h"
 #include "rust-hir-type-check.h"
+#include "expected.h"
 
 namespace Rust {
 namespace Resolver {
@@ -28,6 +29,12 @@ namespace Resolver {
 class TypeCoercionRules : protected AutoderefCycle
 {
 public:
+  enum class CoerceUnsizedError
+  {
+    Regular,
+    Unsafe
+  };
+
   struct CoercionResult
   {
     std::vector<Adjustment> adjustments;
@@ -51,6 +58,7 @@ public:
 				   bool allow_autoderef,
 				   bool is_cast_site = false);
 
+  CoercionResult coerce_never (TyTy::BaseType *receiver);
   CoercionResult coerce_unsafe_ptr (TyTy::BaseType *receiver,
 				    TyTy::PointerType *expected,
 				    Mutability mutability);
@@ -59,8 +67,8 @@ public:
 					  TyTy::ReferenceType *expected,
 					  Mutability mutability);
 
-  CoercionResult coerce_unsized (TyTy::BaseType *receiver,
-				 TyTy::BaseType *expected, bool &unsafe_error);
+  tl::expected<CoercionResult, CoerceUnsizedError>
+  coerce_unsized (TyTy::BaseType *receiver, TyTy::BaseType *expected);
 
   static bool coerceable_mutability (Mutability from_mutbl,
 				     Mutability to_mutbl);

@@ -377,6 +377,13 @@ public:
     return *type;
   }
 
+  std::unique_ptr<AST::Type> &get_type_ptr ()
+  {
+    rust_assert (has_type ());
+
+    return type;
+  }
+
   GenericArg &get_default_value_unchecked ()
   {
     rust_assert (has_default_value ());
@@ -448,9 +455,7 @@ public:
     generic_args.clear ();
     generic_args.reserve (other.generic_args.size ());
     for (const auto &arg : other.generic_args)
-      {
-	generic_args.push_back (GenericArg (arg));
-      }
+      generic_args.emplace_back (arg);
   }
 
   ~GenericArgs () = default;
@@ -465,9 +470,7 @@ public:
     generic_args.clear ();
     generic_args.reserve (other.generic_args.size ());
     for (const auto &arg : other.generic_args)
-      {
-	generic_args.push_back (GenericArg (arg));
-      }
+      generic_args.emplace_back (arg);
 
     return *this;
   }
