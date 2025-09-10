@@ -653,11 +653,42 @@ tl::optional<Rib::Definition>
 ForeverStack<N>::resolve_path (
   const std::vector<S> &segments, ResolutionMode mode,
   std::function<void (const S &, NodeId)> insert_segment_resolution,
+  std::vector<Error> &collect_errors, NodeId starting_point_id)
+{
+  auto starting_point = dfs (root, starting_point_id);
+
+  // FIXME: Is that correct? I think yes
+  rust_assert (starting_point);
+
+  return resolve_path (segments, mode, insert_segment_resolution,
+		       collect_errors, starting_point.first);
+}
+
+template <Namespace N>
+template <typename S>
+tl::optional<Rib::Definition>
+ForeverStack<N>::resolve_path (
+  const std::vector<S> &segments, ResolutionMode mode,
+  std::function<void (const S &, NodeId)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
+{
+  std::reference_wrapper<Node> starting_point = cursor ();
+
+  return resolve_path (segments, mode, insert_segment_resolution,
+		       collect_errors, starting_point);
+}
+
+template <Namespace N>
+template <typename S>
+tl::optional<Rib::Definition>
+ForeverStack<N>::resolve_path (
+  const std::vector<S> &segments, ResolutionMode mode,
+  std::function<void (const S &, NodeId)> insert_segment_resolution,
+  std::vector<Error> &collect_errors,
+  std::reference_wrapper<Node> starting_point)
 {
   rust_assert (!segments.empty ());
 
-  std::reference_wrapper<Node> starting_point = cursor ();
   switch (mode)
     {
     case ResolutionMode::Normal:
