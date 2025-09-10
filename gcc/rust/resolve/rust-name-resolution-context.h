@@ -560,22 +560,56 @@ public:
 	  if (resolved_nodes.find (Usage (seg_id)) == resolved_nodes.end ())
 	    map_usage (Usage (seg_id), Definition (id));
 	};
+
+    tl::optional<Rib::Definition> resolved = tl::nullopt;
+
     switch (ns)
       {
       case Namespace::Values:
-	return values.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors);
+	resolved
+	  = values.resolve_path (segments, mode, insert_segment_resolution,
+				 collect_errors);
       case Namespace::Types:
-	return types.resolve_path (segments, mode, insert_segment_resolution,
-				   collect_errors);
+	resolved
+	  = types.resolve_path (segments, mode, insert_segment_resolution,
+				collect_errors);
       case Namespace::Macros:
-	return macros.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors);
+	resolved
+	  = macros.resolve_path (segments, mode, insert_segment_resolution,
+				 collect_errors);
       case Namespace::Labels:
-	return labels.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors);
+	resolved
+	  = labels.resolve_path (segments, mode, insert_segment_resolution,
+				 collect_errors);
       default:
 	rust_unreachable ();
+      }
+
+    // If it fails, switch to std prelude resolution if it exists
+    if (prelude && !resolved)
+      {
+	// TODO: Factor this with the above
+	switch (ns)
+	  {
+	  case Namespace::Values:
+	    resolved
+	      = values.resolve_path (segments, mode, insert_segment_resolution,
+				     collect_errors, *prelude);
+	  case Namespace::Types:
+	    resolved
+	      = types.resolve_path (segments, mode, insert_segment_resolution,
+				    collect_errors, *prelude);
+	  case Namespace::Macros:
+	    resolved
+	      = macros.resolve_path (segments, mode, insert_segment_resolution,
+				     collect_errors, *prelude);
+	  case Namespace::Labels:
+	    resolved
+	      = labels.resolve_path (segments, mode, insert_segment_resolution,
+				     collect_errors, *prelude);
+	  default:
+	    rust_unreachable ();
+	  }
       }
   }
 
@@ -679,6 +713,9 @@ public:
 private:
   /* Map of "usage" nodes which have been resolved to a "definition" node */
   std::map<Usage, Definition> resolved_nodes;
+
+  /* If declared with #[prelude_import], the current standard library module */
+  tl::optional<AST::Module &> prelude;
 };
 
 } // namespace Resolver2_0
