@@ -7609,11 +7609,13 @@ Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
 					    location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
-  if (locus == UNKNOWN_LOCATION)
-    {
-      locus = lexer.peek_token ()->get_locus ();
-      skip_token (TRY);
-    }
+
+  maybe_skip_token (TRY);
+  // if (locus == UNKNOWN_LOCATION)
+  //   {
+  //     locus = lexer.peek_token ()->get_locus ();
+  //     skip_token (TRY);
+  //   }
 
   std::unique_ptr<AST::BlockExpr> block_expr = parse_block_expr ();
 
