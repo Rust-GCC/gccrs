@@ -410,6 +410,16 @@ Early::finalize_glob_import (NameResolutionContext &ctx,
 
   rust_assert (container);
 
+  if (mapping.import_kind.is_prelude)
+    {
+      rust_assert (container.value ()->get_item_kind ()
+		   == AST::Item::Kind::Module);
+
+      auto &module = static_cast<AST::Module &> (*container.value ());
+
+      ctx.prelude = module;
+    }
+
   GlobbingVisitor (ctx).go (container.value ());
 }
 
