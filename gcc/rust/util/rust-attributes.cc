@@ -79,6 +79,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::MUST_USE, STATIC_ANALYSIS},
      {Attrs::LANG, HIR_LOWERING},
      {Attrs::LINK_SECTION, CODE_GENERATION},
+     {Attrs::LINK_NAME, CODE_GENERATION},
      {Attrs::NO_MANGLE, CODE_GENERATION},
      {Attrs::REPR, CODE_GENERATION},
      {Attrs::RUSTC_BUILTIN_MACRO, EXPANSION},
