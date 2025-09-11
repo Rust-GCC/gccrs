@@ -35,4 +35,5 @@ lang_dirs=libgrust
 gtfiles="\
 \$(srcdir)/rust/rust-lang.cc \$(srcdir)/rust/backend/rust-constexpr.cc \
 \$(srcdir)/rust/backend/rust-tree.h \$(srcdir)/rust/backend/rust-tree.cc \
+\$(srcdir)/rust/rust-backend.h \
 "

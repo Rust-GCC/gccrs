@@ -28,6 +28,7 @@
 #include "rust-gcc.h"
 #include "fold-const.h"
 #include "langhooks.h"
+#include "convert.h"
 #include "rust-constexpr.h"
 
 // declaration taken from "stringpool.h"
@@ -557,8 +558,16 @@ rotate_handler (Context *ctx, TyTy::FnType *fntype, tree_code op)
   // BUILTIN rotate FN BODY BEGIN
   tree x = Backend::var_expression (x_param, UNDEF_LOCATION);
   tree y = Backend::var_expression (y_param, UNDEF_LOCATION);
+
+  tree y_mask
+    = build_int_cst (unsigned_type_node, element_precision (TREE_TYPE (x)) - 1);
+
+  tree y_truncated
+    = fold_build2_loc (BUILTINS_LOCATION, BIT_AND_EXPR, unsigned_type_node,
+		       convert_to_integer (unsigned_type_node, y), y_mask);
+
   tree rotate_expr
-    = fold_build2_loc (BUILTINS_LOCATION, op, TREE_TYPE (x), x, y);
+    = fold_build2_loc (BUILTINS_LOCATION, op, TREE_TYPE (x), x, y_truncated);
   auto return_statement
     = Backend::return_statement (fndecl, rotate_expr, UNDEF_LOCATION);
   ctx->add_statement (return_statement);
