@@ -42,7 +42,7 @@ jobs:
                   g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.49.0;
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -127,7 +127,7 @@ jobs:
                   g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.49.0;
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -212,7 +212,7 @@ jobs:
                   g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.49.0;
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -295,7 +295,7 @@ jobs:
                   build-essential \
                   dejagnu;
           # install Rust directly using rustup
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.49.0;
 
     - name: Restore cached gcc-5.4
       id: restore-gcc5
@@ -398,7 +398,7 @@ jobs:
       run: |
           brew install dejagnu mpfr libmpc gmp;
           # install Rust directly using rustup
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.49.0;
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
@@ -475,7 +475,7 @@ jobs:
                   g++-multilib \
                   dejagnu;
           # install Rust directly using rustup
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.72.0;
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=1.49.0;
 
     - name: Make Source Read-Only
       run: chmod -R a-w ./*
