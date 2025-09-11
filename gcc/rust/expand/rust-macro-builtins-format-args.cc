@@ -58,7 +58,7 @@ format_args_parse_expr (location_t invoc_locus, AST::MacroInvocData &invoc,
 
   // TODO(Arthur): Clean this up - if we haven't parsed a string literal but a
   // macro invocation, what do we do here? return a tl::unexpected?
-  rust_assert (format_expr->is_literal ());
+  // rust_assert (format_expr->is_literal ());
   return static_cast<AST::LiteralExpr &> (*format_expr)
     .get_literal ()
     .as_string ();

@@ -164,6 +164,10 @@ public:
   void push (FormatArgument &&elt) { args.emplace_back (std::move (elt)); }
   const FormatArgument at (size_t idx) const { return args.at (idx); }
 
+  const std::vector<FormatArgument> &get_args () const { return args; }
+  size_t size () const { return args.size (); }
+  bool empty () const { return args.empty (); }
+
 private:
   std::vector<FormatArgument> args;
 };

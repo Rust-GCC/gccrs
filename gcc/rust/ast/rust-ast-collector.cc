@@ -3010,8 +3010,46 @@ TokenCollector::visit (BareFunctionType &type)
 void
 TokenCollector::visit (AST::FormatArgs &fmt)
 {
-  rust_sorry_at (fmt.get_locus (), "%s:%u: unimplemented FormatArgs visitor",
-		 __FILE__, __LINE__);
+  // Push format_args macro syntax
+  push (Rust::Token::make_identifier (fmt.get_locus (), "format_args"));
+  push (Rust::Token::make (EXCLAM, fmt.get_locus ()));
+  push (Rust::Token::make (LEFT_PAREN, fmt.get_locus ()));
+
+  // TODO: Reconstruct format template string from fmt.get_template()
+  // For now, just use a placeholder
+  push (Rust::Token::make_string (fmt.get_locus (), "\"<template>\""));
+
+  // Visit format arguments if any exist
+  auto &arguments = const_cast<FormatArguments &> (fmt.get_arguments ());
+  if (!arguments.empty ())
+    {
+      push (Rust::Token::make (COMMA, fmt.get_locus ()));
+
+      const auto &args
+	= const_cast<std::vector<FormatArgument> &> (arguments.get_args ());
+      for (size_t i = 0; i < args.size (); ++i)
+	{
+	  if (i > 0)
+	    {
+	      push (Rust::Token::make (COMMA, fmt.get_locus ()));
+	    }
+
+	  auto kind = args[i].get_kind ();
+	  if (kind.kind == FormatArgumentKind::Kind::Named
+	      || kind.kind == FormatArgumentKind::Kind::Captured)
+	    {
+	      auto ident = kind.get_ident ().as_string ();
+	      push (Rust::Token::make_identifier (fmt.get_locus (),
+						  std::move (ident)));
+	      push (Rust::Token::make (EQUAL, fmt.get_locus ()));
+	    }
+
+	  auto &expr = const_cast<AST::Expr &> (args[i].get_expr ());
+	  expr.accept_vis (*this);
+	}
+    }
+
+  push (Rust::Token::make (RIGHT_PAREN, fmt.get_locus ()));
 }
 
 void
