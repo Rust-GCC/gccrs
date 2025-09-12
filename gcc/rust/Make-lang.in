@@ -254,6 +254,7 @@ GRS_OBJS = \
 	rust/rust-desugar-question-mark.o \
 	rust/rust-desugar-apit.o \
 	rust/rust-desugar-try-block.o \
+	rust/rust-std-prelude.o \
     $(END)
 # removed object files from here
 
