@@ -1,3 +1,8 @@
+2025-09-12  Elle Rhumsaa  <elle@weathered-steel.dev>
+
+	* gcc/rust/ast/rust-ast.cc: early return for empty module file
+	* gcc/testsuite/rust/issue-4145.rs: add regression test
+
 2025-09-04  Wilco Dijkstra  <wilco.dijkstra@arm.com>
 
 	* MAINTAINERS (Reviewers): Add myself for the aarch64 port.
