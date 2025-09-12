@@ -415,9 +415,7 @@ Early::finalize_glob_import (NameResolutionContext &ctx,
       rust_assert (container.value ()->get_item_kind ()
 		   == AST::Item::Kind::Module);
 
-      auto &module = static_cast<AST::Module &> (*container.value ());
-
-      ctx.prelude = module;
+      ctx.prelude = container.value ()->get_node_id ();
     }
 
   GlobbingVisitor (ctx).go (container.value ());

@@ -655,13 +655,15 @@ ForeverStack<N>::resolve_path (
   std::function<void (const S &, NodeId)> insert_segment_resolution,
   std::vector<Error> &collect_errors, NodeId starting_point_id)
 {
-  auto starting_point = dfs (root, starting_point_id);
+  auto starting_point = dfs_node (root, starting_point_id);
 
-  // FIXME: Is that correct? I think yes
-  rust_assert (starting_point);
+  // We may have a prelude, but haven't visited it yet and thus it's not in our
+  // nodes
+  if (!starting_point)
+    return tl::nullopt;
 
   return resolve_path (segments, mode, insert_segment_resolution,
-		       collect_errors, starting_point.first);
+		       collect_errors, *starting_point);
 }
 
 template <Namespace N>
