@@ -569,18 +569,22 @@ public:
 	resolved
 	  = values.resolve_path (segments, mode, insert_segment_resolution,
 				 collect_errors);
+	break;
       case Namespace::Types:
 	resolved
 	  = types.resolve_path (segments, mode, insert_segment_resolution,
 				collect_errors);
+	break;
       case Namespace::Macros:
 	resolved
 	  = macros.resolve_path (segments, mode, insert_segment_resolution,
 				 collect_errors);
+	break;
       case Namespace::Labels:
 	resolved
 	  = labels.resolve_path (segments, mode, insert_segment_resolution,
 				 collect_errors);
+	break;
       default:
 	rust_unreachable ();
       }
@@ -592,25 +596,27 @@ public:
 	switch (ns)
 	  {
 	  case Namespace::Values:
-	    resolved
-	      = values.resolve_path (segments, mode, insert_segment_resolution,
-				     collect_errors, *prelude);
+	    return values.resolve_path (segments, mode,
+					insert_segment_resolution,
+					collect_errors, *prelude);
 	  case Namespace::Types:
-	    resolved
-	      = types.resolve_path (segments, mode, insert_segment_resolution,
-				    collect_errors, *prelude);
+	    return types.resolve_path (segments, mode,
+				       insert_segment_resolution,
+				       collect_errors, *prelude);
 	  case Namespace::Macros:
-	    resolved
-	      = macros.resolve_path (segments, mode, insert_segment_resolution,
-				     collect_errors, *prelude);
+	    return macros.resolve_path (segments, mode,
+					insert_segment_resolution,
+					collect_errors, *prelude);
 	  case Namespace::Labels:
-	    resolved
-	      = labels.resolve_path (segments, mode, insert_segment_resolution,
-				     collect_errors, *prelude);
+	    return labels.resolve_path (segments, mode,
+					insert_segment_resolution,
+					collect_errors, *prelude);
 	  default:
 	    rust_unreachable ();
 	  }
       }
+
+    return resolved;
   }
 
   template <typename S, typename... Args>
@@ -710,12 +716,12 @@ public:
 			 std::forward<Args> (args)...);
   }
 
+  /* If declared with #[prelude_import], the current standard library module */
+  tl::optional<NodeId> prelude;
+
 private:
   /* Map of "usage" nodes which have been resolved to a "definition" node */
   std::map<Usage, Definition> resolved_nodes;
-
-  /* If declared with #[prelude_import], the current standard library module */
-  tl::optional<AST::Module &> prelude;
 };
 
 } // namespace Resolver2_0
