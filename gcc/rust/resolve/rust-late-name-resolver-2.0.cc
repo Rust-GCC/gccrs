@@ -250,6 +250,16 @@ Late::visit_function_params (AST::Function &function)
 void
 Late::visit (AST::StructPatternFieldIdent &field)
 {
+  // We need to check if the Identifier resolves to a variant or empty struct
+  auto path = AST::SimplePath (field.get_identifier ());
+
+  if (auto resolved = ctx.resolve_path (path, Namespace::Types))
+    {
+      ctx.map_usage (Usage (field.get_node_id ()),
+		     Definition (resolved->get_node_id ()));
+      return;
+    }
+
   visit_identifier_as_pattern (ctx, field.get_identifier (), field.get_locus (),
 			       field.get_node_id (), field.is_ref (),
 			       field.is_mut ());
@@ -336,6 +346,7 @@ Late::visit (AST::IdentifierExpr &expr)
   // TODO: same thing as visit(PathInExpression) here?
 
   tl::optional<Rib::Definition> resolved = tl::nullopt;
+
   if (auto value = ctx.values.get (expr.get_ident ()))
     {
       resolved = value;
@@ -508,13 +519,13 @@ Late::visit (AST::TypePath &type)
       return;
     }
 
-  if (ctx.types.forward_declared (resolved->get_node_id (),
-				  type.get_node_id ()))
-    {
-      rust_error_at (type.get_locus (), ErrorCode::E0128,
-		     "type parameters with a default cannot use forward "
-		     "declared identifiers");
-    }
+  // if (ctx.types.forward_declared (resolved->get_node_id (),
+  // 		  type.get_node_id ()))
+  //   {
+  //     rust_error_at (type.get_locus (), ErrorCode::E0128,
+  //      "type parameters with a default cannot use forward "
+  //      "declared identifiers");
+  //   }
 
   ctx.map_usage (Usage (type.get_node_id ()),
 		 Definition (resolved->get_node_id ()));
@@ -621,15 +632,25 @@ Late::visit (AST::StructExprStructFields &s)
 {
   visit_outer_attrs (s);
   visit_inner_attrs (s);
-  DefaultResolver::visit (s.get_struct_name ());
+
+  auto &path = s.get_struct_name ();
+
+  DefaultResolver::visit (path);
   if (s.has_struct_base ())
     visit (s.get_struct_base ());
   for (auto &field : s.get_fields ())
     visit (field);
 
-  auto resolved = ctx.resolve_path (s.get_struct_name (), Namespace::Types);
+  auto resolved = ctx.resolve_path (path, Namespace::Types);
 
-  ctx.map_usage (Usage (s.get_struct_name ().get_node_id ()),
+  if (!resolved)
+    {
+      rust_error_at (path.get_locus (), ErrorCode::E0433,
+		     "could not resolve path %qs", path.as_string ().c_str ());
+      return;
+    }
+
+  ctx.map_usage (Usage (path.get_node_id ()),
 		 Definition (resolved->get_node_id ()));
 }
 
