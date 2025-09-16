@@ -570,7 +570,7 @@ std::unique_ptr<GenericParam>
 Builder::new_const_param (ConstGenericParam &param) const
 {
   return std::make_unique<ConstGenericParam> (param.get_name (),
-					      param.get_type ().clone_type (),
+					      param.get_type ().reconstruct (),
 					      param.get_default_value (),
 					      param.get_outer_attrs (),
 					      param.get_locus ());
