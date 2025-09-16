@@ -193,7 +193,7 @@ enum PrimitiveCoreType
   RS_TOKEN_KEYWORD_2015 (SUPER, "super")                                       \
   RS_TOKEN_KEYWORD_2015 (TRAIT, "trait")                                       \
   RS_TOKEN_KEYWORD_2015 (TRUE_LITERAL, "true")                                 \
-  RS_TOKEN_KEYWORD_2015 (TRY, "try") /* unused */                              \
+  RS_TOKEN_KEYWORD_2015 (TRY, "try")                                           \
   RS_TOKEN_KEYWORD_2015 (TYPE, "type")                                         \
   RS_TOKEN_KEYWORD_2015 (TYPEOF, "typeof") /* unused */                        \
   RS_TOKEN_KEYWORD_2015 (UNDERSCORE, "_")                                      \
