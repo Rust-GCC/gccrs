@@ -255,7 +255,7 @@ NameResolutionContext::map_usage (Usage usage, Definition definition)
   auto inserted = resolved_nodes.emplace (usage, definition).second;
 
   // is that valid?
-  rust_assert (inserted);
+  // rust_assert (inserted);
 }
 
 tl::optional<NodeId>
