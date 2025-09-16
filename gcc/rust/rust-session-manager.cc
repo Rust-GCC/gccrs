@@ -21,6 +21,7 @@
 #include "rust-desugar-for-loops.h"
 #include "rust-desugar-question-mark.h"
 #include "rust-desugar-apit.h"
+#include "rust-std-prelude.h"
 #include "rust-diagnostics.h"
 #include "rust-expression-yeast.h"
 #include "rust-hir-pattern-analysis.h"
@@ -919,6 +920,8 @@ void
 Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
 {
   rust_debug ("started expansion");
+
+  // AST::StdPrelude::inject (crate);
 
   /* rustc has a modification to windows PATH temporarily here, which may end
    * up being required */
