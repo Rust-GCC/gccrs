@@ -1,0 +1,219 @@
+name: Send emails for merged PR
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - "master"
+
+jobs:
+  send_patches:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo with full history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 100
+
+      - name: Install deps (git send-email and jq)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+          ## GHA images have a special git package that conflicts with
+          ## git-send-email So this is a workaround to force the installation of
+          ## the conflicting package.
+          sudo apt-get install -y libauthen-sasl-perl \
+            libemail-valid-perl \
+            libio-socket-ssl-perl \
+            libmailtools-perl perl \
+            libnet-smtp-ssl-perl
+
+          apt-get download git-email
+          sudo dpkg -i --force-all git-email*deb
+
+      - name: Configure git identity
+        run: |
+          git config user.name "gccrs gerris bot"
+          git config user.email "${{ secrets.SMTP_FROM }}"
+
+      - name: Export env
+        env:
+          GH_EVENT: ${{ toJson(github.event) }}
+        run: |
+          echo "$GH_EVENT" > /tmp/gh_event.json
+
+          PR_BASE_REF=$(jq -r '.pull_request.base.sha' /tmp/gh_event.json)
+          echo "PR_BASE_REF=$PR_BASE_REF" >> $GITHUB_ENV
+
+          PR_NUMBER=$(jq -r '.pull_request.number' /tmp/gh_event.json)
+          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+
+          PR_TITLE=$(jq -r '.pull_request.title' /tmp/gh_event.json)
+          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
+
+          PR_URL=$(jq -r '.pull_request.html_url' /tmp/gh_event.json)
+          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+
+          PR_MERGE_COMMIT=$(jq -r '.pull_request.merge_commit_sha' /tmp/gh_event.json)
+          echo "PR_MERGE_COMMIT=$PR_MERGE_COMMIT" >> $GITHUB_ENV
+
+          PR_TARGET_BRANCH=$(jq -r '.pull_request.base.ref' /tmp/gh_event.json)
+          echo "PR_TARGET_BRANCH=$PR_TARGET_BRANCH" >> $GITHUB_ENV
+
+          PR_LABELS=$(jq -r '[.pull_request.labels[].name] | join(",")' /tmp/gh_event.json)
+          echo "PR_LABELS=$PR_LABELS" >> $GITHUB_ENV
+
+          REPO_SSH=$(jq -r '.repository.ssh_url' /tmp/gh_event.json)
+          echo "REPO_SSH=$REPO_SSH" >> $GITHUB_ENV
+
+          echo "GH_TOKEN=${{ github.token }}" >> $GITHUB_ENV
+
+          echo "SERIES_DIR=/tmp/series" >> $GITHUB_ENV
+
+      - name: Check for label 'no-ml' to skip sending emails
+        id: checklabel
+        run: |
+          # Skip if PR has label "no-ml"
+          if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
+            echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
+            echo "skip_sending=1" >> $GITHUB_OUTPUT
+          else
+            echo "skip_sending=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get commit list from PR and skip the internal ones
+        id: commits
+        if: ${{ steps.checklabel.outputs.skip_sending != '1' }}
+        run: |
+          # Skip commits that touches any of these
+          patterns=(".github/"
+            "CODE_OF_CONDUCT.md"
+            "CONTRIBUTING.md"
+            "Dockerfile"
+            "README.md"
+            "logo.png"
+            "gcc/rust/gource-gccrs.sh"
+            "gcc/rust/monthly-diff.py"
+          )
+          regex=$(printf '%s\n' "${patterns[@]}" | sed -e 's/[.[\*^$+?(){|\/\\]/\\&/g' | paste -sd'|' -)
+
+          rm -f /tmp/commits.txt
+
+          # Fetch commits from the pull request (maybe they're from another repository)
+          git fetch origin "pull/$PR_NUMBER/head"
+
+          gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --jq '.[].sha' | while read SHA1; do
+             echo "Looking at $SHA1"
+             if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
+                echo "Touching something not to be upstreamed, skipping commit $SHA1"
+             else
+                echo "$SHA1" >> /tmp/commits.txt
+             fi
+          done
+
+          if [ ! -f /tmp/commits.txt ]; then
+            echo "No commits to send email for" | tee $GITHUB_STEP_SUMMARY
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+          else
+            COUNT=$(wc -l < /tmp/commits.txt)
+            echo "COUNT=$COUNT" >> $GITHUB_ENV
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check what to do based on series' size
+        if: steps.commits.outputs.has_commits == 'true'
+        run: |
+          MAX=150
+          if [ "${COUNT}" -gt "$MAX" ]; then
+            echo "Series has $COUNT commits (> $MAX). Not doing anything" | tee  $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Prepare patch series
+        if: steps.commits.outputs.has_commits == 'true'
+        run: |
+          set -euo pipefail
+
+          # Create a temporary branch that linearizes the PR commits
+          git checkout -B ci-mail-patches "$PR_BASE_REF"
+          # Cherry-pick commits in the exact PR order (no-commit to batch, then commit)
+          while read sha; do
+            git cherry-pick "$sha"
+          done < /tmp/commits.txt
+
+          # Build cover letter text
+          N="${COUNT:-0}"
+          TITLE="$(printf '[PATCH 0/%d] PR #%s: %s' "$N" "$PR_NUMBER" "$PR_TITLE")"
+
+          echo "This change was merged into the gccrs repository and is posted here for" >> /tmp/description.txt
+          echo "upstream visibility and potential drive-by review, as requested by GCC" >>  /tmp/description.txt
+          echo "release managers." >> /tmp/description.txt
+          echo "Each commit email contains a link to its details on github from where you can"  >>  /tmp/description.txt
+          echo "find the Pull-Request and associated discussions." >> /tmp/description.txt
+          echo "" >> /tmp/description.txt
+
+          mkdir /tmp/series
+
+          # Generate series + cover letter
+          git format-patch \
+              --subject-prefix="gccrs COMMIT" \
+              --no-cover-letter \
+              --base="$PR_BASE_REF" \
+              --output-directory /tmp/series \
+              "$PR_BASE_REF"..HEAD
+
+          echo "" >> /tmp/description.txt
+
+          cp /tmp/commits.txt /tmp/commits_stack.txt
+          while IFS= read -r -d '' f;do
+             # Read next SHA1...
+             SHA1=$(head -n1 /tmp/commits_stack.txt)
+
+             # ... and pop it from the stack
+             sed -i '1d' /tmp/commits_stack.txt
+
+             echo "SHA1: $SHA1"
+             echo "patch file: $f"
+             echo ""
+
+             cp /tmp/description.txt "/tmp/tmp_descr.txt"
+             echo "Commit on github: https://github.com/rust-GCC/gccrs/commit/$SHA1" >> "/tmp/tmp_descr.txt"
+
+             # insert the github header right after the '---'.
+             sed '/^---$/ r /tmp/tmp_descr.txt' -i "$f"
+
+             # loop over the patches and make sure to do that in numerical order
+             # 0001-..., 0002-...., ...
+          done < <(find /tmp/series/ -maxdepth 1 -type f -print0|sort -z -n)
+
+      - name: Send series via git send-email
+        if: steps.commits.outputs.has_commits == 'true'
+        env:
+          GIT_SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          GIT_SMTP_ENCRYPTION: tls
+          GIT_SMTP_SERVER_PORT: ${{ secrets.SMTP_PORT }}
+          GIT_SMTP_AUTH: "true"
+          GIT_SMTP_USER: ${{ secrets.SMTP_USERNAME }}
+          GIT_SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          FROM: ${{ secrets.SMTP_FROM }}
+          TO: ${{ secrets.PATCH_TO }}
+          CC: ${{ secrets.PATCH_CC }}
+        run: |
+          set -euo pipefail
+
+          git config sendemail.smtpserver "$GIT_SMTP_SERVER"
+          git config sendemail.smtpserverport "$GIT_SMTP_SERVER_PORT"
+          git config sendemail.smtpencryption "$GIT_SMTP_ENCRYPTION"
+          git config sendemail.smtpuser "$GIT_SMTP_USER"
+          git config sendemail.smtppass "$GIT_SMTP_PASSWORD"
+          git config sendemail.from "$FROM"
+          git config sendemail.to "$TO"
+          if [ -n "${CC:-}" ]; then git config sendemail.cc "$CC"; fi
+          git config sendemail.thread "true"
+          git config sendemail.confirm "never"
+          git config sendemail.annotate "false"
+
+          git send-email /tmp/series/*
