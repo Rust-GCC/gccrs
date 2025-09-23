@@ -97,8 +97,7 @@ jobs:
           regex=$(printf '%s\n' "${patterns[@]}" | sed -e 's/[.[\*^$+?(){|\/\\]/\\&/g' | paste -sd'|' -)
 
           rm -f /tmp/commits.txt
-
-          git log --format="%H" "$PR_BASE_REF..HEAD" | while read SHA1; do
+          git log --reverse --format="%H" "$PR_BASE_REF..HEAD" | while read SHA1; do
                if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
                 echo "Touching something not to be upstreamed, skipping commit $SHA1"
              else
@@ -115,13 +114,7 @@ jobs:
           if [ "${COUNT}" -gt "$MAX" ]; then
             echo "Series has $COUNT commits (> $MAX). Not doing anything" >> $GITHUB_STEP_SUMMARY
             exit 0
-          else if [ "${COUNT}" -eq 1 ]; then
-            echo "Single commit PR, don't do the cover letter"
-            echo "DO_COVER=0" >> $GITHUB_ENV
-          else
-            echo "Multiple commits ($COUNT) in PR, create a cover letter"
-            echo "DO_COVER=1" >> $GITHUB_ENV
-          fi fi
+          fi
 
       - name: Prepare patch series
         run: |
@@ -138,46 +131,46 @@ jobs:
           N="${COUNT:-0}"
           TITLE="$(printf '[PATCH 0/%d] PR #%s: %s' "$N" "$PR_NUMBER" "$PR_TITLE")"
 
-          echo "PR: $PR_URL" > /tmp/description.txt
-          echo "Merged by: ${{ github.actor }}" >> /tmp/description.txt
-          echo "Base: $PR_TARGET_BRANCH" >> /tmp/description.txt
-          echo "" >> /tmp/description.txt
-          echo "This series was merged into the gccrs repository and is posted here for" >> /tmp/description.txt
+          echo "This change was merged into the gccrs repository and is posted here for" >> /tmp/description.txt
           echo "upstream visibility and potential drive-by review, as requested by GCC" >>  /tmp/description.txt
           echo "release managers." >> /tmp/description.txt
-          echo "" >> /tmp/description.txt
-          echo " Notes:" >> /tmp/description.txt
-          echo " - Source branch: $(jq -r '.pull_request.head.label' /tmp/gh_event.json)" >>  /tmp/description.txt
-          echo " - Merge commit: $PR_MERGE_COMMIT" >>  /tmp/description.txt
-          echo " - Commit count: $N" >>  /tmp/description.txt
+          echo "Each commit email contains a link to its details on github from where you can"  >>  /tmp/description.txt
+          echo "find the Pull-Request and associated discussions." >> /tmp/description.txt
           echo "" >> /tmp/description.txt
 
           mkdir /tmp/series
 
-          if [ "$DO_COVER" = "1" ]; then
-            # Generate series + cover letter
-            git format-patch \
-                --subject-prefix="gccrs COMMIT" \
-                --cover-letter \
-                --description-file=/tmp/description.txt \
-                --base="$PR_BASE_REF" \
-                --output-directory /tmp/series \
-                "$PR_BASE_REF"..HEAD
+          # Generate series + cover letter
+          git format-patch \
+              --subject-prefix="gccrs COMMIT" \
+              --no-cover-letter \
+              --base="$PR_BASE_REF" \
+              --output-directory /tmp/series \
+              "$PR_BASE_REF"..HEAD
 
-            awk -v CONTENT="$PR_TITLE" '{gsub(/\*\*\* SUBJECT HERE \*\*\*/, CONTENT); print}' /tmp/series/0000-cover-letter.patch > /tmp/temp
-            mv /tmp/temp /tmp/series/0000-cover-letter.patch
-          else
-            # Generate series + cover letter
-            git format-patch \
-                --subject-prefix="gccrs COMMIT" \
-                --no-cover-letter \
-                --base="$PR_BASE_REF" \
-                --output-directory /tmp/series \
-                "$PR_BASE_REF"..HEAD
+          echo "" >> /tmp/description.txt
 
-            # for every patch file, insert the github header right after the '---'.
-            sed '/^---$/ r /tmp/description.txt' -i /tmp/series/*
-          fi
+          cp /tmp/commits.txt /tmp/commits_stack.txt
+          while IFS= read -r -d '' f;do
+             # Read next SHA1...
+             SHA1=$(head -n1 /tmp/commits_stack.txt)
+
+             # ... and pop it from the stack
+             sed -i '1d' /tmp/commits_stack.txt
+
+             echo "SHA1: $SHA1"
+             echo "patch file: $f"
+             echo ""
+
+             cp /tmp/description.txt "/tmp/tmp_descr.txt"
+             echo "Commit on github: https://github.com/rust-GCC/gccrs/commit/$SHA1" >> "/tmp/tmp_descr.txt"
+
+             # insert the github header right after the '---'.
+             sed '/^---$/ r /tmp/tmp_descr.txt' -i "$f"
+
+             # loop over the patches and make sure to do that in numerical order
+             # 0001-..., 0002-...., ...
+          done < <(find /tmp/series/ -maxdepth 1 -type f -print0|sort -z -n)
 
       - name: Send series via git send-email
         env:
