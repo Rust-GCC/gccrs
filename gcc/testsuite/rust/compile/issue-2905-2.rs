@@ -92,6 +92,7 @@ pub mod core {
             pub(crate) len: usize,
         }
 
+        #[lang = "slice"]
         impl<T> [T] {
             pub fn iter(&self) -> Weird<T> {
                 Weird::new(self)
