@@ -70,6 +70,8 @@ jobs:
           REPO_SSH=$(jq -r '.repository.ssh_url' /tmp/gh_event.json)
           echo "REPO_SSH=$REPO_SSH" >> $GITHUB_ENV
 
+          echo "GH_TOKEN=${{ github.token }}" >> $GITHUB_ENV
+
           echo "SERIES_DIR=/tmp/series" >> $GITHUB_ENV
 
       - name: Check for label 'no-ml' to skip sending emails
@@ -97,8 +99,12 @@ jobs:
           regex=$(printf '%s\n' "${patterns[@]}" | sed -e 's/[.[\*^$+?(){|\/\\]/\\&/g' | paste -sd'|' -)
 
           rm -f /tmp/commits.txt
-          git log --reverse --format="%H" "$PR_BASE_REF..HEAD" | while read SHA1; do
-               if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
+
+          # Fetch commits from the pull request (maybe they're from another repository)
+          git fetch origin "pull/$PR_NUMBER/head"
+
+          gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --jq '.[].sha' | while read SHA1; do
+             if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
                 echo "Touching something not to be upstreamed, skipping commit $SHA1"
              else
                 echo "$SHA1" >> /tmp/commits.txt
