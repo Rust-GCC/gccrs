@@ -30,7 +30,10 @@ TyVar::TyVar (HirId ref) : ref (ref)
   auto context = Resolver::TypeCheckContext::get ();
   BaseType *lookup = nullptr;
   bool ok = context->lookup_type (ref, &lookup);
-  rust_assert (ok);
+  if (!ok || lookup == nullptr || lookup->get_kind () == TypeKind::ERROR)
+    {
+      return;
+    }
 }
 
 BaseType *
@@ -39,7 +42,10 @@ TyVar::get_tyty () const
   auto context = Resolver::TypeCheckContext::get ();
   BaseType *lookup = nullptr;
   bool ok = context->lookup_type (ref, &lookup);
-  rust_assert (ok);
+  if (!ok || lookup == nullptr)
+    {
+      return nullptr;
+    }
   return lookup;
 }
 
@@ -95,7 +101,12 @@ TyVar::subst_covariant_var (TyTy::BaseType *orig, TyTy::BaseType *subst)
 TyVar
 TyVar::clone () const
 {
-  TyTy::BaseType *c = get_tyty ()->clone ();
+  TyTy::BaseType *base = get_tyty ();
+  if (base == nullptr || base->get_kind () == TypeKind::ERROR)
+    {
+      return TyVar::get_implicit_infer_var (UnKNOWN_LOCATION);
+    }
+  TyTy::BaseType *c = base->clone ();
   return TyVar (c->get_ref ());
 }
 
@@ -105,6 +116,11 @@ TyVar::monomorphized_clone () const
   auto &mappings = Analysis::Mappings::get ();
   auto context = Resolver::TypeCheckContext::get ();
 
+  TyTy::Base *base = get_tyty ();
+  if (base == nullptr || base->get_kind () == TypeKind::ERROR)
+    {
+      return TyVar::get_implicit_infer_var (UnKNOWN_LOCATION);
+    }
   // this needs a new hirid
   TyTy::BaseType *c = get_tyty ()->monomorphized_clone ();
   c->set_ref (mappings.get_next_hir_id ());
