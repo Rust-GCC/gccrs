@@ -78,8 +78,7 @@ jobs:
         run: |
           # Skip if PR has label "no-ml"
           if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
-            echo "Opt-out label present: skipping mailing list."
-            echo "Opt-out label present: skipping mailing list." > $GITHUB_STEP_SUMMARY
+            echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
             exit 0
           fi
 
@@ -104,12 +103,18 @@ jobs:
           git fetch origin "pull/$PR_NUMBER/head"
 
           gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --jq '.[].sha' | while read SHA1; do
+             echo "Looking at $SHA1"
              if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
                 echo "Touching something not to be upstreamed, skipping commit $SHA1"
              else
                 echo "$SHA1" >> /tmp/commits.txt
              fi
           done
+
+          if [ ! -f /tmp/commits.txt ]; then
+            echo "No commits to send email for" | tee $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
 
           COUNT=$(wc -l < /tmp/commits.txt)
           echo "COUNT=$COUNT" >> $GITHUB_ENV
@@ -118,7 +123,7 @@ jobs:
         run: |
           MAX=150
           if [ "${COUNT}" -gt "$MAX" ]; then
-            echo "Series has $COUNT commits (> $MAX). Not doing anything" >> $GITHUB_STEP_SUMMARY
+            echo "Series has $COUNT commits (> $MAX). Not doing anything" | tee  $GITHUB_STEP_SUMMARY
             exit 0
           fi
 
