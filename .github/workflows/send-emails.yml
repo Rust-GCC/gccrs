@@ -75,15 +75,19 @@ jobs:
           echo "SERIES_DIR=/tmp/series" >> $GITHUB_ENV
 
       - name: Check for label 'no-ml' to skip sending emails
+        id: checklabel
         run: |
           # Skip if PR has label "no-ml"
           if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
             echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
-            exit 0
+            echo "skip_sending=1" >> $GITHUB_OUTPUT
+          else
+            echo "skip_sending=0" >> $GITHUB_OUTPUT
           fi
 
       - name: Get commit list from PR and skip the internal ones
         id: commits
+        if: ${{ steps.checklabel.outputs.skip_sending != '1' }}
         run: |
           # Skip commits that touches any of these
           patterns=(".github/"
@@ -120,14 +124,16 @@ jobs:
           echo "COUNT=$COUNT" >> $GITHUB_ENV
 
       - name: Check what to do based on series' size
+        if: ${{ hashFiles('/tmp/commits') != ''  }}
+        id: checksize
         run: |
           MAX=150
           if [ "${COUNT}" -gt "$MAX" ]; then
             echo "Series has $COUNT commits (> $MAX). Not doing anything" | tee  $GITHUB_STEP_SUMMARY
-            exit 0
           fi
 
       - name: Prepare patch series
+        if: ${{ hashFiles('/tmp/commits') != ''  }}
         run: |
           set -euo pipefail
 
@@ -184,6 +190,7 @@ jobs:
           done < <(find /tmp/series/ -maxdepth 1 -type f -print0|sort -z -n)
 
       - name: Send series via git send-email
+        if: ${{ hashFiles('/tmp/commits') != ''  }}
         env:
           GIT_SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           GIT_SMTP_ENCRYPTION: tls
