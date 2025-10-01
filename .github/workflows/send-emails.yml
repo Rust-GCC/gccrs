@@ -124,7 +124,7 @@ jobs:
           echo "COUNT=$COUNT" >> $GITHUB_ENV
 
       - name: Check what to do based on series' size
-        if: ${{ hashFiles('/tmp/commits') != ''  }}
+        if: ${{ hashFiles('/tmp/commits.txt') != ''  }}
         id: checksize
         run: |
           MAX=150
@@ -133,7 +133,7 @@ jobs:
           fi
 
       - name: Prepare patch series
-        if: ${{ hashFiles('/tmp/commits') != ''  }}
+        if: ${{ hashFiles('/tmp/commits.txt') != ''  }}
         run: |
           set -euo pipefail
 
@@ -190,7 +190,7 @@ jobs:
           done < <(find /tmp/series/ -maxdepth 1 -type f -print0|sort -z -n)
 
       - name: Send series via git send-email
-        if: ${{ hashFiles('/tmp/commits') != ''  }}
+        if: ${{ hashFiles('/tmp/commits.txt') != ''  }}
         env:
           GIT_SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           GIT_SMTP_ENCRYPTION: tls
