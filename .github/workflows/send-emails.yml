@@ -117,15 +117,15 @@ jobs:
 
           if [ ! -f /tmp/commits.txt ]; then
             echo "No commits to send email for" | tee $GITHUB_STEP_SUMMARY
-            exit 0
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+          else
+            COUNT=$(wc -l < /tmp/commits.txt)
+            echo "COUNT=$COUNT" >> $GITHUB_ENV
+            echo "has_commits=true" >> $GITHUB_OUTPUT
           fi
 
-          COUNT=$(wc -l < /tmp/commits.txt)
-          echo "COUNT=$COUNT" >> $GITHUB_ENV
-
       - name: Check what to do based on series' size
-        if: ${{ hashFiles('/tmp/commits.txt') != ''  }}
-        id: checksize
+        if: steps.commits.outputs.has_commits == 'true'
         run: |
           MAX=150
           if [ "${COUNT}" -gt "$MAX" ]; then
@@ -133,7 +133,7 @@ jobs:
           fi
 
       - name: Prepare patch series
-        if: ${{ hashFiles('/tmp/commits.txt') != ''  }}
+        if: steps.commits.outputs.has_commits == 'true'
         run: |
           set -euo pipefail
 
@@ -190,7 +190,7 @@ jobs:
           done < <(find /tmp/series/ -maxdepth 1 -type f -print0|sort -z -n)
 
       - name: Send series via git send-email
-        if: ${{ hashFiles('/tmp/commits.txt') != ''  }}
+        if: steps.commits.outputs.has_commits == 'true'
         env:
           GIT_SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           GIT_SMTP_ENCRYPTION: tls
