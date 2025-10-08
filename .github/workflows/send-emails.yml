@@ -74,20 +74,10 @@ jobs:
 
           echo "SERIES_DIR=/tmp/series" >> $GITHUB_ENV
 
-      - name: Check for label 'no-ml' to skip sending emails
-        id: checklabel
-        run: |
-          # Skip if PR has label "no-ml"
-          if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
-            echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
-            echo "skip_sending=1" >> $GITHUB_OUTPUT
-          else
-            echo "skip_sending=0" >> $GITHUB_OUTPUT
-          fi
-
       - name: Get commit list from PR and skip the internal ones
         id: commits
-        if: ${{ steps.checklabel.outputs.skip_sending != '1' }}
+        env:
+          MAX_NUM_COMMITS: 30
         run: |
           # Skip commits that touches any of these
           patterns=(".github/"
@@ -106,11 +96,19 @@ jobs:
           # Fetch commits from the pull request (maybe they're from another repository)
           git fetch origin "pull/$PR_NUMBER/head"
 
-          gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --jq '.[].sha' | while read SHA1; do
+          TOTAL=$(gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --paginate --jq '.[].sha'|wc -l)
+          if [ "${TOTAL}" -gt "$MAX_NUM_COMMITS" ]; then
+             echo "Pull request has too many commits"
+             echo "has_commits=false" >> $GITHUB_OUTPUT
+             exit 0
+          fi
+
+          gh api repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits --paginate --jq '.[].sha' | while read SHA1; do
              echo "Looking at $SHA1"
              if grep -q -E "$regex" <(git diff-tree --no-commit-id --name-only -r "$SHA1"); then
                 echo "Touching something not to be upstreamed, skipping commit $SHA1"
              else
+                echo "Adding one commit to the send list"
                 echo "$SHA1" >> /tmp/commits.txt
              fi
           done
@@ -118,22 +116,35 @@ jobs:
           if [ ! -f /tmp/commits.txt ]; then
             echo "No commits to send email for" | tee $GITHUB_STEP_SUMMARY
             echo "has_commits=false" >> $GITHUB_OUTPUT
-          else
-            COUNT=$(wc -l < /tmp/commits.txt)
-            echo "COUNT=$COUNT" >> $GITHUB_ENV
-            echo "has_commits=true" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
-      - name: Check what to do based on series' size
-        if: steps.commits.outputs.has_commits == 'true'
+          COUNT=$(wc -l < /tmp/commits.txt)
+          echo "Has $COUNT commits in the series"
+
+          echo "has_commits=true" >> $GITHUB_OUTPUT
+
+      - name: Check for label 'no-ml' to skip sending emails
+        id: checklabel
         run: |
-          MAX=150
-          if [ "${COUNT}" -gt "$MAX" ]; then
-            echo "Series has $COUNT commits (> $MAX). Not doing anything" | tee  $GITHUB_STEP_SUMMARY
+          # Skip if PR has label "no-ml"
+          if echo "$PR_LABELS" | grep -qiE "(^|,)no-ml(,|$)"; then
+            echo "Opt-out label present: skipping mailing list." | tee $GITHUB_STEP_SUMMARY
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "No opt-out label found"
+            echo "skip=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Decide if we're sending something or not
+        id: send_emails
+        if: ( steps.commits.outputs.has_commits == 'true' &&
+          steps.checklabel.outputs.skip == 'false' )
+        run: |
+          echo "enabled=true" >> $GITHUB_OUTPUT
 
       - name: Prepare patch series
-        if: steps.commits.outputs.has_commits == 'true'
+        if: steps.send_emails.outputs.enabled == 'true'
         run: |
           set -euo pipefail
 
@@ -144,9 +155,6 @@ jobs:
             git cherry-pick "$sha"
           done < /tmp/commits.txt
 
-          # Build cover letter text
-          N="${COUNT:-0}"
-          TITLE="$(printf '[PATCH 0/%d] PR #%s: %s' "$N" "$PR_NUMBER" "$PR_TITLE")"
 
           echo "This change was merged into the gccrs repository and is posted here for" >> /tmp/description.txt
           echo "upstream visibility and potential drive-by review, as requested by GCC" >>  /tmp/description.txt
@@ -190,7 +198,7 @@ jobs:
           done < <(find /tmp/series/ -maxdepth 1 -type f -print0|sort -z -n)
 
       - name: Send series via git send-email
-        if: steps.commits.outputs.has_commits == 'true'
+        if: steps.send_emails.outputs.enabled == 'true'
         env:
           GIT_SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           GIT_SMTP_ENCRYPTION: tls
