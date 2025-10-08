@@ -1912,6 +1912,11 @@ lang_dependent_init (const char *name)
 
   if (!flag_wpa)
     {
+      if (name == nullptr) {
+      fatal_error(input_location, "no input files");
+      return 0;
+    }
+    
       init_asm_output (name);
 
       if (!flag_generate_lto && !flag_compare_debug)
